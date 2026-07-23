@@ -90,3 +90,6 @@
 
 ---
 > 这些规则的"为什么"见 `WORKFLOW.md`（「§2 为什么这么搭」+「§3 流程展开」）。
+## 提交前 Markdown 同步（ReEcho 项目规则）
+
+每次提交前，必须先更新描述本次改动的 Markdown：至少更新对应 `plans/<id>-*.md` 的执行/审查记录；行为、路由、状态、经验或流程发生变化时，同时更新相关的 `shared/PROJECT_STATE.md`、`shared/CODEBASE_MAP.md`、`shared/LESSONS.md` 或规则文件。代码/资产与文档必须描述同一版本；除非改动确实不影响任何文档事实，否则禁止只提交代码不更新 Markdown。提交前用显式文件列表核对两者均已暂存。

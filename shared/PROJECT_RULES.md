@@ -1,4 +1,4 @@
-﻿# ReEcho project rules
+# ReEcho project rules
 
 This file contains project-specific additions to the canonical workflow. If it conflicts with a generic placeholder in the imported rules, this file wins.
 
@@ -23,6 +23,7 @@ This file contains project-specific additions to the canonical workflow. If it c
 - Never merge the implementation branch into the default branch. Human approval and planner review are required.
 - Stage explicit paths only. Never use `git add .` or `git add -A`.
 - Every plan ends with `Execution notes`: changed behavior, evidence, remaining risks, and human-play checks.
+- Before every commit, update the Markdown that describes the changed behavior or workflow (plans/<id>-*.md plus the relevant shared/PROJECT_STATE.md, shared/CODEBASE_MAP.md, shared/LESSONS.md, or rules). The staged code/assets and staged documentation must describe the same state; a code-only commit is incomplete unless the change is truly documentation-neutral.
 
 ## Unreal C++ coding standard (mandatory for every AI)
 
@@ -52,7 +53,7 @@ Pass `-EngineRoot <path>` or set machine-local `RE_ECHO_UE_ROOT`; never commit a
 ## Definition of done
 
 - Relevant automated checks pass, or the exact unavailable prerequisite is recorded.
-- `git diff --check` passes and generated/intermediate files are not included.
+- `git diff --check` passes, generated/intermediate/package files are not included, and relevant Markdown has been synchronized before staging.
 - The plan execution notes and `shared/PLANNER_EXCHANGE.md` ownership row are updated.
 - A human performs PIE play-feel validation for movement, readability, pacing, and planning comprehension.
 

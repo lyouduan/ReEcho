@@ -3,6 +3,7 @@
 /DerivedDataCache/
 /Intermediate/
 /Saved/
+/PackagedBuilds/
 
 # Generated output inside project plugins
 /Plugins/**/Binaries/

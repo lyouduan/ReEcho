@@ -1,4 +1,4 @@
-﻿#include "Graybox/ReEchoProjectileActor.h"
+#include "Graybox/ReEchoProjectileActor.h"
 
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -42,14 +42,16 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 void AReEchoProjectileActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	SetActorLocation(GetActorLocation() + Velocity * DeltaSeconds);
+	const FVector PreviousLocation = GetActorLocation();
+	const FVector NewLocation = PreviousLocation + Velocity * DeltaSeconds;
+	SetActorLocation(NewLocation);
 	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
 	{
 		if (!It->IsAlive())
 		{
 			continue;
 		}
-		if (FVector::DistSquared(GetActorLocation(), It->GetActorLocation()) <= FMath::Square(55.f))
+		if (It->IntersectsProjectilePath(PreviousLocation, NewLocation, Collision->GetScaledSphereRadius()))
 		{
 			It->ReceiveGrayboxDamage(Damage, DamageSource);
 			Destroy();
@@ -57,4 +59,3 @@ void AReEchoProjectileActor::Tick(float DeltaSeconds)
 		}
 	}
 }
-

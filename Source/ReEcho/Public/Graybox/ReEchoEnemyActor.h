@@ -1,11 +1,14 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoEnemyActor.generated.h"
 
+class UBillboardComponent;
+class UCapsuleComponent;
 class UReEchoCombatantComponent;
 class UStaticMeshComponent;
+class UTexture2D;
 class AReEchoHealthBarActor;
 
 UENUM(BlueprintType)
@@ -28,6 +31,7 @@ public:
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
 	float ReceiveGrayboxDamage(float Damage, const FVector& SourceLocation);
 	bool IsAlive() const;
+	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 
 	EReEchoEnemyKind GetKind() const
 	{
@@ -36,7 +40,17 @@ public:
 
 private:
 	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UCapsuleComponent> Collision;
+	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> Shape;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UStaticMeshComponent> GroundShadow;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBillboardComponent> CharacterSprite;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> GruntTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> BossTexture;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY()
@@ -57,4 +71,3 @@ private:
 	void StartHitReaction(const FVector& SourceLocation);
 	bool UpdateHitReaction(float DeltaSeconds);
 };
-

@@ -5,17 +5,20 @@
 #include "Components/SceneComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Math/RotationMatrix.h"
 #include "UI/ReEchoHealthBarWidget.h"
 
 AReEchoHealthBarActor::AReEchoHealthBarActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickGroup = TG_PostUpdateWork;
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
+	Root->SetAbsolute(false, true, true);
 	Widget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HealthWidget"));
 	Widget->SetupAttachment(Root);
 	Widget->SetWidgetSpace(EWidgetSpace::World);
-	Widget->SetDrawSize(FVector2D(180.f, 24.f));
+	Widget->SetDrawSize(FVector2D(96.f, 10.f));
 	Widget->SetPivot(FVector2D(0.5f, 0.5f));
 	Widget->SetTwoSided(false);
 	Widget->SetCastShadow(false);
@@ -26,11 +29,18 @@ AReEchoHealthBarActor::AReEchoHealthBarActor()
 void AReEchoHealthBarActor::Initialize(UReEchoCombatantComponent* InCombatant,
                                        const FLinearColor& FillColor,
                                        float InHeight,
-                                       float InWidthScale)
+                                       float InWidthScale,
+                                       USceneComponent* InVisualAnchor)
 {
 	Combatant = InCombatant;
+	VisualAnchor = InVisualAnchor;
 	Height = InHeight;
-	Widget->SetDrawSize(FVector2D(180.f * InWidthScale, 24.f));
+	if (InCombatant && InCombatant->GetOwner())
+	{
+		AttachToActor(InCombatant->GetOwner(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		SetActorRelativeLocation(FVector(0.0f, 0.0f, Height));
+	}
+	Widget->SetDrawSize(FVector2D(96.f * InWidthScale, 10.f));
 	Widget->InitWidget();
 	if (UReEchoHealthBarWidget* HealthWidget = Cast<UReEchoHealthBarWidget>(Widget->GetUserWidgetObject()))
 	{
@@ -46,12 +56,16 @@ void AReEchoHealthBarActor::Tick(float DeltaSeconds)
 		Destroy();
 		return;
 	}
-	const FVector Location = Combatant->GetOwner()->GetActorLocation() + FVector(0.f, 0.f, Height);
-	SetActorLocation(Location);
+	const FVector OwnerLocation =
+	    VisualAnchor.IsValid() ? VisualAnchor->GetComponentLocation() : Combatant->GetOwner()->GetActorLocation();
+	FVector Location = OwnerLocation + FVector(0.0f, 0.0f, Height);
 	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
 	{
-		SetActorRotation((Camera->GetCameraLocation() - Location).Rotation());
+		const FRotator CameraRotation = Camera->GetCameraRotation();
+		const FRotationMatrix CameraMatrix(CameraRotation);
+		Location = OwnerLocation + CameraMatrix.GetUnitAxis(EAxis::Z) * Height;
+		SetActorRotation((-CameraRotation.Vector()).Rotation());
 	}
+	SetActorLocation(Location, false, nullptr, ETeleportType::TeleportPhysics);
 	SetActorHiddenInGame(Combatant->CurrentHealth <= 0.f);
 }
-

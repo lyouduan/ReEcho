@@ -7,12 +7,14 @@
 
 class AReEchoTrajectoryActor;
 class AReEchoWeaponActor;
+class UBillboardComponent;
 class UMaterialInstanceDynamic;
 class UReEchoCombatantComponent;
 class UReEchoPlaybackComponent;
 class UStaticMeshComponent;
 
 UCLASS()
+
 class REECHO_API AReEchoEchoActor : public AActor
 {
 	GENERATED_BODY()
@@ -23,9 +25,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	void InitializeEcho(
-		const FReEchoRecording& Recording,
-		float Efficiency);
+	void InitializeEcho(const FReEchoRecording& Recording, float Efficiency);
 	void AdvanceEcho(float EncounterTime);
 
 private:
@@ -34,6 +34,12 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> Shape;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UStaticMeshComponent> GroundShadow;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBillboardComponent> CharacterSprite;
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoPlaybackComponent> Playback;

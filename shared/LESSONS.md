@@ -19,7 +19,7 @@
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
 | 流程 / 工具 / Skill | `META` | [§META](#meta) | 15 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
-| Bug 修复 | `FIX` | [§FIX](#fix) | 4 |
+| Bug 修复 | `FIX` | [§FIX](#fix) | 5 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
 
 ---
@@ -1013,6 +1013,15 @@ open "/Users/honghong/CodeWorkshop/SundayDrive/SundayDrive.uproject"
 
 `ImpactPoint`/`ImpactNormal` 等是 `FVector_NetQuantize`（网络量化类型），不能直接当 `FVector` 调方法/做运算。**先 `FVector(Hit.ImpactPoint)` 显式转换**再用。
 
+### FIX-5. 运行时字符串 LoadObject 不保证资源进入 Shipping Cook [UE]
+
+**来源：Plan 03** — 编辑器内普通怪和 Boss 的 2D Billboard 正常，但 Windows Shipping 中怪物消失。Cook/Stage 清单包含玩家、回响和阴影，却完全缺少 `Grunt2D`、`Boss2D`。
+
+**根因**：怪物贴图只在 `Configure/ApplyVisual` 的条件分支里通过字符串 `LoadObject` 动态选择。该运行时路径没有形成 Cooker 可稳定追踪的序列化依赖；代码又在选择 2D 模式时隐藏了备用网格，所以加载失败表现为怪物不可见。
+
+**修复**：在 Actor 构造函数中用 `ConstructorHelpers::FObjectFinder` 建立 CDO 硬引用，保存为 `UPROPERTY TObjectPtr<UTexture2D>`，运行时只选择已引用对象。随后必须执行 `-clean` Cook，并在 `FinalCopyWin64_UFSFiles.txt`/Stage 清单中断言目标资产存在，不能只看 UAT ExitCode。
+
+**教训**：编辑器能 `LoadObject` 成功不等于 Shipping 会带资源。动态资源必须有硬引用、Primary Asset/Asset Manager 规则或 `DirectoriesToAlwaysCook`；最终验收要检查 Cook 清单并启动打包 EXE。
 ---
 
 ## §DEBUG — 通用调试

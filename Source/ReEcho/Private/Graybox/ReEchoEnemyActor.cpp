@@ -2,10 +2,15 @@
 
 #include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoHealthBarActor.h"
+#include "Graybox/ReEchoBillboardDebug.h"
+#include "Graybox/ReEchoCollisionDebug.h"
 #include "UI/ReEchoDamageNumberActor.h"
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Components/BillboardComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
@@ -15,9 +20,45 @@
 AReEchoEnemyActor::AReEchoEnemyActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	Collision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Collision"));
+	SetRootComponent(Collision);
+	Collision->InitCapsuleSize(36.0f, 110.0f);
+	Collision->SetCollisionProfileName(TEXT("Pawn"));
 	Shape = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Shape"));
-	SetRootComponent(Shape);
-	Shape->SetCollisionProfileName(TEXT("Pawn"));
+	Shape->SetupAttachment(RootComponent);
+	Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
+	GroundShadow->SetupAttachment(RootComponent);
+	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GroundShadow->SetCastShadow(false);
+	GroundShadow->SetTranslucentSortPriority(-1);
+	GroundShadow->SetAbsolute(false, false, true);
+	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
+	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -49.0f));
+	GroundShadow->SetWorldScale3D(FVector(0.50f, 0.31f, 1.0f));
+	if (UMaterialInterface* ShadowBase = LoadObject<UMaterialInterface>(
+	        nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial")))
+	{
+		UMaterialInstanceDynamic* ShadowMaterial = UMaterialInstanceDynamic::Create(ShadowBase, this);
+		ShadowMaterial->SetTextureParameterValue(
+		    TEXT("SpriteTexture"),
+		    LoadObject<UTexture2D>(nullptr,
+		                           TEXT("/Game/ReEcho/Textures/Characters/SoftGroundShadow.SoftGroundShadow")));
+		GroundShadow->SetMaterial(0, ShadowMaterial);
+	}
+	CharacterSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("CharacterSprite"));
+	CharacterSprite->SetupAttachment(RootComponent);
+	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	CharacterSprite->SetHiddenInGame(false);
+	CharacterSprite->SetVisibility(false);
+	CharacterSprite->SetAbsolute(false, false, true);
+	CharacterSprite->bIsScreenSizeScaled = false;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> GruntTextureFinder(
+	    TEXT("/Game/ReEcho/Textures/Characters/Grunt2D.Grunt2D"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> BossTextureFinder(
+	    TEXT("/Game/ReEcho/Textures/Characters/Boss2D.Boss2D"));
+	GruntTexture = GruntTextureFinder.Object;
+	BossTexture = BossTextureFinder.Object;
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
@@ -63,8 +104,9 @@ void AReEchoEnemyActor::Configure(EReEchoEnemyKind InKind, int32 SpawnIndex)
 	{
 		HealthBar->Initialize(Combatant,
 		                      FLinearColor(1.f, 0.08f, 0.04f),
-		                      Kind == EReEchoEnemyKind::Boss ? 220.f : 125.f,
-		                      Kind == EReEchoEnemyKind::Boss ? 2.f : 1.f);
+		                      Kind == EReEchoEnemyKind::Boss ? 105.f : 68.f,
+		                      Kind == EReEchoEnemyKind::Boss ? 1.25f : 0.75f,
+		                      CharacterSprite);
 	}
 }
 
@@ -75,7 +117,7 @@ void AReEchoEnemyActor::ApplyVisual()
 	FLinearColor Color(1.f, 0.15f, 0.1f);
 	if (Kind == EReEchoEnemyKind::Shield)
 	{
-		MeshPath = TEXT("/Engine/BasicShapes/Cylinder.Cylinder");
+		MeshPath = TEXT("/Engine/BasicShapes/Plane.Plane");
 		Scale = FVector(0.8f, 0.8f, 1.1f);
 		Color = FLinearColor(0.15f, 0.35f, 1.f);
 	}
@@ -93,6 +135,40 @@ void AReEchoEnemyActor::ApplyVisual()
 	}
 	Shape->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, MeshPath));
 	Shape->SetRelativeScale3D(Scale);
+	const float CollisionRadius = Kind == EReEchoEnemyKind::Boss     ? 65.0f
+	                              : Kind == EReEchoEnemyKind::Shield ? 44.0f
+	                              : Kind == EReEchoEnemyKind::Bomber ? 30.0f
+	                                                                 : 36.0f;
+	const float CollisionHalfHeight = Kind == EReEchoEnemyKind::Boss     ? 140.0f
+	                                  : Kind == EReEchoEnemyKind::Shield ? 80.0f
+	                                  : Kind == EReEchoEnemyKind::Bomber ? 65.0f
+	                                                                     : 127.5f;
+	Collision->SetCapsuleSize(CollisionRadius, CollisionHalfHeight);
+	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -49.0f));
+	GroundShadow->SetWorldScale3D(Kind == EReEchoEnemyKind::Boss ? FVector(0.60f, 0.38f, 1.0f)
+	                                                             : FVector(0.34f, 0.22f, 1.0f));
+
+	const bool bUseCharacterSprite = Kind == EReEchoEnemyKind::Grunt || Kind == EReEchoEnemyKind::Boss;
+	Shape->SetVisibility(!bUseCharacterSprite);
+	CharacterSprite->SetVisibility(bUseCharacterSprite);
+	if (bUseCharacterSprite)
+	{
+		const bool bIsBoss = Kind == EReEchoEnemyKind::Boss;
+		UTexture2D* CharacterTexture = bIsBoss ? BossTexture : GruntTexture;
+		const float CharacterWorldHeight = bIsBoss ? 280.0f : 255.0f;
+		const float CharacterHalfHeight = CharacterWorldHeight * 0.5f;
+		CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
+		GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -CharacterHalfHeight));
+		FVector CenteredLocation = GetActorLocation();
+		CenteredLocation.Z += CharacterHalfHeight;
+		SetActorLocation(CenteredLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		if (CharacterTexture)
+		{
+			CharacterSprite->SetSprite(CharacterTexture);
+			const float TextureScale = CharacterWorldHeight / FMath::Max(1, CharacterTexture->GetSizeY());
+			CharacterSprite->SetWorldScale3D(FVector(TextureScale));
+		}
+	}
 	if (UMaterialInterface* Base =
 	        LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 	{
@@ -105,6 +181,30 @@ void AReEchoEnemyActor::ApplyVisual()
 bool AReEchoEnemyActor::IsAlive() const
 {
 	return Combatant && Combatant->IsAlive();
+}
+
+bool AReEchoEnemyActor::IntersectsProjectilePath(const FVector& PathStart,
+                                                 const FVector& PathEnd,
+                                                 const float ProjectileRadius) const
+{
+	if (!Collision || !Collision->IsCollisionEnabled())
+	{
+		return false;
+	}
+
+	const FVector CapsuleCenter = Collision->GetComponentLocation();
+	const FVector CapsuleAxis = Collision->GetUpVector();
+	const float CapsuleRadius = Collision->GetScaledCapsuleRadius();
+	const float CapsuleSegmentHalfLength = FMath::Max(0.0f, Collision->GetScaledCapsuleHalfHeight() - CapsuleRadius);
+	const FVector CapsuleStart = CapsuleCenter - CapsuleAxis * CapsuleSegmentHalfLength;
+	const FVector CapsuleEnd = CapsuleCenter + CapsuleAxis * CapsuleSegmentHalfLength;
+
+	FVector ClosestOnProjectile;
+	FVector ClosestOnCapsule;
+	FMath::SegmentDistToSegmentSafe(
+	    PathStart, PathEnd, CapsuleStart, CapsuleEnd, ClosestOnProjectile, ClosestOnCapsule);
+	const float CombinedRadius = CapsuleRadius + FMath::Max(0.0f, ProjectileRadius);
+	return FVector::DistSquared(ClosestOnProjectile, ClosestOnCapsule) <= FMath::Square(CombinedRadius);
 }
 
 void AReEchoEnemyActor::StartHitReaction(const FVector& SourceLocation)
@@ -182,10 +282,7 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage, const FVector& Sourc
 	{
 		ReEchoAttackEffects::SpawnHitImpact(GetWorld(), GetActorLocation());
 		AReEchoDamageNumberActor::SpawnDamageNumber(
-			GetWorld(),
-			GetActorLocation(),
-			Applied,
-			FLinearColor(1.0f, 0.25f, 0.08f));
+		    GetWorld(), GetActorLocation(), Applied, FLinearColor(1.0f, 0.25f, 0.08f));
 		StartHitReaction(SourceLocation);
 	}
 	if (!IsAlive())
@@ -199,6 +296,9 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage, const FVector& Sourc
 void AReEchoEnemyActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	ReEchoBillboardDebug::DrawBounds(
+	    this, CharacterSprite, Kind == EReEchoEnemyKind::Boss ? FColor::Yellow : FColor::Red);
+	ReEchoCollisionDebug::DrawCapsule(this, Collision, Kind == EReEchoEnemyKind::Boss ? FColor::Orange : FColor::Cyan);
 	if (UpdateHitReaction(DeltaSeconds))
 	{
 		return;
@@ -238,10 +338,7 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 			{
 				ReEchoAttackEffects::SpawnHitImpact(GetWorld(), Player->GetActorLocation());
 				AReEchoDamageNumberActor::SpawnDamageNumber(
-					GetWorld(),
-					Player->GetActorLocation(),
-					Applied,
-					FLinearColor(1.0f, 0.05f, 0.05f));
+				    GetWorld(), Player->GetActorLocation(), Applied, FLinearColor(1.0f, 0.05f, 0.05f));
 			}
 		}
 		AttackCooldown = AttackInterval;
