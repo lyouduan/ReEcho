@@ -8,6 +8,7 @@ class AReEchoPlayerPawn;
 class UReEchoRestartWidget;
 class UReEchoTraitCardChoiceWidget;
 UCLASS()
+
 class REECHO_API AReEchoGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
@@ -15,6 +16,7 @@ public:
 	AReEchoGameMode();
 	virtual void StartPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
+	void TogglePauseMenu();
 
 private:
 	UPROPERTY()
@@ -26,6 +28,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
+	bool bRestartScreenIsDeath = false;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
@@ -38,11 +41,18 @@ private:
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
 	UFUNCTION()
-	void HandlePlayerWeaponChanged(FName WeaponId);	UFUNCTION()
+	void HandlePlayerWeaponChanged(FName WeaponId);
+	UFUNCTION()
 	void HandlePlayerDeath();
 
 	UFUNCTION()
 	void HandleRestartRequested();
+
+	UFUNCTION()
+	void HandleResumeRequested();
+
+	UFUNCTION()
+	void HandleQuitRequested();
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
@@ -50,8 +60,7 @@ private:
 	void BeginNextEncounter();
 	void SpawnEnemies(int32 EncounterIndex);
 	void ClearCombatants();
-	void ShowRestartScreen();
+	void ShowRestartScreen(bool bDeathScreen = true);
 	void ShowTraitCardChoice();
 	void RestoreGameInput();
 };
-

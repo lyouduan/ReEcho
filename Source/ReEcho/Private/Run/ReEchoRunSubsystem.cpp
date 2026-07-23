@@ -8,17 +8,14 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
-
 namespace
 {
-const TSet<FName> SupportedTraitCardIds = {
-	TEXT("G_1_01"),
-	TEXT("G_1_02"),
-	TEXT("G_1_03"),
-	TEXT("G_1_04"),
-	TEXT("G_1_05"),
-	TEXT("G_1_08")
-};
+const TSet<FName>& GetSupportedTraitCardIds()
+{
+	static const TSet<FName> SupportedTraitCardIds = {
+	    TEXT("G_1_01"), TEXT("G_1_02"), TEXT("G_1_03"), TEXT("G_1_04"), TEXT("G_1_05"), TEXT("G_1_08")};
+	return SupportedTraitCardIds;
+}
 
 bool LoadTraitCardObjects(TArray<TSharedPtr<FJsonValue>>& OutCards)
 {
@@ -45,53 +42,44 @@ FText BuildTraitDescription(const TSharedPtr<FJsonObject>& Effect)
 	double Value = 0.0;
 	if (Effect->TryGetNumberField(TEXT("hpMaxAdd"), Value))
 	{
-		return FText::Format(
-			NSLOCTEXT("ReEcho", "HealthTraitDescription", "最大生命 +{0}，立即恢复等量生命"),
-			FText::AsNumber(FMath::RoundToInt(Value)));
+		return FText::Format(NSLOCTEXT("ReEcho", "HealthTraitDescription", "最大生命 +{0}，立即恢复等量生命"),
+		                     FText::AsNumber(FMath::RoundToInt(Value)));
 	}
 	if (Effect->TryGetNumberField(TEXT("pAtkAdd"), Value))
 	{
-		return FText::Format(
-			NSLOCTEXT("ReEcho", "PhysicalTraitDescription", "物理攻击 +{0}"),
-			FText::AsNumber(FMath::RoundToInt(Value)));
+		return FText::Format(NSLOCTEXT("ReEcho", "PhysicalTraitDescription", "物理攻击 +{0}"),
+		                     FText::AsNumber(FMath::RoundToInt(Value)));
 	}
 	if (Effect->TryGetNumberField(TEXT("eAtkAdd"), Value))
 	{
-		return FText::Format(
-			NSLOCTEXT("ReEcho", "ElementalTraitDescription", "元素攻击 +{0}"),
-			FText::AsNumber(FMath::RoundToInt(Value)));
+		return FText::Format(NSLOCTEXT("ReEcho", "ElementalTraitDescription", "元素攻击 +{0}"),
+		                     FText::AsNumber(FMath::RoundToInt(Value)));
 	}
 	if (Effect->TryGetNumberField(TEXT("blockPerEncounter"), Value))
 	{
-		return FText::Format(
-			NSLOCTEXT("ReEcho", "BlockTraitDescription", "每个关卡抵挡 {0} 次伤害"),
-			FText::AsNumber(FMath::RoundToInt(Value)));
+		return FText::Format(NSLOCTEXT("ReEcho", "BlockTraitDescription", "每个关卡抵挡 {0} 次伤害"),
+		                     FText::AsNumber(FMath::RoundToInt(Value)));
 	}
 	if (Effect->TryGetNumberField(TEXT("echoEfficiencyAdd"), Value))
 	{
-		return FText::Format(
-			NSLOCTEXT("ReEcho", "EchoTraitDescription", "回响伤害效率 +{0}%"),
-			FText::AsNumber(FMath::RoundToInt(Value * 100.0)));
+		return FText::Format(NSLOCTEXT("ReEcho", "EchoTraitDescription", "回响伤害效率 +{0}%"),
+		                     FText::AsNumber(FMath::RoundToInt(Value * 100.0)));
 	}
 
 	double MoveSpeed = 0.0;
 	double AttackSpeed = 0.0;
-	if (Effect->TryGetNumberField(TEXT("moveSpeedAdd"), MoveSpeed)
-		&& Effect->TryGetNumberField(TEXT("attackSpeedAdd"), AttackSpeed))
+	if (Effect->TryGetNumberField(TEXT("moveSpeedAdd"), MoveSpeed) &&
+	    Effect->TryGetNumberField(TEXT("attackSpeedAdd"), AttackSpeed))
 	{
-		return FText::Format(
-			NSLOCTEXT("ReEcho", "SpeedTraitDescription", "移动速度 +{0}%，攻击速度 +{1}%"),
-			FText::AsNumber(FMath::RoundToInt(MoveSpeed * 100.0)),
-			FText::AsNumber(FMath::RoundToInt(AttackSpeed * 100.0)));
+		return FText::Format(NSLOCTEXT("ReEcho", "SpeedTraitDescription", "移动速度 +{0}%，攻击速度 +{1}%"),
+		                     FText::AsNumber(FMath::RoundToInt(MoveSpeed * 100.0)),
+		                     FText::AsNumber(FMath::RoundToInt(AttackSpeed * 100.0)));
 	}
 
 	return NSLOCTEXT("ReEcho", "UnknownTraitDescription", "强化当前时间线");
 }
 
-void AddEffectNumber(
-	const TSharedPtr<FJsonObject>& Effect,
-	const TCHAR* FieldName,
-	float& Target)
+void AddEffectNumber(const TSharedPtr<FJsonObject>& Effect, const TCHAR* FieldName, float& Target)
 {
 	double Value = 0.0;
 	if (Effect->TryGetNumberField(FieldName, Value))
@@ -100,6 +88,7 @@ void AddEffectNumber(
 	}
 }
 }
+
 void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)
 {
 	Phase = NewPhase;
@@ -122,6 +111,7 @@ void UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
 {
 	CurrentBuild.WeaponId = WeaponId;
 }
+
 void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
@@ -147,8 +137,7 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	SetPhase(EReEchoRunPhase::CardChoice);
 }
 
-TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(
-	const int32 RequestedCount) const
+TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount) const
 {
 	TArray<TSharedPtr<FJsonValue>> CardValues;
 	if (!LoadTraitCardObjects(CardValues))
@@ -172,7 +161,7 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(
 		}
 
 		const FName CardId(CardIdString);
-		if (!SupportedTraitCardIds.Contains(CardId))
+		if (!GetSupportedTraitCardIds().Contains(CardId))
 		{
 			continue;
 		}
@@ -207,7 +196,7 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(
 
 bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 {
-	if (!SupportedTraitCardIds.Contains(CardId))
+	if (!GetSupportedTraitCardIds().Contains(CardId))
 	{
 		return false;
 	}
@@ -227,8 +216,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		}
 
 		FString CandidateId;
-		if (!CardObject->TryGetStringField(TEXT("id"), CandidateId)
-			|| FName(CandidateId) != CardId)
+		if (!CardObject->TryGetStringField(TEXT("id"), CandidateId) || FName(CandidateId) != CardId)
 		{
 			continue;
 		}
@@ -259,6 +247,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 
 	return false;
 }
+
 void UReEchoRunSubsystem::AddRecording(const FReEchoRecording& Recording)
 {
 	RecordingHistory.Insert(Recording, 0);
@@ -320,4 +309,3 @@ bool UReEchoRunSubsystem::ShouldOpenShopAfterCurrentEncounter() const
 {
 	return EncounterIndex == 2 || EncounterIndex == 4;
 }
-

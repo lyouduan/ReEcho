@@ -9,6 +9,7 @@ class USceneComponent;
 class UWidgetComponent;
 
 UCLASS()
+
 class REECHO_API AReEchoHealthBarActor : public AActor
 {
 	GENERATED_BODY()
@@ -18,7 +19,8 @@ public:
 	void Initialize(UReEchoCombatantComponent* InCombatant,
 	                const FLinearColor& FillColor,
 	                float InHeight,
-	                float InWidthScale = 1.f);
+	                float InWidthScale = 1.f,
+	                USceneComponent* InVisualAnchor = nullptr);
 
 private:
 	UPROPERTY()
@@ -26,6 +28,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UWidgetComponent> Widget;
 	TWeakObjectPtr<UReEchoCombatantComponent> Combatant;
+	TWeakObjectPtr<USceneComponent> VisualAnchor;
 	float Height = 100.f;
 };
-

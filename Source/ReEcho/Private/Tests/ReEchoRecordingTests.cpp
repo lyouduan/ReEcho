@@ -1,5 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
+#include "AbilitySystem/ReEchoPlayerAbilities.h"
+#include "AbilitySystemComponent.h"
+#include "Player/ReEchoPlayerPawn.h"
 #include "Core/ReEchoTypes.h"
 #include "Recording/ReEchoRecorderComponent.h"
 
@@ -24,15 +27,13 @@ bool FReEchoRecordingInterpolationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FReEchoWeaponTimelineRecordingTest,
-	"ReEcho.Recording.CapturesWeaponTimeline",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponTimelineRecordingTest,
+                                 "ReEcho.Recording.CapturesWeaponTimeline",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoWeaponTimelineRecordingTest::RunTest(const FString& Parameters)
 {
-	UReEchoRecorderComponent* Recorder =
-		NewObject<UReEchoRecorderComponent>(GetTransientPackage());
+	UReEchoRecorderComponent* Recorder = NewObject<UReEchoRecorderComponent>(GetTransientPackage());
 
 	FReEchoBuildSnapshot InitialBuild;
 	InitialBuild.WeaponId = TEXT("W_J_02");
@@ -42,27 +43,39 @@ bool FReEchoWeaponTimelineRecordingTest::RunTest(const FString& Parameters)
 	Recorder->RecordWeaponChange(9.5f, TEXT("W_J_03"));
 
 	const FReEchoRecording Recording = Recorder->FinishRecording(10.0f);
+	TestEqual(TEXT("Initial and two distinct changes are recorded"), Recording.WeaponChanges.Num(), 3);
 	TestEqual(
-		TEXT("Initial and two distinct changes are recorded"),
-		Recording.WeaponChanges.Num(),
-		3);
+	    TEXT("Timeline starts with the initial weapon"), Recording.WeaponChanges[0].WeaponId, FName(TEXT("W_J_02")));
+	TestEqual(TEXT("Sword switch keeps its encounter time"), Recording.WeaponChanges[1].Time, 4.0f);
 	TestEqual(
-		TEXT("Timeline starts with the initial weapon"),
-		Recording.WeaponChanges[0].WeaponId,
-		FName(TEXT("W_J_02")));
-	TestEqual(
-		TEXT("Sword switch keeps its encounter time"),
-		Recording.WeaponChanges[1].Time,
-		4.0f);
-	TestEqual(
-		TEXT("Duplicate weapon selection is ignored"),
-		Recording.WeaponChanges[2].WeaponId,
-		FName(TEXT("W_J_03")));
-	TestEqual(
-		TEXT("Build snapshot retains the final weapon"),
-		Recording.BuildSnapshot.WeaponId,
-		FName(TEXT("W_J_03")));
+	    TEXT("Duplicate weapon selection is ignored"), Recording.WeaponChanges[2].WeaponId, FName(TEXT("W_J_03")));
+	TestEqual(TEXT("Build snapshot retains the final weapon"), Recording.BuildSnapshot.WeaponId, FName(TEXT("W_J_03")));
 	return true;
 }
-#endif
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoPlayerGasStructureTest,
+                                 "ReEcho.GAS.PlayerAbilityStructure",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoPlayerGasStructureTest::RunTest(const FString& Parameters)
+{
+	const AReEchoPlayerPawn* PlayerDefault = GetDefault<AReEchoPlayerPawn>();
+	TestNotNull(TEXT("Player default object has an ability system"), PlayerDefault->GetAbilitySystemComponent());
+	TestTrue(TEXT("Player implements the ability system interface"),
+	         AReEchoPlayerPawn::StaticClass()->ImplementsInterface(UAbilitySystemInterface::StaticClass()));
+
+	const TArray<UClass*> AbilityClasses = {UReEchoBasicAttackAbility::StaticClass(),
+	                                        UReEchoActiveAttackAbility::StaticClass(),
+	                                        UReEchoSelectWeaponSlot1Ability::StaticClass(),
+	                                        UReEchoSelectWeaponSlot2Ability::StaticClass(),
+	                                        UReEchoSelectWeaponSlot3Ability::StaticClass()};
+	for (const UClass* AbilityClass : AbilityClasses)
+	{
+		TestTrue(TEXT("Player ability derives from UGameplayAbility"),
+		         AbilityClass->IsChildOf(UGameplayAbility::StaticClass()));
+	}
+
+	return true;
+}
+
+#endif

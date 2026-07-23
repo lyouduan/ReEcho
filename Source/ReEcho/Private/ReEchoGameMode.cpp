@@ -12,6 +12,7 @@
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -65,7 +66,9 @@ void AReEchoGameMode::CreateArena()
 	auto SpawnBlock = [&](FVector Location, FVector Scale, FLinearColor Color, const TCHAR* Name)
 	{
 		AStaticMeshActor* StaticMeshActor = GetWorld()->SpawnActor<AStaticMeshActor>(Location, FRotator::ZeroRotator);
+#if WITH_EDITOR
 		StaticMeshActor->SetActorLabel(Name);
+#endif
 		StaticMeshActor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
 		StaticMeshActor->GetStaticMeshComponent()->SetStaticMesh(CubeMesh);
 		StaticMeshActor->SetActorScale3D(Scale);
@@ -122,9 +125,7 @@ void AReEchoGameMode::BeginNextEncounter()
 	if (!Recordings.IsEmpty())
 	{
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
-		Echo->InitializeEcho(
-			Recordings[0],
-			RunSubsystem->CurrentBuild.Stats.EchoEfficiency);
+		Echo->InitializeEcho(Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency);
 		Echoes.Add(Echo);
 	}
 	SpawnEnemies(RunSubsystem->EncounterIndex);
@@ -187,11 +188,10 @@ void AReEchoGameMode::HandlePlayerWeaponChanged(const FName WeaponId)
 {
 	if (Player && Director)
 	{
-		Player->Recorder->RecordWeaponChange(
-			Director->EncounterTime,
-			WeaponId);
+		Player->Recorder->RecordWeaponChange(Director->EncounterTime, WeaponId);
 	}
 }
+
 void AReEchoGameMode::HandlePlayerDeath()
 {
 	if (Director)
@@ -202,7 +202,7 @@ void AReEchoGameMode::HandlePlayerDeath()
 	ShowRestartScreen();
 }
 
-void AReEchoGameMode::ShowRestartScreen()
+void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen)
 {
 	if (RestartWidget)
 	{
@@ -215,23 +215,56 @@ void AReEchoGameMode::ShowRestartScreen()
 		return;
 	}
 
-	RestartWidget = CreateWidget<UReEchoRestartWidget>(
-		PlayerController,
-		UReEchoRestartWidget::StaticClass());
+	RestartWidget = CreateWidget<UReEchoRestartWidget>(PlayerController, UReEchoRestartWidget::StaticClass());
 	if (!RestartWidget)
 	{
 		return;
 	}
 
+	bRestartScreenIsDeath = bDeathScreen;
+	RestartWidget->SetDeathScreen(bDeathScreen);
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
+	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
+	RestartWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleQuitRequested);
 	RestartWidget->AddToViewport(100);
 
-	FInputModeUIOnly InputMode;
+	FInputModeGameAndUI InputMode;
 	InputMode.SetWidgetToFocus(RestartWidget->TakeWidget());
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	PlayerController->SetInputMode(InputMode);
 	PlayerController->SetShowMouseCursor(true);
 	UGameplayStatics::SetGamePaused(this, true);
+}
+
+void AReEchoGameMode::TogglePauseMenu()
+{
+	if (TraitCardChoiceWidget || bRestartScreenIsDeath)
+	{
+		return;
+	}
+	if (RestartWidget)
+	{
+		HandleResumeRequested();
+		return;
+	}
+	ShowRestartScreen(false);
+}
+
+void AReEchoGameMode::HandleResumeRequested()
+{
+	if (RestartWidget)
+	{
+		RestartWidget->RemoveFromParent();
+		RestartWidget = nullptr;
+	}
+	bRestartScreenIsDeath = false;
+	RestoreGameInput();
+}
+
+void AReEchoGameMode::HandleQuitRequested()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, false);
 }
 
 void AReEchoGameMode::HandleRestartRequested()
@@ -242,6 +275,7 @@ void AReEchoGameMode::HandleRestartRequested()
 		RestartWidget->RemoveFromParent();
 		RestartWidget = nullptr;
 	}
+	bRestartScreenIsDeath = false;
 
 	UGameplayStatics::SetGamePaused(this, false);
 	if (PlayerController)
@@ -256,6 +290,7 @@ void AReEchoGameMode::HandleRestartRequested()
 	const FName CurrentLevelName(*UGameplayStatics::GetCurrentLevelName(this, true));
 	UGameplayStatics::OpenLevel(this, CurrentLevelName);
 }
+
 void AReEchoGameMode::HandleEncounterEnded()
 {
 	if (bEncounterTransitioning || !Player)
@@ -286,16 +321,14 @@ void AReEchoGameMode::ShowTraitCardChoice()
 {
 	ClearCombatants();
 
-	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	if (!RunSubsystem || !PlayerController || TraitCardChoiceWidget)
 	{
 		return;
 	}
 
-	const TArray<FReEchoTraitCardOffer> Offers =
-		RunSubsystem->GenerateTraitCardOffers(3);
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
 	if (Offers.Num() != 3)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Expected three trait card offers, received %d"), Offers.Num());
@@ -303,21 +336,18 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	TraitCardChoiceWidget = CreateWidget<UReEchoTraitCardChoiceWidget>(
-		PlayerController,
-		UReEchoTraitCardChoiceWidget::StaticClass());
+	TraitCardChoiceWidget =
+	    CreateWidget<UReEchoTraitCardChoiceWidget>(PlayerController, UReEchoTraitCardChoiceWidget::StaticClass());
 	if (!TraitCardChoiceWidget)
 	{
 		return;
 	}
 
 	TraitCardChoiceWidget->InitializeOffers(Offers);
-	TraitCardChoiceWidget->OnCardSelected.AddDynamic(
-		this,
-		&AReEchoGameMode::HandleTraitCardSelected);
+	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	TraitCardChoiceWidget->AddToViewport(90);
 
-	FInputModeUIOnly InputMode;
+	FInputModeGameAndUI InputMode;
 	InputMode.SetWidgetToFocus(TraitCardChoiceWidget->TakeWidget());
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	PlayerController->SetInputMode(InputMode);
@@ -327,8 +357,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 
 void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 {
-	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || !RunSubsystem->ApplyTraitCard(CardId))
 	{
 		return;
@@ -348,8 +377,7 @@ void AReEchoGameMode::RestoreGameInput()
 {
 	UGameplayStatics::SetGamePaused(this, false);
 
-	if (APlayerController* PlayerController =
-			UGameplayStatics::GetPlayerController(this, 0))
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
 		FInputModeGameAndUI InputMode;
 		InputMode.SetHideCursorDuringCapture(false);
@@ -358,6 +386,7 @@ void AReEchoGameMode::RestoreGameInput()
 		PlayerController->SetShowMouseCursor(true);
 	}
 }
+
 void AReEchoGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -390,5 +419,3 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	    *Player->GetEquippedWeaponLabel());
 	GEngine->AddOnScreenDebugMessage(7, 0.f, FColor::White, Text);
 }
-
-
