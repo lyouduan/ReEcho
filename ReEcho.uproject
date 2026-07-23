@@ -1,0 +1,35 @@
+{
+	"FileVersion": 3,
+	"Category": "Games",
+	"Description": "Time Echo vertical slice foundation",
+	"Modules": [
+		{
+			"Name": "ReEcho",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "ModelContextProtocol",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "AllToolsets",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		}
+	],
+	"EngineAssociation": "5.8"
+}
+

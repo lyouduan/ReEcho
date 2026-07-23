@@ -1,0 +1,8 @@
+[
+ {"id":"Y_ER_F_G","name":"Burn","trigger":"Flame","attachment":"Grass","duration":3.0,"damageScale":1.0},
+ {"id":"Y_ER_F_W","name":"Vaporize","trigger":"Flame","attachment":"Water","coefficient":0.25,"radius":150},
+ {"id":"Y_ER_L_G","name":"Growth","trigger":"Lightning","attachment":"Grass","radius":200},
+ {"id":"Y_ER_L_W","name":"Conduct","trigger":"Lightning","attachment":"Water","searchRadius":100,"damageScale":2.0},
+ {"id":"Y_ER_G_W","name":"Enhance","trigger":"Grass","attachment":"Water","efficiencyMultiplier":2.0},
+ {"id":"Y_ER_W_G","name":"Enhance","trigger":"Water","attachment":"Grass","efficiencyMultiplier":2.0}
+]
