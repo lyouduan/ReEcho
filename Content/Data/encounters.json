@@ -1,0 +1,5 @@
+[
+ {"index":1,"grunt":8,"shield":1,"bomber":0}, {"index":2,"grunt":7,"shield":2,"bomber":2,"shopAfter":true},
+ {"index":3,"grunt":8,"shield":3,"bomber":3}, {"index":4,"grunt":10,"shield":3,"bomber":4,"shopAfter":true},
+ {"index":5,"grunt":9,"shield":4,"bomber":6,"guaranteeTier3":true}, {"index":6,"boss":"M_TimeGuard","summons":true}
+]

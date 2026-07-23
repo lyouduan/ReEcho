@@ -1,2 +1,18 @@
 # ReEcho
-MiniGame Repo
+
+UE 5.8 installed-build graybox prototype for the Time Echo vertical slice.
+
+## Start here
+
+- AI/code retrieval map: [`shared/CODEBASE_MAP.md`](shared/CODEBASE_MAP.md)
+- Project rules: [`shared/PROJECT_RULES.md`](shared/PROJECT_RULES.md)
+- Current delivery state: [`shared/PROJECT_STATE.md`](shared/PROJECT_STATE.md)
+- Runtime architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- UE MCP: [`docs/UE_MCP.md`](docs/UE_MCP.md)
+- Validation commands: [`scripts/README.md`](scripts/README.md)
+
+## Current prototype
+
+The project runtime-generates a Basic Shapes arena with a manually controlled player, sphere projectiles, four enemy archetypes, damage feedback, UI health bars, deterministic encounter recording, translucent echo playback and a six-encounter loop.
+
+Design registries under `Content/Data` are reviewable JSON sources but are not runtime-imported yet.
