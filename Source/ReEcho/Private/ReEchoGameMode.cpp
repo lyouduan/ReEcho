@@ -1,41 +1,88 @@
 #include "ReEchoGameMode.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Camera/CameraComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Encounter/ReEchoEncounterDirector.h"
-#include "Engine/DirectionalLight.h"
-#include "Components/DirectionalLightComponent.h"
-#include "Engine/Engine.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "EngineUtils.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/CameraActor.h"
 #include "GameFramework/FloatingPawnMovement.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
+#include "UObject/ConstructorHelpers.h"
 
 AReEchoGameMode::AReEchoGameMode()
 {
 	DefaultPawnClass = AReEchoPlayerPawn::StaticClass();
 	PrimaryActorTick.bCanEverTick = true;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> ArenaBackgroundFinder(
+		TEXT("/Game/ReEcho/Textures/Scenes/ArenaGround3D.ArenaGround3D"));
+	ArenaBackgroundTexture = ArenaBackgroundFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
+		TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
+	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
 }
 
 void AReEchoGameMode::StartPlay()
 {
 	Super::StartPlay();
-	CreateArena();
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
+	const float SceneWorldHeight = FMath::Max(100.0f, BalanceSettings->ArenaSceneWorldHeight);
+	const float SceneAspectRatio = ArenaBackgroundTexture
+		? static_cast<float>(ArenaBackgroundTexture->GetSizeX()) / FMath::Max(1, ArenaBackgroundTexture->GetSizeY())
+		: 16.0f / 9.0f;
+	const float CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio;
+	ArenaSceneWorldHeight = SceneWorldHeight;
+	ArenaSceneWorldWidth = CameraOrthoWidth;
+	if (Player)
+	{
+		Player->ConfigureArenaBounds(ArenaSceneWorldHeight * 0.5f, ArenaSceneWorldWidth * 0.5f);
+	}
+	FixedCamera = GetWorld()->SpawnActor<ACameraActor>(
+		FVector(-700.0f, 0.0f, 900.0f), FRotator(-55.0f, 0.0f, 0.0f));
+	if (FixedCamera)
+	{
+		UCameraComponent* FixedCameraComponent = FixedCamera->GetCameraComponent();
+		FixedCameraComponent->SetProjectionMode(ECameraProjectionMode::Orthographic);
+		FixedCameraComponent->SetOrthoWidth(CameraOrthoWidth);
+		FixedCameraComponent->SetAspectRatio(SceneAspectRatio);
+		FixedCameraComponent->SetConstraintAspectRatio(true);
+		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PlayerController->SetViewTarget(FixedCamera);
+		}
+		if (Player && Player->Camera)
+		{
+			Player->Camera->Deactivate();
+		}
+	}
+	CreateArena();
 	Director = GetWorld()->SpawnActor<AReEchoEncounterDirector>();
 	Director->OnFixedStep.AddDynamic(this, &AReEchoGameMode::HandleFixedStep);
 	Director->OnEncounterEnded.AddDynamic(this, &AReEchoGameMode::HandleEncounterEnded);
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		EncounterHudWidget =
+			CreateWidget<UReEchoEncounterHudWidget>(PlayerController, UReEchoEncounterHudWidget::StaticClass());
+		if (EncounterHudWidget)
+		{
+			EncounterHudWidget->AddToViewport(10);
+		}
+	}
 	if (Player)
 	{
 		Player->OnActiveSkill.AddDynamic(this, &AReEchoGameMode::HandlePlayerSkill);
@@ -44,26 +91,24 @@ void AReEchoGameMode::StartPlay()
 	}
 	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
 	{
-		RunSubsystem->StartRun(TEXT("J01"), TEXT("W_J_02"));
+		const FName CharacterId = GetDefault<UReEchoBalanceSettings>()->DefaultCharacterId;
+		RunSubsystem->StartRun(CharacterId, TEXT("W_J_02"));
+		if (Player)
+		{
+			Player->ConfigureCharacter(CharacterId);
+		}
 	}
 	BeginNextEncounter();
 }
 
-static void ApplyShapeMaterial(UStaticMeshComponent* Mesh, const FLinearColor& Color)
-{
-	if (UMaterialInterface* Base =
-	        LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
-	{
-		UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(Base, Mesh);
-		MaterialInstance->SetVectorParameterValue(TEXT("Color"), Color);
-		Mesh->SetMaterial(0, MaterialInstance);
-	}
-}
-
 void AReEchoGameMode::CreateArena()
 {
-	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/CubeMesh.CubeMesh"));
-	auto SpawnBlock = [&](FVector Location, FVector Scale, FLinearColor Color, const TCHAR* Name)
+	const float ArenaHalfExtentX = ArenaSceneWorldHeight * 0.5f;
+	const float ArenaHalfExtentY = ArenaSceneWorldWidth * 0.5f;
+	const float BlockScaleX = ArenaHalfExtentX / 100.0f;
+	const float BlockScaleY = ArenaHalfExtentY / 100.0f;
+	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	auto SpawnCollisionBlock = [&](const FVector& Location, const FVector& Scale, const TCHAR* Name)
 	{
 		AStaticMeshActor* StaticMeshActor = GetWorld()->SpawnActor<AStaticMeshActor>(Location, FRotator::ZeroRotator);
 #if WITH_EDITOR
@@ -72,16 +117,40 @@ void AReEchoGameMode::CreateArena()
 		StaticMeshActor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
 		StaticMeshActor->GetStaticMeshComponent()->SetStaticMesh(CubeMesh);
 		StaticMeshActor->SetActorScale3D(Scale);
-		ApplyShapeMaterial(StaticMeshActor->GetStaticMeshComponent(), Color);
+		StaticMeshActor->SetActorHiddenInGame(true);
+		StaticMeshActor->GetStaticMeshComponent()->SetVisibility(false, true);
 	};
-	SpawnBlock(FVector(0, 0, -55), FVector(14, 14, 0.5f), FLinearColor(0.04f, 0.05f, 0.07f), TEXT("ArenaFloor"));
-	SpawnBlock(FVector(0, 1400, 100), FVector(14, 0.25f, 2.f), FLinearColor(0.1f, 0.12f, 0.18f), TEXT("WallNorth"));
-	SpawnBlock(FVector(0, -1400, 100), FVector(14, 0.25f, 2.f), FLinearColor(0.1f, 0.12f, 0.18f), TEXT("WallSouth"));
-	SpawnBlock(FVector(1400, 0, 100), FVector(0.25f, 14, 2.f), FLinearColor(0.1f, 0.12f, 0.18f), TEXT("WallEast"));
-	SpawnBlock(FVector(-1400, 0, 100), FVector(0.25f, 14, 2.f), FLinearColor(0.1f, 0.12f, 0.18f), TEXT("WallWest"));
-	ADirectionalLight* Light =
-	    GetWorld()->SpawnActor<ADirectionalLight>(FVector::ZeroVector, FRotator(-55.f, -35.f, 0.f));
-	Light->GetLightComponent()->SetIntensity(6.f);
+	SpawnCollisionBlock(FVector(0, 0, -55), FVector(BlockScaleX, BlockScaleY, 0.5f), TEXT("ArenaFloor"));
+	SpawnCollisionBlock(FVector(0, ArenaHalfExtentY, 100), FVector(BlockScaleX, 0.25f, 2.f), TEXT("WallNorth"));
+	SpawnCollisionBlock(FVector(0, -ArenaHalfExtentY, 100), FVector(BlockScaleX, 0.25f, 2.f), TEXT("WallSouth"));
+	SpawnCollisionBlock(FVector(ArenaHalfExtentX, 0, 100), FVector(0.25f, BlockScaleY, 2.f), TEXT("WallEast"));
+	SpawnCollisionBlock(FVector(-ArenaHalfExtentX, 0, 100), FVector(0.25f, BlockScaleY, 2.f), TEXT("WallWest"));
+	if (ArenaBackgroundTexture && ArenaBackgroundMaterial)
+	{
+		const FVector CameraLocation = FixedCamera ? FixedCamera->GetActorLocation() : FVector(-700.0f, 0.0f, 900.0f);
+		const FVector CameraForward = FixedCamera ? FixedCamera->GetActorForwardVector() : FVector(0.5736f, 0.0f, -0.8192f);
+		constexpr float BackdropDistance = 3000.0f;
+		const float BackdropWorldHeight = FMath::Max(
+			100.0f, GetDefault<UReEchoBalanceSettings>()->ArenaSceneWorldHeight);
+		const float TextureAspect = static_cast<float>(ArenaBackgroundTexture->GetSizeX()) /
+		                            FMath::Max(1, ArenaBackgroundTexture->GetSizeY());
+		const float BackdropWorldWidth = BackdropWorldHeight * TextureAspect;
+		const FVector BackdropLocation = CameraLocation + CameraForward * BackdropDistance;
+		const FVector CameraRight = FixedCamera ? FixedCamera->GetActorRightVector() : FVector::RightVector;
+		const FRotator BackdropRotation = FRotationMatrix::MakeFromZX(-CameraForward, CameraRight).Rotator();
+		AStaticMeshActor* Backdrop = GetWorld()->SpawnActor<AStaticMeshActor>(BackdropLocation, BackdropRotation);
+#if WITH_EDITOR
+		Backdrop->SetActorLabel(TEXT("ArenaSkyBackdrop"));
+#endif
+		UStaticMeshComponent* BackdropMesh = Backdrop->GetStaticMeshComponent();
+		BackdropMesh->SetMobility(EComponentMobility::Movable);
+		BackdropMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
+		BackdropMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		BackdropMesh->SetCastShadow(false);
+		BackdropMesh->SetTranslucentSortPriority(-100);
+		Backdrop->SetActorScale3D(FVector(BackdropWorldWidth / 100.0f, BackdropWorldHeight / 100.0f, 1.0f));
+		BackdropMesh->SetMaterial(0, ArenaBackgroundMaterial);
+	}
 }
 
 void AReEchoGameMode::ClearCombatants()
@@ -104,15 +173,16 @@ void AReEchoGameMode::BeginNextEncounter()
 {
 	ClearCombatants();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || RunSubsystem->EncounterIndex >= 6)
+	if (!RunSubsystem || RunSubsystem->EncounterIndex >= GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
 	{
 		return;
 	}
 	bEncounterTransitioning = false;
+	bEncounterClearedByDefeat = false;
 	RunSubsystem->BeginEncounter();
 	if (Player)
 	{
-		Player->SetActorLocation(FVector(0, 0, 40));
+		Player->SetActorLocation(FVector(0, 0, 112));
 		const FReEchoStatBlock& Stats = RunSubsystem->CurrentBuild.Stats;
 		Player->Combatant->InitializeFromStats(Stats, true);
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
@@ -132,35 +202,65 @@ void AReEchoGameMode::BeginNextEncounter()
 	Director->StartEncounter();
 }
 
-void AReEchoGameMode::SpawnEnemies(int32 EncounterIndex)
+void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 {
-	const int32 GruntCount = FMath::Min(3 + EncounterIndex, 8);
-	const int32 BomberCount = EncounterIndex >= 2 ? FMath::Min(EncounterIndex, 4) : 0;
+	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
+	const bool bBossEncounter = EncounterIndex == BalanceSettings->GetTotalEncounterCount();
+	const int32 GruntCount = bBossEncounter
+		? FMath::Min(8, BalanceSettings->MaxGruntCount)
+		: FMath::Clamp(
+			BalanceSettings->BaseGruntCount + FMath::Max(0, EncounterIndex - 1) * BalanceSettings->GruntsPerEncounter,
+			1,
+			BalanceSettings->MaxGruntCount);
+	const int32 BomberCount = bBossEncounter
+		? FMath::Min(2, BalanceSettings->MaxBomberCount)
+		: EncounterIndex >= 2 ? FMath::Min(EncounterIndex, BalanceSettings->MaxBomberCount) : 0;
+	const float SpawnHalfX = FMath::Max(100.0f, ArenaSceneWorldHeight * 0.5f - BalanceSettings->EnemySpawnEdgeInset);
+	const float SpawnHalfY = FMath::Max(100.0f, ArenaSceneWorldWidth * 0.5f - BalanceSettings->EnemySpawnEdgeInset);
+	FRandomStream SpawnRandom(1337 + EncounterIndex * 7919);
 	int32 SpawnIndex = 0;
-	auto SpawnEnemy = [&](EReEchoEnemyKind Kind, float Radius)
+
+	auto GetPeripheralSpawnLocation = [&]()
 	{
-		const float Angle = SpawnIndex++ * 2.399963f;
-		FVector SpawnLocation(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 50.f);
-		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(SpawnLocation, FRotator::ZeroRotator);
-		Enemy->Configure(Kind, SpawnIndex);
+		const FVector PlayerLocation = Player ? Player->GetActorLocation() : FVector::ZeroVector;
+		const float MinimumDistance = FMath::Min(
+			BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
+		const float MaximumDistance = FMath::Max(
+			BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
+		const float Angle = SpawnRandom.FRandRange(0.0f, 2.0f * PI);
+		const float Distance = FMath::Sqrt(SpawnRandom.FRandRange(
+			MinimumDistance * MinimumDistance, MaximumDistance * MaximumDistance));
+		FVector SpawnLocation = PlayerLocation + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
+		SpawnLocation.X = FMath::Clamp(SpawnLocation.X, -SpawnHalfX, SpawnHalfX);
+		SpawnLocation.Y = FMath::Clamp(SpawnLocation.Y, -SpawnHalfY, SpawnHalfY);
+		SpawnLocation.Z = 50.0f;
+		return SpawnLocation;
 	};
-	if (EncounterIndex == 6)
+
+	auto SpawnEnemy = [&](const EReEchoEnemyKind Kind)
 	{
-		SpawnEnemy(EReEchoEnemyKind::Boss, 900.f);
-		return;
+		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
+			GetPeripheralSpawnLocation(), FRotator::ZeroRotator);
+		if (Enemy)
+		{
+			Enemy->Configure(Kind, ++SpawnIndex);
+		}
+	};
+
+	if (bBossEncounter)
+	{
+		SpawnEnemy(EReEchoEnemyKind::Boss);
 	}
 	for (int32 EnemyIndex = 0; EnemyIndex < GruntCount; ++EnemyIndex)
 	{
-		SpawnEnemy(EReEchoEnemyKind::Grunt, 700.f + EnemyIndex * 45.f);
+		SpawnEnemy(EReEchoEnemyKind::Grunt);
 	}
-
 	for (int32 EnemyIndex = 0; EnemyIndex < BomberCount; ++EnemyIndex)
 	{
-		SpawnEnemy(EReEchoEnemyKind::Bomber, 1050.f);
+		SpawnEnemy(EReEchoEnemyKind::Bomber);
 	}
 }
-
-void AReEchoGameMode::HandleFixedStep(float FixedDeltaSeconds)
+void AReEchoGameMode::HandleFixedStep(float)
 {
 	if (!Player || !Director)
 	{
@@ -202,7 +302,7 @@ void AReEchoGameMode::HandlePlayerDeath()
 	ShowRestartScreen();
 }
 
-void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen)
+void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVictoryScreen)
 {
 	if (RestartWidget)
 	{
@@ -221,8 +321,17 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen)
 		return;
 	}
 
-	bRestartScreenIsDeath = bDeathScreen;
-	RestartWidget->SetDeathScreen(bDeathScreen);
+	bRestartScreenIsTerminal = bDeathScreen || bVictoryScreen;
+	if (bVictoryScreen)
+	{
+		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		RestartWidget->SetVictoryScreen(RunSubsystem ? RunSubsystem->TimeShards : 0,
+		                                RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0);
+	}
+	else
+	{
+		RestartWidget->SetDeathScreen(bDeathScreen);
+	}
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
 	RestartWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleQuitRequested);
@@ -238,7 +347,7 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen)
 
 void AReEchoGameMode::TogglePauseMenu()
 {
-	if (TraitCardChoiceWidget || bRestartScreenIsDeath)
+	if (TraitCardChoiceWidget || bRestartScreenIsTerminal)
 	{
 		return;
 	}
@@ -257,7 +366,7 @@ void AReEchoGameMode::HandleResumeRequested()
 		RestartWidget->RemoveFromParent();
 		RestartWidget = nullptr;
 	}
-	bRestartScreenIsDeath = false;
+	bRestartScreenIsTerminal = false;
 	RestoreGameInput();
 }
 
@@ -275,7 +384,7 @@ void AReEchoGameMode::HandleRestartRequested()
 		RestartWidget->RemoveFromParent();
 		RestartWidget = nullptr;
 	}
-	bRestartScreenIsDeath = false;
+	bRestartScreenIsTerminal = false;
 
 	UGameplayStatics::SetGamePaused(this, false);
 	if (PlayerController)
@@ -303,15 +412,20 @@ void AReEchoGameMode::HandleEncounterEnded()
 	{
 		return;
 	}
-	const FReEchoRecording Recording = Player->Recorder->FinishRecording(Director ? Director->EncounterTime : 30.f);
+	const FReEchoRecording Recording = Player->Recorder->FinishRecording(Director ? Director->EncounterTime : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
 	const bool bPlayerSurvived = Player->Combatant->IsAlive();
-	RunSubsystem->CompleteEncounter(Recording, bPlayerSurvived, false);
+	const bool bBossKilled = bPlayerSurvived && bEncounterClearedByDefeat && RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	RunSubsystem->CompleteEncounter(Recording, bPlayerSurvived, bBossKilled);
 	if (!bPlayerSurvived)
 	{
 		return;
 	}
 
-	if (RunSubsystem->EncounterIndex < 6)
+	if (bBossKilled)
+	{
+		ShowRestartScreen(false, true);
+	}
+	else if (RunSubsystem->EncounterIndex < GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
 	{
 		ShowTraitCardChoice();
 	}
@@ -379,6 +493,10 @@ void AReEchoGameMode::RestoreGameInput()
 
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
+		if (FixedCamera)
+		{
+			PlayerController->SetViewTarget(FixedCamera);
+		}
 		FInputModeGameAndUI InputMode;
 		InputMode.SetHideCursorDuringCapture(false);
 		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -390,7 +508,7 @@ void AReEchoGameMode::RestoreGameInput()
 void AReEchoGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (!GEngine || !Director || !Player)
+	if (!Director || !Player)
 	{
 		return;
 	}
@@ -407,15 +525,16 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 		if (!bAnyEnemyAlive)
 		{
+			bEncounterClearedByDefeat = true;
 			Director->EndEncounter();
 		}
 	}
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	const FString Text = FString::Printf(
-	    TEXT("RE-ECHO  |  Encounter %d/6  |  Time %0.1f  |  HP %0.0f  |  Weapon %s  |  1/2/3 Switch  LMB/J Attack"),
-	    RunSubsystem ? RunSubsystem->EncounterIndex : 0,
-	    Director->GetRemainingTime(),
-	    Player->Combatant->CurrentHealth,
-	    *Player->GetEquippedWeaponLabel());
-	GEngine->AddOnScreenDebugMessage(7, 0.f, FColor::White, Text);
+	if (EncounterHudWidget)
+	{
+		EncounterHudWidget->SetEncounterStatus(
+			RunSubsystem ? RunSubsystem->EncounterIndex : 0,
+			GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount(),
+			Director->GetRemainingTime());
+	}
 }

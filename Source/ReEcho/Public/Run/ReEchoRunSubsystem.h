@@ -7,6 +7,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
 
+/** 跨关卡保存本轮构筑、遭遇进度和回响记录的运行时状态。 */
 UCLASS()
 class REECHO_API UReEchoRunSubsystem : public UGameInstanceSubsystem
 {
@@ -36,12 +37,15 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetEquippedWeapon(FName WeaponId);
+	/** 保存遭遇录制，并根据存活与 Boss 状态推进本轮流程。 */
 	UFUNCTION(BlueprintCallable)
 	void CompleteEncounter(const FReEchoRecording& Recording, bool bPlayerSurvived, bool bBossKilled);
 
+	/** 根据当前构筑和运行状态生成本次特质卡候选。 */
 	UFUNCTION(BlueprintCallable)
 	TArray<FReEchoTraitCardOffer> GenerateTraitCardOffers(int32 RequestedCount) const;
 
+	/** 应用所选特质卡，并更新后续角色和回响共用的构筑快照。 */
 	UFUNCTION(BlueprintCallable)
 	bool ApplyTraitCard(FName CardId);
 	UFUNCTION(BlueprintCallable)

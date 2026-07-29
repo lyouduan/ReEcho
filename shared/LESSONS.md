@@ -338,8 +338,13 @@ AI 丢失目标后该"在最后已知点附近找"，但别写复杂的 per-agen
 
 敌人移动全脚本驱动时设 **Kinematic**（不参与物理去穿透，杜绝被挤出界/挤停）；接触伤害用**距离判定**不依赖碰撞体。代价：敌人之间/与玩家不再物理阻挡（可穿过），灰盒可接受。Spawn 要**先设好位置再 `SetActive(true)`**，别让模板在原点 (0,0) 就注册进物理。
 
----
+### GAME-24. UBillboardComponent 左右镜像要翻 UV，负缩放无效 [UE]
 
+**来源**：ReEcho Plan 04
+
+UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸，缩放符号不会进入最终 DrawSprite，因此把组件 X Scale 设为负数不能水平镜像。运行时换帧的 Billboard 应使用 SetUV(TextureWidth, -TextureWidth, 0, TextureHeight) 翻向，恢复时使用 SetUV(0, TextureWidth, 0, TextureHeight)；每次 SetSprite 后以及朝向改变时重新应用 UV。
+
+---
 ## §LEVEL — 关卡搭建
 
 ### LEVEL-1. 新建关卡必须放灯光 [UE]
@@ -1022,6 +1027,16 @@ open "/Users/honghong/CodeWorkshop/SundayDrive/SundayDrive.uproject"
 **修复**：在 Actor 构造函数中用 `ConstructorHelpers::FObjectFinder` 建立 CDO 硬引用，保存为 `UPROPERTY TObjectPtr<UTexture2D>`，运行时只选择已引用对象。随后必须执行 `-clean` Cook，并在 `FinalCopyWin64_UFSFiles.txt`/Stage 清单中断言目标资产存在，不能只看 UAT ExitCode。
 
 **教训**：编辑器能 `LoadObject` 成功不等于 Shipping 会带资源。动态资源必须有硬引用、Primary Asset/Asset Manager 规则或 `DirectoriesToAlwaysCook`；最终验收要检查 Cook 清单并启动打包 EXE。
+### FIX-6. UE MCP 自动启动会让 Cook 因端口冲突失败 [UE]
+
+**来源：ReEcho Plan 04** — 从已打开的编辑器执行 Windows Packaging 时，Cook 已处理完资产但 `UnrealEditor-Cmd` 仍以 ExitCode=1 退出，UAT 最终只显示 `Unknown Cook Failure`。
+
+**根因**：Cook commandlet 同样加载 `DefaultEditorPerProjectUserSettings.ini`。当 `ModelContextProtocol` 设置 `bAutoStartServer=True` 时，Cook 子进程会尝试监听编辑器已经占用的 `127.0.0.1:8000`，产生 `LogHttpListener: Error` 并使 Cook 失败。
+
+**修复**：项目配置关闭 MCP 自动启动；需要编辑器桥接时手动执行 `ModelContextProtocol.StartServer 8000`，打包前执行 `ModelContextProtocol.StopServer`，自动打包则关闭编辑器运行。
+
+**教训**：遇到 Unknown Cook Failure 要查看 UAT 指向的 Cook 日志首个真实 `Error`。编辑器插件的自动启动行为也会进入 commandlet，开发服务端口不能默认在 Cook 中监听。
+
 ---
 
 ## §DEBUG — 通用调试
@@ -1124,3 +1139,6 @@ FFileHelper::SaveStringToFile(Line, *Path,
 **来源**：OutLaw 2026-06-23，队友实报 — `Packages/manifest.json` 里把 MCP 包写成 `"com.coplaydev.unity-mcp": "file:/Users/honghong/unity-mcp/MCPForUnity"`（本机绝对路径）提交进 git → **别的队友 clone 后机器上没这个路径** → Unity 开工程弹 `Package Manager Error: package.json cannot be found`。机器专属路径**绝不能进共享仓**。
 - **修**：换成**钉死 commit 的 git URL**：`"https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#<commit>"`（从 `git -C ~/unity-mcp remote -v` 拿上游、`rev-parse HEAD` 拿 commit）。任何机器都能从 GitHub 解析、锁定同一版本不漂移。同步**删 `packages-lock.json` 里该包的旧 `source:"local"` 块**让 Unity 重解析（git 依赖的 lock 格式带 hash，别手写）。
 - 适用任何本地包/工具：MCP 这类**只有部分人用的开发工具**也照此（git URL 让所有机器可解析，纯编辑器工具不影响 build；游戏代码不引用它）。
+### DEBUG-UE. 背景尺寸不能充当镜头跟随范围
+
+远景平面世界尺寸与玩法镜头边界属于不同坐标语义。将 8400/2 直接作为 CameraFollowLimit 会让镜头越过仅 ±1100 的场地边界。镜头范围应使用独立安全值，并让纯远景绑定相机保持固定相对距离。

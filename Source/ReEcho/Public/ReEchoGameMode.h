@@ -2,11 +2,16 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "ReEchoGameMode.generated.h"
+class ACameraActor;
 class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoPlayerPawn;
+class UReEchoEncounterHudWidget;
 class UReEchoRestartWidget;
 class UReEchoTraitCardChoiceWidget;
+class UMaterialInterface;
+class UTexture2D;
+/** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
 UCLASS()
 
 class REECHO_API AReEchoGameMode : public AGameModeBase
@@ -24,15 +29,31 @@ private:
 	UPROPERTY()
 	TObjectPtr<AReEchoPlayerPawn> Player;
 	UPROPERTY()
+	TObjectPtr<ACameraActor> FixedCamera;
+	UPROPERTY()
 	TArray<TObjectPtr<AReEchoEchoActor>> Echoes;
+
+	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ArenaBackgroundTexture;
+
+	/** 无光照场景材质，避免背景受关卡灯光或 Sprite 渲染代理影响。 */
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> ArenaBackgroundMaterial;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
-	bool bRestartScreenIsDeath = false;
+
+	UPROPERTY()
+	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
+	bool bRestartScreenIsTerminal = false;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
 	bool bEncounterTransitioning = false;
+	bool bEncounterClearedByDefeat = false;
+	float ArenaSceneWorldHeight = 0.0f;
+	float ArenaSceneWorldWidth = 0.0f;
 	UFUNCTION()
 	void HandleFixedStep(float FixedDeltaSeconds);
 	UFUNCTION()
@@ -57,10 +78,12 @@ private:
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
 	void CreateArena();
+	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	void SpawnEnemies(int32 EncounterIndex);
 	void ClearCombatants();
-	void ShowRestartScreen(bool bDeathScreen = true);
+	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
+	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowTraitCardChoice();
 	void RestoreGameInput();
 };

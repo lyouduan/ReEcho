@@ -42,7 +42,7 @@ This file contains project-specific additions to the canonical workflow. If it c
 Use the `.cmd` entry points on Windows; they bypass PowerShell execution policy only for their child process and do not alter machine policy.
 
 1. Run `scripts/ue/Find-UnrealEngine.cmd` to discover the local engine.
-2. Close Unreal Editor before validating C++ changes; restarting PIE does not reliably reload a newly built editor DLL.
+2. Before C++ build, UE Python asset generation, Cook, automation, or packaging, forcibly terminate any `UnrealEditor` / `UnrealEditor-Cmd` process after warning that unsaved editor work will be lost; restarting PIE does not reliably reload a newly built editor DLL.
 3. Run `scripts/ue/Build-Editor.cmd`.
 4. Run `scripts/ue/Run-Automation.cmd -Filter ReEcho` when the editor build succeeds.
 5. For data-only changes, run `python scripts/validate_project.py` before opening the editor.

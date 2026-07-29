@@ -11,12 +11,13 @@ class AReEchoWeaponActor;
 class UAbilitySystemComponent;
 class UBillboardComponent;
 class UCameraComponent;
+class UCapsuleComponent;
 class UFloatingPawnMovement;
 class UGameplayAbility;
 class UReEchoCombatantComponent;
 class UReEchoRecorderComponent;
-class USphereComponent;
 class UStaticMeshComponent;
+class UTexture2D;
 
 enum class EReEchoWeaponSlot : uint8;
 
@@ -24,6 +25,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoActiveSkill, FVector, Positi
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoWeaponChanged, FName, WeaponId);
 
+/** 玩家可控角色：组合移动、GAS 技能、武器、录制以及 2D 序列帧表现。 */
 UCLASS(Blueprintable)
 
 class REECHO_API AReEchoPlayerPawn : public APawn, public IAbilitySystemInterface
@@ -37,17 +39,21 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	FString GetEquippedWeaponLabel() const;
+	/** 由 GameplayAbility 回调，执行当前武器的基础攻击。 */
 	bool ExecuteBasicAttackAbility();
 	bool ExecuteActiveAttackAbility();
 	bool ExecuteSelectWeaponSlot1Ability();
 	bool ExecuteSelectWeaponSlot2Ability();
 	bool ExecuteSelectWeaponSlot3Ability();
+	void PlayHitVisual();
+	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
+	bool ConfigureCharacter(FName CharacterId);
+	/** 设置与当前场景尺寸一致的玩家活动半径：X对应场景高度，Y对应场景宽度。 */
+	void ConfigureArenaBounds(float HalfExtentX, float HalfExtentY);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<USphereComponent> Collision;
+	TObjectPtr<UCapsuleComponent> Collision;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<UStaticMeshComponent> Shape;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
@@ -85,16 +91,23 @@ private:
 	void MoveRight(float Value);
 	void ActivateSkill();
 	void BasicAttack();
+	void StopBasicAttack();
 	void TogglePauseMenu();
 	void SelectWeaponSlot1();
 	void SelectWeaponSlot2();
 	void SelectWeaponSlot3();
 	void ConfigureMouseInput();
+	/** 将鼠标位置投射到战斗平面，并据此更新角色左右朝向。 */
 	void UpdateMouseAim();
-	void UpdateFixedCamera();
+	void ConstrainToArenaBounds();
+	void UpdateFollowCamera();
 	void GrantStartupAbilities();
 	bool TryActivatePlayerAbility(TSubclassOf<UGameplayAbility> AbilityClass);
 	bool ExecuteSelectWeaponAbility(EReEchoWeaponSlot WeaponSlot, FName WeaponId);
+	void StartAttackVisual(float Duration, float Strength);
+	void UpdateSpriteAnimation(float DeltaSeconds);
+	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
+	void UpdateSequenceFrame();
 
 	UPROPERTY()
 	TObjectPtr<AReEchoHealthBarActor> HealthBar;
@@ -103,4 +116,24 @@ private:
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
 	bool bMouseInputConfigured = false;
+	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
+	bool bBasicAttackHeld = false;
+	FVector BaseSpriteLocation = FVector::ZeroVector;
+	FVector BaseSpriteScale = FVector::OneVector;
+	float VisualTime = 0.0f;
+	float AttackVisualRemaining = 0.0f;
+	float AttackVisualDuration = 0.0f;
+	float AttackVisualStrength = 0.0f;
+	float HitVisualRemaining = 0.0f;
+	float VisualFacingSign = 1.0f;
+	float AppliedVisualFacingSign = 0.0f;
+
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UTexture2D>> CharacterTextures;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UTexture2D>> IdleAnimationFrames;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UTexture2D>> AttackAnimationFrames;
 };

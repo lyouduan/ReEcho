@@ -9,6 +9,8 @@ This is a coordination log, not the permanent rulebook. Settled decisions must b
 | 2026-07-21 | Codex | AI workflow framework | `shared/`, tool adapters, `scripts/`, plan template | Completed | Static, build, and automation checks passed |
 | 2026-07-21 | Codex | Echo translucent visual | `Content/ReEcho/Materials/M_EchoGhost.uasset` | Completed | Generated through UE 5.8 Editor |
 | 2026-07-23 | Codex | `plan/03-gas-player-abilities` | GAS/player C++, 2D character textures, collision/UI/menu code, config and plan/routing docs | Completed | Editor build, three automation tests, clean Windows Shipping Cook and launch smoke test passed; user requested merge |
+| 2026-07-23 | Codex | `plan/04-2d-combat-animation` | Player/echo/enemy 2D visual animation code, MushroomGirl source frames, imported sequence textures and plan/routing docs | Active | Programmatic Billboard motion, MushroomGirl frame playback and center-aligned player capsule; Editor build and four ReEcho tests pass; human PIE tuning remains |
+| 2026-07-29 | Codex | `plan/05-refactor-runtime-cleanup` | Runtime config, GameMode/RunSubsystem/UI cleanup, module dependencies and verification scripts | Completed | Preserve gameplay behavior and all user-authored binary assets; only evidence-backed dead code/dependencies are removed |
 
 ## Decisions
 

@@ -4,10 +4,10 @@
 #include "GameFramework/Actor.h"
 #include "ReEchoSwordArcActor.generated.h"
 
-class UInstancedStaticMeshComponent;
-class UMaterialInstanceDynamic;
 class USceneComponent;
+class UStaticMeshComponent;
 
+/** 玩家挥砍时短暂出现的2D月牙轨迹。 */
 UCLASS()
 class REECHO_API AReEchoSwordArcActor : public AActor
 {
@@ -15,34 +15,17 @@ class REECHO_API AReEchoSwordArcActor : public AActor
 
 public:
 	AReEchoSwordArcActor();
-
 	virtual void Tick(float DeltaSeconds) override;
-
 	void InitializeArc(float SwingDirection);
 
 private:
-	void BuildArc(
-		UInstancedStaticMeshComponent* SegmentComponent,
-		float Radius,
-		float Width,
-		float SwingDirection);
-	void UpdateOpacity(float Opacity);
-
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> SceneRoot;
 
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UInstancedStaticMeshComponent> GlowSegments;
+	TObjectPtr<UStaticMeshComponent> SlashSprite;
 
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UInstancedStaticMeshComponent> CoreSegments;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> GlowMaterial;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> CoreMaterial;
-
+	FVector SlashBaseScale = FVector::OneVector;
 	float ElapsedTime = 0.0f;
-	float Lifetime = 0.30f;
+	float Lifetime = 0.26f;
 };
