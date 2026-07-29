@@ -5,8 +5,9 @@
 
 #include "Camera/CameraComponent.h"
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Core/ReEchoBalanceSettings.h"
 #include "Components/BillboardComponent.h"
-#include "Components/SphereComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -25,36 +26,25 @@
 #include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoGameMode.h"
 #include "Weapons/ReEchoWeaponActor.h"
+#include "UObject/ConstructorHelpers.h"
 
 AReEchoPlayerPawn::AReEchoPlayerPawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
+	constexpr float CharacterWorldHeight = 224.0f;
+	Collision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
-	Collision->InitSphereRadius(32.f);
-	Collision->SetVisibility(true);
+	Collision->InitCapsuleSize(27.2f, CharacterWorldHeight * 0.5f);
+	Collision->SetVisibility(false);
 	Collision->SetCollisionProfileName(TEXT("Pawn"));
-	Shape = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlayerShape"));
-	Shape->SetupAttachment(RootComponent);
-	Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Shape->SetVisibility(false);
-	Shape->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
-	Shape->SetRelativeScale3D(FVector(0.65f));
-	if (UMaterialInterface* Base =
-	        LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
-	{
-		UMaterialInstanceDynamic* Mat = UMaterialInstanceDynamic::Create(Base, this);
-		Mat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.1f, 1.f, 0.25f));
-		Shape->SetMaterial(0, Mat);
-	}
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(RootComponent);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GroundShadow->SetCastShadow(false);
-	GroundShadow->SetTranslucentSortPriority(-1);
+	GroundShadow->SetTranslucentSortPriority(-0.8);
 	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
-	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -49.0f));
-	GroundShadow->SetRelativeScale3D(FVector(0.55f, 0.34f, 1.0f));
+	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -CharacterWorldHeight * 0.28f));
+	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));
 	if (UMaterialInterface* ShadowBase = LoadObject<UMaterialInterface>(
 	        nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial")))
 	{
@@ -70,8 +60,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CharacterSprite->SetHiddenInGame(false);
 	CharacterSprite->SetVisibility(true);
-	constexpr float CharacterWorldHeight = 260.0f;
-	CharacterSprite->SetRelativeLocation(FVector(0.0f, 0.0f, CharacterWorldHeight * 0.5f));
+	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	CharacterSprite->bIsScreenSizeScaled = false;
 	if (UTexture2D* CharacterTexture =
 	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Characters/Player2D.Player2D")))
@@ -80,9 +69,29 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 		const float TextureScale = CharacterWorldHeight / FMath::Max(1, CharacterTexture->GetSizeY());
 		CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
 	}
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Spade.Player_Spade"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
+	CharacterTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
+	CharacterTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
+	CharacterTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
+	CharacterTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
+	CharacterTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
+	ConfigureCharacter(TEXT("J_CAT"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
-	Camera->SetAbsolute(true, true, false);
+	Camera->SetAbsolute(true, true, true);
+	Camera->SetProjectionMode(ECameraProjectionMode::Orthographic);
+	Camera->SetOrthoWidth(GetDefault<UReEchoBalanceSettings>()->ArenaSceneWorldHeight * (16.0f / 9.0f));
+	Camera->SetAspectRatio(16.0f / 9.0f);
+	Camera->SetConstraintAspectRatio(true);
 	Camera->SetWorldLocation(FVector(-700.0f, 0.0f, 900.0f));
 	Camera->SetWorldRotation(FRotator(-55.0f, 0.0f, 0.0f));
 	Movement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("Movement"));
@@ -95,25 +104,51 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
+void AReEchoPlayerPawn::ConfigureArenaBounds(const float HalfExtentX, const float HalfExtentY)
+{
+	ArenaHalfExtents.X = FMath::Max(100.0f, HalfExtentX);
+	ArenaHalfExtents.Y = FMath::Max(100.0f, HalfExtentY);
+}
+
+bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
+{
+	const TObjectPtr<UTexture2D>* TextureEntry = CharacterTextures.Find(CharacterId);
+	if (!TextureEntry || !TextureEntry->Get())
+	{
+		return false;
+	}
+
+	UTexture2D* Texture = TextureEntry->Get();
+	constexpr float CharacterWorldHeight = 224.0f;
+	CharacterSprite->SetSprite(Texture);
+	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
+	CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
+	IdleAnimationFrames = {Texture};
+	AttackAnimationFrames = {Texture};
+	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
+	return true;
+}
 void AReEchoPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
-	UpdateFixedCamera();
+	UpdateFollowCamera();
+	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
+	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 
 	ConfigureMouseInput();
 
 	HealthBar = GetWorld()->SpawnActor<AReEchoHealthBarActor>();
 	if (HealthBar)
 	{
-		HealthBar->Initialize(Combatant, FLinearColor(0.1f, 1.f, 0.25f), 100.f, 0.9f, CharacterSprite);
+		HealthBar->Initialize(Combatant, FLinearColor(0.1f, 1.f, 0.25f), 64.f, 0.576f, CharacterSprite);
 	}
 
 	Weapon = GetWorld()->SpawnActor<AReEchoWeaponActor>();
 	if (Weapon)
 	{
 		Weapon->SetOwner(this);
-		Weapon->AttachToActor(this, FAttachmentTransformRules::KeepRelativeTransform);
-		Weapon->SetActorRelativeLocation(FVector(28.0f, 0.0f, 16.0f));
+		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
 		Weapon->InitializeWeapon();
 	}
 
@@ -127,6 +162,7 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	Input->BindAxis(TEXT("MoveForward"), this, &AReEchoPlayerPawn::MoveForward);
 	Input->BindAxis(TEXT("MoveRight"), this, &AReEchoPlayerPawn::MoveRight);
 	Input->BindAction(TEXT("BasicAttack"), IE_Pressed, this, &AReEchoPlayerPawn::BasicAttack);
+	Input->BindAction(TEXT("BasicAttack"), IE_Released, this, &AReEchoPlayerPawn::StopBasicAttack);
 	Input->BindAction(TEXT("ActiveSkill"), IE_Pressed, this, &AReEchoPlayerPawn::ActivateSkill);
 	Input->BindAction(TEXT("WeaponSlot1"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot1);
 	Input->BindAction(TEXT("WeaponSlot2"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot2);
@@ -149,11 +185,16 @@ void AReEchoPlayerPawn::MoveRight(float Value)
 void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	ConstrainToArenaBounds();
 	ConfigureMouseInput();
 	UpdateMouseAim();
-	UpdateFixedCamera();
+	if (bBasicAttackHeld)
+	{
+		TryActivatePlayerAbility(UReEchoBasicAttackAbility::StaticClass());
+	}
+	UpdateSpriteAnimation(DeltaSeconds);
 	ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor::Green);
-	ReEchoCollisionDebug::DrawSphere(this, Collision, FColor::Cyan);
+	ReEchoCollisionDebug::DrawCapsule(this, Collision, FColor::Cyan);
 }
 
 void AReEchoPlayerPawn::ConfigureMouseInput()
@@ -211,14 +252,33 @@ void AReEchoPlayerPawn::UpdateMouseAim()
 	AimDirection.Z = 0.0f;
 	if (!AimDirection.IsNearlyZero())
 	{
+		const float HorizontalAim = FVector::DotProduct(AimDirection, Camera->GetRightVector());
+		if (FMath::Abs(HorizontalAim) > 5.0f)
+		{
+			VisualFacingSign = HorizontalAim >= 0.0f ? 1.0f : -1.0f;
+		}
 		SetActorRotation(AimDirection.Rotation());
 	}
 }
 
-void AReEchoPlayerPawn::UpdateFixedCamera()
+void AReEchoPlayerPawn::ConstrainToArenaBounds()
 {
-	Camera->SetWorldLocation(GetActorLocation() + FVector(-700.0f, 0.0f, 900.0f));
+	if (ArenaHalfExtents.X <= 0.0f || ArenaHalfExtents.Y <= 0.0f)
+	{
+		return;
+	}
+	FVector Location = GetActorLocation();
+	Location.X = FMath::Clamp(Location.X, -ArenaHalfExtents.X, ArenaHalfExtents.X);
+	Location.Y = FMath::Clamp(Location.Y, -ArenaHalfExtents.Y, ArenaHalfExtents.Y);
+	SetActorLocation(Location, false, nullptr, ETeleportType::TeleportPhysics);
+}
+
+void AReEchoPlayerPawn::UpdateFollowCamera()
+{
+	// 固定正交镜头完整覆盖 11200×6300 的16:9场景背景。
+	Camera->SetWorldLocation(FVector(-700.0f, 0.0f, 900.0f));
 	Camera->SetWorldRotation(FRotator(-55.0f, 0.0f, 0.0f));
+	Camera->SetOrthoWidth(GetDefault<UReEchoBalanceSettings>()->ArenaSceneWorldHeight * (16.0f / 9.0f));
 }
 
 FString AReEchoPlayerPawn::GetEquippedWeaponLabel() const
@@ -260,7 +320,13 @@ void AReEchoPlayerPawn::TogglePauseMenu()
 
 void AReEchoPlayerPawn::BasicAttack()
 {
+	bBasicAttackHeld = true;
 	TryActivatePlayerAbility(UReEchoBasicAttackAbility::StaticClass());
+}
+
+void AReEchoPlayerPawn::StopBasicAttack()
+{
+	bBasicAttackHeld = false;
 }
 
 void AReEchoPlayerPawn::ActivateSkill()
@@ -285,7 +351,12 @@ void AReEchoPlayerPawn::SelectWeaponSlot3()
 
 bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 {
-	return Weapon && Weapon->TryBasicAttack(Combatant);
+	const bool bAttacked = Weapon && Weapon->TryBasicAttack(Combatant);
+	if (bAttacked)
+	{
+		StartAttackVisual(0.18f, 16.0f);
+	}
+	return bAttacked;
 }
 
 bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
@@ -295,6 +366,7 @@ bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 		return false;
 	}
 
+	StartAttackVisual(0.28f, 24.0f);
 	OnActiveSkill.Broadcast(GetActorLocation(), Weapon->GetEquippedWeaponId());
 	return true;
 }
@@ -331,4 +403,88 @@ bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoWeaponSlot Weapo
 	}
 
 	return true;
+}
+
+void AReEchoPlayerPawn::PlayHitVisual()
+{
+	HitVisualRemaining = 0.18f;
+}
+
+void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Strength)
+{
+	AttackVisualDuration = Duration;
+	AttackVisualRemaining = Duration;
+	AttackVisualStrength = Strength;
+}
+
+void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
+{
+	if (!CharacterSprite)
+	{
+		return;
+	}
+	VisualTime += DeltaSeconds;
+	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
+	HitVisualRemaining = FMath::Max(0.0f, HitVisualRemaining - DeltaSeconds);
+	const bool bMoving = GetVelocity().SizeSquared2D() > 25.0f;
+	const float Bob = FMath::Sin(VisualTime * (bMoving ? 10.0f : 3.0f)) * (bMoving ? 4.0f : 1.8f);
+	float Lunge = 0.0f;
+	float ScaleX = 1.0f;
+	float ScaleY = 1.0f;
+	if (AttackVisualRemaining > 0.0f && AttackVisualDuration > 0.0f)
+	{
+		const float Progress = 1.0f - AttackVisualRemaining / AttackVisualDuration;
+		const float Pulse = FMath::Sin(Progress * PI);
+		Lunge = Pulse * AttackVisualStrength;
+		ScaleX += Pulse * 0.08f;
+		ScaleY -= Pulse * 0.04f;
+	}
+	if (HitVisualRemaining > 0.0f)
+	{
+		const float HitRatio = HitVisualRemaining / 0.18f;
+		Lunge -= FMath::Sin(VisualTime * 85.0f) * 7.0f * HitRatio;
+		ScaleX *= 1.12f;
+		ScaleY *= 0.86f;
+	}
+	CharacterSprite->SetRelativeLocation(BaseSpriteLocation + FVector(Lunge, 0.0f, Bob));
+	CharacterSprite->SetRelativeScale3D(BaseSpriteScale * FVector(ScaleX, ScaleY, 1.0f));
+	UpdateSequenceFrame();
+}
+
+void AReEchoPlayerPawn::UpdateSequenceFrame()
+{
+	UTexture2D* Frame = nullptr;
+	if (AttackVisualRemaining > 0.0f && AttackVisualDuration > 0.0f && AttackAnimationFrames.Num() > 0)
+	{
+		const float Progress = 1.0f - AttackVisualRemaining / AttackVisualDuration;
+		const int32 FrameIndex =
+		    FMath::Clamp(FMath::FloorToInt(Progress * AttackAnimationFrames.Num()), 0, AttackAnimationFrames.Num() - 1);
+		Frame = AttackAnimationFrames[FrameIndex];
+	}
+	else if (IdleAnimationFrames.Num() > 0)
+	{
+		constexpr float IdleFramesPerSecond = 4.0f;
+		const int32 FrameIndex = FMath::FloorToInt(VisualTime * IdleFramesPerSecond) % IdleAnimationFrames.Num();
+		Frame = IdleAnimationFrames[FrameIndex];
+	}
+
+	const bool bFrameChanged = Frame && CharacterSprite->Sprite != Frame;
+	if (bFrameChanged)
+	{
+		CharacterSprite->SetSprite(Frame);
+	}
+	if (Frame && (bFrameChanged || !FMath::IsNearlyEqual(AppliedVisualFacingSign, VisualFacingSign)))
+	{
+		const int32 FrameWidth = Frame->GetSizeX();
+		const int32 FrameHeight = Frame->GetSizeY();
+		if (VisualFacingSign < 0.0f)
+		{
+			CharacterSprite->SetUV(FrameWidth, -FrameWidth, 0, FrameHeight);
+		}
+		else
+		{
+			CharacterSprite->SetUV(0, FrameWidth, 0, FrameHeight);
+		}
+		AppliedVisualFacingSign = VisualFacingSign;
+	}
 }

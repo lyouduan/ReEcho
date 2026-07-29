@@ -3,6 +3,7 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 
 AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 {
@@ -18,6 +19,12 @@ AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 	Text->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Text->SetCastShadow(false);
 	Text->SetTranslucentSortPriority(20);
+	if (UMaterialInterface* UnlitTextMaterial = LoadObject<UMaterialInterface>(
+			nullptr,
+			TEXT("/Engine/EngineMaterials/UnlitText.UnlitText")))
+	{
+		Text->SetTextMaterial(UnlitTextMaterial);
+	}
 }
 
 void AReEchoDamageNumberActor::SpawnDamageNumber(
@@ -48,7 +55,7 @@ void AReEchoDamageNumberActor::InitializeDamage(
 	InitialColor = Color;
 	const int32 DisplayDamage = FMath::Max(1, FMath::RoundToInt(Damage));
 	Text->SetText(FText::FromString(FString::Printf(TEXT("-%d"), DisplayDamage)));
-	Text->SetTextRenderColor(InitialColor.ToFColor(true));
+	Text->SetTextRenderColor(InitialColor.ToFColor(false));
 }
 
 void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
@@ -61,14 +68,14 @@ void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
 	if (APlayerCameraManager* Camera =
 			UGameplayStatics::GetPlayerCameraManager(this, 0))
 	{
-		const FVector ToCamera = Camera->GetCameraLocation() - GetActorLocation();
-		SetActorRotation(ToCamera.Rotation());
+		// 正交相机的所有视线互相平行；统一使用相机前向，避免屏幕边缘文字产生透视式倾斜。
+		SetActorRotation((-Camera->GetCameraRotation().Vector()).Rotation());
 	}
 
 	const float Alpha = 1.0f - FMath::Clamp(ElapsedTime / DisplayDuration, 0.0f, 1.0f);
 	FLinearColor FadedColor = InitialColor;
 	FadedColor.A = Alpha;
-	Text->SetTextRenderColor(FadedColor.ToFColor(true));
+	Text->SetTextRenderColor(FadedColor.ToFColor(false));
 	SetActorScale3D(FVector(FMath::Lerp(1.15f, 0.85f, 1.0f - Alpha)));
 
 	if (ElapsedTime >= DisplayDuration)

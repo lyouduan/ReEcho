@@ -129,9 +129,9 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	}
 	AddRecording(Recording);
 	TimeShards += 15;
-	if (EncounterIndex >= 6)
+	if (EncounterIndex >= GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
 	{
-		SetPhase(EReEchoRunPhase::Summary);
+		SetPhase(bBossKilled ? EReEchoRunPhase::Summary : EReEchoRunPhase::Failed);
 		return;
 	}
 	SetPhase(EReEchoRunPhase::CardChoice);

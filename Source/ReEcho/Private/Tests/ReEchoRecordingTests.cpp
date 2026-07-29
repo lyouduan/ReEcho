@@ -4,7 +4,11 @@
 #include "AbilitySystemComponent.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Core/ReEchoTypes.h"
+#include "Core/ReEchoBalanceSettings.h"
+#include "Engine/GameInstance.h"
+#include "Graybox/ReEchoEchoActor.h"
 #include "Recording/ReEchoRecorderComponent.h"
+#include "Run/ReEchoRunSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRecordingInterpolationTest,
                                  "ReEcho.Recording.InterpolatesAndHolds",
@@ -78,4 +82,63 @@ bool FReEchoPlayerGasStructureTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFinalBossVictoryTest,
+                                 "ReEcho.Run.FinalBossRequiresKill",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFinalBossVictoryTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* TimedOutRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	TimedOutRun->EncounterIndex = GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	TimedOutRun->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("Final encounter timeout is a failure"), TimedOutRun->Phase, EReEchoRunPhase::Failed);
+
+	UReEchoRunSubsystem* VictoriousRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	VictoriousRun->EncounterIndex = GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	VictoriousRun->CompleteEncounter(FReEchoRecording(), true, true);
+	TestEqual(TEXT("Defeating the final boss enters summary"), VictoriousRun->Phase, EReEchoRunPhase::Summary);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponConfigurationTest,
+                                 "ReEcho.Config.WeaponsAreValid",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
+{
+	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
+	TestTrue(TEXT("At least one weapon is configured"), !Settings->Weapons.IsEmpty());
+
+	AReEchoPlayerPawn* CharacterPawn = NewObject<AReEchoPlayerPawn>(GetTransientPackage());
+	const TArray<FName> CharacterIds = {
+		TEXT("J_CAT"), TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
+	for (const FName CharacterId : CharacterIds)
+	{
+		TestTrue(TEXT("Configured player character texture exists"), CharacterPawn->ConfigureCharacter(CharacterId));
+	}
+	TestTrue(TEXT("Default character id resolves"), CharacterPawn->ConfigureCharacter(Settings->DefaultCharacterId));
+
+	AReEchoEchoActor* EchoActor = NewObject<AReEchoEchoActor>(GetTransientPackage());
+	for (const FName CharacterId : CharacterIds)
+	{
+		TestTrue(TEXT("Configured echo texture exists"), EchoActor->ConfigureEchoAppearance(CharacterId));
+	}
+
+	TSet<EReEchoWeaponSlot> Slots;
+	TSet<FName> WeaponIds;
+	for (const FReEchoWeaponConfig& Weapon : Settings->Weapons)
+	{
+		TestTrue(TEXT("Weapon slot is assigned"), Weapon.Slot != EReEchoWeaponSlot::None);
+		TestTrue(TEXT("Weapon id is assigned"), !Weapon.WeaponId.IsNone());
+		TestTrue(TEXT("Weapon interval is positive"), Weapon.Interval > 0.0f);
+		TestTrue(TEXT("Weapon range is positive"), Weapon.Range > 0.0f);
+		TestFalse(TEXT("Weapon slots are unique"), Slots.Contains(Weapon.Slot));
+		TestFalse(TEXT("Weapon ids are unique"), WeaponIds.Contains(Weapon.WeaponId));
+		Slots.Add(Weapon.Slot);
+		WeaponIds.Add(Weapon.WeaponId);
+	}
+
+	return true;
+}
 #endif

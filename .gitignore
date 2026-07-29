@@ -4,6 +4,7 @@
 /Intermediate/
 /Saved/
 /PackagedBuilds/
+/Packages/
 
 # Generated output inside project plugins
 /Plugins/**/Binaries/

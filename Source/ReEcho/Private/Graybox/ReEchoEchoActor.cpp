@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Components/BillboardComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -12,27 +13,14 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoPlaybackComponent.h"
 #include "Weapons/ReEchoWeaponActor.h"
+#include "UObject/ConstructorHelpers.h"
 
 AReEchoEchoActor::AReEchoEchoActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	Shape = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EchoShape"));
-	SetRootComponent(Shape);
-	Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Shape->SetVisibility(false);
-	Shape->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
-	Shape->SetRelativeScale3D(FVector(0.55f, 0.55f, 1.0f));
-
-	if (UMaterialInterface* BaseMaterial =
-	        LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/ReEcho/Materials/M_EchoGhost.M_EchoGhost")))
-	{
-		EchoMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
-		EchoMaterial->SetVectorParameterValue(TEXT("EchoColor"), FLinearColor(0.45f, 0.04f, 1.0f));
-		EchoMaterial->SetScalarParameterValue(TEXT("Opacity"), 0.34f);
-		Shape->SetMaterial(0, EchoMaterial);
-	}
-
+	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	SetRootComponent(Root);
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(RootComponent);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -40,8 +28,8 @@ AReEchoEchoActor::AReEchoEchoActor()
 	GroundShadow->SetTranslucentSortPriority(-1);
 	GroundShadow->SetAbsolute(false, false, true);
 	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
-	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -49.0f));
-	GroundShadow->SetWorldScale3D(FVector(0.55f, 0.34f, 1.0f));
+	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -224.0f * 0.28f));
+	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));
 	if (UMaterialInterface* ShadowBase = LoadObject<UMaterialInterface>(
 	        nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial")))
 	{
@@ -57,16 +45,27 @@ AReEchoEchoActor::AReEchoEchoActor()
 	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CharacterSprite->SetHiddenInGame(false);
 	CharacterSprite->SetVisibility(true);
-	constexpr float CharacterWorldHeight = 260.0f;
-	CharacterSprite->SetRelativeLocation(FVector(0.0f, 0.0f, CharacterWorldHeight * 0.5f));
+	constexpr float CharacterWorldHeight = 224.0f;
+	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	CharacterSprite->bIsScreenSizeScaled = false;
-	if (UTexture2D* CharacterTexture =
-	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Characters/Echo2D.Echo2D")))
-	{
-		CharacterSprite->SetSprite(CharacterTexture);
-		const float TextureScale = CharacterWorldHeight / FMath::Max(1, CharacterTexture->GetSizeY());
-		CharacterSprite->SetWorldScale3D(FVector(TextureScale));
-	}
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Cat.Echo_Cat"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Heart.Echo_Heart"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Spade.Echo_Spade"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Clover.Echo_Clover"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
+		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Diamond.Echo_Diamond"));
+	EchoTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
+	EchoTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
+	EchoTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
+	EchoTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
+	EchoTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
+	ConfigureEchoAppearance(TEXT("J_CAT"));
+	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
+	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 
 	Playback = CreateDefaultSubobject<UReEchoPlaybackComponent>(TEXT("Playback"));
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
@@ -74,6 +73,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 
 void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const float Efficiency)
 {
+	ConfigureEchoAppearance(Recording.BuildSnapshot.CharacterId);
 	Playback->LoadRecording(Recording);
 	Playback->OnReplayWeapon.AddDynamic(this, &AReEchoEchoActor::HandleReplayedWeapon);
 
@@ -99,8 +99,8 @@ void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const f
 	if (Weapon)
 	{
 		Weapon->SetOwner(this);
-		Weapon->AttachToActor(this, FAttachmentTransformRules::KeepRelativeTransform);
-		Weapon->SetActorRelativeLocation(FVector(28.0f, 0.0f, 16.0f));
+		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
 		Weapon->InitializeWeapon();
 		FName InitialWeaponId = Recording.BuildSnapshot.WeaponId;
 		if (!Recording.WeaponChanges.IsEmpty())
@@ -111,6 +111,23 @@ void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const f
 	}
 }
 
+bool AReEchoEchoActor::ConfigureEchoAppearance(const FName CharacterId)
+{
+	const TObjectPtr<UTexture2D>* TextureEntry = EchoTextures.Find(CharacterId);
+	if (!TextureEntry || !TextureEntry->Get())
+	{
+		return false;
+	}
+
+	UTexture2D* Texture = TextureEntry->Get();
+	constexpr float CharacterWorldHeight = 224.0f;
+	CharacterSprite->SetSprite(Texture);
+	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
+	CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
+	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
+	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
+	return true;
+}
 void AReEchoEchoActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (Weapon)
@@ -141,11 +158,13 @@ void AReEchoEchoActor::Tick(const float DeltaSeconds)
 	ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor(180, 70, 255));
 
 	VisualTime += DeltaSeconds;
-	if (EchoMaterial)
-	{
-		const float PulsingOpacity = 0.34f + FMath::Sin(VisualTime * 2.5f) * 0.06f;
-		EchoMaterial->SetScalarParameterValue(TEXT("Opacity"), PulsingOpacity);
-	}
+	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
+	const float Bob = FMath::Sin(VisualTime * 3.2f) * 2.5f;
+	const float AttackPulse =
+	    AttackVisualRemaining > 0.0f ? FMath::Sin((1.0f - AttackVisualRemaining / 0.2f) * PI) : 0.0f;
+	CharacterSprite->SetRelativeLocation(BaseSpriteLocation + FVector(AttackPulse * 18.0f, 0.0f, Bob));
+	CharacterSprite->SetRelativeScale3D(BaseSpriteScale *
+	                                    FVector(1.0f + AttackPulse * 0.07f, 1.0f - AttackPulse * 0.03f, 1.0f));
 
 	if (!Weapon)
 	{
@@ -180,5 +199,8 @@ void AReEchoEchoActor::Tick(const float DeltaSeconds)
 		SetActorRotation(AimDirection.Rotation());
 	}
 
-	Weapon->TryBasicAttack(Combatant);
+	if (Weapon->TryBasicAttack(Combatant))
+	{
+		AttackVisualRemaining = 0.2f;
+	}
 }

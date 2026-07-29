@@ -1,6 +1,7 @@
 #include "UI/ReEchoRestartWidget.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Core/ReEchoBalanceSettings.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
@@ -57,7 +58,7 @@ void UReEchoRestartWidget::NativeConstruct()
 		QuitButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleQuitClicked);
 	}
 	RefreshMenuMode();
-	if (bDeathScreen && RestartButton)
+	if ((bDeathScreen || bVictoryScreen) && RestartButton)
 	{
 		RestartButton->SetKeyboardFocus();
 	}
@@ -70,6 +71,16 @@ void UReEchoRestartWidget::NativeConstruct()
 void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen)
 {
 	bDeathScreen = bInDeathScreen;
+	bVictoryScreen = false;
+	RefreshMenuMode();
+}
+
+void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 TraitCount)
+{
+	bDeathScreen = false;
+	bVictoryScreen = true;
+	VictoryTimeShards = TimeShards;
+	VictoryTraitCount = TraitCount;
 	RefreshMenuMode();
 }
 
@@ -122,18 +133,34 @@ void UReEchoRestartWidget::RefreshMenuMode()
 {
 	if (TitleText)
 	{
-		TitleText->SetText(FText::FromString(bDeathScreen ? TEXT("回响中断") : TEXT("游戏菜单")));
-		TitleText->SetColorAndOpacity(
-		    FSlateColor(bDeathScreen ? FLinearColor(0.95f, 0.12f, 0.12f) : FLinearColor(0.4f, 0.85f, 1.0f)));
+		const FString Title =
+		    bVictoryScreen ? TEXT("时间线收束") : (bDeathScreen ? TEXT("回响中断") : TEXT("游戏菜单"));
+		const FLinearColor TitleColor =
+		    bVictoryScreen ? FLinearColor(1.0f, 0.78f, 0.16f)
+		                   : (bDeathScreen ? FLinearColor(0.95f, 0.12f, 0.12f) : FLinearColor(0.4f, 0.85f, 1.0f));
+		TitleText->SetText(FText::FromString(Title));
+		TitleText->SetColorAndOpacity(FSlateColor(TitleColor));
 	}
 	if (MessageText)
 	{
-		MessageText->SetText(
-		    FText::FromString(bDeathScreen ? TEXT("玩家已阵亡，本次时间线结束") : TEXT("游戏已暂停 · 按 Esc 可继续")));
+		if (bVictoryScreen)
+		{
+			MessageText->SetText(FText::Format(
+			    NSLOCTEXT("ReEcho", "VictorySummary", "Boss 已击败 · 完成 {0}/{0}\n时间碎片：{1} · 强化数量：{2}"),
+			    FText::AsNumber(GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount()),
+			    FText::AsNumber(VictoryTimeShards),
+			    FText::AsNumber(VictoryTraitCount)));
+		}
+		else
+		{
+			MessageText->SetText(FText::FromString(bDeathScreen ? TEXT("玩家已阵亡，本次时间线结束")
+			                                                    : TEXT("游戏已暂停 · 按 Esc 可继续")));
+		}
 	}
 	if (ResumeButton)
 	{
-		ResumeButton->SetVisibility(bDeathScreen ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+		ResumeButton->SetVisibility(bDeathScreen || bVictoryScreen ? ESlateVisibility::Collapsed
+		                                                           : ESlateVisibility::Visible);
 	}
 }
 

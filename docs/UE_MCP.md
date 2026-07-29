@@ -14,8 +14,11 @@ ReEcho uses the official experimental MCP server included with the installed UE 
 1. Close every ReEcho editor instance before compiling C++.
 2. Build with `scripts/ue/Build-Editor.cmd`.
 3. Open `ReEcho.uproject` using the UE 5.8 release installation.
-4. Wait until the Output Log reports the MCP server listening on port 8000.
+4. When MCP access is needed, run `ModelContextProtocol.StartServer 8000` in the UE console and wait for the Output Log to report that it is listening.
 5. Restart/open a Codex task from this workspace so project MCP configuration is loaded.
+6. Before packaging from an open editor, run `ModelContextProtocol.StopServer`; command-line packaging should run with the editor closed.
+
+MCP auto-start is intentionally disabled. Cook commandlets load editor settings too, so auto-starting the server there can collide with the editor-owned port and turn an otherwise successful Cook into `Unknown Cook Failure`.
 
 The server serializes tool execution onto the UE game thread. Do not issue overlapping mutation calls. `.uasset`, `.umap`, generated DataTables, and Project Settings remain serially owned resources and must be claimed in `shared/PLANNER_EXCHANGE.md`.
 

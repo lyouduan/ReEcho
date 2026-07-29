@@ -1,35 +1,22 @@
 #pragma once
 
-#include "Components/PrimitiveComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/SphereComponent.h"
 #include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
 
 namespace ReEchoCollisionDebug
 {
-inline void DrawSphere(const UObject* WorldContext, const USphereComponent* Collision, const FColor Color)
+inline bool IsEnabled()
 {
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	if (!WorldContext || !Collision)
-	{
-		return;
-	}
-	DrawDebugSphere(WorldContext->GetWorld(),
-	                Collision->GetComponentLocation(),
-	                Collision->GetScaledSphereRadius(),
-	                24,
-	                Color,
-	                false,
-	                -1.0f,
-	                1,
-	                1.5f);
-#endif
+	static const TAutoConsoleVariable<int32> DebugCollision(
+	    TEXT("ReEcho.DebugCollision"), 0, TEXT("Draw ReEcho collision volumes. 0: disabled, 1: enabled."), ECVF_Cheat);
+	return DebugCollision.GetValueOnGameThread() != 0;
 }
 
 inline void DrawCapsule(const UObject* WorldContext, const UCapsuleComponent* Collision, const FColor Color)
 {
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	if (!WorldContext || !Collision)
+	if (!IsEnabled() || !WorldContext || !Collision)
 	{
 		return;
 	}
@@ -46,22 +33,4 @@ inline void DrawCapsule(const UObject* WorldContext, const UCapsuleComponent* Co
 #endif
 }
 
-inline void DrawBounds(const UObject* WorldContext, const UPrimitiveComponent* Collision, const FColor Color)
-{
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	if (!WorldContext || !Collision || !Collision->IsCollisionEnabled())
-	{
-		return;
-	}
-	DrawDebugBox(WorldContext->GetWorld(),
-	             Collision->Bounds.Origin,
-	             Collision->Bounds.BoxExtent,
-	             Collision->GetComponentQuat(),
-	             Color,
-	             false,
-	             -1.0f,
-	             1,
-	             1.5f);
-#endif
-}
 }

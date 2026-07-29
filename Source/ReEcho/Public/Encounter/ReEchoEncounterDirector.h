@@ -7,6 +7,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoFixedStep, float, FixedDeltaSeconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoEncounterEnded);
 
+/** 遭遇流程时钟：以固定步长驱动录制与回放，并统一广播遭遇结束。 */
 UCLASS(Blueprintable)
 class REECHO_API AReEchoEncounterDirector : public AActor
 {
@@ -30,6 +31,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void StartEncounter();
 
+	/** 主动结束当前遭遇；重复调用不会再次广播结束事件。 */
 	UFUNCTION(BlueprintCallable)
 	void EndEncounter();
 

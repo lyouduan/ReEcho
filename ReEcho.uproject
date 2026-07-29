@@ -11,10 +11,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "Niagara",
-			"Enabled": true
-		},
-		{
 			"Name": "Paper2D",
 			"Enabled": true
 		},

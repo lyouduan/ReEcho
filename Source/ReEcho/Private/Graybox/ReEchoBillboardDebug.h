@@ -11,7 +11,7 @@ namespace ReEchoBillboardDebug
 {
 inline void DrawBounds(const UObject* WorldContext, const UBillboardComponent* Billboard, const FColor Color)
 {
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if 0 //!(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	if (!WorldContext || !Billboard || !Billboard->IsVisible() || !Billboard->Sprite)
 	{
 		return;
