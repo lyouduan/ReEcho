@@ -41,12 +41,21 @@ This file contains project-specific additions to the canonical workflow. If it c
 
 Use the `.cmd` entry points on Windows; they bypass PowerShell execution policy only for their child process and do not alter machine policy.
 
-1. Run `scripts/ue/Find-UnrealEngine.cmd` to discover the local engine.
-2. Before C++ build, UE Python asset generation, Cook, automation, or packaging, forcibly terminate any `UnrealEditor` / `UnrealEditor-Cmd` process after warning that unsaved editor work will be lost; restarting PIE does not reliably reload a newly built editor DLL.
-3. Run `scripts/ue/Build-Editor.cmd`.
-4. Run `scripts/ue/Run-Automation.cmd -Filter ReEcho` when the editor build succeeds.
-5. For data-only changes, run `python scripts/validate_project.py` before opening the editor.
-6. For gameplay changes, add structured evidence. Prefer deterministic automation or UTF-8-without-BOM telemetry files over screen messages.
+Run only the checks required by the changed surface:
+
+| Change surface | Required checks |
+|---|---|
+| Markdown/workflow only | `python scripts/validate_project.py`, `git diff --check` |
+| JSON/config only | Static validation plus narrow affected automation when runtime behavior changes |
+| C++ | `.clang-format`, `Build-Editor.cmd`, affected automation, `git diff --check` |
+| Texture/import script only | Import/load check and asset existence; no unrelated gameplay automation |
+| Packaging/cook behavior | Applicable C++ checks, then clean package and manifest/smoke evidence |
+
+- Discover the engine only when an Unreal command needs it.
+- Before a command requiring a closed editor, check this project's editor process and ask the human to save/close it. Do not repeatedly restart the editor between checks.
+- Batch asset imports before one importer session. Reuse successful build/test evidence while relevant source and configuration remain unchanged.
+- Extract concise success/failure summaries from logs; never load full Unreal logs into AI context.
+- For gameplay changes, prefer deterministic automation or UTF-8-without-BOM telemetry over screen messages.
 
 Pass `-EngineRoot <path>` or set machine-local `RE_ECHO_UE_ROOT`; never commit an absolute engine path. If Unreal Engine is unavailable, report validation as `static only`; never describe the project as compiled or PIE-tested.
 
@@ -54,7 +63,7 @@ Pass `-EngineRoot <path>` or set machine-local `RE_ECHO_UE_ROOT`; never commit a
 
 - Relevant automated checks pass, or the exact unavailable prerequisite is recorded.
 - `git diff --check` passes, generated/intermediate/package files are not included, and relevant Markdown has been synchronized before staging.
-- The plan execution notes and `shared/PLANNER_EXCHANGE.md` ownership row are updated.
+- The plan execution notes are updated and finished ownership rows are removed from `shared/PLANNER_EXCHANGE.md`.
 - A human performs PIE play-feel validation for movement, readability, pacing, and planning comprehension.
 
 

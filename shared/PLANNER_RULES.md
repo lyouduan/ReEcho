@@ -8,18 +8,7 @@
 
 ## 开工前读什么
 
-**首次 / 冷启动先读一次**（理解整套协作架构）：
-- `shared/AI_ONBOARDING.md` —— 任何 AI / 队友 / 工具的接入前门；确认默认角色、必读顺序、协作红线。
-- `shared/WORKFLOW.md` —— 架构全貌：角色拓扑、plan 生命周期、🔒/🔧 + 🤖/🎮 双分层、git/worktree、资源串行。新会话/新规划者上手必读；架构有疑问时回查。
-
-**每次开工读**：
-1. `shared/PROJECT_STATE.md` —— 项目当前可用状态 / 进度 / 里程碑 / 回归风险。
-2. `shared/LESSONS.md` —— 至少扫顶部分类索引；写某工种 plan 前读对应 §section。
-3. `shared/PLANNER_EXCHANGE.md` —— 协调板：任务认领 / 资源归属 / 决策变更 / 预警 / 待拍板。
-
-**做设计决策 / 写 plan 前按需查（输入层，见 `WORKFLOW.md`「§4.2 输入层」）**：
-- `CodeWorkshop/ai-gamedev-workflow/notes/`（提炼笔记，随用随查；不够再翻 `Books/` 原书）—— 领域决策的前人经验 + AI 协作方法论（Skill 设计、Agentic Engineering、token 成本）。
-- 查到的外部经验**落进 plan/LESSONS（带出处）**，沉淀成项目内记忆。
+`AGENTS.md` 是唯一读取顺序。规划任务额外读取 `PROJECT_STATE.md`、当前 plan 和相关经验章节；不要在这里维护第二份启动清单。
 
 ## 出 plan（写初版）
 
@@ -90,6 +79,6 @@
 
 ---
 > 这些规则的"为什么"见 `WORKFLOW.md`（「§2 为什么这么搭」+「§3 流程展开」）。
-## 提交前 Markdown 同步（ReEcho 项目规则）
+## 提交前
 
-每次提交前，必须先更新描述本次改动的 Markdown：至少更新对应 `plans/<id>-*.md` 的执行/审查记录；行为、路由、状态、经验或流程发生变化时，同时更新相关的 `shared/PROJECT_STATE.md`、`shared/CODEBASE_MAP.md`、`shared/LESSONS.md` 或规则文件。代码/资产与文档必须描述同一版本；除非改动确实不影响任何文档事实，否则禁止只提交代码不更新 Markdown。提交前用显式文件列表核对两者均已暂存。
+遵循 `shared/PROJECT_RULES.md` 的分支、验证矩阵与完成定义；本文件不复制项目级提交规则。

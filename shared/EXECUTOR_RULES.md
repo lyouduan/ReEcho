@@ -150,7 +150,7 @@ rm <RESOURCE_LOCK>
 
 ## 经验库
 
-读 `shared/LESSONS.md` **只读** §{工种标签} + §DEBUG 两章，别整文件加载（LESSONS 在涨，整读是浪费）。用顶部分类表跳到对应 §。
+用 `rg -n "^## §"` 定位后，只读当前工种章节。仅在诊断失败时追加读取 §DEBUG；禁止整文件加载。
 
 **领域实现卡住时**，查输入层提炼笔记 `CodeWorkshop/ai-gamedev-workflow/notes/`（不够再翻 `Books/` 原书）——前人经验，别硬猜。见 `WORKFLOW.md`「§4.2 输入层」。
 
@@ -166,6 +166,6 @@ rm <RESOURCE_LOCK>
 - **审查/对比用 `--stat` 起步**：`git diff --stat` 看全貌，再定向看某文件的 hunk。
 - **二进制资产不展开**：查改动看路径/大小，不读字节。
 - **输出给结论**：要 diff/步骤/结论就直说，别复述问题、别长篇铺垫。
-## 提交前 Markdown 同步（ReEcho 项目规则）
+## 提交前
 
-每次提交前，必须先更新描述本次改动的 Markdown：至少更新对应 `plans/<id>-*.md` 的执行/审查记录；行为、路由、状态、经验或流程发生变化时，同时更新相关的 `shared/PROJECT_STATE.md`、`shared/CODEBASE_MAP.md`、`shared/LESSONS.md` 或规则文件。代码/资产与文档必须描述同一版本；除非改动确实不影响任何文档事实，否则禁止只提交代码不更新 Markdown。提交前用显式文件列表核对两者均已暂存。
+遵循 `shared/PROJECT_RULES.md` 的分支、验证矩阵与完成定义；本文件不复制项目级提交规则。

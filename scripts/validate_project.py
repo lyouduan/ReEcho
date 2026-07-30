@@ -74,9 +74,27 @@ def main() -> int:
     absent_shared = sorted(name for name in required_shared if not (ROOT / "shared" / name).is_file())
     if absent_shared:
         fail(f"workflow deployment incomplete: {', '.join(absent_shared)}")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    state_text = (ROOT / "shared" / "PROJECT_STATE.md").read_text(encoding="utf-8")
+    exchange_text = (ROOT / "shared" / "PLANNER_EXCHANGE.md").read_text(encoding="utf-8")
+    planner_rules = (ROOT / "shared" / "PLANNER_RULES.md").read_text(encoding="utf-8")
+    executor_rules = (ROOT / "shared" / "EXECUTOR_RULES.md").read_text(encoding="utf-8")
+
+    if "only mandatory reading-order authority" not in agents:
+        fail("AGENTS.md must remain the sole startup-order authority")
+    if len(state_text.splitlines()) > 80:
+        fail("PROJECT_STATE.md exceeded 80 lines; move history to plans/Git")
+    if "six `ReEcho.*` automation tests pass" not in state_text:
+        fail("PROJECT_STATE.md must report the current six-test baseline")
+    active_block = exchange_text.split("## Active ownership", 1)[1].split("## Recently closed", 1)[0]
+    if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
+        fail("completed Plans 07/08 must not retain active ownership")
+    duplicate_heading = "提交前 Markdown 同步（ReEcho 项目规则）"
+    if duplicate_heading in planner_rules or duplicate_heading in executor_rules:
+        fail("role rules duplicate the project-level Markdown commit rule")
 
     print(f"[PASS] JSON files={len(documents)} effective_cards={len(effective_cards)} encounters={len(encounters)}")
-    print("[PASS] workflow memory and Unreal project descriptor present")
+    print("[PASS] workflow memory, token guards, and Unreal project descriptor present")
     print("Evidence level: static verified only (no UHT/UBT/PIE claim)")
     return 0
 
