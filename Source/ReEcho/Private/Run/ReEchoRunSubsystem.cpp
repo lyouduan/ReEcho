@@ -1,6 +1,7 @@
 #include "Run/ReEchoRunSubsystem.h"
 
 #include "Core/ReEchoBalanceSettings.h"
+#include "Run/ReEchoShopCatalog.h"
 #include "Algo/RandomShuffle.h"
 #include "Dom/JsonObject.h"
 #include "Misc/FileHelper.h"
@@ -99,6 +100,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 {
 	EncounterIndex = 0;
 	TimeShards = 0;
+	InventoryItems.Reset();
 	RecordingHistory.Reset();
 	AnchorId.Invalidate();
 	CurrentBuild = {};
@@ -246,6 +248,44 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	}
 
 	return false;
+}
+
+bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
+{
+	if (InventoryItems.Contains(ItemId))
+	{
+		return false;
+	}
+
+	const FReEchoShopOffer* Offer = GetReEchoShopCatalog().FindByPredicate(
+	    [&](const FReEchoShopOffer& Candidate)
+	    {
+		    return Candidate.ItemId == ItemId;
+	    });
+	if (!Offer || TimeShards < Offer->Price)
+	{
+		return false;
+	}
+
+	TimeShards -= Offer->Price;
+	InventoryItems.Add(ItemId);
+	if (ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
+	{
+		CurrentBuild.Stats.PhysicalAttack += 2.0f;
+	}
+	else if (ItemId == TEXT("SHOP_DREAM_FRUIT"))
+	{
+		CurrentBuild.Stats.HpMax += 10.0f;
+	}
+	else if (ItemId == TEXT("SHOP_BLACK_FEATHER"))
+	{
+		CurrentBuild.Stats.MovementSpeed += 0.1f;
+	}
+	else if (ItemId == TEXT("SHOP_OLD_COIN"))
+	{
+		CurrentBuild.Stats.EchoEfficiency += 0.1f;
+	}
+	return true;
 }
 
 void UReEchoRunSubsystem::AddRecording(const FReEchoRecording& Recording)

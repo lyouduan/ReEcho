@@ -20,6 +20,7 @@
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "UI/ReEchoEncounterHudWidget.h"
+#include "UI/ReEchoInventoryShopWidget.h"
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/ReEchoWeatherWidget.h"
@@ -376,6 +377,11 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 
 void AReEchoGameMode::TogglePauseMenu()
 {
+	if (InventoryShopWidget)
+	{
+		HandleInventoryShopClosed();
+		return;
+	}
 	if (TraitCardChoiceWidget || bRestartScreenIsTerminal)
 	{
 		return;
@@ -386,6 +392,86 @@ void AReEchoGameMode::TogglePauseMenu()
 		return;
 	}
 	ShowRestartScreen(false);
+}
+
+void AReEchoGameMode::ToggleInventoryMenu()
+{
+	if (InventoryShopWidget)
+	{
+		HandleInventoryShopClosed();
+		return;
+	}
+	ShowInventoryShopMenu(false);
+}
+
+void AReEchoGameMode::ToggleShopMenu()
+{
+	if (InventoryShopWidget)
+	{
+		HandleInventoryShopClosed();
+		return;
+	}
+	ShowInventoryShopMenu(true);
+}
+
+void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
+{
+	if (TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
+	{
+		return;
+	}
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!PlayerController || !RunSubsystem)
+	{
+		return;
+	}
+
+	InventoryShopWidget =
+	    CreateWidget<UReEchoInventoryShopWidget>(PlayerController, UReEchoInventoryShopWidget::StaticClass());
+	if (!InventoryShopWidget)
+	{
+		return;
+	}
+
+	InventoryShopWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleInventoryShopClosed);
+	InventoryShopWidget->OnPurchaseRequested.AddDynamic(this, &AReEchoGameMode::HandleShopPurchaseRequested);
+	if (bShowShop)
+	{
+		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
+	}
+	else
+	{
+		InventoryShopWidget->ShowInventory(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
+	}
+	InventoryShopWidget->AddToViewport(95);
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetWidgetToFocus(InventoryShopWidget->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
+	UGameplayStatics::SetGamePaused(this, true);
+}
+
+void AReEchoGameMode::HandleInventoryShopClosed()
+{
+	if (InventoryShopWidget)
+	{
+		InventoryShopWidget->RemoveFromParent();
+		InventoryShopWidget = nullptr;
+	}
+	RestoreGameInput();
+}
+
+void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (RunSubsystem && InventoryShopWidget && RunSubsystem->PurchaseShopItem(ItemId))
+	{
+		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
+	}
 }
 
 void AReEchoGameMode::HandleResumeRequested()

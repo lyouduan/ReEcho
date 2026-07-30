@@ -54,7 +54,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCapsuleComponent> Collision;
 
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
 
@@ -93,6 +92,8 @@ private:
 	void BasicAttack();
 	void StopBasicAttack();
 	void TogglePauseMenu();
+	void ToggleInventoryMenu();
+	void ToggleShopMenu();
 	void SelectWeaponSlot1();
 	void SelectWeaponSlot2();
 	void SelectWeaponSlot3();

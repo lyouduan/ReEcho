@@ -7,6 +7,7 @@ class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
+class UReEchoInventoryShopWidget;
 class UReEchoRestartWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoWeatherWidget;
@@ -23,6 +24,8 @@ public:
 	virtual void StartPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	void TogglePauseMenu();
+	void ToggleInventoryMenu();
+	void ToggleShopMenu();
 
 private:
 	UPROPERTY()
@@ -44,6 +47,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
+
+	UPROPERTY()
+	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
@@ -83,6 +89,14 @@ private:
 	void HandleTraitCardSelected(FName CardId);
 	void CreateArena();
 	void UpdateWeatherScene(int32 EncounterIndex);
+
+	UFUNCTION()
+	void HandleInventoryShopClosed();
+
+	UFUNCTION()
+	void HandleShopPurchaseRequested(FName ItemId);
+
+	void ShowInventoryShopMenu(bool bShowShop);
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	void SpawnEnemies(int32 EncounterIndex);

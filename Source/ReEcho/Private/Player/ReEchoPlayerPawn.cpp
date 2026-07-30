@@ -70,15 +70,15 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 		CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
 	}
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Spade.Player_Spade"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Spade.Player_Spade"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
 	CharacterTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
@@ -128,6 +128,7 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 	return true;
 }
+
 void AReEchoPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
@@ -170,6 +171,12 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	FInputActionBinding& PauseBinding =
 	    Input->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AReEchoPlayerPawn::TogglePauseMenu);
 	PauseBinding.bExecuteWhenPaused = true;
+	FInputActionBinding& InventoryBinding =
+	    Input->BindAction(TEXT("ToggleInventory"), IE_Pressed, this, &AReEchoPlayerPawn::ToggleInventoryMenu);
+	InventoryBinding.bExecuteWhenPaused = true;
+	FInputActionBinding& ShopBinding =
+	    Input->BindAction(TEXT("ToggleShop"), IE_Pressed, this, &AReEchoPlayerPawn::ToggleShopMenu);
+	ShopBinding.bExecuteWhenPaused = true;
 }
 
 void AReEchoPlayerPawn::MoveForward(float Value)
@@ -315,6 +322,22 @@ void AReEchoPlayerPawn::TogglePauseMenu()
 	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
 	{
 		GameMode->TogglePauseMenu();
+	}
+}
+
+void AReEchoPlayerPawn::ToggleInventoryMenu()
+{
+	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
+	{
+		GameMode->ToggleInventoryMenu();
+	}
+}
+
+void AReEchoPlayerPawn::ToggleShopMenu()
+{
+	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
+	{
+		GameMode->ToggleShopMenu();
 	}
 }
 
