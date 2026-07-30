@@ -49,15 +49,15 @@ AReEchoEchoActor::AReEchoEchoActor()
 	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	CharacterSprite->bIsScreenSizeScaled = false;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Cat.Echo_Cat"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Cat.Echo_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Heart.Echo_Heart"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Heart.Echo_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Spade.Echo_Spade"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Spade.Echo_Spade"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Clover.Echo_Clover"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Clover.Echo_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Diamond.Echo_Diamond"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Diamond.Echo_Diamond"));
 	EchoTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
@@ -128,6 +128,7 @@ bool AReEchoEchoActor::ConfigureEchoAppearance(const FName CharacterId)
 	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 	return true;
 }
+
 void AReEchoEchoActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (Weapon)
@@ -137,6 +138,16 @@ void AReEchoEchoActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 
 	Super::EndPlay(EndPlayReason);
+}
+
+const FReEchoStatBlock& AReEchoEchoActor::GetCurrentStats() const
+{
+	return Combatant->Stats;
+}
+
+float AReEchoEchoActor::GetCurrentHealth() const
+{
+	return Combatant->CurrentHealth;
 }
 
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)

@@ -53,7 +53,7 @@ void AReEchoProjectileActor::Tick(float DeltaSeconds)
 		}
 		if (It->IntersectsProjectilePath(PreviousLocation, NewLocation, Collision->GetScaledSphereRadius()))
 		{
-			It->ReceiveGrayboxDamage(Damage, DamageSource);
+			It->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner());
 			Destroy();
 			return;
 		}

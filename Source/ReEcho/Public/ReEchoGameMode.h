@@ -7,8 +7,12 @@ class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
+class UReEchoInventoryShopWidget;
+class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
 class UReEchoTraitCardChoiceWidget;
+class UReEchoStatsWidget;
+class UReEchoWeatherWidget;
 class UMaterialInterface;
 class UTexture2D;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
@@ -22,8 +26,27 @@ public:
 	virtual void StartPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	void TogglePauseMenu();
+	void ToggleInventoryMenu();
+	void ToggleShopMenu();
+	void ToggleStatsMenu();
+
+	/** Development-only console commands. Open the console with ~ and run GMHelp. */
+	UFUNCTION(Exec)
+	void GMHelp();
+	UFUNCTION(Exec)
+	void GMStatus();
+	UFUNCTION(Exec)
+	void GMHeal(float Amount = 0.0f);
+	UFUNCTION(Exec)
+	void GMAddShards(int32 Amount = 100);
+	UFUNCTION(Exec)
+	void GMWeather(const FString& Scene = TEXT("Clear"));
+	UFUNCTION(Exec)
+	void GMKillAll();
 
 private:
+	bool EnsureGMCommandAvailable() const;
+	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	UPROPERTY()
 	TObjectPtr<AReEchoEncounterDirector> Director;
 	UPROPERTY()
@@ -45,7 +68,17 @@ private:
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
 
 	UPROPERTY()
+	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
+
+	UPROPERTY()
+	TObjectPtr<UReEchoStatsWidget> StatsWidget;
+	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
+
 	bool bRestartScreenIsTerminal = false;
 
 	UPROPERTY()
@@ -78,6 +111,21 @@ private:
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
 	void CreateArena();
+	void UpdateWeatherScene(int32 EncounterIndex);
+
+	UFUNCTION()
+	void HandleInventoryShopClosed();
+
+	UFUNCTION()
+	void HandleShopPurchaseRequested(FName ItemId);
+
+	void ShowInventoryShopMenu(bool bShowShop);
+
+	UFUNCTION()
+	void HandleStatsClosed();
+
+	void ShowStatsMenu();
+
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	void SpawnEnemies(int32 EncounterIndex);
@@ -86,4 +134,5 @@ private:
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowTraitCardChoice();
 	void RestoreGameInput();
+	void SetPlayerMenuAbilityBlocked(bool bBlocked);
 };

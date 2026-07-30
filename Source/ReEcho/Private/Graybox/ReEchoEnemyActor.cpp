@@ -1,5 +1,10 @@
 #include "Graybox/ReEchoEnemyActor.h"
 
+#include "AbilitySystem/ReEchoCombatAttributeSet.h"
+#include "AbilitySystem/ReEchoGameplayEffects.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
+
 #include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoHealthBarActor.h"
 #include "Graybox/ReEchoBillboardDebug.h"
@@ -17,6 +22,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
+
 namespace ReEchoEnemyVisual
 {
 constexpr float ScaleMultiplier = 1.5f;
@@ -32,6 +38,10 @@ constexpr float HealthBarWidthScale = 0.72f * ScaleMultiplier;
 AReEchoEnemyActor::AReEchoEnemyActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	AbilitySystem = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
+	AbilitySystem->SetIsReplicated(true);
+	AbilitySystem->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+	CombatAttributes = CreateDefaultSubobject<UReEchoCombatAttributeSet>(TEXT("CombatAttributes"));
 	Collision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
 	Collision->InitCapsuleSize(ReEchoEnemyVisual::CollisionRadius, ReEchoEnemyVisual::CollisionHalfHeight);
@@ -64,22 +74,34 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CharacterSprite->SetAbsolute(false, false, true);
 	CharacterSprite->bIsScreenSizeScaled = false;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> GruntTextureFinders[] = {
-		{TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_Slime.Enemy_Slime")},
-		{TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_ThornSlime.Enemy_ThornSlime")},
-		{TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitDoll.Enemy_RabbitDoll")},
-		{TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitBeast.Enemy_RabbitBeast")},
-		{TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_GoatPriest.Enemy_GoatPriest")},
-		{TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_DarkPriest.Enemy_DarkPriest")},
+	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_Slime.Enemy_Slime")},
+	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_ThornSlime.Enemy_ThornSlime")},
+	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitDoll.Enemy_RabbitDoll")},
+	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitBeast.Enemy_RabbitBeast")},
+	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_GoatPriest.Enemy_GoatPriest")},
+	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_DarkPriest.Enemy_DarkPriest")},
 	};
 	for (const ConstructorHelpers::FObjectFinder<UTexture2D>& Finder : GruntTextureFinders)
 	{
 		GruntTextures.Add(Finder.Object);
 	}
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BossTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/Boss2D.Boss2D"));
+	    TEXT("/Game/ReEcho/Textures/Characters/Boss2D.Boss2D"));
 	BossTexture = BossTextureFinder.Object;
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	Tags.Add(TEXT("ReEchoEnemy"));
+}
+
+void AReEchoEnemyActor::BeginPlay()
+{
+	Super::BeginPlay();
+	AbilitySystem->InitAbilityActorInfo(this, this);
+	Combatant->BindToAbilitySystem(AbilitySystem);
+}
+
+UAbilitySystemComponent* AReEchoEnemyActor::GetAbilitySystemComponent() const
+{
+	return AbilitySystem;
 }
 
 void AReEchoEnemyActor::Configure(EReEchoEnemyKind InKind, int32 SpawnIndex)
@@ -135,10 +157,9 @@ void AReEchoEnemyActor::ApplyVisual()
 	const bool bIsBoss = Kind == EReEchoEnemyKind::Boss;
 	Collision->SetCapsuleSize(ReEchoEnemyVisual::CollisionRadius, ReEchoEnemyVisual::CollisionHalfHeight);
 
-	UTexture2D* CharacterTexture = bIsBoss ? BossTexture
-	                                        : GruntTextures.IsEmpty()
-	                                            ? nullptr
-	                                            : GruntTextures[VisualVariantIndex % GruntTextures.Num()];
+	UTexture2D* CharacterTexture = bIsBoss                   ? BossTexture
+	                               : GruntTextures.IsEmpty() ? nullptr
+	                                                         : GruntTextures[VisualVariantIndex % GruntTextures.Num()];
 	const float CharacterHalfHeight = ReEchoEnemyVisual::CharacterWorldHeight * 0.5f;
 	CharacterSprite->SetVisibility(true);
 	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
@@ -158,6 +179,7 @@ void AReEchoEnemyActor::ApplyVisual()
 	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
 	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 }
+
 bool AReEchoEnemyActor::IsAlive() const
 {
 	return Combatant && Combatant->IsAlive();
@@ -246,7 +268,7 @@ bool AReEchoEnemyActor::UpdateHitReaction(float DeltaSeconds)
 	return true;
 }
 
-float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage, const FVector& SourceLocation)
+float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage, const FVector& SourceLocation, AActor* SourceActor)
 {
 	if (Kind == EReEchoEnemyKind::Shield)
 	{
@@ -258,7 +280,12 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage, const FVector& Sourc
 		}
 		Damage *= 2.f;
 	}
-	const float Applied = Combatant->ApplyFinalDamage(Damage);
+	UAbilitySystemComponent* SourceAbilitySystem = nullptr;
+	if (IAbilitySystemInterface* AbilitySource = Cast<IAbilitySystemInterface>(SourceActor))
+	{
+		SourceAbilitySystem = AbilitySource->GetAbilitySystemComponent();
+	}
+	const float Applied = ReEchoGameplayEffects::ApplyDamage(SourceAbilitySystem, *AbilitySystem, Damage);
 	if (Applied > 0.f)
 	{
 		ReEchoAttackEffects::SpawnHitImpact(GetWorld(), GetActorLocation());
@@ -320,7 +347,10 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 		StartAttackVisual();
 		if (UReEchoCombatantComponent* Target = Player->FindComponentByClass<UReEchoCombatantComponent>())
 		{
-			const float Applied = Target->ApplyFinalDamage(ContactDamage);
+			const float Applied =
+			    Target->GetBoundAbilitySystem()
+			        ? ReEchoGameplayEffects::ApplyDamage(AbilitySystem, *Target->GetBoundAbilitySystem(), ContactDamage)
+			        : Target->ApplyFinalDamage(ContactDamage);
 			if (Applied > 0.f)
 			{
 				if (AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Player))

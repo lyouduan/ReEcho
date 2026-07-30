@@ -6,7 +6,6 @@
 #include "ReEchoPlayerPawn.generated.h"
 
 class AReEchoEnemyActor;
-class AReEchoHealthBarActor;
 class AReEchoWeaponActor;
 class UAbilitySystemComponent;
 class UBillboardComponent;
@@ -14,12 +13,15 @@ class UCameraComponent;
 class UCapsuleComponent;
 class UFloatingPawnMovement;
 class UGameplayAbility;
+class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UReEchoRecorderComponent;
 class UStaticMeshComponent;
 class UTexture2D;
 
 enum class EReEchoWeaponSlot : uint8;
+struct FGameplayTag;
+struct FOnAttributeChangeData;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoActiveSkill, FVector, Position, FName, SkillId);
 
@@ -39,6 +41,7 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	FString GetEquippedWeaponLabel() const;
+	float GetCurrentAttackInterval() const;
 	/** 由 GameplayAbility 回调，执行当前武器的基础攻击。 */
 	bool ExecuteBasicAttackAbility();
 	bool ExecuteActiveAttackAbility();
@@ -54,7 +57,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCapsuleComponent> Collision;
 
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
 
@@ -69,6 +71,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystem;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities")
+	TObjectPtr<UReEchoCombatAttributeSet> CombatAttributes;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
@@ -93,6 +98,9 @@ private:
 	void BasicAttack();
 	void StopBasicAttack();
 	void TogglePauseMenu();
+	void ToggleInventoryMenu();
+	void ToggleShopMenu();
+	void ToggleStatsMenu();
 	void SelectWeaponSlot1();
 	void SelectWeaponSlot2();
 	void SelectWeaponSlot3();
@@ -102,22 +110,20 @@ private:
 	void ConstrainToArenaBounds();
 	void UpdateFollowCamera();
 	void GrantStartupAbilities();
-	bool TryActivatePlayerAbility(TSubclassOf<UGameplayAbility> AbilityClass);
+	void AbilityInputPressed(const FGameplayTag& InputTag);
+	void AbilityInputReleased(const FGameplayTag& InputTag);
 	bool ExecuteSelectWeaponAbility(EReEchoWeaponSlot WeaponSlot, FName WeaponId);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
-
-	UPROPERTY()
-	TObjectPtr<AReEchoHealthBarActor> HealthBar;
+	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
 
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
 	bool bMouseInputConfigured = false;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
-	bool bBasicAttackHeld = false;
 	FVector BaseSpriteLocation = FVector::ZeroVector;
 	FVector BaseSpriteScale = FVector::OneVector;
 	float VisualTime = 0.0f;

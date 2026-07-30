@@ -17,7 +17,7 @@
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
 | WebGL 构建 / 部署 | `WEB` | [§WEB](#web) | 11 |
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
-| 流程 / 工具 / Skill | `META` | [§META](#meta) | 15 |
+| 流程 / 工具 / Skill | `META` | [§META](#meta) | 16 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
 | Bug 修复 | `FIX` | [§FIX](#fix) | 5 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
@@ -930,6 +930,16 @@ file-static `AddBoxGeometry`。Unity build 或 adaptive non-unity 下两个同�
 - 独立桶名强制 `outlaw-art-assets-*`、私有 ACL、不开静态网站；脚本使用独立变量 `COS_ARCHIVE_BUCKET` 并拒绝其他桶名，避免误碰 WebGL 桶。凭据只从 ignored `env/cos.env` 读取。
 - `ARCHIVE` 最短计费 90 天、对象最小计费 64KB；读取前要恢复（快速 1–5 分钟、标准 3–5 小时、批量 5–12 小时）。不能只验上传列表：至少恢复并下载一个源文件，再和本地 SHA-256/字节做一致性比较。
 - 重跑归档脚本不能无脑覆盖同名对象：覆盖等于删除旧归档版本，未满 90 天可能产生提前删除费。默认按对象键+大小跳过已有文件；只有确认同大小内容确实变化时才显式 `--force`。
+
+### META-16. 高频上下文只保留当前事实与唯一入口 [跨引擎]
+
+**来源**：ReEcho Plan 09，AI 流程 token 审计。
+
+- 一个项目只能有一份强制启动顺序；角色规则和 onboarding 只引用它，不复制清单。
+- 状态文件保存当前快照，历史进入 plan/Git；已结束任务必须释放协调板资源归属。
+- 大型经验库先用标题定位，只读当前工种，诊断失败时才追加 DEBUG。
+- 验证按变更面选择；相关源码/config 未变化时复用已通过证据，文档或源图编辑不触发重复 UE 构建。
+- 用静态校验守住状态行数、测试基线、重复规则和陈旧 ownership，避免文档再次膨胀。
 
 ---
 

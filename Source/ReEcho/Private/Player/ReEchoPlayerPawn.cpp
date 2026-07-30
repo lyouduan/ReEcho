@@ -1,6 +1,8 @@
 #include "Player/ReEchoPlayerPawn.h"
 
 #include "AbilitySystem/ReEchoPlayerAbilities.h"
+#include "AbilitySystem/ReEchoCombatAttributeSet.h"
+#include "AbilitySystem/ReEchoGameplayTags.h"
 #include "AbilitySystemComponent.h"
 
 #include "Camera/CameraComponent.h"
@@ -19,7 +21,6 @@
 #include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
-#include "Graybox/ReEchoHealthBarActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoRecorderComponent.h"
@@ -70,15 +71,15 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 		CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
 	}
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Spade.Player_Spade"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Spade.Player_Spade"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
-		TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
 	CharacterTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
@@ -97,6 +98,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	Movement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("Movement"));
 	Movement->MaxSpeed = 420.f;
 	AbilitySystem = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
+	CombatAttributes = CreateDefaultSubobject<UReEchoCombatAttributeSet>(TEXT("CombatAttributes"));
 	AbilitySystem->SetIsReplicated(true);
 	AbilitySystem->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
@@ -128,6 +130,7 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 	return true;
 }
+
 void AReEchoPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
@@ -136,12 +139,6 @@ void AReEchoPlayerPawn::BeginPlay()
 	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 
 	ConfigureMouseInput();
-
-	HealthBar = GetWorld()->SpawnActor<AReEchoHealthBarActor>();
-	if (HealthBar)
-	{
-		HealthBar->Initialize(Combatant, FLinearColor(0.1f, 1.f, 0.25f), 64.f, 0.576f, CharacterSprite);
-	}
 
 	Weapon = GetWorld()->SpawnActor<AReEchoWeaponActor>();
 	if (Weapon)
@@ -153,6 +150,9 @@ void AReEchoPlayerPawn::BeginPlay()
 	}
 
 	AbilitySystem->InitAbilityActorInfo(this, this);
+	Combatant->BindToAbilitySystem(AbilitySystem);
+	AbilitySystem->GetGameplayAttributeValueChangeDelegate(UReEchoCombatAttributeSet::GetMovementSpeedAttribute())
+	    .AddUObject(this, &AReEchoPlayerPawn::HandleMovementSpeedAttributeChanged);
 	GrantStartupAbilities();
 }
 
@@ -170,6 +170,15 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	FInputActionBinding& PauseBinding =
 	    Input->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AReEchoPlayerPawn::TogglePauseMenu);
 	PauseBinding.bExecuteWhenPaused = true;
+	FInputActionBinding& InventoryBinding =
+	    Input->BindAction(TEXT("ToggleInventory"), IE_Pressed, this, &AReEchoPlayerPawn::ToggleInventoryMenu);
+	InventoryBinding.bExecuteWhenPaused = true;
+	FInputActionBinding& ShopBinding =
+	    Input->BindAction(TEXT("ToggleShop"), IE_Pressed, this, &AReEchoPlayerPawn::ToggleShopMenu);
+	ShopBinding.bExecuteWhenPaused = true;
+	FInputActionBinding& StatsBinding =
+	    Input->BindAction(TEXT("ToggleStats"), IE_Pressed, this, &AReEchoPlayerPawn::ToggleStatsMenu);
+	StatsBinding.bExecuteWhenPaused = true;
 }
 
 void AReEchoPlayerPawn::MoveForward(float Value)
@@ -188,10 +197,6 @@ void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 	ConstrainToArenaBounds();
 	ConfigureMouseInput();
 	UpdateMouseAim();
-	if (bBasicAttackHeld)
-	{
-		TryActivatePlayerAbility(UReEchoBasicAttackAbility::StaticClass());
-	}
 	UpdateSpriteAnimation(DeltaSeconds);
 	ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor::Green);
 	ReEchoCollisionDebug::DrawCapsule(this, Collision, FColor::Cyan);
@@ -286,6 +291,11 @@ FString AReEchoPlayerPawn::GetEquippedWeaponLabel() const
 	return Weapon ? Weapon->GetEquippedWeaponLabel() : TEXT("None");
 }
 
+float AReEchoPlayerPawn::GetCurrentAttackInterval() const
+{
+	return Weapon ? Weapon->GetAttackInterval(Combatant) : 0.55f;
+}
+
 UAbilitySystemComponent* AReEchoPlayerPawn::GetAbilitySystemComponent() const
 {
 	return AbilitySystem;
@@ -298,16 +308,62 @@ void AReEchoPlayerPawn::GrantStartupAbilities()
 		return;
 	}
 
-	AbilitySystem->GiveAbility(FGameplayAbilitySpec(UReEchoBasicAttackAbility::StaticClass(), 1));
-	AbilitySystem->GiveAbility(FGameplayAbilitySpec(UReEchoActiveAttackAbility::StaticClass(), 1));
-	AbilitySystem->GiveAbility(FGameplayAbilitySpec(UReEchoSelectWeaponSlot1Ability::StaticClass(), 1));
-	AbilitySystem->GiveAbility(FGameplayAbilitySpec(UReEchoSelectWeaponSlot2Ability::StaticClass(), 1));
-	AbilitySystem->GiveAbility(FGameplayAbilitySpec(UReEchoSelectWeaponSlot3Ability::StaticClass(), 1));
+	auto GrantAbility = [this](const TSubclassOf<UGameplayAbility> AbilityClass, const FGameplayTag InputTag)
+	{
+		FGameplayAbilitySpec Spec(AbilityClass, 1);
+		Spec.GetDynamicSpecSourceTags().AddTag(InputTag);
+		AbilitySystem->GiveAbility(Spec);
+	};
+	GrantAbility(UReEchoBasicAttackAbility::StaticClass(), ReEchoGameplayTags::Input_Attack_Basic);
+	GrantAbility(UReEchoActiveAttackAbility::StaticClass(), ReEchoGameplayTags::Input_Attack_Active);
+	GrantAbility(UReEchoSelectWeaponSlot1Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_1);
+	GrantAbility(UReEchoSelectWeaponSlot2Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_2);
+	GrantAbility(UReEchoSelectWeaponSlot3Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_3);
 }
 
-bool AReEchoPlayerPawn::TryActivatePlayerAbility(const TSubclassOf<UGameplayAbility> AbilityClass)
+void AReEchoPlayerPawn::AbilityInputPressed(const FGameplayTag& InputTag)
 {
-	return AbilitySystem && AbilityClass && AbilitySystem->TryActivateAbilityByClass(AbilityClass);
+	if (!AbilitySystem || !InputTag.IsValid())
+	{
+		return;
+	}
+	FScopedAbilityListLock AbilityListLock(*AbilitySystem);
+	for (FGameplayAbilitySpec& Spec : AbilitySystem->GetActivatableAbilities())
+	{
+		if (!Spec.GetDynamicSpecSourceTags().HasTagExact(InputTag))
+		{
+			continue;
+		}
+		Spec.InputPressed = true;
+		if (Spec.IsActive())
+		{
+			AbilitySystem->AbilitySpecInputPressed(Spec);
+		}
+		else
+		{
+			AbilitySystem->TryActivateAbility(Spec.Handle);
+		}
+	}
+}
+
+void AReEchoPlayerPawn::AbilityInputReleased(const FGameplayTag& InputTag)
+{
+	if (!AbilitySystem || !InputTag.IsValid())
+	{
+		return;
+	}
+	FScopedAbilityListLock AbilityListLock(*AbilitySystem);
+	for (FGameplayAbilitySpec& Spec : AbilitySystem->GetActivatableAbilities())
+	{
+		if (Spec.GetDynamicSpecSourceTags().HasTagExact(InputTag))
+		{
+			Spec.InputPressed = false;
+			if (Spec.IsActive())
+			{
+				AbilitySystem->AbilitySpecInputReleased(Spec);
+			}
+		}
+	}
 }
 
 void AReEchoPlayerPawn::TogglePauseMenu()
@@ -318,40 +374,67 @@ void AReEchoPlayerPawn::TogglePauseMenu()
 	}
 }
 
+void AReEchoPlayerPawn::ToggleInventoryMenu()
+{
+	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
+	{
+		GameMode->ToggleInventoryMenu();
+	}
+}
+
+void AReEchoPlayerPawn::ToggleShopMenu()
+{
+	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
+	{
+		GameMode->ToggleShopMenu();
+	}
+}
+
+void AReEchoPlayerPawn::ToggleStatsMenu()
+{
+	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
+	{
+		GameMode->ToggleStatsMenu();
+	}
+}
+
 void AReEchoPlayerPawn::BasicAttack()
 {
-	bBasicAttackHeld = true;
-	TryActivatePlayerAbility(UReEchoBasicAttackAbility::StaticClass());
+	AbilityInputPressed(ReEchoGameplayTags::Input_Attack_Basic);
 }
 
 void AReEchoPlayerPawn::StopBasicAttack()
 {
-	bBasicAttackHeld = false;
+	AbilityInputReleased(ReEchoGameplayTags::Input_Attack_Basic);
 }
 
 void AReEchoPlayerPawn::ActivateSkill()
 {
-	TryActivatePlayerAbility(UReEchoActiveAttackAbility::StaticClass());
+	AbilityInputPressed(ReEchoGameplayTags::Input_Attack_Active);
+	AbilityInputReleased(ReEchoGameplayTags::Input_Attack_Active);
 }
 
 void AReEchoPlayerPawn::SelectWeaponSlot1()
 {
-	TryActivatePlayerAbility(UReEchoSelectWeaponSlot1Ability::StaticClass());
+	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_1);
+	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_1);
 }
 
 void AReEchoPlayerPawn::SelectWeaponSlot2()
 {
-	TryActivatePlayerAbility(UReEchoSelectWeaponSlot2Ability::StaticClass());
+	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_2);
+	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_2);
 }
 
 void AReEchoPlayerPawn::SelectWeaponSlot3()
 {
-	TryActivatePlayerAbility(UReEchoSelectWeaponSlot3Ability::StaticClass());
+	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_3);
+	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_3);
 }
 
 bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 {
-	const bool bAttacked = Weapon && Weapon->TryBasicAttack(Combatant);
+	const bool bAttacked = Weapon && Weapon->ExecuteBasicAttack(Combatant);
 	if (bAttacked)
 	{
 		StartAttackVisual(0.18f, 16.0f);
@@ -361,7 +444,7 @@ bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 
 bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 {
-	if (!Weapon || !Weapon->TryActiveAttack(Combatant))
+	if (!Weapon || !Weapon->ExecuteBasicAttack(Combatant))
 	{
 		return false;
 	}
@@ -486,5 +569,13 @@ void AReEchoPlayerPawn::UpdateSequenceFrame()
 			CharacterSprite->SetUV(0, FrameWidth, 0, FrameHeight);
 		}
 		AppliedVisualFacingSign = VisualFacingSign;
+	}
+}
+
+void AReEchoPlayerPawn::HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	if (Movement)
+	{
+		Movement->MaxSpeed = 420.0f * FMath::Max(0.1f, Data.NewValue);
 	}
 }

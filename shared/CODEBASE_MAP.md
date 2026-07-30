@@ -1,6 +1,6 @@
 # ReEcho codebase map
 
-Last verified: 2026-07-23. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints and `PROJECT_STATE.md` for delivery status.
+Last verified: 2026-07-30. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints and `PROJECT_STATE.md` for delivery status.
 
 ## Minimal retrieval protocol
 
@@ -72,7 +72,7 @@ All enemies dead or timer expires
 | Encounter clock | `AReEchoEncounterDirector` | `Encounter/ReEchoEncounterDirector.*` | Pause-aware 60 Hz fixed step, setup phase, timeout/end delegate |
 | Billboard screen sizing | `ReEchoBillboardScreenScale` | `Private/Graybox/ReEchoBillboardScreenScale.h` | Shared camera-depth compensation for stable player/echo/enemy projected size |
 | Player | `AReEchoPlayerPawn` | `Player/ReEchoPlayerPawn.*` | Map-edge-clamped follow camera with wider player arena clamp, WASD, center-aligned root capsule, mouse-following horizontal sprite facing, four configurable NewCast character textures, manual attacks and visual-only 2D motion |
-| Player GAS | `UAbilitySystemComponent`, `UReEchoPlayerGameplayAbility` subclasses | `AbilitySystem/ReEchoPlayerAbilities.*`, `Player/ReEchoPlayerPawn.*` | GAS activation for basic attack, active attack, and weapon slots 1/2/3; combat stats remain in `UReEchoCombatantComponent` during compatibility migration |
+| GAS combat | `UAbilitySystemComponent`, `UReEchoCombatAttributeSet`, native GameplayEffects/tags and player abilities | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*` | Player/enemy runtime attributes, effect-based damage/heal, tag-driven activation, cooldown commit and AbilityTask held attacks; CombatantComponent is the legacy-facing adapter |
 | Projectile | `AReEchoProjectileActor` | `Graybox/ReEchoProjectileActor.*` | Visible sphere travel, swept path-vs-capsule hit detection, damage delivery |
 | Player weapons | `AReEchoWeaponActor`, `EReEchoWeaponSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*` | Slots 1/2/3, DeveloperSettings/DefaultEngine.ini-driven orb and sword attacks, sword mesh and swing animation |
 | Sword arc VFX | `AReEchoSwordArcActor` | `Graybox/ReEchoSwordArcActor.*`, `Weapons/ReEchoWeaponActor.cpp` | Layered translucent crescent spawned for each sword swing and faded over a short lifetime |
@@ -87,11 +87,15 @@ All enemies dead or timer expires
 | Run state | `UReEchoRunSubsystem` | `Run/ReEchoRunSubsystem.*` | Run phase, encounter index, build, recording history and anchor |
 | Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements and phases |
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
-| World health UI | `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Camera-facing WidgetComponent and ProgressBar for player/enemies |
+| Health UI | `UReEchoPlayerHudWidget`, `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`, `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Top-left portrait/live health HUD for the player; camera-facing world bars remain enemy-only |
 | Encounter HUD | `UReEchoEncounterHudWidget` | `UI/ReEchoEncounterHudWidget.*`, `ReEchoGameMode.*` | Right-top current encounter and remaining-time display; final five seconds turn red |
+| Inventory/shop | `UReEchoInventoryShopWidget`, `UReEchoRunSubsystem` | `UI/ReEchoInventoryShopWidget.*`, `Run/ReEchoShopCatalog.h`, `Run/ReEchoRunSubsystem.*`, `ReEchoGameMode.*` | B/M menus over supplied full-screen art; Time Shard purchases enter run-local inventory and immediately mutate the build snapshot |
+| Player/echo stats | `UReEchoStatsWidget` | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*`, `Graybox/ReEchoEchoActor.*` | Tab-paused two-column live stats over the imported blurred clockwork background; handles runs without an active echo |
+| Weather scenes | `UReEchoWeatherWidget` | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*`, `ReEchoBalanceSettings.h` | Configurable per-encounter rain streaks and player/echo-centered fog-of-war rendered as input-transparent screen-space presentation |
+| GM/debug commands | `AReEchoGameMode` exec functions | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Development-console status, healing, Time Shards, weather override and enemy-clear commands; rejected in Shipping |
 | Pause/restart UI | `UReEchoRestartWidget` | `UI/ReEchoRestartWidget.*`, `ReEchoGameMode.*` | Esc pause overlay, resume, full-level restart, packaged quit, death-screen and terminal Boss-victory actions |
-| Trait choice UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*` | Three unique random offers after a cleared encounter; selection mutates the current build |
-| Tests | Recording/GAS/final-Boss automation | `Private/Tests/ReEchoRecordingTests.cpp` | Recording interpolation/timeline, GAS structure and final-Boss victory gating regressions |
+| Trait choice UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*` | Three deterministic, unique, least-owned-priority offers after a cleared encounter; only the pending offer can mutate the build |
+| Tests | Recording/GAS/run/shop/trait automation | `Private/Tests/*` | Recording interpolation/timeline, GAS structure, final-Boss gate, shop purchase and deterministic pending-trait regressions |
 
 Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Private`.
 
@@ -129,7 +133,7 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 | Startup, arena, rounds, spawn, clear-to-next | `ReEchoGameMode.*` | `EncounterDirector.*`, `RunSubsystem.*`, `DefaultEngine.ini` |
 | Input, movement, player attack | `Player/ReEchoPlayerPawn.*` | `DefaultInput.ini`, `ReEchoProjectileActor.*` |
 | 2D sprite animation, frame import, attack/hit/death feedback | `Player/ReEchoPlayerPawn.*`, `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoEchoActor.*` | `scripts/ue/import_mushroomgirl_frames.py`, `Content/SourceArt/Characters/MushroomGirl/`, imported character textures |
-| GAS/player abilities/ASC | `AbilitySystem/ReEchoPlayerAbilities.*`, `Player/ReEchoPlayerPawn.*` | `ReEcho.Build.cs`, `ReEcho.uproject`, `Weapons/ReEchoWeaponActor.*`, GAS automation test |
+| GAS, abilities, attributes, effects, cooldown, tags | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*` | `docs/GAS_ONBOARDING.md`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*`, `Weapons/ReEchoWeaponActor.*`, GAS automation tests |
 | Mouse cursor aiming/player facing/camera | `Player/ReEchoPlayerPawn.*` | `GameMode::RestoreGameInput`, `DefaultInput.ini` |
 | Weapon switching/sword/melee | `Weapons/ReEchoWeaponActor.*` | `Player/ReEchoPlayerPawn.*`, `Content/Data/weapons.json`, `DefaultInput.ini`, `RunSubsystem::SetEquippedWeapon` |
 | Bullet speed/size/color/hit | `Graybox/ReEchoProjectileActor.*` | Player/Echo caller, `EnemyActor::ReceiveGrayboxDamage` |
@@ -141,11 +145,15 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |
-| Health bars/UI | `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `CombatantComponent.*` |
+| Player portrait/health HUD, enemy health bars | `UI/ReEchoPlayerHudWidget.*`, `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`, `ReEchoGameMode.*`, `CombatantComponent.*` |
 | Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |
+| Rain, fog, weather scenes | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`, `DefaultGame.ini` |
+| Inventory, backpack, shop, store, Time Shards | `UI/ReEchoInventoryShopWidget.*`, `Run/ReEchoShopCatalog.h`, `Run/ReEchoRunSubsystem.*` | `ReEchoGameMode.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini`, imported UI textures |
+| Player stats, echo stats, Tab panel | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*` | `Graybox/ReEchoEchoActor.*`, `Combat/ReEchoCombatantComponent.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini` |
 | Pause/death/restart/quit UI | `UI/ReEchoRestartWidget.*` | `ReEchoGameMode.*`, `PlayerPawn::TogglePauseMenu`, `DefaultInput.ini` |
 | Trait cards/card choice | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*` | `Content/Data/cards.json`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*` |
 | Cards/characters/enemies/balance data | Matching `Content/Data/*.json` | `Content/Data/README.md`, `validate_project.py` |
+| GM, debug command, cheat, console | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Matching gameplay subsystem or actor API |
 | Build failure | `scripts/ue/Build-Editor.*` | latest UBT log; matching source only |
 | Windows packaging/cook/resource missing | `scripts/ue/package_windows.py`, `ReEchoGameMode.*`, hard asset references, UAT Cook manifests | `Content/ReEcho/Textures/Characters/`, `Saved/Cooked/Windows`, Shipping smoke test |
 | Automation | `scripts/ue/Run-Automation.*` | `Private/Tests/*`, `Saved/Logs/ReEcho.log` |

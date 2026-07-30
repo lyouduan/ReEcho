@@ -1,11 +1,14 @@
 #pragma once
 
+#include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoEnemyActor.generated.h"
 
+class UAbilitySystemComponent;
 class UBillboardComponent;
 class UCapsuleComponent;
+class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UStaticMeshComponent;
 class UTexture2D;
@@ -23,16 +26,17 @@ enum class EReEchoEnemyKind : uint8
 /** 2D 敌人实体：负责寻路攻击、受伤判定、血条和序列帧表现。 */
 UCLASS()
 
-class REECHO_API AReEchoEnemyActor : public AActor
+class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 public:
 	AReEchoEnemyActor();
 	virtual void Tick(float DeltaSeconds) override;
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	/** 按敌人类型和出生序号装配数值、贴图、碰撞体及行为参数。 */
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
 	/** 结算伤害并触发受击方向反馈，返回实际扣除的生命值。 */
-	float ReceiveGrayboxDamage(float Damage, const FVector& SourceLocation);
+	float ReceiveGrayboxDamage(float Damage, const FVector& SourceLocation, AActor* SourceActor = nullptr);
 	bool IsAlive() const;
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 
@@ -41,7 +45,14 @@ public:
 		return Kind;
 	}
 
+protected:
+	virtual void BeginPlay() override;
+
 private:
+	UPROPERTY(VisibleAnywhere, Category = "Abilities")
+	TObjectPtr<UAbilitySystemComponent> AbilitySystem;
+	UPROPERTY(VisibleAnywhere, Category = "Abilities")
+	TObjectPtr<UReEchoCombatAttributeSet> CombatAttributes;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UCapsuleComponent> Collision;
 	UPROPERTY(VisibleAnywhere)

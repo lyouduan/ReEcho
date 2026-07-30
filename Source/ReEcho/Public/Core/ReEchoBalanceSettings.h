@@ -14,6 +14,7 @@ enum class EReEchoWeaponSlot : uint8
 };
 
 USTRUCT(BlueprintType)
+
 struct REECHO_API FReEchoWeaponConfig
 {
 	GENERATED_BODY()
@@ -47,6 +48,7 @@ struct REECHO_API FReEchoWeaponConfig
 };
 
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "ReEcho Balance"))
+
 class REECHO_API UReEchoBalanceSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -55,7 +57,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter", meta = (ClampMin = "1"))
 	int32 TotalEncounterCount = 6;
 
-	int32 GetTotalEncounterCount() const { return FMath::Max(1, TotalEncounterCount); }
+	int32 GetTotalEncounterCount() const
+	{
+		return FMath::Max(1, TotalEncounterCount);
+	}
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter")
 	float EncounterDuration = 30.f;
@@ -77,6 +82,14 @@ public:
 	/** 场景背景的世界高度；相机宽度会按背景纹理宽高比自动同步。 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Arena", meta = (ClampMin = "100.0"))
 	float ArenaSceneWorldHeight = 6300.0f;
+
+	/** 使用屏幕空间下雨表现的遭遇编号（从 1 开始）。 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weather")
+	TArray<int32> RainEncounterIndices;
+
+	/** 使用屏幕空间雾气表现的遭遇编号（从 1 开始）；与雨重叠时雨优先。 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weather")
+	TArray<int32> FogEncounterIndices;
 
 	/** 第一场遭遇的普通怪数量，后续关卡会继续增加。 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter", meta = (ClampMin = "1"))
