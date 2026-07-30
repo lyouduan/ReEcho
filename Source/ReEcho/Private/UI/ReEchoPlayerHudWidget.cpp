@@ -5,17 +5,29 @@
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
-#include "Components/HorizontalBox.h"
-#include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/ProgressBar.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
-#include "Components/VerticalBox.h"
-#include "Components/VerticalBoxSlot.h"
 #include "Engine/Texture2D.h"
+#include "Styling/SlateBrush.h"
+
+namespace
+{
+FSlateBrush MakeRoundedBrush(const FLinearColor& FillColor,
+                             const float Radius,
+                             const FLinearColor& OutlineColor,
+                             const float OutlineWidth)
+{
+	FSlateBrush Brush;
+	Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
+	Brush.TintColor = FSlateColor(FillColor);
+	Brush.OutlineSettings = FSlateBrushOutlineSettings(Radius, FSlateColor(OutlineColor), OutlineWidth);
+	return Brush;
+}
+} // namespace
 
 TSharedRef<SWidget> UReEchoPlayerHudWidget::RebuildWidget()
 {
@@ -59,62 +71,32 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 	RootCanvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	WidgetTree->RootWidget = RootCanvas;
 
-	UBorder* PanelBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PlayerHudPanelBorder"));
-	PanelBorder->SetBrushColor(FLinearColor(0.035f, 0.025f, 0.018f, 0.92f));
-	PanelBorder->SetPadding(FMargin(7.0f));
-	PanelBorder->SetVisibility(ESlateVisibility::HitTestInvisible);
-	UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(PanelBorder);
-	PanelSlot->SetAnchors(FAnchors(0.0f, 0.0f));
-	PanelSlot->SetAlignment(FVector2D::ZeroVector);
-	PanelSlot->SetPosition(FVector2D(24.0f, 24.0f));
-	PanelSlot->SetAutoSize(true);
+	USizeBox* HudSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlayerHudSize"));
+	HudSize->SetWidthOverride(404.0f);
+	HudSize->SetHeightOverride(94.0f);
+	HudSize->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* HudSlot = RootCanvas->AddChildToCanvas(HudSize);
+	HudSlot->SetAnchors(FAnchors(0.0f, 0.0f));
+	HudSlot->SetAlignment(FVector2D::ZeroVector);
+	HudSlot->SetPosition(FVector2D(20.0f, 18.0f));
+	HudSlot->SetAutoSize(true);
 
-	UHorizontalBox* MainRow =
-	    WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("PlayerHudMainRow"));
-	PanelBorder->SetContent(MainRow);
-
-	USizeBox* PortraitSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlayerPortraitSize"));
-	PortraitSize->SetWidthOverride(78.0f);
-	PortraitSize->SetHeightOverride(78.0f);
-	UHorizontalBoxSlot* PortraitSlot = MainRow->AddChildToHorizontalBox(PortraitSize);
-	PortraitSlot->SetVerticalAlignment(VAlign_Center);
-
-	UBorder* PortraitFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PlayerPortraitFrame"));
-	PortraitFrame->SetBrushColor(FLinearColor(0.26f, 0.16f, 0.08f, 1.0f));
-	PortraitFrame->SetPadding(FMargin(4.0f));
-	PortraitSize->SetContent(PortraitFrame);
-
-	PortraitImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PlayerPortrait"));
-	PortraitImage->SetColorAndOpacity(FLinearColor::White);
-	PortraitFrame->SetContent(PortraitImage);
-	if (PortraitTexture)
-	{
-		PortraitImage->SetBrushFromTexture(PortraitTexture, true);
-	}
-
-	UVerticalBox* Vitals = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("PlayerVitals"));
-	UHorizontalBoxSlot* VitalsSlot = MainRow->AddChildToHorizontalBox(Vitals);
-	VitalsSlot->SetPadding(FMargin(8.0f, 0.0f, 0.0f, 0.0f));
-	VitalsSlot->SetVerticalAlignment(VAlign_Center);
-
-	UTextBlock* PlayerLabel =
-	    WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlayerHudLabel"));
-	PlayerLabel->SetText(NSLOCTEXT("ReEcho", "PlayerHudLabel", "当前玩家"));
-	PlayerLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.88f, 0.78f, 0.58f, 1.0f)));
-	FSlateFontInfo LabelFont = PlayerLabel->GetFont();
-	LabelFont.Size = 16;
-	PlayerLabel->SetFont(LabelFont);
-	UVerticalBoxSlot* LabelSlot = Vitals->AddChildToVerticalBox(PlayerLabel);
-	LabelSlot->SetPadding(FMargin(3.0f, 0.0f, 0.0f, 4.0f));
+	UCanvasPanel* HudCanvas =
+	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("PlayerHudCanvas"));
+	HudCanvas->SetVisibility(ESlateVisibility::HitTestInvisible);
+	HudSize->SetContent(HudCanvas);
 
 	USizeBox* HealthSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlayerHealthSize"));
-	HealthSize->SetWidthOverride(300.0f);
-	HealthSize->SetHeightOverride(36.0f);
-	Vitals->AddChildToVerticalBox(HealthSize);
+	HealthSize->SetWidthOverride(334.0f);
+	HealthSize->SetHeightOverride(50.0f);
+	UCanvasPanelSlot* HealthSlot = HudCanvas->AddChildToCanvas(HealthSize);
+	HealthSlot->SetPosition(FVector2D(67.0f, 13.0f));
+	HealthSlot->SetSize(FVector2D(334.0f, 50.0f));
 
 	UBorder* HealthFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PlayerHealthFrame"));
-	HealthFrame->SetBrushColor(FLinearColor(0.31f, 0.19f, 0.08f, 1.0f));
-	HealthFrame->SetPadding(FMargin(4.0f));
+	HealthFrame->SetBrush(MakeRoundedBrush(
+	    FLinearColor(0.055f, 0.035f, 0.025f, 0.94f), 12.0f, FLinearColor(0.34f, 0.22f, 0.10f, 1.0f), 3.0f));
+	HealthFrame->SetPadding(FMargin(5.0f));
 	HealthSize->SetContent(HealthFrame);
 
 	UOverlay* HealthOverlay =
@@ -124,7 +106,7 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 	HealthProgressBar =
 	    WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("PlayerHealthProgress"));
 	HealthProgressBar->SetBarFillType(EProgressBarFillType::LeftToRight);
-	HealthProgressBar->SetFillColorAndOpacity(FLinearColor(0.72f, 0.08f, 0.065f, 1.0f));
+	HealthProgressBar->SetFillColorAndOpacity(FLinearColor(0.76f, 0.075f, 0.055f, 1.0f));
 	HealthProgressBar->SetVisibility(ESlateVisibility::HitTestInvisible);
 	UOverlaySlot* ProgressSlot = HealthOverlay->AddChildToOverlay(HealthProgressBar);
 	ProgressSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -132,15 +114,37 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 
 	HealthText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlayerHealthText"));
 	HealthText->SetJustification(ETextJustify::Center);
-	HealthText->SetColorAndOpacity(FSlateColor(FLinearColor(0.96f, 0.90f, 0.78f, 1.0f)));
-	HealthText->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
-	HealthText->SetShadowOffset(FVector2D(1.0f, 1.0f));
+	HealthText->SetColorAndOpacity(FSlateColor(FLinearColor(0.96f, 0.87f, 0.72f, 1.0f)));
+	HealthText->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 1.0f));
+	HealthText->SetShadowOffset(FVector2D(2.0f, 2.0f));
 	FSlateFontInfo HealthFont = HealthText->GetFont();
-	HealthFont.Size = 22;
+	HealthFont.Size = 27;
 	HealthText->SetFont(HealthFont);
 	UOverlaySlot* TextSlot = HealthOverlay->AddChildToOverlay(HealthText);
 	TextSlot->SetHorizontalAlignment(HAlign_Fill);
 	TextSlot->SetVerticalAlignment(VAlign_Center);
+
+	USizeBox* PortraitSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlayerPortraitSize"));
+	PortraitSize->SetWidthOverride(90.0f);
+	PortraitSize->SetHeightOverride(90.0f);
+	UCanvasPanelSlot* PortraitSlot = HudCanvas->AddChildToCanvas(PortraitSize);
+	PortraitSlot->SetPosition(FVector2D::ZeroVector);
+	PortraitSlot->SetSize(FVector2D(90.0f, 90.0f));
+	PortraitSlot->SetZOrder(2);
+
+	UBorder* PortraitFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PlayerPortraitFrame"));
+	PortraitFrame->SetBrush(MakeRoundedBrush(
+	    FLinearColor(0.025f, 0.020f, 0.018f, 0.98f), 45.0f, FLinearColor(0.40f, 0.27f, 0.12f, 1.0f), 4.0f));
+	PortraitFrame->SetPadding(FMargin(6.0f));
+	PortraitSize->SetContent(PortraitFrame);
+
+	PortraitImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PlayerPortrait"));
+	PortraitImage->SetColorAndOpacity(FLinearColor::White);
+	PortraitFrame->SetContent(PortraitImage);
+	if (PortraitTexture)
+	{
+		PortraitImage->SetBrushFromTexture(PortraitTexture, true);
+	}
 
 	Refresh();
 }
@@ -155,7 +159,7 @@ void UReEchoPlayerHudWidget::Refresh()
 	const float MaximumHealth = FMath::Max(1.0f, Combatant->Stats.HpMax);
 	const float CurrentHealth = FMath::Clamp(Combatant->CurrentHealth, 0.0f, MaximumHealth);
 	HealthProgressBar->SetPercent(CurrentHealth / MaximumHealth);
-	HealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0} / {1}"),
+	HealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0}/{1}"),
 	                                  FText::AsNumber(FMath::CeilToInt(CurrentHealth)),
 	                                  FText::AsNumber(FMath::CeilToInt(MaximumHealth))));
 }

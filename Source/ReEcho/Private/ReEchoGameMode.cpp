@@ -1,5 +1,8 @@
 #include "ReEchoGameMode.h"
 
+#include "AbilitySystem/ReEchoGameplayTags.h"
+#include "AbilitySystemComponent.h"
+
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BillboardComponent.h"
@@ -7,6 +10,7 @@
 #include "Encounter/ReEchoEncounterDirector.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
+#include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
@@ -39,6 +43,141 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
+}
+
+void AReEchoGameMode::PrintGMResult(const FString& Message, const bool bSuccess) const
+{
+	UE_LOG(LogTemp, Display, TEXT("[GM] %s"), *Message);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+		    -1, 6.0f, bSuccess ? FColor::Green : FColor::Red, FString::Printf(TEXT("[GM] %s"), *Message));
+	}
+}
+
+bool AReEchoGameMode::EnsureGMCommandAvailable() const
+{
+#if UE_BUILD_SHIPPING
+	PrintGMResult(TEXT("GM commands are disabled in Shipping builds."), false);
+	return false;
+#else
+	return true;
+#endif
+}
+
+void AReEchoGameMode::GMHelp()
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	PrintGMResult(
+	    TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMWeather <Clear|Rain|Fog> | GMKillAll"));
+}
+
+void AReEchoGameMode::GMStatus()
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const float Health = Player && Player->Combatant ? Player->Combatant->CurrentHealth : 0.0f;
+	const float MaximumHealth = Player && Player->Combatant ? Player->Combatant->Stats.HpMax : 0.0f;
+	PrintGMResult(FString::Printf(TEXT("Encounter=%d, HP=%.0f/%.0f, TimeShards=%d, Echoes=%d"),
+	                              RunSubsystem ? RunSubsystem->EncounterIndex : 0,
+	                              Health,
+	                              MaximumHealth,
+	                              RunSubsystem ? RunSubsystem->TimeShards : 0,
+	                              Echoes.Num()));
+}
+
+void AReEchoGameMode::GMHeal(const float Amount)
+{
+	if (!EnsureGMCommandAvailable() || !Player || !Player->Combatant)
+	{
+		return;
+	}
+	UReEchoCombatantComponent* Combatant = Player->Combatant;
+	if (!Combatant->IsAlive())
+	{
+		PrintGMResult(TEXT("Cannot heal a dead player; restart the encounter first."), false);
+		return;
+	}
+	const float PreviousHealth = Combatant->CurrentHealth;
+	Combatant->ApplyHealing(Amount <= 0.0f ? Combatant->Stats.HpMax : Amount);
+	PrintGMResult(FString::Printf(
+	    TEXT("Player HP %.0f -> %.0f/%.0f"), PreviousHealth, Combatant->CurrentHealth, Combatant->Stats.HpMax));
+}
+
+void AReEchoGameMode::GMAddShards(const int32 Amount)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		PrintGMResult(TEXT("Run subsystem is unavailable."), false);
+		return;
+	}
+	const int64 UpdatedShards = static_cast<int64>(RunSubsystem->TimeShards) + static_cast<int64>(Amount);
+	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(UpdatedShards, 0, MAX_int32));
+	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
+}
+
+void AReEchoGameMode::GMWeather(const FString& Scene)
+{
+	if (!EnsureGMCommandAvailable() || !WeatherWidget)
+	{
+		return;
+	}
+	EReEchoWeatherScene WeatherScene;
+	if (Scene.Equals(TEXT("Clear"), ESearchCase::IgnoreCase) || Scene.Equals(TEXT("Off"), ESearchCase::IgnoreCase))
+	{
+		WeatherScene = EReEchoWeatherScene::Clear;
+	}
+	else if (Scene.Equals(TEXT("Rain"), ESearchCase::IgnoreCase))
+	{
+		WeatherScene = EReEchoWeatherScene::Rain;
+	}
+	else if (Scene.Equals(TEXT("Fog"), ESearchCase::IgnoreCase))
+	{
+		WeatherScene = EReEchoWeatherScene::Fog;
+	}
+	else
+	{
+		PrintGMResult(TEXT("Usage: GMWeather <Clear|Rain|Fog>"), false);
+		return;
+	}
+	WeatherWidget->SetWeatherScene(WeatherScene);
+	PrintGMResult(FString::Printf(TEXT("Weather=%s"), *Scene));
+}
+
+void AReEchoGameMode::GMKillAll()
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	int32 KilledCount = 0;
+	for (TActorIterator<AReEchoEnemyActor> EnemyIterator(GetWorld()); EnemyIterator; ++EnemyIterator)
+	{
+		AReEchoEnemyActor* Enemy = *EnemyIterator;
+		const FVector DamageSource =
+		    Enemy ? Enemy->GetActorLocation() - Enemy->GetActorForwardVector() * 100.0f : FVector::ZeroVector;
+		for (int32 Attempt = 0; Enemy && Enemy->IsAlive() && Attempt < 32; ++Attempt)
+		{
+			Enemy->ReceiveGrayboxDamage(TNumericLimits<float>::Max(), DamageSource);
+		}
+		if (Enemy && !Enemy->IsAlive())
+		{
+			++KilledCount;
+		}
+	}
+	PrintGMResult(
+	    FString::Printf(TEXT("Killed %d enemies; normal encounter completion will run next tick."), KilledCount));
 }
 
 void AReEchoGameMode::StartPlay()
@@ -84,6 +223,7 @@ void AReEchoGameMode::StartPlay()
 		if (WeatherWidget)
 		{
 			WeatherWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+			WeatherWidget->SetFogRevealSources(Player, nullptr);
 			WeatherWidget->AddToViewport(5);
 		}
 		EncounterHudWidget =
@@ -212,6 +352,10 @@ void AReEchoGameMode::ClearCombatants()
 		}
 	}
 	Echoes.Reset();
+	if (WeatherWidget)
+	{
+		WeatherWidget->SetFogRevealSources(Player, nullptr);
+	}
 }
 
 void AReEchoGameMode::BeginNextEncounter()
@@ -243,6 +387,10 @@ void AReEchoGameMode::BeginNextEncounter()
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
 		Echo->InitializeEcho(Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency);
 		Echoes.Add(Echo);
+	}
+	if (WeatherWidget)
+	{
+		WeatherWidget->SetFogRevealSources(Player, Echoes.IsEmpty() ? nullptr : Echoes[0].Get());
 	}
 	SpawnEnemies(RunSubsystem->EncounterIndex);
 	Director->StartEncounter();
@@ -389,6 +537,7 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	PlayerController->SetInputMode(InputMode);
 	PlayerController->SetShowMouseCursor(true);
+	SetPlayerMenuAbilityBlocked(true);
 	UGameplayStatics::SetGamePaused(this, true);
 }
 
@@ -469,6 +618,7 @@ void AReEchoGameMode::ShowStatsMenu()
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	PlayerController->SetInputMode(InputMode);
 	PlayerController->SetShowMouseCursor(true);
+	SetPlayerMenuAbilityBlocked(true);
 	UGameplayStatics::SetGamePaused(this, true);
 }
 
@@ -540,6 +690,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	PlayerController->SetInputMode(InputMode);
 	PlayerController->SetShowMouseCursor(true);
+	SetPlayerMenuAbilityBlocked(true);
 	UGameplayStatics::SetGamePaused(this, true);
 }
 
@@ -672,6 +823,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	PlayerController->SetInputMode(InputMode);
 	PlayerController->SetShowMouseCursor(true);
+	SetPlayerMenuAbilityBlocked(true);
 	UGameplayStatics::SetGamePaused(this, true);
 }
 
@@ -693,8 +845,17 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
 }
 
+void AReEchoGameMode::SetPlayerMenuAbilityBlocked(const bool bBlocked)
+{
+	if (Player && Player->AbilitySystem)
+	{
+		Player->AbilitySystem->SetLooseGameplayTagCount(ReEchoGameplayTags::State_Menu, bBlocked ? 1 : 0);
+	}
+}
+
 void AReEchoGameMode::RestoreGameInput()
 {
+	SetPlayerMenuAbilityBlocked(false);
 	UGameplayStatics::SetGamePaused(this, false);
 
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))

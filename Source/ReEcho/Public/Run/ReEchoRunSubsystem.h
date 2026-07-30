@@ -47,7 +47,7 @@ public:
 
 	/** 根据当前构筑和运行状态生成本次特质卡候选。 */
 	UFUNCTION(BlueprintCallable)
-	TArray<FReEchoTraitCardOffer> GenerateTraitCardOffers(int32 RequestedCount) const;
+	TArray<FReEchoTraitCardOffer> GenerateTraitCardOffers(int32 RequestedCount);
 
 	/** 应用所选特质卡，并更新后续角色和回响共用的构筑快照。 */
 	UFUNCTION(BlueprintCallable)
@@ -78,6 +78,9 @@ private:
 
 	UPROPERTY()
 	FGuid AnchorId;
+
+	UPROPERTY()
+	TArray<FName> PendingTraitCardIds;
 
 	void SetPhase(EReEchoRunPhase NewPhase);
 };

@@ -5,11 +5,15 @@
 #include "Core/ReEchoTypes.h"
 #include "ReEchoCombatantComponent.generated.h"
 
+class UAbilitySystemComponent;
+struct FOnAttributeChangeData;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoHealthChanged, float, Current, float, Maximum);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoDeath);
 
-/** 通用战斗属性组件：管理生命值、受伤结算和死亡事件。 */
+/** Compatibility facade over GAS combat attributes; legacy fallback remains for actors not migrated to ASC. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
+
 class REECHO_API UReEchoCombatantComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -17,9 +21,11 @@ class REECHO_API UReEchoCombatantComponent : public UActorComponent
 public:
 	UReEchoCombatantComponent();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	/** Read-only compatibility snapshot. GAS is authoritative whenever an ASC is bound. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	FReEchoStatBlock Stats;
 
+	/** Read-only compatibility value. GAS is authoritative whenever an ASC is bound. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	float CurrentHealth = 100.f;
 
@@ -32,13 +38,36 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void InitializeFromStats(const FReEchoStatBlock& InStats, bool bFillHealth = true);
 
-	/** 扣除已经过战斗规则计算的最终伤害，并返回实际扣除值。 */
+	/** Applies final damage through GAS when available and returns actual health removed. */
 	UFUNCTION(BlueprintCallable)
 	float ApplyFinalDamage(float Damage);
+
+	/** Applies healing through GAS when available and returns actual health restored. */
+	UFUNCTION(BlueprintCallable)
+	float ApplyHealing(float Healing);
 
 	UFUNCTION(BlueprintPure)
 	bool IsAlive() const;
 
+	void BindToAbilitySystem(UAbilitySystemComponent* InAbilitySystem);
+	UAbilitySystemComponent* GetBoundAbilitySystem() const;
+
 protected:
 	virtual void BeginPlay() override;
+
+private:
+	void SyncFromAbilitySystem();
+	void HandleHealthChanged(const FOnAttributeChangeData& Data);
+	void HandleMaxHealthChanged(const FOnAttributeChangeData& Data);
+	void HandleBlockChanged(const FOnAttributeChangeData& Data);
+	void HandlePhysicalAttackChanged(const FOnAttributeChangeData& Data);
+	void HandleElementalAttackChanged(const FOnAttributeChangeData& Data);
+	void HandleAttackSpeedChanged(const FOnAttributeChangeData& Data);
+	void HandleMovementSpeedChanged(const FOnAttributeChangeData& Data);
+	void HandleEchoEfficiencyChanged(const FOnAttributeChangeData& Data);
+
+	UPROPERTY()
+	TObjectPtr<UAbilitySystemComponent> BoundAbilitySystem;
+
+	bool bDeathBroadcast = false;
 };

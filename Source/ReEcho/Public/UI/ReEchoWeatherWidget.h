@@ -4,6 +4,8 @@
 #include "Blueprint/UserWidget.h"
 #include "ReEchoWeatherWidget.generated.h"
 
+class AActor;
+
 UENUM()
 enum class EReEchoWeatherScene : uint8
 {
@@ -21,6 +23,7 @@ class REECHO_API UReEchoWeatherWidget : public UUserWidget
 
 public:
 	void SetWeatherScene(EReEchoWeatherScene NewWeatherScene);
+	void SetFogRevealSources(AActor* InPlayer, AActor* InEcho);
 
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
@@ -35,4 +38,7 @@ protected:
 private:
 	EReEchoWeatherScene WeatherScene = EReEchoWeatherScene::Clear;
 	float AnimationTime = 0.0f;
+	TWeakObjectPtr<AActor> FogPlayer;
+	TWeakObjectPtr<AActor> FogEcho;
+	TArray<FVector2D> FogRevealCenters;
 };

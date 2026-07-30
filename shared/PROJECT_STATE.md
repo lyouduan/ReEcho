@@ -5,21 +5,22 @@ Last updated: 2026-07-30. This file is a current snapshot, not a chronological l
 ## Playable state
 
 - UE 5.8 C++ 2.5D prototype starts from `/Game/Level00`; `AReEchoGameMode` generates the bounded arena and six-encounter run.
-- GAS-routed player attacks, four weapon/character definitions, four enemy archetypes, deterministic 20 Hz recording, echo playback, trait selection, health UI, damage feedback, pause/restart/quit and final-Boss settlement are connected.
+- GAS-authoritative player/enemy attributes and effect-based damage, four weapon/character definitions, four enemy archetypes, deterministic 20 Hz recording, echo playback, trait selection, health UI, damage feedback, pause/restart/quit and final-Boss settlement are connected.
 - Player, echo and enemies render as packaged 2D Billboards over a fixed orthographic 3D arena; collision remains authoritative and separate from visual animation.
-- Configurable rain and layered fog are visual-only. The top-left HUD shows the configured player portrait and live current/max health; only enemies retain world-space overhead health bars. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats.
-- Runtime purchases are duplicate-guarded and update the shared build snapshot. Runs without an active echo show an explicit stats empty state.
+- Configurable rain and player/echo-centered fog-of-war are visual-only. The top-left HUD shows the configured player portrait and live current/max health; only enemies retain world-space overhead health bars. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats.
+- Runtime purchases are duplicate-guarded and update the shared build snapshot. Time-trait draws are deterministic per run state, prefer least-owned traits, contain no duplicate offer, and accept only the current pending choice. Runs without an active echo show an explicit stats empty state.
+- Development-console GM commands cover status, healing, Time Shards, weather override and enemy clearing; Shipping rejects them.
 - Human PIE play-feel, UI/DPI/font readability and final weather/blur tuning remain required; this is not yet a finished vertical slice.
 
 ## Current progress
 
 | Area | Current state | Remaining |
 |---|---|---|
-| Combat/run | Six encounters, Boss gate, GAS input, weapons, enemies and echo loop connected | Broader deterministic combat tests and tuning |
+| Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, weapons, enemies and echo loop connected | Broader deterministic combat tests and tuning |
 | Presentation | 2D actors, fixed camera, arena art, weather, inventory/shop/stats UI | Human PIE and packaged-menu regression |
 | Data | Reviewable JSON registries and DeveloperSettings runtime values | Runtime data importer/migration |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Six `ReEcho.*` automation tests; Editor build passes | New projectile/menu/round regressions |
+| Validation | Ten `ReEcho.*` automation tests; Editor build passes | New projectile/menu/round regressions |
 
 ## Milestones
 
@@ -29,7 +30,7 @@ Last updated: 2026-07-30. This file is a current snapshot, not a chronological l
 | B - Planning loop | Partial | Preview/setup beat and direction check |
 | C - Build/run | Functional prototype; data migration partial | Data importer and full content run |
 | D - Elements/keystones | Partial seams | Vertical-slice acceptance |
-| E - Validation | Six automation tests plus prior Shipping smoke evidence | Go/No-Go report |
+| E - Validation | Ten automation tests plus prior Shipping smoke evidence | Go/No-Go report |
 
 ## Collaboration protocol
 
@@ -41,7 +42,7 @@ Last updated: 2026-07-30. This file is a current snapshot, not a chronological l
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Editor Development build succeeds and all six `ReEcho.*` automation tests pass.
+- Latest Editor Development build succeeds and all ten `ReEcho.*` automation tests pass.
 - Prior clean Windows Shipping Cook/Pak/Archive and launch smoke test passed before Plans 06-08; those UI/weather additions still require a fresh packaged regression before release claims.
 - `scripts/validate_project.py` performs fast JSON and workflow consistency checks.
 

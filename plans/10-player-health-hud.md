@@ -26,3 +26,4 @@ Add a persistent top-left player portrait and live health bar inspired by the su
 - Removed only the player pawn's world-space `AReEchoHealthBarActor`; enemy spawn paths and enemy health bars are unchanged.
 - ReEchoEditor Win64 Development builds successfully; all six `ReEcho.*` automation tests pass.
 - Remaining risk: human PIE must confirm safe-area placement, portrait crop, Chinese glyphs and DPI scaling.
+- Follow-up HUD polish: removed the opaque shared panel, placed the circular portrait medallion over the left edge of the standalone health bar, increased health-number prominence, and tightened spacing to match the supplied reference.

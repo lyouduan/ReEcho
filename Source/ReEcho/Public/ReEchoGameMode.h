@@ -30,7 +30,23 @@ public:
 	void ToggleShopMenu();
 	void ToggleStatsMenu();
 
+	/** Development-only console commands. Open the console with ~ and run GMHelp. */
+	UFUNCTION(Exec)
+	void GMHelp();
+	UFUNCTION(Exec)
+	void GMStatus();
+	UFUNCTION(Exec)
+	void GMHeal(float Amount = 0.0f);
+	UFUNCTION(Exec)
+	void GMAddShards(int32 Amount = 100);
+	UFUNCTION(Exec)
+	void GMWeather(const FString& Scene = TEXT("Clear"));
+	UFUNCTION(Exec)
+	void GMKillAll();
+
 private:
+	bool EnsureGMCommandAvailable() const;
+	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	UPROPERTY()
 	TObjectPtr<AReEchoEncounterDirector> Director;
 	UPROPERTY()
@@ -118,4 +134,5 @@ private:
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowTraitCardChoice();
 	void RestoreGameInput();
+	void SetPlayerMenuAbilityBlocked(bool bBlocked);
 };

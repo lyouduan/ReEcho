@@ -23,8 +23,7 @@ const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
 
 FQuat GetSwordRotation(const float SpinRadians = 0.0f)
 {
-	const FQuat CameraFacingRotation =
-		FRotationMatrix::MakeFromZX(CameraFacingNormal, FVector::RightVector).ToQuat();
+	const FQuat CameraFacingRotation = FRotationMatrix::MakeFromZX(CameraFacingNormal, FVector::RightVector).ToQuat();
 	return FQuat(CameraFacingNormal, SpinRadians) * CameraFacingRotation;
 }
 }
@@ -45,13 +44,12 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	StaffSprite->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
 	StaffSprite->SetHiddenInGame(false);
 	StaffSprite->bIsScreenSizeScaled = false;
-	if (UTexture2D* StaffTexture = LoadObject<UTexture2D>(
-		    nullptr, TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff")))
+	if (UTexture2D* StaffTexture =
+	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff")))
 	{
 		StaffSprite->SetSprite(StaffTexture);
 		constexpr float StaffWorldHeight = 250.0f;
-		StaffSprite->SetRelativeScale3D(FVector(
-			StaffWorldHeight / FMath::Max(1, StaffTexture->GetSizeY())));
+		StaffSprite->SetRelativeScale3D(FVector(StaffWorldHeight / FMath::Max(1, StaffTexture->GetSizeY())));
 	}
 
 	// Billboard 会在渲染阶段覆盖组件旋转；使用透明 Plane 才能稳定显示武器自身的 360 度旋转。
@@ -61,31 +59,26 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	SwordSprite->SetCastShadow(false);
 	SwordSprite->SetTranslucentSortPriority(-1);
 	SwordSprite->SetRelativeLocation(ReEchoWeaponVisual::SwordLocation);
-	SwordSprite->SetRelativeRotation(
-		ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 	SwordSprite->SetHiddenInGame(false);
-	if (UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(
-		    nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
+	if (UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
 	{
 		SwordSprite->SetStaticMesh(PlaneMesh);
 	}
 	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
-		nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
-	UTexture2D* WeaponTexture = LoadObject<UTexture2D>(
-		nullptr, TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon"));
+	    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	UTexture2D* WeaponTexture =
+	    LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon"));
 	if (SpriteMaterial && WeaponTexture)
 	{
-		UMaterialInstanceDynamic* MaterialInstance =
-			UMaterialInstanceDynamic::Create(SpriteMaterial, this);
+		UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
 		MaterialInstance->SetTextureParameterValue(TEXT("SpriteTexture"), WeaponTexture);
 		SwordSprite->SetMaterial(0, MaterialInstance);
 		constexpr float WeaponWorldWidth = 250.0f;
-		const float AspectRatio = static_cast<float>(WeaponTexture->GetSizeY())
-			/ FMath::Max(1, WeaponTexture->GetSizeX());
-		SwordSprite->SetRelativeScale3D(FVector(
-			WeaponWorldWidth / 100.0f,
-			WeaponWorldWidth * AspectRatio / 100.0f,
-			1.0f));
+		const float AspectRatio =
+		    static_cast<float>(WeaponTexture->GetSizeY()) / FMath::Max(1, WeaponTexture->GetSizeX());
+		SwordSprite->SetRelativeScale3D(
+		    FVector(WeaponWorldWidth / 100.0f, WeaponWorldWidth * AspectRatio / 100.0f, 1.0f));
 	}
 	SetActorEnableCollision(false);
 }
@@ -104,7 +97,10 @@ void AReEchoWeaponActor::InitializeWeapon()
 		}
 		if (Definitions.Contains(Definition.Slot))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Duplicate weapon slot %d; last config wins"), static_cast<int32>(Definition.Slot));
+			UE_LOG(LogTemp,
+			       Warning,
+			       TEXT("Duplicate weapon slot %d; last config wins"),
+			       static_cast<int32>(Definition.Slot));
 		}
 		Definitions.Add(Definition.Slot, Definition);
 	}
@@ -116,8 +112,8 @@ void AReEchoWeaponActor::InitializeWeapon()
 		return;
 	}
 	const EReEchoWeaponSlot InitialSlot = Definitions.Contains(EReEchoWeaponSlot::PhysicalOrb)
-		? EReEchoWeaponSlot::PhysicalOrb
-		: Definitions.CreateConstIterator().Key();
+	                                          ? EReEchoWeaponSlot::PhysicalOrb
+	                                          : Definitions.CreateConstIterator().Key();
 	SelectWeapon(InitialSlot);
 }
 
@@ -133,8 +129,7 @@ void AReEchoWeaponActor::SelectWeapon(const EReEchoWeaponSlot NewSlot)
 	StaffSprite->SetVisibility(EquippedSlot == EReEchoWeaponSlot::PhysicalOrb);
 	SwordSprite->SetVisibility(EquippedSlot == EReEchoWeaponSlot::Sword);
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-	SwordSprite->SetRelativeRotation(
-		ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 }
 
 bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
@@ -156,40 +151,48 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 
 bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 {
-	if (!Combatant || AttackCooldown > 0.0f)
+	if (!Combatant || AttackCooldown > 0.0f || !ExecuteAttack(Combatant))
 	{
 		return false;
 	}
-	const FReEchoWeaponConfig* Definition = Definitions.Find(EquippedSlot);
-	if (!Definition)
-	{
-		return false;
-	}
-	bool bAttacked = false;
-	switch (EquippedSlot)
-	{
-	case EReEchoWeaponSlot::PhysicalOrb:
-		bAttacked = FireStaffLightWave(*Definition, Combatant);
-		break;
-	case EReEchoWeaponSlot::Sword:
-		bAttacked = SwingSword(*Definition, Combatant);
-		break;
-	case EReEchoWeaponSlot::ElementalOrb:
-		bAttacked = FireProjectile(*Definition, Combatant);
-		break;
-	default:
-		break;
-	}
-	if (bAttacked)
-	{
-		AttackCooldown = Definition->Interval / FMath::Max(0.1f, Combatant->Stats.AttackSpeed);
-	}
-	return bAttacked;
+	AttackCooldown = GetAttackInterval(Combatant);
+	return true;
 }
 
 bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
 {
 	return TryBasicAttack(Combatant);
+}
+
+bool AReEchoWeaponActor::ExecuteBasicAttack(UReEchoCombatantComponent* Combatant)
+{
+	return Combatant && ExecuteAttack(Combatant);
+}
+
+float AReEchoWeaponActor::GetAttackInterval(UReEchoCombatantComponent* Combatant) const
+{
+	const FReEchoWeaponConfig* Definition = Definitions.Find(EquippedSlot);
+	return Definition && Combatant ? Definition->Interval / FMath::Max(0.1f, Combatant->Stats.AttackSpeed) : 0.55f;
+}
+
+bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant)
+{
+	const FReEchoWeaponConfig* Definition = Definitions.Find(EquippedSlot);
+	if (!Combatant || !Definition)
+	{
+		return false;
+	}
+	switch (EquippedSlot)
+	{
+		case EReEchoWeaponSlot::PhysicalOrb:
+			return FireStaffLightWave(*Definition, Combatant);
+		case EReEchoWeaponSlot::Sword:
+			return SwingSword(*Definition, Combatant);
+		case EReEchoWeaponSlot::ElementalOrb:
+			return FireProjectile(*Definition, Combatant);
+		default:
+			return false;
+	}
 }
 
 FName AReEchoWeaponActor::GetEquippedWeaponId() const
@@ -210,9 +213,7 @@ FString AReEchoWeaponActor::GetEquippedWeaponLabel() const
 	return TEXT("Unknown");
 }
 
-bool AReEchoWeaponActor::FireStaffLightWave(
-	const FReEchoWeaponConfig& Definition,
-	UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -227,25 +228,22 @@ bool AReEchoWeaponActor::FireStaffLightWave(
 	}
 	// 固定相机的屏幕上方向；从法杖 Billboard 中心偏移到月牙水晶杖头。
 	const FVector CameraUp(0.8192f, 0.0f, 0.5736f);
-	const FVector StaffHeadLocation =
-		StaffSprite->GetComponentLocation() + CameraUp * 45.0f;
+	const FVector StaffHeadLocation = StaffSprite->GetComponentLocation() + CameraUp * 45.0f;
 	const FVector SpawnLocation = StaffHeadLocation + AimDirection * 18.0f;
-	AReEchoStaffLightWaveActor* Wave = GetWorld()->SpawnActor<AReEchoStaffLightWaveActor>(
-		SpawnLocation, FRotator::ZeroRotator);
+	AReEchoStaffLightWaveActor* Wave =
+	    GetWorld()->SpawnActor<AReEchoStaffLightWaveActor>(SpawnLocation, FRotator::ZeroRotator);
 	if (!Wave)
 	{
 		return false;
 	}
 	Wave->SetOwner(WeaponOwner);
-	const float Damage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient
-		+ Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
+	const float Damage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
+	                     Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
 	Wave->InitializeWave(AimDirection, Damage, OwnerLocation, Definition.Range);
 	return true;
 }
 
-bool AReEchoWeaponActor::FireProjectile(
-	const FReEchoWeaponConfig& Definition,
-	UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -259,20 +257,20 @@ bool AReEchoWeaponActor::FireProjectile(
 		AimDirection = FVector::ForwardVector;
 	}
 	const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + AimDirection * 45.0f;
-	AReEchoProjectileActor* Projectile = GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, AimDirection.Rotation());
+	AReEchoProjectileActor* Projectile =
+	    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, AimDirection.Rotation());
 	if (!Projectile)
 	{
 		return false;
 	}
-	const float Damage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient
-		+ Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
+	const float Damage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
+	                     Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
+	Projectile->SetOwner(WeaponOwner);
 	Projectile->InitializeProjectile(AimDirection, Damage, OwnerLocation, Definition.ProjectileColor);
 	return true;
 }
 
-bool AReEchoWeaponActor::SwingSword(
-	const FReEchoWeaponConfig& Definition,
-	UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::SwingSword(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -284,10 +282,9 @@ bool AReEchoWeaponActor::SwingSword(
 	// 旋转攻击以角色为圆心覆盖完整一周；敌人受伤逻辑会从圆心向外施加击退。
 	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
 	{
-		if (It->IsAlive()
-			&& FVector::Dist2D(OwnerLocation, It->GetActorLocation()) <= Definition.Range)
+		if (It->IsAlive() && FVector::Dist2D(OwnerLocation, It->GetActorLocation()) <= Definition.Range)
 		{
-			It->ReceiveGrayboxDamage(Damage, OwnerLocation);
+			It->ReceiveGrayboxDamage(Damage, OwnerLocation, WeaponOwner);
 		}
 	}
 	StartSwordAnimation();
@@ -309,8 +306,8 @@ void AReEchoWeaponActor::SpawnSwordArc()
 		return;
 	}
 	const FVector ArcLocation = WeaponOwner->GetActorLocation() + FVector(-12.0f, 0.0f, 42.0f);
-	if (AReEchoSwordArcActor* SwordArc = GetWorld()->SpawnActor<AReEchoSwordArcActor>(
-		    ArcLocation, WeaponOwner->GetActorRotation()))
+	if (AReEchoSwordArcActor* SwordArc =
+	        GetWorld()->SpawnActor<AReEchoSwordArcActor>(ArcLocation, WeaponOwner->GetActorRotation()))
 	{
 		SwordArc->SetOwner(WeaponOwner);
 		SwordArc->InitializeArc(SwordSwingDirection);
@@ -326,7 +323,7 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 		SwordAnimationTime = 0.0f;
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 		SwordSprite->SetRelativeRotation(
-		ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+		    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 		return;
 	}
 	SwordAnimationTime = FMath::Max(0.0f, SwordAnimationTime - DeltaSeconds);
@@ -334,6 +331,6 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	const float Angle = Progress * 2.0f * PI * SwordSwingDirection;
 	// 武器位置固定在手部挂点，只旋转贴图自身，不再绕角色公转。
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(
-		ReEchoWeaponVisual::SwordRestAngleRadians + Angle));
+	SwordSprite->SetRelativeRotation(
+	    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians + Angle));
 }

@@ -7,7 +7,7 @@ Add rain and fog scene presentation to the runtime-generated arena without chang
 ## Acceptance
 
 - Rain renders as animated screen-space streaks over configured encounters.
-- Fog renders as layered drifting translucent bands over configured encounters.
+- Fog obscures the arena outside feathered reveal areas around the player and active echo.
 - Encounter weather is configured through `UReEchoBalanceSettings` / `DefaultGame.ini`.
 - Weather does not intercept gameplay input and does not change deterministic recording or combat.
 - ReEchoEditor builds, ReEcho automation passes, and `git diff --check` passes.
@@ -15,7 +15,7 @@ Add rain and fog scene presentation to the runtime-generated arena without chang
 
 ## Implementation
 
-- Add a lightweight full-screen `UReEchoWeatherWidget` that paints rain and fog with Slate primitives.
+- Add a lightweight full-screen `UReEchoWeatherWidget` that paints rain and a tiled fog-of-war mask with Slate primitives.
 - Select the weather at encounter start from configured rain/fog encounter index lists.
 - Keep weather visual-only and independent of arena collision, camera ownership, and encounter timing.
 
@@ -34,5 +34,11 @@ Add rain and fog scene presentation to the runtime-generated arena without chang
 1. Configure encounter indices in `DefaultGame.ini`.
 2. Resolve the active weather in `AReEchoGameMode::UpdateWeatherScene`.
 3. Animate time in `UReEchoWeatherWidget::NativeTick`.
-4. Paint rain streaks or fog bands in `NativePaint` using Slate line primitives.
+4. Paint rain streaks or the player/echo reveal mask in `NativePaint` using Slate box primitives.
 5. Switch weather immediately after `RunSubsystem->BeginEncounter`, while keeping the widget `HitTestInvisible`.
+
+- Fog refinement: replaced the broad full-screen bands with a dense fog-of-war mask. AReEchoGameMode binds the player and current echo as reveal sources; the widget projects them into screen space every tick, keeps a clear inner radius, and feathers toward an opaque outer map. Echo visibility is reset when combatants are cleared so stale echoes cannot leave ghost reveal areas.
+- Pending verification: compile and automation are deferred while Unreal Editor is open; human PIE should tune reveal radius, feather width and DPI projection.
+
+- Local Fog Volume-inspired refinement: replaced discrete fog cells/bands with one 64x36 Slate mesh whose vertex coverage is smoothly interpolated. Player and echo reveal spheres combine as coverage/transmittance, with low-frequency density drift and softly perturbed radial falloff. Native ALocalFogVolume was intentionally not attached to reveal actors because it adds fog inside its sphere, opposite to this fog-of-war rule.
+- Verification update: ReEchoEditor Win64 Development build succeeded, all ReEcho automation tests passed, static validation passed, and targeted diff check passed. Human PIE remains required for final opacity/radius tuning.

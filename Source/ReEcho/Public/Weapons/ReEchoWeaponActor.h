@@ -13,6 +13,7 @@ class UStaticMeshComponent;
 
 /** 玩家武器控制器：管理武器切换、冷却及远近程攻击表现。 */
 UCLASS()
+
 class REECHO_API AReEchoWeaponActor : public AActor
 {
 	GENERATED_BODY()
@@ -26,10 +27,14 @@ public:
 	/** 在冷却允许时执行当前武器基础攻击，并返回是否成功出手。 */
 	bool TryBasicAttack(UReEchoCombatantComponent* Combatant);
 	bool TryActiveAttack(UReEchoCombatantComponent* Combatant);
+	/** Executes an attack without the legacy weapon timer; player GAS owns cooldown. */
+	bool ExecuteBasicAttack(UReEchoCombatantComponent* Combatant);
+	float GetAttackInterval(UReEchoCombatantComponent* Combatant) const;
 	FName GetEquippedWeaponId() const;
 	FString GetEquippedWeaponLabel() const;
 
 private:
+	bool ExecuteAttack(UReEchoCombatantComponent* Combatant);
 	bool FireStaffLightWave(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
 	bool FireProjectile(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
 	bool SwingSword(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);

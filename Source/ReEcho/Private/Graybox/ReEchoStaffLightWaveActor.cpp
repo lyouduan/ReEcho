@@ -28,21 +28,20 @@ AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 	WaveVisual->SetRelativeScale3D(FVector(WaveWorldWidth / 100.0f, WaveWorldHeight / 100.0f, 1.0f));
 
 	if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(
-		    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial")))
+	        nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial")))
 	{
 		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this);
 		Material->SetTextureParameterValue(
-			TEXT("SpriteTexture"),
-			LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave")));
+		    TEXT("SpriteTexture"),
+		    LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave")));
 		WaveVisual->SetMaterial(0, Material);
 	}
 }
 
-void AReEchoStaffLightWaveActor::InitializeWave(
-	const FVector& Direction,
-	const float InDamage,
-	const FVector& InDamageSource,
-	const float InRange)
+void AReEchoStaffLightWaveActor::InitializeWave(const FVector& Direction,
+                                                const float InDamage,
+                                                const FVector& InDamageSource,
+                                                const float InRange)
 {
 	const FVector TravelDirection = Direction.GetSafeNormal2D();
 	Velocity = (TravelDirection.IsNearlyZero() ? FVector::ForwardVector : TravelDirection) * Speed;
@@ -52,7 +51,8 @@ void AReEchoStaffLightWaveActor::InitializeWave(
 	MaximumRange = FMath::Max(1.0f, InRange);
 
 	const FVector CameraFacingNormal(-0.5736f, 0.0f, 0.8192f);
-	FVector ScreenTravel = TravelDirection - CameraFacingNormal * FVector::DotProduct(TravelDirection, CameraFacingNormal);
+	FVector ScreenTravel =
+	    TravelDirection - CameraFacingNormal * FVector::DotProduct(TravelDirection, CameraFacingNormal);
 	ScreenTravel = ScreenTravel.GetSafeNormal();
 	if (ScreenTravel.IsNearlyZero())
 	{
@@ -70,10 +70,10 @@ void AReEchoStaffLightWaveActor::Tick(const float DeltaSeconds)
 
 	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
 	{
-		if (It->IsAlive()
-			&& It->IntersectsProjectilePath(PreviousLocation, NewLocation, Collision->GetScaledSphereRadius()))
+		if (It->IsAlive() &&
+		    It->IntersectsProjectilePath(PreviousLocation, NewLocation, Collision->GetScaledSphereRadius()))
 		{
-			It->ReceiveGrayboxDamage(Damage, DamageSource);
+			It->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner());
 			Destroy();
 			return;
 		}

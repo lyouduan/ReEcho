@@ -20,9 +20,18 @@ protected:
 	                             const FGameplayAbilityActorInfo* ActorInfo,
 	                             const FGameplayAbilityActivationInfo ActivationInfo,
 	                             const FGameplayEventData* TriggerEventData) override;
+	virtual const FGameplayTagContainer* GetCooldownTags() const override;
+	virtual UGameplayEffect* GetCooldownGameplayEffect() const override;
+	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle,
+	                           const FGameplayAbilityActorInfo* ActorInfo,
+	                           const FGameplayAbilityActivationInfo ActivationInfo) const override;
 
 	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const
 	    PURE_VIRTUAL(UReEchoPlayerGameplayAbility::ExecutePlayerAbility, return false;);
+	virtual float GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const;
+
+	TSubclassOf<UGameplayEffect> CooldownEffectClass;
+	FGameplayTagContainer CooldownTags;
 };
 
 UCLASS()
@@ -31,8 +40,25 @@ class REECHO_API UReEchoBasicAttackAbility : public UReEchoPlayerGameplayAbility
 {
 	GENERATED_BODY()
 
+public:
+	UReEchoBasicAttackAbility();
+
 protected:
+	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle,
+	                             const FGameplayAbilityActorInfo* ActorInfo,
+	                             const FGameplayAbilityActivationInfo ActivationInfo,
+	                             const FGameplayEventData* TriggerEventData) override;
 	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
+	virtual float GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const override;
+
+private:
+	bool CommitAndExecuteCurrentAttack();
+	void ScheduleNextAttack(float Delay);
+
+	UFUNCTION()
+	void HandleRepeatDelay();
+	UFUNCTION()
+	void HandleInputReleased(float TimeHeld);
 };
 
 UCLASS()
@@ -41,8 +67,12 @@ class REECHO_API UReEchoActiveAttackAbility : public UReEchoPlayerGameplayAbilit
 {
 	GENERATED_BODY()
 
+public:
+	UReEchoActiveAttackAbility();
+
 protected:
 	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
+	virtual float GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const override;
 };
 
 UCLASS()
@@ -50,6 +80,8 @@ UCLASS()
 class REECHO_API UReEchoSelectWeaponSlot1Ability : public UReEchoPlayerGameplayAbility
 {
 	GENERATED_BODY()
+public:
+	UReEchoSelectWeaponSlot1Ability();
 
 protected:
 	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
@@ -60,6 +92,8 @@ UCLASS()
 class REECHO_API UReEchoSelectWeaponSlot2Ability : public UReEchoPlayerGameplayAbility
 {
 	GENERATED_BODY()
+public:
+	UReEchoSelectWeaponSlot2Ability();
 
 protected:
 	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
@@ -70,6 +104,8 @@ UCLASS()
 class REECHO_API UReEchoSelectWeaponSlot3Ability : public UReEchoPlayerGameplayAbility
 {
 	GENERATED_BODY()
+public:
+	UReEchoSelectWeaponSlot3Ability();
 
 protected:
 	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;

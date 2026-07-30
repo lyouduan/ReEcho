@@ -2,91 +2,71 @@
 
 #include "Core/ReEchoBalanceSettings.h"
 #include "Run/ReEchoShopCatalog.h"
-#include "Algo/RandomShuffle.h"
-#include "Dom/JsonObject.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
-#include "Serialization/JsonReader.h"
-#include "Serialization/JsonSerializer.h"
 
 namespace
 {
-const TSet<FName>& GetSupportedTraitCardIds()
+FReEchoTraitCardOffer MakeTraitOffer(const TCHAR* CardId, const FText& DisplayName, const FText& Description)
 {
-	static const TSet<FName> SupportedTraitCardIds = {
-	    TEXT("G_1_01"), TEXT("G_1_02"), TEXT("G_1_03"), TEXT("G_1_04"), TEXT("G_1_05"), TEXT("G_1_08")};
-	return SupportedTraitCardIds;
+	FReEchoTraitCardOffer Offer;
+	Offer.CardId = FName(CardId);
+	Offer.DisplayName = DisplayName;
+	Offer.Description = Description;
+	return Offer;
 }
 
-bool LoadTraitCardObjects(TArray<TSharedPtr<FJsonValue>>& OutCards)
+const TArray<FReEchoTraitCardOffer>& GetTraitCatalog()
 {
-	FString JsonText;
-	const FString CardsPath = FPaths::ProjectContentDir() / TEXT("Data/cards.json");
-	if (!FFileHelper::LoadFileToString(JsonText, *CardsPath))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Unable to load trait cards from %s"), *CardsPath);
-		return false;
-	}
-
-	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonText);
-	if (!FJsonSerializer::Deserialize(Reader, OutCards))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Unable to parse trait cards from %s"), *CardsPath);
-		return false;
-	}
-
-	return true;
+	static const TArray<FReEchoTraitCardOffer> Catalog = {
+	    MakeTraitOffer(TEXT("G_1_01"),
+	                   NSLOCTEXT("ReEcho", "SpeedTraitName", "时序加速"),
+	                   NSLOCTEXT("ReEcho", "SpeedTraitDescription", "移动速度 +10%，攻击速度 +10%")),
+	    MakeTraitOffer(TEXT("G_1_02"),
+	                   NSLOCTEXT("ReEcho", "HealthTraitName", "生命延展"),
+	                   NSLOCTEXT("ReEcho", "HealthTraitDescription", "最大生命 +15，立即恢复等量生命")),
+	    MakeTraitOffer(TEXT("G_1_03"),
+	                   NSLOCTEXT("ReEcho", "BlockTraitName", "应急格挡"),
+	                   NSLOCTEXT("ReEcho", "BlockTraitDescription", "每个关卡抵挡 1 次伤害")),
+	    MakeTraitOffer(TEXT("G_1_04"),
+	                   NSLOCTEXT("ReEcho", "PhysicalTraitName", "物理增幅"),
+	                   NSLOCTEXT("ReEcho", "PhysicalTraitDescription", "物理攻击 +2")),
+	    MakeTraitOffer(TEXT("G_1_05"),
+	                   NSLOCTEXT("ReEcho", "ElementalTraitName", "元素增幅"),
+	                   NSLOCTEXT("ReEcho", "ElementalTraitDescription", "元素攻击 +2")),
+	    MakeTraitOffer(TEXT("G_1_08"),
+	                   NSLOCTEXT("ReEcho", "EchoTraitName", "回响共振"),
+	                   NSLOCTEXT("ReEcho", "EchoTraitDescription", "回响伤害效率 +10%"))};
+	return Catalog;
 }
 
-FText BuildTraitDescription(const TSharedPtr<FJsonObject>& Effect)
+int32 GetTraitStackCount(const TArray<FName>& OwnedCards, const FName CardId)
 {
-	double Value = 0.0;
-	if (Effect->TryGetNumberField(TEXT("hpMaxAdd"), Value))
+	int32 Count = 0;
+	for (const FName OwnedCardId : OwnedCards)
 	{
-		return FText::Format(NSLOCTEXT("ReEcho", "HealthTraitDescription", "最大生命 +{0}，立即恢复等量生命"),
-		                     FText::AsNumber(FMath::RoundToInt(Value)));
+		if (OwnedCardId == CardId)
+		{
+			++Count;
+		}
 	}
-	if (Effect->TryGetNumberField(TEXT("pAtkAdd"), Value))
-	{
-		return FText::Format(NSLOCTEXT("ReEcho", "PhysicalTraitDescription", "物理攻击 +{0}"),
-		                     FText::AsNumber(FMath::RoundToInt(Value)));
-	}
-	if (Effect->TryGetNumberField(TEXT("eAtkAdd"), Value))
-	{
-		return FText::Format(NSLOCTEXT("ReEcho", "ElementalTraitDescription", "元素攻击 +{0}"),
-		                     FText::AsNumber(FMath::RoundToInt(Value)));
-	}
-	if (Effect->TryGetNumberField(TEXT("blockPerEncounter"), Value))
-	{
-		return FText::Format(NSLOCTEXT("ReEcho", "BlockTraitDescription", "每个关卡抵挡 {0} 次伤害"),
-		                     FText::AsNumber(FMath::RoundToInt(Value)));
-	}
-	if (Effect->TryGetNumberField(TEXT("echoEfficiencyAdd"), Value))
-	{
-		return FText::Format(NSLOCTEXT("ReEcho", "EchoTraitDescription", "回响伤害效率 +{0}%"),
-		                     FText::AsNumber(FMath::RoundToInt(Value * 100.0)));
-	}
-
-	double MoveSpeed = 0.0;
-	double AttackSpeed = 0.0;
-	if (Effect->TryGetNumberField(TEXT("moveSpeedAdd"), MoveSpeed) &&
-	    Effect->TryGetNumberField(TEXT("attackSpeedAdd"), AttackSpeed))
-	{
-		return FText::Format(NSLOCTEXT("ReEcho", "SpeedTraitDescription", "移动速度 +{0}%，攻击速度 +{1}%"),
-		                     FText::AsNumber(FMath::RoundToInt(MoveSpeed * 100.0)),
-		                     FText::AsNumber(FMath::RoundToInt(AttackSpeed * 100.0)));
-	}
-
-	return NSLOCTEXT("ReEcho", "UnknownTraitDescription", "强化当前时间线");
+	return Count;
 }
 
-void AddEffectNumber(const TSharedPtr<FJsonObject>& Effect, const TCHAR* FieldName, float& Target)
+void ShuffleOffers(TArray<FReEchoTraitCardOffer>& Offers, FRandomStream& Random)
 {
-	double Value = 0.0;
-	if (Effect->TryGetNumberField(FieldName, Value))
+	for (int32 Index = Offers.Num() - 1; Index > 0; --Index)
 	{
-		Target += static_cast<float>(Value);
+		Offers.Swap(Index, Random.RandRange(0, Index));
 	}
+}
+
+int32 BuildTraitOfferSeed(const int32 EncounterIndex, const TArray<FName>& OwnedCards)
+{
+	uint32 Seed = HashCombine(GetTypeHash(EncounterIndex), GetTypeHash(OwnedCards.Num()));
+	for (const FName CardId : OwnedCards)
+	{
+		Seed = HashCombine(Seed, GetTypeHash(CardId));
+	}
+	return static_cast<int32>(Seed);
 }
 }
 
@@ -103,6 +83,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	InventoryItems.Reset();
 	RecordingHistory.Reset();
 	AnchorId.Invalidate();
+	PendingTraitCardIds.Reset();
 	CurrentBuild = {};
 	CurrentBuild.CharacterId = CharacterId;
 	CurrentBuild.WeaponId = WeaponId;
@@ -139,115 +120,89 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	SetPhase(EReEchoRunPhase::CardChoice);
 }
 
-TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount) const
+TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
 {
-	TArray<TSharedPtr<FJsonValue>> CardValues;
-	if (!LoadTraitCardObjects(CardValues))
+	PendingTraitCardIds.Reset();
+	const int32 OfferCount = FMath::Clamp(RequestedCount, 0, GetTraitCatalog().Num());
+	if (OfferCount == 0 || Phase != EReEchoRunPhase::CardChoice)
 	{
 		return {};
 	}
 
-	TArray<FReEchoTraitCardOffer> AvailableCards;
-	for (const TSharedPtr<FJsonValue>& CardValue : CardValues)
+	FRandomStream Random(BuildTraitOfferSeed(EncounterIndex, CurrentBuild.Cards));
+	TArray<FReEchoTraitCardOffer> Result;
+	int32 StackLevel = 0;
+	while (Result.Num() < OfferCount)
 	{
-		const TSharedPtr<FJsonObject> CardObject = CardValue->AsObject();
-		if (!CardObject)
+		TArray<FReEchoTraitCardOffer> StackBucket;
+		for (const FReEchoTraitCardOffer& Offer : GetTraitCatalog())
 		{
-			continue;
+			if (GetTraitStackCount(CurrentBuild.Cards, Offer.CardId) == StackLevel)
+			{
+				StackBucket.Add(Offer);
+			}
 		}
 
-		FString CardIdString;
-		if (!CardObject->TryGetStringField(TEXT("id"), CardIdString))
+		ShuffleOffers(StackBucket, Random);
+		for (const FReEchoTraitCardOffer& Offer : StackBucket)
 		{
-			continue;
+			if (Result.Num() >= OfferCount)
+			{
+				break;
+			}
+			Result.Add(Offer);
 		}
-
-		const FName CardId(CardIdString);
-		if (!GetSupportedTraitCardIds().Contains(CardId))
-		{
-			continue;
-		}
-
-		bool bReserved = false;
-		bool bOfferable = true;
-		CardObject->TryGetBoolField(TEXT("reserved"), bReserved);
-		CardObject->TryGetBoolField(TEXT("offerable"), bOfferable);
-		if (bReserved || !bOfferable)
-		{
-			continue;
-		}
-
-		FString DisplayName;
-		CardObject->TryGetStringField(TEXT("name"), DisplayName);
-		const TSharedPtr<FJsonObject>* Effect = nullptr;
-		if (!CardObject->TryGetObjectField(TEXT("effect"), Effect) || !Effect)
-		{
-			continue;
-		}
-
-		FReEchoTraitCardOffer& Offer = AvailableCards.AddDefaulted_GetRef();
-		Offer.CardId = CardId;
-		Offer.DisplayName = FText::FromString(DisplayName);
-		Offer.Description = BuildTraitDescription(*Effect);
+		++StackLevel;
 	}
 
-	Algo::RandomShuffle(AvailableCards);
-	AvailableCards.SetNum(FMath::Min(RequestedCount, AvailableCards.Num()));
-	return AvailableCards;
+	for (const FReEchoTraitCardOffer& Offer : Result)
+	{
+		PendingTraitCardIds.Add(Offer.CardId);
+	}
+	return Result;
 }
 
 bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 {
-	if (!GetSupportedTraitCardIds().Contains(CardId))
+	if (Phase != EReEchoRunPhase::CardChoice || !PendingTraitCardIds.Contains(CardId))
 	{
 		return false;
 	}
 
-	TArray<TSharedPtr<FJsonValue>> CardValues;
-	if (!LoadTraitCardObjects(CardValues))
+	if (CardId == TEXT("G_1_01"))
+	{
+		CurrentBuild.Stats.MovementSpeed += 0.10f;
+		CurrentBuild.Stats.AttackSpeed += 0.10f;
+	}
+	else if (CardId == TEXT("G_1_02"))
+	{
+		CurrentBuild.Stats.HpMax += 15.0f;
+	}
+	else if (CardId == TEXT("G_1_03"))
+	{
+		CurrentBuild.Stats.Block += 1;
+	}
+	else if (CardId == TEXT("G_1_04"))
+	{
+		CurrentBuild.Stats.PhysicalAttack += 2.0f;
+	}
+	else if (CardId == TEXT("G_1_05"))
+	{
+		CurrentBuild.Stats.ElementalAttack += 2.0f;
+	}
+	else if (CardId == TEXT("G_1_08"))
+	{
+		CurrentBuild.Stats.EchoEfficiency += 0.10f;
+	}
+	else
 	{
 		return false;
 	}
 
-	for (const TSharedPtr<FJsonValue>& CardValue : CardValues)
-	{
-		const TSharedPtr<FJsonObject> CardObject = CardValue->AsObject();
-		if (!CardObject)
-		{
-			continue;
-		}
-
-		FString CandidateId;
-		if (!CardObject->TryGetStringField(TEXT("id"), CandidateId) || FName(CandidateId) != CardId)
-		{
-			continue;
-		}
-
-		const TSharedPtr<FJsonObject>* Effect = nullptr;
-		if (!CardObject->TryGetObjectField(TEXT("effect"), Effect) || !Effect)
-		{
-			return false;
-		}
-
-		AddEffectNumber(*Effect, TEXT("hpMaxAdd"), CurrentBuild.Stats.HpMax);
-		AddEffectNumber(*Effect, TEXT("pAtkAdd"), CurrentBuild.Stats.PhysicalAttack);
-		AddEffectNumber(*Effect, TEXT("eAtkAdd"), CurrentBuild.Stats.ElementalAttack);
-		AddEffectNumber(*Effect, TEXT("moveSpeedAdd"), CurrentBuild.Stats.MovementSpeed);
-		AddEffectNumber(*Effect, TEXT("attackSpeedAdd"), CurrentBuild.Stats.AttackSpeed);
-		AddEffectNumber(*Effect, TEXT("echoEfficiencyAdd"), CurrentBuild.Stats.EchoEfficiency);
-
-		double BlockPerEncounter = 0.0;
-		if ((*Effect)->TryGetNumberField(TEXT("blockPerEncounter"), BlockPerEncounter))
-		{
-			CurrentBuild.Stats.Block += FMath::RoundToInt(BlockPerEncounter);
-		}
-
-		CurrentBuild.Cards.Add(CardId);
-		SetPhase(EReEchoRunPhase::Planning);
-		return true;
-	}
-
-	return false;
+	CurrentBuild.Cards.Add(CardId);
+	PendingTraitCardIds.Reset();
+	SetPhase(EReEchoRunPhase::Planning);
+	return true;
 }
 
 bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
