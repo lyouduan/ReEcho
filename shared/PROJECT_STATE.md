@@ -11,6 +11,7 @@ Last updated: 2026-07-29
 - Encounter populations now begin with 10 grunts plus per-encounter growth (configured in DefaultGame.ini); spawn positions are deterministic-random within a configurable 450–850 unit ring around the player, clamped inside the scene boundary, and the final Boss encounter includes peripheral adds.
 - Runtime weather presentation supports configurable rain and fog encounters. Rain uses animated screen-space streaks; fog uses layered drifting translucent bands. Both are visual-only and input-transparent.
 - Inventory and shop menus use the supplied 16:9 illustrated backgrounds. B opens run-local owned items, M opens four Time Shard purchases, and successful purchases are duplicate-guarded and immediately update the shared build snapshot.
+- Tab opens a paused two-column player/active-echo attribute panel over a blurred, darkened version of the supplied clockwork illustration. Values come from live combatant stats, including the echo efficiency-adjusted attack values; runs without an echo show an explicit empty state.
 - Four NewCast player appearances are available through `DefaultCharacterId`: J_HEART/J_SPADE/J_CLOVER/J_DIAMOND.
 - Player, echo and all enemy archetypes now use Billboard-only character rendering; legacy hidden sphere/cube/plane/cone actor placeholders have been removed.
 - Player, echo and 2D enemies add sprite-local idle, attack and hit motion to their static textures; enemy death briefly shrinks/falls without moving collision authority.

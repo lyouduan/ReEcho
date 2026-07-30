@@ -94,6 +94,7 @@ private:
 	void TogglePauseMenu();
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();
+	void ToggleStatsMenu();
 	void SelectWeaponSlot1();
 	void SelectWeaponSlot2();
 	void SelectWeaponSlot3();

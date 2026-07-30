@@ -33,6 +33,9 @@ public:
 	void AdvanceEcho(float EncounterTime);
 	/** 根据录制角色 ID 选择对应的回响形态。 */
 	bool ConfigureEchoAppearance(FName CharacterId);
+	/** 返回效率修正后的当前回响战斗属性。 */
+	const FReEchoStatBlock& GetCurrentStats() const;
+	float GetCurrentHealth() const;
 
 private:
 	UFUNCTION()

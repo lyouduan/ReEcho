@@ -22,6 +22,7 @@
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
 #include "UI/ReEchoRestartWidget.h"
+#include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/ReEchoWeatherWidget.h"
 #include "UObject/ConstructorHelpers.h"
@@ -377,6 +378,11 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 
 void AReEchoGameMode::TogglePauseMenu()
 {
+	if (StatsWidget)
+	{
+		HandleStatsClosed();
+		return;
+	}
 	if (InventoryShopWidget)
 	{
 		HandleInventoryShopClosed();
@@ -392,6 +398,72 @@ void AReEchoGameMode::TogglePauseMenu()
 		return;
 	}
 	ShowRestartScreen(false);
+}
+
+void AReEchoGameMode::ToggleStatsMenu()
+{
+	if (StatsWidget)
+	{
+		HandleStatsClosed();
+		return;
+	}
+	ShowStatsMenu();
+}
+
+void AReEchoGameMode::ShowStatsMenu()
+{
+	if (InventoryShopWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal || !Player)
+	{
+		return;
+	}
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	StatsWidget = CreateWidget<UReEchoStatsWidget>(PlayerController, UReEchoStatsWidget::StaticClass());
+	if (!StatsWidget)
+	{
+		return;
+	}
+
+	FReEchoStatBlock EchoStats;
+	float EchoHealth = 0.0f;
+	bool bHasEcho = false;
+	for (AReEchoEchoActor* Echo : Echoes)
+	{
+		if (Echo)
+		{
+			EchoStats = Echo->GetCurrentStats();
+			EchoHealth = Echo->GetCurrentHealth();
+			bHasEcho = true;
+			break;
+		}
+	}
+
+	StatsWidget->InitializeStats(
+	    Player->Combatant->Stats, Player->Combatant->CurrentHealth, EchoStats, EchoHealth, bHasEcho);
+	StatsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleStatsClosed);
+	StatsWidget->AddToViewport(96);
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetWidgetToFocus(StatsWidget->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
+	UGameplayStatics::SetGamePaused(this, true);
+}
+
+void AReEchoGameMode::HandleStatsClosed()
+{
+	if (StatsWidget)
+	{
+		StatsWidget->RemoveFromParent();
+		StatsWidget = nullptr;
+	}
+	RestoreGameInput();
 }
 
 void AReEchoGameMode::ToggleInventoryMenu()
@@ -416,7 +488,7 @@ void AReEchoGameMode::ToggleShopMenu()
 
 void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 {
-	if (TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
+	if (StatsWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
 	{
 		return;
 	}

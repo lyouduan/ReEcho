@@ -10,6 +10,7 @@ class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
 class UReEchoRestartWidget;
 class UReEchoTraitCardChoiceWidget;
+class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UMaterialInterface;
 class UTexture2D;
@@ -26,6 +27,7 @@ public:
 	void TogglePauseMenu();
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();
+	void ToggleStatsMenu();
 
 private:
 	UPROPERTY()
@@ -51,6 +53,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
 
+	UPROPERTY()
+	TObjectPtr<UReEchoStatsWidget> StatsWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
 	UPROPERTY()
@@ -97,6 +101,12 @@ private:
 	void HandleShopPurchaseRequested(FName ItemId);
 
 	void ShowInventoryShopMenu(bool bShowShop);
+
+	UFUNCTION()
+	void HandleStatsClosed();
+
+	void ShowStatsMenu();
+
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	void SpawnEnemies(int32 EncounterIndex);

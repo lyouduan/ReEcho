@@ -13,6 +13,7 @@ This is a coordination log, not the permanent rulebook. Settled decisions must b
 | 2026-07-29 | Codex | `plan/05-refactor-runtime-cleanup` | Runtime config, GameMode/RunSubsystem/UI cleanup, module dependencies and verification scripts | Completed | Preserve gameplay behavior and all user-authored binary assets; only evidence-backed dead code/dependencies are removed |
 | 2026-07-29 | Codex | `plan/06-weather-scenes` | Weather widget, GameMode weather selection, balance config and plan/state docs | Completed | Editor build, five ReEcho tests, static validation and diff check pass; human PIE visual tuning remains |
 | 2026-07-30 | Codex | plan/07-inventory-shop | Inventory/shop C++, input/config, supplied UI source images and /Game/ReEcho/Textures/UI/* assets | Active | Owns the two imported Texture2D assets; runtime menu remains code-generated |
+| 2026-07-30 | Codex | plan/08-player-echo-stats | Stats widget/input, echo read-only stats, supplied source and /Game/ReEcho/Textures/UI/StatsBackground | Active | ImageGen edit preserves composition while adding blur/darkening; owns imported stats background asset |
 
 ## Decisions
 

@@ -177,6 +177,9 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	FInputActionBinding& ShopBinding =
 	    Input->BindAction(TEXT("ToggleShop"), IE_Pressed, this, &AReEchoPlayerPawn::ToggleShopMenu);
 	ShopBinding.bExecuteWhenPaused = true;
+	FInputActionBinding& StatsBinding =
+	    Input->BindAction(TEXT("ToggleStats"), IE_Pressed, this, &AReEchoPlayerPawn::ToggleStatsMenu);
+	StatsBinding.bExecuteWhenPaused = true;
 }
 
 void AReEchoPlayerPawn::MoveForward(float Value)
@@ -338,6 +341,14 @@ void AReEchoPlayerPawn::ToggleShopMenu()
 	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
 	{
 		GameMode->ToggleShopMenu();
+	}
+}
+
+void AReEchoPlayerPawn::ToggleStatsMenu()
+{
+	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
+	{
+		GameMode->ToggleStatsMenu();
 	}
 }
 
