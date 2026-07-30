@@ -22,6 +22,7 @@
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
+#include "UI/ReEchoWeatherWidget.h"
 #include "UObject/ConstructorHelpers.h"
 
 AReEchoGameMode::AReEchoGameMode()
@@ -29,10 +30,10 @@ AReEchoGameMode::AReEchoGameMode()
 	DefaultPawnClass = AReEchoPlayerPawn::StaticClass();
 	PrimaryActorTick.bCanEverTick = true;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ArenaBackgroundFinder(
-		TEXT("/Game/ReEcho/Textures/Scenes/ArenaGround3D.ArenaGround3D"));
+	    TEXT("/Game/ReEcho/Textures/Scenes/ArenaGround3D.ArenaGround3D"));
 	ArenaBackgroundTexture = ArenaBackgroundFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
-		TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
+	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
 }
 
@@ -42,9 +43,9 @@ void AReEchoGameMode::StartPlay()
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
 	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
 	const float SceneWorldHeight = FMath::Max(100.0f, BalanceSettings->ArenaSceneWorldHeight);
-	const float SceneAspectRatio = ArenaBackgroundTexture
-		? static_cast<float>(ArenaBackgroundTexture->GetSizeX()) / FMath::Max(1, ArenaBackgroundTexture->GetSizeY())
-		: 16.0f / 9.0f;
+	const float SceneAspectRatio = ArenaBackgroundTexture ? static_cast<float>(ArenaBackgroundTexture->GetSizeX()) /
+	                                                            FMath::Max(1, ArenaBackgroundTexture->GetSizeY())
+	                                                      : 16.0f / 9.0f;
 	const float CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio;
 	ArenaSceneWorldHeight = SceneWorldHeight;
 	ArenaSceneWorldWidth = CameraOrthoWidth;
@@ -52,8 +53,7 @@ void AReEchoGameMode::StartPlay()
 	{
 		Player->ConfigureArenaBounds(ArenaSceneWorldHeight * 0.5f, ArenaSceneWorldWidth * 0.5f);
 	}
-	FixedCamera = GetWorld()->SpawnActor<ACameraActor>(
-		FVector(-700.0f, 0.0f, 900.0f), FRotator(-55.0f, 0.0f, 0.0f));
+	FixedCamera = GetWorld()->SpawnActor<ACameraActor>(FVector(-700.0f, 0.0f, 900.0f), FRotator(-55.0f, 0.0f, 0.0f));
 	if (FixedCamera)
 	{
 		UCameraComponent* FixedCameraComponent = FixedCamera->GetCameraComponent();
@@ -76,8 +76,14 @@ void AReEchoGameMode::StartPlay()
 	Director->OnEncounterEnded.AddDynamic(this, &AReEchoGameMode::HandleEncounterEnded);
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
+		WeatherWidget = CreateWidget<UReEchoWeatherWidget>(PlayerController, UReEchoWeatherWidget::StaticClass());
+		if (WeatherWidget)
+		{
+			WeatherWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+			WeatherWidget->AddToViewport(5);
+		}
 		EncounterHudWidget =
-			CreateWidget<UReEchoEncounterHudWidget>(PlayerController, UReEchoEncounterHudWidget::StaticClass());
+		    CreateWidget<UReEchoEncounterHudWidget>(PlayerController, UReEchoEncounterHudWidget::StaticClass());
 		if (EncounterHudWidget)
 		{
 			EncounterHudWidget->AddToViewport(10);
@@ -99,6 +105,26 @@ void AReEchoGameMode::StartPlay()
 		}
 	}
 	BeginNextEncounter();
+}
+
+void AReEchoGameMode::UpdateWeatherScene(const int32 EncounterIndex)
+{
+	if (!WeatherWidget)
+	{
+		return;
+	}
+
+	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
+	EReEchoWeatherScene WeatherScene = EReEchoWeatherScene::Clear;
+	if (BalanceSettings->RainEncounterIndices.Contains(EncounterIndex))
+	{
+		WeatherScene = EReEchoWeatherScene::Rain;
+	}
+	else if (BalanceSettings->FogEncounterIndices.Contains(EncounterIndex))
+	{
+		WeatherScene = EReEchoWeatherScene::Fog;
+	}
+	WeatherWidget->SetWeatherScene(WeatherScene);
 }
 
 void AReEchoGameMode::CreateArena()
@@ -128,12 +154,13 @@ void AReEchoGameMode::CreateArena()
 	if (ArenaBackgroundTexture && ArenaBackgroundMaterial)
 	{
 		const FVector CameraLocation = FixedCamera ? FixedCamera->GetActorLocation() : FVector(-700.0f, 0.0f, 900.0f);
-		const FVector CameraForward = FixedCamera ? FixedCamera->GetActorForwardVector() : FVector(0.5736f, 0.0f, -0.8192f);
+		const FVector CameraForward =
+		    FixedCamera ? FixedCamera->GetActorForwardVector() : FVector(0.5736f, 0.0f, -0.8192f);
 		constexpr float BackdropDistance = 3000.0f;
-		const float BackdropWorldHeight = FMath::Max(
-			100.0f, GetDefault<UReEchoBalanceSettings>()->ArenaSceneWorldHeight);
-		const float TextureAspect = static_cast<float>(ArenaBackgroundTexture->GetSizeX()) /
-		                            FMath::Max(1, ArenaBackgroundTexture->GetSizeY());
+		const float BackdropWorldHeight =
+		    FMath::Max(100.0f, GetDefault<UReEchoBalanceSettings>()->ArenaSceneWorldHeight);
+		const float TextureAspect =
+		    static_cast<float>(ArenaBackgroundTexture->GetSizeX()) / FMath::Max(1, ArenaBackgroundTexture->GetSizeY());
 		const float BackdropWorldWidth = BackdropWorldHeight * TextureAspect;
 		const FVector BackdropLocation = CameraLocation + CameraForward * BackdropDistance;
 		const FVector CameraRight = FixedCamera ? FixedCamera->GetActorRightVector() : FVector::RightVector;
@@ -180,6 +207,7 @@ void AReEchoGameMode::BeginNextEncounter()
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
 	RunSubsystem->BeginEncounter();
+	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 	if (Player)
 	{
 		Player->SetActorLocation(FVector(0, 0, 112));
@@ -206,15 +234,15 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 {
 	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
 	const bool bBossEncounter = EncounterIndex == BalanceSettings->GetTotalEncounterCount();
-	const int32 GruntCount = bBossEncounter
-		? FMath::Min(8, BalanceSettings->MaxGruntCount)
-		: FMath::Clamp(
-			BalanceSettings->BaseGruntCount + FMath::Max(0, EncounterIndex - 1) * BalanceSettings->GruntsPerEncounter,
-			1,
-			BalanceSettings->MaxGruntCount);
-	const int32 BomberCount = bBossEncounter
-		? FMath::Min(2, BalanceSettings->MaxBomberCount)
-		: EncounterIndex >= 2 ? FMath::Min(EncounterIndex, BalanceSettings->MaxBomberCount) : 0;
+	const int32 GruntCount =
+	    bBossEncounter ? FMath::Min(8, BalanceSettings->MaxGruntCount)
+	                   : FMath::Clamp(BalanceSettings->BaseGruntCount +
+	                                      FMath::Max(0, EncounterIndex - 1) * BalanceSettings->GruntsPerEncounter,
+	                                  1,
+	                                  BalanceSettings->MaxGruntCount);
+	const int32 BomberCount = bBossEncounter        ? FMath::Min(2, BalanceSettings->MaxBomberCount)
+	                          : EncounterIndex >= 2 ? FMath::Min(EncounterIndex, BalanceSettings->MaxBomberCount)
+	                                                : 0;
 	const float SpawnHalfX = FMath::Max(100.0f, ArenaSceneWorldHeight * 0.5f - BalanceSettings->EnemySpawnEdgeInset);
 	const float SpawnHalfY = FMath::Max(100.0f, ArenaSceneWorldWidth * 0.5f - BalanceSettings->EnemySpawnEdgeInset);
 	FRandomStream SpawnRandom(1337 + EncounterIndex * 7919);
@@ -223,13 +251,13 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 	auto GetPeripheralSpawnLocation = [&]()
 	{
 		const FVector PlayerLocation = Player ? Player->GetActorLocation() : FVector::ZeroVector;
-		const float MinimumDistance = FMath::Min(
-			BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
-		const float MaximumDistance = FMath::Max(
-			BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
+		const float MinimumDistance =
+		    FMath::Min(BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
+		const float MaximumDistance =
+		    FMath::Max(BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
 		const float Angle = SpawnRandom.FRandRange(0.0f, 2.0f * PI);
-		const float Distance = FMath::Sqrt(SpawnRandom.FRandRange(
-			MinimumDistance * MinimumDistance, MaximumDistance * MaximumDistance));
+		const float Distance =
+		    FMath::Sqrt(SpawnRandom.FRandRange(MinimumDistance * MinimumDistance, MaximumDistance * MaximumDistance));
 		FVector SpawnLocation = PlayerLocation + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
 		SpawnLocation.X = FMath::Clamp(SpawnLocation.X, -SpawnHalfX, SpawnHalfX);
 		SpawnLocation.Y = FMath::Clamp(SpawnLocation.Y, -SpawnHalfY, SpawnHalfY);
@@ -239,8 +267,8 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 
 	auto SpawnEnemy = [&](const EReEchoEnemyKind Kind)
 	{
-		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
-			GetPeripheralSpawnLocation(), FRotator::ZeroRotator);
+		AReEchoEnemyActor* Enemy =
+		    GetWorld()->SpawnActor<AReEchoEnemyActor>(GetPeripheralSpawnLocation(), FRotator::ZeroRotator);
 		if (Enemy)
 		{
 			Enemy->Configure(Kind, ++SpawnIndex);
@@ -260,6 +288,7 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 		SpawnEnemy(EReEchoEnemyKind::Bomber);
 	}
 }
+
 void AReEchoGameMode::HandleFixedStep(float)
 {
 	if (!Player || !Director)
@@ -412,9 +441,12 @@ void AReEchoGameMode::HandleEncounterEnded()
 	{
 		return;
 	}
-	const FReEchoRecording Recording = Player->Recorder->FinishRecording(Director ? Director->EncounterTime : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
+	const FReEchoRecording Recording = Player->Recorder->FinishRecording(
+	    Director ? Director->EncounterTime : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
 	const bool bPlayerSurvived = Player->Combatant->IsAlive();
-	const bool bBossKilled = bPlayerSurvived && bEncounterClearedByDefeat && RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	const bool bBossKilled =
+	    bPlayerSurvived && bEncounterClearedByDefeat &&
+	    RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
 	RunSubsystem->CompleteEncounter(Recording, bPlayerSurvived, bBossKilled);
 	if (!bPlayerSurvived)
 	{
@@ -532,9 +564,8 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (EncounterHudWidget)
 	{
-		EncounterHudWidget->SetEncounterStatus(
-			RunSubsystem ? RunSubsystem->EncounterIndex : 0,
-			GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount(),
-			Director->GetRemainingTime());
+		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,
+		                                       GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount(),
+		                                       Director->GetRemainingTime());
 	}
 }

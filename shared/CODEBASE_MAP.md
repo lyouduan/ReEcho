@@ -89,6 +89,7 @@ All enemies dead or timer expires
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
 | World health UI | `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Camera-facing WidgetComponent and ProgressBar for player/enemies |
 | Encounter HUD | `UReEchoEncounterHudWidget` | `UI/ReEchoEncounterHudWidget.*`, `ReEchoGameMode.*` | Right-top current encounter and remaining-time display; final five seconds turn red |
+| Weather scenes | `UReEchoWeatherWidget` | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*`, `ReEchoBalanceSettings.h` | Configurable per-encounter rain streaks and layered drifting fog rendered as input-transparent screen-space presentation |
 | Pause/restart UI | `UReEchoRestartWidget` | `UI/ReEchoRestartWidget.*`, `ReEchoGameMode.*` | Esc pause overlay, resume, full-level restart, packaged quit, death-screen and terminal Boss-victory actions |
 | Trait choice UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*` | Three unique random offers after a cleared encounter; selection mutates the current build |
 | Tests | Recording/GAS/final-Boss automation | `Private/Tests/ReEchoRecordingTests.cpp` | Recording interpolation/timeline, GAS structure and final-Boss victory gating regressions |
@@ -143,6 +144,7 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |
 | Health bars/UI | `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `CombatantComponent.*` |
 | Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |
+| Rain, fog, weather scenes | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`, `DefaultGame.ini` |
 | Pause/death/restart/quit UI | `UI/ReEchoRestartWidget.*` | `ReEchoGameMode.*`, `PlayerPawn::TogglePauseMenu`, `DefaultInput.ini` |
 | Trait cards/card choice | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*` | `Content/Data/cards.json`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*` |
 | Cards/characters/enemies/balance data | Matching `Content/Data/*.json` | `Content/Data/README.md`, `validate_project.py` |

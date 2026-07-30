@@ -11,6 +11,7 @@ This is a coordination log, not the permanent rulebook. Settled decisions must b
 | 2026-07-23 | Codex | `plan/03-gas-player-abilities` | GAS/player C++, 2D character textures, collision/UI/menu code, config and plan/routing docs | Completed | Editor build, three automation tests, clean Windows Shipping Cook and launch smoke test passed; user requested merge |
 | 2026-07-23 | Codex | `plan/04-2d-combat-animation` | Player/echo/enemy 2D visual animation code, MushroomGirl source frames, imported sequence textures and plan/routing docs | Active | Programmatic Billboard motion, MushroomGirl frame playback and center-aligned player capsule; Editor build and four ReEcho tests pass; human PIE tuning remains |
 | 2026-07-29 | Codex | `plan/05-refactor-runtime-cleanup` | Runtime config, GameMode/RunSubsystem/UI cleanup, module dependencies and verification scripts | Completed | Preserve gameplay behavior and all user-authored binary assets; only evidence-backed dead code/dependencies are removed |
+| 2026-07-29 | Codex | `plan/06-weather-scenes` | Weather widget, GameMode weather selection, balance config and plan/state docs | Completed | Editor build, five ReEcho tests, static validation and diff check pass; human PIE visual tuning remains |
 
 ## Decisions
 

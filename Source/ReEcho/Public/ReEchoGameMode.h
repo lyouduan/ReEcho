@@ -9,6 +9,7 @@ class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
 class UReEchoRestartWidget;
 class UReEchoTraitCardChoiceWidget;
+class UReEchoWeatherWidget;
 class UMaterialInterface;
 class UTexture2D;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
@@ -46,6 +47,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
+
 	bool bRestartScreenIsTerminal = false;
 
 	UPROPERTY()
@@ -78,6 +82,7 @@ private:
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
 	void CreateArena();
+	void UpdateWeatherScene(int32 EncounterIndex);
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	void SpawnEnemies(int32 EncounterIndex);
