@@ -87,7 +87,7 @@ All enemies dead or timer expires
 | Run state | `UReEchoRunSubsystem` | `Run/ReEchoRunSubsystem.*` | Run phase, encounter index, build, recording history and anchor |
 | Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements and phases |
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
-| World health UI | `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Camera-facing WidgetComponent and ProgressBar for player/enemies |
+| Health UI | `UReEchoPlayerHudWidget`, `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`, `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Top-left portrait/live health HUD for the player; camera-facing world bars remain enemy-only |
 | Encounter HUD | `UReEchoEncounterHudWidget` | `UI/ReEchoEncounterHudWidget.*`, `ReEchoGameMode.*` | Right-top current encounter and remaining-time display; final five seconds turn red |
 | Inventory/shop | `UReEchoInventoryShopWidget`, `UReEchoRunSubsystem` | `UI/ReEchoInventoryShopWidget.*`, `Run/ReEchoShopCatalog.h`, `Run/ReEchoRunSubsystem.*`, `ReEchoGameMode.*` | B/M menus over supplied full-screen art; Time Shard purchases enter run-local inventory and immediately mutate the build snapshot |
 | Player/echo stats | `UReEchoStatsWidget` | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*`, `Graybox/ReEchoEchoActor.*` | Tab-paused two-column live stats over the imported blurred clockwork background; handles runs without an active echo |
@@ -144,7 +144,7 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |
-| Health bars/UI | `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `CombatantComponent.*` |
+| Player portrait/health HUD, enemy health bars | `UI/ReEchoPlayerHudWidget.*`, `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`, `ReEchoGameMode.*`, `CombatantComponent.*` |
 | Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |
 | Rain, fog, weather scenes | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`, `DefaultGame.ini` |
 | Inventory, backpack, shop, store, Time Shards | `UI/ReEchoInventoryShopWidget.*`, `Run/ReEchoShopCatalog.h`, `Run/ReEchoRunSubsystem.*` | `ReEchoGameMode.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini`, imported UI textures |

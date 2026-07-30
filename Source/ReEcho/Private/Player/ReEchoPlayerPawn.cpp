@@ -19,7 +19,6 @@
 #include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
-#include "Graybox/ReEchoHealthBarActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoRecorderComponent.h"
@@ -137,12 +136,6 @@ void AReEchoPlayerPawn::BeginPlay()
 	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 
 	ConfigureMouseInput();
-
-	HealthBar = GetWorld()->SpawnActor<AReEchoHealthBarActor>();
-	if (HealthBar)
-	{
-		HealthBar->Initialize(Combatant, FLinearColor(0.1f, 1.f, 0.25f), 64.f, 0.576f, CharacterSprite);
-	}
 
 	Weapon = GetWorld()->SpawnActor<AReEchoWeaponActor>();
 	if (Weapon)

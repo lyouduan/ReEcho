@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Components/BillboardComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Encounter/ReEchoEncounterDirector.h"
 #include "Components/StaticMeshComponent.h"
@@ -21,6 +22,7 @@
 #include "Run/ReEchoRunSubsystem.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
+#include "UI/ReEchoPlayerHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
@@ -104,6 +106,20 @@ void AReEchoGameMode::StartPlay()
 		if (Player)
 		{
 			Player->ConfigureCharacter(CharacterId);
+		}
+	}
+	if (Player)
+	{
+		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PlayerHudWidget =
+			    CreateWidget<UReEchoPlayerHudWidget>(PlayerController, UReEchoPlayerHudWidget::StaticClass());
+			if (PlayerHudWidget)
+			{
+				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+				PlayerHudWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+				PlayerHudWidget->AddToViewport(12);
+			}
 		}
 	}
 	BeginNextEncounter();

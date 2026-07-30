@@ -6,7 +6,6 @@
 #include "ReEchoPlayerPawn.generated.h"
 
 class AReEchoEnemyActor;
-class AReEchoHealthBarActor;
 class AReEchoWeaponActor;
 class UAbilitySystemComponent;
 class UBillboardComponent;
@@ -110,9 +109,6 @@ private:
 	void UpdateSpriteAnimation(float DeltaSeconds);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
-
-	UPROPERTY()
-	TObjectPtr<AReEchoHealthBarActor> HealthBar;
 
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;

@@ -7,7 +7,7 @@ Last updated: 2026-07-30. This file is a current snapshot, not a chronological l
 - UE 5.8 C++ 2.5D prototype starts from `/Game/Level00`; `AReEchoGameMode` generates the bounded arena and six-encounter run.
 - GAS-routed player attacks, four weapon/character definitions, four enemy archetypes, deterministic 20 Hz recording, echo playback, trait selection, health UI, damage feedback, pause/restart/quit and final-Boss settlement are connected.
 - Player, echo and enemies render as packaged 2D Billboards over a fixed orthographic 3D arena; collision remains authoritative and separate from visual animation.
-- Configurable rain and layered fog are visual-only. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats over the blurred supplied background.
+- Configurable rain and layered fog are visual-only. The top-left HUD shows the configured player portrait and live current/max health; only enemies retain world-space overhead health bars. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats.
 - Runtime purchases are duplicate-guarded and update the shared build snapshot. Runs without an active echo show an explicit stats empty state.
 - Human PIE play-feel, UI/DPI/font readability and final weather/blur tuning remain required; this is not yet a finished vertical slice.
 

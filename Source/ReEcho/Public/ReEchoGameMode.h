@@ -8,6 +8,7 @@ class AReEchoEchoActor;
 class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
+class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
@@ -57,6 +58,8 @@ private:
 	TObjectPtr<UReEchoStatsWidget> StatsWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
