@@ -5,19 +5,25 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 
+#include "Core/ReEchoBalanceSettings.h"
 #include "Graybox/ReEchoAttackEffects.h"
+#include "Graybox/ReEchoBomberRules.h"
 #include "Graybox/ReEchoHealthBarActor.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "UI/ReEchoDamageNumberActor.h"
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoElementReaction.h"
 #include "Components/BillboardComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -73,6 +79,45 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CharacterSprite->SetVisibility(false);
 	CharacterSprite->SetAbsolute(false, false, true);
 	CharacterSprite->bIsScreenSizeScaled = false;
+
+	ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
+	ElementAuraRing->SetupAttachment(RootComponent);
+	ElementAuraRing->SetHorizontalAlignment(EHTA_Center);
+	ElementAuraRing->SetVerticalAlignment(EVRTA_TextCenter);
+	ElementAuraRing->SetWorldSize(270.0f);
+	ElementAuraRing->SetText(FText::FromString(TEXT("O")));
+	ElementAuraRing->SetRelativeLocation(FVector(0.0f, 0.0f, 18.0f));
+	ElementAuraRing->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ElementAuraRing->SetCastShadow(false);
+	ElementAuraRing->SetTranslucentSortPriority(-2);
+	ElementAuraRing->SetVisibility(false);
+
+	ElementAttachmentLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAttachmentLabel"));
+	ElementAttachmentLabel->SetupAttachment(RootComponent);
+	ElementAttachmentLabel->SetHorizontalAlignment(EHTA_Center);
+	ElementAttachmentLabel->SetVerticalAlignment(EVRTA_TextCenter);
+	ElementAttachmentLabel->SetWorldSize(30.0f);
+	ElementAttachmentLabel->SetRelativeLocation(FVector(0.0f, 0.0f, 205.0f));
+	ElementAttachmentLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ElementAttachmentLabel->SetCastShadow(false);
+	ElementAttachmentLabel->SetTranslucentSortPriority(23);
+	ElementAttachmentLabel->SetVisibility(false);
+
+	if (UMaterialInterface* UnlitTextMaterial =
+	        LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/UnlitText.UnlitText")))
+	{
+		ElementAuraRing->SetTextMaterial(UnlitTextMaterial);
+		ElementAttachmentLabel->SetTextMaterial(UnlitTextMaterial);
+	}
+
+	ElementAuraLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("ElementAuraLight"));
+	ElementAuraLight->SetupAttachment(RootComponent);
+	ElementAuraLight->SetRelativeLocation(FVector(0.0f, 0.0f, 45.0f));
+	ElementAuraLight->SetIntensity(900.0f);
+	ElementAuraLight->SetAttenuationRadius(240.0f);
+	ElementAuraLight->SetSourceRadius(35.0f);
+	ElementAuraLight->SetCastShadows(false);
+	ElementAuraLight->SetVisibility(false);
 	static ConstructorHelpers::FObjectFinder<UTexture2D> GruntTextureFinders[] = {
 	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_Slime.Enemy_Slime")},
 	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_ThornSlime.Enemy_ThornSlime")},
@@ -107,6 +152,8 @@ UAbilitySystemComponent* AReEchoEnemyActor::GetAbilitySystemComponent() const
 void AReEchoEnemyActor::Configure(EReEchoEnemyKind InKind, int32 SpawnIndex)
 {
 	Kind = InKind;
+	ElementState = FReEchoElementState{};
+	UpdateElementAttachmentVisual();
 	VisualVariantIndex = SpawnIndex;
 	FReEchoStatBlock Stats;
 	switch (Kind)
@@ -120,8 +167,9 @@ void AReEchoEnemyActor::Configure(EReEchoEnemyKind InKind, int32 SpawnIndex)
 		case EReEchoEnemyKind::Bomber:
 			Stats.HpMax = 16.f;
 			MoveSpeed = 175.f;
-			ContactDamage = 22.f;
-			FuseRemaining = 2.2f;
+			ContactDamage = GetDefault<UReEchoBalanceSettings>()->BomberDamage;
+			FuseRemaining = 0.0f;
+			bBomberFuseActive = false;
 			break;
 		case EReEchoEnemyKind::Boss:
 			Stats.HpMax = 650.f;
@@ -268,7 +316,59 @@ bool AReEchoEnemyActor::UpdateHitReaction(float DeltaSeconds)
 	return true;
 }
 
-float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage, const FVector& SourceLocation, AActor* SourceActor)
+void AReEchoEnemyActor::UpdateElementAttachmentVisual()
+{
+	const bool bHasAttachment = ReEchoElementReaction::IsCombatElement(ElementState.Attached);
+	ElementAuraRing->SetVisibility(bHasAttachment);
+	ElementAttachmentLabel->SetVisibility(bHasAttachment);
+	ElementAuraLight->SetVisibility(bHasAttachment);
+	if (!bHasAttachment)
+	{
+		return;
+	}
+
+	const FLinearColor ElementColor = ReEchoElementReaction::GetElementColor(ElementState.Attached);
+	ElementAuraRing->SetTextRenderColor(ElementColor.ToFColor(false));
+	ElementAttachmentLabel->SetText(FText::FromString(ReEchoElementReaction::GetElementLabel(ElementState.Attached)));
+	ElementAttachmentLabel->SetTextRenderColor(ElementColor.ToFColor(false));
+	ElementAuraLight->SetLightColor(ElementColor);
+}
+
+void AReEchoEnemyActor::UpdateElementAttachmentFacing()
+{
+	if (!ElementAuraRing->IsVisible())
+	{
+		return;
+	}
+	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
+	{
+		const FRotator CameraFacingRotation = (-Camera->GetCameraRotation().Vector()).Rotation();
+		ElementAuraRing->SetWorldRotation(CameraFacingRotation);
+		ElementAttachmentLabel->SetWorldRotation(CameraFacingRotation);
+	}
+	const float Pulse = 1.0f + 0.055f * FMath::Sin(VisualTime * 3.2f);
+	ElementAuraRing->SetRelativeScale3D(FVector(Pulse, Pulse, 1.0f));
+	ElementAuraLight->SetIntensity(850.0f + 180.0f * FMath::Sin(VisualTime * 2.6f));
+}
+
+float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
+                                                const EReEchoElement Element,
+                                                const FVector& SourceLocation,
+                                                AActor* SourceActor,
+                                                const float ReactionEfficiency)
+{
+	const FReEchoElementHitResult Result =
+	    ReEchoElementReaction::ResolveHit(ElementState, Element, Damage, ReactionEfficiency);
+	UpdateElementAttachmentVisual();
+	const FLinearColor DamageColor = Result.bTriggeredReaction ? FLinearColor(1.0f, 0.72f, 0.12f, 1.0f)
+	                                                           : ReEchoElementReaction::GetElementColor(Element);
+	return ReceiveGrayboxDamage(Result.Damage, SourceLocation, SourceActor, DamageColor);
+}
+
+float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage,
+                                              const FVector& SourceLocation,
+                                              AActor* SourceActor,
+                                              const FLinearColor& DamageNumberColor)
 {
 	if (Kind == EReEchoEnemyKind::Shield)
 	{
@@ -289,12 +389,13 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage, const FVector& Sourc
 	if (Applied > 0.f)
 	{
 		ReEchoAttackEffects::SpawnHitImpact(GetWorld(), GetActorLocation());
-		AReEchoDamageNumberActor::SpawnDamageNumber(
-		    GetWorld(), GetActorLocation(), Applied, FLinearColor(1.0f, 1.0f, 1.0f));
+		AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), GetActorLocation(), Applied, DamageNumberColor);
 		StartHitReaction(SourceLocation);
 	}
 	if (!IsAlive())
 	{
+		ElementState.Attached = EReEchoElement::None;
+		UpdateElementAttachmentVisual();
 		SetActorEnableCollision(false);
 		DeathVisualRemaining = 0.45f;
 		SetLifeSpan(0.45f);
@@ -309,6 +410,7 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 	    this, CharacterSprite, Kind == EReEchoEnemyKind::Boss ? FColor::Yellow : FColor::Red);
 	ReEchoCollisionDebug::DrawCapsule(this, Collision, Kind == EReEchoEnemyKind::Boss ? FColor::Orange : FColor::Cyan);
 	VisualTime += DeltaSeconds;
+	UpdateElementAttachmentFacing();
 	if (!IsAlive())
 	{
 		UpdateDeathAnimation(DeltaSeconds);
@@ -338,28 +440,46 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 		AddActorWorldOffset(Delta.GetSafeNormal() * MoveSpeed * DeltaSeconds, true);
 	}
 	AttackCooldown -= DeltaSeconds;
+	bool bBomberExplosionReady = false;
 	if (Kind == EReEchoEnemyKind::Bomber)
 	{
-		FuseRemaining -= DeltaSeconds;
+		const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
+		if (!bBomberFuseActive && ReEchoBomberRules::ShouldStartFuse(Distance, Settings->BomberTriggerRadius))
+		{
+			bBomberFuseActive = true;
+			FuseRemaining = FMath::Max(0.1f, Settings->BomberFuseDuration);
+		}
+		if (bBomberFuseActive)
+		{
+			FuseRemaining -= DeltaSeconds;
+			bBomberExplosionReady = FuseRemaining <= 0.0f;
+		}
 	}
-	if ((Distance <= 85.f && AttackCooldown <= 0.f) || (Kind == EReEchoEnemyKind::Bomber && FuseRemaining <= 0.f))
+	const bool bContactAttackReady = Kind != EReEchoEnemyKind::Bomber && Distance <= 85.0f && AttackCooldown <= 0.0f;
+	if (bContactAttackReady || bBomberExplosionReady)
 	{
 		StartAttackVisual();
-		if (UReEchoCombatantComponent* Target = Player->FindComponentByClass<UReEchoCombatantComponent>())
+		const bool bCanDamageTarget =
+		    Kind != EReEchoEnemyKind::Bomber ||
+		    ReEchoBomberRules::IsInsideExplosion(Distance, GetDefault<UReEchoBalanceSettings>()->BomberDamageRadius);
+		if (bCanDamageTarget)
 		{
-			const float Applied =
-			    Target->GetBoundAbilitySystem()
-			        ? ReEchoGameplayEffects::ApplyDamage(AbilitySystem, *Target->GetBoundAbilitySystem(), ContactDamage)
-			        : Target->ApplyFinalDamage(ContactDamage);
-			if (Applied > 0.f)
+			if (UReEchoCombatantComponent* Target = Player->FindComponentByClass<UReEchoCombatantComponent>())
 			{
-				if (AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Player))
+				const float Applied = Target->GetBoundAbilitySystem()
+				                          ? ReEchoGameplayEffects::ApplyDamage(
+				                                AbilitySystem, *Target->GetBoundAbilitySystem(), ContactDamage)
+				                          : Target->ApplyFinalDamage(ContactDamage);
+				if (Applied > 0.f)
 				{
-					ReEchoPlayer->PlayHitVisual();
+					if (AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Player))
+					{
+						ReEchoPlayer->PlayHitVisual();
+					}
+					ReEchoAttackEffects::SpawnHitImpact(GetWorld(), Player->GetActorLocation());
+					AReEchoDamageNumberActor::SpawnDamageNumber(
+					    GetWorld(), Player->GetActorLocation(), Applied, FLinearColor::White);
 				}
-				ReEchoAttackEffects::SpawnHitImpact(GetWorld(), Player->GetActorLocation());
-				AReEchoDamageNumberActor::SpawnDamageNumber(
-				    GetWorld(), Player->GetActorLocation(), Applied, FLinearColor(1.0f, 1.0f, 1.0f));
 			}
 		}
 		AttackCooldown = AttackInterval;

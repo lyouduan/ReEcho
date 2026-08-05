@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Core/ReEchoTypes.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoWeaponActor.generated.h"
 
@@ -10,6 +11,7 @@ class UReEchoCombatantComponent;
 class UBillboardComponent;
 class USceneComponent;
 class UStaticMeshComponent;
+class UTextRenderComponent;
 
 /** 玩家武器控制器：管理武器切换、冷却及远近程攻击表现。 */
 UCLASS()
@@ -38,6 +40,10 @@ private:
 	bool FireStaffLightWave(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
 	bool FireProjectile(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
 	bool SwingSword(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
+	EReEchoElement ConsumeNextElement();
+	EReEchoElement PeekNextElement() const;
+	float ApplyRoleDamageModifiers(float BaseDamage, const FReEchoStatBlock& Stats);
+	void UpdateElementIndicator();
 	void StartSwordAnimation();
 	void SpawnSwordArc();
 
@@ -47,6 +53,8 @@ private:
 	TObjectPtr<UBillboardComponent> StaffSprite;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> SwordSprite;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UTextRenderComponent> ElementIndicator;
 
 	TMap<EReEchoWeaponSlot, FReEchoWeaponConfig> Definitions;
 	EReEchoWeaponSlot EquippedSlot = EReEchoWeaponSlot::PhysicalOrb;
@@ -54,5 +62,8 @@ private:
 	float SwordAnimationTime = 0.0f;
 	float SwordAnimationDuration = 0.18f;
 	float SwordSwingDirection = -1.0f;
+	int32 NextElementIndex = 0;
+	int32 AttackSequence = 0;
+	float CriticalAccumulator = 0.0f;
 	FVector SwordSpriteRestLocation = FVector(8.0f, 0.0f, 0.0f);
 };

@@ -373,9 +373,14 @@ void AReEchoGameMode::BeginNextEncounter()
 	if (Player)
 	{
 		Player->SetActorLocation(FVector(0, 0, 112));
+		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 		const FReEchoStatBlock& Stats = RunSubsystem->CurrentBuild.Stats;
 		Player->Combatant->InitializeFromStats(Stats, true);
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
+		if (PlayerHudWidget)
+		{
+			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+		}
 		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
 		                                 TEXT("GrayboxArena"),
 		                                 1337 + RunSubsystem->EncounterIndex,
@@ -799,7 +804,9 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice
+	                                                 ? RunSubsystem->GenerateForgeOffers()
+	                                                 : RunSubsystem->GenerateTraitCardOffers(3);
 	if (Offers.Num() != 3)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Expected three trait card offers, received %d"), Offers.Num());
@@ -830,7 +837,13 @@ void AReEchoGameMode::ShowTraitCardChoice()
 void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !RunSubsystem->ApplyTraitCard(CardId))
+	if (!RunSubsystem)
+	{
+		return;
+	}
+	const bool bForgeChoice = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice;
+	const bool bApplied = bForgeChoice ? RunSubsystem->ApplyForgeChoice(CardId) : RunSubsystem->ApplyTraitCard(CardId);
+	if (!bApplied)
 	{
 		return;
 	}
@@ -842,7 +855,14 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	}
 
 	RestoreGameInput();
-	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+	}
 }
 
 void AReEchoGameMode::SetPlayerMenuAbilityBlocked(const bool bBlocked)

@@ -1,6 +1,6 @@
 [
- {"id":"J01","hpPoint":15,"pAtk":10,"eAtk":10,"weaponId":"W_J_01","ability":"ExtraChoiceEveryThirdCard"},
- {"id":"J02","hpPoint":10,"pAtk":15,"eAtk":7,"weaponId":"W_J_02","critRateBonus":0.20,"critEffectBonus":0.20},
- {"id":"J03","hpPoint":8,"pAtk":5,"eAtk":20,"weaponId":"W_J_03","reactionEfficiency":0.50,"ability":"ReactionGrowth"},
- {"id":"J04","hpPoint":20,"pAtk":8,"eAtk":8,"weaponId":"W_J_04","ability":"PostBattleTraining"}
+ {"id":"J_SPADE","role":"Sage","hpPoint":15,"pAtk":5,"eAtk":5,"weaponId":"W_J_01","ability":"ExtraChoiceEveryFourthCard"},
+ {"id":"J_DIAMOND","role":"Hunter","hpPoint":12,"pAtk":8,"eAtk":2,"weaponId":"W_J_02","critRateBonus":0.20,"critEffectBonus":0.50},
+ {"id":"J_CLOVER","role":"Poet","hpPoint":8,"pAtk":2,"eAtk":10,"weaponId":"W_J_03","reactionGrowthPerEncounter":0.05,"ability":"RandomElementProjectiles"},
+ {"id":"J_HEART","role":"Brave","hpPoint":20,"pAtk":2,"eAtk":2,"weaponId":"W_J_04","secondHitBonus":0.50,"ability":"PostBattleTraining"}
 ]

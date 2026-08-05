@@ -1,9 +1,13 @@
 #include "Weapons/ReEchoWeaponActor.h"
 
+#include "Camera/PlayerCameraManager.h"
+
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoElementReaction.h"
 #include "Components/BillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -13,6 +17,7 @@
 #include "Graybox/ReEchoStaffLightWaveActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoSwordArcActor.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace ReEchoWeaponVisual
 {
@@ -35,6 +40,22 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	SetRootComponent(Root);
 	// 武器只继承持有者位置，不继承鼠标瞄准产生的角色旋转。
 	Root->SetAbsolute(false, true, false);
+
+	ElementIndicator = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementIndicator"));
+	ElementIndicator->SetupAttachment(Root);
+	ElementIndicator->SetHorizontalAlignment(EHTA_Center);
+	ElementIndicator->SetVerticalAlignment(EVRTA_TextCenter);
+	ElementIndicator->SetWorldSize(28.0f);
+	ElementIndicator->SetRelativeLocation(FVector(0.0f, 0.0f, 145.0f));
+	ElementIndicator->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ElementIndicator->SetCastShadow(false);
+	ElementIndicator->SetTranslucentSortPriority(25);
+	ElementIndicator->SetVisibility(false);
+	if (UMaterialInterface* UnlitTextMaterial =
+	        LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/UnlitText.UnlitText")))
+	{
+		ElementIndicator->SetTextMaterial(UnlitTextMaterial);
+	}
 
 	StaffSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("StaffSprite"));
 	StaffSprite->SetupAttachment(Root);
@@ -86,6 +107,9 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 void AReEchoWeaponActor::InitializeWeapon()
 {
 	SwordSpriteRestLocation = ReEchoWeaponVisual::SwordLocation;
+	NextElementIndex = 0;
+	AttackSequence = 0;
+	CriticalAccumulator = 0.0f;
 	Definitions.Reset();
 	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
 	for (const FReEchoWeaponConfig& Definition : Settings->Weapons)
@@ -128,6 +152,8 @@ void AReEchoWeaponActor::SelectWeapon(const EReEchoWeaponSlot NewSlot)
 	SwordAnimationTime = 0.0f;
 	StaffSprite->SetVisibility(EquippedSlot == EReEchoWeaponSlot::PhysicalOrb);
 	SwordSprite->SetVisibility(EquippedSlot == EReEchoWeaponSlot::Sword);
+	ElementIndicator->SetVisibility(EquippedSlot == EReEchoWeaponSlot::ElementalOrb);
+	UpdateElementIndicator();
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 }
@@ -237,8 +263,9 @@ bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponConfig& Definitio
 		return false;
 	}
 	Wave->SetOwner(WeaponOwner);
-	const float Damage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
-	                     Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
+	const float BaseDamage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
+	                         Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
+	const float Damage = ApplyRoleDamageModifiers(BaseDamage, Combatant->Stats);
 	Wave->InitializeWave(AimDirection, Damage, OwnerLocation, Definition.Range);
 	return true;
 }
@@ -263,11 +290,68 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponConfig& Definition, U
 	{
 		return false;
 	}
-	const float Damage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
-	                     Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
+	const float BaseDamage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
+	                         Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
+	const float Damage = ApplyRoleDamageModifiers(BaseDamage, Combatant->Stats);
 	Projectile->SetOwner(WeaponOwner);
-	Projectile->InitializeProjectile(AimDirection, Damage, OwnerLocation, Definition.ProjectileColor);
+	EReEchoElement Element = ConsumeNextElement();
+	if (Combatant->Stats.bRandomElementProjectiles)
+	{
+		switch ((AttackSequence * 17 + 5) % 3)
+		{
+			case 0:
+				Element = EReEchoElement::Water;
+				break;
+			case 1:
+				Element = EReEchoElement::Flame;
+				break;
+			default:
+				Element = EReEchoElement::Grass;
+				break;
+		}
+	}
+	Projectile->InitializeProjectile(AimDirection,
+	                                 Damage,
+	                                 OwnerLocation,
+	                                 ReEchoElementReaction::GetElementColor(Element),
+	                                 Element,
+	                                 Combatant->Stats.ReactionEfficiency);
 	return true;
+}
+
+EReEchoElement AReEchoWeaponActor::PeekNextElement() const
+{
+	switch (NextElementIndex % 4)
+	{
+		case 0:
+			return EReEchoElement::Water;
+		case 1:
+			return EReEchoElement::Grass;
+		case 2:
+			return EReEchoElement::Flame;
+		default:
+			return EReEchoElement::Grass;
+	}
+}
+
+void AReEchoWeaponActor::UpdateElementIndicator()
+{
+	if (!ElementIndicator)
+	{
+		return;
+	}
+	const EReEchoElement Element = PeekNextElement();
+	ElementIndicator->SetText(
+	    FText::FromString(FString::Printf(TEXT("NEXT: %s"), *ReEchoElementReaction::GetElementLabel(Element))));
+	ElementIndicator->SetTextRenderColor(ReEchoElementReaction::GetElementColor(Element).ToFColor(false));
+}
+
+EReEchoElement AReEchoWeaponActor::ConsumeNextElement()
+{
+	const EReEchoElement Element = PeekNextElement();
+	NextElementIndex = (NextElementIndex + 1) % 4;
+	UpdateElementIndicator();
+	return Element;
 }
 
 bool AReEchoWeaponActor::SwingSword(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant)
@@ -278,7 +362,8 @@ bool AReEchoWeaponActor::SwingSword(const FReEchoWeaponConfig& Definition, UReEc
 		return false;
 	}
 	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
-	const float Damage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient;
+	const float Damage =
+	    ApplyRoleDamageModifiers(Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient, Combatant->Stats);
 	// 旋转攻击以角色为圆心覆盖完整一周；敌人受伤逻辑会从圆心向外施加击退。
 	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
 	{
@@ -289,6 +374,26 @@ bool AReEchoWeaponActor::SwingSword(const FReEchoWeaponConfig& Definition, UReEc
 	}
 	StartSwordAnimation();
 	return true;
+}
+
+float AReEchoWeaponActor::ApplyRoleDamageModifiers(const float BaseDamage, const FReEchoStatBlock& Stats)
+{
+	++AttackSequence;
+	float Damage = FMath::Max(0.0f, BaseDamage);
+	if (Stats.RoleId == TEXT("Hunter"))
+	{
+		CriticalAccumulator += FMath::Clamp(Stats.CriticalRate, 0.0f, 1.0f);
+		if (CriticalAccumulator >= 1.0f)
+		{
+			CriticalAccumulator -= 1.0f;
+			Damage *= 1.0f + FMath::Max(0.0f, Stats.CriticalEffect);
+		}
+	}
+	if (Stats.RoleId == TEXT("Brave") && AttackSequence % 2 == 0)
+	{
+		Damage *= 1.0f + FMath::Max(0.0f, Stats.EverySecondAttackBonus);
+	}
+	return Damage;
 }
 
 void AReEchoWeaponActor::StartSwordAnimation()
@@ -318,6 +423,13 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	AttackCooldown = FMath::Max(0.0f, AttackCooldown - DeltaSeconds);
+	if (ElementIndicator && ElementIndicator->IsVisible())
+	{
+		if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
+		{
+			ElementIndicator->SetWorldRotation((-Camera->GetCameraRotation().Vector()).Rotation());
+		}
+	}
 	if (SwordAnimationTime <= 0.0f || EquippedSlot != EReEchoWeaponSlot::Sword)
 	{
 		SwordAnimationTime = 0.0f;
