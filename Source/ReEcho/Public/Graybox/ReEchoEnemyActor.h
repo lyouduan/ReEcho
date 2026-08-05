@@ -2,6 +2,7 @@
 
 #include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
+#include "Core/ReEchoTypes.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoEnemyActor.generated.h"
 
@@ -11,6 +12,8 @@ class UCapsuleComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UStaticMeshComponent;
+class UTextRenderComponent;
+class UPointLightComponent;
 class UTexture2D;
 class AReEchoHealthBarActor;
 
@@ -36,7 +39,22 @@ public:
 	/** 按敌人类型和出生序号装配数值、贴图、碰撞体及行为参数。 */
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
 	/** 结算伤害并触发受击方向反馈，返回实际扣除的生命值。 */
-	float ReceiveGrayboxDamage(float Damage, const FVector& SourceLocation, AActor* SourceActor = nullptr);
+	float ReceiveGrayboxDamage(float Damage,
+	                           const FVector& SourceLocation,
+	                           AActor* SourceActor = nullptr,
+	                           const FLinearColor& DamageNumberColor = FLinearColor::White);
+	/** Applies an elemental attachment or a supported two-element reaction before regular damage resolution. */
+	float ReceiveElementalDamage(float Damage,
+	                             EReEchoElement Element,
+	                             const FVector& SourceLocation,
+	                             AActor* SourceActor = nullptr,
+	                             float ReactionEfficiency = 1.0f);
+
+	EReEchoElement GetAttachedElement() const
+	{
+		return ElementState.Attached;
+	}
+
 	bool IsAlive() const;
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 
@@ -59,6 +77,12 @@ private:
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBillboardComponent> CharacterSprite;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UTextRenderComponent> ElementAuraRing;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY()
 	TArray<TObjectPtr<UTexture2D>> GruntTextures;
 	UPROPERTY()
@@ -69,12 +93,14 @@ private:
 	TObjectPtr<AReEchoHealthBarActor> HealthBar;
 	UPROPERTY()
 	EReEchoEnemyKind Kind = EReEchoEnemyKind::Grunt;
+	FReEchoElementState ElementState;
 	int32 VisualVariantIndex = 0;
 	float MoveSpeed = 95.f;
 	float ContactDamage = 9.f;
 	float AttackInterval = 1.3f;
 	float AttackCooldown = 0.f;
 	float FuseRemaining = 0.f;
+	bool bBomberFuseActive = false;
 	float HitReactionRemaining = 0.f;
 	FVector KnockbackVelocity = FVector::ZeroVector;
 	FVector ShakeDirection = FVector::ZeroVector;
@@ -87,6 +113,8 @@ private:
 
 	void ApplyVisual();
 	void StartHitReaction(const FVector& SourceLocation);
+	void UpdateElementAttachmentVisual();
+	void UpdateElementAttachmentFacing();
 	bool UpdateHitReaction(float DeltaSeconds);
 	void StartAttackVisual();
 	void UpdateSpriteAnimation(float DeltaSeconds, bool bMoving);

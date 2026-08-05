@@ -104,6 +104,20 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter", meta = (ClampMin = "0"))
 	int32 MaxBomberCount = 6;
 
+	/** 爆破怪进入该范围后点燃引信；应大于实际伤害半径。 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter|Bomber", meta = (ClampMin = "0.0"))
+	float BomberTriggerRadius = 260.0f;
+
+	/** 爆炸实际伤害半径，不在范围内的玩家不会受伤。 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter|Bomber", meta = (ClampMin = "0.0"))
+	float BomberDamageRadius = 180.0f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter|Bomber", meta = (ClampMin = "0.1"))
+	float BomberFuseDuration = 1.2f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter|Bomber", meta = (ClampMin = "0.0"))
+	float BomberDamage = 22.0f;
+
 	/** 怪物与场景碰撞边界之间保留的安全距离。 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter", meta = (ClampMin = "0.0"))
 	float EnemySpawnEdgeInset;

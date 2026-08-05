@@ -53,6 +53,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool ApplyTraitCard(FName CardId);
 
+	/** 勇者每关结束后的三档锻炼选择。 */
+	TArray<FReEchoTraitCardOffer> GenerateForgeOffers();
+	bool ApplyForgeChoice(FName ForgeId);
+
 	/** 消耗时间碎片购买一次性本轮商品；成功后写入背包并立即应用构筑效果。 */
 	UFUNCTION(BlueprintCallable)
 	bool PurchaseShopItem(FName ItemId);

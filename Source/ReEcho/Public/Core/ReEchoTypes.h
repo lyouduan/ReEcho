@@ -10,6 +10,7 @@ enum class EReEchoRunPhase : uint8
 	Planning,
 	Encounter,
 	CardChoice,
+	ForgeChoice,
 	Shop,
 	Summary,
 	Failed
@@ -65,6 +66,12 @@ struct REECHO_API FReEchoStatBlock
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float ReactionEfficiency = 1.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName RoleId = NAME_None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bRandomElementProjectiles = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float EverySecondAttackBonus = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 ProjectileCount = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float WeaponSize = 1.f;
@@ -100,6 +107,7 @@ struct REECHO_API FReEchoBuildSnapshot
 };
 
 USTRUCT(BlueprintType)
+
 struct REECHO_API FReEchoTraitCardOffer
 {
 	GENERATED_BODY()
@@ -142,6 +150,7 @@ struct REECHO_API FReEchoSkillEvent
 };
 
 USTRUCT(BlueprintType)
+
 struct REECHO_API FReEchoWeaponEvent
 {
 	GENERATED_BODY()
@@ -199,4 +208,3 @@ struct REECHO_API FReEchoElementState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EReEchoElement BlockedAttachment = EReEchoElement::None;
 };
-

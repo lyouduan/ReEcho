@@ -1,6 +1,7 @@
 #include "Run/ReEchoRunSubsystem.h"
 
 #include "Core/ReEchoBalanceSettings.h"
+#include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoShopCatalog.h"
 
 namespace
@@ -87,6 +88,10 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	CurrentBuild = {};
 	CurrentBuild.CharacterId = CharacterId;
 	CurrentBuild.WeaponId = WeaponId;
+	CurrentBuild.Stats.HpPoint = 15.0f;
+	CurrentBuild.Stats.HpMax = 15.0f;
+	CurrentBuild.Stats.PhysicalAttack = 5.0f;
+	CurrentBuild.Stats.ElementalAttack = 5.0f;
 	SetPhase(EReEchoRunPhase::Planning);
 }
 
@@ -112,12 +117,17 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	}
 	AddRecording(Recording);
 	TimeShards += 15;
+	if (ReEchoCharacterPromotion::IsRole(CurrentBuild, TEXT("Poet")))
+	{
+		CurrentBuild.Stats.ReactionEfficiency += 0.05f;
+	}
 	if (EncounterIndex >= GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
 	{
 		SetPhase(bBossKilled ? EReEchoRunPhase::Summary : EReEchoRunPhase::Failed);
 		return;
 	}
-	SetPhase(EReEchoRunPhase::CardChoice);
+	SetPhase(ReEchoCharacterPromotion::IsRole(CurrentBuild, TEXT("Brave")) ? EReEchoRunPhase::ForgeChoice
+	                                                                       : EReEchoRunPhase::CardChoice);
 }
 
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
@@ -199,9 +209,90 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 
+	const FName SageBonusChoiceFlag = TEXT("SageBonusChoice");
+	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
+	const bool bSageBonusChoice = CurrentBuild.RuleFlags.Contains(SageBonusChoiceFlag);
+
 	CurrentBuild.Cards.Add(CardId);
+	ReEchoCharacterPromotion::TryPromote(CurrentBuild);
 	PendingTraitCardIds.Reset();
-	SetPhase(EReEchoRunPhase::Planning);
+	if (bSageBonusChoice)
+	{
+		CurrentBuild.RuleFlags.Remove(SageBonusChoiceFlag);
+		SetPhase(EReEchoRunPhase::Planning);
+		return true;
+	}
+
+	const int32 NormalTraitSelections = FCString::Atoi(*CurrentBuild.RuleFlags.FindRef(NormalTraitSelectionsFlag)) + 1;
+	CurrentBuild.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
+	const bool bSageBonus =
+	    ReEchoCharacterPromotion::IsRole(CurrentBuild, TEXT("Sage")) && NormalTraitSelections % 4 == 0;
+	if (bSageBonus)
+	{
+		CurrentBuild.RuleFlags.Add(SageBonusChoiceFlag, TEXT("1"));
+	}
+	SetPhase(bSageBonus ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
+	return true;
+}
+
+TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateForgeOffers()
+{
+	PendingTraitCardIds.Reset();
+	if (Phase != EReEchoRunPhase::ForgeChoice)
+	{
+		return {};
+	}
+
+	TArray<FReEchoTraitCardOffer> Offers = {
+	    MakeTraitOffer(TEXT("FORGE_LIGHT"),
+	                   NSLOCTEXT("ReEcho", "ForgeLight", "轻度锻炼"),
+	                   NSLOCTEXT("ReEcho", "ForgeLightDesc", "生命 +2，物理与元素攻击 +1")),
+	    MakeTraitOffer(TEXT("FORGE_MEDIUM"),
+	                   NSLOCTEXT("ReEcho", "ForgeMedium", "中度锻炼"),
+	                   NSLOCTEXT("ReEcho", "ForgeMediumDesc", "生命 -2，物理与元素攻击 +2")),
+	    MakeTraitOffer(TEXT("FORGE_EXTREME"),
+	                   NSLOCTEXT("ReEcho", "ForgeExtreme", "极限锻炼"),
+	                   NSLOCTEXT("ReEcho", "ForgeExtremeDesc", "生命 -6，物理与元素攻击 +2"))};
+	for (const FReEchoTraitCardOffer& Offer : Offers)
+	{
+		PendingTraitCardIds.Add(Offer.CardId);
+	}
+	return Offers;
+}
+
+bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
+{
+	if (Phase != EReEchoRunPhase::ForgeChoice || !PendingTraitCardIds.Contains(ForgeId))
+	{
+		return false;
+	}
+
+	if (ForgeId == TEXT("FORGE_LIGHT"))
+	{
+		CurrentBuild.Stats.HpMax += 2.0f;
+		CurrentBuild.Stats.PhysicalAttack += 1.0f;
+		CurrentBuild.Stats.ElementalAttack += 1.0f;
+	}
+	else if (ForgeId == TEXT("FORGE_MEDIUM"))
+	{
+		CurrentBuild.Stats.HpMax -= 2.0f;
+		CurrentBuild.Stats.PhysicalAttack += 2.0f;
+		CurrentBuild.Stats.ElementalAttack += 2.0f;
+	}
+	else if (ForgeId == TEXT("FORGE_EXTREME"))
+	{
+		CurrentBuild.Stats.HpMax -= 6.0f;
+		CurrentBuild.Stats.PhysicalAttack += 2.0f;
+		CurrentBuild.Stats.ElementalAttack += 2.0f;
+	}
+	else
+	{
+		return false;
+	}
+
+	CurrentBuild.Stats.HpMax = FMath::Max(1.0f, CurrentBuild.Stats.HpMax);
+	PendingTraitCardIds.Reset();
+	SetPhase(EReEchoRunPhase::CardChoice);
 	return true;
 }
 
