@@ -106,15 +106,58 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 
 ### Changed
 
+- Created isolated worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan19-character-build-csv` on branch `plan/19-character-build-csv` from local main `c34b10d`.
+- Split the Plan 18 registry implementation into a private reusable CSV reader layer (`ReEchoCsvDataReader.*`) and a registry/domain orchestration layer (`ReEchoCsvDataRegistry.cpp`). The public entry point remains `FReEchoCsvDataRegistry`; snapshots are still loaded into temporary structures and published atomically.
+- Added production CSV tables `characters.csv`, `character_aliases.csv`, `cards.csv` and `card_effects.csv`, plus manifest/schema/build staging/fixture/static-validator coverage.
+- Added explicit `RegisterBuiltInCsvBehaviors()` and call it from `FReEchoModule::StartupModule()` before `LoadAndPublishDefault()`. Registered behavior/effect ids now cover character passives and card numeric effects without relying on static initialization order.
+- Moved run start character stats/default weapon, trait draw catalog, forge offers, trait/forge numeric effects and promotion scoring to the CSV snapshot.
+- Promotion no longer counts hardcoded card ids. `cards.csv.PromotionRoleId` supplies role buckets and `characters.csv.PromotionPriority` supplies deterministic tie order. Promotion target ids remain canonical runtime ids.
+- `AReEchoGameMode` now lets `StartRun()` choose the CSV default weapon when no explicit weapon is supplied, preserving the current default `J_CAT`/`W_J_02`.
+- Added automation coverage for character alias/base data, six-card offer pool, CSV card effect application and disabled-card exclusion.
+- Updated `Content/Data/README.md`, `shared/CODEBASE_MAP.md`, `shared/PROJECT_STATE.md` and `scripts/validate_project.py`.
+
 ### Evidence
+
+- `python scripts/validate_project.py` passes: CSV schema, production character/build tables, fixtures, IDs, references, behavior/effect allowlists, disabled rows, six-card draw pool, UTF-8 and staging deps.
+- `.clang-format` was run with Visual Studio Professional LLVM clang-format on changed C++ files.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passes. Log evidence: `Found 20 automation tests based on 'ReEcho'`; final line `TEST COMPLETE. EXIT CODE: 0`.
 
 ### Plan 18 contract adaptation
 
+- Plan 18's smoke tables remain in production and fixtures as foundation regressions. New domain tables are loaded by the same registry package, not by a second loader.
+- Required production manifest tables are now: `RuntimeSmoke`, `RuntimeSmokeEffects`, `Characters`, `CharacterAliases`, `Cards`, `CardEffects`.
+- Existing Plan 18 negative fixtures were extended with valid character/build tables so they still fail for their intended smoke-table condition.
+- Runtime ids are preserved:
+  - `RuntimeOnly.J_CAT` -> `J_CAT` (current default/prototype character; no workbook alias).
+  - `J_01` -> `J_SPADE` (Sage/智者).
+  - `J_02` -> `J_DIAMOND` (Hunter/猎手).
+  - `J_03` -> `J_CLOVER` (Poet/诗人).
+  - `J_04` -> `J_HEART` (Brave/勇者).
+- Current canonical offerable card ids remain `G_1_01`, `G_1_02`, `G_1_03`, `G_1_04`, `G_1_05`, `G_1_08`. Workbook ids diverge after `G_1_02`; the CSV preserves runtime ids and records workbook provenance rather than renumbering saved build references.
+- Character/card JSON files remain in the repo as migration-only review material, but Run, promotion and current trait cards no longer read them as runtime authority.
+
 ### Source rows left disabled and why
+
+- `G_1_06`, `G_1_07`: legacy/json and workbook-approved rows, but they were not in the current six-card runtime draw pool and have no current gameplay automation baseline.
+- `G_2_01`, `G_2_02`: workbook review status is 存疑 and no runtime handler is implemented.
+- `G_2_03`-`G_2_07`, `G_3_01`-`G_3_12`: structured in `cards.csv`, but disabled because no current handler/test exists in this plan.
+- `G_2_08`, `G_2_09`: reserved in legacy JSON and disabled with reserved reason.
+- `FORGE_LIGHT`, `FORGE_MEDIUM`, `FORGE_EXTREME` are runtime-only card rows in `OfferGroup=Forge`; they are enabled because they preserve an already implemented Brave behavior.
 
 ### Remaining risks
 
+- Live PIE verification is still required for four role appearances, stat readability, default weapon feel and multi-round card/forge pacing.
+- CSV `AppearanceId` is validated and staged but the current player/echo sprite maps still use canonical character ids as the hard asset lookup key; no `.uasset` or `.umap` was modified.
+- `G_1_02` now records an `InstantRecovery` effect against build `HpPoint` as structured data. Current encounter start still fills health from `HpMax`, so this preserves practical behavior while making the intended heal explicit for later live-combat application.
+- Shop items remain hardcoded in `ReEchoShopCatalog`/`PurchaseShopItem`; Plan 19 only migrated current trait/forge build choices.
+
 ### Human validation requested
+
+- Enter a run with the default character and confirm the default weapon remains `W_J_02`/current feel.
+- Promote into Hunter, Poet, Brave and Sage; confirm appearance, base stat deltas, Poet growth, Brave forge and Sage bonus choice cadence.
+- Edit one value in `characters.csv` and one enabled card effect in `card_effects.csv`, restart the project and confirm the new values appear without C++ rebuild.
+- Play several card-choice rounds and confirm only the current six trait cards appear, disabled/存疑 rows never enter offers, and display names/descriptions match the previous UI.
 
 ## 执行者启动 prompt
 

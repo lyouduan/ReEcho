@@ -78,4 +78,46 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTraitCsvEffectsTest,
+                                 "ReEcho.Traits.CsvEffectsApply",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_CAT"), NAME_None);
+	TestEqual(TEXT("CSV default weapon is used when none is supplied"),
+	          RunSubsystem->CurrentBuild.WeaponId,
+	          FName(TEXT("W_J_02")));
+	TestEqual(
+	    TEXT("CSV character base physical attack is used"), RunSubsystem->CurrentBuild.Stats.PhysicalAttack, 5.0f);
+
+	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(6);
+	TestEqual(TEXT("Only the six enabled trait cards are offered"), Offers.Num(), 6);
+	TestFalse(TEXT("Disabled legacy cards are excluded from offers"),
+	          Offers.ContainsByPredicate(
+	              [](const FReEchoTraitCardOffer& Offer)
+	              {
+		              return Offer.CardId == TEXT("G_1_06");
+	              }));
+	if (!Offers.ContainsByPredicate(
+	        [](const FReEchoTraitCardOffer& Offer)
+	        {
+		        return Offer.CardId == TEXT("G_1_04");
+	        }))
+	{
+		AddError(TEXT("G_1_04 was not present in the six-card trait pool"));
+		return false;
+	}
+
+	const float PhysicalBefore = RunSubsystem->CurrentBuild.Stats.PhysicalAttack;
+	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->ApplyTraitCard(TEXT("G_1_04")));
+	TestEqual(TEXT("Physical attack add comes from card_effects.csv"),
+	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
+	          PhysicalBefore + 2.0f);
+	return true;
+}
+
 #endif

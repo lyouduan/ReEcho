@@ -1,41 +1,25 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 
-#include "HAL/FileManager.h"
 #include "HAL/PlatformFilemanager.h"
-#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 #include "ReEcho.h"
+#include "ReEchoCsvDataReader.h"
 
 namespace
 {
-constexpr const TCHAR* ManifestFileName = TEXT("reecho_data_manifest.csv");
 constexpr const TCHAR* RuntimeSmokeTableId = TEXT("RuntimeSmoke");
 constexpr const TCHAR* RuntimeSmokeEffectsTableId = TEXT("RuntimeSmokeEffects");
+constexpr const TCHAR* CharactersTableId = TEXT("Characters");
+constexpr const TCHAR* CharacterAliasesTableId = TEXT("CharacterAliases");
+constexpr const TCHAR* CardsTableId = TEXT("Cards");
+constexpr const TCHAR* CardEffectsTableId = TEXT("CardEffects");
+
+constexpr const TCHAR* BehaviorNone = TEXT("None");
 constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
 constexpr const TCHAR* DefaultEffectKind = TEXT("ScalarModifier");
-
-struct FReEchoCsvRow
-{
-	int32 Line = 0;
-	TMap<FString, FString> Cells;
-};
-
-struct FReEchoCsvTable
-{
-	FString File;
-	TArray<FString> Headers;
-	TArray<FReEchoCsvRow> Rows;
-};
-
-struct FReEchoManifestEntry
-{
-	FString TableId;
-	FString FileName;
-	FString PrimaryKey;
-	int32 SchemaVersion = 0;
-	int32 Line = 0;
-};
+constexpr const TCHAR* StatModifierEffectKind = TEXT("StatModifier");
+constexpr const TCHAR* InstantRecoveryEffectKind = TEXT("InstantRecovery");
 
 FCriticalSection RegistryCriticalSection;
 TSharedPtr<const FReEchoCsvDataSnapshot> PublishedSnapshot;
@@ -43,483 +27,76 @@ TSet<FName> RegisteredBehaviorIds;
 TSet<FName> RegisteredEffectKinds;
 bool bDefaultRegistrationsReady = false;
 
-FString NormalizeFileForIssue(const FString& Path)
+TArray<FString> GetRequiredTableIds()
 {
-	FString Normalized = Path;
-	FPaths::NormalizeFilename(Normalized);
-	const FString ContentData = TEXT("Content/Data/");
-	const int32 Index = Normalized.Find(ContentData, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-	if (Index != INDEX_NONE)
-	{
-		return Normalized.Mid(Index);
-	}
-	return FPaths::GetCleanFilename(Normalized);
+	return {RuntimeSmokeTableId,
+	        RuntimeSmokeEffectsTableId,
+	        CharactersTableId,
+	        CharacterAliasesTableId,
+	        CardsTableId,
+	        CardEffectsTableId};
 }
 
-void AddIssue(TArray<FReEchoCsvIssue>& Issues,
-              const FString& File,
-              const int32 Line,
-              const FString& Field,
-              const FString& Message)
+TArray<FName> ParseNameList(const FString& Text)
 {
-	FReEchoCsvIssue Issue;
-	Issue.File = NormalizeFileForIssue(File);
-	Issue.Line = Line;
-	Issue.Field = Field;
-	Issue.Message = Message;
-	Issues.Add(Issue);
+	TArray<FName> Result;
+	TArray<FString> Parts;
+	Text.ParseIntoArray(Parts, TEXT("|"), true);
+	for (const FString& Part : Parts)
+	{
+		const FString Trimmed = Part.TrimStartAndEnd();
+		if (!Trimmed.IsEmpty())
+		{
+			Result.Add(FName(*Trimmed));
+		}
+	}
+	return Result;
 }
 
-FString TrimCell(const FString& Value)
+bool IsRegisteredOrNone(const FName BehaviorId)
 {
-	return Value.TrimStartAndEnd();
-}
-
-bool IsStableId(const FString& Value)
-{
-	if (Value.IsEmpty() || Value != TrimCell(Value))
-	{
-		return false;
-	}
-
-	for (const TCHAR Character : Value)
-	{
-		if (FChar::IsAlnum(Character) || Character == TEXT('_') || Character == TEXT('-') || Character == TEXT('.'))
-		{
-			continue;
-		}
-		return false;
-	}
-	return true;
-}
-
-bool ParseCsvFile(const FString& FilePath, FReEchoCsvTable& OutTable, TArray<FReEchoCsvIssue>& Issues)
-{
-	TArray<uint8> Bytes;
-	if (!FFileHelper::LoadFileToArray(Bytes, *FilePath))
-	{
-		AddIssue(Issues, FilePath, 0, TEXT("File"), TEXT("File could not be read"));
-		return false;
-	}
-	if (Bytes.Num() >= 3 && Bytes[0] == 0xEF && Bytes[1] == 0xBB && Bytes[2] == 0xBF)
-	{
-		AddIssue(Issues, FilePath, 1, TEXT("File"), TEXT("CSV must be UTF-8 without BOM"));
-		return false;
-	}
-
-	const FUTF8ToTCHAR Converted(reinterpret_cast<const ANSICHAR*>(Bytes.GetData()), Bytes.Num());
-	const FString Text(Converted.Length(), Converted.Get());
-	OutTable.File = FilePath;
-
-	TArray<TArray<FString>> RawRows;
-	TArray<int32> RowLines;
-	TArray<FString> CurrentRow;
-	FString CurrentField;
-	bool bInQuotes = false;
-	int32 Line = 1;
-	int32 RowStartLine = 1;
-
-	for (int32 Index = 0; Index < Text.Len(); ++Index)
-	{
-		const TCHAR Character = Text[Index];
-		if (bInQuotes)
-		{
-			if (Character == TEXT('"'))
-			{
-				if (Index + 1 < Text.Len() && Text[Index + 1] == TEXT('"'))
-				{
-					CurrentField.AppendChar(TEXT('"'));
-					++Index;
-				}
-				else
-				{
-					bInQuotes = false;
-				}
-			}
-			else
-			{
-				if (Character == TEXT('\n'))
-				{
-					++Line;
-				}
-				CurrentField.AppendChar(Character);
-			}
-			continue;
-		}
-
-		if (Character == TEXT('"'))
-		{
-			if (CurrentField.IsEmpty())
-			{
-				bInQuotes = true;
-			}
-			else
-			{
-				AddIssue(Issues, FilePath, Line, TEXT("CSV"), TEXT("Quote must start a quoted cell"));
-				return false;
-			}
-		}
-		else if (Character == TEXT(','))
-		{
-			CurrentRow.Add(CurrentField);
-			CurrentField.Reset();
-		}
-		else if (Character == TEXT('\r') || Character == TEXT('\n'))
-		{
-			CurrentRow.Add(CurrentField);
-			CurrentField.Reset();
-			RawRows.Add(CurrentRow);
-			RowLines.Add(RowStartLine);
-			CurrentRow.Reset();
-			if (Character == TEXT('\r') && Index + 1 < Text.Len() && Text[Index + 1] == TEXT('\n'))
-			{
-				++Index;
-			}
-			++Line;
-			RowStartLine = Line;
-		}
-		else
-		{
-			CurrentField.AppendChar(Character);
-		}
-	}
-
-	if (bInQuotes)
-	{
-		AddIssue(Issues, FilePath, Line, TEXT("CSV"), TEXT("Quoted cell was not closed"));
-		return false;
-	}
-	if (!CurrentField.IsEmpty() || CurrentRow.Num() > 0)
-	{
-		CurrentRow.Add(CurrentField);
-		RawRows.Add(CurrentRow);
-		RowLines.Add(RowStartLine);
-	}
-	if (RawRows.Num() == 0)
-	{
-		AddIssue(Issues, FilePath, 1, TEXT("CSV"), TEXT("CSV file is empty"));
-		return false;
-	}
-
-	OutTable.Headers = RawRows[0];
-	for (FString& Header : OutTable.Headers)
-	{
-		Header = TrimCell(Header);
-	}
-
-	TSet<FString> UniqueHeaders;
-	for (const FString& Header : OutTable.Headers)
-	{
-		if (Header.IsEmpty() || UniqueHeaders.Contains(Header))
-		{
-			AddIssue(Issues, FilePath, RowLines[0], Header, TEXT("Header is empty or duplicated"));
-			return false;
-		}
-		UniqueHeaders.Add(Header);
-	}
-
-	for (int32 RawIndex = 1; RawIndex < RawRows.Num(); ++RawIndex)
-	{
-		const TArray<FString>& RawRow = RawRows[RawIndex];
-		if (RawRow.Num() == 1 && TrimCell(RawRow[0]).IsEmpty())
-		{
-			continue;
-		}
-		if (RawRow.Num() != OutTable.Headers.Num())
-		{
-			AddIssue(Issues,
-			         FilePath,
-			         RowLines[RawIndex],
-			         TEXT("CSV"),
-			         FString::Printf(TEXT("Expected %d cells, got %d"), OutTable.Headers.Num(), RawRow.Num()));
-			continue;
-		}
-
-		FReEchoCsvRow Row;
-		Row.Line = RowLines[RawIndex];
-		for (int32 ColumnIndex = 0; ColumnIndex < OutTable.Headers.Num(); ++ColumnIndex)
-		{
-			const FString Cell = TrimCell(RawRow[ColumnIndex]);
-			if (Cell.StartsWith(TEXT("=")) || Cell.StartsWith(TEXT("@")))
-			{
-				AddIssue(Issues,
-				         FilePath,
-				         RowLines[RawIndex],
-				         OutTable.Headers[ColumnIndex],
-				         TEXT("CSV cells must not contain spreadsheet formulas"));
-			}
-			Row.Cells.Add(OutTable.Headers[ColumnIndex], Cell);
-		}
-		OutTable.Rows.Add(Row);
-	}
-	return Issues.Num() == 0;
-}
-
-bool HasExactColumns(const FReEchoCsvTable& Table,
-                     const TArray<FString>& ExpectedColumns,
-                     TArray<FReEchoCsvIssue>& Issues)
-{
-	TSet<FString> ExpectedSet;
-	for (const FString& ExpectedColumn : ExpectedColumns)
-	{
-		ExpectedSet.Add(ExpectedColumn);
-	}
-	bool bValid = true;
-	for (const FString& ExpectedColumn : ExpectedColumns)
-	{
-		if (!Table.Headers.Contains(ExpectedColumn))
-		{
-			AddIssue(Issues, Table.File, 1, ExpectedColumn, TEXT("Required column is missing"));
-			bValid = false;
-		}
-	}
-	for (const FString& Header : Table.Headers)
-	{
-		if (!ExpectedSet.Contains(Header))
-		{
-			AddIssue(Issues, Table.File, 1, Header, TEXT("Unsupported column"));
-			bValid = false;
-		}
-	}
-	return bValid;
-}
-
-bool RequireCell(const FReEchoCsvTable& Table,
-                 const FReEchoCsvRow& Row,
-                 const FString& Field,
-                 FString& OutValue,
-                 TArray<FReEchoCsvIssue>& Issues)
-{
-	const FString* Found = Row.Cells.Find(Field);
-	OutValue = Found ? *Found : FString();
-	if (OutValue.IsEmpty())
-	{
-		AddIssue(Issues, Table.File, Row.Line, Field, TEXT("Required value is empty"));
-		return false;
-	}
-	return true;
-}
-
-bool RequireStableId(const FReEchoCsvTable& Table,
-                     const FReEchoCsvRow& Row,
-                     const FString& Field,
-                     FName& OutValue,
-                     TArray<FReEchoCsvIssue>& Issues)
-{
-	FString Text;
-	if (!RequireCell(Table, Row, Field, Text, Issues))
-	{
-		return false;
-	}
-	if (!IsStableId(Text))
-	{
-		AddIssue(Issues,
-		         Table.File,
-		         Row.Line,
-		         Field,
-		         TEXT("Stable id may only contain letters, digits, '_', '-' or '.' and no outer whitespace"));
-		return false;
-	}
-	OutValue = FName(*Text);
-	return true;
-}
-
-bool RequireBool(const FReEchoCsvTable& Table,
-                 const FReEchoCsvRow& Row,
-                 const FString& Field,
-                 bool& OutValue,
-                 TArray<FReEchoCsvIssue>& Issues)
-{
-	FString Text;
-	if (!RequireCell(Table, Row, Field, Text, Issues))
-	{
-		return false;
-	}
-	if (Text == TEXT("true"))
-	{
-		OutValue = true;
-		return true;
-	}
-	if (Text == TEXT("false"))
-	{
-		OutValue = false;
-		return true;
-	}
-	AddIssue(Issues, Table.File, Row.Line, Field, TEXT("Boolean must be lowercase true or false"));
-	return false;
-}
-
-bool RequireFloat(const FReEchoCsvTable& Table,
-                  const FReEchoCsvRow& Row,
-                  const FString& Field,
-                  const float MinValue,
-                  const float MaxValue,
-                  float& OutValue,
-                  TArray<FReEchoCsvIssue>& Issues)
-{
-	FString Text;
-	if (!RequireCell(Table, Row, Field, Text, Issues))
-	{
-		return false;
-	}
-	if (!LexTryParseString(OutValue, *Text) || !FMath::IsFinite(OutValue))
-	{
-		AddIssue(Issues, Table.File, Row.Line, Field, TEXT("Value must be a finite number"));
-		return false;
-	}
-	if (OutValue < MinValue || OutValue > MaxValue)
-	{
-		AddIssue(
-		    Issues,
-		    Table.File,
-		    Row.Line,
-		    Field,
-		    FString::Printf(TEXT("Value %.4f is outside supported range %.4f..%.4f"), OutValue, MinValue, MaxValue));
-		return false;
-	}
-	return true;
-}
-
-bool RequireInt(const FReEchoCsvTable& Table,
-                const FReEchoCsvRow& Row,
-                const FString& Field,
-                int32& OutValue,
-                TArray<FReEchoCsvIssue>& Issues)
-{
-	float FloatValue = 0.0f;
-	if (!RequireFloat(Table, Row, Field, 0.0f, 1000000.0f, FloatValue, Issues))
-	{
-		return false;
-	}
-	if (!FMath::IsNearlyEqual(FloatValue, FMath::RoundToFloat(FloatValue)))
-	{
-		AddIssue(Issues, Table.File, Row.Line, Field, TEXT("Value must be an integer"));
-		return false;
-	}
-	OutValue = static_cast<int32>(FloatValue);
-	return true;
-}
-
-bool RequireValueOp(const FReEchoCsvTable& Table,
-                    const FReEchoCsvRow& Row,
-                    const FString& Field,
-                    EReEchoCsvValueOp& OutValue,
-                    TArray<FReEchoCsvIssue>& Issues)
-{
-	FString Text;
-	if (!RequireCell(Table, Row, Field, Text, Issues))
-	{
-		return false;
-	}
-	if (Text == TEXT("Add"))
-	{
-		OutValue = EReEchoCsvValueOp::Add;
-		return true;
-	}
-	if (Text == TEXT("Multiply"))
-	{
-		OutValue = EReEchoCsvValueOp::Multiply;
-		return true;
-	}
-	if (Text == TEXT("Override"))
-	{
-		OutValue = EReEchoCsvValueOp::Override;
-		return true;
-	}
-	AddIssue(Issues, Table.File, Row.Line, Field, TEXT("Value operation must be Add, Multiply or Override"));
-	return false;
-}
-
-bool ReadManifest(const FString& DataDirectory,
-                  TMap<FString, FReEchoManifestEntry>& OutEntries,
-                  TArray<FReEchoCsvIssue>& Issues)
-{
-	FReEchoCsvTable Manifest;
-	const FString ManifestPath = FPaths::Combine(DataDirectory, ManifestFileName);
-	if (!ParseCsvFile(ManifestPath, Manifest, Issues))
-	{
-		return false;
-	}
-
-	HasExactColumns(Manifest, {TEXT("SchemaVersion"), TEXT("TableId"), TEXT("FileName"), TEXT("PrimaryKey")}, Issues);
-	TSet<FString> SeenTables;
-	for (const FReEchoCsvRow& Row : Manifest.Rows)
-	{
-		FReEchoManifestEntry Entry;
-		Entry.Line = Row.Line;
-		RequireInt(Manifest, Row, TEXT("SchemaVersion"), Entry.SchemaVersion, Issues);
-		RequireCell(Manifest, Row, TEXT("TableId"), Entry.TableId, Issues);
-		RequireCell(Manifest, Row, TEXT("FileName"), Entry.FileName, Issues);
-		RequireCell(Manifest, Row, TEXT("PrimaryKey"), Entry.PrimaryKey, Issues);
-		if (Entry.SchemaVersion != FReEchoCsvDataRegistry::SupportedSchemaVersion)
-		{
-			AddIssue(Issues,
-			         Manifest.File,
-			         Row.Line,
-			         TEXT("SchemaVersion"),
-			         FString::Printf(TEXT("Unsupported schema version %d"), Entry.SchemaVersion));
-		}
-		if (Entry.TableId.IsEmpty() || SeenTables.Contains(Entry.TableId))
-		{
-			AddIssue(Issues, Manifest.File, Row.Line, TEXT("TableId"), TEXT("TableId is empty or duplicated"));
-		}
-		SeenTables.Add(Entry.TableId);
-		OutEntries.Add(Entry.TableId, Entry);
-	}
-
-	for (const FString RequiredTable : {FString(RuntimeSmokeTableId), FString(RuntimeSmokeEffectsTableId)})
-	{
-		if (!OutEntries.Contains(RequiredTable))
-		{
-			AddIssue(Issues,
-			         Manifest.File,
-			         1,
-			         TEXT("TableId"),
-			         FString::Printf(TEXT("Manifest missing table %s"), *RequiredTable));
-		}
-	}
-	return Issues.Num() == 0;
+	return BehaviorId == BehaviorNone || FReEchoCsvDataRegistry::IsBehaviorIdRegistered(BehaviorId);
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
-                           const FReEchoManifestEntry& Entry,
+                           const ReEchoCsv::FManifestEntry& Entry,
                            FReEchoCsvDataSnapshot& Snapshot,
                            TArray<FReEchoCsvIssue>& Issues)
 {
-	FReEchoCsvTable Table;
+	ReEchoCsv::FTable Table;
 	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
-	if (!ParseCsvFile(TablePath, Table, Issues))
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
 	{
 		return false;
 	}
 
-	HasExactColumns(Table,
-	                {TEXT("Id"),
-	                 TEXT("DisplayNameKey"),
-	                 TEXT("Enabled"),
-	                 TEXT("TestScalar"),
-	                 TEXT("TestPercent"),
-	                 TEXT("DistanceCm"),
-	                 TEXT("DurationSeconds"),
-	                 TEXT("BehaviorId"),
-	                 TEXT("EffectKind"),
-	                 TEXT("ModifierOp")},
-	                Issues);
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("DisplayNameKey"),
+	                            TEXT("Enabled"),
+	                            TEXT("TestScalar"),
+	                            TEXT("TestPercent"),
+	                            TEXT("DistanceCm"),
+	                            TEXT("DurationSeconds"),
+	                            TEXT("BehaviorId"),
+	                            TEXT("EffectKind"),
+	                            TEXT("ModifierOp")},
+	                           Issues);
 
 	TSet<FName> SeenIds;
-	for (const FReEchoCsvRow& Row : Table.Rows)
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
 	{
 		FReEchoRuntimeSmokeRow RuntimeRow;
-		RequireStableId(Table, Row, TEXT("Id"), RuntimeRow.Id, Issues);
-		RequireCell(Table, Row, TEXT("DisplayNameKey"), RuntimeRow.DisplayNameKey, Issues);
-		RequireBool(Table, Row, TEXT("Enabled"), RuntimeRow.bEnabled, Issues);
-		RequireFloat(Table, Row, TEXT("TestScalar"), 0.0f, 100000.0f, RuntimeRow.TestScalar, Issues);
-		RequireFloat(Table, Row, TEXT("TestPercent"), 0.0f, 1.0f, RuntimeRow.TestPercent, Issues);
-		RequireFloat(Table, Row, TEXT("DistanceCm"), 0.0f, 1000000.0f, RuntimeRow.DistanceCm, Issues);
-		RequireFloat(Table, Row, TEXT("DurationSeconds"), 0.0f, 3600.0f, RuntimeRow.DurationSeconds, Issues);
-		RequireStableId(Table, Row, TEXT("BehaviorId"), RuntimeRow.BehaviorId, Issues);
-		RequireStableId(Table, Row, TEXT("EffectKind"), RuntimeRow.EffectKind, Issues);
-		RequireValueOp(Table, Row, TEXT("ModifierOp"), RuntimeRow.ModifierOp, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), RuntimeRow.Id, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayNameKey"), RuntimeRow.DisplayNameKey, Issues);
+		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), RuntimeRow.bEnabled, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("TestScalar"), 0.0f, 100000.0f, RuntimeRow.TestScalar, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("TestPercent"), 0.0f, 1.0f, RuntimeRow.TestPercent, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("DistanceCm"), 0.0f, 1000000.0f, RuntimeRow.DistanceCm, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("DurationSeconds"), 0.0f, 3600.0f, RuntimeRow.DurationSeconds, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), RuntimeRow.BehaviorId, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("EffectKind"), RuntimeRow.EffectKind, Issues);
+		ReEchoCsv::RequireValueOp(Table, Row, TEXT("ModifierOp"), RuntimeRow.ModifierOp, Issues);
 
 		if (RuntimeRow.Id.IsNone())
 		{
@@ -527,15 +104,17 @@ bool ReadRuntimeSmokeTable(const FString& DataDirectory,
 		}
 		if (SeenIds.Contains(RuntimeRow.Id))
 		{
-			AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
 		}
 		if (!FReEchoCsvDataRegistry::IsBehaviorIdRegistered(RuntimeRow.BehaviorId))
 		{
-			AddIssue(Issues, Table.File, Row.Line, TEXT("BehaviorId"), TEXT("Unknown registered C++ behavior id"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("BehaviorId"), TEXT("Unknown registered C++ behavior id"));
 		}
 		if (!FReEchoCsvDataRegistry::IsEffectKindRegistered(RuntimeRow.EffectKind))
 		{
-			AddIssue(Issues, Table.File, Row.Line, TEXT("EffectKind"), TEXT("Unknown registered C++ effect kind"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("EffectKind"), TEXT("Unknown registered C++ effect kind"));
 		}
 		SeenIds.Add(RuntimeRow.Id);
 		Snapshot.RuntimeSmokeRows.Add(RuntimeRow.Id, RuntimeRow);
@@ -544,29 +123,29 @@ bool ReadRuntimeSmokeTable(const FString& DataDirectory,
 }
 
 bool ReadRuntimeSmokeEffectsTable(const FString& DataDirectory,
-                                  const FReEchoManifestEntry& Entry,
+                                  const ReEchoCsv::FManifestEntry& Entry,
                                   FReEchoCsvDataSnapshot& Snapshot,
                                   TArray<FReEchoCsvIssue>& Issues)
 {
-	FReEchoCsvTable Table;
+	ReEchoCsv::FTable Table;
 	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
-	if (!ParseCsvFile(TablePath, Table, Issues))
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
 	{
 		return false;
 	}
 
-	HasExactColumns(
+	ReEchoCsv::HasExactColumns(
 	    Table, {TEXT("Id"), TEXT("RuntimeRowId"), TEXT("ParamName"), TEXT("ValueOp"), TEXT("Value")}, Issues);
 
 	TSet<FName> SeenIds;
-	for (const FReEchoCsvRow& Row : Table.Rows)
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
 	{
 		FReEchoRuntimeSmokeEffectRow EffectRow;
-		RequireStableId(Table, Row, TEXT("Id"), EffectRow.Id, Issues);
-		RequireStableId(Table, Row, TEXT("RuntimeRowId"), EffectRow.RuntimeRowId, Issues);
-		RequireStableId(Table, Row, TEXT("ParamName"), EffectRow.ParamName, Issues);
-		RequireValueOp(Table, Row, TEXT("ValueOp"), EffectRow.ValueOp, Issues);
-		RequireFloat(Table, Row, TEXT("Value"), -100000.0f, 100000.0f, EffectRow.Value, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), EffectRow.Id, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("RuntimeRowId"), EffectRow.RuntimeRowId, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("ParamName"), EffectRow.ParamName, Issues);
+		ReEchoCsv::RequireValueOp(Table, Row, TEXT("ValueOp"), EffectRow.ValueOp, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("Value"), -100000.0f, 100000.0f, EffectRow.Value, Issues);
 
 		if (EffectRow.Id.IsNone())
 		{
@@ -574,7 +153,7 @@ bool ReadRuntimeSmokeEffectsTable(const FString& DataDirectory,
 		}
 		if (SeenIds.Contains(EffectRow.Id))
 		{
-			AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
 		}
 		if (FReEchoRuntimeSmokeRow* Parent = Snapshot.RuntimeSmokeRows.Find(EffectRow.RuntimeRowId))
 		{
@@ -582,9 +161,320 @@ bool ReadRuntimeSmokeEffectsTable(const FString& DataDirectory,
 		}
 		else
 		{
-			AddIssue(Issues, Table.File, Row.Line, TEXT("RuntimeRowId"), TEXT("Unknown RuntimeSmoke.Id reference"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("RuntimeRowId"), TEXT("Unknown RuntimeSmoke.Id reference"));
 		}
 		SeenIds.Add(EffectRow.Id);
+	}
+	return Issues.Num() == 0;
+}
+
+bool ReadCharactersTable(const FString& DataDirectory,
+                         const ReEchoCsv::FManifestEntry& Entry,
+                         FReEchoCsvDataSnapshot& Snapshot,
+                         TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("SourceWorkbookId"),
+	                            TEXT("DisplayName"),
+	                            TEXT("Enabled"),
+	                            TEXT("DisabledReason"),
+	                            TEXT("RoleId"),
+	                            TEXT("PromotionPriority"),
+	                            TEXT("DefaultWeaponId"),
+	                            TEXT("AppearanceId"),
+	                            TEXT("PassiveBehaviorId"),
+	                            TEXT("PassiveValue"),
+	                            TEXT("HpMax"),
+	                            TEXT("PhysicalAttack"),
+	                            TEXT("ElementalAttack"),
+	                            TEXT("AttackSpeed"),
+	                            TEXT("MovementSpeed"),
+	                            TEXT("CriticalRate"),
+	                            TEXT("CriticalEffect"),
+	                            TEXT("EchoEfficiency"),
+	                            TEXT("ReactionEfficiency"),
+	                            TEXT("EverySecondAttackBonus"),
+	                            TEXT("RandomElementProjectiles")},
+	                           Issues);
+
+	TSet<FName> SeenIds;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvCharacterRow Character;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Character.Id, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("SourceWorkbookId"), Character.SourceWorkbookId, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Character.DisplayName, Issues);
+		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), Character.bEnabled, Issues);
+		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Character.DisabledReason);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("RoleId"), Character.RoleId, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("PromotionPriority"), Character.PromotionPriority, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("DefaultWeaponId"), Character.DefaultWeaponId, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("AppearanceId"), Character.AppearanceId, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("PassiveBehaviorId"), Character.PassiveBehaviorId, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("PassiveValue"), 0.0f, 100000.0f, Character.PassiveValue, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("HpMax"), 1.0f, 100000.0f, Character.BaseStats.HpMax, Issues);
+		Character.BaseStats.HpPoint = Character.BaseStats.HpMax;
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("PhysicalAttack"), 0.0f, 100000.0f, Character.BaseStats.PhysicalAttack, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("ElementalAttack"), 0.0f, 100000.0f, Character.BaseStats.ElementalAttack, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("AttackSpeed"), 0.1f, 100.0f, Character.BaseStats.AttackSpeed, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("MovementSpeed"), 0.1f, 100.0f, Character.BaseStats.MovementSpeed, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("CriticalRate"), 0.0f, 1.0f, Character.BaseStats.CriticalRate, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("CriticalEffect"), 0.0f, 100.0f, Character.BaseStats.CriticalEffect, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("EchoEfficiency"), 0.0f, 100.0f, Character.BaseStats.EchoEfficiency, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("ReactionEfficiency"), 0.0f, 100.0f, Character.BaseStats.ReactionEfficiency, Issues);
+		ReEchoCsv::RequireFloat(Table,
+		                        Row,
+		                        TEXT("EverySecondAttackBonus"),
+		                        0.0f,
+		                        100.0f,
+		                        Character.BaseStats.EverySecondAttackBonus,
+		                        Issues);
+		ReEchoCsv::RequireBool(
+		    Table, Row, TEXT("RandomElementProjectiles"), Character.BaseStats.bRandomElementProjectiles, Issues);
+
+		if (Character.Id.IsNone())
+		{
+			continue;
+		}
+		if (SeenIds.Contains(Character.Id))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+		}
+		if (Character.bEnabled && Character.RoleId == TEXT("Disabled"))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("RoleId"), TEXT("Enabled character cannot use Disabled role"));
+		}
+		if (!Character.bEnabled && Character.DisabledReason.IsEmpty())
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("DisabledReason"), TEXT("Disabled source row requires a reason"));
+		}
+		if (!IsRegisteredOrNone(Character.PassiveBehaviorId))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("PassiveBehaviorId"), TEXT("Unknown registered C++ behavior id"));
+		}
+		SeenIds.Add(Character.Id);
+		Snapshot.Characters.Add(Character.Id, Character);
+	}
+	return Issues.Num() == 0;
+}
+
+bool ReadCharacterAliasesTable(const FString& DataDirectory,
+                               const ReEchoCsv::FManifestEntry& Entry,
+                               FReEchoCsvDataSnapshot& Snapshot,
+                               TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+
+	ReEchoCsv::HasExactColumns(Table, {TEXT("Id"), TEXT("CanonicalCharacterId"), TEXT("Reason")}, Issues);
+	TSet<FName> SeenIds;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FName AliasId;
+		FName CanonicalId;
+		FString Reason;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), AliasId, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("CanonicalCharacterId"), CanonicalId, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Reason"), Reason, Issues);
+		if (SeenIds.Contains(AliasId))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+		}
+		if (!Snapshot.Characters.Contains(CanonicalId))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("CanonicalCharacterId"), TEXT("Unknown Characters.Id reference"));
+		}
+		SeenIds.Add(AliasId);
+		Snapshot.CharacterAliases.Add(AliasId, CanonicalId);
+	}
+	return Issues.Num() == 0;
+}
+
+bool ReadCardsTable(const FString& DataDirectory,
+                    const ReEchoCsv::FManifestEntry& Entry,
+                    FReEchoCsvDataSnapshot& Snapshot,
+                    TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("SourceWorkbookId"),
+	                            TEXT("Tier"),
+	                            TEXT("DisplayName"),
+	                            TEXT("Description"),
+	                            TEXT("Tags"),
+	                            TEXT("PromotionRoleId"),
+	                            TEXT("OfferGroup"),
+	                            TEXT("Enabled"),
+	                            TEXT("Offerable"),
+	                            TEXT("StackPolicy"),
+	                            TEXT("ConflictPolicy"),
+	                            TEXT("ReviewStatus"),
+	                            TEXT("DisabledReason")},
+	                           Issues);
+
+	TSet<FName> SeenIds;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvCardRow Card;
+		FString Tags;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Card.Id, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("SourceWorkbookId"), Card.SourceWorkbookId, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("Tier"), Card.Tier, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Card.DisplayName, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Description"), Card.Description, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Tags"), Tags, Issues);
+		Card.Tags = ParseNameList(Tags);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("PromotionRoleId"), Card.PromotionRoleId, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("OfferGroup"), Card.OfferGroup, Issues);
+		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), Card.bEnabled, Issues);
+		ReEchoCsv::RequireBool(Table, Row, TEXT("Offerable"), Card.bOfferable, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("StackPolicy"), Card.StackPolicy, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("ConflictPolicy"), Card.ConflictPolicy, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("ReviewStatus"), Card.ReviewStatus, Issues);
+		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Card.DisabledReason);
+
+		if (Card.Id.IsNone())
+		{
+			continue;
+		}
+		if (SeenIds.Contains(Card.Id))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+		}
+		if (Card.bEnabled && Card.ReviewStatus != TEXT("Approved"))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("ReviewStatus"), TEXT("Enabled card must be Approved"));
+		}
+		if (!Card.bEnabled && Card.DisabledReason.IsEmpty())
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("DisabledReason"), TEXT("Disabled source row requires a reason"));
+		}
+		if (Card.bOfferable && !Card.bEnabled)
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("Offerable"), TEXT("Offerable card must be enabled"));
+		}
+		SeenIds.Add(Card.Id);
+		Snapshot.CardOrder.Add(Card.Id);
+		Snapshot.Cards.Add(Card.Id, Card);
+	}
+	return Issues.Num() == 0;
+}
+
+bool ReadCardEffectsTable(const FString& DataDirectory,
+                          const ReEchoCsv::FManifestEntry& Entry,
+                          FReEchoCsvDataSnapshot& Snapshot,
+                          TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("CardId"),
+	                            TEXT("Order"),
+	                            TEXT("Trigger"),
+	                            TEXT("EffectKind"),
+	                            TEXT("Target"),
+	                            TEXT("ValueOp"),
+	                            TEXT("Value"),
+	                            TEXT("BehaviorId"),
+	                            TEXT("ParamName"),
+	                            TEXT("ParamValue")},
+	                           Issues);
+
+	TSet<FName> SeenIds;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvCardEffectRow Effect;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Effect.Id, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("CardId"), Effect.CardId, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("Order"), Effect.Order, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Trigger"), Effect.Trigger, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("EffectKind"), Effect.EffectKind, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Target"), Effect.Target, Issues);
+		ReEchoCsv::RequireValueOp(Table, Row, TEXT("ValueOp"), Effect.ValueOp, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("Value"), -100000.0f, 100000.0f, Effect.Value, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), Effect.BehaviorId, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("ParamName"), Effect.ParamName, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("ParamValue"), -100000.0f, 100000.0f, Effect.ParamValue, Issues);
+
+		if (SeenIds.Contains(Effect.Id))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+		}
+		if (FReEchoCsvCardRow* Card = Snapshot.Cards.Find(Effect.CardId))
+		{
+			Card->Effects.Add(Effect);
+		}
+		else
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("CardId"), TEXT("Unknown Cards.Id reference"));
+		}
+		if (!FReEchoCsvDataRegistry::IsEffectKindRegistered(Effect.EffectKind))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("EffectKind"), TEXT("Unknown registered C++ effect kind"));
+		}
+		if (!IsRegisteredOrNone(Effect.BehaviorId))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("BehaviorId"), TEXT("Unknown registered C++ behavior id"));
+		}
+		SeenIds.Add(Effect.Id);
+	}
+
+	for (auto& CardPair : Snapshot.Cards)
+	{
+		CardPair.Value.Effects.Sort(
+		    [](const FReEchoCsvCardEffectRow& Left, const FReEchoCsvCardEffectRow& Right)
+		    {
+			    return Left.Order < Right.Order;
+		    });
+		if (CardPair.Value.bEnabled && CardPair.Value.Effects.Num() == 0)
+		{
+			ReEchoCsv::AddIssue(Issues,
+			                    Table.File,
+			                    1,
+			                    TEXT("CardId"),
+			                    FString::Printf(TEXT("Enabled card %s has no effect rows"), *CardPair.Key.ToString()));
+		}
 	}
 	return Issues.Num() == 0;
 }
@@ -598,6 +488,39 @@ FString FReEchoCsvIssue::ToString() const
 const FReEchoRuntimeSmokeRow* FReEchoCsvDataSnapshot::FindRuntimeSmokeRow(const FName RowId) const
 {
 	return RuntimeSmokeRows.Find(RowId);
+}
+
+FName FReEchoCsvDataSnapshot::ResolveCharacterId(const FName CharacterId) const
+{
+	if (const FName* CanonicalId = CharacterAliases.Find(CharacterId))
+	{
+		return *CanonicalId;
+	}
+	return CharacterId;
+}
+
+const FReEchoCsvCharacterRow* FReEchoCsvDataSnapshot::FindCharacter(const FName CharacterId) const
+{
+	return Characters.Find(ResolveCharacterId(CharacterId));
+}
+
+const FReEchoCsvCardRow* FReEchoCsvDataSnapshot::FindCard(const FName CardId) const
+{
+	return Cards.Find(CardId);
+}
+
+TArray<FReEchoCsvCardRow> FReEchoCsvDataSnapshot::GetOfferableCards(const FName OfferGroup) const
+{
+	TArray<FReEchoCsvCardRow> Result;
+	for (const FName CardId : CardOrder)
+	{
+		const FReEchoCsvCardRow* Card = Cards.Find(CardId);
+		if (Card && Card->bEnabled && Card->bOfferable && Card->OfferGroup == OfferGroup)
+		{
+			Result.Add(*Card);
+		}
+	}
+	return Result;
 }
 
 FString FReEchoCsvLoadResult::FormatIssues() const
@@ -617,9 +540,21 @@ void FReEchoCsvDataRegistry::EnsureDefaultRegistrations()
 	{
 		return;
 	}
+	RegisteredBehaviorIds.Add(FName(BehaviorNone));
 	RegisteredBehaviorIds.Add(FName(DefaultBehaviorId));
 	RegisteredEffectKinds.Add(FName(DefaultEffectKind));
+	RegisteredEffectKinds.Add(FName(StatModifierEffectKind));
+	RegisteredEffectKinds.Add(FName(InstantRecoveryEffectKind));
 	bDefaultRegistrationsReady = true;
+}
+
+void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
+{
+	RegisterBehaviorId(TEXT("Character.SageBonusChoice"));
+	RegisterBehaviorId(TEXT("Character.PoetReactionGrowth"));
+	RegisterBehaviorId(TEXT("Character.BraveForge"));
+	RegisterBehaviorId(TEXT("Card.StatModifier"));
+	RegisterBehaviorId(TEXT("Card.InstantRecovery"));
 }
 
 void FReEchoCsvDataRegistry::RegisterBehaviorId(const FName BehaviorId)
@@ -669,8 +604,8 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 	TSharedRef<FReEchoCsvDataSnapshot> MutableSnapshot = MakeShared<FReEchoCsvDataSnapshot>();
 	MutableSnapshot->SchemaVersion = SupportedSchemaVersion;
 
-	TMap<FString, FReEchoManifestEntry> ManifestEntries;
-	ReadManifest(DataDirectory, ManifestEntries, Result.Issues);
+	TMap<FString, ReEchoCsv::FManifestEntry> ManifestEntries;
+	ReEchoCsv::ReadManifest(DataDirectory, GetRequiredTableIds(), ManifestEntries, Result.Issues);
 	if (Result.Issues.Num() == 0)
 	{
 		ReadRuntimeSmokeTable(DataDirectory, ManifestEntries[RuntimeSmokeTableId], *MutableSnapshot, Result.Issues);
@@ -680,13 +615,30 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 		ReadRuntimeSmokeEffectsTable(
 		    DataDirectory, ManifestEntries[RuntimeSmokeEffectsTableId], *MutableSnapshot, Result.Issues);
 	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReadCharactersTable(DataDirectory, ManifestEntries[CharactersTableId], *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReadCharacterAliasesTable(
+		    DataDirectory, ManifestEntries[CharacterAliasesTableId], *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReadCardsTable(DataDirectory, ManifestEntries[CardsTableId], *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReadCardEffectsTable(DataDirectory, ManifestEntries[CardEffectsTableId], *MutableSnapshot, Result.Issues);
+	}
 	if (Result.Issues.Num() == 0 && MutableSnapshot->RuntimeSmokeRows.Num() == 0)
 	{
-		AddIssue(Result.Issues,
-		         FPaths::Combine(DataDirectory, ManifestEntries[RuntimeSmokeTableId].FileName),
-		         1,
-		         TEXT("Id"),
-		         TEXT("RuntimeSmoke must contain at least one row"));
+		ReEchoCsv::AddIssue(Result.Issues,
+		                    FPaths::Combine(DataDirectory, ManifestEntries[RuntimeSmokeTableId].FileName),
+		                    1,
+		                    TEXT("Id"),
+		                    TEXT("RuntimeSmoke must contain at least one row"));
 	}
 
 	if (Result.Issues.Num() == 0)

@@ -15,9 +15,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "Content" / "Data"
 CSV_SCHEMA_VERSION = 1
-REGISTERED_BEHAVIOR_IDS = {"RuntimeSmoke.LogValue"}
-REGISTERED_EFFECT_KINDS = {"ScalarModifier"}
+REGISTERED_BEHAVIOR_IDS = {
+    "None",
+    "RuntimeSmoke.LogValue",
+    "Character.SageBonusChoice",
+    "Character.PoetReactionGrowth",
+    "Character.BraveForge",
+    "Card.StatModifier",
+    "Card.InstantRecovery",
+}
+REGISTERED_EFFECT_KINDS = {"ScalarModifier", "StatModifier", "InstantRecovery"}
 VALUE_OPS = {"Add", "Multiply", "Override"}
+CARD_TARGETS = {
+    "HpMax",
+    "HpPoint",
+    "PhysicalAttack",
+    "ElementalAttack",
+    "Block",
+    "AttackSpeed",
+    "MovementSpeed",
+    "EchoEfficiency",
+}
 
 
 class ValidationError(Exception):
@@ -52,6 +70,64 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "ParamName": CsvColumnSpec("StableId"),
         "ValueOp": CsvColumnSpec("ValueOp"),
         "Value": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
+    },
+    "Characters": {
+        "Id": CsvColumnSpec("StableId"),
+        "SourceWorkbookId": CsvColumnSpec("StableId"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+        "RoleId": CsvColumnSpec("StableId"),
+        "PromotionPriority": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DefaultWeaponId": CsvColumnSpec("StableId"),
+        "AppearanceId": CsvColumnSpec("StableId"),
+        "PassiveBehaviorId": CsvColumnSpec("BehaviorId"),
+        "PassiveValue": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "HpMax": CsvColumnSpec("Float", min_value=1.0, max_value=100000.0),
+        "PhysicalAttack": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "ElementalAttack": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "AttackSpeed": CsvColumnSpec("Float", min_value=0.1, max_value=100.0),
+        "MovementSpeed": CsvColumnSpec("Float", min_value=0.1, max_value=100.0),
+        "CriticalRate": CsvColumnSpec("PercentDecimal", min_value=0.0, max_value=1.0),
+        "CriticalEffect": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "EchoEfficiency": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "ReactionEfficiency": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "EverySecondAttackBonus": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "RandomElementProjectiles": CsvColumnSpec("Bool"),
+    },
+    "CharacterAliases": {
+        "Id": CsvColumnSpec("StableId"),
+        "CanonicalCharacterId": CsvColumnSpec("ForeignKey", reference_table="Characters"),
+        "Reason": CsvColumnSpec("Text"),
+    },
+    "Cards": {
+        "Id": CsvColumnSpec("StableId"),
+        "SourceWorkbookId": CsvColumnSpec("StableId"),
+        "Tier": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DisplayName": CsvColumnSpec("Text"),
+        "Description": CsvColumnSpec("Text"),
+        "Tags": CsvColumnSpec("StableIdList"),
+        "PromotionRoleId": CsvColumnSpec("StableId"),
+        "OfferGroup": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "Offerable": CsvColumnSpec("Bool"),
+        "StackPolicy": CsvColumnSpec("StableId"),
+        "ConflictPolicy": CsvColumnSpec("StableId"),
+        "ReviewStatus": CsvColumnSpec("StableId"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "CardEffects": {
+        "Id": CsvColumnSpec("StableId"),
+        "CardId": CsvColumnSpec("ForeignKey", reference_table="Cards"),
+        "Order": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Trigger": CsvColumnSpec("StableId"),
+        "EffectKind": CsvColumnSpec("EffectKind"),
+        "Target": CsvColumnSpec("StableId"),
+        "ValueOp": CsvColumnSpec("ValueOp"),
+        "Value": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
+        "BehaviorId": CsvColumnSpec("BehaviorId"),
+        "ParamName": CsvColumnSpec("StableId"),
+        "ParamValue": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
     },
 }
 
@@ -210,10 +286,16 @@ def validate_table(path: Path, table_id: str, references: dict[str, set[str]]) -
                 continue
             if spec.kind in {"StableId", "BehaviorId", "EffectKind", "ForeignKey"} and not stable_id(value):
                 fail(f"{rel(path)}:{line}:{column}: invalid stable id")
+            if spec.kind == "StableIdList":
+                for part in value.split("|"):
+                    if not stable_id(part):
+                        fail(f"{rel(path)}:{line}:{column}: invalid stable id list entry")
             if spec.kind == "Bool" and value not in {"true", "false"}:
                 fail(f"{rel(path)}:{line}:{column}: boolean must be lowercase true or false")
-            if spec.kind in {"Float", "PercentDecimal"}:
+            if spec.kind in {"Float", "PercentDecimal", "Int"}:
                 parse_float(path, row, column, spec)
+            if spec.kind == "Int" and float(value) != round(float(value)):
+                fail(f"{rel(path)}:{line}:{column}: value must be an integer")
             if spec.kind == "ValueOp" and value not in VALUE_OPS:
                 fail(f"{rel(path)}:{line}:{column}: value operation must be Add, Multiply or Override")
             if spec.kind == "BehaviorId" and value not in REGISTERED_BEHAVIOR_IDS:
@@ -237,6 +319,49 @@ def validate_csv_package(data_dir: Path) -> None:
     references: dict[str, set[str]] = {}
     references["RuntimeSmoke"] = validate_table(entries["RuntimeSmoke"], "RuntimeSmoke", references)
     references["RuntimeSmokeEffects"] = validate_table(entries["RuntimeSmokeEffects"], "RuntimeSmokeEffects", references)
+    references["Characters"] = validate_table(entries["Characters"], "Characters", references)
+    references["CharacterAliases"] = validate_table(entries["CharacterAliases"], "CharacterAliases", references)
+    references["Cards"] = validate_table(entries["Cards"], "Cards", references)
+    references["CardEffects"] = validate_table(entries["CardEffects"], "CardEffects", references)
+    validate_character_build_domain(data_dir, entries)
+
+
+def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) -> None:
+    characters = load_csv(entries["Characters"])
+    cards = load_csv(entries["Cards"])
+    effects = load_csv(entries["CardEffects"])
+    enabled_characters = {row["Id"] for row in characters if row["Enabled"] == "true"}
+    if {"J_CAT", "J_SPADE", "J_DIAMOND", "J_CLOVER", "J_HEART"} - enabled_characters:
+        fail(f"{rel(entries['Characters'])}: current playable character ids must remain enabled")
+    for row in characters:
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['Characters'])}:{row['__line__']}: disabled character requires DisabledReason")
+
+    enabled_cards = {row["Id"] for row in cards if row["Enabled"] == "true"}
+    offerable_traits = [row["Id"] for row in cards if row["OfferGroup"] == "Trait" and row["Offerable"] == "true"]
+    if offerable_traits != ["G_1_01", "G_1_02", "G_1_03", "G_1_04", "G_1_05", "G_1_08"]:
+        fail(f"{rel(entries['Cards'])}: current offerable trait pool changed: {offerable_traits}")
+    for row in cards:
+        if row["Enabled"] == "true" and row["ReviewStatus"] != "Approved":
+            fail(f"{rel(entries['Cards'])}:{row['__line__']}: enabled card must be Approved")
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['Cards'])}:{row['__line__']}: disabled card requires DisabledReason")
+        if row["Offerable"] == "true" and row["Enabled"] != "true":
+            fail(f"{rel(entries['Cards'])}:{row['__line__']}: offerable card must be enabled")
+
+    effects_by_card: dict[str, list[dict[str, str]]] = {}
+    seen_orders: set[tuple[str, str]] = set()
+    for row in effects:
+        if row["Target"] not in CARD_TARGETS:
+            fail(f"{rel(entries['CardEffects'])}:{row['__line__']}: unknown card effect target {row['Target']!r}")
+        key = (row["CardId"], row["Order"])
+        if key in seen_orders:
+            fail(f"{rel(entries['CardEffects'])}:{row['__line__']}: duplicate CardId/Order {key}")
+        seen_orders.add(key)
+        effects_by_card.setdefault(row["CardId"], []).append(row)
+    for card_id in enabled_cards:
+        if card_id not in effects_by_card:
+            fail(f"{rel(entries['CardEffects'])}: enabled card {card_id!r} has no effect rows")
 
 
 def expect_fixture_failure(name: str, token: str) -> None:
@@ -313,8 +438,8 @@ def validate_workflow() -> None:
         fail("AGENTS.md must remain the sole startup-order authority")
     if len(state_text.splitlines()) > 80:
         fail("PROJECT_STATE.md exceeded 80 lines; move history to plans/Git")
-    if "nineteen `ReEcho.*` automation tests pass" not in state_text:
-        fail("PROJECT_STATE.md must report the current nineteen-test baseline")
+    if "twenty `ReEcho.*` automation tests pass" not in state_text:
+        fail("PROJECT_STATE.md must report the current twenty-test baseline")
     active_block = exchange_text.split("## Active ownership", 1)[1].split("## Recently closed", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
         fail("completed Plans 07/08 must not retain active ownership")
@@ -325,7 +450,16 @@ def validate_workflow() -> None:
 
 def validate_build_dependencies() -> None:
     build_cs = (ROOT / "Source" / "ReEcho" / "ReEcho.Build.cs").read_text(encoding="utf-8")
-    for file_name in ("reecho_data_manifest.csv", "csv_schema.csv", "runtime_smoke.csv", "runtime_smoke_effects.csv"):
+    for file_name in (
+        "reecho_data_manifest.csv",
+        "csv_schema.csv",
+        "runtime_smoke.csv",
+        "runtime_smoke_effects.csv",
+        "characters.csv",
+        "character_aliases.csv",
+        "cards.csv",
+        "card_effects.csv",
+    ):
         if f"Content/Data/{file_name}" not in build_cs:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
 
@@ -349,7 +483,7 @@ def main() -> int:
     validate_workflow()
 
     print(f"[PASS] legacy migration-only JSON files={json_count} effective_cards={effective_cards} encounters={encounter_count}")
-    print("[PASS] CSV schema, production tables, fixtures, IDs, references, behavior/effect allowlists, UTF-8 and staging deps")
+    print("[PASS] CSV schema, production character/build tables, fixtures, IDs, references, behavior/effect allowlists, UTF-8 and staging deps")
     print("[PASS] workflow memory, token guards, and Unreal project descriptor present")
     print("Evidence level: static verified only (no UHT/UBT/PIE claim)")
     return 0

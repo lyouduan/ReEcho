@@ -43,6 +43,23 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Distance unit is centimeters"), Row->DistanceCm, 250.0f);
 	TestEqual(TEXT("Duration unit is seconds"), Row->DurationSeconds, 1.5f);
 	TestEqual(TEXT("One-to-many child effects attach by foreign key"), Row->Effects.Num(), 1);
+
+	const FReEchoCsvCharacterRow* Sage = Snapshot->FindCharacter(TEXT("J_01"));
+	if (!TestTrue(TEXT("Workbook character alias resolves to canonical runtime id"), Sage != nullptr))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Sage canonical id is preserved"), Sage->Id, FName(TEXT("J_SPADE")));
+	TestEqual(TEXT("Sage base health comes from CSV"), Sage->BaseStats.HpMax, 15.0f);
+
+	const TArray<FReEchoCsvCardRow> TraitCards = Snapshot->GetOfferableCards(TEXT("Trait"));
+	TestEqual(TEXT("Current trait draw pool contains six cards"), TraitCards.Num(), 6);
+	const FReEchoCsvCardRow* HealthCard = Snapshot->FindCard(TEXT("G_1_02"));
+	if (!TestTrue(TEXT("Health card exists"), HealthCard != nullptr))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Health card has max-health and recovery effects"), HealthCard->Effects.Num(), 2);
 	return true;
 }
 

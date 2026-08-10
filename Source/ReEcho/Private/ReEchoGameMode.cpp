@@ -242,10 +242,10 @@ void AReEchoGameMode::StartPlay()
 	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
 	{
 		const FName CharacterId = GetDefault<UReEchoBalanceSettings>()->DefaultCharacterId;
-		RunSubsystem->StartRun(CharacterId, TEXT("W_J_02"));
+		RunSubsystem->StartRun(CharacterId, NAME_None);
 		if (Player)
 		{
-			Player->ConfigureCharacter(CharacterId);
+			Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 		}
 	}
 	if (Player)
