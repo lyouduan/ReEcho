@@ -7,6 +7,7 @@
 
 /** 战斗录制器：按固定采样间隔保存位置，并记录技能与武器切换事件。 */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
+
 class REECHO_API UReEchoRecorderComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -32,6 +33,8 @@ public:
 	/** 封存录制时长并返回完整记录，调用后停止继续采样。 */
 	UFUNCTION(BlueprintCallable)
 	FReEchoRecording FinishRecording(float Duration);
+	/** Continue appending to a recording captured by save-and-quit. */
+	void ResumeRecording(const FReEchoRecording& SavedRecording);
 
 	UFUNCTION(BlueprintPure)
 	bool IsRecording() const;

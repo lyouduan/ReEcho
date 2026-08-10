@@ -1,0 +1,95 @@
+#include "Misc/AutomationTest.h"
+
+#include "Engine/GameInstance.h"
+#include "Kismet/GameplayStatics.h"
+#include "Run/ReEchoRunSaveGame.h"
+#include "Run/ReEchoRunSubsystem.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSaveSnapshotTest,
+                                 "ReEcho.Run.SaveSnapshot",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	Source->TimeShards = 45;
+	Source->InventoryItems.Add(TEXT("SHOP_OLD_COIN"));
+	Source->CurrentBuild.Cards.Add(TEXT("G_1_01"));
+	FReEchoRecording Recording;
+	Recording.Id = FGuid::NewGuid();
+	Recording.EncounterIndex = 1;
+	Source->AddRecording(Recording);
+	Source->SetAnchor(Recording.Id);
+	Source->BeginEncounter();
+
+	UReEchoRunSaveGame* Snapshot = Source->CreateSaveSnapshot();
+	TestNotNull(TEXT("A save snapshot is created"), Snapshot);
+	TestEqual(TEXT("Mid-encounter save resumes before that encounter"), Snapshot->EncounterIndex, 0);
+	TestEqual(TEXT("Mid-encounter phase normalizes to planning"), Snapshot->SavedPhase, EReEchoRunPhase::Planning);
+
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	TestTrue(TEXT("Compatible save snapshot restores"), Restored->RestoreSaveSnapshot(*Snapshot));
+	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
+	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
+	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.Cards.Num(), 1);
+	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
+	TestEqual(TEXT("Recording history restores"), RestoredRecordings.Num(), 1);
+	TestEqual(TEXT("Anchor restores"), RestoredRecordings[0].Id, Recording.Id);
+
+	FReEchoEncounterRuntimeState EncounterState;
+	EncounterState.bValid = true;
+	EncounterState.EncounterTime = 12.5f;
+	EncounterState.PlayerHealth = 63.0f;
+	EncounterState.PlayerStats.HpMax = 95.0f;
+	EncounterState.PlayerStats.Block = 1;
+	EncounterState.PlayerVelocity = FVector(25.0f, -10.0f, 0.0f);
+	EncounterState.PlayerTransform.SetLocation(FVector(120.0f, -80.0f, 112.0f));
+	EncounterState.ActiveRecording.EncounterIndex = Source->EncounterIndex;
+	FReEchoEnemyRuntimeState EnemyState;
+	EnemyState.Kind = 2;
+	EnemyState.SpawnIndex = 4;
+	EnemyState.CurrentHealth = 7.0f;
+	EncounterState.Enemies.Add(EnemyState);
+	UReEchoRunSaveGame* SuspendedSnapshot = Source->CreateSaveSnapshot(&EncounterState);
+	TestEqual(
+	    TEXT("Explicit quit preserves encounter phase"), SuspendedSnapshot->SavedPhase, EReEchoRunPhase::Encounter);
+	TestEqual(TEXT("Explicit quit preserves current encounter index"), SuspendedSnapshot->EncounterIndex, 1);
+	TestEqual(
+	    TEXT("Explicit quit preserves encounter time"), SuspendedSnapshot->EncounterRuntimeState.EncounterTime, 12.5f);
+	TArray<uint8> SerializedSave;
+	TestTrue(TEXT("Suspended encounter serializes through SaveGame archive"),
+	         UGameplayStatics::SaveGameToMemory(SuspendedSnapshot, SerializedSave));
+	const UReEchoRunSaveGame* DeserializedSnapshot =
+	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromMemory(SerializedSave));
+	TestNotNull(TEXT("Suspended encounter deserializes through SaveGame archive"), DeserializedSnapshot);
+	if (DeserializedSnapshot)
+	{
+		TestEqual(TEXT("Serialized encounter time survives round trip"),
+		          DeserializedSnapshot->EncounterRuntimeState.EncounterTime,
+		          12.5f);
+		TestEqual(TEXT("Serialized enemy runtime survives round trip"),
+		          DeserializedSnapshot->EncounterRuntimeState.Enemies.Num(),
+		          1);
+	}
+
+	UGameInstance* SuspendedGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* SuspendedRun = NewObject<UReEchoRunSubsystem>(SuspendedGameInstance);
+	TestTrue(TEXT("Suspended encounter snapshot restores"), SuspendedRun->RestoreSaveSnapshot(*SuspendedSnapshot));
+	TestTrue(TEXT("Suspended encounter is pending for GameMode restoration"),
+	         SuspendedRun->HasPendingEncounterResume());
+	const FReEchoEncounterRuntimeState RestoredEncounter = SuspendedRun->ConsumePendingEncounterResume();
+	TestEqual(TEXT("Player health restores from suspended encounter"), RestoredEncounter.PlayerHealth, 63.0f);
+	TestEqual(TEXT("Enemy runtime state restores"), RestoredEncounter.Enemies.Num(), 1);
+	TestFalse(TEXT("Suspended encounter snapshot is consumed once"), SuspendedRun->HasPendingEncounterResume());
+
+	Snapshot->SaveVersion = UReEchoRunSaveGame::CurrentSaveVersion + 1;
+	TestFalse(TEXT("Incompatible save version is rejected"), Restored->RestoreSaveSnapshot(*Snapshot));
+	return true;
+}
+
+#endif

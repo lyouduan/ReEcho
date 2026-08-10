@@ -10,11 +10,13 @@ class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
 class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
+class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UMaterialInterface;
 class UTexture2D;
+struct FReEchoEncounterRuntimeState;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
 UCLASS()
 
@@ -66,6 +68,8 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoStartMenuWidget> StartMenuWidget;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
@@ -80,6 +84,8 @@ private:
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
 	bool bRestartScreenIsTerminal = false;
+	bool bAwaitingStartChoice = true;
+	bool bQuitConfirmationVisible = false;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
@@ -109,6 +115,12 @@ private:
 	void HandleQuitRequested();
 
 	UFUNCTION()
+	void HandleNewGameRequested();
+
+	UFUNCTION()
+	void HandleContinueGameRequested();
+
+	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
 	void CreateArena();
 	void UpdateWeatherScene(int32 EncounterIndex);
@@ -128,11 +140,16 @@ private:
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
+	void ResumeSavedEncounter();
+	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;
 	void SpawnEnemies(int32 EncounterIndex);
 	void ClearCombatants();
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowTraitCardChoice();
+	void ShowStartMenu();
+	void BeginSelectedRun();
+	void SetGameplayPresentationVisible(bool bVisible);
 	void RestoreGameInput();
 	void SetPlayerMenuAbilityBlocked(bool bBlocked);
 };

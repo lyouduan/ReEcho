@@ -32,6 +32,9 @@ public:
 	void SetDeathScreen(bool bInDeathScreen);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount);
+	/** Pause-menu second step: only resume or confirm save-and-quit remain actionable. */
+	void SetQuitConfirmation(bool bInQuitConfirmation);
+	void ShowSaveFailure();
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -65,8 +68,13 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> QuitButton;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> QuitButtonText;
+
 	bool bDeathScreen = false;
 	bool bVictoryScreen = false;
+	bool bQuitConfirmation = false;
+	bool bSaveFailed = false;
 	int32 VictoryTimeShards = 0;
 	int32 VictoryTraitCount = 0;
 };

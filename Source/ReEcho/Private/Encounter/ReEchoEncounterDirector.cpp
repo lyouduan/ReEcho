@@ -16,6 +16,16 @@ void AReEchoEncounterDirector::StartEncounter()
 	bRunning = true;
 }
 
+void AReEchoEncounterDirector::ResumeEncounter(const float SavedEncounterTime)
+{
+	EncounterTime = FMath::Clamp(
+	    SavedEncounterTime, 0.0f, GetDefault<UReEchoBalanceSettings>()->EncounterDuration - KINDA_SMALL_NUMBER);
+	Accumulator = 0.0f;
+	FixedDelta = 1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
+	bSetupPhase = EncounterTime < GetDefault<UReEchoBalanceSettings>()->SetupDuration;
+	bRunning = true;
+}
+
 void AReEchoEncounterDirector::EndEncounter()
 {
 	if (!bRunning)
@@ -58,4 +68,3 @@ void AReEchoEncounterDirector::SetPaused(bool bInPaused)
 {
 	bSimulationPaused = bInPaused;
 }
-

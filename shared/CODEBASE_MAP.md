@@ -47,8 +47,10 @@ DefaultEngine.ini
   -> AReEchoGameMode::StartPlay
        -> CreateArena (bounded hidden collision arena, camera-aligned unlit backdrop, light)
        -> spawn AReEchoEncounterDirector
-       -> UReEchoRunSubsystem::StartRun
-       -> BeginNextEncounter
+       -> show UReEchoStartMenuWidget
+            -> new game: UReEchoRunSubsystem::StartRun
+            -> continue: load safe checkpoint or suspended encounter
+       -> BeginNextEncounter or ResumeSavedEncounter
             -> reset player + begin UReEchoRecorderComponent
             -> spawn prior AReEchoEchoActor when history exists
             -> spawn enemy composition
@@ -62,6 +64,10 @@ All enemies dead or timer expires
   -> finish recording
   -> UReEchoRunSubsystem::CompleteEncounter
   -> next encounter (six total)
+
+Esc -> pause menu -> exit
+  -> confirmation: continue game or save-and-quit
+  -> encounter save captures clock, player, active recording and living enemies
 ```
 
 ## Runtime module map
@@ -84,8 +90,8 @@ All enemies dead or timer expires
 | Damage numbers | `AReEchoDamageNumberActor` | `UI/ReEchoDamageNumberActor.*`, damage callers | Camera-facing floating `-N` text for actual damage applied to player/enemies |
 | Recording | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz positions and successful active-skill events |
 | Playback | `UReEchoPlaybackComponent` | `Recording/ReEchoPlaybackComponent.*` | Interpolated historical position and crossed skill events |
-| Run state | `UReEchoRunSubsystem` | `Run/ReEchoRunSubsystem.*` | Run phase, encounter index, build, recording history and anchor |
-| Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements and phases |
+| Run state/save | `UReEchoRunSubsystem`, `UReEchoRunSaveGame` | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | Run phase, encounter index, build, inventory, recording history, anchor, safe checkpoints and explicit suspended-encounter persistence |
+| Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements, phases and suspended encounter/enemy runtime state |
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
 | Health UI | `UReEchoPlayerHudWidget`, `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`, `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Top-left portrait/live health HUD for the player; camera-facing world bars remain enemy-only |
 | Encounter HUD | `UReEchoEncounterHudWidget` | `UI/ReEchoEncounterHudWidget.*`, `ReEchoGameMode.*` | Right-top current encounter and remaining-time display; final five seconds turn red |
@@ -93,9 +99,10 @@ All enemies dead or timer expires
 | Player/echo stats | `UReEchoStatsWidget` | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*`, `Graybox/ReEchoEchoActor.*` | Tab-paused two-column live stats over the imported blurred clockwork background; handles runs without an active echo |
 | Weather scenes | `UReEchoWeatherWidget` | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*`, `ReEchoBalanceSettings.h` | Configurable per-encounter rain streaks and player/echo-centered fog-of-war rendered as input-transparent screen-space presentation |
 | GM/debug commands | `AReEchoGameMode` exec functions | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Development-console status, healing, Time Shards, weather override and enemy-clear commands; rejected in Shipping |
-| Pause/restart UI | `UReEchoRestartWidget` | `UI/ReEchoRestartWidget.*`, `ReEchoGameMode.*` | Esc pause overlay, resume, full-level restart, packaged quit, death-screen and terminal Boss-victory actions |
+| Start/continue UI | `UReEchoStartMenuWidget` | `UI/ReEchoStartMenuWidget.*`, `Run/ReEchoRunSaveGame.h`, `ReEchoGameMode.*` | Blocking startup choice: new game only without a valid save, or continue/new game when a compatible save exists |
+| Pause/restart UI | `UReEchoRestartWidget` | `UI/ReEchoRestartWidget.*`, `ReEchoGameMode.*` | Esc pause overlay, resume, full-level restart, two-step save-and-quit confirmation, death-screen and terminal Boss-victory actions |
 | Trait choice UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*` | Three deterministic, unique, least-owned-priority offers after a cleared encounter; only the pending offer can mutate the build |
-| Tests | Recording/GAS/run/shop/trait automation | `Private/Tests/*` | Recording interpolation/timeline, GAS structure, final-Boss gate, shop purchase and deterministic pending-trait regressions |
+| Tests | Recording/GAS/run/save/shop/trait automation | `Private/Tests/*` | Recording interpolation/timeline, GAS structure, final-Boss gate, safe/suspended save snapshots, shop purchase and deterministic pending-trait regressions |
 
 Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Private`.
 
@@ -108,7 +115,7 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 - Enemy hit feedback: short stagger, source-opposed knockback and decaying lateral shake; blocked hits do not trigger it.
 - Player, echo and 2D enemies animate their existing static textures with sprite-local bob, squash, lunge and recovery; enemy death adds a short shrink/fall before destruction.
 - Player and enemies use compact camera-facing world health bars anchored above their 2D visual.
-- Esc pauses into a resume/restart/quit menu; death and Boss victory expose restart/quit; Shipping builds call platform QuitGame.
+- Esc pauses into a resume/restart/quit menu. Quit requires confirmation and a successful save; Continue or Esc cancels and resumes. Death and Boss victory expose restart/quit; Shipping builds call platform QuitGame.
 - Clearing all living enemies ends the encounter immediately; timeout is the fallback.
 - Automatic echo attacks are not serialized. Recording stores player position plus successful active-skill events.
 
