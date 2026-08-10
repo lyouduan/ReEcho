@@ -157,7 +157,7 @@ Plan 23 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ### Planner review after remote integration
 
-Plan 23 is integrated onto the remote-feature baseline but is not yet accepted. The executor must correct and test these items before another review:
+Plan 23 was integrated onto the remote-feature baseline and the following review items were corrected. Planner acceptance completed on 2026-08-10 after source review, Editor Development build, static validation and all 27 `ReEcho.*` automation tests passed:
 
 - Conduct must implement the workbook contract `(ElementalAttack + 2) * ReactionEfficiency * DamageIncrease`; do not model the `+2` term as a multiplicative CSV value.
 - Growth radius must scale by `ReactionEfficiency`. Growth attachment must go through `AttachElementIfAllowed` (or the shared equivalent) and must not grant elemental immunity.

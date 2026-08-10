@@ -12,6 +12,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 | Date | Plan | Result | Human follow-up |
 |---|---|---|---|
+| 2026-08-10 | Plan 23 element/status/reaction CSV migration (formerly local Plan 20) | Typed element domain reader, six ordered reactions, corrected workbook formulas, deterministic Burn refresh/save continuation and 27 passing tests; planner accepted for local merge | Continue with Plan 24 weapon/slot CSV migration; unified human PIE remains after Plan 25 |
 | 2026-08-10 | Plan 22 character/build CSV migration (formerly local Plan 19) | Character/build domain reader, runtime-authoritative character/card tables, hard failure without fallback, atomic effects and 22 passing tests; human accepted and planner merged locally | Continue with Plan 23 element migration |
 | 2026-08-10 | Plan 21 CSV runtime foundation (formerly local Plan 18) | Immutable startup-loaded CSV snapshot, strict typed validation, 19 tests and clean Shipping loose-file smoke; human accepted and planner merged locally | Continue serially with Plan 22 |
 | 2026-08-10 | Plan 20 guided code reading (formerly local Plan 17) | Read-only walkthrough of startup, encounter, recording, run-state and echo-playback flow; human accepted | Choose a future focused reading plan if needed |
