@@ -106,7 +106,7 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 
 ### Changed
 
-- Created isolated worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan19-character-build-csv` on branch `plan/19-character-build-csv` from local main `c34b10d`.
+- Created an isolated sibling worktree on branch `plan/19-character-build-csv` from local main `c34b10d`.
 - Split the Plan 18 registry implementation into a private reusable CSV reader layer (`ReEchoCsvDataReader.*`) and a registry/domain orchestration layer (`ReEchoCsvDataRegistry.cpp`). The public entry point remains `FReEchoCsvDataRegistry`; snapshots are still loaded into temporary structures and published atomically.
 - Added production CSV tables `characters.csv`, `character_aliases.csv`, `cards.csv` and `card_effects.csv`, plus manifest/schema/build staging/fixture/static-validator coverage.
 - Added explicit `RegisterBuiltInCsvBehaviors()` and call it from `FReEchoModule::StartupModule()` before `LoadAndPublishDefault()`. Registered behavior/effect ids now cover character passives and card numeric effects without relying on static initialization order.
