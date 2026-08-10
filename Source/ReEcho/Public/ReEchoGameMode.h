@@ -8,13 +8,16 @@ class AReEchoEchoActor;
 class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
+class UReEchoLoadoutSelectionWidget;
 class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
+class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UMaterialInterface;
 class UTexture2D;
+struct FReEchoEncounterRuntimeState;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
 UCLASS()
 
@@ -66,6 +69,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoStartMenuWidget> StartMenuWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoLoadoutSelectionWidget> LoadoutSelectionWidget;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
@@ -80,6 +87,9 @@ private:
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
 	bool bRestartScreenIsTerminal = false;
+	bool bAwaitingStartChoice = true;
+	bool bQuitConfirmationVisible = false;
+	bool bContinueRunAfterShop = false;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
@@ -96,6 +106,7 @@ private:
 
 	UFUNCTION()
 	void HandlePlayerWeaponChanged(FName WeaponId);
+
 	UFUNCTION()
 	void HandlePlayerDeath();
 
@@ -107,6 +118,15 @@ private:
 
 	UFUNCTION()
 	void HandleQuitRequested();
+
+	UFUNCTION()
+	void HandleNewGameRequested();
+
+	UFUNCTION()
+	void HandleContinueGameRequested();
+
+	UFUNCTION()
+	void HandleLoadoutConfirmed(FName CharacterId, FName WeaponId);
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
@@ -128,11 +148,17 @@ private:
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
+	void ResumeSavedEncounter();
+	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;
 	void SpawnEnemies(int32 EncounterIndex);
 	void ClearCombatants();
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowTraitCardChoice();
+	void ShowStartMenu();
+	void ShowLoadoutSelection();
+	void BeginSelectedRun();
+	void SetGameplayPresentationVisible(bool bVisible);
 	void RestoreGameInput();
 	void SetPlayerMenuAbilityBlocked(bool bBlocked);
 };

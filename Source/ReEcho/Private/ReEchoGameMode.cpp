@@ -26,8 +26,10 @@
 #include "Run/ReEchoRunSubsystem.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
+#include "UI/ReEchoLoadoutSelectionWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
+#include "UI/ReEchoStartMenuWidget.h"
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/ReEchoWeatherWidget.h"
@@ -230,6 +232,7 @@ void AReEchoGameMode::StartPlay()
 		    CreateWidget<UReEchoEncounterHudWidget>(PlayerController, UReEchoEncounterHudWidget::StaticClass());
 		if (EncounterHudWidget)
 		{
+			EncounterHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 			EncounterHudWidget->AddToViewport(10);
 		}
 	}
@@ -238,15 +241,6 @@ void AReEchoGameMode::StartPlay()
 		Player->OnActiveSkill.AddDynamic(this, &AReEchoGameMode::HandlePlayerSkill);
 		Player->OnWeaponChanged.AddDynamic(this, &AReEchoGameMode::HandlePlayerWeaponChanged);
 		Player->Combatant->OnDeath.AddDynamic(this, &AReEchoGameMode::HandlePlayerDeath);
-	}
-	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
-	{
-		const FName CharacterId = GetDefault<UReEchoBalanceSettings>()->DefaultCharacterId;
-		RunSubsystem->StartRun(CharacterId, NAME_None);
-		if (Player)
-		{
-			Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
-		}
 	}
 	if (Player)
 	{
@@ -257,12 +251,191 @@ void AReEchoGameMode::StartPlay()
 			if (PlayerHudWidget)
 			{
 				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
-				PlayerHudWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 				PlayerHudWidget->AddToViewport(12);
 			}
 		}
 	}
-	BeginNextEncounter();
+	SetGameplayPresentationVisible(false);
+	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowStartMenu);
+}
+
+void AReEchoGameMode::ShowStartMenu()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!PlayerController || !RunSubsystem || StartMenuWidget)
+	{
+		return;
+	}
+
+	StartMenuWidget = CreateWidget<UReEchoStartMenuWidget>(PlayerController, UReEchoStartMenuWidget::StaticClass());
+	if (!StartMenuWidget)
+	{
+		return;
+	}
+	const bool bHasSavedRun = RunSubsystem->HasSavedRun();
+	StartMenuWidget->InitializeMenu(bHasSavedRun);
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[ReEchoStartFlow] Showing start menu. HasSavedRun=%s"),
+	       bHasSavedRun ? TEXT("true") : TEXT("false"));
+	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
+	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
+	StartMenuWidget->AddToViewport(200);
+	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(StartMenuWidget->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
+	SetPlayerMenuAbilityBlocked(true);
+	UGameplayStatics::SetGamePaused(this, true);
+}
+
+void AReEchoGameMode::HandleNewGameRequested()
+{
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] New game requested."));
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		return;
+	}
+	RunSubsystem->DeleteSavedRun();
+	ShowLoadoutSelection();
+}
+
+void AReEchoGameMode::HandleContinueGameRequested()
+{
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Continue requested."));
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !RunSubsystem->LoadSavedRun())
+	{
+		if (StartMenuWidget)
+		{
+			StartMenuWidget->InitializeMenu(false);
+		}
+		return;
+	}
+	BeginSelectedRun();
+}
+
+void AReEchoGameMode::ShowLoadoutSelection()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PlayerController || LoadoutSelectionWidget)
+	{
+		return;
+	}
+	UReEchoLoadoutSelectionWidget* NewLoadoutSelectionWidget =
+	    CreateWidget<UReEchoLoadoutSelectionWidget>(PlayerController, UReEchoLoadoutSelectionWidget::StaticClass());
+	if (!NewLoadoutSelectionWidget)
+	{
+		return;
+	}
+	if (StartMenuWidget)
+	{
+		StartMenuWidget->RemoveFromParent();
+		StartMenuWidget = nullptr;
+	}
+
+	LoadoutSelectionWidget = NewLoadoutSelectionWidget;
+	LoadoutSelectionWidget->OnLoadoutConfirmed.AddDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->AddToViewport(210);
+	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(LoadoutSelectionWidget->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
+	SetPlayerMenuAbilityBlocked(true);
+	UGameplayStatics::SetGamePaused(this, true);
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing first-encounter loadout selection."));
+}
+
+void AReEchoGameMode::HandleLoadoutConfirmed(const FName CharacterId, const FName WeaponId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		return;
+	}
+
+	RunSubsystem->StartRun(CharacterId, WeaponId);
+	if (!RunSubsystem->SaveRun())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ReEchoStartFlow] Initial loadout save failed."));
+		return;
+	}
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[ReEchoStartFlow] Loadout locked. Character=%s Weapon=%s"),
+	       *CharacterId.ToString(),
+	       *WeaponId.ToString());
+	BeginSelectedRun();
+}
+
+void AReEchoGameMode::BeginSelectedRun()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		return;
+	}
+	if (StartMenuWidget)
+	{
+		StartMenuWidget->RemoveFromParent();
+		StartMenuWidget = nullptr;
+	}
+	if (LoadoutSelectionWidget)
+	{
+		LoadoutSelectionWidget->RemoveFromParent();
+		LoadoutSelectionWidget = nullptr;
+	}
+	bAwaitingStartChoice = false;
+	SetGameplayPresentationVisible(true);
+	if (Player)
+	{
+		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
+	}
+	RestoreGameInput();
+	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice || RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice)
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+	}
+	else if (RunSubsystem->Phase == EReEchoRunPhase::Encounter && RunSubsystem->HasPendingEncounterResume())
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ResumeSavedEncounter);
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+	}
+}
+
+void AReEchoGameMode::SetGameplayPresentationVisible(const bool bVisible)
+{
+	const ESlateVisibility PassiveVisibility =
+	    bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed;
+	if (WeatherWidget)
+	{
+		WeatherWidget->SetVisibility(PassiveVisibility);
+	}
+	if (EncounterHudWidget)
+	{
+		EncounterHudWidget->SetVisibility(PassiveVisibility);
+	}
+	if (PlayerHudWidget)
+	{
+		PlayerHudWidget->SetVisibility(PassiveVisibility);
+	}
+	if (Player)
+	{
+		Player->SetActorHiddenInGame(!bVisible);
+		Player->SetActorEnableCollision(bVisible);
+	}
 }
 
 void AReEchoGameMode::UpdateWeatherScene(const int32 EncounterIndex)
@@ -374,6 +547,7 @@ void AReEchoGameMode::BeginNextEncounter()
 	{
 		Player->SetActorLocation(FVector(0, 0, 112));
 		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
+		Player->RestoreEquippedWeapon(RunSubsystem->CurrentBuild.WeaponId);
 		const FReEchoStatBlock& Stats = RunSubsystem->CurrentBuild.Stats;
 		Player->Combatant->InitializeFromStats(Stats, true);
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
@@ -399,6 +573,92 @@ void AReEchoGameMode::BeginNextEncounter()
 	}
 	SpawnEnemies(RunSubsystem->EncounterIndex);
 	Director->StartEncounter();
+}
+
+FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() const
+{
+	FReEchoEncounterRuntimeState Result;
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || RunSubsystem->Phase != EReEchoRunPhase::Encounter || !Director || !Player ||
+	    !Player->Combatant || !Player->Combatant->IsAlive() || !Player->Recorder->IsRecording())
+	{
+		return Result;
+	}
+
+	Result.bValid = true;
+	Result.EncounterTime = Director->EncounterTime;
+	Result.PlayerTransform = Player->GetActorTransform();
+	Result.PlayerHealth = Player->Combatant->CurrentHealth;
+	Result.PlayerStats = Player->Combatant->Stats;
+	Result.PlayerVelocity = Player->GetVelocity();
+	Result.ActiveRecording = Player->Recorder->GetRecording();
+	for (TActorIterator<AReEchoEnemyActor> EnemyIterator(GetWorld()); EnemyIterator; ++EnemyIterator)
+	{
+		if (EnemyIterator->IsAlive())
+		{
+			Result.Enemies.Add(EnemyIterator->CaptureRuntimeState());
+		}
+	}
+	Result.Enemies.Sort(
+	    [](const FReEchoEnemyRuntimeState& Left, const FReEchoEnemyRuntimeState& Right)
+	    {
+		    return Left.SpawnIndex < Right.SpawnIndex;
+	    });
+	return Result;
+}
+
+void AReEchoGameMode::ResumeSavedEncounter()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !RunSubsystem->HasPendingEncounterResume() || !Player || !Director)
+	{
+		return;
+	}
+
+	const FReEchoEncounterRuntimeState SavedState = RunSubsystem->ConsumePendingEncounterResume();
+	ClearCombatants();
+	bEncounterTransitioning = false;
+	bEncounterClearedByDefeat = false;
+	UpdateWeatherScene(RunSubsystem->EncounterIndex);
+
+	Player->SetActorTransform(SavedState.PlayerTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
+	Player->RestoreEquippedWeapon(RunSubsystem->CurrentBuild.WeaponId);
+	Player->Combatant->InitializeFromStats(SavedState.PlayerStats, true);
+	Player->Combatant->RestoreCurrentHealth(SavedState.PlayerHealth);
+	Player->Movement->MaxSpeed = 420.0f * SavedState.PlayerStats.MovementSpeed;
+	Player->Movement->Velocity = SavedState.PlayerVelocity;
+	Player->Recorder->ResumeRecording(SavedState.ActiveRecording);
+	if (PlayerHudWidget)
+	{
+		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+	}
+
+	const TArray<FReEchoRecording> Recordings = RunSubsystem->GetEchoRecordings(1);
+	if (!Recordings.IsEmpty())
+	{
+		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
+		if (Echo)
+		{
+			Echo->InitializeEcho(Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency);
+			Echo->AdvanceEcho(SavedState.EncounterTime);
+			Echoes.Add(Echo);
+		}
+	}
+	if (WeatherWidget)
+	{
+		WeatherWidget->SetFogRevealSources(Player, Echoes.IsEmpty() ? nullptr : Echoes[0].Get());
+	}
+
+	for (const FReEchoEnemyRuntimeState& EnemyState : SavedState.Enemies)
+	{
+		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>();
+		if (Enemy)
+		{
+			Enemy->RestoreRuntimeState(EnemyState);
+		}
+	}
+	Director->ResumeEncounter(SavedState.EncounterTime);
 }
 
 void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
@@ -548,6 +808,10 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 
 void AReEchoGameMode::TogglePauseMenu()
 {
+	if (bAwaitingStartChoice)
+	{
+		return;
+	}
 	if (StatsWidget)
 	{
 		HandleStatsClosed();
@@ -701,12 +965,18 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 
 void AReEchoGameMode::HandleInventoryShopClosed()
 {
+	const bool bShouldStartNextEncounter = bContinueRunAfterShop;
+	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
 	{
 		InventoryShopWidget->RemoveFromParent();
 		InventoryShopWidget = nullptr;
 	}
 	RestoreGameInput();
+	if (bShouldStartNextEncounter)
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+	}
 }
 
 void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
@@ -714,12 +984,14 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (RunSubsystem && InventoryShopWidget && RunSubsystem->PurchaseShopItem(ItemId))
 	{
+		RunSubsystem->SaveRun();
 		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
 	}
 }
 
 void AReEchoGameMode::HandleResumeRequested()
 {
+	bQuitConfirmationVisible = false;
 	if (RestartWidget)
 	{
 		RestartWidget->RemoveFromParent();
@@ -731,6 +1003,42 @@ void AReEchoGameMode::HandleResumeRequested()
 
 void AReEchoGameMode::HandleQuitRequested()
 {
+	if (!bRestartScreenIsTerminal && !bQuitConfirmationVisible)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing save-and-quit confirmation."));
+		bQuitConfirmationVisible = true;
+		if (RestartWidget)
+		{
+			RestartWidget->SetQuitConfirmation(true);
+		}
+		return;
+	}
+
+	if (!bRestartScreenIsTerminal)
+	{
+		UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		const FReEchoEncounterRuntimeState EncounterState = CaptureEncounterRuntimeState();
+		bool bSaved = false;
+		if (RunSubsystem)
+		{
+			bSaved = RunSubsystem->Phase == EReEchoRunPhase::Encounter
+			             ? EncounterState.bValid && RunSubsystem->SaveRun(&EncounterState)
+			             : RunSubsystem->SaveRun();
+		}
+		if (!bSaved)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[ReEchoStartFlow] Save-and-quit aborted because persistence failed."));
+			if (RestartWidget)
+			{
+				RestartWidget->ShowSaveFailure();
+			}
+			return;
+		}
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[ReEchoStartFlow] Save-and-quit succeeded. EncounterSnapshot=%s"),
+		       EncounterState.bValid ? TEXT("true") : TEXT("false"));
+	}
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, false);
 }
@@ -778,6 +1086,14 @@ void AReEchoGameMode::HandleEncounterEnded()
 	    bPlayerSurvived && bEncounterClearedByDefeat &&
 	    RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
 	RunSubsystem->CompleteEncounter(Recording, bPlayerSurvived, bBossKilled);
+	if (RunSubsystem->Phase == EReEchoRunPhase::Summary || RunSubsystem->Phase == EReEchoRunPhase::Failed)
+	{
+		RunSubsystem->DeleteSavedRun();
+	}
+	else
+	{
+		RunSubsystem->SaveRun();
+	}
 	if (!bPlayerSurvived)
 	{
 		return;
@@ -821,7 +1137,8 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	TraitCardChoiceWidget->InitializeOffers(Offers);
+	TraitCardChoiceWidget->InitializeOffers(
+	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	TraitCardChoiceWidget->AddToViewport(90);
 
@@ -847,6 +1164,7 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	{
 		return;
 	}
+	RunSubsystem->SaveRun();
 
 	if (TraitCardChoiceWidget)
 	{
@@ -854,14 +1172,20 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		TraitCardChoiceWidget = nullptr;
 	}
 
-	RestoreGameInput();
 	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
 	{
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
 	}
 	else
 	{
-		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		bContinueRunAfterShop = true;
+		ShowInventoryShopMenu(true);
+		if (!InventoryShopWidget)
+		{
+			bContinueRunAfterShop = false;
+			RestoreGameInput();
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		}
 	}
 }
 
@@ -895,7 +1219,7 @@ void AReEchoGameMode::RestoreGameInput()
 void AReEchoGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (!Director || !Player)
+	if (bAwaitingStartChoice || !Director || !Player)
 	{
 		return;
 	}

@@ -1,4 +1,4 @@
-# Plan 17 - onboarding - guided code reading
+# Plan 20 - onboarding - guided code reading
 
 ## Locked goal
 
@@ -71,8 +71,8 @@
 
 ### Evidence
 
-- 2026-08-10：用户明确确认“Plan 17 已经完成”，作为本任务最终人验拍板。
-- 仓库不存在 `plan/17*` 分支或额外 worktree，因此无需执行 worktree/分支清理。
+- 2026-08-10：用户明确确认“Plan 20 已经完成”，作为本任务最终人验拍板。
+- 仓库不存在 `plan/20*` 分支或额外 worktree，因此无需执行 worktree/分支清理。
 - 本任务不要求 UHT、UBT、自动化或 PIE，不作对应证据声明。
 
 ### Remaining risks
@@ -89,11 +89,11 @@
 你是 ReEcho 项目的执行者，任务是陪我快速读代码，不是替我生成一份长篇总结。
 
 仓库：当前 ReEcho 仓库根目录
-先读 AGENTS.md，并按它的最小读取顺序读取；再读 plans/17-codebase-guided-reading.md。只从 CODEBASE_MAP 提取与整体运行流程/回响相关的路由，不要整读 LESSONS。
+先读 AGENTS.md，并按它的最小读取顺序读取；再读 plans/20-codebase-guided-reading.md。只从 CODEBASE_MAP 提取与整体运行流程/回响相关的路由，不要整读 LESSONS。
 
 严格只读：不要切分支、改文件、启动 UE、构建、暂存、提交或清理工作树。现有 .uasset 和 Asset/ 变更属于用户，完全不要碰。
 
-按 Plan 17 的路线互动带读：每次只给我一个小步骤，提供当前文件路径、关键符号和行号，先让我打开/看代码，再解释“谁调用它、改变什么状态、下一站去哪”，然后等我确认或提问再继续。目标是让我读通：StartPlay → Encounter 固定步 → 玩家输入/攻击 → Recorder → CompleteEncounter/RunSubsystem → 下一局 Playback/Echo。
+按 Plan 20 的路线互动带读：每次只给我一个小步骤，提供当前文件路径、关键符号和行号，先让我打开/看代码，再解释“谁调用它、改变什么状态、下一站去哪”，然后等我确认或提问再继续。目标是让我读通：StartPlay → Encounter 固定步 → 玩家输入/攻击 → Recorder → CompleteEncounter/RunSubsystem → 下一局 Playback/Echo。
 
 第一轮跳过不影响主链的 UI、视觉和全部 GAS 细节。遇到行号漂移先用 rg 重新定位。结束时让我复述主链，并让我选择继续深入 GAS/伤害、成长/商店或 UI/表现；把仍不清楚的问题简要告诉我即可。禁止自己合并或修改 main。
 ```

@@ -1,14 +1,14 @@
-# Plan 20 - data - elements, statuses and reactions CSV migration
+# Plan 23 - data - elements, statuses and reactions CSV migration
 
 ## Locked goal
 
-将元素体系、必要状态定义和元素反应迁移到 Plan 18 的 CSV 注册表，使策划可以配置元素身份、触发/附着角色、反应配对、数值参数、状态引用与已注册反应行为，同时保持确定性伤害结算、GAS 权威属性和玩家/回响一致语义。
+将元素体系、必要状态定义和元素反应迁移到 Plan 21 的 CSV 注册表，使策划可以配置元素身份、触发/附着角色、反应配对、数值参数、状态引用与已注册反应行为，同时保持确定性伤害结算、GAS 权威属性和玩家/回响一致语义。
 
 ## Dependency status
 
-Plan 18、19 已于 2026-08-10 人验、审查并本地合并，本 Plan 现在可以启动。Plan 19 的实际扩展契约是：`ReEchoCsvDataReader.*` 提供通用解析/manifest 原语，`ReEchoCharacterBuildCsvReader::ReadTables()` 是领域读取模板，`FReEchoCsvDataRegistry` 仍统一维护必需表、内建注册、跨领域验证和原子发布，`FReEchoCsvDataSnapshot` 是唯一公开只读快照。
+Plan 21、22 已于 2026-08-10 人验、审查并本地合并，本 Plan 现在可以启动。Plan 22 的实际扩展契约是：`ReEchoCsvDataReader.*` 提供通用解析/manifest 原语，`ReEchoCharacterBuildCsvReader::ReadTables()` 是领域读取模板，`FReEchoCsvDataRegistry` 仍统一维护必需表、内建注册、跨领域验证和原子发布，`FReEchoCsvDataSnapshot` 是唯一公开只读快照。
 
-Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、注册表编排、内建行为注册、`ReEcho.Build.cs` 和静态校验入口。Plan 21 只能在本 Plan 合并后开始运行时接线。
+Plan 23 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、注册表编排、内建行为注册、`ReEcho.Build.cs` 和静态校验入口。Plan 24 只能在本 Plan 合并后开始运行时接线。
 
 ## Source baseline
 
@@ -40,19 +40,19 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ## Step 0 gates
 
-1. 从已包含本地合并 `ddc785a` 的 main 创建 `plan/20-elements-reactions-csv`；读取 Plan 18、19 最终 Execution notes、`ReEchoCsvDataReader.*`、`ReEchoCharacterBuildCsvReader.*`、当前快照/注册表、22 项测试基线和静态校验器。
-2. 在协调板独占本 Plan 的公共数据文件；不得复制或绕过 Plan 19 留下的通用读取/原子发布路径。
+1. 从已包含本地合并 `ddc785a` 的 main 创建 `plan/23-elements-reactions-csv`；读取 Plan 21、22 最终 Execution notes、`ReEchoCsvDataReader.*`、`ReEchoCharacterBuildCsvReader.*`、当前快照/注册表、22 项测试基线和静态校验器。
+2. 在协调板独占本 Plan 的公共数据文件；不得复制或绕过 Plan 22 留下的通用读取/原子发布路径。
 3. 新建 `ReEchoElementReactionCsvReader.*`，沿用 `ReadTables(DataDirectory, ManifestEntries, Snapshot, Issues)` 领域入口；解析细节不得回填进 `ReEchoCsvDataRegistry.cpp`。将本领域的 `BehaviorId`、`EffectKind`、`FormulaId`/状态行为通过显式内建注册函数注册，并保证发生在 `LoadAndPublishDefault()` 之前。
 4. 采集当前 `ReEchoElementReaction`、敌人附着状态、投射物元素传递、GAS damage source 和 Plan 14 自动化基线。
 5. 对照工作簿与现有 JSON/C++ 列出有意差异，特别是 Lightning 缺失、当前双倍伤害简化和工作簿 Formula 描述。行为改变必须由人确认，不以“表里写了”自动覆盖已验收原型。
 6. 先确定 FormulaId 白名单与单位：元素攻击、ReactionEfficiency、DamageIncrease、范围、秒、UE 厘米如何组合。若汽化平方公式等存在量纲/数值歧义，设为阻断 gate 请人拍板，禁止自行改成看似合理的数值。
 7. 先确定顺序敏感状态机和抗递归规则，确保导电/范围附着不会因新反应无限递归或因遍历顺序产生不确定结果。
-8. 本任务不修改武器槽表；只提供 Plan 21 可消费的稳定 ElementId/Reaction API，并在最终 Execution notes 写清。
-9. Plan 19 的负例目录已开始重复完整生产表。新增元素表前先把自动化/Python 夹具改为“生产基线包 + 该负例的局部覆盖”，运行时在临时目录组装完整包；不要把三个元素表复制进每个既有负例目录。
+8. 本任务不修改武器槽表；只提供 Plan 24 可消费的稳定 ElementId/Reaction API，并在最终 Execution notes 写清。
+9. Plan 22 的负例目录已开始重复完整生产表。新增元素表前先把自动化/Python 夹具改为“生产基线包 + 该负例的局部覆盖”，运行时在临时目录组装完整包；不要把三个元素表复制进每个既有负例目录。
 
 ## Target table responsibilities
 
-生产表文件固定为 `elements.csv`、`statuses.csv`、`reactions.csv`；具体列名服从 Plan 19 已落地的领域读取约定，语义至少包括：
+生产表文件固定为 `elements.csv`、`statuses.csv`、`reactions.csv`；具体列名服从 Plan 22 已落地的领域读取约定，语义至少包括：
 
 - Element：ID、role、display/color/presentation keys、enabled。
 - Status：ID、behavior ID、duration/stack/refresh policy、tags、enabled。
@@ -77,7 +77,7 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 - `Combat/ReEchoElementReaction.*` 及新增的领域 registry/handler。
 - 必要的 `Core/ReEchoTypes.*`、GAS effect/source、Enemy/Projectile 状态接线。
 - 元素反应自动化和静态验证。
-- 不修改武器攻击模组/插槽内容；与 Plan 21 重叠的公共文件需提前在协调板声明。
+- 不修改武器攻击模组/插槽内容；与 Plan 24 重叠的公共文件需提前在协调板声明。
 
 ## Verification matrix
 
@@ -86,16 +86,16 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 | CSV static | `python scripts/validate_project.py` | 元素/状态/反应 ID、配对、公式、引用与范围通过；负例精确失败 |
 | Build | format + `scripts/ue/Build-Editor.cmd` | UE 5.8 Editor build 成功 |
 | Automation | 六反应、顺序、状态、递归/目标排序、玩家/回响 + 全量 `ReEcho.*` | 结算确定，表参数变值可见，无旧测试回归 |
-| Diff | 初版↔终版、`git diff --check` | Plan 18 适配和批准的设计差异记录完整 |
+| Diff | 初版↔终版、`git diff --check` | Plan 21 适配和批准的设计差异记录完整 |
 | Human | 六反应 PIE | 伤害、范围、持续、提示和回响语义通过人验 |
 
 ## Risks and exclusions
 
 - 公式量纲和平方成长可能导致极端数值；没有人拍板不擅自“平衡修正”。
 - 连锁和范围附着必须使用稳定目标排序/已访问集合，不把 TSet/TMap 非稳定遍历暴露到结算结果。
-- 不在本 Plan 重做武器架构或所有状态系统；只实现这些表和 Plan 19/21 已确认依赖的公共状态能力。
+- 不在本 Plan 重做武器架构或所有状态系统；只实现这些表和 Plan 22/24 已确认依赖的公共状态能力。
 - 表驱动不等于无代码：新的独特反应行为仍需 C++ handler 和自动化后才能 enabled。
-- 本 Plan 与 Plan 19/21 串行；不得为了并行而复制快照、manifest、行为注册或静态校验系统。
+- 本 Plan 与 Plan 22/24 串行；不得为了并行而复制快照、manifest、行为注册或静态校验系统。
 - 不得继续按“每个负例一整套全部领域 CSV”扩张夹具；这会让后续每加一张表都必须机械修改所有旧负例。
 
 ## Recommended executor model
@@ -106,9 +106,9 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ### Changed
 
-- Continued in the isolated Plan 20 worktree on branch `plan/20-elements-reactions-csv`; the planner/main worktree still has unrelated `.uasset` changes and this branch does not claim or edit binary assets.
+- Continued in the isolated Plan 23 worktree on branch `plan/23-elements-reactions-csv`; the planner/main worktree still has unrelated `.uasset` changes and this branch does not claim or edit binary assets.
 - Added production `elements.csv`, `statuses.csv` and `reactions.csv`; extended manifest, schema, README, `ReEcho.Build.cs`, static validation and data automation coverage.
-- Added `ReEchoElementReactionCsvReader.*` following the Plan 19 domain-reader shape. `FReEchoCsvDataRegistry` remains the only manifest/orchestration/atomic publish boundary.
+- Added `ReEchoElementReactionCsvReader.*` following the Plan 22 domain-reader shape. `FReEchoCsvDataRegistry` remains the only manifest/orchestration/atomic publish boundary.
 - Extended `FReEchoCsvDataSnapshot` with typed element/status/reaction rows and explicit `FormulaId` registration. Built-ins now register status and reaction behaviors plus `Element.ElementAttackDot`, `Element.ElementAttackSquared`, `Element.AttachInRadius`, `Element.ChainElementAttack` and `Element.EnhanceNextReaction` before default load.
 - Reworked `ReEchoElementReaction` to resolve enabled combat elements, labels, colors and ordered reactions from the published CSV snapshot. The pure state machine now handles attachment roles, reaction status output, elemental-immunity blocking, ordered non-stacking enhancement and table metadata; world execution handles DOT, squared vaporize damage, growth range attachment and conduct chain traversal.
 - Kept elemental damage on the existing GAS path: `AReEchoEnemyActor::ReceiveElementalDamage()` builds a shared hit context for player/echo sources, then `ApplyHitToWorld()` calls `ReceiveGrayboxDamage()` / `ReEchoGameplayEffects::ApplyDamage()` for every immediate or scheduled damage application.
@@ -121,18 +121,18 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 - `python scripts/validate_project.py` passes: production character/build/element tables, fixtures, IDs, references, behavior/effect/formula allowlists, UTF-8, staging deps and workflow guards.
 - `.clang-format` was run on changed C++ files.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
-- `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0. Latest log shows `Found 23 automation tests based on 'ReEcho'`, `ReEcho.Combat.ElementReactions` success, `ReEcho.Combat.ElementReactionWorld` success, `ReEcho.Data.CsvInvalidFixturesFailClearly` success and `TEST COMPLETE. EXIT CODE: 0`.
+- After the remote integration, `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0 with 25 tests, including `ReEcho.Combat.ElementReactions`, `ReEcho.Combat.ElementReactionWorld`, `ReEcho.Run.SaveSnapshot` and `ReEcho.Shop.PostDrawCurrencyCanPurchase`.
 - `git diff --check` passes.
 
-### Plan 18/19 contract adaptation
+### Plan 21/22 contract adaptation
 
-- Plan 18 smoke tables and Plan 19 character/build tables remain required production CSV and load through the same `FReEchoCsvDataRegistry` package.
+- Plan 21 smoke tables and Plan 22 character/build tables remain required production CSV and load through the same `FReEchoCsvDataRegistry` package.
 - Required production manifest tables are now: `RuntimeSmoke`, `RuntimeSmokeEffects`, `Characters`, `CharacterAliases`, `Cards`, `CardEffects`, `Elements`, `Statuses`, `Reactions`.
-- Plan 19's domain reader pattern was preserved: registry owns required table ordering and publish atomicity; element/status/reaction parsing lives in `ReEchoElementReactionCsvReader.*`.
+- Plan 22's domain reader pattern was preserved: registry owns required table ordering and publish atomicity; element/status/reaction parsing lives in `ReEchoElementReactionCsvReader.*`.
 - Fixture handling was adapted before adding required element tables. Python and C++ tests assemble full temporary packages from production CSV plus fixture overrides, so future domain tables do not need mechanical copies in every existing negative fixture.
 - Legacy `elements.json`, `statuses.json` and `reactions.json` remain in the repo as migration-only review material; current runtime reaction semantics no longer read them.
 
-### Approved semantic differences from current prototype
+### Implemented semantic differences under planner review
 
 - Plan 14's hardcoded unordered `Water+Grass` and `Grass+Flame` double-damage prototype has been replaced by six ordered CSV rows from the element/status/reaction migration source.
 - Flame and Lightning are trigger elements; Grass and Water are attachment elements. Trigger-only hits no longer become persistent attachments by themselves.
@@ -147,13 +147,24 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 - `CanCrit=true` is rejected during CSV load because crit-enabled reaction damage is not implemented yet; it is not merely surfaced as an unused field.
 - The workbook `属性S` sheet includes `S_E_Attack_Power` and reaction-relevant efficiency attributes; vaporize now follows the user-confirmed squared elemental-attack formula.
 
-### Public element/reaction contract for Plan 21
+### Public element/reaction contract for Plan 24
 
 - Use `FReEchoCsvDataRegistry::GetSnapshot()` as the only public runtime data source. Do not read element/reaction CSV files directly from actors, weapons, UI or future slot code.
-- Stable element IDs for Plan 21 are `Flame`, `Lightning`, `Grass`, `Water`; `ReEchoElementReaction::GetElementId(EReEchoElement)` exposes the enum-to-ID bridge.
+- Stable element IDs for Plan 24 are `Flame`, `Lightning`, `Grass`, `Water`; `ReEchoElementReaction::GetElementId(EReEchoElement)` exposes the enum-to-ID bridge.
 - Reactions are ordered by `(TriggerElementId, AttachmentElementId)` and can be queried through `FReEchoCsvDataSnapshot::FindReaction()`. Do not canonicalize or sort the pair.
 - Runtime weapon/slot migration may consume `elements.csv` roles and `reactions.csv` flags (`CanCrit`, `AffectedByEchoEfficiency`, `RadiusCm`) without adding a second reaction registry.
 - Enabled unique reaction behavior still requires a registered C++ handler/formula and automation before CSV can turn it on.
+
+### Planner review after remote integration
+
+Plan 23 is integrated onto the remote-feature baseline but is not yet accepted. The executor must correct and test these items before another review:
+
+- Conduct must implement the workbook contract `(ElementalAttack + 2) * ReactionEfficiency * DamageIncrease`; do not model the `+2` term as a multiplicative CSV value.
+- Growth radius must scale by `ReactionEfficiency`. Growth attachment must go through `AttachElementIfAllowed` (or the shared equivalent) and must not grant elemental immunity.
+- Elemental immunity applies only to Burn, Vaporize and Conduct. Growth and both Enhance directions must not receive it through a universal reaction path.
+- Conduct must use the configured radius exactly; remove the hidden `Max(RadiusCm, 100)` floor.
+- Burn automation must advance world time and verify real GAS damage plus `RefreshOnly` non-stacking/refresh behavior, not merely verify that timers were scheduled.
+- Save data must store `ActiveStatusUntilSeconds` as remaining durations and rebase them on restore, matching save version 3's existing treatment of elemental immunity. If Burn uses transient timers, restoring a mid-Burn save must reconstruct the remaining deterministic ticks or otherwise implement and test an explicit equivalent continuation policy.
 
 ### Remaining risks
 
@@ -168,11 +179,11 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 ## 执行者启动 prompt
 
 ```text
-你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/20-data-elements-reactions-csv.md、已完成的 Plan 18 与 Plan 19 最终 Execution notes、Plan 14 执行经验，以及 shared/LESSONS.md §GAME 中元素/状态相关匹配条目；只有诊断失败时才读 §DEBUG。
+你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/23-data-elements-reactions-csv.md、已完成的 Plan 21 与 Plan 22 最终 Execution notes、Plan 14 执行经验，以及 shared/LESSONS.md §GAME 中元素/状态相关匹配条目；只有诊断失败时才读 §DEBUG。
 
-前置：main 已合并 Plan 18 和经人验的 Plan 19，Plan 20 是当前唯一 CSV 领域迁移任务；Plan 21 尚未开工。否则停止并告诉人。然后在独立 worktree 的 `plan/20-elements-reactions-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
+前置：main 已合并 Plan 21 和经人验的 Plan 22，Plan 23 是当前唯一 CSV 领域迁移任务；Plan 24 尚未开工。否则停止并告诉人。然后在独立 worktree 的 `plan/23-elements-reactions-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
 
-任务：沿用 `ReEchoCsvDataReader.*`，按 `ReEchoCharacterBuildCsvReader::ReadTables()` 的形态新增独立元素领域读取器，并扩展唯一快照/注册表编排。先把重复整包负例夹具改成“生产基线＋局部覆盖”的临时组包，再迁移元素、必要状态和六个反应。显式注册所有内建行为/公式并保证先注册后启动加载。验收照 Plan 20 的 🔒 清单；不得执行任意公式、不得在 Actor 中按 ReactionId 散布特判、不得自行修正有歧义的平方公式/量纲，也不得修改 `.uasset`/`.umap`。把 Plan 18/19 适配和语义差异写入 Execution notes。
+任务：沿用 `ReEchoCsvDataReader.*`，按 `ReEchoCharacterBuildCsvReader::ReadTables()` 的形态新增独立元素领域读取器，并扩展唯一快照/注册表编排。先把重复整包负例夹具改成“生产基线＋局部覆盖”的临时组包，再迁移元素、必要状态和六个反应。显式注册所有内建行为/公式并保证先注册后启动加载。验收照 Plan 23 的 🔒 清单；不得执行任意公式、不得在 Actor 中按 ReactionId 散布特判、不得自行修正有歧义的平方公式/量纲，也不得修改 `.uasset`/`.umap`。把 Plan 21/22 适配和语义差异写入 Execution notes。
 
 完成后显式提交到本地分支并告诉人；未经人明确确认不得 push，禁止修改或合并 main。
 ```

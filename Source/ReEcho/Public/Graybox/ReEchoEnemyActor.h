@@ -76,6 +76,9 @@ public:
 		return Kind;
 	}
 
+	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
+	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
+
 protected:
 	virtual void BeginPlay() override;
 

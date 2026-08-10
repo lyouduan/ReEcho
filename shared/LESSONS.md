@@ -11,7 +11,7 @@
 | 工种 | Plan 标签 | 经验章节 | 条目数 |
 |------|----------|---------|--------|
 | 程序化生成 / 地编 | `PCG` | [§PCG](#pcg) | 8 |
-| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 29 |
+| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 31 |
 | 关卡搭建 | `LEVEL` | [§LEVEL](#level) | 4 |
 | 美术 / 资产管线 | `ART` | [§ART](#art) | 18 |
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
@@ -19,7 +19,7 @@
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
 | 流程 / 工具 / Skill | `META` | [§META](#meta) | 17 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
-| Bug 修复 | `FIX` | [§FIX](#fix) | 5 |
+| Bug 修复 | `FIX` | [§FIX](#fix) | 7 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
 
 ---
@@ -364,7 +364,7 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 
 ### GAME-28. 表驱动运行时必须和静态校验同严，应用效果先候选后提交 [UE]
 
-**来源**：ReEcho Plan 19，角色/构筑 CSV 迁移及规划审查修正。
+**来源**：ReEcho Plan 22，角色/构筑 CSV 迁移及规划审查修正。
 
 - Python/CI 能拒绝坏表，不等于 Shipping 运行时安全；松散 CSV 可能在构建后被修改。类型化 C++ 领域读取器必须同步拒绝未知枚举、非法 handler 组合、重复顺序和外键错误，并报告文件、行和字段。
 - CSV 已成为唯一权威后，缺快照、缺行或 disabled 行不能静默回退到旧 C++ 常量。先用可测试的解析函数返回带稳定 ID 的错误，再在真正的启动边界按项目策略 Fatal。
@@ -372,10 +372,22 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 
 ### GAME-29. 领域 CSV 增表前先把 fixture 改成基线加覆盖 [UE]
 
-**来源**：ReEcho Plan 20，元素/状态/反应 CSV 迁移。
+**来源**：ReEcho Plan 23，元素/状态/反应 CSV 迁移。
 
 - 负例 fixture 如果复制完整生产包，每新增一张必需表都会迫使所有旧负例机械补表，且旧 manifest 副本会遮住新表导致假失败。先在 Python 和 C++ 自动化里组装“生产 CSV 基线 + fixture 局部覆盖”的临时包，fixture 目录只保留真正改坏或改值的 CSV。
 - 有序反应不能用无序 pair 或 set 归并验证。静态校验和 C++ 读取器都要检查 `(TriggerElementId, AttachmentElementId)` 的有序唯一性，并把 `Grass>Water` 与 `Water>Grass` 当作两个可独立调参的反应。
+
+### GAME-30. 自动检查点与主动退出存档要分层 [UE]
+
+**来源：ReEcho Plan 17**
+
+普通流程节点适合保存稳定的跨关进度；玩家明确选择“保存并退出”时，预期是回到退出前局内状态，不能偷偷降级为本关重开。持久层应同时支持安全检查点和带版本的暂停快照。暂停快照至少包含仿真时钟、玩家变换/生命、当前录制与存活敌人的变换/生命/行为状态；飞行弹体等短寿命对象应明确说明是否跨进程保留。真正退出前必须先确认写盘成功，失败则留在游戏内。
+
+### GAME-31. 连续阻塞式菜单用显式续流程标记，界面之间不要恢复游戏 [UE]
+
+**来源：ReEcho Plan 19**
+
+结算抽卡后紧接商城时，抽卡关闭与商城打开之间必须保持暂停和菜单输入状态；商城关闭时再统一恢复输入并启动下一关。用显式“关闭后继续本轮”标记区分自动结算商城与玩家手动打开的商城，避免复用同一个关闭回调后出现误开下一关或一帧恢复战斗。
 
 ---
 ## §LEVEL — 关卡搭建
@@ -1087,6 +1099,14 @@ open "/Users/honghong/CodeWorkshop/SundayDrive/SundayDrive.uproject"
 **修复**：项目配置关闭 MCP 自动启动；需要编辑器桥接时手动执行 `ModelContextProtocol.StartServer 8000`，打包前执行 `ModelContextProtocol.StopServer`，自动打包则关闭编辑器运行。
 
 **教训**：遇到 Unknown Cook Failure 要查看 UAT 指向的 Cook 日志首个真实 `Error`。编辑器插件的自动启动行为也会进入 commandlet，开发服务端口不能默认在 Cook 中监听。
+
+### FIX-7. Live Coding 重新注册 Automation 静态实例可能在 DLL attach 崩溃 [UE]
+
+**来源：ReEcho Plan 17** — Live Coding 编译后在 `ReEchoAbilitySystemTests.cpp` 的 `IMPLEMENT_SIMPLE_AUTOMATION_TEST` 动态初始化器中出现写访问冲突，调用栈位于 `UnrealEditor_ReEcho_patch_0!dllmain_crt_process_attach`。
+
+**根因**：崩溃发生在 Live Coding patch DLL 的进程附加和 Automation 静态注册阶段，并非测试体或本次玩法逻辑执行。相同源码关闭编辑器后通过 `Build-Editor.cmd` 完整重链基础 `UnrealEditor-ReEcho.dll`，随后 16 个自动化全部通过。
+
+**教训**：带编译期 Automation 静态实例的运行时模块不要用 Live Coding patch 作为交付验证。看到 `*_patch_N`、`dynamic initializer for ...AutomationTestInstance` 和 `dllmain_crt_process_attach` 组合时，先关闭编辑器并完整构建基础 DLL；只有基础 DLL 仍崩溃时才继续追测试注册代码。
 
 ---
 

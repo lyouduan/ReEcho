@@ -51,6 +51,8 @@ public:
 	void PlayHitVisual();
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
 	bool ConfigureCharacter(FName CharacterId);
+	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */
+	void RestoreEquippedWeapon(FName WeaponId);
 	/** 设置与当前场景尺寸一致的玩家活动半径：X对应场景高度，Y对应场景宽度。 */
 	void ConfigureArenaBounds(float HalfExtentX, float HalfExtentY);
 
