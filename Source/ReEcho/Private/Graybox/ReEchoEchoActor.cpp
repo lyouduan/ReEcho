@@ -75,7 +75,6 @@ void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const f
 {
 	ConfigureEchoAppearance(Recording.BuildSnapshot.CharacterId);
 	Playback->LoadRecording(Recording);
-	Playback->OnReplayWeapon.AddDynamic(this, &AReEchoEchoActor::HandleReplayedWeapon);
 
 	for (TActorIterator<AReEchoTrajectoryActor> TrajectoryIterator(GetWorld()); TrajectoryIterator;
 	     ++TrajectoryIterator)
@@ -102,12 +101,7 @@ void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const f
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
 		Weapon->InitializeWeapon();
-		FName InitialWeaponId = Recording.BuildSnapshot.WeaponId;
-		if (!Recording.WeaponChanges.IsEmpty())
-		{
-			InitialWeaponId = Recording.WeaponChanges[0].WeaponId;
-		}
-		Weapon->SelectWeaponById(InitialWeaponId);
+		Weapon->ConfigureLockedWeapon(Recording.BuildSnapshot.WeaponId);
 	}
 }
 
@@ -153,14 +147,6 @@ float AReEchoEchoActor::GetCurrentHealth() const
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 {
 	Playback->AdvancePlayback(EncounterTime);
-}
-
-void AReEchoEchoActor::HandleReplayedWeapon(const FName WeaponId, const float)
-{
-	if (Weapon)
-	{
-		Weapon->SelectWeaponById(WeaponId);
-	}
 }
 
 void AReEchoEchoActor::Tick(const float DeltaSeconds)

@@ -9,7 +9,6 @@ void UReEchoPlaybackComponent::LoadRecording(const FReEchoRecording& InRecording
 {
 	Recording = InRecording;
 	NextSkillIndex = 0;
-	NextWeaponIndex = 0;
 }
 
 void UReEchoPlaybackComponent::AdvancePlayback(const float EncounterTime)
@@ -24,15 +23,6 @@ void UReEchoPlaybackComponent::AdvancePlayback(const float EncounterTime)
 		const FReEchoSkillEvent& Event = Recording.Skills[NextSkillIndex++];
 		OnReplaySkill.Broadcast(Event.SkillId, Event.Position, Event.Time);
 	}
-
-	while (Recording.WeaponChanges.IsValidIndex(NextWeaponIndex)
-		&& Recording.WeaponChanges[NextWeaponIndex].Time
-			<= EncounterTime + KINDA_SMALL_NUMBER)
-	{
-		const FReEchoWeaponEvent& Event =
-			Recording.WeaponChanges[NextWeaponIndex++];
-		OnReplayWeapon.Broadcast(Event.WeaponId, Event.Time);
-	}
 }
 
 const FReEchoBuildSnapshot& UReEchoPlaybackComponent::GetHistoricalBuild() const
@@ -44,4 +34,3 @@ int32 UReEchoPlaybackComponent::GetSourceEncounter() const
 {
 	return Recording.EncounterIndex;
 }
-

@@ -25,6 +25,7 @@ UButton* AddMenuButton(UWidgetTree* WidgetTree,
 	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
 	ButtonLabel->SetText(FText::FromString(Label));
 	ButtonLabel->SetJustification(ETextJustify::Center);
+	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	ButtonLabel->SetMargin(FMargin(42.0f, 12.0f));
 	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
 	ButtonFont.Size = 24;
@@ -43,6 +44,7 @@ TSharedRef<SWidget> UReEchoRestartWidget::RebuildWidget()
 void UReEchoRestartWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	SetIsFocusable(true);
 	BuildWidgetTree();
 
 	if (ResumeButton)
@@ -72,6 +74,8 @@ void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen)
 {
 	bDeathScreen = bInDeathScreen;
 	bVictoryScreen = false;
+	bQuitConfirmation = false;
+	bSaveFailed = false;
 	RefreshMenuMode();
 }
 
@@ -79,8 +83,27 @@ void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 
 {
 	bDeathScreen = false;
 	bVictoryScreen = true;
+	bQuitConfirmation = false;
+	bSaveFailed = false;
 	VictoryTimeShards = TimeShards;
 	VictoryTraitCount = TraitCount;
+	RefreshMenuMode();
+}
+
+void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation)
+{
+	bQuitConfirmation = bInQuitConfirmation;
+	bSaveFailed = false;
+	RefreshMenuMode();
+	if (bQuitConfirmation && ResumeButton)
+	{
+		ResumeButton->SetKeyboardFocus();
+	}
+}
+
+void UReEchoRestartWidget::ShowSaveFailure()
+{
+	bSaveFailed = true;
 	RefreshMenuMode();
 }
 
@@ -121,11 +144,12 @@ void UReEchoRestartWidget::BuildWidgetTree()
 	MessageSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 28.0f));
 
 	ResumeButton = AddMenuButton(
-	    WidgetTree, Content, TEXT("ResumeButton"), TEXT("继续游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
+	    WidgetTree, Content, TEXT("ResumeButton"), TEXT("返回游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
 	RestartButton = AddMenuButton(
 	    WidgetTree, Content, TEXT("RestartButton"), TEXT("重新开始"), FLinearColor(0.65f, 0.18f, 0.06f, 1.0f));
 	QuitButton = AddMenuButton(
 	    WidgetTree, Content, TEXT("QuitButton"), TEXT("退出游戏"), FLinearColor(0.55f, 0.05f, 0.08f, 1.0f));
+	QuitButtonText = Cast<UTextBlock>(QuitButton->GetContent());
 	RefreshMenuMode();
 }
 
@@ -133,8 +157,11 @@ void UReEchoRestartWidget::RefreshMenuMode()
 {
 	if (TitleText)
 	{
-		const FString Title =
-		    bVictoryScreen ? TEXT("时间线收束") : (bDeathScreen ? TEXT("回响中断") : TEXT("游戏菜单"));
+		const FString Title = bVictoryScreen      ? TEXT("时间线收束")
+		                      : bDeathScreen      ? TEXT("回响中断")
+		                      : bSaveFailed       ? TEXT("保存失败")
+		                      : bQuitConfirmation ? TEXT("确认退出游戏")
+		                                          : TEXT("游戏菜单");
 		const FLinearColor TitleColor =
 		    bVictoryScreen ? FLinearColor(1.0f, 0.78f, 0.16f)
 		                   : (bDeathScreen ? FLinearColor(0.95f, 0.12f, 0.12f) : FLinearColor(0.4f, 0.85f, 1.0f));
@@ -151,6 +178,14 @@ void UReEchoRestartWidget::RefreshMenuMode()
 			    FText::AsNumber(VictoryTimeShards),
 			    FText::AsNumber(VictoryTraitCount)));
 		}
+		else if (bSaveFailed)
+		{
+			MessageText->SetText(FText::FromString(TEXT("未能保存退出前状态，游戏不会退出，请重试")));
+		}
+		else if (bQuitConfirmation)
+		{
+			MessageText->SetText(FText::FromString(TEXT("确认退出后将保存当前局内状态")));
+		}
 		else
 		{
 			MessageText->SetText(FText::FromString(bDeathScreen ? TEXT("玩家已阵亡，本次时间线结束")
@@ -161,6 +196,18 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	{
 		ResumeButton->SetVisibility(bDeathScreen || bVictoryScreen ? ESlateVisibility::Collapsed
 		                                                           : ESlateVisibility::Visible);
+	}
+	if (RestartButton)
+	{
+		RestartButton->SetVisibility(bQuitConfirmation || bSaveFailed ? ESlateVisibility::Collapsed
+		                                                              : ESlateVisibility::Visible);
+	}
+	if (QuitButtonText)
+	{
+		const FString QuitLabel = bQuitConfirmation ? TEXT("确认退出")
+		                          : bSaveFailed     ? TEXT("重试退出")
+		                                            : TEXT("退出游戏");
+		QuitButtonText->SetText(FText::FromString(QuitLabel));
 	}
 }
 

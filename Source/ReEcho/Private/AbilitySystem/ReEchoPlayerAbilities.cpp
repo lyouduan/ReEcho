@@ -159,33 +159,3 @@ float UReEchoActiveAttackAbility::GetCooldownDuration(const AReEchoPlayerPawn& P
 {
 	return PlayerPawn.GetCurrentAttackInterval();
 }
-
-UReEchoSelectWeaponSlot1Ability::UReEchoSelectWeaponSlot1Ability()
-{
-	SetAssetTags(MakeTags({ReEchoGameplayTags::Ability_Weapon_Switch}));
-}
-
-bool UReEchoSelectWeaponSlot1Ability::ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const
-{
-	return PlayerPawn.ExecuteSelectWeaponSlot1Ability();
-}
-
-UReEchoSelectWeaponSlot2Ability::UReEchoSelectWeaponSlot2Ability()
-{
-	SetAssetTags(MakeTags({ReEchoGameplayTags::Ability_Weapon_Switch}));
-}
-
-bool UReEchoSelectWeaponSlot2Ability::ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const
-{
-	return PlayerPawn.ExecuteSelectWeaponSlot2Ability();
-}
-
-UReEchoSelectWeaponSlot3Ability::UReEchoSelectWeaponSlot3Ability()
-{
-	SetAssetTags(MakeTags({ReEchoGameplayTags::Ability_Weapon_Switch}));
-}
-
-bool UReEchoSelectWeaponSlot3Ability::ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const
-{
-	return PlayerPawn.ExecuteSelectWeaponSlot3Ability();
-}

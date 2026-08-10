@@ -12,6 +12,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 | Date | Plan | Result | Human follow-up |
 |---|---|---|---|
+| 2026-08-10 | Plan 17 start/continue save | Save-aware startup, confirmed save-and-quit, suspended encounter restore; build and 16 tests pass | PIE real quit/relaunch state, glyph/DPI and transient projectile behavior |
 | 2026-08-05 | Plan 16 bomber ranges | Configurable trigger/damage radii and fuse behavior; build and 15 tests pass | PIE trigger readability and tuning |
 | 2026-08-05 | Plan 15 character promotion | Four deterministic roles, forge/Sage cadence, runtime health correction; build and 15 tests pass | PIE role readability and pacing |
 | 2026-08-05 | Plan 14 element reactions | Deterministic attachments/reactions and persistent feedback; build and 15 tests pass | PIE colors, pacing and damage readability |

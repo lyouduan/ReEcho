@@ -11,7 +11,7 @@
 | 工种 | Plan 标签 | 经验章节 | 条目数 |
 |------|----------|---------|--------|
 | 程序化生成 / 地编 | `PCG` | [§PCG](#pcg) | 8 |
-| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 27 |
+| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 30 |
 | 关卡搭建 | `LEVEL` | [§LEVEL](#level) | 4 |
 | 美术 / 资产管线 | `ART` | [§ART](#art) | 18 |
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
@@ -19,7 +19,7 @@
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
 | 流程 / 工具 / Skill | `META` | [§META](#meta) | 16 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
-| Bug 修复 | `FIX` | [§FIX](#fix) | 5 |
+| Bug 修复 | `FIX` | [§FIX](#fix) | 7 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
 
 ---
@@ -361,6 +361,24 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 **来源**：ReEcho Plan 16
 
 爆破类敌人的引信触发半径和最终伤害半径是两条不同规则：进入外圈只启动一次不可逆倒计时，倒计时结束时再用内圈判断伤害。把两个边界提成纯函数，可直接覆盖边界值并保留玩家逃离窗口。
+
+### GAME-28. 自动检查点与主动退出存档要分层 [UE]
+
+**来源：ReEcho Plan 17**
+
+普通流程节点适合保存稳定的跨关进度；玩家明确选择“保存并退出”时，预期是回到退出前局内状态，不能偷偷降级为本关重开。持久层应同时支持安全检查点和带版本的暂停快照。暂停快照至少包含仿真时钟、玩家变换/生命、当前录制与存活敌人的变换/生命/行为状态；飞行弹体等短寿命对象应明确说明是否跨进程保留。真正退出前必须先确认写盘成功，失败则留在游戏内。
+
+### GAME-29. “单局锁定”要删除整条运行时变更链，而不只是解绑按键 [UE]
+
+**来源：ReEcho Plan 18**
+
+武器等构筑项一旦改为开局选择、整局锁定，必须同时移除输入映射、GAS 切换能力与标签、运行状态 setter、变更事件、录制时间线和回放事件；只保留从构筑快照恢复到 Actor 的单向配置入口。只删按键会留下蓝图或代码侧可变路径，也会让历史录制继续携带已经失效的切换语义。
+
+### GAME-30. 连续阻塞式菜单用显式续流程标记，界面之间不要恢复游戏 [UE]
+
+**来源：ReEcho Plan 19**
+
+结算抽卡后紧接商城时，抽卡关闭与商城打开之间必须保持暂停和菜单输入状态；商城关闭时再统一恢复输入并启动下一关。用显式“关闭后继续本轮”标记区分自动结算商城与玩家手动打开的商城，避免复用同一个关闭回调后出现误开下一关或一帧恢复战斗。
 
 ---
 ## §LEVEL — 关卡搭建
@@ -1064,6 +1082,14 @@ open "/Users/honghong/CodeWorkshop/SundayDrive/SundayDrive.uproject"
 **修复**：项目配置关闭 MCP 自动启动；需要编辑器桥接时手动执行 `ModelContextProtocol.StartServer 8000`，打包前执行 `ModelContextProtocol.StopServer`，自动打包则关闭编辑器运行。
 
 **教训**：遇到 Unknown Cook Failure 要查看 UAT 指向的 Cook 日志首个真实 `Error`。编辑器插件的自动启动行为也会进入 commandlet，开发服务端口不能默认在 Cook 中监听。
+
+### FIX-7. Live Coding 重新注册 Automation 静态实例可能在 DLL attach 崩溃 [UE]
+
+**来源：ReEcho Plan 17** — Live Coding 编译后在 `ReEchoAbilitySystemTests.cpp` 的 `IMPLEMENT_SIMPLE_AUTOMATION_TEST` 动态初始化器中出现写访问冲突，调用栈位于 `UnrealEditor_ReEcho_patch_0!dllmain_crt_process_attach`。
+
+**根因**：崩溃发生在 Live Coding patch DLL 的进程附加和 Automation 静态注册阶段，并非测试体或本次玩法逻辑执行。相同源码关闭编辑器后通过 `Build-Editor.cmd` 完整重链基础 `UnrealEditor-ReEcho.dll`，随后 16 个自动化全部通过。
+
+**教训**：带编译期 Automation 静态实例的运行时模块不要用 Live Coding patch 作为交付验证。看到 `*_patch_N`、`dynamic initializer for ...AutomationTestInstance` 和 `dllmain_crt_process_attach` 组合时，先关闭编辑器并完整构建基础 DLL；只有基础 DLL 仍崩溃时才继续追测试注册代码。
 
 ---
 

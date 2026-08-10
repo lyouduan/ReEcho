@@ -151,18 +151,6 @@ struct REECHO_API FReEchoSkillEvent
 
 USTRUCT(BlueprintType)
 
-struct REECHO_API FReEchoWeaponEvent
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Time = 0.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FName WeaponId;
-};
-USTRUCT(BlueprintType)
-
 struct REECHO_API FReEchoRecording
 {
 	GENERATED_BODY()
@@ -180,9 +168,6 @@ struct REECHO_API FReEchoRecording
 	TArray<FReEchoPositionSample> Positions;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FReEchoSkillEvent> Skills;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TArray<FReEchoWeaponEvent> WeaponChanges;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FReEchoBuildSnapshot BuildSnapshot;
@@ -207,4 +192,77 @@ struct REECHO_API FReEchoElementState
 	bool bEnhancedNextReaction = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EReEchoElement BlockedAttachment = EReEchoElement::None;
+};
+
+/** Serializable runtime state for one living enemy in a suspended encounter. */
+USTRUCT()
+
+struct REECHO_API FReEchoEnemyRuntimeState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	uint8 Kind = 0;
+
+	UPROPERTY()
+	int32 SpawnIndex = 0;
+
+	UPROPERTY()
+	FTransform Transform;
+
+	UPROPERTY()
+	float CurrentHealth = 0.0f;
+
+	UPROPERTY()
+	FReEchoElementState ElementState;
+
+	UPROPERTY()
+	float AttackCooldown = 0.0f;
+
+	UPROPERTY()
+	float FuseRemaining = 0.0f;
+
+	UPROPERTY()
+	bool bBomberFuseActive = false;
+
+	UPROPERTY()
+	float HitReactionRemaining = 0.0f;
+
+	UPROPERTY()
+	FVector KnockbackVelocity = FVector::ZeroVector;
+
+	UPROPERTY()
+	FVector ShakeDirection = FVector::ZeroVector;
+};
+
+/** Exact resumable state captured only when the player confirms an in-encounter quit. */
+USTRUCT()
+
+struct REECHO_API FReEchoEncounterRuntimeState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bValid = false;
+
+	UPROPERTY()
+	float EncounterTime = 0.0f;
+
+	UPROPERTY()
+	FTransform PlayerTransform;
+
+	UPROPERTY()
+	float PlayerHealth = 0.0f;
+
+	UPROPERTY()
+	FReEchoStatBlock PlayerStats;
+
+	UPROPERTY()
+	FVector PlayerVelocity = FVector::ZeroVector;
+
+	UPROPERTY()
+	FReEchoRecording ActiveRecording;
+
+	UPROPERTY()
+	TArray<FReEchoEnemyRuntimeState> Enemies;
 };

@@ -13,7 +13,7 @@ class USceneComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 
-/** 玩家武器控制器：管理武器切换、冷却及远近程攻击表现。 */
+/** 玩家武器控制器：配置本局锁定武器，并管理冷却及远近程攻击表现。 */
 UCLASS()
 
 class REECHO_API AReEchoWeaponActor : public AActor
@@ -24,8 +24,7 @@ public:
 	AReEchoWeaponActor();
 	virtual void Tick(float DeltaSeconds) override;
 	void InitializeWeapon();
-	void SelectWeapon(EReEchoWeaponSlot NewSlot);
-	bool SelectWeaponById(FName WeaponId);
+	bool ConfigureLockedWeapon(FName WeaponId);
 	/** 在冷却允许时执行当前武器基础攻击，并返回是否成功出手。 */
 	bool TryBasicAttack(UReEchoCombatantComponent* Combatant);
 	bool TryActiveAttack(UReEchoCombatantComponent* Combatant);
@@ -36,6 +35,7 @@ public:
 	FString GetEquippedWeaponLabel() const;
 
 private:
+	void ApplyWeaponSlot(EReEchoWeaponSlot NewSlot);
 	bool ExecuteAttack(UReEchoCombatantComponent* Combatant);
 	bool FireStaffLightWave(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
 	bool FireProjectile(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);

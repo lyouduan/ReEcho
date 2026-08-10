@@ -5,6 +5,8 @@
 #include "Core/ReEchoTypes.h"
 #include "ReEchoRunSubsystem.generated.h"
 
+class UReEchoRunSaveGame;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
 
 /** 跨关卡保存本轮构筑、遭遇进度和回响记录的运行时状态。 */
@@ -39,8 +41,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void BeginEncounter();
 
-	UFUNCTION(BlueprintCallable)
-	void SetEquippedWeapon(FName WeaponId);
 	/** 保存遭遇录制，并根据存活与 Boss 状态推进本轮流程。 */
 	UFUNCTION(BlueprintCallable)
 	void CompleteEncounter(const FReEchoRecording& Recording, bool bPlayerSurvived, bool bBossKilled);
@@ -73,8 +73,17 @@ public:
 	UFUNCTION(BlueprintPure)
 	TArray<FReEchoRecording> GetEchoRecordings(int32 RequestedCount) const;
 
-	UFUNCTION(BlueprintPure)
-	bool ShouldOpenShopAfterCurrentEncounter() const;
+	/** Returns true only when the persistent slot contains a compatible, resumable run. */
+	bool HasSavedRun() const;
+	bool SaveRun(const FReEchoEncounterRuntimeState* EncounterRuntimeState = nullptr) const;
+	bool LoadSavedRun();
+	void DeleteSavedRun() const;
+	bool HasPendingEncounterResume() const;
+	FReEchoEncounterRuntimeState ConsumePendingEncounterResume();
+
+	/** In-memory conversion used by persistence and deterministic automation. */
+	UReEchoRunSaveGame* CreateSaveSnapshot(const FReEchoEncounterRuntimeState* EncounterRuntimeState = nullptr) const;
+	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
 	UPROPERTY()
@@ -85,6 +94,9 @@ private:
 
 	UPROPERTY()
 	TArray<FName> PendingTraitCardIds;
+
+	UPROPERTY()
+	FReEchoEncounterRuntimeState PendingEncounterResume;
 
 	void SetPhase(EReEchoRunPhase NewPhase);
 };

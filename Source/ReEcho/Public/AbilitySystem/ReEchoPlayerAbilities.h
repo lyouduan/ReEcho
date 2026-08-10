@@ -74,39 +74,3 @@ protected:
 	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
 	virtual float GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const override;
 };
-
-UCLASS()
-
-class REECHO_API UReEchoSelectWeaponSlot1Ability : public UReEchoPlayerGameplayAbility
-{
-	GENERATED_BODY()
-public:
-	UReEchoSelectWeaponSlot1Ability();
-
-protected:
-	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
-};
-
-UCLASS()
-
-class REECHO_API UReEchoSelectWeaponSlot2Ability : public UReEchoPlayerGameplayAbility
-{
-	GENERATED_BODY()
-public:
-	UReEchoSelectWeaponSlot2Ability();
-
-protected:
-	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
-};
-
-UCLASS()
-
-class REECHO_API UReEchoSelectWeaponSlot3Ability : public UReEchoPlayerGameplayAbility
-{
-	GENERATED_BODY()
-public:
-	UReEchoSelectWeaponSlot3Ability();
-
-protected:
-	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
-};
