@@ -4,12 +4,69 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
+#include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace
 {
 constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
 constexpr const TCHAR* ForgeOfferGroup = TEXT("Forge");
+
+const FString RunSaveSlot = TEXT("ReEchoRun");
+constexpr int32 RunSaveUserIndex = 0;
+
+bool IsValidResumableSave(const UReEchoRunSaveGame& SaveGame)
+{
+	if (SaveGame.SaveVersion != UReEchoRunSaveGame::CurrentSaveVersion ||
+	    SaveGame.SavedPhase == EReEchoRunPhase::Summary || SaveGame.SavedPhase == EReEchoRunPhase::Failed)
+	{
+		return false;
+	}
+	if (SaveGame.SavedPhase == EReEchoRunPhase::Encounter)
+	{
+		return SaveGame.EncounterRuntimeState.bValid && SaveGame.EncounterRuntimeState.PlayerHealth > 0.0f &&
+		       SaveGame.EncounterRuntimeState.EncounterTime >= 0.0f;
+	}
+	return true;
+}
+
+FString GetBuildConfigurationError(const FReEchoBuildSnapshot& Build)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
+	if (!Snapshot.IsValid())
+	{
+		return TEXT("CSV snapshot is unavailable");
+	}
+	if (!Character)
+	{
+		return FString::Printf(TEXT("CharacterId '%s' is not configured"), *Build.CharacterId.ToString());
+	}
+	if (!Character->bEnabled)
+	{
+		return FString::Printf(TEXT("CharacterId '%s' is disabled"), *Build.CharacterId.ToString());
+	}
+
+	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
+	const bool bWeaponConfigured = Settings && Settings->Weapons.ContainsByPredicate(
+	                                               [&Build](const FReEchoWeaponConfig& Weapon)
+	                                               {
+		                                               return Weapon.WeaponId == Build.WeaponId;
+	                                               });
+	return bWeaponConfigured
+	           ? FString()
+	           : FString::Printf(TEXT("WeaponId '%s' is not configured"), *Build.WeaponId.ToString());
+}
+
+void RequireConfiguredBuild(const FReEchoBuildSnapshot& Build, const TCHAR* Context)
+{
+	const FString Error = GetBuildConfigurationError(Build);
+	if (!Error.IsEmpty())
+	{
+		UE_LOG(LogReEcho, Fatal, TEXT("%s: %s"), Context, *Error);
+	}
+}
 
 FReEchoTraitCardOffer MakeTraitOffer(const FReEchoCsvCardRow& Card)
 {
@@ -228,6 +285,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	RecordingHistory.Reset();
 	AnchorId.Invalidate();
 	PendingTraitCardIds.Reset();
+	PendingEncounterResume = {};
 	CurrentBuild = {};
 
 	const FReEchoStartRunResolveResult ResolveResult = ReEchoRunData::ResolveStartingBuild(CharacterId, WeaponId);
@@ -235,6 +293,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	{
 		UE_LOG(LogReEcho, Fatal, TEXT("%s"), *ResolveResult.Error);
 	}
+	RequireConfiguredBuild(ResolveResult.Build, TEXT("Cannot start run"));
 	CurrentBuild = ResolveResult.Build;
 	SetPhase(EReEchoRunPhase::Planning);
 }
@@ -500,7 +559,89 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::GetEchoRecordings(const int32 Requ
 	return Result;
 }
 
-bool UReEchoRunSubsystem::ShouldOpenShopAfterCurrentEncounter() const
+bool UReEchoRunSubsystem::HasSavedRun() const
 {
-	return EncounterIndex == 2 || EncounterIndex == 4;
+	const UReEchoRunSaveGame* SaveGame =
+	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSaveSlot, RunSaveUserIndex));
+	return SaveGame && IsValidResumableSave(*SaveGame);
+}
+
+bool UReEchoRunSubsystem::SaveRun(const FReEchoEncounterRuntimeState* EncounterRuntimeState) const
+{
+	UReEchoRunSaveGame* SaveGame = CreateSaveSnapshot(EncounterRuntimeState);
+	return SaveGame && UGameplayStatics::SaveGameToSlot(SaveGame, RunSaveSlot, RunSaveUserIndex);
+}
+
+bool UReEchoRunSubsystem::LoadSavedRun()
+{
+	const UReEchoRunSaveGame* SaveGame =
+	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSaveSlot, RunSaveUserIndex));
+	return SaveGame && RestoreSaveSnapshot(*SaveGame);
+}
+
+void UReEchoRunSubsystem::DeleteSavedRun() const
+{
+	if (UGameplayStatics::DoesSaveGameExist(RunSaveSlot, RunSaveUserIndex))
+	{
+		UGameplayStatics::DeleteGameInSlot(RunSaveSlot, RunSaveUserIndex);
+	}
+}
+
+bool UReEchoRunSubsystem::HasPendingEncounterResume() const
+{
+	return PendingEncounterResume.bValid;
+}
+
+FReEchoEncounterRuntimeState UReEchoRunSubsystem::ConsumePendingEncounterResume()
+{
+	FReEchoEncounterRuntimeState Result = PendingEncounterResume;
+	PendingEncounterResume = {};
+	return Result;
+}
+
+UReEchoRunSaveGame*
+UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* EncounterRuntimeState) const
+{
+	UReEchoRunSaveGame* SaveGame = NewObject<UReEchoRunSaveGame>(GetTransientPackage());
+	SaveGame->EncounterIndex = EncounterIndex;
+	SaveGame->SavedPhase = Phase;
+	if (Phase == EReEchoRunPhase::Encounter && EncounterRuntimeState && EncounterRuntimeState->bValid)
+	{
+		SaveGame->EncounterRuntimeState = *EncounterRuntimeState;
+	}
+	else if (Phase == EReEchoRunPhase::Encounter)
+	{
+		SaveGame->EncounterIndex = FMath::Max(0, EncounterIndex - 1);
+		SaveGame->SavedPhase = EReEchoRunPhase::Planning;
+	}
+	SaveGame->TimeShards = TimeShards;
+	SaveGame->CurrentBuild = CurrentBuild;
+	SaveGame->InventoryItems = InventoryItems;
+	SaveGame->RecordingHistory = RecordingHistory;
+	SaveGame->AnchorId = AnchorId;
+	return SaveGame;
+}
+
+bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame)
+{
+	if (!IsValidResumableSave(SaveGame))
+	{
+		return false;
+	}
+	RequireConfiguredBuild(SaveGame.CurrentBuild, TEXT("Cannot restore saved run"));
+
+	EncounterIndex = FMath::Max(0, SaveGame.EncounterIndex);
+	TimeShards = FMath::Max(0, SaveGame.TimeShards);
+	CurrentBuild = SaveGame.CurrentBuild;
+	InventoryItems = SaveGame.InventoryItems;
+	RecordingHistory = SaveGame.RecordingHistory;
+	AnchorId = SaveGame.AnchorId;
+	PendingTraitCardIds.Reset();
+	PendingEncounterResume = SaveGame.EncounterRuntimeState;
+	if (SaveGame.SavedPhase != EReEchoRunPhase::Encounter)
+	{
+		PendingEncounterResume = {};
+	}
+	SetPhase(SaveGame.SavedPhase);
+	return true;
 }

@@ -450,8 +450,8 @@ def validate_workflow() -> None:
         fail("AGENTS.md must remain the sole startup-order authority")
     if len(state_text.splitlines()) > 80:
         fail("PROJECT_STATE.md exceeded 80 lines; move history to plans/Git")
-    if "twenty-two `ReEcho.*` automation tests pass" not in state_text:
-        fail("PROJECT_STATE.md must report the current twenty-two-test baseline")
+    if "twenty-four `ReEcho.*` automation tests pass" not in state_text:
+        fail("PROJECT_STATE.md must report the current twenty-four-test baseline")
     active_block = exchange_text.split("## Active ownership", 1)[1].split("## Recently closed", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
         fail("completed Plans 07/08 must not retain active ownership")

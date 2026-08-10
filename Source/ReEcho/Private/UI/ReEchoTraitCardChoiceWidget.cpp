@@ -20,6 +20,19 @@ constexpr float FirstCardRevealTime = 1.15f;
 constexpr float CardRevealInterval = 0.22f;
 constexpr float CardRevealDuration = 0.34f;
 
+UTextBlock*
+CreateCenteredText(UWidgetTree* WidgetTree, const FName Name, const int32 FontSize, const FLinearColor& Color)
+{
+	UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
+	Text->SetJustification(ETextJustify::Center);
+	Text->SetColorAndOpacity(FSlateColor(Color));
+	Text->SetAutoWrapText(true);
+	FSlateFontInfo Font = Text->GetFont();
+	Font.Size = FontSize;
+	Text->SetFont(Font);
+	return Text;
+}
+
 float EaseOutBack(const float Progress)
 {
 	const float ClampedProgress = FMath::Clamp(Progress, 0.0f, 1.0f);
@@ -46,6 +59,8 @@ TSharedRef<SWidget> UReEchoTraitCardChoiceWidget::RebuildWidget()
 void UReEchoTraitCardChoiceWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	SetIsFocusable(true);
+	SetVisibility(ESlateVisibility::Visible);
 	BuildWidgetTree();
 
 	if (CardButtons.Num() == 3)
@@ -97,9 +112,13 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 	}
 }
 
-void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers)
+void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers,
+                                                    const int32 InTimeShards,
+                                                    const bool bInForgeChoice)
 {
 	Offers = InOffers;
+	CurrentTimeShards = InTimeShards;
+	bForgeChoice = bInForgeChoice;
 	RefreshOffers();
 }
 
@@ -119,47 +138,74 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 	{
 		BackgroundImage->SetBrushFromTexture(DrawBackgroundTexture, true);
 	}
-	BackgroundImage->SetColorAndOpacity(FLinearColor(0.72f, 0.72f, 0.72f, 1.0f));
+	BackgroundImage->SetColorAndOpacity(FLinearColor(0.48f, 0.48f, 0.48f, 1.0f));
 	UCanvasPanelSlot* BackgroundSlot = RootCanvas->AddChildToCanvas(BackgroundImage);
 	BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 	BackgroundSlot->SetOffsets(FMargin(0.0f));
 
 	UBorder* Vignette = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("TraitDrawVignette"));
-	Vignette->SetBrushColor(FLinearColor(0.0f, 0.015f, 0.025f, 0.25f));
+	Vignette->SetBrushColor(FLinearColor(0.0f, 0.015f, 0.025f, 0.48f));
 	Vignette->SetVisibility(ESlateVisibility::HitTestInvisible);
 	UCanvasPanelSlot* VignetteSlot = RootCanvas->AddChildToCanvas(Vignette);
 	VignetteSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 	VignetteSlot->SetOffsets(FMargin(0.0f));
 
+	UBorder* HeaderPanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("TraitDrawHeader"));
+	HeaderPanel->SetBrushColor(FLinearColor(0.025f, 0.035f, 0.05f, 0.90f));
+	HeaderPanel->SetPadding(FMargin(34.0f, 18.0f));
+	UCanvasPanelSlot* HeaderSlot = RootCanvas->AddChildToCanvas(HeaderPanel);
+	HeaderSlot->SetAnchors(FAnchors(0.23f, 0.045f, 0.77f, 0.225f));
+	HeaderSlot->SetOffsets(FMargin(0.0f));
+	HeaderSlot->SetZOrder(4);
+
+	UVerticalBox* HeaderContent = WidgetTree->ConstructWidget<UVerticalBox>();
+	HeaderPanel->SetContent(HeaderContent);
+	TitleText = CreateCenteredText(WidgetTree, TEXT("TraitDrawTitle"), 40, FLinearColor(0.92f, 0.80f, 0.50f));
+	UVerticalBoxSlot* TitleSlot = HeaderContent->AddChildToVerticalBox(TitleText);
+	TitleSlot->SetHorizontalAlignment(HAlign_Fill);
+	SubtitleText = CreateCenteredText(WidgetTree, TEXT("TraitDrawSubtitle"), 20, FLinearColor(0.82f, 0.86f, 0.91f));
+	UVerticalBoxSlot* SubtitleSlot = HeaderContent->AddChildToVerticalBox(SubtitleText);
+	SubtitleSlot->SetHorizontalAlignment(HAlign_Fill);
+	SubtitleSlot->SetPadding(FMargin(0.0f, 5.0f, 0.0f, 8.0f));
+	CurrencyText = CreateCenteredText(WidgetTree, TEXT("TraitDrawCurrency"), 22, FLinearColor(0.48f, 0.90f, 0.88f));
+	UVerticalBoxSlot* CurrencySlot = HeaderContent->AddChildToVerticalBox(CurrencyText);
+	CurrencySlot->SetHorizontalAlignment(HAlign_Fill);
+
 	UBorder* Needle = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("TraitDrawNeedle"));
-	Needle->SetBrushColor(FLinearColor(0.12f, 0.075f, 0.045f, 0.92f));
+	Needle->SetBrushColor(FLinearColor(0.70f, 0.53f, 0.22f, 0.88f));
 	Needle->SetRenderTransformPivot(FVector2D(0.5f, 0.88f));
 	Needle->SetVisibility(ESlateVisibility::HitTestInvisible);
 	UCanvasPanelSlot* NeedleSlot = RootCanvas->AddChildToCanvas(Needle);
-	NeedleSlot->SetAnchors(FAnchors(0.65f, 0.58f));
+	NeedleSlot->SetAnchors(FAnchors(0.5f, 0.285f));
 	NeedleSlot->SetAlignment(FVector2D(0.5f, 0.88f));
-	NeedleSlot->SetSize(FVector2D(14.0f, 205.0f));
+	NeedleSlot->SetSize(FVector2D(8.0f, 82.0f));
 	NeedleSlot->SetZOrder(2);
 	NeedleWidget = Needle;
 
-	const TArray<FAnchors> CardAnchors = {FAnchors(0.43f, 0.55f), FAnchors(0.62f, 0.51f), FAnchors(0.81f, 0.55f)};
+	const TArray<FAnchors> CardAnchors = {FAnchors(0.26f, 0.62f), FAnchors(0.50f, 0.59f), FAnchors(0.74f, 0.62f)};
+	const TArray<FLinearColor> CardColors = {FLinearColor(0.30f, 0.20f, 0.11f, 0.98f),
+	                                         FLinearColor(0.13f, 0.27f, 0.26f, 0.98f),
+	                                         FLinearColor(0.22f, 0.16f, 0.31f, 0.98f)};
+	const TArray<FText> CardKickers = {NSLOCTEXT("ReEcho", "TraitCandidateOne", "候选 I"),
+	                                   NSLOCTEXT("ReEcho", "TraitCandidateTwo", "候选 II"),
+	                                   NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
 	for (int32 CardIndex = 0; CardIndex < 3; ++CardIndex)
 	{
 		USizeBox* CardSize = WidgetTree->ConstructWidget<USizeBox>(
 		    USizeBox::StaticClass(), *FString::Printf(TEXT("TraitCardSize%d"), CardIndex));
-		CardSize->SetWidthOverride(280.0f);
-		CardSize->SetHeightOverride(350.0f);
+		CardSize->SetWidthOverride(310.0f);
+		CardSize->SetHeightOverride(390.0f);
 		CardSize->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
 		UCanvasPanelSlot* CardSlot = RootCanvas->AddChildToCanvas(CardSize);
 		CardSlot->SetAnchors(CardAnchors[CardIndex]);
 		CardSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-		CardSlot->SetSize(FVector2D(280.0f, 350.0f));
+		CardSlot->SetSize(FVector2D(310.0f, 390.0f));
 		CardSlot->SetZOrder(5 + CardIndex);
 		CardPanels.Add(CardSize);
 
 		UButton* CardButton = WidgetTree->ConstructWidget<UButton>(
 		    UButton::StaticClass(), *FString::Printf(TEXT("TraitCardButton%d"), CardIndex));
-		CardButton->SetBackgroundColor(FLinearColor(0.62f, 0.52f, 0.39f, 1.0f));
+		CardButton->SetBackgroundColor(CardColors[CardIndex]);
 		CardButton->SetIsEnabled(false);
 		CardSize->SetContent(CardButton);
 		CardButtons.Add(CardButton);
@@ -168,35 +214,58 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 		    UVerticalBox::StaticClass(), *FString::Printf(TEXT("TraitCardContent%d"), CardIndex));
 		CardButton->SetContent(CardContent);
 
-		UTextBlock* CardName = WidgetTree->ConstructWidget<UTextBlock>(
-		    UTextBlock::StaticClass(), *FString::Printf(TEXT("TraitCardName%d"), CardIndex));
-		CardName->SetJustification(ETextJustify::Center);
-		CardName->SetColorAndOpacity(FSlateColor(FLinearColor(0.15f, 0.10f, 0.065f, 1.0f)));
-		FSlateFontInfo NameFont = CardName->GetFont();
-		NameFont.Size = 27;
-		CardName->SetFont(NameFont);
+		UTextBlock* CardKicker = CreateCenteredText(
+		    WidgetTree, *FString::Printf(TEXT("TraitCardKicker%d"), CardIndex), 18, FLinearColor(0.48f, 0.90f, 0.88f));
+		CardKicker->SetText(CardKickers[CardIndex]);
+		UVerticalBoxSlot* KickerSlot = CardContent->AddChildToVerticalBox(CardKicker);
+		KickerSlot->SetHorizontalAlignment(HAlign_Fill);
+		KickerSlot->SetPadding(FMargin(18.0f, 26.0f, 18.0f, 18.0f));
+
+		UTextBlock* CardName = CreateCenteredText(
+		    WidgetTree, *FString::Printf(TEXT("TraitCardName%d"), CardIndex), 29, FLinearColor(0.96f, 0.88f, 0.68f));
 		UVerticalBoxSlot* NameSlot = CardContent->AddChildToVerticalBox(CardName);
 		NameSlot->SetHorizontalAlignment(HAlign_Fill);
-		NameSlot->SetPadding(FMargin(16.0f, 92.0f, 16.0f, 24.0f));
+		NameSlot->SetPadding(FMargin(18.0f, 8.0f, 18.0f, 28.0f));
 		CardNames.Add(CardName);
 
-		UTextBlock* CardDescription = WidgetTree->ConstructWidget<UTextBlock>(
-		    UTextBlock::StaticClass(), *FString::Printf(TEXT("TraitCardDescription%d"), CardIndex));
-		CardDescription->SetJustification(ETextJustify::Center);
-		CardDescription->SetAutoWrapText(true);
-		CardDescription->SetColorAndOpacity(FSlateColor(FLinearColor(0.20f, 0.14f, 0.09f, 1.0f)));
-		FSlateFontInfo DescriptionFont = CardDescription->GetFont();
-		DescriptionFont.Size = 18;
-		CardDescription->SetFont(DescriptionFont);
+		UTextBlock* CardDescription = CreateCenteredText(WidgetTree,
+		                                                 *FString::Printf(TEXT("TraitCardDescription%d"), CardIndex),
+		                                                 20,
+		                                                 FLinearColor(0.88f, 0.90f, 0.93f));
 		UVerticalBoxSlot* DescriptionSlot = CardContent->AddChildToVerticalBox(CardDescription);
 		DescriptionSlot->SetHorizontalAlignment(HAlign_Fill);
-		DescriptionSlot->SetPadding(FMargin(22.0f));
+		DescriptionSlot->SetPadding(FMargin(26.0f, 12.0f, 26.0f, 28.0f));
 		CardDescriptions.Add(CardDescription);
+
+		UTextBlock* SelectHint = CreateCenteredText(WidgetTree,
+		                                            *FString::Printf(TEXT("TraitCardSelectHint%d"), CardIndex),
+		                                            16,
+		                                            FLinearColor(0.70f, 0.76f, 0.82f));
+		SelectHint->SetText(NSLOCTEXT("ReEcho", "TraitCardSelectHint", "点击选择 · 确认后不可撤回"));
+		UVerticalBoxSlot* SelectHintSlot = CardContent->AddChildToVerticalBox(SelectHint);
+		SelectHintSlot->SetHorizontalAlignment(HAlign_Fill);
+		SelectHintSlot->SetPadding(FMargin(18.0f, 16.0f, 18.0f, 20.0f));
 	}
+	RefreshOffers();
 }
 
 void UReEchoTraitCardChoiceWidget::RefreshOffers()
 {
+	if (TitleText)
+	{
+		TitleText->SetText(bForgeChoice ? NSLOCTEXT("ReEcho", "ForgeChoiceTitle", "选择本轮锻炼")
+		                                : NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择一项时间特质"));
+	}
+	if (SubtitleText)
+	{
+		SubtitleText->SetText(
+		    NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具"));
+	}
+	if (CurrencyText)
+	{
+		CurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TraitChoiceCurrency", "当前时光碎片：{0}"),
+		                                    FText::AsNumber(CurrentTimeShards)));
+	}
 	for (int32 CardIndex = 0; CardIndex < CardButtons.Num(); ++CardIndex)
 	{
 		const bool bHasOffer = Offers.IsValidIndex(CardIndex);

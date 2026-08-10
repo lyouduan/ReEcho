@@ -44,4 +44,3 @@ int32 UReEchoPlaybackComponent::GetSourceEncounter() const
 {
 	return Recording.EncounterIndex;
 }
-

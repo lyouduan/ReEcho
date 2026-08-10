@@ -45,6 +45,8 @@ public:
 	/** Applies healing through GAS when available and returns actual health restored. */
 	UFUNCTION(BlueprintCallable)
 	float ApplyHealing(float Healing);
+	/** Restore serialized health without producing damage/heal feedback or consuming block. */
+	void RestoreCurrentHealth(float SavedHealth);
 
 	UFUNCTION(BlueprintPure)
 	bool IsAlive() const;

@@ -120,6 +120,28 @@ float UReEchoCombatantComponent::ApplyHealing(const float Healing)
 	return CurrentHealth - PreviousHealth;
 }
 
+void UReEchoCombatantComponent::RestoreCurrentHealth(const float SavedHealth)
+{
+	const float ClampedHealth = FMath::Clamp(SavedHealth, 0.0f, Stats.HpMax);
+	bDeathBroadcast = ClampedHealth <= 0.0f;
+	if (BoundAbilitySystem)
+	{
+		BoundAbilitySystem->SetNumericAttributeBase(UReEchoCombatAttributeSet::GetHealthAttribute(), ClampedHealth);
+		if (bDeathBroadcast)
+		{
+			BoundAbilitySystem->AddLooseGameplayTag(ReEchoGameplayTags::State_Dead);
+		}
+		else
+		{
+			BoundAbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Dead);
+		}
+		SyncFromAbilitySystem();
+		return;
+	}
+	CurrentHealth = ClampedHealth;
+	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+}
+
 bool UReEchoCombatantComponent::IsAlive() const
 {
 	return CurrentHealth > 0.f;

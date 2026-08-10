@@ -131,6 +131,14 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	return true;
 }
 
+void AReEchoPlayerPawn::RestoreEquippedWeapon(const FName WeaponId)
+{
+	if (Weapon)
+	{
+		Weapon->SelectWeaponById(WeaponId);
+	}
+}
+
 void AReEchoPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();

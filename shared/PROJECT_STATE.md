@@ -7,9 +7,10 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 - UE 5.8 C++ 2.5D prototype starts from `/Game/Level00`; `AReEchoGameMode` generates the bounded arena and six-encounter run.
 - GAS-authoritative player/enemy attributes and effect-based damage, four weapon/character definitions, four enemy archetypes, deterministic 20 Hz recording, echo playback, trait selection, health UI, damage feedback, pause/restart/quit and final-Boss settlement are connected.
 - Player, echo and enemies render as packaged 2D Billboards over a fixed orthographic 3D arena; collision remains authoritative and separate from visual animation.
-- Configurable rain and player/echo-centered fog-of-war are visual-only. The top-left HUD shows the configured player portrait and live current/max health; only enemies retain world-space overhead health bars. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats.
-- Runtime purchases are duplicate-guarded and update the shared build snapshot. Time-trait draws are deterministic per run state, prefer least-owned traits, contain no duplicate offer, and accept only the current pending choice. Runs without an active echo show an explicit stats empty state.
+- Configurable rain and player/echo-centered fog-of-war are visual-only. The top-left HUD shows the configured player portrait and live current/max health; only enemies retain world-space overhead health bars. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats. Renderer configuration explicitly keeps Substrate disabled.
+- Runtime purchases are duplicate-guarded and update the shared build snapshot. Time-trait draws are deterministic per run state, prefer least-owned traits, contain no duplicate offer, and accept only the current pending choice. The centered animated draw screen shows current shards and opens the existing shop before the next encounter. Runs without an active echo show an explicit stats empty state.
 - Development-console GM commands cover status, healing, Time Shards, weather override and enemy clearing; Shipping rejects them.
+- Startup is blocked by a save-aware panel: profiles without a save can start new, while valid saves offer continue/new. New runs then require a data-backed character and initial weapon; runtime weapon switching remains available and continue restores the saved current loadout. Confirmed in-encounter exit saves the clock, player, active recording and living enemies before platform quit; save failure never exits.
 - Weapon 3 cycles deterministic Water/Grass/Flame attachments and reactions. Four-card promotion selects Hunter, Poet, Brave or Sage mechanics, and bombers use separate configurable fuse-trigger and explosion-damage ranges.
 - Human PIE play-feel, UI/DPI/font readability and final weather/blur tuning remain required; this is not yet a finished vertical slice.
 
@@ -18,10 +19,10 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 | Area | Current state | Remaining |
 |---|---|---|
 | Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, elemental reactions, four promotion roles, bounded bombers, weapons, enemies and echo loop connected | Broader deterministic combat tests and tuning |
-| Presentation | 2D actors, fixed camera, arena art, weather, inventory/shop/stats UI | Human PIE and packaged-menu regression |
+| Presentation | 2D actors, fixed camera, arena art, weather, start/continue/loadout, confirmed exit, animated trait draw, inventory/shop/stats UI | Human PIE and packaged-menu regression |
 | Data | CSV runtime foundation plus character/build CSV migration for current playable characters, six trait cards and forge choices; legacy JSON remains migration-only | Domain migration for elements, weapons and slots |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Twenty-two `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
+| Validation | Editor Development build succeeds and all twenty-four `ReEcho.*` automation tests pass | Human PIE and packaged-menu regression |
 
 ## Milestones
 
@@ -31,7 +32,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 | B - Planning loop | Partial | Preview/setup beat and direction check |
 | C - Build/run | Functional prototype; characters/current build cards migrated to CSV | Elements, weapons, slots and full content run |
 | D - Elements/keystones | Element reactions and four promotion roles implemented; tuning remains | Vertical-slice acceptance |
-| E - Validation | Twenty-two automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
+| E - Validation | Twenty-four automation tests plus current clean Shipping CSV load smoke evidence after integration verification | Go/No-Go report |
 
 ## Collaboration protocol
 
@@ -43,15 +44,15 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Editor Development build succeeds and all twenty-two `ReEcho.*` automation tests pass.
-- Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 18 CSV package; human visual/UI regression is still required before release claims.
+- Latest Editor Development build succeeds and all twenty-four `ReEcho.*` automation tests pass.
+- Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 21 CSV package; human visual/UI regression is still required before release claims.
 - `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
 
 ## Regression risks and technical debt
 
-- Legacy `Content/Data/*.json` is migration-only; character/build runtime authority has moved to CSV, while elements, weapons, slots and some shop/balance values still use provisional C++/DeveloperSettings values until Plans 20-21 switch them.
+- Legacy `Content/Data/*.json` is migration-only; character/build runtime authority has moved to CSV, while elements, weapons, slots and some shop/balance values still use provisional C++/DeveloperSettings values until Plans 23–24 switch them.
 - Runtime arena generation has no dedicated serialized test-map pipeline.
-- Projectile damage, pause/restart/quit, round advancement, weather and the new menus lack deterministic automation.
+- Projectile damage, full pause/restart/quit interaction, round advancement, weather and visual menu transitions still lack deterministic automation.
 - Shared weapon, enemy and run-flow paths changed for Plans 14-16; human PIE should regress player/echo attacks, role transitions, forge/card sequencing and bomber escape behavior together.
 - Human PIE remains necessary for movement, combat feel, echo clarity, UI glyphs/DPI and full menu interaction.
-- CSV negative fixtures currently repeat complete domain tables. Plan 20 must replace this with a production-baseline-plus-override fixture builder before adding more required domain tables.
+- CSV negative fixtures currently repeat complete domain tables. Plan 23 must replace this with a production-baseline-plus-override fixture builder before adding more required domain tables.

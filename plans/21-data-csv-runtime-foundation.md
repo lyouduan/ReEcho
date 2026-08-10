@@ -1,17 +1,17 @@
-# Plan 18 - data - CSV runtime foundation
+# Plan 21 - data - CSV runtime foundation
 
 ## Locked goal
 
 建立 ReEcho 唯一、可验证、可打包的 CSV 运行时数据基础，使后续角色、构筑、元素、武器和插槽数据可以由策划修改 CSV 后生效，而不再把同一数值重复维护在 JSON、C++、DeveloperSettings 或 Actor/Widget 中。
 
-本 Plan 只建设公共数据契约、加载/注册/验证/打包能力和最小夹具，不迁移 Plan 19–21 的完整领域内容。
+本 Plan 只建设公共数据契约、加载/注册/验证/打包能力和最小夹具，不迁移 Plan 22–24 的完整领域内容。
 
 ## Source baseline
 
 - 策划源参考：仓库上一级的 `回响肉鸽数值与构筑体系.xlsx`。
 - 相关 Sheet：`属性S`、`角色体系J`、`构筑体系G`、`元素体系Y`、`状态Z`、`武器体系W`、`武器插槽C`。
 - 当前项目：`Content/Data/*.json` 只做静态审阅；运行时仍读取 C++/DeveloperSettings，且 `ReEcho.Build.cs` 只显式打包 `cards.json`。
-- 当前状态不能把 JSON 与 CSV 同时定义成可编辑真源。Plan 18 完成后，CSV 是目标策划源；尚未由 Plan 19–21 迁移的领域保留旧运行时路径，但旧 JSON 进入只读迁移状态，不再新增第二份平行配置。
+- 当前状态不能把 JSON 与 CSV 同时定义成可编辑真源。Plan 21 完成后，CSV 是目标策划源；尚未由 Plan 22–24 迁移的领域保留旧运行时路径，但旧 JSON 进入只读迁移状态，不再新增第二份平行配置。
 
 ## Locked acceptance
 
@@ -36,7 +36,7 @@
 
 ## Step 0 gates
 
-1. 在 `plan/18-csv-foundation` 独立 worktree 开工，记录 main 基线 commit、UE 5.8 Editor build 与现有 `ReEcho.*` 测试结果。
+1. 在 `plan/21-csv-foundation` 独立 worktree 开工，记录 main 基线 commit、UE 5.8 Editor build 与现有 `ReEcho.*` 测试结果。
 2. 不认领或修改当前工作树中的 `.uasset`/`.umap`；本任务应完全由 C++、CSV、Python/脚本、配置和 Markdown 完成。
 3. 用 `rg` 确认所有 `Content/Data/*.json`、`UReEchoBalanceSettings`、硬编码卡牌/角色/元素/武器目录和 `RuntimeDependencies` 调用点，形成迁移矩阵；不要凭 README 推断运行时。
 4. 先提出并在 Plan 执行经验中记录 ID 映射方案：工作簿的 `J_01`–`J_04` 与当前 `J_SPADE` 等 ID 不一致；已有录制/构筑使用的运行时 ID不得静默重编号。若无法保持兼容，停止并请人拍板 alias/migration 方案。
@@ -58,7 +58,7 @@
 
 1. 定义 schema version、manifest/文件发现、CSV 基础类型和错误模型。
 2. 建公共加载/注册边界；先加载到临时结构，完成全局验证后原子发布只读快照。
-3. 建行为/效果类型注册与参数校验接口，只提供最小通用操作和测试行为，不提前实现 Plan 19–21 的领域大全。
+3. 建行为/效果类型注册与参数校验接口，只提供最小通用操作和测试行为，不提前实现 Plan 22–24 的领域大全。
 4. 扩展 `validate_project.py`，让 CI/执行者在启动 UE 前就能发现绝大多数填表错误。
 5. 建最小生产表/夹具、确定 RuntimeDependencies 或同等可复现打包方案，并验证 Editor/Shipping 路径。
 6. 更新 `Content/Data/README.md`、`shared/PROJECT_RULES.md`、`shared/CODEBASE_MAP.md` 和 Plan 执行经验，写清 CSV/旧 JSON 的迁移期权威边界。
@@ -69,7 +69,7 @@
 - `Content/Data/README.md`、CSV manifest/schema/最小夹具。
 - `scripts/validate_project.py`、`Source/ReEcho/ReEcho.Build.cs` 及必要的只读配置。
 - 数据加载自动化测试。
-- 不修改 Plan 19–21 的核心领域实现文件，除非最小编译接线确有必要并在执行经验中说明。
+- 不修改 Plan 22–24 的核心领域实现文件，除非最小编译接线确有必要并在执行经验中说明。
 
 ## Verification matrix
 
@@ -84,27 +84,27 @@
 
 ## Risks and rollback
 
-- 最大风险是迁移期出现多真源。每个领域只有在 Plan 19–21 完成后才切换运行时权威；切换必须整表原子完成。
+- 最大风险是迁移期出现多真源。每个领域只有在 Plan 22–24 完成后才切换运行时权威；切换必须整表原子完成。
 - CSV 天然缺少嵌套结构；必须用子表和外键，不能用不可校验的 JSON 字符串或自然语言补洞。
 - Shipping 松散文件路径与本地 Editor 路径不同；未取得包内加载证据前不得宣布基础设施完成。
 - 数据快照只在确定的启动/Run 边界装载；不在遭遇中途热换，避免玩家与回响使用不同定义。
 
 ## Recommended executor model
 
-强模型。该任务同时涉及 UE 打包、公共 API、确定性、校验器和多后续任务接口，Plan 19–21 都依赖其最终形态。
+强模型。该任务同时涉及 UE 打包、公共 API、确定性、校验器和多后续任务接口，Plan 22–24 都依赖其最终形态。
 
 ## Execution notes
 
 ### Changed
 
-- Created an isolated sibling worktree on branch `plan/18-csv-foundation` from main baseline `ff4409fc2c9448e35b67b5d02042a38cedfe8d59` (`ff4409f Merge plans 14-16: reactions, roles, and bomber ranges`). The planner/main working tree already had unrelated `.uasset` and planning-file changes; this branch does not claim or edit those assets.
+- Created an isolated sibling worktree on branch `plan/21-csv-foundation` from main baseline `ff4409fc2c9448e35b67b5d02042a38cedfe8d59` (`ff4409f Merge plans 14-16: reactions, roles, and bomber ranges`). The planner/main working tree already had unrelated `.uasset` and planning-file changes; this branch does not claim or edit those assets.
 - Added CSV contract v1 under `Content/Data/`: `reecho_data_manifest.csv`, `csv_schema.csv`, `runtime_smoke.csv` and `runtime_smoke_effects.csv`.
 - Added automation fixtures under `Content/Data/TestFixtures/CsvRuntime/` for one valid alternate value and negative cases: duplicate ID, missing required value, unknown reference, unknown `BehaviorId`, unknown `EffectKind`, illegal numeric range and unsupported schema version.
 - Added public runtime API `FReEchoCsvDataRegistry` in `Source/ReEcho/{Public,Private}/Data/ReEchoCsvDataRegistry.*`.
   - `LoadSnapshotFromDirectory` parses and validates into a temporary snapshot only.
   - `LoadAndPublishFromDirectory` and `LoadAndPublishDefault` replace the global snapshot only after all tables pass.
   - `GetSnapshot` returns the published `TSharedPtr<const FReEchoCsvDataSnapshot>`.
-  - `RegisterBehaviorId` and `RegisterEffectKind` define the C++ allowlists. Plan18 registers only `RuntimeSmoke.LogValue` and `ScalarModifier`.
+  - `RegisterBehaviorId` and `RegisterEffectKind` define the C++ allowlists. Plan21 registers only `RuntimeSmoke.LogValue` and `ScalarModifier`.
 - Replaced the default game module class with `FReEchoModule` so module startup loads the default CSV package. Invalid production CSV logs all file/line/field issues and blocks startup with `UE_LOG(..., Fatal, ...)`; there is no partial registry and no fallback to JSON/DeveloperSettings.
 - Added `ReEcho.Data.*` automation tests for default loading, alternate fixture value reload, invalid-load atomicity and all negative fixture classes.
 - Extended `scripts/validate_project.py` to validate CSV schema/manifest/tables/fixtures, UTF-8 without BOM, stable IDs, foreign keys, value operation enum, behavior/effect allowlists and production CSV staging dependencies while keeping legacy JSON validation marked as migration-only.
@@ -117,7 +117,7 @@
 - Step 0 source scan found:
   - `Content/Data/*.json`: `cards`, `characters`, `elements`, `encounters`, `enemies`, `global_balance`, `reactions`, `statuses`, `weapons`.
   - Runtime data still comes from `UReEchoBalanceSettings`, `Config/DefaultGame.ini` and hardcoded C++ catalogs in current gameplay domains.
-  - Prior packaging only staged `Content/Data/cards.json`; Plan18 now stages the production CSV files.
+  - Prior packaging only staged `Content/Data/cards.json`; Plan21 now stages the production CSV files.
 - Workbook read-only spot check found `角色体系J` IDs:
   - `J_01` 智者/Sage -> current runtime `J_SPADE`.
   - `J_02` 猎手/Hunter -> current runtime `J_DIAMOND`.
@@ -138,7 +138,7 @@
   - `ReEcho/Content/Data/runtime_smoke_effects.csv`
 - `git diff --check` passes.
 
-### Final public contract for Plans 19–21
+### Final public contract for Plans 22–24
 
 - Use `FReEchoCsvDataRegistry` as the single CSV runtime entry point. Load complete domain tables into temporary structures, validate every required table and reference, then publish one immutable snapshot.
 - Do not query or mutate CSV files directly from actors, widgets or gameplay subsystems.
@@ -150,14 +150,14 @@
 
 ### Deviations from initial plan
 
-- The main baseline commit did not yet contain Plan18, so the plan file was copied into the isolated execution branch from the planner working tree and then updated there for execution notes.
-- Plan18 does not migrate any character/build/element/weapon domain values. The only production runtime table is the minimal smoke table required to prove loader, validator, fixture and packaging behavior.
+- The main baseline commit did not yet contain Plan21, so the plan file was copied into the isolated execution branch from the planner working tree and then updated there for execution notes.
+- Plan21 does not migrate any character/build/element/weapon domain values. The only production runtime table is the minimal smoke table required to prove loader, validator, fixture and packaging behavior.
 
 ### Remaining risks
 
-- No known automated blocker remains for the Plan18 foundation.
-- The current module startup uses fatal failure for invalid production CSV. This is deliberate for Plan18's no-partial/no-fallback policy, but later UX may add an editor-facing diagnostics panel before fatal startup.
-- Domain tables for Plans 19-21 still need their own schemas, foreign keys and alias migration policy.
+- No known automated blocker remains for the Plan21 foundation.
+- The current module startup uses fatal failure for invalid production CSV. This is deliberate for Plan21's no-partial/no-fallback policy, but later UX may add an editor-facing diagnostics panel before fatal startup.
+- Domain tables for Plans 22–24 still need their own schemas, foreign keys and alias migration policy.
 
 ### Human validation requested
 
@@ -173,11 +173,11 @@
 ## 执行者启动 prompt
 
 ```text
-你是 ReEcho 项目的执行者。先读 AGENTS.md，并按它的最小读取顺序读取；再读 plans/18-data-csv-runtime-foundation.md 和 shared/LESSONS.md §META 中与 worktree/可复现源码相关的条目。只有遇到实际失败诊断时才读 §DEBUG。
+你是 ReEcho 项目的执行者。先读 AGENTS.md，并按它的最小读取顺序读取；再读 plans/21-data-csv-runtime-foundation.md 和 shared/LESSONS.md §META 中与 worktree/可复现源码相关的条目。只有遇到实际失败诊断时才读 §DEBUG。
 
-在独立 worktree 的 `plan/18-csv-foundation` 分支开发，策划参考工作簿位于仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。任务：建立唯一、可验证、可打包的 CSV 运行时基础，不迁移 Plan 19–21 的完整领域内容。
+在独立 worktree 的 `plan/21-csv-foundation` 分支开发，策划参考工作簿位于仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。任务：建立唯一、可验证、可打包的 CSV 运行时基础，不迁移 Plan 22–24 的完整领域内容。
 
-验收照 Plan 18 的 🔒 清单。公共类型、类名和加载细节由你根据当前 UE 5.8 代码决定；但不得维护多真源、不得执行任意公式、不得静默回退、不得手改 `.uasset`/`.umap`，也不得碰当前用户已有的资产改动。把最终公共 API、schema、打包路径、ID 映射和所有偏差写进 Plan 18 的 Execution notes，供 Plan 19–21 冷启动读取。
+验收照 Plan 21 的 🔒 清单。公共类型、类名和加载细节由你根据当前 UE 5.8 代码决定；但不得维护多真源、不得执行任意公式、不得静默回退、不得手改 `.uasset`/`.umap`，也不得碰当前用户已有的资产改动。把最终公共 API、schema、打包路径、ID 映射和所有偏差写进 Plan 21 的 Execution notes，供 Plan 22–24 冷启动读取。
 
 完成后只在本分支显式提交/push并告诉人，禁止修改或合并 main。需要运行 UE 前先按项目规则确认编辑器状态。
 ```

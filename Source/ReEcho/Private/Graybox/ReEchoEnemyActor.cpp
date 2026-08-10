@@ -233,6 +233,47 @@ bool AReEchoEnemyActor::IsAlive() const
 	return Combatant && Combatant->IsAlive();
 }
 
+FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
+{
+	FReEchoEnemyRuntimeState Result;
+	Result.Kind = static_cast<uint8>(Kind);
+	Result.SpawnIndex = VisualVariantIndex;
+	Result.Transform = GetActorTransform();
+	Result.CurrentHealth = Combatant ? Combatant->CurrentHealth : 0.0f;
+	Result.ElementState = ElementState;
+	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	Result.ElementState.ImmunityUntil = FMath::Max(0.0f, ElementState.ImmunityUntil - CurrentTimeSeconds);
+	Result.AttackCooldown = AttackCooldown;
+	Result.FuseRemaining = FuseRemaining;
+	Result.bBomberFuseActive = bBomberFuseActive;
+	Result.HitReactionRemaining = HitReactionRemaining;
+	Result.KnockbackVelocity = KnockbackVelocity;
+	Result.ShakeDirection = ShakeDirection;
+	return Result;
+}
+
+void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState)
+{
+	const EReEchoEnemyKind SavedKind = static_cast<EReEchoEnemyKind>(SavedState.Kind);
+	Configure(SavedKind, SavedState.SpawnIndex);
+	SetActorTransform(SavedState.Transform, false, nullptr, ETeleportType::TeleportPhysics);
+	if (Combatant)
+	{
+		Combatant->RestoreCurrentHealth(SavedState.CurrentHealth);
+	}
+	ElementState = SavedState.ElementState;
+	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	ElementState.ImmunityUntil = CurrentTimeSeconds + FMath::Max(0.0f, SavedState.ElementState.ImmunityUntil);
+	AttackCooldown = FMath::Max(0.0f, SavedState.AttackCooldown);
+	FuseRemaining = FMath::Max(0.0f, SavedState.FuseRemaining);
+	bBomberFuseActive = SavedState.bBomberFuseActive;
+	HitReactionRemaining = FMath::Max(0.0f, SavedState.HitReactionRemaining);
+	KnockbackVelocity = SavedState.KnockbackVelocity;
+	ShakeDirection = SavedState.ShakeDirection;
+	PreviousShakeOffset = FVector::ZeroVector;
+	UpdateElementAttachmentVisual();
+}
+
 bool AReEchoEnemyActor::IntersectsProjectilePath(const FVector& PathStart,
                                                  const FVector& PathEnd,
                                                  const float ProjectileRadius) const
