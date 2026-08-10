@@ -36,6 +36,10 @@ CARD_TARGETS = {
     "MovementSpeed",
     "EchoEfficiency",
 }
+CARD_EFFECT_BEHAVIOR_PAIRS = {
+    "StatModifier": "Card.StatModifier",
+    "InstantRecovery": "Card.InstantRecovery",
+}
 
 
 class ValidationError(Exception):
@@ -352,8 +356,16 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
     effects_by_card: dict[str, list[dict[str, str]]] = {}
     seen_orders: set[tuple[str, str]] = set()
     for row in effects:
+        if row["Trigger"] != "OnApply":
+            fail(f"{rel(entries['CardEffects'])}:{row['__line__']}: unsupported card effect trigger {row['Trigger']!r}")
         if row["Target"] not in CARD_TARGETS:
             fail(f"{rel(entries['CardEffects'])}:{row['__line__']}: unknown card effect target {row['Target']!r}")
+        expected_behavior = CARD_EFFECT_BEHAVIOR_PAIRS.get(row["EffectKind"])
+        if not expected_behavior or row["BehaviorId"] != expected_behavior:
+            fail(
+                f"{rel(entries['CardEffects'])}:{row['__line__']}: invalid EffectKind/BehaviorId pair "
+                f"{row['EffectKind']!r}/{row['BehaviorId']!r}"
+            )
         key = (row["CardId"], row["Order"])
         if key in seen_orders:
             fail(f"{rel(entries['CardEffects'])}:{row['__line__']}: duplicate CardId/Order {key}")
@@ -477,6 +489,10 @@ def main() -> int:
         "UnknownEffectKind": "effect kind",
         "IllegalRange": "exceeds",
         "UnsupportedVersion": "SchemaVersion",
+        "DuplicateCardEffectOrder": "duplicate CardId/Order",
+        "UnsupportedCardEffectTrigger": "Trigger",
+        "UnknownCardEffectTarget": "Target",
+        "InvalidCardEffectBehaviorPair": "EffectKind/BehaviorId",
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()

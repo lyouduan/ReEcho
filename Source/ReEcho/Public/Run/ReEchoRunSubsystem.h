@@ -7,6 +7,27 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
 
+struct FReEchoCsvDataSnapshot;
+struct FReEchoCsvCardRow;
+
+struct REECHO_API FReEchoStartRunResolveResult
+{
+	bool bSuccess = false;
+	FReEchoBuildSnapshot Build;
+	FString Error;
+};
+
+namespace ReEchoRunData
+{
+REECHO_API FReEchoStartRunResolveResult ResolveStartingBuildFromSnapshot(const FReEchoCsvDataSnapshot* Snapshot,
+                                                                         FName CharacterId,
+                                                                         FName WeaponId);
+REECHO_API FReEchoStartRunResolveResult ResolveStartingBuild(FName CharacterId, FName WeaponId);
+REECHO_API bool TryApplyCardEffectsToBuild(const FReEchoCsvCardRow& Card,
+                                           const FReEchoBuildSnapshot& Build,
+                                           FReEchoBuildSnapshot& OutBuild);
+}
+
 /** 跨关卡保存本轮构筑、遭遇进度和回响记录的运行时状态。 */
 UCLASS()
 

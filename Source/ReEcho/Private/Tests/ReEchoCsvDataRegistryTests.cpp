@@ -126,13 +126,18 @@ bool FReEchoCsvInvalidFixturesFailClearlyTest::RunTest(const FString& Parameters
 		const TCHAR* ExpectedToken = TEXT("");
 	};
 
-	const TArray<FExpectedFailure> ExpectedFailures = {{TEXT("DuplicateId"), TEXT("Duplicate id")},
-	                                                   {TEXT("MissingRequired"), TEXT("TestScalar")},
-	                                                   {TEXT("UnknownReference"), TEXT("RuntimeRowId")},
-	                                                   {TEXT("UnknownBehavior"), TEXT("BehaviorId")},
-	                                                   {TEXT("UnknownEffectKind"), TEXT("EffectKind")},
-	                                                   {TEXT("IllegalRange"), TEXT("TestPercent")},
-	                                                   {TEXT("UnsupportedVersion"), TEXT("SchemaVersion")}};
+	const TArray<FExpectedFailure> ExpectedFailures = {
+	    {TEXT("DuplicateId"), TEXT("Duplicate id")},
+	    {TEXT("MissingRequired"), TEXT("TestScalar")},
+	    {TEXT("UnknownReference"), TEXT("RuntimeRowId")},
+	    {TEXT("UnknownBehavior"), TEXT("BehaviorId")},
+	    {TEXT("UnknownEffectKind"), TEXT("EffectKind")},
+	    {TEXT("IllegalRange"), TEXT("TestPercent")},
+	    {TEXT("DuplicateCardEffectOrder"), TEXT("CardId/Order")},
+	    {TEXT("UnsupportedCardEffectTrigger"), TEXT("Trigger")},
+	    {TEXT("UnknownCardEffectTarget"), TEXT("Target")},
+	    {TEXT("InvalidCardEffectBehaviorPair"), TEXT("EffectKind/BehaviorId")},
+	    {TEXT("UnsupportedVersion"), TEXT("SchemaVersion")}};
 
 	for (const FExpectedFailure& ExpectedFailure : ExpectedFailures)
 	{

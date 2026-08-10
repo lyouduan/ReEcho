@@ -116,13 +116,18 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 - Added automation coverage for character alias/base data, six-card offer pool, CSV card effect application and disabled-card exclusion.
 - Updated `Content/Data/README.md`, `shared/CODEBASE_MAP.md`, `shared/PROJECT_STATE.md` and `scripts/validate_project.py`.
 - Localized `Content/Data/README.md` to Chinese and added explicit production/fixture table directories for designer handoff.
+- Review correction pass removed the `StartRun()` hardcoded `15/5/5` fallback. `ReEchoRunData::ResolveStartingBuildFromSnapshot()` now returns testable errors that include the requested `CharacterId`; `StartRun()` converts those errors into `UE_LOG(LogReEcho, Fatal, ...)` at the run boundary.
+- Moved character/build CSV parsing out of `ReEchoCsvDataRegistry.cpp` into `ReEchoCharacterBuildCsvReader.*`. The registry keeps required-table orchestration, cross-domain runtime-smoke validation and atomic snapshot publication.
+- Runtime C++ card-effect validation now rejects unsupported `Trigger`, unsupported `Target`, invalid `EffectKind/BehaviorId` combinations and duplicate `(CardId, Order)` rows, matching the Python static validator and negative fixtures.
+- Trait/forge effect application now evaluates against a temporary build snapshot and commits only after every effect succeeds; `ReEcho.Traits.CardEffectsApplyAtomically` covers the no-partial-commit path.
 
 ### Evidence
 
 - `python scripts/validate_project.py` passes: CSV schema, production character/build tables, fixtures, IDs, references, behavior/effect allowlists, disabled rows, six-card draw pool, UTF-8 and staging deps.
 - `.clang-format` was run with Visual Studio Professional LLVM clang-format on changed C++ files.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
-- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passes. Log evidence: `Found 20 automation tests based on 'ReEcho'`; final line `TEST COMPLETE. EXIT CODE: 0`.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passes. Log evidence: `Found 22 automation tests based on 'ReEcho'`; new tests include `ReEcho.Traits.CardEffectsApplyAtomically` and `ReEcho.Traits.StartRunResolveErrors`; final line `TEST COMPLETE. EXIT CODE: 0`.
+- `git diff --check` passes after the planner review correction pass.
 - After README-only handoff updates, `python scripts/validate_project.py` and `git diff --check -- Content/Data/README.md` pass.
 
 ### Plan 18 contract adaptation
@@ -161,6 +166,14 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 - Runtime C++ validation must reject unsupported card effect triggers/targets/combinations and duplicate `(CardId, Order)` values, matching the static validator. Multi-effect application must not partially mutate the build before a later effect fails.
 - Character/build parsing must move out of `ReEchoCsvDataRegistry.cpp` into an independent domain reader. The registry remains the only required-table orchestrator and atomic publisher, so Plan 20 can add another domain reader without growing a monolithic parser.
 - After corrections, rerun static validation, Editor build, all `ReEcho.*` automation and `git diff --check`; record evidence here and commit locally without push.
+
+### Planner review corrections completed locally
+
+- `J_CAT.HpMax` remains at the production value `15`; no correction-pass edit changed it.
+- `StartRun()` now has no hardcoded character-stat fallback. Missing snapshot, missing character and disabled character errors are produced by `ReEchoRunData::ResolveStartingBuildFromSnapshot()` and covered by `ReEcho.Traits.StartRunResolveErrors`.
+- C++ runtime reader rejection now matches static validation for unsupported card effect trigger, target, behavior/effect pair and duplicate `(CardId, Order)`; both Python and C++ negative fixture tests cover these cases.
+- Multi-effect application is atomic through `ReEchoRunData::TryApplyCardEffectsToBuild()`, which applies into a candidate build and only assigns the output on complete success.
+- Character/build parsing now lives in `ReEchoCharacterBuildCsvReader.*`; `ReEchoCsvDataRegistry.cpp` remains the manifest/registry/publish boundary.
 
 ### Human validation requested
 

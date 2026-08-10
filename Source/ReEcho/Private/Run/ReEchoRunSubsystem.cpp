@@ -2,6 +2,7 @@
 
 #include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoShopCatalog.h"
 
@@ -159,6 +160,60 @@ bool CurrentCharacterHasPassive(const FReEchoBuildSnapshot& Build, const FName P
 }
 }
 
+FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(const FReEchoCsvDataSnapshot* Snapshot,
+                                                                             const FName CharacterId,
+                                                                             const FName WeaponId)
+{
+	FReEchoStartRunResolveResult Result;
+	if (!Snapshot)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': CSV snapshot is unavailable"),
+		                               *CharacterId.ToString());
+		return Result;
+	}
+
+	const FReEchoCsvCharacterRow* Character = Snapshot->FindCharacter(CharacterId);
+	if (!Character)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': character was not found"),
+		                               *CharacterId.ToString());
+		return Result;
+	}
+	if (!Character->bEnabled)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': character is disabled"),
+		                               *CharacterId.ToString());
+		return Result;
+	}
+
+	Result.Build.CharacterId = Character->Id;
+	Result.Build.WeaponId = WeaponId.IsNone() ? Character->DefaultWeaponId : WeaponId;
+	Result.Build.Stats = Character->BaseStats;
+	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
+	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
+	Result.bSuccess = true;
+	return Result;
+}
+
+FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuild(const FName CharacterId, const FName WeaponId)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	return ResolveStartingBuildFromSnapshot(Snapshot.Get(), CharacterId, WeaponId);
+}
+
+bool ReEchoRunData::TryApplyCardEffectsToBuild(const FReEchoCsvCardRow& Card,
+                                               const FReEchoBuildSnapshot& Build,
+                                               FReEchoBuildSnapshot& OutBuild)
+{
+	FReEchoBuildSnapshot Candidate = Build;
+	if (!ApplyCardEffects(Card, Candidate))
+	{
+		return false;
+	}
+	OutBuild = Candidate;
+	return true;
+}
+
 void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)
 {
 	Phase = NewPhase;
@@ -174,25 +229,13 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	AnchorId.Invalidate();
 	PendingTraitCardIds.Reset();
 	CurrentBuild = {};
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(CharacterId) : nullptr;
-	if (Character && Character->bEnabled)
+
+	const FReEchoStartRunResolveResult ResolveResult = ReEchoRunData::ResolveStartingBuild(CharacterId, WeaponId);
+	if (!ResolveResult.bSuccess)
 	{
-		CurrentBuild.CharacterId = Character->Id;
-		CurrentBuild.WeaponId = WeaponId.IsNone() ? Character->DefaultWeaponId : WeaponId;
-		CurrentBuild.Stats = Character->BaseStats;
-		CurrentBuild.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
-		CurrentBuild.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
+		UE_LOG(LogReEcho, Fatal, TEXT("%s"), *ResolveResult.Error);
 	}
-	else
-	{
-		CurrentBuild.CharacterId = CharacterId;
-		CurrentBuild.WeaponId = WeaponId;
-		CurrentBuild.Stats.HpPoint = 15.0f;
-		CurrentBuild.Stats.HpMax = 15.0f;
-		CurrentBuild.Stats.PhysicalAttack = 5.0f;
-		CurrentBuild.Stats.ElementalAttack = 5.0f;
-	}
+	CurrentBuild = ResolveResult.Build;
 	SetPhase(EReEchoRunPhase::Planning);
 }
 
@@ -286,10 +329,12 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(CardId) : nullptr;
-	if (!Card || !Card->bEnabled || !ApplyCardEffects(*Card, CurrentBuild))
+	FReEchoBuildSnapshot PendingBuild = CurrentBuild;
+	if (!Card || !Card->bEnabled || !ReEchoRunData::TryApplyCardEffectsToBuild(*Card, CurrentBuild, PendingBuild))
 	{
 		return false;
 	}
+	CurrentBuild = PendingBuild;
 
 	const FName SageBonusChoiceFlag = TEXT("SageBonusChoice");
 	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
@@ -346,12 +391,15 @@ bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(ForgeId) : nullptr;
-	if (!Card || !Card->bEnabled || Card->OfferGroup != ForgeOfferGroup || !ApplyCardEffects(*Card, CurrentBuild))
+	FReEchoBuildSnapshot PendingBuild = CurrentBuild;
+	if (!Card || !Card->bEnabled || Card->OfferGroup != ForgeOfferGroup ||
+	    !ReEchoRunData::TryApplyCardEffectsToBuild(*Card, CurrentBuild, PendingBuild))
 	{
 		return false;
 	}
 
-	CurrentBuild.Stats.HpMax = FMath::Max(1.0f, CurrentBuild.Stats.HpMax);
+	PendingBuild.Stats.HpMax = FMath::Max(1.0f, PendingBuild.Stats.HpMax);
+	CurrentBuild = PendingBuild;
 	PendingTraitCardIds.Reset();
 	SetPhase(EReEchoRunPhase::CardChoice);
 	return true;
