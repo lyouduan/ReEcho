@@ -127,7 +127,7 @@ struct FReEchoElementWorldFixture
 
 	void AdvanceTimeOnly(const float Seconds)
 	{
-		AdvanceWorldTime(Seconds);
+		World->TimeSeconds = World->GetTimeSeconds() + Seconds;
 	}
 
 	void Advance(const float Seconds)
@@ -331,6 +331,52 @@ bool FReEchoElementReactionBurnRefreshTest::RunTest(const FString& Parameters)
 	Fixture.Advance(0.25f);
 	TestEqual(
 	    TEXT("Boundary refresh does not duplicate after the final boundary"), EnemyHealth(BoundaryTarget), 950.0f);
+
+	{
+		FReEchoElementWorldFixture StalledFixture;
+		AReEchoEnemyActor* StalledTarget = StalledFixture.SpawnEnemy(FVector::ZeroVector, 62);
+		StalledTarget->EditElementState().Attached = EReEchoElement::Grass;
+		ReEchoElementReaction::ApplyHitToWorld(
+		    *StalledTarget, EReEchoElement::Flame, 999.0f, StalledFixture.MakeContext(10.0f));
+		StalledFixture.AdvanceTimeOnly(10.0f);
+		TestEqual(
+		    TEXT("Stalled old burn has not been actor-ticked before the new hit"), EnemyHealth(StalledTarget), 1000.0f);
+		TestTrue(TEXT("Stalled old burn still carries its original end time"),
+		         FMath::IsNearlyEqual(
+		             StalledTarget->GetElementState().ActiveStatusUntilSeconds.FindRef(FName(TEXT("Z_Burn"))),
+		             3.0f,
+		             KINDA_SMALL_NUMBER));
+
+		StalledTarget->EditElementState().Attached = EReEchoElement::Grass;
+		const FReEchoElementExecutionResult StalledRefreshResult = ReEchoElementReaction::ApplyHitToWorld(
+		    *StalledTarget, EReEchoElement::Flame, 999.0f, StalledFixture.MakeContext(10.0f));
+		TestEqual(TEXT("Stalled refresh only settles old ticks through the old burn end"),
+		          EnemyHealth(StalledTarget),
+		          970.0f);
+		TestEqual(TEXT("Stalled refresh starts one new DOT stream"), StalledRefreshResult.DotTicksScheduled, 3);
+		TestTrue(TEXT("Stalled refresh schedules the new burn from the current frame"),
+		         FMath::IsNearlyEqual(StalledTarget->GetElementState().BurnNextTickTimeSeconds, 11.0f, 0.02f));
+		TestTrue(TEXT("Stalled refresh commits the new burn end after old settlement"),
+		         FMath::IsNearlyEqual(
+		             StalledTarget->GetElementState().ActiveStatusUntilSeconds.FindRef(FName(TEXT("Z_Burn"))),
+		             13.0f,
+		             0.02f));
+		StalledFixture.Advance(0.99f);
+		TestEqual(TEXT("Stalled refresh produces no ghost ticks between old end and new first tick"),
+		          EnemyHealth(StalledTarget),
+		          970.0f);
+		StalledFixture.Advance(0.01f);
+		TestEqual(TEXT("Stalled refresh applies the new first boundary tick once"), EnemyHealth(StalledTarget), 960.0f);
+		StalledFixture.Advance(1.0f);
+		TestEqual(
+		    TEXT("Stalled refresh applies the new second boundary tick once"), EnemyHealth(StalledTarget), 950.0f);
+		StalledFixture.Advance(1.0f);
+		TestEqual(TEXT("Stalled refresh preserves the new final boundary tick"), EnemyHealth(StalledTarget), 940.0f);
+		StalledFixture.Advance(0.25f);
+		TestEqual(TEXT("Stalled refresh does not duplicate after the new final boundary"),
+		          EnemyHealth(StalledTarget),
+		          940.0f);
+	}
 	return true;
 }
 

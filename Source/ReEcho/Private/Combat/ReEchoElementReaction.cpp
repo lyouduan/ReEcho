@@ -461,13 +461,6 @@ FReEchoElementHitResult ResolveHit(FReEchoElementState& State,
 			Result.Multiplier = FMath::Max(0.0f, ReactionEfficiency) * GetFinalReactionMultiplier(Result);
 		}
 
-		if (Result.AppliedStatusId != NAME_None && CurrentTimeSeconds >= 0.0f)
-		{
-			const float Duration = Result.StatusDurationSeconds > 0.0f
-			                           ? Result.StatusDurationSeconds
-			                           : GetEnabledStatusDuration(*Snapshot, Result.AppliedStatusId);
-			State.ActiveStatusUntilSeconds.Add(Result.AppliedStatusId, CurrentTimeSeconds + Duration);
-		}
 		if (ShouldApplyElementalImmunity(Reaction->BehaviorId))
 		{
 			const float ImmunityDuration = GetEnabledStatusDuration(*Snapshot, ElementImmunityStatusId);
@@ -477,7 +470,6 @@ FReEchoElementHitResult ResolveHit(FReEchoElementState& State,
 				if (CurrentTimeSeconds >= 0.0f)
 				{
 					State.ImmunityUntil = CurrentTimeSeconds + ImmunityDuration;
-					State.ActiveStatusUntilSeconds.Add(FName(ElementImmunityStatusId), State.ImmunityUntil);
 				}
 			}
 		}
