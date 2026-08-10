@@ -27,4 +27,30 @@ CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON �
 - `card_effects.csv`：启用卡牌和锻炼选项的有序效果子表，使用类型化目标、`EffectKind`、`ValueOp` 和已注册 `BehaviorId`。
 - `TestFixtures/CsvRuntime/`：自动化用的正向和负向 fixtures，不是生产数据。
 
+## 表目录
+
+生产数据目录：`Content/Data/`
+
+| 表 ID | 文件路径 | 用途 |
+|---|---|---|
+| `RuntimeSmoke` | `Content/Data/runtime_smoke.csv` | CSV 加载、打包和改值 smoke 表 |
+| `RuntimeSmokeEffects` | `Content/Data/runtime_smoke_effects.csv` | `RuntimeSmoke` 的效果子表 |
+| `Characters` | `Content/Data/characters.csv` | 角色基础属性、默认武器、外观和被动行为 |
+| `CharacterAliases` | `Content/Data/character_aliases.csv` | 旧 ID / 工作簿 ID 到 canonical 角色 ID 的显式映射 |
+| `Cards` | `Content/Data/cards.csv` | 卡牌、锻炼选项、抽取组、晋升角色桶和启用状态 |
+| `CardEffects` | `Content/Data/card_effects.csv` | 卡牌和锻炼选项的有序数值/行为效果 |
+
+自动化 fixture 目录：`Content/Data/TestFixtures/CsvRuntime/`
+
+| Fixture | 路径 | 用途 |
+|---|---|---|
+| `ValidAlt` | `Content/Data/TestFixtures/CsvRuntime/ValidAlt/` | 正向改值重载样例 |
+| `DuplicateId` | `Content/Data/TestFixtures/CsvRuntime/DuplicateId/` | 重复 ID 负例 |
+| `MissingRequired` | `Content/Data/TestFixtures/CsvRuntime/MissingRequired/` | 必填字段缺失负例 |
+| `UnknownReference` | `Content/Data/TestFixtures/CsvRuntime/UnknownReference/` | 外键引用未知行负例 |
+| `UnknownBehavior` | `Content/Data/TestFixtures/CsvRuntime/UnknownBehavior/` | 未注册 `BehaviorId` 负例 |
+| `UnknownEffectKind` | `Content/Data/TestFixtures/CsvRuntime/UnknownEffectKind/` | 未注册 `EffectKind` 负例 |
+| `IllegalRange` | `Content/Data/TestFixtures/CsvRuntime/IllegalRange/` | 数值越界负例 |
+| `UnsupportedVersion` | `Content/Data/TestFixtures/CsvRuntime/UnsupportedVersion/` | 不支持 schema 版本负例 |
+
 打开 Unreal 前先运行 `python scripts/validate_project.py`。它会校验 CSV schema、ID、外键、枚举、行为/效果白名单、禁用源行、当前六张卡牌抽取池、UTF-8 编码和预期负例 fixtures。
