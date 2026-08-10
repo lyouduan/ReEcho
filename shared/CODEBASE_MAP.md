@@ -80,10 +80,10 @@ Esc -> pause menu -> exit
 | Player | `AReEchoPlayerPawn` | `Player/ReEchoPlayerPawn.*` | Map-edge-clamped follow camera with wider player arena clamp, WASD, center-aligned root capsule, mouse-following horizontal sprite facing, four configurable NewCast character textures, manual attacks and visual-only 2D motion |
 | GAS combat | `UAbilitySystemComponent`, `UReEchoCombatAttributeSet`, native GameplayEffects/tags and player abilities | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*` | Player/enemy runtime attributes, effect-based damage/heal, tag-driven activation, cooldown commit and AbilityTask held attacks; CombatantComponent is the legacy-facing adapter |
 | Projectile | `AReEchoProjectileActor` | `Graybox/ReEchoProjectileActor.*` | Visible sphere travel, swept path-vs-capsule hit detection, damage delivery |
-| Player weapons | `AReEchoWeaponActor`, `EReEchoWeaponSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*` | Slots 1/2/3, DeveloperSettings/DefaultEngine.ini-driven orb and sword attacks, sword mesh and swing animation |
+| Player weapons | `AReEchoWeaponActor`, `EReEchoWeaponSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*`, `UI/ReEchoLoadoutSelectionWidget.*` | First-encounter weapon choice locked for the full run, DeveloperSettings/DefaultGame.ini-driven orb and sword attacks, sword mesh and swing animation |
 | Sword arc VFX | `AReEchoSwordArcActor` | `Graybox/ReEchoSwordArcActor.*`, `Weapons/ReEchoWeaponActor.cpp` | Layered translucent crescent spawned for each sword swing and faded over a short lifetime |
 | Enemy | `AReEchoEnemyActor` | `Graybox/ReEchoEnemyActor.*` | Grunt/shield/bomber/final-Boss stats, six rotating 2D grunt variants and a 2D final-Boss Billboard, capsule damage volume, chase/contact damage and visual-only attack/hit/death motion |
-| Echo | `AReEchoEchoActor` | `Graybox/ReEchoEchoActor.*` | Historical movement playback, timestamped previous-encounter weapon timeline playback, automatic shared-weapon attacks, translucent pulsing ghost material and visual-only 2D motion |
+| Echo | `AReEchoEchoActor` | `Graybox/ReEchoEchoActor.*` | Historical movement playback with the recorded run-locked weapon, automatic shared-weapon attacks, translucent pulsing ghost material and visual-only 2D motion |
 | Echo trajectory | `AReEchoTrajectoryActor` | `Graybox/ReEchoTrajectoryActor.*` | Only the active echo's simplified historical positions projected onto the ground as one world-fixed translucent route |
 | Combat | `UReEchoCombatantComponent` | `Combat/ReEchoCombatantComponent.*` | Shared stats, HP, block, damage and death delegates |
 | Hit VFX | `ReEchoAttackEffects`, `AReEchoHitImpactActor` | `Graybox/ReEchoAttackEffects.*`, `Graybox/ReEchoHitImpactActor.*` | Transparent HitStarburst plane spawned only after non-zero applied damage |
@@ -99,17 +99,17 @@ Esc -> pause menu -> exit
 | Player/echo stats | `UReEchoStatsWidget` | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*`, `Graybox/ReEchoEchoActor.*` | Tab-paused two-column live stats over the imported blurred clockwork background; handles runs without an active echo |
 | Weather scenes | `UReEchoWeatherWidget` | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*`, `ReEchoBalanceSettings.h` | Configurable per-encounter rain streaks and player/echo-centered fog-of-war rendered as input-transparent screen-space presentation |
 | GM/debug commands | `AReEchoGameMode` exec functions | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Development-console status, healing, Time Shards, weather override and enemy-clear commands; rejected in Shipping |
-| Start/continue UI | `UReEchoStartMenuWidget` | `UI/ReEchoStartMenuWidget.*`, `Run/ReEchoRunSaveGame.h`, `ReEchoGameMode.*` | Blocking startup choice: new game only without a valid save, or continue/new game when a compatible save exists |
+| Start/continue/loadout UI | `UReEchoStartMenuWidget`, `UReEchoLoadoutSelectionWidget` | `UI/ReEchoStartMenuWidget.*`, `UI/ReEchoLoadoutSelectionWidget.*`, `Run/ReEchoRunSaveGame.h`, `ReEchoGameMode.*` | Blocking startup choice followed by one-time character/weapon selection before encounter 1; continue restores the saved locked loadout |
 | Pause/restart UI | `UReEchoRestartWidget` | `UI/ReEchoRestartWidget.*`, `ReEchoGameMode.*` | Esc pause overlay, resume, full-level restart, two-step save-and-quit confirmation, death-screen and terminal Boss-victory actions |
-| Trait choice UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*` | Three deterministic, unique, least-owned-priority offers after a cleared encounter; only the pending offer can mutate the build |
+| Trait choice UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `ReEchoGameMode.*` | Animated centered three-choice presentation with current Time Shards; only the pending offer mutates the build, then the existing shop opens before the next encounter |
 | Tests | Recording/GAS/run/save/shop/trait automation | `Private/Tests/*` | Recording interpolation/timeline, GAS structure, final-Boss gate, safe/suspended save snapshots, shop purchase and deterministic pending-trait regressions |
 
 Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Private`.
 
 ## Current gameplay contract
 
-- Player: 2D Billboard character, WASD movement, left mouse/J basic attack, Q/Space power shot, and GAS-routed 1/2/3 weapon switching.
-- Echo: 2D Billboard replay actor that follows historical movement, replays timestamped weapon changes, and attacks through the shared weapon implementation.
+- Player: first-encounter character and weapon selection, 2D Billboard character, WASD movement, left mouse/J basic attack, and Q/Space power shot; the selected weapon is locked for the run.
+- Echo: 2D Billboard replay actor that follows historical movement and attacks through the shared weapon implementation using the recorded locked weapon.
 - Projectile flight has no Niagara. A transparent HitStarburst impact appears only when applied damage is greater than zero.
 - Enemies use 2D Billboard visuals for every archetype; the old cube/plane/cone fallback rendering has been removed. Shield enemies remain implemented but are temporarily excluded from encounter composition.
 - Enemy hit feedback: short stagger, source-opposed knockback and decaying lateral shake; blocked hits do not trigger it.
@@ -142,13 +142,13 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 | 2D sprite animation, frame import, attack/hit/death feedback | `Player/ReEchoPlayerPawn.*`, `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoEchoActor.*` | `scripts/ue/import_mushroomgirl_frames.py`, `Content/SourceArt/Characters/MushroomGirl/`, imported character textures |
 | GAS, abilities, attributes, effects, cooldown, tags | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*` | `docs/GAS_ONBOARDING.md`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*`, `Weapons/ReEchoWeaponActor.*`, GAS automation tests |
 | Mouse cursor aiming/player facing/camera | `Player/ReEchoPlayerPawn.*` | `GameMode::RestoreGameInput`, `DefaultInput.ini` |
-| Weapon switching/sword/melee/element reactions | `Weapons/ReEchoWeaponActor.*`, `Combat/ReEchoElementReaction.*` | `Graybox/ReEchoProjectileActor.*`, `Graybox/ReEchoEnemyActor.*`, `Player/ReEchoPlayerPawn.*`, `Content/Data/weapons.json`, `DefaultInput.ini`, `RunSubsystem::SetEquippedWeapon` |
+| Initial weapon selection/sword/melee/element reactions | `UI/ReEchoLoadoutSelectionWidget.*`, `Weapons/ReEchoWeaponActor.*`, `Combat/ReEchoElementReaction.*` | `Graybox/ReEchoProjectileActor.*`, `Graybox/ReEchoEnemyActor.*`, `Player/ReEchoPlayerPawn.*`, `Content/Data/weapons.json`, `DefaultGame.ini`, `RunSubsystem::StartRun` |
 | Bullet speed/size/color/hit | `Graybox/ReEchoProjectileActor.*` | Player/Echo caller, `EnemyActor::ReceiveGrayboxDamage` |
 | Enemy AI, type, shield, bomber, boss | `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoBomberRules.*` | `CombatantComponent.*`, `ReEchoBalanceSettings.h`, `DefaultGame.ini`, hit effects |
 | Damage, HP, block, death | `Combat/ReEchoCombatantComponent.*` | Damage caller and health UI |
 | Hit VFX or hit feel | `Graybox/ReEchoAttackEffects.*`, `Graybox/ReEchoEnemyActor.*` | Niagara plugin/material paths |
 | Floating damage text | `UI/ReEchoDamageNumberActor.*` | every `ApplyFinalDamage` caller, currently `Graybox/ReEchoEnemyActor.cpp` |
-| Echo appearance/attack/playback/weapon timeline | `Graybox/ReEchoEchoActor.*`, `Recording/ReEchoRecorderComponent.*`, `Recording/ReEchoPlaybackComponent.*` | `Recording.WeaponChanges`, `Weapons/ReEchoWeaponActor.*`, player weapon-change event, `M_EchoGhost.uasset` |
+| Echo appearance/attack/playback/locked weapon | `Graybox/ReEchoEchoActor.*`, `Recording/ReEchoRecorderComponent.*`, `Recording/ReEchoPlaybackComponent.*` | `Recording.BuildSnapshot.WeaponId`, `Weapons/ReEchoWeaponActor.*`, `M_EchoGhost.uasset` |
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |

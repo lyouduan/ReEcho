@@ -32,7 +32,7 @@ public:
 	void SetDeathScreen(bool bInDeathScreen);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount);
-	/** Pause-menu second step: only resume or confirm save-and-quit remain actionable. */
+	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
 	void SetQuitConfirmation(bool bInQuitConfirmation);
 	void ShowSaveFailure();
 

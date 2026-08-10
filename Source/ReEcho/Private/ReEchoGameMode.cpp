@@ -26,6 +26,7 @@
 #include "Run/ReEchoRunSubsystem.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
+#include "UI/ReEchoLoadoutSelectionWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoStartMenuWidget.h"
@@ -238,7 +239,6 @@ void AReEchoGameMode::StartPlay()
 	if (Player)
 	{
 		Player->OnActiveSkill.AddDynamic(this, &AReEchoGameMode::HandlePlayerSkill);
-		Player->OnWeaponChanged.AddDynamic(this, &AReEchoGameMode::HandlePlayerWeaponChanged);
 		Player->Combatant->OnDeath.AddDynamic(this, &AReEchoGameMode::HandlePlayerDeath);
 	}
 	if (Player)
@@ -273,10 +273,16 @@ void AReEchoGameMode::ShowStartMenu()
 	{
 		return;
 	}
-	StartMenuWidget->InitializeMenu(RunSubsystem->HasSavedRun());
+	const bool bHasSavedRun = RunSubsystem->HasSavedRun();
+	StartMenuWidget->InitializeMenu(bHasSavedRun);
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[ReEchoStartFlow] Showing start menu. HasSavedRun=%s"),
+	       bHasSavedRun ? TEXT("true") : TEXT("false"));
 	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
 	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
 	StartMenuWidget->AddToViewport(200);
+	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeUIOnly InputMode;
 	InputMode.SetWidgetToFocus(StartMenuWidget->TakeWidget());
@@ -289,19 +295,19 @@ void AReEchoGameMode::ShowStartMenu()
 
 void AReEchoGameMode::HandleNewGameRequested()
 {
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] New game requested."));
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem)
 	{
 		return;
 	}
 	RunSubsystem->DeleteSavedRun();
-	RunSubsystem->StartRun(GetDefault<UReEchoBalanceSettings>()->DefaultCharacterId, TEXT("W_J_02"));
-	RunSubsystem->SaveRun();
-	BeginSelectedRun();
+	ShowLoadoutSelection();
 }
 
 void AReEchoGameMode::HandleContinueGameRequested()
 {
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Continue requested."));
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || !RunSubsystem->LoadSavedRun())
 	{
@@ -311,6 +317,62 @@ void AReEchoGameMode::HandleContinueGameRequested()
 		}
 		return;
 	}
+	BeginSelectedRun();
+}
+
+void AReEchoGameMode::ShowLoadoutSelection()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PlayerController || LoadoutSelectionWidget)
+	{
+		return;
+	}
+	UReEchoLoadoutSelectionWidget* NewLoadoutSelectionWidget =
+	    CreateWidget<UReEchoLoadoutSelectionWidget>(PlayerController, UReEchoLoadoutSelectionWidget::StaticClass());
+	if (!NewLoadoutSelectionWidget)
+	{
+		return;
+	}
+	if (StartMenuWidget)
+	{
+		StartMenuWidget->RemoveFromParent();
+		StartMenuWidget = nullptr;
+	}
+
+	LoadoutSelectionWidget = NewLoadoutSelectionWidget;
+	LoadoutSelectionWidget->OnLoadoutConfirmed.AddDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->AddToViewport(210);
+	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(LoadoutSelectionWidget->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
+	SetPlayerMenuAbilityBlocked(true);
+	UGameplayStatics::SetGamePaused(this, true);
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing first-encounter loadout selection."));
+}
+
+void AReEchoGameMode::HandleLoadoutConfirmed(const FName CharacterId, const FName WeaponId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		return;
+	}
+
+	RunSubsystem->StartRun(CharacterId, WeaponId);
+	if (!RunSubsystem->SaveRun())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ReEchoStartFlow] Initial loadout save failed."));
+		return;
+	}
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[ReEchoStartFlow] Loadout locked. Character=%s Weapon=%s"),
+	       *CharacterId.ToString(),
+	       *WeaponId.ToString());
 	BeginSelectedRun();
 }
 
@@ -325,6 +387,11 @@ void AReEchoGameMode::BeginSelectedRun()
 	{
 		StartMenuWidget->RemoveFromParent();
 		StartMenuWidget = nullptr;
+	}
+	if (LoadoutSelectionWidget)
+	{
+		LoadoutSelectionWidget->RemoveFromParent();
+		LoadoutSelectionWidget = nullptr;
 	}
 	bAwaitingStartChoice = false;
 	SetGameplayPresentationVisible(true);
@@ -676,14 +743,6 @@ void AReEchoGameMode::HandlePlayerSkill(FVector Position, FName SkillId)
 	}
 }
 
-void AReEchoGameMode::HandlePlayerWeaponChanged(const FName WeaponId)
-{
-	if (Player && Director)
-	{
-		Player->Recorder->RecordWeaponChange(Director->EncounterTime, WeaponId);
-	}
-}
-
 void AReEchoGameMode::HandlePlayerDeath()
 {
 	if (Director)
@@ -897,12 +956,18 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 
 void AReEchoGameMode::HandleInventoryShopClosed()
 {
+	const bool bShouldStartNextEncounter = bContinueRunAfterShop;
+	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
 	{
 		InventoryShopWidget->RemoveFromParent();
 		InventoryShopWidget = nullptr;
 	}
 	RestoreGameInput();
+	if (bShouldStartNextEncounter)
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+	}
 }
 
 void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
@@ -931,6 +996,7 @@ void AReEchoGameMode::HandleQuitRequested()
 {
 	if (!bRestartScreenIsTerminal && !bQuitConfirmationVisible)
 	{
+		UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing save-and-quit confirmation."));
 		bQuitConfirmationVisible = true;
 		if (RestartWidget)
 		{
@@ -952,12 +1018,17 @@ void AReEchoGameMode::HandleQuitRequested()
 		}
 		if (!bSaved)
 		{
+			UE_LOG(LogTemp, Error, TEXT("[ReEchoStartFlow] Save-and-quit aborted because persistence failed."));
 			if (RestartWidget)
 			{
 				RestartWidget->ShowSaveFailure();
 			}
 			return;
 		}
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[ReEchoStartFlow] Save-and-quit succeeded. EncounterSnapshot=%s"),
+		       EncounterState.bValid ? TEXT("true") : TEXT("false"));
 	}
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, false);
@@ -1057,7 +1128,8 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	TraitCardChoiceWidget->InitializeOffers(Offers);
+	TraitCardChoiceWidget->InitializeOffers(
+	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	TraitCardChoiceWidget->AddToViewport(90);
 
@@ -1091,14 +1163,20 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		TraitCardChoiceWidget = nullptr;
 	}
 
-	RestoreGameInput();
 	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
 	{
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
 	}
 	else
 	{
-		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		bContinueRunAfterShop = true;
+		ShowInventoryShopMenu(true);
+		if (!InventoryShopWidget)
+		{
+			bContinueRunAfterShop = false;
+			RestoreGameInput();
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		}
 	}
 }
 

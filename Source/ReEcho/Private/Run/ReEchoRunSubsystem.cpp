@@ -116,11 +116,6 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	SetPhase(EReEchoRunPhase::Planning);
 }
 
-void UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
-{
-	CurrentBuild.WeaponId = WeaponId;
-}
-
 void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
@@ -410,11 +405,6 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::GetEchoRecordings(const int32 Requ
 		}
 	}
 	return Result;
-}
-
-bool UReEchoRunSubsystem::ShouldOpenShopAfterCurrentEncounter() const
-{
-	return EncounterIndex == 2 || EncounterIndex == 4;
 }
 
 bool UReEchoRunSubsystem::HasSavedRun() const

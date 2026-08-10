@@ -31,29 +31,23 @@ bool FReEchoRecordingInterpolationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponTimelineRecordingTest,
-                                 "ReEcho.Recording.CapturesWeaponTimeline",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoLockedLoadoutRecordingTest,
+                                 "ReEcho.Recording.PreservesLockedLoadout",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FReEchoWeaponTimelineRecordingTest::RunTest(const FString& Parameters)
+bool FReEchoLockedLoadoutRecordingTest::RunTest(const FString& Parameters)
 {
 	UReEchoRecorderComponent* Recorder = NewObject<UReEchoRecorderComponent>(GetTransientPackage());
 
 	FReEchoBuildSnapshot InitialBuild;
+	InitialBuild.CharacterId = TEXT("J_HEART");
 	InitialBuild.WeaponId = TEXT("W_J_02");
 	Recorder->BeginRecording(1, TEXT("TestArena"), 1337, InitialBuild);
-	Recorder->RecordWeaponChange(4.0f, TEXT("W_J_01"));
-	Recorder->RecordWeaponChange(5.0f, TEXT("W_J_01"));
-	Recorder->RecordWeaponChange(9.5f, TEXT("W_J_03"));
 
 	const FReEchoRecording Recording = Recorder->FinishRecording(10.0f);
-	TestEqual(TEXT("Initial and two distinct changes are recorded"), Recording.WeaponChanges.Num(), 3);
 	TestEqual(
-	    TEXT("Timeline starts with the initial weapon"), Recording.WeaponChanges[0].WeaponId, FName(TEXT("W_J_02")));
-	TestEqual(TEXT("Sword switch keeps its encounter time"), Recording.WeaponChanges[1].Time, 4.0f);
-	TestEqual(
-	    TEXT("Duplicate weapon selection is ignored"), Recording.WeaponChanges[2].WeaponId, FName(TEXT("W_J_03")));
-	TestEqual(TEXT("Build snapshot retains the final weapon"), Recording.BuildSnapshot.WeaponId, FName(TEXT("W_J_03")));
+	    TEXT("Recording retains the selected character"), Recording.BuildSnapshot.CharacterId, FName(TEXT("J_HEART")));
+	TestEqual(TEXT("Recording retains the run-locked weapon"), Recording.BuildSnapshot.WeaponId, FName(TEXT("W_J_02")));
 	return true;
 }
 
@@ -69,10 +63,7 @@ bool FReEchoPlayerGasStructureTest::RunTest(const FString& Parameters)
 	         AReEchoPlayerPawn::StaticClass()->ImplementsInterface(UAbilitySystemInterface::StaticClass()));
 
 	const TArray<UClass*> AbilityClasses = {UReEchoBasicAttackAbility::StaticClass(),
-	                                        UReEchoActiveAttackAbility::StaticClass(),
-	                                        UReEchoSelectWeaponSlot1Ability::StaticClass(),
-	                                        UReEchoSelectWeaponSlot2Ability::StaticClass(),
-	                                        UReEchoSelectWeaponSlot3Ability::StaticClass()};
+	                                        UReEchoActiveAttackAbility::StaticClass()};
 	for (const UClass* AbilityClass : AbilityClasses)
 	{
 		TestTrue(TEXT("Player ability derives from UGameplayAbility"),
@@ -112,7 +103,7 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 
 	AReEchoPlayerPawn* CharacterPawn = NewObject<AReEchoPlayerPawn>(GetTransientPackage());
 	const TArray<FName> CharacterIds = {
-		TEXT("J_CAT"), TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
+	    TEXT("J_CAT"), TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
 	for (const FName CharacterId : CharacterIds)
 	{
 		TestTrue(TEXT("Configured player character texture exists"), CharacterPawn->ConfigureCharacter(CharacterId));

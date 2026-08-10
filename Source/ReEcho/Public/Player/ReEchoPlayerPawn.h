@@ -19,13 +19,10 @@ class UReEchoRecorderComponent;
 class UStaticMeshComponent;
 class UTexture2D;
 
-enum class EReEchoWeaponSlot : uint8;
 struct FGameplayTag;
 struct FOnAttributeChangeData;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoActiveSkill, FVector, Position, FName, SkillId);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoWeaponChanged, FName, WeaponId);
 
 /** 玩家可控角色：组合移动、GAS 技能、武器、录制以及 2D 序列帧表现。 */
 UCLASS(Blueprintable)
@@ -45,9 +42,6 @@ public:
 	/** 由 GameplayAbility 回调，执行当前武器的基础攻击。 */
 	bool ExecuteBasicAttackAbility();
 	bool ExecuteActiveAttackAbility();
-	bool ExecuteSelectWeaponSlot1Ability();
-	bool ExecuteSelectWeaponSlot2Ability();
-	bool ExecuteSelectWeaponSlot3Ability();
 	void PlayHitVisual();
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
 	bool ConfigureCharacter(FName CharacterId);
@@ -86,9 +80,6 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoActiveSkill OnActiveSkill;
 
-	UPROPERTY(BlueprintAssignable)
-	FReEchoWeaponChanged OnWeaponChanged;
-
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -103,9 +94,6 @@ private:
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();
 	void ToggleStatsMenu();
-	void SelectWeaponSlot1();
-	void SelectWeaponSlot2();
-	void SelectWeaponSlot3();
 	void ConfigureMouseInput();
 	/** 将鼠标位置投射到战斗平面，并据此更新角色左右朝向。 */
 	void UpdateMouseAim();
@@ -114,7 +102,6 @@ private:
 	void GrantStartupAbilities();
 	void AbilityInputPressed(const FGameplayTag& InputTag);
 	void AbilityInputReleased(const FGameplayTag& InputTag);
-	bool ExecuteSelectWeaponAbility(EReEchoWeaponSlot WeaponSlot, FName WeaponId);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */

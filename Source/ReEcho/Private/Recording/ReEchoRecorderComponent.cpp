@@ -18,19 +18,10 @@ void UReEchoRecorderComponent::BeginRecording(const int32 EncounterIndex,
 	Recording.MapId = MapId;
 	Recording.RandomSeed = RandomSeed;
 	Recording.BuildSnapshot = Snapshot;
-	Recording.WeaponChanges.Add({0.0f, Snapshot.WeaponId});
 
 	SampleInterval = 1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->RecordingHz);
 	NextSampleTime = 0.0f;
 	bRecording = true;
-}
-
-void UReEchoRecorderComponent::UpdateBuildSnapshot(const FReEchoBuildSnapshot& Snapshot)
-{
-	if (bRecording)
-	{
-		Recording.BuildSnapshot = Snapshot;
-	}
 }
 
 void UReEchoRecorderComponent::AdvanceRecording(const float EncounterTime, const FVector& Position)
@@ -45,22 +36,6 @@ void UReEchoRecorderComponent::AdvanceRecording(const float EncounterTime, const
 		Recording.Positions.Add({NextSampleTime, Position});
 		NextSampleTime += SampleInterval;
 	}
-}
-
-void UReEchoRecorderComponent::RecordWeaponChange(const float EncounterTime, const FName WeaponId)
-{
-	if (!bRecording || WeaponId.IsNone())
-	{
-		return;
-	}
-
-	if (!Recording.WeaponChanges.IsEmpty() && Recording.WeaponChanges.Last().WeaponId == WeaponId)
-	{
-		return;
-	}
-
-	Recording.WeaponChanges.Add({EncounterTime, WeaponId});
-	Recording.BuildSnapshot.WeaponId = WeaponId;
 }
 
 void UReEchoRecorderComponent::RecordSkill(const float EncounterTime, const FVector Position, const FName SkillId)

@@ -138,10 +138,10 @@ void AReEchoWeaponActor::InitializeWeapon()
 	const EReEchoWeaponSlot InitialSlot = Definitions.Contains(EReEchoWeaponSlot::PhysicalOrb)
 	                                          ? EReEchoWeaponSlot::PhysicalOrb
 	                                          : Definitions.CreateConstIterator().Key();
-	SelectWeapon(InitialSlot);
+	ApplyWeaponSlot(InitialSlot);
 }
 
-void AReEchoWeaponActor::SelectWeapon(const EReEchoWeaponSlot NewSlot)
+void AReEchoWeaponActor::ApplyWeaponSlot(const EReEchoWeaponSlot NewSlot)
 {
 	if (!Definitions.Contains(NewSlot))
 	{
@@ -158,7 +158,7 @@ void AReEchoWeaponActor::SelectWeapon(const EReEchoWeaponSlot NewSlot)
 	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 }
 
-bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
+bool AReEchoWeaponActor::ConfigureLockedWeapon(const FName WeaponId)
 {
 	if (GetEquippedWeaponId() == WeaponId)
 	{
@@ -168,7 +168,7 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 	{
 		if (Pair.Value.WeaponId == WeaponId)
 		{
-			SelectWeapon(Pair.Key);
+			ApplyWeaponSlot(Pair.Key);
 			return true;
 		}
 	}

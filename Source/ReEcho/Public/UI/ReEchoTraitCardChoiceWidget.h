@@ -27,7 +27,7 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoTraitCardSelected OnCardSelected;
 
-	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers);
+	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers, int32 InTimeShards, bool bInForgeChoice);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -62,12 +62,23 @@ private:
 	TArray<TObjectPtr<UTextBlock>> CardDescriptions;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> TitleText;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> SubtitleText;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> CurrencyText;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UWidget> NeedleWidget;
 
 	UPROPERTY()
 	TObjectPtr<UTexture2D> DrawBackgroundTexture;
 
 	TArray<FReEchoTraitCardOffer> Offers;
+	int32 CurrentTimeShards = 0;
 	float RevealElapsed = 0.0f;
+	bool bForgeChoice = false;
 	bool bRevealComplete = false;
 };

@@ -8,6 +8,7 @@ class AReEchoEchoActor;
 class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
+class UReEchoLoadoutSelectionWidget;
 class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
 class UReEchoStartMenuWidget;
@@ -70,6 +71,8 @@ private:
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoStartMenuWidget> StartMenuWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoLoadoutSelectionWidget> LoadoutSelectionWidget;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
@@ -86,6 +89,7 @@ private:
 	bool bRestartScreenIsTerminal = false;
 	bool bAwaitingStartChoice = true;
 	bool bQuitConfirmationVisible = false;
+	bool bContinueRunAfterShop = false;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
@@ -100,8 +104,6 @@ private:
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
-	UFUNCTION()
-	void HandlePlayerWeaponChanged(FName WeaponId);
 	UFUNCTION()
 	void HandlePlayerDeath();
 
@@ -119,6 +121,9 @@ private:
 
 	UFUNCTION()
 	void HandleContinueGameRequested();
+
+	UFUNCTION()
+	void HandleLoadoutConfirmed(FName CharacterId, FName WeaponId);
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
@@ -148,6 +153,7 @@ private:
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowTraitCardChoice();
 	void ShowStartMenu();
+	void ShowLoadoutSelection();
 	void BeginSelectedRun();
 	void SetGameplayPresentationVisible(bool bVisible);
 	void RestoreGameInput();

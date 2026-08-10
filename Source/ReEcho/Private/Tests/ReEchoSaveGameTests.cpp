@@ -36,6 +36,8 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Compatible save snapshot restores"), Restored->RestoreSaveSnapshot(*Snapshot));
 	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
+	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_CAT")));
+	TestEqual(TEXT("Run-locked weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_02")));
 	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.Cards.Num(), 1);
 	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
 	TestEqual(TEXT("Recording history restores"), RestoredRecordings.Num(), 1);

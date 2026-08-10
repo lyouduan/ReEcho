@@ -25,6 +25,7 @@ UButton* AddMenuButton(UWidgetTree* WidgetTree,
 	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
 	ButtonLabel->SetText(FText::FromString(Label));
 	ButtonLabel->SetJustification(ETextJustify::Center);
+	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	ButtonLabel->SetMargin(FMargin(42.0f, 12.0f));
 	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
 	ButtonFont.Size = 24;
@@ -43,6 +44,7 @@ TSharedRef<SWidget> UReEchoRestartWidget::RebuildWidget()
 void UReEchoRestartWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	SetIsFocusable(true);
 	BuildWidgetTree();
 
 	if (ResumeButton)
@@ -142,7 +144,7 @@ void UReEchoRestartWidget::BuildWidgetTree()
 	MessageSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 28.0f));
 
 	ResumeButton = AddMenuButton(
-	    WidgetTree, Content, TEXT("ResumeButton"), TEXT("继续游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
+	    WidgetTree, Content, TEXT("ResumeButton"), TEXT("返回游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
 	RestartButton = AddMenuButton(
 	    WidgetTree, Content, TEXT("RestartButton"), TEXT("重新开始"), FLinearColor(0.65f, 0.18f, 0.06f, 1.0f));
 	QuitButton = AddMenuButton(
@@ -202,8 +204,10 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	}
 	if (QuitButtonText)
 	{
-		QuitButtonText->SetText(
-		    FText::FromString(bQuitConfirmation || bSaveFailed ? TEXT("确认保存并退出") : TEXT("退出游戏")));
+		const FString QuitLabel = bQuitConfirmation ? TEXT("确认退出")
+		                          : bSaveFailed     ? TEXT("重试退出")
+		                                            : TEXT("退出游戏");
+		QuitButtonText->SetText(FText::FromString(QuitLabel));
 	}
 }
 

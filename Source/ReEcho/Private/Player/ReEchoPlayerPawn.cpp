@@ -24,7 +24,6 @@
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoRecorderComponent.h"
-#include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoGameMode.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "UObject/ConstructorHelpers.h"
@@ -135,7 +134,7 @@ void AReEchoPlayerPawn::RestoreEquippedWeapon(const FName WeaponId)
 {
 	if (Weapon)
 	{
-		Weapon->SelectWeaponById(WeaponId);
+		Weapon->ConfigureLockedWeapon(WeaponId);
 	}
 }
 
@@ -172,9 +171,6 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	Input->BindAction(TEXT("BasicAttack"), IE_Pressed, this, &AReEchoPlayerPawn::BasicAttack);
 	Input->BindAction(TEXT("BasicAttack"), IE_Released, this, &AReEchoPlayerPawn::StopBasicAttack);
 	Input->BindAction(TEXT("ActiveSkill"), IE_Pressed, this, &AReEchoPlayerPawn::ActivateSkill);
-	Input->BindAction(TEXT("WeaponSlot1"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot1);
-	Input->BindAction(TEXT("WeaponSlot2"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot2);
-	Input->BindAction(TEXT("WeaponSlot3"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot3);
 	FInputActionBinding& PauseBinding =
 	    Input->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AReEchoPlayerPawn::TogglePauseMenu);
 	PauseBinding.bExecuteWhenPaused = true;
@@ -324,9 +320,6 @@ void AReEchoPlayerPawn::GrantStartupAbilities()
 	};
 	GrantAbility(UReEchoBasicAttackAbility::StaticClass(), ReEchoGameplayTags::Input_Attack_Basic);
 	GrantAbility(UReEchoActiveAttackAbility::StaticClass(), ReEchoGameplayTags::Input_Attack_Active);
-	GrantAbility(UReEchoSelectWeaponSlot1Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_1);
-	GrantAbility(UReEchoSelectWeaponSlot2Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_2);
-	GrantAbility(UReEchoSelectWeaponSlot3Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_3);
 }
 
 void AReEchoPlayerPawn::AbilityInputPressed(const FGameplayTag& InputTag)
@@ -422,24 +415,6 @@ void AReEchoPlayerPawn::ActivateSkill()
 	AbilityInputReleased(ReEchoGameplayTags::Input_Attack_Active);
 }
 
-void AReEchoPlayerPawn::SelectWeaponSlot1()
-{
-	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_1);
-	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_1);
-}
-
-void AReEchoPlayerPawn::SelectWeaponSlot2()
-{
-	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_2);
-	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_2);
-}
-
-void AReEchoPlayerPawn::SelectWeaponSlot3()
-{
-	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_3);
-	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_3);
-}
-
 bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 {
 	const bool bAttacked = Weapon && Weapon->ExecuteBasicAttack(Combatant);
@@ -459,40 +434,6 @@ bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 
 	StartAttackVisual(0.28f, 24.0f);
 	OnActiveSkill.Broadcast(GetActorLocation(), Weapon->GetEquippedWeaponId());
-	return true;
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot1Ability()
-{
-	return ExecuteSelectWeaponAbility(EReEchoWeaponSlot::PhysicalOrb, TEXT("W_J_02"));
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot2Ability()
-{
-	return ExecuteSelectWeaponAbility(EReEchoWeaponSlot::Sword, TEXT("W_J_01"));
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot3Ability()
-{
-	return ExecuteSelectWeaponAbility(EReEchoWeaponSlot::ElementalOrb, TEXT("W_J_03"));
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoWeaponSlot WeaponSlot, const FName WeaponId)
-{
-	if (!Weapon)
-	{
-		return false;
-	}
-
-	Weapon->SelectWeapon(WeaponSlot);
-
-	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
-	{
-		RunSubsystem->SetEquippedWeapon(WeaponId);
-		Recorder->UpdateBuildSnapshot(RunSubsystem->CurrentBuild);
-		OnWeaponChanged.Broadcast(WeaponId);
-	}
-
 	return true;
 }
 

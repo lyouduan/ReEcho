@@ -41,8 +41,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void BeginEncounter();
 
-	UFUNCTION(BlueprintCallable)
-	void SetEquippedWeapon(FName WeaponId);
 	/** 保存遭遇录制，并根据存活与 Boss 状态推进本轮流程。 */
 	UFUNCTION(BlueprintCallable)
 	void CompleteEncounter(const FReEchoRecording& Recording, bool bPlayerSurvived, bool bBossKilled);
@@ -74,9 +72,6 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	TArray<FReEchoRecording> GetEchoRecordings(int32 RequestedCount) const;
-
-	UFUNCTION(BlueprintPure)
-	bool ShouldOpenShopAfterCurrentEncounter() const;
 
 	/** Returns true only when the persistent slot contains a compatible, resumable run. */
 	bool HasSavedRun() const;

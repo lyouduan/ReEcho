@@ -24,6 +24,7 @@ UButton* AddStartButton(UWidgetTree* WidgetTree,
 	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
 	ButtonLabel->SetText(FText::FromString(Label));
 	ButtonLabel->SetJustification(ETextJustify::Center);
+	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	ButtonLabel->SetMargin(FMargin(58.0f, 14.0f));
 	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
 	ButtonFont.Size = 26;
@@ -42,6 +43,7 @@ TSharedRef<SWidget> UReEchoStartMenuWidget::RebuildWidget()
 void UReEchoStartMenuWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	SetIsFocusable(true);
 	BuildWidgetTree();
 	if (ContinueButton)
 	{
@@ -99,6 +101,7 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 
 	StatusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StartStatus"));
 	StatusText->SetJustification(ETextJustify::Center);
+	StatusText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	FSlateFontInfo StatusFont = StatusText->GetFont();
 	StatusFont.Size = 21;
 	StatusText->SetFont(StatusFont);

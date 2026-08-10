@@ -13,7 +13,7 @@ Show a blocking start panel before gameplay. A profile without a valid run save 
 - Card/forge decisions, purchases and completed encounters update the checkpoint.
 - Failed and completed runs remove the resumable save.
 - No binary assets are required; the panel is built in mergeable C++ like the existing pause menu.
-- Esc opens the existing pause menu. Its exit action becomes a second confirmation step with only "继续游戏" and "确认保存并退出"; save failure keeps the game open.
+- Esc opens the existing pause menu. Its exit action becomes a second confirmation step with only "返回游戏" and "确认退出"; confirming still saves the current state first, and save failure keeps the game open.
 
 ## Verification
 
@@ -26,7 +26,8 @@ Show a blocking start panel before gameplay. A profile without a valid run save 
 
 - Added a blocking C++ start panel with save-aware new/continue actions and versioned `USaveGame` persistence.
 - Added exact save-and-quit encounter snapshots for player transform/health/live stats/velocity, encounter clock, active recording and living enemy transform/health/element/attack/fuse/knockback state; safe checkpoint saves remain in use outside explicit encounter exit.
-- Changed the Esc pause menu exit button into a safe two-step confirmation. Continue/Esc resumes immediately; confirmed exit writes successfully before calling platform quit.
+- Changed the Esc pause menu exit button into a safe two-step confirmation. The confirmation panel exposes only "返回游戏" and "确认退出"; returning/Esc resumes immediately, while confirmed exit writes successfully before calling platform quit.
+- Updated the local confirmation copy on 2026-08-10. Static validation passes; the follow-up Editor build is pending because the ReEcho Unreal Editor is currently open and this module must not be validated through Live Coding.
 - Restored the saved player weapon alongside character/build state. In-flight projectiles and presentation-only animation frames restart cleanly instead of being serialized.
 - Full closed-editor `ReEchoEditor Win64 Development` build passed on 2026-08-10. All 16 `ReEcho.*` automation tests passed, including expanded `ReEcho.Run.SaveSnapshot` coverage; `git diff --check` passed.
 - The reported `ReEchoAbilitySystemTests.cpp:54` crash was a Live Coding patch static automation registration failure. A full base-DLL build and test run load cleanly; do not Live Code this runtime module while automation tests are compiled in.
