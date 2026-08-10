@@ -21,7 +21,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 | Presentation | 2D actors, fixed camera, arena art, weather, inventory/shop/stats UI | Human PIE and packaged-menu regression |
 | Data | CSV runtime foundation plus character/build CSV migration for current playable characters, six trait cards and forge choices; legacy JSON remains migration-only | Domain migration for elements, weapons and slots |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Twenty `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
+| Validation | Twenty-two `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
 
 ## Milestones
 
@@ -31,7 +31,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 | B - Planning loop | Partial | Preview/setup beat and direction check |
 | C - Build/run | Functional prototype; characters/current build cards migrated to CSV | Elements, weapons, slots and full content run |
 | D - Elements/keystones | Element reactions and four promotion roles implemented; tuning remains | Vertical-slice acceptance |
-| E - Validation | Twenty automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
+| E - Validation | Twenty-two automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
 
 ## Collaboration protocol
 
@@ -43,7 +43,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Editor Development build succeeds and all twenty `ReEcho.*` automation tests pass.
+- Latest Editor Development build succeeds and all twenty-two `ReEcho.*` automation tests pass.
 - Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 18 CSV package; human visual/UI regression is still required before release claims.
 - `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
 
@@ -54,3 +54,4 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 - Projectile damage, pause/restart/quit, round advancement, weather and the new menus lack deterministic automation.
 - Shared weapon, enemy and run-flow paths changed for Plans 14-16; human PIE should regress player/echo attacks, role transitions, forge/card sequencing and bomber escape behavior together.
 - Human PIE remains necessary for movement, combat feel, echo clarity, UI glyphs/DPI and full menu interaction.
+- CSV negative fixtures currently repeat complete domain tables. Plan 20 must replace this with a production-baseline-plus-override fixture builder before adding more required domain tables.

@@ -12,6 +12,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 | Date | Plan | Result | Human follow-up |
 |---|---|---|---|
+| 2026-08-10 | Plan 19 character/build CSV migration | Character/build domain reader, runtime-authoritative character/card tables, hard failure without fallback, atomic effects and 22 passing tests; human accepted and planner merged locally | Continue with Plan 20; remote unchanged |
 | 2026-08-10 | Plan 18 CSV runtime foundation | Immutable startup-loaded CSV snapshot, strict typed validation, 19 tests and clean Shipping loose-file smoke; human accepted and planner merged locally | Continue serially with Plan 19; remote branch intentionally unchanged |
 | 2026-08-10 | Plan 17 guided code reading | Read-only walkthrough of startup, encounter, recording, run-state and echo-playback flow; human accepted | Choose GAS/combat, growth/shop or UI/presentation for a future focused reading plan if needed |
 | 2026-08-05 | Plan 16 bomber ranges | Configurable trigger/damage radii and fuse behavior; build and 15 tests pass | PIE trigger readability and tuning |

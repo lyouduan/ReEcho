@@ -6,7 +6,7 @@
 
 ## Dependency status
 
-Plan 18 已于 2026-08-10 人验、审查并合并，但其实现仍以中央注册表、manifest/schema、打包依赖和单体校验器为扩展中心；因此本 Plan 不再与 Plan 19 并行。必须等待 Plan 19 完成、人验并合并，基于它拆出的“通用 CSV 内部层 + 领域读取器 + 唯一注册表编排/原子发布”接口再启动。
+Plan 18、19 已于 2026-08-10 人验、审查并本地合并，本 Plan 现在可以启动。Plan 19 的实际扩展契约是：`ReEchoCsvDataReader.*` 提供通用解析/manifest 原语，`ReEchoCharacterBuildCsvReader::ReadTables()` 是领域读取模板，`FReEchoCsvDataRegistry` 仍统一维护必需表、内建注册、跨领域验证和原子发布，`FReEchoCsvDataSnapshot` 是唯一公开只读快照。
 
 Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、注册表编排、内建行为注册、`ReEcho.Build.cs` 和静态校验入口。Plan 21 只能在本 Plan 合并后开始运行时接线。
 
@@ -40,14 +40,15 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ## Step 0 gates
 
-1. 只在 Plan 19 已人验并合并后，从更新后的 main 创建 `plan/20-elements-reactions-csv`；读取 Plan 18、19 最终 Execution notes、当前 `FReEchoCsvDataSnapshot`/领域读取接口、内建行为注册入口和数据测试。若 Plan 19 未合并则停止。
+1. 从已包含本地合并 `ddc785a` 的 main 创建 `plan/20-elements-reactions-csv`；读取 Plan 18、19 最终 Execution notes、`ReEchoCsvDataReader.*`、`ReEchoCharacterBuildCsvReader.*`、当前快照/注册表、22 项测试基线和静态校验器。
 2. 在协调板独占本 Plan 的公共数据文件；不得复制或绕过 Plan 19 留下的通用读取/原子发布路径。
-3. 将本领域的 `BehaviorId`、`EffectKind`、`FormulaId`/状态行为通过显式内建注册函数注册，并保证发生在 `LoadAndPublishDefault()` 之前；不得依赖静态初始化顺序。
+3. 新建 `ReEchoElementReactionCsvReader.*`，沿用 `ReadTables(DataDirectory, ManifestEntries, Snapshot, Issues)` 领域入口；解析细节不得回填进 `ReEchoCsvDataRegistry.cpp`。将本领域的 `BehaviorId`、`EffectKind`、`FormulaId`/状态行为通过显式内建注册函数注册，并保证发生在 `LoadAndPublishDefault()` 之前。
 4. 采集当前 `ReEchoElementReaction`、敌人附着状态、投射物元素传递、GAS damage source 和 Plan 14 自动化基线。
 5. 对照工作簿与现有 JSON/C++ 列出有意差异，特别是 Lightning 缺失、当前双倍伤害简化和工作簿 Formula 描述。行为改变必须由人确认，不以“表里写了”自动覆盖已验收原型。
 6. 先确定 FormulaId 白名单与单位：元素攻击、ReactionEfficiency、DamageIncrease、范围、秒、UE 厘米如何组合。若汽化平方公式等存在量纲/数值歧义，设为阻断 gate 请人拍板，禁止自行改成看似合理的数值。
 7. 先确定顺序敏感状态机和抗递归规则，确保导电/范围附着不会因新反应无限递归或因遍历顺序产生不确定结果。
 8. 本任务不修改武器槽表；只提供 Plan 21 可消费的稳定 ElementId/Reaction API，并在最终 Execution notes 写清。
+9. Plan 19 的负例目录已开始重复完整生产表。新增元素表前先把自动化/Python 夹具改为“生产基线包 + 该负例的局部覆盖”，运行时在临时目录组装完整包；不要把三个元素表复制进每个既有负例目录。
 
 ## Target table responsibilities
 
@@ -61,8 +62,8 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ## Implementation outline
 
-1. 新增独立元素/状态/反应领域读取器，扩展共享快照与注册表编排；不把解析细节搬回 Plan 18 的中央 cpp。
-2. 导入/验证三个生产表与引用图，生产 manifest 缺任一必需表或任一领域失败时整包不发布。
+1. 新增 `ReEchoElementReactionCsvReader.*`，扩展共享快照与注册表编排；只在注册表增加必需表汇总、领域调用和必要跨域验证，不放领域逐行解析。
+2. 先建立基线＋覆盖的临时夹具组装方式，再导入/验证三个生产表与引用图；manifest 缺任一必需表或任一领域失败时整包不发布。
 3. 将纯判定核心改为读取不可变反应定义，保留一个确定的结算入口。
 4. 以有限 handler 实现六种反应和所需状态，不按 ReactionId 在 Actor 中散布 switch。
 5. 接回敌人状态、GAS 伤害、投射物/武器元素、表现反馈和回响调用方。
@@ -95,6 +96,7 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 - 不在本 Plan 重做武器架构或所有状态系统；只实现这些表和 Plan 19/21 已确认依赖的公共状态能力。
 - 表驱动不等于无代码：新的独特反应行为仍需 C++ handler 和自动化后才能 enabled。
 - 本 Plan 与 Plan 19/21 串行；不得为了并行而复制快照、manifest、行为注册或静态校验系统。
+- 不得继续按“每个负例一整套全部领域 CSV”扩张夹具；这会让后续每加一张表都必须机械修改所有旧负例。
 
 ## Recommended executor model
 
@@ -106,7 +108,7 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ### Evidence
 
-### Plan 18 contract adaptation
+### Plan 18/19 contract adaptation
 
 ### Approved semantic differences from current prototype
 
@@ -123,7 +125,7 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 前置：main 已合并 Plan 18 和经人验的 Plan 19，Plan 20 是当前唯一 CSV 领域迁移任务；Plan 21 尚未开工。否则停止并告诉人。然后在独立 worktree 的 `plan/20-elements-reactions-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
 
-任务：沿用 Plan 19 拆出的通用读取层，新增独立元素领域读取器并扩展唯一快照/注册表编排，把元素、必要状态和六个元素反应迁入 CSV。显式注册所有内建行为/公式并保证先注册后启动加载。验收照 Plan 20 的 🔒 清单；不得执行任意公式、不得在 Actor 中按 ReactionId 散布特判、不得自行修正有歧义的平方公式/量纲，也不得修改 `.uasset`/`.umap`。把 Plan 18/19 适配和语义差异写入 Execution notes。
+任务：沿用 `ReEchoCsvDataReader.*`，按 `ReEchoCharacterBuildCsvReader::ReadTables()` 的形态新增独立元素领域读取器，并扩展唯一快照/注册表编排。先把重复整包负例夹具改成“生产基线＋局部覆盖”的临时组包，再迁移元素、必要状态和六个反应。显式注册所有内建行为/公式并保证先注册后启动加载。验收照 Plan 20 的 🔒 清单；不得执行任意公式、不得在 Actor 中按 ReactionId 散布特判、不得自行修正有歧义的平方公式/量纲，也不得修改 `.uasset`/`.umap`。把 Plan 18/19 适配和语义差异写入 Execution notes。
 
 完成后显式提交到本地分支并告诉人；未经人明确确认不得 push，禁止修改或合并 main。
 ```

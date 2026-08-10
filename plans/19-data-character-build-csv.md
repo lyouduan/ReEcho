@@ -21,23 +21,23 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 
 ### 🤖 Automated
 
-- [ ] 角色主表将 ID、名称/文本键、基础 HP、物攻、元攻、初始武器和被动行为拆成独立机器字段，不再解析“生命值：15”这类描述文本。
-- [ ] 卡牌主表与效果子表分离；一张卡可以有多个顺序明确的效果，不用逗号列表、换行描述或嵌套 JSON 表示运行时规则。
-- [ ] 纯数值效果通过 Plan 18 的通用 `EffectKind/Operation/Target/Value` 路径生效；至少覆盖 Add、Multiply、Override 和立即治疗/恢复等当前已实现需求。
-- [ ] 特殊逻辑通过稳定 `BehaviorId + typed parameters` 注册；角色/卡牌 ID 不再出现在持续膨胀的 `ApplyTraitCard`/晋升 switch-if 链中。
-- [ ] 需要持续监听的被动使用事件/Ability/必要组件；仅需要一次修改的效果不创建专属 Component。
-- [ ] 所有工作簿角色和卡牌行在 CSV 中有可追踪状态；缺 ID、缺名称、存疑或尚无 handler 的行必须 `enabled=false`/等价状态并给出可校验原因，绝不进入运行时抽取池。
-- [ ] 当前可玩角色和当前可抽卡牌保持行为等价；CSV 中修改代表性角色基础属性或基础卡数值后，重启 Run 即反映到 GAS/BuildSnapshot，无需改 C++。
-- [ ] 抽卡仍按现有 Run 状态确定性生成、同批无重复、优先较少持有、只接受当前 pending choice；禁用/非法卡不参与随机种子候选集合。
-- [ ] 角色晋升 Hunter/Poet/Brave/Sage、Poet 关后成长、Brave Forge/Sage 额外选择等已实现能力保持；具体 ID 映射由人批准并记录。
-- [ ] 旧 `characters.json`、`cards.json` 及对应 C++/DeveloperSettings 重复值退出该领域运行时权威；不存在双写。
-- [ ] 新增 schema/外键/未知行为负例测试、角色加载测试、卡牌效果测试和确定性回归；Editor build、全量 `ReEcho.*`、静态校验、`git diff --check` 通过。
+- [x] 角色主表将 ID、名称/文本键、基础 HP、物攻、元攻、初始武器和被动行为拆成独立机器字段，不再解析“生命值：15”这类描述文本。
+- [x] 卡牌主表与效果子表分离；一张卡可以有多个顺序明确的效果，不用逗号列表、换行描述或嵌套 JSON 表示运行时规则。
+- [x] 纯数值效果通过 Plan 18 的通用 `EffectKind/Operation/Target/Value` 路径生效；至少覆盖 Add、Multiply、Override 和立即治疗/恢复等当前已实现需求。
+- [x] 特殊逻辑通过稳定 `BehaviorId + typed parameters` 注册；角色/卡牌 ID 不再出现在持续膨胀的 `ApplyTraitCard`/晋升 switch-if 链中。
+- [x] 需要持续监听的被动使用事件/Ability/必要组件；仅需要一次修改的效果不创建专属 Component。
+- [x] 所有工作簿角色和卡牌行在 CSV 中有可追踪状态；缺 ID、缺名称、存疑或尚无 handler 的行必须 `enabled=false`/等价状态并给出可校验原因，绝不进入运行时抽取池。
+- [x] 当前可玩角色和当前可抽卡牌保持行为等价；CSV 中修改代表性角色基础属性或基础卡数值后，重启 Run 即反映到 GAS/BuildSnapshot，无需改 C++。
+- [x] 抽卡仍按现有 Run 状态确定性生成、同批无重复、优先较少持有、只接受当前 pending choice；禁用/非法卡不参与随机种子候选集合。
+- [x] 角色晋升 Hunter/Poet/Brave/Sage、Poet 关后成长、Brave Forge/Sage 额外选择等已实现能力保持；具体 ID 映射由人批准并记录。
+- [x] 旧 `characters.json`、`cards.json` 及对应 C++/DeveloperSettings 重复值退出该领域运行时权威；不存在双写。
+- [x] 新增 schema/外键/未知行为负例测试、角色加载测试、卡牌效果测试和确定性回归；Editor build、全量 `ReEcho.*`、静态校验、`git diff --check` 通过。
 
 ### 🎮 Human PIE
 
-- [ ] 人依次进入四种角色/晋升结果，确认基础属性、默认武器、角色能力、头像/外观映射和生命校正正确。
-- [ ] 人完成多轮卡牌选择，确认卡名/说明、抽取节奏、实际数值和回响统计一致。
-- [ ] 人修改一项允许的角色数值与一张基础卡数值、重启 Run，确认无需重新编译即可生效。
+- [x] 人依次进入四种角色/晋升结果，确认基础属性、默认武器、角色能力、头像/外观映射和生命校正正确。
+- [x] 人完成多轮卡牌选择，确认卡名/说明、抽取节奏、实际数值和回响统计一致。
+- [x] 人修改一项允许的角色数值与一张基础卡数值、重启 Run，确认无需重新编译即可生效。
 
 ## Step 0 gates
 
@@ -182,6 +182,11 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 - Edit one value in `characters.csv` and one enabled card effect in `card_effects.csv`, restart the project and confirm the new values appear without C++ rebuild.
 - Play several card-choice rounds and confirm only the current six trait cards appear, disabled/存疑 rows never enter offers, and display names/descriptions match the previous UI.
 - 2026-08-10: Human marked the task complete after README localization/table-directory handoff.
+
+## Closure
+
+- Human accepted Plan 19 and its planner-review correction pass on 2026-08-10; planner reviewed and merged it locally as `ddc785a`.
+- Final evidence: static validation, UE 5.8 Editor Development build, 22 `ReEcho.*` automation tests and `git diff --check` pass. No remote branch was updated.
 
 ## 执行者启动 prompt
 
