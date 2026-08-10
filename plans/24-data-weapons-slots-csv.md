@@ -6,7 +6,7 @@
 
 ## Dependency status
 
-Plan 21–23 已于 2026-08-10 审查、验收并本地合并；当前 main 为 `81448c1`，Editor Development、静态校验和 27 项 `ReEcho.*` 自动化通过。Plan 22 已落地通用 `ReEchoCsvDataReader.*`、独立角色构筑领域读取器和原子应用/硬失败契约；Plan 23 已落地 `Elements/Statuses/Reactions` 快照、稳定 ElementId、有序 `FindReaction()`、显式公式注册和“生产基线＋局部覆盖”夹具组包。
+Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收提交为 `81448c1`，Editor Development、静态校验和 27 项 `ReEcho.*` 自动化通过。Plan 22 已落地通用 `ReEchoCsvDataReader.*`、独立角色构筑领域读取器和原子应用/硬失败契约；Plan 23 已落地 `Elements/Statuses/Reactions` 快照、稳定 ElementId、有序 `FindReaction()`、显式公式注册和“生产基线＋局部覆盖”夹具组包。
 
 规划者已依据上述最终接口完成窄校准，Plan 24 可以启动。执行期间独占共享 manifest/schema/快照/注册表/静态校验入口，默认只消费 Plan 23 元素接口，不再改写其反应、状态时间或存档语义。
 
@@ -48,7 +48,7 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；当前 main 为 
 
 ## Step 0 gates
 
-1. 从 main `81448c1` 创建独立 worktree/分支 `plan/24-weapons-slots-csv`；确认 27 项基线，并读取 Plan 21–23 最终 Execution notes、`ReEchoCsvDataReader.*`、两个既有领域读取器、共享快照、内建注册和最终 ElementId/Reaction API。基线不符则停止。
+1. 从包含本 Plan 校准提交的当前 main 创建独立 worktree/分支 `plan/24-weapons-slots-csv`；确认 27 项基线，并读取 Plan 21–23 最终 Execution notes、`ReEchoCsvDataReader.*`、两个既有领域读取器、共享快照、内建注册和最终 ElementId/Reaction API。基线不符则停止。
 2. 在协调板独占生产 manifest/schema、共享快照、注册表编排、内建注册、`ReEcho.Build.cs` 与静态校验入口；默认只消费 Plan 23 元素 API，如需改其公共契约先交回规划者。
 3. 武器/配件的 `BehaviorId`、`EffectKind` 和 AttackPattern handler 必须进入显式内建注册函数，并在模块启动加载前注册；不得依赖静态初始化顺序。
 4. 锁定兼容映射：保留 `W_J_02→InputSlot1`、`W_J_01→InputSlot2`、`W_J_03→InputSlot3` 及其现有行为；`W_J_04` 使用 active sheet 明确存在的 Scythe pattern。不得使用废案 sheet 重编号或替换 `W_J_01/02/03`。7 个类型使用独立稳定 TypeId，具体命名可按项目 ID 规范落地并写入 Execution notes。
@@ -135,7 +135,7 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；当前 main 为 
 ```text
 你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/24-data-weapons-slots-csv.md、Plan 21–23 最终 Execution notes，以及 shared/LESSONS.md §GAME 中武器/回响/确定性匹配条目；只有诊断失败时读 §DEBUG。
 
-前置：从 main `81448c1` 创建独立 worktree 的 `plan/24-weapons-slots-csv` 分支，确认 27 项 `ReEcho.*` 基线。先在协调板认领 manifest/schema、共享快照/注册表、武器领域 CSV 和静态校验入口；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
+前置：从包含本 Plan 校准提交的当前 main 创建独立 worktree 的 `plan/24-weapons-slots-csv` 分支，确认 27 项 `ReEcho.*` 基线。先在协调板认领 manifest/schema、共享快照/注册表、武器领域 CSV 和静态校验入口；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
 
 任务：沿用 Plan 22 的通用读取层和 Plan 23 的领域读取/夹具模式新增独立武器领域读取器，把 WeaponType、具体 WeaponId、输入热键槽和配件 SlotType 明确分开，并扩展唯一快照/注册表。迁移 7 个基础类型、当前 `W_J_01/02/03`、缺失的 `W_J_04`、攻击阶段、槽位与批准的配件批次；初始武器 UI、Start/Restore/Equip、Recorder/Echo 都改读同一 CSV 定义。保持当前三热键语义，未知/disabled 配置硬失败，存档定义不兼容不得静默漂移。所有 handler 必须显式注册且先于启动加载。验收照 Plan 24 的 🔒 清单；禁止读取废案 sheet 作为权威、禁止复制数据/元素系统、禁止按 PartId 扩张巨型 switch、禁止启用 62 条缺名称行、禁止修改 `.uasset`/`.umap`。把 Plan 21–23 适配、启用批次、全部禁用源行和偏差写入 Execution notes。
 
