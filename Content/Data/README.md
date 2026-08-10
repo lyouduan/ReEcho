@@ -1,3 +1,26 @@
 # ReEcho data source
 
-These JSON files are the reviewable source of truth for the prototype. Import them into DataTables or Primary Data Assets in a later content pass while preserving IDs. Runtime rule code must not own card values, reaction coefficients, wave timings, sampling rates, or shop prices.
+CSV is the target designer-editable runtime source. The legacy JSON files in this directory are migration-only review material until their domains are moved by later plans; do not add a second editable truth in JSON, C++, DeveloperSettings, Actors or Widgets.
+
+## CSV contract v1
+
+- Encoding: UTF-8 without BOM.
+- Delimiter: comma. Quote cells with `"` when they contain a comma, quote or newline; escape a literal quote as `""`.
+- Empty values: only allowed for fields marked optional in `csv_schema.csv`. Current runtime smoke tables have no optional fields.
+- Booleans: lowercase `true` or `false`.
+- Percentages: decimal values, so `0.20` means 20 percent.
+- Units: distance columns include `Cm`; time columns include `Seconds`. Do not mix meters with Unreal centimeters, or milliseconds with seconds.
+- IDs: stable IDs may contain letters, digits, `_`, `-` and `.` only. IDs cannot be blank or padded with whitespace.
+- References: child tables must reference parent IDs exactly. `runtime_smoke_effects.csv.RuntimeRowId` references `runtime_smoke.csv.Id`.
+- Value operations: only `Add`, `Multiply` and `Override` are valid.
+- Logic hooks: CSV may name registered C++ `BehaviorId` and `EffectKind` values, but it does not execute expressions, scripts or formulas.
+
+## Files
+
+- `reecho_data_manifest.csv`: schema version and production CSV discovery.
+- `csv_schema.csv`: human-readable and statically validated column contract.
+- `runtime_smoke.csv`: minimal production runtime table used to prove CSV loading, packaging and value changes.
+- `runtime_smoke_effects.csv`: one-to-many child table for typed numeric parameters.
+- `TestFixtures/CsvRuntime/`: positive and negative automation fixtures; not production data.
+
+Run `python scripts/validate_project.py` before opening Unreal. It validates CSV schema, IDs, foreign keys, enum and behavior allowlists, UTF-8 and the expected negative fixtures.

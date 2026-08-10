@@ -97,15 +97,72 @@
 
 ### Changed
 
+- Created an isolated sibling worktree on branch `plan/18-csv-foundation` from main baseline `ff4409fc2c9448e35b67b5d02042a38cedfe8d59` (`ff4409f Merge plans 14-16: reactions, roles, and bomber ranges`). The planner/main working tree already had unrelated `.uasset` and planning-file changes; this branch does not claim or edit those assets.
+- Added CSV contract v1 under `Content/Data/`: `reecho_data_manifest.csv`, `csv_schema.csv`, `runtime_smoke.csv` and `runtime_smoke_effects.csv`.
+- Added automation fixtures under `Content/Data/TestFixtures/CsvRuntime/` for one valid alternate value and negative cases: duplicate ID, missing required value, unknown reference, unknown `BehaviorId`, unknown `EffectKind`, illegal numeric range and unsupported schema version.
+- Added public runtime API `FReEchoCsvDataRegistry` in `Source/ReEcho/{Public,Private}/Data/ReEchoCsvDataRegistry.*`.
+  - `LoadSnapshotFromDirectory` parses and validates into a temporary snapshot only.
+  - `LoadAndPublishFromDirectory` and `LoadAndPublishDefault` replace the global snapshot only after all tables pass.
+  - `GetSnapshot` returns the published `TSharedPtr<const FReEchoCsvDataSnapshot>`.
+  - `RegisterBehaviorId` and `RegisterEffectKind` define the C++ allowlists. Plan18 registers only `RuntimeSmoke.LogValue` and `ScalarModifier`.
+- Replaced the default game module class with `FReEchoModule` so module startup loads the default CSV package. Invalid production CSV logs all file/line/field issues and blocks startup with `UE_LOG(..., Fatal, ...)`; there is no partial registry and no fallback to JSON/DeveloperSettings.
+- Added `ReEcho.Data.*` automation tests for default loading, alternate fixture value reload, invalid-load atomicity and all negative fixture classes.
+- Extended `scripts/validate_project.py` to validate CSV schema/manifest/tables/fixtures, UTF-8 without BOM, stable IDs, foreign keys, value operation enum, behavior/effect allowlists and production CSV staging dependencies while keeping legacy JSON validation marked as migration-only.
+- Staged production CSV files in `ReEcho.Build.cs` via `RuntimeDependencies` as NonUFS loose files. Test fixtures are not production-staged.
+- Updated `scripts/ue/Find-UnrealEngine.ps1` to avoid `Get-ChildItem -Directory` / `-Attributes` because this Windows PowerShell environment rejected both parameters; it now filters containers with `Where-Object { $_.PSIsContainer }`.
+- Updated `Content/Data/README.md`, `shared/PROJECT_RULES.md`, `shared/CODEBASE_MAP.md` and `shared/PROJECT_STATE.md` to record CSV as the target runtime source and legacy JSON as migration-only.
+
 ### Evidence
+
+- Step 0 source scan found:
+  - `Content/Data/*.json`: `cards`, `characters`, `elements`, `encounters`, `enemies`, `global_balance`, `reactions`, `statuses`, `weapons`.
+  - Runtime data still comes from `UReEchoBalanceSettings`, `Config/DefaultGame.ini` and hardcoded C++ catalogs in current gameplay domains.
+  - Prior packaging only staged `Content/Data/cards.json`; Plan18 now stages the production CSV files.
+- Workbook read-only spot check found `角色体系J` IDs:
+  - `J_01` 智者/Sage -> current runtime `J_SPADE`.
+  - `J_02` 猎手/Hunter -> current runtime `J_DIAMOND`.
+  - `J_03` 诗人/Poet -> current runtime `J_CLOVER`.
+  - `J_04` 勇者/Brave -> current runtime `J_HEART`.
+  - Current runtime also has local default/prototype `J_CAT`, which has no workbook alias in this spot check and must not be dropped silently.
+- `python scripts/validate_project.py` passes:
+  - legacy migration-only JSON files=9, effective cards=27, encounters=6.
+  - CSV schema, production tables, fixtures, IDs, references, behavior/effect allowlists, UTF-8 and staging deps pass.
+- `.clang-format` was run with Visual Studio LLVM clang-format on changed C++ files.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passes. Log evidence: 19 automation tests found and completed successfully, including 4 new `ReEcho.Data.*` tests.
+- `python scripts/ue/package_windows.py --smoke-seconds 5` passes clean Win64 Shipping BuildCookRun and packaged process stayed alive for 5 seconds.
+- Packaged NonUFS manifest contains:
+  - `ReEcho/Content/Data/csv_schema.csv`
+  - `ReEcho/Content/Data/reecho_data_manifest.csv`
+  - `ReEcho/Content/Data/runtime_smoke.csv`
+  - `ReEcho/Content/Data/runtime_smoke_effects.csv`
+- `git diff --check` passes.
 
 ### Final public contract for Plans 19–21
 
+- Use `FReEchoCsvDataRegistry` as the single CSV runtime entry point. Load complete domain tables into temporary structures, validate every required table and reference, then publish one immutable snapshot.
+- Do not query or mutate CSV files directly from actors, widgets or gameplay subsystems.
+- Add new C++ behavior IDs and effect kinds through `RegisterBehaviorId` / `RegisterEffectKind` before loading a table that references them.
+- Keep formulas, scripts and natural-language parameter blobs out of CSV. Use finite typed values, `BehaviorId`, `EffectKind`, `ParamName`, `Add` / `Multiply` / `Override` and one-to-many child tables.
+- Percent fields are decimal values. Distance/time units must remain in column names, for example `DistanceCm` and `DurationSeconds`.
+- Preserve existing runtime IDs such as `J_SPADE`, `J_HEART`, `J_DIAMOND`, `J_CLOVER`, `J_CAT`, `W_J_01` etc. Workbook aliases like `J_01`-`J_04` must be handled by an explicit alias/migration table in the domain migration plan; do not silently renumber saved recordings, builds or config references.
+- Legacy JSON remains read-only migration material until a later plan atomically switches that whole domain to CSV.
+
 ### Deviations from initial plan
+
+- The main baseline commit did not yet contain Plan18, so the plan file was copied into the isolated execution branch from the planner working tree and then updated there for execution notes.
+- Plan18 does not migrate any character/build/element/weapon domain values. The only production runtime table is the minimal smoke table required to prove loader, validator, fixture and packaging behavior.
 
 ### Remaining risks
 
+- No known automated blocker remains for the Plan18 foundation.
+- The current module startup uses fatal failure for invalid production CSV. This is deliberate for Plan18's no-partial/no-fallback policy, but later UX may add an editor-facing diagnostics panel before fatal startup.
+- Domain tables for Plans 19-21 still need their own schemas, foreign keys and alias migration policy.
+
 ### Human validation requested
+
+- Edit `Content/Data/runtime_smoke.csv` `RUNTIME_SMOKE.TestScalar`, restart the project and confirm the registry/automation sees the new value without recompiling C++.
+- Confirm `Content/Data/README.md` and CSV error messages are readable enough for designers to locate row and field mistakes.
 
 ## 执行者启动 prompt
 

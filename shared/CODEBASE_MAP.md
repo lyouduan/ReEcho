@@ -1,6 +1,6 @@
 # ReEcho codebase map
 
-Last verified: 2026-07-30. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints and `PROJECT_STATE.md` for delivery status.
+Last verified: 2026-08-10. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints and `PROJECT_STATE.md` for delivery status.
 
 ## Minimal retrieval protocol
 
@@ -9,7 +9,7 @@ Last verified: 2026-07-30. This file is the shortest authoritative routing index
 3. For C++ work, read the matching `Public/.../*.h` before its `Private/.../*.cpp`.
 4. Read `shared/PROJECT_RULES.md` before editing and only the relevant `shared/LESSONS.md` section when debugging.
 5. Do not search `Binaries/`, `Intermediate/`, `Saved/`, or generated files unless diagnosing build output.
-6. Do not infer runtime behavior from `Content/Data/*.json`; those files are design source and are not imported at runtime yet.
+6. Do not infer runtime behavior from legacy `Content/Data/*.json`; CSV is the target runtime data source and JSON is migration-only until later domain plans finish.
 
 Useful first commands:
 
@@ -25,12 +25,12 @@ rg -n "SymbolName" Source\ReEcho
 | `ReEcho.uproject` | UE 5.8 association and enabled plugins | Modules/plugins/editor integration |
 | `Source/ReEcho/` | Single runtime module | Gameplay or runtime code |
 | `Config/` | Maps, GameMode, balance and input mappings | Startup, controls or tuning |
-| `Content/Data/` | Reviewable design JSON; not runtime-loaded | Cards, characters, enemies, encounters or balance source |
+| `Content/Data/` | Runtime CSV contract plus read-only migration JSON | Data contract, fixtures, cards, characters, enemies, encounters or balance source |
 | `Content/ReEcho/Materials/` | Serialized project materials | Visual asset references |
 | `Content/ReEcho/Textures/Characters/` | Cooked 2D actor and shadow textures | Player/echo/enemy Billboard visuals |
 | `Content/SourceArt/Characters/` | Reviewable PNG sources, including MushroomGirl animation frames and Sprite Sheet | Regenerating or extending 2D actor assets |
 | `scripts/ue/` | Installed-engine discovery, build, automation, reproducible Windows Shipping packaging and asset import | Compile/test/package or asset-import workflow |
-| `scripts/validate_project.py` | JSON and workflow static validation | Data/workflow changes |
+| `scripts/validate_project.py` | CSV, legacy JSON and workflow static validation | Data/workflow changes |
 | `docs/` | Human-facing architecture and MCP guides | Tool integration or orientation |
 | `shared/` | AI authority, state, rules, routing and coordination | Every AI task |
 | `plans/` | Scoped implementation plans and execution notes | Plan-specific work |
@@ -85,6 +85,7 @@ All enemies dead or timer expires
 | Recording | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz positions and successful active-skill events |
 | Playback | `UReEchoPlaybackComponent` | `Recording/ReEchoPlaybackComponent.*` | Interpolated historical position and crossed skill events |
 | Run state | `UReEchoRunSubsystem` | `Run/ReEchoRunSubsystem.*` | Run phase, encounter index, build, recording history and anchor |
+| CSV data registry | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`, `Content/Data/*.csv` | Versioned CSV manifest loading, validation, behavior/effect allowlists and immutable runtime snapshots |
 | Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements and phases |
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
 | Health UI | `UReEchoPlayerHudWidget`, `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`, `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Top-left portrait/live health HUD for the player; camera-facing world bars remain enemy-only |
@@ -120,11 +121,12 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 | WASD, mouse/J and Q/Space | `Config/DefaultInput.ini` |
 | MCP endpoint/editor preferences | `Config/DefaultEditorPerProjectUserSettings.ini`, `.codex/config.toml` |
 | Windows override | `Config/Windows/WindowsEngine.ini` |
-| Design registries | `Content/Data/*.json` |
+| Runtime CSV contract | `Content/Data/*.csv`, `Source/ReEcho/Data/*` |
+| Migration-only design registries | `Content/Data/*.json` |
 | Echo ghost material | `Content/ReEcho/Materials/M_EchoGhost.uasset` |
 | Module dependencies | `Source/ReEcho/ReEcho.Build.cs` |
 
-Design JSON currently covers cards, characters, elements, encounters, enemies, global balance, reactions, statuses and weapons. It is validated statically but not cooked or queried by gameplay code; runtime weapon values live in ReEchoBalanceSettings and DefaultGame.ini.
+CSV currently contains the runtime foundation manifest, schema and smoke table loaded by `FReEchoCsvDataRegistry` at module startup. Legacy JSON covers cards, characters, elements, encounters, enemies, global balance, reactions, statuses and weapons; it is still validated statically but is migration-only until Plans 19-21 move those domains. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
 
 ## Task routing
 
@@ -145,6 +147,7 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |
+| CSV runtime data, schema, fixtures | `Data/ReEchoCsvDataRegistry.*` | `Content/Data/README.md`, `Content/Data/*.csv`, `validate_project.py`, data automation tests |
 | Player portrait/health HUD, enemy health bars | `UI/ReEchoPlayerHudWidget.*`, `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`, `ReEchoGameMode.*`, `CombatantComponent.*` |
 | Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |
 | Rain, fog, weather scenes | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`, `DefaultGame.ini` |
@@ -152,7 +155,7 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 | Player stats, echo stats, Tab panel | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*` | `Graybox/ReEchoEchoActor.*`, `Combat/ReEchoCombatantComponent.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini` |
 | Pause/death/restart/quit UI | `UI/ReEchoRestartWidget.*` | `ReEchoGameMode.*`, `PlayerPawn::TogglePauseMenu`, `DefaultInput.ini` |
 | Trait cards/card choice/character promotion/role build | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `Run/ReEchoCharacterPromotion.*` | `Content/Data/cards.json`, `Content/Data/characters.json`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*`, `Weapons/ReEchoWeaponActor.*` |
-| Cards/characters/enemies/balance data | Matching `Content/Data/*.json` | `Content/Data/README.md`, `validate_project.py` |
+| Cards/characters/enemies/balance data | Matching `Content/Data/*.csv` and migration-only JSON | `Content/Data/README.md`, `validate_project.py` |
 | GM, debug command, cheat, console | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Matching gameplay subsystem or actor API |
 | Build failure | `scripts/ue/Build-Editor.*` | latest UBT log; matching source only |
 | Windows packaging/cook/resource missing | `scripts/ue/package_windows.py`, `ReEchoGameMode.*`, hard asset references, UAT Cook manifests | `Content/ReEcho/Textures/Characters/`, `Saved/Cooked/Windows`, Shipping smoke test |
@@ -168,7 +171,7 @@ Design JSON currently covers cards, characters, elements, encounters, enemies, g
 - Simulation is 60 Hz, recording is 20 Hz, and the encounter duration is 30 seconds unless an explicit design change updates all contracts.
 - Do not serialize automatic attacks into recordings.
 - Do not hand-edit `.uasset` or `.umap`; claim serialized assets in `PLANNER_EXCHANGE.md` and modify them through UE.
-- `Content/Data` is not runtime truth yet. Changing JSON alone does not change gameplay.
+- CSV under `Content/Data` is the target runtime data source. Changing JSON alone does not change gameplay.
 - The arena is runtime-generated. Do not search for a missing project map.
 - `AllToolsets` may emit unrelated GameFeatureData/Niagara Python warnings in commandlets; judge ReEcho tests from named automation results.
 - Follow `.clang-format` plus the mandatory Unreal C++ section in `PROJECT_RULES.md`.
