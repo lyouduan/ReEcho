@@ -6,7 +6,9 @@
 
 ## Dependency status
 
-本 Plan 必须在 Plan 18 合并后由规划者按最终公共接口修订。它可与 Plan 19 使用不同 worktree 并行，但不得共同修改 Plan 18 公共加载核心；需要公共扩展时先在协调板声明。
+Plan 18 已于 2026-08-10 人验、审查并合并，但其实现仍以中央注册表、manifest/schema、打包依赖和单体校验器为扩展中心；因此本 Plan 不再与 Plan 19 并行。必须等待 Plan 19 完成、人验并合并，基于它拆出的“通用 CSV 内部层 + 领域读取器 + 唯一注册表编排/原子发布”接口再启动。
+
+Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、注册表编排、内建行为注册、`ReEcho.Build.cs` 和静态校验入口。Plan 21 只能在本 Plan 合并后开始运行时接线。
 
 ## Source baseline
 
@@ -38,34 +40,39 @@
 
 ## Step 0 gates
 
-1. 基于已合并 Plan 18 创建 `plan/20-elements-reactions-csv`，读取其最终 schema、注册 API、失败策略和打包证据；若规划者尚未按终版修订本 Plan，停止。
-2. 采集当前 `ReEchoElementReaction`、敌人附着状态、投射物元素传递、GAS damage source 和 Plan 14 自动化基线。
-3. 对照工作簿与现有 JSON/C++ 列出有意差异，特别是 Lightning 缺失、当前双倍伤害简化和工作簿 Formula 描述。行为改变必须由人确认，不以“表里写了”自动覆盖已验收原型。
-4. 先确定 FormulaId 白名单与单位：元素攻击、ReactionEfficiency、DamageIncrease、范围、秒、UE 厘米如何组合。若汽化平方公式等存在量纲/数值歧义，设为阻断 gate 请人拍板，禁止自行改成看似合理的数值。
-5. 先确定顺序敏感状态机和抗递归规则，确保导电/范围附着不会因新反应无限递归或因遍历顺序产生不确定结果。
-6. 本任务不修改武器槽表；只提供 Plan 21 可消费的稳定 ElementId/Reaction API，并在最终 Execution notes 写清。
+1. 只在 Plan 19 已人验并合并后，从更新后的 main 创建 `plan/20-elements-reactions-csv`；读取 Plan 18、19 最终 Execution notes、当前 `FReEchoCsvDataSnapshot`/领域读取接口、内建行为注册入口和数据测试。若 Plan 19 未合并则停止。
+2. 在协调板独占本 Plan 的公共数据文件；不得复制或绕过 Plan 19 留下的通用读取/原子发布路径。
+3. 将本领域的 `BehaviorId`、`EffectKind`、`FormulaId`/状态行为通过显式内建注册函数注册，并保证发生在 `LoadAndPublishDefault()` 之前；不得依赖静态初始化顺序。
+4. 采集当前 `ReEchoElementReaction`、敌人附着状态、投射物元素传递、GAS damage source 和 Plan 14 自动化基线。
+5. 对照工作簿与现有 JSON/C++ 列出有意差异，特别是 Lightning 缺失、当前双倍伤害简化和工作簿 Formula 描述。行为改变必须由人确认，不以“表里写了”自动覆盖已验收原型。
+6. 先确定 FormulaId 白名单与单位：元素攻击、ReactionEfficiency、DamageIncrease、范围、秒、UE 厘米如何组合。若汽化平方公式等存在量纲/数值歧义，设为阻断 gate 请人拍板，禁止自行改成看似合理的数值。
+7. 先确定顺序敏感状态机和抗递归规则，确保导电/范围附着不会因新反应无限递归或因遍历顺序产生不确定结果。
+8. 本任务不修改武器槽表；只提供 Plan 21 可消费的稳定 ElementId/Reaction API，并在最终 Execution notes 写清。
 
 ## Target table responsibilities
 
-具体列名服从 Plan 18，语义至少包括：
+生产表文件固定为 `elements.csv`、`statuses.csv`、`reactions.csv`；具体列名服从 Plan 19 已落地的领域读取约定，语义至少包括：
 
 - Element：ID、role、display/color/presentation keys、enabled。
 - Status：ID、behavior ID、duration/stack/refresh policy、tags、enabled。
 - Reaction：ID、ordered incoming/attached element IDs、behavior ID、formula ID、coefficients/radii、status references、crit/echo flags、enabled。
 - 可变数值为独立字段或类型化参数；描述文本只服务 UI/策划，不参与计算。
+- 运行时范围、枚举、顺序配对、外键和 FormulaId 白名单由类型化 C++ 元素领域读取器校验；`csv_schema.csv` 同步服务静态校验/文档，但不是运行时公式解释器。
 
 ## Implementation outline
 
-1. 导入/验证元素、状态、反应表与引用图，拒绝未知/循环非法引用。
-2. 将纯判定核心改为读取不可变反应定义，保留一个确定的结算入口。
-3. 以有限 handler 实现六种反应和所需状态，不按 ReactionId 在 Actor 中散布 switch。
-4. 接回敌人状态、GAS 伤害、投射物/武器元素、表现反馈和回响调用方。
-5. 添加顺序、递归、范围目标排序、状态刷新/阻断、回响修正和表变值自动化。
-6. 移除该领域旧运行时重复值，更新数据 README、CODEBASE_MAP、PROJECT_STATE、LESSONS 和 Execution notes。
+1. 新增独立元素/状态/反应领域读取器，扩展共享快照与注册表编排；不把解析细节搬回 Plan 18 的中央 cpp。
+2. 导入/验证三个生产表与引用图，生产 manifest 缺任一必需表或任一领域失败时整包不发布。
+3. 将纯判定核心改为读取不可变反应定义，保留一个确定的结算入口。
+4. 以有限 handler 实现六种反应和所需状态，不按 ReactionId 在 Actor 中散布 switch。
+5. 接回敌人状态、GAS 伤害、投射物/武器元素、表现反馈和回响调用方。
+6. 添加顺序、递归、范围目标排序、状态刷新/阻断、原子失败、回响修正和表变值自动化。
+7. 移除该领域旧运行时重复值，更新数据 README、manifest/schema/RuntimeDependencies、静态领域校验、CODEBASE_MAP、PROJECT_STATE、LESSONS 和 Execution notes。
 
 ## Expected ownership
 
-- Plan 18 最终元素/状态/反应 CSV 与 schema。
+- `Content/Data/elements.csv`、`statuses.csv`、`reactions.csv` 及生产 manifest/schema/README/打包依赖。
+- 独立元素领域读取器、共享快照扩展、注册表编排与显式内建行为/公式注册。
 - `Combat/ReEchoElementReaction.*` 及新增的领域 registry/handler。
 - 必要的 `Core/ReEchoTypes.*`、GAS effect/source、Enemy/Projectile 状态接线。
 - 元素反应自动化和静态验证。
@@ -87,6 +94,7 @@
 - 连锁和范围附着必须使用稳定目标排序/已访问集合，不把 TSet/TMap 非稳定遍历暴露到结算结果。
 - 不在本 Plan 重做武器架构或所有状态系统；只实现这些表和 Plan 19/21 已确认依赖的公共状态能力。
 - 表驱动不等于无代码：新的独特反应行为仍需 C++ handler 和自动化后才能 enabled。
+- 本 Plan 与 Plan 19/21 串行；不得为了并行而复制快照、manifest、行为注册或静态校验系统。
 
 ## Recommended executor model
 
@@ -111,11 +119,11 @@
 ## 执行者启动 prompt
 
 ```text
-你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/20-data-elements-reactions-csv.md、已完成的 Plan 18 最终 Execution notes、Plan 14 执行经验，以及 shared/LESSONS.md §GAME 中元素/状态相关匹配条目；只有诊断失败时才读 §DEBUG。
+你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/20-data-elements-reactions-csv.md、已完成的 Plan 18 与 Plan 19 最终 Execution notes、Plan 14 执行经验，以及 shared/LESSONS.md §GAME 中元素/状态相关匹配条目；只有诊断失败时才读 §DEBUG。
 
-前置：main 已合并 Plan 18，且规划者已按它的终版接口修订 Plan 20。然后在独立 worktree 的 `plan/20-elements-reactions-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
+前置：main 已合并 Plan 18 和经人验的 Plan 19，Plan 20 是当前唯一 CSV 领域迁移任务；Plan 21 尚未开工。否则停止并告诉人。然后在独立 worktree 的 `plan/20-elements-reactions-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
 
-任务：把元素、必要状态和六个元素反应迁入唯一 CSV 注册表。验收照 Plan 20 的 🔒 清单；实现可调整，但不得执行任意公式、不得在 Actor 中按 ReactionId 散布特判、不得自行修正有歧义的平方公式/量纲，也不得修改 `.uasset`/`.umap`。与 Plan 19/21 的公共接口或文件重叠先写协调板；把 Plan 18 适配和语义差异写入 Execution notes。
+任务：沿用 Plan 19 拆出的通用读取层，新增独立元素领域读取器并扩展唯一快照/注册表编排，把元素、必要状态和六个元素反应迁入 CSV。显式注册所有内建行为/公式并保证先注册后启动加载。验收照 Plan 20 的 🔒 清单；不得执行任意公式、不得在 Actor 中按 ReactionId 散布特判、不得自行修正有歧义的平方公式/量纲，也不得修改 `.uasset`/`.umap`。把 Plan 18/19 适配和语义差异写入 Execution notes。
 
-完成后显式提交/push到本分支并告诉人，禁止修改或合并 main。
+完成后显式提交到本地分支并告诉人；未经人明确确认不得 push，禁止修改或合并 main。
 ```

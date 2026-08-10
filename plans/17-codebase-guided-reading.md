@@ -24,7 +24,7 @@
 
 ## Step 0 gate
 
-- 仓库目录：`C:/Users/gavynqiu/Documents/miniGame/ReEcho`。
+- 仓库目录：当前 ReEcho 仓库根目录。
 - 当前任务无需创建或切换分支；在现有工作树严格只读。
 - 工作树已有用户持有的 `.uasset` 与 `Asset/` 变更；不得修改、暂存、清理或解释为本任务产物。
 - 先读 `AGENTS.md`，再按其最小读取顺序读取；只从 `shared/CODEBASE_MAP.md` 提取“整体运行流程/回响”匹配行。
@@ -88,7 +88,7 @@
 ```text
 你是 ReEcho 项目的执行者，任务是陪我快速读代码，不是替我生成一份长篇总结。
 
-仓库：C:/Users/gavynqiu/Documents/miniGame/ReEcho
+仓库：当前 ReEcho 仓库根目录
 先读 AGENTS.md，并按它的最小读取顺序读取；再读 plans/17-codebase-guided-reading.md。只从 CODEBASE_MAP 提取与整体运行流程/回响相关的路由，不要整读 LESSONS。
 
 严格只读：不要切分支、改文件、启动 UE、构建、暂存、提交或清理工作树。现有 .uasset 和 Asset/ 变更属于用户，完全不要碰。

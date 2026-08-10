@@ -31,7 +31,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 | B - Planning loop | Partial | Preview/setup beat and direction check |
 | C - Build/run | Functional prototype; data migration partial | Data importer and full content run |
 | D - Elements/keystones | Element reactions and four promotion roles implemented; tuning remains | Vertical-slice acceptance |
-| E - Validation | Fifteen automation tests plus prior Shipping smoke evidence | Go/No-Go report |
+| E - Validation | Nineteen automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
 
 ## Collaboration protocol
 
@@ -44,7 +44,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
 - Latest Editor Development build succeeds and all nineteen `ReEcho.*` automation tests pass.
-- Prior clean Windows Shipping Cook/Pak/Archive and launch smoke test passed before Plans 06-08; those UI/weather additions still require a fresh packaged regression before release claims.
+- Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 18 CSV package; human visual/UI regression is still required before release claims.
 - `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
 
 ## Regression risks and technical debt

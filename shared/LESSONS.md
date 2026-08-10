@@ -17,7 +17,7 @@
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
 | WebGL 构建 / 部署 | `WEB` | [§WEB](#web) | 11 |
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
-| 流程 / 工具 / Skill | `META` | [§META](#meta) | 16 |
+| 流程 / 工具 / Skill | `META` | [§META](#meta) | 17 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
 | Bug 修复 | `FIX` | [§FIX](#fix) | 5 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
@@ -958,6 +958,14 @@ file-static `AddBoxGeometry`。Unity build 或 adaptive non-unity 下两个同�
 - 大型经验库先用标题定位，只读当前工种，诊断失败时才追加 DEBUG。
 - 验证按变更面选择；相关源码/config 未变化时复用已通过证据，文档或源图编辑不触发重复 UE 构建。
 - 用静态校验守住状态行数、测试基线、重复规则和陈旧 ownership，避免文档再次膨胀。
+
+### META-17. CSV 领域迁移按共享扩展面串行，内建行为必须先注册再加载 [UE]
+
+**来源**：ReEcho Plan 18，CSV runtime foundation 终版审查。
+
+- 原子快照保证了运行时只有一个数据真源，但 `FReEchoCsvDataSnapshot`、注册表编排、manifest/schema、打包依赖和静态校验入口也会成为领域迁移的共享写入面。若基础层尚未提供插件式领域扩展，多个领域计划同时开工只会制造 add/add 与语义冲突；应先由第一个领域拆出“通用读取内部层 + 领域读取器 + 唯一编排/发布”，再按依赖串行合并。
+- `RegisterBehaviorId`/`RegisterEffectKind` 只有在生产表加载前完成才有意义。内建 handler 使用显式集中注册函数，并由模块启动按“注册 → `LoadAndPublishDefault`”顺序调用；不要依赖跨翻译单元静态初始化顺序。
+- `csv_schema.csv` 可以作为静态校验和策划文档，但不能替代类型化运行时校验，更不能演变成公式/脚本解释器。新领域应扩展类型化快照和领域读取器，整包验证通过后一次发布。
 
 ---
 

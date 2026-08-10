@@ -6,7 +6,9 @@
 
 ## Dependency status
 
-本 Plan 必须在 Plan 18 合并后由规划者按最终 CSV 契约修订。运行时集成还依赖 Plan 20 最终 ElementId/Reaction API；在 Plan 20 未完成时，执行者可以做只读内容归一化设计，但不得复制元素枚举/反应系统或自行发明临时接口。
+Plan 18 已于 2026-08-10 人验、审查并合并。由于公共快照、manifest/schema、注册表编排、打包依赖和静态校验是串行共享面，本 Plan 必须等待 Plan 19、20 依次完成人验与合并后再启动；不再提前开执行 worktree，也不以“只做内容归一化”为由制造一份会漂移的临时 schema。
+
+启动前规划者还要依据 Plan 19 的领域读取扩展点与 Plan 20 的最终 `ElementId`/Reaction API 做一次窄校准。Plan 21 执行期间独占上述公共数据文件，默认只消费 Plan 20 元素接口，不再改写它。
 
 ## Source baseline
 
@@ -40,37 +42,40 @@
 
 ## Step 0 gates
 
-1. 基于已合并 Plan 18 创建 `plan/21-weapons-slots-csv`；规划者须先按 Plan 18 终版修订 schema/API 引用。
-2. 运行时接线前必须读取已完成的 Plan 20 Execution notes 和公共 ElementId/Reaction API；Plan 20 未合并则停止接线，不复制临时元素系统。
-3. 列出当前三个武器 ID/槽位与工作簿七种武器/角色初始武器的映射，评估 BuildSnapshot/录制兼容；任何重编号或语义替换先由人拍板。
-4. 将所有配件行分类为 `Numeric`、`ParameterizedBehavior`、`AttackPatternReplacement`、`UniqueBehavior`、`Incomplete/Disabled`，并补稳定 ID 提案。缺名称/词条的源行不能用行号直接成为长期运行时 ID，需人确认命名/ID 或保持禁用。
-5. 采集现有三个武器攻击间隔、伤害、射程、元素循环、Sword/Projectile 行为与录制/回响测试基线。
-6. 先用一个武器、一个多段 pattern、一个核心和一个数值配件打通全链；若通用模型不能表达，记录最小 schema 扩展，不立刻为全部 80 行写专属类。
-7. 不修改武器/角色 `.uasset`、贴图或动画资产；若视觉资源缺失，用现有可玩表现验证逻辑，资产补齐另开 Plan 并认领。
+1. 仅在 Plan 19、20 均已人验并合并后，从更新后的 main 创建 `plan/21-weapons-slots-csv`；读取 Plan 18–20 最终 Execution notes、领域读取接口、共享快照、内建行为注册和最终 ElementId/Reaction API。缺任一前置则停止。
+2. 在协调板独占生产 manifest/schema、共享快照、注册表编排、内建注册、`ReEcho.Build.cs` 与静态校验入口；默认只消费 Plan 20 元素 API，如需改其公共契约先交回规划者。
+3. 武器/配件的 `BehaviorId`、`EffectKind` 和 AttackPattern handler 必须进入显式内建注册函数，并在模块启动加载前注册；不得依赖静态初始化顺序。
+4. 列出当前三个武器 ID/槽位与工作簿七种武器/角色初始武器的映射，评估 BuildSnapshot/录制兼容；任何重编号或语义替换先由人拍板。
+5. 将所有配件行分类为 `Numeric`、`ParameterizedBehavior`、`AttackPatternReplacement`、`UniqueBehavior`、`Incomplete/Disabled`，并补稳定 ID 提案。缺名称/词条的源行不能用行号直接成为长期运行时 ID，需人确认命名/ID 或保持禁用。
+6. 采集现有三个武器攻击间隔、伤害、射程、元素循环、Sword/Projectile 行为与录制/回响测试基线。
+7. 先用一个武器、一个多段 pattern、一个核心和一个数值配件打通全链；若通用模型不能表达，记录最小 schema 扩展，不立刻为全部 80 行写专属类。
+8. 不修改武器/角色 `.uasset`、贴图或动画资产；若视觉资源缺失，用现有可玩表现验证逻辑，资产补齐另开 Plan 并认领。
 
 ## Target table responsibilities
 
-具体列名服从 Plan 18/20 最终契约，语义至少包括：
+生产表文件固定为 `weapons.csv`、`attack_steps.csv`、`slot_types.csv`、`slot_profiles.csv`、`parts.csv`、`part_effects.csv`；具体列名服从 Plan 19/20 已落地的领域读取约定，语义至少包括：
 
 - Weapon：ID、type、display/resource keys、attack pattern ID、基础 interval/range/projectile/explosion/concentration 等、allowed slot profile、enabled。
 - AttackStep：weapon/pattern ID、ordered index、duration、damage coefficients、geometry/range/angle、movement/status/condition behavior references。
 - SlotType/Profile：武器类型允许的槽位和数量限制，核心例外规则。
 - Part：ID、weapon type/slot type、display text、rarity/tags、enabled/implementation status。
 - PartEffect：part ID、order、trigger、effect kind、target/op/value 或 behavior/attack pattern ID、typed parameters、duration/cooldown/stack rule。
+- 运行时由类型化武器领域读取器校验阶段顺序、槽位组合、外键、范围和 handler 白名单；`csv_schema.csv` 只描述同一契约，不解释攻击公式或行为。
 
 ## Implementation outline
 
-1. 在 Plan 18 注册表上建立武器/阶段/槽位/配件关系模型和完整静态校验。
+1. 沿用 Plan 19 的通用读取层新增独立武器领域读取器，扩展共享快照与注册表编排；生产 manifest 缺任一必需表或领域失败时整包不发布。
 2. 用一个垂直切片打通 CSV → build/equipment → Weapon execution → GAS damage/cooldown → recording/echo。
 3. 将当前三武器迁移并保持自动化基线，再扩到工作簿七类基础 pattern。
 4. 实现有限的通用 modifier、事件行为和 AttackPattern handler；未实现源行保持 disabled。
 5. 接 UI/商店/背包所需只读名称与槽位合法性，不重做界面版式和经济系统。
-6. 移除旧武器运行时重复源，补组合、确定性和回响回归测试。
-7. 更新 README、CODEBASE_MAP、PROJECT_STATE、LESSONS 与 Execution notes，列出禁用配件和后续实现批次。
+6. 移除旧武器运行时重复源，补组合、原子失败、确定性和回响回归测试。
+7. 同步 README、manifest/schema/RuntimeDependencies、静态领域校验、CODEBASE_MAP、PROJECT_STATE、LESSONS 与 Execution notes，列出禁用配件和后续实现批次。
 
 ## Expected ownership
 
-- Plan 18 最终武器/阶段/槽位/配件 CSV 与 schema。
+- 六张生产武器领域 CSV 及 manifest/schema/README/打包依赖。
+- 独立武器领域读取器、共享快照扩展、注册表编排与显式内建行为/AttackPattern 注册。
 - `Weapons/ReEchoWeaponActor.*` 及新增的 weapon definition/pattern/effect handlers。
 - 必要的 Player/Echo/Recording/Projectile/Run 装备接线。
 - `Core/ReEchoBalanceSettings.*` 中旧武器定义的退役或兼容迁移。
@@ -93,6 +98,7 @@
 - 攻击 pattern、配件 effect、元素 reaction 是三个不同概念；不把它们塞进一个万能字符串解释器。
 - 多段攻击/叠层/随机行为必须使用稳定顺序和项目随机流；不要用帧率或容器遍历顺序决定结果。
 - UI 重做、武器美术、音效、经济掉落和平衡调参不在本 Plan；只做必要的数据展示/装备接线。
+- 不为并行开发复制 Plan 20 的元素类型、公共快照或 manifest/schema；前置未合并就停止。
 
 ## Recommended executor model
 
@@ -119,9 +125,9 @@
 ```text
 你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/21-data-weapons-slots-csv.md、已完成的 Plan 18 与 Plan 20 最终 Execution notes、Plan 14 相关经验，以及 shared/LESSONS.md §GAME 中武器/回响/确定性匹配条目；只有诊断失败时读 §DEBUG。
 
-前置：main 已包含 Plan 18，运行时接线阶段还必须包含 Plan 20；规划者已按两者终版接口修订 Plan 21。否则停止并告诉人。然后在独立 worktree 的 `plan/21-weapons-slots-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
+前置：main 已依次包含经人验的 Plan 18、19、20，且规划者已按 Plan 19 的领域读取接口与 Plan 20 的最终元素契约窄校准本 Plan。否则停止并告诉人。然后在独立 worktree 的 `plan/21-weapons-slots-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
 
-任务：把武器、攻击阶段、插槽和配件迁到唯一 CSV 注册表。验收照 Plan 21 的 🔒 清单；实现层可调整，但先做垂直切片，禁止复制数据/元素系统、禁止按 PartId 扩张巨型 switch、禁止把缺名称/ID/handler 的行启用，禁止修改 `.uasset`/`.umap`。把 Plan 18/20 适配、启用批次、禁用源行和所有偏差写入 Execution notes。
+任务：沿用 Plan 19 的通用读取层新增独立武器领域读取器，扩展唯一快照/注册表编排，并使用 Plan 20 的 ElementId/Reaction API，把武器、攻击阶段、插槽和配件迁入 CSV。所有 handler 必须显式注册且先于启动加载。验收照 Plan 21 的 🔒 清单；先做垂直切片，禁止复制数据/元素系统、禁止按 PartId 扩张巨型 switch、禁止把缺名称/ID/handler 的行启用，禁止修改 `.uasset`/`.umap`。把 Plan 18–20 适配、启用批次、禁用源行和所有偏差写入 Execution notes。
 
-完成后显式提交/push到本分支并告诉人，禁止修改或合并 main。
+完成后显式提交到本地分支并告诉人；未经人明确确认不得 push，禁止修改或合并 main。
 ```

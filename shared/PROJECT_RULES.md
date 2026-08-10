@@ -9,12 +9,12 @@ This file contains project-specific additions to the canonical workflow. If it c
 - CSV under `Content/Data/` is the target designer-editable runtime source. Legacy `Content/Data/*.json` files are read-only migration material until their domains are moved; do not duplicate balance constants in JSON, C++, DeveloperSettings, actors or widgets.
 - Preserve deterministic semantics: simulation 60 Hz, recording 20 Hz, encounter length 30 seconds, pause advances neither recording nor playback.
 - Automatic attacks are never serialized into recordings. Echoes replay only historical position and successful active-skill events; attack targeting and hit resolution use the current world.
-- Do not hand-edit `.uasset` or `.umap` binaries outside Unreal Editor. Prefer C++, JSON source data, Editor Utility generation, or Python automation for mergeable assets.
+- Do not hand-edit `.uasset` or `.umap` binaries outside Unreal Editor. Prefer C++, CSV source data, Editor Utility generation, or Python automation for mergeable assets.
 
 ## Ownership and serial resources
 
 - Merge-hostile resources are `.umap`, `.uasset`, Project Settings changed through the editor, and generated DataTables. Claim them in `shared/PLANNER_EXCHANGE.md` before editing.
-- Only one agent may own an editor asset at a time. C++ and separate JSON files may proceed independently when file ownership does not overlap.
+- Only one agent may own an editor asset at a time. C++ and separate CSV/text files may proceed independently when file ownership does not overlap.
 - Local editor lock: `.locks/unreal-editor.lock`. It is machine-local and ignored by git. Remove it only after confirming no UnrealEditor process for this project is running.
 
 ## Branch and handoff

@@ -17,22 +17,22 @@
 
 ### 🤖 Automated
 
-- [ ] `Content/Data/` 下存在有版本号的 CSV 数据契约和人可读说明；编码、分隔、转义、空值、布尔、百分比、距离/时间单位、稳定 ID 和引用规则明确且可被自动校验。
-- [ ] 运行时通过一个公共、只读的数据注册入口加载 CSV；解析全部成功后一次性发布不可变快照，禁止逐表半成功和静默混用旧常量。
-- [ ] 开发/测试环境遇到重复 ID、缺必填值、未知引用、未知 `EffectKind`/`BehaviorId`、非法数值范围或不支持的 schema version 时明确失败，并指出文件、行和字段。
-- [ ] CSV 不执行任意表达式或脚本。数值规则使用有限的类型/操作；逻辑规则只引用 C++ 已注册的行为 ID 和类型化参数。
-- [ ] 支持一对多子表，避免把数组、攻击阶段、多个效果或可变参数继续塞进一个自然语言单元格。
-- [ ] 至少一个生产级最小 CSV 和一个测试夹具证明：修改 CSV 值、重新启动加载后，注册表返回新值且无需重新编译 C++。
-- [ ] Windows Editor 与 Shipping 都能找到相同 CSV；打包清单/烟雾证据证明所有生产 CSV 被带入包中。
-- [ ] `scripts/validate_project.py` 覆盖 CSV schema、唯一性、外键、枚举/行为白名单、UTF-8 和禁止空白 ID；旧 JSON 校验在迁移期保留但标明非运行时真源。
-- [ ] 现有 60 Hz、20 Hz、30 秒、暂停语义和回响记录契约不因加载层引入非确定性或热更新中途换表。
-- [ ] Editor build、相关数据自动化、全量 `ReEcho.*`、静态校验、Shipping 数据加载烟雾和 `git diff --check` 通过。
-- [ ] 不生成或手改 DataTable `.uasset`；不提交工作簿副本、本机绝对路径、构建产物或临时导出物。
+- [x] `Content/Data/` 下存在有版本号的 CSV 数据契约和人可读说明；编码、分隔、转义、空值、布尔、百分比、距离/时间单位、稳定 ID 和引用规则明确且可被自动校验。
+- [x] 运行时通过一个公共、只读的数据注册入口加载 CSV；解析全部成功后一次性发布不可变快照，禁止逐表半成功和静默混用旧常量。
+- [x] 开发/测试环境遇到重复 ID、缺必填值、未知引用、未知 `EffectKind`/`BehaviorId`、非法数值范围或不支持的 schema version 时明确失败，并指出文件、行和字段。
+- [x] CSV 不执行任意表达式或脚本。数值规则使用有限的类型/操作；逻辑规则只引用 C++ 已注册的行为 ID 和类型化参数。
+- [x] 支持一对多子表，避免把数组、攻击阶段、多个效果或可变参数继续塞进一个自然语言单元格。
+- [x] 至少一个生产级最小 CSV 和一个测试夹具证明：修改 CSV 值、重新启动加载后，注册表返回新值且无需重新编译 C++。
+- [x] Windows Editor 与 Shipping 都能找到相同 CSV；打包清单/烟雾证据证明所有生产 CSV 被带入包中。
+- [x] `scripts/validate_project.py` 覆盖 CSV schema、唯一性、外键、枚举/行为白名单、UTF-8 和禁止空白 ID；旧 JSON 校验在迁移期保留但标明非运行时真源。
+- [x] 现有 60 Hz、20 Hz、30 秒、暂停语义和回响记录契约不因加载层引入非确定性或热更新中途换表。
+- [x] Editor build、相关数据自动化、全量 `ReEcho.*`、静态校验、Shipping 数据加载烟雾和 `git diff --check` 通过。
+- [x] 不生成或手改 DataTable `.uasset`；不提交工作簿副本、本机绝对路径、构建产物或临时导出物。
 
 ### 🎮 Human
 
-- [ ] 人在一份代表性 CSV 中修改允许的测试数值、重新启动项目后看到对应只读诊断/测试值变化；无需打开 UE 资产编辑器。
-- [ ] 人确认 CSV 列名、错误信息和 README 足以让策划独立定位填表错误。
+- [x] 人在一份代表性 CSV 中修改允许的测试数值、重新启动项目后看到对应只读诊断/测试值变化；无需打开 UE 资产编辑器。
+- [x] 人确认 CSV 列名、错误信息和 README 足以让策划独立定位填表错误。
 
 ## Step 0 gates
 
@@ -163,6 +163,12 @@
 
 - Edit `Content/Data/runtime_smoke.csv` `RUNTIME_SMOKE.TestScalar`, restart the project and confirm the registry/automation sees the new value without recompiling C++.
 - Confirm `Content/Data/README.md` and CSV error messages are readable enough for designers to locate row and field mistakes.
+
+## Closure
+
+- Human accepted completion on 2026-08-10; planner reviewed and merged the implementation locally as merge commit `575e559`.
+- The final local-path cleanup commit was included in main. Per human instruction, no remote branch was updated or deleted.
+- Source/config did not change after the executor's passing build, 19-test automation and clean Shipping smoke evidence; planner reused that evidence and reran static repository checks after documentation calibration.
 
 ## 执行者启动 prompt
 

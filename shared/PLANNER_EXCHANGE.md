@@ -12,6 +12,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 | Date | Plan | Result | Human follow-up |
 |---|---|---|---|
+| 2026-08-10 | Plan 18 CSV runtime foundation | Immutable startup-loaded CSV snapshot, strict typed validation, 19 tests and clean Shipping loose-file smoke; human accepted and planner merged locally | Continue serially with Plan 19; remote branch intentionally unchanged |
 | 2026-08-10 | Plan 17 guided code reading | Read-only walkthrough of startup, encounter, recording, run-state and echo-playback flow; human accepted | Choose GAS/combat, growth/shop or UI/presentation for a future focused reading plan if needed |
 | 2026-08-05 | Plan 16 bomber ranges | Configurable trigger/damage radii and fuse behavior; build and 15 tests pass | PIE trigger readability and tuning |
 | 2026-08-05 | Plan 15 character promotion | Four deterministic roles, forge/Sage cadence, runtime health correction; build and 15 tests pass | PIE role readability and pacing |
@@ -34,6 +35,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 | 2026-07-30 | `AGENTS.md` is the only startup-order list; verification is change-surface based | `AGENTS.md`, `PROJECT_RULES.md` | Adopted |
 | 2026-08-10 | After human acceptance and planner merge, the planner safely removes the clean executor worktree and its merged local branch; remote branch deletion remains a human decision | `WORKFLOW.md`, `PLANNER_RULES.md`, `EXECUTOR_RULES.md` | Adopted |
 | 2026-08-10 | CSV is the target designer-editable runtime source for characters/builds/elements/weapons/slots; migrate through Plans 18–21 and do not keep CSV/JSON/C++ as parallel editable truths | Plans 18–21; update `PROJECT_RULES.md` when Plan 18 lands | Adopted |
+| 2026-08-10 | Plans 19–21 execute serially (`19 → 20 → 21`); each gets its own local worktree/branch, but central snapshot, manifest/schema, behavior registration, packaging and validator make simultaneous implementation merge-hostile | Plan 18 final implementation; revised Plans 19–21 | Adopted |
 
 ## Warnings / blocked items
 
