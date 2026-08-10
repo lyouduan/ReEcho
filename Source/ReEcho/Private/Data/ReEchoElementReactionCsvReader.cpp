@@ -93,14 +93,21 @@ bool IsAllowedReactionBehaviorFormulaPair(const FName BehaviorId, const FName Fo
 	{
 		return FormulaId == TEXT("Element.EnhanceNextReaction");
 	}
-	if (BehaviorId == TEXT("Reaction.Burn") || BehaviorId == TEXT("Reaction.Growth") ||
-	    BehaviorId == TEXT("Reaction.Conduct"))
+	if (BehaviorId == TEXT("Reaction.Burn"))
 	{
-		return FormulaId == TEXT("Element.BaseDamageScale");
+		return FormulaId == TEXT("Element.ElementAttackDot");
 	}
 	if (BehaviorId == TEXT("Reaction.Vaporize"))
 	{
-		return FormulaId == TEXT("Element.DamageIncrease");
+		return FormulaId == TEXT("Element.ElementAttackSquared");
+	}
+	if (BehaviorId == TEXT("Reaction.Growth"))
+	{
+		return FormulaId == TEXT("Element.AttachInRadius");
+	}
+	if (BehaviorId == TEXT("Reaction.Conduct"))
+	{
+		return FormulaId == TEXT("Element.ChainElementAttack");
 	}
 	return false;
 }
@@ -373,6 +380,11 @@ bool ReadReactionsTable(const FString& DataDirectory,
 		{
 			ReEchoCsv::AddIssue(
 			    Issues, Table.File, Row.Line, TEXT("BehaviorId"), TEXT("Enabled reaction needs behavior"));
+		}
+		if (Reaction.bCanCrit)
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("CanCrit"), TEXT("Element reaction crit is not supported yet"));
 		}
 		if (!Reaction.bEnabled && Reaction.DisabledReason.IsEmpty())
 		{

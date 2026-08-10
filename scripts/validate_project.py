@@ -34,7 +34,13 @@ REGISTERED_BEHAVIOR_IDS = {
     "Reaction.Enhance",
 }
 REGISTERED_EFFECT_KINDS = {"ScalarModifier", "StatModifier", "InstantRecovery", "ElementReaction"}
-REGISTERED_FORMULA_IDS = {"Element.BaseDamageScale", "Element.DamageIncrease", "Element.EnhanceNextReaction"}
+REGISTERED_FORMULA_IDS = {
+    "Element.ElementAttackDot",
+    "Element.ElementAttackSquared",
+    "Element.AttachInRadius",
+    "Element.ChainElementAttack",
+    "Element.EnhanceNextReaction",
+}
 VALUE_OPS = {"Add", "Multiply", "Override"}
 CARD_TARGETS = {
     "HpMax",
@@ -57,10 +63,10 @@ STATUS_BEHAVIOR_PAIRS = {
     "Z_Burn": "Status.Burn",
 }
 REACTION_BEHAVIOR_FORMULA_PAIRS = {
-    "Reaction.Burn": "Element.BaseDamageScale",
-    "Reaction.Vaporize": "Element.DamageIncrease",
-    "Reaction.Growth": "Element.BaseDamageScale",
-    "Reaction.Conduct": "Element.BaseDamageScale",
+    "Reaction.Burn": "Element.ElementAttackDot",
+    "Reaction.Vaporize": "Element.ElementAttackSquared",
+    "Reaction.Growth": "Element.AttachInRadius",
+    "Reaction.Conduct": "Element.ChainElementAttack",
     "Reaction.Enhance": "Element.EnhanceNextReaction",
 }
 
@@ -519,6 +525,8 @@ def validate_element_reaction_domain(data_dir: Path, entries: dict[str, Path]) -
             fail(f"{rel(entries['Reactions'])}:{row['__line__']}: unknown status reference {row['StatusId']!r}")
         if row["Enabled"] == "true":
             enabled_reactions.add(row["Id"])
+        if row["CanCrit"] == "true":
+            fail(f"{rel(entries['Reactions'])}:{row['__line__']}: CanCrit is not supported yet")
         if row["Enabled"] == "false" and not row["DisabledReason"]:
             fail(f"{rel(entries['Reactions'])}:{row['__line__']}: disabled reaction requires DisabledReason")
     if seen_pairs != expected_pairs:
@@ -603,8 +611,8 @@ def validate_workflow() -> None:
         fail("AGENTS.md must remain the sole startup-order authority")
     if len(state_text.splitlines()) > 80:
         fail("PROJECT_STATE.md exceeded 80 lines; move history to plans/Git")
-    if "twenty-two `ReEcho.*` automation tests pass" not in state_text:
-        fail("PROJECT_STATE.md must report the current twenty-two-test baseline")
+    if "twenty-three `ReEcho.*` automation tests pass" not in state_text:
+        fail("PROJECT_STATE.md must report the current twenty-three-test baseline")
     active_block = exchange_text.split("## Active ownership", 1)[1].split("## Recently closed", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
         fail("completed Plans 07/08 must not retain active ownership")
@@ -642,6 +650,10 @@ def main() -> int:
         validate_csv_package(
             assemble_fixture_package(DATA / "TestFixtures" / "CsvRuntime" / "ReactionValueChanged", Path(temp))
         )
+    with tempfile.TemporaryDirectory(prefix="reecho_csv_echo_efficiency_") as temp:
+        validate_csv_package(
+            assemble_fixture_package(DATA / "TestFixtures" / "CsvRuntime" / "EchoEfficiencyEnabled", Path(temp))
+        )
     for name, token in {
         "DuplicateId": "duplicate id",
         "MissingRequired": "required value",
@@ -656,6 +668,7 @@ def main() -> int:
         "InvalidCardEffectBehaviorPair": "EffectKind/BehaviorId",
         "UnknownFormulaId": "FormulaId",
         "DuplicateReactionPair": "duplicate ordered pair",
+        "UnsupportedCanCrit": "CanCrit",
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()

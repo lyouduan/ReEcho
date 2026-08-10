@@ -281,8 +281,10 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterBehaviorId(TEXT("Reaction.Growth"));
 	RegisterBehaviorId(TEXT("Reaction.Conduct"));
 	RegisterBehaviorId(TEXT("Reaction.Enhance"));
-	RegisterFormulaId(TEXT("Element.BaseDamageScale"));
-	RegisterFormulaId(TEXT("Element.DamageIncrease"));
+	RegisterFormulaId(TEXT("Element.ElementAttackDot"));
+	RegisterFormulaId(TEXT("Element.ElementAttackSquared"));
+	RegisterFormulaId(TEXT("Element.AttachInRadius"));
+	RegisterFormulaId(TEXT("Element.ChainElementAttack"));
 	RegisterFormulaId(TEXT("Element.EnhanceNextReaction"));
 }
 

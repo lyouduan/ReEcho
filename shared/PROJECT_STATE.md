@@ -21,7 +21,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 | Presentation | 2D actors, fixed camera, arena art, weather, inventory/shop/stats UI | Human PIE and packaged-menu regression |
 | Data | CSV runtime foundation plus character/build and element/status/reaction CSV migration for current playable content; legacy JSON remains migration-only | Domain migration for weapons and slots |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Twenty-two `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
+| Validation | Twenty-three `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
 
 ## Milestones
 
@@ -31,7 +31,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 | B - Planning loop | Partial | Preview/setup beat and direction check |
 | C - Build/run | Functional prototype; characters/current build cards and element reactions migrated to CSV | Weapons, slots and full content run |
 | D - Elements/keystones | Element reactions and four promotion roles implemented; tuning remains | Vertical-slice acceptance |
-| E - Validation | Twenty-two automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
+| E - Validation | Twenty-three automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
 
 ## Collaboration protocol
 
@@ -43,7 +43,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Editor Development build succeeds and all twenty-two `ReEcho.*` automation tests pass.
+- Latest Editor Development build succeeds and all twenty-three `ReEcho.*` automation tests pass.
 - Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 18 CSV package; human visual/UI regression is still required before release claims.
 - `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
 

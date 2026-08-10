@@ -65,3 +65,10 @@ CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON �
 Fixture 目录只保存局部覆盖表；Python 和 C++ 自动化会先复制生产 CSV 基线，再套用 fixture 中存在的覆盖文件来组装完整临时包。
 
 打开 Unreal 前先运行 `python scripts/validate_project.py`。它会校验 CSV schema、ID、外键、枚举、行为/效果/公式白名单、禁用源行、当前六张卡牌抽取池、六个元素反应、UTF-8 编码和预期负例 fixtures。
+
+## Plan 20 reaction formula notes
+
+- Registered element reaction formulas are `Element.ElementAttackDot`, `Element.ElementAttackSquared`, `Element.AttachInRadius`, `Element.ChainElementAttack` and `Element.EnhanceNextReaction`.
+- `CanCrit=true` is intentionally rejected at load time until crit-enabled reaction damage is implemented.
+- `AffectedByEchoEfficiency` is consumed by reaction damage execution; current production reaction rows set it to `false`.
+- `UnsupportedCanCrit` is the negative fixture for unsupported crit configuration.

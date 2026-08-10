@@ -190,6 +190,7 @@ bool FReEchoCsvInvalidFixturesFailClearlyTest::RunTest(const FString& Parameters
 	    {TEXT("InvalidCardEffectBehaviorPair"), TEXT("EffectKind/BehaviorId")},
 	    {TEXT("UnknownFormulaId"), TEXT("FormulaId")},
 	    {TEXT("DuplicateReactionPair"), TEXT("ordered pair")},
+	    {TEXT("UnsupportedCanCrit"), TEXT("CanCrit")},
 	    {TEXT("UnsupportedVersion"), TEXT("SchemaVersion")}};
 
 	for (const FExpectedFailure& ExpectedFailure : ExpectedFailures)

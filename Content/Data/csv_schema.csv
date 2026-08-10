@@ -88,7 +88,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Reactions,TriggerElementId,ForeignKey,true,,,Elements,,Ordered incoming element id.
 1,Reactions,AttachmentElementId,ForeignKey,true,,,Elements,,Ordered existing attached element id.
 1,Reactions,BehaviorId,BehaviorId,true,,,,Reaction.Burn|Reaction.Vaporize|Reaction.Growth|Reaction.Conduct|Reaction.Enhance,Registered reaction behavior id.
-1,Reactions,FormulaId,FormulaId,true,,,,Element.BaseDamageScale|Element.DamageIncrease|Element.EnhanceNextReaction,Whitelisted typed formula id.
+1,Reactions,FormulaId,FormulaId,true,,,,Element.ElementAttackDot|Element.ElementAttackSquared|Element.AttachInRadius|Element.ChainElementAttack|Element.EnhanceNextReaction,Whitelisted typed formula id.
 1,Reactions,DamageMultiplier,Float,true,0,100,,,Typed damage multiplier.
 1,Reactions,DamageIncrease,Float,true,0,100,,,Typed additive damage increase coefficient.
 1,Reactions,RadiusCm,Float,true,0,100000,,,Reaction radius in Unreal centimeters.

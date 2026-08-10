@@ -49,10 +49,23 @@ public:
 	                             const FVector& SourceLocation,
 	                             AActor* SourceActor = nullptr,
 	                             float ReactionEfficiency = 1.0f);
+	void RefreshElementAttachmentVisual();
 
 	EReEchoElement GetAttachedElement() const
 	{
 		return ElementState.Attached;
+	}
+	const FReEchoElementState& GetElementState() const
+	{
+		return ElementState;
+	}
+	FReEchoElementState& EditElementState()
+	{
+		return ElementState;
+	}
+	UReEchoCombatantComponent* GetCombatantComponent() const
+	{
+		return Combatant;
 	}
 
 	bool IsAlive() const;

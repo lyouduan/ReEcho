@@ -106,14 +106,14 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ### Changed
 
-- Created isolated worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan20` on branch `plan/20-elements-reactions-csv`; the planner/main worktree still has unrelated `.uasset` changes and this branch does not claim or edit binary assets.
+- Continued in the isolated Plan 20 worktree on branch `plan/20-elements-reactions-csv`; the planner/main worktree still has unrelated `.uasset` changes and this branch does not claim or edit binary assets.
 - Added production `elements.csv`, `statuses.csv` and `reactions.csv`; extended manifest, schema, README, `ReEcho.Build.cs`, static validation and data automation coverage.
 - Added `ReEchoElementReactionCsvReader.*` following the Plan 19 domain-reader shape. `FReEchoCsvDataRegistry` remains the only manifest/orchestration/atomic publish boundary.
-- Extended `FReEchoCsvDataSnapshot` with typed element/status/reaction rows and explicit `FormulaId` registration. Built-ins now register status and reaction behaviors plus `Element.BaseDamageScale`, `Element.DamageIncrease` and `Element.EnhanceNextReaction` before default load.
-- Reworked `ReEchoElementReaction` to resolve enabled combat elements, labels, colors and ordered reactions from the published CSV snapshot. The pure state machine now handles attachment roles, reaction status output, elemental-immunity blocking, non-stacking enhancement and table coefficients.
-- Kept elemental damage on the existing GAS path: `AReEchoEnemyActor::ReceiveElementalDamage()` passes current world time into the pure resolver, then still calls `ReceiveGrayboxDamage()` / `ReEchoGameplayEffects::ApplyDamage()`.
+- Extended `FReEchoCsvDataSnapshot` with typed element/status/reaction rows and explicit `FormulaId` registration. Built-ins now register status and reaction behaviors plus `Element.ElementAttackDot`, `Element.ElementAttackSquared`, `Element.AttachInRadius`, `Element.ChainElementAttack` and `Element.EnhanceNextReaction` before default load.
+- Reworked `ReEchoElementReaction` to resolve enabled combat elements, labels, colors and ordered reactions from the published CSV snapshot. The pure state machine now handles attachment roles, reaction status output, elemental-immunity blocking, ordered non-stacking enhancement and table metadata; world execution handles DOT, squared vaporize damage, growth range attachment and conduct chain traversal.
+- Kept elemental damage on the existing GAS path: `AReEchoEnemyActor::ReceiveElementalDamage()` builds a shared hit context for player/echo sources, then `ApplyHitToWorld()` calls `ReceiveGrayboxDamage()` / `ReEchoGameplayEffects::ApplyDamage()` for every immediate or scheduled damage application.
 - Updated weapon 3's deterministic elemental sequence and Poet random elements to include Lightning and cover the six ordered reaction pairs through normal projectile play.
-- Replaced complete copied CSV fixture packages with Python/C++ temporary assembly from production baseline plus local fixture overrides. Existing negative fixtures now keep only their changed CSV, and new element fixtures cover unknown formula and duplicate ordered pair.
+- Replaced complete copied CSV fixture packages with Python/C++ temporary assembly from production baseline plus local fixture overrides. Existing negative fixtures now keep only their changed CSV, and new element fixtures cover unknown formula, duplicate ordered pair and unsupported `CanCrit`.
 - Updated `shared/CODEBASE_MAP.md`, `shared/PROJECT_STATE.md` and `shared/LESSONS.md`.
 
 ### Evidence
@@ -121,7 +121,7 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 - `python scripts/validate_project.py` passes: production character/build/element tables, fixtures, IDs, references, behavior/effect/formula allowlists, UTF-8, staging deps and workflow guards.
 - `.clang-format` was run on changed C++ files.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
-- `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0. Latest log shows `Found 22 automation tests based on 'ReEcho'`, `ReEcho.Combat.ElementReactions` success, `ReEcho.Data.CsvInvalidFixturesFailClearly` success and `TEST COMPLETE. EXIT CODE: 0`.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0. Latest log shows `Found 23 automation tests based on 'ReEcho'`, `ReEcho.Combat.ElementReactions` success, `ReEcho.Combat.ElementReactionWorld` success, `ReEcho.Data.CsvInvalidFixturesFailClearly` success and `TEST COMPLETE. EXIT CODE: 0`.
 - `git diff --check` passes.
 
 ### Plan 18/19 contract adaptation
@@ -138,11 +138,14 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 - Flame and Lightning are trigger elements; Grass and Water are attachment elements. Trigger-only hits no longer become persistent attachments by themselves.
 - Lightning is now recognized by projectiles, labels, colors and reaction resolution.
 - Current reaction math uses finite typed formulas:
-  - `Element.BaseDamageScale`: `BaseDamage * DamageMultiplier * ReactionEfficiency`.
-  - `Element.DamageIncrease`: `BaseDamage * (1 + DamageIncrease * ReactionEfficiency)`.
-  - `Element.EnhanceNextReaction`: primes a non-stacking enhancement multiplier for the next damaging reaction.
-- `AffectedByEchoEfficiency=false` for all current reaction rows because echo attacks already scale `ElementalAttack` in the echo combatant snapshot. This is explicit in CSV rather than hidden at the call site.
-- The workbook element sheet does not contain expanded numeric formulas; production values preserve the prior migration JSON parameters for duration, coefficient, multiplier and radius. No square/power formula was invented.
+  - `Element.ElementAttackDot`: schedules deterministic one-second DOT ticks for the configured status duration and uses `ElementalAttack * DamageMultiplier * ReactionEfficiency`.
+  - `Element.ElementAttackSquared`: uses the workbook elemental-attack squared model, `ElementalAttack * ElementalAttack * DamageIncrease * ReactionEfficiency`.
+  - `Element.AttachInRadius`: selects targets by stable distance/location/name order and attaches Grass in the configured radius.
+  - `Element.ChainElementAttack`: performs stable one-meter chain traversal with a visited set and applies `ElementalAttack * DamageMultiplier * ReactionEfficiency` to each target.
+  - `Element.EnhanceNextReaction`: removes the ordered attached element, blocks that element from reattaching until the next non-enhancement reaction, and gives that next reaction +100% final damage before clearing itself.
+- `AffectedByEchoEfficiency` is consumed in reaction damage execution when a row enables it. Current production reaction rows set it to `false`, so player and echo reactions with the same elemental attack remain consistent.
+- `CanCrit=true` is rejected during CSV load because crit-enabled reaction damage is not implemented yet; it is not merely surfaced as an unused field.
+- The workbook `属性S` sheet includes `S_E_Attack_Power` and reaction-relevant efficiency attributes; vaporize now follows the user-confirmed squared elemental-attack formula.
 
 ### Public element/reaction contract for Plan 21
 
@@ -154,8 +157,6 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ### Remaining risks
 
-- Area/radius values are loaded, validated, exposed on `FReEchoElementHitResult` and covered by pure automation, but live multi-target radius application is intentionally not expanded in this plan to avoid moving numeric authority into Actor traversal. If Plan 21 needs area application, it should add a deterministic target-selection helper and tests.
-- Burn is represented as an applied status in element state and result data; there is not yet a ticking DOT gameplay component.
 - Human PIE is still needed for readability of the new 12-step element weapon cycle, Lightning labels/colors, reaction pacing and status hints.
 
 ### Human validation requested

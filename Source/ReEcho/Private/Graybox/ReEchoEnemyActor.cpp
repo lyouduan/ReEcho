@@ -351,19 +351,33 @@ void AReEchoEnemyActor::UpdateElementAttachmentFacing()
 	ElementAuraLight->SetIntensity(850.0f + 180.0f * FMath::Sin(VisualTime * 2.6f));
 }
 
+void AReEchoEnemyActor::RefreshElementAttachmentVisual()
+{
+	UpdateElementAttachmentVisual();
+}
+
 float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
                                                 const EReEchoElement Element,
                                                 const FVector& SourceLocation,
                                                 AActor* SourceActor,
                                                 const float ReactionEfficiency)
 {
-	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f;
-	const FReEchoElementHitResult Result =
-	    ReEchoElementReaction::ResolveHit(ElementState, Element, Damage, ReactionEfficiency, CurrentTimeSeconds);
-	UpdateElementAttachmentVisual();
-	const FLinearColor DamageColor = Result.bTriggeredReaction ? FLinearColor(1.0f, 0.72f, 0.12f, 1.0f)
-	                                                           : ReEchoElementReaction::GetElementColor(Element);
-	return ReceiveGrayboxDamage(Result.Damage, SourceLocation, SourceActor, DamageColor);
+	FReEchoElementHitContext Context;
+	Context.SourceLocation = SourceLocation;
+	Context.SourceActor = SourceActor;
+	Context.ReactionEfficiency = ReactionEfficiency;
+	Context.SourceElementalAttack = Damage;
+	Context.SourceEchoEfficiency = 1.0f;
+	if (SourceActor)
+	{
+		if (const UReEchoCombatantComponent* SourceCombatant = SourceActor->FindComponentByClass<UReEchoCombatantComponent>())
+		{
+			Context.SourceElementalAttack = SourceCombatant->Stats.ElementalAttack;
+			Context.SourceEchoEfficiency = SourceCombatant->Stats.EchoEfficiency;
+		}
+	}
+	const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(*this, Element, Damage, Context);
+	return Result.ImmediateDamageApplied;
 }
 
 float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage,

@@ -79,7 +79,7 @@ All enemies dead or timer expires
 | Enemy | `AReEchoEnemyActor` | `Graybox/ReEchoEnemyActor.*` | Grunt/shield/bomber/final-Boss stats, six rotating 2D grunt variants and a 2D final-Boss Billboard, capsule damage volume, chase/contact damage and visual-only attack/hit/death motion |
 | Echo | `AReEchoEchoActor` | `Graybox/ReEchoEchoActor.*` | Historical movement playback, timestamped previous-encounter weapon timeline playback, automatic shared-weapon attacks, translucent pulsing ghost material and visual-only 2D motion |
 | Echo trajectory | `AReEchoTrajectoryActor` | `Graybox/ReEchoTrajectoryActor.*` | Only the active echo's simplified historical positions projected onto the ground as one world-fixed translucent route |
-| Combat | `UReEchoCombatantComponent` | `Combat/ReEchoCombatantComponent.*` | Shared stats, HP, block, damage and death delegates |
+| Combat | `UReEchoCombatantComponent`, `ReEchoElementReaction` | `Combat/ReEchoCombatantComponent.*`, `Combat/ReEchoElementReaction.*` | Shared stats, HP, block, damage/death delegates and CSV-driven element reaction execution |
 | Hit VFX | `ReEchoAttackEffects`, `AReEchoHitImpactActor` | `Graybox/ReEchoAttackEffects.*`, `Graybox/ReEchoHitImpactActor.*` | Transparent HitStarburst plane spawned only after non-zero applied damage |
 | Damage numbers | `AReEchoDamageNumberActor` | `UI/ReEchoDamageNumberActor.*`, damage callers | Camera-facing floating `-N` text for actual damage applied to player/enemies |
 | Recording | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz positions and successful active-skill events |
@@ -126,7 +126,7 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 | Echo ghost material | `Content/ReEcho/Materials/M_EchoGhost.uasset` |
 | Module dependencies | `Source/ReEcho/ReEcho.Build.cs` |
 
-CSV currently contains the runtime foundation manifest/schema/smoke tables, canonical character/build tables and element/status/reaction tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets, card numeric effects, combat elements, necessary statuses and six ordered reactions read from CSV. Legacy JSON still covers encounters, enemies, global balance and weapons; character/card/element/status/reaction JSON is migration-only review material. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
+CSV currently contains the runtime foundation manifest/schema/smoke tables, canonical character/build tables and element/status/reaction tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets, card numeric effects, combat elements, necessary statuses and six ordered reactions read from CSV; burn DOT, vaporize squared damage, growth radius attachment, conduct chaining and enhancement blocking execute through `ReEchoElementReaction`. Legacy JSON still covers encounters, enemies, global balance and weapons; character/card/element/status/reaction JSON is migration-only review material. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
 
 ## Task routing
 
