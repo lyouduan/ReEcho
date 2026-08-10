@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "ReEchoTypes.generated.h"
 
+class AActor;
+
 UENUM(BlueprintType)
 enum class EReEchoRunPhase : uint8
 {
@@ -212,9 +214,14 @@ struct REECHO_API FReEchoElementState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FName, float> ActiveStatusUntilSeconds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bBurnActive = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float BurnTickDamage = 0.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float BurnNextTickTimeSeconds = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector BurnSourceLocation = FVector::ZeroVector;
+	TWeakObjectPtr<AActor> BurnSourceActor;
 };
 
 /** Serializable runtime state for one living enemy in a suspended encounter. */

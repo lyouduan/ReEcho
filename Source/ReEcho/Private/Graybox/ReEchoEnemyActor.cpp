@@ -248,7 +248,9 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 		ActiveStatus.Value = FMath::Max(0.0f, ActiveStatus.Value - CurrentTimeSeconds);
 	}
 	Result.ElementState.BurnNextTickTimeSeconds =
-	    FMath::Max(0.0f, ElementState.BurnNextTickTimeSeconds - CurrentTimeSeconds);
+	    Result.ElementState.bBurnActive ? FMath::Max(0.0f, ElementState.BurnNextTickTimeSeconds - CurrentTimeSeconds)
+	                                    : 0.0f;
+	Result.ElementState.BurnSourceActor.Reset();
 	Result.AttackCooldown = AttackCooldown;
 	Result.FuseRemaining = FuseRemaining;
 	Result.bBomberFuseActive = bBomberFuseActive;
@@ -275,9 +277,10 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		ActiveStatus.Value = CurrentTimeSeconds + FMath::Max(0.0f, ActiveStatus.Value);
 	}
 	ElementState.BurnNextTickTimeSeconds =
-	    SavedState.ElementState.BurnNextTickTimeSeconds > 0.0f
+	    ElementState.bBurnActive
 	        ? CurrentTimeSeconds + FMath::Max(0.0f, SavedState.ElementState.BurnNextTickTimeSeconds)
 	        : 0.0f;
+	ElementState.BurnSourceActor.Reset();
 	AttackCooldown = FMath::Max(0.0f, SavedState.AttackCooldown);
 	FuseRemaining = FMath::Max(0.0f, SavedState.FuseRemaining);
 	bBomberFuseActive = SavedState.bBomberFuseActive;

@@ -180,17 +180,29 @@ Plan 23 is integrated onto the remote-feature baseline but is not yet accepted. 
   - Existing `ReEcho.Combat.ElementReactionWorld` now also covers Growth radius scaling/attachment limits, Conduct exact configured radius, Conduct workbook damage, and no-immunity Enhance/Growth behavior.
 - Updated `shared/PROJECT_STATE.md` and `scripts/validate_project.py` from the previous 25-test baseline to the new 27-test baseline; no automation coverage was merged or removed to preserve the old count.
 
+### Boundary review corrections completed locally
+
+- Burn now has an explicit active flag in `FReEchoElementState`, so `BurnNextTickTimeSeconds == CurrentTimeSeconds` and a saved remaining next-tick value of `0` are valid due-now states rather than inactive sentinels.
+- Burn refresh now settles any existing due tick before extending `RefreshOnly` duration. A refresh at `NextTickTime == CurrentTime` preserves the boundary tick exactly once, then continues the same single DOT stream on later one-second boundaries.
+- Burn DOT context is stored with the deterministic status stream. In-run ticks use the original `SourceLocation` and valid runtime `SourceActor`; save capture persists deterministic `BurnSourceLocation` and intentionally clears `BurnSourceActor`, because actor object identity is not valid across a process/save boundary. Restored Burn therefore falls back to `nullptr` SourceActor while still using the persisted SourceLocation for directional damage.
+- The Burn tick path no longer calls `ReceiveGrayboxDamage()` with the target's own location. Shield enemies burned from behind continue to receive DOT through GAS instead of becoming permanently front-blocked by a self-location fallback.
+- Focused automation was added inside the existing 27-test suite, without changing automation count:
+  - `ReEcho.Combat.ElementReactionBurnRefresh` now includes exact-tick-boundary refresh coverage and verifies the due boundary tick is neither lost nor duplicated before the refreshed single stream continues.
+  - `ReEcho.Combat.ElementReactionSaveContinuity` now includes exact-tick-boundary save/restore coverage and verifies due-now restore plus the final boundary tick.
+  - `ReEcho.Combat.ElementReactionWorld` now includes Shield-from-behind Burn DOT context coverage, including in-run SourceActor/SourceLocation retention and restored SourceActor fallback with persisted SourceLocation.
+
 ### Final correction evidence
 
 - `python scripts/validate_project.py` passes after the correction pass.
 - `.clang-format` was run on changed C++ files using Visual Studio LLVM clang-format.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
-- `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0; log evidence: `Found 27 automation tests based on 'ReEcho'`, `ReEcho.Combat.ElementReactionBurnRefresh`, `ReEcho.Combat.ElementReactionSaveContinuity` and `ReEcho.Combat.ElementReactionWorld` completed with `Result={Success}`, final line `TEST COMPLETE. EXIT CODE: 0`.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0; log evidence: `Found 27 automation tests based on 'ReEcho'`, `ReEcho.Combat.ElementReactionBurnRefresh`, `ReEcho.Combat.ElementReactionSaveContinuity` and `ReEcho.Combat.ElementReactionWorld` completed with `Result={Success}`, final line `TEST COMPLETE. EXIT CODE: 0`. The 27-test count is unchanged because the new boundary coverage lives inside the existing focused automation tests.
 - `git diff --check` passes.
 
 ### Correction deviations
 
 - Burn continuation is implemented as a semantic replacement for transient timers rather than reconstructing `FTimerHandle` objects after restore. The deterministic state carries the next tick time and tick damage, and automation proves resumed GAS damage across the new World timebase.
+- `BurnSourceActor` is runtime-only and is deliberately not persisted across save/restore. Restored Burn DOT uses `nullptr` SourceActor plus persisted SourceLocation; automation proves this fallback still drives shield direction and GAS damage correctly.
 - The automation fixture manually aligns `UWorld::TimeSeconds` when the commandlet test world does not advance it by the supplied delta; this keeps tests asserting World-time semantics without changing runtime gameplay worlds.
 
 ### Remaining risks

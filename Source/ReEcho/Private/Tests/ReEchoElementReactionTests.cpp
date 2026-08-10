@@ -72,11 +72,14 @@ struct FReEchoElementWorldFixture
 		}
 	}
 
-	AReEchoEnemyActor* SpawnEnemy(const FVector& Location, const int32 SpawnIndex, const float HpMax = 1000.0f)
+	AReEchoEnemyActor* SpawnEnemy(const FVector& Location,
+	                              const int32 SpawnIndex,
+	                              const float HpMax = 1000.0f,
+	                              const EReEchoEnemyKind Kind = EReEchoEnemyKind::Grunt)
 	{
 		FActorSpawnParameters SpawnParams;
 		AReEchoEnemyActor* Enemy = World->SpawnActor<AReEchoEnemyActor>(Location, FRotator::ZeroRotator, SpawnParams);
-		Enemy->Configure(EReEchoEnemyKind::Grunt, SpawnIndex);
+		Enemy->Configure(Kind, SpawnIndex);
 		FReEchoStatBlock Stats;
 		Stats.HpMax = HpMax;
 		Stats.HpPoint = HpMax;
@@ -111,7 +114,7 @@ struct FReEchoElementWorldFixture
 		return Context;
 	}
 
-	void Advance(const float Seconds)
+	void AdvanceWorldTime(const float Seconds)
 	{
 		const double PreviousTimeSeconds = World->GetTimeSeconds();
 		const double ExpectedTimeSeconds = PreviousTimeSeconds + Seconds;
@@ -120,6 +123,16 @@ struct FReEchoElementWorldFixture
 		{
 			World->TimeSeconds = ExpectedTimeSeconds;
 		}
+	}
+
+	void AdvanceTimeOnly(const float Seconds)
+	{
+		AdvanceWorldTime(Seconds);
+	}
+
+	void Advance(const float Seconds)
+	{
+		AdvanceWorldTime(Seconds);
 		for (TActorIterator<AReEchoEnemyActor> It(World); It; ++It)
 		{
 			ReEchoElementReaction::TickElementStatuses(**It, World->GetTimeSeconds());
@@ -293,6 +306,31 @@ bool FReEchoElementReactionBurnRefreshTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Refreshed burn continues one tick per second"), EnemyHealth(Target), 950.0f);
 	Fixture.Advance(0.25f);
 	TestEqual(TEXT("Refreshed burn stops after its extended end window"), EnemyHealth(Target), 950.0f);
+
+	AReEchoEnemyActor* BoundaryTarget = Fixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 61);
+	BoundaryTarget->EditElementState().Attached = EReEchoElement::Grass;
+	ReEchoElementReaction::ApplyHitToWorld(*BoundaryTarget, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f));
+	Fixture.Advance(1.0f);
+	TestEqual(TEXT("Boundary refresh setup applies first burn tick"), EnemyHealth(BoundaryTarget), 990.0f);
+	Fixture.AdvanceTimeOnly(1.0f);
+	TestTrue(TEXT("Boundary refresh setup parks on the second tick boundary"),
+	         FMath::IsNearlyEqual(Fixture.World->GetTimeSeconds(),
+	                              BoundaryTarget->GetElementState().BurnNextTickTimeSeconds,
+	                              KINDA_SMALL_NUMBER));
+	BoundaryTarget->EditElementState().Attached = EReEchoElement::Grass;
+	const FReEchoElementExecutionResult BoundaryRefreshResult = ReEchoElementReaction::ApplyHitToWorld(
+	    *BoundaryTarget, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f));
+	TestEqual(TEXT("Refresh on an exact tick boundary settles the due tick once"), EnemyHealth(BoundaryTarget), 980.0f);
+	TestEqual(TEXT("Boundary refresh keeps one future DOT stream"), BoundaryRefreshResult.DotTicksScheduled, 3);
+	Fixture.Advance(1.0f);
+	TestEqual(TEXT("Boundary refresh applies the next stream tick once"), EnemyHealth(BoundaryTarget), 970.0f);
+	Fixture.Advance(1.0f);
+	TestEqual(TEXT("Boundary refresh applies one DOT tick per second"), EnemyHealth(BoundaryTarget), 960.0f);
+	Fixture.Advance(1.0f);
+	TestEqual(TEXT("Boundary refresh preserves the final extended boundary tick"), EnemyHealth(BoundaryTarget), 950.0f);
+	Fixture.Advance(0.25f);
+	TestEqual(
+	    TEXT("Boundary refresh does not duplicate after the final boundary"), EnemyHealth(BoundaryTarget), 950.0f);
 	return true;
 }
 
@@ -351,6 +389,46 @@ bool FReEchoElementReactionSaveContinuityTest::RunTest(const FString& Parameters
 		RestoreFixture.Advance(0.25f);
 		TestEqual(TEXT("Restored burn does not tick after restored end"), EnemyHealth(RestoredTarget), 13.0f);
 	}
+
+	FReEchoEnemyRuntimeState DueNowSavedState;
+	{
+		FReEchoElementWorldFixture SourceFixture;
+		AReEchoEnemyActor* SourceTarget = SourceFixture.SpawnEnemy(FVector::ZeroVector, 72, 28.0f);
+		SourceTarget->EditElementState().Attached = EReEchoElement::Grass;
+		ReEchoElementReaction::ApplyHitToWorld(
+		    *SourceTarget, EReEchoElement::Flame, 999.0f, SourceFixture.MakeContext(5.0f));
+		SourceFixture.Advance(1.0f);
+		TestEqual(TEXT("Due-now save setup applies first tick"), EnemyHealth(SourceTarget), 23.0f);
+		SourceFixture.AdvanceTimeOnly(1.0f);
+		DueNowSavedState = SourceTarget->CaptureRuntimeState();
+		TestTrue(TEXT("Due-now burn remains active in save state"), DueNowSavedState.ElementState.bBurnActive);
+		TestTrue(TEXT("Due-now burn next tick saves as zero remaining duration"),
+		         FMath::IsNearlyEqual(DueNowSavedState.ElementState.BurnNextTickTimeSeconds, 0.0f, KINDA_SMALL_NUMBER));
+		TestTrue(
+		    TEXT("Due-now burn status saves remaining duration"),
+		    FMath::IsNearlyEqual(
+		        DueNowSavedState.ElementState.ActiveStatusUntilSeconds.FindRef(FName(TEXT("Z_Burn"))), 1.0f, 0.02f));
+	}
+
+	{
+		FReEchoElementWorldFixture RestoreFixture;
+		RestoreFixture.Advance(5.0f);
+		AReEchoEnemyActor* RestoredTarget = RestoreFixture.SpawnEnemy(FVector::ZeroVector, 73);
+		RestoredTarget->RestoreRuntimeState(DueNowSavedState);
+		TestTrue(TEXT("Due-now restore keeps burn active"), RestoredTarget->GetElementState().bBurnActive);
+		TestTrue(TEXT("Due-now restore rebases next tick onto the current world time"),
+		         FMath::IsNearlyEqual(RestoredTarget->GetElementState().BurnNextTickTimeSeconds,
+		                              RestoreFixture.World->GetTimeSeconds(),
+		                              KINDA_SMALL_NUMBER));
+		RestoreFixture.Advance(0.0f);
+		TestEqual(
+		    TEXT("Due-now restored burn applies the immediate pending tick once"), EnemyHealth(RestoredTarget), 18.0f);
+		RestoreFixture.Advance(1.0f);
+		TestEqual(TEXT("Due-now restored burn preserves the final boundary tick"), EnemyHealth(RestoredTarget), 13.0f);
+		RestoreFixture.Advance(0.25f);
+		TestEqual(
+		    TEXT("Due-now restored burn does not duplicate after final boundary"), EnemyHealth(RestoredTarget), 13.0f);
+	}
 	return true;
 }
 
@@ -390,6 +468,49 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Burn final boundary tick applies at status end"), EnemyHealth(Target), 970.0f);
 		Fixture.Advance(0.25f);
 		TestEqual(TEXT("Burn does not tick after status end"), EnemyHealth(Target), 970.0f);
+	}
+
+	{
+		FReEchoElementWorldFixture Fixture;
+		AActor* BurnSource = Fixture.SpawnSource(10.0f, 1.0f);
+		AReEchoEnemyActor* ShieldTarget = Fixture.SpawnEnemy(FVector::ZeroVector, 3, 1000.0f, EReEchoEnemyKind::Shield);
+		ShieldTarget->EditElementState().Attached = EReEchoElement::Grass;
+		FReEchoElementHitContext Context = Fixture.MakeContext(10.0f);
+		Context.SourceActor = BurnSource;
+		Context.SourceLocation = FVector(-100.0f, 0.0f, 0.0f);
+		ReEchoElementReaction::ApplyHitToWorld(*ShieldTarget, EReEchoElement::Flame, 999.0f, Context);
+		TestEqual(TEXT("Burn preserves the in-run source actor"),
+		          ShieldTarget->GetElementState().BurnSourceActor.Get(),
+		          BurnSource);
+		TestTrue(TEXT("Burn preserves the original source location"),
+		         FVector::DistSquared(ShieldTarget->GetElementState().BurnSourceLocation, Context.SourceLocation) <=
+		             KINDA_SMALL_NUMBER);
+
+		const FReEchoEnemyRuntimeState SavedShieldState = ShieldTarget->CaptureRuntimeState();
+		TestFalse(TEXT("Burn save state records SourceActor fallback as unavailable"),
+		          SavedShieldState.ElementState.BurnSourceActor.IsValid());
+		TestTrue(TEXT("Burn save state persists deterministic SourceLocation"),
+		         FVector::DistSquared(SavedShieldState.ElementState.BurnSourceLocation, Context.SourceLocation) <=
+		             KINDA_SMALL_NUMBER);
+
+		Fixture.Advance(1.0f);
+		TestEqual(TEXT("Shield burn DOT uses the original behind-source location through GAS"),
+		          EnemyHealth(ShieldTarget),
+		          980.0f);
+
+		FReEchoElementWorldFixture RestoreFixture;
+		RestoreFixture.Advance(5.0f);
+		AReEchoEnemyActor* RestoredShield = RestoreFixture.SpawnEnemy(FVector::ZeroVector, 4);
+		RestoredShield->RestoreRuntimeState(SavedShieldState);
+		TestFalse(TEXT("Restored burn SourceActor falls back to null"),
+		          RestoredShield->GetElementState().BurnSourceActor.IsValid());
+		TestTrue(TEXT("Restored burn keeps deterministic SourceLocation for shield direction"),
+		         FVector::DistSquared(RestoredShield->GetElementState().BurnSourceLocation, Context.SourceLocation) <=
+		             KINDA_SMALL_NUMBER);
+		RestoreFixture.Advance(1.0f);
+		TestEqual(TEXT("Restored shield burn DOT still passes shield direction and GAS damage"),
+		          EnemyHealth(RestoredShield),
+		          35.0f);
 	}
 
 	{

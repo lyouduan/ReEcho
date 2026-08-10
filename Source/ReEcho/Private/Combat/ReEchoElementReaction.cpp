@@ -201,7 +201,7 @@ TArray<AReEchoEnemyActor*> GetAliveEnemiesInRadius(UWorld& World, const FVector&
 
 int32 CountRemainingBurnTicks(const float NextTickTimeSeconds, const float EndTimeSeconds)
 {
-	if (NextTickTimeSeconds <= 0.0f || EndTimeSeconds <= 0.0f ||
+	if (NextTickTimeSeconds < 0.0f || EndTimeSeconds < 0.0f ||
 	    NextTickTimeSeconds > EndTimeSeconds + KINDA_SMALL_NUMBER)
 	{
 		return 0;
@@ -209,9 +209,57 @@ int32 CountRemainingBurnTicks(const float NextTickTimeSeconds, const float EndTi
 	return FMath::Max(0, FMath::FloorToInt((EndTimeSeconds - NextTickTimeSeconds) / BurnTickIntervalSeconds) + 1);
 }
 
+void ClearBurnState(FReEchoElementState& State, const bool bRemoveStatus)
+{
+	State.bBurnActive = false;
+	State.BurnTickDamage = 0.0f;
+	State.BurnNextTickTimeSeconds = 0.0f;
+	State.BurnSourceLocation = FVector::ZeroVector;
+	State.BurnSourceActor.Reset();
+	if (bRemoveStatus)
+	{
+		State.ActiveStatusUntilSeconds.Remove(FName(BurnStatusId));
+	}
+}
+
+int32 TickBurnStatus(AReEchoEnemyActor& Target, const float CurrentTimeSeconds)
+{
+	if (CurrentTimeSeconds < 0.0f || !Target.IsAlive())
+	{
+		return 0;
+	}
+
+	FReEchoElementState& State = Target.EditElementState();
+	float* BurnUntil = State.ActiveStatusUntilSeconds.Find(FName(BurnStatusId));
+	if (!State.bBurnActive || !BurnUntil || State.BurnTickDamage <= 0.0f || State.BurnNextTickTimeSeconds < 0.0f)
+	{
+		ClearBurnState(State, BurnUntil != nullptr && CurrentTimeSeconds > *BurnUntil + KINDA_SMALL_NUMBER);
+		return 0;
+	}
+
+	int32 AppliedTicks = 0;
+	while (Target.IsAlive() && State.BurnNextTickTimeSeconds <= CurrentTimeSeconds + KINDA_SMALL_NUMBER &&
+	       State.BurnNextTickTimeSeconds <= *BurnUntil + KINDA_SMALL_NUMBER)
+	{
+		Target.ReceiveGrayboxDamage(State.BurnTickDamage,
+		                            State.BurnSourceLocation,
+		                            State.BurnSourceActor.Get(),
+		                            GetElementColor(EReEchoElement::Flame));
+		State.BurnNextTickTimeSeconds += BurnTickIntervalSeconds;
+		++AppliedTicks;
+	}
+
+	if (State.BurnNextTickTimeSeconds > *BurnUntil + KINDA_SMALL_NUMBER || CurrentTimeSeconds > *BurnUntil)
+	{
+		ClearBurnState(State, true);
+	}
+	return AppliedTicks;
+}
+
 void StartOrRefreshBurn(AReEchoEnemyActor& Target,
                         const FReEchoElementHitResult& Result,
                         const float TickDamage,
+                        const FReEchoElementHitContext& Context,
                         const FReEchoCsvDataSnapshot& Snapshot,
                         const float CurrentTimeSeconds,
                         FReEchoElementExecutionResult& ExecutionResult)
@@ -230,13 +278,27 @@ void StartOrRefreshBurn(AReEchoEnemyActor& Target,
 	FReEchoElementState& State = Target.EditElementState();
 	const float EndTimeSeconds = CurrentTimeSeconds + Duration;
 	const float ExistingEndTime = State.ActiveStatusUntilSeconds.FindRef(FName(BurnStatusId));
-	const bool bRefreshOnlyActive =
-	    ExistingEndTime > CurrentTimeSeconds && State.BurnNextTickTimeSeconds > CurrentTimeSeconds;
+	if (State.bBurnActive && State.BurnNextTickTimeSeconds <= CurrentTimeSeconds + KINDA_SMALL_NUMBER &&
+	    State.BurnNextTickTimeSeconds <= ExistingEndTime + KINDA_SMALL_NUMBER)
+	{
+		TickBurnStatus(Target, CurrentTimeSeconds);
+	}
+	if (!Target.IsAlive())
+	{
+		return;
+	}
+
+	const float PostTickExistingEndTime = State.ActiveStatusUntilSeconds.FindRef(FName(BurnStatusId));
+	const bool bRefreshOnlyActive = State.bBurnActive && PostTickExistingEndTime > CurrentTimeSeconds &&
+	                                State.BurnNextTickTimeSeconds > CurrentTimeSeconds;
 	State.ActiveStatusUntilSeconds.Add(FName(BurnStatusId), EndTimeSeconds);
-	State.BurnTickDamage = TickDamage;
+	State.bBurnActive = true;
 	if (!bRefreshOnlyActive)
 	{
+		State.BurnTickDamage = TickDamage;
 		State.BurnNextTickTimeSeconds = CurrentTimeSeconds + BurnTickIntervalSeconds;
+		State.BurnSourceLocation = Context.SourceLocation;
+		State.BurnSourceActor = Context.SourceActor;
 	}
 
 	const int32 RemainingTicks = CountRemainingBurnTicks(State.BurnNextTickTimeSeconds, EndTimeSeconds);
@@ -466,21 +528,21 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 		return ExecutionResult;
 	}
 
-	ApplyStatus(Target,
-	            ExecutionResult.Primary.AppliedStatusId,
-	            ExecutionResult.Primary.StatusDurationSeconds,
-	            *Snapshot,
-	            CurrentTimeSeconds);
-
 	if (Reaction->BehaviorId == TEXT("Reaction.Burn"))
 	{
 		const float TickDamage = CalculateElementAttackScaleDamage(*Reaction, ExecutionResult.Primary, Context);
-		StartOrRefreshBurn(Target, ExecutionResult.Primary, TickDamage, *Snapshot, CurrentTimeSeconds, ExecutionResult);
+		StartOrRefreshBurn(
+		    Target, ExecutionResult.Primary, TickDamage, Context, *Snapshot, CurrentTimeSeconds, ExecutionResult);
 		ApplyElementalImmunity(Target, *Snapshot, CurrentTimeSeconds);
 		ExecutionResult.AffectedTargets.Add(&Target);
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Vaporize"))
 	{
+		ApplyStatus(Target,
+		            ExecutionResult.Primary.AppliedStatusId,
+		            ExecutionResult.Primary.StatusDurationSeconds,
+		            *Snapshot,
+		            CurrentTimeSeconds);
 		const float Damage = CalculateElementAttackSquaredDamage(*Reaction, ExecutionResult.Primary, Context);
 		ApplyDamageAndImmunity(Target,
 		                       Damage,
@@ -492,6 +554,11 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Growth") && World)
 	{
+		ApplyStatus(Target,
+		            ExecutionResult.Primary.AppliedStatusId,
+		            ExecutionResult.Primary.StatusDurationSeconds,
+		            *Snapshot,
+		            CurrentTimeSeconds);
 		const float RadiusCm = Reaction->RadiusCm * FMath::Max(0.0f, Context.ReactionEfficiency);
 		TArray<AReEchoEnemyActor*> Targets = GetAliveEnemiesInRadius(*World, Target.GetActorLocation(), RadiusCm);
 		for (AReEchoEnemyActor* TargetInRadius : Targets)
@@ -504,6 +571,11 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Conduct") && World)
 	{
+		ApplyStatus(Target,
+		            ExecutionResult.Primary.AppliedStatusId,
+		            ExecutionResult.Primary.StatusDurationSeconds,
+		            *Snapshot,
+		            CurrentTimeSeconds);
 		const float Damage = CalculateConductDamage(*Reaction, ExecutionResult.Primary, Context);
 		TArray<AReEchoEnemyActor*> ChainTargets = GetConductChainTargets(Target, *World, Reaction->RadiusCm);
 		for (AReEchoEnemyActor* ChainTarget : ChainTargets)
@@ -520,6 +592,11 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Enhance"))
 	{
+		ApplyStatus(Target,
+		            ExecutionResult.Primary.AppliedStatusId,
+		            ExecutionResult.Primary.StatusDurationSeconds,
+		            *Snapshot,
+		            CurrentTimeSeconds);
 		ExecutionResult.AffectedTargets.Add(&Target);
 	}
 
@@ -529,40 +606,7 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 
 int32 TickElementStatuses(AReEchoEnemyActor& Target, const float CurrentTimeSeconds)
 {
-	if (CurrentTimeSeconds < 0.0f || !Target.IsAlive())
-	{
-		return 0;
-	}
-
-	FReEchoElementState& State = Target.EditElementState();
-	float* BurnUntil = State.ActiveStatusUntilSeconds.Find(FName(BurnStatusId));
-	if (!BurnUntil || *BurnUntil <= 0.0f || State.BurnTickDamage <= 0.0f || State.BurnNextTickTimeSeconds <= 0.0f)
-	{
-		State.BurnTickDamage = 0.0f;
-		State.BurnNextTickTimeSeconds = 0.0f;
-		return 0;
-	}
-
-	int32 AppliedTicks = 0;
-	while (Target.IsAlive() && State.BurnNextTickTimeSeconds <= CurrentTimeSeconds + KINDA_SMALL_NUMBER &&
-	       State.BurnNextTickTimeSeconds <= *BurnUntil + KINDA_SMALL_NUMBER)
-	{
-		Target.ReceiveGrayboxDamage(
-		    State.BurnTickDamage, Target.GetActorLocation(), nullptr, GetElementColor(EReEchoElement::Flame));
-		State.BurnNextTickTimeSeconds += BurnTickIntervalSeconds;
-		++AppliedTicks;
-	}
-
-	if (State.BurnNextTickTimeSeconds > *BurnUntil + KINDA_SMALL_NUMBER || CurrentTimeSeconds > *BurnUntil)
-	{
-		State.BurnTickDamage = 0.0f;
-		State.BurnNextTickTimeSeconds = 0.0f;
-		if (CurrentTimeSeconds > *BurnUntil + KINDA_SMALL_NUMBER)
-		{
-			State.ActiveStatusUntilSeconds.Remove(FName(BurnStatusId));
-		}
-	}
-	return AppliedTicks;
+	return TickBurnStatus(Target, CurrentTimeSeconds);
 }
 
 FString GetElementLabel(const EReEchoElement Element)
