@@ -69,6 +69,8 @@ Fixture 目录只保存局部覆盖表；Python 和 C++ 自动化会先复制生
 ## Plan 20 reaction formula notes
 
 - Registered element reaction formulas are `Element.ElementAttackDot`, `Element.ElementAttackSquared`, `Element.AttachInRadius`, `Element.ChainElementAttack` and `Element.EnhanceNextReaction`.
+- `Element.ChainElementAttack` uses `(ElementalAttack + 2) * ReactionEfficiency * DamageIncrease`; `DamageMultiplier` is not the `+2` term.
+- `Element.AttachInRadius` multiplies `RadiusCm` by `ReactionEfficiency` and still respects attachment blocking and elemental immunity.
 - `CanCrit=true` is intentionally rejected at load time until crit-enabled reaction damage is implemented.
 - `AffectedByEchoEfficiency` is consumed by reaction damage execution; current production reaction rows set it to `false`.
 - `UnsupportedCanCrit` is the negative fixture for unsupported crit configuration.

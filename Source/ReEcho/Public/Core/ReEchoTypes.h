@@ -211,6 +211,10 @@ struct REECHO_API FReEchoElementState
 	EReEchoElement BlockedAttachment = EReEchoElement::None;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FName, float> ActiveStatusUntilSeconds;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float BurnTickDamage = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float BurnNextTickTimeSeconds = 0.0f;
 };
 
 /** Serializable runtime state for one living enemy in a suspended encounter. */

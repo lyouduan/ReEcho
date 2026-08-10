@@ -109,7 +109,8 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestEqual(TEXT("Conduct damage multiplier comes from CSV"), Conduct->DamageMultiplier, 2.0f);
+	TestEqual(TEXT("Conduct damage multiplier no longer carries the +2 formula term"), Conduct->DamageMultiplier, 1.0f);
+	TestEqual(TEXT("Conduct damage increase comes from CSV"), Conduct->DamageIncrease, 2.0f);
 	TestEqual(TEXT("Six workbook reactions are enabled"), Snapshot->Reactions.Num(), 6);
 	return true;
 }

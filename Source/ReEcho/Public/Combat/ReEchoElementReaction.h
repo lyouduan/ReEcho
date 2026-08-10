@@ -59,6 +59,7 @@ REECHO_API FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Targ
                                                          EReEchoElement IncomingElement,
                                                          float BaseDamage,
                                                          const FReEchoElementHitContext& Context);
+REECHO_API int32 TickElementStatuses(AReEchoEnemyActor& Target, float CurrentTimeSeconds);
 REECHO_API FLinearColor GetElementColor(EReEchoElement Element);
 REECHO_API FString GetElementLabel(EReEchoElement Element);
 REECHO_API FName GetElementId(EReEchoElement Element);

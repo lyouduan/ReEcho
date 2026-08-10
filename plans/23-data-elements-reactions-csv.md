@@ -121,7 +121,7 @@ Plan 23 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 - `python scripts/validate_project.py` passes: production character/build/element tables, fixtures, IDs, references, behavior/effect/formula allowlists, UTF-8, staging deps and workflow guards.
 - `.clang-format` was run on changed C++ files.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
-- After the remote integration, `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0 with 25 tests, including `ReEcho.Combat.ElementReactions`, `ReEcho.Combat.ElementReactionWorld`, `ReEcho.Run.SaveSnapshot` and `ReEcho.Shop.PostDrawCurrencyCanPurchase`.
+- After the remote integration, `scripts/ue/Run-Automation.cmd -Filter ReEcho` exited 0 for the pre-correction automation baseline, including `ReEcho.Combat.ElementReactions`, `ReEcho.Combat.ElementReactionWorld`, `ReEcho.Run.SaveSnapshot` and `ReEcho.Shop.PostDrawCurrencyCanPurchase`.
 - `git diff --check` passes.
 
 ### Plan 21/22 contract adaptation
@@ -165,6 +165,33 @@ Plan 23 is integrated onto the remote-feature baseline but is not yet accepted. 
 - Conduct must use the configured radius exactly; remove the hidden `Max(RadiusCm, 100)` floor.
 - Burn automation must advance world time and verify real GAS damage plus `RefreshOnly` non-stacking/refresh behavior, not merely verify that timers were scheduled.
 - Save data must store `ActiveStatusUntilSeconds` as remaining durations and rebase them on restore, matching save version 3's existing treatment of elemental immunity. If Burn uses transient timers, restoring a mid-Burn save must reconstruct the remaining deterministic ticks or otherwise implement and test an explicit equivalent continuation policy.
+
+### Planner review corrections completed locally
+
+- Conduct now implements the workbook formula `(ElementalAttack + 2) * ReactionEfficiency * DamageIncrease`; production `Y_ER_L_W` uses `DamageIncrease=2`, `DamageMultiplier=1`, and runtime conduct damage ignores `DamageMultiplier` for the `+2` term. The `ReactionValueChanged` fixture sets `DamageIncrease=3` and `RadiusCm=75` to prove value reload and exact-radius behavior.
+- Growth now uses `RadiusCm * ReactionEfficiency`, attaches only through `AttachElementIfAllowed`, respects elemental immunity and blocked attachments, and records only actually attached targets as affected. Growth no longer grants elemental immunity.
+- Elemental immunity is now limited to Burn, Vaporize and Conduct in both pure `ResolveHit()` state and world execution. Growth and both Enhance directions do not receive immunity through the common reaction path.
+- Conduct chain traversal now uses the configured radius exactly; the old hidden `Max(RadiusCm, 100)` floor was removed.
+- Burn DOT is no longer a set of transient timer callbacks. Burn keeps one deterministic status stream in `FReEchoElementState` (`BurnTickDamage`, `BurnNextTickTimeSeconds`) and `AReEchoEnemyActor::Tick()` advances it against World time through `TickElementStatuses()`. RefreshOnly refreshes the status end time without adding an independent DOT stream, while preserving the next scheduled one-second boundary.
+- `AReEchoEnemyActor::CaptureRuntimeState()` now converts every `ActiveStatusUntilSeconds` entry, `ImmunityUntil`, and `BurnNextTickTimeSeconds` to remaining durations for save data. `RestoreRuntimeState()` rebases those remaining values onto the new World time, matching SaveVersion 3's immunity semantics and allowing mid-Burn resume to continue deterministic remaining ticks.
+- Added focused automation:
+  - `ReEcho.Combat.ElementReactionBurnRefresh`: advances World time, verifies real GAS health loss, RefreshOnly non-stacking/refresh behavior, and end/final-tick boundaries.
+  - `ReEcho.Combat.ElementReactionSaveContinuity`: captures mid-Burn remaining status/tick times, restores in a new World timebase, and verifies continued GAS ticks.
+  - Existing `ReEcho.Combat.ElementReactionWorld` now also covers Growth radius scaling/attachment limits, Conduct exact configured radius, Conduct workbook damage, and no-immunity Enhance/Growth behavior.
+- Updated `shared/PROJECT_STATE.md` and `scripts/validate_project.py` from the previous 25-test baseline to the new 27-test baseline; no automation coverage was merged or removed to preserve the old count.
+
+### Final correction evidence
+
+- `python scripts/validate_project.py` passes after the correction pass.
+- `.clang-format` was run on changed C++ files using Visual Studio LLVM clang-format.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0; log evidence: `Found 27 automation tests based on 'ReEcho'`, `ReEcho.Combat.ElementReactionBurnRefresh`, `ReEcho.Combat.ElementReactionSaveContinuity` and `ReEcho.Combat.ElementReactionWorld` completed with `Result={Success}`, final line `TEST COMPLETE. EXIT CODE: 0`.
+- `git diff --check` passes.
+
+### Correction deviations
+
+- Burn continuation is implemented as a semantic replacement for transient timers rather than reconstructing `FTimerHandle` objects after restore. The deterministic state carries the next tick time and tick damage, and automation proves resumed GAS damage across the new World timebase.
+- The automation fixture manually aligns `UWorld::TimeSeconds` when the commandlet test world does not advance it by the supplied delta; this keeps tests asserting World-time semantics without changing runtime gameplay worlds.
 
 ### Remaining risks
 

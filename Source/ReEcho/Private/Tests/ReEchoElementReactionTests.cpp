@@ -5,13 +5,13 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "GameFramework/Actor.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
-#include "TimerManager.h"
 
 namespace
 {
@@ -72,14 +72,14 @@ struct FReEchoElementWorldFixture
 		}
 	}
 
-	AReEchoEnemyActor* SpawnEnemy(const FVector& Location, const int32 SpawnIndex)
+	AReEchoEnemyActor* SpawnEnemy(const FVector& Location, const int32 SpawnIndex, const float HpMax = 1000.0f)
 	{
 		FActorSpawnParameters SpawnParams;
 		AReEchoEnemyActor* Enemy = World->SpawnActor<AReEchoEnemyActor>(Location, FRotator::ZeroRotator, SpawnParams);
 		Enemy->Configure(EReEchoEnemyKind::Grunt, SpawnIndex);
 		FReEchoStatBlock Stats;
-		Stats.HpMax = 1000.0f;
-		Stats.HpPoint = 1000.0f;
+		Stats.HpMax = HpMax;
+		Stats.HpPoint = HpMax;
 		Stats.Block = 0;
 		Enemy->GetCombatantComponent()->BindToAbilitySystem(Enemy->GetAbilitySystemComponent());
 		Enemy->GetCombatantComponent()->InitializeFromStats(Stats, true);
@@ -89,7 +89,8 @@ struct FReEchoElementWorldFixture
 	AActor* SpawnSource(const float ElementalAttack, const float EchoEfficiency)
 	{
 		AActor* Source = World->SpawnActor<AActor>();
-		UReEchoCombatantComponent* SourceCombatant = NewObject<UReEchoCombatantComponent>(Source, TEXT("SourceCombatant"));
+		UReEchoCombatantComponent* SourceCombatant =
+		    NewObject<UReEchoCombatantComponent>(Source, TEXT("SourceCombatant"));
 		Source->AddInstanceComponent(SourceCombatant);
 		SourceCombatant->RegisterComponent();
 		FReEchoStatBlock Stats;
@@ -99,9 +100,8 @@ struct FReEchoElementWorldFixture
 		return Source;
 	}
 
-	FReEchoElementHitContext MakeContext(const float ElementalAttack,
-	                                    const float EchoEfficiency = 1.0f,
-	                                    const float ReactionEfficiency = 1.0f)
+	FReEchoElementHitContext
+	MakeContext(const float ElementalAttack, const float EchoEfficiency = 1.0f, const float ReactionEfficiency = 1.0f)
 	{
 		FReEchoElementHitContext Context;
 		Context.SourceElementalAttack = ElementalAttack;
@@ -113,8 +113,17 @@ struct FReEchoElementWorldFixture
 
 	void Advance(const float Seconds)
 	{
+		const double PreviousTimeSeconds = World->GetTimeSeconds();
+		const double ExpectedTimeSeconds = PreviousTimeSeconds + Seconds;
 		World->Tick(ELevelTick::LEVELTICK_All, Seconds);
-		World->GetTimerManager().Tick(Seconds);
+		if (!FMath::IsNearlyEqual(World->GetTimeSeconds(), ExpectedTimeSeconds, 0.001))
+		{
+			World->TimeSeconds = ExpectedTimeSeconds;
+		}
+		for (TActorIterator<AReEchoEnemyActor> It(World); It; ++It)
+		{
+			ReEchoElementReaction::TickElementStatuses(**It, World->GetTimeSeconds());
+		}
 	}
 };
 
@@ -123,8 +132,7 @@ float EnemyHealth(const AReEchoEnemyActor* Enemy)
 	return Enemy->GetCombatantComponent()->CurrentHealth;
 }
 
-template <typename ElementType>
-ElementType* ResolveWeak(const TWeakObjectPtr<ElementType>& WeakObject)
+template <typename ElementType> ElementType* ResolveWeak(const TWeakObjectPtr<ElementType>& WeakObject)
 {
 	return WeakObject.Get();
 }
@@ -173,7 +181,9 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	Result = ReEchoElementReaction::ResolveHit(State, EReEchoElement::Flame, 40.0f);
 	TestEqual(TEXT("Vaporize reaction id is ordered flame over water"), Result.ReactionId, FName(TEXT("Y_ER_F_W")));
 	TestEqual(TEXT("Vaporize pure result leaves squared damage to world execution"), Result.Damage, 0.0f);
-	TestEqual(TEXT("Vaporize uses elemental attack squared formula"), Result.FormulaId, FName(TEXT("Element.ElementAttackSquared")));
+	TestEqual(TEXT("Vaporize uses elemental attack squared formula"),
+	          Result.FormulaId,
+	          FName(TEXT("Element.ElementAttackSquared")));
 	TestEqual(TEXT("Vaporize radius comes from CSV"), Result.RadiusCm, 150.0f);
 
 	State = FReEchoElementState{};
@@ -181,14 +191,17 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	Result = ReEchoElementReaction::ResolveHit(State, EReEchoElement::Lightning, 9.0f);
 	TestEqual(TEXT("Growth reaction id is lightning over grass"), Result.ReactionId, FName(TEXT("Y_ER_L_G")));
 	TestEqual(TEXT("Growth radius comes from CSV"), Result.RadiusCm, 200.0f);
+	TestEqual(TEXT("Growth does not grant elemental immunity"), State.ImmunityUntil, 0.0f);
 
 	State = FReEchoElementState{};
 	State.Attached = EReEchoElement::Water;
-	Result = ReEchoElementReaction::ResolveHit(State, EReEchoElement::Lightning, 12.0f, 1.05f);
+	Result = ReEchoElementReaction::ResolveHit(State, EReEchoElement::Lightning, 12.0f, 1.05f, 10.0f);
 	TestEqual(TEXT("Conduct reaction id is lightning over water"), Result.ReactionId, FName(TEXT("Y_ER_L_W")));
 	TestEqual(TEXT("Conduct pure result leaves chain damage to world execution"), Result.Damage, 0.0f);
-	TestEqual(TEXT("Conduct uses chain element attack formula"), Result.FormulaId, FName(TEXT("Element.ChainElementAttack")));
+	TestEqual(
+	    TEXT("Conduct uses chain element attack formula"), Result.FormulaId, FName(TEXT("Element.ChainElementAttack")));
 	TestEqual(TEXT("Conduct radius comes from CSV"), Result.RadiusCm, 100.0f);
+	TestTrue(TEXT("Conduct grants elemental immunity"), State.ImmunityUntil > 0.0f);
 
 	State = FReEchoElementState{};
 	State.Attached = EReEchoElement::Water;
@@ -198,6 +211,7 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Enhancement multiplier comes from CSV"), State.EnhancementMultiplier, 2.0f);
 	TestEqual(TEXT("Grass over water blocks water reattachment"), State.BlockedAttachment, EReEchoElement::Water);
 	TestEqual(TEXT("Enhancement reaction itself causes no damage"), Result.Damage, 0.0f);
+	TestEqual(TEXT("Grass over water enhance does not grant immunity"), State.ImmunityUntil, 0.0f);
 
 	Result = ReEchoElementReaction::ResolveHit(State, EReEchoElement::Water, 7.0f);
 	TestTrue(TEXT("Blocked water cannot reattach after grass over water"), Result.bBlockedByImmunity);
@@ -213,6 +227,7 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Water over grass has a distinct ordered reaction id"), Result.ReactionId, FName(TEXT("Y_ER_W_G")));
 	TestFalse(TEXT("Enhancement reaction does not consume prior enhancement"), Result.bAppliedEnhancement);
 	TestEqual(TEXT("Water over grass blocks grass reattachment"), State.BlockedAttachment, EReEchoElement::Grass);
+	TestEqual(TEXT("Water over grass enhance does not grant immunity"), State.ImmunityUntil, 0.0f);
 
 	Result = ReEchoElementReaction::ResolveHit(State, EReEchoElement::Grass, 7.0f);
 	TestTrue(TEXT("Blocked attachment prevents corresponding element from reattaching"), Result.bBlockedByImmunity);
@@ -235,9 +250,107 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	State = FReEchoElementState{};
 	State.Attached = EReEchoElement::Water;
 	Result = ReEchoElementReaction::ResolveHit(State, EReEchoElement::Lightning, 10.0f);
-	TestEqual(TEXT("Reaction coefficient change is visible without recompiling C++"), Result.FormulaId, FName(TEXT("Element.ChainElementAttack")));
+	TestEqual(TEXT("Reaction coefficient change is visible without recompiling C++"),
+	          Result.FormulaId,
+	          FName(TEXT("Element.ChainElementAttack")));
 
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoElementReactionBurnRefreshTest,
+                                 "ReEcho.Combat.ElementReactionBurnRefresh",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoElementReactionBurnRefreshTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult LoadResult = FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	if (!TestTrue(TEXT("Default CSV data loads for burn refresh"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+
+	FReEchoElementWorldFixture Fixture;
+	AReEchoEnemyActor* Target = Fixture.SpawnEnemy(FVector::ZeroVector, 60);
+	Target->EditElementState().Attached = EReEchoElement::Grass;
+	ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f));
+	Fixture.Advance(2.1f);
+	TestEqual(TEXT("Initial burn applies two elapsed GAS ticks"), EnemyHealth(Target), 980.0f);
+
+	ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Grass, 0.0f, Fixture.MakeContext(10.0f));
+	TestEqual(
+	    TEXT("Grass can reattach after burn immunity expires"), Target->GetAttachedElement(), EReEchoElement::Grass);
+	const FReEchoElementExecutionResult RefreshResult =
+	    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f));
+	TestEqual(TEXT("RefreshOnly keeps a single DOT stream"), RefreshResult.DotTicksScheduled, 3);
+	TestTrue(TEXT("Refresh extends burn status duration"),
+	         Target->GetElementState().ActiveStatusUntilSeconds.FindRef(FName(TEXT("Z_Burn"))) > 5.0f);
+
+	Fixture.Advance(0.9f);
+	TestEqual(TEXT("Refresh does not add an independent tick at the old third boundary"), EnemyHealth(Target), 970.0f);
+	Fixture.Advance(2.0f);
+	TestEqual(TEXT("Refreshed burn continues one tick per second"), EnemyHealth(Target), 950.0f);
+	Fixture.Advance(0.25f);
+	TestEqual(TEXT("Refreshed burn stops after its extended end window"), EnemyHealth(Target), 950.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoElementReactionSaveContinuityTest,
+                                 "ReEcho.Combat.ElementReactionSaveContinuity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoElementReactionSaveContinuityTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult LoadResult = FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	if (!TestTrue(TEXT("Default CSV data loads for burn save continuity"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+
+	FReEchoEnemyRuntimeState SavedState;
+	{
+		FReEchoElementWorldFixture SourceFixture;
+		AReEchoEnemyActor* SourceTarget = SourceFixture.SpawnEnemy(FVector::ZeroVector, 70, 28.0f);
+		SourceTarget->EditElementState().Attached = EReEchoElement::Grass;
+		ReEchoElementReaction::ApplyHitToWorld(
+		    *SourceTarget, EReEchoElement::Flame, 999.0f, SourceFixture.MakeContext(5.0f));
+		SourceFixture.Advance(1.2f);
+		TestEqual(TEXT("Source burn tick applied before capture"), EnemyHealth(SourceTarget), 23.0f);
+
+		SavedState = SourceTarget->CaptureRuntimeState();
+		TestTrue(TEXT("Active burn status saves as remaining duration"),
+		         FMath::IsNearlyEqual(
+		             SavedState.ElementState.ActiveStatusUntilSeconds.FindRef(FName(TEXT("Z_Burn"))), 1.8f, 0.02f));
+		TestTrue(TEXT("Element immunity saves as remaining duration"),
+		         FMath::IsNearlyEqual(SavedState.ElementState.ImmunityUntil, 0.8f, 0.02f));
+		TestTrue(TEXT("Next burn tick saves as remaining duration"),
+		         FMath::IsNearlyEqual(SavedState.ElementState.BurnNextTickTimeSeconds, 0.8f, 0.02f));
+	}
+
+	{
+		FReEchoElementWorldFixture RestoreFixture;
+		RestoreFixture.Advance(5.0f);
+		AReEchoEnemyActor* RestoredTarget = RestoreFixture.SpawnEnemy(FVector::ZeroVector, 71);
+		RestoredTarget->RestoreRuntimeState(SavedState);
+		TestTrue(TEXT("Burn status restore rebases onto new world time"),
+		         FMath::IsNearlyEqual(
+		             RestoredTarget->GetElementState().ActiveStatusUntilSeconds.FindRef(FName(TEXT("Z_Burn"))),
+		             6.8f,
+		             0.02f));
+		TestTrue(TEXT("Burn next tick restore rebases onto new world time"),
+		         FMath::IsNearlyEqual(RestoredTarget->GetElementState().BurnNextTickTimeSeconds, 5.8f, 0.02f));
+		RestoreFixture.Advance(0.79f);
+		TestEqual(TEXT("Restored burn waits for remaining next tick"), EnemyHealth(RestoredTarget), 23.0f);
+		RestoreFixture.Advance(0.01f);
+		TestEqual(
+		    TEXT("Restored burn resumes GAS damage on next deterministic tick"), EnemyHealth(RestoredTarget), 18.0f);
+		RestoreFixture.Advance(1.0f);
+		TestEqual(TEXT("Restored burn applies final deterministic boundary tick"), EnemyHealth(RestoredTarget), 13.0f);
+		RestoreFixture.Advance(0.25f);
+		TestEqual(TEXT("Restored burn does not tick after restored end"), EnemyHealth(RestoredTarget), 13.0f);
+	}
 	return true;
 }
 
@@ -261,20 +374,30 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		const FReEchoElementExecutionResult Result =
 		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Burn has no immediate damage"), Result.ImmediateDamageApplied, 0.0f);
-		TestEqual(TEXT("Burn schedules one deterministic tick per second for three seconds"), Result.DotTicksScheduled, 3);
+		TestEqual(TEXT("Burn keeps one deterministic tick per second for three seconds"), Result.DotTicksScheduled, 3);
 		TestEqual(TEXT("Burn records three DOT delays"), Result.DotTickDelaySeconds.Num(), 3);
 		TestEqual(TEXT("Burn first DOT delay is one second"), Result.DotTickDelaySeconds[0], 1.0f);
 		TestEqual(TEXT("Burn second DOT delay is two seconds"), Result.DotTickDelaySeconds[1], 2.0f);
 		TestEqual(TEXT("Burn third DOT delay is three seconds"), Result.DotTickDelaySeconds[2], 3.0f);
 		TestEqual(TEXT("Burn does not treat base damage as DOT"), EnemyHealth(Target), 1000.0f);
+		Fixture.Advance(0.99f);
+		TestEqual(TEXT("Burn does not tick before first one-second boundary"), EnemyHealth(Target), 1000.0f);
+		Fixture.Advance(0.01f);
+		TestEqual(TEXT("Burn first tick applies GAS damage"), EnemyHealth(Target), 990.0f);
+		Fixture.Advance(1.0f);
+		TestEqual(TEXT("Burn second tick applies GAS damage"), EnemyHealth(Target), 980.0f);
+		Fixture.Advance(1.0f);
+		TestEqual(TEXT("Burn final boundary tick applies at status end"), EnemyHealth(Target), 970.0f);
+		Fixture.Advance(0.25f);
+		TestEqual(TEXT("Burn does not tick after status end"), EnemyHealth(Target), 970.0f);
 	}
 
 	{
 		FReEchoElementWorldFixture Fixture;
 		AReEchoEnemyActor* Target = Fixture.SpawnEnemy(FVector::ZeroVector, 2);
 		Target->EditElementState().Attached = EReEchoElement::Water;
-		const FReEchoElementExecutionResult Result =
-		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f, 0.25f));
+		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
+		    *Target, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f, 0.25f));
 		TestEqual(TEXT("Vaporize uses elemental attack squared damage"), Result.ImmediateDamageApplied, 25.0f);
 		TestEqual(TEXT("Vaporize damage is applied through GAS health"), EnemyHealth(Target), 975.0f);
 	}
@@ -285,21 +408,32 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		AReEchoEnemyActor* Left = Fixture.SpawnEnemy(FVector(-50.0f, 0.0f, 0.0f), 11);
 		AReEchoEnemyActor* Right = Fixture.SpawnEnemy(FVector(50.0f, 0.0f, 0.0f), 12);
 		AReEchoEnemyActor* Far = Fixture.SpawnEnemy(FVector(0.0f, 150.0f, 0.0f), 13);
+		AReEchoEnemyActor* Immune = Fixture.SpawnEnemy(FVector(0.0f, 90.0f, 0.0f), 15);
+		AReEchoEnemyActor* Blocked = Fixture.SpawnEnemy(FVector(0.0f, -90.0f, 0.0f), 16);
 		AReEchoEnemyActor* Outside = Fixture.SpawnEnemy(FVector(250.0f, 0.0f, 0.0f), 14);
 		Primary->EditElementState().Attached = EReEchoElement::Grass;
+		Immune->EditElementState().ImmunityUntil = 30.0f;
+		Blocked->EditElementState().BlockedAttachment = EReEchoElement::Grass;
 
-		const FReEchoElementExecutionResult Result =
-		    ReEchoElementReaction::ApplyHitToWorld(*Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f));
-		TestEqual(TEXT("Growth affects four in-radius targets"), Result.AffectedTargets.Num(), 4);
+		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
+		    *Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f, 1.0f, 0.5f));
+		TestEqual(TEXT("Growth scales radius by ReactionEfficiency and affects three allowed targets"),
+		          Result.AffectedTargets.Num(),
+		          3);
 		TestEqual(TEXT("Growth stable order starts from primary"), ResolveWeak(Result.AffectedTargets[0]), Primary);
 		TestEqual(TEXT("Growth stable tie order uses location"), ResolveWeak(Result.AffectedTargets[1]), Left);
-		TestEqual(TEXT("Growth stable tie order keeps right target after left"), ResolveWeak(Result.AffectedTargets[2]), Right);
-		TestEqual(TEXT("Growth stable distance order includes farther in-radius target"), ResolveWeak(Result.AffectedTargets[3]), Far);
+		TestEqual(TEXT("Growth stable tie order keeps right target after left"),
+		          ResolveWeak(Result.AffectedTargets[2]),
+		          Right);
 		TestEqual(TEXT("Growth attaches grass to primary"), Primary->GetAttachedElement(), EReEchoElement::Grass);
 		TestEqual(TEXT("Growth attaches grass to left target"), Left->GetAttachedElement(), EReEchoElement::Grass);
 		TestEqual(TEXT("Growth attaches grass to right target"), Right->GetAttachedElement(), EReEchoElement::Grass);
-		TestEqual(TEXT("Growth attaches grass to far target"), Far->GetAttachedElement(), EReEchoElement::Grass);
+		TestEqual(TEXT("Growth scaled radius excludes far target"), Far->GetAttachedElement(), EReEchoElement::None);
+		TestEqual(TEXT("Growth respects elemental immunity"), Immune->GetAttachedElement(), EReEchoElement::None);
+		TestEqual(TEXT("Growth respects blocked attachment"), Blocked->GetAttachedElement(), EReEchoElement::None);
 		TestEqual(TEXT("Growth ignores outside target"), Outside->GetAttachedElement(), EReEchoElement::None);
+		TestEqual(
+		    TEXT("Growth does not grant immunity to attached target"), Primary->GetElementState().ImmunityUntil, 0.0f);
 	}
 
 	{
@@ -315,22 +449,53 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 			Enemy->EditElementState().Attached = EReEchoElement::Water;
 		}
 
-		const FReEchoElementExecutionResult Result =
-		    ReEchoElementReaction::ApplyHitToWorld(*Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f));
+		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
+		    *Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Conduct chain deduplicates visited targets"), Result.AffectedTargets.Num(), 5);
 		TestEqual(TEXT("Conduct starts with primary target"), ResolveWeak(Result.AffectedTargets[0]), Primary);
 		TestEqual(TEXT("Conduct visits stable left neighbor first"), ResolveWeak(Result.AffectedTargets[1]), Left);
 		TestEqual(TEXT("Conduct visits stable up neighbor second"), ResolveWeak(Result.AffectedTargets[2]), Up);
 		TestEqual(TEXT("Conduct visits stable right neighbor third"), ResolveWeak(Result.AffectedTargets[3]), Right);
 		TestEqual(TEXT("Conduct chains to one-meter bridge target"), ResolveWeak(Result.AffectedTargets[4]), Bridge);
-		TestEqual(TEXT("Conduct applies GAS damage to all chained targets"), Result.ImmediateDamageApplied, 100.0f);
-		TestEqual(TEXT("Conduct primary health reduced"), EnemyHealth(Primary), 980.0f);
-		TestEqual(TEXT("Conduct left health reduced"), EnemyHealth(Left), 980.0f);
-		TestEqual(TEXT("Conduct up health reduced"), EnemyHealth(Up), 980.0f);
-		TestEqual(TEXT("Conduct right health reduced"), EnemyHealth(Right), 980.0f);
-		TestEqual(TEXT("Conduct bridge health reduced"), EnemyHealth(Bridge), 980.0f);
+		TestEqual(TEXT("Conduct applies workbook formula GAS damage to all chained targets"),
+		          Result.ImmediateDamageApplied,
+		          120.0f);
+		TestEqual(TEXT("Conduct primary health reduced"), EnemyHealth(Primary), 976.0f);
+		TestEqual(TEXT("Conduct left health reduced"), EnemyHealth(Left), 976.0f);
+		TestEqual(TEXT("Conduct up health reduced"), EnemyHealth(Up), 976.0f);
+		TestEqual(TEXT("Conduct right health reduced"), EnemyHealth(Right), 976.0f);
+		TestEqual(TEXT("Conduct bridge health reduced"), EnemyHealth(Bridge), 976.0f);
 		TestEqual(TEXT("Conduct outside target untouched"), EnemyHealth(Outside), 1000.0f);
 		TestEqual(TEXT("Conduct clears primary attachment"), Primary->GetAttachedElement(), EReEchoElement::None);
+	}
+
+	{
+		const FReEchoCsvLoadResult SmallRadiusLoad = FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(
+		    AssembleElementCsvFixture(TEXT("ReactionValueChanged")));
+		if (!TestTrue(TEXT("Small conduct radius fixture loads"), SmallRadiusLoad.bSuccess))
+		{
+			AddError(SmallRadiusLoad.FormatIssues());
+			return false;
+		}
+
+		FReEchoElementWorldFixture Fixture;
+		AReEchoEnemyActor* Primary = Fixture.SpawnEnemy(FVector::ZeroVector, 26);
+		AReEchoEnemyActor* Near = Fixture.SpawnEnemy(FVector(74.0f, 0.0f, 0.0f), 27);
+		AReEchoEnemyActor* HiddenFloorTarget = Fixture.SpawnEnemy(FVector(0.0f, 90.0f, 0.0f), 28);
+		for (AReEchoEnemyActor* Enemy : {Primary, Near, HiddenFloorTarget})
+		{
+			Enemy->EditElementState().Attached = EReEchoElement::Water;
+		}
+
+		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
+		    *Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f));
+		TestEqual(TEXT("Conduct uses configured 75 cm radius exactly"), Result.AffectedTargets.Num(), 2);
+		TestEqual(TEXT("Conduct small radius includes near target"), ResolveWeak(Result.AffectedTargets[1]), Near);
+		TestEqual(
+		    TEXT("Conduct small radius excludes former hidden-floor target"), EnemyHealth(HiddenFloorTarget), 1000.0f);
+		TestEqual(
+		    TEXT("Conduct fixture uses DamageIncrease in workbook formula"), Result.ImmediateDamageApplied, 72.0f);
+		FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	}
 
 	{
@@ -341,20 +506,28 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Water, 50.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Enhancement reaction does not damage"), Result.ImmediateDamageApplied, 0.0f);
 		TestTrue(TEXT("Enhancement is primed"), Target->GetElementState().bEnhancedNextReaction);
-		TestEqual(TEXT("Water over grass blocks grass reattachment"), Target->GetElementState().BlockedAttachment, EReEchoElement::Grass);
+		TestEqual(TEXT("Water over grass blocks grass reattachment"),
+		          Target->GetElementState().BlockedAttachment,
+		          EReEchoElement::Grass);
+		TestEqual(TEXT("Enhancement does not grant elemental immunity"), Target->GetElementState().ImmunityUntil, 0.0f);
 
-		Result = ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Grass, 7.0f, Fixture.MakeContext(10.0f));
+		Result =
+		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Grass, 7.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Blocked element still follows normal damage path"), Result.ImmediateDamageApplied, 7.0f);
 		TestEqual(TEXT("Blocked element does not reattach"), Target->GetAttachedElement(), EReEchoElement::None);
 
-		Fixture.Advance(2.1f);
-		Target->EditElementState().ImmunityUntil = 0.0f;
-		Result = ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Water, 0.0f, Fixture.MakeContext(10.0f));
-		TestEqual(TEXT("Allowed attachment can be applied after immunity window"), Target->GetAttachedElement(), EReEchoElement::Water);
-		Result = ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 0.0f, Fixture.MakeContext(10.0f));
+		Result =
+		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Water, 0.0f, Fixture.MakeContext(10.0f));
+		TestEqual(TEXT("Allowed attachment can be applied while enhance grants no immunity"),
+		          Target->GetAttachedElement(),
+		          EReEchoElement::Water);
+		Result =
+		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 0.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Next damaging reaction gains +100 percent final damage"), Result.ImmediateDamageApplied, 50.0f);
 		TestFalse(TEXT("Next reaction clears primed enhancement"), Target->GetElementState().bEnhancedNextReaction);
-		TestEqual(TEXT("Next reaction clears blocked attachment"), Target->GetElementState().BlockedAttachment, EReEchoElement::None);
+		TestEqual(TEXT("Next reaction clears blocked attachment"),
+		          Target->GetElementState().BlockedAttachment,
+		          EReEchoElement::None);
 	}
 
 	{
@@ -365,17 +538,18 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		AReEchoEnemyActor* EchoTarget = Fixture.SpawnEnemy(FVector(300.0f, 0.0f, 0.0f), 41);
 		PlayerTarget->EditElementState().Attached = EReEchoElement::Water;
 		EchoTarget->EditElementState().Attached = EReEchoElement::Water;
-		const float PlayerApplied =
-		    PlayerTarget->ReceiveElementalDamage(999.0f, EReEchoElement::Flame, FVector::ZeroVector, PlayerSource, 1.0f);
+		const float PlayerApplied = PlayerTarget->ReceiveElementalDamage(
+		    999.0f, EReEchoElement::Flame, FVector::ZeroVector, PlayerSource, 1.0f);
 		const float EchoApplied =
 		    EchoTarget->ReceiveElementalDamage(999.0f, EReEchoElement::Flame, FVector::ZeroVector, EchoSource, 1.0f);
 		TestEqual(TEXT("Player and echo route through the same elemental damage path"), PlayerApplied, EchoApplied);
-		TestEqual(TEXT("AffectedByEchoEfficiency=false keeps current workbook reactions consistent"), PlayerApplied, 25.0f);
+		TestEqual(
+		    TEXT("AffectedByEchoEfficiency=false keeps current workbook reactions consistent"), PlayerApplied, 25.0f);
 	}
 
 	{
-		const FReEchoCsvLoadResult EchoEfficiencyLoad =
-		    FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(AssembleElementCsvFixture(TEXT("EchoEfficiencyEnabled")));
+		const FReEchoCsvLoadResult EchoEfficiencyLoad = FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(
+		    AssembleElementCsvFixture(TEXT("EchoEfficiencyEnabled")));
 		if (!TestTrue(TEXT("Echo efficiency fixture loads"), EchoEfficiencyLoad.bSuccess))
 		{
 			AddError(EchoEfficiencyLoad.FormatIssues());
@@ -384,9 +558,10 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		FReEchoElementWorldFixture Fixture;
 		AReEchoEnemyActor* Target = Fixture.SpawnEnemy(FVector::ZeroVector, 50);
 		Target->EditElementState().Attached = EReEchoElement::Water;
-		const FReEchoElementExecutionResult Result =
-		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 0.0f, Fixture.MakeContext(10.0f, 2.0f));
-		TestEqual(TEXT("AffectedByEchoEfficiency=true multiplies reaction damage"), Result.ImmediateDamageApplied, 50.0f);
+		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
+		    *Target, EReEchoElement::Flame, 0.0f, Fixture.MakeContext(10.0f, 2.0f));
+		TestEqual(
+		    TEXT("AffectedByEchoEfficiency=true multiplies reaction damage"), Result.ImmediateDamageApplied, 50.0f);
 	}
 
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();

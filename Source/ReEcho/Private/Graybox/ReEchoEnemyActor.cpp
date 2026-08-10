@@ -243,6 +243,12 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.ElementState = ElementState;
 	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	Result.ElementState.ImmunityUntil = FMath::Max(0.0f, ElementState.ImmunityUntil - CurrentTimeSeconds);
+	for (TPair<FName, float>& ActiveStatus : Result.ElementState.ActiveStatusUntilSeconds)
+	{
+		ActiveStatus.Value = FMath::Max(0.0f, ActiveStatus.Value - CurrentTimeSeconds);
+	}
+	Result.ElementState.BurnNextTickTimeSeconds =
+	    FMath::Max(0.0f, ElementState.BurnNextTickTimeSeconds - CurrentTimeSeconds);
 	Result.AttackCooldown = AttackCooldown;
 	Result.FuseRemaining = FuseRemaining;
 	Result.bBomberFuseActive = bBomberFuseActive;
@@ -264,6 +270,14 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 	ElementState = SavedState.ElementState;
 	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	ElementState.ImmunityUntil = CurrentTimeSeconds + FMath::Max(0.0f, SavedState.ElementState.ImmunityUntil);
+	for (TPair<FName, float>& ActiveStatus : ElementState.ActiveStatusUntilSeconds)
+	{
+		ActiveStatus.Value = CurrentTimeSeconds + FMath::Max(0.0f, ActiveStatus.Value);
+	}
+	ElementState.BurnNextTickTimeSeconds =
+	    SavedState.ElementState.BurnNextTickTimeSeconds > 0.0f
+	        ? CurrentTimeSeconds + FMath::Max(0.0f, SavedState.ElementState.BurnNextTickTimeSeconds)
+	        : 0.0f;
 	AttackCooldown = FMath::Max(0.0f, SavedState.AttackCooldown);
 	FuseRemaining = FMath::Max(0.0f, SavedState.FuseRemaining);
 	bBomberFuseActive = SavedState.bBomberFuseActive;
@@ -411,13 +425,15 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 	Context.SourceEchoEfficiency = 1.0f;
 	if (SourceActor)
 	{
-		if (const UReEchoCombatantComponent* SourceCombatant = SourceActor->FindComponentByClass<UReEchoCombatantComponent>())
+		if (const UReEchoCombatantComponent* SourceCombatant =
+		        SourceActor->FindComponentByClass<UReEchoCombatantComponent>())
 		{
 			Context.SourceElementalAttack = SourceCombatant->Stats.ElementalAttack;
 			Context.SourceEchoEfficiency = SourceCombatant->Stats.EchoEfficiency;
 		}
 	}
-	const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(*this, Element, Damage, Context);
+	const FReEchoElementExecutionResult Result =
+	    ReEchoElementReaction::ApplyHitToWorld(*this, Element, Damage, Context);
 	return Result.ImmediateDamageApplied;
 }
 
@@ -467,6 +483,12 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 	ReEchoCollisionDebug::DrawCapsule(this, Collision, Kind == EReEchoEnemyKind::Boss ? FColor::Orange : FColor::Cyan);
 	VisualTime += DeltaSeconds;
 	UpdateElementAttachmentFacing();
+	if (!IsAlive())
+	{
+		UpdateDeathAnimation(DeltaSeconds);
+		return;
+	}
+	ReEchoElementReaction::TickElementStatuses(*this, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f);
 	if (!IsAlive())
 	{
 		UpdateDeathAnimation(DeltaSeconds);

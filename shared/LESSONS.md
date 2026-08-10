@@ -376,6 +376,7 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 
 - 负例 fixture 如果复制完整生产包，每新增一张必需表都会迫使所有旧负例机械补表，且旧 manifest 副本会遮住新表导致假失败。先在 Python 和 C++ 自动化里组装“生产 CSV 基线 + fixture 局部覆盖”的临时包，fixture 目录只保留真正改坏或改值的 CSV。
 - 有序反应不能用无序 pair 或 set 归并验证。静态校验和 C++ 读取器都要检查 `(TriggerElementId, AttachmentElementId)` 的有序唯一性，并把 `Grass>Water` 与 `Water>Grass` 当作两个可独立调参的反应。
+- 表字段语义也要自动化锁住：Conduct 的 `+2` 是公式常量而不是 `DamageMultiplier`，Growth 半径要乘 `ReactionEfficiency` 并走统一附着限制，存档中的 status end time 要存剩余时长、恢复时按新 World time 重建。
 
 ### GAME-30. 自动检查点与主动退出存档要分层 [UE]
 

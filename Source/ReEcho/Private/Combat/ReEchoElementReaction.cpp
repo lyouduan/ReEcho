@@ -5,15 +5,15 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Graybox/ReEchoEnemyActor.h"
-#include "TimerManager.h"
 
 namespace ReEchoElementReaction
 {
 namespace
 {
 constexpr const TCHAR* ElementImmunityStatusId = TEXT("Z_Elemental_Immunity");
+constexpr const TCHAR* BurnStatusId = TEXT("Z_Burn");
 constexpr const TCHAR* StatusNone = TEXT("None");
-constexpr float OneMeterInCentimeters = 100.0f;
+constexpr float BurnTickIntervalSeconds = 1.0f;
 
 const FReEchoCsvElementRow* FindElementRow(const EReEchoElement Element)
 {
@@ -88,6 +88,15 @@ float CalculateElementAttackScaleDamage(const FReEchoCsvReactionRow& Reaction,
 	       GetEchoMultiplier(Result, Context);
 }
 
+float CalculateConductDamage(const FReEchoCsvReactionRow& Reaction,
+                             const FReEchoElementHitResult& Result,
+                             const FReEchoElementHitContext& Context)
+{
+	const float ElementalAttack = FMath::Max(0.0f, Context.SourceElementalAttack);
+	return (ElementalAttack + 2.0f) * FMath::Max(0.0f, Context.ReactionEfficiency) * Reaction.DamageIncrease *
+	       GetFinalReactionMultiplier(Result) * GetEchoMultiplier(Result, Context);
+}
+
 float CalculateElementAttackSquaredDamage(const FReEchoCsvReactionRow& Reaction,
                                           const FReEchoElementHitResult& Result,
                                           const FReEchoElementHitContext& Context)
@@ -97,7 +106,9 @@ float CalculateElementAttackSquaredDamage(const FReEchoCsvReactionRow& Reaction,
 	       GetFinalReactionMultiplier(Result) * GetEchoMultiplier(Result, Context);
 }
 
-void ApplyElementalImmunity(AReEchoEnemyActor& Target, const FReEchoCsvDataSnapshot& Snapshot, const float CurrentTimeSeconds)
+void ApplyElementalImmunity(AReEchoEnemyActor& Target,
+                            const FReEchoCsvDataSnapshot& Snapshot,
+                            const float CurrentTimeSeconds)
 {
 	const float ImmunityDuration = GetEnabledStatusDuration(Snapshot, ElementImmunityStatusId);
 	if (ImmunityDuration <= 0.0f || CurrentTimeSeconds < 0.0f)
@@ -107,6 +118,12 @@ void ApplyElementalImmunity(AReEchoEnemyActor& Target, const FReEchoCsvDataSnaps
 	FReEchoElementState& State = Target.EditElementState();
 	State.ImmunityUntil = CurrentTimeSeconds + ImmunityDuration;
 	State.ActiveStatusUntilSeconds.Add(FName(ElementImmunityStatusId), State.ImmunityUntil);
+}
+
+bool ShouldApplyElementalImmunity(const FName ReactionBehaviorId)
+{
+	return ReactionBehaviorId == TEXT("Reaction.Burn") || ReactionBehaviorId == TEXT("Reaction.Vaporize") ||
+	       ReactionBehaviorId == TEXT("Reaction.Conduct");
 }
 
 void ApplyStatus(AReEchoEnemyActor& Target,
@@ -119,8 +136,8 @@ void ApplyStatus(AReEchoEnemyActor& Target,
 	{
 		return;
 	}
-	const float Duration = OverrideDurationSeconds > 0.0f ? OverrideDurationSeconds
-	                                                      : GetEnabledStatusDuration(Snapshot, StatusId);
+	const float Duration =
+	    OverrideDurationSeconds > 0.0f ? OverrideDurationSeconds : GetEnabledStatusDuration(Snapshot, StatusId);
 	if (Duration <= 0.0f)
 	{
 		return;
@@ -182,58 +199,70 @@ TArray<AReEchoEnemyActor*> GetAliveEnemiesInRadius(UWorld& World, const FVector&
 	return Targets;
 }
 
-void ScheduleBurnTicks(AReEchoEnemyActor& Target,
-                       const FReEchoElementHitResult& Result,
-                       const float TickDamage,
-                       const FReEchoElementHitContext& Context,
-                       FReEchoElementExecutionResult& ExecutionResult)
+int32 CountRemainingBurnTicks(const float NextTickTimeSeconds, const float EndTimeSeconds)
 {
-	UWorld* World = Target.GetWorld();
-	if (!World || TickDamage <= 0.0f)
+	if (NextTickTimeSeconds <= 0.0f || EndTimeSeconds <= 0.0f ||
+	    NextTickTimeSeconds > EndTimeSeconds + KINDA_SMALL_NUMBER)
+	{
+		return 0;
+	}
+	return FMath::Max(0, FMath::FloorToInt((EndTimeSeconds - NextTickTimeSeconds) / BurnTickIntervalSeconds) + 1);
+}
+
+void StartOrRefreshBurn(AReEchoEnemyActor& Target,
+                        const FReEchoElementHitResult& Result,
+                        const float TickDamage,
+                        const FReEchoCsvDataSnapshot& Snapshot,
+                        const float CurrentTimeSeconds,
+                        FReEchoElementExecutionResult& ExecutionResult)
+{
+	if (CurrentTimeSeconds < 0.0f || TickDamage <= 0.0f)
 	{
 		return;
 	}
-	const int32 TickCount = FMath::Max(0, FMath::RoundToInt(Result.StatusDurationSeconds));
-	TWeakObjectPtr<AReEchoEnemyActor> WeakTarget(&Target);
-	TWeakObjectPtr<AActor> WeakSource = Context.SourceActor;
-	const FVector SourceLocation = Context.SourceLocation;
-	const FLinearColor DamageColor = GetElementColor(EReEchoElement::Flame);
-	for (int32 TickIndex = 1; TickIndex <= TickCount; ++TickIndex)
+	const float Duration = Result.StatusDurationSeconds > 0.0f ? Result.StatusDurationSeconds
+	                                                           : GetEnabledStatusDuration(Snapshot, BurnStatusId);
+	if (Duration <= 0.0f)
 	{
-		FTimerHandle TimerHandle;
-		const float DelaySeconds = static_cast<float>(TickIndex);
-		World->GetTimerManager().SetTimer(
-		    TimerHandle,
-		    [WeakTarget, WeakSource, SourceLocation, TickDamage, DamageColor]()
-		    {
-			    if (AReEchoEnemyActor* TargetActor = WeakTarget.Get())
-			    {
-				    if (TargetActor->IsAlive())
-				    {
-					    TargetActor->ReceiveGrayboxDamage(TickDamage, SourceLocation, WeakSource.Get(), DamageColor);
-				    }
-			    }
-		    },
-		    DelaySeconds,
-		    false);
-		++ExecutionResult.DotTicksScheduled;
-		ExecutionResult.DotTickDelaySeconds.Add(DelaySeconds);
+		return;
+	}
+
+	FReEchoElementState& State = Target.EditElementState();
+	const float EndTimeSeconds = CurrentTimeSeconds + Duration;
+	const float ExistingEndTime = State.ActiveStatusUntilSeconds.FindRef(FName(BurnStatusId));
+	const bool bRefreshOnlyActive =
+	    ExistingEndTime > CurrentTimeSeconds && State.BurnNextTickTimeSeconds > CurrentTimeSeconds;
+	State.ActiveStatusUntilSeconds.Add(FName(BurnStatusId), EndTimeSeconds);
+	State.BurnTickDamage = TickDamage;
+	if (!bRefreshOnlyActive)
+	{
+		State.BurnNextTickTimeSeconds = CurrentTimeSeconds + BurnTickIntervalSeconds;
+	}
+
+	const int32 RemainingTicks = CountRemainingBurnTicks(State.BurnNextTickTimeSeconds, EndTimeSeconds);
+	ExecutionResult.DotTicksScheduled = RemainingTicks;
+	for (int32 TickIndex = 0; TickIndex < RemainingTicks; ++TickIndex)
+	{
+		ExecutionResult.DotTickDelaySeconds.Add(State.BurnNextTickTimeSeconds +
+		                                        static_cast<float>(TickIndex) * BurnTickIntervalSeconds -
+		                                        CurrentTimeSeconds);
 	}
 }
 
-void AttachElementIfAllowed(AReEchoEnemyActor& Target, const EReEchoElement Element, const float CurrentTimeSeconds)
+bool AttachElementIfAllowed(AReEchoEnemyActor& Target, const EReEchoElement Element, const float CurrentTimeSeconds)
 {
 	if (IsElementalImmune(Target, CurrentTimeSeconds))
 	{
-		return;
+		return false;
 	}
 	FReEchoElementState& State = Target.EditElementState();
 	if (State.BlockedAttachment == Element)
 	{
-		return;
+		return false;
 	}
 	State.Attached = Element;
 	Target.RefreshElementAttachmentVisual();
+	return true;
 }
 
 void ApplyDamageAndImmunity(AReEchoEnemyActor& Target,
@@ -265,8 +294,7 @@ TArray<AReEchoEnemyActor*> GetConductChainTargets(AReEchoEnemyActor& PrimaryTarg
 		Queue.RemoveAt(0, 1, EAllowShrinking::No);
 		Result.Add(Current);
 
-		TArray<AReEchoEnemyActor*> Neighbors =
-		    GetAliveEnemiesInRadius(World, Current->GetActorLocation(), FMath::Max(RadiusCm, OneMeterInCentimeters));
+		TArray<AReEchoEnemyActor*> Neighbors = GetAliveEnemiesInRadius(World, Current->GetActorLocation(), RadiusCm);
 		for (AReEchoEnemyActor* Neighbor : Neighbors)
 		{
 			if (!Neighbor || Visited.Contains(Neighbor))
@@ -378,14 +406,17 @@ FReEchoElementHitResult ResolveHit(FReEchoElementState& State,
 			                           : GetEnabledStatusDuration(*Snapshot, Result.AppliedStatusId);
 			State.ActiveStatusUntilSeconds.Add(Result.AppliedStatusId, CurrentTimeSeconds + Duration);
 		}
-		const float ImmunityDuration = GetEnabledStatusDuration(*Snapshot, ElementImmunityStatusId);
-		if (ImmunityDuration > 0.0f)
+		if (ShouldApplyElementalImmunity(Reaction->BehaviorId))
 		{
-			Result.ImmunityDurationSeconds = ImmunityDuration;
-			if (CurrentTimeSeconds >= 0.0f)
+			const float ImmunityDuration = GetEnabledStatusDuration(*Snapshot, ElementImmunityStatusId);
+			if (ImmunityDuration > 0.0f)
 			{
-				State.ImmunityUntil = CurrentTimeSeconds + ImmunityDuration;
-				State.ActiveStatusUntilSeconds.Add(FName(ElementImmunityStatusId), State.ImmunityUntil);
+				Result.ImmunityDurationSeconds = ImmunityDuration;
+				if (CurrentTimeSeconds >= 0.0f)
+				{
+					State.ImmunityUntil = CurrentTimeSeconds + ImmunityDuration;
+					State.ActiveStatusUntilSeconds.Add(FName(ElementImmunityStatusId), State.ImmunityUntil);
+				}
 			}
 		}
 		if (Reaction->bClearsAttachment)
@@ -420,13 +451,11 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 
 	if (!ExecutionResult.Primary.bTriggeredReaction)
 	{
-		ExecutionResult.ImmediateDamageApplied =
-		    Target.ReceiveGrayboxDamage(ExecutionResult.Primary.Damage,
-		                                Context.SourceLocation,
-		                                Context.SourceActor.Get(),
-		                                ExecutionResult.Primary.bBlockedByImmunity
-		                                    ? FLinearColor::White
-		                                    : GetElementColor(IncomingElement));
+		ExecutionResult.ImmediateDamageApplied = Target.ReceiveGrayboxDamage(
+		    ExecutionResult.Primary.Damage,
+		    Context.SourceLocation,
+		    Context.SourceActor.Get(),
+		    ExecutionResult.Primary.bBlockedByImmunity ? FLinearColor::White : GetElementColor(IncomingElement));
 		ExecutionResult.AffectedTargets.Add(&Target);
 		return ExecutionResult;
 	}
@@ -446,7 +475,7 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 	if (Reaction->BehaviorId == TEXT("Reaction.Burn"))
 	{
 		const float TickDamage = CalculateElementAttackScaleDamage(*Reaction, ExecutionResult.Primary, Context);
-		ScheduleBurnTicks(Target, ExecutionResult.Primary, TickDamage, Context, ExecutionResult);
+		StartOrRefreshBurn(Target, ExecutionResult.Primary, TickDamage, *Snapshot, CurrentTimeSeconds, ExecutionResult);
 		ApplyElementalImmunity(Target, *Snapshot, CurrentTimeSeconds);
 		ExecutionResult.AffectedTargets.Add(&Target);
 	}
@@ -463,18 +492,19 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Growth") && World)
 	{
-		TArray<AReEchoEnemyActor*> Targets = GetAliveEnemiesInRadius(*World, Target.GetActorLocation(), Reaction->RadiusCm);
+		const float RadiusCm = Reaction->RadiusCm * FMath::Max(0.0f, Context.ReactionEfficiency);
+		TArray<AReEchoEnemyActor*> Targets = GetAliveEnemiesInRadius(*World, Target.GetActorLocation(), RadiusCm);
 		for (AReEchoEnemyActor* TargetInRadius : Targets)
 		{
-			TargetInRadius->EditElementState().Attached = EReEchoElement::Grass;
-			TargetInRadius->RefreshElementAttachmentVisual();
-			ApplyElementalImmunity(*TargetInRadius, *Snapshot, CurrentTimeSeconds);
-			ExecutionResult.AffectedTargets.Add(TargetInRadius);
+			if (AttachElementIfAllowed(*TargetInRadius, EReEchoElement::Grass, CurrentTimeSeconds))
+			{
+				ExecutionResult.AffectedTargets.Add(TargetInRadius);
+			}
 		}
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Conduct") && World)
 	{
-		const float Damage = CalculateElementAttackScaleDamage(*Reaction, ExecutionResult.Primary, Context);
+		const float Damage = CalculateConductDamage(*Reaction, ExecutionResult.Primary, Context);
 		TArray<AReEchoEnemyActor*> ChainTargets = GetConductChainTargets(Target, *World, Reaction->RadiusCm);
 		for (AReEchoEnemyActor* ChainTarget : ChainTargets)
 		{
@@ -490,12 +520,49 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Enhance"))
 	{
-		ApplyElementalImmunity(Target, *Snapshot, CurrentTimeSeconds);
 		ExecutionResult.AffectedTargets.Add(&Target);
 	}
 
 	Target.RefreshElementAttachmentVisual();
 	return ExecutionResult;
+}
+
+int32 TickElementStatuses(AReEchoEnemyActor& Target, const float CurrentTimeSeconds)
+{
+	if (CurrentTimeSeconds < 0.0f || !Target.IsAlive())
+	{
+		return 0;
+	}
+
+	FReEchoElementState& State = Target.EditElementState();
+	float* BurnUntil = State.ActiveStatusUntilSeconds.Find(FName(BurnStatusId));
+	if (!BurnUntil || *BurnUntil <= 0.0f || State.BurnTickDamage <= 0.0f || State.BurnNextTickTimeSeconds <= 0.0f)
+	{
+		State.BurnTickDamage = 0.0f;
+		State.BurnNextTickTimeSeconds = 0.0f;
+		return 0;
+	}
+
+	int32 AppliedTicks = 0;
+	while (Target.IsAlive() && State.BurnNextTickTimeSeconds <= CurrentTimeSeconds + KINDA_SMALL_NUMBER &&
+	       State.BurnNextTickTimeSeconds <= *BurnUntil + KINDA_SMALL_NUMBER)
+	{
+		Target.ReceiveGrayboxDamage(
+		    State.BurnTickDamage, Target.GetActorLocation(), nullptr, GetElementColor(EReEchoElement::Flame));
+		State.BurnNextTickTimeSeconds += BurnTickIntervalSeconds;
+		++AppliedTicks;
+	}
+
+	if (State.BurnNextTickTimeSeconds > *BurnUntil + KINDA_SMALL_NUMBER || CurrentTimeSeconds > *BurnUntil)
+	{
+		State.BurnTickDamage = 0.0f;
+		State.BurnNextTickTimeSeconds = 0.0f;
+		if (CurrentTimeSeconds > *BurnUntil + KINDA_SMALL_NUMBER)
+		{
+			State.ActiveStatusUntilSeconds.Remove(FName(BurnStatusId));
+		}
+	}
+	return AppliedTicks;
 }
 
 FString GetElementLabel(const EReEchoElement Element)
