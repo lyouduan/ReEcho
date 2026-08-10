@@ -33,9 +33,10 @@
                                                   ④ push + 写§执行经验(不 merge)
        ▲                                                       │
        │                                                       ▼
-  ⑧ 规划者收尾           ⑦ 规划者审 diff        ⑥ 人玩验手感 🎮 ◀┘
+  ⑧ 规划者收尾+清理       ⑦ 规划者审 diff        ⑥ 人玩验手感 🎮 ◀┘
   (提炼经验→LESSONS        (初版↔终版)            ⑤ 不满意 → 执行者改
-   /更新 STATE/merge)       + 人拍板完成              → 人再玩(循环)
+   /更新 STATE/merge         + 人拍板完成              → 人再玩(循环)
+   /移除干净 worktree)
 ```
 > 逐节详解见 **§3 流程展开**。
 
@@ -156,6 +157,12 @@ git checkout main && git merge --no-ff plan/XX-short -m "Merge plan/XX: <一句�
 ```
 - ⚠️ 坑1：main 领先分支基点时 `git diff main..branch` 显示**假删除**，真实改动看 `git diff $(git merge-base main branch) branch`，3 路 merge 会保留。
 - ⚠️ 坑2：`plans/XX.md` 常 add/add 冲突（初版 vs 追加经验）→ 执行者版是超集，`git checkout --theirs`。
+
+**完成后的 worktree 清理（规划者）**：
+1. 只在人验通过、规划者完成审查与 merge、状态/经验文档已同步后清理。
+2. 用 `git worktree list` 解析目标的精确路径和分支；用目标 worktree 内的 `git status --short` 确认没有未提交或未跟踪内容。有内容就停止，不覆盖、不强删。
+3. 对干净目标执行 `git worktree remove <exec>`，禁止 `--force`，也不要先用文件系统命令递归删除目录。
+4. 用 `git branch -d plan/XX-short` 删除已合并的本地分支；`-d` 拒绝删除未合并分支，是保护门槛。远端分支只在人明确要求时删除。
 
 **Clone-safe 依赖**：
 - 共享仓库里不要提交本机绝对路径、`file:` 依赖、密钥、`.env` 或只在一台机器存在的工具路径。
