@@ -97,7 +97,7 @@
 
 ### Changed
 
-- Created isolated worktree `C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan18` on branch `plan/18-csv-foundation` from main baseline `ff4409fc2c9448e35b67b5d02042a38cedfe8d59` (`ff4409f Merge plans 14-16: reactions, roles, and bomber ranges`). The planner/main working tree already had unrelated `.uasset` and planning-file changes; this branch does not claim or edit those assets.
+- Created an isolated sibling worktree on branch `plan/18-csv-foundation` from main baseline `ff4409fc2c9448e35b67b5d02042a38cedfe8d59` (`ff4409f Merge plans 14-16: reactions, roles, and bomber ranges`). The planner/main working tree already had unrelated `.uasset` and planning-file changes; this branch does not claim or edit those assets.
 - Added CSV contract v1 under `Content/Data/`: `reecho_data_manifest.csv`, `csv_schema.csv`, `runtime_smoke.csv` and `runtime_smoke_effects.csv`.
 - Added automation fixtures under `Content/Data/TestFixtures/CsvRuntime/` for one valid alternate value and negative cases: duplicate ID, missing required value, unknown reference, unknown `BehaviorId`, unknown `EffectKind`, illegal numeric range and unsupported schema version.
 - Added public runtime API `FReEchoCsvDataRegistry` in `Source/ReEcho/{Public,Private}/Data/ReEchoCsvDataRegistry.*`.
