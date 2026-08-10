@@ -7,7 +7,9 @@ import csv
 import io
 import json
 import math
+import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,8 +25,16 @@ REGISTERED_BEHAVIOR_IDS = {
     "Character.BraveForge",
     "Card.StatModifier",
     "Card.InstantRecovery",
+    "Status.ElementImmunity",
+    "Status.Burn",
+    "Reaction.Burn",
+    "Reaction.Vaporize",
+    "Reaction.Growth",
+    "Reaction.Conduct",
+    "Reaction.Enhance",
 }
-REGISTERED_EFFECT_KINDS = {"ScalarModifier", "StatModifier", "InstantRecovery"}
+REGISTERED_EFFECT_KINDS = {"ScalarModifier", "StatModifier", "InstantRecovery", "ElementReaction"}
+REGISTERED_FORMULA_IDS = {"Element.BaseDamageScale", "Element.DamageIncrease", "Element.EnhanceNextReaction"}
 VALUE_OPS = {"Add", "Multiply", "Override"}
 CARD_TARGETS = {
     "HpMax",
@@ -39,6 +49,19 @@ CARD_TARGETS = {
 CARD_EFFECT_BEHAVIOR_PAIRS = {
     "StatModifier": "Card.StatModifier",
     "InstantRecovery": "Card.InstantRecovery",
+}
+ELEMENT_IDS = {"Flame", "Lightning", "Grass", "Water"}
+ELEMENT_ROLES = {"Trigger", "Attachment"}
+STATUS_BEHAVIOR_PAIRS = {
+    "Z_Elemental_Immunity": "Status.ElementImmunity",
+    "Z_Burn": "Status.Burn",
+}
+REACTION_BEHAVIOR_FORMULA_PAIRS = {
+    "Reaction.Burn": "Element.BaseDamageScale",
+    "Reaction.Vaporize": "Element.DamageIncrease",
+    "Reaction.Growth": "Element.BaseDamageScale",
+    "Reaction.Conduct": "Element.BaseDamageScale",
+    "Reaction.Enhance": "Element.EnhanceNextReaction",
 }
 
 
@@ -132,6 +155,48 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "BehaviorId": CsvColumnSpec("BehaviorId"),
         "ParamName": CsvColumnSpec("StableId"),
         "ParamValue": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
+    },
+    "Elements": {
+        "Id": CsvColumnSpec("StableId"),
+        "SourceWorkbookId": CsvColumnSpec("StableId"),
+        "Role": CsvColumnSpec("StableId"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "DisplayNameKey": CsvColumnSpec("TextKey"),
+        "ColorHex": CsvColumnSpec("Text"),
+        "VisualKey": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "Statuses": {
+        "Id": CsvColumnSpec("StableId"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "BehaviorId": CsvColumnSpec("BehaviorId"),
+        "DurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "StackPolicy": CsvColumnSpec("StableId"),
+        "RefreshPolicy": CsvColumnSpec("StableId"),
+        "MutexGroup": CsvColumnSpec("StableId"),
+        "Tags": CsvColumnSpec("StableIdList"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "Reactions": {
+        "Id": CsvColumnSpec("StableId"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "TriggerElementId": CsvColumnSpec("ForeignKey", reference_table="Elements"),
+        "AttachmentElementId": CsvColumnSpec("ForeignKey", reference_table="Elements"),
+        "BehaviorId": CsvColumnSpec("BehaviorId"),
+        "FormulaId": CsvColumnSpec("FormulaId"),
+        "DamageMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "DamageIncrease": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "RadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "StatusId": CsvColumnSpec("ForeignKey", reference_table="Statuses"),
+        "StatusDurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "EnhancementMultiplier": CsvColumnSpec("Float", min_value=1.0, max_value=100.0),
+        "CanCrit": CsvColumnSpec("Bool"),
+        "AffectedByEchoEfficiency": CsvColumnSpec("Bool"),
+        "ClearsAttachment": CsvColumnSpec("Bool"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
     },
 }
 
@@ -288,7 +353,7 @@ def validate_table(path: Path, table_id: str, references: dict[str, set[str]]) -
                 fail(f"{rel(path)}:{line}:{column}: required value is empty")
             if not value:
                 continue
-            if spec.kind in {"StableId", "BehaviorId", "EffectKind", "ForeignKey"} and not stable_id(value):
+            if spec.kind in {"StableId", "BehaviorId", "EffectKind", "FormulaId", "ForeignKey"} and not stable_id(value):
                 fail(f"{rel(path)}:{line}:{column}: invalid stable id")
             if spec.kind == "StableIdList":
                 for part in value.split("|"):
@@ -306,6 +371,10 @@ def validate_table(path: Path, table_id: str, references: dict[str, set[str]]) -
                 fail(f"{rel(path)}:{line}:{column}: unknown registered C++ behavior id {value!r}")
             if spec.kind == "EffectKind" and value not in REGISTERED_EFFECT_KINDS:
                 fail(f"{rel(path)}:{line}:{column}: unknown registered C++ effect kind {value!r}")
+            if spec.kind == "FormulaId" and value not in REGISTERED_FORMULA_IDS:
+                fail(f"{rel(path)}:{line}:{column}: unknown registered C++ formula id {value!r}")
+            if spec.kind == "ForeignKey" and value == "None" and table_id == "Reactions" and column == "StatusId":
+                continue
             if spec.kind == "ForeignKey" and value not in references[spec.reference_table or ""]:
                 fail(f"{rel(path)}:{line}:{column}: unknown reference {value!r}")
 
@@ -327,7 +396,21 @@ def validate_csv_package(data_dir: Path) -> None:
     references["CharacterAliases"] = validate_table(entries["CharacterAliases"], "CharacterAliases", references)
     references["Cards"] = validate_table(entries["Cards"], "Cards", references)
     references["CardEffects"] = validate_table(entries["CardEffects"], "CardEffects", references)
+    references["Elements"] = validate_table(entries["Elements"], "Elements", references)
+    references["Statuses"] = validate_table(entries["Statuses"], "Statuses", references)
+    references["Reactions"] = validate_table(entries["Reactions"], "Reactions", references)
     validate_character_build_domain(data_dir, entries)
+    validate_element_reaction_domain(data_dir, entries)
+
+
+def assemble_fixture_package(fixture_dir: Path, temp_root: Path) -> Path:
+    assembled = temp_root / fixture_dir.name
+    assembled.mkdir(parents=True, exist_ok=True)
+    for source in DATA.glob("*.csv"):
+        shutil.copy2(source, assembled / source.name)
+    for override in fixture_dir.glob("*.csv"):
+        shutil.copy2(override, assembled / override.name)
+    return assembled
 
 
 def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) -> None:
@@ -376,15 +459,85 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
             fail(f"{rel(entries['CardEffects'])}: enabled card {card_id!r} has no effect rows")
 
 
+def validate_element_reaction_domain(data_dir: Path, entries: dict[str, Path]) -> None:
+    elements = load_csv(entries["Elements"])
+    statuses = load_csv(entries["Statuses"])
+    reactions = load_csv(entries["Reactions"])
+
+    enabled_elements = {row["Id"] for row in elements if row["Enabled"] == "true"}
+    if enabled_elements != ELEMENT_IDS:
+        fail(f"{rel(entries['Elements'])}: enabled element ids changed: {sorted(enabled_elements)}")
+    for row in elements:
+        if row["Id"] not in ELEMENT_IDS:
+            fail(f"{rel(entries['Elements'])}:{row['__line__']}: unsupported element id {row['Id']!r}")
+        if row["Role"] not in ELEMENT_ROLES:
+            fail(f"{rel(entries['Elements'])}:{row['__line__']}: role must be Trigger or Attachment")
+        if not row["ColorHex"].startswith("#") or len(row["ColorHex"]) != 7:
+            fail(f"{rel(entries['Elements'])}:{row['__line__']}: ColorHex must be #RRGGBB")
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['Elements'])}:{row['__line__']}: disabled element requires DisabledReason")
+
+    status_ids = {row["Id"] for row in statuses}
+    if {"Z_Elemental_Immunity", "Z_Burn"} - status_ids:
+        fail(f"{rel(entries['Statuses'])}: elemental immunity and burn statuses are required")
+    for row in statuses:
+        expected_behavior = STATUS_BEHAVIOR_PAIRS.get(row["Id"], "None")
+        if row["BehaviorId"] != expected_behavior:
+            fail(
+                f"{rel(entries['Statuses'])}:{row['__line__']}: invalid StatusId/BehaviorId pair "
+                f"{row['Id']!r}/{row['BehaviorId']!r}"
+            )
+        if row["Enabled"] == "true" and row["BehaviorId"] == "None":
+            fail(f"{rel(entries['Statuses'])}:{row['__line__']}: enabled status needs behavior")
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['Statuses'])}:{row['__line__']}: disabled status requires DisabledReason")
+
+    expected_pairs = {
+        ("Flame", "Grass"),
+        ("Flame", "Water"),
+        ("Lightning", "Grass"),
+        ("Lightning", "Water"),
+        ("Grass", "Water"),
+        ("Water", "Grass"),
+    }
+    seen_pairs: set[tuple[str, str]] = set()
+    enabled_reactions: set[str] = set()
+    for row in reactions:
+        pair = (row["TriggerElementId"], row["AttachmentElementId"])
+        if pair in seen_pairs:
+            fail(f"{rel(entries['Reactions'])}:{row['__line__']}: duplicate ordered pair {pair}")
+        seen_pairs.add(pair)
+        if row["BehaviorId"] not in REACTION_BEHAVIOR_FORMULA_PAIRS:
+            fail(f"{rel(entries['Reactions'])}:{row['__line__']}: unsupported reaction behavior {row['BehaviorId']!r}")
+        expected_formula = REACTION_BEHAVIOR_FORMULA_PAIRS[row["BehaviorId"]]
+        if row["FormulaId"] != expected_formula:
+            fail(
+                f"{rel(entries['Reactions'])}:{row['__line__']}: invalid ReactionBehaviorId/FormulaId pair "
+                f"{row['BehaviorId']!r}/{row['FormulaId']!r}"
+            )
+        if row["StatusId"] != "None" and row["StatusId"] not in status_ids:
+            fail(f"{rel(entries['Reactions'])}:{row['__line__']}: unknown status reference {row['StatusId']!r}")
+        if row["Enabled"] == "true":
+            enabled_reactions.add(row["Id"])
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['Reactions'])}:{row['__line__']}: disabled reaction requires DisabledReason")
+    if seen_pairs != expected_pairs:
+        fail(f"{rel(entries['Reactions'])}: ordered reaction pairs changed: {sorted(seen_pairs)}")
+    if len(enabled_reactions) != 6:
+        fail(f"{rel(entries['Reactions'])}: expected six enabled reactions, got {sorted(enabled_reactions)}")
+
+
 def expect_fixture_failure(name: str, token: str) -> None:
     fixture = DATA / "TestFixtures" / "CsvRuntime" / name
-    try:
-        validate_csv_package(fixture)
-    except ValidationError as exc:
-        if token not in str(exc):
-            fail(f"{rel(fixture)}: expected {token!r}, got {exc}")
-        return
-    fail(f"{rel(fixture)}: expected fixture to fail with {token}")
+    with tempfile.TemporaryDirectory(prefix="reecho_csv_fixture_") as temp:
+        assembled = assemble_fixture_package(fixture, Path(temp))
+        try:
+            validate_csv_package(assembled)
+        except ValidationError as exc:
+            if token not in str(exc):
+                fail(f"{rel(fixture)}: expected {token!r}, got {exc}")
+            return
+        fail(f"{rel(fixture)}: expected fixture to fail with {token}")
 
 
 def validate_legacy_json() -> tuple[int, int, int]:
@@ -471,6 +624,9 @@ def validate_build_dependencies() -> None:
         "character_aliases.csv",
         "cards.csv",
         "card_effects.csv",
+        "elements.csv",
+        "statuses.csv",
+        "reactions.csv",
     ):
         if f"Content/Data/{file_name}" not in build_cs:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
@@ -480,7 +636,12 @@ def main() -> int:
     json_count, effective_cards, encounter_count = validate_legacy_json()
     validate_csv_schema()
     validate_csv_package(DATA)
-    validate_csv_package(DATA / "TestFixtures" / "CsvRuntime" / "ValidAlt")
+    with tempfile.TemporaryDirectory(prefix="reecho_csv_valid_alt_") as temp:
+        validate_csv_package(assemble_fixture_package(DATA / "TestFixtures" / "CsvRuntime" / "ValidAlt", Path(temp)))
+    with tempfile.TemporaryDirectory(prefix="reecho_csv_reaction_changed_") as temp:
+        validate_csv_package(
+            assemble_fixture_package(DATA / "TestFixtures" / "CsvRuntime" / "ReactionValueChanged", Path(temp))
+        )
     for name, token in {
         "DuplicateId": "duplicate id",
         "MissingRequired": "required value",
@@ -493,13 +654,15 @@ def main() -> int:
         "UnsupportedCardEffectTrigger": "Trigger",
         "UnknownCardEffectTarget": "Target",
         "InvalidCardEffectBehaviorPair": "EffectKind/BehaviorId",
+        "UnknownFormulaId": "FormulaId",
+        "DuplicateReactionPair": "duplicate ordered pair",
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()
     validate_workflow()
 
     print(f"[PASS] legacy migration-only JSON files={json_count} effective_cards={effective_cards} encounters={encounter_count}")
-    print("[PASS] CSV schema, production character/build tables, fixtures, IDs, references, behavior/effect allowlists, UTF-8 and staging deps")
+    print("[PASS] CSV schema, production character/build/element tables, fixtures, IDs, references, behavior/effect/formula allowlists, UTF-8 and staging deps")
     print("[PASS] workflow memory, token guards, and Unreal project descriptor present")
     print("Evidence level: static verified only (no UHT/UBT/PIE claim)")
     return 0

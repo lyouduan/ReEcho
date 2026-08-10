@@ -126,7 +126,7 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 | Echo ghost material | `Content/ReEcho/Materials/M_EchoGhost.uasset` |
 | Module dependencies | `Source/ReEcho/ReEcho.Build.cs` |
 
-CSV currently contains the runtime foundation manifest/schema/smoke tables plus canonical character/build tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets and card numeric effects read from CSV. Legacy JSON still covers elements, encounters, enemies, global balance, reactions, statuses and weapons; character/card JSON is migration-only review material. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
+CSV currently contains the runtime foundation manifest/schema/smoke tables, canonical character/build tables and element/status/reaction tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets, card numeric effects, combat elements, necessary statuses and six ordered reactions read from CSV. Legacy JSON still covers encounters, enemies, global balance and weapons; character/card/element/status/reaction JSON is migration-only review material. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
 
 ## Task routing
 
@@ -137,7 +137,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables plus 
 | 2D sprite animation, frame import, attack/hit/death feedback | `Player/ReEchoPlayerPawn.*`, `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoEchoActor.*` | `scripts/ue/import_mushroomgirl_frames.py`, `Content/SourceArt/Characters/MushroomGirl/`, imported character textures |
 | GAS, abilities, attributes, effects, cooldown, tags | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*` | `docs/GAS_ONBOARDING.md`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*`, `Weapons/ReEchoWeaponActor.*`, GAS automation tests |
 | Mouse cursor aiming/player facing/camera | `Player/ReEchoPlayerPawn.*` | `GameMode::RestoreGameInput`, `DefaultInput.ini` |
-| Weapon switching/sword/melee/element reactions | `Weapons/ReEchoWeaponActor.*`, `Combat/ReEchoElementReaction.*` | `Graybox/ReEchoProjectileActor.*`, `Graybox/ReEchoEnemyActor.*`, `Player/ReEchoPlayerPawn.*`, `Content/Data/weapons.json`, `DefaultInput.ini`, `RunSubsystem::SetEquippedWeapon` |
+| Weapon switching/sword/melee/element reactions | `Weapons/ReEchoWeaponActor.*`, `Combat/ReEchoElementReaction.*`, `Data/ReEchoElementReactionCsvReader.*` | `Graybox/ReEchoProjectileActor.*`, `Graybox/ReEchoEnemyActor.*`, `Player/ReEchoPlayerPawn.*`, `Content/Data/elements.csv`, `Content/Data/statuses.csv`, `Content/Data/reactions.csv`, `Content/Data/weapons.json`, `DefaultInput.ini`, `RunSubsystem::SetEquippedWeapon` |
 | Bullet speed/size/color/hit | `Graybox/ReEchoProjectileActor.*` | Player/Echo caller, `EnemyActor::ReceiveGrayboxDamage` |
 | Enemy AI, type, shield, bomber, boss | `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoBomberRules.*` | `CombatantComponent.*`, `ReEchoBalanceSettings.h`, `DefaultGame.ini`, hit effects |
 | Damage, HP, block, death | `Combat/ReEchoCombatantComponent.*` | Damage caller and health UI |
@@ -147,7 +147,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables plus 
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |
-| CSV runtime data, schema, fixtures | `Data/ReEchoCsvDataRegistry.*` | `Content/Data/README.md`, `Content/Data/*.csv`, `validate_project.py`, data automation tests |
+| CSV runtime data, schema, fixtures | `Data/ReEchoCsvDataRegistry.*`, domain readers under `Private/Data/*CsvReader.*` | `Content/Data/README.md`, `Content/Data/*.csv`, `validate_project.py`, data automation tests |
 | Player portrait/health HUD, enemy health bars | `UI/ReEchoPlayerHudWidget.*`, `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`, `ReEchoGameMode.*`, `CombatantComponent.*` |
 | Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |
 | Rain, fog, weather scenes | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`, `DefaultGame.ini` |
@@ -155,7 +155,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables plus 
 | Player stats, echo stats, Tab panel | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*` | `Graybox/ReEchoEchoActor.*`, `Combat/ReEchoCombatantComponent.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini` |
 | Pause/death/restart/quit UI | `UI/ReEchoRestartWidget.*` | `ReEchoGameMode.*`, `PlayerPawn::TogglePauseMenu`, `DefaultInput.ini` |
 | Trait cards/card choice/character promotion/role build | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `Run/ReEchoCharacterPromotion.*` | `Content/Data/cards.csv`, `Content/Data/card_effects.csv`, `Content/Data/characters.csv`, `Content/Data/character_aliases.csv`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*`, `Weapons/ReEchoWeaponActor.*` |
-| Cards/characters/enemies/balance data | Matching `Content/Data/*.csv` and migration-only JSON | `Content/Data/README.md`, `validate_project.py` |
+| Cards/characters/elements/reactions/enemies/balance data | Matching `Content/Data/*.csv` and migration-only JSON | `Content/Data/README.md`, `validate_project.py` |
 | GM, debug command, cheat, console | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Matching gameplay subsystem or actor API |
 | Build failure | `scripts/ue/Build-Editor.*` | latest UBT log; matching source only |
 | Windows packaging/cook/resource missing | `scripts/ue/package_windows.py`, `ReEchoGameMode.*`, hard asset references, UAT Cook manifests | `Content/ReEcho/Textures/Characters/`, `Saved/Cooked/Windows`, Shipping smoke test |

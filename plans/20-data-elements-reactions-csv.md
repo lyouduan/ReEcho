@@ -20,17 +20,17 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ### 🤖 Automated
 
-- [ ] 元素表将 ID、角色（Trigger/Attachment 等）、显示文本键、颜色/视觉键和 enabled 分列；Reaction/Status 通过稳定 ID 引用，不靠中文名称匹配。
-- [ ] 状态表提供反应所需的持续时长、叠加/刷新/互斥策略和已注册状态行为；纯展示描述不作为运行时判定。
-- [ ] 反应表分离 ordered trigger/attachment、ReactionBehaviorId、FormulaId/有限公式类型、数值系数、范围、状态引用、暴击/回响修正规则。
-- [ ] 不执行 Excel/CSV 中的任意公式字符串。伤害/范围计算使用白名单 FormulaId 与类型化系数；独特行为通过注册 handler。
-- [ ] 至少实现并自动化覆盖工作簿六个反应：灼烧、汽化、生长、导电、草→水强化、水→草强化；顺序敏感配对不能被无序集合合并。
-- [ ] Lightning 成为可识别的战斗元素；元素免疫、附着清除/阻断、强化不叠加等状态机行为与表一致且确定。
-- [ ] 玩家与回响使用同一注册快照和反应结算；回响触发是否受 EchoEfficiency 影响、反应能否暴击等由表字段/已注册规则明确，不能散落在调用方。
-- [ ] 元素伤害仍经 GAS/现有权威伤害路径结算；Actor 只持目标状态与表现反馈，不重新成为数值权威。
-- [ ] 当前可玩元素武器与既有 Plan 14 自动化保持或按人批准的工作簿语义更新；任何有意行为变化必须在执行经验和 UI/遥测中可见。
-- [ ] 旧 `elements.json`、`reactions.json`、`statuses.json` 与 C++ 重复常量退出该领域运行时权威。
-- [ ] Editor build、元素/状态/反应自动化、全量 `ReEcho.*`、静态校验和 `git diff --check` 通过。
+- [x] 元素表将 ID、角色（Trigger/Attachment 等）、显示文本键、颜色/视觉键和 enabled 分列；Reaction/Status 通过稳定 ID 引用，不靠中文名称匹配。
+- [x] 状态表提供反应所需的持续时长、叠加/刷新/互斥策略和已注册状态行为；纯展示描述不作为运行时判定。
+- [x] 反应表分离 ordered trigger/attachment、ReactionBehaviorId、FormulaId/有限公式类型、数值系数、范围、状态引用、暴击/回响修正规则。
+- [x] 不执行 Excel/CSV 中的任意公式字符串。伤害/范围计算使用白名单 FormulaId 与类型化系数；独特行为通过注册 handler。
+- [x] 至少实现并自动化覆盖工作簿六个反应：灼烧、汽化、生长、导电、草→水强化、水→草强化；顺序敏感配对不能被无序集合合并。
+- [x] Lightning 成为可识别的战斗元素；元素免疫、附着清除/阻断、强化不叠加等状态机行为与表一致且确定。
+- [x] 玩家与回响使用同一注册快照和反应结算；回响触发是否受 EchoEfficiency 影响、反应能否暴击等由表字段/已注册规则明确，不能散落在调用方。
+- [x] 元素伤害仍经 GAS/现有权威伤害路径结算；Actor 只持目标状态与表现反馈，不重新成为数值权威。
+- [x] 当前可玩元素武器与既有 Plan 14 自动化保持或按人批准的工作簿语义更新；任何有意行为变化必须在执行经验和 UI/遥测中可见。
+- [x] 旧 `elements.json`、`reactions.json`、`statuses.json` 与 C++ 重复常量退出该领域运行时权威。
+- [x] Editor build、元素/状态/反应自动化、全量 `ReEcho.*`、静态校验和 `git diff --check` 通过。
 
 ### 🎮 Human PIE
 
@@ -106,18 +106,64 @@ Plan 20 在执行期独占生产 manifest/schema、`FReEchoCsvDataSnapshot`、�
 
 ### Changed
 
+- Created isolated worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan20` on branch `plan/20-elements-reactions-csv`; the planner/main worktree still has unrelated `.uasset` changes and this branch does not claim or edit binary assets.
+- Added production `elements.csv`, `statuses.csv` and `reactions.csv`; extended manifest, schema, README, `ReEcho.Build.cs`, static validation and data automation coverage.
+- Added `ReEchoElementReactionCsvReader.*` following the Plan 19 domain-reader shape. `FReEchoCsvDataRegistry` remains the only manifest/orchestration/atomic publish boundary.
+- Extended `FReEchoCsvDataSnapshot` with typed element/status/reaction rows and explicit `FormulaId` registration. Built-ins now register status and reaction behaviors plus `Element.BaseDamageScale`, `Element.DamageIncrease` and `Element.EnhanceNextReaction` before default load.
+- Reworked `ReEchoElementReaction` to resolve enabled combat elements, labels, colors and ordered reactions from the published CSV snapshot. The pure state machine now handles attachment roles, reaction status output, elemental-immunity blocking, non-stacking enhancement and table coefficients.
+- Kept elemental damage on the existing GAS path: `AReEchoEnemyActor::ReceiveElementalDamage()` passes current world time into the pure resolver, then still calls `ReceiveGrayboxDamage()` / `ReEchoGameplayEffects::ApplyDamage()`.
+- Updated weapon 3's deterministic elemental sequence and Poet random elements to include Lightning and cover the six ordered reaction pairs through normal projectile play.
+- Replaced complete copied CSV fixture packages with Python/C++ temporary assembly from production baseline plus local fixture overrides. Existing negative fixtures now keep only their changed CSV, and new element fixtures cover unknown formula and duplicate ordered pair.
+- Updated `shared/CODEBASE_MAP.md`, `shared/PROJECT_STATE.md` and `shared/LESSONS.md`.
+
 ### Evidence
+
+- `python scripts/validate_project.py` passes: production character/build/element tables, fixtures, IDs, references, behavior/effect/formula allowlists, UTF-8, staging deps and workflow guards.
+- `.clang-format` was run on changed C++ files.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` exits 0. Latest log shows `Found 22 automation tests based on 'ReEcho'`, `ReEcho.Combat.ElementReactions` success, `ReEcho.Data.CsvInvalidFixturesFailClearly` success and `TEST COMPLETE. EXIT CODE: 0`.
+- `git diff --check` passes.
 
 ### Plan 18/19 contract adaptation
 
+- Plan 18 smoke tables and Plan 19 character/build tables remain required production CSV and load through the same `FReEchoCsvDataRegistry` package.
+- Required production manifest tables are now: `RuntimeSmoke`, `RuntimeSmokeEffects`, `Characters`, `CharacterAliases`, `Cards`, `CardEffects`, `Elements`, `Statuses`, `Reactions`.
+- Plan 19's domain reader pattern was preserved: registry owns required table ordering and publish atomicity; element/status/reaction parsing lives in `ReEchoElementReactionCsvReader.*`.
+- Fixture handling was adapted before adding required element tables. Python and C++ tests assemble full temporary packages from production CSV plus fixture overrides, so future domain tables do not need mechanical copies in every existing negative fixture.
+- Legacy `elements.json`, `statuses.json` and `reactions.json` remain in the repo as migration-only review material; current runtime reaction semantics no longer read them.
+
 ### Approved semantic differences from current prototype
+
+- Plan 14's hardcoded unordered `Water+Grass` and `Grass+Flame` double-damage prototype has been replaced by six ordered CSV rows from the element/status/reaction migration source.
+- Flame and Lightning are trigger elements; Grass and Water are attachment elements. Trigger-only hits no longer become persistent attachments by themselves.
+- Lightning is now recognized by projectiles, labels, colors and reaction resolution.
+- Current reaction math uses finite typed formulas:
+  - `Element.BaseDamageScale`: `BaseDamage * DamageMultiplier * ReactionEfficiency`.
+  - `Element.DamageIncrease`: `BaseDamage * (1 + DamageIncrease * ReactionEfficiency)`.
+  - `Element.EnhanceNextReaction`: primes a non-stacking enhancement multiplier for the next damaging reaction.
+- `AffectedByEchoEfficiency=false` for all current reaction rows because echo attacks already scale `ElementalAttack` in the echo combatant snapshot. This is explicit in CSV rather than hidden at the call site.
+- The workbook element sheet does not contain expanded numeric formulas; production values preserve the prior migration JSON parameters for duration, coefficient, multiplier and radius. No square/power formula was invented.
 
 ### Public element/reaction contract for Plan 21
 
+- Use `FReEchoCsvDataRegistry::GetSnapshot()` as the only public runtime data source. Do not read element/reaction CSV files directly from actors, weapons, UI or future slot code.
+- Stable element IDs for Plan 21 are `Flame`, `Lightning`, `Grass`, `Water`; `ReEchoElementReaction::GetElementId(EReEchoElement)` exposes the enum-to-ID bridge.
+- Reactions are ordered by `(TriggerElementId, AttachmentElementId)` and can be queried through `FReEchoCsvDataSnapshot::FindReaction()`. Do not canonicalize or sort the pair.
+- Runtime weapon/slot migration may consume `elements.csv` roles and `reactions.csv` flags (`CanCrit`, `AffectedByEchoEfficiency`, `RadiusCm`) without adding a second reaction registry.
+- Enabled unique reaction behavior still requires a registered C++ handler/formula and automation before CSV can turn it on.
+
 ### Remaining risks
+
+- Area/radius values are loaded, validated, exposed on `FReEchoElementHitResult` and covered by pure automation, but live multi-target radius application is intentionally not expanded in this plan to avoid moving numeric authority into Actor traversal. If Plan 21 needs area application, it should add a deterministic target-selection helper and tests.
+- Burn is represented as an applied status in element state and result data; there is not yet a ticking DOT gameplay component.
+- Human PIE is still needed for readability of the new 12-step element weapon cycle, Lightning labels/colors, reaction pacing and status hints.
 
 ### Human validation requested
 
+- Trigger Burn, Vaporize, Growth, Conduct, Grass-over-Water Enhance and Water-over-Grass Enhance in PIE; confirm color/label readability, damage numbers, radius expectations and duration/status hints.
+- Trigger the same reactions with a player and an echo; confirm both follow the same CSV definitions and echo behavior matches the explicit `AffectedByEchoEfficiency=false` rows.
+- Edit `reactions.csv` `Y_ER_L_W.DamageMultiplier` or a status duration, restart the project/run, and confirm the changed value appears without recompiling C++.
+- Confirm the new ElementalOrb sequence including Lightning still feels acceptable for current playable pacing.
 ## 执行者启动 prompt
 
 ```text

@@ -6,6 +6,7 @@
 #include "ReEcho.h"
 #include "ReEchoCharacterBuildCsvReader.h"
 #include "ReEchoCsvDataReader.h"
+#include "ReEchoElementReactionCsvReader.h"
 
 namespace
 {
@@ -15,17 +16,22 @@ constexpr const TCHAR* CharactersTableId = TEXT("Characters");
 constexpr const TCHAR* CharacterAliasesTableId = TEXT("CharacterAliases");
 constexpr const TCHAR* CardsTableId = TEXT("Cards");
 constexpr const TCHAR* CardEffectsTableId = TEXT("CardEffects");
+constexpr const TCHAR* ElementsTableId = TEXT("Elements");
+constexpr const TCHAR* StatusesTableId = TEXT("Statuses");
+constexpr const TCHAR* ReactionsTableId = TEXT("Reactions");
 
 constexpr const TCHAR* BehaviorNone = TEXT("None");
 constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
 constexpr const TCHAR* DefaultEffectKind = TEXT("ScalarModifier");
 constexpr const TCHAR* StatModifierEffectKind = TEXT("StatModifier");
 constexpr const TCHAR* InstantRecoveryEffectKind = TEXT("InstantRecovery");
+constexpr const TCHAR* ElementReactionEffectKind = TEXT("ElementReaction");
 
 FCriticalSection RegistryCriticalSection;
 TSharedPtr<const FReEchoCsvDataSnapshot> PublishedSnapshot;
 TSet<FName> RegisteredBehaviorIds;
 TSet<FName> RegisteredEffectKinds;
+TSet<FName> RegisteredFormulaIds;
 bool bDefaultRegistrationsReady = false;
 
 TArray<FString> GetRequiredTableIds()
@@ -35,7 +41,10 @@ TArray<FString> GetRequiredTableIds()
 	        CharactersTableId,
 	        CharacterAliasesTableId,
 	        CardsTableId,
-	        CardEffectsTableId};
+	        CardEffectsTableId,
+	        ElementsTableId,
+	        StatusesTableId,
+	        ReactionsTableId};
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
@@ -194,6 +203,44 @@ TArray<FReEchoCsvCardRow> FReEchoCsvDataSnapshot::GetOfferableCards(const FName 
 	return Result;
 }
 
+const FReEchoCsvElementRow* FReEchoCsvDataSnapshot::FindElement(const FName ElementId) const
+{
+	return Elements.Find(ElementId);
+}
+
+const FReEchoCsvElementRow* FReEchoCsvDataSnapshot::FindElement(const EReEchoElement Element) const
+{
+	for (const FName ElementId : ElementOrder)
+	{
+		const FReEchoCsvElementRow* Row = Elements.Find(ElementId);
+		if (Row && Row->Element == Element)
+		{
+			return Row;
+		}
+	}
+	return nullptr;
+}
+
+const FReEchoCsvStatusRow* FReEchoCsvDataSnapshot::FindStatus(const FName StatusId) const
+{
+	return Statuses.Find(StatusId);
+}
+
+const FReEchoCsvReactionRow* FReEchoCsvDataSnapshot::FindReaction(const FName TriggerElementId,
+                                                                  const FName AttachmentElementId) const
+{
+	for (const FName ReactionId : ReactionOrder)
+	{
+		const FReEchoCsvReactionRow* Reaction = Reactions.Find(ReactionId);
+		if (Reaction && Reaction->bEnabled && Reaction->TriggerElementId == TriggerElementId &&
+		    Reaction->AttachmentElementId == AttachmentElementId)
+		{
+			return Reaction;
+		}
+	}
+	return nullptr;
+}
+
 FString FReEchoCsvLoadResult::FormatIssues() const
 {
 	TArray<FString> Lines;
@@ -216,6 +263,7 @@ void FReEchoCsvDataRegistry::EnsureDefaultRegistrations()
 	RegisteredEffectKinds.Add(FName(DefaultEffectKind));
 	RegisteredEffectKinds.Add(FName(StatModifierEffectKind));
 	RegisteredEffectKinds.Add(FName(InstantRecoveryEffectKind));
+	RegisteredEffectKinds.Add(FName(ElementReactionEffectKind));
 	bDefaultRegistrationsReady = true;
 }
 
@@ -226,6 +274,16 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterBehaviorId(TEXT("Character.BraveForge"));
 	RegisterBehaviorId(TEXT("Card.StatModifier"));
 	RegisterBehaviorId(TEXT("Card.InstantRecovery"));
+	RegisterBehaviorId(TEXT("Status.ElementImmunity"));
+	RegisterBehaviorId(TEXT("Status.Burn"));
+	RegisterBehaviorId(TEXT("Reaction.Burn"));
+	RegisterBehaviorId(TEXT("Reaction.Vaporize"));
+	RegisterBehaviorId(TEXT("Reaction.Growth"));
+	RegisterBehaviorId(TEXT("Reaction.Conduct"));
+	RegisterBehaviorId(TEXT("Reaction.Enhance"));
+	RegisterFormulaId(TEXT("Element.BaseDamageScale"));
+	RegisterFormulaId(TEXT("Element.DamageIncrease"));
+	RegisterFormulaId(TEXT("Element.EnhanceNextReaction"));
 }
 
 void FReEchoCsvDataRegistry::RegisterBehaviorId(const FName BehaviorId)
@@ -248,6 +306,16 @@ void FReEchoCsvDataRegistry::RegisterEffectKind(const FName EffectKind)
 	}
 }
 
+void FReEchoCsvDataRegistry::RegisterFormulaId(const FName FormulaId)
+{
+	EnsureDefaultRegistrations();
+	if (!FormulaId.IsNone())
+	{
+		FScopeLock Lock(&RegistryCriticalSection);
+		RegisteredFormulaIds.Add(FormulaId);
+	}
+}
+
 bool FReEchoCsvDataRegistry::IsBehaviorIdRegistered(const FName BehaviorId)
 {
 	EnsureDefaultRegistrations();
@@ -260,6 +328,13 @@ bool FReEchoCsvDataRegistry::IsEffectKindRegistered(const FName EffectKind)
 	EnsureDefaultRegistrations();
 	FScopeLock Lock(&RegistryCriticalSection);
 	return RegisteredEffectKinds.Contains(EffectKind);
+}
+
+bool FReEchoCsvDataRegistry::IsFormulaIdRegistered(const FName FormulaId)
+{
+	EnsureDefaultRegistrations();
+	FScopeLock Lock(&RegistryCriticalSection);
+	return RegisteredFormulaIds.Contains(FormulaId);
 }
 
 FString FReEchoCsvDataRegistry::GetDefaultDataDirectory()
@@ -289,6 +364,10 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 	if (Result.Issues.Num() == 0)
 	{
 		ReEchoCharacterBuildCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReEchoElementReactionCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
 	}
 	if (Result.Issues.Num() == 0 && MutableSnapshot->RuntimeSmokeRows.Num() == 0)
 	{

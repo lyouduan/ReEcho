@@ -5,3 +5,6 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,CharacterAliases,character_aliases.csv,Id
 1,Cards,cards.csv,Id
 1,CardEffects,card_effects.csv,Id
+1,Elements,elements.csv,Id
+1,Statuses,statuses.csv,Id
+1,Reactions,reactions.csv,Id

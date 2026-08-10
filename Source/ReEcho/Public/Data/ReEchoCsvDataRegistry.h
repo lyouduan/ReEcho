@@ -10,6 +10,12 @@ enum class EReEchoCsvValueOp : uint8
 	Override
 };
 
+enum class EReEchoElementRole : uint8
+{
+	Trigger,
+	Attachment
+};
+
 struct REECHO_API FReEchoCsvIssue
 {
 	FString File;
@@ -75,6 +81,55 @@ struct REECHO_API FReEchoCsvCardEffectRow
 	float ParamValue = 0.0f;
 };
 
+struct REECHO_API FReEchoCsvElementRow
+{
+	FName Id;
+	FName SourceWorkbookId;
+	EReEchoElement Element = EReEchoElement::None;
+	EReEchoElementRole Role = EReEchoElementRole::Attachment;
+	FString DisplayName;
+	FString DisplayNameKey;
+	FString ColorHex;
+	FName VisualKey;
+	bool bEnabled = false;
+	FString DisabledReason;
+};
+
+struct REECHO_API FReEchoCsvStatusRow
+{
+	FName Id;
+	FString DisplayName;
+	FName BehaviorId;
+	float DurationSeconds = 0.0f;
+	FName StackPolicy;
+	FName RefreshPolicy;
+	FName MutexGroup;
+	TArray<FName> Tags;
+	bool bEnabled = false;
+	FString DisabledReason;
+};
+
+struct REECHO_API FReEchoCsvReactionRow
+{
+	FName Id;
+	FString DisplayName;
+	FName TriggerElementId;
+	FName AttachmentElementId;
+	FName BehaviorId;
+	FName FormulaId;
+	float DamageMultiplier = 1.0f;
+	float DamageIncrease = 0.0f;
+	float RadiusCm = 0.0f;
+	FName StatusId;
+	float StatusDurationSeconds = 0.0f;
+	float EnhancementMultiplier = 1.0f;
+	bool bCanCrit = false;
+	bool bAffectedByEchoEfficiency = false;
+	bool bClearsAttachment = true;
+	bool bEnabled = false;
+	FString DisabledReason;
+};
+
 struct REECHO_API FReEchoCsvCardRow
 {
 	FName Id;
@@ -102,12 +157,22 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FName> CharacterAliases;
 	TMap<FName, FReEchoCsvCardRow> Cards;
 	TArray<FName> CardOrder;
+	TMap<FName, FReEchoCsvElementRow> Elements;
+	TArray<FName> ElementOrder;
+	TMap<FName, FReEchoCsvStatusRow> Statuses;
+	TArray<FName> StatusOrder;
+	TMap<FName, FReEchoCsvReactionRow> Reactions;
+	TArray<FName> ReactionOrder;
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;
 	const FReEchoCsvCharacterRow* FindCharacter(FName CharacterId) const;
 	const FReEchoCsvCardRow* FindCard(FName CardId) const;
 	TArray<FReEchoCsvCardRow> GetOfferableCards(FName OfferGroup) const;
+	const FReEchoCsvElementRow* FindElement(FName ElementId) const;
+	const FReEchoCsvElementRow* FindElement(EReEchoElement Element) const;
+	const FReEchoCsvStatusRow* FindStatus(FName StatusId) const;
+	const FReEchoCsvReactionRow* FindReaction(FName TriggerElementId, FName AttachmentElementId) const;
 };
 
 struct REECHO_API FReEchoCsvLoadResult
@@ -126,9 +191,11 @@ public:
 
 	static void RegisterBehaviorId(FName BehaviorId);
 	static void RegisterEffectKind(FName EffectKind);
+	static void RegisterFormulaId(FName FormulaId);
 	static void RegisterBuiltInCsvBehaviors();
 	static bool IsBehaviorIdRegistered(FName BehaviorId);
 	static bool IsEffectKindRegistered(FName EffectKind);
+	static bool IsFormulaIdRegistered(FName FormulaId);
 
 	static FString GetDefaultDataDirectory();
 	static FReEchoCsvLoadResult LoadSnapshotFromDirectory(const FString& DataDirectory);

@@ -11,7 +11,7 @@
 | 工种 | Plan 标签 | 经验章节 | 条目数 |
 |------|----------|---------|--------|
 | 程序化生成 / 地编 | `PCG` | [§PCG](#pcg) | 8 |
-| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 28 |
+| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 29 |
 | 关卡搭建 | `LEVEL` | [§LEVEL](#level) | 4 |
 | 美术 / 资产管线 | `ART` | [§ART](#art) | 18 |
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
@@ -369,6 +369,13 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 - Python/CI 能拒绝坏表，不等于 Shipping 运行时安全；松散 CSV 可能在构建后被修改。类型化 C++ 领域读取器必须同步拒绝未知枚举、非法 handler 组合、重复顺序和外键错误，并报告文件、行和字段。
 - CSV 已成为唯一权威后，缺快照、缺行或 disabled 行不能静默回退到旧 C++ 常量。先用可测试的解析函数返回带稳定 ID 的错误，再在真正的启动边界按项目策略 Fatal。
 - 一张卡或配件有多条顺序效果时，先复制 Build/Stats 到候选对象，全部效果成功后一次赋回；任何中途失败都不得留下前半段数值修改。
+
+### GAME-29. 领域 CSV 增表前先把 fixture 改成基线加覆盖 [UE]
+
+**来源**：ReEcho Plan 20，元素/状态/反应 CSV 迁移。
+
+- 负例 fixture 如果复制完整生产包，每新增一张必需表都会迫使所有旧负例机械补表，且旧 manifest 副本会遮住新表导致假失败。先在 Python 和 C++ 自动化里组装“生产 CSV 基线 + fixture 局部覆盖”的临时包，fixture 目录只保留真正改坏或改值的 CSV。
+- 有序反应不能用无序 pair 或 set 归并验证。静态校验和 C++ 读取器都要检查 `(TriggerElementId, AttachmentElementId)` 的有序唯一性，并把 `Grass>Water` 与 `Water>Grass` 当作两个可独立调参的反应。
 
 ---
 ## §LEVEL — 关卡搭建

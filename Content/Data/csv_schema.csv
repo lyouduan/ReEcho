@@ -64,3 +64,39 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,CardEffects,BehaviorId,BehaviorId,true,,,,None|Card.StatModifier|Card.InstantRecovery,Registered C++ behavior id.
 1,CardEffects,ParamName,StableId,true,,,,None,Typed parameter name when needed.
 1,CardEffects,ParamValue,Float,true,-100000,100000,,,Typed numeric parameter when needed.
+1,Elements,Id,StableId,true,,,,Flame|Lightning|Grass|Water,Canonical runtime element id.
+1,Elements,SourceWorkbookId,StableId,true,,,,Y_Flame|Y_Lightning|Y_Grass|Y_Water,Workbook or legacy JSON provenance id.
+1,Elements,Role,StableId,true,,,,Trigger|Attachment,Element reaction role.
+1,Elements,DisplayName,Text,true,,,,,Designer-visible element name.
+1,Elements,DisplayNameKey,TextKey,true,,,,,Localization key or designer-readable text key.
+1,Elements,ColorHex,Text,true,,,,,Presentation color as #RRGGBB.
+1,Elements,VisualKey,StableId,true,,,,Fire|Lightning|Grass|Water,Short visual label key.
+1,Elements,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Elements,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,Statuses,Id,StableId,true,,,,,Stable status id.
+1,Statuses,DisplayName,Text,true,,,,,Designer-visible status name.
+1,Statuses,BehaviorId,BehaviorId,true,,,,None|Status.ElementImmunity|Status.Burn,Registered status behavior id.
+1,Statuses,DurationSeconds,Float,true,0,3600,,,Default status duration in seconds.
+1,Statuses,StackPolicy,StableId,true,,,,NoStack|RefreshOnly|Stackable,Stacking policy.
+1,Statuses,RefreshPolicy,StableId,true,,,,None|Refresh,Refresh policy.
+1,Statuses,MutexGroup,StableId,true,,,,,Status mutual-exclusion group.
+1,Statuses,Tags,StableIdList,true,,,,,Pipe-separated status tags.
+1,Statuses,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Statuses,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,Reactions,Id,StableId,true,,,,,Stable reaction id.
+1,Reactions,DisplayName,Text,true,,,,,Designer-visible reaction name.
+1,Reactions,TriggerElementId,ForeignKey,true,,,Elements,,Ordered incoming element id.
+1,Reactions,AttachmentElementId,ForeignKey,true,,,Elements,,Ordered existing attached element id.
+1,Reactions,BehaviorId,BehaviorId,true,,,,Reaction.Burn|Reaction.Vaporize|Reaction.Growth|Reaction.Conduct|Reaction.Enhance,Registered reaction behavior id.
+1,Reactions,FormulaId,FormulaId,true,,,,Element.BaseDamageScale|Element.DamageIncrease|Element.EnhanceNextReaction,Whitelisted typed formula id.
+1,Reactions,DamageMultiplier,Float,true,0,100,,,Typed damage multiplier.
+1,Reactions,DamageIncrease,Float,true,0,100,,,Typed additive damage increase coefficient.
+1,Reactions,RadiusCm,Float,true,0,100000,,,Reaction radius in Unreal centimeters.
+1,Reactions,StatusId,ForeignKey,true,,,Statuses,,Status applied by the reaction or None.
+1,Reactions,StatusDurationSeconds,Float,true,0,3600,,,Reaction override status duration in seconds.
+1,Reactions,EnhancementMultiplier,Float,true,1,100,,,Non-stacking multiplier applied to the next reaction.
+1,Reactions,CanCrit,Bool,true,,,,true|false,Whether this reaction may crit.
+1,Reactions,AffectedByEchoEfficiency,Bool,true,,,,true|false,Whether reaction math applies EchoEfficiency beyond existing echo stat scaling.
+1,Reactions,ClearsAttachment,Bool,true,,,,true|false,Whether the reaction consumes current attachment.
+1,Reactions,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Reactions,DisabledReason,Text,false,,,,,Required when Enabled is false.

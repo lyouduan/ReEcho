@@ -297,13 +297,16 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponConfig& Definition, U
 	EReEchoElement Element = ConsumeNextElement();
 	if (Combatant->Stats.bRandomElementProjectiles)
 	{
-		switch ((AttackSequence * 17 + 5) % 3)
+		switch ((AttackSequence * 17 + 5) % 4)
 		{
 			case 0:
 				Element = EReEchoElement::Water;
 				break;
 			case 1:
 				Element = EReEchoElement::Flame;
+				break;
+			case 2:
+				Element = EReEchoElement::Lightning;
 				break;
 			default:
 				Element = EReEchoElement::Grass;
@@ -321,16 +324,32 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponConfig& Definition, U
 
 EReEchoElement AReEchoWeaponActor::PeekNextElement() const
 {
-	switch (NextElementIndex % 4)
+	switch (NextElementIndex % 12)
 	{
 		case 0:
 			return EReEchoElement::Water;
 		case 1:
-			return EReEchoElement::Grass;
-		case 2:
 			return EReEchoElement::Flame;
-		default:
+		case 2:
 			return EReEchoElement::Grass;
+		case 3:
+			return EReEchoElement::Flame;
+		case 4:
+			return EReEchoElement::Water;
+		case 5:
+			return EReEchoElement::Lightning;
+		case 6:
+			return EReEchoElement::Grass;
+		case 7:
+			return EReEchoElement::Lightning;
+		case 8:
+			return EReEchoElement::Water;
+		case 9:
+			return EReEchoElement::Grass;
+		case 10:
+			return EReEchoElement::Grass;
+		default:
+			return EReEchoElement::Water;
 	}
 }
 
@@ -349,7 +368,7 @@ void AReEchoWeaponActor::UpdateElementIndicator()
 EReEchoElement AReEchoWeaponActor::ConsumeNextElement()
 {
 	const EReEchoElement Element = PeekNextElement();
-	NextElementIndex = (NextElementIndex + 1) % 4;
+	NextElementIndex = (NextElementIndex + 1) % 12;
 	UpdateElementIndicator();
 	return Element;
 }

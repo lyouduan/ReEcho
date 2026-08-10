@@ -10,7 +10,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 - Configurable rain and player/echo-centered fog-of-war are visual-only. The top-left HUD shows the configured player portrait and live current/max health; only enemies retain world-space overhead health bars. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats.
 - Runtime purchases are duplicate-guarded and update the shared build snapshot. Time-trait draws are deterministic per run state, prefer least-owned traits, contain no duplicate offer, and accept only the current pending choice. Runs without an active echo show an explicit stats empty state.
 - Development-console GM commands cover status, healing, Time Shards, weather override and enemy clearing; Shipping rejects them.
-- Weapon 3 cycles deterministic Water/Grass/Flame attachments and reactions. Four-card promotion selects Hunter, Poet, Brave or Sage mechanics, and bombers use separate configurable fuse-trigger and explosion-damage ranges.
+- Weapon 3 cycles deterministic Water/Flame/Grass/Lightning ordered element pairs backed by CSV reactions. Four-card promotion selects Hunter, Poet, Brave or Sage mechanics, and bombers use separate configurable fuse-trigger and explosion-damage ranges.
 - Human PIE play-feel, UI/DPI/font readability and final weather/blur tuning remain required; this is not yet a finished vertical slice.
 
 ## Current progress
@@ -19,7 +19,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 |---|---|---|
 | Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, elemental reactions, four promotion roles, bounded bombers, weapons, enemies and echo loop connected | Broader deterministic combat tests and tuning |
 | Presentation | 2D actors, fixed camera, arena art, weather, inventory/shop/stats UI | Human PIE and packaged-menu regression |
-| Data | CSV runtime foundation plus character/build CSV migration for current playable characters, six trait cards and forge choices; legacy JSON remains migration-only | Domain migration for elements, weapons and slots |
+| Data | CSV runtime foundation plus character/build and element/status/reaction CSV migration for current playable content; legacy JSON remains migration-only | Domain migration for weapons and slots |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
 | Validation | Twenty-two `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
 
@@ -29,7 +29,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 |---|---|---|
 | A - Combat skeleton | Implemented and packaged; tuning remains | Broader determinism and play-feel tuning |
 | B - Planning loop | Partial | Preview/setup beat and direction check |
-| C - Build/run | Functional prototype; characters/current build cards migrated to CSV | Elements, weapons, slots and full content run |
+| C - Build/run | Functional prototype; characters/current build cards and element reactions migrated to CSV | Weapons, slots and full content run |
 | D - Elements/keystones | Element reactions and four promotion roles implemented; tuning remains | Vertical-slice acceptance |
 | E - Validation | Twenty-two automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
 
@@ -49,9 +49,9 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 
 ## Regression risks and technical debt
 
-- Legacy `Content/Data/*.json` is migration-only; character/build runtime authority has moved to CSV, while elements, weapons, slots and some shop/balance values still use provisional C++/DeveloperSettings values until Plans 20-21 switch them.
+- Legacy `Content/Data/*.json` is migration-only; character/build and element/status/reaction runtime authority has moved to CSV, while weapons, slots and some shop/balance values still use provisional C++/DeveloperSettings values until Plan 21 switches them.
 - Runtime arena generation has no dedicated serialized test-map pipeline.
 - Projectile damage, pause/restart/quit, round advancement, weather and the new menus lack deterministic automation.
 - Shared weapon, enemy and run-flow paths changed for Plans 14-16; human PIE should regress player/echo attacks, role transitions, forge/card sequencing and bomber escape behavior together.
 - Human PIE remains necessary for movement, combat feel, echo clarity, UI glyphs/DPI and full menu interaction.
-- CSV negative fixtures currently repeat complete domain tables. Plan 20 must replace this with a production-baseline-plus-override fixture builder before adding more required domain tables.
+- CSV negative fixtures use a production-baseline-plus-local-override builder in Python and C++ automation; new fixtures should only store changed CSV files.

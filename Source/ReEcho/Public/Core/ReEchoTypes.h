@@ -206,5 +206,9 @@ struct REECHO_API FReEchoElementState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bEnhancedNextReaction = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float EnhancementMultiplier = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EReEchoElement BlockedAttachment = EReEchoElement::None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap<FName, float> ActiveStatusUntilSeconds;
 };

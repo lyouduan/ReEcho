@@ -1,0 +1,5 @@
+Id,SourceWorkbookId,Role,DisplayName,DisplayNameKey,ColorHex,VisualKey,Enabled,DisabledReason
+Flame,Y_Flame,Trigger,Flame,Element.Flame,#FF1F06,Fire,true,
+Lightning,Y_Lightning,Trigger,Lightning,Element.Lightning,#B455FF,Lightning,true,
+Grass,Y_Grass,Attachment,Grass,Element.Grass,#29D933,Grass,true,
+Water,Y_Water,Attachment,Water,Element.Water,#146BFF,Water,true,

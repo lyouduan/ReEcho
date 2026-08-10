@@ -1,6 +1,8 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 
+#include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Guid.h"
 #include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -9,8 +11,33 @@ namespace
 {
 FString GetCsvFixtureDirectory(const TCHAR* FixtureName)
 {
-	return FPaths::Combine(
-	    FPaths::ProjectContentDir(), TEXT("Data"), TEXT("TestFixtures"), TEXT("CsvRuntime"), FixtureName);
+	const FString SourceDataDirectory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data"));
+	const FString FixtureDirectory =
+	    FPaths::Combine(SourceDataDirectory, TEXT("TestFixtures"), TEXT("CsvRuntime"), FixtureName);
+	const FString AssembledDirectory =
+	    FPaths::Combine(FPaths::ProjectSavedDir(),
+	                    TEXT("Automation"),
+	                    TEXT("CsvRuntime"),
+	                    FString::Printf(TEXT("%s_%s"), FixtureName, *FGuid::NewGuid().ToString(EGuidFormats::Digits)));
+
+	IFileManager& FileManager = IFileManager::Get();
+	FileManager.MakeDirectory(*AssembledDirectory, true);
+
+	TArray<FString> ProductionCsvFiles;
+	FileManager.FindFiles(ProductionCsvFiles, *FPaths::Combine(SourceDataDirectory, TEXT("*.csv")), true, false);
+	for (const FString& FileName : ProductionCsvFiles)
+	{
+		FileManager.Copy(*FPaths::Combine(AssembledDirectory, FileName),
+		                 *FPaths::Combine(SourceDataDirectory, FileName));
+	}
+
+	TArray<FString> OverrideCsvFiles;
+	FileManager.FindFiles(OverrideCsvFiles, *FPaths::Combine(FixtureDirectory, TEXT("*.csv")), true, false);
+	for (const FString& FileName : OverrideCsvFiles)
+	{
+		FileManager.Copy(*FPaths::Combine(AssembledDirectory, FileName), *FPaths::Combine(FixtureDirectory, FileName));
+	}
+	return AssembledDirectory;
 }
 }
 
@@ -60,6 +87,30 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestEqual(TEXT("Health card has max-health and recovery effects"), HealthCard->Effects.Num(), 2);
+
+	const FReEchoCsvElementRow* Lightning = Snapshot->FindElement(EReEchoElement::Lightning);
+	if (!TestTrue(TEXT("Lightning element is registered from CSV"), Lightning != nullptr))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Lightning is a trigger element"), Lightning->Role, EReEchoElementRole::Trigger);
+	TestEqual(TEXT("Element table contains four rows"), Snapshot->Elements.Num(), 4);
+
+	const FReEchoCsvStatusRow* Burn = Snapshot->FindStatus(TEXT("Z_Burn"));
+	if (!TestTrue(TEXT("Burn status exists"), Burn != nullptr))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Burn duration comes from status CSV"), Burn->DurationSeconds, 3.0f);
+	TestEqual(TEXT("Status table keeps workbook status rows"), Snapshot->Statuses.Num(), 8);
+
+	const FReEchoCsvReactionRow* Conduct = Snapshot->FindReaction(TEXT("Lightning"), TEXT("Water"));
+	if (!TestTrue(TEXT("Ordered Lightning over Water reaction exists"), Conduct != nullptr))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Conduct damage multiplier comes from CSV"), Conduct->DamageMultiplier, 2.0f);
+	TestEqual(TEXT("Six workbook reactions are enabled"), Snapshot->Reactions.Num(), 6);
 	return true;
 }
 
@@ -137,6 +188,8 @@ bool FReEchoCsvInvalidFixturesFailClearlyTest::RunTest(const FString& Parameters
 	    {TEXT("UnsupportedCardEffectTrigger"), TEXT("Trigger")},
 	    {TEXT("UnknownCardEffectTarget"), TEXT("Target")},
 	    {TEXT("InvalidCardEffectBehaviorPair"), TEXT("EffectKind/BehaviorId")},
+	    {TEXT("UnknownFormulaId"), TEXT("FormulaId")},
+	    {TEXT("DuplicateReactionPair"), TEXT("ordered pair")},
 	    {TEXT("UnsupportedVersion"), TEXT("SchemaVersion")}};
 
 	for (const FExpectedFailure& ExpectedFailure : ExpectedFailures)

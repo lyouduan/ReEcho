@@ -20,11 +20,14 @@ public:
 		}
 		UE_LOG(LogReEcho,
 		       Log,
-		       TEXT("ReEcho CSV data loaded from %s with %d runtime smoke rows, %d characters and %d cards"),
+		       TEXT("ReEcho CSV data loaded from %s with %d runtime smoke rows, %d characters, %d cards, %d elements "
+		            "and %d reactions"),
 		       *FReEchoCsvDataRegistry::GetDefaultDataDirectory(),
 		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->RuntimeSmokeRows.Num() : 0,
 		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Characters.Num() : 0,
-		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Cards.Num() : 0);
+		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Cards.Num() : 0,
+		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Elements.Num() : 0,
+		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Reactions.Num() : 0);
 	}
 };
 

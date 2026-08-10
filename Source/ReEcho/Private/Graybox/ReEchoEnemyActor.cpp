@@ -357,8 +357,9 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
                                                 AActor* SourceActor,
                                                 const float ReactionEfficiency)
 {
+	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f;
 	const FReEchoElementHitResult Result =
-	    ReEchoElementReaction::ResolveHit(ElementState, Element, Damage, ReactionEfficiency);
+	    ReEchoElementReaction::ResolveHit(ElementState, Element, Damage, ReactionEfficiency, CurrentTimeSeconds);
 	UpdateElementAttachmentVisual();
 	const FLinearColor DamageColor = Result.bTriggeredReaction ? FLinearColor(1.0f, 0.72f, 0.12f, 1.0f)
 	                                                           : ReEchoElementReaction::GetElementColor(Element);
