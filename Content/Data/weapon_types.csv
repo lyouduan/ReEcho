@@ -1,0 +1,8 @@
+Id,DisplayName,BaseAttackPatternId,SlotProfileId,BaseIntervalSeconds,BaseRangeCm,BaseArcDegrees,BaseProjectileCount,BaseConcentrationDegrees,BaseExplosionRadiusCm,ChainWindowSeconds,Enabled,SourceSheet,SourceRow,DisabledReason
+Dagger,匕首,Pattern.DaggerCombo,SP_DAGGER,0.5,150,120,0,0,0,0.5,true,武器体系W,2,
+LongSword,长剑,Pattern.LongSwordCombo,SP_LONGSWORD,0.8,250,180,0,0,0,0.8,true,武器体系W,3,
+Scythe,镰刀,Pattern.ScytheSweep,SP_SCYTHE,0.5,150,360,0,0,0,0,true,武器体系W,4,
+Whip,鞭,Pattern.WhipCombo,SP_WHIP,0.8,400,180,0,0,0,0.8,true,武器体系W,5,
+Bow,弓,Pattern.BowShot,SP_BOW,1,1000,0,1,0,0,0,true,武器体系W,6,
+Gun,枪,Pattern.GunShot,SP_GUN,0.3,1500,0,1,0,0,0,true,武器体系W,7,
+Staff,法杖,Pattern.StaffProjectile,SP_STAFF,1.2,1000,0,1,0,200,0,true,武器体系W,8,

@@ -4,49 +4,6 @@
 #include "Engine/DeveloperSettings.h"
 #include "ReEchoBalanceSettings.generated.h"
 
-UENUM(BlueprintType)
-enum class EReEchoWeaponSlot : uint8
-{
-	None = 0,
-	PhysicalOrb = 1,
-	Sword = 2,
-	ElementalOrb = 3
-};
-
-USTRUCT(BlueprintType)
-
-struct REECHO_API FReEchoWeaponConfig
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	EReEchoWeaponSlot Slot = EReEchoWeaponSlot::None;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FName WeaponId;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FText DisplayName;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.01"))
-	float Interval = 0.55f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0"))
-	float Range = 260.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0"))
-	float PhysicalCoefficient = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0"))
-	float ElementalCoefficient = 0.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0", ClampMax = "360.0"))
-	float ArcDegrees = 0.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FLinearColor ProjectileColor = FLinearColor::White;
-};
-
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "ReEcho Balance"))
 
 class REECHO_API UReEchoBalanceSettings : public UDeveloperSettings
@@ -135,6 +92,4 @@ public:
 	FName DefaultCharacterId = TEXT("J_CAT");
 
 	/** Project Settings 中可编辑、打包时随 Game 配置发布的运行时武器定义。 */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons")
-	TArray<FReEchoWeaponConfig> Weapons;
 };

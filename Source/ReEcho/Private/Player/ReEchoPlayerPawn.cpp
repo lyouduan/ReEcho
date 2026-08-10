@@ -1,5 +1,6 @@
 #include "Player/ReEchoPlayerPawn.h"
 
+#include "ReEcho.h"
 #include "AbilitySystem/ReEchoPlayerAbilities.h"
 #include "AbilitySystem/ReEchoCombatAttributeSet.h"
 #include "AbilitySystem/ReEchoGameplayTags.h"
@@ -8,6 +9,7 @@
 #include "Camera/CameraComponent.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Components/BillboardComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -133,9 +135,9 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 
 void AReEchoPlayerPawn::RestoreEquippedWeapon(const FName WeaponId)
 {
-	if (Weapon)
+	if (Weapon && !Weapon->SelectWeaponById(WeaponId))
 	{
-		Weapon->SelectWeaponById(WeaponId);
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot restore equipped WeaponId '%s'"), *WeaponId.ToString());
 	}
 }
 
@@ -464,33 +466,42 @@ bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 
 bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot1Ability()
 {
-	return ExecuteSelectWeaponAbility(EReEchoWeaponSlot::PhysicalOrb, TEXT("W_J_02"));
+	return ExecuteSelectWeaponAbility(EReEchoInputSlot::Slot1);
 }
 
 bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot2Ability()
 {
-	return ExecuteSelectWeaponAbility(EReEchoWeaponSlot::Sword, TEXT("W_J_01"));
+	return ExecuteSelectWeaponAbility(EReEchoInputSlot::Slot2);
 }
 
 bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot3Ability()
 {
-	return ExecuteSelectWeaponAbility(EReEchoWeaponSlot::ElementalOrb, TEXT("W_J_03"));
+	return ExecuteSelectWeaponAbility(EReEchoInputSlot::Slot3);
 }
 
-bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoWeaponSlot WeaponSlot, const FName WeaponId)
+bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoInputSlot InputSlot)
 {
 	if (!Weapon)
 	{
 		return false;
 	}
 
-	Weapon->SelectWeapon(WeaponSlot);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvWeaponRow* Definition = Snapshot.IsValid() ? Snapshot->FindWeaponByInputSlot(InputSlot) : nullptr;
+	if (!Definition)
+	{
+		return false;
+	}
+	if (!Weapon->SelectWeaponById(Definition->Id))
+	{
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot select configured WeaponId '%s'"), *Definition->Id.ToString());
+	}
 
 	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
 	{
-		RunSubsystem->SetEquippedWeapon(WeaponId);
+		RunSubsystem->SetEquippedWeapon(Definition->Id);
 		Recorder->UpdateBuildSnapshot(RunSubsystem->CurrentBuild);
-		OnWeaponChanged.Broadcast(WeaponId);
+		OnWeaponChanged.Broadcast(Definition->Id);
 	}
 
 	return true;

@@ -28,6 +28,11 @@ CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON �
 - `elements.csv`：canonical 元素 ID、触发/附着角色、展示键、颜色和视觉键。
 - `statuses.csv`：元素反应需要的状态 ID、持续时间、叠加/刷新/互斥策略和已注册状态行为。
 - `reactions.csv`：六个 ordered 元素反应，使用触发/附着元素 ID、已注册反应行为、白名单 `FormulaId`、半径、状态引用和回响/暴击规则。
+- `weapon_types.csv`：七个稳定武器类型/基础 pattern。
+- `weapons.csv`：具体运行时 `WeaponId`、 legacy `InputSlot`、初始选择顺序、启用状态和 data revision。
+- `attack_steps.csv`：有序攻击 pattern 阶段。
+- `slot_types.csv` / `slot_profiles.csv`：配件槽类型和各武器类型允许槽位。
+- `parts.csv` / `part_effects.csv`：78 条武器插槽源行审计和启用配件的一对多 typed effects。
 - `TestFixtures/CsvRuntime/`：自动化用的正向和负向 fixtures，不是生产数据。
 
 ## 表目录
@@ -45,6 +50,13 @@ CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON �
 | `Elements` | `Content/Data/elements.csv` | 元素身份、触发/附着角色、展示键和颜色 |
 | `Statuses` | `Content/Data/statuses.csv` | 状态行为、持续时间、叠加/刷新/互斥策略 |
 | `Reactions` | `Content/Data/reactions.csv` | ordered 元素反应、白名单公式、参数、状态引用和回响/暴击规则 |
+| `WeaponTypes` | `Content/Data/weapon_types.csv` | 稳定武器类型和基础 pattern |
+| `Weapons` | `Content/Data/weapons.csv` | 具体 WeaponId、InputSlot、LoadoutOrder、启用状态和 data revision |
+| `AttackSteps` | `Content/Data/attack_steps.csv` | 有序攻击 pattern 阶段 |
+| `SlotTypes` | `Content/Data/slot_types.csv` | Core/Grip/Blade 等配件槽 ID |
+| `SlotProfiles` | `Content/Data/slot_profiles.csv` | 各武器类型允许的配件槽 |
+| `Parts` | `Content/Data/parts.csv` | 78 条带 SourceSheet/SourceRow 的武器插槽审计行 |
+| `PartEffects` | `Content/Data/part_effects.csv` | 启用配件的一对多 typed effects |
 
 自动化 fixture 目录：`Content/Data/TestFixtures/CsvRuntime/`
 
@@ -58,7 +70,10 @@ CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON �
 | `UnknownBehavior` | `Content/Data/TestFixtures/CsvRuntime/UnknownBehavior/` | 未注册 `BehaviorId` 负例 |
 | `UnknownEffectKind` | `Content/Data/TestFixtures/CsvRuntime/UnknownEffectKind/` | 未注册 `EffectKind` 负例 |
 | `UnknownFormulaId` | `Content/Data/TestFixtures/CsvRuntime/UnknownFormulaId/` | 未注册 `FormulaId` 负例 |
+| `UnknownWeaponReference` | `Content/Data/TestFixtures/CsvRuntime/UnknownWeaponReference/` | 角色默认武器引用未知/未启用武器负例 |
 | `DuplicateReactionPair` | `Content/Data/TestFixtures/CsvRuntime/DuplicateReactionPair/` | 重复 ordered reaction pair 负例 |
+| `DuplicateWeaponInputSlot` | `Content/Data/TestFixtures/CsvRuntime/DuplicateWeaponInputSlot/` | 重复/非法热键武器映射负例 |
+| `InvalidWeaponPartEffectBehaviorPair` | `Content/Data/TestFixtures/CsvRuntime/InvalidWeaponPartEffectBehaviorPair/` | 武器配件 EffectKind/BehaviorId 不匹配负例 |
 | `IllegalRange` | `Content/Data/TestFixtures/CsvRuntime/IllegalRange/` | 数值越界负例 |
 | `UnsupportedVersion` | `Content/Data/TestFixtures/CsvRuntime/UnsupportedVersion/` | 不支持 schema 版本负例 |
 

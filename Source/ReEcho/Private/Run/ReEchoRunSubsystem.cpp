@@ -1,7 +1,7 @@
 #include "Run/ReEchoRunSubsystem.h"
 
-#include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Core/ReEchoBalanceSettings.h"
 #include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoRunSaveGame.h"
@@ -35,6 +35,7 @@ FString GetBuildConfigurationError(const FReEchoBuildSnapshot& Build)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindWeapon(Build.WeaponId) : nullptr;
 	if (!Snapshot.IsValid())
 	{
 		return TEXT("CSV snapshot is unavailable");
@@ -47,16 +48,22 @@ FString GetBuildConfigurationError(const FReEchoBuildSnapshot& Build)
 	{
 		return FString::Printf(TEXT("CharacterId '%s' is disabled"), *Build.CharacterId.ToString());
 	}
-
-	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
-	const bool bWeaponConfigured = Settings && Settings->Weapons.ContainsByPredicate(
-	                                               [&Build](const FReEchoWeaponConfig& Weapon)
-	                                               {
-		                                               return Weapon.WeaponId == Build.WeaponId;
-	                                               });
-	return bWeaponConfigured
-	           ? FString()
-	           : FString::Printf(TEXT("WeaponId '%s' is not configured"), *Build.WeaponId.ToString());
+	if (!Weapon)
+	{
+		return FString::Printf(TEXT("WeaponId '%s' is not configured"), *Build.WeaponId.ToString());
+	}
+	if (!Weapon->bEnabled)
+	{
+		return FString::Printf(TEXT("WeaponId '%s' is disabled"), *Build.WeaponId.ToString());
+	}
+	if (Build.WeaponDataRevision != Weapon->DataRevision)
+	{
+		return FString::Printf(TEXT("WeaponId '%s' data revision mismatch saved=%d current=%d"),
+		                       *Build.WeaponId.ToString(),
+		                       Build.WeaponDataRevision,
+		                       Weapon->DataRevision);
+	}
+	return FString();
 }
 
 void RequireConfiguredBuild(const FReEchoBuildSnapshot& Build, const TCHAR* Context)
@@ -230,6 +237,8 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	}
 
 	const FReEchoCsvCharacterRow* Character = Snapshot->FindCharacter(CharacterId);
+	const FName RequestedWeaponId = WeaponId.IsNone() && Character ? Character->DefaultWeaponId : WeaponId;
+	const FReEchoCsvWeaponRow* Weapon = Snapshot->FindWeapon(RequestedWeaponId);
 	if (!Character)
 	{
 		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': character was not found"),
@@ -242,9 +251,22 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 		                               *CharacterId.ToString());
 		return Result;
 	}
+	if (!Weapon)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run with WeaponId '%s': weapon was not found"),
+		                               *RequestedWeaponId.ToString());
+		return Result;
+	}
+	if (!Weapon->bEnabled)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run with WeaponId '%s': weapon is disabled"),
+		                               *RequestedWeaponId.ToString());
+		return Result;
+	}
 
 	Result.Build.CharacterId = Character->Id;
-	Result.Build.WeaponId = WeaponId.IsNone() ? Character->DefaultWeaponId : WeaponId;
+	Result.Build.WeaponId = Weapon->Id;
+	Result.Build.WeaponDataRevision = Weapon->DataRevision;
 	Result.Build.Stats = Character->BaseStats;
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
 	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
@@ -300,7 +322,22 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 
 void UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
 {
-	CurrentBuild.WeaponId = WeaponId;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindWeapon(WeaponId) : nullptr;
+	if (!Snapshot.IsValid())
+	{
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot equip WeaponId '%s': CSV snapshot is unavailable"), *WeaponId.ToString());
+	}
+	if (!Weapon)
+	{
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot equip WeaponId '%s': weapon was not found"), *WeaponId.ToString());
+	}
+	if (!Weapon->bEnabled)
+	{
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot equip WeaponId '%s': weapon is disabled"), *WeaponId.ToString());
+	}
+	CurrentBuild.WeaponId = Weapon->Id;
+	CurrentBuild.WeaponDataRevision = Weapon->DataRevision;
 }
 
 void UReEchoRunSubsystem::BeginEncounter()
@@ -629,6 +666,15 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 		return false;
 	}
 	RequireConfiguredBuild(SaveGame.CurrentBuild, TEXT("Cannot restore saved run"));
+	for (const FReEchoRecording& Recording : SaveGame.RecordingHistory)
+	{
+		RequireConfiguredBuild(Recording.BuildSnapshot, TEXT("Cannot restore saved recording"));
+	}
+	if (SaveGame.EncounterRuntimeState.bValid)
+	{
+		RequireConfiguredBuild(SaveGame.EncounterRuntimeState.ActiveRecording.BuildSnapshot,
+		                       TEXT("Cannot restore active recording"));
+	}
 
 	EncounterIndex = FMath::Max(0, SaveGame.EncounterIndex);
 	TimeShards = FMath::Max(0, SaveGame.TimeShards);

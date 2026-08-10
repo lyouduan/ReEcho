@@ -2,11 +2,12 @@
 #include "Misc/AutomationTest.h"
 #include "AbilitySystem/ReEchoPlayerAbilities.h"
 #include "AbilitySystemComponent.h"
-#include "Player/ReEchoPlayerPawn.h"
-#include "Core/ReEchoTypes.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Core/ReEchoTypes.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
 #include "Graybox/ReEchoEchoActor.h"
+#include "Player/ReEchoPlayerPawn.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 
@@ -102,17 +103,27 @@ bool FReEchoFinalBossVictoryTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponConfigurationTest,
-                                 "ReEcho.Config.WeaponsAreValid",
+                                 "ReEcho.Data.WeaponsAreValid",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 {
 	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
-	TestTrue(TEXT("At least one weapon is configured"), !Settings->Weapons.IsEmpty());
+	const FReEchoCsvLoadResult LoadResult = FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	if (!TestTrue(TEXT("Default CSV data loads"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!TestTrue(TEXT("CSV snapshot is available"), Snapshot.IsValid()))
+	{
+		return false;
+	}
 
 	AReEchoPlayerPawn* CharacterPawn = NewObject<AReEchoPlayerPawn>(GetTransientPackage());
 	const TArray<FName> CharacterIds = {
-		TEXT("J_CAT"), TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
+	    TEXT("J_CAT"), TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
 	for (const FName CharacterId : CharacterIds)
 	{
 		TestTrue(TEXT("Configured player character texture exists"), CharacterPawn->ConfigureCharacter(CharacterId));
@@ -125,19 +136,67 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Configured echo texture exists"), EchoActor->ConfigureEchoAppearance(CharacterId));
 	}
 
-	TSet<EReEchoWeaponSlot> Slots;
-	TSet<FName> WeaponIds;
-	for (const FReEchoWeaponConfig& Weapon : Settings->Weapons)
+	const TArray<FReEchoCsvWeaponRow> StartWeapons = Snapshot->GetStartSelectableWeapons();
+	TestEqual(TEXT("CSV has exactly three start-selectable weapons"), StartWeapons.Num(), 3);
+	if (StartWeapons.Num() == 3)
 	{
-		TestTrue(TEXT("Weapon slot is assigned"), Weapon.Slot != EReEchoWeaponSlot::None);
-		TestTrue(TEXT("Weapon id is assigned"), !Weapon.WeaponId.IsNone());
-		TestTrue(TEXT("Weapon interval is positive"), Weapon.Interval > 0.0f);
-		TestTrue(TEXT("Weapon range is positive"), Weapon.Range > 0.0f);
-		TestFalse(TEXT("Weapon slots are unique"), Slots.Contains(Weapon.Slot));
-		TestFalse(TEXT("Weapon ids are unique"), WeaponIds.Contains(Weapon.WeaponId));
-		Slots.Add(Weapon.Slot);
-		WeaponIds.Add(Weapon.WeaponId);
+		TestEqual(TEXT("Legacy hotkey 1 remains W_J_02"), StartWeapons[0].Id, FName(TEXT("W_J_02")));
+		TestEqual(TEXT("Legacy hotkey 2 remains W_J_01"), StartWeapons[1].Id, FName(TEXT("W_J_01")));
+		TestEqual(TEXT("Legacy hotkey 3 remains W_J_03"), StartWeapons[2].Id, FName(TEXT("W_J_03")));
 	}
+	const FReEchoCsvWeaponRow* Slot1Weapon = Snapshot->FindWeaponByInputSlot(EReEchoInputSlot::Slot1);
+	const FReEchoCsvWeaponRow* Slot2Weapon = Snapshot->FindWeaponByInputSlot(EReEchoInputSlot::Slot2);
+	const FReEchoCsvWeaponRow* Slot3Weapon = Snapshot->FindWeaponByInputSlot(EReEchoInputSlot::Slot3);
+	TestTrue(TEXT("Hotkey 1 has a CSV weapon"), Slot1Weapon != nullptr);
+	TestTrue(TEXT("Hotkey 2 has a CSV weapon"), Slot2Weapon != nullptr);
+	TestTrue(TEXT("Hotkey 3 has a CSV weapon"), Slot3Weapon != nullptr);
+	if (Slot1Weapon && Slot2Weapon && Slot3Weapon)
+	{
+		TestEqual(TEXT("Hotkey 1 resolves to W_J_02"), Slot1Weapon->Id, FName(TEXT("W_J_02")));
+		TestEqual(TEXT("Hotkey 2 resolves to W_J_01"), Slot2Weapon->Id, FName(TEXT("W_J_01")));
+		TestEqual(TEXT("Hotkey 3 resolves to W_J_03"), Slot3Weapon->Id, FName(TEXT("W_J_03")));
+	}
+
+	const FReEchoCsvWeaponRow* Scythe = Snapshot->FindEnabledWeapon(TEXT("W_J_04"));
+	TestTrue(TEXT("W_J_04 is an enabled concrete weapon"), Scythe != nullptr);
+	if (Scythe)
+	{
+		TestEqual(TEXT("W_J_04 uses Scythe type"), Scythe->WeaponTypeId, FName(TEXT("Scythe")));
+		TestEqual(TEXT("W_J_04 uses the Scythe pattern"), Scythe->AttackPatternId, FName(TEXT("Pattern.ScytheSweep")));
+	}
+
+	int32 EnabledCoreCount = 0;
+	int32 DisabledUnnamedCount = 0;
+	bool bHasStrengthGrip = false;
+	bool bHasPatternReplacement = false;
+	bool bHasUniqueBehavior = false;
+	for (const TPair<FName, FReEchoCsvPartRow>& PartPair : Snapshot->Parts)
+	{
+		const FReEchoCsvPartRow& Part = PartPair.Value;
+		if (Part.PartId == TEXT("None") && !Part.bEnabled)
+		{
+			++DisabledUnnamedCount;
+		}
+		if (Part.bEnabled && Part.SlotTypeId == TEXT("Core"))
+		{
+			++EnabledCoreCount;
+		}
+		if (Part.bEnabled && Part.PartId == TEXT("P_DAGGER_STRENGTH_GRIP"))
+		{
+			bHasStrengthGrip = true;
+		}
+		for (const FReEchoCsvPartEffectRow& Effect : Part.Effects)
+		{
+			bHasPatternReplacement |= Effect.EffectKind == TEXT("AttackPatternReplacement");
+			bHasUniqueBehavior |= Effect.EffectKind == TEXT("UniqueBehavior");
+		}
+	}
+	TestEqual(TEXT("Weapon slots audit keeps all 78 source rows"), Snapshot->Parts.Num(), 78);
+	TestEqual(TEXT("Unnamed source rows remain disabled"), DisabledUnnamedCount, 62);
+	TestTrue(TEXT("At least six generic cores are enabled"), EnabledCoreCount >= 6);
+	TestTrue(TEXT("Power/strength grip is enabled"), bHasStrengthGrip);
+	TestTrue(TEXT("At least one named attack-pattern replacement is enabled"), bHasPatternReplacement);
+	TestTrue(TEXT("At least one named generic event behavior is enabled"), bHasUniqueBehavior);
 
 	return true;
 }

@@ -1,8 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Core/ReEchoBalanceSettings.h"
-#include "Core/ReEchoTypes.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoWeaponActor.generated.h"
 
@@ -24,7 +23,6 @@ public:
 	AReEchoWeaponActor();
 	virtual void Tick(float DeltaSeconds) override;
 	void InitializeWeapon();
-	void SelectWeapon(EReEchoWeaponSlot NewSlot);
 	bool SelectWeaponById(FName WeaponId);
 	/** 在冷却允许时执行当前武器基础攻击，并返回是否成功出手。 */
 	bool TryBasicAttack(UReEchoCombatantComponent* Combatant);
@@ -37,13 +35,22 @@ public:
 
 private:
 	bool ExecuteAttack(UReEchoCombatantComponent* Combatant);
-	bool FireStaffLightWave(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
-	bool FireProjectile(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
-	bool SwingSword(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant);
+	bool FireStaffLightWave(const FReEchoCsvWeaponRow& Definition,
+	                        const FReEchoCsvAttackStepRow& Step,
+	                        UReEchoCombatantComponent* Combatant);
+	bool FireProjectile(const FReEchoCsvWeaponRow& Definition,
+	                    const FReEchoCsvAttackStepRow& Step,
+	                    UReEchoCombatantComponent* Combatant);
+	bool SwingMelee(const FReEchoCsvWeaponRow& Definition,
+	                const FReEchoCsvAttackStepRow& Step,
+	                UReEchoCombatantComponent* Combatant);
+	const FReEchoCsvWeaponRow* FindEquippedDefinition() const;
+	FReEchoCsvAttackStepRow ResolveCurrentAttackStep(const FReEchoCsvWeaponRow& Definition) const;
 	EReEchoElement ConsumeNextElement();
 	EReEchoElement PeekNextElement() const;
 	float ApplyRoleDamageModifiers(float BaseDamage, const FReEchoStatBlock& Stats);
 	void UpdateElementIndicator();
+	void RefreshVisualState();
 	void StartSwordAnimation();
 	void SpawnSwordArc();
 
@@ -56,8 +63,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementIndicator;
 
-	TMap<EReEchoWeaponSlot, FReEchoWeaponConfig> Definitions;
-	EReEchoWeaponSlot EquippedSlot = EReEchoWeaponSlot::PhysicalOrb;
+	TMap<FName, FReEchoCsvWeaponRow> Definitions;
+	FName EquippedWeaponId;
 	float AttackCooldown = 0.0f;
 	float SwordAnimationTime = 0.0f;
 	float SwordAnimationDuration = 0.18f;

@@ -165,11 +165,33 @@ bool FReEchoStartRunResolveErrorsTest::RunTest(const FString& Parameters)
 	EnabledCharacter.BaseStats.MovementSpeed = 1.0f;
 	Snapshot.Characters.Add(EnabledCharacter.Id, EnabledCharacter);
 
+	FReEchoCsvWeaponRow EnabledWeapon;
+	EnabledWeapon.Id = TEXT("W_DEFAULT");
+	EnabledWeapon.WeaponTypeId = TEXT("Dagger");
+	EnabledWeapon.AttackPatternId = TEXT("Pattern.DaggerCombo");
+	EnabledWeapon.DisplayName = TEXT("Default Test Weapon");
+	EnabledWeapon.bEnabled = true;
+	EnabledWeapon.DataRevision = 7;
+	Snapshot.Weapons.Add(EnabledWeapon.Id, EnabledWeapon);
+
 	const FReEchoStartRunResolveResult Success =
 	    ReEchoRunData::ResolveStartingBuildFromSnapshot(&Snapshot, TEXT("J_ENABLED"), NAME_None);
 	TestTrue(TEXT("Enabled character resolves"), Success.bSuccess);
 	TestEqual(TEXT("Default weapon comes from character row"), Success.Build.WeaponId, FName(TEXT("W_DEFAULT")));
+	TestEqual(TEXT("Weapon revision is captured in the build snapshot"), Success.Build.WeaponDataRevision, 7);
 	TestEqual(TEXT("Character stats are copied"), Success.Build.Stats.HpMax, 12.0f);
+
+	const FReEchoStartRunResolveResult UnknownWeapon =
+	    ReEchoRunData::ResolveStartingBuildFromSnapshot(&Snapshot, TEXT("J_ENABLED"), TEXT("W_UNKNOWN"));
+	TestFalse(TEXT("Unknown weapon fails"), UnknownWeapon.bSuccess);
+	TestTrue(TEXT("Unknown-weapon error contains WeaponId"), UnknownWeapon.Error.Contains(TEXT("W_UNKNOWN")));
+
+	EnabledWeapon.bEnabled = false;
+	Snapshot.Weapons[EnabledWeapon.Id] = EnabledWeapon;
+	const FReEchoStartRunResolveResult DisabledWeapon =
+	    ReEchoRunData::ResolveStartingBuildFromSnapshot(&Snapshot, TEXT("J_ENABLED"), NAME_None);
+	TestFalse(TEXT("Disabled default weapon fails"), DisabledWeapon.bSuccess);
+	TestTrue(TEXT("Disabled-weapon error explains disabled state"), DisabledWeapon.Error.Contains(TEXT("disabled")));
 	return true;
 }
 

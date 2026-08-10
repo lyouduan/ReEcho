@@ -19,7 +19,7 @@ class UReEchoRecorderComponent;
 class UStaticMeshComponent;
 class UTexture2D;
 
-enum class EReEchoWeaponSlot : uint8;
+enum class EReEchoInputSlot : uint8;
 struct FGameplayTag;
 struct FOnAttributeChangeData;
 
@@ -114,7 +114,7 @@ private:
 	void GrantStartupAbilities();
 	void AbilityInputPressed(const FGameplayTag& InputTag);
 	void AbilityInputReleased(const FGameplayTag& InputTag);
-	bool ExecuteSelectWeaponAbility(EReEchoWeaponSlot WeaponSlot, FName WeaponId);
+	bool ExecuteSelectWeaponAbility(EReEchoInputSlot InputSlot);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */

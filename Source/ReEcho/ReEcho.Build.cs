@@ -31,5 +31,12 @@ public class ReEcho : ModuleRules
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/elements.csv", StagedFileType.NonUFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/statuses.csv", StagedFileType.NonUFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/reactions.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/weapon_types.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/weapons.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/attack_steps.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/slot_types.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/slot_profiles.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/parts.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/part_effects.csv", StagedFileType.NonUFS);
     }
 }

@@ -100,3 +100,108 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Reactions,ClearsAttachment,Bool,true,,,,true|false,Whether the reaction consumes current attachment.
 1,Reactions,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,Reactions,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,WeaponTypes,Id,StableId,true,,,,Dagger|LongSword|Scythe|Whip|Bow|Gun|Staff,Stable weapon type id.
+1,WeaponTypes,DisplayName,Text,true,,,,,Designer-visible type name.
+1,WeaponTypes,BaseAttackPatternId,AttackPatternId,true,,,,Pattern.DaggerCombo|Pattern.LongSwordCombo|Pattern.ScytheSweep|Pattern.WhipCombo|Pattern.BowShot|Pattern.GunShot|Pattern.StaffProjectile,Registered base attack pattern id.
+1,WeaponTypes,SlotProfileId,StableId,true,,,,,Slot profile family id.
+1,WeaponTypes,BaseIntervalSeconds,Float,true,0,60,,,Base attack interval in seconds.
+1,WeaponTypes,BaseRangeCm,Float,true,0,100000,,,Base attack range in Unreal centimeters.
+1,WeaponTypes,BaseArcDegrees,Float,true,0,360,,,Base melee arc.
+1,WeaponTypes,BaseProjectileCount,Int,true,0,1000000,,,Base projectile count.
+1,WeaponTypes,BaseConcentrationDegrees,Float,true,0,360,,,Base projectile spread.
+1,WeaponTypes,BaseExplosionRadiusCm,Float,true,0,100000,,,Base explosion radius.
+1,WeaponTypes,ChainWindowSeconds,Float,true,0,60,,,Combo continuation window.
+1,WeaponTypes,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,WeaponTypes,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,WeaponTypes,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,WeaponTypes,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,Weapons,Id,StableId,true,,,,,Stable runtime WeaponId.
+1,Weapons,WeaponTypeId,ForeignKey,true,,,WeaponTypes,,References WeaponTypes.Id.
+1,Weapons,DisplayName,Text,true,,,,,Designer-visible weapon name.
+1,Weapons,VisualKey,StableId,true,,,,MoonStaff|CrescentBlade|ElementalOrb,Visual presentation key.
+1,Weapons,InputSlot,StableId,true,,,,None|1|2|3,Current hotkey slot; not a WeaponId or part SlotTypeId.
+1,Weapons,StartSelectable,Bool,true,,,,true|false,Whether the initial UI offers this weapon.
+1,Weapons,LoadoutOrder,Int,true,0,1000000,,,Stable start UI order for StartSelectable rows.
+1,Weapons,AttackPatternId,AttackPatternId,true,,,,,Registered attack pattern id for this concrete weapon.
+1,Weapons,AttackIntervalSeconds,Float,true,0.01,60,,,Attack cooldown base in seconds.
+1,Weapons,PhysicalCoefficient,Float,true,0,100,,,Physical attack coefficient.
+1,Weapons,ElementalCoefficient,Float,true,0,100,,,Elemental attack coefficient.
+1,Weapons,RangeCm,Float,true,0,100000,,,Runtime range in Unreal centimeters.
+1,Weapons,ArcDegrees,Float,true,0,360,,,Runtime melee arc.
+1,Weapons,ProjectileCount,Int,true,0,1000000,,,Runtime projectile count.
+1,Weapons,ConcentrationDegrees,Float,true,0,360,,,Runtime projectile spread.
+1,Weapons,ExplosionRadiusCm,Float,true,0,100000,,,Runtime explosion radius.
+1,Weapons,DataRevision,Int,true,0,1000000,,,Comparable weapon definition revision for saves and recordings.
+1,Weapons,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Weapons,SourceSheet,Text,true,,,,,Workbook or compatibility source sheet.
+1,Weapons,SourceRow,Int,true,0,1000000,,,Workbook or compatibility source row.
+1,Weapons,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,AttackSteps,Id,StableId,true,,,,,Stable attack step row id.
+1,AttackSteps,AttackPatternId,AttackPatternId,true,,,,,Registered attack pattern id.
+1,AttackSteps,StepIndex,Int,true,0,1000000,,,Ordered step index within the pattern.
+1,AttackSteps,DurationSeconds,Float,true,0,60,,,Step duration in seconds.
+1,AttackSteps,PhysicalCoefficient,Float,true,0,100,,,Physical coefficient for this step.
+1,AttackSteps,ElementalCoefficient,Float,true,0,100,,,Elemental coefficient for this step.
+1,AttackSteps,RangeCm,Float,true,0,100000,,,Step range in Unreal centimeters.
+1,AttackSteps,ArcDegrees,Float,true,0,360,,,Step melee arc.
+1,AttackSteps,ProjectileCount,Int,true,0,1000000,,,Step projectile count.
+1,AttackSteps,ConcentrationDegrees,Float,true,0,360,,,Step projectile spread.
+1,AttackSteps,ExplosionRadiusCm,Float,true,0,100000,,,Step explosion radius.
+1,AttackSteps,MovementCm,Float,true,0,100000,,,Step movement distance.
+1,AttackSteps,Invulnerable,Bool,true,,,,true|false,Whether the step grants invulnerability.
+1,AttackSteps,BehaviorId,BehaviorId,true,,,,Weapon.AttackStep|Weapon.DashStrike,Registered step behavior.
+1,AttackSteps,FormulaId,FormulaId,true,,,,Weapon.PhysicalOrElementalCoefficient,Registered step formula.
+1,AttackSteps,ConditionId,StableId,true,,,,None,Optional step condition id.
+1,AttackSteps,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,AttackSteps,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,AttackSteps,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,AttackSteps,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,SlotTypes,Id,StableId,true,,,,,Part slot type id.
+1,SlotTypes,DisplayName,Text,true,,,,,Designer-visible slot type name.
+1,SlotTypes,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,SlotTypes,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,SlotTypes,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,SlotTypes,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,SlotProfiles,Id,StableId,true,,,,,Stable slot profile row id.
+1,SlotProfiles,WeaponTypeId,StableId,true,,,,Any|Dagger|LongSword|Scythe|Whip|Bow|Gun|Staff,Weapon type allowed for this slot row.
+1,SlotProfiles,SlotTypeId,ForeignKey,true,,,SlotTypes,,References SlotTypes.Id.
+1,SlotProfiles,SlotCount,Int,true,0,1000000,,,Number of slots of this type.
+1,SlotProfiles,Required,Bool,true,,,,true|false,Whether this slot is required.
+1,SlotProfiles,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,SlotProfiles,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,SlotProfiles,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,SlotProfiles,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,Parts,Id,StableId,true,,,,,Stable audit row id; enabled rows use this as PartId.
+1,Parts,PartId,StableId,true,,,,None,Stable runtime PartId or None for unnamed audit-only source rows.
+1,Parts,WeaponTypeId,StableId,true,,,,Any|Dagger|LongSword|Scythe|Whip|Bow|Gun|Staff,Allowed weapon type.
+1,Parts,SlotTypeId,ForeignKey,true,,,SlotTypes,,References SlotTypes.Id.
+1,Parts,DisplayName,Text,false,,,,,Designer-visible part name; blank unnamed rows remain disabled.
+1,Parts,Description,Text,false,,,,,Designer-visible effect description.
+1,Parts,Rarity,StableId,true,,,,None|Common|Rare,Part rarity.
+1,Parts,Tags,StableIdList,true,,,,,Pipe-separated tags.
+1,Parts,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Parts,ReviewStatus,StableId,true,,,,Approved|Unimplemented,Review status.
+1,Parts,ImplementationStatus,StableId,true,,,,Implemented|Disabled,Implementation status.
+1,Parts,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,Parts,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,Parts,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,PartEffects,Id,StableId,true,,,,,Stable part effect row id.
+1,PartEffects,PartId,ForeignKey,true,,,Parts,,References enabled Parts.Id.
+1,PartEffects,Order,Int,true,0,1000000,,,Effect order within part.
+1,PartEffects,Trigger,StableId,true,,,,OnEquip|OnKill,Effect trigger.
+1,PartEffects,EffectKind,EffectKind,true,,,,WeaponDamageChannel|StatModifier|AttackPatternReplacement|UniqueBehavior,Registered effect kind.
+1,PartEffects,Target,StableId,true,,,,DamageChannel|AttackSpeed|AttackIntervalSeconds|PhysicalCoefficient|ElementalCoefficient|AttackPattern|OnKill,Typed effect target.
+1,PartEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
+1,PartEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
+1,PartEffects,BehaviorId,BehaviorId,true,,,,Part.CoreDamageChannel|Part.StatModifier|Part.AttackPatternReplacement|Part.OnKillHealPercent,Registered behavior id.
+1,PartEffects,FormulaId,FormulaId,true,,,,None,Registered formula id or None.
+1,PartEffects,AttackPatternId,AttackPatternId,true,,,,None|Pattern.DaggerDashOnly,Registered attack pattern id or None.
+1,PartEffects,ParamName,StableId,true,,,,None,Typed parameter name.
+1,PartEffects,ParamValue,Float,true,-100000,100000,,,Typed parameter value.
+1,PartEffects,DurationSeconds,Float,true,0,3600,,,Effect duration.
+1,PartEffects,CooldownSeconds,Float,true,0,3600,,,Effect cooldown.
+1,PartEffects,StackPolicy,StableId,true,,,,Unique|Stackable,Stack policy.
+1,PartEffects,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,PartEffects,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,PartEffects,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,PartEffects,SourceRow,Int,true,0,1000000,,,Workbook source row.

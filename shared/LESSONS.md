@@ -11,7 +11,7 @@
 | 工种 | Plan 标签 | 经验章节 | 条目数 |
 |------|----------|---------|--------|
 | 程序化生成 / 地编 | `PCG` | [§PCG](#pcg) | 8 |
-| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 31 |
+| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 32 |
 | 关卡搭建 | `LEVEL` | [§LEVEL](#level) | 4 |
 | 美术 / 资产管线 | `ART` | [§ART](#art) | 18 |
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
@@ -389,6 +389,13 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 **来源：ReEcho Plan 19**
 
 结算抽卡后紧接商城时，抽卡关闭与商城打开之间必须保持暂停和菜单输入状态；商城关闭时再统一恢复输入并启动下一关。用显式“关闭后继续本轮”标记区分自动结算商城与玩家手动打开的商城，避免复用同一个关闭回调后出现误开下一关或一帧恢复战斗。
+
+---
+### GAME-32. WeaponId/InputSlot/SlotTypeId must stay separate [UE]
+
+**Source: ReEcho Plan 24**
+
+Do not reuse one field for weapon type, concrete runtime weapon, hotkey slot and part slot. `WeaponTypeId` is the family/pattern axis (`Dagger`, `LongSword`, `Scythe`, ...); `WeaponId` is the stable save/recording/runtime identity (`W_J_02`, `W_J_01`, `W_J_03`, `W_J_04`); `InputSlot` is only the legacy hotkey mapping 1/2/3; `SlotTypeId` is the equipment part socket (`Core`, `Grip`, `Blade`, ...). Save/recording snapshots should store stable `WeaponId` plus data revision, and restore must fail loudly when the current CSV definition is missing, disabled or revision-incompatible. Unnamed workbook part rows are audit rows, not future-proof IDs: keep them disabled with `PartId=None`, `SourceSheet` and `SourceRow`.
 
 ---
 ## §LEVEL — 关卡搭建

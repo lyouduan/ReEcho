@@ -101,6 +101,8 @@ struct REECHO_API FReEchoBuildSnapshot
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName WeaponId = "W_J_01";
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 WeaponDataRevision = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FName> Cards;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FReEchoStatBlock Stats;

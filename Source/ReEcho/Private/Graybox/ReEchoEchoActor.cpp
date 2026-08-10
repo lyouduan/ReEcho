@@ -12,6 +12,7 @@
 #include "Graybox/ReEchoTrajectoryActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoPlaybackComponent.h"
+#include "ReEcho.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -107,7 +108,10 @@ void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const f
 		{
 			InitialWeaponId = Recording.WeaponChanges[0].WeaponId;
 		}
-		Weapon->SelectWeaponById(InitialWeaponId);
+		if (!Weapon->SelectWeaponById(InitialWeaponId))
+		{
+			UE_LOG(LogReEcho, Fatal, TEXT("Cannot initialize echo with WeaponId '%s'"), *InitialWeaponId.ToString());
+		}
 	}
 }
 
@@ -159,7 +163,10 @@ void AReEchoEchoActor::HandleReplayedWeapon(const FName WeaponId, const float)
 {
 	if (Weapon)
 	{
-		Weapon->SelectWeaponById(WeaponId);
+		if (!Weapon->SelectWeaponById(WeaponId))
+		{
+			UE_LOG(LogReEcho, Fatal, TEXT("Cannot replay echo WeaponId '%s'"), *WeaponId.ToString());
+		}
 	}
 }
 

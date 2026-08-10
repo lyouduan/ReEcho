@@ -118,17 +118,58 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 
 ### Changed
 
+- Created the isolated worktree from local `main` commit `28c21b8` on branch `plan/24-weapons-slots-csv`; baseline check found 27 `ReEcho.*` automation tests before implementation.
+- Added seven production weapon-domain CSV tables and staged them in `ReEcho.Build.cs`: `weapon_types.csv`, `weapons.csv`, `attack_steps.csv`, `slot_types.csv`, `slot_profiles.csv`, `parts.csv`, `part_effects.csv`.
+- Extended `reecho_data_manifest.csv`, `csv_schema.csv`, `FReEchoCsvDataSnapshot` and `FReEchoCsvDataRegistry` for weapon types, concrete weapons, ordered attack steps, input slots, slot profiles, parts and part effects.
+- Added `ReEchoWeaponCsvReader.*` as an independent domain reader. It validates registered handlers, table references, legacy `W_J_02/W_J_01/W_J_03` hotkey mapping, exactly-three start-selectable weapons, enabled character `DefaultWeaponId` references, attack-step order, slot legality, 78 source part rows and enabled/disabled part batches.
+- Registered weapon-domain `BehaviorId`, `EffectKind`, `FormulaId` and `AttackPatternId` values before default CSV load.
+- Migrated loadout UI, run start/restore/equip, player hotkeys, recorder snapshots, echo playback and `AReEchoWeaponActor` to read the same CSV snapshot. Weapon recordings continue to store stable `WeaponId`, now with `WeaponDataRevision` in `FReEchoBuildSnapshot`.
+- Removed the old `UReEchoBalanceSettings::Weapons` runtime authority and `DefaultGame.ini` weapon rows. GAS remains the cooldown/damage authority; the weapon actor only resolves CSV definitions and dispatches the existing projectile/melee/light-wave paths.
+- Added negative weapon-domain fixtures for unknown default weapon references, duplicate input-slot mapping and invalid part effect behavior pairs. Updated automation to cover CSV weapon loadout order, `W_J_04`, part batches and save/recording revision compatibility.
+
 ### Evidence
+
+- `python scripts/validate_project.py` passed.
+- `.clang-format` was run via `C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\bin\clang-format.exe` on changed C++ files.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` passed.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passed; log reports 27 tests found and 27 success results, exit code 0.
+- `git diff --check` passed; only CRLF conversion warnings were printed by Git.
 
 ### Plan 21–23 and integrated loadout/recording contract adaptation
 
+- Reused Plan 21's immutable snapshot/default-load contract and Plan 22/23's domain-reader/fixture pattern. No Plan 23 element system code was copied; weapon core rows reference stable Plan 23 element/channel IDs only through CSV targets/parameters.
+- Kept the integrated loadout shape: the existing three buttons are still used, but labels/images/options now come from `StartSelectable=true` CSV weapons sorted by `LoadoutOrder`.
+- Preserved legacy recording semantics: `W_J_02` remains InputSlot 1, `W_J_01` remains InputSlot 2 and `W_J_03` remains InputSlot 3. Old recordings using those IDs are not reinterpreted through weapon type names.
+- Save/restore now rejects weapon definition drift by comparing `FReEchoBuildSnapshot::WeaponDataRevision` with the current enabled CSV weapon row; tests were updated to carry the revision in recording history and suspended active recordings.
+
 ### Enabled content batch
+
+- Weapon types: 7 enabled `WeaponTypeId` values from `武器体系W`: `Dagger`, `LongSword`, `Scythe`, `Whip`, `Bow`, `Gun`, `Staff`.
+- Concrete weapons: enabled `W_J_02` Moon Staff (`InputSlot=1`), `W_J_01` Crescent Blade (`InputSlot=2`), `W_J_03` Elemental Reaction (`InputSlot=3`) and new enabled `W_J_04` Harvest Scythe (`WeaponTypeId=Scythe`, `Pattern.ScytheSweep`).
+- Attack patterns: migrated the seven base family patterns plus compatibility/runtime patterns for the existing three weapons and dagger dash replacement.
+- Slots: `Core`, `Grip`, `Blade`, `Arrowhead`, `Bowstring`, `RotaryBlade`, `SwordBlade`, `Muzzle`, `GunAction`, `StaffBody`, `StaffCrystal`, `WhipBody`.
+- Parts enabled from `武器插槽C`: six generic cores (`P_CORE_PRIMORDIAL`, `P_CORE_TIDE`, `P_CORE_FOREST`, `P_CORE_FLAME`, `P_CORE_THUNDER`, `P_CORE_PRISM`), `P_DAGGER_THRUST_GRIP`, `P_DAGGER_STRENGTH_GRIP` and `P_DAGGER_HOLY_BLADE`.
+- Effect coverage: `WeaponDamageChannel` overrides for six cores, `AttackPatternReplacement` for thrust grip, `AttackSpeed` multiply for strength grip and an `OnKill` heal unique behavior for holy blade. Enabled operations cover Add/Multiply/Override.
 
 ### Source rows left disabled and why
 
+- All 78 source rows from `武器插槽C` are represented in `parts.csv` with `SourceSheet/SourceRow`.
+- The 62 unnamed rows are disabled audit rows with `PartId=None`; they are intentionally not assigned long-term IDs based on row number.
+- Named rows left disabled are missing handler support or depend on not-yet-implemented state/behavior batches: invisibility, stun, bleed, arrow split, explosion, pierce, multishot and similar unique behavior rows remain disabled with explicit `DisabledReason`.
+- The disabled rows are not reachable from enabled part effects; validators reject enabled effects on disabled parts and enabled parts without effect rows.
+
 ### Remaining risks
 
+- The current CSV runtime includes definitions and validation for parts/effects, but there is no full in-game equipment UI/application path for arbitrary part loadouts yet. Enabled part behavior coverage is validated structurally and reserved for the next equipment/application slice.
+- `W_J_04` reuses existing visual presentation because this plan did not touch `.uasset`/`.umap` or create new art.
+- Static and automation coverage prove data load, start/equip/restore/recording compatibility and existing combat dispatch; full play-feel tuning for all seven base patterns remains human/PIE work.
+
 ### Human validation requested
+
+- PIE one multi-stage melee weapon (`W_J_01`), one single-shot/ranged weapon (`W_J_02`) and one elemental weapon (`W_J_03`) to confirm rhythm, range, collision and feedback still match the pre-CSV behavior.
+- PIE `W_J_04` through a character/default path or debug setup to verify the Scythe sweep feel with the reused visual.
+- In a future equipment slice, install one core, one numeric grip and one behavior part to verify slot restrictions and applied effects once the UI/application path exists.
+- Edit one weapon numeric value and one part-effect value in CSV, restart the run and confirm the changed data takes effect without recompilation.
 
 ## 执行者启动 prompt
 

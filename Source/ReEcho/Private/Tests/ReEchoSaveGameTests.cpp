@@ -22,6 +22,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	FReEchoRecording Recording;
 	Recording.Id = FGuid::NewGuid();
 	Recording.EncounterIndex = 1;
+	Recording.BuildSnapshot = Source->CurrentBuild;
 	Source->AddRecording(Recording);
 	Source->SetAnchor(Recording.Id);
 	Source->BeginEncounter();
@@ -52,6 +53,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	EncounterState.PlayerVelocity = FVector(25.0f, -10.0f, 0.0f);
 	EncounterState.PlayerTransform.SetLocation(FVector(120.0f, -80.0f, 112.0f));
 	EncounterState.ActiveRecording.EncounterIndex = Source->EncounterIndex;
+	EncounterState.ActiveRecording.BuildSnapshot = Source->CurrentBuild;
 	FReEchoEnemyRuntimeState EnemyState;
 	EnemyState.Kind = 2;
 	EnemyState.SpawnIndex = 4;

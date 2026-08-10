@@ -32,14 +32,44 @@ REGISTERED_BEHAVIOR_IDS = {
     "Reaction.Growth",
     "Reaction.Conduct",
     "Reaction.Enhance",
+    "Weapon.AttackStep",
+    "Weapon.DashStrike",
+    "Part.CoreDamageChannel",
+    "Part.StatModifier",
+    "Part.AttackPatternReplacement",
+    "Part.OnKillHealPercent",
 }
-REGISTERED_EFFECT_KINDS = {"ScalarModifier", "StatModifier", "InstantRecovery", "ElementReaction"}
+REGISTERED_EFFECT_KINDS = {
+    "ScalarModifier",
+    "StatModifier",
+    "InstantRecovery",
+    "ElementReaction",
+    "WeaponDamageChannel",
+    "AttackPatternReplacement",
+    "ParameterizedBehavior",
+    "UniqueBehavior",
+}
 REGISTERED_FORMULA_IDS = {
+    "None",
     "Element.ElementAttackDot",
     "Element.ElementAttackSquared",
     "Element.AttachInRadius",
     "Element.ChainElementAttack",
     "Element.EnhanceNextReaction",
+    "Weapon.PhysicalOrElementalCoefficient",
+}
+REGISTERED_ATTACK_PATTERN_IDS = {
+    "None",
+    "Pattern.DaggerCombo",
+    "Pattern.DaggerDashOnly",
+    "Pattern.LongSwordCombo",
+    "Pattern.ScytheSweep",
+    "Pattern.WhipCombo",
+    "Pattern.BowShot",
+    "Pattern.GunShot",
+    "Pattern.StaffProjectile",
+    "Pattern.MoonStaffWave",
+    "Pattern.ElementalProjectile",
 }
 VALUE_OPS = {"Add", "Multiply", "Override"}
 CARD_TARGETS = {
@@ -68,6 +98,23 @@ REACTION_BEHAVIOR_FORMULA_PAIRS = {
     "Reaction.Growth": "Element.AttachInRadius",
     "Reaction.Conduct": "Element.ChainElementAttack",
     "Reaction.Enhance": "Element.EnhanceNextReaction",
+}
+WEAPON_TYPE_IDS = {"Dagger", "LongSword", "Scythe", "Whip", "Bow", "Gun", "Staff"}
+INPUT_SLOTS = {"None", "1", "2", "3"}
+WEAPON_EFFECT_TARGETS = {
+    "DamageChannel",
+    "AttackSpeed",
+    "AttackIntervalSeconds",
+    "PhysicalCoefficient",
+    "ElementalCoefficient",
+    "AttackPattern",
+    "OnKill",
+}
+PART_EFFECT_BEHAVIOR_PAIRS = {
+    "WeaponDamageChannel": "Part.CoreDamageChannel",
+    "StatModifier": "Part.StatModifier",
+    "AttackPatternReplacement": "Part.AttackPatternReplacement",
+    "UniqueBehavior": "Part.OnKillHealPercent",
 }
 
 
@@ -203,6 +250,125 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "ClearsAttachment": CsvColumnSpec("Bool"),
         "Enabled": CsvColumnSpec("Bool"),
         "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "WeaponTypes": {
+        "Id": CsvColumnSpec("StableId"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "BaseAttackPatternId": CsvColumnSpec("AttackPatternId"),
+        "SlotProfileId": CsvColumnSpec("StableId"),
+        "BaseIntervalSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=60.0),
+        "BaseRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "BaseArcDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "BaseProjectileCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "BaseConcentrationDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "BaseExplosionRadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "ChainWindowSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=60.0),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "Weapons": {
+        "Id": CsvColumnSpec("StableId"),
+        "WeaponTypeId": CsvColumnSpec("ForeignKey", reference_table="WeaponTypes"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "VisualKey": CsvColumnSpec("StableId"),
+        "InputSlot": CsvColumnSpec("StableId"),
+        "StartSelectable": CsvColumnSpec("Bool"),
+        "LoadoutOrder": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "AttackPatternId": CsvColumnSpec("AttackPatternId"),
+        "AttackIntervalSeconds": CsvColumnSpec("Float", min_value=0.01, max_value=60.0),
+        "PhysicalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "ElementalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "RangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "ArcDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "ProjectileCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "ConcentrationDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "ExplosionRadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "DataRevision": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "AttackSteps": {
+        "Id": CsvColumnSpec("StableId"),
+        "AttackPatternId": CsvColumnSpec("AttackPatternId"),
+        "StepIndex": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=60.0),
+        "PhysicalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "ElementalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "RangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "ArcDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "ProjectileCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "ConcentrationDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "ExplosionRadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MovementCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "Invulnerable": CsvColumnSpec("Bool"),
+        "BehaviorId": CsvColumnSpec("BehaviorId"),
+        "FormulaId": CsvColumnSpec("FormulaId"),
+        "ConditionId": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "SlotTypes": {
+        "Id": CsvColumnSpec("StableId"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "SlotProfiles": {
+        "Id": CsvColumnSpec("StableId"),
+        "WeaponTypeId": CsvColumnSpec("StableId"),
+        "SlotTypeId": CsvColumnSpec("ForeignKey", reference_table="SlotTypes"),
+        "SlotCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Required": CsvColumnSpec("Bool"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+    },
+    "Parts": {
+        "Id": CsvColumnSpec("StableId"),
+        "PartId": CsvColumnSpec("StableId"),
+        "WeaponTypeId": CsvColumnSpec("StableId"),
+        "SlotTypeId": CsvColumnSpec("ForeignKey", reference_table="SlotTypes"),
+        "DisplayName": CsvColumnSpec("Text", required=False),
+        "Description": CsvColumnSpec("Text", required=False),
+        "Rarity": CsvColumnSpec("StableId"),
+        "Tags": CsvColumnSpec("StableIdList"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "ReviewStatus": CsvColumnSpec("StableId"),
+        "ImplementationStatus": CsvColumnSpec("StableId"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+    },
+    "PartEffects": {
+        "Id": CsvColumnSpec("StableId"),
+        "PartId": CsvColumnSpec("ForeignKey", reference_table="Parts"),
+        "Order": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Trigger": CsvColumnSpec("StableId"),
+        "EffectKind": CsvColumnSpec("EffectKind"),
+        "Target": CsvColumnSpec("StableId"),
+        "ValueOp": CsvColumnSpec("ValueOp"),
+        "Value": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
+        "BehaviorId": CsvColumnSpec("BehaviorId"),
+        "FormulaId": CsvColumnSpec("FormulaId"),
+        "AttackPatternId": CsvColumnSpec("AttackPatternId"),
+        "ParamName": CsvColumnSpec("StableId"),
+        "ParamValue": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
+        "DurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "CooldownSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "StackPolicy": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
     },
 }
 
@@ -379,6 +545,8 @@ def validate_table(path: Path, table_id: str, references: dict[str, set[str]]) -
                 fail(f"{rel(path)}:{line}:{column}: unknown registered C++ effect kind {value!r}")
             if spec.kind == "FormulaId" and value not in REGISTERED_FORMULA_IDS:
                 fail(f"{rel(path)}:{line}:{column}: unknown registered C++ formula id {value!r}")
+            if spec.kind == "AttackPatternId" and value not in REGISTERED_ATTACK_PATTERN_IDS:
+                fail(f"{rel(path)}:{line}:{column}: unknown registered C++ attack pattern id {value!r}")
             if spec.kind == "ForeignKey" and value == "None" and table_id == "Reactions" and column == "StatusId":
                 continue
             if spec.kind == "ForeignKey" and value not in references[spec.reference_table or ""]:
@@ -405,8 +573,16 @@ def validate_csv_package(data_dir: Path) -> None:
     references["Elements"] = validate_table(entries["Elements"], "Elements", references)
     references["Statuses"] = validate_table(entries["Statuses"], "Statuses", references)
     references["Reactions"] = validate_table(entries["Reactions"], "Reactions", references)
+    references["WeaponTypes"] = validate_table(entries["WeaponTypes"], "WeaponTypes", references)
+    references["Weapons"] = validate_table(entries["Weapons"], "Weapons", references)
+    references["AttackSteps"] = validate_table(entries["AttackSteps"], "AttackSteps", references)
+    references["SlotTypes"] = validate_table(entries["SlotTypes"], "SlotTypes", references)
+    references["SlotProfiles"] = validate_table(entries["SlotProfiles"], "SlotProfiles", references)
+    references["Parts"] = validate_table(entries["Parts"], "Parts", references)
+    references["PartEffects"] = validate_table(entries["PartEffects"], "PartEffects", references)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)
+    validate_weapon_domain(data_dir, entries)
 
 
 def assemble_fixture_package(fixture_dir: Path, temp_root: Path) -> Path:
@@ -535,6 +711,138 @@ def validate_element_reaction_domain(data_dir: Path, entries: dict[str, Path]) -
         fail(f"{rel(entries['Reactions'])}: expected six enabled reactions, got {sorted(enabled_reactions)}")
 
 
+def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
+    weapon_types = load_csv(entries["WeaponTypes"])
+    weapons = load_csv(entries["Weapons"])
+    attack_steps = load_csv(entries["AttackSteps"])
+    slot_types = load_csv(entries["SlotTypes"])
+    slot_profiles = load_csv(entries["SlotProfiles"])
+    parts = load_csv(entries["Parts"])
+    part_effects = load_csv(entries["PartEffects"])
+
+    enabled_type_ids = {row["Id"] for row in weapon_types if row["Enabled"] == "true"}
+    if enabled_type_ids != WEAPON_TYPE_IDS:
+        fail(f"{rel(entries['WeaponTypes'])}: enabled weapon type ids changed: {sorted(enabled_type_ids)}")
+    for row in weapon_types:
+        if row["Id"] not in WEAPON_TYPE_IDS:
+            fail(f"{rel(entries['WeaponTypes'])}:{row['__line__']}: unsupported WeaponTypeId {row['Id']!r}")
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['WeaponTypes'])}:{row['__line__']}: disabled weapon type requires DisabledReason")
+
+    enabled_weapons = {row["Id"]: row for row in weapons if row["Enabled"] == "true"}
+    required_weapons = {"W_J_01", "W_J_02", "W_J_03", "W_J_04"}
+    if required_weapons - set(enabled_weapons):
+        fail(f"{rel(entries['Weapons'])}: current required weapons must remain enabled")
+    start_selectable = sorted(
+        [row for row in weapons if row["Enabled"] == "true" and row["StartSelectable"] == "true"],
+        key=lambda row: int(row["LoadoutOrder"]),
+    )
+    if [row["Id"] for row in start_selectable] != ["W_J_02", "W_J_01", "W_J_03"]:
+        fail(f"{rel(entries['Weapons'])}: legacy start weapon order changed")
+    input_map = {row["InputSlot"]: row["Id"] for row in weapons if row["InputSlot"] != "None" and row["Enabled"] == "true"}
+    if input_map != {"1": "W_J_02", "2": "W_J_01", "3": "W_J_03"}:
+        fail(f"{rel(entries['Weapons'])}: legacy input slot mapping changed: {input_map}")
+    if enabled_weapons["W_J_04"]["WeaponTypeId"] != "Scythe" or enabled_weapons["W_J_04"]["AttackPatternId"] != "Pattern.ScytheSweep":
+        fail(f"{rel(entries['Weapons'])}: W_J_04 must use the Scythe pattern")
+    for row in weapons:
+        if row["InputSlot"] not in INPUT_SLOTS:
+            fail(f"{rel(entries['Weapons'])}:{row['__line__']}: InputSlot must be None, 1, 2 or 3")
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['Weapons'])}:{row['__line__']}: disabled weapon requires DisabledReason")
+
+    characters = load_csv(entries["Characters"])
+    for row in characters:
+        if row["Enabled"] == "true" and row["DefaultWeaponId"] not in enabled_weapons:
+            fail(
+                f"{rel(entries['Characters'])}:{row['__line__']}: DefaultWeaponId "
+                f"{row['DefaultWeaponId']!r} does not reference an enabled weapon"
+            )
+
+    seen_steps: set[tuple[str, str]] = set()
+    patterns_with_steps: set[str] = set()
+    for row in attack_steps:
+        key = (row["AttackPatternId"], row["StepIndex"])
+        if key in seen_steps:
+            fail(f"{rel(entries['AttackSteps'])}:{row['__line__']}: duplicate AttackPatternId/StepIndex {key}")
+        seen_steps.add(key)
+        if row["Enabled"] == "true":
+            patterns_with_steps.add(row["AttackPatternId"])
+        elif not row["DisabledReason"]:
+            fail(f"{rel(entries['AttackSteps'])}:{row['__line__']}: disabled attack step requires DisabledReason")
+    missing_patterns = {row["AttackPatternId"] for row in weapons if row["Enabled"] == "true"} - patterns_with_steps
+    if missing_patterns:
+        fail(f"{rel(entries['AttackSteps'])}: enabled weapons missing attack steps: {sorted(missing_patterns)}")
+
+    slot_type_ids = {row["Id"] for row in slot_types}
+    for row in slot_profiles:
+        if row["WeaponTypeId"] != "Any" and row["WeaponTypeId"] not in WEAPON_TYPE_IDS:
+            fail(f"{rel(entries['SlotProfiles'])}:{row['__line__']}: unknown WeaponTypeId {row['WeaponTypeId']!r}")
+        if row["SlotTypeId"] not in slot_type_ids:
+            fail(f"{rel(entries['SlotProfiles'])}:{row['__line__']}: unknown SlotTypeId {row['SlotTypeId']!r}")
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['SlotProfiles'])}:{row['__line__']}: disabled slot profile requires DisabledReason")
+
+    if len(parts) != 78:
+        fail(f"{rel(entries['Parts'])}: weapon slot audit must contain 78 source rows")
+    named_rows = [row for row in parts if row["DisplayName"]]
+    unnamed_disabled = [row for row in parts if not row["DisplayName"] and row["Enabled"] == "false" and row["PartId"] == "None"]
+    if len(named_rows) != 16 or len(unnamed_disabled) != 62:
+        fail(f"{rel(entries['Parts'])}: expected 16 named rows and 62 unnamed disabled audit rows")
+    enabled_parts = {row["Id"]: row for row in parts if row["Enabled"] == "true"}
+    enabled_cores = [row for row in enabled_parts.values() if row["SlotTypeId"] == "Core"]
+    if len(enabled_cores) < 6:
+        fail(f"{rel(entries['Parts'])}: at least six generic cores must be enabled")
+    if "P_DAGGER_STRENGTH_GRIP" not in enabled_parts:
+        fail(f"{rel(entries['Parts'])}: strength grip must be enabled")
+    for row in parts:
+        if row["WeaponTypeId"] != "Any" and row["WeaponTypeId"] not in WEAPON_TYPE_IDS:
+            fail(f"{rel(entries['Parts'])}:{row['__line__']}: unknown WeaponTypeId {row['WeaponTypeId']!r}")
+        if row["Enabled"] == "true":
+            if row["PartId"] == "None" or not row["DisplayName"]:
+                fail(f"{rel(entries['Parts'])}:{row['__line__']}: enabled part needs stable PartId and name")
+            if row["ReviewStatus"] != "Approved" or row["ImplementationStatus"] != "Implemented":
+                fail(f"{rel(entries['Parts'])}:{row['__line__']}: enabled part must be approved and implemented")
+        elif not row["DisabledReason"]:
+            fail(f"{rel(entries['Parts'])}:{row['__line__']}: disabled part requires DisabledReason")
+
+    effects_by_part: dict[str, list[dict[str, str]]] = {}
+    seen_effect_orders: set[tuple[str, str]] = set()
+    has_pattern_replacement = False
+    has_unique_behavior = False
+    has_value_ops: set[str] = set()
+    for row in part_effects:
+        if row["Target"] not in WEAPON_EFFECT_TARGETS:
+            fail(f"{rel(entries['PartEffects'])}:{row['__line__']}: unsupported weapon effect target {row['Target']!r}")
+        expected_behavior = PART_EFFECT_BEHAVIOR_PAIRS.get(row["EffectKind"])
+        if not expected_behavior or row["BehaviorId"] != expected_behavior:
+            fail(
+                f"{rel(entries['PartEffects'])}:{row['__line__']}: invalid EffectKind/BehaviorId pair "
+                f"{row['EffectKind']!r}/{row['BehaviorId']!r}"
+            )
+        if row["Enabled"] == "true" and row["PartId"] not in enabled_parts:
+            fail(f"{rel(entries['PartEffects'])}:{row['__line__']}: enabled effect references disabled part")
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['PartEffects'])}:{row['__line__']}: disabled part effect requires DisabledReason")
+        key = (row["PartId"], row["Order"])
+        if key in seen_effect_orders:
+            fail(f"{rel(entries['PartEffects'])}:{row['__line__']}: duplicate PartId/Order {key}")
+        seen_effect_orders.add(key)
+        effects_by_part.setdefault(row["PartId"], []).append(row)
+        if row["Enabled"] == "true":
+            has_value_ops.add(row["ValueOp"])
+            has_pattern_replacement |= row["EffectKind"] == "AttackPatternReplacement"
+            has_unique_behavior |= row["EffectKind"] == "UniqueBehavior"
+    for part_id in enabled_parts:
+        if part_id not in effects_by_part:
+            fail(f"{rel(entries['PartEffects'])}: enabled part {part_id!r} has no effect rows")
+    if not has_pattern_replacement:
+        fail(f"{rel(entries['PartEffects'])}: at least one enabled AttackPatternReplacement effect is required")
+    if not has_unique_behavior:
+        fail(f"{rel(entries['PartEffects'])}: at least one enabled UniqueBehavior effect is required")
+    if has_value_ops != {"Add", "Multiply", "Override"}:
+        fail(f"{rel(entries['PartEffects'])}: enabled part effects must cover Add/Multiply/Override")
+
+
 def expect_fixture_failure(name: str, token: str) -> None:
     fixture = DATA / "TestFixtures" / "CsvRuntime" / name
     with tempfile.TemporaryDirectory(prefix="reecho_csv_fixture_") as temp:
@@ -635,6 +943,13 @@ def validate_build_dependencies() -> None:
         "elements.csv",
         "statuses.csv",
         "reactions.csv",
+        "weapon_types.csv",
+        "weapons.csv",
+        "attack_steps.csv",
+        "slot_types.csv",
+        "slot_profiles.csv",
+        "parts.csv",
+        "part_effects.csv",
     ):
         if f"Content/Data/{file_name}" not in build_cs:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
@@ -658,6 +973,7 @@ def main() -> int:
         "DuplicateId": "duplicate id",
         "MissingRequired": "required value",
         "UnknownReference": "unknown reference",
+        "UnknownWeaponReference": "DefaultWeaponId",
         "UnknownBehavior": "behavior id",
         "UnknownEffectKind": "effect kind",
         "IllegalRange": "exceeds",
@@ -669,13 +985,15 @@ def main() -> int:
         "UnknownFormulaId": "FormulaId",
         "DuplicateReactionPair": "duplicate ordered pair",
         "UnsupportedCanCrit": "CanCrit",
+        "DuplicateWeaponInputSlot": "legacy input slot mapping",
+        "InvalidWeaponPartEffectBehaviorPair": "EffectKind/BehaviorId",
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()
     validate_workflow()
 
     print(f"[PASS] legacy migration-only JSON files={json_count} effective_cards={effective_cards} encounters={encounter_count}")
-    print("[PASS] CSV schema, production character/build/element tables, fixtures, IDs, references, behavior/effect/formula allowlists, UTF-8 and staging deps")
+    print("[PASS] CSV schema, production character/build/element/weapon tables, fixtures, IDs, references, behavior/effect/formula/attack-pattern allowlists, UTF-8 and staging deps")
     print("[PASS] workflow memory, token guards, and Unreal project descriptor present")
     print("Evidence level: static verified only (no UHT/UBT/PIE claim)")
     return 0
