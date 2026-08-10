@@ -1,30 +1,30 @@
-# ReEcho data source
+# ReEcho 数据源
 
-CSV is the target designer-editable runtime source. The legacy JSON files in this directory are migration-only review material until their domains are moved by later plans; do not add a second editable truth in JSON, C++, DeveloperSettings, Actors or Widgets.
+CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON 文件只作为迁移期参考材料保留；对应领域迁移到 CSV 后，不要再在 JSON、C++、DeveloperSettings、Actor 或 Widget 里维护第二份可编辑真源。
 
-## CSV contract v1
+## CSV 契约 v1
 
-- Encoding: UTF-8 without BOM.
-- Delimiter: comma. Quote cells with `"` when they contain a comma, quote or newline; escape a literal quote as `""`.
-- Empty values: only allowed for fields marked optional in `csv_schema.csv`. Disabled character/card rows must still carry a `DisabledReason`.
-- Booleans: lowercase `true` or `false`.
-- Percentages: decimal values, so `0.20` means 20 percent.
-- Units: distance columns include `Cm`; time columns include `Seconds`. Do not mix meters with Unreal centimeters, or milliseconds with seconds.
-- IDs: stable IDs may contain letters, digits, `_`, `-` and `.` only. IDs cannot be blank or padded with whitespace.
-- References: child tables must reference parent IDs exactly. `runtime_smoke_effects.csv.RuntimeRowId` references `runtime_smoke.csv.Id`; `character_aliases.csv.CanonicalCharacterId` references `characters.csv.Id`; `card_effects.csv.CardId` references `cards.csv.Id`.
-- Value operations: only `Add`, `Multiply` and `Override` are valid.
-- Logic hooks: CSV may name registered C++ `BehaviorId` and `EffectKind` values, but it does not execute expressions, scripts or formulas.
+- 编码：UTF-8，不带 BOM。
+- 分隔符：英文逗号。单元格包含逗号、引号或换行时，用 `"` 包裹；单元格里的字面引号写成 `""`。
+- 空值：只允许出现在 `csv_schema.csv` 标记为可选的字段中。禁用的角色/卡牌行仍必须填写 `DisabledReason`。
+- 布尔值：只使用小写 `true` 或 `false`。
+- 百分比：使用小数表示，例如 `0.20` 表示 20%。
+- 单位：距离列名必须带 `Cm`，时间列名必须带 `Seconds`。不要混用米和 Unreal 厘米，也不要混用毫秒和秒。
+- ID：稳定 ID 只能包含英文字母、数字、`_`、`-` 和 `.`；不能留空，也不能带首尾空格。
+- 引用：子表必须精确引用父表 ID。`runtime_smoke_effects.csv.RuntimeRowId` 引用 `runtime_smoke.csv.Id`；`character_aliases.csv.CanonicalCharacterId` 引用 `characters.csv.Id`；`card_effects.csv.CardId` 引用 `cards.csv.Id`。
+- 数值操作：只允许 `Add`、`Multiply` 和 `Override`。
+- 逻辑钩子：CSV 可以填写已注册的 C++ `BehaviorId` 和 `EffectKind`，但不会执行表达式、脚本或公式字符串。
 
-## Files
+## 文件说明
 
-- `reecho_data_manifest.csv`: schema version and production CSV discovery.
-- `csv_schema.csv`: human-readable and statically validated column contract.
-- `runtime_smoke.csv`: minimal production runtime table used to prove CSV loading, packaging and value changes.
-- `runtime_smoke_effects.csv`: one-to-many child table for typed numeric parameters.
-- `characters.csv`: canonical playable/runtime character ids, display names, base stats, default weapons, appearance ids and registered passive behavior ids.
-- `character_aliases.csv`: explicit legacy/workbook id mapping such as `J_01` to `J_SPADE`.
-- `cards.csv`: canonical card/forge offer rows, source provenance, tags, promotion role bucket, offer group, review state and disabled reasons.
-- `card_effects.csv`: ordered child effects for enabled cards and forge choices using typed targets, `EffectKind`, `ValueOp` and registered `BehaviorId`.
-- `TestFixtures/CsvRuntime/`: positive and negative automation fixtures; not production data.
+- `reecho_data_manifest.csv`：生产 CSV 的发现表，记录 schema 版本、表 ID、文件名和主键。
+- `csv_schema.csv`：给人阅读并供静态校验使用的列契约。
+- `runtime_smoke.csv`：最小运行时 smoke 表，用来证明 CSV 加载、打包和改值生效。
+- `runtime_smoke_effects.csv`：运行时 smoke 的一对多子表，用于验证类型化数值参数。
+- `characters.csv`：canonical 可玩/运行时角色 ID、展示名、基础属性、默认武器、外观 ID 和已注册被动行为 ID。
+- `character_aliases.csv`：显式旧 ID / 工作簿 ID 映射，例如 `J_01` 映射到 `J_SPADE`。
+- `cards.csv`：canonical 卡牌和锻炼选项行，包括来源、标签、晋升角色桶、抽取组、评审状态和禁用原因。
+- `card_effects.csv`：启用卡牌和锻炼选项的有序效果子表，使用类型化目标、`EffectKind`、`ValueOp` 和已注册 `BehaviorId`。
+- `TestFixtures/CsvRuntime/`：自动化用的正向和负向 fixtures，不是生产数据。
 
-Run `python scripts/validate_project.py` before opening Unreal. It validates CSV schema, IDs, foreign keys, enum and behavior allowlists, disabled source rows, the six-card draw pool, UTF-8 and the expected negative fixtures.
+打开 Unreal 前先运行 `python scripts/validate_project.py`。它会校验 CSV schema、ID、外键、枚举、行为/效果白名单、禁用源行、当前六张卡牌抽取池、UTF-8 编码和预期负例 fixtures。
