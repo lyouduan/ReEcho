@@ -126,7 +126,7 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 | Echo ghost material | `Content/ReEcho/Materials/M_EchoGhost.uasset` |
 | Module dependencies | `Source/ReEcho/ReEcho.Build.cs` |
 
-CSV currently contains the runtime foundation manifest, schema and smoke table loaded by `FReEchoCsvDataRegistry` at module startup. Legacy JSON covers cards, characters, elements, encounters, enemies, global balance, reactions, statuses and weapons; it is still validated statically but is migration-only until Plans 19-21 move those domains. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
+CSV currently contains the runtime foundation manifest/schema/smoke tables plus canonical character/build tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets and card numeric effects read from CSV. Legacy JSON still covers elements, encounters, enemies, global balance, reactions, statuses and weapons; character/card JSON is migration-only review material. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
 
 ## Task routing
 
@@ -154,7 +154,7 @@ CSV currently contains the runtime foundation manifest, schema and smoke table l
 | Inventory, backpack, shop, store, Time Shards | `UI/ReEchoInventoryShopWidget.*`, `Run/ReEchoShopCatalog.h`, `Run/ReEchoRunSubsystem.*` | `ReEchoGameMode.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini`, imported UI textures |
 | Player stats, echo stats, Tab panel | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*` | `Graybox/ReEchoEchoActor.*`, `Combat/ReEchoCombatantComponent.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini` |
 | Pause/death/restart/quit UI | `UI/ReEchoRestartWidget.*` | `ReEchoGameMode.*`, `PlayerPawn::TogglePauseMenu`, `DefaultInput.ini` |
-| Trait cards/card choice/character promotion/role build | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `Run/ReEchoCharacterPromotion.*` | `Content/Data/cards.json`, `Content/Data/characters.json`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*`, `Weapons/ReEchoWeaponActor.*` |
+| Trait cards/card choice/character promotion/role build | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `Run/ReEchoCharacterPromotion.*` | `Content/Data/cards.csv`, `Content/Data/card_effects.csv`, `Content/Data/characters.csv`, `Content/Data/character_aliases.csv`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*`, `Weapons/ReEchoWeaponActor.*` |
 | Cards/characters/enemies/balance data | Matching `Content/Data/*.csv` and migration-only JSON | `Content/Data/README.md`, `validate_project.py` |
 | GM, debug command, cheat, console | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Matching gameplay subsystem or actor API |
 | Build failure | `scripts/ue/Build-Editor.*` | latest UBT log; matching source only |

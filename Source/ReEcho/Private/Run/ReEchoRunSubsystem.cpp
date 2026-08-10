@@ -1,42 +1,29 @@
 #include "Run/ReEchoRunSubsystem.h"
 
 #include "Core/ReEchoBalanceSettings.h"
+#include "Data/ReEchoCsvDataRegistry.h"
+#include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoShopCatalog.h"
 
 namespace
 {
-FReEchoTraitCardOffer MakeTraitOffer(const TCHAR* CardId, const FText& DisplayName, const FText& Description)
+constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
+constexpr const TCHAR* ForgeOfferGroup = TEXT("Forge");
+
+FReEchoTraitCardOffer MakeTraitOffer(const FReEchoCsvCardRow& Card)
 {
 	FReEchoTraitCardOffer Offer;
-	Offer.CardId = FName(CardId);
-	Offer.DisplayName = DisplayName;
-	Offer.Description = Description;
+	Offer.CardId = Card.Id;
+	Offer.DisplayName = FText::FromString(Card.DisplayName);
+	Offer.Description = FText::FromString(Card.Description);
 	return Offer;
 }
 
-const TArray<FReEchoTraitCardOffer>& GetTraitCatalog()
+TArray<FReEchoCsvCardRow> GetOfferCatalog(const FName OfferGroup)
 {
-	static const TArray<FReEchoTraitCardOffer> Catalog = {
-	    MakeTraitOffer(TEXT("G_1_01"),
-	                   NSLOCTEXT("ReEcho", "SpeedTraitName", "时序加速"),
-	                   NSLOCTEXT("ReEcho", "SpeedTraitDescription", "移动速度 +10%，攻击速度 +10%")),
-	    MakeTraitOffer(TEXT("G_1_02"),
-	                   NSLOCTEXT("ReEcho", "HealthTraitName", "生命延展"),
-	                   NSLOCTEXT("ReEcho", "HealthTraitDescription", "最大生命 +15，立即恢复等量生命")),
-	    MakeTraitOffer(TEXT("G_1_03"),
-	                   NSLOCTEXT("ReEcho", "BlockTraitName", "应急格挡"),
-	                   NSLOCTEXT("ReEcho", "BlockTraitDescription", "每个关卡抵挡 1 次伤害")),
-	    MakeTraitOffer(TEXT("G_1_04"),
-	                   NSLOCTEXT("ReEcho", "PhysicalTraitName", "物理增幅"),
-	                   NSLOCTEXT("ReEcho", "PhysicalTraitDescription", "物理攻击 +2")),
-	    MakeTraitOffer(TEXT("G_1_05"),
-	                   NSLOCTEXT("ReEcho", "ElementalTraitName", "元素增幅"),
-	                   NSLOCTEXT("ReEcho", "ElementalTraitDescription", "元素攻击 +2")),
-	    MakeTraitOffer(TEXT("G_1_08"),
-	                   NSLOCTEXT("ReEcho", "EchoTraitName", "回响共振"),
-	                   NSLOCTEXT("ReEcho", "EchoTraitDescription", "回响伤害效率 +10%"))};
-	return Catalog;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	return Snapshot.IsValid() ? Snapshot->GetOfferableCards(OfferGroup) : TArray<FReEchoCsvCardRow>();
 }
 
 int32 GetTraitStackCount(const TArray<FName>& OwnedCards, const FName CardId)
@@ -52,7 +39,7 @@ int32 GetTraitStackCount(const TArray<FName>& OwnedCards, const FName CardId)
 	return Count;
 }
 
-void ShuffleOffers(TArray<FReEchoTraitCardOffer>& Offers, FRandomStream& Random)
+void ShuffleOffers(TArray<FReEchoCsvCardRow>& Offers, FRandomStream& Random)
 {
 	for (int32 Index = Offers.Num() - 1; Index > 0; --Index)
 	{
@@ -69,6 +56,162 @@ int32 BuildTraitOfferSeed(const int32 EncounterIndex, const TArray<FName>& Owned
 	}
 	return static_cast<int32>(Seed);
 }
+
+float ApplyValueOperation(const float CurrentValue, const EReEchoCsvValueOp ValueOp, const float Value)
+{
+	switch (ValueOp)
+	{
+		case EReEchoCsvValueOp::Add:
+			return CurrentValue + Value;
+		case EReEchoCsvValueOp::Multiply:
+			return CurrentValue * Value;
+		case EReEchoCsvValueOp::Override:
+			return Value;
+		default:
+			return CurrentValue;
+	}
+}
+
+bool ApplyStatEffect(FReEchoStatBlock& Stats, const FReEchoCsvCardEffectRow& Effect)
+{
+	auto ApplyFloat = [&](float& Target)
+	{
+		Target = ApplyValueOperation(Target, Effect.ValueOp, Effect.Value);
+	};
+
+	if (Effect.Target == TEXT("HpMax"))
+	{
+		ApplyFloat(Stats.HpMax);
+		Stats.HpMax = FMath::Max(1.0f, Stats.HpMax);
+		Stats.HpPoint = FMath::Min(Stats.HpPoint, Stats.HpMax);
+		return true;
+	}
+	if (Effect.Target == TEXT("HpPoint"))
+	{
+		ApplyFloat(Stats.HpPoint);
+		Stats.HpPoint = FMath::Clamp(Stats.HpPoint, 0.0f, Stats.HpMax);
+		return true;
+	}
+	if (Effect.Target == TEXT("PhysicalAttack"))
+	{
+		ApplyFloat(Stats.PhysicalAttack);
+		Stats.PhysicalAttack = FMath::Max(0.0f, Stats.PhysicalAttack);
+		return true;
+	}
+	if (Effect.Target == TEXT("ElementalAttack"))
+	{
+		ApplyFloat(Stats.ElementalAttack);
+		Stats.ElementalAttack = FMath::Max(0.0f, Stats.ElementalAttack);
+		return true;
+	}
+	if (Effect.Target == TEXT("Block"))
+	{
+		const float NewValue = ApplyValueOperation(static_cast<float>(Stats.Block), Effect.ValueOp, Effect.Value);
+		Stats.Block = FMath::Max(0, FMath::RoundToInt(NewValue));
+		return true;
+	}
+	if (Effect.Target == TEXT("AttackSpeed"))
+	{
+		ApplyFloat(Stats.AttackSpeed);
+		Stats.AttackSpeed = FMath::Max(0.1f, Stats.AttackSpeed);
+		return true;
+	}
+	if (Effect.Target == TEXT("MovementSpeed"))
+	{
+		ApplyFloat(Stats.MovementSpeed);
+		Stats.MovementSpeed = FMath::Max(0.1f, Stats.MovementSpeed);
+		return true;
+	}
+	if (Effect.Target == TEXT("EchoEfficiency"))
+	{
+		ApplyFloat(Stats.EchoEfficiency);
+		Stats.EchoEfficiency = FMath::Max(0.0f, Stats.EchoEfficiency);
+		return true;
+	}
+	return false;
+}
+
+bool ApplyCardEffects(const FReEchoCsvCardRow& Card, FReEchoBuildSnapshot& Build)
+{
+	for (const FReEchoCsvCardEffectRow& Effect : Card.Effects)
+	{
+		if (Effect.Trigger != TEXT("OnApply"))
+		{
+			return false;
+		}
+		if (Effect.EffectKind == TEXT("StatModifier") || Effect.EffectKind == TEXT("InstantRecovery"))
+		{
+			if (!ApplyStatEffect(Build.Stats, Effect))
+			{
+				return false;
+			}
+			continue;
+		}
+		return false;
+	}
+	return true;
+}
+
+bool CurrentCharacterHasPassive(const FReEchoBuildSnapshot& Build, const FName PassiveBehaviorId)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
+	return Character && Character->PassiveBehaviorId == PassiveBehaviorId;
+}
+}
+
+FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(const FReEchoCsvDataSnapshot* Snapshot,
+                                                                             const FName CharacterId,
+                                                                             const FName WeaponId)
+{
+	FReEchoStartRunResolveResult Result;
+	if (!Snapshot)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': CSV snapshot is unavailable"),
+		                               *CharacterId.ToString());
+		return Result;
+	}
+
+	const FReEchoCsvCharacterRow* Character = Snapshot->FindCharacter(CharacterId);
+	if (!Character)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': character was not found"),
+		                               *CharacterId.ToString());
+		return Result;
+	}
+	if (!Character->bEnabled)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': character is disabled"),
+		                               *CharacterId.ToString());
+		return Result;
+	}
+
+	Result.Build.CharacterId = Character->Id;
+	Result.Build.WeaponId = WeaponId.IsNone() ? Character->DefaultWeaponId : WeaponId;
+	Result.Build.Stats = Character->BaseStats;
+	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
+	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
+	Result.bSuccess = true;
+	return Result;
+}
+
+FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuild(const FName CharacterId, const FName WeaponId)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	return ResolveStartingBuildFromSnapshot(Snapshot.Get(), CharacterId, WeaponId);
+}
+
+bool ReEchoRunData::TryApplyCardEffectsToBuild(const FReEchoCsvCardRow& Card,
+                                               const FReEchoBuildSnapshot& Build,
+                                               FReEchoBuildSnapshot& OutBuild)
+{
+	FReEchoBuildSnapshot Candidate = Build;
+	if (!ApplyCardEffects(Card, Candidate))
+	{
+		return false;
+	}
+	OutBuild = Candidate;
+	return true;
 }
 
 void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)
@@ -86,12 +229,13 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	AnchorId.Invalidate();
 	PendingTraitCardIds.Reset();
 	CurrentBuild = {};
-	CurrentBuild.CharacterId = CharacterId;
-	CurrentBuild.WeaponId = WeaponId;
-	CurrentBuild.Stats.HpPoint = 15.0f;
-	CurrentBuild.Stats.HpMax = 15.0f;
-	CurrentBuild.Stats.PhysicalAttack = 5.0f;
-	CurrentBuild.Stats.ElementalAttack = 5.0f;
+
+	const FReEchoStartRunResolveResult ResolveResult = ReEchoRunData::ResolveStartingBuild(CharacterId, WeaponId);
+	if (!ResolveResult.bSuccess)
+	{
+		UE_LOG(LogReEcho, Fatal, TEXT("%s"), *ResolveResult.Error);
+	}
+	CurrentBuild = ResolveResult.Build;
 	SetPhase(EReEchoRunPhase::Planning);
 }
 
@@ -117,23 +261,27 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	}
 	AddRecording(Recording);
 	TimeShards += 15;
-	if (ReEchoCharacterPromotion::IsRole(CurrentBuild, TEXT("Poet")))
+	if (CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.PoetReactionGrowth")))
 	{
-		CurrentBuild.Stats.ReactionEfficiency += 0.05f;
+		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+		const FReEchoCsvCharacterRow* Character =
+		    Snapshot.IsValid() ? Snapshot->FindCharacter(CurrentBuild.CharacterId) : nullptr;
+		CurrentBuild.Stats.ReactionEfficiency += Character ? Character->PassiveValue : 0.05f;
 	}
 	if (EncounterIndex >= GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
 	{
 		SetPhase(bBossKilled ? EReEchoRunPhase::Summary : EReEchoRunPhase::Failed);
 		return;
 	}
-	SetPhase(ReEchoCharacterPromotion::IsRole(CurrentBuild, TEXT("Brave")) ? EReEchoRunPhase::ForgeChoice
-	                                                                       : EReEchoRunPhase::CardChoice);
+	SetPhase(CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.BraveForge")) ? EReEchoRunPhase::ForgeChoice
+	                                                                                : EReEchoRunPhase::CardChoice);
 }
 
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
 {
 	PendingTraitCardIds.Reset();
-	const int32 OfferCount = FMath::Clamp(RequestedCount, 0, GetTraitCatalog().Num());
+	const TArray<FReEchoCsvCardRow> Catalog = GetOfferCatalog(TraitOfferGroup);
+	const int32 OfferCount = FMath::Clamp(RequestedCount, 0, Catalog.Num());
 	if (OfferCount == 0 || Phase != EReEchoRunPhase::CardChoice)
 	{
 		return {};
@@ -144,23 +292,23 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 	int32 StackLevel = 0;
 	while (Result.Num() < OfferCount)
 	{
-		TArray<FReEchoTraitCardOffer> StackBucket;
-		for (const FReEchoTraitCardOffer& Offer : GetTraitCatalog())
+		TArray<FReEchoCsvCardRow> StackBucket;
+		for (const FReEchoCsvCardRow& Card : Catalog)
 		{
-			if (GetTraitStackCount(CurrentBuild.Cards, Offer.CardId) == StackLevel)
+			if (GetTraitStackCount(CurrentBuild.Cards, Card.Id) == StackLevel)
 			{
-				StackBucket.Add(Offer);
+				StackBucket.Add(Card);
 			}
 		}
 
 		ShuffleOffers(StackBucket, Random);
-		for (const FReEchoTraitCardOffer& Offer : StackBucket)
+		for (const FReEchoCsvCardRow& Card : StackBucket)
 		{
 			if (Result.Num() >= OfferCount)
 			{
 				break;
 			}
-			Result.Add(Offer);
+			Result.Add(MakeTraitOffer(Card));
 		}
 		++StackLevel;
 	}
@@ -179,35 +327,14 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 
-	if (CardId == TEXT("G_1_01"))
-	{
-		CurrentBuild.Stats.MovementSpeed += 0.10f;
-		CurrentBuild.Stats.AttackSpeed += 0.10f;
-	}
-	else if (CardId == TEXT("G_1_02"))
-	{
-		CurrentBuild.Stats.HpMax += 15.0f;
-	}
-	else if (CardId == TEXT("G_1_03"))
-	{
-		CurrentBuild.Stats.Block += 1;
-	}
-	else if (CardId == TEXT("G_1_04"))
-	{
-		CurrentBuild.Stats.PhysicalAttack += 2.0f;
-	}
-	else if (CardId == TEXT("G_1_05"))
-	{
-		CurrentBuild.Stats.ElementalAttack += 2.0f;
-	}
-	else if (CardId == TEXT("G_1_08"))
-	{
-		CurrentBuild.Stats.EchoEfficiency += 0.10f;
-	}
-	else
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(CardId) : nullptr;
+	FReEchoBuildSnapshot PendingBuild = CurrentBuild;
+	if (!Card || !Card->bEnabled || !ReEchoRunData::TryApplyCardEffectsToBuild(*Card, CurrentBuild, PendingBuild))
 	{
 		return false;
 	}
+	CurrentBuild = PendingBuild;
 
 	const FName SageBonusChoiceFlag = TEXT("SageBonusChoice");
 	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
@@ -243,16 +370,11 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateForgeOffers()
 		return {};
 	}
 
-	TArray<FReEchoTraitCardOffer> Offers = {
-	    MakeTraitOffer(TEXT("FORGE_LIGHT"),
-	                   NSLOCTEXT("ReEcho", "ForgeLight", "轻度锻炼"),
-	                   NSLOCTEXT("ReEcho", "ForgeLightDesc", "生命 +2，物理与元素攻击 +1")),
-	    MakeTraitOffer(TEXT("FORGE_MEDIUM"),
-	                   NSLOCTEXT("ReEcho", "ForgeMedium", "中度锻炼"),
-	                   NSLOCTEXT("ReEcho", "ForgeMediumDesc", "生命 -2，物理与元素攻击 +2")),
-	    MakeTraitOffer(TEXT("FORGE_EXTREME"),
-	                   NSLOCTEXT("ReEcho", "ForgeExtreme", "极限锻炼"),
-	                   NSLOCTEXT("ReEcho", "ForgeExtremeDesc", "生命 -6，物理与元素攻击 +2"))};
+	TArray<FReEchoTraitCardOffer> Offers;
+	for (const FReEchoCsvCardRow& Card : GetOfferCatalog(ForgeOfferGroup))
+	{
+		Offers.Add(MakeTraitOffer(Card));
+	}
 	for (const FReEchoTraitCardOffer& Offer : Offers)
 	{
 		PendingTraitCardIds.Add(Offer.CardId);
@@ -267,30 +389,17 @@ bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
 		return false;
 	}
 
-	if (ForgeId == TEXT("FORGE_LIGHT"))
-	{
-		CurrentBuild.Stats.HpMax += 2.0f;
-		CurrentBuild.Stats.PhysicalAttack += 1.0f;
-		CurrentBuild.Stats.ElementalAttack += 1.0f;
-	}
-	else if (ForgeId == TEXT("FORGE_MEDIUM"))
-	{
-		CurrentBuild.Stats.HpMax -= 2.0f;
-		CurrentBuild.Stats.PhysicalAttack += 2.0f;
-		CurrentBuild.Stats.ElementalAttack += 2.0f;
-	}
-	else if (ForgeId == TEXT("FORGE_EXTREME"))
-	{
-		CurrentBuild.Stats.HpMax -= 6.0f;
-		CurrentBuild.Stats.PhysicalAttack += 2.0f;
-		CurrentBuild.Stats.ElementalAttack += 2.0f;
-	}
-	else
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(ForgeId) : nullptr;
+	FReEchoBuildSnapshot PendingBuild = CurrentBuild;
+	if (!Card || !Card->bEnabled || Card->OfferGroup != ForgeOfferGroup ||
+	    !ReEchoRunData::TryApplyCardEffectsToBuild(*Card, CurrentBuild, PendingBuild))
 	{
 		return false;
 	}
 
-	CurrentBuild.Stats.HpMax = FMath::Max(1.0f, CurrentBuild.Stats.HpMax);
+	PendingBuild.Stats.HpMax = FMath::Max(1.0f, PendingBuild.Stats.HpMax);
+	CurrentBuild = PendingBuild;
 	PendingTraitCardIds.Reset();
 	SetPhase(EReEchoRunPhase::CardChoice);
 	return true;

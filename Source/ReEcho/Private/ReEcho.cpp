@@ -12,6 +12,7 @@ public:
 	{
 		FDefaultGameModuleImpl::StartupModule();
 
+		FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors();
 		const FReEchoCsvLoadResult LoadResult = FReEchoCsvDataRegistry::LoadAndPublishDefault();
 		if (!LoadResult.bSuccess)
 		{
@@ -19,9 +20,11 @@ public:
 		}
 		UE_LOG(LogReEcho,
 		       Log,
-		       TEXT("ReEcho CSV data loaded from %s with %d runtime smoke rows"),
+		       TEXT("ReEcho CSV data loaded from %s with %d runtime smoke rows, %d characters and %d cards"),
 		       *FReEchoCsvDataRegistry::GetDefaultDataDirectory(),
-		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->RuntimeSmokeRows.Num() : 0);
+		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->RuntimeSmokeRows.Num() : 0,
+		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Characters.Num() : 0,
+		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Cards.Num() : 0);
 	}
 };
 

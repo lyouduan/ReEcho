@@ -1,15 +1,41 @@
 #include "Run/ReEchoCharacterPromotion.h"
 
+#include "Data/ReEchoCsvDataRegistry.h"
+
 namespace
 {
-int32 CountCards(const TArray<FName>& Cards, const TArray<FName>& Category)
+void ApplyStatDelta(FReEchoStatBlock& Target, const FReEchoStatBlock& From, const FReEchoStatBlock& To)
 {
-	int32 Score = 0;
-	for (const FName Card : Cards)
+	Target.HpMax += To.HpMax - From.HpMax;
+	Target.HpPoint = FMath::Min(Target.HpPoint, Target.HpMax);
+	Target.PhysicalAttack += To.PhysicalAttack - From.PhysicalAttack;
+	Target.ElementalAttack += To.ElementalAttack - From.ElementalAttack;
+	Target.AttackSpeed += To.AttackSpeed - From.AttackSpeed;
+	Target.MovementSpeed += To.MovementSpeed - From.MovementSpeed;
+	Target.CriticalRate += To.CriticalRate - From.CriticalRate;
+	Target.CriticalEffect += To.CriticalEffect - From.CriticalEffect;
+	Target.EchoEfficiency += To.EchoEfficiency - From.EchoEfficiency;
+	Target.ReactionEfficiency += To.ReactionEfficiency - From.ReactionEfficiency;
+	Target.EverySecondAttackBonus = To.EverySecondAttackBonus;
+	Target.bRandomElementProjectiles = To.bRandomElementProjectiles;
+}
+
+const FReEchoCsvCharacterRow* FindCharacterForRole(const FReEchoCsvDataSnapshot& Snapshot, const FName RoleId)
+{
+	const FReEchoCsvCharacterRow* Best = nullptr;
+	for (const TPair<FName, FReEchoCsvCharacterRow>& Pair : Snapshot.Characters)
 	{
-		Score += Category.Contains(Card) ? 1 : 0;
+		const FReEchoCsvCharacterRow& Character = Pair.Value;
+		if (!Character.bEnabled || Character.RoleId != RoleId)
+		{
+			continue;
+		}
+		if (!Best || Character.PromotionPriority < Best->PromotionPriority)
+		{
+			Best = &Character;
+		}
 	}
-	return Score;
+	return Best;
 }
 }
 
@@ -17,24 +43,48 @@ namespace ReEchoCharacterPromotion
 {
 FName EvaluateRole(const TArray<FName>& Cards)
 {
-	const int32 Physical = CountCards(Cards, {TEXT("G_1_04")});
-	const int32 Element = CountCards(Cards, {TEXT("G_1_05")});
-	const int32 Survival = CountCards(Cards, {TEXT("G_1_02"), TEXT("G_1_03")});
-	const int32 Utility = CountCards(Cards, {TEXT("G_1_01"), TEXT("G_1_08")});
-	const int32 Best = FMath::Max(FMath::Max(Physical, Element), FMath::Max(Survival, Utility));
-	if (Physical == Best)
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
 	{
-		return TEXT("Hunter");
+		return NAME_None;
 	}
-	if (Element == Best)
+
+	TMap<FName, int32> Scores;
+	for (const TPair<FName, FReEchoCsvCharacterRow>& Pair : Snapshot->Characters)
 	{
-		return TEXT("Poet");
+		const FReEchoCsvCharacterRow& Character = Pair.Value;
+		if (Character.bEnabled && Character.RoleId != TEXT("None"))
+		{
+			Scores.Add(Character.RoleId, 0);
+		}
 	}
-	if (Survival == Best)
+	for (const FName CardId : Cards)
 	{
-		return TEXT("Brave");
+		const FReEchoCsvCardRow* Card = Snapshot->FindCard(CardId);
+		if (Card && Card->bEnabled && Scores.Contains(Card->PromotionRoleId))
+		{
+			++Scores.FindOrAdd(Card->PromotionRoleId);
+		}
 	}
-	return TEXT("Sage");
+
+	const FReEchoCsvCharacterRow* BestCharacter = nullptr;
+	int32 BestScore = MIN_int32;
+	for (const TPair<FName, int32>& ScorePair : Scores)
+	{
+		const FReEchoCsvCharacterRow* Character = FindCharacterForRole(*Snapshot, ScorePair.Key);
+		if (!Character)
+		{
+			continue;
+		}
+		if (ScorePair.Value > BestScore ||
+		    (ScorePair.Value == BestScore &&
+		     (!BestCharacter || Character->PromotionPriority < BestCharacter->PromotionPriority)))
+		{
+			BestCharacter = Character;
+			BestScore = ScorePair.Value;
+		}
+	}
+	return BestCharacter ? BestCharacter->RoleId : NAME_None;
 }
 
 bool TryPromote(FReEchoBuildSnapshot& Build)
@@ -44,39 +94,27 @@ bool TryPromote(FReEchoBuildSnapshot& Build)
 		return false;
 	}
 
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		return false;
+	}
+
 	const FName Role = EvaluateRole(Build.Cards);
+	const FReEchoCsvCharacterRow* TargetCharacter = FindCharacterForRole(*Snapshot, Role);
+	const FName BaseCharacterId(*Build.RuleFlags.FindRef(TEXT("BaseCharacterId")));
+	const FReEchoCsvCharacterRow* BaseCharacter =
+	    Snapshot->FindCharacter(BaseCharacterId.IsNone() ? Build.CharacterId : BaseCharacterId);
+	if (!TargetCharacter || !BaseCharacter)
+	{
+		return false;
+	}
+
 	Build.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
 	Build.RuleFlags.Add(TEXT("Role"), Role.ToString());
 	Build.Stats.RoleId = Role;
-	if (Role == TEXT("Hunter"))
-	{
-		Build.CharacterId = TEXT("J_DIAMOND");
-		Build.Stats.HpMax -= 3.0f;
-		Build.Stats.PhysicalAttack += 3.0f;
-		Build.Stats.ElementalAttack -= 3.0f;
-		Build.Stats.CriticalRate += 0.20f;
-		Build.Stats.CriticalEffect += 0.50f;
-	}
-	else if (Role == TEXT("Poet"))
-	{
-		Build.CharacterId = TEXT("J_CLOVER");
-		Build.Stats.HpMax -= 7.0f;
-		Build.Stats.PhysicalAttack -= 3.0f;
-		Build.Stats.ElementalAttack += 5.0f;
-		Build.Stats.bRandomElementProjectiles = true;
-	}
-	else if (Role == TEXT("Brave"))
-	{
-		Build.CharacterId = TEXT("J_HEART");
-		Build.Stats.HpMax += 5.0f;
-		Build.Stats.PhysicalAttack -= 3.0f;
-		Build.Stats.ElementalAttack -= 3.0f;
-		Build.Stats.EverySecondAttackBonus = 0.5f;
-	}
-	else
-	{
-		Build.CharacterId = TEXT("J_SPADE");
-	}
+	Build.CharacterId = TargetCharacter->Id;
+	ApplyStatDelta(Build.Stats, BaseCharacter->BaseStats, TargetCharacter->BaseStats);
 
 	Build.Stats.HpMax = FMath::Max(1.0f, Build.Stats.HpMax);
 	Build.Stats.PhysicalAttack = FMath::Max(0.0f, Build.Stats.PhysicalAttack);

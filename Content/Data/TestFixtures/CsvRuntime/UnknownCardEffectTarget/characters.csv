@@ -1,0 +1,6 @@
+Id,SourceWorkbookId,DisplayName,Enabled,DisabledReason,RoleId,PromotionPriority,DefaultWeaponId,AppearanceId,PassiveBehaviorId,PassiveValue,HpMax,PhysicalAttack,ElementalAttack,AttackSpeed,MovementSpeed,CriticalRate,CriticalEffect,EchoEfficiency,ReactionEfficiency,EverySecondAttackBonus,RandomElementProjectiles
+J_CAT,RuntimeOnly.J_CAT,默认旅人,true,,None,99,W_J_02,J_CAT,None,0,15,5,5,1,1,0.2,0.5,0.5,1,0,false
+J_DIAMOND,J_02,猎手,true,,Hunter,1,W_J_02,J_DIAMOND,None,0,12,8,2,1,1,0.4,1.0,0.5,1,0,false
+J_CLOVER,J_03,诗人,true,,Poet,2,W_J_03,J_CLOVER,Character.PoetReactionGrowth,0.05,8,2,10,1,1,0.2,0.5,0.5,1,0,true
+J_HEART,J_04,勇者,true,,Brave,3,W_J_04,J_HEART,Character.BraveForge,0,20,2,2,1,1,0.2,0.5,0.5,1,0.5,false
+J_SPADE,J_01,智者,true,,Sage,4,W_J_01,J_SPADE,Character.SageBonusChoice,4,15,5,5,1,1,0.2,0.5,0.5,1,0,false

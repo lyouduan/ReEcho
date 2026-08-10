@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/ReEchoTypes.h"
 
 enum class EReEchoCsvValueOp : uint8
 {
@@ -43,12 +44,70 @@ struct REECHO_API FReEchoRuntimeSmokeRow
 	TArray<FReEchoRuntimeSmokeEffectRow> Effects;
 };
 
+struct REECHO_API FReEchoCsvCharacterRow
+{
+	FName Id;
+	FName SourceWorkbookId;
+	FString DisplayName;
+	bool bEnabled = false;
+	FString DisabledReason;
+	FName RoleId;
+	int32 PromotionPriority = 0;
+	FName DefaultWeaponId;
+	FName AppearanceId;
+	FName PassiveBehaviorId;
+	float PassiveValue = 0.0f;
+	FReEchoStatBlock BaseStats;
+};
+
+struct REECHO_API FReEchoCsvCardEffectRow
+{
+	FName Id;
+	FName CardId;
+	int32 Order = 0;
+	FName Trigger;
+	FName EffectKind;
+	FName Target;
+	EReEchoCsvValueOp ValueOp = EReEchoCsvValueOp::Add;
+	float Value = 0.0f;
+	FName BehaviorId;
+	FName ParamName;
+	float ParamValue = 0.0f;
+};
+
+struct REECHO_API FReEchoCsvCardRow
+{
+	FName Id;
+	FName SourceWorkbookId;
+	int32 Tier = 0;
+	FString DisplayName;
+	FString Description;
+	TArray<FName> Tags;
+	FName PromotionRoleId;
+	FName OfferGroup;
+	bool bEnabled = false;
+	bool bOfferable = false;
+	FName StackPolicy;
+	FName ConflictPolicy;
+	FName ReviewStatus;
+	FString DisabledReason;
+	TArray<FReEchoCsvCardEffectRow> Effects;
+};
+
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
 	TMap<FName, FReEchoRuntimeSmokeRow> RuntimeSmokeRows;
+	TMap<FName, FReEchoCsvCharacterRow> Characters;
+	TMap<FName, FName> CharacterAliases;
+	TMap<FName, FReEchoCsvCardRow> Cards;
+	TArray<FName> CardOrder;
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
+	FName ResolveCharacterId(FName CharacterId) const;
+	const FReEchoCsvCharacterRow* FindCharacter(FName CharacterId) const;
+	const FReEchoCsvCardRow* FindCard(FName CardId) const;
+	TArray<FReEchoCsvCardRow> GetOfferableCards(FName OfferGroup) const;
 };
 
 struct REECHO_API FReEchoCsvLoadResult
@@ -67,6 +126,7 @@ public:
 
 	static void RegisterBehaviorId(FName BehaviorId);
 	static void RegisterEffectKind(FName EffectKind);
+	static void RegisterBuiltInCsvBehaviors();
 	static bool IsBehaviorIdRegistered(FName BehaviorId);
 	static bool IsEffectKindRegistered(FName EffectKind);
 

@@ -14,3 +14,53 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,RuntimeSmokeEffects,ParamName,StableId,true,,,,,Typed parameter name.
 1,RuntimeSmokeEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
 1,RuntimeSmokeEffects,Value,Float,true,-100000,100000,,,Typed numeric parameter value.
+1,Characters,Id,StableId,true,,,,,Canonical runtime character id.
+1,Characters,SourceWorkbookId,StableId,true,,,,,Workbook id or explicit runtime-only provenance id.
+1,Characters,DisplayName,Text,true,,,,,Designer-visible character name.
+1,Characters,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Characters,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,Characters,RoleId,StableId,true,,,,None|Hunter|Poet|Brave|Sage,Role used by promotion scoring.
+1,Characters,PromotionPriority,Int,true,0,1000000,,,Lower value wins role ties.
+1,Characters,DefaultWeaponId,StableId,true,,,,,Initial weapon id.
+1,Characters,AppearanceId,StableId,true,,,,,Stable appearance id consumed by hard asset maps.
+1,Characters,PassiveBehaviorId,BehaviorId,true,,,,None|Character.SageBonusChoice|Character.PoetReactionGrowth|Character.BraveForge,Registered passive behavior id.
+1,Characters,PassiveValue,Float,true,0,100000,,,Typed passive numeric parameter.
+1,Characters,HpMax,Float,true,1,100000,,,Base maximum health.
+1,Characters,PhysicalAttack,Float,true,0,100000,,,Base physical attack.
+1,Characters,ElementalAttack,Float,true,0,100000,,,Base elemental attack.
+1,Characters,AttackSpeed,Float,true,0.1,100,,,Base attack speed multiplier.
+1,Characters,MovementSpeed,Float,true,0.1,100,,,Base movement speed multiplier.
+1,Characters,CriticalRate,PercentDecimal,true,0,1,,,Base critical rate decimal.
+1,Characters,CriticalEffect,Float,true,0,100,,,Base critical damage effect.
+1,Characters,EchoEfficiency,Float,true,0,100,,,Echo damage efficiency multiplier.
+1,Characters,ReactionEfficiency,Float,true,0,100,,,Element reaction efficiency multiplier.
+1,Characters,EverySecondAttackBonus,Float,true,0,100,,,Brave second-hit damage bonus.
+1,Characters,RandomElementProjectiles,Bool,true,,,,true|false,Whether projectile attacks roll random elements.
+1,CharacterAliases,Id,StableId,true,,,,,Legacy or workbook character id.
+1,CharacterAliases,CanonicalCharacterId,ForeignKey,true,,,Characters,,References Characters.Id.
+1,CharacterAliases,Reason,Text,true,,,,,Why the alias exists.
+1,Cards,Id,StableId,true,,,,,Canonical runtime card id.
+1,Cards,SourceWorkbookId,StableId,true,,,,,Workbook id or runtime-only provenance id.
+1,Cards,Tier,Int,true,0,1000000,,,Card tier.
+1,Cards,DisplayName,Text,true,,,,,Designer-visible card name.
+1,Cards,Description,Text,true,,,,,Designer-visible card description.
+1,Cards,Tags,StableIdList,true,,,,,Pipe-separated stable tags.
+1,Cards,PromotionRoleId,StableId,true,,,,Disabled|Hunter|Poet|Brave|Sage,Role score bucket for promotion.
+1,Cards,OfferGroup,StableId,true,,,,Trait|Forge|Disabled,Offer pool group.
+1,Cards,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Cards,Offerable,Bool,true,,,,true|false,Whether the card may enter generated offers.
+1,Cards,StackPolicy,StableId,true,,,,Stackable|Unique,Stacking policy.
+1,Cards,ConflictPolicy,StableId,true,,,,None|EchoKeystone,Conflict policy id.
+1,Cards,ReviewStatus,StableId,true,,,,Approved|Unimplemented|DesignReview|Reserved,Source row review state.
+1,Cards,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,CardEffects,Id,StableId,true,,,,,Stable child effect row id.
+1,CardEffects,CardId,ForeignKey,true,,,Cards,,References Cards.Id.
+1,CardEffects,Order,Int,true,0,1000000,,,Effect application order within card.
+1,CardEffects,Trigger,StableId,true,,,,OnApply,Effect trigger.
+1,CardEffects,EffectKind,EffectKind,true,,,,StatModifier|InstantRecovery,Registered C++ effect kind.
+1,CardEffects,Target,StableId,true,,,,HpMax|HpPoint|PhysicalAttack|ElementalAttack|Block|AttackSpeed|MovementSpeed|EchoEfficiency,Typed stat target.
+1,CardEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
+1,CardEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
+1,CardEffects,BehaviorId,BehaviorId,true,,,,None|Card.StatModifier|Card.InstantRecovery,Registered C++ behavior id.
+1,CardEffects,ParamName,StableId,true,,,,None,Typed parameter name when needed.
+1,CardEffects,ParamValue,Float,true,-100000,100000,,,Typed numeric parameter when needed.
