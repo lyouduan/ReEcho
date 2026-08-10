@@ -6,29 +6,35 @@
 
 ## Dependency status
 
-Plan 21、22 已于 2026-08-10 人验、审查并本地合并。Plan 22 已落地通用 `ReEchoCsvDataReader.*`、独立角色构筑领域读取器和原子应用/硬失败契约；本 Plan 仍必须等待 Plan 23 人验并合并后启动，以消费最终 ElementId/Reaction API。
+Plan 21–23 已于 2026-08-10 审查、验收并本地合并；当前 main 为 `81448c1`，Editor Development、静态校验和 27 项 `ReEcho.*` 自动化通过。Plan 22 已落地通用 `ReEchoCsvDataReader.*`、独立角色构筑领域读取器和原子应用/硬失败契约；Plan 23 已落地 `Elements/Statuses/Reactions` 快照、稳定 ElementId、有序 `FindReaction()`、显式公式注册和“生产基线＋局部覆盖”夹具组包。
 
-启动前规划者还要依据 Plan 22 的领域读取扩展点与 Plan 23 的最终 `ElementId`/Reaction API 做一次窄校准。Plan 24 执行期间独占上述公共数据文件，默认只消费 Plan 23 元素接口，不再改写它。
+规划者已依据上述最终接口完成窄校准，Plan 24 可以启动。执行期间独占共享 manifest/schema/快照/注册表/静态校验入口，默认只消费 Plan 23 元素接口，不再改写其反应、状态时间或存档语义。
 
 ## Source baseline
 
 - `武器体系W`：匕首、长剑、镰刀、鞭、弓、枪、法杖的攻击阶段和初始属性。
 - `武器插槽C`：通用核心、各武器专属槽位和近 80 行配件效果。
-- 当前表有大量空配件名称与空词条，且许多效果是事件逻辑而非数值；这些行必须保留设计来源但不能自动 enabled。
-- 当前运行时只有 `PhysicalOrb/Sword/ElementalOrb` 三槽、DeveloperSettings 武器数组和 Actor switch，与目标七类武器/配件组合尚不等价。
+- 规划者重新读取工作簿后确认：`武器体系W` 的 7 行是“武器类型/基础 pattern”，不是 7 个带稳定 WeaponId 的具体武器；不得把类型 ID、具体 WeaponId 和输入热键槽混成一个字段。
+- `武器插槽C` 有 78 条源行但没有任何稳定源 ID；仅 16 行有名称（6 个通用核心、6 个匕首配件、4 个弓箭头），其余 62 行缺名称。所有源行都要保留 `SourceSheet/SourceRow` 与 implementation status；缺名称行保持 disabled，不能把行号包装成长期运行时 PartId。
+- `武器体系（废案）` 只可作为历史线索，不能作为本 Plan 的数据权威或自动映射依据。
+- 当前运行时只有 3 个具体武器定义：`W_J_02`/热键 1、`W_J_01`/热键 2、`W_J_03`/热键 3；它们由 `UReEchoBalanceSettings::Weapons`、`EReEchoWeaponSlot` 和 Weapon Actor switch 共同解释。Plan 22 的启用角色还引用 `W_J_04`，但当前 DeveloperSettings 没有该定义。
+- 当前初始武器 UI 固定三个按钮并从 DeveloperSettings 读定义；`SetEquippedWeapon()` 会无校验直接改 BuildSnapshot。两处都必须迁到同一 CSV 快照。
 
 ## Locked acceptance
 
 ### 🤖 Automated
 
-- [ ] 武器主表分离 ID、类型、展示/资源键、基础属性、AttackPatternId、允许槽位集合与 enabled；不再从“攻击时长：0.8s”文本解析数值。
+- [ ] `weapon_types.csv` 表达 7 个类型/基础 pattern；`weapons.csv` 表达具体稳定 WeaponId、WeaponTypeId、展示/资源键、输入槽/初始选择顺序与 enabled。运行时不得用 `EReEchoWeaponSlot` 充当 WeaponId 或配件槽类型。
 - [ ] 多段攻击使用有序攻击阶段子表，能表达时长、物攻/元攻系数、范围/角度覆盖、移动/击退/无敌窗口和阶段条件；次序稳定且可校验。
 - [ ] 插槽类型/武器允许槽位与具体配件分离；核心决定物理/元素伤害通道时引用 Plan 23 的稳定 ElementId。
 - [ ] 配件效果使用一对多 effect rows：纯数值走通用 modifier，通用触发逻辑走 BehaviorId/typed parameters，独特攻击模组走已注册 AttackPattern/Behavior handler。
 - [ ] 不按每个 PartId 新建 switch 或 Component。仅需要持续状态/Tick/空间实体的配件可挂组件；一次命中、暴击、击杀、叠层和掉落等优先走事件/Ability/handler。
 - [ ] 所有工作簿武器和插槽行有源行追踪与 implementation status；缺名称、缺 ID、缺参数或没有 handler 的配件必须 disabled 并给出原因。
-- [ ] 当前三个可玩武器/槽位行为保持，或按人批准的映射迁入七类架构；GAS cooldown/伤害仍权威，Weapon Actor 不恢复第二套计时/伤害权威。
+- [ ] 当前 `W_J_01/02/03` 的 ID、热键顺序和可玩语义原样兼容；不得按工作簿角色名重解释旧录制。`W_J_04` 新增为启用的镰刀 pattern 具体武器，以满足启用角色默认武器外键。GAS cooldown/伤害仍权威，Weapon Actor 不恢复第二套计时/伤害权威。
 - [ ] 玩家切换武器、BuildSnapshot、Recorder 武器变化和 Echo Playback 仍只记录/引用稳定 WeaponId；同一 Run 内使用同一注册快照，表变化不会让历史回响漂移。
+- [ ] 初始武器 UI 从 CSV 读取恰好 3 个 `StartSelectable` 武器并按稳定 `LoadoutOrder` 填现有三个按钮；本 Plan 不重做 UI。Run 的 start/restore/equip 遇到未知或 disabled WeaponId 必须明确失败，`SetEquippedWeapon()` 不得继续盲写。
+- [ ] 存档/录制携带可比较的武器数据 revision/hash；继续游戏若当前武器定义与保存时不兼容必须明确拒绝，不能用新表静默重放旧武器语义。
+- [ ] 工作簿 78 条插槽源行全部进入审计清单：62 条缺名称行保持 disabled；至少启用并验证 6 个通用核心、`力量握柄` 纯数值效果、一个命名 AttackPatternReplacement 和一个命名通用事件行为，其余无 handler 的命名行也保持 disabled 并写原因。
 - [ ] 至少有代表性自动化覆盖：单段远程、多段近战、核心元素、Add/Multiply/Override 配件、暴击/命中触发配件、禁用未实现配件、非法槽位组合和表数值变更。
 - [ ] 旧 `weapons.json`、DeveloperSettings `Weapons` 及武器 Actor 重复常量退出该领域运行时权威；不存在双写。
 - [ ] Editor build、武器/录制/回响/元素回归、全量 `ReEcho.*`、静态校验和 `git diff --check` 通过。
@@ -42,41 +48,43 @@ Plan 21、22 已于 2026-08-10 人验、审查并本地合并。Plan 22 已落�
 
 ## Step 0 gates
 
-1. 仅在 Plan 23 已人验并合并后，从更新后的 main 创建 `plan/24-weapons-slots-csv`；读取 Plan 21–23 最终 Execution notes、`ReEchoCsvDataReader.*`、两个既有领域读取器、共享快照、内建行为注册和最终 ElementId/Reaction API。缺 Plan 23 则停止。
+1. 从 main `81448c1` 创建独立 worktree/分支 `plan/24-weapons-slots-csv`；确认 27 项基线，并读取 Plan 21–23 最终 Execution notes、`ReEchoCsvDataReader.*`、两个既有领域读取器、共享快照、内建注册和最终 ElementId/Reaction API。基线不符则停止。
 2. 在协调板独占生产 manifest/schema、共享快照、注册表编排、内建注册、`ReEcho.Build.cs` 与静态校验入口；默认只消费 Plan 23 元素 API，如需改其公共契约先交回规划者。
 3. 武器/配件的 `BehaviorId`、`EffectKind` 和 AttackPattern handler 必须进入显式内建注册函数，并在模块启动加载前注册；不得依赖静态初始化顺序。
-4. 列出当前三个武器 ID/槽位与工作簿七种武器/角色初始武器的映射，评估 BuildSnapshot/录制兼容；任何重编号或语义替换先由人拍板。
-5. 将所有配件行分类为 `Numeric`、`ParameterizedBehavior`、`AttackPatternReplacement`、`UniqueBehavior`、`Incomplete/Disabled`，并补稳定 ID 提案。缺名称/词条的源行不能用行号直接成为长期运行时 ID，需人确认命名/ID 或保持禁用。
+4. 锁定兼容映射：保留 `W_J_02→InputSlot1`、`W_J_01→InputSlot2`、`W_J_03→InputSlot3` 及其现有行为；`W_J_04` 使用 active sheet 明确存在的 Scythe pattern。不得使用废案 sheet 重编号或替换 `W_J_01/02/03`。7 个类型使用独立稳定 TypeId，具体命名可按项目 ID 规范落地并写入 Execution notes。
+5. 将 78 条配件源行分类为 `Numeric`、`ParameterizedBehavior`、`AttackPatternReplacement`、`UniqueBehavior`、`Incomplete/Disabled`。仅给有名称且纳入实现批次的行稳定 PartId；62 条缺名称行用 `SourceSheet/SourceRow` 审计但不获得伪造 PartId，并保持 disabled。
 6. 采集现有三个武器攻击间隔、伤害、射程、元素循环、Sword/Projectile 行为与录制/回响测试基线。
 7. 先用一个武器、一个多段 pattern、一个核心和一个数值配件打通全链；若通用模型不能表达，记录最小 schema 扩展，不立刻为全部 80 行写专属类。
 8. 不修改武器/角色 `.uasset`、贴图或动画资产；若视觉资源缺失，用现有可玩表现验证逻辑，资产补齐另开 Plan 并认领。
-9. 沿用 Plan 23 建立的“生产基线＋局部覆盖”负例组包方式，禁止把六张武器领域表复制进所有旧夹具目录。
+9. 沿用 Plan 23 建立的“生产基线＋局部覆盖”负例组包方式，禁止把七张武器领域表复制进所有旧夹具目录。
 
 ## Target table responsibilities
 
-生产表文件固定为 `weapons.csv`、`attack_steps.csv`、`slot_types.csv`、`slot_profiles.csv`、`parts.csv`、`part_effects.csv`；具体列名服从 Plan 22/23 已落地的领域读取约定，语义至少包括：
+生产表文件固定为 `weapon_types.csv`、`weapons.csv`、`attack_steps.csv`、`slot_types.csv`、`slot_profiles.csv`、`parts.csv`、`part_effects.csv`；具体列名服从 Plan 22/23 已落地的领域读取约定，语义至少包括：
 
-- Weapon：ID、type、display/resource keys、attack pattern ID、基础 interval/range/projectile/explosion/concentration 等、allowed slot profile、enabled。
+- WeaponType：7 个稳定类型 ID、基础 AttackPatternId、基础 interval/range/projectile/explosion/concentration/geometry、SlotProfileId、enabled 与源行。
+- Weapon：具体稳定 WeaponId、WeaponTypeId、display/resource keys、兼容 InputSlot、StartSelectable/LoadoutOrder、可选 pattern override、enabled 与 revision material。
 - AttackStep：weapon/pattern ID、ordered index、duration、damage coefficients、geometry/range/angle、movement/status/condition behavior references。
 - SlotType/Profile：武器类型允许的槽位和数量限制，核心例外规则。
 - Part：ID、weapon type/slot type、display text、rarity/tags、enabled/implementation status。
 - PartEffect：part ID、order、trigger、effect kind、target/op/value 或 behavior/attack pattern ID、typed parameters、duration/cooldown/stack rule。
 - 运行时由类型化武器领域读取器校验阶段顺序、槽位组合、外键、范围和 handler 白名单；`csv_schema.csv` 只描述同一契约，不解释攻击公式或行为。
 - 武器表加载后，注册表必须做跨领域校验：Plan 22 所有启用角色的 `DefaultWeaponId` 必须引用启用武器；未知武器不能等到 `StartRun()` 或攻击时才失败。
+- 配件槽 `SlotTypeId`（核心/握柄/刀刃等）、具体武器的 `InputSlot`（1/2/3）和武器类型 `WeaponTypeId` 是三个独立概念，读取器必须拒绝混用和重复输入槽/LoadoutOrder。
 
 ## Implementation outline
 
 1. 沿用 Plan 22 的通用读取层和 Plan 23 的领域模式新增独立武器领域读取器，扩展共享快照与注册表编排；生产 manifest 缺任一必需表、角色默认武器外键无效或任一领域失败时整包不发布。
 2. 用一个垂直切片打通 CSV → build/equipment → Weapon execution → GAS damage/cooldown → recording/echo。
-3. 将当前三武器迁移并保持自动化基线，再扩到工作簿七类基础 pattern。
-4. 实现有限的通用 modifier、事件行为和 AttackPattern handler；未实现源行保持 disabled。
+3. 先迁移当前三武器并保持热键/录制/回响基线，再加入 `W_J_04` 与工作簿七类基础 pattern；缺视觉资源时只复用现有表现，不碰资产。
+4. 启用六个核心、`力量握柄`、至少一个命名 pattern replacement 和一个命名事件行为；其余无 handler/状态依赖未实现的源行保持 disabled。
 5. 接 UI/商店/背包所需只读名称与槽位合法性，不重做界面版式和经济系统。
 6. 移除旧武器运行时重复源，补组合、原子失败、确定性和回响回归测试。
 7. 同步 README、manifest/schema/RuntimeDependencies、静态领域校验、CODEBASE_MAP、PROJECT_STATE、LESSONS 与 Execution notes，列出禁用配件和后续实现批次。
 
 ## Expected ownership
 
-- 六张生产武器领域 CSV 及 manifest/schema/README/打包依赖。
+- 七张生产武器领域 CSV 及 manifest/schema/README/打包依赖。
 - 独立武器领域读取器、共享快照扩展、注册表编排与显式内建行为/AttackPattern 注册。
 - `Weapons/ReEchoWeaponActor.*` 及新增的 weapon definition/pattern/effect handlers。
 - 必要的 Player/Echo/Recording/Projectile/Run 装备接线。
@@ -112,7 +120,7 @@ Plan 21、22 已于 2026-08-10 人验、审查并本地合并。Plan 22 已落�
 
 ### Evidence
 
-### Plan 21 and Plan 23 contract adaptation
+### Plan 21–23 and integrated loadout/recording contract adaptation
 
 ### Enabled content batch
 
@@ -125,11 +133,11 @@ Plan 21、22 已于 2026-08-10 人验、审查并本地合并。Plan 22 已落�
 ## 执行者启动 prompt
 
 ```text
-你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/24-data-weapons-slots-csv.md、已完成的 Plan 21 与 Plan 23 最终 Execution notes、Plan 14 相关经验，以及 shared/LESSONS.md §GAME 中武器/回响/确定性匹配条目；只有诊断失败时读 §DEBUG。
+你是 ReEcho 项目的执行者。先读 AGENTS.md，再按其最小读取顺序读 plans/24-data-weapons-slots-csv.md、Plan 21–23 最终 Execution notes，以及 shared/LESSONS.md §GAME 中武器/回响/确定性匹配条目；只有诊断失败时读 §DEBUG。
 
-前置：main 已依次包含经人验的 Plan 21、22、23，且规划者已按 Plan 22 的领域读取接口与 Plan 23 的最终元素契约窄校准本 Plan。否则停止并告诉人。然后在独立 worktree 的 `plan/24-weapons-slots-csv` 分支工作；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
+前置：从 main `81448c1` 创建独立 worktree 的 `plan/24-weapons-slots-csv` 分支，确认 27 项 `ReEcho.*` 基线。先在协调板认领 manifest/schema、共享快照/注册表、武器领域 CSV 和静态校验入口；参考工作簿为仓库上一级 `../回响肉鸽数值与构筑体系.xlsx`。
 
-任务：沿用 Plan 22 的通用读取层和 Plan 23 的领域读取/负例组包模式新增独立武器领域读取器，扩展唯一快照/注册表编排，并使用 Plan 23 的 ElementId/Reaction API。迁移武器、攻击阶段、插槽和配件，同时校验所有启用角色的 DefaultWeaponId 外键。所有 handler 必须显式注册且先于启动加载。验收照 Plan 24 的 🔒 清单；先做垂直切片，禁止复制数据/元素系统、禁止按 PartId 扩张巨型 switch、禁止把缺名称/ID/handler 的行启用，禁止修改 `.uasset`/`.umap`。把 Plan 21–23 适配、启用批次、禁用源行和所有偏差写入 Execution notes。
+任务：沿用 Plan 22 的通用读取层和 Plan 23 的领域读取/夹具模式新增独立武器领域读取器，把 WeaponType、具体 WeaponId、输入热键槽和配件 SlotType 明确分开，并扩展唯一快照/注册表。迁移 7 个基础类型、当前 `W_J_01/02/03`、缺失的 `W_J_04`、攻击阶段、槽位与批准的配件批次；初始武器 UI、Start/Restore/Equip、Recorder/Echo 都改读同一 CSV 定义。保持当前三热键语义，未知/disabled 配置硬失败，存档定义不兼容不得静默漂移。所有 handler 必须显式注册且先于启动加载。验收照 Plan 24 的 🔒 清单；禁止读取废案 sheet 作为权威、禁止复制数据/元素系统、禁止按 PartId 扩张巨型 switch、禁止启用 62 条缺名称行、禁止修改 `.uasset`/`.umap`。把 Plan 21–23 适配、启用批次、全部禁用源行和偏差写入 Execution notes。
 
 完成后显式提交到本地分支并告诉人；未经人明确确认不得 push，禁止修改或合并 main。
 ```
