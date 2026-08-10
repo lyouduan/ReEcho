@@ -154,6 +154,14 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 - `G_1_02` now records an `InstantRecovery` effect against build `HpPoint` as structured data. Current encounter start still fills health from `HpMax`, so this preserves practical behavior while making the intended heal explicit for later live-combat application.
 - Shop items remain hardcoded in `ReEchoShopCatalog`/`PurchaseShopItem`; Plan 19 only migrated current trait/forge build choices.
 
+### Planner review corrections required before merge
+
+- Human confirmed the validation-only `J_CAT.HpMax` edit must be restored from `20` to the committed production value `15`.
+- `UReEchoRunSubsystem::StartRun` must not fall back to hardcoded `15/5/5` stats when the requested character is missing, disabled or unavailable. Resolve the character through a testable function that returns a precise error; the actual run boundary must then fail with `UE_LOG(LogReEcho, Fatal, ...)` including the requested `CharacterId`. UE C++ `throw` exceptions must not be enabled just for this path.
+- Runtime C++ validation must reject unsupported card effect triggers/targets/combinations and duplicate `(CardId, Order)` values, matching the static validator. Multi-effect application must not partially mutate the build before a later effect fails.
+- Character/build parsing must move out of `ReEchoCsvDataRegistry.cpp` into an independent domain reader. The registry remains the only required-table orchestrator and atomic publisher, so Plan 20 can add another domain reader without growing a monolithic parser.
+- After corrections, rerun static validation, Editor build, all `ReEcho.*` automation and `git diff --check`; record evidence here and commit locally without push.
+
 ### Human validation requested
 
 - Enter a run with the default character and confirm the default weapon remains `W_J_02`/current feel.
