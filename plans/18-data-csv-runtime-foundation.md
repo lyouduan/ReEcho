@@ -167,7 +167,7 @@
 ## Closure
 
 - Human accepted completion on 2026-08-10; planner reviewed and merged the implementation locally as merge commit `575e559`.
-- The final local-path cleanup commit was included in main. Per human instruction, no remote branch was updated or deleted.
+- The final local-path cleanup commit was included in main. The clean executor worktree and merged local branch were removed; the Windows residual directory was moved to the Recycle Bin after its Visual Studio lock closed. Per human instruction, no remote branch was updated or deleted.
 - Source/config did not change after the executor's passing build, 19-test automation and clean Shipping smoke evidence; planner reused that evidence and reran static repository checks after documentation calibration.
 
 ## 执行者启动 prompt
