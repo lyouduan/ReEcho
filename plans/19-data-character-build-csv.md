@@ -187,6 +187,7 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 
 - Human accepted Plan 19 and its planner-review correction pass on 2026-08-10; planner reviewed and merged it locally as `ddc785a`.
 - Final evidence: static validation, UE 5.8 Editor Development build, 22 `ReEcho.*` automation tests and `git diff --check` pass. No remote branch was updated.
+- The clean executor worktree and merged local branch were removed after planner documentation landed.
 
 ## 执行者启动 prompt
 
