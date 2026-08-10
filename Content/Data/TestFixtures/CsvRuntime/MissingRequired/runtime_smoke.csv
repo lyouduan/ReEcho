@@ -1,0 +1,2 @@
+Id,DisplayNameKey,Enabled,TestScalar,TestPercent,DistanceCm,DurationSeconds,BehaviorId,EffectKind,ModifierOp
+RUNTIME_SMOKE,Data.RuntimeSmoke,true,,0.20,250.0,1.5,RuntimeSmoke.LogValue,ScalarModifier,Override

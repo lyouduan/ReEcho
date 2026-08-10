@@ -1,0 +1,16 @@
+SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedValues,Description
+1,RuntimeSmoke,Id,StableId,true,,,,,Stable runtime smoke row id.
+1,RuntimeSmoke,DisplayNameKey,TextKey,true,,,,,Localization key or designer-readable text key.
+1,RuntimeSmoke,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,RuntimeSmoke,TestScalar,Float,true,0,100000,,,Designer-editable scalar used by runtime smoke tests.
+1,RuntimeSmoke,TestPercent,PercentDecimal,true,0,1,,,Decimal percent where 0.20 means 20 percent.
+1,RuntimeSmoke,DistanceCm,Float,true,0,1000000,,,Distance in Unreal centimeters.
+1,RuntimeSmoke,DurationSeconds,Float,true,0,3600,,,Time in seconds.
+1,RuntimeSmoke,BehaviorId,BehaviorId,true,,,,RuntimeSmoke.LogValue,Registered C++ behavior id.
+1,RuntimeSmoke,EffectKind,EffectKind,true,,,,ScalarModifier,Registered C++ effect kind.
+1,RuntimeSmoke,ModifierOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
+1,RuntimeSmokeEffects,Id,StableId,true,,,,,Stable child effect row id.
+1,RuntimeSmokeEffects,RuntimeRowId,ForeignKey,true,,,RuntimeSmoke,,References RuntimeSmoke.Id.
+1,RuntimeSmokeEffects,ParamName,StableId,true,,,,,Typed parameter name.
+1,RuntimeSmokeEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
+1,RuntimeSmokeEffects,Value,Float,true,-100000,100000,,,Typed numeric parameter value.

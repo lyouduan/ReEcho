@@ -1,6 +1,6 @@
 # ReEcho project state
 
-Last updated: 2026-08-05. This file is a current snapshot, not a chronological log; implementation history belongs in `plans/` and Git.
+Last updated: 2026-08-10. This file is a current snapshot, not a chronological log; implementation history belongs in `plans/` and Git.
 
 ## Playable state
 
@@ -19,9 +19,9 @@ Last updated: 2026-08-05. This file is a current snapshot, not a chronological l
 |---|---|---|
 | Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, elemental reactions, four promotion roles, bounded bombers, weapons, enemies and echo loop connected | Broader deterministic combat tests and tuning |
 | Presentation | 2D actors, fixed camera, arena art, weather, inventory/shop/stats UI | Human PIE and packaged-menu regression |
-| Data | Reviewable JSON registries and DeveloperSettings runtime values | Runtime data importer/migration |
+| Data | CSV runtime foundation with manifest/schema/smoke fixture; legacy JSON remains migration-only | Domain migration for characters, builds, elements, weapons and slots |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Fifteen `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
+| Validation | Nineteen `ReEcho.*` automation tests; Editor build passes | New projectile collision/menu/round regressions |
 
 ## Milestones
 
@@ -43,13 +43,13 @@ Last updated: 2026-08-05. This file is a current snapshot, not a chronological l
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Editor Development build succeeds and all fifteen `ReEcho.*` automation tests pass.
+- Latest Editor Development build succeeds and all nineteen `ReEcho.*` automation tests pass.
 - Prior clean Windows Shipping Cook/Pak/Archive and launch smoke test passed before Plans 06-08; those UI/weather additions still require a fresh packaged regression before release claims.
-- `scripts/validate_project.py` performs fast JSON and workflow consistency checks.
+- `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
 
 ## Regression risks and technical debt
 
-- `Content/Data/*.json` is not runtime-loaded; gameplay still uses provisional C++/DeveloperSettings values.
+- Legacy `Content/Data/*.json` is migration-only; gameplay domains still use provisional C++/DeveloperSettings values until Plans 19-21 switch them to CSV.
 - Runtime arena generation has no dedicated serialized test-map pipeline.
 - Projectile damage, pause/restart/quit, round advancement, weather and the new menus lack deterministic automation.
 - Shared weapon, enemy and run-flow paths changed for Plans 14-16; human PIE should regress player/echo attacks, role transitions, forge/card sequencing and bomber escape behavior together.

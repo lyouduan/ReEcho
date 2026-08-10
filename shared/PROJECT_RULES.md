@@ -6,7 +6,7 @@ This file contains project-specific additions to the canonical workflow. If it c
 
 - Engine: Unreal Engine 5.8 installed/release build, Windows desktop first. Do not build or open this project with the separate source checkout.
 - Project descriptor: `ReEcho.uproject`; runtime module: `Source/ReEcho`.
-- Design-owned provisional values live in `Content/Data/*.json`. Stable rules and interfaces live in C++. Do not duplicate balance constants in actors or widgets.
+- CSV under `Content/Data/` is the target designer-editable runtime source. Legacy `Content/Data/*.json` files are read-only migration material until their domains are moved; do not duplicate balance constants in JSON, C++, DeveloperSettings, actors or widgets.
 - Preserve deterministic semantics: simulation 60 Hz, recording 20 Hz, encounter length 30 seconds, pause advances neither recording nor playback.
 - Automatic attacks are never serialized into recordings. Echoes replay only historical position and successful active-skill events; attack targeting and hit resolution use the current world.
 - Do not hand-edit `.uasset` or `.umap` binaries outside Unreal Editor. Prefer C++, JSON source data, Editor Utility generation, or Python automation for mergeable assets.
@@ -47,6 +47,7 @@ Run only the checks required by the changed surface:
 |---|---|
 | Markdown/workflow only | `python scripts/validate_project.py`, `git diff --check` |
 | JSON/config only | Static validation plus narrow affected automation when runtime behavior changes |
+| CSV data only | `python scripts/validate_project.py`, data registry automation when runtime behavior changes, `git diff --check` |
 | C++ | `.clang-format`, `Build-Editor.cmd`, affected automation, `git diff --check` |
 | Texture/import script only | Import/load check and asset existence; no unrelated gameplay automation |
 | Packaging/cook behavior | Applicable C++ checks, then clean package and manifest/smoke evidence |

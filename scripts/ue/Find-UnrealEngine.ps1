@@ -36,9 +36,9 @@ if (Test-Path 'HKCU:\Software\Epic Games\Unreal Engine\Builds') {
 foreach ($drive in 'C','D','E','F') {
     $epicRoot = "${drive}:\Program Files\Epic Games"
     if (Test-Path $epicRoot) {
-        Get-ChildItem -LiteralPath $epicRoot -Directory -Filter 'UE_*' | ForEach-Object { $candidates.Add($_.FullName) }
+        Get-ChildItem -LiteralPath $epicRoot -Filter 'UE_*' | Where-Object { $_.PSIsContainer } | ForEach-Object { $candidates.Add($_.FullName) }
     }
-    Get-ChildItem -LiteralPath "${drive}:\" -Directory -Filter 'UE_*' -ErrorAction SilentlyContinue | ForEach-Object { $candidates.Add($_.FullName) }
+    Get-ChildItem -LiteralPath "${drive}:\" -Filter 'UE_*' -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | ForEach-Object { $candidates.Add($_.FullName) }
 }
 
 foreach ($candidate in $candidates) {

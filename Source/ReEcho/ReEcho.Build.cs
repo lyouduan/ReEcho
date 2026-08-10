@@ -21,5 +21,9 @@ public class ReEcho : ModuleRules
             "SlateCore"
         });
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/cards.json");
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/reecho_data_manifest.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/csv_schema.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/runtime_smoke.csv", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Data/runtime_smoke_effects.csv", StagedFileType.NonUFS);
     }
 }

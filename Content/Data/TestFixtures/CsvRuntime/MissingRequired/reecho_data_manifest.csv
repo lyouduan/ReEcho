@@ -1,0 +1,3 @@
+SchemaVersion,TableId,FileName,PrimaryKey
+1,RuntimeSmoke,runtime_smoke.csv,Id
+1,RuntimeSmokeEffects,runtime_smoke_effects.csv,Id
