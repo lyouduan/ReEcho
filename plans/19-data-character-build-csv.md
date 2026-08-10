@@ -115,6 +115,7 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 - `AReEchoGameMode` now lets `StartRun()` choose the CSV default weapon when no explicit weapon is supplied, preserving the current default `J_CAT`/`W_J_02`.
 - Added automation coverage for character alias/base data, six-card offer pool, CSV card effect application and disabled-card exclusion.
 - Updated `Content/Data/README.md`, `shared/CODEBASE_MAP.md`, `shared/PROJECT_STATE.md` and `scripts/validate_project.py`.
+- Localized `Content/Data/README.md` to Chinese and added explicit production/fixture table directories for designer handoff.
 
 ### Evidence
 
@@ -122,6 +123,7 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 - `.clang-format` was run with Visual Studio Professional LLVM clang-format on changed C++ files.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` passes with UE 5.8 installed build.
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho` passes. Log evidence: `Found 20 automation tests based on 'ReEcho'`; final line `TEST COMPLETE. EXIT CODE: 0`.
+- After README-only handoff updates, `python scripts/validate_project.py` and `git diff --check -- Content/Data/README.md` pass.
 
 ### Plan 18 contract adaptation
 
@@ -158,6 +160,7 @@ Plan 18 的实际公共入口是 `FReEchoCsvDataRegistry`，发布对象是 `TSh
 - Promote into Hunter, Poet, Brave and Sage; confirm appearance, base stat deltas, Poet growth, Brave forge and Sage bonus choice cadence.
 - Edit one value in `characters.csv` and one enabled card effect in `card_effects.csv`, restart the project and confirm the new values appear without C++ rebuild.
 - Play several card-choice rounds and confirm only the current six trait cards appear, disabled/存疑 rows never enter offers, and display names/descriptions match the previous UI.
+- 2026-08-10: Human marked the task complete after README localization/table-directory handoff.
 
 ## 执行者启动 prompt
 
