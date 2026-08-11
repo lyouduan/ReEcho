@@ -257,3 +257,16 @@ The rework commit `735967d` addresses most of the first review structurally, and
 
 补自动化覆盖：相同配件重复装备、替换、卸空、失败原子性、实际攻击间隔/伤害消费、兼容核心切换、不兼容匕首配件切换、全局表重发后同一 Run 新生成的玩家/回响仍共同使用旧快照。先跑 `python scripts/validate_project.py` 和 `git diff --check`，再跑当前提交的 Editor Development build；构建成功后跑 focused `ReEcho.Weapons` 与全量 `ReEcho.*`。把确切结果追加到 Execution notes 并提交到本分支，然后只汇报 commit，不推 main。
 ```
+
+## Planner final acceptance - 2026-08-11
+
+Plan 24 is accepted at executor commit `3c514bb` after planner re-review.
+
+- Code review confirmed that equipment changes rebuild from explicit non-equipment stats/rules; identical re-equip, replacement and unequip-all are idempotent. Save version 4 rejects snapshots that lack this authority.
+- Run and Weapon Actor share one atomic switch policy: compatible parts are retained in stable order, incompatible/excess parts are cleared, and unknown/disabled targets fail without partial mutation.
+- New and resumed encounter echoes receive the active Run's pinned data snapshot; player and newly spawned echo consumers remain on the pinned weapon-domain revision after the global registry changes.
+- `python scripts/validate_project.py` passed, and `git diff --check 28c21b8..HEAD` passed.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` returned `Result: Succeeded` for the current source.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons` passed 7/7 tests with exit code 0.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passed 34/34 tests with exit code 0.
+- Human PIE play-feel and XLSX-driven value-edit verification remain intentionally deferred until Plan 25; they are not blockers for accepting the data/runtime migration.
