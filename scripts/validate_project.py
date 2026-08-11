@@ -1007,6 +1007,17 @@ def validate_workflow() -> None:
         fail("project rules must keep routine shared-state writes out of Executor branches")
     if "not a second rulebook" not in workflow_text:
         fail("WORKFLOW.md must remain explanatory rather than a duplicate rulebook")
+    integration_audit_markers = (
+        "## External-commit integration audit",
+        "Physical/Git conflict",
+        "Logical conflict",
+        "Coupling",
+        "even when Git can fast-forward",
+        "Fetch again immediately before push",
+    )
+    missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
+    if missing_audit_markers:
+        fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
     if "Design/Data/ReEchoData.xlsx" not in readme_text or "generated into validated CSV" not in readme_text:
         fail("README.md must describe the current XLSX-to-CSV authority")
 
