@@ -2,6 +2,8 @@
 
 Use this file as the only mandatory reading-order authority. Other documents must not redefine the startup list.
 
+Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, the matching role rules, locked Plan scope/current Exchange coordination, and finally explanatory `shared/WORKFLOW.md`.
+
 ## Every task: minimal context
 
 1. Read `shared/PROJECT_RULES.md`.
@@ -12,9 +14,9 @@ Use this file as the only mandatory reading-order authority. Other documents mus
 
 ## Conditional context
 
-- Implementation/debugging: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only when diagnosing a failure.
+- Implementation: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only after a failure requires diagnosis.
 - Planning/review/closure: read `shared/PROJECT_STATE.md`, the relevant section of `shared/PLANNER_RULES.md`, and the plan diff. Do not load all of `LESSONS.md`.
 - Distributed planning: before reserving a plan number or starting an executor, fetch the advertised remote planning ref, check cross-planner announcements, and follow the planning-publication gate in `shared/PLANNER_RULES.md`.
-- Workflow maintenance or first-time onboarding only: read `shared/AI_ONBOARDING.md` and `shared/WORKFLOW.md` §1. Read later sections only when the task targets them.
+- Workflow maintenance or first-time onboarding only: read `shared/AI_ONBOARDING.md` and the relevant `shared/WORKFLOW.md` section.
 
-The authoritative project workflow lives under `shared/`. Root-level workflow documents are imported blueprint provenance, not project state.
+`shared/WORKFLOW.md` explains the model but does not override the authorities above.

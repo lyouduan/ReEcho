@@ -4,10 +4,11 @@
 
 - Planner owner: Gavyn-side Planner.
 - Executor owner: Gavyn-side Plan 24 executor.
-- Status: `InProgress/Rework`; schema/registry migration is published, planner runtime acceptance is not complete.
-- Planning ref: `origin/coord/planning-broadcast-20260811`.
+- Task status: `Closed`; accepted and integrated into `origin/main`. Embedded executor/rework prompts below are historical review records and must not be relaunched.
+- Human validation: `PendingFollowUp`; combined PIE remains a human-approved follow-up, not an active implementation lock.
+- Planning ref: historical `origin/coord/planning-broadcast-20260811`; new consumers use freshly fetched `origin/main`.
 - Implementation ref: `origin/plan/24-weapons-slots-csv`; published review tip `b2616ec`, implementation commit `32a0384`, continuing local edits are not yet published.
-- Base: accepted local main `28c21b8`; note that `origin/main` remains behind during the first coordination trial.
+- Base: historical accepted local main `28c21b8`; the delivered implementation is now on `origin/main`.
 - Depends on: accepted local Plans 21–23. Blocks: the weapon-sheet portion and unified verification of Plan 25, but not unrelated UI/gameplay work.
 - Writes: seven weapon-domain CSVs, manifest/schema, weapon reader, shared registry/snapshot, build/run/save/recording weapon contract, Player/Echo/Weapon/Projectile/Enemy weapon execution, validators/tests and matching docs.
 - Reads: Plan 21 CSV foundation, Plan 22 character defaults, Plan 23 stable ElementIds/reaction APIs.

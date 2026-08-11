@@ -17,7 +17,7 @@
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
 | WebGL 构建 / 部署 | `WEB` | [§WEB](#web) | 11 |
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
-| 流程 / 工具 / Skill | `META` | [§META](#meta) | 17 |
+| 流程 / 工具 / Skill | `META` | [§META](#meta) | 18 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
 | Bug 修复 | `FIX` | [§FIX](#fix) | 7 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
@@ -1015,6 +1015,15 @@ file-static `AddBoxGeometry`。Unity build 或 adaptive non-unity 下两个同�
 - 原子快照保证了运行时只有一个数据真源，但 `FReEchoCsvDataSnapshot`、注册表编排、manifest/schema、打包依赖和静态校验入口也会成为领域迁移的共享写入面。若基础层尚未提供插件式领域扩展，多个领域计划同时开工只会制造 add/add 与语义冲突；应先由第一个领域拆出“通用读取内部层 + 领域读取器 + 唯一编排/发布”，再按依赖串行合并。
 - `RegisterBehaviorId`/`RegisterEffectKind` 只有在生产表加载前完成才有意义。内建 handler 使用显式集中注册函数，并由模块启动按“注册 → `LoadAndPublishDefault`”顺序调用；不要依赖跨翻译单元静态初始化顺序。
 - `csv_schema.csv` 可以作为静态校验和策划文档，但不能替代类型化运行时校验，更不能演变成公式/脚本解释器。新领域应扩展类型化快照和领域读取器，整包验证通过后一次发布。
+
+### META-18. 并行吞吐取决于契约和共享写热点，不只取决于分支数量 [跨引擎]
+
+**来源**：ReEcho Plan 27，分布式协作规则审计。
+
+- worktree/分支只隔离文件字节；真正决定能否并行的是精确 Writes、稳定 Reads、共享契约和独占资源。状态、所有权和人验使用独立枚举，避免自由文本状态变成隐藏锁。
+- 执行者只持续更新自己的 Plan 与实现文档；PROJECT_STATE、CODEBASE_MAP、LESSONS 和关闭后的 Exchange 由规划者在集成点一次更新，能显著减少并行分支的 Markdown 冲突。
+- 上游先公布窄且稳定的只读消费面，下游即可并行；上游进入 main 后，下游在 Review 前重新集成当前 main 并复验。历史 `coord/...` 只作交接证据，不作为永久基线。
+- 单一二进制配置源必须保持一个发布写入者，但本地丢弃式 QA 和只读消费者不应占用仓库锁；生成输出随源一起发布，不重复声明所有权。
 
 ---
 

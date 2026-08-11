@@ -173,7 +173,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables, cano
 | Automation | `scripts/ue/Run-Automation.*` | `Private/Tests/*`, `Saved/Logs/ReEcho.log` |
 | UE MCP | `docs/UE_MCP.md` | `ReEcho.uproject`, editor settings, `.codex/config.toml` |
 | RenderDoc MCP | `docs/RENDERDOC_MCP.md` | `scripts/mcp/Codex-With-RenderDoc.cmd` |
-| AI workflow/rules | `shared/PROJECT_RULES.md` | role rule, plan, relevant lessons only |
+| AI workflow/rules | `AGENTS.md`, `shared/PROJECT_RULES.md` | matching role rule; `PLANNER_EXCHANGE.md` for live scope/ownership; `WORKFLOW.md` only for rationale |
 
 ## Invariants and traps
 
