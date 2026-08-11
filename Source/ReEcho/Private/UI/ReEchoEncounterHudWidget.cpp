@@ -21,10 +21,9 @@ void UReEchoEncounterHudWidget::NativeConstruct()
 	RefreshText();
 }
 
-void UReEchoEncounterHudWidget::SetEncounterStatus(
-	const int32 EncounterIndex,
-	const int32 TotalEncounters,
-	const float RemainingSeconds)
+void UReEchoEncounterHudWidget::SetEncounterStatus(const int32 EncounterIndex,
+                                                   const int32 TotalEncounters,
+                                                   const float RemainingSeconds)
 {
 	CurrentEncounterIndex = EncounterIndex;
 	EncounterCount = FMath::Max(1, TotalEncounters);
@@ -40,7 +39,7 @@ void UReEchoEncounterHudWidget::BuildWidgetTree()
 	}
 
 	UCanvasPanel* RootCanvas =
-		WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("EncounterHudRoot"));
+	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("EncounterHudRoot"));
 	RootCanvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	WidgetTree->RootWidget = RootCanvas;
 
@@ -55,7 +54,7 @@ void UReEchoEncounterHudWidget::BuildWidgetTree()
 	BackgroundSlot->SetAutoSize(true);
 
 	UVerticalBox* Content =
-		WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("EncounterHudContent"));
+	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("EncounterHudContent"));
 	Background->SetContent(Content);
 
 	EncounterText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EncounterText"));
@@ -84,18 +83,16 @@ void UReEchoEncounterHudWidget::RefreshText()
 {
 	if (EncounterText)
 	{
-		EncounterText->SetText(FText::Format(
-			NSLOCTEXT("ReEcho", "EncounterHudStage", "关卡 {0}/{1}"),
-			FText::AsNumber(CurrentEncounterIndex),
-			FText::AsNumber(EncounterCount)));
+		EncounterText->SetText(FText::Format(NSLOCTEXT("ReEcho", "EncounterHudStage", "关卡 {0}/{1}"),
+		                                     FText::AsNumber(CurrentEncounterIndex),
+		                                     FText::AsNumber(EncounterCount)));
 	}
 	if (CountdownText)
 	{
 		const int32 DisplaySeconds = FMath::CeilToInt(RemainingTime);
-		CountdownText->SetText(FText::Format(
-			NSLOCTEXT("ReEcho", "EncounterHudCountdown", "剩余 {0} 秒"),
-			FText::AsNumber(DisplaySeconds)));
-		CountdownText->SetColorAndOpacity(FSlateColor(
-			DisplaySeconds <= 5 ? FLinearColor(1.0f, 0.2f, 0.12f, 1.0f) : FLinearColor::White));
+		CountdownText->SetText(FText::Format(NSLOCTEXT("ReEcho", "EncounterHudCountdown", "剩余 {0} 秒"),
+		                                     FText::AsNumber(DisplaySeconds)));
+		CountdownText->SetColorAndOpacity(
+		    FSlateColor(DisplaySeconds <= 5 ? FLinearColor(1.0f, 0.2f, 0.12f, 1.0f) : FLinearColor::White));
 	}
 }

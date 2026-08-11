@@ -18,6 +18,8 @@ class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UMaterialInterface;
 class UTexture2D;
+class UUserWidget;
+enum class EReEchoUILayer : uint8;
 struct FReEchoEncounterRuntimeState;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
 UCLASS()
@@ -49,6 +51,7 @@ public:
 	void GMKillAll();
 
 private:
+	void AddWidgetToUILayer(UUserWidget* Widget, EReEchoUILayer Layer) const;
 	bool EnsureGMCommandAvailable() const;
 	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	UPROPERTY()

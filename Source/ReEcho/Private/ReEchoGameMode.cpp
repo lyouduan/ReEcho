@@ -33,6 +33,7 @@
 #include "UI/ReEchoStartMenuWidget.h"
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
+#include "UI/ReEchoUIManagerSubsystem.h"
 #include "UI/ReEchoWeatherWidget.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -49,6 +50,14 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<UReEchoPlayerHudWidget> PlayerHudClassFinder(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoPlayerHud"));
 	PlayerHudWidgetClass = PlayerHudClassFinder.Class;
+}
+
+void AReEchoGameMode::AddWidgetToUILayer(UUserWidget* Widget, const EReEchoUILayer Layer) const
+{
+	if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
+	{
+		UIManager->AddToLayer(Widget, Layer);
+	}
 }
 
 void AReEchoGameMode::PrintGMResult(const FString& Message, const bool bSuccess) const
@@ -230,14 +239,14 @@ void AReEchoGameMode::StartPlay()
 		{
 			WeatherWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
 			WeatherWidget->SetFogRevealSources(Player, nullptr);
-			WeatherWidget->AddToViewport(5);
+			AddWidgetToUILayer(WeatherWidget, EReEchoUILayer::Weather);
 		}
 		EncounterHudWidget =
 		    CreateWidget<UReEchoEncounterHudWidget>(PlayerController, UReEchoEncounterHudWidget::StaticClass());
 		if (EncounterHudWidget)
 		{
 			EncounterHudWidget->SetVisibility(ESlateVisibility::Collapsed);
-			EncounterHudWidget->AddToViewport(10);
+			AddWidgetToUILayer(EncounterHudWidget, EReEchoUILayer::GameplayHud);
 		}
 	}
 	if (Player)
@@ -259,7 +268,7 @@ void AReEchoGameMode::StartPlay()
 			{
 				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
-				PlayerHudWidget->AddToViewport(12);
+				AddWidgetToUILayer(PlayerHudWidget, EReEchoUILayer::PlayerHud);
 			}
 		}
 	}
@@ -290,7 +299,7 @@ void AReEchoGameMode::ShowStartMenu()
 	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
 	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
 	StartMenuWidget->OnGameSettingRequested.AddDynamic(this, &AReEchoGameMode::HandleStartSettingsRequested);
-	StartMenuWidget->AddToViewport(200);
+	AddWidgetToUILayer(StartMenuWidget, EReEchoUILayer::Start);
 	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeUIOnly InputMode;
@@ -415,7 +424,7 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 
 	bSettingsReturnToStartMenu = bReturnToStartMenu;
 	SettingsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleSettingsClosed);
-	SettingsWidget->AddToViewport(220);
+	AddWidgetToUILayer(SettingsWidget, EReEchoUILayer::Settings);
 
 	FInputModeUIOnly InputMode;
 	InputMode.SetWidgetToFocus(SettingsWidget->TakeWidget());
@@ -445,7 +454,7 @@ void AReEchoGameMode::ShowLoadoutSelection()
 
 	LoadoutSelectionWidget = NewLoadoutSelectionWidget;
 	LoadoutSelectionWidget->OnLoadoutConfirmed.AddDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
-	LoadoutSelectionWidget->AddToViewport(210);
+	AddWidgetToUILayer(LoadoutSelectionWidget, EReEchoUILayer::Loadout);
 	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeUIOnly InputMode;
@@ -906,7 +915,7 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
 	RestartWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleQuitRequested);
 	RestartWidget->OnSettingsRequested.AddDynamic(this, &AReEchoGameMode::HandlePauseSettingsRequested);
-	RestartWidget->AddToViewport(100);
+	AddWidgetToUILayer(RestartWidget, EReEchoUILayer::Pause);
 
 	FInputModeGameAndUI InputMode;
 	InputMode.SetWidgetToFocus(RestartWidget->TakeWidget());
@@ -996,7 +1005,7 @@ void AReEchoGameMode::ShowStatsMenu()
 	StatsWidget->InitializeStats(
 	    Player->Combatant->Stats, Player->Combatant->CurrentHealth, EchoStats, EchoHealth, bHasEcho);
 	StatsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleStatsClosed);
-	StatsWidget->AddToViewport(96);
+	AddWidgetToUILayer(StatsWidget, EReEchoUILayer::Screen);
 
 	FInputModeGameAndUI InputMode;
 	InputMode.SetWidgetToFocus(StatsWidget->TakeWidget());
@@ -1068,7 +1077,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 	{
 		InventoryShopWidget->ShowInventory(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
 	}
-	InventoryShopWidget->AddToViewport(95);
+	AddWidgetToUILayer(InventoryShopWidget, EReEchoUILayer::Screen);
 
 	FInputModeGameAndUI InputMode;
 	InputMode.SetWidgetToFocus(InventoryShopWidget->TakeWidget());
@@ -1256,7 +1265,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	TraitCardChoiceWidget->InitializeOffers(
 	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
-	TraitCardChoiceWidget->AddToViewport(90);
+	AddWidgetToUILayer(TraitCardChoiceWidget, EReEchoUILayer::BuildChoice);
 
 	FInputModeGameAndUI InputMode;
 	InputMode.SetWidgetToFocus(TraitCardChoiceWidget->TakeWidget());

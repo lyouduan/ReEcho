@@ -4,7 +4,7 @@
 
 - Planner owner: Codex.
 - Executor owner: Codex.
-- Task status: `Ready`.
+- Task status: `InProgress`.
 - Human validation: `PendingBeforeClose`.
 - Planning ref / implementation base: `plan/28-ui-umg-migration` / combined `origin/main` plus Plan 10 HUD UMG commits, explicitly approved by the human after the external-integration audit.
 - Implementation branch: `plan/28-ui-umg-migration`.
@@ -65,16 +65,18 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 
 ### Changed
 
-- Planning batch only.
+- Added the first implementation batch: a GameInstance UI manager owns named viewport-layer policy and registered-widget cleanup; GameMode routes all existing widgets through it instead of scattering numeric Z-order constants.
 
 ### Evidence
 
 - External integration audited; human selected combined adaptation.
+- Batch A Editor Development build passed and all 34 discovered `ReEcho.*` automation tests passed.
 
 ### Remaining risks
 
 - Large binary-asset surface requires serialized MCP edits and batch verification.
 - Plan 26 owns inventory/shop and stats C++ until coordinated.
+- After an Editor restart, the current Codex Unreal MCP transport did not reconnect even though the Editor registered all 52 toolsets; WBP creation is paused at that asset boundary rather than bypassing MCP.
 
 ### Human validation result/request
 

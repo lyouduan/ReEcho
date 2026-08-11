@@ -9,6 +9,7 @@ class UTextBlock;
 
 /** 右上角战斗状态面板：显示当前关卡与本关剩余秒数。 */
 UCLASS()
+
 class REECHO_API UReEchoEncounterHudWidget : public UUserWidget
 {
 	GENERATED_BODY()
