@@ -6,13 +6,14 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 | Date | Plan | Planner | Status | Remote ref / base | Writes and shared impact | Dependencies | Other planner action |
 |---|---|---|---|---|---|---|---|
-| 2026-08-11 | Plan 25 XLSX authoring and CSV generation | Gavyn-side Planner | Ready; executor unassigned | `origin/coord/accepted-plan24-20260811` | Exactly one canonical `Design/Data/ReEchoData.xlsx`; seven familiar Chinese production Sheets plus protected export metadata; same-Sheet named Tables can generate multiple CSVs through `scripts/data/sync_xlsx_to_csv.py`, `--check`, and optional `--sheet`; generated CSV remains the only runtime package. | Accepted Plans 21–24 | Create `plan/25-xlsx-authoring` from the advertised integration ref. Do not create a competing workbook/schema or hand-edit generated CSV as another truth. |
+| 2026-08-11 | Plan 25 XLSX authoring and CSV generation | Gavyn-side Planner | ReadyForHandoff | `origin/coord/plan25-handoff-20260811` | Exactly one canonical `Design/Data/ReEchoData.xlsx`; seven familiar Chinese production Sheets plus protected export metadata; 16 manifest data CSVs are deterministic generated outputs; repository-pinned Python XLSX dependency; transactional publish/rollback/recovery through `scripts/data/sync_xlsx_to_csv.py`, `--check`, and optional `--sheet`. | Accepted Plans 21–24 | Create `plan/25-xlsx-authoring` from the advertised handoff ref. Seed machine Tables from accepted CSV, not stale workbook values. Do not create a competing workbook/schema or hand-edit generated CSV as another truth. |
 | 2026-08-11 | Plan 26 weapon read-only UI consumers | ReEcho teammate-side Planner | Ready; executor may start after fetching integration ref | `origin/coord/accepted-plan24-20260811`; teammate planning response `origin/coord/teammate-planning-broadcast-20260811` | Writes only `UI/ReEchoInventoryShopWidget.*`, `UI/ReEchoStatsWidget.*` and Plan26-only UI tests; consumes stable weapon identity/display/query APIs and does not mutate registry/reader/schema. | Accepted Plan24 consumer surface on the integrated UI/data lineage | Reservation is approved. Create/rebase Plan26 from the advertised integration ref; do not add missing Registry/Reader APIs or edit Plan24/25-owned files. |
 
 ## Active ownership
 
 | Date | Owner | Plan/branch | Files or exclusive resources | Status | Notes |
 |---|---|---|---|---|---|
+| 2026-08-11 | Gavyn-side Plan25 executor | Plan 25 / future `plan/25-xlsx-authoring` | `Design/Data/ReEchoData.xlsx`, `scripts/data/**`, repository Python dependency lock/setup, all 16 manifest data CSVs, `reecho_data_manifest.csv`, `csv_schema.csv`, data validation/tests/docs | Reserved for handoff | Exclusive binary workbook and generated-data pipeline. Plan26 UI is outside this ownership and may only consume accepted typed APIs/data. |
 | 2026-08-11 | ReEcho teammate-side Planner | Plan 26 / future `plan/26-weapon-readonly-ui` | `UI/ReEchoInventoryShopWidget.*`, `UI/ReEchoStatsWidget.*`, Plan26-only UI tests | Reserved, not active | Reservation acknowledged; excludes every Plan24/25-owned data, registry, reader, run and weapon file. |
 
 ## Recently closed
@@ -62,6 +63,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 - Runtime arena has no dedicated serialized test map; claim any `.umap` before replacing it.
 - First-trial topology: `origin/main` is still `a0f6a10`; accepted Plans 21–24 plus integrated teammate UI lineage are published at `origin/coord/accepted-plan24-20260811`. Fetch that ref explicitly and do not force-push main.
+- Plan25 implementation must start from `origin/coord/plan25-handoff-20260811`, which adds the final Plan25 contract and ownership announcement to the accepted Plan24 lineage. This coordination ref does not move `origin/main`.
 
 ## Pending human decisions
 
