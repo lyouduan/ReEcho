@@ -31,7 +31,10 @@ FSlateBrush MakeRoundedBrush(const FLinearColor& FillColor,
 
 TSharedRef<SWidget> UReEchoPlayerHudWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (GetClass() == StaticClass())
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 
@@ -46,9 +49,9 @@ void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCo
 {
 	Combatant = InCombatant;
 	PortraitTexture = InPortraitTexture;
-	if (PortraitImage && PortraitTexture)
+	if (PlayerPortrait && PortraitTexture)
 	{
-		PortraitImage->SetBrushFromTexture(PortraitTexture, true);
+		PlayerPortrait->SetBrushFromTexture(PortraitTexture, true);
 	}
 	Refresh();
 }
@@ -61,7 +64,7 @@ void UReEchoPlayerHudWidget::NativeTick(const FGeometry& MyGeometry, const float
 
 void UReEchoPlayerHudWidget::BuildWidgetTree()
 {
-	if (HealthProgressBar || !WidgetTree)
+	if (PlayerHealthProgress || !WidgetTree)
 	{
 		return;
 	}
@@ -103,24 +106,24 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 	    WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("PlayerHealthOverlay"));
 	HealthFrame->SetContent(HealthOverlay);
 
-	HealthProgressBar =
+	PlayerHealthProgress =
 	    WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("PlayerHealthProgress"));
-	HealthProgressBar->SetBarFillType(EProgressBarFillType::LeftToRight);
-	HealthProgressBar->SetFillColorAndOpacity(FLinearColor(0.76f, 0.075f, 0.055f, 1.0f));
-	HealthProgressBar->SetVisibility(ESlateVisibility::HitTestInvisible);
-	UOverlaySlot* ProgressSlot = HealthOverlay->AddChildToOverlay(HealthProgressBar);
+	PlayerHealthProgress->SetBarFillType(EProgressBarFillType::LeftToRight);
+	PlayerHealthProgress->SetFillColorAndOpacity(FLinearColor(0.76f, 0.075f, 0.055f, 1.0f));
+	PlayerHealthProgress->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UOverlaySlot* ProgressSlot = HealthOverlay->AddChildToOverlay(PlayerHealthProgress);
 	ProgressSlot->SetHorizontalAlignment(HAlign_Fill);
 	ProgressSlot->SetVerticalAlignment(VAlign_Fill);
 
-	HealthText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlayerHealthText"));
-	HealthText->SetJustification(ETextJustify::Center);
-	HealthText->SetColorAndOpacity(FSlateColor(FLinearColor(0.96f, 0.87f, 0.72f, 1.0f)));
-	HealthText->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 1.0f));
-	HealthText->SetShadowOffset(FVector2D(2.0f, 2.0f));
-	FSlateFontInfo HealthFont = HealthText->GetFont();
+	PlayerHealthText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlayerHealthText"));
+	PlayerHealthText->SetJustification(ETextJustify::Center);
+	PlayerHealthText->SetColorAndOpacity(FSlateColor(FLinearColor(0.96f, 0.87f, 0.72f, 1.0f)));
+	PlayerHealthText->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 1.0f));
+	PlayerHealthText->SetShadowOffset(FVector2D(2.0f, 2.0f));
+	FSlateFontInfo HealthFont = PlayerHealthText->GetFont();
 	HealthFont.Size = 27;
-	HealthText->SetFont(HealthFont);
-	UOverlaySlot* TextSlot = HealthOverlay->AddChildToOverlay(HealthText);
+	PlayerHealthText->SetFont(HealthFont);
+	UOverlaySlot* TextSlot = HealthOverlay->AddChildToOverlay(PlayerHealthText);
 	TextSlot->SetHorizontalAlignment(HAlign_Fill);
 	TextSlot->SetVerticalAlignment(VAlign_Center);
 
@@ -138,12 +141,12 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 	PortraitFrame->SetPadding(FMargin(6.0f));
 	PortraitSize->SetContent(PortraitFrame);
 
-	PortraitImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PlayerPortrait"));
-	PortraitImage->SetColorAndOpacity(FLinearColor::White);
-	PortraitFrame->SetContent(PortraitImage);
+	PlayerPortrait = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PlayerPortrait"));
+	PlayerPortrait->SetColorAndOpacity(FLinearColor::White);
+	PortraitFrame->SetContent(PlayerPortrait);
 	if (PortraitTexture)
 	{
-		PortraitImage->SetBrushFromTexture(PortraitTexture, true);
+		PlayerPortrait->SetBrushFromTexture(PortraitTexture, true);
 	}
 
 	Refresh();
@@ -151,15 +154,15 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 
 void UReEchoPlayerHudWidget::Refresh()
 {
-	if (!HealthProgressBar || !HealthText || !Combatant.IsValid())
+	if (!PlayerHealthProgress || !PlayerHealthText || !Combatant.IsValid())
 	{
 		return;
 	}
 
 	const float MaximumHealth = FMath::Max(1.0f, Combatant->Stats.HpMax);
 	const float CurrentHealth = FMath::Clamp(Combatant->CurrentHealth, 0.0f, MaximumHealth);
-	HealthProgressBar->SetPercent(CurrentHealth / MaximumHealth);
-	HealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0}/{1}"),
-	                                  FText::AsNumber(FMath::CeilToInt(CurrentHealth)),
-	                                  FText::AsNumber(FMath::CeilToInt(MaximumHealth))));
+	PlayerHealthProgress->SetPercent(CurrentHealth / MaximumHealth);
+	PlayerHealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0}/{1}"),
+	                                        FText::AsNumber(FMath::CeilToInt(CurrentHealth)),
+	                                        FText::AsNumber(FMath::CeilToInt(MaximumHealth))));
 }

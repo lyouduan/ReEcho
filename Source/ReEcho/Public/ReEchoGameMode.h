@@ -86,6 +86,10 @@ private:
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
+
+	/** Designer-authored layout backed by UReEchoPlayerHudWidget runtime behavior. */
+	UPROPERTY()
+	TSubclassOf<UReEchoPlayerHudWidget> PlayerHudWidgetClass;
 	UPROPERTY()
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 

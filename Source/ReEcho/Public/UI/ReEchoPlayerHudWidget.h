@@ -30,14 +30,14 @@ private:
 	void BuildWidgetTree();
 	void Refresh();
 
-	UPROPERTY(Transient)
-	TObjectPtr<UImage> PortraitImage;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> PlayerPortrait;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UProgressBar> HealthProgressBar;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UProgressBar> PlayerHealthProgress;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> HealthText;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> PlayerHealthText;
 
 	TWeakObjectPtr<UReEchoCombatantComponent> Combatant;
 

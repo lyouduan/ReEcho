@@ -46,6 +46,9 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
+	static ConstructorHelpers::FClassFinder<UReEchoPlayerHudWidget> PlayerHudClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoPlayerHud"));
+	PlayerHudWidgetClass = PlayerHudClassFinder.Class;
 }
 
 void AReEchoGameMode::PrintGMResult(const FString& Message, const bool bSuccess) const
@@ -246,8 +249,12 @@ void AReEchoGameMode::StartPlay()
 	{
 		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 		{
-			PlayerHudWidget =
-			    CreateWidget<UReEchoPlayerHudWidget>(PlayerController, UReEchoPlayerHudWidget::StaticClass());
+			TSubclassOf<UReEchoPlayerHudWidget> HudClass = PlayerHudWidgetClass;
+			if (!HudClass)
+			{
+				HudClass = UReEchoPlayerHudWidget::StaticClass();
+			}
+			PlayerHudWidget = CreateWidget<UReEchoPlayerHudWidget>(PlayerController, HudClass);
 			if (PlayerHudWidget)
 			{
 				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
