@@ -208,3 +208,30 @@ The executor commit `32a0384` is clean, statically valid, builds in Editor Devel
 
 完成后显式提交到本地分支并告诉人；未经人明确确认不得 push，禁止修改或合并 main。
 ```
+
+## Planner re-review - 2026-08-11 - still not accepted
+
+The rework commit `735967d` addresses most of the first review structurally, and `python scripts/validate_project.py` plus `git diff --check b2616ec..HEAD` pass. It is still not mergeable because a clean planner rebuild fails and the immutable equipment/snapshot contract remains incomplete.
+
+### Blocking findings
+
+1. `scripts/ue/Build-Editor.cmd -Configuration Development` fails in UE Unity Build: `ReEchoWeaponRuntimeTests.cpp` and `ReEchoElementReactionTests.cpp` both define `EnemyHealth` in anonymous namespaces, which collide when Unreal combines the translation units. Rename the helper to a domain-specific unique name and prove the build from the current commit before running automation; stale binaries are not acceptance evidence.
+2. `TryEquipParts()` reapplies modifiers on top of an already modified `FReEchoBuildSnapshot`. Re-equipping the strength grip therefore multiplies `Stats.AttackSpeed` again, and clearing/replacing parts cannot reconstruct the pre-part value. Separate immutable non-equipment stats from derived equipment effects, or store enough authoritative base state to rebuild the effective snapshot from scratch on every equipment change. Add tests for equip, identical re-equip (idempotent), replace, unequip-all, failure atomicity, save/restore and recorder/echo parity. The test must also prove that the resulting attack interval/damage is consumed by actual combat, not only present in a Build field.
+3. Weapon changes keep the old weapon's parts. `UReEchoRunSubsystem::SetEquippedWeapon()` and `AReEchoWeaponActor::SelectWeaponById()` can therefore make a formerly valid Dagger build fatal when switching to a non-Dagger weapon. Lock one deterministic policy: either store per-weapon equipment, or atomically retain only compatible parts/clear incompatible parts. Player and echo weapon switches must use the same policy and never leave a partially changed build. Add compatible-core and incompatible-Dagger-part switch tests.
+4. `AReEchoEchoActor::InitializeEcho()` still calls the mutable global `FReEchoCsvDataRegistry::GetSnapshot()` instead of receiving the active Run's pinned snapshot. After a valid active Run pins revision A and the global registry publishes revision B, a newly spawned echo fatals even though player execution correctly remains on A. Pass `UReEchoRunSubsystem::GetRunDataSnapshot()` through both new-encounter and suspended-encounter echo creation paths, and test player plus newly spawned echo behavior after global republish.
+
+### Re-review gate
+
+- Preserve the current seven-table schema, IDs/hotkeys, 78-row audit, enabled/disabled content batch and representative attack execution already added.
+- Fix only C++/tests/docs; do not touch `.uasset` / `.umap`, merge `main`, or push `main`.
+- Run, in order: static validation, `git diff --check`, clean/current Editor Development build, focused `ReEcho.Weapons` automation, then full `ReEcho.*` automation. Record exact current-commit evidence and leave Human PIE items deferred.
+
+## 执行者复做 prompt（735967d 之后）
+
+```text
+继续在现有 `plan/24-weapons-slots-csv` worktree/分支上修复，不要另建 Plan，不要修改 main 或任何 `.uasset`/`.umap`。先读本文件最后一节 “Planner re-review - still not accepted”。
+
+必须完成四项：1）解决 UE Unity Build 中两个匿名命名空间 `EnemyHealth` helper 重名导致的当前提交编译失败；2）让配件变化每次都从不含旧配件派生值的权威基础 Build 重新计算，保证相同重配、替换和卸空幂等，不得复乘 AttackSpeed 或残留 RuleFlags；3）定义并实现武器切换时不兼容配件的原子策略，玩家与回响一致，切换不得 Fatal 或留下半成品；4）回响初始化必须接收当前 Run 固定的 `GetRunDataSnapshot()`，不能重新读取全局 registry。
+
+补自动化覆盖：相同配件重复装备、替换、卸空、失败原子性、实际攻击间隔/伤害消费、兼容核心切换、不兼容匕首配件切换、全局表重发后同一 Run 新生成的玩家/回响仍共同使用旧快照。先跑 `python scripts/validate_project.py` 和 `git diff --check`，再跑当前提交的 Editor Development build；构建成功后跑 focused `ReEcho.Weapons` 与全量 `ReEcho.*`。把确切结果追加到 Execution notes 并提交到本分支，然后只汇报 commit，不推 main。
+```

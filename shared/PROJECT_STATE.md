@@ -18,11 +18,11 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 
 | Area | Current state | Remaining |
 |---|---|---|
-| Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, CSV weapon definitions with equipped-part modifiers, ordered attack-step execution, elemental reactions, four promotion roles, bounded bombers, enemies and echo loop connected | Human PIE after Plan 25 for combat feel and full content tuning |
+| Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, CSV weapon definitions and ordered attack-step execution candidate, elemental reactions, four promotion roles, bounded bombers, enemies and echo loop connected | Plan 24 rework: idempotent equipment derivation, weapon-switch policy, pinned echo snapshot, then Human PIE |
 | Presentation | 2D actors, fixed camera, arena art, weather, start/continue/loadout, confirmed exit, animated trait draw, inventory/shop/stats UI | Human PIE and packaged-menu regression |
-| Data | CSV runtime foundation plus accepted character/build, element/status/reaction and weapon/slot domains; legacy JSON remains migration-only | Plan 25 XLSX authoring generation and later domain migrations |
+| Data | CSV runtime foundation plus accepted character/build and element/status/reaction domains; weapon/slot CSV candidate is not yet accepted; legacy JSON remains migration-only | Finish Plan 24, then Plan 25 XLSX authoring generation and later domain migrations |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Plan 24 static CSV validation, Editor Development build and 32 `ReEcho.*` automation tests pass, including five weapon behavior tests for equipment modifiers, melee stages, projectile spread/explosion and domain drift | Unified human PIE after Plan 25 |
+| Validation | Plan 24 static CSV validation and diff check pass, but planner rebuild of `735967d` fails in UE Unity Build because of a duplicate test helper | Restore current-commit build, focused weapon tests, full `ReEcho.*`, then unified Human PIE after Plan 25 |
 
 ## Milestones
 
@@ -44,7 +44,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Plan 24 Editor Development build succeeds and all 32 `ReEcho.*` automation tests pass. The suite includes five weapon runtime tests covering six cores, Add/Multiply/Override modifiers, illegal/disabled part atomic failure, Dagger pattern replacement, OnKill healing, melee step timing/arc, projectile count/spread/explosion and weapon-domain revision drift.
+- Plan 24 candidate `735967d` passes static validation and diff checks, but the planner's current-commit Editor Development rebuild fails because two Unity-combined test files define the same anonymous-namespace `EnemyHealth` helper. Its reported 32-test run is therefore not accepted until a fresh build and rerun succeed.
 - Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 21 CSV package; human visual/UI regression is still required before release claims.
 - `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
 
