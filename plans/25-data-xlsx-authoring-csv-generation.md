@@ -141,7 +141,8 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Planner-blocker follow-up: hardened publish transactions so backups and the marker remain live until the final project validator succeeds; final validator failure now rolls back every selected production CSV byte.
 - Planner-blocker follow-up: constrained transaction markers to manifest-whitelisted relative CSV names and a controlled relative backup directory under the selected `data_dir`; malicious/legacy absolute target and backup paths are rejected.
 - Planner-blocker follow-up: rewrote transaction tests to use temporary `data_dir` packages with valid but intentionally different old CSV bytes, avoiding any writes to real `Content/Data`.
-- Planner-blocker follow-up: repaired workbook visual/protection details by restoring source row heights, preserving all 8 source drawing images, widening/wrapping technical columns, setting freeze panes on production/system sheets, and keeping `_SystemData` fully locked.
+- Planner-blocker follow-up: repaired workbook visual/protection details by restoring source row heights, widening/wrapping technical columns, and keeping `_SystemData` fully locked.
+- Second Planner-blocker follow-up: re-exported the canonical workbook through artifact-tool so the XLSX package opens in Excel, rebuilt the 8 source images as standard embedded picture drawings under `xl/media`, restored the workbook protection contract, and wrote actual `A2` frozen panes on all seven production sheets plus the three system sheets.
 - Added `.gitignore` rules for Python bytecode/cache folders and local generator transaction/temp artifacts.
 
 ### Evidence
@@ -157,8 +158,10 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho` exited 0; `Saved\Logs\ReEcho.log` reported 34 ReEcho automation tests and `**** TEST COMPLETE. EXIT CODE: 0 ****`.
 - `python scripts\ue\package_windows.py --smoke-seconds 5` passed Shipping Build/Cook/Stage/Pak/Archive and the packaged `ReEcho.exe` stayed alive for the 5 second smoke window. A first attempt failed while Zen was not yet accepting local oplog reads; the rerun launched Zen successfully and completed.
 - `git diff --check` passed.
-- Workbook visual QA rendered all production/reference/system sheets; sampled production and system previews showed distinct ReferenceOnly vs export areas, frozen headers, readable notes, data validation on constrained columns where practical, and protected system sheets.
-- After workbook repair, artifact-tool rendered all 13 sheets again with 0 formula-error matches. Visual samples confirmed restored long source row heights on element/character/build/weapon sheets, readable technical headers including BehaviorId/FormulaId/DisabledReason, protected `_SystemData`, and retained ReferenceOnly separation. Artifact drawing inspection reports 8 preserved image objects: 4 on `角色体系J` and 4 on `武器体系（废案）`.
+- Workbook visual QA rendered all production/reference/system sheets; sampled production and system previews showed distinct ReferenceOnly vs export areas, readable notes, data validation on constrained columns where practical, and protected system sheets.
+- Final artifact-tool inspection and rendering covered all 13 sheets and found 0 formula-error matches. Drawing inspection reports exactly 8 embedded picture objects: 4 on `角色体系J`, 4 on `武器体系（废案）`, and 0 on each other sheet. Technical headers and ReferenceOnly separation remained readable in the 13 rendered sheets.
+- Package-level worksheet inspection reports `freeze_panes=A2` on `属性S`, `元素体系Y`, `构筑体系G`, `角色体系J`, `武器体系W`, `武器插槽C`, `状态Z`, `_WorkbookMeta`, `_ExportMap`, and `_SystemData`; `武器体系（废案）`, `怪物体系M`, and `经济系统` remain unfrozen.
+- Excel read-only verification opened both the original source and final canonical packages. All 8 final picture shapes reported `Visible=-1`; Excel PDF exports visibly rendered the four character portraits and the source weapon artwork. The bundled artifact-tool 2.8.6 renderer did not paint worksheet-image pixels even in a minimal newly-created image workbook, so its render output is not claimed as image-visibility evidence; artifact-tool drawing inspection plus Excel/PDF rendering are recorded separately.
 
 ### Workbook and schema decisions
 
@@ -181,6 +184,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 ### Remaining risks
 
 - `Design/Data/ReEchoData.xlsx` is a binary Git artifact and remains an exclusive ownership resource until Planner acceptance; concurrent edits need Planner coordination.
+- Bundled artifact-tool 2.8.6 can inspect the 8 embedded picture drawings but does not paint worksheet images in `workbook.render()` in this environment; Excel/PDF visual verification remains necessary for image-bearing sheets until the renderer is fixed.
 - Human value-edit validation is still required to prove the designer workflow end-to-end in Excel/WPS-style editing conditions rather than only through generated fixtures.
 - Unified PIE remains the final human confidence pass for interactive save/continue, draw/shop, weapon switching, reactions, and representative parts after this data-authoring layer.
 - The first Shipping package attempt exposed a transient Zen local service startup failure; the rerun passed, but future packaging should still record Zen status if the local service is cold.
