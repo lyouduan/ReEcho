@@ -14,6 +14,7 @@ class UVerticalBox;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName, ItemId);
 
+/** 复用同一覆盖层展示背包或商店，并将购买请求交给运行系统处理。 */
 UCLASS()
 
 class REECHO_API UReEchoInventoryShopWidget : public UUserWidget
@@ -29,7 +30,10 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
 
+	/** 以只读背包模式刷新当前资源与已拥有物品。 */
 	void ShowInventory(int32 TimeShards, const TArray<FName>& OwnedItems);
+
+	/** 以商店模式刷新报价；实际扣款由外部订阅者决定。 */
 	void ShowShop(int32 TimeShards, const TArray<FName>& OwnedItems);
 
 protected:

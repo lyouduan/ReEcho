@@ -12,6 +12,7 @@ class UTexture2D;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoStatsClosed);
 
+/** 并排展示玩家与当前回响的即时属性；无回响时显示空状态。 */
 UCLASS()
 
 class REECHO_API UReEchoStatsWidget : public UUserWidget
@@ -24,6 +25,7 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoStatsClosed OnClosed;
 
+	/** 用调用时的快照刷新双方属性，不持有玩法对象。 */
 	void InitializeStats(const FReEchoStatBlock& PlayerStats,
 	                     float PlayerCurrentHealth,
 	                     const FReEchoStatBlock& EchoStats,

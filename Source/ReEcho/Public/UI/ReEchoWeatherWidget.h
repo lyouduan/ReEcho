@@ -22,7 +22,10 @@ class REECHO_API UReEchoWeatherWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	/** 切换全屏天气表现；不改变战斗模拟。 */
 	void SetWeatherScene(EReEchoWeatherScene NewWeatherScene);
+
+	/** 设置雾中需要保持可见的玩家与回响。 */
 	void SetFogRevealSources(AActor* InPlayer, AActor* InEcho);
 
 protected:

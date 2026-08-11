@@ -29,6 +29,7 @@
 #include "UI/ReEchoLoadoutSelectionWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
+#include "UI/ReEchoSettingsWidget.h"
 #include "UI/ReEchoStartMenuWidget.h"
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
@@ -282,6 +283,7 @@ void AReEchoGameMode::ShowStartMenu()
 	       bHasSavedRun ? TEXT("true") : TEXT("false"));
 	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
 	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
+	StartMenuWidget->OnGameSettingRequested.AddDynamic(this, &AReEchoGameMode::HandleStartSettingsRequested);
 	StartMenuWidget->AddToViewport(200);
 	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 
@@ -319,6 +321,101 @@ void AReEchoGameMode::HandleContinueGameRequested()
 		return;
 	}
 	BeginSelectedRun();
+}
+
+void AReEchoGameMode::HandleStartSettingsRequested()
+{
+	if (!StartMenuWidget || SettingsWidget)
+	{
+		return;
+	}
+
+	StartMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
+	ShowSettingsScreen(true);
+	if (!SettingsWidget)
+	{
+		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+void AReEchoGameMode::HandlePauseSettingsRequested()
+{
+	if (!RestartWidget || SettingsWidget)
+	{
+		return;
+	}
+
+	RestartWidget->SetVisibility(ESlateVisibility::Collapsed);
+	ShowSettingsScreen(false);
+	if (!SettingsWidget)
+	{
+		RestartWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+void AReEchoGameMode::HandleSettingsClosed()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (SettingsWidget)
+	{
+		SettingsWidget->RemoveFromParent();
+		SettingsWidget = nullptr;
+	}
+
+	if (bSettingsReturnToStartMenu && StartMenuWidget)
+	{
+		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
+		StartMenuWidget->SetKeyboardFocus();
+		if (PlayerController)
+		{
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(StartMenuWidget->TakeWidget());
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			PlayerController->SetInputMode(InputMode);
+		}
+	}
+	else if (RestartWidget)
+	{
+		RestartWidget->SetVisibility(ESlateVisibility::Visible);
+		RestartWidget->SetKeyboardFocus();
+		if (PlayerController)
+		{
+			FInputModeGameAndUI InputMode;
+			InputMode.SetWidgetToFocus(RestartWidget->TakeWidget());
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			PlayerController->SetInputMode(InputMode);
+		}
+	}
+	if (PlayerController)
+	{
+		PlayerController->SetShowMouseCursor(true);
+	}
+	bSettingsReturnToStartMenu = false;
+}
+
+void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PlayerController || SettingsWidget)
+	{
+		return;
+	}
+
+	SettingsWidget = CreateWidget<UReEchoSettingsWidget>(PlayerController, UReEchoSettingsWidget::StaticClass());
+	if (!SettingsWidget)
+	{
+		return;
+	}
+
+	bSettingsReturnToStartMenu = bReturnToStartMenu;
+	SettingsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleSettingsClosed);
+	SettingsWidget->AddToViewport(220);
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(SettingsWidget->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
 }
 
 void AReEchoGameMode::ShowLoadoutSelection()
@@ -810,6 +907,7 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
 	RestartWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleQuitRequested);
+	RestartWidget->OnSettingsRequested.AddDynamic(this, &AReEchoGameMode::HandlePauseSettingsRequested);
 	RestartWidget->AddToViewport(100);
 
 	FInputModeGameAndUI InputMode;
@@ -823,6 +921,11 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 
 void AReEchoGameMode::TogglePauseMenu()
 {
+	if (SettingsWidget)
+	{
+		HandleSettingsClosed();
+		return;
+	}
 	if (bAwaitingStartChoice)
 	{
 		return;

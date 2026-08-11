@@ -59,6 +59,10 @@ void UReEchoRestartWidget::NativeConstruct()
 	{
 		QuitButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleQuitClicked);
 	}
+	if (SettingsButton)
+	{
+		SettingsButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleSettingsClicked);
+	}
 	RefreshMenuMode();
 	if ((bDeathScreen || bVictoryScreen) && RestartButton)
 	{
@@ -147,6 +151,8 @@ void UReEchoRestartWidget::BuildWidgetTree()
 	    WidgetTree, Content, TEXT("ResumeButton"), TEXT("返回游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
 	RestartButton = AddMenuButton(
 	    WidgetTree, Content, TEXT("RestartButton"), TEXT("重新开始"), FLinearColor(0.65f, 0.18f, 0.06f, 1.0f));
+	SettingsButton = AddMenuButton(
+	    WidgetTree, Content, TEXT("SettingsButton"), TEXT("游戏设置"), FLinearColor(0.16f, 0.22f, 0.34f, 1.0f));
 	QuitButton = AddMenuButton(
 	    WidgetTree, Content, TEXT("QuitButton"), TEXT("退出游戏"), FLinearColor(0.55f, 0.05f, 0.08f, 1.0f));
 	QuitButtonText = Cast<UTextBlock>(QuitButton->GetContent());
@@ -202,6 +208,11 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		RestartButton->SetVisibility(bQuitConfirmation || bSaveFailed ? ESlateVisibility::Collapsed
 		                                                              : ESlateVisibility::Visible);
 	}
+	if (SettingsButton)
+	{
+		const bool bShowSettingsEntry = !bDeathScreen && !bVictoryScreen && !bQuitConfirmation && !bSaveFailed;
+		SettingsButton->SetVisibility(bShowSettingsEntry ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
 	if (QuitButtonText)
 	{
 		const FString QuitLabel = bQuitConfirmation ? TEXT("确认退出")
@@ -224,4 +235,9 @@ void UReEchoRestartWidget::HandleRestartClicked()
 void UReEchoRestartWidget::HandleQuitClicked()
 {
 	OnQuitRequested.Broadcast();
+}
+
+void UReEchoRestartWidget::HandleSettingsClicked()
+{
+	OnSettingsRequested.Broadcast();
 }
