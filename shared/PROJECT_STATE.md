@@ -38,6 +38,7 @@ Last updated: 2026-08-11. Current snapshot only; history belongs in Plans and Gi
 - `Isolated` and `ReadOnly` work may proceed after broadcast. `SharedContract`/`Exclusive` overlap requires agreement; only `Active Exclusive` ownership blocks another writer.
 - Provider/consumer work publishes a stable read-only surface; consumers integrate current `origin/main` and rerun affected checks before review.
 - Local merge does not authorize remote publication. Each publication uses a current-remote candidate, proportional verification, non-force push and either one-candidate or documented standing scoped human authorization.
+- When fetch reveals external commits, the Planner reports Physical/Git conflict, Logical conflict and Coupling before any pull/merge/rebase/push, then integrates only the human-selected outcome; a fast-forward does not bypass this gate.
 - `origin/main` contains the accepted implementation lineage through Plan25. New work fetches it directly; old `coord/...` refs are not permanent bases.
 
 ## Verified toolchain

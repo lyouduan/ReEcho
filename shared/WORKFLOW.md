@@ -75,6 +75,8 @@ Shared documentation is deliberately kept out of Executor hot paths:
 
 This keeps independent branches from conflicting on the same Markdown files.
 
+External remote commits introduce a separate human decision point. A Planner first fetches without changing the working tree, then reports three independent results: **Physical/Git conflict** (what Git can combine), **Logical conflict** (whether the combined behavior still means the same thing), and **Coupling** (which Plans/contracts/tests move together). A fast-forward proves only ancestry; it does not prove semantic compatibility. Integration waits for the human to choose remote, local, a combined adaptation or deferral, and any further remote advance restarts the audit before push.
+
 ## Canonical workbook
 
 `Design/Data/ReEchoData.xlsx` is one binary source and therefore has one active repository writer (`WorkbookWriter`). Generated production CSV files follow that writer and are not separately locked.

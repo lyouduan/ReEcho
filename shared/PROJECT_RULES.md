@@ -17,6 +17,7 @@ These are the project-level hard rules. `AGENTS.md` owns startup order; role act
 - Executor implementation branches use `plan/<id>-<short-name>`; client-required branches may use `codex/<short-name>`.
 - Executors never modify, merge or push `main`. Planners may create reviewed local merge commits and may publish remote `main` only under `PLANNER_RULES.md`.
 - Task implementation and planning batches start on a non-`main` branch. A Planner may resolve integration conflicts and create reviewed merge commits on local `main`. Planning broadcasts normally use `coord/<owner>-<topic>` until their reviewed integration/publication.
+- `git fetch` is the only automatic first step when remote state may have changed. If it reveals commits outside the currently approved local baseline, the Planner must stop before `pull`, merge, rebase, cherry-pick or push; report physical/Git conflicts, logical conflicts and integration coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption.
 - Stage explicit paths only. Never use `git add .` or `git add -A`; never force-push `main`.
 - Human instructions and Plan locked acceptance define scope. Executors may refine implementation details but must coordinate changes to goals, acceptance, public contracts or declared Writes.
 
