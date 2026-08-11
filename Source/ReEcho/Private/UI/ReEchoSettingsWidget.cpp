@@ -13,7 +13,10 @@
 
 TSharedRef<SWidget> UReEchoSettingsWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 
@@ -22,7 +25,27 @@ void UReEchoSettingsWidget::NativeConstruct()
 	Super::NativeConstruct();
 	SetIsFocusable(true);
 	BuildWidgetTree();
+	CategoryButtons = {GraphicsSettingsButton, AudioSettingsButton, ControlsSettingsButton};
+	CategoryButtons.Remove(nullptr);
+	for (int32 CategoryIndex = 0; CategoryIndex < CategoryButtons.Num(); ++CategoryIndex)
+	{
+		CategoryButtons[CategoryIndex]->SetEntryIndex(CategoryIndex);
+		CategoryButtons[CategoryIndex]->OnIndexedClicked.AddUniqueDynamic(
+		    this, &UReEchoSettingsWidget::HandleCategoryClicked);
+	}
+	if (RestoreDefaultsButton)
+	{
+		RestoreDefaultsButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleRestoreDefaultsClicked);
+	}
+	if (ApplyAndReturnButton)
+	{
+		ApplyAndReturnButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleApplyAndReturnClicked);
+	}
 	RefreshCategory();
+	if (!CategoryButtons.IsEmpty())
+	{
+		CategoryButtons[0]->SetKeyboardFocus();
+	}
 }
 
 void UReEchoSettingsWidget::BuildWidgetTree()
@@ -85,9 +108,11 @@ void UReEchoSettingsWidget::BuildWidgetTree()
 		                                                                        FText::FromString(Definition.Value),
 		                                                                        CategoryIndex,
 		                                                                        NavigationButtonStyle);
-		CategoryButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCategoryClicked);
 		CategoryButtons.Add(CategoryButton);
 	}
+	GraphicsSettingsButton = CategoryButtons[0];
+	AudioSettingsButton = CategoryButtons[1];
+	ControlsSettingsButton = CategoryButtons[2];
 
 	UBorder* DetailBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("SettingsDetailBorder"));
 	DetailBorder->SetBrushColor(FLinearColor(0.035f, 0.05f, 0.075f, 0.98f));
@@ -120,23 +145,17 @@ void UReEchoSettingsWidget::BuildWidgetTree()
 
 	ReEcho::UI::FMenuButtonStyle ActionButtonStyle{
 	    FLinearColor(0.24f, 0.24f, 0.28f, 1.0f), FMargin(0.0f, 5.0f), FMargin(42.0f, 12.0f), 24};
-	UButton* RestoreDefaultsButton = ReEcho::UI::AddMenuButton(*WidgetTree,
-	                                                           *DetailContent,
-	                                                           TEXT("RestoreDefaultsButton"),
-	                                                           FText::FromString(TEXT("恢复默认")),
-	                                                           ActionButtonStyle);
+	RestoreDefaultsButton = ReEcho::UI::AddMenuButton(*WidgetTree,
+	                                                  *DetailContent,
+	                                                  TEXT("RestoreDefaultsButton"),
+	                                                  FText::FromString(TEXT("恢复默认")),
+	                                                  ActionButtonStyle);
 	ActionButtonStyle.Color = FLinearColor(0.08f, 0.42f, 0.32f, 1.0f);
-	UButton* ApplyAndReturnButton = ReEcho::UI::AddMenuButton(*WidgetTree,
-	                                                          *DetailContent,
-	                                                          TEXT("ApplyAndReturnButton"),
-	                                                          FText::FromString(TEXT("应用并返回")),
-	                                                          ActionButtonStyle);
-	RestoreDefaultsButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleRestoreDefaultsClicked);
-	ApplyAndReturnButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleApplyAndReturnClicked);
-	if (!CategoryButtons.IsEmpty())
-	{
-		CategoryButtons[0]->SetKeyboardFocus();
-	}
+	ApplyAndReturnButton = ReEcho::UI::AddMenuButton(*WidgetTree,
+	                                                 *DetailContent,
+	                                                 TEXT("ApplyAndReturnButton"),
+	                                                 FText::FromString(TEXT("应用并返回")),
+	                                                 ActionButtonStyle);
 }
 
 void UReEchoSettingsWidget::RefreshCategory()

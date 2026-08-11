@@ -25,10 +25,10 @@ private:
 	void BuildWidgetTree();
 	void RefreshText();
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EncounterText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> CountdownText;
 
 	int32 CurrentEncounterIndex = 0;

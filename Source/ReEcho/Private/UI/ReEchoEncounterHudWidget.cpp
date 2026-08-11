@@ -10,7 +10,10 @@
 
 TSharedRef<SWidget> UReEchoEncounterHudWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 

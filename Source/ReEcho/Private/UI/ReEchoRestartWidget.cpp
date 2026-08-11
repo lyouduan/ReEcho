@@ -11,7 +11,10 @@
 
 TSharedRef<SWidget> UReEchoRestartWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 

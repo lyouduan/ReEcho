@@ -72,6 +72,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Replaced the pause/death/victory menu's four overlapping booleans with explicit screen-mode and quit-prompt state enums while preserving its public GameMode-facing API and presentation priority.
 - Converted settings navigation from three dedicated click handlers to a reusable indexed-button collection with validated category selection and array-driven focus/styling.
 - Unified Start Menu actions behind one indexed dispatcher and extracted the repeated Start/Settings/Restart C++ fallback button construction into a shared presentation-only helper.
+- Added optional named UMG bindings for encounter HUD, enemy health bar, Start Menu, Settings and pause/restart surfaces; native parents now preserve designer-authored WidgetTrees and construct C++ layouts only when no UMG root exists.
 
 ### Evidence
 
@@ -83,13 +84,14 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Explicit restart-screen state modeling passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Indexed settings navigation passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Shared menu-button construction and indexed Start Menu dispatch pass Editor Development build and all 34 discovered `ReEcho.*` automation tests.
+- Optional UMG binding/fallback integration passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 
 ### Remaining risks
 
 - Large binary-asset surface requires serialized MCP edits and batch verification.
 - Plan 26 owns inventory/shop and stats C++ until coordinated.
 - After an Editor restart, the current Codex Unreal MCP transport did not reconnect even though the Editor registered all 52 toolsets; WBP creation is paused at that asset boundary rather than bypassing MCP.
-- Canonical Plan 28 reserves `ReEchoRestartWidget.*` and GameMode for player attack-mode integration; Plan 29 freezes further writes on that overlap and will perform a combined adaptation after Plan 28 is integrated.
+- Canonical Plan 28 may later overlap `ReEchoRestartWidget.*` and GameMode for player attack-mode integration; the human directed Plan 29 to continue independently, with combined adaptation preserving both behaviors at integration.
 
 ### Human validation result/request
 

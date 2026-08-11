@@ -20,7 +20,10 @@ enum class EStartMenuAction : int32
 
 TSharedRef<SWidget> UReEchoStartMenuWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 
@@ -31,14 +34,17 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	BuildWidgetTree();
 	if (ContinueButton)
 	{
+		ContinueButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Continue));
 		ContinueButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	if (NewGameButton)
 	{
+		NewGameButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::NewGame));
 		NewGameButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	if (GameSettingsButton)
 	{
+		GameSettingsButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Settings));
 		GameSettingsButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	RefreshMenu();

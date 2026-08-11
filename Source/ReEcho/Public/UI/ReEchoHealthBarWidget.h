@@ -32,7 +32,7 @@ private:
 	UFUNCTION()
 	void HandleHealthChanged(float CurrentHealth, float MaximumHealth);
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UProgressBar> ProgressBar;
 
 	TWeakObjectPtr<UReEchoCombatantComponent> Combatant;
