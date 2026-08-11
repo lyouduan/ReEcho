@@ -2,36 +2,20 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
-#include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "UI/ReEchoIndexedButton.h"
+#include "UI/ReEchoMenuWidgetHelpers.h"
 
 namespace
 {
-UButton* AddStartButton(UWidgetTree* WidgetTree,
-                        UVerticalBox* Content,
-                        const FName ButtonName,
-                        const FString& Label,
-                        const FLinearColor& Color)
+enum class EStartMenuAction : int32
 {
-	UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), ButtonName);
-	Button->SetBackgroundColor(Color);
-	UVerticalBoxSlot* ButtonSlot = Content->AddChildToVerticalBox(Button);
-	ButtonSlot->SetHorizontalAlignment(HAlign_Center);
-	ButtonSlot->SetPadding(FMargin(0.0f, 7.0f));
-
-	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
-	ButtonLabel->SetText(FText::FromString(Label));
-	ButtonLabel->SetJustification(ETextJustify::Center);
-	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	ButtonLabel->SetMargin(FMargin(58.0f, 14.0f));
-	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
-	ButtonFont.Size = 26;
-	ButtonLabel->SetFont(ButtonFont);
-	Button->SetContent(ButtonLabel);
-	return Button;
-}
+	Continue,
+	NewGame,
+	Settings
+};
 }
 
 TSharedRef<SWidget> UReEchoStartMenuWidget::RebuildWidget()
@@ -47,15 +31,15 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	BuildWidgetTree();
 	if (ContinueButton)
 	{
-		ContinueButton->OnClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleContinueClicked);
+		ContinueButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	if (NewGameButton)
 	{
-		NewGameButton->OnClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleNewGameClicked);
+		NewGameButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	if (GameSettingsButton)
 	{
-		GameSettingsButton->OnClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleGameSettingClicked);
+		GameSettingsButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	RefreshMenu();
 	if (bHasSavedRun && ContinueButton)
@@ -117,12 +101,28 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 	StatusSlot->SetHorizontalAlignment(HAlign_Center);
 	StatusSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 30.0f));
 
-	ContinueButton = AddStartButton(
-	    WidgetTree, Content, TEXT("ContinueButton"), TEXT("继续游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
-	NewGameButton = AddStartButton(
-	    WidgetTree, Content, TEXT("NewGameButton"), TEXT("新开始游戏"), FLinearColor(0.12f, 0.32f, 0.62f, 1.0f));
-	GameSettingsButton = AddStartButton(
-	    WidgetTree, Content, TEXT("GameSettingsButton"), TEXT("游戏设置"), FLinearColor(0.12f, 0.32f, 0.62f, 1.0f));
+	const ReEcho::UI::FMenuButtonStyle PrimaryButtonStyle{
+	    FLinearColor(0.12f, 0.32f, 0.62f, 1.0f), FMargin(0.0f, 7.0f), FMargin(58.0f, 14.0f), 26};
+	ReEcho::UI::FMenuButtonStyle ContinueButtonStyle = PrimaryButtonStyle;
+	ContinueButtonStyle.Color = FLinearColor(0.08f, 0.42f, 0.32f, 1.0f);
+	ContinueButton = ReEcho::UI::AddIndexedMenuButton(*WidgetTree,
+	                                                  *Content,
+	                                                  TEXT("ContinueButton"),
+	                                                  FText::FromString(TEXT("继续游戏")),
+	                                                  static_cast<int32>(EStartMenuAction::Continue),
+	                                                  ContinueButtonStyle);
+	NewGameButton = ReEcho::UI::AddIndexedMenuButton(*WidgetTree,
+	                                                 *Content,
+	                                                 TEXT("NewGameButton"),
+	                                                 FText::FromString(TEXT("新开始游戏")),
+	                                                 static_cast<int32>(EStartMenuAction::NewGame),
+	                                                 PrimaryButtonStyle);
+	GameSettingsButton = ReEcho::UI::AddIndexedMenuButton(*WidgetTree,
+	                                                      *Content,
+	                                                      TEXT("GameSettingsButton"),
+	                                                      FText::FromString(TEXT("游戏设置")),
+	                                                      static_cast<int32>(EStartMenuAction::Settings),
+	                                                      PrimaryButtonStyle);
 	RefreshMenu();
 }
 
@@ -139,17 +139,20 @@ void UReEchoStartMenuWidget::RefreshMenu()
 	}
 }
 
-void UReEchoStartMenuWidget::HandleNewGameClicked()
+void UReEchoStartMenuWidget::HandleMenuAction(const int32 ActionIndex)
 {
-	OnNewGameRequested.Broadcast();
-}
-
-void UReEchoStartMenuWidget::HandleContinueClicked()
-{
-	OnContinueGameRequested.Broadcast();
-}
-
-void UReEchoStartMenuWidget::HandleGameSettingClicked()
-{
-	OnGameSettingRequested.Broadcast();
+	switch (static_cast<EStartMenuAction>(ActionIndex))
+	{
+		case EStartMenuAction::Continue:
+			OnContinueGameRequested.Broadcast();
+			break;
+		case EStartMenuAction::NewGame:
+			OnNewGameRequested.Broadcast();
+			break;
+		case EStartMenuAction::Settings:
+			OnGameSettingRequested.Broadcast();
+			break;
+		default:
+			break;
+	}
 }

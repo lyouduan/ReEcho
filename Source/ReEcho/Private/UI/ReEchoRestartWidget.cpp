@@ -7,33 +7,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
-
-namespace
-{
-UButton* AddMenuButton(UWidgetTree* WidgetTree,
-                       UVerticalBox* Content,
-                       const FName ButtonName,
-                       const FString& Label,
-                       const FLinearColor& Color)
-{
-	UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), ButtonName);
-	Button->SetBackgroundColor(Color);
-	UVerticalBoxSlot* ButtonSlot = Content->AddChildToVerticalBox(Button);
-	ButtonSlot->SetHorizontalAlignment(HAlign_Center);
-	ButtonSlot->SetPadding(FMargin(0.0f, 5.0f));
-
-	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
-	ButtonLabel->SetText(FText::FromString(Label));
-	ButtonLabel->SetJustification(ETextJustify::Center);
-	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	ButtonLabel->SetMargin(FMargin(42.0f, 12.0f));
-	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
-	ButtonFont.Size = 24;
-	ButtonLabel->SetFont(ButtonFont);
-	Button->SetContent(ButtonLabel);
-	return Button;
-}
-}
+#include "UI/ReEchoMenuWidgetHelpers.h"
 
 TSharedRef<SWidget> UReEchoRestartWidget::RebuildWidget()
 {
@@ -142,14 +116,19 @@ void UReEchoRestartWidget::BuildWidgetTree()
 	MessageSlot->SetHorizontalAlignment(HAlign_Center);
 	MessageSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 28.0f));
 
-	ResumeButton = AddMenuButton(
-	    WidgetTree, Content, TEXT("ResumeButton"), TEXT("返回游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
-	RestartButton = AddMenuButton(
-	    WidgetTree, Content, TEXT("RestartButton"), TEXT("重新开始"), FLinearColor(0.65f, 0.18f, 0.06f, 1.0f));
-	SettingsButton = AddMenuButton(
-	    WidgetTree, Content, TEXT("SettingsButton"), TEXT("游戏设置"), FLinearColor(0.16f, 0.22f, 0.34f, 1.0f));
-	QuitButton = AddMenuButton(
-	    WidgetTree, Content, TEXT("QuitButton"), TEXT("退出游戏"), FLinearColor(0.55f, 0.05f, 0.08f, 1.0f));
+	ReEcho::UI::FMenuButtonStyle ButtonStyle{
+	    FLinearColor(0.08f, 0.42f, 0.32f, 1.0f), FMargin(0.0f, 5.0f), FMargin(42.0f, 12.0f), 24};
+	ResumeButton = ReEcho::UI::AddMenuButton(
+	    *WidgetTree, *Content, TEXT("ResumeButton"), FText::FromString(TEXT("返回游戏")), ButtonStyle);
+	ButtonStyle.Color = FLinearColor(0.65f, 0.18f, 0.06f, 1.0f);
+	RestartButton = ReEcho::UI::AddMenuButton(
+	    *WidgetTree, *Content, TEXT("RestartButton"), FText::FromString(TEXT("重新开始")), ButtonStyle);
+	ButtonStyle.Color = FLinearColor(0.16f, 0.22f, 0.34f, 1.0f);
+	SettingsButton = ReEcho::UI::AddMenuButton(
+	    *WidgetTree, *Content, TEXT("SettingsButton"), FText::FromString(TEXT("游戏设置")), ButtonStyle);
+	ButtonStyle.Color = FLinearColor(0.55f, 0.05f, 0.08f, 1.0f);
+	QuitButton = ReEcho::UI::AddMenuButton(
+	    *WidgetTree, *Content, TEXT("QuitButton"), FText::FromString(TEXT("退出游戏")), ButtonStyle);
 	QuitButtonText = Cast<UTextBlock>(QuitButton->GetContent());
 	RefreshMenuMode();
 }

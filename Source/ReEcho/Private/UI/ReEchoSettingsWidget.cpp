@@ -9,59 +9,7 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "UI/ReEchoIndexedButton.h"
-
-namespace
-{
-UButton* AddSettingsButton(UWidgetTree* WidgetTree,
-                           UVerticalBox* Content,
-                           const FName ButtonName,
-                           const FString& Label,
-                           const FLinearColor& Color)
-{
-	UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), ButtonName);
-	Button->SetBackgroundColor(Color);
-	UVerticalBoxSlot* ButtonSlot = Content->AddChildToVerticalBox(Button);
-	ButtonSlot->SetHorizontalAlignment(HAlign_Center);
-	ButtonSlot->SetPadding(FMargin(0.0f, 5.0f));
-
-	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
-	ButtonLabel->SetText(FText::FromString(Label));
-	ButtonLabel->SetJustification(ETextJustify::Center);
-	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	ButtonLabel->SetMargin(FMargin(42.0f, 12.0f));
-	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
-	ButtonFont.Size = 24;
-	ButtonLabel->SetFont(ButtonFont);
-	Button->SetContent(ButtonLabel);
-	return Button;
-}
-
-UReEchoIndexedButton* AddSettingsCategoryButton(UWidgetTree* WidgetTree,
-                                                UVerticalBox* Content,
-                                                const FName ButtonName,
-                                                const FString& Label,
-                                                const int32 CategoryIndex)
-{
-	UReEchoIndexedButton* Button =
-	    WidgetTree->ConstructWidget<UReEchoIndexedButton>(UReEchoIndexedButton::StaticClass(), ButtonName);
-	Button->SetEntryIndex(CategoryIndex);
-	Button->SetBackgroundColor(FLinearColor(0.12f, 0.32f, 0.48f, 1.0f));
-	UVerticalBoxSlot* ButtonSlot = Content->AddChildToVerticalBox(Button);
-	ButtonSlot->SetHorizontalAlignment(HAlign_Center);
-	ButtonSlot->SetPadding(FMargin(0.0f, 5.0f));
-
-	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
-	ButtonLabel->SetText(FText::FromString(Label));
-	ButtonLabel->SetJustification(ETextJustify::Center);
-	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	ButtonLabel->SetMargin(FMargin(42.0f, 12.0f));
-	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
-	ButtonFont.Size = 24;
-	ButtonLabel->SetFont(ButtonFont);
-	Button->SetContent(ButtonLabel);
-	return Button;
-}
-}
+#include "UI/ReEchoMenuWidgetHelpers.h"
 
 TSharedRef<SWidget> UReEchoSettingsWidget::RebuildWidget()
 {
@@ -123,14 +71,20 @@ void UReEchoSettingsWidget::BuildWidgetTree()
 	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("SettingsNavigation"));
 	NavigationBorder->SetContent(NavigationPanel);
 	CategoryButtons.Reset();
+	const ReEcho::UI::FMenuButtonStyle NavigationButtonStyle{
+	    FLinearColor(0.12f, 0.32f, 0.48f, 1.0f), FMargin(0.0f, 5.0f), FMargin(42.0f, 12.0f), 24};
 	static const TPair<FName, FString> CategoryDefinitions[] = {{TEXT("GraphicsSettingsButton"), TEXT("画面")},
 	                                                            {TEXT("AudioSettingsButton"), TEXT("声音")},
 	                                                            {TEXT("ControlsSettingsButton"), TEXT("操作（键位）")}};
 	for (int32 CategoryIndex = 0; CategoryIndex < UE_ARRAY_COUNT(CategoryDefinitions); ++CategoryIndex)
 	{
 		const TPair<FName, FString>& Definition = CategoryDefinitions[CategoryIndex];
-		UReEchoIndexedButton* CategoryButton =
-		    AddSettingsCategoryButton(WidgetTree, NavigationPanel, Definition.Key, Definition.Value, CategoryIndex);
+		UReEchoIndexedButton* CategoryButton = ReEcho::UI::AddIndexedMenuButton(*WidgetTree,
+		                                                                        *NavigationPanel,
+		                                                                        Definition.Key,
+		                                                                        FText::FromString(Definition.Value),
+		                                                                        CategoryIndex,
+		                                                                        NavigationButtonStyle);
 		CategoryButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCategoryClicked);
 		CategoryButtons.Add(CategoryButton);
 	}
@@ -164,16 +118,19 @@ void UReEchoSettingsWidget::BuildWidgetTree()
 	DetailSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 	DetailSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 24.0f));
 
-	UButton* RestoreDefaultsButton = AddSettingsButton(WidgetTree,
-	                                                   DetailContent,
-	                                                   TEXT("RestoreDefaultsButton"),
-	                                                   TEXT("恢复默认"),
-	                                                   FLinearColor(0.24f, 0.24f, 0.28f, 1.0f));
-	UButton* ApplyAndReturnButton = AddSettingsButton(WidgetTree,
-	                                                  DetailContent,
-	                                                  TEXT("ApplyAndReturnButton"),
-	                                                  TEXT("应用并返回"),
-	                                                  FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
+	ReEcho::UI::FMenuButtonStyle ActionButtonStyle{
+	    FLinearColor(0.24f, 0.24f, 0.28f, 1.0f), FMargin(0.0f, 5.0f), FMargin(42.0f, 12.0f), 24};
+	UButton* RestoreDefaultsButton = ReEcho::UI::AddMenuButton(*WidgetTree,
+	                                                           *DetailContent,
+	                                                           TEXT("RestoreDefaultsButton"),
+	                                                           FText::FromString(TEXT("恢复默认")),
+	                                                           ActionButtonStyle);
+	ActionButtonStyle.Color = FLinearColor(0.08f, 0.42f, 0.32f, 1.0f);
+	UButton* ApplyAndReturnButton = ReEcho::UI::AddMenuButton(*WidgetTree,
+	                                                          *DetailContent,
+	                                                          TEXT("ApplyAndReturnButton"),
+	                                                          FText::FromString(TEXT("应用并返回")),
+	                                                          ActionButtonStyle);
 	RestoreDefaultsButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleRestoreDefaultsClicked);
 	ApplyAndReturnButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleApplyAndReturnClicked);
 	if (!CategoryButtons.IsEmpty())

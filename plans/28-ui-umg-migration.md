@@ -71,6 +71,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Added a reusable indexed UMG button and converted loadout and trait choices from ten fixed slot handlers to array-driven index-to-stable-ID resolution.
 - Replaced the pause/death/victory menu's four overlapping booleans with explicit screen-mode and quit-prompt state enums while preserving its public GameMode-facing API and presentation priority.
 - Converted settings navigation from three dedicated click handlers to a reusable indexed-button collection with validated category selection and array-driven focus/styling.
+- Unified Start Menu actions behind one indexed dispatcher and extracted the repeated Start/Settings/Restart C++ fallback button construction into a shared presentation-only helper.
 
 ### Evidence
 
@@ -81,6 +82,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Indexed loadout/trait selection passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Explicit restart-screen state modeling passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Indexed settings navigation passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
+- Shared menu-button construction and indexed Start Menu dispatch pass Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 
 ### Remaining risks
 
