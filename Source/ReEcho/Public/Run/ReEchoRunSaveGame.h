@@ -13,7 +13,7 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 CurrentSaveVersion = 3;
+	static constexpr int32 CurrentSaveVersion = 4;
 
 	UPROPERTY(SaveGame)
 	int32 SaveVersion = CurrentSaveVersion;

@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
@@ -18,6 +19,8 @@
 #include "Misc/Paths.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Player/ReEchoPlayerPawn.h"
+#include "Recording/ReEchoRecorderComponent.h"
 #include "Weapons/ReEchoWeaponActor.h"
 
 namespace
@@ -94,9 +97,16 @@ struct FReEchoWeaponWorldFixture
 	}
 };
 
-float EnemyHealth(const AReEchoEnemyActor* Enemy)
+float WeaponEnemyHealth(const AReEchoEnemyActor* Enemy)
 {
 	return Enemy->GetCombatantComponent()->CurrentHealth;
+}
+
+void SetBuildStats(FReEchoBuildSnapshot& Build, const FReEchoStatBlock& Stats)
+{
+	Build.Stats = Stats;
+	Build.EquipmentBaseStats = Stats;
+	Build.bHasEquipmentBase = true;
 }
 
 FReEchoBuildSnapshot MakeBuild(const FReEchoCsvDataSnapshot& Snapshot, const FName WeaponId)
@@ -217,6 +227,31 @@ bool FReEchoWeaponEquipmentAppliesModifiersTest::RunTest(const FString& Paramete
 	         ReEchoWeaponRuntime::TryEquipParts(
 	             *Snapshot, DaggerBuild, {TEXT("P_CORE_FLAME"), TEXT("P_DAGGER_STRENGTH_GRIP")}, Equipped, Error));
 	TestEqual(TEXT("Multiply modifier updates attack speed"), Equipped.Stats.AttackSpeed, 1.2f);
+	FReEchoBuildSnapshot Reequipped;
+	TestTrue(TEXT("Identical strength grip re-equip succeeds"),
+	         ReEchoWeaponRuntime::TryEquipParts(
+	             *Snapshot, Equipped, {TEXT("P_CORE_FLAME"), TEXT("P_DAGGER_STRENGTH_GRIP")}, Reequipped, Error));
+	TestEqual(TEXT("Identical re-equip does not multiply attack speed twice"), Reequipped.Stats.AttackSpeed, 1.2f);
+
+	FReEchoBuildSnapshot Replaced;
+	TestTrue(TEXT("Replacing strength grip succeeds"),
+	         ReEchoWeaponRuntime::TryEquipParts(
+	             *Snapshot, Reequipped, {TEXT("P_CORE_TIDE"), TEXT("P_DAGGER_THRUST_GRIP")}, Replaced, Error));
+	TestEqual(TEXT("Replacing strength grip restores base attack speed"), Replaced.Stats.AttackSpeed, 1.0f);
+	TestEqual(TEXT("Replacement writes only the new damage channel"),
+	          Replaced.RuleFlags.FindRef(TEXT("Weapon.DamageChannel")),
+	          FString(TEXT("Water")));
+
+	FReEchoBuildSnapshot Unequipped;
+	TestTrue(TEXT("Unequip-all succeeds"),
+	         ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Replaced, {}, Unequipped, Error));
+	TestEqual(TEXT("Unequip-all restores base attack speed"), Unequipped.Stats.AttackSpeed, 1.0f);
+	TestFalse(TEXT("Unequip-all removes old damage channel"),
+	          Unequipped.RuleFlags.Contains(TEXT("Weapon.DamageChannel")));
+	TestFalse(TEXT("Unequip-all removes old pattern replacement"),
+	          Unequipped.RuleFlags.Contains(TEXT("Weapon.AttackPatternId")));
+	TestFalse(TEXT("Unequip-all removes old interval override"),
+	          Unequipped.RuleFlags.Contains(TEXT("Weapon.AttackIntervalSeconds")));
 
 	TestTrue(TEXT("Thrust and holy modifiers equip"),
 	         ReEchoWeaponRuntime::TryEquipParts(
@@ -241,6 +276,7 @@ bool FReEchoWeaponEquipmentAppliesModifiersTest::RunTest(const FString& Paramete
 	    TEXT("Disabled part fails"),
 	    ReEchoWeaponRuntime::TryEquipParts(*Snapshot, DaggerBuild, {TEXT("P_DAGGER_NINJA_BLADE")}, Failed, Error));
 	TestEqual(TEXT("Disabled failure is atomic"), Failed.EquippedParts.Num(), Original.EquippedParts.Num());
+	TestEqual(TEXT("Disabled failure preserves attack speed"), Failed.Stats.AttackSpeed, Original.Stats.AttackSpeed);
 	TestFalse(
 	    TEXT("Duplicate slot fails atomically"),
 	    ReEchoWeaponRuntime::TryEquipParts(
@@ -264,7 +300,7 @@ bool FReEchoWeaponMeleeStepRuntimeTest::RunTest(const FString& Parameters)
 	UReEchoCombatantComponent* Combatant = nullptr;
 	AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
 	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_01"));
-	Build.Stats = Combatant->Stats;
+	SetBuildStats(Build, Combatant->Stats);
 	AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
 	Weapon->SetOwner(Owner);
 	Weapon->InitializeWeapon(&Build, Snapshot);
@@ -272,8 +308,8 @@ bool FReEchoWeaponMeleeStepRuntimeTest::RunTest(const FString& Parameters)
 	AReEchoEnemyActor* Side = Fixture.SpawnEnemy(FVector(-100.0f, 0.0f, 0.0f), 2, 100.0f);
 
 	TestTrue(TEXT("First melee step executes"), Weapon->ExecuteBasicAttack(Combatant));
-	TestEqual(TEXT("Front target takes first ordered step damage"), EnemyHealth(Front), 50.0f);
-	TestEqual(TEXT("Side target outside arc is untouched"), EnemyHealth(Side), 100.0f);
+	TestEqual(TEXT("Front target takes first ordered step damage"), WeaponEnemyHealth(Front), 50.0f);
+	TestEqual(TEXT("Side target outside arc is untouched"), WeaponEnemyHealth(Side), 100.0f);
 	TestFalse(TEXT("Second step cannot execute before duration ends"), Weapon->ExecuteBasicAttack(Combatant));
 	Fixture.Advance(0.81f);
 	Weapon->Tick(0.81f);
@@ -296,7 +332,7 @@ bool FReEchoWeaponDaggerPartRuntimeTest::RunTest(const FString& Parameters)
 	Combatant->Stats.PhysicalAttack = 200.0f;
 	Combatant->RestoreCurrentHealth(50.0f);
 	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_05"));
-	Build.Stats = Combatant->Stats;
+	SetBuildStats(Build, Combatant->Stats);
 	FString Error;
 	TestTrue(TEXT("Dagger parts equip"),
 	         ReEchoWeaponRuntime::TryEquipParts(
@@ -335,7 +371,7 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	UReEchoCombatantComponent* SingleCombatant = nullptr;
 	AActor* SingleOwner = SingleFixture.SpawnWeaponOwner(FVector::ZeroVector, SingleCombatant);
 	FReEchoBuildSnapshot SingleBuild = MakeBuild(*Snapshot, TEXT("W_J_03"));
-	SingleBuild.Stats = SingleCombatant->Stats;
+	SetBuildStats(SingleBuild, SingleCombatant->Stats);
 	AReEchoWeaponActor* SingleWeapon = SingleFixture.World->SpawnActor<AReEchoWeaponActor>();
 	SingleWeapon->SetOwner(SingleOwner);
 	SingleWeapon->InitializeWeapon(&SingleBuild, Snapshot);
@@ -346,7 +382,7 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	UReEchoCombatantComponent* Combatant = nullptr;
 	AActor* Owner = SpreadFixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
 	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_06"));
-	Build.Stats = Combatant->Stats;
+	SetBuildStats(Build, Combatant->Stats);
 	AReEchoWeaponActor* Weapon = SpreadFixture.World->SpawnActor<AReEchoWeaponActor>();
 	Weapon->SetOwner(Owner);
 	Weapon->InitializeWeapon(&Build, Snapshot);
@@ -369,8 +405,130 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Spread produces distinct projectile directions"), !FMath::IsNearlyEqual(FirstYaw, LastYaw, 0.1f));
 	TickProjectiles(SpreadFixture.World, 1.10f);
-	TestTrue(TEXT("Primary target takes projectile damage"), EnemyHealth(Primary) < 100.0f);
-	TestTrue(TEXT("Explosion radius damages nearby target"), EnemyHealth(Splash) < 100.0f);
+	TestTrue(TEXT("Primary target takes projectile damage"), WeaponEnemyHealth(Primary) < 100.0f);
+	TestTrue(TEXT("Explosion radius damages nearby target"), WeaponEnemyHealth(Splash) < 100.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponEquipmentCombatRuntimeTest,
+                                 "ReEcho.Weapons.EquipmentChangesActualCooldownAndDamage",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponEquipmentCombatRuntimeTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+
+	FReEchoWeaponWorldFixture PhysicalFixture;
+	UReEchoCombatantComponent* PhysicalCombatant = nullptr;
+	AActor* PhysicalOwner = PhysicalFixture.SpawnWeaponOwner(FVector::ZeroVector, PhysicalCombatant);
+	FReEchoBuildSnapshot PhysicalBuild = MakeBuild(*Snapshot, TEXT("W_J_05"));
+	SetBuildStats(PhysicalBuild, PhysicalCombatant->Stats);
+	AReEchoWeaponActor* PhysicalWeapon = PhysicalFixture.World->SpawnActor<AReEchoWeaponActor>();
+	PhysicalWeapon->SetOwner(PhysicalOwner);
+	PhysicalWeapon->InitializeWeapon(&PhysicalBuild, Snapshot);
+	AReEchoEnemyActor* PhysicalTarget = PhysicalFixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 10, 100.0f);
+	TestTrue(TEXT("Unequipped physical attack executes"), PhysicalWeapon->ExecuteBasicAttack(PhysicalCombatant));
+	TestEqual(TEXT("Unequipped attack consumes physical damage in combat"), WeaponEnemyHealth(PhysicalTarget), 70.0f);
+
+	FReEchoWeaponWorldFixture ElementFixture;
+	UReEchoCombatantComponent* ElementCombatant = nullptr;
+	AActor* ElementOwner = ElementFixture.SpawnWeaponOwner(FVector::ZeroVector, ElementCombatant);
+	FReEchoBuildSnapshot ElementBuild = MakeBuild(*Snapshot, TEXT("W_J_05"));
+	SetBuildStats(ElementBuild, ElementCombatant->Stats);
+	FString Error;
+	TestTrue(TEXT("Flame core equips for combat proof"),
+	         ReEchoWeaponRuntime::TryEquipParts(*Snapshot, ElementBuild, {TEXT("P_CORE_FLAME")}, ElementBuild, Error));
+	ElementCombatant->InitializeFromStats(ElementBuild.Stats, true);
+	AReEchoWeaponActor* ElementWeapon = ElementFixture.World->SpawnActor<AReEchoWeaponActor>();
+	ElementWeapon->SetOwner(ElementOwner);
+	ElementWeapon->InitializeWeapon(&ElementBuild, Snapshot);
+	AReEchoEnemyActor* ElementTarget = ElementFixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 11, 100.0f);
+	TestTrue(TEXT("Core-modified elemental attack executes"), ElementWeapon->ExecuteBasicAttack(ElementCombatant));
+	TestEqual(TEXT("Core channel consumes elemental damage in combat"), WeaponEnemyHealth(ElementTarget), 40.0f);
+
+	FReEchoWeaponWorldFixture SpeedFixture;
+	UReEchoCombatantComponent* SpeedCombatant = nullptr;
+	AActor* SpeedOwner = SpeedFixture.SpawnWeaponOwner(FVector::ZeroVector, SpeedCombatant);
+	FReEchoBuildSnapshot SpeedBuild = MakeBuild(*Snapshot, TEXT("W_J_05"));
+	SetBuildStats(SpeedBuild, SpeedCombatant->Stats);
+	TestTrue(
+	    TEXT("Strength grip equips for cooldown proof"),
+	    ReEchoWeaponRuntime::TryEquipParts(*Snapshot, SpeedBuild, {TEXT("P_DAGGER_STRENGTH_GRIP")}, SpeedBuild, Error));
+	SpeedCombatant->InitializeFromStats(SpeedBuild.Stats, true);
+	AReEchoWeaponActor* SpeedWeapon = SpeedFixture.World->SpawnActor<AReEchoWeaponActor>();
+	SpeedWeapon->SetOwner(SpeedOwner);
+	SpeedWeapon->InitializeWeapon(&SpeedBuild, Snapshot);
+	SpeedFixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 12, 100.0f);
+	TestTrue(TEXT("Strength-grip attack executes through runtime cooldown path"),
+	         SpeedWeapon->TryBasicAttack(SpeedCombatant));
+	TestTrue(TEXT("Runtime cooldown consumes derived attack speed"),
+	         FMath::IsNearlyEqual(SpeedWeapon->GetAttackCooldownRemaining(), 0.5f / 1.2f, 0.001f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponAtomicSwitchAndPersistenceTest,
+                                 "ReEcho.Weapons.SwitchPolicyAndEquipmentSnapshotParity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponAtomicSwitchAndPersistenceTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_05"));
+	FString Error;
+	TestTrue(TEXT("Run equips compatible core and Dagger-only grip"),
+	         Run->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_DAGGER_STRENGTH_GRIP")}, Error));
+	TestEqual(TEXT("Equipped run has derived strength attack speed"), Run->CurrentBuild.Stats.AttackSpeed, 1.2f);
+
+	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
+	UGameInstance* RestoreGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RestoreRun = NewObject<UReEchoRunSubsystem>(RestoreGameInstance);
+	TestTrue(TEXT("Equipment snapshot restores with authoritative base"), RestoreRun->RestoreSaveSnapshot(*Save));
+	TestTrue(TEXT("Restored build retains authoritative equipment base"), RestoreRun->CurrentBuild.bHasEquipmentBase);
+	TestEqual(
+	    TEXT("Restored build recomputes strength attack speed"), RestoreRun->CurrentBuild.Stats.AttackSpeed, 1.2f);
+
+	UReEchoRecorderComponent* Recorder = NewObject<UReEchoRecorderComponent>();
+	Recorder->BeginRecording(1, TEXT("WeaponTest"), 77, Run->CurrentBuild);
+	TestEqual(
+	    TEXT("Recorder preserves equipped part count"), Recorder->GetRecording().BuildSnapshot.EquippedParts.Num(), 2);
+	TestEqual(TEXT("Recorder preserves equipment base attack speed"),
+	          Recorder->GetRecording().BuildSnapshot.EquipmentBaseStats.AttackSpeed,
+	          1.0f);
+
+	TestTrue(TEXT("Switch to LongSword succeeds with mixed equipment"), Run->SetEquippedWeapon(TEXT("W_J_01")));
+	TestEqual(TEXT("Switch commits target WeaponId"), Run->CurrentBuild.WeaponId, FName(TEXT("W_J_01")));
+	TestEqual(TEXT("Switch retains compatible generic core only"), Run->CurrentBuild.EquippedParts.Num(), 1);
+	TestEqual(TEXT("Retained part is the generic core"),
+	          Run->CurrentBuild.EquippedParts[0].PartId,
+	          FName(TEXT("P_CORE_FLAME")));
+	TestEqual(TEXT("Cleared Dagger grip restores base attack speed"), Run->CurrentBuild.Stats.AttackSpeed, 1.0f);
+
+	const FReEchoBuildSnapshot BeforeFailure = Run->CurrentBuild;
+	TestFalse(TEXT("Unknown weapon switch fails without Fatal"), Run->SetEquippedWeapon(TEXT("W_UNKNOWN")));
+	TestEqual(TEXT("Failed switch preserves WeaponId"), Run->CurrentBuild.WeaponId, BeforeFailure.WeaponId);
+	TestEqual(TEXT("Failed switch preserves equipped parts"),
+	          Run->CurrentBuild.EquippedParts.Num(),
+	          BeforeFailure.EquippedParts.Num());
+	TestEqual(TEXT("Failed switch preserves effective attack speed"),
+	          Run->CurrentBuild.Stats.AttackSpeed,
+	          BeforeFailure.Stats.AttackSpeed);
+
+	FReEchoWeaponWorldFixture Fixture;
+	UReEchoCombatantComponent* Combatant = nullptr;
+	AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
+	AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
+	Weapon->SetOwner(Owner);
+	Weapon->InitializeWeapon(&RestoreRun->CurrentBuild, Snapshot);
+	TestTrue(TEXT("Echo/player shared actor switch policy succeeds"), Weapon->SelectWeaponById(TEXT("W_J_01")));
+	TestEqual(TEXT("Actor switch retains compatible core only"), Weapon->GetBuildSnapshot().EquippedParts.Num(), 1);
+	const FReEchoBuildSnapshot ActorBeforeFailure = Weapon->GetBuildSnapshot();
+	TestFalse(TEXT("Actor unknown switch fails atomically"), Weapon->SelectWeaponById(TEXT("W_UNKNOWN")));
+	TestEqual(
+	    TEXT("Actor failure preserves WeaponId"), Weapon->GetBuildSnapshot().WeaponId, ActorBeforeFailure.WeaponId);
 	return true;
 }
 
@@ -392,7 +550,7 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	UReEchoCombatantComponent* Combatant = nullptr;
 	AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
 	FReEchoBuildSnapshot ActorBuild = Run->CurrentBuild;
-	ActorBuild.Stats = Combatant->Stats;
+	SetBuildStats(ActorBuild, Combatant->Stats);
 	AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
 	Weapon->SetOwner(Owner);
 	Weapon->InitializeWeapon(&ActorBuild, Run->GetRunDataSnapshot());
@@ -420,6 +578,35 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Pinned weapon actor executes with old snapshot"), Weapon->ExecuteBasicAttack(Combatant));
 	TestEqual(
 	    TEXT("Pinned actor keeps old projectile count after global republish"), CountProjectiles(Fixture.World), 3);
+
+	FReEchoWeaponWorldFixture ConsumerFixture;
+	AReEchoPlayerPawn* Player = ConsumerFixture.World->SpawnActor<AReEchoPlayerPawn>();
+	TestTrue(TEXT("New player accepts active run pinned snapshot"),
+	         Player->InitializeWeaponFromBuild(Run->CurrentBuild, Run->GetRunDataSnapshot()));
+	TestEqual(TEXT("New player remains on active run revision after global republish"),
+	          Player->GetPinnedWeaponDomainRevision(),
+	          OldRevision);
+
+	FReEchoRecording Recording;
+	Recording.Id = FGuid::NewGuid();
+	Recording.BuildSnapshot = Run->CurrentBuild;
+	Recording.WeaponChanges.Add({0.0f, Run->CurrentBuild.WeaponId});
+	Recording.Positions.Add({0.0f, FVector::ZeroVector});
+	Recording.Positions.Add({1.0f, FVector::ZeroVector});
+	Recording.Duration = 1.0f;
+	AReEchoEchoActor* Echo = ConsumerFixture.World->SpawnActor<AReEchoEchoActor>();
+	TestTrue(TEXT("New echo accepts active run pinned snapshot"),
+	         Echo->InitializeEcho(Recording, 1.0f, Run->GetRunDataSnapshot()));
+	TestEqual(TEXT("New echo remains on active run revision after global republish"),
+	          Echo->GetPinnedWeaponDomainRevision(),
+	          OldRevision);
+	TestEqual(
+	    TEXT("New player and echo share pinned WeaponId"), Echo->GetEquippedWeaponId(), Run->CurrentBuild.WeaponId);
+	ConsumerFixture.SpawnEnemy(FVector(900.0f, 0.0f, 0.0f), 20, 1000.0f);
+	Echo->Tick(0.01f);
+	TestEqual(TEXT("New echo executes old pinned projectile count after global republish"),
+	          CountProjectiles(ConsumerFixture.World),
+	          3);
 
 	UGameInstance* RestoreGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RestoreRun = NewObject<UReEchoRunSubsystem>(RestoreGameInstance);

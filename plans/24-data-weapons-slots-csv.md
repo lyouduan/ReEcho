@@ -179,6 +179,28 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 - After Plan 25, use PIE/debug equipment entry points to equip one core, the strength grip, the thrust replacement and holy blade, then verify slot restrictions and feel in a real encounter.
 - After Plan 25, edit one weapon numeric value and one part-effect value in the XLSX/CSV authoring flow, restart the run and confirm the changed data takes effect without recompilation while old save/recording data is rejected.
 
+### Planner re-review acceptance rework - 2026-08-11
+
+- Resolved the Unity Build collision by renaming the weapon-test helper to `WeaponEnemyHealth`; the current source now compiles and links in Editor Development.
+- `FReEchoBuildSnapshot` now stores `EquipmentBaseStats`, `EquipmentBaseRuleFlags` and `bHasEquipmentBase`. Every equipment change first restores this non-equipment authority, applies the requested ordered part set to a candidate, then commits once. Identical re-equip remains at `AttackSpeed=1.2`, replacement restores base speed before applying the new effects, unequip-all removes equipment RuleFlags, and save restore normalizes derived values from the base. SaveVersion is 4 so snapshots lacking this mandatory contract cannot continue silently.
+- Weapon switching uses one shared atomic policy in Run and Weapon Actor: retain compatible parts in stable current order up to the target slot limits, clear type/slot-incompatible or excess parts, and commit only after the target effective definition validates. Generic cores survive compatible switches; Dagger-only grips/blades are cleared when switching to LongSword. Unknown or disabled IDs return failure without Fatal or partial state.
+- `AReEchoEchoActor::InitializeEcho()` now requires the active Run snapshot. Both new-encounter and suspended-encounter GameMode paths pass `GetRunDataSnapshot()`; replayed switches use the same shared switch helper and preserve current health while refreshing derived combat stats. Player explicit initialization uses the same pinned snapshot path.
+- Added `ReEcho.Weapons.EquipmentChangesActualCooldownAndDamage` and `ReEcho.Weapons.SwitchPolicyAndEquipmentSnapshotParity`, raising the suite from 32 to 34. The tests assert idempotent re-equip/replacement/unequip, atomic failures, save/recorder parity, actual runtime cooldown (`0.5 / 1.2`), actual physical-versus-elemental enemy health, compatible-core retention, incompatible Dagger-part clearing, and new Player/Echo consumers using revision A with three old projectiles after global revision B publishes.
+
+### Current-commit verification
+
+- `python scripts/validate_project.py`: passed all three validation groups.
+- `git diff --check`: passed; Git printed only CRLF conversion warnings.
+- `scripts/ue/Build-Editor.cmd -Configuration Development`: passed from the current source; UHT/UBT compiled and linked `UnrealEditor-ReEcho.dll` with `Result: Succeeded`.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons`: passed 7/7 focused weapon tests and ended with `TEST COMPLETE. EXIT CODE: 0`.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho`: passed 34/34 tests and ended with `TEST COMPLETE. EXIT CODE: 0`. The launcher still reports non-Win64 LinuxArm64/VisionOS SDK `MainVersion` warnings while Win64 is VALID; both automation commands exit 0.
+
+### Remaining Human PIE after Plan 25
+
+- Verify representative multi-stage melee, single/ranged and elemental weapon feel, collision, animation and feedback.
+- Equip a generic core plus strength, thrust replacement and holy-blade parts through the eventual authoring/debug flow; switch between Dagger and legacy hotkey weapons and inspect retained/cleared equipment feedback.
+- Edit one weapon and one part-effect value through the Plan 25 XLSX generation flow, restart a Run, and confirm new data applies while prior saves/recordings reject explicitly.
+
 ## Planner review - 2026-08-11 - not accepted
 
 The executor commit `32a0384` is clean, statically valid, builds in Editor Development, and passes the existing 27 `ReEcho.*` tests. It is not ready to merge because the passing evidence only covers schema/registry structure and the legacy weapon path, not the locked runtime acceptance below.

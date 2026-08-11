@@ -13,6 +13,7 @@ class UReEchoPlaybackComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 class UTexture2D;
+struct FReEchoCsvDataSnapshot;
 
 /** 回响分身：按固定时间轴重放历史位置、技能和武器事件。 */
 UCLASS()
@@ -28,7 +29,9 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** 装载一份不可变录制，并设置回响造成伤害的效率倍率。 */
-	void InitializeEcho(const FReEchoRecording& Recording, float Efficiency);
+	bool InitializeEcho(const FReEchoRecording& Recording,
+	                    float Efficiency,
+	                    TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot);
 	/** 将回响推进到指定遭遇时间，补播期间跨过的所有事件。 */
 	void AdvanceEcho(float EncounterTime);
 	/** 根据录制角色 ID 选择对应的回响形态。 */
@@ -36,6 +39,8 @@ public:
 	/** 返回效率修正后的当前回响战斗属性。 */
 	const FReEchoStatBlock& GetCurrentStats() const;
 	float GetCurrentHealth() const;
+	FString GetPinnedWeaponDomainRevision() const;
+	FName GetEquippedWeaponId() const;
 
 private:
 	UFUNCTION()
@@ -70,4 +75,5 @@ private:
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
 	float AutoTargetRange = 1600.0f;
+	float DamageEfficiency = 1.0f;
 };

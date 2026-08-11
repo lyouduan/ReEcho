@@ -60,7 +60,7 @@ public:
 	void StartRun(FName CharacterId, FName WeaponId);
 
 	UFUNCTION(BlueprintCallable)
-	void SetEquippedWeapon(FName WeaponId);
+	bool SetEquippedWeapon(FName WeaponId);
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;

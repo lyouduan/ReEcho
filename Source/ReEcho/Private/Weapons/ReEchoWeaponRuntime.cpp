@@ -48,6 +48,14 @@ int32 FindSlotLimit(const FReEchoCsvDataSnapshot& Snapshot, const FName WeaponTy
 	return 0;
 }
 
+bool IsPartCompatibleWithWeapon(const FReEchoCsvDataSnapshot& Snapshot,
+                                const FReEchoCsvPartRow& Part,
+                                const FReEchoCsvWeaponRow& Weapon)
+{
+	return Part.bEnabled && (Part.WeaponTypeId == AnyWeaponTypeId || Part.WeaponTypeId == Weapon.WeaponTypeId) &&
+	       FindSlotLimit(Snapshot, Weapon.WeaponTypeId, Part.SlotTypeId) > 0;
+}
+
 bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
                      const FReEchoCsvPartEffectRow& Effect,
                      FReEchoBuildSnapshot& Build)
@@ -221,14 +229,12 @@ bool ReEchoWeaponRuntime::TryEquipParts(const FReEchoCsvDataSnapshot& Snapshot,
 		return false;
 	}
 
-	FReEchoBuildSnapshot Candidate = Build;
+	FReEchoBuildSnapshot Candidate;
+	if (!TryGetEquipmentBaseBuild(Build, Candidate, OutError))
+	{
+		return false;
+	}
 	Candidate.EquippedParts.Reset();
-	Candidate.RuleFlags.Remove(DamageChannelRule);
-	Candidate.RuleFlags.Remove(AttackPatternRule);
-	Candidate.RuleFlags.Remove(AttackIntervalRule);
-	Candidate.RuleFlags.Remove(PhysicalCoefficientRule);
-	Candidate.RuleFlags.Remove(ElementalCoefficientRule);
-	Candidate.RuleFlags.Remove(OnKillHealRule);
 
 	TSet<FName> SeenPartIds;
 	TMap<FName, int32> SlotCounts;
@@ -311,6 +317,81 @@ bool ReEchoWeaponRuntime::TryEquipParts(const FReEchoCsvDataSnapshot& Snapshot,
 	OutBuild = Candidate;
 	OutError.Reset();
 	return true;
+}
+
+bool ReEchoWeaponRuntime::TryGetEquipmentBaseBuild(const FReEchoBuildSnapshot& Build,
+                                                   FReEchoBuildSnapshot& OutBaseBuild,
+                                                   FString& OutError)
+{
+	FReEchoBuildSnapshot Candidate = Build;
+	if (Build.bHasEquipmentBase)
+	{
+		Candidate.Stats = Build.EquipmentBaseStats;
+		Candidate.RuleFlags = Build.EquipmentBaseRuleFlags;
+	}
+	else if (Build.EquippedParts.IsEmpty())
+	{
+		Candidate.EquipmentBaseStats = Build.Stats;
+		Candidate.EquipmentBaseRuleFlags = Build.RuleFlags;
+		Candidate.bHasEquipmentBase = true;
+	}
+	else
+	{
+		OutError = TEXT("Cannot rebuild equipment: authoritative non-equipment build is missing");
+		return false;
+	}
+
+	Candidate.EquippedParts.Reset();
+	OutBaseBuild = Candidate;
+	OutError.Reset();
+	return true;
+}
+
+bool ReEchoWeaponRuntime::TrySelectWeapon(const FReEchoCsvDataSnapshot& Snapshot,
+                                          const FReEchoBuildSnapshot& Build,
+                                          const FName WeaponId,
+                                          FReEchoBuildSnapshot& OutBuild,
+                                          FString& OutError)
+{
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.FindEnabledWeapon(WeaponId);
+	if (!Weapon)
+	{
+		OutError =
+		    FString::Printf(TEXT("Cannot select WeaponId '%s': weapon is unknown or disabled"), *WeaponId.ToString());
+		return false;
+	}
+	if (Build.WeaponDomainRevision.IsEmpty() || Build.WeaponDomainRevision != Snapshot.WeaponDomainRevision)
+	{
+		OutError =
+		    FString::Printf(TEXT("Cannot select WeaponId '%s': weapon domain revision mismatch"), *WeaponId.ToString());
+		return false;
+	}
+
+	FReEchoBuildSnapshot Candidate = Build;
+	Candidate.WeaponId = Weapon->Id;
+	Candidate.WeaponDataRevision = Weapon->DataRevision;
+	Candidate.WeaponDomainRevision = Snapshot.WeaponDomainRevision;
+
+	TArray<FName> CompatiblePartIds;
+	TMap<FName, int32> RetainedSlotCounts;
+	for (const FReEchoEquippedPartSnapshot& EquippedPart : Build.EquippedParts)
+	{
+		const FReEchoCsvPartRow* Part = Snapshot.Parts.Find(EquippedPart.PartId);
+		if (!Part || !IsPartCompatibleWithWeapon(Snapshot, *Part, *Weapon))
+		{
+			continue;
+		}
+		const int32 SlotLimit = FindSlotLimit(Snapshot, Weapon->WeaponTypeId, Part->SlotTypeId);
+		const int32 RetainedCount = RetainedSlotCounts.FindRef(Part->SlotTypeId);
+		if (RetainedCount >= SlotLimit)
+		{
+			continue;
+		}
+		RetainedSlotCounts.Add(Part->SlotTypeId, RetainedCount + 1);
+		CompatiblePartIds.Add(Part->PartId);
+	}
+
+	return TryEquipParts(Snapshot, Candidate, CompatiblePartIds, OutBuild, OutError);
 }
 
 bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSnapshot& Snapshot,

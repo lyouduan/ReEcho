@@ -117,6 +117,14 @@ struct REECHO_API FReEchoBuildSnapshot
 	int32 WeaponDataRevision = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString WeaponDomainRevision;
+	/** Non-equipment stats used to deterministically rebuild derived part effects. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FReEchoStatBlock EquipmentBaseStats;
+	/** Non-equipment rules used to deterministically rebuild derived part effects. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap<FName, FString> EquipmentBaseRuleFlags;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bHasEquipmentBase = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

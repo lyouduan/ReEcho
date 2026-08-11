@@ -22,6 +22,8 @@ class UTexture2D;
 enum class EReEchoInputSlot : uint8;
 struct FGameplayTag;
 struct FOnAttributeChangeData;
+struct FReEchoBuildSnapshot;
+struct FReEchoCsvDataSnapshot;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoActiveSkill, FVector, Position, FName, SkillId);
 
@@ -54,6 +56,9 @@ public:
 	bool ConfigureCharacter(FName CharacterId);
 	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */
 	void RestoreEquippedWeapon(FName WeaponId);
+	bool InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Build,
+	                               TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot);
+	FString GetPinnedWeaponDomainRevision() const;
 	/** 设置与当前场景尺寸一致的玩家活动半径：X对应场景高度，Y对应场景宽度。 */
 	void ConfigureArenaBounds(float HalfExtentX, float HalfExtentY);
 

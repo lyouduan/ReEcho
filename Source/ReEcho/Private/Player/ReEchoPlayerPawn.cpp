@@ -137,16 +137,45 @@ void AReEchoPlayerPawn::RestoreEquippedWeapon(const FName WeaponId)
 {
 	if (Weapon)
 	{
-		if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		UGameInstance* GameInstance = GetGameInstance();
+		if (UReEchoRunSubsystem* RunSubsystem =
+		        GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 		    RunSubsystem && !RunSubsystem->CurrentBuild.WeaponDomainRevision.IsEmpty())
 		{
-			Weapon->InitializeWeapon(&RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
+			InitializeWeaponFromBuild(RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
 		}
 	}
 	if (Weapon && !Weapon->SelectWeaponById(WeaponId))
 	{
-		UE_LOG(LogReEcho, Fatal, TEXT("Cannot restore equipped WeaponId '%s'"), *WeaponId.ToString());
+		UE_LOG(LogReEcho, Error, TEXT("Cannot restore equipped WeaponId '%s'"), *WeaponId.ToString());
 	}
+}
+
+bool AReEchoPlayerPawn::InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Build,
+                                                  TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot)
+{
+	if (!Snapshot.IsValid() || !GetWorld())
+	{
+		return false;
+	}
+	if (!Weapon)
+	{
+		Weapon = GetWorld()->SpawnActor<AReEchoWeaponActor>();
+		if (!Weapon)
+		{
+			return false;
+		}
+		Weapon->SetOwner(this);
+		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
+	}
+	Weapon->InitializeWeapon(&Build, Snapshot);
+	return Weapon->GetEquippedWeaponId() == Build.WeaponId;
+}
+
+FString AReEchoPlayerPawn::GetPinnedWeaponDomainRevision() const
+{
+	return Weapon ? Weapon->GetPinnedWeaponDomainRevision() : FString();
 }
 
 void AReEchoPlayerPawn::BeginPlay()
@@ -164,7 +193,9 @@ void AReEchoPlayerPawn::BeginPlay()
 		Weapon->SetOwner(this);
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
-		if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		UGameInstance* GameInstance = GetGameInstance();
+		if (UReEchoRunSubsystem* RunSubsystem =
+		        GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 		    RunSubsystem && !RunSubsystem->CurrentBuild.WeaponDomainRevision.IsEmpty())
 		{
 			Weapon->InitializeWeapon(&RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
@@ -502,7 +533,8 @@ bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoInputSlot InputS
 		return false;
 	}
 
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	UGameInstance* GameInstance = GetGameInstance();
+	UReEchoRunSubsystem* RunSubsystem = GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
 	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvWeaponRow* Definition = Snapshot.IsValid() ? Snapshot->FindWeaponByInputSlot(InputSlot) : nullptr;
@@ -512,16 +544,27 @@ bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoInputSlot InputS
 	}
 	if (RunSubsystem)
 	{
-		RunSubsystem->SetEquippedWeapon(Definition->Id);
+		if (!RunSubsystem->SetEquippedWeapon(Definition->Id))
+		{
+			return false;
+		}
 		Weapon->InitializeWeapon(&RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
+		const float PreviousHealth = Combatant->CurrentHealth;
+		Combatant->InitializeFromStats(RunSubsystem->CurrentBuild.Stats, false);
+		Combatant->RestoreCurrentHealth(PreviousHealth);
+		Movement->MaxSpeed = 420.0f * RunSubsystem->CurrentBuild.Stats.MovementSpeed;
 		Recorder->UpdateBuildSnapshot(RunSubsystem->CurrentBuild);
 		OnWeaponChanged.Broadcast(Definition->Id);
 		return true;
 	}
 	if (!Weapon->SelectWeaponById(Definition->Id))
 	{
-		UE_LOG(LogReEcho, Fatal, TEXT("Cannot select configured WeaponId '%s'"), *Definition->Id.ToString());
+		UE_LOG(LogReEcho, Error, TEXT("Cannot select configured WeaponId '%s'"), *Definition->Id.ToString());
+		return false;
 	}
+	const float PreviousHealth = Combatant->CurrentHealth;
+	Combatant->InitializeFromStats(Weapon->GetBuildSnapshot().Stats, false);
+	Combatant->RestoreCurrentHealth(PreviousHealth);
 	return true;
 }
 

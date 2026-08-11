@@ -32,8 +32,11 @@ public:
 	/** Executes an attack without the legacy weapon timer; player GAS owns cooldown. */
 	bool ExecuteBasicAttack(UReEchoCombatantComponent* Combatant);
 	float GetAttackInterval(UReEchoCombatantComponent* Combatant) const;
+	float GetAttackCooldownRemaining() const;
 	FName GetEquippedWeaponId() const;
 	FString GetEquippedWeaponLabel() const;
+	const FReEchoBuildSnapshot& GetBuildSnapshot() const;
+	FString GetPinnedWeaponDomainRevision() const;
 	bool IsInvulnerableWindowActive() const;
 
 private:

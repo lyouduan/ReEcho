@@ -135,7 +135,16 @@ void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSna
 	}
 	if (InBuildSnapshot)
 	{
-		BuildSnapshot = *InBuildSnapshot;
+		TArray<FName> PartIds;
+		for (const FReEchoEquippedPartSnapshot& Part : InBuildSnapshot->EquippedParts)
+		{
+			PartIds.Add(Part.PartId);
+		}
+		FString Error;
+		if (!ReEchoWeaponRuntime::TryEquipParts(*DataSnapshot, *InBuildSnapshot, PartIds, BuildSnapshot, Error))
+		{
+			UE_LOG(LogReEcho, Fatal, TEXT("Cannot initialize weapon actor: %s"), *Error);
+		}
 	}
 	else
 	{
@@ -173,29 +182,39 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 	{
 		return true;
 	}
-	if (const FReEchoCsvWeaponRow* Definition = Definitions.Find(WeaponId))
+	if (!DataSnapshot.IsValid() || !Definitions.Contains(WeaponId))
 	{
-		EquippedWeaponId = Definition->Id;
-		BuildSnapshot.WeaponId = Definition->Id;
-		BuildSnapshot.WeaponDataRevision = Definition->DataRevision;
-		BuildSnapshot.WeaponDomainRevision = DataSnapshot.IsValid() ? DataSnapshot->WeaponDomainRevision : FString();
-		if (!RebuildEffectiveDefinition())
-		{
-			return false;
-		}
-		AttackCooldown = 0.0f;
-		StepLockRemaining = 0.0f;
-		InvulnerableRemaining = 0.0f;
-		NextStepCursor = 0;
-		SwordAnimationTime = 0.0f;
-		RefreshVisualState();
-		UpdateElementIndicator();
-		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-		SwordSprite->SetRelativeRotation(
-		    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
-		return true;
+		return false;
 	}
-	return false;
+
+	FString Error;
+	FReEchoBuildSnapshot CandidateBuild;
+	if (!ReEchoWeaponRuntime::TrySelectWeapon(*DataSnapshot, BuildSnapshot, WeaponId, CandidateBuild, Error))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Cannot select weapon: %s"), *Error);
+		return false;
+	}
+	FReEchoEffectiveWeaponDefinition CandidateDefinition;
+	if (!ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*DataSnapshot, CandidateBuild, CandidateDefinition, Error))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Cannot select weapon: %s"), *Error);
+		return false;
+	}
+
+	BuildSnapshot = CandidateBuild;
+	EffectiveDefinition = CandidateDefinition;
+	bHasEffectiveDefinition = true;
+	EquippedWeaponId = WeaponId;
+	AttackCooldown = 0.0f;
+	StepLockRemaining = 0.0f;
+	InvulnerableRemaining = 0.0f;
+	NextStepCursor = 0;
+	SwordAnimationTime = 0.0f;
+	RefreshVisualState();
+	UpdateElementIndicator();
+	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
+	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+	return true;
 }
 
 bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
@@ -223,6 +242,11 @@ float AReEchoWeaponActor::GetAttackInterval(UReEchoCombatantComponent* Combatant
 	return bHasEffectiveDefinition && Combatant
 	           ? EffectiveDefinition.Weapon.AttackIntervalSeconds / FMath::Max(0.1f, Combatant->Stats.AttackSpeed)
 	           : 0.55f;
+}
+
+float AReEchoWeaponActor::GetAttackCooldownRemaining() const
+{
+	return AttackCooldown;
 }
 
 bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant)
@@ -285,6 +309,16 @@ FString AReEchoWeaponActor::GetEquippedWeaponLabel() const
 		return Definition->DisplayName.IsEmpty() ? Definition->Id.ToString() : Definition->DisplayName;
 	}
 	return TEXT("Unknown");
+}
+
+const FReEchoBuildSnapshot& AReEchoWeaponActor::GetBuildSnapshot() const
+{
+	return BuildSnapshot;
+}
+
+FString AReEchoWeaponActor::GetPinnedWeaponDomainRevision() const
+{
+	return DataSnapshot.IsValid() ? DataSnapshot->WeaponDomainRevision : FString();
 }
 
 const FReEchoCsvWeaponRow* AReEchoWeaponActor::FindEquippedDefinition() const
