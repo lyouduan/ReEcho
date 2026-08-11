@@ -49,6 +49,7 @@ public:
 	bool ExecuteSelectWeaponSlot2Ability();
 	bool ExecuteSelectWeaponSlot3Ability();
 	void PlayHitVisual();
+	bool IsWeaponInvulnerable() const;
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
 	bool ConfigureCharacter(FName CharacterId);
 	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */

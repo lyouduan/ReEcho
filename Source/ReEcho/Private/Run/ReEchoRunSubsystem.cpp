@@ -6,6 +6,7 @@
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
+#include "Weapons/ReEchoWeaponRuntime.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
@@ -34,36 +35,32 @@ bool IsValidResumableSave(const UReEchoRunSaveGame& SaveGame)
 FString GetBuildConfigurationError(const FReEchoBuildSnapshot& Build)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
-	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindWeapon(Build.WeaponId) : nullptr;
 	if (!Snapshot.IsValid())
 	{
 		return TEXT("CSV snapshot is unavailable");
 	}
-	if (!Character)
+	return ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, Build);
+}
+
+bool ValidateRecordingAgainstSnapshot(const FReEchoCsvDataSnapshot& Snapshot,
+                                      const FReEchoRecording& Recording,
+                                      FString& OutError)
+{
+	OutError = ReEchoWeaponRuntime::GetBuildConfigurationError(Snapshot, Recording.BuildSnapshot);
+	if (!OutError.IsEmpty())
 	{
-		return FString::Printf(TEXT("CharacterId '%s' is not configured"), *Build.CharacterId.ToString());
+		return false;
 	}
-	if (!Character->bEnabled)
+	for (const FReEchoWeaponEvent& WeaponChange : Recording.WeaponChanges)
 	{
-		return FString::Printf(TEXT("CharacterId '%s' is disabled"), *Build.CharacterId.ToString());
+		if (!Snapshot.FindEnabledWeapon(WeaponChange.WeaponId))
+		{
+			OutError = FString::Printf(TEXT("Recording references unknown or disabled WeaponId '%s'"),
+			                           *WeaponChange.WeaponId.ToString());
+			return false;
+		}
 	}
-	if (!Weapon)
-	{
-		return FString::Printf(TEXT("WeaponId '%s' is not configured"), *Build.WeaponId.ToString());
-	}
-	if (!Weapon->bEnabled)
-	{
-		return FString::Printf(TEXT("WeaponId '%s' is disabled"), *Build.WeaponId.ToString());
-	}
-	if (Build.WeaponDataRevision != Weapon->DataRevision)
-	{
-		return FString::Printf(TEXT("WeaponId '%s' data revision mismatch saved=%d current=%d"),
-		                       *Build.WeaponId.ToString(),
-		                       Build.WeaponDataRevision,
-		                       Weapon->DataRevision);
-	}
-	return FString();
+	return true;
 }
 
 void RequireConfiguredBuild(const FReEchoBuildSnapshot& Build, const TCHAR* Context)
@@ -267,6 +264,7 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	Result.Build.CharacterId = Character->Id;
 	Result.Build.WeaponId = Weapon->Id;
 	Result.Build.WeaponDataRevision = Weapon->DataRevision;
+	Result.Build.WeaponDomainRevision = Snapshot->WeaponDomainRevision;
 	Result.Build.Stats = Character->BaseStats;
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
 	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
@@ -309,20 +307,25 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	PendingTraitCardIds.Reset();
 	PendingEncounterResume = {};
 	CurrentBuild = {};
+	RunDataSnapshot.Reset();
 
-	const FReEchoStartRunResolveResult ResolveResult = ReEchoRunData::ResolveStartingBuild(CharacterId, WeaponId);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoStartRunResolveResult ResolveResult =
+	    ReEchoRunData::ResolveStartingBuildFromSnapshot(Snapshot.Get(), CharacterId, WeaponId);
 	if (!ResolveResult.bSuccess)
 	{
 		UE_LOG(LogReEcho, Fatal, TEXT("%s"), *ResolveResult.Error);
 	}
 	RequireConfiguredBuild(ResolveResult.Build, TEXT("Cannot start run"));
+	RunDataSnapshot = Snapshot;
 	CurrentBuild = ResolveResult.Build;
 	SetPhase(EReEchoRunPhase::Planning);
 }
 
 void UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
 {
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindWeapon(WeaponId) : nullptr;
 	if (!Snapshot.IsValid())
 	{
@@ -336,8 +339,44 @@ void UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
 	{
 		UE_LOG(LogReEcho, Fatal, TEXT("Cannot equip WeaponId '%s': weapon is disabled"), *WeaponId.ToString());
 	}
-	CurrentBuild.WeaponId = Weapon->Id;
-	CurrentBuild.WeaponDataRevision = Weapon->DataRevision;
+	FReEchoBuildSnapshot Candidate = CurrentBuild;
+	Candidate.WeaponId = Weapon->Id;
+	Candidate.WeaponDataRevision = Weapon->DataRevision;
+	Candidate.WeaponDomainRevision = Snapshot->WeaponDomainRevision;
+	TArray<FName> PartIds;
+	for (const FReEchoEquippedPartSnapshot& Part : CurrentBuild.EquippedParts)
+	{
+		PartIds.Add(Part.PartId);
+	}
+	FString EquipError;
+	if (!ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Candidate, PartIds, Candidate, EquipError))
+	{
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot equip WeaponId '%s': %s"), *WeaponId.ToString(), *EquipError);
+	}
+	CurrentBuild = Candidate;
+}
+
+bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& OutError)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		OutError = TEXT("CSV snapshot is unavailable");
+		return false;
+	}
+	FReEchoBuildSnapshot Candidate;
+	if (!ReEchoWeaponRuntime::TryEquipParts(*Snapshot, CurrentBuild, PartIds, Candidate, OutError))
+	{
+		return false;
+	}
+	CurrentBuild = Candidate;
+	return true;
+}
+
+TSharedPtr<const FReEchoCsvDataSnapshot> UReEchoRunSubsystem::GetRunDataSnapshot() const
+{
+	return RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
 }
 
 void UReEchoRunSubsystem::BeginEncounter()
@@ -600,7 +639,13 @@ bool UReEchoRunSubsystem::HasSavedRun() const
 {
 	const UReEchoRunSaveGame* SaveGame =
 	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSaveSlot, RunSaveUserIndex));
-	return SaveGame && IsValidResumableSave(*SaveGame);
+	if (!SaveGame || !IsValidResumableSave(*SaveGame))
+	{
+		return false;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	return Snapshot.IsValid() &&
+	       ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, SaveGame->CurrentBuild).IsEmpty();
 }
 
 bool UReEchoRunSubsystem::SaveRun(const FReEchoEncounterRuntimeState* EncounterRuntimeState) const
@@ -665,20 +710,37 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	{
 		return false;
 	}
-	RequireConfiguredBuild(SaveGame.CurrentBuild, TEXT("Cannot restore saved run"));
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		return false;
+	}
+	if (!ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, SaveGame.CurrentBuild).IsEmpty())
+	{
+		return false;
+	}
 	for (const FReEchoRecording& Recording : SaveGame.RecordingHistory)
 	{
-		RequireConfiguredBuild(Recording.BuildSnapshot, TEXT("Cannot restore saved recording"));
+		FString RecordingError;
+		if (!ValidateRecordingAgainstSnapshot(*Snapshot, Recording, RecordingError))
+		{
+			return false;
+		}
 	}
 	if (SaveGame.EncounterRuntimeState.bValid)
 	{
-		RequireConfiguredBuild(SaveGame.EncounterRuntimeState.ActiveRecording.BuildSnapshot,
-		                       TEXT("Cannot restore active recording"));
+		FString ActiveRecordingError;
+		if (!ValidateRecordingAgainstSnapshot(
+		        *Snapshot, SaveGame.EncounterRuntimeState.ActiveRecording, ActiveRecordingError))
+		{
+			return false;
+		}
 	}
 
 	EncounterIndex = FMath::Max(0, SaveGame.EncounterIndex);
 	TimeShards = FMath::Max(0, SaveGame.TimeShards);
 	CurrentBuild = SaveGame.CurrentBuild;
+	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
 	RecordingHistory = SaveGame.RecordingHistory;
 	AnchorId = SaveGame.AnchorId;

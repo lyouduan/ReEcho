@@ -744,6 +744,20 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         fail(f"{rel(entries['Weapons'])}: legacy input slot mapping changed: {input_map}")
     if enabled_weapons["W_J_04"]["WeaponTypeId"] != "Scythe" or enabled_weapons["W_J_04"]["AttackPatternId"] != "Pattern.ScytheSweep":
         fail(f"{rel(entries['Weapons'])}: W_J_04 must use the Scythe pattern")
+    reachable_daggers = [
+        row
+        for row in enabled_weapons.values()
+        if row["WeaponTypeId"] == "Dagger" and row["InputSlot"] == "None" and row["StartSelectable"] == "false"
+    ]
+    if not reachable_daggers:
+        fail(f"{rel(entries['Weapons'])}: enabled non-start Dagger weapon is required for Dagger-only parts")
+    staff_projectile_weapons = [
+        row
+        for row in enabled_weapons.values()
+        if row["AttackPatternId"] == "Pattern.StaffProjectile" and float(row["ExplosionRadiusCm"]) > 0
+    ]
+    if not staff_projectile_weapons:
+        fail(f"{rel(entries['Weapons'])}: enabled StaffProjectile weapon with ExplosionRadiusCm is required")
     for row in weapons:
         if row["InputSlot"] not in INPUT_SLOTS:
             fail(f"{rel(entries['Weapons'])}:{row['__line__']}: InputSlot must be None, 1, 2 or 3")
@@ -919,8 +933,8 @@ def validate_workflow() -> None:
         fail("AGENTS.md must remain the sole startup-order authority")
     if len(state_text.splitlines()) > 80:
         fail("PROJECT_STATE.md exceeded 80 lines; move history to plans/Git")
-    if "twenty-seven `ReEcho.*` automation tests pass" not in state_text:
-        fail("PROJECT_STATE.md must report the current twenty-seven-test baseline")
+    if "32 `ReEcho.*` automation tests pass" not in state_text:
+        fail("PROJECT_STATE.md must report the current thirty-two-test baseline")
     active_block = exchange_text.split("## Active ownership", 1)[1].split("## Recently closed", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
         fail("completed Plans 07/08 must not retain active ownership")

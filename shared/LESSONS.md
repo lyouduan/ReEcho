@@ -398,6 +398,13 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 Do not reuse one field for weapon type, concrete runtime weapon, hotkey slot and part slot. `WeaponTypeId` is the family/pattern axis (`Dagger`, `LongSword`, `Scythe`, ...); `WeaponId` is the stable save/recording/runtime identity (`W_J_02`, `W_J_01`, `W_J_03`, `W_J_04`); `InputSlot` is only the legacy hotkey mapping 1/2/3; `SlotTypeId` is the equipment part socket (`Core`, `Grip`, `Blade`, ...). Save/recording snapshots should store stable `WeaponId` plus data revision, and restore must fail loudly when the current CSV definition is missing, disabled or revision-incompatible. Unnamed workbook part rows are audit rows, not future-proof IDs: keep them disabled with `PartId=None`, `SourceSheet` and `SourceRow`.
 
 ---
+### GAME-33. Pin data-domain snapshots for active runs [UE]
+
+**Source: ReEcho Plan 24 acceptance rework**
+
+When runtime behavior is table-driven, a save/recording revision must cover every table that can change behavior, not only the final selected row. Capture the deterministic domain revision in the immutable build/recording/save snapshot, pass the pinned data snapshot to player and echo actors, and reject incompatible restores before mutating run state. Tests should prove both sides: an active run keeps using its pinned snapshot after a global reload, while old saves/recordings are refused after behavior tables change.
+
+---
 ## §LEVEL — 关卡搭建
 
 ### LEVEL-1. 新建关卡必须放灯光 [UE]

@@ -4,6 +4,7 @@
 #include "Components/BillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
@@ -99,10 +100,19 @@ void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const f
 	Weapon = GetWorld()->SpawnActor<AReEchoWeaponActor>();
 	if (Weapon)
 	{
+		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+		if (!Snapshot.IsValid() || Recording.BuildSnapshot.WeaponDomainRevision != Snapshot->WeaponDomainRevision)
+		{
+			UE_LOG(LogReEcho,
+			       Fatal,
+			       TEXT("Cannot initialize echo: weapon domain revision mismatch saved=%s current=%s"),
+			       *Recording.BuildSnapshot.WeaponDomainRevision,
+			       Snapshot.IsValid() ? *Snapshot->WeaponDomainRevision : TEXT("<none>"));
+		}
 		Weapon->SetOwner(this);
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
-		Weapon->InitializeWeapon();
+		Weapon->InitializeWeapon(&Recording.BuildSnapshot, Snapshot);
 		FName InitialWeaponId = Recording.BuildSnapshot.WeaponId;
 		if (!Recording.WeaponChanges.IsEmpty())
 		{

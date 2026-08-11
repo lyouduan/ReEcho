@@ -49,13 +49,18 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                   const FVector& InDamageSource,
                                                   const FLinearColor& Color,
                                                   const EReEchoElement InElement,
-                                                  const float InReactionEfficiency)
+                                                  const float InReactionEfficiency,
+                                                  const float InExplosionRadiusCm,
+                                                  const float InMaxRangeCm)
 {
 	Velocity = Direction.GetSafeNormal() * Speed;
 	Damage = FMath::Max(0.f, InDamage);
 	DamageSource = InDamageSource;
 	Element = InElement;
 	ReactionEfficiency = FMath::Max(0.0f, InReactionEfficiency);
+	ExplosionRadiusCm = FMath::Max(0.0f, InExplosionRadiusCm);
+	MaxRangeCm = FMath::Max(0.0f, InMaxRangeCm);
+	TravelledCm = 0.0f;
 	const bool bHasElement = ReEchoElementReaction::IsCombatElement(Element);
 	Shape->SetVisibility(!bHasElement);
 	ElementLabel->SetVisibility(bHasElement);
@@ -74,12 +79,48 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 	}
 }
 
+void AReEchoProjectileActor::ApplyDamageAtLocation(const FVector& ImpactLocation, AReEchoEnemyActor* DirectTarget)
+{
+	TSet<AReEchoEnemyActor*> DamagedEnemies;
+	auto ApplyDamage = [&](AReEchoEnemyActor* Enemy)
+	{
+		if (!Enemy || !Enemy->IsAlive() || DamagedEnemies.Contains(Enemy))
+		{
+			return;
+		}
+		DamagedEnemies.Add(Enemy);
+		if (Element == EReEchoElement::None)
+		{
+			Enemy->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner());
+		}
+		else
+		{
+			Enemy->ReceiveElementalDamage(Damage, Element, DamageSource, GetOwner(), ReactionEfficiency);
+		}
+	};
+
+	if (ExplosionRadiusCm <= 0.0f)
+	{
+		ApplyDamage(DirectTarget);
+		return;
+	}
+
+	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
+	{
+		if (FVector::Dist2D(ImpactLocation, It->GetActorLocation()) <= ExplosionRadiusCm)
+		{
+			ApplyDamage(*It);
+		}
+	}
+}
+
 void AReEchoProjectileActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	const FVector PreviousLocation = GetActorLocation();
 	const FVector NewLocation = PreviousLocation + Velocity * DeltaSeconds;
 	SetActorLocation(NewLocation);
+	TravelledCm += FVector::Dist(PreviousLocation, NewLocation);
 	if (ElementLabel && ElementLabel->IsVisible())
 	{
 		if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
@@ -95,16 +136,14 @@ void AReEchoProjectileActor::Tick(float DeltaSeconds)
 		}
 		if (It->IntersectsProjectilePath(PreviousLocation, NewLocation, Collision->GetScaledSphereRadius()))
 		{
-			if (Element == EReEchoElement::None)
-			{
-				It->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner());
-			}
-			else
-			{
-				It->ReceiveElementalDamage(Damage, Element, DamageSource, GetOwner(), ReactionEfficiency);
-			}
+			ApplyDamageAtLocation(It->GetActorLocation(), *It);
 			Destroy();
 			return;
 		}
+	}
+	if (MaxRangeCm > 0.0f && TravelledCm >= MaxRangeCm)
+	{
+		ApplyDamageAtLocation(GetActorLocation());
+		Destroy();
 	}
 }

@@ -62,6 +62,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetEquippedWeapon(FName WeaponId);
 
+	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
+	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
+
 	UFUNCTION(BlueprintCallable)
 	void BeginEncounter();
 
@@ -121,6 +124,8 @@ private:
 
 	UPROPERTY()
 	FReEchoEncounterRuntimeState PendingEncounterResume;
+
+	TSharedPtr<const FReEchoCsvDataSnapshot> RunDataSnapshot;
 
 	void SetPhase(EReEchoRunPhase NewPhase);
 };

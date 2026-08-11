@@ -8,6 +8,7 @@
 class USphereComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class AReEchoEnemyActor;
 
 UCLASS()
 
@@ -22,9 +23,33 @@ public:
 	                          const FVector& InDamageSource,
 	                          const FLinearColor& Color,
 	                          EReEchoElement InElement = EReEchoElement::None,
-	                          float InReactionEfficiency = 1.0f);
+	                          float InReactionEfficiency = 1.0f,
+	                          float InExplosionRadiusCm = 0.0f,
+	                          float InMaxRangeCm = 0.0f);
+
+	float GetDamage() const
+	{
+		return Damage;
+	}
+
+	EReEchoElement GetElement() const
+	{
+		return Element;
+	}
+
+	float GetExplosionRadiusCm() const
+	{
+		return ExplosionRadiusCm;
+	}
+
+	FVector GetVelocity() const
+	{
+		return Velocity;
+	}
 
 private:
+	void ApplyDamageAtLocation(const FVector& ImpactLocation, AReEchoEnemyActor* DirectTarget = nullptr);
+
 	UPROPERTY()
 	TObjectPtr<USphereComponent> Collision;
 	UPROPERTY()
@@ -37,4 +62,7 @@ private:
 	EReEchoElement Element = EReEchoElement::None;
 	float ReactionEfficiency = 1.0f;
 	float Speed = 950.f;
+	float ExplosionRadiusCm = 0.0f;
+	float MaxRangeCm = 0.0f;
+	float TravelledCm = 0.0f;
 };

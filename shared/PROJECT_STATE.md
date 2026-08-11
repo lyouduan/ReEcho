@@ -11,18 +11,18 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 - Runtime purchases are duplicate-guarded and update the shared build snapshot. Time-trait draws are deterministic per run state, prefer least-owned traits, contain no duplicate offer, and accept only the current pending choice. The centered animated draw screen shows current shards and opens the existing shop before the next encounter. Runs without an active echo show an explicit stats empty state.
 - Development-console GM commands cover status, healing, Time Shards, weather override and enemy clearing; Shipping rejects them.
 - Startup is blocked by a save-aware panel: profiles without a save can start new, while valid saves offer continue/new. New runs then require a data-backed character and exactly-three CSV start-selectable initial weapons; runtime weapon switching reads the same CSV InputSlot mapping and continue rejects incompatible saved weapon data revisions. Confirmed in-encounter exit saves the clock, player, active recording and living enemies before platform quit; save failure never exits.
-- Weapon 3 cycles deterministic Water/Flame/Grass/Lightning ordered element pairs backed by CSV reactions. On the Plan 24 review branch, weapon types, concrete WeaponIds, attack steps, input hotkeys, slot profiles, parts and part effects load structurally from seven weapon-domain CSV tables; `W_J_02`/`W_J_01`/`W_J_03` keep legacy hotkeys 1/2/3 and `W_J_04` is an enabled Scythe-pattern weapon. Planner acceptance is blocked until parts/effects and the remaining attack-step fields have real runtime application and immutable recording compatibility. Four-card promotion selects Hunter, Poet, Brave or Sage mechanics, and bombers use separate configurable fuse-trigger and explosion-damage ranges.
+- Weapon 3 cycles deterministic Water/Flame/Grass/Lightning ordered element pairs backed by CSV reactions. Weapon types, concrete WeaponIds, attack steps, input hotkeys, slot profiles, parts and part effects load from seven weapon-domain CSV tables; `W_J_02`/`W_J_01`/`W_J_03` keep legacy hotkeys 1/2/3, `W_J_04` remains an enabled Scythe-pattern weapon, and non-start `W_J_05`/`W_J_06` provide reachable Dagger part and StaffProjectile runtime paths. Build/recording/save snapshots now carry equipped parts plus a deterministic seven-table weapon-domain revision; restore/playback reject incompatible data before mutating a run. Four-card promotion selects Hunter, Poet, Brave or Sage mechanics, and bombers use separate configurable fuse-trigger and explosion-damage ranges.
 - Human PIE play-feel, UI/DPI/font readability and final weather/blur tuning remain required; this is not yet a finished vertical slice.
 
 ## Current progress
 
 | Area | Current state | Remaining |
 |---|---|---|
-| Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, current CSV weapon definitions and basic damage/range dispatch, elemental reactions, four promotion roles, bounded bombers, enemies and echo loop connected | Finish Plan 24 part-effect application, attack-step execution, immutable run/recording revision, then broader deterministic combat tests and tuning |
+| Combat/run | Six encounters, Boss gate, tag-driven GAS input/effects/cooldowns, CSV weapon definitions with equipped-part modifiers, ordered attack-step execution, elemental reactions, four promotion roles, bounded bombers, enemies and echo loop connected | Human PIE after Plan 25 for combat feel and full content tuning |
 | Presentation | 2D actors, fixed camera, arena art, weather, start/continue/loadout, confirmed exit, animated trait draw, inventory/shop/stats UI | Human PIE and packaged-menu regression |
-| Data | CSV runtime foundation plus accepted character/build and element/status/reaction domains; Plan 24's weapon/slot schema and audit data are present on its review branch but runtime acceptance is incomplete; legacy JSON remains migration-only | Finish Plan 24 runtime slice, then XLSX authoring generation and later domain migrations |
+| Data | CSV runtime foundation plus accepted character/build, element/status/reaction and weapon/slot domains; legacy JSON remains migration-only | Plan 25 XLSX authoring generation and later domain migrations |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Plan 24 static CSV validation, Editor Development build and the unchanged twenty-seven-test `ReEcho.*` suite pass | Add behavior-level Plan 24 tests and close planner review blockers before human PIE |
+| Validation | Plan 24 static CSV validation, Editor Development build and 32 `ReEcho.*` automation tests pass, including five weapon behavior tests for equipment modifiers, melee stages, projectile spread/explosion and domain drift | Unified human PIE after Plan 25 |
 
 ## Milestones
 
@@ -32,7 +32,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 | B - Planning loop | Partial | Preview/setup beat and direction check |
 | C - Build/run | Functional prototype; characters/current build cards, element reactions and current weapon/slot domain migrated to CSV | XLSX authoring and full content run |
 | D - Elements/keystones | Element reactions and four promotion roles implemented; tuning remains | Vertical-slice acceptance |
-| E - Validation | Twenty-seven automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
+| E - Validation | Thirty-two automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
 
 ## Collaboration protocol
 
@@ -44,7 +44,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Plan 24 Editor Development build succeeds and all twenty-seven existing `ReEcho.*` automation tests pass, but planner review found that this evidence does not yet cover part-effect execution, full attack-step behavior or weapon-domain drift.
+- Latest Plan 24 Editor Development build succeeds and all 32 `ReEcho.*` automation tests pass. The suite includes five weapon runtime tests covering six cores, Add/Multiply/Override modifiers, illegal/disabled part atomic failure, Dagger pattern replacement, OnKill healing, melee step timing/arc, projectile count/spread/explosion and weapon-domain revision drift.
 - Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 21 CSV package; human visual/UI regression is still required before release claims.
 - `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
 
@@ -52,7 +52,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 
 - Legacy `Content/Data/*.json` is migration-only for migrated domains; character/build, element/status/reaction and weapon/slot runtime authority has moved to CSV. Some shop/enemy/global balance values still use provisional C++/DeveloperSettings values until later domain plans.
 - Runtime arena generation has no dedicated serialized test-map pipeline.
-- Projectile damage, full pause/restart/quit interaction, round advancement, weather and visual menu transitions still lack deterministic automation.
+- Full pause/restart/quit interaction, round advancement, weather and visual menu transitions still lack deterministic automation.
 - Shared weapon, enemy and run-flow paths changed for Plans 14-16; human PIE should regress player/echo attacks, role transitions, forge/card sequencing and bomber escape behavior together.
 - Human PIE remains necessary for movement, combat feel, echo clarity, UI glyphs/DPI and full menu interaction.
 - CSV negative fixtures use a production-baseline-plus-local-override builder in Python and C++ automation; new fixtures should only store changed CSV files.

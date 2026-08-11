@@ -294,6 +294,7 @@ struct REECHO_API FReEchoCsvCardRow
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
+	FString WeaponDomainRevision;
 	TMap<FName, FReEchoRuntimeSmokeRow> RuntimeSmokeRows;
 	TMap<FName, FReEchoCsvCharacterRow> Characters;
 	TMap<FName, FName> CharacterAliases;

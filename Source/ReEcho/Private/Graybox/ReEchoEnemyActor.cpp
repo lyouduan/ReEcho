@@ -545,6 +545,12 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 		    ReEchoBomberRules::IsInsideExplosion(Distance, GetDefault<UReEchoBalanceSettings>()->BomberDamageRadius);
 		if (bCanDamageTarget)
 		{
+			if (const AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Player);
+			    ReEchoPlayer && ReEchoPlayer->IsWeaponInvulnerable())
+			{
+				AttackCooldown = AttackInterval;
+				return;
+			}
 			if (UReEchoCombatantComponent* Target = Player->FindComponentByClass<UReEchoCombatantComponent>())
 			{
 				const float Applied = Target->GetBoundAbilitySystem()

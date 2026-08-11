@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Weapons/ReEchoWeaponRuntime.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoWeaponActor.generated.h"
 
@@ -22,7 +23,8 @@ class REECHO_API AReEchoWeaponActor : public AActor
 public:
 	AReEchoWeaponActor();
 	virtual void Tick(float DeltaSeconds) override;
-	void InitializeWeapon();
+	void InitializeWeapon(const FReEchoBuildSnapshot* InBuildSnapshot = nullptr,
+	                      TSharedPtr<const FReEchoCsvDataSnapshot> InSnapshot = nullptr);
 	bool SelectWeaponById(FName WeaponId);
 	/** 在冷却允许时执行当前武器基础攻击，并返回是否成功出手。 */
 	bool TryBasicAttack(UReEchoCombatantComponent* Combatant);
@@ -32,20 +34,30 @@ public:
 	float GetAttackInterval(UReEchoCombatantComponent* Combatant) const;
 	FName GetEquippedWeaponId() const;
 	FString GetEquippedWeaponLabel() const;
+	bool IsInvulnerableWindowActive() const;
 
 private:
 	bool ExecuteAttack(UReEchoCombatantComponent* Combatant);
-	bool FireStaffLightWave(const FReEchoCsvWeaponRow& Definition,
+	bool RebuildEffectiveDefinition();
+	const FReEchoCsvAttackStepRow* ResolveNextAttackStep() const;
+	void BeginAttackStep(const FReEchoCsvAttackStepRow& Step);
+	float ComputeStepDamage(const FReEchoCsvAttackStepRow& Step, const FReEchoStatBlock& Stats, bool bElemental);
+	bool ApplyDamageToEnemy(AReEchoEnemyActor& Enemy,
+	                        float Damage,
+	                        const FVector& DamageSource,
+	                        AActor* DamageCauser,
+	                        UReEchoCombatantComponent* Combatant,
+	                        EReEchoElement Element) const;
+	bool FireStaffLightWave(const FReEchoEffectiveWeaponDefinition& Definition,
 	                        const FReEchoCsvAttackStepRow& Step,
 	                        UReEchoCombatantComponent* Combatant);
-	bool FireProjectile(const FReEchoCsvWeaponRow& Definition,
+	bool FireProjectile(const FReEchoEffectiveWeaponDefinition& Definition,
 	                    const FReEchoCsvAttackStepRow& Step,
 	                    UReEchoCombatantComponent* Combatant);
-	bool SwingMelee(const FReEchoCsvWeaponRow& Definition,
+	bool SwingMelee(const FReEchoEffectiveWeaponDefinition& Definition,
 	                const FReEchoCsvAttackStepRow& Step,
 	                UReEchoCombatantComponent* Combatant);
 	const FReEchoCsvWeaponRow* FindEquippedDefinition() const;
-	FReEchoCsvAttackStepRow ResolveCurrentAttackStep(const FReEchoCsvWeaponRow& Definition) const;
 	EReEchoElement ConsumeNextElement();
 	EReEchoElement PeekNextElement() const;
 	float ApplyRoleDamageModifiers(float BaseDamage, const FReEchoStatBlock& Stats);
@@ -64,8 +76,15 @@ private:
 	TObjectPtr<UTextRenderComponent> ElementIndicator;
 
 	TMap<FName, FReEchoCsvWeaponRow> Definitions;
+	TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot;
+	FReEchoBuildSnapshot BuildSnapshot;
+	FReEchoEffectiveWeaponDefinition EffectiveDefinition;
+	bool bHasEffectiveDefinition = false;
 	FName EquippedWeaponId;
 	float AttackCooldown = 0.0f;
+	float StepLockRemaining = 0.0f;
+	float InvulnerableRemaining = 0.0f;
+	int32 NextStepCursor = 0;
 	float SwordAnimationTime = 0.0f;
 	float SwordAnimationDuration = 0.18f;
 	float SwordSwingDirection = -1.0f;

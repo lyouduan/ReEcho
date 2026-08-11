@@ -1,6 +1,7 @@
 #include "ReEchoWeaponCsvReader.h"
 
 #include "Misc/Paths.h"
+#include "Misc/SecureHash.h"
 
 namespace ReEchoWeaponCsv
 {
@@ -114,6 +115,269 @@ bool IsAllowedPartEffectPair(const FName EffectKind, const FName BehaviorId)
 		return BehaviorId == TEXT("Part.OnKillHealPercent");
 	}
 	return false;
+}
+
+void AppendCanonicalField(FString& Out, const FString& Value)
+{
+	Out += Value.Replace(TEXT("\\"), TEXT("\\\\")).Replace(TEXT("|"), TEXT("\\|")).Replace(TEXT("\n"), TEXT("\\n"));
+	Out += TEXT("|");
+}
+
+void AppendCanonicalField(FString& Out, const FName Value)
+{
+	AppendCanonicalField(Out, Value.ToString());
+}
+
+void AppendCanonicalField(FString& Out, const bool Value)
+{
+	AppendCanonicalField(Out, FString(Value ? TEXT("true") : TEXT("false")));
+}
+
+void AppendCanonicalField(FString& Out, const int32 Value)
+{
+	AppendCanonicalField(Out, FString::FromInt(Value));
+}
+
+void AppendCanonicalField(FString& Out, const float Value)
+{
+	AppendCanonicalField(Out, FString::SanitizeFloat(Value));
+}
+
+void AppendRowEnd(FString& Out)
+{
+	Out += TEXT("\n");
+}
+
+template <typename RowType, typename AppendFunc>
+void AppendOrderedRows(FString& Out,
+                       const FString& TableName,
+                       const TArray<FName>& Order,
+                       const TMap<FName, RowType>& Rows,
+                       AppendFunc Append)
+{
+	Out += TEXT("[");
+	Out += TableName;
+	Out += TEXT("]\n");
+	for (const FName RowId : Order)
+	{
+		if (const RowType* Row = Rows.Find(RowId))
+		{
+			Append(*Row);
+			AppendRowEnd(Out);
+		}
+	}
+}
+
+FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
+{
+	FString Canonical;
+	AppendOrderedRows(Canonical,
+	                  TEXT("weapon_types"),
+	                  Snapshot.WeaponTypeOrder,
+	                  Snapshot.WeaponTypes,
+	                  [&](const FReEchoCsvWeaponTypeRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.Id);
+		                  AppendCanonicalField(Canonical, Row.DisplayName);
+		                  AppendCanonicalField(Canonical, Row.BaseAttackPatternId);
+		                  AppendCanonicalField(Canonical, Row.SlotProfileId);
+		                  AppendCanonicalField(Canonical, Row.BaseIntervalSeconds);
+		                  AppendCanonicalField(Canonical, Row.BaseRangeCm);
+		                  AppendCanonicalField(Canonical, Row.BaseArcDegrees);
+		                  AppendCanonicalField(Canonical, Row.BaseProjectileCount);
+		                  AppendCanonicalField(Canonical, Row.BaseConcentrationDegrees);
+		                  AppendCanonicalField(Canonical, Row.BaseExplosionRadiusCm);
+		                  AppendCanonicalField(Canonical, Row.ChainWindowSeconds);
+		                  AppendCanonicalField(Canonical, Row.bEnabled);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+	AppendOrderedRows(Canonical,
+	                  TEXT("weapons"),
+	                  Snapshot.WeaponOrder,
+	                  Snapshot.Weapons,
+	                  [&](const FReEchoCsvWeaponRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.Id);
+		                  AppendCanonicalField(Canonical, Row.WeaponTypeId);
+		                  AppendCanonicalField(Canonical, Row.DisplayName);
+		                  AppendCanonicalField(Canonical, Row.VisualKey);
+		                  AppendCanonicalField(Canonical, static_cast<int32>(Row.InputSlot));
+		                  AppendCanonicalField(Canonical, Row.bStartSelectable);
+		                  AppendCanonicalField(Canonical, Row.LoadoutOrder);
+		                  AppendCanonicalField(Canonical, Row.AttackPatternId);
+		                  AppendCanonicalField(Canonical, Row.AttackIntervalSeconds);
+		                  AppendCanonicalField(Canonical, Row.PhysicalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.ElementalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.RangeCm);
+		                  AppendCanonicalField(Canonical, Row.ArcDegrees);
+		                  AppendCanonicalField(Canonical, Row.ProjectileCount);
+		                  AppendCanonicalField(Canonical, Row.ConcentrationDegrees);
+		                  AppendCanonicalField(Canonical, Row.ExplosionRadiusCm);
+		                  AppendCanonicalField(Canonical, Row.DataRevision);
+		                  AppendCanonicalField(Canonical, Row.bEnabled);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+	AppendOrderedRows(Canonical,
+	                  TEXT("attack_steps"),
+	                  Snapshot.AttackStepOrder,
+	                  Snapshot.AttackSteps,
+	                  [&](const FReEchoCsvAttackStepRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.Id);
+		                  AppendCanonicalField(Canonical, Row.AttackPatternId);
+		                  AppendCanonicalField(Canonical, Row.StepIndex);
+		                  AppendCanonicalField(Canonical, Row.DurationSeconds);
+		                  AppendCanonicalField(Canonical, Row.PhysicalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.ElementalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.RangeCm);
+		                  AppendCanonicalField(Canonical, Row.ArcDegrees);
+		                  AppendCanonicalField(Canonical, Row.ProjectileCount);
+		                  AppendCanonicalField(Canonical, Row.ConcentrationDegrees);
+		                  AppendCanonicalField(Canonical, Row.ExplosionRadiusCm);
+		                  AppendCanonicalField(Canonical, Row.MovementCm);
+		                  AppendCanonicalField(Canonical, Row.bInvulnerable);
+		                  AppendCanonicalField(Canonical, Row.BehaviorId);
+		                  AppendCanonicalField(Canonical, Row.FormulaId);
+		                  AppendCanonicalField(Canonical, Row.ConditionId);
+		                  AppendCanonicalField(Canonical, Row.bEnabled);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+
+	TArray<FName> SlotTypeIds;
+	Snapshot.SlotTypes.GetKeys(SlotTypeIds);
+	SlotTypeIds.Sort(
+	    [](const FName& Left, const FName& Right)
+	    {
+		    return Left.ToString() < Right.ToString();
+	    });
+	AppendOrderedRows(Canonical,
+	                  TEXT("slot_types"),
+	                  SlotTypeIds,
+	                  Snapshot.SlotTypes,
+	                  [&](const FReEchoCsvSlotTypeRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.Id);
+		                  AppendCanonicalField(Canonical, Row.DisplayName);
+		                  AppendCanonicalField(Canonical, Row.bEnabled);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+
+	TArray<FName> SlotProfileIds;
+	Snapshot.SlotProfiles.GetKeys(SlotProfileIds);
+	SlotProfileIds.Sort(
+	    [](const FName& Left, const FName& Right)
+	    {
+		    return Left.ToString() < Right.ToString();
+	    });
+	AppendOrderedRows(Canonical,
+	                  TEXT("slot_profiles"),
+	                  SlotProfileIds,
+	                  Snapshot.SlotProfiles,
+	                  [&](const FReEchoCsvSlotProfileRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.Id);
+		                  AppendCanonicalField(Canonical, Row.WeaponTypeId);
+		                  AppendCanonicalField(Canonical, Row.SlotTypeId);
+		                  AppendCanonicalField(Canonical, Row.SlotCount);
+		                  AppendCanonicalField(Canonical, Row.bRequired);
+		                  AppendCanonicalField(Canonical, Row.bEnabled);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+
+	TArray<FName> PartIds;
+	Snapshot.Parts.GetKeys(PartIds);
+	PartIds.Sort(
+	    [](const FName& Left, const FName& Right)
+	    {
+		    return Left.ToString() < Right.ToString();
+	    });
+	AppendOrderedRows(Canonical,
+	                  TEXT("parts"),
+	                  PartIds,
+	                  Snapshot.Parts,
+	                  [&](const FReEchoCsvPartRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.Id);
+		                  AppendCanonicalField(Canonical, Row.PartId);
+		                  AppendCanonicalField(Canonical, Row.WeaponTypeId);
+		                  AppendCanonicalField(Canonical, Row.SlotTypeId);
+		                  AppendCanonicalField(Canonical, Row.DisplayName);
+		                  AppendCanonicalField(Canonical, Row.Description);
+		                  AppendCanonicalField(Canonical, Row.Rarity);
+		                  TArray<FName> Tags = Row.Tags;
+		                  Tags.Sort(
+		                      [](const FName& Left, const FName& Right)
+		                      {
+			                      return Left.ToString() < Right.ToString();
+		                      });
+		                  FString TagsText;
+		                  for (const FName Tag : Tags)
+		                  {
+			                  if (!TagsText.IsEmpty())
+			                  {
+				                  TagsText += TEXT(",");
+			                  }
+			                  TagsText += Tag.ToString();
+		                  }
+		                  AppendCanonicalField(Canonical, TagsText);
+		                  AppendCanonicalField(Canonical, Row.bEnabled);
+		                  AppendCanonicalField(Canonical, Row.ReviewStatus);
+		                  AppendCanonicalField(Canonical, Row.ImplementationStatus);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+
+	Canonical += TEXT("[part_effects]\n");
+	for (const FName PartId : PartIds)
+	{
+		const FReEchoCsvPartRow* Part = Snapshot.Parts.Find(PartId);
+		if (!Part)
+		{
+			continue;
+		}
+		for (const FReEchoCsvPartEffectRow& Row : Part->Effects)
+		{
+			AppendCanonicalField(Canonical, Row.Id);
+			AppendCanonicalField(Canonical, Row.PartId);
+			AppendCanonicalField(Canonical, Row.Order);
+			AppendCanonicalField(Canonical, Row.Trigger);
+			AppendCanonicalField(Canonical, Row.EffectKind);
+			AppendCanonicalField(Canonical, Row.Target);
+			AppendCanonicalField(Canonical, static_cast<int32>(Row.ValueOp));
+			AppendCanonicalField(Canonical, Row.Value);
+			AppendCanonicalField(Canonical, Row.BehaviorId);
+			AppendCanonicalField(Canonical, Row.FormulaId);
+			AppendCanonicalField(Canonical, Row.AttackPatternId);
+			AppendCanonicalField(Canonical, Row.ParamName);
+			AppendCanonicalField(Canonical, Row.ParamValue);
+			AppendCanonicalField(Canonical, Row.DurationSeconds);
+			AppendCanonicalField(Canonical, Row.CooldownSeconds);
+			AppendCanonicalField(Canonical, Row.StackPolicy);
+			AppendCanonicalField(Canonical, Row.bEnabled);
+			AppendCanonicalField(Canonical, Row.SourceSheet);
+			AppendCanonicalField(Canonical, Row.SourceRow);
+			AppendCanonicalField(Canonical, Row.DisabledReason);
+			AppendRowEnd(Canonical);
+		}
+	}
+
+	FMD5 Md5;
+	FTCHARToUTF8 Utf8(*Canonical);
+	Md5.Update(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+	uint8 Digest[16];
+	Md5.Final(Digest);
+	return BytesToHex(Digest, UE_ARRAY_COUNT(Digest)).ToLower();
 }
 
 bool ReadWeaponTypesTable(const FString& DataDirectory,
@@ -262,7 +526,8 @@ bool ReadWeaponsTable(const FString& DataDirectory,
 		}
 		if (!Snapshot.WeaponTypes.Contains(Weapon.WeaponTypeId))
 		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("WeaponTypeId"), TEXT("Unknown WeaponTypes.Id reference"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("WeaponTypeId"), TEXT("Unknown WeaponTypes.Id reference"));
 		}
 		RequireRegisteredAttackPattern(Table, Row, TEXT("AttackPatternId"), Weapon.AttackPatternId, Issues);
 		if (Weapon.InputSlot != EReEchoInputSlot::None)
@@ -282,8 +547,11 @@ bool ReadWeaponsTable(const FString& DataDirectory,
 			}
 			if (Weapon.LoadoutOrder < 1 || Weapon.LoadoutOrder > 3)
 			{
-				ReEchoCsv::AddIssue(
-				    Issues, Table.File, Row.Line, TEXT("LoadoutOrder"), TEXT("StartSelectable LoadoutOrder must be 1..3"));
+				ReEchoCsv::AddIssue(Issues,
+				                    Table.File,
+				                    Row.Line,
+				                    TEXT("LoadoutOrder"),
+				                    TEXT("StartSelectable LoadoutOrder must be 1..3"));
 			}
 			if (SeenLoadoutOrders.Contains(Weapon.LoadoutOrder))
 			{
@@ -372,11 +640,11 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 		{
 			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
 		}
-		const FString PatternStepKey =
-		    FString::Printf(TEXT("%s:%d"), *Step.AttackPatternId.ToString(), Step.StepIndex);
+		const FString PatternStepKey = FString::Printf(TEXT("%s:%d"), *Step.AttackPatternId.ToString(), Step.StepIndex);
 		if (SeenPatternSteps.Contains(PatternStepKey))
 		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("StepIndex"), TEXT("Duplicate AttackPatternId/StepIndex"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("StepIndex"), TEXT("Duplicate AttackPatternId/StepIndex"));
 		}
 		RequireRegisteredAttackPattern(Table, Row, TEXT("AttackPatternId"), Step.AttackPatternId, Issues);
 		if (!FReEchoCsvDataRegistry::IsBehaviorIdRegistered(Step.BehaviorId))
@@ -413,8 +681,14 @@ bool ReadSlotTypesTable(const FString& DataDirectory,
 	{
 		return false;
 	}
-	ReEchoCsv::HasExactColumns(
-	    Table, {TEXT("Id"), TEXT("DisplayName"), TEXT("Enabled"), TEXT("SourceSheet"), TEXT("SourceRow"), TEXT("DisabledReason")}, Issues);
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("DisplayName"),
+	                            TEXT("Enabled"),
+	                            TEXT("SourceSheet"),
+	                            TEXT("SourceRow"),
+	                            TEXT("DisabledReason")},
+	                           Issues);
 
 	TSet<FName> SeenIds;
 	for (const ReEchoCsv::FRow& Row : Table.Rows)
@@ -486,15 +760,18 @@ bool ReadSlotProfilesTable(const FString& DataDirectory,
 		    FString::Printf(TEXT("%s:%s"), *SlotProfile.WeaponTypeId.ToString(), *SlotProfile.SlotTypeId.ToString());
 		if (SeenCombinations.Contains(CombinationKey))
 		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("SlotTypeId"), TEXT("Duplicate WeaponTypeId/SlotTypeId"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("SlotTypeId"), TEXT("Duplicate WeaponTypeId/SlotTypeId"));
 		}
 		if (!Snapshot.WeaponTypes.Contains(SlotProfile.WeaponTypeId))
 		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("WeaponTypeId"), TEXT("Unknown WeaponTypes.Id reference"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("WeaponTypeId"), TEXT("Unknown WeaponTypes.Id reference"));
 		}
 		if (!Snapshot.SlotTypes.Contains(SlotProfile.SlotTypeId))
 		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("SlotTypeId"), TEXT("Unknown SlotTypes.Id reference"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("SlotTypeId"), TEXT("Unknown SlotTypes.Id reference"));
 		}
 		if (!SlotProfile.bEnabled && SlotProfile.DisabledReason.IsEmpty())
 		{
@@ -573,11 +850,13 @@ bool ReadPartsTable(const FString& DataDirectory,
 		}
 		if (!Snapshot.WeaponTypes.Contains(Part.WeaponTypeId) && Part.WeaponTypeId != TEXT("Any"))
 		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("WeaponTypeId"), TEXT("Unknown WeaponTypes.Id reference"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("WeaponTypeId"), TEXT("Unknown WeaponTypes.Id reference"));
 		}
 		if (!Snapshot.SlotTypes.Contains(Part.SlotTypeId))
 		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("SlotTypeId"), TEXT("Unknown SlotTypes.Id reference"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("SlotTypeId"), TEXT("Unknown SlotTypes.Id reference"));
 		}
 		if (Part.bEnabled)
 		{
@@ -588,8 +867,11 @@ bool ReadPartsTable(const FString& DataDirectory,
 			}
 			if (Part.ReviewStatus != TEXT("Approved") || Part.ImplementationStatus != TEXT("Implemented"))
 			{
-				ReEchoCsv::AddIssue(
-				    Issues, Table.File, Row.Line, TEXT("ImplementationStatus"), TEXT("Enabled part must be approved and implemented"));
+				ReEchoCsv::AddIssue(Issues,
+				                    Table.File,
+				                    Row.Line,
+				                    TEXT("ImplementationStatus"),
+				                    TEXT("Enabled part must be approved and implemented"));
 			}
 		}
 		else if (Part.DisabledReason.IsEmpty())
@@ -603,7 +885,8 @@ bool ReadPartsTable(const FString& DataDirectory,
 	}
 	if (Table.Rows.Num() != 78)
 	{
-		ReEchoCsv::AddIssue(Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Weapon slot audit must contain 78 source rows"));
+		ReEchoCsv::AddIssue(
+		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Weapon slot audit must contain 78 source rows"));
 	}
 	if (NamedRows != 16 || UnnamedDisabledRows != 62)
 	{
@@ -627,28 +910,14 @@ bool ReadPartEffectsTable(const FString& DataDirectory,
 	{
 		return false;
 	}
-	ReEchoCsv::HasExactColumns(Table,
-	                           {TEXT("Id"),
-	                            TEXT("PartId"),
-	                            TEXT("Order"),
-	                            TEXT("Trigger"),
-	                            TEXT("EffectKind"),
-	                            TEXT("Target"),
-	                            TEXT("ValueOp"),
-	                            TEXT("Value"),
-	                            TEXT("BehaviorId"),
-	                            TEXT("FormulaId"),
-	                            TEXT("AttackPatternId"),
-	                            TEXT("ParamName"),
-	                            TEXT("ParamValue"),
-	                            TEXT("DurationSeconds"),
-	                            TEXT("CooldownSeconds"),
-	                            TEXT("StackPolicy"),
-	                            TEXT("Enabled"),
-	                            TEXT("DisabledReason"),
-	                            TEXT("SourceSheet"),
-	                            TEXT("SourceRow")},
-	                           Issues);
+	ReEchoCsv::HasExactColumns(
+	    Table,
+	    {TEXT("Id"),         TEXT("PartId"),          TEXT("Order"),           TEXT("Trigger"),
+	     TEXT("EffectKind"), TEXT("Target"),          TEXT("ValueOp"),         TEXT("Value"),
+	     TEXT("BehaviorId"), TEXT("FormulaId"),       TEXT("AttackPatternId"), TEXT("ParamName"),
+	     TEXT("ParamValue"), TEXT("DurationSeconds"), TEXT("CooldownSeconds"), TEXT("StackPolicy"),
+	     TEXT("Enabled"),    TEXT("DisabledReason"),  TEXT("SourceSheet"),     TEXT("SourceRow")},
+	    Issues);
 
 	TSet<FName> SeenIds;
 	TSet<FString> SeenPartOrders;
@@ -707,11 +976,8 @@ bool ReadPartEffectsTable(const FString& DataDirectory,
 		RequireRegisteredAttackPattern(Table, Row, TEXT("AttackPatternId"), Effect.AttackPatternId, Issues);
 		if (!IsAllowedPartEffectPair(Effect.EffectKind, Effect.BehaviorId))
 		{
-			ReEchoCsv::AddIssue(Issues,
-			                    Table.File,
-			                    Row.Line,
-			                    TEXT("BehaviorId"),
-			                    TEXT("EffectKind/BehaviorId combination is invalid"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("BehaviorId"), TEXT("EffectKind/BehaviorId combination is invalid"));
 		}
 		FReEchoCsvPartRow* Part = Snapshot.Parts.Find(Effect.PartId);
 		if (!Part)
@@ -777,11 +1043,13 @@ bool ReadPartEffectsTable(const FString& DataDirectory,
 	}
 	if (!bHasPatternReplacement)
 	{
-		ReEchoCsv::AddIssue(Issues, Table.File, 1, TEXT("EffectKind"), TEXT("At least one AttackPatternReplacement must be enabled"));
+		ReEchoCsv::AddIssue(
+		    Issues, Table.File, 1, TEXT("EffectKind"), TEXT("At least one AttackPatternReplacement must be enabled"));
 	}
 	if (!bHasUniqueBehavior)
 	{
-		ReEchoCsv::AddIssue(Issues, Table.File, 1, TEXT("EffectKind"), TEXT("At least one UniqueBehavior must be enabled"));
+		ReEchoCsv::AddIssue(
+		    Issues, Table.File, 1, TEXT("EffectKind"), TEXT("At least one UniqueBehavior must be enabled"));
 	}
 	return Issues.Num() == 0;
 }
@@ -811,8 +1079,11 @@ void ValidateCrossDomain(FReEchoCsvDataSnapshot& Snapshot, TArray<FReEchoCsvIssu
 	const TArray<FReEchoCsvWeaponRow> StartSelectable = Snapshot.GetStartSelectableWeapons();
 	if (StartSelectable.Num() != 3)
 	{
-		ReEchoCsv::AddIssue(
-		    Issues, TEXT("weapons.csv"), 1, TEXT("StartSelectable"), TEXT("Exactly three weapons must be StartSelectable"));
+		ReEchoCsv::AddIssue(Issues,
+		                    TEXT("weapons.csv"),
+		                    1,
+		                    TEXT("StartSelectable"),
+		                    TEXT("Exactly three weapons must be StartSelectable"));
 	}
 	const TArray<FName> ExpectedLoadout = {TEXT("W_J_02"), TEXT("W_J_01"), TEXT("W_J_03")};
 	for (int32 Index = 0; Index < StartSelectable.Num() && Index < ExpectedLoadout.Num(); ++Index)
@@ -829,8 +1100,26 @@ void ValidateCrossDomain(FReEchoCsvDataSnapshot& Snapshot, TArray<FReEchoCsvIssu
 	if (!Slot1 || Slot1->Id != TEXT("W_J_02") || !Slot2 || Slot2->Id != TEXT("W_J_01") || !Slot3 ||
 	    Slot3->Id != TEXT("W_J_03"))
 	{
-		ReEchoCsv::AddIssue(
-		    Issues, TEXT("weapons.csv"), 1, TEXT("InputSlot"), TEXT("Legacy W_J_02/W_J_01/W_J_03 input mapping changed"));
+		ReEchoCsv::AddIssue(Issues,
+		                    TEXT("weapons.csv"),
+		                    1,
+		                    TEXT("InputSlot"),
+		                    TEXT("Legacy W_J_02/W_J_01/W_J_03 input mapping changed"));
+	}
+	const bool bHasReachableDagger = Snapshot.WeaponOrder.ContainsByPredicate(
+	    [&](const FName WeaponId)
+	    {
+		    const FReEchoCsvWeaponRow* Weapon = Snapshot.FindEnabledWeapon(WeaponId);
+		    return Weapon && Weapon->WeaponTypeId == TEXT("Dagger") && Weapon->InputSlot == EReEchoInputSlot::None &&
+		           !Weapon->bStartSelectable;
+	    });
+	if (!bHasReachableDagger)
+	{
+		ReEchoCsv::AddIssue(Issues,
+		                    TEXT("weapons.csv"),
+		                    1,
+		                    TEXT("WeaponTypeId"),
+		                    TEXT("At least one enabled non-start Dagger weapon is required for Dagger-only parts"));
 	}
 }
 }
@@ -868,6 +1157,10 @@ bool ReadTables(const FString& DataDirectory,
 	if (Issues.Num() == 0)
 	{
 		ValidateCrossDomain(Snapshot, Issues);
+	}
+	if (Issues.Num() == 0)
+	{
+		Snapshot.WeaponDomainRevision = ComputeWeaponDomainRevision(Snapshot);
 	}
 	return Issues.Num() == 0;
 }

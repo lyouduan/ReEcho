@@ -135,6 +135,14 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 
 void AReEchoPlayerPawn::RestoreEquippedWeapon(const FName WeaponId)
 {
+	if (Weapon)
+	{
+		if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		    RunSubsystem && !RunSubsystem->CurrentBuild.WeaponDomainRevision.IsEmpty())
+		{
+			Weapon->InitializeWeapon(&RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
+		}
+	}
 	if (Weapon && !Weapon->SelectWeaponById(WeaponId))
 	{
 		UE_LOG(LogReEcho, Fatal, TEXT("Cannot restore equipped WeaponId '%s'"), *WeaponId.ToString());
@@ -156,7 +164,15 @@ void AReEchoPlayerPawn::BeginPlay()
 		Weapon->SetOwner(this);
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
-		Weapon->InitializeWeapon();
+		if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		    RunSubsystem && !RunSubsystem->CurrentBuild.WeaponDomainRevision.IsEmpty())
+		{
+			Weapon->InitializeWeapon(&RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
+		}
+		else
+		{
+			Weapon->InitializeWeapon();
+		}
 	}
 
 	AbilitySystem->InitAbilityActorInfo(this, this);
@@ -486,30 +502,37 @@ bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoInputSlot InputS
 		return false;
 	}
 
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvWeaponRow* Definition = Snapshot.IsValid() ? Snapshot->FindWeaponByInputSlot(InputSlot) : nullptr;
 	if (!Definition)
 	{
 		return false;
 	}
+	if (RunSubsystem)
+	{
+		RunSubsystem->SetEquippedWeapon(Definition->Id);
+		Weapon->InitializeWeapon(&RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
+		Recorder->UpdateBuildSnapshot(RunSubsystem->CurrentBuild);
+		OnWeaponChanged.Broadcast(Definition->Id);
+		return true;
+	}
 	if (!Weapon->SelectWeaponById(Definition->Id))
 	{
 		UE_LOG(LogReEcho, Fatal, TEXT("Cannot select configured WeaponId '%s'"), *Definition->Id.ToString());
 	}
-
-	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
-	{
-		RunSubsystem->SetEquippedWeapon(Definition->Id);
-		Recorder->UpdateBuildSnapshot(RunSubsystem->CurrentBuild);
-		OnWeaponChanged.Broadcast(Definition->Id);
-	}
-
 	return true;
 }
 
 void AReEchoPlayerPawn::PlayHitVisual()
 {
 	HitVisualRemaining = 0.18f;
+}
+
+bool AReEchoPlayerPawn::IsWeaponInvulnerable() const
+{
+	return Weapon && Weapon->IsInvulnerableWindowActive();
 }
 
 void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Strength)

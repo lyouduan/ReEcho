@@ -132,7 +132,7 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 - `python scripts/validate_project.py` passed.
 - `.clang-format` was run via `C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\bin\clang-format.exe` on changed C++ files.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` passed.
-- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passed; log reports 27 tests found and 27 success results, exit code 0.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passed; log reports 32 tests found and completed with exit code 0. The run printed non-Win64 SDK validation warnings for LinuxArm64/VisionOS, but the command exited 0 and `Saved/Logs/ReEcho.log` ended with `TEST COMPLETE. EXIT CODE: 0`.
 - `git diff --check` passed; only CRLF conversion warnings were printed by Git.
 
 ### Plan 21–23 and integrated loadout/recording contract adaptation
@@ -145,7 +145,7 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 ### Enabled content batch
 
 - Weapon types: 7 enabled `WeaponTypeId` values from `武器体系W`: `Dagger`, `LongSword`, `Scythe`, `Whip`, `Bow`, `Gun`, `Staff`.
-- Concrete weapons: enabled `W_J_02` Moon Staff (`InputSlot=1`), `W_J_01` Crescent Blade (`InputSlot=2`), `W_J_03` Elemental Reaction (`InputSlot=3`) and new enabled `W_J_04` Harvest Scythe (`WeaponTypeId=Scythe`, `Pattern.ScytheSweep`).
+- Concrete weapons: enabled `W_J_02` Moon Staff (`InputSlot=1`), `W_J_01` Crescent Blade (`InputSlot=2`), `W_J_03` Elemental Reaction (`InputSlot=3`) and new enabled `W_J_04` Harvest Scythe (`WeaponTypeId=Scythe`, `Pattern.ScytheSweep`). The review rework also added non-start, no-hotkey `W_J_05` Training Dagger for Dagger-only part reachability and `W_J_06` Apprentice Staff for StaffProjectile spread/explosion runtime coverage; neither changes the three start-selectable weapons.
 - Attack patterns: migrated the seven base family patterns plus compatibility/runtime patterns for the existing three weapons and dagger dash replacement.
 - Slots: `Core`, `Grip`, `Blade`, `Arrowhead`, `Bowstring`, `RotaryBlade`, `SwordBlade`, `Muzzle`, `GunAction`, `StaffBody`, `StaffCrystal`, `WhipBody`.
 - Parts enabled from `武器插槽C`: six generic cores (`P_CORE_PRIMORDIAL`, `P_CORE_TIDE`, `P_CORE_FOREST`, `P_CORE_FLAME`, `P_CORE_THUNDER`, `P_CORE_PRISM`), `P_DAGGER_THRUST_GRIP`, `P_DAGGER_STRENGTH_GRIP` and `P_DAGGER_HOLY_BLADE`.
@@ -158,18 +158,26 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 - Named rows left disabled are missing handler support or depend on not-yet-implemented state/behavior batches: invisibility, stun, bleed, arrow split, explosion, pierce, multishot and similar unique behavior rows remain disabled with explicit `DisabledReason`.
 - The disabled rows are not reachable from enabled part effects; validators reject enabled effects on disabled parts and enabled parts without effect rows.
 
+### Acceptance rework - 2026-08-11
+
+- Added `FReEchoBuildSnapshot::EquippedParts` and `WeaponDomainRevision`, plus `ReEchoWeaponRuntime` as the small shared equipment/effective-definition layer. `TryEquipParts()` validates unknown/disabled parts, weapon-type compatibility, duplicate `PartId`, slot limits and domain revision before committing, then applies Add/Multiply/Override through generic EffectKind/Target handlers rather than per-PartId switches.
+- Six cores now set physical/stable-element/random-element damage channels; strength grip multiplies attack speed; thrust grip replaces the attack pattern and overrides interval; holy blade heals on kill. Player, save, recorder and echo all carry the same immutable build snapshot.
+- `FReEchoWeaponCsvReader` computes a deterministic MD5 weapon-domain revision over `weapon_types.csv`, `weapons.csv`, `attack_steps.csv`, `slot_types.csv`, `slot_profiles.csv`, `parts.csv` and `part_effects.csv`. Run start captures the current snapshot; restore validates current build, historical recordings, active recording and weapon-change events against the current domain before mutating state.
+- `AReEchoWeaponActor` now uses the pinned run/recording snapshot supplied at initialization. It executes ordered attack steps by `StepIndex` with duration locks, Formula/Condition/Behavior checks, melee direction/arc filtering, projectile count/spread, configured explosion radius, deterministic movement and invulnerability windows. GAS remains authoritative for player cooldown/damage attributes; the weapon actor only resolves table-driven attack execution.
+- Added five behavior tests, raising the suite from the 27-test baseline to 32: `ReEcho.Weapons.EquipmentAppliesModifiersAndFailsAtomically`, `MeleeStepsUseOrderArcAndTiming`, `DaggerPartsReplacePatternMoveInvulnerableAndHealOnKill`, `ProjectilesUseSingleShotSpreadCountAndExplosion` and `DomainRevisionRejectsChangedTablesAndPinsActiveRun`. These tests assert build modifiers, ElementId channel resolution, spawned projectile count/spread/explosion, melee damage/health, OnKill healing, disabled/illegal atomic failure, save rejection after table edits and active-run snapshot pinning.
+
 ### Remaining risks
 
-- The current CSV runtime includes definitions and validation for parts/effects, but there is no full in-game equipment UI/application path for arbitrary part loadouts yet. Enabled part behavior coverage is validated structurally and reserved for the next equipment/application slice.
-- `W_J_04` reuses existing visual presentation because this plan did not touch `.uasset`/`.umap` or create new art.
-- Static and automation coverage prove data load, start/equip/restore/recording compatibility and existing combat dispatch; full play-feel tuning for all seven base patterns remains human/PIE work.
+- `W_J_04`, `W_J_05` and `W_J_06` reuse existing visual presentation because this plan did not touch `.uasset`/`.umap` or create new art.
+- There is still no redesigned equipment UI; this rework provides the runtime API, debug/automation path and immutable snapshot contract. A production UX can be layered later without changing the save/recording semantics.
+- Static and automation coverage prove data load, start/equip/restore/recording compatibility and representative combat execution; full play-feel tuning for all seven base patterns remains Human PIE work after Plan 25.
 
 ### Human validation requested
 
 - PIE one multi-stage melee weapon (`W_J_01`), one single-shot/ranged weapon (`W_J_02`) and one elemental weapon (`W_J_03`) to confirm rhythm, range, collision and feedback still match the pre-CSV behavior.
 - PIE `W_J_04` through a character/default path or debug setup to verify the Scythe sweep feel with the reused visual.
-- In a future equipment slice, install one core, one numeric grip and one behavior part to verify slot restrictions and applied effects once the UI/application path exists.
-- Edit one weapon numeric value and one part-effect value in CSV, restart the run and confirm the changed data takes effect without recompilation.
+- After Plan 25, use PIE/debug equipment entry points to equip one core, the strength grip, the thrust replacement and holy blade, then verify slot restrictions and feel in a real encounter.
+- After Plan 25, edit one weapon numeric value and one part-effect value in the XLSX/CSV authoring flow, restart the run and confirm the changed data takes effect without recompilation while old save/recording data is rejected.
 
 ## Planner review - 2026-08-11 - not accepted
 
