@@ -1,5 +1,20 @@
 # Plan 24 - data - weapons and slots CSV migration
 
+## Coordination
+
+- Planner owner: Gavyn-side Planner.
+- Executor owner: Gavyn-side Plan 24 executor.
+- Status: `InProgress/Rework`; schema/registry migration is published, planner runtime acceptance is not complete.
+- Planning ref: `origin/coord/planning-broadcast-20260811`.
+- Implementation ref: `origin/plan/24-weapons-slots-csv`; published review tip `b2616ec`, implementation commit `32a0384`, continuing local edits are not yet published.
+- Base: accepted local main `28c21b8`; note that `origin/main` remains behind during the first coordination trial.
+- Depends on: accepted local Plans 21–23. Blocks: the weapon-sheet portion and unified verification of Plan 25, but not unrelated UI/gameplay work.
+- Writes: seven weapon-domain CSVs, manifest/schema, weapon reader, shared registry/snapshot, build/run/save/recording weapon contract, Player/Echo/Weapon/Projectile/Enemy weapon execution, validators/tests and matching docs.
+- Reads: Plan 21 CSV foundation, Plan 22 character defaults, Plan 23 stable ElementIds/reaction APIs.
+- Shared-contract impact: concrete WeaponId identity, input/loadout mapping, build/recording compatibility and weapon query APIs. The stable read-only consumer subset is `WeaponId`, `WeaponTypeId`, display/visual key, `InputSlot`, `StartSelectable`, `LoadoutOrder`, enabled state and corresponding lookup functions. Runtime equipment, full attack-step execution and weapon-domain hash remain under rework; additive public fields may still be added.
+- Downstream guidance: another Planner may start read-only UI/flow consumers from the published implementation branch, but must not edit owned files, copy the data model, depend on uncommitted internals, or treat part effects/full attack-step execution as accepted. Missing consumer APIs are requested through `PLANNER_EXCHANGE.md`.
+- Explicit exclusions: no UI redesign, weapon art/audio/economy rewrite, `.uasset`/`.umap` changes, remote main merge or reinterpretation of the three legacy start weapons.
+
 ## Locked goal
 
 将武器体系、攻击阶段、插槽类型、配件和配件效果迁移到 CSV 注册表，使策划可以组合武器基础数值、攻击模组、核心元素和数值/行为型配件；玩家与回响按相同不可变定义执行武器，同时保持 GAS 冷却/伤害、确定性回放和当前可玩武器行为。
@@ -139,5 +154,5 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 
 任务：沿用 Plan 22 的通用读取层和 Plan 23 的领域读取/夹具模式新增独立武器领域读取器，把 WeaponType、具体 WeaponId、输入热键槽和配件 SlotType 明确分开，并扩展唯一快照/注册表。迁移 7 个基础类型、当前 `W_J_01/02/03`、缺失的 `W_J_04`、攻击阶段、槽位与批准的配件批次；初始武器 UI、Start/Restore/Equip、Recorder/Echo 都改读同一 CSV 定义。保持当前三热键语义，未知/disabled 配置硬失败，存档定义不兼容不得静默漂移。所有 handler 必须显式注册且先于启动加载。验收照 Plan 24 的 🔒 清单；禁止读取废案 sheet 作为权威、禁止复制数据/元素系统、禁止按 PartId 扩张巨型 switch、禁止启用 62 条缺名称行、禁止修改 `.uasset`/`.umap`。把 Plan 21–23 适配、启用批次、全部禁用源行和偏差写入 Execution notes。
 
-完成后显式提交到本地分支并告诉人；未经人明确确认不得 push，禁止修改或合并 main。
+完成后显式提交并推送到自己的 Plan24 远端分支，更新 Coordination/Exchange 所声明的影响与证据并告诉人；禁止修改或合并 main。
 ```

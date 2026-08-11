@@ -11,13 +11,20 @@
 
 > **分布式协作**：若你在自己的 clone / 自己机器上工作，开工前先 `git pull` 拿最新 `shared/`；完事后 `git push`。分支名建议带 plan、任务或 owner，避免和别的队友/AI 撞。下面的 worktree 规则主要用于同一台机器上多 Agent 隔离。
 
+### 分布式启动门
+
+- 按启动 Prompt 指定的 planning ref/commit fetch，并确认 Plan `Coordination` 状态为 `Ready`、`InProgress` 或 `InProgress/Rework`；只在本地看到未发布 Plan 不算已协调。
+- 对照 `PLANNER_EXCHANGE.md` 的公告和 Active ownership，确认自己的 base、分支、Writes 和禁止修改范围。另一个 Planner 已拥有的 shared/exclusive 文件不得并行写。
+- `Read-only consumer` 可以从对方公布的任务分支消费稳定接口，但不要复制数据结构、直接绑定未承诺的内部 CSV 列，或把对方 WIP 当成已验收功能。
+- 实现发现必须扩大 Writes、改变稳定 ID/schema/存档/公共接口时，停止越界改动并报告 Planner；由 Planner 更新并推送广播后再继续。
+
 执行者与规划者**不共享 working tree**，各在自己的目录：
 - **Claude Code 执行者**：独立 worktree `<exec>`（规划者常驻 `<repo>` main，共享同一 `.git`，互不抢分支）
 - **Trae 执行者**：按 Trae 侧自己的目录
 - 下方命令一律用 `$(pwd)` 自适应 —— **先 `cd` 到你的项目根目录**再执行
 
 要点：
-- 读规划者最新 plan：`git show main:plans/XX.md`（objects 共享，立即可见，无需 pull）
+- 同机读规划者最新 plan：`git show main:plans/XX.md`（objects 共享，立即可见，无需 pull）；分布式任务改用启动 Prompt 公布的 `<planning-ref>`。
 - 首次进入新 worktree 要重新编译/重装依赖（构建产物不随 worktree 复制）
 
 ## 完成与 Merge（人验认可）
@@ -52,8 +59,8 @@ git checkout main
 # 2. 创建分支（命名规则：plan/XX-简短描述）
 git checkout -b plan/01-bootstrap
 
-# 3. 开工前读取 main 上的最新规划文件（规划者在 main 上维护 plan）
-git show main:plans/XX-short-name.md
+# 3. 开工前读取公布 planning ref 上的最新规划文件；同机默认 ref 为 main
+git show <planning-ref>:plans/XX-short-name.md
 
 # ... 改代码、构建、跑、验 ...
 

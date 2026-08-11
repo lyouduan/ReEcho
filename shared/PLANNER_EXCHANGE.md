@@ -2,11 +2,18 @@
 
 This is a live coordination board, not history or permanent rules. Remove ownership rows when implementation ends; Git and `plans/` retain completed history.
 
+## Planned and active work announcements
+
+| Date | Plan | Planner | Status | Remote ref / base | Writes and shared impact | Dependencies | Other planner action |
+|---|---|---|---|---|---|---|---|
+| 2026-08-11 | Plan 24 weapon/slot CSV | Gavyn-side Planner | InProgress/Rework | `origin/plan/24-weapons-slots-csv` at published tip `b2616ec`; local accepted base `28c21b8` | Seven weapon-domain CSVs; manifest/schema; registry/snapshot; Build/Run/Save/Recording; Player/Echo/Weapon/Projectile/Enemy runtime; validators/tests. Stable read-only consumer surface: concrete WeaponId identity, display/visual key, `InputSlot`, `StartSelectable`, `LoadoutOrder`, enabled lookup. Runtime parts/attack steps/hash are still under rework. | Accepted local Plans 21–23 | May start read-only UI/flow consumers from the published branch. Do not edit owned files or assume part effects/full attack-step execution are accepted; report missing query APIs to this Planner. |
+| 2026-08-11 | Plan 25 XLSX authoring and CSV generation | Gavyn-side Planner | Proposed | Planning broadcast `origin/coord/planning-broadcast-20260811`; implementation branch not started | XLSX authoring contract, deterministic generator/check mode, generated production CSVs, manifest/schema validation and unified verification. Will eventually touch every migrated data table, but Unreal continues consuming CSV only. | Plan 24 final weapon schema for weapon sheets; accepted Plans 21–23 for framework/other domains | Review impact before starting any independent data-authoring/schema migration. UI/gameplay that only consumes published typed APIs can continue. |
+
 ## Active ownership
 
 | Date | Owner | Plan/branch | Files or exclusive resources | Status | Notes |
 |---|---|---|---|---|---|
-| — | — | — | — | None | No merge-hostile resource is currently claimed |
+| 2026-08-11 | Gavyn-side Plan 24 executor | Plan 24 / `plan/24-weapons-slots-csv` | `Content/Data/{weapon_types,weapons,attack_steps,slot_types,slot_profiles,parts,part_effects}.csv`; weapon reader and shared registry/snapshot; build/run/save/recording weapon contract; Player/Echo/Weapon/Projectile/Enemy weapon execution; related validators/tests/docs | Active rework | Counterpart work may consume the published stable read-only surface but must not modify these resources without cross-Planner coordination. |
 
 ## Recently closed
 
@@ -46,11 +53,15 @@ This is a live coordination board, not history or permanent rules. Remove owners
 | 2026-08-10 | CSV is the target runtime package for characters/builds/elements/weapons/slots; migrate through Plans 21–24 and do not keep CSV/JSON/C++ as parallel editable truths | Plans 21–24 | Adopted |
 | 2026-08-10 | Plans 22–24 execute serially (`22 → 23 → 24`); each gets its own local worktree/branch because snapshot, manifest/schema, behavior registration, packaging and validator are shared | Plan 21 final implementation; revised Plans 22–24 | Adopted |
 | 2026-08-10 | Plan 25 will make XLSX the designer authoring source and deterministically generate validated CSV runtime packages; unified human PIE follows Plan 25 | Human integration decision | Adopted |
+| 2026-08-11 | In distributed multi-Planner work, Plans and impact announcements are committed and pushed to a shared planning ref before Executors start; scope expansion is rebroadcast before crossing ownership boundaries | Human workflow decision; `WORKFLOW.md` §3.9 and Planner/Executor rules | Trial adopted with Plans 24–25 |
+| 2026-08-11 | The first trial uses `coord/planning-broadcast-20260811` because `origin/main` does not yet contain the accepted local Plans 21–23 baseline; publishing planning refs and WIP task branches does not authorize merging unfinished implementation to main | Human workflow decision; current Git topology | Active trial |
 
 ## Warnings / blocked items
 
 - Runtime arena has no dedicated serialized test map; claim any `.umap` before replacing it.
+- First-trial topology: `origin/main` is still `a0f6a10`, while the accepted local planning base is `28c21b8`. Fetch the advertised coordination/task refs explicitly; do not assume remote main contains Plans 21–24 data infrastructure, and do not force-push main.
 
 ## Pending human decisions
 
 - Decide whether root blueprint documents should remain as provenance after the workflow baseline is fully adopted.
+- Decide when the accepted local baseline through `28c21b8` should fast-forward `origin/main`; this first planning broadcast intentionally does not move remote main.

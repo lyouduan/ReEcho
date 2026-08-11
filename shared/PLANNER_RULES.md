@@ -20,8 +20,18 @@
 - **别凭估算下悲观结论否决方向**——拿不准的前置写成 **Step 0 门槛**，让一线实测再决定，别在 plan 里替执行者拍死。
 - **不确定的内容门槛要点明**（如需要音源/素材/外部账号），设成"先确认再做"的 gate。
 - **写完主动建议执行者模型档位**：复杂/长链路/新架构→强模型(Opus)；样板/格式/纯调参→便宜模型(Sonnet/Haiku)；一个 plan 内不同 Step 难度不同就分别标。**只建议，由人来切，不自动 spawn。**
+- **分布式 Plan 必须写 `Coordination`**：Planner/Executor owner、状态、规划 ref、实现分支与 base、Depends on/Blocks、Writes/Reads、共享契约影响、下游适配和明确排除项。编号先在远端 Exchange 预留，不能只按本地文件猜下一个编号。
 
-## 出完 plan：写一段「执行者启动 prompt」（每条 plan 必做）
+## 跨 Planner 规划发布门（Executor 开工前）
+
+1. fetch/pull 远端规划基线，重读 Planned and active work announcements；发现远端 main 尚未包含本地基线时，不擅自顺带推送实现历史，改用经人确认的 `coord/...` 广播 ref。
+2. 同一批新 Plans、每条 Plan 的 `Coordination`、Exchange 公告和必要的所有权行作为一个纯规划 batch，用显式文件列表提交并推送。未发布到对方可 fetch 的远端 ref，不得称为“已协调”。
+3. 给人两段 Prompt：一段启动己方 Executor；一段交给对方 Planner，要求它读取指定 ref/commit、判断重叠与依赖、登记己方工作并推送回应。
+4. `Shared-contract` 或 `Exclusive` 影响需对方 Planner/人确认所有权后再启动；`Isolated` 或 `Read-only consumer` 在规划广播发布后即可启动，不为等待形式确认而空转。
+5. 开发中若实现需要扩大 Writes、修改未声明公共接口、改变稳定 ID/存档/网络/数据 schema，先暂停越界改动，更新 Plan/Exchange、提交推送，再继续。
+6. 规划发布只授权规划文档和任务分支的远端可见性；未经人验和审查，不得把功能实现合入 main。
+
+## 发布 plan 后：写一段「执行者启动 prompt」（每条 plan 必做）
 
 写完 plan 后，附一段简短、可直接粘给执行者的启动 prompt，由人复制到独立执行者会话。目的不是替人 spawn 执行者，而是让冷启动执行者一次拿到“读什么 / 在哪干 / 做什么 / 红线是什么”。
 
@@ -37,6 +47,7 @@
 
 - prompt 要短，避免把执行者上下文塞满；但必须含：必读文件、工作分支/目录、一句话任务、验收边界、禁止自合并/改 main、需求变化写回 §执行经验。
 - 若任务涉及共享/难合并资源（场景、预制体、数据表、设计稿、部署目标等），prompt 里点名“先在协调板认领”。
+- 分布式任务还必须写明 planning ref/commit、实现分支 base 和允许的 Writes；Executor 开工时发现与远端公告不一致，应停止并交还 Planner。
 
 ## 审查与 Merge
 
@@ -58,7 +69,7 @@
 2. **更新 `PROJECT_STATE.md`**：只改「可用状态」「当前进度」「里程碑」三节。
 3. **共享文件改动要在 STATE 标回归风险**：若动了多处共用的组件/系统，明确提醒"哪个模块值得回归一次"。
 4. 「下一步候选」由规划者讨论后更新，不擅自塞。
-5. **提交规划产物**：每次规划动作后（写完 plan / 收尾更新 / 改规则）就把 `plans/`、`shared/`、`design/` 等规划产物提交到主线或约定分支，显式文件列表提交，别攒着。
+5. **提交并发布规划产物**：每次规划动作后（写完 plan / 收尾更新 / 改规则）就把 `plans/`、`shared/`、`design/` 等规划产物提交到主线或约定分支，显式文件列表提交，别攒着。分布式协作中，Executor 开工前必须推到公告指定的远端 planning ref。
    - 提交前先确认当前分支。若你和执行者共享工作树，执行者可能切走了 HEAD；发现自己在执行者分支上改了规划文件时，先安全保存改动（stash/patch/临时分支），切回正确分支再提交。
 6. **清理已完成的执行者 worktree**：只在人验通过、规划者审查并合并、收尾文档已落地后执行。先用 `git worktree list` 确认精确路径，再检查该 worktree `git status --short` 为空；有任何未提交内容就停止并交还人/执行者处理。干净时用 `git worktree remove <exec>`（禁止 `--force`），随后用 `git branch -d plan/XX-short` 删除已合并的本地分支。远端分支只在人明确要求时删除，不手工递归删除 worktree 目录。
 

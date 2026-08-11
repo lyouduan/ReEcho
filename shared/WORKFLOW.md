@@ -27,16 +27,14 @@
 
 一条 plan 的生命周期：
 ```
-① 规划者出初版 plan ─▶ ② 执行者切分支领任务 ─▶ ③ 执行者改实现 + 🤖 自动验
-   (🔒目标/验收/Step0                                          │
-    + 🔧实现)                                                  ▼
-                                                  ④ push + 写§执行经验(不 merge)
-       ▲                                                       │
-       │                                                       ▼
-  ⑧ 规划者收尾+清理       ⑦ 规划者审 diff        ⑥ 人玩验手感 🎮 ◀┘
-  (提炼经验→LESSONS        (初版↔终版)            ⑤ 不满意 → 执行者改
-   /更新 STATE/merge         + 人拍板完成              → 人再玩(循环)
-   /移除干净 worktree)
+① 规划者出初版 plan ─▶ ② 多 Planner 规划广播 ─▶ ③ 执行者切分支领任务 ─▶ ④ 实现 + 🤖 自动验
+   (🔒目标/验收/Step0      (远端同步/预留编号/                                  │
+    + 🔧实现)               公布影响面/对方确认)                                 ▼
+                                                            ⑤ push + 写§执行经验
+       ▲                                                                  │
+       │                                                                  ▼
+  ⑧ 规划者审查/收尾/清理  ◀────────── ⑦ 人拍板完成 ◀────────── ⑥ 人玩验手感 🎮
+  (diff/LESSONS/STATE/merge/删 worktree)          不满意 → 执行者改 → 人再玩(循环)
 ```
 > 逐节详解见 **§3 流程展开**。
 
@@ -224,6 +222,17 @@ rm <RESOURCE_LOCK>
 - **同机 / 同工作区**：多个 AI 用 `git worktree` 隔离，分享同一 `.git`；objects 立即互见，读 main 可用 `git show main:...`。
 - **分布式 / 多队友 clone**：每个人各自 clone，经 remote 同步；开工前 `git pull`，完事 `git push`。分支名建议带人名或节点名（如 `feat/<owner>-<thing>` / `plan/XX-short`）防撞。
 
+**分布式规划发布门**：多个队友各带自己的 Planner/Executor 时，Executor 开工前必须先把“将要做什么”发布到远端，而不是等代码完成后才让另一方看到。
+
+1. Planner 先 fetch/pull 远端规划基线，读取 `PLANNER_EXCHANGE.md` 的 Planned and active work announcements，并以远端已登记编号为准预留新 Plan 编号。
+2. 每个新 Plan 写 `Coordination`：Planner/Executor owner、状态、规划 ref、实现分支/基线、依赖与阻塞、Writes/Reads、共享契约影响、对下游要求和明确排除项。
+3. Planner 同步更新 Exchange 的公告和独占所有权，以显式文件列表提交纯规划产物，并在 Executor 开工前推到共享远端 ref。通常使用共享 main；main 尚未同步或不允许移动时，可临时使用明确命名的 `coord/...` 分支，但必须在公告和 Prompt 中写清 ref。
+4. Planner 同时产出两段 Prompt：己方 Executor 启动 Prompt，以及对方 Planner 协调 Prompt。对方 Planner 先报告重叠、依赖和所有权；Shared-contract/Exclusive 影响必须确认后开工，Isolated/Read-only 消费在公告发布后可并行。
+5. 状态统一使用 `Proposed → Ready → InProgress → Review → Closed`；验收失败回到 `InProgress/Rework`。扩大 Writes、触碰未声明公共契约、改变依赖或兼容策略时，必须先更新 Plan/Exchange 并再次推送，不能等收尾补记。
+6. 规划广播允许推送规划文档，不等于允许未验收功能进入 main。Executor 仍只推自己的任务分支，功能 merge 仍走人验和 Planner 审查。非快进被拒时重新同步并重读公告，禁止 force push。
+
+`PLANNER_EXCHANGE.md` 的两类表职责不同：Planned and active work announcements 说明跨团队未来/当前影响；Active ownership 只声明当前不能被另一方并行写入的资源。公告关闭后移入 Recently closed，所有权在实现结束后释放。
+
 **串行点会变化**：
 - 文件锁 `<RESOURCE_LOCK>` 只解决同机独占资源（编辑器、GPU、端口、设备）。
 - 分布式下，各机器的编辑器互不抢；真正要串行的是 **merge-hostile 资源归属**：场景、预制体、二进制资产、设计稿、数据表、部署目标等。动前在 `PLANNER_EXCHANGE.md` 登记归属，能代码化生成就少手改。
@@ -248,7 +257,7 @@ rm <RESOURCE_LOCK>
 | `plans/XX-标签-名.md` | 单个任务的任务书(目标/验收/实现/执行经验) | 规划者出初版，执行者补实现层+§执行经验 | 执行者(领任务)、规划者(审查) |
 | `PROJECT_STATE.md` | 项目速览:可用状态、进度、里程碑、协作协议 | 规划者(每个 plan 完成后更新) | 规划者(开工前)；执行者一般不读 |
 | `LESSONS.md` | 经验库,按工种分类索引 | 规划者(merge 时提炼) | 执行者**只读匹配 §section**、规划者 |
-| `PLANNER_EXCHANGE.md` | 协调板：任务认领 / 资源归属 / 决策变更 / 预警 / 待拍板 | 任一节点(人/AI) | 所有节点(开工前扫一眼) |
+| `PLANNER_EXCHANGE.md` | 协调板：跨 Planner 工作公告 / 任务认领 / 资源归属 / 决策变更 / 预警 / 待拍板 | 任一 Planner/节点 | 所有节点（Planner 出计划前、Executor 开工前） |
 
 - **LESSONS 关键设计**：顶部**分类索引表**（按工种打标签 `PCG/GAME/FIX/...` + 各类经验数），正文按 §section 分章。执行者**只读匹配标签那章 + §DEBUG**，不整文件加载（经验库会涨）。
 - **plan 命名**：`plans/<序号>-<工种标签>-<简短名>.md`，序号单调递增不复用。工种标签除领域（`GAME/PCG/...`）外，还有 `META`（流程/工具）、`FIX`（bug）、`REFACTOR`（专门还技术债，见 §3.8）。
