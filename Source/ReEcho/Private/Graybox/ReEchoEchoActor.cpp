@@ -88,7 +88,6 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 	ConfigureEchoAppearance(Recording.BuildSnapshot.CharacterId);
 	DamageEfficiency = Efficiency;
 	Playback->LoadRecording(Recording);
-	Playback->OnReplayWeapon.AddDynamic(this, &AReEchoEchoActor::HandleReplayedWeapon);
 
 	for (TActorIterator<AReEchoTrajectoryActor> TrajectoryIterator(GetWorld()); TrajectoryIterator;
 	     ++TrajectoryIterator)
@@ -110,14 +109,12 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
 		Weapon->InitializeWeapon(&Recording.BuildSnapshot, Snapshot);
-		FName InitialWeaponId = Recording.BuildSnapshot.WeaponId;
-		if (!Recording.WeaponChanges.IsEmpty())
+		if (!Weapon->SelectWeaponById(Recording.BuildSnapshot.WeaponId))
 		{
-			InitialWeaponId = Recording.WeaponChanges[0].WeaponId;
-		}
-		if (!Weapon->SelectWeaponById(InitialWeaponId))
-		{
-			UE_LOG(LogReEcho, Error, TEXT("Cannot initialize echo with WeaponId '%s'"), *InitialWeaponId.ToString());
+			UE_LOG(LogReEcho,
+			       Error,
+			       TEXT("Cannot initialize echo with WeaponId '%s'"),
+			       *Recording.BuildSnapshot.WeaponId.ToString());
 			Weapon->Destroy();
 			Weapon = nullptr;
 			return false;
@@ -182,24 +179,6 @@ FName AReEchoEchoActor::GetEquippedWeaponId() const
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 {
 	Playback->AdvancePlayback(EncounterTime);
-}
-
-void AReEchoEchoActor::HandleReplayedWeapon(const FName WeaponId, const float)
-{
-	if (Weapon)
-	{
-		if (!Weapon->SelectWeaponById(WeaponId))
-		{
-			UE_LOG(LogReEcho, Error, TEXT("Cannot replay echo WeaponId '%s'"), *WeaponId.ToString());
-			return;
-		}
-		const float PreviousHealth = Combatant->CurrentHealth;
-		FReEchoStatBlock EchoStats = Weapon->GetBuildSnapshot().Stats;
-		EchoStats.PhysicalAttack = FMath::Max(1.0f, EchoStats.PhysicalAttack * DamageEfficiency);
-		EchoStats.ElementalAttack = FMath::Max(1.0f, EchoStats.ElementalAttack * DamageEfficiency);
-		Combatant->InitializeFromStats(EchoStats, false);
-		Combatant->RestoreCurrentHealth(PreviousHealth);
-	}
 }
 
 void AReEchoEchoActor::Tick(const float DeltaSeconds)

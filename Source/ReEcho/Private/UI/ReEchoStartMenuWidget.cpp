@@ -53,6 +53,10 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	{
 		NewGameButton->OnClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleNewGameClicked);
 	}
+	if (GameSettingsButton)
+	{
+		GameSettingsButton->OnClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleGameSettingClicked);
+	}
 	RefreshMenu();
 	if (bHasSavedRun && ContinueButton)
 	{
@@ -61,6 +65,10 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	else if (NewGameButton)
 	{
 		NewGameButton->SetKeyboardFocus();
+	}
+	else if (GameSettingsButton)
+	{
+		GameSettingsButton->SetKeyboardFocus();
 	}
 }
 
@@ -113,6 +121,8 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 	    WidgetTree, Content, TEXT("ContinueButton"), TEXT("继续游戏"), FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
 	NewGameButton = AddStartButton(
 	    WidgetTree, Content, TEXT("NewGameButton"), TEXT("新开始游戏"), FLinearColor(0.12f, 0.32f, 0.62f, 1.0f));
+	GameSettingsButton = AddStartButton(
+	    WidgetTree, Content, TEXT("GameSettingsButton"), TEXT("游戏设置"), FLinearColor(0.12f, 0.32f, 0.62f, 1.0f));
 	RefreshMenu();
 }
 
@@ -137,4 +147,9 @@ void UReEchoStartMenuWidget::HandleNewGameClicked()
 void UReEchoStartMenuWidget::HandleContinueClicked()
 {
 	OnContinueGameRequested.Broadcast();
+}
+
+void UReEchoStartMenuWidget::HandleGameSettingClicked()
+{
+	OnGameSettingRequested.Broadcast();
 }

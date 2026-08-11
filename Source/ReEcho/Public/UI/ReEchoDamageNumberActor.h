@@ -6,7 +6,9 @@
 
 class UTextRenderComponent;
 
+/** 在受击位置短暂显示并向上飘动的世界空间伤害数字。 */
 UCLASS()
+
 class REECHO_API AReEchoDamageNumberActor : public AActor
 {
 	GENERATED_BODY()
@@ -16,6 +18,7 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** 创建并初始化一次伤害数字表现。 */
 	static void SpawnDamageNumber(
 		UWorld* World,
 		const FVector& WorldLocation,

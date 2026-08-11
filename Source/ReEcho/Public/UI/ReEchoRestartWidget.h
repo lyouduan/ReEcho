@@ -11,6 +11,7 @@ class UTextBlock;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoRestartRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoResumeRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoQuitRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoSettingsRequested);
 
 /** 运行时结算菜单：复用同一界面呈现暂停、死亡和胜利状态。 */
 UCLASS()
@@ -28,6 +29,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FReEchoQuitRequested OnQuitRequested;
+
+	UPROPERTY(BlueprintAssignable)
+	FReEchoSettingsRequested OnSettingsRequested;
 
 	void SetDeathScreen(bool bInDeathScreen);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
@@ -53,6 +57,9 @@ private:
 	UFUNCTION()
 	void HandleQuitClicked();
 
+	UFUNCTION()
+	void HandleSettingsClicked();
+
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> TitleText;
 
@@ -67,6 +74,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> QuitButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> SettingsButton;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> QuitButtonText;

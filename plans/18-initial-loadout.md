@@ -11,23 +11,23 @@ Before encounter 1 of a new run, require the player to select one character and 
 - Confirmation is disabled until both choices are explicit.
 - Confirming writes the character and weapon into `CurrentBuild`, saves the planning checkpoint, and then starts encounter 1.
 - Continue restores the saved character and weapon without reopening the loadout panel.
-- Runtime weapon switching remains available. Successful changes update `CurrentBuild`, the recording timeline and echo playback.
+- The selected weapon is immutable for the full run. Continue and echo initialization restore it from the saved build snapshot.
 - Continue restores the weapon active at the saved checkpoint.
 
 ## Verification
 
 - Format all changed C++ files.
 - Build the Editor target with the editor closed.
-- Run all `ReEcho.*` automation, including loadout, weapon-switch recording and save restoration coverage.
+- Run all `ReEcho.*` automation, including loadout, run-locked recording and save restoration coverage.
 - Run static validation and `git diff --check`.
-- Human PIE: verify new game blocks on both choices, encounter 1 uses the selection, 1/2/3 still switch weapons, and continue restores the saved current weapon.
+- Human PIE: verify new game blocks on both choices, encounter 1 uses the selection, 1/2/3 do not switch weapons, and continue restores the saved weapon.
 
 ## Execution notes
 
 - Added a mergeable C++ loadout panel between new-game selection and encounter 1.
 - Character choices now come from the shared typed character snapshot; the runtime-only Cat row is excluded by table metadata.
 - Weapon choices currently come from the existing runtime weapon registry and retain their presentation mapping until Plan 24 migrates weapon presentation to CSV.
-- The original full-run weapon-lock proposal was rejected during remote/local integration. Input mappings, GAS switching, run-state updates, recording events and echo replay remain local-authoritative.
+- A later direct user decision supersedes the earlier integration choice: remove the complete runtime-switch chain while retaining pre-run selection, save restoration and echo initialization.
 - Missing character or weapon configuration fails loudly at run start or save restoration instead of silently falling back.
 - Static validation and `git diff --check` must be rerun after integration.
 - Development Editor build passes, including the C++ loadout widget and its image cards.

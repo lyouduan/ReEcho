@@ -92,14 +92,14 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - [ ] 工作簿源行追踪可复查，尤其保留武器插槽 78 行审计、62 条无名 disabled 行和批准启用批次。
 - [ ] `武器体系（废案）`、`怪物体系M`、`经济系统` 不会被当前生成器误写入生产 CSV；`属性S` 的参考身份明确且无重复运行时权威。
 - [ ] 七个生产 Sheet 和三个系统 Sheet 均完成渲染/目视检查：可编辑技术区与只读参考区可区分，表头冻结，枚举/布尔等有限值尽量使用数据验证，说明无明显截断或遮挡，系统契约受保护。
-- [ ] 武器领域只有在 Plan 24 最终 schema/hash 契约冻结后接入；生成结果不得改变三个旧热键、三个 StartSelectable、`W_J_04` 或历史 WeaponId 语义。
+- [ ] 武器领域只有在 Plan 24 最终 schema/hash 契约冻结后接入；生成结果不得改变三个兼容 `InputSlot` 值、三个 StartSelectable、`W_J_04` 或历史 WeaponId 语义。`InputSlot` 仅作为数据兼容字段，不得恢复局内热键切换。
 - [ ] 静态验证将 XLSX→CSV check 纳入 `scripts/validate_project.py` 或等价快速入口；失败证据区分“工作簿错误”“生成漂移”“运行时 schema 错误”。
 - [ ] 干净 clone 可执行生成/check、Editor Development build、全量 `ReEcho.*`、Shipping Cook/Pak/Archive CSV staging smoke 和 `git diff --check`。
 
 ### Human unified verification
 
 - [ ] 策划在 XLSX 修改一个角色数值、一个卡牌数值、一个反应数值、一个武器数值和一个配件数值，生成 CSV 后无需重新编译即可在新 Run 生效。
-- [ ] 统一回归开始/继续、局中保存退出、角色/武器选择、抽卡→商店、武器切换、玩家/回响、元素反应和代表性配件。
+- [ ] 统一回归开始/继续、局中保存退出、角色/武器选择、抽卡→商店、整局武器锁定、玩家/回响、元素反应和代表性配件；确认 `1/2/3` 不会切换武器，继续游戏与回响均使用开局选定的 WeaponId。
 - [ ] 策划能从生成错误直接定位到工作表和单元格，不需要阅读 C++ 或 Python 堆栈。
 
 ## Step 0 gates
@@ -134,7 +134,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 ### Changed
 
 - Created the repository canonical workbook `Design/Data/ReEchoData.xlsx` from the supplied source workbook layout, with familiar Chinese production/reference sheets preserved and protected `_WorkbookMeta`, `_ExportMap`, and `_SystemData` sheets added.
-- Seeded every machine export Table from the accepted Plan24 production CSVs, not from stale source workbook values. Runtime CSV semantics, stable IDs, enabled batches, hotkeys, and save-compatible identifiers remain unchanged.
+- Seeded every machine export Table from the accepted Plan24 production CSVs, not from stale source workbook values. Runtime CSV semantics, stable IDs, enabled batches, compatibility `InputSlot` values, and save-compatible identifiers remain unchanged; `InputSlot` no longer implies a runtime hotkey.
 - Added the deterministic XLSX sync chain in `scripts/data/sync_xlsx_to_csv.py`, repository-pinned Python dependency setup in `scripts/data/requirements.txt`, usage notes in `scripts/data/README.md`, focused generator tests, and `scripts/validate_project.py` integration.
 - Added `Design/Data/ReEchoData.migration.md` to document source-workbook/reference-only differences and the authority decision used during the first migration.
 - Updated data authoring documentation and shared project state/codebase/lesson notes for the new workbook-authored CSV flow.
@@ -196,13 +196,13 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Bundled artifact-tool 2.8.6 enumerates only 4 of the package-level 8 picture objects and does not paint worksheet images in `workbook.render()` in this environment; Excel/PDF visual verification remains necessary for image-bearing sheets until the renderer is fixed.
 - Protection metadata is checked programmatically, but this follow-up intentionally performed no visual rendering; the user owns the remaining workbook visual acceptance.
 - Human value-edit validation is still required to prove the designer workflow end-to-end in Excel/WPS-style editing conditions rather than only through generated fixtures.
-- Unified PIE remains the final human confidence pass for interactive save/continue, draw/shop, weapon switching, reactions, and representative parts after this data-authoring layer.
+- Unified PIE remains the final human confidence pass for interactive save/continue, draw/shop, full-run weapon locking, reactions, and representative parts after this data-authoring layer.
 - The first Shipping package attempt exposed a transient Zen local service startup failure; the rerun passed, but future packaging should still record Zen status if the local service is cold.
 
 ### Human validation requested
 
 - In `Design/Data/ReEchoData.xlsx`, edit one character value, one card value, one reaction value, one weapon value, and one part/effect value; add and remove representative Table rows in Excel/WPS; run the sync command and confirm the changed CSV values take effect in a new run without recompiling.
-- Run the unified PIE route: start, continue, save-and-quit mid-run, character/weapon selection, draw-to-shop, weapon switching, player/echo interactions, elemental reactions, and representative parts.
+- Run the unified PIE route: start, continue, save-and-quit mid-run, character/weapon selection, draw-to-shop, verify `1/2/3` cannot switch the selected weapon, confirm continue/echo retain the initial WeaponId, then cover player/echo interactions, elemental reactions, and representative parts.
 - Confirm designers can identify and correct workbook errors from the generated sheet/table/row/column diagnostics without reading Python or C++ stack traces.
 
 ## 执行者启动 prompt

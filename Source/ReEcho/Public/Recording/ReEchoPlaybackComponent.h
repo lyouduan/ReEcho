@@ -14,13 +14,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
 	float,
 	RecordedTime);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
-	FReEchoReplayWeapon,
-	FName,
-	WeaponId,
-	float,
-	RecordedTime);
-
 /** 回响回放器：按遭遇时间读取历史构筑，并依次补播技能与武器事件。 */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 class REECHO_API UReEchoPlaybackComponent : public UActorComponent
@@ -32,9 +25,6 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FReEchoReplaySkill OnReplaySkill;
-
-	UPROPERTY(BlueprintAssignable)
-	FReEchoReplayWeapon OnReplayWeapon;
 
 	/** 装载录制并重置所有事件游标，供新回响从头播放。 */
 	UFUNCTION(BlueprintCallable)
@@ -55,5 +45,4 @@ private:
 	FReEchoRecording Recording;
 
 	int32 NextSkillIndex = 0;
-	int32 NextWeaponIndex = 0;
 };

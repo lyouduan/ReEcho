@@ -15,7 +15,7 @@ class UStaticMeshComponent;
 class UTexture2D;
 struct FReEchoCsvDataSnapshot;
 
-/** 回响分身：按固定时间轴重放历史位置、技能和武器事件。 */
+/** 回响分身：使用录制构筑中的锁定武器，按固定时间轴重放历史位置与技能。 */
 UCLASS()
 
 class REECHO_API AReEchoEchoActor : public AActor
@@ -43,9 +43,6 @@ public:
 	FName GetEquippedWeaponId() const;
 
 private:
-	UFUNCTION()
-	void HandleReplayedWeapon(FName WeaponId, float RecordedTime);
-
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;
 

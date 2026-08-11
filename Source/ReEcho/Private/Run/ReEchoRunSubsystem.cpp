@@ -51,15 +51,6 @@ bool ValidateRecordingAgainstSnapshot(const FReEchoCsvDataSnapshot& Snapshot,
 	{
 		return false;
 	}
-	for (const FReEchoWeaponEvent& WeaponChange : Recording.WeaponChanges)
-	{
-		if (!Snapshot.FindEnabledWeapon(WeaponChange.WeaponId))
-		{
-			OutError = FString::Printf(TEXT("Recording references unknown or disabled WeaponId '%s'"),
-			                           *WeaponChange.WeaponId.ToString());
-			return false;
-		}
-	}
 	return true;
 }
 
@@ -375,27 +366,6 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	RunDataSnapshot = Snapshot;
 	CurrentBuild = ResolveResult.Build;
 	SetPhase(EReEchoRunPhase::Planning);
-}
-
-bool UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
-{
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
-	    RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
-	if (!Snapshot.IsValid())
-	{
-		UE_LOG(
-		    LogReEcho, Warning, TEXT("Cannot equip WeaponId '%s': CSV snapshot is unavailable"), *WeaponId.ToString());
-		return false;
-	}
-	FReEchoBuildSnapshot Candidate;
-	FString Error;
-	if (!ReEchoWeaponRuntime::TrySelectWeapon(*Snapshot, CurrentBuild, WeaponId, Candidate, Error))
-	{
-		UE_LOG(LogReEcho, Warning, TEXT("%s"), *Error);
-		return false;
-	}
-	CurrentBuild = Candidate;
-	return true;
 }
 
 bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& OutError)

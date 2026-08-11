@@ -124,27 +124,21 @@ bool FReEchoGasDeathAndTagsTest::RunTest(const FString& Parameters)
 	         Fixture.AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::Cooldown_Attack_Basic));
 	TestFalse(TEXT("Cooldown rejects basic activation"), Fixture.AbilitySystem->TryActivateAbility(BasicHandle));
 
-	FGameplayAbilitySpec SwitchSpec(UReEchoSelectWeaponSlot1Ability::StaticClass(), 1);
-	SwitchSpec.GetDynamicSpecSourceTags().AddTag(ReEchoGameplayTags::Input_Weapon_1);
-	const FGameplayAbilitySpecHandle SwitchHandle = Fixture.AbilitySystem->GiveAbility(SwitchSpec);
-	Fixture.AbilitySystem->AddLooseGameplayTag(ReEchoGameplayTags::State_Menu);
-	TestFalse(TEXT("Menu state rejects weapon ability"), Fixture.AbilitySystem->TryActivateAbility(SwitchHandle));
-	Fixture.AbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Menu);
 	Fixture.AbilitySystem->RemoveActiveEffectsWithGrantedTags(
 	    FGameplayTagContainer(ReEchoGameplayTags::Cooldown_Attack_Basic));
+	Fixture.AbilitySystem->AddLooseGameplayTag(ReEchoGameplayTags::State_Menu);
+	TestFalse(TEXT("Menu state rejects basic attack"), Fixture.AbilitySystem->TryActivateAbility(BasicHandle));
+	Fixture.AbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Menu);
 	Fixture.AbilitySystem->TryActivateAbility(BasicHandle);
 	GrantedBasic = Fixture.AbilitySystem->FindAbilitySpecFromHandle(BasicHandle);
 	TestTrue(TEXT("Failed execution ends ability and cleans active state"), GrantedBasic && !GrantedBasic->IsActive());
 
 	const UReEchoBasicAttackAbility* Basic = GetDefault<UReEchoBasicAttackAbility>();
 	const UReEchoActiveAttackAbility* Active = GetDefault<UReEchoActiveAttackAbility>();
-	const UReEchoSelectWeaponSlot1Ability* Switch = GetDefault<UReEchoSelectWeaponSlot1Ability>();
 	TestTrue(TEXT("Basic attack has ability tag"),
 	         Basic->GetAssetTags().HasTagExact(ReEchoGameplayTags::Ability_Attack_Basic));
 	TestTrue(TEXT("Active attack has ability tag"),
 	         Active->GetAssetTags().HasTagExact(ReEchoGameplayTags::Ability_Attack_Active));
-	TestTrue(TEXT("Weapon switch has ability tag"),
-	         Switch->GetAssetTags().HasTagExact(ReEchoGameplayTags::Ability_Weapon_Switch));
 	return true;
 }
 

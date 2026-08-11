@@ -15,6 +15,7 @@ class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoTraitCardSelected, FName, CardId);
 
+/** 展示三选一特质/锻造卡，并在揭示完成后接受一次选择。 */
 UCLASS()
 
 class REECHO_API UReEchoTraitCardChoiceWidget : public UUserWidget
@@ -27,6 +28,7 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoTraitCardSelected OnCardSelected;
 
+	/** 装载本轮候选项并重置逐张揭示动画。 */
 	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers, int32 InTimeShards, bool bInForgeChoice);
 
 protected:

@@ -14,6 +14,7 @@ Show a blocking start panel before gameplay. A profile without a valid run save 
 - Failed and completed runs remove the resumable save.
 - No binary assets are required; the panel is built in mergeable C++ like the existing pause menu.
 - Esc opens the existing pause menu. Its exit action becomes a second confirmation step with only "返回游戏" and "确认退出"; confirming still saves the current state first, and save failure keeps the game open.
+- The start and pause menus open one shared placeholder game-settings widget with graphics, audio and control categories. Concrete values, persistence and key rebinding are deferred.
 
 ## Verification
 
@@ -32,3 +33,5 @@ Show a blocking start panel before gameplay. A profile without a valid run save 
 - Full closed-editor `ReEchoEditor Win64 Development` build passed on 2026-08-10. All 16 `ReEcho.*` automation tests passed, including expanded `ReEcho.Run.SaveSnapshot` coverage; `git diff --check` passed.
 - The reported `ReEchoAbilitySystemTests.cpp:54` crash was a Live Coding patch static automation registration failure. A full base-DLL build and test run load cleanly; do not Live Code this runtime module while automation tests are compiled in.
 - Remaining human check: PIE the two confirmation buttons, verify saved health/positions/enemy state after a real quit/relaunch, and review Chinese glyph/DPI layout. Human acceptance is still pending.
+- Added one standalone settings-page skeleton shared by the start and pause menus: graphics, audio and control category navigation plus placeholder restore/apply actions. No runtime setting is changed or saved yet; closing returns to the menu that opened it.
+- The shared settings page follows a two-column layout: category navigation on the left and the selected category's placeholder detail panel on the right.

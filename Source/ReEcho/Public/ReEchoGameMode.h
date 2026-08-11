@@ -11,6 +11,7 @@ class UReEchoInventoryShopWidget;
 class UReEchoLoadoutSelectionWidget;
 class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
+class UReEchoSettingsWidget;
 class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
@@ -70,6 +71,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoRestartWidget> RestartWidget;
 	UPROPERTY()
+	TObjectPtr<UReEchoSettingsWidget> SettingsWidget;
+	UPROPERTY()
 	TObjectPtr<UReEchoStartMenuWidget> StartMenuWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoLoadoutSelectionWidget> LoadoutSelectionWidget;
@@ -105,9 +108,6 @@ private:
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
 	UFUNCTION()
-	void HandlePlayerWeaponChanged(FName WeaponId);
-
-	UFUNCTION()
 	void HandlePlayerDeath();
 
 	UFUNCTION()
@@ -124,6 +124,15 @@ private:
 
 	UFUNCTION()
 	void HandleContinueGameRequested();
+
+	UFUNCTION()
+	void HandleStartSettingsRequested();
+
+	UFUNCTION()
+	void HandlePauseSettingsRequested();
+
+	UFUNCTION()
+	void HandleSettingsClosed();
 
 	UFUNCTION()
 	void HandleLoadoutConfirmed(FName CharacterId, FName WeaponId);
@@ -154,6 +163,7 @@ private:
 	void ClearCombatants();
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
+	void ShowSettingsScreen(bool bReturnToStartMenu);
 	void ShowTraitCardChoice();
 	void ShowStartMenu();
 	void ShowLoadoutSelection();
@@ -161,4 +171,5 @@ private:
 	void SetGameplayPresentationVisible(bool bVisible);
 	void RestoreGameInput();
 	void SetPlayerMenuAbilityBlocked(bool bBlocked);
+	bool bSettingsReturnToStartMenu = false;
 };

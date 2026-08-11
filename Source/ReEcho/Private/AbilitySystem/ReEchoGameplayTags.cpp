@@ -4,12 +4,8 @@ namespace ReEchoGameplayTags
 {
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Attack_Basic, "Ability.Attack.Basic", "Basic attack ability");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Attack_Active, "Ability.Attack.Active", "Active attack ability");
-UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Weapon_Switch, "Ability.Weapon.Switch", "Weapon switch ability");
 UE_DEFINE_GAMEPLAY_TAG(Input_Attack_Basic, "Input.Attack.Basic");
 UE_DEFINE_GAMEPLAY_TAG(Input_Attack_Active, "Input.Attack.Active");
-UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_1, "Input.Weapon.1");
-UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_2, "Input.Weapon.2");
-UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_3, "Input.Weapon.3");
 UE_DEFINE_GAMEPLAY_TAG(State_Dead, "State.Dead");
 UE_DEFINE_GAMEPLAY_TAG(State_Attacking, "State.Attacking");
 UE_DEFINE_GAMEPLAY_TAG(State_Stunned, "State.Stunned");
