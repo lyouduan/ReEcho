@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from copy import copy
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -95,9 +96,16 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         tables = sync.workbook_tables(wb)
         return tables[table_name][0]
 
+    def set_cell_locked(self, wb, table_name: str, address: str, locked: bool) -> None:
+        cell = self.sheet_with_table(wb, table_name)[address]
+        protection = copy(cell.protection)
+        protection.locked = locked
+        cell.protection = protection
+
     def test_export_map_covers_manifest_without_duplicate_ownership(self) -> None:
         wb = load_workbook(CANONICAL, read_only=False)
         owners = sync.read_export_map(wb)
+        sync.validate_workbook_protection(wb, owners)
         outputs = [owner.output_csv for owner in owners]
         self.assertEqual(sorted(outputs), sorted(sync.TABLE_TO_CSV.values()))
         self.assertEqual(len(outputs), len(set(outputs)))
@@ -108,6 +116,20 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblCards").title]), ["card_effects.csv", "cards.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblWeapons").title]), ["attack_steps.csv", "weapon_types.csv", "weapons.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblParts").title]), ["part_effects.csv", "parts.csv", "slot_profiles.csv", "slot_types.csv"])
+        for table_name in sync.AUTHORING_TABLES:
+            sheet, table = sync.workbook_tables(wb)[table_name]
+            self.assertTrue(sheet.protection.sheet, table_name)
+            self.assertFalse(sheet.protection.insertRows, table_name)
+            self.assertFalse(sheet.protection.deleteRows, table_name)
+            cells = sheet[table.ref]
+            self.assertTrue(all(cell.protection.locked for cell in cells[0]), table_name)
+            self.assertTrue(all(not cell.protection.locked for row in cells[1:] for cell in row), table_name)
+        for sheet_name in sync.SYSTEM_SHEETS:
+            sheet = wb[sheet_name]
+            self.assertTrue(sheet.protection.sheet, sheet_name)
+            self.assertTrue(sheet.protection.insertRows, sheet_name)
+            self.assertTrue(sheet.protection.deleteRows, sheet_name)
+            self.assertTrue(all(cell.protection.locked for row in sheet.iter_rows() for cell in row), sheet_name)
 
     def test_output_is_deterministic_and_matches_accepted_csv_bytes(self) -> None:
         with tempfile.TemporaryDirectory(prefix="reecho_xlsx_out_a_") as first, tempfile.TemporaryDirectory(prefix="reecho_xlsx_out_b_") as second:
@@ -162,6 +184,8 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["P4"], "value", "Unknown.Handler"), "behavior id")
         self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblRuntimeSmoke")["D4"], "value", "=1+1"), "Formula cells are not allowed")
         self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblExportMap")["D2"], "value", "../characters.csv"), "plain manifest filename")
+        self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblCharacters", "G4", True), "must be unlocked for authoring")
+        self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblRuntimeSmoke", "A4", False), "must remain locked")
 
     def test_publish_failure_rolls_back_all_changed_bytes(self) -> None:
         generated = self.generated_bytes()

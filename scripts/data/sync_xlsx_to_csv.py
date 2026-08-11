@@ -46,6 +46,11 @@ TABLE_TO_CSV = {
     "tblRuntimeSmokeEffects": "runtime_smoke_effects.csv",
 }
 
+SYSTEM_TABLES = frozenset({"tblRuntimeSmoke", "tblRuntimeSmokeEffects"})
+AUTHORING_TABLES = frozenset(TABLE_TO_CSV) - SYSTEM_TABLES
+SYSTEM_SHEETS = ("_WorkbookMeta", "_ExportMap", "_SystemData")
+LOCKED_REFERENCE_SHEETS = ("属性S", "武器体系（废案）", "怪物体系M", "经济系统")
+
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -282,6 +287,76 @@ def read_export_map(workbook) -> list[ExportOwner]:
     return sorted(owners, key=lambda owner: (owner.sort_key, owner.output_csv))
 
 
+def validate_workbook_protection(workbook, owners: list[ExportOwner]) -> None:
+    from openpyxl.utils.cell import get_column_letter, range_boundaries
+
+    tables = workbook_tables(workbook)
+    editable_ranges: dict[str, list[tuple[int, int, int, int, str]]] = {}
+
+    for owner in owners:
+        if owner.table not in tables:
+            raise LocatedError(owner.sheet, owner.table, 1, "TableName", "Workbook table is missing")
+
+    for owner in owners:
+        if owner.table not in AUTHORING_TABLES:
+            continue
+        sheet, table = tables[owner.table]
+        min_col, min_row, max_col, max_row = range_boundaries(table.ref)
+        if not sheet.protection.sheet:
+            raise LocatedError(sheet.title, owner.table, min_row, "Protection", "Authoring sheet protection must remain enabled")
+        if sheet.protection.insertRows or sheet.protection.deleteRows:
+            raise LocatedError(
+                sheet.title,
+                owner.table,
+                min_row,
+                "Protection",
+                "Authoring sheet must allow Table row insertion and deletion",
+            )
+        for col in range(min_col, max_col + 1):
+            if not sheet.cell(row=min_row, column=col).protection.locked:
+                raise LocatedError(sheet.title, owner.table, min_row, get_column_letter(col), "Table headers must remain locked")
+        for row in range(min_row + 1, max_row + 1):
+            for col in range(min_col, max_col + 1):
+                if sheet.cell(row=row, column=col).protection.locked:
+                    raise LocatedError(
+                        sheet.title,
+                        owner.table,
+                        row,
+                        get_column_letter(col),
+                        "Production Table data cells must be unlocked for authoring",
+                    )
+        editable_ranges.setdefault(sheet.title, []).append((min_col, min_row + 1, max_col, max_row, owner.table))
+
+    for sheet_name, ranges in editable_ranges.items():
+        sheet = workbook[sheet_name]
+        for row in sheet.iter_rows():
+            for cell in row:
+                if cell.protection.locked:
+                    continue
+                if not any(min_col <= cell.column <= max_col and min_row <= cell.row <= max_row for min_col, min_row, max_col, max_row, _ in ranges):
+                    raise LocatedError(
+                        sheet.title,
+                        ranges[0][4],
+                        cell.row,
+                        cell.column_letter,
+                        "Only production Table data cells may be unlocked",
+                    )
+
+    for sheet_name in (*SYSTEM_SHEETS, *LOCKED_REFERENCE_SHEETS):
+        if sheet_name not in workbook.sheetnames:
+            raise SyncError(f"Protected workbook sheet is missing: {sheet_name}")
+        sheet = workbook[sheet_name]
+        diagnostic_table = next(iter(sheet.tables), "tblProtection")
+        if not sheet.protection.sheet:
+            raise LocatedError(sheet.title, diagnostic_table, 1, "Protection", "Protected sheet must remain enabled")
+        if not sheet.protection.insertRows or not sheet.protection.deleteRows:
+            raise LocatedError(sheet.title, diagnostic_table, 1, "Protection", "Protected sheet must forbid row insertion and deletion")
+        for row in sheet.iter_rows():
+            for cell in row:
+                if not cell.protection.locked:
+                    raise LocatedError(sheet.title, diagnostic_table, cell.row, cell.column_letter, "Protected sheet cells must remain locked")
+
+
 def extract_export_map_rows(sheet, table):
     from openpyxl.utils.cell import range_boundaries
 
@@ -335,6 +410,7 @@ def generate_package(input_path: Path, package_dir: Path):
 
     workbook = load_workbook(input_path, data_only=False, read_only=False)
     owners = read_export_map(workbook)
+    validate_workbook_protection(workbook, owners)
     tables = workbook_tables(workbook)
     schema_columns = load_schema()
     schema_specs = load_schema_specs()

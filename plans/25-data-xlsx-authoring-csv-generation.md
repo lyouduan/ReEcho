@@ -143,6 +143,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Planner-blocker follow-up: rewrote transaction tests to use temporary `data_dir` packages with valid but intentionally different old CSV bytes, avoiding any writes to real `Content/Data`.
 - Planner-blocker follow-up: repaired workbook visual/protection details by restoring source row heights, widening/wrapping technical columns, and keeping `_SystemData` fully locked.
 - Second Planner-blocker follow-up: re-exported the canonical workbook through artifact-tool so the XLSX package opens in Excel, rebuilt the 8 source images as standard embedded picture drawings under `xl/media`, restored the workbook protection contract, and wrote actual `A2` frozen panes on all seven production sheets plus the three system sheets.
+- Authoring-protection follow-up: unlocked only the data bodies of all 14 designer-owned production Tables and allowed Table row insertion/deletion on their protected sheets. Table headers, schema/reference cells, standalone ReferenceOnly sheets, and all three system sheets remain locked; the generator now rejects protection-contract regressions.
 - Added `.gitignore` rules for Python bytecode/cache folders and local generator transaction/temp artifacts.
 
 ### Evidence
@@ -153,13 +154,15 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - `python scripts\data\sync_xlsx_to_csv.py --sheet "武器体系W"` passed after full temporary snapshot validation and published only `weapon_types.csv`, `weapons.csv`, and `attack_steps.csv`.
 - `python scripts\data\test_sync_xlsx_to_csv.py` passed 8 tests covering manifest ownership, multi-Table sheets, deterministic bytes, read-only drift detection, `--sheet`, non-canonical input guardrails, bad workbook diagnostics, publish rollback, and legacy transaction recovery.
 - After Planner-blocker fixes, `python scripts\data\test_sync_xlsx_to_csv.py` passed 10 tests, adding isolated temporary-data-dir coverage for final project validator rollback, malicious/stale marker rejection, legacy recovery without regeneration, and `--sheet` non-owned-file mtime/file-id stability.
+- After the authoring-protection follow-up, the same 10-test suite passed with added assertions that all 14 production Table data bodies are unlocked, their headers remain locked, their protected sheets allow row insertion/deletion, and all three system sheets remain fully locked. Negative fixtures also prove relocking a production cell or unlocking a system cell fails with located diagnostics.
 - `python scripts\validate_project.py` passed, including the integrated XLSX authoring drift check.
 - `scripts\ue\Build-Editor.cmd -Configuration Development` passed.
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho` exited 0; `Saved\Logs\ReEcho.log` reported 34 ReEcho automation tests and `**** TEST COMPLETE. EXIT CODE: 0 ****`.
 - `python scripts\ue\package_windows.py --smoke-seconds 5` passed Shipping Build/Cook/Stage/Pak/Archive and the packaged `ReEcho.exe` stayed alive for the 5 second smoke window. A first attempt failed while Zen was not yet accepting local oplog reads; the rerun launched Zen successfully and completed.
 - `git diff --check` passed.
 - Workbook visual QA rendered all production/reference/system sheets; sampled production and system previews showed distinct ReferenceOnly vs export areas, readable notes, data validation on constrained columns where practical, and protected system sheets.
-- Final artifact-tool inspection and rendering covered all 13 sheets and found 0 formula-error matches. Drawing inspection reports exactly 8 embedded picture objects: 4 on `角色体系J`, 4 on `武器体系（废案）`, and 0 on each other sheet. Technical headers and ReferenceOnly separation remained readable in the 13 rendered sheets.
+- Package-level OOXML inspection reports 8 embedded picture objects: 4 on `角色体系J` and 4 on `武器体系（废案）`. The current artifact-tool inspection enumerates only the 4 objects on `角色体系J`; it does not enumerate the 4 draft-weapon objects, so artifact-tool is not evidence for an 8-object count.
+- Protection inspection reports 3,042/3,042 production data cells unlocked across the 14 designer-owned Tables, with every Table header still locked. `_WorkbookMeta`, `_ExportMap`, and `_SystemData` retain protection with row insertion/deletion forbidden; the two `_SystemData` Table data bodies remain 15/15 locked. No visual rendering was performed for this follow-up.
 - Package-level worksheet inspection reports `freeze_panes=A2` on `属性S`, `元素体系Y`, `构筑体系G`, `角色体系J`, `武器体系W`, `武器插槽C`, `状态Z`, `_WorkbookMeta`, `_ExportMap`, and `_SystemData`; `武器体系（废案）`, `怪物体系M`, and `经济系统` remain unfrozen.
 - Excel read-only verification opened both the original source and final canonical packages. All 8 final picture shapes reported `Visible=-1`; Excel PDF exports visibly rendered the four character portraits and the source weapon artwork. The bundled artifact-tool 2.8.6 renderer did not paint worksheet-image pixels even in a minimal newly-created image workbook, so its render output is not claimed as image-visibility evidence; artifact-tool drawing inspection plus Excel/PDF rendering are recorded separately.
 
@@ -174,6 +177,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Transaction markers store only the controlled backup directory name and manifest-relative CSV filenames. Recovery validates all targets under `data_dir`, all backups under that marker's backup directory, and refuses absolute paths, `..`, unknown files, and backup-dir escape attempts before replacing anything.
 - CSV writing preserves the accepted CRLF/UTF-8 byte form so an unchanged canonical workbook regenerates byte-identical accepted CSVs.
 - Non-canonical `--input` workbooks are allowed for tests/checks only; they cannot publish to `Content/Data` unless an explicit test output directory or read-only mode is used.
+- Protected designer sheets allow Table row insertion/deletion while only existing production Table data bodies are unlocked. Headers, schema/reference cells, and cells outside those data bodies remain locked, so newly inserted Table rows inherit the editable data-row style without exposing ReferenceOnly content.
 
 ### Intentional CSV differences
 
@@ -184,14 +188,15 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 ### Remaining risks
 
 - `Design/Data/ReEchoData.xlsx` is a binary Git artifact and remains an exclusive ownership resource until Planner acceptance; concurrent edits need Planner coordination.
-- Bundled artifact-tool 2.8.6 can inspect the 8 embedded picture drawings but does not paint worksheet images in `workbook.render()` in this environment; Excel/PDF visual verification remains necessary for image-bearing sheets until the renderer is fixed.
+- Bundled artifact-tool 2.8.6 enumerates only 4 of the package-level 8 picture objects and does not paint worksheet images in `workbook.render()` in this environment; Excel/PDF visual verification remains necessary for image-bearing sheets until the renderer is fixed.
+- Protection metadata is checked programmatically, but this follow-up intentionally performed no visual rendering; the user owns the remaining workbook visual acceptance.
 - Human value-edit validation is still required to prove the designer workflow end-to-end in Excel/WPS-style editing conditions rather than only through generated fixtures.
 - Unified PIE remains the final human confidence pass for interactive save/continue, draw/shop, weapon switching, reactions, and representative parts after this data-authoring layer.
 - The first Shipping package attempt exposed a transient Zen local service startup failure; the rerun passed, but future packaging should still record Zen status if the local service is cold.
 
 ### Human validation requested
 
-- In `Design/Data/ReEchoData.xlsx`, edit one character value, one card value, one reaction value, one weapon value, and one part/effect value, run the sync command, and confirm the changed CSV values take effect in a new run without recompiling.
+- In `Design/Data/ReEchoData.xlsx`, edit one character value, one card value, one reaction value, one weapon value, and one part/effect value; add and remove representative Table rows in Excel/WPS; run the sync command and confirm the changed CSV values take effect in a new run without recompiling.
 - Run the unified PIE route: start, continue, save-and-quit mid-run, character/weapon selection, draw-to-shop, weapon switching, player/echo interactions, elemental reactions, and representative parts.
 - Confirm designers can identify and correct workbook errors from the generated sheet/table/row/column diagnostics without reading Python or C++ stack traces.
 
