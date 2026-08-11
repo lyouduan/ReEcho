@@ -14,11 +14,14 @@
 
 ## 2. 获取指定验收版本
 
-不要默认测试远端 `main`。验收负责人必须同时提供：
+Plan25 已验收并进入远端 `main`，其历史任务分支已按收尾规则删除。策划 QA 固定从最新 `origin/main` 创建一次性本地分支，不得要求恢复或猜测旧的 `origin/plan/25-xlsx-authoring`。验收时记录实际提交号，保证结果可追溯。
+
+验收负责人应提供或确认：
 
 - 仓库地址：`https://github.com/lyouduan/ReEcho.git`
-- 验收远端分支，例如 `origin/plan/25-xlsx-authoring`
-- 验收提交号；该提交必须至少包含 `c9e819e` 的严格下拉修订
+- 验收远端分支：`origin/main`
+- 如需冻结验收版本，提供指定提交号；否则以 clone/fetch 时的最新 `origin/main` 为准并记录实际 HEAD
+- 实际验收提交必须至少包含 `c9e819e` 的严格下拉修订
 
 建议使用一个全新的测试目录，避免覆盖策划或程序已有工作。首次拉取示例：
 
@@ -26,19 +29,21 @@
 git clone https://github.com/lyouduan/ReEcho.git ReEcho-Plan25-QA
 cd ReEcho-Plan25-QA
 git fetch origin
-git switch --create qa/plan25-designer origin/plan/25-xlsx-authoring
+git switch --create qa/plan25-designer origin/main
 git status --short --branch
 git log -1 --oneline
+git merge-base --is-ancestor c9e819e HEAD
 ```
 
 开始验收前确认：
 
 - 当前分支是专用本地 QA 分支，不是 `main`。
 - `git status --short` 没有未知修改。
-- 当前提交与验收负责人给出的提交一致或是其后继提交。
+- 已记录当前 `HEAD`；若负责人指定了冻结提交，当前提交与其一致，否则当前提交就是本轮验收基线。
+- `git merge-base --is-ancestor c9e819e HEAD` 返回成功。
 - 没有其他人同时编辑本分支中的 `ReEchoData.xlsx`。
 
-如果分支或提交在远端不存在，停止验收并联系负责人；不要自行改用 `main` 或猜测另一个分支。
+如果 `origin/main` 无法 fetch、负责人指定的冻结提交不存在，或最低提交检查失败，停止验收并联系负责人；不要猜测其他任务/协调分支。历史 Plan25 分支不存在是正常收尾结果，不是停止条件。
 
 ## 3. 准备 Python 与基线检查
 
@@ -175,28 +180,29 @@ C - 游戏效果：通过 / 不通过 / 未测
 
 ## 9. 可交给策划 AI 的前置操作 Prompt
 
-验收负责人应把实际验收提交号补进下面 Prompt 后，再交给策划。
+Plan25 已发布到 `origin/main`。直接把下面 Prompt 交给策划；若需要冻结到某个提交，再把可选的指定提交号补进去。
 
 ```text
 你是 ReEcho Plan25 的策划验收助手。目标是只在我的电脑上准备一个隔离的本地验收环境，并协助我执行仓库、Python 和可选 Unreal 前置检查；视觉判断和最终通过/不通过由我本人完成。
 
 仓库：https://github.com/lyouduan/ReEcho.git
-目标远端分支：origin/plan/25-xlsx-authoring
+目标远端分支：origin/main
 最低必须包含的提交：c9e819e
-验收负责人指定提交：<在这里填入实际验收提交号>
+可选冻结提交：<默认留空并使用 fetch 后最新 origin/main；只有负责人明确指定时填写>
 
 请遵守：
 1. 先检查我指定的目标目录。若已有仓库或未提交修改，不得覆盖、清理、reset、checkout 或删除；改用一个全新的 ReEcho-Plan25-QA 目录，必要时先问我目录位置。
-2. clone/fetch 后，从目标远端分支创建本地 qa/plan25-designer 分支。不得改用 main，不得 merge，不得 push。
-3. 用 git 证明当前 HEAD 等于验收负责人指定提交，或是包含该提交的明确后继；同时证明它包含最低提交 c9e819e。远端没有分支/提交时立即停止并反馈。
-4. 阅读 Design/Data/ReEchoData使用说明.md 和 Design/Data/ReEchoData策划验收清单.md。
-5. 检查 Git、Python 3.10+、Excel/WPS 是否可用。执行 python -m pip install -r scripts\data\requirements.txt，然后运行：
+2. 若 Git 不在 PATH，先查找标准安装位置（例如 C:\Program Files\Git\bin\git.exe）并在后续命令中使用完整路径；不要为此安装或修改系统环境。
+3. clone/fetch 后，从 `origin/main` 创建一次性本地 `qa/plan25-designer` 分支。不要检索或恢复已删除的 Plan25 任务分支，不得 merge，不得 push。
+4. 记录 `git rev-parse HEAD`。可选冻结提交留空时，这个 HEAD 就是本轮验收基线；若负责人填写了冻结提交，则 HEAD 必须等于该提交。运行 `git merge-base --is-ancestor c9e819e HEAD` 证明最低修订存在。只有 `origin/main` fetch 失败、指定冻结提交不存在或最低提交检查失败时才停止。
+5. 阅读 Design/Data/ReEchoData使用说明.md 和 Design/Data/ReEchoData策划验收清单.md。
+6. 检查 Git、Python 3.10+、Excel/WPS 是否可用。执行 python -m pip install -r scripts\data\requirements.txt，然后运行：
    python scripts\data\sync_xlsx_to_csv.py --check
    python scripts\validate_project.py
    git status --short --branch
-6. 基线不通过就停止，不要修改 XLSX 或 CSV；把命令、退出码和完整错误告诉我。
-7. 可选检查 Unreal：运行 scripts\ue\Find-UnrealEngine.cmd。若找到 UE 5.8，再检查能否运行 scripts\ue\Build-Editor.cmd；构建前确认 ReEcho Editor 已关闭。缺少 UE、Visual Studio、MSVC 或 Windows SDK 时只报告，不要自动安装大型软件。
-8. 不要打开或修改 ReEchoData.xlsx，不要替我做视觉验收，不要生成测试数值，不要提交或推送任何内容。准备结束后只向我报告：仓库绝对路径、当前分支和提交、基线命令结果、Excel/WPS/Python/UE 可用性，以及我下一步应该打开的文件绝对路径。
+7. 基线不通过就停止，不要修改 XLSX 或 CSV；把命令、退出码和完整错误告诉我。
+8. 可选检查 Unreal：运行 scripts\ue\Find-UnrealEngine.cmd。若找到 UE 5.8，再检查能否运行 scripts\ue\Build-Editor.cmd；构建前确认 ReEcho Editor 已关闭。缺少 UE、Visual Studio、MSVC 或 Windows SDK 时只报告，不要自动安装大型软件。
+9. 不要打开或修改 ReEchoData.xlsx，不要替我做视觉验收，不要生成测试数值，不要提交或推送任何内容。准备结束后只向我报告：仓库绝对路径、当前分支和提交、基线命令结果、Excel/WPS/Python/UE 可用性，以及我下一步应该打开的文件绝对路径。
 
 当我完成表格修改并明确让你继续后，你再按验收清单帮助我关闭表格、运行全量 sync、--check、validate_project.py、展示精确 CSV diff，并提醒我重启 Unreal Editor、点击 Play、选择“新游戏”。恢复测试数据前必须先列出精确文件并等待我确认。
 ```
