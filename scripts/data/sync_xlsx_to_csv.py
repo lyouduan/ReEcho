@@ -51,6 +51,42 @@ AUTHORING_TABLES = frozenset(TABLE_TO_CSV) - SYSTEM_TABLES
 SYSTEM_SHEETS = ("_WorkbookMeta", "_ExportMap", "_SystemData")
 LOCKED_REFERENCE_SHEETS = ("属性S", "武器体系（废案）", "怪物体系M", "经济系统")
 
+AUTHORING_LIST_VALIDATION_COLUMNS = {
+    "tblCharacters": frozenset({"Enabled", "RoleId", "DefaultWeaponId", "PassiveBehaviorId", "RandomElementProjectiles"}),
+    "tblCharacterAliases": frozenset({"CanonicalCharacterId"}),
+    "tblCards": frozenset({"PromotionRoleId", "OfferGroup", "Enabled", "Offerable", "StackPolicy", "ConflictPolicy", "ReviewStatus"}),
+    "tblCardEffects": frozenset({"CardId", "Trigger", "EffectKind", "Target", "ValueOp", "BehaviorId", "ParamName"}),
+    "tblElements": frozenset({"Id", "SourceWorkbookId", "Role", "VisualKey", "Enabled"}),
+    "tblStatuses": frozenset({"BehaviorId", "StackPolicy", "RefreshPolicy", "Enabled"}),
+    "tblReactions": frozenset({
+        "TriggerElementId", "AttachmentElementId", "BehaviorId", "FormulaId", "StatusId", "CanCrit",
+        "AffectedByEchoEfficiency", "ClearsAttachment", "Enabled",
+    }),
+    "tblWeaponTypes": frozenset({"Id", "BaseAttackPatternId", "SlotProfileId", "Enabled"}),
+    "tblWeapons": frozenset({"WeaponTypeId", "VisualKey", "InputSlot", "StartSelectable", "AttackPatternId", "Enabled"}),
+    "tblAttackSteps": frozenset({"AttackPatternId", "Invulnerable", "BehaviorId", "FormulaId", "ConditionId", "Enabled"}),
+    "tblSlotTypes": frozenset({"Enabled"}),
+    "tblSlotProfiles": frozenset({"WeaponTypeId", "SlotTypeId", "Required", "Enabled"}),
+    "tblParts": frozenset({"WeaponTypeId", "SlotTypeId", "Rarity", "Enabled", "ReviewStatus", "ImplementationStatus"}),
+    "tblPartEffects": frozenset({
+        "PartId", "Trigger", "EffectKind", "Target", "ValueOp", "BehaviorId", "FormulaId", "AttackPatternId",
+        "ParamName", "StackPolicy", "Enabled",
+    }),
+}
+
+REFERENCE_LIST_VALIDATION_FORMULAS = {
+    ("tblCharacters", "DefaultWeaponId"): 'INDIRECT("tblWeapons[Id]")',
+    ("tblCharacterAliases", "CanonicalCharacterId"): 'INDIRECT("tblCharacters[Id]")',
+    ("tblCardEffects", "CardId"): 'INDIRECT("tblCards[Id]")',
+    ("tblReactions", "TriggerElementId"): 'INDIRECT("tblElements[Id]")',
+    ("tblReactions", "AttachmentElementId"): 'INDIRECT("tblElements[Id]")',
+    ("tblWeaponTypes", "SlotProfileId"): 'INDIRECT("tblSlotProfiles[Id]")',
+    ("tblWeapons", "WeaponTypeId"): 'INDIRECT("tblWeaponTypes[Id]")',
+    ("tblSlotProfiles", "SlotTypeId"): 'INDIRECT("tblSlotTypes[Id]")',
+    ("tblParts", "SlotTypeId"): 'INDIRECT("tblSlotTypes[Id]")',
+    ("tblPartEffects", "PartId"): 'INDIRECT("tblParts[PartId]")',
+}
+
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -357,6 +393,62 @@ def validate_workbook_protection(workbook, owners: list[ExportOwner]) -> None:
                     raise LocatedError(sheet.title, diagnostic_table, cell.row, cell.column_letter, "Protected sheet cells must remain locked")
 
 
+def validate_workbook_data_validations(workbook) -> None:
+    from openpyxl.utils.cell import range_boundaries
+
+    tables = workbook_tables(workbook)
+    for table_name, column_names in AUTHORING_LIST_VALIDATION_COLUMNS.items():
+        if table_name not in tables:
+            raise SyncError(f"Workbook table is missing: {table_name}")
+        sheet, table = tables[table_name]
+        min_col, min_row, max_col, max_row = range_boundaries(table.ref)
+        headers = [str(sheet.cell(row=min_row, column=col).value or "") for col in range(min_col, max_col + 1)]
+        for column_name in column_names:
+            if column_name not in headers:
+                raise LocatedError(sheet.title, table_name, min_row, column_name, "Validation column is missing")
+            column = min_col + headers.index(column_name)
+            first_cell = sheet.cell(row=min_row + 1, column=column).coordinate
+            last_cell = sheet.cell(row=max_row, column=column).coordinate
+            matches = [
+                validation
+                for validation in sheet.data_validations.dataValidation
+                if validation.type == "list" and first_cell in validation.cells and last_cell in validation.cells
+            ]
+            if not matches:
+                raise LocatedError(
+                    sheet.title,
+                    table_name,
+                    min_row + 1,
+                    column_name,
+                    "Finite or reference field must use an in-cell list validation over the complete Table data column",
+                )
+            strict_matches = [
+                validation
+                for validation in matches
+                if validation.errorStyle == "stop"
+                and validation.showErrorMessage is True
+                and validation.showDropDown in {False, None}
+                and validation.allowBlank in {False, None}
+            ]
+            if not strict_matches:
+                raise LocatedError(
+                    sheet.title,
+                    table_name,
+                    min_row + 1,
+                    column_name,
+                    "List validation must show its dropdown and stop blank or unsupported values",
+                )
+            expected_formula = REFERENCE_LIST_VALIDATION_FORMULAS.get((table_name, column_name))
+            if expected_formula and all(str(validation.formula1 or "").lstrip("=") != expected_formula for validation in strict_matches):
+                raise LocatedError(
+                    sheet.title,
+                    table_name,
+                    min_row + 1,
+                    column_name,
+                    f"Reference dropdown must use {expected_formula}",
+                )
+
+
 def extract_export_map_rows(sheet, table):
     from openpyxl.utils.cell import range_boundaries
 
@@ -411,6 +503,7 @@ def generate_package(input_path: Path, package_dir: Path):
     workbook = load_workbook(input_path, data_only=False, read_only=False)
     owners = read_export_map(workbook)
     validate_workbook_protection(workbook, owners)
+    validate_workbook_data_validations(workbook)
     tables = workbook_tables(workbook)
     schema_columns = load_schema()
     schema_specs = load_schema_specs()

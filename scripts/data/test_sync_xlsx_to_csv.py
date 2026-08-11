@@ -102,10 +102,17 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         protection.locked = locked
         cell.protection = protection
 
+    def remove_validations_for_cell(self, wb, table_name: str, address: str) -> None:
+        sheet = self.sheet_with_table(wb, table_name)
+        sheet.data_validations.dataValidation = [
+            validation for validation in sheet.data_validations.dataValidation if address not in validation.cells
+        ]
+
     def test_export_map_covers_manifest_without_duplicate_ownership(self) -> None:
         wb = load_workbook(CANONICAL, read_only=False)
         owners = sync.read_export_map(wb)
         sync.validate_workbook_protection(wb, owners)
+        sync.validate_workbook_data_validations(wb)
         outputs = [owner.output_csv for owner in owners]
         self.assertEqual(sorted(outputs), sorted(sync.TABLE_TO_CSV.values()))
         self.assertEqual(len(outputs), len(set(outputs)))
@@ -186,6 +193,10 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblExportMap")["D2"], "value", "../characters.csv"), "plain manifest filename")
         self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblCharacters", "G4", True), "must be unlocked for authoring")
         self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblRuntimeSmoke", "A4", False), "must remain locked")
+        self.assert_invalid_workbook(
+            lambda wb: self.remove_validations_for_cell(wb, "tblCharacters", "J4"),
+            "must use an in-cell list validation",
+        )
 
     def test_publish_failure_rolls_back_all_changed_bytes(self) -> None:
         generated = self.generated_bytes()
