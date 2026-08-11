@@ -221,9 +221,6 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	Input->BindAction(TEXT("BasicAttack"), IE_Pressed, this, &AReEchoPlayerPawn::BasicAttack);
 	Input->BindAction(TEXT("BasicAttack"), IE_Released, this, &AReEchoPlayerPawn::StopBasicAttack);
 	Input->BindAction(TEXT("ActiveSkill"), IE_Pressed, this, &AReEchoPlayerPawn::ActivateSkill);
-	Input->BindAction(TEXT("WeaponSlot1"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot1);
-	Input->BindAction(TEXT("WeaponSlot2"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot2);
-	Input->BindAction(TEXT("WeaponSlot3"), IE_Pressed, this, &AReEchoPlayerPawn::SelectWeaponSlot3);
 	FInputActionBinding& PauseBinding =
 	    Input->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AReEchoPlayerPawn::TogglePauseMenu);
 	PauseBinding.bExecuteWhenPaused = true;
@@ -373,9 +370,6 @@ void AReEchoPlayerPawn::GrantStartupAbilities()
 	};
 	GrantAbility(UReEchoBasicAttackAbility::StaticClass(), ReEchoGameplayTags::Input_Attack_Basic);
 	GrantAbility(UReEchoActiveAttackAbility::StaticClass(), ReEchoGameplayTags::Input_Attack_Active);
-	GrantAbility(UReEchoSelectWeaponSlot1Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_1);
-	GrantAbility(UReEchoSelectWeaponSlot2Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_2);
-	GrantAbility(UReEchoSelectWeaponSlot3Ability::StaticClass(), ReEchoGameplayTags::Input_Weapon_3);
 }
 
 void AReEchoPlayerPawn::AbilityInputPressed(const FGameplayTag& InputTag)
@@ -471,24 +465,6 @@ void AReEchoPlayerPawn::ActivateSkill()
 	AbilityInputReleased(ReEchoGameplayTags::Input_Attack_Active);
 }
 
-void AReEchoPlayerPawn::SelectWeaponSlot1()
-{
-	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_1);
-	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_1);
-}
-
-void AReEchoPlayerPawn::SelectWeaponSlot2()
-{
-	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_2);
-	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_2);
-}
-
-void AReEchoPlayerPawn::SelectWeaponSlot3()
-{
-	AbilityInputPressed(ReEchoGameplayTags::Input_Weapon_3);
-	AbilityInputReleased(ReEchoGameplayTags::Input_Weapon_3);
-}
-
 bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 {
 	const bool bAttacked = Weapon && Weapon->ExecuteBasicAttack(Combatant);
@@ -508,63 +484,6 @@ bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 
 	StartAttackVisual(0.28f, 24.0f);
 	OnActiveSkill.Broadcast(GetActorLocation(), Weapon->GetEquippedWeaponId());
-	return true;
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot1Ability()
-{
-	return ExecuteSelectWeaponAbility(EReEchoInputSlot::Slot1);
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot2Ability()
-{
-	return ExecuteSelectWeaponAbility(EReEchoInputSlot::Slot2);
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponSlot3Ability()
-{
-	return ExecuteSelectWeaponAbility(EReEchoInputSlot::Slot3);
-}
-
-bool AReEchoPlayerPawn::ExecuteSelectWeaponAbility(const EReEchoInputSlot InputSlot)
-{
-	if (!Weapon)
-	{
-		return false;
-	}
-
-	UGameInstance* GameInstance = GetGameInstance();
-	UReEchoRunSubsystem* RunSubsystem = GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
-	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : FReEchoCsvDataRegistry::GetSnapshot();
-	const FReEchoCsvWeaponRow* Definition = Snapshot.IsValid() ? Snapshot->FindWeaponByInputSlot(InputSlot) : nullptr;
-	if (!Definition)
-	{
-		return false;
-	}
-	if (RunSubsystem)
-	{
-		if (!RunSubsystem->SetEquippedWeapon(Definition->Id))
-		{
-			return false;
-		}
-		Weapon->InitializeWeapon(&RunSubsystem->CurrentBuild, RunSubsystem->GetRunDataSnapshot());
-		const float PreviousHealth = Combatant->CurrentHealth;
-		Combatant->InitializeFromStats(RunSubsystem->CurrentBuild.Stats, false);
-		Combatant->RestoreCurrentHealth(PreviousHealth);
-		Movement->MaxSpeed = 420.0f * RunSubsystem->CurrentBuild.Stats.MovementSpeed;
-		Recorder->UpdateBuildSnapshot(RunSubsystem->CurrentBuild);
-		OnWeaponChanged.Broadcast(Definition->Id);
-		return true;
-	}
-	if (!Weapon->SelectWeaponById(Definition->Id))
-	{
-		UE_LOG(LogReEcho, Error, TEXT("Cannot select configured WeaponId '%s'"), *Definition->Id.ToString());
-		return false;
-	}
-	const float PreviousHealth = Combatant->CurrentHealth;
-	Combatant->InitializeFromStats(Weapon->GetBuildSnapshot().Stats, false);
-	Combatant->RestoreCurrentHealth(PreviousHealth);
 	return true;
 }
 

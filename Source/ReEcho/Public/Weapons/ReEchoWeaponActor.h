@@ -13,7 +13,7 @@ class USceneComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 
-/** 玩家武器控制器：管理武器切换、冷却及远近程攻击表现。 */
+/** 武器执行器：按构筑快照完成初始化，并管理冷却及远近程攻击表现。 */
 UCLASS()
 
 class REECHO_API AReEchoWeaponActor : public AActor

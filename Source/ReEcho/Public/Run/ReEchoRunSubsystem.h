@@ -59,9 +59,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 
-	UFUNCTION(BlueprintCallable)
-	bool SetEquippedWeapon(FName WeaponId);
-
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 

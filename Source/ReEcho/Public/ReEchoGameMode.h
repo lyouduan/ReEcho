@@ -108,9 +108,6 @@ private:
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
 	UFUNCTION()
-	void HandlePlayerWeaponChanged(FName WeaponId);
-
-	UFUNCTION()
 	void HandlePlayerDeath();
 
 	UFUNCTION()

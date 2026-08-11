@@ -240,7 +240,6 @@ void AReEchoGameMode::StartPlay()
 	if (Player)
 	{
 		Player->OnActiveSkill.AddDynamic(this, &AReEchoGameMode::HandlePlayerSkill);
-		Player->OnWeaponChanged.AddDynamic(this, &AReEchoGameMode::HandlePlayerWeaponChanged);
 		Player->Combatant->OnDeath.AddDynamic(this, &AReEchoGameMode::HandlePlayerDeath);
 	}
 	if (Player)
@@ -853,14 +852,6 @@ void AReEchoGameMode::HandlePlayerSkill(FVector Position, FName SkillId)
 	if (Player && Director)
 	{
 		Player->Recorder->RecordSkill(Director->EncounterTime, Position, SkillId);
-	}
-}
-
-void AReEchoGameMode::HandlePlayerWeaponChanged(const FName WeaponId)
-{
-	if (Player && Director)
-	{
-		Player->Recorder->RecordWeaponChange(Director->EncounterTime, WeaponId);
 	}
 }
 

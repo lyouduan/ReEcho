@@ -174,11 +174,11 @@ void UReEchoSettingsWidget::RefreshCategory()
 	CategoryTitleText->SetText(FText::FromString(CategoryTitle));
 	DetailText->SetText(FText::FromString(Detail));
 
-	const FLinearColor SelectedColor(0.08f, 0.42f, 0.62f, 1.0f);
-	const FLinearColor NormalColor(0.12f, 0.22f, 0.32f, 1.0f);
-	GraphicsButton->SetBackgroundColor(SelectedCategory == 0 ? SelectedColor : NormalColor);
-	AudioButton->SetBackgroundColor(SelectedCategory == 1 ? SelectedColor : NormalColor);
-	ControlsButton->SetBackgroundColor(SelectedCategory == 2 ? SelectedColor : NormalColor);
+	const FLinearColor SettingsSelectedColor(0.08f, 0.42f, 0.62f, 1.0f);
+	const FLinearColor SettingsNormalColor(0.12f, 0.22f, 0.32f, 1.0f);
+	GraphicsButton->SetBackgroundColor(SelectedCategory == 0 ? SettingsSelectedColor : SettingsNormalColor);
+	AudioButton->SetBackgroundColor(SelectedCategory == 1 ? SettingsSelectedColor : SettingsNormalColor);
+	ControlsButton->SetBackgroundColor(SelectedCategory == 2 ? SettingsSelectedColor : SettingsNormalColor);
 }
 
 void UReEchoSettingsWidget::HandleGraphicsClicked()

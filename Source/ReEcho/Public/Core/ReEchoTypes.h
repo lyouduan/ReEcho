@@ -180,18 +180,6 @@ struct REECHO_API FReEchoSkillEvent
 
 USTRUCT(BlueprintType)
 
-struct REECHO_API FReEchoWeaponEvent
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Time = 0.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FName WeaponId;
-};
-USTRUCT(BlueprintType)
-
 struct REECHO_API FReEchoRecording
 {
 	GENERATED_BODY()
@@ -209,9 +197,6 @@ struct REECHO_API FReEchoRecording
 	TArray<FReEchoPositionSample> Positions;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FReEchoSkillEvent> Skills;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TArray<FReEchoWeaponEvent> WeaponChanges;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FReEchoBuildSnapshot BuildSnapshot;

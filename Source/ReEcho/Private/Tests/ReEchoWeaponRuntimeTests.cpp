@@ -467,11 +467,11 @@ bool FReEchoWeaponEquipmentCombatRuntimeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponAtomicSwitchAndPersistenceTest,
-                                 "ReEcho.Weapons.SwitchPolicyAndEquipmentSnapshotParity",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponLockAndPersistenceTest,
+                                 "ReEcho.Weapons.RunLockAndEquipmentSnapshotParity",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FReEchoWeaponAtomicSwitchAndPersistenceTest::RunTest(const FString& Parameters)
+bool FReEchoWeaponLockAndPersistenceTest::RunTest(const FString& Parameters)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
@@ -499,23 +499,9 @@ bool FReEchoWeaponAtomicSwitchAndPersistenceTest::RunTest(const FString& Paramet
 	          Recorder->GetRecording().BuildSnapshot.EquipmentBaseStats.AttackSpeed,
 	          1.0f);
 
-	TestTrue(TEXT("Switch to LongSword succeeds with mixed equipment"), Run->SetEquippedWeapon(TEXT("W_J_01")));
-	TestEqual(TEXT("Switch commits target WeaponId"), Run->CurrentBuild.WeaponId, FName(TEXT("W_J_01")));
-	TestEqual(TEXT("Switch retains compatible generic core only"), Run->CurrentBuild.EquippedParts.Num(), 1);
-	TestEqual(TEXT("Retained part is the generic core"),
-	          Run->CurrentBuild.EquippedParts[0].PartId,
-	          FName(TEXT("P_CORE_FLAME")));
-	TestEqual(TEXT("Cleared Dagger grip restores base attack speed"), Run->CurrentBuild.Stats.AttackSpeed, 1.0f);
-
-	const FReEchoBuildSnapshot BeforeFailure = Run->CurrentBuild;
-	TestFalse(TEXT("Unknown weapon switch fails without Fatal"), Run->SetEquippedWeapon(TEXT("W_UNKNOWN")));
-	TestEqual(TEXT("Failed switch preserves WeaponId"), Run->CurrentBuild.WeaponId, BeforeFailure.WeaponId);
-	TestEqual(TEXT("Failed switch preserves equipped parts"),
-	          Run->CurrentBuild.EquippedParts.Num(),
-	          BeforeFailure.EquippedParts.Num());
-	TestEqual(TEXT("Failed switch preserves effective attack speed"),
-	          Run->CurrentBuild.Stats.AttackSpeed,
-	          BeforeFailure.Stats.AttackSpeed);
+	TestEqual(TEXT("Run keeps the pre-run WeaponId"), Run->CurrentBuild.WeaponId, FName(TEXT("W_J_05")));
+	TestEqual(TEXT("Run keeps all compatible equipped parts"), Run->CurrentBuild.EquippedParts.Num(), 2);
+	TestEqual(TEXT("Locked weapon keeps derived attack speed"), Run->CurrentBuild.Stats.AttackSpeed, 1.2f);
 
 	FReEchoWeaponWorldFixture Fixture;
 	UReEchoCombatantComponent* Combatant = nullptr;
@@ -590,7 +576,6 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	FReEchoRecording Recording;
 	Recording.Id = FGuid::NewGuid();
 	Recording.BuildSnapshot = Run->CurrentBuild;
-	Recording.WeaponChanges.Add({0.0f, Run->CurrentBuild.WeaponId});
 	Recording.Positions.Add({0.0f, FVector::ZeroVector});
 	Recording.Positions.Add({1.0f, FVector::ZeroVector});
 	Recording.Duration = 1.0f;
