@@ -1,27 +1,21 @@
-# ReEcho AI workflow
+# ReEcho AI workflow pointer
 
-The project uses a planner/executor workflow with file-based memory.
+This file is a human-facing directory pointer, not a workflow authority and not a startup checklist.
 
-## Start a task
+## Where workflow truth lives
 
-1. Read `AGENTS.md` and the listed `shared/` files.
-2. Scan `shared/PLANNER_EXCHANGE.md`; claim any `.umap`, `.uasset`, DataTable, Project Settings, editor instance, or deployment target.
-3. Copy `plans/TEMPLATE.md` to a numbered plan. Lock the goal, acceptance, and Step 0 baseline before implementation.
-4. Create an isolated branch/worktree. Executors never edit the planner-owned default branch.
+| Question | Authority |
+|---|---|
+| What an AI reads first | [`AGENTS.md`](../AGENTS.md) |
+| Project constraints and verification | [`shared/PROJECT_RULES.md`](../shared/PROJECT_RULES.md) |
+| Planner / Executor actions | [`shared/PLANNER_RULES.md`](../shared/PLANNER_RULES.md), [`shared/EXECUTOR_RULES.md`](../shared/EXECUTOR_RULES.md) |
+| Current work, ownership and warnings | [`shared/PLANNER_EXCHANGE.md`](../shared/PLANNER_EXCHANGE.md) |
+| Current delivered state | [`shared/PROJECT_STATE.md`](../shared/PROJECT_STATE.md) |
+| Code and document retrieval routes | [`shared/CODEBASE_MAP.md`](../shared/CODEBASE_MAP.md) |
+| One task's scope and evidence | [`plans/`](../plans/) |
 
-## Finish a task
+`shared/` is the collaboration control plane. It answers who owns work, what rules apply, what is currently delivered and how integration is decided. `docs/` is the technical knowledge layer: architecture, subsystem onboarding and tool/command guides.
 
-1. Run static validation, build, automation, and human checks in proportion to the change.
-2. Record exact evidence and unavailable prerequisites in the plan.
-3. Release ownership in the exchange board.
-4. Stage explicit files, commit, and hand the branch to the human/planner. Do not merge it yourself.
+Do not copy mandatory branch, ownership, status, validation or publication rules into this file. If a `docs/` page conflicts with `shared/` on collaboration or current delivery state, `shared/` wins and the stale `docs/` page should be corrected. Runtime behavior is ultimately verified against source and tests.
 
-## Evidence vocabulary
-
-- `static verified`: JSON/config/source checks only.
-- `build verified`: UHT and UBT completed successfully.
-- `automation verified`: named UE automation tests passed.
-- `PIE verified`: a human completed the stated interaction check.
-- `shipping verified`: a packaged build was installed/run on the target platform.
-
-Never promote one evidence level into another.
+For the collaboration rationale rather than the mandatory actions, see [`shared/WORKFLOW.md`](../shared/WORKFLOW.md).

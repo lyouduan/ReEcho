@@ -23,6 +23,29 @@ This file contains Planner actions only. Startup order is defined by `AGENTS.md`
 
 Planning publication makes scope visible. It does not authorize implementation to enter `main`.
 
+## External-commit integration audit
+
+Whenever `fetch` reveals remote commits that are not already part of the currently approved local baseline, do not change the working tree or remote history yet. This gate applies before `pull`, merge, rebase, cherry-pick and push, even when Git can fast-forward.
+
+1. Identify the incoming commits, authors/owners, Plans, base and changed paths. Treat any unreviewed incoming commit as external to the candidate; do not rely only on Git author identity.
+2. Evaluate **Physical/Git conflict**:
+   - predict the three-way result from the merge base with read-only `log`, `diff`, `merge-tree` and ancestry checks;
+   - report same-line edits, add/add, rename, modify/delete, binary/generated-file collisions and exact files;
+   - say explicitly when there is no textual conflict. “Git can merge” is evidence only for this layer.
+3. Evaluate **Logical conflict** even if Git reports none:
+   - compare locked goals, current human decisions and runtime semantics;
+   - detect deletion versus continued extension of old logic, competing state machines/flows, different public API/schema/stable-ID/save/generator contracts, source-of-truth changes and contradictory tests;
+   - identify whether one side would silently restore, bypass or overwrite the other side's behavior.
+4. Evaluate **Coupling**:
+   - list affected Plans, declared Writes/Reads, shared contracts, downstream branches and required migration/rebase order;
+   - state which prior build/test/human evidence becomes invalid and what must be rerun.
+5. Report the audit before integration: incoming commit range, three conflict results, available choices (`remote`, `local`, `combined adaptation`, `defer/split`), tradeoffs and a recommendation. Do not choose on the human's behalf.
+6. Wait for the human to select the behavior/ownership outcome. Record a decision that supersedes an older rule only when there is explicit newer human authority; do not infer supersession from commit order.
+7. Integrate only the selected outcome, inspect the resulting diff for unintended deletion/restoration and run proportional verification.
+8. Fetch again immediately before push. If the remote advanced after the audit/decision, restart this gate and report the new coupling; do not extend the old authorization silently.
+
+A conflict-free fast-forward can still contain a logical conflict. Conversely, overlapping files do not automatically require choosing one whole side: present a combined adaptation when contracts and behavior can be reconciled safely.
+
 ## Executor prompt template
 
 ```text
