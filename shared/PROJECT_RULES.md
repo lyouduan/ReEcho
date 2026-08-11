@@ -6,7 +6,7 @@ This file contains project-specific additions to the canonical workflow. If it c
 
 - Engine: Unreal Engine 5.8 installed/release build, Windows desktop first. Do not build or open this project with the separate source checkout.
 - Project descriptor: `ReEcho.uproject`; runtime module: `Source/ReEcho`.
-- CSV under `Content/Data/` is the target designer-editable runtime source. Legacy `Content/Data/*.json` files are read-only migration material until their domains are moved; do not duplicate balance constants in JSON, C++, DeveloperSettings, actors or widgets.
+- `Design/Data/ReEchoData.xlsx` is the canonical designer-editable source for migrated production tables; generated CSV under `Content/Data/` is the diffable, packaged runtime source. Legacy `Content/Data/*.json` files are read-only migration material until their domains are moved; do not hand-edit generated CSV as a second truth or duplicate balance constants in JSON, C++, DeveloperSettings, actors or widgets.
 - Preserve deterministic semantics: simulation 60 Hz, recording 20 Hz, encounter length 30 seconds, pause advances neither recording nor playback.
 - Automatic attacks are never serialized into recordings. Echoes replay only historical position and successful active-skill events; attack targeting and hit resolution use the current world.
 - Do not hand-edit `.uasset` or `.umap` binaries outside Unreal Editor. Prefer C++, CSV source data, Editor Utility generation, or Python automation for mergeable assets.

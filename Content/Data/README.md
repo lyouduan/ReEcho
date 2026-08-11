@@ -1,6 +1,17 @@
 # ReEcho 数据源
 
-CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON 文件只作为迁移期参考材料保留；对应领域迁移到 CSV 后，不要再在 JSON、C++、DeveloperSettings、Actor 或 Widget 里维护第二份可编辑真源。
+`Design/Data/ReEchoData.xlsx` 是策划唯一编辑源，本目录中的 CSV 是由工作簿生成、供 Unreal 读取和打包的目标运行时数据。本目录里的旧 JSON 文件只作为迁移期参考材料保留；对应领域迁移到 CSV 后，不要再在 CSV、JSON、C++、DeveloperSettings、Actor 或 Widget 里手工维护第二份可编辑真源。
+
+完整策划操作步骤见 [`Design/Data/ReEchoData使用说明.md`](../../Design/Data/ReEchoData使用说明.md)。
+首次仓库准备、分层验收、Unreal 启动顺序和反馈模板见 [`Design/Data/ReEchoData策划验收清单.md`](../../Design/Data/ReEchoData策划验收清单.md)。
+
+## Plan25 XLSX authoring
+
+- Canonical workbook: `Design/Data/ReEchoData.xlsx`.
+- Fixed sync/check command: `python scripts/data/sync_xlsx_to_csv.py --check`.
+- Install locked XLSX dependency: `python -m pip install -r scripts/data/requirements.txt`.
+- Runtime code still reads only UTF-8 CSV in `Content/Data`; XLSX, Excel, COM and Office are never runtime dependencies.
+- Do not hand-edit generated production CSV as a second truth. Change the workbook machine Tables, run the generator, and commit the resulting CSV diff.
 
 ## CSV 契约 v1
 

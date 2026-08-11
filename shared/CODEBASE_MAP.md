@@ -1,6 +1,6 @@
 # ReEcho codebase map
 
-Last verified: 2026-08-10. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints and `PROJECT_STATE.md` for delivery status.
+Last verified: 2026-08-11. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints and `PROJECT_STATE.md` for delivery status.
 
 ## Minimal retrieval protocol
 
@@ -25,11 +25,15 @@ rg -n "SymbolName" Source\ReEcho
 | `ReEcho.uproject` | UE 5.8 association and enabled plugins | Modules/plugins/editor integration |
 | `Source/ReEcho/` | Single runtime module | Gameplay or runtime code |
 | `Config/` | Maps, GameMode, balance and input mappings | Startup, controls or tuning |
+| `Design/Data/ReEchoData.xlsx` | Canonical designer XLSX authoring workbook; machine Tables generate runtime CSV | Data authoring, XLSX migration or Plan25 checks |
+| `Design/Data/ReEchoData使用说明.md` | Chinese designer guide for editable Tables, field rules, CSV generation, errors and submission | Before changing production balance/configuration in the workbook |
+| `Design/Data/ReEchoData策划验收清单.md` | Designer QA onboarding, isolated clone, XLSX/CSV/PIE acceptance, recovery, feedback template and AI setup prompt | Before first-time Plan25 designer acceptance or handing setup to a designer's AI |
 | `Content/Data/` | Runtime CSV contract plus read-only migration JSON | Data contract, fixtures, cards, characters, enemies, encounters or balance source |
 | `Content/ReEcho/Materials/` | Serialized project materials | Visual asset references |
 | `Content/ReEcho/Textures/Characters/` | Cooked 2D actor and shadow textures | Player/echo/enemy Billboard visuals |
 | `Content/SourceArt/Characters/` | Reviewable PNG sources, including MushroomGirl animation frames and Sprite Sheet | Regenerating or extending 2D actor assets |
 | `scripts/ue/` | Installed-engine discovery, build, automation, reproducible Windows Shipping packaging and asset import | Compile/test/package or asset-import workflow |
+| `scripts/data/sync_xlsx_to_csv.py` | Deterministic XLSX Table to UTF-8 CSV generator, check mode and transactional publish | Data authoring sync or generated CSV drift |
 | `scripts/validate_project.py` | CSV, legacy JSON and workflow static validation | Data/workflow changes |
 | `docs/` | Human-facing architecture and MCP guides | Tool integration or orientation |
 | `shared/` | AI authority, state, rules, routing and coordination | Every AI task |
@@ -91,7 +95,7 @@ Esc -> pause menu -> exit
 | Recording | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz positions and successful active-skill events |
 | Playback | `UReEchoPlaybackComponent` | `Recording/ReEchoPlaybackComponent.*` | Interpolated historical position and crossed skill events |
 | Run state/save | `UReEchoRunSubsystem`, `UReEchoRunSaveGame` | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | Run phase, encounter index, CSV-backed build, inventory, recording history, anchor, safe checkpoints and explicit suspended-encounter persistence |
-| CSV data registry | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`, `Data/ReEchoWeaponCsvReader.*`, `Content/Data/*.csv` | Versioned CSV manifest loading, validation, behavior/effect/formula/attack-pattern allowlists and immutable runtime snapshots |
+| CSV data registry | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`, `Data/ReEchoWeaponCsvReader.*`, `Content/Data/*.csv`, `Design/Data/ReEchoData.xlsx`, `scripts/data/sync_xlsx_to_csv.py` | Versioned CSV manifest loading, XLSX authoring sync, validation, behavior/effect/formula/attack-pattern allowlists and immutable runtime snapshots |
 | Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements, phases and suspended encounter/enemy runtime state |
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
 | Health UI | `UReEchoPlayerHudWidget`, `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`, `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Top-left portrait/live health HUD for the player; camera-facing world bars remain enemy-only |
@@ -154,7 +158,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables, cano
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |
-| CSV runtime data, schema, fixtures | `Data/ReEchoCsvDataRegistry.*`, domain readers under `Private/Data/*CsvReader.*` | `Content/Data/README.md`, `Content/Data/*.csv`, `validate_project.py`, data automation tests |
+| CSV runtime data, schema, fixtures and XLSX authoring | `Data/ReEchoCsvDataRegistry.*`, domain readers under `Private/Data/*CsvReader.*` | `Design/Data/ReEchoData.xlsx`, `Design/Data/ReEchoData.migration.md`, `scripts/data/sync_xlsx_to_csv.py`, `scripts/data/test_sync_xlsx_to_csv.py`, `Content/Data/README.md`, `Content/Data/*.csv`, `validate_project.py`, data automation tests |
 | Player portrait/health HUD, enemy health bars | `UI/ReEchoPlayerHudWidget.*`, `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`, `ReEchoGameMode.*`, `CombatantComponent.*` |
 | Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |
 | Rain, fog, weather scenes | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`, `DefaultGame.ini` |

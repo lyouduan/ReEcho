@@ -11,7 +11,7 @@
 | 工种 | Plan 标签 | 经验章节 | 条目数 |
 |------|----------|---------|--------|
 | 程序化生成 / 地编 | `PCG` | [§PCG](#pcg) | 8 |
-| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 32 |
+| 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 34 |
 | 关卡搭建 | `LEVEL` | [§LEVEL](#level) | 4 |
 | 美术 / 资产管线 | `ART` | [§ART](#art) | 18 |
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
@@ -403,6 +403,13 @@ Do not reuse one field for weapon type, concrete runtime weapon, hotkey slot and
 **Source: ReEcho Plan 24 acceptance rework**
 
 When runtime behavior is table-driven, a save/recording revision must cover every table that can change behavior, not only the final selected row. Capture the deterministic domain revision in the immutable build/recording/save snapshot, pass the pinned data snapshot to player and echo actors, and reject incompatible restores before mutating run state. Tests should prove both sides: an active run keeps using its pinned snapshot after a global reload, while old saves/recordings are refused after behavior tables change.
+
+---
+### GAME-34. XLSX authoring must regenerate CSV transactionally [UE]
+
+**Source: ReEcho Plan 25**
+
+Designer-friendly workbooks can be the authoring surface, but runtime CSV remains the package consumed by Unreal. Machine-exported XLSX Tables must be seeded from accepted CSV, not stale prose or legacy workbook values, and `_ExportMap` must whitelist exactly the owned manifest outputs. Generate the complete package first, validate it with the same schema/handler/foreign-key rules as runtime, then publish with same-disk temp files, backups, a transaction marker and `os.replace`; `--check` stays read-only and detects drift instead of repairing it.
 
 ---
 ## §LEVEL — 关卡搭建

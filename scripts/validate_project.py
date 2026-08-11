@@ -8,6 +8,7 @@ import io
 import json
 import math
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -969,6 +970,21 @@ def validate_build_dependencies() -> None:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
 
 
+def validate_xlsx_authoring_sync() -> None:
+    sync_script = ROOT / "scripts" / "data" / "sync_xlsx_to_csv.py"
+    if not sync_script.is_file():
+        fail("missing XLSX authoring sync script")
+    result = subprocess.run(
+        [sys.executable, str(sync_script), "--check"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if result.returncode != 0:
+        fail("XLSX authoring sync check failed:\n" + result.stdout.strip())
+
+
 def main() -> int:
     json_count, effective_cards, encounter_count = validate_legacy_json()
     validate_csv_schema()
@@ -1004,10 +1020,12 @@ def main() -> int:
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()
+    validate_xlsx_authoring_sync()
     validate_workflow()
 
     print(f"[PASS] legacy migration-only JSON files={json_count} effective_cards={effective_cards} encounters={encounter_count}")
     print("[PASS] CSV schema, production character/build/element/weapon tables, fixtures, IDs, references, behavior/effect/formula/attack-pattern allowlists, UTF-8 and staging deps")
+    print("[PASS] XLSX authoring workbook check matches generated production CSV bytes")
     print("[PASS] workflow memory, token guards, and Unreal project descriptor present")
     print("Evidence level: static verified only (no UHT/UBT/PIE claim)")
     return 0

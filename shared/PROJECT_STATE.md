@@ -20,7 +20,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 |---|---|---|
 | Combat/run | Six encounters, Boss gate, GAS input/effects/cooldowns, CSV weapons with idempotent part derivation, atomic switching, ordered attack steps and pinned player/echo snapshots, elemental reactions and echo loop connected | Unified Human PIE after Plan 25 for combat feel and authoring flow |
 | Presentation | 2D actors, fixed camera, arena art, weather, start/continue/loadout, confirmed exit, animated trait draw, inventory/shop/stats UI | Human PIE and packaged-menu regression |
-| Data | CSV runtime foundation plus character/build, element/status/reaction and current weapon/slot domains; legacy JSON remains migration-only | Plan 25 XLSX authoring generation and later domain migrations |
+| Data | Canonical `Design/Data/ReEchoData.xlsx` authors the 16 manifest production CSV tables through deterministic `scripts/data/sync_xlsx_to_csv.py`; CSV remains the runtime package and legacy JSON remains migration-only | Later enemy/economy/global-balance domain migrations |
 | Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
 | Validation | Plan 24 static validation, current Editor Development build, 7 focused weapon tests and all 34 `ReEcho.*` automation tests pass | Unified Human PIE after Plan 25 |
 
@@ -49,7 +49,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 - UE 5.8 installed/release build; separate source checkout is out of scope.
 - Latest Plan 24 Editor Development build succeeds; 7 focused `ReEcho.Weapons` tests and all 34 `ReEcho.*` automation tests pass from the current source.
 - Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 21 CSV package; human visual/UI regression is still required before release claims.
-- `scripts/validate_project.py` performs fast CSV, legacy JSON and workflow consistency checks.
+- `scripts/validate_project.py` performs fast CSV, XLSX authoring drift, legacy JSON and workflow consistency checks.
 
 ## Regression risks and technical debt
 
@@ -58,4 +58,4 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 - Full pause/restart/quit interaction, round advancement, weather and visual menu transitions still lack deterministic automation.
 - Shared weapon, enemy and run-flow paths changed for Plans 14-16; human PIE should regress player/echo attacks, role transitions, forge/card sequencing and bomber escape behavior together.
 - Human PIE remains necessary for movement, combat feel, echo clarity, UI glyphs/DPI and full menu interaction.
-- CSV negative fixtures use a production-baseline-plus-local-override builder in Python and C++ automation; new fixtures should only store changed CSV files.
+- CSV negative fixtures use a production-baseline-plus-local-override builder in Python and C++ automation; new fixtures should only store changed CSV files. Generated production CSV edits must round-trip through `Design/Data/ReEchoData.xlsx`.
