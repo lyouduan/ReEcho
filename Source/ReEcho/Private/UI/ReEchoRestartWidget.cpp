@@ -64,7 +64,7 @@ void UReEchoRestartWidget::NativeConstruct()
 		SettingsButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleSettingsClicked);
 	}
 	RefreshMenuMode();
-	if ((bDeathScreen || bVictoryScreen) && RestartButton)
+	if (ScreenMode != EReEchoRestartScreenMode::Pause && RestartButton)
 	{
 		RestartButton->SetKeyboardFocus();
 	}
@@ -76,19 +76,15 @@ void UReEchoRestartWidget::NativeConstruct()
 
 void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen)
 {
-	bDeathScreen = bInDeathScreen;
-	bVictoryScreen = false;
-	bQuitConfirmation = false;
-	bSaveFailed = false;
+	ScreenMode = bInDeathScreen ? EReEchoRestartScreenMode::Death : EReEchoRestartScreenMode::Pause;
+	QuitPromptState = EReEchoQuitPromptState::None;
 	RefreshMenuMode();
 }
 
 void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 TraitCount)
 {
-	bDeathScreen = false;
-	bVictoryScreen = true;
-	bQuitConfirmation = false;
-	bSaveFailed = false;
+	ScreenMode = EReEchoRestartScreenMode::Victory;
+	QuitPromptState = EReEchoQuitPromptState::None;
 	VictoryTimeShards = TimeShards;
 	VictoryTraitCount = TraitCount;
 	RefreshMenuMode();
@@ -96,10 +92,9 @@ void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 
 
 void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation)
 {
-	bQuitConfirmation = bInQuitConfirmation;
-	bSaveFailed = false;
+	QuitPromptState = bInQuitConfirmation ? EReEchoQuitPromptState::Confirm : EReEchoQuitPromptState::None;
 	RefreshMenuMode();
-	if (bQuitConfirmation && ResumeButton)
+	if (QuitPromptState == EReEchoQuitPromptState::Confirm && ResumeButton)
 	{
 		ResumeButton->SetKeyboardFocus();
 	}
@@ -107,7 +102,7 @@ void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation)
 
 void UReEchoRestartWidget::ShowSaveFailure()
 {
-	bSaveFailed = true;
+	QuitPromptState = EReEchoQuitPromptState::SaveFailed;
 	RefreshMenuMode();
 }
 
@@ -161,6 +156,11 @@ void UReEchoRestartWidget::BuildWidgetTree()
 
 void UReEchoRestartWidget::RefreshMenuMode()
 {
+	const bool bVictoryScreen = ScreenMode == EReEchoRestartScreenMode::Victory;
+	const bool bDeathScreen = ScreenMode == EReEchoRestartScreenMode::Death;
+	const bool bQuitConfirmation = QuitPromptState == EReEchoQuitPromptState::Confirm;
+	const bool bSaveFailed = QuitPromptState == EReEchoQuitPromptState::SaveFailed;
+
 	if (TitleText)
 	{
 		const FString Title = bVictoryScreen      ? TEXT("时间线收束")

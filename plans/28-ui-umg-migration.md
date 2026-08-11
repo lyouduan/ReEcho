@@ -69,6 +69,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Centralized menu focus, UI-only/game-and-UI input modes, cursor policy and gameplay-input restoration in the UI manager; GameMode now expresses only whether a screen pauses/blocks abilities.
 - Replaced player HUD and enemy health-bar per-frame polling with `OnHealthChanged` subscriptions, including safe rebinding and destruction-time unbinding.
 - Added a reusable indexed UMG button and converted loadout and trait choices from ten fixed slot handlers to array-driven index-to-stable-ID resolution.
+- Replaced the pause/death/victory menu's four overlapping booleans with explicit screen-mode and quit-prompt state enums while preserving its public GameMode-facing API and presentation priority.
 
 ### Evidence
 
@@ -77,6 +78,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - The input-coordination follow-up also passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Event-driven player/enemy health UI passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Indexed loadout/trait selection passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
+- Explicit restart-screen state modeling passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 
 ### Remaining risks
 
