@@ -19,11 +19,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** 创建并初始化一次伤害数字表现。 */
-	static void SpawnDamageNumber(
-		UWorld* World,
-		const FVector& WorldLocation,
-		float Damage,
-		const FLinearColor& Color);
+	static void SpawnDamageNumber(UWorld* World, const FVector& WorldLocation, float Damage, const FLinearColor& Color);
 
 private:
 	void InitializeDamage(float Damage, const FLinearColor& Color);

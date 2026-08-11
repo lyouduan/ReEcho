@@ -6,16 +6,11 @@
 #include "ReEchoPlaybackComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
-	FReEchoReplaySkill,
-	FName,
-	SkillId,
-	FVector,
-	Position,
-	float,
-	RecordedTime);
+    FReEchoReplaySkill, FName, SkillId, FVector, Position, float, RecordedTime);
 
-/** 回响回放器：按遭遇时间读取历史构筑，并依次补播技能与武器事件。 */
+/** 回响回放器：使用录制中的锁定构筑，并按遭遇时间依次补播技能事件。 */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
+
 class REECHO_API UReEchoPlaybackComponent : public UActorComponent
 {
 	GENERATED_BODY()

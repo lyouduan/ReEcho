@@ -1,28 +1,24 @@
 # ReEcho project state
 
-Last updated: 2026-08-11. This file is a current snapshot, not a chronological log; implementation history belongs in `plans/` and Git.
+Last updated: 2026-08-11. Current snapshot only; history belongs in Plans and Git.
 
 ## Playable state
 
 - UE 5.8 C++ 2.5D prototype starts from `/Game/Level00`; `AReEchoGameMode` generates the bounded arena and six-encounter run.
-- GAS-authoritative player/enemy attributes and effect-based damage, CSV-backed weapon/character definitions, four enemy archetypes, deterministic 20 Hz recording, echo playback, trait selection, health UI, damage feedback, pause/restart/quit and final-Boss settlement are connected.
-- Player, echo and enemies render as packaged 2D Billboards over a fixed orthographic 3D arena; collision remains authoritative and separate from visual animation.
-- Configurable rain and player/echo-centered fog-of-war are visual-only. The top-left HUD shows the configured player portrait and live current/max health; only enemies retain world-space overhead health bars. B opens inventory, M opens the Time Shard shop, and Tab opens paused live player/echo stats. Renderer configuration explicitly keeps Substrate disabled.
-- Runtime purchases are duplicate-guarded and update the shared build snapshot. Time-trait draws are deterministic per run state, prefer least-owned traits, contain no duplicate offer, and accept only the current pending choice. The centered animated draw screen shows current shards and opens the existing shop before the next encounter. Runs without an active echo show an explicit stats empty state.
-- Development-console GM commands cover status, healing, Time Shards, weather override and enemy clearing; Shipping rejects them.
-- Startup is blocked by a save-aware panel: profiles without a save can start new, while valid saves offer continue/new. New runs then require a data-backed character and exactly-three CSV start-selectable weapons; the selected weapon is locked for that run, while continue restores it and rejects incompatible saved weapon data revisions. Confirmed in-encounter exit saves the clock, player, active recording and living enemies before platform quit; save failure never exits.
-- Weapon 3 cycles deterministic Water/Flame/Grass/Lightning ordered element pairs backed by CSV reactions. Weapon types, concrete WeaponIds, attack steps, compatibility InputSlot values, slot profiles, parts and part effects load from seven weapon-domain CSV tables; `W_J_02`/`W_J_01`/`W_J_03` retain legacy InputSlot 1/2/3 values as data compatibility only, with no runtime switching hotkeys. `W_J_04` remains an enabled Scythe-pattern weapon, and non-start `W_J_05`/`W_J_06` provide reachable Dagger part and StaffProjectile runtime paths. Build/recording/save snapshots carry equipped parts plus a deterministic seven-table weapon-domain revision; restore/playback reject incompatible data before mutating a run. Four-card promotion selects Hunter, Poet, Brave or Sage mechanics, and bombers use separate configurable fuse-trigger and explosion-damage ranges.
-- Human PIE play-feel, UI/DPI/font readability and final weather/blur tuning remain required; this is not yet a finished vertical slice.
+- GAS-authoritative combat, four enemy archetypes, deterministic 20 Hz recording, echo playback, traits, health UI, damage feedback, pause/restart/quit and final-Boss settlement are connected.
+- Startup supports new/continue, character and three-weapon initial selection, in-encounter save-and-quit, a shared start/pause settings shell, animated trait draw and post-draw shop flow.
+- Character/build, element/status/reaction and weapon/slot domains load from validated generated CSV snapshots authored in `Design/Data/ReEchoData.xlsx`.
+- The pre-run selected weapon is locked for the full run; continue and echo initialization retain its stable WeaponId. Legacy InputSlot 1/2/3 values remain data compatibility only and have no runtime hotkeys. Parts, ordered attack steps, reactions, save/recording revisions and active-run pinned snapshots remain connected.
+- Human PIE for feel, UI/DPI/font readability and full menu/save regression remains outstanding; this is not a finished vertical slice.
 
 ## Current progress
 
 | Area | Current state | Remaining |
 |---|---|---|
-| Combat/run | Six encounters, Boss gate, GAS input/effects/cooldowns, CSV run-locked weapons with idempotent part derivation, ordered attack steps and pinned player/echo snapshots, elemental reactions and echo loop connected | Unified Human PIE after Plan 25 for combat feel and authoring flow |
-| Presentation | 2D actors, fixed camera, arena art, weather, start/continue/loadout, confirmed exit, shared start/pause settings shell, animated trait draw, inventory/shop/stats UI | Human PIE and packaged-menu regression |
-| Data | Canonical `Design/Data/ReEchoData.xlsx` authors the 16 manifest production CSV tables through deterministic `scripts/data/sync_xlsx_to_csv.py`; CSV remains the runtime package and legacy JSON remains migration-only | Later enemy/economy/global-balance domain migrations |
-| Planning loop | Recording and active echo playback | Preview/setup beat, multi-echo and anchor depth |
-| Validation | Current static/XLSX validation, Editor Development build and all 34 `ReEcho.*` automation tests pass for publication candidate `420e5bb` | Unified Human PIE after Plan 25 |
+| Combat/run | Six encounters, Boss gate, GAS input/effects/cooldowns, CSV run-locked weapons/parts/reactions and pinned run/echo snapshots | Combined human combat/save regression, including confirmation that 1/2/3 do not switch weapons |
+| Presentation | 2D actors, weather, start/continue/loadout, shared start/pause settings shell, draw/shop, inventory and stats UI | Human visual/DPI/menu regression; Plan26 read-only weapon UI work is reserved |
+| Data | One canonical XLSX deterministically generates 16 validated production CSVs; legacy JSON is migration-only for migrated domains | Designer usability QA; later enemy/economy/global-balance migration |
+| Validation | Canonical XLSX/project validation, Editor Development build and all 34 `ReEcho.*` automation tests pass before integrating documentation-only Plan27; post-integration validation must be refreshed before publication | Human PIE/usability evidence |
 
 ## Milestones
 
@@ -30,32 +26,31 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 |---|---|---|
 | A - Combat skeleton | Implemented and packaged; tuning remains | Broader determinism and play-feel tuning |
 | B - Planning loop | Partial | Preview/setup beat and direction check |
-| C - Build/run | Functional prototype; characters/current build cards, element reactions and current weapon/slot domain migrated to CSV | XLSX authoring and full content run |
-| D - Elements/keystones | Element reactions and four promotion roles implemented; tuning remains | Vertical-slice acceptance |
-| E - Validation | Thirty-four automation tests plus current clean Shipping CSV load smoke evidence | Go/No-Go report |
+| C - Build/run/data | Functional prototype with XLSX-authored CSV domains | Designer usability and full content run |
+| D - Elements/keystones | Reactions and four promotion roles implemented | Vertical-slice acceptance |
+| E - Validation | 34 automation tests and current CSV/XLSX checks | Go/No-Go report plus human regression |
 
 ## Collaboration protocol
 
-- Default branch is planner-owned; executors use isolated branches/worktrees and never merge without human approval and planner review.
-- Local acceptance/merge does not authorize remote publication. Each `origin/main` update needs a fresh current-remote integration candidate containing only named accepted scope, post-integration verification, explicit one-use human authorization, non-force publication and an Exchange announcement of the resulting commit.
-- Human owns final acceptance and play-feel decisions.
-- In distributed multi-Planner work, each planning batch and its impact/ownership announcement must be committed and pushed to an advertised remote planning ref before Executors start. Shared-contract or exclusive overlap is resolved Planner-to-Planner; read-only consumers may proceed against the explicitly published stable surface.
-- Accepted Plans 21–24 and the integrated teammate UI lineage are advertised on `origin/coord/accepted-plan24-20260811`; Plan25's exact handoff base is `origin/coord/plan25-handoff-20260811`, which adds only its final plan/ownership contract. `origin/main` is now `df6e60a`, a rules-only update that deliberately excludes those implementations; publishing the accepted implementation lineage still needs a separately reviewed candidate and fresh human authorization.
-- Only currently edited merge-hostile assets appear under `PLANNER_EXCHANGE.md` Active ownership; remove the row when implementation ends.
-- `AGENTS.md` is the sole startup-order authority. Project-specific constraints live in `PROJECT_RULES.md`; generic blueprint material is read only for onboarding or workflow maintenance.
+- New distributed Plans publish a pure planning batch to an advertised `coord/...` ref before an external Executor starts.
+- Lifecycle uses `Proposed | Ready | InProgress | Review | Closed | Blocked`; human validation uses `NotRequired | PendingBeforeClose | PendingFollowUp | Passed`; ownership state is separate.
+- Executors write their Plan and owned implementation docs. Planners update shared state/lessons/routes once during review, reducing parallel Markdown conflicts.
+- `Isolated` and `ReadOnly` work may proceed after broadcast. `SharedContract`/`Exclusive` overlap requires agreement; only `Active Exclusive` ownership blocks another writer.
+- Provider/consumer work publishes a stable read-only surface; consumers integrate current `origin/main` and rerun affected checks before review.
+- Local merge does not authorize remote publication. Each publication uses a current-remote candidate, proportional verification, non-force push and either one-candidate or documented standing scoped human authorization.
+- `origin/main` contains the accepted implementation lineage through Plan25. New work fetches it directly; old `coord/...` refs are not permanent bases.
 
 ## Verified toolchain
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
-- Latest Plan 24 Editor Development build succeeds; 7 focused `ReEcho.Weapons` tests and all 34 `ReEcho.*` automation tests pass from the current source.
-- Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the Plan 21 CSV package; human visual/UI regression is still required before release claims.
-- `scripts/validate_project.py` performs fast CSV, XLSX authoring drift, legacy JSON and workflow consistency checks.
+- Plan25 integrated baseline: deterministic XLSX/CSV check, 10 focused Python tests, Editor Development build and 34/34 `ReEcho.*` automation tests pass.
+- Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the current generated CSV package.
+- `scripts/validate_project.py` checks CSV/XLSX drift, legacy JSON, workflow consistency and project structure.
 
 ## Regression risks and technical debt
 
-- Legacy `Content/Data/*.json` is migration-only for migrated domains; character/build, element/status/reaction and weapon/slot runtime authority has moved to CSV. Some shop/enemy/global balance values still use provisional C++/DeveloperSettings values until later domain plans.
+- Some shop/enemy/global-balance values remain provisional C++/DeveloperSettings values until later data-domain Plans.
 - Runtime arena generation has no dedicated serialized test-map pipeline.
-- Full pause/restart/quit interaction, round advancement, weather and visual menu transitions still lack deterministic automation.
-- Shared weapon, enemy and run-flow paths changed for Plans 14-16; human PIE should regress player/echo attacks, role transitions, forge/card sequencing and bomber escape behavior together.
-- Human PIE remains necessary for movement, combat feel, echo clarity, UI glyphs/DPI and full menu interaction.
-- CSV negative fixtures use a production-baseline-plus-local-override builder in Python and C++ automation; new fixtures should only store changed CSV files. Generated production CSV edits must round-trip through `Design/Data/ReEchoData.xlsx`.
+- Pause/restart/quit interaction, round advancement, weather and visual menu transitions still lack deterministic automation.
+- Human PIE remains necessary for movement/combat feel, echo clarity, UI glyphs/DPI and full menu interaction.
+- Generated production CSV edits must round-trip through `Design/Data/ReEchoData.xlsx`.

@@ -1,41 +1,56 @@
 # Plan XX - <discipline> - <short name>
 
+## Coordination
+
+- Planner owner:
+- Executor owner:
+- Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
+- Planning ref / implementation base:
+- Implementation branch:
+- Depends on / Blocks:
+- Writes:
+- Stable Reads:
+- Impact mode: `Isolated` (`Isolated | ReadOnly | SharedContract | Exclusive`).
+- Compatibility promise / downstream action:
+- Explicit exclusions:
+
 ## Locked goal
 
-Describe the player-visible or pipeline outcome. Changing this section requires planner/human agreement.
+Describe the player-visible or pipeline outcome. Changing this section requires Planner/human agreement.
 
 ## Locked acceptance
 
-- [ ] Functional result with observable evidence.
-- [ ] Relevant automation/build check passes.
-- [ ] Human PIE check is stated when feel/readability matters.
+- [ ] Functional result has observable evidence.
+- [ ] Required automation/build checks pass.
+- [ ] Human validation is requested only when feel, readability, visual quality or usability matters.
 - [ ] No generated UE build products or machine-local paths are committed.
 
 ## Step 0 gate
 
 - Baseline branch/commit:
-- Engine version and build availability:
-- Existing automated test result:
-- Claimed merge-hostile assets/resources:
-- Stop condition if the baseline is already broken:
+- Engine/build availability:
+- Existing focused-test result:
+- Active exclusive ownership or shared-contract approval:
+- Stop condition if the baseline is broken:
 
 ## Implementation outline
 
-Implementation details may be refined by the executor without changing the locked goal or acceptance.
+Implementation details may be refined without changing locked goal, acceptance or published contracts.
 
 1. Inspect the smallest relevant code/data surface.
 2. Make one coherent change at a time.
 3. Validate immediately after each risky change.
-4. Update execution notes and release resource claims.
+4. Update Execution notes; rebroadcast only when ownership/scope/contracts change.
 
 ## Verification matrix
 
 | Layer | Command/check | Expected evidence |
 |---|---|---|
-| Static | `python scripts/validate_project.py` | JSON/config/source invariants pass |
-| Build | `scripts/ue/Build-Editor.ps1` | UHT/UBT exit code 0 |
-| Automation | `scripts/ue/Run-Automation.ps1 -Filter ReEcho` | Automation report passes |
-| Human | PIE task | Feel/readability result recorded by human |
+| Static | `python scripts/validate_project.py` | Project/source invariants pass |
+| Build, when C++ changes | `scripts/ue/Build-Editor.cmd` | UHT/UBT exit code 0 |
+| Automation, when runtime behavior changes | `scripts/ue/Run-Automation.cmd -Filter ReEcho` | Affected report passes |
+| Human, when required | Named PIE/usability task | Human result or explicit follow-up deferral recorded |
 
 ## Execution notes
 
@@ -45,4 +60,4 @@ Implementation details may be refined by the executor without changing the locke
 
 ### Remaining risks
 
-### Human validation requested
+### Human validation result/request

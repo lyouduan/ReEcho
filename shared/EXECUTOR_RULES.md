@@ -1,181 +1,95 @@
-# 执行者规则 Executor Rules
+# ReEcho Executor rules
 
-> 🏛️ **顶层主本（CANONICAL MASTER）· 仅由工坊主理人助手维护**（配套 `shared/WORKFLOW.md` §6）。
-> 新项目从本主本拷贝到 `<repo>/shared/EXECUTOR_RULES.md`；通用条款（git 分层 / plan 修改权 / 代码质量 / 省 token）改进走 WORKFLOW §6 回提主本，别在项目副本里改。
->
-> 执行 Agent 接到 plan 后先读 `shared/AI_ONBOARDING.md`，再读此文件。两边（Trae / Claude Code / Codex 等）通用。与 `PLANNER_RULES.md` 对等；架构全貌见 `shared/WORKFLOW.md`。
->
-> ⚠️ **项目特定部分待填**（标 `<待定>`）：拷到项目后，由规划者按本项目类型/引擎/工具链替换「资源串行锁」「编辑器/工具链」「桥接」「日志」四节（占位符 `<repo>`=项目根、`<exec>`=执行者 worktree、`<RESOURCE_LOCK>`=锁文件路径）。其余是通用规则，可直接用。
+This file contains Executor actions only. Follow `AGENTS.md` for minimal startup order and `PROJECT_RULES.md` for hard constraints.
 
-## 工作目录（worktree 隔离）
+## Start safely
 
-> **分布式协作**：若你在自己的 clone / 自己机器上工作，开工前先 `git pull` 拿最新 `shared/`；完事后 `git push`。分支名建议带 plan、任务或 owner，避免和别的队友/AI 撞。下面的 worktree 规则主要用于同一台机器上多 Agent 隔离。
+1. Work in an isolated `plan/<id>-<short>` branch/worktree, never in `main`.
+2. For distributed work, fetch the prompt's planning ref/commit and confirm:
+   - lifecycle is `Ready`, `InProgress` or `Review` only when review fixes were explicitly assigned;
+   - implementation base and branch are named;
+   - Writes/Reads, impact mode and exclusions match Exchange;
+   - any `SharedContract`/`Exclusive` approval is present.
+3. A `Reserved` ownership row announces intent; it does not block disjoint or read-only work. Never write another owner's `Active` `Exclusive` resource.
+4. Read only the assigned Plan, matching Exchange blocks, the selected code route and relevant lessons. Read `§DEBUG` only after a failure needs diagnosis.
 
-### 分布式启动门
+Same-machine agents use separate worktrees. Teammates on separate machines use separate clones. Build products are local and are not expected to appear in another worktree/clone.
 
-- 按启动 Prompt 指定的 planning ref/commit fetch，并确认 Plan `Coordination` 状态为 `Ready`、`InProgress` 或 `InProgress/Rework`；只在本地看到未发布 Plan 不算已协调。
-- 对照 `PLANNER_EXCHANGE.md` 的公告和 Active ownership，确认自己的 base、分支、Writes 和禁止修改范围。另一个 Planner 已拥有的 shared/exclusive 文件不得并行写。
-- `Read-only consumer` 可以从对方公布的任务分支消费稳定接口，但不要复制数据结构、直接绑定未承诺的内部 CSV 列，或把对方 WIP 当成已验收功能。
-- 实现发现必须扩大 Writes、改变稳定 ID/schema/存档/公共接口时，停止越界改动并报告 Planner；由 Planner 更新并推送广播后再继续。
+## Implement within the contract
 
-执行者与规划者**不共享 working tree**，各在自己的目录：
-- **Claude Code 执行者**：独立 worktree `<exec>`（规划者常驻 `<repo>` main，共享同一 `.git`，互不抢分支）
-- **Trae 执行者**：按 Trae 侧自己的目录
-- 下方命令一律用 `$(pwd)` 自适应 —— **先 `cd` 到你的项目根目录**再执行
+- Refine implementation details freely while preserving the locked goal, acceptance and protected gates.
+- Record meaningful deviations and evidence in the Plan's Execution notes.
+- Update documentation tied directly to owned behavior. Do not routinely edit `PROJECT_STATE`, `CODEBASE_MAP`, `LESSONS`, workflow rules or closed Exchange history.
+- If implementation must expand Writes or alter stable IDs, schema, save format, generator contract or public API, stop only that boundary-crossing work and notify the Planner. Continue unrelated in-scope work when safe.
+- Never weaken acceptance to make a check pass, silently copy a provider's internal data model or treat a WIP branch as accepted functionality.
 
-要点：
-- 同机读规划者最新 plan：`git show main:plans/XX.md`（objects 共享，立即可见，无需 pull）；分布式任务改用启动 Prompt 公布的 `<planning-ref>`。
-- 首次进入新 worktree 要重新编译/重装依赖（构建产物不随 worktree 复制）
+## Parallel ownership
 
-## 完成与 Merge（人验认可）
+- `Isolated`: edit only the declared disjoint files.
+- `ReadOnly`: consume only the provider's published stable surface.
+- `SharedContract`: use the agreed interface; request additions through the Planner rather than editing provider-owned files.
+- `Exclusive`: one active writer for merge-hostile artifacts/targets.
 
-执行者完成后**不直接 merge**。最终判定权在**人**。
+For the canonical workbook, only the active `WorkbookWriter` commits `Design/Data/ReEchoData.xlsx` and its generated production CSV package. Other domains submit requested changes through their Plan/handoff; read-only runtime consumers may proceed concurrently. Disposable local QA edits that will not be published do not claim repository ownership.
 
-**测试分工**（关键）：
-- 🤖 **执行者**：功能正确性的**自动化**验证 —— 读状态/数据 log，证明"功能对不对"。**这套调试方法不变**。
-- 🎮 **人**：玩法/手感/体验的验证 —— 亲自跑。判断"好不好/对不对味"。**AI 给不了这个判断，执行者不替代、不靠截图猜**。
+## Windows UE toolchain
 
-流程：
-1. **执行者**：完成功能 + 自动化验证（log/数据证明功能对）+ push + §执行经验
-2. **人验**：实际操作，体验手感/玩法 ★
-3. 人给反馈 → 执行者改 → 人再验（迭代循环）
-4. 人满意 + 规划者审查（`git diff` 初版vs终版 + 提炼经验）→ **规划者** `merge --no-ff`
-5. 规划者确认执行者 worktree 无未提交内容后，安全移除 worktree 和已合并的本地分支；执行者不要自行删除工作目录。远端分支是否删除由人决定。
+Use repository entry points from the project root:
 
-```bash
-git checkout main
-git merge --no-ff plan/XX-short -m "Merge plan/XX: <一句话>"
+```powershell
+python scripts\validate_project.py
+scripts\ue\Build-Editor.cmd -Configuration Development
+scripts\ue\Run-Automation.cmd -Filter ReEcho
+python scripts\ue\package_windows.py
 ```
 
-远端 `main` 还有独立发布门：人验通过、任务被接受、规划 ref/task branch 已 push，均不授权执行者更新远端默认分支。执行者只交付自己的任务分支和证据；只有 Planner（或仓库明确指定的发布者）在重新 fetch/集成/验证并取得人对本次候选的明确授权后，才能非强制发布。执行者不得直接 push/force push `main`，也不得把一次历史授权扩展到后续提交。
+Use only checks required by `PROJECT_RULES.md` and the Plan. Ask the human to save/close an interactive Editor before commands that require it. Never claim PIE or visual acceptance; those results belong to the human.
 
-## Git 分支规则
+### Same-clone Unreal lock
 
-**所有工作必须在独立分支上进行，包括代码、文档、配置、调研摘要。**
-禁止在 main 上做任何改动，无论是否 commit。
+The lock is shared through the Git common directory, so all worktrees in the clone see the same file:
 
-```bash
-# 1. 切到最新 main
-git checkout main
+```powershell
+$gitCommon = (git rev-parse --path-format=absolute --git-common-dir).Trim()
+$lockDir = Join-Path $gitCommon 'reecho-locks'
+$lockPath = Join-Path $lockDir 'unreal-editor.lock'
+New-Item -ItemType Directory -Force -Path $lockDir | Out-Null
+$lockAcquired = $false
 
-# 2. 创建分支（命名规则：plan/XX-简短描述）
-git checkout -b plan/01-bootstrap
-
-# 3. 开工前读取公布 planning ref 上的最新规划文件；同机默认 ref 为 main
-git show <planning-ref>:plans/XX-short-name.md
-
-# ... 改代码、构建、跑、验 ...
-
-# 4. 提交（用具体文件列表，禁止 git add -A；commit 总结要写清楚）
-git add <具体文件...>
-git commit -m "Plan XX: <一句话说清改了什么/达成什么>"
-
-# 5. 推送（无 remote 就只本地 commit）
-git push -u origin plan/01-bootstrap
+try {
+    $lockStream = [System.IO.File]::Open($lockPath, 'CreateNew', 'Write', 'None')
+    $lockAcquired = $true
+    $writer = [System.IO.StreamWriter]::new($lockStream)
+    $writer.WriteLine("pid=$PID branch=$(git branch --show-current)")
+    $writer.Dispose()
+    # Run the exclusive Editor/project command here.
+}
+catch [System.IO.IOException] {
+    throw "ReEcho Unreal resource is already locked: $lockPath"
+}
+finally {
+    if ($lockAcquired -and (Test-Path -LiteralPath $lockPath)) {
+        Remove-Item -LiteralPath $lockPath
+    }
+}
 ```
 
-禁止行为：
-- 禁止 `git add -A` 或 `git add .`
-- 禁止 force push 到 main/master
-- 禁止在 main 分支上做任何改动（含文档、调研摘要、配置文件）
-- 禁止 `git checkout main` 后直接编辑文件
-- push 后不要创建 PR/MR，直接告诉用户
+Do not remove someone else's lock from the catch path. A stale lock may be removed only after confirming no UnrealEditor/commandlet process is using this project and recording the recovery in the handoff.
 
-**Commit 总结最低纪律**：
-- 标题一句话说清“改了什么 / 达成什么”，禁止 `update` / `fix` / `wip` / `改了点东西` 这类空话。
-- 复杂改动写正文：为什么、影响范围、回归风险、未解决项。
-- 关联 plan 编号；深入踩坑仍写回 plan §执行经验，commit 不替代执行经验。
-- 提交前确认没有误带本机绝对路径、密钥、`.env`、构建产物或大二进制中间物。
+## Verification and handoff
 
-## Plan 修改权（分层）
+1. Run focused checks immediately after risky changes and the required final matrix before handoff.
+2. Summarize current-commit evidence; do not rely on stale binaries or pre-rebase results.
+3. Update the Plan lifecycle to `Review`, preserve the separate human-validation value (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`), and release only resources no longer being edited.
+4. Stage explicit files, commit with the Plan number and a concrete outcome, then push only the task branch.
+5. Report commit, changed surface, passed/failed checks, unavailable prerequisites and remaining human validation.
 
-规划者只出**初版** plan。执行者可根据实际情况**直接改 plan**，不必照初版死磕——你在一线，实现细节你最懂（避免不专业指挥专业）。但分两层：
+Executors do not merge, publish or force-push `main`, create an unrequested PR/MR, remove their worktree, or delete remote branches.
 
-🔧 **实现层（自由改）**：方案、参数、代码结构、执行步骤顺序、技术选型细化
-→ 直接改 plan 文件，在 §执行经验 说明改了什么、为什么。规划者 merge 时 diff 吸取经验。
+## Taking over unfinished work
 
-🔒 **锁定层（改前协商）**：目标、验收标准、带 ⚠️ 的保护门槛（如 Step 0 gate）
-→ 要改先在 `shared/PLANNER_EXCHANGE.md` 说明理由，等规划者/用户确认。
-→ **禁止为"让测试通过"而放宽验收标准**（否则验收失去意义）。
-
-## 代码质量（实现层自由改 ≠ 可以欠债）
-
-🔧 实现层你自由改，但**抄近路不等于免费**。代码健康度是验收的第三维，分工：**规划者审、你来改**（见 `WORKFLOW.md`「§3.8 代码质量与重构」）。
-
-- 抄了近路 / 留了重复 / 临时硬编码 → 在 **§执行经验注明**，让规划者判是顺手清还是记债，别闷着。
-- 规划者审 diff 提的**小清理**（重命名/抽函数/去重）→ 你在**同分支** merge 前顺手改。
-- **大重构**（拆上帝类/重组共享组件/换架构）→ 别在功能 plan 里顺手做（混了难审难回滚），单开 `REFACTOR` plan。
-- 改**共享组件/类**（多处复用的）时尤其留意：你这分支看不到全图重复，规划者会兜底审。
-
-## 多 AI 接力 / 接手他人未完成工作
-
-接手一条已被别人或另一个 AI 改过的分支时，先稳住基线，别在混乱上叠混乱。
-
-- **先识别最后已验证基线**：看 `git log`、plan §执行经验、测试记录，找最后一个通过实测/自动验的提交或状态。
-- **识别当前未验证改动**：用 `git status`、`git diff --stat`、最近 commit 摘要看清哪些是假设、哪些已验。
-- **不要连叠未验证修复**：一个 bug 一次只改一个假设，改完立刻验证，再提交下一步。没验证的“修复”叠起来会难审、难回滚、难定位。
-- **需要回退时先保存**：用临时分支、stash、patch 等保存未验证工作；除非用户明确允许丢弃，不要用会直接抹掉别人工作的破坏性回退。
-- **不要手改构建中间产物排查问题**：`Intermediate/`、`Build/`、`Library/`、`Temp/`、打包产物、手工注入包内容等通常是产物不是源。修源码/脚本/配置，然后干净重建。
-
-## 资源串行锁  `<待定>`
-
-> 若本项目有单机独占的重资源（编辑器/GPU/端口/设备）→ 用文件锁串行；没有则删除本节。
-> 分布式 clone 下，每台机器的本地资源通常互不抢；真正要串行的是共享/难合并资源归属（场景、预制体、数据表、设计稿、部署目标等），动前在 `PLANNER_EXCHANGE.md` 登记。
-
-```bash
-# 拿锁（最多等 30min）→ 用资源 → 释放，循环要短
-elapsed=0
-while [ -f <RESOURCE_LOCK> ] && [ $elapsed -lt 1800 ]; do
-    sleep 30; elapsed=$((elapsed + 30))
-done
-touch <RESOURCE_LOCK>
-if [ $elapsed -ge 1800 ]; then echo "ERROR: lock timeout"; exit 1; fi
-
-# --- 构建 / 运行 / 验证 ---
-
-rm <RESOURCE_LOCK>
-```
-
-拿锁 → 用资源 → 释放，循环要短。不要锁着重资源做不相干的事。
-
-## 编辑器 / 工具链  `<待定>`
-
-> 项目类型确定后，替换为本项目的构建/运行/截图命令。例：
-> - UE：`open *.uproject` + `Build.sh ... Mac Development`
-> - Unity：编辑器路径 + batchmode 命令
-> - Web/服务：`npm run build` / `npm run dev` / 端口
-
-```bash
-# <构建命令待填>
-# <运行/启动命令待填>
-```
-
-## 桥接 / 自动化  `<待定>`
-
-> 若用桥接（如 SoftUEBridge / Unity MCP）驱动运行时验证，在此写命令与端口。否则删除本节。
-
-## 日志  `<待定>`
-
-> 写本项目可靠的日志/遥测通道（哪种 log 可信、哪种不可靠），调试前先查 `LESSONS.md §DEBUG`。
-
-## 经验库
-
-用 `rg -n "^## §"` 定位后，只读当前工种章节。仅在诊断失败时追加读取 §DEBUG；禁止整文件加载。
-
-**领域实现卡住时**，查输入层提炼笔记 `CodeWorkshop/ai-gamedev-workflow/notes/`（不够再翻 `Books/` 原书）——前人经验，别硬猜。见 `WORKFLOW.md`「§4.2 输入层」。
-
-若项目有 `PIPELINE.md` 或 `<DOMAIN>-<DOMAIN>-MESSAGE.md`，跨工种/跨仓库交付和接入前先读对应文件；交付后把位置、规格、遗留写回公告板。
-
-## 省 Token 纪律（读取 / 输出 / 日志）
-
-> 成本大头是"反复搬进上下文的背景"，不是你打的字。下面几条每次都省。
-
-- **先定位再读**：用 `grep`/`rg` 找到行号，再用范围读（offset/limit），不要整文件读进来。
-- **引用带完整路径**：`Source/.../Foo.cpp:142`，别只写文件名让 AI 全项目搜。
-- **构建/测试 log 只取关键段**：`... 2>&1 | grep -iE 'error|warning|fail' | head -50`，别把几千行输出灌进上下文。
-- **审查/对比用 `--stat` 起步**：`git diff --stat` 看全貌，再定向看某文件的 hunk。
-- **二进制资产不展开**：查改动看路径/大小，不读字节。
-- **输出给结论**：要 diff/步骤/结论就直说，别复述问题、别长篇铺垫。
-## 提交前
-
-遵循 `shared/PROJECT_RULES.md` 的分支、验证矩阵与完成定义；本文件不复制项目级提交规则。
+- Identify the last verified commit from Git and Execution notes.
+- Separate current unverified changes with `git status` and `git diff --stat`.
+- Change and verify one hypothesis at a time; do not stack speculative fixes.
+- Preserve another person's work with a branch/stash/patch before any rollback. Never use destructive history or filesystem cleanup without explicit authority.
+- Fix sources and rebuild; do not patch `Intermediate`, `Binaries`, `Saved`, package output or other generated products as if they were source.

@@ -84,7 +84,7 @@ Esc -> pause menu -> exit
 | Player | `AReEchoPlayerPawn` | `Player/ReEchoPlayerPawn.*` | Map-edge-clamped follow camera with wider player arena clamp, WASD, center-aligned root capsule, mouse-following horizontal sprite facing, four configurable NewCast character textures, manual attacks and visual-only 2D motion |
 | GAS combat | `UAbilitySystemComponent`, `UReEchoCombatAttributeSet`, native GameplayEffects/tags and player abilities | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*` | Player/enemy runtime attributes, effect-based damage/heal, tag-driven activation, cooldown commit and AbilityTask held attacks; CombatantComponent is the legacy-facing adapter |
 | Projectile | `AReEchoProjectileActor` | `Graybox/ReEchoProjectileActor.*` | Visible sphere travel, swept path-vs-capsule hit detection, damage delivery |
-| Player weapons | `AReEchoWeaponActor`, `FReEchoCsvWeaponRow`, `EReEchoInputSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*`, `UI/ReEchoLoadoutSelectionWidget.*`, `Data/ReEchoWeaponCsvReader.*` | CSV-driven concrete WeaponIds, legacy hotkey InputSlot mapping, ordered attack steps, start-selectable loadout options, recorder/echo playback by stable WeaponId |
+| Player weapons | `AReEchoWeaponActor`, `FReEchoCsvWeaponRow`, `EReEchoInputSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*`, `UI/ReEchoLoadoutSelectionWidget.*`, `Data/ReEchoWeaponCsvReader.*` | CSV-driven concrete WeaponIds, compatibility-only InputSlot mapping, ordered attack steps, start-selectable loadout options, run-locked recorder/echo initialization by stable WeaponId |
 | Sword arc VFX | `AReEchoSwordArcActor` | `Graybox/ReEchoSwordArcActor.*`, `Weapons/ReEchoWeaponActor.cpp` | Layered translucent crescent spawned for each sword swing and faded over a short lifetime |
 | Enemy | `AReEchoEnemyActor` | `Graybox/ReEchoEnemyActor.*` | Grunt/shield/bomber/final-Boss stats, six rotating 2D grunt variants and a 2D final-Boss Billboard, capsule damage volume, chase/contact damage and visual-only attack/hit/death motion |
 | Echo | `AReEchoEchoActor` | `Graybox/ReEchoEchoActor.*` | Historical movement and recorded weapon-change playback, automatic shared-weapon attacks, translucent pulsing ghost material and visual-only 2D motion |
@@ -173,7 +173,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables, cano
 | Automation | `scripts/ue/Run-Automation.*` | `Private/Tests/*`, `Saved/Logs/ReEcho.log` |
 | UE MCP | `docs/UE_MCP.md` | `ReEcho.uproject`, editor settings, `.codex/config.toml` |
 | RenderDoc MCP | `docs/RENDERDOC_MCP.md` | `scripts/mcp/Codex-With-RenderDoc.cmd` |
-| AI workflow/rules | `shared/PROJECT_RULES.md` | role rule, plan, relevant lessons only |
+| AI workflow/rules | `AGENTS.md`, `shared/PROJECT_RULES.md` | matching role rule; `PLANNER_EXCHANGE.md` for live scope/ownership; `WORKFLOW.md` only for rationale |
 
 ## Invariants and traps
 

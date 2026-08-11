@@ -1,105 +1,72 @@
-# 规划者规则 Planner Rules
+# ReEcho Planner rules
 
-> 🏛️ **顶层主本（CANONICAL MASTER）· 仅由工坊主理人助手维护**（配套 `shared/WORKFLOW.md` §6）。
-> 新项目从本主本拷贝到 `<repo>/shared/PLANNER_RULES.md`；本文件全是项目无关的规划者动作，可直接用。通用条款改进走 WORKFLOW §6 回提主本，别在项目副本里改。
+This file contains Planner actions only. Startup order is defined by `AGENTS.md`; project hard rules and verification live in `PROJECT_RULES.md`.
 
-> 规划者开工前先读此文件。两边（Trae / Claude Code）通用。与 `EXECUTOR_RULES.md` 对等。
-> 架构全貌见 `shared/WORKFLOW.md`；此文件是规划者的**动作清单**。
+## Draft a Plan
 
-## 开工前读什么
+1. Fetch the advertised remote planning baseline and inspect current Exchange announcements before reserving a number. Remote Plan numbers are canonical and never reused.
+2. Search the code/data surface before writing. Cite concrete paths and lines instead of relying on memory.
+3. Separate the locked goal/acceptance from implementation guidance. The Executor may refine implementation but may not silently change locked scope.
+4. Mark human validation `NotRequired` unless subjective feel, readability, visual quality or usability needs a person. Use `PendingBeforeClose` when it gates acceptance or `PendingFollowUp` only when the human explicitly allows deferral. Do not add ceremonial PIE to documentation or pipeline-only work.
+5. Add the Plan `Coordination` block from `plans/TEMPLATE.md`: owners, lifecycle, human validation, planning ref/base, dependencies, Writes/Reads, impact mode, compatibility promise and exclusions.
+6. Recommend an Executor model only when it helps the human choose; do not spawn one unless the human explicitly asks.
 
-`AGENTS.md` 是唯一读取顺序。规划任务额外读取 `PROJECT_STATE.md`、当前 plan 和相关经验章节；不要在这里维护第二份启动清单。
+## Publish coordination before implementation
 
-## 出 plan（写初版）
+1. Put the new Plan, its Exchange announcement and any active ownership row in one pure-planning commit on `coord/<owner>-<topic>`.
+2. Push that ref before an external Executor starts. A local-only Plan is not coordinated in a distributed project.
+3. Give the human two short prompts when another teammate is affected:
+   - Executor prompt: planning ref/commit, branch/base, goal, acceptance, Writes and red lines.
+   - Peer-Planner prompt: fetch the ref, report overlap/dependencies, register its work and publish a response.
+4. `Isolated` and `ReadOnly` work may start after the broadcast. `SharedContract` or `Exclusive` overlap waits for the affected Planner/owner to confirm the contract or ownership.
+5. If Writes, dependencies or a stable contract must expand, pause only the out-of-scope change, update Plan/Exchange, push a new planning commit, then continue. Unrelated work need not stop.
 
-- **先搜代码库再写**：`grep`/`rg` 查现状（现有类/参数/调用点），别凭记忆或直觉写假设。引用带完整路径+行号。
-- **区分需求与方案**：
-  - 🔒 **锁定层**写死——目标、验收标准、带 ⚠️ 的保护门槛（Step 0 gate）。
-  - 🔧 **实现层**留白——方案 / 参数 / 代码结构 / 步骤顺序 / 选型，交执行者按实际定。
-- **验收按两类分别列 `[ ]`**：🤖 执行者自动验（功能正确性，可读状态/日志证明）；🎮 人验（手感/玩法/体验）。
-- **别凭估算下悲观结论否决方向**——拿不准的前置写成 **Step 0 门槛**，让一线实测再决定，别在 plan 里替执行者拍死。
-- **不确定的内容门槛要点明**（如需要音源/素材/外部账号），设成"先确认再做"的 gate。
-- **写完主动建议执行者模型档位**：复杂/长链路/新架构→强模型(Opus)；样板/格式/纯调参→便宜模型(Sonnet/Haiku)；一个 plan 内不同 Step 难度不同就分别标。**只建议，由人来切，不自动 spawn。**
-- **分布式 Plan 必须写 `Coordination`**：Planner/Executor owner、状态、规划 ref、实现分支与 base、Depends on/Blocks、Writes/Reads、共享契约影响、下游适配和明确排除项。编号先在远端 Exchange 预留，不能只按本地文件猜下一个编号。
+Planning publication makes scope visible. It does not authorize implementation to enter `main`.
 
-## 跨 Planner 规划发布门（Executor 开工前）
+## Executor prompt template
 
-1. fetch/pull 远端规划基线，重读 Planned and active work announcements；发现远端 main 尚未包含本地基线时，不擅自顺带推送实现历史，改用经人确认的 `coord/...` 广播 ref。
-2. 同一批新 Plans、每条 Plan 的 `Coordination`、Exchange 公告和必要的所有权行作为一个纯规划 batch，用显式文件列表提交并推送。未发布到对方可 fetch 的远端 ref，不得称为“已协调”。
-3. 给人两段 Prompt：一段启动己方 Executor；一段交给对方 Planner，要求它读取指定 ref/commit、判断重叠与依赖、登记己方工作并推送回应。
-4. `Shared-contract` 或 `Exclusive` 影响需对方 Planner/人确认所有权后再启动；`Isolated` 或 `Read-only consumer` 在规划广播发布后即可启动，不为等待形式确认而空转。
-5. 开发中若实现需要扩大 Writes、修改未声明公共接口、改变稳定 ID/存档/网络/数据 schema，先暂停越界改动，更新 Plan/Exchange、提交推送，再继续。
-6. 规划发布只授权规划文档和任务分支的远端可见性；未经人验和审查，不得把功能实现合入 main。
-
-## 发布 plan 后：写一段「执行者启动 prompt」（每条 plan 必做）
-
-写完 plan 后，附一段简短、可直接粘给执行者的启动 prompt，由人复制到独立执行者会话。目的不是替人 spawn 执行者，而是让冷启动执行者一次拿到“读什么 / 在哪干 / 做什么 / 红线是什么”。
-
-**模板**（按本条 plan 填空）：
 ```text
-你是本项目执行者。先读 shared/AI_ONBOARDING.md、shared/EXECUTOR_RULES.md，
-再读 plans/<XX-标签-名>.md 和 shared/LESSONS.md §<工种标签> + §DEBUG。
-在 <repo> 切 `plan/<XX-short>` 分支开发（禁止在 main 改、禁止自己 merge、只 push/commit 到本分支）。
-任务：<一句话目标>。验收照 plan 的 🔒 清单（🤖 你自动验，🎮 留人玩）。
-🔧 实现层你自由改，在 §执行经验说明偏差；人中途加的需求也补一句进 §执行经验。
-完成后 push/提交 + 告诉人，别自己合并。
+你是 ReEcho 执行者。按 AGENTS.md 读取最小上下文；不要固定加载完整 WORKFLOW 或 §DEBUG。
+从 <base-ref/commit> 创建 <branch/worktree>。Plan：plans/<id>-<name>.md。
+目标：<一句话>。Writes：<精确范围>。Impact：<mode>。验收按 Plan 执行；Human validation=<state>。
+只在任务分支实现、验证并更新本 Plan Execution notes；不要例行修改共享状态文档，不要 merge/push main。
+若必须扩大 Writes、改变稳定 ID/schema/save/public API，先停止越界部分并通知 Planner。
+完成后 push 任务分支并报告 commit、验证和剩余人验。
 ```
 
-- prompt 要短，避免把执行者上下文塞满；但必须含：必读文件、工作分支/目录、一句话任务、验收边界、禁止自合并/改 main、需求变化写回 §执行经验。
-- 若任务涉及共享/难合并资源（场景、预制体、数据表、设计稿、部署目标等），prompt 里点名“先在协调板认领”。
-- 分布式任务还必须写明 planning ref/commit、实现分支 base 和允许的 Writes；Executor 开工时发现与远端公告不一致，应停止并交还 Planner。
+## Review and local integration
 
-## 审查与 Merge
+1. Confirm the Plan is in `Review`, inspect the merge base, branch status, Execution notes and current remote announcements.
+2. Start with `git diff --stat <merge-base>..<branch>`, then inspect relevant hunks and generated artifacts. Do not use `main..branch` as the implementation diff when `main` has advanced.
+3. Check locked acceptance, objective evidence, public-contract compatibility and code health. Rework returns lifecycle to `InProgress`; do not invent new status strings.
+4. Small cleanup stays on the task branch. Large unrelated refactors get a separate Plan.
+5. Resolve `PendingBeforeClose` with the human before closure. `PendingFollowUp` may remain only under an explicit human deferral; `NotRequired` needs no artificial PIE.
+6. After acceptance, merge with `--no-ff` into local `main`, update shared state once, release ownership and set lifecycle `Closed`.
+7. Remove a clean merged worktree only after checking its exact path and `git status --short`. Never use `--force`; delete a merged local branch with `git branch -d`. Remote branch deletion requires a human request.
 
-- 执行者完成 + 人验认可后，规划者才动手。**完成与否最终由人拍板**，不是 AI 自评。
-- 审 **初版 plan ↔ 终版 plan 的 diff**：看执行者改了哪些实现层、为什么（§执行经验），把偏差/坑吸收成经验。
-- 用 `git diff --stat` 起步，再定向看关键文件 hunk，别整读 diff。
-- **同时审代码健康度（第三维，见 `WORKFLOW.md`「§3.8 代码质量与重构」）**：跨文件重复、命名、上帝类、共享组件膨胀、抄近路的债。你有全局图景，看得到执行者单分支看不到的重复。
-  - **小清理** → 让执行者**同分支** merge 前顺手改。
-  - **大重构**（拆上帝类/重组共享组件）→ **单开 `REFACTOR` plan**，别塞进功能 plan。
-  - 暂不还的 → 记进 `PROJECT_STATE` 的「技术债 / 重构候选」。
-  - 触发信号：某文件反复出坑、共享组件越加越重、同类代码重复 ≥3 处。
-- `merge --no-ff plan/XX -m "Merge plan/XX: <一句话>"`。
-- ⚠️ merge 两个已知坑（详见 `WORKFLOW.md`「§3.4 Git / Worktree 机制」）：① main 领先分支基点时 `git diff main..branch` 显示**假删除**，真实改动用 `git diff $(git merge-base ...)`；② `plans/XX.md` 常 add/add 冲突，执行者版是超集 → `git checkout --theirs`。
-- **统一 commit 权在规划者**（main 上的提交都由规划者打）。执行者只 push 到自己 plan 分支。
+## Remote-main publication
 
-### 远端 main 发布门
+Local acceptance/merge and remote publication are distinct.
 
-- 本地 `main` 合并与 `origin/main` 发布是两个授权点；人同意功能完成或同意一次本地合并，不得被解释为永久/批量远端发布授权。
-- 每次发布前 `fetch`，以当前 `origin/main` 为底构造候选，并重读所有 Planner 的 Exchange 公告和已验收 ref。只纳入人点名的已验收范围，显式排除 WIP；并行但无关的 WIP 不必等待。
-- 对最终候选重新跑影响面验证。发生冲突、远端变化或重新落基线后，旧证据失效的部分必须重跑。
-- 向人报告候选 commit、包含/排除的 Plans、验证结果和远端差异；取得针对本次候选的明确授权后，才可由 Planner 按仓库保护机制非强制更新 `origin/main`。
-- 禁止 force push。发布被拒或远端再次前进时停止，重新集成并重新请求授权；不得用改写历史绕过。
-- 发布后核对远端 commit，更新 Exchange/PROJECT_STATE 的共享基线，并通知其他 Planner fetch/rebase。规划 ref、任务分支或 PR 的存在不代表功能已经进入远端 main。
+1. Fetch immediately before building the candidate. Integrate the current `origin/main`, all named accepted scope and no unapproved WIP.
+2. Re-run checks affected by integration, conflicts or base changes.
+3. Report included/excluded Plans, candidate commit, verification and remote difference.
+4. Authorization is either:
+   - **one-candidate**: explicit human approval for that reported candidate; or
+   - **standing scoped**: an Exchange rule explicitly granted by the human with allowed content, expiry/revocation condition and required checks.
+5. Publish without force. If remote advances or rejects the push, stop, rebuild/revalidate the candidate and renew authorization when its scope or commit changes beyond the standing grant.
+6. Fetch and compare local/remote commits after publication. Notify peer Planners to fetch/rebase.
 
-## 收尾（每个 plan 完成后）
+Do not commit a self-referential “current origin/main hash” into live state. Name `origin/main` plus included scope; Git and the publication report provide the exact commit.
 
-1. **提炼经验进 `LESSONS.md`**：归到对应 §工种 section，条目带"**来源：Plan XX**"，并更新顶部分类索引的计数。
-2. **更新 `PROJECT_STATE.md`**：只改「可用状态」「当前进度」「里程碑」三节。
-3. **共享文件改动要在 STATE 标回归风险**：若动了多处共用的组件/系统，明确提醒"哪个模块值得回归一次"。
-4. 「下一步候选」由规划者讨论后更新，不擅自塞。
-5. **提交并发布规划产物**：每次规划动作后（写完 plan / 收尾更新 / 改规则）就把 `plans/`、`shared/`、`design/` 等规划产物提交到主线或约定分支，显式文件列表提交，别攒着。分布式协作中，Executor 开工前必须推到公告指定的远端 planning ref。
-   - 提交前先确认当前分支。若你和执行者共享工作树，执行者可能切走了 HEAD；发现自己在执行者分支上改了规划文件时，先安全保存改动（stash/patch/临时分支），切回正确分支再提交。
-6. **清理已完成的执行者 worktree**：只在人验通过、规划者审查并合并、收尾文档已落地后执行。先用 `git worktree list` 确认精确路径，再检查该 worktree `git status --short` 为空；有任何未提交内容就停止并交还人/执行者处理。干净时用 `git worktree remove <exec>`（禁止 `--force`），随后用 `git branch -d plan/XX-short` 删除已合并的本地分支。远端分支只在人明确要求时删除，不手工递归删除 worktree 目录。
+## Shared-memory closure
 
-## 维护协作文档（流程/架构变更时）
+At review/closure, and only where relevant:
 
-协作流程、分层规则、资源约束、角色分工有任何**变更**时（通常先在 `PLANNER_EXCHANGE.md` 协商拍板）：
-- **同步进规范**：把结论写进 `shared/WORKFLOW.md`（架构全貌）+ 对应 `PLANNER_RULES.md` / `EXECUTOR_RULES.md`。
-- **EXCHANGE 只是拍板/沟通记录，不是规范归宿**——决策若只躺在 EXCHANGE 历史条目里，下一个会话/新规划者读不到，规则就漂移了。
-- 改了规则记得**两边对称**（规划者侧改了，看执行者侧要不要跟）。
+- `PROJECT_STATE.md`: current product/progress/toolchain snapshot, never chronology.
+- `CODEBASE_MAP.md`: changed retrieval routes/responsibilities only.
+- `LESSONS.md`: reusable evidence-backed lessons with source Plan.
+- `PLANNER_EXCHANGE.md`: current work/ownership/warnings only; remove closed rows rather than keeping a history table.
+- assigned Plan: final lifecycle, changed behavior, evidence, risk and human-validation result/request.
 
-> 经验法则：EXCHANGE = "我们决定改成 X"；WORKFLOW/RULES = "现在的规矩就是 X"。拍完板要落到后者。
-
-## 不做什么
-
-- **不自动 spawn 执行者去跑"完成"**——执行者是独立会话（可能是 Trae），完成要人认可。
-- **不替执行者改实现层**（除非是纠错），把"怎么做"的决策权留给一线。
-- **不为"让测试通过"放宽验收标准**（验收一松就失去意义）。
-- **不在 plan 里替执行者把不确定前置拍死**——用 Step 0 让它实测。
-
----
-> 这些规则的"为什么"见 `WORKFLOW.md`（「§2 为什么这么搭」+「§3 流程展开」）。
-## 提交前
-
-遵循 `shared/PROJECT_RULES.md` 的分支、验证矩阵与完成定义；本文件不复制项目级提交规则。
+Workflow/rule changes are reviewed repository changes. Update the single authoritative section instead of copying the same mandate into every role document.

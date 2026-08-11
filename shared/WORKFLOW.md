@@ -1,347 +1,111 @@
-# AI 开发架构 —— 多智能体协作蓝图（可移植部署）
+# ReEcho multi-agent workflow
 
-> 🏛️ **顶层主本（CANONICAL MASTER）· 仅由工坊主理人助手维护**
-> 这是工坊跨项目的**唯一权威蓝图**，位于 `CodeWorkshop/ai-gamedev-workflow/WORKFLOW.md`（工作区跨项目层）。
-> - **新项目**：从本主本**拷贝**一份到 `<repo>/shared/WORKFLOW.md`，本地只改项目特定增量（路径 / 工具链 / 资源锁）。
-> - **改进回路**：各项目副本在实战中迭代出的**通用**流程改进，由主理人助手**定期从衍生本提炼、抽象后回提到本主本**——别在项目副本里直接改写蓝图的通用条款（那只会造成副本漂移）。
-> - **衍生本**：`SundayDrive/shared/`（参考实现，最成熟）、`OutLawTeam_tmp/shared/` 等。
+This document explains the collaboration model. It is not a second rulebook.
 
-> **这份文档是什么**：把"规划者 / 执行者 / 人"三方协作的整套 AI 开发流程抽象成一份**可复用蓝图**。SundayDrive 是参考实现；新项目照「§5 部署清单」搭一套即可复用。
->
-> 占位符：`<PROJECT>`=项目名、`<workspace>`=工作区（仓库上一级）、`<repo>`=主仓库目录、`<exec>`=执行者 worktree、`<RESOURCE_LOCK>`=独占资源锁路径。
->
-> ⚠️ **活文档**：协作流程/架构每有变更（通常先在 `PLANNER_EXCHANGE.md` 拍板），规划者要把结论同步进这里 + 对应 RULES，别让它只留在 EXCHANGE 历史里。规则散落=漂移。
+## Authority map
 
----
+| Concern | Authority |
+|---|---|
+| Startup and retrieval order | `AGENTS.md` |
+| Project constraints, ownership, branches and verification | `shared/PROJECT_RULES.md` |
+| Planner actions | `shared/PLANNER_RULES.md` |
+| Executor actions | `shared/EXECUTOR_RULES.md` |
+| Current work, ownership and warnings | `shared/PLANNER_EXCHANGE.md` |
+| One task's scope and evidence | `plans/<id>-*.md` |
+| Current delivered product state | `shared/PROJECT_STATE.md` |
 
-## §1. 核心（先看这节，后面全是展开）
+If explanatory text here differs from an authority above, the authority above wins. Workflow changes are made in this repository like any other reviewed change; there is no external master that can silently override the committed project rules.
 
-这套架构就两个核心：**① 一条 plan 怎么流转（流程）**、**② 要部署哪些文件夹和文件**。后面所有章节，都是对这两块的解释。
+## Roles and lifecycle
 
-### 1.1 核心流程
+- The human sets direction, decides whether subjective validation is satisfactory, and authorizes remote-main publication.
+- A Planner defines scope and acceptance, publishes coordination, reviews delivery, integrates accepted work and maintains shared state.
+- An Executor implements on an isolated branch/worktree, records evidence and hands the branch back. Executors do not merge or publish `main`.
 
-三方角色，两个 AI 角色**不共享上下文、只靠文件交接**：
-- **人**：定方向 · 玩验手感 · 最终拍板完成 · 切模型档位。
-- **规划者 Planner**：编排——出初版 plan、审查 diff、提炼经验、`merge`、维护状态。常驻 `main`，**统一 commit 权**。
-- **执行者 Executor**：干活——在 `plan/XX` 分支改实现、跑 🤖 自动验、`push`（**绝不 merge**）。可以是 Trae 或 Claude 的多个实例。
+The task lifecycle field uses one vocabulary only:
 
-一条 plan 的生命周期：
-```
-① 规划者出初版 plan ─▶ ② 多 Planner 规划广播 ─▶ ③ 执行者切分支领任务 ─▶ ④ 实现 + 🤖 自动验
-   (🔒目标/验收/Step0      (远端同步/预留编号/                                  │
-    + 🔧实现)               公布影响面/对方确认)                                 ▼
-                                                            ⑤ push + 写§执行经验
-       ▲                                                                  │
-       │                                                                  ▼
-  ⑧ 规划者审查/收尾/清理  ◀────────── ⑦ 人拍板完成 ◀────────── ⑥ 人玩验手感 🎮
-  (diff/LESSONS/STATE/merge/删 worktree)          不满意 → 执行者改 → 人再玩(循环)
-```
-> 逐节详解见 **§3 流程展开**。
+```text
+Proposed -> Ready -> InProgress -> Review -> Closed
+                         |           |
+                         +-----------+  rework returns to InProgress
 
-### 1.2 要部署的文件夹和文件
-
-```
-<workspace>/                  工作区（输入层放这层，跨项目共用）
-  Books/          ai-gamedev-workflow/notes/                ← 输入层（外部知识+AI方法论，见 §4.2）
-  <repo>/                    本项目仓库
-    plans/                   任务书：plans/<序号>-<工种标签>-<简短名>.md
-    shared/                  ← 协作核心，部署时主要就是建这一堆
-      AI_ONBOARDING.md       任何 AI / 队友 / 工具的接入前门
-      WORKFLOW.md            本蓝图（直接抄）
-      PLANNER_RULES.md       规划者开工规则
-      EXECUTOR_RULES.md      执行者开工规则
-      PROJECT_STATE.md       项目状态：可用状态/进度/里程碑/协作协议
-      LESSONS.md             经验库（按工种分类索引）
-      PLANNER_EXCHANGE.md    协调板：认领/资源归属/决策变更/预警/待拍板
-    CLAUDE.md                项目说明 + 工具驱动方式
+Blocked is exceptional and must include a concrete unblock condition.
 ```
 
-`shared/` 核心文件分三类：
-
-| 类别 | 文件 | 职责 |
-|---|---|---|
-| **规则**（开工读） | `AI_ONBOARDING` · `WORKFLOW` · `PLANNER_RULES` · `EXECUTOR_RULES` | 接入前门 + 架构蓝图 + 两侧开工规则。详见 §3 各节。 |
-| **外部化记忆**（交接） | `plans/` · `PROJECT_STATE` · `LESSONS` · `PLANNER_EXCHANGE` | 任务书 / 状态 / 经验 / 通信——状态外部化，换会话/换模型不丢。详见 §4.1。 |
-| **输入层**（按需查） | `<workspace>/{Books, ai-gamedev-workflow/notes}` | 项目外的领域知识 + AI 方法论。详见 §4.2。 |
-
-> ⚠️ 有**两层**：workspace 层 `<workspace>/ai-gamedev-workflow/`（跨项目主本）和 repo 层 `<repo>/shared/`（本项目协作文件），别混。
-> workspace 层 `ai-gamedev-workflow/` 一身两职：既是**输入层**（`notes/`，§4.2）又是**蓝图主本所在**（本 AI_ONBOARDING + WORKFLOW + RULES 的 canonical 版，见顶部主本头 + §6）。
->
-> 怎么从零搭出来 → **§5 部署清单**。
-
----
-
-## §2. 为什么这么搭（理念 + 理由）
-
-### 2.1 四条理念
-1. **成本 = 反复搬进上下文的背景，不是你打的字。** 所以记忆**外部化到文件**，每个 Agent 每次只读它该读的那部分，不靠把历史全塞进对话。
-2. **编排者–工作者 + 外部化记忆。** 规划者编排、执行者干活，两者不共享上下文、只通过文件交接 → 换模型、换工具、换会话都不丢状态。
-3. **专业的事交给一线。** 规划者只定"做什么 + 怎么算完成"，"怎么做"交执行者——避免不专业指挥专业。
-4. **AI 给不了的判断留给人。** 功能对不对让 AI 自动验；好不好玩/手感对不对只有人玩了算。
-
-### 2.2 关键决策的理由（FAQ）
-
-**Q1. 为什么分"规划者 / 执行者"两个角色，不是一个 AI 干到底？**
-- **上下文经济**：一个对话从头用到尾 → 上下文包袱越来越重、烧 token；每次开新对话 → 又得重述背景、沟通成本高。**分两角色是折中**——各自上下文短、靠文件交接，既不背全量历史，也不用每次从零沟通。
-- **方向与可验证**：先写成 plan，执行更有方向；有验收清单，结果更可验证，而非"做完了吗"全凭感觉。
-
-**Q2. 为什么要有 LESSONS 经验库？**
-- 有些问题会**反复出现**，而上下文有限。每次重新定位、重新解决本质相同的 bug 是浪费。固化成经验库，下次直接查——不在同一个坑上重复烧 token。
-
-**Q3. 为什么执行者可以改 plan，而不是只能照做？**
-- 实践中用户会**补充/修改目标**，落地路径也会变。若每个变动都要执行者回去找规划者改 plan，就**来回扯皮、浪费时间和 token**。所以把改 plan（🔧 实现层）权下放给一线；规划者只守 🔒 锁定层。
-
-**Q4. 多个执行者同时干活怎么不打架？**
-- 同机用 **worktree + 不同分支**隔离工作区；分布式用**各自 clone + remote 同步**。共享/难合并资源靠 `PLANNER_EXCHANGE.md` 登记归属，规划者或项目约定的合并机制负责汇总冲突、把握跨任务一致性（见 §3.9）。
-
-**Q5. 为什么要专门搞个 `shared/`，各 AI 用自己的 Skill/`.xxx` 配置不就行了？**
-- 切换 AI 时各读散落的 `.trae`/`.claude` 私有配置，**对齐成本高、易不一致**。抽象出**工具无关的 `shared/` 层**，所有 AI 都读它 → 统一口径。各 AI 的规划者再据这个共享层去更新自己的 Skill/配置（**shared 是源，私有 Skill 是它的投影**）。
-
----
-
-## §3. 流程展开（解释 §1.1）
-
-### 3.1 角色拓扑
-```
-            ┌─────────────────────────────────────────────┐
-            │                    人（你）                    │
-            │  定方向 · 玩验手感 · 最终拍板完成 · 切模型档位    │
-            └───────────────┬───────────────┬─────────────┘
-                   出 plan/审查 merge      玩 + 反馈
-            ┌───────────────▼──────┐   ┌────▼──────────────────┐
-            │   规划者 Planner       │──▶│   执行者 Executor      │
-            │  常驻 main / <repo>    │◀──│  plan/XX 分支 / <exec> │
-            │  写初版/审diff/提炼/merge│   │  改实现/自动验/push     │
-            └──────────┬───────────┘   └───────────────────────┘
-                       │  共享同一 .git + shared/ 外部化记忆
-                 plans/ · PROJECT_STATE · LESSONS · PLANNER_EXCHANGE
-```
-> 多实例并存：Trae、Claude、Codex 等可各自既当规划者又当执行者，靠 `PLANNER_EXCHANGE.md` 对齐、靠 `<RESOURCE_LOCK>` 不抢独占资源。若扩展到多人/多机器，见 §3.9。
-
-### 3.2 生命周期关键节点
-- **③/④ 自动验 + push**：执行者证明"功能对"（读位置/状态/CSV/log），推到自己分支，把"改了啥/为啥/没解决啥"写进 plan 末尾 §执行经验。
-- **⑥ 人玩**：★ 不可跳过。手感/玩法只有人能判，AI 不靠截图猜。
-- **⑦ 人拍板**：完成与否最终由人定，不是 AI 自评。
-- **⑦/⑧ 规划者审 + 收尾**：审初版↔终版 diff——除了吸取偏差、提炼经验进 LESSONS，**还审代码健康度**（第三维，见 §3.8）；然后更新 PROJECT_STATE、`merge --no-ff`；写完新 plan 时**主动建议执行者模型档位**（复杂/新架构→强模型，样板/格式活→便宜模型），由人来切。
-
-### 3.3 两条分层铁律
-**Plan 分层：🔒 锁定层 vs 🔧 实现层**
-- 🔧 **实现层（自由改）**：方案、参数、代码结构、步骤顺序、选型 → 直接改，在 §执行经验说明改了啥/为啥。
-- 🔒 **锁定层（改前协商）**：目标、验收标准、带 ⚠️ 的保护门槛（Step 0 gate）→ 要改先在 `PLANNER_EXCHANGE` 说理由，等人/规划者确认。
-- **禁止为"让测试通过"放宽验收标准**（否则验收失去意义）。
-
-**测试分工：🤖 自动验 vs 🎮 人玩**
-- 🤖 **执行者（自动化）**：功能正确性——读操作（位置/速度/状态机）、读数据 log（CSV/遥测）。
-- 🎮 **人（体验）**：玩法/手感——亲自跑。判断"好不好玩/对不对味"。**AI 不替代、不靠截图猜。**
-- 每个 plan 验收清单按两类分别列 `[ ]`，🤖 项执行者勾、🎮 项留人验。
-
-> 还有**第三维：代码质量（🔍 规划者审、执行者改）**——它不是"验收"而是"改进"，单列见 §3.8。
-
-### 3.4 Git / Worktree 机制
-**同机隔离**：规划者与执行者**不共享 working tree**，各自独立 worktree、共享同一 `.git`（objects 立即互见，无需 pull）：
-```bash
-git worktree add <exec> -b plan/XX-short main   # 建执行者 worktree（一次性）
-```
-- 执行者读规划者最新 plan：`git show main:plans/XX.md`（无需 pull）。首次进新 worktree 要重新编译（Binaries/Intermediate 不随 worktree 复制）。
-
-**分支规则**：
-- 一切改动（代码/文档/配置/调研）都在 `plan/XX-简短描述` 分支，**禁止在 main 上改**。
-- 提交用**显式文件列表**，禁止 `git add -A`/`.`。
-- 执行者只 `push`（无 remote 就只本地 commit），**绝不 merge 到 main**；禁止 force push main、禁止自建 PR。
-
-**merge（规划者）**：
-```bash
-git checkout main && git merge --no-ff plan/XX-short -m "Merge plan/XX: <一句话>"
-```
-- ⚠️ 坑1：main 领先分支基点时 `git diff main..branch` 显示**假删除**，真实改动看 `git diff $(git merge-base main branch) branch`，3 路 merge 会保留。
-- ⚠️ 坑2：`plans/XX.md` 常 add/add 冲突（初版 vs 追加经验）→ 执行者版是超集，`git checkout --theirs`。
-
-**发布到远端默认分支（独立发布门）**：本地合并 `main` 不等于获准更新 `origin/main`，规划广播、协调 ref、任务分支 push 和某一次历史授权也都不构成后续发布授权。每次更新远端默认分支必须同时满足：
-1. 待发布范围中的每个任务都已完成自动验、该 Plan 要求的人验、人的完成拍板和 Planner 审查；WIP、仅自动化通过或仅发布到协调 ref 的实现不得混入。
-2. Planner 先 `fetch` 远端，核对 `origin/main` 与所有 Planner 公告/已验收集成 ref；从当前 `origin/main` 构造发布候选，只纳入本次已验收范围。无关的并行 WIP 不阻塞发布，但必须明确排除。
-3. 对发布候选重新执行与合并影响面相称的静态检查、构建、自动化和必要打包/人工回归；冲突解决后不得沿用冲突前证据。
-4. 人对**本次发布范围和候选提交**给出明确授权。该授权一次一用，不自动覆盖后续任务或后续提交。
-5. 仅 Planner（或仓库明确指定的发布者）可按仓库保护机制更新 `origin/main`；禁止 force push。非快进、远端在审查后变化或保护规则拒绝时，停止并重新集成/验收，不改写远端历史。
-6. 发布后核对远端 commit，并把实际范围、commit、验证证据及未包含 WIP 写回 `PLANNER_EXCHANGE.md`/状态文档，供其他 Planner 重新基线。
-
-**完成后的 worktree 清理（规划者）**：
-1. 只在人验通过、规划者完成审查与 merge、状态/经验文档已同步后清理。
-2. 用 `git worktree list` 解析目标的精确路径和分支；用目标 worktree 内的 `git status --short` 确认没有未提交或未跟踪内容。有内容就停止，不覆盖、不强删。
-3. 对干净目标执行 `git worktree remove <exec>`，禁止 `--force`，也不要先用文件系统命令递归删除目录。
-4. 用 `git branch -d plan/XX-short` 删除已合并的本地分支；`-d` 拒绝删除未合并分支，是保护门槛。远端分支只在人明确要求时删除。
-
-**Clone-safe 依赖**：
-- 共享仓库里不要提交本机绝对路径、`file:` 依赖、密钥、`.env` 或只在一台机器存在的工具路径。
-- 本地工具包 / MCP / 插件若必须随仓库解析，优先用远程 URL + pinned commit / version；确保别人干净 clone 后能安装/打开。
-- 构建产物、中间物、缓存不进 git。worktree / clone 会放大“磁盘有但 git 没追踪”的问题：源码和必要配置必须入库，产物由各机器自己生成。
-
-### 3.5 共享独占资源串行化
-单机重资源（如编辑器、GPU、端口、设备、模拟器等）必须**串行**，用文件锁：
-```bash
-# 拿锁（最多等 30min）→ 用资源 → 释放，循环要短
-while [ -f <RESOURCE_LOCK> ] && [ $elapsed -lt 1800 ]; do sleep 30; elapsed=$((elapsed+30)); done
-touch <RESOURCE_LOCK>
-#   ... 编译 / 跑 / 截图 ...
-rm <RESOURCE_LOCK>
-```
-> **多 Agent 不能真并行**做需要独占资源的事。规划写 plan 时别假设几步能并发——一次一个。资源不独占（如纯后端可多进程）则可放宽。
-
-### 3.6 省 Token 纪律（所有 Agent）
-- **先定位再读**：`grep`/`rg` 找行号 → 范围读，不整文件读。
-- **引用带完整路径+行号**：`src/foo.cpp:142`。
-- **构建/测试 log 只取关键段**：`... 2>&1 | grep -iE 'error|warning|fail' | head -50`。
-- **审查用 `--stat` 起步**，再定向看某文件 hunk。
-- **二进制资产不展开**（看路径/大小不读字节）。**输出给结论**，别复述问题、别长铺垫。
-
-### 3.7 规划者专属职责
-1. 出 plan **前先搜代码库**（grep 现状），别凭记忆写假设。
-2. 区分"需求"与"方案"：plan 写清目标+验收(🔒)，方案细节留 🔧。
-3. 别凭估算下悲观结论否决方向——让一线实测（Step 0 门槛）。
-4. merge 时审初版↔终版 diff：把坑/偏差提炼进 LESSONS（带"来源:Plan XX"），并审**代码健康度**——小清理让执行者同分支改、大债开 REFACTOR plan 或记进 PROJECT_STATE 技术债（见 §3.8）。
-5. 每个 plan 完成后更新 PROJECT_STATE（只改「可玩状态/进度/里程碑」三节）。
-6. **共享文件改动要在 STATE 标回归风险**（提醒回归别处）。
-7. 写完 plan **主动建议执行者模型档位**，人来切，不自动 spawn。
-8. 写完 plan **附一段执行者启动 prompt**：给人复制到独立执行者会话，短而完整地交代“读什么 / 在哪干 / 做什么 / 红线是什么”（见 `PLANNER_RULES.md`）。
-
-> 以上规则的"动作清单版"分别落在 `PLANNER_RULES.md` / `EXECUTOR_RULES.md`，开工各读各的。
-
-### 3.8 代码质量与重构（第三维：🔍 规划者审、执行者改）
-
-🤖 功能对、🎮 手感对之外，**代码健康度是第三维**。它不是"验收"而是"改进"，且代码审查/重构是 AI 的强项，所以分工：**🔍 规划者审、执行者改**。
-
-- **谁判**：规划者审 diff 时一并看代码健康度——跨文件重复、命名、上帝类、共享组件膨胀、抄近路留的债。规划者有全局图景，看得到执行者单分支里看不到的重复。
-- **谁改**：执行者（一线最懂实现）动手。
-- **两个出口**：
-  - **小清理**（重命名 / 抽函数 / 去一处重复）→ 执行者在**同分支** merge 前顺手改，不另开 plan。
-  - **大重构**（拆上帝类 / 重组共享组件 / 换架构）→ **单开 `REFACTOR` plan**，走完整生命周期。别和功能塞进同一条 plan（混了既难审也难回滚）。
-- **原则**：🔧 实现层"自由改"**不等于可以欠债**——抄近路要在 §执行经验注明，由规划者决定顺手清还是记债。
-- **触发大重构的信号**：某文件反复出坑、共享组件越加越重（本项目如 `SimpleCarPawn` / `GunnerComponent` / `DriverBrain`）、同类代码重复 ≥3 处、改一处要连带动好几处。
-- **技术债记账**：暂不还的债写进 `PROJECT_STATE` 的「技术债 / 重构候选」，别让它只活在某次对话里。
-- **重构验证强度分级**：
-  - **纯输出 / 只读职责**（只读状态，写日志/遥测/视觉，不反馈进控制、物理、状态机）：可用构造性论证 + verbatim diff + 编译/测试 + 核心逻辑未动来证明行为不变。
-  - **会反馈进仿真 / 状态 / 控制的职责**（AI、物理、血量、输入、回放、网络同步等）：必须做同输入的前后对照，用遥测、快照、回放、测试或其他可复查证据证明没漂。
-  - 为了行为不变，优先保持原调用点、原顺序、原驱动方式；不要在重构里顺手引入新的 tick、异步、缓存或调度时序。
-
-### 3.9 协作拓扑：同机 worktree vs 分布式 clone
-
-前面默认是“一个人 + 他控的几个 AI，在一台机器或同一工作区”。团队版把「人」扩成多个：每个队友各带各的 AI、各在各自机器上。**架构不重建，只换同步方式**：`shared/` 从“我的外部记忆”升级成“全队的集成总线”。
-
-**两种拓扑**：
-- **同机 / 同工作区**：多个 AI 用 `git worktree` 隔离，分享同一 `.git`；objects 立即互见，读 main 可用 `git show main:...`。
-- **分布式 / 多队友 clone**：每个人各自 clone，经 remote 同步；开工前 `git pull`，完事 `git push`。分支名建议带人名或节点名（如 `feat/<owner>-<thing>` / `plan/XX-short`）防撞。
-
-**分布式规划发布门**：多个队友各带自己的 Planner/Executor 时，Executor 开工前必须先把“将要做什么”发布到远端，而不是等代码完成后才让另一方看到。
+Human validation is a separate field: `NotRequired`, `PendingBeforeClose`, `PendingFollowUp`, or `Passed`. `PendingBeforeClose` blocks closure; `PendingFollowUp` is an explicitly accepted deferred confidence check and may coexist with `Closed`. It must never be encoded into lifecycle status.
 
-1. Planner 先 fetch/pull 远端规划基线，读取 `PLANNER_EXCHANGE.md` 的 Planned and active work announcements，并以远端已登记编号为准预留新 Plan 编号。
-2. 每个新 Plan 写 `Coordination`：Planner/Executor owner、状态、规划 ref、实现分支/基线、依赖与阻塞、Writes/Reads、共享契约影响、对下游要求和明确排除项。
-3. Planner 同步更新 Exchange 的公告和独占所有权，以显式文件列表提交纯规划产物，并在 Executor 开工前推到共享远端 ref。通常使用共享 main；main 尚未同步或不允许移动时，可临时使用明确命名的 `coord/...` 分支，但必须在公告和 Prompt 中写清 ref。
-4. Planner 同时产出两段 Prompt：己方 Executor 启动 Prompt，以及对方 Planner 协调 Prompt。对方 Planner 先报告重叠、依赖和所有权；Shared-contract/Exclusive 影响必须确认后开工，Isolated/Read-only 消费在公告发布后可并行。
-5. 状态统一使用 `Proposed → Ready → InProgress → Review → Closed`；验收失败回到 `InProgress/Rework`。扩大 Writes、触碰未声明公共契约、改变依赖或兼容策略时，必须先更新 Plan/Exchange 并再次推送，不能等收尾补记。
-6. 规划广播允许推送规划文档，不等于允许未验收功能进入 main。Executor 仍只推自己的任务分支，功能 merge 仍走人验和 Planner 审查。非快进被拒时重新同步并重读公告，禁止 force push。
+## Coordination contract
 
-`PLANNER_EXCHANGE.md` 的两类表职责不同：Planned and active work announcements 说明跨团队未来/当前影响；Active ownership 只声明当前不能被另一方并行写入的资源。公告关闭后移入 Recently closed，所有权在实现结束后释放。
+Every new distributed Plan declares:
 
-**串行点会变化**：
-- 文件锁 `<RESOURCE_LOCK>` 只解决同机独占资源（编辑器、GPU、端口、设备）。
-- 分布式下，各机器的编辑器互不抢；真正要串行的是 **merge-hostile 资源归属**：场景、预制体、二进制资产、设计稿、数据表、部署目标等。动前在 `PLANNER_EXCHANGE.md` 登记归属，能代码化生成就少手改。
+- Planner and Executor owner;
+- lifecycle status and human-validation state;
+- published planning ref and implementation base;
+- `Depends on` and `Blocks`;
+- exact `Writes` and stable `Reads`;
+- one impact mode: `Isolated`, `ReadOnly`, `SharedContract`, or `Exclusive`;
+- downstream compatibility promise and explicit exclusions.
 
-**合并权是项目策略**：
-- 默认蓝图仍建议“规划者审查后统一 merge”。
-- 也可以改成 PR 审核制、lead 合并、jam 信任制等；但必须写进 `PROJECT_STATE.md` 的「协作协议」。
-- 门越松，`AI_ONBOARDING.md` 越重要：每个新 AI 都得真读接入契约，不能靠口头提醒。
+Ownership has a separate state: `Reserved`, `Active`, or `Released`.
 
-**工具私有入口是薄适配器**：
-`CLAUDE.md`、`AGENTS.md`、`.cursorrules`、IDE prompt 等只负责告诉工具“先读 `shared/AI_ONBOARDING.md`”。真正的通用规则只在 `shared/` 里维护一份。
+- `Isolated`: disjoint files and no shared contract change; may start after the planning ref is published.
+- `ReadOnly`: consumes a published stable surface without editing provider-owned files; may run in parallel.
+- `SharedContract`: changes an API, stable ID, schema, save format or generated-data contract; provider and affected Planners agree on the contract before implementation crosses it.
+- `Exclusive`: edits a merge-hostile artifact or external target; only one active writer exists.
 
----
+A reservation announces intent but does not block unrelated work. Only an `Active` `Exclusive` row blocks another writer. Scope expansion is rebroadcast before files or contracts outside the published `Writes` are changed.
 
-## §4. 文件展开（解释 §1.2）
+## Parallel execution and integration
 
-### 4.1 外部化记忆：四份文件各管一块
-这是架构的地基，**每份职责单一、读者明确**：
+Same-machine Executors use separate worktrees and branches. Different teammates use separate clones and remote branches. In both cases, file ownership and contract boundaries—not the number of machines—determine safe parallelism.
 
-| 文件 | 是什么 | 谁写 | 谁读 |
-|---|---|---|---|
-| `plans/XX-标签-名.md` | 单个任务的任务书(目标/验收/实现/执行经验) | 规划者出初版，执行者补实现层+§执行经验 | 执行者(领任务)、规划者(审查) |
-| `PROJECT_STATE.md` | 项目速览:可用状态、进度、里程碑、协作协议 | 规划者(每个 plan 完成后更新) | 规划者(开工前)；执行者一般不读 |
-| `LESSONS.md` | 经验库,按工种分类索引 | 规划者(merge 时提炼) | 执行者**只读匹配 §section**、规划者 |
-| `PLANNER_EXCHANGE.md` | 协调板：跨 Planner 工作公告 / 任务认领 / 资源归属 / 决策变更 / 预警 / 待拍板 | 任一 Planner/节点 | 所有节点（Planner 出计划前、Executor 开工前） |
+Use contract-first integration for provider/consumer work:
 
-- **LESSONS 关键设计**：顶部**分类索引表**（按工种打标签 `PCG/GAME/FIX/...` + 各类经验数），正文按 §section 分章。执行者**只读匹配标签那章 + §DEBUG**，不整文件加载（经验库会涨）。
-- **plan 命名**：`plans/<序号>-<工种标签>-<简短名>.md`，序号单调递增不复用。工种标签除领域（`GAME/PCG/...`）外，还有 `META`（流程/工具）、`FIX`（bug）、`REFACTOR`（专门还技术债，见 §3.8）。
+1. The provider publishes a stable consumer commit/ref and names the supported read-only surface.
+2. Consumers branch from that ref or a newer `origin/main`, write only their declared surface and avoid provider internals.
+3. Provider changes that break the promise require a new coordination broadcast.
+4. Once the provider reaches `main`, each consumer fetches and rebases/merges the current `origin/main` before review, then reruns affected checks.
+5. Old `coord/...` refs are handoff evidence, not permanent integration baselines.
 
-### 4.2 输入层：外部知识源（避免闭门造车）
-§4.1 是**项目内**自产记忆；**输入层**是**项目外**知识，让 Agent 站在前人肩上。放在仓库**上一级 `<workspace>/`**，跨项目共用：
+Shared documentation is deliberately kept out of Executor hot paths:
 
-| 来源 | 是什么 | 主要喂谁 |
-|---|---|---|
-| `Books/` | **领域原始书**：Game AI Pro、Real-Time Cameras、游戏编程模式、网络多人架构、腾讯精粹 | 设计 + 实现——领域手艺 |
-| `ai-gamedev-workflow/notes/` | **提炼笔记**：从 Books 的读书笔记（相机/编程模式/网络架构）+ AI 协作方法论（Skill 设计、Agentic Engineering、token 成本）| 规划者 + 执行者，随用随查 |
+- Executors update their Plan's Execution notes and documentation local to their owned implementation.
+- Planners update `PROJECT_STATE`, `CODEBASE_MAP`, `LESSONS` and closed Exchange rows once at review/integration.
+- Exchange changes during implementation occur only for ownership, scope, dependency or contract changes.
 
-- **和项目内是同一个"原始→提炼"模式**：`Books → notes` 对应 `代码 → LESSONS`。原书太厚不可能每次读，提炼层才高频引用。
-- **用法**：做设计决策/写 plan 前先查 `notes/`（不够再翻 `Books/`）；查到的经验**落进 plan/LESSONS（带出处）**。已接进两份 RULES 的"读什么"。
+This keeps independent branches from conflicting on the same Markdown files.
 
-### 4.3 可选扩展：产线文档与跨工种公告板
+## Canonical workbook
 
-当项目出现稳定的跨工种 / 跨仓库 / 跨系统流水线时，不要只靠聊天交接，可在 `shared/` 下增加轻量扩展文件：
+`Design/Data/ReEchoData.xlsx` is one binary source and therefore has one active repository writer (`WorkbookWriter`). Generated production CSV files follow that writer and are not separately locked.
 
-- `PIPELINE.md`：重复产线的标准步骤、目录约定、输入 gate、自检清单、交付边界。适合美术资产、数据生产、部署发布、评测流水线等。
-- `<DOMAIN>-<DOMAIN>-MESSAGE.md`：跨工种公告板，只放交接信息——谁交付了什么、字节在哪里、规格是什么、下游怎么接、遗留是什么。
+- `DomainOwner` describes requested row/domain changes in its Plan or handoff without committing a competing canonical workbook.
+- `ReadOnly` runtime/UI consumers may use the generated CSV and typed APIs concurrently.
+- A local designer usability test that is not intended for publication does not claim repository ownership.
+- If a QA edit should be kept, it is handed to the current `WorkbookWriter` for application and regeneration.
 
-原则：**字节可以在 git、对象存储、网盘或制品库；交接信息必须回到 `shared/`。** 上游交付后追加公告，下游接入前先读公告。文件命名和格式由项目自定，但职责要单一、只追加、不删别人记录。
+## Local exclusive resources
 
----
+The Unreal Editor lock is machine-local but shared by all worktrees in the same clone. Its location is derived from `git rev-parse --git-common-dir`, not from a worktree-local `.locks/` directory. Separate clones on separate machines do not share this lock.
 
-## §5. 部署到新项目（Quick Start）
+The lock only serializes commands that actually require exclusive Editor/project access. Source inspection, independent text edits, Python data checks and other nonexclusive work continue in parallel. Stale-lock handling and Windows commands live in `EXECUTOR_RULES.md`.
 
-按 §1.2 的骨架，从零搭：
+## Planning and publication lanes
 
-**① 从主本拷贝蓝图**：把顶层主本 `<workspace>/ai-gamedev-workflow/` 的 `AI_ONBOARDING.md` + `WORKFLOW.md` + `PLANNER_RULES.md` + `EXECUTOR_RULES.md` + `LESSONS.md` 拷到 `<repo>/shared/`；再按 §1.2 那张图补齐其余（`<repo>/plans/` + `shared/` 的 PROJECT_STATE / PLANNER_EXCHANGE 两份本地记忆 + 工具入口文件如 `CLAUDE.md` / `AGENTS.md`）。WORKFLOW 通用条款**不动**（要改走 §6 回提主本），只在 RULES / STATE 里填项目特定增量。
+There are three different remote operations:
 
-**② 建执行者 worktree**
-```bash
-git worktree add ../<PROJECT>-exec -b plan/01-bootstrap main
-```
+1. **Planning broadcast**: a pure Plan/Exchange batch pushed to `coord/<owner>-<topic>`. It lets other Planners and Executors see scope before implementation starts; it does not publish functionality.
+2. **Task handoff**: an Executor pushes its `plan/<id>-<short>` implementation branch and evidence. It does not authorize a merge.
+3. **Remote-main publication**: a Planner integrates accepted scope from the current `origin/main`, revalidates the candidate and publishes without force under the authorization rules in `PLANNER_RULES.md`.
 
-**③ 定两个项目变量**
-- `<RESOURCE_LOCK>`：有单机独占资源（编辑器/GPU/端口）就定个锁文件路径；没有就删 §3.5。
-- 编译/运行/截图命令：在 EXECUTOR_RULES「编辑器/桥接」节替换成新项目工具链。
+The human may grant either one-candidate authorization or a documented standing authorization with a narrow scope and expiry/revocation condition. Planning/task refs never inherit remote-main authority.
 
-**④ 改项目特定部分**（WORKFLOW 直接抄不改）
-- AI_ONBOARDING：保留通用接入契约；补本项目入口和特殊红线。
-- PLANNER_RULES / EXECUTOR_RULES：路径、资源锁、工具命令（规则本身通用）。
-- PROJECT_STATE：写当前可用状态 + 协作协议节。
-- LESSONS：主本已提供统一经验库（按工种分类的完整模板，含跨引擎经验）。如需新工种标签，在分类表末尾追加；项目特定经验按现有格式从零积累。
-- PLANNER_EXCHANGE：留协调板表头即可。
+Committed state documents should not cache a supposedly current `origin/main` hash: the commit containing that hash would immediately make it stale. They name the branch and included scope; Git and the publication report provide the exact commit.
 
-**⑤ 接上输入层（§4.2）**
-- 工作区已有 `Books/ai-gamedev-workflow/notes/` → 直接沿用（跨项目共享）。
-- 新工作区/新领域 → 建这三个：方法论 + 该领域权威书/文档 + 一个 `notes/` 提炼层（Web 项目可放框架文档/设计规范）。RULES 的"读什么"已指向它，确认路径对得上。
+## Why this shape
 
-**⑥ 跑通第一条 plan（验证管线）**
-出最小 `plans/01-*.md`（🔒 目标/验收 + 🔧 实现），走完整生命周期（切分支→改→自动验→push→人验→规划者 merge），确认四份记忆交接顺、锁机制对、merge 流程通。
-
-**⑦ （可选）落地协作偏好到记忆**
-把"写完 plan 主动荐模型档位""人最终拍板"等团队偏好写进 Agent 的持久记忆，跨会话生效。
-
-**⑧ （可选）补产线 / 跨工种扩展文件**
-若项目有稳定产线或跨仓库交接，按 §4.3 增加 `PIPELINE.md` / `<DOMAIN>-<DOMAIN>-MESSAGE.md`，并在 `AI_ONBOARDING.md` 的必读清单里指向它。
-
-> 部署完，新项目就有了：可换模型/工具的多智能体协作、外部化记忆不丢状态、🔒/🔧 + 🤖/🎮 双分层、worktree 隔离 + 串行锁、输入层站前人肩上。后续每条 plan 自动沉淀经验，架构随项目成长。
-
----
-
-## §6. 蓝图自身的演进与维护（两级防漂移）
-
-这套架构是**活文档**，从实战里长出来——分层放权、人最终拍板、代码质量第三维都是后加的。维护靠两级回路，缺一则规则漂移：
-
-**① 项目内：EXCHANGE → RULES（防"决策丢失"）**
-流程 / 分层 / 资源约束有变更 → 先在 `PLANNER_EXCHANGE.md` 协商拍板 → **立刻固化进本项目副本的 WORKFLOW/RULES**。EXCHANGE 只是"我们决定改成 X"的记录，不是规范归宿；决策只躺在 EXCHANGE 历史里、下个会话读不到 = 漂移。
-
-**② 跨项目：衍生本 → 主本（防"多副本分叉"）**
-各项目副本在实战中迭代出的**通用**改进，由**工坊主理人助手**定期从衍生本提炼、抽象后**回提到顶层主本**（`<workspace>/ai-gamedev-workflow/`）。
-- 主本是蓝图**通用条款的唯一可改处**；项目副本只改项目特定增量（路径 / 工具链 / 资源锁）。
-- 别在项目副本里直接改通用条款——多副本各自演进 = 副本漂移（比 EXCHANGE 漂移更难收敛）。
-- 提炼对象涵盖**协作流程**（角色 / 分层 / 外部化记忆 / 治理）**和领域经验**（LESSONS.md 的分类体系与跨引擎条目）。各项目的项目特定经验仍在本项目 `shared/LESSONS.md` 独立演进，但跨项目通用的经验由主理人助手提取后回提主本。
-
-> 一句话：项目内 `EXCHANGE→RULES` 防决策丢失；跨项目 `衍生本→主本` 防多副本分叉。主本只此一处，只由主理人助手改。
+- Branches/worktrees isolate bytes; ownership and contracts isolate intent.
+- A stable read-only surface lets consumers start before the provider's whole feature is complete.
+- Separate lifecycle, human-validation and ownership fields prevent free-text status from becoming a hidden lock.
+- One authoritative location per rule reduces drift and startup context.
+- Planner-owned shared-state updates remove a major merge-conflict hotspot from parallel Executor branches.
