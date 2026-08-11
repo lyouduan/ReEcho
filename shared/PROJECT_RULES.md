@@ -1,71 +1,73 @@
 # ReEcho project rules
 
-This file contains project-specific additions to the canonical workflow. If it conflicts with a generic placeholder in the imported rules, this file wins.
+These are the project-level hard rules. `AGENTS.md` owns startup order; role actions live in `PLANNER_RULES.md` and `EXECUTOR_RULES.md`; `WORKFLOW.md` is explanatory.
 
 ## Scope and architecture
 
 - Engine: Unreal Engine 5.8 installed/release build, Windows desktop first. Do not build or open this project with the separate source checkout.
 - Project descriptor: `ReEcho.uproject`; runtime module: `Source/ReEcho`.
-- `Design/Data/ReEchoData.xlsx` is the canonical designer-editable source for migrated production tables; generated CSV under `Content/Data/` is the diffable, packaged runtime source. Legacy `Content/Data/*.json` files are read-only migration material until their domains are moved; do not hand-edit generated CSV as a second truth or duplicate balance constants in JSON, C++, DeveloperSettings, actors or widgets.
-- Preserve deterministic semantics: simulation 60 Hz, recording 20 Hz, encounter length 30 seconds, pause advances neither recording nor playback.
-- Automatic attacks are never serialized into recordings. Echoes replay only historical position and successful active-skill events; attack targeting and hit resolution use the current world.
-- Do not hand-edit `.uasset` or `.umap` binaries outside Unreal Editor. Prefer C++, CSV source data, Editor Utility generation, or Python automation for mergeable assets.
+- `Design/Data/ReEchoData.xlsx` is the canonical designer-editable source for migrated production tables. Generated CSV under `Content/Data/` is the diffable packaged runtime source. Legacy JSON is migration-only for migrated domains.
+- Do not hand-edit generated production CSV as a second truth or duplicate migrated balance constants in JSON, C++, DeveloperSettings, actors or widgets.
+- Preserve deterministic semantics: simulation 60 Hz, recording 20 Hz, encounter length 30 seconds, and pause advances neither recording nor playback.
+- Automatic attacks are never serialized into recordings. Echoes replay historical position and successful active-skill events; targeting and hit resolution use the current world.
+- Do not hand-edit `.uasset` or `.umap` outside Unreal Editor. Prefer mergeable C++, data sources and generation tooling.
 
-## Ownership and serial resources
+## Branches and authority
 
-- Merge-hostile resources are `.umap`, `.uasset`, Project Settings changed through the editor, and generated DataTables. Claim them in `shared/PLANNER_EXCHANGE.md` before editing.
-- Only one agent may own an editor asset at a time. C++ and separate CSV/text files may proceed independently when file ownership does not overlap.
-- Local editor lock: `.locks/unreal-editor.lock`. It is machine-local and ignored by git. Remove it only after confirming no UnrealEditor process for this project is running.
+- Executor implementation branches use `plan/<id>-<short-name>`; client-required branches may use `codex/<short-name>`.
+- Executors never modify, merge or push `main`. Planners may create reviewed local merge commits and may publish remote `main` only under `PLANNER_RULES.md`.
+- Task implementation and planning batches start on a non-`main` branch. A Planner may resolve integration conflicts and create reviewed merge commits on local `main`. Planning broadcasts normally use `coord/<owner>-<topic>` until their reviewed integration/publication.
+- Stage explicit paths only. Never use `git add .` or `git add -A`; never force-push `main`.
+- Human instructions and Plan locked acceptance define scope. Executors may refine implementation details but must coordinate changes to goals, acceptance, public contracts or declared Writes.
 
-## Branch and handoff
+## Parallel ownership
 
-- Implementation branches use `plan/<id>-<short-name>`; Codex-created branches may use `codex/<short-name>` when required by the client.
-- Never merge the implementation branch into the default branch. Human approval and planner review are required.
-- Updating `origin/main` is a separate one-time release gate after local acceptance/merge: the Planner must fetch and integrate current remote/other-Planner accepted work, rerun affected verification, identify the exact candidate and included Plans, obtain explicit human authorization for that candidate, and publish without force. Planning refs and task branches never imply this authorization.
-- Stage explicit paths only. Never use `git add .` or `git add -A`.
-- Every plan ends with `Execution notes`: changed behavior, evidence, remaining risks, and human-play checks.
-- Before every commit, update the Markdown that describes the changed behavior or workflow (plans/<id>-*.md plus the relevant shared/PROJECT_STATE.md, shared/CODEBASE_MAP.md, shared/LESSONS.md, or rules). The staged code/assets and staged documentation must describe the same state; a code-only commit is incomplete unless the change is truly documentation-neutral.
+- Impact modes are `Isolated`, `ReadOnly`, `SharedContract`, and `Exclusive`; ownership states are `Reserved`, `Active`, and `Released`.
+- Only an `Active` `Exclusive` row blocks another writer. Reservations do not block disjoint or read-only work.
+- `.umap`, `.uasset`, editor Project Settings, the canonical XLSX, deployment targets and other merge-hostile artifacts require an Exchange ownership row before publication-intended edits.
+- C++, separate text files and read-only API/data consumers may proceed independently when declared Writes do not overlap.
+- `SharedContract` includes stable IDs, schemas, save formats, public APIs and generator contracts. Affected Planners agree on the consumer surface before breaking changes proceed.
+- The canonical XLSX has one repository `WorkbookWriter`. Generated CSV belongs to the same publication unit and is not separately claimed. Disposable local designer QA does not claim repository ownership.
+- The same-clone Unreal lock lives under the Git common directory at `reecho-locks/unreal-editor.lock`. Remove a stale lock only after confirming no process is using this project.
 
-## Unreal C++ coding standard (mandatory for every AI)
+## Documentation ownership
 
-- Follow Epic Games' Unreal Engine C++ Coding Standard for every file under `Source/`.
-- Never compress functions, conditionals, loops, lambdas, declarations, or multiple statements onto one line.
-- Use Allman braces, four-column tab indentation, one statement per line, and spaces around binary operators and after commas.
-- Use Unreal naming and type conventions (`A/U/F/E/I/T` prefixes, `b` for booleans, PascalCase symbols) and UE types where applicable.
-- Keep each header self-contained: `#pragma once`, matching generated header last, minimal includes, and forward declarations where valid.
-- In `.cpp` files, include the matching header first; keep include groups stable and do not auto-sort Unreal include order.
-- Prefer early returns, named constants, and small helpers over deeply nested or duplicated logic. Do not hide control flow in dense expressions.
-- Run the repository `.clang-format` on every changed `.h`/`.cpp`, inspect the diff, then run UHT/UBT and `git diff --check`.
-- Formatting-only cleanup must not alter gameplay semantics. Any deliberate exception requires a nearby explanation and explicit handoff note.
+- Executors update their assigned Plan's Execution notes and documentation directly tied to their owned implementation.
+- Executors do not routinely edit `PROJECT_STATE.md`, `CODEBASE_MAP.md`, `LESSONS.md` or workflow rules. The Planner updates those once during review/closure; an Executor edits them only when the Plan explicitly owns that document.
+- Update Exchange during implementation only when ownership, Writes, dependencies, lifecycle or a shared contract changes.
+- Update `CODEBASE_MAP.md` only when a retrieval route or responsibility moves. Add to `LESSONS.md` only for reusable evidence-backed lessons, not a task diary.
+- Staged implementation and its local documentation must agree. Documentation-neutral commits do not require a ceremonial shared-file edit.
 
-## Build and verification
+## Unreal C++ standard
 
-Use the `.cmd` entry points on Windows; they bypass PowerShell execution policy only for their child process and do not alter machine policy.
+- Follow Epic's Unreal Engine C++ Coding Standard under `Source/`.
+- Use Allman braces, four-column tab indentation, one statement per line, spaces around binary operators and Unreal naming/type conventions.
+- Keep headers self-contained with the matching generated header last; in `.cpp`, include the matching header first and keep include groups stable.
+- Prefer early returns, named constants and small helpers over dense expressions or duplicated logic.
+- Run repository `.clang-format` on changed `.h`/`.cpp`, inspect the diff, then run UHT/UBT and `git diff --check`.
+- Formatting-only cleanup must not change gameplay semantics; exceptions require a nearby explanation and handoff note.
 
-Run only the checks required by the changed surface:
+## Verification matrix
+
+Use Windows `.cmd` entry points. Run checks required by the changed surface, not unrelated suites.
 
 | Change surface | Required checks |
 |---|---|
 | Markdown/workflow only | `python scripts/validate_project.py`, `git diff --check` |
-| JSON/config only | Static validation plus narrow affected automation when runtime behavior changes |
-| CSV data only | `python scripts/validate_project.py`, data registry automation when runtime behavior changes, `git diff --check` |
+| Python data tooling/XLSX contract | focused Python tests, canonical `--check`, project validation, `git diff --check` |
+| JSON/config/CSV only | project validation plus affected runtime automation when behavior changes |
 | C++ | `.clang-format`, `Build-Editor.cmd`, affected automation, `git diff --check` |
-| Texture/import script only | Import/load check and asset existence; no unrelated gameplay automation |
-| Packaging/cook behavior | Applicable C++ checks, then clean package and manifest/smoke evidence |
+| Texture/import script | import/load and asset-existence check |
+| Packaging/cook | applicable checks plus clean package and manifest/smoke evidence |
 
-- Discover the engine only when an Unreal command needs it.
-- Before a command requiring a closed editor, check this project's editor process and ask the human to save/close it. Do not repeatedly restart the editor between checks.
-- Batch asset imports before one importer session. Reuse successful build/test evidence while relevant source and configuration remain unchanged.
-- Extract concise success/failure summaries from logs; never load full Unreal logs into AI context.
-- For gameplay changes, prefer deterministic automation or UTF-8-without-BOM telemetry over screen messages.
+- Before commands requiring a closed Editor, ask the human to save and close it. Automation must not silently discard an interactive session.
+- Reuse evidence only while relevant source/configuration and the integration base remain unchanged. Conflicts or rebases invalidate affected evidence.
+- Summarize logs; do not load full Unreal logs into AI context.
+- If Unreal is unavailable, label evidence `static only`; never claim compilation, automation or PIE.
 
-Pass `-EngineRoot <path>` or set machine-local `RE_ECHO_UE_ROOT`; never commit an absolute engine path. If Unreal Engine is unavailable, report validation as `static only`; never describe the project as compiled or PIE-tested.
+## Completion levels
 
-## Definition of done
-
-- Relevant automated checks pass, or the exact unavailable prerequisite is recorded.
-- `git diff --check` passes, generated/intermediate/package files are not included, and relevant Markdown has been synchronized before staging.
-- The plan execution notes are updated and finished ownership rows are removed from `shared/PLANNER_EXCHANGE.md`.
-- A human performs PIE play-feel validation for movement, readability, pacing, and planning comprehension.
-
-
+- **Technical delivery**: required objective checks pass or the exact unavailable prerequisite is recorded; `git diff --check` passes; no intermediate/private files are included; Execution notes describe changes, evidence and risks.
+- **Human validation**: required only for visual quality, feel, usability or other subjective behavior. `PendingBeforeClose` blocks closure; `PendingFollowUp` records a human-approved deferred confidence check; `NotRequired` and `Passed` are self-explanatory.
+- **Plan closure**: required objective checks and every `PendingBeforeClose` item are accepted, the Planner reviews/integrates the task, releases ownership and updates shared state. A `PendingFollowUp` item may remain after closure only when the human explicitly accepted that deferral.
+- **Remote publication**: separate from closure/local merge and governed by the scoped authorization gate in `PLANNER_RULES.md`.

@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import math
+import re
 import shutil
 import subprocess
 import sys
@@ -929,19 +930,85 @@ def validate_workflow() -> None:
     exchange_text = (ROOT / "shared" / "PLANNER_EXCHANGE.md").read_text(encoding="utf-8")
     planner_rules = (ROOT / "shared" / "PLANNER_RULES.md").read_text(encoding="utf-8")
     executor_rules = (ROOT / "shared" / "EXECUTOR_RULES.md").read_text(encoding="utf-8")
+    project_rules = (ROOT / "shared" / "PROJECT_RULES.md").read_text(encoding="utf-8")
+    workflow_text = (ROOT / "shared" / "WORKFLOW.md").read_text(encoding="utf-8")
+    onboarding_text = (ROOT / "shared" / "AI_ONBOARDING.md").read_text(encoding="utf-8")
+    plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
+    readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
 
     if "only mandatory reading-order authority" not in agents:
         fail("AGENTS.md must remain the sole startup-order authority")
+    if "Ordinary tasks follow `AGENTS.md` directly" not in onboarding_text:
+        fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
     if len(state_text.splitlines()) > 80:
         fail("PROJECT_STATE.md exceeded 80 lines; move history to plans/Git")
     if "34 `ReEcho.*` automation tests" not in state_text:
         fail("PROJECT_STATE.md must report the current thirty-four-test suite")
-    active_block = exchange_text.split("## Active ownership", 1)[1].split("## Recently closed", 1)[0]
+    if "## Recently closed" in exchange_text or "## Decisions" in exchange_text:
+        fail("PLANNER_EXCHANGE.md must contain live coordination only, not history or permanent rules")
+    announcement_block = exchange_text.split("## Planned and active work announcements", 1)[1].split("## Active ownership", 1)[0]
+    for row in announcement_block.splitlines():
+        if not row.startswith("|") or row.startswith("|---") or "| Plan |" in row:
+            continue
+        cells = [cell.strip().strip("`") for cell in row.strip("|").split("|")]
+        if len(cells) != 7:
+            fail("PLANNER_EXCHANGE.md announcement rows must use the canonical seven-column schema")
+        if cells[2] not in {"Proposed", "Ready", "InProgress", "Review", "Closed", "Blocked"}:
+            fail(f"PLANNER_EXCHANGE.md uses unknown task status: {cells[2]}")
+        if cells[3] not in {"NotRequired", "PendingBeforeClose", "PendingFollowUp", "Passed"}:
+            fail(f"PLANNER_EXCHANGE.md uses unknown human-validation state: {cells[3]}")
+        if cells[2] == "Closed" and cells[3] != "PendingFollowUp":
+            fail("closed Exchange rows are retained only for a live PendingFollowUp; otherwise remove them")
+    active_block = exchange_text.split("## Active ownership", 1)[1].split("## Warnings / blocked items", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
         fail("completed Plans 07/08 must not retain active ownership")
-    duplicate_heading = "提交前 Markdown 同步（ReEcho 项目规则）"
-    if duplicate_heading in planner_rules or duplicate_heading in executor_rules:
-        fail("role rules duplicate the project-level Markdown commit rule")
+    for row in active_block.splitlines():
+        if not row.startswith("|") or row.startswith("|---") or "| Owner |" in row:
+            continue
+        cells = [cell.strip() for cell in row.strip("|").split("|")]
+        if len(cells) != 6:
+            fail("PLANNER_EXCHANGE.md ownership rows must use the canonical six-column schema")
+        modes = set(re.findall(r"`(Isolated|ReadOnly|SharedContract|Exclusive)`", cells[2]))
+        if not modes:
+            fail(f"PLANNER_EXCHANGE.md ownership row has no recognized impact mode: {cells[2]}")
+        if cells[3].strip("`") not in {"Reserved", "Active", "Released"}:
+            fail(f"PLANNER_EXCHANGE.md uses unknown ownership state: {cells[3]}")
+        if cells[3].strip("`") == "Released":
+            fail("released ownership rows must be removed from the live Exchange")
+    for name, text in {
+        "WORKFLOW.md": workflow_text,
+        "PROJECT_RULES.md": project_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+    }.items():
+        if "<待定>" in text or "<RESOURCE_LOCK>" in text:
+            fail(f"{name} still contains a generic workflow placeholder")
+    for stale_token in ("ReadyForHandoff", "InProgress/Rework", "origin/main` at `df6e60a"):
+        if stale_token in exchange_text or stale_token in state_text:
+            fail(f"live workflow memory contains stale token: {stale_token}")
+    if re.search(r"origin/main[^\n]{0,40}`[0-9a-f]{7,40}`", state_text, re.IGNORECASE):
+        fail("PROJECT_STATE.md must not cache a self-staling current origin/main hash")
+    required_template_fields = (
+        "## Coordination",
+        "Task status:",
+        "Human validation:",
+        "Impact mode:",
+        "Writes:",
+        "Stable Reads:",
+        "Compatibility promise / downstream action:",
+        "Explicit exclusions:",
+    )
+    missing_template_fields = [field for field in required_template_fields if field not in plan_template]
+    if missing_template_fields:
+        fail(f"Plan template lacks distributed coordination fields: {', '.join(missing_template_fields)}")
+    if "git rev-parse --path-format=absolute --git-common-dir" not in executor_rules:
+        fail("Executor lock guidance must use the Git common directory shared by worktrees")
+    if "Executors update their assigned Plan's Execution notes" not in project_rules:
+        fail("project rules must keep routine shared-state writes out of Executor branches")
+    if "not a second rulebook" not in workflow_text:
+        fail("WORKFLOW.md must remain explanatory rather than a duplicate rulebook")
+    if "Design/Data/ReEchoData.xlsx" not in readme_text or "generated into validated CSV" not in readme_text:
+        fail("README.md must describe the current XLSX-to-CSV authority")
 
 
 def validate_build_dependencies() -> None:

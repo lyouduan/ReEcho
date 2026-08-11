@@ -4,8 +4,9 @@
 
 - Planner owner: Gavyn-side Planner.
 - Intended executor: the Plan25 AI receiving the final handoff prompt.
-- Status: `ReadyForHandoff`.
-- Planning/integration ref: `origin/coord/plan25-handoff-20260811`.
+- Task status: `Closed`; accepted and integrated into `origin/main`. The executor prompt at the end is archived and must not be relaunched.
+- Human validation: `PendingFollowUp`; designer usability and unified PIE remain human-approved follow-ups without repository ownership unless publishable edits are requested.
+- Planning/integration ref: historical `origin/coord/plan25-handoff-20260811`; new consumers use freshly fetched `origin/main`.
 - Expected implementation branch: `plan/25-xlsx-authoring`, created from the advertised handoff ref containing accepted Plans 21–24 and this final Plan25 contract.
 - Depends on: accepted Plans 21–24; all required runtime CSV schemas are now frozen for this implementation batch.
 - Blocks: unified data-generation verification and the deferred combined Human PIE pass.
@@ -192,7 +193,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 
 ### Remaining risks
 
-- `Design/Data/ReEchoData.xlsx` is a binary Git artifact and remains an exclusive ownership resource until Planner acceptance; concurrent edits need Planner coordination.
+- `Design/Data/ReEchoData.xlsx` is a binary Git artifact; any publication-intended edit requires one active `WorkbookWriter`. Disposable local QA edits do not claim repository ownership, and publishable findings are handed to that writer.
 - Bundled artifact-tool 2.8.6 enumerates only 4 of the package-level 8 picture objects and does not paint worksheet images in `workbook.render()` in this environment; Excel/PDF visual verification remains necessary for image-bearing sheets until the renderer is fixed.
 - Protection metadata is checked programmatically, but this follow-up intentionally performed no visual rendering; the user owns the remaining workbook visual acceptance.
 - Human value-edit validation is still required to prove the designer workflow end-to-end in Excel/WPS-style editing conditions rather than only through generated fixtures.
@@ -205,10 +206,10 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Run the unified PIE route: start, continue, save-and-quit mid-run, character/weapon selection, draw-to-shop, weapon switching, player/echo interactions, elemental reactions, and representative parts.
 - Confirm designers can identify and correct workbook errors from the generated sheet/table/row/column diagnostics without reading Python or C++ stack traces.
 
-## 执行者启动 prompt
+## 已归档的执行者启动 prompt（Plan 已关闭，不要重新执行）
 
 ```text
-你是 ReEcho Plan25 执行者。只有 Plan25 Coordination 状态为 `ReadyForHandoff` 且人给出最终 base 后才开工。先按 AGENTS.md 最小顺序读取 shared/PLANNER_EXCHANGE.md 的公告/所有权、plans/25-data-xlsx-authoring-csv-generation.md、Plans 21–24 最终 Execution notes 和相关数据读取器/校验入口。
+历史记录：这是 Plan25 当时的启动说明。Plan25 当前为 `Closed`，不得据此重新开工；新任务必须使用新的 Plan/Exchange 公告和当前 `origin/main`。
 
 从指定最终 base 创建 `plan/25-xlsx-authoring` 独立分支/worktree，按 Coordination 认领 canonical XLSX、生成器、16张生产 CSV、manifest/schema、Python 依赖锁和校验入口。任务是建立“仓库内一个 `Design/Data/ReEchoData.xlsx`、多个接近原策划表的中文 Sheet、同 Sheet 命名 Table 一对多导出→确定性/事务化生成严格 CSV→既有 Unreal 快照”的完整链路；保持稳定 ID、启用批次、运行时语义和打包方式。固定入口为 `python scripts/data/sync_xlsx_to_csv.py`，并实现 `--check`、`--sheet`、测试用 `--input`。机器列必须类型化，禁止从中文效果长句猜逻辑；导出区域不得依赖 Excel/COM 公式缓存。Plan24 已验收，武器和插槽领域必须完整接入本批次。
 
