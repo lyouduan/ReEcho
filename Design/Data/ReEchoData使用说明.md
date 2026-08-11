@@ -2,6 +2,8 @@
 
 本说明面向使用 Excel 或 WPS 配置角色、构筑、元素、武器和配件数据的策划。
 
+首次从远端拉仓库并执行正式验收时，先按 [`ReEchoData策划验收清单.md`](ReEchoData策划验收清单.md) 准备隔离环境、分层测试并记录结果。
+
 ## 1. 唯一编辑源
 
 - 只编辑仓库内的 `Design/Data/ReEchoData.xlsx`。
@@ -11,6 +13,8 @@
 - `ReEchoData.xlsx` 是不适合并行合并的二进制文件。开始修改前先确认没有其他人正在编辑它，并先同步最新分支。
 
 ## 2. 第一次使用
+
+完整配表验收需要本地仓库；单独拿到 XLSX 只能检查布局、编辑和下拉，不能验证 CSV 生成或游戏生效。首次拉取、指定分支/提交、Python/Unreal 环境和反馈模板见 [`ReEchoData策划验收清单.md`](ReEchoData策划验收清单.md)。
 
 在仓库根目录打开 PowerShell，安装一次固定版本的 XLSX 依赖：
 
@@ -122,8 +126,10 @@ python scripts\data\sync_xlsx_to_csv.py --sheet "武器体系W"
 
 - XLSX 不会被游戏直接读取，必须先生成 CSV。
 - 只改表不需要重新编译 C++。
-- 数据在新的 Run 中读取；已有 Run 可能持有开始时的数据快照，不适合验证新数值。
-- 生成后启动新的 Run，检查所改角色、卡牌、反应、武器或配件是否生效。
+- CSV 在 ReEcho 模块启动时加载一次；如果同步 CSV 时 Unreal Editor 已经打开，必须重启 Editor，仅停止 PIE 再点 Play 不会重载。
+- 数据在新的 Run 中读取；已有 Run 或“继续游戏”可能持有开始时的数据快照，不适合验证新数值。
+- 正确顺序是“保存并关闭表格→生成和校验 CSV→重启/启动 Unreal Editor→Play→新游戏”，再检查所改角色、卡牌、反应、武器或配件是否生效。
+- 新拉的源码仓库如果没有本机 Editor 二进制，需要先安装 UE 5.8 与 Windows C++ 编译环境，并运行 `scripts\ue\Build-Editor.cmd`。详见策划验收清单。
 
 ## 8. 常见报错
 

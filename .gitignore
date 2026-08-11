@@ -33,6 +33,7 @@
 *.log
 *.bak
 *.swp
+~$*.xlsx
 __pycache__/
 **/__pycache__/
 *.pyc

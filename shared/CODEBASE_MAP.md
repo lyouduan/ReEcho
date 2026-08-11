@@ -27,6 +27,7 @@ rg -n "SymbolName" Source\ReEcho
 | `Config/` | Maps, GameMode, balance and input mappings | Startup, controls or tuning |
 | `Design/Data/ReEchoData.xlsx` | Canonical designer XLSX authoring workbook; machine Tables generate runtime CSV | Data authoring, XLSX migration or Plan25 checks |
 | `Design/Data/ReEchoData使用说明.md` | Chinese designer guide for editable Tables, field rules, CSV generation, errors and submission | Before changing production balance/configuration in the workbook |
+| `Design/Data/ReEchoData策划验收清单.md` | Designer QA onboarding, isolated clone, XLSX/CSV/PIE acceptance, recovery, feedback template and AI setup prompt | Before first-time Plan25 designer acceptance or handing setup to a designer's AI |
 | `Content/Data/` | Runtime CSV contract plus read-only migration JSON | Data contract, fixtures, cards, characters, enemies, encounters or balance source |
 | `Content/ReEcho/Materials/` | Serialized project materials | Visual asset references |
 | `Content/ReEcho/Textures/Characters/` | Cooked 2D actor and shadow textures | Player/echo/enemy Billboard visuals |

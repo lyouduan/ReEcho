@@ -10,6 +10,7 @@ UE 5.8 installed-build graybox prototype for the Time Echo vertical slice.
 - Runtime architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - UE MCP: [`docs/UE_MCP.md`](docs/UE_MCP.md)
 - Validation commands: [`scripts/README.md`](scripts/README.md)
+- Designer XLSX workflow and acceptance: [`Design/Data/ReEchoData使用说明.md`](Design/Data/ReEchoData使用说明.md), [`Design/Data/ReEchoData策划验收清单.md`](Design/Data/ReEchoData策划验收清单.md)
 
 ## Current prototype
 

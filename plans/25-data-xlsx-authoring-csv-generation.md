@@ -147,6 +147,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Added `Design/Data/ReEchoData使用说明.md` as the planner-facing Chinese workflow for editable areas, row operations, field rules, generation, diagnostics, runtime verification and submission; the tool and runtime-data READMEs now route designers to it.
 - Added `.gitignore` rules for Python bytecode/cache folders and local generator transaction/temp artifacts.
 - Planner dropdown follow-up: added strict in-cell list validation to all 76 constrained production columns covering booleans, finite enums, registered logic IDs and Table-backed foreign keys. Unsupported or blank values use Excel/WPS `stop` errors; the sync command now rejects missing, weakened or miswired dropdown contracts.
+- Designer-QA onboarding follow-up: added `Design/Data/ReEchoData策划验收清单.md` with isolated clone/branch setup, A/B/C acceptance levels, Python and optional UE 5.8 preflight, correct module-reload/new-game sequence, test recovery, feedback template and a copyable AI setup prompt. The shorter usage guide now explicitly requires CSV generation and an Editor restart before PIE data verification.
 
 ### Evidence
 
