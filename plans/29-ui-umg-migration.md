@@ -1,4 +1,4 @@
-# Plan 28 - UI - full UMG hybrid migration
+# Plan 29 - UI - full UMG hybrid migration
 
 ## Coordination
 
@@ -6,8 +6,8 @@
 - Executor owner: Codex.
 - Task status: `InProgress`.
 - Human validation: `PendingBeforeClose`.
-- Planning ref / implementation base: `plan/28-ui-umg-migration` / combined `origin/main` plus Plan 10 HUD UMG commits, explicitly approved by the human after the external-integration audit.
-- Implementation branch: `plan/28-ui-umg-migration`.
+- Planning ref / implementation base: `plan/29-ui-umg-migration` / combined `origin/main` plus Plan 10 HUD UMG commits, explicitly approved by the human after the external-integration audit and renumbered by the human after canonical remote Plan 28 was fetched.
+- Implementation branch: `plan/29-ui-umg-migration`.
 - Depends on / Blocks: Plan 10 player HUD UMG is the reference implementation. Plan 26 reserves `ReEchoInventoryShopWidget.*` and `ReEchoStatsWidget.*`; those two consumers remain excluded from writes until ownership is released or coordinated.
 - Writes: `Source/ReEcho/{Public,Private}/UI/*` except Plan 26-reserved files while reserved; `Source/ReEcho/{Public,Private}/ReEchoGameMode.*`; new UI-manager/runtime files under `Source/ReEcho/UI`; new `/Game/ReEcho/UI/WBP_*.uasset`; this Plan and live Exchange coordination.
 - Stable Reads: Run subsystem, combatant, encounter director, save game, weapon/character/card CSV readers and existing public gameplay delegates.
@@ -33,7 +33,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 
 ## Step 0 gate
 
-- Baseline branch/commit: `plan/28-ui-umg-migration`, containing approved combined adaptation of `origin/main` at `6c1f890` and Plan 10 through `e759026`.
+- Baseline branch/commit: `plan/29-ui-umg-migration`, containing approved combined adaptation of `origin/main` at `6c1f890` and Plan 10 through `e759026`; this UI work was renumbered from local-only Plan 28 after the canonical remote Plan 28 attack-mode coordination was fetched.
 - Engine/build availability: UE 5.8 installed Editor build available; Plan 10 Editor build and 34 `ReEcho.*` tests passed before Plan 28.
 - Existing focused-test result: Plan 10 `CompileAllBlueprints` completed with 0 errors/warnings/failed loads.
 - Active exclusive ownership or shared-contract approval: claim each WBP before MCP editing; do not enter Plan 26 files while reserved.
@@ -89,6 +89,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Large binary-asset surface requires serialized MCP edits and batch verification.
 - Plan 26 owns inventory/shop and stats C++ until coordinated.
 - After an Editor restart, the current Codex Unreal MCP transport did not reconnect even though the Editor registered all 52 toolsets; WBP creation is paused at that asset boundary rather than bypassing MCP.
+- Canonical Plan 28 reserves `ReEchoRestartWidget.*` and GameMode for player attack-mode integration; Plan 29 freezes further writes on that overlap and will perform a combined adaptation after Plan 28 is integrated.
 
 ### Human validation result/request
 
