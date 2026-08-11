@@ -8,6 +8,7 @@
 class SWidget;
 class UButton;
 class UImage;
+class UReEchoIndexedButton;
 class USizeBox;
 class UTextBlock;
 class UTexture2D;
@@ -43,16 +44,10 @@ private:
 	void SelectOffer(int32 OfferIndex);
 
 	UFUNCTION()
-	void HandleFirstCardClicked();
-
-	UFUNCTION()
-	void HandleSecondCardClicked();
-
-	UFUNCTION()
-	void HandleThirdCardClicked();
+	void HandleCardClicked(int32 OfferIndex);
 
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> CardButtons;
+	TArray<TObjectPtr<UReEchoIndexedButton>> CardButtons;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USizeBox>> CardPanels;

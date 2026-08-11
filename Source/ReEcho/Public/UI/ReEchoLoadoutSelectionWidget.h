@@ -6,6 +6,7 @@
 
 class SWidget;
 class UButton;
+class UReEchoIndexedButton;
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoLoadoutConfirmed, FName, CharacterId, FName, WeaponId);
@@ -33,25 +34,10 @@ private:
 	void ChooseWeapon(FName WeaponId);
 
 	UFUNCTION()
-	void HandleHeartClicked();
+	void HandleCharacterClicked(int32 OptionIndex);
 
 	UFUNCTION()
-	void HandleSpadeClicked();
-
-	UFUNCTION()
-	void HandleCloverClicked();
-
-	UFUNCTION()
-	void HandleDiamondClicked();
-
-	UFUNCTION()
-	void HandleStaffClicked();
-
-	UFUNCTION()
-	void HandleSwordClicked();
-
-	UFUNCTION()
-	void HandleElementalClicked();
+	void HandleWeaponClicked(int32 OptionIndex);
 
 	UFUNCTION()
 	void HandleConfirmClicked();
@@ -60,25 +46,10 @@ private:
 	TObjectPtr<UTextBlock> StatusText;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UButton> HeartButton;
+	TArray<TObjectPtr<UReEchoIndexedButton>> CharacterButtons;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UButton> SpadeButton;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> CloverButton;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> DiamondButton;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> StaffButton;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> SwordButton;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> ElementalButton;
+	TArray<TObjectPtr<UReEchoIndexedButton>> WeaponButtons;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> ConfirmButton;

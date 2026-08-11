@@ -12,6 +12,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UI/ReEchoIndexedButton.h"
 
 namespace
 {
@@ -63,11 +64,9 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	SetVisibility(ESlateVisibility::Visible);
 	BuildWidgetTree();
 
-	if (CardButtons.Num() == 3)
+	for (UReEchoIndexedButton* CardButton : CardButtons)
 	{
-		CardButtons[0]->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleFirstCardClicked);
-		CardButtons[1]->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleSecondCardClicked);
-		CardButtons[2]->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleThirdCardClicked);
+		CardButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
 	}
 
 	RefreshOffers();
@@ -203,8 +202,9 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 		CardSlot->SetZOrder(5 + CardIndex);
 		CardPanels.Add(CardSize);
 
-		UButton* CardButton = WidgetTree->ConstructWidget<UButton>(
-		    UButton::StaticClass(), *FString::Printf(TEXT("TraitCardButton%d"), CardIndex));
+		UReEchoIndexedButton* CardButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TraitCardButton%d"), CardIndex));
+		CardButton->SetEntryIndex(CardIndex);
 		CardButton->SetBackgroundColor(CardColors[CardIndex]);
 		CardButton->SetIsEnabled(false);
 		CardSize->SetContent(CardButton);
@@ -305,17 +305,7 @@ void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
 	}
 }
 
-void UReEchoTraitCardChoiceWidget::HandleFirstCardClicked()
+void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)
 {
-	SelectOffer(0);
-}
-
-void UReEchoTraitCardChoiceWidget::HandleSecondCardClicked()
-{
-	SelectOffer(1);
-}
-
-void UReEchoTraitCardChoiceWidget::HandleThirdCardClicked()
-{
-	SelectOffer(2);
+	SelectOffer(OfferIndex);
 }
