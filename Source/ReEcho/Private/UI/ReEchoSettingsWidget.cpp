@@ -8,6 +8,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "UI/ReEchoIndexedButton.h"
 
 namespace
 {
@@ -19,6 +20,32 @@ UButton* AddSettingsButton(UWidgetTree* WidgetTree,
 {
 	UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), ButtonName);
 	Button->SetBackgroundColor(Color);
+	UVerticalBoxSlot* ButtonSlot = Content->AddChildToVerticalBox(Button);
+	ButtonSlot->SetHorizontalAlignment(HAlign_Center);
+	ButtonSlot->SetPadding(FMargin(0.0f, 5.0f));
+
+	UTextBlock* ButtonLabel = WidgetTree->ConstructWidget<UTextBlock>();
+	ButtonLabel->SetText(FText::FromString(Label));
+	ButtonLabel->SetJustification(ETextJustify::Center);
+	ButtonLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+	ButtonLabel->SetMargin(FMargin(42.0f, 12.0f));
+	FSlateFontInfo ButtonFont = ButtonLabel->GetFont();
+	ButtonFont.Size = 24;
+	ButtonLabel->SetFont(ButtonFont);
+	Button->SetContent(ButtonLabel);
+	return Button;
+}
+
+UReEchoIndexedButton* AddSettingsCategoryButton(UWidgetTree* WidgetTree,
+                                                UVerticalBox* Content,
+                                                const FName ButtonName,
+                                                const FString& Label,
+                                                const int32 CategoryIndex)
+{
+	UReEchoIndexedButton* Button =
+	    WidgetTree->ConstructWidget<UReEchoIndexedButton>(UReEchoIndexedButton::StaticClass(), ButtonName);
+	Button->SetEntryIndex(CategoryIndex);
+	Button->SetBackgroundColor(FLinearColor(0.12f, 0.32f, 0.48f, 1.0f));
 	UVerticalBoxSlot* ButtonSlot = Content->AddChildToVerticalBox(Button);
 	ButtonSlot->SetHorizontalAlignment(HAlign_Center);
 	ButtonSlot->SetPadding(FMargin(0.0f, 5.0f));
@@ -95,24 +122,18 @@ void UReEchoSettingsWidget::BuildWidgetTree()
 	UVerticalBox* NavigationPanel =
 	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("SettingsNavigation"));
 	NavigationBorder->SetContent(NavigationPanel);
-	GraphicsButton = AddSettingsButton(WidgetTree,
-	                                   NavigationPanel,
-	                                   TEXT("GraphicsSettingsButton"),
-	                                   TEXT("画面"),
-	                                   FLinearColor(0.12f, 0.32f, 0.48f, 1.0f));
-	AudioButton = AddSettingsButton(WidgetTree,
-	                                NavigationPanel,
-	                                TEXT("AudioSettingsButton"),
-	                                TEXT("声音"),
-	                                FLinearColor(0.12f, 0.32f, 0.48f, 1.0f));
-	ControlsButton = AddSettingsButton(WidgetTree,
-	                                   NavigationPanel,
-	                                   TEXT("ControlsSettingsButton"),
-	                                   TEXT("操作（键位）"),
-	                                   FLinearColor(0.12f, 0.32f, 0.48f, 1.0f));
-	GraphicsButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleGraphicsClicked);
-	AudioButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAudioClicked);
-	ControlsButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleControlsClicked);
+	CategoryButtons.Reset();
+	static const TPair<FName, FString> CategoryDefinitions[] = {{TEXT("GraphicsSettingsButton"), TEXT("画面")},
+	                                                            {TEXT("AudioSettingsButton"), TEXT("声音")},
+	                                                            {TEXT("ControlsSettingsButton"), TEXT("操作（键位）")}};
+	for (int32 CategoryIndex = 0; CategoryIndex < UE_ARRAY_COUNT(CategoryDefinitions); ++CategoryIndex)
+	{
+		const TPair<FName, FString>& Definition = CategoryDefinitions[CategoryIndex];
+		UReEchoIndexedButton* CategoryButton =
+		    AddSettingsCategoryButton(WidgetTree, NavigationPanel, Definition.Key, Definition.Value, CategoryIndex);
+		CategoryButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCategoryClicked);
+		CategoryButtons.Add(CategoryButton);
+	}
 
 	UBorder* DetailBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("SettingsDetailBorder"));
 	DetailBorder->SetBrushColor(FLinearColor(0.035f, 0.05f, 0.075f, 0.98f));
@@ -155,7 +176,10 @@ void UReEchoSettingsWidget::BuildWidgetTree()
 	                                                  FLinearColor(0.08f, 0.42f, 0.32f, 1.0f));
 	RestoreDefaultsButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleRestoreDefaultsClicked);
 	ApplyAndReturnButton->OnClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleApplyAndReturnClicked);
-	GraphicsButton->SetKeyboardFocus();
+	if (!CategoryButtons.IsEmpty())
+	{
+		CategoryButtons[0]->SetKeyboardFocus();
+	}
 }
 
 void UReEchoSettingsWidget::RefreshCategory()
@@ -176,26 +200,21 @@ void UReEchoSettingsWidget::RefreshCategory()
 
 	const FLinearColor SettingsSelectedColor(0.08f, 0.42f, 0.62f, 1.0f);
 	const FLinearColor SettingsNormalColor(0.12f, 0.22f, 0.32f, 1.0f);
-	GraphicsButton->SetBackgroundColor(SelectedCategory == 0 ? SettingsSelectedColor : SettingsNormalColor);
-	AudioButton->SetBackgroundColor(SelectedCategory == 1 ? SettingsSelectedColor : SettingsNormalColor);
-	ControlsButton->SetBackgroundColor(SelectedCategory == 2 ? SettingsSelectedColor : SettingsNormalColor);
+	for (int32 CategoryIndex = 0; CategoryIndex < CategoryButtons.Num(); ++CategoryIndex)
+	{
+		CategoryButtons[CategoryIndex]->SetBackgroundColor(SelectedCategory == CategoryIndex ? SettingsSelectedColor
+		                                                                                     : SettingsNormalColor);
+	}
 }
 
-void UReEchoSettingsWidget::HandleGraphicsClicked()
+void UReEchoSettingsWidget::HandleCategoryClicked(const int32 CategoryIndex)
 {
-	SelectedCategory = 0;
-	RefreshCategory();
-}
+	if (!CategoryButtons.IsValidIndex(CategoryIndex))
+	{
+		return;
+	}
 
-void UReEchoSettingsWidget::HandleAudioClicked()
-{
-	SelectedCategory = 1;
-	RefreshCategory();
-}
-
-void UReEchoSettingsWidget::HandleControlsClicked()
-{
-	SelectedCategory = 2;
+	SelectedCategory = CategoryIndex;
 	RefreshCategory();
 }
 
