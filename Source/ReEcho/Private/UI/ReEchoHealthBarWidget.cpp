@@ -17,11 +17,9 @@ void UReEchoHealthBarWidget::NativeConstruct()
 	Refresh();
 }
 
-void UReEchoHealthBarWidget::InitializeHealth(
-	UReEchoCombatantComponent* InCombatant,
-	const FLinearColor& InFillColor)
+void UReEchoHealthBarWidget::InitializeHealth(UReEchoCombatantComponent* InCombatant, const FLinearColor& InFillColor)
 {
-	Combatant = InCombatant;
+	BindCombatant(InCombatant);
 	FillColor = InFillColor;
 
 	if (ProgressBar)
@@ -32,10 +30,10 @@ void UReEchoHealthBarWidget::InitializeHealth(
 	Refresh();
 }
 
-void UReEchoHealthBarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+void UReEchoHealthBarWidget::NativeDestruct()
 {
-	Super::NativeTick(MyGeometry, InDeltaTime);
-	Refresh();
+	BindCombatant(nullptr);
+	Super::NativeDestruct();
 }
 
 void UReEchoHealthBarWidget::BuildWidgetTree()
@@ -45,9 +43,7 @@ void UReEchoHealthBarWidget::BuildWidgetTree()
 		return;
 	}
 
-	ProgressBar = WidgetTree->ConstructWidget<UProgressBar>(
-		UProgressBar::StaticClass(),
-		TEXT("HealthProgress"));
+	ProgressBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("HealthProgress"));
 	WidgetTree->RootWidget = ProgressBar;
 	ProgressBar->SetBarFillType(EProgressBarFillType::LeftToRight);
 	ProgressBar->SetFillColorAndOpacity(FillColor);
@@ -57,15 +53,34 @@ void UReEchoHealthBarWidget::BuildWidgetTree()
 
 void UReEchoHealthBarWidget::Refresh()
 {
-	if (!ProgressBar || !Combatant.IsValid())
+	if (!Combatant.IsValid())
 	{
 		return;
 	}
 
-	const float MaximumHealth = FMath::Max(1.0f, Combatant->Stats.HpMax);
-	const float HealthPercent = FMath::Clamp(
-		Combatant->CurrentHealth / MaximumHealth,
-		0.0f,
-		1.0f);
-	ProgressBar->SetPercent(HealthPercent);
+	HandleHealthChanged(Combatant->CurrentHealth, Combatant->Stats.HpMax);
+}
+
+void UReEchoHealthBarWidget::BindCombatant(UReEchoCombatantComponent* InCombatant)
+{
+	if (Combatant.IsValid())
+	{
+		Combatant->OnHealthChanged.RemoveDynamic(this, &UReEchoHealthBarWidget::HandleHealthChanged);
+	}
+	Combatant = InCombatant;
+	if (Combatant.IsValid())
+	{
+		Combatant->OnHealthChanged.AddUniqueDynamic(this, &UReEchoHealthBarWidget::HandleHealthChanged);
+	}
+}
+
+void UReEchoHealthBarWidget::HandleHealthChanged(const float CurrentHealth, const float MaximumHealth)
+{
+	if (!ProgressBar)
+	{
+		return;
+	}
+
+	const float SafeMaximumHealth = FMath::Max(1.0f, MaximumHealth);
+	ProgressBar->SetPercent(FMath::Clamp(CurrentHealth / SafeMaximumHealth, 0.0f, 1.0f));
 }

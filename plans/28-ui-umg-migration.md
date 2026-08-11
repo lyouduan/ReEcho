@@ -67,12 +67,14 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 
 - Added the first implementation batch: a GameInstance UI manager owns named viewport-layer policy and registered-widget cleanup; GameMode routes all existing widgets through it instead of scattering numeric Z-order constants.
 - Centralized menu focus, UI-only/game-and-UI input modes, cursor policy and gameplay-input restoration in the UI manager; GameMode now expresses only whether a screen pauses/blocks abilities.
+- Replaced player HUD and enemy health-bar per-frame polling with `OnHealthChanged` subscriptions, including safe rebinding and destruction-time unbinding.
 
 ### Evidence
 
 - External integration audited; human selected combined adaptation.
 - Batch A Editor Development build passed and all 34 discovered `ReEcho.*` automation tests passed.
 - The input-coordination follow-up also passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
+- Event-driven player/enemy health UI passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 
 ### Remaining risks
 

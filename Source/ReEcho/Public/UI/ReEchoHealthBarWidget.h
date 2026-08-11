@@ -22,11 +22,15 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void NativeDestruct() override;
 
 private:
 	void BuildWidgetTree();
 	void Refresh();
+	void BindCombatant(UReEchoCombatantComponent* InCombatant);
+
+	UFUNCTION()
+	void HandleHealthChanged(float CurrentHealth, float MaximumHealth);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UProgressBar> ProgressBar;

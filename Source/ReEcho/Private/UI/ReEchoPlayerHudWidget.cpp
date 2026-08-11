@@ -47,7 +47,7 @@ void UReEchoPlayerHudWidget::NativeConstruct()
 
 void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCombatant, UTexture2D* InPortraitTexture)
 {
-	Combatant = InCombatant;
+	BindCombatant(InCombatant);
 	PortraitTexture = InPortraitTexture;
 	if (PlayerPortrait && PortraitTexture)
 	{
@@ -56,10 +56,10 @@ void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCo
 	Refresh();
 }
 
-void UReEchoPlayerHudWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
+void UReEchoPlayerHudWidget::NativeDestruct()
 {
-	Super::NativeTick(MyGeometry, InDeltaTime);
-	Refresh();
+	BindCombatant(nullptr);
+	Super::NativeDestruct();
 }
 
 void UReEchoPlayerHudWidget::BuildWidgetTree()
@@ -154,15 +154,38 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 
 void UReEchoPlayerHudWidget::Refresh()
 {
-	if (!PlayerHealthProgress || !PlayerHealthText || !Combatant.IsValid())
+	if (!Combatant.IsValid())
 	{
 		return;
 	}
 
-	const float MaximumHealth = FMath::Max(1.0f, Combatant->Stats.HpMax);
-	const float CurrentHealth = FMath::Clamp(Combatant->CurrentHealth, 0.0f, MaximumHealth);
-	PlayerHealthProgress->SetPercent(CurrentHealth / MaximumHealth);
+	HandleHealthChanged(Combatant->CurrentHealth, Combatant->Stats.HpMax);
+}
+
+void UReEchoPlayerHudWidget::BindCombatant(UReEchoCombatantComponent* InCombatant)
+{
+	if (Combatant.IsValid())
+	{
+		Combatant->OnHealthChanged.RemoveDynamic(this, &UReEchoPlayerHudWidget::HandleHealthChanged);
+	}
+	Combatant = InCombatant;
+	if (Combatant.IsValid())
+	{
+		Combatant->OnHealthChanged.AddUniqueDynamic(this, &UReEchoPlayerHudWidget::HandleHealthChanged);
+	}
+}
+
+void UReEchoPlayerHudWidget::HandleHealthChanged(const float CurrentHealth, const float MaximumHealth)
+{
+	if (!PlayerHealthProgress || !PlayerHealthText)
+	{
+		return;
+	}
+
+	const float SafeMaximumHealth = FMath::Max(1.0f, MaximumHealth);
+	const float ClampedHealth = FMath::Clamp(CurrentHealth, 0.0f, SafeMaximumHealth);
+	PlayerHealthProgress->SetPercent(ClampedHealth / SafeMaximumHealth);
 	PlayerHealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0}/{1}"),
-	                                        FText::AsNumber(FMath::CeilToInt(CurrentHealth)),
-	                                        FText::AsNumber(FMath::CeilToInt(MaximumHealth))));
+	                                        FText::AsNumber(FMath::CeilToInt(ClampedHealth)),
+	                                        FText::AsNumber(FMath::CeilToInt(SafeMaximumHealth))));
 }
