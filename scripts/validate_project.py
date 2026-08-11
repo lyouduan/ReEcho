@@ -935,6 +935,8 @@ def validate_workflow() -> None:
     onboarding_text = (ROOT / "shared" / "AI_ONBOARDING.md").read_text(encoding="utf-8")
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
+    docs_workflow_text = (ROOT / "docs" / "AI_WORKFLOW.md").read_text(encoding="utf-8")
+    architecture_text = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
 
     if "only mandatory reading-order authority" not in agents:
         fail("AGENTS.md must remain the sole startup-order authority")
@@ -1020,6 +1022,17 @@ def validate_workflow() -> None:
         fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
     if "Design/Data/ReEchoData.xlsx" not in readme_text or "generated into validated CSV" not in readme_text:
         fail("README.md must describe the current XLSX-to-CSV authority")
+    if "not a workflow authority" not in docs_workflow_text or "`shared/` is the collaboration control plane" not in docs_workflow_text:
+        fail("docs/AI_WORKFLOW.md must remain a human pointer to the shared authority")
+    architecture_markers = (
+        "Design/Data/ReEchoData.xlsx",
+        "16 validated UTF-8 production CSV",
+        "run-locked weapon definition",
+        "Legacy JSON is migration-only",
+    )
+    missing_architecture_markers = [marker for marker in architecture_markers if marker not in architecture_text]
+    if missing_architecture_markers:
+        fail(f"docs/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
 
 
 def validate_build_dependencies() -> None:
