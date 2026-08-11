@@ -2,6 +2,12 @@
 
 This is a live coordination board, not history or permanent rules. Remove ownership rows when implementation ends; Git and `plans/` retain completed history.
 
+## Planned and active work announcements
+
+| Date | Plan | Planner | Status | Remote ref / base | Writes and shared impact | Dependencies | Other planner action |
+|---|---|---|---|---|---|---|---|
+| 2026-08-11 | Workflow: remote `main` publication gate | Gavyn-side Planner | Rule published; teammate acknowledgement requested | `origin/coord/remote-main-gate-20260811` | Workflow documentation only: local acceptance/merge and remote publication are separate one-use authorization points; publish candidates must be rebuilt from current `origin/main`, contain only named accepted scope, be revalidated, receive explicit human approval and never force-push. | None; this rule does not authorize the pending Plans 21–24 synchronization | Fetch this ref, read commit announced by Gavyn-side Planner, adopt the same gate in future planning/prompts, and reply through the teammate planning broadcast if any conflict exists. Do not add current WIP to `origin/main`. |
+
 ## Active ownership
 
 | Date | Owner | Plan/branch | Files or exclusive resources | Status | Notes |
@@ -32,6 +38,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 | 2026-07-21 | UE binary assets are serially owned | `PROJECT_RULES.md` | Adopted |
 | 2026-07-21 | Evidence levels must remain explicit | `PROJECT_RULES.md`, `PROJECT_STATE.md` | Adopted |
 | 2026-07-30 | `AGENTS.md` is the only startup-order list; verification is change-surface based | `AGENTS.md`, `PROJECT_RULES.md` | Adopted |
+| 2026-08-11 | Local `main` merge and remote `origin/main` publication are separate gates. Every remote publication requires current-remote integration, accepted-scope-only candidate, post-integration verification, exact one-use human authorization, non-force publication and a published resulting commit; planning/task refs never imply permission | Human clarification; `WORKFLOW.md` §3.4 and Planner/Executor rules | Adopted; teammate Planner acknowledgement requested |
 
 ## Warnings / blocked items
 

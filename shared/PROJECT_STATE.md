@@ -37,6 +37,7 @@ Last updated: 2026-08-10. This file is a current snapshot, not a chronological l
 ## Collaboration protocol
 
 - Default branch is planner-owned; executors use isolated branches/worktrees and never merge without human approval and planner review.
+- Local acceptance/merge does not authorize remote publication. Each `origin/main` update needs a fresh current-remote integration candidate containing only named accepted scope, post-integration verification, explicit one-use human authorization, non-force publication and an Exchange announcement of the resulting commit.
 - Human owns final acceptance and play-feel decisions.
 - Only currently edited merge-hostile assets appear under `PLANNER_EXCHANGE.md` Active ownership; remove the row when implementation ends.
 - `AGENTS.md` is the sole startup-order authority. Project-specific constraints live in `PROJECT_RULES.md`; generic blueprint material is read only for onboarding or workflow maintenance.

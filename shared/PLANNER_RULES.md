@@ -52,6 +52,15 @@
 - ⚠️ merge 两个已知坑（详见 `WORKFLOW.md`「§3.4 Git / Worktree 机制」）：① main 领先分支基点时 `git diff main..branch` 显示**假删除**，真实改动用 `git diff $(git merge-base ...)`；② `plans/XX.md` 常 add/add 冲突，执行者版是超集 → `git checkout --theirs`。
 - **统一 commit 权在规划者**（main 上的提交都由规划者打）。执行者只 push 到自己 plan 分支。
 
+### 远端 main 发布门
+
+- 本地 `main` 合并与 `origin/main` 发布是两个授权点；人同意功能完成或同意一次本地合并，不得被解释为永久/批量远端发布授权。
+- 每次发布前 `fetch`，以当前 `origin/main` 为底构造候选，并重读所有 Planner 的 Exchange 公告和已验收 ref。只纳入人点名的已验收范围，显式排除 WIP；并行但无关的 WIP 不必等待。
+- 对最终候选重新跑影响面验证。发生冲突、远端变化或重新落基线后，旧证据失效的部分必须重跑。
+- 向人报告候选 commit、包含/排除的 Plans、验证结果和远端差异；取得针对本次候选的明确授权后，才可由 Planner 按仓库保护机制非强制更新 `origin/main`。
+- 禁止 force push。发布被拒或远端再次前进时停止，重新集成并重新请求授权；不得用改写历史绕过。
+- 发布后核对远端 commit，更新 Exchange/PROJECT_STATE 的共享基线，并通知其他 Planner fetch/rebase。规划 ref、任务分支或 PR 的存在不代表功能已经进入远端 main。
+
 ## 收尾（每个 plan 完成后）
 
 1. **提炼经验进 `LESSONS.md`**：归到对应 §工种 section，条目带"**来源：Plan XX**"，并更新顶部分类索引的计数。
