@@ -21,6 +21,7 @@ This file contains project-specific additions to the canonical workflow. If it c
 
 - Implementation branches use `plan/<id>-<short-name>`; Codex-created branches may use `codex/<short-name>` when required by the client.
 - Never merge the implementation branch into the default branch. Human approval and planner review are required.
+- Updating `origin/main` is a separate one-time release gate after local acceptance/merge: the Planner must fetch and integrate current remote/other-Planner accepted work, rerun affected verification, identify the exact candidate and included Plans, obtain explicit human authorization for that candidate, and publish without force. Planning refs and task branches never imply this authorization.
 - Stage explicit paths only. Never use `git add .` or `git add -A`.
 - Every plan ends with `Execution notes`: changed behavior, evidence, remaining risks, and human-play checks.
 - Before every commit, update the Markdown that describes the changed behavior or workflow (plans/<id>-*.md plus the relevant shared/PROJECT_STATE.md, shared/CODEBASE_MAP.md, shared/LESSONS.md, or rules). The staged code/assets and staged documentation must describe the same state; a code-only commit is incomplete unless the change is truly documentation-neutral.

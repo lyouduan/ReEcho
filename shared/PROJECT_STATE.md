@@ -37,6 +37,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 ## Collaboration protocol
 
 - Default branch is planner-owned; executors use isolated branches/worktrees and never merge without human approval and planner review.
+- Local acceptance/merge does not authorize remote publication. Each `origin/main` update needs a fresh current-remote integration candidate containing only named accepted scope, post-integration verification, explicit one-use human authorization, non-force publication and an Exchange announcement of the resulting commit.
 - Human owns final acceptance and play-feel decisions.
 - In distributed multi-Planner work, each planning batch and its impact/ownership announcement must be committed and pushed to an advertised remote planning ref before Executors start. Shared-contract or exclusive overlap is resolved Planner-to-Planner; read-only consumers may proceed against the explicitly published stable surface.
 - Accepted Plans 21–24 and the integrated teammate UI lineage are advertised on `origin/coord/accepted-plan24-20260811`; Plan25's exact handoff base is `origin/coord/plan25-handoff-20260811`, which adds only its final plan/ownership contract. `origin/main` remains behind until a separate human-authorized synchronization.

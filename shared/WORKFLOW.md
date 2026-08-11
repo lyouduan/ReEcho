@@ -156,6 +156,14 @@ git checkout main && git merge --no-ff plan/XX-short -m "Merge plan/XX: <一句�
 - ⚠️ 坑1：main 领先分支基点时 `git diff main..branch` 显示**假删除**，真实改动看 `git diff $(git merge-base main branch) branch`，3 路 merge 会保留。
 - ⚠️ 坑2：`plans/XX.md` 常 add/add 冲突（初版 vs 追加经验）→ 执行者版是超集，`git checkout --theirs`。
 
+**发布到远端默认分支（独立发布门）**：本地合并 `main` 不等于获准更新 `origin/main`，规划广播、协调 ref、任务分支 push 和某一次历史授权也都不构成后续发布授权。每次更新远端默认分支必须同时满足：
+1. 待发布范围中的每个任务都已完成自动验、该 Plan 要求的人验、人的完成拍板和 Planner 审查；WIP、仅自动化通过或仅发布到协调 ref 的实现不得混入。
+2. Planner 先 `fetch` 远端，核对 `origin/main` 与所有 Planner 公告/已验收集成 ref；从当前 `origin/main` 构造发布候选，只纳入本次已验收范围。无关的并行 WIP 不阻塞发布，但必须明确排除。
+3. 对发布候选重新执行与合并影响面相称的静态检查、构建、自动化和必要打包/人工回归；冲突解决后不得沿用冲突前证据。
+4. 人对**本次发布范围和候选提交**给出明确授权。该授权一次一用，不自动覆盖后续任务或后续提交。
+5. 仅 Planner（或仓库明确指定的发布者）可按仓库保护机制更新 `origin/main`；禁止 force push。非快进、远端在审查后变化或保护规则拒绝时，停止并重新集成/验收，不改写远端历史。
+6. 发布后核对远端 commit，并把实际范围、commit、验证证据及未包含 WIP 写回 `PLANNER_EXCHANGE.md`/状态文档，供其他 Planner 重新基线。
+
 **完成后的 worktree 清理（规划者）**：
 1. 只在人验通过、规划者完成审查与 merge、状态/经验文档已同步后清理。
 2. 用 `git worktree list` 解析目标的精确路径和分支；用目标 worktree 内的 `git status --short` 确认没有未提交或未跟踪内容。有内容就停止，不覆盖、不强删。

@@ -47,6 +47,8 @@ git checkout main
 git merge --no-ff plan/XX-short -m "Merge plan/XX: <一句话>"
 ```
 
+远端 `main` 还有独立发布门：人验通过、任务被接受、规划 ref/task branch 已 push，均不授权执行者更新远端默认分支。执行者只交付自己的任务分支和证据；只有 Planner（或仓库明确指定的发布者）在重新 fetch/集成/验证并取得人对本次候选的明确授权后，才能非强制发布。执行者不得直接 push/force push `main`，也不得把一次历史授权扩展到后续提交。
+
 ## Git 分支规则
 
 **所有工作必须在独立分支上进行，包括代码、文档、配置、调研摘要。**
