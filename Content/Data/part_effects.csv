@@ -1,0 +1,11 @@
+Id,PartId,Order,Trigger,EffectKind,Target,ValueOp,Value,BehaviorId,FormulaId,AttackPatternId,ParamName,ParamValue,DurationSeconds,CooldownSeconds,StackPolicy,Enabled,DisabledReason,SourceSheet,SourceRow
+PE_CORE_PRIMORDIAL_CHANNEL,P_CORE_PRIMORDIAL,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.CoreDamageChannel,None,None,Physical,0,0,0,Unique,true,,武器插槽C,2
+PE_CORE_TIDE_CHANNEL,P_CORE_TIDE,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.CoreDamageChannel,None,None,Water,0,0,0,Unique,true,,武器插槽C,3
+PE_CORE_FOREST_CHANNEL,P_CORE_FOREST,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.CoreDamageChannel,None,None,Grass,0,0,0,Unique,true,,武器插槽C,4
+PE_CORE_FLAME_CHANNEL,P_CORE_FLAME,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.CoreDamageChannel,None,None,Flame,0,0,0,Unique,true,,武器插槽C,5
+PE_CORE_THUNDER_CHANNEL,P_CORE_THUNDER,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.CoreDamageChannel,None,None,Lightning,0,0,0,Unique,true,,武器插槽C,6
+PE_CORE_PRISM_CHANNEL,P_CORE_PRISM,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.CoreDamageChannel,None,None,RandomElement,0,0,0,Unique,true,,武器插槽C,7
+PE_DAGGER_THRUST_PATTERN,P_DAGGER_THRUST_GRIP,1,OnEquip,AttackPatternReplacement,AttackPattern,Override,0,Part.AttackPatternReplacement,None,Pattern.DaggerDashOnly,None,0,0,0,Unique,true,,武器插槽C,8
+PE_DAGGER_THRUST_COOLDOWN,P_DAGGER_THRUST_GRIP,2,OnEquip,StatModifier,AttackIntervalSeconds,Override,0.4,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,8
+PE_DAGGER_STRENGTH_SPEED,P_DAGGER_STRENGTH_GRIP,1,OnEquip,StatModifier,AttackSpeed,Multiply,1.2,Part.StatModifier,None,None,None,0,0,0,Stackable,true,,武器插槽C,9
+PE_DAGGER_HOLY_KILL_HEAL,P_DAGGER_HOLY_BLADE,1,OnKill,UniqueBehavior,OnKill,Add,0.05,Part.OnKillHealPercent,None,None,HealMaxHpPercent,0.05,0,0,Stackable,true,,武器插槽C,14

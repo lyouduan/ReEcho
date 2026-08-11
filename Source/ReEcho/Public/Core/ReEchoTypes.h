@@ -91,6 +91,19 @@ struct REECHO_API FReEchoStatBlock
 
 USTRUCT(BlueprintType)
 
+struct REECHO_API FReEchoEquippedPartSnapshot
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName SlotTypeId = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName PartId = NAME_None;
+};
+
+USTRUCT(BlueprintType)
+
 struct REECHO_API FReEchoBuildSnapshot
 {
 	GENERATED_BODY()
@@ -100,6 +113,20 @@ struct REECHO_API FReEchoBuildSnapshot
 	FName CharacterId = "J01";
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName WeaponId = "W_J_01";
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 WeaponDataRevision = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString WeaponDomainRevision;
+	/** Non-equipment stats used to deterministically rebuild derived part effects. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FReEchoStatBlock EquipmentBaseStats;
+	/** Non-equipment rules used to deterministically rebuild derived part effects. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap<FName, FString> EquipmentBaseRuleFlags;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bHasEquipmentBase = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FName> Cards;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

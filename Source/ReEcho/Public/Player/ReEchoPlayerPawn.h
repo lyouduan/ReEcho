@@ -19,9 +19,11 @@ class UReEchoRecorderComponent;
 class UStaticMeshComponent;
 class UTexture2D;
 
-enum class EReEchoWeaponSlot : uint8;
+enum class EReEchoInputSlot : uint8;
 struct FGameplayTag;
 struct FOnAttributeChangeData;
+struct FReEchoBuildSnapshot;
+struct FReEchoCsvDataSnapshot;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoActiveSkill, FVector, Position, FName, SkillId);
 
@@ -49,10 +51,14 @@ public:
 	bool ExecuteSelectWeaponSlot2Ability();
 	bool ExecuteSelectWeaponSlot3Ability();
 	void PlayHitVisual();
+	bool IsWeaponInvulnerable() const;
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
 	bool ConfigureCharacter(FName CharacterId);
 	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */
 	void RestoreEquippedWeapon(FName WeaponId);
+	bool InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Build,
+	                               TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot);
+	FString GetPinnedWeaponDomainRevision() const;
 	/** 设置与当前场景尺寸一致的玩家活动半径：X对应场景高度，Y对应场景宽度。 */
 	void ConfigureArenaBounds(float HalfExtentX, float HalfExtentY);
 
@@ -114,7 +120,7 @@ private:
 	void GrantStartupAbilities();
 	void AbilityInputPressed(const FGameplayTag& InputTag);
 	void AbilityInputReleased(const FGameplayTag& InputTag);
-	bool ExecuteSelectWeaponAbility(EReEchoWeaponSlot WeaponSlot, FName WeaponId);
+	bool ExecuteSelectWeaponAbility(EReEchoInputSlot InputSlot);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */

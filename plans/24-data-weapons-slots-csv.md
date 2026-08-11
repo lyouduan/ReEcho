@@ -133,17 +133,106 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 
 ### Changed
 
+- Created the isolated worktree from local `main` commit `28c21b8` on branch `plan/24-weapons-slots-csv`; baseline check found 27 `ReEcho.*` automation tests before implementation.
+- Added seven production weapon-domain CSV tables and staged them in `ReEcho.Build.cs`: `weapon_types.csv`, `weapons.csv`, `attack_steps.csv`, `slot_types.csv`, `slot_profiles.csv`, `parts.csv`, `part_effects.csv`.
+- Extended `reecho_data_manifest.csv`, `csv_schema.csv`, `FReEchoCsvDataSnapshot` and `FReEchoCsvDataRegistry` for weapon types, concrete weapons, ordered attack steps, input slots, slot profiles, parts and part effects.
+- Added `ReEchoWeaponCsvReader.*` as an independent domain reader. It validates registered handlers, table references, legacy `W_J_02/W_J_01/W_J_03` hotkey mapping, exactly-three start-selectable weapons, enabled character `DefaultWeaponId` references, attack-step order, slot legality, 78 source part rows and enabled/disabled part batches.
+- Registered weapon-domain `BehaviorId`, `EffectKind`, `FormulaId` and `AttackPatternId` values before default CSV load.
+- Migrated loadout UI, run start/restore/equip, player hotkeys, recorder snapshots, echo playback and `AReEchoWeaponActor` to read the same CSV snapshot. Weapon recordings continue to store stable `WeaponId`, now with `WeaponDataRevision` in `FReEchoBuildSnapshot`.
+- Removed the old `UReEchoBalanceSettings::Weapons` runtime authority and `DefaultGame.ini` weapon rows. GAS remains the cooldown/damage authority; the weapon actor only resolves CSV definitions and dispatches the existing projectile/melee/light-wave paths.
+- Added negative weapon-domain fixtures for unknown default weapon references, duplicate input-slot mapping and invalid part effect behavior pairs. Updated automation to cover CSV weapon loadout order, `W_J_04`, part batches and save/recording revision compatibility.
+
 ### Evidence
+
+- `python scripts/validate_project.py` passed.
+- `.clang-format` was run via `C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\bin\clang-format.exe` on changed C++ files.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` passed.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passed; log reports 32 tests found and completed with exit code 0. The run printed non-Win64 SDK validation warnings for LinuxArm64/VisionOS, but the command exited 0 and `Saved/Logs/ReEcho.log` ended with `TEST COMPLETE. EXIT CODE: 0`.
+- `git diff --check` passed; only CRLF conversion warnings were printed by Git.
 
 ### Plan 21–23 and integrated loadout/recording contract adaptation
 
+- Reused Plan 21's immutable snapshot/default-load contract and Plan 22/23's domain-reader/fixture pattern. No Plan 23 element system code was copied; weapon core rows reference stable Plan 23 element/channel IDs only through CSV targets/parameters.
+- Kept the integrated loadout shape: the existing three buttons are still used, but labels/images/options now come from `StartSelectable=true` CSV weapons sorted by `LoadoutOrder`.
+- Preserved legacy recording semantics: `W_J_02` remains InputSlot 1, `W_J_01` remains InputSlot 2 and `W_J_03` remains InputSlot 3. Old recordings using those IDs are not reinterpreted through weapon type names.
+- Save/restore now rejects weapon definition drift by comparing `FReEchoBuildSnapshot::WeaponDataRevision` with the current enabled CSV weapon row; tests were updated to carry the revision in recording history and suspended active recordings.
+
 ### Enabled content batch
+
+- Weapon types: 7 enabled `WeaponTypeId` values from `武器体系W`: `Dagger`, `LongSword`, `Scythe`, `Whip`, `Bow`, `Gun`, `Staff`.
+- Concrete weapons: enabled `W_J_02` Moon Staff (`InputSlot=1`), `W_J_01` Crescent Blade (`InputSlot=2`), `W_J_03` Elemental Reaction (`InputSlot=3`) and new enabled `W_J_04` Harvest Scythe (`WeaponTypeId=Scythe`, `Pattern.ScytheSweep`). The review rework also added non-start, no-hotkey `W_J_05` Training Dagger for Dagger-only part reachability and `W_J_06` Apprentice Staff for StaffProjectile spread/explosion runtime coverage; neither changes the three start-selectable weapons.
+- Attack patterns: migrated the seven base family patterns plus compatibility/runtime patterns for the existing three weapons and dagger dash replacement.
+- Slots: `Core`, `Grip`, `Blade`, `Arrowhead`, `Bowstring`, `RotaryBlade`, `SwordBlade`, `Muzzle`, `GunAction`, `StaffBody`, `StaffCrystal`, `WhipBody`.
+- Parts enabled from `武器插槽C`: six generic cores (`P_CORE_PRIMORDIAL`, `P_CORE_TIDE`, `P_CORE_FOREST`, `P_CORE_FLAME`, `P_CORE_THUNDER`, `P_CORE_PRISM`), `P_DAGGER_THRUST_GRIP`, `P_DAGGER_STRENGTH_GRIP` and `P_DAGGER_HOLY_BLADE`.
+- Effect coverage: `WeaponDamageChannel` overrides for six cores, `AttackPatternReplacement` for thrust grip, `AttackSpeed` multiply for strength grip and an `OnKill` heal unique behavior for holy blade. Enabled operations cover Add/Multiply/Override.
 
 ### Source rows left disabled and why
 
+- All 78 source rows from `武器插槽C` are represented in `parts.csv` with `SourceSheet/SourceRow`.
+- The 62 unnamed rows are disabled audit rows with `PartId=None`; they are intentionally not assigned long-term IDs based on row number.
+- Named rows left disabled are missing handler support or depend on not-yet-implemented state/behavior batches: invisibility, stun, bleed, arrow split, explosion, pierce, multishot and similar unique behavior rows remain disabled with explicit `DisabledReason`.
+- The disabled rows are not reachable from enabled part effects; validators reject enabled effects on disabled parts and enabled parts without effect rows.
+
+### Acceptance rework - 2026-08-11
+
+- Added `FReEchoBuildSnapshot::EquippedParts` and `WeaponDomainRevision`, plus `ReEchoWeaponRuntime` as the small shared equipment/effective-definition layer. `TryEquipParts()` validates unknown/disabled parts, weapon-type compatibility, duplicate `PartId`, slot limits and domain revision before committing, then applies Add/Multiply/Override through generic EffectKind/Target handlers rather than per-PartId switches.
+- Six cores now set physical/stable-element/random-element damage channels; strength grip multiplies attack speed; thrust grip replaces the attack pattern and overrides interval; holy blade heals on kill. Player, save, recorder and echo all carry the same immutable build snapshot.
+- `FReEchoWeaponCsvReader` computes a deterministic MD5 weapon-domain revision over `weapon_types.csv`, `weapons.csv`, `attack_steps.csv`, `slot_types.csv`, `slot_profiles.csv`, `parts.csv` and `part_effects.csv`. Run start captures the current snapshot; restore validates current build, historical recordings, active recording and weapon-change events against the current domain before mutating state.
+- `AReEchoWeaponActor` now uses the pinned run/recording snapshot supplied at initialization. It executes ordered attack steps by `StepIndex` with duration locks, Formula/Condition/Behavior checks, melee direction/arc filtering, projectile count/spread, configured explosion radius, deterministic movement and invulnerability windows. GAS remains authoritative for player cooldown/damage attributes; the weapon actor only resolves table-driven attack execution.
+- Added five behavior tests, raising the suite from the 27-test baseline to 32: `ReEcho.Weapons.EquipmentAppliesModifiersAndFailsAtomically`, `MeleeStepsUseOrderArcAndTiming`, `DaggerPartsReplacePatternMoveInvulnerableAndHealOnKill`, `ProjectilesUseSingleShotSpreadCountAndExplosion` and `DomainRevisionRejectsChangedTablesAndPinsActiveRun`. These tests assert build modifiers, ElementId channel resolution, spawned projectile count/spread/explosion, melee damage/health, OnKill healing, disabled/illegal atomic failure, save rejection after table edits and active-run snapshot pinning.
+
 ### Remaining risks
 
+- `W_J_04`, `W_J_05` and `W_J_06` reuse existing visual presentation because this plan did not touch `.uasset`/`.umap` or create new art.
+- There is still no redesigned equipment UI; this rework provides the runtime API, debug/automation path and immutable snapshot contract. A production UX can be layered later without changing the save/recording semantics.
+- Static and automation coverage prove data load, start/equip/restore/recording compatibility and representative combat execution; full play-feel tuning for all seven base patterns remains Human PIE work after Plan 25.
+
 ### Human validation requested
+
+- PIE one multi-stage melee weapon (`W_J_01`), one single-shot/ranged weapon (`W_J_02`) and one elemental weapon (`W_J_03`) to confirm rhythm, range, collision and feedback still match the pre-CSV behavior.
+- PIE `W_J_04` through a character/default path or debug setup to verify the Scythe sweep feel with the reused visual.
+- After Plan 25, use PIE/debug equipment entry points to equip one core, the strength grip, the thrust replacement and holy blade, then verify slot restrictions and feel in a real encounter.
+- After Plan 25, edit one weapon numeric value and one part-effect value in the XLSX/CSV authoring flow, restart the run and confirm the changed data takes effect without recompilation while old save/recording data is rejected.
+
+### Planner re-review acceptance rework - 2026-08-11
+
+- Resolved the Unity Build collision by renaming the weapon-test helper to `WeaponEnemyHealth`; the current source now compiles and links in Editor Development.
+- `FReEchoBuildSnapshot` now stores `EquipmentBaseStats`, `EquipmentBaseRuleFlags` and `bHasEquipmentBase`. Every equipment change first restores this non-equipment authority, applies the requested ordered part set to a candidate, then commits once. Identical re-equip remains at `AttackSpeed=1.2`, replacement restores base speed before applying the new effects, unequip-all removes equipment RuleFlags, and save restore normalizes derived values from the base. SaveVersion is 4 so snapshots lacking this mandatory contract cannot continue silently.
+- Weapon switching uses one shared atomic policy in Run and Weapon Actor: retain compatible parts in stable current order up to the target slot limits, clear type/slot-incompatible or excess parts, and commit only after the target effective definition validates. Generic cores survive compatible switches; Dagger-only grips/blades are cleared when switching to LongSword. Unknown or disabled IDs return failure without Fatal or partial state.
+- `AReEchoEchoActor::InitializeEcho()` now requires the active Run snapshot. Both new-encounter and suspended-encounter GameMode paths pass `GetRunDataSnapshot()`; replayed switches use the same shared switch helper and preserve current health while refreshing derived combat stats. Player explicit initialization uses the same pinned snapshot path.
+- Added `ReEcho.Weapons.EquipmentChangesActualCooldownAndDamage` and `ReEcho.Weapons.SwitchPolicyAndEquipmentSnapshotParity`, raising the suite from 32 to 34. The tests assert idempotent re-equip/replacement/unequip, atomic failures, save/recorder parity, actual runtime cooldown (`0.5 / 1.2`), actual physical-versus-elemental enemy health, compatible-core retention, incompatible Dagger-part clearing, and new Player/Echo consumers using revision A with three old projectiles after global revision B publishes.
+
+### Current-commit verification
+
+- `python scripts/validate_project.py`: passed all three validation groups.
+- `git diff --check`: passed; Git printed only CRLF conversion warnings.
+- `scripts/ue/Build-Editor.cmd -Configuration Development`: passed from the current source; UHT/UBT compiled and linked `UnrealEditor-ReEcho.dll` with `Result: Succeeded`.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons`: passed 7/7 focused weapon tests and ended with `TEST COMPLETE. EXIT CODE: 0`.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho`: passed 34/34 tests and ended with `TEST COMPLETE. EXIT CODE: 0`. The launcher still reports non-Win64 LinuxArm64/VisionOS SDK `MainVersion` warnings while Win64 is VALID; both automation commands exit 0.
+
+### Remaining Human PIE after Plan 25
+
+- Verify representative multi-stage melee, single/ranged and elemental weapon feel, collision, animation and feedback.
+- Equip a generic core plus strength, thrust replacement and holy-blade parts through the eventual authoring/debug flow; switch between Dagger and legacy hotkey weapons and inspect retained/cleared equipment feedback.
+- Edit one weapon and one part-effect value through the Plan 25 XLSX generation flow, restart a Run, and confirm new data applies while prior saves/recordings reject explicitly.
+
+## Planner review - 2026-08-11 - not accepted
+
+The executor commit `32a0384` is clean, statically valid, builds in Editor Development, and passes the existing 27 `ReEcho.*` tests. It is not ready to merge because the passing evidence only covers schema/registry structure and the legacy weapon path, not the locked runtime acceptance below.
+
+### Blocking findings
+
+1. Parts are not part of `FReEchoBuildSnapshot` (or another immutable equipment snapshot), and no runtime path consumes `Snapshot.Parts` / `Part.Effects`. The six cores, strength grip, attack-pattern replacement and OnKill behavior are marked implemented but cannot affect player or echo combat. The three non-core enabled examples are also Dagger-only while no enabled concrete Dagger weapon exists. Add a minimal deterministic equip/apply API, runtime event path and a reachable compatible concrete/runtime fixture; a full UI redesign and changes to the three legacy start choices remain out of scope.
+2. `AReEchoWeaponActor` reads an attack-step row but only consumes damage coefficients and range. `DurationSeconds`, `ArcDegrees`, `ProjectileCount`, `ConcentrationDegrees`, `ExplosionRadiusCm`, `MovementCm`, `Invulnerable`, `BehaviorId`, `FormulaId` and `ConditionId` have no execution path; melee is always a full-radius hit and projectile patterns always spawn one projectile. Implement the generic registered pattern/step handlers needed for the production rows and prove representative single-shot ranged, multi-step melee, movement/invulnerability and geometry behavior.
+3. Run/recording compatibility is only an integer revision on the final concrete weapon. Attack-step/type/slot/part/effect edits, and earlier WeaponIds in a recording's switch timeline, can drift without rejection. Add one deterministic weapon-domain revision/hash covering all seven weapon tables, capture it for the run and recordings, compare it on restore/playback, and test that a changed step/effect rejects historical data without partially mutating state.
+4. A weapon actor copies concrete weapon rows during initialization but calls the mutable global registry again for attack steps. Pin and consistently use the same immutable weapon-domain snapshot for the whole run and its player/echo consumers; a republished test snapshot must not change an active run.
+5. Plan24 added no behavior-level automation: the suite remains at the 27-test baseline, and `WeaponsAreValid` only counts enabled rows/effect labels. Add focused tests that execute Add/Multiply/Override, core channel/ElementId resolution, attack-pattern replacement, OnKill behavior, illegal slot combinations, disabled parts, ordered attack steps and revision/hash drift. Tests must assert resulting combat/build values or events, not only CSV presence.
+
+### Re-review gate
+
+- Keep the existing ID/hotkey compatibility, seven-table schema, 78-row audit and disabled batch.
+- Do not modify `.uasset` / `.umap`, merge `main`, or push.
+- Re-run static validation, Editor Development build, full `ReEcho.*`, focused weapon tests and `git diff --check`; update Execution notes with actual runtime evidence and remaining human-only PIE items.
 
 ## 执行者启动 prompt
 
@@ -156,3 +245,43 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 
 完成后显式提交并推送到自己的 Plan24 远端分支，更新 Coordination/Exchange 所声明的影响与证据并告诉人；禁止修改或合并 main。
 ```
+
+## Planner re-review - 2026-08-11 - still not accepted
+
+The rework commit `735967d` addresses most of the first review structurally, and `python scripts/validate_project.py` plus `git diff --check b2616ec..HEAD` pass. It is still not mergeable because a clean planner rebuild fails and the immutable equipment/snapshot contract remains incomplete.
+
+### Blocking findings
+
+1. `scripts/ue/Build-Editor.cmd -Configuration Development` fails in UE Unity Build: `ReEchoWeaponRuntimeTests.cpp` and `ReEchoElementReactionTests.cpp` both define `EnemyHealth` in anonymous namespaces, which collide when Unreal combines the translation units. Rename the helper to a domain-specific unique name and prove the build from the current commit before running automation; stale binaries are not acceptance evidence.
+2. `TryEquipParts()` reapplies modifiers on top of an already modified `FReEchoBuildSnapshot`. Re-equipping the strength grip therefore multiplies `Stats.AttackSpeed` again, and clearing/replacing parts cannot reconstruct the pre-part value. Separate immutable non-equipment stats from derived equipment effects, or store enough authoritative base state to rebuild the effective snapshot from scratch on every equipment change. Add tests for equip, identical re-equip (idempotent), replace, unequip-all, failure atomicity, save/restore and recorder/echo parity. The test must also prove that the resulting attack interval/damage is consumed by actual combat, not only present in a Build field.
+3. Weapon changes keep the old weapon's parts. `UReEchoRunSubsystem::SetEquippedWeapon()` and `AReEchoWeaponActor::SelectWeaponById()` can therefore make a formerly valid Dagger build fatal when switching to a non-Dagger weapon. Lock one deterministic policy: either store per-weapon equipment, or atomically retain only compatible parts/clear incompatible parts. Player and echo weapon switches must use the same policy and never leave a partially changed build. Add compatible-core and incompatible-Dagger-part switch tests.
+4. `AReEchoEchoActor::InitializeEcho()` still calls the mutable global `FReEchoCsvDataRegistry::GetSnapshot()` instead of receiving the active Run's pinned snapshot. After a valid active Run pins revision A and the global registry publishes revision B, a newly spawned echo fatals even though player execution correctly remains on A. Pass `UReEchoRunSubsystem::GetRunDataSnapshot()` through both new-encounter and suspended-encounter echo creation paths, and test player plus newly spawned echo behavior after global republish.
+
+### Re-review gate
+
+- Preserve the current seven-table schema, IDs/hotkeys, 78-row audit, enabled/disabled content batch and representative attack execution already added.
+- Fix only C++/tests/docs; do not touch `.uasset` / `.umap`, merge `main`, or push `main`.
+- Run, in order: static validation, `git diff --check`, clean/current Editor Development build, focused `ReEcho.Weapons` automation, then full `ReEcho.*` automation. Record exact current-commit evidence and leave Human PIE items deferred.
+
+## 执行者复做 prompt（735967d 之后）
+
+```text
+继续在现有 `plan/24-weapons-slots-csv` worktree/分支上修复，不要另建 Plan，不要修改 main 或任何 `.uasset`/`.umap`。先读本文件最后一节 “Planner re-review - still not accepted”。
+
+必须完成四项：1）解决 UE Unity Build 中两个匿名命名空间 `EnemyHealth` helper 重名导致的当前提交编译失败；2）让配件变化每次都从不含旧配件派生值的权威基础 Build 重新计算，保证相同重配、替换和卸空幂等，不得复乘 AttackSpeed 或残留 RuleFlags；3）定义并实现武器切换时不兼容配件的原子策略，玩家与回响一致，切换不得 Fatal 或留下半成品；4）回响初始化必须接收当前 Run 固定的 `GetRunDataSnapshot()`，不能重新读取全局 registry。
+
+补自动化覆盖：相同配件重复装备、替换、卸空、失败原子性、实际攻击间隔/伤害消费、兼容核心切换、不兼容匕首配件切换、全局表重发后同一 Run 新生成的玩家/回响仍共同使用旧快照。先跑 `python scripts/validate_project.py` 和 `git diff --check`，再跑当前提交的 Editor Development build；构建成功后跑 focused `ReEcho.Weapons` 与全量 `ReEcho.*`。把确切结果追加到 Execution notes 并提交到本分支，然后只汇报 commit，不推 main。
+```
+
+## Planner final acceptance - 2026-08-11
+
+Plan 24 is accepted at executor commit `3c514bb` after planner re-review.
+
+- Code review confirmed that equipment changes rebuild from explicit non-equipment stats/rules; identical re-equip, replacement and unequip-all are idempotent. Save version 4 rejects snapshots that lack this authority.
+- Run and Weapon Actor share one atomic switch policy: compatible parts are retained in stable order, incompatible/excess parts are cleared, and unknown/disabled targets fail without partial mutation.
+- New and resumed encounter echoes receive the active Run's pinned data snapshot; player and newly spawned echo consumers remain on the pinned weapon-domain revision after the global registry changes.
+- `python scripts/validate_project.py` passed, and `git diff --check 28c21b8..HEAD` passed.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` returned `Result: Succeeded` for the current source.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons` passed 7/7 tests with exit code 0.
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho` passed 34/34 tests with exit code 0.
+- Human PIE play-feel and XLSX-driven value-edit verification remain intentionally deferred until Plan 25; they are not blockers for accepting the data/runtime migration.

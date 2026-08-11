@@ -11,7 +11,6 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
-#include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/Texture2D.h"
 #include "ReEcho.h"
@@ -117,19 +116,21 @@ FString CharacterTexturePath(const FName AppearanceId)
 	return FString::Printf(TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_%s.Player_%s"), *Token, *Token);
 }
 
-FString WeaponTexturePath(const EReEchoWeaponSlot Slot)
+FString WeaponTexturePath(const FName VisualKey)
 {
-	switch (Slot)
+	if (VisualKey == TEXT("MoonStaff"))
 	{
-		case EReEchoWeaponSlot::PhysicalOrb:
-			return TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff");
-		case EReEchoWeaponSlot::Sword:
-			return TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon");
-		case EReEchoWeaponSlot::ElementalOrb:
-			return TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave");
-		default:
-			return FString();
+		return TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff");
 	}
+	if (VisualKey == TEXT("CrescentBlade"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon");
+	}
+	if (VisualKey == TEXT("ElementalOrb"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave");
+	}
+	return FString();
 }
 }
 
@@ -182,11 +183,14 @@ void UReEchoLoadoutSelectionWidget::LoadOptions()
 	    [](const FReEchoCsvCharacterRow& Left, const FReEchoCsvCharacterRow& Right)
 	    {
 		    return Left.PromotionPriority == Right.PromotionPriority ? Left.Id.LexicalLess(Right.Id)
-		                                                           : Left.PromotionPriority < Right.PromotionPriority;
+		                                                             : Left.PromotionPriority < Right.PromotionPriority;
 	    });
 	if (Characters.Num() != 4)
 	{
-		UE_LOG(LogReEcho, Fatal, TEXT("Cannot build loadout UI: expected 4 selectable CSV characters, found %d"), Characters.Num());
+		UE_LOG(LogReEcho,
+		       Fatal,
+		       TEXT("Cannot build loadout UI: expected 4 selectable CSV characters, found %d"),
+		       Characters.Num());
 	}
 	for (const FReEchoCsvCharacterRow& Character : Characters)
 	{
@@ -194,24 +198,22 @@ void UReEchoLoadoutSelectionWidget::LoadOptions()
 		CharacterLabels.Add(Character.Id, Character.DisplayName);
 	}
 
-	TArray<FReEchoWeaponConfig> Weapons = GetDefault<UReEchoBalanceSettings>()->Weapons;
-	Weapons.Sort(
-	    [](const FReEchoWeaponConfig& Left, const FReEchoWeaponConfig& Right)
-	    {
-		    return static_cast<uint8>(Left.Slot) < static_cast<uint8>(Right.Slot);
-	    });
+	TArray<FReEchoCsvWeaponRow> Weapons = Snapshot->GetStartSelectableWeapons();
 	if (Weapons.Num() != 3)
 	{
-		UE_LOG(LogReEcho, Fatal, TEXT("Cannot build loadout UI: expected 3 configured weapons, found %d"), Weapons.Num());
+		UE_LOG(LogReEcho,
+		       Fatal,
+		       TEXT("Cannot build loadout UI: expected 3 StartSelectable CSV weapons, found %d"),
+		       Weapons.Num());
 	}
-	for (const FReEchoWeaponConfig& Weapon : Weapons)
+	for (const FReEchoCsvWeaponRow& Weapon : Weapons)
 	{
-		if (Weapon.WeaponId.IsNone() || WeaponTexturePath(Weapon.Slot).IsEmpty())
+		if (Weapon.Id.IsNone() || WeaponTexturePath(Weapon.VisualKey).IsEmpty())
 		{
 			UE_LOG(LogReEcho, Fatal, TEXT("Cannot build loadout UI: weapon configuration is incomplete"));
 		}
-		WeaponOptionIds.Add(Weapon.WeaponId);
-		WeaponLabels.Add(Weapon.WeaponId, Weapon.DisplayName.IsEmpty() ? Weapon.WeaponId.ToString() : Weapon.DisplayName.ToString());
+		WeaponOptionIds.Add(Weapon.Id);
+		WeaponLabels.Add(Weapon.Id, Weapon.DisplayName.IsEmpty() ? Weapon.Id.ToString() : Weapon.DisplayName);
 	}
 }
 
@@ -261,21 +263,24 @@ void UReEchoLoadoutSelectionWidget::BuildWidgetTree()
 	    WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("CharacterRow"));
 	UVerticalBoxSlot* CharacterSlot = Content->AddChildToVerticalBox(CharacterRow);
 	CharacterSlot->SetHorizontalAlignment(HAlign_Center);
-	HeartButton = AddImageOptionButton(WidgetTree,
-	                                   CharacterRow,
-	                                   TEXT("HeartButton"),
-	                                   CharacterLabels.FindRef(CharacterOptionIds[0]),
-	                                   CharacterTexturePath(Snapshot->FindCharacter(CharacterOptionIds[0])->AppearanceId));
-	SpadeButton = AddImageOptionButton(WidgetTree,
-	                                   CharacterRow,
-	                                   TEXT("SpadeButton"),
-	                                   CharacterLabels.FindRef(CharacterOptionIds[1]),
-	                                   CharacterTexturePath(Snapshot->FindCharacter(CharacterOptionIds[1])->AppearanceId));
-	CloverButton = AddImageOptionButton(WidgetTree,
-	                                    CharacterRow,
-	                                    TEXT("CloverButton"),
-	                                    CharacterLabels.FindRef(CharacterOptionIds[2]),
-	                                    CharacterTexturePath(Snapshot->FindCharacter(CharacterOptionIds[2])->AppearanceId));
+	HeartButton =
+	    AddImageOptionButton(WidgetTree,
+	                         CharacterRow,
+	                         TEXT("HeartButton"),
+	                         CharacterLabels.FindRef(CharacterOptionIds[0]),
+	                         CharacterTexturePath(Snapshot->FindCharacter(CharacterOptionIds[0])->AppearanceId));
+	SpadeButton =
+	    AddImageOptionButton(WidgetTree,
+	                         CharacterRow,
+	                         TEXT("SpadeButton"),
+	                         CharacterLabels.FindRef(CharacterOptionIds[1]),
+	                         CharacterTexturePath(Snapshot->FindCharacter(CharacterOptionIds[1])->AppearanceId));
+	CloverButton =
+	    AddImageOptionButton(WidgetTree,
+	                         CharacterRow,
+	                         TEXT("CloverButton"),
+	                         CharacterLabels.FindRef(CharacterOptionIds[2]),
+	                         CharacterTexturePath(Snapshot->FindCharacter(CharacterOptionIds[2])->AppearanceId));
 	DiamondButton =
 	    AddImageOptionButton(WidgetTree,
 	                         CharacterRow,
@@ -292,17 +297,17 @@ void UReEchoLoadoutSelectionWidget::BuildWidgetTree()
 	                                   WeaponRow,
 	                                   TEXT("StaffButton"),
 	                                   WeaponLabels.FindRef(WeaponOptionIds[0]),
-	                                   WeaponTexturePath(EReEchoWeaponSlot::PhysicalOrb));
+	                                   WeaponTexturePath(Snapshot->FindWeapon(WeaponOptionIds[0])->VisualKey));
 	SwordButton = AddImageOptionButton(WidgetTree,
 	                                   WeaponRow,
 	                                   TEXT("SwordButton"),
 	                                   WeaponLabels.FindRef(WeaponOptionIds[1]),
-	                                   WeaponTexturePath(EReEchoWeaponSlot::Sword));
+	                                   WeaponTexturePath(Snapshot->FindWeapon(WeaponOptionIds[1])->VisualKey));
 	ElementalButton = AddImageOptionButton(WidgetTree,
 	                                       WeaponRow,
 	                                       TEXT("ElementalButton"),
 	                                       WeaponLabels.FindRef(WeaponOptionIds[2]),
-	                                       WeaponTexturePath(EReEchoWeaponSlot::ElementalOrb));
+	                                       WeaponTexturePath(Snapshot->FindWeapon(WeaponOptionIds[2])->VisualKey));
 
 	StatusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("LoadoutStatus"));
 	StatusText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
@@ -334,10 +339,11 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	SetSelected(ElementalButton, WeaponOptionIds.IsValidIndex(2) && SelectedWeaponId == WeaponOptionIds[2]);
 	if (StatusText)
 	{
-		const FString CharacterLabel = SelectedCharacterId.IsNone() ? TEXT("未选择") : CharacterLabels.FindRef(SelectedCharacterId);
+		const FString CharacterLabel =
+		    SelectedCharacterId.IsNone() ? TEXT("未选择") : CharacterLabels.FindRef(SelectedCharacterId);
 		const FString WeaponLabel = SelectedWeaponId.IsNone() ? TEXT("未选择") : WeaponLabels.FindRef(SelectedWeaponId);
-		StatusText->SetText(FText::FromString(
-		    FString::Printf(TEXT("角色：%s    武器：%s"), *CharacterLabel, *WeaponLabel)));
+		StatusText->SetText(
+		    FText::FromString(FString::Printf(TEXT("角色：%s    武器：%s"), *CharacterLabel, *WeaponLabel)));
 	}
 	if (ConfirmButton)
 	{

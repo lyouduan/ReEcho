@@ -564,8 +564,16 @@ void AReEchoGameMode::BeginNextEncounter()
 	if (!Recordings.IsEmpty())
 	{
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
-		Echo->InitializeEcho(Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency);
-		Echoes.Add(Echo);
+		if (Echo && Echo->InitializeEcho(Recordings[0],
+		                                 RunSubsystem->CurrentBuild.Stats.EchoEfficiency,
+		                                 RunSubsystem->GetRunDataSnapshot()))
+		{
+			Echoes.Add(Echo);
+		}
+		else if (Echo)
+		{
+			Echo->Destroy();
+		}
 	}
 	if (WeatherWidget)
 	{
@@ -640,9 +648,16 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
 		if (Echo)
 		{
-			Echo->InitializeEcho(Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency);
-			Echo->AdvanceEcho(SavedState.EncounterTime);
-			Echoes.Add(Echo);
+			if (Echo->InitializeEcho(
+			        Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
+			{
+				Echo->AdvanceEcho(SavedState.EncounterTime);
+				Echoes.Add(Echo);
+			}
+			else
+			{
+				Echo->Destroy();
+			}
 		}
 	}
 	if (WeatherWidget)

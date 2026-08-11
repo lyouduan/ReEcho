@@ -7,6 +7,7 @@
 #include "ReEchoCharacterBuildCsvReader.h"
 #include "ReEchoCsvDataReader.h"
 #include "ReEchoElementReactionCsvReader.h"
+#include "ReEchoWeaponCsvReader.h"
 
 namespace
 {
@@ -19,6 +20,13 @@ constexpr const TCHAR* CardEffectsTableId = TEXT("CardEffects");
 constexpr const TCHAR* ElementsTableId = TEXT("Elements");
 constexpr const TCHAR* StatusesTableId = TEXT("Statuses");
 constexpr const TCHAR* ReactionsTableId = TEXT("Reactions");
+constexpr const TCHAR* WeaponTypesTableId = TEXT("WeaponTypes");
+constexpr const TCHAR* WeaponsTableId = TEXT("Weapons");
+constexpr const TCHAR* AttackStepsTableId = TEXT("AttackSteps");
+constexpr const TCHAR* SlotTypesTableId = TEXT("SlotTypes");
+constexpr const TCHAR* SlotProfilesTableId = TEXT("SlotProfiles");
+constexpr const TCHAR* PartsTableId = TEXT("Parts");
+constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
 
 constexpr const TCHAR* BehaviorNone = TEXT("None");
 constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
@@ -32,6 +40,7 @@ TSharedPtr<const FReEchoCsvDataSnapshot> PublishedSnapshot;
 TSet<FName> RegisteredBehaviorIds;
 TSet<FName> RegisteredEffectKinds;
 TSet<FName> RegisteredFormulaIds;
+TSet<FName> RegisteredAttackPatternIds;
 bool bDefaultRegistrationsReady = false;
 
 TArray<FString> GetRequiredTableIds()
@@ -44,7 +53,14 @@ TArray<FString> GetRequiredTableIds()
 	        CardEffectsTableId,
 	        ElementsTableId,
 	        StatusesTableId,
-	        ReactionsTableId};
+	        ReactionsTableId,
+	        WeaponTypesTableId,
+	        WeaponsTableId,
+	        AttackStepsTableId,
+	        SlotTypesTableId,
+	        SlotProfilesTableId,
+	        PartsTableId,
+	        PartEffectsTableId};
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
@@ -241,6 +257,74 @@ const FReEchoCsvReactionRow* FReEchoCsvDataSnapshot::FindReaction(const FName Tr
 	return nullptr;
 }
 
+const FReEchoCsvWeaponTypeRow* FReEchoCsvDataSnapshot::FindWeaponType(const FName WeaponTypeId) const
+{
+	return WeaponTypes.Find(WeaponTypeId);
+}
+
+const FReEchoCsvWeaponRow* FReEchoCsvDataSnapshot::FindWeapon(const FName WeaponId) const
+{
+	return Weapons.Find(WeaponId);
+}
+
+const FReEchoCsvWeaponRow* FReEchoCsvDataSnapshot::FindEnabledWeapon(const FName WeaponId) const
+{
+	const FReEchoCsvWeaponRow* Weapon = FindWeapon(WeaponId);
+	return Weapon && Weapon->bEnabled ? Weapon : nullptr;
+}
+
+const FReEchoCsvWeaponRow* FReEchoCsvDataSnapshot::FindWeaponByInputSlot(const EReEchoInputSlot InputSlot) const
+{
+	for (const FName WeaponId : WeaponOrder)
+	{
+		const FReEchoCsvWeaponRow* Weapon = Weapons.Find(WeaponId);
+		if (Weapon && Weapon->bEnabled && Weapon->InputSlot == InputSlot)
+		{
+			return Weapon;
+		}
+	}
+	return nullptr;
+}
+
+TArray<FReEchoCsvWeaponRow> FReEchoCsvDataSnapshot::GetStartSelectableWeapons() const
+{
+	TArray<FReEchoCsvWeaponRow> Result;
+	for (const FName WeaponId : WeaponOrder)
+	{
+		const FReEchoCsvWeaponRow* Weapon = Weapons.Find(WeaponId);
+		if (Weapon && Weapon->bEnabled && Weapon->bStartSelectable)
+		{
+			Result.Add(*Weapon);
+		}
+	}
+	Result.Sort(
+	    [](const FReEchoCsvWeaponRow& Left, const FReEchoCsvWeaponRow& Right)
+	    {
+		    return Left.LoadoutOrder == Right.LoadoutOrder ? Left.Id.LexicalLess(Right.Id)
+		                                                   : Left.LoadoutOrder < Right.LoadoutOrder;
+	    });
+	return Result;
+}
+
+TArray<FReEchoCsvAttackStepRow> FReEchoCsvDataSnapshot::GetAttackSteps(const FName AttackPatternId) const
+{
+	TArray<FReEchoCsvAttackStepRow> Result;
+	for (const FName StepId : AttackStepOrder)
+	{
+		const FReEchoCsvAttackStepRow* Step = AttackSteps.Find(StepId);
+		if (Step && Step->bEnabled && Step->AttackPatternId == AttackPatternId)
+		{
+			Result.Add(*Step);
+		}
+	}
+	Result.Sort(
+	    [](const FReEchoCsvAttackStepRow& Left, const FReEchoCsvAttackStepRow& Right)
+	    {
+		    return Left.StepIndex == Right.StepIndex ? Left.Id.LexicalLess(Right.Id) : Left.StepIndex < Right.StepIndex;
+	    });
+	return Result;
+}
+
 FString FReEchoCsvLoadResult::FormatIssues() const
 {
 	TArray<FString> Lines;
@@ -264,6 +348,8 @@ void FReEchoCsvDataRegistry::EnsureDefaultRegistrations()
 	RegisteredEffectKinds.Add(FName(StatModifierEffectKind));
 	RegisteredEffectKinds.Add(FName(InstantRecoveryEffectKind));
 	RegisteredEffectKinds.Add(FName(ElementReactionEffectKind));
+	RegisteredFormulaIds.Add(FName(BehaviorNone));
+	RegisteredAttackPatternIds.Add(FName(BehaviorNone));
 	bDefaultRegistrationsReady = true;
 }
 
@@ -286,6 +372,27 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterFormulaId(TEXT("Element.AttachInRadius"));
 	RegisterFormulaId(TEXT("Element.ChainElementAttack"));
 	RegisterFormulaId(TEXT("Element.EnhanceNextReaction"));
+	RegisterBehaviorId(TEXT("Weapon.AttackStep"));
+	RegisterBehaviorId(TEXT("Weapon.DashStrike"));
+	RegisterBehaviorId(TEXT("Part.CoreDamageChannel"));
+	RegisterBehaviorId(TEXT("Part.StatModifier"));
+	RegisterBehaviorId(TEXT("Part.AttackPatternReplacement"));
+	RegisterBehaviorId(TEXT("Part.OnKillHealPercent"));
+	RegisterEffectKind(TEXT("WeaponDamageChannel"));
+	RegisterEffectKind(TEXT("AttackPatternReplacement"));
+	RegisterEffectKind(TEXT("ParameterizedBehavior"));
+	RegisterEffectKind(TEXT("UniqueBehavior"));
+	RegisterFormulaId(TEXT("Weapon.PhysicalOrElementalCoefficient"));
+	RegisterAttackPatternId(TEXT("Pattern.DaggerCombo"));
+	RegisterAttackPatternId(TEXT("Pattern.DaggerDashOnly"));
+	RegisterAttackPatternId(TEXT("Pattern.LongSwordCombo"));
+	RegisterAttackPatternId(TEXT("Pattern.ScytheSweep"));
+	RegisterAttackPatternId(TEXT("Pattern.WhipCombo"));
+	RegisterAttackPatternId(TEXT("Pattern.BowShot"));
+	RegisterAttackPatternId(TEXT("Pattern.GunShot"));
+	RegisterAttackPatternId(TEXT("Pattern.StaffProjectile"));
+	RegisterAttackPatternId(TEXT("Pattern.MoonStaffWave"));
+	RegisterAttackPatternId(TEXT("Pattern.ElementalProjectile"));
 }
 
 void FReEchoCsvDataRegistry::RegisterBehaviorId(const FName BehaviorId)
@@ -318,6 +425,16 @@ void FReEchoCsvDataRegistry::RegisterFormulaId(const FName FormulaId)
 	}
 }
 
+void FReEchoCsvDataRegistry::RegisterAttackPatternId(const FName AttackPatternId)
+{
+	EnsureDefaultRegistrations();
+	if (!AttackPatternId.IsNone())
+	{
+		FScopeLock Lock(&RegistryCriticalSection);
+		RegisteredAttackPatternIds.Add(AttackPatternId);
+	}
+}
+
 bool FReEchoCsvDataRegistry::IsBehaviorIdRegistered(const FName BehaviorId)
 {
 	EnsureDefaultRegistrations();
@@ -337,6 +454,13 @@ bool FReEchoCsvDataRegistry::IsFormulaIdRegistered(const FName FormulaId)
 	EnsureDefaultRegistrations();
 	FScopeLock Lock(&RegistryCriticalSection);
 	return RegisteredFormulaIds.Contains(FormulaId);
+}
+
+bool FReEchoCsvDataRegistry::IsAttackPatternIdRegistered(const FName AttackPatternId)
+{
+	EnsureDefaultRegistrations();
+	FScopeLock Lock(&RegistryCriticalSection);
+	return RegisteredAttackPatternIds.Contains(AttackPatternId);
 }
 
 FString FReEchoCsvDataRegistry::GetDefaultDataDirectory()
@@ -370,6 +494,10 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 	if (Result.Issues.Num() == 0)
 	{
 		ReEchoElementReactionCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReEchoWeaponCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
 	}
 	if (Result.Issues.Num() == 0 && MutableSnapshot->RuntimeSmokeRows.Num() == 0)
 	{

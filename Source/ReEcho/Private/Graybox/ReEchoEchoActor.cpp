@@ -12,6 +12,7 @@
 #include "Graybox/ReEchoTrajectoryActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoPlaybackComponent.h"
+#include "ReEcho.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -71,9 +72,21 @@ AReEchoEchoActor::AReEchoEchoActor()
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 }
 
-void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const float Efficiency)
+bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
+                                      const float Efficiency,
+                                      TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot)
 {
+	if (!Snapshot.IsValid() || Recording.BuildSnapshot.WeaponDomainRevision != Snapshot->WeaponDomainRevision)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot initialize echo: weapon domain revision mismatch saved=%s current=%s"),
+		       *Recording.BuildSnapshot.WeaponDomainRevision,
+		       Snapshot.IsValid() ? *Snapshot->WeaponDomainRevision : TEXT("<none>"));
+		return false;
+	}
 	ConfigureEchoAppearance(Recording.BuildSnapshot.CharacterId);
+	DamageEfficiency = Efficiency;
 	Playback->LoadRecording(Recording);
 	Playback->OnReplayWeapon.AddDynamic(this, &AReEchoEchoActor::HandleReplayedWeapon);
 
@@ -90,25 +103,31 @@ void AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording, const f
 		Trajectory->InitializeTrajectory(Recording);
 	}
 
-	FReEchoStatBlock EchoStats = Recording.BuildSnapshot.Stats;
-	EchoStats.PhysicalAttack = FMath::Max(1.0f, EchoStats.PhysicalAttack * Efficiency);
-	EchoStats.ElementalAttack = FMath::Max(1.0f, EchoStats.ElementalAttack * Efficiency);
-	Combatant->InitializeFromStats(EchoStats, true);
-
 	Weapon = GetWorld()->SpawnActor<AReEchoWeaponActor>();
 	if (Weapon)
 	{
 		Weapon->SetOwner(this);
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
-		Weapon->InitializeWeapon();
+		Weapon->InitializeWeapon(&Recording.BuildSnapshot, Snapshot);
 		FName InitialWeaponId = Recording.BuildSnapshot.WeaponId;
 		if (!Recording.WeaponChanges.IsEmpty())
 		{
 			InitialWeaponId = Recording.WeaponChanges[0].WeaponId;
 		}
-		Weapon->SelectWeaponById(InitialWeaponId);
+		if (!Weapon->SelectWeaponById(InitialWeaponId))
+		{
+			UE_LOG(LogReEcho, Error, TEXT("Cannot initialize echo with WeaponId '%s'"), *InitialWeaponId.ToString());
+			Weapon->Destroy();
+			Weapon = nullptr;
+			return false;
+		}
+		FReEchoStatBlock EchoStats = Weapon->GetBuildSnapshot().Stats;
+		EchoStats.PhysicalAttack = FMath::Max(1.0f, EchoStats.PhysicalAttack * DamageEfficiency);
+		EchoStats.ElementalAttack = FMath::Max(1.0f, EchoStats.ElementalAttack * DamageEfficiency);
+		Combatant->InitializeFromStats(EchoStats, true);
 	}
+	return Weapon != nullptr;
 }
 
 bool AReEchoEchoActor::ConfigureEchoAppearance(const FName CharacterId)
@@ -150,6 +169,16 @@ float AReEchoEchoActor::GetCurrentHealth() const
 	return Combatant->CurrentHealth;
 }
 
+FString AReEchoEchoActor::GetPinnedWeaponDomainRevision() const
+{
+	return Weapon ? Weapon->GetPinnedWeaponDomainRevision() : FString();
+}
+
+FName AReEchoEchoActor::GetEquippedWeaponId() const
+{
+	return Weapon ? Weapon->GetEquippedWeaponId() : NAME_None;
+}
+
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 {
 	Playback->AdvancePlayback(EncounterTime);
@@ -159,7 +188,17 @@ void AReEchoEchoActor::HandleReplayedWeapon(const FName WeaponId, const float)
 {
 	if (Weapon)
 	{
-		Weapon->SelectWeaponById(WeaponId);
+		if (!Weapon->SelectWeaponById(WeaponId))
+		{
+			UE_LOG(LogReEcho, Error, TEXT("Cannot replay echo WeaponId '%s'"), *WeaponId.ToString());
+			return;
+		}
+		const float PreviousHealth = Combatant->CurrentHealth;
+		FReEchoStatBlock EchoStats = Weapon->GetBuildSnapshot().Stats;
+		EchoStats.PhysicalAttack = FMath::Max(1.0f, EchoStats.PhysicalAttack * DamageEfficiency);
+		EchoStats.ElementalAttack = FMath::Max(1.0f, EchoStats.ElementalAttack * DamageEfficiency);
+		Combatant->InitializeFromStats(EchoStats, false);
+		Combatant->RestoreCurrentHealth(PreviousHealth);
 	}
 }
 

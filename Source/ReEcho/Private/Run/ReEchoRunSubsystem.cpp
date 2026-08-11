@@ -1,11 +1,12 @@
 #include "Run/ReEchoRunSubsystem.h"
 
-#include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Core/ReEchoBalanceSettings.h"
 #include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
+#include "Weapons/ReEchoWeaponRuntime.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
@@ -34,29 +35,32 @@ bool IsValidResumableSave(const UReEchoRunSaveGame& SaveGame)
 FString GetBuildConfigurationError(const FReEchoBuildSnapshot& Build)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
 	if (!Snapshot.IsValid())
 	{
 		return TEXT("CSV snapshot is unavailable");
 	}
-	if (!Character)
-	{
-		return FString::Printf(TEXT("CharacterId '%s' is not configured"), *Build.CharacterId.ToString());
-	}
-	if (!Character->bEnabled)
-	{
-		return FString::Printf(TEXT("CharacterId '%s' is disabled"), *Build.CharacterId.ToString());
-	}
+	return ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, Build);
+}
 
-	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
-	const bool bWeaponConfigured = Settings && Settings->Weapons.ContainsByPredicate(
-	                                               [&Build](const FReEchoWeaponConfig& Weapon)
-	                                               {
-		                                               return Weapon.WeaponId == Build.WeaponId;
-	                                               });
-	return bWeaponConfigured
-	           ? FString()
-	           : FString::Printf(TEXT("WeaponId '%s' is not configured"), *Build.WeaponId.ToString());
+bool ValidateRecordingAgainstSnapshot(const FReEchoCsvDataSnapshot& Snapshot,
+                                      const FReEchoRecording& Recording,
+                                      FString& OutError)
+{
+	OutError = ReEchoWeaponRuntime::GetBuildConfigurationError(Snapshot, Recording.BuildSnapshot);
+	if (!OutError.IsEmpty())
+	{
+		return false;
+	}
+	for (const FReEchoWeaponEvent& WeaponChange : Recording.WeaponChanges)
+	{
+		if (!Snapshot.FindEnabledWeapon(WeaponChange.WeaponId))
+		{
+			OutError = FString::Printf(TEXT("Recording references unknown or disabled WeaponId '%s'"),
+			                           *WeaponChange.WeaponId.ToString());
+			return false;
+		}
+	}
+	return true;
 }
 
 void RequireConfiguredBuild(const FReEchoBuildSnapshot& Build, const TCHAR* Context)
@@ -209,6 +213,52 @@ bool ApplyCardEffects(const FReEchoCsvCardRow& Card, FReEchoBuildSnapshot& Build
 	return true;
 }
 
+bool TryNormalizeEquipmentBuild(const FReEchoCsvDataSnapshot& Snapshot,
+                                const FReEchoBuildSnapshot& Build,
+                                FReEchoBuildSnapshot& OutBuild)
+{
+	TArray<FName> PartIds;
+	for (const FReEchoEquippedPartSnapshot& Part : Build.EquippedParts)
+	{
+		PartIds.Add(Part.PartId);
+	}
+	FString Error;
+	return ReEchoWeaponRuntime::TryEquipParts(Snapshot, Build, PartIds, OutBuild, Error);
+}
+
+TArray<FName> GetEquippedPartIds(const FReEchoBuildSnapshot& Build)
+{
+	TArray<FName> PartIds;
+	for (const FReEchoEquippedPartSnapshot& Part : Build.EquippedParts)
+	{
+		PartIds.Add(Part.PartId);
+	}
+	return PartIds;
+}
+
+bool TryMutateAuthoritativeBuild(const FReEchoCsvDataSnapshot& Snapshot,
+                                 const FReEchoBuildSnapshot& Build,
+                                 TFunctionRef<bool(FReEchoBuildSnapshot&)> Mutator,
+                                 FReEchoBuildSnapshot& OutBuild)
+{
+	FString Error;
+	FReEchoBuildSnapshot BaseBuild;
+	if (!ReEchoWeaponRuntime::TryGetEquipmentBaseBuild(Build, BaseBuild, Error) || !Mutator(BaseBuild))
+	{
+		return false;
+	}
+
+	BaseBuild.EquipmentBaseStats = BaseBuild.Stats;
+	BaseBuild.EquipmentBaseRuleFlags = BaseBuild.RuleFlags;
+	BaseBuild.bHasEquipmentBase = true;
+	if (Build.WeaponDomainRevision.IsEmpty() && Build.EquippedParts.IsEmpty())
+	{
+		OutBuild = BaseBuild;
+		return true;
+	}
+	return ReEchoWeaponRuntime::TryEquipParts(Snapshot, BaseBuild, GetEquippedPartIds(Build), OutBuild, Error);
+}
+
 bool CurrentCharacterHasPassive(const FReEchoBuildSnapshot& Build, const FName PassiveBehaviorId)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
@@ -230,6 +280,8 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	}
 
 	const FReEchoCsvCharacterRow* Character = Snapshot->FindCharacter(CharacterId);
+	const FName RequestedWeaponId = WeaponId.IsNone() && Character ? Character->DefaultWeaponId : WeaponId;
+	const FReEchoCsvWeaponRow* Weapon = Snapshot->FindWeapon(RequestedWeaponId);
 	if (!Character)
 	{
 		Result.Error = FString::Printf(TEXT("Cannot start run for CharacterId '%s': character was not found"),
@@ -242,12 +294,29 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 		                               *CharacterId.ToString());
 		return Result;
 	}
+	if (!Weapon)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run with WeaponId '%s': weapon was not found"),
+		                               *RequestedWeaponId.ToString());
+		return Result;
+	}
+	if (!Weapon->bEnabled)
+	{
+		Result.Error = FString::Printf(TEXT("Cannot start run with WeaponId '%s': weapon is disabled"),
+		                               *RequestedWeaponId.ToString());
+		return Result;
+	}
 
 	Result.Build.CharacterId = Character->Id;
-	Result.Build.WeaponId = WeaponId.IsNone() ? Character->DefaultWeaponId : WeaponId;
+	Result.Build.WeaponId = Weapon->Id;
+	Result.Build.WeaponDataRevision = Weapon->DataRevision;
+	Result.Build.WeaponDomainRevision = Snapshot->WeaponDomainRevision;
 	Result.Build.Stats = Character->BaseStats;
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
 	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
+	Result.Build.EquipmentBaseStats = Result.Build.Stats;
+	Result.Build.EquipmentBaseRuleFlags = Result.Build.RuleFlags;
+	Result.Build.bHasEquipmentBase = true;
 	Result.bSuccess = true;
 	return Result;
 }
@@ -262,13 +331,19 @@ bool ReEchoRunData::TryApplyCardEffectsToBuild(const FReEchoCsvCardRow& Card,
                                                const FReEchoBuildSnapshot& Build,
                                                FReEchoBuildSnapshot& OutBuild)
 {
-	FReEchoBuildSnapshot Candidate = Build;
-	if (!ApplyCardEffects(Card, Candidate))
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
 	{
 		return false;
 	}
-	OutBuild = Candidate;
-	return true;
+	return TryMutateAuthoritativeBuild(
+	    *Snapshot,
+	    Build,
+	    [&](FReEchoBuildSnapshot& Candidate)
+	    {
+		    return ApplyCardEffects(Card, Candidate);
+	    },
+	    OutBuild);
 }
 
 void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)
@@ -287,20 +362,63 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	PendingTraitCardIds.Reset();
 	PendingEncounterResume = {};
 	CurrentBuild = {};
+	RunDataSnapshot.Reset();
 
-	const FReEchoStartRunResolveResult ResolveResult = ReEchoRunData::ResolveStartingBuild(CharacterId, WeaponId);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoStartRunResolveResult ResolveResult =
+	    ReEchoRunData::ResolveStartingBuildFromSnapshot(Snapshot.Get(), CharacterId, WeaponId);
 	if (!ResolveResult.bSuccess)
 	{
 		UE_LOG(LogReEcho, Fatal, TEXT("%s"), *ResolveResult.Error);
 	}
 	RequireConfiguredBuild(ResolveResult.Build, TEXT("Cannot start run"));
+	RunDataSnapshot = Snapshot;
 	CurrentBuild = ResolveResult.Build;
 	SetPhase(EReEchoRunPhase::Planning);
 }
 
-void UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
+bool UReEchoRunSubsystem::SetEquippedWeapon(const FName WeaponId)
 {
-	CurrentBuild.WeaponId = WeaponId;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		UE_LOG(
+		    LogReEcho, Warning, TEXT("Cannot equip WeaponId '%s': CSV snapshot is unavailable"), *WeaponId.ToString());
+		return false;
+	}
+	FReEchoBuildSnapshot Candidate;
+	FString Error;
+	if (!ReEchoWeaponRuntime::TrySelectWeapon(*Snapshot, CurrentBuild, WeaponId, Candidate, Error))
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("%s"), *Error);
+		return false;
+	}
+	CurrentBuild = Candidate;
+	return true;
+}
+
+bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& OutError)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		OutError = TEXT("CSV snapshot is unavailable");
+		return false;
+	}
+	FReEchoBuildSnapshot Candidate;
+	if (!ReEchoWeaponRuntime::TryEquipParts(*Snapshot, CurrentBuild, PartIds, Candidate, OutError))
+	{
+		return false;
+	}
+	CurrentBuild = Candidate;
+	return true;
+}
+
+TSharedPtr<const FReEchoCsvDataSnapshot> UReEchoRunSubsystem::GetRunDataSnapshot() const
+{
+	return RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
 }
 
 void UReEchoRunSubsystem::BeginEncounter()
@@ -322,10 +440,23 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	TimeShards += 15;
 	if (CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.PoetReactionGrowth")))
 	{
-		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 		const FReEchoCsvCharacterRow* Character =
 		    Snapshot.IsValid() ? Snapshot->FindCharacter(CurrentBuild.CharacterId) : nullptr;
-		CurrentBuild.Stats.ReactionEfficiency += Character ? Character->PassiveValue : 0.05f;
+		FReEchoBuildSnapshot Candidate;
+		if (Snapshot.IsValid() && TryMutateAuthoritativeBuild(
+		                              *Snapshot,
+		                              CurrentBuild,
+		                              [&](FReEchoBuildSnapshot& BaseBuild)
+		                              {
+			                              BaseBuild.Stats.ReactionEfficiency +=
+			                                  Character ? Character->PassiveValue : 0.05f;
+			                              return true;
+		                              },
+		                              Candidate))
+		{
+			CurrentBuild = Candidate;
+		}
 	}
 	if (EncounterIndex >= GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
 	{
@@ -386,37 +517,51 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(CardId) : nullptr;
-	FReEchoBuildSnapshot PendingBuild = CurrentBuild;
-	if (!Card || !Card->bEnabled || !ReEchoRunData::TryApplyCardEffectsToBuild(*Card, CurrentBuild, PendingBuild))
+	if (!Card || !Card->bEnabled)
 	{
 		return false;
 	}
-	CurrentBuild = PendingBuild;
 
 	const FName SageBonusChoiceFlag = TEXT("SageBonusChoice");
 	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
 	const bool bSageBonusChoice = CurrentBuild.RuleFlags.Contains(SageBonusChoiceFlag);
-
-	CurrentBuild.Cards.Add(CardId);
-	ReEchoCharacterPromotion::TryPromote(CurrentBuild);
+	bool bSageBonus = false;
+	FReEchoBuildSnapshot PendingBuild;
+	if (!TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        if (!ApplyCardEffects(*Card, BaseBuild))
+		        {
+			        return false;
+		        }
+		        BaseBuild.Cards.Add(CardId);
+		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
+		        if (bSageBonusChoice)
+		        {
+			        BaseBuild.RuleFlags.Remove(SageBonusChoiceFlag);
+			        return true;
+		        }
+		        const int32 NormalTraitSelections =
+		            FCString::Atoi(*BaseBuild.RuleFlags.FindRef(NormalTraitSelectionsFlag)) + 1;
+		        BaseBuild.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
+		        bSageBonus =
+		            ReEchoCharacterPromotion::IsRole(BaseBuild, TEXT("Sage")) && NormalTraitSelections % 4 == 0;
+		        if (bSageBonus)
+		        {
+			        BaseBuild.RuleFlags.Add(SageBonusChoiceFlag, TEXT("1"));
+		        }
+		        return true;
+	        },
+	        PendingBuild))
+	{
+		return false;
+	}
+	CurrentBuild = PendingBuild;
 	PendingTraitCardIds.Reset();
-	if (bSageBonusChoice)
-	{
-		CurrentBuild.RuleFlags.Remove(SageBonusChoiceFlag);
-		SetPhase(EReEchoRunPhase::Planning);
-		return true;
-	}
-
-	const int32 NormalTraitSelections = FCString::Atoi(*CurrentBuild.RuleFlags.FindRef(NormalTraitSelectionsFlag)) + 1;
-	CurrentBuild.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
-	const bool bSageBonus =
-	    ReEchoCharacterPromotion::IsRole(CurrentBuild, TEXT("Sage")) && NormalTraitSelections % 4 == 0;
-	if (bSageBonus)
-	{
-		CurrentBuild.RuleFlags.Add(SageBonusChoiceFlag, TEXT("1"));
-	}
 	SetPhase(bSageBonus ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
 	return true;
 }
@@ -448,16 +593,27 @@ bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
 		return false;
 	}
 
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(ForgeId) : nullptr;
-	FReEchoBuildSnapshot PendingBuild = CurrentBuild;
+	FReEchoBuildSnapshot PendingBuild;
 	if (!Card || !Card->bEnabled || Card->OfferGroup != ForgeOfferGroup ||
-	    !ReEchoRunData::TryApplyCardEffectsToBuild(*Card, CurrentBuild, PendingBuild))
+	    !TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        if (!ApplyCardEffects(*Card, BaseBuild))
+		        {
+			        return false;
+		        }
+		        BaseBuild.Stats.HpMax = FMath::Max(1.0f, BaseBuild.Stats.HpMax);
+		        return true;
+	        },
+	        PendingBuild))
 	{
 		return false;
 	}
 
-	PendingBuild.Stats.HpMax = FMath::Max(1.0f, PendingBuild.Stats.HpMax);
 	CurrentBuild = PendingBuild;
 	PendingTraitCardIds.Reset();
 	SetPhase(EReEchoRunPhase::CardChoice);
@@ -481,24 +637,38 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		return false;
 	}
 
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	FReEchoBuildSnapshot PendingBuild;
+	if (!Snapshot.IsValid() || !TryMutateAuthoritativeBuild(
+	                               *Snapshot,
+	                               CurrentBuild,
+	                               [&](FReEchoBuildSnapshot& BaseBuild)
+	                               {
+		                               if (ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
+		                               {
+			                               BaseBuild.Stats.PhysicalAttack += 2.0f;
+		                               }
+		                               else if (ItemId == TEXT("SHOP_DREAM_FRUIT"))
+		                               {
+			                               BaseBuild.Stats.HpMax += 10.0f;
+		                               }
+		                               else if (ItemId == TEXT("SHOP_BLACK_FEATHER"))
+		                               {
+			                               BaseBuild.Stats.MovementSpeed += 0.1f;
+		                               }
+		                               else if (ItemId == TEXT("SHOP_OLD_COIN"))
+		                               {
+			                               BaseBuild.Stats.EchoEfficiency += 0.1f;
+		                               }
+		                               return true;
+	                               },
+	                               PendingBuild))
+	{
+		return false;
+	}
 	TimeShards -= Offer->Price;
 	InventoryItems.Add(ItemId);
-	if (ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
-	{
-		CurrentBuild.Stats.PhysicalAttack += 2.0f;
-	}
-	else if (ItemId == TEXT("SHOP_DREAM_FRUIT"))
-	{
-		CurrentBuild.Stats.HpMax += 10.0f;
-	}
-	else if (ItemId == TEXT("SHOP_BLACK_FEATHER"))
-	{
-		CurrentBuild.Stats.MovementSpeed += 0.1f;
-	}
-	else if (ItemId == TEXT("SHOP_OLD_COIN"))
-	{
-		CurrentBuild.Stats.EchoEfficiency += 0.1f;
-	}
+	CurrentBuild = PendingBuild;
 	return true;
 }
 
@@ -563,7 +733,13 @@ bool UReEchoRunSubsystem::HasSavedRun() const
 {
 	const UReEchoRunSaveGame* SaveGame =
 	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSaveSlot, RunSaveUserIndex));
-	return SaveGame && IsValidResumableSave(*SaveGame);
+	if (!SaveGame || !IsValidResumableSave(*SaveGame))
+	{
+		return false;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	return Snapshot.IsValid() &&
+	       ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, SaveGame->CurrentBuild).IsEmpty();
 }
 
 bool UReEchoRunSubsystem::SaveRun(const FReEchoEncounterRuntimeState* EncounterRuntimeState) const
@@ -628,16 +804,56 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	{
 		return false;
 	}
-	RequireConfiguredBuild(SaveGame.CurrentBuild, TEXT("Cannot restore saved run"));
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		return false;
+	}
+	FReEchoBuildSnapshot NormalizedCurrentBuild;
+	if (!ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, SaveGame.CurrentBuild).IsEmpty() ||
+	    !TryNormalizeEquipmentBuild(*Snapshot, SaveGame.CurrentBuild, NormalizedCurrentBuild))
+	{
+		return false;
+	}
+	TArray<FReEchoRecording> NormalizedRecordingHistory = SaveGame.RecordingHistory;
+	for (FReEchoRecording& Recording : NormalizedRecordingHistory)
+	{
+		FString RecordingError;
+		if (!ValidateRecordingAgainstSnapshot(*Snapshot, Recording, RecordingError))
+		{
+			return false;
+		}
+		if (!TryNormalizeEquipmentBuild(*Snapshot, Recording.BuildSnapshot, Recording.BuildSnapshot))
+		{
+			return false;
+		}
+	}
+	FReEchoEncounterRuntimeState NormalizedEncounterRuntimeState = SaveGame.EncounterRuntimeState;
+	if (SaveGame.EncounterRuntimeState.bValid)
+	{
+		FString ActiveRecordingError;
+		if (!ValidateRecordingAgainstSnapshot(
+		        *Snapshot, SaveGame.EncounterRuntimeState.ActiveRecording, ActiveRecordingError))
+		{
+			return false;
+		}
+		if (!TryNormalizeEquipmentBuild(*Snapshot,
+		                                NormalizedEncounterRuntimeState.ActiveRecording.BuildSnapshot,
+		                                NormalizedEncounterRuntimeState.ActiveRecording.BuildSnapshot))
+		{
+			return false;
+		}
+	}
 
 	EncounterIndex = FMath::Max(0, SaveGame.EncounterIndex);
 	TimeShards = FMath::Max(0, SaveGame.TimeShards);
-	CurrentBuild = SaveGame.CurrentBuild;
+	CurrentBuild = NormalizedCurrentBuild;
+	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
-	RecordingHistory = SaveGame.RecordingHistory;
+	RecordingHistory = NormalizedRecordingHistory;
 	AnchorId = SaveGame.AnchorId;
 	PendingTraitCardIds.Reset();
-	PendingEncounterResume = SaveGame.EncounterRuntimeState;
+	PendingEncounterResume = NormalizedEncounterRuntimeState;
 	if (SaveGame.SavedPhase != EReEchoRunPhase::Encounter)
 	{
 		PendingEncounterResume = {};

@@ -62,6 +62,8 @@ bool FReEchoSageBonusCadenceTest::RunTest(const FString& Parameters)
 	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	RunSubsystem->CurrentBuild.Stats.RoleId = TEXT("Sage");
 	RunSubsystem->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	RunSubsystem->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Sage");
+	RunSubsystem->CurrentBuild.EquipmentBaseRuleFlags.Add(TEXT("Promoted"), TEXT("1"));
 
 	auto ApplyAvailableCard = [this, RunSubsystem]()
 	{
@@ -104,6 +106,7 @@ bool FReEchoBraveForgeTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 	RunSubsystem->StartRun(TEXT("J_HEART"), TEXT("W_J_01"));
 	RunSubsystem->CurrentBuild.Stats.RoleId = TEXT("Brave");
+	RunSubsystem->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Brave");
 	RunSubsystem->BeginEncounter();
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 	TestEqual(

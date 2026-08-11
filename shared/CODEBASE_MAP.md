@@ -80,7 +80,7 @@ Esc -> pause menu -> exit
 | Player | `AReEchoPlayerPawn` | `Player/ReEchoPlayerPawn.*` | Map-edge-clamped follow camera with wider player arena clamp, WASD, center-aligned root capsule, mouse-following horizontal sprite facing, four configurable NewCast character textures, manual attacks and visual-only 2D motion |
 | GAS combat | `UAbilitySystemComponent`, `UReEchoCombatAttributeSet`, native GameplayEffects/tags and player abilities | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*` | Player/enemy runtime attributes, effect-based damage/heal, tag-driven activation, cooldown commit and AbilityTask held attacks; CombatantComponent is the legacy-facing adapter |
 | Projectile | `AReEchoProjectileActor` | `Graybox/ReEchoProjectileActor.*` | Visible sphere travel, swept path-vs-capsule hit detection, damage delivery |
-| Player weapons | `AReEchoWeaponActor`, `EReEchoWeaponSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*`, `UI/ReEchoLoadoutSelectionWidget.*` | First-encounter weapon choice locked for the full run, DeveloperSettings/DefaultGame.ini-driven orb and sword attacks, sword mesh and swing animation |
+| Player weapons | `AReEchoWeaponActor`, `FReEchoCsvWeaponRow`, `EReEchoInputSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*`, `UI/ReEchoLoadoutSelectionWidget.*`, `Data/ReEchoWeaponCsvReader.*` | CSV-driven concrete WeaponIds, legacy hotkey InputSlot mapping, ordered attack steps, start-selectable loadout options, recorder/echo playback by stable WeaponId |
 | Sword arc VFX | `AReEchoSwordArcActor` | `Graybox/ReEchoSwordArcActor.*`, `Weapons/ReEchoWeaponActor.cpp` | Layered translucent crescent spawned for each sword swing and faded over a short lifetime |
 | Enemy | `AReEchoEnemyActor` | `Graybox/ReEchoEnemyActor.*` | Grunt/shield/bomber/final-Boss stats, six rotating 2D grunt variants and a 2D final-Boss Billboard, capsule damage volume, chase/contact damage and visual-only attack/hit/death motion |
 | Echo | `AReEchoEchoActor` | `Graybox/ReEchoEchoActor.*` | Historical movement and recorded weapon-change playback, automatic shared-weapon attacks, translucent pulsing ghost material and visual-only 2D motion |
@@ -91,7 +91,7 @@ Esc -> pause menu -> exit
 | Recording | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz positions and successful active-skill events |
 | Playback | `UReEchoPlaybackComponent` | `Recording/ReEchoPlaybackComponent.*` | Interpolated historical position and crossed skill events |
 | Run state/save | `UReEchoRunSubsystem`, `UReEchoRunSaveGame` | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | Run phase, encounter index, CSV-backed build, inventory, recording history, anchor, safe checkpoints and explicit suspended-encounter persistence |
-| CSV data registry | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`, `Content/Data/*.csv` | Versioned CSV manifest loading, validation, behavior/effect allowlists and immutable runtime snapshots |
+| CSV data registry | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`, `Data/ReEchoWeaponCsvReader.*`, `Content/Data/*.csv` | Versioned CSV manifest loading, validation, behavior/effect/formula/attack-pattern allowlists and immutable runtime snapshots |
 | Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements, phases and suspended encounter/enemy runtime state |
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
 | Health UI | `UReEchoPlayerHudWidget`, `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`, `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Top-left portrait/live health HUD for the player; camera-facing world bars remain enemy-only |
@@ -109,7 +109,7 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 
 ## Current gameplay contract
 
-- Player: first-encounter character and weapon selection, 2D Billboard character, WASD movement, left mouse/J basic attack, and Q/Space power shot; the selected weapon is locked for the run.
+- Player: first-encounter character and CSV weapon selection, 2D Billboard character, WASD movement, left mouse/J basic attack, Q/Space power shot and CSV-backed hotkey weapon switching.
 - Echo: 2D Billboard replay actor that follows historical movement and attacks through the shared weapon implementation, including recorded weapon-change playback.
 - Projectile flight has no Niagara. A transparent HitStarburst impact appears only when applied damage is greater than zero.
 - Enemies use 2D Billboard visuals for every archetype; the old cube/plane/cone fallback rendering has been removed. Shield enemies remain implemented but are temporarily excluded from encounter composition.
@@ -124,7 +124,7 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 
 | Concern | Source |
 |---|---|
-| Default map/GameMode | `Config/DefaultEngine.ini`; runtime balance and weapons | `Config/DefaultGame.ini` |
+| Default map/GameMode | `Config/DefaultEngine.ini`; runtime global/encounter balance | `Config/DefaultGame.ini` |
 | WASD, mouse/J and Q/Space | `Config/DefaultInput.ini` |
 | MCP endpoint/editor preferences | `Config/DefaultEditorPerProjectUserSettings.ini`, `.codex/config.toml` |
 | Windows override | `Config/Windows/WindowsEngine.ini` |
@@ -133,7 +133,7 @@ Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Priv
 | Echo ghost material | `Content/ReEcho/Materials/M_EchoGhost.uasset` |
 | Module dependencies | `Source/ReEcho/ReEcho.Build.cs` |
 
-CSV currently contains the runtime foundation manifest/schema/smoke tables, canonical character/build tables and element/status/reaction tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets, card numeric effects, combat elements, necessary statuses and six ordered reactions read from CSV; burn DOT state, vaporize squared damage, growth ReactionEfficiency-scaled radius attachment, configured-radius conduct chaining and enhancement blocking execute through `ReEchoElementReaction`. Legacy JSON still covers encounters, enemies, global balance and weapons; character/card/element/status/reaction JSON is migration-only review material. Runtime weapon values still live in ReEchoBalanceSettings and DefaultGame.ini until migration.
+CSV currently contains the runtime foundation manifest/schema/smoke tables, canonical character/build tables, element/status/reaction tables and weapon-domain tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets, card numeric effects, combat elements, necessary statuses, six ordered reactions, concrete weapons, ordered attack steps, slot profiles, parts and part effects read from CSV; burn DOT state, vaporize squared damage, growth ReactionEfficiency-scaled radius attachment, configured-radius conduct chaining and enhancement blocking execute through `ReEchoElementReaction`. Legacy JSON still covers encounters, enemies and global balance; migrated character/card/element/status/reaction/weapon JSON is migration-only review material.
 
 ## Task routing
 
@@ -144,13 +144,13 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables, cano
 | 2D sprite animation, frame import, attack/hit/death feedback | `Player/ReEchoPlayerPawn.*`, `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoEchoActor.*` | `scripts/ue/import_mushroomgirl_frames.py`, `Content/SourceArt/Characters/MushroomGirl/`, imported character textures |
 | GAS, abilities, attributes, effects, cooldown, tags | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*` | `docs/GAS_ONBOARDING.md`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*`, `Weapons/ReEchoWeaponActor.*`, GAS automation tests |
 | Mouse cursor aiming/player facing/camera | `Player/ReEchoPlayerPawn.*` | `GameMode::RestoreGameInput`, `DefaultInput.ini` |
-| Initial weapon selection/runtime switching/sword/melee/element reactions | `UI/ReEchoLoadoutSelectionWidget.*`, `Weapons/ReEchoWeaponActor.*`, `Combat/ReEchoElementReaction.*`, `Data/ReEchoElementReactionCsvReader.*` | `Graybox/ReEchoProjectileActor.*`, `Graybox/ReEchoEnemyActor.*`, `Player/ReEchoPlayerPawn.*`, `Content/Data/elements.csv`, `Content/Data/statuses.csv`, `Content/Data/reactions.csv`, `Content/Data/weapons.json`, `DefaultInput.ini`, `RunSubsystem::StartRun`, `RunSubsystem::SetEquippedWeapon` |
+| Initial weapon selection/runtime switching/sword/melee/element reactions | `UI/ReEchoLoadoutSelectionWidget.*`, `Weapons/ReEchoWeaponActor.*`, `Weapons/ReEchoWeaponRuntime.*`, `Data/ReEchoWeaponCsvReader.*`, `Combat/ReEchoElementReaction.*`, `Data/ReEchoElementReactionCsvReader.*` | `Graybox/ReEchoProjectileActor.*`, `Graybox/ReEchoEnemyActor.*`, `Player/ReEchoPlayerPawn.*`, `Content/Data/weapons.csv`, `Content/Data/weapon_types.csv`, `Content/Data/attack_steps.csv`, `Content/Data/slot_profiles.csv`, `Content/Data/parts.csv`, `Content/Data/part_effects.csv`, `DefaultInput.ini`, `RunSubsystem::StartRun`, atomic `RunSubsystem::SetEquippedWeapon`, `RunSubsystem::TryEquipParts`, `FReEchoBuildSnapshot::EquipmentBaseStats/EquipmentBaseRuleFlags/EquippedParts`, `FReEchoBuildSnapshot::WeaponDomainRevision` |
 | Bullet speed/size/color/hit | `Graybox/ReEchoProjectileActor.*` | Player/Echo caller, `EnemyActor::ReceiveGrayboxDamage` |
 | Enemy AI, type, shield, bomber, boss | `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoBomberRules.*` | `CombatantComponent.*`, `ReEchoBalanceSettings.h`, `DefaultGame.ini`, hit effects |
 | Damage, HP, block, death | `Combat/ReEchoCombatantComponent.*` | Damage caller and health UI |
 | Hit VFX or hit feel | `Graybox/ReEchoAttackEffects.*`, `Graybox/ReEchoEnemyActor.*` | Niagara plugin/material paths |
 | Floating damage text | `UI/ReEchoDamageNumberActor.*` | every `ApplyFinalDamage` caller, currently `Graybox/ReEchoEnemyActor.cpp` |
-| Echo appearance/attack/playback/recorded weapon changes | `Graybox/ReEchoEchoActor.*`, `Recording/ReEchoRecorderComponent.*`, `Recording/ReEchoPlaybackComponent.*` | `Recording.BuildSnapshot.WeaponId`, `Recording.WeaponChanges`, `Weapons/ReEchoWeaponActor.*`, `M_EchoGhost.uasset` |
+| Echo appearance/attack/playback/recorded weapon changes | `Graybox/ReEchoEchoActor.*`, `Recording/ReEchoRecorderComponent.*`, `Recording/ReEchoPlaybackComponent.*` | Pinned `RunSubsystem::GetRunDataSnapshot()`, `Recording.BuildSnapshot.WeaponId`, `Recording.WeaponChanges`, atomic `Weapons/ReEchoWeaponActor::SelectWeaponById`, `M_EchoGhost.uasset` |
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
 | Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |

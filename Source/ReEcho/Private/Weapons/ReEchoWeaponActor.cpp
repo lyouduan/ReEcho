@@ -1,5 +1,6 @@
 #include "Weapons/ReEchoWeaponActor.h"
 
+#include "ReEcho.h"
 #include "Camera/PlayerCameraManager.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
@@ -104,55 +105,72 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	SetActorEnableCollision(false);
 }
 
-void AReEchoWeaponActor::InitializeWeapon()
+void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSnapshot,
+                                          TSharedPtr<const FReEchoCsvDataSnapshot> InSnapshot)
 {
 	SwordSpriteRestLocation = ReEchoWeaponVisual::SwordLocation;
 	NextElementIndex = 0;
 	AttackSequence = 0;
+	NextStepCursor = 0;
+	StepLockRemaining = 0.0f;
+	InvulnerableRemaining = 0.0f;
 	CriticalAccumulator = 0.0f;
 	Definitions.Reset();
-	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
-	for (const FReEchoWeaponConfig& Definition : Settings->Weapons)
+	DataSnapshot = InSnapshot.IsValid() ? InSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
+	if (!DataSnapshot.IsValid())
 	{
-		if (Definition.Slot == EReEchoWeaponSlot::None || Definition.WeaponId.IsNone())
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot initialize weapon actor: CSV snapshot is unavailable"));
+	}
+	for (const FName WeaponId : DataSnapshot->WeaponOrder)
+	{
+		const FReEchoCsvWeaponRow* Definition = DataSnapshot->FindEnabledWeapon(WeaponId);
+		if (Definition)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Ignoring weapon config with an empty slot or id"));
-			continue;
+			Definitions.Add(Definition->Id, *Definition);
 		}
-		if (Definitions.Contains(Definition.Slot))
-		{
-			UE_LOG(LogTemp,
-			       Warning,
-			       TEXT("Duplicate weapon slot %d; last config wins"),
-			       static_cast<int32>(Definition.Slot));
-		}
-		Definitions.Add(Definition.Slot, Definition);
 	}
 	if (Definitions.IsEmpty())
 	{
-		UE_LOG(LogTemp, Error, TEXT("No weapons configured in ReEcho Balance settings"));
-		StaffSprite->SetVisibility(false);
-		SwordSprite->SetVisibility(false);
-		return;
+		UE_LOG(LogReEcho, Fatal, TEXT("Cannot initialize weapon actor: no enabled CSV weapons"));
 	}
-	const EReEchoWeaponSlot InitialSlot = Definitions.Contains(EReEchoWeaponSlot::PhysicalOrb)
-	                                          ? EReEchoWeaponSlot::PhysicalOrb
-	                                          : Definitions.CreateConstIterator().Key();
-	SelectWeapon(InitialSlot);
-}
-
-void AReEchoWeaponActor::SelectWeapon(const EReEchoWeaponSlot NewSlot)
-{
-	if (!Definitions.Contains(NewSlot))
+	if (InBuildSnapshot)
 	{
-		return;
+		TArray<FName> PartIds;
+		for (const FReEchoEquippedPartSnapshot& Part : InBuildSnapshot->EquippedParts)
+		{
+			PartIds.Add(Part.PartId);
+		}
+		FString Error;
+		if (!ReEchoWeaponRuntime::TryEquipParts(*DataSnapshot, *InBuildSnapshot, PartIds, BuildSnapshot, Error))
+		{
+			UE_LOG(LogReEcho, Fatal, TEXT("Cannot initialize weapon actor: %s"), *Error);
+		}
 	}
-	EquippedSlot = NewSlot;
+	else
+	{
+		BuildSnapshot = {};
+		BuildSnapshot.WeaponDomainRevision = DataSnapshot->WeaponDomainRevision;
+	}
+	const FReEchoCsvWeaponRow* InitialWeapon = InBuildSnapshot
+	                                               ? DataSnapshot->FindEnabledWeapon(BuildSnapshot.WeaponId)
+	                                               : DataSnapshot->FindWeaponByInputSlot(EReEchoInputSlot::Slot1);
+	EquippedWeaponId = InitialWeapon ? InitialWeapon->Id : Definitions.CreateConstIterator().Key();
+	if (const FReEchoCsvWeaponRow* Equipped = Definitions.Find(EquippedWeaponId))
+	{
+		BuildSnapshot.WeaponId = Equipped->Id;
+		BuildSnapshot.WeaponDataRevision = Equipped->DataRevision;
+		BuildSnapshot.WeaponDomainRevision = DataSnapshot->WeaponDomainRevision;
+	}
 	AttackCooldown = 0.0f;
 	SwordAnimationTime = 0.0f;
-	StaffSprite->SetVisibility(EquippedSlot == EReEchoWeaponSlot::PhysicalOrb);
-	SwordSprite->SetVisibility(EquippedSlot == EReEchoWeaponSlot::Sword);
-	ElementIndicator->SetVisibility(EquippedSlot == EReEchoWeaponSlot::ElementalOrb);
+	if (!RebuildEffectiveDefinition())
+	{
+		UE_LOG(LogReEcho,
+		       Fatal,
+		       TEXT("Cannot initialize effective weapon definition for WeaponId '%s'"),
+		       *EquippedWeaponId.ToString());
+	}
+	RefreshVisualState();
 	UpdateElementIndicator();
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
@@ -164,15 +182,39 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 	{
 		return true;
 	}
-	for (const TPair<EReEchoWeaponSlot, FReEchoWeaponConfig>& Pair : Definitions)
+	if (!DataSnapshot.IsValid() || !Definitions.Contains(WeaponId))
 	{
-		if (Pair.Value.WeaponId == WeaponId)
-		{
-			SelectWeapon(Pair.Key);
-			return true;
-		}
+		return false;
 	}
-	return false;
+
+	FString Error;
+	FReEchoBuildSnapshot CandidateBuild;
+	if (!ReEchoWeaponRuntime::TrySelectWeapon(*DataSnapshot, BuildSnapshot, WeaponId, CandidateBuild, Error))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Cannot select weapon: %s"), *Error);
+		return false;
+	}
+	FReEchoEffectiveWeaponDefinition CandidateDefinition;
+	if (!ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*DataSnapshot, CandidateBuild, CandidateDefinition, Error))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Cannot select weapon: %s"), *Error);
+		return false;
+	}
+
+	BuildSnapshot = CandidateBuild;
+	EffectiveDefinition = CandidateDefinition;
+	bHasEffectiveDefinition = true;
+	EquippedWeaponId = WeaponId;
+	AttackCooldown = 0.0f;
+	StepLockRemaining = 0.0f;
+	InvulnerableRemaining = 0.0f;
+	NextStepCursor = 0;
+	SwordAnimationTime = 0.0f;
+	RefreshVisualState();
+	UpdateElementIndicator();
+	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
+	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+	return true;
 }
 
 bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
@@ -197,49 +239,190 @@ bool AReEchoWeaponActor::ExecuteBasicAttack(UReEchoCombatantComponent* Combatant
 
 float AReEchoWeaponActor::GetAttackInterval(UReEchoCombatantComponent* Combatant) const
 {
-	const FReEchoWeaponConfig* Definition = Definitions.Find(EquippedSlot);
-	return Definition && Combatant ? Definition->Interval / FMath::Max(0.1f, Combatant->Stats.AttackSpeed) : 0.55f;
+	return bHasEffectiveDefinition && Combatant
+	           ? EffectiveDefinition.Weapon.AttackIntervalSeconds / FMath::Max(0.1f, Combatant->Stats.AttackSpeed)
+	           : 0.55f;
+}
+
+float AReEchoWeaponActor::GetAttackCooldownRemaining() const
+{
+	return AttackCooldown;
 }
 
 bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant)
 {
-	const FReEchoWeaponConfig* Definition = Definitions.Find(EquippedSlot);
-	if (!Combatant || !Definition)
+	if (!Combatant || !bHasEffectiveDefinition || StepLockRemaining > 0.0f)
 	{
 		return false;
 	}
-	switch (EquippedSlot)
+	const FReEchoCsvAttackStepRow* Step = ResolveNextAttackStep();
+	if (!Step || !Step->bEnabled)
 	{
-		case EReEchoWeaponSlot::PhysicalOrb:
-			return FireStaffLightWave(*Definition, Combatant);
-		case EReEchoWeaponSlot::Sword:
-			return SwingSword(*Definition, Combatant);
-		case EReEchoWeaponSlot::ElementalOrb:
-			return FireProjectile(*Definition, Combatant);
-		default:
-			return false;
+		return false;
 	}
+	if (Step->ConditionId != NAME_None && Step->ConditionId != TEXT("None"))
+	{
+		return false;
+	}
+	if (Step->FormulaId != TEXT("None") && Step->FormulaId != TEXT("Weapon.PhysicalOrElementalCoefficient"))
+	{
+		return false;
+	}
+	if (Step->BehaviorId != TEXT("Weapon.AttackStep") && Step->BehaviorId != TEXT("Weapon.DashStrike"))
+	{
+		return false;
+	}
+	BeginAttackStep(*Step);
+	bool bExecuted = false;
+	if (EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.MoonStaffWave"))
+	{
+		bExecuted = FireStaffLightWave(EffectiveDefinition, *Step, Combatant);
+	}
+	else if (FMath::Max(EffectiveDefinition.Weapon.ProjectileCount, Step->ProjectileCount) > 0 ||
+	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.ElementalProjectile") ||
+	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.BowShot") ||
+	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.GunShot") ||
+	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.StaffProjectile"))
+	{
+		bExecuted = FireProjectile(EffectiveDefinition, *Step, Combatant);
+	}
+	else
+	{
+		bExecuted = SwingMelee(EffectiveDefinition, *Step, Combatant);
+	}
+	if (bExecuted)
+	{
+		NextStepCursor = (NextStepCursor + 1) % EffectiveDefinition.AttackSteps.Num();
+	}
+	return bExecuted;
 }
 
 FName AReEchoWeaponActor::GetEquippedWeaponId() const
 {
-	if (const FReEchoWeaponConfig* Definition = Definitions.Find(EquippedSlot))
-	{
-		return Definition->WeaponId;
-	}
-	return NAME_None;
+	return EquippedWeaponId;
 }
 
 FString AReEchoWeaponActor::GetEquippedWeaponLabel() const
 {
-	if (const FReEchoWeaponConfig* Definition = Definitions.Find(EquippedSlot))
+	if (const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition())
 	{
-		return Definition->DisplayName.IsEmpty() ? Definition->WeaponId.ToString() : Definition->DisplayName.ToString();
+		return Definition->DisplayName.IsEmpty() ? Definition->Id.ToString() : Definition->DisplayName;
 	}
 	return TEXT("Unknown");
 }
 
-bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant)
+const FReEchoBuildSnapshot& AReEchoWeaponActor::GetBuildSnapshot() const
+{
+	return BuildSnapshot;
+}
+
+FString AReEchoWeaponActor::GetPinnedWeaponDomainRevision() const
+{
+	return DataSnapshot.IsValid() ? DataSnapshot->WeaponDomainRevision : FString();
+}
+
+const FReEchoCsvWeaponRow* AReEchoWeaponActor::FindEquippedDefinition() const
+{
+	return Definitions.Find(EquippedWeaponId);
+}
+
+bool AReEchoWeaponActor::IsInvulnerableWindowActive() const
+{
+	return InvulnerableRemaining > 0.0f;
+}
+
+bool AReEchoWeaponActor::RebuildEffectiveDefinition()
+{
+	if (!DataSnapshot.IsValid())
+	{
+		return false;
+	}
+	FString Error;
+	bHasEffectiveDefinition =
+	    ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*DataSnapshot, BuildSnapshot, EffectiveDefinition, Error);
+	if (!bHasEffectiveDefinition)
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Cannot build effective weapon definition: %s"), *Error);
+	}
+	return bHasEffectiveDefinition;
+}
+
+const FReEchoCsvAttackStepRow* AReEchoWeaponActor::ResolveNextAttackStep() const
+{
+	return EffectiveDefinition.AttackSteps.IsValidIndex(NextStepCursor)
+	           ? &EffectiveDefinition.AttackSteps[NextStepCursor]
+	           : nullptr;
+}
+
+void AReEchoWeaponActor::BeginAttackStep(const FReEchoCsvAttackStepRow& Step)
+{
+	StepLockRemaining = FMath::Max(0.0f, Step.DurationSeconds);
+	if (Step.bInvulnerable)
+	{
+		InvulnerableRemaining = FMath::Max(InvulnerableRemaining, Step.DurationSeconds);
+	}
+	if (Step.MovementCm > 0.0f)
+	{
+		if (AActor* WeaponOwner = GetOwner())
+		{
+			FVector Direction = WeaponOwner->GetActorForwardVector().GetSafeNormal2D();
+			if (Direction.IsNearlyZero())
+			{
+				Direction = FVector::ForwardVector;
+			}
+			WeaponOwner->SetActorLocation(WeaponOwner->GetActorLocation() + Direction * Step.MovementCm,
+			                              false,
+			                              nullptr,
+			                              ETeleportType::TeleportPhysics);
+		}
+	}
+}
+
+float AReEchoWeaponActor::ComputeStepDamage(const FReEchoCsvAttackStepRow& Step,
+                                            const FReEchoStatBlock& Stats,
+                                            const bool bElemental)
+{
+	const float PhysicalCoefficient =
+	    Step.PhysicalCoefficient > 0.0f ? Step.PhysicalCoefficient : EffectiveDefinition.Weapon.PhysicalCoefficient;
+	const float ElementalCoefficient =
+	    Step.ElementalCoefficient > 0.0f ? Step.ElementalCoefficient : EffectiveDefinition.Weapon.ElementalCoefficient;
+	const float BaseDamage = bElemental ? Stats.ElementalAttack * FMath::Max(ElementalCoefficient, PhysicalCoefficient)
+	                                    : Stats.PhysicalAttack * PhysicalCoefficient;
+	return ApplyRoleDamageModifiers(BaseDamage, Stats);
+}
+
+bool AReEchoWeaponActor::ApplyDamageToEnemy(AReEchoEnemyActor& Enemy,
+                                            const float Damage,
+                                            const FVector& DamageSource,
+                                            AActor* DamageCauser,
+                                            UReEchoCombatantComponent* Combatant,
+                                            const EReEchoElement Element) const
+{
+	if (!Enemy.IsAlive())
+	{
+		return false;
+	}
+	const UReEchoCombatantComponent* EnemyCombatant = Enemy.GetCombatantComponent();
+	const float HealthBefore = EnemyCombatant ? EnemyCombatant->CurrentHealth : 0.0f;
+	if (Element == EReEchoElement::None)
+	{
+		Enemy.ReceiveGrayboxDamage(Damage, DamageSource, DamageCauser);
+	}
+	else
+	{
+		Enemy.ReceiveElementalDamage(Damage, Element, DamageSource, DamageCauser, Combatant->Stats.ReactionEfficiency);
+	}
+	const bool bKilled = HealthBefore > 0.0f && !Enemy.IsAlive();
+	if (bKilled && Combatant && EffectiveDefinition.OnKillHealPercent > 0.0f)
+	{
+		Combatant->ApplyHealing(Combatant->Stats.HpMax * EffectiveDefinition.OnKillHealPercent);
+	}
+	return true;
+}
+
+bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoEffectiveWeaponDefinition& Definition,
+                                            const FReEchoCsvAttackStepRow& Step,
+                                            UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -263,14 +446,15 @@ bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponConfig& Definitio
 		return false;
 	}
 	Wave->SetOwner(WeaponOwner);
-	const float BaseDamage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
-	                         Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
-	const float Damage = ApplyRoleDamageModifiers(BaseDamage, Combatant->Stats);
-	Wave->InitializeWave(AimDirection, Damage, OwnerLocation, Definition.Range);
+	const float Damage = ComputeStepDamage(Step, Combatant->Stats, false);
+	const float Range = Step.RangeCm > 0.0f ? Step.RangeCm : Definition.Weapon.RangeCm;
+	Wave->InitializeWave(AimDirection, Damage, OwnerLocation, Range);
 	return true;
 }
 
-bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::FireProjectile(const FReEchoEffectiveWeaponDefinition& Definition,
+                                        const FReEchoCsvAttackStepRow& Step,
+                                        UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -283,43 +467,49 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponConfig& Definition, U
 	{
 		AimDirection = FVector::ForwardVector;
 	}
-	const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + AimDirection * 45.0f;
-	AReEchoProjectileActor* Projectile =
-	    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, AimDirection.Rotation());
-	if (!Projectile)
+	const int32 ProjectileCount = FMath::Max(Definition.Weapon.ProjectileCount, Step.ProjectileCount);
+	const float SpreadDegrees =
+	    Step.ConcentrationDegrees > 0.0f ? Step.ConcentrationDegrees : Definition.Weapon.ConcentrationDegrees;
+	const TArray<FVector> Directions =
+	    ReEchoWeaponRuntime::BuildProjectileDirections(AimDirection, ProjectileCount, SpreadDegrees);
+	const float Range = Step.RangeCm > 0.0f ? Step.RangeCm : Definition.Weapon.RangeCm;
+	const float ExplosionRadius =
+	    Step.ExplosionRadiusCm > 0.0f ? Step.ExplosionRadiusCm : Definition.Weapon.ExplosionRadiusCm;
+	const bool bElemental = Definition.bUsesCyclingElement || Definition.bUsesDeterministicRandomElement ||
+	                        ReEchoWeaponRuntime::ElementFromDamageChannel(Definition.DamageChannelId, AttackSequence) !=
+	                            EReEchoElement::None;
+	const float Damage = ComputeStepDamage(Step, Combatant->Stats, bElemental);
+	bool bSpawnedAny = false;
+	for (const FVector& Direction : Directions)
 	{
-		return false;
-	}
-	const float BaseDamage = Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient +
-	                         Combatant->Stats.ElementalAttack * Definition.ElementalCoefficient;
-	const float Damage = ApplyRoleDamageModifiers(BaseDamage, Combatant->Stats);
-	Projectile->SetOwner(WeaponOwner);
-	EReEchoElement Element = ConsumeNextElement();
-	if (Combatant->Stats.bRandomElementProjectiles)
-	{
-		switch ((AttackSequence * 17 + 5) % 4)
+		const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
+		AReEchoProjectileActor* Projectile =
+		    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, Direction.Rotation());
+		if (!Projectile)
 		{
-			case 0:
-				Element = EReEchoElement::Water;
-				break;
-			case 1:
-				Element = EReEchoElement::Flame;
-				break;
-			case 2:
-				Element = EReEchoElement::Lightning;
-				break;
-			default:
-				Element = EReEchoElement::Grass;
-				break;
+			continue;
 		}
+		Projectile->SetOwner(WeaponOwner);
+		EReEchoElement Element = EReEchoElement::None;
+		if (Definition.bUsesCyclingElement)
+		{
+			Element = ConsumeNextElement();
+		}
+		else
+		{
+			Element = ReEchoWeaponRuntime::ElementFromDamageChannel(Definition.DamageChannelId, AttackSequence);
+		}
+		Projectile->InitializeProjectile(Direction,
+		                                 Damage,
+		                                 OwnerLocation,
+		                                 ReEchoElementReaction::GetElementColor(Element),
+		                                 Element,
+		                                 Combatant->Stats.ReactionEfficiency,
+		                                 ExplosionRadius,
+		                                 Range);
+		bSpawnedAny = true;
 	}
-	Projectile->InitializeProjectile(AimDirection,
-	                                 Damage,
-	                                 OwnerLocation,
-	                                 ReEchoElementReaction::GetElementColor(Element),
-	                                 Element,
-	                                 Combatant->Stats.ReactionEfficiency);
-	return true;
+	return bSpawnedAny;
 }
 
 EReEchoElement AReEchoWeaponActor::PeekNextElement() const
@@ -365,6 +555,27 @@ void AReEchoWeaponActor::UpdateElementIndicator()
 	ElementIndicator->SetTextRenderColor(ReEchoElementReaction::GetElementColor(Element).ToFColor(false));
 }
 
+void AReEchoWeaponActor::RefreshVisualState()
+{
+	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
+	const FName VisualKey = Definition ? Definition->VisualKey : NAME_None;
+	const bool bShowStaff = VisualKey == TEXT("MoonStaff");
+	const bool bShowSword = VisualKey == TEXT("CrescentBlade");
+	const bool bShowElement = VisualKey == TEXT("ElementalOrb");
+	if (StaffSprite)
+	{
+		StaffSprite->SetVisibility(bShowStaff);
+	}
+	if (SwordSprite)
+	{
+		SwordSprite->SetVisibility(bShowSword);
+	}
+	if (ElementIndicator)
+	{
+		ElementIndicator->SetVisibility(bShowElement);
+	}
+}
+
 EReEchoElement AReEchoWeaponActor::ConsumeNextElement()
 {
 	const EReEchoElement Element = PeekNextElement();
@@ -373,7 +584,9 @@ EReEchoElement AReEchoWeaponActor::ConsumeNextElement()
 	return Element;
 }
 
-bool AReEchoWeaponActor::SwingSword(const FReEchoWeaponConfig& Definition, UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::SwingMelee(const FReEchoEffectiveWeaponDefinition& Definition,
+                                    const FReEchoCsvAttackStepRow& Step,
+                                    UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -381,14 +594,23 @@ bool AReEchoWeaponActor::SwingSword(const FReEchoWeaponConfig& Definition, UReEc
 		return false;
 	}
 	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
-	const float Damage =
-	    ApplyRoleDamageModifiers(Combatant->Stats.PhysicalAttack * Definition.PhysicalCoefficient, Combatant->Stats);
+	FVector AimDirection = WeaponOwner->GetActorForwardVector().GetSafeNormal2D();
+	if (AimDirection.IsNearlyZero())
+	{
+		AimDirection = FVector::ForwardVector;
+	}
+	const EReEchoElement Element =
+	    ReEchoWeaponRuntime::ElementFromDamageChannel(Definition.DamageChannelId, AttackSequence);
+	const float Damage = ComputeStepDamage(Step, Combatant->Stats, Element != EReEchoElement::None);
+	const float Range = Step.RangeCm > 0.0f ? Step.RangeCm : Definition.Weapon.RangeCm;
+	const float ArcDegrees = Step.ArcDegrees > 0.0f ? Step.ArcDegrees : Definition.Weapon.ArcDegrees;
 	// 旋转攻击以角色为圆心覆盖完整一周；敌人受伤逻辑会从圆心向外施加击退。
 	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
 	{
-		if (It->IsAlive() && FVector::Dist2D(OwnerLocation, It->GetActorLocation()) <= Definition.Range)
+		if (It->IsAlive() && ReEchoWeaponRuntime::IsInsideMeleeArc(
+		                         OwnerLocation, AimDirection, It->GetActorLocation(), Range, ArcDegrees))
 		{
-			It->ReceiveGrayboxDamage(Damage, OwnerLocation, WeaponOwner);
+			ApplyDamageToEnemy(**It, Damage, OwnerLocation, WeaponOwner, Combatant, Element);
 		}
 	}
 	StartSwordAnimation();
@@ -442,6 +664,8 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	AttackCooldown = FMath::Max(0.0f, AttackCooldown - DeltaSeconds);
+	StepLockRemaining = FMath::Max(0.0f, StepLockRemaining - DeltaSeconds);
+	InvulnerableRemaining = FMath::Max(0.0f, InvulnerableRemaining - DeltaSeconds);
 	if (ElementIndicator && ElementIndicator->IsVisible())
 	{
 		if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
@@ -449,7 +673,9 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 			ElementIndicator->SetWorldRotation((-Camera->GetCameraRotation().Vector()).Rotation());
 		}
 	}
-	if (SwordAnimationTime <= 0.0f || EquippedSlot != EReEchoWeaponSlot::Sword)
+	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
+	const bool bUsesSwordVisual = Definition && Definition->VisualKey == TEXT("CrescentBlade");
+	if (SwordAnimationTime <= 0.0f || !bUsesSwordVisual)
 	{
 		SwordAnimationTime = 0.0f;
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);

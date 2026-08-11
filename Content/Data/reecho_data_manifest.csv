@@ -8,3 +8,10 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,Elements,elements.csv,Id
 1,Statuses,statuses.csv,Id
 1,Reactions,reactions.csv,Id
+1,WeaponTypes,weapon_types.csv,Id
+1,Weapons,weapons.csv,Id
+1,AttackSteps,attack_steps.csv,Id
+1,SlotTypes,slot_types.csv,Id
+1,SlotProfiles,slot_profiles.csv,Id
+1,Parts,parts.csv,Id
+1,PartEffects,part_effects.csv,Id

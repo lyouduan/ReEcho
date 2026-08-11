@@ -182,6 +182,7 @@ bool FReEchoCsvInvalidFixturesFailClearlyTest::RunTest(const FString& Parameters
 	    {TEXT("DuplicateId"), TEXT("Duplicate id")},
 	    {TEXT("MissingRequired"), TEXT("TestScalar")},
 	    {TEXT("UnknownReference"), TEXT("RuntimeRowId")},
+	    {TEXT("UnknownWeaponReference"), TEXT("DefaultWeaponId")},
 	    {TEXT("UnknownBehavior"), TEXT("BehaviorId")},
 	    {TEXT("UnknownEffectKind"), TEXT("EffectKind")},
 	    {TEXT("IllegalRange"), TEXT("TestPercent")},
@@ -192,6 +193,8 @@ bool FReEchoCsvInvalidFixturesFailClearlyTest::RunTest(const FString& Parameters
 	    {TEXT("UnknownFormulaId"), TEXT("FormulaId")},
 	    {TEXT("DuplicateReactionPair"), TEXT("ordered pair")},
 	    {TEXT("UnsupportedCanCrit"), TEXT("CanCrit")},
+	    {TEXT("DuplicateWeaponInputSlot"), TEXT("InputSlot")},
+	    {TEXT("InvalidWeaponPartEffectBehaviorPair"), TEXT("EffectKind/BehaviorId")},
 	    {TEXT("UnsupportedVersion"), TEXT("SchemaVersion")}};
 
 	for (const FExpectedFailure& ExpectedFailure : ExpectedFailures)
