@@ -1,6 +1,8 @@
 # ReEcho 数据源
 
-CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON 文件只作为迁移期参考材料保留；对应领域迁移到 CSV 后，不要再在 JSON、C++、DeveloperSettings、Actor 或 Widget 里维护第二份可编辑真源。
+`Design/Data/ReEchoData.xlsx` 是策划唯一编辑源，本目录中的 CSV 是由工作簿生成、供 Unreal 读取和打包的目标运行时数据。本目录里的旧 JSON 文件只作为迁移期参考材料保留；对应领域迁移到 CSV 后，不要再在 CSV、JSON、C++、DeveloperSettings、Actor 或 Widget 里手工维护第二份可编辑真源。
+
+完整策划操作步骤见 [`Design/Data/ReEchoData使用说明.md`](../../Design/Data/ReEchoData使用说明.md)。
 
 ## Plan25 XLSX authoring
 

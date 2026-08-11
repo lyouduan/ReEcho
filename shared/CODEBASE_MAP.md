@@ -26,6 +26,7 @@ rg -n "SymbolName" Source\ReEcho
 | `Source/ReEcho/` | Single runtime module | Gameplay or runtime code |
 | `Config/` | Maps, GameMode, balance and input mappings | Startup, controls or tuning |
 | `Design/Data/ReEchoData.xlsx` | Canonical designer XLSX authoring workbook; machine Tables generate runtime CSV | Data authoring, XLSX migration or Plan25 checks |
+| `Design/Data/ReEchoData使用说明.md` | Chinese designer guide for editable Tables, field rules, CSV generation, errors and submission | Before changing production balance/configuration in the workbook |
 | `Content/Data/` | Runtime CSV contract plus read-only migration JSON | Data contract, fixtures, cards, characters, enemies, encounters or balance source |
 | `Content/ReEcho/Materials/` | Serialized project materials | Visual asset references |
 | `Content/ReEcho/Textures/Characters/` | Cooked 2D actor and shadow textures | Player/echo/enemy Billboard visuals |

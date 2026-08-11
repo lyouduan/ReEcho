@@ -144,6 +144,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Planner-blocker follow-up: repaired workbook visual/protection details by restoring source row heights, widening/wrapping technical columns, and keeping `_SystemData` fully locked.
 - Second Planner-blocker follow-up: re-exported the canonical workbook through artifact-tool so the XLSX package opens in Excel, rebuilt the 8 source images as standard embedded picture drawings under `xl/media`, restored the workbook protection contract, and wrote actual `A2` frozen panes on all seven production sheets plus the three system sheets.
 - Authoring-protection follow-up: unlocked only the data bodies of all 14 designer-owned production Tables and allowed Table row insertion/deletion on their protected sheets. Table headers, schema/reference cells, standalone ReferenceOnly sheets, and all three system sheets remain locked; the generator now rejects protection-contract regressions.
+- Added `Design/Data/ReEchoData使用说明.md` as the planner-facing Chinese workflow for editable areas, row operations, field rules, generation, diagnostics, runtime verification and submission; the tool and runtime-data READMEs now route designers to it.
 - Added `.gitignore` rules for Python bytecode/cache folders and local generator transaction/temp artifacts.
 
 ### Evidence
@@ -160,6 +161,7 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho` exited 0; `Saved\Logs\ReEcho.log` reported 34 ReEcho automation tests and `**** TEST COMPLETE. EXIT CODE: 0 ****`.
 - `python scripts\ue\package_windows.py --smoke-seconds 5` passed Shipping Build/Cook/Stage/Pak/Archive and the packaged `ReEcho.exe` stayed alive for the 5 second smoke window. A first attempt failed while Zen was not yet accepting local oplog reads; the rerun launched Zen successfully and completed.
 - `git diff --check` passed.
+- Documentation-only guide verification passed `python scripts/validate_project.py` and `git diff --check`.
 - Workbook visual QA rendered all production/reference/system sheets; sampled production and system previews showed distinct ReferenceOnly vs export areas, readable notes, data validation on constrained columns where practical, and protected system sheets.
 - Package-level OOXML inspection reports 8 embedded picture objects: 4 on `角色体系J` and 4 on `武器体系（废案）`. The current artifact-tool inspection enumerates only the 4 objects on `角色体系J`; it does not enumerate the 4 draft-weapon objects, so artifact-tool is not evidence for an 8-object count.
 - Protection inspection reports 3,042/3,042 production data cells unlocked across the 14 designer-owned Tables, with every Table header still locked. `_WorkbookMeta`, `_ExportMap`, and `_SystemData` retain protection with row insertion/deletion forbidden; the two `_SystemData` Table data bodies remain 15/15 locked. No visual rendering was performed for this follow-up.

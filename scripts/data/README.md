@@ -1,5 +1,7 @@
 # ReEcho XLSX to CSV authoring
 
+策划配表请先阅读 [`Design/Data/ReEchoData使用说明.md`](../../Design/Data/ReEchoData使用说明.md)。本文只保留生成工具的快速命令。
+
 Canonical authoring workbook:
 
 ```powershell
