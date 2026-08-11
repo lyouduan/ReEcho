@@ -2,6 +2,14 @@
 
 CSV 是面向策划编辑的目标运行时数据源。本目录里的旧 JSON 文件只作为迁移期参考材料保留；对应领域迁移到 CSV 后，不要再在 JSON、C++、DeveloperSettings、Actor 或 Widget 里维护第二份可编辑真源。
 
+## Plan25 XLSX authoring
+
+- Canonical workbook: `Design/Data/ReEchoData.xlsx`.
+- Fixed sync/check command: `python scripts/data/sync_xlsx_to_csv.py --check`.
+- Install locked XLSX dependency: `python -m pip install -r scripts/data/requirements.txt`.
+- Runtime code still reads only UTF-8 CSV in `Content/Data`; XLSX, Excel, COM and Office are never runtime dependencies.
+- Do not hand-edit generated production CSV as a second truth. Change the workbook machine Tables, run the generator, and commit the resulting CSV diff.
+
 ## CSV 契约 v1
 
 - 编码：UTF-8，不带 BOM。
