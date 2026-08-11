@@ -4,10 +4,10 @@
 
 - Planner owner: Gavyn-side Planner.
 - Intended executor: unassigned; start only after a separate human handoff.
-- Status: `Proposed/Calibrated`; executor remains blocked until Plan 24 is accepted and the final base is announced.
-- Planning ref: `origin/coord/planning-broadcast-20260811`.
-- Expected implementation branch: `plan/25-xlsx-authoring`; base will be the locally accepted main containing final Plan 24.
-- Depends on: accepted Plans 21–23 and final Plan 24 weapon schema. The generator framework and non-weapon sheet analysis may start earlier, but production weapon CSV generation must wait for Plan 24 schema freeze.
+- Status: `Ready`; executor remains unassigned until a human handoff.
+- Planning/integration ref: `origin/coord/accepted-plan24-20260811`.
+- Expected implementation branch: `plan/25-xlsx-authoring`, created from the advertised integration ref containing accepted Plans 21–24.
+- Depends on: accepted Plans 21–24; all required runtime CSV schemas are now frozen for this implementation batch.
 - Blocks: unified data-generation verification and the deferred combined Human PIE pass.
 - Writes: canonical XLSX authoring artifact/location, deterministic generator and check mode, generated production CSVs, manifest/schema generation validation, data documentation, fixtures and packaging verification.
 - Reads: all accepted typed CSV schemas/readers and `回响肉鸽数值与构筑体系.xlsx` as the current design source/reference.

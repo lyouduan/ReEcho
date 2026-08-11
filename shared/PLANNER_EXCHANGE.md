@@ -6,8 +6,8 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 | Date | Plan | Planner | Status | Remote ref / base | Writes and shared impact | Dependencies | Other planner action |
 |---|---|---|---|---|---|---|---|
-| 2026-08-11 | Plan 25 XLSX authoring and CSV generation | Gavyn-side Planner | Ready; executor unassigned | Accepted local main after Plan24 merge; exact remote integration ref is published by the closing coordination update | Exactly one canonical `Design/Data/ReEchoData.xlsx`; seven familiar Chinese production Sheets plus protected export metadata; same-Sheet named Tables can generate multiple CSVs through `scripts/data/sync_xlsx_to_csv.py`, `--check`, and optional `--sheet`; generated CSV remains the only runtime package. | Accepted Plans 21–24 | Do not create a competing workbook/schema or hand-edit generated CSV as another truth. UI/gameplay that only consumes typed APIs is outside Plan25 and may continue. |
-| 2026-08-11 | Plan 26 weapon read-only UI consumers | ReEcho teammate-side Planner | Ready after closing integration ref is fetched | Teammate broadcast `origin/coord/teammate-planning-broadcast-20260811` at `2054f71`; implementation branch planned as `plan/26-weapon-readonly-ui` | Writes only `UI/ReEchoInventoryShopWidget.*`, `UI/ReEchoStatsWidget.*` and Plan26-only UI tests; consumes stable weapon identity/display/query APIs and does not mutate registry/reader/schema. | Accepted Plan24 consumer surface on the integrated UI/data lineage | Reservation is approved. Use the closing integration ref; do not add missing Registry/Reader APIs or edit Plan24/25-owned files. |
+| 2026-08-11 | Plan 25 XLSX authoring and CSV generation | Gavyn-side Planner | Ready; executor unassigned | `origin/coord/accepted-plan24-20260811` | Exactly one canonical `Design/Data/ReEchoData.xlsx`; seven familiar Chinese production Sheets plus protected export metadata; same-Sheet named Tables can generate multiple CSVs through `scripts/data/sync_xlsx_to_csv.py`, `--check`, and optional `--sheet`; generated CSV remains the only runtime package. | Accepted Plans 21–24 | Create `plan/25-xlsx-authoring` from the advertised integration ref. Do not create a competing workbook/schema or hand-edit generated CSV as another truth. |
+| 2026-08-11 | Plan 26 weapon read-only UI consumers | ReEcho teammate-side Planner | Ready; executor may start after fetching integration ref | `origin/coord/accepted-plan24-20260811`; teammate planning response `origin/coord/teammate-planning-broadcast-20260811` | Writes only `UI/ReEchoInventoryShopWidget.*`, `UI/ReEchoStatsWidget.*` and Plan26-only UI tests; consumes stable weapon identity/display/query APIs and does not mutate registry/reader/schema. | Accepted Plan24 consumer surface on the integrated UI/data lineage | Reservation is approved. Create/rebase Plan26 from the advertised integration ref; do not add missing Registry/Reader APIs or edit Plan24/25-owned files. |
 
 ## Active ownership
 
@@ -61,10 +61,9 @@ This is a live coordination board, not history or permanent rules. Remove owners
 ## Warnings / blocked items
 
 - Runtime arena has no dedicated serialized test map; claim any `.umap` before replacing it.
-- First-trial topology: `origin/main` is still `a0f6a10`, while the accepted local planning base is `28c21b8`. Fetch the advertised coordination/task refs explicitly; do not assume remote main contains Plans 21–24 data infrastructure, and do not force-push main.
+- First-trial topology: `origin/main` is still `a0f6a10`; accepted Plans 21–24 plus integrated teammate UI lineage are published at `origin/coord/accepted-plan24-20260811`. Fetch that ref explicitly and do not force-push main.
 
 ## Pending human decisions
 
 - Decide whether root blueprint documents should remain as provenance after the workflow baseline is fully adopted.
-- Decide when the accepted local baseline through `28c21b8` should fast-forward `origin/main`; this first planning broadcast intentionally does not move remote main.
-- Publish the exact accepted Plan24 integration ref/base for Plan25 and teammate Plan26 in the closing coordination commit; neither executor should start from remote main.
+- Decide when the accepted local baseline through Plan24 should fast-forward `origin/main`; the accepted integration ref intentionally does not move remote main.

@@ -39,7 +39,7 @@ Last updated: 2026-08-11. This file is a current snapshot, not a chronological l
 - Default branch is planner-owned; executors use isolated branches/worktrees and never merge without human approval and planner review.
 - Human owns final acceptance and play-feel decisions.
 - In distributed multi-Planner work, each planning batch and its impact/ownership announcement must be committed and pushed to an advertised remote planning ref before Executors start. Shared-contract or exclusive overlap is resolved Planner-to-Planner; read-only consumers may proceed against the explicitly published stable surface.
-- The first trial advertises coordination on `origin/coord/planning-broadcast-20260811` and Plan24 data/consumer work on `origin/plan/24-weapons-slots-csv`; `origin/main` remains behind the accepted local baseline until a separate human-authorized synchronization.
+- Accepted Plans 21–24 and the integrated teammate UI lineage are advertised on `origin/coord/accepted-plan24-20260811`; `origin/main` remains behind until a separate human-authorized synchronization.
 - Only currently edited merge-hostile assets appear under `PLANNER_EXCHANGE.md` Active ownership; remove the row when implementation ends.
 - `AGENTS.md` is the sole startup-order authority. Project-specific constraints live in `PROJECT_RULES.md`; generic blueprint material is read only for onboarding or workflow maintenance.
 
