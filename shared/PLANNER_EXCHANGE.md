@@ -6,7 +6,7 @@ This is a live coordination board, not history or permanent rules. Remove owners
 
 | Date | Owner | Plan/branch | Files or exclusive resources | Status | Notes |
 |---|---|---|---|---|---|
-| — | — | — | — | None | No merge-hostile resource is currently claimed |
+| 2026-08-11 | Plan 24 executor | Plan 24 / `plan/24-weapons-slots-csv` | Seven weapon CSV tables, weapon reader/registry snapshot, build/recording weapon revision, weapon runtime and focused tests | Rework required | Planner review found structural-only part effects, partially unused attack-step fields and incomplete run/recording drift protection; see Plan 24 review |
 
 ## Recently closed
 

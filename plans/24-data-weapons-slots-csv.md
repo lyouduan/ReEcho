@@ -171,6 +171,24 @@ Plan 21–23 已于 2026-08-10 审查、验收并本地合并；Plan 23 验收�
 - In a future equipment slice, install one core, one numeric grip and one behavior part to verify slot restrictions and applied effects once the UI/application path exists.
 - Edit one weapon numeric value and one part-effect value in CSV, restart the run and confirm the changed data takes effect without recompilation.
 
+## Planner review - 2026-08-11 - not accepted
+
+The executor commit `32a0384` is clean, statically valid, builds in Editor Development, and passes the existing 27 `ReEcho.*` tests. It is not ready to merge because the passing evidence only covers schema/registry structure and the legacy weapon path, not the locked runtime acceptance below.
+
+### Blocking findings
+
+1. Parts are not part of `FReEchoBuildSnapshot` (or another immutable equipment snapshot), and no runtime path consumes `Snapshot.Parts` / `Part.Effects`. The six cores, strength grip, attack-pattern replacement and OnKill behavior are marked implemented but cannot affect player or echo combat. The three non-core enabled examples are also Dagger-only while no enabled concrete Dagger weapon exists. Add a minimal deterministic equip/apply API, runtime event path and a reachable compatible concrete/runtime fixture; a full UI redesign and changes to the three legacy start choices remain out of scope.
+2. `AReEchoWeaponActor` reads an attack-step row but only consumes damage coefficients and range. `DurationSeconds`, `ArcDegrees`, `ProjectileCount`, `ConcentrationDegrees`, `ExplosionRadiusCm`, `MovementCm`, `Invulnerable`, `BehaviorId`, `FormulaId` and `ConditionId` have no execution path; melee is always a full-radius hit and projectile patterns always spawn one projectile. Implement the generic registered pattern/step handlers needed for the production rows and prove representative single-shot ranged, multi-step melee, movement/invulnerability and geometry behavior.
+3. Run/recording compatibility is only an integer revision on the final concrete weapon. Attack-step/type/slot/part/effect edits, and earlier WeaponIds in a recording's switch timeline, can drift without rejection. Add one deterministic weapon-domain revision/hash covering all seven weapon tables, capture it for the run and recordings, compare it on restore/playback, and test that a changed step/effect rejects historical data without partially mutating state.
+4. A weapon actor copies concrete weapon rows during initialization but calls the mutable global registry again for attack steps. Pin and consistently use the same immutable weapon-domain snapshot for the whole run and its player/echo consumers; a republished test snapshot must not change an active run.
+5. Plan24 added no behavior-level automation: the suite remains at the 27-test baseline, and `WeaponsAreValid` only counts enabled rows/effect labels. Add focused tests that execute Add/Multiply/Override, core channel/ElementId resolution, attack-pattern replacement, OnKill behavior, illegal slot combinations, disabled parts, ordered attack steps and revision/hash drift. Tests must assert resulting combat/build values or events, not only CSV presence.
+
+### Re-review gate
+
+- Keep the existing ID/hotkey compatibility, seven-table schema, 78-row audit and disabled batch.
+- Do not modify `.uasset` / `.umap`, merge `main`, or push.
+- Re-run static validation, Editor Development build, full `ReEcho.*`, focused weapon tests and `git diff --check`; update Execution notes with actual runtime evidence and remaining human-only PIE items.
+
 ## 执行者启动 prompt
 
 ```text
