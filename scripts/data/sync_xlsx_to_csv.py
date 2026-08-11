@@ -17,7 +17,7 @@ import tempfile
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -110,8 +110,8 @@ def format_decimal(value: int | float | Decimal) -> str:
     return format(parsed.normalize(), "f")
 
 
-def read_manifest_whitelist() -> set[str]:
-    with (DATA_DIR / "reecho_data_manifest.csv").open("r", encoding="utf-8", newline="") as handle:
+def read_manifest_whitelist(data_dir: Path = DATA_DIR) -> set[str]:
+    with (data_dir / "reecho_data_manifest.csv").open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     return {row["FileName"] for row in rows}
 
@@ -361,10 +361,10 @@ def generate_package(input_path: Path, package_dir: Path):
     return owners, csv_bytes
 
 
-def diff_against_content(csv_bytes: dict[str, bytes]) -> list[str]:
+def diff_against_content(csv_bytes: dict[str, bytes], data_dir: Path = DATA_DIR) -> list[str]:
     drift = []
     for name, generated in sorted(csv_bytes.items()):
-        target = DATA_DIR / name
+        target = data_dir / name
         if not target.exists() or target.read_bytes() != generated:
             drift.append(name)
     return drift
@@ -374,33 +374,103 @@ def transaction_path(data_dir: Path) -> Path:
     return data_dir / TRANSACTION_FILE
 
 
-def recover_transaction(data_dir: Path) -> None:
+def ensure_data_dir_path(data_dir: Path, name: str, whitelist: set[str], context: str) -> Path:
+    candidate = Path(name)
+    if candidate.is_absolute() or candidate.name != name or ".." in candidate.parts:
+        raise SyncError(f"{context}: transaction file name must be a plain manifest filename")
+    if name not in whitelist:
+        raise SyncError(f"{context}: transaction file {name!r} is not in the manifest whitelist")
+    data_root = data_dir.resolve()
+    target = (data_root / name).resolve()
+    if target.parent != data_root:
+        raise SyncError(f"{context}: transaction target escapes data_dir")
+    return target
+
+
+def ensure_backup_dir(data_dir: Path, backup_name: str) -> Path:
+    backup_path = Path(backup_name)
+    if backup_path.is_absolute() or backup_path.name != backup_name or ".." in backup_path.parts:
+        raise SyncError("transaction backup_dir must be a controlled relative directory name")
+    if not backup_name.startswith(".reecho_csv_publish_backup_"):
+        raise SyncError("transaction backup_dir is not a ReEcho CSV publish backup directory")
+    data_root = data_dir.resolve()
+    backup_dir = (data_root / backup_name).resolve()
+    if backup_dir.parent != data_root:
+        raise SyncError("transaction backup_dir escapes data_dir")
+    return backup_dir
+
+
+def recover_transaction(data_dir: Path, manifest_whitelist: set[str] | None = None) -> None:
     marker = transaction_path(data_dir)
     if not marker.exists():
         return
-    state = json.loads(marker.read_text(encoding="utf-8"))
-    for item in state.get("files", []):
-        backup = Path(item["backup"])
-        target = Path(item["target"])
+    whitelist = manifest_whitelist or read_manifest_whitelist(data_dir)
+    try:
+        state = json.loads(marker.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SyncError("transaction marker is not valid JSON") from exc
+    backup_dir = ensure_backup_dir(data_dir, str(state.get("backup_dir", "")))
+    files = state.get("files", [])
+    if not isinstance(files, list) or not files:
+        raise SyncError("transaction marker must contain a non-empty files list")
+    validated: list[tuple[Path, Path]] = []
+    for item in files:
+        if not isinstance(item, str):
+            raise SyncError("transaction marker files must be relative manifest filenames")
+        target = ensure_data_dir_path(data_dir, item, whitelist, "transaction recovery")
+        backup = (backup_dir / item).resolve()
+        if backup.parent != backup_dir.resolve():
+            raise SyncError("transaction backup path escapes backup_dir")
+        validated.append((backup, target))
+    for backup, target in validated:
         if backup.exists():
             os.replace(backup, target)
-    backup_dir = Path(state.get("backup_dir", ""))
     marker.unlink(missing_ok=True)
     if backup_dir.exists():
         shutil.rmtree(backup_dir, ignore_errors=True)
 
 
-def publish(csv_bytes: dict[str, bytes], selected_outputs: Iterable[str], data_dir: Path = DATA_DIR) -> None:
+def rollback_transaction(state: dict[str, object], data_dir: Path, whitelist: set[str]) -> None:
+    backup_dir = ensure_backup_dir(data_dir, str(state["backup_dir"]))
+    for name in reversed(state["files"]):
+        target = ensure_data_dir_path(data_dir, str(name), whitelist, "transaction rollback")
+        backup = (backup_dir / str(name)).resolve()
+        if backup.parent != backup_dir.resolve():
+            raise SyncError("transaction backup path escapes backup_dir")
+        if backup.exists():
+            os.replace(backup, target)
+    transaction_path(data_dir).unlink(missing_ok=True)
+    shutil.rmtree(backup_dir, ignore_errors=True)
+
+
+def commit_transaction(state: dict[str, object], data_dir: Path) -> None:
+    backup_dir = ensure_backup_dir(data_dir, str(state["backup_dir"]))
+    transaction_path(data_dir).unlink(missing_ok=True)
+    shutil.rmtree(backup_dir, ignore_errors=True)
+
+
+def publish(
+    csv_bytes: dict[str, bytes],
+    selected_outputs: Iterable[str],
+    data_dir: Path = DATA_DIR,
+    final_validator: Callable[[], None] | None = None,
+    manifest_whitelist: set[str] | None = None,
+) -> None:
     selected = list(selected_outputs)
-    recover_transaction(data_dir)
+    whitelist = manifest_whitelist or read_manifest_whitelist(data_dir)
+    recover_transaction(data_dir, whitelist)
+    for name in selected:
+        if name not in csv_bytes:
+            raise SyncError(f"Cannot publish {name!r}; no generated bytes were produced")
+        ensure_data_dir_path(data_dir, name, whitelist, "transaction publish")
     backup_dir = data_dir / f".reecho_csv_publish_backup_{next(tempfile._get_candidate_names())}"
     backup_dir.mkdir()
-    state = {"backup_dir": str(backup_dir), "files": []}
+    state: dict[str, object] = {"backup_dir": backup_dir.name, "files": []}
     for name in selected:
-        target = data_dir / name
+        target = ensure_data_dir_path(data_dir, name, whitelist, "transaction publish")
         backup = backup_dir / name
         shutil.copy2(target, backup)
-        state["files"].append({"target": str(target), "backup": str(backup)})
+        state["files"].append(name)
     marker = transaction_path(data_dir)
     marker.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -409,25 +479,22 @@ def publish(csv_bytes: dict[str, bytes], selected_outputs: Iterable[str], data_d
         for name in selected:
             temp_path = data_dir / f".{name}.{next(tempfile._get_candidate_names())}.tmp"
             temp_path.write_bytes(csv_bytes[name])
-            os.replace(temp_path, data_dir / name)
+            os.replace(temp_path, ensure_data_dir_path(data_dir, name, whitelist, "transaction publish"))
             replaced += 1
             fail_after = os.environ.get("REECHO_XLSX_FAIL_AFTER_REPLACE")
             if fail_after and replaced >= int(fail_after):
                 raise OSError("Injected publish failure after replace")
+        if final_validator is not None:
+            final_validator()
     except Exception:
-        for item in reversed(state["files"]):
-            backup = Path(item["backup"])
-            target = Path(item["target"])
-            if backup.exists():
-                os.replace(backup, target)
-        marker.unlink(missing_ok=True)
-        shutil.rmtree(backup_dir, ignore_errors=True)
+        rollback_transaction(state, data_dir, whitelist)
         raise
-    marker.unlink(missing_ok=True)
-    shutil.rmtree(backup_dir, ignore_errors=True)
+    commit_transaction(state, data_dir)
 
 
 def run_project_validator() -> None:
+    if os.environ.get("REECHO_XLSX_FAIL_FINAL_VALIDATOR"):
+        raise SyncError("Injected final project validator failure")
     result = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_project.py")], cwd=ROOT, text=True)
     if result.returncode != 0:
         raise SyncError("scripts/validate_project.py failed after publish")
@@ -473,8 +540,7 @@ def main() -> int:
         selected = [owner.output_csv for owner in owners if args.sheet is None or owner.sheet == args.sheet]
         if args.sheet is not None and not selected:
             raise SyncError(f"Sheet {args.sheet!r} owns no export CSV.")
-        publish(csv_bytes, selected)
-    run_project_validator()
+        publish(csv_bytes, selected, final_validator=run_project_validator)
     print("[PASS] XLSX export package validated and published: " + ", ".join(selected))
     return 0
 

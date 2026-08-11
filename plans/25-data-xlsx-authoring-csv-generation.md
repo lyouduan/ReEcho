@@ -138,6 +138,11 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - Added the deterministic XLSX sync chain in `scripts/data/sync_xlsx_to_csv.py`, repository-pinned Python dependency setup in `scripts/data/requirements.txt`, usage notes in `scripts/data/README.md`, focused generator tests, and `scripts/validate_project.py` integration.
 - Added `Design/Data/ReEchoData.migration.md` to document source-workbook/reference-only differences and the authority decision used during the first migration.
 - Updated data authoring documentation and shared project state/codebase/lesson notes for the new workbook-authored CSV flow.
+- Planner-blocker follow-up: hardened publish transactions so backups and the marker remain live until the final project validator succeeds; final validator failure now rolls back every selected production CSV byte.
+- Planner-blocker follow-up: constrained transaction markers to manifest-whitelisted relative CSV names and a controlled relative backup directory under the selected `data_dir`; malicious/legacy absolute target and backup paths are rejected.
+- Planner-blocker follow-up: rewrote transaction tests to use temporary `data_dir` packages with valid but intentionally different old CSV bytes, avoiding any writes to real `Content/Data`.
+- Planner-blocker follow-up: repaired workbook visual/protection details by restoring source row heights, preserving all 8 source drawing images, widening/wrapping technical columns, setting freeze panes on production/system sheets, and keeping `_SystemData` fully locked.
+- Added `.gitignore` rules for Python bytecode/cache folders and local generator transaction/temp artifacts.
 
 ### Evidence
 
@@ -146,12 +151,14 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - `python scripts\data\sync_xlsx_to_csv.py` passed, validating and transactionally publishing all 16 manifest CSV outputs.
 - `python scripts\data\sync_xlsx_to_csv.py --sheet "武器体系W"` passed after full temporary snapshot validation and published only `weapon_types.csv`, `weapons.csv`, and `attack_steps.csv`.
 - `python scripts\data\test_sync_xlsx_to_csv.py` passed 8 tests covering manifest ownership, multi-Table sheets, deterministic bytes, read-only drift detection, `--sheet`, non-canonical input guardrails, bad workbook diagnostics, publish rollback, and legacy transaction recovery.
+- After Planner-blocker fixes, `python scripts\data\test_sync_xlsx_to_csv.py` passed 10 tests, adding isolated temporary-data-dir coverage for final project validator rollback, malicious/stale marker rejection, legacy recovery without regeneration, and `--sheet` non-owned-file mtime/file-id stability.
 - `python scripts\validate_project.py` passed, including the integrated XLSX authoring drift check.
 - `scripts\ue\Build-Editor.cmd -Configuration Development` passed.
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho` exited 0; `Saved\Logs\ReEcho.log` reported 34 ReEcho automation tests and `**** TEST COMPLETE. EXIT CODE: 0 ****`.
 - `python scripts\ue\package_windows.py --smoke-seconds 5` passed Shipping Build/Cook/Stage/Pak/Archive and the packaged `ReEcho.exe` stayed alive for the 5 second smoke window. A first attempt failed while Zen was not yet accepting local oplog reads; the rerun launched Zen successfully and completed.
 - `git diff --check` passed.
 - Workbook visual QA rendered all production/reference/system sheets; sampled production and system previews showed distinct ReferenceOnly vs export areas, frozen headers, readable notes, data validation on constrained columns where practical, and protected system sheets.
+- After workbook repair, artifact-tool rendered all 13 sheets again with 0 formula-error matches. Visual samples confirmed restored long source row heights on element/character/build/weapon sheets, readable technical headers including BehaviorId/FormulaId/DisabledReason, protected `_SystemData`, and retained ReferenceOnly separation. Artifact drawing inspection reports 8 preserved image objects: 4 on `角色体系J` and 4 on `武器体系（废案）`.
 
 ### Workbook and schema decisions
 
@@ -160,6 +167,8 @@ python scripts/data/sync_xlsx_to_csv.py --sheet "武器体系W"
 - CSV remains the only Unreal runtime package. Runtime code does not read XLSX and has no Excel, COM, Office, or Codex-private runtime dependency.
 - Export Tables accept literal values only. Workbook formulas in export ranges fail fast with sheet/table/row/column diagnostics; gameplay logic continues to connect through registered BehaviorId, FormulaId, EffectHandlerId, and AttackPattern identifiers.
 - The generator writes a full same-disk temporary package, validates schema/types/required fields/FKs/order/enabled contracts/allowlists plus `validate_project`, then publishes with backup, transaction marker, `os.replace`, rollback, and startup recovery.
+- Publish backups are retained through final project validation; the marker is only committed/removed after that validator succeeds. Any replace failure or final validator failure restores the pre-publish bytes from the live backup set.
+- Transaction markers store only the controlled backup directory name and manifest-relative CSV filenames. Recovery validates all targets under `data_dir`, all backups under that marker's backup directory, and refuses absolute paths, `..`, unknown files, and backup-dir escape attempts before replacing anything.
 - CSV writing preserves the accepted CRLF/UTF-8 byte form so an unchanged canonical workbook regenerates byte-identical accepted CSVs.
 - Non-canonical `--input` workbooks are allowed for tests/checks only; they cannot publish to `Content/Data` unless an explicit test output directory or read-only mode is used.
 

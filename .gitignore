@@ -33,6 +33,12 @@
 *.log
 *.bak
 *.swp
+__pycache__/
+**/__pycache__/
+*.pyc
+Content/Data/.reecho_csv_publish_transaction.json
+Content/Data/.reecho_csv_publish_backup_*/
+Content/Data/.reecho_xlsx_package_*/
 
 # Operating-system metadata
 Thumbs.db

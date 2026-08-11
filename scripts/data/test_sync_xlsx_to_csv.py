@@ -65,14 +65,35 @@ class SyncXlsxToCsvTests(unittest.TestCase):
     def production_bytes(self) -> dict[str, bytes]:
         return {name: (DATA / name).read_bytes() for name in sync.TABLE_TO_CSV.values()}
 
-    def restore_production(self, before: dict[str, bytes]) -> None:
-        for name, data in before.items():
-            (DATA / name).write_bytes(data)
-        marker = DATA / sync.TRANSACTION_FILE
-        marker.unlink(missing_ok=True)
-        for path in DATA.glob(".reecho_csv_publish_backup_*"):
-            if path.is_dir():
-                shutil.rmtree(path, ignore_errors=True)
+    def generated_bytes(self) -> dict[str, bytes]:
+        with tempfile.TemporaryDirectory(prefix="reecho_xlsx_generated_") as temp:
+            _, csv_bytes = sync.generate_package(CANONICAL, Path(temp))
+            return csv_bytes
+
+    def make_temp_data_dir(self, initial_bytes: dict[str, bytes] | None = None) -> Path:
+        temp_dir = Path(tempfile.mkdtemp(prefix="reecho_xlsx_data_dir_"))
+        self.addCleanup(lambda: shutil.rmtree(temp_dir, ignore_errors=True))
+        shutil.copy2(DATA / "reecho_data_manifest.csv", temp_dir / "reecho_data_manifest.csv")
+        shutil.copy2(DATA / "csv_schema.csv", temp_dir / "csv_schema.csv")
+        bytes_by_name = initial_bytes or self.production_bytes()
+        for name in sync.TABLE_TO_CSV.values():
+            (temp_dir / name).write_bytes(bytes_by_name[name])
+        return temp_dir
+
+    def valid_old_bytes(self, changes: dict[str, tuple[bytes, bytes]]) -> dict[str, bytes]:
+        old = self.production_bytes()
+        for name, (before, after) in changes.items():
+            self.assertIn(before, old[name], name)
+            old[name] = old[name].replace(before, after, 1)
+            self.assertNotEqual(old[name], (DATA / name).read_bytes(), name)
+        return old
+
+    def stat_snapshot(self, data_dir: Path) -> dict[str, tuple[int, int]]:
+        return {name: ((data_dir / name).stat().st_mtime_ns, (data_dir / name).stat().st_ino) for name in sync.TABLE_TO_CSV.values()}
+
+    def sheet_with_table(self, wb, table_name: str):
+        tables = sync.workbook_tables(wb)
+        return tables[table_name][0]
 
     def test_export_map_covers_manifest_without_duplicate_ownership(self) -> None:
         wb = load_workbook(CANONICAL, read_only=False)
@@ -83,10 +104,10 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         by_sheet: dict[str, list[str]] = {}
         for owner in owners:
             by_sheet.setdefault(owner.sheet, []).append(owner.output_csv)
-        self.assertEqual(sorted(by_sheet["角色体系J"]), ["character_aliases.csv", "characters.csv"])
-        self.assertEqual(sorted(by_sheet["构筑体系G"]), ["card_effects.csv", "cards.csv"])
-        self.assertEqual(sorted(by_sheet["武器体系W"]), ["attack_steps.csv", "weapon_types.csv", "weapons.csv"])
-        self.assertEqual(sorted(by_sheet["武器插槽C"]), ["part_effects.csv", "parts.csv", "slot_profiles.csv", "slot_types.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblCharacters").title]), ["character_aliases.csv", "characters.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblCards").title]), ["card_effects.csv", "cards.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblWeapons").title]), ["attack_steps.csv", "weapon_types.csv", "weapons.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblParts").title]), ["part_effects.csv", "parts.csv", "slot_profiles.csv", "slot_types.csv"])
 
     def test_output_is_deterministic_and_matches_accepted_csv_bytes(self) -> None:
         with tempfile.TemporaryDirectory(prefix="reecho_xlsx_out_a_") as first, tempfile.TemporaryDirectory(prefix="reecho_xlsx_out_b_") as second:
@@ -98,25 +119,34 @@ class SyncXlsxToCsvTests(unittest.TestCase):
                 self.assertEqual(first_bytes, (DATA / name).read_bytes(), name)
 
     def test_check_is_read_only_and_reports_drift(self) -> None:
-        before = self.production_bytes()
-        try:
-            target = DATA / "runtime_smoke.csv"
-            drifted = before["runtime_smoke.csv"].replace(b"42.5", b"43.5", 1)
-            target.write_bytes(drifted)
-            result = self.run_sync("--check", expect_success=False)
-            self.assertIn("Generated CSV drift detected", result.stdout)
-            self.assertEqual(target.read_bytes(), drifted)
-        finally:
-            self.restore_production(before)
+        generated = self.generated_bytes()
+        old = self.valid_old_bytes({"runtime_smoke.csv": (b"42.5", b"43.5")})
+        temp_data = self.make_temp_data_dir(old)
+        before_stats = self.stat_snapshot(temp_data)
+        drift = sync.diff_against_content(generated, temp_data)
+        self.assertEqual(drift, ["runtime_smoke.csv"])
+        self.assertEqual(old["runtime_smoke.csv"], (temp_data / "runtime_smoke.csv").read_bytes())
+        self.assertEqual(before_stats, self.stat_snapshot(temp_data))
 
     def test_sheet_publish_validates_global_snapshot_and_writes_group(self) -> None:
-        before = self.production_bytes()
-        try:
-            self.run_sync("--sheet", "武器体系W")
-            after = self.production_bytes()
-            self.assertEqual(before, after)
-        finally:
-            self.restore_production(before)
+        generated = self.generated_bytes()
+        old = self.valid_old_bytes(
+            {
+                "weapon_types.csv": (b"Pattern.DaggerCombo", b"Pattern.DaggerDashOnly"),
+                "weapons.csv": (b"Moon Staff", b"Moon Staff Old"),
+                "attack_steps.csv": (b"0.5,0.60,0.60", b"0.55,0.60,0.60"),
+            }
+        )
+        temp_data = self.make_temp_data_dir(old)
+        before_stats = self.stat_snapshot(temp_data)
+        selected = ["weapon_types.csv", "weapons.csv", "attack_steps.csv"]
+        sync.publish(generated, selected, data_dir=temp_data, final_validator=lambda: None)
+        for name in selected:
+            self.assertEqual(generated[name], (temp_data / name).read_bytes(), name)
+        after_stats = self.stat_snapshot(temp_data)
+        for name in set(sync.TABLE_TO_CSV.values()) - set(selected):
+            self.assertEqual(old[name], (temp_data / name).read_bytes(), name)
+            self.assertEqual(before_stats[name], after_stats[name], name)
 
     def test_noncanonical_input_cannot_write_production(self) -> None:
         with tempfile.TemporaryDirectory(prefix="reecho_xlsx_noncanonical_") as temp:
@@ -125,48 +155,75 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             self.assertIn("Non-canonical --input cannot publish", result.stdout)
 
     def test_invalid_workbook_cases_fail_with_location(self) -> None:
-        self.assert_invalid_workbook(lambda wb: wb["角色体系J"].tables.pop("tblCharacters"), "Workbook table is missing")
-        self.assert_invalid_workbook(lambda wb: setattr(wb["角色体系J"]["Q3"], "value", "HpMaxBroken"), "Columns do not match")
-        self.assert_invalid_workbook(lambda wb: setattr(wb["角色体系J"]["Q4"], "value", "not-a-number"), "finite number")
-        self.assert_invalid_workbook(lambda wb: setattr(wb["角色体系J"]["N4"], "value", "W_UNKNOWN"), "DefaultWeaponId")
-        self.assert_invalid_workbook(lambda wb: setattr(wb["角色体系J"]["P4"], "value", "Unknown.Handler"), "behavior id")
-        self.assert_invalid_workbook(lambda wb: setattr(wb["_SystemData"]["D4"], "value", "=1+1"), "Formula cells are not allowed")
-        self.assert_invalid_workbook(lambda wb: setattr(wb["_ExportMap"]["D2"], "value", "../characters.csv"), "plain manifest filename")
+        self.assert_invalid_workbook(lambda wb: self.sheet_with_table(wb, "tblCharacters").tables.pop("tblCharacters"), "Workbook table is missing")
+        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["Q3"], "value", "HpMaxBroken"), "Columns do not match")
+        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["Q4"], "value", "not-a-number"), "finite number")
+        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["N4"], "value", "W_UNKNOWN"), "DefaultWeaponId")
+        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["P4"], "value", "Unknown.Handler"), "behavior id")
+        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblRuntimeSmoke")["D4"], "value", "=1+1"), "Formula cells are not allowed")
+        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblExportMap")["D2"], "value", "../characters.csv"), "plain manifest filename")
 
     def test_publish_failure_rolls_back_all_changed_bytes(self) -> None:
-        before = self.production_bytes()
+        generated = self.generated_bytes()
+        old = self.valid_old_bytes({"runtime_smoke.csv": (b"42.5", b"43.5")})
+        temp_data = self.make_temp_data_dir(old)
         try:
-            result = self.run_sync(env={"REECHO_XLSX_FAIL_AFTER_REPLACE": "1"}, expect_success=False)
-            self.assertIn("Injected publish failure", result.stdout)
-            self.assertEqual(before, self.production_bytes())
-            self.assertFalse((DATA / sync.TRANSACTION_FILE).exists())
+            os.environ["REECHO_XLSX_FAIL_AFTER_REPLACE"] = "1"
+            with self.assertRaises(OSError):
+                sync.publish(generated, ["runtime_smoke.csv", "runtime_smoke_effects.csv"], data_dir=temp_data, final_validator=lambda: None)
         finally:
-            self.restore_production(before)
+            os.environ.pop("REECHO_XLSX_FAIL_AFTER_REPLACE", None)
+        for name, data in old.items():
+            self.assertEqual(data, (temp_data / name).read_bytes(), name)
+        self.assertFalse((temp_data / sync.TRANSACTION_FILE).exists())
 
-    def test_legacy_transaction_is_recovered_before_publish(self) -> None:
-        before = self.production_bytes()
-        backup_dir = DATA / ".reecho_csv_publish_backup_test"
+    def test_final_project_validator_failure_rolls_back_all_changed_bytes(self) -> None:
+        generated = self.generated_bytes()
+        old = self.valid_old_bytes({"runtime_smoke.csv": (b"42.5", b"43.5")})
+        temp_data = self.make_temp_data_dir(old)
+
+        def fail_final_validator() -> None:
+            raise sync.SyncError("Injected final project validator failure")
+
+        with self.assertRaises(sync.SyncError):
+            sync.publish(generated, list(sync.TABLE_TO_CSV.values()), data_dir=temp_data, final_validator=fail_final_validator)
+        for name, data in old.items():
+            self.assertEqual(data, (temp_data / name).read_bytes(), name)
+        self.assertFalse((temp_data / sync.TRANSACTION_FILE).exists())
+
+    def test_legacy_transaction_is_recovered_without_regeneration(self) -> None:
+        old = self.valid_old_bytes({"runtime_smoke.csv": (b"42.5", b"43.5")})
+        temp_data = self.make_temp_data_dir(old)
+        backup_dir = temp_data / ".reecho_csv_publish_backup_test"
         backup_dir.mkdir(exist_ok=True)
-        try:
-            backup = backup_dir / "runtime_smoke.csv"
-            backup.write_bytes(before["runtime_smoke.csv"])
-            (DATA / "runtime_smoke.csv").write_bytes(b"corrupted\r\n")
-            marker = DATA / sync.TRANSACTION_FILE
-            marker.write_text(
-                json.dumps(
-                    {
-                        "backup_dir": str(backup_dir),
-                        "files": [{"target": str(DATA / "runtime_smoke.csv"), "backup": str(backup)}],
-                    }
-                ),
-                encoding="utf-8",
-            )
-            self.run_sync()
-            self.assertEqual(before, self.production_bytes())
-            self.assertFalse(marker.exists())
-            self.assertFalse(backup_dir.exists())
-        finally:
-            self.restore_production(before)
+        backup = backup_dir / "runtime_smoke.csv"
+        backup.write_bytes(old["runtime_smoke.csv"])
+        (temp_data / "runtime_smoke.csv").write_bytes(b"corrupted\r\n")
+        marker = temp_data / sync.TRANSACTION_FILE
+        marker.write_text(json.dumps({"backup_dir": backup_dir.name, "files": ["runtime_smoke.csv"]}), encoding="utf-8")
+        sync.recover_transaction(temp_data)
+        self.assertEqual(old["runtime_smoke.csv"], (temp_data / "runtime_smoke.csv").read_bytes())
+        self.assertFalse(marker.exists())
+        self.assertFalse(backup_dir.exists())
+
+    def test_malicious_or_stale_transaction_markers_are_rejected(self) -> None:
+        temp_data = self.make_temp_data_dir()
+        cases = [
+            {"backup_dir": ".reecho_csv_publish_backup_test", "files": ["../runtime_smoke.csv"]},
+            {"backup_dir": ".reecho_csv_publish_backup_test", "files": [str(temp_data / "runtime_smoke.csv")]},
+            {"backup_dir": ".reecho_csv_publish_backup_test", "files": ["unknown.csv"]},
+            {"backup_dir": str(temp_data / ".reecho_csv_publish_backup_test"), "files": ["runtime_smoke.csv"]},
+            {"backup_dir": "../.reecho_csv_publish_backup_test", "files": ["runtime_smoke.csv"]},
+            {
+                "backup_dir": ".reecho_csv_publish_backup_test",
+                "files": [{"target": str(temp_data / "runtime_smoke.csv"), "backup": str(temp_data / "x")}],
+            },
+        ]
+        marker = temp_data / sync.TRANSACTION_FILE
+        for state in cases:
+            marker.write_text(json.dumps(state), encoding="utf-8")
+            with self.assertRaises(sync.SyncError):
+                sync.recover_transaction(temp_data)
 
 
 if __name__ == "__main__":
