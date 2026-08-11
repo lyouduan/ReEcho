@@ -52,6 +52,8 @@ public:
 
 private:
 	void AddWidgetToUILayer(UUserWidget* Widget, EReEchoUILayer Layer) const;
+	void ConfigureMenuInput(UUserWidget* Widget, bool bUIOnly) const;
+	void PauseForMenu(UUserWidget* Widget, bool bUIOnly);
 	bool EnsureGMCommandAvailable() const;
 	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	UPROPERTY()

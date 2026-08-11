@@ -1,6 +1,7 @@
 #include "UI/ReEchoUIManagerSubsystem.h"
 
 #include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
 
 namespace
 {
@@ -24,6 +25,46 @@ void UReEchoUIManagerSubsystem::AddToLayer(UUserWidget* Widget, const EReEchoUIL
 
 	Widget->AddToViewport(GetLayerZOrder(Layer));
 	ManagedWidgets.AddUnique(Widget);
+}
+
+void UReEchoUIManagerSubsystem::ConfigureMenuInput(APlayerController* PlayerController,
+                                                   UUserWidget* Widget,
+                                                   const bool bUIOnly) const
+{
+	if (!PlayerController || !Widget)
+	{
+		return;
+	}
+
+	if (bUIOnly)
+	{
+		FInputModeUIOnly InputMode;
+		InputMode.SetWidgetToFocus(Widget->TakeWidget());
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PlayerController->SetInputMode(InputMode);
+	}
+	else
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetWidgetToFocus(Widget->TakeWidget());
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PlayerController->SetInputMode(InputMode);
+	}
+	PlayerController->SetShowMouseCursor(true);
+}
+
+void UReEchoUIManagerSubsystem::ConfigureGameplayInput(APlayerController* PlayerController) const
+{
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetHideCursorDuringCapture(false);
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
 }
 
 void UReEchoUIManagerSubsystem::Deinitialize()

@@ -5,6 +5,7 @@
 #include "ReEchoUIManagerSubsystem.generated.h"
 
 class UUserWidget;
+class APlayerController;
 
 /** Stable viewport layers for all ReEcho runtime UI. */
 UENUM()
@@ -30,6 +31,8 @@ class REECHO_API UReEchoUIManagerSubsystem : public UGameInstanceSubsystem
 
 public:
 	void AddToLayer(UUserWidget* Widget, EReEchoUILayer Layer);
+	void ConfigureMenuInput(APlayerController* PlayerController, UUserWidget* Widget, bool bUIOnly) const;
+	void ConfigureGameplayInput(APlayerController* PlayerController) const;
 	virtual void Deinitialize() override;
 
 private:

@@ -60,6 +60,22 @@ void AReEchoGameMode::AddWidgetToUILayer(UUserWidget* Widget, const EReEchoUILay
 	}
 }
 
+void AReEchoGameMode::ConfigureMenuInput(UUserWidget* Widget, const bool bUIOnly) const
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
+	{
+		UIManager->ConfigureMenuInput(PlayerController, Widget, bUIOnly);
+	}
+}
+
+void AReEchoGameMode::PauseForMenu(UUserWidget* Widget, const bool bUIOnly)
+{
+	ConfigureMenuInput(Widget, bUIOnly);
+	SetPlayerMenuAbilityBlocked(true);
+	UGameplayStatics::SetGamePaused(this, true);
+}
+
 void AReEchoGameMode::PrintGMResult(const FString& Message, const bool bSuccess) const
 {
 	UE_LOG(LogTemp, Display, TEXT("[GM] %s"), *Message);
@@ -302,13 +318,7 @@ void AReEchoGameMode::ShowStartMenu()
 	AddWidgetToUILayer(StartMenuWidget, EReEchoUILayer::Start);
 	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 
-	FInputModeUIOnly InputMode;
-	InputMode.SetWidgetToFocus(StartMenuWidget->TakeWidget());
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->SetShowMouseCursor(true);
-	SetPlayerMenuAbilityBlocked(true);
-	UGameplayStatics::SetGamePaused(this, true);
+	PauseForMenu(StartMenuWidget, true);
 }
 
 void AReEchoGameMode::HandleNewGameRequested()
@@ -370,7 +380,6 @@ void AReEchoGameMode::HandlePauseSettingsRequested()
 
 void AReEchoGameMode::HandleSettingsClosed()
 {
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	if (SettingsWidget)
 	{
 		SettingsWidget->RemoveFromParent();
@@ -381,29 +390,13 @@ void AReEchoGameMode::HandleSettingsClosed()
 	{
 		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 		StartMenuWidget->SetKeyboardFocus();
-		if (PlayerController)
-		{
-			FInputModeUIOnly InputMode;
-			InputMode.SetWidgetToFocus(StartMenuWidget->TakeWidget());
-			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-			PlayerController->SetInputMode(InputMode);
-		}
+		ConfigureMenuInput(StartMenuWidget, true);
 	}
 	else if (RestartWidget)
 	{
 		RestartWidget->SetVisibility(ESlateVisibility::Visible);
 		RestartWidget->SetKeyboardFocus();
-		if (PlayerController)
-		{
-			FInputModeGameAndUI InputMode;
-			InputMode.SetWidgetToFocus(RestartWidget->TakeWidget());
-			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-			PlayerController->SetInputMode(InputMode);
-		}
-	}
-	if (PlayerController)
-	{
-		PlayerController->SetShowMouseCursor(true);
+		ConfigureMenuInput(RestartWidget, false);
 	}
 	bSettingsReturnToStartMenu = false;
 }
@@ -426,11 +419,7 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 	SettingsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleSettingsClosed);
 	AddWidgetToUILayer(SettingsWidget, EReEchoUILayer::Settings);
 
-	FInputModeUIOnly InputMode;
-	InputMode.SetWidgetToFocus(SettingsWidget->TakeWidget());
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->SetShowMouseCursor(true);
+	ConfigureMenuInput(SettingsWidget, true);
 }
 
 void AReEchoGameMode::ShowLoadoutSelection()
@@ -457,13 +446,7 @@ void AReEchoGameMode::ShowLoadoutSelection()
 	AddWidgetToUILayer(LoadoutSelectionWidget, EReEchoUILayer::Loadout);
 	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
 
-	FInputModeUIOnly InputMode;
-	InputMode.SetWidgetToFocus(LoadoutSelectionWidget->TakeWidget());
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->SetShowMouseCursor(true);
-	SetPlayerMenuAbilityBlocked(true);
-	UGameplayStatics::SetGamePaused(this, true);
+	PauseForMenu(LoadoutSelectionWidget, true);
 	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing first-encounter loadout selection."));
 }
 
@@ -917,13 +900,7 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	RestartWidget->OnSettingsRequested.AddDynamic(this, &AReEchoGameMode::HandlePauseSettingsRequested);
 	AddWidgetToUILayer(RestartWidget, EReEchoUILayer::Pause);
 
-	FInputModeGameAndUI InputMode;
-	InputMode.SetWidgetToFocus(RestartWidget->TakeWidget());
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->SetShowMouseCursor(true);
-	SetPlayerMenuAbilityBlocked(true);
-	UGameplayStatics::SetGamePaused(this, true);
+	PauseForMenu(RestartWidget, false);
 }
 
 void AReEchoGameMode::TogglePauseMenu()
@@ -1007,13 +984,7 @@ void AReEchoGameMode::ShowStatsMenu()
 	StatsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleStatsClosed);
 	AddWidgetToUILayer(StatsWidget, EReEchoUILayer::Screen);
 
-	FInputModeGameAndUI InputMode;
-	InputMode.SetWidgetToFocus(StatsWidget->TakeWidget());
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->SetShowMouseCursor(true);
-	SetPlayerMenuAbilityBlocked(true);
-	UGameplayStatics::SetGamePaused(this, true);
+	PauseForMenu(StatsWidget, false);
 }
 
 void AReEchoGameMode::HandleStatsClosed()
@@ -1079,13 +1050,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 	}
 	AddWidgetToUILayer(InventoryShopWidget, EReEchoUILayer::Screen);
 
-	FInputModeGameAndUI InputMode;
-	InputMode.SetWidgetToFocus(InventoryShopWidget->TakeWidget());
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->SetShowMouseCursor(true);
-	SetPlayerMenuAbilityBlocked(true);
-	UGameplayStatics::SetGamePaused(this, true);
+	PauseForMenu(InventoryShopWidget, false);
 }
 
 void AReEchoGameMode::HandleInventoryShopClosed()
@@ -1179,13 +1144,9 @@ void AReEchoGameMode::HandleRestartRequested()
 	bRestartScreenIsTerminal = false;
 
 	UGameplayStatics::SetGamePaused(this, false);
-	if (PlayerController)
+	if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
 	{
-		FInputModeGameAndUI InputMode;
-		InputMode.SetHideCursorDuringCapture(false);
-		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-		PlayerController->SetInputMode(InputMode);
-		PlayerController->SetShowMouseCursor(true);
+		UIManager->ConfigureGameplayInput(PlayerController);
 	}
 
 	const FName CurrentLevelName(*UGameplayStatics::GetCurrentLevelName(this, true));
@@ -1267,13 +1228,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	AddWidgetToUILayer(TraitCardChoiceWidget, EReEchoUILayer::BuildChoice);
 
-	FInputModeGameAndUI InputMode;
-	InputMode.SetWidgetToFocus(TraitCardChoiceWidget->TakeWidget());
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->SetShowMouseCursor(true);
-	SetPlayerMenuAbilityBlocked(true);
-	UGameplayStatics::SetGamePaused(this, true);
+	PauseForMenu(TraitCardChoiceWidget, false);
 }
 
 void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
@@ -1333,11 +1288,10 @@ void AReEchoGameMode::RestoreGameInput()
 		{
 			PlayerController->SetViewTarget(FixedCamera);
 		}
-		FInputModeGameAndUI InputMode;
-		InputMode.SetHideCursorDuringCapture(false);
-		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-		PlayerController->SetInputMode(InputMode);
-		PlayerController->SetShowMouseCursor(true);
+		if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
+		{
+			UIManager->ConfigureGameplayInput(PlayerController);
+		}
 	}
 }
 
