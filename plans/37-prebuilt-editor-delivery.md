@@ -16,7 +16,7 @@
 - Stable Reads: current UE 5.8 installed-build module descriptor, target rules, runtime source and existing build entry point.
 - Impact mode: `SharedContract` because this establishes the repository-wide C++ publication gate consumed by every programmer Plan.
 - Compatibility promise / downstream action: a fresh Windows checkout at a valid commit opens with the UE 5.8 release Editor without a local compiler; source builders continue using the existing build command, which refreshes the curated bundle after a successful build.
-- Explicit exclusions: no gameplay/content change, no non-Windows precompiled target, no `Intermediate`, PDB, import library, Live Coding patch, generated solution or machine-local absolute path, and no promise across a different Unreal Engine build.
+- Explicit exclusions: no gameplay/content change, no non-Windows precompiled target, no `Intermediate`, PDB, import library, Live Coding patch, generated solution or machine-local absolute path, and no promise across a different Unreal Engine build. The required portable `ReEchoEditor.target` metadata is part of the Win64 bundle.
 
 ## Locked goal
 
@@ -67,6 +67,7 @@ Make a fresh Windows checkout of ReEcho directly openable through `ReEcho.uproje
 - Made the normal Development Editor build refresh and normalize the bundle automatically.
 - Added an explicit full-rebuild mode and made it mandatory for Programmer publication.
 - Extended static validation and focused tests for missing, tampered, source-stale and line-ending-only bundle cases.
+- Corrected the normal desktop-open contract to include and validate `ReEchoEditor.target`; the earlier `-NoCompile` smoke test had hidden its absence.
 
 ### Evidence
 
@@ -75,7 +76,7 @@ Make a fresh Windows checkout of ReEcho directly openable through `ReEcho.uproje
 - `python scripts/ue/prebuilt_editor.py check` passed for one declared module and normalized source fingerprint `092037d157cb`.
 - `python scripts/ue/test_prebuilt_editor.py` passed 4/4 focused tests, including CRLF/LF stability.
 - `python scripts/validate_project.py` and `git diff --check` passed on the integrated candidate.
-- A tracked-files-only checkout of the final commit contained no `Intermediate` directory, passed its manifest check, loaded directly through UE 5.8, reached `Engine is initialized`, and logged no missing/incompatible-module error.
+- A corrected tracked-files-only checkout containing `ReEchoEditor.target` and no `Intermediate` directory passed its manifest check, launched through UE 5.8 without `-NoCompile`, reached `Engine is initialized`, and logged no target/module rebuild prompt or compile invocation.
 
 ### Remaining risks
 

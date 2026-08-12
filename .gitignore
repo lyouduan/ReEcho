@@ -5,6 +5,7 @@
 /Binaries/Win64/*
 !/Binaries/Win64/UnrealEditor.modules
 !/Binaries/Win64/UnrealEditor-*.dll
+!/Binaries/Win64/ReEchoEditor.target
 !/Binaries/Win64/ReEchoEditor.prebuilt.json
 /DerivedDataCache/
 /Intermediate/

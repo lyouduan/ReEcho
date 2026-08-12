@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BINARY_DIR = ROOT / "Binaries" / "Win64"
 MODULES_PATH = BINARY_DIR / "UnrealEditor.modules"
 MANIFEST_PATH = BINARY_DIR / "ReEchoEditor.prebuilt.json"
+TARGET_PATH = BINARY_DIR / "ReEchoEditor.target"
 SCHEMA_VERSION = 1
 
 
@@ -105,7 +106,23 @@ def create_manifest(root: Path = ROOT) -> dict:
         raise PrebuiltError(f"UnrealEditor.modules is missing project modules: {', '.join(missing_modules)}")
 
     binary_dir = root / "Binaries" / "Win64"
-    binary_names = {"UnrealEditor.modules", *built_modules.values()}
+    target_path = binary_dir / "ReEchoEditor.target"
+    target = load_json(target_path)
+    target_build_id = str(target.get("Version", {}).get("BuildId", ""))
+    target_contract = (
+        target.get("TargetName"),
+        target.get("Platform"),
+        target.get("Configuration"),
+        target.get("Project"),
+    )
+    if target_contract != ("ReEchoEditor", "Win64", "Development", "../../ReEcho.uproject"):
+        raise PrebuiltError(f"{relative(target_path, root)} does not describe the Development Win64 project Editor")
+    if target_build_id != build_id:
+        raise PrebuiltError(
+            f"{relative(target_path, root)} BuildId {target_build_id!r} does not match UnrealEditor.modules {build_id!r}"
+        )
+
+    binary_names = {"ReEchoEditor.target", "UnrealEditor.modules", *built_modules.values()}
     missing_binaries = sorted(name for name in binary_names if not (binary_dir / name).is_file())
     if missing_binaries:
         raise PrebuiltError(f"missing built module files: {', '.join(missing_binaries)}")
@@ -126,14 +143,12 @@ def create_manifest(root: Path = ROOT) -> dict:
 
 
 def update(root: Path = ROOT) -> dict:
-    modules_path = root / "Binaries" / "Win64" / "UnrealEditor.modules"
-    modules_document = load_json(modules_path)
-    modules_temporary = modules_path.with_suffix(modules_path.suffix + ".tmp")
-    modules_temporary.write_text(
-        json.dumps(modules_document, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(modules_temporary, modules_path)
+    binary_dir = root / "Binaries" / "Win64"
+    for contract_path in (binary_dir / "UnrealEditor.modules", binary_dir / "ReEchoEditor.target"):
+        document = load_json(contract_path)
+        temporary = contract_path.with_suffix(contract_path.suffix + ".tmp")
+        temporary.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, contract_path)
 
     manifest = create_manifest(root)
     manifest_path = root / "Binaries" / "Win64" / "ReEchoEditor.prebuilt.json"

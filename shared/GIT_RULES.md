@@ -32,7 +32,7 @@ The successful command refreshes the curated Win64 Editor prebuilt bundle and it
 - Never publish a source-only Programmer candidate or reuse build evidence from before its final integration/rebase/conflict resolution.
 - A failed build, missing binary, binary-hash mismatch, stale source fingerprint, wrong engine Build ID, or dirty prebuilt refresh blocks the push.
 - Run `python scripts/validate_project.py` after the build and commit the refreshed allowlisted bundle before the final fetch/push gate.
-- Only the manifest, `UnrealEditor.modules`, and the exact module DLLs named by that manifest are publishable generated Editor products. `Intermediate`, PDB/import libraries, `.target`, Live Coding patches, generated solutions, caches, logs and machine-local paths remain local.
+- Only the manifest, `ReEchoEditor.target`, `UnrealEditor.modules`, and the exact module DLLs named by that manifest are publishable generated Editor products. Other `.target` files, `Intermediate`, PDB/import libraries, Live Coding patches, generated solutions, caches, logs and machine-local paths remain local.
 - The bundle guarantees clone-and-open only on Win64 with the exact UE 5.8 installed/release Build ID recorded in the manifest. Other engine builds must compile locally or receive their own reviewed delivery contract.
 
 Designer, Artist and Secretary commits do not rebuild or modify the Programmer-owned prebuilt bundle. Their local commits retain their role tag and are integrated by a Programmer Planner; the later Programmer publication build covers the final combined candidate.
