@@ -5439,6 +5439,14 @@
       "Type": "SymbolFile"
     },
     {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.pdb",
+      "Type": "SymbolFile"
+    },
+    {
       "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor.modules",
       "Type": "RequiredResource"
     }

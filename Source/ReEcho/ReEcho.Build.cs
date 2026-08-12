@@ -38,5 +38,12 @@ public class ReEcho : ModuleRules
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/slot_profiles.csv", StagedFileType.NonUFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/parts.csv", StagedFileType.NonUFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/part_effects.csv", StagedFileType.NonUFS);
+
+        // One-way dependency: gameplay -> ReEchoAudio audio runtime module.
+        // ReEchoAudio must never depend back on ReEcho (see Plan33).
+        PrivateDependencyModuleNames.AddRange(new[]
+        {
+            "ReEchoAudio"
+        });
     }
 }
