@@ -64,10 +64,17 @@ void UReEchoWeatherWidget::SetWeatherScene(const EReEchoWeatherScene NewWeatherS
 	InvalidateLayoutAndVolatility();
 }
 
-void UReEchoWeatherWidget::SetFogRevealSources(AActor* InPlayer, AActor* InEcho)
+void UReEchoWeatherWidget::SetFogRevealSources(AActor* InPlayer, const TArray<AActor*>& InEchoes)
 {
 	FogPlayer = InPlayer;
-	FogEcho = InEcho;
+	FogEchoes.Reset(InEchoes.Num());
+	for (AActor* Echo : InEchoes)
+	{
+		if (IsValid(Echo))
+		{
+			FogEchoes.Add(Echo);
+		}
+	}
 }
 
 void UReEchoWeatherWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -89,7 +96,10 @@ void UReEchoWeatherWidget::NativeTick(const FGeometry& MyGeometry, const float I
 				}
 			};
 			AddRevealCenter(FogPlayer);
-			AddRevealCenter(FogEcho);
+			for (const TWeakObjectPtr<AActor>& FogEcho : FogEchoes)
+			{
+				AddRevealCenter(FogEcho);
+			}
 		}
 	}
 	Invalidate(EInvalidateWidgetReason::Paint);

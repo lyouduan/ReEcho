@@ -25,8 +25,8 @@ public:
 	/** 切换全屏天气表现；不改变战斗模拟。 */
 	void SetWeatherScene(EReEchoWeatherScene NewWeatherScene);
 
-	/** 设置雾中需要保持可见的玩家与回响。 */
-	void SetFogRevealSources(AActor* InPlayer, AActor* InEcho);
+	/** 设置雾中需要保持可见的玩家与全部活动回响。 */
+	void SetFogRevealSources(AActor* InPlayer, const TArray<AActor*>& InEchoes);
 
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
@@ -42,6 +42,6 @@ private:
 	EReEchoWeatherScene WeatherScene = EReEchoWeatherScene::Clear;
 	float AnimationTime = 0.0f;
 	TWeakObjectPtr<AActor> FogPlayer;
-	TWeakObjectPtr<AActor> FogEcho;
+	TArray<TWeakObjectPtr<AActor>> FogEchoes;
 	TArray<FVector2D> FogRevealCenters;
 };

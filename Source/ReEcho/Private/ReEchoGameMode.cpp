@@ -244,7 +244,7 @@ void AReEchoGameMode::StartPlay()
 		if (WeatherWidget)
 		{
 			WeatherWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
-			WeatherWidget->SetFogRevealSources(Player, nullptr);
+			RefreshFogRevealSources();
 		}
 		EncounterHudWidget = UIFlow
 		                         ? Cast<UReEchoEncounterHudWidget>(
@@ -636,10 +636,26 @@ void AReEchoGameMode::ClearCombatants()
 		}
 	}
 	Echoes.Reset();
-	if (WeatherWidget)
+	RefreshFogRevealSources();
+}
+
+void AReEchoGameMode::RefreshFogRevealSources()
+{
+	if (!WeatherWidget)
 	{
-		WeatherWidget->SetFogRevealSources(Player, nullptr);
+		return;
 	}
+
+	TArray<AActor*> EchoRevealSources;
+	EchoRevealSources.Reserve(Echoes.Num());
+	for (AReEchoEchoActor* Echo : Echoes)
+	{
+		if (IsValid(Echo))
+		{
+			EchoRevealSources.Add(Echo);
+		}
+	}
+	WeatherWidget->SetFogRevealSources(Player, EchoRevealSources);
 }
 
 void AReEchoGameMode::BeginNextEncounter()
@@ -671,13 +687,16 @@ void AReEchoGameMode::BeginNextEncounter()
 		                                 1337 + RunSubsystem->EncounterIndex,
 		                                 RunSubsystem->CurrentBuild);
 	}
-	const TArray<FReEchoRecording> Recordings = RunSubsystem->GetEchoRecordings(1);
-	if (!Recordings.IsEmpty())
+	// Plan31: resolve the full selected set (zero, one or several) and spawn one independent
+	// Echo actor per recording. Each Echo owns its immutable recording and build snapshot, so its
+	// playback, position, weapon and run state stay independent of the others.
+	const TArray<FReEchoRecording> Recordings =
+	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+	for (const FReEchoRecording& Recording : Recordings)
 	{
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
-		if (Echo && Echo->InitializeEcho(Recordings[0],
-		                                 RunSubsystem->CurrentBuild.Stats.EchoEfficiency,
-		                                 RunSubsystem->GetRunDataSnapshot()))
+		if (Echo && Echo->InitializeEcho(
+		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
 			Echoes.Add(Echo);
 		}
@@ -686,10 +705,7 @@ void AReEchoGameMode::BeginNextEncounter()
 			Echo->Destroy();
 		}
 	}
-	if (WeatherWidget)
-	{
-		WeatherWidget->SetFogRevealSources(Player, Echoes.IsEmpty() ? nullptr : Echoes[0].Get());
-	}
+	RefreshFogRevealSources();
 	SpawnEnemies(RunSubsystem->EncounterIndex);
 	Director->StartEncounter();
 }
@@ -753,14 +769,17 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
 	}
 
-	const TArray<FReEchoRecording> Recordings = RunSubsystem->GetEchoRecordings(1);
-	if (!Recordings.IsEmpty())
+	// Plan31: resume the same selected set as a fresh encounter, one independent Echo per
+	// recording. Each resumed Echo fast-forwards its own playback to the saved encounter time.
+	const TArray<FReEchoRecording> Recordings =
+	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+	for (const FReEchoRecording& Recording : Recordings)
 	{
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
 		if (Echo)
 		{
 			if (Echo->InitializeEcho(
-			        Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
+			        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 			{
 				Echo->AdvanceEcho(SavedState.EncounterTime);
 				Echoes.Add(Echo);
@@ -771,10 +790,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 			}
 		}
 	}
-	if (WeatherWidget)
-	{
-		WeatherWidget->SetFogRevealSources(Player, Echoes.IsEmpty() ? nullptr : Echoes[0].Get());
-	}
+	RefreshFogRevealSources();
 
 	for (const FReEchoEnemyRuntimeState& EnemyState : SavedState.Enemies)
 	{
