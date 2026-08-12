@@ -3,13 +3,13 @@
 ## Coordination
 
 - Planner owner: Gavyn-side Planner.
-- Executor owner: Unassigned; do not start while status is `Proposed`.
-- Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Executor owner: Plan30 Executor.
+- Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Local planning / implementation base: future local branch from a reviewed base containing accepted Plan29 and accepted Plan28.
-- Implementation branch: future `plan/30-specific-echo-replay-runtime` in a separate clean worktree.
-- Depends on / Blocks: blocked on Plan29's accepted storage/save contract and Plan28 release of GameMode/player attack ownership. Publishes runtime behavior required by Plan31.
-- Writes: Plan29's narrow replay-resolution implementation surface in RunSubsystem; `Source/ReEcho/Public/ReEchoGameMode.h`; `Source/ReEcho/Private/ReEchoGameMode.cpp`; additive Echo initialization/query changes only if required; focused Plan30 tests; this Plan's Execution notes.
+- Local planning / implementation base: Phase A starts from current local `main` containing accepted Plan29. Phase B first integrates the reviewed local `main` containing accepted Plan28.
+- Implementation branch: local `plan/30-specific-echo-replay-runtime` in a separate clean worktree.
+- Depends on / Blocks: Phase A may start from accepted Plan29 and is disjoint from Plan28. Phase B remains blocked on Plan28 release/integration of GameMode/player attack ownership. The completed Plan publishes runtime behavior required by Plan31.
+- Writes: Phase A owns only Plan29's narrow replay-resolution implementation surface in RunSubsystem plus focused resolver tests. Phase B may additionally write `Source/ReEcho/Public/ReEchoGameMode.h`, `Source/ReEcho/Private/ReEchoGameMode.cpp`, additive Echo initialization/query changes only if required, focused Plan30 runtime tests and this Plan's Execution notes.
 - Stable Reads: Plan29 storage/capability APIs, immutable recordings, current Echo actor initialization/playback and encounter resume flow.
 - Impact mode: `SharedContract` for replay resolution; otherwise isolated runtime orchestration.
 - Compatibility promise / downstream action: before acquiring specific replay (`SpecificReplayLimit == 0`), spawn exactly the rolling previous-encounter echo as today. Once the limit is positive, spawn only the explicitly selected stored echoes. Preserve each recording's original build/WeaponId and current recording semantics.
@@ -40,18 +40,19 @@ Once specific replay is available, an empty selection intentionally produces no 
 
 ## Step 0 gate
 
-- Baseline branch/commit: exact accepted Plan29 plus accepted Plan28 integration base; record it before work.
+- Phase A baseline: exact current local `main` containing accepted Plan29; record it before work.
+- Phase B baseline: integrate the reviewed local `main` containing accepted Plan28, confirm Plan28 GameMode ownership is released, and rerun affected Plan28/29 checks before touching GameMode or Echo orchestration.
 - Engine/build availability: human saves/closes Editor before C++ build; installed UE 5.8 only.
 - Existing focused-test result: Plan29 storage/save and Plan28 integration checks are green on this base.
-- Active exclusive ownership or shared-contract approval: Plan28 GameMode/player ownership must be released. Stop if Plan29's final API differs from this consumer contract.
+- Active exclusive ownership or shared-contract approval: Phase A must not touch Plan28-owned GameMode/player/pause files. Phase B must wait until Plan28 GameMode/player ownership is released. Stop if Plan29's final API differs from this consumer contract.
 - Stop condition if the baseline is broken: do not edit shop UI or reintroduce legacy history/anchor APIs as a workaround.
 
 ## Implementation outline
 
-1. Implement one pure resolver from capability plus stored/latest state to ordered immutable recordings.
-2. Replace single-record GameMode spawning/resume with an iteration over the resolver result.
-3. Audit every zero/one/many Echo assumption in cleanup, fixed-step, stats and resume; change only runtime orchestration that demonstrably requires it.
-4. Add cheap deterministic resolver/resume automation and build. Hand actual multi-Echo readability/play-feel validation to the user.
+1. **Phase A, may run now:** implement one pure resolver from capability plus stored/latest state to ordered immutable recordings. Add focused tests proving limit 0 fallback and positive-limit empty/single/multi semantics. Commit a clean local checkpoint.
+2. **Phase gate:** if accepted Plan28 is not yet present on local `main`, stop after the Phase A checkpoint and report it without claiming Plan30 Review/complete.
+3. **Phase B, only after the gate passes:** integrate accepted Plan28, replace single-record GameMode spawning/resume with iteration over the resolver result, and audit every zero/one/many Echo assumption in cleanup, fixed-step, stats and resume.
+4. Add cheap deterministic runtime/resume automation and build. Hand actual multi-Echo readability/play-feel validation to the user.
 
 ## Verification matrix
 
