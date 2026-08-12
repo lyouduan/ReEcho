@@ -656,13 +656,16 @@ void AReEchoGameMode::BeginNextEncounter()
 		                                 1337 + RunSubsystem->EncounterIndex,
 		                                 RunSubsystem->CurrentBuild);
 	}
-	const TArray<FReEchoRecording> Recordings = RunSubsystem->GetEchoRecordings(1);
-	if (!Recordings.IsEmpty())
+	// Plan30: resolve the full selected set (zero, one or several) and spawn one independent
+	// Echo actor per recording. Each Echo owns its immutable recording and build snapshot, so its
+	// playback, position, weapon and run state stay independent of the others.
+	const TArray<FReEchoRecording> Recordings =
+	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+	for (const FReEchoRecording& Recording : Recordings)
 	{
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
-		if (Echo && Echo->InitializeEcho(Recordings[0],
-		                                 RunSubsystem->CurrentBuild.Stats.EchoEfficiency,
-		                                 RunSubsystem->GetRunDataSnapshot()))
+		if (Echo && Echo->InitializeEcho(
+		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
 			Echoes.Add(Echo);
 		}
@@ -738,14 +741,17 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
 	}
 
-	const TArray<FReEchoRecording> Recordings = RunSubsystem->GetEchoRecordings(1);
-	if (!Recordings.IsEmpty())
+	// Plan30: resume the same selected set as a fresh encounter, one independent Echo per
+	// recording. Each resumed Echo fast-forwards its own playback to the saved encounter time.
+	const TArray<FReEchoRecording> Recordings =
+	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+	for (const FReEchoRecording& Recording : Recordings)
 	{
 		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
 		if (Echo)
 		{
 			if (Echo->InitializeEcho(
-			        Recordings[0], RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
+			        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 			{
 				Echo->AdvanceEcho(SavedState.EncounterTime);
 				Echoes.Add(Echo);
