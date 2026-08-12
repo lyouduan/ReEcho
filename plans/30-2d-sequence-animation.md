@@ -68,12 +68,14 @@ Add a reusable Paper2D presentation layer that loops the existing idle Flipbook 
 - `J_SPADE` exclusively activates `/Game/2DAnim/Flipbook/Idel`; Grunt exclusively activates `/Game/2DAnim/Flipbook/01_2`; every other case retains the existing Billboard.
 - Added hard-reference loading, mutually exclusive visibility, static fallback, Paper2D-safe facing and Billboard-debug skipping.
 - Added a focused asset/profile automation test and an Unreal Editor repair script. The script generated the twelve missing player PaperSprite dependencies and rebuilt the existing `Idel` Flipbook through Unreal's asset API.
+- After the first PIE showed an invisible Spade, corrected the repair path to call `UPaperSprite::RebuildData()` through a development-only native bridge; all twelve player Sprite assets now contain non-empty baked render geometry.
 - Added the complete existing `Content/2DAnim` resource tree to the Plan delivery without renaming `Idel` or hand-editing asset bytes.
 
 ### Evidence
 
 - UE 5.8 `ReEchoEditor` Win64 Development build passed after clang-format.
 - `ReEcho.*` automation passed 35/35; the animation asset test loads both Flipbooks, exercises default-state fallback, and the final log contains zero `/Game/2DAnim` load errors.
+- The focused test now also rejects a Flipbook whose runtime render bounds are empty, preventing the original loadable-but-invisible false positive.
 - `python scripts/validate_project.py` passed all project, CSV/XLSX and workflow checks.
 - Clean Win64 Shipping Build/Cook/Stage/Pak/Archive passed. The staged UFS manifest contains both Flipbooks, all twelve player PaperSprites and all twelve Grunt PaperSprites.
 - `git diff --check` passed.

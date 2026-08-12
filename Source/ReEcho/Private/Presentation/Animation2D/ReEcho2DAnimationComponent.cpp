@@ -1,6 +1,7 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 
 #include "PaperFlipbook.h"
+#include "PaperSprite.h"
 
 UPaperFlipbook* FReEcho2DAnimationProfile::Resolve(const EReEcho2DAnimationState State) const
 {
@@ -78,6 +79,22 @@ void UReEcho2DAnimationComponent::SetFacingSign(const float InFacingSign)
 bool UReEcho2DAnimationComponent::IsAnimationActive()
 {
 	return bAnimationActive && GetFlipbook() != nullptr;
+}
+
+bool UReEcho2DAnimationComponent::RebuildSpriteAsset(UPaperSprite* Sprite)
+{
+#if WITH_EDITOR
+	if (!Sprite)
+	{
+		return false;
+	}
+	Sprite->Modify();
+	Sprite->RebuildData();
+	Sprite->MarkPackageDirty();
+	return Sprite->GetRenderBounds().BoxExtent.Z > 0.0f;
+#else
+	return false;
+#endif
 }
 
 void UReEcho2DAnimationComponent::ApplyFlipbook(UPaperFlipbook* NewFlipbook)

@@ -5,6 +5,8 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationProfile.h"
 #include "ReEcho2DAnimationComponent.generated.h"
 
+class UPaperSprite;
+
 /** Reusable visual-only Paper2D player. It never owns gameplay state or Actor transforms. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 
@@ -20,6 +22,10 @@ public:
 	void DeactivateAnimation();
 	void SetFacingSign(float InFacingSign);
 	bool IsAnimationActive();
+
+	/** Editor asset-repair seam used by the deterministic import script; it has no runtime gameplay effect. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|Animation2D", meta = (DevelopmentOnly))
+	static bool RebuildSpriteAsset(UPaperSprite* Sprite);
 
 private:
 	void ApplyFlipbook(UPaperFlipbook* NewFlipbook);

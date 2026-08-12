@@ -38,6 +38,8 @@ def create_or_update_sprite(index: int):
     sprite.set_editor_property("source_uv", unreal.Vector2D(0.0, 0.0))
     sprite.set_editor_property("source_dimension", unreal.Vector2D(width, height))
     sprite.set_editor_property("pivot_mode", unreal.SpritePivotMode.CENTER_CENTER)
+    if not unreal.ReEcho2DAnimationComponent.rebuild_sprite_asset(sprite):
+        raise RuntimeError(f"PaperSprite rebuild failed: {sprite_path}")
     unreal.EditorAssetLibrary.save_loaded_asset(sprite, only_if_is_dirty=False)
     return sprite
 
