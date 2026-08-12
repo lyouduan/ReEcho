@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v5 replaced the single anchored history with explicit pending/latest/stored echo storage. */
-	static constexpr int32 CurrentSaveVersion = 5;
+	/** v6 adds the run-local automatic/manual attack-mode choice. */
+	static constexpr int32 CurrentSaveVersion = 6;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -36,6 +36,10 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray<FName> InventoryItems;
+
+	/** Added in v6. Older saves deterministically migrate to automatic attack. */
+	UPROPERTY(SaveGame)
+	bool bAutomaticAttackMode = true;
 
 	/**
 	 * Legacy v4 migration input only. v5 never writes this array and the runtime never keeps a

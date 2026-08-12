@@ -675,6 +675,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		Player->SetActorLocation(FVector(0, 0, 112));
 		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 		Player->RestoreEquippedWeapon(RunSubsystem->CurrentBuild.WeaponId);
+		Player->SetAutoAttackMode(RunSubsystem->IsAutomaticAttackMode());
 		const FReEchoStatBlock& Stats = RunSubsystem->CurrentBuild.Stats;
 		Player->Combatant->InitializeFromStats(Stats, true);
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
@@ -759,6 +760,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Player->SetActorTransform(SavedState.PlayerTransform, false, nullptr, ETeleportType::TeleportPhysics);
 	Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 	Player->RestoreEquippedWeapon(RunSubsystem->CurrentBuild.WeaponId);
+	Player->SetAutoAttackMode(RunSubsystem->IsAutomaticAttackMode());
 	Player->Combatant->InitializeFromStats(SavedState.PlayerStats, true);
 	Player->Combatant->RestoreCurrentHealth(SavedState.PlayerHealth);
 	Player->Movement->MaxSpeed = 420.0f * SavedState.PlayerStats.MovementSpeed;

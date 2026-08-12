@@ -59,6 +59,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 
+	bool IsAutomaticAttackMode() const { return bAutomaticAttackMode; }
+	void SetAutomaticAttackMode(bool bAutomatic) { bAutomaticAttackMode = bAutomatic; }
+
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 
@@ -168,6 +171,9 @@ public:
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	UPROPERTY()
+	bool bAutomaticAttackMode = true;
+
 	/** Finished encounter awaiting an explicit store-or-skip decision. */
 	UPROPERTY()
 	bool bHasPendingRecording = false;

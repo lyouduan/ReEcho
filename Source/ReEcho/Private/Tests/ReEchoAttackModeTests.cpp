@@ -8,6 +8,10 @@
 #include "Player/ReEchoPlayerPawn.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Core/ReEchoTypes.h"
+#include "Data/ReEchoCsvDataRegistry.h"
+#include "Engine/GameInstance.h"
+#include "Run/ReEchoRunSaveGame.h"
+#include "Run/ReEchoRunSubsystem.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -93,6 +97,8 @@ bool FReEchoAttackModeStateTest::RunTest(const FString& Parameters)
 	// Pressing simulated held input is tracked.
 	Pawn->PressAutoAttackInput();
 	TestTrue(TEXT("held input tracked after press"), Pawn->IsAutoAttackInputHeld());
+	Pawn->PressAutoAttackInput();
+	TestTrue(TEXT("repeated automatic press is idempotent"), Pawn->IsAutoAttackInputHeld());
 
 	// Switching to manual releases the simulated held input.
 	Pawn->SetAutoAttackMode(false);
@@ -125,6 +131,31 @@ bool FReEchoAttackModeNoRecordingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("no skill recording events from mode switch / auto attack"),
 	          Pawn->GetRecorder()->GetRecording().Skills.Num(), 0);
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAttackModeSaveTest, "ReEcho.AttackMode.SaveAndMigration",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FReEchoAttackModeSaveTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	TestTrue(TEXT("new run defaults to automatic"), Source->IsAutomaticAttackMode());
+
+	Source->SetAutomaticAttackMode(false);
+	UReEchoRunSaveGame* CurrentSave = Source->CreateSaveSnapshot();
+	TestEqual(TEXT("attack-mode save uses v6"), CurrentSave->SaveVersion, 6);
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(GameInstance);
+	TestTrue(TEXT("v6 save restores"), Restored->RestoreSaveSnapshot(*CurrentSave));
+	TestFalse(TEXT("continue restores manual mode"), Restored->IsAutomaticAttackMode());
+
+	CurrentSave->SaveVersion = 5;
+	CurrentSave->bAutomaticAttackMode = false;
+	UReEchoRunSubsystem* Migrated = NewObject<UReEchoRunSubsystem>(GameInstance);
+	TestTrue(TEXT("v5 save migrates"), Migrated->RestoreSaveSnapshot(*CurrentSave));
+	TestTrue(TEXT("v5 migration defaults to automatic"), Migrated->IsAutomaticAttackMode());
 	return true;
 }
 

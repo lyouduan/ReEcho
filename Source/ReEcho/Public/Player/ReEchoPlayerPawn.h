@@ -27,14 +27,12 @@ struct FReEchoCsvDataSnapshot;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoActiveSkill, FVector, Position, FName, SkillId);
 
-/** 自动攻击确定性目标选择用的候选敌人信息。 */
-USTRUCT(BlueprintType)
+/** 自动攻击确定性目标选择用的瞬时 C++ 候选信息。 */
 struct FReEchoAttackTargetCandidate
 {
-	GENERATED_BODY()
-	UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector Location = FVector::ZeroVector;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bAlive = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StableId = 0;
+	FVector Location = FVector::ZeroVector;
+	bool bAlive = false;
+	int32 StableId = 0;
 	AReEchoEnemyActor* Source = nullptr;
 };
 
@@ -123,12 +121,10 @@ private:
 	void ActivateSkill();
 	void BasicAttack();
 	void StopBasicAttack();
-	/** 自动攻击每帧驱动：寻找射程内最近存活敌人并复用 GAS held basic-attack input。 */
+	/** 自动攻击每帧驱动：寻找射程内最近存活敌人，并幂等保持 GAS basic-attack 输入。 */
 	void UpdateAutoAttack(bool& bOutHasTarget);
 	/** 在给定射程内寻找最近的存活敌人指针（无则 null）。 */
 	AReEchoEnemyActor* FindNearestEnemyInRange(float RangeCm) const;
-	/** 当前 basic-attack 能力是否处于激活态（用于安全续接自动攻击）。 */
-	bool IsBasicAttackAbilityActive() const;
 	void TogglePauseMenu();
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();

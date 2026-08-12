@@ -35,6 +35,9 @@ public:
 	/** 当前武器当前攻击步骤的有效攻击距离（厘米）。供自动攻击在射程内选择目标，不复制 Echo 固定 AutoTargetRange。 */
 	float GetCurrentAttackRangeCm() const;
 	float GetAttackCooldownRemaining() const;
+#if WITH_DEV_AUTOMATION_TESTS
+	float GetStepLockRemaining() const { return StepLockRemaining; }
+#endif
 	FName GetEquippedWeaponId() const;
 	FString GetEquippedWeaponLabel() const;
 	const FReEchoBuildSnapshot& GetBuildSnapshot() const;
@@ -45,7 +48,7 @@ private:
 	bool ExecuteAttack(UReEchoCombatantComponent* Combatant);
 	bool RebuildEffectiveDefinition();
 	const FReEchoCsvAttackStepRow* ResolveNextAttackStep() const;
-	void BeginAttackStep(const FReEchoCsvAttackStepRow& Step);
+	void BeginAttackStep(const FReEchoCsvAttackStepRow& Step, float AttackSpeed);
 	float ComputeStepDamage(const FReEchoCsvAttackStepRow& Step, const FReEchoStatBlock& Stats, bool bElemental);
 	bool ApplyDamageToEnemy(AReEchoEnemyActor& Enemy,
 	                        float Damage,

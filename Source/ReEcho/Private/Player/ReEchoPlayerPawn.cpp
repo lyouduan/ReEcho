@@ -484,6 +484,10 @@ void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
 
 void AReEchoPlayerPawn::PressAutoAttackInput()
 {
+	if (bAutoAttackInputHeld)
+	{
+		return;
+	}
 	BasicAttack();
 	bAutoAttackInputHeld = true;
 }
@@ -495,22 +499,6 @@ void AReEchoPlayerPawn::ReleaseAutoAttackInput()
 		StopBasicAttack();
 		bAutoAttackInputHeld = false;
 	}
-}
-
-bool AReEchoPlayerPawn::IsBasicAttackAbilityActive() const
-{
-	if (!AbilitySystem)
-	{
-		return false;
-	}
-	for (const FGameplayAbilitySpec& Spec : AbilitySystem->GetActivatableAbilities())
-	{
-		if (Spec.IsActive() && Spec.Ability && Spec.Ability->GetClass() == UReEchoBasicAttackAbility::StaticClass())
-		{
-			return true;
-		}
-	}
-	return false;
 }
 
 void AReEchoPlayerPawn::UpdateAutoAttack(bool& bOutHasTarget)
@@ -528,25 +516,25 @@ void AReEchoPlayerPawn::UpdateAutoAttack(bool& bOutHasTarget)
 
 	const float RangeCm = Weapon ? Weapon->GetCurrentAttackRangeCm() : 0.0f;
 	AReEchoEnemyActor* Target = FindNearestEnemyInRange(RangeCm);
-	if (Target)
-	{
-		FVector ToTarget = Target->GetActorLocation() - GetActorLocation();
-		ToTarget.Z = 0.0f;
-		if (!ToTarget.IsNearlyZero())
-		{
-			VisualFacingSign = ToTarget.X >= 0.0f ? 1.0f : -1.0f;
-			SetActorRotation(ToTarget.Rotation());
-		}
-		bOutHasTarget = true;
-		if (!bAutoAttackInputHeld || !IsBasicAttackAbilityActive())
-		{
-			PressAutoAttackInput();
-		}
-	}
-	else
+	if (!Target)
 	{
 		ReleaseAutoAttackInput();
+		return;
 	}
+
+	FVector ToTarget = Target->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (!ToTarget.IsNearlyZero())
+	{
+		VisualFacingSign = ToTarget.X >= 0.0f ? 1.0f : -1.0f;
+		SetActorRotation(ToTarget.Rotation());
+	}
+	bOutHasTarget = true;
+
+	// Automatic and manual attack share the same held GAS BasicAttack input. The ability and
+	// weapon action lock remain the only attack-rate authorities; automatic mode only selects a
+	// target and keeps the input held.
+	PressAutoAttackInput();
 }
 
 AReEchoEnemyActor* AReEchoPlayerPawn::FindNearestEnemyInRange(const float RangeCm) const

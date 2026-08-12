@@ -614,4 +614,42 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponStepLockScalesWithAttackSpeedTest,
+                                 "ReEcho.Weapons.AttackStepLockScalesWithAttackSpeed",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponStepLockScalesWithAttackSpeedTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+
+	FReEchoWeaponWorldFixture SlowFixture;
+	UReEchoCombatantComponent* SlowCombatant = nullptr;
+	AActor* SlowOwner = SlowFixture.SpawnWeaponOwner(FVector::ZeroVector, SlowCombatant);
+	FReEchoBuildSnapshot SlowBuild = MakeBuild(*Snapshot, TEXT("W_J_05"));
+	SetBuildStats(SlowBuild, SlowCombatant->Stats);
+	SlowCombatant->Stats.AttackSpeed = 1.0f;
+	AReEchoWeaponActor* SlowWeapon = SlowFixture.World->SpawnActor<AReEchoWeaponActor>();
+	SlowWeapon->SetOwner(SlowOwner);
+	SlowWeapon->InitializeWeapon(&SlowBuild, Snapshot);
+	TestTrue(TEXT("slow attack executes"), SlowWeapon->ExecuteBasicAttack(SlowCombatant));
+	const float SlowLock = SlowWeapon->GetStepLockRemaining();
+
+	FReEchoWeaponWorldFixture FastFixture;
+	UReEchoCombatantComponent* FastCombatant = nullptr;
+	AActor* FastOwner = FastFixture.SpawnWeaponOwner(FVector::ZeroVector, FastCombatant);
+	FReEchoBuildSnapshot FastBuild = MakeBuild(*Snapshot, TEXT("W_J_05"));
+	SetBuildStats(FastBuild, FastCombatant->Stats);
+	FastCombatant->Stats.AttackSpeed = 2.5f;
+	AReEchoWeaponActor* FastWeapon = FastFixture.World->SpawnActor<AReEchoWeaponActor>();
+	FastWeapon->SetOwner(FastOwner);
+	FastWeapon->InitializeWeapon(&FastBuild, Snapshot);
+	TestTrue(TEXT("fast attack executes"), FastWeapon->ExecuteBasicAttack(FastCombatant));
+	const float FastLock = FastWeapon->GetStepLockRemaining();
+
+	TestTrue(TEXT("step lock scales inversely with attack speed"),
+	         FMath::IsNearlyEqual(SlowLock, FastLock * 2.5f, 0.01f));
+	return true;
+}
+
 #endif
