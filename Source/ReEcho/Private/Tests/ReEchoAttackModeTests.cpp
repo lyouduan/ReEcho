@@ -159,4 +159,64 @@ bool FReEchoAttackModeSaveTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAttackModeInputSourceTest, "ReEcho.AttackMode.InputSource",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FReEchoAttackModeInputSourceTest::RunTest(const FString& Parameters)
+{
+	// 输入源缺陷修复的核心不变量：自动模式与手动模式共用同一个 GAS basic-attack 输入，
+	// 但物理（手动）输入在自动模式下被忽略，因此无法触碰自动循环持有的同一输入源。
+	// 下面的判定只观察确定性的 held 标志（无需 PIE/世界），足以证明输入源已分离。
+
+	// Case 1: 自动模式 + 射程内有目标（自动循环持有输入）。
+	// 物理按下/抬起不得破坏自动循环的 held 状态。
+	{
+		AReEchoPlayerPawn* Pawn = NewObject<AReEchoPlayerPawn>();
+		TestTrue(TEXT("case1 默认自动模式"), Pawn->IsAutoAttackMode());
+
+		// 模拟自动循环在射程内有目标时按下。
+		Pawn->PressAutoAttackInput();
+		TestTrue(TEXT("case1 自动输入被持有"), Pawn->IsAutoAttackInputHeld());
+
+		// 自动模式下物理按下：被忽略（不得无目标起手，也不记录 manual held）。
+		Pawn->ManualBasicAttack();
+		TestFalse(TEXT("case1 自动模式下物理按下被忽略"), Pawn->IsManualAttackInputHeld());
+		TestTrue(TEXT("case1 自动循环仍独占 held 输入"), Pawn->IsAutoAttackInputHeld());
+
+		// 自动模式下物理抬起：不得清除自动持有的输入（此前缺陷会导致自动攻击停止）。
+		Pawn->ManualStopBasicAttack();
+		TestTrue(TEXT("case1 自动循环仍独占 held 输入（物理抬起未破坏）"), Pawn->IsAutoAttackInputHeld());
+		TestFalse(TEXT("case1 物理抬起未残留 manual held"), Pawn->IsManualAttackInputHeld());
+	}
+
+	// Case 2: 自动模式 + 射程内无目标（自动循环尚未按下）。
+	// 物理按下必须被忽略，无法起手攻击。
+	{
+		AReEchoPlayerPawn* Pawn = NewObject<AReEchoPlayerPawn>();
+		Pawn->ManualBasicAttack();
+		TestFalse(TEXT("case2 自动模式下物理无法起手（不记录 manual held）"), Pawn->IsManualAttackInputHeld());
+		Pawn->ManualStopBasicAttack();
+		TestFalse(TEXT("case2 物理抬起无可释放源"), Pawn->IsManualAttackInputHeld());
+	}
+
+	// Case 3: 手动模式独占输入；切到自动模式必须释放物理（手动）输入源。
+	{
+		AReEchoPlayerPawn* Pawn = NewObject<AReEchoPlayerPawn>();
+		Pawn->SetAutoAttackMode(false);
+		TestFalse(TEXT("case3 进入手动模式"), Pawn->IsAutoAttackMode());
+
+		Pawn->ManualBasicAttack();
+		TestTrue(TEXT("case3 手动按下被记录"), Pawn->IsManualAttackInputHeld());
+
+		// 切到自动模式必须释放手动持有的输入源，使自动循环能干净接管。
+		Pawn->SetAutoAttackMode(true);
+		TestFalse(TEXT("case3 切到自动后手动输入源已释放"), Pawn->IsManualAttackInputHeld());
+		TestFalse(TEXT("case3 切到自动后自动尚未持有"), Pawn->IsAutoAttackInputHeld());
+
+		Pawn->PressAutoAttackInput();
+		TestTrue(TEXT("case3 切换后自动循环独占输入"), Pawn->IsAutoAttackInputHeld());
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

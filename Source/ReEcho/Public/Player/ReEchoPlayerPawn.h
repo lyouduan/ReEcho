@@ -108,6 +108,14 @@ public:
 	void PressAutoAttackInput();
 	/** 释放模拟的 held basic-attack input（菜单/死亡/切换手动/无目标时调用）。 */
 	void ReleaseAutoAttackInput();
+	/** 物理（手动）普通攻击输入按下。仅在手动模式下驱动 GAS basic-attack 输入；自动模式下忽略（输入源缺陷修复）。 */
+	void ManualBasicAttack();
+	/** 物理（手动）普通攻击输入抬起。仅在手动模式下释放 GAS basic-attack 输入；自动模式下忽略。 */
+	void ManualStopBasicAttack();
+	/** 物理（手动）普通攻击输入当前是否被按下（手动模式驱动），用于测试与内部清理。 */
+	bool IsManualAttackInputHeld() const { return bManualAttackInputHeld; }
+	/** 释放所有 held basic-attack 输入源（自动循环 + 物理），用于菜单开/关时统一清理。 */
+	void ReleaseAllBasicAttackInputs();
 	/** 确定性目标选择：返回射程内最近的存活敌人索引；无目标返回 INDEX_NONE。相同距离按 StableId 升序打破平局。 */
 	static int32 SelectNearestEnemyInRange(const FVector& Origin, float RangeCm, TArrayView<const FReEchoAttackTargetCandidate> Candidates);
 
@@ -149,6 +157,7 @@ private:
 	bool bMouseInputConfigured = false;
 	bool bAutoAttackMode = true;
 	bool bAutoAttackInputHeld = false;
+	bool bManualAttackInputHeld = false;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
 	FVector BaseSpriteLocation = FVector::ZeroVector;
 	FVector BaseSpriteScale = FVector::OneVector;

@@ -218,8 +218,8 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	Super::SetupPlayerInputComponent(Input);
 	Input->BindAxis(TEXT("MoveForward"), this, &AReEchoPlayerPawn::MoveForward);
 	Input->BindAxis(TEXT("MoveRight"), this, &AReEchoPlayerPawn::MoveRight);
-	Input->BindAction(TEXT("BasicAttack"), IE_Pressed, this, &AReEchoPlayerPawn::BasicAttack);
-	Input->BindAction(TEXT("BasicAttack"), IE_Released, this, &AReEchoPlayerPawn::StopBasicAttack);
+	Input->BindAction(TEXT("BasicAttack"), IE_Pressed, this, &AReEchoPlayerPawn::ManualBasicAttack);
+	Input->BindAction(TEXT("BasicAttack"), IE_Released, this, &AReEchoPlayerPawn::ManualStopBasicAttack);
 	Input->BindAction(TEXT("ActiveSkill"), IE_Pressed, this, &AReEchoPlayerPawn::ActivateSkill);
 	FInputActionBinding& PauseBinding =
 	    Input->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AReEchoPlayerPawn::TogglePauseMenu);
@@ -469,6 +469,41 @@ void AReEchoPlayerPawn::StopBasicAttack()
 	AbilityInputReleased(ReEchoGameplayTags::Input_Attack_Basic);
 }
 
+void AReEchoPlayerPawn::ManualBasicAttack()
+{
+	// 物理（手动）输入仅在手动模式下驱动 GAS basic-attack 输入。
+	// 自动模式下该共享 GAS spec 归自动循环所有，因此物理按下必须被忽略，
+	// 既不能无目标起手，也不能触碰自动循环持有的同一输入源（Planner review 2026-08-12）。
+	if (bAutoAttackMode)
+	{
+		return;
+	}
+	bManualAttackInputHeld = true;
+	BasicAttack();
+}
+
+void AReEchoPlayerPawn::ManualStopBasicAttack()
+{
+	if (bAutoAttackMode)
+	{
+		return;
+	}
+	bManualAttackInputHeld = false;
+	StopBasicAttack();
+}
+
+void AReEchoPlayerPawn::ReleaseAllBasicAttackInputs()
+{
+	// 菜单开/关必须释放每个 held basic-attack 输入源，使恢复游戏时不会残留
+	// 来自自动循环或物理输入的陈旧 held 状态。
+	ReleaseAutoAttackInput();
+	if (bManualAttackInputHeld)
+	{
+		bManualAttackInputHeld = false;
+		StopBasicAttack();
+	}
+}
+
 void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
 {
 	if (bAutoAttackMode == bAuto)
@@ -476,8 +511,19 @@ void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
 		return;
 	}
 	bAutoAttackMode = bAuto;
-	if (!bAuto)
+	if (bAutoAttackMode)
 	{
+		// 切换到自动模式：物理（手动）held 输入不再权威，必须释放它，
+		// 这样自动循环才能干净地独占共享的 GAS basic-attack 输入。
+		if (bManualAttackInputHeld)
+		{
+			bManualAttackInputHeld = false;
+			StopBasicAttack();
+		}
+	}
+	else
+	{
+		// 切换到手动模式：释放模拟的自动 held 输入。
 		ReleaseAutoAttackInput();
 	}
 }

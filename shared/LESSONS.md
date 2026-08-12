@@ -17,9 +17,9 @@
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
 | WebGL 构建 / 部署 | `WEB` | [§WEB](#web) | 11 |
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
-| 流程 / 工具 / Skill | `META` | [§META](#meta) | 18 |
+| 流程 / 工具 / Skill | `META` | [§META](#meta) | 19 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
-| Bug 修复 | `FIX` | [§FIX](#fix) | 7 |
+| Bug 修复 | `FIX` | [§FIX](#fix) | 8 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
 
 ---
@@ -1027,6 +1027,15 @@ file-static `AddBoxGeometry`。Unity build 或 adaptive non-unity 下两个同�
 
 ---
 
+### META-19. 无 PIE 的输入逻辑回归用确定性 held 标志，不要 Headless 授予 GAS 能力 [UE]
+**来源**：ReEcho Plan 28 输入源返修（integration 分支）。
+
+**要点**：要证明「物理输入在自动模式下不会触碰共享 GAS 输入」，不需要在 `NewObject` 的 Pawn 上 `InitAbilityActorInfo`+`GiveAbility`（会崩，world-less actor 没有 Router/World）。直接断言确定性的 held 标志（`bManualAttackInputHeld`/`bAutoAttackInputHeld`）+ 代码门控（`ManualBasicAttack` 在 `bAutoAttackMode` 下 early-return，从不调用 `BasicAttack`→`AbilityInputPressed`）即可构成客观证据。这样测试无需 PIE/世界，且稳定。
+
+**教训**：GAS 输入源缺陷的回归优先用「模式门控 + 独立 held 标志」的确定性判定，避免 headless 授予能力的崩溃风险。
+
+---
+
 ## §PLAN — 规划者专属
 
 > 本节给规划者（当前对话的 AI）在出 plan 之前读。不是给执行者用的。
@@ -1138,6 +1147,18 @@ open "/Users/honghong/CodeWorkshop/SundayDrive/SundayDrive.uproject"
 **根因**：崩溃发生在 Live Coding patch DLL 的进程附加和 Automation 静态注册阶段，并非测试体或本次玩法逻辑执行。相同源码关闭编辑器后通过 `Build-Editor.cmd` 完整重链基础 `UnrealEditor-ReEcho.dll`，随后 16 个自动化全部通过。
 
 **教训**：带编译期 Automation 静态实例的运行时模块不要用 Live Coding patch 作为交付验证。看到 `*_patch_N`、`dynamic initializer for ...AutomationTestInstance` 和 `dllmain_crt_process_attach` 组合时，先关闭编辑器并完整构建基础 DLL；只有基础 DLL 仍崩溃时才继续追测试注册代码。
+
+### FIX-8. 自动/手动攻击共用 GAS 输入源必须按模式门控 [UE]
+
+**来源**：ReEcho Plan 28（integration/gavyn-umg-gameplay-20260812），Planner review finding 2026-08-12。
+
+**根因**：物理 `BasicAttack`/`StopBasicAttack` 绑定直接驱动与自动循环**共用**的 GAS `Input_Attack_Basic` spec，且没有任何模式门控。
+- 自动模式下物理按下仍能起手攻击（即使射程内无目标）；
+- 自动模式下物理抬起会清掉该共享 spec，而 `bAutoAttackInputHeld` 仍为 true，导致自动循环再也不会重新按下，攻击卡死。
+
+**修复**：把物理输入拆成 `ManualBasicAttack`/`ManualStopBasicAttack`，仅在手动模式驱动共享 spec；自动模式下直接 early-return。新增 `bManualAttackInputHeld` 独立跟踪物理持有状态；`SetAutoAttackMode(true)` 释放物理源，使自动循环干净独占；菜单开启走 `ReleaseAllBasicAttackInputs()` 统一释放两路。回归测试 `ReEcho.AttackMode.InputSource` 覆盖「自动模式 + 有/无目标」下的物理按下/抬起。
+
+**教训**：两个输入源驱动同一个 GAS ability spec 时，必须按权威模式门控，并为每个源独立维护 held 标志；模式切换与菜单开/关都要释放非权威源，否则一方释放会破坏另一方的持续输入。
 
 ---
 

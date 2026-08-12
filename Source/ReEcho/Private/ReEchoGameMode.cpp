@@ -1385,6 +1385,12 @@ void AReEchoGameMode::ShowPostTraitShop()
 
 void AReEchoGameMode::SetPlayerMenuAbilityBlocked(const bool bBlocked)
 {
+	if (bBlocked && Player)
+	{
+		// 菜单开启时释放所有 held basic-attack 输入源（自动循环 + 物理），
+		// 保证恢复游戏不会残留任一来源的陈旧 held 状态。
+		Player->ReleaseAllBasicAttackInputs();
+	}
 	if (Player && Player->AbilitySystem)
 	{
 		Player->AbilitySystem->SetLooseGameplayTagCount(ReEchoGameplayTags::State_Menu, bBlocked ? 1 : 0);
