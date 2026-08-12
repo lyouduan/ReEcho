@@ -1,19 +1,21 @@
 {
   "binaries": {
-    "ReEchoEditor.target": "86310aaba437db5e0046a7a332aa16a95f13ca94b0ec37890cb1c0ea7fba4f93",
-    "UnrealEditor-ReEcho.dll": "07ee8b29d5d03068d376db70ffc9b3989a099c1a1090b3b20ccab02f7ade0068",
-    "UnrealEditor.modules": "90be74cb0342fa7ab4a9fd810a42f8e6e46630d021f15560a80d70069f7b215d"
+    "ReEchoEditor.target": "19e7790018d35c8a6e66db9f4b9d8fc4b04085ff3b9aef9b2efbedfbd74b6017",
+    "UnrealEditor-ReEcho.dll": "3f02e47f66d5519b13f8e658946593854b3b3813015f4d4de030d718b8202702",
+    "UnrealEditor-ReEchoAudio.dll": "eed18b766c6f204f5e084282dabe666a20ad1c88b3d6eba018c645be8766ecdc",
+    "UnrealEditor.modules": "ea5be803cd6a1a497f917d3feeb97268e1a29bbb56153a892a7f3fe1b52855a7"
   },
   "configuration": "Development",
   "engine_association": "5.8",
   "engine_build_id": "55116800",
   "modules": {
-    "ReEcho": "UnrealEditor-ReEcho.dll"
+    "ReEcho": "UnrealEditor-ReEcho.dll",
+    "ReEchoAudio": "UnrealEditor-ReEchoAudio.dll"
   },
   "platform": "Win64",
   "schema_version": 1,
   "source_files": {
-    "ReEcho.uproject": "fafeacce937f42a2f4440844fd71e3ebf58a37d42ca75ffa28dbc6dfd4c3754b",
+    "ReEcho.uproject": "dd67c8bedbd4b4a52ef20cca1e62e9c7c1f7bd8af43d6685b5f313c160240656",
     "Source/ReEcho.Target.cs": "536aedbab65e060f6f01043b4d739a4021dad08244cfbfd85ec00bf605a4a206",
     "Source/ReEcho/Private/AbilitySystem/ReEchoCombatAttributeSet.cpp": "c6e756bde729f550d052cf55a6e4aed68ab1028b2d582d7856cbabac7d693b16",
     "Source/ReEcho/Private/AbilitySystem/ReEchoGameplayEffects.cpp": "7c66a87c9bd4221e8e6ea2c941cafc4e22809bb590afc58a33df12ffbb6c052d",
@@ -138,9 +140,25 @@
     "Source/ReEcho/Public/UI/ReEchoWeatherWidget.h": "93f9519a4e5750d9cba7a79b473374e9e30d03e0cb4e473d352d60e98e123779",
     "Source/ReEcho/Public/Weapons/ReEchoWeaponActor.h": "cdb394e8ea4fc7cebff1942e5ef9162a57d27dfbedf90d1611fd81dcab2c4334",
     "Source/ReEcho/Public/Weapons/ReEchoWeaponRuntime.h": "6de22789c1cd9582afd2229340cbccc83e1f1757fc5fdfe1062fdc1178571695",
-    "Source/ReEcho/ReEcho.Build.cs": "face0885874c14c3c43bd64ec7a9496539fbd5da6696da0477de1e888abfd2be",
+    "Source/ReEcho/ReEcho.Build.cs": "72d7efa9e2818d28aacd8663a67df251f1c47eaadf39fda163bc04e06f704213",
+    "Source/ReEchoAudio/Private/ReEchoAudio.cpp": "22c9ae64a21eed1244473d41b7ea4d4392a1431a351ad62d6a05660d78b1c386",
+    "Source/ReEchoAudio/Private/ReEchoAudioBackend.cpp": "c2966b6757418228e9f56151368b0eda48baa5697d66568e8dcb606d850c3cd6",
+    "Source/ReEchoAudio/Private/ReEchoAudioCatalog.cpp": "328521b514b57ac1d978434c5afbf4fa2f46de13b541569fe3f03d2c1f6e1ef6",
+    "Source/ReEchoAudio/Private/ReEchoAudioEvents.cpp": "6ecc063c514aae1bf98b587581c1237155e637a1583fe61377b280a5594ab4db",
+    "Source/ReEchoAudio/Private/ReEchoAudioPolicyEngine.cpp": "427d5ba1b9cc77dad36e7d2e7d31910e96286860eaea92d2ee7513769b9ce763",
+    "Source/ReEchoAudio/Private/ReEchoAudioPolicyEngine.h": "f4fe31a749348763b4b4581a317fec54dd576f2500bb903b273d0bfeb060975b",
+    "Source/ReEchoAudio/Private/ReEchoAudioPrivatePCH.h": "cc8d4fda994f5ea9a012e979023c4871e42185d05ac09d3c45dc599cd49ef282",
+    "Source/ReEchoAudio/Private/ReEchoAudioService.cpp": "ce7e8ee43ac5f6b15d61b7d1cf6e196d9c3f729bf6a2dd2800bfe1842f0c9859",
+    "Source/ReEchoAudio/Private/Tests/ReEchoAudioFoundationTests.cpp": "7f2e278dd141df58c6ef0827e0a643696860e55e6e7d14c410ce83d07a2fec13",
+    "Source/ReEchoAudio/Public/ReEchoAudio.h": "fc824f44371840f3cf1b4df6e71603e9b22a36e19b61bbac424bb5d41e4c3550",
+    "Source/ReEchoAudio/Public/ReEchoAudioBackend.h": "2685b4e8a25b179fb6338a54c9044003df65a38826eb8d5f7f5f2912c22c08bf",
+    "Source/ReEchoAudio/Public/ReEchoAudioCatalog.h": "707e0423b5b96d64a99b31053028050da0759bdfb5374c41cb0950c8a3320492",
+    "Source/ReEchoAudio/Public/ReEchoAudioEvents.h": "4de76c3bf1e7eff32f59256732febb7457c9c8f47c1c78837fba848d47dbc4e5",
+    "Source/ReEchoAudio/Public/ReEchoAudioService.h": "f37f475d3143a5cf86e513691d9464df8d751815e124ad0c924ba4cefac144fa",
+    "Source/ReEchoAudio/Public/ReEchoAudioTypes.h": "61e3a348bec47311faa8176e641d244bbbe07c0f6fd5a6f2857e2d23d5288929",
+    "Source/ReEchoAudio/ReEchoAudio.Build.cs": "d52731416615623439e3f7952a4d1ee41ce829454540c73759f0e365b504529f",
     "Source/ReEchoEditor.Target.cs": "4b9312f07299d69a63f525f5f5eca8e9841d98bf54e9b07a95904973d3272d98"
   },
-  "source_fingerprint": "092037d157cb4fa48281b803061f897148c39e1c45b065225cda7c0b535f87eb",
+  "source_fingerprint": "327af68a501e182c34b701316d4b95d101f97920efda6aa6ede6a0595407f374",
   "target": "ReEchoEditor"
 }
