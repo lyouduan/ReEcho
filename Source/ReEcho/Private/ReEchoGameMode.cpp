@@ -937,6 +937,13 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
 	RestartWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleQuitRequested);
 	RestartWidget->OnSettingsRequested.AddDynamic(this, &AReEchoGameMode::HandlePauseSettingsRequested);
+	if (!bDeathScreen && !bVictoryScreen)
+	{
+		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		RestartWidget->SetAutomaticAttackMode(RunSubsystem ? RunSubsystem->IsAutomaticAttackMode() : true);
+		RestartWidget->OnAutomaticAttackRequested.AddDynamic(this, &AReEchoGameMode::HandleAutomaticAttackRequested);
+		RestartWidget->OnManualAttackRequested.AddDynamic(this, &AReEchoGameMode::HandleManualAttackRequested);
+	}
 	SetPlayerMenuAbilityBlocked(true);
 }
 
@@ -1145,6 +1152,39 @@ void AReEchoGameMode::HandleResumeRequested()
 	}
 	bRestartScreenIsTerminal = false;
 	RestoreGameInput();
+}
+
+void AReEchoGameMode::HandleAutomaticAttackRequested()
+{
+	ApplyAttackModeChoice(true);
+}
+
+void AReEchoGameMode::HandleManualAttackRequested()
+{
+	ApplyAttackModeChoice(false);
+}
+
+void AReEchoGameMode::ApplyAttackModeChoice(const bool bAutomatic)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !RestartWidget || bRestartScreenIsTerminal)
+	{
+		return;
+	}
+	RunSubsystem->SetAutomaticAttackMode(bAutomatic);
+	if (Player)
+	{
+		Player->SetAutoAttackMode(bAutomatic);
+	}
+	const FReEchoEncounterRuntimeState EncounterState = CaptureEncounterRuntimeState();
+	const bool bSaved = RunSubsystem->Phase == EReEchoRunPhase::Encounter
+	                        ? EncounterState.bValid && RunSubsystem->SaveRun(&EncounterState)
+	                        : RunSubsystem->SaveRun();
+	if (!bSaved)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Attack mode changed in memory, but the run save could not be updated."));
+	}
+	RestartWidget->SetAutomaticAttackMode(RunSubsystem->IsAutomaticAttackMode());
 }
 
 void AReEchoGameMode::HandleQuitRequested()
