@@ -6,7 +6,7 @@
 - Executor owner: Unassigned.
 - Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Planning ref / implementation base: planning ref `coord/gavyn-echo-storage-replay`; implementation starts from freshly fetched, human-approved `origin/main` and consumes this Plan without merging other coordination refs.
+- Planning ref / implementation base: fetch `origin/coord/gavyn-echo-storage-replay`, verify it contains planning commit `a72928a`, and create the implementation branch from that planning ref. Its gameplay/code base is `origin/main` at planning time plus pure planning commits only; do not merge any other coordination ref.
 - Implementation branch: `plan/29-echo-storage-foundation` in a separate clean worktree.
 - Depends on / Blocks: no implementation dependency on Plan26 or Plan28. Publishes the storage/save contract required by Plans 30 and 31.
 - Writes: `Source/ReEcho/Public/Core/ReEchoTypes.h`; `Source/ReEcho/Public/Run/ReEchoRunSubsystem.h`; `Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`; `Source/ReEcho/Public/Run/ReEchoRunSaveGame.h`; focused Plan29 storage/save tests; this Plan's Execution notes.
@@ -44,7 +44,7 @@ For the current prototype, storage capacity and the maximum supported specific-r
 
 ## Step 0 gate
 
-- Baseline branch/commit: freshly fetch and record `origin/main`; read current Exchange and the final Plan28/26 ownership state without merging their coordination refs.
+- Baseline branch/commit: freshly fetch, record `origin/main`, verify it is an ancestor of the advertised Plan29 coordination ref, then branch from that ref so this Plan and Exchange reservation are present. Read final Plan28/26 ownership without merging their coordination refs.
 - Engine/build availability: ask the human to save and close this ReEcho Editor before compiling; installed UE 5.8 only.
 - Existing focused-test result: record project validation and the current save/recording focused-test baseline, or report exact pre-existing failures.
 - Active exclusive ownership or shared-contract approval: stop if another active task owns `Core/ReEchoTypes.h`, RunSubsystem, RunSaveGame or the save contract. Plan26/28 published Writes are currently disjoint.
