@@ -65,6 +65,15 @@ point back to the Plan.
 
 ## Review and local integration
 
+### Mandatory forward progress
+
+At every review, integration and closure handoff, advance accepted work to the furthest state currently permitted by the existing project gates. Do not leave work waiting merely because the human did not repeat the next routine instruction.
+
+- **Merge when mergeable**: once the review, objective checks, required human validation or explicit deferral, ownership compatibility and integration-base requirements below are satisfied, merge the accepted scope into local `main` before starting avoidable dependent integration work; release its ownership during the resulting shared-state update.
+- **Publish when publishable**: once the Remote-main publication gate below has current authorization, a fresh external-main audit, a clean approved candidate and current verification, push `main` to `origin/main` promptly. Never interpret this default as authority to bypass or invent publication authorization.
+- **Delete when removable**: once an obsolete worktree's exact path is verified, its status is clean, every required change is already integrated or deliberately retained elsewhere, no active ownership/process still needs it, and its branch satisfies the non-force deletion rules below, remove the worktree and then the merged local branch promptly.
+- “Can” means every applicable existing scope, validation, human-decision, external-change, publication and destructive-action gate passes. If any gate does not pass, do not force progress; report the unmet gate and preserve the state needed to resolve it.
+
 1. Confirm the Plan is in `Review`; inspect the merge base, branch status and Execution notes.
 2. Start with `git diff --stat <merge-base>..<branch>`, then inspect relevant hunks and generated artifacts. Do not use `main..branch` when main has advanced.
 3. Check locked acceptance, objective evidence, public-contract compatibility and code health. Rework returns lifecycle to `InProgress`.
