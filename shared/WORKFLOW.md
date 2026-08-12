@@ -9,6 +9,7 @@ This document explains the collaboration model. It is not a second rulebook.
 | Startup and retrieval order | `AGENTS.md` |
 | Project constraints, ownership, branches and verification | `shared/PROJECT_RULES.md` |
 | Programmer/designer/artist boundaries | `shared/PROGRAMMER_RULES.md`, `shared/DESIGNER_RULES.md`, `shared/ARTIST_RULES.md` |
+| Project Secretary coordination duty | `shared/SECRETARY_RULES.md` |
 | Planner actions | `shared/PLANNER_RULES.md` |
 | Executor actions | `shared/EXECUTOR_RULES.md` |
 | Current local work, ownership and warnings | `shared/PLANNER_EXCHANGE.md` |
@@ -21,6 +22,7 @@ If explanatory text here differs from an authority above, the authority above wi
 
 - First contact selects the user's professional route: programmer, designer or artist. This is distinct from the AI's repository duty.
 - The human sets direction, decides subjective validation and chooses how external-main differences are integrated.
+- The Project Secretary keeps the collaboration control plane coherent when explicitly assigned, without taking over product decisions or specialist implementation.
 - A Planner defines scope, reviews delivery, integrates accepted local work and is the only role that may publish `main`.
 - An Executor implements on an isolated local branch/worktree, records evidence and hands the local branch back. Executors never push remote refs.
 - Designer and artist AIs operate as local specialists. They hand data/assets and evidence to a programmer Planner rather than publishing remote state themselves.

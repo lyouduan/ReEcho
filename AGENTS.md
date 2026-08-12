@@ -2,7 +2,7 @@
 
 Use this file as the only mandatory reading-order authority. Other documents must not redefine the startup list.
 
-Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, the confirmed professional-role rules, the matching Planner/Executor rules when applicable, locked Plan scope/current Exchange coordination, and finally explanatory `shared/WORKFLOW.md`.
+Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, `shared/SECRETARY_RULES.md` when explicit Project Secretary duty is assigned, the confirmed professional-role rules, the matching Planner/Executor rules when applicable, locked Plan scope/current Exchange coordination, and finally explanatory `shared/WORKFLOW.md`.
 
 ## First-contact professional-role gate
 
@@ -21,6 +21,8 @@ Route after confirmation:
 | 策划 | `shared/DESIGNER_RULES.md` | Design intent, canonical XLSX authoring and designer QA |
 | 美术 | `shared/ARTIST_RULES.md` | Source art, imported presentation assets, UMG appearance and visual/audio QA |
 
+If the human explicitly assigns Project Secretary duty, also read `shared/SECRETARY_RULES.md`. Project Secretary duty is a repository coordination overlay; it does not answer the professional-role gate and does not grant product, design, art or implementation authority outside the routed role.
+
 ## Every task: minimal context
 
 1. Read `shared/PROJECT_RULES.md` and the one confirmed professional-role file from the table above.
@@ -35,6 +37,7 @@ Route after confirmation:
 - Programmer planning/review/closure: read `shared/PROJECT_STATE.md`, the relevant section of `shared/PLANNER_RULES.md`, and the plan diff. Do not load all of `LESSONS.md`.
 - Designer or artist work: use the handoff and verification boundary in its professional-role file. Do not silently promote a specialist task into programmer implementation.
 - Distributed planning: before reserving a Plan number or integrating/publishing work, fetch `origin/main`; remote main owns published Plan numbers, and external differences follow the audit gate in `shared/PLANNER_RULES.md`.
+- Project Secretary work: read `shared/SECRETARY_RULES.md` for rule-system maintenance, Plan/Exchange/schema coordination, accepted-result integration, cleanup and publication boundaries.
 - Workflow maintenance or first-time onboarding only: read `shared/AI_ONBOARDING.md` and the relevant `shared/WORKFLOW.md` section.
 
 `shared/WORKFLOW.md` explains the model but does not override the authorities above.

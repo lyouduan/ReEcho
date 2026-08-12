@@ -1,11 +1,12 @@
 # ReEcho project rules
 
-These are the project-level hard rules. `AGENTS.md` owns startup and professional-role routing; professional boundaries live in `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` and `ARTIST_RULES.md`; programmer duties live in `PLANNER_RULES.md` and `EXECUTOR_RULES.md`; `WORKFLOW.md` is explanatory.
+These are the project-level hard rules. `AGENTS.md` owns startup and professional-role routing; professional boundaries live in `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` and `ARTIST_RULES.md`; Project Secretary boundaries live in `SECRETARY_RULES.md`; programmer duties live in `PLANNER_RULES.md` and `EXECUTOR_RULES.md`; `WORKFLOW.md` is explanatory.
 
 ## Professional-role boundary
 
 - Every newly connected AI must complete the first-contact role gate in `AGENTS.md` before project work.
 - The confirmed user role and the AI's repository duty are separate. “策划” does not mean project Planner; “程序” does not automatically authorize main publication.
+- Project Secretary duty is separate from the professional role gate and is governed by `shared/SECRETARY_RULES.md`.
 - Do not silently cross from designer/art scope into code, schema, gameplay authority or publication. Split the work and hand the boundary to the programmer route, or ask the user to explicitly switch the current task's role.
 - A designer or artist AI uses a local specialist branch, records exact changed assets/data and hands the result to a programmer Planner for integration. It never pushes a remote ref or publishes `main`.
 

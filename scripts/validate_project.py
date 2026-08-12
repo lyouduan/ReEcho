@@ -927,6 +927,7 @@ def validate_workflow() -> None:
         "PROGRAMMER_RULES.md",
         "DESIGNER_RULES.md",
         "ARTIST_RULES.md",
+        "SECRETARY_RULES.md",
         "PLANNER_RULES.md",
         "EXECUTOR_RULES.md",
         "LESSONS.md",
@@ -946,6 +947,7 @@ def validate_workflow() -> None:
     programmer_rules = (ROOT / "shared" / "PROGRAMMER_RULES.md").read_text(encoding="utf-8")
     designer_rules = (ROOT / "shared" / "DESIGNER_RULES.md").read_text(encoding="utf-8")
     artist_rules = (ROOT / "shared" / "ARTIST_RULES.md").read_text(encoding="utf-8")
+    secretary_rules = (ROOT / "shared" / "SECRETARY_RULES.md").read_text(encoding="utf-8")
     workflow_text = (ROOT / "shared" / "WORKFLOW.md").read_text(encoding="utf-8")
     onboarding_text = (ROOT / "shared" / "AI_ONBOARDING.md").read_text(encoding="utf-8")
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
@@ -980,6 +982,22 @@ def validate_workflow() -> None:
         missing = [marker for marker in markers if marker not in role_rule_texts[name]]
         if missing:
             fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
+    secretary_markers = (
+        "single authority for the Project Secretary repository duty",
+        "not a fourth professional user role",
+        "May maintain repository-wide rules",
+        "Physical/Git conflict, Logical conflict and Coupling",
+        "push `origin/main`",
+        "[SECRETARY]",
+        "Non-Secretary roles must not use the `[SECRETARY]` tag",
+    )
+    missing_secretary_markers = [marker for marker in secretary_markers if marker not in secretary_rules]
+    if missing_secretary_markers:
+        fail(f"SECRETARY_RULES.md lacks secretary authority markers: {', '.join(missing_secretary_markers)}")
+    if "shared/SECRETARY_RULES.md" not in agents or "Project Secretary duty is a repository coordination overlay" not in agents:
+        fail("AGENTS.md must route explicit Project Secretary duty to SECRETARY_RULES.md")
+    if "Project Secretary boundaries live in `SECRETARY_RULES.md`" not in project_rules:
+        fail("PROJECT_RULES.md must point to SECRETARY_RULES.md without redefining secretary duty")
     if "Ordinary tasks follow `AGENTS.md` directly" not in onboarding_text:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
     if len(state_text.splitlines()) > 80:
@@ -1078,12 +1096,14 @@ def validate_workflow() -> None:
         "PROJECT_RULES.md": ("`origin/main` is the only permitted remote branch", "never push any remote ref"),
         "PLANNER_RULES.md": ("`origin/main` is the only permitted remote branch", "Plan-number conflicts"),
         "EXECUTOR_RULES.md": ("`origin/main` is the only remote branch", "Do not push the task branch"),
+        "SECRETARY_RULES.md": ("Must not create or push any remote branch other than `origin/main`", "Push only local `main` to `origin/main`"),
         "WORKFLOW.md": ("exactly one branch: `main`", "Planning drafts are not published merely to announce intent"),
     }
     main_only_texts = {
         "PROJECT_RULES.md": project_rules,
         "PLANNER_RULES.md": planner_rules,
         "EXECUTOR_RULES.md": executor_rules,
+        "SECRETARY_RULES.md": secretary_rules,
         "WORKFLOW.md": workflow_text,
     }
     for name, markers in main_only_markers.items():
@@ -1103,10 +1123,30 @@ def validate_workflow() -> None:
     for name, text_value in live_remote_side_ref_files.items():
         if "coord/" in text_value or "Planning broadcast" in text_value or "push only the task branch" in text_value:
             fail(f"{name} still advertises a remote planning/task side-ref workflow")
+    tag_sources = {
+        "AGENTS.md": agents,
+        "PROJECT_RULES.md": project_rules,
+        "PROGRAMMER_RULES.md": programmer_rules,
+        "DESIGNER_RULES.md": designer_rules,
+        "ARTIST_RULES.md": artist_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "WORKFLOW.md": workflow_text,
+        "AI_ONBOARDING.md": onboarding_text,
+        "README.md": readme_text,
+        "docs/AI_WORKFLOW.md": docs_workflow_text,
+    }
+    duplicate_tag_sources = [name for name, text_value in tag_sources.items() if "[SECRETARY]" in text_value]
+    if duplicate_tag_sources:
+        fail(f"[SECRETARY] commit-tag rule must live only in SECRETARY_RULES.md, duplicated in: {', '.join(duplicate_tag_sources)}")
     if "Design/Data/ReEchoData.xlsx" not in readme_text or "generated into validated CSV" not in readme_text:
         fail("README.md must describe the current XLSX-to-CSV authority")
+    if "Project Secretary route" not in readme_text or "SECRETARY_RULES.md" not in readme_text:
+        fail("README.md must index the Project Secretary route")
     if "not a workflow authority" not in docs_workflow_text or "`shared/` is the collaboration control plane" not in docs_workflow_text:
         fail("docs/AI_WORKFLOW.md must remain a human pointer to the shared authority")
+    if "Project Secretary coordination duty" not in docs_workflow_text or "SECRETARY_RULES.md" not in docs_workflow_text:
+        fail("docs/AI_WORKFLOW.md must point to the Project Secretary authority")
     architecture_markers = (
         "Design/Data/ReEchoData.xlsx",
         "16 validated UTF-8 production CSV",
