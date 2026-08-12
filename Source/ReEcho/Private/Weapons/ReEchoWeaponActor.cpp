@@ -571,12 +571,12 @@ void AReEchoWeaponActor::RefreshVisualState()
 {
 	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
 	const FName VisualKey = Definition ? Definition->VisualKey : NAME_None;
-	const bool bShowStaff = VisualKey == TEXT("MoonStaff");
 	const bool bShowSword = VisualKey == TEXT("CrescentBlade");
 	const bool bShowElement = VisualKey == TEXT("ElementalOrb");
 	if (StaffSprite)
 	{
-		StaffSprite->SetVisibility(bShowStaff);
+		StaffSprite->SetVisibility(false);
+		StaffSprite->SetHiddenInGame(true);
 	}
 	if (SwordSprite)
 	{

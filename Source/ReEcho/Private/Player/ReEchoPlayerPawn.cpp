@@ -85,7 +85,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Spade.Player_Spade"));
+	    TEXT("/Game/2DAnim/Player/Idel_01.Idel_01"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
@@ -136,6 +136,7 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 
 	UTexture2D* Texture = TextureEntry->Get();
 	CurrentCharacterId = CharacterId;
+	Current2DAnimationState = EReEcho2DAnimationState::Idle;
 	constexpr float CharacterWorldHeight = 224.0f;
 	CharacterSprite->SetSprite(Texture);
 	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
@@ -750,26 +751,45 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	}
 	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(Lunge, 0.0f, Bob));
 	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale * FVector(ScaleX, ScaleY, 1.0f));
-	UpdateSpadeSequenceAnimation(bMoving);
+	UpdateSpadeAnimationState(bMoving);
 	UpdateSequenceFrame();
 }
 
-void AReEchoPlayerPawn::UpdateSpadeSequenceAnimation(const bool bMoving)
+void AReEchoPlayerPawn::UpdateSpadeAnimationState(const bool bMoving)
 {
 	static const FName SpadeCharacterId(TEXT("J_SPADE"));
 	static const FName MoonStaffWeaponId(TEXT("W_J_02"));
 	if (CurrentCharacterId != SpadeCharacterId)
+	{
+		TransitionSpadeAnimationState(EReEcho2DAnimationState::Idle);
+		return;
+	}
+
+	const bool bMoonStaffAttack =
+	    SequenceAttackRemaining > 0.0f && Weapon && Weapon->GetEquippedWeaponId() == MoonStaffWeaponId;
+	const EReEcho2DAnimationState DesiredState = bMoonStaffAttack ? EReEcho2DAnimationState::Attack
+	                                             : bMoving        ? EReEcho2DAnimationState::Move
+	                                                              : EReEcho2DAnimationState::Idle;
+	TransitionSpadeAnimationState(DesiredState);
+}
+
+void AReEchoPlayerPawn::TransitionSpadeAnimationState(const EReEcho2DAnimationState NewState)
+{
+	if (Current2DAnimationState == NewState)
+	{
+		return;
+	}
+	Current2DAnimationState = NewState;
+	if (NewState == EReEcho2DAnimationState::Idle)
 	{
 		SequenceAnimation->DeactivateAnimation();
 		CharacterSprite->SetVisibility(true);
 		CharacterSprite->SetHiddenInGame(false);
 		return;
 	}
-
-	const bool bMoonStaffAttack =
-	    SequenceAttackRemaining > 0.0f && Weapon && Weapon->GetEquippedWeaponId() == MoonStaffWeaponId;
-	if (!bMoonStaffAttack && !bMoving)
+	if (NewState == EReEcho2DAnimationState::Attack && !SpadeAttackFlipbook)
 	{
+		Current2DAnimationState = EReEcho2DAnimationState::Idle;
 		SequenceAnimation->DeactivateAnimation();
 		CharacterSprite->SetVisibility(true);
 		CharacterSprite->SetHiddenInGame(false);
@@ -784,13 +804,13 @@ void AReEchoPlayerPawn::UpdateSpadeSequenceAnimation(const bool bMoving)
 	if (!SequenceAnimation->IsAnimationActive() &&
 	    SequenceAnimation->ActivateProfile(Profile) != EReEcho2DAnimationActivationResult::Activated)
 	{
+		Current2DAnimationState = EReEcho2DAnimationState::Idle;
 		CharacterSprite->SetVisibility(true);
 		CharacterSprite->SetHiddenInGame(false);
 		return;
 	}
 
-	SequenceAnimation->SetAnimationState(
-	    bMoonStaffAttack ? EReEcho2DAnimationState::Attack : EReEcho2DAnimationState::Move, !bMoonStaffAttack);
+	SequenceAnimation->SetAnimationState(NewState, NewState == EReEcho2DAnimationState::Move);
 	CharacterSprite->SetVisibility(false);
 	CharacterSprite->SetHiddenInGame(true);
 }

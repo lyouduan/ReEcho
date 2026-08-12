@@ -72,6 +72,7 @@ Add a reusable Paper2D presentation layer that loops the existing idle Flipbook 
 - Made looping explicit on every profile activation, state resolution and Flipbook application so both Spade `Idel` and Grunt `01_2` restart and continue looping after reconfiguration.
 - Fixed the PIE playback defect: the custom component had disabled `PrimaryComponentTick`, preventing PaperFlipbook playback time from advancing. Animation activation now enables ticking and deactivation disables it.
 - Updated the Spade state policy by human direction: static Billboard while stationary, looping `Idel` only while moving, and `/Game/2DAnim/Flipbook/s` while a successful Moon Staff (`W_J_02`) attack visual is active. Other weapons retain the existing procedural/static presentation.
+- Replaced implicit presentation checks with explicit `Idle -> Move/Attack`, `Move -> Idle/Attack`, and `Attack -> Idle/Move` transitions. Idle uses `/Game/2DAnim/Player/Idel_01` as its static texture. Moon Staff gameplay and its attack origin remain intact, while its held `StaffSprite` is always hidden.
 - Added the complete existing `Content/2DAnim` resource tree to the Plan delivery without renaming `Idel` or hand-editing asset bytes.
 
 ### Evidence

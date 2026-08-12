@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
 #include "GameFramework/Pawn.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationTypes.h"
 #include "ReEchoPlayerPawn.generated.h"
 
 class AReEchoEnemyActor;
@@ -156,7 +157,8 @@ private:
 	void AbilityInputReleased(const FGameplayTag& InputTag);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
-	void UpdateSpadeSequenceAnimation(bool bMoving);
+	void UpdateSpadeAnimationState(bool bMoving);
+	void TransitionSpadeAnimationState(EReEcho2DAnimationState NewState);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
@@ -169,6 +171,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPaperFlipbook> SpadeAttackFlipbook;
 	FName CurrentCharacterId;
+	EReEcho2DAnimationState Current2DAnimationState = EReEcho2DAnimationState::Idle;
 
 	bool bMouseInputConfigured = false;
 	bool bAutoAttackMode = true;
