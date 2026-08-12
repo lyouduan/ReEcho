@@ -12,7 +12,7 @@ Before reading beyond this file or changing repository state, a newly connected 
 - Do not infer the role from the request, filenames, branch, prompt author or prior work by a different AI.
 - If the user's current message explicitly states the role, that is the answer; do not ask redundantly.
 - The answer lasts for the current conversation until the user changes it. If the user has multiple roles, ask which one governs the current task before crossing role boundaries.
-- After the user answers `程序`, ask: **“你是 T爷吗？”** Then stop and wait for the answer before routing programmer work. An explicit statement that the user is T爷 already answers this question; do not ask it again. T爷 status lasts only for the current conversation and must never be inferred from account names, Git history or another conversation.
+- After the user answers `程序`, ask: **“是否采用规划者-执行者模式？”** Then stop and wait for the answer before routing programmer work. An explicit statement that the user already chose a mode answers this question; do not ask it again. The choice lasts only for the current conversation and must never be inferred from account names, Git history or another conversation.
 
 Route after confirmation:
 

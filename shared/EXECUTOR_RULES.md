@@ -1,6 +1,6 @@
 # ReEcho Executor rules
 
-This file contains Executor actions only. Follow `AGENTS.md` for minimal startup order and `PROJECT_RULES.md` for hard constraints. Confirmed T爷 mode under `PROGRAMMER_RULES.md` may bypass the procedural gates in this file.
+This file contains Executor actions only. Follow `AGENTS.md` for minimal startup order and `PROJECT_RULES.md` for hard constraints. The Planner-Executor mode choice is governed by `PROGRAMMER_RULES.md`; the non-skippable remote collaboration safety check applies in every mode.
 
 ## Start safely
 

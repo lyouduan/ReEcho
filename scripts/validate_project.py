@@ -964,7 +964,7 @@ def validate_workflow() -> None:
         "shared/PROGRAMMER_RULES.md",
         "shared/DESIGNER_RULES.md",
         "shared/ARTIST_RULES.md",
-        "你是 T爷吗？",
+        "是否采用规划者-执行者模式？",
     )
     missing_role_gate_markers = [marker for marker in role_gate_markers if marker not in agents]
     if missing_role_gate_markers:
@@ -974,8 +974,9 @@ def validate_workflow() -> None:
             "programmer-user route",
             "Planner duty",
             "Executor duty",
-            "## T爷 mode",
-            "single authority for the T爷 exception",
+            "## Planner-Executor mode",
+            "single authority for the Planner-Executor mode choice",
+            "Remote collaboration safety check",
             "shared/GIT_RULES.md",
         ),
         "DESIGNER_RULES.md": ("designer-user route", "ReEchoData.xlsx", "Never hand-edit generated", "shared/GIT_RULES.md"),
@@ -1011,7 +1012,6 @@ def validate_workflow() -> None:
     git_rule_markers = (
         "single authority for commit identity and publication-completeness rules",
         "[PROGRAMMER]",
-        "[T爷]",
         "[DESIGNER]",
         "[ARTIST]",
         "[SECRETARY]",
@@ -1172,7 +1172,7 @@ def validate_workflow() -> None:
         "README.md": readme_text,
         "docs/AI_WORKFLOW.md": docs_workflow_text,
     }
-    commit_tags = ("[PROGRAMMER]", "[T爷]", "[DESIGNER]", "[ARTIST]", "[SECRETARY]")
+    commit_tags = ("[PROGRAMMER]", "[DESIGNER]", "[ARTIST]", "[SECRETARY]")
     duplicate_tag_sources = [
         name
         for name, text_value in non_authoritative_tag_sources.items()

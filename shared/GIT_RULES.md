@@ -9,20 +9,18 @@ Every commit created by an AI must begin its subject with exactly one tag matchi
 | Commit creator | Required subject prefix |
 |---|---|
 | Programmer route | `[PROGRAMMER]` |
-| Confirmed T爷 mode inside the Programmer route | `[T爷]` |
 | Designer route | `[DESIGNER]` |
 | Artist route | `[ARTIST]` |
 | Explicit Project Secretary duty | `[SECRETARY]` |
 
 - A role must not use another role's tag. Project Secretary uses its tag only for coordination/control-plane commits within `SECRETARY_RULES.md`; it does not label specialist implementation.
-- `[T爷]` is reserved for an AI acting in confirmed T爷 mode under `PROGRAMMER_RULES.md`. In that mode, use `[T爷]` instead of `[PROGRAMMER]`; no other role, user or unconfirmed session may use it.
 - A Programmer Planner's integration or merge commit uses `[PROGRAMMER]` because Planner/Executor is a repository duty inside the Programmer route, not a separate professional identity.
 - A mixed-scope commit is not an excuse to combine tags. Split it at the professional boundary first.
 - This rule applies to commits created after this file takes effect; do not rewrite historical commits solely to add tags.
 
 ## Programmer publication build gate
 
-This gate applies to the ordinary Programmer route. Confirmed T爷 mode may waive it only under the exception defined in `shared/PROGRAMMER_RULES.md`.
+This gate applies to the ordinary Programmer route. It is not waived by any Planner-Executor mode choice; the non-skippable remote collaboration safety check in `shared/PROGRAMMER_RULES.md` still applies in every mode.
 
 Before every ordinary Programmer-route push to `origin/main`, the final integrated candidate must be built in full with the project-standard UE 5.8 installed/release build:
 

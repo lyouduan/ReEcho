@@ -5,7 +5,7 @@ These are the project-level hard rules. `AGENTS.md` owns startup and professiona
 ## Professional-role boundary
 
 - Every newly connected AI must complete the first-contact role gate in `AGENTS.md` before project work.
-- The confirmed T爷 exception within the programmer route is governed only by `shared/PROGRAMMER_RULES.md`; its explicit retained safety boundaries continue to apply when ordinary project process gates are skipped.
+- The Planner-Executor mode choice within the programmer route is governed only by `shared/PROGRAMMER_RULES.md`. The non-skippable remote collaboration safety check in that file applies in every mode.
 - The confirmed user role and the AI's repository duty are separate. “策划” does not mean project Planner; “程序” does not automatically authorize main publication.
 - Project Secretary duty is separate from the professional role gate and is governed by `shared/SECRETARY_RULES.md`.
 - Do not silently cross from designer/art scope into code, schema, gameplay authority or publication. Split the work and hand the boundary to the programmer route, or ask the user to explicitly switch the current task's role.
@@ -27,7 +27,7 @@ These are the project-level hard rules. `AGENTS.md` owns startup and professiona
 - `origin/main` is the only permitted remote branch. Do not push planning, task, handoff, review or PR branches.
 - Executors never modify, merge or push `main` and never push any remote ref. Planners may create reviewed local merge commits and may publish only remote `main` under `PLANNER_RULES.md`.
 - Before implementation starts, every formally numbered Plan is published to `origin/main` under `PLANNER_RULES.md`; implementation still starts on a local non-`main` branch and no remote task branch is created.
-- `git fetch` is the only automatic first step when remote state may have changed. If it reveals commits outside the currently approved local baseline, the Planner must stop before `pull`, merge, rebase, cherry-pick or push; report physical/Git conflicts, logical conflicts and integration coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption.
+- `git fetch` is the only automatic first step when remote state may have changed. If it reveals commits outside the currently approved local baseline, the acting AI must stop before `pull`, merge, rebase, cherry-pick or push; report physical/Git conflicts, logical conflicts and integration coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption. When the last push to the affected branch was made by another person, the human decides how to handle each physical conflict and logical conflict (adopt, merge, or discard); the AI presents options but does not auto-resolve. This check applies in every mode and cannot be waived.
 - Stage explicit paths only. Never use `git add .` or `git add -A`; never force-push `main`.
 - Before creating a commit or publishing, follow the role tag and Programmer final-build/prebuilt-bundle gate in `shared/GIT_RULES.md`.
 - Human instructions and Plan locked acceptance define scope. Executors may refine implementation details but must coordinate changes to goals, acceptance, public contracts or declared Writes. Remote main owns published Plan numbers; integration shifts colliding unpublished local Plans as one ordered block.

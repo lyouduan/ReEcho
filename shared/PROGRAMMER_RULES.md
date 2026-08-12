@@ -2,16 +2,24 @@
 
 This file applies after the user confirms “程序”. It defines the professional boundary; `PLANNER_RULES.md` and `EXECUTOR_RULES.md` still determine the AI's repository authority.
 
-## T爷 mode
+## Planner-Executor mode
 
-This section is the single authority for the T爷 exception inside the programmer route.
+This section is the single authority for the Planner-Executor mode choice inside the programmer route.
 
-- Activate T爷 mode only when the current user personally confirms they are T爷 in the current conversation. Do not infer, inherit or transfer that identity. A negative answer or no answer keeps the ordinary programmer route active.
-- In T爷 mode, the AI acts with the user's delegated programmer authority and may skip project process gates, including mandatory Plan creation/publication, Planner/Executor assignment, task worktree/ownership ceremony, staged approval waits, prescribed build/test gates and pre-publication confirmation. It may implement, integrate, commit and publish directly when that is the shortest faithful path to the request.
-- Do not interrupt execution merely to request a process-gate approval. Complete all reversible work that can be decided from the request and repository, then collect unresolved product choices, subjective validation and other genuinely human-only judgments once in the final handoff.
-- A skipped check is reported as skipped or not run, never described as passing. Use proportionate checks when they are cheap or needed to know whether the requested result works, but their absence does not itself block T爷 publication.
-- T爷 mode does not authorize scope invention, designer/artist product decisions, overwriting uncommitted work, force-pushing, deleting dirty worktrees, concealing conflicts, fabricating evidence or performing an unrequested irreversible action. A destructive or irreversible choice that cannot safely wait still requires confirmation before execution.
-- Commit identity is governed only by `shared/GIT_RULES.md`; T爷 mode does not reuse the ordinary Programmer identity.
+- Activate Planner-Executor mode only when the current user confirms in the current conversation they want to adopt it. Do not infer, inherit or transfer that choice. A negative answer or no answer keeps the lightweight direct-programmer route active.
+- In Planner-Executor mode, the AI follows the formal Plan lifecycle in `PLANNER_RULES.md` / `EXECUTOR_RULES.md`: a numbered Plan published to `origin/main` before execution, ownership/Exchange rows, staged approval waits, prescribed build/test gates and pre-publication confirmation. Planner duty covers planning, review, local integration, closure and remote-main publication; Executor duty covers concrete implementation on an assigned local Plan/branch.
+- In the lightweight (non-Planner-Executor) route, the AI works directly on the request without the formal Plan/ownership/lifecycle ceremony, but still selects Planner or Executor duty as the task requires and still obeys every non-skippable collaboration and safety check below.
+- Neither mode authorizes scope invention, designer/artist product decisions, overwriting uncommitted work, force-pushing, deleting dirty worktrees, concealing conflicts, fabricating evidence or performing an unrequested irreversible action. A destructive or irreversible choice that cannot safely wait still requires confirmation before execution.
+- Commit identity is governed only by `shared/GIT_RULES.md`; the chosen mode does not change the commit tag.
+
+## Remote collaboration safety check (applies in every mode)
+
+This is the core of safe collaboration and is NON-SKIPPABLE whether or not Planner-Executor mode is adopted.
+
+- `git fetch` is the only automatic first step whenever remote state may have changed.
+- If fetch reveals commits outside the currently approved local baseline (i.e., another person has pushed since the baseline), the AI must stop before `pull`, `merge`, `rebase`, `cherry-pick` or `push`. Report Physical/Git conflict, Logical conflict and Coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption.
+- When the last push to the affected branch was made by another person, the human — not the AI — decides how to handle each Physical conflict and Logical conflict: **adopt (采用)**, **merge (合并)**, or **discard (抛弃)**. The AI presents the options and tradeoffs but does not auto-resolve ownership or behavior.
+- This check cannot be waived by any mode, route or session.
 
 ## Select the AI duty
 
