@@ -4,16 +4,17 @@ This file is for first-time onboarding or workflow maintenance. Ordinary tasks f
 
 ## Entry contract
 
-1. `AGENTS.md` is the sole startup and retrieval-order authority.
-2. `shared/PROJECT_RULES.md` contains project constraints.
-3. Read only the role section, Plan, Exchange blocks and code route required by the current task.
-4. Write durable task evidence back to the assigned Plan; shared project memory is updated by the Planner during review unless the task explicitly owns that document.
+1. `AGENTS.md` is the sole startup, first-contact question and retrieval-order authority.
+2. Confirm directly whether the user is 程序、策划 or 美术 before reading the matching route.
+3. `shared/PROJECT_RULES.md` contains project constraints.
+4. Read only the professional role, duty, Plan, Exchange blocks and code/asset/data route required by the current task.
+5. Write durable task evidence back to the assigned Plan or specialist handoff; shared project memory is updated by the Programmer Planner during review unless the task explicitly owns that document.
 
-## Roles
+## Two independent role axes
 
-- **Executor**: implements a concrete task on an isolated branch/worktree, runs objective checks and hands off its branch. It does not merge or publish `main`.
-- **Planner**: plans, reviews, coordinates ownership/contracts, integrates accepted work and maintains shared state.
-- When the user has not assigned planning/review/workflow responsibility, default to Executor scope.
+- **User professional role**: 程序, 策划 or 美术. This selects `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` or `ARTIST_RULES.md`.
+- **AI repository duty**: Planner, Executor or specialist. Only the programmer route uses project Planner/Executor authority; designer and artist AIs are specialists unless a programmer user explicitly reassigns the task.
+- A specialist may prepare local changes and evidence but does not gain merge or publication authority from professional expertise.
 
 ## Two safety lines
 

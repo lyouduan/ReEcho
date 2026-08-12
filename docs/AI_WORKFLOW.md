@@ -8,6 +8,7 @@ This file is a human-facing directory pointer, not a workflow authority and not 
 |---|---|
 | What an AI reads first | [`AGENTS.md`](../AGENTS.md) |
 | Project constraints and verification | [`shared/PROJECT_RULES.md`](../shared/PROJECT_RULES.md) |
+| Programmer / designer / artist route | [`shared/PROGRAMMER_RULES.md`](../shared/PROGRAMMER_RULES.md), [`shared/DESIGNER_RULES.md`](../shared/DESIGNER_RULES.md), [`shared/ARTIST_RULES.md`](../shared/ARTIST_RULES.md) |
 | Planner / Executor actions | [`shared/PLANNER_RULES.md`](../shared/PLANNER_RULES.md), [`shared/EXECUTOR_RULES.md`](../shared/EXECUTOR_RULES.md) |
 | Current work, ownership and warnings | [`shared/PLANNER_EXCHANGE.md`](../shared/PLANNER_EXCHANGE.md) |
 | Current delivered state | [`shared/PROJECT_STATE.md`](../shared/PROJECT_STATE.md) |

@@ -4,8 +4,10 @@ UE 5.8 installed-build graybox prototype for the Time Echo vertical slice.
 
 ## Start here
 
+- AI entry and first-contact role question: [`AGENTS.md`](AGENTS.md)
 - AI/code retrieval map: [`shared/CODEBASE_MAP.md`](shared/CODEBASE_MAP.md)
 - Project rules: [`shared/PROJECT_RULES.md`](shared/PROJECT_RULES.md)
+- Professional routes: [`PROGRAMMER_RULES.md`](shared/PROGRAMMER_RULES.md), [`DESIGNER_RULES.md`](shared/DESIGNER_RULES.md), [`ARTIST_RULES.md`](shared/ARTIST_RULES.md)
 - Current delivery state: [`shared/PROJECT_STATE.md`](shared/PROJECT_STATE.md)
 - Runtime architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - UE MCP: [`docs/UE_MCP.md`](docs/UE_MCP.md)
