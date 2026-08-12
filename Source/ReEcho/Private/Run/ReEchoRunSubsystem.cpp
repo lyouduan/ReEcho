@@ -742,7 +742,12 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		                               }
 		                               else if (ItemId == TEXT("SHOP_OLD_COIN"))
 		                               {
-			                               BaseBuild.Stats.EchoEfficiency += 0.1f;
+		                               BaseBuild.Stats.EchoEfficiency += 0.1f;
+		                               }
+		                               else if (ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
+		                               {
+		                               // 不修改 build 属性；只解锁指定回放槽位上限（见下方统一处理）。
+		                               return true;
 		                               }
 		                               return true;
 	                               },
@@ -753,6 +758,20 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	TimeShards -= Offer->Price;
 	InventoryItems.Add(ItemId);
 	CurrentBuild = PendingBuild;
+
+	if (ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
+	{
+		// 一次性解锁：把指定回放槽位上限拉满（3），不修改 build 属性。
+		// 通用查重/余额检查（上方）已保证原子拒绝重复购买与碎片不足。
+		const EReEchoEchoStorageResult LimitResult =
+			SetSpecificReplayLimit(ReEchoEchoStorage::MaxSpecificReplayLimit);
+		if (LimitResult != EReEchoEchoStorageResult::Success)
+		{
+			TimeShards += Offer->Price; // 设定失败则回滚扣费
+			InventoryItems.Remove(ItemId);
+			return false;
+		}
+	}
 	return true;
 }
 

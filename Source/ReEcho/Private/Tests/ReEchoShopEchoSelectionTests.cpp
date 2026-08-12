@@ -4,7 +4,7 @@
 // Editor (UHT/UBT) build; its data dependency is exactly `bHasPendingRecording`,
 // which these tests exercise directly. No PIE / visual verification is performed.
 //
-// NOTE: This rework deliberately does NOT introduce SHOP_REPLAY_UNLOCK or reuse
+// NOTE: This rework restores SHOP_REPLAY_UNLOCK as a shop purchase (Time Shards to max specific replay slot limit). It does NOT reuse
 // the rejected plan/31-shop-echo-selection-ui self-contained widget API.
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -158,6 +158,54 @@ bool FReEchoShopEchoSelectionPlan32IntermissionWidget::RunTest(const FString& Pa
 	TestEqual(TEXT("Echo management is restricted to the post-trait context"),
 	          Widget->GetMode(),
 	          EReEchoInventoryShopMode::PostTraitIntermission);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopReplayUnlockPurchase,
+                                 "ReEcho.Shop.EchoSelection.Plan32.ReplayUnlockPurchase",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoShopReplayUnlockPurchase::RunTest(const FString& Parameters)
+{
+	// UReEchoRunSubsystem has ClassWithin=GameInstance, so it must be created with a
+	// valid GameInstance outer (a transient-package outer triggers a ClassWithin ensure).
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	TestNotNull(TEXT("Run subsystem is available via a GameInstance"), RunSubsystem);
+	if (!RunSubsystem)
+	{
+		return false;
+	}
+
+	// Seed enough Time Shards for the 30-shard unlock and start from a locked state.
+	RunSubsystem->TimeShards = 50;
+	RunSubsystem->SetSpecificReplayLimit(0);
+	TestEqual(TEXT("Specific replay limit starts locked at 0"),
+	          RunSubsystem->GetEchoStorageSummary().SpecificReplayLimit, 0);
+
+	const int32 BeforeShards = RunSubsystem->TimeShards;
+	TestTrue(TEXT("Purchasing SHOP_REPLAY_UNLOCK succeeds"),
+	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_REPLAY_UNLOCK")));
+	TestEqual(TEXT("Time Shards are consumed by the 30-shard price"),
+	          RunSubsystem->TimeShards, BeforeShards - 30);
+	TestEqual(TEXT("Specific replay limit is raised to the max (3)"),
+	          RunSubsystem->GetEchoStorageSummary().SpecificReplayLimit,
+	          ReEchoEchoStorage::MaxSpecificReplayLimit);
+	TestTrue(TEXT("SHOP_REPLAY_UNLOCK is recorded in inventory"),
+	         RunSubsystem->InventoryItems.Contains(TEXT("SHOP_REPLAY_UNLOCK")));
+
+	// Repeat purchase is rejected and does not double-charge.
+	const int32 AfterFirst = RunSubsystem->TimeShards;
+	TestFalse(TEXT("A second purchase of SHOP_REPLAY_UNLOCK is rejected"),
+	          RunSubsystem->PurchaseShopItem(TEXT("SHOP_REPLAY_UNLOCK")));
+	TestEqual(TEXT("Rejected repeat purchase does not consume shards"),
+	          RunSubsystem->TimeShards, AfterFirst);
+
+	// Insufficient shards are rejected without consuming (different, not-yet-owned item).
+	RunSubsystem->TimeShards = 10;
+	TestFalse(TEXT("Purchase is rejected when shards are insufficient"),
+	          RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
 
 	return true;
 }
