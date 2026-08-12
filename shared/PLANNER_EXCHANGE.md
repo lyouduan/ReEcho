@@ -20,7 +20,7 @@ Live local coordination only. Closed history belongs in Plans and Git; permanent
 | ReEcho teammate-side Planner | Plan26 / teammate-side local task branch | `Isolated` + `ReadOnly` | `Reserved` | `ReEchoInventoryShopWidget.*`, `ReEchoStatsWidget.*` and Plan26-only tests | Original Plan is teammate-side. Parallel overlap with Plan31 is human-approved; Planner later combines both Widget contracts. |
 | Gavyn-side Planner | Plan28 / `plan/28-player-attack-modes` | `Isolated` | `Active` | P input, player attack-mode state, GameMode integration, existing `ReEchoRestartWidget.*` pause UI and Plan28-only tests | P remap is intentional under the latest human decision. Additive target queries require a local scope update before expansion. |
 | Gavyn-side Planner | Plan30 / `plan/30-specific-echo-replay-runtime` | `SharedContract` | `Reserved` | RunSubsystem replay resolver, GameMode zero/one/many Echo orchestration and Plan30 tests | Parallel overlap with Plan28 GameMode is human-approved; Planner owns semantic integration. Do not edit Plan28 Player/Pause UI files. |
-| Gavyn-side Planner | Plan31 / `plan/31-shop-echo-selection-ui` | `SharedContract` | `Reserved` | InventoryShopWidget echo management, GameMode shop bridge and Plan31 tests | Parallel overlaps with Plan26 Widget and Plan28/30 GameMode are human-approved; record changed integration functions precisely. |
+| Gavyn-side Planner | Plan31 / `plan/31-shop-echo-selection-ui` | `SharedContract` | `Active` | InventoryShopWidget echo management, GameMode shop bridge and Plan31 tests | Parallel overlaps with Plan26 Widget and Plan28/30 GameMode are human-approved; record changed integration functions precisely. |
 
 ## Warnings / blocked items
 

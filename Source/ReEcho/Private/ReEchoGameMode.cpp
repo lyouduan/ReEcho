@@ -1063,6 +1063,10 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 	}
 	InventoryShopWidget->AddToViewport(95);
 
+	// Plan31 bridge: inject the authoritative RunSubsystem so the widget reads the live echo
+	// summary and routes every store/skip/replace/select command through Plan29's contract.
+	InventoryShopWidget->RefreshEchoState(RunSubsystem);
+
 	FInputModeGameAndUI InputMode;
 	InputMode.SetWidgetToFocus(InventoryShopWidget->TakeWidget());
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
