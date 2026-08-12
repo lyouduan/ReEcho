@@ -96,6 +96,18 @@ private:
 	UPROPERTY()
 	TSubclassOf<UReEchoPlayerHudWidget> PlayerHudWidgetClass;
 	UPROPERTY()
+	TSubclassOf<UReEchoEncounterHudWidget> EncounterHudWidgetClass;
+	UPROPERTY()
+	TSubclassOf<UReEchoStartMenuWidget> StartMenuWidgetClass;
+	UPROPERTY()
+	TSubclassOf<UReEchoLoadoutSelectionWidget> LoadoutSelectionWidgetClass;
+	UPROPERTY()
+	TSubclassOf<UReEchoSettingsWidget> SettingsWidgetClass;
+	UPROPERTY()
+	TSubclassOf<UReEchoRestartWidget> RestartWidgetClass;
+	UPROPERTY()
+	TSubclassOf<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidgetClass;
+	UPROPERTY()
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
 	bool bRestartScreenIsTerminal = false;

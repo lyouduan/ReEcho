@@ -50,6 +50,24 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<UReEchoPlayerHudWidget> PlayerHudClassFinder(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoPlayerHud"));
 	PlayerHudWidgetClass = PlayerHudClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoEncounterHudWidget> EncounterHudClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoEncounterHud"));
+	EncounterHudWidgetClass = EncounterHudClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoStartMenuWidget> StartMenuClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoStartMenu"));
+	StartMenuWidgetClass = StartMenuClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoLoadoutSelectionWidget> LoadoutClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection"));
+	LoadoutSelectionWidgetClass = LoadoutClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoSettingsWidget> SettingsClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoSettings"));
+	SettingsWidgetClass = SettingsClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoRestartWidget> RestartClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoRestart"));
+	RestartWidgetClass = RestartClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoTraitCardChoiceWidget> TraitClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardChoice"));
+	TraitCardChoiceWidgetClass = TraitClassFinder.Class;
 }
 
 void AReEchoGameMode::AddWidgetToUILayer(UUserWidget* Widget, const EReEchoUILayer Layer) const
@@ -258,7 +276,9 @@ void AReEchoGameMode::StartPlay()
 			AddWidgetToUILayer(WeatherWidget, EReEchoUILayer::Weather);
 		}
 		EncounterHudWidget =
-		    CreateWidget<UReEchoEncounterHudWidget>(PlayerController, UReEchoEncounterHudWidget::StaticClass());
+		    CreateWidget<UReEchoEncounterHudWidget>(
+		        PlayerController,
+		        EncounterHudWidgetClass ? EncounterHudWidgetClass.Get() : UReEchoEncounterHudWidget::StaticClass());
 		if (EncounterHudWidget)
 		{
 			EncounterHudWidget->SetVisibility(ESlateVisibility::Collapsed);
@@ -301,7 +321,8 @@ void AReEchoGameMode::ShowStartMenu()
 		return;
 	}
 
-	StartMenuWidget = CreateWidget<UReEchoStartMenuWidget>(PlayerController, UReEchoStartMenuWidget::StaticClass());
+	StartMenuWidget = CreateWidget<UReEchoStartMenuWidget>(
+	    PlayerController, StartMenuWidgetClass ? StartMenuWidgetClass.Get() : UReEchoStartMenuWidget::StaticClass());
 	if (!StartMenuWidget)
 	{
 		return;
@@ -409,7 +430,8 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 		return;
 	}
 
-	SettingsWidget = CreateWidget<UReEchoSettingsWidget>(PlayerController, UReEchoSettingsWidget::StaticClass());
+	SettingsWidget = CreateWidget<UReEchoSettingsWidget>(
+	    PlayerController, SettingsWidgetClass ? SettingsWidgetClass.Get() : UReEchoSettingsWidget::StaticClass());
 	if (!SettingsWidget)
 	{
 		return;
@@ -430,7 +452,10 @@ void AReEchoGameMode::ShowLoadoutSelection()
 		return;
 	}
 	UReEchoLoadoutSelectionWidget* NewLoadoutSelectionWidget =
-	    CreateWidget<UReEchoLoadoutSelectionWidget>(PlayerController, UReEchoLoadoutSelectionWidget::StaticClass());
+	    CreateWidget<UReEchoLoadoutSelectionWidget>(
+	        PlayerController,
+	        LoadoutSelectionWidgetClass ? LoadoutSelectionWidgetClass.Get()
+	                                    : UReEchoLoadoutSelectionWidget::StaticClass());
 	if (!NewLoadoutSelectionWidget)
 	{
 		return;
@@ -877,7 +902,8 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 		return;
 	}
 
-	RestartWidget = CreateWidget<UReEchoRestartWidget>(PlayerController, UReEchoRestartWidget::StaticClass());
+	RestartWidget = CreateWidget<UReEchoRestartWidget>(
+	    PlayerController, RestartWidgetClass ? RestartWidgetClass.Get() : UReEchoRestartWidget::StaticClass());
 	if (!RestartWidget)
 	{
 		return;
@@ -1217,7 +1243,10 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	}
 
 	TraitCardChoiceWidget =
-	    CreateWidget<UReEchoTraitCardChoiceWidget>(PlayerController, UReEchoTraitCardChoiceWidget::StaticClass());
+	    CreateWidget<UReEchoTraitCardChoiceWidget>(
+	        PlayerController,
+	        TraitCardChoiceWidgetClass ? TraitCardChoiceWidgetClass.Get()
+	                                   : UReEchoTraitCardChoiceWidget::StaticClass());
 	if (!TraitCardChoiceWidget)
 	{
 		return;

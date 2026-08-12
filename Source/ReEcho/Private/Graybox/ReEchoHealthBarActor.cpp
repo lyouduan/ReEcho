@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Math/RotationMatrix.h"
 #include "UI/ReEchoHealthBarWidget.h"
+#include "UObject/ConstructorHelpers.h"
 
 AReEchoHealthBarActor::AReEchoHealthBarActor()
 {
@@ -23,7 +24,10 @@ AReEchoHealthBarActor::AReEchoHealthBarActor()
 	Widget->SetTwoSided(false);
 	Widget->SetCastShadow(false);
 	Widget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Widget->SetWidgetClass(UReEchoHealthBarWidget::StaticClass());
+	static ConstructorHelpers::FClassFinder<UReEchoHealthBarWidget> HealthBarClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoEnemyHealthBar"));
+	Widget->SetWidgetClass(HealthBarClassFinder.Class ? HealthBarClassFinder.Class.Get()
+	                                                : UReEchoHealthBarWidget::StaticClass());
 }
 
 void AReEchoHealthBarActor::Initialize(UReEchoCombatantComponent* InCombatant,
