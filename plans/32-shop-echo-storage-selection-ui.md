@@ -72,6 +72,14 @@ The shared inventory/shop screen uses a typed `Inventory`, `ManualShop` or `Post
 
 ## Execution notes
 
+### Planner review finding (2026-08-12, rework required)
+
+- The UMG-adapted candidate at `73a8ed6` preserves UI Flow ownership and implements the correct typed post-trait context, authoritative GameMode transactions and one-shot close orchestration. It is the only implementation reference for the rework; do not merge the old code-built `plan/31-shop-echo-selection-ui` branch.
+- The locked `WBP_ReEchoEchoManagementPanel` and `WBP_ReEchoStoredEchoEntry` assets do not exist. Both native widgets still construct their full presentation in `BuildWidgetTree`, so the echo-management presentation is not editable through the UMG assets promised by this Plan and partially restores code-owned layout inside a WBP page.
+- The integrated candidate also dropped the old focused transaction/close tests. `ReEcho.UI.IntermissionContexts` checks only the three opening modes; it does not prove rejected Store/Skip/Replace results, stable-GUID selection limits, pending close confirmation, skip failure, save behavior or close-once behavior.
+- Required rework: start from local `main` after Plan31 (`4298ae5` or its direct approved successor), port only the Plan32 typed UMG/intermission behavior from `73a8ed6`, create the two promised child WBP assets with native fallback kept minimal, and restore cheap non-visual coverage for the authoritative command and close gates. Do not include Plan28 code or the old branch's `SHOP_REPLAY_UNLOCK` scope addition; acquisition remains deferred by this Plan.
+- Return to `Review` only after static validation, Editor build, Blueprint compilation, focused/affected automation and `git diff --check` pass. PIE and visual acceptance remain with the user.
+
 ### Changed
 
 Widget (`Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h` / `.cpp`):
