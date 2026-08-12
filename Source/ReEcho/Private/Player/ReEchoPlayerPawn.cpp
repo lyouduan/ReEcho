@@ -360,6 +360,16 @@ float AReEchoPlayerPawn::GetCurrentAttackInterval() const
 	return Weapon ? Weapon->GetAttackInterval(Combatant) : 0.55f;
 }
 
+bool AReEchoPlayerPawn::IsWeaponActionLocked() const
+{
+	return Weapon && Weapon->GetActionLockRemaining() > 0.0f;
+}
+
+float AReEchoPlayerPawn::GetWeaponActionLockRemaining() const
+{
+	return Weapon ? Weapon->GetActionLockRemaining() : 0.0f;
+}
+
 UAbilitySystemComponent* AReEchoPlayerPawn::GetAbilitySystemComponent() const
 {
 	return AbilitySystem;

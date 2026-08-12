@@ -34,6 +34,10 @@ public:
 	float GetAttackInterval(UReEchoCombatantComponent* Combatant) const;
 	/** 当前武器当前攻击步骤的有效攻击距离（厘米）。供自动攻击在射程内选择目标，不复制 Echo 固定 AutoTargetRange。 */
 	float GetCurrentAttackRangeCm() const;
+	/** 武器当前动作锁（有序攻击步骤锁）剩余秒数，供 held 普攻循环判断是否临时忙。 */
+	float GetActionLockRemaining() const { return StepLockRemaining; }
+	/** 已成功执行的普攻次数（命中或非命中均计数），供确定性回归测试观察。 */
+	int32 GetAttackSequence() const { return AttackSequence; }
 	float GetAttackCooldownRemaining() const;
 #if WITH_DEV_AUTOMATION_TESTS
 	float GetStepLockRemaining() const { return StepLockRemaining; }

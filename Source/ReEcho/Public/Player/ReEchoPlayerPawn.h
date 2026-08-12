@@ -51,6 +51,12 @@ public:
 
 	FString GetEquippedWeaponLabel() const;
 	float GetCurrentAttackInterval() const;
+	/** 武器是否处于临时动作锁（有序攻击步骤锁）中。held 普攻循环据此决定是否重试而非终止。 */
+	bool IsWeaponActionLocked() const;
+	/** 武器动作锁剩余秒数。 */
+	float GetWeaponActionLockRemaining() const;
+	/** 只读访问当前武器执行器，供确定性测试观察攻击计数等。 */
+	AReEchoWeaponActor* GetWeapon() const { return Weapon; }
 	/** 由 GameplayAbility 回调，执行当前武器的基础攻击。 */
 	bool ExecuteBasicAttackAbility();
 	bool ExecuteActiveAttackAbility();
