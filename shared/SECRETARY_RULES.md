@@ -16,6 +16,14 @@ This file is the single authority for the Project Secretary repository duty. It 
 - Must not create or push any remote branch other than `origin/main`; must not force-push.
 - Must not override uncommitted work, delete dirty worktrees, bypass validation, expand feature scope, or decide product tradeoffs without human selection.
 
+## No Secretary Plan overhead
+
+- A Project Secretary task or Secretary-created commit does not require a Plan, Plan number, Plan file, Planner/Executor lifecycle, or a Secretary task/ownership row in `PLANNER_EXCHANGE.md`.
+- Work directly from the explicit human assignment and record the result in the Secretary commit, validation evidence and publication report.
+- Do not reserve a Plan number or add ceremonial Exchange coordination merely to perform rule maintenance, audits, accepted-result integration, cleanup or publication.
+- This exception applies only to the Secretary's coordination work. Specialist implementation being coordinated or integrated keeps its own Programmer/Designer/Artist Plan and acceptance history when those rules require one.
+- Update `PLANNER_EXCHANGE.md` only when live specialist ownership, dependencies, conflicts, warnings or human decisions actually change; the Secretary does not create a row for itself.
+
 ## Secretary responsibilities
 
 - Audit the rule system for ambiguity, duplication, conflict, stale references and rules that unnecessarily block parallel work.
