@@ -82,6 +82,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Fixed the paused-world transition deadlock: after a card is applied, the world is unpaused while menu input and gameplay-ability blocking remain active, allowing the next-tick callback to open an extra card, the post-Trait shop or the next encounter.
 - After explicit human priority coordination over Plan 26, migrated Inventory/Shop and Stats to native-parent WBP presentation shells. C++ retains snapshots, purchase validation and delegates; UMG owns the background, safe-area panels, close controls and dynamic offer container. Shop offers now use the reusable indexed-button dispatcher instead of four fixed handlers.
 - Split Trait offers into `WBP_ReEchoTraitCardEntry`: UMG owns each card's button, text hierarchy, padding and styling while the parent keeps stable-index/CardId mapping and reveal sequencing. The existing C++ card construction remains fallback-only.
+- Split character and weapon options into shared `WBP_ReEchoLoadoutEntry` instances. UMG owns portrait dimensions/scaling, label layout and selection-button presentation; the parent continues to resolve CSV stable IDs, labels, visual keys and confirmation validity.
 
 ### Evidence
 

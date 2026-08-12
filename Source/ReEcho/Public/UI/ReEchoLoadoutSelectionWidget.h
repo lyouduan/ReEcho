@@ -8,6 +8,7 @@ class SWidget;
 class UButton;
 class UHorizontalBox;
 class UReEchoIndexedButton;
+class UReEchoLoadoutEntryWidget;
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoLoadoutConfirmed, FName, CharacterId, FName, WeaponId);
@@ -20,6 +21,8 @@ class REECHO_API UReEchoLoadoutSelectionWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UReEchoLoadoutSelectionWidget(const FObjectInitializer& ObjectInitializer);
+
 	UPROPERTY(BlueprintAssignable)
 	FReEchoLoadoutConfirmed OnLoadoutConfirmed;
 
@@ -58,6 +61,15 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> WeaponButtons;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoLoadoutEntryWidget>> CharacterEntries;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoLoadoutEntryWidget>> WeaponEntries;
+
+	UPROPERTY()
+	TSubclassOf<UReEchoLoadoutEntryWidget> EntryWidgetClass;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConfirmButton;

@@ -15,6 +15,8 @@
 #include "Engine/Texture2D.h"
 #include "ReEcho.h"
 #include "UI/ReEchoIndexedButton.h"
+#include "UI/ReEchoLoadoutEntryWidget.h"
+#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -141,6 +143,14 @@ FString WeaponTexturePath(const FName VisualKey)
 }
 }
 
+UReEchoLoadoutSelectionWidget::UReEchoLoadoutSelectionWidget(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer)
+{
+	static ConstructorHelpers::FClassFinder<UReEchoLoadoutEntryWidget> EntryClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry"));
+	EntryWidgetClass = EntryClassFinder.Class;
+}
+
 TSharedRef<SWidget> UReEchoLoadoutSelectionWidget::RebuildWidget()
 {
 	if (!WidgetTree->RootWidget)
@@ -166,12 +176,24 @@ void UReEchoLoadoutSelectionWidget::NativeConstruct()
 	{
 		Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleWeaponClicked);
 	}
+	for (UReEchoLoadoutEntryWidget* Entry : CharacterEntries)
+	{
+		Entry->OnEntrySelected.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleCharacterClicked);
+	}
+	for (UReEchoLoadoutEntryWidget* Entry : WeaponEntries)
+	{
+		Entry->OnEntrySelected.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleWeaponClicked);
+	}
 	if (ConfirmButton)
 	{
 		ConfirmButton->OnClicked.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleConfirmClicked);
 	}
 	RefreshSelection();
-	if (!CharacterButtons.IsEmpty())
+	if (!CharacterEntries.IsEmpty())
+	{
+		CharacterEntries[0]->FocusSelection();
+	}
+	else if (!CharacterButtons.IsEmpty())
 	{
 		CharacterButtons[0]->SetKeyboardFocus();
 	}
@@ -320,26 +342,54 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 	WeaponRow->ClearChildren();
 	CharacterButtons.Reset();
 	WeaponButtons.Reset();
+	CharacterEntries.Reset();
+	WeaponEntries.Reset();
 	for (int32 OptionIndex = 0; OptionIndex < CharacterOptionIds.Num(); ++OptionIndex)
 	{
 		const FName CharacterId = CharacterOptionIds[OptionIndex];
-		CharacterButtons.Add(
-		    AddImageOptionButton(WidgetTree,
-		                         CharacterRow,
-		                         *FString::Printf(TEXT("CharacterButton%d"), OptionIndex),
-		                         CharacterLabels.FindRef(CharacterId),
-		                         CharacterTexturePath(Snapshot->FindCharacter(CharacterId)->AppearanceId),
-		                         OptionIndex));
+		if (EntryWidgetClass)
+		{
+			UReEchoLoadoutEntryWidget* Entry = WidgetTree->ConstructWidget<UReEchoLoadoutEntryWidget>(
+			    EntryWidgetClass, *FString::Printf(TEXT("CharacterEntry%d"), OptionIndex));
+			CharacterRow->AddChildToHorizontalBox(Entry)->SetPadding(FMargin(7.0f));
+			Entry->Configure(OptionIndex,
+			                 FText::FromString(CharacterLabels.FindRef(CharacterId)),
+			                 CharacterTexturePath(Snapshot->FindCharacter(CharacterId)->AppearanceId));
+			CharacterEntries.Add(Entry);
+		}
+		else
+		{
+			CharacterButtons.Add(AddImageOptionButton(WidgetTree,
+			                                            CharacterRow,
+			                                            *FString::Printf(TEXT("CharacterButton%d"), OptionIndex),
+			                                            CharacterLabels.FindRef(CharacterId),
+			                                            CharacterTexturePath(
+			                                                Snapshot->FindCharacter(CharacterId)->AppearanceId),
+			                                            OptionIndex));
+		}
 	}
 	for (int32 OptionIndex = 0; OptionIndex < WeaponOptionIds.Num(); ++OptionIndex)
 	{
 		const FName WeaponId = WeaponOptionIds[OptionIndex];
-		WeaponButtons.Add(AddImageOptionButton(WidgetTree,
-		                                       WeaponRow,
-		                                       *FString::Printf(TEXT("WeaponButton%d"), OptionIndex),
-		                                       WeaponLabels.FindRef(WeaponId),
-		                                       WeaponTexturePath(Snapshot->FindWeapon(WeaponId)->VisualKey),
-		                                       OptionIndex));
+		if (EntryWidgetClass)
+		{
+			UReEchoLoadoutEntryWidget* Entry = WidgetTree->ConstructWidget<UReEchoLoadoutEntryWidget>(
+			    EntryWidgetClass, *FString::Printf(TEXT("WeaponEntry%d"), OptionIndex));
+			WeaponRow->AddChildToHorizontalBox(Entry)->SetPadding(FMargin(7.0f));
+			Entry->Configure(OptionIndex,
+			                 FText::FromString(WeaponLabels.FindRef(WeaponId)),
+			                 WeaponTexturePath(Snapshot->FindWeapon(WeaponId)->VisualKey));
+			WeaponEntries.Add(Entry);
+		}
+		else
+		{
+			WeaponButtons.Add(AddImageOptionButton(WidgetTree,
+			                                         WeaponRow,
+			                                         *FString::Printf(TEXT("WeaponButton%d"), OptionIndex),
+			                                         WeaponLabels.FindRef(WeaponId),
+			                                         WeaponTexturePath(Snapshot->FindWeapon(WeaponId)->VisualKey),
+			                                         OptionIndex));
+		}
 	}
 }
 
@@ -355,6 +405,16 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	{
 		SetSelected(WeaponButtons[OptionIndex],
 		            WeaponOptionIds.IsValidIndex(OptionIndex) && SelectedWeaponId == WeaponOptionIds[OptionIndex]);
+	}
+	for (int32 OptionIndex = 0; OptionIndex < CharacterEntries.Num(); ++OptionIndex)
+	{
+		CharacterEntries[OptionIndex]->SetSelected(CharacterOptionIds.IsValidIndex(OptionIndex) &&
+		                                                SelectedCharacterId == CharacterOptionIds[OptionIndex]);
+	}
+	for (int32 OptionIndex = 0; OptionIndex < WeaponEntries.Num(); ++OptionIndex)
+	{
+		WeaponEntries[OptionIndex]->SetSelected(WeaponOptionIds.IsValidIndex(OptionIndex) &&
+		                                             SelectedWeaponId == WeaponOptionIds[OptionIndex]);
 	}
 	if (StatusText)
 	{
