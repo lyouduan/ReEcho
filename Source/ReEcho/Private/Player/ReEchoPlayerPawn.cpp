@@ -140,7 +140,8 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	constexpr float CharacterWorldHeight = 224.0f;
 	CharacterSprite->SetSprite(Texture);
 	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
-	CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
+	static const FName SpadeCharacterId(TEXT("J_SPADE"));
+	CharacterSprite->SetRelativeScale3D(CharacterId == SpadeCharacterId ? FVector::OneVector : FVector(TextureScale));
 	IdleAnimationFrames = {Texture};
 	AttackAnimationFrames = {Texture};
 	SequenceAnimation->DeactivateAnimation();
