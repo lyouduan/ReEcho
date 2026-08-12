@@ -94,6 +94,13 @@ void AReEchoGameMode::PauseForMenu(UUserWidget* Widget, const bool bUIOnly)
 	UGameplayStatics::SetGamePaused(this, true);
 }
 
+void AReEchoGameMode::ResumeWorldForMenuTransition()
+{
+	// World timers do not advance while paused. Keep the menu input policy and gameplay ability block in place
+	// while allowing a next-tick callback to replace the current menu safely outside Slate's click dispatch.
+	UGameplayStatics::SetGamePaused(this, false);
+}
+
 void AReEchoGameMode::PrintGMResult(const FString& Message, const bool bSuccess) const
 {
 	UE_LOG(LogTemp, Display, TEXT("[GM] %s"), *Message);
@@ -1280,6 +1287,7 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		TraitCardChoiceWidget->RemoveFromParent();
 		TraitCardChoiceWidget = nullptr;
 	}
+	ResumeWorldForMenuTransition();
 
 	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
 	{

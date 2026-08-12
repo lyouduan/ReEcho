@@ -79,6 +79,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Positioned the encounter status and countdown in a right-top safe area; gave the enemy world-space bar a designer-owned background/fill presentation; and made the Trait Choice WBP own the full-screen card anchor field, header, currency and animated needle layers while C++ continues to populate stable-ID cards.
 - Moved Trait card dimensions to three designer-owned `TraitCardSlot0..2` SizeBoxes. The normal WBP path now fills those slots without writing width or height; fixed C++ dimensions remain only in the missing-asset fallback path.
 - Deferred the post-Trait shop transition to the next frame so the card widget is removed and its Slate click dispatch completes before the shop takes focus; failed shop creation now restores gameplay and advances instead of leaving the run paused.
+- Fixed the paused-world transition deadlock: after a card is applied, the world is unpaused while menu input and gameplay-ability blocking remain active, allowing the next-tick callback to open an extra card, the post-Trait shop or the next encounter.
 
 ### Evidence
 

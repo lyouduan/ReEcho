@@ -54,6 +54,8 @@ private:
 	void AddWidgetToUILayer(UUserWidget* Widget, EReEchoUILayer Layer) const;
 	void ConfigureMenuInput(UUserWidget* Widget, bool bUIOnly) const;
 	void PauseForMenu(UUserWidget* Widget, bool bUIOnly);
+	/** Lets the next-frame World Timer run while retaining menu input and ability blocking. */
+	void ResumeWorldForMenuTransition();
 	bool EnsureGMCommandAvailable() const;
 	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	UPROPERTY()
