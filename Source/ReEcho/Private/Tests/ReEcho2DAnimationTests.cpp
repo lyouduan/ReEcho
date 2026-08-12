@@ -29,9 +29,11 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	          EReEcho2DAnimationActivationResult::Activated);
 	TestTrue(TEXT("Activated component owns the requested Flipbook"),
 	         Component->IsAnimationActive() && Component->GetFlipbook() == PlayerFlipbook);
+	TestTrue(TEXT("Activated Idel profile loops"), Component->IsLooping());
 	TestTrue(TEXT("Unassigned gameplay states resolve to the default Flipbook"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Death) &&
 	             Component->GetFlipbook() == PlayerFlipbook);
+	TestTrue(TEXT("Default fallback remains looping after a state change"), Component->IsLooping());
 
 	FReEcho2DAnimationProfile MissingProfile;
 	TestEqual(TEXT("Missing Flipbook fails safely"),

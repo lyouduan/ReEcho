@@ -40,6 +40,7 @@ UReEcho2DAnimationComponent::ActivateProfile(const FReEcho2DAnimationProfile& In
 	ActiveProfile = InProfile;
 	ActiveState = EReEcho2DAnimationState::Default;
 	bAnimationActive = true;
+	SetLooping(true);
 	SetRelativeLocation(ActiveProfile.LocalOffset);
 	SetTranslucentSortPriority(ActiveProfile.TranslucentSortPriority);
 	ApplyFlipbook(ActiveProfile.DefaultFlipbook);
@@ -56,6 +57,7 @@ bool UReEcho2DAnimationComponent::SetAnimationState(const EReEcho2DAnimationStat
 		return false;
 	}
 	ActiveState = NewState;
+	SetLooping(true);
 	ApplyFlipbook(ActiveProfile.Resolve(NewState));
 	return GetFlipbook() != nullptr;
 }
@@ -106,8 +108,9 @@ void UReEcho2DAnimationComponent::ApplyFlipbook(UPaperFlipbook* NewFlipbook)
 	if (GetFlipbook() != NewFlipbook)
 	{
 		SetFlipbook(NewFlipbook);
-		PlayFromStart();
 	}
+	SetLooping(true);
+	PlayFromStart();
 	ApplyDisplayScale();
 }
 

@@ -69,6 +69,7 @@ Add a reusable Paper2D presentation layer that loops the existing idle Flipbook 
 - Added hard-reference loading, mutually exclusive visibility, static fallback, Paper2D-safe facing and Billboard-debug skipping.
 - Added a focused asset/profile automation test and an Unreal Editor repair script. The script generated the twelve missing player PaperSprite dependencies and rebuilt the existing `Idel` Flipbook through Unreal's asset API.
 - After the first PIE showed an invisible Spade, corrected the repair path to call `UPaperSprite::RebuildData()` through a development-only native bridge; all twelve player Sprite assets now contain non-empty baked render geometry.
+- Made looping explicit on every profile activation, state resolution and Flipbook application so both Spade `Idel` and Grunt `01_2` restart and continue looping after reconfiguration.
 - Added the complete existing `Content/2DAnim` resource tree to the Plan delivery without renaming `Idel` or hand-editing asset bytes.
 
 ### Evidence
