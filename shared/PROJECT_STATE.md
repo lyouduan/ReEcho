@@ -9,16 +9,17 @@ Last updated: 2026-08-12. Current snapshot only; history belongs in Plans and Gi
 - Startup supports new/continue, character and three-weapon initial selection, in-encounter save-and-quit, a shared start/pause settings shell, animated trait draw and post-draw shop flow.
 - Character/build, element/status/reaction and weapon/slot domains load from validated generated CSV snapshots authored in `Design/Data/ReEchoData.xlsx`.
 - The pre-run selected weapon is locked for the full run; continue and echo initialization retain its stable WeaponId. Legacy InputSlot 1/2/3 values remain data compatibility only and have no runtime hotkeys. Parts, ordered attack steps, reactions, save/recording revisions and active-run pinned snapshots remain connected.
+- Run/save v5 now separates the just-completed pending echo, rolling previous-encounter echo, explicitly stored full recordings and stable-GUID replay selections. Specific single/multi runtime spawning and shop selection UI remain follow-up work.
 - Human PIE for feel, UI/DPI/font readability and full menu/save regression remains outstanding; this is not a finished vertical slice.
 
 ## Current progress
 
 | Area | Current state | Remaining |
 |---|---|---|
-| Combat/run | Six encounters, Boss gate, GAS input/effects/cooldowns, CSV run-locked weapons/parts/reactions and pinned run/echo snapshots | Combined human combat/save regression, including confirmation that 1/2/3 do not switch weapons |
+| Combat/run | Six encounters, Boss gate, GAS input/effects/cooldowns, CSV run-locked weapons/parts/reactions, pinned run/echo snapshots and v5 pending/latest/stored echo persistence | Plan30 runtime replay resolution, then combined human combat/save regression including confirmation that 1/2/3 do not switch weapons |
 | Presentation | 2D actors, weather, start/continue/loadout, shared start/pause settings shell, draw/shop, inventory and stats UI | Human visual/DPI/menu regression; Plan26 read-only weapon UI work is reserved |
 | Data | One canonical XLSX deterministically generates 16 validated production CSVs; legacy JSON is migration-only for migrated domains | Designer usability QA; later enemy/economy/global-balance migration |
-| Validation | Canonical XLSX/project validation, Editor Development build and all 34 `ReEcho.*` automation tests pass before integrating documentation-only Plan27; post-integration validation must be refreshed before publication | Human PIE/usability evidence |
+| Validation | Canonical XLSX/project validation and Editor Development build pass; the 34-test full-suite baseline predates Plan29, whose 5 focused echo-storage tests pass on the accepted local implementation | Refresh the full suite before publication; human PIE/usability evidence remains separate |
 
 ## Milestones
 
@@ -45,6 +46,7 @@ Last updated: 2026-08-12. Current snapshot only; history belongs in Plans and Gi
 
 - UE 5.8 installed/release build; separate source checkout is out of scope.
 - Plan25 integrated baseline: deterministic XLSX/CSV check, 10 focused Python tests, Editor Development build and 34/34 `ReEcho.*` automation tests pass.
+- Plan29 local acceptance: project validation, Editor Development build, 5/5 focused echo-storage automation tests and whitespace/scope checks pass.
 - Latest clean Windows Shipping Cook/Pak/Archive and five-second launch smoke passed with the current generated CSV package.
 - `scripts/validate_project.py` checks CSV/XLSX drift, legacy JSON, workflow consistency and project structure.
 

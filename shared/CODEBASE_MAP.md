@@ -94,7 +94,7 @@ Esc -> pause menu -> exit
 | Damage numbers | `AReEchoDamageNumberActor` | `UI/ReEchoDamageNumberActor.*`, damage callers | Camera-facing floating `-N` text for actual damage applied to player/enemies |
 | Recording | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz positions and successful active-skill events |
 | Playback | `UReEchoPlaybackComponent` | `Recording/ReEchoPlaybackComponent.*` | Interpolated historical position and crossed skill events |
-| Run state/save | `UReEchoRunSubsystem`, `UReEchoRunSaveGame` | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | Run phase, encounter index, CSV-backed build, inventory, recording history, anchor, safe checkpoints and explicit suspended-encounter persistence |
+| Run state/save | `UReEchoRunSubsystem`, `UReEchoRunSaveGame` | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | Run phase, encounter index, CSV-backed build, inventory, pending/latest/stored echo state, stable-GUID replay selection, v4 migration, safe checkpoints and explicit suspended-encounter persistence |
 | CSV data registry | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`, `Data/ReEchoWeaponCsvReader.*`, `Content/Data/*.csv`, `Design/Data/ReEchoData.xlsx`, `scripts/data/sync_xlsx_to_csv.py` | Versioned CSV manifest loading, XLSX authoring sync, validation, behavior/effect/formula/attack-pattern allowlists and immutable runtime snapshots |
 | Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements, phases and suspended encounter/enemy runtime state |
 | Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
@@ -157,7 +157,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables, cano
 | Echo appearance/attack/playback/run-locked weapon | `Graybox/ReEchoEchoActor.*`, `Recording/ReEchoRecorderComponent.*`, `Recording/ReEchoPlaybackComponent.*` | Pinned `RunSubsystem::GetRunDataSnapshot()`, `Recording.BuildSnapshot.WeaponId`, initialization-only `Weapons/ReEchoWeaponActor::SelectWeaponById`, `M_EchoGhost.uasset` |
 | Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
 | Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
-| Run history, phase, anchor, shops | `Run/ReEchoRunSubsystem.*` | `Core/ReEchoTypes.*`, GameMode |
+| Echo storage/replay selection, run phase, save and shops | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | `Core/ReEchoTypes.*`, GameMode |
 | CSV runtime data, schema, fixtures and XLSX authoring | `Data/ReEchoCsvDataRegistry.*`, domain readers under `Private/Data/*CsvReader.*` | `Design/Data/ReEchoData.xlsx`, `Design/Data/ReEchoData.migration.md`, `scripts/data/sync_xlsx_to_csv.py`, `scripts/data/test_sync_xlsx_to_csv.py`, `Content/Data/README.md`, `Content/Data/*.csv`, `validate_project.py`, data automation tests |
 | Player portrait/health HUD, enemy health bars | `UI/ReEchoPlayerHudWidget.*`, `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`, `ReEchoGameMode.*`, `CombatantComponent.*` |
 | Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |

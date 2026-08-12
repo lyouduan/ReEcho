@@ -4,7 +4,7 @@
 
 - Planner owner: Gavyn-side Planner.
 - Executor owner: Plan29 Executor (local `plan/29-echo-storage-foundation` worktree).
-- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: local `planning/26-31-local` after integrating current main; create local `plan/29-echo-storage-foundation` from that commit.
 - Implementation branch: `plan/29-echo-storage-foundation` in a separate clean worktree.
@@ -117,3 +117,9 @@ For the current prototype, storage capacity and the maximum supported specific-r
 ### Human validation result/request
 
 `NotRequired` — 本 Plan 不暴露任何玩家可见 UI 或手感变更；仅改变 run/save 内部状态与对外契约。待人工在 Review 阶段确认是否批准进入 main 集成。
+
+### Planner review
+
+- 2026-08-12：逐项复核状态事务、v4→v5 迁移、v5 往返、兼容 facade 与测试覆盖；校正验收文字为“成功结算立即更新 rolling latest，store/skip 只清 pending”。
+- Planner 复跑 `python scripts/validate_project.py`、Editor Development 构建、`ReEcho.Run.EchoStorage` 5 项自动化及 `git diff --check`，全部通过。
+- Human validation=`NotRequired`；批准本地集成，Plan29 ownership 已释放。Plan30/31 可消费该契约，但仍须遵守各自其余依赖。
