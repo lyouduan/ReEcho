@@ -991,8 +991,13 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int3
 	{
 		return Result;
 	}
+
 	const int32 AllowedCount = FMath::Clamp(SpecificReplayLimit, 0, ReEchoEchoStorage::MaxSpecificReplayLimit);
-	if (AllowedCount > 0 && SelectedReplayIds.Num() > 0)
+
+	// Once the specific replay ability is unlocked, only explicitly selected stored echoes are
+	// replayed. An empty or stale selection resolves to no echo on purpose; we must never fall
+	// back to the rolling latest, because that would silently restore implicit latest behavior.
+	if (AllowedCount > 0)
 	{
 		const int32 ResolveCount = FMath::Min3(Count, AllowedCount, SelectedReplayIds.Num());
 		for (const FGuid& SelectedId : SelectedReplayIds)
@@ -1007,12 +1012,11 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int3
 				Result.Add(MoveTemp(Selected));
 			}
 		}
-		if (Result.Num() > 0)
-		{
-			return Result;
-		}
+		return Result;
 	}
-	// Specific replay not unlocked, or nothing selected: default to the rolling previous encounter.
+
+	// Specific replay not unlocked: the next encounter automatically replays the rolling
+	// previous-encounter echo. Stored echoes and any residual selection cannot override this.
 	if (bHasLatestCompletedRecording)
 	{
 		Result.Add(LatestCompletedRecording);
