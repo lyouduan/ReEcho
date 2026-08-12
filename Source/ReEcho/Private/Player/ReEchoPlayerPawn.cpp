@@ -97,6 +97,8 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CharacterTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
 	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeIdleFinder(TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
 	SpadeIdleFlipbook = SpadeIdleFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeAttackFinder(TEXT("/Game/2DAnim/Flipbook/s.s"));
+	SpadeAttackFlipbook = SpadeAttackFinder.Object;
 	ConfigureCharacter(TEXT("J_CAT"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
@@ -133,26 +135,16 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	}
 
 	UTexture2D* Texture = TextureEntry->Get();
+	CurrentCharacterId = CharacterId;
 	constexpr float CharacterWorldHeight = 224.0f;
 	CharacterSprite->SetSprite(Texture);
 	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
 	CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
 	IdleAnimationFrames = {Texture};
 	AttackAnimationFrames = {Texture};
-	static const FName SpadeCharacterId(TEXT("J_SPADE"));
-	FReEcho2DAnimationProfile Profile;
-	Profile.DefaultFlipbook = CharacterId == SpadeCharacterId ? SpadeIdleFlipbook : nullptr;
-	Profile.WorldHeight = CharacterWorldHeight;
-	Profile.TranslucentSortPriority = 10;
-	const bool bUseSequenceAnimation =
-	    CharacterId == SpadeCharacterId &&
-	    SequenceAnimation->ActivateProfile(Profile) == EReEcho2DAnimationActivationResult::Activated;
-	if (!bUseSequenceAnimation)
-	{
-		SequenceAnimation->DeactivateAnimation();
-	}
-	CharacterSprite->SetVisibility(!bUseSequenceAnimation);
-	CharacterSprite->SetHiddenInGame(bUseSequenceAnimation);
+	SequenceAnimation->DeactivateAnimation();
+	CharacterSprite->SetVisibility(true);
+	CharacterSprite->SetHiddenInGame(false);
 	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
 	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
@@ -718,6 +710,12 @@ void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Stre
 	AttackVisualDuration = Duration;
 	AttackVisualRemaining = Duration;
 	AttackVisualStrength = Strength;
+	static const FName MoonStaffWeaponId(TEXT("W_J_02"));
+	if (CurrentCharacterId == TEXT("J_SPADE") && Weapon && Weapon->GetEquippedWeaponId() == MoonStaffWeaponId &&
+	    SpadeAttackFlipbook)
+	{
+		SequenceAttackRemaining = SpadeAttackFlipbook->GetTotalDuration();
+	}
 }
 
 void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
@@ -728,6 +726,7 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	}
 	VisualTime += DeltaSeconds;
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
+	SequenceAttackRemaining = FMath::Max(0.0f, SequenceAttackRemaining - DeltaSeconds);
 	HitVisualRemaining = FMath::Max(0.0f, HitVisualRemaining - DeltaSeconds);
 	const bool bMoving = GetVelocity().SizeSquared2D() > 25.0f;
 	const float Bob = FMath::Sin(VisualTime * (bMoving ? 10.0f : 3.0f)) * (bMoving ? 4.0f : 1.8f);
@@ -751,7 +750,49 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	}
 	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(Lunge, 0.0f, Bob));
 	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale * FVector(ScaleX, ScaleY, 1.0f));
+	UpdateSpadeSequenceAnimation(bMoving);
 	UpdateSequenceFrame();
+}
+
+void AReEchoPlayerPawn::UpdateSpadeSequenceAnimation(const bool bMoving)
+{
+	static const FName SpadeCharacterId(TEXT("J_SPADE"));
+	static const FName MoonStaffWeaponId(TEXT("W_J_02"));
+	if (CurrentCharacterId != SpadeCharacterId)
+	{
+		SequenceAnimation->DeactivateAnimation();
+		CharacterSprite->SetVisibility(true);
+		CharacterSprite->SetHiddenInGame(false);
+		return;
+	}
+
+	const bool bMoonStaffAttack =
+	    SequenceAttackRemaining > 0.0f && Weapon && Weapon->GetEquippedWeaponId() == MoonStaffWeaponId;
+	if (!bMoonStaffAttack && !bMoving)
+	{
+		SequenceAnimation->DeactivateAnimation();
+		CharacterSprite->SetVisibility(true);
+		CharacterSprite->SetHiddenInGame(false);
+		return;
+	}
+
+	FReEcho2DAnimationProfile Profile;
+	Profile.DefaultFlipbook = SpadeIdleFlipbook;
+	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Attack, SpadeAttackFlipbook);
+	Profile.WorldHeight = 224.0f;
+	Profile.TranslucentSortPriority = 10;
+	if (!SequenceAnimation->IsAnimationActive() &&
+	    SequenceAnimation->ActivateProfile(Profile) != EReEcho2DAnimationActivationResult::Activated)
+	{
+		CharacterSprite->SetVisibility(true);
+		CharacterSprite->SetHiddenInGame(false);
+		return;
+	}
+
+	SequenceAnimation->SetAnimationState(
+	    bMoonStaffAttack ? EReEcho2DAnimationState::Attack : EReEcho2DAnimationState::Move, !bMoonStaffAttack);
+	CharacterSprite->SetVisibility(false);
+	CharacterSprite->SetHiddenInGame(true);
 }
 
 void AReEchoPlayerPawn::UpdateSequenceFrame()

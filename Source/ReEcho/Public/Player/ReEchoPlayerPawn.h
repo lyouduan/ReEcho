@@ -156,6 +156,7 @@ private:
 	void AbilityInputReleased(const FGameplayTag& InputTag);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
+	void UpdateSpadeSequenceAnimation(bool bMoving);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
@@ -165,6 +166,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UPaperFlipbook> SpadeIdleFlipbook;
+	UPROPERTY()
+	TObjectPtr<UPaperFlipbook> SpadeAttackFlipbook;
+	FName CurrentCharacterId;
 
 	bool bMouseInputConfigured = false;
 	bool bAutoAttackMode = true;
@@ -177,6 +181,7 @@ private:
 	float AttackVisualRemaining = 0.0f;
 	float AttackVisualDuration = 0.0f;
 	float AttackVisualStrength = 0.0f;
+	float SequenceAttackRemaining = 0.0f;
 	float HitVisualRemaining = 0.0f;
 	float VisualFacingSign = 1.0f;
 	float AppliedVisualFacingSign = 0.0f;

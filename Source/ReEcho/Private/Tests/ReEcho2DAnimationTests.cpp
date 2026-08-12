@@ -13,8 +13,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 {
 	UPaperFlipbook* PlayerFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
 	UPaperFlipbook* GruntFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/01_2.01_2"));
+	UPaperFlipbook* StaffAttackFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/s.s"));
 	TestNotNull(TEXT("J_SPADE idle Flipbook is loadable"), PlayerFlipbook);
 	TestNotNull(TEXT("Grunt default Flipbook is loadable"), GruntFlipbook);
+	TestNotNull(TEXT("Moon Staff attack Flipbook is loadable"), StaffAttackFlipbook);
 	TestTrue(TEXT("J_SPADE Flipbook has non-empty render bounds"),
 	         PlayerFlipbook && PlayerFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
 	TestTrue(TEXT("Grunt Flipbook has non-empty render bounds"),
@@ -23,6 +25,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	UReEcho2DAnimationComponent* Component = NewObject<UReEcho2DAnimationComponent>();
 	FReEcho2DAnimationProfile Profile;
 	Profile.DefaultFlipbook = PlayerFlipbook;
+	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Attack, StaffAttackFlipbook);
 	Profile.WorldHeight = 224.0f;
 	TestEqual(TEXT("Valid profile activates"),
 	          Component->ActivateProfile(Profile),
@@ -36,6 +39,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Component->SetAnimationState(EReEcho2DAnimationState::Death) &&
 	             Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Default fallback remains looping after a state change"), Component->IsLooping());
+	TestTrue(TEXT("Moon Staff attack state resolves to s Flipbook"),
+	         Component->SetAnimationState(EReEcho2DAnimationState::Attack, false) &&
+	             Component->GetFlipbook() == StaffAttackFlipbook);
+	TestFalse(TEXT("Moon Staff attack Flipbook is one-shot"), Component->IsLooping());
 
 	FReEcho2DAnimationProfile MissingProfile;
 	TestEqual(TEXT("Missing Flipbook fails safely"),

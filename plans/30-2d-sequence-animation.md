@@ -15,7 +15,7 @@
 - Stable Reads: character ID `J_SPADE`, `EReEchoEnemyKind::Grunt`, existing combat/collision/recording and procedural visual contracts.
 - Impact mode: C++ `Isolated`; `Content/2DAnim/**` `Exclusive`.
 - Compatibility promise / downstream action: Actor/collision gameplay transforms remain authoritative; recordings, GAS, weapons, HUD, save identity and non-target actor presentation remain unchanged.
-- Explicit exclusions: attack Flipbooks; Echo animation; Grunt state-specific clips; Shield/Bomber/Boss animation; animation-notify gameplay; CSV/XLSX migration; asset rename.
+- Explicit exclusions: non-Moon-Staff attack Flipbooks; Echo animation; Grunt state-specific clips; Shield/Bomber/Boss animation; animation-notify gameplay; CSV/XLSX migration; asset rename.
 
 ## Locked goal
 
@@ -71,6 +71,7 @@ Add a reusable Paper2D presentation layer that loops the existing idle Flipbook 
 - After the first PIE showed an invisible Spade, corrected the repair path to call `UPaperSprite::RebuildData()` through a development-only native bridge; all twelve player Sprite assets now contain non-empty baked render geometry.
 - Made looping explicit on every profile activation, state resolution and Flipbook application so both Spade `Idel` and Grunt `01_2` restart and continue looping after reconfiguration.
 - Fixed the PIE playback defect: the custom component had disabled `PrimaryComponentTick`, preventing PaperFlipbook playback time from advancing. Animation activation now enables ticking and deactivation disables it.
+- Updated the Spade state policy by human direction: static Billboard while stationary, looping `Idel` only while moving, and `/Game/2DAnim/Flipbook/s` while a successful Moon Staff (`W_J_02`) attack visual is active. Other weapons retain the existing procedural/static presentation.
 - Added the complete existing `Content/2DAnim` resource tree to the Plan delivery without renaming `Idel` or hand-editing asset bytes.
 
 ### Evidence

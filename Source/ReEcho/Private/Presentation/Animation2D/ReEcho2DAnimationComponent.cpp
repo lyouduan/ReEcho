@@ -52,15 +52,21 @@ UReEcho2DAnimationComponent::ActivateProfile(const FReEcho2DAnimationProfile& In
 	return EReEcho2DAnimationActivationResult::Activated;
 }
 
-bool UReEcho2DAnimationComponent::SetAnimationState(const EReEcho2DAnimationState NewState)
+bool UReEcho2DAnimationComponent::SetAnimationState(const EReEcho2DAnimationState NewState, const bool bShouldLoop)
 {
 	if (!bAnimationActive)
 	{
 		return false;
 	}
+	UPaperFlipbook* ResolvedFlipbook = ActiveProfile.Resolve(NewState);
+	if (ActiveState == NewState && GetFlipbook() == ResolvedFlipbook && IsLooping() == bShouldLoop && IsPlaying())
+	{
+		return true;
+	}
 	ActiveState = NewState;
-	SetLooping(true);
-	ApplyFlipbook(ActiveProfile.Resolve(NewState));
+	SetLooping(bShouldLoop);
+	ApplyFlipbook(ResolvedFlipbook);
+	SetLooping(bShouldLoop);
 	return GetFlipbook() != nullptr;
 }
 
