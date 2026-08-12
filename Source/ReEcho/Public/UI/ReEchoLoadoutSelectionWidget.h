@@ -6,6 +6,7 @@
 
 class SWidget;
 class UButton;
+class UHorizontalBox;
 class UReEchoIndexedButton;
 class UTextBlock;
 
@@ -28,6 +29,7 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void BuildOptionEntries();
 	void LoadOptions();
 	void RefreshSelection();
 	void SelectCharacter(FName CharacterId);
@@ -42,8 +44,14 @@ private:
 	UFUNCTION()
 	void HandleConfirmClicked();
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StatusText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UHorizontalBox> CharacterRow;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UHorizontalBox> WeaponRow;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CharacterButtons;
@@ -51,7 +59,7 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> WeaponButtons;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConfirmButton;
 
 	FName SelectedCharacterId;

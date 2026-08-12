@@ -53,7 +53,10 @@ UReEchoTraitCardChoiceWidget::UReEchoTraitCardChoiceWidget(const FObjectInitiali
 
 TSharedRef<SWidget> UReEchoTraitCardChoiceWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 
@@ -63,6 +66,7 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	SetIsFocusable(true);
 	SetVisibility(ESlateVisibility::Visible);
 	BuildWidgetTree();
+	BuildCardEntries();
 
 	for (UReEchoIndexedButton* CardButton : CardButtons)
 	{
@@ -181,6 +185,29 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 	NeedleSlot->SetZOrder(2);
 	NeedleWidget = Needle;
 
+	TraitCardContainer = RootCanvas;
+	RefreshOffers();
+}
+
+void UReEchoTraitCardChoiceWidget::BuildCardEntries()
+{
+	if (!WidgetTree || !TraitCardContainer)
+	{
+		return;
+	}
+
+	for (USizeBox* CardPanel : CardPanels)
+	{
+		if (CardPanel && CardPanel->GetParent() == TraitCardContainer)
+		{
+			TraitCardContainer->RemoveChild(CardPanel);
+		}
+	}
+	CardButtons.Reset();
+	CardPanels.Reset();
+	CardNames.Reset();
+	CardDescriptions.Reset();
+
 	const TArray<FAnchors> CardAnchors = {FAnchors(0.26f, 0.62f), FAnchors(0.50f, 0.59f), FAnchors(0.74f, 0.62f)};
 	const TArray<FLinearColor> CardColors = {FLinearColor(0.30f, 0.20f, 0.11f, 0.98f),
 	                                         FLinearColor(0.13f, 0.27f, 0.26f, 0.98f),
@@ -195,7 +222,7 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 		CardSize->SetWidthOverride(310.0f);
 		CardSize->SetHeightOverride(390.0f);
 		CardSize->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
-		UCanvasPanelSlot* CardSlot = RootCanvas->AddChildToCanvas(CardSize);
+		UCanvasPanelSlot* CardSlot = TraitCardContainer->AddChildToCanvas(CardSize);
 		CardSlot->SetAnchors(CardAnchors[CardIndex]);
 		CardSlot->SetAlignment(FVector2D(0.5f, 0.5f));
 		CardSlot->SetSize(FVector2D(310.0f, 390.0f));

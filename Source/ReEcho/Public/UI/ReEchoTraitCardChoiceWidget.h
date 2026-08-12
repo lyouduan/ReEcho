@@ -7,6 +7,7 @@
 
 class SWidget;
 class UButton;
+class UCanvasPanel;
 class UImage;
 class UReEchoIndexedButton;
 class USizeBox;
@@ -39,12 +40,16 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void BuildCardEntries();
 	void RefreshOffers();
 	void ResetRevealAnimation();
 	void SelectOffer(int32 OfferIndex);
 
 	UFUNCTION()
 	void HandleCardClicked(int32 OfferIndex);
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UCanvasPanel> TraitCardContainer;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CardButtons;
@@ -58,16 +63,16 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> CardDescriptions;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> TitleText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> SubtitleText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> CurrencyText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> NeedleWidget;
 
 	UPROPERTY()
