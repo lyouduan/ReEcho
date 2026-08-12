@@ -8,8 +8,8 @@
 - Implementation authored by (AI side): Gavyn-side AI.
 - Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Local planning / implementation base: behavior reference `03423bf`; combined adaptation base `origin/main` at `0726bd6`.
-- Implementation branch: behavior reference `plan/28-player-attack-modes`; combined adaptation occurs on local `integration/gavyn-umg-gameplay-20260812`.
+- Local planning / implementation base: behavior reference `03423bf`; final current-main integration base `dcd0b05`.
+- Implementation branch: behavior reference `plan/28-player-attack-modes`; corrected implementation integrated into `main` through merge `a931af3`.
 - Depends on / Blocks: depends on the current run-locked weapon implementation, GAS basic-attack loop and pause-aware encounter clock. It does not block Plan26's read-only Inventory/Stats UI work.
 - Writes: PlayerPawn attack-mode/target-selection state; the narrow weapon/enemy queries needed for effective range and deterministic tie-breaking; `Config/DefaultInput.ini`; Plan28 automation; typed Restart-WBP bindings and an embedded attack-mode panel. Old code-built Restart layout and direct viewport ownership are excluded from migration.
 - Stable Reads: existing GAS abilities/tags, weapon definitions and ordered attack steps, enemy alive/runtime identity, recorder contract, pause/settings menu behavior and encounter timing.
