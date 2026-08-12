@@ -23,11 +23,12 @@ Every commit created by an AI must begin its subject with exactly one tag matchi
 Before every Programmer-route push to `origin/main`, the final integrated candidate must be built in full with the project-standard UE 5.8 installed/release build:
 
 ```powershell
-scripts\ue\Build-Editor.cmd -Configuration Development
+scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild
 ```
 
 The successful command refreshes the curated Win64 Editor prebuilt bundle and its source fingerprint. The same candidate must include all approved source/content/configuration changes plus the matching tracked files declared by `Binaries/Win64/ReEchoEditor.prebuilt.json`.
 
+- The publication gate requires `-FullRebuild`; an incremental build that reports the target up to date is useful during implementation but does not satisfy the final push gate.
 - Never publish a source-only Programmer candidate or reuse build evidence from before its final integration/rebase/conflict resolution.
 - A failed build, missing binary, binary-hash mismatch, stale source fingerprint, wrong engine Build ID, or dirty prebuilt refresh blocks the push.
 - Run `python scripts/validate_project.py` after the build and commit the refreshed allowlisted bundle before the final fetch/push gate.

@@ -17,7 +17,6 @@ Live local coordination only. Closed history belongs in Plans and Git; permanent
 | Plan 32 shop echo storage/selection UI | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | Rework from local `main`; `73a8ed6` is behavior reference only | Typed InventoryShop intermission, echo-management child WBP assets and authoritative command/close tests | Planner review requires the missing WBP assets and restored transaction/close coverage. Do not merge the old code-built branch or its deferred acquisition addition. |
 | Plan 33 audio runtime-module foundation | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Ready` | `NotRequired` | Waits for the combined gameplay/UI baseline | Separate `ReEchoAudio` runtime module and one-way dependency contract | No audio implementation is part of the current merge. |
 | Plans 34-36 authored and integrated audio | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Depend on Plan33 | Catalog/settings, noncombat and combat/echo audio integration | Wait for Plan33 and the relevant combined UI/gameplay surfaces. |
-| Plan 37 clone-and-open Editor delivery | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `NotRequired` | Starts after this Plan-only publication on `origin/main` | Curated Win64 Editor module bundle, prebuilt validation and programmer publication gate | Future C++ or module-descriptor publications must rebuild and refresh the bundle before main publication. |
 
 ## Active ownership
 

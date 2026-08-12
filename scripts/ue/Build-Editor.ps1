@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$EngineRoot,
-    [ValidateSet('DebugGame','Development','Shipping')][string]$Configuration = 'Development'
+    [ValidateSet('DebugGame','Development','Shipping')][string]$Configuration = 'Development',
+    [switch]$FullRebuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,7 +20,11 @@ if ($editorProcesses) {
 }
 
 $build = Join-Path $resolvedEngine 'Engine\Build\BatchFiles\Build.bat'
-& $build ReEchoEditor Win64 $Configuration $project -WaitMutex -NoHotReloadFromIDE
+$buildArguments = @('ReEchoEditor', 'Win64', $Configuration, $project, '-WaitMutex', '-NoHotReloadFromIDE')
+if ($FullRebuild) {
+    $buildArguments += '-Rebuild'
+}
+& $build @buildArguments
 $buildExitCode = $LASTEXITCODE
 if ($buildExitCode -ne 0) { exit $buildExitCode }
 

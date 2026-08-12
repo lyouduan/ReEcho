@@ -6,7 +6,7 @@
 - Executor owner: Codex.
 - Plan authored by (AI side): `Gavyn-side AI`.
 - Implementation authored by (AI side): `Gavyn-side AI`.
-- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Remote planning base: `origin/main` at `c41441dbb25b621062888a7ee251bd5b37781e68` after fetching and confirming Plan 36 as the highest remote task number.
 - Plan-only publication: `5d6c631e06aadbabb8cd36cbed178783d23d2afb` on `origin/main`, verified before implementation publication.
@@ -24,13 +24,13 @@ Make a fresh Windows checkout of ReEcho directly openable through `ReEcho.uproje
 
 ## Locked acceptance
 
-- [ ] `origin/main` contains the minimal Win64 Editor module files required for Unreal to load `ReEcho`.
+- [x] `origin/main` contains the minimal Win64 Editor module files required for Unreal to load `ReEcho`.
 - [x] A committed manifest binds the bundle to the UE association/build, target/configuration, source fingerprint and binary hashes.
 - [x] Static validation fails when required prebuilt files are missing, modified, or stale relative to `Source`, target rules or `ReEcho.uproject`.
 - [x] The normal Editor build command refreshes the manifest after a successful full build.
-- [ ] A clean checkout containing only tracked files launches `ReEcho.uproject` unattended with UE 5.8 and exits without a missing/incompatible-module error.
+- [x] A clean checkout containing only tracked files launches `ReEcho.uproject` unattended with UE 5.8 and exits without a missing/incompatible-module error.
 - [x] Generated products outside the explicit prebuilt allowlist remain ignored and uncommitted.
-- [ ] Project validation, focused prebuilt tests, Editor build and `git diff --check` pass on the final integrated candidate.
+- [x] Project validation, focused prebuilt tests, Editor build and `git diff --check` pass on the final integrated candidate.
 
 ## Step 0 gate
 
@@ -54,7 +54,7 @@ Make a fresh Windows checkout of ReEcho directly openable through `ReEcho.uproje
 |---|---|---|
 | Static | `python scripts/validate_project.py` | prebuilt presence, hashes, source fingerprint and workflow invariants pass |
 | Focused | prebuilt tool `--check` plus tamper/staleness fixtures | missing, changed and stale bundles fail deterministically |
-| Build | `scripts/ue/Build-Editor.cmd -Configuration Development` | UHT/UBT succeeds and refreshes the manifest |
+| Build | `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` | UHT/UBT performs a full rebuild and refreshes the manifest |
 | Fresh checkout | launch tracked-only copy with UE 5.8 unattended | project module loads; no missing/incompatible-module error |
 | Scope | `git diff --check` and explicit tracked-product audit | only allowlisted generated products are published |
 
@@ -65,14 +65,17 @@ Make a fresh Windows checkout of ReEcho directly openable through `ReEcho.uproje
 - Added a centralized AI commit-identity and Programmer publication-build authority.
 - Added a minimal tracked Win64 Editor module bundle with deterministic source and binary fingerprints.
 - Made the normal Development Editor build refresh and normalize the bundle automatically.
+- Added an explicit full-rebuild mode and made it mandatory for Programmer publication.
 - Extended static validation and focused tests for missing, tampered, source-stale and line-ending-only bundle cases.
 
 ### Evidence
 
 - After integrating remote Plan28, UE 5.8 `ReEchoEditor Win64 Development` full UHT/UBT build succeeded against Build ID `55116800`.
-- Earlier candidate checks passed for one declared module, 3/3 focused tests, project validation and staged-diff validation.
-- A tracked-files-only archive of candidate `50c1a4c` started with no `Intermediate` directory, passed its manifest check, loaded directly through UE 5.8, reached `Engine is initialized`, and logged no missing/incompatible-module error.
-- Final integrated build, validation and clean-checkout evidence are pending before closure.
+- UE 5.8 `ReEchoEditor Win64 Development -Rebuild` cleaned the target, completed 8 compile/link/metadata actions and refreshed the bundle against Build ID `55116800`.
+- `python scripts/ue/prebuilt_editor.py check` passed for one declared module and normalized source fingerprint `092037d157cb`.
+- `python scripts/ue/test_prebuilt_editor.py` passed 4/4 focused tests, including CRLF/LF stability.
+- `python scripts/validate_project.py` and `git diff --check` passed on the integrated candidate.
+- A tracked-files-only checkout of the final commit contained no `Intermediate` directory, passed its manifest check, loaded directly through UE 5.8, reached `Engine is initialized`, and logged no missing/incompatible-module error.
 
 ### Remaining risks
 
@@ -80,4 +83,4 @@ Make a fresh Windows checkout of ReEcho directly openable through `ReEcho.uproje
 
 ### Human validation result/request
 
-`NotRequired`: direct-open behavior will be covered by a clean-checkout launch smoke test; visual or gameplay acceptance is outside this Plan.
+`NotRequired`: direct-open behavior is covered by a clean-checkout launch smoke test; visual or gameplay acceptance is outside this Plan.

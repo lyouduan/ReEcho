@@ -51,6 +51,16 @@ class PrebuiltEditorTests(unittest.TestCase):
             with self.assertRaisesRegex(PREBUILT.PrebuiltError, "stale source fingerprint"):
                 PREBUILT.check(root)
 
+    def test_source_line_endings_do_not_stale_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_project(root)
+            source = root / "Source" / "ReEcho.Target.cs"
+            source.write_bytes(b"first\nsecond\n")
+            PREBUILT.update(root)
+            source.write_bytes(b"first\r\nsecond\r\n")
+            PREBUILT.check(root)
+
     def test_binary_change_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

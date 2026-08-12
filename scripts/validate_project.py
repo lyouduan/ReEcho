@@ -1007,7 +1007,7 @@ def validate_workflow() -> None:
         "[ARTIST]",
         "[SECRETARY]",
         "Before every Programmer-route push to `origin/main`",
-        "Build-Editor.cmd -Configuration Development",
+        "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
         "source-only Programmer candidate",
     )
@@ -1220,6 +1220,10 @@ def validate_prebuilt_editor() -> None:
     tool = ROOT / "scripts" / "ue" / "prebuilt_editor.py"
     if not tool.is_file():
         fail("missing prebuilt Editor bundle tool")
+    build_script = ROOT / "scripts" / "ue" / "Build-Editor.ps1"
+    build_text = build_script.read_text(encoding="utf-8") if build_script.is_file() else ""
+    if "[switch]$FullRebuild" not in build_text or "$buildArguments += '-Rebuild'" not in build_text:
+        fail("Build-Editor.ps1 must expose the full-rebuild publication gate")
     result = subprocess.run(
         [sys.executable, str(tool), "check"],
         cwd=ROOT,

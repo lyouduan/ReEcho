@@ -34,6 +34,11 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_source_file(path: Path) -> str:
+    content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(content).hexdigest()
+
+
 def source_paths(root: Path = ROOT) -> list[Path]:
     paths = [root / "ReEcho.uproject"]
     source_root = root / "Source"
@@ -50,7 +55,7 @@ def source_paths(root: Path = ROOT) -> list[Path]:
 
 
 def source_hashes(root: Path = ROOT) -> dict[str, str]:
-    return {relative(path, root): sha256_file(path) for path in source_paths(root)}
+    return {relative(path, root): sha256_source_file(path) for path in source_paths(root)}
 
 
 def combined_fingerprint(hashes: dict[str, str]) -> str:
