@@ -2,11 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "UI/ReEchoAttackModeWidget.h"
 #include "ReEchoRestartWidget.generated.h"
 
 class SWidget;
 class UButton;
 class UTextBlock;
+class UVerticalBox;
 
 UENUM()
 enum class EReEchoRestartScreenMode : uint8
@@ -49,12 +51,19 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoSettingsRequested OnSettingsRequested;
 
+	UPROPERTY(BlueprintAssignable)
+	FReEchoAttackModeRequested OnAutomaticAttackRequested;
+
+	UPROPERTY(BlueprintAssignable)
+	FReEchoAttackModeRequested OnManualAttackRequested;
+
 	void SetDeathScreen(bool bInDeathScreen);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount);
 	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
 	void SetQuitConfirmation(bool bInQuitConfirmation);
 	void ShowSaveFailure();
+	void SetAutomaticAttackMode(bool bAutomatic);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -63,6 +72,7 @@ protected:
 private:
 	void BuildWidgetTree();
 	void RefreshMenuMode();
+	void EnsureAttackModeWidget();
 
 	UFUNCTION()
 	void HandleResumeClicked();
@@ -75,6 +85,15 @@ private:
 
 	UFUNCTION()
 	void HandleSettingsClicked();
+
+	UFUNCTION()
+	void HandleAutomaticAttackClicked();
+
+	UFUNCTION()
+	void HandleManualAttackClicked();
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> MenuContent;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> TitleText;
@@ -97,8 +116,12 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> QuitButtonText;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UReEchoAttackModeWidget> AttackModeWidget;
+
 	EReEchoRestartScreenMode ScreenMode = EReEchoRestartScreenMode::Pause;
 	EReEchoQuitPromptState QuitPromptState = EReEchoQuitPromptState::None;
 	int32 VictoryTimeShards = 0;
 	int32 VictoryTraitCount = 0;
+	bool bAutomaticAttackMode = true;
 };

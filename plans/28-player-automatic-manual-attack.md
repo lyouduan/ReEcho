@@ -6,7 +6,7 @@
 - Executor owner: Plan28 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: behavior reference `03423bf`; combined adaptation base `origin/main` at `0726bd6`.
 - Implementation branch: behavior reference `plan/28-player-attack-modes`; combined adaptation occurs on local `integration/gavyn-umg-gameplay-20260812`.
@@ -27,7 +27,7 @@ Attack mode is run-local persisted state: a new run starts automatic, while Cont
 
 ## Locked acceptance
 
-- [ ] A fresh run starts `Automatic`; later encounters and Continue restore the run's saved attack mode before accepting gameplay input.
+- [x] A fresh run starts `Automatic`; later encounters and Continue restore the run's saved attack mode before accepting gameplay input.
 - [x] `P` is the only pause entry: it pauses the world, blocks gameplay abilities and opens the existing `UReEchoRestartWidget`; `Esc` is not retained as a second pause mapping and no second attack-mode modal is introduced.
 - [ ] The latest Restart WBP visibly shows the current mode through an embedded attack-mode panel. Choosing either mode does not close or resume; Resume or `P` restores gameplay exactly once.
 - [x] Existing start/loadout, trait, shop, inventory, stats, settings, death/victory and pause-menu ownership cannot stack. Adding attack-mode choices does not alter resume, restart, settings, save-and-quit confirmation, save failure, death or victory actions.
@@ -72,11 +72,39 @@ Attack mode is run-local persisted state: a new run starts automatic, while Cont
 
 ## Execution notes
 
-### Planner review finding (2026-08-12, rework required)
+- The merged candidate uses save version 6 for run-local attack-mode persistence. New runs default to automatic; v4/v5 migration defaults automatic; v6 Continue restores the saved choice.
+- `P` is the sole pause mapping and still executes while paused. The existing Restart screen owns pause/resume; a native Blueprintable attack-mode child is dynamically embedded under its existing `MenuContent` without adding a top-level screen or restoring direct viewport ownership.
+- Choosing automatic/manual updates RunSubsystem and Player state, saves immediately, refreshes the mode label and deliberately remains paused. Only Resume or `P` resumes.
+- Every gameplay-blocking menu releases synthetic held basic-attack input through `SetPlayerMenuAbilityBlocked(true)`.
+- Objective evidence on the current-main integration: `validate_project.py` PASS; Editor Development build Succeeded; `CompileAllBlueprints` completed with 0 errors, 0 warnings and 0 failed loads; `ReEcho.AttackMode` automation 5/5 and the full `ReEcho` suite 51/51 returned `Result={Success}`, `EXIT CODE: 0`; `git diff --check` clean. Visual/PIE validation remains with the user.
 
-- Physical left-mouse/`J` input and synthetic automatic held input currently share `BasicAttack` / `StopBasicAttack` without independent source state.
-- A physical press can therefore attack in automatic mode with no target, while a physical release can interrupt GAS input without clearing `bAutoAttackInputHeld`, preventing deterministic reacquisition.
-- Separate or gate the two input sources, release the correct held source on mode/menu transitions, and cover physical press/release in automatic mode with and without a valid target before returning Plan28 to Review.
+## Planner review finding (2026-08-12, rework required)
+
+- The physical `BasicAttack` bindings still call `BasicAttack` / `StopBasicAttack` in automatic mode, while synthetic automatic input uses the same functions and only tracks its own `bAutoAttackInputHeld` flag.
+- Consequently, left-mouse/`J` can initiate a basic attack in automatic mode even when no target is in range. Releasing that physical input can also release GAS basic-attack input while `bAutoAttackInputHeld` remains true, preventing the automatic loop from pressing it again until another transition resets the flag.
+- Required correction: separate physical manual input from synthetic automatic input (or otherwise gate it by authoritative mode), guarantee that switching modes/menu states releases the correct held source, and add focused coverage for physical press/release while automatic mode has both a valid target and no target.
+- Target selection, stable spawn-index tie-breaking, `P`-only pause, save v6 migration/Continue restoration, menu non-resume behavior and the recording exclusion passed review. Plan28 returns to `InProgress` only for the input-source defect above; human validation remains pending after the correction.
+
+## Input-source rework resolution (2026-08-12, integration branch)
+
+The input-source defect is resolved on `integration/gavyn-umg-gameplay-20260812` (deliberately not the behavior branch). Changes:
+
+- `AReEchoPlayerPawn`: added mode-gated physical handlers `ManualBasicAttack()` / `ManualStopBasicAttack()` as the bound `BasicAttack` input entry. They drive the shared GAS `Input_Attack_Basic` spec only in manual mode; in automatic mode they return early, so a physical press/release can no longer initiate an attack with no target or clear the auto loop's held input. `BasicAttack()` / `StopBasicAttack()` remain the shared GAS driver used by `PressAutoAttackInput` / `ReleaseAutoAttackInput`.
+- `bManualAttackInputHeld` tracks the physical held source independently from the synthetic `bAutoAttackInputHeld`.
+- `SetAutoAttackMode(true)` releases any held manual source so the auto loop can own the shared spec cleanly; `SetAutoAttackMode(false)` releases the synthetic auto source (unchanged).
+- `ReleaseAllBasicAttackInputs()` releases both sources; `AReEchoGameMode::SetPlayerMenuAbilityBlocked(true)` now calls it so a menu open releases the correct held source for both modes.
+- Added deterministic automation `ReEcho.AttackMode.InputSource` covering physical press/release in automatic mode with a valid target and with no target, plus mode-switch release of the manual source. No PIE/world required.
+
+Objective verification (Executor, no PIE): `validate_project.py` PASS; Editor Development build Succeeded; `ReEcho.AttackMode` automation = 5/5 `Result={Success}` (`ReEcho.AttackMode.InputSource`, `NoRecording`, `SaveAndMigration`, `StateAndHeldInput`, `Targeting`), `EXIT CODE: 0`; `git diff --check` clean. `.clang-format` unavailable locally; diff manually inspected against repository style. Human validation remains `PendingBeforeClose`.
+
+## Planner integration result (2026-08-12, current main candidate)
+
+- Semantically integrated Plan28 onto current main without merging the mixed Plan32 shop implementation. The pause entry remains `P`; input config, binding, plan and UI copy agree.
+- Reviewed the physical/synthetic input-source lifecycle and accepted the correction: physical press/release is manual-mode-only, switching modes releases the previous owner and opening a gameplay-blocking menu releases both sources.
+- Objective gates passed: static validation; Editor Development build; Blueprint compilation with 0 errors, 0 warnings and 0 failed loads; focused attack-mode automation 5/5; full `ReEcho` automation 51/51; whitespace/path audit clean.
+- Plan remains `Review` / `PendingBeforeClose` solely for the user's PIE/game-feel and visual validation.
+
+## Historical behavior-branch notes (superseded where they conflict above)
 
 ### Changed
 - `Source/ReEcho/Public/Player/ReEchoPlayerPawn.h` / `.cpp`：新增攻击模式状态（`bAutoAttackMode` 默认 true）、`SetAutoAttackMode`、模拟 held basic-attack input 生命周期（`PressAutoAttackInput`/`ReleaseAutoAttackInput`/`IsAutoAttackInputHeld`）、`UpdateAutoAttack` 每帧驱动、`FindNearestEnemyInRange` 与确定性静态选择 `SelectNearestEnemyInRange`、`FReEchoAttackTargetCandidate` 结构；`Tick` 在自动模式下自动瞄准最近敌人并抑制鼠标覆盖，无目标时回退鼠标瞄准。默认在 `BeginSelectedRun` 重置为自动。

@@ -177,5 +177,13 @@ private:
 	void SetGameplayPresentationVisible(bool bVisible);
 	void RestoreGameInput();
 	void SetPlayerMenuAbilityBlocked(bool bBlocked);
+
+	UFUNCTION()
+	void HandleAutomaticAttackRequested();
+
+	UFUNCTION()
+	void HandleManualAttackRequested();
+
+	void ApplyAttackModeChoice(bool bAutomatic);
 	bool bSettingsReturnToStartMenu = false;
 };

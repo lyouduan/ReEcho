@@ -23,6 +23,7 @@ void UReEchoRestartWidget::NativeConstruct()
 	Super::NativeConstruct();
 	SetIsFocusable(true);
 	BuildWidgetTree();
+	EnsureAttackModeWidget();
 
 	if (ResumeButton)
 	{
@@ -83,6 +84,16 @@ void UReEchoRestartWidget::ShowSaveFailure()
 	RefreshMenuMode();
 }
 
+void UReEchoRestartWidget::SetAutomaticAttackMode(const bool bAutomatic)
+{
+	bAutomaticAttackMode = bAutomatic;
+	EnsureAttackModeWidget();
+	if (AttackModeWidget)
+	{
+		AttackModeWidget->SetAutomaticMode(bAutomaticAttackMode);
+	}
+}
+
 void UReEchoRestartWidget::BuildWidgetTree()
 {
 	if (RestartButton || !WidgetTree)
@@ -97,15 +108,15 @@ void UReEchoRestartWidget::BuildWidgetTree()
 	Background->SetVerticalAlignment(VAlign_Center);
 	WidgetTree->RootWidget = Background;
 
-	UVerticalBox* Content = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MenuContent"));
-	Background->SetContent(Content);
+	MenuContent = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MenuContent"));
+	Background->SetContent(MenuContent);
 
 	TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MenuTitle"));
 	TitleText->SetJustification(ETextJustify::Center);
 	FSlateFontInfo TitleFont = TitleText->GetFont();
 	TitleFont.Size = 44;
 	TitleText->SetFont(TitleFont);
-	UVerticalBoxSlot* TitleSlot = Content->AddChildToVerticalBox(TitleText);
+	UVerticalBoxSlot* TitleSlot = MenuContent->AddChildToVerticalBox(TitleText);
 	TitleSlot->SetHorizontalAlignment(HAlign_Center);
 	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 18.0f));
 
@@ -115,23 +126,23 @@ void UReEchoRestartWidget::BuildWidgetTree()
 	FSlateFontInfo MessageFont = MessageText->GetFont();
 	MessageFont.Size = 21;
 	MessageText->SetFont(MessageFont);
-	UVerticalBoxSlot* MessageSlot = Content->AddChildToVerticalBox(MessageText);
+	UVerticalBoxSlot* MessageSlot = MenuContent->AddChildToVerticalBox(MessageText);
 	MessageSlot->SetHorizontalAlignment(HAlign_Center);
 	MessageSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 28.0f));
 
 	ReEcho::UI::FMenuButtonStyle ButtonStyle{
 	    FLinearColor(0.08f, 0.42f, 0.32f, 1.0f), FMargin(0.0f, 5.0f), FMargin(42.0f, 12.0f), 24};
 	ResumeButton = ReEcho::UI::AddMenuButton(
-	    *WidgetTree, *Content, TEXT("ResumeButton"), FText::FromString(TEXT("返回游戏")), ButtonStyle);
+	    *WidgetTree, *MenuContent, TEXT("ResumeButton"), FText::FromString(TEXT("返回游戏")), ButtonStyle);
 	ButtonStyle.Color = FLinearColor(0.65f, 0.18f, 0.06f, 1.0f);
 	RestartButton = ReEcho::UI::AddMenuButton(
-	    *WidgetTree, *Content, TEXT("RestartButton"), FText::FromString(TEXT("重新开始")), ButtonStyle);
+	    *WidgetTree, *MenuContent, TEXT("RestartButton"), FText::FromString(TEXT("重新开始")), ButtonStyle);
 	ButtonStyle.Color = FLinearColor(0.16f, 0.22f, 0.34f, 1.0f);
 	SettingsButton = ReEcho::UI::AddMenuButton(
-	    *WidgetTree, *Content, TEXT("SettingsButton"), FText::FromString(TEXT("游戏设置")), ButtonStyle);
+	    *WidgetTree, *MenuContent, TEXT("SettingsButton"), FText::FromString(TEXT("游戏设置")), ButtonStyle);
 	ButtonStyle.Color = FLinearColor(0.55f, 0.05f, 0.08f, 1.0f);
 	QuitButton = ReEcho::UI::AddMenuButton(
-	    *WidgetTree, *Content, TEXT("QuitButton"), FText::FromString(TEXT("退出游戏")), ButtonStyle);
+	    *WidgetTree, *MenuContent, TEXT("QuitButton"), FText::FromString(TEXT("退出游戏")), ButtonStyle);
 	QuitButtonText = Cast<UTextBlock>(QuitButton->GetContent());
 	RefreshMenuMode();
 }
@@ -177,7 +188,7 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		else
 		{
 			MessageText->SetText(FText::FromString(bDeathScreen ? TEXT("玩家已阵亡，本次时间线结束")
-			                                                    : TEXT("游戏已暂停 · 按 Esc 可继续")));
+			                                                    : TEXT("游戏已暂停 · 按 P 可继续")));
 		}
 	}
 	if (ResumeButton)
@@ -202,6 +213,39 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		                                            : TEXT("退出游戏");
 		QuitButtonText->SetText(FText::FromString(QuitLabel));
 	}
+	if (AttackModeWidget)
+	{
+		const bool bShowAttackMode = ScreenMode == EReEchoRestartScreenMode::Pause &&
+		                             QuitPromptState == EReEchoQuitPromptState::None;
+		AttackModeWidget->SetVisibility(bShowAttackMode ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		AttackModeWidget->SetAutomaticMode(bAutomaticAttackMode);
+	}
+}
+
+void UReEchoRestartWidget::EnsureAttackModeWidget()
+{
+	if (AttackModeWidget || !WidgetTree)
+	{
+		return;
+	}
+	if (!MenuContent)
+	{
+		MenuContent = Cast<UVerticalBox>(WidgetTree->FindWidget(TEXT("MenuContent")));
+	}
+	if (!MenuContent && SettingsButton)
+	{
+		MenuContent = Cast<UVerticalBox>(SettingsButton->GetParent());
+	}
+	if (!MenuContent)
+	{
+		return;
+	}
+	AttackModeWidget = WidgetTree->ConstructWidget<UReEchoAttackModeWidget>(
+	    UReEchoAttackModeWidget::StaticClass(), TEXT("AttackModePanel"));
+	MenuContent->AddChildToVerticalBox(AttackModeWidget)->SetPadding(FMargin(4.0f, 8.0f));
+	AttackModeWidget->OnAutomaticRequested.AddDynamic(this, &UReEchoRestartWidget::HandleAutomaticAttackClicked);
+	AttackModeWidget->OnManualRequested.AddDynamic(this, &UReEchoRestartWidget::HandleManualAttackClicked);
+	AttackModeWidget->SetAutomaticMode(bAutomaticAttackMode);
 }
 
 void UReEchoRestartWidget::HandleResumeClicked()
@@ -222,4 +266,14 @@ void UReEchoRestartWidget::HandleQuitClicked()
 void UReEchoRestartWidget::HandleSettingsClicked()
 {
 	OnSettingsRequested.Broadcast();
+}
+
+void UReEchoRestartWidget::HandleAutomaticAttackClicked()
+{
+	OnAutomaticAttackRequested.Broadcast();
+}
+
+void UReEchoRestartWidget::HandleManualAttackClicked()
+{
+	OnManualAttackRequested.Broadcast();
 }

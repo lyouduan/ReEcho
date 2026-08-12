@@ -218,8 +218,8 @@ void AReEchoPlayerPawn::SetupPlayerInputComponent(UInputComponent* Input)
 	Super::SetupPlayerInputComponent(Input);
 	Input->BindAxis(TEXT("MoveForward"), this, &AReEchoPlayerPawn::MoveForward);
 	Input->BindAxis(TEXT("MoveRight"), this, &AReEchoPlayerPawn::MoveRight);
-	Input->BindAction(TEXT("BasicAttack"), IE_Pressed, this, &AReEchoPlayerPawn::BasicAttack);
-	Input->BindAction(TEXT("BasicAttack"), IE_Released, this, &AReEchoPlayerPawn::StopBasicAttack);
+	Input->BindAction(TEXT("BasicAttack"), IE_Pressed, this, &AReEchoPlayerPawn::ManualBasicAttack);
+	Input->BindAction(TEXT("BasicAttack"), IE_Released, this, &AReEchoPlayerPawn::ManualStopBasicAttack);
 	Input->BindAction(TEXT("ActiveSkill"), IE_Pressed, this, &AReEchoPlayerPawn::ActivateSkill);
 	FInputActionBinding& PauseBinding =
 	    Input->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AReEchoPlayerPawn::TogglePauseMenu);
@@ -250,7 +250,17 @@ void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	ConstrainToArenaBounds();
 	ConfigureMouseInput();
-	UpdateMouseAim();
+
+	bool bAutoHasTarget = false;
+	if (bAutoAttackMode)
+	{
+		UpdateAutoAttack(bAutoHasTarget);
+	}
+	if (!bAutoAttackMode || !bAutoHasTarget)
+	{
+		UpdateMouseAim();
+	}
+
 	UpdateSpriteAnimation(DeltaSeconds);
 	ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor::Green);
 	ReEchoCollisionDebug::DrawCapsule(this, Collision, FColor::Cyan);
@@ -457,6 +467,182 @@ void AReEchoPlayerPawn::BasicAttack()
 void AReEchoPlayerPawn::StopBasicAttack()
 {
 	AbilityInputReleased(ReEchoGameplayTags::Input_Attack_Basic);
+}
+
+void AReEchoPlayerPawn::ManualBasicAttack()
+{
+	// 物理（手动）输入仅在手动模式下驱动 GAS basic-attack 输入。
+	// 自动模式下该共享 GAS spec 归自动循环所有，因此物理按下必须被忽略，
+	// 既不能无目标起手，也不能触碰自动循环持有的同一输入源（Planner review 2026-08-12）。
+	if (bAutoAttackMode)
+	{
+		return;
+	}
+	bManualAttackInputHeld = true;
+	BasicAttack();
+}
+
+void AReEchoPlayerPawn::ManualStopBasicAttack()
+{
+	if (bAutoAttackMode)
+	{
+		return;
+	}
+	bManualAttackInputHeld = false;
+	StopBasicAttack();
+}
+
+void AReEchoPlayerPawn::ReleaseAllBasicAttackInputs()
+{
+	// 菜单开/关必须释放每个 held basic-attack 输入源，使恢复游戏时不会残留
+	// 来自自动循环或物理输入的陈旧 held 状态。
+	ReleaseAutoAttackInput();
+	if (bManualAttackInputHeld)
+	{
+		bManualAttackInputHeld = false;
+		StopBasicAttack();
+	}
+}
+
+void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
+{
+	if (bAutoAttackMode == bAuto)
+	{
+		return;
+	}
+	bAutoAttackMode = bAuto;
+	if (bAutoAttackMode)
+	{
+		// 切换到自动模式：物理（手动）held 输入不再权威，必须释放它，
+		// 这样自动循环才能干净地独占共享的 GAS basic-attack 输入。
+		if (bManualAttackInputHeld)
+		{
+			bManualAttackInputHeld = false;
+			StopBasicAttack();
+		}
+	}
+	else
+	{
+		// 切换到手动模式：释放模拟的自动 held 输入。
+		ReleaseAutoAttackInput();
+	}
+}
+
+void AReEchoPlayerPawn::PressAutoAttackInput()
+{
+	if (bAutoAttackInputHeld)
+	{
+		return;
+	}
+	BasicAttack();
+	bAutoAttackInputHeld = true;
+}
+
+void AReEchoPlayerPawn::ReleaseAutoAttackInput()
+{
+	if (bAutoAttackInputHeld)
+	{
+		StopBasicAttack();
+		bAutoAttackInputHeld = false;
+	}
+}
+
+void AReEchoPlayerPawn::UpdateAutoAttack(bool& bOutHasTarget)
+{
+	bOutHasTarget = false;
+
+	const bool bCanAuto = bAutoAttackMode
+		&& Combatant && Combatant->IsAlive()
+		&& AbilitySystem && AbilitySystem->GetGameplayTagCount(ReEchoGameplayTags::State_Menu) == 0;
+	if (!bCanAuto)
+	{
+		ReleaseAutoAttackInput();
+		return;
+	}
+
+	const float RangeCm = Weapon ? Weapon->GetCurrentAttackRangeCm() : 0.0f;
+	AReEchoEnemyActor* Target = FindNearestEnemyInRange(RangeCm);
+	if (!Target)
+	{
+		ReleaseAutoAttackInput();
+		return;
+	}
+
+	FVector ToTarget = Target->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (!ToTarget.IsNearlyZero())
+	{
+		VisualFacingSign = ToTarget.X >= 0.0f ? 1.0f : -1.0f;
+		SetActorRotation(ToTarget.Rotation());
+	}
+	bOutHasTarget = true;
+
+	// Automatic and manual attack share the same held GAS BasicAttack input. The ability and
+	// weapon action lock remain the only attack-rate authorities; automatic mode only selects a
+	// target and keeps the input held.
+	PressAutoAttackInput();
+}
+
+AReEchoEnemyActor* AReEchoPlayerPawn::FindNearestEnemyInRange(const float RangeCm) const
+{
+	TArray<FReEchoAttackTargetCandidate> Candidates;
+	if (UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AReEchoEnemyActor> It(World); It; ++It)
+		{
+			AReEchoEnemyActor* Enemy = *It;
+			if (!IsValid(Enemy))
+			{
+				continue;
+			}
+			FReEchoAttackTargetCandidate& Candidate = Candidates.AddDefaulted_GetRef();
+			Candidate.Location = Enemy->GetActorLocation();
+			Candidate.bAlive = Enemy->IsAlive();
+			Candidate.StableId = Enemy->GetSpawnIndex();
+			Candidate.Source = Enemy;
+		}
+	}
+	const int32 Index = SelectNearestEnemyInRange(GetActorLocation(), RangeCm, Candidates);
+	return Index != INDEX_NONE ? Candidates[Index].Source : nullptr;
+}
+
+int32 AReEchoPlayerPawn::SelectNearestEnemyInRange(const FVector& Origin,
+                                                   const float RangeCm,
+                                                   TArrayView<const FReEchoAttackTargetCandidate> Candidates)
+{
+	int32 BestIndex = INDEX_NONE;
+	float BestDistSq = RangeCm * RangeCm;
+	for (int32 i = 0; i < Candidates.Num(); ++i)
+	{
+		const FReEchoAttackTargetCandidate& Candidate = Candidates[i];
+		if (!Candidate.bAlive)
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(Origin, Candidate.Location);
+		if (DistSq > BestDistSq)
+		{
+			continue;
+		}
+		if (BestIndex == INDEX_NONE)
+		{
+			BestIndex = i;
+			BestDistSq = DistSq;
+		}
+		else if (FMath::IsNearlyEqual(DistSq, BestDistSq, 1e-3f))
+		{
+			if (Candidate.StableId < Candidates[BestIndex].StableId)
+			{
+				BestIndex = i;
+			}
+		}
+		else
+		{
+			BestIndex = i;
+			BestDistSq = DistSq;
+		}
+	}
+	return BestIndex;
 }
 
 void AReEchoPlayerPawn::ActivateSkill()

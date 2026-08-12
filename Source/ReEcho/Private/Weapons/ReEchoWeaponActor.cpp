@@ -244,6 +244,17 @@ float AReEchoWeaponActor::GetAttackInterval(UReEchoCombatantComponent* Combatant
 	           : 0.55f;
 }
 
+float AReEchoWeaponActor::GetCurrentAttackRangeCm() const
+{
+	if (!bHasEffectiveDefinition)
+	{
+		return 0.0f;
+	}
+	const FReEchoCsvAttackStepRow* Step = ResolveNextAttackStep();
+	const float StepRange = Step ? Step->RangeCm : 0.0f;
+	return StepRange > 0.0f ? StepRange : EffectiveDefinition.Weapon.RangeCm;
+}
+
 float AReEchoWeaponActor::GetAttackCooldownRemaining() const
 {
 	return AttackCooldown;
@@ -272,7 +283,7 @@ bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant)
 	{
 		return false;
 	}
-	BeginAttackStep(*Step);
+	BeginAttackStep(*Step, Combatant->Stats.AttackSpeed);
 	bool bExecuted = false;
 	if (EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.MoonStaffWave"))
 	{
@@ -354,12 +365,13 @@ const FReEchoCsvAttackStepRow* AReEchoWeaponActor::ResolveNextAttackStep() const
 	           : nullptr;
 }
 
-void AReEchoWeaponActor::BeginAttackStep(const FReEchoCsvAttackStepRow& Step)
+void AReEchoWeaponActor::BeginAttackStep(const FReEchoCsvAttackStepRow& Step, const float AttackSpeed)
 {
-	StepLockRemaining = FMath::Max(0.0f, Step.DurationSeconds);
+	const float ScaledDuration = Step.DurationSeconds / FMath::Max(0.1f, AttackSpeed);
+	StepLockRemaining = FMath::Max(0.0f, ScaledDuration);
 	if (Step.bInvulnerable)
 	{
-		InvulnerableRemaining = FMath::Max(InvulnerableRemaining, Step.DurationSeconds);
+		InvulnerableRemaining = FMath::Max(InvulnerableRemaining, ScaledDuration);
 	}
 	if (Step.MovementCm > 0.0f)
 	{

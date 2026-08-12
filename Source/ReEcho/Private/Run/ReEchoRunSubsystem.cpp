@@ -19,7 +19,7 @@ constexpr int32 RunSaveUserIndex = 0;
 
 bool IsValidResumableSave(const UReEchoRunSaveGame& SaveGame)
 {
-	// v4 archives stay resumable because RestoreSaveSnapshot migrates them forward to the v5 layout.
+	// v4/v5 archives stay resumable because RestoreSaveSnapshot migrates them forward.
 	if (SaveGame.SaveVersion < UReEchoRunSaveGame::MinimumSupportedSaveVersion ||
 	    SaveGame.SaveVersion > UReEchoRunSaveGame::CurrentSaveVersion ||
 	    SaveGame.SavedPhase == EReEchoRunPhase::Summary || SaveGame.SavedPhase == EReEchoRunPhase::Failed)
@@ -461,6 +461,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	EncounterIndex = 0;
 	TimeShards = 0;
 	InventoryItems.Reset();
+	bAutomaticAttackMode = true;
 	ResetEchoStorage();
 	PendingTraitCardIds.Reset();
 	PendingEncounterResume = {};
@@ -1094,7 +1095,8 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	SaveGame->TimeShards = TimeShards;
 	SaveGame->CurrentBuild = CurrentBuild;
 	SaveGame->InventoryItems = InventoryItems;
-	// v5 writes only the new echo storage state; RecordingHistory and AnchorId stay empty on purpose.
+	SaveGame->bAutomaticAttackMode = bAutomaticAttackMode;
+	// v5+ writes only the new echo storage state; RecordingHistory and AnchorId stay empty on purpose.
 	SaveGame->bHasPendingRecording = bHasPendingRecording;
 	if (bHasPendingRecording)
 	{
@@ -1130,7 +1132,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 		return false;
 	}
 	FReEchoEchoStorageRestoreState RestoredStorage;
-	if (SaveGame.SaveVersion < UReEchoRunSaveGame::CurrentSaveVersion)
+	if (SaveGame.SaveVersion == 4)
 	{
 		MigrateV4EchoStorage(SaveGame, RestoredStorage);
 	}
@@ -1177,6 +1179,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	CurrentBuild = NormalizedCurrentBuild;
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
+	bAutomaticAttackMode = SaveGame.SaveVersion >= 6 ? SaveGame.bAutomaticAttackMode : true;
 	bHasPendingRecording = RestoredStorage.bHasPendingRecording;
 	PendingRecording = RestoredStorage.bHasPendingRecording ? RestoredStorage.PendingRecording : FReEchoRecording{};
 	bHasLatestCompletedRecording = RestoredStorage.bHasLatestCompletedRecording;
