@@ -110,6 +110,10 @@ private:
 	UPROPERTY()
 	TSubclassOf<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidgetClass;
 	UPROPERTY()
+	TSubclassOf<UReEchoInventoryShopWidget> InventoryShopWidgetClass;
+	UPROPERTY()
+	TSubclassOf<UReEchoStatsWidget> StatsWidgetClass;
+	UPROPERTY()
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
 	bool bRestartScreenIsTerminal = false;

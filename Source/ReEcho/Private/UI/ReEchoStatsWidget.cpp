@@ -38,7 +38,10 @@ UReEchoStatsWidget::UReEchoStatsWidget(const FObjectInitializer& ObjectInitializ
 
 TSharedRef<SWidget> UReEchoStatsWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 
@@ -46,6 +49,10 @@ void UReEchoStatsWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	BuildWidgetTree();
+	if (CloseButton)
+	{
+		CloseButton->OnClicked.AddUniqueDynamic(this, &UReEchoStatsWidget::HandleCloseClicked);
+	}
 	Refresh();
 }
 
@@ -65,7 +72,7 @@ void UReEchoStatsWidget::InitializeStats(const FReEchoStatBlock& PlayerStats,
 
 void UReEchoStatsWidget::BuildWidgetTree()
 {
-	if (BackgroundImage || !WidgetTree)
+	if (!WidgetTree || (WidgetTree->RootWidget && BackgroundImage && PlayerStatsText && EchoStatsText && CloseButton))
 	{
 		return;
 	}
@@ -124,7 +131,7 @@ void UReEchoStatsWidget::BuildWidgetTree()
 	AddColumn(TEXT("EchoColumn"), NSLOCTEXT("ReEcho", "EchoStatsHeading", "当前回响"), EchoStatsRaw);
 	EchoStatsText = EchoStatsRaw;
 
-	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("StatsClose"));
+	CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("StatsClose"));
 	CloseButton->SetBackgroundColor(FLinearColor(0.04f, 0.08f, 0.15f, 0.9f));
 	UCanvasPanelSlot* CloseSlot = RootCanvas->AddChildToCanvas(CloseButton);
 	CloseSlot->SetAnchors(FAnchors(0.42f, 0.87f, 0.58f, 0.95f));
@@ -133,7 +140,6 @@ void UReEchoStatsWidget::BuildWidgetTree()
 	CloseText->SetText(NSLOCTEXT("ReEcho", "StatsCloseLabel", "Tab / 返回"));
 	CloseText->SetJustification(ETextJustify::Center);
 	CloseButton->SetContent(CloseText);
-	CloseButton->OnClicked.AddUniqueDynamic(this, &UReEchoStatsWidget::HandleCloseClicked);
 }
 
 FText UReEchoStatsWidget::FormatStats(const FReEchoStatBlock& Stats, const float CurrentHealth) const

@@ -6,6 +6,7 @@
 #include "ReEchoStatsWidget.generated.h"
 
 class SWidget;
+class UButton;
 class UImage;
 class UTextBlock;
 class UTexture2D;
@@ -47,14 +48,17 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTexture2D> BackgroundTexture;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> BackgroundImage;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> PlayerStatsText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EchoStatsText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> CloseButton;
 
 	FReEchoStatBlock CurrentPlayerStats;
 	FReEchoStatBlock CurrentEchoStats;

@@ -68,6 +68,12 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<UReEchoTraitCardChoiceWidget> TraitClassFinder(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardChoice"));
 	TraitCardChoiceWidgetClass = TraitClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoInventoryShopWidget> InventoryShopClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoInventoryShopScreen"));
+	InventoryShopWidgetClass = InventoryShopClassFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoStatsWidget> StatsClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoStatsScreen"));
+	StatsWidgetClass = StatsClassFinder.Class;
 }
 
 void AReEchoGameMode::AddWidgetToUILayer(UUserWidget* Widget, const EReEchoUILayer Layer) const
@@ -992,7 +998,8 @@ void AReEchoGameMode::ShowStatsMenu()
 		return;
 	}
 
-	StatsWidget = CreateWidget<UReEchoStatsWidget>(PlayerController, UReEchoStatsWidget::StaticClass());
+	StatsWidget = CreateWidget<UReEchoStatsWidget>(
+	    PlayerController, StatsWidgetClass ? StatsWidgetClass.Get() : UReEchoStatsWidget::StaticClass());
 	if (!StatsWidget)
 	{
 		return;
@@ -1064,8 +1071,9 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 		return;
 	}
 
-	InventoryShopWidget =
-	    CreateWidget<UReEchoInventoryShopWidget>(PlayerController, UReEchoInventoryShopWidget::StaticClass());
+	InventoryShopWidget = CreateWidget<UReEchoInventoryShopWidget>(
+	    PlayerController,
+	    InventoryShopWidgetClass ? InventoryShopWidgetClass.Get() : UReEchoInventoryShopWidget::StaticClass());
 	if (!InventoryShopWidget)
 	{
 		return;

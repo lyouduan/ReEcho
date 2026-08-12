@@ -8,12 +8,12 @@
 - Human validation: `PendingBeforeClose`.
 - Planning ref / implementation base: `plan/29-ui-umg-migration` / combined `origin/main` plus Plan 10 HUD UMG commits, explicitly approved by the human after the external-integration audit and renumbered by the human after canonical remote Plan 28 was fetched.
 - Implementation branch: `plan/29-ui-umg-migration`.
-- Depends on / Blocks: Plan 10 player HUD UMG is the reference implementation. Plan 26 reserves `ReEchoInventoryShopWidget.*` and `ReEchoStatsWidget.*`; those two consumers remain excluded from writes until ownership is released or coordinated.
-- Writes: `Source/ReEcho/{Public,Private}/UI/*` except Plan 26-reserved files while reserved; `Source/ReEcho/{Public,Private}/ReEchoGameMode.*`; new UI-manager/runtime files under `Source/ReEcho/UI`; new `/Game/ReEcho/UI/WBP_*.uasset`; this Plan and live Exchange coordination.
+- Depends on / Blocks: Plan 10 player HUD UMG is the reference implementation. The human explicitly prioritized Plan 29 over Plan 26 and coordinated Inventory/Stats presentation ownership into this Plan; Plan 26 data-consumer behavior remains a compatibility requirement.
+- Writes: `Source/ReEcho/{Public,Private}/UI/*`; `Source/ReEcho/{Public,Private}/ReEchoGameMode.*`; new UI-manager/runtime files under `Source/ReEcho/UI`; new `/Game/ReEcho/UI/WBP_*.uasset`; this Plan and live Exchange coordination.
 - Stable Reads: Run subsystem, combatant, encounter director, save game, weapon/character/card CSV readers and existing public gameplay delegates.
 - Impact mode: `Isolated` C++ batches plus `Exclusive` per new/modified Widget Blueprint asset; `ReadOnly` gameplay/data contracts.
 - Compatibility promise / downstream action: preserve existing player-visible flows, delegate semantics, stable IDs, saves, pause determinism and gameplay source-of-truth; UMG never becomes authoritative for purchases, selections, combat, saves or run state.
-- Explicit exclusions: no new gameplay screens, no balance/data-schema changes, no canonical workbook/CSV writes, no map changes, no Plan 26-owned implementation until coordinated, and no remote-main publication.
+- Explicit exclusions: no new gameplay screens, no balance/data-schema changes, no canonical workbook/CSV writes, no map changes, and no remote-main publication.
 
 ## Locked goal
 
@@ -80,6 +80,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Moved Trait card dimensions to three designer-owned `TraitCardSlot0..2` SizeBoxes. The normal WBP path now fills those slots without writing width or height; fixed C++ dimensions remain only in the missing-asset fallback path.
 - Deferred the post-Trait shop transition to the next frame so the card widget is removed and its Slate click dispatch completes before the shop takes focus; failed shop creation now restores gameplay and advances instead of leaving the run paused.
 - Fixed the paused-world transition deadlock: after a card is applied, the world is unpaused while menu input and gameplay-ability blocking remain active, allowing the next-tick callback to open an extra card, the post-Trait shop or the next encounter.
+- After explicit human priority coordination over Plan 26, migrated Inventory/Shop and Stats to native-parent WBP presentation shells. C++ retains snapshots, purchase validation and delegates; UMG owns the background, safe-area panels, close controls and dynamic offer container. Shop offers now use the reusable indexed-button dispatcher instead of four fixed handlers.
 
 ### Evidence
 

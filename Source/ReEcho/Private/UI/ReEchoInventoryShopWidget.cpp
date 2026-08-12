@@ -13,6 +13,7 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UI/ReEchoIndexedButton.h"
 
 namespace
 {
@@ -41,7 +42,10 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 
 TSharedRef<SWidget> UReEchoInventoryShopWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 
@@ -49,6 +53,15 @@ void UReEchoInventoryShopWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	BuildWidgetTree();
+	BuildOfferEntries();
+	if (CloseButton)
+	{
+		CloseButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleCloseClicked);
+	}
+	for (UReEchoIndexedButton* OfferButton : OfferButtons)
+	{
+		OfferButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleOfferClicked);
+	}
 	Refresh();
 }
 
@@ -70,7 +83,8 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards, const TArray<F
 
 void UReEchoInventoryShopWidget::BuildWidgetTree()
 {
-	if (BackgroundImage || !WidgetTree)
+	if (!WidgetTree || (WidgetTree->RootWidget && BackgroundImage && InventoryPanel && ShopPanel && CurrencyText &&
+	                    InventoryText && CloseButton && OfferContainer))
 	{
 		return;
 	}
@@ -84,7 +98,7 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 	BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 	BackgroundSlot->SetOffsets(FMargin(0.0f));
 
-	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CloseButton"));
+	CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CloseButton"));
 	CloseButton->SetBackgroundColor(FLinearColor(0.12f, 0.09f, 0.06f, 0.88f));
 	UCanvasPanelSlot* CloseSlot = RootCanvas->AddChildToCanvas(CloseButton);
 	CloseSlot->SetAnchors(FAnchors(0.03f, 0.88f));
@@ -94,7 +108,6 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 	CloseText->SetText(NSLOCTEXT("ReEcho", "InventoryShopClose", "返回"));
 	CloseText->SetJustification(ETextJustify::Center);
 	CloseButton->SetContent(CloseText);
-	CloseButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleCloseClicked);
 
 	InventoryPanel = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("InventoryOverlay"));
 	UCanvasPanelSlot* InventorySlot = RootCanvas->AddChildToCanvas(InventoryPanel);
@@ -121,14 +134,24 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 	CurrencyText->SetJustification(ETextJustify::Center);
 	UVerticalBoxSlot* CurrencySlot = ShopPanel->AddChildToVerticalBox(CurrencyText);
 	CurrencySlot->SetPadding(FMargin(10.0f, 0.0f, 10.0f, 20.0f));
+	OfferContainer = ShopPanel;
+}
+
+void UReEchoInventoryShopWidget::BuildOfferEntries()
+{
+	if (!WidgetTree || !OfferContainer || !OfferButtons.IsEmpty())
+	{
+		return;
+	}
 
 	const TArray<FReEchoShopOffer>& Offers = GetReEchoShopCatalog();
 	for (int32 OfferIndex = 0; OfferIndex < Offers.Num(); ++OfferIndex)
 	{
-		UButton* OfferButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(),
-		                                                            *FString::Printf(TEXT("ShopOffer%d"), OfferIndex));
+		UReEchoIndexedButton* OfferButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("ShopOffer%d"), OfferIndex));
+		OfferButton->SetEntryIndex(OfferIndex);
 		OfferButton->SetBackgroundColor(FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
-		UVerticalBoxSlot* OfferSlot = ShopPanel->AddChildToVerticalBox(OfferButton);
+		UVerticalBoxSlot* OfferSlot = OfferContainer->AddChildToVerticalBox(OfferButton);
 		OfferSlot->SetPadding(FMargin(8.0f, 6.0f));
 
 		UTextBlock* OfferText = CreateText(
@@ -138,11 +161,6 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 		OfferButtons.Add(OfferButton);
 		OfferTexts.Add(OfferText);
 	}
-
-	OfferButtons[0]->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleFirstOfferClicked);
-	OfferButtons[1]->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleSecondOfferClicked);
-	OfferButtons[2]->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleThirdOfferClicked);
-	OfferButtons[3]->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleFourthOfferClicked);
 }
 
 void UReEchoInventoryShopWidget::Refresh()
@@ -203,22 +221,7 @@ void UReEchoInventoryShopWidget::HandleCloseClicked()
 	OnClosed.Broadcast();
 }
 
-void UReEchoInventoryShopWidget::HandleFirstOfferClicked()
+void UReEchoInventoryShopWidget::HandleOfferClicked(const int32 OfferIndex)
 {
-	RequestPurchase(0);
-}
-
-void UReEchoInventoryShopWidget::HandleSecondOfferClicked()
-{
-	RequestPurchase(1);
-}
-
-void UReEchoInventoryShopWidget::HandleThirdOfferClicked()
-{
-	RequestPurchase(2);
-}
-
-void UReEchoInventoryShopWidget::HandleFourthOfferClicked()
-{
-	RequestPurchase(3);
+	RequestPurchase(OfferIndex);
 }

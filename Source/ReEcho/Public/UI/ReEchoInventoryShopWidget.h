@@ -7,6 +7,7 @@
 class SWidget;
 class UButton;
 class UImage;
+class UReEchoIndexedButton;
 class UTextBlock;
 class UTexture2D;
 class UVerticalBox;
@@ -42,6 +43,7 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void BuildOfferEntries();
 	void Refresh();
 	void RequestPurchase(int32 OfferIndex);
 
@@ -49,16 +51,7 @@ private:
 	void HandleCloseClicked();
 
 	UFUNCTION()
-	void HandleFirstOfferClicked();
-
-	UFUNCTION()
-	void HandleSecondOfferClicked();
-
-	UFUNCTION()
-	void HandleThirdOfferClicked();
-
-	UFUNCTION()
-	void HandleFourthOfferClicked();
+	void HandleOfferClicked(int32 OfferIndex);
 
 	UPROPERTY()
 	TObjectPtr<UTexture2D> InventoryBackgroundTexture;
@@ -66,23 +59,29 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopBackgroundTexture;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> BackgroundImage;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> InventoryPanel;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> ShopPanel;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> CurrencyText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> InventoryText;
 
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> CloseButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> OfferContainer;
+
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> OfferButtons;
+	TArray<TObjectPtr<UReEchoIndexedButton>> OfferButtons;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> OfferTexts;
