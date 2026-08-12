@@ -13,6 +13,7 @@
 #include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UI/ReEchoIndexedButton.h"
+#include "UI/ReEchoTraitCardEntryWidget.h"
 
 namespace
 {
@@ -49,6 +50,9 @@ UReEchoTraitCardChoiceWidget::UReEchoTraitCardChoiceWidget(const FObjectInitiali
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DrawBackgroundFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/ShopBackground.ShopBackground"));
 	DrawBackgroundTexture = DrawBackgroundFinder.Object;
+	static ConstructorHelpers::FClassFinder<UReEchoTraitCardEntryWidget> CardEntryClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardEntry"));
+	CardEntryWidgetClass = CardEntryClassFinder.Class;
 }
 
 TSharedRef<SWidget> UReEchoTraitCardChoiceWidget::RebuildWidget()
@@ -71,6 +75,10 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	for (UReEchoIndexedButton* CardButton : CardButtons)
 	{
 		CardButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
+	}
+	for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+	{
+		CardEntry->OnEntrySelected.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
 	}
 
 	RefreshOffers();
@@ -108,7 +116,15 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 		{
 			CardButton->SetIsEnabled(true);
 		}
-		if (!CardButtons.IsEmpty())
+		for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+		{
+			CardEntry->SetSelectionEnabled(true);
+		}
+		if (!CardEntries.IsEmpty())
+		{
+			CardEntries[0]->FocusSelection();
+		}
+		else if (!CardButtons.IsEmpty())
 		{
 			CardButtons[0]->SetKeyboardFocus();
 		}
@@ -207,6 +223,7 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 		}
 	}
 	CardButtons.Reset();
+	CardEntries.Reset();
 	CardPanels.Reset();
 	CardNames.Reset();
 	CardDescriptions.Reset();
@@ -235,6 +252,14 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 		}
 		CardSize->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
 		CardPanels.Add(CardSize);
+		if (CardEntryWidgetClass)
+		{
+			UReEchoTraitCardEntryWidget* CardEntry = WidgetTree->ConstructWidget<UReEchoTraitCardEntryWidget>(
+			    CardEntryWidgetClass, *FString::Printf(TEXT("TraitCardEntry%d"), CardIndex));
+			CardSize->SetContent(CardEntry);
+			CardEntries.Add(CardEntry);
+			continue;
+		}
 
 		UReEchoIndexedButton* CardButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
 		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TraitCardButton%d"), CardIndex));
@@ -311,6 +336,26 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			CardDescriptions[CardIndex]->SetText(Offers[CardIndex].Description);
 		}
 	}
+	const TArray<FLinearColor> CardColors = {FLinearColor(0.30f, 0.20f, 0.11f, 0.98f),
+	                                         FLinearColor(0.13f, 0.27f, 0.26f, 0.98f),
+	                                         FLinearColor(0.22f, 0.16f, 0.31f, 0.98f)};
+	const TArray<FText> CardKickers = {NSLOCTEXT("ReEcho", "TraitCandidateOne", "候选 I"),
+	                                   NSLOCTEXT("ReEcho", "TraitCandidateTwo", "候选 II"),
+	                                   NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
+	for (int32 CardIndex = 0; CardIndex < CardEntries.Num(); ++CardIndex)
+	{
+		const bool bHasOffer = Offers.IsValidIndex(CardIndex);
+		CardPanels[CardIndex]->SetVisibility(bHasOffer ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		CardEntries[CardIndex]->SetSelectionEnabled(bHasOffer && bRevealComplete);
+		if (bHasOffer)
+		{
+			CardEntries[CardIndex]->Configure(CardIndex,
+			                                       CardKickers[CardIndex],
+			                                       Offers[CardIndex].DisplayName,
+			                                       Offers[CardIndex].Description,
+			                                       CardColors[CardIndex]);
+		}
+	}
 }
 
 void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
@@ -322,7 +367,14 @@ void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 		CardPanels[CardIndex]->SetRenderOpacity(0.0f);
 		CardPanels[CardIndex]->SetRenderScale(FVector2D(0.72f));
 		CardPanels[CardIndex]->SetRenderTranslation(FVector2D(0.0f, 95.0f));
-		CardButtons[CardIndex]->SetIsEnabled(false);
+		if (CardButtons.IsValidIndex(CardIndex))
+		{
+			CardButtons[CardIndex]->SetIsEnabled(false);
+		}
+		if (CardEntries.IsValidIndex(CardIndex))
+		{
+			CardEntries[CardIndex]->SetSelectionEnabled(false);
+		}
 	}
 }
 
@@ -334,6 +386,10 @@ void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
 		for (UButton* CardButton : CardButtons)
 		{
 			CardButton->SetIsEnabled(false);
+		}
+		for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+		{
+			CardEntry->SetSelectionEnabled(false);
 		}
 		OnCardSelected.Broadcast(Offers[OfferIndex].CardId);
 	}

@@ -10,6 +10,7 @@ class UButton;
 class UCanvasPanel;
 class UImage;
 class UReEchoIndexedButton;
+class UReEchoTraitCardEntryWidget;
 class USizeBox;
 class UTextBlock;
 class UTexture2D;
@@ -63,6 +64,12 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CardButtons;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoTraitCardEntryWidget>> CardEntries;
+
+	UPROPERTY()
+	TSubclassOf<UReEchoTraitCardEntryWidget> CardEntryWidgetClass;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USizeBox>> CardPanels;
