@@ -1,4 +1,4 @@
-# Plan 30 - Presentation - 2D sequence animation integration
+# Plan 39 - Presentation - 2D sequence animation integration
 
 ## Coordination
 
@@ -6,10 +6,10 @@
 - Executor owner: Codex.
 - Plan authored by (AI side): `ReEcho teammate-side AI`.
 - Implementation authored by (AI side): `ReEcho teammate-side AI`.
-- Task status: `Review`.
-- Human validation: `PendingBeforeClose`.
-- Local planning / implementation base: `origin/main@ccebbf2`.
-- Implementation branch: `plan/30-2d-sequence-animation`.
+- Task status: `Closed`.
+- Human validation: `Passed` through iterative PIE feedback and the explicit merge request.
+- Original implementation base: `origin/main@ccebbf2`; integration base: `origin/main@f5051e4`.
+- Implementation branch: `plan/39-2d-sequence-animation`.
 - Depends on / Blocks: Consumes existing `/Game/2DAnim/Flipbook/Idel` and `/Game/2DAnim/Flipbook/01_2`; does not block Plan 29 UI work.
 - Writes: `Source/ReEcho/ReEcho.Build.cs`, `Source/ReEcho/{Public,Private}/Presentation/Animation2D/*`, `Player/ReEchoPlayerPawn.*`, `Graybox/ReEchoEnemyActor.*`, `Private/Tests/ReEcho2DAnimationTests.cpp`, `scripts/ue/repair_2d_animation_flipbooks.py`, `Content/2DAnim/**`, this Plan and its live Exchange row.
 - Stable Reads: character ID `J_SPADE`, `EReEchoEnemyKind::Grunt`, existing combat/collision/recording and procedural visual contracts.
@@ -23,21 +23,21 @@ Add a reusable Paper2D presentation layer that loops the existing idle Flipbook 
 
 ## Locked acceptance
 
-- [ ] `J_SPADE` loops `/Game/2DAnim/Flipbook/Idel`; all other characters retain their static Billboard.
-- [ ] Grunt loops `/Game/2DAnim/Flipbook/01_2` in every gameplay state; all other enemy kinds retain their static Billboard.
-- [ ] Missing Flipbooks safely show the existing static texture, and no actor shows Billboard and Flipbook simultaneously.
-- [ ] Bob, attack lunge/pulse, hit shake/stretch and death shrink remain visual-only and observable through a shared visual-effect transform layer.
-- [ ] Movement, collision, combat, GAS, weapons, recording, HUD, selection and save identity semantics remain unchanged.
-- [ ] Facing, anchor, world height, transparency/sort behavior and debug bounds are safe for both visual implementations.
-- [ ] UE 5.8 Editor build, focused automation, project validation and asset/cook presence checks pass.
-- [ ] Human PIE validates final visual quality before closure.
+- [x] `J_SPADE` uses static `/Game/2DAnim/Player/Idel_01` while idle, loops `/Game/2DAnim/Flipbook/Idel` while moving and replays `/Game/2DAnim/Flipbook/s` for each successful Moon Staff attack; all other characters retain their static Billboard.
+- [x] Grunt loops `/Game/2DAnim/Flipbook/01_2` in every gameplay state; all other enemy kinds retain their static Billboard.
+- [x] Missing Flipbooks safely show the existing static texture, and no actor shows Billboard and Flipbook simultaneously.
+- [x] Bob, attack lunge/pulse, hit shake/stretch and death shrink remain visual-only and observable through a shared visual-effect transform layer.
+- [x] Movement, collision, combat, GAS, weapons, recording, HUD, selection and save identity semantics remain unchanged.
+- [x] Facing, anchor, world height, transparency/sort behavior and debug bounds are safe for both visual implementations.
+- [x] UE 5.8 Editor build, focused automation, project validation and asset/cook presence checks pass.
+- [x] Human PIE validates final visual quality before closure.
 
 ## Step 0 gate
 
-- Baseline branch/commit: `origin/main@ccebbf2`.
+- Baseline branch/commit: original implementation `origin/main@ccebbf2`; combined integration `origin/main@f5051e4`.
 - Engine/build availability: UE 5.8 installed build; Editor must be closed before build/commandlet checks.
 - Existing focused-test result: prior main evidence only; refresh required after implementation.
-- Active exclusive ownership or shared-contract approval: Plan30 owns `Content/2DAnim/**`; Plan29 UI ownership is disjoint.
+- Active exclusive ownership or shared-contract approval: Plan39 owns `Content/2DAnim/**`; UI ownership is disjoint.
 - Stop condition if the baseline is broken: stop if assets do not load as PaperFlipbooks or implementation requires gameplay/schema changes.
 
 ## Implementation outline
@@ -85,12 +85,13 @@ Add a reusable Paper2D presentation layer that loops the existing idle Flipbook 
 - `python scripts/validate_project.py` passed all project, CSV/XLSX and workflow checks.
 - Clean Win64 Shipping Build/Cook/Stage/Pak/Archive passed. The staged UFS manifest contains both Flipbooks, all twelve player PaperSprites and all twelve Grunt PaperSprites.
 - `git diff --check` passed.
+- Rebased integration on `origin/main@f5051e4`: UE 5.8 Editor build passed and the expanded current `ReEcho.*` suite passed 64/64 with zero failures, including the held-attack regression coverage from Plan38.
 
 ### Remaining risks
 
 - PaperFlipbook pivot/material/import settings and perceived world scale require PIE judgment.
 - Player and enemy Flipbook plane orientation, mirroring axis, transparent edges and sort order require the locked human PIE matrix.
 
-### Human validation result/request
+### Human validation result
 
-- PendingBeforeClose: in PIE select J_SPADE and a non-Spade player, then observe Grunt plus Shield/Bomber/Boss through movement, attack, hit and death. Confirm exactly one renderer, looping frames, facing, anchor/height, alpha/sort and preserved procedural feedback.
+- Passed through iterative PIE feedback: invisible playback, looping, state transitions, held weapon visibility, native player scale and repeated attack playback were corrected from direct human observations. The human then explicitly requested integration.
