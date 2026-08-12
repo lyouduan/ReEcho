@@ -3,21 +3,21 @@
 ## Coordination
 
 - Planner owner: Gavyn-side Planner.
-- Executor owner: Assigned local Plan28 Executor; rework required.
+- Executor owner: Assigned local Plan28 Executor.
 - Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Local planning / implementation base: local `plan/28-player-attack-modes`; integrate the human-approved current main and preserve this Plan's Esc/no-P locked behavior before Review.
+- Local planning / implementation base: local `plan/28-player-attack-modes`; integrate the human-approved current main and preserve the latest human decision that P is the pause/menu input before Review.
 - Implementation branch: `plan/28-player-attack-modes` in a separate clean worktree.
 - Depends on / Blocks: depends on the current run-locked weapon implementation, GAS basic-attack loop and pause-aware encounter clock. It does not block Plan26's read-only Inventory/Stats UI work.
-- Writes: `Source/ReEcho/Public/Player/ReEchoPlayerPawn.h`; `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`; `Source/ReEcho/Public/ReEchoGameMode.h`; `Source/ReEcho/Private/ReEchoGameMode.cpp`; `Source/ReEcho/Public/UI/ReEchoRestartWidget.h`; `Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`; additive weapon/enemy query changes only if required for effective range and deterministic target tie-breaking; new Plan28-only automation under `Source/ReEcho/Private/Tests/`; this Plan's Execution notes.
+- Writes: `Config/DefaultInput.ini`; `Source/ReEcho/Public/Player/ReEchoPlayerPawn.h`; `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`; `Source/ReEcho/Public/ReEchoGameMode.h`; `Source/ReEcho/Private/ReEchoGameMode.cpp`; `Source/ReEcho/Public/UI/ReEchoRestartWidget.h`; `Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`; additive weapon/enemy query changes only if required for effective range and deterministic target tie-breaking; new Plan28-only automation under `Source/ReEcho/Private/Tests/`; this Plan's Execution notes.
 - Stable Reads: existing GAS abilities/tags, weapon definitions and ordered attack steps, enemy alive/runtime identity, recorder contract, pause/settings menu behavior and encounter timing.
 - Impact mode: `Isolated`. Any public query added for target selection must be additive and must not change the Plan24/26 typed data consumer contract.
-- Compatibility promise / downstream action: keep current weapon damage, ordered steps, GAS cooldowns, active-skill input, run-locked WeaponId, recording schema, save schema, Echo behavior and existing B/M/Tab menus unchanged. Reuse the existing Esc pause menu and preserve its resume/restart/settings/save-and-quit, death and victory behavior. Plan26 may continue in parallel because its declared Writes are disjoint.
+- Compatibility promise / downstream action: keep current weapon damage, ordered steps, GAS cooldowns, active-skill input, run-locked WeaponId, recording schema, save schema, Echo behavior and existing B/M/Tab menus unchanged. Bind P to the existing pause menu and preserve its resume/restart/settings/save-and-quit, death and victory behavior. Plan26 may continue in parallel because its declared Writes are disjoint.
 - Explicit exclusions: no XLSX/CSV/schema changes; no save-format or recording-format change; no Echo auto-attack change; no runtime weapon switching; no active-skill automation; no new `.uasset`/`.umap` or art; no visual sign-off by the Executor.
 
 ## Locked goal
 
-Add mutually exclusive automatic and manual basic-attack modes for the player. A spawned player defaults to automatic mode. Keep `Esc` as the single pause entry and add `Automatic Attack` / `Manual Attack` choices to the existing pause menu; choosing either mode applies it, closes the pause menu and resumes play.
+Add mutually exclusive automatic and manual basic-attack modes for the player. A spawned player defaults to automatic mode. Use `P` as the single pause entry and add `Automatic Attack` / `Manual Attack` choices to the existing pause menu; choosing either mode applies it, closes the pause menu and resumes play.
 
 Automatic mode deterministically targets the nearest living enemy inside the current weapon attack's effective range, aims at it and drives the existing GAS basic-attack/cooldown path continuously. Manual mode preserves the existing mouse aim and held left-mouse/`J` basic attack. `Q`/Space active skill remains manual in both modes. Automatic basic attacks are never serialized into Echo recordings.
 
@@ -26,8 +26,8 @@ Attack mode is session-local in this Plan: it is not added to save data. A newly
 ## Locked acceptance
 
 - [ ] A fresh or continued encounter's newly spawned player reports and behaves as `Automatic` before any attack-mode input.
-- [ ] Existing `Esc` input remains the only pause entry: it pauses the world, blocks gameplay abilities and opens the existing `UReEchoRestartWidget`; no `P` mapping or second attack-mode modal is introduced.
-- [ ] The existing pause menu visibly shows the current attack mode and offers `Automatic Attack` and `Manual Attack`. Choosing either applies exactly one mode, closes the pause menu and restores game input/time; `Esc` retains its existing resume/toggle behavior without changing the selection.
+- [ ] `P` is the single pause entry: it pauses the world, blocks gameplay abilities and opens the existing `UReEchoRestartWidget`; no second attack-mode modal or pause state is introduced.
+- [ ] The existing pause menu visibly shows the current attack mode and offers `Automatic Attack` and `Manual Attack`. Choosing either applies exactly one mode, closes the pause menu and restores game input/time; pressing `P` again retains the existing resume/toggle behavior without changing the selection.
 - [ ] Existing start/loadout, trait, shop, inventory, stats, settings, death/victory and pause-menu ownership cannot stack. Adding attack-mode choices does not alter resume, restart, settings, save-and-quit confirmation, save failure, death or victory actions.
 - [ ] Automatic mode selects the nearest living in-range enemy with a deterministic tie-break, updates aim/facing, holds the existing GAS basic-attack input while a target is valid, releases it when the target dies/leaves range or a menu/mode transition occurs, and reacquires safely.
 - [ ] Automatic mode does not attack when no target is in range. Manual mode ignores automatic acquisition and preserves current mouse-facing plus held left-mouse/`J` behavior.
@@ -52,7 +52,7 @@ Attack mode is session-local in this Plan: it is not added to save data. A newly
 1. Introduce a small, testable attack-mode/target-selection unit with an explicit automatic default and deterministic nearest-target tie-break. Do not copy weapon data or parse CSV directly.
 2. Let `AReEchoPlayerPawn` own the current mode and the automatic-target/held-basic-input lifecycle. Use the current GAS basic-attack path rather than calling weapon damage separately. Switch aim source between automatic target and mouse without two systems fighting over rotation.
 3. Obtain the current ordered attack step's effective range through existing weapon state or the narrowest additive query needed. Do not add a second range constant like Echo's legacy `AutoTargetRange`.
-4. Extend the code-built `UReEchoRestartWidget` with current-mode presentation and two mode-choice delegates/buttons. Let GameMode apply the selection through the Player and reuse the existing pause/input restoration path. Do not add `P`, another widget or another pause state.
+4. Bind `PauseMenu` to P and extend the code-built `UReEchoRestartWidget` with current-mode presentation and two mode-choice delegates/buttons. Let GameMode apply the selection through the Player and reuse the existing pause/input restoration path. Do not add another widget or pause state.
 5. Ensure every close, mode switch, death/menu transition and no-target transition releases any synthetic held basic input. Keep active-skill recording unchanged.
 6. Add only Plan28's cheap deterministic automation, format changed C++, validate and build. Hand off a runnable result and concise user test checklist without Executor PIE or visual review. Update only this Plan's Execution notes unless scope/ownership/contracts actually change.
 
@@ -66,7 +66,7 @@ Attack mode is session-local in this Plan: it is not added to save data. A newly
 | Focused automation | `scripts/ue/Run-Automation.cmd -Filter ReEcho.AttackMode` | Cheap deterministic default, transitions, targeting and non-recording checks pass |
 | Integration automation | Planner-selected affected or full `ReEcho.*` after integration, only when the final diff/base warrants it | Integration confidence without delaying the user's earlier hands-on test |
 | Whitespace/scope | `git diff --check` and explicit path audit | No whitespace errors, generated products or out-of-scope files |
-| Human | User PIE: default auto; Esc pause menu and mode display; auto/manual on ranged and melee weapons; no target/reacquire; resume/restart/settings/save-and-quit coexistence | Executor supplies only the launch/checklist handoff; user records `Passed` or concrete rework before closure |
+| Human | User PIE: default auto; P pause menu and mode display; auto/manual on ranged and melee weapons; no target/reacquire; resume/restart/settings/save-and-quit coexistence | Executor supplies only the launch/checklist handoff; user records `Passed` or concrete rework before closure |
 
 ## Execution notes
 
