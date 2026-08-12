@@ -22,6 +22,10 @@ struct REECHO_API FReEcho2DAnimationProfile
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	float WorldHeight = 224.0f;
 
+	/** Preserve the Flipbook asset's authored world scale instead of normalizing it to WorldHeight. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	bool bUseNativeScale = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FVector LocalOffset = FVector::ZeroVector;
 

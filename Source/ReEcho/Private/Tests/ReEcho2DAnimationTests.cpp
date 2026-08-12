@@ -27,12 +27,16 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	Profile.DefaultFlipbook = PlayerFlipbook;
 	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Attack, StaffAttackFlipbook);
 	Profile.WorldHeight = 224.0f;
+	Profile.bUseNativeScale = true;
 	TestEqual(TEXT("Valid profile activates"),
 	          Component->ActivateProfile(Profile),
 	          EReEcho2DAnimationActivationResult::Activated);
 	TestTrue(TEXT("Activated component owns the requested Flipbook"),
 	         Component->IsAnimationActive() && Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Activated Idel profile loops"), Component->IsLooping());
+	TestEqual(TEXT("Native-scale player profile keeps authored scale"),
+	          Component->GetRelativeScale3D(),
+	          FVector::OneVector);
 	TestTrue(TEXT("Activated Flipbook can tick to advance frames"), Component->PrimaryComponentTick.bCanEverTick);
 	TestTrue(TEXT("Activated Flipbook is playing"), Component->IsPlaying());
 	TestTrue(TEXT("Unassigned gameplay states resolve to the default Flipbook"),

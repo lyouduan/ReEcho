@@ -29,7 +29,7 @@ EReEcho2DAnimationActivationResult
 UReEcho2DAnimationComponent::ActivateProfile(const FReEcho2DAnimationProfile& InProfile)
 {
 	DeactivateAnimation();
-	if (InProfile.WorldHeight <= 0.0f)
+	if (!InProfile.bUseNativeScale && InProfile.WorldHeight <= 0.0f)
 	{
 		return EReEcho2DAnimationActivationResult::MissingProfile;
 	}
@@ -128,6 +128,8 @@ void UReEcho2DAnimationComponent::ApplyDisplayScale()
 {
 	const UPaperFlipbook* Flipbook = GetFlipbook();
 	const float NativeWorldHeight = Flipbook ? Flipbook->GetRenderBounds().BoxExtent.Z * 2.0f : 0.0f;
-	const float UniformScale = NativeWorldHeight > 0.0f ? ActiveProfile.WorldHeight / NativeWorldHeight : 1.0f;
+	const float UniformScale = ActiveProfile.bUseNativeScale || NativeWorldHeight <= 0.0f
+	                               ? 1.0f
+	                               : ActiveProfile.WorldHeight / NativeWorldHeight;
 	SetRelativeScale3D(FVector(UniformScale * FacingSign, UniformScale, UniformScale));
 }

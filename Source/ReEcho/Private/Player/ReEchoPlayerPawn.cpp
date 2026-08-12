@@ -801,6 +801,7 @@ void AReEchoPlayerPawn::TransitionSpadeAnimationState(const EReEcho2DAnimationSt
 	Profile.DefaultFlipbook = SpadeIdleFlipbook;
 	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Attack, SpadeAttackFlipbook);
 	Profile.WorldHeight = 224.0f;
+	Profile.bUseNativeScale = true;
 	Profile.TranslucentSortPriority = 10;
 	if (!SequenceAnimation->IsAnimationActive() &&
 	    SequenceAnimation->ActivateProfile(Profile) != EReEcho2DAnimationActivationResult::Activated)
