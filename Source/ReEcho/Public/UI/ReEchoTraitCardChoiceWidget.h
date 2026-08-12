@@ -51,6 +51,16 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> TraitCardContainer;
 
+	/** Designer-owned card frames. Their SizeBox dimensions are the runtime card dimensions. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<USizeBox> TraitCardSlot0;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<USizeBox> TraitCardSlot1;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<USizeBox> TraitCardSlot2;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CardButtons;
 

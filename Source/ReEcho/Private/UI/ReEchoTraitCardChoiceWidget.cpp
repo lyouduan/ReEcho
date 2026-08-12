@@ -127,7 +127,8 @@ void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCar
 
 void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 {
-	if (!CardButtons.IsEmpty() || !WidgetTree)
+	if (!WidgetTree || (WidgetTree->RootWidget && TraitCardContainer && TitleText && SubtitleText && CurrencyText &&
+	                    NeedleWidget))
 	{
 		return;
 	}
@@ -196,9 +197,11 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 		return;
 	}
 
+	const TArray<USizeBox*> DesignerCardSlots = {TraitCardSlot0, TraitCardSlot1, TraitCardSlot2};
+	const bool bUseDesignerCardSlots = TraitCardSlot0 && TraitCardSlot1 && TraitCardSlot2;
 	for (USizeBox* CardPanel : CardPanels)
 	{
-		if (CardPanel && CardPanel->GetParent() == TraitCardContainer)
+		if (!bUseDesignerCardSlots && CardPanel && CardPanel->GetParent() == TraitCardContainer)
 		{
 			TraitCardContainer->RemoveChild(CardPanel);
 		}
@@ -217,16 +220,20 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 	                                   NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
 	for (int32 CardIndex = 0; CardIndex < 3; ++CardIndex)
 	{
-		USizeBox* CardSize = WidgetTree->ConstructWidget<USizeBox>(
-		    USizeBox::StaticClass(), *FString::Printf(TEXT("TraitCardSize%d"), CardIndex));
-		CardSize->SetWidthOverride(310.0f);
-		CardSize->SetHeightOverride(390.0f);
+		USizeBox* CardSize = bUseDesignerCardSlots ? DesignerCardSlots[CardIndex] : nullptr;
+		if (!CardSize)
+		{
+			CardSize = WidgetTree->ConstructWidget<USizeBox>(
+			    USizeBox::StaticClass(), *FString::Printf(TEXT("TraitCardSize%d"), CardIndex));
+			CardSize->SetWidthOverride(310.0f);
+			CardSize->SetHeightOverride(390.0f);
+			UCanvasPanelSlot* CardSlot = TraitCardContainer->AddChildToCanvas(CardSize);
+			CardSlot->SetAnchors(CardAnchors[CardIndex]);
+			CardSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+			CardSlot->SetSize(FVector2D(310.0f, 390.0f));
+			CardSlot->SetZOrder(5 + CardIndex);
+		}
 		CardSize->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
-		UCanvasPanelSlot* CardSlot = TraitCardContainer->AddChildToCanvas(CardSize);
-		CardSlot->SetAnchors(CardAnchors[CardIndex]);
-		CardSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-		CardSlot->SetSize(FVector2D(310.0f, 390.0f));
-		CardSlot->SetZOrder(5 + CardIndex);
 		CardPanels.Add(CardSize);
 
 		UReEchoIndexedButton* CardButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
