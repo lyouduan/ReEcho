@@ -5,6 +5,7 @@ These are the project-level hard rules. `AGENTS.md` owns startup and professiona
 ## Professional-role boundary
 
 - Every newly connected AI must complete the first-contact role gate in `AGENTS.md` before project work.
+- The confirmed T爷 exception within the programmer route is governed only by `shared/PROGRAMMER_RULES.md`; its explicit retained safety boundaries continue to apply when ordinary project process gates are skipped.
 - The confirmed user role and the AI's repository duty are separate. “策划” does not mean project Planner; “程序” does not automatically authorize main publication.
 - Project Secretary duty is separate from the professional role gate and is governed by `shared/SECRETARY_RULES.md`.
 - Do not silently cross from designer/art scope into code, schema, gameplay authority or publication. Split the work and hand the boundary to the programmer route, or ask the user to explicitly switch the current task's role.

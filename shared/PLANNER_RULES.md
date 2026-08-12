@@ -1,6 +1,6 @@
 # ReEcho Planner rules
 
-This file contains Planner actions only. Startup order is defined by `AGENTS.md`; project hard rules and verification live in `PROJECT_RULES.md`.
+This file contains Planner actions only. Startup order is defined by `AGENTS.md`; project hard rules and verification live in `PROJECT_RULES.md`. Confirmed T爷 mode under `PROGRAMMER_RULES.md` may bypass the procedural gates in this file.
 
 ## Number and publish a Plan before execution
 

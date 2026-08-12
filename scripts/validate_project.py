@@ -964,12 +964,20 @@ def validate_workflow() -> None:
         "shared/PROGRAMMER_RULES.md",
         "shared/DESIGNER_RULES.md",
         "shared/ARTIST_RULES.md",
+        "你是 T爷吗？",
     )
     missing_role_gate_markers = [marker for marker in role_gate_markers if marker not in agents]
     if missing_role_gate_markers:
         fail(f"AGENTS.md lacks the first-contact professional-role gate: {', '.join(missing_role_gate_markers)}")
     role_rule_markers = {
-        "PROGRAMMER_RULES.md": ("programmer-user route", "Planner duty", "Executor duty", "shared/GIT_RULES.md"),
+        "PROGRAMMER_RULES.md": (
+            "programmer-user route",
+            "Planner duty",
+            "Executor duty",
+            "## T爷 mode",
+            "single authority for the T爷 exception",
+            "shared/GIT_RULES.md",
+        ),
         "DESIGNER_RULES.md": ("designer-user route", "ReEchoData.xlsx", "Never hand-edit generated", "shared/GIT_RULES.md"),
         "ARTIST_RULES.md": ("artist-user route", "Active Exclusive", "Never hand-edit `.uasset`", "shared/GIT_RULES.md"),
     }
@@ -1003,10 +1011,11 @@ def validate_workflow() -> None:
     git_rule_markers = (
         "single authority for commit identity and publication-completeness rules",
         "[PROGRAMMER]",
+        "[T爷]",
         "[DESIGNER]",
         "[ARTIST]",
         "[SECRETARY]",
-        "Before every Programmer-route push to `origin/main`",
+        "Before every ordinary Programmer-route push to `origin/main`",
         "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
         "source-only Programmer candidate",
@@ -1163,7 +1172,7 @@ def validate_workflow() -> None:
         "README.md": readme_text,
         "docs/AI_WORKFLOW.md": docs_workflow_text,
     }
-    commit_tags = ("[PROGRAMMER]", "[DESIGNER]", "[ARTIST]", "[SECRETARY]")
+    commit_tags = ("[PROGRAMMER]", "[T爷]", "[DESIGNER]", "[ARTIST]", "[SECRETARY]")
     duplicate_tag_sources = [
         name
         for name, text_value in non_authoritative_tag_sources.items()

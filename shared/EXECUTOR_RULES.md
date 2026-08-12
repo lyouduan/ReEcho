@@ -1,6 +1,6 @@
 # ReEcho Executor rules
 
-This file contains Executor actions only. Follow `AGENTS.md` for minimal startup order and `PROJECT_RULES.md` for hard constraints.
+This file contains Executor actions only. Follow `AGENTS.md` for minimal startup order and `PROJECT_RULES.md` for hard constraints. Confirmed T爷 mode under `PROGRAMMER_RULES.md` may bypass the procedural gates in this file.
 
 ## Start safely
 
