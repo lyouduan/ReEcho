@@ -14,7 +14,8 @@ UPaperFlipbook* FReEcho2DAnimationProfile::Resolve(const EReEcho2DAnimationState
 
 UReEcho2DAnimationComponent::UReEcho2DAnimationComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	// UPaperFlipbookComponent advances playback from its component tick.
+	PrimaryComponentTick.bCanEverTick = true;
 	SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SetCastShadow(false);
 	SetLooping(true);
@@ -46,6 +47,7 @@ UReEcho2DAnimationComponent::ActivateProfile(const FReEcho2DAnimationProfile& In
 	ApplyFlipbook(ActiveProfile.DefaultFlipbook);
 	SetHiddenInGame(false);
 	SetVisibility(true);
+	SetComponentTickEnabled(true);
 	PlayFromStart();
 	return EReEcho2DAnimationActivationResult::Activated;
 }
@@ -68,6 +70,7 @@ void UReEcho2DAnimationComponent::DeactivateAnimation()
 	SetFlipbook(nullptr);
 	SetVisibility(false);
 	SetHiddenInGame(true);
+	SetComponentTickEnabled(false);
 	bAnimationActive = false;
 	ActiveState = EReEcho2DAnimationState::Default;
 }
@@ -110,6 +113,7 @@ void UReEcho2DAnimationComponent::ApplyFlipbook(UPaperFlipbook* NewFlipbook)
 		SetFlipbook(NewFlipbook);
 	}
 	SetLooping(true);
+	SetComponentTickEnabled(true);
 	PlayFromStart();
 	ApplyDisplayScale();
 }

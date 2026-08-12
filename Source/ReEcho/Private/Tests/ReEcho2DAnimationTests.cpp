@@ -30,6 +30,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Activated component owns the requested Flipbook"),
 	         Component->IsAnimationActive() && Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Activated Idel profile loops"), Component->IsLooping());
+	TestTrue(TEXT("Activated Flipbook can tick to advance frames"), Component->PrimaryComponentTick.bCanEverTick);
+	TestTrue(TEXT("Activated Flipbook is playing"), Component->IsPlaying());
 	TestTrue(TEXT("Unassigned gameplay states resolve to the default Flipbook"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Death) &&
 	             Component->GetFlipbook() == PlayerFlipbook);
@@ -40,6 +42,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	          Component->ActivateProfile(MissingProfile),
 	          EReEcho2DAnimationActivationResult::MissingFlipbook);
 	TestFalse(TEXT("Failed activation leaves animation disabled"), Component->IsAnimationActive());
+	TestFalse(TEXT("Disabled animation is not playing"), Component->IsPlaying());
 	return true;
 }
 
