@@ -17,9 +17,9 @@
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
 | WebGL 构建 / 部署 | `WEB` | [§WEB](#web) | 11 |
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
-| 流程 / 工具 / Skill | `META` | [§META](#meta) | 19 |
+| 流程 / 工具 / Skill | `META` | [§META](#meta) | 20 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
-| Bug 修复 | `FIX` | [§FIX](#fix) | 8 |
+| Bug 修复 | `FIX` | [§FIX](#fix) | 9 |
 | 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
 
 ---
@@ -1036,6 +1036,19 @@ file-static `AddBoxGeometry`。Unity build 或 adaptive non-unity 下两个同�
 
 ---
 
+### META-20. 交付前必须自编译，提交前必须清理临时诊断日志 [跨引擎]
+
+**来源**：ReEcho 攻击节奏返修。曾出现指针误用成员访问导致 C2228，以及清理临时日志时误删仍被日志类别依赖的 include。
+
+**纪律**：
+- C++ 修改完成后必须先执行项目的 Editor Development 构建并确认零错误，再交给用户测试；不能因为改动很小就跳过编译。
+- 提交前删除 `[DIAG]` 等一次性诊断日志，但应按实际符号依赖判断是否保留相关 include。
+- 编译错误优先结合报错行检查变量类型；C2228 通常意味着指针和值的 `->` / `.` 使用错误。
+
+**教训**：构建验证和调试产物清理属于交付门禁，必须同时完成，不能互相替代。
+
+---
+
 ## §PLAN — 规划者专属
 
 > 本节给规划者（当前对话的 AI）在出 plan 之前读。不是给执行者用的。
@@ -1159,6 +1172,14 @@ open "/Users/honghong/CodeWorkshop/SundayDrive/SundayDrive.uproject"
 **修复**：把物理输入拆成 `ManualBasicAttack`/`ManualStopBasicAttack`，仅在手动模式驱动共享 spec；自动模式下直接 early-return。新增 `bManualAttackInputHeld` 独立跟踪物理持有状态；`SetAutoAttackMode(true)` 释放物理源，使自动循环干净独占；菜单开启走 `ReleaseAllBasicAttackInputs()` 统一释放两路。回归测试 `ReEcho.AttackMode.InputSource` 覆盖「自动模式 + 有/无目标」下的物理按下/抬起。
 
 **教训**：两个输入源驱动同一个 GAS ability spec 时，必须按权威模式门控，并为每个源独立维护 held 标志；模式切换与菜单开/关都要释放非权威源，否则一方释放会破坏另一方的持续输入。
+
+### FIX-9. 攻击节拍与动作安全锁必须使用同一攻速缩放 [UE]
+
+**来源**：ReEcho 自动攻击节奏返修。攻速提升后 `AttackInterval` 已缩短，但 `StepLockRemaining` 仍使用未缩放的 `DurationSeconds`，导致部分攻击节拍被动作锁拒绝，表现为攻速越高反而越慢。
+
+**修复**：将攻击步骤时长统一换算为 `ScaledDuration = Step.DurationSeconds / max(0.1, AttackSpeed)`，动作锁和无敌帧共同使用该时长；自动化 `ReEcho.Weapons.AttackStepLockScalesWithAttackSpeed` 验证缩放关系。
+
+**教训**：节拍、动作锁、无敌帧和冷却若共同限制同一攻击频率，必须共享同一缩放来源；只缩放其中一道闸门会在高攻速区间产生反直觉退化。
 
 ---
 
