@@ -47,8 +47,8 @@ A conflict-free fast-forward can still contain a logical conflict. Conversely, o
 
 ## Executor prompt template
 
-The Plan is the task specification; the startup prompt is only a neutral routing envelope. It must not assign a new
-identity, override the recipient AI's existing local role or restate the other user's authority. A normal prompt contains
+The Plan is the task specification; the startup prompt is only a neutral routing envelope. It must not assign a new identity,
+override the recipient AI's existing local role or restate the other user's authority. A normal prompt contains
 the exact Plan path, approved base, branch/worktree, one-line start instruction, exceptional gates that cannot be
 discovered from the repository, and the required completion report. Do not duplicate the Plan's locked goal,
 acceptance, Writes, exclusions, implementation outline or verification matrix. Embed scope only when the recipient
