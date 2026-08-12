@@ -7,6 +7,7 @@ UE 5.8 installed-build graybox prototype for the Time Echo vertical slice.
 - AI entry and first-contact role question: [`AGENTS.md`](AGENTS.md)
 - AI/code retrieval map: [`shared/CODEBASE_MAP.md`](shared/CODEBASE_MAP.md)
 - Project rules: [`shared/PROJECT_RULES.md`](shared/PROJECT_RULES.md)
+- Commit and publication rules: [`shared/GIT_RULES.md`](shared/GIT_RULES.md)
 - Professional routes: [`PROGRAMMER_RULES.md`](shared/PROGRAMMER_RULES.md), [`DESIGNER_RULES.md`](shared/DESIGNER_RULES.md), [`ARTIST_RULES.md`](shared/ARTIST_RULES.md)
 - Project Secretary route: [`SECRETARY_RULES.md`](shared/SECRETARY_RULES.md)
 - Runtime architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -17,3 +18,5 @@ UE 5.8 installed-build graybox prototype for the Time Echo vertical slice.
 ## Current prototype
 
 The project runtime-generates a Basic Shapes arena with a manually controlled player, four enemy archetypes, damage feedback, deterministic encounter recording, translucent echo playback and a six-encounter loop. Migrated character/build, element/reaction and weapon/slot domains are authored in `Design/Data/ReEchoData.xlsx`, generated into validated CSV under `Content/Data`, and loaded into immutable runtime snapshots; remaining JSON is migration-only until its domain moves.
+
+On Win64, a normal checkout includes the UE 5.8 Editor module bundle required to open `ReEcho.uproject` directly. It is tied to the exact installed-engine Build ID in `Binaries/Win64/ReEchoEditor.prebuilt.json`; programmers refresh it through the repository Editor build before every publication.

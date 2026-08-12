@@ -928,6 +928,7 @@ def validate_workflow() -> None:
         "DESIGNER_RULES.md",
         "ARTIST_RULES.md",
         "SECRETARY_RULES.md",
+        "GIT_RULES.md",
         "PLANNER_RULES.md",
         "EXECUTOR_RULES.md",
         "LESSONS.md",
@@ -946,6 +947,7 @@ def validate_workflow() -> None:
     designer_rules = (ROOT / "shared" / "DESIGNER_RULES.md").read_text(encoding="utf-8")
     artist_rules = (ROOT / "shared" / "ARTIST_RULES.md").read_text(encoding="utf-8")
     secretary_rules = (ROOT / "shared" / "SECRETARY_RULES.md").read_text(encoding="utf-8")
+    git_rules = (ROOT / "shared" / "GIT_RULES.md").read_text(encoding="utf-8")
     workflow_text = (ROOT / "shared" / "WORKFLOW.md").read_text(encoding="utf-8")
     onboarding_text = (ROOT / "shared" / "AI_ONBOARDING.md").read_text(encoding="utf-8")
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
@@ -967,9 +969,9 @@ def validate_workflow() -> None:
     if missing_role_gate_markers:
         fail(f"AGENTS.md lacks the first-contact professional-role gate: {', '.join(missing_role_gate_markers)}")
     role_rule_markers = {
-        "PROGRAMMER_RULES.md": ("programmer-user route", "Planner duty", "Executor duty", "Cross-role handoff"),
-        "DESIGNER_RULES.md": ("designer-user route", "ReEchoData.xlsx", "Never hand-edit generated", "programmer handoff"),
-        "ARTIST_RULES.md": ("artist-user route", "Active Exclusive", "Never hand-edit `.uasset`", "programmer route"),
+        "PROGRAMMER_RULES.md": ("programmer-user route", "Planner duty", "Executor duty", "shared/GIT_RULES.md"),
+        "DESIGNER_RULES.md": ("designer-user route", "ReEchoData.xlsx", "Never hand-edit generated", "shared/GIT_RULES.md"),
+        "ARTIST_RULES.md": ("artist-user route", "Active Exclusive", "Never hand-edit `.uasset`", "shared/GIT_RULES.md"),
     }
     role_rule_texts = {
         "PROGRAMMER_RULES.md": programmer_rules,
@@ -989,8 +991,7 @@ def validate_workflow() -> None:
         "the Secretary does not create a row for itself",
         "Physical/Git conflict, Logical conflict and Coupling",
         "push `origin/main`",
-        "[SECRETARY]",
-        "Non-Secretary roles must not use the `[SECRETARY]` tag",
+        "centralized identity and boundary rule in `shared/GIT_RULES.md`",
     )
     missing_secretary_markers = [marker for marker in secretary_markers if marker not in secretary_rules]
     if missing_secretary_markers:
@@ -999,6 +1000,22 @@ def validate_workflow() -> None:
         fail("AGENTS.md must route explicit Project Secretary duty to SECRETARY_RULES.md")
     if "Project Secretary boundaries live in `SECRETARY_RULES.md`" not in project_rules:
         fail("PROJECT_RULES.md must point to SECRETARY_RULES.md without redefining secretary duty")
+    git_rule_markers = (
+        "single authority for commit identity and publication-completeness rules",
+        "[PROGRAMMER]",
+        "[DESIGNER]",
+        "[ARTIST]",
+        "[SECRETARY]",
+        "Before every Programmer-route push to `origin/main`",
+        "Build-Editor.cmd -Configuration Development",
+        "ReEchoEditor.prebuilt.json",
+        "source-only Programmer candidate",
+    )
+    missing_git_rule_markers = [marker for marker in git_rule_markers if marker not in git_rules]
+    if missing_git_rule_markers:
+        fail(f"GIT_RULES.md lacks commit/publication authority markers: {', '.join(missing_git_rule_markers)}")
+    if "shared/GIT_RULES.md" not in agents or "Commit or publication work" not in agents:
+        fail("AGENTS.md must route commit and publication work to GIT_RULES.md")
     if "Ordinary tasks follow `AGENTS.md` directly" not in onboarding_text:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
     if "## Recently closed" in exchange_text or "## Decisions" in exchange_text:
@@ -1133,7 +1150,7 @@ def validate_workflow() -> None:
     for name, text_value in live_remote_side_ref_files.items():
         if "coord/" in text_value or "Planning broadcast" in text_value or "push only the task branch" in text_value:
             fail(f"{name} still advertises a remote planning/task side-ref workflow")
-    tag_sources = {
+    non_authoritative_tag_sources = {
         "AGENTS.md": agents,
         "PROJECT_RULES.md": project_rules,
         "PROGRAMMER_RULES.md": programmer_rules,
@@ -1146,9 +1163,14 @@ def validate_workflow() -> None:
         "README.md": readme_text,
         "docs/AI_WORKFLOW.md": docs_workflow_text,
     }
-    duplicate_tag_sources = [name for name, text_value in tag_sources.items() if "[SECRETARY]" in text_value]
+    commit_tags = ("[PROGRAMMER]", "[DESIGNER]", "[ARTIST]", "[SECRETARY]")
+    duplicate_tag_sources = [
+        name
+        for name, text_value in non_authoritative_tag_sources.items()
+        if any(tag in text_value for tag in commit_tags)
+    ]
     if duplicate_tag_sources:
-        fail(f"[SECRETARY] commit-tag rule must live only in SECRETARY_RULES.md, duplicated in: {', '.join(duplicate_tag_sources)}")
+        fail(f"AI commit-tag rules must live only in GIT_RULES.md, duplicated in: {', '.join(duplicate_tag_sources)}")
     if "Design/Data/ReEchoData.xlsx" not in readme_text or "generated into validated CSV" not in readme_text:
         fail("README.md must describe the current XLSX-to-CSV authority")
     if "Project Secretary route" not in readme_text or "SECRETARY_RULES.md" not in readme_text:
@@ -1192,6 +1214,43 @@ def validate_build_dependencies() -> None:
     ):
         if f"Content/Data/{file_name}" not in build_cs:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
+
+
+def validate_prebuilt_editor() -> None:
+    tool = ROOT / "scripts" / "ue" / "prebuilt_editor.py"
+    if not tool.is_file():
+        fail("missing prebuilt Editor bundle tool")
+    result = subprocess.run(
+        [sys.executable, str(tool), "check"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if result.returncode != 0:
+        fail("prebuilt Editor bundle check failed:\n" + result.stdout.strip())
+
+    manifest_path = ROOT / "Binaries" / "Win64" / "ReEchoEditor.prebuilt.json"
+    manifest = load_json(manifest_path)
+    allowed = {
+        "Binaries/Win64/ReEchoEditor.prebuilt.json",
+        *(f"Binaries/Win64/{name}" for name in manifest.get("binaries", {})),
+    }
+    tracked_result = subprocess.run(
+        ["git", "ls-files", "--cached", "Binaries"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if tracked_result.returncode == 0:
+        tracked = {line.strip().replace("\\", "/") for line in tracked_result.stdout.splitlines() if line.strip()}
+        unexpected = sorted(tracked - allowed)
+        missing = sorted(allowed - tracked)
+        if unexpected:
+            fail(f"tracked generated products exceed prebuilt allowlist: {', '.join(unexpected)}")
+        if missing:
+            fail(f"prebuilt Editor files are not staged/tracked: {', '.join(missing)}")
 
 
 def validate_xlsx_authoring_sync() -> None:
@@ -1244,6 +1303,7 @@ def main() -> int:
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()
+    validate_prebuilt_editor()
     validate_xlsx_authoring_sync()
     validate_workflow()
 

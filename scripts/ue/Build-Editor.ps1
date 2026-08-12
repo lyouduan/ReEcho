@@ -20,4 +20,13 @@ if ($editorProcesses) {
 
 $build = Join-Path $resolvedEngine 'Engine\Build\BatchFiles\Build.bat'
 & $build ReEchoEditor Win64 $Configuration $project -WaitMutex -NoHotReloadFromIDE
-exit $LASTEXITCODE
+$buildExitCode = $LASTEXITCODE
+if ($buildExitCode -ne 0) { exit $buildExitCode }
+
+if ($Configuration -eq 'Development') {
+    $prebuiltTool = Join-Path $PSScriptRoot 'prebuilt_editor.py'
+    & python $prebuiltTool update
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+exit 0

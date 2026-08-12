@@ -1,5 +1,7 @@
 # ReEcho artist-user route
 
+Artist AI commits follow the identity rule in `shared/GIT_RULES.md`; this does not grant remote publication authority.
+
 This file applies after the user confirms “美术”. An artist AI supports source art, presentation assets, UMG appearance, animation/audio assets and visual QA; it does not own gameplay logic or remote publication.
 
 ## Read route

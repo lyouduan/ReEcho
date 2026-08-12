@@ -32,14 +32,15 @@ rg -n "SymbolName" Source\ReEcho
 | `Content/ReEcho/Materials/` | Serialized project materials | Visual asset references |
 | `Content/ReEcho/Textures/Characters/` | Cooked 2D actor and shadow textures | Player/echo/enemy Billboard visuals |
 | `Content/SourceArt/Characters/` | Reviewable PNG sources, including MushroomGirl animation frames and Sprite Sheet | Regenerating or extending 2D actor assets |
-| `scripts/ue/` | Installed-engine discovery, build, automation, reproducible Windows Shipping packaging and asset import | Compile/test/package or asset-import workflow |
+| `scripts/ue/` | Installed-engine discovery, build, prebuilt Editor bundle verification, automation, reproducible Windows Shipping packaging and asset import | Compile/test/package, clone-and-open delivery or asset-import workflow |
+| `Binaries/Win64/ReEchoEditor.prebuilt.json` | Curated Editor module bundle contract, source fingerprint and binary hashes | Direct-open failure or Programmer publication review |
 | `scripts/data/sync_xlsx_to_csv.py` | Deterministic XLSX Table to UTF-8 CSV generator, check mode and transactional publish | Data authoring sync or generated CSV drift |
 | `scripts/validate_project.py` | CSV, legacy JSON and workflow static validation | Data/workflow changes |
 | `docs/` | Human-facing architecture and MCP guides | Tool integration or orientation |
 | `shared/` | AI authority, state, rules, routing and coordination | Every AI task |
 | `plans/` | Scoped implementation plans and execution notes | Plan-specific work |
 
-Generated folders (`Binaries`, `Intermediate`, `Saved`, Derived Data) are outputs, not source.
+Generated folders (`Intermediate`, `Saved`, Derived Data and most of `Binaries`) are local outputs. Only the files declared by `Binaries/Win64/ReEchoEditor.prebuilt.json` are tracked for clone-and-open delivery.
 
 ## Runtime composition
 
@@ -169,7 +170,7 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables, cano
 | Trait cards/card choice/character promotion/role build | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `Run/ReEchoCharacterPromotion.*` | `Content/Data/cards.csv`, `Content/Data/card_effects.csv`, `Content/Data/characters.csv`, `Content/Data/character_aliases.csv`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*`, `Weapons/ReEchoWeaponActor.*` |
 | Cards/characters/elements/reactions/enemies/balance data | Matching `Content/Data/*.csv` and migration-only JSON | `Content/Data/README.md`, `validate_project.py` |
 | GM, debug command, cheat, console | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Matching gameplay subsystem or actor API |
-| Build failure | `scripts/ue/Build-Editor.*` | latest UBT log; matching source only |
+| Build or direct-open module failure | `scripts/ue/Build-Editor.*`, `scripts/ue/prebuilt_editor.py` | latest UBT log, prebuilt manifest and matching source |
 | Windows packaging/cook/resource missing | `scripts/ue/package_windows.py`, `ReEchoGameMode.*`, hard asset references, UAT Cook manifests | `Content/ReEcho/Textures/Characters/`, `Saved/Cooked/Windows`, Shipping smoke test |
 | Automation | `scripts/ue/Run-Automation.*` | `Private/Tests/*`, `Saved/Logs/ReEcho.log` |
 | UE MCP | `docs/UE_MCP.md` | `ReEcho.uproject`, editor settings, `.codex/config.toml` |

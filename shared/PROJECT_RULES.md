@@ -1,6 +1,6 @@
 # ReEcho project rules
 
-These are the project-level hard rules. `AGENTS.md` owns startup and professional-role routing; professional boundaries live in `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` and `ARTIST_RULES.md`; Project Secretary boundaries live in `SECRETARY_RULES.md`; programmer duties live in `PLANNER_RULES.md` and `EXECUTOR_RULES.md`; `WORKFLOW.md` is explanatory.
+These are the project-level hard rules. `AGENTS.md` owns startup and professional-role routing; professional boundaries live in `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` and `ARTIST_RULES.md`; Project Secretary boundaries live in `SECRETARY_RULES.md`; programmer duties live in `PLANNER_RULES.md` and `EXECUTOR_RULES.md`; commit identity and publication completeness live in `GIT_RULES.md`; `WORKFLOW.md` is explanatory.
 
 ## Professional-role boundary
 
@@ -28,6 +28,7 @@ These are the project-level hard rules. `AGENTS.md` owns startup and professiona
 - Before implementation starts, every formally numbered Plan is published to `origin/main` under `PLANNER_RULES.md`; implementation still starts on a local non-`main` branch and no remote task branch is created.
 - `git fetch` is the only automatic first step when remote state may have changed. If it reveals commits outside the currently approved local baseline, the Planner must stop before `pull`, merge, rebase, cherry-pick or push; report physical/Git conflicts, logical conflicts and integration coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption.
 - Stage explicit paths only. Never use `git add .` or `git add -A`; never force-push `main`.
+- Before creating a commit or publishing, follow the role tag and Programmer final-build/prebuilt-bundle gate in `shared/GIT_RULES.md`.
 - Human instructions and Plan locked acceptance define scope. Executors may refine implementation details but must coordinate changes to goals, acceptance, public contracts or declared Writes. Remote main owns published Plan numbers; integration shifts colliding unpublished local Plans as one ordered block.
 
 ## Parallel ownership
@@ -66,7 +67,7 @@ Use Windows `.cmd` entry points. Run checks required by the changed surface, not
 | Markdown/workflow only | `python scripts/validate_project.py`, `git diff --check` |
 | Python data tooling/XLSX contract | focused Python tests, canonical `--check`, project validation, `git diff --check` |
 | JSON/config/CSV only | project validation plus affected runtime automation when behavior changes |
-| C++ | `.clang-format`, `Build-Editor.cmd`, affected automation, `git diff --check` |
+| C++ | `.clang-format`, `Build-Editor.cmd` (refreshes the tracked prebuilt bundle), affected automation, `git diff --check` |
 | Texture/import script | import/load and asset-existence check |
 | Packaging/cook | applicable checks plus clean package and manifest/smoke evidence |
 
@@ -77,7 +78,7 @@ Use Windows `.cmd` entry points. Run checks required by the changed surface, not
 
 ## Completion levels
 
-- **Technical delivery**: required objective checks pass or the exact unavailable prerequisite is recorded; `git diff --check` passes; no intermediate/private files are included; Execution notes describe changes, evidence and risks.
+- **Technical delivery**: required objective checks pass or the exact unavailable prerequisite is recorded; `git diff --check` passes; no intermediate/private files or generated products outside the `GIT_RULES.md` prebuilt allowlist are included; Execution notes describe changes, evidence and risks.
 - **Human validation**: required only for visual quality, feel, usability or other subjective behavior. `PendingBeforeClose` blocks closure; `PendingFollowUp` records a human-approved deferred confidence check; `NotRequired` and `Passed` are self-explanatory.
 - **Plan closure**: required objective checks and every `PendingBeforeClose` item are accepted, the Planner reviews/integrates the task, releases ownership and updates shared state. A `PendingFollowUp` item may remain after closure only when the human explicitly accepted that deferral.
 - **Remote publication**: separate from closure/local merge and governed by the scoped authorization gate in `PLANNER_RULES.md`.
