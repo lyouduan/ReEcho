@@ -3,15 +3,15 @@
 ## Coordination
 
 - Planner owner: Gavyn-side Planner.
-- Executor owner: Unassigned; do not start while status is `Proposed`.
-- Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Executor owner: Plan31 Executor.
+- Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Local planning / implementation base: future local branch from a reviewed base containing accepted Plans 26, 29 and 30.
-- Implementation branch: future `plan/31-shop-echo-selection-ui` in a separate clean worktree.
-- Depends on / Blocks: blocked on Plan26 release/integration of `ReEchoInventoryShopWidget.*`, Plan29 storage APIs and Plan30 replay behavior. It blocks no disjoint backend work.
+- Local planning / implementation base: current local `main` containing accepted Plan29 plus the locked Plan26/28/30 behavior contracts. Their implementations are integrated later by the Planner.
+- Implementation branch: local `plan/31-shop-echo-selection-ui` in a separate clean worktree.
+- Depends on / Blocks: may execute in parallel with Plans26/28/30 under explicit human approval. It consumes Plan29's accepted APIs and the locked Plan30 replay semantics; the Planner owns semantic integration of overlapping Widget/GameMode edits.
 - Writes: `Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h`; `Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp`; `Source/ReEcho/Public/ReEchoGameMode.h`; `Source/ReEcho/Private/ReEchoGameMode.cpp`; Plan31-only UI/state tests where cheap; this Plan's Execution notes.
 - Stable Reads: Plan29 read-only echo summaries and transactional store/skip/replace/select commands; Plan30 replay-limit semantics; current card-choice-to-shop transition.
-- Impact mode: `Isolated` after Plan26 ownership release. Until then it has a real overlapping write and remains Proposed.
+- Impact mode: `SharedContract` coordinated overlap. Plan26/31 both edit InventoryShopWidget and Plans28/30/31 may edit GameMode in separate local worktrees; this is an explicit human-approved integration tradeoff, not an automatic-merge claim.
 - Compatibility promise / downstream action: preserve Plan26 weapon presentation and existing inventory/shop purchases, currency, card-draw transition and close-to-next-encounter behavior. Never read or mutate RunSubsystem arrays directly.
 - Explicit exclusions: no backend storage/save/replay redesign, no acquisition source in cards/shop, no CSV/XLSX, no weapon UI regression work, no `.uasset`/`.umap` or new art, and no Executor visual sign-off.
 
@@ -41,17 +41,17 @@ The current prototype exposes storage every intermission and supports up to thre
 
 ## Step 0 gate
 
-- Baseline branch/commit: accepted/integrated Plans 26, 29 and 30; record exact base after a fresh external-commit audit.
+- Baseline branch/commit: exact current local `main` containing accepted Plan29; record it after the remote-difference gate. Do not consume or alter other Plans' WIP branches.
 - Engine/build availability: human saves/closes Editor before build; installed UE 5.8 only.
-- Existing focused-test result: Plan29/30 backend tests and Plan26 UI base checks pass.
-- Active exclusive ownership or shared-contract approval: Plan26 must release `ReEchoInventoryShopWidget.*`; Plan28/30 GameMode ownership must also be released.
-- Stop condition if the baseline is broken: do not overwrite Plan26, duplicate backend state in the widget, or invent the eventual card/shop acquisition source.
+- Existing focused-test result: Plan29 backend tests pass. Independently validate current shop behavior before editing; Plan26/30 WIP evidence is not available on this branch.
+- Active exclusive ownership or shared-contract approval: the human explicitly approved parallel overlap with Plans26/28/30. Record every overlapping Widget/GameMode function changed for Planner integration.
+- Stop condition if the baseline is broken: do not copy another worktree, duplicate backend state in the widget, remove locked Plan26/28/30 behavior, or invent the eventual card/shop acquisition source.
 
 ## Implementation outline
 
-1. Read Plan26's final widget and Plan29's final public summaries/commands before designing the smallest additional panel/state flow.
+1. Read Plan26's locked weapon-presentation contract and Plan29's accepted public summaries/commands before designing the smallest additional panel/state flow; do not read or copy Plan26 WIP implementation.
 2. Add pending store/skip/replace and stored-slot selection using stable GUID-backed view models/delegates.
-3. Bridge commands in GameMode and gate existing shop close/next-encounter transition on a finalized storage decision.
+3. Bridge commands in GameMode and gate existing shop close/next-encounter transition on a finalized storage decision. Record overlapping functions so the Planner can combine Plan28/30/31 behavior by contract.
 4. Add only cheap deterministic state/delegate coverage; compile, then hand the user a concise shop and next-encounter test checklist.
 
 ## Verification matrix
