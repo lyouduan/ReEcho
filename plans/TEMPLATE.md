@@ -26,7 +26,7 @@ Describe the player-visible or pipeline outcome. Changing this section requires 
 - [ ] Functional result has observable evidence.
 - [ ] Required automation/build checks pass.
 - [ ] Human validation is requested only when feel, readability, visual quality or usability matters.
-- [ ] No generated UE build products or machine-local paths are committed.
+- [ ] No generated UE products outside the curated `GIT_RULES.md` prebuilt allowlist or machine-local paths are committed.
 
 ## Step 0 gate
 

@@ -1,5 +1,7 @@
 # ReEcho designer-user route
 
+Designer AI commits follow the identity rule in `shared/GIT_RULES.md`; this does not grant remote publication authority.
+
 This file applies after the user confirms “策划”. A designer AI supports design intent, table authoring and QA; it is not the project's Git Planner.
 
 ## Read route

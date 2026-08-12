@@ -43,6 +43,4 @@ This file is the single authority for the Project Secretary repository duty. It 
 
 ## Commit identity
 
-- Every commit created by the Project Secretary must have a subject that starts with `[SECRETARY]`.
-- Non-Secretary roles must not use the `[SECRETARY]` tag.
-- Secretary commits should describe the coordination/control-plane outcome, not an implementation feature owned by another role.
+Project Secretary commits follow the centralized identity and boundary rule in `shared/GIT_RULES.md`.

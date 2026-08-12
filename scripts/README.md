@@ -9,6 +9,8 @@ scripts\ue\Build-Editor.cmd
 scripts\ue\Run-Automation.cmd -Filter ReEcho
 ```
 
+`Build-Editor.cmd -Configuration Development` performs a full Editor build and refreshes the tracked clone-and-open bundle. `python scripts\ue\prebuilt_editor.py check` verifies its source fingerprint and binary hashes without invoking Unreal.
+
 Pass `-EngineRoot D:\UE_5.x` to any UE command, or set the machine-local `RE_ECHO_UE_ROOT` environment variable. Do not commit an absolute engine path.
 
 ## Windows Shipping package

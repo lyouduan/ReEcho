@@ -1,5 +1,11 @@
-# Unreal Engine generated output
-/Binaries/
+# Unreal Engine generated output. The narrow Win64 Editor delivery allowlist is
+# tracked so a fresh checkout opens without a local C++ toolchain.
+/Binaries/*
+!/Binaries/Win64/
+/Binaries/Win64/*
+!/Binaries/Win64/UnrealEditor.modules
+!/Binaries/Win64/UnrealEditor-*.dll
+!/Binaries/Win64/ReEchoEditor.prebuilt.json
 /DerivedDataCache/
 /Intermediate/
 /Saved/

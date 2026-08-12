@@ -14,7 +14,7 @@ This file contains Executor actions only. Follow `AGENTS.md` for minimal startup
 3. A `Reserved` ownership row announces intent; it does not block disjoint or read-only work. Never write another owner's `Active` `Exclusive` resource.
 4. Read only the assigned Plan, matching Exchange blocks, the selected code route and relevant lessons. Read `§DEBUG` only after a failure needs diagnosis.
 
-Same-machine agents use separate worktrees. Teammates on separate machines use separate clones and local task branches; `origin/main` is the only remote branch. Build products are local and are not expected to appear in another worktree/clone.
+Same-machine agents use separate worktrees. Teammates on separate machines use separate clones and local task branches; `origin/main` is the only remote branch. Build products remain local except for the curated clone-and-open Editor bundle governed by `shared/GIT_RULES.md`.
 
 ## Implement within the contract
 
@@ -82,7 +82,7 @@ Do not remove someone else's lock from the catch path. A stale lock may be remov
 1. Run focused checks immediately after risky changes and the required final matrix before handoff.
 2. Summarize current-commit evidence; do not rely on stale binaries or pre-rebase results.
 3. Update the Plan lifecycle to `Review`, preserve the separate human-validation value (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`), and release only resources no longer being edited.
-4. Stage explicit files and commit locally with the Plan number and a concrete outcome. Do not push the task branch; hand the local branch/commit to the Planner in the same clone.
+4. Stage explicit files and commit locally with the identity prefix required by `shared/GIT_RULES.md`, the Plan number and a concrete outcome. Do not push the task branch; hand the local branch/commit to the Planner in the same clone.
 5. Report commit, changed surface, passed/failed checks, unavailable prerequisites and remaining human validation.
 
 Executors do not push any remote ref, merge/publish `main`, create a PR/MR, remove their worktree, or delete remote refs.

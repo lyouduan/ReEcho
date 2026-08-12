@@ -8,6 +8,8 @@ This file applies after the user confirms “程序”. It defines the professio
 - Use Executor duty for a concrete implementation on an assigned local Plan/branch.
 - If neither was assigned, stay within Executor authority. Do not infer permission to merge or publish.
 
+Before committing or publishing, follow the Programmer identity and final integrated build/bundle gate in `shared/GIT_RULES.md`.
+
 ## Programmer scope
 
 - May change C++, Python tooling, schemas, configuration, public contracts and technical documentation when the Plan and ownership allow it.

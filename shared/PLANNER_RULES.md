@@ -92,6 +92,8 @@ At every review, integration and closure handoff, advance accepted work to the f
 
 `origin/main` is the only permitted remote branch. Numbered Plans are published there before execution; implementation branches stay local.
 
+Every Programmer publication also passes the final integrated UE build and curated prebuilt-bundle gate in `shared/GIT_RULES.md`. A Plan-only publication contains no implementation and therefore uses its static validation gate instead.
+
 Standing scoped authorization:
 
 - After static validation, publish a newly numbered Plan file and only its matching live Exchange announcement/ownership promptly to `origin/main`, before implementation starts.
@@ -101,7 +103,7 @@ Neither authorization includes implementation or unrelated WIP. A fresh external
 
 1. Fetch immediately before building the candidate. If main advanced, run the full external-commit audit and wait for the human's integration choice.
 2. Integrate current `origin/main`, all named accepted scope and no unapproved WIP. Renumber unpublished local Plans when remote main already owns a number.
-3. Re-run checks affected by integration, conflicts, renumbering or base changes.
+3. Re-run checks affected by integration, conflicts, renumbering or base changes, then complete the `GIT_RULES.md` Programmer publication build gate on the exact final candidate.
 4. Report included/excluded Plans, candidate commit, verification and remote difference.
 5. Authorization is either:
    - **one-candidate**: explicit human approval for that reported candidate; or
