@@ -4,6 +4,8 @@
 
 - Planner owner:
 - Executor owner:
+- Plan authored by (AI side): `Gavyn-side AI | ReEcho teammate-side AI`.
+- Implementation authored by (AI side): `Unassigned | Gavyn-side AI | ReEcho teammate-side AI`.
 - Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base:

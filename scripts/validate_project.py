@@ -953,13 +953,15 @@ def validate_workflow() -> None:
         if not row.startswith("|") or row.startswith("|---") or "| Plan |" in row:
             continue
         cells = [cell.strip().strip("`") for cell in row.strip("|").split("|")]
-        if len(cells) != 7:
-            fail("PLANNER_EXCHANGE.md announcement rows must use the canonical seven-column schema")
-        if cells[2] not in {"Proposed", "Ready", "InProgress", "Review", "Closed", "Blocked"}:
-            fail(f"PLANNER_EXCHANGE.md uses unknown task status: {cells[2]}")
-        if cells[3] not in {"NotRequired", "PendingBeforeClose", "PendingFollowUp", "Passed"}:
-            fail(f"PLANNER_EXCHANGE.md uses unknown human-validation state: {cells[3]}")
-        if cells[2] == "Closed" and cells[3] != "PendingFollowUp":
+        if len(cells) != 8:
+            fail("PLANNER_EXCHANGE.md announcement rows must use the canonical eight-column schema")
+        if not cells[1] or "/" not in cells[1]:
+            fail("PLANNER_EXCHANGE.md announcement rows must identify Plan and implementation AI sides")
+        if cells[3] not in {"Proposed", "Ready", "InProgress", "Review", "Closed", "Blocked"}:
+            fail(f"PLANNER_EXCHANGE.md uses unknown task status: {cells[3]}")
+        if cells[4] not in {"NotRequired", "PendingBeforeClose", "PendingFollowUp", "Passed"}:
+            fail(f"PLANNER_EXCHANGE.md uses unknown human-validation state: {cells[4]}")
+        if cells[3] == "Closed" and cells[4] != "PendingFollowUp":
             fail("closed Exchange rows are retained only for a live PendingFollowUp; otherwise remove them")
     active_block = exchange_text.split("## Active ownership", 1)[1].split("## Warnings / blocked items", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
@@ -992,6 +994,8 @@ def validate_workflow() -> None:
         fail("PROJECT_STATE.md must not cache a self-staling current origin/main hash")
     required_template_fields = (
         "## Coordination",
+        "Plan authored by (AI side):",
+        "Implementation authored by (AI side):",
         "Task status:",
         "Human validation:",
         "Local planning / implementation base:",
