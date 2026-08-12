@@ -6,7 +6,7 @@
 - Executor owner: Plan31 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: current local `main` containing accepted Plan29 plus the locked Plan26/28/30 behavior contracts. Their implementations are integrated later by the Planner.
 - Implementation branch: local `plan/31-shop-echo-selection-ui` in a separate clean worktree.
@@ -70,8 +70,77 @@ The current prototype exposes storage every intermission and supports up to thre
 
 ### Changed
 
-### Evidence
+Widget (`Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h` / `.cpp`):
+- New public methods: `RefreshEchoState(UReEchoRunSubsystem*)`, `RequestStoreEcho`, `RequestSkipEcho`,
+  `RequestReplaceEcho`, `RequestCancelReplaceEcho`, `ToggleReplaySelection`, `RequestClose`,
+  `IsPendingEchoDecided`, `GetEchoSummary`, `GetEchoPendingDecision`, `GetCachedRunSubsystem`.
+- New private state (summary + stable GUIDs only, never full recordings): `FReEchoEchoStorageSummary EchoSummary`,
+  `TArray<FGuid> EchoSelection`, `TArray<FGuid> EchoSlotGuids`, `EReEchoShopEchoPendingDecision EchoPendingDecision`,
+  `UReEchoRunSubsystem* CachedRunSubsystem`.
+- New UI members: `EchoPanel` (UVerticalBox), `CloseConfirmWidget` (UVerticalBox), `EchoCapacityText`,
+  `EchoReplayModeText`, `EchoPendingInfoText`, `EchoStoreButton`, `EchoSkipButton`, `EchoReplaceInstructionText`,
+  `EchoCancelReplaceButton`, `EchoReplaceButtons[MaxStorageCapacity]`, `EchoSelectButtons[MaxStorageCapacity]`,
+  `EchoSlotTexts[MaxStorageCapacity]`, `EchoSelectLabels[MaxStorageCapacity]`, `EchoSelectionText`.
+- New handlers: `HandleStoreClicked`, `HandleSkipClicked`, `HandleCancelReplaceClicked`,
+  `HandleReplaceSlot0/1/2Clicked`, `HandleSelectSlot0/1/2Clicked`, `HandleConfirmSkipContinueClicked`,
+  `HandleConfirmReturnClicked`, `HandleReplaceSlotClicked(int32)`, `HandleSelectSlotClicked(int32)`, `BuildEchoPanel`.
+- `HandleCloseClicked()` now calls `RequestClose()` (close gating) instead of broadcasting `OnClosed` directly.
+- Delegates `OnClosed` / `OnPurchaseRequested` unchanged; purchases/inventory/currency preserved.
 
-### Remaining risks
+GameMode (`Source/ReEcho/Private/ReEchoGameMode.cpp` only; `ReEchoGameMode.h` untouched):
+- `ShowInventoryShopMenu(...)`: after `InventoryShopWidget->AddToViewport(95)`, added
+  `InventoryShopWidget->RefreshEchoState(RunSubsystem);` — the Plan31 bridge injecting the authoritative
+  RunSubsystem into the widget. No other GameMode function changed.
+- `HandleInventoryShopClosed`, `HandleShopPurchaseRequested`, `BeginNextEncounter`, `ShowTraitCardChoice`,
+  `HandleTraitCardSelected`, and the close/input-restore flow are reused unchanged; each close triggers exactly
+  one `BeginNextEncounter` (one-shot timer, `bContinueRunAfterShop` reset).
+
+### Store / Skip / Replace / Selection state flow
+- Shop open → `RefreshEchoState` reads `GetEchoStorageSummary()` and reconciles `EchoSelection` to `SelectedReplayIds`.
+- Pending undecided → `EchoPendingInfoText` shows 遭遇编号 + 角色/武器 FName (no GUID to player);
+  Store/Skip visible.
+- `RequestStoreEcho`: free slot → `StorePendingRecording()` (Stored) + re-read; full → `Replacing` (show replace
+  buttons + Cancel), pending stays undecided.
+- `RequestReplaceEcho(TargetId)`: `StorePendingRecordingReplacing(TargetId)` (Stored) + re-read. No silent evict.
+- `RequestCancelReplaceEcho`: back to `Undecided` (Return to selection).
+- `RequestSkipEcho`: `SkipPendingRecordingStorage()` (Skipped) + re-read (rolling latest echo preserved).
+- `ToggleReplaySelection(Id)`: limit 0 → ignored; limit 1 → single-select (replaces previous); limit >1 →
+  multi up to limit, duplicates prevented; commits via `SetSelectedReplayIds`, then re-reads authoritative summary.
+- Close → `RequestClose`: if `bHasPendingRecording`, show `CloseConfirmWidget`
+  (`Skip and continue` / `Return to selection`); else `OnClosed.Broadcast()`.
+  `Skip and continue` skips pending then broadcasts; `Return to selection` hides confirm and stays.
+
+### Evidence
+- `python scripts/validate_project.py`: passed.
+- `scripts/ue/Build-Editor.cmd -Configuration Development`: BUILD_EXIT=0 (UHT/UBT clean, no warnings-as-errors).
+- Automation `ReEcho.Shop.EchoSelection.Plan31`: `Result={Success}`.
+- Existing `ReEcho.*` tests (Shop.PurchaseUpdatesInventory, Traits.*, Weapons.*) all `Result={Success}`;
+  no `Result={Failure}` in the run.
+- `git diff --check`: clean. Path audit: only the allowed files changed; no RunSubsystem/save/replay/asset touched.
+- `clang-format`: binary not present in this environment (only `.clang-format` configs ship with UE 5.8);
+  code follows the repo `.clang-format` style manually. No CI enforcement available locally.
+
+### Remaining risks / overlaps
+- Plan26 overlap: Plan26 also edits `InventoryShopWidget` for a read-only current-weapon label. Plan31 added a new
+  `EchoPanel` and new functions only; it did NOT modify any Plan26-reserved slot/field or its planned label.
+  Planner must merge: keep Plan26's weapon label intact and place `EchoPanel` without clobbering it. No overlapping
+  Widget function was modified by Plan31.
+- Plan28 overlap: Plan28 owns P input / pause UI and Player; Plan31 does not touch those. GameMode change is additive
+  (one new call inside `ShowInventoryShopMenu`).
+- Plan30 overlap: Plan30 owns specific-replay spawn inside `BeginNextEncounter`. Plan31 only sets selection via
+  RunSubsystem `SetSelectedReplayIds` and reuses the existing close → `BeginNextEncounter` path; it does NOT read or
+  implement Plan30 spawn logic (depends on the locked Plan30 contract).
+- The echo panel is added at a fixed canvas anchor; layout/wording/click-flow/end-to-end PIE are for the user
+  (executor performs no visual sign-off).
 
 ### Human validation result/request
+- Status: `PendingBeforeClose`. User to run the PIE checklist (store / skip / full-replace-cancel / locked-specific
+  replay / single / multi / purchases / close-once) and then report `Passed` or concrete rework.
+
+### Planner integration review (rework required)
+- The Plan30 and Plan31 commits are integrated on local `main`, but Plan31 remains `InProgress` and is not accepted.
+- Show echo management only in the shop flow; the shared inventory-only screen must not expose intermission decisions.
+- Treat RunSubsystem command results as authoritative. Store, skip and replace failures must not be presented as success.
+- The confirm-and-continue path may broadcast `OnClosed` only after skip succeeds and the refreshed summary has no pending recording.
+- Add focused non-visual tests for close gating, command-failure behavior and shop-versus-inventory visibility/state.
+- Improve replacement-mode controls and player-facing wording without asking the executor to perform visual validation.
