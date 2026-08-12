@@ -1086,6 +1086,24 @@ def validate_workflow() -> None:
     missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
     if missing_audit_markers:
         fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
+    plan_publication_markers = (
+        "## Number and publish a Plan before execution",
+        "Before assigning a Plan number",
+        "identify the highest numbered Plan",
+        "publish the numbered Plan to `origin/main` immediately",
+        "No Executor, implementation branch or publication-intended specialist work",
+        "If the push is rejected or another published Plan claims the number",
+        "newly numbered Plan file and only its matching live Exchange",
+    )
+    missing_plan_publication_markers = [marker for marker in plan_publication_markers if marker not in planner_rules]
+    if missing_plan_publication_markers:
+        fail(f"Planner rules lack remote-first Plan numbering/publication: {', '.join(missing_plan_publication_markers)}")
+    if "every formally numbered Plan is published to `origin/main`" not in project_rules:
+        fail("PROJECT_RULES.md must route numbered Plans through the remote-first Planner rule")
+    if "Numbered Plans are published to `main` before implementation starts" not in workflow_text:
+        fail("WORKFLOW.md must explain remote-first numbered Plan publication")
+    if "Numbered Plan files and their necessary live coordination are published to `origin/main` before execution" not in state_text:
+        fail("PROJECT_STATE.md must reflect remote-first numbered Plan publication")
     compact_prompt_markers = (
         "startup prompt is only a neutral routing envelope",
         "must not assign a new identity",
@@ -1100,7 +1118,7 @@ def validate_workflow() -> None:
         "PLANNER_RULES.md": ("`origin/main` is the only permitted remote branch", "Plan-number conflicts"),
         "EXECUTOR_RULES.md": ("`origin/main` is the only remote branch", "Do not push the task branch"),
         "SECRETARY_RULES.md": ("Must not create or push any remote branch other than `origin/main`", "Push only local `main` to `origin/main`"),
-        "WORKFLOW.md": ("exactly one branch: `main`", "Planning drafts are not published merely to announce intent"),
+        "WORKFLOW.md": ("exactly one branch: `main`", "Numbered Plans are published to `main` before implementation starts"),
     }
     main_only_texts = {
         "PROJECT_RULES.md": project_rules,

@@ -44,11 +44,11 @@ A reservation announces local intent but does not block unrelated work. Only an 
 
 Same-machine Executors use separate worktrees and local branches. Different teammates use separate clones and local branches. File ownership and contract boundaries determine safe parallelism inside each clone.
 
-The remote repository has exactly one branch: `main`. There are no remote planning, task, handoff or review branches. Planning drafts are not published merely to announce intent; they travel with the accepted implementation when that candidate eventually enters main.
+The remote repository has exactly one branch: `main`. There are no remote planning, task, handoff or review branches. Numbered Plans are published to `main` before implementation starts, so every machine sees the canonical number and declared scope without creating a side branch.
 
-This deliberately moves cross-machine coordination to integration time. A teammate learns about another machine's accepted planning/implementation by fetching `origin/main`. Before pull or push, the Planner reports Physical/Git conflict, Logical conflict and Coupling, plus any Plan-number collision. The human chooses remote, local, combined adaptation or deferral.
+This exposes numbered intent before execution while keeping implementation local. A teammate learns about scope from the published Plan and about accepted implementation by fetching `origin/main`. Before pull or push, the Planner reports Physical/Git conflict, Logical conflict and Coupling, plus any Plan-number collision. The human chooses remote, local, combined adaptation or deferral.
 
-Remote main owns Plan numbers. If an unpublished local sequence collides, shift the colliding Plan and every later unpublished local Plan together to the first free ordered range, then update live references. This preserves remote history and local dependency order.
+Remote main owns Plan numbers. Before numbering, the Planner fetches and reads the highest remote Plan number; after numbering, the Plan is pushed to main and verified before execution. If a concurrent publication still collides, shift the colliding Plan and every later unpublished local Plan together to the first free ordered range, then update live references.
 
 Provider/consumer work may proceed in parallel inside one clone after agreeing on a local contract. Across machines, a consumer cannot rely on unpublished provider work; the provider must first be accepted into main, then the consumer fetches/audits main and integrates it.
 
@@ -62,11 +62,11 @@ The Unreal Editor lock is machine-local but shared by all worktrees in one clone
 
 ## Local and remote lanes
 
-1. **Local planning/execution**: Plans, task branches, worktrees and handoffs remain local. They may be committed locally for safety but are not pushed as side refs.
+1. **Published planning, local execution**: numbered Plan files and their necessary live coordination enter `main` first; task branches, worktrees, implementation commits and handoffs remain local and are never pushed as side refs.
 2. **Local acceptance**: the Planner reviews an Executor commit, resolves human validation and merges accepted scope into local main.
 3. **Remote-main integration**: fetch, audit external main, resolve Plan-number and behavioral differences with the human, validate the resulting candidate, then push only main without force.
 
-One-candidate or narrowly documented standing authorization still governs main publication. A local Plan or task commit never inherits that authority.
+The standing Plan-only authorization covers a numbered Plan plus its necessary live coordination, never implementation. Other main publication still requires one-candidate or narrowly documented standing authorization.
 
 ## Why this shape
 

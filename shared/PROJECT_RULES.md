@@ -25,7 +25,7 @@ These are the project-level hard rules. `AGENTS.md` owns startup and professiona
 - Executor implementation branches use local `plan/<id>-<short-name>` worktrees; client-required local branches may use `codex/<short-name>`.
 - `origin/main` is the only permitted remote branch. Do not push planning, task, handoff, review or PR branches.
 - Executors never modify, merge or push `main` and never push any remote ref. Planners may create reviewed local merge commits and may publish only remote `main` under `PLANNER_RULES.md`.
-- Task implementations and planning drafts start on a local non-`main` branch. Planning remains local until it travels with an accepted implementation; no remote publication is required merely to start an Executor.
+- Before implementation starts, every formally numbered Plan is published to `origin/main` under `PLANNER_RULES.md`; implementation still starts on a local non-`main` branch and no remote task branch is created.
 - `git fetch` is the only automatic first step when remote state may have changed. If it reveals commits outside the currently approved local baseline, the Planner must stop before `pull`, merge, rebase, cherry-pick or push; report physical/Git conflicts, logical conflicts and integration coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption.
 - Stage explicit paths only. Never use `git add .` or `git add -A`; never force-push `main`.
 - Human instructions and Plan locked acceptance define scope. Executors may refine implementation details but must coordinate changes to goals, acceptance, public contracts or declared Writes. Remote main owns published Plan numbers; integration shifts colliding unpublished local Plans as one ordered block.

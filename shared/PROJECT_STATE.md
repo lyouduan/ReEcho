@@ -33,7 +33,7 @@ Last updated: 2026-08-12. Current snapshot only; history belongs in Plans and Gi
 
 ## Collaboration protocol
 
-- Plans, task branches and worktrees remain local until accepted integration; `origin/main` is the only remote branch.
+- Numbered Plan files and their necessary live coordination are published to `origin/main` before execution; task branches, worktrees and implementation commits remain local until accepted integration.
 - Lifecycle uses `Proposed | Ready | InProgress | Review | Closed | Blocked`; human validation uses `NotRequired | PendingBeforeClose | PendingFollowUp | Passed`; ownership state is separate.
 - Executors write their Plan and owned implementation docs. Planners update shared state/lessons/routes once during review, reducing parallel Markdown conflicts.
 - `Isolated` and `ReadOnly` local work may proceed immediately. `SharedContract`/`Exclusive` overlap requires agreement; only `Active Exclusive` ownership blocks another writer.

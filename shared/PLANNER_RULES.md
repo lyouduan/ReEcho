@@ -2,24 +2,26 @@
 
 This file contains Planner actions only. Startup order is defined by `AGENTS.md`; project hard rules and verification live in `PROJECT_RULES.md`.
 
-## Draft a Plan locally
+## Number and publish a Plan before execution
 
-1. Fetch `origin/main` and inspect the Plan numbers and live Exchange rows already published there. Remote main is canonical for numbering; numbers are never reused.
+1. Before assigning a Plan number, fetch `origin/main`, list the numbered `plans/<id>-*.md` files from that remote ref, and identify the highest numbered Plan. Also inspect live Exchange rows. Remote main is canonical for numbering; numbers are never reused, and a new task takes the next unused number after the remote maximum.
 2. If remote main advanced, inspect it read-only. Do not pull, merge, rebase or push until the external-commit integration audit is reported and the human chooses the outcome.
 3. Search the code/data surface before writing. Cite concrete paths and lines instead of relying on memory.
 4. Separate locked goal/acceptance from implementation guidance. The Executor may refine implementation but may not silently change locked scope.
 5. Mark human validation `NotRequired` unless subjective feel, readability, visual quality or usability needs a person. Use `PendingBeforeClose` when it gates acceptance or `PendingFollowUp` only when the human explicitly allows deferral.
 6. Add the Plan `Coordination` block from `plans/TEMPLATE.md`: owners, **Plan-authored-by AI side**, **implementation-authored-by AI side**, lifecycle, human validation, local/implementation base, dependencies, Writes/Reads, impact mode, compatibility promise and exclusions. Planning ownership, document authorship and implementation authorship are separate facts; never infer or transfer them merely because another Planner refreshed the local file.
-7. Keep planning drafts and Exchange reservations local. They do not require a remote planning publication before an Executor starts.
-8. Recommend an Executor model only when it helps the human choose; do not spawn one unless the human explicitly asks.
+7. Once a formal number is assigned, publish the numbered Plan to `origin/main` immediately, together with only the matching live Exchange announcement/ownership needed for cross-machine coordination. Use the Plan-publication authorization below; do not include implementation or unrelated WIP.
+8. Fetch and verify that `origin/main` contains the exact numbered Plan commit. No Executor, implementation branch or publication-intended specialist work for that Plan starts before this verification succeeds.
+9. If the push is rejected or another published Plan claims the number, fetch again, move this Plan and every later unpublished local Plan to the first range after the new remote maximum, update all live references, validate and retry the Plan-only publication.
+10. Recommend an Executor model only when it helps the human choose; do not spawn one unless the human explicitly asks.
 
 ## Start and coordinate local execution
 
-1. Give the Executor the local Plan path or embed the locked goal, acceptance, base, Writes and exclusions in the prompt.
+1. Give the Executor the published Plan path or embed the locked goal, acceptance, base, Writes and exclusions in the prompt.
 2. Executors work in local `plan/<id>-<short>` branches/worktrees. Different machines use their own clones and local task branches; no remote task or coordination branch is created.
 3. `Isolated` and `ReadOnly` work may start when local Writes are disjoint. `SharedContract` or `Exclusive` overlap waits for the affected local owner/human to confirm the contract or ownership.
 4. If Writes, dependencies or a stable contract must expand, pause only the out-of-scope change and update the local Plan/Exchange before continuing. Unrelated local work need not stop.
-5. Local planning does not inform another machine. Cross-machine differences are discovered from `origin/main` and resolved at pull/push integration under the audit gate below.
+5. The published Plan and live Exchange announcement inform other machines of numbered intent; implementation commits remain local until accepted. Later cross-machine differences are resolved from `origin/main` under the audit gate below.
 
 ## External-commit integration audit
 
@@ -88,9 +90,14 @@ At every review, integration and closure handoff, advance accepted work to the f
 
 ## Remote-main publication
 
-`origin/main` is the only permitted remote branch. Planning drafts and implementation branches stay local.
+`origin/main` is the only permitted remote branch. Numbered Plans are published there before execution; implementation branches stay local.
 
-Standing scoped authorization: after review and validation, publish completed changes limited to authoritative workflow/rule documents, `plans/TEMPLATE.md`, and the matching validator/tests promptly to `origin/main`. A minimal Exchange schema migration required by that rule change may accompany it, but live local Plan drafts, reservations and implementation are excluded. A fresh external-main audit is still mandatory, and any later human instruction may revoke or narrow this authorization.
+Standing scoped authorization:
+
+- After static validation, publish a newly numbered Plan file and only its matching live Exchange announcement/ownership promptly to `origin/main`, before implementation starts.
+- After review and validation, publish completed changes limited to authoritative workflow/rule documents, `plans/TEMPLATE.md`, and the matching validator/tests promptly to `origin/main`. A minimal Exchange schema migration required by that rule change may accompany it.
+
+Neither authorization includes implementation or unrelated WIP. A fresh external-main audit is still mandatory, and any later human instruction may revoke or narrow this authorization.
 
 1. Fetch immediately before building the candidate. If main advanced, run the full external-commit audit and wait for the human's integration choice.
 2. Integrate current `origin/main`, all named accepted scope and no unapproved WIP. Renumber unpublished local Plans when remote main already owns a number.

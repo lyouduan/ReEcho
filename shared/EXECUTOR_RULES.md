@@ -5,7 +5,7 @@ This file contains Executor actions only. Follow `AGENTS.md` for minimal startup
 ## Start safely
 
 1. Work in an isolated `plan/<id>-<short>` branch/worktree, never in `main`.
-2. Confirm the assigned local Plan or embedded prompt contract:
+2. Confirm the assigned Plan is already published on `origin/main`, or confirm the embedded prompt contract when the task legitimately has no Plan:
    - the declared implementation-authored-by AI side matches this Executor handoff; if missing or wrong, stop before editing and ask the Planner to correct provenance;
    - lifecycle is `Ready`, `InProgress` or `Review` only when review fixes were explicitly assigned;
    - implementation base and branch are named;
