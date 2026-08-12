@@ -8,14 +8,14 @@
 - Implementation authored by (AI side): Gavyn-side AI.
 - Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Local planning / implementation base: old behavior reference `a5ab273`; combined adaptation base `origin/main` at `0726bd6` plus integrated Plans30/31.
-- Implementation branch: combined adaptation on local `integration/gavyn-umg-gameplay-20260812`.
+- Local planning / implementation base: old UI behavior reference `73a8ed6`; acquisition behavior reference `e2b1047`; final implementation must adapt onto current `origin/main` containing Plans28/30/31/37.
+- Implementation branch: continue local `plan/32-shop-echo-selection-ui`; do not merge either historical reference commit wholesale.
 - Depends on / Blocks: may execute in parallel with Plans26/28/30 under explicit human approval. It consumes Plan30's accepted APIs and the locked Plan31 replay semantics; the Planner owns semantic integration of overlapping Widget/GameMode edits.
-- Writes: typed inventory/shop opening context; `UReEchoEchoManagementWidget`; GUID-backed snapshot/entry types; `WBP_ReEchoEchoManagementPanel` and `WBP_ReEchoStoredEchoEntry` embedded under `WBP_ReEchoInventoryShopScreen`; narrow intermission orchestration; Plan32 tests and notes. The latest UI Manager/Flow Coordinator remains authoritative.
+- Writes: typed inventory/shop opening context; `UReEchoEchoManagementWidget`; GUID-backed snapshot/entry types; `WBP_ReEchoEchoManagementPanel` and `WBP_ReEchoStoredEchoEntry` embedded under `WBP_ReEchoInventoryShopScreen`; narrow intermission orchestration; shop catalog and transactional purchase handling for the one-time specific-replay unlock; Plan32/shop tests and notes. The latest UI Manager/Flow Coordinator remains authoritative.
 - Stable Reads: Plan30 read-only echo summaries and transactional store/skip/replace/select commands; Plan31 replay-limit semantics; current card-choice-to-shop transition.
 - Impact mode: `SharedContract` coordinated overlap. Plan26/31 both edit InventoryShopWidget and Plans28/30/31 may edit GameMode in separate local worktrees; this is an explicit human-approved integration tradeoff, not an automatic-merge claim.
 - Compatibility promise / downstream action: preserve Plan26 weapon presentation and existing inventory/shop purchases, currency, card-draw transition and close-to-next-encounter behavior. Never read or mutate RunSubsystem arrays directly.
-- Explicit exclusions: no backend storage/save/replay redesign, no acquisition source in cards/shop, no CSV/XLSX, no weapon UI regression work, no new top-level Screen, no restoration of the old code-built shop layout, no new art and no Executor visual sign-off.
+- Explicit exclusions: no backend storage/save/replay redesign, no card-based acquisition, no CSV/XLSX, no weapon UI regression work, no new top-level Screen, no restoration of the old code-built shop layout, no new art and no Executor visual sign-off.
 
 ## Locked goal
 
@@ -27,7 +27,7 @@ Extend the existing shop screen with one coherent echo-management flow after eac
 4. When specific replay is available, allow selection up to the current limit. Limit one is the specific-single UI; a larger limit is the same multi-select UI. When unavailable, clearly show that the next encounter will automatically replay the immediately previous encounter.
 5. Closing the shop finalizes the pending decision and the next-encounter replay selection before the current `BeginNextEncounter` handoff.
 
-The current prototype exposes storage every intermission and supports up to three stored/selected echoes. The eventual card/shop acquisition presentation is explicitly deferred; the UI must already respond correctly when the backend reports specific replay unavailable, single or multi.
+The current prototype exposes storage every intermission and supports up to three stored/selected echoes. Add the previously approved one-time shop item `SHOP_REPLAY_UNLOCK`: it costs 30 Time Shards and changes `SpecificReplayLimit` from 0 to the existing maximum of 3. Insufficient funds or repeat purchase must reject atomically without spending currency or changing the limit. A successful purchase is saved immediately and refreshes both shop ownership/currency and the post-trait echo-management selection state. Card-based acquisition remains deferred.
 
 The shared inventory/shop screen uses a typed `Inventory`, `ManualShop` or `PostTraitIntermission` context. Echo management is visible only for `PostTraitIntermission`; it never appears in the M-key manual shop or pure inventory view.
 
@@ -38,6 +38,8 @@ The shared inventory/shop screen uses a typed `Inventory`, `ManualShop` or `Post
 - [ ] Store, skip and replace are explicit. Closing with an undecided pending recording opens a two-choice confirmation (`Skip and continue` / `Return to selection`); it never silently loses the recording.
 - [ ] Stored slots accurately show used/capacity state. Replacement updates the view immediately and removes any now-stale replay selection transactionally.
 - [ ] Replay selection enforces unavailable/one/many limits, prevents duplicates and clearly marks the selected set. Unavailable mode communicates automatic previous-encounter replay.
+- [ ] The shop catalog exposes one `SHOP_REPLAY_UNLOCK` item costing 30 Time Shards. A successful first purchase deducts exactly 30, records ownership, changes the specific-replay limit from 0 to 3, saves immediately and refreshes the current shop/echo panel without closing it.
+- [ ] Insufficient funds and repeat purchase reject atomically: no currency loss, duplicate inventory entry, limit change or false success. Save/Continue preserves both ownership and the unlocked limit. Ordinary shop items still purchase normally.
 - [ ] Store/replace/skip/select checks the authoritative transaction result, saves immediately only after success, refreshes the snapshot and never reports success after a rejected command.
 - [ ] Close eligibility is derived from authoritative pending/selection state, not from a confirmation control's existence. Skip-and-continue closes only after successful Skip and refreshed pending-clear evidence.
 - [ ] Shop close passes through existing modal/input restoration and starts the next encounter exactly once through an idempotent/in-progress transition. Reopening before close reflects authoritative RunSubsystem state.
@@ -51,14 +53,15 @@ The shared inventory/shop screen uses a typed `Inventory`, `ManualShop` or `Post
 - Engine/build availability: human saves/closes Editor before build; installed UE 5.8 only.
 - Existing focused-test result: Plan30 backend tests pass. Independently validate current shop behavior before editing; Plan26/30 WIP evidence is not available on this branch.
 - Active exclusive ownership or shared-contract approval: the human explicitly approved parallel overlap with Plans26/28/30. Record every overlapping Widget/GameMode function changed for Planner integration.
-- Stop condition if the baseline is broken: do not copy another worktree, duplicate backend state in the widget, remove locked Plan26/28/30 behavior, or invent the eventual card/shop acquisition source.
+- Stop condition if the baseline is broken: do not copy another worktree, duplicate backend state in the widget, remove locked Plan26/28/30 behavior, or cherry-pick the historical `e2b1047` widget callback rewrite. Reuse only its locked purchase semantics through the current indexed shop UI and authoritative RunSubsystem transaction path.
 
 ## Implementation outline
 
 1. Extend the shared shop screen with a typed opening context and embed a dedicated echo-management child Widget; do not add a second top-level screen.
 2. Add pending store/skip/replace and stored-slot selection using stable GUID-backed snapshots and dynamic entries.
 3. Route typed commands through a narrow intermission coordinator or equivalent GameMode seam, check results, save immediately after success, refresh state and gate closing from authoritative data.
-4. Make close-to-next-encounter one-shot, then add deterministic transaction/delegate coverage and hand visual/usability validation to the user.
+4. Add the one-time 30-shard specific-replay unlock to the current generic shop catalog/purchase transaction. On success, persist and refresh the current shop plus echo summary; do not special-case old fixed button callbacks.
+5. Make close-to-next-encounter one-shot, then add deterministic transaction/delegate/purchase coverage and hand visual/usability validation to the user.
 
 ## Verification matrix
 
@@ -66,13 +69,19 @@ The shared inventory/shop screen uses a typed `Inventory`, `ManualShop` or `Post
 |---|---|---|
 | Static | `python scripts/validate_project.py` | Project invariants pass |
 | Format/build | `.clang-format`; `scripts/ue/Build-Editor.cmd -Configuration Development` | Intended formatting and UHT/UBT success |
-| Focused automation | Plan32 state/delegate tests plus affected shop tests | No duplicate close/start, limits and command wiring pass |
+| Focused automation | Plan32 state/delegate tests plus affected shop/save tests | No duplicate close/start; limits, command wiring, atomic purchase and Continue persistence pass |
 | Whitespace/scope | `git diff --check` and path audit | Plan26 preserved; no backend duplication/assets |
 | Human | User PIE: store/skip/free/full/replace, unavailable/single/multi selection, purchases and next encounter | User reports `Passed` or concrete rework |
 
 ## Execution notes
 
 ### Planner review finding (2026-08-12, rework required)
+
+#### Latest user scope correction: restore shop acquisition
+
+- The previous exclusion of acquisition is superseded by the user's direct report that the Plan31 shop unlock must be present. Implement the locked `SHOP_REPLAY_UNLOCK` semantics above as part of Plan32, because Plan32 already owns the shop/echo selection surface.
+- Use `e2b1047` only as a behavior reference. Do not cherry-pick it or restore its obsolete fixed `HandleOffer0..7` widget callbacks; the current indexed shop buttons already support an additional catalog entry.
+- The final Plan32 candidate must be ported/adapted onto current `origin/main`; the old Plan32 branch contains valid local work but cannot be merged wholesale if it would remove Plan28, Plan37 or current rule/publication changes.
 
 - The UMG-adapted candidate at `73a8ed6` preserves UI Flow ownership and implements the correct typed post-trait context, authoritative GameMode transactions and one-shot close orchestration. It is the only implementation reference for the rework; do not merge the old code-built `plan/31-shop-echo-selection-ui` branch.
 - The locked `WBP_ReEchoEchoManagementPanel` and `WBP_ReEchoStoredEchoEntry` assets do not exist. Both native widgets still construct their full presentation in `BuildWidgetTree`, so the echo-management presentation is not editable through the UMG assets promised by this Plan and partially restores code-owned layout inside a WBP page.
