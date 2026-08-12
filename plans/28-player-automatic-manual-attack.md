@@ -4,6 +4,8 @@
 
 - Planner owner: Gavyn-side Planner.
 - Executor owner: Assigned local Plan28 Executor.
+- Plan authored by (AI side): Gavyn-side AI.
+- Implementation authored by (AI side): Gavyn-side AI.
 - Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: local `plan/28-player-attack-modes`; integrate the human-approved current main and preserve the latest human decision that P is the pause/menu input before Review.

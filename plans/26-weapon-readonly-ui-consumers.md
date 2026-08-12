@@ -2,13 +2,15 @@
 
 ## Coordination
 
-- Planner owner: Gavyn-side Planner, taking over the stale teammate Plan under the user's request to resolve Plan26.
-- Executor owner: Unassigned.
+- Planner owner: ReEcho teammate-side Planner; Gavyn-side AI only refreshed the local copy against the newer accepted baseline and does not own delivery.
+- Executor owner: ReEcho teammate-side Executor, not yet delivered on `origin/main`.
+- Plan authored by (AI side): ReEcho teammate-side AI; original provenance is historical commit `2054f71` (`Broadcast teammate weapon UI coordination`).
+- Implementation authored by (AI side): ReEcho teammate-side AI.
 - Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Local planning / implementation base: local `planning/26-31-local` after integrating current main; create `plan/26-weapon-readonly-ui` from that local commit. No remote planning/task ref exists.
+- Local planning / implementation base: teammate-side local task base audited against current `origin/main`; the Gavyn-side reconstructed copy is coordination/reference text, not an implementation branch.
 - Implementation branch: `plan/26-weapon-readonly-ui` in a separate clean worktree.
-- Depends on / Blocks: typed Plan24 weapon queries and the accepted full-run weapon lock already on `origin/main`. Blocks Plan31 writes to `ReEchoInventoryShopWidget.*` until review/merge/ownership release.
+- Depends on / Blocks: typed Plan24 weapon queries and the accepted full-run weapon lock already on `origin/main`. Under the latest human decision, it may execute in parallel with Plan31; the Gavyn-side Planner later integrates both Widget contracts by behavior.
 - Writes: `Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h`; `Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp`; `Source/ReEcho/Public/UI/ReEchoStatsWidget.h`; `Source/ReEcho/Private/UI/ReEchoStatsWidget.cpp`; new Plan26-only cheap UI/state automation if useful; this Plan's Execution notes and its live lifecycle/ownership row.
 - Stable Reads: `UReEchoRunSubsystem::CurrentBuild.WeaponId`, `GetRunDataSnapshot()`, `FReEchoCsvDataSnapshot::FindEnabledWeapon` and stable weapon row display fields.
 - Impact mode: `Isolated` plus `ReadOnly` provider consumption.

@@ -4,6 +4,8 @@
 
 - Planner owner: Gavyn-side Planner.
 - Executor owner: Plan30 Executor.
+- Plan authored by (AI side): Gavyn-side AI.
+- Implementation authored by (AI side): Gavyn-side AI.
 - Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: current local `main` containing accepted Plan29 and the locked Plan28 behavior contract. Plan28 implementation is integrated later by the Planner.

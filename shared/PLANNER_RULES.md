@@ -9,7 +9,7 @@ This file contains Planner actions only. Startup order is defined by `AGENTS.md`
 3. Search the code/data surface before writing. Cite concrete paths and lines instead of relying on memory.
 4. Separate locked goal/acceptance from implementation guidance. The Executor may refine implementation but may not silently change locked scope.
 5. Mark human validation `NotRequired` unless subjective feel, readability, visual quality or usability needs a person. Use `PendingBeforeClose` when it gates acceptance or `PendingFollowUp` only when the human explicitly allows deferral.
-6. Add the Plan `Coordination` block from `plans/TEMPLATE.md`: owners, lifecycle, human validation, local/implementation base, dependencies, Writes/Reads, impact mode, compatibility promise and exclusions.
+6. Add the Plan `Coordination` block from `plans/TEMPLATE.md`: owners, **Plan-authored-by AI side**, **implementation-authored-by AI side**, lifecycle, human validation, local/implementation base, dependencies, Writes/Reads, impact mode, compatibility promise and exclusions. Planning ownership, document authorship and implementation authorship are separate facts; never infer or transfer them merely because another Planner refreshed the local file.
 7. Keep planning drafts and Exchange reservations local. They do not require a remote planning publication before an Executor starts.
 8. Recommend an Executor model only when it helps the human choose; do not spawn one unless the human explicitly asks.
 

@@ -4,6 +4,8 @@
 
 - Planner owner: Gavyn-side Planner.
 - Executor owner: Plan29 Executor (local `plan/29-echo-storage-foundation` worktree).
+- Plan authored by (AI side): Gavyn-side AI.
+- Implementation authored by (AI side): Gavyn-side AI.
 - Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: local `planning/26-31-local` after integrating current main; create local `plan/29-echo-storage-foundation` from that commit.
