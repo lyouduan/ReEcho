@@ -6,7 +6,7 @@
 - Executor owner: Gavyn-side Planner completing the accepted local foundation implementation and review repairs.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: current published `main` commit `2d66832725b3c4bc8798564a2b9c9bbab0c05117`.
 - Implementation branch: local `plan/33-audio-runtime-foundation` in a separate worktree.
@@ -91,3 +91,8 @@ The module must support:
 ### Human validation result/request
 
 `NotRequired` for the silent foundation. Audible and usability validation belongs to Plans34-36.
+
+### Planner closure
+
+- Accepted and merged into local `main` by merge commit `037fb18cfe0795b5fa04407b606f268b21b4a7a3`.
+- Plan33 ownership is released. Plan34 may consume the audio API/catalog seam after its Ready revision is available on `origin/main`.

@@ -23,7 +23,8 @@ rg -n "SymbolName" Source\ReEcho
 | Path | Purpose | Read when |
 |---|---|---|
 | `ReEcho.uproject` | UE 5.8 association and enabled plugins | Modules/plugins/editor integration |
-| `Source/ReEcho/` | Single runtime module | Gameplay or runtime code |
+| `Source/ReEcho/` | Main gameplay runtime module | Gameplay or UI code |
+| `Source/ReEchoAudio/` | Standalone audio runtime module | Semantic audio API, buses, state channels, catalog loading, playback policy or audio automation |
 | `Config/` | Maps, GameMode, balance and input mappings | Startup, controls or tuning |
 | `Design/Data/ReEchoData.xlsx` | Canonical designer XLSX authoring workbook; machine Tables generate runtime CSV | Data authoring, XLSX migration or Plan25 checks |
 | `Design/Data/ReEchoData使用说明.md` | Chinese designer guide for editable Tables, field rules, CSV generation, errors and submission | Before changing production balance/configuration in the workbook |
