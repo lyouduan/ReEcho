@@ -717,6 +717,10 @@ void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Stre
 	    SpadeAttackFlipbook)
 	{
 		SequenceAttackRemaining = SpadeAttackFlipbook->GetTotalDuration();
+		if (Current2DAnimationState == EReEcho2DAnimationState::Attack && SequenceAnimation->IsAnimationActive())
+		{
+			SequenceAnimation->SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
+		}
 	}
 }
 

@@ -47,6 +47,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Component->SetAnimationState(EReEcho2DAnimationState::Attack, false) &&
 	             Component->GetFlipbook() == StaffAttackFlipbook);
 	TestFalse(TEXT("Moon Staff attack Flipbook is one-shot"), Component->IsLooping());
+	Component->SetPlaybackPosition(Component->GetFlipbookLength(), false);
+	TestTrue(TEXT("Repeated attacks restart one-shot playback"),
+	         Component->SetAnimationState(EReEcho2DAnimationState::Attack, false, true) &&
+	             FMath::IsNearlyZero(Component->GetPlaybackPosition()));
 
 	FReEcho2DAnimationProfile MissingProfile;
 	TestEqual(TEXT("Missing Flipbook fails safely"),

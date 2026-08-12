@@ -18,7 +18,7 @@ public:
 	UReEcho2DAnimationComponent();
 
 	EReEcho2DAnimationActivationResult ActivateProfile(const FReEcho2DAnimationProfile& InProfile);
-	bool SetAnimationState(EReEcho2DAnimationState NewState, bool bShouldLoop = true);
+	bool SetAnimationState(EReEcho2DAnimationState NewState, bool bShouldLoop = true, bool bRestart = false);
 	void DeactivateAnimation();
 	void SetFacingSign(float InFacingSign);
 	bool IsAnimationActive();
