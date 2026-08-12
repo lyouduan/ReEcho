@@ -170,6 +170,8 @@ private:
 	void HandleShopPurchaseRequested(FName ItemId);
 
 	void ShowInventoryShopMenu(bool bShowShop);
+	/** Opens the post-choice shop outside the card button's Slate input dispatch. */
+	void ShowPostTraitShop();
 
 	UFUNCTION()
 	void HandleStatsClosed();

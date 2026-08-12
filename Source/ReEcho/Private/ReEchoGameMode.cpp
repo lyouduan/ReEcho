@@ -1288,14 +1288,21 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	else
 	{
 		bContinueRunAfterShop = true;
-		ShowInventoryShopMenu(true);
-		if (!InventoryShopWidget)
-		{
-			bContinueRunAfterShop = false;
-			RestoreGameInput();
-			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
-		}
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
 	}
+}
+
+void AReEchoGameMode::ShowPostTraitShop()
+{
+	ShowInventoryShopMenu(true);
+	if (InventoryShopWidget)
+	{
+		return;
+	}
+
+	bContinueRunAfterShop = false;
+	RestoreGameInput();
+	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
 }
 
 void AReEchoGameMode::SetPlayerMenuAbilityBlocked(const bool bBlocked)
