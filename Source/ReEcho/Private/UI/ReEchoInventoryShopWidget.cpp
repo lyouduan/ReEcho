@@ -165,9 +165,28 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 
 void UReEchoInventoryShopWidget::Refresh()
 {
-	if (!BackgroundImage || !InventoryPanel || !ShopPanel)
+	if (!BackgroundImage || !InventoryPanel || !ShopPanel || !InventoryText || !CurrencyText)
 	{
 		return;
+	}
+
+	const TArray<FReEchoShopOffer>& Offers = GetReEchoShopCatalog();
+	if (OfferButtons.Num() != Offers.Num() || OfferTexts.Num() != Offers.Num())
+	{
+		// ShowShop/ShowInventory may provide their snapshot before NativeConstruct builds the dynamic UMG entries.
+		// NativeConstruct refreshes again after BuildOfferEntries, so retaining the snapshot is sufficient here.
+		return;
+	}
+	for (int32 OfferIndex = 0; OfferIndex < Offers.Num(); ++OfferIndex)
+	{
+		if (!OfferButtons[OfferIndex] || !OfferTexts[OfferIndex])
+		{
+			UE_LOG(LogTemp,
+			       Error,
+			       TEXT("Inventory/shop offer entry %d is incomplete; skipping refresh to avoid invalid UMG access."),
+			       OfferIndex);
+			return;
+		}
 	}
 
 	BackgroundImage->SetBrushFromTexture(bShowingShop ? ShopBackgroundTexture : InventoryBackgroundTexture, true);
@@ -191,7 +210,6 @@ void UReEchoInventoryShopWidget::Refresh()
 
 	CurrencyText->SetText(
 	    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
-	const TArray<FReEchoShopOffer>& Offers = GetReEchoShopCatalog();
 	for (int32 OfferIndex = 0; OfferIndex < Offers.Num(); ++OfferIndex)
 	{
 		const bool bOwned = CurrentOwnedItems.Contains(Offers[OfferIndex].ItemId);

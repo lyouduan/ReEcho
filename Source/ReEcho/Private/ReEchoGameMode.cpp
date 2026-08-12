@@ -33,6 +33,7 @@
 #include "UI/ReEchoStartMenuWidget.h"
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
+#include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/ReEchoUIManagerSubsystem.h"
 #include "UI/ReEchoWeatherWidget.h"
 #include "UObject/ConstructorHelpers.h"
@@ -47,64 +48,17 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
-	static ConstructorHelpers::FClassFinder<UReEchoPlayerHudWidget> PlayerHudClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoPlayerHud"));
-	PlayerHudWidgetClass = PlayerHudClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoEncounterHudWidget> EncounterHudClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoEncounterHud"));
-	EncounterHudWidgetClass = EncounterHudClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoStartMenuWidget> StartMenuClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoStartMenu"));
-	StartMenuWidgetClass = StartMenuClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoLoadoutSelectionWidget> LoadoutClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection"));
-	LoadoutSelectionWidgetClass = LoadoutClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoSettingsWidget> SettingsClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoSettings"));
-	SettingsWidgetClass = SettingsClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoRestartWidget> RestartClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoRestart"));
-	RestartWidgetClass = RestartClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoTraitCardChoiceWidget> TraitClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardChoice"));
-	TraitCardChoiceWidgetClass = TraitClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoInventoryShopWidget> InventoryShopClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoInventoryShopScreen"));
-	InventoryShopWidgetClass = InventoryShopClassFinder.Class;
-	static ConstructorHelpers::FClassFinder<UReEchoStatsWidget> StatsClassFinder(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoStatsScreen"));
-	StatsWidgetClass = StatsClassFinder.Class;
-}
-
-void AReEchoGameMode::AddWidgetToUILayer(UUserWidget* Widget, const EReEchoUILayer Layer) const
-{
-	if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
-	{
-		UIManager->AddToLayer(Widget, Layer);
-	}
-}
-
-void AReEchoGameMode::ConfigureMenuInput(UUserWidget* Widget, const bool bUIOnly) const
-{
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
-	if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
-	{
-		UIManager->ConfigureMenuInput(PlayerController, Widget, bUIOnly);
-	}
-}
-
-void AReEchoGameMode::PauseForMenu(UUserWidget* Widget, const bool bUIOnly)
-{
-	ConfigureMenuInput(Widget, bUIOnly);
-	SetPlayerMenuAbilityBlocked(true);
-	UGameplayStatics::SetGamePaused(this, true);
 }
 
 void AReEchoGameMode::ResumeWorldForMenuTransition()
 {
 	// World timers do not advance while paused. Keep the menu input policy and gameplay ability block in place
 	// while allowing a next-tick callback to replace the current menu safely outside Slate's click dispatch.
-	UGameplayStatics::SetGamePaused(this, false);
+	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+	{
+		UIFlow->PreparePausedScreenTransition(this);
+	}
 }
 
 void AReEchoGameMode::PrintGMResult(const FString& Message, const bool bSuccess) const
@@ -281,21 +235,24 @@ void AReEchoGameMode::StartPlay()
 	Director->OnEncounterEnded.AddDynamic(this, &AReEchoGameMode::HandleEncounterEnded);
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		WeatherWidget = CreateWidget<UReEchoWeatherWidget>(PlayerController, UReEchoWeatherWidget::StaticClass());
+		UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+		WeatherWidget = UIFlow
+		                    ? Cast<UReEchoWeatherWidget>(
+		                          UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Weather, false, false))
+		                    : nullptr;
 		if (WeatherWidget)
 		{
 			WeatherWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
 			WeatherWidget->SetFogRevealSources(Player, nullptr);
-			AddWidgetToUILayer(WeatherWidget, EReEchoUILayer::Weather);
 		}
-		EncounterHudWidget =
-		    CreateWidget<UReEchoEncounterHudWidget>(
-		        PlayerController,
-		        EncounterHudWidgetClass ? EncounterHudWidgetClass.Get() : UReEchoEncounterHudWidget::StaticClass());
+		EncounterHudWidget = UIFlow
+		                         ? Cast<UReEchoEncounterHudWidget>(
+		                               UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::EncounterHud, false, false))
+		                         : nullptr;
 		if (EncounterHudWidget)
 		{
 			EncounterHudWidget->SetVisibility(ESlateVisibility::Collapsed);
-			AddWidgetToUILayer(EncounterHudWidget, EReEchoUILayer::GameplayHud);
 		}
 	}
 	if (Player)
@@ -307,17 +264,16 @@ void AReEchoGameMode::StartPlay()
 	{
 		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 		{
-			TSubclassOf<UReEchoPlayerHudWidget> HudClass = PlayerHudWidgetClass;
-			if (!HudClass)
-			{
-				HudClass = UReEchoPlayerHudWidget::StaticClass();
-			}
-			PlayerHudWidget = CreateWidget<UReEchoPlayerHudWidget>(PlayerController, HudClass);
+			UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+			PlayerHudWidget = UIFlow
+			                      ? Cast<UReEchoPlayerHudWidget>(
+			                            UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::PlayerHud, false, false))
+			                      : nullptr;
 			if (PlayerHudWidget)
 			{
 				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
-				AddWidgetToUILayer(PlayerHudWidget, EReEchoUILayer::PlayerHud);
 			}
 		}
 	}
@@ -334,8 +290,12 @@ void AReEchoGameMode::ShowStartMenu()
 		return;
 	}
 
-	StartMenuWidget = CreateWidget<UReEchoStartMenuWidget>(
-	    PlayerController, StartMenuWidgetClass ? StartMenuWidgetClass.Get() : UReEchoStartMenuWidget::StaticClass());
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	StartMenuWidget = UIFlow
+	                      ? Cast<UReEchoStartMenuWidget>(
+	                            UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::StartMenu, true, true))
+	                      : nullptr;
 	if (!StartMenuWidget)
 	{
 		return;
@@ -349,10 +309,8 @@ void AReEchoGameMode::ShowStartMenu()
 	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
 	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
 	StartMenuWidget->OnGameSettingRequested.AddDynamic(this, &AReEchoGameMode::HandleStartSettingsRequested);
-	AddWidgetToUILayer(StartMenuWidget, EReEchoUILayer::Start);
 	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
-
-	PauseForMenu(StartMenuWidget, true);
+	SetPlayerMenuAbilityBlocked(true);
 }
 
 void AReEchoGameMode::HandleNewGameRequested()
@@ -416,7 +374,11 @@ void AReEchoGameMode::HandleSettingsClosed()
 {
 	if (SettingsWidget)
 	{
-		SettingsWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::Settings);
+		}
 		SettingsWidget = nullptr;
 	}
 
@@ -424,13 +386,21 @@ void AReEchoGameMode::HandleSettingsClosed()
 	{
 		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 		StartMenuWidget->SetKeyboardFocus();
-		ConfigureMenuInput(StartMenuWidget, true);
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::StartMenu, true);
+		}
 	}
 	else if (RestartWidget)
 	{
 		RestartWidget->SetVisibility(ESlateVisibility::Visible);
 		RestartWidget->SetKeyboardFocus();
-		ConfigureMenuInput(RestartWidget, false);
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::Restart, false);
+		}
 	}
 	bSettingsReturnToStartMenu = false;
 }
@@ -443,8 +413,12 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 		return;
 	}
 
-	SettingsWidget = CreateWidget<UReEchoSettingsWidget>(
-	    PlayerController, SettingsWidgetClass ? SettingsWidgetClass.Get() : UReEchoSettingsWidget::StaticClass());
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	SettingsWidget = UIFlow
+	                     ? Cast<UReEchoSettingsWidget>(
+	                           UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Settings, true, false))
+	                     : nullptr;
 	if (!SettingsWidget)
 	{
 		return;
@@ -452,9 +426,6 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 
 	bSettingsReturnToStartMenu = bReturnToStartMenu;
 	SettingsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleSettingsClosed);
-	AddWidgetToUILayer(SettingsWidget, EReEchoUILayer::Settings);
-
-	ConfigureMenuInput(SettingsWidget, true);
 }
 
 void AReEchoGameMode::ShowLoadoutSelection()
@@ -464,27 +435,26 @@ void AReEchoGameMode::ShowLoadoutSelection()
 	{
 		return;
 	}
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	UReEchoLoadoutSelectionWidget* NewLoadoutSelectionWidget =
-	    CreateWidget<UReEchoLoadoutSelectionWidget>(
-	        PlayerController,
-	        LoadoutSelectionWidgetClass ? LoadoutSelectionWidgetClass.Get()
-	                                    : UReEchoLoadoutSelectionWidget::StaticClass());
+	    UIFlow ? Cast<UReEchoLoadoutSelectionWidget>(
+	                 UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Loadout, true, true))
+	           : nullptr;
 	if (!NewLoadoutSelectionWidget)
 	{
 		return;
 	}
 	if (StartMenuWidget)
 	{
-		StartMenuWidget->RemoveFromParent();
+		UIFlow->CloseScreen(EReEchoUIScreen::StartMenu);
 		StartMenuWidget = nullptr;
 	}
 
 	LoadoutSelectionWidget = NewLoadoutSelectionWidget;
 	LoadoutSelectionWidget->OnLoadoutConfirmed.AddDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
-	AddWidgetToUILayer(LoadoutSelectionWidget, EReEchoUILayer::Loadout);
 	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
-
-	PauseForMenu(LoadoutSelectionWidget, true);
+	SetPlayerMenuAbilityBlocked(true);
 	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing first-encounter loadout selection."));
 }
 
@@ -519,12 +489,20 @@ void AReEchoGameMode::BeginSelectedRun()
 	}
 	if (StartMenuWidget)
 	{
-		StartMenuWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::StartMenu);
+		}
 		StartMenuWidget = nullptr;
 	}
 	if (LoadoutSelectionWidget)
 	{
-		LoadoutSelectionWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::Loadout);
+		}
 		LoadoutSelectionWidget = nullptr;
 	}
 	bAwaitingStartChoice = false;
@@ -915,8 +893,12 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 		return;
 	}
 
-	RestartWidget = CreateWidget<UReEchoRestartWidget>(
-	    PlayerController, RestartWidgetClass ? RestartWidgetClass.Get() : UReEchoRestartWidget::StaticClass());
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	RestartWidget = UIFlow
+	                    ? Cast<UReEchoRestartWidget>(
+	                          UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Restart, false, true))
+	                    : nullptr;
 	if (!RestartWidget)
 	{
 		return;
@@ -937,9 +919,7 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
 	RestartWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleQuitRequested);
 	RestartWidget->OnSettingsRequested.AddDynamic(this, &AReEchoGameMode::HandlePauseSettingsRequested);
-	AddWidgetToUILayer(RestartWidget, EReEchoUILayer::Pause);
-
-	PauseForMenu(RestartWidget, false);
+	SetPlayerMenuAbilityBlocked(true);
 }
 
 void AReEchoGameMode::TogglePauseMenu()
@@ -998,8 +978,12 @@ void AReEchoGameMode::ShowStatsMenu()
 		return;
 	}
 
-	StatsWidget = CreateWidget<UReEchoStatsWidget>(
-	    PlayerController, StatsWidgetClass ? StatsWidgetClass.Get() : UReEchoStatsWidget::StaticClass());
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	StatsWidget = UIFlow
+	                  ? Cast<UReEchoStatsWidget>(
+	                        UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Stats, false, true))
+	                  : nullptr;
 	if (!StatsWidget)
 	{
 		return;
@@ -1022,16 +1006,18 @@ void AReEchoGameMode::ShowStatsMenu()
 	StatsWidget->InitializeStats(
 	    Player->Combatant->Stats, Player->Combatant->CurrentHealth, EchoStats, EchoHealth, bHasEcho);
 	StatsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleStatsClosed);
-	AddWidgetToUILayer(StatsWidget, EReEchoUILayer::Screen);
-
-	PauseForMenu(StatsWidget, false);
+	SetPlayerMenuAbilityBlocked(true);
 }
 
 void AReEchoGameMode::HandleStatsClosed()
 {
 	if (StatsWidget)
 	{
-		StatsWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::Stats);
+		}
 		StatsWidget = nullptr;
 	}
 	RestoreGameInput();
@@ -1071,9 +1057,12 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 		return;
 	}
 
-	InventoryShopWidget = CreateWidget<UReEchoInventoryShopWidget>(
-	    PlayerController,
-	    InventoryShopWidgetClass ? InventoryShopWidgetClass.Get() : UReEchoInventoryShopWidget::StaticClass());
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	InventoryShopWidget = UIFlow
+	                          ? Cast<UReEchoInventoryShopWidget>(
+	                                UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::InventoryShop, false, true))
+	                          : nullptr;
 	if (!InventoryShopWidget)
 	{
 		return;
@@ -1089,9 +1078,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 	{
 		InventoryShopWidget->ShowInventory(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
 	}
-	AddWidgetToUILayer(InventoryShopWidget, EReEchoUILayer::Screen);
-
-	PauseForMenu(InventoryShopWidget, false);
+	SetPlayerMenuAbilityBlocked(true);
 }
 
 void AReEchoGameMode::HandleInventoryShopClosed()
@@ -1100,7 +1087,11 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
 	{
-		InventoryShopWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::InventoryShop);
+		}
 		InventoryShopWidget = nullptr;
 	}
 	RestoreGameInput();
@@ -1125,7 +1116,11 @@ void AReEchoGameMode::HandleResumeRequested()
 	bQuitConfirmationVisible = false;
 	if (RestartWidget)
 	{
-		RestartWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::Restart);
+		}
 		RestartWidget = nullptr;
 	}
 	bRestartScreenIsTerminal = false;
@@ -1179,7 +1174,11 @@ void AReEchoGameMode::HandleRestartRequested()
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	if (RestartWidget)
 	{
-		RestartWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::Restart);
+		}
 		RestartWidget = nullptr;
 	}
 	bRestartScreenIsTerminal = false;
@@ -1257,11 +1256,12 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	TraitCardChoiceWidget =
-	    CreateWidget<UReEchoTraitCardChoiceWidget>(
-	        PlayerController,
-	        TraitCardChoiceWidgetClass ? TraitCardChoiceWidgetClass.Get()
-	                                   : UReEchoTraitCardChoiceWidget::StaticClass());
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	TraitCardChoiceWidget = UIFlow
+	                            ? Cast<UReEchoTraitCardChoiceWidget>(
+	                                  UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::TraitChoice, false, true))
+	                            : nullptr;
 	if (!TraitCardChoiceWidget)
 	{
 		return;
@@ -1270,9 +1270,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	TraitCardChoiceWidget->InitializeOffers(
 	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
-	AddWidgetToUILayer(TraitCardChoiceWidget, EReEchoUILayer::BuildChoice);
-
-	PauseForMenu(TraitCardChoiceWidget, false);
+	SetPlayerMenuAbilityBlocked(true);
 }
 
 void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
@@ -1292,7 +1290,11 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 
 	if (TraitCardChoiceWidget)
 	{
-		TraitCardChoiceWidget->RemoveFromParent();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
+		}
 		TraitCardChoiceWidget = nullptr;
 	}
 	ResumeWorldForMenuTransition();
@@ -1332,17 +1334,16 @@ void AReEchoGameMode::SetPlayerMenuAbilityBlocked(const bool bBlocked)
 void AReEchoGameMode::RestoreGameInput()
 {
 	SetPlayerMenuAbilityBlocked(false);
-	UGameplayStatics::SetGamePaused(this, false);
-
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
 		if (FixedCamera)
 		{
 			PlayerController->SetViewTarget(FixedCamera);
 		}
-		if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 		{
-			UIManager->ConfigureGameplayInput(PlayerController);
+			UIFlow->RestoreGameplay(this, PlayerController);
 		}
 	}
 }

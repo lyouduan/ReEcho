@@ -79,6 +79,7 @@ Esc -> pause menu -> exit
 | Area | Primary types | Files | Responsibility |
 |---|---|---|---|
 | Orchestration | `AReEchoGameMode` | `Public/ReEchoGameMode.h`, `Private/ReEchoGameMode.cpp` | Runtime bounded arena/camera-aligned unlit backdrop, six encounters, configurable deterministic peripheral enemy spawning, cleanup, recording handoff and HUD text |
+| UI framework | `UReEchoUIManagerSubsystem`, `UReEchoUIFlowCoordinatorSubsystem`, `EReEchoUIScreen` | `UI/Framework/*`, `UI/ReEchoUIManagerSubsystem.*`, `ReEchoGameMode.*` | Central WBP class registry, typed active-screen lifecycle, viewport layers, focus/input policy, pause-safe screen transitions; GameMode retains gameplay decisions and delegate endpoints |
 | Encounter clock | `AReEchoEncounterDirector` | `Encounter/ReEchoEncounterDirector.*` | Pause-aware 60 Hz fixed step, setup phase, timeout/end delegate |
 | Billboard screen sizing | `ReEchoBillboardScreenScale` | `Private/Graybox/ReEchoBillboardScreenScale.h` | Shared camera-depth compensation for stable player/echo/enemy projected size |
 | Player | `AReEchoPlayerPawn` | `Player/ReEchoPlayerPawn.*` | Map-edge-clamped follow camera with wider player arena clamp, WASD, center-aligned root capsule, mouse-following horizontal sprite facing, four configurable NewCast character textures, manual attacks and visual-only 2D motion |

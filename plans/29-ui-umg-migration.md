@@ -4,6 +4,8 @@
 
 - Planner owner: Codex.
 - Executor owner: Codex.
+- Plan authored by (AI side): `ReEcho teammate-side AI`.
+- Implementation authored by (AI side): `ReEcho teammate-side AI`.
 - Task status: `InProgress`.
 - Human validation: `PendingBeforeClose`.
 - Planning ref / implementation base: `plan/29-ui-umg-migration` / combined `origin/main` plus Plan 10 HUD UMG commits, explicitly approved by the human after the external-integration audit and renumbered by the human after canonical remote Plan 28 was fetched.
@@ -83,6 +85,10 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - After explicit human priority coordination over Plan 26, migrated Inventory/Shop and Stats to native-parent WBP presentation shells. C++ retains snapshots, purchase validation and delegates; UMG owns the background, safe-area panels, close controls and dynamic offer container. Shop offers now use the reusable indexed-button dispatcher instead of four fixed handlers.
 - Split Trait offers into `WBP_ReEchoTraitCardEntry`: UMG owns each card's button, text hierarchy, padding and styling while the parent keeps stable-index/CardId mapping and reveal sequencing. The existing C++ card construction remains fallback-only.
 - Split character and weapon options into shared `WBP_ReEchoLoadoutEntry` instances. UMG owns portrait dimensions/scaling, label layout and selection-button presentation; the parent continues to resolve CSV stable IDs, labels, visual keys and confirmation validity.
+- Fixed the post-Trait shop crash by allowing inventory/shop snapshots to arrive before `NativeConstruct`; refresh now waits for complete dynamic offer entries and validates every bound presentation object before indexing it.
+- Renamed Loadout entry-local selection colors to avoid a Unity-build anonymous-namespace collision introduced by the entry split.
+- Established the in-module `UI/Framework` layer. `EReEchoUIScreen` identifies runtime screens, `UReEchoUIManagerSubsystem` owns the WBP class registry and active instances, and `UReEchoUIFlowCoordinatorSubsystem` owns creation, closure, focus, pause policy and pause-safe transitions.
+- Removed every WBP `FClassFinder`, direct `CreateWidget`, `AddToViewport` routing and `RemoveFromParent` lifecycle operation from GameMode. GameMode retains gameplay decisions and typed delegate endpoints while the framework owns presentation lifecycle.
 
 ### Evidence
 
@@ -97,6 +103,9 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Optional UMG binding/fallback integration passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Dynamic Loadout/Trait UMG containers pass Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - The first seven runtime WBP assets compile individually; their C++ routing batch passes Editor Development build, all 34 discovered `ReEcho.*` automation tests, project validation and `git diff --check`.
+- The post-Trait shop lifecycle fix passes Editor Development build, both `ReEcho.Shop.*` automation tests, project validation and `git diff --check`; direct PIE confirmation of the card-to-shop transition remains part of human validation.
+- The typed UI Framework and GameMode lifecycle migration pass an Editor Development build, all 34 discovered `ReEcho.*` automation tests, project validation and `git diff --check`; Blueprint/PIE visual and navigation regression remain required for the batch.
+- `CompileAllBlueprints` processed the current asset set with 0 compile errors, 0 compile warnings and 0 failed loads. The commandlet returned non-zero only because this workstation's Installed DDC/Zen graph has no writable node; `-DDC-ForceMemoryCache` allowed compilation to complete and isolated that infrastructure error.
 
 ### Remaining risks
 

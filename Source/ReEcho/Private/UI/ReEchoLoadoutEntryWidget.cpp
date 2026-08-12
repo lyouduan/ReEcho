@@ -7,8 +7,8 @@
 
 namespace
 {
-const FLinearColor SelectedColor(0.08f, 0.52f, 0.34f, 1.0f);
-const FLinearColor UnselectedColor(0.10f, 0.18f, 0.30f, 1.0f);
+const FLinearColor EntrySelectedColor(0.08f, 0.52f, 0.34f, 1.0f);
+const FLinearColor EntryUnselectedColor(0.10f, 0.18f, 0.30f, 1.0f);
 }
 
 void UReEchoLoadoutEntryWidget::NativeConstruct()
@@ -32,7 +32,7 @@ void UReEchoLoadoutEntryWidget::Configure(const int32 InEntryIndex,
 
 void UReEchoLoadoutEntryWidget::SetSelected(const bool bSelected)
 {
-	SelectButton->SetBackgroundColor(bSelected ? SelectedColor : UnselectedColor);
+	SelectButton->SetBackgroundColor(bSelected ? EntrySelectedColor : EntryUnselectedColor);
 }
 
 void UReEchoLoadoutEntryWidget::FocusSelection()

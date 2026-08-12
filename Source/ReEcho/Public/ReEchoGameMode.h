@@ -18,8 +18,6 @@ class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UMaterialInterface;
 class UTexture2D;
-class UUserWidget;
-enum class EReEchoUILayer : uint8;
 struct FReEchoEncounterRuntimeState;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
 UCLASS()
@@ -51,9 +49,6 @@ public:
 	void GMKillAll();
 
 private:
-	void AddWidgetToUILayer(UUserWidget* Widget, EReEchoUILayer Layer) const;
-	void ConfigureMenuInput(UUserWidget* Widget, bool bUIOnly) const;
-	void PauseForMenu(UUserWidget* Widget, bool bUIOnly);
 	/** Lets the next-frame World Timer run while retaining menu input and ability blocking. */
 	void ResumeWorldForMenuTransition();
 	bool EnsureGMCommandAvailable() const;
@@ -94,25 +89,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
 
-	/** Designer-authored layout backed by UReEchoPlayerHudWidget runtime behavior. */
-	UPROPERTY()
-	TSubclassOf<UReEchoPlayerHudWidget> PlayerHudWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoEncounterHudWidget> EncounterHudWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoStartMenuWidget> StartMenuWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoLoadoutSelectionWidget> LoadoutSelectionWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoSettingsWidget> SettingsWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoRestartWidget> RestartWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoInventoryShopWidget> InventoryShopWidgetClass;
-	UPROPERTY()
-	TSubclassOf<UReEchoStatsWidget> StatsWidgetClass;
 	UPROPERTY()
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
