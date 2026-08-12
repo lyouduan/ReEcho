@@ -19,7 +19,9 @@ constexpr int32 RunSaveUserIndex = 0;
 
 bool IsValidResumableSave(const UReEchoRunSaveGame& SaveGame)
 {
-	if (SaveGame.SaveVersion != UReEchoRunSaveGame::CurrentSaveVersion ||
+	// v4 archives stay resumable because RestoreSaveSnapshot migrates them forward to the v5 layout.
+	if (SaveGame.SaveVersion < UReEchoRunSaveGame::MinimumSupportedSaveVersion ||
+	    SaveGame.SaveVersion > UReEchoRunSaveGame::CurrentSaveVersion ||
 	    SaveGame.SavedPhase == EReEchoRunPhase::Summary || SaveGame.SavedPhase == EReEchoRunPhase::Failed)
 	{
 		return false;
@@ -256,6 +258,117 @@ bool CurrentCharacterHasPassive(const FReEchoBuildSnapshot& Build, const FName P
 	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
 	return Character && Character->PassiveBehaviorId == PassiveBehaviorId;
 }
+
+FReEchoStoredEchoSummary MakeStoredEchoSummary(const FReEchoRecording& Recording, const bool bSelected)
+{
+	FReEchoStoredEchoSummary Summary;
+	Summary.RecordingId = Recording.Id;
+	Summary.EncounterIndex = Recording.EncounterIndex;
+	Summary.Duration = Recording.Duration;
+	Summary.MapId = Recording.MapId;
+	Summary.CharacterId = Recording.BuildSnapshot.CharacterId;
+	Summary.WeaponId = Recording.BuildSnapshot.WeaponId;
+	Summary.bSelectedForNextEncounter = bSelected;
+	return Summary;
+}
+
+/** Save-version independent echo storage payload produced by restore and by v4 migration. */
+struct FReEchoEchoStorageRestoreState
+{
+	bool bHasPendingRecording = false;
+	FReEchoRecording PendingRecording;
+	bool bHasLatestCompletedRecording = false;
+	FReEchoRecording LatestCompletedRecording;
+	TArray<FReEchoRecording> StoredEchoes;
+	TArray<FGuid> SelectedReplayIds;
+	int32 StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
+	int32 SpecificReplayLimit = ReEchoEchoStorage::SpecificReplayUnavailable;
+};
+
+bool ContainsRecordingId(const TArray<FReEchoRecording>& Recordings, const FGuid& RecordingId)
+{
+	return Recordings.ContainsByPredicate(
+	    [&RecordingId](const FReEchoRecording& Candidate)
+	    {
+		    return Candidate.Id == RecordingId;
+	    });
+}
+
+/**
+ * v4 archives only carried a rolling RecordingHistory plus one AnchorId.
+ * The newest history entry becomes the rolling latest echo, and a resolvable anchor is promoted into
+ * a single stored + selected echo, i.e. specific single replay. An anchor that is invalid or whose
+ * recording is missing normalizes deterministically to "specific replay not unlocked"; migration
+ * never substitutes a different encounter for the requested anchor.
+ */
+void MigrateV4EchoStorage(const UReEchoRunSaveGame& SaveGame, FReEchoEchoStorageRestoreState& OutState)
+{
+	OutState = FReEchoEchoStorageRestoreState{};
+	if (SaveGame.RecordingHistory.Num() > 0 && SaveGame.RecordingHistory[0].Id.IsValid())
+	{
+		OutState.LatestCompletedRecording = SaveGame.RecordingHistory[0];
+		OutState.bHasLatestCompletedRecording = true;
+	}
+	if (!SaveGame.AnchorId.IsValid())
+	{
+		return;
+	}
+	const FReEchoRecording* Anchor = SaveGame.RecordingHistory.FindByPredicate(
+	    [&SaveGame](const FReEchoRecording& Candidate)
+	    {
+		    return Candidate.Id == SaveGame.AnchorId;
+	    });
+	if (!Anchor)
+	{
+		return;
+	}
+	OutState.StoredEchoes.Add(*Anchor);
+	OutState.SelectedReplayIds.Add(SaveGame.AnchorId);
+	OutState.SpecificReplayLimit = 1;
+}
+
+/** Reads the v5 layout, clamping capabilities and dropping invalid or duplicated stored ids. */
+void ReadV5EchoStorage(const UReEchoRunSaveGame& SaveGame, FReEchoEchoStorageRestoreState& OutState)
+{
+	OutState = FReEchoEchoStorageRestoreState{};
+	OutState.StorageCapacity = FMath::Clamp(SaveGame.StorageCapacity, 0, ReEchoEchoStorage::MaxStorageCapacity);
+	OutState.SpecificReplayLimit =
+	    FMath::Clamp(SaveGame.SpecificReplayLimit, 0, ReEchoEchoStorage::MaxSpecificReplayLimit);
+	if (SaveGame.bHasPendingRecording && SaveGame.PendingRecording.Id.IsValid())
+	{
+		OutState.PendingRecording = SaveGame.PendingRecording;
+		OutState.bHasPendingRecording = true;
+	}
+	if (SaveGame.bHasLatestCompletedRecording && SaveGame.LatestCompletedRecording.Id.IsValid())
+	{
+		OutState.LatestCompletedRecording = SaveGame.LatestCompletedRecording;
+		OutState.bHasLatestCompletedRecording = true;
+	}
+	for (const FReEchoRecording& Stored : SaveGame.StoredEchoes)
+	{
+		if (OutState.StoredEchoes.Num() >= OutState.StorageCapacity)
+		{
+			break;
+		}
+		if (!Stored.Id.IsValid() || ContainsRecordingId(OutState.StoredEchoes, Stored.Id))
+		{
+			continue;
+		}
+		OutState.StoredEchoes.Add(Stored);
+	}
+	OutState.SelectedReplayIds = SaveGame.SelectedReplayIds;
+}
+
+/** Fails the whole restore when a recording's build no longer resolves against current CSV data. */
+bool TryNormalizeRestoredRecording(const FReEchoCsvDataSnapshot& Snapshot, FReEchoRecording& Recording)
+{
+	FString RecordingError;
+	if (!ValidateRecordingAgainstSnapshot(Snapshot, Recording, RecordingError))
+	{
+		return false;
+	}
+	return TryNormalizeEquipmentBuild(Snapshot, Recording.BuildSnapshot, Recording.BuildSnapshot);
+}
 }
 
 FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(const FReEchoCsvDataSnapshot* Snapshot,
@@ -348,8 +461,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	EncounterIndex = 0;
 	TimeShards = 0;
 	InventoryItems.Reset();
-	RecordingHistory.Reset();
-	AnchorId.Invalidate();
+	ResetEchoStorage();
 	PendingTraitCardIds.Reset();
 	PendingEncounterResume = {};
 	CurrentBuild = {};
@@ -403,10 +515,11 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 {
 	if (!bPlayerSurvived)
 	{
+		// A failed encounter never becomes storage eligible and never touches the rolling latest echo.
 		SetPhase(EReEchoRunPhase::Failed);
 		return;
 	}
-	AddRecording(Recording);
+	StagePendingRecording(Recording);
 	TimeShards += 15;
 	if (CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.PoetReactionGrowth")))
 	{
@@ -642,61 +755,275 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	return true;
 }
 
-void UReEchoRunSubsystem::AddRecording(const FReEchoRecording& Recording)
+void UReEchoRunSubsystem::ResetEchoStorage()
 {
-	RecordingHistory.Insert(Recording, 0);
-	RecordingHistory.SetNum(
-	    FMath::Min(RecordingHistory.Num(), GetDefault<UReEchoBalanceSettings>()->RecordingHistoryLimit));
+	bHasPendingRecording = false;
+	PendingRecording = {};
+	bHasLatestCompletedRecording = false;
+	LatestCompletedRecording = {};
+	StoredEchoes.Reset();
+	SelectedReplayIds.Reset();
+	StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
+	SpecificReplayLimit = ReEchoEchoStorage::SpecificReplayUnavailable;
 }
 
-void UReEchoRunSubsystem::SetAnchor(const FGuid RecordingId)
+int32 UReEchoRunSubsystem::FindStoredEchoIndex(const FGuid& RecordingId) const
 {
-	if (RecordingHistory.ContainsByPredicate(
-	        [&](const FReEchoRecording& R)
-	        {
-		        return R.Id == RecordingId;
-	        }))
+	if (!RecordingId.IsValid())
 	{
-		AnchorId = RecordingId;
+		return INDEX_NONE;
 	}
+	return StoredEchoes.IndexOfByPredicate(
+	    [&RecordingId](const FReEchoRecording& Stored)
+	    {
+		    return Stored.Id == RecordingId;
+	    });
 }
 
-void UReEchoRunSubsystem::ClearAnchor()
+void UReEchoRunSubsystem::NormalizeSelectedReplayIds()
 {
-	AnchorId.Invalidate();
+	TArray<FGuid> Normalized;
+	Normalized.Reserve(SelectedReplayIds.Num());
+	for (const FGuid& SelectedId : SelectedReplayIds)
+	{
+		// Selections only ever reference stored echoes, so a removed or replaced echo drops out here.
+		if (FindStoredEchoIndex(SelectedId) == INDEX_NONE || Normalized.Contains(SelectedId))
+		{
+			continue;
+		}
+		Normalized.Add(SelectedId);
+	}
+	const int32 AllowedCount = FMath::Clamp(SpecificReplayLimit, 0, ReEchoEchoStorage::MaxSpecificReplayLimit);
+	if (Normalized.Num() > AllowedCount)
+	{
+		Normalized.SetNum(AllowedCount);
+	}
+	SelectedReplayIds = MoveTemp(Normalized);
 }
 
-TArray<FReEchoRecording> UReEchoRunSubsystem::GetEchoRecordings(const int32 RequestedCount) const
+EReEchoEchoStorageResult UReEchoRunSubsystem::StagePendingRecording(const FReEchoRecording& Recording)
+{
+	if (!Recording.Id.IsValid())
+	{
+		return EReEchoEchoStorageResult::InvalidRecordingId;
+	}
+	if (FindStoredEchoIndex(Recording.Id) != INDEX_NONE)
+	{
+		return EReEchoEchoStorageResult::DuplicateRecordingId;
+	}
+	PendingRecording = Recording;
+	bHasPendingRecording = true;
+	LatestCompletedRecording = Recording;
+	bHasLatestCompletedRecording = true;
+	return EReEchoEchoStorageResult::Success;
+}
+
+EReEchoEchoStorageResult UReEchoRunSubsystem::SkipPendingRecordingStorage()
+{
+	if (!bHasPendingRecording)
+	{
+		return EReEchoEchoStorageResult::NoPendingRecording;
+	}
+	// Skipping only drops permanent storage eligibility; the rolling latest echo stays intact.
+	bHasPendingRecording = false;
+	PendingRecording = {};
+	return EReEchoEchoStorageResult::Success;
+}
+
+EReEchoEchoStorageResult UReEchoRunSubsystem::StorePendingRecording()
+{
+	if (!bHasPendingRecording)
+	{
+		return EReEchoEchoStorageResult::NoPendingRecording;
+	}
+	if (!PendingRecording.Id.IsValid())
+	{
+		return EReEchoEchoStorageResult::InvalidRecordingId;
+	}
+	if (FindStoredEchoIndex(PendingRecording.Id) != INDEX_NONE)
+	{
+		return EReEchoEchoStorageResult::DuplicateRecordingId;
+	}
+	if (StoredEchoes.Num() >= FMath::Max(0, StorageCapacity))
+	{
+		// Full storage never auto-evicts; the caller must name an explicit replacement target.
+		return EReEchoEchoStorageResult::StorageFull;
+	}
+	StoredEchoes.Add(PendingRecording);
+	bHasPendingRecording = false;
+	PendingRecording = {};
+	return EReEchoEchoStorageResult::Success;
+}
+
+EReEchoEchoStorageResult UReEchoRunSubsystem::StorePendingRecordingReplacing(const FGuid ReplacedRecordingId)
+{
+	if (!bHasPendingRecording)
+	{
+		return EReEchoEchoStorageResult::NoPendingRecording;
+	}
+	if (!PendingRecording.Id.IsValid())
+	{
+		return EReEchoEchoStorageResult::InvalidRecordingId;
+	}
+	const int32 ReplacedIndex = FindStoredEchoIndex(ReplacedRecordingId);
+	if (ReplacedIndex == INDEX_NONE)
+	{
+		return EReEchoEchoStorageResult::InvalidReplacementTarget;
+	}
+	if (FindStoredEchoIndex(PendingRecording.Id) != INDEX_NONE)
+	{
+		return EReEchoEchoStorageResult::DuplicateRecordingId;
+	}
+	StoredEchoes[ReplacedIndex] = PendingRecording;
+	bHasPendingRecording = false;
+	PendingRecording = {};
+	NormalizeSelectedReplayIds();
+	return EReEchoEchoStorageResult::Success;
+}
+
+EReEchoEchoStorageResult UReEchoRunSubsystem::SetSelectedReplayIds(const TArray<FGuid>& RequestedIds)
+{
+	const int32 AllowedCount = FMath::Clamp(SpecificReplayLimit, 0, ReEchoEchoStorage::MaxSpecificReplayLimit);
+	if (RequestedIds.Num() > AllowedCount)
+	{
+		return EReEchoEchoStorageResult::ReplayLimitExceeded;
+	}
+	TArray<FGuid> Validated;
+	Validated.Reserve(RequestedIds.Num());
+	for (const FGuid& RequestedId : RequestedIds)
+	{
+		if (FindStoredEchoIndex(RequestedId) == INDEX_NONE)
+		{
+			return EReEchoEchoStorageResult::InvalidRecordingId;
+		}
+		if (Validated.Contains(RequestedId))
+		{
+			return EReEchoEchoStorageResult::DuplicateRecordingId;
+		}
+		Validated.Add(RequestedId);
+	}
+	SelectedReplayIds = MoveTemp(Validated);
+	return EReEchoEchoStorageResult::Success;
+}
+
+EReEchoEchoStorageResult UReEchoRunSubsystem::SetStorageCapacity(const int32 NewCapacity)
+{
+	if (NewCapacity < 0 || NewCapacity > ReEchoEchoStorage::MaxStorageCapacity || NewCapacity < StoredEchoes.Num())
+	{
+		// Shrinking below the current occupancy would silently delete player-chosen echoes.
+		return EReEchoEchoStorageResult::InvalidStorageCapacity;
+	}
+	StorageCapacity = NewCapacity;
+	return EReEchoEchoStorageResult::Success;
+}
+
+EReEchoEchoStorageResult UReEchoRunSubsystem::SetSpecificReplayLimit(const int32 NewLimit)
+{
+	if (NewLimit < 0 || NewLimit > ReEchoEchoStorage::MaxSpecificReplayLimit)
+	{
+		return EReEchoEchoStorageResult::InvalidReplayLimit;
+	}
+	SpecificReplayLimit = NewLimit;
+	NormalizeSelectedReplayIds();
+	return EReEchoEchoStorageResult::Success;
+}
+
+FReEchoEchoStorageSummary UReEchoRunSubsystem::GetEchoStorageSummary() const
+{
+	FReEchoEchoStorageSummary Summary;
+	Summary.StorageCapacity = StorageCapacity;
+	Summary.SpecificReplayLimit = SpecificReplayLimit;
+	Summary.SelectedReplayIds = SelectedReplayIds;
+	Summary.StoredEchoes.Reserve(StoredEchoes.Num());
+	for (const FReEchoRecording& Stored : StoredEchoes)
+	{
+		Summary.StoredEchoes.Add(MakeStoredEchoSummary(Stored, SelectedReplayIds.Contains(Stored.Id)));
+	}
+	Summary.bHasPendingRecording = bHasPendingRecording;
+	if (bHasPendingRecording)
+	{
+		Summary.PendingRecording = MakeStoredEchoSummary(PendingRecording, false);
+	}
+	Summary.bHasLatestCompletedRecording = bHasLatestCompletedRecording;
+	if (bHasLatestCompletedRecording)
+	{
+		Summary.LatestCompletedRecording = MakeStoredEchoSummary(LatestCompletedRecording, false);
+	}
+	return Summary;
+}
+
+bool UReEchoRunSubsystem::TryGetStoredEcho(const FGuid RecordingId, FReEchoRecording& OutRecording) const
+{
+	const int32 StoredIndex = FindStoredEchoIndex(RecordingId);
+	if (StoredIndex == INDEX_NONE)
+	{
+		return false;
+	}
+	OutRecording = StoredEchoes[StoredIndex];
+	return true;
+}
+
+bool UReEchoRunSubsystem::TryGetPendingRecording(FReEchoRecording& OutRecording) const
+{
+	if (!bHasPendingRecording)
+	{
+		return false;
+	}
+	OutRecording = PendingRecording;
+	return true;
+}
+
+bool UReEchoRunSubsystem::TryGetLatestCompletedRecording(FReEchoRecording& OutRecording) const
+{
+	if (!bHasLatestCompletedRecording)
+	{
+		return false;
+	}
+	OutRecording = LatestCompletedRecording;
+	return true;
+}
+
+TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int32 RequestedCount) const
 {
 	TArray<FReEchoRecording> Result;
-	const int32 Count = FMath::Clamp(RequestedCount, 0, 3);
+	const int32 Count = FMath::Clamp(RequestedCount, 0, ReEchoEchoStorage::MaxStorageCapacity);
 	if (Count == 0)
 	{
 		return Result;
 	}
-	if (AnchorId.IsValid())
+	const int32 AllowedCount = FMath::Clamp(SpecificReplayLimit, 0, ReEchoEchoStorage::MaxSpecificReplayLimit);
+	if (AllowedCount > 0 && SelectedReplayIds.Num() > 0)
 	{
-		if (const FReEchoRecording* Anchor = RecordingHistory.FindByPredicate(
-		        [&](const FReEchoRecording& R)
-		        {
-			        return R.Id == AnchorId;
-		        }))
+		const int32 ResolveCount = FMath::Min3(Count, AllowedCount, SelectedReplayIds.Num());
+		for (const FGuid& SelectedId : SelectedReplayIds)
 		{
-			Result.Add(*Anchor);
+			if (Result.Num() >= ResolveCount)
+			{
+				break;
+			}
+			FReEchoRecording Selected;
+			if (TryGetStoredEcho(SelectedId, Selected))
+			{
+				Result.Add(MoveTemp(Selected));
+			}
+		}
+		if (Result.Num() > 0)
+		{
+			return Result;
 		}
 	}
-	for (const FReEchoRecording& Candidate : RecordingHistory)
+	// Specific replay not unlocked, or nothing selected: default to the rolling previous encounter.
+	if (bHasLatestCompletedRecording)
 	{
-		if (Result.Num() >= Count)
-		{
-			break;
-		}
-		if (Candidate.Id != AnchorId)
-		{
-			Result.Add(Candidate);
-		}
+		Result.Add(LatestCompletedRecording);
 	}
 	return Result;
+}
+
+TArray<FReEchoRecording> UReEchoRunSubsystem::GetEchoRecordings(const int32 RequestedCount) const
+{
+	// Legacy compatibility facade only; it owns no state and forwards to the new resolution rules.
+	return ResolveReplayRecordings(RequestedCount);
 }
 
 bool UReEchoRunSubsystem::HasSavedRun() const
@@ -763,8 +1090,21 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	SaveGame->TimeShards = TimeShards;
 	SaveGame->CurrentBuild = CurrentBuild;
 	SaveGame->InventoryItems = InventoryItems;
-	SaveGame->RecordingHistory = RecordingHistory;
-	SaveGame->AnchorId = AnchorId;
+	// v5 writes only the new echo storage state; RecordingHistory and AnchorId stay empty on purpose.
+	SaveGame->bHasPendingRecording = bHasPendingRecording;
+	if (bHasPendingRecording)
+	{
+		SaveGame->PendingRecording = PendingRecording;
+	}
+	SaveGame->bHasLatestCompletedRecording = bHasLatestCompletedRecording;
+	if (bHasLatestCompletedRecording)
+	{
+		SaveGame->LatestCompletedRecording = LatestCompletedRecording;
+	}
+	SaveGame->StoredEchoes = StoredEchoes;
+	SaveGame->SelectedReplayIds = SelectedReplayIds;
+	SaveGame->StorageCapacity = StorageCapacity;
+	SaveGame->SpecificReplayLimit = SpecificReplayLimit;
 	return SaveGame;
 }
 
@@ -785,15 +1125,28 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	{
 		return false;
 	}
-	TArray<FReEchoRecording> NormalizedRecordingHistory = SaveGame.RecordingHistory;
-	for (FReEchoRecording& Recording : NormalizedRecordingHistory)
+	FReEchoEchoStorageRestoreState RestoredStorage;
+	if (SaveGame.SaveVersion < UReEchoRunSaveGame::CurrentSaveVersion)
 	{
-		FString RecordingError;
-		if (!ValidateRecordingAgainstSnapshot(*Snapshot, Recording, RecordingError))
-		{
-			return false;
-		}
-		if (!TryNormalizeEquipmentBuild(*Snapshot, Recording.BuildSnapshot, Recording.BuildSnapshot))
+		MigrateV4EchoStorage(SaveGame, RestoredStorage);
+	}
+	else
+	{
+		ReadV5EchoStorage(SaveGame, RestoredStorage);
+	}
+	if (RestoredStorage.bHasPendingRecording &&
+	    !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.PendingRecording))
+	{
+		return false;
+	}
+	if (RestoredStorage.bHasLatestCompletedRecording &&
+	    !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.LatestCompletedRecording))
+	{
+		return false;
+	}
+	for (FReEchoRecording& Stored : RestoredStorage.StoredEchoes)
+	{
+		if (!TryNormalizeRestoredRecording(*Snapshot, Stored))
 		{
 			return false;
 		}
@@ -820,8 +1173,16 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	CurrentBuild = NormalizedCurrentBuild;
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
-	RecordingHistory = NormalizedRecordingHistory;
-	AnchorId = SaveGame.AnchorId;
+	bHasPendingRecording = RestoredStorage.bHasPendingRecording;
+	PendingRecording = RestoredStorage.bHasPendingRecording ? RestoredStorage.PendingRecording : FReEchoRecording{};
+	bHasLatestCompletedRecording = RestoredStorage.bHasLatestCompletedRecording;
+	LatestCompletedRecording =
+	    RestoredStorage.bHasLatestCompletedRecording ? RestoredStorage.LatestCompletedRecording : FReEchoRecording{};
+	StoredEchoes = MoveTemp(RestoredStorage.StoredEchoes);
+	StorageCapacity = RestoredStorage.StorageCapacity;
+	SpecificReplayLimit = RestoredStorage.SpecificReplayLimit;
+	SelectedReplayIds = MoveTemp(RestoredStorage.SelectedReplayIds);
+	NormalizeSelectedReplayIds();
 	PendingTraitCardIds.Reset();
 	PendingEncounterResume = NormalizedEncounterRuntimeState;
 	if (SaveGame.SavedPhase != EReEchoRunPhase::Encounter)
