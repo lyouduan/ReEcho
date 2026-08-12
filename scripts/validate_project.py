@@ -921,7 +921,19 @@ def validate_workflow() -> None:
     if "ReEcho" not in modules:
         fail("ReEcho.uproject does not declare the ReEcho runtime module")
 
-    required_shared = {"AI_ONBOARDING.md", "WORKFLOW.md", "PLANNER_RULES.md", "EXECUTOR_RULES.md", "LESSONS.md", "PROJECT_RULES.md", "PROJECT_STATE.md", "PLANNER_EXCHANGE.md"}
+    required_shared = {
+        "AI_ONBOARDING.md",
+        "WORKFLOW.md",
+        "PROGRAMMER_RULES.md",
+        "DESIGNER_RULES.md",
+        "ARTIST_RULES.md",
+        "PLANNER_RULES.md",
+        "EXECUTOR_RULES.md",
+        "LESSONS.md",
+        "PROJECT_RULES.md",
+        "PROJECT_STATE.md",
+        "PLANNER_EXCHANGE.md",
+    }
     absent_shared = sorted(name for name in required_shared if not (ROOT / "shared" / name).is_file())
     if absent_shared:
         fail(f"workflow deployment incomplete: {', '.join(absent_shared)}")
@@ -931,6 +943,9 @@ def validate_workflow() -> None:
     planner_rules = (ROOT / "shared" / "PLANNER_RULES.md").read_text(encoding="utf-8")
     executor_rules = (ROOT / "shared" / "EXECUTOR_RULES.md").read_text(encoding="utf-8")
     project_rules = (ROOT / "shared" / "PROJECT_RULES.md").read_text(encoding="utf-8")
+    programmer_rules = (ROOT / "shared" / "PROGRAMMER_RULES.md").read_text(encoding="utf-8")
+    designer_rules = (ROOT / "shared" / "DESIGNER_RULES.md").read_text(encoding="utf-8")
+    artist_rules = (ROOT / "shared" / "ARTIST_RULES.md").read_text(encoding="utf-8")
     workflow_text = (ROOT / "shared" / "WORKFLOW.md").read_text(encoding="utf-8")
     onboarding_text = (ROOT / "shared" / "AI_ONBOARDING.md").read_text(encoding="utf-8")
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
@@ -940,6 +955,31 @@ def validate_workflow() -> None:
 
     if "only mandatory reading-order authority" not in agents:
         fail("AGENTS.md must remain the sole startup-order authority")
+    role_gate_markers = (
+        "## First-contact professional-role gate",
+        "你在本项目中的角色是程序、策划还是美术？",
+        "Do not infer the role",
+        "shared/PROGRAMMER_RULES.md",
+        "shared/DESIGNER_RULES.md",
+        "shared/ARTIST_RULES.md",
+    )
+    missing_role_gate_markers = [marker for marker in role_gate_markers if marker not in agents]
+    if missing_role_gate_markers:
+        fail(f"AGENTS.md lacks the first-contact professional-role gate: {', '.join(missing_role_gate_markers)}")
+    role_rule_markers = {
+        "PROGRAMMER_RULES.md": ("programmer-user route", "Planner duty", "Executor duty", "Cross-role handoff"),
+        "DESIGNER_RULES.md": ("designer-user route", "ReEchoData.xlsx", "Never hand-edit generated", "programmer handoff"),
+        "ARTIST_RULES.md": ("artist-user route", "Active Exclusive", "Never hand-edit `.uasset`", "programmer route"),
+    }
+    role_rule_texts = {
+        "PROGRAMMER_RULES.md": programmer_rules,
+        "DESIGNER_RULES.md": designer_rules,
+        "ARTIST_RULES.md": artist_rules,
+    }
+    for name, markers in role_rule_markers.items():
+        missing = [marker for marker in markers if marker not in role_rule_texts[name]]
+        if missing:
+            fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
     if "Ordinary tasks follow `AGENTS.md` directly" not in onboarding_text:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
     if len(state_text.splitlines()) > 80:
@@ -1025,6 +1065,15 @@ def validate_workflow() -> None:
     missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
     if missing_audit_markers:
         fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
+    compact_prompt_markers = (
+        "startup prompt is only a neutral routing envelope",
+        "must not assign a new identity",
+        "不改变你现有的身份或职责",
+        "Do not duplicate the Plan's locked goal",
+    )
+    missing_compact_prompt_markers = [marker for marker in compact_prompt_markers if marker not in planner_rules]
+    if missing_compact_prompt_markers:
+        fail(f"Planner rules lack the neutral Plan-driven prompt contract: {', '.join(missing_compact_prompt_markers)}")
     main_only_markers = {
         "PROJECT_RULES.md": ("`origin/main` is the only permitted remote branch", "never push any remote ref"),
         "PLANNER_RULES.md": ("`origin/main` is the only permitted remote branch", "Plan-number conflicts"),
