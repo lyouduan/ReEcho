@@ -49,6 +49,8 @@ public:
 	void GMKillAll();
 
 private:
+	/** Lets the next-frame World Timer run while retaining menu input and ability blocking. */
+	void ResumeWorldForMenuTransition();
 	bool EnsureGMCommandAvailable() const;
 	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	UPROPERTY()
@@ -86,6 +88,7 @@ private:
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
+
 	UPROPERTY()
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
@@ -149,6 +152,8 @@ private:
 	void HandleShopPurchaseRequested(FName ItemId);
 
 	void ShowInventoryShopMenu(bool bShowShop);
+	/** Opens the post-choice shop outside the card button's Slate input dispatch. */
+	void ShowPostTraitShop();
 
 	UFUNCTION()
 	void HandleStatsClosed();
@@ -161,6 +166,7 @@ private:
 	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;
 	void SpawnEnemies(int32 EncounterIndex);
 	void ClearCombatants();
+	void RefreshFogRevealSources();
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowSettingsScreen(bool bReturnToStartMenu);

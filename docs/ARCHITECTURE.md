@@ -9,6 +9,10 @@ ReEcho is a single Unreal Engine 5.8 C++ runtime module. `/Game/Level00` hosts a
 1. `AReEchoGameMode` presents the save-aware start menu. New runs choose one configured character and one of three start-selectable weapons; continue restores a compatible suspended run.
 2. The selected stable `WeaponId` is locked for the full run. Legacy CSV `InputSlot` values remain compatibility metadata; hotkeys 1/2/3 do not switch weapons during a run.
 3. `AReEchoGameMode` creates the arena, `AReEchoEncounterDirector`, player, enemy composition and the prior recording's echo. The encounter advances on a pause-aware 60 Hz fixed step for up to 30 seconds.
+
+## Runtime UI framework
+
+Runtime UI remains inside the `ReEcho` module but has an isolated `UI/Framework` layer. `EReEchoUIScreen` gives every screen a stable identity. `UReEchoUIManagerSubsystem` owns the designer WBP class registry, active screen instances and viewport layers. `UReEchoUIFlowCoordinatorSubsystem` owns screen creation/closure, focus, input modes, world pause and pause-safe screen replacement. `AReEchoGameMode` supplies gameplay snapshots and handles stable-ID delegates, but does not own asset paths or direct Widget viewport lifecycle.
 4. `UReEchoRecorderComponent` samples player position at 20 Hz and records successful active-skill events. Automatic attacks are not serialized.
 5. `UReEchoPlaybackComponent` interpolates historical movement for `AReEchoEchoActor`. Player and echo use the run-pinned data snapshot and the run-locked weapon definition; hit resolution targets the current world.
 6. GAS owns combat attributes, effects, damage, healing, ability activation and cooldowns. CSV weapon attack steps, parts and element reactions feed the runtime definitions consumed by player and echo attacks.

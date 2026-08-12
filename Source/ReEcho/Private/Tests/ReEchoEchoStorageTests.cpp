@@ -495,7 +495,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoStorageRecordingPayloadTest,
 
 bool FReEchoEchoStorageRecordingPayloadTest::RunTest(const FString& Parameters)
 {
-	// Plan29 must not touch recording semantics: automatic basic attacks stay out of the event list and
+	// Plan30 must not touch recording semantics: automatic basic attacks stay out of the event list and
 	// only explicit active skill calls append events.
 	UReEchoRecorderComponent* Recorder = NewObject<UReEchoRecorderComponent>(GetTransientPackage());
 	FReEchoBuildSnapshot InitialBuild;

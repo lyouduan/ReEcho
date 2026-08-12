@@ -10,7 +10,7 @@
 
 namespace
 {
-UReEchoRunSubsystem* CreateStartedRun(UGameInstance* GameInstance)
+UReEchoRunSubsystem* CreateReplayStartedRun(UGameInstance* GameInstance)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
@@ -38,7 +38,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoReplayResolverLatestFallback,
 bool FReEchoEchoReplayResolverLatestFallback::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* Sub = CreateStartedRun(GameInstance);
+	UReEchoRunSubsystem* Sub = CreateReplayStartedRun(GameInstance);
 
 	const FReEchoRecording RecA = MakeCompletedRecording(Sub, FName(TEXT("Map_A")), 1);
 	Sub->StagePendingRecording(RecA);
@@ -82,7 +82,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoReplayResolverSpecificSingle,
 bool FReEchoEchoReplayResolverSpecificSingle::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* Sub = CreateStartedRun(GameInstance);
+	UReEchoRunSubsystem* Sub = CreateReplayStartedRun(GameInstance);
 
 	const FReEchoRecording RecA = MakeCompletedRecording(Sub, FName(TEXT("Map_A")), 1);
 	const FReEchoRecording RecB = MakeCompletedRecording(Sub, FName(TEXT("Map_B")), 2);
@@ -119,7 +119,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoReplayResolverSpecificMulti,
 bool FReEchoEchoReplayResolverSpecificMulti::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* Sub = CreateStartedRun(GameInstance);
+	UReEchoRunSubsystem* Sub = CreateReplayStartedRun(GameInstance);
 
 	const FReEchoRecording RecA = MakeCompletedRecording(Sub, FName(TEXT("Map_A")), 1);
 	const FReEchoRecording RecB = MakeCompletedRecording(Sub, FName(TEXT("Map_B")), 2);
@@ -192,7 +192,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoReplayResolverEmptyStale,
 bool FReEchoEchoReplayResolverEmptyStale::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* Sub = CreateStartedRun(GameInstance);
+	UReEchoRunSubsystem* Sub = CreateReplayStartedRun(GameInstance);
 
 	const FReEchoRecording RecA = MakeCompletedRecording(Sub, FName(TEXT("Map_A")), 1);
 	const FReEchoRecording RecB = MakeCompletedRecording(Sub, FName(TEXT("Map_B")), 2);
@@ -201,7 +201,7 @@ bool FReEchoEchoReplayResolverEmptyStale::RunTest(const FString& Parameters)
 	Sub->StagePendingRecording(RecB);
 	Sub->StorePendingRecording();
 
-	// Empty selection -> zero echoes (no silent latest fallback). This is the Plan30 bug fix.
+	// Empty selection -> zero echoes (no silent latest fallback). This is the Plan31 bug fix.
 	(void)Sub->SetSpecificReplayLimit(1);
 	(void)Sub->SetSelectedReplayIds({});
 	const TArray<FReEchoRecording> EmptyResolved = Sub->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
@@ -235,7 +235,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoReplayResolverSaveResume,
 bool FReEchoEchoReplayResolverSaveResume::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* Sub = CreateStartedRun(GameInstance);
+	UReEchoRunSubsystem* Sub = CreateReplayStartedRun(GameInstance);
 
 	const FReEchoRecording RecA = MakeCompletedRecording(Sub, FName(TEXT("Map_A")), 1);
 	const FReEchoRecording RecB = MakeCompletedRecording(Sub, FName(TEXT("Map_B")), 2);
@@ -251,7 +251,7 @@ bool FReEchoEchoReplayResolverSaveResume::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Save snapshot created"), Snapshot);
 
 	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* Restored = CreateStartedRun(RestoredGameInstance);
+	UReEchoRunSubsystem* Restored = CreateReplayStartedRun(RestoredGameInstance);
 	TestTrue(TEXT("Save restores into a fresh subsystem"), Restored->RestoreSaveSnapshot(*Snapshot));
 
 	const TArray<FReEchoRecording> Resolved = Restored->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);

@@ -85,7 +85,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool PurchaseShopItem(FName ItemId);
 
-	// --- Echo storage commands (Plan29) -------------------------------------------------
+	// --- Echo storage commands (Plan30) -------------------------------------------------
 	// Every command is narrow and transactional: on a non-Success result nothing is mutated.
 
 	/**
@@ -142,15 +142,15 @@ public:
 
 	/**
 	 * Resolves which echoes the next encounter should replay.
-	 * With no unlocked specific replay, or with an empty selection, this falls back to the rolling
-	 * latest echo; otherwise it returns the selected stored echoes in selection order.
+	 * Before specific replay is unlocked, this returns the rolling latest echo. Once unlocked, it
+	 * returns only explicitly selected stored echoes; an empty selection intentionally returns none.
 	 */
 	TArray<FReEchoRecording> ResolveReplayRecordings(int32 RequestedCount) const;
 
 	/**
-	 * Legacy compatibility facade for the pre-Plan29 single-echo query.
+	 * Legacy compatibility facade for the pre-Plan30 single-echo query.
 	 * It only forwards to ResolveReplayRecordings, so there is no second history authority.
-	 * Plan30 replaces the remaining ReEchoGameMode call sites and then this facade is removed.
+	 * Plan31 replaces the remaining ReEchoGameMode call sites; later cleanup may remove this facade.
 	 */
 	UFUNCTION(BlueprintPure)
 	TArray<FReEchoRecording> GetEchoRecordings(int32 RequestedCount) const;

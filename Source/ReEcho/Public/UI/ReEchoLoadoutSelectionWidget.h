@@ -6,6 +6,9 @@
 
 class SWidget;
 class UButton;
+class UHorizontalBox;
+class UReEchoIndexedButton;
+class UReEchoLoadoutEntryWidget;
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoLoadoutConfirmed, FName, CharacterId, FName, WeaponId);
@@ -18,6 +21,8 @@ class REECHO_API UReEchoLoadoutSelectionWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UReEchoLoadoutSelectionWidget(const FObjectInitializer& ObjectInitializer);
+
 	UPROPERTY(BlueprintAssignable)
 	FReEchoLoadoutConfirmed OnLoadoutConfirmed;
 
@@ -27,60 +32,46 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void BuildOptionEntries();
 	void LoadOptions();
 	void RefreshSelection();
 	void SelectCharacter(FName CharacterId);
 	void ChooseWeapon(FName WeaponId);
 
 	UFUNCTION()
-	void HandleHeartClicked();
+	void HandleCharacterClicked(int32 OptionIndex);
 
 	UFUNCTION()
-	void HandleSpadeClicked();
-
-	UFUNCTION()
-	void HandleCloverClicked();
-
-	UFUNCTION()
-	void HandleDiamondClicked();
-
-	UFUNCTION()
-	void HandleStaffClicked();
-
-	UFUNCTION()
-	void HandleSwordClicked();
-
-	UFUNCTION()
-	void HandleElementalClicked();
+	void HandleWeaponClicked(int32 OptionIndex);
 
 	UFUNCTION()
 	void HandleConfirmClicked();
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StatusText;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> HeartButton;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UHorizontalBox> CharacterRow;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UHorizontalBox> WeaponRow;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UButton> SpadeButton;
+	TArray<TObjectPtr<UReEchoIndexedButton>> CharacterButtons;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UButton> CloverButton;
+	TArray<TObjectPtr<UReEchoIndexedButton>> WeaponButtons;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UButton> DiamondButton;
+	TArray<TObjectPtr<UReEchoLoadoutEntryWidget>> CharacterEntries;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UButton> StaffButton;
+	TArray<TObjectPtr<UReEchoLoadoutEntryWidget>> WeaponEntries;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> SwordButton;
+	UPROPERTY()
+	TSubclassOf<UReEchoLoadoutEntryWidget> EntryWidgetClass;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> ElementalButton;
-
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConfirmButton;
 
 	FName SelectedCharacterId;

@@ -12,6 +12,8 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UI/ReEchoIndexedButton.h"
+#include "UI/ReEchoTraitCardEntryWidget.h"
 
 namespace
 {
@@ -48,11 +50,17 @@ UReEchoTraitCardChoiceWidget::UReEchoTraitCardChoiceWidget(const FObjectInitiali
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DrawBackgroundFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/ShopBackground.ShopBackground"));
 	DrawBackgroundTexture = DrawBackgroundFinder.Object;
+	static ConstructorHelpers::FClassFinder<UReEchoTraitCardEntryWidget> CardEntryClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardEntry"));
+	CardEntryWidgetClass = CardEntryClassFinder.Class;
 }
 
 TSharedRef<SWidget> UReEchoTraitCardChoiceWidget::RebuildWidget()
 {
-	BuildWidgetTree();
+	if (!WidgetTree->RootWidget)
+	{
+		BuildWidgetTree();
+	}
 	return Super::RebuildWidget();
 }
 
@@ -62,12 +70,15 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	SetIsFocusable(true);
 	SetVisibility(ESlateVisibility::Visible);
 	BuildWidgetTree();
+	BuildCardEntries();
 
-	if (CardButtons.Num() == 3)
+	for (UReEchoIndexedButton* CardButton : CardButtons)
 	{
-		CardButtons[0]->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleFirstCardClicked);
-		CardButtons[1]->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleSecondCardClicked);
-		CardButtons[2]->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleThirdCardClicked);
+		CardButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
+	}
+	for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+	{
+		CardEntry->OnEntrySelected.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
 	}
 
 	RefreshOffers();
@@ -105,7 +116,15 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 		{
 			CardButton->SetIsEnabled(true);
 		}
-		if (!CardButtons.IsEmpty())
+		for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+		{
+			CardEntry->SetSelectionEnabled(true);
+		}
+		if (!CardEntries.IsEmpty())
+		{
+			CardEntries[0]->FocusSelection();
+		}
+		else if (!CardButtons.IsEmpty())
 		{
 			CardButtons[0]->SetKeyboardFocus();
 		}
@@ -124,7 +143,8 @@ void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCar
 
 void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 {
-	if (!CardButtons.IsEmpty() || !WidgetTree)
+	if (!WidgetTree || (WidgetTree->RootWidget && TraitCardContainer && TitleText && SubtitleText && CurrencyText &&
+	                    NeedleWidget))
 	{
 		return;
 	}
@@ -182,6 +202,32 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 	NeedleSlot->SetZOrder(2);
 	NeedleWidget = Needle;
 
+	TraitCardContainer = RootCanvas;
+	RefreshOffers();
+}
+
+void UReEchoTraitCardChoiceWidget::BuildCardEntries()
+{
+	if (!WidgetTree || !TraitCardContainer)
+	{
+		return;
+	}
+
+	const TArray<USizeBox*> DesignerCardSlots = {TraitCardSlot0, TraitCardSlot1, TraitCardSlot2};
+	const bool bUseDesignerCardSlots = TraitCardSlot0 && TraitCardSlot1 && TraitCardSlot2;
+	for (USizeBox* CardPanel : CardPanels)
+	{
+		if (!bUseDesignerCardSlots && CardPanel && CardPanel->GetParent() == TraitCardContainer)
+		{
+			TraitCardContainer->RemoveChild(CardPanel);
+		}
+	}
+	CardButtons.Reset();
+	CardEntries.Reset();
+	CardPanels.Reset();
+	CardNames.Reset();
+	CardDescriptions.Reset();
+
 	const TArray<FAnchors> CardAnchors = {FAnchors(0.26f, 0.62f), FAnchors(0.50f, 0.59f), FAnchors(0.74f, 0.62f)};
 	const TArray<FLinearColor> CardColors = {FLinearColor(0.30f, 0.20f, 0.11f, 0.98f),
 	                                         FLinearColor(0.13f, 0.27f, 0.26f, 0.98f),
@@ -191,20 +237,33 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 	                                   NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
 	for (int32 CardIndex = 0; CardIndex < 3; ++CardIndex)
 	{
-		USizeBox* CardSize = WidgetTree->ConstructWidget<USizeBox>(
-		    USizeBox::StaticClass(), *FString::Printf(TEXT("TraitCardSize%d"), CardIndex));
-		CardSize->SetWidthOverride(310.0f);
-		CardSize->SetHeightOverride(390.0f);
+		USizeBox* CardSize = bUseDesignerCardSlots ? DesignerCardSlots[CardIndex] : nullptr;
+		if (!CardSize)
+		{
+			CardSize = WidgetTree->ConstructWidget<USizeBox>(
+			    USizeBox::StaticClass(), *FString::Printf(TEXT("TraitCardSize%d"), CardIndex));
+			CardSize->SetWidthOverride(310.0f);
+			CardSize->SetHeightOverride(390.0f);
+			UCanvasPanelSlot* CardSlot = TraitCardContainer->AddChildToCanvas(CardSize);
+			CardSlot->SetAnchors(CardAnchors[CardIndex]);
+			CardSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+			CardSlot->SetSize(FVector2D(310.0f, 390.0f));
+			CardSlot->SetZOrder(5 + CardIndex);
+		}
 		CardSize->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
-		UCanvasPanelSlot* CardSlot = RootCanvas->AddChildToCanvas(CardSize);
-		CardSlot->SetAnchors(CardAnchors[CardIndex]);
-		CardSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-		CardSlot->SetSize(FVector2D(310.0f, 390.0f));
-		CardSlot->SetZOrder(5 + CardIndex);
 		CardPanels.Add(CardSize);
+		if (CardEntryWidgetClass)
+		{
+			UReEchoTraitCardEntryWidget* CardEntry = WidgetTree->ConstructWidget<UReEchoTraitCardEntryWidget>(
+			    CardEntryWidgetClass, *FString::Printf(TEXT("TraitCardEntry%d"), CardIndex));
+			CardSize->SetContent(CardEntry);
+			CardEntries.Add(CardEntry);
+			continue;
+		}
 
-		UButton* CardButton = WidgetTree->ConstructWidget<UButton>(
-		    UButton::StaticClass(), *FString::Printf(TEXT("TraitCardButton%d"), CardIndex));
+		UReEchoIndexedButton* CardButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TraitCardButton%d"), CardIndex));
+		CardButton->SetEntryIndex(CardIndex);
 		CardButton->SetBackgroundColor(CardColors[CardIndex]);
 		CardButton->SetIsEnabled(false);
 		CardSize->SetContent(CardButton);
@@ -277,6 +336,26 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			CardDescriptions[CardIndex]->SetText(Offers[CardIndex].Description);
 		}
 	}
+	const TArray<FLinearColor> CardColors = {FLinearColor(0.30f, 0.20f, 0.11f, 0.98f),
+	                                         FLinearColor(0.13f, 0.27f, 0.26f, 0.98f),
+	                                         FLinearColor(0.22f, 0.16f, 0.31f, 0.98f)};
+	const TArray<FText> CardKickers = {NSLOCTEXT("ReEcho", "TraitCandidateOne", "候选 I"),
+	                                   NSLOCTEXT("ReEcho", "TraitCandidateTwo", "候选 II"),
+	                                   NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
+	for (int32 CardIndex = 0; CardIndex < CardEntries.Num(); ++CardIndex)
+	{
+		const bool bHasOffer = Offers.IsValidIndex(CardIndex);
+		CardPanels[CardIndex]->SetVisibility(bHasOffer ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		CardEntries[CardIndex]->SetSelectionEnabled(bHasOffer && bRevealComplete);
+		if (bHasOffer)
+		{
+			CardEntries[CardIndex]->Configure(CardIndex,
+			                                       CardKickers[CardIndex],
+			                                       Offers[CardIndex].DisplayName,
+			                                       Offers[CardIndex].Description,
+			                                       CardColors[CardIndex]);
+		}
+	}
 }
 
 void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
@@ -288,7 +367,14 @@ void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 		CardPanels[CardIndex]->SetRenderOpacity(0.0f);
 		CardPanels[CardIndex]->SetRenderScale(FVector2D(0.72f));
 		CardPanels[CardIndex]->SetRenderTranslation(FVector2D(0.0f, 95.0f));
-		CardButtons[CardIndex]->SetIsEnabled(false);
+		if (CardButtons.IsValidIndex(CardIndex))
+		{
+			CardButtons[CardIndex]->SetIsEnabled(false);
+		}
+		if (CardEntries.IsValidIndex(CardIndex))
+		{
+			CardEntries[CardIndex]->SetSelectionEnabled(false);
+		}
 	}
 }
 
@@ -301,21 +387,15 @@ void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
 		{
 			CardButton->SetIsEnabled(false);
 		}
+		for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+		{
+			CardEntry->SetSelectionEnabled(false);
+		}
 		OnCardSelected.Broadcast(Offers[OfferIndex].CardId);
 	}
 }
 
-void UReEchoTraitCardChoiceWidget::HandleFirstCardClicked()
+void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)
 {
-	SelectOffer(0);
-}
-
-void UReEchoTraitCardChoiceWidget::HandleSecondCardClicked()
-{
-	SelectOffer(1);
-}
-
-void UReEchoTraitCardChoiceWidget::HandleThirdCardClicked()
-{
-	SelectOffer(2);
+	SelectOffer(OfferIndex);
 }

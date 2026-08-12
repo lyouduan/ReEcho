@@ -8,6 +8,22 @@ class SWidget;
 class UButton;
 class UTextBlock;
 
+UENUM()
+enum class EReEchoRestartScreenMode : uint8
+{
+	Pause,
+	Death,
+	Victory
+};
+
+UENUM()
+enum class EReEchoQuitPromptState : uint8
+{
+	None,
+	Confirm,
+	SaveFailed
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoRestartRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoResumeRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoQuitRequested);
@@ -60,31 +76,29 @@ private:
 	UFUNCTION()
 	void HandleSettingsClicked();
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> TitleText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> MessageText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ResumeButton;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> RestartButton;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> QuitButton;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> SettingsButton;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> QuitButtonText;
 
-	bool bDeathScreen = false;
-	bool bVictoryScreen = false;
-	bool bQuitConfirmation = false;
-	bool bSaveFailed = false;
+	EReEchoRestartScreenMode ScreenMode = EReEchoRestartScreenMode::Pause;
+	EReEchoQuitPromptState QuitPromptState = EReEchoQuitPromptState::None;
 	int32 VictoryTimeShards = 0;
 	int32 VictoryTraitCount = 0;
 };

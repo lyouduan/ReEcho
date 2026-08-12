@@ -7,7 +7,10 @@
 
 class SWidget;
 class UButton;
+class UCanvasPanel;
 class UImage;
+class UReEchoIndexedButton;
+class UReEchoTraitCardEntryWidget;
 class USizeBox;
 class UTextBlock;
 class UTexture2D;
@@ -38,21 +41,35 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void BuildCardEntries();
 	void RefreshOffers();
 	void ResetRevealAnimation();
 	void SelectOffer(int32 OfferIndex);
 
 	UFUNCTION()
-	void HandleFirstCardClicked();
+	void HandleCardClicked(int32 OfferIndex);
 
-	UFUNCTION()
-	void HandleSecondCardClicked();
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UCanvasPanel> TraitCardContainer;
 
-	UFUNCTION()
-	void HandleThirdCardClicked();
+	/** Designer-owned card frames. Their SizeBox dimensions are the runtime card dimensions. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<USizeBox> TraitCardSlot0;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<USizeBox> TraitCardSlot1;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<USizeBox> TraitCardSlot2;
 
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> CardButtons;
+	TArray<TObjectPtr<UReEchoIndexedButton>> CardButtons;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoTraitCardEntryWidget>> CardEntries;
+
+	UPROPERTY()
+	TSubclassOf<UReEchoTraitCardEntryWidget> CardEntryWidgetClass;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USizeBox>> CardPanels;
@@ -63,16 +80,16 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> CardDescriptions;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> TitleText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> SubtitleText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> CurrencyText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> NeedleWidget;
 
 	UPROPERTY()

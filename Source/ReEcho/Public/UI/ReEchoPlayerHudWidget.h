@@ -24,20 +24,24 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void NativeDestruct() override;
 
 private:
 	void BuildWidgetTree();
 	void Refresh();
+	void BindCombatant(UReEchoCombatantComponent* InCombatant);
 
-	UPROPERTY(Transient)
-	TObjectPtr<UImage> PortraitImage;
+	UFUNCTION()
+	void HandleHealthChanged(float CurrentHealth, float MaximumHealth);
 
-	UPROPERTY(Transient)
-	TObjectPtr<UProgressBar> HealthProgressBar;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> PlayerPortrait;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> HealthText;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UProgressBar> PlayerHealthProgress;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> PlayerHealthText;
 
 	TWeakObjectPtr<UReEchoCombatantComponent> Combatant;
 

@@ -5,7 +5,7 @@
 #include "ReEchoStartMenuWidget.generated.h"
 
 class SWidget;
-class UButton;
+class UReEchoIndexedButton;
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoNewGameRequested);
@@ -40,25 +40,19 @@ private:
 	void RefreshMenu();
 
 	UFUNCTION()
-	void HandleNewGameClicked();
+	void HandleMenuAction(int32 ActionIndex);
 
-	UFUNCTION()
-	void HandleContinueClicked();
-
-	UFUNCTION()
-	void HandleGameSettingClicked();
-
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StatusText;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> ContinueButton;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> ContinueButton;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> NewGameButton;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> NewGameButton;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> GameSettingsButton;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> GameSettingsButton;
 
 	bool bHasSavedRun = false;
 };

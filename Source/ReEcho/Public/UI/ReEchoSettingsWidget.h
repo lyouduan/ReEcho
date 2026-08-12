@@ -6,6 +6,7 @@
 
 class SWidget;
 class UButton;
+class UReEchoIndexedButton;
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoSettingsClosed);
@@ -30,13 +31,7 @@ private:
 	void RefreshCategory();
 
 	UFUNCTION()
-	void HandleGraphicsClicked();
-
-	UFUNCTION()
-	void HandleAudioClicked();
-
-	UFUNCTION()
-	void HandleControlsClicked();
+	void HandleCategoryClicked(int32 CategoryIndex);
 
 	UFUNCTION()
 	void HandleRestoreDefaultsClicked();
@@ -44,20 +39,29 @@ private:
 	UFUNCTION()
 	void HandleApplyAndReturnClicked();
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> DetailText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> CategoryTitleText;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> GraphicsButton;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> GraphicsSettingsButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> AudioSettingsButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> ControlsSettingsButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> RestoreDefaultsButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> ApplyAndReturnButton;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UButton> AudioButton;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> ControlsButton;
+	TArray<TObjectPtr<UReEchoIndexedButton>> CategoryButtons;
 
 	int32 SelectedCategory = 0;
 };
