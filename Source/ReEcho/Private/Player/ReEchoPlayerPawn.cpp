@@ -250,7 +250,17 @@ void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	ConstrainToArenaBounds();
 	ConfigureMouseInput();
-	UpdateMouseAim();
+
+	bool bAutoHasTarget = false;
+	if (bAutoAttackMode)
+	{
+		UpdateAutoAttack(bAutoHasTarget);
+	}
+	if (!bAutoAttackMode || !bAutoHasTarget)
+	{
+		UpdateMouseAim();
+	}
+
 	UpdateSpriteAnimation(DeltaSeconds);
 	ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor::Green);
 	ReEchoCollisionDebug::DrawCapsule(this, Collision, FColor::Cyan);
@@ -457,6 +467,148 @@ void AReEchoPlayerPawn::BasicAttack()
 void AReEchoPlayerPawn::StopBasicAttack()
 {
 	AbilityInputReleased(ReEchoGameplayTags::Input_Attack_Basic);
+}
+
+void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
+{
+	if (bAutoAttackMode == bAuto)
+	{
+		return;
+	}
+	bAutoAttackMode = bAuto;
+	if (!bAuto)
+	{
+		ReleaseAutoAttackInput();
+	}
+}
+
+void AReEchoPlayerPawn::PressAutoAttackInput()
+{
+	BasicAttack();
+	bAutoAttackInputHeld = true;
+}
+
+void AReEchoPlayerPawn::ReleaseAutoAttackInput()
+{
+	if (bAutoAttackInputHeld)
+	{
+		StopBasicAttack();
+		bAutoAttackInputHeld = false;
+	}
+}
+
+bool AReEchoPlayerPawn::IsBasicAttackAbilityActive() const
+{
+	if (!AbilitySystem)
+	{
+		return false;
+	}
+	for (const FGameplayAbilitySpec& Spec : AbilitySystem->GetActivatableAbilities())
+	{
+		if (Spec.IsActive() && Spec.Ability && Spec.Ability->GetClass() == UReEchoBasicAttackAbility::StaticClass())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void AReEchoPlayerPawn::UpdateAutoAttack(bool& bOutHasTarget)
+{
+	bOutHasTarget = false;
+
+	const bool bCanAuto = bAutoAttackMode
+		&& Combatant && Combatant->IsAlive()
+		&& AbilitySystem && AbilitySystem->GetGameplayTagCount(ReEchoGameplayTags::State_Menu) == 0;
+	if (!bCanAuto)
+	{
+		ReleaseAutoAttackInput();
+		return;
+	}
+
+	const float RangeCm = Weapon ? Weapon->GetCurrentAttackRangeCm() : 0.0f;
+	AReEchoEnemyActor* Target = FindNearestEnemyInRange(RangeCm);
+	if (Target)
+	{
+		FVector ToTarget = Target->GetActorLocation() - GetActorLocation();
+		ToTarget.Z = 0.0f;
+		if (!ToTarget.IsNearlyZero())
+		{
+			VisualFacingSign = ToTarget.X >= 0.0f ? 1.0f : -1.0f;
+			SetActorRotation(ToTarget.Rotation());
+		}
+		bOutHasTarget = true;
+		if (!bAutoAttackInputHeld || !IsBasicAttackAbilityActive())
+		{
+			PressAutoAttackInput();
+		}
+	}
+	else
+	{
+		ReleaseAutoAttackInput();
+	}
+}
+
+AReEchoEnemyActor* AReEchoPlayerPawn::FindNearestEnemyInRange(const float RangeCm) const
+{
+	TArray<FReEchoAttackTargetCandidate> Candidates;
+	if (UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AReEchoEnemyActor> It(World); It; ++It)
+		{
+			AReEchoEnemyActor* Enemy = *It;
+			if (!IsValid(Enemy))
+			{
+				continue;
+			}
+			FReEchoAttackTargetCandidate& Candidate = Candidates.AddDefaulted_GetRef();
+			Candidate.Location = Enemy->GetActorLocation();
+			Candidate.bAlive = Enemy->IsAlive();
+			Candidate.StableId = Enemy->GetSpawnIndex();
+			Candidate.Source = Enemy;
+		}
+	}
+	const int32 Index = SelectNearestEnemyInRange(GetActorLocation(), RangeCm, Candidates);
+	return Index != INDEX_NONE ? Candidates[Index].Source : nullptr;
+}
+
+int32 AReEchoPlayerPawn::SelectNearestEnemyInRange(const FVector& Origin,
+                                                   const float RangeCm,
+                                                   TArrayView<const FReEchoAttackTargetCandidate> Candidates)
+{
+	int32 BestIndex = INDEX_NONE;
+	float BestDistSq = RangeCm * RangeCm;
+	for (int32 i = 0; i < Candidates.Num(); ++i)
+	{
+		const FReEchoAttackTargetCandidate& Candidate = Candidates[i];
+		if (!Candidate.bAlive)
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(Origin, Candidate.Location);
+		if (DistSq > BestDistSq)
+		{
+			continue;
+		}
+		if (BestIndex == INDEX_NONE)
+		{
+			BestIndex = i;
+			BestDistSq = DistSq;
+		}
+		else if (FMath::IsNearlyEqual(DistSq, BestDistSq, 1e-3f))
+		{
+			if (Candidate.StableId < Candidates[BestIndex].StableId)
+			{
+				BestIndex = i;
+			}
+		}
+		else
+		{
+			BestIndex = i;
+			BestDistSq = DistSq;
+		}
+	}
+	return BestIndex;
 }
 
 void AReEchoPlayerPawn::ActivateSkill()

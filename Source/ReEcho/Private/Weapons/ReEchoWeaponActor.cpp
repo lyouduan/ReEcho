@@ -244,6 +244,17 @@ float AReEchoWeaponActor::GetAttackInterval(UReEchoCombatantComponent* Combatant
 	           : 0.55f;
 }
 
+float AReEchoWeaponActor::GetCurrentAttackRangeCm() const
+{
+	if (!bHasEffectiveDefinition)
+	{
+		return 0.0f;
+	}
+	const FReEchoCsvAttackStepRow* Step = ResolveNextAttackStep();
+	const float StepRange = Step ? Step->RangeCm : 0.0f;
+	return StepRange > 0.0f ? StepRange : EffectiveDefinition.Weapon.RangeCm;
+}
+
 float AReEchoWeaponActor::GetAttackCooldownRemaining() const
 {
 	return AttackCooldown;

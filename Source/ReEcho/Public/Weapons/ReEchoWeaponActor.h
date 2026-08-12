@@ -32,6 +32,8 @@ public:
 	/** Executes an attack without the legacy weapon timer; player GAS owns cooldown. */
 	bool ExecuteBasicAttack(UReEchoCombatantComponent* Combatant);
 	float GetAttackInterval(UReEchoCombatantComponent* Combatant) const;
+	/** 当前武器当前攻击步骤的有效攻击距离（厘米）。供自动攻击在射程内选择目标，不复制 Echo 固定 AutoTargetRange。 */
+	float GetCurrentAttackRangeCm() const;
 	float GetAttackCooldownRemaining() const;
 	FName GetEquippedWeaponId() const;
 	FString GetEquippedWeaponLabel() const;

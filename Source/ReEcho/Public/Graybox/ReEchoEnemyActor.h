@@ -69,6 +69,8 @@ public:
 	}
 
 	bool IsAlive() const;
+	/** 稳定的运行时目标排序标识（等于生成索引）。供自动攻击在射程内出现相同距离时确定性打破平局。 */
+	int32 GetSpawnIndex() const { return VisualVariantIndex; }
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 
 	EReEchoEnemyKind GetKind() const

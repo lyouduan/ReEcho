@@ -2,6 +2,7 @@
 
 #include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
+#include "Containers/ArrayView.h"
 #include "GameFramework/Pawn.h"
 #include "ReEchoPlayerPawn.generated.h"
 
@@ -25,6 +26,17 @@ struct FReEchoBuildSnapshot;
 struct FReEchoCsvDataSnapshot;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoActiveSkill, FVector, Position, FName, SkillId);
+
+/** 自动攻击确定性目标选择用的候选敌人信息。 */
+USTRUCT(BlueprintType)
+struct FReEchoAttackTargetCandidate
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector Location = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bAlive = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StableId = 0;
+	AReEchoEnemyActor* Source = nullptr;
+};
 
 /** 玩家可控角色：组合移动、GAS 技能、武器、录制以及 2D 序列帧表现。 */
 UCLASS(Blueprintable)
@@ -86,6 +98,21 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoActiveSkill OnActiveSkill;
 
+	/** 当前是否使用自动普通攻击（默认 true）。 */
+	bool IsAutoAttackMode() const { return bAutoAttackMode; }
+	/** 设置攻击模式。切换到手动模式时会释放模拟的 held basic-attack input。 */
+	void SetAutoAttackMode(bool bAuto);
+	/** 模拟的 held basic-attack input 当前是否被按下（自动模式驱动）。用于测试与内部清理。 */
+	bool IsAutoAttackInputHeld() const { return bAutoAttackInputHeld; }
+	/** 只读访问录像组件，供确定性测试验证攻击/模式切换不产生录像事件。 */
+	UReEchoRecorderComponent* GetRecorder() const { return Recorder; }
+	/** 按下模拟的 held basic-attack input（自动攻击驱动）。 */
+	void PressAutoAttackInput();
+	/** 释放模拟的 held basic-attack input（菜单/死亡/切换手动/无目标时调用）。 */
+	void ReleaseAutoAttackInput();
+	/** 确定性目标选择：返回射程内最近的存活敌人索引；无目标返回 INDEX_NONE。相同距离按 StableId 升序打破平局。 */
+	static int32 SelectNearestEnemyInRange(const FVector& Origin, float RangeCm, TArrayView<const FReEchoAttackTargetCandidate> Candidates);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -96,6 +123,12 @@ private:
 	void ActivateSkill();
 	void BasicAttack();
 	void StopBasicAttack();
+	/** 自动攻击每帧驱动：寻找射程内最近存活敌人并复用 GAS held basic-attack input。 */
+	void UpdateAutoAttack(bool& bOutHasTarget);
+	/** 在给定射程内寻找最近的存活敌人指针（无则 null）。 */
+	AReEchoEnemyActor* FindNearestEnemyInRange(float RangeCm) const;
+	/** 当前 basic-attack 能力是否处于激活态（用于安全续接自动攻击）。 */
+	bool IsBasicAttackAbilityActive() const;
 	void TogglePauseMenu();
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();
@@ -118,6 +151,8 @@ private:
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
 	bool bMouseInputConfigured = false;
+	bool bAutoAttackMode = true;
+	bool bAutoAttackInputHeld = false;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
 	FVector BaseSpriteLocation = FVector::ZeroVector;
 	FVector BaseSpriteScale = FVector::OneVector;
