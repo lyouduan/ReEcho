@@ -2,11 +2,11 @@
 
 ## Coordination
 
-- Planner owner: Gavyn-side Planner, taking over the stale teammate broadcast under the user's request to resolve Plan26.
+- Planner owner: Gavyn-side Planner, taking over the stale teammate Plan under the user's request to resolve Plan26.
 - Executor owner: Unassigned.
 - Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Planning ref / implementation base: fetch `origin/coord/gavyn-plan26-resolution`, verify it contains the refreshed Plan26 planning commit, and create the implementation branch from that ref. Its code base is current `origin/main` plus pure planning commits; the old `origin/coord/teammate-planning-broadcast-20260811` is superseded for execution and must not be merged.
+- Local planning / implementation base: local `planning/26-31-local` after integrating current main; create `plan/26-weapon-readonly-ui` from that local commit. No remote planning/task ref exists.
 - Implementation branch: `plan/26-weapon-readonly-ui` in a separate clean worktree.
 - Depends on / Blocks: typed Plan24 weapon queries and the accepted full-run weapon lock already on `origin/main`. Blocks Plan31 writes to `ReEchoInventoryShopWidget.*` until review/merge/ownership release.
 - Writes: `Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h`; `Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp`; `Source/ReEcho/Public/UI/ReEchoStatsWidget.h`; `Source/ReEcho/Private/UI/ReEchoStatsWidget.cpp`; new Plan26-only cheap UI/state automation if useful; this Plan's Execution notes and its live lifecycle/ownership row.
@@ -35,7 +35,7 @@ The selected weapon is locked for the full run. This Plan must not restore or te
 
 ## Step 0 gate
 
-- Baseline branch/commit: fetch current remote refs; verify `origin/main` is an ancestor of `origin/coord/gavyn-plan26-resolution`, then branch from the coordination ref so this refreshed Plan is present.
+- Baseline branch/commit: fetch and audit `origin/main`, integrate the human-selected result into local `planning/26-31-local`, then branch locally so this refreshed Plan is present.
 - Engine/build availability: ask the human to save and close the ReEcho Editor before compiling; installed UE 5.8 only.
 - Existing focused-test result: record project validation and compile availability; do not spend the Executor pass on broad pre-change PIE or full visual regression.
 - Active exclusive ownership or shared-contract approval: confirm Plan31 remains Proposed and no active task owns the four Plan26 UI files. Plan29/28 Writes are disjoint.

@@ -16,7 +16,7 @@ Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, th
 
 - Implementation: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only after a failure requires diagnosis.
 - Planning/review/closure: read `shared/PROJECT_STATE.md`, the relevant section of `shared/PLANNER_RULES.md`, and the plan diff. Do not load all of `LESSONS.md`.
-- Distributed planning: before reserving a plan number or starting an executor, fetch the advertised remote planning ref, check cross-planner announcements, and follow the planning-publication gate in `shared/PLANNER_RULES.md`.
+- Distributed planning: before reserving a Plan number or integrating/publishing work, fetch `origin/main`; remote main owns published Plan numbers, and external differences follow the audit gate in `shared/PLANNER_RULES.md`.
 - Workflow maintenance or first-time onboarding only: read `shared/AI_ONBOARDING.md` and the relevant `shared/WORKFLOW.md` section.
 
 `shared/WORKFLOW.md` explains the model but does not override the authorities above.

@@ -6,7 +6,7 @@
 - Executor owner: Unassigned; do not start while status is `Proposed`.
 - Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Planning ref / implementation base: planning ref `coord/gavyn-echo-storage-replay`; final base must contain accepted Plan29 and accepted Plan28.
+- Local planning / implementation base: future local branch from a reviewed base containing accepted Plan29 and accepted Plan28.
 - Implementation branch: future `plan/30-specific-echo-replay-runtime` in a separate clean worktree.
 - Depends on / Blocks: blocked on Plan29's accepted storage/save contract and Plan28 release of GameMode/player attack ownership. Publishes runtime behavior required by Plan31.
 - Writes: Plan29's narrow replay-resolution implementation surface in RunSubsystem; `Source/ReEcho/Public/ReEchoGameMode.h`; `Source/ReEcho/Private/ReEchoGameMode.cpp`; additive Echo initialization/query changes only if required; focused Plan30 tests; this Plan's Execution notes.

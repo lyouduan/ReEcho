@@ -3,10 +3,10 @@
 ## Coordination
 
 - Planner owner: Gavyn-side Planner.
-- Executor owner: Unassigned; start only from the published planning ref after reading this Plan.
-- Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Executor owner: Assigned local Plan28 Executor; rework required.
+- Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Planning ref / implementation base: planning ref `coord/gavyn-plan28-player-attack-modes`; implementation starts from current `origin/main` at planning time (`6c1f890`) and must integrate any human-approved newer main before Review.
+- Local planning / implementation base: local `plan/28-player-attack-modes`; integrate the human-approved current main and preserve this Plan's Esc/no-P locked behavior before Review.
 - Implementation branch: `plan/28-player-attack-modes` in a separate clean worktree.
 - Depends on / Blocks: depends on the current run-locked weapon implementation, GAS basic-attack loop and pause-aware encounter clock. It does not block Plan26's read-only Inventory/Stats UI work.
 - Writes: `Source/ReEcho/Public/Player/ReEchoPlayerPawn.h`; `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`; `Source/ReEcho/Public/ReEchoGameMode.h`; `Source/ReEcho/Private/ReEchoGameMode.cpp`; `Source/ReEcho/Public/UI/ReEchoRestartWidget.h`; `Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`; additive weapon/enemy query changes only if required for effective range and deterministic target tie-breaking; new Plan28-only automation under `Source/ReEcho/Private/Tests/`; this Plan's Execution notes.

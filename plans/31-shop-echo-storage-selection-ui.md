@@ -6,7 +6,7 @@
 - Executor owner: Unassigned; do not start while status is `Proposed`.
 - Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Planning ref / implementation base: planning ref `coord/gavyn-echo-storage-replay`; final base must contain accepted Plans 26, 29 and 30.
+- Local planning / implementation base: future local branch from a reviewed base containing accepted Plans 26, 29 and 30.
 - Implementation branch: future `plan/31-shop-echo-selection-ui` in a separate clean worktree.
 - Depends on / Blocks: blocked on Plan26 release/integration of `ReEchoInventoryShopWidget.*`, Plan29 storage APIs and Plan30 replay behavior. It blocks no disjoint backend work.
 - Writes: `Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h`; `Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp`; `Source/ReEcho/Public/ReEchoGameMode.h`; `Source/ReEcho/Private/ReEchoGameMode.cpp`; Plan31-only UI/state tests where cheap; this Plan's Execution notes.

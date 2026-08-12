@@ -10,104 +10,63 @@ This document explains the collaboration model. It is not a second rulebook.
 | Project constraints, ownership, branches and verification | `shared/PROJECT_RULES.md` |
 | Planner actions | `shared/PLANNER_RULES.md` |
 | Executor actions | `shared/EXECUTOR_RULES.md` |
-| Current work, ownership and warnings | `shared/PLANNER_EXCHANGE.md` |
+| Current local work, ownership and warnings | `shared/PLANNER_EXCHANGE.md` |
 | One task's scope and evidence | `plans/<id>-*.md` |
 | Current delivered product state | `shared/PROJECT_STATE.md` |
 
-If explanatory text here differs from an authority above, the authority above wins. Workflow changes are made in this repository like any other reviewed change; there is no external master that can silently override the committed project rules.
+If explanatory text here differs from an authority above, the authority above wins. Workflow changes are made in this repository like any other reviewed change.
 
 ## Roles and lifecycle
 
-- The human sets direction, decides whether subjective validation is satisfactory, and authorizes remote-main publication.
-- A Planner defines scope and acceptance, publishes coordination, reviews delivery, integrates accepted work and maintains shared state.
-- An Executor implements on an isolated branch/worktree, records evidence and hands the branch back. Executors do not merge or publish `main`.
+- The human sets direction, decides subjective validation and chooses how external-main differences are integrated.
+- A Planner defines scope, reviews delivery, integrates accepted local work and is the only role that may publish `main`.
+- An Executor implements on an isolated local branch/worktree, records evidence and hands the local branch back. Executors never push remote refs.
 
-The task lifecycle field uses one vocabulary only:
+Task lifecycle is `Proposed -> Ready -> InProgress -> Review -> Closed`; `Blocked` is exceptional and names an unblock condition. Human validation remains separate: `NotRequired`, `PendingBeforeClose`, `PendingFollowUp`, or `Passed`.
 
-```text
-Proposed -> Ready -> InProgress -> Review -> Closed
-                         |           |
-                         +-----------+  rework returns to InProgress
+## Local coordination contract
 
-Blocked is exceptional and must include a concrete unblock condition.
-```
+Every Plan declares owners, lifecycle, human validation, local/implementation base, dependencies, exact Writes/Reads, impact mode, compatibility promise and exclusions. Ownership is `Reserved`, `Active`, or `Released`.
 
-Human validation is a separate field: `NotRequired`, `PendingBeforeClose`, `PendingFollowUp`, or `Passed`. `PendingBeforeClose` blocks closure; `PendingFollowUp` is an explicitly accepted deferred confidence check and may coexist with `Closed`. It must never be encoded into lifecycle status.
-
-## Coordination contract
-
-Every new distributed Plan declares:
-
-- Planner and Executor owner;
-- lifecycle status and human-validation state;
-- published planning ref and implementation base;
-- `Depends on` and `Blocks`;
-- exact `Writes` and stable `Reads`;
-- one impact mode: `Isolated`, `ReadOnly`, `SharedContract`, or `Exclusive`;
-- downstream compatibility promise and explicit exclusions.
-
-Ownership has a separate state: `Reserved`, `Active`, or `Released`.
-
-- `Isolated`: disjoint files and no shared contract change; may start after the planning ref is published.
-- `ReadOnly`: consumes a published stable surface without editing provider-owned files; may run in parallel.
-- `SharedContract`: changes an API, stable ID, schema, save format or generated-data contract; provider and affected Planners agree on the contract before implementation crosses it.
+- `Isolated`: disjoint files and no shared contract change.
+- `ReadOnly`: consumes a stable surface without editing provider-owned files.
+- `SharedContract`: changes an API, stable ID, schema, save format or generator contract; affected local work agrees before crossing it.
 - `Exclusive`: edits a merge-hostile artifact or external target; only one active writer exists.
 
-A reservation announces intent but does not block unrelated work. Only an `Active` `Exclusive` row blocks another writer. Scope expansion is rebroadcast before files or contracts outside the published `Writes` are changed.
+A reservation announces local intent but does not block unrelated work. Only an `Active Exclusive` row blocks another writer. Scope expansion is recorded locally before the boundary is crossed.
 
-## Parallel execution and integration
+## Local parallelism and cross-machine integration
 
-Same-machine Executors use separate worktrees and branches. Different teammates use separate clones and remote branches. In both cases, file ownership and contract boundaries—not the number of machines—determine safe parallelism.
+Same-machine Executors use separate worktrees and local branches. Different teammates use separate clones and local branches. File ownership and contract boundaries determine safe parallelism inside each clone.
 
-Use contract-first integration for provider/consumer work:
+The remote repository has exactly one branch: `main`. There are no remote planning, task, handoff or review branches. Planning drafts are not published merely to announce intent; they travel with the accepted implementation when that candidate eventually enters main.
 
-1. The provider publishes a stable consumer commit/ref and names the supported read-only surface.
-2. Consumers branch from that ref or a newer `origin/main`, write only their declared surface and avoid provider internals.
-3. Provider changes that break the promise require a new coordination broadcast.
-4. Once the provider reaches `main`, each consumer fetches and rebases/merges the current `origin/main` before review, then reruns affected checks.
-5. Old `coord/...` refs are handoff evidence, not permanent integration baselines.
+This deliberately moves cross-machine coordination to integration time. A teammate learns about another machine's accepted planning/implementation by fetching `origin/main`. Before pull or push, the Planner reports Physical/Git conflict, Logical conflict and Coupling, plus any Plan-number collision. The human chooses remote, local, combined adaptation or deferral.
 
-Shared documentation is deliberately kept out of Executor hot paths:
+Remote main owns Plan numbers. If an unpublished local sequence collides, shift the colliding Plan and every later unpublished local Plan together to the first free ordered range, then update live references. This preserves remote history and local dependency order.
 
-- Executors update their Plan's Execution notes and documentation local to their owned implementation.
-- Planners update `PROJECT_STATE`, `CODEBASE_MAP`, `LESSONS` and closed Exchange rows once at review/integration.
-- Exchange changes during implementation occur only for ownership, scope, dependency or contract changes.
+Provider/consumer work may proceed in parallel inside one clone after agreeing on a local contract. Across machines, a consumer cannot rely on unpublished provider work; the provider must first be accepted into main, then the consumer fetches/audits main and integrates it.
 
-This keeps independent branches from conflicting on the same Markdown files.
+Shared documentation stays out of Executor hot paths: Executors update their Plan and implementation-local docs; Planners update shared state/routes/lessons at review. Exchange changes during implementation are limited to local ownership, scope, dependency or contract changes.
 
-External remote commits introduce a separate human decision point. A Planner first fetches without changing the working tree, then reports three independent results: **Physical/Git conflict** (what Git can combine), **Logical conflict** (whether the combined behavior still means the same thing), and **Coupling** (which Plans/contracts/tests move together). A fast-forward proves only ancestry; it does not prove semantic compatibility. Integration waits for the human to choose remote, local, a combined adaptation or deferral, and any further remote advance restarts the audit before push.
+## Canonical workbook and exclusive resources
 
-## Canonical workbook
+`Design/Data/ReEchoData.xlsx` has one active repository writer (`WorkbookWriter`); generated production CSV follows the same publication unit. Read-only consumers and disposable local QA may proceed concurrently. A publishable QA edit is handed to the current writer.
 
-`Design/Data/ReEchoData.xlsx` is one binary source and therefore has one active repository writer (`WorkbookWriter`). Generated production CSV files follow that writer and are not separately locked.
+The Unreal Editor lock is machine-local but shared by all worktrees in one clone through the Git common directory. It serializes only operations that actually require exclusive Editor/project access; commands live in `EXECUTOR_RULES.md`.
 
-- `DomainOwner` describes requested row/domain changes in its Plan or handoff without committing a competing canonical workbook.
-- `ReadOnly` runtime/UI consumers may use the generated CSV and typed APIs concurrently.
-- A local designer usability test that is not intended for publication does not claim repository ownership.
-- If a QA edit should be kept, it is handed to the current `WorkbookWriter` for application and regeneration.
+## Local and remote lanes
 
-## Local exclusive resources
+1. **Local planning/execution**: Plans, task branches, worktrees and handoffs remain local. They may be committed locally for safety but are not pushed as side refs.
+2. **Local acceptance**: the Planner reviews an Executor commit, resolves human validation and merges accepted scope into local main.
+3. **Remote-main integration**: fetch, audit external main, resolve Plan-number and behavioral differences with the human, validate the resulting candidate, then push only main without force.
 
-The Unreal Editor lock is machine-local but shared by all worktrees in the same clone. Its location is derived from `git rev-parse --git-common-dir`, not from a worktree-local `.locks/` directory. Separate clones on separate machines do not share this lock.
-
-The lock only serializes commands that actually require exclusive Editor/project access. Source inspection, independent text edits, Python data checks and other nonexclusive work continue in parallel. Stale-lock handling and Windows commands live in `EXECUTOR_RULES.md`.
-
-## Planning and publication lanes
-
-There are three different remote operations:
-
-1. **Planning broadcast**: a pure Plan/Exchange batch pushed to `coord/<owner>-<topic>`. It lets other Planners and Executors see scope before implementation starts; it does not publish functionality.
-2. **Task handoff**: an Executor pushes its `plan/<id>-<short>` implementation branch and evidence. It does not authorize a merge.
-3. **Remote-main publication**: a Planner integrates accepted scope from the current `origin/main`, revalidates the candidate and publishes without force under the authorization rules in `PLANNER_RULES.md`.
-
-The human may grant either one-candidate authorization or a documented standing authorization with a narrow scope and expiry/revocation condition. Planning/task refs never inherit remote-main authority.
-
-Committed state documents should not cache a supposedly current `origin/main` hash: the commit containing that hash would immediately make it stale. They name the branch and included scope; Git and the publication report provide the exact commit.
+One-candidate or narrowly documented standing authorization still governs main publication. A local Plan or task commit never inherits that authority.
 
 ## Why this shape
 
-- Branches/worktrees isolate bytes; ownership and contracts isolate intent.
-- A stable read-only surface lets consumers start before the provider's whole feature is complete.
-- Separate lifecycle, human-validation and ownership fields prevent free-text status from becoming a hidden lock.
-- One authoritative location per rule reduces drift and startup context.
-- Planner-owned shared-state updates remove a major merge-conflict hotspot from parallel Executor branches.
+- One remote branch removes stale coordination refs and duplicate branch cleanup.
+- Local worktrees preserve same-machine parallelism without exposing WIP remotely.
+- The external-main audit makes semantic coupling visible before pull/push rather than pretending a clean Git merge is sufficient.
+- Remote-canonical numbering resolves independent Planner collisions without rewriting published history.
+- The tradeoff is explicit: different machines cannot consume one another's unpublished contracts or review WIP through Git remote refs.
