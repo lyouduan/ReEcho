@@ -6,7 +6,7 @@
 - Executor owner:
 - Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Planning ref / implementation base:
+- Local planning / implementation base:
 - Implementation branch:
 - Depends on / Blocks:
 - Writes:
@@ -41,7 +41,7 @@ Implementation details may be refined without changing locked goal, acceptance o
 1. Inspect the smallest relevant code/data surface.
 2. Make one coherent change at a time.
 3. Validate immediately after each risky change.
-4. Update Execution notes; rebroadcast only when ownership/scope/contracts change.
+4. Update Execution notes; record ownership/scope/contract changes locally before crossing the changed boundary.
 
 ## Verification matrix
 
