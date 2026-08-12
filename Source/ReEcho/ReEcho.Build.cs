@@ -16,6 +16,7 @@ public class ReEcho : ModuleRules
             "GameplayAbilities",
             "GameplayTags",
             "GameplayTasks",
+            "Paper2D",
             "UMG",
             "Slate",
             "SlateCore"

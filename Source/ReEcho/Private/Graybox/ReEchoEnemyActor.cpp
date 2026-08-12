@@ -16,6 +16,7 @@
 #include "Combat/ReEchoElementReaction.h"
 #include "Components/BillboardComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -27,6 +28,9 @@
 #include "Player/ReEchoPlayerPawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "PaperFlipbook.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationProfile.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace ReEchoEnemyVisual
@@ -72,13 +76,17 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 		                           TEXT("/Game/ReEcho/Textures/Characters/SoftGroundShadow.SoftGroundShadow")));
 		GroundShadow->SetMaterial(0, ShadowMaterial);
 	}
+	VisualEffectRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualEffectRoot"));
+	VisualEffectRoot->SetupAttachment(RootComponent);
 	CharacterSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("CharacterSprite"));
-	CharacterSprite->SetupAttachment(RootComponent);
+	CharacterSprite->SetupAttachment(VisualEffectRoot);
 	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CharacterSprite->SetHiddenInGame(false);
 	CharacterSprite->SetVisibility(false);
 	CharacterSprite->SetAbsolute(false, false, true);
 	CharacterSprite->bIsScreenSizeScaled = false;
+	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
+	SequenceAnimation->SetupAttachment(VisualEffectRoot);
 
 	ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
 	ElementAuraRing->SetupAttachment(RootComponent);
@@ -133,6 +141,9 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BossTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/Boss2D.Boss2D"));
 	BossTexture = BossTextureFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> GruntFlipbookFinder(
+	    TEXT("/Game/2DAnim/Flipbook/01_2.01_2"));
+	GruntDefaultFlipbook = GruntFlipbookFinder.Object;
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
@@ -210,6 +221,7 @@ void AReEchoEnemyActor::ApplyVisual()
 	                                                         : GruntTextures[VisualVariantIndex % GruntTextures.Num()];
 	const float CharacterHalfHeight = ReEchoEnemyVisual::CharacterWorldHeight * 0.5f;
 	CharacterSprite->SetVisibility(true);
+	CharacterSprite->SetHiddenInGame(false);
 	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -ReEchoEnemyVisual::CharacterWorldHeight * 0.28f));
 	GroundShadow->SetRelativeScale3D(FVector(ReEchoEnemyVisual::ShadowScaleX, ReEchoEnemyVisual::ShadowScaleY, 1.0f));
@@ -224,8 +236,23 @@ void AReEchoEnemyActor::ApplyVisual()
 		CharacterSprite->SetWorldScale3D(FVector::OneVector);
 	}
 
-	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
-	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
+	FReEcho2DAnimationProfile Profile;
+	Profile.DefaultFlipbook = Kind == EReEchoEnemyKind::Grunt ? GruntDefaultFlipbook : nullptr;
+	Profile.WorldHeight = ReEchoEnemyVisual::CharacterWorldHeight;
+	Profile.TranslucentSortPriority = 10;
+	const bool bUseSequenceAnimation =
+	    Kind == EReEchoEnemyKind::Grunt &&
+	    SequenceAnimation->ActivateProfile(Profile) == EReEcho2DAnimationActivationResult::Activated;
+	if (!bUseSequenceAnimation)
+	{
+		SequenceAnimation->DeactivateAnimation();
+	}
+	CharacterSprite->SetVisibility(!bUseSequenceAnimation);
+	CharacterSprite->SetHiddenInGame(bUseSequenceAnimation);
+	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
+	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
+	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
+	BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
 }
 
 bool AReEchoEnemyActor::IsAlive() const
@@ -323,7 +350,7 @@ void AReEchoEnemyActor::StartHitReaction(const FVector& SourceLocation)
 
 	if (!PreviousShakeOffset.IsNearlyZero())
 	{
-		CharacterSprite->SetRelativeLocation(BaseSpriteLocation);
+		VisualEffectRoot->SetRelativeLocation(BaseVisualLocation);
 		PreviousShakeOffset = FVector::ZeroVector;
 	}
 
@@ -353,7 +380,7 @@ bool AReEchoEnemyActor::UpdateHitReaction(float DeltaSeconds)
 
 	if (!PreviousShakeOffset.IsNearlyZero())
 	{
-		CharacterSprite->SetRelativeLocation(BaseSpriteLocation);
+		VisualEffectRoot->SetRelativeLocation(BaseVisualLocation);
 		PreviousShakeOffset = FVector::ZeroVector;
 	}
 
@@ -367,8 +394,8 @@ bool AReEchoEnemyActor::UpdateHitReaction(float DeltaSeconds)
 		const float RemainingRatio = HitReactionRemaining / ReactionDuration;
 		const float ShakeDistance = FMath::Sin(ElapsedTime * ShakeFrequency) * MaximumShakeDistance * RemainingRatio;
 		PreviousShakeOffset = ShakeDirection * ShakeDistance;
-		CharacterSprite->SetRelativeLocation(BaseSpriteLocation + PreviousShakeOffset);
-		CharacterSprite->SetRelativeScale3D(BaseSpriteScale * FVector(1.12f, 0.86f, 1.0f));
+		VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + PreviousShakeOffset);
+		VisualEffectRoot->SetRelativeScale3D(BaseVisualScale * FVector(1.12f, 0.86f, 1.0f));
 	}
 
 	return true;
@@ -481,8 +508,11 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage,
 void AReEchoEnemyActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	ReEchoBillboardDebug::DrawBounds(
-	    this, CharacterSprite, Kind == EReEchoEnemyKind::Boss ? FColor::Yellow : FColor::Red);
+	if (!SequenceAnimation->IsAnimationActive())
+	{
+		ReEchoBillboardDebug::DrawBounds(
+		    this, CharacterSprite, Kind == EReEchoEnemyKind::Boss ? FColor::Yellow : FColor::Red);
+	}
 	ReEchoCollisionDebug::DrawCapsule(this, Collision, Kind == EReEchoEnemyKind::Boss ? FColor::Orange : FColor::Cyan);
 	VisualTime += DeltaSeconds;
 	UpdateElementAttachmentFacing();
@@ -584,7 +614,7 @@ void AReEchoEnemyActor::StartAttackVisual()
 
 void AReEchoEnemyActor::UpdateSpriteAnimation(const float DeltaSeconds, const bool bMoving)
 {
-	if (!CharacterSprite || HitReactionRemaining > 0.0f)
+	if (!VisualEffectRoot || HitReactionRemaining > 0.0f)
 	{
 		return;
 	}
@@ -592,15 +622,15 @@ void AReEchoEnemyActor::UpdateSpriteAnimation(const float DeltaSeconds, const bo
 	const float Bob = FMath::Sin(VisualTime * (bMoving ? 8.0f : 2.6f)) * (bMoving ? 3.5f : 1.5f);
 	const float AttackPulse =
 	    AttackVisualRemaining > 0.0f ? FMath::Sin((1.0f - AttackVisualRemaining / 0.22f) * PI) : 0.0f;
-	CharacterSprite->SetRelativeLocation(BaseSpriteLocation + FVector(AttackPulse * 15.0f, 0.0f, Bob));
-	CharacterSprite->SetRelativeScale3D(BaseSpriteScale *
-	                                    FVector(1.0f + AttackPulse * 0.08f, 1.0f - AttackPulse * 0.04f, 1.0f));
+	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(AttackPulse * 15.0f, 0.0f, Bob));
+	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale *
+	                                     FVector(1.0f + AttackPulse * 0.08f, 1.0f - AttackPulse * 0.04f, 1.0f));
 }
 
 void AReEchoEnemyActor::UpdateDeathAnimation(const float DeltaSeconds)
 {
 	DeathVisualRemaining = FMath::Max(0.0f, DeathVisualRemaining - DeltaSeconds);
 	const float Ratio = DeathVisualRemaining / 0.45f;
-	CharacterSprite->SetRelativeLocation(BaseSpriteLocation + FVector(0.0f, 0.0f, -28.0f * (1.0f - Ratio)));
-	CharacterSprite->SetRelativeScale3D(BaseSpriteScale * FVector(Ratio, Ratio, 1.0f));
+	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(0.0f, 0.0f, -28.0f * (1.0f - Ratio)));
+	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale * FVector(Ratio, Ratio, 1.0f));
 }

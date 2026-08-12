@@ -14,6 +14,9 @@ class UReEchoCombatantComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 class UPointLightComponent;
+class UPaperFlipbook;
+class UReEcho2DAnimationComponent;
+class USceneComponent;
 class UTexture2D;
 class AReEchoHealthBarActor;
 
@@ -55,14 +58,17 @@ public:
 	{
 		return ElementState.Attached;
 	}
+
 	const FReEchoElementState& GetElementState() const
 	{
 		return ElementState;
 	}
+
 	FReEchoElementState& EditElementState()
 	{
 		return ElementState;
 	}
+
 	UReEchoCombatantComponent* GetCombatantComponent() const
 	{
 		return Combatant;
@@ -94,7 +100,11 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
 	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USceneComponent> VisualEffectRoot;
+	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBillboardComponent> CharacterSprite;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementAuraRing;
 	UPROPERTY(VisibleAnywhere)
@@ -105,6 +115,8 @@ private:
 	TArray<TObjectPtr<UTexture2D>> GruntTextures;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> BossTexture;
+	UPROPERTY()
+	TObjectPtr<UPaperFlipbook> GruntDefaultFlipbook;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY()
@@ -123,8 +135,8 @@ private:
 	FVector KnockbackVelocity = FVector::ZeroVector;
 	FVector ShakeDirection = FVector::ZeroVector;
 	FVector PreviousShakeOffset = FVector::ZeroVector;
-	FVector BaseSpriteLocation = FVector::ZeroVector;
-	FVector BaseSpriteScale = FVector::OneVector;
+	FVector BaseVisualLocation = FVector::ZeroVector;
+	FVector BaseVisualScale = FVector::OneVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
 	float DeathVisualRemaining = 0.0f;

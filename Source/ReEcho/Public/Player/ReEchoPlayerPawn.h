@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
 #include "GameFramework/Pawn.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationTypes.h"
 #include "ReEchoPlayerPawn.generated.h"
 
 class AReEchoEnemyActor;
@@ -14,9 +15,12 @@ class UCameraComponent;
 class UCapsuleComponent;
 class UFloatingPawnMovement;
 class UGameplayAbility;
+class UPaperFlipbook;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
+class UReEcho2DAnimationComponent;
 class UReEchoRecorderComponent;
+class USceneComponent;
 class UStaticMeshComponent;
 class UTexture2D;
 
@@ -73,7 +77,13 @@ public:
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<USceneComponent> VisualEffectRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UBillboardComponent> CharacterSprite;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCameraComponent> Camera;
@@ -147,6 +157,8 @@ private:
 	void AbilityInputReleased(const FGameplayTag& InputTag);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
+	void UpdateSpadeAnimationState(bool bMoving);
+	void TransitionSpadeAnimationState(EReEcho2DAnimationState NewState);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
@@ -154,17 +166,25 @@ private:
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
+	UPROPERTY()
+	TObjectPtr<UPaperFlipbook> SpadeIdleFlipbook;
+	UPROPERTY()
+	TObjectPtr<UPaperFlipbook> SpadeAttackFlipbook;
+	FName CurrentCharacterId;
+	EReEcho2DAnimationState Current2DAnimationState = EReEcho2DAnimationState::Idle;
+
 	bool bMouseInputConfigured = false;
 	bool bAutoAttackMode = true;
 	bool bAutoAttackInputHeld = false;
 	bool bManualAttackInputHeld = false;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
-	FVector BaseSpriteLocation = FVector::ZeroVector;
-	FVector BaseSpriteScale = FVector::OneVector;
+	FVector BaseVisualLocation = FVector::ZeroVector;
+	FVector BaseVisualScale = FVector::OneVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
 	float AttackVisualDuration = 0.0f;
 	float AttackVisualStrength = 0.0f;
+	float SequenceAttackRemaining = 0.0f;
 	float HitVisualRemaining = 0.0f;
 	float VisualFacingSign = 1.0f;
 	float AppliedVisualFacingSign = 0.0f;
