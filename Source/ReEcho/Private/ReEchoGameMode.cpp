@@ -1055,7 +1055,7 @@ void AReEchoGameMode::ToggleInventoryMenu()
 		HandleInventoryShopClosed();
 		return;
 	}
-	ShowInventoryShopMenu(false);
+	ShowInventoryShopMenu(EReEchoInventoryShopMode::Inventory);
 }
 
 void AReEchoGameMode::ToggleShopMenu()
@@ -1065,10 +1065,10 @@ void AReEchoGameMode::ToggleShopMenu()
 		HandleInventoryShopClosed();
 		return;
 	}
-	ShowInventoryShopMenu(true);
+	ShowInventoryShopMenu(EReEchoInventoryShopMode::ManualShop);
 }
 
-void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
+void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 {
 	if (StatsWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
 	{
@@ -1093,9 +1093,21 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 		return;
 	}
 
-	InventoryShopWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleInventoryShopClosed);
-	InventoryShopWidget->OnPurchaseRequested.AddDynamic(this, &AReEchoGameMode::HandleShopPurchaseRequested);
-	if (bShowShop)
+	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
+	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
+	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
+	{
+		bPostTraitShopClosing = false;
+		InventoryShopWidget->OnEchoStoreRequested.AddUObject(this, &AReEchoGameMode::HandleEchoStoreRequested);
+		InventoryShopWidget->OnEchoSkipRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSkipRequested);
+		InventoryShopWidget->OnEchoReplaceRequested.AddUObject(this, &AReEchoGameMode::HandleEchoReplaceRequested);
+		InventoryShopWidget->OnEchoSelectionRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSelectionRequested);
+		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(
+		    this, &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
+		InventoryShopWidget->ShowPostTraitIntermission(
+		    RunSubsystem->TimeShards, RunSubsystem->InventoryItems, RunSubsystem->GetEchoStorageSummary());
+	}
+	else if (Mode == EReEchoInventoryShopMode::ManualShop)
 	{
 		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
 	}
@@ -1103,13 +1115,28 @@ void AReEchoGameMode::ShowInventoryShopMenu(const bool bShowShop)
 	{
 		InventoryShopWidget->ShowInventory(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
 	}
-	// Preserve the existing local echo-management bridge while UI Flow owns viewport/input lifecycle.
-	InventoryShopWidget->RefreshEchoState(RunSubsystem);
 	SetPlayerMenuAbilityBlocked(true);
 }
 
 void AReEchoGameMode::HandleInventoryShopClosed()
 {
+	if (bPostTraitShopClosing)
+	{
+		return;
+	}
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const bool bPostTraitIntermission =
+	    InventoryShopWidget && InventoryShopWidget->GetMode() == EReEchoInventoryShopMode::PostTraitIntermission;
+	if (bPostTraitIntermission && RunSubsystem && RunSubsystem->GetEchoStorageSummary().bHasPendingRecording)
+	{
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
+		return;
+	}
+	if (bPostTraitIntermission)
+	{
+		bPostTraitShopClosing = true;
+	}
 	const bool bShouldStartNextEncounter = bContinueRunAfterShop;
 	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
@@ -1134,7 +1161,168 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	if (RunSubsystem && InventoryShopWidget && RunSubsystem->PurchaseShopItem(ItemId))
 	{
 		RunSubsystem->SaveRun();
-		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
+		if (InventoryShopWidget->GetMode() == EReEchoInventoryShopMode::PostTraitIntermission)
+		{
+			InventoryShopWidget->ShowPostTraitIntermission(
+			    RunSubsystem->TimeShards, RunSubsystem->InventoryItems, RunSubsystem->GetEchoStorageSummary());
+		}
+		else
+		{
+			InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
+		}
+	}
+}
+
+namespace
+{
+FText GetEchoCommandFailureText(const EReEchoEchoStorageResult Result)
+{
+	switch (Result)
+	{
+	case EReEchoEchoStorageResult::NoPendingRecording:
+		return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
+	case EReEchoEchoStorageResult::StorageFull:
+		return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
+	case EReEchoEchoStorageResult::InvalidReplacementTarget:
+		return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
+	case EReEchoEchoStorageResult::ReplayLimitExceeded:
+		return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
+	case EReEchoEchoStorageResult::InvalidRecordingId:
+	case EReEchoEchoStorageResult::DuplicateRecordingId:
+		return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
+	default:
+		return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
+	}
+}
+}
+
+void AReEchoGameMode::HandleEchoStoreRequested()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		return;
+	}
+	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecording();
+	if (Result == EReEchoEchoStorageResult::Success)
+	{
+		const bool bSaved = RunSubsystem->SaveRun();
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(
+		    bSaved ? NSLOCTEXT("ReEcho", "EchoStored", "Echo stored.")
+		           : NSLOCTEXT("ReEcho", "EchoStoreSaveFailed", "Echo stored in this session, but saving failed."));
+	}
+	else if (Result == EReEchoEchoStorageResult::StorageFull)
+	{
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->EnterEchoReplacementMode();
+	}
+	else
+	{
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
+	}
+}
+
+void AReEchoGameMode::HandleEchoSkipRequested()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		return;
+	}
+	const EReEchoEchoStorageResult Result = RunSubsystem->SkipPendingRecordingStorage();
+	if (Result == EReEchoEchoStorageResult::Success)
+	{
+		const bool bSaved = RunSubsystem->SaveRun();
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(
+		    bSaved ? NSLOCTEXT("ReEcho", "EchoSkipped", "Echo skipped.")
+		           : NSLOCTEXT("ReEcho", "EchoSkipSaveFailed", "Echo skipped in this session, but saving failed."));
+	}
+	else
+	{
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
+	}
+}
+
+void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		return;
+	}
+	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingReplacing(RecordingId);
+	if (Result == EReEchoEchoStorageResult::Success)
+	{
+		const bool bSaved = RunSubsystem->SaveRun();
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(
+		    bSaved ? NSLOCTEXT("ReEcho", "EchoReplaced", "Stored echo replaced.")
+		           : NSLOCTEXT("ReEcho", "EchoReplaceSaveFailed", "Echo replaced in this session, but saving failed."));
+	}
+	else
+	{
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
+	}
+}
+
+void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		return;
+	}
+	const EReEchoEchoStorageResult Result = RunSubsystem->SetSelectedReplayIds(RecordingIds);
+	if (Result == EReEchoEchoStorageResult::Success)
+	{
+		const bool bSaved = RunSubsystem->SaveRun();
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(
+		    bSaved ? NSLOCTEXT("ReEcho", "EchoSelectionSaved", "Replay selection saved.")
+		           : NSLOCTEXT("ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
+	}
+	else
+	{
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
+	}
+}
+
+void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget || bPostTraitShopClosing)
+	{
+		return;
+	}
+	const EReEchoEchoStorageResult Result = RunSubsystem->SkipPendingRecordingStorage();
+	if (Result != EReEchoEchoStorageResult::Success)
+	{
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
+		return;
+	}
+	const FReEchoEncounterRuntimeState EncounterState = CaptureEncounterRuntimeState();
+	const bool bSaved = RunSubsystem->Phase == EReEchoRunPhase::Encounter
+	                        ? EncounterState.bValid && RunSubsystem->SaveRun(&EncounterState)
+	                        : RunSubsystem->SaveRun();
+	if (!bSaved)
+	{
+		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "EchoCloseSaveFailed", "The echo was skipped, but saving failed. The shop remains open."));
+		return;
+	}
+	const FReEchoEchoStorageSummary Summary = RunSubsystem->GetEchoStorageSummary();
+	InventoryShopWidget->SetEchoSummary(Summary);
+	if (!Summary.bHasPendingRecording)
+	{
+		InventoryShopWidget->CompletePostTraitClose();
 	}
 }
 
@@ -1372,12 +1560,18 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 
 void AReEchoGameMode::ShowPostTraitShop()
 {
-	ShowInventoryShopMenu(true);
+	ShowInventoryShopMenu(EReEchoInventoryShopMode::PostTraitIntermission);
 	if (InventoryShopWidget)
 	{
 		return;
 	}
 
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (RunSubsystem && RunSubsystem->GetEchoStorageSummary().bHasPendingRecording)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Post-trait shop failed to open while an echo decision is pending."));
+		return;
+	}
 	bContinueRunAfterShop = false;
 	RestoreGameInput();
 	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
