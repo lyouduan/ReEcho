@@ -1,6 +1,6 @@
 # ReEcho project state
 
-Last updated: 2026-08-11. Current snapshot only; history belongs in Plans and Git.
+Last updated: 2026-08-12. Current snapshot only; history belongs in Plans and Git.
 
 ## Playable state
 
@@ -32,14 +32,14 @@ Last updated: 2026-08-11. Current snapshot only; history belongs in Plans and Gi
 
 ## Collaboration protocol
 
-- New distributed Plans publish a pure planning batch to an advertised `coord/...` ref before an external Executor starts.
+- Plans, task branches and worktrees remain local until accepted integration; `origin/main` is the only remote branch.
 - Lifecycle uses `Proposed | Ready | InProgress | Review | Closed | Blocked`; human validation uses `NotRequired | PendingBeforeClose | PendingFollowUp | Passed`; ownership state is separate.
 - Executors write their Plan and owned implementation docs. Planners update shared state/lessons/routes once during review, reducing parallel Markdown conflicts.
-- `Isolated` and `ReadOnly` work may proceed after broadcast. `SharedContract`/`Exclusive` overlap requires agreement; only `Active Exclusive` ownership blocks another writer.
-- Provider/consumer work publishes a stable read-only surface; consumers integrate current `origin/main` and rerun affected checks before review.
+- `Isolated` and `ReadOnly` local work may proceed immediately. `SharedContract`/`Exclusive` overlap requires agreement; only `Active Exclusive` ownership blocks another writer.
+- Cross-machine consumers use only accepted surfaces on `origin/main`; unpublished provider/consumer parallelism is limited to one clone.
 - Local merge does not authorize remote publication. Each publication uses a current-remote candidate, proportional verification, non-force push and either one-candidate or documented standing scoped human authorization.
-- When fetch reveals external commits, the Planner reports Physical/Git conflict, Logical conflict and Coupling before any pull/merge/rebase/push, then integrates only the human-selected outcome; a fast-forward does not bypass this gate.
-- `origin/main` contains the accepted implementation lineage through Plan25. New work fetches it directly; old `coord/...` refs are not permanent bases.
+- When fetch reveals external main commits, the Planner reports Physical/Git conflict, Logical conflict, Coupling and Plan-number collisions before any pull/merge/rebase/push, then integrates only the human-selected outcome; a fast-forward does not bypass this gate.
+- Remote main owns published Plan numbers. A colliding unpublished local Plan and every later unpublished local Plan shift together to the first free ordered range.
 
 ## Verified toolchain
 
