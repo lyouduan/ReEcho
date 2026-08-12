@@ -70,6 +70,8 @@ A conflict-free fast-forward can still contain a logical conflict. Conversely, o
 
 `origin/main` is the only permitted remote branch. Planning drafts and implementation branches stay local.
 
+Standing scoped authorization: after review and validation, publish completed changes limited to authoritative workflow/rule documents, `plans/TEMPLATE.md`, and the matching validator/tests promptly to `origin/main`. A minimal Exchange schema migration required by that rule change may accompany it, but live local Plan drafts, reservations and implementation are excluded. A fresh external-main audit is still mandatory, and any later human instruction may revoke or narrow this authorization.
+
 1. Fetch immediately before building the candidate. If main advanced, run the full external-commit audit and wait for the human's integration choice.
 2. Integrate current `origin/main`, all named accepted scope and no unapproved WIP. Renumber unpublished local Plans when remote main already owns a number.
 3. Re-run checks affected by integration, conflicts, renumbering or base changes.
