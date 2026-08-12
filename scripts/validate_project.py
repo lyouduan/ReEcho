@@ -953,13 +953,15 @@ def validate_workflow() -> None:
         if not row.startswith("|") or row.startswith("|---") or "| Plan |" in row:
             continue
         cells = [cell.strip().strip("`") for cell in row.strip("|").split("|")]
-        if len(cells) != 7:
-            fail("PLANNER_EXCHANGE.md announcement rows must use the canonical seven-column schema")
-        if cells[2] not in {"Proposed", "Ready", "InProgress", "Review", "Closed", "Blocked"}:
-            fail(f"PLANNER_EXCHANGE.md uses unknown task status: {cells[2]}")
-        if cells[3] not in {"NotRequired", "PendingBeforeClose", "PendingFollowUp", "Passed"}:
-            fail(f"PLANNER_EXCHANGE.md uses unknown human-validation state: {cells[3]}")
-        if cells[2] == "Closed" and cells[3] != "PendingFollowUp":
+        if len(cells) != 8:
+            fail("PLANNER_EXCHANGE.md announcement rows must use the canonical eight-column schema")
+        if not cells[1] or "/" not in cells[1]:
+            fail("PLANNER_EXCHANGE.md announcement rows must identify Plan and implementation AI sides")
+        if cells[3] not in {"Proposed", "Ready", "InProgress", "Review", "Closed", "Blocked"}:
+            fail(f"PLANNER_EXCHANGE.md uses unknown task status: {cells[3]}")
+        if cells[4] not in {"NotRequired", "PendingBeforeClose", "PendingFollowUp", "Passed"}:
+            fail(f"PLANNER_EXCHANGE.md uses unknown human-validation state: {cells[4]}")
+        if cells[3] == "Closed" and cells[4] != "PendingFollowUp":
             fail("closed Exchange rows are retained only for a live PendingFollowUp; otherwise remove them")
     active_block = exchange_text.split("## Active ownership", 1)[1].split("## Warnings / blocked items", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
@@ -992,8 +994,11 @@ def validate_workflow() -> None:
         fail("PROJECT_STATE.md must not cache a self-staling current origin/main hash")
     required_template_fields = (
         "## Coordination",
+        "Plan authored by (AI side):",
+        "Implementation authored by (AI side):",
         "Task status:",
         "Human validation:",
+        "Local planning / implementation base:",
         "Impact mode:",
         "Writes:",
         "Stable Reads:",
@@ -1002,7 +1007,7 @@ def validate_workflow() -> None:
     )
     missing_template_fields = [field for field in required_template_fields if field not in plan_template]
     if missing_template_fields:
-        fail(f"Plan template lacks distributed coordination fields: {', '.join(missing_template_fields)}")
+        fail(f"Plan template lacks local coordination fields: {', '.join(missing_template_fields)}")
     if "git rev-parse --path-format=absolute --git-common-dir" not in executor_rules:
         fail("Executor lock guidance must use the Git common directory shared by worktrees")
     if "Executors update their assigned Plan's Execution notes" not in project_rules:
@@ -1020,6 +1025,35 @@ def validate_workflow() -> None:
     missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
     if missing_audit_markers:
         fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
+    main_only_markers = {
+        "PROJECT_RULES.md": ("`origin/main` is the only permitted remote branch", "never push any remote ref"),
+        "PLANNER_RULES.md": ("`origin/main` is the only permitted remote branch", "Plan-number conflicts"),
+        "EXECUTOR_RULES.md": ("`origin/main` is the only remote branch", "Do not push the task branch"),
+        "WORKFLOW.md": ("exactly one branch: `main`", "Planning drafts are not published merely to announce intent"),
+    }
+    main_only_texts = {
+        "PROJECT_RULES.md": project_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "WORKFLOW.md": workflow_text,
+    }
+    for name, markers in main_only_markers.items():
+        missing = [marker for marker in markers if marker not in main_only_texts[name]]
+        if missing:
+            fail(f"{name} lacks main-only remote workflow markers: {', '.join(missing)}")
+    live_remote_side_ref_files = {
+        "AGENTS.md": agents,
+        "PROJECT_RULES.md": project_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "WORKFLOW.md": workflow_text,
+        "PROJECT_STATE.md": state_text,
+        "PLANNER_EXCHANGE.md": exchange_text,
+        "plans/TEMPLATE.md": plan_template,
+    }
+    for name, text_value in live_remote_side_ref_files.items():
+        if "coord/" in text_value or "Planning broadcast" in text_value or "push only the task branch" in text_value:
+            fail(f"{name} still advertises a remote planning/task side-ref workflow")
     if "Design/Data/ReEchoData.xlsx" not in readme_text or "generated into validated CSV" not in readme_text:
         fail("README.md must describe the current XLSX-to-CSV authority")
     if "not a workflow authority" not in docs_workflow_text or "`shared/` is the collaboration control plane" not in docs_workflow_text:
