@@ -27,7 +27,7 @@ Attack mode is run-local persisted state: a new run starts automatic, while Cont
 
 ## Locked acceptance
 
-- [ ] A fresh run starts `Automatic`; later encounters and Continue restore the run's saved attack mode before accepting gameplay input.
+- [x] A fresh run starts `Automatic`; later encounters and Continue restore the run's saved attack mode before accepting gameplay input.
 - [x] `P` is the only pause entry: it pauses the world, blocks gameplay abilities and opens the existing `UReEchoRestartWidget`; `Esc` is not retained as a second pause mapping and no second attack-mode modal is introduced.
 - [ ] The latest Restart WBP visibly shows the current mode through an embedded attack-mode panel. Choosing either mode does not close or resume; Resume or `P` restores gameplay exactly once.
 - [x] Existing start/loadout, trait, shop, inventory, stats, settings, death/victory and pause-menu ownership cannot stack. Adding attack-mode choices does not alter resume, restart, settings, save-and-quit confirmation, save failure, death or victory actions.
@@ -76,7 +76,7 @@ Attack mode is run-local persisted state: a new run starts automatic, while Cont
 - `P` is the sole pause mapping and still executes while paused. The existing Restart screen owns pause/resume; a native Blueprintable attack-mode child is dynamically embedded under its existing `MenuContent` without adding a top-level screen or restoring direct viewport ownership.
 - Choosing automatic/manual updates RunSubsystem and Player state, saves immediately, refreshes the mode label and deliberately remains paused. Only Resume or `P` resumes.
 - Every gameplay-blocking menu releases synthetic held basic-attack input through `SetPlayerMenuAbilityBlocked(true)`.
-- Objective evidence: `validate_project.py` PASS; Editor Development build Succeeded; `ReEcho.AttackMode` automation 5/5 `Result={Success}` (`ReEcho.AttackMode.InputSource`, `NoRecording`, `SaveAndMigration`, `StateAndHeldInput`, `Targeting`), `EXIT CODE: 0`; `git diff --check` clean. Full `ReEcho` suite and `CompileAllBlueprints` are run by the Planner on main integration. Visual/PIE validation remains with the user.
+- Objective evidence on the current-main integration: `validate_project.py` PASS; Editor Development build Succeeded; `CompileAllBlueprints` completed with 0 errors, 0 warnings and 0 failed loads; `ReEcho.AttackMode` automation 5/5 and the full `ReEcho` suite 51/51 returned `Result={Success}`, `EXIT CODE: 0`; `git diff --check` clean. Visual/PIE validation remains with the user.
 
 ## Planner review finding (2026-08-12, rework required)
 
@@ -96,6 +96,13 @@ The input-source defect is resolved on `integration/gavyn-umg-gameplay-20260812`
 - Added deterministic automation `ReEcho.AttackMode.InputSource` covering physical press/release in automatic mode with a valid target and with no target, plus mode-switch release of the manual source. No PIE/world required.
 
 Objective verification (Executor, no PIE): `validate_project.py` PASS; Editor Development build Succeeded; `ReEcho.AttackMode` automation = 5/5 `Result={Success}` (`ReEcho.AttackMode.InputSource`, `NoRecording`, `SaveAndMigration`, `StateAndHeldInput`, `Targeting`), `EXIT CODE: 0`; `git diff --check` clean. `.clang-format` unavailable locally; diff manually inspected against repository style. Human validation remains `PendingBeforeClose`.
+
+## Planner integration result (2026-08-12, current main candidate)
+
+- Semantically integrated Plan28 onto current main without merging the mixed Plan32 shop implementation. The pause entry remains `P`; input config, binding, plan and UI copy agree.
+- Reviewed the physical/synthetic input-source lifecycle and accepted the correction: physical press/release is manual-mode-only, switching modes releases the previous owner and opening a gameplay-blocking menu releases both sources.
+- Objective gates passed: static validation; Editor Development build; Blueprint compilation with 0 errors, 0 warnings and 0 failed loads; focused attack-mode automation 5/5; full `ReEcho` automation 51/51; whitespace/path audit clean.
+- Plan remains `Review` / `PendingBeforeClose` solely for the user's PIE/game-feel and visual validation.
 
 ## Historical behavior-branch notes (superseded where they conflict above)
 
