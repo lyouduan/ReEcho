@@ -76,6 +76,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Added UMG-owned dynamic containers for loadout character/weapon entries and trait-card entries; C++ rebuilds reusable indexed children from stable CSV/offer IDs while retaining the full native fallback presentation.
 - Created native-parent WBP assets for encounter HUD, enemy health bar, Start Menu, Loadout, Settings, Restart and Trait Choice, and routed runtime construction through hard-referenced designer classes with native fallback.
 - Added designer-owned button labels to Start Menu, Settings, Loadout and Restart, centered the menu panels in explicit DPI-scalable safe regions, and nested the stateful quit label inside its button so C++ state changes update the visible UMG presentation.
+- Positioned the encounter status and countdown in a right-top safe area; gave the enemy world-space bar a designer-owned background/fill presentation; and made the Trait Choice WBP own the full-screen card anchor field, header, currency and animated needle layers while C++ continues to populate stable-ID cards.
 
 ### Evidence
 
