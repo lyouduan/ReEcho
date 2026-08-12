@@ -115,7 +115,6 @@ Do not commit a self-referential current-main hash into live state. Git and the 
 
 At review/closure, and only where relevant:
 
-- `PROJECT_STATE.md`: current product/progress/toolchain snapshot, never chronology.
 - `CODEBASE_MAP.md`: changed retrieval routes/responsibilities only.
 - `LESSONS.md`: reusable evidence-backed lessons with source Plan.
 - `PLANNER_EXCHANGE.md`: current local work/ownership/warnings only; remove closed rows rather than keeping history.

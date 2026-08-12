@@ -34,7 +34,7 @@ If the human explicitly assigns Project Secretary duty, also read `shared/SECRET
 ## Conditional context
 
 - Programmer implementation: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only after a failure requires diagnosis.
-- Programmer planning/review/closure: read `shared/PROJECT_STATE.md`, the relevant section of `shared/PLANNER_RULES.md`, and the plan diff. Do not load all of `LESSONS.md`.
+- Programmer planning/review/closure: read the relevant section of `shared/PLANNER_RULES.md`, the live Exchange blocks, the assigned Plan and its diff. Use `CODEBASE_MAP.md` only for affected routes; do not load all of `LESSONS.md`.
 - Designer or artist work: use the handoff and verification boundary in its professional-role file. Do not silently promote a specialist task into programmer implementation.
 - Distributed planning: follow `shared/PLANNER_RULES.md` to fetch and inspect the remote maximum before numbering, then publish the numbered Plan to `origin/main` before execution; external differences still follow its audit gate.
 - Project Secretary work: read `shared/SECRETARY_RULES.md` for rule-system maintenance, Plan/Exchange/schema coordination, accepted-result integration, cleanup and publication boundaries.

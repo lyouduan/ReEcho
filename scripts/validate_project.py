@@ -932,14 +932,12 @@ def validate_workflow() -> None:
         "EXECUTOR_RULES.md",
         "LESSONS.md",
         "PROJECT_RULES.md",
-        "PROJECT_STATE.md",
         "PLANNER_EXCHANGE.md",
     }
     absent_shared = sorted(name for name in required_shared if not (ROOT / "shared" / name).is_file())
     if absent_shared:
         fail(f"workflow deployment incomplete: {', '.join(absent_shared)}")
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    state_text = (ROOT / "shared" / "PROJECT_STATE.md").read_text(encoding="utf-8")
     exchange_text = (ROOT / "shared" / "PLANNER_EXCHANGE.md").read_text(encoding="utf-8")
     planner_rules = (ROOT / "shared" / "PLANNER_RULES.md").read_text(encoding="utf-8")
     executor_rules = (ROOT / "shared" / "EXECUTOR_RULES.md").read_text(encoding="utf-8")
@@ -1003,10 +1001,6 @@ def validate_workflow() -> None:
         fail("PROJECT_RULES.md must point to SECRETARY_RULES.md without redefining secretary duty")
     if "Ordinary tasks follow `AGENTS.md` directly" not in onboarding_text:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
-    if len(state_text.splitlines()) > 80:
-        fail("PROJECT_STATE.md exceeded 80 lines; move history to plans/Git")
-    if "34 `ReEcho.*` automation tests" not in state_text:
-        fail("PROJECT_STATE.md must report the current thirty-four-test suite")
     if "## Recently closed" in exchange_text or "## Decisions" in exchange_text:
         fail("PLANNER_EXCHANGE.md must contain live coordination only, not history or permanent rules")
     announcement_block = exchange_text.split("## Planned and active work announcements", 1)[1].split("## Active ownership", 1)[0]
@@ -1049,10 +1043,8 @@ def validate_workflow() -> None:
         if "<待定>" in text or "<RESOURCE_LOCK>" in text:
             fail(f"{name} still contains a generic workflow placeholder")
     for stale_token in ("ReadyForHandoff", "InProgress/Rework", "origin/main` at `df6e60a"):
-        if stale_token in exchange_text or stale_token in state_text:
+        if stale_token in exchange_text:
             fail(f"live workflow memory contains stale token: {stale_token}")
-    if re.search(r"origin/main[^\n]{0,40}`[0-9a-f]{7,40}`", state_text, re.IGNORECASE):
-        fail("PROJECT_STATE.md must not cache a self-staling current origin/main hash")
     required_template_fields = (
         "## Coordination",
         "Plan authored by (AI side):",
@@ -1102,8 +1094,6 @@ def validate_workflow() -> None:
         fail("PROJECT_RULES.md must route numbered Plans through the remote-first Planner rule")
     if "Numbered Plans are published to `main` before implementation starts" not in workflow_text:
         fail("WORKFLOW.md must explain remote-first numbered Plan publication")
-    if "Numbered Plan files and their necessary live coordination are published to `origin/main` before execution" not in state_text:
-        fail("PROJECT_STATE.md must reflect remote-first numbered Plan publication")
     compact_prompt_markers = (
         "startup prompt is only a neutral routing envelope",
         "must not assign a new identity",
@@ -1137,7 +1127,6 @@ def validate_workflow() -> None:
         "PLANNER_RULES.md": planner_rules,
         "EXECUTOR_RULES.md": executor_rules,
         "WORKFLOW.md": workflow_text,
-        "PROJECT_STATE.md": state_text,
         "PLANNER_EXCHANGE.md": exchange_text,
         "plans/TEMPLATE.md": plan_template,
     }

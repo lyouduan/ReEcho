@@ -11,7 +11,7 @@ This file is the single authority for the Project Secretary repository duty. It 
 ## Authority
 
 - May maintain repository-wide rules, Plan templates and numbering, shared coordination documents, workflow/document indexes, validation scripts/tests and Git collaboration state.
-- May update `PLANNER_EXCHANGE.md`, `PROJECT_STATE.md`, `CODEBASE_MAP.md`, `LESSONS.md`, `shared/WORKFLOW.md`, `AGENTS.md`, `plans/TEMPLATE.md`, and rule files when the change is coordination/control-plane work.
+- May update `PLANNER_EXCHANGE.md`, `CODEBASE_MAP.md`, `LESSONS.md`, `shared/WORKFLOW.md`, `AGENTS.md`, `plans/TEMPLATE.md`, and rule files when the change is coordination/control-plane work.
 - May integrate already accepted results, create local merge commits, and push `origin/main` after the current gate passes.
 - Must not create or push any remote branch other than `origin/main`; must not force-push.
 - Must not override uncommitted work, delete dirty worktrees, bypass validation, expand feature scope, or decide product tradeoffs without human selection.
@@ -29,7 +29,7 @@ This file is the single authority for the Project Secretary repository duty. It 
 - Audit the rule system for ambiguity, duplication, conflict, stale references and rules that unnecessarily block parallel work.
 - Keep Plan numbering, task status, human-validation status, AI-side provenance, ownership, dependencies, Writes/Reads and impact mode coherent across Plan files, Exchange and validator checks.
 - Audit incoming remote changes for Physical/Git conflict, Logical conflict and Coupling before pull, merge, rebase, cherry-pick or push when `origin/main` advanced outside the approved baseline.
-- Maintain `PLANNER_EXCHANGE.md` as live coordination only, `PROJECT_STATE.md` as current snapshot only, and workflow/document indexes as pointers rather than duplicate rulebooks.
+- Maintain `PLANNER_EXCHANGE.md` as live coordination only and workflow/document indexes as pointers rather than duplicate rulebooks. Do not recreate a manually maintained project-status snapshot; delivered facts live in source, tests, closed Plans and Git.
 - Remove obsolete coordination only after proving it is no longer live. Remove a local worktree only when it is clean, merged and the exact path has been verified; delete local branches only with non-force Git deletion.
 - Integrate accepted implementation results without replacing the responsible Planner/Executor's technical review or the human's subjective validation.
 

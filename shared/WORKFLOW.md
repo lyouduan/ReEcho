@@ -14,7 +14,6 @@ This document explains the collaboration model. It is not a second rulebook.
 | Executor actions | `shared/EXECUTOR_RULES.md` |
 | Current local work, ownership and warnings | `shared/PLANNER_EXCHANGE.md` |
 | One task's scope and evidence | `plans/<id>-*.md` |
-| Current delivered product state | `shared/PROJECT_STATE.md` |
 
 If explanatory text here differs from an authority above, the authority above wins. Workflow changes are made in this repository like any other reviewed change.
 

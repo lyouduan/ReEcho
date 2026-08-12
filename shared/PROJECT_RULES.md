@@ -43,7 +43,7 @@ These are the project-level hard rules. `AGENTS.md` owns startup and professiona
 ## Documentation ownership
 
 - Executors update their assigned Plan's Execution notes and documentation directly tied to their owned implementation.
-- Executors do not routinely edit `PROJECT_STATE.md`, `CODEBASE_MAP.md`, `LESSONS.md` or workflow rules. The Planner updates those once during review/closure; an Executor edits them only when the Plan explicitly owns that document.
+- Executors do not routinely edit `CODEBASE_MAP.md`, `LESSONS.md` or workflow rules. The Planner updates those once during review/closure; an Executor edits them only when the Plan explicitly owns that document.
 - Update Exchange during implementation only when ownership, Writes, dependencies, lifecycle or a shared contract changes.
 - Update `CODEBASE_MAP.md` only when a retrieval route or responsibility moves. Add to `LESSONS.md` only for reusable evidence-backed lessons, not a task diary.
 - Staged implementation and its local documentation must agree. Documentation-neutral commits do not require a ceremonial shared-file edit.
