@@ -14,9 +14,12 @@ class UCameraComponent;
 class UCapsuleComponent;
 class UFloatingPawnMovement;
 class UGameplayAbility;
+class UPaperFlipbook;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
+class UReEcho2DAnimationComponent;
 class UReEchoRecorderComponent;
+class USceneComponent;
 class UStaticMeshComponent;
 class UTexture2D;
 
@@ -73,7 +76,13 @@ public:
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<USceneComponent> VisualEffectRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UBillboardComponent> CharacterSprite;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCameraComponent> Camera;
@@ -154,13 +163,16 @@ private:
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
+	UPROPERTY()
+	TObjectPtr<UPaperFlipbook> SpadeIdleFlipbook;
+
 	bool bMouseInputConfigured = false;
 	bool bAutoAttackMode = true;
 	bool bAutoAttackInputHeld = false;
 	bool bManualAttackInputHeld = false;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
-	FVector BaseSpriteLocation = FVector::ZeroVector;
-	FVector BaseSpriteScale = FVector::OneVector;
+	FVector BaseVisualLocation = FVector::ZeroVector;
+	FVector BaseVisualScale = FVector::OneVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
 	float AttackVisualDuration = 0.0f;

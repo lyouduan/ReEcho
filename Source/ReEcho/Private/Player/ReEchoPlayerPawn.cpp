@@ -12,6 +12,7 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Components/BillboardComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -25,6 +26,9 @@
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "PaperFlipbook.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationProfile.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoGameMode.h"
@@ -58,13 +62,17 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 		                           TEXT("/Game/ReEcho/Textures/Characters/SoftGroundShadow.SoftGroundShadow")));
 		GroundShadow->SetMaterial(0, ShadowMaterial);
 	}
+	VisualEffectRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualEffectRoot"));
+	VisualEffectRoot->SetupAttachment(RootComponent);
 	CharacterSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("CharacterSprite"));
-	CharacterSprite->SetupAttachment(RootComponent);
+	CharacterSprite->SetupAttachment(VisualEffectRoot);
 	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CharacterSprite->SetHiddenInGame(false);
 	CharacterSprite->SetVisibility(true);
 	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	CharacterSprite->bIsScreenSizeScaled = false;
+	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
+	SequenceAnimation->SetupAttachment(VisualEffectRoot);
 	if (UTexture2D* CharacterTexture =
 	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Characters/Player2D.Player2D")))
 	{
@@ -87,6 +95,8 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CharacterTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
+	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeIdleFinder(TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
+	SpadeIdleFlipbook = SpadeIdleFinder.Object;
 	ConfigureCharacter(TEXT("J_CAT"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
@@ -129,7 +139,24 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
 	IdleAnimationFrames = {Texture};
 	AttackAnimationFrames = {Texture};
-	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
+	static const FName SpadeCharacterId(TEXT("J_SPADE"));
+	FReEcho2DAnimationProfile Profile;
+	Profile.DefaultFlipbook = CharacterId == SpadeCharacterId ? SpadeIdleFlipbook : nullptr;
+	Profile.WorldHeight = CharacterWorldHeight;
+	Profile.TranslucentSortPriority = 10;
+	const bool bUseSequenceAnimation =
+	    CharacterId == SpadeCharacterId &&
+	    SequenceAnimation->ActivateProfile(Profile) == EReEcho2DAnimationActivationResult::Activated;
+	if (!bUseSequenceAnimation)
+	{
+		SequenceAnimation->DeactivateAnimation();
+	}
+	CharacterSprite->SetVisibility(!bUseSequenceAnimation);
+	CharacterSprite->SetHiddenInGame(bUseSequenceAnimation);
+	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
+	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
+	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
+	BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
 	return true;
 }
 
@@ -182,8 +209,8 @@ void AReEchoPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
 	UpdateFollowCamera();
-	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
-	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
+	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
+	BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
 
 	ConfigureMouseInput();
 
@@ -262,7 +289,10 @@ void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 	}
 
 	UpdateSpriteAnimation(DeltaSeconds);
-	ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor::Green);
+	if (!SequenceAnimation->IsAnimationActive())
+	{
+		ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor::Green);
+	}
 	ReEchoCollisionDebug::DrawCapsule(this, Collision, FColor::Cyan);
 }
 
@@ -692,7 +722,7 @@ void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Stre
 
 void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 {
-	if (!CharacterSprite)
+	if (!VisualEffectRoot)
 	{
 		return;
 	}
@@ -719,13 +749,18 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 		ScaleX *= 1.12f;
 		ScaleY *= 0.86f;
 	}
-	CharacterSprite->SetRelativeLocation(BaseSpriteLocation + FVector(Lunge, 0.0f, Bob));
-	CharacterSprite->SetRelativeScale3D(BaseSpriteScale * FVector(ScaleX, ScaleY, 1.0f));
+	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(Lunge, 0.0f, Bob));
+	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale * FVector(ScaleX, ScaleY, 1.0f));
 	UpdateSequenceFrame();
 }
 
 void AReEchoPlayerPawn::UpdateSequenceFrame()
 {
+	if (SequenceAnimation && SequenceAnimation->IsAnimationActive())
+	{
+		SequenceAnimation->SetFacingSign(VisualFacingSign);
+		return;
+	}
 	UTexture2D* Frame = nullptr;
 	if (AttackVisualRemaining > 0.0f && AttackVisualDuration > 0.0f && AttackAnimationFrames.Num() > 0)
 	{
