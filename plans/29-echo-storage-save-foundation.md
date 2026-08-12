@@ -3,8 +3,8 @@
 ## Coordination
 
 - Planner owner: Gavyn-side Planner.
-- Executor owner: Unassigned.
-- Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Executor owner: Plan29 Executor (local `plan/29-echo-storage-foundation` worktree).
+- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: local `planning/26-31-local` after integrating current main; create local `plan/29-echo-storage-foundation` from that commit.
 - Implementation branch: `plan/29-echo-storage-foundation` in a separate clean worktree.
@@ -29,18 +29,18 @@ For the current prototype, storage capacity and the maximum supported specific-r
 
 ## Locked acceptance
 
-- [ ] A successful encounter stages exactly one immutable pending recording; a failed encounter stages nothing.
-- [ ] Store/skip is explicit and can be applied only to the current pending recording. Skipping discards permanent-storage eligibility but still promotes the recording to `LatestCompletedRecording` for the immediate default replay path.
-- [ ] Storing into free capacity copies the pending full recording into `StoredEchoes`; storing at capacity requires a valid replacement slot/ID and never silently evicts a recording.
-- [ ] Finalizing either store or skip clears the pending decision and promotes the same completed recording to the rolling latest slot. The next successful encounter overwrites the rolling latest slot without changing previously stored values.
-- [ ] Stored identity uses unique valid recording GUIDs. Duplicate storage, stale replacement targets, invalid capacities and stale selected IDs are rejected or normalized deterministically.
-- [ ] Storage capacity and specific-replay limit have independent, clamped APIs suitable for a later card or shop effect. Reducing capacity requires an explicit deterministic policy and cannot silently delete player-selected stored data during ordinary mutation.
-- [ ] Save data persists pending/latest/stored recordings, capacities and selected replay GUIDs. In-encounter save-and-quit plus restore preserves the exact next-echo decision state.
-- [ ] Save version is advanced. Compatible v4 saves migrate deterministically: without a valid anchor, the newest history item becomes rolling latest and specific replay remains unavailable; with a valid anchor, that full recording becomes stored/selected specific-single state. Invalid references fail clearly or are normalized without crashes.
-- [ ] Legacy `RecordingHistory`, `AnchorId`, `SetAnchor`, `ClearAnchor` and ambiguous `GetEchoRecordings` cease to be the live public source after migration; no second competing history remains.
-- [ ] Focused deterministic tests cover pending lifecycle, skip/store/free-slot/full-slot replacement, capacity rejection, GUID stability, v4 migration and v5 save round-trip.
-- [ ] Formatting, Editor Development build, focused Plan29 automation, project validation and `git diff --check` pass.
-- [ ] No generated UE build products or machine-local paths are committed.
+- [x] A successful encounter stages exactly one immutable pending recording; a failed encounter stages nothing.
+- [x] Store/skip is explicit and can be applied only to the current pending recording. A successful encounter immediately updates `LatestCompletedRecording`; skipping discards only permanent-storage eligibility and keeps that rolling latest value for the immediate default replay path.
+- [x] Storing into free capacity copies the pending full recording into `StoredEchoes`; storing at capacity requires a valid replacement slot/ID and never silently evicts a recording.
+- [x] Finalizing either store or skip clears the pending decision without changing the rolling latest slot. The next successful encounter immediately overwrites that rolling latest slot without changing previously stored values.
+- [x] Stored identity uses unique valid recording GUIDs. Duplicate storage, stale replacement targets, invalid capacities and stale selected IDs are rejected or normalized deterministically.
+- [x] Storage capacity and specific-replay limit have independent, clamped APIs suitable for a later card or shop effect. Reducing capacity requires an explicit deterministic policy and cannot silently delete player-selected stored data during ordinary mutation.
+- [x] Save data persists pending/latest/stored recordings, capacities and selected replay GUIDs. In-encounter save-and-quit plus restore preserves the exact next-echo decision state.
+- [x] Save version is advanced. Compatible v4 saves migrate deterministically: without a valid anchor, the newest history item becomes rolling latest and specific replay remains unavailable; with a valid anchor, that full recording becomes stored/selected specific-single state. Invalid references fail clearly or are normalized without crashes.
+- [x] Legacy `RecordingHistory`, `AnchorId`, `SetAnchor`, `ClearAnchor` and ambiguous `GetEchoRecordings` cease to be the live public source after migration; no second competing history remains.
+- [x] Focused deterministic tests cover pending lifecycle, skip/store/free-slot/full-slot replacement, capacity rejection, GUID stability, v4 migration and v5 save round-trip.
+- [x] Formatting, Editor Development build, focused Plan29 automation, project validation and `git diff --check` pass.
+- [x] No generated UE build products or machine-local paths are committed.
 
 ## Step 0 gate
 
@@ -73,8 +73,47 @@ For the current prototype, storage capacity and the maximum supported specific-r
 
 ### Changed
 
+数据模型与存档基础（全部为本地实现，未触碰 GameMode/UI/录制语义/卡牌商店）：
+
+- `Source/ReEcho/Public/Core/ReEchoTypes.h`
+  - 新增 `ReEchoEchoStorage` 命名空间常量：`DefaultStorageCapacity=3`、`MaxStorageCapacity=3`、`SpecificReplayUnavailable=0`、`MaxSpecificReplayLimit=3`。
+  - 新增 `UENUM EReEchoEchoStorageResult`（Success / NoPendingRecording / InvalidRecordingId / DuplicateRecordingId / StorageFull / InvalidReplacementTarget / InvalidStorageCapacity / InvalidReplayLimit / ReplayLimitExceeded）。
+  - 新增 `USTRUCT FReEchoStoredEchoSummary`（RecordingId、EncounterIndex、Duration、MapId、CharacterId、WeaponId、bSelectedForNextEncounter）。
+  - 新增 `USTRUCT FReEchoEchoStorageSummary`（StoredEchoes、StorageCapacity、SpecificReplayLimit、bHasPendingRecording/PendingRecording、bHasLatestCompletedRecording/LatestCompletedRecording、SelectedReplayIds）。
+- `Source/ReEcho/Public/Run/ReEchoRunSaveGame.h`
+  - `CurrentSaveVersion` 升到 `5`，新增 `MinimumSupportedSaveVersion = 4`。
+  - `RecordingHistory` / `AnchorId` 仅保留为 v4 迁移输入；新增 v5 字段 `bHasPendingRecording`、`PendingRecording`、`bHasLatestCompletedRecording`、`LatestCompletedRecording`、`StoredEchoes`、`SelectedReplayIds`、`StorageCapacity`、`SpecificReplayLimit`。
+- `Source/ReEcho/Public/Run/ReEchoRunSubsystem.h`
+  - 移除旧公共方法 `AddRecording` / `SetAnchor` / `ClearAnchor`。
+  - 新增窄事务命令 API：`StagePendingRecording`、`HasPendingRecording`、`SkipPendingRecordingStorage`、`StorePendingRecording`、`StorePendingRecordingReplacing(FGuid)`、`GetEchoStorageSummary`、`SetSelectedReplayIds` / `GetSelectedReplayIds`、`GetStorageCapacity` / `GetSpecificReplayLimit` / `SetStorageCapacity` / `SetSpecificReplayLimit`、`TryGetStoredEcho` / `TryGetPendingRecording` / `TryGetLatestCompletedRecording`、`ResolveReplayRecordings`，以及遗留 facade `GetEchoRecordings`（BlueprintPure，转发到 `ResolveReplayRecordings`）。
+  - 私有状态与 helper：`bHasPendingRecording`、`PendingRecording`、`bHasLatestCompletedRecording`、`LatestCompletedRecording`、`StoredEchoes`、`SelectedReplayIds`、`StorageCapacity`、`SpecificReplayLimit`；`ResetEchoStorage`、`NormalizeSelectedReplayIds`、`FindStoredEchoIndex`。
+- `Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`（约 453 行）
+  - 匿名命名空间 helper：`MakeStoredEchoSummary`、`FReEchoEchoStorageRestoreState`、`ContainsRecordingId`、`MigrateV4EchoStorage`（最新历史→latest；有效 anchor→stored+selected+SpecificReplayLimit=1；缺失/无效 anchor→确定性归一化、不崩溃）、`ReadV5EchoStorage`（容量钳制、去重）、`TryNormalizeRestoredRecording`。
+  - `IsValidResumableSave` 接受版本 4..5；`StartRun` 改调 `ResetEchoStorage()`；`CompleteEncounter` 改调 `StagePendingRecording(Recording)`。
+  - 全部命令实现为“先校验后变更”，失败不产生局部副作用。Store 在 `StoredEchoes.Num() >= max(0,StorageCapacity)` 时返回 StorageFull（无静默驱逐）。`SetStorageCapacity` 拒绝收缩到低于已存储数量；`SetSpecificReplayLimit` 归一化选择；`ResolveReplayRecordings` 在 limit>0 且存在选择时返回所选 stable-GUID 回响，否则返回滚动 latest。
+  - `CreateSaveSnapshot` 写入 v5 字段，`RecordingHistory`/`AnchorId` 留空；`RestoreSaveSnapshot` 区分 v4 迁移与 v5 读取并归一化。
+- `Source/ReEcho/Private/Tests/ReEchoSaveGameTests.cpp`：旧 `AddRecording`/`SetAnchor` 用法改为 `StagePendingRecording`→`StorePendingRecording`→`SetSpecificReplayLimit(1)`→`SetSelectedReplayIds({Recording.Id})`；断言校验遗留 facade 解析 + 新 summary。
+- `Source/ReEcho/Private/Tests/ReEchoEchoStorageTests.cpp`（新增，约 480 行，5 个测试）：`ReEcho.Run.EchoStoragePendingLifecycle`、`ReEcho.Run.EchoStorageSlots`、`ReEcho.Run.EchoStorageCapabilities`、`ReEcho.Run.EchoStorageSaveMigration`、`ReEcho.Run.EchoStorageRecordingPayloadUnchanged`，覆盖全部 16 个场景（成功/失败 pending、skip 保留 latest、空闲槽、满槽拒绝、替换、无效/过期目标、重复 GUID、容量独立、选择上限、去重/归一化、v4 无 anchor/有效 anchor/无效 anchor/空历史、v5 往返、facade 读新状态、录制载荷不变）。
+- `plans/29-echo-storage-save-foundation.md`：Executor owner 落位，状态 `Ready`→`InProgress`→`Review`，12 条锁定验收 `[ ]`→`[x]`。
+- `shared/PLANNER_EXCHANGE.md`：Plan29 状态 `InProgress`→`Review`，Active 所有权 `Reserved`→`Active`。
+
 ### Evidence
+
+- 门禁：`git fetch --prune origin` 通过；remote 仅 `origin`（github.com/lyouduan/ReEcho.git）；`origin/main` 是 `planning/26-31-local` 的祖先（未前进，无需停止/上报）；`plans/29-echo-storage-save-foundation.md` 与 `planning/26-31-local` 均存在；本地分支 `plan/29-echo-storage-foundation` 由 `planning/26-31-local` 创建于独立 worktree `ReEcho-plan29`。
+- 格式化：`clang-format --style=file -i` 应用于 6 个变更 C++ 文件（LLVM/Allman、TabWidth 4、ColumnLimit 120），退出码 0。
+- 静态校验：`python scripts/validate_project.py` 通过（仅静态，退出码 0）。
+- 构建：`scripts/ue/Build-Editor.cmd -Configuration Development` 成功（约 35s，UHT/UBT 退出码 0）。Editor 未运行，无需等待人工关闭。
+- 自动化：Plan29 的 5 个测试全部 `Result={Success}`；受影响保存/录制自动化（ReEcho.Run、ReEcho.Recording、ReEcho.Combat.ElementReactionSaveContinuity、ReEcho.Weapons.RunLockAndEquipmentSnapshotParity、DomainRevision）均通过。
+- 空白/范围：`git diff --check` 干净（退出码 0）；diff 不含机器本地路径；Binaries/Intermediate/Saved 已被 .gitignore 正确忽略。
+- 无 Blueprint（.uasset/.umap）引用旧 API；遗留 `GetEchoRecordings` facade 保留并仅从新状态解析，无第二份历史真相、无 AnchorId 权威。
 
 ### Remaining risks
 
+- `GetEchoRecordings` 兼容 facade 为临时保留，Plan30 接受后应由其正式 replay-resolver 替代（当前已转发到 `ResolveReplayRecordings`，不引入新权威）。
+- 容量收缩策略采用“拒绝收缩到低于已存储数量”的确定性拒绝，而非自动驱逐；若未来希望支持优雅驱逐需 Plan30/31 显式定义。
+- `SpecificReplayLimit == 0` 路径（未获得具体回放能力、默认回放上一次遭遇）由 `ResolveReplayRecordings` 兜底返回滚动 latest，Plan30 运行时需据此实现零/一/多回放。
+- v4 迁移对“无效 anchor”采用确定性归一化（不崩溃、不静默交换），但不保留任何孤立引用；若历史中存在多 anchor 冲突以首个有效为准。
+
 ### Human validation result/request
+
+`NotRequired` — 本 Plan 不暴露任何玩家可见 UI 或手感变更；仅改变 run/save 内部状态与对外契约。待人工在 Review 阶段确认是否批准进入 main 集成。

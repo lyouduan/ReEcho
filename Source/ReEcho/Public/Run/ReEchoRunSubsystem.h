@@ -85,15 +85,73 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool PurchaseShopItem(FName ItemId);
 
-	UFUNCTION(BlueprintCallable)
-	void AddRecording(const FReEchoRecording& Recording);
+	// --- Echo storage commands (Plan29) -------------------------------------------------
+	// Every command is narrow and transactional: on a non-Success result nothing is mutated.
 
-	UFUNCTION(BlueprintCallable)
-	void SetAnchor(FGuid RecordingId);
+	/**
+	 * Stages a successfully completed encounter as the pending store-or-skip decision and
+	 * overwrites the rolling latest slot with the same recording.
+	 * A still unresolved earlier pending decision expires deterministically here.
+	 */
+	EReEchoEchoStorageResult StagePendingRecording(const FReEchoRecording& Recording);
 
-	UFUNCTION(BlueprintCallable)
-	void ClearAnchor();
+	bool HasPendingRecording() const
+	{
+		return bHasPendingRecording;
+	}
 
+	/** Drops permanent-storage eligibility for the pending echo; the rolling latest slot is kept. */
+	EReEchoEchoStorageResult SkipPendingRecordingStorage();
+
+	/** Moves the pending echo into a free storage slot; fails when no free slot exists. */
+	EReEchoEchoStorageResult StorePendingRecording();
+
+	/** Moves the pending echo over an explicitly named stored echo, keeping slot order. */
+	EReEchoEchoStorageResult StorePendingRecordingReplacing(FGuid ReplacedRecordingId);
+
+	/** Read-only projection for UI and tests; never exposes mutable recording payloads. */
+	FReEchoEchoStorageSummary GetEchoStorageSummary() const;
+
+	/** Replaces the whole selection atomically; rejects unknown, duplicate or over-limit ids. */
+	EReEchoEchoStorageResult SetSelectedReplayIds(const TArray<FGuid>& RequestedIds);
+
+	const TArray<FGuid>& GetSelectedReplayIds() const
+	{
+		return SelectedReplayIds;
+	}
+
+	int32 GetStorageCapacity() const
+	{
+		return StorageCapacity;
+	}
+
+	int32 GetSpecificReplayLimit() const
+	{
+		return SpecificReplayLimit;
+	}
+
+	/** Refuses out-of-range values and any shrink that would drop already stored echoes. */
+	EReEchoEchoStorageResult SetStorageCapacity(int32 NewCapacity);
+
+	/** Refuses out-of-range values; lowering the limit truncates the selection deterministically. */
+	EReEchoEchoStorageResult SetSpecificReplayLimit(int32 NewLimit);
+
+	bool TryGetStoredEcho(FGuid RecordingId, FReEchoRecording& OutRecording) const;
+	bool TryGetPendingRecording(FReEchoRecording& OutRecording) const;
+	bool TryGetLatestCompletedRecording(FReEchoRecording& OutRecording) const;
+
+	/**
+	 * Resolves which echoes the next encounter should replay.
+	 * With no unlocked specific replay, or with an empty selection, this falls back to the rolling
+	 * latest echo; otherwise it returns the selected stored echoes in selection order.
+	 */
+	TArray<FReEchoRecording> ResolveReplayRecordings(int32 RequestedCount) const;
+
+	/**
+	 * Legacy compatibility facade for the pre-Plan29 single-echo query.
+	 * It only forwards to ResolveReplayRecordings, so there is no second history authority.
+	 * Plan30 replaces the remaining ReEchoGameMode call sites and then this facade is removed.
+	 */
 	UFUNCTION(BlueprintPure)
 	TArray<FReEchoRecording> GetEchoRecordings(int32 RequestedCount) const;
 
@@ -110,11 +168,32 @@ public:
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	/** Finished encounter awaiting an explicit store-or-skip decision. */
 	UPROPERTY()
-	TArray<FReEchoRecording> RecordingHistory;
+	bool bHasPendingRecording = false;
 
 	UPROPERTY()
-	FGuid AnchorId;
+	FReEchoRecording PendingRecording;
+
+	/** Rolling previous-encounter echo; independent from StoredEchoes and occupies no slot. */
+	UPROPERTY()
+	bool bHasLatestCompletedRecording = false;
+
+	UPROPERTY()
+	FReEchoRecording LatestCompletedRecording;
+
+	/** Explicitly stored echoes only; persistent identity is FReEchoRecording::Id. */
+	UPROPERTY()
+	TArray<FReEchoRecording> StoredEchoes;
+
+	UPROPERTY()
+	TArray<FGuid> SelectedReplayIds;
+
+	UPROPERTY()
+	int32 StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
+
+	UPROPERTY()
+	int32 SpecificReplayLimit = ReEchoEchoStorage::SpecificReplayUnavailable;
 
 	UPROPERTY()
 	TArray<FName> PendingTraitCardIds;
@@ -125,4 +204,12 @@ private:
 	TSharedPtr<const FReEchoCsvDataSnapshot> RunDataSnapshot;
 
 	void SetPhase(EReEchoRunPhase NewPhase);
+
+	/** Resets every echo storage field to fresh-run defaults. */
+	void ResetEchoStorage();
+
+	/** Drops selections that no longer resolve, de-duplicates, then truncates to the replay limit. */
+	void NormalizeSelectedReplayIds();
+
+	int32 FindStoredEchoIndex(const FGuid& RecordingId) const;
 };

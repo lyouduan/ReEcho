@@ -23,8 +23,17 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	Recording.Id = FGuid::NewGuid();
 	Recording.EncounterIndex = 1;
 	Recording.BuildSnapshot = Source->CurrentBuild;
-	Source->AddRecording(Recording);
-	Source->SetAnchor(Recording.Id);
+	TestEqual(TEXT("Completed encounter stages a pending echo"),
+	          Source->StagePendingRecording(Recording),
+	          EReEchoEchoStorageResult::Success);
+	TestEqual(TEXT("Pending echo stores into a free slot"),
+	          Source->StorePendingRecording(),
+	          EReEchoEchoStorageResult::Success);
+	TestEqual(
+	    TEXT("Specific single replay unlocks"), Source->SetSpecificReplayLimit(1), EReEchoEchoStorageResult::Success);
+	TestEqual(TEXT("Stored echo is selected for the next encounter"),
+	          Source->SetSelectedReplayIds({Recording.Id}),
+	          EReEchoEchoStorageResult::Success);
 	Source->BeginEncounter();
 
 	UReEchoRunSaveGame* Snapshot = Source->CreateSaveSnapshot();
@@ -41,8 +50,17 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_02")));
 	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.Cards.Num(), 1);
 	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
-	TestEqual(TEXT("Recording history restores"), RestoredRecordings.Num(), 1);
-	TestEqual(TEXT("Anchor restores"), RestoredRecordings[0].Id, Recording.Id);
+	TestEqual(TEXT("Legacy facade resolves one echo from the new state"), RestoredRecordings.Num(), 1);
+	if (RestoredRecordings.Num() == 1)
+	{
+		TestEqual(TEXT("Selected stored echo restores"), RestoredRecordings[0].Id, Recording.Id);
+	}
+	const FReEchoEchoStorageSummary RestoredStorage = Restored->GetEchoStorageSummary();
+	TestEqual(TEXT("Stored echo slot restores"), RestoredStorage.StoredEchoes.Num(), 1);
+	TestEqual(TEXT("Specific replay limit restores"), RestoredStorage.SpecificReplayLimit, 1);
+	TestEqual(TEXT("Storage capacity restores"), RestoredStorage.StorageCapacity, 3);
+	TestFalse(TEXT("A finalized decision leaves no pending echo"), RestoredStorage.bHasPendingRecording);
+	TestTrue(TEXT("Rolling latest echo restores independently"), RestoredStorage.bHasLatestCompletedRecording);
 
 	FReEchoEncounterRuntimeState EncounterState;
 	EncounterState.bValid = true;

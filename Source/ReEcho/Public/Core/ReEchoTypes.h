@@ -309,3 +309,106 @@ struct REECHO_API FReEchoEncounterRuntimeState
 	UPROPERTY()
 	TArray<FReEchoEnemyRuntimeState> Enemies;
 };
+
+/** Prototype-locked bounds for the run-local echo storage and specific-replay capabilities. */
+namespace ReEchoEchoStorage
+{
+/** Slot count a fresh run starts with; the prototype does not grow or shrink it yet. */
+constexpr int32 DefaultStorageCapacity = 3;
+/** Hard prototype ceiling for stored echo slots. */
+constexpr int32 MaxStorageCapacity = 3;
+/** Sentinel meaning the player has not unlocked specific replay at all. */
+constexpr int32 SpecificReplayUnavailable = 0;
+/** Hard prototype ceiling for how many stored echoes one encounter may replay. */
+constexpr int32 MaxSpecificReplayLimit = 3;
+} // namespace ReEchoEchoStorage
+
+/** Explicit outcome of every echo storage command; commands never partially mutate on failure. */
+UENUM(BlueprintType)
+enum class EReEchoEchoStorageResult : uint8
+{
+	Success,
+	/** No successfully completed encounter is currently awaiting a store-or-skip decision. */
+	NoPendingRecording,
+	/** A referenced recording id is zero, or is not present in stored echoes. */
+	InvalidRecordingId,
+	/** The recording id already exists in stored echoes, or the request repeats an id. */
+	DuplicateRecordingId,
+	/** Every storage slot is occupied and no explicit replacement target was supplied. */
+	StorageFull,
+	/** The replacement target is not currently stored, so the request is stale. */
+	InvalidReplacementTarget,
+	/** Requested capacity is out of prototype range, or would drop already stored echoes. */
+	InvalidStorageCapacity,
+	/** Requested specific replay limit is out of prototype range. */
+	InvalidReplayLimit,
+	/** More replay selections were requested than the current specific replay limit allows. */
+	ReplayLimitExceeded
+};
+
+/** Read-only description of one stored echo; UI reads this instead of the immutable recording payload. */
+USTRUCT(BlueprintType)
+
+struct REECHO_API FReEchoStoredEchoSummary
+{
+	GENERATED_BODY()
+
+	/** Stable persistent identity of the stored echo; array order is never an identity. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FGuid RecordingId;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 EncounterIndex = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float Duration = 0.f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName MapId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName CharacterId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName WeaponId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bSelectedForNextEncounter = false;
+};
+
+/** Read-only snapshot of the whole run-local echo storage state. */
+USTRUCT(BlueprintType)
+
+struct REECHO_API FReEchoEchoStorageSummary
+{
+	GENERATED_BODY()
+
+	/** Explicitly stored echoes, in slot order; never contains the rolling latest recording implicitly. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FReEchoStoredEchoSummary> StoredEchoes;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
+
+	/** Zero means specific replay is not unlocked; the next encounter defaults to the rolling latest echo. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 SpecificReplayLimit = ReEchoEchoStorage::SpecificReplayUnavailable;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bHasPendingRecording = false;
+
+	/** Only valid when bHasPendingRecording is true. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoStoredEchoSummary PendingRecording;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bHasLatestCompletedRecording = false;
+
+	/** Only valid when bHasLatestCompletedRecording is true; independent from StoredEchoes. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoStoredEchoSummary LatestCompletedRecording;
+
+	/** Stable ids chosen for the next encounter; always a subset of StoredEchoes with no duplicates. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FGuid> SelectedReplayIds;
+};
