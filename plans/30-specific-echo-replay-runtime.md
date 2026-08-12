@@ -6,7 +6,7 @@
 - Executor owner: Plan30 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: current local `main` containing accepted Plan29 and the locked Plan28 behavior contract. Plan28 implementation is integrated later by the Planner.
 - Implementation branch: local `plan/30-specific-echo-replay-runtime` in a separate clean worktree.
@@ -112,3 +112,11 @@ Once specific replay is available, an empty selection intentionally produces no 
 3. limit>1 并选择多个存储回响：下一场按选择顺序生成多个独立 Echo，各自回放、位置、武器、状态相互独立。
 4. limit>0 但选择为空：下一场不生成任何 Echo（不回退到 latest）。
 5. 暂停/恢复（suspended encounter）：恢复后 Echo 数量、身份、播放时间与选择一致。
+
+### Planner integration review (rework required)
+
+- After merging Plan30 and Plan31, an integrated Unity Build failed because
+  `ReEchoEchoReplayRuntimeTests.cpp` and `ReEchoEchoStorageTests.cpp` define the same
+  file-local `CreateStartedRun` helper name. UE Unity Build combines both source files into one
+  translation unit, so the helper must be renamed or otherwise made collision-safe.
+- Plan30 returns to `InProgress` until the integrated editor build and focused automation pass.
