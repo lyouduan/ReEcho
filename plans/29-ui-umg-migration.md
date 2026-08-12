@@ -74,6 +74,8 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Unified Start Menu actions behind one indexed dispatcher and extracted the repeated Start/Settings/Restart C++ fallback button construction into a shared presentation-only helper.
 - Added optional named UMG bindings for encounter HUD, enemy health bar, Start Menu, Settings and pause/restart surfaces; native parents now preserve designer-authored WidgetTrees and construct C++ layouts only when no UMG root exists.
 - Added UMG-owned dynamic containers for loadout character/weapon entries and trait-card entries; C++ rebuilds reusable indexed children from stable CSV/offer IDs while retaining the full native fallback presentation.
+- Created native-parent WBP assets for encounter HUD, enemy health bar, Start Menu, Loadout, Settings, Restart and Trait Choice, and routed runtime construction through hard-referenced designer classes with native fallback.
+- Added designer-owned button labels to Start Menu, Settings, Loadout and Restart, centered the menu panels in explicit DPI-scalable safe regions, and nested the stateful quit label inside its button so C++ state changes update the visible UMG presentation.
 
 ### Evidence
 
@@ -87,6 +89,7 @@ Convert every currently existing ReEcho UI surface from C++-owned layout to a co
 - Shared menu-button construction and indexed Start Menu dispatch pass Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Optional UMG binding/fallback integration passes Editor Development build and all 34 discovered `ReEcho.*` automation tests.
 - Dynamic Loadout/Trait UMG containers pass Editor Development build and all 34 discovered `ReEcho.*` automation tests.
+- The first seven runtime WBP assets compile individually; their C++ routing batch passes Editor Development build, all 34 discovered `ReEcho.*` automation tests, project validation and `git diff --check`.
 
 ### Remaining risks
 
