@@ -1065,6 +1065,15 @@ def validate_workflow() -> None:
     missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
     if missing_audit_markers:
         fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
+    compact_prompt_markers = (
+        "startup prompt is only a neutral routing envelope",
+        "must not assign a new identity",
+        "不改变你现有的身份或职责",
+        "Do not duplicate the Plan's locked goal",
+    )
+    missing_compact_prompt_markers = [marker for marker in compact_prompt_markers if marker not in planner_rules]
+    if missing_compact_prompt_markers:
+        fail(f"Planner rules lack the neutral Plan-driven prompt contract: {', '.join(missing_compact_prompt_markers)}")
     main_only_markers = {
         "PROJECT_RULES.md": ("`origin/main` is the only permitted remote branch", "never push any remote ref"),
         "PLANNER_RULES.md": ("`origin/main` is the only permitted remote branch", "Plan-number conflicts"),

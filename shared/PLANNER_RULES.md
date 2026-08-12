@@ -47,13 +47,20 @@ A conflict-free fast-forward can still contain a logical conflict. Conversely, o
 
 ## Executor prompt template
 
+The Plan is the task specification; the startup prompt is only a neutral routing envelope. It must not assign a new
+identity, override the recipient AI's existing local role or restate the other user's authority. A normal prompt contains
+the exact Plan path, approved base, branch/worktree, one-line start instruction, exceptional gates that cannot be
+discovered from the repository, and the required completion report. Do not duplicate the Plan's locked goal,
+acceptance, Writes, exclusions, implementation outline or verification matrix. Embed scope only when the recipient
+cannot access the Plan; update the Plan first when a follow-up changes scope. Follow-up prompts state only the delta and
+point back to the Plan.
+
 ```text
-你是 ReEcho 执行者。按 AGENTS.md 读取最小上下文；不要固定加载完整 WORKFLOW 或 DEBUG。
-从 <local-base-commit> 创建本地 <branch/worktree>。Plan：plans/<id>-<name>.md；如果本机没有该文件，以本提示内嵌的锁定范围为准并在本地建立 Execution notes。
-目标：<一句话>。Writes：<精确范围>。Impact：<mode>。验收按 Plan 执行；Human validation=<state>。
-只在本地任务分支实现、验证并更新本 Plan Execution notes；不要例行修改共享状态文档，不要 merge/push main，也不要推送任何远端分支。
-若必须扩大 Writes、改变稳定 ID/schema/save/public API，先停止越界部分并通知 Planner。
-完成后报告本地分支、commit、验证和剩余人验，等待 Planner 在同一克隆中审查集成。
+这是 ReEcho `plans/<id>-<name>.md` 的启动引导，不改变你现有的身份或职责。
+先按 AGENTS.md 完成或复用当前对话中用户已明确确认的专业角色路由，再读取该 Plan 的最小上下文。
+从 `<approved-base>` 创建本地 `<branch>` / `<worktree>`；特殊门禁：<only non-discoverable exceptions or none>。
+完全按 Plan 实现、验证并更新其 Execution notes。只在本地任务分支工作；不 merge/push main，不推送远端分支。
+若必须改变 Plan 锁定范围或公共契约，停止越界部分并报告。完成后报告 commit、验证、风险和剩余人验。
 ```
 
 ## Review and local integration
@@ -61,7 +68,11 @@ A conflict-free fast-forward can still contain a logical conflict. Conversely, o
 1. Confirm the Plan is in `Review`; inspect the merge base, branch status and Execution notes.
 2. Start with `git diff --stat <merge-base>..<branch>`, then inspect relevant hunks and generated artifacts. Do not use `main..branch` when main has advanced.
 3. Check locked acceptance, objective evidence, public-contract compatibility and code health. Rework returns lifecycle to `InProgress`.
-4. Small cleanup stays on the task branch. Large unrelated refactors get a separate local Plan.
+4. The Planner directly performs small, evident, in-scope review corrections on the task branch, including Plan wording,
+   stale coordination cleanup, dead-code removal, formatting and narrow deterministic fixes. Do not bounce these back to
+   an Executor merely to preserve role separation. Reassign an Executor when the fix is behaviorally substantial,
+   uncertain, broad, independently parallelizable or needs a new implementation/verification pass. Large unrelated
+   refactors get a separate local Plan.
 5. Resolve `PendingBeforeClose` with the human before closure. `PendingFollowUp` may remain only under an explicit human deferral.
 6. After acceptance, merge with `--no-ff` into local `main`, update shared state once, release ownership and set lifecycle `Closed`.
 7. Remove a clean merged worktree only after checking its exact path and `git status --short`. Never use `--force`; delete a merged local branch with `git branch -d`.
