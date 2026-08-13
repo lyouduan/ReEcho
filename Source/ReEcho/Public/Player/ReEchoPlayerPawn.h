@@ -19,6 +19,9 @@ class UPaperFlipbook;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UReEcho2DAnimationComponent;
+class UReEcho2DPresentationCatalog;
+class UReEcho2DPresentationController;
+class UReEcho2DFrameCollisionDriver;
 class UReEchoRecorderComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -68,6 +71,7 @@ public:
 	bool IsWeaponInvulnerable() const;
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
 	bool ConfigureCharacter(FName CharacterId);
+	/** 当前明确的 2D 表现状态：静止 Idle、移动 Walk、攻击 Attack。 */
 	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */
 	void RestoreEquippedWeapon(FName WeaponId);
 	bool InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Build,
@@ -92,6 +96,12 @@ public:
 	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCameraComponent> Camera;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -113,13 +123,26 @@ public:
 	FReEchoActiveSkill OnActiveSkill;
 
 	/** 当前是否使用自动普通攻击（默认 true）。 */
-	bool IsAutoAttackMode() const { return bAutoAttackMode; }
+	bool IsAutoAttackMode() const
+	{
+		return bAutoAttackMode;
+	}
+
 	/** 设置攻击模式。切换到手动模式时会释放模拟的 held basic-attack input。 */
 	void SetAutoAttackMode(bool bAuto);
+
 	/** 模拟的 held basic-attack input 当前是否被按下（自动模式驱动）。用于测试与内部清理。 */
-	bool IsAutoAttackInputHeld() const { return bAutoAttackInputHeld; }
+	bool IsAutoAttackInputHeld() const
+	{
+		return bAutoAttackInputHeld;
+	}
+
 	/** 只读访问录像组件，供确定性测试验证攻击/模式切换不产生录像事件。 */
-	UReEchoRecorderComponent* GetRecorder() const { return Recorder; }
+	UReEchoRecorderComponent* GetRecorder() const
+	{
+		return Recorder;
+	}
+
 	/** 按下模拟的 held basic-attack input（自动攻击驱动）。 */
 	void PressAutoAttackInput();
 	/** 释放模拟的 held basic-attack input（菜单/死亡/切换手动/无目标时调用）。 */
@@ -128,12 +151,19 @@ public:
 	void ManualBasicAttack();
 	/** 物理（手动）普通攻击输入抬起。仅在手动模式下释放 GAS basic-attack 输入；自动模式下忽略。 */
 	void ManualStopBasicAttack();
+
 	/** 物理（手动）普通攻击输入当前是否被按下（手动模式驱动），用于测试与内部清理。 */
-	bool IsManualAttackInputHeld() const { return bManualAttackInputHeld; }
+	bool IsManualAttackInputHeld() const
+	{
+		return bManualAttackInputHeld;
+	}
+
 	/** 释放所有 held basic-attack 输入源（自动循环 + 物理），用于菜单开/关时统一清理。 */
 	void ReleaseAllBasicAttackInputs();
 	/** 确定性目标选择：返回射程内最近的存活敌人索引；无目标返回 INDEX_NONE。相同距离按 StableId 升序打破平局。 */
-	static int32 SelectNearestEnemyInRange(const FVector& Origin, float RangeCm, TArrayView<const FReEchoAttackTargetCandidate> Candidates);
+	static int32 SelectNearestEnemyInRange(const FVector& Origin,
+	                                       float RangeCm,
+	                                       TArrayView<const FReEchoAttackTargetCandidate> Candidates);
 
 protected:
 	virtual void BeginPlay() override;
@@ -163,8 +193,8 @@ private:
 	void AbilityInputReleased(const FGameplayTag& InputTag);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
-	void UpdateSpadeAnimationState(bool bMoving);
-	void TransitionSpadeAnimationState(EReEcho2DAnimationState NewState);
+	void RefreshPresentationProfile();
+	void RefreshWeaponPresentationSet();
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
@@ -173,11 +203,8 @@ private:
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
 	UPROPERTY()
-	TObjectPtr<UPaperFlipbook> SpadeIdleFlipbook;
-	UPROPERTY()
-	TObjectPtr<UPaperFlipbook> SpadeAttackFlipbook;
+	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
 	FName CurrentCharacterId;
-	EReEcho2DAnimationState Current2DAnimationState = EReEcho2DAnimationState::Idle;
 
 	bool bMouseInputConfigured = false;
 	bool bAutoAttackMode = true;
@@ -190,10 +217,10 @@ private:
 	float AttackVisualRemaining = 0.0f;
 	float AttackVisualDuration = 0.0f;
 	float AttackVisualStrength = 0.0f;
-	float SequenceAttackRemaining = 0.0f;
 	float HitVisualRemaining = 0.0f;
 	float VisualFacingSign = 1.0f;
 	float AppliedVisualFacingSign = 0.0f;
+	int64 NextPresentationAttackInstanceId = 1;
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> CharacterTextures;

@@ -14,8 +14,10 @@ class UReEchoCombatantComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 class UPointLightComponent;
-class UPaperFlipbook;
 class UReEcho2DAnimationComponent;
+class UReEcho2DCharacterPresentationProfile;
+class UReEcho2DPresentationController;
+class UReEcho2DFrameCollisionDriver;
 class USceneComponent;
 class UTexture2D;
 class AReEchoHealthBarActor;
@@ -106,17 +108,25 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
+	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementAuraRing;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY()
-	TArray<TObjectPtr<UTexture2D>> GruntTextures;
-	UPROPERTY()
 	TObjectPtr<UTexture2D> BossTexture;
 	UPROPERTY()
-	TObjectPtr<UPaperFlipbook> GruntDefaultFlipbook;
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> GruntPresentationProfile;
+	UPROPERTY()
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> RabbitDollPresentationProfile;
+	UPROPERTY()
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> GoatPriestPresentationProfile;
+	UPROPERTY()
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> FoxPresentationProfile;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY()
@@ -142,6 +152,7 @@ private:
 	float DeathVisualRemaining = 0.0f;
 
 	void ApplyVisual();
+	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile() const;
 	void StartHitReaction(const FVector& SourceLocation);
 	void UpdateElementAttachmentVisual();
 	void UpdateElementAttachmentFacing();

@@ -313,6 +313,12 @@ FName AReEchoWeaponActor::GetEquippedWeaponId() const
 	return EquippedWeaponId;
 }
 
+FName AReEchoWeaponActor::GetEquippedWeaponVisualKey() const
+{
+	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
+	return Definition ? Definition->VisualKey : NAME_None;
+}
+
 FString AReEchoWeaponActor::GetEquippedWeaponLabel() const
 {
 	if (const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition())

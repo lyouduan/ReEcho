@@ -3,10 +3,10 @@
 ## Coordination
 
 - Planner owner: Codex.
-- Executor owner: Unassigned.
+- Executor owner: Codex, assigned directly by the programmer human on 2026-08-13.
 - Plan authored by (AI side): `ReEcho teammate-side AI`.
-- Implementation authored by (AI side): `Unassigned`.
-- Task status: `Ready`.
+- Implementation authored by (AI side): `ReEcho teammate-side AI`.
+- Task status: `InProgress`.
 - Human validation: `PendingBeforeClose`.
 - Local planning / implementation base: `origin/main@ec0f5e3`, with the existing uncommitted animation WIP on `codex/animation-idle-walk-attack` preserved as implementation input rather than overwritten.
 - Implementation branch: continue `codex/animation-idle-walk-attack` unless the human explicitly requests a clean worktree after the current WIP is safely committed or handed off.
@@ -150,8 +150,55 @@ Report back with:
 
 ### Changed
 
+- Preserved the dirty animation/art input in a recoverable stash and restored only Plan40-owned animation paths into the isolated `plan/40-data-driven-2d-presentation` worktree based on `origin/main@095a133`.
+- Stabilized the incoming Idle/Walk/Attack WIP: corrected the Walk finder/member assignment, standardized the authored lowercase `walk.walk` and `attack.attack` package references, restored display-scale application after clip changes, removed an unused Walk texture-frame array and aligned focused tests/documentation with the new assets.
+- Retained the explicit presentation decision priority `Attack > Walk > Idle`; Walk loops, Attack remains one-shot and repeated committed attacks restart from frame zero.
+- Added the first data-owned renderer contract (`FReEcho2DAnimationClip`) with Flipbook, collision-track reference, looping, restart, play-rate, scale/height, offset and sort policy. `UReEcho2DAnimationComponent::PlayClip` now applies that policy faithfully and the obsolete force-looping helper was removed.
+- Added `UReEcho2DFrameCollisionTrack` with separate per-frame body Hurtbox and weapon AttackHitbox polygons, attack-active flags, source revision/pivot/PPUU metadata, bounded polygon validation and Flipbook frame-count matching. Runtime queries remain deliberately disabled at this checkpoint.
+- Added native semantic presentation tags plus `AppearanceId`-owned character Profile and project Catalog DataAsset contracts. Composite animation sets select clips by stable weapon `VisualKey`, fall back to the character default set and never resolve gameplay character IDs as asset identities.
+- Added the presentation-only `UReEcho2DPresentationController` contract for exclusive static/Flipbook visibility, Idle/Move base state, one-shot action completion, death locking, weapon-set refresh, facing and safe static fallback. Actor migration remains pending, so no runtime behavior changed at this checkpoint.
+- Migrated the Player presentation call site to the controller: character setup resolves CSV `AppearanceId`, equipped weapon exposes its data-authored `VisualKey`, movement submits Move/Idle intent, and a formally executed basic attack submits `Animation.Attack.Basic`. Removed the Pawn's Spade Flipbook fields, MoonStaff WeaponId comparison, attack animation timer and Spade-specific transition functions.
+- Added a deterministic Editor Python asset-authoring script for five existing player Appearance profiles plus `/Game/ReEcho/Animation2D/DA_PresentationCatalog`. The intended Spade policy is static `Idel_01` for Idle, looping `walk` as the default Move clip, and one-shot `attack` only in the `MoonStaff` composite set; other current players use explicit static fallbacks.
+- Migrated Grunt's renderer selection to the same controller/profile contract and removed its Actor-owned Flipbook reference/profile assembly. The Actor supplies the `Enemy.Grunt` profile at its existing enemy-kind configuration boundary; the animation module remains unaware of `EReEchoEnemyKind`, while non-Grunt enemies keep their existing Billboard path.
+- Added `UReEcho2DFrameCollisionDriver` as the authoritative Flipbook-frame collision clock. It validates clip/track identity and revision, follows PaperFlipbook key-frame selection, applies authored pivot/PPUU and facing mirroring, and exposes immutable local-space Query-only body/weapon polygon snapshots without creating blocking physics state.
+- Wired one Driver into Player and Enemy actors. Player allocates a monotonic presentation attack-instance ID only after the existing weapon execution reports a committed attack; Controller opens authored AttackHitboxes only for that instance on track-authored active frames and closes it on one-shot completion. Missing/mismatched tracks expose a diagnostic empty snapshot so existing Capsule/weapon queries remain the safe fallback.
+- Added local point-in-polygon query APIs, finite/non-zero-area polygon validation and stale attack-instance rejection. Hurtboxes remain available independently of attack state; weapon polygons are hidden unless both attack-instance and authored frame gates are true.
+- Added the review overlay `reecho.Animation2D.DrawFrameCollision`: mode 1 draws current Body polygons green; mode 2 also draws active Attack polygons red. Overlay vertices use the renderer component transform after authored pivot/PPUU/facing conversion and do not mutate Actor, Capsule or gameplay collision.
+- Added deterministic reviewed-JSON-to-DataAsset tooling at `scripts/ue/build_plan40_collision_tracks.py` plus the annotation schema/workflow documentation. The generator requires exact Flipbook frame count, explicit body/weapon polygons and a non-empty source revision; it deliberately rejects missing annotations instead of inferring composite alpha geometry.
+- Persisted the human-approved Paper2D `EachFrameCollision` mode for `walk`, `attack` and Grunt `01_2` through a repeatable Unreal Python asset script. The renderer enables that geometry only as `QueryOnly`, retains Pawn query response, disables unused automatic overlap events and keeps the Actor Capsule as blocking authority.
+- Replaced the misleading aggregate Paper2D AABB debug view with exact Box/Sphere/Capsule/Convex wireframes and centralized `ReEcho.DebugCollision` into levels 0-3 so root collision, Paper2D geometry and semantic tracks can be inspected independently.
+- Added Rabbit Doll and Goat Priest as appearance-owned enemy Profiles rather than new gameplay kinds: each Profile owns its static fallback plus looping Idle/Move clips, while the existing Grunt visual variant selects the matching Profile. The updated player `walk` asset remains behind the existing Spade `Animation.Move` semantic key.
+- Human-directed minimal validation simplification: non-Boss enemy presentation now cycles only Grunt/Rabbit/Goat, removes static enemy texture authority, and gives every enemy Profile exactly one looping Idle clip. Gameplay EnemyKind and Boss presentation remain unchanged.
+- Added Fox as the fourth minimal-validation appearance: its base semantic resolves to looping Walk, while the existing committed attack gate requests a one-shot Attack and the controller returns to Walk on playback completion. Damage timing remains gameplay-owned and does not use animation notifications.
+
 ### Evidence
 
+- UE 5.8 `ReEchoEditor` Win64 Development build passed on the isolated Plan40 worktree.
+- `ReEcho.Presentation.Animation2D.AssetProfiles` passed with the new Walk and Attack packages loaded successfully.
+- `git diff --check` passed for the stabilized candidate.
+- The renderer/collision-contract checkpoint builds successfully; focused automation proves authored one-shot/play-rate fidelity plus matching-track acceptance and frame-count mismatch rejection.
+- The Profile/Catalog/Controller checkpoint compiles under UE 5.8 UHT/UBT. Its focused test was extended for exact weapon-set lookup, default-set fallback and strict AppearanceId resolution.
+- The sandboxed Editor launch was diagnosed as an execution-boundary issue rather than SDK failure; approved non-sandbox Editor-Cmd runs now enter the project normally. An earlier accidental full-suite invocation (caused by positional binding to `EngineRoot` instead of `Filter`) still exposed a pre-existing `HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval`; full-suite status remains pending.
+- The Player/controller migration and its expanded transient controller tests compile under UE 5.8. Targeted source search finds no remaining `Spade.*Flipbook`, `UpdateSpadeAnimationState`, `TransitionSpadeAnimationState`, `SequenceAttackRemaining` or `MoonStaffWeaponId` seam in the Player Pawn.
+- The Grunt/controller migration compiles under UE 5.8, and targeted source search finds no remaining `GruntDefaultFlipbook`, `GruntFlipbookFinder` or Actor-built legacy animation profile.
+- Generated and saved seven cook-visible assets under `/Game/ReEcho/Animation2D`: five player Appearance profiles, `DA_Enemy_Grunt` and `DA_PresentationCatalog`. The authoring log reports `5 player profiles + Grunt + catalog` with no Python error.
+- `ReEcho.Presentation.Animation2D.AssetProfiles` passes after loading the saved assets from disk and verifying catalog resolution, Spade static Idle/default looping Move/MoonStaff one-shot Attack, Grunt looping default, controller renderer exclusivity and one-shot completion return.
+- The focused Animation2D automation also passes frame synchronization, pivot/PPUU conversion, facing mirror, Query-only body lookup, committed/stale attack-instance gating, matching-instance closure and diagnostic missing-track fallback. UE 5.8 Editor build passes with Player/Grunt Driver components wired.
+- UE 5.8 Editor build passes with the collision debug overlay. The collision generator passes Python bytecode compilation, project static validation and `git diff --check`.
+- UE 5.8 Editor build passes after the EachFrame/query-policy and exact-shape debug changes. `ReEcho.Presentation.Animation2D.AssetProfiles` passes after a fresh disk reload and now verifies all three Flipbooks use EachFrame mode, every key frame references a PaperSprite with non-empty BodySetup geometry, static Idle disables Paper2D collision, Walk enables QueryOnly and automatic overlap events remain disabled.
+- UE 5.8 Editor build and focused Animation2D automation pass after adding Goat/Rabbit. The disk-reload test verifies `Goat`, `Rabbit` and the updated player `walk` load successfully; Goat/Rabbit use EachFrame mode with non-empty collision geometry on every key frame; their Profiles own matching static fallbacks and looping Idle/Move clips; the original Grunt Profile now maps both Idle and Move to looping `01_2` so state submission does not regress its fixed-loop presentation.
+- A fresh full `ReEcho` run discovered 69 tests but again hit the pre-existing `ReEcho.BasicAttack.HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval()` (`ReEchoWeaponActor.cpp:241`, called from `ReEchoBasicAttackLoopTest.cpp:84`) before the suite could complete. The focused Animation2D test passes; full-suite evidence remains blocked by that independent failure.
+- Imported the complete authoritative four-enemy asset set from the local main workspace, including Fox Walk/Attack PaperSprite and texture dependencies. Corrected the base asset name from legacy `01_2` to authored `Grount` and removed two erroneous Fox entries that overwrote the Goat Profile.
+- UE 5.8 Editor build and `ReEcho.Presentation.Animation2D.AssetProfiles` pass after a fresh disk reload. The focused test verifies Grount/Rabbit/Goat/Fox Profile references, looping base clips, Fox one-shot Attack policy, EachFrame collision mode and non-empty geometry for every Fox Walk/Attack key frame.
+
 ### Remaining risks
+
+- This checkpoint still contains the Plan39 actor-specific Spade seams; the profile/catalog/controller migration and frame-collision contract remain pending Plan40 work.
+- Profile/Catalog assets now exist and load in automation. Human PIE still must accept visual scale, pivot, facing, alpha/sort and the static/animated transitions.
+- Current saved profiles do not yet reference authored collision-track assets, so runtime safely uses the existing Capsule/weapon-query fallback. Collision mask authoring/generation, preview overlay and actual track assets remain required before frame geometry can affect hit testing.
+- No reviewed collision Mask/JSON exists in the current repository. Actual body/weapon Track creation and profile binding are therefore intentionally pending human-authored boundaries; the preview overlay and deterministic generator are ready for that input.
+- Human override on 2026-08-13: the three actively played `walk`, `attack` and Grunt `01_2` Flipbooks now use Paper2D `EachFrameCollision`, superseding this Plan's original prohibition. Idle remains the static `Idel_01` texture. Runtime honors the baked per-frame Sprite BodySetup as `QueryOnly + Pawn query response`, with automatic overlap events disabled because no runtime consumer exists, while retaining the root Capsule as movement authority; built-in collision is not treated as semantic weapon damage and does not replace reviewed Body/Weapon Track separation.
+- Extended `ReEcho.DebugCollision` into a layered collision-volume view: level 1 draws Actor Capsules, level 2 adds the current Paper2D frame's exact Box/Sphere/Capsule/Convex geometry and diagnostics, and level 3 adds reviewed Body/Attack polygons. The former aggregate AABB visualization was removed because it visually exaggerated authored collision and obscured diagnosis. The command can be used interactively or through `-ExecCmds` without changing collision state.
+- Visual identity, pivot, scale and timing for the new artist-authored Walk/Attack assets remain human PIE acceptance items.
 
 ### Human validation result/request
