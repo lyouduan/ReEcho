@@ -148,6 +148,12 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> GruntProfileFinder(
 	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Grunt.DA_Enemy_Grunt"));
 	GruntPresentationProfile = GruntProfileFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> RabbitDollProfileFinder(
+	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll.DA_Enemy_RabbitDoll"));
+	RabbitDollPresentationProfile = RabbitDollProfileFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> GoatPriestProfileFinder(
+	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
+	GoatPriestPresentationProfile = GoatPriestProfileFinder.Object;
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
@@ -241,11 +247,30 @@ void AReEchoEnemyActor::ApplyVisual()
 	}
 
 	PresentationController->Configure(CharacterSprite, SequenceAnimation,
-	                                  Kind == EReEchoEnemyKind::Grunt ? GruntPresentationProfile : nullptr);
+	                                  Kind == EReEchoEnemyKind::Grunt ? ResolveGruntPresentationProfile() : nullptr);
 	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
 	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
 	BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
+}
+
+UReEcho2DCharacterPresentationProfile* AReEchoEnemyActor::ResolveGruntPresentationProfile() const
+{
+	if (GruntTextures.IsEmpty())
+	{
+		return GruntPresentationProfile;
+	}
+	// These indices are the stable visual entries authored together in GruntTextureFinders.
+	// Unsupported variants retain the existing Grunt profile until they receive their own data asset.
+	switch (VisualVariantIndex % GruntTextures.Num())
+	{
+		case 2:
+			return RabbitDollPresentationProfile ? RabbitDollPresentationProfile : GruntPresentationProfile;
+		case 4:
+			return GoatPriestPresentationProfile ? GoatPriestPresentationProfile : GruntPresentationProfile;
+		default:
+			return GruntPresentationProfile;
+	}
 }
 
 bool AReEchoEnemyActor::IsAlive() const
@@ -611,6 +636,7 @@ void AReEchoEnemyActor::UpdateSpriteAnimation(const float DeltaSeconds, const bo
 	{
 		return;
 	}
+	PresentationController->SetMoving(bMoving);
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
 	const float Bob = FMath::Sin(VisualTime * (bMoving ? 8.0f : 2.6f)) * (bMoving ? 3.5f : 1.5f);
 	const float AttackPulse =

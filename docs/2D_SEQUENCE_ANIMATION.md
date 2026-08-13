@@ -237,6 +237,10 @@ SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
 
 当前实际参与序列播放的 `walk / attack / 01_2` 三个 Flipbook 已由开发者明确改为 Paper2D `EachFrameCollision`。Idle 仍使用静态 `Idel_01` 贴图。`UReEcho2DAnimationComponent` 会实际启用每帧 Sprite BodySetup，但固定使用 `QueryOnly`、对象类型 `WorldDynamic`，对 `Pawn` 保留查询响应且关闭自动 Overlap 事件；它不会阻挡角色移动，也不会在逐帧切换时产生无人消费的重叠回调。Actor Root Capsule 仍是移动与阻挡权威。动画停用或切换到非逐帧碰撞 Flipbook 时，Paper2D 碰撞同步关闭。
 
+新增敌人序列采用相同架构：`Rabbit` 对应 Grunt 视觉变体 `Enemy_RabbitDoll`，`Goat` 对应 `Enemy_GoatPriest`。两者分别由 `DA_Enemy_RabbitDoll`、`DA_Enemy_GoatPriest` Profile 持有，Idle 与 Move 当前都固定循环同一个 Flipbook，并保留对应静态贴图作为加载失败回退。它们不新增 EnemyKind，也不改变数值、AI、攻击、受击、死亡或存档身份。其他 Grunt 视觉变体继续沿用原表现。
+
+角色新增的 `walk` 内容仍由 `DA_Character_J_SPADE` 的 `Animation.Move` Clip 引用；替换同路径资产后无需增加 Pawn 分支，停止移动仍回到静态 `Idel_01`，攻击仍由 MoonStaff 组合集的一次性 `attack` Clip 覆盖。
+
 Collision Source 必须保存进资产，不能只停留在未保存的 Editor 会话。关闭交互 Editor 后可运行 `scripts/ue/configure_plan40_flipbook_collision.py`；该脚本只把上述三个 Flipbook 设置为 `EachFrameCollision` 并保存，不会生成或猜测各 PaperSprite 的碰撞轮廓。
 
 Paper2D 内建每帧碰撞表示整帧 Sprite 的通用查询轮廓；它不携带 Body/Weapon 语义，也不直接触发伤害。`UReEcho2DFrameCollisionTrack` 继续负责经过审核的 Body Hurtbox、Weapon AttackHitbox 和攻击窗口。如果没有 Track，伤害逻辑仍回退到既有 Capsule/武器范围查询。

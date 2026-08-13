@@ -26,10 +26,15 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	UPaperFlipbook* GruntFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/01_2.01_2"));
 	UPaperFlipbook* StaffAttackFlipbook =
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/attack.attack"));
+	UPaperFlipbook* RabbitFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Rabbit.Rabbit"));
+	UPaperFlipbook* GoatFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Goat.Goat"));
 	TestNotNull(TEXT("J_SPADE idle Flipbook is loadable"), PlayerFlipbook);
 	TestNotNull(TEXT("J_SPADE walk Flipbook is loadable"), WalkFlipbook);
 	TestNotNull(TEXT("Grunt default Flipbook is loadable"), GruntFlipbook);
 	TestNotNull(TEXT("Moon Staff attack Flipbook is loadable"), StaffAttackFlipbook);
+	TestNotNull(TEXT("Rabbit Doll Flipbook is loadable"), RabbitFlipbook);
+	TestNotNull(TEXT("Goat Priest Flipbook is loadable"), GoatFlipbook);
 	TestTrue(TEXT("J_SPADE Flipbook has non-empty render bounds"),
 	         PlayerFlipbook && PlayerFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
 	TestTrue(TEXT("Grunt Flipbook has non-empty render bounds"),
@@ -41,6 +46,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	             StaffAttackFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	TestTrue(TEXT("Grunt Flipbook uses authored EachFrame collision"),
 	         GruntFlipbook && GruntFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Rabbit Flipbook uses authored EachFrame collision"),
+	         RabbitFlipbook && RabbitFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Goat Flipbook uses authored EachFrame collision"),
+	         GoatFlipbook && GoatFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	auto TestEveryKeyFrameHasCollision = [this](const TCHAR* Label, const UPaperFlipbook* Flipbook)
 	{
 		bool bEveryFrameHasCollision = Flipbook && Flipbook->GetNumKeyFrames() > 0;
@@ -58,10 +67,16 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestEveryKeyFrameHasCollision(TEXT("Walk has collision geometry on every key frame"), WalkFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Attack has collision geometry on every key frame"), StaffAttackFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Grunt has collision geometry on every key frame"), GruntFlipbook);
+	TestEveryKeyFrameHasCollision(TEXT("Rabbit has collision geometry on every key frame"), RabbitFlipbook);
+	TestEveryKeyFrameHasCollision(TEXT("Goat has collision geometry on every key frame"), GoatFlipbook);
 	UReEcho2DPresentationCatalog* AuthoredCatalog = LoadObject<UReEcho2DPresentationCatalog>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
 	UReEcho2DCharacterPresentationProfile* AuthoredGrunt = LoadObject<UReEcho2DCharacterPresentationProfile>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Grunt.DA_Enemy_Grunt"));
+	UReEcho2DCharacterPresentationProfile* AuthoredRabbit = LoadObject<UReEcho2DCharacterPresentationProfile>(
+	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll.DA_Enemy_RabbitDoll"));
+	UReEcho2DCharacterPresentationProfile* AuthoredGoat = LoadObject<UReEcho2DCharacterPresentationProfile>(
+	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
 	TestNotNull(TEXT("Cook-visible presentation catalog is loadable"), AuthoredCatalog);
 	const UReEcho2DCharacterPresentationProfile* AuthoredSpade =
 	    AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_SPADE")) : nullptr;
@@ -78,7 +93,23 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Authored Grunt profile owns its looping default clip"),
 	         AuthoredGrunt && AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) &&
 	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->Flipbook == GruntFlipbook &&
-	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping);
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping &&
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) &&
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->Flipbook == GruntFlipbook &&
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->bLooping);
+	auto TestEnemyProfile = [this](const TCHAR* Label, const UReEcho2DCharacterPresentationProfile* Profile,
+	                             const UPaperFlipbook* ExpectedFlipbook)
+	{
+		const FReEcho2DAnimationClip* IdleClip =
+		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
+		const FReEcho2DAnimationClip* MoveClip =
+		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) : nullptr;
+		TestTrue(Label, Profile && Profile->StaticFallback && IdleClip && MoveClip &&
+		                    IdleClip->Flipbook == ExpectedFlipbook && MoveClip->Flipbook == ExpectedFlipbook &&
+		                    IdleClip->bLooping && MoveClip->bLooping);
+	};
+	TestEnemyProfile(TEXT("Rabbit profile owns static fallback and looping Idle/Move"), AuthoredRabbit, RabbitFlipbook);
+	TestEnemyProfile(TEXT("Goat profile owns static fallback and looping Idle/Move"), AuthoredGoat, GoatFlipbook);
 
 	UReEcho2DAnimationComponent* Component = NewObject<UReEcho2DAnimationComponent>();
 	FReEcho2DAnimationProfile Profile;

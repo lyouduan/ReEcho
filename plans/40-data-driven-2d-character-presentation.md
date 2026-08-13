@@ -167,6 +167,7 @@ Report back with:
 - Added deterministic reviewed-JSON-to-DataAsset tooling at `scripts/ue/build_plan40_collision_tracks.py` plus the annotation schema/workflow documentation. The generator requires exact Flipbook frame count, explicit body/weapon polygons and a non-empty source revision; it deliberately rejects missing annotations instead of inferring composite alpha geometry.
 - Persisted the human-approved Paper2D `EachFrameCollision` mode for `walk`, `attack` and Grunt `01_2` through a repeatable Unreal Python asset script. The renderer enables that geometry only as `QueryOnly`, retains Pawn query response, disables unused automatic overlap events and keeps the Actor Capsule as blocking authority.
 - Replaced the misleading aggregate Paper2D AABB debug view with exact Box/Sphere/Capsule/Convex wireframes and centralized `ReEcho.DebugCollision` into levels 0-3 so root collision, Paper2D geometry and semantic tracks can be inspected independently.
+- Added Rabbit Doll and Goat Priest as appearance-owned enemy Profiles rather than new gameplay kinds: each Profile owns its static fallback plus looping Idle/Move clips, while the existing Grunt visual variant selects the matching Profile. The updated player `walk` asset remains behind the existing Spade `Animation.Move` semantic key.
 
 ### Evidence
 
@@ -183,6 +184,7 @@ Report back with:
 - The focused Animation2D automation also passes frame synchronization, pivot/PPUU conversion, facing mirror, Query-only body lookup, committed/stale attack-instance gating, matching-instance closure and diagnostic missing-track fallback. UE 5.8 Editor build passes with Player/Grunt Driver components wired.
 - UE 5.8 Editor build passes with the collision debug overlay. The collision generator passes Python bytecode compilation, project static validation and `git diff --check`.
 - UE 5.8 Editor build passes after the EachFrame/query-policy and exact-shape debug changes. `ReEcho.Presentation.Animation2D.AssetProfiles` passes after a fresh disk reload and now verifies all three Flipbooks use EachFrame mode, every key frame references a PaperSprite with non-empty BodySetup geometry, static Idle disables Paper2D collision, Walk enables QueryOnly and automatic overlap events remain disabled.
+- UE 5.8 Editor build and focused Animation2D automation pass after adding Goat/Rabbit. The disk-reload test verifies `Goat`, `Rabbit` and the updated player `walk` load successfully; Goat/Rabbit use EachFrame mode with non-empty collision geometry on every key frame; their Profiles own matching static fallbacks and looping Idle/Move clips; the original Grunt Profile now maps both Idle and Move to looping `01_2` so state submission does not regress its fixed-loop presentation.
 - A fresh full `ReEcho` run discovered 69 tests but again hit the pre-existing `ReEcho.BasicAttack.HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval()` (`ReEchoWeaponActor.cpp:241`, called from `ReEchoBasicAttackLoopTest.cpp:84`) before the suite could complete. The focused Animation2D test passes; full-suite evidence remains blocked by that independent failure.
 
 ### Remaining risks

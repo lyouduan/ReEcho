@@ -11,6 +11,8 @@ FLIPBOOK_PATHS = (
     "/Game/2DAnim/Flipbook/walk",
     "/Game/2DAnim/Flipbook/attack",
     "/Game/2DAnim/Flipbook/01_2",
+    "/Game/2DAnim/Flipbook/Goat",
+    "/Game/2DAnim/Flipbook/Rabbit",
 )
 
 

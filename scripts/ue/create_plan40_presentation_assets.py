@@ -13,8 +13,8 @@ def load(path):
 
 def get_or_create_data_asset(name, asset_class):
     path = f"{ROOT}/{name}"
-    existing = unreal.EditorAssetLibrary.load_asset(path)
-    if existing:
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        existing = unreal.EditorAssetLibrary.load_asset(path)
         if not isinstance(existing, asset_class):
             raise RuntimeError(f"Asset exists with wrong class: {path}")
         return existing
@@ -84,11 +84,49 @@ grunt.set_editor_property("static_fallback", None)
 grunt_set = unreal.ReEcho2DCompositeAnimationSet()
 grunt_set.set_editor_property("weapon_visual_set_id", "")
 grunt_set.set_editor_property(
-    "clips", {tag("Animation.Idle"): clip(load("/Game/2DAnim/Flipbook/01_2.01_2"), True)}
+    "clips",
+    {
+        tag("Animation.Idle"): clip(load("/Game/2DAnim/Flipbook/01_2.01_2"), True),
+        tag("Animation.Move"): clip(load("/Game/2DAnim/Flipbook/01_2.01_2"), True),
+    },
 )
 grunt.set_editor_property("animation_sets", [grunt_set])
 
-for asset in profiles + [catalog, grunt]:
+enemy_profiles = [grunt]
+for asset_name, appearance_id, texture_path, flipbook_path in (
+    (
+        "DA_Enemy_RabbitDoll",
+        "Enemy.RabbitDoll",
+        "/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitDoll.Enemy_RabbitDoll",
+        "/Game/2DAnim/Flipbook/Rabbit.Rabbit",
+    ),
+    (
+        "DA_Enemy_GoatPriest",
+        "Enemy.GoatPriest",
+        "/Game/ReEcho/Textures/Characters/NewCast/Enemy_GoatPriest.Enemy_GoatPriest",
+        "/Game/2DAnim/Flipbook/Goat.Goat",
+    ),
+):
+    enemy_profile = get_or_create_data_asset(asset_name, unreal.ReEcho2DCharacterPresentationProfile)
+    enemy_profile.set_editor_property("appearance_id", appearance_id)
+    enemy_profile.set_editor_property("static_fallback", load(texture_path))
+    enemy_set = unreal.ReEcho2DCompositeAnimationSet()
+    enemy_set.set_editor_property("weapon_visual_set_id", "")
+    enemy_flipbook = load(flipbook_path)
+    enemy_set.set_editor_property(
+        "clips",
+        {
+            tag("Animation.Idle"): clip(enemy_flipbook, True),
+            tag("Animation.Move"): clip(enemy_flipbook, True),
+        },
+    )
+    enemy_profile.set_editor_property("animation_sets", [enemy_set])
+    enemy_profiles.append(enemy_profile)
+
+for asset in profiles + [catalog] + enemy_profiles:
     unreal.EditorAssetLibrary.save_loaded_asset(asset, only_if_is_dirty=False)
 
-unreal.log(f"Plan40 presentation assets saved: {len(profiles)} player profiles + Grunt + catalog")
+unreal.log(
+    f"Plan40 presentation assets saved: {len(profiles)} player profiles + "
+    f"{len(enemy_profiles)} enemy profiles + catalog"
+)
