@@ -55,6 +55,42 @@
 - `CombatantComponent`/ASC 独占生命、属性和死亡状态；UI 只读或订阅事件。
 - `CombatEvents` 只发布已发生的语义结果；Audio、UI、Presentation 不得通过回调改变结算结果。
 
+### 事件、只读数据与命令契约
+
+跨模块交互必须分成三种表面，不得用一个可写 Component 指针同时承担通知、查询和修改：
+
+1. **`CombatEvents`：本次已经发生的结果。** 事件使用 `ReEchoCombat` 导出的只读 `USTRUCT` Payload；订阅者不得根据事件回调反向改变本次结算。
+2. **`CombatSnapshots`：当前权威状态的只读副本。** UI 在收到事件后通过只读 provider 查询；Snapshot 由权威组件一次构造，不暴露内部容器、计时器或可写引用。
+3. **`CombatCommands`：外部合法请求。** UI/流程只能调用窄命令入口；命令由 Combat/主模块适配层验证后改变状态，再发布事件。Widget 不得直接设置生命、属性、held、目标、步骤游标或 readiness。
+
+#### 类型化事件 Payload
+
+实现名称可按 UE 规范微调，但至少锁定以下语义和数据：
+
+- `AttackCommitted`：不透明且本次运行唯一的 `AttackCommitId`、只读 Source/可选 Target 句柄、`WeaponId`、`AttackPatternId`、`AttackStepId/StepIndex`、攻击起点/方向和世界位置。只在 WeaponRuntime 成功提交并推进步骤一次后发布。
+- `Hit`：对应 `AttackCommitId`、Source/Target、原始伤害、最终实际伤害、伤害来源、元素、`bCritical`、`bBlocked` 和命中世界位置。未造成实际命中不得伪造 Hit。
+- `Hurt`：目标视角的同一次伤害结果，必须复用同一 `AttackCommitId`/Damage Result，不能重新计算一遍伤害。
+- `HealthChanged`：Combatant 句柄、变化前/后生命、最大生命和变化原因；UI 不需要读取内部 AttributeSet 才能刷新常用血条。
+- `Kill` / `Death`：同一次终结结果的 Source/Target、可选 `AttackCommitId`、伤害来源和世界位置；每次死亡只发布一次。
+
+Payload 可以携带通用 Actor/Component 弱句柄、稳定运行时 ID、Gameplay Tag/FName、标量和世界坐标，但不得携带 Widget、音频、动画、纹理、材质或其他资源引用。订阅者需要资源时，使用自己的目录把语义 ID 映射为资源。
+
+#### 只读 Snapshot / Provider
+
+- `FReEchoCombatantSnapshot` 至少提供只读 Combatant 标识、`CurrentHealth`、`MaxHealth`、`FReEchoStatBlock`、元素/状态摘要和 `bAlive`。
+- `FReEchoAttackSnapshot` 至少提供自动/手动模式、是否 held、当前只读 Target 句柄、当前 `WeaponId/AttackStepId`、下一次可攻击剩余时间和当前有效 `AttackSpeed`。
+- `UReEchoCombatantComponent` 和 `UReEchoAttackControllerComponent` 分别提供一次性 `GetSnapshot()`；UI 不拼接多个裸字段形成自己的第二份状态。
+- Snapshot 只表示调用瞬间，不被持久保存，也不进入 Recording；需要长期显示时由 UI 在事件后重新查询，不能把旧 Snapshot 当权威缓存。
+
+#### 受控 Command
+
+- 攻击模式选择通过 `SetAttackMode`（或等价类型化命令）进入，先由现有 Run/流程规则持久化，再同步给 `AttackControllerComponent`。
+- 手动输入只发送 `BeginManualAttack` / `EndManualAttack`；自动循环只发送目标存在/失效和运行门控命令。两者不能直接操作 GAS spec 的内部 `InputPressed` 字段。
+- 菜单、死亡、切换模式统一调用 `ReleaseAttackRequests`；不得让 UI 分别清理多份 held 标志。
+- 治疗、伤害、调试和复活若由 UI/GM 发起，必须走现有 GameplayEffect/经过验证的 Combat Command；不得公开 `SetCurrentHealth` 等无约束写入口。
+
+UI 可以同时消费事件和 Snapshot；音频通常只消费事件 Payload，由主模块把它翻译成 `ReEchoAudio` 语义请求；Presentation 消费 `AttackCommitted/Hurt/Death`。技术依赖仍由 `ReEcho` 主模块适配：`ReEchoCombat` 与 `ReEchoAudio` 不直接互相依赖。
+
 ## 模块边界
 
 ### 归属 `ReEchoCombat`
@@ -66,7 +102,7 @@
 5. `UReEchoTargetingComponent` 与 Combat Target 接口；
 6. 纯 `WeaponRuntime` 步骤/节拍状态及 Weapon Executor 接口；
 7. 不依赖 Data Registry/具体 Enemy 的纯元素规则；
-8. `CombatEvents` 公共事件契约及无设备/无世界单元测试。
+8. `CombatEvents`、只读 Snapshot/provider 和受控 Command 公共契约及无设备/无世界单元测试。
 
 ### 保留在主 `ReEcho`
 
@@ -96,6 +132,10 @@ ReEchoAudio  ─/─→ ReEcho / ReEchoCombat
 - [ ] Plan38 的“持续按住时，暂时未就绪不会永久结束循环”保持；每次成功提交只产生一次步骤推进、伤害执行和唯一 AttackCommitId。
 - [ ] WeaponActor 世界适配只在成功提交后执行攻击表现/命中；失败/等待请求不播放攻击、不发射投射物、不推进步骤、不发布 Combat.Attack。
 - [ ] CombatEvents 至少覆盖 AttackCommitted、Hit、Hurt、Kill、Death；事件带稳定提交/来源/目标标识和必要世界位置，但不携带 UI/音频/动画资源路径。
+- [ ] `HealthChanged` 和伤害/攻击事件使用类型化 Payload，常用 UI 数据随事件提供；Hit/Hurt/Kill/Death 对同一结算复用同一个 AttackCommitId/结果，不重复计算。
+- [ ] `FReEchoCombatantSnapshot` 与 `FReEchoAttackSnapshot` 由权威组件一次构造并通过只读 provider 返回；UI 无需 include 私有 AttributeSet/WeaponRuntime，也不保存第二份权威战斗状态。
+- [ ] 外部修改只经过类型化 Combat Command；自动/手动输入、菜单/死亡释放、攻击模式、伤害/治疗均没有供 Widget 直接写内部字段的公共 API。
+- [ ] UI、音频与 Presentation 订阅生命周期可安全解绑；Actor/World 销毁、暂停、重新开始或继续游戏后不存在悬空回调、重复绑定或重复反馈。
 - [ ] 现有伤害、格挡、治疗、死亡、元素、OnKill、Echo 武器攻击和主动技能结果不回归；自动普通攻击仍不写入 Recording。
 - [ ] `DurationSeconds` 不再控制或阻止自动/手动普通攻击；`AttackIntervalSeconds` 及其构筑修改只通过 WeaponRuntime 的唯一 readiness 生效，并有明确诊断/测试。
 - [ ] 移动的 `UCLASS/USTRUCT/UENUM` 有精确 Core Redirect 或无路径变化兼容层；旧 `/Script/ReEcho.*` Blueprint/WBP/DataAsset/SaveGame 引用实际加载成功，RunSave 版本不变。
@@ -125,7 +165,7 @@ ReEchoAudio  ─/─→ ReEcho / ReEchoCombat
 1. 清点 include 图、反射路径、当前攻击状态和聚焦基线，建立模块边界静态测试。
 2. 创建 `ReEchoCombat` 空模块并证明构建、加载和单向依赖。
 3. 迁移最小战斗值类型、GAS tags/attributes/effects/abilities 和 Combatant；同步 API 宏/Core Redirect。
-4. 新建 Target/Weapon Executor/Combat Host/Events 公共契约，不暴露具体主模块类型。
+4. 新建 Target/Weapon Executor/Combat Host、类型化 Events、只读 Snapshots/providers 和受控 Commands 公共契约，不暴露具体主模块类型。
 5. 实现 `TargetingComponent`，迁移当前确定性自动选敌规则。
 6. 实现 `AttackControllerComponent`，迁移自动/手动 held、模式门控以及菜单/死亡释放。
 7. 实现 Combat WeaponRuntime：将攻击步骤定义从 CSV Adapter 编译为模块自有数据，使用 `AttackIntervalSeconds / AttackSpeed` 维护唯一 readiness 和步骤提交；`DurationSeconds` 只进入非阻塞步骤行为数据。
@@ -141,6 +181,7 @@ ReEchoAudio  ─/─→ ReEcho / ReEchoCombat
 |---|---|---|
 | 依赖 | Build.cs/include 审计与校验器 | `ReEcho -> ReEchoCombat` 单向，Combat 无具体主模块依赖 |
 | 组件 | AttackController/Targeting/WeaponRuntime 单元测试 | held、模式、确定性目标、唯一 readiness、步骤推进正确 |
+| 公共数据 | Event Payload/Snapshot/Command 自动化 | 结果字段完整、同一提交关联一致、Snapshot 只读、非法命令拒绝且不改变状态 |
 | 攻击 | Plan28/38 与新 SingleCadence 测试 | 自动/手动共享路径，等待不丢循环，频率只读 AttackIntervalSeconds |
 | 结算 | Combatant/Weapon/Element/Events 测试 | 伤害、格挡、元素、击杀与事件一一对应 |
 | 兼容 | Core Redirect、旧资产/旧保存加载与往返 | 旧 `/Script/ReEcho.*` 引用和 RunSave 正常 |
