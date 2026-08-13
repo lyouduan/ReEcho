@@ -53,10 +53,12 @@
 
 - Executor 更新其指定 Plan 的执行记录和与所拥有实现直接相关的文档。
 - `shared/CODEBASE_MAP/` 是当前项目架构、模块设计意图和代码落点的唯一权威库：`ARCHITECTURE.md` 负责全局拓扑，`README.md` 负责稳定标识索引，`modules/MOD-*.md` 负责单模块详细意图与代码位置。Plan 只承担任务决策历史，不得复制一套当前全局架构。
-- Executor 不例行编辑 `shared/CODEBASE_MAP/`、`LESSONS.md` 或工作流规则。Planner 在评审/关闭时统一更新；只有 Plan 明确拥有相应模块文档时 Executor 才可编辑。
-- 每个 Plan 关闭前，Planner 必须审阅 `shared/CODEBASE_MAP/`。模块、领域、职责、权威状态、公共契约、依赖方向或跨领域不变量发生变化时，必须同步更新全局架构、稳定标识索引和受影响模块文档；只有代码位置移动时更新模块文档即可。没有变化时在 Plan 中记录“已审阅、无需修改”及原因。未记录架构审阅结果不得关闭 Plan。
+- 每个程序任务在实现前必须把受影响的 `MOD-*` / `AREA-*`、设计意图、状态所有者/公共契约/依赖影响以及相关文档同步范围写入 Plan；轻量任务则写入等价的本地任务记录。缺少这些内容时不得进入 `Ready` / `InProgress` 或开始修改模块代码。
+- 程序修改任一 Runtime Module 时，必须在同一候选中创建或维护对应的 `shared/CODEBASE_MAP/modules/MOD-*.md`，并把该文档列入 Plan `Writes`。维护是指核对并保持存在原因、职责/排除项、权威状态、输入输出契约、依赖、运行流程、扩展方式、测试和代码位置与候选实现一致；事实未变化时也必须在 Plan 记录具名审阅结论，禁止为了制造 diff 而改写文案。
+- Executor 不例行编辑 `LESSONS.md` 或工作流规则；Plan 必须明确赋予其相关 `CODEBASE_MAP` 模块文档 Writes。Planner 负责评审并补齐跨模块与全局同步，不能把文档一致性留到后续无主任务。
+- 每个程序 Plan 关闭前，Planner 必须审阅 `shared/CODEBASE_MAP/` 的所有相关文档：拓扑/依赖/跨模块不变量变化时更新 `ARCHITECTURE.md`，标识/路由变化时更新 `README.md`，并创建或维护每个直接修改模块及受契约影响模块的 `modules/MOD-*.md`。只移动代码时也要更新模块文档中的代码位置。没有变化的相关文件需在 Plan 中逐项记录“已审阅、无需修改”及原因。未记录完整审阅结果不得关闭 Plan。
 - 实现期间仅在所有权、Writes、依赖、生命周期或共享契约变化时更新 Exchange。
-- 仅在读取路线、代码落点或职责变化时更新 `shared/CODEBASE_MAP/`。只将可复用、有证据的经验加入 `LESSONS.md`，不要记录任务流水账。
+- 仅在真实设计、契约、依赖、测试或代码落点变化时修改 `shared/CODEBASE_MAP/` 正文；逐项审阅结论记录在 Plan。只将可复用、有证据的经验加入 `LESSONS.md`，不要记录任务流水账。
 - 已暂存实现必须与其本地文档一致。文档中性提交不需要形式化共享文件改动。
 
 ## Unreal C++ 标准
