@@ -1,65 +1,65 @@
-# Plan XX - <discipline> - <short name>
+# Plan XX - <专业> - <简短名称>
 
-## Coordination
+## 协调
 
-- Planner owner:
-- Executor owner:
-- Plan authored by (AI side): `Gavyn-side AI | ReEcho teammate-side AI`.
-- Implementation authored by (AI side): `Unassigned | Gavyn-side AI | ReEcho teammate-side AI`.
-- Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
-- Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
-- Local planning / implementation base:
-- Implementation branch:
-- Depends on / Blocks:
+- Planner 负责人：
+- Executor 负责人：
+- Plan 编写方（AI 侧）：`Gavyn-side AI | ReEcho teammate-side AI`。
+- 实现编写方（AI 侧）：`Unassigned | Gavyn-side AI | ReEcho teammate-side AI`。
+- 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`NotRequired`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 本地规划 / 实现基线：
+- 实现分支：
+- 依赖 / 阻塞：
 - Writes:
 - Stable Reads:
-- Impact mode: `Isolated` (`Isolated | ReadOnly | SharedContract | Exclusive`).
-- Compatibility promise / downstream action:
-- Explicit exclusions:
+- 影响模式：`Isolated`（`Isolated | ReadOnly | SharedContract | Exclusive`）。
+- 兼容承诺 / 下游操作：
+- 明确排除：
 
-## Locked goal
+## 锁定目标
 
-Describe the player-visible or pipeline outcome. Changing this section requires Planner/human agreement.
+描述玩家可见结果或流水线结果。修改本节需 Planner/用户同意。
 
-## Locked acceptance
+## 锁定验收
 
-- [ ] Functional result has observable evidence.
-- [ ] Required automation/build checks pass.
-- [ ] Human validation is requested only when feel, readability, visual quality or usability matters.
-- [ ] No generated UE products outside the curated `GIT_RULES.md` prebuilt allowlist or machine-local paths are committed.
+- [ ] 功能结果有可观察证据。
+- [ ] 必需自动化/构建检查通过。
+- [ ] 仅在手感、可读性、视觉质量或可用性需要判断时请求人工验收。
+- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
-## Step 0 gate
+## Step 0 门禁
 
-- Baseline branch/commit:
-- Engine/build availability:
-- Existing focused-test result:
-- Active exclusive ownership or shared-contract approval:
-- Stop condition if the baseline is broken:
+- 基线分支/提交：
+- 引擎/构建可用性：
+- 现有聚焦测试结果：
+- 活跃独占所有权或共享契约批准：
+- 基线损坏时的停止条件：
 
-## Implementation outline
+## 实现提纲
 
-Implementation details may be refined without changing locked goal, acceptance or published contracts.
+在不修改锁定目标、验收或已发布契约的前提下，可以优化实现细节。
 
-1. Inspect the smallest relevant code/data surface.
-2. Make one coherent change at a time.
-3. Validate immediately after each risky change.
-4. Update Execution notes; record ownership/scope/contract changes locally before crossing the changed boundary.
+1. 检查最小相关代码/数据表面。
+2. 每次完成一个连贯变更。
+3. 每次风险变更后立即验证。
+4. 更新执行记录；跨越变化边界前，在本地记录所有权/范围/契约变化。
 
-## Verification matrix
+## 验证矩阵
 
-| Layer | Command/check | Expected evidence |
+| 层级 | 命令/检查 | 预期证据 |
 |---|---|---|
-| Static | `python scripts/validate_project.py` | Project/source invariants pass |
-| Build, when C++ changes | `scripts/ue/Build-Editor.cmd` | UHT/UBT exit code 0 |
-| Automation, when runtime behavior changes | `scripts/ue/Run-Automation.cmd -Filter ReEcho` | Affected report passes |
-| Human, when required | Named PIE/usability task | Human result or explicit follow-up deferral recorded |
+| 静态 | `python scripts/validate_project.py` | 项目/源码不变量通过 |
+| C++ 变化时构建 | `scripts/ue/Build-Editor.cmd` | UHT/UBT 退出码为 0 |
+| 运行时行为变化时自动化 | `scripts/ue/Run-Automation.cmd -Filter ReEcho` | 受影响报告通过 |
+| 需要人工时 | 具名 PIE/可用性任务 | 记录人工结果或明确延期跟进 |
 
-## Execution notes
+## 执行记录
 
-### Changed
+### 变化
 
-### Evidence
+### 证据
 
-### Remaining risks
+### 剩余风险
 
-### Human validation result/request
+### 人工验收结果/请求

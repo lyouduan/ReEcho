@@ -1,25 +1,25 @@
-# ReEcho AI onboarding
+# ReEcho AI 接入说明
 
-This file is for first-time onboarding or workflow maintenance. Ordinary tasks follow `AGENTS.md` directly.
+本文件仅用于首次接入或工作流维护。普通任务直接遵循 `AGENTS.md`。
 
-## Entry contract
+## 接入约定
 
-1. `AGENTS.md` is the sole startup, first-contact question and retrieval-order authority.
-2. Confirm directly whether the user is 程序、策划 or 美术 before reading the matching route.
-3. `shared/PROJECT_RULES.md` contains project constraints.
-4. Read only the professional role, duty, Plan, Exchange blocks and code/asset/data route required by the current task.
-5. Write durable task evidence back to the assigned Plan or specialist handoff; shared project memory is updated by the Programmer Planner or explicitly assigned Project Secretary during review/control-plane work unless the task explicitly owns that document.
+1. `AGENTS.md` 是唯一的启动、首次询问和读取顺序权威。
+2. 读取对应路线前，直接确认用户是程序、策划还是美术。
+3. `shared/PROJECT_RULES.md` 记录项目约束。
+4. 只读取当前任务需要的专业角色、职责、Plan、Exchange 区块以及代码/资产/数据路线。
+5. 将持久任务证据写回指定 Plan 或专业交接；除非任务明确拥有相应文档，共享项目记忆仅由程序 Planner 或明确指派的项目秘书在评审/控制面工作中更新。
 
-## Two independent role axes
+## 两条独立角色轴
 
-- **User professional role**: 程序, 策划 or 美术. This selects `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` or `ARTIST_RULES.md`.
-- **AI repository duty**: Planner, Executor, specialist or explicitly assigned Project Secretary. Only the programmer route uses project Planner/Executor authority; designer and artist AIs are specialists unless a programmer user explicitly reassigns the task.
-- **Project Secretary duty**: coordination/control-plane maintenance governed by `shared/SECRETARY_RULES.md`; it does not make product, design, art or implementation choices.
-- A specialist may prepare local changes and evidence but does not gain merge or publication authority from professional expertise.
+- **用户专业角色**：程序、策划或美术，分别选择 `PROGRAMMER_RULES.md`、`DESIGNER_RULES.md` 或 `ARTIST_RULES.md`。
+- **AI 仓库职责**：Planner、Executor、专业执行者或明确指派的项目秘书。只有程序路线使用项目 Planner/Executor 权限；除非程序用户明确改派任务，策划和美术 AI 均为专业执行者。
+- **项目秘书职责**：由 `shared/SECRETARY_RULES.md` 管理的协调/控制面维护；不替代产品、策划、美术或程序实现决策。
+- 专业执行者可以准备本地改动和证据，但不会因专业能力自动获得合并或发布权限。
 
-## Two safety lines
+## 两条安全红线
 
-- Claim merge-hostile or external resources before writing them. Read-only consumption does not require an exclusive claim.
-- Never commit machine-local paths, credentials, `.env`, caches, intermediate products or private tool configuration.
+- 写入前先认领难以合并的资源或外部资源；只读使用不需要独占认领。
+- 绝不提交机器本地路径、凭据、`.env`、缓存、中间产物或私有工具配置。
 
-For the rationale and collaboration topology, read only the relevant section of `shared/WORKFLOW.md`.
+如需了解原因和协作拓扑，只读取 `shared/WORKFLOW.md` 的相关章节。

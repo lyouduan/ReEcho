@@ -1,37 +1,37 @@
-# ReEcho planner exchange
+# ReEcho Planner 交换区
 
-Live local coordination only. Closed history belongs in Plans and Git; permanent rules belong in the authoritative rule file. Remove released ownership and stale refs promptly.
+仅记录实时本地协调。已关闭历史归入 Plan 和 Git；永久规则归入权威规则文件。及时移除已释放所有权和过期引用。
 
-## Planned and active work announcements
+## 已规划和活跃工作公告
 
-| Plan | Plan AI / implementation AI | Planner | Task status | Human validation | Ref / base | Impact and Writes | Dependencies / other-Planner action |
+| Plan | Plan AI / 实现 AI | Planner | 任务状态 | 人工验收 | 引用 / 基线 | 影响与 Writes | 依赖 / 其他 Planner 操作 |
 |---|---|---|---|---|---|---|---|
-| Plan 29 full UI UMG migration | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | Integrated into local `main` through the Plan31 candidate | UMG assets and typed UI Framework own screen lifecycle; gameplay/data contracts remain separate | Preserve UI Flow ownership and do not restore direct viewport or code-built page lifecycle. |
-| Plan 10 player HUD UMG follow-up | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | Accepted implementation lineage included in Plan29 | Isolated C++ and `/Game/ReEcho/UI/WBP_ReEchoPlayerHud.uasset` | Visual/DPI acceptance requires human PIE before closure. |
-| Plan 26 weapon read-only UI consumers | Teammate-side / teammate-side | ReEcho teammate-side Planner | `Ready` | `PendingBeforeClose` | Starts from the Planner-approved current main/code baseline | Read-only provider consumption plus isolated Inventory/Stats consumer work | Preserve Plan29 presentation bindings and do not edit the data provider contract. |
-| Plan 28 automatic/manual player attacks | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `PendingBeforeClose` | Delivered on `main` through merge `a931af3` | Player attack mode, deterministic targeting, v6 persistence, mode-gated physical input, P pause and Restart child panel | Input-source defect is corrected. Static/build/Blueprint gates pass; focused 5/5 and full ReEcho 51/51 automation pass. Human PIE/game-feel validation remains pending. |
-| Plan 34 authored audio catalog and persistent settings | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | Local `plan/34-audio-catalog-settings@86824a0`, based on `f5051e4`; current main is `ec0f5e3` | AudioEvents XLSX/CSV contract, async catalog/preload, five persisted buses and settings controls | Implementation exists locally but has no current-main build, diagnostic asset or human validation. Adapt onto the current canonical workbook; never merge the old workbook blob wholesale. |
-| Plans 35-36 noncombat and combat/echo audio integration | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API is available; audible closure depends on Plan34 catalog/assets | Semantic event hooks only; audio module retains playback ownership | May use stable Plan33 IDs, but do not invent catalog parsing, asset paths or parallel audio services. |
-| Plan 40 data-driven 2D character presentation and frame collision | ReEcho teammate-side / `Unassigned` | Codex | `Ready` | `PendingBeforeClose` | `origin/main@ec0f5e3`; continue preserved local animation WIP only after this Plan is published | Shared animation/profile/controller/collision-track contract plus Exclusive `Content/2DAnim/**` and `/Game/ReEcho/Animation2D/**` asset writes | Depends on closed Plan39 and published Plan38; preserve committed-attack retry semantics, existing artist assets and stable Capsule movement authority. |
+| Plan 29 完整 UI UMG 迁移 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 已通过 Plan31 候选集成到本地 `main` | UMG 资产和类型化 UI Framework 拥有屏幕生命周期；玩法/数据契约保持分离 | 保留 UI Flow 所有权，不得恢复直接 viewport 或代码构建页面生命周期。 |
+| Plan 10 玩家 HUD UMG 跟进 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 已验收实现谱系包含在 Plan29 中 | 隔离 C++ 和 `/Game/ReEcho/UI/WBP_ReEchoPlayerHud.uasset` | 关闭前需要人工 PIE 完成视觉/DPI 验收。 |
+| Plan 26 武器只读 UI 消费者 | Teammate-side / teammate-side | ReEcho teammate-side Planner | `Ready` | `PendingBeforeClose` | 从 Planner 批准的当前 main/代码基线开始 | 只读 provider 消费加隔离 Inventory/Stats 消费者工作 | 保留 Plan29 表现绑定，不编辑数据 provider 契约。 |
+| Plan 28 自动/手动玩家攻击 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `PendingBeforeClose` | 已通过合并 `a931af3` 交付到 `main` | 玩家攻击模式、确定性目标选择、v6 持久化、按模式门控物理输入、P 暂停和 Restart 子面板 | 输入源缺陷已修正。静态/构建/Blueprint 门禁通过；聚焦 5/5、完整 ReEcho 自动化 51/51 通过。仍需人工 PIE/手感验收。 |
+| Plan 34 编写音频目录和持久设置 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | 本地 `plan/34-audio-catalog-settings@86824a0`，基于 `f5051e4`；当前 main 为 `ec0f5e3` | AudioEvents XLSX/CSV 契约、异步目录/预加载、五条持久总线和设置控件 | 实现已在本地，但尚无当前 main 构建、诊断资产或人工验收。适配当前权威工作簿；绝不整块合并旧工作簿 blob。 |
+| Plans 35-36 非战斗与战斗/Echo 音频集成 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API 已可用；可听关闭依赖 Plan34 目录/资产 | 只接入语义事件；音频模块保留播放所有权 | 可使用稳定 Plan33 ID，但不得发明目录解析、资产路径或并行音频服务。 |
+| Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / `Unassigned` | Codex | `Ready` | `PendingBeforeClose` | `origin/main@ec0f5e3`；仅在本 Plan 发布后继续保留的本地动画 WIP | 共享动画/profile/controller/碰撞轨道契约，加独占 `Content/2DAnim/**` 和 `/Game/ReEcho/Animation2D/**` 资产写入 | 依赖已关闭 Plan39 和已发布 Plan38；保留已承诺攻击重试语义、现有美术资产和稳定 Capsule 移动权威。 |
 
-## Active ownership
+## 活跃所有权
 
-| Owner | Plan/branch | Mode | State | Files or exclusive resource | Notes |
+| 所有者 | Plan/分支 | 模式 | 状态 | 文件或独占资源 | 备注 |
 |---|---|---|---|---|---|
-| ReEcho teammate-side Planner | Plan26 / teammate-side task branch | `ReadOnly` | `Reserved` | Typed weapon UI-consumer behavior and Plan26 tests | Must preserve Plan29 presentation bindings. |
-| Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Active` | `Design/Data/ReEchoData.xlsx`, generated `Content/Data/audio_events.csv`, settings UI and Plan33 catalog/settings provider surface | Branch implementation is local. Current main independently changed the workbook, Build.cs, XLSX generator and validator; Planner adaptation is required before review. |
-| Codex | Plan40 / `codex/animation-idle-walk-attack` | `SharedContract` + `Exclusive` | `Reserved` | `Presentation/Animation2D/**`, narrowly required player/enemy presentation call sites, `Content/2DAnim/**`, `/Game/ReEcho/Animation2D/**`, animation/collision tests and tooling | Becomes Active only when an Executor starts. Frame Hurtbox/AttackHitbox are Query-only; do not replace the stable movement Capsule or overwrite pre-existing dirty art. |
+| ReEcho teammate-side Planner | Plan26 / teammate-side 任务分支 | `ReadOnly` | `Reserved` | 类型化武器 UI 消费行为和 Plan26 测试 | 必须保留 Plan29 表现绑定。 |
+| Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Active` | `Design/Data/ReEchoData.xlsx`、生成的 `Content/Data/audio_events.csv`、设置 UI 和 Plan33 目录/设置 provider 表面 | 分支实现位于本地。当前 main 独立修改了工作簿、Build.cs、XLSX 生成器和校验器；评审前需由 Planner 适配。 |
+| Codex | Plan40 / `codex/animation-idle-walk-attack` | `SharedContract` + `Exclusive` | `Reserved` | `Presentation/Animation2D/**`、最小必需玩家/敌人表现调用点、`Content/2DAnim/**`、`/Game/ReEcho/Animation2D/**`、动画/碰撞测试和工具 | Executor 启动后才变为 Active。逐帧 Hurtbox/AttackHitbox 仅 Query；不得替换稳定移动 Capsule 或覆盖既有脏美术。 |
 
-## Warnings / blocked items
+## 警告 / 阻塞项
 
-- Fetch `origin/main` before numbering or remote integration. If it advanced, report physical, logical, coupling and numbering differences before pull/merge/rebase/push.
-- Remote side branches are prohibited; Plans, task branches and worktrees stay local until accepted scope enters main.
-- Legacy remote `origin/review/gavyn-plan28-attack-modes-20260812` still exists with five commits that are not patch-equivalent to current `main`. Do not merge it; compare its semantics with the closed Plan28/38 result before deciding whether the ref is safely removable.
-- `Design/Data/ReEchoData.xlsx` is a single-writer binary only when a publication-intended edit is active. Local throwaway usability testing does not lock it for the team.
-- Runtime arena has no dedicated serialized test map; claim any `.umap` before replacing it.
-- Plan34 cannot be merged wholesale: the branch and current main both changed `Design/Data/ReEchoData.xlsx`, `Source/ReEcho/ReEcho.Build.cs`, `scripts/data/sync_xlsx_to_csv.py` and `scripts/validate_project.py`. Regenerate the AudioEvents Table on the current canonical workbook, combine the text contracts explicitly and rerun all data/build evidence.
-- Locked product decisions: selecting attack mode does not auto-resume; Continue restores the run-local choice while a new run defaults automatic; every active Echo contributes fog visibility; an empty explicit replay selection produces no Echo.
+- 编号或远端集成前 fetch `origin/main`。若其前进，在 pull/merge/rebase/push 前报告物理、逻辑、耦合和编号差异。
+- 禁止远端侧分支；Plan、任务分支和 worktree 在已验收范围进入 main 前保持本地。
+- 旧远端 `origin/review/gavyn-plan28-attack-modes-20260812` 仍有五个与当前 `main` 不具 patch 等价性的提交。不得合并；先比较其语义与已关闭 Plan28/38 结果，再决定该引用是否可安全删除。
+- `Design/Data/ReEchoData.xlsx` 仅在存在准备发布的编辑时是单写入者二进制。一次性本地可用性测试不锁定团队资源。
+- 运行时竞技场没有专用序列化测试地图；替换任何 `.umap` 前先认领。
+- Plan34 不可整分支合并：该分支与当前 main 都修改了 `Design/Data/ReEchoData.xlsx`、`Source/ReEcho/ReEcho.Build.cs`、`scripts/data/sync_xlsx_to_csv.py` 和 `scripts/validate_project.py`。在当前权威工作簿上重新生成 AudioEvents Table，明确组合文本契约，并重跑全部数据/构建证据。
+- 已锁定产品决定：选择攻击模式不会自动恢复；Continue 恢复本局选择，新局默认自动；每个活跃 Echo 都提供迷雾视野；显式回放选择为空时不生成 Echo。
 
-## Pending human decisions
+## 待人工决定
 
-- None.
+- 无。

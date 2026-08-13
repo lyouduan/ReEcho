@@ -1,43 +1,43 @@
-# ReEcho programmer-user route
+# ReEcho 程序用户路线
 
-This file applies after the user confirms “程序”. It defines the professional boundary; `PLANNER_RULES.md` and `EXECUTOR_RULES.md` still determine the AI's repository authority.
+本文件在用户确认“程序”后适用。它定义专业边界；`PLANNER_RULES.md` 和 `EXECUTOR_RULES.md` 仍决定 AI 的仓库权限。
 
-## Planner-Executor mode
+## Planner-Executor 模式
 
-This section is the single authority for the Planner-Executor mode choice inside the programmer route.
+本节是程序路线选择 Planner-Executor 模式的唯一权威。
 
-- Activate Planner-Executor mode only when the current user confirms in the current conversation they want to adopt it. Do not infer, inherit or transfer that choice. A negative answer or no answer keeps the lightweight direct-programmer route active.
-- In Planner-Executor mode, the AI follows the formal Plan lifecycle in `PLANNER_RULES.md` / `EXECUTOR_RULES.md`: a numbered Plan published to `origin/main` before execution, ownership/Exchange rows, staged approval waits, prescribed build/readiness gates and pre-publication confirmation. Planner duty covers planning, review, local integration, closure and remote-main publication; Executor duty covers concrete implementation on an assigned local Plan/branch.
-- In the lightweight (non-Planner-Executor) route, the AI works directly on the request without the formal Plan/ownership/lifecycle ceremony, but still selects Planner or Executor duty as the task requires and still obeys every non-skippable collaboration and safety check below.
-- Neither mode authorizes scope invention, designer/artist product decisions, overwriting uncommitted work, force-pushing, deleting dirty worktrees, concealing conflicts, fabricating evidence or performing an unrequested irreversible action. A destructive or irreversible choice that cannot safely wait still requires confirmation before execution.
-- Commit identity is governed only by `shared/GIT_RULES.md`; the chosen mode does not change the commit tag.
+- 仅当当前用户在当前对话中确认希望采用时，才启用 Planner-Executor 模式。不得推断、继承或转移该选择。否定回答或未回答时，保持轻量直接程序路线。
+- Planner-Executor 模式遵循 `PLANNER_RULES.md` / `EXECUTOR_RULES.md` 的正式 Plan 生命周期：执行前将编号 Plan 发布到 `origin/main`、维护所有权/Exchange 行、分阶段等待批准、执行规定的构建/就绪门禁，并在发布前确认。Planner 负责规划、评审、本地集成、关闭和远端 main 发布；Executor 负责在指定本地 Plan/分支上具体实现。
+- 轻量（非 Planner-Executor）路线直接处理请求，不执行正式 Plan/所有权/生命周期流程，但仍按任务选择 Planner 或 Executor 职责，并遵守下方所有不可跳过的协作与安全检查。
+- 两种模式都不授权擅自扩张范围、替策划/美术做产品决定、覆盖未提交内容、强推、删除脏 worktree、隐瞒冲突、伪造证据或执行未请求的不可逆操作。无法安全延后的破坏性或不可逆选择仍须执行前确认。
+- 提交身份仅由 `shared/GIT_RULES.md` 管理；模式选择不改变提交标签。
 
-## Remote collaboration safety check (applies in every mode)
+## 远端协作安全检查（所有模式均适用）
 
-This is the core of safe collaboration and is NON-SKIPPABLE whether or not Planner-Executor mode is adopted.
+无论是否采用 Planner-Executor 模式，本节都是安全协作核心，**不可跳过**。
 
-- `git fetch` is the only automatic first step whenever remote state may have changed.
-- If fetch reveals commits outside the currently approved local baseline (i.e., another person has pushed since the baseline), the AI must stop before `pull`, `merge`, `rebase`, `cherry-pick` or `push`. Report Physical/Git conflict, Logical conflict and Coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption.
-- When the last push to the affected branch was made by another person, the human — not the AI — decides how to handle each Physical conflict and Logical conflict: **adopt (采用)**, **merge (合并)**, or **discard (抛弃)**. The AI presents the options and tradeoffs but does not auto-resolve ownership or behavior.
-- This check cannot be waived by any mode, route or session.
+- 远端状态可能变化时，唯一允许自动执行的第一步是 `git fetch`。
+- 若 fetch 发现当前已批准本地基线之外的提交（即基线后有他人推送），AI 必须在 `pull`、`merge`、`rebase`、`cherry-pick` 或 `push` 前停止。报告物理/Git 冲突、逻辑冲突和耦合，然后等待用户明确选择。可快进或可干净自动合并都不例外。
+- 若受影响分支最近一次推送来自其他人，由用户而非 AI 决定每个物理冲突和逻辑冲突的处理方式：**采用**、**合并**或**丢弃**。AI 提供选项和权衡，但不自动决定所有权或行为。
+- 任何模式、路线或会话都不能豁免此检查。
 
-## Select the AI duty
+## 选择 AI 职责
 
-- Use Planner duty for planning, review, ownership/contracts, local integration, closure or remote-main publication.
-- Use Executor duty for a concrete implementation on an assigned local Plan/branch.
-- If neither was assigned, stay within Executor authority. Do not infer permission to merge or publish.
+- 规划、评审、所有权/契约、本地集成、关闭或发布远端 main 时使用 Planner 职责。
+- 在指定本地 Plan/分支上具体实现时使用 Executor 职责。
+- 若未指定，保持 Executor 权限。不得自行推断合并或发布许可。
 
-Before committing or publishing, follow the applicable identity and publication rule in `shared/GIT_RULES.md`.
+提交或发布前，遵循 `shared/GIT_RULES.md` 中适用的身份和发布规则。
 
-## Programmer scope
+## 程序范围
 
-- May change C++, Python tooling, schemas, configuration, public contracts and technical documentation when the Plan and ownership allow it.
-- Treat gameplay feel, visual quality, wording usability and audio balance as human validation even when objective checks pass.
-- Consume designer-authored XLSX and artist-authored assets through their published contracts; do not replace their source of truth with convenience constants or hidden generated files.
-- When a request is primarily balance/content authoring or visual/audio production, identify the designer/artist boundary and ask the user before switching routes.
+- 在 Plan 和所有权允许时，可以修改 C++、Python 工具、Schema、配置、公共契约和技术文档。
+- 即使客观检查通过，玩法手感、视觉质量、文案可用性和音频平衡仍视为人工验收。
+- 通过已发布契约消费策划编写的 XLSX 和美术资产；不得用便利常量或隐藏生成文件替代其事实来源。
+- 请求主要属于平衡/内容编写或视觉/音频制作时，指出策划/美术边界，并在切换路线前询问用户。
 
-## Cross-role handoff
+## 跨角色交接
 
-- Give designers stable fields, units, allowed IDs and validation errors; do not ask them to encode new logic in prose cells.
-- Give artists exact asset paths, dimensions/formats, binding names and runtime constraints; do not ask them to modify gameplay state in Blueprint.
-- Review specialist changes for runtime contracts and integration safety, but leave subjective acceptance to the corresponding human owner.
+- 向策划提供稳定字段、单位、允许 ID 和验证错误；不要要求其在文本单元格中编码新逻辑。
+- 向美术提供准确资产路径、尺寸/格式、绑定名称和运行时约束；不要要求其在 Blueprint 中修改玩法状态。
+- 评审专业变更的运行时契约和集成安全，但主观验收留给对应专业用户。

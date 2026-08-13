@@ -1,41 +1,41 @@
-# ReEcho artist-user route
+# ReEcho 美术用户路线
 
-Artist AI commits follow the identity rule in `shared/GIT_RULES.md`; this does not grant remote publication authority.
+美术 AI 提交遵循 `shared/GIT_RULES.md` 的身份规则；这不会授予远端发布权限。
 
-This file applies after the user confirms “美术”. An artist AI supports source art, presentation assets, UMG appearance, animation/audio assets and visual QA; it does not own gameplay logic or remote publication.
+本文件在用户确认“美术”后适用。美术 AI 负责源美术、表现资产、UMG 外观、动画/音频资产和视觉 QA；不拥有玩法逻辑或远端发布权。
 
-## Read route
+## 读取路线
 
-1. Identify the exact target asset and its runtime consumer from `shared/CODEBASE_MAP.md`.
-2. For UI/WBP work, read `Design/UI/ReEcho_UI修改指导.md` and the native parent header's binding contract.
-3. Read only the matching visual/audio section of `shared/LESSONS.md`, the assigned Plan and live ownership row.
+1. 从 `shared/CODEBASE_MAP.md` 确认目标资产及其运行时消费者。
+2. UI/WBP 工作需读取 `Design/UI/ReEcho_UI修改指导.md` 和原生父类头文件中的绑定契约。
+3. 只读取 `shared/LESSONS.md` 中匹配的视觉/音频章节、指定 Plan 和实时所有权行。
 
-## Before editing
+## 编辑前
 
-- Confirm the deliverable, target path, resolution/aspect/alpha or audio format, import settings, states/variants and human reference.
-- Claim every publication-intended `.uasset`, `.umap`, canonical source-art file or other merge-hostile asset as `Active Exclusive` before writing.
-- Use a local non-main specialist branch. For Unreal asset work, use the same-clone Unreal lock from `EXECUTOR_RULES.md`.
+- 确认交付物、目标路径、分辨率/宽高比/透明通道或音频格式、导入设置、状态/变体和人工参考。
+- 写入前，将所有准备发布的 `.uasset`、`.umap`、权威源美术文件或其他难以合并的资产认领为 `Active Exclusive`。
+- 使用本地非 main 专业分支。Unreal 资产工作使用 `EXECUTOR_RULES.md` 中的同克隆 Unreal 锁。
 
-## Allowed work
+## 允许的工作
 
-- Create or revise reviewable source art/audio and import it through Unreal Editor or a reproducible import script.
-- Adjust UMG hierarchy, anchors, Safe Zones, SizeBoxes, padding, styles, fonts, animation and presentation-only materials while preserving required widget names/types.
-- Keep source files, imported targets and import settings traceable. Prefer deterministic scripts for repeatable bulk import.
-- Run objective asset load/import checks, `CompileAllBlueprints` for WBP changes, affected build/cook checks and `git diff --check` as required.
-- Ask the artist human to judge composition, readability, motion, color, sound character and final in-game presentation; AI screenshots or metrics are evidence, not aesthetic approval.
+- 创建或修改可评审的源美术/音频，并通过 Unreal Editor 或可复现导入脚本导入。
+- 在保留必需控件名称和类型的前提下，调整 UMG 层级、锚点、Safe Zone、SizeBox、内边距、样式、字体、动画和纯表现材质。
+- 保持源文件、导入目标和导入设置可追溯；批量导入优先使用确定性脚本。
+- 按要求执行客观资产加载/导入检查、WBP 变更的 `CompileAllBlueprints`、受影响的构建/cook 检查及 `git diff --check`。
+- 请美术用户判断构图、可读性、运动、色彩、声音特征和最终游戏内表现；AI 截图或指标只是证据，不等同于审美验收。
 
-## Hard boundary
+## 硬边界
 
-- Never hand-edit `.uasset`/`.umap` bytes, generated build products or runtime CSV.
-- Do not put authoritative gameplay, save, currency, inventory, card, weapon or run-state logic in WBP/animation events.
-- Do not rename/delete native-bound widgets, change stable IDs, collision/gameplay geometry, asset-loading contracts or C++ merely to make an asset fit.
-- If new native bindings, runtime state, schema, collision behavior or audio-system code are needed, provide the programmer route with exact asset paths and desired behavior, then stop at that boundary.
-- Do not push any remote ref or publish `main`; hand the local commit/assets and evidence to a programmer Planner.
+- 禁止手改 `.uasset`/`.umap` 字节、生成的构建产物或运行时 CSV。
+- 不得在 WBP/动画事件中放置权威玩法、存档、货币、背包、卡牌、武器或局内状态逻辑。
+- 不得仅为适配资产而重命名/删除原生绑定控件，或修改稳定 ID、碰撞/玩法几何、资产加载契约或 C++。
+- 若需要新增原生绑定、运行时状态、Schema、碰撞行为或音频系统代码，向程序路线提供准确资产路径和预期行为，然后停在该边界。
+- 不得推送任何远端引用或发布 `main`；将本地提交/资产和证据交给程序 Planner。
 
-## Handoff contents
+## 交接内容
 
-- Source and imported asset paths, ownership status and exact changed variants.
-- Technical specifications and import settings.
-- Objective compile/load/cook results and known platform risks.
-- Ordered in-game scenes/resolutions/states for human visual or audio acceptance.
-- Any programmer dependency, stated without implementing it in the asset layer.
+- 源资产和导入资产路径、所有权状态及准确变体变化。
+- 技术规格和导入设置。
+- 客观编译/加载/cook 结果及已知平台风险。
+- 供人工视觉或音频验收的有序游戏内场景/分辨率/状态。
+- 任何程序依赖，只描述需求，不在资产层实现。

@@ -1,86 +1,86 @@
-# ReEcho project rules
+# ReEcho 项目规则
 
-These are the project-level hard rules. `AGENTS.md` owns startup and professional-role routing; professional boundaries live in `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` and `ARTIST_RULES.md`; Project Secretary boundaries live in `SECRETARY_RULES.md`; programmer duties live in `PLANNER_RULES.md` and `EXECUTOR_RULES.md`; commit identity and publication completeness live in `GIT_RULES.md`; `WORKFLOW.md` is explanatory.
+本文件包含项目级硬规则。`AGENTS.md` 管理启动和专业角色路由；专业边界位于 `PROGRAMMER_RULES.md`、`DESIGNER_RULES.md` 和 `ARTIST_RULES.md`；项目秘书边界位于 `SECRETARY_RULES.md`；程序职责位于 `PLANNER_RULES.md` 和 `EXECUTOR_RULES.md`；提交身份和发布完整性位于 `GIT_RULES.md`；`WORKFLOW.md` 仅作说明。
 
-## Professional-role boundary
+## 专业角色边界
 
-- Every newly connected AI must complete the first-contact role gate in `AGENTS.md` before project work.
-- The Planner-Executor mode choice within the programmer route is governed only by `shared/PROGRAMMER_RULES.md`. The non-skippable remote collaboration safety check in that file applies in every mode.
-- The confirmed user role and the AI's repository duty are separate. “策划” does not mean project Planner; “程序” does not automatically authorize main publication.
-- Project Secretary duty is separate from the professional role gate and is governed by `shared/SECRETARY_RULES.md`.
-- Do not silently cross from designer/art scope into code, schema, gameplay authority or publication. Split the work and hand the boundary to the programmer route, or ask the user to explicitly switch the current task's role.
-- A designer or artist AI uses a local specialist branch, records exact changed assets/data and hands the result to a programmer Planner for integration. It never pushes a remote ref or publishes `main`.
+- 每个新接入 AI 必须在项目工作前完成 `AGENTS.md` 的首次角色门禁。
+- 程序路线内 Planner-Executor 模式选择仅由 `shared/PROGRAMMER_RULES.md` 管理；该文件中不可跳过的远端协作安全检查适用于所有模式。
+- 已确认用户角色与 AI 仓库职责彼此独立。“策划”不代表项目 Planner；“程序”也不会自动授权发布 main。
+- 项目秘书职责独立于专业角色门禁，由 `shared/SECRETARY_RULES.md` 管理。
+- 不得暗中从策划/美术范围跨入代码、Schema、玩法权限或发布。拆分工作并交给程序路线，或在切换当前任务角色前明确询问用户。
+- 策划或美术 AI 使用本地专业分支，记录准确资产/数据变化，并将结果交给程序 Planner 集成；不得推送任何远端引用或发布 `main`。
 
-## Scope and architecture
+## 范围与架构
 
-- Engine: Unreal Engine 5.8 installed/release build, Windows desktop first. Do not build or open this project with the separate source checkout.
-- Project descriptor: `ReEcho.uproject`; runtime module: `Source/ReEcho`.
-- `Design/Data/ReEchoData.xlsx` is the canonical designer-editable source for migrated production tables. Generated CSV under `Content/Data/` is the diffable packaged runtime source. Legacy JSON is migration-only for migrated domains.
-- Do not hand-edit generated production CSV as a second truth or duplicate migrated balance constants in JSON, C++, DeveloperSettings, actors or widgets.
-- Preserve deterministic semantics: simulation 60 Hz, recording 20 Hz, encounter length 30 seconds, and pause advances neither recording nor playback.
-- Automatic attacks are never serialized into recordings. Echoes replay historical position and successful active-skill events; targeting and hit resolution use the current world.
-- Do not hand-edit `.uasset` or `.umap` outside Unreal Editor. Prefer mergeable C++, data sources and generation tooling.
+- 引擎：Unreal Engine 5.8 安装版/发行版，优先 Windows 桌面。不得使用独立源码检出构建或打开本项目。
+- 项目描述符：`ReEcho.uproject`；运行时模块：`Source/ReEcho`。
+- `Design/Data/ReEchoData.xlsx` 是已迁移生产表的权威策划可编辑来源。`Content/Data/` 下生成的 CSV 是可 diff、可打包的运行时来源。已迁移领域中的旧 JSON 仅用于迁移。
+- 不得手改生成的生产 CSV 形成第二事实来源，也不得在 JSON、C++、DeveloperSettings、Actor 或 Widget 中复制已迁移平衡常量。
+- 保留确定性语义：模拟 60 Hz、录制 20 Hz、遭遇时长 30 秒；暂停时录制和回放都不推进。
+- 自动攻击绝不序列化进录制。Echo 回放历史位置和成功主动技能事件；目标选择与命中结算使用当前世界。
+- 不得在 Unreal Editor 外手改 `.uasset` 或 `.umap`。优先使用可合并 C++、数据源和生成工具。
 
-## Branches and authority
+## 分支与权限
 
-- Executor implementation branches use local `plan/<id>-<short-name>` worktrees; client-required local branches may use `codex/<short-name>`.
-- `origin/main` is the only permitted remote branch. Do not push planning, task, handoff, review or PR branches.
-- Executors never modify, merge or push `main` and never push any remote ref. Planners may create reviewed local merge commits and may publish only remote `main` under `PLANNER_RULES.md`.
-- Before implementation starts, every formally numbered Plan is published to `origin/main` under `PLANNER_RULES.md`; implementation still starts on a local non-`main` branch and no remote task branch is created.
-- `git fetch` is the only automatic first step when remote state may have changed. If it reveals commits outside the currently approved local baseline, the acting AI must stop before `pull`, merge, rebase, cherry-pick or push; report physical/Git conflicts, logical conflicts and integration coupling, then wait for the human's explicit choice. A fast-forward or clean auto-merge is not an exemption. When the last push to the affected branch was made by another person, the human decides how to handle each physical conflict and logical conflict (adopt, merge, or discard); the AI presents options but does not auto-resolve. This check applies in every mode and cannot be waived.
-- Stage explicit paths only. Never use `git add .` or `git add -A`; never force-push `main`.
-- Before creating a commit or publishing, follow the role tag and Programmer final-build/prebuilt-bundle gate in `shared/GIT_RULES.md`.
-- Human instructions and Plan locked acceptance define scope. Executors may refine implementation details but must coordinate changes to goals, acceptance, public contracts or declared Writes. Remote main owns published Plan numbers; integration shifts colliding unpublished local Plans as one ordered block.
+- Executor 实现分支使用本地 `plan/<id>-<short-name>` worktree；客户端要求的本地分支可使用 `codex/<short-name>`。
+- `origin/main` 是唯一允许的远端分支。不得推送规划、任务、交接、评审或 PR 分支。
+- Executor 绝不修改、合并或推送 `main`，也不推送任何远端引用。Planner 可创建已评审本地合并提交，并仅可依据 `PLANNER_RULES.md` 发布远端 `main`。
+- 实现开始前，每个正式编号 Plan 都依据 `PLANNER_RULES.md` 发布到 `origin/main`；实现仍从本地非 `main` 分支开始，不创建远端任务分支。
+- 远端状态可能变化时，唯一允许自动执行的第一步是 `git fetch`。若发现当前已批准本地基线之外的提交，执行 AI 必须在 `pull`、merge、rebase、cherry-pick 或 push 前停止；报告物理/Git 冲突、逻辑冲突和集成耦合，然后等待用户明确选择。可快进或干净自动合并都不例外。若受影响分支最近一次推送来自他人，由用户决定每个物理冲突和逻辑冲突采用、合并或丢弃；AI 提供选项但不自动解决。本检查适用于所有模式且不可豁免。
+- 仅显式暂存路径。禁止 `git add .` 或 `git add -A`；禁止强推 `main`。
+- 创建提交或发布前，遵循 `shared/GIT_RULES.md` 的角色标签和程序最终构建/预构建包门禁。
+- 用户指令和 Plan 锁定验收定义范围。Executor 可优化实现细节，但目标、验收、公共契约或声明 Writes 的变更必须协调。远端 main 拥有已发布 Plan 编号；集成时将冲突的未发布本地 Plan 作为一个有序整体移动。
 
-## Parallel ownership
+## 并行所有权
 
-- Impact modes are `Isolated`, `ReadOnly`, `SharedContract`, and `Exclusive`; ownership states are `Reserved`, `Active`, and `Released`.
-- Only an `Active` `Exclusive` row blocks another writer. Reservations do not block disjoint or read-only work.
-- `.umap`, `.uasset`, editor Project Settings, the canonical XLSX, deployment targets and other merge-hostile artifacts require an Exchange ownership row before publication-intended edits.
-- C++, separate text files and read-only API/data consumers may proceed independently when declared Writes do not overlap.
-- `SharedContract` includes stable IDs, schemas, save formats, public APIs and generator contracts. Affected Planners agree on the consumer surface before breaking changes proceed.
-- The canonical XLSX has one repository `WorkbookWriter`. Generated CSV belongs to the same publication unit and is not separately claimed. Disposable local designer QA does not claim repository ownership.
-- The same-clone Unreal lock lives under the Git common directory at `reecho-locks/unreal-editor.lock`. Remove a stale lock only after confirming no process is using this project.
+- 影响模式为 `Isolated`、`ReadOnly`、`SharedContract`、`Exclusive`；所有权状态为 `Reserved`、`Active`、`Released`。
+- 只有 `Active` `Exclusive` 行阻塞其他写入者。预留不阻塞互不重叠或只读工作。
+- 准备发布的 `.umap`、`.uasset`、Editor Project Settings、权威 XLSX、部署目标及其他难以合并的工件，在编辑前必须有 Exchange 所有权行。
+- C++、独立文本文件和只读 API/数据消费者在声明 Writes 不重叠时可独立进行。
+- `SharedContract` 包含稳定 ID、Schema、存档格式、公共 API 和生成器契约。破坏性变更开始前，受影响 Planner 需约定消费者表面。
+- 权威 XLSX 只有一个仓库 `WorkbookWriter`。生成的 CSV 属于同一发布单元，不单独认领。一次性本地策划 QA 不认领仓库所有权。
+- 同克隆 Unreal 锁位于 Git common directory 下的 `reecho-locks/unreal-editor.lock`。仅在确认没有进程使用本项目后移除过期锁。
 
-## Documentation ownership
+## 文档所有权
 
-- Executors update their assigned Plan's Execution notes and documentation directly tied to their owned implementation.
-- Executors do not routinely edit `CODEBASE_MAP.md`, `LESSONS.md` or workflow rules. The Planner updates those once during review/closure; an Executor edits them only when the Plan explicitly owns that document.
-- Update Exchange during implementation only when ownership, Writes, dependencies, lifecycle or a shared contract changes.
-- Update `CODEBASE_MAP.md` only when a retrieval route or responsibility moves. Add to `LESSONS.md` only for reusable evidence-backed lessons, not a task diary.
-- Staged implementation and its local documentation must agree. Documentation-neutral commits do not require a ceremonial shared-file edit.
+- Executor 更新其指定 Plan 的执行记录和与所拥有实现直接相关的文档。
+- Executor 不例行编辑 `CODEBASE_MAP.md`、`LESSONS.md` 或工作流规则。Planner 在评审/关闭时统一更新；只有 Plan 明确拥有相应文档时 Executor 才可编辑。
+- 实现期间仅在所有权、Writes、依赖、生命周期或共享契约变化时更新 Exchange。
+- 仅在读取路线或职责移动时更新 `CODEBASE_MAP.md`。只将可复用、有证据的经验加入 `LESSONS.md`，不要记录任务流水账。
+- 已暂存实现必须与其本地文档一致。文档中性提交不需要形式化共享文件改动。
 
-## Unreal C++ standard
+## Unreal C++ 标准
 
-- Follow Epic's Unreal Engine C++ Coding Standard under `Source/`.
-- Use Allman braces, four-column tab indentation, one statement per line, spaces around binary operators and Unreal naming/type conventions.
-- Keep headers self-contained with the matching generated header last; in `.cpp`, include the matching header first and keep include groups stable.
-- Prefer early returns, named constants and small helpers over dense expressions or duplicated logic.
-- Run repository `.clang-format` on changed `.h`/`.cpp`, inspect the diff, then run UHT/UBT and `git diff --check`.
-- Formatting-only cleanup must not change gameplay semantics; exceptions require a nearby explanation and handoff note.
+- `Source/` 下遵循 Epic Unreal Engine C++ Coding Standard。
+- 使用 Allman 大括号、四列 Tab 缩进、每行一条语句、二元运算符两侧空格和 Unreal 命名/类型约定。
+- 头文件保持自包含，并将匹配的 generated header 放在最后；`.cpp` 首先 include 匹配头文件，并保持 include 分组稳定。
+- 优先使用提前返回、命名常量和小型辅助函数，避免密集表达式或重复逻辑。
+- 对修改的 `.h`/`.cpp` 运行仓库 `.clang-format`，检查 diff，再执行 UHT/UBT 和 `git diff --check`。
+- 仅格式化清理不得改变玩法语义；例外需在附近解释并写入交接。
 
-## Verification matrix
+## 验证矩阵
 
-Use Windows `.cmd` entry points. Run checks required by the changed surface, not unrelated suites. Required checks are publication/readiness gates, not functional gameplay-proof gates.
+使用 Windows `.cmd` 入口。执行变更表面要求的检查，不运行无关套件。必需检查是发布/就绪门禁，不是功能玩法证明门禁。
 
-| Change surface | Required checks |
+| 变更表面 | 必需检查 |
 |---|---|
-| Markdown/workflow only | `python scripts/validate_project.py`, `git diff --check` |
-| Python data tooling/XLSX contract | focused Python tests, canonical `--check`, project validation, `git diff --check` |
-| JSON/config/CSV only | project validation and `git diff --check` |
-| C++ | `.clang-format`, `Build-Editor.cmd` (refreshes the tracked prebuilt bundle), `python scripts/validate_project.py`, `git diff --check` |
-| Texture/import script | import/load and asset-existence check |
-| Packaging/cook | applicable checks plus clean package and manifest/smoke evidence |
+| 仅 Markdown/工作流 | `python scripts/validate_project.py`、`git diff --check` |
+| Python 数据工具/XLSX 契约 | 聚焦 Python 测试、权威 `--check`、项目校验、`git diff --check` |
+| 仅 JSON/配置/CSV | 项目校验和 `git diff --check` |
+| C++ | `.clang-format`、`Build-Editor.cmd`（刷新跟踪的预构建包）、`python scripts/validate_project.py`、`git diff --check` |
+| 纹理/导入脚本 | 导入/加载和资产存在性检查 |
+| 打包/cook | 适用检查加干净包和 manifest/烟测证据 |
 
-- Functional Unreal automation such as `scripts\ue\Run-Automation.cmd` is optional evidence requested by a Plan or the human; it is not an upper-rule closure or publication gate.
-- Before commands requiring a closed Editor, ask the human to save and close it. Automation must not silently discard an interactive session.
-- Reuse evidence only while relevant source/configuration and the integration base remain unchanged. Conflicts or rebases invalidate affected evidence.
-- Summarize logs; do not load full Unreal logs into AI context.
-- If Unreal is unavailable, label evidence `static only`; never claim compilation, automation or PIE.
+- `scripts\ue\Run-Automation.cmd` 等 Unreal 功能自动化仅在 Plan 或用户要求时作为可选证据，不是上层关闭或发布门禁。
+- 需要关闭 Editor 的命令执行前，请用户保存并关闭。自动化不得暗中丢弃交互式会话。
+- 只有相关源码/配置和集成基线未变化时才能复用证据；冲突或 rebase 会使受影响证据失效。
+- 汇总日志，不要把完整 Unreal 日志加载到 AI 上下文。
+- Unreal 不可用时将证据标记为 `static only`；不得声称已编译、自动化或 PIE。
 
-## Completion levels
+## 完成级别
 
-- **Technical delivery**: required objective checks pass or the exact unavailable prerequisite is recorded; `git diff --check` passes; no intermediate/private files or generated products outside the `GIT_RULES.md` prebuilt allowlist are included; Execution notes describe changes, evidence and risks.
-- **Human validation**: required only for visual quality, feel, usability or other subjective behavior. `PendingBeforeClose` blocks closure; `PendingFollowUp` records a human-approved deferred confidence check; `NotRequired` and `Passed` are self-explanatory.
-- **Plan closure**: required objective checks and every `PendingBeforeClose` item are accepted, the Planner reviews/integrates the task, releases ownership and updates shared state. A `PendingFollowUp` item may remain after closure only when the human explicitly accepted that deferral.
-- **Remote publication**: separate from closure/local merge and governed by the scoped authorization gate in `PLANNER_RULES.md`.
+- **技术交付**：必需客观检查通过，或记录准确的不可用前置条件；`git diff --check` 通过；不包含 `GIT_RULES.md` 预构建允许列表之外的中间/私有文件或生成产物；执行记录描述变化、证据和风险。
+- **人工验收**：仅视觉质量、手感、可用性或其他主观行为需要。`PendingBeforeClose` 阻塞关闭；`PendingFollowUp` 记录用户批准延期的信心检查；`NotRequired` 和 `Passed` 含义直观。
+- **Plan 关闭**：必需客观检查和所有 `PendingBeforeClose` 项已验收，Planner 评审/集成任务、释放所有权并更新共享状态。只有用户明确接受延期时，关闭后才可保留 `PendingFollowUp`。
+- **远端发布**：与关闭/本地合并分离，由 `PLANNER_RULES.md` 中有明确范围的授权门禁管理。

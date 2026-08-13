@@ -1,41 +1,41 @@
-# ReEcho Executor rules
+# ReEcho Executor 规则
 
-This file contains Executor actions only. Follow `AGENTS.md` for minimal startup order and `PROJECT_RULES.md` for hard constraints. The Planner-Executor mode choice is governed by `PROGRAMMER_RULES.md`; the non-skippable remote collaboration safety check applies in every mode.
+本文件只包含 Executor 操作。最小启动顺序遵循 `AGENTS.md`，硬约束遵循 `PROJECT_RULES.md`。Planner-Executor 模式选择由 `PROGRAMMER_RULES.md` 管理；不可跳过的远端协作安全检查适用于所有模式。
 
-## Start safely
+## 安全开始
 
-1. Work in an isolated `plan/<id>-<short>` branch/worktree, never in `main`.
-2. Confirm the assigned Plan is already published on `origin/main`, or confirm the embedded prompt contract when the task legitimately has no Plan:
-   - the declared implementation-authored-by AI side matches this Executor handoff; if missing or wrong, stop before editing and ask the Planner to correct provenance;
-   - lifecycle is `Ready`, `InProgress` or `Review` only when review fixes were explicitly assigned;
-   - implementation base and branch are named;
-   - Writes/Reads, impact mode and exclusions match Exchange;
-   - any `SharedContract`/`Exclusive` approval is present.
-3. A `Reserved` ownership row announces intent; it does not block disjoint or read-only work. Never write another owner's `Active` `Exclusive` resource.
-4. Read only the assigned Plan, matching Exchange blocks, the selected code route and relevant lessons. Read `§DEBUG` only after a failure needs diagnosis.
+1. 在隔离的 `plan/<id>-<short>` 分支/worktree 中工作，绝不直接在 `main` 中实现。
+2. 确认指定 Plan 已发布到 `origin/main`；任务确实无需 Plan 时，则确认提示中嵌入的契约：
+   - 声明的 implementation-authored-by AI side 与本次 Executor 交接一致；缺失或错误时，编辑前停止并请 Planner 修正来源；
+   - 生命周期为 `Ready`、`InProgress`，或仅在明确指派评审修复时为 `Review`；
+   - 已命名实现基线和分支；
+   - Writes/Reads、影响模式和排除项与 Exchange 一致；
+   - 已具备所需 `SharedContract`/`Exclusive` 批准。
+3. `Reserved` 所有权行只声明意图，不阻塞互不重叠或只读工作。绝不写入其他所有者的 `Active` `Exclusive` 资源。
+4. 只读取指定 Plan、匹配的 Exchange 区块、选中的代码路线和相关经验。仅在失败需要诊断后读取 `§DEBUG`。
 
-Same-machine agents use separate worktrees. Teammates on separate machines use separate clones and local task branches; `origin/main` is the only remote branch. Build products remain local except for the curated clone-and-open Editor bundle governed by `shared/GIT_RULES.md`.
+同机 agent 使用独立 worktree；不同机器的成员使用独立克隆和本地任务分支；`origin/main` 是唯一远端分支。除 `shared/GIT_RULES.md` 管理的精选“拉取即开”Editor 包外，构建产物均保留本地。
 
-## Implement within the contract
+## 在契约内实现
 
-- Refine implementation details freely while preserving the locked goal, acceptance and protected gates.
-- Record meaningful deviations and evidence in the Plan's Execution notes.
-- Update documentation tied directly to owned behavior. Do not routinely edit `PROJECT_STATE`, `CODEBASE_MAP`, `LESSONS`, workflow rules or closed Exchange history.
-- If implementation must expand Writes or alter stable IDs, schema, save format, generator contract or public API, stop only that boundary-crossing work and notify the Planner. Continue unrelated in-scope work when safe.
-- Never weaken acceptance to make a check pass, silently copy a provider's internal data model or treat a WIP branch as accepted functionality.
+- 可自由优化实现细节，但必须保留锁定目标、验收和受保护门禁。
+- 在 Plan 的执行记录中写明有意义的偏差和证据。
+- 更新与所拥有实现直接相关的文档。不要例行编辑 `PROJECT_STATE`、`CODEBASE_MAP`、`LESSONS`、工作流规则或已关闭 Exchange 历史。
+- 若实现必须扩张 Writes，或修改稳定 ID、Schema、存档格式、生成器契约或公共 API，只暂停跨边界部分并通知 Planner；安全时继续无关的范围内工作。
+- 禁止为让检查通过而削弱验收、暗中复制提供者内部数据模型，或将 WIP 分支视为已验收功能。
 
-## Parallel ownership
+## 并行所有权
 
-- `Isolated`: edit only the declared disjoint files.
-- `ReadOnly`: consume only the provider's published stable surface.
-- `SharedContract`: use the agreed interface; request additions through the Planner rather than editing provider-owned files.
-- `Exclusive`: one active writer for merge-hostile artifacts/targets.
+- `Isolated`：只编辑声明的互不重叠文件。
+- `ReadOnly`：只使用提供者已发布的稳定表面。
+- `SharedContract`：使用已约定接口；通过 Planner 请求扩展，而不是编辑提供者拥有的文件。
+- `Exclusive`：难以合并的工件/目标只有一个活跃写入者。
 
-For the canonical workbook, only the active `WorkbookWriter` commits `Design/Data/ReEchoData.xlsx` and its generated production CSV package. Other domains submit requested changes through their Plan/handoff; read-only runtime consumers may proceed concurrently. Disposable local QA edits that will not be published do not claim repository ownership.
+权威工作簿只有活跃 `WorkbookWriter` 可提交 `Design/Data/ReEchoData.xlsx` 及其生成的生产 CSV 包。其他领域通过 Plan/交接提交请求；只读运行时消费者可并行。不会发布的一次性本地 QA 改动不认领仓库所有权。
 
-## Windows UE toolchain
+## Windows UE 工具链
 
-Use repository entry points from the project root:
+从项目根目录使用仓库入口：
 
 ```powershell
 python scripts\validate_project.py
@@ -43,11 +43,11 @@ scripts\ue\Build-Editor.cmd -Configuration Development
 python scripts\ue\package_windows.py
 ```
 
-Functional Unreal automation (`scripts\ue\Run-Automation.cmd`) is optional evidence only when the Plan or the human explicitly asks for it; it is not a default upper-rule gate. Use only checks required by `PROJECT_RULES.md` and the Plan. Ask the human to save/close an interactive Editor before commands that require it. Never claim PIE or visual acceptance; those results belong to the human.
+Unreal 功能自动化（`scripts\ue\Run-Automation.cmd`）仅在 Plan 或用户明确要求时作为可选证据，不是默认上层规则门禁。只执行 `PROJECT_RULES.md` 和 Plan 要求的检查。运行需要关闭 Editor 的命令前，请用户保存并关闭交互式 Editor。不得声称 AI 完成 PIE 或视觉验收；这些结果属于用户。
 
-### Same-clone Unreal lock
+### 同克隆 Unreal 锁
 
-The lock is shared through the Git common directory, so all worktrees in the clone see the same file:
+锁通过 Git common directory 共享，因此克隆中的所有 worktree 都能看到同一文件：
 
 ```powershell
 $gitCommon = (git rev-parse --path-format=absolute --git-common-dir).Trim()
@@ -74,22 +74,22 @@ finally {
 }
 ```
 
-Do not remove someone else's lock from the catch path. A stale lock may be removed only after confirming no UnrealEditor/commandlet process is using this project and recording the recovery in the handoff.
+不得在 catch 路径中删除他人的锁。仅在确认没有 UnrealEditor/commandlet 进程使用本项目，并在交接中记录恢复过程后，才能删除过期锁。
 
-## Verification and handoff
+## 验证与交接
 
-1. Run focused checks immediately after risky changes and the required final matrix before handoff.
-2. Summarize current-commit evidence; do not rely on stale binaries or pre-rebase results.
-3. Update the Plan lifecycle to `Review`, preserve the separate human-validation value (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`), and release only resources no longer being edited.
-4. Stage explicit files and commit locally with the identity prefix required by `shared/GIT_RULES.md`, the Plan number and a concrete outcome. Do not push the task branch; hand the local branch/commit to the Planner in the same clone.
-5. Report commit, changed surface, passed/failed checks, unavailable prerequisites and remaining human validation.
+1. 风险变更后立即执行聚焦检查，交接前执行必需的最终矩阵。
+2. 汇总当前提交的证据；不得依赖过期二进制或 rebase 前结果。
+3. 将 Plan 生命周期更新为 `Review`，保留独立人工验收值（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`），并只释放不再编辑的资源。
+4. 显式暂存文件，并使用 `shared/GIT_RULES.md` 要求的身份前缀、Plan 编号和具体结果在本地提交。不得推送任务分支；在同一克隆中将本地分支/提交交给 Planner。
+5. 报告提交、变更表面、通过/失败检查、不可用前置条件和剩余人工验收。
 
-Executors do not push any remote ref, merge/publish `main`, create a PR/MR, remove their worktree, or delete remote refs.
+Executor 不得推送任何远端引用、合并/发布 `main`、创建 PR/MR、移除自己的 worktree 或删除远端引用。
 
-## Taking over unfinished work
+## 接管未完成工作
 
-- Identify the last verified commit from Git and Execution notes.
-- Separate current unverified changes with `git status` and `git diff --stat`.
-- Change and verify one hypothesis at a time; do not stack speculative fixes.
-- Preserve another person's work with a branch/stash/patch before any rollback. Never use destructive history or filesystem cleanup without explicit authority.
-- Fix sources and rebuild; do not patch `Intermediate`, `Binaries`, `Saved`, package output or other generated products as if they were source.
+- 从 Git 和执行记录识别最后一个已验证提交。
+- 使用 `git status` 和 `git diff --stat` 分离当前未验证变化。
+- 每次只修改并验证一个假设；不得叠加推测性修复。
+- 回滚前用分支/stash/patch 保留他人工作。没有明确权限时，禁止破坏性历史或文件系统清理。
+- 修复源码并重建；不得把 `Intermediate`、`Binaries`、`Saved`、打包输出或其他生成产物当作源码修补。

@@ -971,16 +971,16 @@ def validate_workflow() -> None:
         fail(f"AGENTS.md lacks the first-contact professional-role gate: {', '.join(missing_role_gate_markers)}")
     role_rule_markers = {
         "PROGRAMMER_RULES.md": (
-            "programmer-user route",
-            "Planner duty",
-            "Executor duty",
-            "## Planner-Executor mode",
-            "single authority for the Planner-Executor mode choice",
-            "Remote collaboration safety check",
+            "程序用户路线",
+            "Planner 负责规划",
+            "Executor 负责在指定本地 Plan/分支上具体实现",
+            "## Planner-Executor 模式",
+            "选择 Planner-Executor 模式的唯一权威",
+            "远端协作安全检查",
             "shared/GIT_RULES.md",
         ),
-        "DESIGNER_RULES.md": ("designer-user route", "ReEchoData.xlsx", "Never hand-edit generated", "shared/GIT_RULES.md"),
-        "ARTIST_RULES.md": ("artist-user route", "Active Exclusive", "Never hand-edit `.uasset`", "shared/GIT_RULES.md"),
+        "DESIGNER_RULES.md": ("策划用户路线", "ReEchoData.xlsx", "禁止手改生成的", "shared/GIT_RULES.md"),
+        "ARTIST_RULES.md": ("美术用户路线", "Active Exclusive", "禁止手改 `.uasset`", "shared/GIT_RULES.md"),
     }
     role_rule_texts = {
         "PROGRAMMER_RULES.md": programmer_rules,
@@ -992,44 +992,44 @@ def validate_workflow() -> None:
         if missing:
             fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
     secretary_markers = (
-        "single authority for the Project Secretary repository duty",
-        "not a fourth professional user role",
-        "May maintain repository-wide rules",
-        "## No Secretary Plan overhead",
-        "does not require a Plan, Plan number, Plan file",
-        "the Secretary does not create a row for itself",
-        "Physical/Git conflict, Logical conflict and Coupling",
-        "push `origin/main`",
-        "centralized identity and boundary rule in `shared/GIT_RULES.md`",
+        "项目秘书仓库职责的唯一权威",
+        "不是第四种用户专业角色",
+        "可维护全仓库规则",
+        "## 秘书任务无需 Plan",
+        "不需要 Plan、Plan 编号、Plan 文件",
+        "秘书不为自己创建行",
+        "物理/Git 冲突、逻辑冲突和耦合",
+        "推送 `origin/main`",
+        "遵循 `shared/GIT_RULES.md` 中集中定义的身份和边界规则",
     )
     missing_secretary_markers = [marker for marker in secretary_markers if marker not in secretary_rules]
     if missing_secretary_markers:
         fail(f"SECRETARY_RULES.md lacks secretary authority markers: {', '.join(missing_secretary_markers)}")
     if "shared/SECRETARY_RULES.md" not in agents or "Project Secretary duty is a repository coordination overlay" not in agents:
         fail("AGENTS.md must route explicit Project Secretary duty to SECRETARY_RULES.md")
-    if "Project Secretary boundaries live in `SECRETARY_RULES.md`" not in project_rules:
+    if "项目秘书边界位于 `SECRETARY_RULES.md`" not in project_rules:
         fail("PROJECT_RULES.md must point to SECRETARY_RULES.md without redefining secretary duty")
     git_rule_markers = (
-        "single authority for commit identity and publication-completeness rules",
+        "提交身份和发布完整性规则的唯一权威",
         "[PROGRAMMER]",
         "[DESIGNER]",
         "[ARTIST]",
         "[SECRETARY]",
-        "Before every ordinary Programmer-route push to `origin/main`",
+        "普通程序路线每次推送 `origin/main` 前",
         "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
-        "source-only Programmer candidate",
+        "仅含源码的程序候选",
     )
     missing_git_rule_markers = [marker for marker in git_rule_markers if marker not in git_rules]
     if missing_git_rule_markers:
         fail(f"GIT_RULES.md lacks commit/publication authority markers: {', '.join(missing_git_rule_markers)}")
     if "shared/GIT_RULES.md" not in agents or "Commit or publication work" not in agents:
         fail("AGENTS.md must route commit and publication work to GIT_RULES.md")
-    if "Ordinary tasks follow `AGENTS.md` directly" not in onboarding_text:
+    if "普通任务直接遵循 `AGENTS.md`" not in onboarding_text:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
-    if "## Recently closed" in exchange_text or "## Decisions" in exchange_text:
+    if "## 最近关闭" in exchange_text or "## 决定" in exchange_text:
         fail("PLANNER_EXCHANGE.md must contain live coordination only, not history or permanent rules")
-    announcement_block = exchange_text.split("## Planned and active work announcements", 1)[1].split("## Active ownership", 1)[0]
+    announcement_block = exchange_text.split("## 已规划和活跃工作公告", 1)[1].split("## 活跃所有权", 1)[0]
     for row in announcement_block.splitlines():
         if not row.startswith("|") or row.startswith("|---") or "| Plan |" in row:
             continue
@@ -1044,11 +1044,11 @@ def validate_workflow() -> None:
             fail(f"PLANNER_EXCHANGE.md uses unknown human-validation state: {cells[4]}")
         if cells[3] == "Closed" and cells[4] != "PendingFollowUp":
             fail("closed Exchange rows are retained only for a live PendingFollowUp; otherwise remove them")
-    active_block = exchange_text.split("## Active ownership", 1)[1].split("## Warnings / blocked items", 1)[0]
+    active_block = exchange_text.split("## 活跃所有权", 1)[1].split("## 警告 / 阻塞项", 1)[0]
     if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
         fail("completed Plans 07/08 must not retain active ownership")
     for row in active_block.splitlines():
-        if not row.startswith("|") or row.startswith("|---") or "| Owner |" in row:
+        if not row.startswith("|") or row.startswith("|---") or "| 所有者 |" in row:
             continue
         cells = [cell.strip() for cell in row.strip("|").split("|")]
         if len(cells) != 6:
@@ -1072,69 +1072,79 @@ def validate_workflow() -> None:
         if stale_token in exchange_text:
             fail(f"live workflow memory contains stale token: {stale_token}")
     required_template_fields = (
-        "## Coordination",
-        "Plan authored by (AI side):",
-        "Implementation authored by (AI side):",
-        "Task status:",
-        "Human validation:",
-        "Local planning / implementation base:",
-        "Impact mode:",
+        "## 协调",
+        "Plan 编写方（AI 侧）：",
+        "实现编写方（AI 侧）：",
+        "任务状态：",
+        "人工验收：",
+        "本地规划 / 实现基线：",
+        "影响模式：",
         "Writes:",
         "Stable Reads:",
-        "Compatibility promise / downstream action:",
-        "Explicit exclusions:",
+        "兼容承诺 / 下游操作：",
+        "明确排除：",
     )
     missing_template_fields = [field for field in required_template_fields if field not in plan_template]
     if missing_template_fields:
         fail(f"Plan template lacks local coordination fields: {', '.join(missing_template_fields)}")
     if "git rev-parse --path-format=absolute --git-common-dir" not in executor_rules:
         fail("Executor lock guidance must use the Git common directory shared by worktrees")
-    if "Executors update their assigned Plan's Execution notes" not in project_rules:
+    if "Executor 更新其指定 Plan 的执行记录" not in project_rules:
         fail("project rules must keep routine shared-state writes out of Executor branches")
-    if "not a second rulebook" not in workflow_text:
+    if "不是第二本规则书" not in workflow_text:
         fail("WORKFLOW.md must remain explanatory rather than a duplicate rulebook")
     integration_audit_markers = (
-        "## External-commit integration audit",
-        "Physical/Git conflict",
-        "Logical conflict",
-        "Coupling",
-        "even when Git can fast-forward",
-        "Fetch again immediately before push",
+        "## 外部提交集成审计",
+        "物理/Git 冲突",
+        "逻辑冲突",
+        "耦合",
+        "即使 Git 可以快进",
+        "推送前立即再次 fetch",
     )
     missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
     if missing_audit_markers:
         fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
     plan_publication_markers = (
-        "## Number and publish a Plan before execution",
-        "Before assigning a Plan number",
-        "identify the highest numbered Plan",
-        "publish the numbered Plan to `origin/main` immediately",
-        "No Executor, implementation branch or publication-intended specialist work",
-        "If the push is rejected or another published Plan claims the number",
-        "newly numbered Plan file and only its matching live Exchange",
+        "## 执行前编号并发布 Plan",
+        "分配 Plan 编号前",
+        "识别最大 Plan 编号",
+        "立即将编号 Plan 发布到 `origin/main`",
+        "不得为该 Plan 启动 Executor、实现分支或准备发布的专业工作",
+        "若推送被拒或其他已发布 Plan 占用编号",
+        "新编号 Plan 文件及其匹配实时 Exchange",
     )
     missing_plan_publication_markers = [marker for marker in plan_publication_markers if marker not in planner_rules]
     if missing_plan_publication_markers:
         fail(f"Planner rules lack remote-first Plan numbering/publication: {', '.join(missing_plan_publication_markers)}")
-    if "every formally numbered Plan is published to `origin/main`" not in project_rules:
+    plan_language_markers = (
+        "## Plan 语言",
+        "新建 Plan 及对现有 Plan 的实质性内容更新必须使用中文正文",
+        "不得仅为翻译而批量重写已关闭历史 Plan",
+    )
+    missing_plan_language_markers = [marker for marker in plan_language_markers if marker not in planner_rules]
+    if missing_plan_language_markers:
+        fail(f"Planner rules lack the Chinese Plan language contract: {', '.join(missing_plan_language_markers)}")
+    if "# Plan XX - <专业> - <简短名称>" not in plan_template or "## 锁定目标" not in plan_template:
+        fail("Plan template must provide the Chinese authoring surface")
+    if "每个正式编号 Plan 都依据 `PLANNER_RULES.md` 发布到 `origin/main`" not in project_rules:
         fail("PROJECT_RULES.md must route numbered Plans through the remote-first Planner rule")
-    if "Numbered Plans are published to `main` before implementation starts" not in workflow_text:
+    if "编号 Plan 在实现开始前发布到 `main`" not in workflow_text:
         fail("WORKFLOW.md must explain remote-first numbered Plan publication")
     compact_prompt_markers = (
-        "startup prompt is only a neutral routing envelope",
-        "must not assign a new identity",
+        "启动提示只是中立路由外壳",
+        "不得赋予新身份",
         "不改变你现有的身份或职责",
-        "Do not duplicate the Plan's locked goal",
+        "不得重复 Plan 的锁定目标",
     )
     missing_compact_prompt_markers = [marker for marker in compact_prompt_markers if marker not in planner_rules]
     if missing_compact_prompt_markers:
         fail(f"Planner rules lack the neutral Plan-driven prompt contract: {', '.join(missing_compact_prompt_markers)}")
     main_only_markers = {
-        "PROJECT_RULES.md": ("`origin/main` is the only permitted remote branch", "never push any remote ref"),
-        "PLANNER_RULES.md": ("`origin/main` is the only permitted remote branch", "Plan-number conflicts"),
-        "EXECUTOR_RULES.md": ("`origin/main` is the only remote branch", "Do not push the task branch"),
-        "SECRETARY_RULES.md": ("Must not create or push any remote branch other than `origin/main`", "Push only local `main` to `origin/main`"),
-        "WORKFLOW.md": ("exactly one branch: `main`", "Numbered Plans are published to `main` before implementation starts"),
+        "PROJECT_RULES.md": ("`origin/main` 是唯一允许的远端分支", "不推送任何远端引用"),
+        "PLANNER_RULES.md": ("`origin/main` 是唯一允许的远端分支", "Plan 编号冲突"),
+        "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不得推送任务分支"),
+        "SECRETARY_RULES.md": ("禁止创建或推送 `origin/main` 之外的远端分支", "只将本地 `main` 推送至 `origin/main`"),
+        "WORKFLOW.md": ("远端仓库只有一个分支：`main`", "编号 Plan 在实现开始前发布到 `main`"),
     }
     main_only_texts = {
         "PROJECT_RULES.md": project_rules,

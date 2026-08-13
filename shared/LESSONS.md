@@ -391,25 +391,25 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 结算抽卡后紧接商城时，抽卡关闭与商城打开之间必须保持暂停和菜单输入状态；商城关闭时再统一恢复输入并启动下一关。用显式“关闭后继续本轮”标记区分自动结算商城与玩家手动打开的商城，避免复用同一个关闭回调后出现误开下一关或一帧恢复战斗。
 
 ---
-### GAME-32. WeaponId/InputSlot/SlotTypeId must stay separate [UE]
+### GAME-32. WeaponId/InputSlot/SlotTypeId 必须保持分离 [UE]
 
-**Source: ReEcho Plan 24**
+**来源：ReEcho Plan 24**
 
-Do not reuse one field for weapon type, concrete runtime weapon, hotkey slot and part slot. `WeaponTypeId` is the family/pattern axis (`Dagger`, `LongSword`, `Scythe`, ...); `WeaponId` is the stable save/recording/runtime identity (`W_J_02`, `W_J_01`, `W_J_03`, `W_J_04`); `InputSlot` is only the legacy hotkey mapping 1/2/3; `SlotTypeId` is the equipment part socket (`Core`, `Grip`, `Blade`, ...). Save/recording snapshots should store stable `WeaponId` plus data revision, and restore must fail loudly when the current CSV definition is missing, disabled or revision-incompatible. Unnamed workbook part rows are audit rows, not future-proof IDs: keep them disabled with `PartId=None`, `SourceSheet` and `SourceRow`.
-
----
-### GAME-33. Pin data-domain snapshots for active runs [UE]
-
-**Source: ReEcho Plan 24 acceptance rework**
-
-When runtime behavior is table-driven, a save/recording revision must cover every table that can change behavior, not only the final selected row. Capture the deterministic domain revision in the immutable build/recording/save snapshot, pass the pinned data snapshot to player and echo actors, and reject incompatible restores before mutating run state. Tests should prove both sides: an active run keeps using its pinned snapshot after a global reload, while old saves/recordings are refused after behavior tables change.
+不要用一个字段同时表示武器类型、具体运行时武器、快捷键槽和部件槽。`WeaponTypeId` 是家族/模式轴（`Dagger`、`LongSword`、`Scythe` 等）；`WeaponId` 是稳定的存档/录制/运行时身份（`W_J_02`、`W_J_01`、`W_J_03`、`W_J_04`）；`InputSlot` 仅是旧快捷键 1/2/3 映射；`SlotTypeId` 是装备部件插槽（`Core`、`Grip`、`Blade` 等）。存档/录制快照应保存稳定 `WeaponId` 和数据版本；当前 CSV 定义缺失、禁用或版本不兼容时，恢复必须明确失败。工作簿中未命名的部件行是审计行，不是面向未来的 ID：保持禁用，并使用 `PartId=None`、`SourceSheet` 和 `SourceRow`。
 
 ---
-### GAME-34. XLSX authoring must regenerate CSV transactionally [UE]
+### GAME-33. 为进行中的局固定数据领域快照 [UE]
 
-**Source: ReEcho Plan 25**
+**来源：ReEcho Plan 24 验收返工**
 
-Designer-friendly workbooks can be the authoring surface, but runtime CSV remains the package consumed by Unreal. Machine-exported XLSX Tables must be seeded from accepted CSV, not stale prose or legacy workbook values, and `_ExportMap` must whitelist exactly the owned manifest outputs. Generate the complete package first, validate it with the same schema/handler/foreign-key rules as runtime, then publish with same-disk temp files, backups, a transaction marker and `os.replace`; `--check` stays read-only and detects drift instead of repairing it.
+运行时行为由表驱动时，存档/录制版本必须覆盖所有可能改变行为的表，而不只是最终选中行。将确定性领域版本捕获到不可变 build/录制/存档快照中，把固定数据快照传给玩家和 Echo Actor，并在修改局内状态前拒绝不兼容恢复。测试应证明两面：全局重载后进行中的局继续使用其固定快照，而行为表变化后旧存档/录制会被拒绝。
+
+---
+### GAME-34. XLSX 编写必须以事务方式重新生成 CSV [UE]
+
+**来源：ReEcho Plan 25**
+
+面向策划的工作簿可以作为编写表面，但运行时 CSV 仍是 Unreal 消费的包。机器导出的 XLSX Table 必须以已验收 CSV 为种子，不能使用过期文本或旧工作簿值；`_ExportMap` 必须准确列出所拥有的 manifest 输出白名单。先生成完整包，使用与运行时相同的 Schema/handler/外键规则验证，再通过同盘临时文件、备份、事务标记和 `os.replace` 发布；`--check` 保持只读，只检测漂移而不修复。
 
 ---
 ## §LEVEL — 关卡搭建
@@ -914,7 +914,7 @@ r.SkyLight.UpdateEveryFrame=1
 | 陷阱 | UE4 | UE5 |
 |------|-----|-----|
 | Style 获取 | `FCoreStyle::Get()` | `FAppStyle::Get()` |
-| Hit Actor | `Hit.Actor` | `Hit.GetActor()` |
+| 命中的 Actor | `Hit.Actor` | `Hit.GetActor()` |
 | UE_LOG 特殊字符 | 无限制 | 中文箭头 `→` 等会导致编译错误（用英文 `to` 替代） |
 
 **教训**：遇到 UE API 编译失败时，第一个怀疑是 UE4→UE5 命名变更。

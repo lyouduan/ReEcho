@@ -1,196 +1,196 @@
-# ReEcho codebase map
+# ReEcho 代码库地图
 
-Last verified: 2026-08-13. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints. Delivery facts come from source, tests, closed Plans and Git rather than a duplicated status snapshot.
+最后核验：2026-08-13。本文件是代码检索的最短权威路由索引，用于说明行为位于何处；约束仍以 `PROJECT_RULES.md` 为准。交付事实来自源码、测试、已关闭 Plan 和 Git，不另建重复状态快照。
 
-## Minimal retrieval protocol
+## 最小检索流程
 
-1. Read `AGENTS.md`, then this file.
-2. Read only the row matching the requested task in **Task routing**.
-3. For C++ work, read the matching `Public/.../*.h` before its `Private/.../*.cpp`.
-4. Read `shared/PROJECT_RULES.md` before editing and only the relevant `shared/LESSONS.md` section when debugging.
-5. Do not search `Binaries/`, `Intermediate/`, `Saved/`, or generated files unless diagnosing build output.
-6. Do not infer runtime behavior from legacy `Content/Data/*.json`; CSV is the target runtime data source and JSON is migration-only until later domain plans finish.
+1. 先读 `AGENTS.md`，再读本文件。
+2. 只读取**任务路由**中匹配请求的行。
+3. C++ 工作先读匹配的 `Public/.../*.h`，再读对应 `Private/.../*.cpp`。
+4. 编辑前读取 `shared/PROJECT_RULES.md`；调试时只读取 `shared/LESSONS.md` 的相关章节。
+5. 除非诊断构建输出，不搜索 `Binaries/`、`Intermediate/`、`Saved/` 或生成文件。
+6. 不得从旧 `Content/Data/*.json` 推断运行时行为；CSV 是目标运行时数据源，在后续领域 Plan 完成前 JSON 仅用于迁移。
 
-Useful first commands:
+常用首批命令：
 
 ```powershell
 rg --files Source\ReEcho Config Content\Data docs scripts shared
 rg -n "SymbolName" Source\ReEcho
 ```
 
-## Repository layout
+## 仓库布局
 
-| Path | Purpose | Read when |
+| 路径 | 用途 | 读取时机 |
 |---|---|---|
-| `ReEcho.uproject` | UE 5.8 association and enabled plugins | Modules/plugins/editor integration |
-| `Source/ReEcho/` | Main gameplay runtime module | Gameplay or UI code |
-| `Source/ReEchoAudio/` | Standalone audio runtime module | Semantic audio API, buses, state channels, catalog loading, playback policy or audio automation |
-| `Config/` | Maps, GameMode, balance and input mappings | Startup, controls or tuning |
-| `Design/Data/ReEchoData.xlsx` | Canonical designer XLSX authoring workbook; machine Tables generate runtime CSV | Data authoring, XLSX migration or Plan25 checks |
-| `Design/Data/ReEchoData使用说明.md` | Chinese designer guide for editable Tables, field rules, CSV generation, errors and submission | Before changing production balance/configuration in the workbook |
-| `Design/Data/ReEchoData策划验收清单.md` | Designer QA onboarding, isolated clone, XLSX/CSV/PIE acceptance, recovery, feedback template and AI setup prompt | Before first-time Plan25 designer acceptance or handing setup to a designer's AI |
-| `Content/Data/` | Runtime CSV contract plus read-only migration JSON | Data contract, fixtures, cards, characters, enemies, encounters or balance source |
-| `Content/ReEcho/Materials/` | Serialized project materials | Visual asset references |
-| `Content/ReEcho/Textures/Characters/` | Cooked 2D actor and shadow textures | Player/echo/enemy Billboard visuals |
-| `Content/SourceArt/Characters/` | Reviewable PNG sources, including MushroomGirl animation frames and Sprite Sheet | Regenerating or extending 2D actor assets |
-| `scripts/ue/` | Installed-engine discovery, build, prebuilt Editor bundle verification, automation, reproducible Windows Shipping packaging and asset import | Compile/test/package, clone-and-open delivery or asset-import workflow |
-| `Binaries/Win64/ReEchoEditor.prebuilt.json` | Curated Editor module bundle contract, source fingerprint and binary hashes | Direct-open failure or Programmer publication review |
-| `scripts/data/sync_xlsx_to_csv.py` | Deterministic XLSX Table to UTF-8 CSV generator, check mode and transactional publish | Data authoring sync or generated CSV drift |
-| `scripts/validate_project.py` | CSV, legacy JSON and workflow static validation | Data/workflow changes |
-| `docs/` | Human-facing architecture and MCP guides | Tool integration or orientation |
-| `shared/` | AI authority, state, rules, routing and coordination | Every AI task |
-| `plans/` | Scoped implementation plans and execution notes | Plan-specific work |
+| `ReEcho.uproject` | UE 5.8 关联和启用插件 | 模块/插件/Editor 集成 |
+| `Source/ReEcho/` | 主玩法运行时模块 | 玩法或 UI 代码 |
+| `Source/ReEchoAudio/` | 独立音频运行时模块 | 语义音频 API、总线、状态通道、目录加载、播放策略或音频自动化 |
+| `Config/` | 地图、GameMode、平衡和输入映射 | 启动、控制或调优 |
+| `Design/Data/ReEchoData.xlsx` | 权威策划 XLSX 工作簿；machine Table 生成运行时 CSV | 数据编写、XLSX 迁移或 Plan25 检查 |
+| `Design/Data/ReEchoData使用说明.md` | 可编辑 Table、字段规则、CSV 生成、错误和提交的中文策划指南 | 修改工作簿中的生产平衡/配置前 |
+| `Design/Data/ReEchoData策划验收清单.md` | 策划 QA 接入、隔离克隆、XLSX/CSV/PIE 验收、恢复、反馈模板和 AI 设置提示 | 首次 Plan25 策划验收或将设置交给策划 AI 前 |
+| `Content/Data/` | 运行时 CSV 契约及只读迁移 JSON | 数据契约、fixture、卡牌、角色、敌人、遭遇或平衡来源 |
+| `Content/ReEcho/Materials/` | 序列化项目材质 | 视觉资产引用 |
+| `Content/ReEcho/Textures/Characters/` | 已 cook 的 2D Actor 和阴影纹理 | 玩家/Echo/敌人 Billboard 视觉 |
+| `Content/SourceArt/Characters/` | 可评审 PNG 源文件，包括 MushroomGirl 动画帧和 Sprite Sheet | 重新生成或扩展 2D Actor 资产 |
+| `scripts/ue/` | 安装版引擎发现、构建、预构建 Editor 包校验、自动化、可复现 Windows Shipping 打包和资产导入 | 编译/测试/打包、拉取即开交付或资产导入流程 |
+| `Binaries/Win64/ReEchoEditor.prebuilt.json` | 精选 Editor 模块包契约、源码指纹和二进制哈希 | 直接打开失败或程序发布评审 |
+| `scripts/data/sync_xlsx_to_csv.py` | 确定性 XLSX Table 到 UTF-8 CSV 生成器、检查模式和事务发布 | 数据编写同步或生成 CSV 漂移 |
+| `scripts/validate_project.py` | CSV、旧 JSON 和工作流静态校验 | 数据/工作流变更 |
+| `docs/` | 面向人的架构和 MCP 指南 | 工具集成或熟悉项目 |
+| `shared/` | AI 权威、规则、路由和协调 | 每个 AI 任务 |
+| `plans/` | 有明确范围的实现 Plan 和执行记录 | Plan 专项工作 |
 
-Generated folders (`Intermediate`, `Saved`, Derived Data and most of `Binaries`) are local outputs. Only the files declared by `Binaries/Win64/ReEchoEditor.prebuilt.json` are tracked for clone-and-open delivery.
+生成目录（`Intermediate`、`Saved`、Derived Data 和大部分 `Binaries`）属于本地输出。只有 `Binaries/Win64/ReEchoEditor.prebuilt.json` 声明的文件为“拉取即开”交付而跟踪。
 
-## Runtime composition
+## 运行时组成
 
-`/Game/Level00` is the editor and packaged-game startup map. `AReEchoGameMode` creates the runtime arena and gameplay actors inside that world.
+`/Game/Level00` 是 Editor 和打包游戏启动地图。`AReEchoGameMode` 在该世界中创建运行时竞技场和玩法 Actor。
 
 ```text
 DefaultEngine.ini
   -> /Game/Level00
   -> AReEchoGameMode::StartPlay
-       -> CreateArena (bounded hidden collision arena, camera-aligned unlit backdrop, light)
-       -> spawn AReEchoEncounterDirector
-       -> show UReEchoStartMenuWidget
-            -> new game: UReEchoRunSubsystem::StartRun
-            -> continue: load safe checkpoint or suspended encounter
-       -> BeginNextEncounter or ResumeSavedEncounter
-            -> reset player + begin UReEchoRecorderComponent
-            -> spawn prior AReEchoEchoActor when history exists
-            -> spawn enemy composition
-            -> start deterministic encounter clock
+       -> CreateArena（有边界的隐藏碰撞竞技场、相机对齐 unlit 背景、灯光）
+       -> 生成 AReEchoEncounterDirector
+       -> 显示 UReEchoStartMenuWidget
+            -> 新游戏：UReEchoRunSubsystem::StartRun
+            -> 继续：加载安全检查点或暂停的遭遇
+       -> BeginNextEncounter 或 ResumeSavedEncounter
+            -> 重置玩家并启动 UReEchoRecorderComponent
+            -> 有历史时生成先前 AReEchoEchoActor
+            -> 生成敌人组合
+            -> 启动确定性遭遇时钟
 
-Encounter fixed step
-  -> record player position
-  -> advance echo playback
+遭遇固定步长
+  -> 记录玩家位置
+  -> 推进 Echo 回放
 
-All enemies dead or timer expires
-  -> finish recording
+全部敌人死亡或计时结束
+  -> 完成录制
   -> UReEchoRunSubsystem::CompleteEncounter
-  -> next encounter (six total)
+  -> 下一遭遇（共六个）
 
-Esc -> pause menu -> exit
-  -> confirmation: continue game or save-and-quit
-  -> encounter save captures clock, player, active recording and living enemies
+Esc -> 暂停菜单 -> 退出
+  -> 确认：继续游戏或保存并退出
+  -> 遭遇存档捕获时钟、玩家、活跃录制和存活敌人
 ```
 
-## Runtime module map
+## 运行时模块地图
 
-| Area | Primary types | Files | Responsibility |
+| 区域 | 主要类型 | 文件 | 职责 |
 |---|---|---|---|
-| Orchestration | `AReEchoGameMode` | `Public/ReEchoGameMode.h`, `Private/ReEchoGameMode.cpp` | Runtime bounded arena/camera-aligned unlit backdrop, six encounters, configurable deterministic peripheral enemy spawning, cleanup, recording handoff and HUD text |
-| UI framework | `UReEchoUIManagerSubsystem`, `UReEchoUIFlowCoordinatorSubsystem`, `EReEchoUIScreen` | `UI/Framework/*`, `UI/ReEchoUIManagerSubsystem.*`, `ReEchoGameMode.*` | Central WBP class registry, typed active-screen lifecycle, viewport layers, focus/input policy, pause-safe screen transitions; GameMode retains gameplay decisions and delegate endpoints |
-| Encounter clock | `AReEchoEncounterDirector` | `Encounter/ReEchoEncounterDirector.*` | Pause-aware 60 Hz fixed step, setup phase, timeout/end delegate |
-| Billboard screen sizing | `ReEchoBillboardScreenScale` | `Private/Graybox/ReEchoBillboardScreenScale.h` | Shared camera-depth compensation for stable player/echo/enemy projected size |
-| Player | `AReEchoPlayerPawn` | `Player/ReEchoPlayerPawn.*` | Map-edge-clamped follow camera with wider player arena clamp, WASD, center-aligned root capsule, mouse-following horizontal sprite facing, four configurable NewCast character textures, manual attacks and visual-only 2D motion |
-| GAS combat | `UAbilitySystemComponent`, `UReEchoCombatAttributeSet`, native GameplayEffects/tags and player abilities | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*` | Player/enemy runtime attributes, effect-based damage/heal, tag-driven activation, cooldown commit and AbilityTask held attacks; CombatantComponent is the legacy-facing adapter |
-| Projectile | `AReEchoProjectileActor` | `Graybox/ReEchoProjectileActor.*` | Visible sphere travel, swept path-vs-capsule hit detection, damage delivery |
-| Player weapons | `AReEchoWeaponActor`, `FReEchoCsvWeaponRow`, `EReEchoInputSlot` | `Weapons/ReEchoWeaponActor.*`, `Player/ReEchoPlayerPawn.*`, `UI/ReEchoLoadoutSelectionWidget.*`, `Data/ReEchoWeaponCsvReader.*` | CSV-driven concrete WeaponIds, compatibility-only InputSlot mapping, ordered attack steps, start-selectable loadout options, run-locked recorder/echo initialization by stable WeaponId |
-| Sword arc VFX | `AReEchoSwordArcActor` | `Graybox/ReEchoSwordArcActor.*`, `Weapons/ReEchoWeaponActor.cpp` | Layered translucent crescent spawned for each sword swing and faded over a short lifetime |
-| Enemy | `AReEchoEnemyActor` | `Graybox/ReEchoEnemyActor.*` | Grunt/shield/bomber/final-Boss stats, six rotating 2D grunt variants and a 2D final-Boss Billboard, capsule damage volume, chase/contact damage and visual-only attack/hit/death motion |
-| Echo | `AReEchoEchoActor` | `Graybox/ReEchoEchoActor.*` | Historical movement and recorded weapon-change playback, automatic shared-weapon attacks, translucent pulsing ghost material and visual-only 2D motion |
-| Echo trajectory | `AReEchoTrajectoryActor` | `Graybox/ReEchoTrajectoryActor.*` | Only the active echo's simplified historical positions projected onto the ground as one world-fixed translucent route |
-| Combat | `UReEchoCombatantComponent`, `ReEchoElementReaction` | `Combat/ReEchoCombatantComponent.*`, `Combat/ReEchoElementReaction.*` | Shared stats, HP, block, damage/death delegates and CSV-driven element reaction execution |
-| Hit VFX | `ReEchoAttackEffects`, `AReEchoHitImpactActor` | `Graybox/ReEchoAttackEffects.*`, `Graybox/ReEchoHitImpactActor.*` | Transparent HitStarburst plane spawned only after non-zero applied damage |
-| Damage numbers | `AReEchoDamageNumberActor` | `UI/ReEchoDamageNumberActor.*`, damage callers | Camera-facing floating `-N` text for actual damage applied to player/enemies |
-| Recording | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz positions and successful active-skill events |
-| Playback | `UReEchoPlaybackComponent` | `Recording/ReEchoPlaybackComponent.*` | Interpolated historical position and crossed skill events |
-| Run state/save | `UReEchoRunSubsystem`, `UReEchoRunSaveGame` | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | Run phase, encounter index, CSV-backed build, inventory, pending/latest/stored echo state, stable-GUID replay selection, v4 migration, safe checkpoints and explicit suspended-encounter persistence |
-| CSV data registry | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`, `Data/ReEchoWeaponCsvReader.*`, `Content/Data/*.csv`, `Design/Data/ReEchoData.xlsx`, `scripts/data/sync_xlsx_to_csv.py` | Versioned CSV manifest loading, XLSX authoring sync, validation, behavior/effect/formula/attack-pattern allowlists and immutable runtime snapshots |
-| Shared types | `FReEcho*`, `EReEcho*` | `Core/ReEchoTypes.*` | Stats, build snapshot, recording samples/events, elements, phases and suspended encounter/enemy runtime state |
-| Balance config | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`, `Config/DefaultGame.ini` | Encounter/fixed-step/recording/global prototype values |
-| Health UI | `UReEchoPlayerHudWidget`, `AReEchoHealthBarActor`, `UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`, `Graybox/ReEchoHealthBarActor.*`, `UI/ReEchoHealthBarWidget.*` | Top-left portrait/live health HUD for the player; camera-facing world bars remain enemy-only |
-| Encounter HUD | `UReEchoEncounterHudWidget` | `UI/ReEchoEncounterHudWidget.*`, `ReEchoGameMode.*` | Right-top current encounter and remaining-time display; final five seconds turn red |
-| Inventory/shop | `UReEchoInventoryShopWidget`, `UReEchoRunSubsystem` | `UI/ReEchoInventoryShopWidget.*`, `Run/ReEchoShopCatalog.h`, `Run/ReEchoRunSubsystem.*`, `ReEchoGameMode.*` | B/M menus over supplied full-screen art; Time Shard purchases enter run-local inventory and immediately mutate the build snapshot |
-| Player/echo stats | `UReEchoStatsWidget` | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*`, `Graybox/ReEchoEchoActor.*` | Tab-paused two-column live stats over the imported blurred clockwork background; handles runs without an active echo |
-| Weather scenes | `UReEchoWeatherWidget` | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*`, `ReEchoBalanceSettings.h` | Configurable per-encounter rain streaks and player/echo-centered fog-of-war rendered as input-transparent screen-space presentation |
-| GM/debug commands | `AReEchoGameMode` exec functions | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Development-console status, healing, Time Shards, weather override and enemy-clear commands; rejected in Shipping |
-| Start/continue/loadout UI | `UReEchoStartMenuWidget`, `UReEchoLoadoutSelectionWidget` | `UI/ReEchoStartMenuWidget.*`, `UI/ReEchoLoadoutSelectionWidget.*`, `Run/ReEchoRunSaveGame.h`, `ReEchoGameMode.*` | Blocking startup choice followed by CSV-backed character and initial-weapon selection before encounter 1; continue restores the saved current loadout |
-| Pause/restart UI | `UReEchoRestartWidget` | `UI/ReEchoRestartWidget.*`, `ReEchoGameMode.*` | Esc pause overlay, resume, full-level restart, two-step save-and-quit confirmation, death-screen and terminal Boss-victory actions |
-| Trait choice UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `ReEchoGameMode.*` | Animated centered three-choice presentation with current Time Shards; only the pending offer mutates the build, then the existing shop opens before the next encounter |
-| Tests | Recording/GAS/run/save/shop/trait automation | `Private/Tests/*` | Recording interpolation/timeline, GAS structure, final-Boss gate, safe/suspended save snapshots, shop purchase and deterministic pending-trait regressions |
+| 编排 | `AReEchoGameMode` | `Public/ReEchoGameMode.h`、`Private/ReEchoGameMode.cpp` | 运行时有界竞技场/相机对齐 unlit 背景、六个遭遇、可配置确定性边缘敌人生成、清理、录制交接和 HUD 文本 |
+| UI 框架 | `UReEchoUIManagerSubsystem`、`UReEchoUIFlowCoordinatorSubsystem`、`EReEchoUIScreen` | `UI/Framework/*`、`UI/ReEchoUIManagerSubsystem.*`、`ReEchoGameMode.*` | 中央 WBP 类注册、类型化活跃屏幕生命周期、viewport 层、焦点/输入策略、暂停安全屏幕切换；GameMode 保留玩法决定和委托端点 |
+| 遭遇时钟 | `AReEchoEncounterDirector` | `Encounter/ReEchoEncounterDirector.*` | 可暂停 60 Hz 固定步、准备阶段、超时/结束委托 |
+| Billboard 屏幕尺寸 | `ReEchoBillboardScreenScale` | `Private/Graybox/ReEchoBillboardScreenScale.h` | 共享相机深度补偿，保持玩家/Echo/敌人投影尺寸稳定 |
+| 玩家 | `AReEchoPlayerPawn` | `Player/ReEchoPlayerPawn.*` | 地图边缘限制的跟随相机、较宽玩家竞技场限制、WASD、中心对齐根 Capsule、跟随鼠标的水平 Sprite 朝向、四种可配置 NewCast 角色纹理、手动攻击和纯视觉 2D 运动 |
+| GAS 战斗 | `UAbilitySystemComponent`、`UReEchoCombatAttributeSet`、原生 GameplayEffect/tag 和玩家能力 | `AbilitySystem/*`、`Player/ReEchoPlayerPawn.*`、`Combat/ReEchoCombatantComponent.*`、`Graybox/ReEchoEnemyActor.*` | 玩家/敌人运行时属性、基于 Effect 的伤害/治疗、tag 驱动激活、冷却提交和 AbilityTask 持续攻击；CombatantComponent 是面向旧代码的适配器 |
+| 投射物 | `AReEchoProjectileActor` | `Graybox/ReEchoProjectileActor.*` | 可见球体飞行、扫掠路径与 Capsule 命中检测、伤害交付 |
+| 玩家武器 | `AReEchoWeaponActor`、`FReEchoCsvWeaponRow`、`EReEchoInputSlot` | `Weapons/ReEchoWeaponActor.*`、`Player/ReEchoPlayerPawn.*`、`UI/ReEchoLoadoutSelectionWidget.*`、`Data/ReEchoWeaponCsvReader.*` | CSV 驱动具体 WeaponId、仅兼容 InputSlot 映射、有序攻击步骤、开局可选装载，以及按稳定 WeaponId 锁定本局 recorder/Echo 初始化 |
+| 剑弧 VFX | `AReEchoSwordArcActor` | `Graybox/ReEchoSwordArcActor.*`、`Weapons/ReEchoWeaponActor.cpp` | 每次挥剑生成分层半透明月牙，并在短生命周期内淡出 |
+| 敌人 | `AReEchoEnemyActor` | `Graybox/ReEchoEnemyActor.*` | Grunt/shield/bomber/final-Boss 属性、六种轮换 2D grunt 变体和 2D final-Boss Billboard、Capsule 伤害体积、追击/接触伤害及纯视觉攻击/受击/死亡运动 |
+| Echo | `AReEchoEchoActor` | `Graybox/ReEchoEchoActor.*` | 历史移动和已录武器变化回放、自动共享武器攻击、半透明脉冲幽灵材质及纯视觉 2D 运动 |
+| Echo 轨迹 | `AReEchoTrajectoryActor` | `Graybox/ReEchoTrajectoryActor.*` | 仅将活跃 Echo 的简化历史位置投影到地面，形成一条世界固定半透明路线 |
+| 战斗 | `UReEchoCombatantComponent`、`ReEchoElementReaction` | `Combat/ReEchoCombatantComponent.*`、`Combat/ReEchoElementReaction.*` | 共享属性、HP、格挡、伤害/死亡委托和 CSV 驱动元素反应执行 |
+| 命中 VFX | `ReEchoAttackEffects`、`AReEchoHitImpactActor` | `Graybox/ReEchoAttackEffects.*`、`Graybox/ReEchoHitImpactActor.*` | 仅在实际伤害非零后生成透明 HitStarburst 平面 |
+| 伤害数字 | `AReEchoDamageNumberActor` | `UI/ReEchoDamageNumberActor.*`、伤害调用者 | 面向相机的浮动 `-N` 文本，显示玩家/敌人实际承受伤害 |
+| 录制 | `UReEchoRecorderComponent` | `Recording/ReEchoRecorderComponent.*` | 20 Hz 位置和成功主动技能事件 |
+| 回放 | `UReEchoPlaybackComponent` | `Recording/ReEchoPlaybackComponent.*` | 插值历史位置和跨过的技能事件 |
+| 局内状态/存档 | `UReEchoRunSubsystem`、`UReEchoRunSaveGame` | `Run/ReEchoRunSubsystem.*`、`Run/ReEchoRunSaveGame.h` | 局内阶段、遭遇索引、CSV 支持 build、背包、待定/最新/存储 Echo 状态、稳定 GUID 回放选择、v4 迁移、安全检查点和显式暂停遭遇持久化 |
+| CSV 数据注册表 | `FReEchoCsvDataRegistry` | `Data/ReEchoCsvDataRegistry.*`、`Data/ReEchoWeaponCsvReader.*`、`Content/Data/*.csv`、`Design/Data/ReEchoData.xlsx`、`scripts/data/sync_xlsx_to_csv.py` | 版本化 CSV manifest 加载、XLSX 编写同步、验证、行为/Effect/公式/攻击模式允许列表和不可变运行时快照 |
+| 共享类型 | `FReEcho*`、`EReEcho*` | `Core/ReEchoTypes.*` | 属性、build 快照、录制样本/事件、元素、阶段和暂停遭遇/敌人运行时状态 |
+| 平衡配置 | `UReEchoBalanceSettings` | `Core/ReEchoBalanceSettings.h`、`Config/DefaultGame.ini` | 遭遇/固定步/录制/全局原型值 |
+| 生命 UI | `UReEchoPlayerHudWidget`、`AReEchoHealthBarActor`、`UReEchoHealthBarWidget` | `UI/ReEchoPlayerHudWidget.*`、`Graybox/ReEchoHealthBarActor.*`、`UI/ReEchoHealthBarWidget.*` | 左上角玩家头像/实时生命 HUD；面向相机的世界血条仅用于敌人 |
+| 遭遇 HUD | `UReEchoEncounterHudWidget` | `UI/ReEchoEncounterHudWidget.*`、`ReEchoGameMode.*` | 右上角当前遭遇和剩余时间；最后五秒变红 |
+| 背包/商店 | `UReEchoInventoryShopWidget`、`UReEchoRunSubsystem` | `UI/ReEchoInventoryShopWidget.*`、`Run/ReEchoShopCatalog.h`、`Run/ReEchoRunSubsystem.*`、`ReEchoGameMode.*` | 使用提供的全屏美术显示 B/M 菜单；Time Shard 购买进入本局背包并立即修改 build 快照 |
+| 玩家/Echo 属性 | `UReEchoStatsWidget` | `UI/ReEchoStatsWidget.*`、`ReEchoGameMode.*`、`Graybox/ReEchoEchoActor.*` | Tab 暂停双列实时属性，使用导入的模糊发条背景；支持没有活跃 Echo 的局 |
+| 天气场景 | `UReEchoWeatherWidget` | `UI/ReEchoWeatherWidget.*`、`ReEchoGameMode.*`、`ReEchoBalanceSettings.h` | 可按遭遇配置雨线和以玩家/Echo 为中心的战争迷雾，作为输入透明屏幕空间表现渲染 |
+| GM/调试命令 | `AReEchoGameMode` exec 函数 | `ReEchoGameMode.*`、`docs/GM_COMMANDS.md` | 开发控制台状态、治疗、Time Shard、天气覆盖和清敌命令；Shipping 中拒绝 |
+| 开始/继续/装载 UI | `UReEchoStartMenuWidget`、`UReEchoLoadoutSelectionWidget` | `UI/ReEchoStartMenuWidget.*`、`UI/ReEchoLoadoutSelectionWidget.*`、`Run/ReEchoRunSaveGame.h`、`ReEchoGameMode.*` | 阻塞式启动选择，随后在遭遇 1 前选择 CSV 支持的角色和初始武器；继续会恢复已保存当前装载 |
+| 暂停/重启 UI | `UReEchoRestartWidget` | `UI/ReEchoRestartWidget.*`、`ReEchoGameMode.*` | Esc 暂停层、恢复、全关卡重启、两步保存退出确认、死亡屏幕和最终 Boss 胜利操作 |
+| 特质选择 UI | `UReEchoTraitCardChoiceWidget` | `UI/ReEchoTraitCardChoiceWidget.*`、`Run/ReEchoRunSubsystem.*`、`ReEchoGameMode.*` | 居中动画三选一及当前 Time Shard；只有待定 offer 修改 build，然后在下一遭遇前打开现有商店 |
+| 测试 | 录制/GAS/局内/存档/商店/特质自动化 | `Private/Tests/*` | 录制插值/时间线、GAS 结构、最终 Boss 门禁、安全/暂停存档快照、商店购买和确定性待定特质回归 |
 
-Paths in the table are relative to `Source/ReEcho/Public` or `Source/ReEcho/Private`.
+表中路径相对于 `Source/ReEcho/Public` 或 `Source/ReEcho/Private`。
 
-## Current gameplay contract
+## 当前玩法契约
 
-- Player: pre-run character and CSV weapon selection, run-locked weapon loadout, 2D Billboard character, WASD movement, left mouse/J basic attack and Q/Space power shot.
-- Echo: 2D Billboard replay actor that follows historical movement and attacks through the shared weapon implementation, including recorded weapon-change playback.
-- Projectile flight has no Niagara. A transparent HitStarburst impact appears only when applied damage is greater than zero.
-- Enemies use 2D Billboard visuals for every archetype; the old cube/plane/cone fallback rendering has been removed. Shield enemies remain implemented but are temporarily excluded from encounter composition.
-- Enemy hit feedback: short stagger, source-opposed knockback and decaying lateral shake; blocked hits do not trigger it.
-- Player, echo and 2D enemies animate their existing static textures with sprite-local bob, squash, lunge and recovery; enemy death adds a short shrink/fall before destruction.
-- Player and enemies use compact camera-facing world health bars anchored above their 2D visual.
-- Esc pauses into a resume/restart/quit menu. Quit requires confirmation and a successful save; Continue or Esc cancels and resumes. Death and Boss victory expose restart/quit; Shipping builds call platform QuitGame.
-- Clearing all living enemies ends the encounter immediately; timeout is the fallback.
-- Automatic echo attacks are not serialized. Recording stores player position plus successful active-skill events.
+- 玩家：局前角色与 CSV 武器选择、本局锁定武器装载、2D Billboard 角色、WASD 移动、鼠标左键/J 普攻和 Q/Space 强力射击。
+- Echo：2D Billboard 回放 Actor，按历史移动，并通过共享武器实现攻击，包括已录武器变化回放。
+- 投射物飞行没有 Niagara。只有实际伤害大于零时才显示透明 HitStarburst 命中效果。
+- 所有敌人类型使用 2D Billboard 视觉；旧 cube/plane/cone 降级渲染已移除。Shield 敌人仍有实现，但暂时排除在遭遇组合外。
+- 敌人受击反馈：短硬直、背离来源击退和衰减横向抖动；被格挡命中不触发。
+- 玩家、Echo 和 2D 敌人使用现有静态纹理做 Sprite 本地 bob、squash、lunge 和 recovery；敌人死亡会在销毁前短暂缩小/倒下。
+- 玩家和敌人使用紧凑、面向相机、锚定在 2D 视觉上方的世界血条。
+- Esc 打开恢复/重启/退出暂停菜单。退出需确认且保存成功；Continue 或 Esc 取消并恢复。死亡和 Boss 胜利显示重启/退出；Shipping 调用平台 QuitGame。
+- 清除全部存活敌人立即结束遭遇；超时作为兜底。
+- 自动 Echo 攻击不序列化。录制保存玩家位置及成功主动技能事件。
 
-## Config, data and assets
+## 配置、数据与资产
 
-| Concern | Source |
+| 事项 | 来源 |
 |---|---|
-| Default map/GameMode | `Config/DefaultEngine.ini`; runtime global/encounter balance | `Config/DefaultGame.ini` |
-| WASD, mouse/J and Q/Space | `Config/DefaultInput.ini` |
-| MCP endpoint/editor preferences | `Config/DefaultEditorPerProjectUserSettings.ini`, `.codex/config.toml` |
-| Windows override | `Config/Windows/WindowsEngine.ini` |
-| Runtime CSV contract | `Content/Data/*.csv`, `Source/ReEcho/Data/*` |
-| Migration-only design registries | `Content/Data/*.json` |
-| Echo ghost material | `Content/ReEcho/Materials/M_EchoGhost.uasset` |
-| Module dependencies | `Source/ReEcho/ReEcho.Build.cs` |
+| 默认地图/GameMode | `Config/DefaultEngine.ini`；运行时全局/遭遇平衡在 `Config/DefaultGame.ini` |
+| WASD、鼠标/J 和 Q/Space | `Config/DefaultInput.ini` |
+| MCP 端点/Editor 偏好 | `Config/DefaultEditorPerProjectUserSettings.ini`、`.codex/config.toml` |
+| Windows 覆盖 | `Config/Windows/WindowsEngine.ini` |
+| 运行时 CSV 契约 | `Content/Data/*.csv`、`Source/ReEcho/Data/*` |
+| 仅迁移策划注册表 | `Content/Data/*.json` |
+| Echo 幽灵材质 | `Content/ReEcho/Materials/M_EchoGhost.uasset` |
+| 模块依赖 | `Source/ReEcho/ReEcho.Build.cs` |
 
-CSV currently contains the runtime foundation manifest/schema/smoke tables, canonical character/build tables, element/status/reaction tables and weapon-domain tables loaded by `FReEchoCsvDataRegistry` at module startup. Current playable character base stats/default weapons, the six-card trait draw pool, forge choices, promotion role buckets, card numeric effects, combat elements, necessary statuses, six ordered reactions, concrete weapons, ordered attack steps, slot profiles, parts and part effects read from CSV; burn DOT state, vaporize squared damage, growth ReactionEfficiency-scaled radius attachment, configured-radius conduct chaining and enhancement blocking execute through `ReEchoElementReaction`. Legacy JSON still covers encounters, enemies and global balance; migrated character/card/element/status/reaction/weapon JSON is migration-only review material.
+CSV 当前包含模块启动时由 `FReEchoCsvDataRegistry` 加载的运行时基础 manifest/schema/smoke 表、权威角色/build 表、元素/状态/反应表和武器领域表。当前可玩角色基础属性/默认武器、六卡特质抽取池、锻造选择、晋升角色桶、卡牌数值 Effect、战斗元素、必要状态、六种有序反应、具体武器、有序攻击步骤、槽位 profile、部件和部件 Effect 均从 CSV 读取；burn DOT 状态、vaporize 平方伤害、按 ReactionEfficiency 缩放半径的 growth 附着、配置半径 conduct 连锁和 enhancement 阻塞通过 `ReEchoElementReaction` 执行。旧 JSON 仍覆盖遭遇、敌人和全局平衡；已迁移角色/卡牌/元素/状态/反应/武器 JSON 仅作迁移评审材料。
 
-## Task routing
+## 任务路由
 
-| Task keywords | Read first | Usually also read |
+| 任务关键词 | 优先读取 | 通常还需读取 |
 |---|---|---|
-| Startup, arena, rounds, spawn, clear-to-next | `ReEchoGameMode.*` | `EncounterDirector.*`, `RunSubsystem.*`, `DefaultEngine.ini` |
-| Input, movement, player attack | `Player/ReEchoPlayerPawn.*` | `DefaultInput.ini`, `ReEchoProjectileActor.*` |
-| 2D sprite animation, frame import, attack/hit/death feedback | `Presentation/Animation2D/*`, `Player/ReEchoPlayerPawn.*`, `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoEchoActor.*` | `scripts/ue/repair_2d_animation_flipbooks.py`, `scripts/ue/import_mushroomgirl_frames.py`, `Content/2DAnim/`, `Content/SourceArt/Characters/MushroomGirl/` |
-| GAS, abilities, attributes, effects, cooldown, tags | `AbilitySystem/*`, `Player/ReEchoPlayerPawn.*` | `docs/GAS_ONBOARDING.md`, `Combat/ReEchoCombatantComponent.*`, `Graybox/ReEchoEnemyActor.*`, `Weapons/ReEchoWeaponActor.*`, GAS automation tests |
-| Mouse cursor aiming/player facing/camera | `Player/ReEchoPlayerPawn.*` | `GameMode::RestoreGameInput`, `DefaultInput.ini` |
-| Initial weapon selection/run-locked weapon/sword/melee/element reactions | `UI/ReEchoLoadoutSelectionWidget.*`, `Weapons/ReEchoWeaponActor.*`, `Weapons/ReEchoWeaponRuntime.*`, `Data/ReEchoWeaponCsvReader.*`, `Combat/ReEchoElementReaction.*`, `Data/ReEchoElementReactionCsvReader.*` | `Graybox/ReEchoProjectileActor.*`, `Graybox/ReEchoEnemyActor.*`, `Player/ReEchoPlayerPawn.*`, `Content/Data/weapons.csv`, `Content/Data/weapon_types.csv`, `Content/Data/attack_steps.csv`, `Content/Data/slot_profiles.csv`, `Content/Data/parts.csv`, `Content/Data/part_effects.csv`, `RunSubsystem::StartRun`, `RunSubsystem::TryEquipParts`, `FReEchoBuildSnapshot::EquipmentBaseStats/EquipmentBaseRuleFlags/EquippedParts`, `FReEchoBuildSnapshot::WeaponDomainRevision` |
-| Bullet speed/size/color/hit | `Graybox/ReEchoProjectileActor.*` | Player/Echo caller, `EnemyActor::ReceiveGrayboxDamage` |
-| Enemy AI, type, shield, bomber, boss | `Graybox/ReEchoEnemyActor.*`, `Graybox/ReEchoBomberRules.*` | `CombatantComponent.*`, `ReEchoBalanceSettings.h`, `DefaultGame.ini`, hit effects |
-| Damage, HP, block, death | `Combat/ReEchoCombatantComponent.*` | Damage caller and health UI |
-| Hit VFX or hit feel | `Graybox/ReEchoAttackEffects.*`, `Graybox/ReEchoEnemyActor.*` | Niagara plugin/material paths |
-| Floating damage text | `UI/ReEchoDamageNumberActor.*` | every `ApplyFinalDamage` caller, currently `Graybox/ReEchoEnemyActor.cpp` |
-| Echo appearance/attack/playback/run-locked weapon | `Graybox/ReEchoEchoActor.*`, `Recording/ReEchoRecorderComponent.*`, `Recording/ReEchoPlaybackComponent.*` | Pinned `RunSubsystem::GetRunDataSnapshot()`, `Recording.BuildSnapshot.WeaponId`, initialization-only `Weapons/ReEchoWeaponActor::SelectWeaponById`, `M_EchoGhost.uasset` |
-| Echo route/trajectory/trail | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`, `Graybox/ReEchoEchoActor.*`, `M_EchoGhost.uasset` |
-| Recording determinism/interpolation | `Core/ReEchoTypes.*`, `Recording/*` | `EncounterDirector.*`, recording test |
-| Echo storage/replay selection, run phase, save and shops | `Run/ReEchoRunSubsystem.*`, `Run/ReEchoRunSaveGame.h` | `Core/ReEchoTypes.*`, GameMode |
-| CSV runtime data, schema, fixtures and XLSX authoring | `Data/ReEchoCsvDataRegistry.*`, domain readers under `Private/Data/*CsvReader.*` | `Design/Data/ReEchoData.xlsx`, `Design/Data/ReEchoData.migration.md`, `scripts/data/sync_xlsx_to_csv.py`, `scripts/data/test_sync_xlsx_to_csv.py`, `Content/Data/README.md`, `Content/Data/*.csv`, `validate_project.py`, data automation tests |
-| Player portrait/health HUD, enemy health bars | `UI/ReEchoPlayerHudWidget.*`, `UI/ReEchoHealthBarWidget.*`, `Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`, `ReEchoGameMode.*`, `CombatantComponent.*` |
-| Encounter countdown/current level HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`, `EncounterDirector.*`, `RunSubsystem.*` |
-| Rain, fog, weather scenes | `UI/ReEchoWeatherWidget.*`, `ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`, `DefaultGame.ini` |
-| Inventory, backpack, shop, store, Time Shards | `UI/ReEchoInventoryShopWidget.*`, `Run/ReEchoShopCatalog.h`, `Run/ReEchoRunSubsystem.*` | `ReEchoGameMode.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini`, imported UI textures |
-| Player stats, echo stats, Tab panel | `UI/ReEchoStatsWidget.*`, `ReEchoGameMode.*` | `Graybox/ReEchoEchoActor.*`, `Combat/ReEchoCombatantComponent.*`, `Player/ReEchoPlayerPawn.*`, `DefaultInput.ini` |
-| Pause/death/restart/quit UI | `UI/ReEchoRestartWidget.*` | `ReEchoGameMode.*`, `PlayerPawn::TogglePauseMenu`, `DefaultInput.ini` |
-| Trait cards/card choice/character promotion/role build | `UI/ReEchoTraitCardChoiceWidget.*`, `Run/ReEchoRunSubsystem.*`, `Run/ReEchoCharacterPromotion.*` | `Content/Data/cards.csv`, `Content/Data/card_effects.csv`, `Content/Data/characters.csv`, `Content/Data/character_aliases.csv`, `ReEchoGameMode.*`, `Core/ReEchoTypes.*`, `Weapons/ReEchoWeaponActor.*` |
-| Cards/characters/elements/reactions/enemies/balance data | Matching `Content/Data/*.csv` and migration-only JSON | `Content/Data/README.md`, `validate_project.py` |
-| GM, debug command, cheat, console | `ReEchoGameMode.*`, `docs/GM_COMMANDS.md` | Matching gameplay subsystem or actor API |
-| Build or direct-open module failure | `scripts/ue/Build-Editor.*`, `scripts/ue/prebuilt_editor.py` | latest UBT log, prebuilt manifest and matching source |
-| Windows packaging/cook/resource missing | `scripts/ue/package_windows.py`, `ReEchoGameMode.*`, hard asset references, UAT Cook manifests | `Content/ReEcho/Textures/Characters/`, `Saved/Cooked/Windows`, Shipping smoke test |
-| Automation | `scripts/ue/Run-Automation.*` | `Private/Tests/*`, `Saved/Logs/ReEcho.log` |
-| UE MCP | `docs/UE_MCP.md` | `ReEcho.uproject`, editor settings, `.codex/config.toml` |
-| RenderDoc MCP | `docs/RENDERDOC_MCP.md` | `scripts/mcp/Codex-With-RenderDoc.cmd` |
-| AI workflow/rules | `AGENTS.md`, `shared/PROJECT_RULES.md` | first-contact route to `PROGRAMMER_RULES.md`, `DESIGNER_RULES.md` or `ARTIST_RULES.md`; programmer tasks then use the matching duty rule; `PLANNER_EXCHANGE.md` for live scope/ownership; `WORKFLOW.md` only for rationale |
+| 启动、竞技场、轮次、生成、清敌进下一关 | `ReEchoGameMode.*` | `EncounterDirector.*`、`RunSubsystem.*`、`DefaultEngine.ini` |
+| 输入、移动、玩家攻击 | `Player/ReEchoPlayerPawn.*` | `DefaultInput.ini`、`ReEchoProjectileActor.*` |
+| 2D Sprite 动画、帧导入、攻击/受击/死亡反馈 | `Presentation/Animation2D/*`、`Player/ReEchoPlayerPawn.*`、`Graybox/ReEchoEnemyActor.*`、`Graybox/ReEchoEchoActor.*` | `scripts/ue/repair_2d_animation_flipbooks.py`、`scripts/ue/import_mushroomgirl_frames.py`、`Content/2DAnim/`、`Content/SourceArt/Characters/MushroomGirl/` |
+| GAS、能力、属性、Effect、冷却、tag | `AbilitySystem/*`、`Player/ReEchoPlayerPawn.*` | `docs/GAS_ONBOARDING.md`、`Combat/ReEchoCombatantComponent.*`、`Graybox/ReEchoEnemyActor.*`、`Weapons/ReEchoWeaponActor.*`、GAS 自动化测试 |
+| 鼠标瞄准/玩家朝向/相机 | `Player/ReEchoPlayerPawn.*` | `GameMode::RestoreGameInput`、`DefaultInput.ini` |
+| 初始武器选择/本局锁定武器/剑/近战/元素反应 | `UI/ReEchoLoadoutSelectionWidget.*`、`Weapons/ReEchoWeaponActor.*`、`Weapons/ReEchoWeaponRuntime.*`、`Data/ReEchoWeaponCsvReader.*`、`Combat/ReEchoElementReaction.*`、`Data/ReEchoElementReactionCsvReader.*` | `Graybox/ReEchoProjectileActor.*`、`Graybox/ReEchoEnemyActor.*`、`Player/ReEchoPlayerPawn.*`、`Content/Data/weapons.csv`、`Content/Data/weapon_types.csv`、`Content/Data/attack_steps.csv`、`Content/Data/slot_profiles.csv`、`Content/Data/parts.csv`、`Content/Data/part_effects.csv`、`RunSubsystem::StartRun`、`RunSubsystem::TryEquipParts`、`FReEchoBuildSnapshot::EquipmentBaseStats/EquipmentBaseRuleFlags/EquippedParts`、`FReEchoBuildSnapshot::WeaponDomainRevision` |
+| 子弹速度/尺寸/颜色/命中 | `Graybox/ReEchoProjectileActor.*` | 玩家/Echo 调用者、`EnemyActor::ReceiveGrayboxDamage` |
+| 敌人 AI、类型、Shield、Bomber、Boss | `Graybox/ReEchoEnemyActor.*`、`Graybox/ReEchoBomberRules.*` | `CombatantComponent.*`、`ReEchoBalanceSettings.h`、`DefaultGame.ini`、命中效果 |
+| 伤害、HP、格挡、死亡 | `Combat/ReEchoCombatantComponent.*` | 伤害调用者和生命 UI |
+| 命中 VFX 或打击感 | `Graybox/ReEchoAttackEffects.*`、`Graybox/ReEchoEnemyActor.*` | Niagara 插件/材质路径 |
+| 浮动伤害文本 | `UI/ReEchoDamageNumberActor.*` | 每个 `ApplyFinalDamage` 调用者，目前为 `Graybox/ReEchoEnemyActor.cpp` |
+| Echo 外观/攻击/回放/本局锁定武器 | `Graybox/ReEchoEchoActor.*`、`Recording/ReEchoRecorderComponent.*`、`Recording/ReEchoPlaybackComponent.*` | 固定的 `RunSubsystem::GetRunDataSnapshot()`、`Recording.BuildSnapshot.WeaponId`、仅初始化 `Weapons/ReEchoWeaponActor::SelectWeaponById`、`M_EchoGhost.uasset` |
+| Echo 路线/轨迹/拖尾 | `Graybox/ReEchoTrajectoryActor.*` | `Core/ReEchoTypes.h`、`Graybox/ReEchoEchoActor.*`、`M_EchoGhost.uasset` |
+| 录制定性/插值 | `Core/ReEchoTypes.*`、`Recording/*` | `EncounterDirector.*`、录制测试 |
+| Echo 存储/回放选择、局内阶段、存档和商店 | `Run/ReEchoRunSubsystem.*`、`Run/ReEchoRunSaveGame.h` | `Core/ReEchoTypes.*`、GameMode |
+| CSV 运行时数据、Schema、fixture 和 XLSX 编写 | `Data/ReEchoCsvDataRegistry.*`、`Private/Data/*CsvReader.*` 下领域 reader | `Design/Data/ReEchoData.xlsx`、`Design/Data/ReEchoData.migration.md`、`scripts/data/sync_xlsx_to_csv.py`、`scripts/data/test_sync_xlsx_to_csv.py`、`Content/Data/README.md`、`Content/Data/*.csv`、`validate_project.py`、数据自动化测试 |
+| 玩家头像/生命 HUD、敌人血条 | `UI/ReEchoPlayerHudWidget.*`、`UI/ReEchoHealthBarWidget.*`、`Graybox/ReEchoHealthBarActor.*` | `Player/ReEchoPlayerPawn.*`、`ReEchoGameMode.*`、`CombatantComponent.*` |
+| 遭遇倒计时/当前关卡 HUD | `UI/ReEchoEncounterHudWidget.*` | `ReEchoGameMode.*`、`EncounterDirector.*`、`RunSubsystem.*` |
+| 雨、雾、天气场景 | `UI/ReEchoWeatherWidget.*`、`ReEchoGameMode.*` | `Core/ReEchoBalanceSettings.h`、`DefaultGame.ini` |
+| 背包、商店、存储、Time Shard | `UI/ReEchoInventoryShopWidget.*`、`Run/ReEchoShopCatalog.h`、`Run/ReEchoRunSubsystem.*` | `ReEchoGameMode.*`、`Player/ReEchoPlayerPawn.*`、`DefaultInput.ini`、导入 UI 纹理 |
+| 玩家属性、Echo 属性、Tab 面板 | `UI/ReEchoStatsWidget.*`、`ReEchoGameMode.*` | `Graybox/ReEchoEchoActor.*`、`Combat/ReEchoCombatantComponent.*`、`Player/ReEchoPlayerPawn.*`、`DefaultInput.ini` |
+| 暂停/死亡/重启/退出 UI | `UI/ReEchoRestartWidget.*` | `ReEchoGameMode.*`、`PlayerPawn::TogglePauseMenu`、`DefaultInput.ini` |
+| 特质卡/卡牌选择/角色晋升/角色 build | `UI/ReEchoTraitCardChoiceWidget.*`、`Run/ReEchoRunSubsystem.*`、`Run/ReEchoCharacterPromotion.*` | `Content/Data/cards.csv`、`Content/Data/card_effects.csv`、`Content/Data/characters.csv`、`Content/Data/character_aliases.csv`、`ReEchoGameMode.*`、`Core/ReEchoTypes.*`、`Weapons/ReEchoWeaponActor.*` |
+| 卡牌/角色/元素/反应/敌人/平衡数据 | 匹配的 `Content/Data/*.csv` 和仅迁移 JSON | `Content/Data/README.md`、`validate_project.py` |
+| GM、调试命令、作弊、控制台 | `ReEchoGameMode.*`、`docs/GM_COMMANDS.md` | 匹配玩法子系统或 Actor API |
+| 构建或直接打开模块失败 | `scripts/ue/Build-Editor.*`、`scripts/ue/prebuilt_editor.py` | 最新 UBT 日志、预构建 manifest 和匹配源码 |
+| Windows 打包/cook/资源缺失 | `scripts/ue/package_windows.py`、`ReEchoGameMode.*`、硬资产引用、UAT Cook manifest | `Content/ReEcho/Textures/Characters/`、`Saved/Cooked/Windows`、Shipping 烟测 |
+| 自动化 | `scripts/ue/Run-Automation.*` | `Private/Tests/*`、`Saved/Logs/ReEcho.log` |
+| UE MCP | `docs/UE_MCP.md` | `ReEcho.uproject`、Editor 设置、`.codex/config.toml` |
+| RenderDoc 图形调试 | `docs/RENDERDOC_MCP.md` | `scripts/mcp/Codex-With-RenderDoc.cmd` |
+| AI 工作流/规则 | `AGENTS.md`、`shared/PROJECT_RULES.md` | 首次接入路由到 `PROGRAMMER_RULES.md`、`DESIGNER_RULES.md` 或 `ARTIST_RULES.md`；程序任务再使用匹配职责规则；`PLANNER_EXCHANGE.md` 记录实时范围/所有权；`WORKFLOW.md` 只说明原因 |
 
-## Invariants and traps
+## 不变量与陷阱
 
-- Use only the installed/release UE 5.8 build; the separate source checkout is out of scope.
-- Close ReEcho Unreal Editor before building C++ DLLs.
-- Simulation is 60 Hz, recording is 20 Hz, and the encounter duration is 30 seconds unless an explicit design change updates all contracts.
-- Do not serialize automatic attacks into recordings.
-- Do not hand-edit `.uasset` or `.umap`; claim serialized assets in `PLANNER_EXCHANGE.md` and modify them through UE.
-- CSV under `Content/Data` is the target runtime data source. Changing JSON alone does not change gameplay.
-- The arena is runtime-generated. Do not search for a missing project map.
-- `AllToolsets` may emit unrelated GameFeatureData/Niagara Python warnings in commandlets; judge ReEcho tests from named automation results.
-- Follow `.clang-format` plus the mandatory Unreal C++ section in `PROJECT_RULES.md`.
+- 只使用 UE 5.8 安装版/发行版；独立源码检出不在范围内。
+- 构建 C++ DLL 前关闭 ReEcho Unreal Editor。
+- 除非明确策划变更同步更新全部契约，否则模拟为 60 Hz、录制为 20 Hz、遭遇时长为 30 秒。
+- 不得将自动攻击序列化进录制。
+- 不得手改 `.uasset` 或 `.umap`；在 `PLANNER_EXCHANGE.md` 认领序列化资产，并通过 UE 修改。
+- `Content/Data` 下 CSV 是目标运行时数据源；只改 JSON 不会改变玩法。
+- 竞技场在运行时生成，不要搜索不存在的项目地图。
+- `AllToolsets` 可能在 commandlet 中输出无关 GameFeatureData/Niagara Python 警告；依据具名自动化结果判断 ReEcho 测试。
+- 遵循 `.clang-format` 和 `PROJECT_RULES.md` 的强制 Unreal C++ 章节。
 
-## Verification routes
+## 验证路线
 
 ```powershell
 python scripts\validate_project.py
@@ -198,6 +198,6 @@ scripts\ue\Build-Editor.cmd -Configuration Development
 git diff --check
 ```
 
-Functional automation (`scripts\ue\Run-Automation.cmd`) is optional when a Plan or the human explicitly requests it.
+仅在 Plan 或用户明确要求时选择执行功能自动化（`scripts\ue\Run-Automation.cmd`）。
 
-Pass `-EngineRoot <path>` only at invocation time or use the machine-local `RE_ECHO_UE_ROOT`; never commit a machine path.
+只在调用时传入 `-EngineRoot <path>`，或使用机器本地 `RE_ECHO_UE_ROOT`；绝不提交机器路径。

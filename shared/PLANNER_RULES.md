@@ -1,125 +1,121 @@
-# ReEcho Planner rules
+# ReEcho Planner 规则
 
-This file contains Planner actions only. Startup order is defined by `AGENTS.md`; project hard rules and verification live in `PROJECT_RULES.md`. The Planner-Executor mode choice is governed by `PROGRAMMER_RULES.md`; when the user adopts it, follow the procedural gates in this file. The non-skippable remote collaboration safety check applies in every mode.
+本文件只包含 Planner 操作。启动顺序由 `AGENTS.md` 定义；项目硬规则和验证位于 `PROJECT_RULES.md`。Planner-Executor 模式选择由 `PROGRAMMER_RULES.md` 管理；用户采用该模式时，遵循本文件的流程门禁。不可跳过的远端协作安全检查适用于所有模式。
 
-## Number and publish a Plan before execution
+## Plan 语言
 
-1. Before assigning a Plan number, fetch `origin/main`, list the numbered `plans/<id>-*.md` files from that remote ref, and identify the highest numbered Plan. Also inspect live Exchange rows. Remote main is canonical for numbering; numbers are never reused, and a new task takes the next unused number after the remote maximum.
-2. If remote main advanced, inspect it read-only. Do not pull, merge, rebase or push until the external-commit integration audit is reported and the human chooses the outcome.
-3. Search the code/data surface before writing. Cite concrete paths and lines instead of relying on memory.
-4. Separate locked goal/acceptance from implementation guidance. The Executor may refine implementation but may not silently change locked scope.
-5. Mark human validation `NotRequired` unless subjective feel, readability, visual quality or usability needs a person. Use `PendingBeforeClose` when it gates acceptance or `PendingFollowUp` only when the human explicitly allows deferral.
-6. Add the Plan `Coordination` block from `plans/TEMPLATE.md`: owners, **Plan-authored-by AI side**, **implementation-authored-by AI side**, lifecycle, human validation, local/implementation base, dependencies, Writes/Reads, impact mode, compatibility promise and exclusions. Planning ownership, document authorship and implementation authorship are separate facts; never infer or transfer them merely because another Planner refreshed the local file.
-7. Once a formal number is assigned, publish the numbered Plan to `origin/main` immediately, together with only the matching live Exchange announcement/ownership needed for cross-machine coordination. Use the Plan-publication authorization below; do not include implementation or unrelated WIP.
-8. Fetch and verify that `origin/main` contains the exact numbered Plan commit. No Executor, implementation branch or publication-intended specialist work for that Plan starts before this verification succeeds.
-9. If the push is rejected or another published Plan claims the number, fetch again, move this Plan and every later unpublished local Plan to the first range after the new remote maximum, update all live references, validate and retry the Plan-only publication.
-10. Recommend an Executor model only when it helps the human choose; do not spawn one unless the human explicitly asks.
+- 从本规则生效后，新建 Plan 及对现有 Plan 的实质性内容更新必须使用中文正文。
+- 代码、命令、路径、类型/函数/字段名、稳定 ID、分支名、提交号，以及固定枚举 `Proposed | Ready | InProgress | Review | Closed | Blocked`、`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`、`Isolated | ReadOnly | SharedContract | Exclusive` 保持原文。
+- 不得仅为翻译而批量重写已关闭历史 Plan；再次实质更新时同步中文化所修改的语义章节。
 
-## Start and coordinate local execution
+## 执行前编号并发布 Plan
 
-1. Give the Executor the published Plan path or embed the locked goal, acceptance, base, Writes and exclusions in the prompt.
-2. Executors work in local `plan/<id>-<short>` branches/worktrees. Different machines use their own clones and local task branches; no remote task or coordination branch is created.
-3. `Isolated` and `ReadOnly` work may start when local Writes are disjoint. `SharedContract` or `Exclusive` overlap waits for the affected local owner/human to confirm the contract or ownership.
-4. If Writes, dependencies or a stable contract must expand, pause only the out-of-scope change and update the local Plan/Exchange before continuing. Unrelated local work need not stop.
-5. The published Plan and live Exchange announcement inform other machines of numbered intent; implementation commits remain local until accepted. Later cross-machine differences are resolved from `origin/main` under the audit gate below.
+1. 分配 Plan 编号前，fetch `origin/main`，从该远端引用列出编号的 `plans/<id>-*.md` 文件，识别最大 Plan 编号，并检查实时 Exchange 行。远端 main 是编号权威；编号不复用，新任务使用远端最大值之后的下一个空闲编号。
+2. 若远端 main 前进，只读检查它。在报告外部提交集成审计并由用户选择结果前，不得 pull、merge、rebase 或 push。
+3. 写作前搜索代码/数据表面；引用具体路径和行，不依赖记忆。
+4. 将锁定目标/验收与实现建议分开。Executor 可优化实现，但不得暗中修改锁定范围。
+5. 除非主观手感、可读性、视觉质量或可用性需要人工判断，否则人工验收标记为 `NotRequired`。阻塞验收时使用 `PendingBeforeClose`；只有用户明确允许延期时使用 `PendingFollowUp`。
+6. 从 `plans/TEMPLATE.md` 添加 Plan 的“协调”区块：负责人、Plan 编写 AI 侧、实现 AI 侧、生命周期、人工验收、本地/实现基线、依赖、Writes/Reads、影响模式、兼容承诺和排除项。规划所有权、文档作者和实现作者是不同事实；不得仅因另一个 Planner 刷新本地文件而推断或转移。
+7. 一旦分配正式编号，立即将编号 Plan 发布到 `origin/main`，并仅附带跨机器协调所需的匹配实时 Exchange 公告/所有权。使用下方 Plan 发布授权；不得包含实现或无关 WIP。
+8. Fetch 并核验 `origin/main` 包含准确的编号 Plan 提交。核验成功前，不得为该 Plan 启动 Executor、实现分支或准备发布的专业工作。
+9. 若推送被拒或其他已发布 Plan 占用编号，再次 fetch，将本 Plan 及其后所有未发布本地 Plan 移到远端新最大值之后的首个区间，更新全部实时引用、验证并重试仅 Plan 发布。
+10. 仅在有助用户选择时推荐 Executor 模型；除非用户明确要求，不得自行创建。
 
-## External-commit integration audit
+## 启动并协调本地执行
 
-Whenever `fetch` reveals that `origin/main` contains commits outside the currently approved local baseline, do not change the working tree or remote history yet. This gate applies before `pull`, merge, rebase, cherry-pick and push, even when Git can fast-forward.
+1. 向 Executor 提供已发布 Plan 路径；无法访问时，在提示中嵌入锁定目标、验收、基线、Writes 和排除项。
+2. Executor 在本地 `plan/<id>-<short>` 分支/worktree 工作。不同机器使用各自克隆和本地任务分支；不创建远端任务或协调分支。
+3. 本地 Writes 互不重叠时，`Isolated` 和 `ReadOnly` 工作可启动。`SharedContract` 或 `Exclusive` 重叠需等待受影响本地所有者/用户确认契约或所有权。
+4. 若必须扩张 Writes、依赖或稳定契约，只暂停超范围变化，并在继续前更新本地 Plan/Exchange；无关本地工作无需停止。
+5. 已发布 Plan 和实时 Exchange 公告向其他机器公开编号意图；实现提交在验收前保持本地。后续跨机器差异按下方审计门禁从 `origin/main` 解决。
 
-1. Identify incoming commits, authors/owners, Plans, base and changed paths. Treat every unreviewed incoming main commit as external to the candidate; do not rely only on Git author identity.
-2. Evaluate **Physical/Git conflict**:
-   - predict the three-way result from the merge base with read-only `log`, `diff`, `merge-tree` and ancestry checks;
-   - report same-line edits, add/add, rename, modify/delete, binary/generated-file collisions and exact files;
-   - say explicitly when there is no textual conflict. “Git can merge” is evidence only for this layer.
-3. Evaluate **Logical conflict** even if Git reports none:
-   - compare locked goals, current human decisions and runtime semantics;
-   - detect deletion versus continued extension of old logic, competing flows, different public API/schema/stable-ID/save/generator contracts, source-of-truth changes and contradictory tests;
-   - identify whether one side would silently restore, bypass or overwrite the other side's behavior.
-4. Evaluate **Coupling**:
-   - list affected Plans, declared Writes/Reads, shared contracts, downstream local branches and required integration order;
-   - state which prior build/test/human evidence becomes invalid and what must be rerun.
-5. Evaluate **Plan-number conflicts** against remote main. Remote numbers win. Renumber a colliding unpublished local Plan and every later unpublished local Plan as one ordered block to the first conflict-free range; update filenames, headings, Exchange rows, dependencies, prompts, test names and branch/worktree names where practical. Do not rewrite existing Git history solely to change old commit messages.
-6. Report the incoming range, Physical/Git conflict, Logical conflict, Coupling, number shifts, choices (`remote`, `local`, `combined adaptation`, `defer/split`), tradeoffs and a recommendation. Do not choose behavioral ownership on the human's behalf.
-7. Wait for the human to select the behavior/ownership outcome. Commit order alone never supersedes an explicit human decision.
-8. Integrate only the selected outcome, inspect the result for unintended deletion/restoration and run proportional verification.
-9. Fetch again immediately before push. If main advanced after the audit/decision, restart this gate and report the new coupling.
+## 外部提交集成审计
 
-A conflict-free fast-forward can still contain a logical conflict. Conversely, overlapping files do not automatically require choosing one whole side: present a combined adaptation when contracts and behavior can be reconciled safely.
+当 `fetch` 发现 `origin/main` 包含当前已批准本地基线之外的提交时，不得立即修改工作树或远端历史。本门禁适用于 `pull`、merge、rebase、cherry-pick 和 push 前，即使 Git 可以快进。
 
-## Executor prompt template
+1. 识别传入提交、作者/所有者、Plan、基线和变更路径。所有未评审的传入 main 提交都视为候选之外的外部提交；不得仅依赖 Git 作者身份。
+2. 评估**物理/Git 冲突**：
+   - 使用只读 `log`、`diff`、`merge-tree` 和祖先检查，从 merge base 预测三方结果；
+   - 报告同一行编辑、add/add、重命名、modify/delete、二进制/生成文件碰撞和准确文件；
+   - 没有文本冲突时明确说明。“Git 可以合并”只属于本层证据。
+3. 即使 Git 无冲突，也评估**逻辑冲突**：
+   - 比较锁定目标、当前人工决定和运行时语义；
+   - 检测删除旧逻辑与继续扩展旧逻辑、竞争流程、不同公共 API/Schema/稳定 ID/存档/生成器契约、事实来源变化和矛盾测试；
+   - 识别一方是否会暗中恢复、绕过或覆盖另一方行为。
+4. 评估**耦合**：
+   - 列出受影响 Plan、声明 Writes/Reads、共享契约、下游本地分支和必需集成顺序；
+   - 说明哪些先前构建/测试/人工证据失效，以及必须重跑什么。
+5. 对照远端 main 评估 **Plan 编号冲突**。远端编号优先。将冲突的未发布本地 Plan 及其后所有未发布本地 Plan 作为有序整体重编号到首个无冲突区间；在可行时更新文件名、标题、Exchange 行、依赖、提示、测试名和分支/worktree 名。不得仅为修改旧提交消息而重写已有 Git 历史。
+6. 报告传入范围、物理/Git 冲突、逻辑冲突、耦合、编号移动、选项（`remote`、`local`、`combined adaptation`、`defer/split`）、权衡和建议。不得代替用户选择行为所有权。
+7. 等待用户选择行为/所有权结果。提交顺序绝不能覆盖明确人工决定。
+8. 只集成所选结果，检查意外删除/恢复，并执行成比例验证。
+9. 推送前立即再次 fetch。若审计/决定后 main 又前进，重启本门禁并报告新耦合。
 
-The Plan is the task specification; the startup prompt is only a neutral routing envelope. It must not assign a new identity,
-override the recipient AI's existing local role or restate the other user's authority. A normal prompt contains
-the exact Plan path, approved base, branch/worktree, one-line start instruction, exceptional gates that cannot be
-discovered from the repository, and the required completion report. Do not duplicate the Plan's locked goal,
-acceptance, Writes, exclusions, implementation outline or verification matrix. Embed scope only when the recipient
-cannot access the Plan; update the Plan first when a follow-up changes scope. Follow-up prompts state only the delta and
-point back to the Plan.
+无冲突快进仍可能包含逻辑冲突；反之，文件重叠不代表必须整边二选一：契约与行为可安全协调时，应提供组合适配方案。
+
+## Executor 提示模板
+
+Plan 是任务规格；启动提示只是中立路由外壳。不得赋予新身份、覆盖接收 AI 现有本地角色，或重述另一用户的权限。普通提示只包含准确 Plan 路径、批准基线、分支/worktree、一句启动指令、仓库无法发现的例外门禁和必需完成报告。不得重复 Plan 的锁定目标、验收、Writes、排除项、实现提纲或验证矩阵。只有接收方无法访问 Plan 时才嵌入范围；后续范围变化应先更新 Plan。跟进提示只描述差异并指回 Plan。
 
 ```text
 这是 ReEcho `plans/<id>-<name>.md` 的启动引导，不改变你现有的身份或职责。
 先按 AGENTS.md 完成或复用当前对话中用户已明确确认的专业角色路由，再读取该 Plan 的最小上下文。
 从 `<approved-base>` 创建本地 `<branch>` / `<worktree>`；特殊门禁：<only non-discoverable exceptions or none>。
-完全按 Plan 实现、验证并更新其 Execution notes。只在本地任务分支工作；不 merge/push main，不推送远端分支。
-若必须改变 Plan 锁定范围或公共契约，停止越界部分并报告。完成后报告 commit、验证、风险和剩余人验。
+完全按 Plan 实现、验证并更新执行记录。只在本地任务分支工作；不 merge/push main，不推送远端分支。
+若必须改变 Plan 锁定范围或公共契约，停止越界部分并报告。完成后报告提交、验证、风险和剩余人工验收。
 ```
 
-## Review and local integration
+## 评审与本地集成
 
-### Mandatory forward progress
+### 强制推进
 
-At every review, integration and closure handoff, advance accepted work to the furthest state currently permitted by the existing project gates. Do not leave work waiting merely because the human did not repeat the next routine instruction.
+每次评审、集成和关闭交接，都应在现有门禁允许范围内将已验收工作推进到最远状态。不得仅因用户没有重复下一条常规指令而让工作等待。
 
-- **Merge when mergeable**: once the review, objective checks, required human validation or explicit deferral, ownership compatibility and integration-base requirements below are satisfied, merge the accepted scope into local `main` before starting avoidable dependent integration work; release its ownership during the resulting shared-state update.
-- **Publish when publishable**: once the Remote-main publication gate below has current authorization, a fresh external-main audit, a clean approved candidate and current verification, push `main` to `origin/main` promptly. Never interpret this default as authority to bypass or invent publication authorization.
-- **Delete when removable**: once an obsolete worktree's exact path is verified, its status is clean, every required change is already integrated or deliberately retained elsewhere, no active ownership/process still needs it, and its branch satisfies the non-force deletion rules below, remove the worktree and then the merged local branch promptly.
-- “Can” means every applicable existing scope, validation, human-decision, external-change, publication and destructive-action gate passes. If any gate does not pass, do not force progress; report the unmet gate and preserve the state needed to resolve it.
+- **可合并时合并**：评审、客观检查、必需人工验收或明确延期、所有权兼容性和下方集成基线要求满足后，在开始可避免的依赖集成前将已验收范围合入本地 `main`，并在对应共享状态更新中释放所有权。
+- **可发布时发布**：下方远端 main 发布门禁具备当前授权、新鲜外部 main 审计、干净已批准候选和当前验证后，立即推送 `main` 到 `origin/main`。不得将该默认推进解释为绕过或虚构发布授权。
+- **可删除时删除**：过期 worktree 的准确路径已核验、状态干净、必需变化已集成或明确保留在其他位置、没有活跃所有权/进程仍需使用，且分支满足非强制删除规则后，及时移除 worktree，再删除已合并本地分支。
+- “可以”表示全部适用范围、验证、人工决定、外部变化、发布和破坏性操作门禁已通过。任一未通过时不得强行推进；报告未满足门禁并保留解决所需状态。
 
-1. Confirm the Plan is in `Review`; inspect the merge base, branch status and Execution notes.
-2. Start with `git diff --stat <merge-base>..<branch>`, then inspect relevant hunks and generated artifacts. Do not use `main..branch` when main has advanced.
-3. Check locked acceptance, objective evidence, public-contract compatibility and code health. Rework returns lifecycle to `InProgress`.
-4. The Planner directly performs small, evident, in-scope review corrections on the task branch, including Plan wording,
-   stale coordination cleanup, dead-code removal, formatting and narrow deterministic fixes. Do not bounce these back to
-   an Executor merely to preserve role separation. Reassign an Executor when the fix is behaviorally substantial,
-   uncertain, broad, independently parallelizable or needs a new implementation/verification pass. Large unrelated
-   refactors get a separate local Plan.
-5. Resolve `PendingBeforeClose` with the human before closure. `PendingFollowUp` may remain only under an explicit human deferral.
-6. After acceptance, merge with `--no-ff` into local `main`, update shared state once, release ownership and set lifecycle `Closed`.
-7. Remove a clean merged worktree only after checking its exact path and `git status --short`. Never use `--force`; delete a merged local branch with `git branch -d`.
+1. 确认 Plan 处于 `Review`；检查 merge base、分支状态和执行记录。
+2. 从 `git diff --stat <merge-base>..<branch>` 开始，再检查相关 hunk 和生成工件。main 已前进时不得使用 `main..branch`。
+3. 检查锁定验收、客观证据、公共契约兼容性和代码健康。需要返工时生命周期回到 `InProgress`。
+4. Planner 直接在任务分支完成小型、明确、范围内的评审修正，包括 Plan 文案、过期协调清理、死代码移除、格式化和窄确定性修复。不得仅为保持角色分工而退回 Executor。修复具有实质行为、不确定、范围宽、可独立并行或需要新实现/验证轮次时重新指派 Executor；大型无关重构使用独立本地 Plan。
+5. 关闭前与用户解决 `PendingBeforeClose`。`PendingFollowUp` 仅可在用户明确延期时保留。
+6. 验收后使用 `--no-ff` 合入本地 `main`，一次性更新共享状态、释放所有权并将生命周期设为 `Closed`。
+7. 检查准确路径和 `git status --short` 后才移除干净、已合并 worktree。绝不使用 `--force`；使用 `git branch -d` 删除已合并本地分支。
 
-## Remote-main publication
+## 远端 main 发布
 
-`origin/main` is the only permitted remote branch. Numbered Plans are published there before execution; implementation branches stay local.
+`origin/main` 是唯一允许的远端分支。编号 Plan 在执行前发布；实现分支保持本地。
 
-Every Programmer publication also passes the final integrated UE build and curated prebuilt-bundle gate in `shared/GIT_RULES.md`. A Plan-only publication contains no implementation and therefore uses its static validation gate instead.
+每次程序发布还必须通过 `shared/GIT_RULES.md` 的最终集成 UE 构建和精选预构建包门禁。仅 Plan 发布不含实现，因此使用其静态验证门禁。
 
-Standing scoped authorization:
+常设范围授权：
 
-- After static validation, publish a newly numbered Plan file and only its matching live Exchange announcement/ownership promptly to `origin/main`, before implementation starts.
-- After review and validation, publish completed changes limited to authoritative workflow/rule documents, `plans/TEMPLATE.md`, and the matching validator/tests promptly to `origin/main`. A minimal Exchange schema migration required by that rule change may accompany it.
+- 静态验证后，在实现前立即将新编号 Plan 文件及其匹配实时 Exchange 公告/所有权发布到 `origin/main`。
+- 评审和验证后，立即将仅限权威工作流/规则文档、`plans/TEMPLATE.md` 和匹配校验器/测试的已完成变化发布到 `origin/main`。规则变化所需的最小 Exchange Schema 迁移可随附。
 
-Neither authorization includes implementation or unrelated WIP. A fresh external-main audit is still mandatory, and any later human instruction may revoke or narrow this authorization.
+两项授权都不包含实现或无关 WIP。仍必须执行新鲜外部 main 审计；后续人工指令可撤销或缩小授权。
 
-1. Fetch immediately before building the candidate. If main advanced, run the full external-commit audit and wait for the human's integration choice.
-2. Integrate current `origin/main`, all named accepted scope and no unapproved WIP. Renumber unpublished local Plans when remote main already owns a number.
-3. Re-run checks affected by integration, conflicts, renumbering or base changes, then complete the `GIT_RULES.md` Programmer publication build gate on the exact final candidate.
-4. Report included/excluded Plans, candidate commit, verification and remote difference.
-5. Authorization is either:
-   - **one-candidate**: explicit human approval for that reported candidate; or
-   - **standing scoped**: an Exchange rule explicitly granted by the human with allowed content, expiry/revocation condition and required checks.
-6. Push only `main`, without force. Never push local planning/task branches. If remote advances or rejects the push, stop, rebuild/revalidate the candidate and renew authorization when scope or commit changes.
-7. Fetch and compare local/remote main after publication. Notify peer Planners to fetch main and run their own audit before integrating it.
+1. 构建候选前立即 fetch。main 前进时，执行完整外部提交审计并等待用户集成选择。
+2. 集成当前 `origin/main`、全部具名已验收范围，且不包含未批准 WIP。远端 main 已占用编号时，重编号未发布本地 Plan。
+3. 重跑受集成、冲突、重编号或基线变化影响的检查，再在准确最终候选上完成 `GIT_RULES.md` 程序发布构建门禁。
+4. 报告包含/排除的 Plan、候选提交、验证和远端差异。
+5. 授权类型：
+   - **单候选**：用户对已报告候选明确批准；
+   - **常设范围**：Exchange 规则中记录用户明确授予的允许内容、到期/撤销条件和必需检查。
+6. 只推送 `main`，不得强推。绝不推送本地规划/任务分支。远端前进或拒绝推送时停止；范围或提交变化时重建/重验候选并重新获得授权。
+7. 发布后 fetch 并比较本地/远端 main。通知其他 Planner fetch main，并在集成前执行自己的审计。
 
-Do not commit a self-referential current-main hash into live state. Git and the publication report provide the exact commit.
+不得把自引用的当前 main 哈希提交到实时状态；Git 和发布报告提供准确提交。
 
-## Shared-memory closure
+## 共享记忆关闭
 
-At review/closure, and only where relevant:
+评审/关闭时，仅在相关情况下更新：
 
-- `CODEBASE_MAP.md`: changed retrieval routes/responsibilities only.
-- `LESSONS.md`: reusable evidence-backed lessons with source Plan.
-- `PLANNER_EXCHANGE.md`: current local work/ownership/warnings only; remove closed rows rather than keeping history.
-- assigned Plan: final lifecycle, changed behavior, evidence, risk and human-validation result/request.
+- `CODEBASE_MAP.md`：只记录读取路线/职责变化。
+- `LESSONS.md`：带来源 Plan、可复用且有证据的经验。
+- `PLANNER_EXCHANGE.md`：仅当前本地工作/所有权/警告；删除已关闭行，不保留历史。
+- 指定 Plan：最终生命周期、行为变化、证据、风险和人工验收结果/请求。
 
-Workflow/rule changes are reviewed repository changes. Update the single authoritative section instead of copying the same mandate into every role document.
+工作流/规则变更也是经过评审的仓库变更。更新单一权威章节，不要在每个角色文档复制同一要求。
