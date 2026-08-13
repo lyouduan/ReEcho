@@ -19,9 +19,8 @@
 // 覆盖真实 held-input -> GAS -> weapon -> 第二发命中的接缝（无 PIE）。
 // 自动与手动入口都汇聚到同一个 UReEchoBasicAttackAbility 循环，故分别验证。
 //
-// 注：通过 `-ExecCmds=Automation RunTests` 跑的是 smoke-test 路径
-// （RequestedTestFilter 固定为 SmokeFilter），因此本测试使用 SmokeFilter；
-// 该路径下 smoke 测试不得使用 latent command（引擎断言），故全程同步执行。
+// 注：该测试需要 GEngine 世界上下文，与 ReEchoWeaponRuntimeTests 同属编辑器运行时测试；
+// 不标记 SmokeFilter，避免 -ExecCmds smoke 路径在 GEngine 尚未就绪时执行。
 
 namespace
 {
@@ -30,7 +29,6 @@ void RunHeldBasicAttackRepeatScenario(FAutomationTestBase& Test, const bool bMan
 	const TCHAR* ModeName = bManual ? TEXT("Manual") : TEXT("Auto");
 
 	// 轻量 headless 游戏世界（与 ReEchoWeaponRuntimeTests 的夹具一致）。
-	// 本场景在 latent command 中执行，届时 GEngine 已就绪。
 	const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("ReEchoHeldAttackTest"));
 	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
@@ -129,7 +127,7 @@ void RunHeldBasicAttackRepeatScenario(FAutomationTestBase& Test, const bool bMan
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoHeldBasicAttackRepeatTest,
 	"ReEcho.AttackMode.HeldRepeat",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::SmokeFilter)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoHeldBasicAttackRepeatTest::RunTest(const FString& Parameters)
 {
@@ -139,7 +137,7 @@ bool FReEchoHeldBasicAttackRepeatTest::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoHeldBasicAttackRepeatAutoTest,
 	"ReEcho.AttackMode.HeldRepeatAuto",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::SmokeFilter)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoHeldBasicAttackRepeatAutoTest::RunTest(const FString& Parameters)
 {
