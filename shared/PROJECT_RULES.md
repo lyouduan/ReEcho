@@ -61,17 +61,18 @@ These are the project-level hard rules. `AGENTS.md` owns startup and professiona
 
 ## Verification matrix
 
-Use Windows `.cmd` entry points. Run checks required by the changed surface, not unrelated suites.
+Use Windows `.cmd` entry points. Run checks required by the changed surface, not unrelated suites. Required checks are publication/readiness gates, not functional gameplay-proof gates.
 
 | Change surface | Required checks |
 |---|---|
 | Markdown/workflow only | `python scripts/validate_project.py`, `git diff --check` |
 | Python data tooling/XLSX contract | focused Python tests, canonical `--check`, project validation, `git diff --check` |
-| JSON/config/CSV only | project validation plus affected runtime automation when behavior changes |
-| C++ | `.clang-format`, `Build-Editor.cmd` (refreshes the tracked prebuilt bundle), affected automation, `git diff --check` |
+| JSON/config/CSV only | project validation and `git diff --check` |
+| C++ | `.clang-format`, `Build-Editor.cmd` (refreshes the tracked prebuilt bundle), `python scripts/validate_project.py`, `git diff --check` |
 | Texture/import script | import/load and asset-existence check |
 | Packaging/cook | applicable checks plus clean package and manifest/smoke evidence |
 
+- Functional Unreal automation such as `scripts\ue\Run-Automation.cmd` is optional evidence requested by a Plan or the human; it is not an upper-rule closure or publication gate.
 - Before commands requiring a closed Editor, ask the human to save and close it. Automation must not silently discard an interactive session.
 - Reuse evidence only while relevant source/configuration and the integration base remain unchanged. Conflicts or rebases invalidate affected evidence.
 - Summarize logs; do not load full Unreal logs into AI context.

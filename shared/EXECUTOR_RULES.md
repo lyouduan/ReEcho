@@ -40,11 +40,10 @@ Use repository entry points from the project root:
 ```powershell
 python scripts\validate_project.py
 scripts\ue\Build-Editor.cmd -Configuration Development
-scripts\ue\Run-Automation.cmd -Filter ReEcho
 python scripts\ue\package_windows.py
 ```
 
-Use only checks required by `PROJECT_RULES.md` and the Plan. Ask the human to save/close an interactive Editor before commands that require it. Never claim PIE or visual acceptance; those results belong to the human.
+Functional Unreal automation (`scripts\ue\Run-Automation.cmd`) is optional evidence only when the Plan or the human explicitly asks for it; it is not a default upper-rule gate. Use only checks required by `PROJECT_RULES.md` and the Plan. Ask the human to save/close an interactive Editor before commands that require it. Never claim PIE or visual acceptance; those results belong to the human.
 
 ### Same-clone Unreal lock
 

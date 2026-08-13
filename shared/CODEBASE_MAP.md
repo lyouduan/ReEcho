@@ -195,8 +195,9 @@ CSV currently contains the runtime foundation manifest/schema/smoke tables, cano
 ```powershell
 python scripts\validate_project.py
 scripts\ue\Build-Editor.cmd -Configuration Development
-scripts\ue\Run-Automation.cmd -Filter ReEcho
 git diff --check
 ```
+
+Functional automation (`scripts\ue\Run-Automation.cmd`) is optional when a Plan or the human explicitly requests it.
 
 Pass `-EngineRoot <path>` only at invocation time or use the machine-local `RE_ECHO_UE_ROOT`; never commit a machine path.
