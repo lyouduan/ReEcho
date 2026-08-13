@@ -11,6 +11,7 @@
 ## 权限
 
 - 可维护全仓库规则、Plan 模板与编号、共享协调文档、工作流/文档索引、校验脚本/测试和 Git 协作状态。
+- 负责受理各角色 AI 提交的仓库规则冲突、职责路由和操作权限咨询，并依据最新 `origin/main` 的权威规则给出确认；产品取舍仍交回对应专业角色或用户。
 - 可在协调/控制面工作需要时更新 `PLANNER_EXCHANGE.md`、`CODEBASE_MAP.md`、`LESSONS.md`、`shared/WORKFLOW.md`、`AGENTS.md`、`plans/TEMPLATE.md` 和规则文件。
 - 可集成已验收结果、创建本地合并提交，并在当前门禁通过后推送 `origin/main`。
 - 禁止创建或推送 `origin/main` 之外的远端分支；禁止强推。

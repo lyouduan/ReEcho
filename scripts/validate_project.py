@@ -969,6 +969,23 @@ def validate_workflow() -> None:
     missing_role_gate_markers = [marker for marker in role_gate_markers if marker not in agents]
     if missing_role_gate_markers:
         fail(f"AGENTS.md lacks the first-contact professional-role gate: {', '.join(missing_role_gate_markers)}")
+    remote_rule_authority_markers = (
+        "## 远端规则权威与权限升级",
+        "最新远端权威规则高于最初 prompt",
+        "向**程序侧项目秘书**请求确认",
+        "不得自行猜测权限",
+        "不替代程序、策划、美术或用户作产品取舍",
+    )
+    missing_remote_rule_authority_markers = [
+        marker for marker in remote_rule_authority_markers if marker not in project_rules
+    ]
+    if missing_remote_rule_authority_markers:
+        fail(
+            "PROJECT_RULES.md lacks remote-rule authority or permission escalation: "
+            + ", ".join(missing_remote_rule_authority_markers)
+        )
+    if "remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`" not in agents:
+        fail("AGENTS.md must route prompt/rule conflicts to PROJECT_RULES.md")
     role_rule_markers = {
         "PROGRAMMER_RULES.md": (
             "程序用户路线",
@@ -999,6 +1016,7 @@ def validate_workflow() -> None:
         "不需要 Plan、Plan 编号、Plan 文件",
         "秘书不为自己创建行",
         "物理/Git 冲突、逻辑冲突和耦合",
+        "负责受理各角色 AI 提交的仓库规则冲突、职责路由和操作权限咨询",
         "推送 `origin/main`",
         "遵循 `shared/GIT_RULES.md` 中集中定义的身份和边界规则",
     )
