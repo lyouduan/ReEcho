@@ -165,6 +165,8 @@ Report back with:
 - Added local point-in-polygon query APIs, finite/non-zero-area polygon validation and stale attack-instance rejection. Hurtboxes remain available independently of attack state; weapon polygons are hidden unless both attack-instance and authored frame gates are true.
 - Added the review overlay `reecho.Animation2D.DrawFrameCollision`: mode 1 draws current Body polygons green; mode 2 also draws active Attack polygons red. Overlay vertices use the renderer component transform after authored pivot/PPUU/facing conversion and do not mutate Actor, Capsule or gameplay collision.
 - Added deterministic reviewed-JSON-to-DataAsset tooling at `scripts/ue/build_plan40_collision_tracks.py` plus the annotation schema/workflow documentation. The generator requires exact Flipbook frame count, explicit body/weapon polygons and a non-empty source revision; it deliberately rejects missing annotations instead of inferring composite alpha geometry.
+- Persisted the human-approved Paper2D `EachFrameCollision` mode for `walk`, `attack` and Grunt `01_2` through a repeatable Unreal Python asset script. The renderer enables that geometry only as `QueryOnly`, retains Pawn query response, disables unused automatic overlap events and keeps the Actor Capsule as blocking authority.
+- Replaced the misleading aggregate Paper2D AABB debug view with exact Box/Sphere/Capsule/Convex wireframes and centralized `ReEcho.DebugCollision` into levels 0-3 so root collision, Paper2D geometry and semantic tracks can be inspected independently.
 
 ### Evidence
 
@@ -180,6 +182,8 @@ Report back with:
 - `ReEcho.Presentation.Animation2D.AssetProfiles` passes after loading the saved assets from disk and verifying catalog resolution, Spade static Idle/default looping Move/MoonStaff one-shot Attack, Grunt looping default, controller renderer exclusivity and one-shot completion return.
 - The focused Animation2D automation also passes frame synchronization, pivot/PPUU conversion, facing mirror, Query-only body lookup, committed/stale attack-instance gating, matching-instance closure and diagnostic missing-track fallback. UE 5.8 Editor build passes with Player/Grunt Driver components wired.
 - UE 5.8 Editor build passes with the collision debug overlay. The collision generator passes Python bytecode compilation, project static validation and `git diff --check`.
+- UE 5.8 Editor build passes after the EachFrame/query-policy and exact-shape debug changes. `ReEcho.Presentation.Animation2D.AssetProfiles` passes after a fresh disk reload and now verifies all three Flipbooks use EachFrame mode, every key frame references a PaperSprite with non-empty BodySetup geometry, static Idle disables Paper2D collision, Walk enables QueryOnly and automatic overlap events remain disabled.
+- A fresh full `ReEcho` run discovered 69 tests but again hit the pre-existing `ReEcho.BasicAttack.HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval()` (`ReEchoWeaponActor.cpp:241`, called from `ReEchoBasicAttackLoopTest.cpp:84`) before the suite could complete. The focused Animation2D test passes; full-suite evidence remains blocked by that independent failure.
 
 ### Remaining risks
 
@@ -187,6 +191,8 @@ Report back with:
 - Profile/Catalog assets now exist and load in automation. Human PIE still must accept visual scale, pivot, facing, alpha/sort and the static/animated transitions.
 - Current saved profiles do not yet reference authored collision-track assets, so runtime safely uses the existing Capsule/weapon-query fallback. Collision mask authoring/generation, preview overlay and actual track assets remain required before frame geometry can affect hit testing.
 - No reviewed collision Mask/JSON exists in the current repository. Actual body/weapon Track creation and profile binding are therefore intentionally pending human-authored boundaries; the preview overlay and deterministic generator are ready for that input.
+- Human override on 2026-08-13: the three actively played `walk`, `attack` and Grunt `01_2` Flipbooks now use Paper2D `EachFrameCollision`, superseding this Plan's original prohibition. Idle remains the static `Idel_01` texture. Runtime honors the baked per-frame Sprite BodySetup as `QueryOnly + Pawn query response`, with automatic overlap events disabled because no runtime consumer exists, while retaining the root Capsule as movement authority; built-in collision is not treated as semantic weapon damage and does not replace reviewed Body/Weapon Track separation.
+- Extended `ReEcho.DebugCollision` into a layered collision-volume view: level 1 draws Actor Capsules, level 2 adds the current Paper2D frame's exact Box/Sphere/Capsule/Convex geometry and diagnostics, and level 3 adds reviewed Body/Attack polygons. The former aggregate AABB visualization was removed because it visually exaggerated authored collision and obscured diagnosis. The command can be used interactively or through `-ExecCmds` without changing collision state.
 - Visual identity, pivot, scale and timing for the new artist-authored Walk/Attack assets remain human PIE acceptance items.
 
 ### Human validation result/request

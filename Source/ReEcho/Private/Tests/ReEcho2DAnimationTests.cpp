@@ -5,6 +5,8 @@
 #include "Components/BillboardComponent.h"
 #include "Engine/Texture2D.h"
 #include "PaperFlipbook.h"
+#include "PaperSprite.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
@@ -32,6 +34,30 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         PlayerFlipbook && PlayerFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
 	TestTrue(TEXT("Grunt Flipbook has non-empty render bounds"),
 	         GruntFlipbook && GruntFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
+	TestTrue(TEXT("Walk Flipbook uses authored EachFrame collision"),
+	         WalkFlipbook && WalkFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Attack Flipbook uses authored EachFrame collision"),
+	         StaffAttackFlipbook &&
+	             StaffAttackFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Grunt Flipbook uses authored EachFrame collision"),
+	         GruntFlipbook && GruntFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	auto TestEveryKeyFrameHasCollision = [this](const TCHAR* Label, const UPaperFlipbook* Flipbook)
+	{
+		bool bEveryFrameHasCollision = Flipbook && Flipbook->GetNumKeyFrames() > 0;
+		if (Flipbook)
+		{
+			for (int32 Index = 0; Index < Flipbook->GetNumKeyFrames(); ++Index)
+			{
+				const UPaperSprite* Sprite = Flipbook->GetKeyFrameChecked(Index).Sprite;
+				bEveryFrameHasCollision &= Sprite && Sprite->BodySetup &&
+				                           Sprite->BodySetup->AggGeom.GetElementCount() > 0;
+			}
+		}
+		TestTrue(Label, bEveryFrameHasCollision);
+	};
+	TestEveryKeyFrameHasCollision(TEXT("Walk has collision geometry on every key frame"), WalkFlipbook);
+	TestEveryKeyFrameHasCollision(TEXT("Attack has collision geometry on every key frame"), StaffAttackFlipbook);
+	TestEveryKeyFrameHasCollision(TEXT("Grunt has collision geometry on every key frame"), GruntFlipbook);
 	UReEcho2DPresentationCatalog* AuthoredCatalog = LoadObject<UReEcho2DPresentationCatalog>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
 	UReEcho2DCharacterPresentationProfile* AuthoredGrunt = LoadObject<UReEcho2DCharacterPresentationProfile>(
@@ -67,6 +93,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Activated component owns the requested Flipbook"),
 	         Component->IsAnimationActive() && Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Activated Idel profile loops"), Component->IsLooping());
+	TestEqual(TEXT("Static Idle keeps Paper2D collision disabled"),
+	          Component->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
 	TestEqual(
 	    TEXT("Native-scale player profile keeps authored scale"), Component->GetRelativeScale3D(), FVector::OneVector);
 	TestTrue(TEXT("Activated Flipbook can tick to advance frames"), Component->PrimaryComponentTick.bCanEverTick);
@@ -86,6 +114,13 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Walk state resolves to looping walk Flipbook"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Walk) && Component->GetFlipbook() == WalkFlipbook &&
 	             Component->IsLooping());
+	TestTrue(TEXT("Walk EachFrame collision is enabled as Query-only"),
+	         Component->IsUsingEachFrameCollision() &&
+	             Component->GetCollisionEnabled() == ECollisionEnabled::QueryOnly);
+	TestEqual(TEXT("EachFrame collision never blocks Pawn movement"),
+	          Component->GetCollisionResponseToChannel(ECC_Pawn), ECollisionResponse::ECR_Overlap);
+	TestFalse(TEXT("EachFrame collision does not emit automatic overlap events"),
+	          Component->GetGenerateOverlapEvents());
 	TestTrue(TEXT("Moon Staff attack state resolves to attack Flipbook"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Attack, false) &&
 	             Component->GetFlipbook() == StaffAttackFlipbook);
@@ -226,6 +261,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	          Component->ActivateProfile(MissingProfile),
 	          EReEcho2DAnimationActivationResult::MissingFlipbook);
 	TestFalse(TEXT("Failed activation leaves animation disabled"), Component->IsAnimationActive());
+	TestEqual(TEXT("Disabled animation also disables Paper2D collision"),
+	          Component->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
 	TestFalse(TEXT("Disabled animation is not playing"), Component->IsPlaying());
 	return true;
 }

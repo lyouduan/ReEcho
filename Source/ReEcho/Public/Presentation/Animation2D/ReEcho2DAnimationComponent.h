@@ -17,6 +17,8 @@ class REECHO_API UReEcho2DAnimationComponent : public UPaperFlipbookComponent
 
 public:
 	UReEcho2DAnimationComponent();
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
+	                           FActorComponentTickFunction* ThisTickFunction) override;
 
 	/** Faithfully plays one data-owned clip without resolving gameplay or character state. */
 	bool PlayClip(const FReEcho2DAnimationClip& Clip, bool bRestart = false);
@@ -28,6 +30,7 @@ public:
 	const FReEcho2DAnimationClip& GetActiveClip() const { return ActiveClip; }
 	int32 GetCurrentKeyFrameIndex();
 	float GetFacingSign() const { return FacingSign; }
+	bool IsUsingEachFrameCollision() const;
 
 	/** Editor asset-repair seam used by the deterministic import script; it has no runtime gameplay effect. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|Animation2D", meta = (DevelopmentOnly))
@@ -35,6 +38,8 @@ public:
 
 private:
 	void ApplyDisplayScale();
+	void ApplyCollisionPolicy();
+	void DrawCurrentFrameCollisionDebug();
 
 	UPROPERTY()
 	FReEcho2DAnimationProfile ActiveProfile;

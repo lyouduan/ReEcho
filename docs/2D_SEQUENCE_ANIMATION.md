@@ -235,6 +235,12 @@ SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
 
 # 逐帧碰撞标注与预览
 
+当前实际参与序列播放的 `walk / attack / 01_2` 三个 Flipbook 已由开发者明确改为 Paper2D `EachFrameCollision`。Idle 仍使用静态 `Idel_01` 贴图。`UReEcho2DAnimationComponent` 会实际启用每帧 Sprite BodySetup，但固定使用 `QueryOnly`、对象类型 `WorldDynamic`，对 `Pawn` 保留查询响应且关闭自动 Overlap 事件；它不会阻挡角色移动，也不会在逐帧切换时产生无人消费的重叠回调。Actor Root Capsule 仍是移动与阻挡权威。动画停用或切换到非逐帧碰撞 Flipbook 时，Paper2D 碰撞同步关闭。
+
+Collision Source 必须保存进资产，不能只停留在未保存的 Editor 会话。关闭交互 Editor 后可运行 `scripts/ue/configure_plan40_flipbook_collision.py`；该脚本只把上述三个 Flipbook 设置为 `EachFrameCollision` 并保存，不会生成或猜测各 PaperSprite 的碰撞轮廓。
+
+Paper2D 内建每帧碰撞表示整帧 Sprite 的通用查询轮廓；它不携带 Body/Weapon 语义，也不直接触发伤害。`UReEcho2DFrameCollisionTrack` 继续负责经过审核的 Body Hurtbox、Weapon AttackHitbox 和攻击窗口。如果没有 Track，伤害逻辑仍回退到既有 Capsule/武器范围查询。
+
 Plan40 的碰撞不会从透明像素或整张角色加武器合成图在运行时自动生成。每个 Flipbook 必须有经过审核的 JSON 标注，之后由 `scripts/ue/build_plan40_collision_tracks.py` 确定性生成 `UReEcho2DFrameCollisionTrack`。
 
 标注放在 `Content/2DAnim/CollisionAnnotations/*.json`，格式如下：
@@ -269,5 +275,14 @@ PIE 中使用以下控制台变量查看叠加：
 reecho.Animation2D.DrawFrameCollision 1   // 绿色 Body Hurtbox
 reecho.Animation2D.DrawFrameCollision 2   // 绿色 Body + 红色活跃 Attack Hitbox
 ```
+
+统一查看当前物体所有碰撞体积，可在 Editor Console 或启动 CMD 中使用：
+
+```text
+ReEcho.DebugCollision 2
+UnrealEditor.exe ReEcho.uproject -ExecCmds="ReEcho.DebugCollision 2"
+```
+
+调试等级：`0` 关闭；`1` 显示青/橙色 Actor Root Capsule；`2` 额外显示黄色 Paper2D 当前帧真实 Box、Sphere、Capsule、Convex 线框及帧/形状数量；`3` 再显示绿色语义 Body Hurtbox 与红色当前活跃 Attack Hitbox。黄色形状只表示 Paper2D 烘焙查询几何，不代表语义武器伤害区。独立命令 `reecho.Animation2D.DrawFrameCollision 1/2` 仍可只查看语义轨道。
 
 叠加线由当前 Flipbook 帧、Profile 缩放、Pivot 和朝向共同驱动。视觉与碰撞不一致时应修正 JSON/Track，不能用移动 Actor Root 或修改移动 Capsule 来补偿。

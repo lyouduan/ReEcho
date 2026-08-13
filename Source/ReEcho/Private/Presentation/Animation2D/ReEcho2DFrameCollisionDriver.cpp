@@ -1,9 +1,9 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Animation2D/ReEcho2DCollisionDebug.h"
 
 #include "DrawDebugHelpers.h"
-#include "HAL/IConsoleManager.h"
 
 namespace
 {
@@ -172,7 +172,9 @@ void UReEcho2DFrameCollisionDriver::DrawDebugSnapshot() const
 {
 #if ENABLE_DRAW_DEBUG
 	const int32 DrawMode = CVarReEchoDrawFrameCollision.GetValueOnGameThread();
-	if (DrawMode <= 0 || !Renderer || !GetWorld())
+	const int32 EffectiveDrawMode =
+	    DrawMode > 0 ? DrawMode : ReEcho2DCollisionDebug::GetLevel() >= 3 ? 2 : 0;
+	if (EffectiveDrawMode <= 0 || !Renderer || !GetWorld())
 	{
 		return;
 	}
@@ -189,7 +191,7 @@ void UReEcho2DFrameCollisionDriver::DrawDebugSnapshot() const
 		}
 	};
 	DrawPolygons(Snapshot.BodyHurtboxes, FColor::Green);
-	if (DrawMode >= 2 && Snapshot.bAttackActive)
+	if (EffectiveDrawMode >= 2 && Snapshot.bAttackActive)
 	{
 		DrawPolygons(Snapshot.WeaponAttackHitboxes, FColor::Red);
 	}
