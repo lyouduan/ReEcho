@@ -14,8 +14,9 @@ class UReEchoCombatantComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 class UPointLightComponent;
-class UPaperFlipbook;
 class UReEcho2DAnimationComponent;
+class UReEcho2DCharacterPresentationProfile;
+class UReEcho2DPresentationController;
 class USceneComponent;
 class UTexture2D;
 class AReEchoHealthBarActor;
@@ -106,6 +107,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementAuraRing;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
@@ -116,7 +119,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTexture2D> BossTexture;
 	UPROPERTY()
-	TObjectPtr<UPaperFlipbook> GruntDefaultFlipbook;
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> GruntPresentationProfile;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY()

@@ -77,7 +77,17 @@ spade.set_editor_property("animation_sets", [base_set, moon_staff_set])
 catalog = get_or_create_data_asset("DA_PresentationCatalog", unreal.ReEcho2DPresentationCatalog)
 catalog.set_editor_property("character_profiles", profiles)
 
-for asset in profiles + [catalog]:
+grunt = get_or_create_data_asset("DA_Enemy_Grunt", unreal.ReEcho2DCharacterPresentationProfile)
+grunt.set_editor_property("appearance_id", "Enemy.Grunt")
+grunt.set_editor_property("static_fallback", None)
+grunt_set = unreal.ReEcho2DCompositeAnimationSet()
+grunt_set.set_editor_property("weapon_visual_set_id", "")
+grunt_set.set_editor_property(
+    "clips", {tag("Animation.Idle"): clip(load("/Game/2DAnim/Flipbook/01_2.01_2"), True)}
+)
+grunt.set_editor_property("animation_sets", [grunt_set])
+
+for asset in profiles + [catalog, grunt]:
     unreal.EditorAssetLibrary.save_loaded_asset(asset, only_if_is_dirty=False)
 
-unreal.log(f"Plan40 presentation assets saved: {len(profiles)} profiles + catalog")
+unreal.log(f"Plan40 presentation assets saved: {len(profiles)} player profiles + Grunt + catalog")

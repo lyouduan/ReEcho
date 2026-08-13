@@ -28,9 +28,9 @@
 #include "Player/ReEchoPlayerPawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "PaperFlipbook.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
-#include "Presentation/Animation2D/ReEcho2DAnimationProfile.h"
+#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace ReEchoEnemyVisual
@@ -87,6 +87,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CharacterSprite->bIsScreenSizeScaled = false;
 	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
 	SequenceAnimation->SetupAttachment(VisualEffectRoot);
+	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
 
 	ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
 	ElementAuraRing->SetupAttachment(RootComponent);
@@ -141,9 +142,9 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BossTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/Boss2D.Boss2D"));
 	BossTexture = BossTextureFinder.Object;
-	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> GruntFlipbookFinder(
-	    TEXT("/Game/2DAnim/Flipbook/01_2.01_2"));
-	GruntDefaultFlipbook = GruntFlipbookFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> GruntProfileFinder(
+	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Grunt.DA_Enemy_Grunt"));
+	GruntPresentationProfile = GruntProfileFinder.Object;
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
@@ -236,19 +237,8 @@ void AReEchoEnemyActor::ApplyVisual()
 		CharacterSprite->SetWorldScale3D(FVector::OneVector);
 	}
 
-	FReEcho2DAnimationProfile Profile;
-	Profile.DefaultFlipbook = Kind == EReEchoEnemyKind::Grunt ? GruntDefaultFlipbook : nullptr;
-	Profile.WorldHeight = ReEchoEnemyVisual::CharacterWorldHeight;
-	Profile.TranslucentSortPriority = 10;
-	const bool bUseSequenceAnimation =
-	    Kind == EReEchoEnemyKind::Grunt &&
-	    SequenceAnimation->ActivateProfile(Profile) == EReEcho2DAnimationActivationResult::Activated;
-	if (!bUseSequenceAnimation)
-	{
-		SequenceAnimation->DeactivateAnimation();
-	}
-	CharacterSprite->SetVisibility(!bUseSequenceAnimation);
-	CharacterSprite->SetHiddenInGame(bUseSequenceAnimation);
+	PresentationController->Configure(CharacterSprite, SequenceAnimation,
+	                                  Kind == EReEchoEnemyKind::Grunt ? GruntPresentationProfile : nullptr);
 	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
 	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
