@@ -2,6 +2,8 @@
 
 #include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
+#include "Combat/ReEchoCombatTarget.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Core/ReEchoTypes.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoEnemyActor.generated.h"
@@ -11,6 +13,8 @@ class UBillboardComponent;
 class UCapsuleComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
+class UReEchoCombatEventsComponent;
+class UReEchoCombatAudioAdapterComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 class UPointLightComponent;
@@ -32,7 +36,7 @@ enum class EReEchoEnemyKind : uint8
 /** 2D 敌人实体：负责寻路攻击、受伤判定、血条和序列帧表现。 */
 UCLASS()
 
-class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface
+class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface, public IReEchoCombatTarget
 {
 	GENERATED_BODY()
 public:
@@ -45,13 +49,15 @@ public:
 	float ReceiveGrayboxDamage(float Damage,
 	                           const FVector& SourceLocation,
 	                           AActor* SourceActor = nullptr,
-	                           const FLinearColor& DamageNumberColor = FLinearColor::White);
+	                           const FLinearColor& DamageNumberColor = FLinearColor::White,
+	                           FReEchoAttackCommitId AttackCommitId = {});
 	/** Applies an elemental attachment or a supported two-element reaction before regular damage resolution. */
 	float ReceiveElementalDamage(float Damage,
 	                             EReEchoElement Element,
 	                             const FVector& SourceLocation,
 	                             AActor* SourceActor = nullptr,
-	                             float ReactionEfficiency = 1.0f);
+	                             float ReactionEfficiency = 1.0f,
+	                             FReEchoAttackCommitId AttackCommitId = {});
 	void RefreshElementAttachmentVisual();
 
 	EReEchoElement GetAttachedElement() const
@@ -75,8 +81,28 @@ public:
 	}
 
 	bool IsAlive() const;
+
+	virtual bool IsCombatTargetAlive() const override
+	{
+		return IsAlive();
+	}
+
+	virtual FVector GetCombatTargetLocation() const override
+	{
+		return GetActorLocation();
+	}
+
+	virtual int32 GetCombatTargetTieBreakIndex() const override
+	{
+		return GetSpawnIndex();
+	}
+
 	/** 稳定的运行时目标排序标识（等于生成索引）。供自动攻击在射程内出现相同距离时确定性打破平局。 */
-	int32 GetSpawnIndex() const { return VisualVariantIndex; }
+	int32 GetSpawnIndex() const
+	{
+		return VisualVariantIndex;
+	}
+
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 
 	EReEchoEnemyKind GetKind() const
@@ -119,6 +145,10 @@ private:
 	TObjectPtr<UPaperFlipbook> GruntDefaultFlipbook;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
 	UPROPERTY()
 	TObjectPtr<AReEchoHealthBarActor> HealthBar;
 	UPROPERTY()

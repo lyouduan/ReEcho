@@ -1,0 +1,81 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "ReEchoCombatTypes.generated.h"
+
+class AActor;
+
+UENUM(BlueprintType)
+enum class EReEchoElement : uint8
+{
+	None,
+	Flame,
+	Lightning,
+	Grass,
+	Water
+};
+
+UENUM(BlueprintType)
+enum class EReEchoDamageSource : uint8
+{
+	Player,
+	Echo,
+	Path,
+	Reaction,
+	Enemy
+};
+
+UENUM(BlueprintType)
+enum class EReEchoAttackMode : uint8
+{
+	Automatic,
+	Manual
+};
+
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoStatBlock
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float HpPoint = 15.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float HpMax = 100.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float PhysicalAttack = 10.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ElementalAttack = 10.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Block = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float AttackSpeed = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float MovementSpeed = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float CriticalRate = 0.2f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float CriticalEffect = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EchoEfficiency = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ReactionEfficiency = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName RoleId = NAME_None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bRandomElementProjectiles = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EverySecondAttackBonus = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ProjectileCount = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float WeaponSize = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EchoCount = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ShopDiscount = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float CharacterSize = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float Concentration = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float PathAffinity = 1.f;
+};
+
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoElementState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) EReEchoElement Attached = EReEchoElement::None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ImmunityUntil = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEnhancedNextReaction = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EnhancementMultiplier = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) EReEchoElement BlockedAttachment = EReEchoElement::None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FName, float> ActiveStatusUntilSeconds;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bBurnActive = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float BurnTickDamage = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float BurnNextTickTimeSeconds = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector BurnSourceLocation = FVector::ZeroVector;
+	TWeakObjectPtr<AActor> BurnSourceActor;
+};

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/ReEchoTypes.h"
+#include "Combat/ReEchoCombatContracts.h"
 
 class AReEchoEnemyActor;
 
@@ -34,6 +35,7 @@ struct REECHO_API FReEchoElementHitContext
 	float ReactionEfficiency = 1.0f;
 	float SourceElementalAttack = 0.0f;
 	float SourceEchoEfficiency = 1.0f;
+	FReEchoAttackCommitId AttackCommitId;
 };
 
 struct REECHO_API FReEchoElementExecutionResult

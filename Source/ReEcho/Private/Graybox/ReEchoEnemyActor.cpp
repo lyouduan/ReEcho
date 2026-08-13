@@ -13,6 +13,8 @@
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "UI/ReEchoDamageNumberActor.h"
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatAudioAdapterComponent.h"
 #include "Combat/ReEchoElementReaction.h"
 #include "Components/BillboardComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -145,6 +147,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	    TEXT("/Game/2DAnim/Flipbook/01_2.01_2"));
 	GruntDefaultFlipbook = GruntFlipbookFinder.Object;
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
+	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
+	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
 
@@ -445,7 +449,8 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
                                                 const EReEchoElement Element,
                                                 const FVector& SourceLocation,
                                                 AActor* SourceActor,
-                                                const float ReactionEfficiency)
+                                                const float ReactionEfficiency,
+                                                const FReEchoAttackCommitId AttackCommitId)
 {
 	FReEchoElementHitContext Context;
 	Context.SourceLocation = SourceLocation;
@@ -453,6 +458,7 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 	Context.ReactionEfficiency = ReactionEfficiency;
 	Context.SourceElementalAttack = Damage;
 	Context.SourceEchoEfficiency = 1.0f;
+	Context.AttackCommitId = AttackCommitId;
 	if (SourceActor)
 	{
 		if (const UReEchoCombatantComponent* SourceCombatant =
@@ -470,7 +476,8 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage,
                                               const FVector& SourceLocation,
                                               AActor* SourceActor,
-                                              const FLinearColor& DamageNumberColor)
+                                              const FLinearColor& DamageNumberColor,
+                                              const FReEchoAttackCommitId AttackCommitId)
 {
 	if (Kind == EReEchoEnemyKind::Shield)
 	{
@@ -488,6 +495,30 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage,
 		SourceAbilitySystem = AbilitySource->GetAbilitySystemComponent();
 	}
 	const float Applied = ReEchoGameplayEffects::ApplyDamage(SourceAbilitySystem, *AbilitySystem, Damage);
+	FReEchoDamageEvent DamageEvent;
+	DamageEvent.CommitId = AttackCommitId;
+	DamageEvent.Source = SourceActor;
+	DamageEvent.Target = this;
+	DamageEvent.RawDamage = Damage;
+	DamageEvent.AppliedDamage = Applied;
+	DamageEvent.bBlocked = Applied <= 0.0f;
+	DamageEvent.WorldLocation = GetActorLocation();
+	CombatEvents->PublishHurt(DamageEvent);
+	if (SourceActor)
+	{
+		if (UReEchoCombatEventsComponent* SourceEvents =
+		        SourceActor->FindComponentByClass<UReEchoCombatEventsComponent>())
+		{
+			if (Applied > 0.0f)
+			{
+				SourceEvents->PublishHit(DamageEvent);
+			}
+			if (Applied > 0.0f && !IsAlive())
+			{
+				SourceEvents->PublishKill(DamageEvent);
+			}
+		}
+	}
 	if (Applied > 0.f)
 	{
 		ReEchoAttackEffects::SpawnHitImpact(GetWorld(), GetActorLocation());

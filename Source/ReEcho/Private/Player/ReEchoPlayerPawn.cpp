@@ -7,7 +7,11 @@
 #include "AbilitySystemComponent.h"
 
 #include "Camera/CameraComponent.h"
+#include "Combat/ReEchoAttackControllerComponent.h"
+#include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatAudioAdapterComponent.h"
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Components/BillboardComponent.h"
@@ -116,6 +120,10 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	AbilitySystem->SetIsReplicated(true);
 	AbilitySystem->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
+	AttackController = CreateDefaultSubobject<UReEchoAttackControllerComponent>(TEXT("AttackController"));
+	Targeting = CreateDefaultSubobject<UReEchoTargetingComponent>(TEXT("Targeting"));
+	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
+	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	Recorder = CreateDefaultSubobject<UReEchoRecorderComponent>(TEXT("Recorder"));
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
@@ -272,12 +280,9 @@ void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 	ConstrainToArenaBounds();
 	ConfigureMouseInput();
 
-	bool bAutoHasTarget = false;
-	if (bAutoAttackMode)
-	{
-		UpdateAutoAttack(bAutoHasTarget);
-	}
-	if (!bAutoAttackMode || !bAutoHasTarget)
+	AttackController->UpdateAutomaticAttack();
+	const FReEchoAttackSnapshot AttackSnapshot = AttackController->GetSnapshot();
+	if (AttackSnapshot.Mode != EReEchoAttackMode::Automatic || !AttackSnapshot.CurrentTarget)
 	{
 		UpdateMouseAim();
 	}
@@ -382,6 +387,21 @@ FString AReEchoPlayerPawn::GetEquippedWeaponLabel() const
 float AReEchoPlayerPawn::GetCurrentAttackInterval() const
 {
 	return Weapon ? Weapon->GetAttackInterval(Combatant) : 0.55f;
+}
+
+bool AReEchoPlayerPawn::IsAutoAttackMode() const
+{
+	return AttackController && AttackController->GetAttackMode() == EReEchoAttackMode::Automatic;
+}
+
+bool AReEchoPlayerPawn::IsAutoAttackInputHeld() const
+{
+	return AttackController && AttackController->IsAutomaticHeld();
+}
+
+bool AReEchoPlayerPawn::IsManualAttackInputHeld() const
+{
+	return AttackController && AttackController->IsManualHeld();
 }
 
 bool AReEchoPlayerPawn::IsWeaponActionLocked() const
@@ -508,51 +528,35 @@ void AReEchoPlayerPawn::ManualBasicAttack()
 	// 物理（手动）输入仅在手动模式下驱动 GAS basic-attack 输入。
 	// 自动模式下该共享 GAS spec 归自动循环所有，因此物理按下必须被忽略，
 	// 既不能无目标起手，也不能触碰自动循环持有的同一输入源（Planner review 2026-08-12）。
-	if (bAutoAttackMode)
-	{
-		return;
-	}
-	bManualAttackInputHeld = true;
-	BasicAttack();
+	AttackController->BeginManualAttack();
 }
 
 void AReEchoPlayerPawn::ManualStopBasicAttack()
 {
-	if (bAutoAttackMode)
-	{
-		return;
-	}
-	bManualAttackInputHeld = false;
-	StopBasicAttack();
+	AttackController->EndManualAttack();
 }
 
 void AReEchoPlayerPawn::ReleaseAllBasicAttackInputs()
 {
 	// 菜单开/关必须释放每个 held basic-attack 输入源，使恢复游戏时不会残留
 	// 来自自动循环或物理输入的陈旧 held 状态。
-	ReleaseAutoAttackInput();
-	if (bManualAttackInputHeld)
-	{
-		bManualAttackInputHeld = false;
-		StopBasicAttack();
-	}
+	AttackController->ReleaseAttackRequests();
 }
 
 void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
 {
-	if (bAutoAttackMode == bAuto)
+	if (IsAutoAttackMode() == bAuto)
 	{
 		return;
 	}
-	bAutoAttackMode = bAuto;
-	if (bAutoAttackMode)
+	AttackController->SetAttackMode(bAuto ? EReEchoAttackMode::Automatic : EReEchoAttackMode::Manual);
+	if (bAuto)
 	{
 		// 切换到自动模式：物理（手动）held 输入不再权威，必须释放它，
 		// 这样自动循环才能干净地独占共享的 GAS basic-attack 输入。
-		if (bManualAttackInputHeld)
+		if (AttackController->IsManualHeld())
 		{
-			bManualAttackInputHeld = false;
-			StopBasicAttack();
+			AttackController->ReleaseAttackRequests();
 		}
 	}
 	else
@@ -564,20 +568,18 @@ void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
 
 void AReEchoPlayerPawn::PressAutoAttackInput()
 {
-	if (bAutoAttackInputHeld)
+	if (AttackController->IsAutomaticHeld())
 	{
 		return;
 	}
-	BasicAttack();
-	bAutoAttackInputHeld = true;
+	AttackController->UpdateAutomaticAttack();
 }
 
 void AReEchoPlayerPawn::ReleaseAutoAttackInput()
 {
-	if (bAutoAttackInputHeld)
+	if (AttackController->IsAutomaticHeld())
 	{
-		StopBasicAttack();
-		bAutoAttackInputHeld = false;
+		AttackController->ReleaseAttackRequests();
 	}
 }
 
@@ -585,9 +587,9 @@ void AReEchoPlayerPawn::UpdateAutoAttack(bool& bOutHasTarget)
 {
 	bOutHasTarget = false;
 
-	const bool bCanAuto = bAutoAttackMode
-		&& Combatant && Combatant->IsAlive()
-		&& AbilitySystem && AbilitySystem->GetGameplayTagCount(ReEchoGameplayTags::State_Menu) == 0;
+	const bool bCanAuto = AttackController->GetAttackMode() == EReEchoAttackMode::Automatic && Combatant &&
+	                      Combatant->IsAlive() && AbilitySystem &&
+	                      AbilitySystem->GetGameplayTagCount(ReEchoGameplayTags::State_Menu) == 0;
 	if (!bCanAuto)
 	{
 		ReleaseAutoAttackInput();
@@ -687,7 +689,7 @@ void AReEchoPlayerPawn::ActivateSkill()
 
 bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 {
-	const bool bAttacked = Weapon && Weapon->ExecuteBasicAttack(Combatant);
+	const bool bAttacked = Weapon && Weapon->TryBasicAttack(Combatant);
 	if (bAttacked)
 	{
 		StartAttackVisual(0.18f, 16.0f);
@@ -695,9 +697,93 @@ bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 	return bAttacked;
 }
 
+EReEchoAttackAttempt AReEchoPlayerPawn::TryCommitBasicAttack()
+{
+	if (!Weapon || !Combatant)
+	{
+		return EReEchoAttackAttempt::Rejected;
+	}
+	if (Weapon->GetAttackCooldownRemaining() > KINDA_SMALL_NUMBER)
+	{
+		return EReEchoAttackAttempt::Waiting;
+	}
+	if (!ExecuteBasicAttackAbility())
+	{
+		return EReEchoAttackAttempt::Rejected;
+	}
+	return EReEchoAttackAttempt::Committed;
+}
+
+float AReEchoPlayerPawn::GetBasicAttackWaitRemaining() const
+{
+	return Weapon ? Weapon->GetAttackCooldownRemaining() : 0.0f;
+}
+
+bool AReEchoPlayerPawn::ExecuteActiveAttack()
+{
+	return ExecuteActiveAttackAbility();
+}
+
+float AReEchoPlayerPawn::GetActiveAttackCooldown() const
+{
+	return GetCurrentAttackInterval();
+}
+
+bool AReEchoPlayerPawn::CanIssueAttackRequest() const
+{
+	return Combatant && Combatant->IsAlive() && AbilitySystem &&
+	       AbilitySystem->GetGameplayTagCount(ReEchoGameplayTags::State_Menu) == 0;
+}
+
+float AReEchoPlayerPawn::GetAutomaticAttackRange() const
+{
+	return Weapon ? Weapon->GetCurrentAttackRangeCm() : 0.0f;
+}
+
+void AReEchoPlayerPawn::FaceAutomaticTarget(AActor& Target)
+{
+	FVector ToTarget = Target.GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	if (!ToTarget.IsNearlyZero())
+	{
+		VisualFacingSign = ToTarget.X >= 0.0f ? 1.0f : -1.0f;
+		SetActorRotation(ToTarget.Rotation());
+	}
+}
+
+void AReEchoPlayerPawn::PressBasicAttackInput()
+{
+	BasicAttack();
+}
+
+void AReEchoPlayerPawn::ReleaseBasicAttackInput()
+{
+	StopBasicAttack();
+}
+
+FName AReEchoPlayerPawn::GetAttackWeaponId() const
+{
+	return Weapon ? Weapon->GetEquippedWeaponId() : NAME_None;
+}
+
+FName AReEchoPlayerPawn::GetAttackStepId() const
+{
+	return Weapon ? Weapon->GetCurrentAttackStepId() : NAME_None;
+}
+
+float AReEchoPlayerPawn::GetAttackReadinessRemaining() const
+{
+	return GetBasicAttackWaitRemaining();
+}
+
+float AReEchoPlayerPawn::GetEffectiveAttackSpeed() const
+{
+	return Combatant ? Combatant->Stats.AttackSpeed : 1.0f;
+}
+
 bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 {
-	if (!Weapon || !Weapon->ExecuteBasicAttack(Combatant))
+	if (!Weapon || !Weapon->TryActiveAttack(Combatant))
 	{
 		return false;
 	}

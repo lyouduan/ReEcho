@@ -1,0 +1,30 @@
+#pragma once
+
+#include "NativeGameplayTags.h"
+
+namespace ReEchoGameplayTags
+{
+extern REECHOCOMBAT_API FNativeGameplayTag Ability_Attack_Basic;
+extern REECHOCOMBAT_API FNativeGameplayTag Ability_Attack_Active;
+extern REECHOCOMBAT_API FNativeGameplayTag Input_Attack_Basic;
+extern REECHOCOMBAT_API FNativeGameplayTag Input_Attack_Active;
+extern REECHOCOMBAT_API FNativeGameplayTag State_Dead;
+extern REECHOCOMBAT_API FNativeGameplayTag State_Attacking;
+extern REECHOCOMBAT_API FNativeGameplayTag State_Stunned;
+extern REECHOCOMBAT_API FNativeGameplayTag State_Menu;
+extern REECHOCOMBAT_API FNativeGameplayTag Cooldown_Attack_Basic;
+extern REECHOCOMBAT_API FNativeGameplayTag Cooldown_Attack_Active;
+extern REECHOCOMBAT_API FNativeGameplayTag Damage_Type_Physical;
+extern REECHOCOMBAT_API FNativeGameplayTag Damage_Type_Elemental;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_Damage;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_Heal;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_Cooldown;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_Health;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_MaxHealth;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_Block;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_PhysicalAttack;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_ElementalAttack;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_AttackSpeed;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_MovementSpeed;
+extern REECHOCOMBAT_API FNativeGameplayTag Data_EchoEfficiency;
+}

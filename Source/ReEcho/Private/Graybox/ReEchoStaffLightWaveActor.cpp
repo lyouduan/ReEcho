@@ -41,7 +41,8 @@ AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 void AReEchoStaffLightWaveActor::InitializeWave(const FVector& Direction,
                                                 const float InDamage,
                                                 const FVector& InDamageSource,
-                                                const float InRange)
+                                                const float InRange,
+                                                const FReEchoAttackCommitId InAttackCommitId)
 {
 	const FVector TravelDirection = Direction.GetSafeNormal2D();
 	Velocity = (TravelDirection.IsNearlyZero() ? FVector::ForwardVector : TravelDirection) * Speed;
@@ -49,6 +50,7 @@ void AReEchoStaffLightWaveActor::InitializeWave(const FVector& Direction,
 	DamageSource = InDamageSource;
 	SpawnLocation = GetActorLocation();
 	MaximumRange = FMath::Max(1.0f, InRange);
+	AttackCommitId = InAttackCommitId;
 
 	const FVector CameraFacingNormal(-0.5736f, 0.0f, 0.8192f);
 	FVector ScreenTravel =
@@ -73,7 +75,7 @@ void AReEchoStaffLightWaveActor::Tick(const float DeltaSeconds)
 		if (It->IsAlive() &&
 		    It->IntersectsProjectilePath(PreviousLocation, NewLocation, Collision->GetScaledSphereRadius()))
 		{
-			It->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner());
+			It->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner(), FLinearColor::White, AttackCommitId);
 			Destroy();
 			return;
 		}

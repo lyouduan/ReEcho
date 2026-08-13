@@ -2,7 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Core/ReEchoTypes.h"
+#include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatTypes.h"
 #include "ReEchoCombatantComponent.generated.h"
 
 class UAbilitySystemComponent;
@@ -14,7 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoDeath);
 /** Compatibility facade over GAS combat attributes; legacy fallback remains for actors not migrated to ASC. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 
-class REECHO_API UReEchoCombatantComponent : public UActorComponent
+class REECHOCOMBAT_API UReEchoCombatantComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -53,6 +54,8 @@ public:
 
 	void BindToAbilitySystem(UAbilitySystemComponent* InAbilitySystem);
 	UAbilitySystemComponent* GetBoundAbilitySystem() const;
+	UFUNCTION(BlueprintPure)
+	FReEchoCombatantSnapshot GetSnapshot() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -67,6 +70,8 @@ private:
 	void HandleAttackSpeedChanged(const FOnAttributeChangeData& Data);
 	void HandleMovementSpeedChanged(const FOnAttributeChangeData& Data);
 	void HandleEchoEfficiencyChanged(const FOnAttributeChangeData& Data);
+	void PublishHealthChange(float PreviousHealth);
+	void PublishDeath();
 
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> BoundAbilitySystem;

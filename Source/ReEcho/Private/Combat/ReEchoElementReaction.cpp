@@ -335,8 +335,8 @@ void ApplyDamageAndImmunity(AReEchoEnemyActor& Target,
                             const float CurrentTimeSeconds,
                             FReEchoElementExecutionResult& ExecutionResult)
 {
-	ExecutionResult.ImmediateDamageApplied +=
-	    Target.ReceiveGrayboxDamage(Damage, Context.SourceLocation, Context.SourceActor.Get(), DamageColor);
+	ExecutionResult.ImmediateDamageApplied += Target.ReceiveGrayboxDamage(
+	    Damage, Context.SourceLocation, Context.SourceActor.Get(), DamageColor, Context.AttackCommitId);
 	ApplyElementalImmunity(Target, Snapshot, CurrentTimeSeconds);
 	Target.RefreshElementAttachmentVisual();
 	ExecutionResult.AffectedTargets.Add(&Target);
@@ -509,7 +509,8 @@ FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Target,
 		    ExecutionResult.Primary.Damage,
 		    Context.SourceLocation,
 		    Context.SourceActor.Get(),
-		    ExecutionResult.Primary.bBlockedByImmunity ? FLinearColor::White : GetElementColor(IncomingElement));
+		    ExecutionResult.Primary.bBlockedByImmunity ? FLinearColor::White : GetElementColor(IncomingElement),
+		    Context.AttackCommitId);
 		ExecutionResult.AffectedTargets.Add(&Target);
 		return ExecutionResult;
 	}

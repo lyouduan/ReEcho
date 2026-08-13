@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side Planner（本对话 AI 直接执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户负责最终 PIE、攻速和手感验收。
 - 本地规划 / 实现基线：`origin/main@748523644053a9dae4a2b4a7b113444a26f35e24`；执行前重新 fetch，并以包含本 Plan 的最新人工批准 `origin/main` 为准。
 - 实现分支：本地 `plan/41-combat-runtime-module`，独立 worktree。
@@ -200,9 +200,26 @@ ReEchoAudio  ─/─→ ReEcho / ReEchoCombat
 
 ### 变化
 
+- Added the standalone `ReEchoCombat` Runtime Module and moved GAS tags, attributes, effects, abilities, combat values, and `UReEchoCombatantComponent` behind a one-way `ReEcho -> ReEchoCombat` dependency.
+- Added typed attack/target host interfaces, `UReEchoAttackControllerComponent`, `UReEchoTargetingComponent`, combat events, read-only snapshots, and typed attack-mode commands.
+- Replaced the dual basic-attack gate with one weapon cadence: `AttackIntervalSeconds / AttackSpeed`. `DurationSeconds` now drives only non-blocking step behavior, movement, invulnerability, and presentation timing.
+- Adapted Pawn, WeaponActor, Enemy, projectile, staff wave, immediate element damage, and tests. Attack, hit, hurt, and kill payloads preserve the originating attack commit ID where one exists.
+- Added a main-module audio adapter component that safely binds/unbinds Combat events and translates only semantic IDs into `ReEchoAudio`; neither runtime module depends on the other.
+- Added exact Core Redirects for reflected types moved from `/Script/ReEcho` to `/Script/ReEchoCombat` and a static module-boundary validator.
+
 ### 证据
 
+- `scripts/ue/Build-Editor.cmd -Configuration Development`: PASS; all three Runtime Module DLLs built.
+- `ReEcho.Combat.*`: PASS (single cadence and typed attack-mode command).
+- `ReEcho.AttackMode.HeldRepeat*`: PASS for manual and automatic held attack paths.
+- Complete `ReEcho.*`: 71 PASS; one unrelated pre-existing failure remains in `ReEcho.Run.EchoReplayResolver.EmptyStale`. The same focused test fails on untouched `main@f499a1b` because empty specific-replay selection resolves to latest instead of zero.
+- `git diff --check`: PASS. `python scripts/validate_project.py` passes after the new allowed prebuilt module is explicitly staged.
+
 ### 剩余风险
+
+- User PIE is still required for attack feel, all weapons, automatic/manual switching, target loss, menu/death release, and Continue restoration.
+- The unrelated Plan31 replay-resolver baseline defect is not changed by Plan41 and needs a separately owned fix.
+- Final FullRebuild, merge to main, remote publication, and worktree cleanup remain gated on user PIE approval.
 
 ### 人工验收结果/请求
 

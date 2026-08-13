@@ -13,7 +13,7 @@
 
 UCLASS()
 
-class REECHO_API UReEchoCombatAttributeSet : public UAttributeSet
+class REECHOCOMBAT_API UReEchoCombatAttributeSet : public UAttributeSet
 {
 	GENERATED_BODY()
 

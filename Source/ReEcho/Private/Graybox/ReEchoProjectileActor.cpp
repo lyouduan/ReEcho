@@ -51,7 +51,8 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                   const EReEchoElement InElement,
                                                   const float InReactionEfficiency,
                                                   const float InExplosionRadiusCm,
-                                                  const float InMaxRangeCm)
+                                                  const float InMaxRangeCm,
+                                                  const FReEchoAttackCommitId InAttackCommitId)
 {
 	Velocity = Direction.GetSafeNormal() * Speed;
 	Damage = FMath::Max(0.f, InDamage);
@@ -61,6 +62,7 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 	ExplosionRadiusCm = FMath::Max(0.0f, InExplosionRadiusCm);
 	MaxRangeCm = FMath::Max(0.0f, InMaxRangeCm);
 	TravelledCm = 0.0f;
+	AttackCommitId = InAttackCommitId;
 	const bool bHasElement = ReEchoElementReaction::IsCombatElement(Element);
 	Shape->SetVisibility(!bHasElement);
 	ElementLabel->SetVisibility(bHasElement);
@@ -91,11 +93,12 @@ void AReEchoProjectileActor::ApplyDamageAtLocation(const FVector& ImpactLocation
 		DamagedEnemies.Add(Enemy);
 		if (Element == EReEchoElement::None)
 		{
-			Enemy->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner());
+			Enemy->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner(), FLinearColor::White, AttackCommitId);
 		}
 		else
 		{
-			Enemy->ReceiveElementalDamage(Damage, Element, DamageSource, GetOwner(), ReactionEfficiency);
+			Enemy->ReceiveElementalDamage(
+			    Damage, Element, DamageSource, GetOwner(), ReactionEfficiency, AttackCommitId);
 		}
 	};
 

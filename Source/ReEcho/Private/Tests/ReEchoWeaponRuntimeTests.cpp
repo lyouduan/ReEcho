@@ -310,10 +310,11 @@ bool FReEchoWeaponMeleeStepRuntimeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("First melee step executes"), Weapon->ExecuteBasicAttack(Combatant));
 	TestEqual(TEXT("Front target takes first ordered step damage"), WeaponEnemyHealth(Front), 50.0f);
 	TestEqual(TEXT("Side target outside arc is untouched"), WeaponEnemyHealth(Side), 100.0f);
-	TestFalse(TEXT("Second step cannot execute before duration ends"), Weapon->ExecuteBasicAttack(Combatant));
-	Fixture.Advance(0.81f);
-	Weapon->Tick(0.81f);
-	TestTrue(TEXT("Second ordered step executes after duration"), Weapon->ExecuteBasicAttack(Combatant));
+	TestFalse(TEXT("Second step cannot execute before weapon cadence ends"), Weapon->ExecuteBasicAttack(Combatant));
+	Fixture.Advance(0.29f);
+	Weapon->Tick(0.29f);
+	TestTrue(TEXT("Second ordered step ignores the longer presentation duration"),
+	         Weapon->ExecuteBasicAttack(Combatant));
 	TestTrue(TEXT("Front target is killed by second step"), !Front->IsAlive());
 	return true;
 }

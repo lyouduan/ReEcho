@@ -58,6 +58,7 @@ UAbilitySystemComponent* UReEchoCombatantComponent::GetBoundAbilitySystem() cons
 
 void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InStats, const bool bFillHealth)
 {
+	const float PreviousHealth = CurrentHealth;
 	bDeathBroadcast = false;
 	if (BoundAbilitySystem)
 	{
@@ -72,6 +73,7 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	Stats = InStats;
 	CurrentHealth = bFillHealth ? Stats.HpMax : FMath::Min(CurrentHealth, Stats.HpMax);
 	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	PublishHealthChange(PreviousHealth);
 }
 
 float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage)
@@ -90,8 +92,10 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage)
 		return 0.f;
 	}
 	const float Applied = FMath::Min(CurrentHealth, FMath::Max(1.f, Damage));
+	const float PreviousHealth = CurrentHealth;
 	CurrentHealth -= Applied;
 	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	PublishHealthChange(PreviousHealth);
 	if (!IsAlive() && !bDeathBroadcast)
 	{
 		bDeathBroadcast = true;
@@ -100,6 +104,7 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage)
 			BoundAbilitySystem->AddLooseGameplayTag(ReEchoGameplayTags::State_Dead);
 		}
 		OnDeath.Broadcast();
+		PublishDeath();
 	}
 	return Applied;
 }
@@ -117,11 +122,13 @@ float UReEchoCombatantComponent::ApplyHealing(const float Healing)
 	const float PreviousHealth = CurrentHealth;
 	CurrentHealth = FMath::Clamp(CurrentHealth + Healing, 0.0f, Stats.HpMax);
 	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	PublishHealthChange(PreviousHealth);
 	return CurrentHealth - PreviousHealth;
 }
 
 void UReEchoCombatantComponent::RestoreCurrentHealth(const float SavedHealth)
 {
+	const float PreviousHealth = CurrentHealth;
 	const float ClampedHealth = FMath::Clamp(SavedHealth, 0.0f, Stats.HpMax);
 	bDeathBroadcast = ClampedHealth <= 0.0f;
 	if (BoundAbilitySystem)
@@ -140,11 +147,23 @@ void UReEchoCombatantComponent::RestoreCurrentHealth(const float SavedHealth)
 	}
 	CurrentHealth = ClampedHealth;
 	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	PublishHealthChange(PreviousHealth);
 }
 
 bool UReEchoCombatantComponent::IsAlive() const
 {
 	return CurrentHealth > 0.f;
+}
+
+FReEchoCombatantSnapshot UReEchoCombatantComponent::GetSnapshot() const
+{
+	FReEchoCombatantSnapshot Snapshot;
+	Snapshot.Combatant = const_cast<UReEchoCombatantComponent*>(this);
+	Snapshot.CurrentHealth = CurrentHealth;
+	Snapshot.MaximumHealth = Stats.HpMax;
+	Snapshot.Stats = Stats;
+	Snapshot.bAlive = IsAlive();
+	return Snapshot;
 }
 
 void UReEchoCombatantComponent::SyncFromAbilitySystem()
@@ -173,6 +192,7 @@ void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData
 {
 	CurrentHealth = Data.NewValue;
 	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	PublishHealthChange(Data.OldValue);
 	if (Data.OldValue > 0.0f && Data.NewValue <= 0.0f && !bDeathBroadcast)
 	{
 		bDeathBroadcast = true;
@@ -181,6 +201,7 @@ void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData
 			BoundAbilitySystem->AddLooseGameplayTag(ReEchoGameplayTags::State_Dead);
 		}
 		OnDeath.Broadcast();
+		PublishDeath();
 	}
 }
 
@@ -218,4 +239,34 @@ void UReEchoCombatantComponent::HandleMovementSpeedChanged(const FOnAttributeCha
 void UReEchoCombatantComponent::HandleEchoEfficiencyChanged(const FOnAttributeChangeData& Data)
 {
 	Stats.EchoEfficiency = Data.NewValue;
+}
+
+void UReEchoCombatantComponent::PublishHealthChange(const float PreviousHealth)
+{
+	if (AActor* Owner = GetOwner())
+	{
+		if (UReEchoCombatEventsComponent* Events = Owner->FindComponentByClass<UReEchoCombatEventsComponent>())
+		{
+			FReEchoHealthChangedEvent Event;
+			Event.Combatant = this;
+			Event.PreviousHealth = PreviousHealth;
+			Event.CurrentHealth = CurrentHealth;
+			Event.MaximumHealth = Stats.HpMax;
+			Events->PublishHealthChanged(Event);
+		}
+	}
+}
+
+void UReEchoCombatantComponent::PublishDeath()
+{
+	if (AActor* Owner = GetOwner())
+	{
+		if (UReEchoCombatEventsComponent* Events = Owner->FindComponentByClass<UReEchoCombatEventsComponent>())
+		{
+			FReEchoDamageEvent Event;
+			Event.Target = Owner;
+			Event.WorldLocation = Owner->GetActorLocation();
+			Events->PublishDeath(Event);
+		}
+	}
 }

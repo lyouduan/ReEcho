@@ -1235,6 +1235,40 @@ def validate_build_dependencies() -> None:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
 
 
+def validate_combat_module_boundaries() -> None:
+    combat_root = ROOT / "Source" / "ReEchoCombat"
+    build_path = combat_root / "ReEchoCombat.Build.cs"
+    if not build_path.is_file():
+        fail("missing ReEchoCombat runtime module")
+    build_text = build_path.read_text(encoding="utf-8")
+    if '"ReEcho"' in build_text or '"ReEchoAudio"' in build_text:
+        fail("ReEchoCombat must not depend on the main or audio runtime modules")
+
+    forbidden_include_prefixes = (
+        "Data/",
+        "Graybox/",
+        "Player/",
+        "Presentation/",
+        "Recording/",
+        "Run/",
+        "UI/",
+        "Weapons/",
+    )
+    include_pattern = re.compile(r'^\s*#include\s+[<\"]([^>\"]+)[>\"]', re.MULTILINE)
+    for path in combat_root.rglob("*"):
+        if path.suffix not in {".h", ".cpp"}:
+            continue
+        text_value = path.read_text(encoding="utf-8")
+        for include in include_pattern.findall(text_value):
+            if include.startswith(forbidden_include_prefixes) or include in {"ReEcho.h", "ReEchoAudio.h"}:
+                fail(f"{rel(path)} has forbidden main/audio module include: {include}")
+
+    descriptor = load_json(ROOT / "ReEcho.uproject")
+    combat_modules = [module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoCombat"]
+    if len(combat_modules) != 1 or combat_modules[0].get("Type") != "Runtime":
+        fail("ReEcho.uproject must declare exactly one ReEchoCombat Runtime module")
+
+
 def validate_prebuilt_editor() -> None:
     tool = ROOT / "scripts" / "ue" / "prebuilt_editor.py"
     if not tool.is_file():
@@ -1326,6 +1360,7 @@ def main() -> int:
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()
+    validate_combat_module_boundaries()
     validate_prebuilt_editor()
     validate_xlsx_authoring_sync()
     validate_workflow()

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Weapons/ReEchoWeaponRuntime.h"
 #include "GameFramework/Actor.h"
@@ -29,19 +30,50 @@ public:
 	/** 在冷却允许时执行当前武器基础攻击，并返回是否成功出手。 */
 	bool TryBasicAttack(UReEchoCombatantComponent* Combatant);
 	bool TryActiveAttack(UReEchoCombatantComponent* Combatant);
-	/** Executes an attack without the legacy weapon timer; player GAS owns cooldown. */
+	/** Compatibility alias; the weapon cadence remains the sole basic-attack gate. */
 	bool ExecuteBasicAttack(UReEchoCombatantComponent* Combatant);
 	float GetAttackInterval(UReEchoCombatantComponent* Combatant) const;
 	/** 当前武器当前攻击步骤的有效攻击距离（厘米）。供自动攻击在射程内选择目标，不复制 Echo 固定 AutoTargetRange。 */
 	float GetCurrentAttackRangeCm() const;
+
 	/** 武器当前动作锁（有序攻击步骤锁）剩余秒数，供 held 普攻循环判断是否临时忙。 */
-	float GetActionLockRemaining() const { return StepLockRemaining; }
+	float GetActionLockRemaining() const
+	{
+		return BasicAttackCadence.GetRemaining();
+	}
+
 	/** 已成功执行的普攻次数（命中或非命中均计数），供确定性回归测试观察。 */
-	int32 GetAttackSequence() const { return AttackSequence; }
+	int32 GetAttackSequence() const
+	{
+		return AttackSequence;
+	}
+
 	float GetAttackCooldownRemaining() const;
 #if WITH_DEV_AUTOMATION_TESTS
-	float GetStepLockRemaining() const { return StepLockRemaining; }
+	float GetStepLockRemaining() const
+	{
+		return StepBehaviorRemaining;
+	}
 #endif
+	FName GetCurrentAttackStepId() const;
+
+	FName GetLastCommittedAttackStepId() const
+	{
+		return LastCommittedAttackStepId;
+	}
+
+	int32 GetLastCommittedAttackStepIndex() const
+	{
+		return LastCommittedAttackStepIndex;
+	}
+
+	FName GetAttackPatternId() const;
+
+	FReEchoAttackCommitId GetLastAttackCommitId() const
+	{
+		return LastAttackCommitId;
+	}
+
 	FName GetEquippedWeaponId() const;
 	FString GetEquippedWeaponLabel() const;
 	const FReEchoBuildSnapshot& GetBuildSnapshot() const;
@@ -93,8 +125,12 @@ private:
 	FReEchoEffectiveWeaponDefinition EffectiveDefinition;
 	bool bHasEffectiveDefinition = false;
 	FName EquippedWeaponId;
-	float AttackCooldown = 0.0f;
-	float StepLockRemaining = 0.0f;
+	FReEchoWeaponCadence BasicAttackCadence;
+	FReEchoAttackCommitId LastAttackCommitId;
+	FName LastCommittedAttackStepId = NAME_None;
+	int32 LastCommittedAttackStepIndex = INDEX_NONE;
+	/** Presentation/movement/invulnerability duration only; never gates the next attack. */
+	float StepBehaviorRemaining = 0.0f;
 	float InvulnerableRemaining = 0.0f;
 	int32 NextStepCursor = 0;
 	float SwordAnimationTime = 0.0f;

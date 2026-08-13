@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/ReEchoTypes.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoProjectileActor.generated.h"
 
@@ -25,7 +26,8 @@ public:
 	                          EReEchoElement InElement = EReEchoElement::None,
 	                          float InReactionEfficiency = 1.0f,
 	                          float InExplosionRadiusCm = 0.0f,
-	                          float InMaxRangeCm = 0.0f);
+	                          float InMaxRangeCm = 0.0f,
+	                          FReEchoAttackCommitId InAttackCommitId = {});
 
 	float GetDamage() const
 	{
@@ -65,4 +67,5 @@ private:
 	float ExplosionRadiusCm = 0.0f;
 	float MaxRangeCm = 0.0f;
 	float TravelledCm = 0.0f;
+	FReEchoAttackCommitId AttackCommitId;
 };

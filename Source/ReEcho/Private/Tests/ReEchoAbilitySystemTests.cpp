@@ -122,7 +122,8 @@ bool FReEchoGasDeathAndTagsTest::RunTest(const FString& Parameters)
 	Fixture.AbilitySystem->ApplyGameplayEffectSpecToSelf(*CooldownSpec.Data.Get());
 	TestTrue(TEXT("Cooldown effect grants basic cooldown tag"),
 	         Fixture.AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::Cooldown_Attack_Basic));
-	TestFalse(TEXT("Cooldown rejects basic activation"), Fixture.AbilitySystem->TryActivateAbility(BasicHandle));
+	TestTrue(TEXT("Legacy basic cooldown tag no longer gates basic activation"),
+	         Fixture.AbilitySystem->TryActivateAbility(BasicHandle));
 
 	Fixture.AbilitySystem->RemoveActiveEffectsWithGrantedTags(
 	    FGameplayTagContainer(ReEchoGameplayTags::Cooldown_Attack_Basic));

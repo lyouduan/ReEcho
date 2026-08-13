@@ -1,6 +1,8 @@
 #pragma once
 
 #include "AbilitySystemInterface.h"
+#include "Combat/ReEchoAttackControllerComponent.h"
+#include "Combat/ReEchoAttackHost.h"
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
 #include "GameFramework/Pawn.h"
@@ -18,8 +20,11 @@ class UGameplayAbility;
 class UPaperFlipbook;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
+class UReEchoCombatEventsComponent;
+class UReEchoCombatAudioAdapterComponent;
 class UReEcho2DAnimationComponent;
 class UReEchoRecorderComponent;
+class UReEchoTargetingComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 class UTexture2D;
@@ -43,7 +48,10 @@ struct FReEchoAttackTargetCandidate
 /** 玩家可控角色：组合移动、GAS 技能、武器、录制以及 2D 序列帧表现。 */
 UCLASS(Blueprintable)
 
-class REECHO_API AReEchoPlayerPawn : public APawn, public IAbilitySystemInterface
+class REECHO_API AReEchoPlayerPawn : public APawn,
+                                     public IAbilitySystemInterface,
+                                     public IReEchoAttackHost,
+                                     public IReEchoAttackControllerHost
 {
 	GENERATED_BODY()
 
@@ -59,11 +67,29 @@ public:
 	bool IsWeaponActionLocked() const;
 	/** 武器动作锁剩余秒数。 */
 	float GetWeaponActionLockRemaining() const;
+
 	/** 只读访问当前武器执行器，供确定性测试观察攻击计数等。 */
-	AReEchoWeaponActor* GetWeapon() const { return Weapon; }
+	AReEchoWeaponActor* GetWeapon() const
+	{
+		return Weapon;
+	}
+
 	/** 由 GameplayAbility 回调，执行当前武器的基础攻击。 */
 	bool ExecuteBasicAttackAbility();
 	bool ExecuteActiveAttackAbility();
+	virtual EReEchoAttackAttempt TryCommitBasicAttack() override;
+	virtual float GetBasicAttackWaitRemaining() const override;
+	virtual bool ExecuteActiveAttack() override;
+	virtual float GetActiveAttackCooldown() const override;
+	virtual bool CanIssueAttackRequest() const override;
+	virtual float GetAutomaticAttackRange() const override;
+	virtual void FaceAutomaticTarget(AActor& Target) override;
+	virtual void PressBasicAttackInput() override;
+	virtual void ReleaseBasicAttackInput() override;
+	virtual FName GetAttackWeaponId() const override;
+	virtual FName GetAttackStepId() const override;
+	virtual float GetAttackReadinessRemaining() const override;
+	virtual float GetEffectiveAttackSpeed() const override;
 	void PlayHitVisual();
 	bool IsWeaponInvulnerable() const;
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
@@ -106,6 +132,18 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UReEchoAttackControllerComponent> AttackController;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UReEchoTargetingComponent> Targeting;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UReEchoRecorderComponent> Recorder;
 
@@ -113,13 +151,18 @@ public:
 	FReEchoActiveSkill OnActiveSkill;
 
 	/** 当前是否使用自动普通攻击（默认 true）。 */
-	bool IsAutoAttackMode() const { return bAutoAttackMode; }
+	bool IsAutoAttackMode() const;
 	/** 设置攻击模式。切换到手动模式时会释放模拟的 held basic-attack input。 */
 	void SetAutoAttackMode(bool bAuto);
 	/** 模拟的 held basic-attack input 当前是否被按下（自动模式驱动）。用于测试与内部清理。 */
-	bool IsAutoAttackInputHeld() const { return bAutoAttackInputHeld; }
+	bool IsAutoAttackInputHeld() const;
+
 	/** 只读访问录像组件，供确定性测试验证攻击/模式切换不产生录像事件。 */
-	UReEchoRecorderComponent* GetRecorder() const { return Recorder; }
+	UReEchoRecorderComponent* GetRecorder() const
+	{
+		return Recorder;
+	}
+
 	/** 按下模拟的 held basic-attack input（自动攻击驱动）。 */
 	void PressAutoAttackInput();
 	/** 释放模拟的 held basic-attack input（菜单/死亡/切换手动/无目标时调用）。 */
@@ -129,11 +172,13 @@ public:
 	/** 物理（手动）普通攻击输入抬起。仅在手动模式下释放 GAS basic-attack 输入；自动模式下忽略。 */
 	void ManualStopBasicAttack();
 	/** 物理（手动）普通攻击输入当前是否被按下（手动模式驱动），用于测试与内部清理。 */
-	bool IsManualAttackInputHeld() const { return bManualAttackInputHeld; }
+	bool IsManualAttackInputHeld() const;
 	/** 释放所有 held basic-attack 输入源（自动循环 + 物理），用于菜单开/关时统一清理。 */
 	void ReleaseAllBasicAttackInputs();
 	/** 确定性目标选择：返回射程内最近的存活敌人索引；无目标返回 INDEX_NONE。相同距离按 StableId 升序打破平局。 */
-	static int32 SelectNearestEnemyInRange(const FVector& Origin, float RangeCm, TArrayView<const FReEchoAttackTargetCandidate> Candidates);
+	static int32 SelectNearestEnemyInRange(const FVector& Origin,
+	                                       float RangeCm,
+	                                       TArrayView<const FReEchoAttackTargetCandidate> Candidates);
 
 protected:
 	virtual void BeginPlay() override;
@@ -180,9 +225,6 @@ private:
 	EReEcho2DAnimationState Current2DAnimationState = EReEcho2DAnimationState::Idle;
 
 	bool bMouseInputConfigured = false;
-	bool bAutoAttackMode = true;
-	bool bAutoAttackInputHeld = false;
-	bool bManualAttackInputHeld = false;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
