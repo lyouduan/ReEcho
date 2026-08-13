@@ -1231,7 +1231,7 @@ def validate_workflow() -> None:
         "## 当前 Runtime Module",
         "## 跨模块状态流",
         "## 跨模块不变量",
-        "## 候选架构边界",
+        "## 当前候选状态",
         "Design/Data/ReEchoData.xlsx",
         "旧 JSON 仅用于迁移",
     )
@@ -1240,7 +1240,7 @@ def validate_workflow() -> None:
         fail(f"shared/CODEBASE_MAP/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
     index_markers = (
         "## Runtime Module 索引",
-        "## `MOD-ReEcho` 内部领域索引",
+        "## 模块与内部领域索引",
         "## 文档职责",
         "## 同步规则",
         "MODULE_TEMPLATE.md",

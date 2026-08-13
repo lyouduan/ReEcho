@@ -242,6 +242,7 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 - 旧单模块候选曾适配 Pawn、WeaponActor、Enemy、projectile、staff wave、immediate element damage 和测试；该结果现作为迁移起点，不是新的双逻辑模块最终边界或证据。
 - Added a main-module audio adapter component that safely binds/unbinds Combat events and translates only semantic IDs into `ReEchoAudio`; neither runtime module depends on the other.
 - Added exact Core Redirects for reflected types moved from `/Script/ReEcho` to `/Script/ReEchoCombat` and a static module-boundary validator.
+- 已按统一架构文档库维护候选结构：更新 `shared/CODEBASE_MAP/ARCHITECTURE.md` 的四模块拓扑与状态流，更新 `README.md` 的稳定路由，并新增 `modules/MOD-ReEchoCombat.md`、`MOD-ReEchoWeapons.md`。两份模块文档分别记录存在原因、权威状态、公共契约、运行流程、扩展边界、测试和真实代码位置；在 Plan41 合入前只随本候选分支存在，不提前冒充远端 `main` 架构。
 
 ### 当前客观证据（2026-08-13）
 
