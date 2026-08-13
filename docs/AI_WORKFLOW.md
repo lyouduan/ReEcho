@@ -12,7 +12,7 @@ This file is a human-facing directory pointer, not a workflow authority and not 
 | Project Secretary coordination duty | [`shared/SECRETARY_RULES.md`](../shared/SECRETARY_RULES.md) |
 | Planner / Executor actions | [`shared/PLANNER_RULES.md`](../shared/PLANNER_RULES.md), [`shared/EXECUTOR_RULES.md`](../shared/EXECUTOR_RULES.md) |
 | Current work, ownership and warnings | [`shared/PLANNER_EXCHANGE.md`](../shared/PLANNER_EXCHANGE.md) |
-| Code and document retrieval routes | [`shared/CODEBASE_MAP.md`](../shared/CODEBASE_MAP.md) |
+| Architecture, module intent and code retrieval routes | [`shared/CODEBASE_MAP/README.md`](../shared/CODEBASE_MAP/README.md) |
 | One task's scope and evidence | [`plans/`](../plans/) |
 
 `shared/` is the collaboration control plane. It answers who owns live work, what rules apply and how integration is decided. Delivered behavior is verified from source, tests, closed Plans and Git; `docs/` is the technical knowledge layer.

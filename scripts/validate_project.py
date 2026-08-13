@@ -934,6 +934,8 @@ def validate_workflow() -> None:
         "LESSONS.md",
         "PROJECT_RULES.md",
         "PLANNER_EXCHANGE.md",
+        "ARCHITECTURE.md",
+        "CODEBASE_MAP.md",
     }
     absent_shared = sorted(name for name in required_shared if not (ROOT / "shared" / name).is_file())
     if absent_shared:
@@ -953,7 +955,16 @@ def validate_workflow() -> None:
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
     docs_workflow_text = (ROOT / "docs" / "AI_WORKFLOW.md").read_text(encoding="utf-8")
-    architecture_text = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    architecture_root = ROOT / "shared" / "CODEBASE_MAP"
+    architecture_path = architecture_root / "ARCHITECTURE.md"
+    codebase_index_path = architecture_root / "README.md"
+    module_template_path = architecture_root / "MODULE_TEMPLATE.md"
+    for required_path in (architecture_path, codebase_index_path, module_template_path):
+        if not required_path.is_file():
+            fail(f"architecture library incomplete: {rel(required_path)}")
+    architecture_text = architecture_path.read_text(encoding="utf-8")
+    codebase_index_text = codebase_index_path.read_text(encoding="utf-8")
+    module_template_text = module_template_path.read_text(encoding="utf-8")
 
     if "only mandatory reading-order authority" not in agents:
         fail("AGENTS.md must remain the sole startup-order authority")
@@ -1217,14 +1228,117 @@ def validate_workflow() -> None:
     if "Project Secretary coordination duty" not in docs_workflow_text or "SECRETARY_RULES.md" not in docs_workflow_text:
         fail("docs/AI_WORKFLOW.md must point to the Project Secretary authority")
     architecture_markers = (
+        "## 当前 Runtime Module",
+        "## 跨模块状态流",
+        "## 跨模块不变量",
+        "## 候选架构边界",
         "Design/Data/ReEchoData.xlsx",
-        "16 validated UTF-8 production CSV",
-        "run-locked weapon definition",
-        "Legacy JSON is migration-only",
+        "旧 JSON 仅用于迁移",
     )
     missing_architecture_markers = [marker for marker in architecture_markers if marker not in architecture_text]
     if missing_architecture_markers:
-        fail(f"docs/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
+        fail(f"shared/CODEBASE_MAP/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
+    index_markers = (
+        "## Runtime Module 索引",
+        "## `MOD-ReEcho` 内部领域索引",
+        "## 文档职责",
+        "## 同步规则",
+        "MODULE_TEMPLATE.md",
+    )
+    missing_index_markers = [marker for marker in index_markers if marker not in codebase_index_text]
+    if missing_index_markers:
+        fail(f"shared/CODEBASE_MAP/README.md is stale: {', '.join(missing_index_markers)}")
+    required_module_sections = (
+        "## 模块状态",
+        "## 存在原因",
+        "## 职责与排除项",
+        "## 权威状态",
+        "## 输入、输出与公共契约",
+        "## 依赖方向",
+        "## 运行时流程",
+        "## 代码位置与阅读路线",
+        "## 扩展",
+        "## 验证",
+        "## 不变量与常见错误",
+    )
+    missing_template_sections = [section for section in required_module_sections if section not in module_template_text]
+    if missing_template_sections:
+        fail(f"shared/CODEBASE_MAP/MODULE_TEMPLATE.md lacks module sections: {', '.join(missing_template_sections)}")
+    runtime_modules = sorted(
+        module.get("Name")
+        for module in project.get("Modules", [])
+        if module.get("Type") == "Runtime" and module.get("Name")
+    )
+    module_document_texts = {}
+    for module_name in runtime_modules:
+        architecture_id = f"MOD-{module_name}"
+        if architecture_id not in architecture_text:
+            fail(f"shared/CODEBASE_MAP/ARCHITECTURE.md lacks runtime module id: {architecture_id}")
+        if architecture_id not in codebase_index_text:
+            fail(f"shared/CODEBASE_MAP/README.md lacks runtime module index: {architecture_id}")
+        module_document_path = architecture_root / "modules" / f"{architecture_id}.md"
+        if not module_document_path.is_file():
+            fail(f"runtime module lacks detailed design document: {rel(module_document_path)}")
+        module_document_text = module_document_path.read_text(encoding="utf-8")
+        module_document_texts[architecture_id] = module_document_text
+        if architecture_id not in module_document_text or f"Source/{module_name}/" not in module_document_text:
+            fail(f"{rel(module_document_path)} lacks its id or code location")
+        missing_sections = [section for section in required_module_sections if section not in module_document_text]
+        if missing_sections:
+            fail(f"{rel(module_document_path)} lacks detailed design sections: {', '.join(missing_sections)}")
+    architecture_area_ids = (
+        "AREA-Core",
+        "AREA-Data",
+        "AREA-AbilityCombat",
+        "AREA-Weapons",
+        "AREA-Encounter",
+        "AREA-Run",
+        "AREA-Recording",
+        "AREA-Player",
+        "AREA-Presentation",
+        "AREA-UI",
+        "AREA-Tests",
+    )
+    expected_module_ids = {f"MOD-{module_name}" for module_name in runtime_modules}
+    architecture_module_ids = set(re.findall(r"`(MOD-[A-Za-z][A-Za-z0-9]*)`", architecture_text))
+    if architecture_module_ids != expected_module_ids:
+        fail(
+            "runtime descriptor and architecture module ids differ: "
+            f"descriptor={sorted(expected_module_ids)}, architecture={sorted(architecture_module_ids)}"
+        )
+    indexed_ids = set(re.findall(r"`((?:MOD|AREA)-[A-Za-z][A-Za-z0-9]*)`", codebase_index_text))
+    documented_ids = set()
+    for module_document_text in module_document_texts.values():
+        documented_ids.update(re.findall(r"`((?:MOD|AREA)-[A-Za-z][A-Za-z0-9]*)`", module_document_text))
+    for architecture_id in architecture_area_ids:
+        if architecture_id not in codebase_index_text:
+            fail(f"shared/CODEBASE_MAP/README.md lacks internal area index: {architecture_id}")
+        if architecture_id not in documented_ids:
+            fail(f"module design documents lack internal area design: {architecture_id}")
+    if indexed_ids != documented_ids:
+        fail(
+            "architecture index and module documents use different stable ids: "
+            f"index_only={sorted(indexed_ids - documented_ids)}, docs_only={sorted(documented_ids - indexed_ids)}"
+        )
+    architecture_maintenance_markers = (
+        "## 架构影响与设计决策",
+        "已更新 `shared/CODEBASE_MAP/`",
+        "modules/MOD-*.md",
+        "已审阅，无需修改",
+        "### 架构文档审阅结果",
+    )
+    missing_architecture_maintenance_markers = [
+        marker for marker in architecture_maintenance_markers if marker not in plan_template
+    ]
+    if missing_architecture_maintenance_markers:
+        fail(
+            "plans/TEMPLATE.md lacks architecture decision/closure records: "
+            + ", ".join(missing_architecture_maintenance_markers)
+        )
+    if "未记录架构审阅结果不得关闭 Plan" not in project_rules:
+        fail("PROJECT_RULES.md must gate Plan closure on architecture review")
+    if "缺少该记录时不得设为 `Closed`" not in planner_rules:
+        fail("PLANNER_RULES.md must enforce architecture review during Plan closure")
 
 
 def validate_build_dependencies() -> None:
