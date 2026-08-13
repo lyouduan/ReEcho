@@ -254,7 +254,8 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 
 ### 当前客观证据（2026-08-13）
 
-- 用户已手工通过合入 Plan40 前的 Plan41 PIE，并授权发布。外部审计发现 `origin/main@52084b1` 已包含 Plan40 表现；用户选择 combined adaptation：保留远端 PresentationController/Profile/逐帧 Query 碰撞和资产，以本 Plan AttackController/Combat/Weapons 为逻辑权威。
+- 用户已手工通过合入 Plan40 前的 Plan41 PIE，并授权发布。外部审计发现 `origin/main@7ae6738` 已包含 Plan40 表现和后续相机提交；用户选择 combined adaptation：保留远端 PresentationController/Profile/逐帧 Query 碰撞和资产，以本 Plan AttackController/Combat/Weapons 为逻辑权威。
+- 用户明确采用远端 `CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio * 2.0f`：接受同一值写入 `ArenaSceneWorldWidth`，即相机视野、玩家横向移动边界和敌人横向生成范围一起扩大两倍；不实施“仅扩大视野”的拆分适配。
 - 组合冲突已确定性解决：`PlayerPawn` 不再恢复 `bAutoAttackMode`/两份 held 字段，所有查询和命令继续委托 AttackController；Plan40 的 PresentationController 与 FrameCollisionDriver 同时保留。Enemy/WeaponActor 的表现增量与 CombatTarget/WeaponLogic 自动合并后通过源码审阅。
 - 组合候选 UE 5.8 Win64 Development `-FullRebuild` PASS，四个 Runtime Module 全部从源编译并刷新预构建包，源码指纹 `41ad26014266`。
 - 完整 `ReEcho` 自动化入口在进入测试队列前被引擎平台预检阻止：Win64 SDK 有效，但本机缺少 LinuxArm64/VisionOS `SDK.json MainVersion`；与 Plan40 已记录环境限制一致，不计为断言失败或通过。

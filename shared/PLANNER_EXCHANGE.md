@@ -13,7 +13,7 @@
 | Plan 34 编写音频目录和持久设置 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `PendingBeforeClose` | 本地 `plan/34-audio-catalog-settings@86824a0`，基于 `f5051e4`；WIP 保留等待 Plan41 后适配 | AudioEvents XLSX/CSV 契约、异步目录/预加载、五条持久总线和设置控件 | 为 Plan41 暂停 Active 所有权；绝不整块合并旧工作簿 blob，之后在新增 Combat/Weapons 后的四模块 main 上适配。 |
 | Plans 35-36 非战斗与战斗/Echo 音频集成 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API 已可用；可听关闭依赖 Plan34 目录/资产 | 只接入语义事件；音频模块保留播放所有权 | 可使用稳定 Plan33 ID，但不得发明目录解析、资产路径或并行音频服务。 |
 | Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 本地 `main@4941c19` 之后的资产迁移候选；已合入远端架构权威 | 共享动画/profile/controller/碰撞轨道契约，独占 `/Game/ReEcho/Art/Animation2D/**` 与 `/Game/ReEcho/Animation2D/**` | 客观发布门禁进行中；保留攻击重试语义和 Capsule 移动权威，逐帧 Paper2D 轮廓仅 Query。 |
-| Plan 41 Combat/Weapons 逻辑模块与攻击系统重构 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `PendingBeforeClose` | 本地 `plan/41-combat-runtime-module` 已组合 `origin/main@52084b1` 的 Plan40 表现 | 新 `ReEchoCombat` + `ReEchoWeapons`、统一 AttackIdentity、HitIntent/HitResolved、逻辑攻击载体、只读表现 Events/Snapshots、GAS/Combatant 与反射兼容 | 用户已通过纯 Plan41 PIE；组合候选保留 Plan40 PresentationController/逐帧碰撞并以 AttackController 为唯一攻击状态，等待最终构建、自动化和最小组合 PIE。 |
+| Plan 41 Combat/Weapons 逻辑模块与攻击系统重构 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `PendingBeforeClose` | 本地 `plan/41-combat-runtime-module` 已组合 `origin/main@7ae6738` 的 Plan40 表现与远端相机宽度 | 新 `ReEchoCombat` + `ReEchoWeapons`、统一 AttackIdentity、HitIntent/HitResolved、逻辑攻击载体、只读表现 Events/Snapshots、GAS/Combatant 与反射兼容 | 用户已通过纯 Plan41 PIE；组合候选保留 Plan40 PresentationController/逐帧碰撞、采用远端两倍相机/竞技场宽度，并以 AttackController 为唯一攻击状态，等待最小组合 PIE。 |
 
 ## 活跃所有权
 
