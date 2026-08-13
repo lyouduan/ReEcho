@@ -4,7 +4,10 @@
 
 #include "PaperFlipbook.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
+#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionTrack.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
                                  "ReEcho.Presentation.Animation2D.AssetProfiles",
@@ -75,6 +78,34 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Pure renderer accepts an authored one-shot clip"), Component->PlayClip(AuthoredClip, true));
 	TestFalse(TEXT("Pure renderer preserves authored one-shot policy"), Component->IsLooping());
 	TestEqual(TEXT("Pure renderer preserves authored play rate"), Component->GetPlayRate(), 1.25f);
+
+	UReEcho2DCharacterPresentationProfile* PresentationProfile =
+	    NewObject<UReEcho2DCharacterPresentationProfile>();
+	PresentationProfile->AppearanceId = TEXT("Appearance.Spade");
+	FReEcho2DCompositeAnimationSet& DefaultSet = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
+	DefaultSet.Clips.Add(ReEcho2DAnimationTags::Idle, AuthoredClip);
+	FReEcho2DCompositeAnimationSet& StaffSet = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
+	StaffSet.WeaponVisualSetId = TEXT("WeaponVisual.MoonStaff");
+	FReEcho2DAnimationClip StaffMoveClip = AuthoredClip;
+	StaffMoveClip.Flipbook = WalkFlipbook;
+	StaffSet.Clips.Add(ReEcho2DAnimationTags::Move, StaffMoveClip);
+	const FReEcho2DAnimationClip* ResolvedMove =
+	    PresentationProfile->ResolveClip(TEXT("WeaponVisual.MoonStaff"), ReEcho2DAnimationTags::Move);
+	TestTrue(TEXT("Exact weapon visual set resolves its authored semantic clip"),
+	         ResolvedMove && ResolvedMove->Flipbook == WalkFlipbook);
+	const FReEcho2DAnimationClip* ResolvedIdle =
+	    PresentationProfile->ResolveClip(TEXT("WeaponVisual.MoonStaff"), ReEcho2DAnimationTags::Idle);
+	TestTrue(TEXT("Missing weapon semantic falls back to the character default set"),
+	         ResolvedIdle && ResolvedIdle->Flipbook == StaffAttackFlipbook);
+	TestNull(TEXT("Unknown semantic returns no clip instead of guessing an asset"),
+	         PresentationProfile->ResolveClip(TEXT("WeaponVisual.MoonStaff"), ReEcho2DAnimationTags::Death));
+
+	UReEcho2DPresentationCatalog* Catalog = NewObject<UReEcho2DPresentationCatalog>();
+	Catalog->CharacterProfiles.Add(PresentationProfile);
+	TestTrue(TEXT("Catalog resolves profiles only through AppearanceId"),
+	         Catalog->ResolveProfile(TEXT("Appearance.Spade")) == PresentationProfile);
+	TestNull(TEXT("Catalog safely rejects an unknown AppearanceId"),
+	         Catalog->ResolveProfile(TEXT("J_SPADE")));
 
 	UReEcho2DFrameCollisionTrack* CollisionTrack = NewObject<UReEcho2DFrameCollisionTrack>();
 	CollisionTrack->SourceFlipbook = WalkFlipbook;

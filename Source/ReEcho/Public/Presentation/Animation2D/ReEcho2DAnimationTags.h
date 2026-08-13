@@ -1,0 +1,12 @@
+#pragma once
+
+#include "NativeGameplayTags.h"
+
+namespace ReEcho2DAnimationTags
+{
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Idle);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Move);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Attack_Basic);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Hit);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Death);
+}

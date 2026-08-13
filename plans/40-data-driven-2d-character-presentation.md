@@ -155,6 +155,8 @@ Report back with:
 - Retained the explicit presentation decision priority `Attack > Walk > Idle`; Walk loops, Attack remains one-shot and repeated committed attacks restart from frame zero.
 - Added the first data-owned renderer contract (`FReEcho2DAnimationClip`) with Flipbook, collision-track reference, looping, restart, play-rate, scale/height, offset and sort policy. `UReEcho2DAnimationComponent::PlayClip` now applies that policy faithfully and the obsolete force-looping helper was removed.
 - Added `UReEcho2DFrameCollisionTrack` with separate per-frame body Hurtbox and weapon AttackHitbox polygons, attack-active flags, source revision/pivot/PPUU metadata, bounded polygon validation and Flipbook frame-count matching. Runtime queries remain deliberately disabled at this checkpoint.
+- Added native semantic presentation tags plus `AppearanceId`-owned character Profile and project Catalog DataAsset contracts. Composite animation sets select clips by stable weapon `VisualKey`, fall back to the character default set and never resolve gameplay character IDs as asset identities.
+- Added the presentation-only `UReEcho2DPresentationController` contract for exclusive static/Flipbook visibility, Idle/Move base state, one-shot action completion, death locking, weapon-set refresh, facing and safe static fallback. Actor migration remains pending, so no runtime behavior changed at this checkpoint.
 
 ### Evidence
 
@@ -162,10 +164,13 @@ Report back with:
 - `ReEcho.Presentation.Animation2D.AssetProfiles` passed with the new Walk and Attack packages loaded successfully.
 - `git diff --check` passed for the stabilized candidate.
 - The renderer/collision-contract checkpoint builds successfully; focused automation proves authored one-shot/play-rate fidelity plus matching-track acceptance and frame-count mismatch rejection.
+- The Profile/Catalog/Controller checkpoint compiles under UE 5.8 UHT/UBT. Its focused test was extended for exact weapon-set lookup, default-set fallback and strict AppearanceId resolution.
+- A later focused automation launch is currently blocked before project startup by the local UE `ValidatePlatforms`/SDK discovery path; an earlier accidental full-suite invocation (caused by positional binding to `EngineRoot` instead of `Filter`) reached tests and exposed a pre-existing `HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval`, not the animation test. Both items require rerun before closure.
 
 ### Remaining risks
 
 - This checkpoint still contains the Plan39 actor-specific Spade seams; the profile/catalog/controller migration and frame-collision contract remain pending Plan40 work.
+- No `/Game/ReEcho/Animation2D/**` Profile/Catalog assets exist yet, and the controller is not wired into Player or Grunt; all legacy runtime selection remains active until the migration is coherent.
 - Visual identity, pivot, scale and timing for the new artist-authored Walk/Attack assets remain human PIE acceptance items.
 
 ### Human validation result/request
