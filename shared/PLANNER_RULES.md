@@ -81,7 +81,7 @@ Plan 是任务规格；启动提示只是中立路由外壳。不得赋予新身
 3. 检查锁定验收、客观证据、公共契约兼容性和代码健康。需要返工时生命周期回到 `InProgress`。
 4. Planner 直接在任务分支完成小型、明确、范围内的评审修正，包括 Plan 文案、过期协调清理、死代码移除、格式化和窄确定性修复。不得仅为保持角色分工而退回 Executor。修复具有实质行为、不确定、范围宽、可独立并行或需要新实现/验证轮次时重新指派 Executor；大型无关重构使用独立本地 Plan。
 5. 关闭前与用户解决 `PendingBeforeClose`。`PendingFollowUp` 仅可在用户明确延期时保留。
-6. 关闭前审阅 `shared/ARCHITECTURE.md`：把本 Plan 已验收的模块设计意图、职责/权威状态、公共契约、依赖方向和跨领域不变量晋升到全局架构；使用同一 `MOD-*` / `AREA-*` 标识同步维护 `shared/CODEBASE_MAP.md` 的代码落点。若无需修改，在 Plan 中记录已审阅及原因。缺少该记录时不得设为 `Closed`。
+6. 关闭前审阅 `shared/CODEBASE_MAP/`：把本 Plan 已验收的全局拓扑变化晋升到 `ARCHITECTURE.md`，把模块存在原因、职责/权威状态、公共契约、运行流程、扩展方式、测试和代码位置写入对应 `modules/MOD-*.md`，并同步 `README.md` 的 `MOD-*` / `AREA-*` 索引。若无需修改，在 Plan 中记录已审阅及原因。缺少该记录时不得设为 `Closed`。
 7. 验收后使用 `--no-ff` 合入本地 `main`，一次性更新共享状态、释放所有权并将生命周期设为 `Closed`。
 8. 检查准确路径和 `git status --short` 后才移除干净、已合并 worktree。绝不使用 `--force`；使用 `git branch -d` 删除已合并本地分支。
 
@@ -114,8 +114,8 @@ Plan 是任务规格；启动提示只是中立路由外壳。不得赋予新身
 
 评审/关闭时，仅在相关情况下更新：
 
-- `ARCHITECTURE.md`：每次必审；架构变化时更新当前设计意图，无变化时在 Plan 记录审阅结论。
-- `CODEBASE_MAP.md`：使用与架构文档相同的稳定标识记录代码落点；架构变化时同步，只有读取路线移动时可单独更新。
+- `CODEBASE_MAP/ARCHITECTURE.md`：每次必审；模块拓扑或跨模块不变量变化时更新，无变化时在 Plan 记录审阅结论。
+- `CODEBASE_MAP/README.md` 与 `CODEBASE_MAP/modules/MOD-*.md`：模块变化时同步设计意图和代码落点；只有读取路线移动时可单独更新模块文档。
 - `LESSONS.md`：带来源 Plan、可复用且有证据的经验。
 - `PLANNER_EXCHANGE.md`：仅当前本地工作/所有权/警告；删除已关闭行，不保留历史。
 - 指定 Plan：最终生命周期、行为变化、证据、风险和人工验收结果/请求。

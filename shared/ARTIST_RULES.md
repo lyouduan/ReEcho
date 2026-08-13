@@ -6,7 +6,7 @@
 
 ## 读取路线
 
-1. 从 `shared/CODEBASE_MAP.md` 确认目标资产及其运行时消费者。
+1. 从 `shared/CODEBASE_MAP/README.md` 进入匹配模块文档，确认目标资产及其运行时消费者。
 2. UI/WBP 工作需读取 `Design/UI/ReEcho_UI修改指导.md` 和原生父类头文件中的绑定契约。
 3. 只读取 `shared/LESSONS.md` 中匹配的视觉/音频章节、指定 Plan 和实时所有权行。
 
