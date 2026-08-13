@@ -21,16 +21,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
 
 bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 {
-	UPaperFlipbook* PlayerFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
-	UPaperFlipbook* WalkFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/walk.walk"));
+	UPaperFlipbook* WalkFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk"));
+	UPaperFlipbook* PlayerFlipbook = WalkFlipbook;
 	UPaperFlipbook* GruntFlipbook =
-	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Grount.Grount"));
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default.Default"));
 	UPaperFlipbook* StaffAttackFlipbook =
-	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/attack.attack"));
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
 	UPaperFlipbook* RabbitFlipbook =
-	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Rabbit.Rabbit"));
-	UPaperFlipbook* GoatFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Goat.Goat"));
-	TestNotNull(TEXT("J_SPADE idle Flipbook is loadable"), PlayerFlipbook);
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
+	UPaperFlipbook* GoatFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default.Default"));
+	TestNotNull(TEXT("J_SPADE reusable renderer Flipbook is loadable"), PlayerFlipbook);
 	TestNotNull(TEXT("J_SPADE walk Flipbook is loadable"), WalkFlipbook);
 	TestNotNull(TEXT("Grunt default Flipbook is loadable"), GruntFlipbook);
 	TestNotNull(TEXT("Moon Staff attack Flipbook is loadable"), StaffAttackFlipbook);
@@ -221,7 +223,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Move, StaffMoveClip);
 	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Attack_Basic, AuthoredClip);
 	UBillboardComponent* StaticRenderer = NewObject<UBillboardComponent>();
-	StaticRenderer->SetSprite(LoadObject<UTexture2D>(nullptr, TEXT("/Game/2DAnim/Player/Idel_01.Idel_01")));
+	StaticRenderer->SetSprite(LoadObject<UTexture2D>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01")));
 	UReEcho2DAnimationComponent* ControlledRenderer = NewObject<UReEcho2DAnimationComponent>();
 	UReEcho2DPresentationController* Controller = NewObject<UReEcho2DPresentationController>();
 	Controller->Configure(StaticRenderer, ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));

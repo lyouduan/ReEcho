@@ -3,8 +3,8 @@
 import unreal
 
 
-PLAYER_TEXTURE_ROOT = "/Game/2DAnim/Player"
-PLAYER_FLIPBOOK_PATH = "/Game/2DAnim/Flipbook/Idel"
+PLAYER_TEXTURE_ROOT = "/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures"
+PLAYER_FLIPBOOK_PATH = "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Idle_Legacy"
 FRAME_COUNT = 12
 FRAMES_PER_SECOND = 12.0
 

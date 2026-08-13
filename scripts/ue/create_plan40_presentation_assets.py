@@ -13,7 +13,9 @@ def load(path):
 
 def find_flipbook(*keywords):
     matches = []
-    for asset_path in unreal.EditorAssetLibrary.list_assets("/Game/2DAnim/Flipbook", recursive=True):
+    for asset_path in unreal.EditorAssetLibrary.list_assets(
+        "/Game/ReEcho/Art/Animation2D/Enemies/Fox/Flipbooks", recursive=True
+    ):
         lowered = asset_path.lower()
         if all(keyword.lower() in lowered for keyword in keywords):
             asset = unreal.EditorAssetLibrary.load_asset(asset_path)
@@ -63,7 +65,7 @@ unreal.EditorAssetLibrary.make_directory(ROOT)
 appearance_textures = {
     "J_CAT": "/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat",
     "J_HEART": "/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart",
-    "J_SPADE": "/Game/2DAnim/Player/Idel_01.Idel_01",
+    "J_SPADE": "/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01",
     "J_CLOVER": "/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover",
     "J_DIAMOND": "/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond",
 }
@@ -79,8 +81,8 @@ for appearance_id, texture_path in appearance_textures.items():
     profiles.append(profile)
 
 spade = next(profile for profile in profiles if str(profile.get_editor_property("appearance_id")) == "J_SPADE")
-walk = load("/Game/2DAnim/Flipbook/walk.walk")
-attack = load("/Game/2DAnim/Flipbook/attack.attack")
+walk = load("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk")
+attack = load("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack")
 
 base_set = unreal.ReEcho2DCompositeAnimationSet()
 base_set.set_editor_property("weapon_visual_set_id", "")
@@ -101,7 +103,7 @@ grunt_set = unreal.ReEcho2DCompositeAnimationSet()
 grunt_set.set_editor_property("weapon_visual_set_id", "")
 grunt_set.set_editor_property(
     "clips",
-    {tag("Animation.Idle"): clip(load("/Game/2DAnim/Flipbook/Grount.Grount"), True)},
+    {tag("Animation.Idle"): clip(load("/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default.Default"), True)},
 )
 grunt.set_editor_property("animation_sets", [grunt_set])
 
@@ -111,13 +113,13 @@ for asset_name, appearance_id, texture_path, flipbook_path in (
         "DA_Enemy_RabbitDoll",
         "Enemy.Rabbit",
         None,
-        "/Game/2DAnim/Flipbook/Rabbit.Rabbit",
+        "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default",
     ),
     (
         "DA_Enemy_GoatPriest",
         "Enemy.Goat",
         None,
-        "/Game/2DAnim/Flipbook/Goat.Goat",
+        "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default.Default",
     ),
 ):
     enemy_profile = get_or_create_data_asset(asset_name, unreal.ReEcho2DCharacterPresentationProfile)

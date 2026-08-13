@@ -8,11 +8,11 @@ import unreal
 
 
 FLIPBOOK_PATHS = (
-    "/Game/2DAnim/Flipbook/walk",
-    "/Game/2DAnim/Flipbook/attack",
-    "/Game/2DAnim/Flipbook/Grount",
-    "/Game/2DAnim/Flipbook/Goat",
-    "/Game/2DAnim/Flipbook/Rabbit",
+    "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk",
+    "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default",
 )
 
 
@@ -21,7 +21,7 @@ def main() -> None:
     paths.extend(
         asset_path.split(".")[0]
         for asset_path in unreal.EditorAssetLibrary.list_assets(
-            "/Game/2DAnim/Flipbook", recursive=True
+            "/Game/ReEcho/Art/Animation2D/Enemies/Fox/Flipbooks", recursive=True
         )
         if "fox" in asset_path.lower()
         and ("walk" in asset_path.lower() or "attack" in asset_path.lower())

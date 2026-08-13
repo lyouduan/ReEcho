@@ -8,9 +8,9 @@
 
 | 状态 | 判断条件 | 表现资源 | 播放方式 |
 |---|---|---|---|
-| `Idle` | 未移动且未处于攻击表现 | `/Game/2DAnim/Player/Idel_01` | 静态 Billboard，资源原始比例 |
-| `Walk` | 有有效移动速度且未攻击 | `/Game/2DAnim/Flipbook/walk` | 循环 Flipbook，资源原始比例 |
-| `Attack` | Moon Staff `W_J_02` 成功攻击 | `/Game/2DAnim/Flipbook/attack` | 单次播放；每次成功攻击从第 0 帧重播 |
+| `Idle` | 未移动且未处于攻击表现 | `/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01` | 静态 Billboard，资源原始比例 |
+| `Walk` | 有有效移动速度且未攻击 | `/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk` | 循环 Flipbook，资源原始比例 |
+| `Attack` | Moon Staff `W_J_02` 成功攻击 | `/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack` | 单次播放；每次成功攻击从第 0 帧重播 |
 
 状态优先级为：
 
@@ -24,7 +24,7 @@ Attack > Walk > Idle
 
 ### Grunt 敌人
 
-最小验证阶段的基础 Grunt 使用 `/Game/2DAnim/Flipbook/Grount`；Rabbit、Goat、Fox 使用同目录下各自的 Flipbook。玩法 EnemyKind 与动画外观相互独立。
+基础 Grunt、Rabbit、Goat、Fox 使用 `/Game/ReEcho/Art/Animation2D/Enemies` 下各自的 Flipbook。玩法 EnemyKind 与动画外观相互独立。
 
 ## 代码结构
 
@@ -247,12 +247,12 @@ Paper2D 内建每帧碰撞表示整帧 Sprite 的通用查询轮廓；它不携�
 
 Plan40 的碰撞不会从透明像素或整张角色加武器合成图在运行时自动生成。每个 Flipbook 必须有经过审核的 JSON 标注，之后由 `scripts/ue/build_plan40_collision_tracks.py` 确定性生成 `UReEcho2DFrameCollisionTrack`。
 
-标注放在 `Content/2DAnim/CollisionAnnotations/*.json`，格式如下：
+标注放在 `Content/ReEcho/Art/Animation2D/CollisionAnnotations/*.json`，格式如下：
 
 ```json
 {
   "asset_name": "DA_Collision_Spade_Attack",
-  "flipbook": "/Game/2DAnim/Flipbook/attack.attack",
+  "flipbook": "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack",
   "source_revision": "reviewed-source-revision",
   "pixels_per_unreal_unit": 1.0,
   "pivot_pixels": [512, 512],

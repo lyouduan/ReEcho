@@ -6,20 +6,24 @@
 - Executor owner: Codex, assigned directly by the programmer human on 2026-08-13.
 - Plan authored by (AI side): `ReEcho teammate-side AI`.
 - Implementation authored by (AI side): `ReEcho teammate-side AI`.
-- Task status: `InProgress`.
+- Task status: `Review`.
 - Human validation: `PendingBeforeClose`.
 - Local planning / implementation base: `origin/main@ec0f5e3`, with the existing uncommitted animation WIP on `codex/animation-idle-walk-attack` preserved as implementation input rather than overwritten.
 - Implementation branch: continue `codex/animation-idle-walk-attack` unless the human explicitly requests a clean worktree after the current WIP is safely committed or handed off.
 - Depends on / Blocks: depends on closed Plan 39 and published Plan 38 attack-repeat semantics; blocks bulk authoring of the remaining player animation sets until the profile contract is stable.
-- Writes: `Source/ReEcho/{Public,Private}/Presentation/Animation2D/**`, narrowly required player/enemy presentation and collision call sites, animation/collision-focused tests, animation import/repair/collision-generation tooling, `Content/2DAnim/**`, new `/Game/ReEcho/Animation2D/**` profile/catalog/collision-track assets, animation documentation and this Plan's Execution notes.
+- Writes: `Source/ReEcho/{Public,Private}/Presentation/Animation2D/**`, narrowly required player/enemy presentation and collision call sites, animation/collision-focused tests, animation import/repair/collision-generation tooling, `/Game/ReEcho/Art/Animation2D/**` runtime Texture/Sprite/Flipbook assets, `/Game/ReEcho/Animation2D/**` profile/catalog/collision-track assets, animation documentation and this Plan's Execution notes. Legacy runtime copies under `Content/2DAnim/**` and erroneous `.uasset` imports under `Content/SourceArt/**` are removed only after references migrate; PNG source art remains.
 - Stable Reads: `characters.csv` `AppearanceId`, `FReEchoBuildSnapshot::CharacterId`, authoritative committed-attack callbacks, Plan 38 held-input retry behavior, existing collision/recording/GAS/save contracts and current artist-authored Flipbooks.
-- Impact mode: C++ `SharedContract`; `Content/2DAnim/**` and `/Game/ReEcho/Animation2D/**` `Exclusive` while Editor asset writes are active.
+- Impact mode: C++ `SharedContract`; `/Game/ReEcho/Art/Animation2D/**` and `/Game/ReEcho/Animation2D/**` `Exclusive` while Editor asset writes are active.
 - Compatibility promise / downstream action: gameplay actors emit presentation intent only; the authoritative animation clock may select pre-authored per-frame query geometry, but render pixels/alpha and Flipbook physics never directly decide damage, movement, blocking, death, recording or save identity. Existing uncommitted art and Flipbook work must be preserved, and `.uasset` edits occur only through Unreal Editor or reviewed Editor automation.
 - Explicit exclusions: producing missing art for all states; changing character balance; changing weapon cadence or Plan 38 retry semantics; Echo animation migration; animation-notify-driven damage; replacing the stable movement Capsule with animated polygons; XLSX/CSV schema migration; renaming existing artist assets; redesigning procedural hit/death feel.
 
 ## Locked goal
 
 Replace character-specific Flipbook fields and branches in gameplay actors with a reusable, data-driven 2D presentation layer in which an appearance/weapon profile owns composite character-plus-weapon clips, playback policy and matching per-frame collision tracks; a presentation controller owns visual state priority and authoritative frame selection; a collision driver applies separately authored body Hurtbox and weapon AttackHitbox query geometry; and the existing PaperFlipbook component remains a collision-free renderer.
+
+### Human-approved acceptance amendment (2026-08-13)
+
+The human explicitly replaced the final clause above for the currently matched character/enemy sequences: the active PaperFlipbook may use baked `EachFrameCollision` as `QueryOnly` body contour geometry. The root Capsule remains the sole movement/blocking authority, automatic overlap events stay disabled, and semantic weapon damage still requires the independent Body/Weapon frame-track contract. This amendment supersedes only the original prohibition on PaperFlipbook query collision; every gameplay-authority separation remains locked.
 
 ## Locked acceptance
 
@@ -98,7 +102,7 @@ The Executor may refine names, but must preserve these dependency directions and
 - Baseline branch/commit: `origin/main@ec0f5e3`; verify a fresh fetch before any later integration or publication.
 - Engine/build availability: UE 5.8 installed/release build. Ask the human to save and close the Editor before build, commandlet, or scripted `.uasset` mutation.
 - Existing focused-test result: Plan 39 passed on its closed baseline; Plan 38 passed on `origin/main`. Both evidence sets become stale once this refactor starts.
-- Active exclusive ownership or shared-contract approval: before editing `.uasset`, confirm no active Exchange owner or Unreal lock conflicts with `Content/2DAnim/**` and `/Game/ReEcho/Animation2D/**`.
+- Active exclusive ownership or shared-contract approval: before editing `.uasset`, confirm no active Exchange owner or Unreal lock conflicts with `/Game/ReEcho/Art/Animation2D/**` and `/Game/ReEcho/Animation2D/**`.
 - Dirty-worktree preservation: the current branch contains user/artist asset changes, new `walk`/`attack` Flipbooks, animation code WIP and rule edits. Inventory exact paths before implementation; do not restore, delete, rename, stage or absorb unrelated files into the Plan by convenience.
 - Prebuilt baseline: keep the remote Plan 38 bundle until the combined source is rebuilt. The pre-integration local bundle is retained in `stash@{0}` only as recovery material and is not validation evidence.
 - Stop condition if the baseline is broken: stop if `AppearanceId`/weapon visual identity cannot be resolved without changing a stable data contract, if attack commit cannot be observed without changing combat semantics, if body and weapon cannot be unambiguously separated from available masks/annotations, or if required asset mutation would overwrite another owner's current Editor work.
@@ -190,6 +194,8 @@ Report back with:
 - A fresh full `ReEcho` run discovered 69 tests but again hit the pre-existing `ReEcho.BasicAttack.HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval()` (`ReEchoWeaponActor.cpp:241`, called from `ReEchoBasicAttackLoopTest.cpp:84`) before the suite could complete. The focused Animation2D test passes; full-suite evidence remains blocked by that independent failure.
 - Imported the complete authoritative four-enemy asset set from the local main workspace, including Fox Walk/Attack PaperSprite and texture dependencies. Corrected the base asset name from legacy `01_2` to authored `Grount` and removed two erroneous Fox entries that overwrote the Goat Profile.
 - UE 5.8 Editor build and `ReEcho.Presentation.Animation2D.AssetProfiles` pass after a fresh disk reload. The focused test verifies Grount/Rabbit/Goat/Fox Profile references, looping base clips, Fox one-shot Attack policy, EachFrame collision mode and non-empty geometry for every Fox Walk/Attack key frame.
+- Final local-main integration candidate `4941c19` migrated the authoritative runtime Texture/Sprite/Flipbook graph to `/Game/ReEcho/Art/Animation2D/**`, retained referenced general textures and PNG source art, removed legacy animation copies and erroneous `SourceArt` `.uasset` imports, and synchronized Profile, code, test, tool and documentation paths. `shared/ARCHITECTURE.md` and `shared/CODEBASE_MAP.md` were reviewed and updated because this establishes the stable Animation2D presentation boundary.
+- The final post-merge UE 5.8 Win64 `Development -FullRebuild` passed and refreshed the two-module curated Editor bundle with source fingerprint `104cc032135f`; `python scripts/validate_project.py`, Python authoring-script compilation and `git diff --check` passed. The focused automation launcher did not enter the test queue because UE 5.8 `ValidatePlatforms -AllPlatforms` rejected missing local LinuxArm64/VisionOS SDK `MainVersion`; this is recorded as unavailable fresh automation evidence, not as a passing or failing animation assertion. Static asset review also removed an invalid test dependency on an undelivered `Idle_Legacy` Flipbook; Idle remains the intended static texture fallback.
 
 ### Remaining risks
 

@@ -12,7 +12,7 @@
 | Plan 28 自动/手动玩家攻击 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `PendingBeforeClose` | 已通过合并 `a931af3` 交付到 `main` | 玩家攻击模式、确定性目标选择、v6 持久化、按模式门控物理输入、P 暂停和 Restart 子面板 | 输入源缺陷已修正。静态/构建/Blueprint 门禁通过；聚焦 5/5、完整 ReEcho 自动化 51/51 通过。仍需人工 PIE/手感验收。 |
 | Plan 34 编写音频目录和持久设置 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `PendingBeforeClose` | 本地 `plan/34-audio-catalog-settings@86824a0`，基于 `f5051e4`；WIP 保留等待 Plan41 后适配 | AudioEvents XLSX/CSV 契约、异步目录/预加载、五条持久总线和设置控件 | 为 Plan41 暂停 Active 所有权；绝不整块合并旧工作簿 blob，之后在新增 Combat/Weapons 后的四模块 main 上适配。 |
 | Plans 35-36 非战斗与战斗/Echo 音频集成 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API 已可用；可听关闭依赖 Plan34 目录/资产 | 只接入语义事件；音频模块保留播放所有权 | 可使用稳定 Plan33 ID，但不得发明目录解析、资产路径或并行音频服务。 |
-| Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / `Unassigned` | Codex | `Ready` | `PendingBeforeClose` | `origin/main@ec0f5e3`；仅在本 Plan 发布后继续保留的本地动画 WIP | 共享动画/profile/controller/碰撞轨道契约，加独占 `Content/2DAnim/**` 和 `/Game/ReEcho/Animation2D/**` 资产写入 | 依赖已关闭 Plan39 和已发布 Plan38；保留已承诺攻击重试语义、现有美术资产和稳定 Capsule 移动权威。 |
+| Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 本地 `main@4941c19` 之后的资产迁移候选；已合入远端架构权威 | 共享动画/profile/controller/碰撞轨道契约，独占 `/Game/ReEcho/Art/Animation2D/**` 与 `/Game/ReEcho/Animation2D/**` | 客观发布门禁进行中；保留攻击重试语义和 Capsule 移动权威，逐帧 Paper2D 轮廓仅 Query。 |
 | Plan 41 Combat/Weapons 逻辑模块与攻击系统重构 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | 已审计合入 `origin/main@24b9f08`；本地 `plan/41-combat-runtime-module` | 新 `ReEchoCombat` + `ReEchoWeapons`、统一 AttackIdentity、HitIntent/HitResolved、逻辑攻击载体、只读表现 Events/Snapshots、GAS/Combatant 与反射兼容 | 用户审核扩展为 Combat 最终裁决、Weapons 生成攻击、表现只读消费；旧单模块证据失效，实施和客观验证继续。 |
 
 ## 活跃所有权
@@ -21,7 +21,7 @@
 |---|---|---|---|---|---|
 | ReEcho teammate-side Planner | Plan26 / teammate-side 任务分支 | `ReadOnly` | `Reserved` | 类型化武器 UI 消费行为和 Plan26 测试 | 必须保留 Plan29 表现绑定。 |
 | Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Reserved` | `Design/Data/ReEchoData.xlsx`、生成的 `Content/Data/audio_events.csv`、设置 UI 和 Plan33 目录/设置 provider 表面 | WIP 完整保留；Plan41 结束前暂停写入 Build.cs/预构建包，之后适配新模块 main。 |
-| Codex | Plan40 / `codex/animation-idle-walk-attack` | `SharedContract` + `Exclusive` | `Reserved` | `Presentation/Animation2D/**`、最小必需玩家/敌人表现调用点、`Content/2DAnim/**`、`/Game/ReEcho/Animation2D/**`、动画/碰撞测试和工具 | Executor 启动后才变为 Active。逐帧 Hurtbox/AttackHitbox 仅 Query；不得替换稳定移动 Capsule 或覆盖既有脏美术。 |
+| Codex | Plan40 / local `main` candidate | `SharedContract` + `Exclusive` | `Active` | `Presentation/Animation2D/**`、最小必需玩家/敌人表现调用点、`/Game/ReEcho/Art/Animation2D/**`、`/Game/ReEcho/Animation2D/**`、动画/碰撞测试和工具 | Review/发布门禁中。逐帧轮廓仅 Query；不得替换稳定移动 Capsule，人工 PIE 未完成前不关闭。 |
 | Gavyn-side Planner | Plan41 / `plan/41-combat-runtime-module` | `SharedContract` + `Exclusive` | `Active` | `ReEchoCombat`、`ReEchoWeapons`、AttackController/Targeting/WeaponRuntime/HitResolver/CombatEvents、战斗/GAS/武器公共类型、模块描述符、Core Redirects、最终预构建包 | 双逻辑模块实施中；只提供 UI、动画、VFX、音频的只读适配契约，不认领其资源、音频目录或权威 XLSX。 |
 
 ## 警告 / 阻塞项

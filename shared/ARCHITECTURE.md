@@ -73,7 +73,7 @@ ReEchoAudio ─/─→ ReEcho
 | `AREA-Run` | `Run` | 本局阶段、构筑、背包、Echo 存储/回放和安全存档 | 窄命令、只读摘要 | 具体 Widget 布局和世界表现 |
 | `AREA-Recording` | `Recording` | 20 Hz 位置与成功主动技能事件、历史插值 | 录制数据、Playback | 自动攻击序列化和当前世界命中结算 |
 | `AREA-Player` | `Player` | 输入、移动、相机和玩家侧装配 | 输入命令、只读状态 | 重复持有 Run/Combat 权威状态 |
-| `AREA-Presentation` | `Graybox` / `Presentation` | Actor 装配、2D/3D 可见表现、命中反馈 | 消费逻辑结果和快照 | 用动画、特效或资源加载决定玩法结果 |
+| `AREA-Presentation` | `Graybox` / `Presentation` | Actor 装配、2D/3D 可见表现、命中反馈；`Presentation/Animation2D` 通过 Appearance Profile、Catalog、Controller 与 Driver 将玩法意图解析为静态图或组合角色/武器 Flipbook | 消费逻辑结果和快照，发布只读帧碰撞查询 | 用动画、特效、资源加载或播放完成回调决定攻击提交、伤害、移动和死亡结果 |
 | `AREA-UI` | `UI` | WBP 表现、用户命令入口和只读信息展示 | 类型化命令、快照、事件 | 直接写血量、构筑、攻击计时和流程内部字段 |
 | `AREA-Tests` | `Tests` | 证明确定性契约与跨领域集成 | 自动化证据 | 替代用户的视觉、手感和可用性验收 |
 
@@ -94,6 +94,14 @@ ReEchoAudio ─/─→ ReEcho
 - Echo 回放历史位置和成功主动技能，目标选择与命中始终依据当前世界。
 - 自动攻击不进入 Recording。
 - 局中保存退出会捕获计时、玩家、当前录制和存活敌人；保存失败不得退出。
+
+## 2D 序列动画边界
+
+- 角色与武器可以绘制在同一张逐帧贴图中；动画资产只负责组合视觉，不要求把武器拆成独立渲染节点。
+- `AppearanceId` 解析到数据资产 Profile；Profile 选择静态回退或语义 Clip，Controller 处理 `Death > Hit > Action > Move > Idle` 优先级和单次播放返回，Actor 不持有角色专属 Flipbook 分支。
+- 根 Capsule 始终拥有移动 Sweep、阻挡、导航和位置记录权威。启用的 PaperFlipbook 可使用 `EachFrameCollision` 提供 `QueryOnly` 的逐帧身体轮廓，但不得推动 Actor 或替代 Capsule。
+- 语义 Body Hurtbox 与 Weapon AttackHitbox 由独立帧轨道表达。只有已提交攻击的只读身份和轨道 active frame 能开放攻击查询；动画时间、像素 alpha、Paper2D 内建碰撞和播放完成都不能产生或裁决伤害。
+- Animation2D 保持在 `ReEcho` 的 Presentation 领域内，并通过 Profile、Catalog、Controller、Driver 和只读 Snapshot 与 Player、Enemy、Combat/Weapons 适配；不得依赖具体角色枚举或反向控制逻辑模块。
 
 ## UI 框架意图
 

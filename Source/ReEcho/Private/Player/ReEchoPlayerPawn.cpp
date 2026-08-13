@@ -91,7 +91,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-	    TEXT("/Game/2DAnim/Player/Idel_01.Idel_01"));
+	    TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(

@@ -1,8 +1,8 @@
 {
   "binaries": {
     "ReEchoEditor.target": "108bad6b4d22dcde880dcd2f1d1e63b51b09ba474900cd66d3e97d1f9b68427a",
-    "UnrealEditor-ReEcho.dll": "72422926d3a724b815288787e1c33f5956d9ec5418acad255f14d8405586a42a",
-    "UnrealEditor-ReEchoAudio.dll": "679b01e4652d58228883a229c6d3e426b88fba2e8b8061c92cb612be92f77cb1",
+    "UnrealEditor-ReEcho.dll": "32da4711f57b4b07b4e394860b3881fdd7f6bb334a3f3608fb37a68c47c7f58d",
+    "UnrealEditor-ReEchoAudio.dll": "6c321a4a811f8ed0d9419b48993daacb76d85ec9a0386a488acbc6ed428df57a",
     "UnrealEditor.modules": "ea5be803cd6a1a497f917d3feeb97268e1a29bbb56153a892a7f3fe1b52855a7"
   },
   "configuration": "Development",
@@ -47,7 +47,7 @@
     "Source/ReEcho/Private/Graybox/ReEchoStaffLightWaveActor.cpp": "b8a775c1962223b954fc5af5edf8a1ae79dfac7fbe9b6b31b8d756029595e8e2",
     "Source/ReEcho/Private/Graybox/ReEchoSwordArcActor.cpp": "d67369a6c64f501966e4a425ae1d246f8c4e23eda7ca8dd69a4e8d23596d38f4",
     "Source/ReEcho/Private/Graybox/ReEchoTrajectoryActor.cpp": "a896b3b8df776f2c904a234ac8a3449920f2a5b475ddd708d30758e8020180c1",
-    "Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp": "38da20ca2bc0e4c3ad4e4797423bdbf4cfb75508e7ffda6efee3a23ee259d399",
+    "Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp": "443f4ebad3633ab7f6ee839f71a9240c4401f8576a4e7742aab246189386d758",
     "Source/ReEcho/Private/Presentation/Animation2D/ReEcho2DAnimationClip.cpp": "fb35f621ac1ddf340d917d33b04046f7b189207b19bc684012ecd7ef686d4421",
     "Source/ReEcho/Private/Presentation/Animation2D/ReEcho2DAnimationComponent.cpp": "4ce3c5f5f5a991f06251bcf7ebe5c60e324368801d81ba3ea9b4854f7b54b41e",
     "Source/ReEcho/Private/Presentation/Animation2D/ReEcho2DAnimationTags.cpp": "3a13a0a555a78e85cc1b04a15a71c7d7c48a43896774150f50e9c8806ef62998",
@@ -63,7 +63,7 @@
     "Source/ReEcho/Private/Recording/ReEchoRecorderComponent.cpp": "a917fe146b41f7dec9268dc53ba8667e1869f05f55414e4449001997bc3f4144",
     "Source/ReEcho/Private/Run/ReEchoCharacterPromotion.cpp": "2ff16fd689a30a824f37c44853663fa10239a74b6b8eb179d28fcb224ed80c99",
     "Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp": "da5514da2d3d8a9cf9e4963872283b0e6c982d1918574b07088b93184e6f0bc5",
-    "Source/ReEcho/Private/Tests/ReEcho2DAnimationTests.cpp": "dd3e728e1e0af1de0a8c3c725758ae8defb3c67d97c7c128c34df5fc6a66c87a",
+    "Source/ReEcho/Private/Tests/ReEcho2DAnimationTests.cpp": "6e429fe23e0fd0dc5071f543dfc756911e1f41ffc0dfb1b4bd723beb2af55b6d",
     "Source/ReEcho/Private/Tests/ReEchoAbilitySystemTests.cpp": "31e0746799875745d8d1f0efaa0c9567ec7d3512fdd413f346a84d82632141bf",
     "Source/ReEcho/Private/Tests/ReEchoAttackModeTests.cpp": "7961d135293c2b62218457ff1d8670f3f6cbb9c6cb203a415a5c85caaad1b157",
     "Source/ReEcho/Private/Tests/ReEchoBasicAttackLoopTest.cpp": "8a949f31107f656b25d7c95320e7f6c4dbcbcdc7cf48a82dcab607d4d340de0d",
@@ -186,6 +186,6 @@
     "Source/ReEchoAudio/ReEchoAudio.Build.cs": "d52731416615623439e3f7952a4d1ee41ce829454540c73759f0e365b504529f",
     "Source/ReEchoEditor.Target.cs": "4b9312f07299d69a63f525f5f5eca8e9841d98bf54e9b07a95904973d3272d98"
   },
-  "source_fingerprint": "940fef32050a816e5428082c825dddf9b53009d723a1b1b11344483dbd5dd8d0",
+  "source_fingerprint": "104cc032135fd705215ef08624d24b47dc3ee2682ee2325d94021665c05ba622",
   "target": "ReEchoEditor"
 }

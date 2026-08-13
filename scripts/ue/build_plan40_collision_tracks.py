@@ -12,7 +12,7 @@ import unreal
 
 
 REPO = Path(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()))
-ANNOTATION_DIR = REPO / "Content" / "2DAnim" / "CollisionAnnotations"
+ANNOTATION_DIR = REPO / "Content" / "ReEcho" / "Art" / "Animation2D" / "CollisionAnnotations"
 OUTPUT_ROOT = "/Game/ReEcho/Animation2D/Collision"
 
 
