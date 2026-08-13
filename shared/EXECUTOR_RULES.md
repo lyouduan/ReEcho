@@ -10,6 +10,7 @@
    - 生命周期为 `Ready`、`InProgress`，或仅在明确指派评审修复时为 `Review`；
    - 已命名实现基线和分支；
    - Writes/Reads、影响模式和排除项与 Exchange 一致；
+   - 程序任务已列出受影响 `MOD-*` / `AREA-*`、设计意图和 `CODEBASE_MAP` 同步范围，且每个被修改 Runtime Module 的 `modules/MOD-*.md` 位于 Writes；
    - 已具备所需 `SharedContract`/`Exclusive` 批准。
 3. `Reserved` 所有权行只声明意图，不阻塞互不重叠或只读工作。绝不写入其他所有者的 `Active` `Exclusive` 资源。
 4. 只读取指定 Plan、匹配的 Exchange 区块、选中的代码路线和相关经验。仅在失败需要诊断后读取 `§DEBUG`。
@@ -20,7 +21,7 @@
 
 - 可自由优化实现细节，但必须保留锁定目标、验收和受保护门禁。
 - 在 Plan 的执行记录中写明有意义的偏差和证据。
-- 更新与所拥有实现直接相关的文档。不要例行编辑 `PROJECT_STATE`、`CODEBASE_MAP`、`LESSONS`、工作流规则或已关闭 Exchange 历史。
+- 更新 Plan Writes 中与所拥有实现直接相关的模块文档，使设计意图、契约、依赖、运行流程、测试和代码位置与实现一致。不要越权编辑未声明的 `CODEBASE_MAP` 文档、`LESSONS`、工作流规则或已关闭 Exchange 历史。
 - 若实现必须扩张 Writes，或修改稳定 ID、Schema、存档格式、生成器契约或公共 API，只暂停跨边界部分并通知 Planner；安全时继续无关的范围内工作。
 - 禁止为让检查通过而削弱验收、暗中复制提供者内部数据模型，或将 WIP 分支视为已验收功能。
 
