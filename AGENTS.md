@@ -4,6 +4,8 @@ Use this file as the only mandatory reading-order authority. Other documents mus
 
 Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, `shared/SECRETARY_RULES.md` when explicit Project Secretary duty is assigned, the confirmed professional-role rules, the matching Planner/Executor rules when applicable, `shared/GIT_RULES.md` when creating commits or publishing, locked Plan scope/current Exchange coordination, and finally explanatory `shared/WORKFLOW.md`.
 
+Before relying on an initial prompt, cached context or a local rule copy, apply the remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`.
+
 ## First-contact professional-role gate
 
 Before reading beyond this file or changing repository state, a newly connected AI must establish the user's role in this project.
