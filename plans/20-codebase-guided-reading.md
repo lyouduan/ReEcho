@@ -34,7 +34,7 @@
 
 执行者可以按用户基础和提问调整节奏，但不得改变只读边界和主链目标。
 
-1. **先看总图，不读实现**：用 `docs/ARCHITECTURE.md` 的 Main flow 建立五分钟心智模型，再回到代码验证。
+1. **先看总图，不读实现**：用 `shared/ARCHITECTURE.md` 的主流程建立五分钟心智模型，再回到代码验证。
 2. **入口与总调度**：先看 `Source/ReEcho/Public/ReEchoGameMode.h:26` 的公开入口和 `:91-95` 的关键回调，再看 `Source/ReEcho/Private/ReEchoGameMode.cpp:183` 的 `StartPlay`、`:361` 的 `BeginNextEncounter`、`:463` 的 `HandleFixedStep`、`:762` 的 `HandleEncounterEnded`。
 3. **时间如何推进**：读 `Source/ReEcho/Public/Encounter/ReEchoEncounterDirector.h:7-20` 与 `Source/ReEcho/Private/Encounter/ReEchoEncounterDirector.cpp:14-47`，确认 60 Hz 固定步、暂停和结束事件如何把 GameMode 串起来。
 4. **玩家输入如何进入玩法**：从 `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp:159-180` 的输入绑定，追到 `:401-472` 的攻击/技能/武器选择；只选一条攻击路径继续到 `Source/ReEcho/Private/Weapons/ReEchoWeaponActor.cpp:214-273`，避免第一轮陷入全部 GAS 细节。

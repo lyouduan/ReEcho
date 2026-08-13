@@ -934,6 +934,7 @@ def validate_workflow() -> None:
         "LESSONS.md",
         "PROJECT_RULES.md",
         "PLANNER_EXCHANGE.md",
+        "ARCHITECTURE.md",
     }
     absent_shared = sorted(name for name in required_shared if not (ROOT / "shared" / name).is_file())
     if absent_shared:
@@ -953,7 +954,7 @@ def validate_workflow() -> None:
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
     docs_workflow_text = (ROOT / "docs" / "AI_WORKFLOW.md").read_text(encoding="utf-8")
-    architecture_text = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    architecture_text = (ROOT / "shared" / "ARCHITECTURE.md").read_text(encoding="utf-8")
 
     if "only mandatory reading-order authority" not in agents:
         fail("AGENTS.md must remain the sole startup-order authority")
@@ -1218,13 +1219,32 @@ def validate_workflow() -> None:
         fail("docs/AI_WORKFLOW.md must point to the Project Secretary authority")
     architecture_markers = (
         "Design/Data/ReEchoData.xlsx",
-        "16 validated UTF-8 production CSV",
-        "run-locked weapon definition",
-        "Legacy JSON is migration-only",
+        "模块设计意图",
+        "权威状态",
+        "每个 Plan 关闭时必须审阅",
+        "旧 JSON 仅用于迁移",
     )
     missing_architecture_markers = [marker for marker in architecture_markers if marker not in architecture_text]
     if missing_architecture_markers:
-        fail(f"docs/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
+        fail(f"shared/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
+    architecture_maintenance_markers = (
+        "## 架构影响与设计决策",
+        "已更新 `shared/ARCHITECTURE.md`",
+        "已审阅，无需修改",
+        "### 架构文档审阅结果",
+    )
+    missing_architecture_maintenance_markers = [
+        marker for marker in architecture_maintenance_markers if marker not in plan_template
+    ]
+    if missing_architecture_maintenance_markers:
+        fail(
+            "plans/TEMPLATE.md lacks architecture decision/closure records: "
+            + ", ".join(missing_architecture_maintenance_markers)
+        )
+    if "未记录架构审阅结果不得关闭 Plan" not in project_rules:
+        fail("PROJECT_RULES.md must gate Plan closure on architecture review")
+    if "缺少该记录时不得设为 `Closed`" not in planner_rules:
+        fail("PLANNER_RULES.md must enforce architecture review during Plan closure")
 
 
 def validate_build_dependencies() -> None:

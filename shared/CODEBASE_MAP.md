@@ -25,6 +25,7 @@ rg -n "SymbolName" Source\ReEcho
 | `ReEcho.uproject` | UE 5.8 关联和启用插件 | 模块/插件/Editor 集成 |
 | `Source/ReEcho/` | 主玩法运行时模块 | 玩法或 UI 代码 |
 | `Source/ReEchoAudio/` | 独立音频运行时模块 | 语义音频 API、总线、状态通道、目录加载、播放策略或音频自动化 |
+| `shared/ARCHITECTURE.md` | 当前架构、模块设计意图、权威状态与依赖方向 | 判断职责归属、设计新模块或关闭产生架构变化的 Plan 前 |
 | `Config/` | 地图、GameMode、平衡和输入映射 | 启动、控制或调优 |
 | `Design/Data/ReEchoData.xlsx` | 权威策划 XLSX 工作簿；machine Table 生成运行时 CSV | 数据编写、XLSX 迁移或 Plan25 检查 |
 | `Design/Data/ReEchoData使用说明.md` | 可编辑 Table、字段规则、CSV 生成、错误和提交的中文策划指南 | 修改工作簿中的生产平衡/配置前 |
@@ -37,7 +38,7 @@ rg -n "SymbolName" Source\ReEcho
 | `Binaries/Win64/ReEchoEditor.prebuilt.json` | 精选 Editor 模块包契约、源码指纹和二进制哈希 | 直接打开失败或程序发布评审 |
 | `scripts/data/sync_xlsx_to_csv.py` | 确定性 XLSX Table 到 UTF-8 CSV 生成器、检查模式和事务发布 | 数据编写同步或生成 CSV 漂移 |
 | `scripts/validate_project.py` | CSV、旧 JSON 和工作流静态校验 | 数据/工作流变更 |
-| `docs/` | 面向人的架构和 MCP 指南 | 工具集成或熟悉项目 |
+| `docs/` | 面向人的专项技术与 MCP 指南 | 工具集成或专项技术阅读 |
 | `shared/` | AI 权威、规则、路由和协调 | 每个 AI 任务 |
 | `plans/` | 有明确范围的实现 Plan 和执行记录 | Plan 专项工作 |
 
