@@ -24,8 +24,9 @@ def get_or_create_data_asset(name, asset_class):
 
 
 def tag(name):
-    value = unreal.GameplayTag()
-    value.set_editor_property("tag_name", name)
+    value = unreal.ReEcho2DPresentationCatalog.resolve_semantic_tag(name)
+    if not unreal.GameplayTagLibrary.is_gameplay_tag_valid(value):
+        raise RuntimeError(f"Plan40 semantic GameplayTag is not registered: {name}")
     return value
 
 

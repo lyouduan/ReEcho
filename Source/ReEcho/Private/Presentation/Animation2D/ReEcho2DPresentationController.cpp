@@ -14,6 +14,11 @@ void UReEcho2DPresentationController::TickComponent(const float DeltaTime, const
 	FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	UpdatePlaybackCompletion();
+}
+
+void UReEcho2DPresentationController::UpdatePlaybackCompletion()
+{
 	if (bWaitingForOneShot && AnimationRenderer && !AnimationRenderer->IsPlaying())
 	{
 		bWaitingForOneShot = false;

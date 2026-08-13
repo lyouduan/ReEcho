@@ -168,15 +168,16 @@ Report back with:
 - `git diff --check` passed for the stabilized candidate.
 - The renderer/collision-contract checkpoint builds successfully; focused automation proves authored one-shot/play-rate fidelity plus matching-track acceptance and frame-count mismatch rejection.
 - The Profile/Catalog/Controller checkpoint compiles under UE 5.8 UHT/UBT. Its focused test was extended for exact weapon-set lookup, default-set fallback and strict AppearanceId resolution.
-- A later focused automation launch is currently blocked before project startup by the local UE `ValidatePlatforms`/SDK discovery path; an earlier accidental full-suite invocation (caused by positional binding to `EngineRoot` instead of `Filter`) reached tests and exposed a pre-existing `HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval`, not the animation test. Both items require rerun before closure.
+- The sandboxed Editor launch was diagnosed as an execution-boundary issue rather than SDK failure; approved non-sandbox Editor-Cmd runs now enter the project normally. An earlier accidental full-suite invocation (caused by positional binding to `EngineRoot` instead of `Filter`) still exposed a pre-existing `HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval`; full-suite status remains pending.
 - The Player/controller migration and its expanded transient controller tests compile under UE 5.8. Targeted source search finds no remaining `Spade.*Flipbook`, `UpdateSpadeAnimationState`, `TransitionSpadeAnimationState`, `SequenceAttackRemaining` or `MoonStaffWeaponId` seam in the Player Pawn.
 - The Grunt/controller migration compiles under UE 5.8, and targeted source search finds no remaining `GruntDefaultFlipbook`, `GruntFlipbookFinder` or Actor-built legacy animation profile.
+- Generated and saved seven cook-visible assets under `/Game/ReEcho/Animation2D`: five player Appearance profiles, `DA_Enemy_Grunt` and `DA_PresentationCatalog`. The authoring log reports `5 player profiles + Grunt + catalog` with no Python error.
+- `ReEcho.Presentation.Animation2D.AssetProfiles` passes after loading the saved assets from disk and verifying catalog resolution, Spade static Idle/default looping Move/MoonStaff one-shot Attack, Grunt looping default, controller renderer exclusivity and one-shot completion return.
 
 ### Remaining risks
 
 - This checkpoint still contains the Plan39 actor-specific Spade seams; the profile/catalog/controller migration and frame-collision contract remain pending Plan40 work.
-- No `/Game/ReEcho/Animation2D/**` Profile/Catalog assets exist yet. Player and Grunt are wired but safely remain on their existing static Billboard fallbacks until the catalog/profile assets are generated.
-- The asset-authoring script could not run because `UnrealEditor-Cmd` exits in the local pre-project `ValidatePlatforms` phase, despite successful UHT/UBT builds. No `.uasset` was created or overwritten; until the catalog is generated, the migrated Pawn safely remains on its existing static Billboard fallback.
+- Profile/Catalog assets now exist and load in automation. Human PIE still must accept visual scale, pivot, facing, alpha/sort and the static/animated transitions.
 - Visual identity, pivot, scale and timing for the new artist-authored Walk/Attack assets remain human PIE acceptance items.
 
 ### Human validation result/request

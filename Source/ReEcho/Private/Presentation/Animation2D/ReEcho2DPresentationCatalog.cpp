@@ -1,6 +1,7 @@
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 
 UReEcho2DCharacterPresentationProfile* UReEcho2DPresentationCatalog::ResolveProfile(
 	const FName AppearanceId) const
@@ -17,4 +18,23 @@ UReEcho2DCharacterPresentationProfile* UReEcho2DPresentationCatalog::ResolveProf
 		}
 	}
 	return nullptr;
+}
+
+FGameplayTag UReEcho2DPresentationCatalog::ResolveSemanticTag(const FName TagName)
+{
+	const FGameplayTag Candidates[] = {
+	    ReEcho2DAnimationTags::Idle,
+	    ReEcho2DAnimationTags::Move,
+	    ReEcho2DAnimationTags::Attack_Basic,
+	    ReEcho2DAnimationTags::Hit,
+	    ReEcho2DAnimationTags::Death,
+	};
+	for (const FGameplayTag Candidate : Candidates)
+	{
+		if (Candidate.GetTagName() == TagName)
+		{
+			return Candidate;
+		}
+	}
+	return FGameplayTag();
 }

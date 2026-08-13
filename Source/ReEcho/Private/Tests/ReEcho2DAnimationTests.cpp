@@ -31,6 +31,27 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         PlayerFlipbook && PlayerFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
 	TestTrue(TEXT("Grunt Flipbook has non-empty render bounds"),
 	         GruntFlipbook && GruntFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
+	UReEcho2DPresentationCatalog* AuthoredCatalog = LoadObject<UReEcho2DPresentationCatalog>(
+	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
+	UReEcho2DCharacterPresentationProfile* AuthoredGrunt = LoadObject<UReEcho2DCharacterPresentationProfile>(
+	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Grunt.DA_Enemy_Grunt"));
+	TestNotNull(TEXT("Cook-visible presentation catalog is loadable"), AuthoredCatalog);
+	const UReEcho2DCharacterPresentationProfile* AuthoredSpade =
+	    AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_SPADE")) : nullptr;
+	TestNotNull(TEXT("Authored catalog resolves J_SPADE AppearanceId"), AuthoredSpade);
+	TestTrue(TEXT("Authored Spade default set owns looping Move"),
+	         AuthoredSpade && AuthoredSpade->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) &&
+	             AuthoredSpade->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->Flipbook == WalkFlipbook &&
+	             AuthoredSpade->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->bLooping);
+	TestTrue(TEXT("Authored Spade MoonStaff set owns one-shot BasicAttack"),
+	         AuthoredSpade && AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic) &&
+	             AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic)->Flipbook ==
+	                 StaffAttackFlipbook &&
+	             !AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic)->bLooping);
+	TestTrue(TEXT("Authored Grunt profile owns its looping default clip"),
+	         AuthoredGrunt && AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) &&
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->Flipbook == GruntFlipbook &&
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping);
 
 	UReEcho2DAnimationComponent* Component = NewObject<UReEcho2DAnimationComponent>();
 	FReEcho2DAnimationProfile Profile;
@@ -110,6 +131,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestNull(TEXT("Catalog safely rejects an unknown AppearanceId"),
 	         Catalog->ResolveProfile(TEXT("J_SPADE")));
 
+	// Match the authored Spade policy for controller behavior: static Idle, default Move, MoonStaff attack.
+	PresentationProfile->AnimationSets[0].Clips.Remove(ReEcho2DAnimationTags::Idle);
+	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Move, StaffMoveClip);
+	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Attack_Basic, AuthoredClip);
 	UBillboardComponent* StaticRenderer = NewObject<UBillboardComponent>();
 	StaticRenderer->SetSprite(LoadObject<UTexture2D>(nullptr, TEXT("/Game/2DAnim/Player/Idel_01.Idel_01")));
 	UReEcho2DAnimationComponent* ControlledRenderer = NewObject<UReEcho2DAnimationComponent>();
@@ -125,7 +150,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic) &&
 	             ControlledRenderer->GetFlipbook() == StaffAttackFlipbook && !ControlledRenderer->IsLooping());
 	ControlledRenderer->Stop();
-	Controller->TickComponent(0.0f, LEVELTICK_All, nullptr);
+	Controller->UpdatePlaybackCompletion();
 	TestTrue(TEXT("Completed one-shot returns to the current Move base state"),
 	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&
 	             ControlledRenderer->GetFlipbook() == WalkFlipbook);

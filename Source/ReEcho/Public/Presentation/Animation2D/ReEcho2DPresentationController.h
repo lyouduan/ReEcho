@@ -32,6 +32,8 @@ public:
 	void SetMoving(bool bInMoving);
 	bool PlayAction(FGameplayTag SemanticKey, bool bRestart = true);
 	void SetFacingSign(float FacingSign);
+	/** Poll one-shot completion without owning gameplay time; also used by deterministic tests. */
+	void UpdatePlaybackCompletion();
 
 	FGameplayTag GetActiveSemanticKey() const { return ActiveSemanticKey; }
 	const UReEcho2DCharacterPresentationProfile* GetProfile() const { return Profile; }

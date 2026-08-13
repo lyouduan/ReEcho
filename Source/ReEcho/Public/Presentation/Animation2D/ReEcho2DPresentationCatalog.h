@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "GameplayTagContainer.h"
 #include "ReEcho2DPresentationCatalog.generated.h"
 
 class UReEcho2DCharacterPresentationProfile;
@@ -17,4 +18,8 @@ public:
 	TArray<TObjectPtr<UReEcho2DCharacterPresentationProfile>> CharacterProfiles;
 
 	UReEcho2DCharacterPresentationProfile* ResolveProfile(FName AppearanceId) const;
+
+	/** Strict registered-tag bridge for deterministic Editor asset authoring. */
+	UFUNCTION(BlueprintPure, Category = "ReEcho|Animation2D")
+	static FGameplayTag ResolveSemanticTag(FName TagName);
 };
