@@ -9,21 +9,29 @@ struct REECHOCOMBAT_API FReEchoAttackIdentity
 {
 	GENERATED_BODY()
 
-	/** The actor that owns the attack. Identity comparisons always include this source. */
+	/**
+	 * The actor that owns the attack. The weak handle prevents delayed carriers from dereferencing a source that has
+	 * already left the world; identity comparisons still include its object index/serial together with Sequence.
+	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<AActor> Source = nullptr;
+	TWeakObjectPtr<AActor> Source;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int64 Sequence = 0;
 
 	bool IsValid() const
 	{
-		return Source != nullptr && Sequence != 0;
+		return !Source.IsExplicitlyNull() && Sequence != 0;
+	}
+
+	bool HasLiveSource() const
+	{
+		return Source.IsValid();
 	}
 
 	bool operator==(const FReEchoAttackIdentity& Other) const
 	{
-		return Source == Other.Source && Sequence == Other.Sequence;
+		return Source.HasSameIndexAndSerialNumber(Other.Source) && Sequence == Other.Sequence;
 	}
 
 	bool operator!=(const FReEchoAttackIdentity& Other) const

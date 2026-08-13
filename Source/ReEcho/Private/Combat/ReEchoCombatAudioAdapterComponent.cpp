@@ -55,8 +55,8 @@ void UReEchoCombatAudioAdapterComponent::PostEvent(const FName EventId, const FR
 		FReEchoAudioEventRequest Request;
 		Request.EventId = EventId;
 		Request.WorldLocation = Event.WorldLocation;
-		Request.SourceCategory =
-		    Event.Attack.Source == GetOwner() ? EReEchoAudioSourceCategory::Player : EReEchoAudioSourceCategory::Enemy;
+		Request.SourceCategory = Event.Attack.Source.Get() == GetOwner() ? EReEchoAudioSourceCategory::Player
+		                                                              : EReEchoAudioSourceCategory::Enemy;
 		Request.Intensity = FMath::Max(0.0f, Event.AppliedDamage);
 		GameInstance->GetSubsystem<UReEchoAudioService>()->PostEvent(GetOwner(), Request);
 	}

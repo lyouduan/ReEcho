@@ -412,6 +412,22 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	TickProjectiles(SpreadFixture.World, 1.10f);
 	TestTrue(TEXT("Primary target takes projectile damage"), WeaponEnemyHealth(Primary) < 100.0f);
 	TestTrue(TEXT("Explosion radius damages nearby target"), WeaponEnemyHealth(Splash) < 100.0f);
+
+	FReEchoWeaponWorldFixture LifetimeFixture;
+	UReEchoCombatantComponent* LifetimeCombatant = nullptr;
+	AActor* LifetimeOwner = LifetimeFixture.SpawnWeaponOwner(FVector::ZeroVector, LifetimeCombatant);
+	FReEchoBuildSnapshot LifetimeBuild = MakeBuild(*Snapshot, TEXT("W_J_03"));
+	SetBuildStats(LifetimeBuild, LifetimeCombatant->Stats);
+	AReEchoWeaponActor* LifetimeWeapon = LifetimeFixture.World->SpawnActor<AReEchoWeaponActor>();
+	LifetimeWeapon->SetOwner(LifetimeOwner);
+	LifetimeWeapon->InitializeWeapon(&LifetimeBuild, Snapshot);
+	AReEchoEnemyActor* DelayedTarget =
+	    LifetimeFixture.SpawnEnemy(FVector(1000.0f, 0.0f, 0.0f), 6, 100.0f);
+	TestTrue(TEXT("Delayed projectile attack executes"), LifetimeWeapon->ExecuteBasicAttack(LifetimeCombatant));
+	TestTrue(TEXT("Attack source can leave the world before impact"), LifetimeOwner->Destroy());
+	TickProjectiles(LifetimeFixture.World, 1.10f);
+	TestTrue(TEXT("Delayed projectile still resolves without dereferencing the destroyed source"),
+	         WeaponEnemyHealth(DelayedTarget) < 100.0f);
 	return true;
 }
 

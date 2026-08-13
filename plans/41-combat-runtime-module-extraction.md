@@ -40,6 +40,7 @@
 ### 设计决策记录
 
 - **2026-08-13，攻击身份集中化：** 不再要求调用者自行组合和比较 `SourceActor + CommitId`。`ReEchoCombat` 导出统一 `FReEchoAttackIdentity`，封装来源、序号、有效性和比较语义；武器、攻击载体、元素、命中和事件只传完整身份。
+- **2026-08-13，攻击来源生命周期安全：** `FReEchoAttackIdentity` 中的来源必须是 `TWeakObjectPtr<AActor>`，不能让延迟投射物以非空裸地址判断来源存活。来源离开世界后，攻击序号和已快照的伤害数据仍可随载体完成目标结算，但跳过来源侧 Hit/Kill 事件与来源组件查询。
 - **2026-08-13，战斗与武器分域：** `ReEchoCombat` 拥有攻击控制、目标契约、Combatant、伤害/元素/生命/死亡裁决和结果事件；`ReEchoWeapons` 拥有武器配置运行态、唯一攻击频率门、连段步骤、近战查询、逻辑投射物和法杖光波。Weapons 产生 `AttackCommitted`/`HitIntent`，Combat 返回 `HitResolved`，Weapons 不直接扣血或决定死亡。
 - **2026-08-13，逻辑与表现单向分层：** 逻辑模块维护唯一真实状态并产生事件/快照；Animation、VFX、UI、Audio 和武器视觉只读消费，不得用动画结束、特效碰撞、资源加载或回调控制 readiness、命中和结算。连续位置等状态用只读 Snapshot，出手/命中/死亡等边沿变化用事件。
 - **2026-08-13，策划数据编译边界：** XLSX/CSV 的读取、校验和显示字段保留在主 `ReEcho` 数据适配层；加载成功后，由适配层一次性编译并发布不含资源引用的不可变 Combat/Weapons Definition/RuleSet。逻辑模块只消费这些模块原生快照，不反向 include CSV Row、工作簿路径、颜色、VisualKey 或其他表现数据，避免数据加载器成为第二套运行时逻辑。
@@ -156,7 +157,7 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 - [x] Plan38 的“持续按住时，暂时未就绪不会永久结束循环”保持；每次成功提交只产生一次步骤推进和统一 AttackIdentity，所有后续载体/命中/结算复用完整身份。
 - [x] Weapons 只在成功提交后执行逻辑近战/Projectile/Wave；失败/等待请求不播放攻击、不生成逻辑载体、不推进步骤、不发布 AttackCommitted。
 - [x] Weapons 只产生 `HitIntent`，Combat 是最终伤害/格挡/元素/生命/击杀/死亡唯一裁决者；任何攻击载体和表现代码都不能直接扣血。
-- [x] CombatEvents 至少覆盖 AttackCommitted、HitResolved/Hit、Hurt、Kill、Death；事件带统一 AttackIdentity、目标标识和必要世界位置，但不携带 UI/音频/动画资源路径。
+- [x] CombatEvents 至少覆盖 AttackCommitted、HitResolved/Hit、Hurt、Kill、Death；事件带统一 AttackIdentity、目标标识和必要世界位置，但不携带 UI/音频/动画资源路径；延迟载体不得查询已销毁来源 Actor。
 - [x] `HealthChanged` 和伤害/攻击事件使用类型化 Payload；Hit/Hurt/Kill/Death 对同一结算复用同一个 AttackIdentity/结果，不重复计算。
 - [x] `FReEchoCombatantSnapshot` 与 `FReEchoAttackSnapshot` 由权威组件一次构造并通过只读 provider 返回；UI 无需 include 私有 AttributeSet/WeaponRuntime，也不保存第二份权威战斗状态。
 - [x] 外部修改只经过类型化 Combat Command；自动/手动输入、菜单/死亡释放、攻击模式、伤害/治疗均没有供 Widget 直接写内部字段的公共 API。
@@ -243,6 +244,10 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 - Added exact Core Redirects for reflected types moved from `/Script/ReEcho` to `/Script/ReEchoCombat` and a static module-boundary validator.
 
 ### 当前客观证据（2026-08-13）
+
+- 用户 PIE 发现延迟投射物命中时，`FReEchoAttackIdentity::Source` 的失效 `TObjectPtr` 在 `ResolvePhysicalHit` 中触发访问冲突。已改为 `TWeakObjectPtr<AActor>`，来源离开世界后只跳过来源侧反馈，已快照的目标伤害仍完成。
+- 修复后 Development Editor 构建 PASS；`ReEcho.Combat.*` 7/7、`ReEcho.Weapons.*` 9/9、`ReEcho.AttackMode.*` 7/7 PASS。
+- 新增两级回归：`ReEcho.Combat.AttackIdentity.SourceLifetime` 证明失效来源不会被解析；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndExplosion` 现在覆盖“发射后销毁来源、延迟命中仍结算且不崩溃”。
 
 - Development Editor build: PASS，四个 Runtime Module（ReEcho、ReEchoCombat、ReEchoWeapons、ReEchoAudio）均由 UHT/UBT 构建并刷新预构建清单。
 - `ReEcho.AttackMode.*`: 7/7 PASS；自动/手动 held、输入源、无录制、存档迁移和确定性目标均通过。

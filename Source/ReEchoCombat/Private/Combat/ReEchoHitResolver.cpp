@@ -63,6 +63,8 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 			TargetEvents->PublishDeath(Event);
 		}
 	}
+	// Resolve the weak source exactly once. Delayed projectiles remain authoritative after their source leaves the
+	// world, but source-side feedback is intentionally skipped once that source is no longer valid.
 	if (AActor* Source = Intent.Attack.Source.Get())
 	{
 		if (UReEchoCombatEventsComponent* SourceEvents = Source->FindComponentByClass<UReEchoCombatEventsComponent>())

@@ -75,7 +75,7 @@ void UReEchoProjectileLogicComponent::Advance(const float DeltaTime)
 	{
 		AActor* Candidate = *It;
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
-		if (!Target || Candidate == Spec.HitIntent.Attack.Source || !Target->IsCombatTargetAlive())
+		if (!Target || Candidate == Spec.HitIntent.Attack.Source.Get() || !Target->IsCombatTargetAlive())
 		{
 			continue;
 		}

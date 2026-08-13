@@ -3,6 +3,7 @@
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatantComponent.h"
+#include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatAttackModeCommandTest,
@@ -39,6 +40,32 @@ bool FReEchoCombatantSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Snapshot captures maximum health"), Snapshot.MaximumHealth, 125.0f);
 	TestEqual(TEXT("Snapshot captures combat stats"), Snapshot.Stats.PhysicalAttack, 17.0f);
 	TestTrue(TEXT("Snapshot captures alive state"), Snapshot.bAlive);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAttackIdentitySourceLifetimeTest,
+	                             "ReEcho.Combat.AttackIdentity.SourceLifetime",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoAttackIdentitySourceLifetimeTest::RunTest(const FString& Parameters)
+{
+	FReEchoAttackIdentity EmptyIdentity;
+	TestFalse(TEXT("Unassigned identity is invalid"), EmptyIdentity.IsValid());
+
+	AActor* Source = NewObject<AActor>();
+	FReEchoAttackIdentity Identity;
+	Identity.Source = Source;
+	Identity.Sequence = 7;
+	const FReEchoAttackIdentity IdentityCopy = Identity;
+	TestTrue(TEXT("Live source makes the identity valid"), Identity.IsValid());
+	TestTrue(TEXT("Live source is available for optional feedback"), Identity.HasLiveSource());
+	TestEqual(TEXT("Weak source resolves while live"), Identity.Source.Get(), Source);
+
+	Source->MarkAsGarbage();
+	TestTrue(TEXT("Destroyed source does not erase the assigned attack identity"), Identity.IsValid());
+	TestTrue(TEXT("Identity comparison remains stable after source destruction"), Identity == IdentityCopy);
+	TestFalse(TEXT("Destroyed source is unavailable for optional feedback"), Identity.HasLiveSource());
+	TestNull(TEXT("Destroyed source cannot be dereferenced by delayed hit resolution"), Identity.Source.Get());
 	return true;
 }
 

@@ -1,5 +1,7 @@
 #include "Weapons/ReEchoWeaponLogic.h"
 
+#include "GameFramework/Actor.h"
+
 namespace
 {
 EReEchoElement ResolveDamageChannel(const FName DamageChannelId, const int32 AttackSequence)
