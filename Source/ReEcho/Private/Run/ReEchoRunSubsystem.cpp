@@ -1014,11 +1014,21 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int3
 
 	const int32 AllowedCount = FMath::Clamp(SpecificReplayLimit, 0, ReEchoEchoStorage::MaxSpecificReplayLimit);
 
-	// Once the specific replay ability is unlocked, only explicitly selected stored echoes are
-	// replayed. An empty or stale selection resolves to no echo on purpose; we must never fall
-	// back to the rolling latest, because that would silently restore implicit latest behavior.
+	// Once the specific replay ability is unlocked, explicitly selected stored echoes take
+	// priority. But when the player has not picked anything, the next encounter still replays
+	// automatically: we fall back to the rolling previous-encounter echo (the pre-unlock
+	// default) so an empty selection is never a silent "no replay".
 	if (AllowedCount > 0)
 	{
+		if (SelectedReplayIds.Num() == 0)
+		{
+			if (bHasLatestCompletedRecording)
+			{
+				Result.Add(LatestCompletedRecording);
+			}
+			return Result;
+		}
+
 		const int32 ResolveCount = FMath::Min3(Count, AllowedCount, SelectedReplayIds.Num());
 		for (const FGuid& SelectedId : SelectedReplayIds)
 		{

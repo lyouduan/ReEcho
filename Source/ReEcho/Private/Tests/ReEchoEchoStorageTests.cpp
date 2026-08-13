@@ -299,6 +299,16 @@ bool FReEchoEchoStorageCapabilitiesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Re-unlocking specific multi replay succeeds"),
 	          Run->SetSpecificReplayLimit(2),
 	          EReEchoEchoStorageResult::Success);
+	const TArray<FReEchoRecording> UnselectedDefault = Run->ResolveReplayRecordings(3);
+	TestEqual(TEXT("Unlocked but unselected falls back to one echo"),
+	          UnselectedDefault.Num(),
+	          1);
+	if (UnselectedDefault.Num() == 1)
+	{
+		TestEqual(TEXT("The unselected default replay is the rolling previous encounter"),
+		          UnselectedDefault[0].Id,
+		          StoredIds[2]);
+	}
 	TestEqual(TEXT("Selecting two stored echoes succeeds"),
 	          Run->SetSelectedReplayIds({StoredIds[0], StoredIds[1]}),
 	          EReEchoEchoStorageResult::Success);
