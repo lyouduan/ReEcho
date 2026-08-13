@@ -97,7 +97,9 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CharacterTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
 	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeIdleFinder(TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
 	SpadeIdleFlipbook = SpadeIdleFinder.Object;
-	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeAttackFinder(TEXT("/Game/2DAnim/Flipbook/s.s"));
+	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeWalkFinder(TEXT("/Game/2DAnim/Flipbook/walk.walk"));
+	SpadeWalkFlipbook = SpadeWalkFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeAttackFinder(TEXT("/Game/2DAnim/Flipbook/attack.attack"));
 	SpadeAttackFlipbook = SpadeAttackFinder.Object;
 	ConfigureCharacter(TEXT("J_CAT"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
@@ -585,9 +587,8 @@ void AReEchoPlayerPawn::UpdateAutoAttack(bool& bOutHasTarget)
 {
 	bOutHasTarget = false;
 
-	const bool bCanAuto = bAutoAttackMode
-		&& Combatant && Combatant->IsAlive()
-		&& AbilitySystem && AbilitySystem->GetGameplayTagCount(ReEchoGameplayTags::State_Menu) == 0;
+	const bool bCanAuto = bAutoAttackMode && Combatant && Combatant->IsAlive() && AbilitySystem &&
+	                      AbilitySystem->GetGameplayTagCount(ReEchoGameplayTags::State_Menu) == 0;
 	if (!bCanAuto)
 	{
 		ReleaseAutoAttackInput();
@@ -782,9 +783,7 @@ void AReEchoPlayerPawn::UpdateSpadeAnimationState(const bool bMoving)
 
 	const bool bMoonStaffAttack =
 	    SequenceAttackRemaining > 0.0f && Weapon && Weapon->GetEquippedWeaponId() == MoonStaffWeaponId;
-	const EReEcho2DAnimationState DesiredState = bMoonStaffAttack ? EReEcho2DAnimationState::Attack
-	                                             : bMoving        ? EReEcho2DAnimationState::Move
-	                                                              : EReEcho2DAnimationState::Idle;
+	const EReEcho2DAnimationState DesiredState = ReEchoResolve2DAnimationState(bMoving, bMoonStaffAttack);
 	TransitionSpadeAnimationState(DesiredState);
 }
 
@@ -813,6 +812,8 @@ void AReEchoPlayerPawn::TransitionSpadeAnimationState(const EReEcho2DAnimationSt
 
 	FReEcho2DAnimationProfile Profile;
 	Profile.DefaultFlipbook = SpadeIdleFlipbook;
+	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Idle, SpadeIdleFlipbook);
+	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Walk, SpadeWalkFlipbook);
 	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Attack, SpadeAttackFlipbook);
 	Profile.WorldHeight = 224.0f;
 	Profile.bUseNativeScale = true;
@@ -826,7 +827,7 @@ void AReEchoPlayerPawn::TransitionSpadeAnimationState(const EReEcho2DAnimationSt
 		return;
 	}
 
-	SequenceAnimation->SetAnimationState(NewState, NewState == EReEcho2DAnimationState::Move);
+	SequenceAnimation->SetAnimationState(NewState, NewState == EReEcho2DAnimationState::Walk);
 	CharacterSprite->SetVisibility(false);
 	CharacterSprite->SetHiddenInGame(true);
 }

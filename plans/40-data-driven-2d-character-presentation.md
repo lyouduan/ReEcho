@@ -3,10 +3,10 @@
 ## Coordination
 
 - Planner owner: Codex.
-- Executor owner: Unassigned.
+- Executor owner: Codex, assigned directly by the programmer human on 2026-08-13.
 - Plan authored by (AI side): `ReEcho teammate-side AI`.
-- Implementation authored by (AI side): `Unassigned`.
-- Task status: `Ready`.
+- Implementation authored by (AI side): `ReEcho teammate-side AI`.
+- Task status: `InProgress`.
 - Human validation: `PendingBeforeClose`.
 - Local planning / implementation base: `origin/main@ec0f5e3`, with the existing uncommitted animation WIP on `codex/animation-idle-walk-attack` preserved as implementation input rather than overwritten.
 - Implementation branch: continue `codex/animation-idle-walk-attack` unless the human explicitly requests a clean worktree after the current WIP is safely committed or handed off.
@@ -150,8 +150,19 @@ Report back with:
 
 ### Changed
 
+- Preserved the dirty animation/art input in a recoverable stash and restored only Plan40-owned animation paths into the isolated `plan/40-data-driven-2d-presentation` worktree based on `origin/main@095a133`.
+- Stabilized the incoming Idle/Walk/Attack WIP: corrected the Walk finder/member assignment, standardized the authored lowercase `walk.walk` and `attack.attack` package references, restored display-scale application after clip changes, removed an unused Walk texture-frame array and aligned focused tests/documentation with the new assets.
+- Retained the explicit presentation decision priority `Attack > Walk > Idle`; Walk loops, Attack remains one-shot and repeated committed attacks restart from frame zero.
+
 ### Evidence
 
+- UE 5.8 `ReEchoEditor` Win64 Development build passed on the isolated Plan40 worktree.
+- `ReEcho.Presentation.Animation2D.AssetProfiles` passed with the new Walk and Attack packages loaded successfully.
+- `git diff --check` passed for the stabilized candidate.
+
 ### Remaining risks
+
+- This checkpoint still contains the Plan39 actor-specific Spade seams; the profile/catalog/controller migration and frame-collision contract remain pending Plan40 work.
+- Visual identity, pivot, scale and timing for the new artist-authored Walk/Attack assets remain human PIE acceptance items.
 
 ### Human validation result/request

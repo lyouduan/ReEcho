@@ -3,6 +3,15 @@
 #include "PaperFlipbook.h"
 #include "PaperSprite.h"
 
+EReEcho2DAnimationState ReEchoResolve2DAnimationState(const bool bMoving, const bool bAttacking)
+{
+	if (bAttacking)
+	{
+		return EReEcho2DAnimationState::Attack;
+	}
+	return bMoving ? EReEcho2DAnimationState::Walk : EReEcho2DAnimationState::Idle;
+}
+
 UPaperFlipbook* FReEcho2DAnimationProfile::Resolve(const EReEcho2DAnimationState State) const
 {
 	if (const TObjectPtr<UPaperFlipbook>* Match = StateFlipbooks.Find(State); Match && Match->Get())

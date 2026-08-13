@@ -12,9 +12,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
 bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 {
 	UPaperFlipbook* PlayerFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
+	UPaperFlipbook* WalkFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/walk.walk"));
 	UPaperFlipbook* GruntFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/01_2.01_2"));
-	UPaperFlipbook* StaffAttackFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/s.s"));
+	UPaperFlipbook* StaffAttackFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/attack.attack"));
 	TestNotNull(TEXT("J_SPADE idle Flipbook is loadable"), PlayerFlipbook);
+	TestNotNull(TEXT("J_SPADE walk Flipbook is loadable"), WalkFlipbook);
 	TestNotNull(TEXT("Grunt default Flipbook is loadable"), GruntFlipbook);
 	TestNotNull(TEXT("Moon Staff attack Flipbook is loadable"), StaffAttackFlipbook);
 	TestTrue(TEXT("J_SPADE Flipbook has non-empty render bounds"),
@@ -25,6 +28,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	UReEcho2DAnimationComponent* Component = NewObject<UReEcho2DAnimationComponent>();
 	FReEcho2DAnimationProfile Profile;
 	Profile.DefaultFlipbook = PlayerFlipbook;
+	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Walk, WalkFlipbook);
 	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Attack, StaffAttackFlipbook);
 	Profile.WorldHeight = 224.0f;
 	Profile.bUseNativeScale = true;
@@ -34,16 +38,26 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Activated component owns the requested Flipbook"),
 	         Component->IsAnimationActive() && Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Activated Idel profile loops"), Component->IsLooping());
-	TestEqual(TEXT("Native-scale player profile keeps authored scale"),
-	          Component->GetRelativeScale3D(),
-	          FVector::OneVector);
+	TestEqual(
+	    TEXT("Native-scale player profile keeps authored scale"), Component->GetRelativeScale3D(), FVector::OneVector);
 	TestTrue(TEXT("Activated Flipbook can tick to advance frames"), Component->PrimaryComponentTick.bCanEverTick);
 	TestTrue(TEXT("Activated Flipbook is playing"), Component->IsPlaying());
 	TestTrue(TEXT("Unassigned gameplay states resolve to the default Flipbook"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Death) &&
 	             Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Default fallback remains looping after a state change"), Component->IsLooping());
-	TestTrue(TEXT("Moon Staff attack state resolves to s Flipbook"),
+	TestEqual(TEXT("Stationary player resolves to Idle"),
+	          ReEchoResolve2DAnimationState(false, false),
+	          EReEcho2DAnimationState::Idle);
+	TestEqual(TEXT("Moving player resolves to Walk"),
+	          ReEchoResolve2DAnimationState(true, false),
+	          EReEcho2DAnimationState::Walk);
+	TestEqual(
+	    TEXT("Attack overrides movement"), ReEchoResolve2DAnimationState(true, true), EReEcho2DAnimationState::Attack);
+	TestTrue(TEXT("Walk state resolves to looping walk Flipbook"),
+	         Component->SetAnimationState(EReEcho2DAnimationState::Walk) &&
+	             Component->GetFlipbook() == WalkFlipbook && Component->IsLooping());
+	TestTrue(TEXT("Moon Staff attack state resolves to attack Flipbook"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Attack, false) &&
 	             Component->GetFlipbook() == StaffAttackFlipbook);
 	TestFalse(TEXT("Moon Staff attack Flipbook is one-shot"), Component->IsLooping());
