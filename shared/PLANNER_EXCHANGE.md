@@ -10,17 +10,19 @@
 | Plan 10 玩家 HUD UMG 跟进 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 已验收实现谱系包含在 Plan29 中 | 隔离 C++ 和 `/Game/ReEcho/UI/WBP_ReEchoPlayerHud.uasset` | 关闭前需要人工 PIE 完成视觉/DPI 验收。 |
 | Plan 26 武器只读 UI 消费者 | Teammate-side / teammate-side | ReEcho teammate-side Planner | `Ready` | `PendingBeforeClose` | 从 Planner 批准的当前 main/代码基线开始 | 只读 provider 消费加隔离 Inventory/Stats 消费者工作 | 保留 Plan29 表现绑定，不编辑数据 provider 契约。 |
 | Plan 28 自动/手动玩家攻击 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `PendingBeforeClose` | 已通过合并 `a931af3` 交付到 `main` | 玩家攻击模式、确定性目标选择、v6 持久化、按模式门控物理输入、P 暂停和 Restart 子面板 | 输入源缺陷已修正。静态/构建/Blueprint 门禁通过；聚焦 5/5、完整 ReEcho 自动化 51/51 通过。仍需人工 PIE/手感验收。 |
-| Plan 34 编写音频目录和持久设置 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | 本地 `plan/34-audio-catalog-settings@86824a0`，基于 `f5051e4`；当前 main 为 `ec0f5e3` | AudioEvents XLSX/CSV 契约、异步目录/预加载、五条持久总线和设置控件 | 实现已在本地，但尚无当前 main 构建、诊断资产或人工验收。适配当前权威工作簿；绝不整块合并旧工作簿 blob。 |
+| Plan 34 编写音频目录和持久设置 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `PendingBeforeClose` | 本地 `plan/34-audio-catalog-settings@86824a0`，基于 `f5051e4`；WIP 保留等待 Plan41 后适配 | AudioEvents XLSX/CSV 契约、异步目录/预加载、五条持久总线和设置控件 | 为 Plan41 暂停 Active 所有权；绝不整块合并旧工作簿 blob，之后在新三模块 main 上适配。 |
 | Plans 35-36 非战斗与战斗/Echo 音频集成 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API 已可用；可听关闭依赖 Plan34 目录/资产 | 只接入语义事件；音频模块保留播放所有权 | 可使用稳定 Plan33 ID，但不得发明目录解析、资产路径或并行音频服务。 |
 | Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / `Unassigned` | Codex | `Ready` | `PendingBeforeClose` | `origin/main@ec0f5e3`；仅在本 Plan 发布后继续保留的本地动画 WIP | 共享动画/profile/controller/碰撞轨道契约，加独占 `Content/2DAnim/**` 和 `/Game/ReEcho/Animation2D/**` 资产写入 | 依赖已关闭 Plan39 和已发布 Plan38；保留已承诺攻击重试语义、现有美术资产和稳定 Capsule 移动权威。 |
+| Plan 41 Combat 模块与攻击系统重构 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `PendingBeforeClose` | `origin/main@7485236`；执行时以包含本 Plan 的最新批准 main 为准 | 新 `ReEchoCombat`、AttackController、Targeting、WeaponRuntime、CombatEvents、GAS/Combatant 与反射兼容 | Plan34/40 保持 Reserved。普通攻击只用 `weapons.AttackIntervalSeconds / AttackSpeed`，用户负责最终 PIE/手感验收。 |
 
 ## 活跃所有权
 
 | 所有者 | Plan/分支 | 模式 | 状态 | 文件或独占资源 | 备注 |
 |---|---|---|---|---|---|
 | ReEcho teammate-side Planner | Plan26 / teammate-side 任务分支 | `ReadOnly` | `Reserved` | 类型化武器 UI 消费行为和 Plan26 测试 | 必须保留 Plan29 表现绑定。 |
-| Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Active` | `Design/Data/ReEchoData.xlsx`、生成的 `Content/Data/audio_events.csv`、设置 UI 和 Plan33 目录/设置 provider 表面 | 分支实现位于本地。当前 main 独立修改了工作簿、Build.cs、XLSX 生成器和校验器；评审前需由 Planner 适配。 |
+| Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Reserved` | `Design/Data/ReEchoData.xlsx`、生成的 `Content/Data/audio_events.csv`、设置 UI 和 Plan33 目录/设置 provider 表面 | WIP 完整保留；Plan41 结束前暂停写入 Build.cs/预构建包，之后适配新模块 main。 |
 | Codex | Plan40 / `codex/animation-idle-walk-attack` | `SharedContract` + `Exclusive` | `Reserved` | `Presentation/Animation2D/**`、最小必需玩家/敌人表现调用点、`Content/2DAnim/**`、`/Game/ReEcho/Animation2D/**`、动画/碰撞测试和工具 | Executor 启动后才变为 Active。逐帧 Hurtbox/AttackHitbox 仅 Query；不得替换稳定移动 Capsule 或覆盖既有脏美术。 |
+| Gavyn-side Planner | Plan41 / `plan/41-combat-runtime-module` | `SharedContract` + `Exclusive` | `Reserved` | `ReEchoCombat`、AttackController/Targeting/WeaponRuntime/CombatEvents、战斗/GAS 公共类型、模块描述符、Core Redirects、最终预构建包 | Plan 发布后转 Active；不认领 UI、动画、美术、音频目录或权威 XLSX。 |
 
 ## 警告 / 阻塞项
 
@@ -30,6 +32,8 @@
 - `Design/Data/ReEchoData.xlsx` 仅在存在准备发布的编辑时是单写入者二进制。一次性本地可用性测试不锁定团队资源。
 - 运行时竞技场没有专用序列化测试地图；替换任何 `.umap` 前先认领。
 - Plan34 不可整分支合并：该分支与当前 main 都修改了 `Design/Data/ReEchoData.xlsx`、`Source/ReEcho/ReEcho.Build.cs`、`scripts/data/sync_xlsx_to_csv.py` 和 `scripts/validate_project.py`。在当前权威工作簿上重新生成 AudioEvents Table，明确组合文本契约，并重跑全部数据/构建证据。
+- Plan41 与 Plan34 在 `Source/ReEcho/ReEcho.Build.cs` 和最终 Editor 预构建包发生真实写入重叠；与 Plan40 在 `PlayerPawn`/敌人调用点和攻击/表现公共契约发生逻辑耦合。当前明确顺序为 Plan41 先执行，Plan34/40 保持 Reserved 并在新模块边界上适配。
+- Plan41 锁定 `weapons.AttackIntervalSeconds / AttackSpeed` 为自动/手动普通攻击唯一频率；`attack_steps.DurationSeconds` 只描述非阻塞步骤行为，不得成为第二道攻击门。长剑等当前被步骤时长压慢的武器会按武器体系表提速，等待用户 PIE 验收。
 - 已锁定产品决定：选择攻击模式不会自动恢复；Continue 恢复本局选择，新局默认自动；每个活跃 Echo 都提供迷雾视野；显式回放选择为空时不生成 Echo。
 
 ## 待人工决定
