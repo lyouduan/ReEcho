@@ -29,7 +29,7 @@ If the human explicitly assigns Project Secretary duty, also read `shared/SECRET
 ## Every task: minimal context
 
 1. Read `shared/PROJECT_RULES.md` and the one confirmed professional-role file from the table above.
-2. Use `rg` to extract only the matching row from `shared/CODEBASE_MAP.md`; do not read the whole map.
+2. Use `rg` to extract only the matching row from `shared/CODEBASE_MAP/README.md`, then read only the linked module section; do not read the whole architecture library.
 3. Read only planned/active work announcements, active ownership, warnings, and pending decisions in `shared/PLANNER_EXCHANGE.md`.
 4. Read the assigned `plans/<id>-*.md` when one exists.
 5. Read the public header and paired implementation from the selected route before expanding retrieval.
@@ -37,7 +37,7 @@ If the human explicitly assigns Project Secretary duty, also read `shared/SECRET
 ## Conditional context
 
 - Programmer implementation: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only after a failure requires diagnosis.
-- Programmer planning/review/closure: read the relevant section of `shared/PLANNER_RULES.md`, the live Exchange blocks, the assigned Plan and its diff. Use `CODEBASE_MAP.md` only for affected routes; do not load all of `LESSONS.md`.
+- Programmer planning/review/closure: read the relevant section of `shared/PLANNER_RULES.md`, the live Exchange blocks, the assigned Plan and its diff. Use `shared/CODEBASE_MAP/` only for affected modules; do not load the whole library or all of `LESSONS.md`.
 - Designer or artist work: use the handoff and verification boundary in its professional-role file. Do not silently promote a specialist task into programmer implementation.
 - Distributed planning: follow `shared/PLANNER_RULES.md` to fetch and inspect the remote maximum before numbering, then publish the numbered Plan to `origin/main` before execution; external differences still follow its audit gate.
 - Project Secretary work: read `shared/SECRETARY_RULES.md` for rule-system maintenance, Plan/Exchange/schema coordination, accepted-result integration, cleanup and publication boundaries.

@@ -7,7 +7,7 @@
 ## 读取路线
 
 1. 生产表格读取 `Design/Data/ReEchoData使用说明.md`；首次设置或验收时还需读取 `Design/Data/ReEchoData策划验收清单.md`。
-2. 只读取 `shared/CODEBASE_MAP.md` 中匹配的数据行、指定策划/Plan 范围和相关实时所有权。
+2. 只读取 `shared/CODEBASE_MAP/README.md` 中匹配的数据行及其链接的模块小节、指定策划/Plan 范围和相关实时所有权。
 3. 除非需要向程序报告具体错误，否则不要加载 C++ 实现。
 
 ## 允许的工作

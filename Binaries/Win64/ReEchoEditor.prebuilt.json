@@ -1,8 +1,8 @@
 {
   "binaries": {
     "ReEchoEditor.target": "108bad6b4d22dcde880dcd2f1d1e63b51b09ba474900cd66d3e97d1f9b68427a",
-    "UnrealEditor-ReEcho.dll": "32da4711f57b4b07b4e394860b3881fdd7f6bb334a3f3608fb37a68c47c7f58d",
-    "UnrealEditor-ReEchoAudio.dll": "6c321a4a811f8ed0d9419b48993daacb76d85ec9a0386a488acbc6ed428df57a",
+    "UnrealEditor-ReEcho.dll": "e7d5d1ccb9cf2e39c75616d4d3678d657d55a23b77c439c61250490fcf3e6fe7",
+    "UnrealEditor-ReEchoAudio.dll": "1fc0e297643578bc377158ff01c3112662c7e720a5f289cf72629080bca3963b",
     "UnrealEditor.modules": "ea5be803cd6a1a497f917d3feeb97268e1a29bbb56153a892a7f3fe1b52855a7"
   },
   "configuration": "Development",
