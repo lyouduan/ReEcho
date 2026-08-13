@@ -6,7 +6,7 @@
 - Executor owner: Plan30 Executor (local `plan/30-echo-storage-foundation` worktree).
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `NotRequired` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: accepted behavior reference `36ca009`; combined adaptation base `origin/main` at `0726bd6`.
 - Implementation branch: combined adaptation on local `integration/gavyn-umg-gameplay-20260812`.
@@ -131,3 +131,8 @@ For the current prototype, storage capacity and the maximum supported specific-r
 - 2026-08-12：逐项复核状态事务、v4→v5 迁移、v5 往返、兼容 facade 与测试覆盖；校正验收文字为“成功结算立即更新 rolling latest，store/skip 只清 pending”。
 - Planner 复跑 `python scripts/validate_project.py`、Editor Development 构建、`ReEcho.Run.EchoStorage` 5 项自动化及 `git diff --check`，全部通过。
 - 旧基线上的技术实现已验收；因远端 Plan29 UMG 迁移和存档调用时序变化，本 Plan 回到 `InProgress`，待在 `0726bd6` 上完成迁移、保存边界和回归验证后重新关闭。
+
+### Planner closure (2026-08-13)
+
+- The combined adaptation was published to `main` and is now the authoritative storage/save contract consumed by the closed Plans31 and 32.
+- The later Plan32 integration and current project validation retain the stable-GUID storage, v5 migration and transactional command behavior. No human validation was required, so the former publication-only `Review` gate is resolved.

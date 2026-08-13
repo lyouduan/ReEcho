@@ -6,7 +6,7 @@
 - Executor owner: Plan31 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `Passed` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: behavior reference `c4a1a37`; combined adaptation base `origin/main` at `0726bd6` plus integrated Plan30.
 - Implementation branch: local `plan/31-specific-echo-replay-runtime` in a separate clean worktree.
@@ -129,3 +129,8 @@ Every selected Echo actor contributes fog-of-war visibility under the same rule 
   file-local `CreateStartedRun` helper name. UE Unity Build combines both source files into one
   translation unit, so the helper must be renamed or otherwise made collision-safe.
 - Resolved by using the collision-safe `CreateReplayStartedRun` helper; the local-main Editor build and full affected automation subsequently passed.
+
+### Planner closure (2026-08-13)
+
+- The accepted zero/one/many replay runtime and its Plan30 dependency are published on `main`; Plan32 subsequently closed against this contract.
+- Human validation remains `Passed` from the recorded playtest. The former remote-publication-only `Review` gate is resolved.

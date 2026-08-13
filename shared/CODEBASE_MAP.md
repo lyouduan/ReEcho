@@ -1,6 +1,6 @@
 # ReEcho codebase map
 
-Last verified: 2026-08-11. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints. Delivery facts come from source, tests, closed Plans and Git rather than a duplicated status snapshot.
+Last verified: 2026-08-13. This file is the shortest authoritative routing index for code retrieval. It describes where behavior lives; `PROJECT_RULES.md` remains the authority for constraints. Delivery facts come from source, tests, closed Plans and Git rather than a duplicated status snapshot.
 
 ## Minimal retrieval protocol
 
