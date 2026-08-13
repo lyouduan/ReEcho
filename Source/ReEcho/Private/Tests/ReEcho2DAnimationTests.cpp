@@ -2,12 +2,15 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Components/BillboardComponent.h"
+#include "Engine/Texture2D.h"
 #include "PaperFlipbook.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionTrack.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
                                  "ReEcho.Presentation.Animation2D.AssetProfiles",
@@ -85,20 +88,20 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	FReEcho2DCompositeAnimationSet& DefaultSet = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
 	DefaultSet.Clips.Add(ReEcho2DAnimationTags::Idle, AuthoredClip);
 	FReEcho2DCompositeAnimationSet& StaffSet = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
-	StaffSet.WeaponVisualSetId = TEXT("WeaponVisual.MoonStaff");
+	StaffSet.WeaponVisualSetId = TEXT("MoonStaff");
 	FReEcho2DAnimationClip StaffMoveClip = AuthoredClip;
 	StaffMoveClip.Flipbook = WalkFlipbook;
 	StaffSet.Clips.Add(ReEcho2DAnimationTags::Move, StaffMoveClip);
 	const FReEcho2DAnimationClip* ResolvedMove =
-	    PresentationProfile->ResolveClip(TEXT("WeaponVisual.MoonStaff"), ReEcho2DAnimationTags::Move);
+	    PresentationProfile->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Move);
 	TestTrue(TEXT("Exact weapon visual set resolves its authored semantic clip"),
 	         ResolvedMove && ResolvedMove->Flipbook == WalkFlipbook);
 	const FReEcho2DAnimationClip* ResolvedIdle =
-	    PresentationProfile->ResolveClip(TEXT("WeaponVisual.MoonStaff"), ReEcho2DAnimationTags::Idle);
+	    PresentationProfile->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Idle);
 	TestTrue(TEXT("Missing weapon semantic falls back to the character default set"),
 	         ResolvedIdle && ResolvedIdle->Flipbook == StaffAttackFlipbook);
 	TestNull(TEXT("Unknown semantic returns no clip instead of guessing an asset"),
-	         PresentationProfile->ResolveClip(TEXT("WeaponVisual.MoonStaff"), ReEcho2DAnimationTags::Death));
+	         PresentationProfile->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Death));
 
 	UReEcho2DPresentationCatalog* Catalog = NewObject<UReEcho2DPresentationCatalog>();
 	Catalog->CharacterProfiles.Add(PresentationProfile);
@@ -106,6 +109,26 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Catalog->ResolveProfile(TEXT("Appearance.Spade")) == PresentationProfile);
 	TestNull(TEXT("Catalog safely rejects an unknown AppearanceId"),
 	         Catalog->ResolveProfile(TEXT("J_SPADE")));
+
+	UBillboardComponent* StaticRenderer = NewObject<UBillboardComponent>();
+	StaticRenderer->SetSprite(LoadObject<UTexture2D>(nullptr, TEXT("/Game/2DAnim/Player/Idel_01.Idel_01")));
+	UReEcho2DAnimationComponent* ControlledRenderer = NewObject<UReEcho2DAnimationComponent>();
+	UReEcho2DPresentationController* Controller = NewObject<UReEcho2DPresentationController>();
+	Controller->Configure(StaticRenderer, ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));
+	TestTrue(TEXT("Missing Idle clip selects the visible static fallback"),
+	         StaticRenderer->IsVisible() && !ControlledRenderer->IsAnimationActive());
+	Controller->SetMoving(true);
+	TestTrue(TEXT("Move intent selects the authored weapon-set clip"),
+	         ControlledRenderer->IsAnimationActive() && ControlledRenderer->GetFlipbook() == WalkFlipbook &&
+	             !StaticRenderer->IsVisible());
+	TestTrue(TEXT("Authored basic action overrides Move"),
+	         Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic) &&
+	             ControlledRenderer->GetFlipbook() == StaffAttackFlipbook && !ControlledRenderer->IsLooping());
+	ControlledRenderer->Stop();
+	Controller->TickComponent(0.0f, LEVELTICK_All, nullptr);
+	TestTrue(TEXT("Completed one-shot returns to the current Move base state"),
+	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&
+	             ControlledRenderer->GetFlipbook() == WalkFlipbook);
 
 	UReEcho2DFrameCollisionTrack* CollisionTrack = NewObject<UReEcho2DFrameCollisionTrack>();
 	CollisionTrack->SourceFlipbook = WalkFlipbook;

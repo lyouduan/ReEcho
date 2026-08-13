@@ -157,6 +157,8 @@ Report back with:
 - Added `UReEcho2DFrameCollisionTrack` with separate per-frame body Hurtbox and weapon AttackHitbox polygons, attack-active flags, source revision/pivot/PPUU metadata, bounded polygon validation and Flipbook frame-count matching. Runtime queries remain deliberately disabled at this checkpoint.
 - Added native semantic presentation tags plus `AppearanceId`-owned character Profile and project Catalog DataAsset contracts. Composite animation sets select clips by stable weapon `VisualKey`, fall back to the character default set and never resolve gameplay character IDs as asset identities.
 - Added the presentation-only `UReEcho2DPresentationController` contract for exclusive static/Flipbook visibility, Idle/Move base state, one-shot action completion, death locking, weapon-set refresh, facing and safe static fallback. Actor migration remains pending, so no runtime behavior changed at this checkpoint.
+- Migrated the Player presentation call site to the controller: character setup resolves CSV `AppearanceId`, equipped weapon exposes its data-authored `VisualKey`, movement submits Move/Idle intent, and a formally executed basic attack submits `Animation.Attack.Basic`. Removed the Pawn's Spade Flipbook fields, MoonStaff WeaponId comparison, attack animation timer and Spade-specific transition functions.
+- Added a deterministic Editor Python asset-authoring script for five existing player Appearance profiles plus `/Game/ReEcho/Animation2D/DA_PresentationCatalog`. The intended Spade policy is static `Idel_01` for Idle, looping `walk` as the default Move clip, and one-shot `attack` only in the `MoonStaff` composite set; other current players use explicit static fallbacks.
 
 ### Evidence
 
@@ -166,11 +168,13 @@ Report back with:
 - The renderer/collision-contract checkpoint builds successfully; focused automation proves authored one-shot/play-rate fidelity plus matching-track acceptance and frame-count mismatch rejection.
 - The Profile/Catalog/Controller checkpoint compiles under UE 5.8 UHT/UBT. Its focused test was extended for exact weapon-set lookup, default-set fallback and strict AppearanceId resolution.
 - A later focused automation launch is currently blocked before project startup by the local UE `ValidatePlatforms`/SDK discovery path; an earlier accidental full-suite invocation (caused by positional binding to `EngineRoot` instead of `Filter`) reached tests and exposed a pre-existing `HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval`, not the animation test. Both items require rerun before closure.
+- The Player/controller migration and its expanded transient controller tests compile under UE 5.8. Targeted source search finds no remaining `Spade.*Flipbook`, `UpdateSpadeAnimationState`, `TransitionSpadeAnimationState`, `SequenceAttackRemaining` or `MoonStaffWeaponId` seam in the Player Pawn.
 
 ### Remaining risks
 
 - This checkpoint still contains the Plan39 actor-specific Spade seams; the profile/catalog/controller migration and frame-collision contract remain pending Plan40 work.
-- No `/Game/ReEcho/Animation2D/**` Profile/Catalog assets exist yet, and the controller is not wired into Player or Grunt; all legacy runtime selection remains active until the migration is coherent.
+- No `/Game/ReEcho/Animation2D/**` Profile/Catalog assets exist yet, and the controller is not wired into Grunt. Player is wired but safely remains on its existing static Billboard fallback until the catalog assets are generated.
+- The asset-authoring script could not run because `UnrealEditor-Cmd` exits in the local pre-project `ValidatePlatforms` phase, despite successful UHT/UBT builds. No `.uasset` was created or overwritten; until the catalog is generated, the migrated Pawn safely remains on its existing static Billboard fallback.
 - Visual identity, pivot, scale and timing for the new artist-authored Walk/Attack assets remain human PIE acceptance items.
 
 ### Human validation result/request

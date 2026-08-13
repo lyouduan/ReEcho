@@ -19,6 +19,8 @@ class UPaperFlipbook;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UReEcho2DAnimationComponent;
+class UReEcho2DPresentationCatalog;
+class UReEcho2DPresentationController;
 class UReEchoRecorderComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -69,13 +71,6 @@ public:
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
 	bool ConfigureCharacter(FName CharacterId);
 	/** 当前明确的 2D 表现状态：静止 Idle、移动 Walk、攻击 Attack。 */
-	UFUNCTION(BlueprintPure, Category = "ReEcho|Animation2D")
-
-	EReEcho2DAnimationState GetCurrent2DAnimationState() const
-	{
-		return Current2DAnimationState;
-	}
-
 	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */
 	void RestoreEquippedWeapon(FName WeaponId);
 	bool InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Build,
@@ -98,6 +93,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UReEcho2DPresentationController> PresentationController;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCameraComponent> Camera;
@@ -191,8 +189,8 @@ private:
 	void AbilityInputReleased(const FGameplayTag& InputTag);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
-	void UpdateSpadeAnimationState(bool bMoving);
-	void TransitionSpadeAnimationState(EReEcho2DAnimationState NewState);
+	void RefreshPresentationProfile();
+	void RefreshWeaponPresentationSet();
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
@@ -201,13 +199,8 @@ private:
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
 	UPROPERTY()
-	TObjectPtr<UPaperFlipbook> SpadeIdleFlipbook;
-	UPROPERTY()
-	TObjectPtr<UPaperFlipbook> SpadeWalkFlipbook;
-	UPROPERTY()
-	TObjectPtr<UPaperFlipbook> SpadeAttackFlipbook;
+	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
 	FName CurrentCharacterId;
-	EReEcho2DAnimationState Current2DAnimationState = EReEcho2DAnimationState::Idle;
 
 	bool bMouseInputConfigured = false;
 	bool bAutoAttackMode = true;
@@ -220,7 +213,6 @@ private:
 	float AttackVisualRemaining = 0.0f;
 	float AttackVisualDuration = 0.0f;
 	float AttackVisualStrength = 0.0f;
-	float SequenceAttackRemaining = 0.0f;
 	float HitVisualRemaining = 0.0f;
 	float VisualFacingSign = 1.0f;
 	float AppliedVisualFacingSign = 0.0f;

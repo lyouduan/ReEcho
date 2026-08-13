@@ -43,6 +43,8 @@ public:
 	float GetStepLockRemaining() const { return StepLockRemaining; }
 #endif
 	FName GetEquippedWeaponId() const;
+	/** Stable data-authored presentation identity; never infer visuals from WeaponId. */
+	FName GetEquippedWeaponVisualKey() const;
 	FString GetEquippedWeaponLabel() const;
 	const FReEchoBuildSnapshot& GetBuildSnapshot() const;
 	FString GetPinnedWeaponDomainRevision() const;
