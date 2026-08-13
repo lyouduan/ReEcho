@@ -10,7 +10,7 @@ UE 5.8 installed-build graybox prototype for the Time Echo vertical slice.
 - Commit and publication rules: [`shared/GIT_RULES.md`](shared/GIT_RULES.md)
 - Professional routes: [`PROGRAMMER_RULES.md`](shared/PROGRAMMER_RULES.md), [`DESIGNER_RULES.md`](shared/DESIGNER_RULES.md), [`ARTIST_RULES.md`](shared/ARTIST_RULES.md)
 - Project Secretary route: [`SECRETARY_RULES.md`](shared/SECRETARY_RULES.md)
-- Runtime architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- 项目架构与模块设计意图：[`shared/ARCHITECTURE.md`](shared/ARCHITECTURE.md)
 - UE MCP: [`docs/UE_MCP.md`](docs/UE_MCP.md)
 - Validation commands: [`scripts/README.md`](scripts/README.md)
 - Designer XLSX workflow and acceptance: [`Design/Data/ReEchoData使用说明.md`](Design/Data/ReEchoData使用说明.md), [`Design/Data/ReEchoData策划验收清单.md`](Design/Data/ReEchoData策划验收清单.md)

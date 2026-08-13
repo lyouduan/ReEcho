@@ -934,6 +934,7 @@ def validate_workflow() -> None:
         "LESSONS.md",
         "PROJECT_RULES.md",
         "PLANNER_EXCHANGE.md",
+        "ARCHITECTURE.md",
     }
     absent_shared = sorted(name for name in required_shared if not (ROOT / "shared" / name).is_file())
     if absent_shared:
@@ -953,7 +954,8 @@ def validate_workflow() -> None:
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
     docs_workflow_text = (ROOT / "docs" / "AI_WORKFLOW.md").read_text(encoding="utf-8")
-    architecture_text = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    architecture_text = (ROOT / "shared" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    codebase_map_text = (ROOT / "shared" / "CODEBASE_MAP.md").read_text(encoding="utf-8")
 
     if "only mandatory reading-order authority" not in agents:
         fail("AGENTS.md must remain the sole startup-order authority")
@@ -1218,13 +1220,72 @@ def validate_workflow() -> None:
         fail("docs/AI_WORKFLOW.md must point to the Project Secretary authority")
     architecture_markers = (
         "Design/Data/ReEchoData.xlsx",
-        "16 validated UTF-8 production CSV",
-        "run-locked weapon definition",
-        "Legacy JSON is migration-only",
+        "模块设计意图",
+        "权威状态",
+        "每个 Plan 关闭时必须审阅",
+        "旧 JSON 仅用于迁移",
     )
     missing_architecture_markers = [marker for marker in architecture_markers if marker not in architecture_text]
     if missing_architecture_markers:
-        fail(f"docs/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
+        fail(f"shared/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
+    runtime_modules = sorted(
+        module.get("Name")
+        for module in project.get("Modules", [])
+        if module.get("Type") == "Runtime" and module.get("Name")
+    )
+    for module_name in runtime_modules:
+        architecture_id = f"MOD-{module_name}"
+        if architecture_id not in architecture_text:
+            fail(f"shared/ARCHITECTURE.md lacks runtime module architecture id: {architecture_id}")
+        if architecture_id not in codebase_map_text or f"Source/{module_name}/" not in codebase_map_text:
+            fail(f"shared/CODEBASE_MAP.md lacks code mapping for runtime module: {architecture_id}")
+    architecture_area_ids = (
+        "AREA-Core",
+        "AREA-Data",
+        "AREA-AbilityCombat",
+        "AREA-Weapons",
+        "AREA-Encounter",
+        "AREA-Run",
+        "AREA-Recording",
+        "AREA-Player",
+        "AREA-Presentation",
+        "AREA-UI",
+        "AREA-Tests",
+    )
+    for architecture_id in architecture_area_ids:
+        if architecture_id not in architecture_text:
+            fail(f"shared/ARCHITECTURE.md lacks internal area architecture id: {architecture_id}")
+        if architecture_id not in codebase_map_text:
+            fail(f"shared/CODEBASE_MAP.md lacks code mapping for internal area: {architecture_id}")
+    architecture_ids = set(re.findall(r"`((?:MOD|AREA)-[A-Za-z][A-Za-z0-9]*)`", architecture_text))
+    mapped_architecture_ids = set(re.findall(r"`((?:MOD|AREA)-[A-Za-z][A-Za-z0-9]*)`", codebase_map_text))
+    if architecture_ids != mapped_architecture_ids:
+        missing_from_map = sorted(architecture_ids - mapped_architecture_ids)
+        missing_from_architecture = sorted(mapped_architecture_ids - architecture_ids)
+        fail(
+            "ARCHITECTURE.md and CODEBASE_MAP.md architecture ids differ: "
+            f"missing from map={missing_from_map}, missing from architecture={missing_from_architecture}"
+        )
+    if "## 架构与代码一一映射" not in codebase_map_text:
+        fail("shared/CODEBASE_MAP.md must provide the canonical architecture-to-code mapping")
+    architecture_maintenance_markers = (
+        "## 架构影响与设计决策",
+        "已更新 `shared/ARCHITECTURE.md`",
+        "已审阅，无需修改",
+        "### 架构文档审阅结果",
+    )
+    missing_architecture_maintenance_markers = [
+        marker for marker in architecture_maintenance_markers if marker not in plan_template
+    ]
+    if missing_architecture_maintenance_markers:
+        fail(
+            "plans/TEMPLATE.md lacks architecture decision/closure records: "
+            + ", ".join(missing_architecture_maintenance_markers)
+        )
+    if "未记录架构审阅结果不得关闭 Plan" not in project_rules:
+        fail("PROJECT_RULES.md must gate Plan closure on architecture review")
+    if "缺少该记录时不得设为 `Closed`" not in planner_rules:
+        fail("PLANNER_RULES.md must enforce architecture review during Plan closure")
 
 
 def validate_build_dependencies() -> None:
