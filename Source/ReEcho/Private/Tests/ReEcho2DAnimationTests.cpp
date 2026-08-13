@@ -23,7 +23,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 {
 	UPaperFlipbook* PlayerFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
 	UPaperFlipbook* WalkFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/walk.walk"));
-	UPaperFlipbook* GruntFlipbook = LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/01_2.01_2"));
+	UPaperFlipbook* GruntFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/Grount.Grount"));
 	UPaperFlipbook* StaffAttackFlipbook =
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/2DAnim/Flipbook/attack.attack"));
 	UPaperFlipbook* RabbitFlipbook =
@@ -77,6 +78,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll.DA_Enemy_RabbitDoll"));
 	UReEcho2DCharacterPresentationProfile* AuthoredGoat = LoadObject<UReEcho2DCharacterPresentationProfile>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
+	UReEcho2DCharacterPresentationProfile* AuthoredFox = LoadObject<UReEcho2DCharacterPresentationProfile>(
+	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Fox.DA_Enemy_Fox"));
 	TestNotNull(TEXT("Cook-visible presentation catalog is loadable"), AuthoredCatalog);
 	const UReEcho2DCharacterPresentationProfile* AuthoredSpade =
 	    AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_SPADE")) : nullptr;
@@ -90,13 +93,11 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	             AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic)->Flipbook ==
 	                 StaffAttackFlipbook &&
 	             !AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic)->bLooping);
-	TestTrue(TEXT("Authored Grunt profile owns its looping default clip"),
+	TestTrue(TEXT("Authored Grunt profile owns only its looping Idle clip"),
 	         AuthoredGrunt && AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) &&
 	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->Flipbook == GruntFlipbook &&
 	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping &&
-	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) &&
-	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->Flipbook == GruntFlipbook &&
-	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->bLooping);
+	             !AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move));
 	auto TestEnemyProfile = [this](const TCHAR* Label, const UReEcho2DCharacterPresentationProfile* Profile,
 	                             const UPaperFlipbook* ExpectedFlipbook)
 	{
@@ -104,12 +105,29 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 		const FReEcho2DAnimationClip* MoveClip =
 		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) : nullptr;
-		TestTrue(Label, Profile && Profile->StaticFallback && IdleClip && MoveClip &&
-		                    IdleClip->Flipbook == ExpectedFlipbook && MoveClip->Flipbook == ExpectedFlipbook &&
-		                    IdleClip->bLooping && MoveClip->bLooping);
+		TestTrue(Label, Profile && !Profile->StaticFallback && IdleClip && !MoveClip &&
+		                    IdleClip->Flipbook == ExpectedFlipbook && IdleClip->bLooping);
 	};
-	TestEnemyProfile(TEXT("Rabbit profile owns static fallback and looping Idle/Move"), AuthoredRabbit, RabbitFlipbook);
-	TestEnemyProfile(TEXT("Goat profile owns static fallback and looping Idle/Move"), AuthoredGoat, GoatFlipbook);
+	TestEnemyProfile(TEXT("Rabbit profile owns only one looping animation state"), AuthoredRabbit, RabbitFlipbook);
+	TestEnemyProfile(TEXT("Goat profile owns only one looping animation state"), AuthoredGoat, GoatFlipbook);
+	const FReEcho2DAnimationClip* FoxWalkClip =
+	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
+	const FReEcho2DAnimationClip* FoxAttackClip =
+	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
+	TestTrue(TEXT("Fox owns looping Walk and one-shot Attack without static fallback"),
+	         AuthoredFox && !AuthoredFox->StaticFallback && FoxWalkClip && FoxAttackClip &&
+	             FoxWalkClip->Flipbook && FoxWalkClip->bLooping && FoxAttackClip->Flipbook &&
+	             !FoxAttackClip->bLooping && FoxAttackClip->bRestartOnRequest);
+	TestTrue(TEXT("Fox Walk uses authored EachFrame collision"),
+	         FoxWalkClip && FoxWalkClip->Flipbook &&
+	             FoxWalkClip->Flipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Fox Attack uses authored EachFrame collision"),
+	         FoxAttackClip && FoxAttackClip->Flipbook &&
+	             FoxAttackClip->Flipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestEveryKeyFrameHasCollision(TEXT("Fox Walk has collision geometry on every key frame"),
+	                              FoxWalkClip ? FoxWalkClip->Flipbook : nullptr);
+	TestEveryKeyFrameHasCollision(TEXT("Fox Attack has collision geometry on every key frame"),
+	                              FoxAttackClip ? FoxAttackClip->Flipbook : nullptr);
 
 	UReEcho2DAnimationComponent* Component = NewObject<UReEcho2DAnimationComponent>();
 	FReEcho2DAnimationProfile Profile;

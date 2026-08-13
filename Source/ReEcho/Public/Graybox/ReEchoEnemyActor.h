@@ -118,8 +118,6 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY()
-	TArray<TObjectPtr<UTexture2D>> GruntTextures;
-	UPROPERTY()
 	TObjectPtr<UTexture2D> BossTexture;
 	UPROPERTY()
 	TObjectPtr<UReEcho2DCharacterPresentationProfile> GruntPresentationProfile;
@@ -127,6 +125,8 @@ private:
 	TObjectPtr<UReEcho2DCharacterPresentationProfile> RabbitDollPresentationProfile;
 	UPROPERTY()
 	TObjectPtr<UReEcho2DCharacterPresentationProfile> GoatPriestPresentationProfile;
+	UPROPERTY()
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> FoxPresentationProfile;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY()
@@ -152,7 +152,7 @@ private:
 	float DeathVisualRemaining = 0.0f;
 
 	void ApplyVisual();
-	UReEcho2DCharacterPresentationProfile* ResolveGruntPresentationProfile() const;
+	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile() const;
 	void StartHitReaction(const FVector& SourceLocation);
 	void UpdateElementAttachmentVisual();
 	void UpdateElementAttachmentFacing();

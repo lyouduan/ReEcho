@@ -168,6 +168,8 @@ Report back with:
 - Persisted the human-approved Paper2D `EachFrameCollision` mode for `walk`, `attack` and Grunt `01_2` through a repeatable Unreal Python asset script. The renderer enables that geometry only as `QueryOnly`, retains Pawn query response, disables unused automatic overlap events and keeps the Actor Capsule as blocking authority.
 - Replaced the misleading aggregate Paper2D AABB debug view with exact Box/Sphere/Capsule/Convex wireframes and centralized `ReEcho.DebugCollision` into levels 0-3 so root collision, Paper2D geometry and semantic tracks can be inspected independently.
 - Added Rabbit Doll and Goat Priest as appearance-owned enemy Profiles rather than new gameplay kinds: each Profile owns its static fallback plus looping Idle/Move clips, while the existing Grunt visual variant selects the matching Profile. The updated player `walk` asset remains behind the existing Spade `Animation.Move` semantic key.
+- Human-directed minimal validation simplification: non-Boss enemy presentation now cycles only Grunt/Rabbit/Goat, removes static enemy texture authority, and gives every enemy Profile exactly one looping Idle clip. Gameplay EnemyKind and Boss presentation remain unchanged.
+- Added Fox as the fourth minimal-validation appearance: its base semantic resolves to looping Walk, while the existing committed attack gate requests a one-shot Attack and the controller returns to Walk on playback completion. Damage timing remains gameplay-owned and does not use animation notifications.
 
 ### Evidence
 
@@ -186,6 +188,8 @@ Report back with:
 - UE 5.8 Editor build passes after the EachFrame/query-policy and exact-shape debug changes. `ReEcho.Presentation.Animation2D.AssetProfiles` passes after a fresh disk reload and now verifies all three Flipbooks use EachFrame mode, every key frame references a PaperSprite with non-empty BodySetup geometry, static Idle disables Paper2D collision, Walk enables QueryOnly and automatic overlap events remain disabled.
 - UE 5.8 Editor build and focused Animation2D automation pass after adding Goat/Rabbit. The disk-reload test verifies `Goat`, `Rabbit` and the updated player `walk` load successfully; Goat/Rabbit use EachFrame mode with non-empty collision geometry on every key frame; their Profiles own matching static fallbacks and looping Idle/Move clips; the original Grunt Profile now maps both Idle and Move to looping `01_2` so state submission does not regress its fixed-loop presentation.
 - A fresh full `ReEcho` run discovered 69 tests but again hit the pre-existing `ReEcho.BasicAttack.HeldRepeat` access violation in `AReEchoWeaponActor::GetAttackInterval()` (`ReEchoWeaponActor.cpp:241`, called from `ReEchoBasicAttackLoopTest.cpp:84`) before the suite could complete. The focused Animation2D test passes; full-suite evidence remains blocked by that independent failure.
+- Imported the complete authoritative four-enemy asset set from the local main workspace, including Fox Walk/Attack PaperSprite and texture dependencies. Corrected the base asset name from legacy `01_2` to authored `Grount` and removed two erroneous Fox entries that overwrote the Goat Profile.
+- UE 5.8 Editor build and `ReEcho.Presentation.Animation2D.AssetProfiles` pass after a fresh disk reload. The focused test verifies Grount/Rabbit/Goat/Fox Profile references, looping base clips, Fox one-shot Attack policy, EachFrame collision mode and non-empty geometry for every Fox Walk/Attack key frame.
 
 ### Remaining risks
 

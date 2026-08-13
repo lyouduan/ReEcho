@@ -11,6 +11,22 @@ def load(path):
     return asset
 
 
+def find_flipbook(*keywords):
+    matches = []
+    for asset_path in unreal.EditorAssetLibrary.list_assets("/Game/2DAnim/Flipbook", recursive=True):
+        lowered = asset_path.lower()
+        if all(keyword.lower() in lowered for keyword in keywords):
+            asset = unreal.EditorAssetLibrary.load_asset(asset_path)
+            if isinstance(asset, unreal.PaperFlipbook):
+                matches.append(asset)
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"Expected exactly one Flipbook matching {keywords}, found "
+            f"{[asset.get_path_name() for asset in matches]}"
+        )
+    return matches[0]
+
+
 def get_or_create_data_asset(name, asset_class):
     path = f"{ROOT}/{name}"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
@@ -85,10 +101,7 @@ grunt_set = unreal.ReEcho2DCompositeAnimationSet()
 grunt_set.set_editor_property("weapon_visual_set_id", "")
 grunt_set.set_editor_property(
     "clips",
-    {
-        tag("Animation.Idle"): clip(load("/Game/2DAnim/Flipbook/01_2.01_2"), True),
-        tag("Animation.Move"): clip(load("/Game/2DAnim/Flipbook/01_2.01_2"), True),
-    },
+    {tag("Animation.Idle"): clip(load("/Game/2DAnim/Flipbook/Grount.Grount"), True)},
 )
 grunt.set_editor_property("animation_sets", [grunt_set])
 
@@ -96,32 +109,44 @@ enemy_profiles = [grunt]
 for asset_name, appearance_id, texture_path, flipbook_path in (
     (
         "DA_Enemy_RabbitDoll",
-        "Enemy.RabbitDoll",
-        "/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitDoll.Enemy_RabbitDoll",
+        "Enemy.Rabbit",
+        None,
         "/Game/2DAnim/Flipbook/Rabbit.Rabbit",
     ),
     (
         "DA_Enemy_GoatPriest",
-        "Enemy.GoatPriest",
-        "/Game/ReEcho/Textures/Characters/NewCast/Enemy_GoatPriest.Enemy_GoatPriest",
+        "Enemy.Goat",
+        None,
         "/Game/2DAnim/Flipbook/Goat.Goat",
     ),
 ):
     enemy_profile = get_or_create_data_asset(asset_name, unreal.ReEcho2DCharacterPresentationProfile)
     enemy_profile.set_editor_property("appearance_id", appearance_id)
-    enemy_profile.set_editor_property("static_fallback", load(texture_path))
+    enemy_profile.set_editor_property("static_fallback", load(texture_path) if texture_path else None)
     enemy_set = unreal.ReEcho2DCompositeAnimationSet()
     enemy_set.set_editor_property("weapon_visual_set_id", "")
     enemy_flipbook = load(flipbook_path)
     enemy_set.set_editor_property(
         "clips",
-        {
-            tag("Animation.Idle"): clip(enemy_flipbook, True),
-            tag("Animation.Move"): clip(enemy_flipbook, True),
-        },
+        {tag("Animation.Idle"): clip(enemy_flipbook, True)},
     )
     enemy_profile.set_editor_property("animation_sets", [enemy_set])
     enemy_profiles.append(enemy_profile)
+
+fox = get_or_create_data_asset("DA_Enemy_Fox", unreal.ReEcho2DCharacterPresentationProfile)
+fox.set_editor_property("appearance_id", "Enemy.Fox")
+fox.set_editor_property("static_fallback", None)
+fox_set = unreal.ReEcho2DCompositeAnimationSet()
+fox_set.set_editor_property("weapon_visual_set_id", "")
+fox_set.set_editor_property(
+    "clips",
+    {
+        tag("Animation.Idle"): clip(find_flipbook("fox", "walk"), True),
+        tag("Animation.Attack.Basic"): clip(find_flipbook("fox", "attack"), False, True),
+    },
+)
+fox.set_editor_property("animation_sets", [fox_set])
+enemy_profiles.append(fox)
 
 for asset in profiles + [catalog] + enemy_profiles:
     unreal.EditorAssetLibrary.save_loaded_asset(asset, only_if_is_dirty=False)

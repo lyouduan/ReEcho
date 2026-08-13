@@ -29,6 +29,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
@@ -130,18 +131,6 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	ElementAuraLight->SetSourceRadius(35.0f);
 	ElementAuraLight->SetCastShadows(false);
 	ElementAuraLight->SetVisibility(false);
-	static ConstructorHelpers::FObjectFinder<UTexture2D> GruntTextureFinders[] = {
-	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_Slime.Enemy_Slime")},
-	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_ThornSlime.Enemy_ThornSlime")},
-	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitDoll.Enemy_RabbitDoll")},
-	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_RabbitBeast.Enemy_RabbitBeast")},
-	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_GoatPriest.Enemy_GoatPriest")},
-	    {TEXT("/Game/ReEcho/Textures/Characters/NewCast/Enemy_DarkPriest.Enemy_DarkPriest")},
-	};
-	for (const ConstructorHelpers::FObjectFinder<UTexture2D>& Finder : GruntTextureFinders)
-	{
-		GruntTextures.Add(Finder.Object);
-	}
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BossTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/Boss2D.Boss2D"));
 	BossTexture = BossTextureFinder.Object;
@@ -154,6 +143,9 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> GoatPriestProfileFinder(
 	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
 	GoatPriestPresentationProfile = GoatPriestProfileFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> FoxProfileFinder(
+	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Fox.DA_Enemy_Fox"));
+	FoxPresentationProfile = FoxProfileFinder.Object;
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
@@ -226,9 +218,7 @@ void AReEchoEnemyActor::ApplyVisual()
 	const bool bIsBoss = Kind == EReEchoEnemyKind::Boss;
 	Collision->SetCapsuleSize(ReEchoEnemyVisual::CollisionRadius, ReEchoEnemyVisual::CollisionHalfHeight);
 
-	UTexture2D* CharacterTexture = bIsBoss                   ? BossTexture
-	                               : GruntTextures.IsEmpty() ? nullptr
-	                                                         : GruntTextures[VisualVariantIndex % GruntTextures.Num()];
+	UTexture2D* CharacterTexture = bIsBoss ? BossTexture : nullptr;
 	const float CharacterHalfHeight = ReEchoEnemyVisual::CharacterWorldHeight * 0.5f;
 	CharacterSprite->SetVisibility(true);
 	CharacterSprite->SetHiddenInGame(false);
@@ -247,27 +237,25 @@ void AReEchoEnemyActor::ApplyVisual()
 	}
 
 	PresentationController->Configure(CharacterSprite, SequenceAnimation,
-	                                  Kind == EReEchoEnemyKind::Grunt ? ResolveGruntPresentationProfile() : nullptr);
+	                                  bIsBoss ? nullptr : ResolveEnemyPresentationProfile());
 	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
 	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
 	BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
 }
 
-UReEcho2DCharacterPresentationProfile* AReEchoEnemyActor::ResolveGruntPresentationProfile() const
+UReEcho2DCharacterPresentationProfile* AReEchoEnemyActor::ResolveEnemyPresentationProfile() const
 {
-	if (GruntTextures.IsEmpty())
+	// Minimal validation presentation: every non-Boss enemy deterministically cycles through
+	// the three currently approved animated appearances without any static texture authority.
+	switch (FMath::Abs(VisualVariantIndex) % 4)
 	{
-		return GruntPresentationProfile;
-	}
-	// These indices are the stable visual entries authored together in GruntTextureFinders.
-	// Unsupported variants retain the existing Grunt profile until they receive their own data asset.
-	switch (VisualVariantIndex % GruntTextures.Num())
-	{
-		case 2:
+		case 1:
 			return RabbitDollPresentationProfile ? RabbitDollPresentationProfile : GruntPresentationProfile;
-		case 4:
+		case 2:
 			return GoatPriestPresentationProfile ? GoatPriestPresentationProfile : GruntPresentationProfile;
+		case 3:
+			return FoxPresentationProfile ? FoxPresentationProfile : GruntPresentationProfile;
 		default:
 			return GruntPresentationProfile;
 	}
@@ -628,6 +616,9 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 void AReEchoEnemyActor::StartAttackVisual()
 {
 	AttackVisualRemaining = 0.22f;
+	// The action is requested only after the existing gameplay attack gate commits. Profiles without
+	// an Attack clip ignore it; Fox plays its authored one-shot and returns to its looping base clip.
+	PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true);
 }
 
 void AReEchoEnemyActor::UpdateSpriteAnimation(const float DeltaSeconds, const bool bMoving)
@@ -636,7 +627,6 @@ void AReEchoEnemyActor::UpdateSpriteAnimation(const float DeltaSeconds, const bo
 	{
 		return;
 	}
-	PresentationController->SetMoving(bMoving);
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
 	const float Bob = FMath::Sin(VisualTime * (bMoving ? 8.0f : 2.6f)) * (bMoving ? 3.5f : 1.5f);
 	const float AttackPulse =

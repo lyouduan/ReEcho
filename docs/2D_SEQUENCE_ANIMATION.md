@@ -24,7 +24,7 @@ Attack > Walk > Idle
 
 ### Grunt 敌人
 
-仅 `EReEchoEnemyKind::Grunt` 使用 `/Game/2DAnim/Flipbook/01_2`，并在移动、攻击、受击和死亡期间持续循环同一 Flipbook。Shield、Bomber、小 Boss 和最终 Boss 保持原静态 Billboard。
+最小验证阶段的基础 Grunt 使用 `/Game/2DAnim/Flipbook/Grount`；Rabbit、Goat、Fox 使用同目录下各自的 Flipbook。玩法 EnemyKind 与动画外观相互独立。
 
 ## 代码结构
 
@@ -235,9 +235,9 @@ SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
 
 # 逐帧碰撞标注与预览
 
-当前实际参与序列播放的 `walk / attack / 01_2` 三个 Flipbook 已由开发者明确改为 Paper2D `EachFrameCollision`。Idle 仍使用静态 `Idel_01` 贴图。`UReEcho2DAnimationComponent` 会实际启用每帧 Sprite BodySetup，但固定使用 `QueryOnly`、对象类型 `WorldDynamic`，对 `Pawn` 保留查询响应且关闭自动 Overlap 事件；它不会阻挡角色移动，也不会在逐帧切换时产生无人消费的重叠回调。Actor Root Capsule 仍是移动与阻挡权威。动画停用或切换到非逐帧碰撞 Flipbook 时，Paper2D 碰撞同步关闭。
+当前实际参与序列播放的玩家 `walk / attack` 与怪物 `Grount / Rabbit / Goat / Fox_Walk / Fox_Attack` 使用 Paper2D `EachFrameCollision`。Idle 仍使用静态 `Idel_01` 贴图。`UReEcho2DAnimationComponent` 会实际启用每帧 Sprite BodySetup，但固定使用 `QueryOnly`、对象类型 `WorldDynamic`，对 `Pawn` 保留查询响应且关闭自动 Overlap 事件；它不会阻挡角色移动，也不会在逐帧切换时产生无人消费的重叠回调。Actor Root Capsule 仍是移动与阻挡权威。动画停用或切换到非逐帧碰撞 Flipbook 时，Paper2D 碰撞同步关闭。
 
-新增敌人序列采用相同架构：`Rabbit` 对应 Grunt 视觉变体 `Enemy_RabbitDoll`，`Goat` 对应 `Enemy_GoatPriest`。两者分别由 `DA_Enemy_RabbitDoll`、`DA_Enemy_GoatPriest` Profile 持有，Idle 与 Move 当前都固定循环同一个 Flipbook，并保留对应静态贴图作为加载失败回退。它们不新增 EnemyKind，也不改变数值、AI、攻击、受击、死亡或存档身份。其他 Grunt 视觉变体继续沿用原表现。
+最小验证阶段，非 Boss 敌人的表现保留 `Grount`、`Rabbit`、`Goat`、`Fox` 四种，按生成序号稳定循环选择。Grount/Rabbit/Goat Profile 不引用静态贴图，只配置一个持续循环的 `Animation.Idle` Clip；移动、攻击、受击和死亡期间不切换 Flipbook。Fox 的 `Animation.Idle` 使用循环 Walk，只有现有玩法攻击门真正提交攻击时才播放一次 `Animation.Attack.Basic`，结束后自动返回 Walk；伤害仍由原攻击流程触发，不使用动画通知。程序化位移、脉冲、抖动和缩小仍由 `VisualEffectRoot` 承担。玩法上的 Grunt、Shield、Bomber 类型及其数值、AI、攻击和存档语义不变；Boss 暂时保留原静态表现。
 
 角色新增的 `walk` 内容仍由 `DA_Character_J_SPADE` 的 `Animation.Move` Clip 引用；替换同路径资产后无需增加 Pawn 分支，停止移动仍回到静态 `Idel_01`，攻击仍由 MoonStaff 组合集的一次性 `attack` Clip 覆盖。
 

@@ -10,14 +10,23 @@ import unreal
 FLIPBOOK_PATHS = (
     "/Game/2DAnim/Flipbook/walk",
     "/Game/2DAnim/Flipbook/attack",
-    "/Game/2DAnim/Flipbook/01_2",
+    "/Game/2DAnim/Flipbook/Grount",
     "/Game/2DAnim/Flipbook/Goat",
     "/Game/2DAnim/Flipbook/Rabbit",
 )
 
 
 def main() -> None:
-    for path in FLIPBOOK_PATHS:
+    paths = list(FLIPBOOK_PATHS)
+    paths.extend(
+        asset_path.split(".")[0]
+        for asset_path in unreal.EditorAssetLibrary.list_assets(
+            "/Game/2DAnim/Flipbook", recursive=True
+        )
+        if "fox" in asset_path.lower()
+        and ("walk" in asset_path.lower() or "attack" in asset_path.lower())
+    )
+    for path in dict.fromkeys(paths):
         flipbook = unreal.EditorAssetLibrary.load_asset(path)
         if not isinstance(flipbook, unreal.PaperFlipbook):
             raise RuntimeError(f"Plan40 Flipbook is missing: {path}")
