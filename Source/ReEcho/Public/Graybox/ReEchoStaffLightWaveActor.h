@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/ReEchoCombatContracts.h"
+#include "Weapons/ReEchoProjectileLogicComponent.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoStaffLightWaveActor.generated.h"
 
@@ -17,24 +18,18 @@ class REECHO_API AReEchoStaffLightWaveActor : public AActor
 
 public:
 	AReEchoStaffLightWaveActor();
-	virtual void Tick(float DeltaSeconds) override;
 	void InitializeWave(const FVector& Direction,
 	                    float InDamage,
 	                    const FVector& InDamageSource,
 	                    float InRange,
-	                    FReEchoAttackCommitId InAttackCommitId = {});
+	                    FReEchoAttackIdentity InAttack = {});
 
 private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USphereComponent> Collision;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> WaveVisual;
-
-	FVector Velocity = FVector::ZeroVector;
-	FVector DamageSource = FVector::ZeroVector;
-	FVector SpawnLocation = FVector::ZeroVector;
-	float Damage = 0.0f;
-	float MaximumRange = 260.0f;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoProjectileLogicComponent> ProjectileLogic;
 	float Speed = 760.0f;
-	FReEchoAttackCommitId AttackCommitId;
 };

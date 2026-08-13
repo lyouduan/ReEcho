@@ -3,7 +3,34 @@
 #include "CoreMinimal.h"
 #include "ReEchoCombatTypes.generated.h"
 
-class AActor;
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoAttackIdentity
+{
+	GENERATED_BODY()
+
+	/** The actor that owns the attack. Identity comparisons always include this source. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<AActor> Source = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int64 Sequence = 0;
+
+	bool IsValid() const
+	{
+		return Source != nullptr && Sequence != 0;
+	}
+
+	bool operator==(const FReEchoAttackIdentity& Other) const
+	{
+		return Source == Other.Source && Sequence == Other.Sequence;
+	}
+
+	bool operator!=(const FReEchoAttackIdentity& Other) const
+	{
+		return !(*this == Other);
+	}
+};
 
 UENUM(BlueprintType)
 enum class EReEchoElement : uint8
@@ -23,6 +50,43 @@ enum class EReEchoDamageSource : uint8
 	Path,
 	Reaction,
 	Enemy
+};
+
+/** A weapon-generated candidate hit. It contains no presentation resource and no final result. */
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoHitIntent
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackIdentity Attack;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> Target = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RawDamage = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ReactionEfficiency = 1.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector SourceLocation = FVector::ZeroVector;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector HitLocation = FVector::ZeroVector;
+};
+
+/** The immutable result produced by the Combat resolver. */
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoHitResolved
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackIdentity Attack;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> Target = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RawDamage = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AppliedDamage = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bKilled = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector HitLocation = FVector::ZeroVector;
 };
 
 UENUM(BlueprintType)
@@ -77,5 +141,6 @@ struct REECHOCOMBAT_API FReEchoElementState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float BurnTickDamage = 0.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float BurnNextTickTimeSeconds = 0.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector BurnSourceLocation = FVector::ZeroVector;
-	TWeakObjectPtr<AActor> BurnSourceActor;
+	UPROPERTY()
+	FReEchoAttackIdentity BurnAttack;
 };

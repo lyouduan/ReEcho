@@ -114,6 +114,14 @@ struct FReEchoElementWorldFixture
 		return Context;
 	}
 
+	FReEchoAttackIdentity MakeAttack(AActor* Source, const int64 Sequence = 1)
+	{
+		FReEchoAttackIdentity Attack;
+		Attack.Source = Source;
+		Attack.Sequence = Sequence;
+		return Attack;
+	}
+
 	void AdvanceWorldTime(const float Seconds)
 	{
 		const double PreviousTimeSeconds = World->GetTimeSeconds();
@@ -522,19 +530,19 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		AReEchoEnemyActor* ShieldTarget = Fixture.SpawnEnemy(FVector::ZeroVector, 3, 1000.0f, EReEchoEnemyKind::Shield);
 		ShieldTarget->EditElementState().Attached = EReEchoElement::Grass;
 		FReEchoElementHitContext Context = Fixture.MakeContext(10.0f);
-		Context.SourceActor = BurnSource;
+		Context.Attack = Fixture.MakeAttack(BurnSource);
 		Context.SourceLocation = FVector(-100.0f, 0.0f, 0.0f);
 		ReEchoElementReaction::ApplyHitToWorld(*ShieldTarget, EReEchoElement::Flame, 999.0f, Context);
 		TestEqual(TEXT("Burn preserves the in-run source actor"),
-		          ShieldTarget->GetElementState().BurnSourceActor.Get(),
+		          ShieldTarget->GetElementState().BurnAttack.Source.Get(),
 		          BurnSource);
 		TestTrue(TEXT("Burn preserves the original source location"),
 		         FVector::DistSquared(ShieldTarget->GetElementState().BurnSourceLocation, Context.SourceLocation) <=
 		             KINDA_SMALL_NUMBER);
 
 		const FReEchoEnemyRuntimeState SavedShieldState = ShieldTarget->CaptureRuntimeState();
-		TestFalse(TEXT("Burn save state records SourceActor fallback as unavailable"),
-		          SavedShieldState.ElementState.BurnSourceActor.IsValid());
+		TestFalse(TEXT("Burn save state records attack source fallback as unavailable"),
+		          SavedShieldState.ElementState.BurnAttack.IsValid());
 		TestTrue(TEXT("Burn save state persists deterministic SourceLocation"),
 		         FVector::DistSquared(SavedShieldState.ElementState.BurnSourceLocation, Context.SourceLocation) <=
 		             KINDA_SMALL_NUMBER);
@@ -548,8 +556,8 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		RestoreFixture.Advance(5.0f);
 		AReEchoEnemyActor* RestoredShield = RestoreFixture.SpawnEnemy(FVector::ZeroVector, 4);
 		RestoredShield->RestoreRuntimeState(SavedShieldState);
-		TestFalse(TEXT("Restored burn SourceActor falls back to null"),
-		          RestoredShield->GetElementState().BurnSourceActor.IsValid());
+		TestFalse(TEXT("Restored burn attack source falls back to null"),
+		          RestoredShield->GetElementState().BurnAttack.IsValid());
 		TestTrue(TEXT("Restored burn keeps deterministic SourceLocation for shield direction"),
 		         FVector::DistSquared(RestoredShield->GetElementState().BurnSourceLocation, Context.SourceLocation) <=
 		             KINDA_SMALL_NUMBER);
@@ -587,10 +595,14 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Growth scales radius by ReactionEfficiency and affects three allowed targets"),
 		          Result.AffectedTargets.Num(),
 		          3);
-		TestEqual(TEXT("Growth stable order starts from primary"), ResolveWeak(Result.AffectedTargets[0]), Primary);
-		TestEqual(TEXT("Growth stable tie order uses location"), ResolveWeak(Result.AffectedTargets[1]), Left);
+		TestEqual(TEXT("Growth stable order starts from primary"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[0])),
+		          Primary);
+		TestEqual(TEXT("Growth stable tie order uses location"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[1])),
+		          Left);
 		TestEqual(TEXT("Growth stable tie order keeps right target after left"),
-		          ResolveWeak(Result.AffectedTargets[2]),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[2])),
 		          Right);
 		TestEqual(TEXT("Growth attaches grass to primary"), Primary->GetAttachedElement(), EReEchoElement::Grass);
 		TestEqual(TEXT("Growth attaches grass to left target"), Left->GetAttachedElement(), EReEchoElement::Grass);
@@ -619,11 +631,21 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
 		    *Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Conduct chain deduplicates visited targets"), Result.AffectedTargets.Num(), 5);
-		TestEqual(TEXT("Conduct starts with primary target"), ResolveWeak(Result.AffectedTargets[0]), Primary);
-		TestEqual(TEXT("Conduct visits stable left neighbor first"), ResolveWeak(Result.AffectedTargets[1]), Left);
-		TestEqual(TEXT("Conduct visits stable up neighbor second"), ResolveWeak(Result.AffectedTargets[2]), Up);
-		TestEqual(TEXT("Conduct visits stable right neighbor third"), ResolveWeak(Result.AffectedTargets[3]), Right);
-		TestEqual(TEXT("Conduct chains to one-meter bridge target"), ResolveWeak(Result.AffectedTargets[4]), Bridge);
+		TestEqual(TEXT("Conduct starts with primary target"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[0])),
+		          Primary);
+		TestEqual(TEXT("Conduct visits stable left neighbor first"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[1])),
+		          Left);
+		TestEqual(TEXT("Conduct visits stable up neighbor second"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[2])),
+		          Up);
+		TestEqual(TEXT("Conduct visits stable right neighbor third"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[3])),
+		          Right);
+		TestEqual(TEXT("Conduct chains to one-meter bridge target"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[4])),
+		          Bridge);
 		TestEqual(TEXT("Conduct applies workbook formula GAS damage to all chained targets"),
 		          Result.ImmediateDamageApplied,
 		          120.0f);
@@ -657,7 +679,9 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
 		    *Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Conduct uses configured 75 cm radius exactly"), Result.AffectedTargets.Num(), 2);
-		TestEqual(TEXT("Conduct small radius includes near target"), ResolveWeak(Result.AffectedTargets[1]), Near);
+		TestEqual(TEXT("Conduct small radius includes near target"),
+		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[1])),
+		          Near);
 		TestEqual(
 		    TEXT("Conduct small radius excludes former hidden-floor target"), EnemyHealth(HiddenFloorTarget), 1000.0f);
 		TestEqual(
@@ -706,9 +730,9 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		PlayerTarget->EditElementState().Attached = EReEchoElement::Water;
 		EchoTarget->EditElementState().Attached = EReEchoElement::Water;
 		const float PlayerApplied = PlayerTarget->ReceiveElementalDamage(
-		    999.0f, EReEchoElement::Flame, FVector::ZeroVector, PlayerSource, 1.0f);
-		const float EchoApplied =
-		    EchoTarget->ReceiveElementalDamage(999.0f, EReEchoElement::Flame, FVector::ZeroVector, EchoSource, 1.0f);
+		    999.0f, EReEchoElement::Flame, FVector::ZeroVector, 1.0f, Fixture.MakeAttack(PlayerSource));
+		const float EchoApplied = EchoTarget->ReceiveElementalDamage(
+		    999.0f, EReEchoElement::Flame, FVector::ZeroVector, 1.0f, Fixture.MakeAttack(EchoSource));
 		TestEqual(TEXT("Player and echo route through the same elemental damage path"), PlayerApplied, EchoApplied);
 		TestEqual(
 		    TEXT("AffectedByEchoEfficiency=false keeps current workbook reactions consistent"), PlayerApplied, 25.0f);

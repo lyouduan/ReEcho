@@ -48,32 +48,21 @@ public:
 	/** 结算伤害并触发受击方向反馈，返回实际扣除的生命值。 */
 	float ReceiveGrayboxDamage(float Damage,
 	                           const FVector& SourceLocation,
-	                           AActor* SourceActor = nullptr,
 	                           const FLinearColor& DamageNumberColor = FLinearColor::White,
-	                           FReEchoAttackCommitId AttackCommitId = {});
+	                           FReEchoAttackIdentity Attack = {});
 	/** Applies an elemental attachment or a supported two-element reaction before regular damage resolution. */
 	float ReceiveElementalDamage(float Damage,
 	                             EReEchoElement Element,
 	                             const FVector& SourceLocation,
-	                             AActor* SourceActor = nullptr,
 	                             float ReactionEfficiency = 1.0f,
-	                             FReEchoAttackCommitId AttackCommitId = {});
+	                             FReEchoAttackIdentity Attack = {});
 	void RefreshElementAttachmentVisual();
 
-	EReEchoElement GetAttachedElement() const
-	{
-		return ElementState.Attached;
-	}
-
-	const FReEchoElementState& GetElementState() const
-	{
-		return ElementState;
-	}
-
-	FReEchoElementState& EditElementState()
-	{
-		return ElementState;
-	}
+	EReEchoElement GetAttachedElement() const;
+	const FReEchoElementState& GetElementState() const;
+#if WITH_DEV_AUTOMATION_TESTS
+	FReEchoElementState& EditElementState();
+#endif
 
 	UReEchoCombatantComponent* GetCombatantComponent() const
 	{
@@ -95,6 +84,19 @@ public:
 	virtual int32 GetCombatTargetTieBreakIndex() const override
 	{
 		return GetSpawnIndex();
+	}
+
+	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override
+	{
+		return Combatant;
+	}
+
+	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
+
+	virtual bool
+	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override
+	{
+		return IntersectsProjectilePath(PathStart, PathEnd, CarrierRadius);
 	}
 
 	/** 稳定的运行时目标排序标识（等于生成索引）。供自动攻击在射程内出现相同距离时确定性打破平局。 */
@@ -153,7 +155,6 @@ private:
 	TObjectPtr<AReEchoHealthBarActor> HealthBar;
 	UPROPERTY()
 	EReEchoEnemyKind Kind = EReEchoEnemyKind::Grunt;
-	FReEchoElementState ElementState;
 	int32 VisualVariantIndex = 0;
 	float MoveSpeed = 95.f;
 	float ContactDamage = 9.f;
@@ -170,6 +171,7 @@ private:
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
 	float DeathVisualRemaining = 0.0f;
+	int64 AttackSequence = 0;
 
 	void ApplyVisual();
 	void StartHitReaction(const FVector& SourceLocation);
@@ -179,4 +181,7 @@ private:
 	void StartAttackVisual();
 	void UpdateSpriteAnimation(float DeltaSeconds, bool bMoving);
 	void UpdateDeathAnimation(float DeltaSeconds);
+	UFUNCTION() void HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event);
+	UFUNCTION() void HandleCombatHurt(const FReEchoDamageEvent& Event);
+	UFUNCTION() void HandleCombatDeath(const FReEchoDamageEvent& Event);
 };

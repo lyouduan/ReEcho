@@ -1286,6 +1286,48 @@ def validate_combat_module_boundaries() -> None:
     if len(combat_modules) != 1 or combat_modules[0].get("Type") != "Runtime":
         fail("ReEcho.uproject must declare exactly one ReEchoCombat Runtime module")
 
+    weapons_root = ROOT / "Source" / "ReEchoWeapons"
+    weapons_build_path = weapons_root / "ReEchoWeapons.Build.cs"
+    if not weapons_build_path.is_file():
+        fail("missing ReEchoWeapons runtime module")
+    weapons_build_text = weapons_build_path.read_text(encoding="utf-8")
+    if '"ReEchoCombat"' not in weapons_build_text:
+        fail("ReEchoWeapons must depend on the public ReEchoCombat contracts")
+    if '"ReEcho"' in weapons_build_text or '"ReEchoAudio"' in weapons_build_text:
+        fail("ReEchoWeapons must not depend on the main or audio runtime modules")
+
+    weapons_forbidden_prefixes = (
+        "Data/",
+        "Graybox/",
+        "Player/",
+        "Presentation/",
+        "Recording/",
+        "Run/",
+        "UI/",
+    )
+    weapons_forbidden_logic_tokens = (
+        "ApplyFinalDamage",
+        "ReceiveGrayboxDamage",
+        "ReceiveElementalDamage",
+        "ReEchoGameplayEffects::ApplyDamage",
+        "AReEchoEnemyActor",
+        "AReEchoPlayerPawn",
+    )
+    for path in weapons_root.rglob("*"):
+        if path.suffix not in {".h", ".cpp"}:
+            continue
+        text_value = path.read_text(encoding="utf-8")
+        for include in include_pattern.findall(text_value):
+            if include.startswith(weapons_forbidden_prefixes) or include in {"ReEcho.h", "ReEchoAudio.h"}:
+                fail(f"{rel(path)} has forbidden main/audio module include: {include}")
+        for token in weapons_forbidden_logic_tokens:
+            if token in text_value:
+                fail(f"{rel(path)} bypasses Combat adjudication with forbidden token: {token}")
+
+    weapons_modules = [module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoWeapons"]
+    if len(weapons_modules) != 1 or weapons_modules[0].get("Type") != "Runtime":
+        fail("ReEcho.uproject must declare exactly one ReEchoWeapons Runtime module")
+
 
 def validate_prebuilt_editor() -> None:
     tool = ROOT / "scripts" / "ue" / "prebuilt_editor.py"

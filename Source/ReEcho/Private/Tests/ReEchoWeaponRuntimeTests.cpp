@@ -144,7 +144,11 @@ void TickProjectiles(UWorld* World, const float Seconds)
 	{
 		if (IsValid(Projectile) && !Projectile->IsActorBeingDestroyed())
 		{
-			Projectile->Tick(Seconds);
+			if (UReEchoProjectileLogicComponent* Logic =
+			        Projectile->FindComponentByClass<UReEchoProjectileLogicComponent>())
+			{
+				Logic->AdvanceSimulation(Seconds);
+			}
 		}
 	}
 }

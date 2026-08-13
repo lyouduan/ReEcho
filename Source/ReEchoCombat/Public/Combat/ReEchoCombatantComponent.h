@@ -39,10 +39,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void InitializeFromStats(const FReEchoStatBlock& InStats, bool bFillHealth = true);
 
-	/** Applies final damage through GAS when available and returns actual health removed. */
-	UFUNCTION(BlueprintCallable)
-	float ApplyFinalDamage(float Damage);
-
 	/** Applies healing through GAS when available and returns actual health restored. */
 	UFUNCTION(BlueprintCallable)
 	float ApplyHealing(float Healing);
@@ -56,6 +52,14 @@ public:
 	UAbilitySystemComponent* GetBoundAbilitySystem() const;
 	UFUNCTION(BlueprintPure)
 	FReEchoCombatantSnapshot GetSnapshot() const;
+	const FReEchoElementState& GetElementState() const;
+	/** Save/continue migration entry; runtime attacks must go through HitResolver. */
+	void RestoreElementState(const FReEchoElementState& SavedState);
+	void ResetElementState();
+#if WITH_DEV_AUTOMATION_TESTS
+	FReEchoElementState& EditElementStateForTests();
+	float ApplyFinalDamageForTests(float Damage);
+#endif
 
 protected:
 	virtual void BeginPlay() override;
@@ -71,10 +75,18 @@ private:
 	void HandleMovementSpeedChanged(const FOnAttributeChangeData& Data);
 	void HandleEchoEfficiencyChanged(const FOnAttributeChangeData& Data);
 	void PublishHealthChange(float PreviousHealth);
-	void PublishDeath();
+	void PublishElementStateChange();
+	float ApplyFinalDamage(float Damage, const FReEchoAttackIdentity& Attack, EReEchoDamageSource DamageSource);
 
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> BoundAbilitySystem;
 
 	bool bDeathBroadcast = false;
+	FReEchoElementState ElementState;
+	FName HealthChangeReason = NAME_None;
+	FReEchoAttackIdentity HealthChangeAttack;
+	EReEchoDamageSource HealthChangeDamageSource = EReEchoDamageSource::Player;
+
+	friend class FReEchoElementResolverAccess;
+	friend class FReEchoHitResolverAccess;
 };

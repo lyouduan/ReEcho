@@ -4,10 +4,10 @@
 #include "Combat/ReEchoCombatContracts.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Weapons/ReEchoWeaponRuntime.h"
+#include "Weapons/ReEchoWeaponLogic.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoWeaponActor.generated.h"
 
-class AReEchoEnemyActor;
 class UReEchoCombatantComponent;
 class UBillboardComponent;
 class USceneComponent;
@@ -39,20 +39,20 @@ public:
 	/** 武器当前动作锁（有序攻击步骤锁）剩余秒数，供 held 普攻循环判断是否临时忙。 */
 	float GetActionLockRemaining() const
 	{
-		return BasicAttackCadence.GetRemaining();
+		return WeaponLogic.GetSnapshot().ReadinessRemainingSeconds;
 	}
 
 	/** 已成功执行的普攻次数（命中或非命中均计数），供确定性回归测试观察。 */
 	int32 GetAttackSequence() const
 	{
-		return AttackSequence;
+		return WeaponLogic.GetSnapshot().SuccessfulAttackCount;
 	}
 
 	float GetAttackCooldownRemaining() const;
 #if WITH_DEV_AUTOMATION_TESTS
 	float GetStepLockRemaining() const
 	{
-		return StepBehaviorRemaining;
+		return WeaponLogic.GetSnapshot().BehaviorRemainingSeconds;
 	}
 #endif
 	FName GetCurrentAttackStepId() const;
@@ -69,9 +69,9 @@ public:
 
 	FName GetAttackPatternId() const;
 
-	FReEchoAttackCommitId GetLastAttackCommitId() const
+	FReEchoAttackIdentity GetLastAttackIdentity() const
 	{
-		return LastAttackCommitId;
+		return LastAttackCommit.Attack;
 	}
 
 	FName GetEquippedWeaponId() const;
@@ -81,30 +81,16 @@ public:
 	bool IsInvulnerableWindowActive() const;
 
 private:
-	bool ExecuteAttack(UReEchoCombatantComponent* Combatant);
+	bool ExecuteAttack(UReEchoCombatantComponent* Combatant, const FReEchoWeaponAttackCommit& Commit);
 	bool RebuildEffectiveDefinition();
-	const FReEchoCsvAttackStepRow* ResolveNextAttackStep() const;
-	void BeginAttackStep(const FReEchoCsvAttackStepRow& Step, float AttackSpeed);
-	float ComputeStepDamage(const FReEchoCsvAttackStepRow& Step, const FReEchoStatBlock& Stats, bool bElemental);
-	bool ApplyDamageToEnemy(AReEchoEnemyActor& Enemy,
-	                        float Damage,
-	                        const FVector& DamageSource,
-	                        AActor* DamageCauser,
-	                        UReEchoCombatantComponent* Combatant,
-	                        EReEchoElement Element) const;
-	bool FireStaffLightWave(const FReEchoEffectiveWeaponDefinition& Definition,
-	                        const FReEchoCsvAttackStepRow& Step,
-	                        UReEchoCombatantComponent* Combatant);
-	bool FireProjectile(const FReEchoEffectiveWeaponDefinition& Definition,
-	                    const FReEchoCsvAttackStepRow& Step,
-	                    UReEchoCombatantComponent* Combatant);
-	bool SwingMelee(const FReEchoEffectiveWeaponDefinition& Definition,
-	                const FReEchoCsvAttackStepRow& Step,
-	                UReEchoCombatantComponent* Combatant);
+	bool ApplyDamageToTarget(AActor& Target,
+	                         const FReEchoWeaponAttackCommit& Commit,
+	                         const FVector& DamageSource,
+	                         UReEchoCombatantComponent* Combatant) const;
+	bool FireStaffLightWave(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant);
+	bool FireProjectile(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant);
+	bool SwingMelee(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant);
 	const FReEchoCsvWeaponRow* FindEquippedDefinition() const;
-	EReEchoElement ConsumeNextElement();
-	EReEchoElement PeekNextElement() const;
-	float ApplyRoleDamageModifiers(float BaseDamage, const FReEchoStatBlock& Stats);
 	void UpdateElementIndicator();
 	void RefreshVisualState();
 	void StartSwordAnimation();
@@ -125,19 +111,12 @@ private:
 	FReEchoEffectiveWeaponDefinition EffectiveDefinition;
 	bool bHasEffectiveDefinition = false;
 	FName EquippedWeaponId;
-	FReEchoWeaponCadence BasicAttackCadence;
-	FReEchoAttackCommitId LastAttackCommitId;
+	FReEchoWeaponLogic WeaponLogic;
+	FReEchoWeaponAttackCommit LastAttackCommit;
 	FName LastCommittedAttackStepId = NAME_None;
 	int32 LastCommittedAttackStepIndex = INDEX_NONE;
-	/** Presentation/movement/invulnerability duration only; never gates the next attack. */
-	float StepBehaviorRemaining = 0.0f;
-	float InvulnerableRemaining = 0.0f;
-	int32 NextStepCursor = 0;
 	float SwordAnimationTime = 0.0f;
 	float SwordAnimationDuration = 0.18f;
 	float SwordSwingDirection = -1.0f;
-	int32 NextElementIndex = 0;
-	int32 AttackSequence = 0;
-	float CriticalAccumulator = 0.0f;
 	FVector SwordSpriteRestLocation = FVector(8.0f, 0.0f, 0.0f);
 };

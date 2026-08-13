@@ -419,6 +419,33 @@ UAbilitySystemComponent* AReEchoPlayerPawn::GetAbilitySystemComponent() const
 	return AbilitySystem;
 }
 
+bool AReEchoPlayerPawn::IsCombatTargetAlive() const
+{
+	return Combatant && Combatant->IsAlive();
+}
+
+FVector AReEchoPlayerPawn::GetCombatTargetLocation() const
+{
+	return GetActorLocation();
+}
+
+int32 AReEchoPlayerPawn::GetCombatTargetTieBreakIndex() const
+{
+	return 0;
+}
+
+UReEchoCombatantComponent* AReEchoPlayerPawn::GetCombatTargetCombatant() const
+{
+	return Combatant;
+}
+
+bool AReEchoPlayerPawn::IntersectsCombatPath(const FVector& PathStart,
+                                             const FVector& PathEnd,
+                                             const float CarrierRadius) const
+{
+	return FMath::PointDistToSegment(GetActorLocation(), PathStart, PathEnd) <= FMath::Max(0.0f, CarrierRadius) + 35.0f;
+}
+
 void AReEchoPlayerPawn::GrantStartupAbilities()
 {
 	if (!HasAuthority() || !AbilitySystem)

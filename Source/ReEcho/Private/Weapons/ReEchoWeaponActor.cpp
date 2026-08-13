@@ -6,7 +6,9 @@
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "Combat/ReEchoElementReaction.h"
+#include "Combat/ReEchoHitResolver.h"
 #include "Components/BillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -15,12 +17,11 @@
 #include "Engine/Texture2D.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
-#include "EngineUtils.h"
-#include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoStaffLightWaveActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoSwordArcActor.h"
 #include "Kismet/GameplayStatics.h"
+#include "Weapons/ReEchoWeaponGeometry.h"
 
 namespace ReEchoWeaponVisual
 {
@@ -111,16 +112,10 @@ void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSna
                                           TSharedPtr<const FReEchoCsvDataSnapshot> InSnapshot)
 {
 	SwordSpriteRestLocation = ReEchoWeaponVisual::SwordLocation;
-	NextElementIndex = 0;
-	AttackSequence = 0;
-	NextStepCursor = 0;
-	BasicAttackCadence.Reset();
-	LastAttackCommitId = {};
+	WeaponLogic.Reset();
+	LastAttackCommit = {};
 	LastCommittedAttackStepId = NAME_None;
 	LastCommittedAttackStepIndex = INDEX_NONE;
-	StepBehaviorRemaining = 0.0f;
-	InvulnerableRemaining = 0.0f;
-	CriticalAccumulator = 0.0f;
 	Definitions.Reset();
 	DataSnapshot = InSnapshot.IsValid() ? InSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
 	if (!DataSnapshot.IsValid())
@@ -167,8 +162,7 @@ void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSna
 		BuildSnapshot.WeaponDataRevision = Equipped->DataRevision;
 		BuildSnapshot.WeaponDomainRevision = DataSnapshot->WeaponDomainRevision;
 	}
-	BasicAttackCadence.Reset();
-	LastAttackCommitId = {};
+	LastAttackCommit = {};
 	LastCommittedAttackStepId = NAME_None;
 	LastCommittedAttackStepIndex = INDEX_NONE;
 	SwordAnimationTime = 0.0f;
@@ -178,6 +172,11 @@ void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSna
 		       Fatal,
 		       TEXT("Cannot initialize effective weapon definition for WeaponId '%s'"),
 		       *EquippedWeaponId.ToString());
+	}
+	if (!WeaponLogic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(EffectiveDefinition)))
+	{
+		UE_LOG(
+		    LogReEcho, Fatal, TEXT("Cannot initialize weapon logic for WeaponId '%s'"), *EquippedWeaponId.ToString());
 	}
 	RefreshVisualState();
 	UpdateElementIndicator();
@@ -214,14 +213,14 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 	EffectiveDefinition = CandidateDefinition;
 	bHasEffectiveDefinition = true;
 	EquippedWeaponId = WeaponId;
-	BasicAttackCadence.Reset();
-	LastAttackCommitId = {};
+	LastAttackCommit = {};
 	LastCommittedAttackStepId = NAME_None;
 	LastCommittedAttackStepIndex = INDEX_NONE;
-	StepBehaviorRemaining = 0.0f;
-	InvulnerableRemaining = 0.0f;
-	NextStepCursor = 0;
 	SwordAnimationTime = 0.0f;
+	if (!WeaponLogic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(EffectiveDefinition)))
+	{
+		return false;
+	}
 	RefreshVisualState();
 	UpdateElementIndicator();
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
@@ -231,28 +230,27 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 
 bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 {
-	const FReEchoCsvAttackStepRow* Step = ResolveNextAttackStep();
-	if (!Combatant || !Step || !BasicAttackCadence.IsReady() ||
-	    !BasicAttackCadence.TryCommit(GetAttackInterval(Combatant), LastAttackCommitId))
+	if (!Combatant || !WeaponLogic.TryCommitBasicAttack(GetOwner(), Combatant->Stats, LastAttackCommit))
 	{
 		return false;
 	}
-	LastCommittedAttackStepId = Step->Id;
-	LastCommittedAttackStepIndex = Step->StepIndex;
-	if (!ExecuteAttack(Combatant))
+	LastCommittedAttackStepId = LastAttackCommit.AttackStepId;
+	LastCommittedAttackStepIndex = LastAttackCommit.StepIndex;
+	if (!ExecuteAttack(Combatant, LastAttackCommit))
 	{
-		BasicAttackCadence.CancelReadiness();
+		WeaponLogic.RollbackLastCommit();
 		LastCommittedAttackStepId = NAME_None;
 		LastCommittedAttackStepIndex = INDEX_NONE;
 		return false;
 	}
+	WeaponLogic.ConfirmLastCommit();
+	UpdateElementIndicator();
 	if (AActor* WeaponOwner = GetOwner())
 	{
 		if (UReEchoCombatEventsComponent* Events = WeaponOwner->FindComponentByClass<UReEchoCombatEventsComponent>())
 		{
 			FReEchoAttackCommittedEvent Event;
-			Event.CommitId = LastAttackCommitId;
-			Event.Source = WeaponOwner;
+			Event.Attack = LastAttackCommit.Attack;
 			if (const UReEchoAttackControllerComponent* Controller =
 			        WeaponOwner->FindComponentByClass<UReEchoAttackControllerComponent>())
 			{
@@ -272,7 +270,18 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 
 bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
 {
-	return Combatant && ExecuteAttack(Combatant);
+	if (!Combatant || !WeaponLogic.TryCommitActiveAttack(GetOwner(), Combatant->Stats, LastAttackCommit))
+	{
+		return false;
+	}
+	if (!ExecuteAttack(Combatant, LastAttackCommit))
+	{
+		WeaponLogic.RollbackLastCommit();
+		return false;
+	}
+	WeaponLogic.ConfirmLastCommit();
+	UpdateElementIndicator();
+	return true;
 }
 
 bool AReEchoWeaponActor::ExecuteBasicAttack(UReEchoCombatantComponent* Combatant)
@@ -282,9 +291,7 @@ bool AReEchoWeaponActor::ExecuteBasicAttack(UReEchoCombatantComponent* Combatant
 
 float AReEchoWeaponActor::GetAttackInterval(UReEchoCombatantComponent* Combatant) const
 {
-	return bHasEffectiveDefinition && Combatant
-	           ? EffectiveDefinition.Weapon.AttackIntervalSeconds / FMath::Max(0.1f, Combatant->Stats.AttackSpeed)
-	           : 0.55f;
+	return bHasEffectiveDefinition && Combatant ? WeaponLogic.GetAttackInterval(Combatant->Stats) : 0.55f;
 }
 
 float AReEchoWeaponActor::GetCurrentAttackRangeCm() const
@@ -293,20 +300,17 @@ float AReEchoWeaponActor::GetCurrentAttackRangeCm() const
 	{
 		return 0.0f;
 	}
-	const FReEchoCsvAttackStepRow* Step = ResolveNextAttackStep();
-	const float StepRange = Step ? Step->RangeCm : 0.0f;
-	return StepRange > 0.0f ? StepRange : EffectiveDefinition.Weapon.RangeCm;
+	return WeaponLogic.GetCurrentRangeCm();
 }
 
 float AReEchoWeaponActor::GetAttackCooldownRemaining() const
 {
-	return BasicAttackCadence.GetRemaining();
+	return WeaponLogic.GetSnapshot().ReadinessRemainingSeconds;
 }
 
 FName AReEchoWeaponActor::GetCurrentAttackStepId() const
 {
-	const FReEchoCsvAttackStepRow* Step = ResolveNextAttackStep();
-	return Step ? Step->Id : NAME_None;
+	return WeaponLogic.GetSnapshot().NextAttackStepId;
 }
 
 FName AReEchoWeaponActor::GetAttackPatternId() const
@@ -314,52 +318,35 @@ FName AReEchoWeaponActor::GetAttackPatternId() const
 	return bHasEffectiveDefinition ? EffectiveDefinition.Weapon.AttackPatternId : NAME_None;
 }
 
-bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant, const FReEchoWeaponAttackCommit& Commit)
 {
 	if (!Combatant || !bHasEffectiveDefinition)
 	{
 		return false;
 	}
-	const FReEchoCsvAttackStepRow* Step = ResolveNextAttackStep();
-	if (!Step || !Step->bEnabled)
+	if (Commit.MovementCm > 0.0f)
 	{
-		return false;
+		AActor* WeaponOwner = GetOwner();
+		FVector Direction = WeaponOwner ? WeaponOwner->GetActorForwardVector().GetSafeNormal2D() : FVector::ZeroVector;
+		if (WeaponOwner)
+		{
+			WeaponOwner->SetActorLocation(WeaponOwner->GetActorLocation() +
+			                                  (Direction.IsNearlyZero() ? FVector::ForwardVector : Direction) *
+			                                      Commit.MovementCm,
+			                              false,
+			                              nullptr,
+			                              ETeleportType::TeleportPhysics);
+		}
 	}
-	if (Step->ConditionId != NAME_None && Step->ConditionId != TEXT("None"))
+	switch (Commit.Carrier)
 	{
-		return false;
+		case EReEchoWeaponAttackCarrier::Wave:
+			return FireStaffLightWave(Commit, Combatant);
+		case EReEchoWeaponAttackCarrier::Projectile:
+			return FireProjectile(Commit, Combatant);
+		default:
+			return SwingMelee(Commit, Combatant);
 	}
-	if (Step->FormulaId != TEXT("None") && Step->FormulaId != TEXT("Weapon.PhysicalOrElementalCoefficient"))
-	{
-		return false;
-	}
-	if (Step->BehaviorId != TEXT("Weapon.AttackStep") && Step->BehaviorId != TEXT("Weapon.DashStrike"))
-	{
-		return false;
-	}
-	BeginAttackStep(*Step, Combatant->Stats.AttackSpeed);
-	bool bExecuted = false;
-	if (EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.MoonStaffWave"))
-	{
-		bExecuted = FireStaffLightWave(EffectiveDefinition, *Step, Combatant);
-	}
-	else if (FMath::Max(EffectiveDefinition.Weapon.ProjectileCount, Step->ProjectileCount) > 0 ||
-	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.ElementalProjectile") ||
-	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.BowShot") ||
-	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.GunShot") ||
-	         EffectiveDefinition.Weapon.AttackPatternId == TEXT("Pattern.StaffProjectile"))
-	{
-		bExecuted = FireProjectile(EffectiveDefinition, *Step, Combatant);
-	}
-	else
-	{
-		bExecuted = SwingMelee(EffectiveDefinition, *Step, Combatant);
-	}
-	if (bExecuted)
-	{
-		NextStepCursor = (NextStepCursor + 1) % EffectiveDefinition.AttackSteps.Num();
-	}
-	return bExecuted;
 }
 
 FName AReEchoWeaponActor::GetEquippedWeaponId() const
@@ -393,7 +380,7 @@ const FReEchoCsvWeaponRow* AReEchoWeaponActor::FindEquippedDefinition() const
 
 bool AReEchoWeaponActor::IsInvulnerableWindowActive() const
 {
-	return InvulnerableRemaining > 0.0f;
+	return WeaponLogic.GetSnapshot().bInvulnerable;
 }
 
 bool AReEchoWeaponActor::RebuildEffectiveDefinition()
@@ -412,83 +399,37 @@ bool AReEchoWeaponActor::RebuildEffectiveDefinition()
 	return bHasEffectiveDefinition;
 }
 
-const FReEchoCsvAttackStepRow* AReEchoWeaponActor::ResolveNextAttackStep() const
+bool AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
+                                             const FReEchoWeaponAttackCommit& Commit,
+                                             const FVector& DamageSource,
+                                             UReEchoCombatantComponent* Combatant) const
 {
-	return EffectiveDefinition.AttackSteps.IsValidIndex(NextStepCursor)
-	           ? &EffectiveDefinition.AttackSteps[NextStepCursor]
-	           : nullptr;
-}
-
-void AReEchoWeaponActor::BeginAttackStep(const FReEchoCsvAttackStepRow& Step, const float AttackSpeed)
-{
-	const float ScaledDuration = Step.DurationSeconds / FMath::Max(0.1f, AttackSpeed);
-	StepBehaviorRemaining = FMath::Max(0.0f, ScaledDuration);
-	if (Step.bInvulnerable)
-	{
-		InvulnerableRemaining = FMath::Max(InvulnerableRemaining, ScaledDuration);
-	}
-	if (Step.MovementCm > 0.0f)
-	{
-		if (AActor* WeaponOwner = GetOwner())
-		{
-			FVector Direction = WeaponOwner->GetActorForwardVector().GetSafeNormal2D();
-			if (Direction.IsNearlyZero())
-			{
-				Direction = FVector::ForwardVector;
-			}
-			WeaponOwner->SetActorLocation(WeaponOwner->GetActorLocation() + Direction * Step.MovementCm,
-			                              false,
-			                              nullptr,
-			                              ETeleportType::TeleportPhysics);
-		}
-	}
-}
-
-float AReEchoWeaponActor::ComputeStepDamage(const FReEchoCsvAttackStepRow& Step,
-                                            const FReEchoStatBlock& Stats,
-                                            const bool bElemental)
-{
-	const float PhysicalCoefficient =
-	    Step.PhysicalCoefficient > 0.0f ? Step.PhysicalCoefficient : EffectiveDefinition.Weapon.PhysicalCoefficient;
-	const float ElementalCoefficient =
-	    Step.ElementalCoefficient > 0.0f ? Step.ElementalCoefficient : EffectiveDefinition.Weapon.ElementalCoefficient;
-	const float BaseDamage = bElemental ? Stats.ElementalAttack * FMath::Max(ElementalCoefficient, PhysicalCoefficient)
-	                                    : Stats.PhysicalAttack * PhysicalCoefficient;
-	return ApplyRoleDamageModifiers(BaseDamage, Stats);
-}
-
-bool AReEchoWeaponActor::ApplyDamageToEnemy(AReEchoEnemyActor& Enemy,
-                                            const float Damage,
-                                            const FVector& DamageSource,
-                                            AActor* DamageCauser,
-                                            UReEchoCombatantComponent* Combatant,
-                                            const EReEchoElement Element) const
-{
-	if (!Enemy.IsAlive())
+	const IReEchoCombatTarget* CombatTarget = Cast<IReEchoCombatTarget>(&Target);
+	UReEchoCombatantComponent* TargetCombatant = CombatTarget ? CombatTarget->GetCombatTargetCombatant() : nullptr;
+	if (!TargetCombatant || !TargetCombatant->IsAlive())
 	{
 		return false;
 	}
-	const UReEchoCombatantComponent* EnemyCombatant = Enemy.GetCombatantComponent();
-	const float HealthBefore = EnemyCombatant ? EnemyCombatant->CurrentHealth : 0.0f;
-	if (Element == EReEchoElement::None)
+	const bool bWasAlive = TargetCombatant->IsAlive();
+	FReEchoHitIntent Intent;
+	Intent.Attack = Commit.Attack;
+	Intent.Target = &Target;
+	Intent.RawDamage = Commit.RawDamage;
+	Intent.Element = Commit.Element;
+	Intent.ReactionEfficiency = Combatant ? Combatant->Stats.ReactionEfficiency : 1.0f;
+	Intent.bCritical = Commit.bCritical;
+	Intent.SourceLocation = DamageSource;
+	Intent.HitLocation = Target.GetActorLocation();
+	const float AppliedDamage = ReEchoHitResolver::ResolveHit(Intent).AppliedDamage;
+	const bool bKilled = bWasAlive && !TargetCombatant->IsAlive();
+	if (bKilled && Combatant && WeaponLogic.GetOnKillHealPercent() > 0.0f)
 	{
-		Enemy.ReceiveGrayboxDamage(Damage, DamageSource, DamageCauser, FLinearColor::White, LastAttackCommitId);
+		Combatant->ApplyHealing(Combatant->Stats.HpMax * WeaponLogic.GetOnKillHealPercent());
 	}
-	else
-	{
-		Enemy.ReceiveElementalDamage(
-		    Damage, Element, DamageSource, DamageCauser, Combatant->Stats.ReactionEfficiency, LastAttackCommitId);
-	}
-	const bool bKilled = HealthBefore > 0.0f && !Enemy.IsAlive();
-	if (bKilled && Combatant && EffectiveDefinition.OnKillHealPercent > 0.0f)
-	{
-		Combatant->ApplyHealing(Combatant->Stats.HpMax * EffectiveDefinition.OnKillHealPercent);
-	}
-	return true;
+	return AppliedDamage > 0.0f || TargetCombatant->IsAlive();
 }
 
-bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoEffectiveWeaponDefinition& Definition,
-                                            const FReEchoCsvAttackStepRow& Step,
+bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponAttackCommit& Commit,
                                             UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
@@ -513,15 +454,11 @@ bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoEffectiveWeaponDefiniti
 		return false;
 	}
 	Wave->SetOwner(WeaponOwner);
-	const float Damage = ComputeStepDamage(Step, Combatant->Stats, false);
-	const float Range = Step.RangeCm > 0.0f ? Step.RangeCm : Definition.Weapon.RangeCm;
-	Wave->InitializeWave(AimDirection, Damage, OwnerLocation, Range, LastAttackCommitId);
+	Wave->InitializeWave(AimDirection, Commit.RawDamage, OwnerLocation, Commit.RangeCm, Commit.Attack);
 	return true;
 }
 
-bool AReEchoWeaponActor::FireProjectile(const FReEchoEffectiveWeaponDefinition& Definition,
-                                        const FReEchoCsvAttackStepRow& Step,
-                                        UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -534,18 +471,8 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoEffectiveWeaponDefinition& 
 	{
 		AimDirection = FVector::ForwardVector;
 	}
-	const int32 ProjectileCount = FMath::Max(Definition.Weapon.ProjectileCount, Step.ProjectileCount);
-	const float SpreadDegrees =
-	    Step.ConcentrationDegrees > 0.0f ? Step.ConcentrationDegrees : Definition.Weapon.ConcentrationDegrees;
 	const TArray<FVector> Directions =
-	    ReEchoWeaponRuntime::BuildProjectileDirections(AimDirection, ProjectileCount, SpreadDegrees);
-	const float Range = Step.RangeCm > 0.0f ? Step.RangeCm : Definition.Weapon.RangeCm;
-	const float ExplosionRadius =
-	    Step.ExplosionRadiusCm > 0.0f ? Step.ExplosionRadiusCm : Definition.Weapon.ExplosionRadiusCm;
-	const bool bElemental = Definition.bUsesCyclingElement || Definition.bUsesDeterministicRandomElement ||
-	                        ReEchoWeaponRuntime::ElementFromDamageChannel(Definition.DamageChannelId, AttackSequence) !=
-	                            EReEchoElement::None;
-	const float Damage = ComputeStepDamage(Step, Combatant->Stats, bElemental);
+	    ReEchoWeaponRuntime::BuildProjectileDirections(AimDirection, Commit.ProjectileCount, Commit.SpreadDegrees);
 	bool bSpawnedAny = false;
 	for (const FVector& Direction : Directions)
 	{
@@ -557,58 +484,18 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoEffectiveWeaponDefinition& 
 			continue;
 		}
 		Projectile->SetOwner(WeaponOwner);
-		EReEchoElement Element = EReEchoElement::None;
-		if (Definition.bUsesCyclingElement)
-		{
-			Element = ConsumeNextElement();
-		}
-		else
-		{
-			Element = ReEchoWeaponRuntime::ElementFromDamageChannel(Definition.DamageChannelId, AttackSequence);
-		}
 		Projectile->InitializeProjectile(Direction,
-		                                 Damage,
+		                                 Commit.RawDamage,
 		                                 OwnerLocation,
-		                                 ReEchoElementReaction::GetElementColor(Element),
-		                                 Element,
+		                                 ReEchoElementReaction::GetElementColor(Commit.Element),
+		                                 Commit.Element,
 		                                 Combatant->Stats.ReactionEfficiency,
-		                                 ExplosionRadius,
-		                                 Range,
-		                                 LastAttackCommitId);
+		                                 Commit.ExplosionRadiusCm,
+		                                 Commit.RangeCm,
+		                                 Commit.Attack);
 		bSpawnedAny = true;
 	}
 	return bSpawnedAny;
-}
-
-EReEchoElement AReEchoWeaponActor::PeekNextElement() const
-{
-	switch (NextElementIndex % 12)
-	{
-		case 0:
-			return EReEchoElement::Water;
-		case 1:
-			return EReEchoElement::Flame;
-		case 2:
-			return EReEchoElement::Grass;
-		case 3:
-			return EReEchoElement::Flame;
-		case 4:
-			return EReEchoElement::Water;
-		case 5:
-			return EReEchoElement::Lightning;
-		case 6:
-			return EReEchoElement::Grass;
-		case 7:
-			return EReEchoElement::Lightning;
-		case 8:
-			return EReEchoElement::Water;
-		case 9:
-			return EReEchoElement::Grass;
-		case 10:
-			return EReEchoElement::Grass;
-		default:
-			return EReEchoElement::Water;
-	}
 }
 
 void AReEchoWeaponActor::UpdateElementIndicator()
@@ -617,7 +504,7 @@ void AReEchoWeaponActor::UpdateElementIndicator()
 	{
 		return;
 	}
-	const EReEchoElement Element = PeekNextElement();
+	const EReEchoElement Element = WeaponLogic.GetSnapshot().NextElement;
 	ElementIndicator->SetText(
 	    FText::FromString(FString::Printf(TEXT("NEXT: %s"), *ReEchoElementReaction::GetElementLabel(Element))));
 	ElementIndicator->SetTextRenderColor(ReEchoElementReaction::GetElementColor(Element).ToFColor(false));
@@ -644,17 +531,7 @@ void AReEchoWeaponActor::RefreshVisualState()
 	}
 }
 
-EReEchoElement AReEchoWeaponActor::ConsumeNextElement()
-{
-	const EReEchoElement Element = PeekNextElement();
-	NextElementIndex = (NextElementIndex + 1) % 12;
-	UpdateElementIndicator();
-	return Element;
-}
-
-bool AReEchoWeaponActor::SwingMelee(const FReEchoEffectiveWeaponDefinition& Definition,
-                                    const FReEchoCsvAttackStepRow& Step,
-                                    UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -667,42 +544,14 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoEffectiveWeaponDefinition& Defi
 	{
 		AimDirection = FVector::ForwardVector;
 	}
-	const EReEchoElement Element =
-	    ReEchoWeaponRuntime::ElementFromDamageChannel(Definition.DamageChannelId, AttackSequence);
-	const float Damage = ComputeStepDamage(Step, Combatant->Stats, Element != EReEchoElement::None);
-	const float Range = Step.RangeCm > 0.0f ? Step.RangeCm : Definition.Weapon.RangeCm;
-	const float ArcDegrees = Step.ArcDegrees > 0.0f ? Step.ArcDegrees : Definition.Weapon.ArcDegrees;
 	// 旋转攻击以角色为圆心覆盖完整一周；敌人受伤逻辑会从圆心向外施加击退。
-	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
+	for (AActor* Target : ReEchoWeaponGeometry::FindMeleeTargets(
+	         *GetWorld(), WeaponOwner, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
 	{
-		if (It->IsAlive() && ReEchoWeaponRuntime::IsInsideMeleeArc(
-		                         OwnerLocation, AimDirection, It->GetActorLocation(), Range, ArcDegrees))
-		{
-			ApplyDamageToEnemy(**It, Damage, OwnerLocation, WeaponOwner, Combatant, Element);
-		}
+		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant);
 	}
 	StartSwordAnimation();
 	return true;
-}
-
-float AReEchoWeaponActor::ApplyRoleDamageModifiers(const float BaseDamage, const FReEchoStatBlock& Stats)
-{
-	++AttackSequence;
-	float Damage = FMath::Max(0.0f, BaseDamage);
-	if (Stats.RoleId == TEXT("Hunter"))
-	{
-		CriticalAccumulator += FMath::Clamp(Stats.CriticalRate, 0.0f, 1.0f);
-		if (CriticalAccumulator >= 1.0f)
-		{
-			CriticalAccumulator -= 1.0f;
-			Damage *= 1.0f + FMath::Max(0.0f, Stats.CriticalEffect);
-		}
-	}
-	if (Stats.RoleId == TEXT("Brave") && AttackSequence % 2 == 0)
-	{
-		Damage *= 1.0f + FMath::Max(0.0f, Stats.EverySecondAttackBonus);
-	}
-	return Damage;
 }
 
 void AReEchoWeaponActor::StartSwordAnimation()
@@ -731,9 +580,7 @@ void AReEchoWeaponActor::SpawnSwordArc()
 void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	BasicAttackCadence.Tick(DeltaSeconds);
-	StepBehaviorRemaining = FMath::Max(0.0f, StepBehaviorRemaining - DeltaSeconds);
-	InvulnerableRemaining = FMath::Max(0.0f, InvulnerableRemaining - DeltaSeconds);
+	WeaponLogic.Tick(DeltaSeconds);
 	if (ElementIndicator && ElementIndicator->IsVisible())
 	{
 		if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))

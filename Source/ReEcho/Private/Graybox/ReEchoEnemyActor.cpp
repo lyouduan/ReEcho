@@ -16,6 +16,7 @@
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatAudioAdapterComponent.h"
 #include "Combat/ReEchoElementReaction.h"
+#include "Combat/ReEchoHitResolver.h"
 #include "Components/BillboardComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
@@ -157,6 +158,9 @@ void AReEchoEnemyActor::BeginPlay()
 	Super::BeginPlay();
 	AbilitySystem->InitAbilityActorInfo(this, this);
 	Combatant->BindToAbilitySystem(AbilitySystem);
+	CombatEvents->OnElementStateChanged.AddDynamic(this, &AReEchoEnemyActor::HandleElementStateChanged);
+	CombatEvents->OnHurt.AddDynamic(this, &AReEchoEnemyActor::HandleCombatHurt);
+	CombatEvents->OnDeath.AddDynamic(this, &AReEchoEnemyActor::HandleCombatDeath);
 }
 
 UAbilitySystemComponent* AReEchoEnemyActor::GetAbilitySystemComponent() const
@@ -167,7 +171,7 @@ UAbilitySystemComponent* AReEchoEnemyActor::GetAbilitySystemComponent() const
 void AReEchoEnemyActor::Configure(EReEchoEnemyKind InKind, int32 SpawnIndex)
 {
 	Kind = InKind;
-	ElementState = FReEchoElementState{};
+	Combatant->ResetElementState();
 	UpdateElementAttachmentVisual();
 	VisualVariantIndex = SpawnIndex;
 	FReEchoStatBlock Stats;
@@ -271,17 +275,18 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.SpawnIndex = VisualVariantIndex;
 	Result.Transform = GetActorTransform();
 	Result.CurrentHealth = Combatant ? Combatant->CurrentHealth : 0.0f;
-	Result.ElementState = ElementState;
+	Result.ElementState = Combatant ? Combatant->GetElementState() : FReEchoElementState{};
 	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	Result.ElementState.ImmunityUntil = FMath::Max(0.0f, ElementState.ImmunityUntil - CurrentTimeSeconds);
+	Result.ElementState.ImmunityUntil = FMath::Max(0.0f, Result.ElementState.ImmunityUntil - CurrentTimeSeconds);
 	for (TPair<FName, float>& ActiveStatus : Result.ElementState.ActiveStatusUntilSeconds)
 	{
 		ActiveStatus.Value = FMath::Max(0.0f, ActiveStatus.Value - CurrentTimeSeconds);
 	}
 	Result.ElementState.BurnNextTickTimeSeconds =
-	    Result.ElementState.bBurnActive ? FMath::Max(0.0f, ElementState.BurnNextTickTimeSeconds - CurrentTimeSeconds)
-	                                    : 0.0f;
-	Result.ElementState.BurnSourceActor.Reset();
+	    Result.ElementState.bBurnActive
+	        ? FMath::Max(0.0f, Result.ElementState.BurnNextTickTimeSeconds - CurrentTimeSeconds)
+	        : 0.0f;
+	Result.ElementState.BurnAttack = {};
 	Result.AttackCooldown = AttackCooldown;
 	Result.FuseRemaining = FuseRemaining;
 	Result.bBomberFuseActive = bBomberFuseActive;
@@ -300,18 +305,22 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 	{
 		Combatant->RestoreCurrentHealth(SavedState.CurrentHealth);
 	}
-	ElementState = SavedState.ElementState;
+	FReEchoElementState RestoredElementState = SavedState.ElementState;
 	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	ElementState.ImmunityUntil = CurrentTimeSeconds + FMath::Max(0.0f, SavedState.ElementState.ImmunityUntil);
-	for (TPair<FName, float>& ActiveStatus : ElementState.ActiveStatusUntilSeconds)
+	RestoredElementState.ImmunityUntil = CurrentTimeSeconds + FMath::Max(0.0f, SavedState.ElementState.ImmunityUntil);
+	for (TPair<FName, float>& ActiveStatus : RestoredElementState.ActiveStatusUntilSeconds)
 	{
 		ActiveStatus.Value = CurrentTimeSeconds + FMath::Max(0.0f, ActiveStatus.Value);
 	}
-	ElementState.BurnNextTickTimeSeconds =
-	    ElementState.bBurnActive
+	RestoredElementState.BurnNextTickTimeSeconds =
+	    RestoredElementState.bBurnActive
 	        ? CurrentTimeSeconds + FMath::Max(0.0f, SavedState.ElementState.BurnNextTickTimeSeconds)
 	        : 0.0f;
-	ElementState.BurnSourceActor.Reset();
+	RestoredElementState.BurnAttack = {};
+	if (Combatant)
+	{
+		Combatant->RestoreElementState(RestoredElementState);
+	}
 	AttackCooldown = FMath::Max(0.0f, SavedState.AttackCooldown);
 	FuseRemaining = FMath::Max(0.0f, SavedState.FuseRemaining);
 	bBomberFuseActive = SavedState.bBomberFuseActive;
@@ -407,7 +416,8 @@ bool AReEchoEnemyActor::UpdateHitReaction(float DeltaSeconds)
 
 void AReEchoEnemyActor::UpdateElementAttachmentVisual()
 {
-	const bool bHasAttachment = ReEchoElementReaction::IsCombatElement(ElementState.Attached);
+	const EReEchoElement AttachedElement = GetAttachedElement();
+	const bool bHasAttachment = ReEchoElementReaction::IsCombatElement(AttachedElement);
 	ElementAuraRing->SetVisibility(bHasAttachment);
 	ElementAttachmentLabel->SetVisibility(bHasAttachment);
 	ElementAuraLight->SetVisibility(bHasAttachment);
@@ -416,9 +426,9 @@ void AReEchoEnemyActor::UpdateElementAttachmentVisual()
 		return;
 	}
 
-	const FLinearColor ElementColor = ReEchoElementReaction::GetElementColor(ElementState.Attached);
+	const FLinearColor ElementColor = ReEchoElementReaction::GetElementColor(AttachedElement);
 	ElementAuraRing->SetTextRenderColor(ElementColor.ToFColor(false));
-	ElementAttachmentLabel->SetText(FText::FromString(ReEchoElementReaction::GetElementLabel(ElementState.Attached)));
+	ElementAttachmentLabel->SetText(FText::FromString(ReEchoElementReaction::GetElementLabel(AttachedElement)));
 	ElementAttachmentLabel->SetTextRenderColor(ElementColor.ToFColor(false));
 	ElementAuraLight->SetLightColor(ElementColor);
 }
@@ -445,20 +455,72 @@ void AReEchoEnemyActor::RefreshElementAttachmentVisual()
 	UpdateElementAttachmentVisual();
 }
 
+EReEchoElement AReEchoEnemyActor::GetAttachedElement() const
+{
+	return Combatant ? Combatant->GetElementState().Attached : EReEchoElement::None;
+}
+
+const FReEchoElementState& AReEchoEnemyActor::GetElementState() const
+{
+	static const FReEchoElementState EmptyState;
+	return Combatant ? Combatant->GetElementState() : EmptyState;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+FReEchoElementState& AReEchoEnemyActor::EditElementState()
+{
+	check(Combatant);
+	return Combatant->EditElementStateForTests();
+}
+#endif
+
+void AReEchoEnemyActor::HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event)
+{
+	if (Event.Combatant == Combatant)
+	{
+		UpdateElementAttachmentVisual();
+	}
+}
+
+void AReEchoEnemyActor::HandleCombatHurt(const FReEchoDamageEvent& Event)
+{
+	if (Event.Target != this || Event.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+	ReEchoAttackEffects::SpawnHitImpact(GetWorld(), Event.WorldLocation);
+	const FLinearColor Color = Event.Element == EReEchoElement::None
+	                               ? FLinearColor::White
+	                               : ReEchoElementReaction::GetElementColor(Event.Element);
+	AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), Event.WorldLocation, Event.AppliedDamage, Color);
+	StartHitReaction(Event.SourceWorldLocation);
+}
+
+void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
+{
+	if (Event.Target != this)
+	{
+		return;
+	}
+	UpdateElementAttachmentVisual();
+	SetActorEnableCollision(false);
+	DeathVisualRemaining = 0.45f;
+	SetLifeSpan(0.45f);
+}
+
 float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
                                                 const EReEchoElement Element,
                                                 const FVector& SourceLocation,
-                                                AActor* SourceActor,
                                                 const float ReactionEfficiency,
-                                                const FReEchoAttackCommitId AttackCommitId)
+                                                const FReEchoAttackIdentity Attack)
 {
 	FReEchoElementHitContext Context;
 	Context.SourceLocation = SourceLocation;
-	Context.SourceActor = SourceActor;
+	Context.Attack = Attack;
 	Context.ReactionEfficiency = ReactionEfficiency;
 	Context.SourceElementalAttack = Damage;
 	Context.SourceEchoEfficiency = 1.0f;
-	Context.AttackCommitId = AttackCommitId;
+	AActor* SourceActor = Attack.Source.Get();
 	if (SourceActor)
 	{
 		if (const UReEchoCombatantComponent* SourceCombatant =
@@ -473,67 +535,30 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 	return Result.ImmediateDamageApplied;
 }
 
+float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
+{
+	if (Kind != EReEchoEnemyKind::Shield)
+	{
+		return Intent.RawDamage;
+	}
+	const FVector ToSource = (Intent.SourceLocation - GetActorLocation()).GetSafeNormal2D();
+	const FVector Forward = GetActorForwardVector().GetSafeNormal2D();
+	return FVector::DotProduct(Forward, ToSource) >= 0.0f ? 0.0f : Intent.RawDamage * 2.0f;
+}
+
 float AReEchoEnemyActor::ReceiveGrayboxDamage(float Damage,
                                               const FVector& SourceLocation,
-                                              AActor* SourceActor,
                                               const FLinearColor& DamageNumberColor,
-                                              const FReEchoAttackCommitId AttackCommitId)
+                                              const FReEchoAttackIdentity Attack)
 {
-	if (Kind == EReEchoEnemyKind::Shield)
-	{
-		const FVector ToSource = (SourceLocation - GetActorLocation()).GetSafeNormal2D();
-		const FVector Forward = GetActorForwardVector().GetSafeNormal2D();
-		if (FVector::DotProduct(Forward, ToSource) >= 0.f)
-		{
-			return 0.f;
-		}
-		Damage *= 2.f;
-	}
-	UAbilitySystemComponent* SourceAbilitySystem = nullptr;
-	if (IAbilitySystemInterface* AbilitySource = Cast<IAbilitySystemInterface>(SourceActor))
-	{
-		SourceAbilitySystem = AbilitySource->GetAbilitySystemComponent();
-	}
-	const float Applied = ReEchoGameplayEffects::ApplyDamage(SourceAbilitySystem, *AbilitySystem, Damage);
-	FReEchoDamageEvent DamageEvent;
-	DamageEvent.CommitId = AttackCommitId;
-	DamageEvent.Source = SourceActor;
-	DamageEvent.Target = this;
-	DamageEvent.RawDamage = Damage;
-	DamageEvent.AppliedDamage = Applied;
-	DamageEvent.bBlocked = Applied <= 0.0f;
-	DamageEvent.WorldLocation = GetActorLocation();
-	CombatEvents->PublishHurt(DamageEvent);
-	if (SourceActor)
-	{
-		if (UReEchoCombatEventsComponent* SourceEvents =
-		        SourceActor->FindComponentByClass<UReEchoCombatEventsComponent>())
-		{
-			if (Applied > 0.0f)
-			{
-				SourceEvents->PublishHit(DamageEvent);
-			}
-			if (Applied > 0.0f && !IsAlive())
-			{
-				SourceEvents->PublishKill(DamageEvent);
-			}
-		}
-	}
-	if (Applied > 0.f)
-	{
-		ReEchoAttackEffects::SpawnHitImpact(GetWorld(), GetActorLocation());
-		AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), GetActorLocation(), Applied, DamageNumberColor);
-		StartHitReaction(SourceLocation);
-	}
-	if (!IsAlive())
-	{
-		ElementState.Attached = EReEchoElement::None;
-		UpdateElementAttachmentVisual();
-		SetActorEnableCollision(false);
-		DeathVisualRemaining = 0.45f;
-		SetLifeSpan(0.45f);
-	}
-	return Applied;
+	FReEchoHitIntent Intent;
+	Intent.Attack = Attack;
+	Intent.Target = this;
+	Intent.RawDamage = Damage;
+	Intent.SourceLocation = SourceLocation;
+	Intent.HitLocation = GetActorLocation();
+	const FReEchoHitResolved Result = ReEchoHitResolver::ResolvePhysicalHit(Intent);
+	return Result.AppliedDamage;
 }
 
 void AReEchoEnemyActor::Tick(float DeltaSeconds)
@@ -612,12 +637,17 @@ void AReEchoEnemyActor::Tick(float DeltaSeconds)
 				AttackCooldown = AttackInterval;
 				return;
 			}
-			if (UReEchoCombatantComponent* Target = Player->FindComponentByClass<UReEchoCombatantComponent>())
+			if (Player->FindComponentByClass<UReEchoCombatantComponent>())
 			{
-				const float Applied = Target->GetBoundAbilitySystem()
-				                          ? ReEchoGameplayEffects::ApplyDamage(
-				                                AbilitySystem, *Target->GetBoundAbilitySystem(), ContactDamage)
-				                          : Target->ApplyFinalDamage(ContactDamage);
+				FReEchoHitIntent Intent;
+				Intent.Attack.Source = this;
+				Intent.Attack.Sequence = ++AttackSequence;
+				Intent.Target = Player;
+				Intent.RawDamage = ContactDamage;
+				Intent.DamageSource = EReEchoDamageSource::Enemy;
+				Intent.SourceLocation = GetActorLocation();
+				Intent.HitLocation = Player->GetActorLocation();
+				const float Applied = ReEchoHitResolver::ResolvePhysicalHit(Intent).AppliedDamage;
 				if (Applied > 0.f)
 				{
 					if (AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Player))

@@ -8,27 +8,11 @@ class UReEchoCombatantComponent;
 
 USTRUCT(BlueprintType)
 
-struct REECHOCOMBAT_API FReEchoAttackCommitId
-{
-	GENERATED_BODY()
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	int64 Value = 0;
-
-	bool IsValid() const
-	{
-		return Value != 0;
-	}
-};
-
-USTRUCT(BlueprintType)
-
 struct REECHOCOMBAT_API FReEchoAttackCommittedEvent
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackCommitId CommitId;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> Source = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackIdentity Attack;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> Target = nullptr;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName WeaponId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName AttackPatternId = NAME_None;
@@ -37,15 +21,13 @@ struct REECHOCOMBAT_API FReEchoAttackCommittedEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Origin = FVector::ZeroVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Direction = FVector::ForwardVector;
 };
-
 USTRUCT(BlueprintType)
 
 struct REECHOCOMBAT_API FReEchoDamageEvent
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackCommitId CommitId;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> Source = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackIdentity Attack;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> Target = nullptr;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RawDamage = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AppliedDamage = 0.0f;
@@ -54,6 +36,7 @@ struct REECHOCOMBAT_API FReEchoDamageEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector WorldLocation = FVector::ZeroVector;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector SourceWorldLocation = FVector::ZeroVector;
 };
 
 USTRUCT(BlueprintType)
@@ -66,6 +49,9 @@ struct REECHOCOMBAT_API FReEchoHealthChangedEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float PreviousHealth = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CurrentHealth = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float MaximumHealth = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName Reason = NAME_None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackIdentity Attack;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
 };
 
 USTRUCT(BlueprintType)
@@ -78,7 +64,18 @@ struct REECHOCOMBAT_API FReEchoCombatantSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CurrentHealth = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float MaximumHealth = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoStatBlock Stats;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoElementState ElementState;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bAlive = false;
+};
+
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoElementStateChangedEvent
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UReEchoCombatantComponent> Combatant = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoElementState State;
 };
 
 USTRUCT(BlueprintType)
@@ -99,6 +96,9 @@ struct REECHOCOMBAT_API FReEchoAttackSnapshot
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoAttackCommittedDelegate, const FReEchoAttackCommittedEvent&, Event);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoDamageDelegate, const FReEchoDamageEvent&, Event);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoHealthChangedEventDelegate, const FReEchoHealthChangedEvent&, Event);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoElementStateChangedDelegate,
+                                            const FReEchoElementStateChangedEvent&,
+                                            Event);
 
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 
@@ -113,6 +113,7 @@ public:
 	UPROPERTY(BlueprintAssignable) FReEchoDamageDelegate OnKill;
 	UPROPERTY(BlueprintAssignable) FReEchoDamageDelegate OnDeath;
 	UPROPERTY(BlueprintAssignable) FReEchoHealthChangedEventDelegate OnHealthChanged;
+	UPROPERTY(BlueprintAssignable) FReEchoElementStateChangedDelegate OnElementStateChanged;
 
 	void PublishAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 	{
@@ -143,31 +144,9 @@ public:
 	{
 		OnHealthChanged.Broadcast(Event);
 	}
-};
 
-/** Single source of truth for basic-attack readiness. */
-struct REECHOCOMBAT_API FReEchoWeaponCadence
-{
-	bool TryCommit(float IntervalSeconds, FReEchoAttackCommitId& OutCommitId);
-	void Tick(float DeltaSeconds);
-	void Reset();
-
-	void CancelReadiness()
+	void PublishElementStateChanged(const FReEchoElementStateChangedEvent& Event)
 	{
-		RemainingSeconds = 0.0f;
+		OnElementStateChanged.Broadcast(Event);
 	}
-
-	float GetRemaining() const
-	{
-		return RemainingSeconds;
-	}
-
-	bool IsReady() const
-	{
-		return RemainingSeconds <= 0.0f;
-	}
-
-private:
-	float RemainingSeconds = 0.0f;
-	int64 LastCommitId = 0;
 };

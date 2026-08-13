@@ -3,6 +3,7 @@
 #include "AbilitySystemInterface.h"
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoAttackHost.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
 #include "GameFramework/Pawn.h"
@@ -51,7 +52,8 @@ UCLASS(Blueprintable)
 class REECHO_API AReEchoPlayerPawn : public APawn,
                                      public IAbilitySystemInterface,
                                      public IReEchoAttackHost,
-                                     public IReEchoAttackControllerHost
+                                     public IReEchoAttackControllerHost,
+                                     public IReEchoCombatTarget
 {
 	GENERATED_BODY()
 
@@ -60,6 +62,12 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	virtual bool IsCombatTargetAlive() const override;
+	virtual FVector GetCombatTargetLocation() const override;
+	virtual int32 GetCombatTargetTieBreakIndex() const override;
+	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override;
+	virtual bool
+	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override;
 
 	FString GetEquippedWeaponLabel() const;
 	float GetCurrentAttackInterval() const;

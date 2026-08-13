@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side Planner（本对话 AI 直接执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户负责最终 PIE、攻速和手感验收。
 - 本地规划 / 实现基线：实现最初基于 `origin/main@f499a1b`；2026-08-13 经用户审计选择后已合入 `origin/main@24b9f08` 的远端规则权威提交。后续发布前仍重新 fetch 并执行外部提交审计。
 - 实现分支：本地 `plan/41-combat-runtime-module`，独立 worktree。
@@ -42,6 +42,8 @@
 - **2026-08-13，攻击身份集中化：** 不再要求调用者自行组合和比较 `SourceActor + CommitId`。`ReEchoCombat` 导出统一 `FReEchoAttackIdentity`，封装来源、序号、有效性和比较语义；武器、攻击载体、元素、命中和事件只传完整身份。
 - **2026-08-13，战斗与武器分域：** `ReEchoCombat` 拥有攻击控制、目标契约、Combatant、伤害/元素/生命/死亡裁决和结果事件；`ReEchoWeapons` 拥有武器配置运行态、唯一攻击频率门、连段步骤、近战查询、逻辑投射物和法杖光波。Weapons 产生 `AttackCommitted`/`HitIntent`，Combat 返回 `HitResolved`，Weapons 不直接扣血或决定死亡。
 - **2026-08-13，逻辑与表现单向分层：** 逻辑模块维护唯一真实状态并产生事件/快照；Animation、VFX、UI、Audio 和武器视觉只读消费，不得用动画结束、特效碰撞、资源加载或回调控制 readiness、命中和结算。连续位置等状态用只读 Snapshot，出手/命中/死亡等边沿变化用事件。
+- **2026-08-13，策划数据编译边界：** XLSX/CSV 的读取、校验和显示字段保留在主 `ReEcho` 数据适配层；加载成功后，由适配层一次性编译并发布不含资源引用的不可变 Combat/Weapons Definition/RuleSet。逻辑模块只消费这些模块原生快照，不反向 include CSV Row、工作簿路径、颜色、VisualKey 或其他表现数据，避免数据加载器成为第二套运行时逻辑。
+- **2026-08-13，元素状态归属：** 附着、免疫、强化、状态期限和燃烧运行态归 `CombatantComponent` 唯一持有，由 Combat HitResolver 修改；Enemy/存档只能读取快照或走明确恢复入口，Enemy 的光环、标签与伤害数字订阅 Combat 事件刷新。禁止 Enemy、Projectile、Weapon 或表现适配器再保存第二份可写元素状态。
 - **执行中决策纪律：** 本 Plan 后续形成或改变的架构、权威数据、公共契约、玩法语义和关键取舍，先追加到本节并说明原因，再实施；不得只记录在对话、提示或 AI 摘要。
 
 ### 唯一普通攻击频率
@@ -146,26 +148,26 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 
 ## 锁定验收
 
-- [ ] `ReEchoCombat` 与 `ReEchoWeapons` 均为独立 Runtime Module，可在 Editor/Game Target 构建；依赖方向符合模块边界，两个逻辑模块都不依赖主模块、Audio、UI、Run、Recording、Presentation 或具体资源类。
-- [ ] `AttackControllerComponent` 同时承接自动/手动攻击请求；物理输入只在手动模式有效，自动模式只在存活、无菜单且存在合法目标时保持同一 GAS 普攻输入。
-- [ ] `TargetingComponent` 保留当前范围、最近距离与 SpawnIndex tie-break；无目标立即释放自动请求，不产生空挥。
-- [ ] 基础攻击 Ability 不再 cast/include `AReEchoPlayerPawn`，通过 Combat Host/Weapon Runtime 契约工作；自动与手动继续共用同一 `Input_Attack_Basic` spec。
-- [ ] 普通攻击只有一个频率状态：`AttackIntervalSeconds / AttackSpeed` 写入 WeaponRuntime 的下一次可提交时间。GAS、Pawn、WeaponActor 不存在第二个基础攻击 cooldown/interval/lock 计时器。
-- [ ] Plan38 的“持续按住时，暂时未就绪不会永久结束循环”保持；每次成功提交只产生一次步骤推进和统一 AttackIdentity，所有后续载体/命中/结算复用完整身份。
-- [ ] Weapons 只在成功提交后执行逻辑近战/Projectile/Wave；失败/等待请求不播放攻击、不生成逻辑载体、不推进步骤、不发布 AttackCommitted。
-- [ ] Weapons 只产生 `HitIntent`，Combat 是最终伤害/格挡/元素/生命/击杀/死亡唯一裁决者；任何攻击载体和表现代码都不能直接扣血。
-- [ ] CombatEvents 至少覆盖 AttackCommitted、HitResolved/Hit、Hurt、Kill、Death；事件带统一 AttackIdentity、目标标识和必要世界位置，但不携带 UI/音频/动画资源路径。
-- [ ] `HealthChanged` 和伤害/攻击事件使用类型化 Payload；Hit/Hurt/Kill/Death 对同一结算复用同一个 AttackIdentity/结果，不重复计算。
-- [ ] `FReEchoCombatantSnapshot` 与 `FReEchoAttackSnapshot` 由权威组件一次构造并通过只读 provider 返回；UI 无需 include 私有 AttributeSet/WeaponRuntime，也不保存第二份权威战斗状态。
-- [ ] 外部修改只经过类型化 Combat Command；自动/手动输入、菜单/死亡释放、攻击模式、伤害/治疗均没有供 Widget 直接写内部字段的公共 API。
-- [ ] 逻辑 Projectile/Wave 有稳定 ID 和只读 Snapshot；视觉对象只跟随逻辑快照，视觉缺失、延迟、提前销毁或资源加载失败不改变命中和伤害。
-- [ ] UI、动画、VFX、音频与 Presentation 订阅生命周期可安全解绑；Actor/World 销毁、暂停、重新开始或继续游戏后不存在悬空回调、重复绑定或重复反馈。
-- [ ] 删除/禁用全部表现消费者后，自动/手动、近战、投射物、光波、元素、死亡和 Echo 攻击仍可由逻辑自动化完整运行。
-- [ ] 现有伤害、格挡、治疗、死亡、元素、OnKill、Echo 武器攻击和主动技能结果不回归；自动普通攻击仍不写入 Recording。
-- [ ] `DurationSeconds` 不再控制或阻止自动/手动普通攻击；`AttackIntervalSeconds` 及其构筑修改只通过 WeaponRuntime 的唯一 readiness 生效，并有明确诊断/测试。
-- [ ] 移动的 `UCLASS/USTRUCT/UENUM` 有精确 Core Redirect 或无路径变化兼容层；旧 `/Script/ReEcho.*` Blueprint/WBP/DataAsset/SaveGame 引用实际加载成功，RunSave 版本不变。
-- [ ] `FReEchoBuildSnapshot`、Recording 字节语义、稳定 Gameplay Tag/FName/CSV ID 不变；无第二份战斗状态或兼容分叉。
-- [ ] Plan34 的 AudioEvents/XLSX/设置和 Plan40 的 Presentation/Animation2D/资产不被修改；主模块只提供只读事件/Snapshot表现适配接口。
+- [x] `ReEchoCombat` 与 `ReEchoWeapons` 均为独立 Runtime Module，可在 Editor/Game Target 构建；依赖方向符合模块边界，两个逻辑模块都不依赖主模块、Audio、UI、Run、Recording、Presentation 或具体资源类。
+- [x] `AttackControllerComponent` 同时承接自动/手动攻击请求；物理输入只在手动模式有效，自动模式只在存活、无菜单且存在合法目标时保持同一 GAS 普攻输入。
+- [x] `TargetingComponent` 保留当前范围、最近距离与 SpawnIndex tie-break；无目标立即释放自动请求，不产生空挥。
+- [x] 基础攻击 Ability 不再 cast/include `AReEchoPlayerPawn`，通过 Combat Host/Weapon Runtime 契约工作；自动与手动继续共用同一 `Input_Attack_Basic` spec。
+- [x] 普通攻击只有一个频率状态：`AttackIntervalSeconds / AttackSpeed` 写入 WeaponRuntime 的下一次可提交时间。GAS、Pawn、WeaponActor 不存在第二个基础攻击 cooldown/interval/lock 计时器。
+- [x] Plan38 的“持续按住时，暂时未就绪不会永久结束循环”保持；每次成功提交只产生一次步骤推进和统一 AttackIdentity，所有后续载体/命中/结算复用完整身份。
+- [x] Weapons 只在成功提交后执行逻辑近战/Projectile/Wave；失败/等待请求不播放攻击、不生成逻辑载体、不推进步骤、不发布 AttackCommitted。
+- [x] Weapons 只产生 `HitIntent`，Combat 是最终伤害/格挡/元素/生命/击杀/死亡唯一裁决者；任何攻击载体和表现代码都不能直接扣血。
+- [x] CombatEvents 至少覆盖 AttackCommitted、HitResolved/Hit、Hurt、Kill、Death；事件带统一 AttackIdentity、目标标识和必要世界位置，但不携带 UI/音频/动画资源路径。
+- [x] `HealthChanged` 和伤害/攻击事件使用类型化 Payload；Hit/Hurt/Kill/Death 对同一结算复用同一个 AttackIdentity/结果，不重复计算。
+- [x] `FReEchoCombatantSnapshot` 与 `FReEchoAttackSnapshot` 由权威组件一次构造并通过只读 provider 返回；UI 无需 include 私有 AttributeSet/WeaponRuntime，也不保存第二份权威战斗状态。
+- [x] 外部修改只经过类型化 Combat Command；自动/手动输入、菜单/死亡释放、攻击模式、伤害/治疗均没有供 Widget 直接写内部字段的公共 API。
+- [x] 逻辑 Projectile/Wave 有稳定 ID 和只读 Snapshot；视觉对象只跟随逻辑快照，视觉缺失、延迟、提前销毁或资源加载失败不改变命中和伤害。
+- [x] UI、动画、VFX、音频与 Presentation 订阅生命周期可安全解绑；Actor/World 销毁、暂停、重新开始或继续游戏后不存在悬空回调、重复绑定或重复反馈。
+- [x] 删除/禁用全部表现消费者后，自动/手动、近战、投射物、光波、元素、死亡和 Echo 攻击仍可由逻辑自动化完整运行。
+- [x] 现有伤害、格挡、治疗、死亡、元素、OnKill、Echo 武器攻击和主动技能结果不回归；自动普通攻击仍不写入 Recording。
+- [x] `DurationSeconds` 不再控制或阻止自动/手动普通攻击；`AttackIntervalSeconds` 及其构筑修改只通过 WeaponRuntime 的唯一 readiness 生效，并有明确诊断/测试。
+- [x] 移动的 `UCLASS/USTRUCT/UENUM` 有精确 Core Redirect 或无路径变化兼容层；旧 `/Script/ReEcho.*` Blueprint/WBP/DataAsset/SaveGame 引用实际加载成功，RunSave 版本不变。
+- [x] `FReEchoBuildSnapshot`、Recording 字节语义、稳定 Gameplay Tag/FName/CSV ID 不变；无第二份战斗状态或兼容分叉。
+- [x] Plan34 的 AudioEvents/XLSX/设置和 Plan40 的 Presentation/Animation2D/资产不被修改；主模块只提供只读事件/Snapshot表现适配接口。
 - [ ] 聚焦攻击/Combat/Weapon/Element/Echo/Save/Recording 测试、完整 `ReEcho.*` 自动化、UE 5.8 Editor 构建、项目校验和 `git diff --check` 通过。
 - [ ] 最终候选 FullRebuild，且只提交 `GIT_RULES.md` 允许的四个 Runtime Module Editor 预构建包及 manifest 跟踪文件。
 - [ ] 用户在 PIE 验收自动/手动切换、不同武器连续攻击、攻速变化、无目标、菜单/死亡释放、命中/击杀和继续游戏后模式恢复。
@@ -226,7 +228,12 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 ### 变化
 
 - 2026-08-13 用户审核后扩大既有 Review 候选：新增 `ReEchoWeapons` 逻辑模块，并锁定逻辑/表现单向分层；原“具体 Weapon/Projectile/Wave 逻辑保留主模块”的边界已废止，旧构建/自动化证据不再作为最终候选证据。
-- 将分散的 `SourceActor + CommitId` 调用约定收敛为统一 `FReEchoAttackIdentity`；该返修仍需在新双逻辑模块边界上完成编译验证。
+- 将分散的 `SourceActor + CommitId` 调用约定收敛为统一 `FReEchoAttackIdentity`；武器提交、Projectile/Wave、元素状态、Hit/Hurt/Kill/Death 全链复用同一身份。
+- 新增独立 `ReEchoWeapons` Runtime Module：`FReEchoWeaponLogic` 独占 readiness、步骤、暴击/元素游标和提交事务；逻辑 Projectile/Wave 共用 `UReEchoProjectileLogicComponent`、稳定 ID、Snapshot 和命中意图。
+- 武器提交采用确认/回滚事务；载体创建或世界执行失败时完整恢复 readiness、步骤、暴击累积和元素游标，但不复用已分配的攻击序号。
+- `ReEchoCombat` 新增统一 `ResolveHit`：Weapons 和视觉 Actor 不再注入结算回调或直接扣血；物理、元素、格挡、生命、击杀、死亡和类型化事件均由 Combat 裁决。
+- CSV 只在主模块读取并编译为不可变 `FReEchoElementRuleSet`；元素附着、免疫、强化与燃烧运行态迁入 `CombatantComponent`，Enemy 只保存/恢复快照并订阅事件刷新表现。
+- Player/Enemy 均实现最小 CombatTarget；敌人接触攻击也通过统一 HitResolver，`HealthChanged` 携带 Reason、AttackIdentity 与 DamageSource。
 
 - Added the standalone `ReEchoCombat` Runtime Module and moved GAS tags, attributes, effects, abilities, combat values, and `UReEchoCombatantComponent` behind a one-way `ReEcho -> ReEchoCombat` dependency.
 - Added typed attack/target host interfaces, `UReEchoAttackControllerComponent`, `UReEchoTargetingComponent`, combat events, read-only snapshots, and typed attack-mode commands.
@@ -235,21 +242,21 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 - Added a main-module audio adapter component that safely binds/unbinds Combat events and translates only semantic IDs into `ReEchoAudio`; neither runtime module depends on the other.
 - Added exact Core Redirects for reflected types moved from `/Script/ReEcho` to `/Script/ReEchoCombat` and a static module-boundary validator.
 
-### 历史证据（架构扩展后已失效，必须重跑）
+### 当前客观证据（2026-08-13）
 
-- `scripts/ue/Build-Editor.cmd -Configuration Development`: PASS; all three Runtime Module DLLs built.
-- `ReEcho.Combat.*`: PASS (single cadence and typed attack-mode command).
-- `ReEcho.AttackMode.HeldRepeat*`: PASS for manual and automatic held attack paths.
-- Complete `ReEcho.*`: 71 PASS; one unrelated pre-existing failure remains in `ReEcho.Run.EchoReplayResolver.EmptyStale`. The same focused test fails on untouched `main@f499a1b` because empty specific-replay selection resolves to latest instead of zero.
-- `git diff --check`: PASS. `python scripts/validate_project.py` passes after the new allowed prebuilt module is explicitly staged.
+- Development Editor build: PASS，四个 Runtime Module（ReEcho、ReEchoCombat、ReEchoWeapons、ReEchoAudio）均由 UHT/UBT 构建并刷新预构建清单。
+- `ReEcho.AttackMode.*`: 7/7 PASS；自动/手动 held、输入源、无录制、存档迁移和确定性目标均通过。
+- `ReEcho.Combat.Element*`: 4/4 PASS；纯规则、Burn 刷新、保存连续性、Growth/Conduct 世界行为均通过。
+- `ReEcho.Weapons.*`: 9/9 PASS；唯一频率门、步骤、装备数值、OnKill、Projectile/爆炸与 Run 快照均通过。
+- 完整 `ReEcho.*`: 本 Plan 影响范围全部 PASS；唯一失败仍为 Plan41 前已存在且未触碰的 `ReEcho.Run.EchoReplayResolver.EmptyStale`（Plan31 replay resolver 基线缺陷）。
+- clang-format 已对 42 个本次修改/新增 C++ 文件执行；最终 validator、diff-check 在显式暂存预构建文件后重跑。
 
 ### 当前剩余工作与风险
 
-- `ReEchoWeapons`、HitIntent/HitResolved、逻辑 Projectile/Wave 与只读表现适配尚在实施；完成前不得交给用户 PIE。
-- 完成客观验证后，User PIE 仍需验收 attack feel、all weapons、automatic/manual switching、target loss、menu/death release 和 Continue restoration。
+- User PIE 仍需验收 attack feel、all weapons、automatic/manual switching、target loss、menu/death release 和 Continue restoration。
 - The unrelated Plan31 replay-resolver baseline defect is not changed by Plan41 and needs a separately owned fix.
 - Final FullRebuild, merge to main, remote publication, and worktree cleanup remain gated on user PIE approval.
 
 ### 人工验收结果/请求
 
-等待新的双逻辑模块候选完成客观验证后再请求用户 PIE 验收。
+请用户从 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan41\ReEcho.uproject` 启动 PIE，按上面的人工验收清单测试；通过前不合入 main。

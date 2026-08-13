@@ -5455,6 +5455,14 @@
       "Type": "SymbolFile"
     },
     {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.pdb",
+      "Type": "SymbolFile"
+    },
+    {
       "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor.modules",
       "Type": "RequiredResource"
     }
