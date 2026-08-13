@@ -153,12 +153,15 @@ Report back with:
 - Preserved the dirty animation/art input in a recoverable stash and restored only Plan40-owned animation paths into the isolated `plan/40-data-driven-2d-presentation` worktree based on `origin/main@095a133`.
 - Stabilized the incoming Idle/Walk/Attack WIP: corrected the Walk finder/member assignment, standardized the authored lowercase `walk.walk` and `attack.attack` package references, restored display-scale application after clip changes, removed an unused Walk texture-frame array and aligned focused tests/documentation with the new assets.
 - Retained the explicit presentation decision priority `Attack > Walk > Idle`; Walk loops, Attack remains one-shot and repeated committed attacks restart from frame zero.
+- Added the first data-owned renderer contract (`FReEcho2DAnimationClip`) with Flipbook, collision-track reference, looping, restart, play-rate, scale/height, offset and sort policy. `UReEcho2DAnimationComponent::PlayClip` now applies that policy faithfully and the obsolete force-looping helper was removed.
+- Added `UReEcho2DFrameCollisionTrack` with separate per-frame body Hurtbox and weapon AttackHitbox polygons, attack-active flags, source revision/pivot/PPUU metadata, bounded polygon validation and Flipbook frame-count matching. Runtime queries remain deliberately disabled at this checkpoint.
 
 ### Evidence
 
 - UE 5.8 `ReEchoEditor` Win64 Development build passed on the isolated Plan40 worktree.
 - `ReEcho.Presentation.Animation2D.AssetProfiles` passed with the new Walk and Attack packages loaded successfully.
 - `git diff --check` passed for the stabilized candidate.
+- The renderer/collision-contract checkpoint builds successfully; focused automation proves authored one-shot/play-rate fidelity plus matching-track acceptance and frame-count mismatch rejection.
 
 ### Remaining risks
 

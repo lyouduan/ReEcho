@@ -4,6 +4,7 @@
 
 #include "PaperFlipbook.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Animation2D/ReEcho2DFrameCollisionTrack.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
                                  "ReEcho.Presentation.Animation2D.AssetProfiles",
@@ -55,8 +56,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestEqual(
 	    TEXT("Attack overrides movement"), ReEchoResolve2DAnimationState(true, true), EReEcho2DAnimationState::Attack);
 	TestTrue(TEXT("Walk state resolves to looping walk Flipbook"),
-	         Component->SetAnimationState(EReEcho2DAnimationState::Walk) &&
-	             Component->GetFlipbook() == WalkFlipbook && Component->IsLooping());
+	         Component->SetAnimationState(EReEcho2DAnimationState::Walk) && Component->GetFlipbook() == WalkFlipbook &&
+	             Component->IsLooping());
 	TestTrue(TEXT("Moon Staff attack state resolves to attack Flipbook"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Attack, false) &&
 	             Component->GetFlipbook() == StaffAttackFlipbook);
@@ -65,6 +66,27 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Repeated attacks restart one-shot playback"),
 	         Component->SetAnimationState(EReEcho2DAnimationState::Attack, false, true) &&
 	             FMath::IsNearlyZero(Component->GetPlaybackPosition()));
+
+	FReEcho2DAnimationClip AuthoredClip;
+	AuthoredClip.Flipbook = StaffAttackFlipbook;
+	AuthoredClip.bLooping = false;
+	AuthoredClip.PlayRate = 1.25f;
+	AuthoredClip.bUseNativeScale = true;
+	TestTrue(TEXT("Pure renderer accepts an authored one-shot clip"), Component->PlayClip(AuthoredClip, true));
+	TestFalse(TEXT("Pure renderer preserves authored one-shot policy"), Component->IsLooping());
+	TestEqual(TEXT("Pure renderer preserves authored play rate"), Component->GetPlayRate(), 1.25f);
+
+	UReEcho2DFrameCollisionTrack* CollisionTrack = NewObject<UReEcho2DFrameCollisionTrack>();
+	CollisionTrack->SourceFlipbook = WalkFlipbook;
+	CollisionTrack->SourceRevision = TEXT("test-walk-revision");
+	CollisionTrack->Frames.SetNum(WalkFlipbook->GetNumFrames());
+	FString CollisionError;
+	TestTrue(TEXT("Matching frame collision track validates"),
+	         CollisionTrack->ValidateForFlipbook(WalkFlipbook, CollisionError));
+	CollisionTrack->Frames.RemoveAt(CollisionTrack->Frames.Num() - 1);
+	TestFalse(TEXT("Frame-count mismatch is rejected"),
+	          CollisionTrack->ValidateForFlipbook(WalkFlipbook, CollisionError));
+	TestTrue(TEXT("Frame-count rejection is diagnostic"), CollisionError.Contains(TEXT("frame count")));
 
 	FReEcho2DAnimationProfile MissingProfile;
 	TestEqual(TEXT("Missing Flipbook fails safely"),

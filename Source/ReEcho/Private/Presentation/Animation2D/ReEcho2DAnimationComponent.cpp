@@ -34,6 +34,33 @@ UReEcho2DAnimationComponent::UReEcho2DAnimationComponent()
 	SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
 }
 
+bool UReEcho2DAnimationComponent::PlayClip(const FReEcho2DAnimationClip& Clip, const bool bRestart)
+{
+	if (!Clip.IsValid())
+	{
+		return false;
+	}
+
+	const bool bClipChanged = GetFlipbook() != Clip.Flipbook;
+	const bool bPolicyChanged = IsLooping() != Clip.bLooping || !FMath::IsNearlyEqual(GetPlayRate(), Clip.PlayRate);
+	ActiveClip = Clip;
+	bAnimationActive = true;
+	SetFlipbook(Clip.Flipbook);
+	SetLooping(Clip.bLooping);
+	SetPlayRate(Clip.PlayRate);
+	SetRelativeLocation(Clip.LocalOffset);
+	SetTranslucentSortPriority(Clip.TranslucentSortPriority);
+	SetHiddenInGame(false);
+	SetVisibility(true);
+	SetComponentTickEnabled(true);
+	ApplyDisplayScale();
+	if (bRestart || Clip.bRestartOnRequest || bClipChanged || bPolicyChanged || !IsPlaying())
+	{
+		PlayFromStart();
+	}
+	return true;
+}
+
 EReEcho2DAnimationActivationResult
 UReEcho2DAnimationComponent::ActivateProfile(const FReEcho2DAnimationProfile& InProfile)
 {
@@ -50,14 +77,14 @@ UReEcho2DAnimationComponent::ActivateProfile(const FReEcho2DAnimationProfile& In
 	ActiveProfile = InProfile;
 	ActiveState = EReEcho2DAnimationState::Default;
 	bAnimationActive = true;
-	SetLooping(true);
-	SetRelativeLocation(ActiveProfile.LocalOffset);
-	SetTranslucentSortPriority(ActiveProfile.TranslucentSortPriority);
-	ApplyFlipbook(ActiveProfile.DefaultFlipbook);
-	SetHiddenInGame(false);
-	SetVisibility(true);
-	SetComponentTickEnabled(true);
-	PlayFromStart();
+	FReEcho2DAnimationClip Clip;
+	Clip.Flipbook = ActiveProfile.DefaultFlipbook;
+	Clip.bLooping = true;
+	Clip.bUseNativeScale = ActiveProfile.bUseNativeScale;
+	Clip.WorldHeight = ActiveProfile.WorldHeight;
+	Clip.LocalOffset = ActiveProfile.LocalOffset;
+	Clip.TranslucentSortPriority = ActiveProfile.TranslucentSortPriority;
+	PlayClip(Clip, true);
 	return EReEcho2DAnimationActivationResult::Activated;
 }
 
@@ -76,9 +103,11 @@ bool UReEcho2DAnimationComponent::SetAnimationState(const EReEcho2DAnimationStat
 		return true;
 	}
 	ActiveState = NewState;
-	SetLooping(bShouldLoop);
-	ApplyFlipbook(ResolvedFlipbook);
-	SetLooping(bShouldLoop);
+	FReEcho2DAnimationClip Clip = ActiveClip;
+	Clip.Flipbook = ResolvedFlipbook;
+	Clip.bLooping = bShouldLoop;
+	Clip.bRestartOnRequest = bRestart;
+	PlayClip(Clip, bRestart);
 	return GetFlipbook() != nullptr;
 }
 
@@ -90,6 +119,7 @@ void UReEcho2DAnimationComponent::DeactivateAnimation()
 	SetHiddenInGame(true);
 	SetComponentTickEnabled(false);
 	bAnimationActive = false;
+	ActiveClip = FReEcho2DAnimationClip();
 	ActiveState = EReEcho2DAnimationState::Default;
 }
 
@@ -120,28 +150,11 @@ bool UReEcho2DAnimationComponent::RebuildSpriteAsset(UPaperSprite* Sprite)
 #endif
 }
 
-void UReEcho2DAnimationComponent::ApplyFlipbook(UPaperFlipbook* NewFlipbook)
-{
-	if (!NewFlipbook)
-	{
-		NewFlipbook = ActiveProfile.DefaultFlipbook;
-	}
-	if (GetFlipbook() != NewFlipbook)
-	{
-		SetFlipbook(NewFlipbook);
-	}
-	SetLooping(true);
-	SetComponentTickEnabled(true);
-	PlayFromStart();
-	ApplyDisplayScale();
-}
-
 void UReEcho2DAnimationComponent::ApplyDisplayScale()
 {
 	const UPaperFlipbook* Flipbook = GetFlipbook();
 	const float NativeWorldHeight = Flipbook ? Flipbook->GetRenderBounds().BoxExtent.Z * 2.0f : 0.0f;
-	const float UniformScale = ActiveProfile.bUseNativeScale || NativeWorldHeight <= 0.0f
-	                               ? 1.0f
-	                               : ActiveProfile.WorldHeight / NativeWorldHeight;
+	const float UniformScale =
+	    ActiveClip.bUseNativeScale || NativeWorldHeight <= 0.0f ? 1.0f : ActiveClip.WorldHeight / NativeWorldHeight;
 	SetRelativeScale3D(FVector(UniformScale * FacingSign, UniformScale, UniformScale));
 }
