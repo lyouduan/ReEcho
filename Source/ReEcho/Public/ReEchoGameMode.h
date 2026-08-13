@@ -16,8 +16,11 @@ class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
+class UReEchoEchoManagementWidget;
+class UReEchoStoredEchoEntryWidget;
 class UMaterialInterface;
 class UTexture2D;
+enum class EReEchoInventoryShopMode : uint8;
 struct FReEchoEncounterRuntimeState;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
 UCLASS()
@@ -96,6 +99,7 @@ private:
 	bool bAwaitingStartChoice = true;
 	bool bQuitConfirmationVisible = false;
 	bool bContinueRunAfterShop = false;
+	bool bPostTraitShopClosing = false;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
@@ -151,7 +155,22 @@ private:
 	UFUNCTION()
 	void HandleShopPurchaseRequested(FName ItemId);
 
-	void ShowInventoryShopMenu(bool bShowShop);
+	UFUNCTION()
+	void HandleEchoStoreRequested();
+
+	UFUNCTION()
+	void HandleEchoSkipRequested();
+
+	UFUNCTION()
+	void HandleEchoReplaceRequested(FGuid RecordingId);
+
+	UFUNCTION()
+	void HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds);
+
+	UFUNCTION()
+	void HandleEchoSkipAndCloseRequested();
+
+	void ShowInventoryShopMenu(EReEchoInventoryShopMode Mode);
 	/** Opens the post-choice shop outside the card button's Slate input dispatch. */
 	void ShowPostTraitShop();
 

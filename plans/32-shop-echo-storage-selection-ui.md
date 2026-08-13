@@ -6,8 +6,8 @@
 - Executor owner: Plan32 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
-- Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
+- Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Human validation: `Passed` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: old UI behavior reference `73a8ed6`; acquisition behavior reference `e2b1047`; final implementation must adapt onto current `origin/main` containing Plans28/30/31/37.
 - Implementation branch: continue local `plan/32-shop-echo-selection-ui`; do not merge either historical reference commit wholesale.
 - Depends on / Blocks: may execute in parallel with Plans26/28/30 under explicit human approval. It consumes Plan30's accepted APIs and the locked Plan31 replay semantics; the Planner owns semantic integration of overlapping Widget/GameMode edits.
@@ -33,19 +33,19 @@ The shared inventory/shop screen uses a typed `Inventory`, `ManualShop` or `Post
 
 ## Locked acceptance
 
-- [ ] Existing shop purchases, inventory presentation, Time Shards and Plan26 weapon label remain functional and visually separate from echo management.
-- [ ] Pending recording displays at least encounter number and enough build/weapon identity to distinguish candidates without exposing GUIDs to the player.
-- [ ] Store, skip and replace are explicit. Closing with an undecided pending recording opens a two-choice confirmation (`Skip and continue` / `Return to selection`); it never silently loses the recording.
-- [ ] Stored slots accurately show used/capacity state. Replacement updates the view immediately and removes any now-stale replay selection transactionally.
-- [ ] Replay selection enforces unavailable/one/many limits, prevents duplicates and clearly marks the selected set. Unavailable mode communicates automatic previous-encounter replay.
-- [ ] The shop catalog exposes one `SHOP_REPLAY_UNLOCK` item costing 30 Time Shards. A successful first purchase deducts exactly 30, records ownership, changes the specific-replay limit from 0 to 3, saves immediately and refreshes the current shop/echo panel without closing it.
-- [ ] Insufficient funds and repeat purchase reject atomically: no currency loss, duplicate inventory entry, limit change or false success. Save/Continue preserves both ownership and the unlocked limit. Ordinary shop items still purchase normally.
-- [ ] Store/replace/skip/select checks the authoritative transaction result, saves immediately only after success, refreshes the snapshot and never reports success after a rejected command.
-- [ ] Close eligibility is derived from authoritative pending/selection state, not from a confirmation control's existence. Skip-and-continue closes only after successful Skip and refreshed pending-clear evidence.
-- [ ] Shop close passes through existing modal/input restoration and starts the next encounter exactly once through an idempotent/in-progress transition. Reopening before close reflects authoritative RunSubsystem state.
-- [ ] UI delegates pass stable GUIDs/commands; widget code never owns full recordings, writes save state or indexes directly into mutable RunSubsystem arrays.
-- [ ] Executor stops after formatting, project validation, Editor build and cheap state/delegate tests, then supplies a short runnable handoff. The user performs layout, wording, click flow and end-to-end PIE validation.
-- [ ] No generated products, machine-local paths or out-of-scope assets are committed.
+- [x] Existing shop purchases, inventory presentation, Time Shards and Plan26 weapon label remain functional and visually separate from echo management.
+- [x] Pending recording displays at least encounter number and enough build/weapon identity to distinguish candidates without exposing GUIDs to the player.
+- [x] Store, skip and replace are explicit. Closing with an undecided pending recording opens a two-choice confirmation (`Skip and continue` / `Return to selection`); it never silently loses the recording.
+- [x] Stored slots accurately show used/capacity state. Replacement updates the view immediately and removes any now-stale replay selection transactionally.
+- [x] Replay selection enforces unavailable/one/many limits, prevents duplicates and clearly marks the selected set. Unavailable mode communicates automatic previous-encounter replay.
+- [x] The shop catalog exposes one `SHOP_REPLAY_UNLOCK` item costing 30 Time Shards. A successful first purchase deducts exactly 30, records ownership, changes the specific-replay limit from 0 to 3, saves immediately and refreshes the current shop/echo panel without closing it.
+- [x] Insufficient funds and repeat purchase reject atomically: no currency loss, duplicate inventory entry, limit change or false success. Save/Continue preserves both ownership and the unlocked limit. Ordinary shop items still purchase normally.
+- [x] Store/replace/skip/select checks the authoritative transaction result, saves immediately only after success, refreshes the snapshot and never reports success after a rejected command.
+- [x] Close eligibility is derived from authoritative pending/selection state, not from a confirmation control's existence. Skip-and-continue closes only after successful Skip and refreshed pending-clear evidence.
+- [x] Shop close passes through existing modal/input restoration and starts the next encounter exactly once through an idempotent/in-progress transition. Reopening before close reflects authoritative RunSubsystem state.
+- [x] UI delegates pass stable GUIDs/commands; widget code never owns full recordings, writes save state or indexes directly into mutable RunSubsystem arrays.
+- [x] Executor stops after formatting, project validation, Editor build and cheap state/delegate tests, then supplies a short runnable handoff. The user performs layout, wording, click flow and end-to-end PIE validation.
+- [x] No generated products, machine-local paths or out-of-scope assets are committed except the required reviewed Win64 Editor prebuilt publication bundle.
 
 ## Step 0 gate
 
@@ -155,8 +155,7 @@ GameMode (`Source/ReEcho/Private/ReEchoGameMode.cpp` only; `ReEchoGameMode.h` un
   (executor performs no visual sign-off).
 
 ### Human validation result/request
-- Status: `PendingBeforeClose`. User to run the PIE checklist (store / skip / full-replace-cancel / locked-specific
-  replay / single / multi / purchases / close-once) and then report `Passed` or concrete rework.
+- Status: `Passed` on 2026-08-13 by user manual testing. The user reported Plan32 should be complete and asked the Planner to整理、合并、推送.
 
 ### Planner integration review (rework completed)
 - Integration rework pass executed on the merged Plan31+31 baseline (`plan/32-shop-echo-selection-ui`, HEAD after the local main merge). All planner-review items closed:
@@ -174,3 +173,10 @@ GameMode (`Source/ReEcho/Private/ReEchoGameMode.cpp` only; `ReEchoGameMode.h` un
 - Affected `ReEcho.*` tests (Plan30 `EchoStorage*`, Plan31 `EchoReplayResolver.*`, Shop `PurchaseUpdatesInventory` / `PostDrawCurrencyCanPurchase`, Traits/Weapons) all `Result={Success}`; no `Result={Failure}` in the run.
 - `git diff --check`: clean. Path audit: only the allowed files changed; `shared/LESSONS.md` left dirty/untouched/unstaged per Planner audit; no RunSubsystem/save/replay/asset touched.
 - `clang-format`: binary not present locally; code follows the repo `.clang-format` style manually.
+
+### Planner closure (2026-08-13)
+- Remote safety check: `git fetch --prune origin` found local `main` and `origin/main` aligned before integration (`rev-list main...origin/main` = `0 0`).
+- Physical/Git conflict: read-only merge prediction reported no conflicts; the actual `--no-ff --no-commit` merge applied cleanly.
+- Logical conflict: Plan32 actual writes remain the shop/echo-management UI, narrow GameMode handoff, shop unlock/catalog path, RunSubsystem transaction support and focused tests. Current main-only audio/rule/Plan39 changes are retained because they were independent main-side additions.
+- Coupling: Plan32 releases its active shop UI ownership. Plan26 remains a read-only reserved UI consumer; Plan34 and Plan38 reservations remain untouched.
+- Human validation is accepted as `Passed`; final publication evidence is recorded in the push report rather than this Plan file when generated bundle hashes change during the release build.

@@ -1,158 +1,211 @@
-// Plan31 UI state / delegate automation: echo store / skip / replace / replay-selection.
-// Exercises the widget's decision state machine by injecting a RunSubsystem directly;
-// the widget only ever holds the read-only summary and stable GUIDs, never full recordings.
+// Plan32 rework verification: the authoritative echo store/skip/replace/select
+// commands (owned by UReEchoRunSubsystem) and the presentation-only intermission
+// widget. The GameMode close-gate that consumes these commands is covered by the
+// Editor (UHT/UBT) build; its data dependency is exactly `bHasPendingRecording`,
+// which these tests exercise directly. No PIE / visual verification is performed.
+//
+// NOTE: This rework restores SHOP_REPLAY_UNLOCK as a shop purchase (Time Shards to max specific replay slot limit). It does NOT reuse
+// the rejected plan/31-shop-echo-selection-ui self-contained widget API.
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "Misc/AutomationTest.h"
-
 #include "Core/ReEchoTypes.h"
-#include "Engine/GameInstance.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "UI/ReEchoInventoryShopWidget.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopEchoSelectionTest,
-                                 "ReEcho.Shop.EchoSelection.Plan31",
-                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+#include "Misc/AutomationTest.h"
 
 namespace
 {
-	FReEchoRecording MakeRecording(int32 Index)
-	{
-		FReEchoRecording R;
-		R.Id = FGuid::NewGuid();
-		R.EncounterIndex = Index;
-		R.Duration = 1.0f;
-		R.MapId = FName(TEXT("Map"));
-		R.BuildSnapshot.CharacterId = FName(*FString::Printf(TEXT("Char%d"), Index));
-		R.BuildSnapshot.WeaponId = FName(*FString::Printf(TEXT("Wpn%d"), Index));
-		return R;
-	}
+FReEchoRecording MakeRecording()
+{
+	FReEchoRecording Recording;
+	Recording.Id = FGuid::NewGuid();
+	return Recording;
+}
 } // namespace
 
-bool FReEchoShopEchoSelectionTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopEchoSelectionPlan32Commands,
+                                 "ReEcho.Shop.EchoSelection.Plan32.Commands",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoShopEchoSelectionPlan32Commands::RunTest(const FString& Parameters)
 {
-	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
-	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	if (!TestNotNull(TEXT("RunSubsystem created"), Run))
+	// UReEchoRunSubsystem has ClassWithin=GameInstance, so it must be created with a
+	// valid GameInstance outer (a transient-package outer triggers a ClassWithin ensure).
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	TestNotNull(TEXT("Run subsystem is available via a GameInstance"), RunSubsystem);
+	if (!RunSubsystem)
 	{
 		return false;
 	}
 
+	// Stage a completed encounter as the pending recording.
+	const FReEchoRecording First = MakeRecording();
+	TestEqual(TEXT("Staging a valid recording succeeds"),
+	          RunSubsystem->StagePendingRecording(First),
+	          EReEchoEchoStorageResult::Success);
+	TestTrue(TEXT("A staged recording is reported as pending"),
+	         RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
+
+	// Storing the pending recording moves it into permanent storage.
+	TestEqual(TEXT("Storing the pending recording succeeds"),
+	          RunSubsystem->StorePendingRecording(),
+	          EReEchoEchoStorageResult::Success);
+	TestFalse(TEXT("No pending recording remains after storing"),
+	          RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
+	const FReEchoEchoStorageSummary AfterStore = RunSubsystem->GetEchoStorageSummary();
+	const bool bStoredFirst = AfterStore.StoredEchoes.ContainsByPredicate(
+	    [&First](const FReEchoStoredEchoSummary& Stored) { return Stored.RecordingId == First.Id; });
+	TestTrue(TEXT("The stored echo snapshot contains the staged recording"), bStoredFirst);
+
+	// Replacing: stage a second recording and replace the first stored echo with it.
+	const FReEchoRecording Second = MakeRecording();
+	TestEqual(TEXT("Staging the replacement recording succeeds"),
+	          RunSubsystem->StagePendingRecording(Second),
+	          EReEchoEchoStorageResult::Success);
+	TestEqual(TEXT("Replacing a stored echo with the pending recording succeeds"),
+	          RunSubsystem->StorePendingRecordingReplacing(First.Id),
+	          EReEchoEchoStorageResult::Success);
+	TestFalse(TEXT("No pending recording remains after replacing"),
+	          RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
+	const FReEchoEchoStorageSummary AfterReplace = RunSubsystem->GetEchoStorageSummary();
+	TestEqual(TEXT("Storage still holds exactly one echo after replace"), AfterReplace.StoredEchoes.Num(), 1);
+	const bool bStoredSecond = AfterReplace.StoredEchoes.ContainsByPredicate(
+	    [&Second](const FReEchoStoredEchoSummary& Stored) { return Stored.RecordingId == Second.Id; });
+	TestTrue(TEXT("The stored echo snapshot now contains the replacement recording"), bStoredSecond);
+
+	// Replacing with an unknown target is rejected and leaves the pending recording intact.
+	const FReEchoRecording Third = MakeRecording();
+	TestEqual(TEXT("Staging the third recording succeeds"),
+	          RunSubsystem->StagePendingRecording(Third),
+	          EReEchoEchoStorageResult::Success);
+	TestEqual(TEXT("Replacing with an unknown target is rejected"),
+	          RunSubsystem->StorePendingRecordingReplacing(FGuid::NewGuid()),
+	          EReEchoEchoStorageResult::InvalidReplacementTarget);
+	TestTrue(TEXT("The pending recording is preserved after a rejected replacement"),
+	         RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
+
+	// Skipping the pending recording drops permanent-storage eligibility.
+	UGameInstance* SkipGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* SkipSubsystem = NewObject<UReEchoRunSubsystem>(SkipGameInstance);
+	const FReEchoRecording Fourth = MakeRecording();
+	TestEqual(TEXT("Staging for the skip path succeeds"),
+	          SkipSubsystem->StagePendingRecording(Fourth),
+	          EReEchoEchoStorageResult::Success);
+	TestEqual(TEXT("Skipping the pending recording succeeds"),
+	          SkipSubsystem->SkipPendingRecordingStorage(),
+	          EReEchoEchoStorageResult::Success);
+	TestFalse(TEXT("No pending recording remains after skipping"),
+	          SkipSubsystem->GetEchoStorageSummary().bHasPendingRecording);
+
+	// Selection: choosing replays is bounded by the specific-replay limit and must reference stored echoes.
+	UGameInstance* SelectGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* SelectSubsystem = NewObject<UReEchoRunSubsystem>(SelectGameInstance);
+	const FReEchoRecording Fifth = MakeRecording();
+	TestEqual(TEXT("Staging for the selection path succeeds"),
+	          SelectSubsystem->StagePendingRecording(Fifth),
+	          EReEchoEchoStorageResult::Success);
+	TestEqual(TEXT("Storing the selection-path recording succeeds"),
+	          SelectSubsystem->StorePendingRecording(),
+	          EReEchoEchoStorageResult::Success);
+
+	SelectSubsystem->SetSpecificReplayLimit(0);
+	TestEqual(TEXT("Selecting any replay is rejected when the limit is zero"),
+	          SelectSubsystem->SetSelectedReplayIds({Fifth.Id}),
+	          EReEchoEchoStorageResult::ReplayLimitExceeded);
+
+	SelectSubsystem->SetSpecificReplayLimit(2);
+	TestEqual(TEXT("Selecting a stored echo succeeds within the limit"),
+	          SelectSubsystem->SetSelectedReplayIds({Fifth.Id}),
+	          EReEchoEchoStorageResult::Success);
+	TestTrue(TEXT("The chosen replay id is recorded in the summary"),
+	         SelectSubsystem->GetEchoStorageSummary().SelectedReplayIds.Contains(Fifth.Id));
+
+	TestEqual(TEXT("Selecting an unknown echo is rejected"),
+	          SelectSubsystem->SetSelectedReplayIds({FGuid::NewGuid()}),
+	          EReEchoEchoStorageResult::InvalidRecordingId);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopEchoSelectionPlan32IntermissionWidget,
+                                 "ReEcho.Shop.EchoSelection.Plan32.IntermissionWidget",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoShopEchoSelectionPlan32IntermissionWidget::RunTest(const FString& Parameters)
+{
 	UReEchoInventoryShopWidget* Widget = NewObject<UReEchoInventoryShopWidget>(GetTransientPackage());
-	if (!TestNotNull(TEXT("Widget created"), Widget))
+	TestNotNull(TEXT("Inventory/shop widget can be created without a gameplay subsystem"), Widget);
+	if (!Widget)
 	{
 		return false;
 	}
 
-	// ---- Store into a free slot ----
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
-	Run->SetSpecificReplayLimit(0);
-	FReEchoRecording R1 = MakeRecording(1);
-	Run->StagePendingRecording(R1);
-	Widget->RefreshEchoState(Run);
-	TestTrue(TEXT("Pending staged"), Widget->GetEchoSummary().bHasPendingRecording);
-	TestFalse(TEXT("Pending undecided before store"), Widget->IsPendingEchoDecided());
+	Widget->ShowInventory(0, {});
+	TestEqual(TEXT("Inventory has its own typed context"),
+	          Widget->GetMode(),
+	          EReEchoInventoryShopMode::Inventory);
 
-	Widget->RequestStoreEcho(Run);
-	TestFalse(TEXT("Pending cleared after store"), Widget->GetEchoSummary().bHasPendingRecording);
-	TestEqual(TEXT("One stored echo"), Widget->GetEchoSummary().StoredEchoes.Num(), 1);
-	TestTrue(TEXT("Pending decided after store"), Widget->IsPendingEchoDecided());
+	Widget->ShowShop(0, {});
+	TestEqual(TEXT("Manual shop has its own typed context"),
+	          Widget->GetMode(),
+	          EReEchoInventoryShopMode::ManualShop);
 
-	// ---- Skip keeps the rolling latest echo but drops the storage decision ----
-	FReEchoRecording R2 = MakeRecording(2);
-	Run->StagePendingRecording(R2);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestSkipEcho(Run);
-	TestFalse(TEXT("Pending cleared after skip"), Widget->GetEchoSummary().bHasPendingRecording);
-	TestEqual(TEXT("Stored unchanged after skip"), Widget->GetEchoSummary().StoredEchoes.Num(), 1);
+	FReEchoEchoStorageSummary Summary;
+	Summary.bHasPendingRecording = true;
+	Widget->ShowPostTraitIntermission(0, {}, Summary);
+	TestEqual(TEXT("Echo management is restricted to the post-trait context"),
+	          Widget->GetMode(),
+	          EReEchoInventoryShopMode::PostTraitIntermission);
 
-	// ---- Full storage: store requires replacement; cancel returns to selection ----
-	FReEchoRecording R3 = MakeRecording(3);
-	Run->StagePendingRecording(R3);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	FReEchoRecording R4 = MakeRecording(4);
-	Run->StagePendingRecording(R4);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	TestEqual(TEXT("Storage full (3)"), Widget->GetEchoSummary().StoredEchoes.Num(), 3);
+	return true;
+}
 
-	FReEchoRecording R5 = MakeRecording(5);
-	Run->StagePendingRecording(R5);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run); // full -> replacing mode (never silent evict)
-	TestTrue(TEXT("Enter replacing mode when full"),
-	         Widget->GetEchoPendingDecision() == EReEchoShopEchoPendingDecision::Replacing);
-	TestTrue(TEXT("Pending still undecided in replacing"), !Widget->IsPendingEchoDecided());
-	TestTrue(TEXT("Pending still present in replacing"), Widget->GetEchoSummary().bHasPendingRecording);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopReplayUnlockPurchase,
+                                 "ReEcho.Shop.EchoSelection.Plan32.ReplayUnlockPurchase",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-	Widget->RequestCancelReplaceEcho();
-	TestTrue(TEXT("Cancel replace returns to Undecided"),
-	         Widget->GetEchoPendingDecision() == EReEchoShopEchoPendingDecision::Undecided);
+bool FReEchoShopReplayUnlockPurchase::RunTest(const FString& Parameters)
+{
+	// UReEchoRunSubsystem has ClassWithin=GameInstance, so it must be created with a
+	// valid GameInstance outer (a transient-package outer triggers a ClassWithin ensure).
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	TestNotNull(TEXT("Run subsystem is available via a GameInstance"), RunSubsystem);
+	if (!RunSubsystem)
+	{
+		return false;
+	}
 
-	const FGuid TargetId = Widget->GetEchoSummary().StoredEchoes[1].RecordingId;
-	Widget->RequestReplaceEcho(Run, TargetId);
-	TestFalse(TEXT("Pending cleared after replace"), Widget->GetEchoSummary().bHasPendingRecording);
-	TestEqual(TEXT("Still 3 stored after replace"), Widget->GetEchoSummary().StoredEchoes.Num(), 3);
-	TestTrue(TEXT("Pending decided after replace"), Widget->IsPendingEchoDecided());
+	// Seed enough Time Shards for the 30-shard unlock and start from a locked state.
+	RunSubsystem->TimeShards = 50;
+	RunSubsystem->SetSpecificReplayLimit(0);
+	TestEqual(TEXT("Specific replay limit starts locked at 0"),
+	          RunSubsystem->GetEchoStorageSummary().SpecificReplayLimit, 0);
 
-	// ---- SpecificReplayLimit == 1: single-select + toggle off ----
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
-	Run->SetSpecificReplayLimit(1);
-	FReEchoRecording B1 = MakeRecording(11);
-	Run->StagePendingRecording(B1);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	FReEchoRecording B2 = MakeRecording(12);
-	Run->StagePendingRecording(B2);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	TestEqual(TEXT("Two stored for limit-1 selection"), Widget->GetEchoSummary().StoredEchoes.Num(), 2);
+	const int32 BeforeShards = RunSubsystem->TimeShards;
+	TestTrue(TEXT("Purchasing SHOP_REPLAY_UNLOCK succeeds"),
+	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_REPLAY_UNLOCK")));
+	TestEqual(TEXT("Time Shards are consumed by the 30-shard price"),
+	          RunSubsystem->TimeShards, BeforeShards - 30);
+	TestEqual(TEXT("Specific replay limit is raised to the max (3)"),
+	          RunSubsystem->GetEchoStorageSummary().SpecificReplayLimit,
+	          ReEchoEchoStorage::MaxSpecificReplayLimit);
+	TestTrue(TEXT("SHOP_REPLAY_UNLOCK is recorded in inventory"),
+	         RunSubsystem->InventoryItems.Contains(TEXT("SHOP_REPLAY_UNLOCK")));
 
-	const FGuid S0 = Widget->GetEchoSummary().StoredEchoes[0].RecordingId;
-	const FGuid S1 = Widget->GetEchoSummary().StoredEchoes[1].RecordingId;
-	Widget->ToggleReplaySelection(Run, S0);
-	TestEqual(TEXT("Selection size 1 after first toggle"), Widget->GetEchoSummary().SelectedReplayIds.Num(), 1);
-	Widget->ToggleReplaySelection(Run, S1); // limit 1: replaces previous
-	TestEqual(TEXT("Selection still 1 after second toggle (single-select)"), Widget->GetEchoSummary().SelectedReplayIds.Num(), 1);
-	TestTrue(TEXT("Selection now S1"), Widget->GetEchoSummary().SelectedReplayIds[0] == S1);
-	Widget->ToggleReplaySelection(Run, S1); // toggle off
-	TestEqual(TEXT("Selection empty after toggle off"), Widget->GetEchoSummary().SelectedReplayIds.Num(), 0);
+	// Repeat purchase is rejected and does not double-charge.
+	const int32 AfterFirst = RunSubsystem->TimeShards;
+	TestFalse(TEXT("A second purchase of SHOP_REPLAY_UNLOCK is rejected"),
+	          RunSubsystem->PurchaseShopItem(TEXT("SHOP_REPLAY_UNLOCK")));
+	TestEqual(TEXT("Rejected repeat purchase does not consume shards"),
+	          RunSubsystem->TimeShards, AfterFirst);
 
-	// ---- SpecificReplayLimit == 2: multi-select, third rejected ----
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
-	Run->SetSpecificReplayLimit(2);
-	FReEchoRecording C1 = MakeRecording(21);
-	Run->StagePendingRecording(C1);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	FReEchoRecording C2 = MakeRecording(22);
-	Run->StagePendingRecording(C2);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	FReEchoRecording C3 = MakeRecording(23);
-	Run->StagePendingRecording(C3);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	const FGuid S0b = Widget->GetEchoSummary().StoredEchoes[0].RecordingId;
-	const FGuid S1b = Widget->GetEchoSummary().StoredEchoes[1].RecordingId;
-	const FGuid S2b = Widget->GetEchoSummary().StoredEchoes[2].RecordingId;
-	Widget->ToggleReplaySelection(Run, S0b);
-	Widget->ToggleReplaySelection(Run, S1b);
-	TestEqual(TEXT("Two selected"), Widget->GetEchoSummary().SelectedReplayIds.Num(), 2);
-	Widget->ToggleReplaySelection(Run, S2b); // at limit -> rejected
-	TestEqual(TEXT("Third rejected at limit 2"), Widget->GetEchoSummary().SelectedReplayIds.Num(), 2);
-
-	// ---- SpecificReplayLimit == 0: no selection offered ----
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
-	Run->SetSpecificReplayLimit(0);
-	FReEchoRecording D1 = MakeRecording(31);
-	Run->StagePendingRecording(D1);
-	Widget->RefreshEchoState(Run);
-	Widget->RequestStoreEcho(Run);
-	const FGuid S0c = Widget->GetEchoSummary().StoredEchoes[0].RecordingId;
-	Widget->ToggleReplaySelection(Run, S0c);
-	TestEqual(TEXT("No selection when limit 0"), Widget->GetEchoSummary().SelectedReplayIds.Num(), 0);
+	// Insufficient shards are rejected without consuming (different, not-yet-owned item).
+	RunSubsystem->TimeShards = 10;
+	TestFalse(TEXT("Purchase is rejected when shards are insufficient"),
+	          RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
 
 	return true;
 }

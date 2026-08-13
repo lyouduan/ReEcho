@@ -27,6 +27,10 @@ inline const TArray<FReEchoShopOffer>& GetReEchoShopCatalog()
 	                                                {TEXT("SHOP_OLD_COIN"),
 	                                                 NSLOCTEXT("ReEcho", "ShopOldCoin", "古老硬币"),
 	                                                 NSLOCTEXT("ReEcho", "ShopOldCoinEffect", "回响效率 +10%"),
-	                                                 25}};
+	                                                 25},
+	                                                {TEXT("SHOP_REPLAY_UNLOCK"),
+	                                                 NSLOCTEXT("ReEcho", "ShopReplayUnlock", "指定回放解锁"),
+	                                                 NSLOCTEXT("ReEcho", "ShopReplayUnlockEffect", "在收藏的回响中选择最多 3 场自动回放"),
+	                                                 30}};
 	return Offers;
 }
