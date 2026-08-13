@@ -1,0 +1,148 @@
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "AbilitySystem/ReEchoPlayerAbilities.h"
+#include "AbilitySystemComponent.h"
+#include "Combat/ReEchoCombatantComponent.h"
+#include "Core/ReEchoTypes.h"
+#include "Data/ReEchoCsvDataRegistry.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Graybox/ReEchoEnemyActor.h"
+#include "Misc/AutomationTest.h"
+#include "Player/ReEchoPlayerPawn.h"
+#include "Weapons/ReEchoWeaponActor.h"
+
+// Plan38 确定性回归：held 普攻在临时武器动作锁（有序攻击步骤锁）期间不得终止。
+// 长剑攻击重复间隔 0.28s < 有序步骤锁 0.8s；原实现在第一发被临时拒后结束 GAS 循环，
+// 导致按住只命中第一下。修复后循环在锁解除后重试，连续命中。
+//
+// 覆盖真实 held-input -> GAS -> weapon -> 第二发命中的接缝（无 PIE）。
+// 自动与手动入口都汇聚到同一个 UReEchoBasicAttackAbility 循环，故分别验证。
+//
+// 注：该测试需要 GEngine 世界上下文，与 ReEchoWeaponRuntimeTests 同属编辑器运行时测试；
+// 不标记 SmokeFilter，避免 -ExecCmds smoke 路径在 GEngine 尚未就绪时执行。
+
+namespace
+{
+void RunHeldBasicAttackRepeatScenario(FAutomationTestBase& Test, const bool bManual)
+{
+	const TCHAR* ModeName = bManual ? TEXT("Manual") : TEXT("Auto");
+
+	// 轻量 headless 游戏世界（与 ReEchoWeaponRuntimeTests 的夹具一致）。
+	const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("ReEchoHeldAttackTest"));
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
+	World->AddToRoot();
+	WorldContext.SetCurrentWorld(World);
+	World->SetShouldTick(true);
+	World->InitializeActorsForPlay(FURL());
+	World->BeginPlay();
+
+	// 必须在生成玩家前加载武器/步骤数据，否则武器初始化读不到快照。
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+
+	const FVector PawnLocation(0.0f, 0.0f, 0.0f);
+	AReEchoPlayerPawn* Pawn = World->SpawnActor<AReEchoPlayerPawn>(PawnLocation, FRotator::ZeroRotator);
+	Test.TestNotNull(TEXT("Pawn spawned"), Pawn);
+	if (!Pawn)
+	{
+		World->DestroyWorld(true);
+		GEngine->DestroyWorldContext(World);
+		World->RemoveFromRoot();
+		return;
+	}
+
+	AReEchoWeaponActor* Weapon = Pawn->GetWeapon();
+	Test.TestTrue(FString::Printf(TEXT("[%s] Long sword selected (W_J_01)"), ModeName),
+	              Weapon && Weapon->SelectWeaponById(TEXT("W_J_01")));
+
+	// 身前放置敌人，用于验证“第二发命中”。
+	const FVector EnemyLocation = PawnLocation + FVector(100.0f, 0.0f, 0.0f);
+	AReEchoEnemyActor* Enemy = World->SpawnActor<AReEchoEnemyActor>(EnemyLocation, FRotator::ZeroRotator);
+	Enemy->Configure(EReEchoEnemyKind::Grunt, 0);
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.HpPoint = 100.0f;
+	Stats.Block = 0.0f;
+	Enemy->GetCombatantComponent()->BindToAbilitySystem(Enemy->GetAbilitySystemComponent());
+	Enemy->GetCombatantComponent()->InitializeFromStats(Stats, true);
+	const float InitialHealth = Enemy->GetCombatantComponent()->CurrentHealth;
+
+	// 以“按住”方式触发 GAS 普攻输入。
+	if (bManual)
+	{
+		Pawn->ManualBasicAttack();
+	}
+	else
+	{
+		Pawn->PressAutoAttackInput();
+	}
+
+	// 首次攻击已执行：此时应已处于临时忙（动作锁 0.8s > 攻击间隔 0.28s），
+	// 该失配状态正是原先会杀死循环的场景。
+	const float Interval = Weapon->GetAttackInterval(Pawn->FindComponentByClass<UReEchoCombatantComponent>());
+	Test.TestTrue(
+		FString::Printf(TEXT("[%s] Temporary-busy scenario present (action lock %.3f > interval %.3f)"),
+			ModeName, Weapon->GetActionLockRemaining(), Interval),
+		Weapon->GetActionLockRemaining() > Interval);
+
+	// 推进时间：小步长 tick，使武器步骤锁逐步递减、GAS 重复计时器按节奏触发。
+	const float TotalTime = 2.0f;
+	const float DT = 1.0f / 60.0f;
+	const int32 Steps = FMath::CeilToInt(TotalTime / DT);
+	for (int32 Step = 0; Step < Steps; ++Step)
+	{
+		const double ExpectedTimeSeconds = World->GetTimeSeconds() + DT;
+		World->Tick(ELevelTick::LEVELTICK_All, DT);
+		if (!FMath::IsNearlyEqual(World->GetTimeSeconds(), ExpectedTimeSeconds, 0.001))
+		{
+			World->TimeSeconds = ExpectedTimeSeconds;
+		}
+	}
+
+	// 核心回归：held 普攻循环在临时忙后继续，产生至少两发有序普攻。
+	Test.TestTrue(
+		FString::Printf(TEXT("[%s] Held basic attack produced >=2 attacks after temporary busy (got %d)"),
+			ModeName, Weapon->GetAttackSequence()),
+		Weapon->GetAttackSequence() >= 2);
+
+	// 仍按住时，GAS 普攻能力应保持激活（未被第一发忙结果终止）。
+	const FGameplayAbilitySpec* BasicSpec =
+		Pawn->GetAbilitySystemComponent()->FindAbilitySpecFromClass(UReEchoBasicAttackAbility::StaticClass());
+	Test.TestTrue(FString::Printf(TEXT("[%s] Basic attack ability still active while held"), ModeName),
+	              BasicSpec && BasicSpec->IsActive());
+
+	// 第二发确实命中了身前敌人。
+	Test.TestTrue(
+		FString::Printf(TEXT("[%s] Second held attack hit the in-range enemy (health %.1f < %.1f)"),
+			ModeName, Enemy->GetCombatantComponent()->CurrentHealth, InitialHealth),
+		Enemy->GetCombatantComponent()->CurrentHealth < InitialHealth);
+
+	World->DestroyWorld(true);
+	GEngine->DestroyWorldContext(World);
+	World->RemoveFromRoot();
+}
+
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoHeldBasicAttackRepeatTest,
+	"ReEcho.AttackMode.HeldRepeat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoHeldBasicAttackRepeatTest::RunTest(const FString& Parameters)
+{
+	RunHeldBasicAttackRepeatScenario(*this, /*bManual=*/true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoHeldBasicAttackRepeatAutoTest,
+	"ReEcho.AttackMode.HeldRepeatAuto",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoHeldBasicAttackRepeatAutoTest::RunTest(const FString& Parameters)
+{
+	RunHeldBasicAttackRepeatScenario(*this, /*bManual=*/false);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

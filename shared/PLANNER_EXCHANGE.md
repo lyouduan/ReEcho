@@ -16,7 +16,6 @@ Live local coordination only. Closed history belongs in Plans and Git; permanent
 | Plan 31 specific single/multi replay runtime | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `Passed` | Integrated into local `main` from candidate `001321b` | Resolver, zero/one/many Echo spawn/resume and all-Echo fog reveal | Human gameplay validation and all objective integration gates pass; await remote-baseline reconciliation/publication. |
 | Plan 34 authored audio catalog and persistent settings | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `PendingBeforeClose` | Start from published `main` containing closed Plan33 and the Ready Plan34 revision | AudioEvents XLSX/CSV contract, async catalog/preload, five persisted buses, typed settings WBP and technical diagnostic tone | Claim the exact workbook and settings-WBP resources before writing; user performs final listening/UI validation. |
 | Plans 35-36 noncombat and combat/echo audio integration | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API is available; audible closure depends on Plan34 catalog/assets | Semantic event hooks only; audio module retains playback ownership | May use stable Plan33 IDs, but do not invent catalog parsing, asset paths or parallel audio services. |
-| Plan 38 held basic-attack repeat repair | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `PendingBeforeClose` | Start from published current `origin/main` after this Plan appears there | GAS held repeat and focused auto/manual second-hit regression; no GameMode/UI/shop writes | Independent of Plan32. Temporary weapon action lock must retry instead of permanently ending a still-held attack. |
 
 ## Active ownership
 
@@ -24,7 +23,6 @@ Live local coordination only. Closed history belongs in Plans and Git; permanent
 |---|---|---|---|---|---|
 | ReEcho teammate-side Planner | Plan26 / teammate-side task branch | `ReadOnly` | `Reserved` | Typed weapon UI-consumer behavior and Plan26 tests | Must preserve Plan29 presentation bindings. |
 | Gavyn-side Planner | Plan34 reservation | `SharedContract` + `Exclusive` | `Reserved` | `Design/Data/ReEchoData.xlsx`, generated `Content/Data/audio_events.csv`, `/Game/ReEcho/UI/WBP_ReEchoSettings.uasset`, Plan33 catalog/settings provider surface | Disjoint from active Plan32 shop assets and Plan38 attack code. Reservation becomes Active only when the Plan34 Executor starts. |
-| Gavyn-side Planner | Plan38 / `plan/38-held-basic-attack-repeat` | `Isolated` | `Reserved` | Basic-attack GAS repeat files and Plan38-only attack-loop tests | May run in parallel with Plan32; do not edit GameMode/shop/UI/data/save/recording. |
 
 ## Warnings / blocked items
 

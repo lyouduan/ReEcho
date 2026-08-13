@@ -2,6 +2,7 @@
 
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Abilities/Tasks/AbilityTask_WaitInputRelease.h"
+#include "AbilitySystemComponent.h"
 #include "AbilitySystem/ReEchoGameplayEffects.h"
 #include "AbilitySystem/ReEchoGameplayTags.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -119,13 +120,41 @@ void UReEchoBasicAttackAbility::ScheduleNextAttack(const float Delay)
 void UReEchoBasicAttackAbility::HandleRepeatDelay()
 {
 	const FGameplayAbilitySpec* Spec = GetCurrentAbilitySpec();
-	if (!Spec || !Spec->InputPressed || !CommitAndExecuteCurrentAttack())
+	if (!Spec || !Spec->InputPressed)
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 		return;
 	}
-	const AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(GetAvatarActorFromActorInfo());
-	ScheduleNextAttack(PlayerPawn ? GetCooldownDuration(*PlayerPawn) : 0.1f);
+
+	AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(GetAvatarActorFromActorInfo());
+	if (!PlayerPawn)
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		return;
+	}
+
+	// 临时武器动作锁（有序攻击步骤锁）不得永久终止仍被按住的 GAS 普攻循环。
+	// 改为在锁解除后重试，使 held 普攻连续命中，而不是第一发被拒后立即结束。
+	if (PlayerPawn->IsWeaponActionLocked())
+	{
+		ScheduleNextAttack(PlayerPawn->GetWeaponActionLockRemaining() + KINDA_SMALL_NUMBER);
+		return;
+	}
+
+	const UAbilitySystemComponent* AbilitySystem = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
+	if (AbilitySystem && AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::Cooldown_Attack_Basic))
+	{
+		ScheduleNextAttack(0.01f);
+		return;
+	}
+
+	if (!CommitAndExecuteCurrentAttack())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		return;
+	}
+
+	ScheduleNextAttack(GetCooldownDuration(*PlayerPawn));
 }
 
 void UReEchoBasicAttackAbility::HandleInputReleased(const float TimeHeld)
