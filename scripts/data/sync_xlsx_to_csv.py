@@ -49,7 +49,7 @@ TABLE_TO_CSV = {
 SYSTEM_TABLES = frozenset({"tblRuntimeSmoke", "tblRuntimeSmokeEffects"})
 AUTHORING_TABLES = frozenset(TABLE_TO_CSV) - SYSTEM_TABLES
 SYSTEM_SHEETS = ("_WorkbookMeta", "_ExportMap", "_SystemData")
-LOCKED_REFERENCE_SHEETS = ("属性S", "武器体系（废案）", "怪物体系M", "经济系统")
+LOCKED_REFERENCE_SHEETS = ("属性S", "怪物体系M", "经济系统")
 
 AUTHORING_LIST_VALIDATION_COLUMNS = {
     "tblCharacters": frozenset({"Enabled", "RoleId", "DefaultWeaponId", "PassiveBehaviorId", "RandomElementProjectiles"}),
@@ -425,7 +425,7 @@ def validate_workbook_data_validations(workbook) -> None:
             strict_matches = [
                 validation
                 for validation in matches
-                if validation.errorStyle == "stop"
+                if validation.errorStyle in {"stop", None}
                 and validation.showErrorMessage is True
                 and validation.showDropDown in {False, None}
                 and validation.allowBlank in {False, None}

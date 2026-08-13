@@ -22,7 +22,7 @@ CSV remains the runtime package consumed by Unreal. The runtime does not read XL
 - `武器插槽C`: `tblSlotTypes`, `tblSlotProfiles`, `tblParts`, `tblPartEffects`
 - `_SystemData`: `tblRuntimeSmoke`, `tblRuntimeSmokeEffects`
 
-`属性S` remains a protected reference dictionary. `武器体系（废案）`, `怪物体系M` and `经济系统` remain ReferenceOnly and are not exported by Plan25.
+`属性S` remains a protected reference dictionary. `武器体系（废案）` was later removed from the canonical workbook after its ReferenceOnly role was retired. `怪物体系M` and `经济系统` remain ReferenceOnly and are not exported.
 
 ## Audited Source Differences
 

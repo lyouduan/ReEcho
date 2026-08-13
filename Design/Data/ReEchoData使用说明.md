@@ -48,9 +48,9 @@ python scripts\data\sync_xlsx_to_csv.py --check
 以下区域不生成当前生产 CSV：
 
 - `属性S`：属性字典和说明。
-- `武器体系（废案）`：历史参考。
 - `怪物体系M`、`经济系统`：尚未纳入当前生成范围。
 - `_WorkbookMeta`、`_ExportMap`、`_SystemData`：系统 Sheet，策划不要修改。
+- 历史 `武器体系（废案）` Sheet 已从 canonical 工作簿移除；运行时和 CSV 生成从不读取它。
 
 ## 4. 修改和增删行
 
