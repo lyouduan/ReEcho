@@ -17,6 +17,23 @@ bool ValidatePolygons(const TArray<FReEcho2DCollisionPolygon>& Polygons, FString
 			    TEXT("Collision polygon must contain %d-%d vertices"), MinimumPolygonVertices, MaximumPolygonVertices);
 			return false;
 		}
+		float TwiceSignedArea = 0.0f;
+		for (int32 Index = 0; Index < Polygon.Vertices.Num(); ++Index)
+		{
+			const FVector2D A = Polygon.Vertices[Index];
+			const FVector2D B = Polygon.Vertices[(Index + 1) % Polygon.Vertices.Num()];
+			if (!FMath::IsFinite(A.X) || !FMath::IsFinite(A.Y))
+			{
+				OutError = TEXT("Collision polygon contains a non-finite vertex");
+				return false;
+			}
+			TwiceSignedArea += A.X * B.Y - B.X * A.Y;
+		}
+		if (FMath::Abs(TwiceSignedArea) <= KINDA_SMALL_NUMBER)
+		{
+			OutError = TEXT("Collision polygon area must be non-zero");
+			return false;
+		}
 	}
 	return true;
 }

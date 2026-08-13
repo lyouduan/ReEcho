@@ -25,6 +25,9 @@ public:
 	void DeactivateAnimation();
 	void SetFacingSign(float InFacingSign);
 	bool IsAnimationActive();
+	const FReEcho2DAnimationClip& GetActiveClip() const { return ActiveClip; }
+	int32 GetCurrentKeyFrameIndex();
+	float GetFacingSign() const { return FacingSign; }
 
 	/** Editor asset-repair seam used by the deterministic import script; it has no runtime gameplay effect. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|Animation2D", meta = (DevelopmentOnly))

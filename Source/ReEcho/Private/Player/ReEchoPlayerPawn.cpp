@@ -31,6 +31,7 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoGameMode.h"
@@ -76,6 +77,8 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
 	SequenceAnimation->SetupAttachment(VisualEffectRoot);
 	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
+	FrameCollisionDriver = CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
+	PresentationController->BindCollisionDriver(FrameCollisionDriver);
 	if (UTexture2D* CharacterTexture =
 	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Characters/Player2D.Player2D")))
 	{
@@ -726,7 +729,8 @@ void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Stre
 	AttackVisualStrength = Strength;
 	if (PresentationController)
 	{
-		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true);
+		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true,
+		                                   NextPresentationAttackInstanceId++);
 	}
 }
 

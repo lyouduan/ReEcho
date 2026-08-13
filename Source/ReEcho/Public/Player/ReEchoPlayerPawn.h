@@ -21,6 +21,7 @@ class UReEchoCombatantComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DPresentationCatalog;
 class UReEcho2DPresentationController;
+class UReEcho2DFrameCollisionDriver;
 class UReEchoRecorderComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -96,6 +97,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCameraComponent> Camera;
@@ -216,6 +220,7 @@ private:
 	float HitVisualRemaining = 0.0f;
 	float VisualFacingSign = 1.0f;
 	float AppliedVisualFacingSign = 0.0f;
+	int64 NextPresentationAttackInstanceId = 1;
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> CharacterTextures;

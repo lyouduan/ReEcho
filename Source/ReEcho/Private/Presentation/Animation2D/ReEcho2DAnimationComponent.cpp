@@ -134,6 +134,16 @@ bool UReEcho2DAnimationComponent::IsAnimationActive()
 	return bAnimationActive && GetFlipbook() != nullptr;
 }
 
+int32 UReEcho2DAnimationComponent::GetCurrentKeyFrameIndex()
+{
+	const UPaperFlipbook* Flipbook = GetFlipbook();
+	if (!bAnimationActive || !Flipbook || Flipbook->GetNumFrames() <= 0)
+	{
+		return INDEX_NONE;
+	}
+	return FMath::Clamp(Flipbook->GetKeyFrameIndexAtTime(GetPlaybackPosition(), true), 0, Flipbook->GetNumFrames() - 1);
+}
+
 bool UReEcho2DAnimationComponent::RebuildSpriteAsset(UPaperSprite* Sprite)
 {
 #if WITH_EDITOR

@@ -8,6 +8,7 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionTrack.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
@@ -166,6 +167,59 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Frame-count mismatch is rejected"),
 	          CollisionTrack->ValidateForFlipbook(WalkFlipbook, CollisionError));
 	TestTrue(TEXT("Frame-count rejection is diagnostic"), CollisionError.Contains(TEXT("frame count")));
+
+	CollisionTrack->Frames.SetNum(WalkFlipbook->GetNumFrames());
+	CollisionTrack->PixelsPerUnrealUnit = 2.0f;
+	CollisionTrack->PivotPixels = FVector2D(10.0f, 20.0f);
+	FReEcho2DCollisionPolygon BodyPolygon;
+	BodyPolygon.Vertices = {
+	    FVector2D(10.0f, 20.0f), FVector2D(14.0f, 20.0f), FVector2D(14.0f, 24.0f)};
+	FReEcho2DCollisionPolygon AttackPolygon;
+	AttackPolygon.Vertices = {
+	    FVector2D(14.0f, 20.0f), FVector2D(18.0f, 20.0f), FVector2D(18.0f, 24.0f)};
+	CollisionTrack->Frames[0].BodyHurtboxes.Add(BodyPolygon);
+	CollisionTrack->Frames[0].WeaponAttackHitboxes.Add(AttackPolygon);
+	CollisionTrack->Frames[0].bAttackActive = true;
+	FReEcho2DAnimationClip CollisionClip;
+	CollisionClip.Flipbook = WalkFlipbook;
+	CollisionClip.CollisionTrack = CollisionTrack;
+	CollisionClip.bUseNativeScale = true;
+	Component->PlayClip(CollisionClip, true);
+	Component->SetPlaybackPosition(0.0f, false);
+	UReEcho2DFrameCollisionDriver* CollisionDriver = NewObject<UReEcho2DFrameCollisionDriver>();
+	CollisionDriver->BindRenderer(Component);
+	TestTrue(TEXT("Driver accepts a source-matched authored track"), CollisionDriver->HasValidTrack());
+	TestEqual(TEXT("Driver follows the renderer key frame"), CollisionDriver->GetSnapshot().FrameIndex, 0);
+	TestEqual(TEXT("Body Hurtboxes remain queryable without an attack instance"),
+	          CollisionDriver->GetSnapshot().BodyHurtboxes.Num(), 1);
+	TestFalse(TEXT("Authored active frame cannot open AttackHitboxes without a committed attack"),
+	          CollisionDriver->GetSnapshot().bAttackActive);
+	CollisionDriver->BeginAttackInstance(42);
+	TestTrue(TEXT("Committed attack opens authored active-frame AttackHitboxes"),
+	         CollisionDriver->GetSnapshot().bAttackActive &&
+	             CollisionDriver->GetSnapshot().AttackInstanceId == 42 &&
+	             CollisionDriver->GetSnapshot().WeaponAttackHitboxes.Num() == 1);
+	TestEqual(TEXT("Pixel geometry is pivoted and converted to Unreal units"),
+	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1], FVector2D(2.0f, 0.0f));
+	TestTrue(TEXT("Body geometry supports Query-only local point tests"),
+	         CollisionDriver->IsLocalPointInsideBody(FVector2D(1.5f, 0.5f)));
+	TestTrue(TEXT("Attack geometry accepts only its committed attack instance"),
+	         CollisionDriver->IsLocalPointInsideActiveAttack(FVector2D(3.0f, 0.5f), 42));
+	TestFalse(TEXT("Attack geometry rejects stale attack instances"),
+	          CollisionDriver->IsLocalPointInsideActiveAttack(FVector2D(3.0f, 0.5f), 41));
+	Component->SetFacingSign(-1.0f);
+	CollisionDriver->RefreshSnapshot();
+	TestEqual(TEXT("Facing mirrors collision geometry around the authored pivot"),
+	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1], FVector2D(-2.0f, 0.0f));
+	CollisionDriver->EndAttackInstance(42);
+	TestFalse(TEXT("Ending the matching attack instance closes AttackHitboxes"),
+	          CollisionDriver->GetSnapshot().bAttackActive);
+	CollisionClip.CollisionTrack = nullptr;
+	Component->PlayClip(CollisionClip, true);
+	CollisionDriver->RefreshSnapshot();
+	TestFalse(TEXT("Missing track safely disables authored frame geometry"), CollisionDriver->HasValidTrack());
+	TestTrue(TEXT("Missing-track fallback is diagnostic"),
+	         CollisionDriver->GetFallbackReason().Contains(TEXT("no collision track")));
 
 	FReEcho2DAnimationProfile MissingProfile;
 	TestEqual(TEXT("Missing Flipbook fails safely"),

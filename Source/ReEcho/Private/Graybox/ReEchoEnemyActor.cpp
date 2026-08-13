@@ -31,6 +31,7 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace ReEchoEnemyVisual
@@ -88,6 +89,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
 	SequenceAnimation->SetupAttachment(VisualEffectRoot);
 	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
+	FrameCollisionDriver = CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
+	PresentationController->BindCollisionDriver(FrameCollisionDriver);
 
 	ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
 	ElementAuraRing->SetupAttachment(RootComponent);

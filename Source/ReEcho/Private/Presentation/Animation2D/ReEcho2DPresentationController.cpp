@@ -4,6 +4,7 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 
 UReEcho2DPresentationController::UReEcho2DPresentationController()
 {
@@ -22,6 +23,11 @@ void UReEcho2DPresentationController::UpdatePlaybackCompletion()
 	if (bWaitingForOneShot && AnimationRenderer && !AnimationRenderer->IsPlaying())
 	{
 		bWaitingForOneShot = false;
+		if (CollisionDriver && ActiveAttackInstanceId >= 0)
+		{
+			CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
+		}
+		ActiveAttackInstanceId = INDEX_NONE;
 		if (!bDeathLocked)
 		{
 			ApplyBaseState();
@@ -37,8 +43,13 @@ void UReEcho2DPresentationController::Configure(UBillboardComponent* InStaticRen
 	AnimationRenderer = InAnimationRenderer;
 	Profile = InProfile;
 	WeaponVisualSetId = InWeaponVisualSetId;
+	if (CollisionDriver)
+	{
+		CollisionDriver->BindRenderer(AnimationRenderer);
+	}
 	bWaitingForOneShot = false;
 	bDeathLocked = false;
+	ActiveAttackInstanceId = INDEX_NONE;
 	ApplyBaseState(true);
 }
 
@@ -49,6 +60,7 @@ void UReEcho2DPresentationController::ClearProfile()
 	ActiveSemanticKey = FGameplayTag();
 	bWaitingForOneShot = false;
 	bDeathLocked = false;
+	ActiveAttackInstanceId = INDEX_NONE;
 	ShowStaticFallback();
 }
 
@@ -78,7 +90,8 @@ void UReEcho2DPresentationController::SetMoving(const bool bInMoving)
 	}
 }
 
-bool UReEcho2DPresentationController::PlayAction(const FGameplayTag SemanticKey, const bool bRestart)
+bool UReEcho2DPresentationController::PlayAction(const FGameplayTag SemanticKey, const bool bRestart,
+	const int64 AttackInstanceId)
 {
 	if (bDeathLocked && SemanticKey != ReEcho2DAnimationTags::Death)
 	{
@@ -88,9 +101,27 @@ bool UReEcho2DPresentationController::PlayAction(const FGameplayTag SemanticKey,
 	{
 		return false;
 	}
+	if (CollisionDriver && ActiveAttackInstanceId >= 0 && ActiveAttackInstanceId != AttackInstanceId)
+	{
+		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
+	}
 	bDeathLocked = SemanticKey == ReEcho2DAnimationTags::Death;
 	bWaitingForOneShot = AnimationRenderer && !AnimationRenderer->IsLooping();
+	ActiveAttackInstanceId = AttackInstanceId;
+	if (CollisionDriver && ActiveAttackInstanceId >= 0)
+	{
+		CollisionDriver->BeginAttackInstance(ActiveAttackInstanceId);
+	}
 	return true;
+}
+
+void UReEcho2DPresentationController::BindCollisionDriver(UReEcho2DFrameCollisionDriver* InCollisionDriver)
+{
+	CollisionDriver = InCollisionDriver;
+	if (CollisionDriver)
+	{
+		CollisionDriver->BindRenderer(AnimationRenderer);
+	}
 }
 
 void UReEcho2DPresentationController::SetFacingSign(const float FacingSign)

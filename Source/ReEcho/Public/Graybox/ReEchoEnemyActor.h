@@ -17,6 +17,7 @@ class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DCharacterPresentationProfile;
 class UReEcho2DPresentationController;
+class UReEcho2DFrameCollisionDriver;
 class USceneComponent;
 class UTexture2D;
 class AReEchoHealthBarActor;
@@ -108,6 +109,8 @@ private:
 	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementAuraRing;
 	UPROPERTY(VisibleAnywhere)
