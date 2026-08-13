@@ -2,15 +2,13 @@
 
 #include "Components/CapsuleComponent.h"
 #include "DrawDebugHelpers.h"
-#include "HAL/IConsoleManager.h"
+#include "Presentation/Animation2D/ReEcho2DCollisionDebug.h"
 
 namespace ReEchoCollisionDebug
 {
 inline bool IsEnabled()
 {
-	static const TAutoConsoleVariable<int32> DebugCollision(
-	    TEXT("ReEcho.DebugCollision"), 0, TEXT("Draw ReEcho collision volumes. 0: disabled, 1: enabled."), ECVF_Cheat);
-	return DebugCollision.GetValueOnGameThread() != 0;
+	return ReEcho2DCollisionDebug::GetLevel() >= 1;
 }
 
 inline void DrawCapsule(const UObject* WorldContext, const UCapsuleComponent* Collision, const FColor Color)

@@ -32,7 +32,10 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "PaperFlipbook.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
-#include "Presentation/Animation2D/ReEcho2DAnimationProfile.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoGameMode.h"
@@ -77,6 +80,9 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CharacterSprite->bIsScreenSizeScaled = false;
 	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
 	SequenceAnimation->SetupAttachment(VisualEffectRoot);
+	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
+	FrameCollisionDriver = CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
+	PresentationController->BindCollisionDriver(FrameCollisionDriver);
 	if (UTexture2D* CharacterTexture =
 	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Characters/Player2D.Player2D")))
 	{
@@ -89,7 +95,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-	    TEXT("/Game/2DAnim/Player/Idel_01.Idel_01"));
+	    TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
@@ -99,10 +105,9 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CharacterTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
-	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeIdleFinder(TEXT("/Game/2DAnim/Flipbook/Idel.Idel"));
-	SpadeIdleFlipbook = SpadeIdleFinder.Object;
-	static ConstructorHelpers::FObjectFinder<UPaperFlipbook> SpadeAttackFinder(TEXT("/Game/2DAnim/Flipbook/s.s"));
-	SpadeAttackFlipbook = SpadeAttackFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
+	    TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
+	PresentationCatalog = CatalogFinder.Object;
 	ConfigureCharacter(TEXT("J_CAT"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
@@ -144,7 +149,6 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 
 	UTexture2D* Texture = TextureEntry->Get();
 	CurrentCharacterId = CharacterId;
-	Current2DAnimationState = EReEcho2DAnimationState::Idle;
 	constexpr float CharacterWorldHeight = 224.0f;
 	CharacterSprite->SetSprite(Texture);
 	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
@@ -152,9 +156,7 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	CharacterSprite->SetRelativeScale3D(CharacterId == SpadeCharacterId ? FVector::OneVector : FVector(TextureScale));
 	IdleAnimationFrames = {Texture};
 	AttackAnimationFrames = {Texture};
-	SequenceAnimation->DeactivateAnimation();
-	CharacterSprite->SetVisibility(true);
-	CharacterSprite->SetHiddenInGame(false);
+	RefreshPresentationProfile();
 	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
 	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
@@ -178,6 +180,7 @@ void AReEchoPlayerPawn::RestoreEquippedWeapon(const FName WeaponId)
 	{
 		UE_LOG(LogReEcho, Error, TEXT("Cannot restore equipped WeaponId '%s'"), *WeaponId.ToString());
 	}
+	RefreshWeaponPresentationSet();
 }
 
 bool AReEchoPlayerPawn::InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Build,
@@ -199,7 +202,9 @@ bool AReEchoPlayerPawn::InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Bu
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
 	}
 	Weapon->InitializeWeapon(&Build, Snapshot);
-	return Weapon->GetEquippedWeaponId() == Build.WeaponId;
+	const bool bInitialized = Weapon->GetEquippedWeaponId() == Build.WeaponId;
+	RefreshWeaponPresentationSet();
+	return bInitialized;
 }
 
 FString AReEchoPlayerPawn::GetPinnedWeaponDomainRevision() const
@@ -233,6 +238,7 @@ void AReEchoPlayerPawn::BeginPlay()
 		{
 			Weapon->InitializeWeapon();
 		}
+		RefreshWeaponPresentationSet();
 	}
 
 	AbilitySystem->InitAbilityActorInfo(this, this);
@@ -835,15 +841,10 @@ void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Stre
 	AttackVisualDuration = Duration;
 	AttackVisualRemaining = Duration;
 	AttackVisualStrength = Strength;
-	static const FName MoonStaffWeaponId(TEXT("W_J_02"));
-	if (CurrentCharacterId == TEXT("J_SPADE") && Weapon && Weapon->GetEquippedWeaponId() == MoonStaffWeaponId &&
-	    SpadeAttackFlipbook)
+	if (PresentationController)
 	{
-		SequenceAttackRemaining = SpadeAttackFlipbook->GetTotalDuration();
-		if (Current2DAnimationState == EReEcho2DAnimationState::Attack && SequenceAnimation->IsAnimationActive())
-		{
-			SequenceAnimation->SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
-		}
+		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true,
+		                                   NextPresentationAttackInstanceId++);
 	}
 }
 
@@ -855,7 +856,6 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	}
 	VisualTime += DeltaSeconds;
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
-	SequenceAttackRemaining = FMath::Max(0.0f, SequenceAttackRemaining - DeltaSeconds);
 	HitVisualRemaining = FMath::Max(0.0f, HitVisualRemaining - DeltaSeconds);
 	const bool bMoving = GetVelocity().SizeSquared2D() > 25.0f;
 	const float Bob = FMath::Sin(VisualTime * (bMoving ? 10.0f : 3.0f)) * (bMoving ? 4.0f : 1.8f);
@@ -879,69 +879,35 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	}
 	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(Lunge, 0.0f, Bob));
 	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale * FVector(ScaleX, ScaleY, 1.0f));
-	UpdateSpadeAnimationState(bMoving);
+	if (PresentationController)
+	{
+		PresentationController->SetMoving(bMoving);
+	}
 	UpdateSequenceFrame();
 }
 
-void AReEchoPlayerPawn::UpdateSpadeAnimationState(const bool bMoving)
+void AReEchoPlayerPawn::RefreshPresentationProfile()
 {
-	static const FName SpadeCharacterId(TEXT("J_SPADE"));
-	static const FName MoonStaffWeaponId(TEXT("W_J_02"));
-	if (CurrentCharacterId != SpadeCharacterId)
+	UReEcho2DCharacterPresentationProfile* Profile = nullptr;
+	if (PresentationCatalog)
 	{
-		TransitionSpadeAnimationState(EReEcho2DAnimationState::Idle);
-		return;
+		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+		const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(CurrentCharacterId) : nullptr;
+		Profile = Character ? PresentationCatalog->ResolveProfile(Character->AppearanceId) : nullptr;
 	}
-
-	const bool bMoonStaffAttack =
-	    SequenceAttackRemaining > 0.0f && Weapon && Weapon->GetEquippedWeaponId() == MoonStaffWeaponId;
-	const EReEcho2DAnimationState DesiredState = bMoonStaffAttack ? EReEcho2DAnimationState::Attack
-	                                             : bMoving        ? EReEcho2DAnimationState::Move
-	                                                              : EReEcho2DAnimationState::Idle;
-	TransitionSpadeAnimationState(DesiredState);
+	if (PresentationController)
+	{
+		PresentationController->Configure(CharacterSprite, SequenceAnimation, Profile,
+		                                  Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
+	}
 }
 
-void AReEchoPlayerPawn::TransitionSpadeAnimationState(const EReEcho2DAnimationState NewState)
+void AReEchoPlayerPawn::RefreshWeaponPresentationSet()
 {
-	if (Current2DAnimationState == NewState)
+	if (PresentationController)
 	{
-		return;
+		PresentationController->SetWeaponVisualSetId(Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
 	}
-	Current2DAnimationState = NewState;
-	if (NewState == EReEcho2DAnimationState::Idle)
-	{
-		SequenceAnimation->DeactivateAnimation();
-		CharacterSprite->SetVisibility(true);
-		CharacterSprite->SetHiddenInGame(false);
-		return;
-	}
-	if (NewState == EReEcho2DAnimationState::Attack && !SpadeAttackFlipbook)
-	{
-		Current2DAnimationState = EReEcho2DAnimationState::Idle;
-		SequenceAnimation->DeactivateAnimation();
-		CharacterSprite->SetVisibility(true);
-		CharacterSprite->SetHiddenInGame(false);
-		return;
-	}
-
-	FReEcho2DAnimationProfile Profile;
-	Profile.DefaultFlipbook = SpadeIdleFlipbook;
-	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Attack, SpadeAttackFlipbook);
-	Profile.WorldHeight = 224.0f;
-	Profile.bUseNativeScale = true;
-	Profile.TranslucentSortPriority = 10;
-	if (!SequenceAnimation->IsAnimationActive() &&
-	    SequenceAnimation->ActivateProfile(Profile) != EReEcho2DAnimationActivationResult::Activated)
-	{
-		Current2DAnimationState = EReEcho2DAnimationState::Idle;
-		CharacterSprite->SetVisibility(true);
-		CharacterSprite->SetHiddenInGame(false);
-		return;
-	}
-
-	SequenceAnimation->SetAnimationState(NewState, NewState == EReEcho2DAnimationState::Move);
-	CharacterSprite->SetVisibility(false);
-	CharacterSprite->SetHiddenInGame(true);
 }
 
 void AReEchoPlayerPawn::UpdateSequenceFrame()

@@ -1322,9 +1322,11 @@ def validate_workflow() -> None:
         )
     architecture_maintenance_markers = (
         "## 架构影响与设计决策",
-        "已更新 `shared/CODEBASE_MAP/`",
-        "modules/MOD-*.md",
-        "已审阅，无需修改",
+        "受影响架构标识",
+        "对应模块文档",
+        "相关文档同步范围",
+        "`<文档>` 已更新",
+        "`<文档>` 已审阅、无需修改",
         "### 架构文档审阅结果",
     )
     missing_architecture_maintenance_markers = [
@@ -1335,9 +1337,34 @@ def validate_workflow() -> None:
             "plans/TEMPLATE.md lacks architecture decision/closure records: "
             + ", ".join(missing_architecture_maintenance_markers)
         )
-    if "未记录架构审阅结果不得关闭 Plan" not in project_rules:
+    if "未记录完整审阅结果不得关闭 Plan" not in project_rules:
         fail("PROJECT_RULES.md must gate Plan closure on architecture review")
-    if "缺少该记录时不得设为 `Closed`" not in planner_rules:
+    module_document_gate_markers = {
+        "PROJECT_RULES.md": (
+            "每个程序任务在实现前必须把受影响的 `MOD-*` / `AREA-*`",
+            "程序修改任一 Runtime Module 时",
+            "直接修改模块及受契约影响模块",
+        ),
+        "PROGRAMMER_RULES.md": ("修改任何 Runtime Module 前", "modules/MOD-*.md"),
+        "PLANNER_RULES.md": (
+            "程序 Plan 在发布前必须完成“架构影响与设计决策”",
+            "每份相关文档必须在 Plan 记录",
+        ),
+        "EXECUTOR_RULES.md": ("每个被修改 Runtime Module 的 `modules/MOD-*.md` 位于 Writes",),
+        "CODEBASE_MAP/README.md": ("每个程序 Plan 在实施前必须列出受影响的 `MOD-*` / `AREA-*`",),
+    }
+    module_document_gate_texts = {
+        "PROJECT_RULES.md": project_rules,
+        "PROGRAMMER_RULES.md": programmer_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "CODEBASE_MAP/README.md": codebase_index_text,
+    }
+    for name, markers in module_document_gate_markers.items():
+        missing = [marker for marker in markers if marker not in module_document_gate_texts[name]]
+        if missing:
+            fail(f"{name} lacks programmer module-document gates: {', '.join(missing)}")
+    if "不得设为 `Closed`" not in planner_rules:
         fail("PLANNER_RULES.md must enforce architecture review during Plan closure")
 
 

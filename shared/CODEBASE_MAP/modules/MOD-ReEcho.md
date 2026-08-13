@@ -196,14 +196,18 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 ### `AREA-Presentation`：`Graybox` / `Presentation`世界表现
 
-**设计意图：** 组装玩家、敌人、Echo、投射物、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。
+**设计意图：** 组装玩家、敌人、Echo、投射物、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。`Presentation/Animation2D` 通过 Appearance Profile、Catalog、Controller 与 Driver，把稳定视觉 ID 和玩法意图解析为静态图或角色/武器合成 Flipbook，不要求将同帧中的武器拆成独立渲染节点。
 
 - 代码：`Source/ReEcho/Public/Graybox/`、`Private/Graybox/`、`Public/Presentation/`、`Private/Presentation/`。
-- 首读：`ReEchoEnemyActor.*`、`ReEchoEchoActor.*`、`ReEchoProjectileActor.*`、命中/伤害数字适配器。
+- 首读：`Presentation/Animation2D/*`、`ReEchoPlayerPawn.*`、`ReEchoEnemyActor.*`、`ReEchoEchoActor.*`、`docs/2D_SEQUENCE_ANIMATION.md`。
 - 权威：只拥有表现实例与表现生命周期；逻辑生命、伤害、攻击节奏和录制不归这里。
-- 输入：Combat/Weapon/Recording 结果、只读快照、稳定视觉 ID。
+- 输入：Combat/Weapon/Recording 结果、只读快照、`AppearanceId`、武器视觉 Key 和稳定视觉 ID。
 - 输出：Sprite/Mesh/材质、动画、VFX、世界文本和镜头反馈。
-- 扩展：表现缺失、提前结束或加载失败必须不改变玩法；碰撞若承担玩法命中必须由逻辑契约明确，而非视觉组件偶然状态。
+- Animation2D 状态：Profile 选择静态回退或语义 Clip；Controller 处理 `Death > Hit > Action > Move > Idle` 优先级和单次播放返回；Actor 不持有角色专属 Flipbook 字段或资源分支。
+- 碰撞边界：根 Capsule 始终拥有移动 Sweep、阻挡、导航和位置记录权威。匹配序列的 PaperFlipbook 可使用 `EachFrameCollision` 提供 `QueryOnly` 身体轮廓，但不得推动 Actor 或替代 Capsule。
+- 命中边界：语义 Body Hurtbox 与 Weapon AttackHitbox 由独立帧轨道表达。只有已提交攻击的只读身份和轨道 active frame 能开放攻击查询；动画时间、像素 alpha、Paper2D 内建碰撞和播放完成都不能产生或裁决伤害。
+- 资产：运行时 Texture2D、PaperSprite 和 Flipbook 位于 `Content/ReEcho/Art/Animation2D/`；Profile/Catalog 位于 `Content/ReEcho/Animation2D/`；PNG 源图保留在 `Content/SourceArt/Characters/`。导入与碰撞工具位于 `scripts/ue/`。
+- 扩展：表现缺失、提前结束或加载失败必须不改变玩法；Animation2D 不依赖具体角色枚举，也不通过回调反向控制 Combat/Weapons。
 
 ### `AREA-UI`：`UI`屏幕与交互
 
@@ -238,7 +242,8 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 | 商店/特质/Echo 管理 | `RunSubsystem.*`、Shop/Trait/Echo 摘要 | 对应 Widget、GameMode 类型化端点和测试 |
 | 保存/继续 | `RunSaveGame.h`、`RunSubsystem.*` | Encounter、Recording、存活敌人快照测试 |
 | 新 UI 屏幕 | UI Framework、UI Manager | GameMode 快照/命令端点、WBP 注册 |
-| Actor/动画/VFX 接入 | 逻辑结果契约、Presentation/Graybox Actor | 资产路径、Plan40 等表现 Plan |
+| 2D 序列动画/逐帧 Query 轮廓 | `Presentation/Animation2D/*`、`PlayerPawn.*`、`EnemyActor.*` | `docs/2D_SEQUENCE_ANIMATION.md`、`docs/ART_ASSET_ORGANIZATION.md`、`Content/ReEcho/Art/Animation2D/`、Profile/Catalog 与导入工具 |
+| Actor/VFX 接入 | 逻辑结果契约、Presentation/Graybox Actor | 资产路径与对应表现 Plan |
 
 ## 扩展原则
 

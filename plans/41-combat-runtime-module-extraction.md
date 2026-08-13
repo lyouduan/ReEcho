@@ -11,7 +11,7 @@
 - 本地规划 / 实现基线：实现最初基于 `origin/main@f499a1b`；2026-08-13 经用户审计选择后已合入 `origin/main@24b9f08` 的远端规则权威提交。后续发布前仍重新 fetch 并执行外部提交审计。
 - 实现分支：本地 `plan/41-combat-runtime-module`，独立 worktree。
 - 依赖 / 阻挡：Plan33 已关闭。Plan34 本地 WIP 保留但暂停占用 `ReEcho.Build.cs`/预构建包；Plan40 保持 Reserved 且不得在本 Plan 实施期间进入 Active。Plan41 合入后，两者必须在新模块边界上重新适配和验证。
-- Writes：新增 `Source/ReEchoCombat/**` 与 `Source/ReEchoWeapons/**`；`ReEcho.uproject`；匹配的 Build.cs；必要的 `Config/DefaultEngine.ini` Core Redirects；迁移/适配 `Source/ReEcho/{Public,Private}/{AbilitySystem,Combat,Core,Player,Weapons,Graybox}/**`；攻击/战斗/武器/模块测试；校验脚本；本 Plan 执行记录；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
+- Writes：新增 `Source/ReEchoCombat/**` 与 `Source/ReEchoWeapons/**`；`ReEcho.uproject`；匹配的 Build.cs；必要的 `Config/DefaultEngine.ini` Core Redirects；迁移/适配 `Source/ReEcho/{Public,Private}/{AbilitySystem,Combat,Core,Player,Weapons,Graybox}/**`；攻击/战斗/武器/模块测试；校验脚本；本 Plan 执行记录；`shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md,modules/MOD-ReEcho.md,modules/MOD-ReEchoCombat.md,modules/MOD-ReEchoWeapons.md}`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
 - Stable Reads：`Data/**` 数据快照和生成契约、`Run/**` 攻击模式存档、`Recording/**` 录制语义、`ReEchoAudio` API、Plan28/38 攻击行为、Plan40 表现请求契约。
 - 影响模式：战斗公共类型、反射路径、GAS、攻击组件和模块依赖为 `SharedContract`；模块描述符、Build.cs、Core Redirects 和最终预构建包为 `Exclusive`。
 - 兼容承诺 / 下游操作：依赖必须为 `ReEcho -> ReEchoWeapons -> ReEchoCombat`，且 `ReEcho` 可直接消费两个逻辑模块；禁止 Combat 反向依赖 Weapons/主模块，禁止两个逻辑模块依赖 Audio/UI/Presentation。现有存档版本、Gameplay Tag/FName、伤害/元素结果、自动/手动模式、新局/Continue 规则和录制语义保持不变。普通攻击节奏按本 Plan 的唯一频率决定有意调整；UI、动画、特效和音频只消费事件/快照，不反向控制逻辑。
@@ -36,6 +36,14 @@
 逻辑模块内部按职责选择载体：跟随 Actor 的状态用 Component/ASC，能力用 GAS，数值和步骤规则用普通 C++ 对象，跨模块使用窄接口、同步请求/结果和语义事件。不得把所有规则强行做成 ActorComponent，也不得因组件化复制状态真相源。删除全部贴图、动画、特效、UI和音频后，战斗逻辑仍必须可完整运行和自动化验证。
 
 ## 锁定产品与技术决定
+
+### 架构影响与设计意图
+
+- 受影响架构标识：直接修改 `MOD-ReEchoCombat` / `AREA-AbilityCombat`、`MOD-ReEchoWeapons` / `AREA-Weapons` 和主模块装配/表现边界 `MOD-ReEcho`；`MOD-ReEchoAudio` 是公共契约消费者关系的只读审阅对象。
+- 对应模块文档：创建并维护 `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`、`MOD-ReEchoWeapons.md`，维护 `MOD-ReEcho.md`；`MOD-ReEchoAudio.md` 已列入关闭审阅但不加入 Executor Writes，因为其服务、目录、策略和后端契约未修改。
+- 设计意图：把攻击请求、武器执行和最终战斗裁决从 Pawn/Actor/表现回调中分离成无资源也可运行的逻辑模块；表现、UI 和音频只消费类型化事件与只读快照。
+- 权威状态与依赖：Combat 独占 held/目标/生命/元素/最终结算，Weapons 独占普通攻击唯一 readiness/步骤/逻辑载体；依赖固定为 `ReEcho -> ReEchoWeapons -> ReEchoCombat`，主模块可直接装配两者，逻辑模块不反向依赖主流程/表现/音频。
+- 相关文档同步范围：更新 `shared/CODEBASE_MAP/ARCHITECTURE.md` 的四模块拓扑、状态流和不变量；更新 `README.md` 的模块/AREA 路由；逐项更新上述三个模块文档并审阅 `MOD-ReEchoAudio.md`。
 
 ### 设计决策记录
 
@@ -246,6 +254,10 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 
 ### 当前客观证据（2026-08-13）
 
+- 用户已手工通过合入 Plan40 前的 Plan41 PIE，并授权发布。外部审计发现 `origin/main@52084b1` 已包含 Plan40 表现；用户选择 combined adaptation：保留远端 PresentationController/Profile/逐帧 Query 碰撞和资产，以本 Plan AttackController/Combat/Weapons 为逻辑权威。
+- 组合冲突已确定性解决：`PlayerPawn` 不再恢复 `bAutoAttackMode`/两份 held 字段，所有查询和命令继续委托 AttackController；Plan40 的 PresentationController 与 FrameCollisionDriver 同时保留。Enemy/WeaponActor 的表现增量与 CombatTarget/WeaponLogic 自动合并后通过源码审阅。
+- 组合候选 UE 5.8 Win64 Development `-FullRebuild` PASS，四个 Runtime Module 全部从源编译并刷新预构建包，源码指纹 `41ad26014266`。
+- 完整 `ReEcho` 自动化入口在进入测试队列前被引擎平台预检阻止：Win64 SDK 有效，但本机缺少 LinuxArm64/VisionOS `SDK.json MainVersion`；与 Plan40 已记录环境限制一致，不计为断言失败或通过。
 - 用户 PIE 发现延迟投射物命中时，`FReEchoAttackIdentity::Source` 的失效 `TObjectPtr` 在 `ResolvePhysicalHit` 中触发访问冲突。已改为 `TWeakObjectPtr<AActor>`，来源离开世界后只跳过来源侧反馈，已快照的目标伤害仍完成。
 - 修复后 Development Editor 构建 PASS；`ReEcho.Combat.*` 7/7、`ReEcho.Weapons.*` 9/9、`ReEcho.AttackMode.*` 7/7 PASS。
 - 新增两级回归：`ReEcho.Combat.AttackIdentity.SourceLifetime` 证明失效来源不会被解析；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndExplosion` 现在覆盖“发射后销毁来源、延迟命中仍结算且不崩溃”。
@@ -259,9 +271,18 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 
 ### 当前剩余工作与风险
 
-- User PIE 仍需验收 attack feel、all weapons、automatic/manual switching、target loss、menu/death release 和 Continue restoration。
+- 合入 Plan40 后，原纯 Plan41 PIE 证据对玩家/敌人/武器表现接缝部分失效；最终推送前仍需用户用组合候选做最小 PIE：连续攻击、自动/手动切换、攻击动画和至少一个敌人命中/死亡。
 - The unrelated Plan31 replay-resolver baseline defect is not changed by Plan41 and needs a separately owned fix.
 - Final FullRebuild, merge to main, remote publication, and worktree cleanup remain gated on user PIE approval.
+
+### 架构文档审阅结果
+
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已更新：四模块拓扑、Combat/Weapons 状态所有权、HitIntent→ResolveHit→Events 流向和表现只读不变量与组合候选一致。
+- `shared/CODEBASE_MAP/README.md` 已更新：`MOD-ReEchoCombat`、`MOD-ReEchoWeapons` 及迁移后的 `AREA-AbilityCombat` / `AREA-Weapons` 路由指向真实代码与独立文档，并吸收最新模块文档强制门禁。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：主模块的数据编译、世界装配、Plan40 PresentationController/逐帧 Query 碰撞以及 Combat/Weapons 适配位置均与组合候选一致。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md` 已创建并更新：记录攻击控制、Combatant、GAS、AttackIdentity、HitResolver、事件/快照、依赖和测试位置。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md` 已创建并更新：记录唯一 cadence、步骤事务、逻辑 Projectile/Wave、HitIntent、主模块数据/表现适配边界和测试位置。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoAudio.md` 已审阅、无需修改：本 Plan 只在主模块新增 Combat→Audio 语义适配，未改变 Audio 模块的目录、策略、总线、服务、后端或公共请求契约。
 
 ### 人工验收结果/请求
 

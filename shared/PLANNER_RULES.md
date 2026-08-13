@@ -16,10 +16,11 @@
 4. 将锁定目标/验收与实现建议分开。Executor 可优化实现，但不得暗中修改锁定范围。
 5. 除非主观手感、可读性、视觉质量或可用性需要人工判断，否则人工验收标记为 `NotRequired`。阻塞验收时使用 `PendingBeforeClose`；只有用户明确允许延期时使用 `PendingFollowUp`。
 6. 从 `plans/TEMPLATE.md` 添加 Plan 的“协调”区块：负责人、Plan 编写 AI 侧、实现 AI 侧、生命周期、人工验收、本地/实现基线、依赖、Writes/Reads、影响模式、兼容承诺和排除项。规划所有权、文档作者和实现作者是不同事实；不得仅因另一个 Planner 刷新本地文件而推断或转移。
-7. 一旦分配正式编号，立即将编号 Plan 发布到 `origin/main`，并仅附带跨机器协调所需的匹配实时 Exchange 公告/所有权。使用下方 Plan 发布授权；不得包含实现或无关 WIP。
-8. Fetch 并核验 `origin/main` 包含准确的编号 Plan 提交。核验成功前，不得为该 Plan 启动 Executor、实现分支或准备发布的专业工作。
-9. 若推送被拒或其他已发布 Plan 占用编号，再次 fetch，将本 Plan 及其后所有未发布本地 Plan 移到远端新最大值之后的首个区间，更新全部实时引用、验证并重试仅 Plan 发布。
-10. 仅在有助用户选择时推荐 Executor 模型；除非用户明确要求，不得自行创建。
+7. 程序 Plan 在发布前必须完成“架构影响与设计决策”：列出受影响 `MOD-*` / `AREA-*`、对应模块文档、设计意图、权威状态/契约/依赖影响和 `CODEBASE_MAP` 同步范围。每个被修改或受公共契约影响的 Runtime Module 文档都必须加入 `Writes`；新增模块必须计划创建 `modules/MOD-<Name>.md`。缺失时不得设为 `Ready` 或发布启动 Executor。
+8. 一旦分配正式编号，立即将编号 Plan 发布到 `origin/main`，并仅附带跨机器协调所需的匹配实时 Exchange 公告/所有权。使用下方 Plan 发布授权；不得包含实现或无关 WIP。
+9. Fetch 并核验 `origin/main` 包含准确的编号 Plan 提交。核验成功前，不得为该 Plan 启动 Executor、实现分支或准备发布的专业工作。
+10. 若推送被拒或其他已发布 Plan 占用编号，再次 fetch，将本 Plan 及其后所有未发布本地 Plan 移到远端新最大值之后的首个区间，更新全部实时引用、验证并重试仅 Plan 发布。
+11. 仅在有助用户选择时推荐 Executor 模型；除非用户明确要求，不得自行创建。
 
 ## 启动并协调本地执行
 
@@ -81,7 +82,7 @@ Plan 是任务规格；启动提示只是中立路由外壳。不得赋予新身
 3. 检查锁定验收、客观证据、公共契约兼容性和代码健康。需要返工时生命周期回到 `InProgress`。
 4. Planner 直接在任务分支完成小型、明确、范围内的评审修正，包括 Plan 文案、过期协调清理、死代码移除、格式化和窄确定性修复。不得仅为保持角色分工而退回 Executor。修复具有实质行为、不确定、范围宽、可独立并行或需要新实现/验证轮次时重新指派 Executor；大型无关重构使用独立本地 Plan。
 5. 关闭前与用户解决 `PendingBeforeClose`。`PendingFollowUp` 仅可在用户明确延期时保留。
-6. 关闭前审阅 `shared/CODEBASE_MAP/`：把本 Plan 已验收的全局拓扑变化晋升到 `ARCHITECTURE.md`，把模块存在原因、职责/权威状态、公共契约、运行流程、扩展方式、测试和代码位置写入对应 `modules/MOD-*.md`，并同步 `README.md` 的 `MOD-*` / `AREA-*` 索引。若无需修改，在 Plan 中记录已审阅及原因。缺少该记录时不得设为 `Closed`。
+6. 关闭前逐项审阅 Plan 声明的 `CODEBASE_MAP` 同步范围：把已验收的全局拓扑/依赖/跨模块不变量变化晋升到 `ARCHITECTURE.md`，同步 `README.md` 的 `MOD-*` / `AREA-*` 索引和路由，并创建或维护所有直接修改模块及受契约影响模块的 `modules/MOD-*.md`。每份相关文档必须在 Plan 记录“已更新：具体变化”或“已审阅、无需修改：原因”；只写一条笼统结论、漏掉任一相关模块文档或文档与实现不一致时不得设为 `Closed`。
 7. 验收后使用 `--no-ff` 合入本地 `main`，一次性更新共享状态、释放所有权并将生命周期设为 `Closed`。
 8. 检查准确路径和 `git status --short` 后才移除干净、已合并 worktree。绝不使用 `--force`；使用 `git branch -d` 删除已合并本地分支。
 
