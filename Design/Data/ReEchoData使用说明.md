@@ -129,7 +129,7 @@ python scripts\data\sync_xlsx_to_csv.py --sheet "武器体系W"
 - CSV 在 ReEcho 模块启动时加载一次；如果同步 CSV 时 Unreal Editor 已经打开，必须重启 Editor，仅停止 PIE 再点 Play 不会重载。
 - 数据在新的 Run 中读取；已有 Run 或“继续游戏”可能持有开始时的数据快照，不适合验证新数值。
 - 正确顺序是“保存并关闭表格→生成和校验 CSV→重启/启动 Unreal Editor→Play→新游戏”，再检查所改角色、卡牌、反应、武器或配件是否生效。
-- 新拉的源码仓库如果没有本机 Editor 二进制，需要先安装 UE 5.8 与 Windows C++ 编译环境，并运行 `scripts\ue\Build-Editor.cmd`。详见策划验收清单。
+- 最新 `origin/main` 跟踪与源码匹配的 Win64 Editor 预构建包。策划安装项目规定的 UE 5.8 后，先运行 `python scripts\ue\prebuilt_editor.py check`；通过即可双击 `ReEcho.uproject`，无需安装 C++ 编译环境或自行构建。若检查失败或 Unreal 提示模块缺失/版本不同，停止并将完整错误交给程序刷新预构建包，不要由策划自行运行 `Build-Editor.cmd`。详见策划验收清单。
 
 ## 8. 常见报错
 

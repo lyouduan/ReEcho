@@ -103,16 +103,16 @@ git diff -- Content\Data
 
 ## 6. C 层：游戏效果验收
 
-### 6.1 新拉仓库的首次构建
+### 6.1 新拉仓库的首次打开
 
-源码仓库不提交本机生成的 Editor 二进制。第一次运行前需要 Unreal Engine 5.8 和 Windows C++ 编译环境，并在 Unreal Editor 关闭时执行：
+最新 `origin/main` 跟踪程序发布时生成的精选 Win64 Editor 预构建包。策划首次运行只需要项目规定的 UE 5.8，不需要安装 Visual Studio/MSVC/Windows SDK，也不需要自行编译。先在仓库根目录执行：
 
 ```powershell
 scripts\ue\Find-UnrealEngine.cmd
-scripts\ue\Build-Editor.cmd
+python scripts\ue\prebuilt_editor.py check
 ```
 
-如果找不到 UE 5.8，或缺少 Visual Studio/MSVC/Windows SDK，不要让 AI 自动安装大型工具；记录错误并让程序提供环境或已构建的测试版本。A+B 仍可独立验收。
+`prebuilt_editor.py check` 通过后即可双击 `ReEcho.uproject`。该预构建包绑定程序发布时使用的 UE 5.8 Engine Build ID；若找不到 UE 5.8、检查报告文件缺失/哈希错误/源码指纹过期/Build ID 不匹配，或 Unreal 提示模块缺失或版本不同，停止 C 层验收并把当前提交号、UE 版本和完整错误交给程序。策划不得自行运行 `Build-Editor.cmd` 或安装大型编译工具；由程序在标准引擎环境刷新并发布预构建包。A+B 仍可独立验收。
 
 ### 6.2 改值后的正确启动顺序
 
@@ -129,7 +129,7 @@ scripts\ue\Build-Editor.cmd
 → 选择与被修改稳定 ID 对应的角色/武器并验证
 ```
 
-仅修改 XLSX 后直接打开游戏不会生效；必须先生成 CSV。若同步时 Unreal Editor 已经打开，仅停止 PIE 后再点 Play 也不足以重载 CSV，必须重启 Editor。配置改动本身不需要重新编译 C++，但首次拉取或程序代码变化仍需要构建 Editor。
+仅修改 XLSX 后直接打开游戏不会生效；必须先生成 CSV。若同步时 Unreal Editor 已经打开，仅停止 PIE 后再点 Play 也不足以重载 CSV，必须重启 Editor。配置改动本身不需要重新编译 C++；最新 `origin/main` 中的程序代码应已配套匹配的预构建 Editor 包。
 
 不要使用旧的打包版 EXE 验证仓库内刚生成的 CSV；旧包内的数据不会自动更新。
 
@@ -201,7 +201,7 @@ Plan25 已发布到 `origin/main`。直接把下面 Prompt 交给策划；若需
    python scripts\validate_project.py
    git status --short --branch
 7. 基线不通过就停止，不要修改 XLSX 或 CSV；把命令、退出码和完整错误告诉我。
-8. 可选检查 Unreal：运行 scripts\ue\Find-UnrealEngine.cmd。若找到 UE 5.8，再检查能否运行 scripts\ue\Build-Editor.cmd；构建前确认 ReEcho Editor 已关闭。缺少 UE、Visual Studio、MSVC 或 Windows SDK 时只报告，不要自动安装大型软件。
+8. 可选检查 Unreal：运行 scripts\ue\Find-UnrealEngine.cmd 和 python scripts\ue\prebuilt_editor.py check。两项通过即可报告可直接双击 ReEcho.uproject；不要运行 Build-Editor.cmd，也不要要求策划安装 Visual Studio/MSVC/Windows SDK。找不到 UE 5.8、预构建检查失败或打开时提示模块缺失/版本不同，只记录当前提交、UE 版本和完整错误并交给程序刷新发布包。
 9. 不要打开或修改 ReEchoData.xlsx，不要替我做视觉验收，不要生成测试数值，不要提交或推送任何内容。准备结束后只向我报告：仓库绝对路径、当前分支和提交、基线命令结果、Excel/WPS/Python/UE 可用性，以及我下一步应该打开的文件绝对路径。
 
 当我完成表格修改并明确让你继续后，你再按验收清单帮助我关闭表格、运行全量 sync、--check、validate_project.py、展示精确 CSV diff，并提醒我重启 Unreal Editor、点击 Play、选择“新游戏”。恢复测试数据前必须先列出精确文件并等待我确认。
