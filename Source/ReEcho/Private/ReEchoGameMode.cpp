@@ -205,7 +205,7 @@ void AReEchoGameMode::StartPlay()
 	const float SceneAspectRatio = ArenaBackgroundTexture ? static_cast<float>(ArenaBackgroundTexture->GetSizeX()) /
 	                                                            FMath::Max(1, ArenaBackgroundTexture->GetSizeY())
 	                                                      : 16.0f / 9.0f;
-	const float CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio;
+	const float CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio * 2.0f;
 	ArenaSceneWorldHeight = SceneWorldHeight;
 	ArenaSceneWorldWidth = CameraOrthoWidth;
 	if (Player)
