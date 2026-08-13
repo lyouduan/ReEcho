@@ -52,9 +52,9 @@
 ## 文档所有权
 
 - Executor 更新其指定 Plan 的执行记录和与所拥有实现直接相关的文档。
-- `shared/ARCHITECTURE.md` 是当前项目架构和模块设计意图的唯一权威；`CODEBASE_MAP.md` 只承担检索路由，Plan 只承担任务决策历史，不得分别复制一套当前全局架构。
+- `shared/ARCHITECTURE.md` 是当前项目架构和模块设计意图的唯一权威；`CODEBASE_MAP.md` 只承担检索路由，Plan 只承担任务决策历史，不得分别复制一套当前全局架构。两份全局文档必须使用相同的 `MOD-*` / `AREA-*` 稳定架构标识。
 - Executor 不例行编辑 `ARCHITECTURE.md`、`CODEBASE_MAP.md`、`LESSONS.md` 或工作流规则。Planner 在评审/关闭时统一更新；只有 Plan 明确拥有相应文档时 Executor 才可编辑。
-- 每个 Plan 关闭前，Planner 必须审阅 `shared/ARCHITECTURE.md`。模块、职责、权威状态、公共契约、依赖方向或跨领域不变量发生变化时同步更新；没有变化时在 Plan 中记录“已审阅、无需修改”及原因。未记录架构审阅结果不得关闭 Plan。
+- 每个 Plan 关闭前，Planner 必须审阅 `shared/ARCHITECTURE.md`。模块、领域、职责、权威状态、公共契约、依赖方向或跨领域不变量发生变化时，必须同步更新 `ARCHITECTURE.md` 的设计意图和 `CODEBASE_MAP.md` 中同一架构标识的代码落点；没有变化时在 Plan 中记录“已审阅、无需修改”及原因。未记录架构审阅结果不得关闭 Plan。
 - 实现期间仅在所有权、Writes、依赖、生命周期或共享契约变化时更新 Exchange。
 - 仅在读取路线或职责移动时更新 `CODEBASE_MAP.md`。只将可复用、有证据的经验加入 `LESSONS.md`，不要记录任务流水账。
 - 已暂存实现必须与其本地文档一致。文档中性提交不需要形式化共享文件改动。

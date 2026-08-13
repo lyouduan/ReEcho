@@ -44,6 +44,26 @@ rg -n "SymbolName" Source\ReEcho
 
 生成目录（`Intermediate`、`Saved`、Derived Data 和大部分 `Binaries`）属于本地输出。只有 `Binaries/Win64/ReEchoEditor.prebuilt.json` 声明的文件为“拉取即开”交付而跟踪。
 
+## 架构与代码一一映射
+
+下表与 [`ARCHITECTURE.md`](ARCHITECTURE.md) 使用同一组稳定架构标识。`ARCHITECTURE.md` 说明设计意图、状态所有权和依赖方向；本表只给出当前 `main` 的编译模块、目录与首读入口。后面的细分地图和任务路由都必须归入这里已有的标识，不能另建一套模块分类。
+
+| 架构标识 | 编译归属 | 当前代码落点 | 首读入口 |
+|---|---|---|---|
+| `MOD-ReEcho` | Runtime Module `ReEcho` | `Source/ReEcho/` | `Source/ReEcho/Private/ReEcho.cpp`、`Source/ReEcho/ReEcho.Build.cs` |
+| `MOD-ReEchoAudio` | Runtime Module `ReEchoAudio` | `Source/ReEchoAudio/` | `Source/ReEchoAudio/Public/ReEchoAudio.h`、`Source/ReEchoAudio/Public/ReEchoAudioService.h`、`Source/ReEchoAudio/ReEchoAudio.Build.cs` |
+| `AREA-Core` | `MOD-ReEcho` | `Source/ReEcho/Public/Core/`、`Source/ReEcho/Private/Core/` | `ReEchoTypes.*`、`ReEchoBalanceSettings.h` |
+| `AREA-Data` | `MOD-ReEcho` | `Source/ReEcho/Public/Data/`、`Source/ReEcho/Private/Data/` | `ReEchoCsvDataRegistry.*`、各类型化 CSV Reader |
+| `AREA-AbilityCombat` | `MOD-ReEcho` | `Source/ReEcho/Public/AbilitySystem/`、`Source/ReEcho/Private/AbilitySystem/`、`Source/ReEcho/Public/Combat/`、`Source/ReEcho/Private/Combat/` | `ReEchoPlayerAbilities.*`、`ReEchoCombatantComponent.*`、`ReEchoElementReaction.*` |
+| `AREA-Weapons` | `MOD-ReEcho` | `Source/ReEcho/Public/Weapons/`、`Source/ReEcho/Private/Weapons/` | `ReEchoWeaponActor.*`、`ReEchoWeaponRuntime.*` |
+| `AREA-Encounter` | `MOD-ReEcho` | `Source/ReEcho/Public/Encounter/`、`Source/ReEcho/Private/Encounter/` | `ReEchoEncounterDirector.*` |
+| `AREA-Run` | `MOD-ReEcho` | `Source/ReEcho/Public/Run/`、`Source/ReEcho/Private/Run/` | `ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h` |
+| `AREA-Recording` | `MOD-ReEcho` | `Source/ReEcho/Public/Recording/`、`Source/ReEcho/Private/Recording/` | `ReEchoRecorderComponent.*`、`ReEchoPlaybackComponent.*` |
+| `AREA-Player` | `MOD-ReEcho` | `Source/ReEcho/Public/Player/`、`Source/ReEcho/Private/Player/` | `ReEchoPlayerPawn.*` |
+| `AREA-Presentation` | `MOD-ReEcho` | `Source/ReEcho/Public/Graybox/`、`Source/ReEcho/Private/Graybox/`、`Source/ReEcho/Public/Presentation/`、`Source/ReEcho/Private/Presentation/` | 玩家/敌人/Echo Actor、投射物、可见反馈适配器 |
+| `AREA-UI` | `MOD-ReEcho` | `Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/` | `UI/Framework/*`、`ReEchoUIManagerSubsystem.*`、各屏幕 Widget |
+| `AREA-Tests` | `MOD-ReEcho` / `MOD-ReEchoAudio` | `Source/ReEcho/Private/Tests/`、`Source/ReEchoAudio/Private/Tests/` | 按被测架构标识选择同领域自动化测试 |
+
 ## 运行时组成
 
 `/Game/Level00` 是 Editor 和打包游戏启动地图。`AReEchoGameMode` 在该世界中创建运行时竞技场和玩法 Actor。
@@ -77,7 +97,9 @@ Esc -> 暂停菜单 -> 退出
   -> 遭遇存档捕获时钟、玩家、活跃录制和存活敌人
 ```
 
-## 运行时模块地图
+## 细分代码读取地图
+
+本节是上方架构标识的下钻路线，不定义新的 Runtime Module 或领域边界。
 
 | 区域 | 主要类型 | 文件 | 职责 |
 |---|---|---|---|

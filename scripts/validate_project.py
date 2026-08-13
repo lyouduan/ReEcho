@@ -955,6 +955,7 @@ def validate_workflow() -> None:
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
     docs_workflow_text = (ROOT / "docs" / "AI_WORKFLOW.md").read_text(encoding="utf-8")
     architecture_text = (ROOT / "shared" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    codebase_map_text = (ROOT / "shared" / "CODEBASE_MAP.md").read_text(encoding="utf-8")
 
     if "only mandatory reading-order authority" not in agents:
         fail("AGENTS.md must remain the sole startup-order authority")
@@ -1227,6 +1228,46 @@ def validate_workflow() -> None:
     missing_architecture_markers = [marker for marker in architecture_markers if marker not in architecture_text]
     if missing_architecture_markers:
         fail(f"shared/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
+    runtime_modules = sorted(
+        module.get("Name")
+        for module in project.get("Modules", [])
+        if module.get("Type") == "Runtime" and module.get("Name")
+    )
+    for module_name in runtime_modules:
+        architecture_id = f"MOD-{module_name}"
+        if architecture_id not in architecture_text:
+            fail(f"shared/ARCHITECTURE.md lacks runtime module architecture id: {architecture_id}")
+        if architecture_id not in codebase_map_text or f"Source/{module_name}/" not in codebase_map_text:
+            fail(f"shared/CODEBASE_MAP.md lacks code mapping for runtime module: {architecture_id}")
+    architecture_area_ids = (
+        "AREA-Core",
+        "AREA-Data",
+        "AREA-AbilityCombat",
+        "AREA-Weapons",
+        "AREA-Encounter",
+        "AREA-Run",
+        "AREA-Recording",
+        "AREA-Player",
+        "AREA-Presentation",
+        "AREA-UI",
+        "AREA-Tests",
+    )
+    for architecture_id in architecture_area_ids:
+        if architecture_id not in architecture_text:
+            fail(f"shared/ARCHITECTURE.md lacks internal area architecture id: {architecture_id}")
+        if architecture_id not in codebase_map_text:
+            fail(f"shared/CODEBASE_MAP.md lacks code mapping for internal area: {architecture_id}")
+    architecture_ids = set(re.findall(r"`((?:MOD|AREA)-[A-Za-z][A-Za-z0-9]*)`", architecture_text))
+    mapped_architecture_ids = set(re.findall(r"`((?:MOD|AREA)-[A-Za-z][A-Za-z0-9]*)`", codebase_map_text))
+    if architecture_ids != mapped_architecture_ids:
+        missing_from_map = sorted(architecture_ids - mapped_architecture_ids)
+        missing_from_architecture = sorted(mapped_architecture_ids - architecture_ids)
+        fail(
+            "ARCHITECTURE.md and CODEBASE_MAP.md architecture ids differ: "
+            f"missing from map={missing_from_map}, missing from architecture={missing_from_architecture}"
+        )
+    if "## 架构与代码一一映射" not in codebase_map_text:
+        fail("shared/CODEBASE_MAP.md must provide the canonical architecture-to-code mapping")
     architecture_maintenance_markers = (
         "## 架构影响与设计决策",
         "已更新 `shared/ARCHITECTURE.md`",
