@@ -163,6 +163,8 @@ Report back with:
 - Added `UReEcho2DFrameCollisionDriver` as the authoritative Flipbook-frame collision clock. It validates clip/track identity and revision, follows PaperFlipbook key-frame selection, applies authored pivot/PPUU and facing mirroring, and exposes immutable local-space Query-only body/weapon polygon snapshots without creating blocking physics state.
 - Wired one Driver into Player and Enemy actors. Player allocates a monotonic presentation attack-instance ID only after the existing weapon execution reports a committed attack; Controller opens authored AttackHitboxes only for that instance on track-authored active frames and closes it on one-shot completion. Missing/mismatched tracks expose a diagnostic empty snapshot so existing Capsule/weapon queries remain the safe fallback.
 - Added local point-in-polygon query APIs, finite/non-zero-area polygon validation and stale attack-instance rejection. Hurtboxes remain available independently of attack state; weapon polygons are hidden unless both attack-instance and authored frame gates are true.
+- Added the review overlay `reecho.Animation2D.DrawFrameCollision`: mode 1 draws current Body polygons green; mode 2 also draws active Attack polygons red. Overlay vertices use the renderer component transform after authored pivot/PPUU/facing conversion and do not mutate Actor, Capsule or gameplay collision.
+- Added deterministic reviewed-JSON-to-DataAsset tooling at `scripts/ue/build_plan40_collision_tracks.py` plus the annotation schema/workflow documentation. The generator requires exact Flipbook frame count, explicit body/weapon polygons and a non-empty source revision; it deliberately rejects missing annotations instead of inferring composite alpha geometry.
 
 ### Evidence
 
@@ -177,12 +179,14 @@ Report back with:
 - Generated and saved seven cook-visible assets under `/Game/ReEcho/Animation2D`: five player Appearance profiles, `DA_Enemy_Grunt` and `DA_PresentationCatalog`. The authoring log reports `5 player profiles + Grunt + catalog` with no Python error.
 - `ReEcho.Presentation.Animation2D.AssetProfiles` passes after loading the saved assets from disk and verifying catalog resolution, Spade static Idle/default looping Move/MoonStaff one-shot Attack, Grunt looping default, controller renderer exclusivity and one-shot completion return.
 - The focused Animation2D automation also passes frame synchronization, pivot/PPUU conversion, facing mirror, Query-only body lookup, committed/stale attack-instance gating, matching-instance closure and diagnostic missing-track fallback. UE 5.8 Editor build passes with Player/Grunt Driver components wired.
+- UE 5.8 Editor build passes with the collision debug overlay. The collision generator passes Python bytecode compilation, project static validation and `git diff --check`.
 
 ### Remaining risks
 
 - This checkpoint still contains the Plan39 actor-specific Spade seams; the profile/catalog/controller migration and frame-collision contract remain pending Plan40 work.
 - Profile/Catalog assets now exist and load in automation. Human PIE still must accept visual scale, pivot, facing, alpha/sort and the static/animated transitions.
 - Current saved profiles do not yet reference authored collision-track assets, so runtime safely uses the existing Capsule/weapon-query fallback. Collision mask authoring/generation, preview overlay and actual track assets remain required before frame geometry can affect hit testing.
+- No reviewed collision Mask/JSON exists in the current repository. Actual body/weapon Track creation and profile binding are therefore intentionally pending human-authored boundaries; the preview overlay and deterministic generator are ready for that input.
 - Visual identity, pivot, scale and timing for the new artist-authored Walk/Attack assets remain human PIE acceptance items.
 
 ### Human validation result/request

@@ -55,6 +55,7 @@ public:
 	const FString& GetFallbackReason() const { return FallbackReason; }
 	bool IsLocalPointInsideBody(FVector2D LocalPoint) const;
 	bool IsLocalPointInsideActiveAttack(FVector2D LocalPoint, int64 AttackInstanceId) const;
+	FVector LocalPointToWorld(FVector2D LocalPoint) const;
 
 private:
 	static FReEcho2DCollisionPolygon TransformPolygon(const FReEcho2DCollisionPolygon& Source,
@@ -62,6 +63,7 @@ private:
 	                                                  float FacingSign);
 	static bool ContainsPoint(const FReEcho2DCollisionPolygon& Polygon, FVector2D Point);
 	void Invalidate(FString Reason);
+	void DrawDebugSnapshot() const;
 
 	UPROPERTY()
 	TObjectPtr<UReEcho2DAnimationComponent> Renderer;

@@ -2,6 +2,18 @@
 
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
+
+namespace
+{
+TAutoConsoleVariable<int32> CVarReEchoDrawFrameCollision(
+	TEXT("reecho.Animation2D.DrawFrameCollision"),
+	0,
+	TEXT("Draw current authored 2D collision polygons: 0=off, 1=body, 2=body+attack."),
+	ECVF_Cheat);
+}
+
 void FReEcho2DFrameCollisionSnapshot::Reset()
 {
 	BodyHurtboxes.Reset();
@@ -21,6 +33,7 @@ void UReEcho2DFrameCollisionDriver::TickComponent(const float DeltaTime, const E
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	RefreshSnapshot();
+	DrawDebugSnapshot();
 }
 
 void UReEcho2DFrameCollisionDriver::BindRenderer(UReEcho2DAnimationComponent* InRenderer)
@@ -57,6 +70,12 @@ bool UReEcho2DFrameCollisionDriver::IsLocalPointInsideActiveAttack(const FVector
 	return Snapshot.bAttackActive && Snapshot.AttackInstanceId == AttackInstanceId &&
 	       Snapshot.WeaponAttackHitboxes.ContainsByPredicate(
 	           [LocalPoint](const FReEcho2DCollisionPolygon& Polygon) { return ContainsPoint(Polygon, LocalPoint); });
+}
+
+FVector UReEcho2DFrameCollisionDriver::LocalPointToWorld(const FVector2D LocalPoint) const
+{
+	return Renderer ? Renderer->GetComponentTransform().TransformPosition(FVector(LocalPoint.X, 0.0f, LocalPoint.Y))
+	                : FVector::ZeroVector;
 }
 
 void UReEcho2DFrameCollisionDriver::RefreshSnapshot()
@@ -147,4 +166,32 @@ void UReEcho2DFrameCollisionDriver::Invalidate(FString Reason)
 	bTrackValid = false;
 	FallbackReason = MoveTemp(Reason);
 	ValidatedTrack.Reset();
+}
+
+void UReEcho2DFrameCollisionDriver::DrawDebugSnapshot() const
+{
+#if ENABLE_DRAW_DEBUG
+	const int32 DrawMode = CVarReEchoDrawFrameCollision.GetValueOnGameThread();
+	if (DrawMode <= 0 || !Renderer || !GetWorld())
+	{
+		return;
+	}
+	auto DrawPolygons = [this](const TArray<FReEcho2DCollisionPolygon>& Polygons, const FColor Color)
+	{
+		for (const FReEcho2DCollisionPolygon& Polygon : Polygons)
+		{
+			for (int32 Index = 0; Index < Polygon.Vertices.Num(); ++Index)
+			{
+				const FVector Start = LocalPointToWorld(Polygon.Vertices[Index]);
+				const FVector End = LocalPointToWorld(Polygon.Vertices[(Index + 1) % Polygon.Vertices.Num()]);
+				DrawDebugLine(GetWorld(), Start, End, Color, false, 0.0f, 0, 2.0f);
+			}
+		}
+	};
+	DrawPolygons(Snapshot.BodyHurtboxes, FColor::Green);
+	if (DrawMode >= 2 && Snapshot.bAttackActive)
+	{
+		DrawPolygons(Snapshot.WeaponAttackHitboxes, FColor::Red);
+	}
+#endif
 }

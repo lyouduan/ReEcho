@@ -233,3 +233,41 @@ SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
 
 智者当前静态贴图和 Flipbook 都使用资源原始比例。不要再次使用固定世界高度归一化；Profile 应保持 `bUseNativeScale = true`。
 
+# 逐帧碰撞标注与预览
+
+Plan40 的碰撞不会从透明像素或整张角色加武器合成图在运行时自动生成。每个 Flipbook 必须有经过审核的 JSON 标注，之后由 `scripts/ue/build_plan40_collision_tracks.py` 确定性生成 `UReEcho2DFrameCollisionTrack`。
+
+标注放在 `Content/2DAnim/CollisionAnnotations/*.json`，格式如下：
+
+```json
+{
+  "asset_name": "DA_Collision_Spade_Attack",
+  "flipbook": "/Game/2DAnim/Flipbook/attack.attack",
+  "source_revision": "reviewed-source-revision",
+  "pixels_per_unreal_unit": 1.0,
+  "pivot_pixels": [512, 512],
+  "frames": [
+    {
+      "body_hurtboxes": [[[420, 240], [580, 240], [580, 760], [420, 760]]],
+      "weapon_attack_hitboxes": [],
+      "attack_active": false
+    }
+  ]
+}
+```
+
+- `frames` 数量必须与 Flipbook 关键帧数完全一致。
+- 每个多边形必须为 3–16 个顶点、有限数值且面积非零。
+- `body_hurtboxes` 只标身体；不能把武器、特效或整张 alpha 外接框算入身体。
+- `weapon_attack_hitboxes` 只标武器有效区域，并且只有 `attack_active=true` 且存在已提交攻击实例时才可查询。
+- `source_revision` 必须对应本次人工审核的源图/标注版本；资源变化后必须重新审核。
+- 缺少或不匹配 Track 时继续使用 Capsule/现有武器范围查询，不会产生隐式碰撞。
+
+PIE 中使用以下控制台变量查看叠加：
+
+```text
+reecho.Animation2D.DrawFrameCollision 1   // 绿色 Body Hurtbox
+reecho.Animation2D.DrawFrameCollision 2   // 绿色 Body + 红色活跃 Attack Hitbox
+```
+
+叠加线由当前 Flipbook 帧、Profile 缩放、Pivot 和朝向共同驱动。视觉与碰撞不一致时应修正 JSON/Track，不能用移动 Actor Root 或修改移动 Capsule 来补偿。
