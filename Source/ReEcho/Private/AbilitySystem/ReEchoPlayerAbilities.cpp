@@ -2,6 +2,7 @@
 
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Abilities/Tasks/AbilityTask_WaitInputRelease.h"
+#include "AbilitySystemComponent.h"
 #include "AbilitySystem/ReEchoGameplayEffects.h"
 #include "AbilitySystem/ReEchoGameplayTags.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -137,6 +138,13 @@ void UReEchoBasicAttackAbility::HandleRepeatDelay()
 	if (PlayerPawn->IsWeaponActionLocked())
 	{
 		ScheduleNextAttack(PlayerPawn->GetWeaponActionLockRemaining() + KINDA_SMALL_NUMBER);
+		return;
+	}
+
+	const UAbilitySystemComponent* AbilitySystem = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
+	if (AbilitySystem && AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::Cooldown_Attack_Basic))
+	{
+		ScheduleNextAttack(0.01f);
 		return;
 	}
 
