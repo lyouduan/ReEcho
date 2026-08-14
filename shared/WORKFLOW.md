@@ -8,6 +8,7 @@
 |---|---|
 | 启动和读取顺序 | `AGENTS.md` |
 | 项目约束、所有权、分支和验证 | `shared/PROJECT_RULES.md` |
+| 风险提醒、问程序建议和人工确认后执行 | `shared/PROJECT_RULES.md` |
 | 程序/策划/美术边界 | `shared/PROGRAMMER_RULES.md`、`shared/DESIGNER_RULES.md`、`shared/ARTIST_RULES.md` |
 | 项目秘书协调职责 | `shared/SECRETARY_RULES.md` |
 | Planner 操作 | `shared/PLANNER_RULES.md` |
@@ -23,7 +24,7 @@
 - 用户决定方向和主观验收，并选择如何集成外部 main 差异。
 - 明确指派后，项目秘书维护协作控制面一致性，但不接管产品决策或专业实现。
 - Planner 定义范围、评审交付、集成已验收本地工作，并且是唯一可发布 `main` 的职责。
-- Executor 在隔离的本地分支/worktree 中实现、记录证据并交回本地分支；Executor 绝不推送远端引用。
+- Executor 默认在隔离的本地分支/worktree 中实现、记录证据并交回本地分支，不推送远端引用；风险例外遵循 `PROJECT_RULES.md` 的人工确认机制。
 - 策划和美术 AI 作为本地专业执行者，将数据/资产和证据交给程序 Planner，而不自行发布远端状态。
 
 任务生命周期为 `Proposed -> Ready -> InProgress -> Review -> Closed`；`Blocked` 仅用于例外情况，并需写明解除条件。人工验收单独记录为 `NotRequired`、`PendingBeforeClose`、`PendingFollowUp` 或 `Passed`。
@@ -61,11 +62,11 @@ Unreal Editor 锁是机器本地的，但通过 Git common directory 由一个�
 
 ## 本地与远端通道
 
-1. **规划已发布，实现留本地**：编号 Plan 文件及必要实时协调先进入 `main`；任务分支、worktree、实现提交和交接保留本地，绝不作为侧引用推送。
+1. **规划已发布，实现留本地**：编号 Plan 文件及必要实时协调先进入 `main`；任务分支、worktree、实现提交和交接默认保留本地，不作为侧引用推送。
 2. **本地验收**：Planner 评审 Executor 提交、解决人工验收，并将已验收范围合入本地 main。
 3. **远端 main 集成**：fetch、审计外部 main、与用户解决 Plan 编号和行为差异、验证结果候选，然后仅非强制推送 main。
 
-常设的仅 Plan 授权只覆盖编号 Plan 及必要实时协调，绝不覆盖实现。其他 main 发布仍需单候选授权或有明确范围的常设授权。
+常设的仅 Plan 授权只覆盖编号 Plan 及必要实时协调，默认不覆盖实现。其他 main 发布仍需单候选授权、有明确范围的常设授权，或按 `PROJECT_RULES.md` 对准确风险操作取得人工确认。
 
 ## 采用该结构的原因
 

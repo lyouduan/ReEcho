@@ -6,6 +6,8 @@ Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, `s
 
 Before relying on an initial prompt, cached context or a local rule copy, apply the remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`.
 
+Every repository rule's risky-operation prohibition or exception is governed by the single human-confirmation contract in `shared/PROJECT_RULES.md`: warn first, name when asking a programmer is recommended, and execute after an authorized human explicitly confirms the exact operation.
+
 ## First-contact professional-role gate
 
 Before reading beyond this file or changing repository state, a newly connected AI must establish the user's role in this project.

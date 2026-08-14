@@ -997,6 +997,25 @@ def validate_workflow() -> None:
         )
     if "remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`" not in agents:
         fail("AGENTS.md must route prompt/rule conflicts to PROJECT_RULES.md")
+    risk_authority_markers = (
+        "## 风险操作的人类确认与执行",
+        "风险操作授权的唯一权威",
+        "覆盖或丢弃未提交内容",
+        "跳过规则或 Plan 要求的构建、测试、审查或发布门禁",
+        "建议先问程序",
+        "确认后应直接执行",
+        "经人工确认跳过/未验证",
+        "不得写成通过",
+        "人工确认不能授权伪造证据",
+    )
+    missing_risk_authority_markers = [marker for marker in risk_authority_markers if marker not in project_rules]
+    if missing_risk_authority_markers:
+        fail(
+            "PROJECT_RULES.md lacks human-confirmed risk execution markers: "
+            + ", ".join(missing_risk_authority_markers)
+        )
+    if "risky-operation prohibition or exception is governed" not in agents:
+        fail("AGENTS.md must route every risky-operation rule to PROJECT_RULES.md")
     role_rule_markers = {
         "PROGRAMMER_RULES.md": (
             "程序用户路线",
@@ -1019,6 +1038,19 @@ def validate_workflow() -> None:
         missing = [marker for marker in markers if marker not in role_rule_texts[name]]
         if missing:
             fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
+    risk_route_marker = "风险性禁止项和例外统一遵循 `shared/PROJECT_RULES.md`"
+    risk_route_texts = {
+        "PROGRAMMER_RULES.md": programmer_rules,
+        "DESIGNER_RULES.md": designer_rules,
+        "ARTIST_RULES.md": artist_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "SECRETARY_RULES.md": secretary_rules,
+        "GIT_RULES.md": git_rules,
+    }
+    missing_risk_routes = [name for name, text_value in risk_route_texts.items() if risk_route_marker not in text_value]
+    if missing_risk_routes:
+        fail("rule files must route risky-operation confirmation to PROJECT_RULES.md: " + ", ".join(missing_risk_routes))
     secretary_markers = (
         "项目秘书仓库职责的唯一权威",
         "不是第四种用户专业角色",
@@ -1048,6 +1080,8 @@ def validate_workflow() -> None:
         "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
         "仅含源码的程序候选",
+        "经人工确认跳过/未验证",
+        "建议先问程序",
     )
     missing_git_rule_markers = [marker for marker in git_rule_markers if marker not in git_rules]
     if missing_git_rule_markers:
@@ -1056,6 +1090,8 @@ def validate_workflow() -> None:
         fail("AGENTS.md must route commit and publication work to GIT_RULES.md")
     if "普通任务直接遵循 `AGENTS.md`" not in onboarding_text:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
+    if "所有风险操作遵循 `shared/PROJECT_RULES.md` 的统一确认机制" not in onboarding_text:
+        fail("AI_ONBOARDING.md must route risky operations to PROJECT_RULES.md")
     if "## 最近关闭" in exchange_text or "## 决定" in exchange_text:
         fail("PLANNER_EXCHANGE.md must contain live coordination only, not history or permanent rules")
     announcement_block = exchange_text.split("## 已规划和活跃工作公告", 1)[1].split("## 活跃所有权", 1)[0]
@@ -1172,7 +1208,7 @@ def validate_workflow() -> None:
         "PROJECT_RULES.md": ("`origin/main` 是唯一允许的远端分支", "不推送任何远端引用"),
         "PLANNER_RULES.md": ("`origin/main` 是唯一允许的远端分支", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不得推送任务分支"),
-        "SECRETARY_RULES.md": ("禁止创建或推送 `origin/main` 之外的远端分支", "只将本地 `main` 推送至 `origin/main`"),
+        "SECRETARY_RULES.md": ("默认禁止创建或推送 `origin/main` 之外的远端分支", "默认只将本地 `main` 非强制推送至 `origin/main`"),
         "WORKFLOW.md": ("远端仓库只有一个分支：`main`", "编号 Plan 在实现开始前发布到 `main`"),
     }
     main_only_texts = {
