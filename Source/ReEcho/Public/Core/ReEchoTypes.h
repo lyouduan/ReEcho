@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Combat/ReEchoCombatTypes.h"
+#include "Enemies/ReEchoEnemyProjectileLogic.h"
+#include "Enemies/ReEchoEnemyTypes.h"
 #include "ReEchoTypes.generated.h"
 
 class AActor;
@@ -136,9 +138,30 @@ struct REECHO_API FReEchoRecording
 	FVector EvaluatePosition(float Time) const;
 };
 
+/** Serializable Host state for one in-flight Boss projectile. */
+USTRUCT()
+struct REECHO_API FReEchoEnemyProjectileRuntimeState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FReEchoEnemyProjectileDefinition Definition;
+
+	UPROPERTY()
+	FReEchoEnemyProjectileSnapshot Snapshot;
+
+	UPROPERTY()
+	FReEchoAttackIdentity Attack;
+
+	UPROPERTY()
+	float Damage = 0.0f;
+
+	UPROPERTY()
+	float CollisionRadiusCm = 20.0f;
+};
+
 /** Serializable runtime state for one living enemy in a suspended encounter. */
 USTRUCT()
-
 struct REECHO_API FReEchoEnemyRuntimeState
 {
 	GENERATED_BODY()
@@ -184,6 +207,17 @@ struct REECHO_API FReEchoEnemyRuntimeState
 	/** Prevents a restored fuse-expired bomber from submitting the same self-destruct twice. */
 	UPROPERTY()
 	bool bSelfDestructCommitted = false;
+
+	/** v8 canonical logic state, including deterministic Boss ability/phase timing. */
+	UPROPERTY()
+	FReEchoEnemyLogicSnapshot LogicSnapshot;
+
+	/** Older saves reconstruct LogicSnapshot from the compatibility fields above. */
+	UPROPERTY()
+	bool bHasLogicSnapshot = false;
+
+	UPROPERTY()
+	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;
 };
 
 /** Exact resumable state captured only when the player confirms an in-encounter quit. */
@@ -213,6 +247,10 @@ struct REECHO_API FReEchoEncounterRuntimeState
 
 	UPROPERTY()
 	FReEchoRecording ActiveRecording;
+
+	/** Boss room 30-second transition already removed echoes and applied the one-shot player boost. */
+	UPROPERTY()
+	bool bBossPostEchoPhaseTriggered = false;
 
 	UPROPERTY()
 	TArray<FReEchoEnemyRuntimeState> Enemies;

@@ -112,6 +112,18 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Conduct damage multiplier no longer carries the +2 formula term"), Conduct->DamageMultiplier, 1.0f);
 	TestEqual(TEXT("Conduct damage increase comes from CSV"), Conduct->DamageIncrease, 2.0f);
 	TestEqual(TEXT("Six workbook reactions are enabled"), Snapshot->Reactions.Num(), 6);
+
+	const FReEchoCsvEnemyRow* Boss = Snapshot->FindEnabledEnemy(TEXT("M_TimeGuard"));
+	if (!TestTrue(TEXT("Stable boss EnemyId resolves from CSV"), Boss != nullptr))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Four enemy definitions come from the independent workbook"), Snapshot->Enemies.Num(), 4);
+	TestEqual(TEXT("Boss health comes from enemy CSV"), Boss->MaxHealth, 650.0f);
+	TestEqual(TEXT("Boss owns four active abilities plus cleanse"), Boss->Abilities.Num(), 5);
+	TestEqual(TEXT("Boss active rotation begins with melee sweep"), Boss->Abilities[1].BehaviorId, FName(TEXT("Boss.MeleeSweep")));
+	TestEqual(TEXT("Boss owns the thirty-second phase"), Boss->BossPhases.Num(), 1);
+	TestEqual(TEXT("Boss phase trigger comes from CSV"), Boss->BossPhases[0].TriggerSeconds, 30.0f);
 	return true;
 }
 

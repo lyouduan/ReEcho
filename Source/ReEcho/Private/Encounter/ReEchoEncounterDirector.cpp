@@ -18,8 +18,10 @@ void AReEchoEncounterDirector::StartEncounter()
 
 void AReEchoEncounterDirector::ResumeEncounter(const float SavedEncounterTime)
 {
-	EncounterTime = FMath::Clamp(
-	    SavedEncounterTime, 0.0f, GetDefault<UReEchoBalanceSettings>()->EncounterDuration - KINDA_SMALL_NUMBER);
+	const float MaximumResumeTime = bEndsOnDuration
+	                                    ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration - KINDA_SMALL_NUMBER
+	                                    : TNumericLimits<float>::Max();
+	EncounterTime = FMath::Clamp(SavedEncounterTime, 0.0f, MaximumResumeTime);
 	Accumulator = 0.0f;
 	FixedDelta = 1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
 	bSetupPhase = EncounterTime < GetDefault<UReEchoBalanceSettings>()->SetupDuration;
@@ -34,6 +36,11 @@ void AReEchoEncounterDirector::EndEncounter()
 	}
 	bRunning = false;
 	OnEncounterEnded.Broadcast();
+}
+
+void AReEchoEncounterDirector::SetEndsOnDuration(const bool bInEndsOnDuration)
+{
+	bEndsOnDuration = bInEndsOnDuration;
 }
 
 float AReEchoEncounterDirector::GetRemainingTime() const
@@ -55,7 +62,8 @@ void AReEchoEncounterDirector::Tick(const float DeltaSeconds)
 		EncounterTime += FixedDelta;
 		bSetupPhase = EncounterTime < GetDefault<UReEchoBalanceSettings>()->SetupDuration;
 		OnFixedStep.Broadcast(FixedDelta);
-		if (EncounterTime + KINDA_SMALL_NUMBER >= GetDefault<UReEchoBalanceSettings>()->EncounterDuration)
+		if (bEndsOnDuration &&
+		    EncounterTime + KINDA_SMALL_NUMBER >= GetDefault<UReEchoBalanceSettings>()->EncounterDuration)
 		{
 			EncounterTime = GetDefault<UReEchoBalanceSettings>()->EncounterDuration;
 			bRunning = false;

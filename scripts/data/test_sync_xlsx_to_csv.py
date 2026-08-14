@@ -14,6 +14,7 @@ from copy import copy
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.utils.cell import range_boundaries
 
 import sync_xlsx_to_csv as sync
 
@@ -22,6 +23,8 @@ ROOT = sync.ROOT
 DATA = sync.DATA_DIR
 SCRIPT = ROOT / "scripts" / "data" / "sync_xlsx_to_csv.py"
 CANONICAL = sync.CANONICAL_XLSX
+ENEMY_CANONICAL = sync.CANONICAL_ENEMY_XLSX
+CANONICAL_WORKBOOKS = sync.CANONICAL_WORKBOOKS
 
 
 class SyncXlsxToCsvTests(unittest.TestCase):
@@ -59,7 +62,9 @@ class SyncXlsxToCsvTests(unittest.TestCase):
 
     def assert_invalid_workbook(self, mutator, token: str) -> None:
         workbook_path = self.mutate_workbook(mutator)
-        result = self.run_sync("--input", str(workbook_path), "--check", expect_success=False)
+        result = self.run_sync(
+            "--input", str(workbook_path), "--input", str(ENEMY_CANONICAL), "--check", expect_success=False
+        )
         self.assertIn(token, result.stdout)
         self.assertRegex(result.stdout, r":tbl[A-Za-z]+:row \d+:column ")
 
@@ -68,7 +73,7 @@ class SyncXlsxToCsvTests(unittest.TestCase):
 
     def generated_bytes(self) -> dict[str, bytes]:
         with tempfile.TemporaryDirectory(prefix="reecho_xlsx_generated_") as temp:
-            _, csv_bytes = sync.generate_package(CANONICAL, Path(temp))
+            _, csv_bytes = sync.generate_package(CANONICAL_WORKBOOKS, Path(temp))
             return csv_bytes
 
     def make_temp_data_dir(self, initial_bytes: dict[str, bytes] | None = None) -> Path:
@@ -96,6 +101,13 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         tables = sync.workbook_tables(wb)
         return tables[table_name][0]
 
+    @staticmethod
+    def table_cell(wb, table_name: str, row_index: int, column_name: str):
+        sheet, table = sync.workbook_tables(wb)[table_name]
+        min_col, min_row, max_col, _ = range_boundaries(table.ref)
+        headers = [sheet.cell(min_row, column).value for column in range(min_col, max_col + 1)]
+        return sheet.cell(min_row + 1 + row_index, min_col + headers.index(column_name))
+
     def set_cell_locked(self, wb, table_name: str, address: str, locked: bool) -> None:
         cell = self.sheet_with_table(wb, table_name)[address]
         protection = copy(cell.protection)
@@ -108,31 +120,40 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             validation for validation in sheet.data_validations.dataValidation if address not in validation.cells
         ]
 
-    def test_export_map_covers_manifest_without_duplicate_ownership(self) -> None:
-        wb = load_workbook(CANONICAL, read_only=False)
-        owners = sync.read_export_map(wb)
-        sync.validate_workbook_protection(wb, owners)
-        sync.validate_workbook_data_validations(wb)
-        outputs = [owner.output_csv for owner in owners]
+    def test_export_maps_cover_manifest_without_duplicate_ownership(self) -> None:
+        workbooks = [load_workbook(path, read_only=False) for path in CANONICAL_WORKBOOKS]
+        all_owners = []
+        for wb in workbooks:
+            owners = sync.read_export_map(wb)
+            sync.validate_workbook_protection(wb, owners)
+            sync.validate_workbook_data_validations(wb)
+            all_owners.extend(owners)
+        outputs = [owner.output_csv for owner in all_owners]
         self.assertEqual(sorted(outputs), sorted(sync.TABLE_TO_CSV.values()))
         self.assertEqual(len(outputs), len(set(outputs)))
+        main_wb, enemy_wb = workbooks
         by_sheet: dict[str, list[str]] = {}
-        for owner in owners:
+        for owner in all_owners:
             by_sheet.setdefault(owner.sheet, []).append(owner.output_csv)
-        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblCharacters").title]), ["character_aliases.csv", "characters.csv"])
-        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblCards").title]), ["card_effects.csv", "cards.csv"])
-        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblWeapons").title]), ["attack_steps.csv", "weapon_types.csv", "weapons.csv"])
-        self.assertEqual(sorted(by_sheet[self.sheet_with_table(wb, "tblParts").title]), ["part_effects.csv", "parts.csv", "slot_profiles.csv", "slot_types.csv"])
-        for table_name in sync.AUTHORING_TABLES:
-            sheet, table = sync.workbook_tables(wb)[table_name]
-            self.assertTrue(sheet.protection.sheet, table_name)
-            self.assertFalse(sheet.protection.insertRows, table_name)
-            self.assertFalse(sheet.protection.deleteRows, table_name)
-            cells = sheet[table.ref]
-            self.assertTrue(all(cell.protection.locked for cell in cells[0]), table_name)
-            self.assertTrue(all(not cell.protection.locked for row in cells[1:] for cell in row), table_name)
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblCharacters").title]), ["character_aliases.csv", "characters.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblCards").title]), ["card_effects.csv", "cards.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblWeapons").title]), ["attack_steps.csv", "weapon_types.csv", "weapons.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblParts").title]), ["part_effects.csv", "parts.csv", "slot_profiles.csv", "slot_types.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblEnemies").title]), ["enemies.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblEnemyAbilities").title]), ["enemy_abilities.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblBossPhases").title]), ["boss_phases.csv"])
+        for wb in workbooks:
+            tables = sync.workbook_tables(wb)
+            for table_name in set(tables) & sync.AUTHORING_TABLES:
+                sheet, table = tables[table_name]
+                self.assertTrue(sheet.protection.sheet, table_name)
+                self.assertFalse(sheet.protection.insertRows, table_name)
+                self.assertFalse(sheet.protection.deleteRows, table_name)
+                cells = sheet[table.ref]
+                self.assertTrue(all(cell.protection.locked for cell in cells[0]), table_name)
+                self.assertTrue(all(not cell.protection.locked for row in cells[1:] for cell in row), table_name)
         for sheet_name in sync.SYSTEM_SHEETS:
-            sheet = wb[sheet_name]
+            sheet = main_wb[sheet_name]
             self.assertTrue(sheet.protection.sheet, sheet_name)
             self.assertTrue(sheet.protection.insertRows, sheet_name)
             self.assertTrue(sheet.protection.deleteRows, sheet_name)
@@ -146,6 +167,32 @@ class SyncXlsxToCsvTests(unittest.TestCase):
                 first_bytes = (Path(first) / name).read_bytes()
                 self.assertEqual(first_bytes, (Path(second) / name).read_bytes(), name)
                 self.assertEqual(first_bytes, (DATA / name).read_bytes(), name)
+
+    def test_enemy_cross_table_reference_failure_reports_location(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="reecho_enemy_fixture_") as temp:
+            fixture = Path(temp) / "enemy.xlsx"
+            shutil.copy2(ENEMY_CANONICAL, fixture)
+            wb = load_workbook(fixture)
+            self.table_cell(wb, "tblEnemyAbilities", 0, "OwnerEnemyId").value = "M_Missing"
+            wb.save(fixture)
+            result = self.run_sync(
+                "--input", str(CANONICAL), "--input", str(fixture), "--check", expect_success=False
+            )
+            self.assertIn("unknown reference 'M_Missing'", result.stdout)
+            self.assertRegex(result.stdout, r"EnemyAbilities:tblEnemyAbilities:row \d+:column OwnerEnemyId")
+
+    def test_enemy_conditional_field_failure_reports_location(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="reecho_enemy_fixture_") as temp:
+            fixture = Path(temp) / "enemy.xlsx"
+            shutil.copy2(ENEMY_CANONICAL, fixture)
+            wb = load_workbook(fixture)
+            self.table_cell(wb, "tblEnemies", 0, "FuseSeconds").value = 1
+            wb.save(fixture)
+            result = self.run_sync(
+                "--input", str(CANONICAL), "--input", str(fixture), "--check", expect_success=False
+            )
+            self.assertIn("non-Bomber fields must use explicit zero", result.stdout)
+            self.assertRegex(result.stdout, r"Enemies:tblEnemies:row \d+:column TriggerRadiusCm")
 
     def test_check_is_read_only_and_reports_drift(self) -> None:
         generated = self.generated_bytes()

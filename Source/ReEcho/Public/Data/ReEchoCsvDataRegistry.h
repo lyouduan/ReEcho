@@ -291,6 +291,82 @@ struct REECHO_API FReEchoCsvCardRow
 	TArray<FReEchoCsvCardEffectRow> Effects;
 };
 
+struct REECHO_API FReEchoCsvEnemyAbilityRow
+{
+	FName Id;
+	FName OwnerEnemyId;
+	FName BehaviorId;
+	int32 SequenceOrder = 0;
+	bool bEnabled = false;
+	float Damage = 0.0f;
+	float WindupSeconds = 0.0f;
+	float ActiveSeconds = 0.0f;
+	float RecoverySeconds = 0.0f;
+	float CooldownSeconds = 0.0f;
+	float MinRangeCm = 0.0f;
+	float MaxRangeCm = 0.0f;
+	float RadiusCm = 0.0f;
+	float WidthCm = 0.0f;
+	float LengthCm = 0.0f;
+	float ProjectileSpeedCmPerSecond = 0.0f;
+	float TeleportOffsetCm = 0.0f;
+	FName TargetingMode;
+	FName LockTiming;
+	float CleanseIntervalSeconds = 0.0f;
+	float ImmunitySeconds = 0.0f;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+};
+
+struct REECHO_API FReEchoCsvBossPhaseRow
+{
+	FName Id;
+	FName BossEnemyId;
+	int32 PhaseIndex = 0;
+	float TriggerSeconds = 0.0f;
+	FName EchoPolicy;
+	float PhysicalAttackMultiplier = 1.0f;
+	float ElementalAttackMultiplier = 1.0f;
+	float AttackSpeedMultiplier = 1.0f;
+	float MovementSpeedMultiplier = 1.0f;
+	FName RefillHealthPolicy;
+	bool bEnabled = false;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+};
+
+struct REECHO_API FReEchoCsvEnemyRow
+{
+	FName Id;
+	FName Archetype;
+	FName BehaviorProfileId;
+	FName PresentationId;
+	bool bEnabled = false;
+	float MaxHealth = 0.0f;
+	float MoveSpeedCmPerSecond = 0.0f;
+	float CollisionRadiusCm = 0.0f;
+	float CollisionHalfHeightCm = 0.0f;
+	float ContactDamage = 0.0f;
+	float AttackIntervalSeconds = 0.0f;
+	float ContactRangeCm = 0.0f;
+	float MovementStopDistanceCm = 0.0f;
+	float HitReactionDurationSeconds = 0.0f;
+	float KnockbackSpeedCmPerSecond = 0.0f;
+	float KnockbackDrag = 0.0f;
+	float TriggerRadiusCm = 0.0f;
+	float DamageRadiusCm = 0.0f;
+	float FuseSeconds = 0.0f;
+	int32 Reward = 0;
+	bool bBoss = false;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+	TArray<FReEchoCsvEnemyAbilityRow> Abilities;
+	TArray<FReEchoCsvBossPhaseRow> BossPhases;
+};
+
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
@@ -315,6 +391,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvSlotTypeRow> SlotTypes;
 	TMap<FName, FReEchoCsvSlotProfileRow> SlotProfiles;
 	TMap<FName, FReEchoCsvPartRow> Parts;
+	TMap<FName, FReEchoCsvEnemyRow> Enemies;
+	TArray<FName> EnemyOrder;
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;
@@ -331,6 +409,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	const FReEchoCsvWeaponRow* FindWeaponByInputSlot(EReEchoInputSlot InputSlot) const;
 	TArray<FReEchoCsvWeaponRow> GetStartSelectableWeapons() const;
 	TArray<FReEchoCsvAttackStepRow> GetAttackSteps(FName AttackPatternId) const;
+	const FReEchoCsvEnemyRow* FindEnemy(FName EnemyId) const;
+	const FReEchoCsvEnemyRow* FindEnabledEnemy(FName EnemyId) const;
 };
 
 struct REECHO_API FReEchoCsvLoadResult

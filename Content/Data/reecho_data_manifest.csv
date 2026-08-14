@@ -15,3 +15,6 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,SlotProfiles,slot_profiles.csv,Id
 1,Parts,parts.csv,Id
 1,PartEffects,part_effects.csv,Id
+1,Enemies,enemies.csv,Id
+1,EnemyAbilities,enemy_abilities.csv,Id
+1,BossPhases,boss_phases.csv,Id

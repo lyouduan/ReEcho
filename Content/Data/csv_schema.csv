@@ -205,3 +205,65 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,PartEffects,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,PartEffects,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,PartEffects,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,Enemies,Id,StableId,true,,,,,Stable runtime enemy id.
+1,Enemies,Archetype,StableId,true,,,,Grunt|Shield|Bomber|Boss,Resource-free enemy archetype.
+1,Enemies,BehaviorProfileId,BehaviorId,true,,,,Enemy.Grunt|Enemy.Shield|Enemy.Bomber|Boss.TimeGuard,Registered enemy behavior profile.
+1,Enemies,PresentationId,StableId,true,,,,,Presentation lookup id without asset dependency.
+1,Enemies,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Enemies,MaxHealth,Float,true,1,1000000,,,Maximum health.
+1,Enemies,MoveSpeedCmPerSecond,Float,true,0,100000,,,Movement speed in cm per second.
+1,Enemies,CollisionRadiusCm,Float,true,0.1,100000,,,Collision radius in cm.
+1,Enemies,CollisionHalfHeightCm,Float,true,0.1,100000,,,Collision half height in cm.
+1,Enemies,ContactDamage,Float,true,0,100000,,,Contact or bomber explosion damage.
+1,Enemies,AttackIntervalSeconds,Float,true,0,3600,,,Contact attack interval.
+1,Enemies,ContactRangeCm,Float,true,0,100000,,,Contact attack range.
+1,Enemies,MovementStopDistanceCm,Float,true,0,100000,,,Pursuit stop distance.
+1,Enemies,HitReactionDurationSeconds,Float,true,0,3600,,,Hit reaction duration.
+1,Enemies,KnockbackSpeedCmPerSecond,Float,true,0,100000,,,Initial knockback speed.
+1,Enemies,KnockbackDrag,Float,true,0,100000,,,Knockback drag.
+1,Enemies,TriggerRadiusCm,Float,true,0,100000,,,Bomber trigger radius; zero otherwise.
+1,Enemies,DamageRadiusCm,Float,true,0,100000,,,Bomber explosion radius; zero otherwise.
+1,Enemies,FuseSeconds,Float,true,0,3600,,,Bomber fuse; zero otherwise.
+1,Enemies,Reward,Int,true,0,1000000,,,Encounter reward value.
+1,Enemies,Boss,Bool,true,,,,true|false,Whether this row is a boss.
+1,Enemies,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,Enemies,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,Enemies,Notes,Text,false,,,,,Designer notes.
+1,EnemyAbilities,Id,StableId,true,,,,,Stable enemy ability id.
+1,EnemyAbilities,OwnerEnemyId,ForeignKey,true,,,Enemies,,References Enemies.Id.
+1,EnemyAbilities,BehaviorId,BehaviorId,true,,,,Boss.MeleeSweep|Boss.Projectile|Boss.BlinkSlam|Boss.PrayerBeam|Boss.ElementCleanse,Registered boss behavior.
+1,EnemyAbilities,SequenceOrder,Int,true,0,1000000,,,Deterministic active ability order; zero for passive abilities.
+1,EnemyAbilities,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,EnemyAbilities,Damage,Float,true,0,100000,,,Damage dealt on commit.
+1,EnemyAbilities,WindupSeconds,Float,true,0,3600,,,Telegraph windup duration.
+1,EnemyAbilities,ActiveSeconds,Float,true,0,3600,,,Active hit or hidden duration.
+1,EnemyAbilities,RecoverySeconds,Float,true,0,3600,,,Recovery duration.
+1,EnemyAbilities,CooldownSeconds,Float,true,0,3600,,,Cooldown consumed after commit.
+1,EnemyAbilities,MinRangeCm,Float,true,0,100000,,,Minimum legal target range.
+1,EnemyAbilities,MaxRangeCm,Float,true,0,100000,,,Maximum legal target range.
+1,EnemyAbilities,RadiusCm,Float,true,0,100000,,,Radial hit size.
+1,EnemyAbilities,WidthCm,Float,true,0,100000,,,Directional hit width.
+1,EnemyAbilities,LengthCm,Float,true,0,100000,,,Directional hit length.
+1,EnemyAbilities,ProjectileSpeedCmPerSecond,Float,true,0,100000,,,Projectile speed; zero for non-projectiles.
+1,EnemyAbilities,TeleportOffsetCm,Float,true,0,100000,,,Blink offset from locked target.
+1,EnemyAbilities,TargetingMode,StableId,true,,,,LockedDirection|LockedLocation|Self,Typed targeting policy.
+1,EnemyAbilities,LockTiming,StableId,true,,,,WindupStart|WindupEnd|Interval,Typed target lock timing.
+1,EnemyAbilities,CleanseIntervalSeconds,Float,true,0,3600,,,Periodic cleanse interval.
+1,EnemyAbilities,ImmunitySeconds,Float,true,0,3600,,,Element immunity duration.
+1,EnemyAbilities,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,EnemyAbilities,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,EnemyAbilities,Notes,Text,false,,,,,Designer notes.
+1,BossPhases,Id,StableId,true,,,,,Stable boss phase id.
+1,BossPhases,BossEnemyId,ForeignKey,true,,,Enemies,,References boss Enemies.Id.
+1,BossPhases,PhaseIndex,Int,true,0,1000000,,,Unique deterministic phase order per boss.
+1,BossPhases,TriggerSeconds,Float,true,0,3600,,,Encounter time trigger.
+1,BossPhases,EchoPolicy,StableId,true,,,,DestroyEncounterEchoes,Typed echo phase policy.
+1,BossPhases,PhysicalAttackMultiplier,Float,true,0,100,,,Temporary physical attack multiplier.
+1,BossPhases,ElementalAttackMultiplier,Float,true,0,100,,,Temporary elemental attack multiplier.
+1,BossPhases,AttackSpeedMultiplier,Float,true,0,100,,,Temporary attack speed multiplier.
+1,BossPhases,MovementSpeedMultiplier,Float,true,0,100,,,Temporary movement speed multiplier.
+1,BossPhases,RefillHealthPolicy,StableId,true,,,,None,Typed health refill policy.
+1,BossPhases,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,BossPhases,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,BossPhases,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,BossPhases,Notes,Text,false,,,,,Designer notes.

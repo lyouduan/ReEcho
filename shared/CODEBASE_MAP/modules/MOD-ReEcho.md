@@ -130,7 +130,7 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 - 代码：`Source/ReEcho/Public/Data/`、`Source/ReEcho/Private/Data/`。
 - 首读：`ReEchoCsvDataRegistry.*`、`ReEchoWeaponCsvReader.*`、角色/卡牌/元素 Reader。
-- 数据链：`Design/Data/ReEchoData.xlsx` → `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`。
+- 数据链：主策划 `Design/Data/ReEchoData.xlsx` 与怪物策划独立 `Design/Data/ReEchoEnemyData.xlsx` → 统一 `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`；二进制工作簿保持独立所有权。
 - 权威：CSV Schema 校验、稳定 ID 引用、运行时快照发布和领域修订值。
 - 扩展：先改 XLSX/Schema/生成器，再扩 Reader 与验证；Behavior/Formula 等逻辑字段必须映射到注册实现。
 - 禁止：运行时读取 XLSX、执行描述文本、把解析失败静默替换为默认逻辑、保存第二份平衡常量。
@@ -160,8 +160,8 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 - 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
 - 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent 和维护 Actor 生命周期。
 - 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`，集中敌人 Profile/贴图路径、血条、动画、命中特效、元素光环与死亡残留。
-- 主流程：`AReEchoGameMode` 仅在生成/恢复时注册 Host，并通过 `UReEchoEnemyRosterComponent` 清理、捕获保存和判断全灭。
-- 保存：`FReEchoEnemyRuntimeState` 聚合 Transform、EnemyLogic 权威字段和 Combatant 生命/元素；表现临时状态不保存。
+- 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
+- 保存：v8 `FReEchoEnemyRuntimeState` 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素和 Boss 在途投射物；Boss 30 秒一次性门控单独保存，表现临时状态不保存。
 - 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
 - 测试：`ReEcho.Enemies.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
 

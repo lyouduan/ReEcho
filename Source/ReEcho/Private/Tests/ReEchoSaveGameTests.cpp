@@ -72,6 +72,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	EncounterState.PlayerTransform.SetLocation(FVector(120.0f, -80.0f, 112.0f));
 	EncounterState.ActiveRecording.EncounterIndex = Source->EncounterIndex;
 	EncounterState.ActiveRecording.BuildSnapshot = Source->CurrentBuild;
+	EncounterState.bBossPostEchoPhaseTriggered = true;
 	FReEchoEnemyRuntimeState EnemyState;
 	EnemyState.Kind = 2;
 	EnemyState.SpawnIndex = 4;
@@ -83,6 +84,12 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	EnemyState.KnockbackVelocity = FVector(45.0f, -12.0f, 0.0f);
 	EnemyState.AttackSequence = 9;
 	EnemyState.bSelfDestructCommitted = false;
+	EnemyState.bHasLogicSnapshot = true;
+	EnemyState.LogicSnapshot.Archetype = EReEchoEnemyArchetype::Boss;
+	EnemyState.LogicSnapshot.BossCurrentAbilityId = TEXT("BOSS_BLINK_SLAM");
+	EnemyState.LogicSnapshot.BossActionPhase = EReEchoBossActionPhase::Windup;
+	EnemyState.LogicSnapshot.BossActionPhaseRemainingSeconds = 0.45f;
+	EnemyState.LogicSnapshot.BossEncounterElapsedSeconds = 31.0f;
 	EncounterState.Enemies.Add(EnemyState);
 	UReEchoRunSaveGame* SuspendedSnapshot = Source->CreateSaveSnapshot(&EncounterState);
 	TestEqual(
@@ -104,6 +111,8 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Serialized enemy runtime survives round trip"),
 		          DeserializedSnapshot->EncounterRuntimeState.Enemies.Num(),
 		          1);
+		TestTrue(TEXT("Boss post-echo phase survives round trip"),
+		         DeserializedSnapshot->EncounterRuntimeState.bBossPostEchoPhaseTriggered);
 		if (DeserializedSnapshot->EncounterRuntimeState.Enemies.Num() == 1)
 		{
 			const FReEchoEnemyRuntimeState& SerializedEnemy =
@@ -122,6 +131,13 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 			          int64(9));
 			TestFalse(TEXT("Enemy one-shot self-destruct state survives round trip"),
 			          SerializedEnemy.bSelfDestructCommitted);
+			TestTrue(TEXT("Canonical enemy logic snapshot survives round trip"), SerializedEnemy.bHasLogicSnapshot);
+			TestEqual(TEXT("Boss active ability survives round trip"),
+			          SerializedEnemy.LogicSnapshot.BossCurrentAbilityId,
+			          FName(TEXT("BOSS_BLINK_SLAM")));
+			TestEqual(TEXT("Boss windup remaining survives round trip"),
+			          SerializedEnemy.LogicSnapshot.BossActionPhaseRemainingSeconds,
+			          0.45f);
 		}
 	}
 
@@ -132,6 +148,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	         SuspendedRun->HasPendingEncounterResume());
 	const FReEchoEncounterRuntimeState RestoredEncounter = SuspendedRun->ConsumePendingEncounterResume();
 	TestEqual(TEXT("Player health restores from suspended encounter"), RestoredEncounter.PlayerHealth, 63.0f);
+	TestTrue(TEXT("Restored encounter keeps Boss post-echo phase"), RestoredEncounter.bBossPostEchoPhaseTriggered);
 	TestEqual(TEXT("Enemy runtime state restores"), RestoredEncounter.Enemies.Num(), 1);
 	TestFalse(TEXT("Suspended encounter snapshot is consumed once"), SuspendedRun->HasPendingEncounterResume());
 

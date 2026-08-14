@@ -41,7 +41,35 @@ private:
 
 	void PublishFuse(bool bStarted) const;
 	void PublishAction(const FReEchoEnemyActionIntent& Intent) const;
+	void PublishBossIntent(const FReEchoBossIntent& Intent) const;
 	FReEchoEnemyActionIntent AdvanceHitReaction(float DeltaSeconds);
+	FReEchoEnemyActionIntent AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
+	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
+	                          float FixedDeltaSeconds,
+	                          FReEchoEnemyActionIntent& InOutIntent);
+	void AdvanceBossAmbientTimers(float FixedDeltaSeconds, FReEchoEnemyActionIntent& InOutIntent);
+	void AdvanceBossAbility(const FReEchoEnemySenseSnapshot& Sense,
+	                        float FixedDeltaSeconds,
+	                        FReEchoEnemyActionIntent& InOutIntent);
+	void BeginBossAbility(const FReEchoEnemySenseSnapshot& Sense,
+	                      int32 AbilityIndex,
+	                      FReEchoEnemyActionIntent& InOutIntent);
+	void LockBossTarget(const FReEchoEnemySenseSnapshot& Sense);
+	void CommitBossAbility(const FReEchoEnemySenseSnapshot& Sense,
+	                       const FReEchoEnemyAbilityDefinition& Ability,
+	                       FReEchoEnemyActionIntent& InOutIntent);
+	void EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability,
+	                    FReEchoEnemyActionIntent& InOutIntent);
+	void AppendBossIntent(FReEchoBossIntent&& BossIntent, FReEchoEnemyActionIntent& InOutIntent);
+	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense) const;
+	int32 FindBossAbilityIndex(FName AbilityId) const;
+	float GetBossAbilityCooldown(FName AbilityId) const;
+	void SetBossAbilityCooldown(FName AbilityId, float RemainingSeconds);
+	void ApplyBossHitReaction(float FixedDeltaSeconds, FReEchoEnemyActionIntent& InOutIntent);
+	void ApplyStandardMovement(const FReEchoEnemySenseSnapshot& Sense,
+	                          float DeltaSeconds,
+	                          FReEchoEnemyActionIntent& InOutIntent);
+	bool BuildBossRuntime();
 	void CommitAttack(const FReEchoEnemySenseSnapshot& Sense,
 	                  bool bCanDamageTarget,
 	                  bool bSelfDestruct,
@@ -55,5 +83,8 @@ private:
 
 	FReEchoEnemyDefinition Definition;
 	FReEchoEnemyLogicSnapshot State;
+	TArray<int32> BossActiveAbilityIndices;
+	TArray<int32> BossPhaseIndices;
+	int32 BossCleanseAbilityIndex = INDEX_NONE;
 	bool bInitialized = false;
 };

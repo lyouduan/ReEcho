@@ -48,6 +48,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyActionCommittedDelegate,
                                             const FReEchoEnemyActionCommittedEvent&,
                                             Event);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyFuseDelegate, const FReEchoEnemyFuseEvent&, Event);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoBossIntentDelegate, const FReEchoBossIntent&, Intent);
 
 /** Presentation-neutral behavior event bus explicitly wired by the enemy host. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
@@ -62,6 +63,9 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoEnemyFuseDelegate OnFuseChanged;
 
+	UPROPERTY(BlueprintAssignable)
+	FReEchoBossIntentDelegate OnBossIntent;
+
 	void PublishActionCommitted(const FReEchoEnemyActionCommittedEvent& Event)
 	{
 		OnActionCommitted.Broadcast(Event);
@@ -70,5 +74,10 @@ public:
 	void PublishFuseChanged(const FReEchoEnemyFuseEvent& Event)
 	{
 		OnFuseChanged.Broadcast(Event);
+	}
+
+	void PublishBossIntent(const FReEchoBossIntent& Intent)
+	{
+		OnBossIntent.Broadcast(Intent);
 	}
 };

@@ -23,6 +23,7 @@
 - `FReEchoAttackIdentity`、`FReEchoHitIntent`、`FReEchoHitResolved` 等跨模块值契约；
 - HitResolver 对物理伤害、格挡、元素、生命、击杀与死亡的最终裁决；
 - CombatEvents 和只读 Combatant/Attack Snapshot；
+- 正式 `ElementCleanseCommand`：原子清除元素附着/灼烧并授予指定时长元素免疫，行为调用方不直接改 Combat 私有状态；
 - 不依赖表现资源的纯规则与 World/GAS 自动化。
 
 **不负责：**

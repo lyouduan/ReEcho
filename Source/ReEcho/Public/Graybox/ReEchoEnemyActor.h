@@ -42,6 +42,7 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
+	bool ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, int32 SpawnIndex);
 	void SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster);
 	float ReceiveGrayboxDamage(float Damage,
 	                           const FVector& SourceLocation,
@@ -62,6 +63,7 @@ public:
 
 	UReEchoCombatantComponent* GetCombatantComponent() const { return Combatant; }
 	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const { return EnemyLogic; }
+	UReEchoEnemyEventsComponent* GetEnemyEventsComponent() const { return EnemyEvents; }
 	bool IsAlive() const;
 
 	virtual bool IsCombatTargetAlive() const override { return IsAlive(); }
@@ -95,6 +97,10 @@ private:
 	void BindComposedComponents();
 	FReEchoEnemyActionIntent AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);
+	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
+	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
+	void AdvanceBossProjectiles(float DeltaSeconds);
+	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
 	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving) const;
 
 	UFUNCTION()
@@ -120,6 +126,9 @@ private:
 	TObjectPtr<UReEchoEnemyPresentationComponent> EnemyPresentation;
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
+
+	UPROPERTY()
+	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;
 
 	bool bVisualPlacementApplied = false;
 };

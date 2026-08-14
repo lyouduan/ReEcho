@@ -23,6 +23,8 @@ from typing import Callable, Iterable
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "Content" / "Data"
 CANONICAL_XLSX = ROOT / "Design" / "Data" / "ReEchoData.xlsx"
+CANONICAL_ENEMY_XLSX = ROOT / "Design" / "Data" / "ReEchoEnemyData.xlsx"
+CANONICAL_WORKBOOKS = (CANONICAL_XLSX, CANONICAL_ENEMY_XLSX)
 REQUIREMENTS = Path(__file__).with_name("requirements.txt")
 EXPECTED_OPENPYXL = "3.1.5"
 TRANSACTION_FILE = ".reecho_csv_publish_transaction.json"
@@ -44,6 +46,9 @@ TABLE_TO_CSV = {
     "tblPartEffects": "part_effects.csv",
     "tblRuntimeSmoke": "runtime_smoke.csv",
     "tblRuntimeSmokeEffects": "runtime_smoke_effects.csv",
+    "tblEnemies": "enemies.csv",
+    "tblEnemyAbilities": "enemy_abilities.csv",
+    "tblBossPhases": "boss_phases.csv",
 }
 
 SYSTEM_TABLES = frozenset({"tblRuntimeSmoke", "tblRuntimeSmokeEffects"})
@@ -72,6 +77,9 @@ AUTHORING_LIST_VALIDATION_COLUMNS = {
         "PartId", "Trigger", "EffectKind", "Target", "ValueOp", "BehaviorId", "FormulaId", "AttackPatternId",
         "ParamName", "StackPolicy", "Enabled",
     }),
+    "tblEnemies": frozenset({"Archetype", "BehaviorProfileId", "PresentationId", "Enabled", "Boss"}),
+    "tblEnemyAbilities": frozenset({"OwnerEnemyId", "BehaviorId", "Enabled", "TargetingMode", "LockTiming"}),
+    "tblBossPhases": frozenset({"BossEnemyId", "EchoPolicy", "RefillHealthPolicy", "Enabled"}),
 }
 
 REFERENCE_LIST_VALIDATION_FORMULAS = {
@@ -85,6 +93,8 @@ REFERENCE_LIST_VALIDATION_FORMULAS = {
     ("tblSlotProfiles", "SlotTypeId"): 'INDIRECT("tblSlotTypes[Id]")',
     ("tblParts", "SlotTypeId"): 'INDIRECT("tblSlotTypes[Id]")',
     ("tblPartEffects", "PartId"): 'INDIRECT("tblParts[PartId]")',
+    ("tblEnemyAbilities", "OwnerEnemyId"): 'INDIRECT("tblEnemies[Id]")',
+    ("tblBossPhases", "BossEnemyId"): 'INDIRECT("tblEnemies[Id]")',
 }
 
 
@@ -296,6 +306,8 @@ def read_export_map(workbook) -> list[ExportOwner]:
             raise LocatedError(sheet.title, "tblExportMap", excel_row, "OutputCsv", "OutputCsv must be a plain manifest filename")
         if table_name not in TABLE_TO_CSV:
             raise LocatedError(sheet.title, "tblExportMap", excel_row, "TableName", f"Unknown table {table_name}")
+        if table_name not in tables:
+            raise LocatedError(row["SheetName"], table_name, 1, "TableName", "Workbook table is missing")
         if TABLE_TO_CSV[table_name] != output_csv:
             raise LocatedError(sheet.title, "tblExportMap", excel_row, "OutputCsv", "Table output does not match locked mapping")
         if output_csv not in manifest_outputs:
@@ -311,14 +323,15 @@ def read_export_map(workbook) -> list[ExportOwner]:
         except ValueError as exc:
             raise LocatedError(sheet.title, "tblExportMap", excel_row, "SortKey", "SortKey must be an integer") from exc
         owners.append(ExportOwner(row["SheetName"], table_name, output_csv, sort_key))
-    expected_outputs = set(TABLE_TO_CSV.values())
+    workbook_export_tables = set(tables) & set(TABLE_TO_CSV)
+    expected_outputs = {TABLE_TO_CSV[table_name] for table_name in workbook_export_tables}
     if seen_outputs != expected_outputs:
         raise LocatedError(
             sheet.title,
             "tblExportMap",
             1,
             "OutputCsv",
-            f"Export ownership mismatch missing={sorted(expected_outputs - seen_outputs)} extra={sorted(seen_outputs - expected_outputs)}",
+            f"Workbook export ownership mismatch missing={sorted(expected_outputs - seen_outputs)} extra={sorted(seen_outputs - expected_outputs)}",
         )
     return sorted(owners, key=lambda owner: (owner.sort_key, owner.output_csv))
 
@@ -378,7 +391,9 @@ def validate_workbook_protection(workbook, owners: list[ExportOwner]) -> None:
                         "Only production Table data cells may be unlocked",
                     )
 
-    for sheet_name in (*SYSTEM_SHEETS, *LOCKED_REFERENCE_SHEETS):
+    main_workbook = "tblCharacters" in tables
+    required_protected_sheets = (*SYSTEM_SHEETS, *LOCKED_REFERENCE_SHEETS) if main_workbook else ("_ExportMap",)
+    for sheet_name in required_protected_sheets:
         if sheet_name not in workbook.sheetnames:
             raise SyncError(f"Protected workbook sheet is missing: {sheet_name}")
         sheet = workbook[sheet_name]
@@ -399,7 +414,7 @@ def validate_workbook_data_validations(workbook) -> None:
     tables = workbook_tables(workbook)
     for table_name, column_names in AUTHORING_LIST_VALIDATION_COLUMNS.items():
         if table_name not in tables:
-            raise SyncError(f"Workbook table is missing: {table_name}")
+            continue
         sheet, table = tables[table_name]
         min_col, min_row, max_col, max_row = range_boundaries(table.ref)
         headers = [str(sheet.cell(row=min_row, column=col).value or "") for col in range(min_col, max_col + 1)]
@@ -487,47 +502,62 @@ def validate_generated_package(package_dir: Path, source_map: dict[tuple[str, in
         validate_project.validate_csv_package(package_dir)
     except Exception as exc:
         message = str(exc)
-        match = re.search(r"([^/\\:]+\.csv):(\d+)", message)
+        match = re.search(r"([^/\\:]+\.csv):(\d+)(?::([^:]+))?", message)
         if match:
             csv_name = match.group(1)
             line = int(match.group(2))
+            column = match.group(3) or "Validation"
             if (csv_name, line) in source_map:
                 sheet, table, row = source_map[(csv_name, line)]
-                raise LocatedError(sheet, table, row, "Validation", message) from exc
+                raise LocatedError(sheet, table, row, column, message) from exc
         raise SyncError(message) from exc
 
 
-def generate_package(input_path: Path, package_dir: Path):
+def generate_package(input_paths: Path | Iterable[Path], package_dir: Path):
     from openpyxl import load_workbook
 
-    workbook = load_workbook(input_path, data_only=False, read_only=False)
-    owners = read_export_map(workbook)
-    validate_workbook_protection(workbook, owners)
-    validate_workbook_data_validations(workbook)
-    tables = workbook_tables(workbook)
+    paths = [input_paths] if isinstance(input_paths, Path) else list(input_paths)
     schema_columns = load_schema()
     schema_specs = load_schema_specs()
     source_map: dict[tuple[str, int], tuple[str, str, int]] = {}
     csv_bytes: dict[str, bytes] = {}
+    all_owners: list[ExportOwner] = []
     package_dir.mkdir(parents=True, exist_ok=True)
-    for owner in owners:
-        if owner.table not in tables:
-            raise LocatedError(owner.sheet, owner.table, 1, "TableName", "Workbook table is missing")
-        sheet, table = tables[owner.table]
-        if sheet.title != owner.sheet:
-            raise LocatedError(owner.sheet, owner.table, 1, "SheetName", f"Table is on sheet {sheet.title}")
-        table_id = table_id_for_csv(owner.output_csv)
-        rows, row_map = extract_table(sheet, table, owner.table, table_id, schema_specs[table_id])
-        if rows[0] != schema_columns[table_id]:
-            raise LocatedError(owner.sheet, owner.table, 1, "Header", "Table columns do not match schema order")
-        csv_bytes[owner.output_csv] = write_csv(package_dir / owner.output_csv, rows)
-        for csv_line, location in row_map.items():
-            source_map[(owner.output_csv, csv_line)] = location
 
+    for input_path in paths:
+        workbook = load_workbook(input_path, data_only=False, read_only=False)
+        owners = read_export_map(workbook)
+        validate_workbook_protection(workbook, owners)
+        validate_workbook_data_validations(workbook)
+        tables = workbook_tables(workbook)
+        for owner in owners:
+            if owner.output_csv in csv_bytes:
+                raise LocatedError(owner.sheet, owner.table, 1, "OutputCsv", "CSV is owned by more than one workbook")
+            if owner.table not in tables:
+                raise LocatedError(owner.sheet, owner.table, 1, "TableName", "Workbook table is missing")
+            sheet, table = tables[owner.table]
+            if sheet.title != owner.sheet:
+                raise LocatedError(owner.sheet, owner.table, 1, "SheetName", f"Table is on sheet {sheet.title}")
+            table_id = table_id_for_csv(owner.output_csv)
+            rows, row_map = extract_table(sheet, table, owner.table, table_id, schema_specs[table_id])
+            if rows[0] != schema_columns[table_id]:
+                raise LocatedError(owner.sheet, owner.table, 1, "Header", "Table columns do not match schema order")
+            csv_bytes[owner.output_csv] = write_csv(package_dir / owner.output_csv, rows)
+            for csv_line, location in row_map.items():
+                source_map[(owner.output_csv, csv_line)] = location
+        all_owners.extend(owners)
+
+    expected_outputs = set(TABLE_TO_CSV.values())
+    actual_outputs = set(csv_bytes)
+    if actual_outputs != expected_outputs:
+        raise SyncError(
+            f"Cross-workbook export ownership mismatch missing={sorted(expected_outputs - actual_outputs)} "
+            f"extra={sorted(actual_outputs - expected_outputs)}"
+        )
     for support_file in ("reecho_data_manifest.csv", "csv_schema.csv"):
         shutil.copy2(DATA_DIR / support_file, package_dir / support_file)
     validate_generated_package(package_dir, source_map)
-    return owners, csv_bytes
+    return all_owners, csv_bytes
 
 
 def diff_against_content(csv_bytes: dict[str, bytes], data_dir: Path = DATA_DIR) -> list[str]:
@@ -671,7 +701,12 @@ def run_project_validator() -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, default=CANONICAL_XLSX)
+    parser.add_argument(
+        "--input",
+        type=Path,
+        action="append",
+        help="Workbook input; repeat to provide a complete cross-workbook package. Defaults to both canonical workbooks.",
+    )
     parser.add_argument("--output-dir", type=Path, help="Test output directory for non-canonical inputs.")
     parser.add_argument("--check", action="store_true", help="Validate and compare without writing production CSV.")
     parser.add_argument("--sheet", help="Publish only CSVs owned by one workbook sheet after full validation.")
@@ -681,17 +716,18 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     check_dependencies()
-    input_path = args.input.resolve()
-    canonical = CANONICAL_XLSX.resolve()
-    if not input_path.exists():
-        raise SyncError(f"Workbook does not exist: {input_path}")
-    non_canonical = input_path != canonical
+    input_paths = [path.resolve() for path in (args.input or CANONICAL_WORKBOOKS)]
+    canonical_paths = [path.resolve() for path in CANONICAL_WORKBOOKS]
+    for input_path in input_paths:
+        if not input_path.exists():
+            raise SyncError(f"Workbook does not exist: {input_path}")
+    non_canonical = input_paths != canonical_paths
     if non_canonical and not args.check and args.output_dir is None:
         raise SyncError("Non-canonical --input cannot publish to Content/Data; add --check or --output-dir <test-dir>.")
 
     with tempfile.TemporaryDirectory(prefix="reecho_xlsx_package_", dir=DATA_DIR.parent) as temp:
         package_dir = Path(temp)
-        owners, csv_bytes = generate_package(input_path, package_dir)
+        owners, csv_bytes = generate_package(input_paths, package_dir)
         if args.check:
             drift = diff_against_content(csv_bytes) if not non_canonical or args.output_dir is None else []
             if drift:

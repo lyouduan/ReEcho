@@ -3,6 +3,7 @@
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoElementRuntime.h"
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
 
@@ -43,9 +44,104 @@ bool FReEchoCombatantSnapshotTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoElementCleanseCommandTest,
+                                 "ReEcho.Combat.ElementCleanseCommand",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoElementCleanseCommandTest::RunTest(const FString& Parameters)
+{
+	AActor* Owner = NewObject<AActor>();
+	UReEchoCombatantComponent* Combatant = NewObject<UReEchoCombatantComponent>(Owner);
+	UReEchoCombatEventsComponent* Events = NewObject<UReEchoCombatEventsComponent>(Owner);
+	Owner->AddInstanceComponent(Combatant);
+	Owner->AddInstanceComponent(Events);
+	FReEchoElementState& State = Combatant->EditElementStateForTests();
+	State.Attached = EReEchoElement::Grass;
+	State.ImmunityUntil = 8.0f;
+	State.ActiveStatusUntilSeconds.Add(TEXT("Z_Burn"), 13.0f);
+	State.ActiveStatusUntilSeconds.Add(TEXT("Unrelated.Status"), 25.0f);
+	State.bBurnActive = true;
+	State.BurnTickDamage = 7.0f;
+	State.BurnNextTickTimeSeconds = 11.0f;
+	State.BurnSourceLocation = FVector(10.0f, 20.0f, 0.0f);
+	State.bEnhancedNextReaction = true;
+	State.EnhancementMultiplier = 2.0f;
+	State.BlockedAttachment = EReEchoElement::Water;
+
+	FReEchoElementCleanseCommand Command;
+	Command.CurrentTimeSeconds = 10.0f;
+	Command.ImmunityDurationSeconds = 1.0f;
+	const FReEchoElementCleanseResult Result = Combatant->ExecuteElementCleanse(Command);
+	TestTrue(TEXT("Valid cleanse command succeeds"), Result.bSucceeded);
+	TestTrue(TEXT("First cleanse changes state"), Result.bStateChanged);
+	TestTrue(TEXT("Cleanse reports removed attachment"), Result.bClearedAttachment);
+	TestTrue(TEXT("Cleanse reports removed burn"), Result.bClearedBurn);
+	TestEqual(TEXT("Cleanse reports immunity end"), Result.ImmunityUntil, 11.0f);
+	TestEqual(TEXT("Attachment is cleared"), State.Attached, EReEchoElement::None);
+	TestFalse(TEXT("Burn is inactive"), State.bBurnActive);
+	TestFalse(TEXT("Burn status is removed"), State.ActiveStatusUntilSeconds.Contains(TEXT("Z_Burn")));
+	TestEqual(TEXT("Burn damage payload is cleared"), State.BurnTickDamage, 0.0f);
+	TestEqual(TEXT("Burn schedule payload is cleared"), State.BurnNextTickTimeSeconds, 0.0f);
+	TestTrue(TEXT("Burn source payload is cleared"), State.BurnSourceLocation.IsNearlyZero());
+	TestEqual(TEXT("Deterministic immunity uses caller time"), State.ImmunityUntil, 11.0f);
+	TestEqual(TEXT("Immunity status mirrors immunity end"),
+	          State.ActiveStatusUntilSeconds.FindRef(TEXT("Z_Elemental_Immunity")),
+	          11.0f);
+	TestEqual(
+	    TEXT("Unrelated statuses remain"), State.ActiveStatusUntilSeconds.FindRef(TEXT("Unrelated.Status")), 25.0f);
+	TestTrue(TEXT("Reaction enhancement remains"), State.bEnhancedNextReaction);
+	TestEqual(TEXT("Reaction enhancement multiplier remains"), State.EnhancementMultiplier, 2.0f);
+	TestEqual(TEXT("Attachment block remains"), State.BlockedAttachment, EReEchoElement::Water);
+	TestEqual(
+	    TEXT("Changed cleanse publishes one element-state event"), Events->GetElementStatePublishCountForTests(), 1);
+
+	const FReEchoElementCleanseResult Repeated = Combatant->ExecuteElementCleanse(Command);
+	TestTrue(TEXT("Idempotent valid command still succeeds"), Repeated.bSucceeded);
+	TestFalse(TEXT("Idempotent command reports no state change"), Repeated.bStateChanged);
+	TestFalse(TEXT("Idempotent command clears no attachment"), Repeated.bClearedAttachment);
+	TestFalse(TEXT("Idempotent command clears no burn"), Repeated.bClearedBurn);
+	TestEqual(TEXT("No-op cleanse does not republish element state"), Events->GetElementStatePublishCountForTests(), 1);
+
+	FReEchoElementCleanseCommand InvalidCommand;
+	InvalidCommand.CurrentTimeSeconds = 12.0f;
+	InvalidCommand.ImmunityDurationSeconds = 0.0f;
+	const FReEchoElementCleanseResult Invalid = Combatant->ExecuteElementCleanse(InvalidCommand);
+	TestFalse(TEXT("Non-positive immunity duration rejects the command"), Invalid.bSucceeded);
+	TestFalse(TEXT("Rejected command does not change state"), Invalid.bStateChanged);
+	TestEqual(TEXT("Rejected command preserves immunity"), State.ImmunityUntil, 11.0f);
+	TestEqual(
+	    TEXT("Rejected command does not publish element state"), Events->GetElementStatePublishCountForTests(), 1);
+
+	const FReEchoCombatantSnapshot Snapshot = Combatant->GetSnapshot();
+	UReEchoCombatantComponent* Restored = NewObject<UReEchoCombatantComponent>();
+	Restored->RestoreElementState(Snapshot.ElementState);
+	TestEqual(TEXT("Snapshot carries cleanse immunity"), Restored->GetElementState().ImmunityUntil, 11.0f);
+	TestFalse(TEXT("Snapshot carries cleansed burn"), Restored->GetElementState().bBurnActive);
+
+	TSharedRef<FReEchoElementRuleSet> Rules = MakeShared<FReEchoElementRuleSet>();
+	FReEchoElementRuleDefinition Flame;
+	Flame.ElementId = TEXT("Flame");
+	Flame.Element = EReEchoElement::Flame;
+	Flame.bAttachment = true;
+	Flame.bEnabled = true;
+	Rules->Elements.Add(EReEchoElement::Flame, Flame);
+	ReEchoElementRuntime::PublishRuleSet(Rules);
+	FReEchoElementState RuntimeState = Snapshot.ElementState;
+	const FReEchoElementHitResult Blocked =
+	    ReEchoElementRuntime::ResolveHit(RuntimeState, EReEchoElement::Flame, 5.0f, 1.0f, 10.999f);
+	TestTrue(TEXT("Cleanse immunity blocks element hits before the boundary"), Blocked.bBlockedByImmunity);
+	const FReEchoElementHitResult AtBoundary =
+	    ReEchoElementRuntime::ResolveHit(RuntimeState, EReEchoElement::Flame, 5.0f, 1.0f, 11.0f);
+	TestFalse(TEXT("Cleanse immunity expires exactly at the boundary"), AtBoundary.bBlockedByImmunity);
+	TestEqual(
+	    TEXT("Element attachment resumes at the immunity boundary"), RuntimeState.Attached, EReEchoElement::Flame);
+	ReEchoElementRuntime::ClearRuleSetForTests();
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAttackIdentitySourceLifetimeTest,
-	                             "ReEcho.Combat.AttackIdentity.SourceLifetime",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Combat.AttackIdentity.SourceLifetime",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoAttackIdentitySourceLifetimeTest::RunTest(const FString& Parameters)
 {

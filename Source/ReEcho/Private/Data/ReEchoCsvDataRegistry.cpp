@@ -8,6 +8,7 @@
 #include "ReEchoCharacterBuildCsvReader.h"
 #include "ReEchoCsvDataReader.h"
 #include "ReEchoElementReactionCsvReader.h"
+#include "ReEchoEnemyCsvReader.h"
 #include "ReEchoWeaponCsvReader.h"
 
 namespace
@@ -28,6 +29,9 @@ constexpr const TCHAR* SlotTypesTableId = TEXT("SlotTypes");
 constexpr const TCHAR* SlotProfilesTableId = TEXT("SlotProfiles");
 constexpr const TCHAR* PartsTableId = TEXT("Parts");
 constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
+constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
+constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
+constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
 
 constexpr const TCHAR* BehaviorNone = TEXT("None");
 constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
@@ -107,7 +111,10 @@ TArray<FString> GetRequiredTableIds()
 	        SlotTypesTableId,
 	        SlotProfilesTableId,
 	        PartsTableId,
-	        PartEffectsTableId};
+	        PartEffectsTableId,
+	        EnemiesTableId,
+	        EnemyAbilitiesTableId,
+	        BossPhasesTableId};
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
@@ -372,6 +379,17 @@ TArray<FReEchoCsvAttackStepRow> FReEchoCsvDataSnapshot::GetAttackSteps(const FNa
 	return Result;
 }
 
+const FReEchoCsvEnemyRow* FReEchoCsvDataSnapshot::FindEnemy(const FName EnemyId) const
+{
+	return Enemies.Find(EnemyId);
+}
+
+const FReEchoCsvEnemyRow* FReEchoCsvDataSnapshot::FindEnabledEnemy(const FName EnemyId) const
+{
+	const FReEchoCsvEnemyRow* Enemy = FindEnemy(EnemyId);
+	return Enemy && Enemy->bEnabled ? Enemy : nullptr;
+}
+
 FString FReEchoCsvLoadResult::FormatIssues() const
 {
 	TArray<FString> Lines;
@@ -425,6 +443,15 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterBehaviorId(TEXT("Part.StatModifier"));
 	RegisterBehaviorId(TEXT("Part.AttackPatternReplacement"));
 	RegisterBehaviorId(TEXT("Part.OnKillHealPercent"));
+	RegisterBehaviorId(TEXT("Enemy.Grunt"));
+	RegisterBehaviorId(TEXT("Enemy.Shield"));
+	RegisterBehaviorId(TEXT("Enemy.Bomber"));
+	RegisterBehaviorId(TEXT("Boss.TimeGuard"));
+	RegisterBehaviorId(TEXT("Boss.MeleeSweep"));
+	RegisterBehaviorId(TEXT("Boss.Projectile"));
+	RegisterBehaviorId(TEXT("Boss.BlinkSlam"));
+	RegisterBehaviorId(TEXT("Boss.PrayerBeam"));
+	RegisterBehaviorId(TEXT("Boss.ElementCleanse"));
 	RegisterEffectKind(TEXT("WeaponDamageChannel"));
 	RegisterEffectKind(TEXT("AttackPatternReplacement"));
 	RegisterEffectKind(TEXT("ParameterizedBehavior"));
@@ -545,6 +572,10 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 	if (Result.Issues.Num() == 0)
 	{
 		ReEchoWeaponCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReEchoEnemyCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
 	}
 	if (Result.Issues.Num() == 0 && MutableSnapshot->RuntimeSmokeRows.Num() == 0)
 	{

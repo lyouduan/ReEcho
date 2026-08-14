@@ -40,6 +40,15 @@ REGISTERED_BEHAVIOR_IDS = {
     "Part.StatModifier",
     "Part.AttackPatternReplacement",
     "Part.OnKillHealPercent",
+    "Enemy.Grunt",
+    "Enemy.Shield",
+    "Enemy.Bomber",
+    "Boss.TimeGuard",
+    "Boss.MeleeSweep",
+    "Boss.Projectile",
+    "Boss.BlinkSlam",
+    "Boss.PrayerBeam",
+    "Boss.ElementCleanse",
 }
 REGISTERED_EFFECT_KINDS = {
     "ScalarModifier",
@@ -372,6 +381,74 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
     },
+    "Enemies": {
+        "Id": CsvColumnSpec("StableId"),
+        "Archetype": CsvColumnSpec("StableId"),
+        "BehaviorProfileId": CsvColumnSpec("BehaviorId"),
+        "PresentationId": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "MaxHealth": CsvColumnSpec("Float", min_value=1.0, max_value=1000000.0),
+        "MoveSpeedCmPerSecond": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "CollisionRadiusCm": CsvColumnSpec("Float", min_value=0.1, max_value=100000.0),
+        "CollisionHalfHeightCm": CsvColumnSpec("Float", min_value=0.1, max_value=100000.0),
+        "ContactDamage": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "AttackIntervalSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "ContactRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MovementStopDistanceCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "HitReactionDurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "KnockbackSpeedCmPerSecond": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "KnockbackDrag": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "TriggerRadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "DamageRadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "FuseSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "Reward": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Boss": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
+    "EnemyAbilities": {
+        "Id": CsvColumnSpec("StableId"),
+        "OwnerEnemyId": CsvColumnSpec("ForeignKey", reference_table="Enemies"),
+        "BehaviorId": CsvColumnSpec("BehaviorId"),
+        "SequenceOrder": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Enabled": CsvColumnSpec("Bool"),
+        "Damage": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "WindupSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "ActiveSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "RecoverySeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "CooldownSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "MinRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MaxRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "RadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "WidthCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "LengthCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "ProjectileSpeedCmPerSecond": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "TeleportOffsetCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "TargetingMode": CsvColumnSpec("StableId"),
+        "LockTiming": CsvColumnSpec("StableId"),
+        "CleanseIntervalSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "ImmunitySeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
+    "BossPhases": {
+        "Id": CsvColumnSpec("StableId"),
+        "BossEnemyId": CsvColumnSpec("ForeignKey", reference_table="Enemies"),
+        "PhaseIndex": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "TriggerSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "EchoPolicy": CsvColumnSpec("StableId"),
+        "PhysicalAttackMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "ElementalAttackMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "AttackSpeedMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "MovementSpeedMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "RefillHealthPolicy": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
 }
 
 
@@ -582,9 +659,13 @@ def validate_csv_package(data_dir: Path) -> None:
     references["SlotProfiles"] = validate_table(entries["SlotProfiles"], "SlotProfiles", references)
     references["Parts"] = validate_table(entries["Parts"], "Parts", references)
     references["PartEffects"] = validate_table(entries["PartEffects"], "PartEffects", references)
+    references["Enemies"] = validate_table(entries["Enemies"], "Enemies", references)
+    references["EnemyAbilities"] = validate_table(entries["EnemyAbilities"], "EnemyAbilities", references)
+    references["BossPhases"] = validate_table(entries["BossPhases"], "BossPhases", references)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)
     validate_weapon_domain(data_dir, entries)
+    validate_enemy_domain(data_dir, entries)
 
 
 def assemble_fixture_package(fixture_dir: Path, temp_root: Path) -> Path:
@@ -859,6 +940,108 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         fail(f"{rel(entries['PartEffects'])}: enabled part effects must cover Add/Multiply/Override")
 
 
+def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
+    enemies = load_csv(entries["Enemies"])
+    abilities = load_csv(entries["EnemyAbilities"])
+    phases = load_csv(entries["BossPhases"])
+    archetypes = {"Grunt", "Shield", "Bomber", "Boss"}
+    profiles = {
+        "Grunt": "Enemy.Grunt",
+        "Shield": "Enemy.Shield",
+        "Bomber": "Enemy.Bomber",
+        "Boss": "Boss.TimeGuard",
+    }
+    required_ids = {"M_Grunt", "M_Shield", "M_Bomber", "M_TimeGuard"}
+    enabled_enemies = {row["Id"]: row for row in enemies if row["Enabled"] == "true"}
+    if set(enabled_enemies) != required_ids:
+        fail(f"{rel(entries['Enemies'])}: enabled enemy ids changed: {sorted(enabled_enemies)}")
+    boss_ids: set[str] = set()
+    for row in enemies:
+        line = row["__line__"]
+        archetype = row["Archetype"]
+        if archetype not in archetypes:
+            fail(f"{rel(entries['Enemies'])}:{line}:Archetype: unsupported archetype {archetype!r}")
+        if row["BehaviorProfileId"] != profiles[archetype]:
+            fail(f"{rel(entries['Enemies'])}:{line}:BehaviorProfileId: does not match Archetype {archetype!r}")
+        is_boss = row["Boss"] == "true"
+        if is_boss != (archetype == "Boss"):
+            fail(f"{rel(entries['Enemies'])}:{line}:Boss: must match Boss archetype")
+        if is_boss:
+            boss_ids.add(row["Id"])
+        bomber_values = tuple(float(row[field]) for field in ("TriggerRadiusCm", "DamageRadiusCm", "FuseSeconds"))
+        if archetype == "Bomber" and any(value <= 0.0 for value in bomber_values):
+            fail(f"{rel(entries['Enemies'])}:{line}:TriggerRadiusCm: Bomber radii and fuse must be positive")
+        if archetype != "Bomber" and any(value != 0.0 for value in bomber_values):
+            fail(f"{rel(entries['Enemies'])}:{line}:TriggerRadiusCm: non-Bomber fields must use explicit zero")
+
+    allowed_behaviors = {
+        "Boss.MeleeSweep",
+        "Boss.Projectile",
+        "Boss.BlinkSlam",
+        "Boss.PrayerBeam",
+        "Boss.ElementCleanse",
+    }
+    active_orders: set[tuple[str, int]] = set()
+    active_by_boss: dict[str, int] = {boss_id: 0 for boss_id in boss_ids}
+    for row in abilities:
+        line = row["__line__"]
+        owner = row["OwnerEnemyId"]
+        behavior = row["BehaviorId"]
+        if owner not in boss_ids:
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:OwnerEnemyId: abilities require an enabled boss owner")
+        if behavior not in allowed_behaviors:
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:BehaviorId: unsupported boss behavior {behavior!r}")
+        if float(row["MinRangeCm"]) > float(row["MaxRangeCm"]):
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:MinRangeCm: cannot exceed MaxRangeCm")
+        enabled = row["Enabled"] == "true"
+        if behavior == "Boss.ElementCleanse":
+            if int(row["SequenceOrder"]) != 0:
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:SequenceOrder: passive cleanse must use zero")
+            neutral_fields = (
+                "Damage", "WindupSeconds", "ActiveSeconds", "RecoverySeconds", "CooldownSeconds",
+                "MinRangeCm", "MaxRangeCm", "RadiusCm", "WidthCm", "LengthCm",
+                "ProjectileSpeedCmPerSecond", "TeleportOffsetCm",
+            )
+            if any(float(row[field]) != 0.0 for field in neutral_fields):
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:Damage: cleanse damage and spatial fields must be zero")
+            if float(row["CleanseIntervalSeconds"]) <= 0.0 or float(row["ImmunitySeconds"]) <= 0.0:
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:CleanseIntervalSeconds: cleanse interval and immunity must be positive")
+        else:
+            order = int(row["SequenceOrder"])
+            if order <= 0:
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:SequenceOrder: active abilities require a positive order")
+            key = (owner, order)
+            if key in active_orders:
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:SequenceOrder: duplicate owner/order {key}")
+            active_orders.add(key)
+            if enabled:
+                active_by_boss[owner] += 1
+            if float(row["CleanseIntervalSeconds"]) != 0.0 or float(row["ImmunitySeconds"]) != 0.0:
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:CleanseIntervalSeconds: active abilities must use explicit zero")
+            if behavior == "Boss.Projectile" and float(row["ProjectileSpeedCmPerSecond"]) <= 0.0:
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:ProjectileSpeedCmPerSecond: projectile speed must be positive")
+            if behavior == "Boss.BlinkSlam" and (float(row["WindupSeconds"]) <= 0.0 or float(row["RadiusCm"]) <= 0.0):
+                fail(f"{rel(entries['EnemyAbilities'])}:{line}:RadiusCm: blink slam requires a warning and radius")
+    missing_active = sorted(boss_id for boss_id, count in active_by_boss.items() if count == 0)
+    if missing_active:
+        fail(f"{rel(entries['EnemyAbilities'])}: bosses have no enabled active ability: {missing_active}")
+
+    phase_keys: set[tuple[str, int]] = set()
+    for row in phases:
+        line = row["__line__"]
+        boss_id = row["BossEnemyId"]
+        if boss_id not in boss_ids:
+            fail(f"{rel(entries['BossPhases'])}:{line}:BossEnemyId: phases require an enabled boss owner")
+        key = (boss_id, int(row["PhaseIndex"]))
+        if key in phase_keys:
+            fail(f"{rel(entries['BossPhases'])}:{line}:PhaseIndex: duplicate boss phase {key}")
+        phase_keys.add(key)
+        if row["EchoPolicy"] != "DestroyEncounterEchoes":
+            fail(f"{rel(entries['BossPhases'])}:{line}:EchoPolicy: unsupported policy {row['EchoPolicy']!r}")
+        if row["RefillHealthPolicy"] != "None":
+            fail(f"{rel(entries['BossPhases'])}:{line}:RefillHealthPolicy: first release must not refill health")
+
+
 def expect_fixture_failure(name: str, token: str) -> None:
     fixture = DATA / "TestFixtures" / "CsvRuntime" / name
     with tempfile.TemporaryDirectory(prefix="reecho_csv_fixture_") as temp:
@@ -878,7 +1061,6 @@ def validate_legacy_json() -> tuple[int, int, int]:
         "characters.json",
         "weapons.json",
         "cards.json",
-        "enemies.json",
         "encounters.json",
         "elements.json",
         "reactions.json",
@@ -887,6 +1069,8 @@ def validate_legacy_json() -> tuple[int, int, int]:
     missing = sorted(name for name in required if not (DATA / name).is_file())
     if missing:
         fail(f"missing legacy JSON files: {', '.join(missing)}")
+    if (DATA / "enemies.json").exists():
+        fail("Content/Data/enemies.json must not return after enemy data migrated to CSV")
 
     documents = {path.name: load_json(path) for path in DATA.glob("*.json")}
     balance = documents["global_balance.json"]
@@ -895,7 +1079,7 @@ def validate_legacy_json() -> tuple[int, int, int]:
         if balance.get(key) != value:
             fail(f"global_balance.{key} must be {value}, got {balance.get(key)!r}")
 
-    for filename in ("characters.json", "weapons.json", "cards.json", "enemies.json", "elements.json", "reactions.json", "statuses.json"):
+    for filename in ("characters.json", "weapons.json", "cards.json", "elements.json", "reactions.json", "statuses.json"):
         rows = documents[filename]
         ids = [row.get("id") for row in rows]
         if None in ids or len(ids) != len(set(ids)):
@@ -1416,6 +1600,9 @@ def validate_build_dependencies() -> None:
         "slot_profiles.csv",
         "parts.csv",
         "part_effects.csv",
+        "enemies.csv",
+        "enemy_abilities.csv",
+        "boss_phases.csv",
     ):
         if f"Content/Data/{file_name}" not in build_cs:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")

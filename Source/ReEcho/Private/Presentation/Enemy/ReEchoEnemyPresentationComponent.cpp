@@ -110,6 +110,7 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (EnemyEvents)
 	{
 		EnemyEvents->OnActionCommitted.RemoveAll(this);
+		EnemyEvents->OnBossIntent.RemoveAll(this);
 		EnemyEvents->OnFuseChanged.RemoveAll(this);
 	}
 	if (CombatEvents)
@@ -126,6 +127,7 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (EnemyEvents)
 	{
 		EnemyEvents->OnActionCommitted.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleActionCommitted);
+		EnemyEvents->OnBossIntent.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleBossIntent);
 		EnemyEvents->OnFuseChanged.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleFuseChanged);
 	}
 	if (CombatEvents)
@@ -370,6 +372,21 @@ void UReEchoEnemyPresentationComponent::HandleActionCommitted(const FReEchoEnemy
 	if (PresentationController)
 	{
 		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true, Event.Attack.Sequence);
+	}
+}
+
+void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
+{
+	if (Intent.Type != EReEchoBossIntentType::TelegraphStarted &&
+	    Intent.Type != EReEchoBossIntentType::AttackWindowStarted)
+	{
+		return;
+	}
+	AttackVisualRemaining = FMath::Max(AttackVisualRemaining, 0.22f);
+	if (PresentationController)
+	{
+		const int64 Sequence = Intent.Attack.IsValid() ? Intent.Attack.Sequence : INDEX_NONE;
+		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true, Sequence);
 	}
 }
 

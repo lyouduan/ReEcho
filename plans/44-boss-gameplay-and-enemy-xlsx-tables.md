@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side AI。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。Boss 招式可读性、躲避手感、30 秒强化后的战斗节奏与最终胜负必须由用户 PIE 验收。
 - 本地规划 / 实现基线：`origin/main@c5bd156`；Ready Plan 已发布，本地工作树从该提交创建。
 - 本地实现方式：独立工作树 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan44`，本地分支 `plan/44-boss-gameplay-and-enemy-tables`；不设远端任务分支。
@@ -197,6 +197,7 @@ ReEchoEnemyData.xlsx（怪物策划独立权威工作簿）
 - 2026-08-14：用户确认怪物体系由另一位策划独立配置；Plan 改为新增 `ReEchoEnemyData.xlsx` 作为怪物唯一策划真源，不再向主 `ReEchoData.xlsx` 写入怪物生产表。
 - 2026-08-14：用户确认 Boss 跨模块窄适配可以接受，只要求符合怪物模块解耦初衷；不以“所有代码只能写在 `ReEchoEnemies`”作为验收条件。
 - 2026-08-14：用户授权执行，接受建议首版参数、固定轮转加条件跳过、30 秒倍率且不改生命，以及当前 6 场范围；指定使用 `ReEcho-plan44` 独立 worktree 开发。
+- 2026-08-14：在 `ReEcho-plan44` / `plan/44-boss-gameplay-and-enemy-tables` 完成实现：独立怪物工作簿和三张生产 CSV、严格 Reader/Compiler、Boss Policy/Intent/固定步状态机、敌方投射物、Combat 清洗命令、EnemyHost 世界适配、30 秒阶段、Boss 胜负条件和 v8 保存恢复。
 
 ### 证据
 
@@ -205,17 +206,23 @@ ReEchoEnemyData.xlsx（怪物策划独立权威工作簿）
 - `ReEchoData.xlsx`：`怪物体系M` 仅7行参考文字，标记 `ReferenceOnly`，没有 Excel Table；ExportMap 当前17张表且无敌人表。
 - 当前生产路径：`Content/Data/enemies.json`、`ReEchoEnemyDefinitions::MakeLegacyEquivalent`、`AReEchoEnemyActor::Configure`；`AReEchoEncounterDirector` 在30秒广播结束，Boss未击杀进入 Failed。
 - DOCX 的 OOXML/正文/15张表可结构化读取；本机缺少 LibreOffice，Word 对该文件报“文件可能已经损坏”，因此未取得可靠页面渲染证据。本 Plan 只依据成功解析的结构化内容，不声明视觉版式验收。
+- `Build-Editor.cmd -Configuration Development`：UE 5.8 UHT/UBT 成功；`validate_project.py`、`sync_xlsx_to_csv.py --check`、`prebuilt_editor.py check`、`git diff --check` 均通过。
+- 数据聚焦：ExportMap ownership、跨工作簿确定性字节、怪物外键/条件字段/非法工作簿位置诊断通过。完整 Python 文件单次运行受工具无输出超时影响，核心新增用例已拆分通过。
+- Unreal 聚焦：`ReEcho.Enemies.*` 全部通过；`ReEcho.Data.Enemies.*`、`ReEcho.Combat.ElementCleanseCommand`、`ReEcho.Encounter.BossContinuesAfterStandardDuration`、`ReEcho.Run.SaveSnapshot` 通过。
+- 本机无可用 `clang-format` 二进制；C++ 已通过编译、LSP diagnostics 0 和 `git diff --check`，未声明自动格式化证据。
 
 ### 剩余风险
 
 - 首版参数已获执行授权，但属于程序建议初值；怪物策划后续可在独立工作簿中调参，不能把这些值重新硬编码到 C++。
 - 策划案同时要求8房间和全新刷怪体系；本 Plan 明确不实现，Boss 暂时仍是当前第6场。
-- Boss 投射物与阶段保存会扩展当前遭遇快照；实现时必须以旧存档兼容和不重复提交伤害为优先。
+- Boss 投射物与阶段保存已进入 v8 快照；旧存档继续通过兼容字段恢复，但仍需用户实际执行中途保存/继续确认世界反馈和手感。
+- 当前只提供通用攻击 fallback 表现；正式 Boss 四招动画、VFX、音频和更精确预警不在本 Plan。
+- Python 数据测试曾留下未跟踪 `Content/reecho_xlsx_package_*` 临时目录；清理操作未获批准，因此不纳入提交并保留在 worktree。
 
 ### 人工验收结果/请求
 
-- 审核决策已完成；状态保持 `PendingBeforeClose`。实现交付后由用户执行 Boss 四招、躲避手感、30 秒阶段、胜负和保存继续的 PIE 验收。
+- 状态：`PendingBeforeClose`。请用户在 `ReEcho-plan44/ReEcho.uproject` 执行：四招轮转与躲避、9秒清洗/1秒免疫、30秒 Echo 退场及玩家强化、Boss死胜利/玩家死失败，以及前摇/投射物/30秒后三种保存继续。
 
 ### 架构文档审阅结果
 
-- 规划阶段已审阅 `ARCHITECTURE.md`、CODEBASE_MAP 索引、`MOD-ReEchoEnemies.md`、`MOD-ReEcho.md` 与 `MOD-ReEchoCombat.md`；正文更新将在实现与真实代码落点确定后完成。
+- 已更新 `MOD-ReEchoEnemies.md`、`MOD-ReEcho.md`、`MOD-ReEchoCombat.md`；`MOD-ReEchoWeapons`/`MOD-ReEchoAudio` 契约和代码位置未变化，无需修改。仓库当前不存在 `docs/ARCHITECTURE.md`，未创建重复架构文档。

@@ -147,6 +147,19 @@ public:
 
 	void PublishElementStateChanged(const FReEchoElementStateChangedEvent& Event)
 	{
+#if WITH_DEV_AUTOMATION_TESTS
+		++ElementStatePublishCountForTests;
+#endif
 		OnElementStateChanged.Broadcast(Event);
 	}
+
+#if WITH_DEV_AUTOMATION_TESTS
+	int32 GetElementStatePublishCountForTests() const
+	{
+		return ElementStatePublishCountForTests;
+	}
+
+private:
+	int32 ElementStatePublishCountForTests = 0;
+#endif
 };

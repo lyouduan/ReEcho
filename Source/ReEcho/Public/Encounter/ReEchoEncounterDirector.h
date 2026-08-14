@@ -38,11 +38,18 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void EndEncounter();
 
+	/** Boss 遭遇可在标准时长后继续，直到 GameMode 根据胜负条件主动结束。 */
+	UFUNCTION(BlueprintCallable)
+	void SetEndsOnDuration(bool bInEndsOnDuration);
+
 	UFUNCTION(BlueprintCallable)
 	void SetPaused(bool bInPaused);
 
 	UFUNCTION(BlueprintPure)
 	float GetRemainingTime() const;
+#if WITH_DEV_AUTOMATION_TESTS
+	void AdvanceForTesting(float DeltaSeconds) { Tick(DeltaSeconds); }
+#endif
 
 protected:
 	virtual void Tick(float DeltaSeconds) override;
@@ -52,4 +59,5 @@ private:
 	float FixedDelta = 1.f / 60.f;
 	bool bRunning = false;
 	bool bSimulationPaused = false;
+	bool bEndsOnDuration = true;
 };

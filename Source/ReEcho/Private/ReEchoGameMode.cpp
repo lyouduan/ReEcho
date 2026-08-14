@@ -7,7 +7,9 @@
 #include "Camera/CameraComponent.h"
 #include "Components/BillboardComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Encounter/ReEchoEncounterDirector.h"
+#include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
@@ -674,7 +676,9 @@ void AReEchoGameMode::BeginNextEncounter()
 	}
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
+	bBossPostEchoPhaseTriggered = false;
 	RunSubsystem->BeginEncounter();
+	Director->SetEndsOnDuration(!IsBossEncounter());
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 	if (Player)
 	{
@@ -734,6 +738,7 @@ FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() con
 	Result.PlayerStats = Player->Combatant->Stats;
 	Result.PlayerVelocity = Player->GetVelocity();
 	Result.ActiveRecording = Player->Recorder->GetRecording();
+	Result.bBossPostEchoPhaseTriggered = bBossPostEchoPhaseTriggered;
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
 		if (Entry.bAlive)
@@ -764,6 +769,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	ClearCombatants();
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
+	bBossPostEchoPhaseTriggered = SavedState.bBossPostEchoPhaseTriggered;
+	Director->SetEndsOnDuration(!IsBossEncounter());
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 
 	Player->SetActorTransform(SavedState.PlayerTransform, false, nullptr, ETeleportType::TeleportPhysics);
@@ -781,35 +788,61 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	}
 
 	// Plan31: resume the same selected set as a fresh encounter, one independent Echo per
-	// recording. Each resumed Echo fast-forwards its own playback to the saved encounter time.
-	const TArray<FReEchoRecording> Recordings =
-	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
-	for (const FReEchoRecording& Recording : Recordings)
+	// recording. Once the Boss post-echo phase has fired, echoes must stay absent after restore.
+	if (!bBossPostEchoPhaseTriggered)
 	{
-		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
-		if (Echo)
+		const TArray<FReEchoRecording> Recordings =
+		    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+		for (const FReEchoRecording& Recording : Recordings)
 		{
-			if (Echo->InitializeEcho(
-			        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
+			AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
+			if (Echo)
 			{
-				Echo->AdvanceEcho(SavedState.EncounterTime);
-				Echoes.Add(Echo);
-			}
-			else
-			{
-				Echo->Destroy();
+				if (Echo->InitializeEcho(Recording,
+				                         RunSubsystem->CurrentBuild.Stats.EchoEfficiency,
+				                         RunSubsystem->GetRunDataSnapshot()))
+				{
+					Echo->AdvanceEcho(SavedState.EncounterTime);
+					Echoes.Add(Echo);
+				}
+				else
+				{
+					Echo->Destroy();
+				}
 			}
 		}
 	}
 	RefreshFogRevealSources();
 
+	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem->GetRunDataSnapshot();
 	for (const FReEchoEnemyRuntimeState& EnemyState : SavedState.Enemies)
 	{
 		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>();
 		if (Enemy)
 		{
+			const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
+			                                         ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
+			                                         : EReEchoEnemyKind::Grunt;
+			const FName EnemyId = SavedKind == EReEchoEnemyKind::Boss      ? FName(TEXT("M_TimeGuard"))
+			                      : SavedKind == EReEchoEnemyKind::Bomber ? FName(TEXT("M_Bomber"))
+			                      : SavedKind == EReEchoEnemyKind::Shield ? FName(TEXT("M_Shield"))
+			                                                                : FName(TEXT("M_Grunt"));
+			FReEchoEnemyDefinition Definition;
+			FString CompileError;
+			if (!DataSnapshot ||
+			    !ReEchoEnemyDefinitionCompiler::Compile(*DataSnapshot, EnemyId, Definition, CompileError) ||
+			    !Enemy->ConfigureFromDefinition(Definition, EnemyState.SpawnIndex))
+			{
+				UE_LOG(LogTemp, Error, TEXT("Plan44 enemy restore failed: %s"), *CompileError);
+				Enemy->Destroy();
+				continue;
+			}
 			Enemy->RestoreRuntimeState(EnemyState);
 			Enemy->SetEnemyRoster(EnemyRoster);
+			if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
+			{
+				Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
+			}
 		}
 	}
 	Director->ResumeEncounter(SavedState.EncounterTime);
@@ -850,28 +883,94 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 		return SpawnLocation;
 	};
 
-	auto SpawnEnemy = [&](const EReEchoEnemyKind Kind)
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	auto SpawnEnemy = [&](const FName EnemyId)
 	{
+		if (!DataSnapshot)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Plan44 enemy spawn failed: run data snapshot is unavailable."));
+			return;
+		}
+		FReEchoEnemyDefinition Definition;
+		FString CompileError;
+		if (!ReEchoEnemyDefinitionCompiler::Compile(*DataSnapshot, EnemyId, Definition, CompileError))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Plan44 enemy spawn failed: %s"), *CompileError);
+			return;
+		}
 		AReEchoEnemyActor* Enemy =
 		    GetWorld()->SpawnActor<AReEchoEnemyActor>(GetPeripheralSpawnLocation(), FRotator::ZeroRotator);
 		if (Enemy)
 		{
-			Enemy->Configure(Kind, ++SpawnIndex);
+			if (!Enemy->ConfigureFromDefinition(Definition, ++SpawnIndex))
+			{
+				Enemy->Destroy();
+				return;
+			}
 			Enemy->SetEnemyRoster(EnemyRoster);
+			if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
+			{
+				Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
+			}
 		}
 	};
 
 	if (bBossEncounter)
 	{
-		SpawnEnemy(EReEchoEnemyKind::Boss);
+		SpawnEnemy(TEXT("M_TimeGuard"));
 	}
 	for (int32 EnemyIndex = 0; EnemyIndex < GruntCount; ++EnemyIndex)
 	{
-		SpawnEnemy(EReEchoEnemyKind::Grunt);
+		SpawnEnemy(TEXT("M_Grunt"));
 	}
 	for (int32 EnemyIndex = 0; EnemyIndex < BomberCount; ++EnemyIndex)
 	{
-		SpawnEnemy(EReEchoEnemyKind::Bomber);
+		SpawnEnemy(TEXT("M_Bomber"));
+	}
+}
+
+bool AReEchoGameMode::IsBossEncounter() const
+{
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
+	                                                          : nullptr;
+	return RunSubsystem &&
+	       RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+}
+
+void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition)
+{
+	if (bBossPostEchoPhaseTriggered || !IsBossEncounter() || !PhaseDefinition.bEnabled || !Player ||
+	    !Player->Combatant)
+	{
+		return;
+	}
+	bBossPostEchoPhaseTriggered = true;
+	for (AReEchoEchoActor* Echo : Echoes)
+	{
+		if (Echo)
+		{
+			Echo->Destroy();
+		}
+	}
+	Echoes.Reset();
+	RefreshFogRevealSources();
+
+	FReEchoStatBlock BoostedStats = Player->Combatant->Stats;
+	BoostedStats.PhysicalAttack *= FMath::Max(0.0f, PhaseDefinition.PhysicalAttackMultiplier);
+	BoostedStats.ElementalAttack *= FMath::Max(0.0f, PhaseDefinition.ElementalAttackMultiplier);
+	BoostedStats.AttackSpeed *= FMath::Max(0.0f, PhaseDefinition.AttackSpeedMultiplier);
+	BoostedStats.MovementSpeed *= FMath::Max(0.0f, PhaseDefinition.MovementSpeedMultiplier);
+	Player->Combatant->InitializeFromStats(BoostedStats, false);
+	Player->Movement->MaxSpeed = 420.0f * BoostedStats.MovementSpeed;
+}
+
+void AReEchoGameMode::HandleBossIntent(const FReEchoBossIntent& Intent)
+{
+	if (Intent.Type == EReEchoBossIntentType::EncounterPhase &&
+	    Intent.PhaseDefinition.EchoPolicy == EReEchoBossEchoPolicy::RetireEncounterEchoes)
+	{
+		TriggerBossPostEchoPhase(Intent.PhaseDefinition);
 	}
 }
 
@@ -1628,7 +1727,20 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	}
 	if (!bEncounterTransitioning)
 	{
-		if (!EnemyRoster->HasLivingEnemies())
+		bool bEncounterDefeated = !EnemyRoster->HasLivingEnemies();
+		if (IsBossEncounter())
+		{
+			bEncounterDefeated = true;
+			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+			{
+				if (Entry.Archetype == EReEchoEnemyArchetype::Boss && Entry.bAlive)
+				{
+					bEncounterDefeated = false;
+					break;
+				}
+			}
+		}
+		if (bEncounterDefeated)
 		{
 			bEncounterClearedByDefeat = true;
 			Director->EndEncounter();

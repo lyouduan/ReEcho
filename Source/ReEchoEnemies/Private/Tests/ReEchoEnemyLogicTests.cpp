@@ -6,6 +6,98 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+namespace
+{
+FReEchoEnemyAbilityDefinition MakeBossAbility(const TCHAR* Id,
+                                               const TCHAR* BehaviorId,
+                                               const int32 SequenceOrder,
+                                               const float MinRangeCm,
+                                               const float MaxRangeCm)
+{
+	FReEchoEnemyAbilityDefinition Ability;
+	Ability.Id = FName(Id);
+	Ability.BehaviorId = FName(BehaviorId);
+	Ability.SequenceOrder = SequenceOrder;
+	Ability.Damage = 10.0f + SequenceOrder;
+	Ability.WindupSeconds = 0.05f;
+	Ability.ActiveSeconds = 0.05f;
+	Ability.RecoverySeconds = 0.05f;
+	Ability.CooldownSeconds = 0.5f;
+	Ability.MinRangeCm = MinRangeCm;
+	Ability.MaxRangeCm = MaxRangeCm;
+	Ability.RadiusCm = 50.0f;
+	Ability.WidthCm = 80.0f;
+	Ability.LengthCm = 600.0f;
+	Ability.LockTiming = EReEchoBossLockTiming::WindupStarted;
+	Ability.bEnabled = true;
+	return Ability;
+}
+
+FReEchoEnemyDefinition MakeBossTestDefinition()
+{
+	FReEchoEnemyDefinition Definition;
+	Definition.Archetype = EReEchoEnemyArchetype::Boss;
+	Definition.MaxHealth = 100.0f;
+	Definition.MoveSpeedCmPerSecond = 60.0f;
+	Definition.MovementStopDistanceCm = 50.0f;
+
+	Definition.BossAbilities.Add(MakeBossAbility(TEXT("A_Melee"), TEXT("Boss.MeleeSweep"), 0, 0.0f, 250.0f));
+	FReEchoEnemyAbilityDefinition Projectile =
+	    MakeBossAbility(TEXT("A_Projectile"), TEXT("Boss.Projectile"), 1, 200.0f, 1200.0f);
+	Projectile.ProjectileSpeedCmPerSecond = 700.0f;
+	Projectile.LockTiming = EReEchoBossLockTiming::WindupEnded;
+	Definition.BossAbilities.Add(Projectile);
+
+	FReEchoEnemyAbilityDefinition Blink =
+	    MakeBossAbility(TEXT("A_Blink"), TEXT("Boss.BlinkSlam"), 2, 0.0f, 1000.0f);
+	Blink.TeleportOffsetCm = 180.0f;
+	Definition.BossAbilities.Add(Blink);
+	Definition.BossAbilities.Add(
+	    MakeBossAbility(TEXT("A_Beam"), TEXT("Boss.PrayerBeam"), 3, 0.0f, 1200.0f));
+
+	FReEchoEnemyAbilityDefinition Cleanse;
+	Cleanse.Id = TEXT("A_Cleanse");
+	Cleanse.BehaviorId = TEXT("Boss.ElementCleanse");
+	Cleanse.CleanseIntervalSeconds = 0.15f;
+	Cleanse.ImmunitySeconds = 0.1f;
+	Cleanse.bEnabled = true;
+	Definition.BossAbilities.Add(Cleanse);
+
+	FReEchoBossPhaseDefinition Phase;
+	Phase.Id = TEXT("P_Enrage");
+	Phase.PhaseIndex = 1;
+	Phase.TriggerSeconds = 0.2f;
+	Phase.EchoPolicy = EReEchoBossEchoPolicy::RetireEncounterEchoes;
+	Phase.PhysicalAttackMultiplier = 2.0f;
+	Phase.ElementalAttackMultiplier = 2.0f;
+	Phase.AttackSpeedMultiplier = 1.5f;
+	Phase.MovementSpeedMultiplier = 1.25f;
+	Phase.bEnabled = true;
+	Definition.BossPhases.Add(Phase);
+	return Definition;
+}
+
+const FReEchoBossIntent* FindBossIntent(const FReEchoEnemyActionIntent& Intent,
+                                        const EReEchoBossIntentType Type,
+                                        const FName AbilityId = NAME_None)
+{
+	return Intent.BossIntents.FindByPredicate([Type, AbilityId](const FReEchoBossIntent& BossIntent)
+	{
+		return BossIntent.Type == Type && (AbilityId.IsNone() || BossIntent.AbilityId == AbilityId);
+	});
+}
+
+int32 CountBossIntents(const FReEchoEnemyActionIntent& Intent, const EReEchoBossIntentType Type)
+{
+	int32 Count = 0;
+	for (const FReEchoBossIntent& BossIntent : Intent.BossIntents)
+	{
+		Count += BossIntent.Type == Type ? 1 : 0;
+	}
+	return Count;
+}
+} // namespace
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyLegacyDefinitionTest,
                                  "ReEcho.Enemies.Logic.LegacyDefinitions",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -173,6 +265,203 @@ bool FReEchoEnemyHurtAndSnapshotTest::RunTest(const FString& Parameters)
 	Restored->NotifyDeath();
 	TestEqual(TEXT("Death stops behavior"), Restored->GetSnapshot().Phase, EReEchoEnemyBehaviorPhase::Dead);
 	TestFalse(TEXT("Dead logic emits no action"), Restored->Advance(NoTarget, 1.0f).bAttackCommitted);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossInjectedDefinitionTest,
+                                 "ReEcho.Enemies.Boss.InjectedDefinitionRequired",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossInjectedDefinitionTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	const FReEchoEnemyDefinition LegacyBoss =
+	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Boss);
+	TestFalse(TEXT("Boss cannot silently run without injected abilities and phase"), Logic->Initialize(LegacyBoss, 1));
+	TestTrue(TEXT("Complete injected Boss definition initializes"), Logic->Initialize(MakeBossTestDefinition(), 1));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossRotationAndSkipTest,
+                                 "ReEcho.Enemies.Boss.RotationAndConditionalSkip",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossRotationAndSkipTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Boss initializes"), Logic->Initialize(MakeBossTestDefinition(), 4));
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent First = Logic->Advance(Sense, 1.0f / 60.0f);
+	const FReEchoBossIntent* FirstTelegraph =
+	    FindBossIntent(First, EReEchoBossIntentType::TelegraphStarted);
+	TestNotNull(TEXT("First legal ability starts a telegraph"), FirstTelegraph);
+	if (FirstTelegraph)
+	{
+		TestEqual(TEXT("Fixed rotation begins with melee"), FirstTelegraph->AbilityId, FName(TEXT("A_Melee")));
+	}
+
+	const FReEchoEnemyActionIntent AfterMelee = Logic->Advance(Sense, 0.2f);
+	const FReEchoBossIntent* SkippedTelegraph =
+	    FindBossIntent(AfterMelee, EReEchoBossIntentType::TelegraphStarted, FName(TEXT("A_Beam")));
+	TestNotNull(TEXT("Out-of-range projectile and unsafe blink are skipped to beam"), SkippedTelegraph);
+	TestEqual(TEXT("Skipped abilities do not consume identities; second telegraph gets sequence two"),
+	          Logic->GetSnapshot().AttackSequence,
+	          int64(2));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossLockAndIdentityTest,
+                                 "ReEcho.Enemies.Boss.LockPointAndAttackIdentity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossLockAndIdentityTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	Logic->Initialize(MakeBossTestDefinition(), 5);
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.TargetLocation = FVector(300.0f, 0.0f, 0.0f);
+
+	const FReEchoEnemyActionIntent Telegraph = Logic->Advance(Sense, 1.0f / 60.0f);
+	const FReEchoBossIntent* ProjectileTelegraph =
+	    FindBossIntent(Telegraph, EReEchoBossIntentType::TelegraphStarted);
+	TestNotNull(TEXT("Projectile telegraph starts after melee range skip"), ProjectileTelegraph);
+	if (ProjectileTelegraph)
+	{
+		TestEqual(TEXT("Projectile is selected"), ProjectileTelegraph->AbilityId, FName(TEXT("A_Projectile")));
+		TestEqual(TEXT("Action identity allocated at windup start"), ProjectileTelegraph->Attack.Sequence, int64(1));
+	}
+
+	Sense.TargetLocation = FVector(800.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent Committed = Logic->Advance(Sense, 0.05f);
+	const FReEchoBossIntent* Attack =
+	    FindBossIntent(Committed, EReEchoBossIntentType::AttackWindowStarted, FName(TEXT("A_Projectile")));
+	TestNotNull(TEXT("Projectile commits after windup"), Attack);
+	if (Attack)
+	{
+		TestEqual(TEXT("Windup-end lock captures the latest target point"),
+		          Attack->LockedTargetLocation,
+		          FVector(800.0f, 0.0f, 0.0f));
+		TestEqual(TEXT("Commit keeps the telegraph identity"), Attack->Attack.Sequence, int64(1));
+	}
+
+	Sense.TargetLocation = FVector(1100.0f, 0.0f, 0.0f);
+	Logic->Advance(Sense, 1.0f / 60.0f);
+	TestEqual(TEXT("Post-commit target motion cannot change the locked point"),
+	          Logic->GetSnapshot().BossLockedTargetLocation,
+	          FVector(800.0f, 0.0f, 0.0f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossAmbientIntentTest,
+                                 "ReEcho.Enemies.Boss.CleansePhaseAndPause",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossAmbientIntentTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	Logic->Initialize(MakeBossTestDefinition(), 6);
+	FReEchoEnemySenseSnapshot NoTarget;
+	Logic->Advance(NoTarget, 0.1f);
+	const FReEchoEnemyLogicSnapshot BeforePause = Logic->GetSnapshot();
+	const FReEchoEnemyActionIntent Paused = Logic->Advance(NoTarget, 0.0f);
+	TestEqual(TEXT("Pause emits no Boss command"), Paused.BossIntents.Num(), 0);
+	TestEqual(TEXT("Pause does not advance encounter time"),
+	          Logic->GetSnapshot().BossEncounterElapsedSeconds,
+	          BeforePause.BossEncounterElapsedSeconds);
+
+	const FReEchoEnemyActionIntent Cleanse = Logic->Advance(NoTarget, 0.05f);
+	const FReEchoBossIntent* CleanseIntent = FindBossIntent(Cleanse, EReEchoBossIntentType::ElementCleanse);
+	TestNotNull(TEXT("Injected cleanse interval emits a command"), CleanseIntent);
+	if (CleanseIntent)
+	{
+		TestEqual(TEXT("Cleanse carries injected immunity"), CleanseIntent->ElementImmunitySeconds, 0.1f);
+	}
+
+	const FReEchoEnemyActionIntent Phase = Logic->Advance(NoTarget, 0.05f);
+	const FReEchoBossIntent* PhaseIntent = FindBossIntent(Phase, EReEchoBossIntentType::EncounterPhase);
+	TestNotNull(TEXT("Injected encounter threshold emits one phase command"), PhaseIntent);
+	if (PhaseIntent)
+	{
+		TestEqual(TEXT("Phase intent carries its stable ID"), PhaseIntent->PhaseDefinition.Id, FName(TEXT("P_Enrage")));
+	}
+	const FReEchoEnemyActionIntent AfterPhase = Logic->Advance(NoTarget, 0.05f);
+	TestEqual(TEXT("Phase is one-shot"), CountBossIntents(AfterPhase, EReEchoBossIntentType::EncounterPhase), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossSnapshotDeterminismTest,
+                                 "ReEcho.Enemies.Boss.SnapshotAndFixedStepDeterminism",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossSnapshotDeterminismTest::RunTest(const FString& Parameters)
+{
+	const FReEchoEnemyDefinition Definition = MakeBossTestDefinition();
+	UReEchoEnemyLogicComponent* Original = NewObject<UReEchoEnemyLogicComponent>();
+	UReEchoEnemyLogicComponent* Restored = NewObject<UReEchoEnemyLogicComponent>();
+	Original->Initialize(Definition, 7);
+	Restored->Initialize(Definition, 7);
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.TargetLocation = FVector(300.0f, 0.0f, 0.0f);
+	Original->Advance(Sense, 0.025f);
+	const FReEchoEnemyLogicSnapshot Saved = Original->GetSnapshot();
+	Restored->RestoreSnapshot(Saved);
+
+	Sense.TargetLocation = FVector(650.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent OriginalNext = Original->Advance(Sense, 0.1f);
+	const FReEchoEnemyActionIntent RestoredNext = Restored->Advance(Sense, 0.1f);
+	const FReEchoBossIntent* OriginalAttack =
+	    FindBossIntent(OriginalNext, EReEchoBossIntentType::AttackWindowStarted);
+	const FReEchoBossIntent* RestoredAttack =
+	    FindBossIntent(RestoredNext, EReEchoBossIntentType::AttackWindowStarted);
+	TestNotNull(TEXT("Original commits after saved windup"), OriginalAttack);
+	TestNotNull(TEXT("Restored commits after saved windup"), RestoredAttack);
+	if (OriginalAttack && RestoredAttack)
+	{
+		TestEqual(TEXT("Restored attack identity sequence matches"),
+		          RestoredAttack->Attack.Sequence,
+		          OriginalAttack->Attack.Sequence);
+		TestEqual(TEXT("Restored locked point matches"),
+		          RestoredAttack->LockedTargetLocation,
+		          OriginalAttack->LockedTargetLocation);
+	}
+
+	const FReEchoEnemyLogicSnapshot OriginalState = Original->GetSnapshot();
+	const FReEchoEnemyLogicSnapshot RestoredState = Restored->GetSnapshot();
+	TestEqual(TEXT("Restored action phase matches"), RestoredState.BossActionPhase, OriginalState.BossActionPhase);
+	TestEqual(TEXT("Restored current ability matches"),
+	          RestoredState.BossCurrentAbilityId,
+	          OriginalState.BossCurrentAbilityId);
+	TestTrue(TEXT("Restored phase timer matches"),
+	         FMath::IsNearlyEqual(RestoredState.BossActionPhaseRemainingSeconds,
+	                              OriginalState.BossActionPhaseRemainingSeconds));
+
+	UReEchoEnemyLogicComponent* OneChunk = NewObject<UReEchoEnemyLogicComponent>();
+	UReEchoEnemyLogicComponent* Partitioned = NewObject<UReEchoEnemyLogicComponent>();
+	OneChunk->Initialize(Definition, 8);
+	Partitioned->Initialize(Definition, 8);
+	OneChunk->Advance(Sense, 0.5f);
+	for (int32 Step = 0; Step < 30; ++Step)
+	{
+		Partitioned->Advance(Sense, 1.0f / 60.0f);
+	}
+	const FReEchoEnemyLogicSnapshot ChunkState = OneChunk->GetSnapshot();
+	const FReEchoEnemyLogicSnapshot PartitionState = Partitioned->GetSnapshot();
+	TestEqual(TEXT("Frame partition keeps attack sequence"), PartitionState.AttackSequence, ChunkState.AttackSequence);
+	TestEqual(TEXT("Frame partition keeps current ability"),
+	          PartitionState.BossCurrentAbilityId,
+	          ChunkState.BossCurrentAbilityId);
+	TestTrue(TEXT("Frame partition keeps encounter clock"),
+	         FMath::IsNearlyEqual(PartitionState.BossEncounterElapsedSeconds,
+	                              ChunkState.BossEncounterElapsedSeconds));
 	return true;
 }
 

@@ -1,0 +1,6 @@
+Id,OwnerEnemyId,BehaviorId,SequenceOrder,Enabled,Damage,WindupSeconds,ActiveSeconds,RecoverySeconds,CooldownSeconds,MinRangeCm,MaxRangeCm,RadiusCm,WidthCm,LengthCm,ProjectileSpeedCmPerSecond,TeleportOffsetCm,TargetingMode,LockTiming,CleanseIntervalSeconds,ImmunitySeconds,SourceSheet,SourceRow,Notes
+M_TimeGuard_MeleeSweep,M_TimeGuard,Boss.MeleeSweep,1,true,18,0.65,0.12,0.75,2.8,0,260,0,220,260,0,0,LockedDirection,WindupStart,0,0,Boss技能,4,近身扇形挥击
+M_TimeGuard_Projectile,M_TimeGuard,Boss.Projectile,2,true,14,0.6,0,0.55,3.5,300,1100,55,0,0,700,0,LockedLocation,WindupEnd,0,0,Boss技能,5,不追踪远程投射
+M_TimeGuard_BlinkSlam,M_TimeGuard,Boss.BlinkSlam,3,true,22,0.9,0.35,0.9,7,0,1100,180,0,0,0,180,LockedLocation,WindupStart,0,0,Boss技能,6,消失后在锁定落点外闪现砸地
+M_TimeGuard_PrayerBeam,M_TimeGuard,Boss.PrayerBeam,4,true,26,1.2,0.15,1,9,0,1200,0,160,1200,0,0,LockedDirection,WindupEnd,0,0,Boss技能,7,锁定方向长直线光束
+M_TimeGuard_ElementCleanse,M_TimeGuard,Boss.ElementCleanse,0,true,0,0,0,0,0,0,0,0,0,0,0,0,Self,Interval,9,1,Boss技能,8,定时清除元素并获得短暂免疫

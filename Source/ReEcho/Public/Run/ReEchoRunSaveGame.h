@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v7 adds authoritative enemy attack-sequence and one-shot self-destruct restore fields. */
-	static constexpr int32 CurrentSaveVersion = 7;
+	/** v8 persists the one-shot Boss post-echo phase across suspended encounters. */
+	static constexpr int32 CurrentSaveVersion = 8;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;

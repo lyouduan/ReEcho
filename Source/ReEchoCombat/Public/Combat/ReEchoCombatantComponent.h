@@ -53,6 +53,9 @@ public:
 	UFUNCTION(BlueprintPure)
 	FReEchoCombatantSnapshot GetSnapshot() const;
 	const FReEchoElementState& GetElementState() const;
+	/** Clears attachment and burn, then grants immunity without shortening an existing immunity window. */
+	UFUNCTION(BlueprintCallable, Category = "Combat|Element")
+	FReEchoElementCleanseResult ExecuteElementCleanse(const FReEchoElementCleanseCommand& Command);
 	/** Save/continue migration entry; runtime attacks must go through HitResolver. */
 	void RestoreElementState(const FReEchoElementState& SavedState);
 	void ResetElementState();

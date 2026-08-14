@@ -1,13 +1,13 @@
 # ReEcho 数据源
 
-`Design/Data/ReEchoData.xlsx` 是策划唯一编辑源，本目录中的 CSV 是由工作簿生成、供 Unreal 读取和打包的目标运行时数据。本目录里的旧 JSON 文件只作为迁移期参考材料保留；对应领域迁移到 CSV 后，不要再在 CSV、JSON、C++、DeveloperSettings、Actor 或 Widget 里手工维护第二份可编辑真源。
+`Design/Data/ReEchoData.xlsx` 是主策划数据编辑源；怪物体系由独立 `Design/Data/ReEchoEnemyData.xlsx` 唯一负责。两者通过同一入口生成本目录供 Unreal 读取和打包的 CSV，但不共享二进制文件或 ExportMap 所有权。本目录里的旧 JSON 文件只作为未迁移领域的参考材料保留；对应领域迁移到 CSV 后，不要再在 CSV、JSON、C++、DeveloperSettings、Actor 或 Widget 里手工维护第二份可编辑真源。
 
-完整策划操作步骤见 [`Design/Data/ReEchoData使用说明.md`](../../Design/Data/ReEchoData使用说明.md)。
-首次仓库准备、分层验收、Unreal 启动顺序和反馈模板见 [`Design/Data/ReEchoData策划验收清单.md`](../../Design/Data/ReEchoData策划验收清单.md)。
+主数据操作步骤见 [`Design/Data/ReEchoData使用说明.md`](../../Design/Data/ReEchoData使用说明.md)；怪物数据见 [`Design/Data/ReEchoEnemyData使用说明.md`](../../Design/Data/ReEchoEnemyData使用说明.md)。
+验收分别见 [`Design/Data/ReEchoData策划验收清单.md`](../../Design/Data/ReEchoData策划验收清单.md) 和 [`Design/Data/ReEchoEnemyData策划验收清单.md`](../../Design/Data/ReEchoEnemyData策划验收清单.md)。
 
 ## Plan25 XLSX authoring
 
-- Canonical workbook: `Design/Data/ReEchoData.xlsx`.
+- Canonical workbooks: `Design/Data/ReEchoData.xlsx` and independent `Design/Data/ReEchoEnemyData.xlsx`.
 - Fixed sync/check command: `python scripts/data/sync_xlsx_to_csv.py --check`.
 - Install locked XLSX dependency: `python -m pip install -r scripts/data/requirements.txt`.
 - Runtime code still reads only UTF-8 CSV in `Content/Data`; XLSX, Excel, COM and Office are never runtime dependencies.
@@ -44,6 +44,9 @@
 - `attack_steps.csv`：有序攻击 pattern 阶段。
 - `slot_types.csv` / `slot_profiles.csv`：配件槽类型和各武器类型允许槽位。
 - `parts.csv` / `part_effects.csv`：78 条武器插槽源行审计和启用配件的一对多 typed effects。
+- `enemies.csv`：四类敌人的稳定 `EnemyId`、基础属性和注册 Behavior Profile。
+- `enemy_abilities.csv`：Boss 四个主动技能与元素清洗被动，按 `OwnerEnemyId` 归属。
+- `boss_phases.csv`：Boss 确定性阶段与临时战斗倍率。
 - `TestFixtures/CsvRuntime/`：自动化用的正向和负向 fixtures，不是生产数据。
 
 ## 表目录
@@ -68,6 +71,9 @@
 | `SlotProfiles` | `Content/Data/slot_profiles.csv` | 各武器类型允许的配件槽 |
 | `Parts` | `Content/Data/parts.csv` | 78 条带 SourceSheet/SourceRow 的武器插槽审计行 |
 | `PartEffects` | `Content/Data/part_effects.csv` | 启用配件的一对多 typed effects |
+| `Enemies` | `Content/Data/enemies.csv` | 稳定 EnemyId、基础属性、行为 Profile 与表现键 |
+| `EnemyAbilities` | `Content/Data/enemy_abilities.csv` | Boss 主动/被动技能、确定性顺序与空间参数 |
+| `BossPhases` | `Content/Data/boss_phases.csv` | Boss 时间阶段、Echo 策略与临时强化倍率 |
 
 自动化 fixture 目录：`Content/Data/TestFixtures/CsvRuntime/`
 

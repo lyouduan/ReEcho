@@ -21,7 +21,184 @@ enum class EReEchoEnemyBehaviorPhase : uint8
 	Attacking,
 	Fuse,
 	HitReaction,
-	Dead
+	Dead,
+	BossWindup,
+	BossActive,
+	BossRecovery
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossAbilityKind : uint8
+{
+	None,
+	MeleeSweep,
+	Projectile,
+	BlinkSlam,
+	PrayerBeam,
+	ElementCleanse
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossActionPhase : uint8
+{
+	None,
+	Windup,
+	Active,
+	Recovery
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossLockTiming : uint8
+{
+	WindupStarted,
+	WindupEnded,
+	Interval
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossTargetingMode : uint8
+{
+	LockedLocation,
+	LockedDirection,
+	Self
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossAttackShape : uint8
+{
+	None,
+	Rectangle,
+	Projectile,
+	Circle,
+	Beam
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossIntentType : uint8
+{
+	TelegraphStarted,
+	AttackWindowStarted,
+	AbilityEnded,
+	ElementCleanse,
+	EncounterPhase
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossEchoPolicy : uint8
+{
+	None,
+	RetireEncounterEchoes
+};
+
+UENUM(BlueprintType)
+enum class EReEchoBossRefillHealthPolicy : uint8
+{
+	None,
+	RefillToMaximum
+};
+
+/** Immutable active/passive Boss ability definition compiled from the authoritative data source. */
+USTRUCT(BlueprintType)
+struct REECHOENEMIES_API FReEchoEnemyAbilityDefinition
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName Id = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName BehaviorId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 SequenceOrder = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float Damage = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float WindupSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float ActiveSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float RecoverySeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CooldownSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float MinRangeCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float MaxRangeCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float RadiusCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float WidthCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float LengthCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float ProjectileSpeedCmPerSecond = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float TeleportOffsetCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CleanseIntervalSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float ImmunitySeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossTargetingMode TargetingMode = EReEchoBossTargetingMode::LockedLocation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossLockTiming LockTiming = EReEchoBossLockTiming::WindupStarted;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bEnabled = false;
+};
+
+/** Immutable encounter phase definition. The encounter host owns applying the returned policy and multipliers. */
+USTRUCT(BlueprintType)
+struct REECHOENEMIES_API FReEchoBossPhaseDefinition
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName Id = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 PhaseIndex = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float TriggerSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossEchoPolicy EchoPolicy = EReEchoBossEchoPolicy::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float PhysicalAttackMultiplier = 1.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float ElementalAttackMultiplier = 1.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float AttackSpeedMultiplier = 1.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float MovementSpeedMultiplier = 1.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossRefillHealthPolicy RefillHealthPolicy = EReEchoBossRefillHealthPolicy::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bEnabled = false;
 };
 
 /** Immutable, presentation-free behavior definition compiled by the host. */
@@ -71,6 +248,13 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bUsesDirectionalShield = false;
+
+	/** Boss-only immutable definitions. Non-Boss archetypes leave both arrays empty. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FReEchoEnemyAbilityDefinition> BossAbilities;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FReEchoBossPhaseDefinition> BossPhases;
 };
 
 /** Explicit world sample. Enemy logic must not discover GameMode, PlayerController, or presentation state. */
@@ -99,6 +283,95 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bTargetInvulnerable = false;
+
+	/** Collision-safe blink destination explicitly solved by the world host for this sample. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector TeleportDestination = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bHasTeleportDestination = false;
+};
+
+/** One ordered Boss command. Multiple commands may be emitted by one large deterministic advance. */
+USTRUCT(BlueprintType)
+struct REECHOENEMIES_API FReEchoBossIntent
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossIntentType Type = EReEchoBossIntentType::TelegraphStarted;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossAbilityKind AbilityKind = EReEchoBossAbilityKind::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossAttackShape AttackShape = EReEchoBossAttackShape::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName AbilityId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName BehaviorId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoAttackIdentity Attack;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TWeakObjectPtr<AActor> Target;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector Origin = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector LockedTargetLocation = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector LockedDirection = FVector::ForwardVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector TeleportDestination = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float RawDamage = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float RadiusCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float WidthCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float LengthCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float ProjectileSpeedCmPerSecond = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float WindupSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float ActiveSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float RecoverySeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossTargetingMode TargetingMode = EReEchoBossTargetingMode::LockedLocation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossLockTiming LockTiming = EReEchoBossLockTiming::WindupStarted;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float ElementImmunitySeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoBossPhaseDefinition PhaseDefinition;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bCanDamageTarget = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bRequestTeleport = false;
 };
 
 /** Deterministic behavior output. The host applies movement and forwards attack candidates to Combat. */
@@ -145,6 +418,22 @@ struct REECHOENEMIES_API FReEchoEnemyActionIntent
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSelfDestructAfterAttack = false;
+
+	/** Ordered semantic commands for Boss-only world execution. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FReEchoBossIntent> BossIntents;
+};
+
+USTRUCT(BlueprintType)
+struct REECHOENEMIES_API FReEchoBossAbilityCooldownSnapshot
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName AbilityId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float RemainingSeconds = 0.0f;
 };
 
 /** Read-only authoritative enemy behavior state. Health and elements remain Combat-owned. */
@@ -186,6 +475,54 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 	/** Prevents a fuse-expired bomber from publishing the same self-destruct action more than once. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSelfDestructCommitted = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoBossActionPhase BossActionPhase = EReEchoBossActionPhase::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName BossCurrentAbilityId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 BossNextSequenceIndex = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 BossNextPhaseIndex = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int64 BossCurrentAttackSequence = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float BossActionPhaseRemainingSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float BossCleanseRemainingSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float BossEncounterElapsedSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float BossSimulationAccumulatorSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector BossLockedTargetLocation = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector BossLockedDirection = FVector::ForwardVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector BossLockedTeleportDestination = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FReEchoBossAbilityCooldownSnapshot> BossAbilityCooldowns;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bBossHasLockedTarget = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bBossHasLockedTeleportDestination = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bBossCurrentAbilityCommitted = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bAlive = true;

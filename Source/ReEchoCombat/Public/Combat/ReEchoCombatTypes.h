@@ -152,3 +152,28 @@ struct REECHOCOMBAT_API FReEchoElementState
 	UPROPERTY()
 	FReEchoAttackIdentity BurnAttack;
 };
+
+/** Deterministic Combat command; the caller supplies its authoritative simulation time. */
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoElementCleanseCommand
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float CurrentTimeSeconds = -1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ImmunityDurationSeconds = 0.0f;
+};
+
+/** A valid command succeeds even when the requested state is already present. */
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoElementCleanseResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bSucceeded = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bStateChanged = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bClearedAttachment = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bClearedBurn = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ImmunityUntil = 0.0f;
+};

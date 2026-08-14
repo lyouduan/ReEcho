@@ -1,0 +1,2 @@
+Id,BossEnemyId,PhaseIndex,TriggerSeconds,EchoPolicy,PhysicalAttackMultiplier,ElementalAttackMultiplier,AttackSpeedMultiplier,MovementSpeedMultiplier,RefillHealthPolicy,Enabled,SourceSheet,SourceRow,Notes
+M_TimeGuard_ThirtySeconds,M_TimeGuard,1,30,DestroyEncounterEchoes,2,2,1.5,1.25,None,true,Boss阶段,4,仅局内一次性强化且不回血不改最大生命

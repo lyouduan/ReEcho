@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
 #include "ReEchoGameMode.generated.h"
 class ACameraActor;
@@ -108,6 +109,7 @@ private:
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
 	bool bEncounterTransitioning = false;
 	bool bEncounterClearedByDefeat = false;
+	bool bBossPostEchoPhaseTriggered = false;
 	float ArenaSceneWorldHeight = 0.0f;
 	float ArenaSceneWorldWidth = 0.0f;
 	UFUNCTION()
@@ -187,6 +189,10 @@ private:
 	void ResumeSavedEncounter();
 	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;
 	void SpawnEnemies(int32 EncounterIndex);
+	bool IsBossEncounter() const;
+	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
+	UFUNCTION()
+	void HandleBossIntent(const FReEchoBossIntent& Intent);
 	void ClearCombatants();
 	void RefreshFogRevealSources();
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */

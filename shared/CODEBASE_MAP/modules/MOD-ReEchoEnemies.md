@@ -5,7 +5,7 @@
 - Runtime Module：`ReEchoEnemies`。
 - 代码根：`Source/ReEchoEnemies/`。
 - 架构标识：`MOD-ReEchoEnemies`；功能检索标识：`AREA-Enemies`。
-- 当前状态：Plan43 `Closed`，已进入 `main`。纯逻辑、Roster、EnemyHost、只读 Presentation、v7 保存组合和 GameMode 敌人生命周期接线已通过 FullRebuild、聚焦回归与用户 PIE。
+- 当前状态：Plan43 已建立通用逻辑边界；Plan44 候选在该边界内加入数据驱动 Boss Policy、敌方投射物逻辑、Boss 阶段/清洗语义和 v8 快照，等待用户 PIE 后关闭。
 
 ## 存在原因
 
@@ -18,7 +18,7 @@
 **负责：**
 
 - 怪物 Archetype、行为阶段、攻击冷却、攻击序号与存活行为门控；
-- Grunt、Shield、Bomber、Boss 当前硬编码数值的等价不可变 Definition；
+- Grunt、Shield、Bomber、Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
 - Host 显式注入的目标感知到移动、朝向和攻击意图的确定性转换；
 - Bomber 不可取消引信、范围判定输入与一次性自毁提交；
 - Combat Hurt 结果触发的游戏性击退状态，以及 Combat Death 后停止产出行为；
@@ -56,8 +56,9 @@
 
 ### 输出
 
-- `FReEchoEnemyActionIntent`：单步朝向、移动距离、AttackIdentity、目标、原始伤害、爆炸半径和自毁意图。它是候选动作，不是最终命中结果。
-- `FReEchoEnemyLogicSnapshot`：只读行为副本；包含一次性 `bSelfDestructCommitted`，防止引信到期后重复提交爆炸。
+- `FReEchoEnemyActionIntent`：单步朝向、移动距离、普通攻击候选和 `BossIntents`。Boss Intent 表达前摇、判定窗口、清洗和 EncounterPhase，仍不是最终命中结果。
+- `FReEchoEnemyLogicSnapshot`：只读行为副本；除通用状态外保存 Boss 当前招式、阶段剩余时间、轮转索引、锁点、清洗/阶段门控与固定步累计，支持中途恢复。
+- `FReEchoEnemyProjectileLogic`：资源无关的直线弹道 Advance/Snapshot；Host 只负责世界目标碰撞和 Combat 命中转发。
 - `UReEchoEnemyEventsComponent`：发布 `FReEchoEnemyActionCommittedEvent` 与 `FReEchoEnemyFuseEvent`。事件只描述已经发生的行为状态，不携带表现资源。
 - `UReEchoEnemyRosterComponent`：保存 Host/Logic 弱引用，以 SpawnIndex 稳定排序；存活状态即时读取 LogicSnapshot，不复制第二份 alive 标志。
 

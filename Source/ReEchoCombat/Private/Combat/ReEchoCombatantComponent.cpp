@@ -204,6 +204,58 @@ const FReEchoElementState& UReEchoCombatantComponent::GetElementState() const
 	return ElementState;
 }
 
+FReEchoElementCleanseResult
+UReEchoCombatantComponent::ExecuteElementCleanse(const FReEchoElementCleanseCommand& Command)
+{
+	FReEchoElementCleanseResult Result;
+	if (!FMath::IsFinite(Command.CurrentTimeSeconds) || Command.CurrentTimeSeconds < 0.0f ||
+	    !FMath::IsFinite(Command.ImmunityDurationSeconds) || Command.ImmunityDurationSeconds <= 0.0f)
+	{
+		return Result;
+	}
+
+	const float RequestedImmunityUntil = Command.CurrentTimeSeconds + Command.ImmunityDurationSeconds;
+	if (!FMath::IsFinite(RequestedImmunityUntil))
+	{
+		return Result;
+	}
+
+	static const FName ElementalImmunityStatusId = TEXT("Z_Elemental_Immunity");
+	static const FName BurnStatusId = TEXT("Z_Burn");
+	const bool bHadBurnState =
+	    ElementState.bBurnActive || ElementState.ActiveStatusUntilSeconds.Contains(BurnStatusId) ||
+	    ElementState.BurnTickDamage != 0.0f || ElementState.BurnNextTickTimeSeconds != 0.0f ||
+	    ElementState.BurnSourceLocation != FVector::ZeroVector || !ElementState.BurnAttack.Source.IsExplicitlyNull() ||
+	    ElementState.BurnAttack.Sequence != 0;
+	Result.bClearedAttachment = ElementState.Attached != EReEchoElement::None;
+	Result.bClearedBurn = bHadBurnState;
+
+	ElementState.Attached = EReEchoElement::None;
+	ElementState.bBurnActive = false;
+	ElementState.BurnTickDamage = 0.0f;
+	ElementState.BurnNextTickTimeSeconds = 0.0f;
+	ElementState.BurnSourceLocation = FVector::ZeroVector;
+	ElementState.BurnAttack = {};
+	ElementState.ActiveStatusUntilSeconds.Remove(BurnStatusId);
+
+	const float PreviousImmunityUntil = ElementState.ImmunityUntil;
+	const float PreviousStatusUntil = ElementState.ActiveStatusUntilSeconds.FindRef(ElementalImmunityStatusId);
+	const float GrantedImmunityUntil = FMath::Max3(PreviousImmunityUntil, PreviousStatusUntil, RequestedImmunityUntil);
+	ElementState.ImmunityUntil = GrantedImmunityUntil;
+	ElementState.ActiveStatusUntilSeconds.Add(ElementalImmunityStatusId, GrantedImmunityUntil);
+
+	Result.bSucceeded = true;
+	Result.ImmunityUntil = ElementState.ImmunityUntil;
+	Result.bStateChanged =
+	    Result.bClearedAttachment || Result.bClearedBurn || PreviousImmunityUntil != ElementState.ImmunityUntil ||
+	    PreviousStatusUntil != ElementState.ActiveStatusUntilSeconds.FindRef(ElementalImmunityStatusId);
+	if (Result.bStateChanged)
+	{
+		PublishElementStateChange();
+	}
+	return Result;
+}
+
 void UReEchoCombatantComponent::RestoreElementState(const FReEchoElementState& SavedState)
 {
 	ElementState = SavedState;
