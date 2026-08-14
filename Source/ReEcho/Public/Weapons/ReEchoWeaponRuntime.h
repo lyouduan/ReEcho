@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Core/ReEchoTypes.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Weapons/ReEchoWeaponTypes.h"
 
 struct REECHO_API FReEchoEffectiveWeaponDefinition
 {
@@ -35,6 +36,8 @@ REECHO_API bool BuildEffectiveWeaponDefinition(const FReEchoCsvDataSnapshot& Sna
                                                const FReEchoBuildSnapshot& Build,
                                                FReEchoEffectiveWeaponDefinition& OutDefinition,
                                                FString& OutError);
+/** Main-module data adapter: compile validated CSV rows into resource-free ReEchoWeapons runtime data. */
+REECHO_API FReEchoWeaponDefinition CompileLogicDefinition(const FReEchoEffectiveWeaponDefinition& Definition);
 REECHO_API bool
 IsInsideMeleeArc(const FVector& Origin, const FVector& Forward, const FVector& Target, float RangeCm, float ArcDegrees);
 REECHO_API TArray<FVector>

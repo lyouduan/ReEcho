@@ -1,11 +1,11 @@
 #include "AbilitySystem/ReEchoPlayerAbilities.h"
 
-#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Abilities/Tasks/AbilityTask_WaitInputRelease.h"
-#include "AbilitySystemComponent.h"
 #include "AbilitySystem/ReEchoGameplayEffects.h"
 #include "AbilitySystem/ReEchoGameplayTags.h"
-#include "Player/ReEchoPlayerPawn.h"
+#include "Combat/ReEchoAttackHost.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 namespace
 {
@@ -28,14 +28,19 @@ UReEchoPlayerGameplayAbility::UReEchoPlayerGameplayAbility()
 	    MakeTags({ReEchoGameplayTags::State_Dead, ReEchoGameplayTags::State_Stunned, ReEchoGameplayTags::State_Menu});
 }
 
+IReEchoAttackHost* UReEchoPlayerGameplayAbility::ResolveHost() const
+{
+	return Cast<IReEchoAttackHost>(GetAvatarActorFromActorInfo());
+}
+
 void UReEchoPlayerGameplayAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
                                                    const FGameplayAbilityActorInfo* ActorInfo,
                                                    const FGameplayAbilityActivationInfo ActivationInfo,
                                                    const FGameplayEventData* TriggerEventData)
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(GetAvatarActorFromActorInfo());
-	if (!PlayerPawn || !CommitAbility(Handle, ActorInfo, ActivationInfo) || !ExecutePlayerAbility(*PlayerPawn))
+	IReEchoAttackHost* Host = ResolveHost();
+	if (!Host || !CommitAbility(Handle, ActorInfo, ActivationInfo) || !ExecuteHostAbility(*Host))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
@@ -63,17 +68,17 @@ void UReEchoPlayerGameplayAbility::ApplyCooldown(const FGameplayAbilitySpecHandl
 		Super::ApplyCooldown(Handle, ActorInfo, ActivationInfo);
 		return;
 	}
-	const AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(GetAvatarActorFromActorInfo());
+	const IReEchoAttackHost* Host = ResolveHost();
 	FGameplayEffectSpecHandle Spec =
 	    MakeOutgoingGameplayEffectSpec(CooldownEffectClass, GetAbilityLevel(Handle, ActorInfo));
-	if (PlayerPawn && Spec.IsValid())
+	if (Host && Spec.IsValid())
 	{
-		Spec.Data->SetSetByCallerMagnitude(ReEchoGameplayTags::Data_Cooldown, GetCooldownDuration(*PlayerPawn));
+		Spec.Data->SetSetByCallerMagnitude(ReEchoGameplayTags::Data_Cooldown, GetCooldownDuration(*Host));
 		ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, Spec);
 	}
 }
 
-float UReEchoPlayerGameplayAbility::GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const
+float UReEchoPlayerGameplayAbility::GetCooldownDuration(const IReEchoAttackHost& Host) const
 {
 	return 0.0f;
 }
@@ -81,8 +86,6 @@ float UReEchoPlayerGameplayAbility::GetCooldownDuration(const AReEchoPlayerPawn&
 UReEchoBasicAttackAbility::UReEchoBasicAttackAbility()
 {
 	SetAssetTags(MakeTags({ReEchoGameplayTags::Ability_Attack_Basic}));
-	CooldownEffectClass = UReEchoBasicAttackCooldownEffect::StaticClass();
-	CooldownTags.AddTag(ReEchoGameplayTags::Cooldown_Attack_Basic);
 }
 
 void UReEchoBasicAttackAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
@@ -91,7 +94,7 @@ void UReEchoBasicAttackAbility::ActivateAbility(const FGameplayAbilitySpecHandle
                                                 const FGameplayEventData* TriggerEventData)
 {
 	UGameplayAbility::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	if (!CommitAndExecuteCurrentAttack())
+	if (!ResolveHost())
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
@@ -99,22 +102,61 @@ void UReEchoBasicAttackAbility::ActivateAbility(const FGameplayAbilitySpecHandle
 	UAbilityTask_WaitInputRelease* ReleaseTask = UAbilityTask_WaitInputRelease::WaitInputRelease(this, true);
 	ReleaseTask->OnRelease.AddDynamic(this, &UReEchoBasicAttackAbility::HandleInputReleased);
 	ReleaseTask->ReadyForActivation();
-	const AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(GetAvatarActorFromActorInfo());
-	ScheduleNextAttack(PlayerPawn ? GetCooldownDuration(*PlayerPawn) : 0.1f);
+	AttemptOrWait();
 }
 
-bool UReEchoBasicAttackAbility::CommitAndExecuteCurrentAttack()
+void UReEchoBasicAttackAbility::AttemptOrWait()
 {
-	AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(GetAvatarActorFromActorInfo());
-	return PlayerPawn && CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo) &&
-	       ExecutePlayerAbility(*PlayerPawn);
+	IReEchoAttackHost* Host = ResolveHost();
+	if (!Host)
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		return;
+	}
+	const float WaitRemaining = Host->GetBasicAttackWaitRemaining();
+	if (WaitRemaining > KINDA_SMALL_NUMBER)
+	{
+		ScheduleNextAttack(WaitRemaining);
+		return;
+	}
+	switch (Host->TryCommitBasicAttack())
+	{
+		case EReEchoAttackAttempt::Committed:
+		case EReEchoAttackAttempt::Waiting:
+			ScheduleNextAttack(FMath::Max(0.01f, Host->GetBasicAttackWaitRemaining()));
+			return;
+		default:
+			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+			return;
+	}
 }
 
 void UReEchoBasicAttackAbility::ScheduleNextAttack(const float Delay)
 {
-	UAbilityTask_WaitDelay* DelayTask = UAbilityTask_WaitDelay::WaitDelay(this, FMath::Max(0.01f, Delay));
-	DelayTask->OnFinish.AddDynamic(this, &UReEchoBasicAttackAbility::HandleRepeatDelay);
-	DelayTask->ReadyForActivation();
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (UWorld* World = Avatar ? Avatar->GetWorld() : nullptr)
+	{
+		World->GetTimerManager().SetTimer(
+		    RepeatTimerHandle, this, &UReEchoBasicAttackAbility::HandleRepeatDelay, FMath::Max(0.01f, Delay), false);
+	}
+	else
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	}
+}
+
+void UReEchoBasicAttackAbility::EndAbility(const FGameplayAbilitySpecHandle Handle,
+                                           const FGameplayAbilityActorInfo* ActorInfo,
+                                           const FGameplayAbilityActivationInfo ActivationInfo,
+                                           const bool bReplicateEndAbility,
+                                           const bool bWasCancelled)
+{
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (UWorld* World = Avatar ? Avatar->GetWorld() : nullptr)
+	{
+		World->GetTimerManager().ClearTimer(RepeatTimerHandle);
+	}
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 void UReEchoBasicAttackAbility::HandleRepeatDelay()
@@ -125,36 +167,7 @@ void UReEchoBasicAttackAbility::HandleRepeatDelay()
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 		return;
 	}
-
-	AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(GetAvatarActorFromActorInfo());
-	if (!PlayerPawn)
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-		return;
-	}
-
-	// 临时武器动作锁（有序攻击步骤锁）不得永久终止仍被按住的 GAS 普攻循环。
-	// 改为在锁解除后重试，使 held 普攻连续命中，而不是第一发被拒后立即结束。
-	if (PlayerPawn->IsWeaponActionLocked())
-	{
-		ScheduleNextAttack(PlayerPawn->GetWeaponActionLockRemaining() + KINDA_SMALL_NUMBER);
-		return;
-	}
-
-	const UAbilitySystemComponent* AbilitySystem = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
-	if (AbilitySystem && AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::Cooldown_Attack_Basic))
-	{
-		ScheduleNextAttack(0.01f);
-		return;
-	}
-
-	if (!CommitAndExecuteCurrentAttack())
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-		return;
-	}
-
-	ScheduleNextAttack(GetCooldownDuration(*PlayerPawn));
+	AttemptOrWait();
 }
 
 void UReEchoBasicAttackAbility::HandleInputReleased(const float TimeHeld)
@@ -162,14 +175,9 @@ void UReEchoBasicAttackAbility::HandleInputReleased(const float TimeHeld)
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
-bool UReEchoBasicAttackAbility::ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const
+bool UReEchoBasicAttackAbility::ExecuteHostAbility(IReEchoAttackHost& Host) const
 {
-	return PlayerPawn.ExecuteBasicAttackAbility();
-}
-
-float UReEchoBasicAttackAbility::GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const
-{
-	return PlayerPawn.GetCurrentAttackInterval();
+	return Host.TryCommitBasicAttack() == EReEchoAttackAttempt::Committed;
 }
 
 UReEchoActiveAttackAbility::UReEchoActiveAttackAbility()
@@ -179,12 +187,12 @@ UReEchoActiveAttackAbility::UReEchoActiveAttackAbility()
 	CooldownTags.AddTag(ReEchoGameplayTags::Cooldown_Attack_Active);
 }
 
-bool UReEchoActiveAttackAbility::ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const
+bool UReEchoActiveAttackAbility::ExecuteHostAbility(IReEchoAttackHost& Host) const
 {
-	return PlayerPawn.ExecuteActiveAttackAbility();
+	return Host.ExecuteActiveAttack();
 }
 
-float UReEchoActiveAttackAbility::GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const
+float UReEchoActiveAttackAbility::GetCooldownDuration(const IReEchoAttackHost& Host) const
 {
-	return PlayerPawn.GetCurrentAttackInterval();
+	return Host.GetActiveAttackCooldown();
 }

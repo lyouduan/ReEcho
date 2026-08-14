@@ -8,11 +8,11 @@
 - 实现编写方（AI 侧）：`Unassigned`。
 - 任务状态：`Ready`。
 - 人工验收：`PendingBeforeClose`，由用户在 PIE 中验收第一关构图、镜头、背景覆盖、角色可读性和场景调整体验。
-- 本地规划 / 实现基线：`origin/main@52084b1`；`Content/ReEcho/Art/Scene/**` 是当前未跟踪的用户美术输入，实施前必须原样隔离并通过 Unreal Editor 接入，不得覆盖。
+- 本地规划 / 实现基线：`origin/main@59255cb`（已关闭 Plan41 的 ReEcho/ReEchoCombat/ReEchoWeapons/ReEchoAudio 四模块主线）；`Content/ReEcho/Art/Scene/**` 是当前未跟踪的用户美术输入，实施前必须原样隔离并通过 Unreal Editor 接入，不得覆盖。
 - 实现分支：`plan/42-editor-authored-first-arena`。
 - 依赖 / 阻塞：依赖当前 `Level00`、`AReEchoGameMode::CreateArena()`、玩家边界与怪物生成契约；阻塞后续第一关场景美术布置。实施前必须确认没有其他 `Content/Level00.umap` Active 独占所有者。
 - Writes：新增 `Source/ReEcho/{Public,Private}/Presentation/Scene/**`；窄改 `Source/ReEcho/{Public,Private}/ReEchoGameMode.*` 与 `Player/ReEchoPlayerPawn.*`；`Content/Level00.umap`；`Content/ReEcho/Art/Scene/map01.png` 与经 Editor 维护的 `map01.uasset`；场景/相机聚焦测试和 Editor 资产工具；必要的 `Config/DefaultGame.ini` 兼容清理；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；本 Plan 执行记录；最终允许列表中的 Win64 Editor 预构建包。
-- Stable Reads：`Content/ReEcho/Art/Scene/map02..04`、`AReEchoEncounterDirector`、敌人出生与玩家 Clamp 逻辑、天气/UI、Plan40 Animation2D 表现边界、`Content/Level00.umap` 中现有灯光。
+- Stable Reads：`Content/ReEcho/Art/Scene/map02..04`、`AReEchoEncounterDirector`、敌人出生与玩家 Clamp 逻辑、天气/UI、Plan40 Animation2D 表现边界、Plan41 的 ReEchoCombat/ReEchoWeapons 攻击宿主接口、`Content/Level00.umap` 中现有灯光。
 - 影响模式：`Content/Level00.umap`、`Content/ReEcho/Art/Scene/map01.uasset` 与最终预构建包为 `Exclusive`；Arena Scene 公共读取契约为 `SharedContract`。
 - 兼容承诺 / 下游操作：保持现有战斗流程、玩家移动、敌人生成、伤害、录制、天气、UI 和 2D 表现语义；场景缺失时必须明确诊断并安全停止战斗初始化，不静默生成第二套竞技场。
 - 明确排除：重新绘制 `map01`；接入 `map02..04`；设计后续关卡切换；改变遭遇数值、角色尺寸、武器、动画或碰撞语义；大规模 GameMode 拆分；由 AI 代替用户判断最终构图。
@@ -60,8 +60,8 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：从 freshly fetched `origin/main@52084b1` 建立本地 `plan/42-editor-authored-first-arena`。
-- 引擎/构建可用性：UE 5.8 Win64 Development FullRebuild 在 Plan40 发布候选上通过；Executor 开始后需在自己的准确基线重跑增量构建。
+- 基线分支/提交：从 freshly fetched `origin/main@59255cb` 建立本地 `plan/42-editor-authored-first-arena`。
+- 引擎/构建可用性：UE 5.8 Win64 Development FullRebuild 与四模块精选 Editor 包在 Plan41 关闭候选上通过；Executor 开始后需在自己的准确基线重跑增量构建。
 - 现有聚焦测试结果：Plan40 Animation2D 自动化入口受本机全平台 SDK 预检阻塞；本 Plan 必须新增不依赖视觉判断的 Arena Scene 契约测试，并记录实际可运行证据。
 - 活跃独占所有权或共享契约批准：发布 Exchange 中的 `Level00.umap`、`map01.uasset` Reserved 行；Executor 启动前改为 Active，并确认无其他 Active 写入者或 Unreal 锁。
 - 基线损坏时的停止条件：`map01` 无法由 Editor 加载、Level00 已有未隔离修改、场景资产所有权冲突、现有战斗基线不能启动，或必须改变玩法边界语义时停止并报告。

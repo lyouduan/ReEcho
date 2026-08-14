@@ -9,6 +9,8 @@ class AReEchoTrajectoryActor;
 class AReEchoWeaponActor;
 class UBillboardComponent;
 class UReEchoCombatantComponent;
+class UReEchoCombatEventsComponent;
+class UReEchoCombatAudioAdapterComponent;
 class UReEchoPlaybackComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -57,6 +59,12 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
 
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;

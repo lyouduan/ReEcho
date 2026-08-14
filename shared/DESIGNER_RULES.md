@@ -4,6 +4,8 @@
 
 本文件在用户确认“策划”后适用。策划 AI 负责策划意图、表格编写和 QA；它不是项目的 Git Planner。
 
+本文件中的风险性禁止项和例外统一遵循 `shared/PROJECT_RULES.md` 的“风险操作的人类确认与执行”：先提醒风险并提出是否建议问程序，获得有权限的人对准确操作的确认后执行。
+
 ## 读取路线
 
 1. 生产表格读取 `Design/Data/ReEchoData使用说明.md`；首次设置或验收时还需读取 `Design/Data/ReEchoData策划验收清单.md`。

@@ -99,10 +99,10 @@ bool FReEchoGasDeathAndTagsTest::RunTest(const FString& Parameters)
 	Fixture.Combatant->InitializeFromStats(Stats, true);
 	TestFalse(TEXT("Living target has no dead tag"),
 	          Fixture.AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::State_Dead));
-	Fixture.Combatant->ApplyFinalDamage(100.0f);
+	Fixture.Combatant->ApplyFinalDamageForTests(100.0f);
 	TestTrue(TEXT("Lethal effect grants dead tag"),
 	         Fixture.AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::State_Dead));
-	Fixture.Combatant->ApplyFinalDamage(100.0f);
+	Fixture.Combatant->ApplyFinalDamageForTests(100.0f);
 	TestEqual(TEXT("Repeated lethal calls do not stack dead state"),
 	          Fixture.AbilitySystem->GetTagCount(ReEchoGameplayTags::State_Dead),
 	          1);
@@ -122,7 +122,8 @@ bool FReEchoGasDeathAndTagsTest::RunTest(const FString& Parameters)
 	Fixture.AbilitySystem->ApplyGameplayEffectSpecToSelf(*CooldownSpec.Data.Get());
 	TestTrue(TEXT("Cooldown effect grants basic cooldown tag"),
 	         Fixture.AbilitySystem->HasMatchingGameplayTag(ReEchoGameplayTags::Cooldown_Attack_Basic));
-	TestFalse(TEXT("Cooldown rejects basic activation"), Fixture.AbilitySystem->TryActivateAbility(BasicHandle));
+	TestTrue(TEXT("Legacy basic cooldown tag no longer gates basic activation"),
+	         Fixture.AbilitySystem->TryActivateAbility(BasicHandle));
 
 	Fixture.AbilitySystem->RemoveActiveEffectsWithGrantedTags(
 	    FGameplayTagContainer(ReEchoGameplayTags::Cooldown_Attack_Basic));

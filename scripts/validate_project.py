@@ -997,6 +997,25 @@ def validate_workflow() -> None:
         )
     if "remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`" not in agents:
         fail("AGENTS.md must route prompt/rule conflicts to PROJECT_RULES.md")
+    risk_authority_markers = (
+        "## 风险操作的人类确认与执行",
+        "风险操作授权的唯一权威",
+        "覆盖或丢弃未提交内容",
+        "跳过规则或 Plan 要求的构建、测试、审查或发布门禁",
+        "建议先问程序",
+        "确认后应直接执行",
+        "经人工确认跳过/未验证",
+        "不得写成通过",
+        "人工确认不能授权伪造证据",
+    )
+    missing_risk_authority_markers = [marker for marker in risk_authority_markers if marker not in project_rules]
+    if missing_risk_authority_markers:
+        fail(
+            "PROJECT_RULES.md lacks human-confirmed risk execution markers: "
+            + ", ".join(missing_risk_authority_markers)
+        )
+    if "risky-operation prohibition or exception is governed" not in agents:
+        fail("AGENTS.md must route every risky-operation rule to PROJECT_RULES.md")
     role_rule_markers = {
         "PROGRAMMER_RULES.md": (
             "程序用户路线",
@@ -1019,6 +1038,19 @@ def validate_workflow() -> None:
         missing = [marker for marker in markers if marker not in role_rule_texts[name]]
         if missing:
             fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
+    risk_route_marker = "风险性禁止项和例外统一遵循 `shared/PROJECT_RULES.md`"
+    risk_route_texts = {
+        "PROGRAMMER_RULES.md": programmer_rules,
+        "DESIGNER_RULES.md": designer_rules,
+        "ARTIST_RULES.md": artist_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "SECRETARY_RULES.md": secretary_rules,
+        "GIT_RULES.md": git_rules,
+    }
+    missing_risk_routes = [name for name, text_value in risk_route_texts.items() if risk_route_marker not in text_value]
+    if missing_risk_routes:
+        fail("rule files must route risky-operation confirmation to PROJECT_RULES.md: " + ", ".join(missing_risk_routes))
     secretary_markers = (
         "项目秘书仓库职责的唯一权威",
         "不是第四种用户专业角色",
@@ -1048,6 +1080,8 @@ def validate_workflow() -> None:
         "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
         "仅含源码的程序候选",
+        "经人工确认跳过/未验证",
+        "建议先问程序",
     )
     missing_git_rule_markers = [marker for marker in git_rule_markers if marker not in git_rules]
     if missing_git_rule_markers:
@@ -1056,6 +1090,8 @@ def validate_workflow() -> None:
         fail("AGENTS.md must route commit and publication work to GIT_RULES.md")
     if "普通任务直接遵循 `AGENTS.md`" not in onboarding_text:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
+    if "所有风险操作遵循 `shared/PROJECT_RULES.md` 的统一确认机制" not in onboarding_text:
+        fail("AI_ONBOARDING.md must route risky operations to PROJECT_RULES.md")
     if "## 最近关闭" in exchange_text or "## 决定" in exchange_text:
         fail("PLANNER_EXCHANGE.md must contain live coordination only, not history or permanent rules")
     announcement_block = exchange_text.split("## 已规划和活跃工作公告", 1)[1].split("## 活跃所有权", 1)[0]
@@ -1172,7 +1208,7 @@ def validate_workflow() -> None:
         "PROJECT_RULES.md": ("`origin/main` 是唯一允许的远端分支", "不推送任何远端引用"),
         "PLANNER_RULES.md": ("`origin/main` 是唯一允许的远端分支", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不得推送任务分支"),
-        "SECRETARY_RULES.md": ("禁止创建或推送 `origin/main` 之外的远端分支", "只将本地 `main` 推送至 `origin/main`"),
+        "SECRETARY_RULES.md": ("默认禁止创建或推送 `origin/main` 之外的远端分支", "默认只将本地 `main` 非强制推送至 `origin/main`"),
         "WORKFLOW.md": ("远端仓库只有一个分支：`main`", "编号 Plan 在实现开始前发布到 `main`"),
     }
     main_only_texts = {
@@ -1231,7 +1267,7 @@ def validate_workflow() -> None:
         "## 当前 Runtime Module",
         "## 跨模块状态流",
         "## 跨模块不变量",
-        "## 候选架构边界",
+        "## 当前候选状态",
         "Design/Data/ReEchoData.xlsx",
         "旧 JSON 仅用于迁移",
     )
@@ -1240,7 +1276,7 @@ def validate_workflow() -> None:
         fail(f"shared/CODEBASE_MAP/ARCHITECTURE.md is stale: {', '.join(missing_architecture_markers)}")
     index_markers = (
         "## Runtime Module 索引",
-        "## `MOD-ReEcho` 内部领域索引",
+        "## 模块与内部领域索引",
         "## 文档职责",
         "## 同步规则",
         "MODULE_TEMPLATE.md",
@@ -1394,6 +1430,82 @@ def validate_build_dependencies() -> None:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
 
 
+def validate_combat_module_boundaries() -> None:
+    combat_root = ROOT / "Source" / "ReEchoCombat"
+    build_path = combat_root / "ReEchoCombat.Build.cs"
+    if not build_path.is_file():
+        fail("missing ReEchoCombat runtime module")
+    build_text = build_path.read_text(encoding="utf-8")
+    if '"ReEcho"' in build_text or '"ReEchoAudio"' in build_text:
+        fail("ReEchoCombat must not depend on the main or audio runtime modules")
+
+    forbidden_include_prefixes = (
+        "Data/",
+        "Graybox/",
+        "Player/",
+        "Presentation/",
+        "Recording/",
+        "Run/",
+        "UI/",
+        "Weapons/",
+    )
+    include_pattern = re.compile(r'^\s*#include\s+[<\"]([^>\"]+)[>\"]', re.MULTILINE)
+    for path in combat_root.rglob("*"):
+        if path.suffix not in {".h", ".cpp"}:
+            continue
+        text_value = path.read_text(encoding="utf-8")
+        for include in include_pattern.findall(text_value):
+            if include.startswith(forbidden_include_prefixes) or include in {"ReEcho.h", "ReEchoAudio.h"}:
+                fail(f"{rel(path)} has forbidden main/audio module include: {include}")
+
+    descriptor = load_json(ROOT / "ReEcho.uproject")
+    combat_modules = [module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoCombat"]
+    if len(combat_modules) != 1 or combat_modules[0].get("Type") != "Runtime":
+        fail("ReEcho.uproject must declare exactly one ReEchoCombat Runtime module")
+
+    weapons_root = ROOT / "Source" / "ReEchoWeapons"
+    weapons_build_path = weapons_root / "ReEchoWeapons.Build.cs"
+    if not weapons_build_path.is_file():
+        fail("missing ReEchoWeapons runtime module")
+    weapons_build_text = weapons_build_path.read_text(encoding="utf-8")
+    if '"ReEchoCombat"' not in weapons_build_text:
+        fail("ReEchoWeapons must depend on the public ReEchoCombat contracts")
+    if '"ReEcho"' in weapons_build_text or '"ReEchoAudio"' in weapons_build_text:
+        fail("ReEchoWeapons must not depend on the main or audio runtime modules")
+
+    weapons_forbidden_prefixes = (
+        "Data/",
+        "Graybox/",
+        "Player/",
+        "Presentation/",
+        "Recording/",
+        "Run/",
+        "UI/",
+    )
+    weapons_forbidden_logic_tokens = (
+        "ApplyFinalDamage",
+        "ReceiveGrayboxDamage",
+        "ReceiveElementalDamage",
+        "ReEchoGameplayEffects::ApplyDamage",
+        "AReEchoEnemyActor",
+        "AReEchoPlayerPawn",
+    )
+    for path in weapons_root.rglob("*"):
+        if path.suffix not in {".h", ".cpp"}:
+            continue
+        text_value = path.read_text(encoding="utf-8")
+        for include in include_pattern.findall(text_value):
+            if include.startswith(weapons_forbidden_prefixes) or include in {"ReEcho.h", "ReEchoAudio.h"}:
+                fail(f"{rel(path)} has forbidden main/audio module include: {include}")
+        for token in weapons_forbidden_logic_tokens:
+            if token in text_value:
+                fail(f"{rel(path)} bypasses Combat adjudication with forbidden token: {token}")
+
+    weapons_modules = [module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoWeapons"]
+    if len(weapons_modules) != 1 or weapons_modules[0].get("Type") != "Runtime":
+        fail("ReEcho.uproject must declare exactly one ReEchoWeapons Runtime module")
+
+
 def validate_prebuilt_editor() -> None:
     tool = ROOT / "scripts" / "ue" / "prebuilt_editor.py"
     if not tool.is_file():
@@ -1485,6 +1597,7 @@ def main() -> int:
     }.items():
         expect_fixture_failure(name, token)
     validate_build_dependencies()
+    validate_combat_module_boundaries()
     validate_prebuilt_editor()
     validate_xlsx_authoring_sync()
     validate_workflow()

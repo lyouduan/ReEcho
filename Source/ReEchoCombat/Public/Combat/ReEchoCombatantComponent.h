@@ -2,7 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Core/ReEchoTypes.h"
+#include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatTypes.h"
 #include "ReEchoCombatantComponent.generated.h"
 
 class UAbilitySystemComponent;
@@ -14,7 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoDeath);
 /** Compatibility facade over GAS combat attributes; legacy fallback remains for actors not migrated to ASC. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 
-class REECHO_API UReEchoCombatantComponent : public UActorComponent
+class REECHOCOMBAT_API UReEchoCombatantComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -38,10 +39,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void InitializeFromStats(const FReEchoStatBlock& InStats, bool bFillHealth = true);
 
-	/** Applies final damage through GAS when available and returns actual health removed. */
-	UFUNCTION(BlueprintCallable)
-	float ApplyFinalDamage(float Damage);
-
 	/** Applies healing through GAS when available and returns actual health restored. */
 	UFUNCTION(BlueprintCallable)
 	float ApplyHealing(float Healing);
@@ -53,6 +50,16 @@ public:
 
 	void BindToAbilitySystem(UAbilitySystemComponent* InAbilitySystem);
 	UAbilitySystemComponent* GetBoundAbilitySystem() const;
+	UFUNCTION(BlueprintPure)
+	FReEchoCombatantSnapshot GetSnapshot() const;
+	const FReEchoElementState& GetElementState() const;
+	/** Save/continue migration entry; runtime attacks must go through HitResolver. */
+	void RestoreElementState(const FReEchoElementState& SavedState);
+	void ResetElementState();
+#if WITH_DEV_AUTOMATION_TESTS
+	FReEchoElementState& EditElementStateForTests();
+	float ApplyFinalDamageForTests(float Damage);
+#endif
 
 protected:
 	virtual void BeginPlay() override;
@@ -67,9 +74,19 @@ private:
 	void HandleAttackSpeedChanged(const FOnAttributeChangeData& Data);
 	void HandleMovementSpeedChanged(const FOnAttributeChangeData& Data);
 	void HandleEchoEfficiencyChanged(const FOnAttributeChangeData& Data);
+	void PublishHealthChange(float PreviousHealth);
+	void PublishElementStateChange();
+	float ApplyFinalDamage(float Damage, const FReEchoAttackIdentity& Attack, EReEchoDamageSource DamageSource);
 
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> BoundAbilitySystem;
 
 	bool bDeathBroadcast = false;
+	FReEchoElementState ElementState;
+	FName HealthChangeReason = NAME_None;
+	FReEchoAttackIdentity HealthChangeAttack;
+	EReEchoDamageSource HealthChangeDamageSource = EReEchoDamageSource::Player;
+
+	friend class FReEchoElementResolverAccess;
+	friend class FReEchoHitResolverAccess;
 };
