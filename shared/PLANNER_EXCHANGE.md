@@ -20,7 +20,8 @@
 | 所有者 | Plan/分支 | 模式 | 状态 | 文件或独占资源 | 备注 |
 |---|---|---|---|---|---|
 | ReEcho teammate-side Planner | Plan26 / teammate-side 任务分支 | `ReadOnly` | `Reserved` | 类型化武器 UI 消费行为和 Plan26 测试 | 必须保留 Plan29 表现绑定。 |
-| Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Reserved` | `Design/Data/ReEchoData.xlsx`、生成的 `Content/Data/audio_events.csv`、设置 UI 和 Plan33 目录/设置 provider 表面 | WIP 完整保留；Plan41 结束前暂停写入 Build.cs/预构建包，之后适配新模块 main。 |
+| 策划用户 / 策划 AI | 当前策划配表任务 / 本地策划分支 | `SharedContract` + `Exclusive` | `Active` | `Design/Data/ReEchoData.xlsx` 及其生成的 `Content/Data/*.csv` 完整发布单元 | 当前唯一 `WorkbookWriter`。其他 Plan 通过策划交接请求表格变更；不得整块覆盖工作簿或单独手改生成 CSV。 |
+| Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Reserved` | 设置 UI 和 Plan33 目录/设置 provider 表面 | WIP 完整保留并适配四模块 main；AudioEvents 表格变更须交给当前策划 `WorkbookWriter`，不得直接合并旧工作簿或生成 CSV。 |
 | Codex | Plan40 / local `main` candidate | `SharedContract` + `Exclusive` | `Active` | `Presentation/Animation2D/**`、最小必需玩家/敌人表现调用点、`/Game/ReEcho/Art/Animation2D/**`、`/Game/ReEcho/Animation2D/**`、动画/碰撞测试和工具 | Review/发布门禁中。逐帧轮廓仅 Query；不得替换稳定移动 Capsule，人工 PIE 未完成前不关闭。 |
 | Codex | Plan42 / `plan/42-editor-authored-first-arena` | `SharedContract` + `Exclusive` | `Reserved` | `Content/Level00.umap`、`Content/ReEcho/Art/Scene/map01.*`、Arena Scene Actor、GameMode/Player 场景接缝、Arena 测试与 `MOD-ReEcho.md` | Executor 启动后才变为 Active；map02..04 不在本 Plan，现有脏美术必须先隔离。 |
 
