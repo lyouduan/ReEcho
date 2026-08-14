@@ -7,7 +7,7 @@
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户负责最终 PIE、攻速和手感验收。
+- 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户已完成最终组合候选 PIE、攻速和手感验收。
 - 本地规划 / 实现基线：实现最初基于 `origin/main@f499a1b`；2026-08-13 经用户审计选择后已合入 `origin/main@24b9f08` 的远端规则权威提交。后续发布前仍重新 fetch 并执行外部提交审计。
 - 实现分支：本地 `plan/41-combat-runtime-module`，独立 worktree。
 - 依赖 / 阻挡：Plan33 已关闭。Plan34 本地 WIP 保留但暂停占用 `ReEcho.Build.cs`/预构建包；Plan40 保持 Reserved 且不得在本 Plan 实施期间进入 Active。Plan41 合入后，两者必须在新模块边界上重新适配和验证。
@@ -272,9 +272,8 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 
 ### 当前剩余工作与风险
 
-- 合入 Plan40 后，原纯 Plan41 PIE 证据对玩家/敌人/武器表现接缝部分失效；最终推送前仍需用户用组合候选做最小 PIE：连续攻击、自动/手动切换、攻击动画和至少一个敌人命中/死亡。
 - The unrelated Plan31 replay-resolver baseline defect is not changed by Plan41 and needs a separately owned fix.
-- Final FullRebuild, merge to main, remote publication, and worktree cleanup remain gated on user PIE approval.
+- Final FullRebuild, merge to main, remote publication, and worktree cleanup remain.
 
 ### 架构文档审阅结果
 
@@ -287,4 +286,4 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 
 ### 人工验收结果/请求
 
-请用户从 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan41\ReEcho.uproject` 启动 PIE，按上面的人工验收清单测试；通过前不合入 main。
+2026-08-14 用户已完成组合候选 PIE，确认连续攻击、自动/手动攻击、攻击动画、命中/击杀以及采用远端两倍相机/竞技场宽度均无问题，允许合入并推送远端。
