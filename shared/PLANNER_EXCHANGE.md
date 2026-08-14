@@ -14,6 +14,7 @@
 | Plans 35-36 非战斗与战斗/Echo 音频集成 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API 已可用；可听关闭依赖 Plan34 目录/资产 | 只接入语义事件；音频模块保留播放所有权 | 可使用稳定 Plan33 ID，但不得发明目录解析、资产路径或并行音频服务。 |
 | Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 本地 `main@4941c19` 之后的资产迁移候选；已合入远端架构权威 | 共享动画/profile/controller/碰撞轨道契约，独占 `/Game/ReEcho/Art/Animation2D/**` 与 `/Game/ReEcho/Animation2D/**` | 客观发布门禁进行中；保留攻击重试语义和 Capsule 移动权威，逐帧 Paper2D 轮廓仅 Query。 |
 | Plan 41 Combat/Weapons 逻辑模块与攻击系统重构 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | 已审计合入 `origin/main@24b9f08`；本地 `plan/41-combat-runtime-module` | 新 `ReEchoCombat` + `ReEchoWeapons`、统一 AttackIdentity、HitIntent/HitResolved、逻辑攻击载体、只读表现 Events/Snapshots、GAS/Combatant 与反射兼容 | 用户审核扩展为 Combat 最终裁决、Weapons 生成攻击、表现只读消费；旧单模块证据失效，实施和客观验证继续。 |
+| Plan 42 Editor 可编辑的第一关竞技场 | ReEcho teammate-side / `Unassigned` | Codex | `Ready` | `PendingBeforeClose` | `origin/main@52084b1`；本地未跟踪 `Content/ReEcho/Art/Scene/map01.*` 作为隔离输入 | 新 Arena Scene Actor、Level00、map01、GameMode/Player 窄适配、Arena 测试与 `MOD-ReEcho.md` | 相机、背景与玩法边界拆分；实施前确认 Level00 无其他 Active 所有者并隔离当前脏美术。 |
 
 ## 活跃所有权
 
@@ -23,6 +24,7 @@
 | Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Reserved` | `Design/Data/ReEchoData.xlsx`、生成的 `Content/Data/audio_events.csv`、设置 UI 和 Plan33 目录/设置 provider 表面 | WIP 完整保留；Plan41 结束前暂停写入 Build.cs/预构建包，之后适配新模块 main。 |
 | Codex | Plan40 / local `main` candidate | `SharedContract` + `Exclusive` | `Active` | `Presentation/Animation2D/**`、最小必需玩家/敌人表现调用点、`/Game/ReEcho/Art/Animation2D/**`、`/Game/ReEcho/Animation2D/**`、动画/碰撞测试和工具 | Review/发布门禁中。逐帧轮廓仅 Query；不得替换稳定移动 Capsule，人工 PIE 未完成前不关闭。 |
 | Gavyn-side Planner | Plan41 / `plan/41-combat-runtime-module` | `SharedContract` + `Exclusive` | `Active` | `ReEchoCombat`、`ReEchoWeapons`、AttackController/Targeting/WeaponRuntime/HitResolver/CombatEvents、战斗/GAS/武器公共类型、模块描述符、Core Redirects、最终预构建包 | 双逻辑模块实施中；只提供 UI、动画、VFX、音频的只读适配契约，不认领其资源、音频目录或权威 XLSX。 |
+| Codex | Plan42 / `plan/42-editor-authored-first-arena` | `SharedContract` + `Exclusive` | `Reserved` | `Content/Level00.umap`、`Content/ReEcho/Art/Scene/map01.*`、Arena Scene Actor、GameMode/Player 场景接缝、Arena 测试与 `MOD-ReEcho.md` | Executor 启动后才变为 Active；map02..04 不在本 Plan，现有脏美术必须先隔离。 |
 
 ## 警告 / 阻塞项
 
