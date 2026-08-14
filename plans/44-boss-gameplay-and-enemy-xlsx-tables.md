@@ -6,13 +6,13 @@
 - Executor 负责人：Gavyn-side AI。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。Boss 招式可读性、躲避手感、30 秒强化后的战斗节奏与最终胜负必须由用户 PIE 验收。
-- 本地规划 / 实现基线：`origin/main@348d2a84232676164a64f8cfb5a49f836b65ba91`；执行授权前已 fetch，本地与远端一致。
+- 本地规划 / 实现基线：`origin/main@c5bd156`；Ready Plan 已发布，本地工作树从该提交创建。
 - 本地实现方式：独立工作树 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan44`，本地分支 `plan/44-boss-gameplay-and-enemy-tables`；不设远端任务分支。
 - 依赖 / 阻挡：
   - Plan43 已关闭并提供 `MOD-ReEchoEnemies`、EnemyHost、Roster、Combat 单一结算路径和只读 Enemy Presentation。
-  - 策划案《时间回响_Demo关卡与怪物设计说明书_v1.0》是本 Plan 的产品来源；其中 Boss 四个主动招式缺少完整数值，30 秒玩家强化也缺少精确定义，必须先完成本 Plan“审核决策”后才能设为 `Ready`。
+  - 策划案《时间回响_Demo关卡与怪物设计说明书_v1.0》是本 Plan 的产品来源；原文缺失的 Boss 招式数值和 30 秒玩家强化定义已按审核决策锁定为首版参数。
   - `怪物体系M` 当前是 `ReferenceOnly`，没有 Excel Table；现有生产运行时仍使用 `Content/Data/enemies.json` 和 C++ `MakeLegacyEquivalent` 硬编码。
   - 用户已确认怪物体系由另一位策划负责配置，必须使用独立工作簿，不能继续写入主 `ReEchoData.xlsx`；独立二进制文件用于隔离策划所有权和 Git 冲突。
 - Writes：
