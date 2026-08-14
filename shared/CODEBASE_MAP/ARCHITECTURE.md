@@ -85,7 +85,7 @@ Design/Data/ReEchoData.xlsx
 
 ## 当前候选状态
 
-Plan41 的四模块拓扑已经进入 `main`。本文件当前位于 Plan43 `Review` 候选树，第五个 Runtime Module `ReEchoEnemies`、轻量 EnemyHost、Roster、只读敌人表现组件、v7 保存组合与主流程敌人生命周期接线已经建立并通过构建和聚焦自动化；仍需用户 PIE，未合入前不能冒充远端 `main` 既成架构。
+Plan41 的四模块拓扑和 Plan43 的第五个 Runtime Module `ReEchoEnemies` 均已进入 `main`。轻量 EnemyHost、Roster、只读敌人表现组件、v7 保存组合与主流程敌人生命周期接线已经通过 FullRebuild、聚焦自动化和用户 PIE。
 
 ## 维护规则
 

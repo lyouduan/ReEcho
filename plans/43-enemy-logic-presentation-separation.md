@@ -6,8 +6,8 @@
 - Executor 负责人：Gavyn-side AI（当前对话 AI）负责逻辑与允许范围内的集成；表现实现仍需 Plan40 所有权释放后再执行。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。计划分为 `Logic/Integration` 与 `Presentation` 两条实现 lane，最终由 Gavyn-side Planner 集成。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。代码、文档、构建与聚焦自动化已完成，等待用户 PIE 验收。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户负责最终 PIE 中的怪物行为、攻击节奏、受击手感、动画和保存继续验收。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。代码、文档、构建、自动化与用户 PIE 均已完成。
+- 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户已确认怪物行为、攻击节奏、受击手感、动画和保存继续无问题。
 - 本地规划 / 实现基线：`origin/main@4686e60`；实现开始前已重新 fetch，远端无新增提交。
 - 实现分支：本地 `plan/43-enemy-logic-presentation-separation`，独立 worktree，不创建远端任务分支。
 - 依赖 / 阻挡：
@@ -329,14 +329,14 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 - [x] 当前 Grunt/Rabbit/Goat/Fox Profile 轮换与 Boss 回退保持，未把 Appearance 当作 Archetype。
 - [x] Animation/VFX 缺失、播放失败、提前结束或更换资源不会改变攻击、移动、伤害、死亡或遭遇结束。
 - [x] Logic 与 Presentation 实现位于不同目录；Host 集成由单一 lane 完成。
-- [ ] 用户完成怪物行为和表现 PIE 验收。
+- [x] 用户完成怪物行为和表现 PIE 验收。
 
 ### 保存与工程门禁
 
 - [x] 局中保存/继续恢复所有存活怪物的 Transform、类型、SpawnIndex、生命、元素、cooldown、Bomber fuse、受击位移、攻击序号与自爆提交状态。
 - [x] 保存版本升级为 v7；v4/v5/v6 保持在支持范围，新增字段对旧保存按零值确定性补齐，原 Actor 反射路径不变。
 - [x] 新模块纯逻辑、Host/Combat/Weapons/Save/AttackMode 聚焦测试通过。
-- [ ] UE 5.8 Development Build 与最终 `-FullRebuild` 通过，四模块基线扩展为五模块精选预构建包并通过指纹检查。
+- [x] UE 5.8 Development Build 与最终 `-FullRebuild` 通过，四模块基线扩展为五模块精选预构建包并通过指纹检查。
 - [x] `python scripts/validate_project.py`、`git diff --check` 通过。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -400,6 +400,7 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 - 2026-08-14 完成 Host/Presentation/主流程切片：`AReEchoEnemyActor` 只组合组件、采样 Sense、应用 Transform/Collision 和把 ActionIntent 翻译到 Combat；资源映射、动画、血条、元素与命中特效迁入 `Presentation/Enemy`。
 - 2026-08-14 GameMode 的敌人全灭、清场、保存与恢复改用单一 Roster；删除旧 Bomber 规则副本，炸弹怪引信与自毁只由 EnemyLogic 决定。
 - 2026-08-14 保存版本升至 v7，新增 `AttackSequence` 与 `bSelfDestructCommitted`；v4-v6 仍可加载，缺失字段按默认值归一化。
+- 2026-08-14 用户完成 PIE 并确认无问题；Plan43 合入本地 `main`，完成最终 FullRebuild、五模块预构建指纹复核和主线 Enemy 8/8 回归。
 
 ### 证据
 
@@ -411,16 +412,15 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 - `python scripts/validate_project.py` 通过；`git diff --check` 通过。
 - 校验器已新增 `ReEchoEnemies` 依赖/include/禁止 token 门禁，防止后续重新引入主模块、Weapons/Audio/表现依赖、全世界扫描、`FindComponentByClass`、直接伤害或 Content 资源路径。
 - 完整 `ReEcho` 套件发现 80 项，其中 78 项成功；两个可独立复现且不在本 Plan 写集内的既有失败为 `Presentation.Animation2D.AssetProfiles`（Plan40 资产碰撞断言）和 `Run.EchoReplayResolver.EmptyStale`（回放空选择语义），未越界混入修复。
+- 合并后 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功；`prebuilt_editor.py check` 验证五模块、Build ID 与源码指纹一致；主线 `ReEcho.Enemies` 再次 8/8。
 
 ### 剩余风险
 
-- 用户 PIE 尚未完成，怪物实际外观、动画、受击手感、Bomber 引信/爆炸、死亡残留、全灭和局中保存继续仍需人工确认。
-- 最终 `-FullRebuild`、合入 main、远端差异审计、推送与 worktree/分支清理按照项目门禁在人工验收后执行。
 - 全套自动化的两个独立既有失败分别属于 Plan40 表现资产和 Echo 回放语义，不阻塞本 Plan 聚焦证据，但仍应由其所有者另行处理。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`；请用户在 PIE 验证普通怪/Bomber/Boss 的移动与攻击、Bomber 引信/爆炸/自毁、玩家与 Echo 命中、受击/元素/死亡表现、全灭结算，以及局中保存退出后继续。
+- `Passed`；2026-08-14 用户反馈“验证了没问题”。
 
 ### 架构文档审阅结果
 

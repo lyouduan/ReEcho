@@ -5,7 +5,7 @@
 - Runtime Module：`ReEchoEnemies`。
 - 代码根：`Source/ReEchoEnemies/`。
 - 架构标识：`MOD-ReEchoEnemies`；功能检索标识：`AREA-Enemies`。
-- 当前状态：Plan43 `Review` 集成候选。纯逻辑、Roster、EnemyHost、只读 Presentation、v7 保存组合和 GameMode 敌人生命周期接线已建立；构建与相关聚焦回归通过，等待用户 PIE。
+- 当前状态：Plan43 `Closed`，已进入 `main`。纯逻辑、Roster、EnemyHost、只读 Presentation、v7 保存组合和 GameMode 敌人生命周期接线已通过 FullRebuild、聚焦回归与用户 PIE。
 
 ## 存在原因
 

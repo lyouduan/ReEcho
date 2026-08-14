@@ -334,25 +334,32 @@ Combatant.ApplyFinalDamage
 
 ### 9. Enemy 既是目标，也是攻击者
 
-入口：`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`。
+入口：
+
+- Host：`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`
+- 逻辑：`Source/ReEchoEnemies/Private/Enemies/ReEchoEnemyLogicComponent.cpp`
+- 表现：`Source/ReEcho/Private/Presentation/Enemy/ReEchoEnemyPresentationComponent.cpp`
 
 作为目标：
 
-- 实现 `IReEchoCombatTarget`；
-- 返回自己的 `Combatant`；
-- 通过 `ModifyIncomingRawDamage()` 实现盾兵正面格挡/背刺加伤；
-- 订阅 `OnHurt` / `OnDeath` 做受击表现和死亡表现。
+- `AReEchoEnemyActor` 实现 `IReEchoCombatTarget`，返回自己的 `Combatant`；
+- Host 通过 `ModifyIncomingRawDamage()` 保留盾兵正面格挡/背刺加伤；
+- Combat 继续独占生命、元素、伤害和死亡裁决；
+- `EnemyLogic` 订阅 Hurt/Death 更新受击、击退和存活状态，`EnemyPresentation` 独立订阅同一结果驱动可见反馈，二者互不调用。
 
 作为攻击者：
 
 ```text
-Enemy.Tick
-  → 距离/冷却/爆炸条件满足
-  → 构造 FReEchoHitIntent
+EnemyActor.Tick
+  → Host 构造 FReEchoEnemySenseSnapshot
+  → EnemyLogic.Advance
+  → FReEchoEnemyActionIntent
+  → Host 应用朝向/扫掠移动
+  → Host 把 AttackIntent 翻译成 FReEchoHitIntent
   → ReEchoHitResolver.ResolvePhysicalHit
 ```
 
-对应本文档“扩展方式 / 新目标类型”：新目标应该实现 `IReEchoCombatTarget`，而不是让 Resolver include 具体 Actor。
+距离、冷却、Bomber 引信和一次性自毁由 `ReEchoEnemies` 决定；Host 只采样世界、应用 Intent 并适配 Combat。对应本文档“扩展方式 / 新目标类型”：新目标应该实现 `IReEchoCombatTarget`，而不是让 Resolver include 具体 Actor；新的 Enemy 行为也不应重新塞回 Host。
 
 ### 10. UI、音频、表现只读消费结果
 
@@ -374,10 +381,12 @@ UReEchoCombatAudioAdapterComponent
 敌人表现路径：
 
 ```text
-CombatEvents.OnHurt  → 伤害数字、受击反馈
-CombatEvents.OnDeath → 死亡动画、关闭碰撞、LifeSpan
-ElementStateChanged  → 元素附着显示
+EnemyEvents.Action/Fuse + CombatEvents.Hurt/Death/ElementStateChanged
+  → UReEchoEnemyPresentationComponent
+  → 动画、伤害数字、受击、死亡、引信和元素附着显示
 ```
+
+关闭碰撞与 `LifeSpan` 属于 Host 的世界生命周期收尾，不由表现组件决定。
 
 对应本文档“结果、事件与快照”：事件描述已发生结果，回调不能反向更改本次结果。
 
