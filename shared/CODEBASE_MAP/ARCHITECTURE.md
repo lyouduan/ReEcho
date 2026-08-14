@@ -14,18 +14,21 @@ ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人
 | `MOD-ReEchoAudio` | `ReEchoAudio` | 隔离音频目录、策略、总线和播放后端，使缺资源或无设备不影响玩法 | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) |
 | `MOD-ReEchoCombat` | `ReEchoCombat` | 集中攻击控制、战斗参与者、GAS、命中/元素/生命/死亡裁决和只读结果契约 | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) |
 | `MOD-ReEchoWeapons` | `ReEchoWeapons` | 集中武器不可变定义、唯一普通攻击节拍、步骤和无表现的攻击载体逻辑 | [`modules/MOD-ReEchoWeapons.md`](modules/MOD-ReEchoWeapons.md) |
+| `MOD-ReEchoEnemies` | `ReEchoEnemies` | 集中怪物 AI、攻击节奏、爆破引信、受击位移与行为快照，避免表现资源成为玩法前置 | [`modules/MOD-ReEchoEnemies.md`](modules/MOD-ReEchoEnemies.md) |
 
 ```text
 MOD-ReEcho ─────────────→ MOD-ReEchoAudio
     ├───────────────────→ MOD-ReEchoCombat
     └───────────────────→ MOD-ReEchoWeapons ─────→ MOD-ReEchoCombat
+MOD-ReEchoEnemies ───────────────────────────────→ MOD-ReEchoCombat
 
 MOD-ReEchoCombat  ─/─→ MOD-ReEchoWeapons / MOD-ReEcho / MOD-ReEchoAudio
 MOD-ReEchoWeapons ─/─→ MOD-ReEcho / MOD-ReEchoAudio
 MOD-ReEchoAudio   ─/─→ MOD-ReEcho / MOD-ReEchoCombat / MOD-ReEchoWeapons
+MOD-ReEchoEnemies ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoAudio / Presentation
 ```
 
-依赖必须保持单向。Weapons 可以产生攻击提交和命中意图，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。
+依赖必须保持单向。Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。Plan43 当前候选只完成了 `ReEchoEnemies -> ReEchoCombat` 的隔离逻辑层，`ReEcho -> ReEchoEnemies` 的 EnemyHost 装配尚未建立。
 
 ## 主运行流程
 
@@ -50,6 +53,7 @@ MOD-ReEchoAudio   ─/─→ MOD-ReEcho / MOD-ReEchoCombat / MOD-ReEchoWeapons
 | 当前生命、属性、格挡、元素状态 | `MOD-ReEchoCombat` 的 Combatant/GAS/ElementRuntime | UI/表现读取 Snapshot 或订阅 CombatEvents |
 | 自动/手动 held、目标与攻击请求 | `MOD-ReEchoCombat` 的 AttackController/Targeting | Pawn、菜单和 Run 只发送受控命令 |
 | 武器定义、攻击步骤、唯一节拍与逻辑载体 | `MOD-ReEchoWeapons` | Player/Echo 发请求；Weapons 只产生 Commit/HitIntent |
+| 怪物类型、行为阶段、攻击冷却、爆破引信、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 EnemyLogic | EnemyHost 显式提供 Sense、应用移动并把攻击候选交给 Combat；表现只读事件/快照 |
 | 最终命中、伤害、元素、击杀与死亡 | `MOD-ReEchoCombat` 的 HitResolver | Weapons/Enemy 提交 HitIntent；其余系统消费结果 |
 | 玩家历史与 Echo Playback | Recording/Playback | 世界流程启动/停止，当前世界重新选目标与结算 |
 | 屏幕实例、焦点、输入模式与暂停策略 | UI Manager/Flow Coordinator | GameMode 发送屏幕命令，不直接管理 Viewport |
@@ -81,7 +85,7 @@ Design/Data/ReEchoData.xlsx
 
 ## 当前候选状态
 
-本文件位于 Plan41 `Review` 候选树时，四模块拓扑已经在源码、模块描述符、构建和自动化中成立；仍需用户 PIE 通过后才能随 Plan41 合入 `main`。若候选被拒绝，不能单独把这两份模块文档发布为 `main` 的既成架构。
+Plan41 的四模块拓扑已经进入 `main`。本文件当前位于 Plan43 `InProgress` 候选树，新增的第五个 Runtime Module `ReEchoEnemies` 已建立纯逻辑、公共契约、编译和聚焦自动化；EnemyHost、Roster、表现组件、保存与主流程接线仍未完成，因此不能把 Plan43 候选描述成已完成的运行时迁移。
 
 ## 维护规则
 

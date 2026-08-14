@@ -1327,6 +1327,7 @@ def validate_workflow() -> None:
         "AREA-Data",
         "AREA-AbilityCombat",
         "AREA-Weapons",
+        "AREA-Enemies",
         "AREA-Encounter",
         "AREA-Run",
         "AREA-Recording",

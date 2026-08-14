@@ -14,7 +14,7 @@
 | Plans 35-36 非战斗与战斗/Echo 音频集成 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API 已可用；可听关闭依赖 Plan34 目录/资产 | 只接入语义事件；音频模块保留播放所有权 | 可使用稳定 Plan33 ID，但不得发明目录解析、资产路径或并行音频服务。 |
 | Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 本地 `main@4941c19` 之后的资产迁移候选；已合入远端架构权威 | 共享动画/profile/controller/碰撞轨道契约，独占 `/Game/ReEcho/Art/Animation2D/**` 与 `/Game/ReEcho/Animation2D/**` | 客观发布门禁进行中；保留攻击重试语义和 Capsule 移动权威，逐帧 Paper2D 轮廓仅 Query。 |
 | Plan 42 Editor 可编辑的第一关竞技场 | ReEcho teammate-side / `Unassigned` | Codex | `Ready` | `PendingBeforeClose` | `origin/main@59255cb`；本地未跟踪 `Content/ReEcho/Art/Scene/map01.*` 作为隔离输入 | 新 Arena Scene Actor、Level00、map01、玩家跟随/地图边缘锁定相机、GameMode/Player 窄适配、Arena 测试与 `MOD-ReEcho.md` | 基于已关闭 Plan41 四模块主线；相机视锥 footprint 限制画面不露出地图外；实施前隔离脏美术。 |
-| Plan 43 怪物逻辑与表现解耦 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | `origin/main@59255cb`；等待用户审核设计 | 新 `ReEchoEnemies` 逻辑模块、EnemyLogic/Sense/Intent/Snapshot/Event、轻量 EnemyHost、Enemy Presentation 组件、Roster、保存兼容与模块测试 | Logic 新目录可隔离实施；Presentation 等 Plan40 交接，Host/GameMode 等现有 Plan42 释放或切片。不得修改 XLSX/CSV。 |
+| Plan 43 怪物逻辑与表现解耦 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | 本地 `plan/43-enemy-logic-presentation-separation@4686e60` | 新 `ReEchoEnemies` 逻辑模块、EnemyLogic/Sense/Intent/Snapshot/Event、轻量 EnemyHost、Enemy Presentation 组件、Roster、保存兼容与模块测试 | Logic lane 已启动；Presentation 等 Plan40 交接，Host/GameMode 等现有 Plan42 释放或切片。不得修改 XLSX/CSV。 |
 
 ## 活跃所有权
 
@@ -25,7 +25,7 @@
 | Gavyn-side Planner | Plan34 / `plan/34-audio-catalog-settings` | `SharedContract` + `Exclusive` | `Reserved` | 设置 UI 和 Plan33 目录/设置 provider 表面 | WIP 完整保留并适配四模块 main；AudioEvents 表格变更须交给当前策划 `WorkbookWriter`，不得直接合并旧工作簿或生成 CSV。 |
 | Codex | Plan40 / local `main` candidate | `SharedContract` + `Exclusive` | `Active` | `Presentation/Animation2D/**`、最小必需玩家/敌人表现调用点、`/Game/ReEcho/Art/Animation2D/**`、`/Game/ReEcho/Animation2D/**`、动画/碰撞测试和工具 | Review/发布门禁中。逐帧轮廓仅 Query；不得替换稳定移动 Capsule，人工 PIE 未完成前不关闭。 |
 | Codex | Plan42 / `plan/42-editor-authored-first-arena` | `SharedContract` + `Exclusive` | `Reserved` | `Content/Level00.umap`、`Content/ReEcho/Art/Scene/map01.*`、Arena Scene Actor、GameMode/Player 场景接缝、Arena 测试与 `MOD-ReEcho.md` | Executor 启动后才变为 Active；map02..04 不在本 Plan，现有脏美术必须先隔离。 |
-| Gavyn-side Planner | Plan43 / 未创建实现分支 | `SharedContract` + `Exclusive` | `Reserved` | 未来 `Source/ReEchoEnemies/**`、Enemy 公共契约；Host/GameMode/Presentation 仅记录意图，尚未取得重叠路径写入权 | 用户审核前不实现。Logic lane 可与场景/表现隔离；Host/Presentation lane 必须等待 Plan42/40 释放或明确切片。 |
+| Gavyn-side Planner | Plan43 / `plan/43-enemy-logic-presentation-separation` | `SharedContract` + `Exclusive` | `Active` | `Source/ReEchoEnemies/**`、Enemy 公共契约；Host/GameMode/Presentation 仅记录意图，尚未取得重叠路径写入权 | Logic lane 已启动；Host/Presentation lane 必须等待 Plan42/40 释放或明确切片。 |
 
 ## 警告 / 阻塞项
 

@@ -3,13 +3,13 @@
 ## 协调
 
 - Planner 负责人：Gavyn-side Planner。
-- Executor 负责人：`Unassigned`；本 Plan 审核通过后，由 Gavyn-side Executor 负责逻辑/集成，ReEcho teammate-side Executor 负责表现实现，具体交接需各自 Planner 确认。
+- Executor 负责人：Gavyn-side AI（当前对话 AI）负责逻辑与允许范围内的集成；表现实现仍需 Plan40 所有权释放后再执行。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。计划分为 `Logic/Integration` 与 `Presentation` 两条实现 lane，最终由 Gavyn-side Planner 集成。
-- 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。用户审核本设计后才能改为 `Ready`。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。计划分为 `Logic/Integration` 与 `Presentation` 两条实现 lane，最终由 Gavyn-side Planner 集成。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。用户已审核并明确要求当前 AI 开始执行。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户负责最终 PIE 中的怪物行为、攻击节奏、受击手感、动画和保存继续验收。
-- 本地规划 / 实现基线：`origin/main@59255cb`；实现开始前重新 fetch，以人工批准后的最新 `origin/main` 为准。
-- 实现分支：尚未创建；审核后使用本地 `plan/43-enemy-logic-presentation-separation`，不创建远端任务分支。
+- 本地规划 / 实现基线：`origin/main@4686e60`；实现开始前已重新 fetch，远端无新增提交。
+- 实现分支：本地 `plan/43-enemy-logic-presentation-separation`，独立 worktree，不创建远端任务分支。
 - 依赖 / 阻挡：
   - Plan41 已关闭，`ReEchoCombat` 与 `ReEchoWeapons` 是本 Plan 的稳定基础。
   - Plan40 当前拥有 `Presentation/Animation2D/**`、怪物表现调用点及相应资产；Presentation lane 启动前必须由 Plan40 Planner 释放或明确切分所有权。
@@ -342,7 +342,7 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 
 ## Step 0 门禁
 
-- 基线分支/提交：实现前 fetch；当前规划基线 `origin/main@59255cb`。若远端前进，先报告物理冲突、逻辑冲突和集成耦合，由用户决定后再集成。
+- 基线分支/提交：实现前 fetch；当前实现基线 `origin/main@4686e60`。若远端前进，先报告物理冲突、逻辑冲突和集成耦合，由用户决定后再集成。
 - 引擎/构建可用性：使用项目标准 UE 5.8；开始迁移前运行 Development Editor build，确认五模块改造前的四模块基线可构建。
 - 现有聚焦测试结果：至少记录 `ReEcho.Combat.*`、`ReEcho.Weapons.*`、`ReEcho.Bomber*`、元素、保存/继续、AttackMode、Presentation Animation2D 的基线；缺少直接 Enemy 测试时先补 characterization tests，不以当前实现细节替代玩家可见语义。
 - 活跃独占所有权或共享契约批准：确认 Plan40 的 Enemy/Animation2D 写入已释放或切片；确认 Plan42 的 GameMode 写入已释放或仅启动 Lane A；确认 WorkbookWriter 和 Plan34 不被越界写入。
@@ -391,22 +391,30 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 
 ### 变化
 
-- 仅完成规划，尚未实现。
+- 2026-08-14 用户审核并授权当前 Gavyn-side AI 开始执行；先实施不与 Plan40/42 重叠的 `ReEchoEnemies` 逻辑/契约 lane，Host/Presentation 到达前重新核对所有权。
+- 2026-08-14 创建第五个 Runtime Module `ReEchoEnemies`，实现资源无关 Definition/Sense/Intent/Snapshot、显式事件注入、EnemyLogic 与 EnemyEvents；模块只依赖 Core/Engine/Combat。
+- 2026-08-14 把现有 Grunt/Shield/Bomber/Boss 数值编译为等价 Definition；实现接触攻击 cadence、目标无敌仍消费动作、不可取消 Fuse、一次性自爆、受击击退、死亡门控与快照恢复。
+- 2026-08-14 新增模块内 `UReEchoEnemyRosterComponent`：只保存 Host/Logic 弱引用，按 SpawnIndex 稳定排序，存活状态即时读取 LogicSnapshot，不复制第二份 alive 真相。
+- 2026-08-14 聚焦测试发现“攻击提交返回新空 Intent，丢失同帧移动”偏差，已在 `CommitAttack` 的单一入口改为补全现有 Intent；同时补充 `bSelfDestructCommitted` 防止 Host 销毁前重复爆炸。
 
 ### 证据
 
-- 规划基于 `origin/main@59255cb` 的 `ReEchoEnemyActor`、GameMode/Encounter、`ReEchoCombat`、`ReEchoWeapons`、保存结构与当前 CODEBASE_MAP 只读审计。
+- 实现基于 `origin/main@4686e60`；实施前与复核时 fetch 均确认远端未前进。
+- `scripts/ue/Build-Editor.cmd -Configuration Development` 成功，UHT/UBT 生成并链接 `UnrealEditor-ReEchoEnemies.dll`，预构建清单扩展为五模块候选。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic` 发现 6 项并全部 `Result={Success}`：LegacyDefinitions、ContactCadence、InvulnerableTargetConsumesAttack、BomberFuse、HurtAndSnapshot、Roster。
+- `python scripts/validate_project.py` 通过；`git diff --check` 通过。
 
 ### 剩余风险
 
 - Plan40 与现有 Plan42 仍占有 Presentation/GameMode 重叠路径；未切片前只能实施新模块隔离部分。
-- 当前缺少覆盖完整 Enemy AI/主流程的集中自动化，需要在移动代码前先补 characterization tests。
+- 运行时 EnemyActor 尚未接入新 Logic，当前 6 项只证明隔离逻辑与 Roster 候选；完整 Combat/Host/Encounter/Save characterization 与迁移仍待所有权释放。
 - 反射类型/保存结构迁移会影响旧保存兼容，不能只靠编译验证。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`；当前等待用户审核本设计，不启动实现。
+- `PendingBeforeClose`；实现完成后由用户执行最终 PIE。
 
 ### 架构文档审阅结果
 
-- 当前仅规划候选，尚未把 `MOD-ReEchoEnemies` 冒充为 `main` 已实现架构。实现关闭前按本 Plan 同步全部列出的 CODEBASE_MAP 文档。
+- 已新增 `MOD-ReEchoEnemies.md`，同步全局拓扑、索引、Combat 消费关系和 `AREA-Enemies` 校验；文档明确标为 Plan43 `InProgress` 候选，并具名说明 EnemyHost/表现/保存/主流程尚未接入。
+- `MOD-ReEcho.md` 因 Plan42 仍保留独占写入而未修改；`MOD-ReEchoWeapons.md` 当前公共契约未变化，关闭前在完成 Host 集成后再次审阅。
