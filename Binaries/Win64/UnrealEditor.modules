@@ -2,6 +2,8 @@
   "BuildId": "55116800",
   "Modules": {
     "ReEcho": "UnrealEditor-ReEcho.dll",
-    "ReEchoAudio": "UnrealEditor-ReEchoAudio.dll"
+    "ReEchoAudio": "UnrealEditor-ReEchoAudio.dll",
+    "ReEchoCombat": "UnrealEditor-ReEchoCombat.dll",
+    "ReEchoWeapons": "UnrealEditor-ReEchoWeapons.dll"
   }
 }

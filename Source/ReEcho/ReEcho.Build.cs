@@ -16,6 +16,8 @@ public class ReEcho : ModuleRules
             "GameplayAbilities",
             "GameplayTags",
             "GameplayTasks",
+            "ReEchoCombat",
+            "ReEchoWeapons",
             "Paper2D",
             "UMG",
             "Slate",

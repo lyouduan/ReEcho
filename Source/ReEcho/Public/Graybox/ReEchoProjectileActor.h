@@ -2,13 +2,14 @@
 
 #include "CoreMinimal.h"
 #include "Core/ReEchoTypes.h"
+#include "Combat/ReEchoCombatContracts.h"
+#include "Weapons/ReEchoProjectileLogicComponent.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoProjectileActor.generated.h"
 
 class USphereComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
-class AReEchoEnemyActor;
 
 UCLASS()
 
@@ -25,7 +26,8 @@ public:
 	                          EReEchoElement InElement = EReEchoElement::None,
 	                          float InReactionEfficiency = 1.0f,
 	                          float InExplosionRadiusCm = 0.0f,
-	                          float InMaxRangeCm = 0.0f);
+	                          float InMaxRangeCm = 0.0f,
+	                          FReEchoAttackIdentity InAttack = {});
 
 	float GetDamage() const
 	{
@@ -44,25 +46,20 @@ public:
 
 	FVector GetVelocity() const
 	{
-		return Velocity;
+		return ProjectileLogic ? ProjectileLogic->GetSnapshot().Velocity : FVector::ZeroVector;
 	}
 
 private:
-	void ApplyDamageAtLocation(const FVector& ImpactLocation, AReEchoEnemyActor* DirectTarget = nullptr);
-
 	UPROPERTY()
 	TObjectPtr<USphereComponent> Collision;
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> Shape;
 	UPROPERTY()
 	TObjectPtr<UTextRenderComponent> ElementLabel;
-	FVector Velocity = FVector::ZeroVector;
-	FVector DamageSource = FVector::ZeroVector;
+	UPROPERTY()
+	TObjectPtr<UReEchoProjectileLogicComponent> ProjectileLogic;
 	float Damage = 1.f;
 	EReEchoElement Element = EReEchoElement::None;
-	float ReactionEfficiency = 1.0f;
 	float Speed = 950.f;
 	float ExplosionRadiusCm = 0.0f;
-	float MaxRangeCm = 0.0f;
-	float TravelledCm = 0.0f;
 };

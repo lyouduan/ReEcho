@@ -1,6 +1,8 @@
 #include "Graybox/ReEchoEchoActor.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatAudioAdapterComponent.h"
 #include "Components/BillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -70,6 +72,8 @@ AReEchoEchoActor::AReEchoEchoActor()
 
 	Playback = CreateDefaultSubobject<UReEchoPlaybackComponent>(TEXT("Playback"));
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
+	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
+	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 }
 
 bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,

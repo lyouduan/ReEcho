@@ -1,5 +1,6 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 
+#include "Combat/ReEchoElementRuntime.h"
 #include "HAL/PlatformFilemanager.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
@@ -42,6 +43,52 @@ TSet<FName> RegisteredEffectKinds;
 TSet<FName> RegisteredFormulaIds;
 TSet<FName> RegisteredAttackPatternIds;
 bool bDefaultRegistrationsReady = false;
+
+TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDataSnapshot& Snapshot)
+{
+	TSharedRef<FReEchoElementRuleSet> Rules = MakeShared<FReEchoElementRuleSet>();
+	for (const TPair<FName, FReEchoCsvElementRow>& Pair : Snapshot.Elements)
+	{
+		const FReEchoCsvElementRow& Row = Pair.Value;
+		FReEchoElementRuleDefinition Definition;
+		Definition.ElementId = Row.Id;
+		Definition.Element = Row.Element;
+		Definition.bAttachment = Row.Role == EReEchoElementRole::Attachment;
+		Definition.bEnabled = Row.bEnabled;
+		Rules->Elements.Add(Row.Element, MoveTemp(Definition));
+	}
+	for (const TPair<FName, FReEchoCsvStatusRow>& Pair : Snapshot.Statuses)
+	{
+		const FReEchoCsvStatusRow& Row = Pair.Value;
+		FReEchoStatusRuleDefinition Definition;
+		Definition.StatusId = Row.Id;
+		Definition.DurationSeconds = Row.DurationSeconds;
+		Definition.bEnabled = Row.bEnabled;
+		Rules->Statuses.Add(Row.Id, MoveTemp(Definition));
+	}
+	for (const TPair<FName, FReEchoCsvReactionRow>& Pair : Snapshot.Reactions)
+	{
+		const FReEchoCsvReactionRow& Row = Pair.Value;
+		FReEchoReactionRuleDefinition Definition;
+		Definition.ReactionId = Row.Id;
+		Definition.TriggerElementId = Row.TriggerElementId;
+		Definition.AttachmentElementId = Row.AttachmentElementId;
+		Definition.BehaviorId = Row.BehaviorId;
+		Definition.FormulaId = Row.FormulaId;
+		Definition.DamageMultiplier = Row.DamageMultiplier;
+		Definition.DamageIncrease = Row.DamageIncrease;
+		Definition.RadiusCm = Row.RadiusCm;
+		Definition.StatusId = Row.StatusId;
+		Definition.StatusDurationSeconds = Row.StatusDurationSeconds;
+		Definition.EnhancementMultiplier = Row.EnhancementMultiplier;
+		Definition.bCanCrit = Row.bCanCrit;
+		Definition.bAffectedByEchoEfficiency = Row.bAffectedByEchoEfficiency;
+		Definition.bClearsAttachment = Row.bClearsAttachment;
+		Definition.bEnabled = Row.bEnabled;
+		Rules->Reactions.Add(Row.Id, MoveTemp(Definition));
+	}
+	return Rules;
+}
 
 TArray<FString> GetRequiredTableIds()
 {
@@ -521,8 +568,11 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(const F
 	FReEchoCsvLoadResult Result = LoadSnapshotFromDirectory(DataDirectory);
 	if (Result.bSuccess)
 	{
-		FScopeLock Lock(&RegistryCriticalSection);
-		PublishedSnapshot = Result.Snapshot;
+		{
+			FScopeLock Lock(&RegistryCriticalSection);
+			PublishedSnapshot = Result.Snapshot;
+		}
+		ReEchoElementRuntime::PublishRuleSet(CompileElementRuleSet(*Result.Snapshot));
 	}
 	return Result;
 }
@@ -540,6 +590,9 @@ TSharedPtr<const FReEchoCsvDataSnapshot> FReEchoCsvDataRegistry::GetSnapshot()
 
 void FReEchoCsvDataRegistry::ClearPublishedSnapshotForTests()
 {
-	FScopeLock Lock(&RegistryCriticalSection);
-	PublishedSnapshot.Reset();
+	{
+		FScopeLock Lock(&RegistryCriticalSection);
+		PublishedSnapshot.Reset();
+	}
+	ReEchoElementRuntime::ClearRuleSetForTests();
 }

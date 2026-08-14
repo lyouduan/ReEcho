@@ -1,6 +1,7 @@
 #include "Weapons/ReEchoWeaponRuntime.h"
 
 #include "Math/RotationMatrix.h"
+#include "Weapons/ReEchoWeaponGeometry.h"
 
 namespace
 {
@@ -446,45 +447,67 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 	return true;
 }
 
+FReEchoWeaponDefinition ReEchoWeaponRuntime::CompileLogicDefinition(const FReEchoEffectiveWeaponDefinition& Definition)
+{
+	FReEchoWeaponDefinition Result;
+	Result.WeaponId = Definition.Weapon.Id;
+	Result.AttackPatternId = Definition.Weapon.AttackPatternId;
+	Result.DamageChannelId = Definition.DamageChannelId;
+	Result.AttackIntervalSeconds = Definition.Weapon.AttackIntervalSeconds;
+	Result.PhysicalCoefficient = Definition.Weapon.PhysicalCoefficient;
+	Result.ElementalCoefficient = Definition.Weapon.ElementalCoefficient;
+	Result.RangeCm = Definition.Weapon.RangeCm;
+	Result.ArcDegrees = Definition.Weapon.ArcDegrees;
+	Result.ProjectileCount = Definition.Weapon.ProjectileCount;
+	Result.SpreadDegrees = Definition.Weapon.ConcentrationDegrees;
+	Result.ExplosionRadiusCm = Definition.Weapon.ExplosionRadiusCm;
+	Result.OnKillHealPercent = Definition.OnKillHealPercent;
+	Result.bUsesCyclingElement = Definition.bUsesCyclingElement;
+	Result.bUsesDeterministicRandomElement = Definition.bUsesDeterministicRandomElement;
+
+	for (const FReEchoCsvAttackStepRow& CsvStep : Definition.AttackSteps)
+	{
+		FReEchoWeaponStepDefinition Step;
+		Step.StepId = CsvStep.Id;
+		Step.StepIndex = CsvStep.StepIndex;
+		Step.DurationSeconds = CsvStep.DurationSeconds;
+		Step.PhysicalCoefficient = CsvStep.PhysicalCoefficient;
+		Step.ElementalCoefficient = CsvStep.ElementalCoefficient;
+		Step.RangeCm = CsvStep.RangeCm;
+		Step.ArcDegrees = CsvStep.ArcDegrees;
+		Step.ProjectileCount = CsvStep.ProjectileCount;
+		Step.SpreadDegrees = CsvStep.ConcentrationDegrees;
+		Step.ExplosionRadiusCm = CsvStep.ExplosionRadiusCm;
+		Step.MovementCm = CsvStep.MovementCm;
+		Step.bInvulnerable = CsvStep.bInvulnerable;
+		if (Definition.Weapon.AttackPatternId == TEXT("Pattern.MoonStaffWave"))
+		{
+			Step.Carrier = EReEchoWeaponAttackCarrier::Wave;
+		}
+		else if (FMath::Max(Definition.Weapon.ProjectileCount, CsvStep.ProjectileCount) > 0 ||
+		         Definition.Weapon.AttackPatternId == TEXT("Pattern.ElementalProjectile") ||
+		         Definition.Weapon.AttackPatternId == TEXT("Pattern.BowShot") ||
+		         Definition.Weapon.AttackPatternId == TEXT("Pattern.GunShot") ||
+		         Definition.Weapon.AttackPatternId == TEXT("Pattern.StaffProjectile"))
+		{
+			Step.Carrier = EReEchoWeaponAttackCarrier::Projectile;
+		}
+		Result.AttackSteps.Add(Step);
+	}
+	return Result;
+}
+
 bool ReEchoWeaponRuntime::IsInsideMeleeArc(
     const FVector& Origin, const FVector& Forward, const FVector& Target, const float RangeCm, const float ArcDegrees)
 {
-	const FVector ToTarget = (Target - Origin).GetSafeNormal2D();
-	if (ToTarget.IsNearlyZero())
-	{
-		return true;
-	}
-	if (FVector::Dist2D(Origin, Target) > RangeCm)
-	{
-		return false;
-	}
-	if (ArcDegrees >= 359.9f)
-	{
-		return true;
-	}
-	const FVector Forward2D =
-	    Forward.GetSafeNormal2D().IsNearlyZero() ? FVector::ForwardVector : Forward.GetSafeNormal2D();
-	const float Dot = FMath::Clamp(FVector::DotProduct(Forward2D, ToTarget), -1.0f, 1.0f);
-	const float AngleDegrees = FMath::RadiansToDegrees(FMath::Acos(Dot));
-	return AngleDegrees <= ArcDegrees * 0.5f + KINDA_SMALL_NUMBER;
+	return ReEchoWeaponGeometry::IsInsideMeleeArc(Origin, Forward, Target, RangeCm, ArcDegrees);
 }
 
 TArray<FVector> ReEchoWeaponRuntime::BuildProjectileDirections(const FVector& Forward,
                                                                const int32 ProjectileCount,
                                                                const float SpreadDegrees)
 {
-	const int32 Count = FMath::Max(1, ProjectileCount);
-	const FVector Forward2D =
-	    Forward.GetSafeNormal2D().IsNearlyZero() ? FVector::ForwardVector : Forward.GetSafeNormal2D();
-	TArray<FVector> Directions;
-	Directions.Reserve(Count);
-	for (int32 Index = 0; Index < Count; ++Index)
-	{
-		const float Alpha = Count == 1 ? 0.5f : static_cast<float>(Index) / static_cast<float>(Count - 1);
-		const float YawOffset = (Alpha - 0.5f) * SpreadDegrees;
-		Directions.Add(Forward2D.RotateAngleAxis(YawOffset, FVector::UpVector).GetSafeNormal());
-	}
-	return Directions;
+	return ReEchoWeaponGeometry::BuildProjectileDirections(Forward, ProjectileCount, SpreadDegrees);
 }
 
 EReEchoElement ReEchoWeaponRuntime::ElementFromDamageChannel(const FName DamageChannelId, const int32 AttackSequence)

@@ -4,14 +4,12 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
-#include "EngineUtils.h"
-#include "Graybox/ReEchoEnemyActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
 AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 {
-	PrimaryActorTick.bCanEverTick = true;
-	InitialLifeSpan = 2.0f;
+	PrimaryActorTick.bCanEverTick = false;
+	ProjectileLogic = CreateDefaultSubobject<UReEchoProjectileLogicComponent>(TEXT("ProjectileLogic"));
 	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
 	Collision->InitSphereRadius(32.0f);
@@ -41,14 +39,23 @@ AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 void AReEchoStaffLightWaveActor::InitializeWave(const FVector& Direction,
                                                 const float InDamage,
                                                 const FVector& InDamageSource,
-                                                const float InRange)
+                                                const float InRange,
+                                                const FReEchoAttackIdentity InAttack)
 {
 	const FVector TravelDirection = Direction.GetSafeNormal2D();
-	Velocity = (TravelDirection.IsNearlyZero() ? FVector::ForwardVector : TravelDirection) * Speed;
-	Damage = FMath::Max(0.0f, InDamage);
-	DamageSource = InDamageSource;
-	SpawnLocation = GetActorLocation();
-	MaximumRange = FMath::Max(1.0f, InRange);
+	FReEchoLogicalProjectileSpec Spec;
+	Spec.HitIntent.Attack = InAttack;
+	Spec.HitIntent.RawDamage = FMath::Max(0.0f, InDamage);
+	Spec.HitIntent.SourceLocation = InDamageSource;
+	Spec.Direction = TravelDirection;
+	Spec.SpeedCmPerSecond = Speed;
+	Spec.CarrierRadiusCm = Collision->GetScaledSphereRadius();
+	Spec.MaximumRangeCm = FMath::Max(1.0f, InRange);
+	if (!ProjectileLogic->InitializeProjectile(Spec))
+	{
+		Destroy();
+		return;
+	}
 
 	const FVector CameraFacingNormal(-0.5736f, 0.0f, 0.8192f);
 	FVector ScreenTravel =
@@ -59,27 +66,4 @@ void AReEchoStaffLightWaveActor::InitializeWave(const FVector& Direction,
 		ScreenTravel = FVector::RightVector;
 	}
 	SetActorRotation(FRotationMatrix::MakeFromZX(CameraFacingNormal, ScreenTravel).Rotator());
-}
-
-void AReEchoStaffLightWaveActor::Tick(const float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-	const FVector PreviousLocation = GetActorLocation();
-	const FVector NewLocation = PreviousLocation + Velocity * DeltaSeconds;
-	SetActorLocation(NewLocation);
-
-	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
-	{
-		if (It->IsAlive() &&
-		    It->IntersectsProjectilePath(PreviousLocation, NewLocation, Collision->GetScaledSphereRadius()))
-		{
-			It->ReceiveGrayboxDamage(Damage, DamageSource, GetOwner());
-			Destroy();
-			return;
-		}
-	}
-	if (FVector::Dist2D(SpawnLocation, NewLocation) >= MaximumRange)
-	{
-		Destroy();
-	}
 }

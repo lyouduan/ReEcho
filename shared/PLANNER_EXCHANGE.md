@@ -13,7 +13,7 @@
 | Plan 34 编写音频目录和持久设置 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Ready` | `PendingBeforeClose` | 本地 `plan/34-audio-catalog-settings@86824a0`，基于 `f5051e4`；WIP 保留等待 Plan41 后适配 | AudioEvents XLSX/CSV 契约、异步目录/预加载、五条持久总线和设置控件 | 为 Plan41 暂停 Active 所有权；绝不整块合并旧工作簿 blob，之后在新增 Combat/Weapons 后的四模块 main 上适配。 |
 | Plans 35-36 非战斗与战斗/Echo 音频集成 | Gavyn-side / `Unassigned` | Gavyn-side Planner | `Proposed` | `PendingBeforeClose` | Plan33 API 已可用；可听关闭依赖 Plan34 目录/资产 | 只接入语义事件；音频模块保留播放所有权 | 可使用稳定 Plan33 ID，但不得发明目录解析、资产路径或并行音频服务。 |
 | Plan 40 数据驱动 2D 角色表现与逐帧碰撞 | ReEcho teammate-side / ReEcho teammate-side | Codex | `Review` | `PendingBeforeClose` | 本地 `main@4941c19` 之后的资产迁移候选；已合入远端架构权威 | 共享动画/profile/controller/碰撞轨道契约，独占 `/Game/ReEcho/Art/Animation2D/**` 与 `/Game/ReEcho/Animation2D/**` | 客观发布门禁进行中；保留攻击重试语义和 Capsule 移动权威，逐帧 Paper2D 轮廓仅 Query。 |
-| Plan 41 Combat/Weapons 逻辑模块与攻击系统重构 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `InProgress` | `PendingBeforeClose` | 已审计合入 `origin/main@24b9f08`；本地 `plan/41-combat-runtime-module` | 新 `ReEchoCombat` + `ReEchoWeapons`、统一 AttackIdentity、HitIntent/HitResolved、逻辑攻击载体、只读表现 Events/Snapshots、GAS/Combatant 与反射兼容 | 用户审核扩展为 Combat 最终裁决、Weapons 生成攻击、表现只读消费；旧单模块证据失效，实施和客观验证继续。 |
+| Plan 41 Combat/Weapons 逻辑模块与攻击系统重构 | Gavyn-side / Gavyn-side | Gavyn-side Planner | `Review` | `Passed` | 本地 `plan/41-combat-runtime-module` 已组合 `origin/main@7ae6738` 的 Plan40 表现与远端相机宽度 | 新 `ReEchoCombat` + `ReEchoWeapons`、统一 AttackIdentity、HitIntent/HitResolved、逻辑攻击载体、只读表现 Events/Snapshots、GAS/Combatant 与反射兼容 | 用户已通过最终组合 PIE；等待最终 main 合入、FullRebuild 和发布后关闭。 |
 
 ## 活跃所有权
 
@@ -32,7 +32,7 @@
 - `Design/Data/ReEchoData.xlsx` 仅在存在准备发布的编辑时是单写入者二进制。一次性本地可用性测试不锁定团队资源。
 - 运行时竞技场没有专用序列化测试地图；替换任何 `.umap` 前先认领。
 - Plan34 不可整分支合并：该分支与当前 main 都修改了 `Design/Data/ReEchoData.xlsx`、`Source/ReEcho/ReEcho.Build.cs`、`scripts/data/sync_xlsx_to_csv.py` 和 `scripts/validate_project.py`。在当前权威工作簿上重新生成 AudioEvents Table，明确组合文本契约，并重跑全部数据/构建证据。
-- Plan41 与 Plan34 在 `Source/ReEcho/ReEcho.Build.cs` 和最终 Editor 预构建包发生真实写入重叠；与 Plan40 在 `PlayerPawn`/敌人调用点和攻击/表现公共契约发生逻辑耦合。当前明确顺序为 Plan41 先执行，Plan34/40 保持 Reserved 并在新模块边界上适配。
+- Plan41 与 Plan34 在 `Source/ReEcho/ReEcho.Build.cs` 和最终 Editor 预构建包发生真实写入重叠；Plan34 继续保持 Reserved，待 Plan41 合入后在四模块 main 上适配。Plan40 已进入远端 main，其 PresentationController/逐帧 Query 碰撞已按用户选择组合进 Plan41，不能恢复旧 `bAutoAttackMode` 或让动画/碰撞反向控制攻击与结算。
 - Plan41 锁定 `weapons.AttackIntervalSeconds / AttackSpeed` 为自动/手动普通攻击唯一频率；`attack_steps.DurationSeconds` 只描述非阻塞步骤行为，不得成为第二道攻击门。长剑等当前被步骤时长压慢的武器会按武器体系表提速，等待用户 PIE 验收。
 - Plan41 的 UI/Audio/Presentation 接缝固定为“类型化 Event Payload + 只读 Snapshot/provider + 受控 Command”；主模块负责适配，Combat/Weapons 与 Audio 不直接互相依赖，Widget 不得写逻辑模块内部状态。
 - Plan41 新边界：`ReEchoWeapons` 独占武器节奏、步骤、近战和逻辑 Projectile/Wave，只产生 HitIntent；`ReEchoCombat` 独占伤害/元素/生命/死亡最终裁决。所有表现只读事件/快照，资源或动画状态不得反向控制逻辑。

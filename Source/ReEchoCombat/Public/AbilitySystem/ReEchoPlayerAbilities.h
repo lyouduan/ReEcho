@@ -1,14 +1,14 @@
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "CoreMinimal.h"
 #include "ReEchoPlayerAbilities.generated.h"
 
-class AReEchoPlayerPawn;
+class IReEchoAttackHost;
 
 UCLASS(Abstract)
 
-class REECHO_API UReEchoPlayerGameplayAbility : public UGameplayAbility
+class REECHOCOMBAT_API UReEchoPlayerGameplayAbility : public UGameplayAbility
 {
 	GENERATED_BODY()
 
@@ -26,9 +26,10 @@ protected:
 	                           const FGameplayAbilityActorInfo* ActorInfo,
 	                           const FGameplayAbilityActivationInfo ActivationInfo) const override;
 
-	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const
-	    PURE_VIRTUAL(UReEchoPlayerGameplayAbility::ExecutePlayerAbility, return false;);
-	virtual float GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const;
+	virtual bool ExecuteHostAbility(IReEchoAttackHost& Host) const
+	    PURE_VIRTUAL(UReEchoPlayerGameplayAbility::ExecuteHostAbility, return false;);
+	virtual float GetCooldownDuration(const IReEchoAttackHost& Host) const;
+	IReEchoAttackHost* ResolveHost() const;
 
 	TSubclassOf<UGameplayEffect> CooldownEffectClass;
 	FGameplayTagContainer CooldownTags;
@@ -36,34 +37,43 @@ protected:
 
 UCLASS()
 
-class REECHO_API UReEchoBasicAttackAbility : public UReEchoPlayerGameplayAbility
+class REECHOCOMBAT_API UReEchoBasicAttackAbility : public UReEchoPlayerGameplayAbility
 {
 	GENERATED_BODY()
 
 public:
 	UReEchoBasicAttackAbility();
+#if WITH_DEV_AUTOMATION_TESTS
+	void TriggerHeldRepeatForTesting()
+	{
+		HandleRepeatDelay();
+	}
+#endif
 
 protected:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	                             const FGameplayAbilityActorInfo* ActorInfo,
 	                             const FGameplayAbilityActivationInfo ActivationInfo,
 	                             const FGameplayEventData* TriggerEventData) override;
-	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
-	virtual float GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const override;
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle,
+	                        const FGameplayAbilityActorInfo* ActorInfo,
+	                        const FGameplayAbilityActivationInfo ActivationInfo,
+	                        bool bReplicateEndAbility,
+	                        bool bWasCancelled) override;
+	virtual bool ExecuteHostAbility(IReEchoAttackHost& Host) const override;
 
 private:
-	bool CommitAndExecuteCurrentAttack();
+	void AttemptOrWait();
 	void ScheduleNextAttack(float Delay);
 
-	UFUNCTION()
-	void HandleRepeatDelay();
-	UFUNCTION()
-	void HandleInputReleased(float TimeHeld);
+	UFUNCTION() void HandleRepeatDelay();
+	UFUNCTION() void HandleInputReleased(float TimeHeld);
+	FTimerHandle RepeatTimerHandle;
 };
 
 UCLASS()
 
-class REECHO_API UReEchoActiveAttackAbility : public UReEchoPlayerGameplayAbility
+class REECHOCOMBAT_API UReEchoActiveAttackAbility : public UReEchoPlayerGameplayAbility
 {
 	GENERATED_BODY()
 
@@ -71,6 +81,6 @@ public:
 	UReEchoActiveAttackAbility();
 
 protected:
-	virtual bool ExecutePlayerAbility(AReEchoPlayerPawn& PlayerPawn) const override;
-	virtual float GetCooldownDuration(const AReEchoPlayerPawn& PlayerPawn) const override;
+	virtual bool ExecuteHostAbility(IReEchoAttackHost& Host) const override;
+	virtual float GetCooldownDuration(const IReEchoAttackHost& Host) const override;
 };

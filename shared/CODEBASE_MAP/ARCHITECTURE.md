@@ -12,17 +12,20 @@ ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人
 |---|---|---|---|
 | `MOD-ReEcho` | `ReEcho` | 作为 UE 玩法装配根，组合世界生命周期、主流程、尚未独立的玩法领域、表现和 UI | [`modules/MOD-ReEcho.md`](modules/MOD-ReEcho.md) |
 | `MOD-ReEchoAudio` | `ReEchoAudio` | 隔离音频目录、策略、总线和播放后端，使缺资源或无设备不影响玩法 | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) |
+| `MOD-ReEchoCombat` | `ReEchoCombat` | 集中攻击控制、战斗参与者、GAS、命中/元素/生命/死亡裁决和只读结果契约 | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) |
+| `MOD-ReEchoWeapons` | `ReEchoWeapons` | 集中武器不可变定义、唯一普通攻击节拍、步骤和无表现的攻击载体逻辑 | [`modules/MOD-ReEchoWeapons.md`](modules/MOD-ReEchoWeapons.md) |
 
 ```text
 MOD-ReEcho ─────────────→ MOD-ReEchoAudio
-    │                         │
-    │ 语义事件/状态请求       └─ 播放、停止、淡入淡出与安全降级
-    └─ 不等待音频结果
+    ├───────────────────→ MOD-ReEchoCombat
+    └───────────────────→ MOD-ReEchoWeapons ─────→ MOD-ReEchoCombat
 
-MOD-ReEchoAudio ─/─→ MOD-ReEcho
+MOD-ReEchoCombat  ─/─→ MOD-ReEchoWeapons / MOD-ReEcho / MOD-ReEchoAudio
+MOD-ReEchoWeapons ─/─→ MOD-ReEcho / MOD-ReEchoAudio
+MOD-ReEchoAudio   ─/─→ MOD-ReEcho / MOD-ReEchoCombat / MOD-ReEchoWeapons
 ```
 
-依赖必须保持单向。音频是结果消费者，不决定攻击、命中、流程、存档或 UI 命令是否成功。
+依赖必须保持单向。Weapons 可以产生攻击提交和命中意图，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。
 
 ## 主运行流程
 
@@ -44,8 +47,10 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho
 | 状态/结果 | 权威拥有者 | 其他系统如何使用 |
 |---|---|---|
 | 本局阶段、构筑、背包、Echo 存储与保存 | `UReEchoRunSubsystem` | 发送窄命令、读取摘要，不直接改字段 |
-| 当前生命、属性、格挡、元素状态 | 当前 Combatant/GAS 路径 | UI/表现读取快照或订阅结果 |
-| 武器选择、攻击步骤与攻击载体 | 当前 Weapon/Combat 路径 | Player/Echo 发请求，表现消费结果 |
+| 当前生命、属性、格挡、元素状态 | `MOD-ReEchoCombat` 的 Combatant/GAS/ElementRuntime | UI/表现读取 Snapshot 或订阅 CombatEvents |
+| 自动/手动 held、目标与攻击请求 | `MOD-ReEchoCombat` 的 AttackController/Targeting | Pawn、菜单和 Run 只发送受控命令 |
+| 武器定义、攻击步骤、唯一节拍与逻辑载体 | `MOD-ReEchoWeapons` | Player/Echo 发请求；Weapons 只产生 Commit/HitIntent |
+| 最终命中、伤害、元素、击杀与死亡 | `MOD-ReEchoCombat` 的 HitResolver | Weapons/Enemy 提交 HitIntent；其余系统消费结果 |
 | 玩家历史与 Echo Playback | Recording/Playback | 世界流程启动/停止，当前世界重新选目标与结算 |
 | 屏幕实例、焦点、输入模式与暂停策略 | UI Manager/Flow Coordinator | GameMode 发送屏幕命令，不直接管理 Viewport |
 | 音频目录、总线、音乐/环境状态与播放实例 | `MOD-ReEchoAudio` | 主模块发送语义请求，不读取播放内部状态决定玩法 |
@@ -74,9 +79,9 @@ Design/Data/ReEchoData.xlsx
 - `.uasset`/`.umap` 承载宿主地图和资产引用，不保存可以由 C++ 或权威数据明确表达的第二份玩法规则。
 - 模块缺失可选资源或外部设备时必须安全降级，不得导致确定性玩法失败。
 
-## 候选架构边界
+## 当前候选状态
 
-Plan41 正在本地 `Review` 将战斗与武器逻辑拆为 `ReEchoCombat`、`ReEchoWeapons`。在用户 PIE 通过并合入 `main` 前，它们不是当前全局模块；其详细设计只存在于 Plan41 本地候选文档中，不能在这里写成既成事实。
+本文件位于 Plan41 `Review` 候选树时，四模块拓扑已经在源码、模块描述符、构建和自动化中成立；仍需用户 PIE 通过后才能随 Plan41 合入 `main`。若候选被拒绝，不能单独把这两份模块文档发布为 `main` 的既成架构。
 
 ## 维护规则
 

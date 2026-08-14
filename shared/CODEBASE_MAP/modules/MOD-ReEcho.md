@@ -132,28 +132,21 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 ### `AREA-AbilityCombat`：`AbilitySystem` / `Combat`战斗执行
 
-**设计意图：** 当前主模块内统一玩家/敌人属性、GameplayEffect、能力、伤害、治疗、格挡、元素反应和死亡结果。调用者提交攻击或 Effect，不直接改生命。
+**设计意图：** 权威战斗逻辑已迁入 `MOD-ReEchoCombat`；主模块只负责把世界 Actor、Run/Recording、音频和表现接到其命令、事件与快照上。
 
-- 代码：`Source/ReEcho/Public/AbilitySystem/`、`Private/AbilitySystem/`、`Public/Combat/`、`Private/Combat/`。
-- 首读：`ReEchoCombatantComponent.*`、`ReEchoPlayerAbilities.*`、`ReEchoElementReaction.*`、Gameplay Tags/Effects。
-- 权威：当前生命、战斗属性、元素附着/免疫/状态和最终伤害结果。
-- 输入：能力请求、攻击候选、GameplayEffect、当前世界目标。
-- 输出：生命变化、命中/死亡委托和可供表现消费的结果。
-- 扩展：新增伤害规则应集中进入战斗结算入口，并提供无表现自动化；不要在 Projectile、Enemy 或 Widget 重算伤害。
-- 测试：`Private/Tests/ReEchoAbilitySystemTests.cpp`、`ReEchoElementReactionTests.cpp`、攻击模式和运行时武器测试。
+- 逻辑代码与完整意图：[`MOD-ReEchoCombat.md`](MOD-ReEchoCombat.md)。
+- 主模块适配：`Source/ReEcho/Public/Combat/`、`Source/ReEcho/Private/Combat/`，当前包括元素 CSV 编译/兼容 facade 与 `ReEchoCombatAudioAdapterComponent`。
+- 边界：适配器可以翻译数据和订阅结果，不得保存第二份生命、元素、held 或最终伤害状态。
+- 测试：逻辑模块 `Source/ReEchoCombat/Private/Tests/`；主模块保留跨 Run、Recording、世界 Actor 和兼容加载测试。
 
 ### `AREA-Weapons`：`Weapons`武器执行
 
-**设计意图：** 依据稳定 WeaponId 和 CSV 编译参数管理当前武器、攻击步骤、近战/投射物/法杖载体及攻击节奏，并把候选命中交给 Combat。
+**设计意图：** 武器规则和逻辑载体已迁入 `MOD-ReEchoWeapons`；主模块保留 CSV→Definition 编译、世界宿主和武器可见表现。
 
-- 代码：`Source/ReEcho/Public/Weapons/`、`Source/ReEcho/Private/Weapons/`。
-- 首读：`ReEchoWeaponActor.*`、`ReEchoWeaponRuntime.*`。
-- 权威：本 Actor 的武器定义、步骤游标、攻击间隔状态和载体创建。
-- 输入：构筑快照、Combatant 属性、攻击请求和世界目标。
-- 输出：攻击执行、投射物/光波、命中候选和武器只读状态。
-- 扩展：新武器模式应使用稳定 AttackPattern/Behavior ID 和集中注册点；表现资源由主模块适配，不进入纯规则。
-- 禁止：武器代码拥有 Run/商店/UI 生命周期，或绕过 Combat 直接形成第二套生命结算。
-- 测试：`Private/Tests/ReEchoWeaponRuntimeTests.cpp`、`ReEchoAttackModeTests.cpp`、数据注册表测试。
+- 逻辑代码与完整意图：[`MOD-ReEchoWeapons.md`](MOD-ReEchoWeapons.md)。
+- 主模块适配：`ReEchoWeaponRuntime.*` 把策划数据编译为资源无关 Definition；`ReEchoWeaponActor.*` 组合逻辑对象与 Sprite/Mesh/VFX Actor。
+- 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
+- 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。
 
 ### `AREA-Encounter`：`Encounter`遭遇时钟
 
