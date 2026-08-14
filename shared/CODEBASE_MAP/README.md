@@ -15,8 +15,9 @@
 |---|---|---|---|
 | `MOD-ReEcho` | 当前 `main` Runtime Module | [`modules/MOD-ReEcho.md`](modules/MOD-ReEcho.md) | UE 世界与玩法装配根，组合主流程、局内/局外领域、表现与 UI |
 | `MOD-ReEchoAudio` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) | 接收语义音频请求，独立管理目录、策略、总线状态与播放后端 |
-| `MOD-ReEchoCombat` | Plan41 `Review` 候选 Runtime Module | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) | 攻击控制、战斗状态和最终结算的逻辑权威 |
-| `MOD-ReEchoWeapons` | Plan41 `Review` 候选 Runtime Module | [`modules/MOD-ReEchoWeapons.md`](modules/MOD-ReEchoWeapons.md) | 武器定义、唯一攻击节拍、步骤和攻击载体逻辑 |
+| `MOD-ReEchoCombat` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) | 攻击控制、战斗状态和最终结算的逻辑权威 |
+| `MOD-ReEchoWeapons` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoWeapons.md`](modules/MOD-ReEchoWeapons.md) | 武器定义、唯一攻击节拍、步骤和攻击载体逻辑 |
+| `MOD-ReEchoEnemies` | Plan43 `InProgress` 候选 Runtime Module | [`modules/MOD-ReEchoEnemies.md`](modules/MOD-ReEchoEnemies.md) | 怪物 AI、攻击节奏、引信、受击位移与行为快照的逻辑权威 |
 
 `ReEcho.uproject` 中每个 Runtime Module 都必须在此表拥有唯一 `MOD-*` 标识和独立文档。尚未合入 `main` 的候选模块只能记录在对应 Plan/本地分支，不能提前加入本索引。
 
@@ -30,6 +31,7 @@
 | `AREA-Data` | XLSX/CSV 运行时适配 | `Source/ReEcho/{Public,Private}/Data/` | [Data](modules/MOD-ReEcho.md#area-datadata生产数据适配) |
 | `AREA-AbilityCombat` | GAS、攻击控制、战斗与元素结算 | `Source/ReEchoCombat/`；主模块 `Combat/` 仅适配 | [Combat](modules/MOD-ReEchoCombat.md#代码位置与阅读路线) |
 | `AREA-Weapons` | 武器定义、步骤与逻辑载体 | `Source/ReEchoWeapons/`；主模块 `Weapons/` 负责数据/表现适配 | [Weapons](modules/MOD-ReEchoWeapons.md#代码位置与阅读路线) |
+| `AREA-Enemies` | 怪物行为逻辑、Roster 与主模块接线 | `Source/ReEchoEnemies/`；主模块 EnemyHost 位于 `Graybox/`、只读表现位于 `Presentation/Enemy/` | [Enemies](modules/MOD-ReEchoEnemies.md#代码位置与阅读路线) |
 | `AREA-Encounter` | 遭遇固定步时钟 | `Source/ReEcho/{Public,Private}/Encounter/` | [Encounter](modules/MOD-ReEcho.md#area-encounterencounter遭遇时钟) |
 | `AREA-Run` | 本局构筑、阶段与存档 | `Source/ReEcho/{Public,Private}/Run/` | [Run](modules/MOD-ReEcho.md#area-runrun本局状态与存档) |
 | `AREA-Recording` | 玩家历史录制与 Echo 回放 | `Source/ReEcho/{Public,Private}/Recording/` | [Recording](modules/MOD-ReEcho.md#area-recordingrecording录制与回放) |

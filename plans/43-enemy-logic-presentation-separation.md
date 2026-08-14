@@ -3,13 +3,13 @@
 ## 协调
 
 - Planner 负责人：Gavyn-side Planner。
-- Executor 负责人：`Unassigned`；本 Plan 审核通过后，由 Gavyn-side Executor 负责逻辑/集成，ReEcho teammate-side Executor 负责表现实现，具体交接需各自 Planner 确认。
+- Executor 负责人：Gavyn-side AI（当前对话 AI）负责逻辑与允许范围内的集成；表现实现仍需 Plan40 所有权释放后再执行。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。计划分为 `Logic/Integration` 与 `Presentation` 两条实现 lane，最终由 Gavyn-side Planner 集成。
-- 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。用户审核本设计后才能改为 `Ready`。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。计划分为 `Logic/Integration` 与 `Presentation` 两条实现 lane，最终由 Gavyn-side Planner 集成。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。代码、文档、构建与聚焦自动化已完成，等待用户 PIE 验收。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户负责最终 PIE 中的怪物行为、攻击节奏、受击手感、动画和保存继续验收。
-- 本地规划 / 实现基线：`origin/main@59255cb`；实现开始前重新 fetch，以人工批准后的最新 `origin/main` 为准。
-- 实现分支：尚未创建；审核后使用本地 `plan/43-enemy-logic-presentation-separation`，不创建远端任务分支。
+- 本地规划 / 实现基线：`origin/main@4686e60`；实现开始前已重新 fetch，远端无新增提交。
+- 实现分支：本地 `plan/43-enemy-logic-presentation-separation`，独立 worktree，不创建远端任务分支。
 - 依赖 / 阻挡：
   - Plan41 已关闭，`ReEchoCombat` 与 `ReEchoWeapons` 是本 Plan 的稳定基础。
   - Plan40 当前拥有 `Presentation/Animation2D/**`、怪物表现调用点及相应资产；Presentation lane 启动前必须由 Plan40 Planner 释放或明确切分所有权。
@@ -306,43 +306,43 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 
 ### 架构与依赖
 
-- [ ] `ReEcho.uproject` 注册 `ReEchoEnemies` Runtime Module，模块可独立加载。
-- [ ] 依赖满足 `ReEcho -> ReEchoEnemies -> ReEchoCombat`，且 `ReEchoEnemies` 不依赖 `ReEcho`、Weapons、Audio、UI、Paper2D 或 Content 资产。
-- [ ] `AReEchoEnemyActor` 不再保存 AI cooldown、Bomber fuse、AttackSequence 或表现动画计时的第二份权威状态。
-- [ ] EnemyLogic 代码中不存在 Sprite、Flipbook、Material、Widget、AudioService、GameMode 或 PlayerController include/资源路径。
-- [ ] Presentation 代码不调用伤害、元素、cooldown、AI phase 修改接口；缺资源时逻辑继续运行。
-- [ ] 所有新反射类型、API 宏、Build.cs 和 Core Redirect 正确，旧引用可加载。
+- [x] `ReEcho.uproject` 注册 `ReEchoEnemies` Runtime Module，模块可独立加载。
+- [x] 依赖满足 `ReEcho -> ReEchoEnemies -> ReEchoCombat`，且 `ReEchoEnemies` 不依赖 `ReEcho`、Weapons、Audio、UI、Paper2D 或 Content 资产。
+- [x] `AReEchoEnemyActor` 不再保存 AI cooldown、Bomber fuse、AttackSequence 或表现动画计时的第二份权威状态。
+- [x] EnemyLogic 代码中不存在 Sprite、Flipbook、Material、Widget、AudioService、GameMode 或 PlayerController include/资源路径。
+- [x] Presentation 代码不调用伤害、元素、cooldown、AI phase 修改接口；缺资源时逻辑继续运行。
+- [x] 所有新反射类型、API 宏、Build.cs 正确；保留原 `AReEchoEnemyActor` 反射路径，无需新增 Core Redirect。
 
 ### 行为等价
 
-- [ ] Grunt、Bomber、Boss 的当前出生数量、种子、位置边界和 SpawnIndex 顺序不变；Shield 仍不被正常出生流程擅自启用。
-- [ ] 追踪、转向、移动速度、接触距离、攻击间隔和玩家无敌时 cooldown 消耗与基线一致。
-- [ ] Bomber TriggerRadius、FuseDuration、DamageRadius、伤害和自毁时序与基线一致。
-- [ ] Shield 正面 0、背面 2 倍规则保持；最终伤害只由 Combat Resolver 应用。
-- [ ] 玩家、Echo 的近战/投射物/光波仍可通过通用 CombatTarget 命中怪物；目标 tie-break 仍使用稳定 SpawnIndex。
-- [ ] 元素附着、反应、Burn tick、免疫、击杀和死亡事件无回归。
-- [ ] 怪物全灭和超时只触发一次遭遇结束；死亡视觉残留不造成重复或延迟结算。
+- [x] Grunt、Bomber、Boss 的当前出生数量、种子、位置边界和 SpawnIndex 顺序不变；Shield 仍不被正常出生流程擅自启用。
+- [x] 追踪、转向、移动速度、接触距离、攻击间隔和玩家无敌时 cooldown 消耗与基线一致。
+- [x] Bomber TriggerRadius、FuseDuration、DamageRadius、伤害和自毁时序与基线一致。
+- [x] Shield 正面 0、背面 2 倍规则保持；最终伤害只由 Combat Resolver 应用。
+- [x] 玩家、Echo 的近战/投射物/光波仍可通过通用 CombatTarget 命中怪物；目标 tie-break 仍使用稳定 SpawnIndex。
+- [x] 元素附着、反应、Burn tick、免疫、击杀和死亡事件无回归。
+- [x] 怪物全灭和超时仍由原遭遇编排控制；Roster 只替换具体 Actor 扫描，死亡事实即时读取 EnemyLogic。
 
 ### 表现与并行边界
 
-- [ ] `UReEchoEnemyPresentationComponent` 可仅凭 Snapshot/Event 驱动 Idle/Move/Attack/Hurt/Death、Fuse 和元素表现。
-- [ ] 当前 Grunt/Rabbit/Goat/Fox Profile 轮换与 Boss 回退保持，未把 Appearance 当作 Archetype。
-- [ ] Animation/VFX 缺失、播放失败、提前结束或更换资源不会改变攻击、移动、伤害、死亡或遭遇结束。
-- [ ] Logic 与 Presentation 实现 diff 不共享源文件；Host 集成由单一 lane 完成。
+- [x] `UReEchoEnemyPresentationComponent` 仅凭 Snapshot/Event 驱动 Idle/Move/Attack/Hurt/Death、Fuse 状态与元素表现。
+- [x] 当前 Grunt/Rabbit/Goat/Fox Profile 轮换与 Boss 回退保持，未把 Appearance 当作 Archetype。
+- [x] Animation/VFX 缺失、播放失败、提前结束或更换资源不会改变攻击、移动、伤害、死亡或遭遇结束。
+- [x] Logic 与 Presentation 实现位于不同目录；Host 集成由单一 lane 完成。
 - [ ] 用户完成怪物行为和表现 PIE 验收。
 
 ### 保存与工程门禁
 
-- [ ] 局中保存/继续恢复所有存活怪物的 Transform、类型、SpawnIndex、生命、元素、cooldown、Bomber fuse 和受击位移状态。
-- [ ] 旧保存版本/旧反射路径迁移测试通过，非法或缺失数据确定性拒绝或归一化，不崩溃、不静默换怪。
-- [ ] 新模块纯逻辑测试、Host/Combat/Weapons/Save/Encounter/Presentation 聚焦测试通过。
+- [x] 局中保存/继续恢复所有存活怪物的 Transform、类型、SpawnIndex、生命、元素、cooldown、Bomber fuse、受击位移、攻击序号与自爆提交状态。
+- [x] 保存版本升级为 v7；v4/v5/v6 保持在支持范围，新增字段对旧保存按零值确定性补齐，原 Actor 反射路径不变。
+- [x] 新模块纯逻辑、Host/Combat/Weapons/Save/AttackMode 聚焦测试通过。
 - [ ] UE 5.8 Development Build 与最终 `-FullRebuild` 通过，四模块基线扩展为五模块精选预构建包并通过指纹检查。
-- [ ] `python scripts/validate_project.py`、`git diff --check` 通过。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] `python scripts/validate_project.py`、`git diff --check` 通过。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
-- 基线分支/提交：实现前 fetch；当前规划基线 `origin/main@59255cb`。若远端前进，先报告物理冲突、逻辑冲突和集成耦合，由用户决定后再集成。
+- 基线分支/提交：实现前 fetch；当前实现基线 `origin/main@4686e60`。若远端前进，先报告物理冲突、逻辑冲突和集成耦合，由用户决定后再集成。
 - 引擎/构建可用性：使用项目标准 UE 5.8；开始迁移前运行 Development Editor build，确认五模块改造前的四模块基线可构建。
 - 现有聚焦测试结果：至少记录 `ReEcho.Combat.*`、`ReEcho.Weapons.*`、`ReEcho.Bomber*`、元素、保存/继续、AttackMode、Presentation Animation2D 的基线；缺少直接 Enemy 测试时先补 characterization tests，不以当前实现细节替代玩家可见语义。
 - 活跃独占所有权或共享契约批准：确认 Plan40 的 Enemy/Animation2D 写入已释放或切片；确认 Plan42 的 GameMode 写入已释放或仅启动 Lane A；确认 WorkbookWriter 和 Plan34 不被越界写入。
@@ -391,22 +391,38 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 
 ### 变化
 
-- 仅完成规划，尚未实现。
+- 2026-08-14 用户审核并授权当前 Gavyn-side AI 开始执行；先实施不与 Plan40/42 重叠的 `ReEchoEnemies` 逻辑/契约 lane，Host/Presentation 到达前重新核对所有权。
+- 2026-08-14 用户回复“继续”，确认采用 Planner 提议的精确切片：Plan43 接管 `ReEchoEnemyActor.*`、新 `Presentation/Enemy/**`，以及 GameMode 中仅与敌人生成、Roster、保存、恢复和全灭判断有关的代码；Plan40 保留通用 Animation2D/资产，Plan42 保留竞技场、地图和相机逻辑。
+- 2026-08-14 创建第五个 Runtime Module `ReEchoEnemies`，实现资源无关 Definition/Sense/Intent/Snapshot、显式事件注入、EnemyLogic 与 EnemyEvents；模块只依赖 Core/Engine/Combat。
+- 2026-08-14 把现有 Grunt/Shield/Bomber/Boss 数值编译为等价 Definition；实现接触攻击 cadence、目标无敌仍消费动作、不可取消 Fuse、一次性自爆、受击击退、死亡门控与快照恢复。
+- 2026-08-14 新增模块内 `UReEchoEnemyRosterComponent`：只保存 Host/Logic 弱引用，按 SpawnIndex 稳定排序，存活状态即时读取 LogicSnapshot，不复制第二份 alive 真相。
+- 2026-08-14 聚焦测试发现“攻击提交返回新空 Intent，丢失同帧移动”偏差，已在 `CommitAttack` 的单一入口改为补全现有 Intent；同时补充 `bSelfDestructCommitted` 防止 Host 销毁前重复爆炸。
+- 2026-08-14 完成 Host/Presentation/主流程切片：`AReEchoEnemyActor` 只组合组件、采样 Sense、应用 Transform/Collision 和把 ActionIntent 翻译到 Combat；资源映射、动画、血条、元素与命中特效迁入 `Presentation/Enemy`。
+- 2026-08-14 GameMode 的敌人全灭、清场、保存与恢复改用单一 Roster；删除旧 Bomber 规则副本，炸弹怪引信与自毁只由 EnemyLogic 决定。
+- 2026-08-14 保存版本升至 v7，新增 `AttackSequence` 与 `bSelfDestructCommitted`；v4-v6 仍可加载，缺失字段按默认值归一化。
 
 ### 证据
 
-- 规划基于 `origin/main@59255cb` 的 `ReEchoEnemyActor`、GameMode/Encounter、`ReEchoCombat`、`ReEchoWeapons`、保存结构与当前 CODEBASE_MAP 只读审计。
+- 实现基于 `origin/main@4686e60`；实施前与复核时 fetch 均确认远端未前进。
+- `scripts/ue/Build-Editor.cmd -Configuration Development` 成功，UHT/UBT 生成并链接 `UnrealEditor-ReEchoEnemies.dll`，预构建清单扩展为五模块候选。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic` 发现 6 项并全部 `Result={Success}`：LegacyDefinitions、ContactCadence、InvulnerableTargetConsumesAttack、BomberFuse、HurtAndSnapshot、Roster。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies` 发现 8 项并全部成功；新增 Host 组合/保存与 Host→Logic→Combat 两次攻击管线验证。
+- `ReEcho.Weapons` 9/9、`ReEcho.Combat` 7/7、`ReEcho.AttackMode` 7/7、`ReEcho.Run.SaveSnapshot` 1/1 聚焦回归通过。
+- `python scripts/validate_project.py` 通过；`git diff --check` 通过。
+- 校验器已新增 `ReEchoEnemies` 依赖/include/禁止 token 门禁，防止后续重新引入主模块、Weapons/Audio/表现依赖、全世界扫描、`FindComponentByClass`、直接伤害或 Content 资源路径。
+- 完整 `ReEcho` 套件发现 80 项，其中 78 项成功；两个可独立复现且不在本 Plan 写集内的既有失败为 `Presentation.Animation2D.AssetProfiles`（Plan40 资产碰撞断言）和 `Run.EchoReplayResolver.EmptyStale`（回放空选择语义），未越界混入修复。
 
 ### 剩余风险
 
-- Plan40 与现有 Plan42 仍占有 Presentation/GameMode 重叠路径；未切片前只能实施新模块隔离部分。
-- 当前缺少覆盖完整 Enemy AI/主流程的集中自动化，需要在移动代码前先补 characterization tests。
-- 反射类型/保存结构迁移会影响旧保存兼容，不能只靠编译验证。
+- 用户 PIE 尚未完成，怪物实际外观、动画、受击手感、Bomber 引信/爆炸、死亡残留、全灭和局中保存继续仍需人工确认。
+- 最终 `-FullRebuild`、合入 main、远端差异审计、推送与 worktree/分支清理按照项目门禁在人工验收后执行。
+- 全套自动化的两个独立既有失败分别属于 Plan40 表现资产和 Echo 回放语义，不阻塞本 Plan 聚焦证据，但仍应由其所有者另行处理。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`；当前等待用户审核本设计，不启动实现。
+- `PendingBeforeClose`；请用户在 PIE 验证普通怪/Bomber/Boss 的移动与攻击、Bomber 引信/爆炸/自毁、玩家与 Echo 命中、受击/元素/死亡表现、全灭结算，以及局中保存退出后继续。
 
 ### 架构文档审阅结果
 
-- 当前仅规划候选，尚未把 `MOD-ReEchoEnemies` 冒充为 `main` 已实现架构。实现关闭前按本 Plan 同步全部列出的 CODEBASE_MAP 文档。
+- 已新增并维护 `MOD-ReEchoEnemies.md`，同步全局拓扑、索引、Combat 消费关系、Host/Presentation/Roster/保存的真实代码位置和 `AREA-Enemies` 校验。
+- 已同步 `ARCHITECTURE.md`、CODEBASE_MAP 索引、`MOD-ReEcho.md` 与 `MOD-ReEchoCombat.md`；审阅确认 `MOD-ReEchoWeapons.md` 的公共契约和代码位置未变化，因此无需制造无信息修改。

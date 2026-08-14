@@ -23,7 +23,7 @@
 - 玩家、敌人、Echo、武器、投射物、世界 UI 与表现 Actor 的创建和生命周期装配。
 - 将 XLSX 生成的 CSV 编译为类型化运行时快照。
 - 本局阶段、构筑、存档、Echo 存储与回放选择。
-- 当前 GAS/Combat、Weapons、Recording 和 UI Framework 的宿主与跨领域适配。
+- Combat、Weapons、Enemies、Recording 和 UI Framework 的宿主与跨领域适配。
 - 把玩法语义转换为 `ReEchoAudio` 请求以及 Animation/VFX/UI 的只读表现输入。
 
 ### 不负责
@@ -42,6 +42,8 @@
 | 本局阶段、构筑、背包、货币、Echo 存储/回放 | `UReEchoRunSubsystem` | GameInstance/整局 | 窄命令、只读摘要、SaveGame |
 | 玩家/敌人生命与战斗属性 | GAS/`UReEchoCombatantComponent` | Actor/遭遇 | GameplayEffect、战斗命令、快照与委托 |
 | 当前武器、攻击步骤与攻击载体 | `AReEchoWeaponActor` 及 Weapons 运行逻辑 | Actor/整局武器锁定 | 攻击请求、稳定 WeaponId、只读查询 |
+| 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
+| 本场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | 单场遭遇 | GameMode 生成/清理，保存与全灭判断读取；不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 固定步推进与完成委托 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
@@ -66,7 +68,7 @@
 ### 稳定契约
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
-- `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移。
+- `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v7 组合保存 EnemyLogic/Combatant/Transform。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -74,9 +76,12 @@
 
 ```text
 MOD-ReEcho ──→ MOD-ReEchoAudio
+           ├→ MOD-ReEchoCombat
+           ├→ MOD-ReEchoWeapons
+           └→ MOD-ReEchoEnemies ─→ MOD-ReEchoCombat
 ```
 
-`ReEcho` 可以调用独立服务模块；`ReEchoAudio` 不得反向依赖 `ReEcho`。主模块内部高层编排可以依赖领域契约，领域逻辑不应依赖具体 Widget、纹理、材质或 GameMode 私有实现。
+`ReEcho` 可以调用并组合独立模块；Audio、Combat、Weapons、Enemies 均不得反向依赖 `ReEcho`。主模块内部高层编排可以依赖领域契约，领域逻辑不应依赖具体 Widget、纹理、材质或 GameMode 私有实现。
 
 ## 运行时流程
 
@@ -88,7 +93,7 @@ DefaultEngine.ini
       → 新游戏：角色和初始武器选择 → RunSubsystem::StartRun
       → 继续：加载安全检查点或暂停遭遇
       → BeginNextEncounter / ResumeSavedEncounter
-          → 玩家、Recorder、可用 Echo、敌人
+          → 玩家、Recorder、可用 Echo、EnemyHost + Roster
           → 60 Hz 固定步遭遇
           → 全部敌人死亡或超时
           → 完成录制与 RunSubsystem::CompleteEncounter
@@ -148,6 +153,18 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
 - 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。
 
+### `AREA-Enemies`：怪物逻辑、宿主与表现接线
+
+**设计意图：** `MOD-ReEchoEnemies` 独占怪物行为状态；主模块只提供世界感知、Transform/Collision 应用、Combat 转发和资源表现，避免逻辑与美术继续争用同一份实现。
+
+- 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
+- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent 和维护 Actor 生命周期。
+- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`，集中敌人 Profile/贴图路径、血条、动画、命中特效、元素光环与死亡残留。
+- 主流程：`AReEchoGameMode` 仅在生成/恢复时注册 Host，并通过 `UReEchoEnemyRosterComponent` 清理、捕获保存和判断全灭。
+- 保存：`FReEchoEnemyRuntimeState` 聚合 Transform、EnemyLogic 权威字段和 Combatant 生命/元素；表现临时状态不保存。
+- 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
+- 测试：`ReEcho.Enemies.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
+
 ### `AREA-Encounter`：`Encounter`遭遇时钟
 
 **设计意图：** 提供可暂停、确定性的 60 Hz 固定步遭遇时钟与完成信号，让 Recording/Echo/敌人生成共享同一时间语义。
@@ -196,10 +213,10 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 ### `AREA-Presentation`：`Graybox` / `Presentation`世界表现
 
-**设计意图：** 组装玩家、敌人、Echo、投射物、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。`Presentation/Animation2D` 通过 Appearance Profile、Catalog、Controller 与 Driver，把稳定视觉 ID 和玩法意图解析为静态图或角色/武器合成 Flipbook，不要求将同帧中的武器拆成独立渲染节点。
+**设计意图：** 组装玩家、敌人、Echo、投射物、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。敌人资源选择与瞬时视觉状态集中在 `Presentation/Enemy`；`Presentation/Animation2D` 通过 Appearance Profile、Catalog、Controller 与 Driver，把稳定视觉 ID 和玩法意图解析为静态图或角色/武器合成 Flipbook，不要求将同帧中的武器拆成独立渲染节点。
 
 - 代码：`Source/ReEcho/Public/Graybox/`、`Private/Graybox/`、`Public/Presentation/`、`Private/Presentation/`。
-- 首读：`Presentation/Animation2D/*`、`ReEchoPlayerPawn.*`、`ReEchoEnemyActor.*`、`ReEchoEchoActor.*`、`docs/2D_SEQUENCE_ANIMATION.md`。
+- 首读：`Presentation/Animation2D/*`、`Presentation/Enemy/ReEchoEnemyPresentationComponent.*`、`ReEchoPlayerPawn.*`、`ReEchoEchoActor.*`、`docs/2D_SEQUENCE_ANIMATION.md`。
 - 权威：只拥有表现实例与表现生命周期；逻辑生命、伤害、攻击节奏和录制不归这里。
 - 输入：Combat/Weapon/Recording 结果、只读快照、`AppearanceId`、武器视觉 Key 和稳定视觉 ID。
 - 输出：Sprite/Mesh/材质、动画、VFX、世界文本和镜头反馈。
@@ -241,6 +258,8 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 | 武器/部件/元素 | Data Reader、`WeaponRuntime.*`、`ElementReaction.*` | 生产 CSV、Run build snapshot、世界载体 |
 | 商店/特质/Echo 管理 | `RunSubsystem.*`、Shop/Trait/Echo 摘要 | 对应 Widget、GameMode 类型化端点和测试 |
 | 保存/继续 | `RunSaveGame.h`、`RunSubsystem.*` | Encounter、Recording、存活敌人快照测试 |
+| 怪物 AI/攻击/Fuse | `MOD-ReEchoEnemies.md`、`ReEchoEnemyLogicComponent.*` | EnemyHost、Roster、Combat focused tests |
+| 怪物动画/外观/VFX | `Presentation/Enemy/ReEchoEnemyPresentationComponent.*` | Animation2D Profile/资产与用户 PIE |
 | 新 UI 屏幕 | UI Framework、UI Manager | GameMode 快照/命令端点、WBP 注册 |
 | 2D 序列动画/逐帧 Query 轮廓 | `Presentation/Animation2D/*`、`PlayerPawn.*`、`EnemyActor.*` | `docs/2D_SEQUENCE_ANIMATION.md`、`docs/ART_ASSET_ORGANIZATION.md`、`Content/ReEcho/Art/Animation2D/`、Profile/Catalog 与导入工具 |
 | Actor/VFX 接入 | 逻辑结果契约、Presentation/Graybox Actor | 资产路径与对应表现 Plan |

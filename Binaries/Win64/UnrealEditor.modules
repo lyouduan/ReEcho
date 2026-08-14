@@ -4,6 +4,7 @@
     "ReEcho": "UnrealEditor-ReEcho.dll",
     "ReEchoAudio": "UnrealEditor-ReEchoAudio.dll",
     "ReEchoCombat": "UnrealEditor-ReEchoCombat.dll",
+    "ReEchoEnemies": "UnrealEditor-ReEchoEnemies.dll",
     "ReEchoWeapons": "UnrealEditor-ReEchoWeapons.dll"
   }
 }

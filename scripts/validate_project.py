@@ -1327,6 +1327,7 @@ def validate_workflow() -> None:
         "AREA-Data",
         "AREA-AbilityCombat",
         "AREA-Weapons",
+        "AREA-Enemies",
         "AREA-Encounter",
         "AREA-Run",
         "AREA-Recording",
@@ -1406,6 +1407,8 @@ def validate_workflow() -> None:
 
 def validate_build_dependencies() -> None:
     build_cs = (ROOT / "Source" / "ReEcho" / "ReEcho.Build.cs").read_text(encoding="utf-8")
+    if '"ReEchoEnemies"' not in build_cs:
+        fail("ReEcho host module must depend on ReEchoEnemies for EnemyHost composition")
     for file_name in (
         "reecho_data_manifest.csv",
         "csv_schema.csv",
@@ -1504,6 +1507,100 @@ def validate_combat_module_boundaries() -> None:
     weapons_modules = [module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoWeapons"]
     if len(weapons_modules) != 1 or weapons_modules[0].get("Type") != "Runtime":
         fail("ReEcho.uproject must declare exactly one ReEchoWeapons Runtime module")
+
+    enemies_root = ROOT / "Source" / "ReEchoEnemies"
+    enemies_build_path = enemies_root / "ReEchoEnemies.Build.cs"
+    if not enemies_build_path.is_file():
+        fail("missing ReEchoEnemies runtime module")
+    enemies_build_text = enemies_build_path.read_text(encoding="utf-8")
+    if '"ReEchoCombat"' not in enemies_build_text:
+        fail("ReEchoEnemies must depend on the public ReEchoCombat contracts")
+    for forbidden_module in ("ReEcho", "ReEchoWeapons", "ReEchoAudio", "UMG", "Paper2D"):
+        if f'"{forbidden_module}"' in enemies_build_text:
+            fail(f"ReEchoEnemies must not depend on {forbidden_module}")
+
+    enemies_forbidden_prefixes = (
+        "Data/",
+        "Graybox/",
+        "Player/",
+        "Presentation/",
+        "Recording/",
+        "Run/",
+        "UI/",
+        "Weapons/",
+    )
+    enemies_forbidden_logic_tokens = (
+        "FindComponentByClass",
+        "TActorIterator",
+        "AReEchoGameMode",
+        "AReEchoEnemyActor",
+        "AReEchoPlayerPawn",
+        "ApplyFinalDamage",
+        "ReceiveGrayboxDamage",
+        "ReceiveElementalDamage",
+        "ReEchoGameplayEffects::ApplyDamage",
+        "/Game/",
+    )
+    for path in enemies_root.rglob("*"):
+        if path.suffix not in {".h", ".cpp"}:
+            continue
+        text_value = path.read_text(encoding="utf-8")
+        for include in include_pattern.findall(text_value):
+            if include.startswith(enemies_forbidden_prefixes) or include in {"ReEcho.h", "ReEchoAudio.h"}:
+                fail(f"{rel(path)} has forbidden main/presentation module include: {include}")
+        for token in enemies_forbidden_logic_tokens:
+            if token in text_value:
+                fail(f"{rel(path)} violates the explicit Enemy logic boundary with token: {token}")
+
+    enemies_modules = [module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoEnemies"]
+    if len(enemies_modules) != 1 or enemies_modules[0].get("Type") != "Runtime":
+        fail("ReEcho.uproject must declare exactly one ReEchoEnemies Runtime module")
+
+    enemy_host_header_path = ROOT / "Source" / "ReEcho" / "Public" / "Graybox" / "ReEchoEnemyActor.h"
+    enemy_host_cpp_path = ROOT / "Source" / "ReEcho" / "Private" / "Graybox" / "ReEchoEnemyActor.cpp"
+    enemy_host_header = enemy_host_header_path.read_text(encoding="utf-8")
+    enemy_host_cpp = enemy_host_cpp_path.read_text(encoding="utf-8")
+    legacy_enemy_host_state = (
+        "float MoveSpeed =",
+        "float ContactDamage =",
+        "float AttackInterval =",
+        "float AttackCooldown =",
+        "float FuseRemaining =",
+        "bool bBomberFuseActive",
+        "float HitReactionRemaining =",
+        "FVector KnockbackVelocity =",
+        "float AttackVisualRemaining =",
+        "float DeathVisualRemaining =",
+        "int64 AttackSequence =",
+    )
+    for token in legacy_enemy_host_state:
+        if token in enemy_host_header:
+            fail(f"{rel(enemy_host_header_path)} retains duplicate Enemy logic/presentation state: {token}")
+    if '"/Game/' in enemy_host_cpp:
+        fail(f"{rel(enemy_host_cpp_path)} must not own enemy presentation asset paths")
+
+    enemy_presentation_root = ROOT / "Source" / "ReEcho" / "Private" / "Presentation" / "Enemy"
+    presentation_gameplay_tokens = (
+        "ReEchoHitResolver",
+        "ReceiveGrayboxDamage",
+        "ReceiveElementalDamage",
+        "NotifyHurt(",
+        "NotifyDeath(",
+        "RestoreSnapshot(",
+        "AddActorWorldOffset",
+        "SetActorLocation",
+        "SetActorEnableCollision",
+        "SetLifeSpan",
+    )
+    for path in enemy_presentation_root.rglob("*.cpp"):
+        text_value = path.read_text(encoding="utf-8")
+        for token in presentation_gameplay_tokens:
+            if token in text_value:
+                fail(f"{rel(path)} writes gameplay from enemy presentation with token: {token}")
+
+    game_mode_path = ROOT / "Source" / "ReEcho" / "Private" / "ReEchoGameMode.cpp"
+    if "TActorIterator<AReEchoEnemyActor>" in game_mode_path.read_text(encoding="utf-8"):
+        fail("AReEchoGameMode must use the single EnemyRoster instead of scanning concrete enemy actors")
 
 
 def validate_prebuilt_editor() -> None:

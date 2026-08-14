@@ -8,6 +8,7 @@
 #include "Components/BillboardComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Encounter/ReEchoEncounterDirector.h"
+#include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/Engine.h"
@@ -42,6 +43,7 @@ AReEchoGameMode::AReEchoGameMode()
 {
 	DefaultPawnClass = AReEchoPlayerPawn::StaticClass();
 	PrimaryActorTick.bCanEverTick = true;
+	EnemyRoster = CreateDefaultSubobject<UReEchoEnemyRosterComponent>(TEXT("EnemyRoster"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ArenaBackgroundFinder(
 	    TEXT("/Game/ReEcho/Textures/Scenes/ArenaGround3D.ArenaGround3D"));
 	ArenaBackgroundTexture = ArenaBackgroundFinder.Object;
@@ -178,9 +180,9 @@ void AReEchoGameMode::GMKillAll()
 		return;
 	}
 	int32 KilledCount = 0;
-	for (TActorIterator<AReEchoEnemyActor> EnemyIterator(GetWorld()); EnemyIterator; ++EnemyIterator)
+	for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
 	{
-		AReEchoEnemyActor* Enemy = *EnemyIterator;
+		AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(EnemyHost.Get());
 		const FVector DamageSource =
 		    Enemy ? Enemy->GetActorLocation() - Enemy->GetActorForwardVector() * 100.0f : FVector::ZeroVector;
 		for (int32 Attempt = 0; Enemy && Enemy->IsAlive() && Attempt < 32; ++Attempt)
@@ -624,10 +626,14 @@ void AReEchoGameMode::CreateArena()
 
 void AReEchoGameMode::ClearCombatants()
 {
-	for (TActorIterator<AReEchoEnemyActor> EnemyIterator(GetWorld()); EnemyIterator; ++EnemyIterator)
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
-		EnemyIterator->Destroy();
+		if (AActor* EnemyHost = Entry.Host.Get())
+		{
+			EnemyHost->Destroy();
+		}
 	}
+	EnemyRoster->ResetRoster();
 	for (AReEchoEchoActor* Echo : Echoes)
 	{
 		if (Echo)
@@ -728,11 +734,14 @@ FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() con
 	Result.PlayerStats = Player->Combatant->Stats;
 	Result.PlayerVelocity = Player->GetVelocity();
 	Result.ActiveRecording = Player->Recorder->GetRecording();
-	for (TActorIterator<AReEchoEnemyActor> EnemyIterator(GetWorld()); EnemyIterator; ++EnemyIterator)
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
-		if (EnemyIterator->IsAlive())
+		if (Entry.bAlive)
 		{
-			Result.Enemies.Add(EnemyIterator->CaptureRuntimeState());
+			if (const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Entry.Host.Get()))
+			{
+				Result.Enemies.Add(Enemy->CaptureRuntimeState());
+			}
 		}
 	}
 	Result.Enemies.Sort(
@@ -800,6 +809,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		if (Enemy)
 		{
 			Enemy->RestoreRuntimeState(EnemyState);
+			Enemy->SetEnemyRoster(EnemyRoster);
 		}
 	}
 	Director->ResumeEncounter(SavedState.EncounterTime);
@@ -847,6 +857,7 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 		if (Enemy)
 		{
 			Enemy->Configure(Kind, ++SpawnIndex);
+			Enemy->SetEnemyRoster(EnemyRoster);
 		}
 	};
 
@@ -1617,16 +1628,7 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	}
 	if (!bEncounterTransitioning)
 	{
-		bool bAnyEnemyAlive = false;
-		for (TActorIterator<AReEchoEnemyActor> EnemyIterator(GetWorld()); EnemyIterator; ++EnemyIterator)
-		{
-			if (EnemyIterator->IsAlive())
-			{
-				bAnyEnemyAlive = true;
-				break;
-			}
-		}
-		if (!bAnyEnemyAlive)
+		if (!EnemyRoster->HasLivingEnemies())
 		{
 			bEncounterClearedByDefeat = true;
 			Director->EndEncounter();

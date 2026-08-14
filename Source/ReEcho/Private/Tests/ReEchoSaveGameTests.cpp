@@ -76,6 +76,13 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	EnemyState.Kind = 2;
 	EnemyState.SpawnIndex = 4;
 	EnemyState.CurrentHealth = 7.0f;
+	EnemyState.AttackCooldown = 0.65f;
+	EnemyState.FuseRemaining = 0.4f;
+	EnemyState.bBomberFuseActive = true;
+	EnemyState.HitReactionRemaining = 0.12f;
+	EnemyState.KnockbackVelocity = FVector(45.0f, -12.0f, 0.0f);
+	EnemyState.AttackSequence = 9;
+	EnemyState.bSelfDestructCommitted = false;
 	EncounterState.Enemies.Add(EnemyState);
 	UReEchoRunSaveGame* SuspendedSnapshot = Source->CreateSaveSnapshot(&EncounterState);
 	TestEqual(
@@ -97,6 +104,25 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Serialized enemy runtime survives round trip"),
 		          DeserializedSnapshot->EncounterRuntimeState.Enemies.Num(),
 		          1);
+		if (DeserializedSnapshot->EncounterRuntimeState.Enemies.Num() == 1)
+		{
+			const FReEchoEnemyRuntimeState& SerializedEnemy =
+			    DeserializedSnapshot->EncounterRuntimeState.Enemies[0];
+			TestEqual(TEXT("Enemy attack cooldown survives round trip"), SerializedEnemy.AttackCooldown, 0.65f);
+			TestEqual(TEXT("Enemy fuse survives round trip"), SerializedEnemy.FuseRemaining, 0.4f);
+			TestTrue(TEXT("Enemy fuse-active state survives round trip"), SerializedEnemy.bBomberFuseActive);
+			TestEqual(TEXT("Enemy hit reaction survives round trip"),
+			          SerializedEnemy.HitReactionRemaining,
+			          0.12f);
+			TestEqual(TEXT("Enemy knockback survives round trip"),
+			          SerializedEnemy.KnockbackVelocity,
+			          FVector(45.0f, -12.0f, 0.0f));
+			TestEqual(TEXT("Enemy attack identity sequence survives round trip"),
+			          SerializedEnemy.AttackSequence,
+			          int64(9));
+			TestFalse(TEXT("Enemy one-shot self-destruct state survives round trip"),
+			          SerializedEnemy.bSelfDestructCommitted);
+		}
 	}
 
 	UGameInstance* SuspendedGameInstance = NewObject<UGameInstance>();

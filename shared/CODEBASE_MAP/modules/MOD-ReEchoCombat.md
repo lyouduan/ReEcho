@@ -5,7 +5,7 @@
 - Runtime Module：`ReEchoCombat`。
 - 代码根：`Source/ReEchoCombat/`。
 - 架构标识：`MOD-ReEchoCombat`；功能检索标识：`AREA-AbilityCombat`。
-- 当前状态：Plan41 `Review` 候选；源码、UHT/UBT 与 focused automation 已通过，等待用户 PIE 后随 Plan41 晋升到 `main`。
+- 当前状态：Plan41 已关闭并进入 `main`；Plan43 候选新增 `ReEchoEnemies` 作为只依赖 Combat 公共契约的怪物逻辑消费者。
 
 ## 存在原因
 
@@ -76,9 +76,10 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 
 ```text
 ReEchoWeapons ─────→ ReEchoCombat
+ReEchoEnemies ─────→ ReEchoCombat
 ReEcho ────────────→ ReEchoCombat
 
-ReEchoCombat ─/─→ ReEchoWeapons / ReEcho / ReEchoAudio / UI / Presentation
+ReEchoCombat ─/─→ ReEchoWeapons / ReEchoEnemies / ReEcho / ReEchoAudio / UI / Presentation
 ```
 
 公共依赖仅为 UE Core/Engine、GameplayAbilities、GameplayTags、GameplayTasks。需要世界装配、数据、音频或表现时，由 `ReEcho` 主模块适配。
@@ -419,7 +420,8 @@ Input / Auto held
 | 攻击请求 | `ReEchoAttackControllerComponent.*`、`ReEchoCombatTarget.*` | held、模式、目标与宿主窄接口 |
 | GAS | `Public/AbilitySystem/` → `Private/AbilitySystem/` | Ability、Tags、Effects、AttributeSet |
 | 模块回归 | `Private/Tests/ReEchoCombatRuntimeTests.cpp` | 身份生命周期、元素、Resolver、契约 |
-| 主模块接线 | `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`、`Source/ReEcho/Private/Graybox/ReEchoEnemy.cpp` | 只负责宿主/世界适配，不是规则权威 |
+| 主模块接线 | `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`、`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp` | 只负责宿主/世界适配，不是规则权威 |
+| 怪物逻辑消费 | `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyLogicComponent.h` | 显式订阅 CombatEvents 处理 Hurt/Death；不复制生命、元素或伤害结算 |
 
 ## 扩展方式
 
