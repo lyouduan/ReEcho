@@ -44,6 +44,8 @@
 
 Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为可写真相。
 
+`UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。
+
 ## 输入、输出与公共契约
 
 ### 命令与输入
@@ -109,6 +111,301 @@ Weapons/接触攻击产生 HitIntent
 ```
 
 一次 Intent 只能结算一次。Projectile、WeaponActor 与 Enemy 不得在 Resolver 外再次扣血或重算元素。
+
+## 带读：一次战斗怎么发生
+
+本节是对上文架构契约的“跑通调用链”补充。它描述跨模块运行路径，但不改变“职责与排除项”：`PlayerPawn`、`WeaponActor`、`Projectile`、`Enemy`、UI、音频仍是宿主/适配器/消费者，不是 `ReEchoCombat` 的规则权威。
+
+### 0. 背景知识与对照关系
+
+#### 0.1 GAS 在 Combat 中的最简原理
+
+```text
+ASC = GAS 管家
+├─ Ability：能做什么
+│   ├─ BasicAttack
+│   └─ ActiveAttack
+├─ AttributeSet：当前属性是多少
+│   ├─ Health
+│   ├─ Attack
+│   └─ Speed
+├─ GameplayEffect：怎么改属性
+│   ├─ Damage
+│   ├─ Heal
+│   └─ Cooldown
+└─ GameplayTag：当前状态/输入标记
+    ├─ Input.Attack.Basic
+    ├─ Cooldown.Attack.Active
+    └─ State.Dead
+```
+
+在本模块中，GAS 负责能力激活、属性存储、属性修改与标签状态；Combat 负责命中是否成立、最终伤害、元素/死亡事件。
+
+GAS 在本模块中主要做三件事：
+
+| GAS 职责 | 对应原理 | 本项目例子 |
+|---|---|---|
+| 存战斗属性 | `AttributeSet` 是 GAS 属性表 | `UReEchoCombatAttributeSet` 保存 `Health`、`MaxHealth`、`Block`、攻击力等。 |
+| 改战斗属性 | `GameplayEffect` 是属性修改请求 | 伤害/治疗先写入 `IncomingDamage` / `IncomingHealing`，再由 `PostGameplayEffectExecute` 扣血或回血。 |
+| 管攻击能力 | `GameplayAbility` 是可激活的攻击/技能逻辑 | 输入激活 `UReEchoBasicAttackAbility` / `UReEchoActiveAttackAbility`，Ability 再调用宿主接口出手。 |
+
+#### 0.2 先建立对照关系
+
+阅读下面流程时，把每一步对照回本文档这些位置：
+
+| 带读问题 | 对照本文档位置 | 关键判断 |
+|---|---|---|
+| 这一步是不是 Combat 模块职责？ | “职责与排除项” | 只要涉及武器 CSV、可见 Actor、UI、音频、Enemy AI，就属于外部适配或消费者。 |
+| 哪个状态是唯一真相？ | “权威状态” | 生命/元素看 `Combatant + ASC`；held/目标看 `AttackController/Targeting`；最终伤害看 `HitResolver`。 |
+| 外部应该如何调用 Combat？ | “输入、输出与公共契约” | 上游提交命令或 `HitIntent`，下游只读事件或 Snapshot。 |
+| 结算顺序是否正确？ | “运行时流程 / 命中与结算” | 一次 Intent 必须只进一次 Resolver，不能在外部重复扣血。 |
+
+### 1. 玩家被装配成 Combat 宿主
+
+入口：`Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`。
+
+`AReEchoPlayerPawn` 创建并持有：
+
+- `UAbilitySystemComponent` / `UReEchoCombatAttributeSet`：GAS 权威属性；对应本文档“权威状态 / 生命、最大生命、战斗属性”。
+- `UReEchoCombatantComponent`：生命、属性、元素状态门面；对应“生命与元素状态”。
+- `UReEchoAttackControllerComponent` / `UReEchoTargetingComponent`：自动/手动 held 与目标；对应“自动/手动模式、held 请求、当前目标”。
+- `UReEchoCombatEventsComponent`：事件出口；对应“结果、事件与快照”。
+- `AReEchoWeaponActor`：主模块武器适配器，不属于 Combat 规则权威；对应“职责与排除项 / 不负责武器”。
+
+阅读顺序：先看 `AReEchoPlayerPawn` 的构造函数和 `BeginPlay()`，只确认“宿主如何把 ASC、Combatant、Weapon、Ability 接起来”，不要在这里寻找最终伤害规则。
+
+### 2. 输入或自动攻击只产生“持续攻击请求”
+
+| 类型 | 入口 | 谁主动触发 | 触发时机 |
+|---|---|---|---|
+| 手动攻击 | `SetupPlayerInputComponent` 绑定的输入事件 | 玩家 | 按下 / 松开瞬间 |
+| 自动攻击 | `PlayerPawn.Tick` | 系统 | 每帧检查目标 |
+
+手动输入路径：
+
+```text
+SetupPlayerInputComponent
+  → ManualBasicAttack / ManualStopBasicAttack
+  → AttackController.BeginManualAttack / EndManualAttack
+  → Host.PressBasicAttackInput / ReleaseBasicAttackInput
+```
+
+这里先停在 `Host.PressBasicAttackInput` / `ReleaseBasicAttackInput`：它们只表示“开始/停止持续攻击请求”，进入 GAS Ability 的部分放到下一节。
+
+自动攻击路径：
+
+```text
+PlayerPawn.Tick
+  → AttackController.UpdateAutomaticAttack
+  → Targeting.FindNearestTarget
+  → Host.FaceAutomaticTarget
+  → Host.PressBasicAttackInput
+```
+
+对应本文档“运行时流程 / 自动/手动普通攻击”：Combat 管理“是否持续请求”，Weapons 管理“何时可提交”。这里常见错误是让自动攻击绕过 GAS 或单独维护一套攻击频率。
+
+### 3. GAS Ability 把输入转成宿主攻击尝试
+
+入口：`Source/ReEchoCombat/Private/AbilitySystem/ReEchoPlayerAbilities.cpp`。
+
+普通攻击 Ability 的核心职责：
+
+```text
+UReEchoBasicAttackAbility.ActivateAbility
+  → WaitInputRelease
+  → AttemptOrWait
+  → IReEchoAttackHost.TryCommitBasicAttack
+  → 若 Waiting，则按 Host.GetBasicAttackWaitRemaining 继续等待
+```
+
+主动攻击 Ability 的核心职责：
+
+```text
+UReEchoActiveAttackAbility
+  → IReEchoAttackHost.ExecuteActiveAttack
+  → 使用 Cooldown GameplayEffect
+```
+
+对应本文档“输入、输出与公共契约 / 命令与输入”：Combat 通过 `IReEchoAttackHost` 这个窄接口调用宿主，不 include 具体 Pawn 或 WeaponActor。
+
+### 4. Pawn 宿主把攻击尝试交给 Weapon
+
+入口：`AReEchoPlayerPawn::TryCommitBasicAttack()`、`ExecuteBasicAttackAbility()`、`ExecuteActiveAttackAbility()`。
+
+```text
+IReEchoAttackHost.TryCommitBasicAttack
+  → 检查 Weapon / Combatant
+  → 查询 Weapon.GetAttackCooldownRemaining
+  → Weapon.TryBasicAttack(Combatant)
+```
+
+这里 Pawn 只是宿主适配层。对应本文档“职责与排除项”：Pawn 不拥有攻击间隔、不拥有伤害公式、不拥有命中裁决。
+
+### 5. Weapons 生成 Commit 与攻击载体
+
+入口：
+
+- `Source/ReEchoWeapons/Private/Weapons/ReEchoWeaponLogic.cpp`
+- `Source/ReEcho/Private/Weapons/ReEchoWeaponActor.cpp`
+
+`FReEchoWeaponLogic` 负责：
+
+```text
+TryCommitBasicAttack / TryCommitActiveAttack
+  → 检查 readiness
+  → 生成 FReEchoAttackIdentity
+  → 选择 AttackStep
+  → 计算 RawDamage / Element / Carrier / Range
+  → 输出 FReEchoWeaponAttackCommit
+```
+
+`AReEchoWeaponActor` 负责把 Commit 转成世界表现载体：
+
+```text
+Commit.Carrier == Melee      → SwingMelee
+Commit.Carrier == Projectile → FireProjectile
+Commit.Carrier == Wave       → FireStaffLightWave
+```
+
+对应本文档“职责与排除项 / 不负责武器”和“扩展方式 / 新攻击载体不放在 Combat”：武器可以决定“这次攻击是什么载体、候选伤害是多少”，但不能决定最终扣血和死亡。
+
+### 6. 载体命中后提交 HitIntent
+
+近战路径：`AReEchoWeaponActor::ApplyDamageToTarget()` 直接组装 `FReEchoHitIntent`。
+
+投射物/光波路径：
+
+```text
+AReEchoProjectileActor / AReEchoStaffLightWaveActor
+  → UReEchoProjectileLogicComponent.InitializeProjectile
+  → Advance
+  → 遍历 IReEchoCombatTarget
+  → IntersectsCombatPath
+  → ResolveIntent
+  → ReEchoHitResolver.ResolveHit
+```
+
+对应本文档“输入、输出与公共契约 / 命令与输入”：Weapons、敌人接触攻击或合法环境来源提交完整 `FReEchoHitIntent`。Intent 只表示“候选命中”，不宣称最终伤害。
+
+### 7. HitResolver 做唯一最终裁决
+
+入口：`Source/ReEchoCombat/Private/Combat/ReEchoHitResolver.cpp` 与 `ReEchoElementHitResolver.cpp`。
+
+```text
+ReEchoHitResolver.ResolveHit
+  → Element == None：ResolvePhysicalHit
+  → Element != None：ResolveElementHit
+  → Target.ModifyIncomingRawDamage
+  → Combatant.ApplyFinalDamage
+  → 形成 FReEchoHitResolved
+  → 发布 Hit / Hurt / Kill / Death / ElementStateChanged
+```
+
+对应本文档“权威状态 / 最终伤害、格挡、命中、击杀、死亡结果”：只有 Resolver 能决定 `AppliedDamage`、`bBlocked`、`bKilled`。
+
+如果排查“打中了但没掉血”，优先按这个顺序看：
+
+1. `HitIntent.Target` 是否实现 `IReEchoCombatTarget`；
+2. `Target->IsCombatTargetAlive()` 是否为 true；
+3. `Target->ModifyIncomingRawDamage()` 是否把伤害改成 0，例如盾兵；
+4. `Combatant.ApplyFinalDamage()` 是否被 GAS 的 Block 消耗；
+5. `UReEchoCombatAttributeSet::PostGameplayEffectExecute()` 是否真正改了 `Health`。
+
+### 8. Combatant/ASC 改写生命与元素状态
+
+入口：
+
+- `UReEchoCombatantComponent::ApplyFinalDamage()`
+- `ReEchoGameplayEffects::ApplyDamage()`
+- `UReEchoCombatAttributeSet::PostGameplayEffectExecute()`
+
+```text
+Combatant.ApplyFinalDamage
+  → ReEchoGameplayEffects.ApplyDamage
+  → GameplayEffect 写 IncomingDamage
+  → AttributeSet.PostGameplayEffectExecute
+  → Block 优先消耗，否则扣 Health
+  → Combatant.HandleHealthChanged
+  → OnHealthChanged / OnDeath / CombatEvents.HealthChanged
+```
+
+对应本文档“权威状态 / 生命、最大生命、战斗属性、元素附着/状态、存活”：外部不要直接写 `CurrentHealth` 或自己广播死亡。
+
+### 9. Enemy 既是目标，也是攻击者
+
+入口：`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`。
+
+作为目标：
+
+- 实现 `IReEchoCombatTarget`；
+- 返回自己的 `Combatant`；
+- 通过 `ModifyIncomingRawDamage()` 实现盾兵正面格挡/背刺加伤；
+- 订阅 `OnHurt` / `OnDeath` 做受击表现和死亡表现。
+
+作为攻击者：
+
+```text
+Enemy.Tick
+  → 距离/冷却/爆炸条件满足
+  → 构造 FReEchoHitIntent
+  → ReEchoHitResolver.ResolvePhysicalHit
+```
+
+对应本文档“扩展方式 / 新目标类型”：新目标应该实现 `IReEchoCombatTarget`，而不是让 Resolver include 具体 Actor。
+
+### 10. UI、音频、表现只读消费结果
+
+UI 常见路径：
+
+```text
+Combatant.OnHealthChanged
+  → PlayerHudWidget / HealthBarWidget
+```
+
+音频路径：
+
+```text
+UReEchoCombatAudioAdapterComponent
+  → 订阅 CombatEvents.OnAttackCommitted / OnHit / OnHurt / OnKill / OnDeath
+  → 转成 ReEchoAudio 事件
+```
+
+敌人表现路径：
+
+```text
+CombatEvents.OnHurt  → 伤害数字、受击反馈
+CombatEvents.OnDeath → 死亡动画、关闭碰撞、LifeSpan
+ElementStateChanged  → 元素附着显示
+```
+
+对应本文档“结果、事件与快照”：事件描述已发生结果，回调不能反向更改本次结果。
+
+### 11. 一次完整普攻的最短调用图
+
+```text
+Input / Auto held
+  → AttackController
+  → AbilityInputPressed(Input.Attack.Basic)
+  → UReEchoBasicAttackAbility.AttemptOrWait
+  → IReEchoAttackHost.TryCommitBasicAttack
+  → AReEchoPlayerPawn.ExecuteBasicAttackAbility
+  → AReEchoWeaponActor.TryBasicAttack
+  → FReEchoWeaponLogic.TryCommitBasicAttack
+  → FReEchoWeaponAttackCommit
+  → WeaponActor.ExecuteAttack
+  → Melee / Projectile / Wave
+  → FReEchoHitIntent
+  → ReEchoHitResolver.ResolveHit
+  → Target.ModifyIncomingRawDamage
+  → UReEchoCombatantComponent.ApplyFinalDamage
+  → ReEchoGameplayEffects.ApplyDamage
+  → UReEchoCombatAttributeSet.PostGameplayEffectExecute
+  → FReEchoHitResolved
+  → CombatEvents + OnHealthChanged
+  → UI / Audio / VFX 只读消费
+```
+
+用这张图定位问题时，始终回到本文档“不变量与常见错误”：不要在 Resolver 外创建第二套生命、元素、held、目标或伤害算法。
 
 ## 代码位置与阅读路线
 
