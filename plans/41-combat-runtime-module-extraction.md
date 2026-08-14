@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side Planner（本对话 AI 直接执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。用户已完成最终组合候选 PIE、攻速和手感验收。
 - 本地规划 / 实现基线：实现最初基于 `origin/main@f499a1b`；2026-08-13 经用户审计选择后已合入 `origin/main@24b9f08` 的远端规则权威提交。后续发布前仍重新 fetch 并执行外部提交审计。
 - 实现分支：本地 `plan/41-combat-runtime-module`，独立 worktree。
@@ -273,7 +273,7 @@ ReEchoAudio   ─/─→ ReEcho / ReEchoCombat / ReEchoWeapons
 ### 当前剩余工作与风险
 
 - The unrelated Plan31 replay-resolver baseline defect is not changed by Plan41 and needs a separately owned fix.
-- Final FullRebuild, merge to main, remote publication, and worktree cleanup remain.
+- 已合入本地 `main`；最终 FullRebuild、远端发布和 worktree 清理按发布记录完成。
 
 ### 架构文档审阅结果
 
