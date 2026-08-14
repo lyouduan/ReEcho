@@ -140,6 +140,7 @@ Combat OnDeath
 - `ReEcho.Enemies.Logic.HurtAndSnapshot`：击退、快照恢复与死亡门控。
 - `ReEcho.Enemies.Logic.Roster`：去重注册、稳定顺序、无复制存活查询与清理。
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
+- `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。
 - 集成后还需补 World/Combat、Roster、Save/Continue 与旧敌人行为对照自动化；怪物攻击、受击、爆破、Boss、动画和遭遇结束由用户 PIE 验收。
 
 ## 不变量与常见错误

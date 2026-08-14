@@ -1506,6 +1506,54 @@ def validate_combat_module_boundaries() -> None:
     if len(weapons_modules) != 1 or weapons_modules[0].get("Type") != "Runtime":
         fail("ReEcho.uproject must declare exactly one ReEchoWeapons Runtime module")
 
+    enemies_root = ROOT / "Source" / "ReEchoEnemies"
+    enemies_build_path = enemies_root / "ReEchoEnemies.Build.cs"
+    if not enemies_build_path.is_file():
+        fail("missing ReEchoEnemies runtime module")
+    enemies_build_text = enemies_build_path.read_text(encoding="utf-8")
+    if '"ReEchoCombat"' not in enemies_build_text:
+        fail("ReEchoEnemies must depend on the public ReEchoCombat contracts")
+    for forbidden_module in ("ReEcho", "ReEchoWeapons", "ReEchoAudio", "UMG", "Paper2D"):
+        if f'"{forbidden_module}"' in enemies_build_text:
+            fail(f"ReEchoEnemies must not depend on {forbidden_module}")
+
+    enemies_forbidden_prefixes = (
+        "Data/",
+        "Graybox/",
+        "Player/",
+        "Presentation/",
+        "Recording/",
+        "Run/",
+        "UI/",
+        "Weapons/",
+    )
+    enemies_forbidden_logic_tokens = (
+        "FindComponentByClass",
+        "TActorIterator",
+        "AReEchoGameMode",
+        "AReEchoEnemyActor",
+        "AReEchoPlayerPawn",
+        "ApplyFinalDamage",
+        "ReceiveGrayboxDamage",
+        "ReceiveElementalDamage",
+        "ReEchoGameplayEffects::ApplyDamage",
+        "/Game/",
+    )
+    for path in enemies_root.rglob("*"):
+        if path.suffix not in {".h", ".cpp"}:
+            continue
+        text_value = path.read_text(encoding="utf-8")
+        for include in include_pattern.findall(text_value):
+            if include.startswith(enemies_forbidden_prefixes) or include in {"ReEcho.h", "ReEchoAudio.h"}:
+                fail(f"{rel(path)} has forbidden main/presentation module include: {include}")
+        for token in enemies_forbidden_logic_tokens:
+            if token in text_value:
+                fail(f"{rel(path)} violates the explicit Enemy logic boundary with token: {token}")
+
+    enemies_modules = [module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoEnemies"]
+    if len(enemies_modules) != 1 or enemies_modules[0].get("Type") != "Runtime":
+        fail("ReEcho.uproject must declare exactly one ReEchoEnemies Runtime module")
+
 
 def validate_prebuilt_editor() -> None:
     tool = ROOT / "scripts" / "ue" / "prebuilt_editor.py"

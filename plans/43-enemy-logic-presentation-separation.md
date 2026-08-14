@@ -403,6 +403,7 @@ Lane A/B 不同时编辑 Host 文件。需要公共契约变化时先暂停受�
 - `scripts/ue/Build-Editor.cmd -Configuration Development` 成功，UHT/UBT 生成并链接 `UnrealEditor-ReEchoEnemies.dll`，预构建清单扩展为五模块候选。
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic` 发现 6 项并全部 `Result={Success}`：LegacyDefinitions、ContactCadence、InvulnerableTargetConsumesAttack、BomberFuse、HurtAndSnapshot、Roster。
 - `python scripts/validate_project.py` 通过；`git diff --check` 通过。
+- 校验器已新增 `ReEchoEnemies` 依赖/include/禁止 token 门禁，防止后续重新引入主模块、Weapons/Audio/表现依赖、全世界扫描、`FindComponentByClass`、直接伤害或 Content 资源路径。
 
 ### 剩余风险
 
