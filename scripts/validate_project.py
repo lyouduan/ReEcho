@@ -933,15 +933,15 @@ def validate_workflow() -> None:
         "EXECUTOR_RULES.md",
         "LESSONS.md",
         "PROJECT_RULES.md",
-        "PLANNER_EXCHANGE.md",
         "ARCHITECTURE.md",
         "CODEBASE_MAP.md",
     }
     absent_shared = sorted(name for name in required_shared if not (ROOT / "shared" / name).is_file())
     if absent_shared:
         fail(f"workflow deployment incomplete: {', '.join(absent_shared)}")
+    if (ROOT / "shared" / "PLANNER_EXCHANGE.md").exists():
+        fail("PLANNER_EXCHANGE.md is retired; use Plans, source, tests and Git")
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    exchange_text = (ROOT / "shared" / "PLANNER_EXCHANGE.md").read_text(encoding="utf-8")
     planner_rules = (ROOT / "shared" / "PLANNER_RULES.md").read_text(encoding="utf-8")
     executor_rules = (ROOT / "shared" / "EXECUTOR_RULES.md").read_text(encoding="utf-8")
     project_rules = (ROOT / "shared" / "PROJECT_RULES.md").read_text(encoding="utf-8")
@@ -1020,14 +1020,14 @@ def validate_workflow() -> None:
         "PROGRAMMER_RULES.md": (
             "程序用户路线",
             "Planner 负责规划",
-            "Executor 负责在指定本地 Plan/分支上具体实现",
+            "Executor 负责按已发布 Plan 实现",
             "## Planner-Executor 模式",
             "选择 Planner-Executor 模式的唯一权威",
-            "远端协作安全检查",
+            "所有大程序任务都必须",
             "shared/GIT_RULES.md",
         ),
         "DESIGNER_RULES.md": ("策划用户路线", "ReEchoData.xlsx", "禁止手改生成的", "shared/GIT_RULES.md"),
-        "ARTIST_RULES.md": ("美术用户路线", "Active Exclusive", "禁止手改 `.uasset`", "shared/GIT_RULES.md"),
+        "ARTIST_RULES.md": ("美术用户路线", "本地工作方式自由", "禁止手改 `.uasset`", "shared/GIT_RULES.md"),
     }
     role_rule_texts = {
         "PROGRAMMER_RULES.md": programmer_rules,
@@ -1055,11 +1055,11 @@ def validate_workflow() -> None:
         "项目秘书仓库职责的唯一权威",
         "不是第四种用户专业角色",
         "可维护全仓库规则",
-        "## 秘书任务无需 Plan",
-        "不需要 Plan、Plan 编号、Plan 文件",
-        "秘书不为自己创建行",
+        "## 秘书任务与 Plan",
+        "秘书身份不豁免大任务 Plan",
+        "项目不维护 Exchange",
         "物理/Git 冲突、逻辑冲突和耦合",
-        "负责受理各角色 AI 提交的仓库规则冲突、职责路由和操作权限咨询",
+        "负责受理各角色 AI 的规则冲突、职责路由和操作权限咨询",
         "推送 `origin/main`",
         "遵循 `shared/GIT_RULES.md` 中集中定义的身份和边界规则",
     )
@@ -1076,7 +1076,7 @@ def validate_workflow() -> None:
         "[DESIGNER]",
         "[ARTIST]",
         "[SECRETARY]",
-        "普通程序路线每次推送 `origin/main` 前",
+        "程序路线每次推送 `origin/main` 前",
         "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
         "仅含源码的程序候选",
@@ -1092,39 +1092,6 @@ def validate_workflow() -> None:
         fail("AI_ONBOARDING.md must not redefine ordinary-task startup order")
     if "所有风险操作遵循 `shared/PROJECT_RULES.md` 的统一确认机制" not in onboarding_text:
         fail("AI_ONBOARDING.md must route risky operations to PROJECT_RULES.md")
-    if "## 最近关闭" in exchange_text or "## 决定" in exchange_text:
-        fail("PLANNER_EXCHANGE.md must contain live coordination only, not history or permanent rules")
-    announcement_block = exchange_text.split("## 已规划和活跃工作公告", 1)[1].split("## 活跃所有权", 1)[0]
-    for row in announcement_block.splitlines():
-        if not row.startswith("|") or row.startswith("|---") or "| Plan |" in row:
-            continue
-        cells = [cell.strip().strip("`") for cell in row.strip("|").split("|")]
-        if len(cells) != 8:
-            fail("PLANNER_EXCHANGE.md announcement rows must use the canonical eight-column schema")
-        if not cells[1] or "/" not in cells[1]:
-            fail("PLANNER_EXCHANGE.md announcement rows must identify Plan and implementation AI sides")
-        if cells[3] not in {"Proposed", "Ready", "InProgress", "Review", "Closed", "Blocked"}:
-            fail(f"PLANNER_EXCHANGE.md uses unknown task status: {cells[3]}")
-        if cells[4] not in {"NotRequired", "PendingBeforeClose", "PendingFollowUp", "Passed"}:
-            fail(f"PLANNER_EXCHANGE.md uses unknown human-validation state: {cells[4]}")
-        if cells[3] == "Closed" and cells[4] != "PendingFollowUp":
-            fail("closed Exchange rows are retained only for a live PendingFollowUp; otherwise remove them")
-    active_block = exchange_text.split("## 活跃所有权", 1)[1].split("## 警告 / 阻塞项", 1)[0]
-    if "plan/07" in active_block.lower() or "plan/08" in active_block.lower():
-        fail("completed Plans 07/08 must not retain active ownership")
-    for row in active_block.splitlines():
-        if not row.startswith("|") or row.startswith("|---") or "| 所有者 |" in row:
-            continue
-        cells = [cell.strip() for cell in row.strip("|").split("|")]
-        if len(cells) != 6:
-            fail("PLANNER_EXCHANGE.md ownership rows must use the canonical six-column schema")
-        modes = set(re.findall(r"`(Isolated|ReadOnly|SharedContract|Exclusive)`", cells[2]))
-        if not modes:
-            fail(f"PLANNER_EXCHANGE.md ownership row has no recognized impact mode: {cells[2]}")
-        if cells[3].strip("`") not in {"Reserved", "Active", "Released"}:
-            fail(f"PLANNER_EXCHANGE.md uses unknown ownership state: {cells[3]}")
-        if cells[3].strip("`") == "Released":
-            fail("released ownership rows must be removed from the live Exchange")
     for name, text in {
         "WORKFLOW.md": workflow_text,
         "PROJECT_RULES.md": project_rules,
@@ -1133,9 +1100,6 @@ def validate_workflow() -> None:
     }.items():
         if "<待定>" in text or "<RESOURCE_LOCK>" in text:
             fail(f"{name} still contains a generic workflow placeholder")
-    for stale_token in ("ReadyForHandoff", "InProgress/Rework", "origin/main` at `df6e60a"):
-        if stale_token in exchange_text:
-            fail(f"live workflow memory contains stale token: {stale_token}")
     required_template_fields = (
         "## 协调",
         "Plan 编写方（AI 侧）：",
@@ -1151,7 +1115,7 @@ def validate_workflow() -> None:
     )
     missing_template_fields = [field for field in required_template_fields if field not in plan_template]
     if missing_template_fields:
-        fail(f"Plan template lacks local coordination fields: {', '.join(missing_template_fields)}")
+        fail(f"Plan template lacks impact and handoff fields: {', '.join(missing_template_fields)}")
     if "git rev-parse --path-format=absolute --git-common-dir" not in executor_rules:
         fail("Executor lock guidance must use the Git common directory shared by worktrees")
     if "Executor 更新其指定 Plan 的执行记录" not in project_rules:
@@ -1171,12 +1135,13 @@ def validate_workflow() -> None:
         fail(f"Planner rules lack the external-commit integration audit gate: {', '.join(missing_audit_markers)}")
     plan_publication_markers = (
         "## 执行前编号并发布 Plan",
+        "所有大任务都必须先发布正式 Plan",
         "分配 Plan 编号前",
         "识别最大 Plan 编号",
-        "立即将编号 Plan 发布到 `origin/main`",
-        "不得为该 Plan 启动 Executor、实现分支或准备发布的专业工作",
+        "立即将编号 Plan 单独发布到 `origin/main`",
+        "才开始实质实现",
         "若推送被拒或其他已发布 Plan 占用编号",
-        "新编号 Plan 文件及其匹配实时 Exchange",
+        "不需要任何 Exchange",
     )
     missing_plan_publication_markers = [marker for marker in plan_publication_markers if marker not in planner_rules]
     if missing_plan_publication_markers:
@@ -1191,8 +1156,32 @@ def validate_workflow() -> None:
         fail(f"Planner rules lack the Chinese Plan language contract: {', '.join(missing_plan_language_markers)}")
     if "# Plan XX - <专业> - <简短名称>" not in plan_template or "## 锁定目标" not in plan_template:
         fail("Plan template must provide the Chinese authoring surface")
-    if "每个正式编号 Plan 都依据 `PLANNER_RULES.md` 发布到 `origin/main`" not in project_rules:
-        fail("PROJECT_RULES.md must route numbered Plans through the remote-first Planner rule")
+    if "所有大任务都必须先有正式 Plan" not in project_rules:
+        fail("PROJECT_RULES.md must require remote-first Plans for every large task")
+    local_autonomy_markers = {
+        "PROJECT_RULES.md": (
+            "## 本地自治与远端边界",
+            "每个成员、AI 和克隆的本地工作自治",
+            "分支和 worktree 是隔离建议，不是共享权限门禁",
+            "能合并就合并、能推送就推送、能删除就删除",
+            "鼓励小批量、较频繁地发布 main",
+        ),
+        "PROGRAMMER_RULES.md": ("两种模式使用同一套 Plan 和发布门禁", "所有大程序任务都必须"),
+        "EXECUTOR_RULES.md": ("本地工作方式自由", "Plan 中的 `Isolated | ReadOnly | SharedContract | Exclusive` 只说明集成风险"),
+        "GIT_RULES.md": ("本地 WIP 提交的名称、粒度和临时身份", "人类账号 + AI 身份"),
+        "WORKFLOW.md": ("本地工作自由，远端边界严格", "不存在 Exchange"),
+    }
+    local_autonomy_texts = {
+        "PROJECT_RULES.md": project_rules,
+        "PROGRAMMER_RULES.md": programmer_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "GIT_RULES.md": git_rules,
+        "WORKFLOW.md": workflow_text,
+    }
+    for name, markers in local_autonomy_markers.items():
+        missing = [marker for marker in markers if marker not in local_autonomy_texts[name]]
+        if missing:
+            fail(f"{name} lacks local-autonomy/remote-boundary markers: {', '.join(missing)}")
     if "编号 Plan 在实现开始前发布到 `main`" not in workflow_text:
         fail("WORKFLOW.md must explain remote-first numbered Plan publication")
     compact_prompt_markers = (
@@ -1207,7 +1196,7 @@ def validate_workflow() -> None:
     main_only_markers = {
         "PROJECT_RULES.md": ("`origin/main` 是唯一允许的远端分支", "不推送任何远端引用"),
         "PLANNER_RULES.md": ("`origin/main` 是唯一允许的远端分支", "Plan 编号冲突"),
-        "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不得推送任务分支"),
+        "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不自行推送任务分支"),
         "SECRETARY_RULES.md": ("默认禁止创建或推送 `origin/main` 之外的远端分支", "默认只将本地 `main` 非强制推送至 `origin/main`"),
         "WORKFLOW.md": ("远端仓库只有一个分支：`main`", "编号 Plan 在实现开始前发布到 `main`"),
     }
@@ -1228,7 +1217,6 @@ def validate_workflow() -> None:
         "PLANNER_RULES.md": planner_rules,
         "EXECUTOR_RULES.md": executor_rules,
         "WORKFLOW.md": workflow_text,
-        "PLANNER_EXCHANGE.md": exchange_text,
         "plans/TEMPLATE.md": plan_template,
     }
     for name, text_value in live_remote_side_ref_files.items():
@@ -1378,7 +1366,7 @@ def validate_workflow() -> None:
         fail("PROJECT_RULES.md must gate Plan closure on architecture review")
     module_document_gate_markers = {
         "PROJECT_RULES.md": (
-            "每个程序任务在实现前必须把受影响的 `MOD-*` / `AREA-*`",
+            "每个大程序任务在实现前必须把受影响的 `MOD-*` / `AREA-*`",
             "程序修改任一 Runtime Module 时",
             "直接修改模块及受契约影响模块",
         ),

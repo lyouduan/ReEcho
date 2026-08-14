@@ -20,7 +20,7 @@ ReEcho uses the official experimental MCP server included with the installed UE 
 
 MCP auto-start is intentionally disabled. Cook commandlets load editor settings too, so auto-starting the server there can collide with the editor-owned port and turn an otherwise successful Cook into `Unknown Cook Failure`.
 
-The server serializes tool execution onto the UE game thread. Do not issue overlapping mutation calls. `.uasset`, `.umap`, generated DataTables, and Project Settings remain serially owned resources and must be claimed in `shared/PLANNER_EXCHANGE.md`.
+The server serializes tool execution onto the UE game thread. Do not issue overlapping mutation calls. Local `.uasset`, `.umap`, generated DataTables, and Project Settings edits may be organized freely, but competing binary/config candidates must be compared explicitly at the remote integration boundary and never silently overwrite another contributor's change.
 
 ## Diagnostics
 

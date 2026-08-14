@@ -2,7 +2,7 @@
 
 Use this file as the only mandatory reading-order authority. Other documents must not redefine the startup list.
 
-Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, `shared/SECRETARY_RULES.md` when explicit Project Secretary duty is assigned, the confirmed professional-role rules, the matching Planner/Executor rules when applicable, `shared/GIT_RULES.md` when creating commits or publishing, locked Plan scope/current Exchange coordination, and finally explanatory `shared/WORKFLOW.md`.
+Repository authority order is: human instructions, `shared/PROJECT_RULES.md`, `shared/SECRETARY_RULES.md` when explicit Project Secretary duty is assigned, the confirmed professional-role rules, the matching Planner/Executor rules when applicable, `shared/GIT_RULES.md` when creating commits or publishing, the applicable published Plan, and finally explanatory `shared/WORKFLOW.md`.
 
 Before relying on an initial prompt, cached context or a local rule copy, apply the remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`.
 
@@ -32,17 +32,16 @@ If the human explicitly assigns Project Secretary duty, also read `shared/SECRET
 
 1. Read `shared/PROJECT_RULES.md` and the one confirmed professional-role file from the table above.
 2. Use `rg` to extract only the matching row from `shared/CODEBASE_MAP/README.md`, then read only the linked module section; do not read the whole architecture library.
-3. Read only planned/active work announcements, active ownership, warnings, and pending decisions in `shared/PLANNER_EXCHANGE.md`.
-4. Read the assigned `plans/<id>-*.md` when one exists.
-5. Read the public header and paired implementation from the selected route before expanding retrieval.
+3. Read the assigned `plans/<id>-*.md` when one exists.
+4. Read the public header and paired implementation from the selected route before expanding retrieval.
 
 ## Conditional context
 
 - Programmer implementation: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only after a failure requires diagnosis.
-- Programmer planning/review/closure: read the relevant section of `shared/PLANNER_RULES.md`, the live Exchange blocks, the assigned Plan and its diff. Use `shared/CODEBASE_MAP/` only for affected modules; do not load the whole library or all of `LESSONS.md`.
+- Programmer planning/review/closure: read the relevant section of `shared/PLANNER_RULES.md`, the assigned Plan and its diff. Use `shared/CODEBASE_MAP/` only for affected modules; do not load the whole library or all of `LESSONS.md`.
 - Designer or artist work: use the handoff and verification boundary in its professional-role file. Do not silently promote a specialist task into programmer implementation.
 - Distributed planning: follow `shared/PLANNER_RULES.md` to fetch and inspect the remote maximum before numbering, then publish the numbered Plan to `origin/main` before execution; external differences still follow its audit gate.
-- Project Secretary work: read `shared/SECRETARY_RULES.md` for rule-system maintenance, Plan/Exchange/schema coordination, accepted-result integration, cleanup and publication boundaries.
+- Project Secretary work: read `shared/SECRETARY_RULES.md` for rule-system maintenance, Plan/schema coordination, accepted-result integration, cleanup and publication boundaries.
 - Commit or publication work: read `shared/GIT_RULES.md` for the creator identity tag and Programmer final-build/prebuilt-bundle gate.
 - Workflow maintenance or first-time onboarding only: read `shared/AI_ONBOARDING.md` and the relevant `shared/WORKFLOW.md` section.
 

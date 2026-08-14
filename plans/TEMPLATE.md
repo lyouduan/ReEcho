@@ -9,11 +9,11 @@
 - 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`NotRequired`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：
-- 实现分支：
+- 本地实现方式（可选，仅作交接说明）：
 - 依赖 / 阻塞：
 - Writes:
 - Stable Reads:
-- 影响模式：`Isolated`（`Isolated | ReadOnly | SharedContract | Exclusive`）。
+- 影响模式：`Isolated`（`Isolated | ReadOnly | SharedContract | Exclusive`，仅说明集成影响，不是写锁）。
 - 兼容承诺 / 下游操作：
 - 明确排除：
 
@@ -45,7 +45,7 @@
 - 基线分支/提交：
 - 引擎/构建可用性：
 - 现有聚焦测试结果：
-- 活跃独占所有权或共享契约批准：
+- 共享契约 / 难合并资源风险：
 - 基线损坏时的停止条件：
 
 ## 实现提纲
@@ -55,7 +55,7 @@
 1. 检查最小相关代码/数据表面。
 2. 每次完成一个连贯变更。
 3. 每次风险变更后立即验证。
-4. 更新执行记录；跨越变化边界前，在本地记录所有权/范围/契约变化。
+4. 更新执行记录；跨越变化边界前，在本地记录范围/契约变化。
 
 ## 验证矩阵
 
