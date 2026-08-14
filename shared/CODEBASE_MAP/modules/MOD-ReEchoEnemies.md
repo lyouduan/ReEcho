@@ -5,7 +5,7 @@
 - Runtime Module：`ReEchoEnemies`。
 - 代码根：`Source/ReEchoEnemies/`。
 - 架构标识：`MOD-ReEchoEnemies`；功能检索标识：`AREA-Enemies`。
-- 当前状态：Plan43 `InProgress` 候选。纯逻辑组件、Roster、值契约、行为事件、聚焦自动化与五模块 Editor 构建已通过；EnemyHost、表现、保存和主流程接线尚未完成。
+- 当前状态：Plan43 `Review` 集成候选。纯逻辑、Roster、EnemyHost、只读 Presentation、v7 保存组合和 GameMode 敌人生命周期接线已建立；构建与相关聚焦回归通过，等待用户 PIE。
 
 ## 存在原因
 
@@ -43,7 +43,7 @@
 | 生命、元素、伤害、格挡、击杀与死亡 | `MOD-ReEchoCombat` | CombatEvents 与 CombatantSnapshot；Enemies 不直接扣血 |
 | 当前动画、Sprite、VFX、血条与伤害数字 | 主模块 Presentation | 订阅事件、读取聚合快照；不控制 Logic |
 
-完整保存未来由 `Transform + FReEchoEnemyLogicSnapshot + FReEchoCombatantSnapshot` 聚合，LogicSnapshot 不重复 Combat 的生命或元素状态。
+完整保存由 `FReEchoEnemyRuntimeState` 聚合 `Transform + EnemyLogic 权威字段 + Combatant 生命/元素`；LogicSnapshot 不重复 Combat 的生命或元素状态，表现瞬时状态不进入保存。
 
 ## 输入、输出与公共契约
 
@@ -108,7 +108,7 @@ Combat OnDeath
 
 ### 当前候选接线状态
 
-当前只有模块内逻辑和事件契约生效；主模块的旧 EnemyActor 尚未改为 Host，也尚未消费这些 Intent。由此，聚焦自动化证明规则候选正确，但玩家运行时仍使用旧敌人实现，不能据此宣称迁移完成。
+`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。`AReEchoGameMode` 通过 Roster 生成、恢复、清理、捕获存档和判断全灭。`UReEchoEnemyPresentationComponent` 独立拥有资源映射和瞬时可见状态，只读消费 EnemyEvents、CombatEvents 与聚合快照。
 
 ## 代码位置与阅读路线
 
@@ -121,7 +121,10 @@ Combat OnDeath
 | 本场敌人集合 | `Public/Enemies/ReEchoEnemyRosterComponent.h` → `Private/Enemies/ReEchoEnemyRosterComponent.cpp` | 代替 GameMode 重复世界扫描的单一弱引用注册表 |
 | 规则回归 | `Private/Tests/ReEchoEnemyLogicTests.cpp` | 旧数值、节拍、无敌语义、Fuse、快照与死亡 |
 | 模块入口 | `Public/ReEchoEnemies.h`、`Private/ReEchoEnemies.cpp` | Runtime Module 注册 |
-| 未来世界装配 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*` | Plan40/Plan42 所有权释放后才迁移为轻量 Host |
+| 世界装配 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*` | 轻量 Host、Sense/Intent/Combat/保存适配 |
+| 敌人表现 | `Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` | 只读快照/事件、Profile/贴图、动画/VFX/血条 |
+| 主流程 Roster 接线 | `Source/ReEcho/{Public,Private}/ReEchoGameMode.*` | 仅敌人生成、恢复、清理、保存与全灭窄切片 |
+| Host 集成回归 | `Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp` | Logic/Combat/Transform/Roster 保存组合 |
 
 ## 扩展方式
 
@@ -141,7 +144,8 @@ Combat OnDeath
 - `ReEcho.Enemies.Logic.Roster`：去重注册、稳定顺序、无复制存活查询与清理。
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
 - `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。
-- 集成后还需补 World/Combat、Roster、Save/Continue 与旧敌人行为对照自动化；怪物攻击、受击、爆破、Boss、动画和遭遇结束由用户 PIE 验收。
+- `ReEcho.Enemies.Host.CompositionAndSave`、`ReEcho.Run.SaveSnapshot` 与 Combat ElementReaction World 测试覆盖 Host/Combat/Roster/Save 接缝。
+- 怪物攻击、受击、爆破、Boss、动画和遭遇结束仍由用户 PIE 验收。
 
 ## 不变量与常见错误
 

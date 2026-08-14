@@ -31,7 +31,7 @@
 | `AREA-Data` | XLSX/CSV 运行时适配 | `Source/ReEcho/{Public,Private}/Data/` | [Data](modules/MOD-ReEcho.md#area-datadata生产数据适配) |
 | `AREA-AbilityCombat` | GAS、攻击控制、战斗与元素结算 | `Source/ReEchoCombat/`；主模块 `Combat/` 仅适配 | [Combat](modules/MOD-ReEchoCombat.md#代码位置与阅读路线) |
 | `AREA-Weapons` | 武器定义、步骤与逻辑载体 | `Source/ReEchoWeapons/`；主模块 `Weapons/` 负责数据/表现适配 | [Weapons](modules/MOD-ReEchoWeapons.md#代码位置与阅读路线) |
-| `AREA-Enemies` | 怪物行为逻辑与中立行为事件 | `Source/ReEchoEnemies/`；主模块 EnemyHost/表现尚待集成 | [Enemies](modules/MOD-ReEchoEnemies.md#代码位置与阅读路线) |
+| `AREA-Enemies` | 怪物行为逻辑、Roster 与主模块接线 | `Source/ReEchoEnemies/`；主模块 EnemyHost 位于 `Graybox/`、只读表现位于 `Presentation/Enemy/` | [Enemies](modules/MOD-ReEchoEnemies.md#代码位置与阅读路线) |
 | `AREA-Encounter` | 遭遇固定步时钟 | `Source/ReEcho/{Public,Private}/Encounter/` | [Encounter](modules/MOD-ReEcho.md#area-encounterencounter遭遇时钟) |
 | `AREA-Run` | 本局构筑、阶段与存档 | `Source/ReEcho/{Public,Private}/Run/` | [Run](modules/MOD-ReEcho.md#area-runrun本局状态与存档) |
 | `AREA-Recording` | 玩家历史录制与 Echo 回放 | `Source/ReEcho/{Public,Private}/Recording/` | [Recording](modules/MOD-ReEcho.md#area-recordingrecording录制与回放) |

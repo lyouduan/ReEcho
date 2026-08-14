@@ -123,7 +123,7 @@ Weapons/接触攻击产生 HitIntent
 | 攻击请求 | `ReEchoAttackControllerComponent.*`、`ReEchoCombatTarget.*` | held、模式、目标与宿主窄接口 |
 | GAS | `Public/AbilitySystem/` → `Private/AbilitySystem/` | Ability、Tags、Effects、AttributeSet |
 | 模块回归 | `Private/Tests/ReEchoCombatRuntimeTests.cpp` | 身份生命周期、元素、Resolver、契约 |
-| 主模块接线 | `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`、`Source/ReEcho/Private/Graybox/ReEchoEnemy.cpp` | 只负责宿主/世界适配，不是规则权威 |
+| 主模块接线 | `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`、`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp` | 只负责宿主/世界适配，不是规则权威 |
 | 怪物逻辑消费 | `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyLogicComponent.h` | 显式订阅 CombatEvents 处理 Hurt/Death；不复制生命、元素或伤害结算 |
 
 ## 扩展方式

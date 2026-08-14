@@ -119,8 +119,6 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	}
 
 	const float SafeDeltaSeconds = FMath::Max(0.0f, DeltaSeconds);
-	State.AttackCooldownRemainingSeconds =
-	    FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - SafeDeltaSeconds);
 	if (State.HitReactionRemainingSeconds > 0.0f)
 	{
 		return AdvanceHitReaction(SafeDeltaSeconds);
@@ -131,6 +129,8 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 		return Intent;
 	}
+	State.AttackCooldownRemainingSeconds =
+	    FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - SafeDeltaSeconds);
 
 	FVector ToTarget = Sense.TargetLocation - Sense.SelfLocation;
 	ToTarget.Z = 0.0f;
@@ -168,7 +168,10 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 			PublishFuse(false);
 			if (State.FuseRemainingSeconds <= 0.0f)
 			{
-				CommitAttack(Sense, Distance <= Definition.BomberDamageRadiusCm, true, Intent);
+				CommitAttack(Sense,
+				             Distance <= Definition.BomberDamageRadiusCm && !Sense.bTargetInvulnerable,
+				             true,
+				             Intent);
 				return Intent;
 			}
 		}

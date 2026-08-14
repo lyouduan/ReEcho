@@ -19,8 +19,8 @@ ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人
 ```text
 MOD-ReEcho ─────────────→ MOD-ReEchoAudio
     ├───────────────────→ MOD-ReEchoCombat
-    └───────────────────→ MOD-ReEchoWeapons ─────→ MOD-ReEchoCombat
-MOD-ReEchoEnemies ───────────────────────────────→ MOD-ReEchoCombat
+    ├───────────────────→ MOD-ReEchoWeapons ─────→ MOD-ReEchoCombat
+    └───────────────────→ MOD-ReEchoEnemies ─────→ MOD-ReEchoCombat
 
 MOD-ReEchoCombat  ─/─→ MOD-ReEchoWeapons / MOD-ReEcho / MOD-ReEchoAudio
 MOD-ReEchoWeapons ─/─→ MOD-ReEcho / MOD-ReEchoAudio
@@ -28,7 +28,7 @@ MOD-ReEchoAudio   ─/─→ MOD-ReEcho / MOD-ReEchoCombat / MOD-ReEchoWeapons
 MOD-ReEchoEnemies ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoAudio / Presentation
 ```
 
-依赖必须保持单向。Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。Plan43 当前候选只完成了 `ReEchoEnemies -> ReEchoCombat` 的隔离逻辑层，`ReEcho -> ReEchoEnemies` 的 EnemyHost 装配尚未建立。
+依赖必须保持单向。Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。Plan43 候选已经建立 `ReEcho -> ReEchoEnemies -> ReEchoCombat`，Enemies 不反向依赖主模块或表现资源。
 
 ## 主运行流程
 
@@ -85,7 +85,7 @@ Design/Data/ReEchoData.xlsx
 
 ## 当前候选状态
 
-Plan41 的四模块拓扑已经进入 `main`。本文件当前位于 Plan43 `InProgress` 候选树，新增的第五个 Runtime Module `ReEchoEnemies` 已建立纯逻辑、公共契约、编译和聚焦自动化；EnemyHost、Roster、表现组件、保存与主流程接线仍未完成，因此不能把 Plan43 候选描述成已完成的运行时迁移。
+Plan41 的四模块拓扑已经进入 `main`。本文件当前位于 Plan43 `Review` 候选树，第五个 Runtime Module `ReEchoEnemies`、轻量 EnemyHost、Roster、只读敌人表现组件、v7 保存组合与主流程敌人生命周期接线已经建立并通过构建和聚焦自动化；仍需用户 PIE，未合入前不能冒充远端 `main` 既成架构。
 
 ## 维护规则
 

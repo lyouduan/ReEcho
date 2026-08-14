@@ -18,6 +18,7 @@ class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UReEchoEchoManagementWidget;
 class UReEchoStoredEchoEntryWidget;
+class UReEchoEnemyRosterComponent;
 class UMaterialInterface;
 class UTexture2D;
 enum class EReEchoInventoryShopMode : uint8;
@@ -64,6 +65,8 @@ private:
 	TObjectPtr<ACameraActor> FixedCamera;
 	UPROPERTY()
 	TArray<TObjectPtr<AReEchoEchoActor>> Echoes;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()

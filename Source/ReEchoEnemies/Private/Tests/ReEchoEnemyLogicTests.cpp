@@ -65,6 +65,11 @@ bool FReEchoEnemyContactCadenceTest::RunTest(const FString& Parameters)
 
 	const FReEchoEnemyActionIntent Busy = Logic->Advance(Sense, 0.5f);
 	TestFalse(TEXT("Cooldown blocks another contact attack"), Busy.bAttackCommitted);
+	FReEchoEnemySenseSnapshot NoTarget;
+	Logic->Advance(NoTarget, 1.0f);
+	TestEqual(TEXT("Missing target preserves the legacy paused cooldown"),
+	          Logic->GetSnapshot().AttackCooldownRemainingSeconds,
+	          0.8f);
 	const FReEchoEnemyActionIntent ReadyAgain = Logic->Advance(Sense, 0.8f);
 	TestTrue(TEXT("Exact accumulated interval permits next attack"), ReadyAgain.bAttackCommitted);
 	TestEqual(TEXT("Second sequence is monotonic"), ReadyAgain.Attack.Sequence, int64(2));
@@ -107,7 +112,7 @@ bool FReEchoEnemyBomberFuseTest::RunTest(const FString& Parameters)
 	FReEchoEnemySenseSnapshot Sense;
 	Sense.bTargetExists = true;
 	Sense.bTargetAlive = true;
-	Sense.TargetLocation = FVector(200.0f, 0.0f, 0.0f);
+	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
 
 	const FReEchoEnemyActionIntent FuseStart = Logic->Advance(Sense, 0.2f);
 	TestFalse(TEXT("Starting fuse does not explode immediately"), FuseStart.bAttackCommitted);
@@ -119,11 +124,12 @@ bool FReEchoEnemyBomberFuseTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Leaving trigger radius does not cancel fuse"), Continued.bAttackCommitted);
 	TestTrue(TEXT("Fuse remains active outside trigger radius"), Logic->GetSnapshot().bFuseActive);
 
-	Sense.TargetLocation = FVector(200.0f, 0.0f, 0.0f);
+	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	Sense.bTargetInvulnerable = true;
 	const FReEchoEnemyActionIntent Explosion = Logic->Advance(Sense, 0.5f);
 	TestTrue(TEXT("Fuse expiry commits explosion"), Explosion.bAttackCommitted);
 	TestTrue(TEXT("Explosion always requests self destruction"), Explosion.bSelfDestructAfterAttack);
-	TestFalse(TEXT("Target outside damage radius takes no damage"), Explosion.bCanDamageTarget);
+	TestFalse(TEXT("Invulnerable target takes no explosion damage"), Explosion.bCanDamageTarget);
 	TestEqual(TEXT("Bomber attack sequence"), Explosion.Attack.Sequence, int64(1));
 	TestTrue(TEXT("Self destruct is recorded as a one-shot action"),
 	         Logic->GetSnapshot().bSelfDestructCommitted);

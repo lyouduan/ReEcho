@@ -176,6 +176,14 @@ struct REECHO_API FReEchoEnemyRuntimeState
 
 	UPROPERTY()
 	FVector ShakeDirection = FVector::ZeroVector;
+
+	/** Added with the EnemyLogic migration; old saves default to zero and continue monotonically. */
+	UPROPERTY()
+	int64 AttackSequence = 0;
+
+	/** Prevents a restored fuse-expired bomber from submitting the same self-destruct twice. */
+	UPROPERTY()
+	bool bSelfDestructCommitted = false;
 };
 
 /** Exact resumable state captured only when the player confirms an in-encounter quit. */

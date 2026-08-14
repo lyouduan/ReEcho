@@ -1,30 +1,25 @@
 #pragma once
 
 #include "AbilitySystemInterface.h"
-#include "CoreMinimal.h"
-#include "Combat/ReEchoCombatTarget.h"
 #include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "Core/ReEchoTypes.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoEnemyActor.generated.h"
 
 class UAbilitySystemComponent;
-class UBillboardComponent;
 class UCapsuleComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
-class UReEchoCombatEventsComponent;
 class UReEchoCombatAudioAdapterComponent;
-class UStaticMeshComponent;
-class UTextRenderComponent;
-class UPointLightComponent;
-class UReEcho2DAnimationComponent;
-class UReEcho2DCharacterPresentationProfile;
-class UReEcho2DPresentationController;
-class UReEcho2DFrameCollisionDriver;
-class USceneComponent;
-class UTexture2D;
-class AReEchoHealthBarActor;
+class UReEchoCombatEventsComponent;
+class UReEchoEnemyEventsComponent;
+class UReEchoEnemyLogicComponent;
+class UReEchoEnemyPresentationComponent;
+class UReEchoEnemyRosterComponent;
+struct FReEchoEnemyActionIntent;
+struct FReEchoEnemyPresentationSnapshot;
+struct FReEchoEnemySenseSnapshot;
 
 UENUM(BlueprintType)
 enum class EReEchoEnemyKind : uint8
@@ -35,24 +30,23 @@ enum class EReEchoEnemyKind : uint8
 	Boss
 };
 
-/** 2D 敌人实体：负责寻路攻击、受伤判定、血条和序列帧表现。 */
+/** Lightweight world host composing Enemy logic, Combat adjudication and read-only presentation. */
 UCLASS()
-
 class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface, public IReEchoCombatTarget
 {
 	GENERATED_BODY()
+
 public:
 	AReEchoEnemyActor();
 	virtual void Tick(float DeltaSeconds) override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
-	/** 按敌人类型和出生序号装配数值、贴图、碰撞体及行为参数。 */
+
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
-	/** 结算伤害并触发受击方向反馈，返回实际扣除的生命值。 */
+	void SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster);
 	float ReceiveGrayboxDamage(float Damage,
 	                           const FVector& SourceLocation,
 	                           const FLinearColor& DamageNumberColor = FLinearColor::White,
 	                           FReEchoAttackIdentity Attack = {});
-	/** Applies an elemental attachment or a supported two-element reaction before regular damage resolution. */
 	float ReceiveElementalDamage(float Damage,
 	                             EReEchoElement Element,
 	                             const FVector& SourceLocation,
@@ -66,61 +60,46 @@ public:
 	FReEchoElementState& EditElementState();
 #endif
 
-	UReEchoCombatantComponent* GetCombatantComponent() const
-	{
-		return Combatant;
-	}
-
+	UReEchoCombatantComponent* GetCombatantComponent() const { return Combatant; }
+	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const { return EnemyLogic; }
 	bool IsAlive() const;
 
-	virtual bool IsCombatTargetAlive() const override
-	{
-		return IsAlive();
-	}
-
-	virtual FVector GetCombatTargetLocation() const override
-	{
-		return GetActorLocation();
-	}
-
-	virtual int32 GetCombatTargetTieBreakIndex() const override
-	{
-		return GetSpawnIndex();
-	}
-
-	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override
-	{
-		return Combatant;
-	}
-
+	virtual bool IsCombatTargetAlive() const override { return IsAlive(); }
+	virtual FVector GetCombatTargetLocation() const override { return GetActorLocation(); }
+	virtual int32 GetCombatTargetTieBreakIndex() const override { return GetSpawnIndex(); }
+	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override { return Combatant; }
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
-
-	virtual bool
-	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override
+	virtual bool IntersectsCombatPath(const FVector& PathStart,
+	                                  const FVector& PathEnd,
+	                                  float CarrierRadius) const override
 	{
 		return IntersectsProjectilePath(PathStart, PathEnd, CarrierRadius);
 	}
 
-	/** 稳定的运行时目标排序标识（等于生成索引）。供自动攻击在射程内出现相同距离时确定性打破平局。 */
-	int32 GetSpawnIndex() const
-	{
-		return VisualVariantIndex;
-	}
-
-	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
-
-	EReEchoEnemyKind GetKind() const
-	{
-		return Kind;
-	}
-
+	int32 GetSpawnIndex() const;
+	EReEchoEnemyKind GetKind() const;
+	bool IntersectsProjectilePath(const FVector& PathStart,
+	                              const FVector& PathEnd,
+	                              float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
+#if WITH_DEV_AUTOMATION_TESTS
+	FReEchoEnemyActionIntent AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
+#endif
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	void BindComposedComponents();
+	FReEchoEnemyActionIntent AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
+	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);
+	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving) const;
+
+	UFUNCTION()
+	void HandleCombatDeath(const FReEchoDamageEvent& Event);
+
 	UPROPERTY(VisibleAnywhere, Category = "Abilities")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystem;
 	UPROPERTY(VisibleAnywhere, Category = "Abilities")
@@ -128,71 +107,19 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UCapsuleComponent> Collision;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UStaticMeshComponent> GroundShadow;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<USceneComponent> VisualEffectRoot;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBillboardComponent> CharacterSprite;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UReEcho2DPresentationController> PresentationController;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UTextRenderComponent> ElementAuraRing;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UPointLightComponent> ElementAuraLight;
-	UPROPERTY()
-	TObjectPtr<UTexture2D> BossTexture;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> GruntPresentationProfile;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> RabbitDollPresentationProfile;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> GoatPriestPresentationProfile;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> FoxPresentationProfile;
-	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoEnemyLogicComponent> EnemyLogic;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoEnemyEventsComponent> EnemyEvents;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoEnemyPresentationComponent> EnemyPresentation;
 	UPROPERTY()
-	TObjectPtr<AReEchoHealthBarActor> HealthBar;
-	UPROPERTY()
-	EReEchoEnemyKind Kind = EReEchoEnemyKind::Grunt;
-	int32 VisualVariantIndex = 0;
-	float MoveSpeed = 95.f;
-	float ContactDamage = 9.f;
-	float AttackInterval = 1.3f;
-	float AttackCooldown = 0.f;
-	float FuseRemaining = 0.f;
-	bool bBomberFuseActive = false;
-	float HitReactionRemaining = 0.f;
-	FVector KnockbackVelocity = FVector::ZeroVector;
-	FVector ShakeDirection = FVector::ZeroVector;
-	FVector PreviousShakeOffset = FVector::ZeroVector;
-	FVector BaseVisualLocation = FVector::ZeroVector;
-	FVector BaseVisualScale = FVector::OneVector;
-	float VisualTime = 0.0f;
-	float AttackVisualRemaining = 0.0f;
-	float DeathVisualRemaining = 0.0f;
-	int64 AttackSequence = 0;
+	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 
-	void ApplyVisual();
-	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile() const;
-	void StartHitReaction(const FVector& SourceLocation);
-	void UpdateElementAttachmentVisual();
-	void UpdateElementAttachmentFacing();
-	bool UpdateHitReaction(float DeltaSeconds);
-	void StartAttackVisual();
-	void UpdateSpriteAnimation(float DeltaSeconds, bool bMoving);
-	void UpdateDeathAnimation(float DeltaSeconds);
-	UFUNCTION() void HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event);
-	UFUNCTION() void HandleCombatHurt(const FReEchoDamageEvent& Event);
-	UFUNCTION() void HandleCombatDeath(const FReEchoDamageEvent& Event);
+	bool bVisualPlacementApplied = false;
 };

@@ -27,6 +27,7 @@ public:
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
+	bool IsInitialized() const { return bInitialized; }
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
