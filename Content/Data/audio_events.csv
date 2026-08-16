@@ -1,6 +1,6 @@
 EventId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax
 Music.Menu,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0
-Music.Encounter,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0
+Music.Encounter,/Game/ReEcho/Audio/Music/The_Iron_Waltz.The_Iron_Waltz,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0
 Music.Boss,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0
 Music.Shop,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0
 Music.Death,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0
