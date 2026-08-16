@@ -82,7 +82,7 @@ The settings screen owns five sliders and five mute toggles through typed option
 ### Baseline
 
 - Fresh remote baseline: `origin/main@75f243c` (closed Plan44 included).
-- Local-only branch/worktree: `plan/34-audio-catalog-settings-v3` / `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan34`; implementation commit `221f076`; no merge or push.
+- Local-only branch/worktree: `plan/34-audio-catalog-settings-v3` / `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan34`; implementation commits `221f076` + persistence fix `1a7b9ef`; no merge or push.
 - Plan41/43/44 module boundaries preserved: no GameMode/combat/weapon/enemy/boss hooks are added. Existing host-side `UReEchoCombatAudioAdapterComponent` remains the gameplay subscriber.
 
 ### Changed
