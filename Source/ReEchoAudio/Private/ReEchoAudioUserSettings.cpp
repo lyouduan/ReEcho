@@ -83,7 +83,7 @@ UReEchoAudioUserSettings* UReEchoAudioUserSettings::LoadOrCreate(UObject* Outer)
 	return NewObject<UReEchoAudioUserSettings>(Outer);
 }
 
-void UReEchoAudioUserSettings::Persist(UObject* Outer)
+bool UReEchoAudioUserSettings::Persist(UObject* Outer)
 {
-	UGameplayStatics::SaveGameToSlot(this, GetSlotName(), GetSlotIndex());
+	return UGameplayStatics::SaveGameToSlot(this, GetSlotName(), GetSlotIndex());
 }

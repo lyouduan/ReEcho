@@ -120,8 +120,7 @@ bool UReEchoAudioService::CommitUserSettings()
 		UserSettings->SetBusMuted(Bus, IsBusMuted(Bus));
 	}
 	UserSettings->SetBusMuted(EReEchoAudioBus::Master, IsBusMuted(EReEchoAudioBus::Master));
-	UserSettings->Persist(this);
-	return true;
+	return UserSettings->Persist(this);
 }
 
 void UReEchoAudioService::RevertUserSettings()

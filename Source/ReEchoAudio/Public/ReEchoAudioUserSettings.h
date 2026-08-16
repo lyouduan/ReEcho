@@ -66,5 +66,5 @@ public:
 	/** Load the saved settings, or create a default instance if none exists. */
 	static UReEchoAudioUserSettings* LoadOrCreate(UObject* Outer);
 	/** Persist the current settings to the module-owned save slot. */
-	void Persist(UObject* Outer);
+	bool Persist(UObject* Outer);
 };

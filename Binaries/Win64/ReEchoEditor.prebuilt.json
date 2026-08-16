@@ -1,8 +1,8 @@
 {
   "binaries": {
     "ReEchoEditor.target": "d6695e0776ad32ac46f6d29618c8e0f4d3052e684d9902d35d1ac492938d4f47",
-    "UnrealEditor-ReEcho.dll": "27fd3f54f7dac6a6f53dee39766bb0eaec8730aa6af6a7d0b9be3d68cdf3aa46",
-    "UnrealEditor-ReEchoAudio.dll": "6c1b2b507ca06cd2d2caf020b0b20f1af16d91b0acb70e22225065d141206b27",
+    "UnrealEditor-ReEcho.dll": "e7f77c3608247f27aee8c2f75c5f6a85e9d0ad242858e88c337dd5d2a9959a8c",
+    "UnrealEditor-ReEchoAudio.dll": "e18b1878cf707418bae2a82898ceb889da25875f5acb7e8f3e535f8748a20ada",
     "UnrealEditor-ReEchoCombat.dll": "6f0cf961b7e686dd381447b2b26e47428a988816e6afbf50f9759407cf9cc1ce",
     "UnrealEditor-ReEchoEnemies.dll": "7ffe63365eef49c300f50fad0bc48dac78770dac57737a9f6ac027ec14f9b26c",
     "UnrealEditor-ReEchoWeapons.dll": "fe548edd8157edd202ac5e99bff56d4f956184b1c42c9174c5e94a28ae8e52e3",
@@ -179,8 +179,8 @@
     "Source/ReEchoAudio/Private/ReEchoAudioPolicyEngine.cpp": "427d5ba1b9cc77dad36e7d2e7d31910e96286860eaea92d2ee7513769b9ce763",
     "Source/ReEchoAudio/Private/ReEchoAudioPolicyEngine.h": "f4fe31a749348763b4b4581a317fec54dd576f2500bb903b273d0bfeb060975b",
     "Source/ReEchoAudio/Private/ReEchoAudioPrivatePCH.h": "cc8d4fda994f5ea9a012e979023c4871e42185d05ac09d3c45dc599cd49ef282",
-    "Source/ReEchoAudio/Private/ReEchoAudioService.cpp": "88702e2ada654e98989715f24d04bdf9376e401fe55339025fe9dd9e41eaac91",
-    "Source/ReEchoAudio/Private/ReEchoAudioUserSettings.cpp": "3ab092bb33a1d4a8f1b3c50f4acdfca999b6db3abcaf307e55b34dea22ea1333",
+    "Source/ReEchoAudio/Private/ReEchoAudioService.cpp": "920c0c1b39163238a309e38b5cef1ea98517952618ce26f4eab704cadf5bb04a",
+    "Source/ReEchoAudio/Private/ReEchoAudioUserSettings.cpp": "34575d0f5cd08418ea63de3c8394afe83d5be317769022e3877a293de19bc97c",
     "Source/ReEchoAudio/Private/Tests/ReEchoAudioFoundationTests.cpp": "4464c4db9270a5df745a433f80c18fbe34a1bcb24354cbd904bde6d0373ad316",
     "Source/ReEchoAudio/Public/ReEchoAudio.h": "fc824f44371840f3cf1b4df6e71603e9b22a36e19b61bbac424bb5d41e4c3550",
     "Source/ReEchoAudio/Public/ReEchoAudioBackend.h": "2685b4e8a25b179fb6338a54c9044003df65a38826eb8d5f7f5f2912c22c08bf",
@@ -188,7 +188,7 @@
     "Source/ReEchoAudio/Public/ReEchoAudioEvents.h": "4de76c3bf1e7eff32f59256732febb7457c9c8f47c1c78837fba848d47dbc4e5",
     "Source/ReEchoAudio/Public/ReEchoAudioService.h": "bc739ba1afb306a6e2a91c88eb4700280c9c3e2b2777f51815f159c3a62cfc90",
     "Source/ReEchoAudio/Public/ReEchoAudioTypes.h": "61e3a348bec47311faa8176e641d244bbbe07c0f6fd5a6f2857e2d23d5288929",
-    "Source/ReEchoAudio/Public/ReEchoAudioUserSettings.h": "6400ec214bcd60f4fdd53b33d2569ff41254fadc874a44f6ca37f9c64d879214",
+    "Source/ReEchoAudio/Public/ReEchoAudioUserSettings.h": "fa3b65390478ba893f77069a4226a3f1f2b599fa6ea424f203575c2f7143f71a",
     "Source/ReEchoAudio/ReEchoAudio.Build.cs": "d52731416615623439e3f7952a4d1ee41ce829454540c73759f0e365b504529f",
     "Source/ReEchoCombat/Private/AbilitySystem/ReEchoCombatAttributeSet.cpp": "c6e756bde729f550d052cf55a6e4aed68ab1028b2d582d7856cbabac7d693b16",
     "Source/ReEchoCombat/Private/AbilitySystem/ReEchoGameplayEffects.cpp": "7c66a87c9bd4221e8e6ea2c941cafc4e22809bb590afc58a33df12ffbb6c052d",
@@ -248,6 +248,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "ea0880b5b439855fa278908d55a1db0eadbbc7cb0eb239f9f608c56d86629057",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "055a049b0c1b7e55e45f43a16e1177ba035a6181940b9ce6fc72006b6711c708",
+  "source_fingerprint": "9ea10ac305a57f3722166e2313532638a7c41b408c2ed7e69f7a001b0d9d598d",
   "target": "ReEchoEditor"
 }
