@@ -18,3 +18,4 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,Enemies,enemies.csv,Id
 1,EnemyAbilities,enemy_abilities.csv,Id
 1,BossPhases,boss_phases.csv,Id
+1,AudioEvents,audio_events.csv,EventId

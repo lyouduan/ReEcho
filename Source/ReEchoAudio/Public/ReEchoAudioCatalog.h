@@ -1,39 +1,62 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/StreamableManager.h"
 #include "ReEchoAudioTypes.h"
 
-/**
- * Catalog provider seam.
- *
- * The policy engine only ever talks to this interface, never to a concrete
- * table. Plan33 ships an empty built-in catalog; Plan34 plugs in a provider
- * that loads definitions from designer tables without touching gameplay code.
- */
+struct FStreamableHandle;
+
+/** Catalog provider seam consumed by the policy engine. */
 class REECHOAUDIO_API IReEchoAudioCatalogProvider
 {
 public:
 	virtual ~IReEchoAudioCatalogProvider() = default;
-
-	/** Returns the definition for an event/state id, or nullptr if unknown. */
 	virtual const FReEchoAudioEventDefinition* FindDefinition(FName EventId) const = 0;
 };
 
+enum class EReEchoAudioCatalogPreloadState : uint8
+{
+	NotStarted,
+	Loading,
+	Ready,
+	Failed
+};
+
 /**
- * In-memory catalog. Default provider for Plan33; also the test/Plan34
- * injection point. Gameplay callers must NOT register into it directly.
+ * Atomic, data-driven audio event catalog.
+ *
+ * CSV is parsed and validated into temporary storage. The active catalog is
+ * replaced only after every row succeeds, so a bad reload preserves the last
+ * known-good definitions. Asset references remain soft and missing assets are
+ * safe no-ops at playback time.
  */
 class REECHOAUDIO_API FReEchoAudioCatalog : public IReEchoAudioCatalogProvider
 {
 public:
-	/** Add or replace a definition (test/provider seam only). */
 	void AddDefinition(const FReEchoAudioEventDefinition& Definition);
-
-	/** Clear all definitions (test seam only). */
 	void Clear();
-
 	virtual const FReEchoAudioEventDefinition* FindDefinition(FName EventId) const override;
 
+	/** Atomically load the locked Plan34 CSV schema. Returns false without mutating the active catalog on failure. */
+	bool LoadCatalog(const FString& CsvPath);
+
+	/** Start or retry asynchronous preload of all non-empty soft references. */
+	void PreloadSoftAssets(FStreamableManager& StreamableManager);
+	void CancelPreload();
+
+	EReEchoAudioCatalogPreloadState GetPreloadState() const { return PreloadState; }
+	bool AreSoftAssetsPreloaded() const { return PreloadState == EReEchoAudioCatalogPreloadState::Ready; }
+	const TArray<FSoftObjectPath>& GetSoftAssetPaths() const { return SoftAssetPaths; }
+	const FString& GetLastLoadError() const { return LastLoadError; }
+	int32 Num() const { return Definitions.Num(); }
+
 private:
+	void HandlePreloadComplete();
+	bool FailLoad(const FString& Message);
+
 	TMap<FName, FReEchoAudioEventDefinition> Definitions;
+	TArray<FSoftObjectPath> SoftAssetPaths;
+	TSharedPtr<FStreamableHandle> PreloadHandle;
+	EReEchoAudioCatalogPreloadState PreloadState = EReEchoAudioCatalogPreloadState::NotStarted;
+	FString LastLoadError;
 };

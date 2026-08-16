@@ -30476,6 +30476,10 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/audio_events.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/boss_phases.csv",
       "Type": "NonUFS"
     },

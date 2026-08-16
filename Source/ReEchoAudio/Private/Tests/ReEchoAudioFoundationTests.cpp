@@ -1,5 +1,7 @@
 #include "CoreMinimal.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 
 #include "ReEchoAudioTypes.h"
@@ -418,6 +420,37 @@ bool FReEchoAudioRandomIsolationTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("gameplay RNG first draw untouched"), GotFirst, ExpectedFirst);
 	TestEqual(TEXT("gameplay RNG second draw untouched"), GotSecond, ExpectedSecond);
+	return true;
+}
+
+// ---- Catalog reload is quote-aware and atomic ----
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCatalogAtomicLoadTest,
+	"ReEcho.Audio.Catalog.AtomicLoad",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
+{
+	const FString Header = TEXT("EventId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax\n");
+	const FString ValidPath = FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogValid"), TEXT(".csv"));
+	const FString InvalidPath = FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogInvalid"), TEXT(".csv"));
+	FFileHelper::SaveStringToFile(
+		Header + TEXT("\"Combat.Attack\",,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+		*ValidPath);
+	FFileHelper::SaveStringToFile(
+		Header + TEXT("Combat.Attack,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+		*InvalidPath);
+
+	FReEchoAudioCatalog Catalog;
+	TestTrue(TEXT("valid quoted CSV loads"), Catalog.LoadCatalog(ValidPath));
+	TestEqual(TEXT("one definition committed"), Catalog.Num(), 1);
+	const FReEchoAudioEventDefinition* Before = Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack);
+	TestNotNull(TEXT("stable event is available"), Before);
+	TestFalse(TEXT("invalid enum rejects reload"), Catalog.LoadCatalog(InvalidPath));
+	TestEqual(TEXT("failed reload preserves previous catalog"), Catalog.Num(), 1);
+	TestNotNull(TEXT("previous definition remains available"), Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack));
+
+	IFileManager::Get().Delete(*ValidPath);
+	IFileManager::Get().Delete(*InvalidPath);
 	return true;
 }
 

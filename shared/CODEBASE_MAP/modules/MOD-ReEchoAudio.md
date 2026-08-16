@@ -102,7 +102,9 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 
 - 位置：`Public/ReEchoAudioCatalog.h`、`Private/ReEchoAudioCatalog.cpp`。
 - 角色：提供稳定 ID 到 `FReEchoAudioEventDefinition` 的类型化查询。
-- 扩展：Plan34 若引入 XLSX/CSV 目录，应在主/生成层校验后构造目录，不让运行时解析自由文本逻辑。
+- 数据：`Design/Data/ReEchoAudioEvents.xlsx` 独立拥有 `audio_events.csv`，不耦合 `ReEchoData.xlsx` / `ReEchoEnemyData.xlsx`。
+- 加载：运行时对锁定 14 列 CSV 做 quote-aware 严格解析；仅在整表成功后原子替换，失败保留上一份有效目录。
+- 预载：soft asset 异步预载暴露 `NotStarted/Loading/Ready/Failed` 状态，失败可重试且播放仍安全 no-op。
 
 ### `FReEchoAudioPolicyEngine`
 
@@ -125,8 +127,8 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 
 | 目的 | Public 首读 | Private 实现 | 相关数据/资产 |
 |---|---|---|---|
-| 发送一次性音效 | `ReEchoAudioService.h`、`ReEchoAudioEvents.h` | `ReEchoAudioService.cpp` | 当前内建/测试目录；Plan34 尚未成为事实 |
-| 增加语义总线 | `ReEchoAudioTypes.h`、`ReEchoAudioService.h` | Service/Policy Engine | 配置与持久化需另行定义 |
+| 发送一次性音效 | `ReEchoAudioService.h`、`ReEchoAudioEvents.h` | `ReEchoAudioService.cpp` | `ReEchoAudioEvents.xlsx` -> `audio_events.csv` |
+| 增加语义总线 | `ReEchoAudioTypes.h`、`ReEchoAudioService.h` | Service/Policy Engine | `UReEchoAudioUserSettings` + 设置页 Apply/Cancel |
 | 修改冷却/并发/优先级 | `ReEchoAudioCatalog.h`、Events/Types | `ReEchoAudioPolicyEngine.*` | 目录定义 |
 | 替换播放后端 | `ReEchoAudioBackend.h` | `ReEchoAudioBackend.cpp` | Unreal Sound/AudioComponent |
 | 主模块接入战斗/UI | 音频公共 API | `Source/ReEcho/Private/Combat/` 或相应主模块适配器 | 稳定语义 ID，不由 Audio include 调用方 |
@@ -137,7 +139,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 新来源类别或总线：扩展公共枚举、策略处理、设置入口和自动化，明确旧值兼容。
 - 新后端：实现 `IReEchoAudioBackend`，保持 Service/Policy 测试可使用假后端。
 - 新音乐/环境行为：通过独立状态通道扩展，避免把持续状态伪装成重复的一次性 SFX。
-- 持久设置：必须明确 Save authority、默认值、版本和 UI 命令边界；当前 Plan33 基线不应被误写成已完成 Plan34。
+- 持久设置：`ReEchoAudio` 自有 `USaveGame` 是 authority；控件变化只实时预览，Apply 才保存，取消/销毁恢复上次保存值；诊断音不持久化。
 
 ## 验证与测试
 

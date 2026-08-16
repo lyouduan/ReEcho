@@ -267,3 +267,17 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,BossPhases,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,BossPhases,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,BossPhases,Notes,Text,false,,,,,Designer notes.
+1,AudioEvents,EventId,StableId,true,,,,,Stable semantic audio event id.
+1,AudioEvents,AssetPath,Text,false,,,,,Optional Unreal soft object path; blank is a safe no-op.
+1,AudioEvents,Bus,StableId,true,,,,Music|Ambience|CombatSfx|UiSfx,Audio mix bus; Master is not a catalog bus.
+1,AudioEvents,EventType,StableId,true,,,,OneShot|Loop,Explicit playback lifetime policy.
+1,AudioEvents,Spatial3D,Bool,true,,,,true|false,Whether playback uses world-space positioning.
+1,AudioEvents,BaseVolume,PercentDecimal,true,0,1,,,Per-event linear gain.
+1,AudioEvents,PitchMin,Float,true,0.01,4,,,Minimum randomized pitch.
+1,AudioEvents,PitchMax,Float,true,0.01,4,,,Maximum randomized pitch.
+1,AudioEvents,CooldownSeconds,Float,true,0,3600,,,Minimum interval between accepted posts.
+1,AudioEvents,MaxConcurrency,Int,true,0,256,,,Maximum active voices; zero means policy default/unlimited.
+1,AudioEvents,Priority,Int,true,0,100,,,Voice-budget priority.
+1,AudioEvents,PausePolicy,StableId,true,,,,PauseWithGame|ContinueOnPause,Pause behavior.
+1,AudioEvents,AttenuationMin,Float,true,0,100000,,,Minimum 3D attenuation distance in cm.
+1,AudioEvents,AttenuationMax,Float,true,0,100000,,,Maximum 3D attenuation distance in cm.

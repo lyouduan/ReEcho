@@ -449,6 +449,22 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Notes": CsvColumnSpec("Text", required=False),
     },
+    "AudioEvents": {
+        "EventId": CsvColumnSpec("StableId"),
+        "AssetPath": CsvColumnSpec("Text", required=False),
+        "Bus": CsvColumnSpec("StableId"),
+        "EventType": CsvColumnSpec("StableId"),
+        "Spatial3D": CsvColumnSpec("Bool"),
+        "BaseVolume": CsvColumnSpec("PercentDecimal", min_value=0.0, max_value=1.0),
+        "PitchMin": CsvColumnSpec("Float", min_value=0.01, max_value=4.0),
+        "PitchMax": CsvColumnSpec("Float", min_value=0.01, max_value=4.0),
+        "CooldownSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "MaxConcurrency": CsvColumnSpec("Int", min_value=0.0, max_value=256.0),
+        "Priority": CsvColumnSpec("Int", min_value=0.0, max_value=100.0),
+        "PausePolicy": CsvColumnSpec("StableId"),
+        "AttenuationMin": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "AttenuationMax": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+    },
 }
 
 
@@ -575,8 +591,9 @@ def validate_manifest(data_dir: Path) -> dict[str, Path]:
             fail(f"{rel(manifest_path)}:{line}: unknown TableId {table_id!r}")
         if table_id in entries:
             fail(f"{rel(manifest_path)}:{line}: duplicate TableId {table_id!r}")
-        if row["PrimaryKey"] != "Id":
-            fail(f"{rel(manifest_path)}:{line}: PrimaryKey must be Id")
+        expected_primary_key = next(iter(CSV_TABLES[table_id]))
+        if row["PrimaryKey"] != expected_primary_key:
+            fail(f"{rel(manifest_path)}:{line}: PrimaryKey must be {expected_primary_key}")
         file_name = row["FileName"]
         if "/" in file_name or "\\" in file_name:
             fail(f"{rel(manifest_path)}:{line}: FileName must stay inside its data directory")
@@ -631,9 +648,11 @@ def validate_table(path: Path, table_id: str, references: dict[str, set[str]]) -
             if spec.kind == "ForeignKey" and value not in references[spec.reference_table or ""]:
                 fail(f"{rel(path)}:{line}:{column}: unknown reference {value!r}")
 
-        row_id = row["Id"]
+        primary_key = next(iter(specs))
+        row_id = row[primary_key]
         if row_id in ids:
-            fail(f"{rel(path)}:{line}: duplicate id {row_id!r}")
+            duplicate_label = "id" if primary_key == "Id" else primary_key
+            fail(f"{rel(path)}:{line}: duplicate {duplicate_label} {row_id!r}")
         ids.add(row_id)
     if not ids and table_id == "RuntimeSmoke":
         fail(f"{rel(path)}: RuntimeSmoke must contain at least one row")
@@ -662,6 +681,8 @@ def validate_csv_package(data_dir: Path) -> None:
     references["Enemies"] = validate_table(entries["Enemies"], "Enemies", references)
     references["EnemyAbilities"] = validate_table(entries["EnemyAbilities"], "EnemyAbilities", references)
     references["BossPhases"] = validate_table(entries["BossPhases"], "BossPhases", references)
+    references["AudioEvents"] = validate_table(entries["AudioEvents"], "AudioEvents", references)
+    validate_audio_events_domain(entries)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)
     validate_weapon_domain(data_dir, entries)
@@ -676,6 +697,43 @@ def assemble_fixture_package(fixture_dir: Path, temp_root: Path) -> Path:
     for override in fixture_dir.glob("*.csv"):
         shutil.copy2(override, assembled / override.name)
     return assembled
+
+
+def validate_audio_events_domain(entries: dict[str, Path]) -> None:
+    path = entries["AudioEvents"]
+    rows = load_csv(path)
+    required_ids = {
+        "Music.Menu", "Music.Encounter", "Music.Boss", "Music.Shop", "Music.Death", "Music.Victory",
+        "Ambience.Arena", "Ambience.Rain",
+        "UI.Hover", "UI.Confirm", "UI.Cancel", "UI.Error", "UI.Purchase", "UI.CardSelect",
+        "Combat.Attack", "Combat.Hit", "Combat.Block", "Combat.Hurt", "Combat.Kill", "Combat.Death",
+        "Enemy.Spawn", "Enemy.Attack", "Enemy.Death", "Boss.Spawn", "Boss.Attack", "Boss.Death",
+        "Echo.Spawn", "Echo.Attack", "Echo.End", "CameraMove", "Revive",
+    }
+    actual_ids = {row["EventId"] for row in rows}
+    missing_ids = sorted(required_ids - actual_ids)
+    unknown_ids = sorted(actual_ids - required_ids)
+    if missing_ids:
+        fail(f"{rel(path)}: missing stable audio event ids: {', '.join(missing_ids)}")
+    if unknown_ids:
+        fail(f"{rel(path)}: unknown audio event ids: {', '.join(unknown_ids)}")
+    for row in rows:
+        line = row["__line__"]
+        asset_path = row["AssetPath"]
+        if asset_path and not re.fullmatch(r"/Game/[A-Za-z0-9_./-]+\.[A-Za-z0-9_]+", asset_path):
+            fail(f"{rel(path)}:{line}:AssetPath: malformed Unreal soft object path")
+        if row["Bus"] not in {"Music", "Ambience", "CombatSfx", "UiSfx"}:
+            fail(f"{rel(path)}:{line}:Bus: unsupported audio bus {row['Bus']!r}")
+        if row["EventType"] not in {"OneShot", "Loop"}:
+            fail(f"{rel(path)}:{line}:EventType: must be OneShot or Loop")
+        if row["PausePolicy"] not in {"PauseWithGame", "ContinueOnPause"}:
+            fail(f"{rel(path)}:{line}:PausePolicy: unsupported pause policy")
+        if float(row["PitchMin"]) > float(row["PitchMax"]):
+            fail(f"{rel(path)}:{line}:PitchMax: must be >= PitchMin")
+        if float(row["AttenuationMin"]) > float(row["AttenuationMax"]):
+            fail(f"{rel(path)}:{line}:AttenuationMax: must be >= AttenuationMin")
+        if row["Spatial3D"] == "false" and (float(row["AttenuationMin"]) != 0 or float(row["AttenuationMax"]) != 0):
+            fail(f"{rel(path)}:{line}: non-spatial events must use zero attenuation")
 
 
 def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) -> None:
@@ -1603,6 +1661,7 @@ def validate_build_dependencies() -> None:
         "enemies.csv",
         "enemy_abilities.csv",
         "boss_phases.csv",
+        "audio_events.csv",
     ):
         if f"Content/Data/{file_name}" not in build_cs:
             fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")

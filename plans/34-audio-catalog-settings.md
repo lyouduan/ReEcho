@@ -6,12 +6,12 @@
 - Executor owner: Plan34 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `Ready` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: freshly fetched `origin/main` containing closed Plan33 and this Ready revision.
-- Implementation branch: local `plan/34-audio-catalog-settings` in a separate worktree.
+- Implementation branch: local `plan/34-audio-catalog-settings-v3` in separate worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan34`.
 - Depends on / Blocks: Plan33 is closed; Plan34 provides authored event definitions, preload behavior and persistent bus settings consumed independently by Plans35/36.
-- Writes: `Source/ReEchoAudio/**` catalog/settings implementation and tests; `Source/ReEcho/UI/ReEchoSettingsWidget.*`; `/Game/ReEcho/UI/WBP_ReEchoSettings.uasset`; canonical `Design/Data/ReEchoData.xlsx`; its export map/schema plus `scripts/data/**`, `Content/Data/reecho_data_manifest.csv`, `Content/Data/csv_schema.csv` and generated `Content/Data/audio_events.csv`; deterministic diagnostic-tone source/import tooling, `/Game/ReEcho/Audio/Diagnostics/**`, provenance documentation; this Plan's notes.
+- Writes: `Source/ReEchoAudio/**` catalog/settings implementation and tests; `Source/ReEcho/UI/ReEchoSettingsWidget.*`; typed optional bindings compatible with `/Game/ReEcho/UI/WBP_ReEchoSettings.uasset`; standalone canonical `Design/Data/ReEchoAudioEvents.xlsx` (not coupled to `ReEchoData.xlsx` or `ReEchoEnemyData.xlsx`); export schema plus `scripts/data/**`, `Content/Data/reecho_data_manifest.csv`, `Content/Data/csv_schema.csv` and generated `Content/Data/audio_events.csv`; deterministic diagnostic-tone source/import tooling, `/Game/ReEcho/Audio/Diagnostics/**`, provenance documentation; this Plan's notes.
 - Stable Reads: closed Plan33 public audio IDs/buses/service/catalog seam; existing XLSX-to-CSV contract; typed settings-shell open/close behavior.
 - Impact mode: `Exclusive` while writing the canonical XLSX and `WBP_ReEchoSettings`; `SharedContract` for the event-definition schema, preload contract and persisted bus values.
 - Compatibility promise / downstream action: preserve every pre-existing generated CSV byte-for-byte; preserve Graphics/Controls placeholders, typed UMG lifecycle and settings return flow. Missing/invalid optional assets remain safe. Plans35/36 publish semantic IDs through Plan33 and never parse the catalog or own AudioComponents.
@@ -19,7 +19,7 @@
 
 ## Locked goal
 
-Make audio definitions designer-editable and audio volumes usable without coupling either concern to gameplay. Add an `AudioEvents` Table in the canonical workbook that deterministically generates `Content/Data/audio_events.csv`, and replace only the audio settings placeholder with persistent controls for Master, Music, Ambience, Combat SFX and UI SFX.
+Make audio definitions designer-editable and audio volumes usable without coupling either concern to gameplay. Add an `AudioEvents` Table in standalone canonical `Design/Data/ReEchoAudioEvents.xlsx` that deterministically generates `Content/Data/audio_events.csv`, and replace only the audio settings placeholder with persistent controls for Master, Music, Ambience, Combat SFX and UI SFX.
 
 The exported schema is one row per semantic event with these locked columns, in order:
 
@@ -79,12 +79,39 @@ The settings screen owns five sliders and five mute toggles through typed option
 
 ## Execution notes
 
+### Baseline
+
+- Fresh remote baseline: `origin/main@75f243c` (closed Plan44 included).
+- Local-only branch/worktree: `plan/34-audio-catalog-settings-v3` / `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan34`; no merge or push.
+- Plan41/43/44 module boundaries preserved: no GameMode/combat/weapon/enemy/boss hooks are added. Existing host-side `UReEchoCombatAudioAdapterComponent` remains the gameplay subscriber.
+
 ### Changed
+
+- Standalone `Design/Data/ReEchoAudioEvents.xlsx` owns `tblAudioEvents -> audio_events.csv`; main and enemy workbooks are untouched.
+- Latest three-workbook sync pipeline, manifest, schema, validator and `ReEcho.Build.cs` stage/validate the locked 14-column catalog with `EventId` primary key and the exact Plan33 stable-ID set.
+- `FReEchoAudioCatalog` performs quote-aware strict parsing into temporary storage and atomically swaps only after whole-file success; explicit `EventType` and attenuation are loaded. Async preload exposes retryable `NotStarted/Loading/Ready/Failed` state.
+- `UReEchoAudioUserSettings` owns only five volume/mute preferences. `UReEchoAudioService` previews changes immediately, persists only on Apply, restores saved values on cancel/destruction and treats diagnostic playback as a non-persistent action.
+- `UReEchoSettingsWidget` uses typed optional audio bindings with the existing C++ fallback; Graphics/Controls placeholders remain unchanged.
+- Deterministic 440 Hz generator, Unreal Editor import script and provenance note were added; `UI.Error` is the sole stable catalog binding.
+- Catalog atomic failure/quoted-field automation was added to the existing ReEchoAudio test suite.
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoAudio.md` is updated as the current architecture authority.
 
 ### Evidence
 
+- `python scripts/data/sync_xlsx_to_csv.py --check` -> PASS across `ReEchoData.xlsx`, `ReEchoEnemyData.xlsx`, and `ReEchoAudioEvents.xlsx`; generated bytes match production CSV.
+- `python -m py_compile scripts/data/author_audio_events.py scripts/data/sync_xlsx_to_csv.py scripts/validate_project.py` -> PASS.
+- `scripts/ue/Build-Editor.cmd -Configuration Development` -> succeeded; UHT/UBT compiled and linked all five Runtime Modules and refreshed the curated Editor bundle.
+- `python scripts/validate_project.py` -> PASS after the build refresh (schema, fixtures, modules, XLSX drift, workflow and prebuilt fingerprint).
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Audio` -> automation did not launch: platform preflight stopped after reporting unavailable LinuxArm64/VisionOS SDK metadata. No audio test result is claimed; focused automation remains pending in the user's configured Editor environment.
+- IDE diagnostics for edited C++ paths -> no reported diagnostics.
+
 ### Remaining risks
+
+- Focused audio automation still needs a configured Editor run because this invocation stopped in cross-platform SDK preflight.
+- The real diagnostic `.wav`/`.uasset` is intentionally not generated/imported by the coding executor. Until the user runs both scripts, `UI.Error` is a safe no-op.
+- `WBP_ReEchoSettings.uasset` is not manually binary-edited; typed optional bindings support it when matching controls exist, while C++ fallback remains testable.
+- Subjective layout, loudness and audibility remain human PIE checks.
 
 ### Human validation result/request
 
-`PendingBeforeClose`: user listens to the diagnostic event and verifies each bus/mute setting, defaults, apply/return and restart persistence. Executor visual/aural inspection is not accepted as human evidence.
+`PendingBeforeClose`: user imports/listens to the diagnostic event and verifies each bus/mute setting, defaults, apply/return, cancel rollback and restart persistence from start-menu and pause-menu entry. Executor visual/aural inspection is not accepted as human evidence.

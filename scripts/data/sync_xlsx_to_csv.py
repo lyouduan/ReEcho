@@ -24,7 +24,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "Content" / "Data"
 CANONICAL_XLSX = ROOT / "Design" / "Data" / "ReEchoData.xlsx"
 CANONICAL_ENEMY_XLSX = ROOT / "Design" / "Data" / "ReEchoEnemyData.xlsx"
-CANONICAL_WORKBOOKS = (CANONICAL_XLSX, CANONICAL_ENEMY_XLSX)
+CANONICAL_AUDIO_XLSX = ROOT / "Design" / "Data" / "ReEchoAudioEvents.xlsx"
+CANONICAL_WORKBOOKS = (CANONICAL_XLSX, CANONICAL_ENEMY_XLSX, CANONICAL_AUDIO_XLSX)
 REQUIREMENTS = Path(__file__).with_name("requirements.txt")
 EXPECTED_OPENPYXL = "3.1.5"
 TRANSACTION_FILE = ".reecho_csv_publish_transaction.json"
@@ -49,6 +50,7 @@ TABLE_TO_CSV = {
     "tblEnemies": "enemies.csv",
     "tblEnemyAbilities": "enemy_abilities.csv",
     "tblBossPhases": "boss_phases.csv",
+    "tblAudioEvents": "audio_events.csv",
 }
 
 SYSTEM_TABLES = frozenset({"tblRuntimeSmoke", "tblRuntimeSmokeEffects"})
@@ -80,6 +82,7 @@ AUTHORING_LIST_VALIDATION_COLUMNS = {
     "tblEnemies": frozenset({"Archetype", "BehaviorProfileId", "PresentationId", "Enabled", "Boss"}),
     "tblEnemyAbilities": frozenset({"OwnerEnemyId", "BehaviorId", "Enabled", "TargetingMode", "LockTiming"}),
     "tblBossPhases": frozenset({"BossEnemyId", "EchoPolicy", "RefillHealthPolicy", "Enabled"}),
+    "tblAudioEvents": frozenset({"Bus", "EventType", "Spatial3D", "PausePolicy"}),
 }
 
 REFERENCE_LIST_VALIDATION_FORMULAS = {
