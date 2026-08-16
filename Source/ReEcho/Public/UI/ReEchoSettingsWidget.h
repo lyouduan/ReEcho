@@ -108,12 +108,12 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<USlider> CombatSfxVolumeSlider;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<USlider> UiSfxVolumeSlider;
 
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MasterMuteCheck;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MusicMuteCheck;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> AmbienceMuteCheck;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> CombatSfxMuteCheck;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> UiSfxMuteCheck;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> DiagnosticToneCheck;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MasterMuteCheckBox;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MusicMuteCheckBox;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> AmbienceMuteCheckBox;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> CombatSfxMuteCheckBox;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> UiSfxMuteCheckBox;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> DiagnosticToneCheckBox;
 
 	int32 SelectedCategory = 0;
 	bool bAudioSettingsApplied = false;

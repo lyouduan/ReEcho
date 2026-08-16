@@ -21,6 +21,14 @@
 
 `ReEcho.uproject` 中每个 Runtime Module 都必须在此表拥有唯一 `MOD-*` 标识和独立文档。尚未合入 `main` 的候选模块只能记录在对应 Plan/本地分支，不能提前加入本索引。
 
+## 文档型逻辑模块入口
+
+| 文档入口 | 当前状态 | 设计与代码文档 | 一句话职责 |
+|---|---|---|---|
+| UI | 文档型逻辑入口；非 Runtime Module | [`modules/MOD-ReEchoUI.md`](modules/MOD-ReEchoUI.md) | 路由到现有 UI Framework、Widget/WBP 分工和 UI 架构设计规范；当前实现仍属于 `MOD-ReEcho` |
+
+文档型入口用于聚合成熟领域的阅读路线，不注册新的稳定架构标识，也不改变 `ReEcho.uproject`、Build 依赖或全局 Runtime Module 拓扑；不得将其表述为已经拆分的代码模块。
+
 ## 模块与内部领域索引
 
 `AREA-*` 是稳定的功能检索标识，不要求永远属于主模块。Plan41 把战斗和武器领域迁入独立模块，其余领域仍由 [`modules/MOD-ReEcho.md`](modules/MOD-ReEcho.md) 说明。
@@ -37,7 +45,7 @@
 | `AREA-Recording` | 玩家历史录制与 Echo 回放 | `Source/ReEcho/{Public,Private}/Recording/` | [Recording](modules/MOD-ReEcho.md#area-recordingrecording录制与回放) |
 | `AREA-Player` | 输入、移动、相机与玩家装配 | `Source/ReEcho/{Public,Private}/Player/` | [Player](modules/MOD-ReEcho.md#area-playerplayer玩家宿主) |
 | `AREA-Presentation` | 世界 Actor 与可见反馈 | `Source/ReEcho/{Public,Private}/{Graybox,Presentation}/` | [Presentation](modules/MOD-ReEcho.md#area-presentationgraybox--presentation世界表现) |
-| `AREA-UI` | 屏幕框架、Widget 与只读展示 | `Source/ReEcho/{Public,Private}/UI/` | [UI](modules/MOD-ReEcho.md#area-uiui屏幕与交互) |
+| `AREA-UI` | 屏幕框架、Widget 与只读展示 | `Source/ReEcho/{Public,Private}/UI/` | [UI 文档入口](modules/MOD-ReEchoUI.md) |
 | `AREA-Tests` | 自动化与跨领域契约 | `Source/ReEcho/Private/Tests/`、各模块 `Private/Tests/` | [Tests](modules/MOD-ReEcho.md#area-teststests验证边界) |
 
 ## 文档职责

@@ -73,7 +73,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 | `WBP_ReEchoEnemyHealthBar` | `ProgressBar` |
 | `WBP_ReEchoStartMenu` | `StatusText`, `ContinueButton`, `NewGameButton`, `GameSettingsButton` |
 | `WBP_ReEchoLoadoutSelection` | `StatusText`, `CharacterRow`, `WeaponRow`, `ConfirmButton` |
-| `WBP_ReEchoSettings` | `DetailText`, `CategoryTitleText`, `GraphicsSettingsButton`, `AudioSettingsButton`, `ControlsSettingsButton`, `RestoreDefaultsButton`, `ApplyAndReturnButton` |
+| `WBP_ReEchoSettings` | `DetailText`, `CategoryTitleText`, `GraphicsSettingsButton`, `AudioSettingsButton`, `ControlsSettingsButton`, `RestoreDefaultsButton`, `ApplyAndReturnButton`, `AudioPanel`, `MasterVolumeSlider`, `MusicVolumeSlider`, `AmbienceVolumeSlider`, `CombatSfxVolumeSlider`, `UiSfxVolumeSlider`, `MasterMuteCheckBox`, `MusicMuteCheckBox`, `AmbienceMuteCheckBox`, `CombatSfxMuteCheckBox`, `UiSfxMuteCheckBox`, `DiagnosticToneCheckBox` |
 | `WBP_ReEchoRestart` | `TitleText`, `MessageText`, `ResumeButton`, `RestartButton`, `QuitButton`, `SettingsButton`, `QuitButtonText` |
 | `WBP_ReEchoTraitCardChoice` | `TraitCardContainer`, `TraitCardSlot0`, `TraitCardSlot1`, `TraitCardSlot2`, `TitleText`, `SubtitleText`, `CurrencyText`, `NeedleWidget` |
 | `WBP_ReEchoInventoryShopScreen` | `BackgroundImage`, `InventoryPanel`, `ShopPanel`, `CurrencyText`, `InventoryText`, `CloseButton`, `OfferContainer` |
@@ -105,6 +105,8 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 ### 5.2 Start Menu、Settings、Restart
 
 可以修改面板尺寸、按钮布局、按钮 Style、文本、焦点高亮和转场动画。不要在 WBP 中直接开始游戏、读写存档、重启关卡或退出程序；按钮只应把请求交给 C++ Delegate。
+
+`WBP_ReEchoSettings` 的 Graphics、Audio、Controls 是固定页面结构。固定的音频 Slider 和 Checkbox 必须由 WBP 正常路径静态提供，布局、间距、样式和焦点表现归 UMG；`UReEchoSettingsWidget` 只绑定控件、刷新状态并把预览/提交/撤销请求交给 `UReEchoAudioService`。不要依赖 C++ `BuildAudioPanel()` 向正常 WBP 动态注入整套布局，该路径只用于设计资产缺失时的最低可用 fallback。所有绑定控件必须勾选 `Is Variable`，并严格使用第 4 节列出的名称和类型。
 
 `WBP_ReEchoRestart` 是多状态页面。隐藏某个按钮或改文案前，必须检查四种显示场景：
 

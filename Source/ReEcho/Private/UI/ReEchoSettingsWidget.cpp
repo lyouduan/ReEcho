@@ -327,18 +327,18 @@ void UReEchoSettingsWidget::BuildAudioPanel()
 	AddVolumeRow(TEXT("界面音效 (UI SFX)"), UiSfxVolumeSlider, TEXT("UiSfxVolumeSlider"));
 	UiSfxVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxVolumeChanged);
 
-	AddMuteRow(TEXT("静音 主音量"), MasterMuteCheck, TEXT("MasterMuteCheckBox"));
-	MasterMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterMuteChanged);
-	AddMuteRow(TEXT("静音 音乐"), MusicMuteCheck, TEXT("MusicMuteCheckBox"));
-	MusicMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicMuteChanged);
-	AddMuteRow(TEXT("静音 环境"), AmbienceMuteCheck, TEXT("AmbienceMuteCheckBox"));
-	AmbienceMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceMuteChanged);
-	AddMuteRow(TEXT("静音 战斗音效"), CombatSfxMuteCheck, TEXT("CombatSfxMuteCheckBox"));
-	CombatSfxMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
-	AddMuteRow(TEXT("静音 界面音效"), UiSfxMuteCheck, TEXT("UiSfxMuteCheckBox"));
-	UiSfxMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxMuteChanged);
-	AddMuteRow(TEXT("诊断音 (440Hz，仅用于验证音量/静音)"), DiagnosticToneCheck, TEXT("DiagnosticToneCheckBox"));
-	DiagnosticToneCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
+	AddMuteRow(TEXT("静音 主音量"), MasterMuteCheckBox, TEXT("MasterMuteCheckBox"));
+	MasterMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterMuteChanged);
+	AddMuteRow(TEXT("静音 音乐"), MusicMuteCheckBox, TEXT("MusicMuteCheckBox"));
+	MusicMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicMuteChanged);
+	AddMuteRow(TEXT("静音 环境"), AmbienceMuteCheckBox, TEXT("AmbienceMuteCheckBox"));
+	AmbienceMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceMuteChanged);
+	AddMuteRow(TEXT("静音 战斗音效"), CombatSfxMuteCheckBox, TEXT("CombatSfxMuteCheckBox"));
+	CombatSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
+	AddMuteRow(TEXT("静音 界面音效"), UiSfxMuteCheckBox, TEXT("UiSfxMuteCheckBox"));
+	UiSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxMuteChanged);
+	AddMuteRow(TEXT("诊断音 (440Hz，仅用于验证音量/静音)"), DiagnosticToneCheckBox, TEXT("DiagnosticToneCheckBox"));
+	DiagnosticToneCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
 }
 
 void UReEchoSettingsWidget::BindAudioControls()
@@ -348,12 +348,12 @@ void UReEchoSettingsWidget::BindAudioControls()
 	if (AmbienceVolumeSlider) AmbienceVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceVolumeChanged);
 	if (CombatSfxVolumeSlider) CombatSfxVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxVolumeChanged);
 	if (UiSfxVolumeSlider) UiSfxVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxVolumeChanged);
-	if (MasterMuteCheck) MasterMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterMuteChanged);
-	if (MusicMuteCheck) MusicMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicMuteChanged);
-	if (AmbienceMuteCheck) AmbienceMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceMuteChanged);
-	if (CombatSfxMuteCheck) CombatSfxMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
-	if (UiSfxMuteCheck) UiSfxMuteCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxMuteChanged);
-	if (DiagnosticToneCheck) DiagnosticToneCheck->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
+	if (MasterMuteCheckBox) MasterMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterMuteChanged);
+	if (MusicMuteCheckBox) MusicMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicMuteChanged);
+	if (AmbienceMuteCheckBox) AmbienceMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceMuteChanged);
+	if (CombatSfxMuteCheckBox) CombatSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
+	if (UiSfxMuteCheckBox) UiSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxMuteChanged);
+	if (DiagnosticToneCheckBox) DiagnosticToneCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
 }
 
 void UReEchoSettingsWidget::RefreshAudioControls()
@@ -384,29 +384,29 @@ void UReEchoSettingsWidget::RefreshAudioControls()
 	{
 		UiSfxVolumeSlider->SetValue(FMath::Clamp(AudioService->GetBusVolume(EReEchoAudioBus::UiSfx), 0.0f, 1.0f));
 	}
-	if (MasterMuteCheck)
+	if (MasterMuteCheckBox)
 	{
-		MasterMuteCheck->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::Master));
+		MasterMuteCheckBox->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::Master));
 	}
-	if (MusicMuteCheck)
+	if (MusicMuteCheckBox)
 	{
-		MusicMuteCheck->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::Music));
+		MusicMuteCheckBox->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::Music));
 	}
-	if (AmbienceMuteCheck)
+	if (AmbienceMuteCheckBox)
 	{
-		AmbienceMuteCheck->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::Ambience));
+		AmbienceMuteCheckBox->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::Ambience));
 	}
-	if (CombatSfxMuteCheck)
+	if (CombatSfxMuteCheckBox)
 	{
-		CombatSfxMuteCheck->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::CombatSfx));
+		CombatSfxMuteCheckBox->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::CombatSfx));
 	}
-	if (UiSfxMuteCheck)
+	if (UiSfxMuteCheckBox)
 	{
-		UiSfxMuteCheck->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::UiSfx));
+		UiSfxMuteCheckBox->SetIsChecked(AudioService->IsBusMuted(EReEchoAudioBus::UiSfx));
 	}
-	if (DiagnosticToneCheck)
+	if (DiagnosticToneCheckBox)
 	{
-		DiagnosticToneCheck->SetIsChecked(false);
+		DiagnosticToneCheckBox->SetIsChecked(false);
 	}
 }
 
@@ -501,8 +501,8 @@ void UReEchoSettingsWidget::HandleDiagnosticToneChanged(const bool bChecked)
 		AudioService->PlayDiagnosticTone(this);
 	}
 	TGuardValue<bool> RefreshGuard(bRefreshingAudioControls, true);
-	if (DiagnosticToneCheck)
+	if (DiagnosticToneCheckBox)
 	{
-		DiagnosticToneCheck->SetIsChecked(false);
+		DiagnosticToneCheckBox->SetIsChecked(false);
 	}
 }
