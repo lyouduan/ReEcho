@@ -8,6 +8,7 @@
 #include "Run/ReEchoShopCatalog.h"
 #include "Weapons/ReEchoWeaponRuntime.h"
 #include "Kismet/GameplayStatics.h"
+#include "ReEchoAudioService.h"
 
 namespace
 {
@@ -508,6 +509,17 @@ void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
 	SetPhase(EReEchoRunPhase::Encounter);
+
+	// Drive the Music bus to the encounter loop so the battle BGM starts on encounter begin.
+	// Music.Encounter resolves to the wired catalog asset; the policy engine ignores repeats
+	// while the loop is live, so re-entry across encounters is safe.
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UReEchoAudioService* AudioService = GameInstance->GetSubsystem<UReEchoAudioService>())
+		{
+			AudioService->SetMusicState(FName(TEXT("Music.Encounter")));
+		}
+	}
 }
 
 void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
