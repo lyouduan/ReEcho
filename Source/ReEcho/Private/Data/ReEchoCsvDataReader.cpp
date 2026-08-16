@@ -426,7 +426,11 @@ bool ReadManifest(const FString& DataDirectory,
 		{
 			AddIssue(Issues, Manifest.File, Row.Line, TEXT("TableId"), TEXT("TableId is empty or duplicated"));
 		}
-		if (Entry.PrimaryKey != TEXT("Id"))
+		// The manifest is shared by module-owned data domains. This gameplay
+		// registry only owns RequiredTables; external tables (for example the
+		// ReEchoAudio catalog keyed by EventId) validate their primary key in
+		// their own module/tooling and must not make gameplay startup fatal.
+		if (RequiredTables.Contains(Entry.TableId) && Entry.PrimaryKey != TEXT("Id"))
 		{
 			AddIssue(Issues, Manifest.File, Row.Line, TEXT("PrimaryKey"), TEXT("PrimaryKey must be Id"));
 		}

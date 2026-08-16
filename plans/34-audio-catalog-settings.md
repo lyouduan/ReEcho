@@ -95,6 +95,7 @@ The settings screen owns five sliders and five mute toggles through typed option
 - Deterministic 440 Hz generator, Unreal Editor import script and provenance note were added; `UI.Error` is the sole stable catalog binding.
 - Catalog atomic failure/quoted-field automation was added to the existing ReEchoAudio test suite.
 - `shared/CODEBASE_MAP/modules/MOD-ReEchoAudio.md` is updated as the current architecture authority.
+- Startup regression fix: the shared manifest reader now enforces `PrimaryKey=Id` only for gameplay registry-owned tables. External module tables such as `AudioEvents(EventId)` remain globally validated by tooling and module loaders without making `FReEchoModule::StartupModule` fatal.
 
 ### Evidence
 
@@ -102,6 +103,7 @@ The settings screen owns five sliders and five mute toggles through typed option
 - `python -m py_compile scripts/data/author_audio_events.py scripts/data/sync_xlsx_to_csv.py scripts/validate_project.py` -> PASS.
 - `scripts/ue/Build-Editor.cmd -Configuration Development` -> succeeded; UHT/UBT compiled and linked all five Runtime Modules and refreshed the curated Editor bundle.
 - `python scripts/validate_project.py` -> PASS after the build refresh (schema, fixtures, modules, XLSX drift, workflow and prebuilt fingerprint).
+- Reported startup Fatal root cause reproduced by inspection: `ReadManifest` incorrectly forced every shared-manifest row to `PrimaryKey=Id`; `AudioEvents(EventId)` was the only issue. The ownership gate fix builds successfully and the production/default CSV test fixture now exercises that manifest contract.
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Audio` -> automation did not launch: platform preflight stopped after reporting unavailable LinuxArm64/VisionOS SDK metadata. No audio test result is claimed; focused automation remains pending in the user's configured Editor environment.
 - IDE diagnostics for edited C++ paths -> no reported diagnostics.
 
