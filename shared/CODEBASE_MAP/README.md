@@ -17,7 +17,7 @@
 | `MOD-ReEchoAudio` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) | 接收语义音频请求，独立管理目录、策略、总线状态与播放后端 |
 | `MOD-ReEchoCombat` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) | 攻击控制、战斗状态和最终结算的逻辑权威 |
 | `MOD-ReEchoWeapons` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoWeapons.md`](modules/MOD-ReEchoWeapons.md) | 武器定义、唯一攻击节拍、步骤和攻击载体逻辑 |
-| `MOD-ReEchoEnemies` | Plan43 `InProgress` 候选 Runtime Module | [`modules/MOD-ReEchoEnemies.md`](modules/MOD-ReEchoEnemies.md) | 怪物 AI、攻击节奏、引信、受击位移与行为快照的逻辑权威 |
+| `MOD-ReEchoEnemies` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoEnemies.md`](modules/MOD-ReEchoEnemies.md) | 怪物 AI、Boss 技能策略、攻击节奏、引信、受击位移与行为快照的逻辑权威 |
 
 `ReEcho.uproject` 中每个 Runtime Module 都必须在此表拥有唯一 `MOD-*` 标识和独立文档。尚未合入 `main` 的候选模块只能记录在对应 Plan/本地分支，不能提前加入本索引。
 

@@ -55,7 +55,7 @@
 
 - UE 生命周期：`StartPlay`、World Tick、输入绑定、Actor/Subsystem 生命周期。
 - `Content/Data/*.csv` 与 `Config/*.ini`。
-- 用户输入、Widget 命令和 GM/调试命令。
+- 用户输入、Widget 命令和 GM/调试命令；开发期 `GMGotoBoss` 只从活动遭遇复用正常切场流程进入最终 Boss 遭遇。
 - SaveGame、录制历史和当前世界碰撞/目标信息。
 
 ### 输出

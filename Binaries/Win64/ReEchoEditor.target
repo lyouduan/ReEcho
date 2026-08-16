@@ -30476,6 +30476,10 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/boss_phases.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/card_effects.csv",
       "Type": "NonUFS"
     },
@@ -30497,6 +30501,14 @@
     },
     {
       "Path": "$(ProjectDir)/Content/Data/elements.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemies.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_abilities.csv",
       "Type": "NonUFS"
     },
     {

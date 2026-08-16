@@ -85,7 +85,7 @@ Design/Data/ReEchoData.xlsx
 
 ## 当前候选状态
 
-Plan41 的四模块拓扑和 Plan43 的第五个 Runtime Module `ReEchoEnemies` 均已进入 `main`。轻量 EnemyHost、Roster、只读敌人表现组件、v7 保存组合与主流程敌人生命周期接线已经通过 FullRebuild、聚焦自动化和用户 PIE。
+Plan41 的四模块拓扑和 Plan43 的第五个 Runtime Module `ReEchoEnemies` 均已进入 `main`。Plan44 在既有单向依赖上增加配表驱动的 Boss 技能策略、EnemyHost 世界执行、Combat 清洗窄命令和 v8 Boss 保存恢复；`ReEchoEnemies` 仍不反向依赖主模块、工作簿或表现资源。
 
 ## 维护规则
 

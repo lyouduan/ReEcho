@@ -52,6 +52,8 @@ public:
 	void GMWeather(const FString& Scene = TEXT("Clear"));
 	UFUNCTION(Exec)
 	void GMKillAll();
+	UFUNCTION(Exec)
+	void GMGotoBoss();
 
 private:
 	/** Lets the next-frame World Timer run while retaining menu input and ability blocking. */

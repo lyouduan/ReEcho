@@ -91,8 +91,8 @@ void AReEchoGameMode::GMHelp()
 	{
 		return;
 	}
-	PrintGMResult(
-	    TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMWeather <Clear|Rain|Fog> | GMKillAll"));
+	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMWeather <Clear|Rain|Fog> | "
+	                   "GMKillAll | GMGotoBoss"));
 }
 
 void AReEchoGameMode::GMStatus()
@@ -198,6 +198,47 @@ void AReEchoGameMode::GMKillAll()
 	}
 	PrintGMResult(
 	    FString::Printf(TEXT("Killed %d enemies; normal encounter completion will run next tick."), KilledCount));
+}
+
+void AReEchoGameMode::GMGotoBoss()
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !Director || !Player || !Player->Combatant)
+	{
+		PrintGMResult(TEXT("Boss encounter cannot start because the active run is not initialized."), false);
+		return;
+	}
+	if (RunSubsystem->Phase != EReEchoRunPhase::Encounter || bAwaitingStartChoice || bEncounterTransitioning ||
+	    !Player->Combatant->IsAlive())
+	{
+		PrintGMResult(TEXT("GMGotoBoss requires a living player in an active encounter."), false);
+		return;
+	}
+	if (UGameplayStatics::IsGamePaused(this))
+	{
+		PrintGMResult(TEXT("Resume gameplay before using GMGotoBoss."), false);
+		return;
+	}
+
+	const int32 BossEncounterIndex = GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	if (BossEncounterIndex <= 0)
+	{
+		PrintGMResult(TEXT("The configured Boss encounter index is invalid."), false);
+		return;
+	}
+
+	RunSubsystem->EncounterIndex = BossEncounterIndex - 1;
+	BeginNextEncounter();
+	const bool bStartedBossEncounter = RunSubsystem->EncounterIndex == BossEncounterIndex && IsBossEncounter();
+	PrintGMResult(bStartedBossEncounter
+	                  ? FString::Printf(TEXT("Started Boss encounter %d."), BossEncounterIndex)
+	                  : FString::Printf(TEXT("Failed to start Boss encounter %d."), BossEncounterIndex),
+	              bStartedBossEncounter);
 }
 
 void AReEchoGameMode::StartPlay()
