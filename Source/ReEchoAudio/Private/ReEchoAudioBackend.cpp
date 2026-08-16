@@ -70,6 +70,12 @@ public:
 		USoundBase* Sound = Command.Sound.Get();
 		if (Sound == nullptr)
 		{
+			// Asset may not be resident yet (preload race). Block briefly to load it
+			// rather than silently dropping the loop.
+			Sound = Command.Sound.LoadSynchronous();
+		}
+		if (Sound == nullptr)
+		{
 			return 0;
 		}
 

@@ -8,6 +8,30 @@
 #include "ReEchoAudioPolicyEngine.h"
 #include "ReEchoAudioUserSettings.h"
 
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+
+namespace
+{
+	// UReEchoAudioService is a UGameInstanceSubsystem and therefore has no world
+	// of its own. Music/ambience voices are spawned into the active game/PIE world,
+	// so resolve it from the engine's world contexts instead of GetWorld() (which
+	// returns nullptr here and silently disables every loop).
+	UWorld* ResolveActiveWorld()
+	{
+		if (!GEngine) return nullptr;
+		for (const FWorldContext& Ctx : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Ctx.World();
+			if (World && (Ctx.WorldType == EWorldType::PIE || Ctx.WorldType == EWorldType::Game))
+			{
+				return World;
+			}
+		}
+		return nullptr;
+	}
+}
+
 void UReEchoAudioService::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -60,12 +84,12 @@ void UReEchoAudioService::PostEventById(UObject* WorldContextObject, const FName
 
 void UReEchoAudioService::SetMusicState(const FName StateId)
 {
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, GetWorld());
+	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, ResolveActiveWorld());
 }
 
 void UReEchoAudioService::SetAmbienceState(const FName StateId)
 {
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, GetWorld());
+	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, ResolveActiveWorld());
 }
 
 void UReEchoAudioService::StopMusicState()
