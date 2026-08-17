@@ -8,7 +8,7 @@
 #include "Combat/ReEchoElementReaction.h"
 #include "Combat/ReEchoHitResolver.h"
 #include "Components/BillboardComponent.h"
-#include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -32,11 +32,6 @@
 
 namespace ReEchoEnemyHost
 {
-constexpr float ScaleMultiplier = 1.5f;
-constexpr float CharacterWorldHeight = 244.8f * ScaleMultiplier;
-constexpr float CollisionRadius = 34.56f * ScaleMultiplier;
-constexpr float CollisionHalfHeight = 122.4f * ScaleMultiplier;
-
 EReEchoEnemyArchetype ToArchetype(const EReEchoEnemyKind Kind)
 {
 	switch (Kind)
@@ -76,9 +71,9 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	AbilitySystem->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	CombatAttributes = CreateDefaultSubobject<UReEchoCombatAttributeSet>(TEXT("CombatAttributes"));
 
-	Collision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Collision"));
+	Collision = CreateDefaultSubobject<UBoxComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
-	Collision->InitCapsuleSize(ReEchoEnemyHost::CollisionRadius, ReEchoEnemyHost::CollisionHalfHeight);
+	Collision->InitBoxExtent(FVector(22.0f, 22.0f, 40.0f));
 	Collision->SetCollisionProfileName(TEXT("Pawn"));
 	Collision->SetVisibility(false);
 
@@ -86,7 +81,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	PresentationRoot->SetupAttachment(RootComponent);
 	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
 	FootRoot->SetupAttachment(PresentationRoot);
-	FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -ReEchoEnemyHost::CollisionHalfHeight));
+	FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -40.0f));
 	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
 	PresentationMotionRoot->SetupAttachment(FootRoot);
 	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
@@ -218,7 +213,7 @@ void AReEchoEnemyActor::RefreshFootRoot()
 {
 	if (FootRoot && Collision)
 	{
-		FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -Collision->GetUnscaledCapsuleHalfHeight()));
+		FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -Collision->GetUnscaledBoxExtent().Z));
 		FootRoot->SetRelativeRotation(FRotator::ZeroRotator);
 	}
 }
@@ -292,14 +287,8 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	FReEchoStatBlock Stats;
 	Stats.HpMax = Definition.MaxHealth;
 	Combatant->InitializeFromStats(Stats, true);
-	if (!bVisualPlacementApplied)
-	{
-		SetActorLocation(GetActorLocation() + FVector(0.0f, 0.0f, ReEchoEnemyHost::CharacterWorldHeight * 0.5f),
-		                 false,
-		                 nullptr,
-		                 ETeleportType::TeleportPhysics);
-		bVisualPlacementApplied = true;
-	}
+	AlignToGameplayPlane();
+	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.Archetype, SpawnIndex);
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
@@ -459,18 +448,27 @@ bool AReEchoEnemyActor::IntersectsProjectilePath(const FVector& PathStart,
 	{
 		return false;
 	}
-	const FVector CapsuleCenter = Collision->GetComponentLocation();
-	const FVector CapsuleAxis = Collision->GetUpVector();
-	const float CapsuleRadius = Collision->GetScaledCapsuleRadius();
-	const float CapsuleSegmentHalfLength = FMath::Max(0.0f, Collision->GetScaledCapsuleHalfHeight() - CapsuleRadius);
-	const FVector CapsuleStart = CapsuleCenter - CapsuleAxis * CapsuleSegmentHalfLength;
-	const FVector CapsuleEnd = CapsuleCenter + CapsuleAxis * CapsuleSegmentHalfLength;
-	FVector ClosestOnProjectile;
-	FVector ClosestOnCapsule;
-	FMath::SegmentDistToSegmentSafe(
-	    PathStart, PathEnd, CapsuleStart, CapsuleEnd, ClosestOnProjectile, ClosestOnCapsule);
-	const float CombinedRadius = CapsuleRadius + FMath::Max(0.0f, ProjectileRadius);
-	return FVector::DistSquared(ClosestOnProjectile, ClosestOnCapsule) <= FMath::Square(CombinedRadius);
+	const FBox ExpandedBounds = Collision->Bounds.GetBox().ExpandBy(FMath::Max(0.0f, ProjectileRadius));
+	return ExpandedBounds.IsInsideOrOn(PathStart) || ExpandedBounds.IsInsideOrOn(PathEnd) ||
+	       FMath::LineBoxIntersection(ExpandedBounds, PathStart, PathEnd, PathEnd - PathStart);
+}
+
+void AReEchoEnemyActor::ConfigureGameplayPlane(const float InGameplayPlaneWorldZ)
+{
+	GameplayPlaneWorldZ = InGameplayPlaneWorldZ;
+	AlignToGameplayPlane();
+}
+
+void AReEchoEnemyActor::AlignToGameplayPlane()
+{
+	if (!Collision)
+	{
+		return;
+	}
+	FVector CenteredLocation = GetActorLocation();
+	CenteredLocation.Z = GameplayPlaneWorldZ + Collision->GetScaledBoxExtent().Z;
+	SetActorLocation(CenteredLocation, false, nullptr, ETeleportType::TeleportPhysics);
+	RefreshFootRoot();
 }
 
 void AReEchoEnemyActor::RefreshElementAttachmentVisual()

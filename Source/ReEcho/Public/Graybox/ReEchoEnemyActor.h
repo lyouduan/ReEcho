@@ -8,7 +8,7 @@
 #include "ReEchoEnemyActor.generated.h"
 
 class UAbilitySystemComponent;
-class UCapsuleComponent;
+class UBoxComponent;
 class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DFrameCollisionDriver;
@@ -53,6 +53,7 @@ public:
 
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
 	bool ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, int32 SpawnIndex);
+	void ConfigureGameplayPlane(float InGameplayPlaneWorldZ);
 	void SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster);
 	float ReceiveGrayboxDamage(float Damage,
 	                           const FVector& SourceLocation,
@@ -133,6 +134,7 @@ private:
 	void BindComposedComponents();
 	void RefreshPresentationHierarchy();
 	void RefreshFootRoot();
+	void AlignToGameplayPlane();
 	FReEchoEnemyActionIntent AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
@@ -149,7 +151,7 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Abilities")
 	TObjectPtr<UReEchoCombatAttributeSet> CombatAttributes;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UCapsuleComponent> Collision;
+	TObjectPtr<UBoxComponent> Collision;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Presentation",
@@ -222,4 +224,5 @@ private:
 
 	bool bVisualPlacementApplied = false;
 	bool bAudioSpawnPosted = false;
+	float GameplayPlaneWorldZ = 0.0f;
 };

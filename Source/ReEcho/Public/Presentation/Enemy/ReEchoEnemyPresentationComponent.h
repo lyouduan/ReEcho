@@ -8,7 +8,7 @@
 
 class AReEchoHealthBarActor;
 class UBillboardComponent;
-class UCapsuleComponent;
+class UBoxComponent;
 class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DCharacterPresentationProfile;
@@ -92,7 +92,7 @@ public:
 	                         UTextRenderComponent* InElementAuraRing,
 	                         UTextRenderComponent* InElementAttachmentLabel,
 	                         UPointLightComponent* InElementAuraLight,
-	                         UCapsuleComponent* InCollision);
+	                         UBoxComponent* InCollision);
 	void BindEventSources(AActor* InHost,
 	                      UReEchoCombatantComponent* InCombatant,
 	                      UReEchoEnemyEventsComponent* InEnemyEvents,
@@ -166,7 +166,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY()
-	TObjectPtr<UCapsuleComponent> Collision;
+	TObjectPtr<UBoxComponent> Collision;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> BossTexture;
 	UPROPERTY()

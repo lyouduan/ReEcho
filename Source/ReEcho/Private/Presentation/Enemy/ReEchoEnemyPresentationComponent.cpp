@@ -4,7 +4,7 @@
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoElementReaction.h"
 #include "Components/BillboardComponent.h"
-#include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -28,9 +28,6 @@
 
 namespace ReEchoEnemyVisual
 {
-constexpr float ScaleMultiplier = 1.5f;
-constexpr float CollisionRadius = 34.56f * ScaleMultiplier;
-constexpr float CollisionHalfHeight = 122.4f * ScaleMultiplier;
 constexpr float BossWorldHeight = 220.0f;
 constexpr float HealthBarHeightRatio = 0.65f;
 constexpr float HealthBarWidthScale = 0.72f;
@@ -69,7 +66,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
                                                             UTextRenderComponent* InElementAuraRing,
                                                             UTextRenderComponent* InElementAttachmentLabel,
                                                             UPointLightComponent* InElementAuraLight,
-                                                            UCapsuleComponent* InCollision)
+                                                            UBoxComponent* InCollision)
 {
 	PresentationRoot = InPresentationRoot;
 	VisualEffectRoot = InVisualEffectRoot;
@@ -164,14 +161,11 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype Archetype, const int32 AppearanceId)
 {
 	const bool bIsBoss = Archetype == EReEchoEnemyArchetype::Boss;
-	if (Collision)
-	{
-		Collision->SetCapsuleSize(ReEchoEnemyVisual::CollisionRadius, ReEchoEnemyVisual::CollisionHalfHeight);
-	}
+	UReEcho2DCharacterPresentationProfile* Profile = bIsBoss ? nullptr : ResolveEnemyPresentationProfile(AppearanceId);
 	if (CharacterSprite)
 	{
-		CharacterSprite->SetVisibility(true);
-		CharacterSprite->SetHiddenInGame(false);
+		CharacterSprite->SetVisibility(bIsBoss || !Profile);
+		CharacterSprite->SetHiddenInGame(!bIsBoss && Profile);
 		CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 		if (bIsBoss && BossTexture)
 		{
@@ -181,8 +175,7 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype 
 	}
 	if (PresentationController)
 	{
-		PresentationController->Configure(
-		    CharacterSprite, SequenceAnimation, bIsBoss ? nullptr : ResolveEnemyPresentationProfile(AppearanceId));
+		PresentationController->Configure(CharacterSprite, SequenceAnimation, Profile);
 	}
 	if (VisualEffectRoot)
 	{
@@ -236,7 +229,7 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 	}
 	if (Host && Collision)
 	{
-		ReEchoCollisionDebug::DrawCapsule(
+		ReEchoCollisionDebug::DrawBox(
 		    Host, Collision, Snapshot.Archetype == EReEchoEnemyArchetype::Boss ? FColor::Orange : FColor::Cyan);
 	}
 	UpdateCameraFacing(Snapshot);
