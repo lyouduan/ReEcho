@@ -13,9 +13,7 @@
 class AReEchoEnemyActor;
 class AReEchoWeaponActor;
 class UAbilitySystemComponent;
-class UBillboardComponent;
-class UCameraComponent;
-class UCapsuleComponent;
+class UBoxComponent;
 class UFloatingPawnMovement;
 class UGameplayAbility;
 class UPaperFlipbook;
@@ -24,9 +22,12 @@ class UReEchoCombatantComponent;
 class UReEchoCombatEventsComponent;
 class UReEchoCombatAudioAdapterComponent;
 class UReEcho2DAnimationComponent;
+class UReEcho2DCharacterPresentationProfile;
 class UReEcho2DPresentationCatalog;
 class UReEcho2DPresentationController;
 class UReEcho2DFrameCollisionDriver;
+class UReEcho2DSceneLightingComponent;
+class UMaterialInterface;
 class UReEchoRecorderComponent;
 class UReEchoTargetingComponent;
 class USceneComponent;
@@ -62,6 +63,7 @@ class REECHO_API AReEchoPlayerPawn : public APawn,
 
 public:
 	AReEchoPlayerPawn();
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 	virtual void Tick(float DeltaSeconds) override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
@@ -109,28 +111,46 @@ public:
 	bool IsWeaponInvulnerable() const;
 	/** 切换玩家角色外观；未知 ID 会保留当前角色。 */
 	bool ConfigureCharacter(FName CharacterId);
+
+	UTexture2D* GetPortraitTexture() const
+	{
+		return PortraitTexture;
+	}
+
 	/** 当前明确的 2D 表现状态：静止 Idle、移动 Walk、攻击 Attack。 */
 	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */
 	void RestoreEquippedWeapon(FName WeaponId);
 	bool InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Build,
 	                               TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot);
 	FString GetPinnedWeaponDomainRevision() const;
-	/** 设置与当前场景尺寸一致的玩家活动半径：X对应场景高度，Y对应场景宽度。 */
+	/** 设置 Editor 场景声明的玩家活动中心与半径。 */
+	void ConfigureArenaBounds(const FVector2D& Center, const FVector2D& HalfExtents);
 	void ConfigureArenaBounds(float HalfExtentX, float HalfExtentY);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<UCapsuleComponent> Collision;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Collision")
+	TObjectPtr<UBoxComponent> Collision;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	/** Blueprint-authored overall visual offset. Runtime animation is applied additively from this transform. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Presentation")
+	TObjectPtr<USceneComponent> PresentationRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Ground")
+	TObjectPtr<USceneComponent> FootRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Presentation")
+	TObjectPtr<USceneComponent> PresentationMotionRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Flipbook")
+	TObjectPtr<USceneComponent> FlipbookRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Ground")
+	TObjectPtr<USceneComponent> GroundRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Effects")
+	TObjectPtr<USceneComponent> EffectsRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Ground")
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<USceneComponent> VisualEffectRoot;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<UBillboardComponent> CharacterSprite;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Flipbook")
 	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -140,7 +160,7 @@ public:
 	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<UCameraComponent> Camera;
+	TObjectPtr<UReEcho2DSceneLightingComponent> SceneLighting;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UFloatingPawnMovement> Movement;
@@ -204,8 +224,18 @@ public:
 	                                       float RangeCm,
 	                                       TArrayView<const FReEchoAttackTargetCandidate> Candidates);
 
+	FVector GetAttackAimDirection() const
+	{
+		return AttackAimDirection;
+	}
+
 protected:
+	/** Uniform Blueprint-authored scale for the complete gameplay actor, including collision and presentation. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Presentation", meta = (ClampMin = "0.01"))
+	float CharacterScale = 1.0f;
+
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 private:
@@ -226,7 +256,6 @@ private:
 	/** 将鼠标位置投射到战斗平面，并据此更新角色左右朝向。 */
 	void UpdateMouseAim();
 	void ConstrainToArenaBounds();
-	void UpdateFollowCamera();
 	void GrantStartupAbilities();
 	void AbilityInputPressed(const FGameplayTag& InputTag);
 	void AbilityInputReleased(const FGameplayTag& InputTag);
@@ -234,8 +263,10 @@ private:
 	void UpdateSpriteAnimation(float DeltaSeconds);
 	void RefreshPresentationProfile();
 	void RefreshWeaponPresentationSet();
+	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
+	void RefreshFootRoot();
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
 
 	UPROPERTY()
@@ -243,27 +274,29 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
+	UPROPERTY(Transient)
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> ActivePresentationProfile;
 	FName CurrentCharacterId;
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> PortraitTexture;
 
 	bool bMouseInputConfigured = false;
+	FVector2D ArenaCenter = FVector2D::ZeroVector;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
+	FVector BaseMotionLocation = FVector::ZeroVector;
+	FVector BaseEffectsLocation = FVector::ZeroVector;
+	FVector BaseEffectsScale = FVector::OneVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
 	float AttackVisualDuration = 0.0f;
 	float AttackVisualStrength = 0.0f;
 	float HitVisualRemaining = 0.0f;
 	float VisualFacingSign = 1.0f;
-	float AppliedVisualFacingSign = 0.0f;
+	FVector AttackAimDirection = FVector::ForwardVector;
 	int64 NextPresentationAttackInstanceId = 1;
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> CharacterTextures;
-
-	UPROPERTY()
-	TArray<TObjectPtr<UTexture2D>> IdleAnimationFrames;
-
-	UPROPERTY()
-	TArray<TObjectPtr<UTexture2D>> AttackAnimationFrames;
 };

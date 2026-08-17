@@ -6,7 +6,7 @@
 #include "AbilitySystem/ReEchoGameplayTags.h"
 #include "AbilitySystemComponent.h"
 
-#include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatAudioAdapterComponent.h"
@@ -14,8 +14,7 @@
 #include "Combat/ReEchoCombatTarget.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoCsvDataRegistry.h"
-#include "Components/BillboardComponent.h"
-#include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -27,16 +26,18 @@
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoAttackEffects.h"
-#include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "Graybox/ReEchoProjectileActor.h"
-#include "Materials/MaterialInstanceDynamic.h"
+#include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "PaperFlipbook.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
+#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoGameMode.h"
@@ -46,51 +47,43 @@
 AReEchoPlayerPawn::AReEchoPlayerPawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	constexpr float CharacterWorldHeight = 224.0f;
-	Collision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Collision"));
+	Collision = CreateDefaultSubobject<UBoxComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
-	Collision->InitCapsuleSize(27.2f, CharacterWorldHeight * 0.5f);
 	Collision->SetVisibility(false);
 	Collision->SetCollisionProfileName(TEXT("Pawn"));
+	PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
+	PresentationRoot->SetupAttachment(RootComponent);
+	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
+	FootRoot->SetupAttachment(PresentationRoot);
+	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
+	PresentationMotionRoot->SetupAttachment(FootRoot);
+	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
+	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
+	FlipbookRoot->SetRelativeRotation(
+	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
+	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
+	GroundRoot->SetupAttachment(PresentationMotionRoot);
+	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
+	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
-	GroundShadow->SetupAttachment(RootComponent);
+	GroundShadow->SetupAttachment(GroundRoot);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GroundShadow->SetCastShadow(false);
-	GroundShadow->SetTranslucentSortPriority(-0.8);
+	GroundShadow->SetTranslucentSortPriority(-10);
 	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
-	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -CharacterWorldHeight * 0.28f));
+	GroundShadow->SetRelativeLocation(FVector::ZeroVector);
 	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));
-	if (UMaterialInterface* ShadowBase = LoadObject<UMaterialInterface>(
-	        nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial")))
-	{
-		UMaterialInstanceDynamic* ShadowMaterial = UMaterialInstanceDynamic::Create(ShadowBase, this);
-		ShadowMaterial->SetTextureParameterValue(
-		    TEXT("SpriteTexture"),
-		    LoadObject<UTexture2D>(nullptr,
-		                           TEXT("/Game/ReEcho/Textures/Characters/SoftGroundShadow.SoftGroundShadow")));
-		GroundShadow->SetMaterial(0, ShadowMaterial);
-	}
-	VisualEffectRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualEffectRoot"));
-	VisualEffectRoot->SetupAttachment(RootComponent);
-	CharacterSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("CharacterSprite"));
-	CharacterSprite->SetupAttachment(VisualEffectRoot);
-	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	CharacterSprite->SetHiddenInGame(false);
-	CharacterSprite->SetVisibility(true);
-	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
-	CharacterSprite->bIsScreenSizeScaled = false;
-	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
-	SequenceAnimation->SetupAttachment(VisualEffectRoot);
+	GroundShadow->bEditableWhenInherited = true;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> GroundShadowMaterialFinder(
+	    TEXT("/Game/ReEcho/Materials/M_GroundShadow.M_GroundShadow"));
+	GroundShadow->SetMaterial(0, GroundShadowMaterialFinder.Object);
+	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("FlipbookRenderer"));
+	SequenceAnimation->SetupAttachment(FlipbookRoot);
 	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
 	FrameCollisionDriver = CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
 	PresentationController->BindCollisionDriver(FrameCollisionDriver);
-	if (UTexture2D* CharacterTexture =
-	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Characters/Player2D.Player2D")))
-	{
-		CharacterSprite->SetSprite(CharacterTexture);
-		const float TextureScale = CharacterWorldHeight / FMath::Max(1, CharacterTexture->GetSizeY());
-		CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
-	}
+	SceneLighting = CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
+	SceneLighting->Configure(SequenceAnimation, GroundShadow);
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
@@ -110,15 +103,6 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	    TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
 	ConfigureCharacter(TEXT("J_CAT"));
-	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
-	Camera->SetupAttachment(RootComponent);
-	Camera->SetAbsolute(true, true, true);
-	Camera->SetProjectionMode(ECameraProjectionMode::Orthographic);
-	Camera->SetOrthoWidth(GetDefault<UReEchoBalanceSettings>()->ArenaSceneWorldHeight * (16.0f / 9.0f));
-	Camera->SetAspectRatio(16.0f / 9.0f);
-	Camera->SetConstraintAspectRatio(true);
-	Camera->SetWorldLocation(FVector(-700.0f, 0.0f, 900.0f));
-	Camera->SetWorldRotation(FRotator(-55.0f, 0.0f, 0.0f));
 	Movement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("Movement"));
 	Movement->MaxSpeed = 420.f;
 	AbilitySystem = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
@@ -134,10 +118,27 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
-void AReEchoPlayerPawn::ConfigureArenaBounds(const float HalfExtentX, const float HalfExtentY)
+void AReEchoPlayerPawn::OnConstruction(const FTransform& Transform)
 {
-	ArenaHalfExtents.X = FMath::Max(100.0f, HalfExtentX);
-	ArenaHalfExtents.Y = FMath::Max(100.0f, HalfExtentY);
+	Super::OnConstruction(Transform);
+	SetActorScale3D(FVector(FMath::Max(CharacterScale, 0.01f)));
+	RefreshFootRoot();
+}
+
+void AReEchoPlayerPawn::RefreshFootRoot()
+{
+	if (FootRoot && Collision)
+	{
+		FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -Collision->GetUnscaledBoxExtent().Z));
+		FootRoot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+}
+
+void AReEchoPlayerPawn::ConfigureArenaBounds(const FVector2D& Center, const FVector2D& HalfExtents)
+{
+	ArenaCenter = Center;
+	ArenaHalfExtents.X = FMath::Max(100.0f, HalfExtents.X);
+	ArenaHalfExtents.Y = FMath::Max(100.0f, HalfExtents.Y);
 }
 
 bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
@@ -145,24 +146,35 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	const TObjectPtr<UTexture2D>* TextureEntry = CharacterTextures.Find(CharacterId);
 	if (!TextureEntry || !TextureEntry->Get())
 	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[PlayerSource] ConfigureCharacter failed. Actor=%s Character=%s"),
+		       *GetNameSafe(this),
+		       *CharacterId.ToString());
 		return false;
 	}
 
 	UTexture2D* Texture = TextureEntry->Get();
 	CurrentCharacterId = CharacterId;
-	constexpr float CharacterWorldHeight = 224.0f;
-	CharacterSprite->SetSprite(Texture);
-	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
-	static const FName SpadeCharacterId(TEXT("J_SPADE"));
-	CharacterSprite->SetRelativeScale3D(CharacterId == SpadeCharacterId ? FVector::OneVector : FVector(TextureScale));
-	IdleAnimationFrames = {Texture};
-	AttackAnimationFrames = {Texture};
+	PortraitTexture = Texture;
 	RefreshPresentationProfile();
-	VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
-	VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
-	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
-	BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
+	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
+	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
+	BaseMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
+	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[PlayerSource] Configured Actor=%s Character=%s Flipbook=%s"),
+	       *GetNameSafe(this),
+	       *CharacterId.ToString(),
+	       *GetNameSafe(SequenceAnimation ? SequenceAnimation->GetFlipbook() : nullptr));
 	return true;
+}
+
+void AReEchoPlayerPawn::ConfigureArenaBounds(const float HalfExtentX, const float HalfExtentY)
+{
+	ConfigureArenaBounds(FVector2D::ZeroVector, FVector2D(HalfExtentX, HalfExtentY));
 }
 
 void AReEchoPlayerPawn::RestoreEquippedWeapon(const FName WeaponId)
@@ -216,9 +228,28 @@ FString AReEchoPlayerPawn::GetPinnedWeaponDomainRevision() const
 void AReEchoPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
-	UpdateFollowCamera();
-	BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
-	BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
+	RefreshFootRoot();
+	TInlineComponentArray<UReEcho2DAnimationComponent*> AnimationComponents(this);
+	for (UReEcho2DAnimationComponent* AnimationComponent : AnimationComponents)
+	{
+		if (AnimationComponent && AnimationComponent != SequenceAnimation)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("Disabling legacy player animation component '%s' on '%s'."),
+			       *GetNameSafe(AnimationComponent),
+			       *GetNameSafe(this));
+			AnimationComponent->Stop();
+			AnimationComponent->SetVisibility(false, true);
+			AnimationComponent->SetHiddenInGame(true, true);
+			AnimationComponent->Deactivate();
+		}
+	}
+	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
+	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
+	BaseMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
+	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
 
 	ConfigureMouseInput();
 
@@ -295,11 +326,7 @@ void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 	}
 
 	UpdateSpriteAnimation(DeltaSeconds);
-	if (!SequenceAnimation->IsAnimationActive())
-	{
-		ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor::Green);
-	}
-	ReEchoCollisionDebug::DrawCapsule(this, Collision, FColor::Cyan);
+	ReEchoCollisionDebug::DrawBox(this, Collision, FColor::Cyan);
 }
 
 void AReEchoPlayerPawn::ConfigureMouseInput()
@@ -357,12 +384,16 @@ void AReEchoPlayerPawn::UpdateMouseAim()
 	AimDirection.Z = 0.0f;
 	if (!AimDirection.IsNearlyZero())
 	{
-		const float HorizontalAim = FVector::DotProduct(AimDirection, Camera->GetRightVector());
+		const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0);
+		const FVector CameraRight = CameraManager
+		                                ? FRotationMatrix(CameraManager->GetCameraRotation()).GetUnitAxis(EAxis::Y)
+		                                : FVector::RightVector;
+		const float HorizontalAim = FVector::DotProduct(AimDirection, CameraRight);
 		if (FMath::Abs(HorizontalAim) > 5.0f)
 		{
 			VisualFacingSign = HorizontalAim >= 0.0f ? 1.0f : -1.0f;
 		}
-		SetActorRotation(AimDirection.Rotation());
+		AttackAimDirection = AimDirection.GetSafeNormal2D();
 	}
 }
 
@@ -373,17 +404,9 @@ void AReEchoPlayerPawn::ConstrainToArenaBounds()
 		return;
 	}
 	FVector Location = GetActorLocation();
-	Location.X = FMath::Clamp(Location.X, -ArenaHalfExtents.X, ArenaHalfExtents.X);
-	Location.Y = FMath::Clamp(Location.Y, -ArenaHalfExtents.Y, ArenaHalfExtents.Y);
+	Location.X = FMath::Clamp(Location.X, ArenaCenter.X - ArenaHalfExtents.X, ArenaCenter.X + ArenaHalfExtents.X);
+	Location.Y = FMath::Clamp(Location.Y, ArenaCenter.Y - ArenaHalfExtents.Y, ArenaCenter.Y + ArenaHalfExtents.Y);
 	SetActorLocation(Location, false, nullptr, ETeleportType::TeleportPhysics);
-}
-
-void AReEchoPlayerPawn::UpdateFollowCamera()
-{
-	// 固定正交镜头完整覆盖 11200×6300 的16:9场景背景。
-	Camera->SetWorldLocation(FVector(-700.0f, 0.0f, 900.0f));
-	Camera->SetWorldRotation(FRotator(-55.0f, 0.0f, 0.0f));
-	Camera->SetOrthoWidth(GetDefault<UReEchoBalanceSettings>()->ArenaSceneWorldHeight * (16.0f / 9.0f));
 }
 
 FString AReEchoPlayerPawn::GetEquippedWeaponLabel() const
@@ -450,7 +473,13 @@ bool AReEchoPlayerPawn::IntersectsCombatPath(const FVector& PathStart,
                                              const FVector& PathEnd,
                                              const float CarrierRadius) const
 {
-	return FMath::PointDistToSegment(GetActorLocation(), PathStart, PathEnd) <= FMath::Max(0.0f, CarrierRadius) + 35.0f;
+	if (!Collision || !Collision->IsCollisionEnabled())
+	{
+		return false;
+	}
+	const FBox ExpandedBounds = Collision->Bounds.GetBox().ExpandBy(FMath::Max(0.0f, CarrierRadius));
+	return ExpandedBounds.IsInsideOrOn(PathStart) || ExpandedBounds.IsInsideOrOn(PathEnd) ||
+	       FMath::LineBoxIntersection(ExpandedBounds, PathStart, PathEnd, PathEnd - PathStart);
 }
 
 float AReEchoPlayerPawn::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
@@ -702,8 +731,16 @@ void AReEchoPlayerPawn::UpdateAutoAttack(bool& bOutHasTarget)
 	ToTarget.Z = 0.0f;
 	if (!ToTarget.IsNearlyZero())
 	{
-		VisualFacingSign = ToTarget.X >= 0.0f ? 1.0f : -1.0f;
-		SetActorRotation(ToTarget.Rotation());
+		const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0);
+		const FVector CameraRight = CameraManager
+		                                ? FRotationMatrix(CameraManager->GetCameraRotation()).GetUnitAxis(EAxis::Y)
+		                                : FVector::RightVector;
+		const float HorizontalAim = FVector::DotProduct(ToTarget, CameraRight);
+		if (FMath::Abs(HorizontalAim) > 1.0f)
+		{
+			VisualFacingSign = HorizontalAim >= 0.0f ? 1.0f : -1.0f;
+		}
+		AttackAimDirection = ToTarget.GetSafeNormal2D();
 	}
 	bOutHasTarget = true;
 
@@ -840,8 +877,16 @@ void AReEchoPlayerPawn::FaceAutomaticTarget(AActor& Target)
 	ToTarget.Z = 0.0f;
 	if (!ToTarget.IsNearlyZero())
 	{
-		VisualFacingSign = ToTarget.X >= 0.0f ? 1.0f : -1.0f;
-		SetActorRotation(ToTarget.Rotation());
+		const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0);
+		const FVector CameraRight = CameraManager
+		                                ? FRotationMatrix(CameraManager->GetCameraRotation()).GetUnitAxis(EAxis::Y)
+		                                : FVector::RightVector;
+		const float HorizontalAim = FVector::DotProduct(ToTarget, CameraRight);
+		if (FMath::Abs(HorizontalAim) > 1.0f)
+		{
+			VisualFacingSign = HorizontalAim >= 0.0f ? 1.0f : -1.0f;
+		}
+		AttackAimDirection = ToTarget.GetSafeNormal2D();
 	}
 }
 
@@ -911,7 +956,7 @@ void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Stre
 
 void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 {
-	if (!VisualEffectRoot)
+	if (!PresentationRoot)
 	{
 		return;
 	}
@@ -938,8 +983,7 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 		ScaleX *= 1.12f;
 		ScaleY *= 0.86f;
 	}
-	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(Lunge, 0.0f, Bob));
-	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale * FVector(ScaleX, ScaleY, 1.0f));
+	ApplyPresentationMotion(FVector(Lunge, 0.0f, Bob), FVector(ScaleX, ScaleY, 1.0f));
 	if (PresentationController)
 	{
 		PresentationController->SetMoving(bMoving);
@@ -960,8 +1004,28 @@ void AReEchoPlayerPawn::RefreshPresentationProfile()
 	if (PresentationController)
 	{
 		PresentationController->Configure(
-		    CharacterSprite, SequenceAnimation, Profile, Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
+		    SequenceAnimation, Profile, Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
 	}
+	ActivePresentationProfile = Profile;
+	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
+	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
+	BaseMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
+	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
+}
+
+void AReEchoPlayerPawn::ApplyPresentationMotion(const FVector& Offset, const FVector& Scale)
+{
+	PresentationMotionRoot->SetRelativeLocation(BaseMotionLocation + FVector(Offset.X, Offset.Y, 0.0f));
+	FlipbookRoot->SetRelativeLocation(BaseVisualLocation + FVector(0.0f, 0.0f, Offset.Z));
+	FlipbookRoot->SetRelativeScale3D(BaseVisualScale * Scale);
+	EffectsRoot->SetRelativeLocation(BaseEffectsLocation + FVector(0.0f, 0.0f, Offset.Z));
+	EffectsRoot->SetRelativeScale3D(BaseEffectsScale * Scale);
+}
+
+void AReEchoPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
 }
 
 void AReEchoPlayerPawn::RefreshWeaponPresentationSet()
@@ -977,41 +1041,6 @@ void AReEchoPlayerPawn::UpdateSequenceFrame()
 	if (SequenceAnimation && SequenceAnimation->IsAnimationActive())
 	{
 		SequenceAnimation->SetFacingSign(VisualFacingSign);
-		return;
-	}
-	UTexture2D* Frame = nullptr;
-	if (AttackVisualRemaining > 0.0f && AttackVisualDuration > 0.0f && AttackAnimationFrames.Num() > 0)
-	{
-		const float Progress = 1.0f - AttackVisualRemaining / AttackVisualDuration;
-		const int32 FrameIndex =
-		    FMath::Clamp(FMath::FloorToInt(Progress * AttackAnimationFrames.Num()), 0, AttackAnimationFrames.Num() - 1);
-		Frame = AttackAnimationFrames[FrameIndex];
-	}
-	else if (IdleAnimationFrames.Num() > 0)
-	{
-		constexpr float IdleFramesPerSecond = 4.0f;
-		const int32 FrameIndex = FMath::FloorToInt(VisualTime * IdleFramesPerSecond) % IdleAnimationFrames.Num();
-		Frame = IdleAnimationFrames[FrameIndex];
-	}
-
-	const bool bFrameChanged = Frame && CharacterSprite->Sprite != Frame;
-	if (bFrameChanged)
-	{
-		CharacterSprite->SetSprite(Frame);
-	}
-	if (Frame && (bFrameChanged || !FMath::IsNearlyEqual(AppliedVisualFacingSign, VisualFacingSign)))
-	{
-		const int32 FrameWidth = Frame->GetSizeX();
-		const int32 FrameHeight = Frame->GetSizeY();
-		if (VisualFacingSign < 0.0f)
-		{
-			CharacterSprite->SetUV(FrameWidth, -FrameWidth, 0, FrameHeight);
-		}
-		else
-		{
-			CharacterSprite->SetUV(0, FrameWidth, 0, FrameHeight);
-		}
-		AppliedVisualFacingSign = VisualFacingSign;
 	}
 }
 

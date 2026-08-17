@@ -23,7 +23,7 @@
 - 玩家、敌人、Echo、武器、投射物、世界 UI 与表现 Actor 的创建和生命周期装配。
 - 将 XLSX 生成的 CSV 编译为类型化运行时快照。
 - 本局阶段、构筑、存档、Echo 存储与回放选择。
-- Combat、Weapons、Enemies、Recording 和 UI Framework 的宿主与跨领域适配。
+- 当前 GAS/Combat、Weapons、Recording 和 UI Framework 的宿主与跨领域适配。
 - 把玩法语义转换为 `ReEchoAudio` 请求以及 Animation/VFX/UI 的只读表现输入。
 
 ### 不负责
@@ -43,8 +43,6 @@
 | 卡牌目录、拥有/叠层、随机游标和事件状态 | `MOD-ReEchoCards` 的 Catalog/BuildState/RuntimeState | 整局并嵌入 Build/Recording | 主模块只调用纯命令并执行类型化结果 |
 | 玩家/敌人生命与战斗属性 | GAS/`UReEchoCombatantComponent` | Actor/遭遇 | GameplayEffect、战斗命令、快照与委托 |
 | 当前武器、攻击步骤与攻击载体 | `AReEchoWeaponActor` 及 Weapons 运行逻辑 | Actor/整局武器锁定 | 攻击请求、稳定 WeaponId、只读查询 |
-| 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
-| 本场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | 单场遭遇 | GameMode 生成/清理，保存与全灭判断读取；不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 固定步推进与完成委托 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
@@ -56,7 +54,7 @@
 
 - UE 生命周期：`StartPlay`、World Tick、输入绑定、Actor/Subsystem 生命周期。
 - `Content/Data/*.csv` 与 `Config/*.ini`。
-- 用户输入、Widget 命令和 GM/调试命令；开发期 `GMGotoBoss` 只从活动遭遇复用正常切场流程进入最终 Boss 遭遇。
+- 用户输入、Widget 命令和 GM/调试命令。
 - SaveGame、录制历史和当前世界碰撞/目标信息。
 
 ### 输出
@@ -98,11 +96,11 @@ MOD-ReEcho ──→ MOD-ReEchoAudio
 DefaultEngine.ini
   → /Game/Level00
   → AReEchoGameMode::StartPlay
-      → CreateArena / EncounterDirector / StartMenu
+      → 校验并消费 Level00 唯一 Arena Scene / EncounterDirector / StartMenu
       → 新游戏：角色和初始武器选择 → RunSubsystem::StartRun
       → 继续：加载安全检查点或暂停遭遇
       → BeginNextEncounter / ResumeSavedEncounter
-          → 玩家、Recorder、可用 Echo、EnemyHost + Roster
+          → 玩家、Recorder、可用 Echo、敌人
           → 60 Hz 固定步遭遇
           → 全部敌人死亡或超时
           → 完成录制与 RunSubsystem::CompleteEncounter
@@ -139,7 +137,7 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 - 代码：`Source/ReEcho/Public/Data/`、`Source/ReEcho/Private/Data/`。
 - 首读：`ReEchoCsvDataRegistry.*`、`ReEchoWeaponCsvReader.*`、角色/卡牌/元素 Reader。
-- 数据链：主策划 `Design/Data/ReEchoData.xlsx` 与怪物策划独立 `Design/Data/ReEchoEnemyData.xlsx` → 统一 `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`；二进制工作簿保持独立所有权。
+- 数据链：`Design/Data/ReEchoData.xlsx` → `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`。
 - 权威：CSV Schema 校验、稳定 ID 引用、运行时快照发布和领域修订值。
 - 扩展：先改 XLSX/Schema/生成器，再扩 Reader 与验证；Behavior/Formula 等逻辑字段必须映射到注册实现。
 - 禁止：运行时读取 XLSX、执行描述文本、把解析失败静默替换为默认逻辑、保存第二份平衡常量。
@@ -169,18 +167,6 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 - 主模块适配：`ReEchoWeaponRuntime.*` 把策划数据编译为资源无关 Definition；`ReEchoWeaponActor.*` 组合逻辑对象与 Sprite/Mesh/VFX Actor。
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
 - 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。
-
-### `AREA-Enemies`：怪物逻辑、宿主与表现接线
-
-**设计意图：** `MOD-ReEchoEnemies` 独占怪物行为状态；主模块只提供世界感知、Transform/Collision 应用、Combat 转发和资源表现，避免逻辑与美术继续争用同一份实现。
-
-- 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
-- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent 和维护 Actor 生命周期。
-- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`，集中敌人 Profile/贴图路径、血条、动画、命中特效、元素光环与死亡残留。
-- 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
-- 保存：v8 `FReEchoEnemyRuntimeState` 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素和 Boss 在途投射物；Boss 30 秒一次性门控单独保存，表现临时状态不保存。
-- 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
-- 测试：`ReEcho.Enemies.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
 
 ### `AREA-Encounter`：`Encounter`遭遇时钟
 
@@ -219,7 +205,7 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 ### `AREA-Player`：`Player`玩家宿主
 
-**设计意图：** 承接 Pawn 输入、移动、相机、鼠标朝向和玩家侧组件装配，把输入翻译成领域命令，不复制 Combat/Run/Weapon 权威状态。
+**设计意图：** 承接 Pawn 输入、移动、鼠标朝向和玩家侧组件装配，把输入翻译成领域命令，不复制 Combat/Run/Weapon 权威状态；相机由关卡 Arena Scene 拥有，Pawn 只读取实际 ViewTarget 的相机方向。
 
 - 代码：`Source/ReEcho/Public/Player/`、`Source/ReEcho/Private/Player/`。
 - 首读：`ReEchoPlayerPawn.*`。
@@ -230,18 +216,31 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 ### `AREA-Presentation`：`Graybox` / `Presentation`世界表现
 
-**设计意图：** 组装玩家、敌人、Echo、投射物、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。敌人资源选择与瞬时视觉状态集中在 `Presentation/Enemy`；`Presentation/Animation2D` 通过 Appearance Profile、Catalog、Controller 与 Driver，把稳定视觉 ID 和玩法意图解析为静态图或角色/武器合成 Flipbook，不要求将同帧中的武器拆成独立渲染节点。
+**设计意图：** 组装玩家、敌人、Echo、投射物、关卡场景、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。`Presentation/Animation2D` 通过 Appearance Profile、Catalog、Controller 与 Driver，把稳定视觉 ID 和玩法意图解析为角色/武器合成 Flipbook，不要求将同帧中的武器拆成独立渲染节点。
 
 - 代码：`Source/ReEcho/Public/Graybox/`、`Private/Graybox/`、`Public/Presentation/`、`Private/Presentation/`。
-- 首读：`Presentation/Animation2D/*`、`Presentation/Enemy/ReEchoEnemyPresentationComponent.*`、`ReEchoPlayerPawn.*`、`ReEchoEchoActor.*`、`docs/2D_SEQUENCE_ANIMATION.md`。
+- 首读：`Presentation/Animation2D/*`、`ReEchoPlayerPawn.*`、`ReEchoEnemyActor.*`、`ReEchoEchoActor.*`、`docs/2D_SEQUENCE_ANIMATION.md`。
 - 权威：只拥有表现实例与表现生命周期；逻辑生命、伤害、攻击节奏和录制不归这里。
 - 输入：Combat/Weapon/Recording 结果、只读快照、`AppearanceId`、武器视觉 Key 和稳定视觉 ID。
 - 输出：Sprite/Mesh/材质、动画、VFX、世界文本和镜头反馈。
-- Animation2D 状态：Profile 选择静态回退或语义 Clip；Controller 处理 `Death > Hit > Action > Move > Idle` 优先级和单次播放返回；Actor 不持有角色专属 Flipbook 字段或资源分支。
-- 碰撞边界：根 Capsule 始终拥有移动 Sweep、阻挡、导航和位置记录权威。匹配序列的 PaperFlipbook 可使用 `EachFrameCollision` 提供 `QueryOnly` 身体轮廓，但不得推动 Actor 或替代 Capsule。
+- 比例契约：人物 `100 UU`；Grunt/史莱姆 `80 UU`；Rabbit `140 UU`；Fox `200 UU`；Goat/Boss `220 UU`。Animation2D Profile 拥有外观目标高度；Gameplay Blueprint 独立拥有可编辑 Box Collision 的尺寸和变换，运行时代码不得按外观高度覆盖碰撞；同一 Profile 的不同语义序列必须同尺寸。
+- Arena Scene：`Presentation/Scene/ReEchoArenaSceneActor.*` 是 `/Game/Level00` 中 Editor authored 的场景契约，独立拥有可替换 `MapMaterial`、相机安全边界、玩家活动边界和敌人出生边界；不再持有或采样地图 AO。`ArenaCamera` 独立直属 `SceneRoot`，直接拥有可编辑的位置、旋转、正交宽度和宽高比，不继承地图 Transform。默认中心锁定模式在地图安全区内让相机地面焦点严格跟随玩家脚点，边缘/角落仍以地图 Clamp 为先。`MapRoot` 是地图、碰撞和玩法范围的 Editor 平移/缩放节点；Backdrop、Floor 和四墙是其直接子节点，`OnConstruction()` 会修复旧关卡实例遗留的 Attachment。`PlantRoot` 位于 `GroundDetailRoot` 下，Level00 中烘焙的植物卡片可单独选择、移动、缩放、替换材质或删除；重复生成工具使用固定种子并只重建带 `ReEchoGeneratedPlant` 标签的卡片。GameMode、相机 Clamp、脚点排序与视差读取 MapRoot 世界中心，玩家/出生/相机范围消费其 XY Scale。`GameplayPlaneZ` 是 MapRoot 局部脚底平面，统一转换为世界高度；玩家和怪物 Actor 中心始终为该高度加各自 Box 半高，GroundRoot/阴影因此贴合相同平面。`ReEcho2DSceneLightingComponent` 只维护脚点透明排序，不修改角色明暗。Backdrop 与 Collision 各有独立 Auto Layout 开关；关闭后 Construction 保留关卡实例中直接编辑的组件 Transform。GameMode 只验证唯一实例并消费边界；相机按组件当前倾斜正交视锥投影到同一玩法平面的实际 footprint 跟随/钳制，不在运行时生成备用场地或覆盖 Editor 相机参数。
+- Animation2D 状态：Profile 只选择 Flipbook 语义 Clip，并以目标 `WorldHeight` 统一归一化同一外观所有序列；默认状态机只包含 Idle、Move（Walk）、Attack.Basic、Hit，初始播放 Idle，单次播放结束返回当前 Idle/Move 基础状态。固定倾斜构图由 Gameplay Blueprint 的绝对旋转 `FlipbookRoot` 拥有，Renderer 只播放、缩放和横向翻转，不再每帧覆盖 Editor authored 旋转；Level00 相机固定 `Pitch=-45°` 并只平移，使光轴与角色表现平面保持正交。玩家和敌人各自只保留一个可继承编辑的 `GroundShadow`；玩家、Grunt、Rabbit、Fox、Goat 分别绑定 `MI_Shadow_*` 材质实例，通过实例的 `ShadowOpacity` 调整强度，通过 GroundShadow 组件 Transform 调整世界范围和位置。运行时代码不创建 MID、不覆盖材质或 Transform；阴影不进入碰撞或动画状态。Renderer 统一使用 Paper2D 透明 Unlit Sprite 材质消费源纹理 Alpha。
+- 碰撞边界：根 Box Collision 始终拥有移动 Sweep、阻挡、导航和位置记录权威；`BP_PlayerGameplay` 与四个 `BP_EnemyGameplay_*` 是尺寸/Transform 的 Editor 权威，GameMode 实际生成这些类。匹配序列的 PaperFlipbook 可使用 `EachFrameCollision` 提供 `QueryOnly` 身体轮廓，但不得推动 Actor 或替代根 Box。
 - 命中边界：语义 Body Hurtbox 与 Weapon AttackHitbox 由独立帧轨道表达。只有已提交攻击的只读身份和轨道 active frame 能开放攻击查询；动画时间、像素 alpha、Paper2D 内建碰撞和播放完成都不能产生或裁决伤害。
 - 资产：运行时 Texture2D、PaperSprite 和 Flipbook 位于 `Content/ReEcho/Art/Animation2D/`；Profile/Catalog 位于 `Content/ReEcho/Animation2D/`；PNG 源图保留在 `Content/SourceArt/Characters/`。导入与碰撞工具位于 `scripts/ue/`。
-- 扩展：表现缺失、提前结束或加载失败必须不改变玩法；Animation2D 不依赖具体角色枚举，也不通过回调反向控制 Combat/Weapons。
+- Gameplay Blueprint 表现树：`BP_PlayerGameplay` 与 `BP_EnemyGameplay_{Grunt,Rabbit,Goat,Fox}` 是运行时和 Editor 的单一角色实例，不再生成第二个 Visual Prefab Actor。根 `Collision` 保持原生移动碰撞权威；其下为 `PresentationRoot`，再分为 `FlipbookRoot -> FlipbookRenderer`、`FootRoot -> GroundRoot -> GroundShadow`、`EffectsRoot -> 特效组件`。当前范围不创建 UI 节点；后续挂点直接作为对应根的 Blueprint 子组件扩展。
+- Transform 权威：Gameplay Blueprint 的 `CharacterScale` 是整个 Actor 的统一尺寸入口，等比作用于根 Box Collision、表现、阴影、特效和未来新增子节点。全部组件使用相对父节点的 Transform，不设置绝对位置、旋转或缩放。`PresentationRoot -> FootRoot -> PresentationMotionRoot` 是共享脚点运动链；`FlipbookRoot`、`GroundRoot` 和 `EffectsRoot` 是 MotionRoot 的兄弟子节点。攻击前冲/受击平面位移只写一次 MotionRoot，Flipbook 与阴影自然同步；上下 bob 与挤压仅写 Flipbook/Effects 分支，阴影保持稳定形状。玩家瞄准只更新独立逻辑 `AttackAimDirection` 与 Flipbook 横向镜像，不再旋转整个 Actor；武器读取该逻辑方向，碰撞与阴影不会因瞄准旋转。
+- 比例边界：Profile `WorldHeight` 只负责同一外观各 Flipbook 序列之间的基础归一化；Gameplay Blueprint 的 `CharacterScale` 负责碰撞、角色、阴影、特效及全部挂点的最终整体比例。局部 `FlipbookRoot`、`GroundRoot`、`EffectsRoot` 只作分层位置/朝向微调，不得再用局部 Scale 调整角色整体尺寸。场景整体比例由 Arena Blueprint 的 `MapRoot` 独立拥有，相机不继承 MapRoot。
+- Editor 构图预览：`ReEcho2DEditorPreviewActor` 是 EditorOnly 的单一 ChildActor 宿主，直接实例化真实 Gameplay Blueprint 类；目标类不变时不重建 ChildActor，避免 Construction 累积重复实例。ChildActor 标记为 Visualization Component，并在 BeginPlay 显式销毁，保证不会把碰撞、AI 或表现带入 PIE/Cook。
+- Gameplay Blueprint 编辑器：五个角色/怪物 Gameplay BP 必须各自拥有一个 Blueprint authored `ArtAuthoringRoot`，挂在 `PresentationMotionRoot` 下。该节点既是美术扩展特效/装饰子节点的稳定入口，也防止资产退化为没有 Viewport 的 Data Only Blueprint 精简界面；完整编辑器中仍可选择继承的 Collision、FlipbookRoot、GroundShadow 与 EffectsRoot。
+- 阴影渲染层：GroundShadow 与 Flipbook 共享 MotionRoot 只解决位置同步，前后遮挡由整数 `TranslucencySortPriority` 明确控制。玩家与全部怪物阴影固定为 `-10`，角色 Flipbook 使用 Profile/Clip 的非负表现层，禁止使用会被截断为零的小数排序值，确保阴影始终绘制在角色下层。
+- 旧架构清理：`ReEcho2DVisualPrefabActor` 类型与 `/Game/ReEcho/Animation2D/VisualPrefabs/**` 蓝图资产已删除。角色表现只能从真实 Gameplay Blueprint 扩展，禁止重新引入运行时第二 Actor 或另一套表现组件树。
+- 场景 Prefab：Level00 放置 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene_Map00`，以 `ReEchoArenaSceneActor` 为稳定运行时契约。正式 Level00 的 Arena Actor 与 `MapRoot` 位于世界原点，`GameplayPlaneZ=0`；Backdrop 位于地面下方极小偏移，Floor 顶面与地面平面对齐但不阻挡 Pawn，角色高度由玩法平面保持，只有四面墙承担移动阻挡。生成植物卡片从 `ArenaCamera` 当前 Pitch/Yaw 计算朝向，使 Plane 正面法线对准相机；工具再按卡片尺寸和倾角补偿中心 Z，使卡片下缘始终位于玩法地面。相机运行时只平移，因此卡片不需要 Tick；生成后仍可在 Level00 单独编辑。美术可在 Blueprint 的可选视觉层新增组件；相机、MapRoot、玩法范围和碰撞仍由类型化原生接口供 GameMode 消费。
+- 2D表现FSM：`ReEcho2DAnimationStateMachineAsset` 保存 Idle/Move/Attack/Hit 状态Tag、语义、可中断优先级和播放完成去向；`ReEcho2DPresentationController` 是纯 Flipbook 执行器并保留Gameplay宿主的稳定意图API。Profile负责绑定FSM与Appearance/WeaponVisualSet Clip，状态机只选择Flipbook和表现状态，不通过动画帧或完成回调反向驱动伤害、移动、AI或根 Box Collision。
+- 扩展：表现缺失、提前结束或加载失败必须不改变玩法；Animation2D 不依赖具体角色枚举，也不通过回调反向控制 Combat/Weapons。新增关卡场景应复用类型化 Arena Scene 契约，并由 Editor 维护关卡资产，不在 GameMode 增加路径或 Actor Label 分支。
+- 测试：`ReEchoArenaSceneTests.cpp` 覆盖正交视锥地面 footprint、中心跟随、四边/四角 Clamp 与地图小于视野时的中心锁定；场景 Actor 唯一性和资产绑定由 Editor 自动化与人工 PIE 验收。
+- 本地表现验收入口：`scripts/ue/Verify-And-Open-Editor.cmd` 顺序执行 Editor 构建、项目静态校验和 `git diff --check`；只有全部通过才启动 ReEcho Editor，供用户继续 Editor/PIE 人工检查。发布仍使用独立的 `Build-Editor.cmd -FullRebuild` 门禁。
 
 ### `AREA-UI`：`UI`屏幕与交互
 
@@ -275,8 +274,6 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 | 武器/部件/元素 | Data Reader、`WeaponRuntime.*`、`ElementReaction.*` | 生产 CSV、Run build snapshot、世界载体 |
 | 商店/特质/Echo 管理 | `RunSubsystem.*`、Shop/Trait/Echo 摘要 | 对应 Widget、GameMode 类型化端点和测试 |
 | 保存/继续 | `RunSaveGame.h`、`RunSubsystem.*` | Encounter、Recording、存活敌人快照测试 |
-| 怪物 AI/攻击/Fuse | `MOD-ReEchoEnemies.md`、`ReEchoEnemyLogicComponent.*` | EnemyHost、Roster、Combat focused tests |
-| 怪物动画/外观/VFX | `Presentation/Enemy/ReEchoEnemyPresentationComponent.*` | Animation2D Profile/资产与用户 PIE |
 | 新 UI 屏幕 | UI Framework、UI Manager | GameMode 快照/命令端点、WBP 注册 |
 | 2D 序列动画/逐帧 Query 轮廓 | `Presentation/Animation2D/*`、`PlayerPawn.*`、`EnemyActor.*` | `docs/2D_SEQUENCE_ANIMATION.md`、`docs/ART_ASSET_ORGANIZATION.md`、`Content/ReEcho/Art/Animation2D/`、Profile/Catalog 与导入工具 |
 | Actor/VFX 接入 | 逻辑结果契约、Presentation/Graybox Actor | 资产路径与对应表现 Plan |

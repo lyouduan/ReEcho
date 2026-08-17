@@ -26,6 +26,8 @@
 #include "Camera/CameraActor.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Scene/ReEchoArenaCameraActor.h"
+#include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
@@ -311,37 +313,47 @@ void AReEchoGameMode::StartPlay()
 {
 	Super::StartPlay();
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
-	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
-	const float SceneWorldHeight = FMath::Max(100.0f, BalanceSettings->ArenaSceneWorldHeight);
-	const float SceneAspectRatio = ArenaBackgroundTexture ? static_cast<float>(ArenaBackgroundTexture->GetSizeX()) /
-	                                                            FMath::Max(1, ArenaBackgroundTexture->GetSizeY())
-	                                                      : 16.0f / 9.0f;
-	const float CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio * 2.0f;
-	ArenaSceneWorldHeight = SceneWorldHeight;
-	ArenaSceneWorldWidth = CameraOrthoWidth;
+	int32 ArenaSceneCount = 0;
+	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
+	{
+		ArenaScene = *It;
+		++ArenaSceneCount;
+	}
+	FString ArenaFailure;
+	if (ArenaSceneCount != 1 || !ArenaScene || !ArenaScene->HasValidConfiguration(&ArenaFailure))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[ArenaScene] Expected one valid ArenaScene; found %d. %s"),
+		       ArenaSceneCount,
+		       *ArenaFailure);
+		return;
+	}
+	const FVector2D PlayerHalfExtents = ArenaScene->GetPlayerHalfExtents();
+	const FVector2D EnemySpawnHalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
+	ArenaSceneWorldHeight = EnemySpawnHalfExtents.X * 2.0f;
+	ArenaSceneWorldWidth = EnemySpawnHalfExtents.Y * 2.0f;
 	if (Player)
 	{
-		Player->ConfigureArenaBounds(ArenaSceneWorldHeight * 0.5f, ArenaSceneWorldWidth * 0.5f);
+		Player->ConfigureArenaBounds(ArenaScene->GetArenaCenter(), PlayerHalfExtents);
 	}
-	FixedCamera = GetWorld()->SpawnActor<ACameraActor>(FVector(-700.0f, 0.0f, 900.0f), FRotator(-55.0f, 0.0f, 0.0f));
-	if (FixedCamera)
+	int32 ArenaCameraCount = 0;
+	for (TActorIterator<AReEchoArenaCameraActor> It(GetWorld()); It; ++It)
 	{
-		UCameraComponent* FixedCameraComponent = FixedCamera->GetCameraComponent();
-		FixedCameraComponent->SetProjectionMode(ECameraProjectionMode::Orthographic);
-		FixedCameraComponent->SetOrthoWidth(CameraOrthoWidth);
-		FixedCameraComponent->SetAspectRatio(SceneAspectRatio);
-		FixedCameraComponent->SetConstraintAspectRatio(true);
-		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
-		{
-			PlayerController->SetViewTarget(FixedCamera);
-			PostAudioEvent(FReEchoAudioEvents::CameraMove, FixedCamera->GetActorLocation());
-		}
-		if (Player && Player->Camera)
-		{
-			Player->Camera->Deactivate();
-		}
+		ArenaCameraActor = *It;
+		++ArenaCameraCount;
 	}
-	CreateArena();
+	if (ArenaCameraCount != 1 || !ArenaCameraActor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ArenaCamera] Expected one ArenaCameraActor; found %d."), ArenaCameraCount);
+		return;
+	}
+	ArenaCameraActor->Configure(Player, ArenaScene);
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PlayerController->SetViewTarget(ArenaCameraActor);
+		PostAudioEvent(FReEchoAudioEvents::CameraMove, ArenaCameraActor->GetActorLocation());
+	}
 	Director = GetWorld()->SpawnActor<AReEchoEncounterDirector>();
 	Director->OnFixedStep.AddDynamic(this, &AReEchoGameMode::HandleFixedStep);
 	Director->OnEncounterEnded.AddDynamic(this, &AReEchoGameMode::HandleEncounterEnded);
@@ -381,7 +393,7 @@ void AReEchoGameMode::StartPlay()
 			                         : nullptr;
 			if (PlayerHudWidget)
 			{
-				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
@@ -798,7 +810,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
 		if (PlayerHudWidget)
 		{
-			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 		}
 		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
 		                                 TEXT("GrayboxArena"),
@@ -893,7 +905,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Player->Recorder->ResumeRecording(SavedState.ActiveRecording);
 	if (PlayerHudWidget)
 	{
-		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 	}
 
 	// Plan31: resume the same selected set as a fresh encounter, one independent Echo per
@@ -1962,9 +1974,10 @@ void AReEchoGameMode::RestoreGameInput()
 	SetPlayerMenuAbilityBlocked(false);
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		if (FixedCamera)
+		if (ArenaCameraActor)
 		{
-			PlayerController->SetViewTarget(FixedCamera);
+			ArenaCameraActor->Configure(Player, ArenaScene);
+			PlayerController->SetViewTarget(ArenaCameraActor);
 		}
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
