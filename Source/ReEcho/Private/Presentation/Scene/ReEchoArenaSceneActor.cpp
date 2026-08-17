@@ -1,6 +1,7 @@
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
 
 #include "Camera/CameraComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -56,6 +57,19 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	WallSouth = CreateCollisionComponent(TEXT("WallSouth"));
 	WallEast = CreateCollisionComponent(TEXT("WallEast"));
 	WallWest = CreateCollisionComponent(TEXT("WallWest"));
+
+	auto CreateBoundsVisualization = [this](const TCHAR* Name, const FColor Color)
+	{
+		UBoxComponent* Component = CreateDefaultSubobject<UBoxComponent>(Name);
+		Component->SetupAttachment(SceneRoot);
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetHiddenInGame(true);
+		Component->ShapeColor = Color;
+		return Component;
+	};
+	CameraClampBounds = CreateBoundsVisualization(TEXT("CameraClampBounds"), FColor::Cyan);
+	PlayerBounds = CreateBoundsVisualization(TEXT("PlayerBounds"), FColor::Green);
+	EnemySpawnBounds = CreateBoundsVisualization(TEXT("EnemySpawnBounds"), FColor::Yellow);
 }
 
 void AReEchoArenaSceneActor::OnConstruction(const FTransform& Transform)
@@ -99,7 +113,8 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 		}
 		return false;
 	};
-	if (!ArenaCamera || !Backdrop || !Floor || !WallNorth || !WallSouth || !WallEast || !WallWest)
+	if (!ArenaCamera || !Backdrop || !Floor || !WallNorth || !WallSouth || !WallEast || !WallWest ||
+	    !CameraClampBounds || !PlayerBounds || !EnemySpawnBounds)
 	{
 		return Fail(TEXT("Required Arena Scene components are missing."));
 	}
@@ -171,9 +186,10 @@ void AReEchoArenaSceneActor::UpdateEditorLayout()
 	ArenaCamera->SetAspectRatio(CameraAspectRatio);
 	ArenaCamera->SetConstraintAspectRatio(true);
 	Backdrop->SetRelativeLocation(FVector(0.0f, 0.0f, ReEchoArenaScene::FloorCenterZ + 1.0f));
-	Backdrop->SetRelativeRotation(FRotator::ZeroRotator);
-	Backdrop->SetRelativeScale3D(FVector(BackdropHalfExtents.X * 2.0f / ReEchoArenaScene::MeshSize,
-	                                     BackdropHalfExtents.Y * 2.0f / ReEchoArenaScene::MeshSize,
+	// map01 的 U 轴对应画面横向（世界 +Y），V 轴对应画面向下（世界 -X）。
+	Backdrop->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	Backdrop->SetRelativeScale3D(FVector(BackdropHalfExtents.Y * 2.0f / ReEchoArenaScene::MeshSize,
+	                                     BackdropHalfExtents.X * 2.0f / ReEchoArenaScene::MeshSize,
 	                                     1.0f));
 	if (BackdropMaterial && MapTexture)
 	{
@@ -195,6 +211,12 @@ void AReEchoArenaSceneActor::UpdateEditorLayout()
 	WallEast->SetRelativeScale3D(FVector(WallThickness, WallScaleY, WallHeight));
 	WallWest->SetRelativeLocation(FVector(-PlayerHalfExtents.X, 0.0f, ReEchoArenaScene::WallCenterZ));
 	WallWest->SetRelativeScale3D(FVector(WallThickness, WallScaleY, WallHeight));
+	CameraClampBounds->SetRelativeLocation(FVector(0.0f, 0.0f, GameplayPlaneZ + 5.0f));
+	CameraClampBounds->SetBoxExtent(FVector(CameraClampHalfExtents.X, CameraClampHalfExtents.Y, 5.0f));
+	PlayerBounds->SetRelativeLocation(FVector(0.0f, 0.0f, GameplayPlaneZ + 10.0f));
+	PlayerBounds->SetBoxExtent(FVector(PlayerHalfExtents.X, PlayerHalfExtents.Y, 5.0f));
+	EnemySpawnBounds->SetRelativeLocation(FVector(0.0f, 0.0f, GameplayPlaneZ + 15.0f));
+	EnemySpawnBounds->SetBoxExtent(FVector(EnemySpawnHalfExtents.X, EnemySpawnHalfExtents.Y, 5.0f));
 }
 
 void AReEchoArenaSceneActor::UpdateFollowCamera(const float DeltaSeconds)

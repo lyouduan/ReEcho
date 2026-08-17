@@ -5,6 +5,7 @@
 #include "ReEchoArenaSceneActor.generated.h"
 
 class AReEchoPlayerPawn;
+class UBoxComponent;
 class UCameraComponent;
 class UMaterialInterface;
 class UStaticMeshComponent;
@@ -56,6 +57,12 @@ public:
 	TObjectPtr<UStaticMeshComponent> WallEast;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Collision")
 	TObjectPtr<UStaticMeshComponent> WallWest;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Bounds")
+	TObjectPtr<UBoxComponent> CameraClampBounds;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Bounds")
+	TObjectPtr<UBoxComponent> PlayerBounds;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Bounds")
+	TObjectPtr<UBoxComponent> EnemySpawnBounds;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual")
 	TObjectPtr<UTexture2D> MapTexture;
