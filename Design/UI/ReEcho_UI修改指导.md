@@ -33,6 +33,8 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 
 所有 WBP 位于：`Content/ReEcho/UI/`。
 
+Plan45 的交互占位源图位于 `Content/SourceArt/UI/InteractionPlaceholder/`，运行时只使用按页面评审后导入的 `/Game/ReEcho/Textures/UI/InteractionPlaceholder/**`。`References` 中的整屏效果图只用于布局对照；效果图里出现但当前产品契约不存在的操作不能据此新增流程。`Fonts/PendingLicense` 中的 TTF 在授权确认前只留在本地隔离目录，不得导入、引用或提交分发。
+
 ## 3. UI 层级和输入
 
 UI Framework 现在分为两个职责明确的 GameInstance Subsystem：
@@ -105,6 +107,8 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 ### 5.2 Start Menu、Settings、Restart
 
 可以修改面板尺寸、按钮布局、按钮 Style、文本、焦点高亮和转场动画。不要在 WBP 中直接开始游戏、读写存档、重启关卡或退出程序；按钮只应把请求交给 C++ Delegate。
+
+`WBP_ReEchoStartMenu` 的首批 Plan45 样板使用 `T_UI_Start_Background`、`T_UI_Start_TitleLogo` 和 `T_UI_Start_SettingsIcon`。背景和标题是命中测试不可见的表现层；设置图标放在既有 `GameSettingsButton` 内，不能用交付图中带烘焙文案的整按钮切图替换 Continue / New Game / Settings 的现有语义。
 
 `WBP_ReEchoSettings` 的 Graphics、Audio、Controls 是固定页面结构。固定的音频 Slider 和 Checkbox 必须由 WBP 正常路径静态提供，布局、间距、样式和焦点表现归 UMG；`UReEchoSettingsWidget` 只绑定控件、刷新状态并把预览/提交/撤销请求交给 `UReEchoAudioService`。不要依赖 C++ `BuildAudioPanel()` 向正常 WBP 动态注入整套布局，该路径只用于设计资产缺失时的最低可用 fallback。所有绑定控件必须勾选 `Is Variable`，并严格使用第 4 节列出的名称和类型。
 
@@ -242,6 +246,8 @@ git diff --check
 ## 10. 代码与资产定位
 
 - WBP：`Content/ReEcho/UI/`
+- UI 源图/参考：`Content/SourceArt/UI/InteractionPlaceholder/`
+- 已消费的运行时 UI 纹理：`Content/ReEcho/Textures/UI/InteractionPlaceholder/`
 - 原生 UI 头文件：`Source/ReEcho/Public/UI/`
 - 原生 UI 实现：`Source/ReEcho/Private/UI/`
 - UI 层和输入协调：`ReEchoUIManagerSubsystem.*`
