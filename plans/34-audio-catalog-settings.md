@@ -6,8 +6,8 @@
 - Executor owner: Plan34 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `InProgress` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
-- Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
+- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Human validation: `PendingFollowUp` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: freshly fetched `origin/main` containing closed Plan33 and this Ready revision.
 - Implementation branch: local `plan/34-audio-catalog-settings-v3` in separate worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan34`.
 - Depends on / Blocks: Plan33 is closed; Plan34 provides authored event definitions, preload behavior and persistent bus settings consumed independently by Plans35/36.
@@ -108,6 +108,8 @@ Add a deterministic, script-generated diagnostic tone plus an Editor import scri
 - `Design/UI/ReEcho_UI修改指导.md` 已补充 Settings 正式 WBP/fallback 边界；新增文档型 `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md` 并从 `CODEBASE_MAP/README.md` 的 `AREA-UI` 路由进入。该文档不注册 Runtime Module；`ARCHITECTURE.md` 已审阅、无需修改，因为运行时拓扑和依赖方向未变化。
 - `shared/CODEBASE_MAP/modules/MOD-ReEchoAudio.md` 已审阅、无需再次修改：音频设置权威、服务 API 和依赖方向没有因 UI 资产补全而变化。
 - Startup regression fix: the shared manifest reader now enforces `PrimaryKey=Id` only for gameplay registry-owned tables. External module tables such as `AudioEvents(EventId)` remain globally validated by tooling and module loaders without making `FReEchoModule::StartupModule` fatal.
+- Battle BGM runtime completion: `BeginEncounter` requests stable state `Music.Encounter`; the catalog resolves `The_Iron_Waltz`; `ResolveActiveWorld()` supplies the active PIE/Game world without introducing an Audio-to-gameplay dependency.
+- Audible fade fix: the Unreal backend now keeps Policy Engine's resolved bus gain in `UAudioComponent::VolumeMultiplier` and drives the independent fader from zero to unity. The rejected implementation created the component at zero base volume and therefore remained silent after `FadeIn`.
 
 ### Evidence
 
@@ -118,9 +120,11 @@ Add a deterministic, script-generated diagnostic tone plus an Editor import scri
 - 独立窗口 PIE + Slate snapshot -> 从 Start Menu 进入 Settings 并点击 Audio 后，运行时实际存在 6 个标签、5 个 Slider 和 6 个 Checkbox；原“Audio 高亮但内容空白”已不再复现。该结果只证明控件可见与层级有效，不替代用户对布局质量和音频可听性的主观验收。
 - `python scripts/validate_project.py` -> PASS after the build and documentation refresh (schema, fixtures, modules, XLSX drift, workflow and prebuilt fingerprint).
 - `git diff --check` -> PASS for the current candidate.
+- Final local publish candidate: `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` -> `Succeeded`; curated five-module Editor bundle refreshed with UE build id `55116800` and source fingerprint `ad0db813b54a`. Follow-up `python scripts/validate_project.py`, canonical XLSX `--check` and `git diff --check` all passed.
 - Reported startup Fatal root cause reproduced by inspection: `ReadManifest` incorrectly forced every shared-manifest row to `PrimaryKey=Id`; `AudioEvents(EventId)` was the only issue. The ownership gate fix builds successfully and the production/default CSV test fixture now exercises that manifest contract.
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Audio` -> automation did not launch: platform preflight stopped after reporting unavailable LinuxArm64/VisionOS SDK metadata. No audio test result is claimed; focused automation remains pending in the user's configured Editor environment.
 - IDE diagnostics for edited C++ paths -> no reported diagnostics.
+- Audio Insights on the rejected candidate showed `The_Iron_Waltz` receiving play/stop events while the active Sounds view stayed empty. After separating component gain from the fade target, the user confirmed battle BGM is audible in local PIE on 2026-08-17.
 
 ### Remaining risks
 
@@ -128,8 +132,8 @@ Add a deterministic, script-generated diagnostic tone plus an Editor import scri
 - The real diagnostic `.wav`/`.uasset` is intentionally not generated/imported by the coding executor. Until the user runs both scripts, `UI.Error` is a safe no-op.
 - `WBP_ReEchoSettings.uasset` 已通过 Unreal Editor/UMG ToolSet 修改、编译和保存，没有在 Editor 外手改；Editor 关闭后以绝对项目路径执行 `CompileAllBlueprints` commandlet，退出码为 0，日志确认 `WBP_ReEchoSettings` 及其他 Blueprint 均编译成功。
 - 本任务启动的 Unreal Editor/MCP 已关闭；同克隆 Editor 锁和临时 PIE 截图均已清理，无残留进程或监听端口。
-- Subjective layout, loudness and audibility remain human PIE checks.
+- Full settings-matrix validation and final sound-design balance remain follow-up human PIE checks; battle BGM audibility itself has passed.
 
 ### Human validation result/request
 
-`PendingBeforeClose`: user imports/listens to the diagnostic event and verifies each bus/mute setting, defaults, apply/return, cancel rollback and restart persistence from start-menu and pause-menu entry. Executor visual/aural inspection is not accepted as human evidence.
+`PendingFollowUp`: user has confirmed `Music.Encounter` / `The_Iron_Waltz` is audible in local PIE. Diagnostic-event import plus the complete five-bus mute/default/apply/cancel/process-restart matrix remains explicitly deferred; Plan34 is published as an initial usable audio-system baseline rather than claimed fully closed.

@@ -7,7 +7,7 @@
 - Build 文件：`Source/ReEchoAudio/ReEchoAudio.Build.cs`。
 - 注册入口：`Source/ReEchoAudio/Private/ReEchoAudio.cpp` 中的 `FReEchoAudioModule`。
 - 主要目录：`Source/ReEchoAudio/Public/`、`Source/ReEchoAudio/Private/`。
-- 相关基线：Plan33 音频运行时基础；Plan34 的目录/设置扩展仍是候选工作，不属于当前文档事实。
+- 相关基线：Plan33 音频运行时基础；Plan34 增加策划目录、持久设置、战斗 BGM 接入与真实后端淡入修复。
 
 ## 存在原因
 
@@ -40,7 +40,7 @@
 | 音频目录 | `FReEchoAudioCatalog` / `IReEchoAudioCatalogProvider` | `EventId` 到播放描述的唯一映射接口 |
 | 音乐状态 | `UReEchoAudioService` + Policy Engine | 独立状态通道，不由 GameMode 缓存第二份 |
 | 环境状态 | `UReEchoAudioService` + Policy Engine | 与音乐分离，可独立停止/切换 |
-| Master/总线音量与静音 | `UReEchoAudioService` | 当前运行时设置权威；持久化扩展需独立 Plan |
+| Master/总线音量与静音 | `UReEchoAudioService` + `UReEchoAudioUserSettings` | Service 是运行时权威；模块自有 SaveGame 是跨进程持久化权威，不进入 Run Save |
 | 冷却/并发/优先级 | `FReEchoAudioPolicyEngine` | 决定请求是否播放或替换，不返回玩法决策 |
 | 实际播放实例 | `IReEchoAudioBackend` 实现 | Unreal 后端拥有音频对象生命周期 |
 
@@ -117,6 +117,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 位置：`Public/ReEchoAudioBackend.h`、`Private/ReEchoAudioBackend.cpp`。
 - 角色：把已批准的播放命令适配到 Unreal 音频对象。
 - 边界：后端失败只影响听觉结果；不得让服务抛出影响玩法的失败。
+- 增益契约：组件 `VolumeMultiplier` 保存 Policy Engine 算出的有效总线音量；淡入淡出只控制独立 fader。淡入必须用非自动播放组件和 `FadeIn(Duration, 1.0f)`，不得把组件基础音量初始化为零。
 
 ### Events 与 Types
 
@@ -147,7 +148,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 重点覆盖：目录解析、无效 ID、安全降级、总线音量/静音、状态幂等、冷却、并发、优先级、暂停策略和假后端调用。
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development` 必须同时产出 `UnrealEditor-ReEchoAudio.dll`。
 - 静态：模块边界不得出现 `#include` 主模块玩法路径。
-- 人工验收：真实资源可听性、响度平衡、空间定位和混音由用户在 PIE/设备上判断。
+- 人工验收：真实资源可听性、响度平衡、空间定位和混音由用户在 PIE/设备上判断；链路异常优先用 Audio Insights 的 Events/Sounds/总线表区分“请求已发出”“组件仍存活”和“设备有最终信号”。
 
 ## 不变量与常见错误
 
@@ -155,5 +156,6 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 不得因为目录缺项、资源缺失或无设备导致攻击、UI 或保存失败。
 - 一次性 SFX、音乐状态和环境状态不能共用一套含糊生命周期。
 - 冷却/并发/优先级只有 Policy Engine 一份权威状态。
+- 不得用零 `VolumeMultiplier` 模拟淡入；UE 的 fader 与组件基础音量相乘，不会替换它。
 - 玩法调用点只认识稳定语义 ID，不认识资产路径。
 - 模块公共头不得泄漏 `ReEcho`、Combat、Weapons、UI 或 Presentation 类型。

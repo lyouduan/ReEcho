@@ -14,7 +14,7 @@
 | 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 34 |
 | 关卡搭建 | `LEVEL` | [§LEVEL](#level) | 4 |
 | 美术 / 资产管线 | `ART` | [§ART](#art) | 18 |
-| 音频系统 | `AUDIO` | [§AUDIO](#audio) | 5 |
+| 音频系统 | `AUDIO` | [§AUDIO](#audio) | 12 |
 | WebGL 构建 / 部署 | `WEB` | [§WEB](#web) | 11 |
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
 | 流程 / 工具 / Skill | `META` | [§META](#meta) | 20 |
@@ -656,6 +656,10 @@ UE 中引擎怠速循环有可听咔嗒声，尝试 100/300/800ms 交叉淡入�
 ### AUDIO-U11. 建立音频资产来源清单 [跨引擎]
 
 维护一份 `AUDIO_SOURCES.md`，列每条音频的源 URL、许可证类型、署名要求、下载日期。CC-BY-NC 素材不可用于发布、需替换为 CC0；署名素材需记入致谢名单。OutLaw 的 `AudioMixer.mixer` 和 SundayDrive 的 `SFX_Car_IdlePurr_02` 等都需要追溯来源。
+
+### AUDIO-U12. UE FadeIn 不会替换 AudioComponent 的基础音量 [UE]
+
+`UAudioComponent::FadeIn` 控制独立的内部 fader，不会覆盖组件的 `VolumeMultiplier`。如果为了淡入先用 `VolumeMultiplier=0` 创建组件，再调用 `FadeIn(Duration, TargetVolume)`，最终增益仍是 `0 × fader`，可能表现为“日志显示播放成功但始终无声”。正确做法是：非自动播放地创建组件，把总线计算后的有效音量写入 `VolumeMultiplier`，再以 `FadeIn(Duration, 1.0f)` 驱动 fader；无需淡入时直接 `Play()`。遇到同类问题，用 Audio Insights 同时检查 Events 和 Sounds：仅有播放/停止事件而活动声音列表为空，说明问题已经越过事件触发层，应继续检查组件生命周期和最终增益。
 
 ---
 

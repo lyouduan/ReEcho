@@ -79,23 +79,32 @@ public:
 			return 0;
 		}
 
-		const float InitialVolume = Command.FadeInSeconds > 0.0f ? 0.0f : Command.Volume;
-		UAudioComponent* Comp = Command.bSpatial3D
-			? UGameplayStatics::SpawnSoundAtLocation(
-				Command.World, Sound, Command.Location, FRotator::ZeroRotator,
-				InitialVolume, 1.0f, 0.0f, nullptr)
-			: UGameplayStatics::SpawnSound2D(
-				Command.World, Sound, InitialVolume, 1.0f, 0.0f);
+		// FadeIn drives UAudioComponent's internal volume fader; it does not
+		// replace the component's VolumeMultiplier. Creating the component at
+		// zero volume therefore leaves the final gain at 0 * FadeTarget forever.
+		// Create without auto-playing, keep the resolved bus gain on the component,
+		// then let FadeIn move the independent fader from 0 to unity.
+		UAudioComponent* Comp = UGameplayStatics::CreateSound2D(
+			Command.World, Sound, Command.Volume, 1.0f, 0.0f, nullptr, false, true);
 
 		if (Comp == nullptr)
 		{
 			return 0;
 		}
 
+		Comp->bAllowSpatialization = Command.bSpatial3D;
+		if (Command.bSpatial3D)
+		{
+			Comp->SetWorldLocation(Command.Location);
+		}
 		Comp->SetUISound(Command.PausePolicy == EReEchoAudioPausePolicy::ContinueOnPause);
 		if (Command.FadeInSeconds > 0.0f)
 		{
-			Comp->FadeIn(Command.FadeInSeconds, Command.Volume);
+			Comp->FadeIn(Command.FadeInSeconds, 1.0f);
+		}
+		else
+		{
+			Comp->Play();
 		}
 		const uint32 Handle = NextHandle++;
 		LoopComponents.Add(Handle, Comp);
