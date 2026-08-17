@@ -81,6 +81,8 @@ public:
 	UReEchoEnemyPresentationComponent();
 
 	void ConfigureComponents(USceneComponent* InVisualEffectRoot,
+	                         USceneComponent* InFlipbookRoot,
+	                         USceneComponent* InEffectsRoot,
 	                         UBillboardComponent* InCharacterSprite,
 	                         UReEcho2DAnimationComponent* InSequenceAnimation,
 	                         UReEcho2DPresentationController* InPresentationController,
@@ -121,6 +123,7 @@ private:
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
 
 	void ApplyVisual(EReEchoEnemyArchetype Archetype, int32 AppearanceId);
+	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
 	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile(int32 AppearanceId) const;
 	void ResetTransientRoot();
 	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
@@ -139,6 +142,10 @@ private:
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> VisualEffectRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> FlipbookRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> EffectsRoot;
 	UPROPERTY()
 	TObjectPtr<UBillboardComponent> CharacterSprite;
 	UPROPERTY()
@@ -172,6 +179,10 @@ private:
 
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
+	FVector BaseFlipbookLocation = FVector::ZeroVector;
+	FVector BaseFlipbookScale = FVector::OneVector;
+	FVector BaseEffectsLocation = FVector::ZeroVector;
+	FVector BaseEffectsScale = FVector::OneVector;
 	FVector ShakeDirection = FVector::ZeroVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
