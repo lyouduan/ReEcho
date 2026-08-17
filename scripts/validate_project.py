@@ -1218,6 +1218,7 @@ def validate_workflow() -> None:
         "shared/DESIGNER_RULES.md",
         "shared/ARTIST_RULES.md",
         "是否采用规划者-执行者模式？",
+        "是否采用一任务一 worktree（每个任务一个独立文件夹）？",
     )
     missing_role_gate_markers = [marker for marker in role_gate_markers if marker not in agents]
     if missing_role_gate_markers:
@@ -1265,6 +1266,8 @@ def validate_workflow() -> None:
             "Executor 负责按已发布 Plan 实现",
             "## Planner-Executor 模式",
             "选择 Planner-Executor 模式的唯一权威",
+            "## 本地工作区模式",
+            "选择“一任务一 worktree”的唯一权威",
             "所有大程序任务都必须",
             "shared/GIT_RULES.md",
         ),
@@ -1280,6 +1283,41 @@ def validate_workflow() -> None:
         missing = [marker for marker in markers if marker not in role_rule_texts[name]]
         if missing:
             fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
+    worktree_choice_markers = {
+        "AGENTS.md": (
+            "After that answer is known",
+            "是否采用一任务一 worktree（每个任务一个独立文件夹）？",
+            "independent of Planner-Executor mode",
+        ),
+        "PROGRAMMER_RULES.md": (
+            "与 Planner-Executor 分工彼此独立",
+            "未得到答案前停止程序工作",
+            "不得直接在主工作区实现",
+            "选择“否”后",
+            "默认持续当前对话",
+        ),
+        "PROJECT_RULES.md": (
+            "必须先完成 `PROGRAMMER_RULES.md` 的本地工作区模式确认",
+            "用户明确选择后构成当前对话的本地执行约束",
+        ),
+        "EXECUTOR_RULES.md": ("按 `PROGRAMMER_RULES.md` 已确认的本地工作区模式执行",),
+        "PLANNER_RULES.md": ("按 `PROGRAMMER_RULES.md` 已确认的本地工作区模式组织实现",),
+        "AI_ONBOARDING.md": ("**程序本地工作区模式**",),
+        "WORKFLOW.md": ("程序路线分别确认 Planner-Executor 分工和本地工作区模式",),
+    }
+    worktree_choice_texts = {
+        "AGENTS.md": agents,
+        "PROGRAMMER_RULES.md": programmer_rules,
+        "PROJECT_RULES.md": project_rules,
+        "EXECUTOR_RULES.md": executor_rules,
+        "PLANNER_RULES.md": planner_rules,
+        "AI_ONBOARDING.md": onboarding_text,
+        "WORKFLOW.md": workflow_text,
+    }
+    for name, markers in worktree_choice_markers.items():
+        missing = [marker for marker in markers if marker not in worktree_choice_texts[name]]
+        if missing:
+            fail(f"{name} lacks the independent worktree-choice contract: {', '.join(missing)}")
     risk_route_marker = "风险性禁止项和例外统一遵循 `shared/PROJECT_RULES.md`"
     risk_route_texts = {
         "PROGRAMMER_RULES.md": programmer_rules,
@@ -1409,7 +1447,7 @@ def validate_workflow() -> None:
             "鼓励小批量、较频繁地发布 main",
         ),
         "PROGRAMMER_RULES.md": ("两种模式使用同一套 Plan 和发布门禁", "所有大程序任务都必须"),
-        "EXECUTOR_RULES.md": ("本地工作方式自由", "Plan 中的 `Isolated | ReadOnly | SharedContract | Exclusive` 只说明集成风险"),
+        "EXECUTOR_RULES.md": ("按 `PROGRAMMER_RULES.md` 已确认的本地工作区模式执行", "Plan 中的 `Isolated | ReadOnly | SharedContract | Exclusive` 只说明集成风险"),
         "GIT_RULES.md": ("本地 WIP 提交的名称、粒度和临时身份", "人类账号 + AI 身份"),
         "WORKFLOW.md": ("本地工作自由，远端边界严格", "不存在 Exchange"),
     }

@@ -14,6 +14,7 @@
 ## 两条独立角色轴
 
 - **用户专业角色**：程序、策划或美术，分别选择 `PROGRAMMER_RULES.md`、`DESIGNER_RULES.md` 或 `ARTIST_RULES.md`。
+- **程序本地工作区模式**：与 Planner-Executor 分工独立；程序用户还需确认是否采用“一任务一 worktree（每个任务一个独立文件夹）”。
 - **AI 仓库职责**：Planner、Executor、专业执行者或明确指派的项目秘书。只有程序路线使用项目 Planner/Executor 权限；除非程序用户明确改派任务，策划和美术 AI 均为专业执行者。
 - **项目秘书职责**：由 `shared/SECRETARY_RULES.md` 管理的协调/控制面维护；不替代产品、策划、美术或程序实现决策。
 - 专业执行者可以准备本地改动和证据，但不会因专业能力自动获得合并或发布权限。

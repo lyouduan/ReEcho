@@ -8,7 +8,7 @@
 
 1. 大任务先确认指定 Plan 已发布到 `origin/main`，状态允许实施，目标、验收、基线、依赖、Writes/Reads、影响模式、排除项和实现 AI 侧清晰。小型修复、只读审计或用户明确豁免的任务可按准确本地任务记录开始。
 2. 程序大任务须列出受影响 `MOD-*` / `AREA-*`、设计意图和 `CODEBASE_MAP` 同步范围，且每个被修改 Runtime Module 的 `modules/MOD-*.md` 位于 Writes。
-3. 本地工作方式自由：可直接工作，也可使用任意本地分支、worktree、stash、WIP 提交、merge 或 rebase。隔离 worktree 是多人/多 AI 同机并行时的建议，不是权限门禁。
+3. 按 `PROGRAMMER_RULES.md` 已确认的本地工作区模式执行。选择“一任务一 worktree”时，首次写入前创建或复用本任务专属独立文件夹，禁止直接在主工作区实现；选择“否”时可直接工作，也可使用任意本地分支、worktree、stash、WIP 提交、merge 或 rebase。隔离 worktree 不是共享权限门禁，但明确选择后是当前任务的本地执行约束。
 4. 只读取指定 Plan、选中的代码路线和相关经验；失败需要诊断后再扩展到匹配的 `LESSONS.md` 调试章节。
 5. `origin/main` 是唯一远端分支。Executor 默认不自行推送远端；远端发布交给当前用户授权的程序集成职责。
 
