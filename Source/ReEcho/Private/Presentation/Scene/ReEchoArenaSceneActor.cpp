@@ -31,8 +31,9 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 		Component->SetupAttachment(Parent);
 		return Component;
 	};
-	VisualRoot = CreateSceneRoot(TEXT("VisualRoot"), SceneRoot);
-	GameplayRoot = CreateSceneRoot(TEXT("GameplayRoot"), SceneRoot);
+	ArenaContentRoot = CreateSceneRoot(TEXT("ArenaContentRoot"), SceneRoot);
+	VisualRoot = CreateSceneRoot(TEXT("VisualRoot"), ArenaContentRoot);
+	GameplayRoot = CreateSceneRoot(TEXT("GameplayRoot"), ArenaContentRoot);
 	GroundRoot = CreateSceneRoot(TEXT("Ground"), VisualRoot);
 	GroundDetailRoot = CreateSceneRoot(TEXT("GroundDetail"), VisualRoot);
 	MidDecorationRoot = CreateSceneRoot(TEXT("MidDecoration"), VisualRoot);
@@ -123,10 +124,16 @@ FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 	return EnemySpawnHalfExtents;
 }
 
+FVector2D AReEchoArenaSceneActor::GetArenaCenter() const
+{
+	const FVector Center = ArenaContentRoot ? ArenaContentRoot->GetComponentLocation() : GetActorLocation();
+	return FVector2D(Center.X, Center.Y);
+}
+
 int32 AReEchoArenaSceneActor::CalculateFootpointSortPriority(const FVector& WorldFootpoint) const
 {
 	return CalculateFootpointSortPriority(FVector2D(WorldFootpoint.X, WorldFootpoint.Y),
-	                                      FVector2D(GetActorLocation().X, GetActorLocation().Y),
+	                                      GetArenaCenter(),
 	                                      DepthSortAxis,
 	                                      DepthSortWorldUnitsPerStep,
 	                                      DepthSortBasePriority,
@@ -158,9 +165,9 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 		}
 		return false;
 	};
-	if (!VisualRoot || !GameplayRoot || !GroundRoot || !GroundDetailRoot || !MidDecorationRoot || !ForegroundRoot ||
-	    !AtmosphereRoot || !SceneEffectsRoot || !CollisionRoot || !ArenaCamera || !Backdrop || !Floor || !WallNorth ||
-	    !WallSouth || !WallEast || !WallWest ||
+	if (!ArenaContentRoot || !VisualRoot || !GameplayRoot || !GroundRoot || !GroundDetailRoot || !MidDecorationRoot ||
+	    !ForegroundRoot || !AtmosphereRoot || !SceneEffectsRoot || !CollisionRoot || !ArenaCamera || !Backdrop ||
+	    !Floor || !WallNorth || !WallSouth || !WallEast || !WallWest ||
 	    !CameraClampBounds || !PlayerBounds || !EnemySpawnBounds)
 	{
 		return Fail(TEXT("Required Arena Scene components are missing."));
@@ -281,7 +288,7 @@ void AReEchoArenaSceneActor::UpdateFollowCamera(const float DeltaSeconds)
 	}
 	const FVector2D Footprint = CalculateGroundFootprintHalfExtents(
 	    ArenaCamera->OrthoWidth, ArenaCamera->AspectRatio, ArenaCamera->GetComponentRotation());
-	const FVector2D MapCenter(GetActorLocation().X, GetActorLocation().Y);
+	const FVector2D MapCenter = GetArenaCenter();
 	const FVector2D Desired(FollowTarget->GetActorLocation().X, FollowTarget->GetActorLocation().Y);
 	const FVector2D Clamped = ClampCameraFocus(Desired, MapCenter, CameraClampHalfExtents, Footprint);
 	const FVector CurrentFocus3D = GetCameraGroundFocus();
@@ -328,7 +335,7 @@ void AReEchoArenaSceneActor::UpdateParallax()
 		Layer->SetRelativeLocation(FVector(Offset.X, Offset.Y, 0.0f));
 	};
 	const FVector Focus = GetCameraGroundFocus();
-	const FVector2D CameraDelta(Focus.X - GetActorLocation().X, Focus.Y - GetActorLocation().Y);
+	const FVector2D CameraDelta = FVector2D(Focus.X, Focus.Y) - GetArenaCenter();
 	SetLayerOffset(MidDecorationRoot, bEnableParallax ? MidDecorationParallaxFactor : 0.0f, CameraDelta);
 	SetLayerOffset(ForegroundRoot, bEnableParallax ? ForegroundParallaxFactor : 0.0f, CameraDelta);
 	SetLayerOffset(AtmosphereRoot, bEnableParallax ? AtmosphereParallaxFactor : 0.0f, CameraDelta);

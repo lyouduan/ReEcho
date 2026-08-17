@@ -32,6 +32,7 @@ public:
 
 	FVector2D GetPlayerHalfExtents() const;
 	FVector2D GetEnemySpawnHalfExtents() const;
+	FVector2D GetArenaCenter() const;
 	bool HasValidConfiguration(FString* OutReason = nullptr) const;
 
 	static FVector2D
@@ -50,6 +51,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena")
 	TObjectPtr<USceneComponent> SceneRoot;
+	/** Editor 中移动此节点可整体平移地图、相机、碰撞和范围。 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
+	TObjectPtr<USceneComponent> ArenaContentRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
 	TObjectPtr<USceneComponent> VisualRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
