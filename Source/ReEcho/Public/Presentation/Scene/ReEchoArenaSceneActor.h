@@ -75,10 +75,6 @@ public:
 	FVector2D PlayerHalfExtents = FVector2D(1200.0f, 2190.0f);
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "100.0"))
 	FVector2D EnemySpawnHalfExtents = FVector2D(1100.0f, 2090.0f);
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera", meta = (ClampMin = "100.0"))
-	float CameraOrthoWidth = 2800.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera", meta = (ClampMin = "0.1"))
-	float CameraAspectRatio = 1376.0f / 768.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
 	bool bSmoothCameraFollow = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera", meta = (ClampMin = "0.0"))

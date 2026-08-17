@@ -27,6 +27,9 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	ArenaCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ArenaCamera"));
 	ArenaCamera->SetupAttachment(SceneRoot);
 	ArenaCamera->SetProjectionMode(ECameraProjectionMode::Orthographic);
+	ArenaCamera->SetOrthoWidth(2800.0f);
+	ArenaCamera->SetAspectRatio(1376.0f / 768.0f);
+	ArenaCamera->SetConstraintAspectRatio(true);
 	ArenaCamera->SetRelativeLocation(FVector(-630.0f, 0.0f, 900.0f));
 	ArenaCamera->SetRelativeRotation(FRotator(-55.0f, 0.0f, 0.0f));
 
@@ -123,8 +126,8 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 		return Fail(TEXT("MapTexture is not assigned."));
 	}
 	if (BackdropHalfExtents.GetMin() < 100.0f || CameraClampHalfExtents.GetMin() < 100.0f ||
-	    PlayerHalfExtents.GetMin() < 100.0f || EnemySpawnHalfExtents.GetMin() < 100.0f || CameraOrthoWidth < 100.0f ||
-	    CameraAspectRatio <= KINDA_SMALL_NUMBER)
+	    PlayerHalfExtents.GetMin() < 100.0f || EnemySpawnHalfExtents.GetMin() < 100.0f ||
+	    ArenaCamera->OrthoWidth < 100.0f || ArenaCamera->AspectRatio <= KINDA_SMALL_NUMBER)
 	{
 		return Fail(TEXT("Arena bounds or camera projection are degenerate."));
 	}
@@ -182,9 +185,6 @@ FVector2D AReEchoArenaSceneActor::ClampCameraFocus(const FVector2D& DesiredFocus
 void AReEchoArenaSceneActor::UpdateEditorLayout()
 {
 	ArenaCamera->SetProjectionMode(ECameraProjectionMode::Orthographic);
-	ArenaCamera->SetOrthoWidth(CameraOrthoWidth);
-	ArenaCamera->SetAspectRatio(CameraAspectRatio);
-	ArenaCamera->SetConstraintAspectRatio(true);
 	Backdrop->SetRelativeLocation(FVector(0.0f, 0.0f, ReEchoArenaScene::FloorCenterZ + 1.0f));
 	// map01 的 U 轴对应画面横向（世界 +Y），V 轴对应画面向下（世界 -X）。
 	Backdrop->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
