@@ -106,6 +106,12 @@ public:
 	float CameraFollowSpeed = 8.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
 	float GameplayPlaneZ = 0.0f;
+	/** 关闭后 Backdrop 的位置、旋转和缩放完全采用 Editor 组件 Transform。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Layout")
+	bool bAutoLayoutBackdrop = true;
+	/** 关闭后 Floor 与四面墙的位置、旋转和缩放完全采用 Editor 组件 Transform。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Layout")
+	bool bAutoLayoutCollision = true;
 
 	/** 表现 Actor 以脚点消费该值；场景不直接持有或驱动 Flipbook。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|DepthSort")

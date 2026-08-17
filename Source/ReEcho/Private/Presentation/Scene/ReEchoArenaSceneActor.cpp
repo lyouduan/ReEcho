@@ -233,32 +233,38 @@ FVector2D AReEchoArenaSceneActor::ClampCameraFocus(const FVector2D& DesiredFocus
 void AReEchoArenaSceneActor::UpdateEditorLayout()
 {
 	ArenaCamera->SetProjectionMode(ECameraProjectionMode::Orthographic);
-	Backdrop->SetRelativeLocation(FVector(0.0f, 0.0f, ReEchoArenaScene::FloorCenterZ + 1.0f));
-	// map01 的 U 轴对应画面横向（世界 +Y），V 轴对应画面向下（世界 -X）。
-	Backdrop->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
-	Backdrop->SetRelativeScale3D(FVector(BackdropHalfExtents.Y * 2.0f / ReEchoArenaScene::MeshSize,
-	                                     BackdropHalfExtents.X * 2.0f / ReEchoArenaScene::MeshSize,
-	                                     1.0f));
+	if (bAutoLayoutBackdrop)
+	{
+		Backdrop->SetRelativeLocation(FVector(0.0f, 0.0f, ReEchoArenaScene::FloorCenterZ + 1.0f));
+		// map01 的 U 轴对应画面横向（世界 +Y），V 轴对应画面向下（世界 -X）。
+		Backdrop->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+		Backdrop->SetRelativeScale3D(FVector(BackdropHalfExtents.Y * 2.0f / ReEchoArenaScene::MeshSize,
+		                                     BackdropHalfExtents.X * 2.0f / ReEchoArenaScene::MeshSize,
+		                                     1.0f));
+	}
 	if (BackdropMaterial && MapTexture)
 	{
 		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(BackdropMaterial, this);
 		Material->SetTextureParameterValue(TEXT("SpriteTexture"), MapTexture);
 		Backdrop->SetMaterial(0, Material);
 	}
-	Floor->SetRelativeLocation(FVector(0.0f, 0.0f, ReEchoArenaScene::FloorCenterZ));
-	Floor->SetRelativeScale3D(FVector(PlayerHalfExtents.X / 50.0f, PlayerHalfExtents.Y / 50.0f, 1.0f));
-	const float WallScaleX = PlayerHalfExtents.X / 50.0f;
-	const float WallScaleY = PlayerHalfExtents.Y / 50.0f;
-	const float WallThickness = ReEchoArenaScene::WallHalfThickness / 50.0f;
-	const float WallHeight = ReEchoArenaScene::WallHalfHeight / 50.0f;
-	WallNorth->SetRelativeLocation(FVector(0.0f, PlayerHalfExtents.Y, ReEchoArenaScene::WallCenterZ));
-	WallNorth->SetRelativeScale3D(FVector(WallScaleX, WallThickness, WallHeight));
-	WallSouth->SetRelativeLocation(FVector(0.0f, -PlayerHalfExtents.Y, ReEchoArenaScene::WallCenterZ));
-	WallSouth->SetRelativeScale3D(FVector(WallScaleX, WallThickness, WallHeight));
-	WallEast->SetRelativeLocation(FVector(PlayerHalfExtents.X, 0.0f, ReEchoArenaScene::WallCenterZ));
-	WallEast->SetRelativeScale3D(FVector(WallThickness, WallScaleY, WallHeight));
-	WallWest->SetRelativeLocation(FVector(-PlayerHalfExtents.X, 0.0f, ReEchoArenaScene::WallCenterZ));
-	WallWest->SetRelativeScale3D(FVector(WallThickness, WallScaleY, WallHeight));
+	if (bAutoLayoutCollision)
+	{
+		Floor->SetRelativeLocation(FVector(0.0f, 0.0f, ReEchoArenaScene::FloorCenterZ));
+		Floor->SetRelativeScale3D(FVector(PlayerHalfExtents.X / 50.0f, PlayerHalfExtents.Y / 50.0f, 1.0f));
+		const float WallScaleX = PlayerHalfExtents.X / 50.0f;
+		const float WallScaleY = PlayerHalfExtents.Y / 50.0f;
+		const float WallThickness = ReEchoArenaScene::WallHalfThickness / 50.0f;
+		const float WallHeight = ReEchoArenaScene::WallHalfHeight / 50.0f;
+		WallNorth->SetRelativeLocation(FVector(0.0f, PlayerHalfExtents.Y, ReEchoArenaScene::WallCenterZ));
+		WallNorth->SetRelativeScale3D(FVector(WallScaleX, WallThickness, WallHeight));
+		WallSouth->SetRelativeLocation(FVector(0.0f, -PlayerHalfExtents.Y, ReEchoArenaScene::WallCenterZ));
+		WallSouth->SetRelativeScale3D(FVector(WallScaleX, WallThickness, WallHeight));
+		WallEast->SetRelativeLocation(FVector(PlayerHalfExtents.X, 0.0f, ReEchoArenaScene::WallCenterZ));
+		WallEast->SetRelativeScale3D(FVector(WallThickness, WallScaleY, WallHeight));
+		WallWest->SetRelativeLocation(FVector(-PlayerHalfExtents.X, 0.0f, ReEchoArenaScene::WallCenterZ));
+		WallWest->SetRelativeScale3D(FVector(WallThickness, WallScaleY, WallHeight));
+	}
 	CameraClampBounds->SetRelativeLocation(FVector(0.0f, 0.0f, GameplayPlaneZ + 5.0f));
 	CameraClampBounds->SetBoxExtent(FVector(CameraClampHalfExtents.X, CameraClampHalfExtents.Y, 5.0f));
 	PlayerBounds->SetRelativeLocation(FVector(0.0f, 0.0f, GameplayPlaneZ + 10.0f));
