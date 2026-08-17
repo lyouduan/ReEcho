@@ -6,8 +6,9 @@
 - Executor owner: Unassigned.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Unassigned.
-- Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
-- Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`NotRequired`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 关闭原因：2026-08-17 经程序用户明确决定，本 Plan 的音乐、环境、UI 与相机语义触发范围由扩大的 Plan46 全量吸收；本 Plan 未独立实施，不再形成第二套调用点或验收。
 - Local planning / implementation base: accepted Plan33 API, with Plan34 catalog/settings contract available; latest accepted menu/shop/pause integration.
 - Implementation branch: local `plan/35-audio-noncombat` in a separate worktree.
 - Depends on / Blocks: depends on Plan33. May implement against Plan33 IDs in parallel with Plans34/36, but audible closure requires Plan34 definitions/assets. Wait for Plan32 before editing shared shop/GameMode functions.

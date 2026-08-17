@@ -6,8 +6,9 @@
 - Executor owner: Unassigned.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Unassigned.
-- Task status: `Proposed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
-- Human validation: `PendingBeforeClose` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`NotRequired`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 关闭原因：2026-08-17 经程序用户明确决定，本 Plan 的 Combat、Enemy、Boss 与 Echo 语义触发范围由扩大的 Plan46 全量吸收；本 Plan 未独立实施，不再形成第二套调用点或验收。
 - Local planning / implementation base: accepted Plan33 API and latest accepted attack/replay runtime; Plan34 catalog may land independently.
 - Implementation branch: local `plan/36-audio-combat-echo` in a separate worktree.
 - Depends on / Blocks: depends on Plan33. May implement in parallel with Plans34/35; audible closure needs Plan34 assets. Wait for Plan28 attack-mode integration before editing Player/Weapon execution paths.
