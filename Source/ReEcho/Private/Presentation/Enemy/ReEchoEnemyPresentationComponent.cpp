@@ -60,17 +60,16 @@ UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
 	FoxPresentationProfile = FoxProfileFinder.Object;
 }
 
-void UReEchoEnemyPresentationComponent::ConfigureComponents(
-    USceneComponent* InVisualEffectRoot,
-    UBillboardComponent* InCharacterSprite,
-    UReEcho2DAnimationComponent* InSequenceAnimation,
-    UReEcho2DPresentationController* InPresentationController,
-    UReEcho2DFrameCollisionDriver* InFrameCollisionDriver,
-    UStaticMeshComponent* InGroundShadow,
-    UTextRenderComponent* InElementAuraRing,
-    UTextRenderComponent* InElementAttachmentLabel,
-    UPointLightComponent* InElementAuraLight,
-    UCapsuleComponent* InCollision)
+void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InVisualEffectRoot,
+                                                            UBillboardComponent* InCharacterSprite,
+                                                            UReEcho2DAnimationComponent* InSequenceAnimation,
+                                                            UReEcho2DPresentationController* InPresentationController,
+                                                            UReEcho2DFrameCollisionDriver* InFrameCollisionDriver,
+                                                            UStaticMeshComponent* InGroundShadow,
+                                                            UTextRenderComponent* InElementAuraRing,
+                                                            UTextRenderComponent* InElementAttachmentLabel,
+                                                            UPointLightComponent* InElementAuraLight,
+                                                            UCapsuleComponent* InCollision)
 {
 	VisualEffectRoot = InVisualEffectRoot;
 	CharacterSprite = InCharacterSprite;
@@ -95,17 +94,17 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(
 			UMaterialInstanceDynamic* ShadowMaterial = UMaterialInstanceDynamic::Create(ShadowBase, this);
 			ShadowMaterial->SetTextureParameterValue(
 			    TEXT("SpriteTexture"),
-			    LoadObject<UTexture2D>(
-			        nullptr, TEXT("/Game/ReEcho/Textures/Characters/SoftGroundShadow.SoftGroundShadow")));
+			    LoadObject<UTexture2D>(nullptr,
+			                           TEXT("/Game/ReEcho/Textures/Characters/SoftGroundShadow.SoftGroundShadow")));
 			GroundShadow->SetMaterial(0, ShadowMaterial);
 		}
 	}
 }
 
 void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
-                                                          UReEchoCombatantComponent* InCombatant,
-                                                          UReEchoEnemyEventsComponent* InEnemyEvents,
-                                                          UReEchoCombatEventsComponent* InCombatEvents)
+                                                         UReEchoCombatantComponent* InCombatant,
+                                                         UReEchoEnemyEventsComponent* InEnemyEvents,
+                                                         UReEchoCombatEventsComponent* InCombatEvents)
 {
 	if (EnemyEvents)
 	{
@@ -132,8 +131,8 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	}
 	if (CombatEvents)
 	{
-		CombatEvents->OnElementStateChanged.AddDynamic(
-		    this, &UReEchoEnemyPresentationComponent::HandleElementStateChanged);
+		CombatEvents->OnElementStateChanged.AddDynamic(this,
+		                                               &UReEchoEnemyPresentationComponent::HandleElementStateChanged);
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatHurt);
 		CombatEvents->OnDeath.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatDeath);
 	}
@@ -146,7 +145,7 @@ void UReEchoEnemyPresentationComponent::EndPlay(const EEndPlayReason::Type EndPl
 }
 
 void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyArchetype Archetype,
-                                                             const int32 AppearanceId)
+                                                            const int32 AppearanceId)
 {
 	ApplyVisual(Archetype, AppearanceId);
 	RefreshElementAttachmentVisual();
@@ -164,8 +163,7 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 	}
 }
 
-void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype Archetype,
-                                                     const int32 AppearanceId)
+void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype Archetype, const int32 AppearanceId)
 {
 	const bool bIsBoss = Archetype == EReEchoEnemyArchetype::Boss;
 	if (Collision)
@@ -185,8 +183,7 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype 
 	}
 	if (GroundShadow)
 	{
-		GroundShadow->SetRelativeLocation(
-		    FVector(0.0f, 0.0f, -ReEchoEnemyVisual::CharacterWorldHeight * 0.28f));
+		GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -ReEchoEnemyVisual::CharacterWorldHeight * 0.28f));
 		GroundShadow->SetRelativeScale3D(
 		    FVector(ReEchoEnemyVisual::ShadowScaleX, ReEchoEnemyVisual::ShadowScaleY, 1.0f));
 	}
@@ -209,8 +206,8 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype 
 	bDeathVisualActive = false;
 }
 
-UReEcho2DCharacterPresentationProfile* UReEchoEnemyPresentationComponent::ResolveEnemyPresentationProfile(
-    const int32 AppearanceId) const
+UReEcho2DCharacterPresentationProfile*
+UReEchoEnemyPresentationComponent::ResolveEnemyPresentationProfile(const int32 AppearanceId) const
 {
 	switch (FMath::Abs(AppearanceId) % 4)
 	{
@@ -226,7 +223,7 @@ UReEcho2DCharacterPresentationProfile* UReEchoEnemyPresentationComponent::Resolv
 }
 
 void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSnapshot& Snapshot,
-                                                 const float DeltaSeconds)
+                                                const float DeltaSeconds)
 {
 	const float SafeDelta = FMath::Max(0.0f, DeltaSeconds);
 	VisualTime += SafeDelta;
@@ -240,6 +237,7 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		ReEchoCollisionDebug::DrawCapsule(
 		    Host, Collision, Snapshot.Archetype == EReEchoEnemyArchetype::Boss ? FColor::Orange : FColor::Cyan);
 	}
+	UpdateCameraFacing(Snapshot);
 	UpdateElementAttachmentFacing();
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
@@ -259,6 +257,30 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 	UpdateSpriteAnimation(Snapshot, SafeDelta);
 }
 
+void UReEchoEnemyPresentationComponent::UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot)
+{
+	if (!Host)
+	{
+		return;
+	}
+	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(Host, 0);
+	if (!Camera)
+	{
+		return;
+	}
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetWorldRotation(
+		    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(Camera->GetCameraRotation()));
+	}
+	if (PresentationController)
+	{
+		const FVector CameraRight = FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y);
+		const float ScreenHorizontalDirection = FVector::DotProduct(Snapshot.FacingDirection, CameraRight);
+		PresentationController->SetFacingSign(ScreenHorizontalDirection < 0.0f ? -1.0f : 1.0f);
+	}
+}
+
 void UReEchoEnemyPresentationComponent::ResetTransientRoot()
 {
 	if (VisualEffectRoot)
@@ -274,16 +296,14 @@ void UReEchoEnemyPresentationComponent::UpdateHitReaction(const FReEchoEnemyPres
 	{
 		return;
 	}
-	const float EffectiveRatio = Snapshot.HitReactionDurationSeconds > 0.0f
-	                                 ? FMath::Clamp(Snapshot.HitReactionRemainingSeconds /
-	                                                    Snapshot.HitReactionDurationSeconds,
-	                                                0.0f,
-	                                                1.0f)
-	                                 : 0.0f;
+	const float EffectiveRatio =
+	    Snapshot.HitReactionDurationSeconds > 0.0f
+	        ? FMath::Clamp(Snapshot.HitReactionRemainingSeconds / Snapshot.HitReactionDurationSeconds, 0.0f, 1.0f)
+	        : 0.0f;
 	if (ShakeDirection.IsNearlyZero() && !Snapshot.KnockbackVelocity.IsNearlyZero())
 	{
-		ShakeDirection = FVector::CrossProduct(
-		    FVector::UpVector, Snapshot.KnockbackVelocity.GetSafeNormal2D()).GetSafeNormal();
+		ShakeDirection =
+		    FVector::CrossProduct(FVector::UpVector, Snapshot.KnockbackVelocity.GetSafeNormal2D()).GetSafeNormal();
 	}
 	const float ElapsedTime = ReEchoEnemyVisual::HitReactionDuration * (1.0f - EffectiveRatio);
 	const float ShakeDistance = FMath::Sin(ElapsedTime * 90.0f) * 8.0f * EffectiveRatio;
@@ -293,7 +313,7 @@ void UReEchoEnemyPresentationComponent::UpdateHitReaction(const FReEchoEnemyPres
 }
 
 void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot,
-                                                               const float DeltaSeconds)
+                                                              const float DeltaSeconds)
 {
 	if (!VisualEffectRoot)
 	{
@@ -302,17 +322,14 @@ void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemy
 	if (PresentationController)
 	{
 		PresentationController->SetMoving(Snapshot.bMoving);
-		PresentationController->SetFacingSign(Snapshot.FacingDirection.X >= 0.0f ? 1.0f : -1.0f);
 	}
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
-	const float Bob = FMath::Sin(VisualTime * (Snapshot.bMoving ? 8.0f : 2.6f)) *
-	                  (Snapshot.bMoving ? 3.5f : 1.5f);
-	const float AttackPulse = AttackVisualRemaining > 0.0f
-	                              ? FMath::Sin((1.0f - AttackVisualRemaining / 0.22f) * PI)
-	                              : 0.0f;
+	const float Bob = FMath::Sin(VisualTime * (Snapshot.bMoving ? 8.0f : 2.6f)) * (Snapshot.bMoving ? 3.5f : 1.5f);
+	const float AttackPulse =
+	    AttackVisualRemaining > 0.0f ? FMath::Sin((1.0f - AttackVisualRemaining / 0.22f) * PI) : 0.0f;
 	VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(AttackPulse * 15.0f, 0.0f, Bob));
-	VisualEffectRoot->SetRelativeScale3D(
-	    BaseVisualScale * FVector(1.0f + AttackPulse * 0.08f, 1.0f - AttackPulse * 0.04f, 1.0f));
+	VisualEffectRoot->SetRelativeScale3D(BaseVisualScale *
+	                                     FVector(1.0f + AttackPulse * 0.08f, 1.0f - AttackPulse * 0.04f, 1.0f));
 }
 
 void UReEchoEnemyPresentationComponent::UpdateDeathAnimation(const float DeltaSeconds)

@@ -22,6 +22,7 @@ class UTexture2D;
 
 /** Host-aggregated, read-only input for enemy presentation. */
 USTRUCT(BlueprintType)
+
 struct REECHO_API FReEchoEnemyPresentationSnapshot
 {
 	GENERATED_BODY()
@@ -71,6 +72,7 @@ struct REECHO_API FReEchoEnemyPresentationSnapshot
  * no command path back into AI, damage, cooldown, movement or encounter flow.
  */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
+
 class REECHO_API UReEchoEnemyPresentationComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -96,7 +98,10 @@ public:
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	void RefreshElementAttachmentVisual();
 
-	UBillboardComponent* GetCharacterSprite() const { return CharacterSprite; }
+	UBillboardComponent* GetCharacterSprite() const
+	{
+		return CharacterSprite;
+	}
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -118,6 +123,7 @@ private:
 	void ApplyVisual(EReEchoEnemyArchetype Archetype, int32 AppearanceId);
 	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile(int32 AppearanceId) const;
 	void ResetTransientRoot();
+	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateElementAttachmentFacing();
 	void UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
