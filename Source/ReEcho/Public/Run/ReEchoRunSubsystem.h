@@ -59,11 +59,19 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 
-	bool IsAutomaticAttackMode() const { return bAutomaticAttackMode; }
-	void SetAutomaticAttackMode(bool bAutomatic) { bAutomaticAttackMode = bAutomatic; }
+	bool IsAutomaticAttackMode() const
+	{
+		return bAutomaticAttackMode;
+	}
+
+	void SetAutomaticAttackMode(bool bAutomatic)
+	{
+		bAutomaticAttackMode = bAutomatic;
+	}
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
+	int32 GetTotalEncounterCount() const;
 
 	UFUNCTION(BlueprintCallable)
 	void BeginEncounter();

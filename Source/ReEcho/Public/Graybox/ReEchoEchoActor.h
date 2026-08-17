@@ -43,6 +43,7 @@ public:
 	float GetCurrentHealth() const;
 	FString GetPinnedWeaponDomainRevision() const;
 	FName GetEquippedWeaponId() const;
+	FVector EvaluateRecordedPosition(float EncounterTime) const;
 
 private:
 	UPROPERTY(VisibleAnywhere)

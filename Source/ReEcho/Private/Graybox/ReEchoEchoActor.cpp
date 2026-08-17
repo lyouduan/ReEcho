@@ -75,9 +75,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
-	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo,
-	                                     FReEchoAudioEvents::EchoAttack,
-	                                     NAME_None);
+	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo, FReEchoAudioEvents::EchoAttack, NAME_None);
 }
 
 bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
@@ -192,6 +190,11 @@ FString AReEchoEchoActor::GetPinnedWeaponDomainRevision() const
 FName AReEchoEchoActor::GetEquippedWeaponId() const
 {
 	return Weapon ? Weapon->GetEquippedWeaponId() : NAME_None;
+}
+
+FVector AReEchoEchoActor::EvaluateRecordedPosition(const float EncounterTime) const
+{
+	return Playback ? Playback->EvaluateRecordedPosition(EncounterTime) : GetActorLocation();
 }
 
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)

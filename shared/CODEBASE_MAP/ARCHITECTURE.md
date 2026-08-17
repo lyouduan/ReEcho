@@ -4,7 +4,7 @@
 
 ## 项目形态
 
-ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人与 Echo 使用 2D 表现，移动、碰撞、攻击和世界流程运行于 3D 场景；`/Game/Level00` 承载运行时生成的有界竞技场与六场遭遇。
+ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人与 Echo 使用 2D 表现，移动、碰撞、攻击和世界流程运行于 3D 场景；`/Game/Level00` 当前承载运行时生成的有界竞技场与八场表驱动遭遇。
 
 ## 当前 Runtime Module
 
@@ -35,10 +35,12 @@ MOD-ReEchoEnemies ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoAudio / 
 ```text
 启动 / Continue
   → 角色与初始武器选择
-  → AReEchoGameMode 创建竞技场、玩家、EncounterDirector、敌人与可用 Echo
+  → AReEchoGameMode 创建竞技场、玩家、EncounterDirector 与可用 Echo
   → 60 Hz 暂停感知固定步推进遭遇
+  → Encounter Catalog 在 0/10/20 秒发布预警和 Spawn Intent
+  → Spawn Resolver 以玩家预测/Echo 录制路径双锚确定出生点
   → 玩家位置与成功主动技能按 20 Hz 录制
-  → 敌人清空或超时后完成本场录制
+  → 普通战 30 秒完成；同 Stage 保留存活敌人，跨 Stage 清理；Boss 由胜负完成
   → 特质构筑 → Time Shard 商店 → Echo 存储/回放选择
   → 下一场遭遇；最终 Boss 结束整局
 ```
@@ -54,6 +56,7 @@ MOD-ReEchoEnemies ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoAudio / 
 | 自动/手动 held、目标与攻击请求 | `MOD-ReEchoCombat` 的 AttackController/Targeting | Pawn、菜单和 Run 只发送受控命令 |
 | 武器定义、攻击步骤、唯一节拍与逻辑载体 | `MOD-ReEchoWeapons` | Player/Echo 发请求；Weapons 只产生 Commit/HitIntent |
 | 怪物类型、行为阶段、攻击冷却、爆破引信、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 EnemyLogic | EnemyHost 显式提供 Sense、应用移动并把攻击候选交给 Combat；表现只读事件/快照 |
+| Stage、Encounter、Wave 门、确定性出生候选与普通怪全局技能令牌 | `MOD-ReEcho` 的 Encounter Catalog / WaveScheduler / SpawnResolver / GameMode coordinator | 预警锁定位置；远程窗口与精英并发统一授权；Enemies 只消费许可 |
 | 最终命中、伤害、元素、击杀与死亡 | `MOD-ReEchoCombat` 的 HitResolver | Weapons/Enemy 提交 HitIntent；其余系统消费结果 |
 | 玩家历史与 Echo Playback | Recording/Playback | 世界流程启动/停止，当前世界重新选目标与结算 |
 | 屏幕实例、焦点、输入模式与暂停策略 | UI Manager/Flow Coordinator | GameMode 发送屏幕命令，不直接管理 Viewport |
@@ -62,7 +65,7 @@ MOD-ReEchoEnemies ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoAudio / 
 ## 数据权威流
 
 ```text
-Design/Data/ReEchoData.xlsx
+Design/Data/ReEchoData.xlsx + ReEchoEnemyData.xlsx + ReEchoEncounterData.xlsx + ReEchoAudioEvents.xlsx
   → scripts/data/sync_xlsx_to_csv.py
   → Content/Data/*.csv
   → 类型化 CSV Reader / FReEchoCsvDataRegistry
@@ -85,7 +88,7 @@ Design/Data/ReEchoData.xlsx
 
 ## 当前候选状态
 
-Plan41 的四模块拓扑和 Plan43 的第五个 Runtime Module `ReEchoEnemies` 均已进入 `main`。Plan44 在既有单向依赖上增加配表驱动的 Boss 技能策略、EnemyHost 世界执行、Combat 清洗窄命令和 v8 Boss 保存恢复；`ReEchoEnemies` 仍不反向依赖主模块、工作簿或表现资源。
+五个 Runtime Module 拓扑保持不变。Encounter Catalog、WaveScheduler 与 SpawnResolver 仍属于 `MOD-ReEcho/AREA-Encounter`；它们只向 EnemyHost 提供数据和 Spawn Intent，没有让 `ReEchoEnemies` 反向依赖主模块、工作簿或表现资源。
 
 ## 维护规则
 

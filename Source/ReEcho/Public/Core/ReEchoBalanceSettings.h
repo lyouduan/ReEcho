@@ -10,9 +10,9 @@ class REECHO_API UReEchoBalanceSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 public:
-	/** 一轮游戏包含的遭遇总数；最后一场生成 Boss 并决定最终结算。 */
+	/** 仅在 Encounter Catalog 不可用时使用的兼容回退；正常运行以 encounters.csv 为唯一权威。 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter", meta = (ClampMin = "1"))
-	int32 TotalEncounterCount = 6;
+	int32 TotalEncounterCount = 8;
 
 	int32 GetTotalEncounterCount() const
 	{

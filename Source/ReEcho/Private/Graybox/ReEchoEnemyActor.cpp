@@ -25,6 +25,7 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
+#include "ReEchoGameMode.h"
 #include "ReEchoAudioEvents.h"
 #include "UI/ReEchoDamageNumberActor.h"
 #include "Graybox/ReEchoAttackEffects.h"
@@ -48,6 +49,12 @@ EReEchoEnemyArchetype ToArchetype(const EReEchoEnemyKind Kind)
 			return EReEchoEnemyArchetype::Bomber;
 		case EReEchoEnemyKind::Boss:
 			return EReEchoEnemyArchetype::Boss;
+		case EReEchoEnemyKind::Slime:
+			return EReEchoEnemyArchetype::Slime;
+		case EReEchoEnemyKind::Ranged:
+			return EReEchoEnemyArchetype::Ranged;
+		case EReEchoEnemyKind::Elite:
+			return EReEchoEnemyArchetype::Elite;
 		default:
 			return EReEchoEnemyArchetype::Grunt;
 	}
@@ -63,6 +70,12 @@ EReEchoEnemyKind ToLegacyKind(const EReEchoEnemyArchetype Archetype)
 			return EReEchoEnemyKind::Bomber;
 		case EReEchoEnemyArchetype::Boss:
 			return EReEchoEnemyKind::Boss;
+		case EReEchoEnemyArchetype::Slime:
+			return EReEchoEnemyKind::Slime;
+		case EReEchoEnemyArchetype::Ranged:
+			return EReEchoEnemyKind::Ranged;
+		case EReEchoEnemyArchetype::Elite:
+			return EReEchoEnemyKind::Elite;
 		default:
 			return EReEchoEnemyKind::Grunt;
 	}
@@ -89,10 +102,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	GroundShadow->SetCastShadow(false);
 	GroundShadow->SetTranslucentSortPriority(-1);
 	GroundShadow->SetAbsolute(false, false, true);
-	GroundShadow->SetRelativeLocation(
-	    FVector(0.0f, 0.0f, -ReEchoEnemyHost::CharacterWorldHeight * 0.28f));
-	GroundShadow->SetRelativeScale3D(
-	    FVector(ReEchoEnemyHost::ShadowScaleX, ReEchoEnemyHost::ShadowScaleY, 1.0f));
+	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -ReEchoEnemyHost::CharacterWorldHeight * 0.28f));
+	GroundShadow->SetRelativeScale3D(FVector(ReEchoEnemyHost::ShadowScaleX, ReEchoEnemyHost::ShadowScaleY, 1.0f));
 
 	USceneComponent* VisualEffectRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualEffectRoot"));
 	VisualEffectRoot->SetupAttachment(RootComponent);
@@ -214,12 +225,12 @@ void AReEchoEnemyActor::Configure(const EReEchoEnemyKind InKind, const int32 Spa
 	}
 
 	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
-	const FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(
-	    ReEchoEnemyHost::ToArchetype(InKind),
-	    Settings->BomberTriggerRadius,
-	    Settings->BomberDamageRadius,
-	    Settings->BomberFuseDuration,
-	    Settings->BomberDamage);
+	const FReEchoEnemyDefinition Definition =
+	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(ReEchoEnemyHost::ToArchetype(InKind),
+	                                                 Settings->BomberTriggerRadius,
+	                                                 Settings->BomberDamageRadius,
+	                                                 Settings->BomberFuseDuration,
+	                                                 Settings->BomberDamage);
 	check(ConfigureFromDefinition(Definition, SpawnIndex));
 }
 
@@ -247,14 +258,15 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		bVisualPlacementApplied = true;
 	}
 	EnemyPresentation->ConfigureAppearance(Definition.Archetype, SpawnIndex);
+	Collision->SetCapsuleSize(Definition.CollisionRadiusCm, Definition.CollisionHalfHeightCm);
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
 	                                     bBoss ? FReEchoAudioEvents::BossAttack : FReEchoAudioEvents::EnemyAttack,
 	                                     bBoss ? FReEchoAudioEvents::BossDeath : FReEchoAudioEvents::EnemyDeath);
 	if (!bAudioSpawnPosted)
 	{
-		CombatAudioAdapter->PostConfiguredEvent(
-		    bBoss ? FReEchoAudioEvents::BossSpawn : FReEchoAudioEvents::EnemySpawn, GetActorLocation());
+		CombatAudioAdapter->PostConfiguredEvent(bBoss ? FReEchoAudioEvents::BossSpawn : FReEchoAudioEvents::EnemySpawn,
+		                                        GetActorLocation());
 		bAudioSpawnPosted = true;
 	}
 	if (EnemyRoster)
@@ -293,17 +305,18 @@ int32 AReEchoEnemyActor::GetSpawnIndex() const
 
 EReEchoEnemyKind AReEchoEnemyActor::GetKind() const
 {
-	return EnemyLogic ? ReEchoEnemyHost::ToLegacyKind(EnemyLogic->GetSnapshot().Archetype)
-	                  : EReEchoEnemyKind::Grunt;
+	return EnemyLogic ? ReEchoEnemyHost::ToLegacyKind(EnemyLogic->GetSnapshot().Archetype) : EReEchoEnemyKind::Grunt;
 }
 
 FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 {
 	FReEchoEnemyRuntimeState Result;
-	const FReEchoEnemyLogicSnapshot LogicSnapshot = EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
+	const FReEchoEnemyLogicSnapshot LogicSnapshot =
+	    EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
 	Result.LogicSnapshot = LogicSnapshot;
 	Result.bHasLogicSnapshot = EnemyLogic != nullptr;
 	Result.Kind = static_cast<uint8>(ReEchoEnemyHost::ToLegacyKind(LogicSnapshot.Archetype));
+	Result.EnemyId = EnemyId;
 	Result.SpawnIndex = LogicSnapshot.SpawnIndex;
 	Result.Transform = GetActorTransform();
 	Result.CurrentHealth = Combatant ? Combatant->CurrentHealth : 0.0f;
@@ -324,8 +337,8 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.bBomberFuseActive = LogicSnapshot.bFuseActive;
 	Result.HitReactionRemaining = LogicSnapshot.HitReactionRemainingSeconds;
 	Result.KnockbackVelocity = LogicSnapshot.KnockbackVelocity;
-	Result.ShakeDirection = FVector::CrossProduct(
-	    FVector::UpVector, LogicSnapshot.KnockbackVelocity.GetSafeNormal2D()).GetSafeNormal();
+	Result.ShakeDirection =
+	    FVector::CrossProduct(FVector::UpVector, LogicSnapshot.KnockbackVelocity.GetSafeNormal2D()).GetSafeNormal();
 	Result.AttackSequence = LogicSnapshot.AttackSequence;
 	Result.bSelfDestructCommitted = LogicSnapshot.bSelfDestructCommitted;
 	Result.BossProjectiles = BossProjectiles;
@@ -334,9 +347,9 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 
 void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState)
 {
-	const EReEchoEnemyKind SavedKind = SavedState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
-	                                         ? static_cast<EReEchoEnemyKind>(SavedState.Kind)
-	                                         : EReEchoEnemyKind::Grunt;
+	const EReEchoEnemyKind SavedKind = SavedState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Elite)
+	                                       ? static_cast<EReEchoEnemyKind>(SavedState.Kind)
+	                                       : EReEchoEnemyKind::Grunt;
 	if (!EnemyLogic || !EnemyLogic->IsInitialized() ||
 	    EnemyLogic->GetDefinition().Archetype != ReEchoEnemyHost::ToArchetype(SavedKind))
 	{
@@ -372,10 +385,9 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		LogicSnapshot.FacingDirection = GetActorForwardVector().GetSafeNormal2D();
 		LogicSnapshot.AttackSequence = FMath::Max<int64>(0, SavedState.AttackSequence);
 		LogicSnapshot.bSelfDestructCommitted = SavedState.bSelfDestructCommitted;
-		LogicSnapshot.Phase = LogicSnapshot.HitReactionRemainingSeconds > 0.0f
-		                          ? EReEchoEnemyBehaviorPhase::HitReaction
-		                      : LogicSnapshot.bFuseActive ? EReEchoEnemyBehaviorPhase::Fuse
-		                                                   : EReEchoEnemyBehaviorPhase::Idle;
+		LogicSnapshot.Phase = LogicSnapshot.HitReactionRemainingSeconds > 0.0f ? EReEchoEnemyBehaviorPhase::HitReaction
+		                      : LogicSnapshot.bFuseActive                      ? EReEchoEnemyBehaviorPhase::Fuse
+		                                                                       : EReEchoEnemyBehaviorPhase::Idle;
 	}
 	LogicSnapshot.Archetype = ReEchoEnemyHost::ToArchetype(SavedKind);
 	LogicSnapshot.SpawnIndex = SavedState.SpawnIndex;
@@ -409,8 +421,7 @@ bool AReEchoEnemyActor::IntersectsProjectilePath(const FVector& PathStart,
 	const FVector CapsuleCenter = Collision->GetComponentLocation();
 	const FVector CapsuleAxis = Collision->GetUpVector();
 	const float CapsuleRadius = Collision->GetScaledCapsuleRadius();
-	const float CapsuleSegmentHalfLength =
-	    FMath::Max(0.0f, Collision->GetScaledCapsuleHalfHeight() - CapsuleRadius);
+	const float CapsuleSegmentHalfLength = FMath::Max(0.0f, Collision->GetScaledCapsuleHalfHeight() - CapsuleRadius);
 	const FVector CapsuleStart = CapsuleCenter - CapsuleAxis * CapsuleSegmentHalfLength;
 	const FVector CapsuleEnd = CapsuleCenter + CapsuleAxis * CapsuleSegmentHalfLength;
 	FVector ClosestOnProjectile;
@@ -471,7 +482,7 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 
 float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
-	if (!EnemyLogic || EnemyLogic->GetSnapshot().Archetype != EReEchoEnemyArchetype::Shield)
+	if (!EnemyLogic || !EnemyLogic->GetDefinition().bUsesDirectionalShield)
 	{
 		return Intent.RawDamage;
 	}
@@ -500,8 +511,8 @@ void AReEchoEnemyActor::AdvanceBossProjectiles(const float DeltaSeconds)
 	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
 	{
 		FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
-		const FReEchoEnemyProjectileAdvanceResult AdvanceResult = FReEchoEnemyProjectileLogic::Advance(
-		    Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
+		const FReEchoEnemyProjectileAdvanceResult AdvanceResult =
+		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
 		bool bHitPlayer = false;
 		if (AdvanceResult.bMoved && Player && Player->IsCombatTargetAlive() &&
 		    Player->IntersectsCombatPath(
@@ -554,13 +565,22 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 				Sense.bHasTeleportDestination = !Sense.TeleportDestination.IsNearlyZero();
 			}
 		}
+		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+		Sense.bSpecialActionPermitted =
+		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		const EReEchoEnemySpecialActionPhase PreviousSpecialPhase = EnemyLogic->GetSnapshot().SpecialActionPhase;
 		Intent = AdvanceBehavior(Sense, DeltaSeconds);
+		if (ReEchoGameMode && PreviousSpecialPhase == EReEchoEnemySpecialActionPhase::None &&
+		    EnemyLogic->GetSnapshot().SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
+		{
+			ReEchoGameMode->NotifyEnemySpecialStarted(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		}
 	}
 	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement), DeltaSeconds);
 }
 
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense,
-	                                                         const float DeltaSeconds)
+                                                            const float DeltaSeconds)
 {
 	const FReEchoEnemyActionIntent Intent = EnemyLogic->Advance(Sense, DeltaSeconds);
 	if (Intent.bHasFacing)
@@ -577,7 +597,7 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySe
 
 #if WITH_DEV_AUTOMATION_TESTS
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense,
-	                                                                 const float DeltaSeconds)
+                                                                    const float DeltaSeconds)
 {
 	return AdvanceBehavior(Sense, DeltaSeconds);
 }
@@ -588,7 +608,7 @@ FVector AReEchoEnemyActor::ResolveBossTeleportDestination(const FVector& TargetL
 	float TeleportOffsetCm = 0.0f;
 	if (EnemyLogic)
 	{
-		for (const FReEchoEnemyAbilityDefinition& Ability : EnemyLogic->GetDefinition().BossAbilities)
+		for (const FReEchoEnemyAbilityDefinition& Ability : EnemyLogic->GetDefinition().Abilities)
 		{
 			if (Ability.BehaviorId == TEXT("Boss.BlinkSlam") && Ability.bEnabled)
 			{
@@ -613,9 +633,7 @@ FVector AReEchoEnemyActor::ResolveBossTeleportDestination(const FVector& TargetL
 	return GetWorld()->FindTeleportSpot(this, Candidate, CandidateRotation) ? Candidate : FVector::ZeroVector;
 }
 
-void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent,
-                                     AActor* Target,
-                                     const FVector& HitLocation)
+void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation)
 {
 	if (!Target || Intent.RawDamage <= 0.0f)
 	{
@@ -638,8 +656,7 @@ void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent,
 		ReEchoPlayer->PlayHitVisual();
 	}
 	ReEchoAttackEffects::SpawnHitImpact(GetWorld(), HitLocation);
-	AReEchoDamageNumberActor::SpawnDamageNumber(
-	    GetWorld(), HitLocation, Resolved.AppliedDamage, FLinearColor::White);
+	AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), HitLocation, Resolved.AppliedDamage, FLinearColor::White);
 }
 
 void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
@@ -681,13 +698,13 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 			const FVector ToTarget = TargetLocation - Intent.Origin;
 			const float ForwardDistance = FVector::DotProduct(ToTarget, Direction);
 			const float SideDistance = FMath::Abs(FVector::DotProduct(ToTarget, Right));
-			bIntersectsAttack = ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm &&
-			                    SideDistance <= Intent.WidthCm * 0.5f;
+			bIntersectsAttack =
+			    ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm && SideDistance <= Intent.WidthCm * 0.5f;
 			break;
 		}
 		case EReEchoBossAttackShape::Circle:
-			bIntersectsAttack = FVector::DistSquared2D(TargetLocation, GetActorLocation()) <=
-			                    FMath::Square(Intent.RadiusCm);
+			bIntersectsAttack =
+			    FVector::DistSquared2D(TargetLocation, GetActorLocation()) <= FMath::Square(Intent.RadiusCm);
 			break;
 		case EReEchoBossAttackShape::Projectile:
 		{
@@ -774,9 +791,8 @@ FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(co
 	Result.SpawnIndex = LogicSnapshot.SpawnIndex;
 	Result.FacingDirection = LogicSnapshot.FacingDirection;
 	Result.KnockbackVelocity = LogicSnapshot.KnockbackVelocity;
-	Result.HealthRatio = Combatant && Combatant->Stats.HpMax > 0.0f
-	                         ? Combatant->CurrentHealth / Combatant->Stats.HpMax
-	                         : 0.0f;
+	Result.HealthRatio =
+	    Combatant && Combatant->Stats.HpMax > 0.0f ? Combatant->CurrentHealth / Combatant->Stats.HpMax : 0.0f;
 	Result.FuseRemainingSeconds = LogicSnapshot.FuseRemainingSeconds;
 	Result.FuseDurationSeconds = Definition.BomberFuseDurationSeconds;
 	Result.HitReactionRemainingSeconds = LogicSnapshot.HitReactionRemainingSeconds;

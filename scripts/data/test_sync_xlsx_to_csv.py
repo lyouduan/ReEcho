@@ -24,6 +24,8 @@ DATA = sync.DATA_DIR
 SCRIPT = ROOT / "scripts" / "data" / "sync_xlsx_to_csv.py"
 CANONICAL = sync.CANONICAL_XLSX
 ENEMY_CANONICAL = sync.CANONICAL_ENEMY_XLSX
+ENCOUNTER_CANONICAL = sync.CANONICAL_ENCOUNTER_XLSX
+AUDIO_CANONICAL = sync.CANONICAL_AUDIO_XLSX
 CANONICAL_WORKBOOKS = sync.CANONICAL_WORKBOOKS
 
 
@@ -63,7 +65,12 @@ class SyncXlsxToCsvTests(unittest.TestCase):
     def assert_invalid_workbook(self, mutator, token: str) -> None:
         workbook_path = self.mutate_workbook(mutator)
         result = self.run_sync(
-            "--input", str(workbook_path), "--input", str(ENEMY_CANONICAL), "--check", expect_success=False
+            "--input", str(workbook_path),
+            "--input", str(ENEMY_CANONICAL),
+            "--input", str(ENCOUNTER_CANONICAL),
+            "--input", str(AUDIO_CANONICAL),
+            "--check",
+            expect_success=False,
         )
         self.assertIn(token, result.stdout)
         self.assertRegex(result.stdout, r":tbl[A-Za-z]+:row \d+:column ")
@@ -131,7 +138,7 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         outputs = [owner.output_csv for owner in all_owners]
         self.assertEqual(sorted(outputs), sorted(sync.TABLE_TO_CSV.values()))
         self.assertEqual(len(outputs), len(set(outputs)))
-        main_wb, enemy_wb = workbooks
+        main_wb, enemy_wb, encounter_wb, _audio_wb = workbooks
         by_sheet: dict[str, list[str]] = {}
         for owner in all_owners:
             by_sheet.setdefault(owner.sheet, []).append(owner.output_csv)
@@ -142,6 +149,11 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblEnemies").title]), ["enemies.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblEnemyAbilities").title]), ["enemy_abilities.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblBossPhases").title]), ["boss_phases.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(encounter_wb, "tblStages").title]), ["stages.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(encounter_wb, "tblEncounters").title]), ["encounters.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(encounter_wb, "tblEncounterWaves").title]), ["encounter_waves.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(encounter_wb, "tblSpawnProfiles").title]), ["spawn_profiles.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(encounter_wb, "tblSpawnPolicy").title]), ["spawn_policy.csv"])
         for wb in workbooks:
             tables = sync.workbook_tables(wb)
             for table_name in set(tables) & sync.AUTHORING_TABLES:
@@ -176,7 +188,12 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             self.table_cell(wb, "tblEnemyAbilities", 0, "OwnerEnemyId").value = "M_Missing"
             wb.save(fixture)
             result = self.run_sync(
-                "--input", str(CANONICAL), "--input", str(fixture), "--check", expect_success=False
+                "--input", str(CANONICAL),
+                "--input", str(fixture),
+                "--input", str(ENCOUNTER_CANONICAL),
+                "--input", str(AUDIO_CANONICAL),
+                "--check",
+                expect_success=False,
             )
             self.assertIn("unknown reference 'M_Missing'", result.stdout)
             self.assertRegex(result.stdout, r"EnemyAbilities:tblEnemyAbilities:row \d+:column OwnerEnemyId")
@@ -189,10 +206,51 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             self.table_cell(wb, "tblEnemies", 0, "FuseSeconds").value = 1
             wb.save(fixture)
             result = self.run_sync(
-                "--input", str(CANONICAL), "--input", str(fixture), "--check", expect_success=False
+                "--input", str(CANONICAL),
+                "--input", str(fixture),
+                "--input", str(ENCOUNTER_CANONICAL),
+                "--input", str(AUDIO_CANONICAL),
+                "--check",
+                expect_success=False,
             )
             self.assertIn("non-Bomber fields must use explicit zero", result.stdout)
             self.assertRegex(result.stdout, r"Enemies:tblEnemies:row \d+:column TriggerRadiusCm")
+
+    def test_encounter_anchor_ratio_failure_reports_location(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="reecho_encounter_fixture_") as temp:
+            fixture = Path(temp) / "encounter.xlsx"
+            shutil.copy2(ENCOUNTER_CANONICAL, fixture)
+            wb = load_workbook(fixture)
+            self.table_cell(wb, "tblEncounters", 2, "PlayerAnchorRatio").value = 0.2
+            wb.save(fixture)
+            result = self.run_sync(
+                "--input", str(CANONICAL),
+                "--input", str(ENEMY_CANONICAL),
+                "--input", str(fixture),
+                "--input", str(AUDIO_CANONICAL),
+                "--check",
+                expect_success=False,
+            )
+            self.assertIn("anchor ratios must sum to 1", result.stdout)
+            self.assertRegex(result.stdout, r"Encounters:tblEncounters:row \d+:column EchoAnchorRatio")
+
+    def test_encounter_wave_timing_failure_reports_location(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="reecho_encounter_fixture_") as temp:
+            fixture = Path(temp) / "encounter.xlsx"
+            shutil.copy2(ENCOUNTER_CANONICAL, fixture)
+            wb = load_workbook(fixture)
+            self.table_cell(wb, "tblEncounterWaves", 1, "TriggerSeconds").value = 11
+            wb.save(fixture)
+            result = self.run_sync(
+                "--input", str(CANONICAL),
+                "--input", str(ENEMY_CANONICAL),
+                "--input", str(fixture),
+                "--input", str(AUDIO_CANONICAL),
+                "--check",
+                expect_success=False,
+            )
+            self.assertIn("require waves 1..3 at 0/10/20 seconds", result.stdout)
+            self.assertRegex(result.stdout, r"EncounterWaves:tblEncounterWaves:row \d+:column WaveIndex")
 
     def test_check_is_read_only_and_reports_drift(self) -> None:
         generated = self.generated_bytes()
@@ -257,6 +315,20 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             os.environ.pop("REECHO_XLSX_FAIL_AFTER_REPLACE", None)
         for name, data in old.items():
             self.assertEqual(data, (temp_data / name).read_bytes(), name)
+        self.assertFalse((temp_data / sync.TRANSACTION_FILE).exists())
+
+    def test_publish_failure_removes_newly_created_output(self) -> None:
+        generated = self.generated_bytes()
+        temp_data = self.make_temp_data_dir()
+        new_output = temp_data / "stages.csv"
+        new_output.unlink()
+        try:
+            os.environ["REECHO_XLSX_FAIL_AFTER_REPLACE"] = "1"
+            with self.assertRaises(OSError):
+                sync.publish(generated, ["stages.csv"], data_dir=temp_data, final_validator=lambda: None)
+        finally:
+            os.environ.pop("REECHO_XLSX_FAIL_AFTER_REPLACE", None)
+        self.assertFalse(new_output.exists())
         self.assertFalse((temp_data / sync.TRANSACTION_FILE).exists())
 
     def test_final_project_validator_failure_rolls_back_all_changed_bytes(self) -> None:

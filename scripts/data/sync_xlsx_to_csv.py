@@ -24,8 +24,9 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "Content" / "Data"
 CANONICAL_XLSX = ROOT / "Design" / "Data" / "ReEchoData.xlsx"
 CANONICAL_ENEMY_XLSX = ROOT / "Design" / "Data" / "ReEchoEnemyData.xlsx"
+CANONICAL_ENCOUNTER_XLSX = ROOT / "Design" / "Data" / "ReEchoEncounterData.xlsx"
 CANONICAL_AUDIO_XLSX = ROOT / "Design" / "Data" / "ReEchoAudioEvents.xlsx"
-CANONICAL_WORKBOOKS = (CANONICAL_XLSX, CANONICAL_ENEMY_XLSX, CANONICAL_AUDIO_XLSX)
+CANONICAL_WORKBOOKS = (CANONICAL_XLSX, CANONICAL_ENEMY_XLSX, CANONICAL_ENCOUNTER_XLSX, CANONICAL_AUDIO_XLSX)
 REQUIREMENTS = Path(__file__).with_name("requirements.txt")
 EXPECTED_OPENPYXL = "3.1.5"
 TRANSACTION_FILE = ".reecho_csv_publish_transaction.json"
@@ -50,6 +51,11 @@ TABLE_TO_CSV = {
     "tblEnemies": "enemies.csv",
     "tblEnemyAbilities": "enemy_abilities.csv",
     "tblBossPhases": "boss_phases.csv",
+    "tblStages": "stages.csv",
+    "tblEncounters": "encounters.csv",
+    "tblEncounterWaves": "encounter_waves.csv",
+    "tblSpawnProfiles": "spawn_profiles.csv",
+    "tblSpawnPolicy": "spawn_policy.csv",
     "tblAudioEvents": "audio_events.csv",
 }
 
@@ -82,6 +88,15 @@ AUTHORING_LIST_VALIDATION_COLUMNS = {
     "tblEnemies": frozenset({"Archetype", "BehaviorProfileId", "PresentationId", "Enabled", "Boss"}),
     "tblEnemyAbilities": frozenset({"OwnerEnemyId", "BehaviorId", "Enabled", "TargetingMode", "LockTiming"}),
     "tblBossPhases": frozenset({"BossEnemyId", "EchoPolicy", "RefillHealthPolicy", "Enabled"}),
+    "tblStages": frozenset({"SceneId", "PreserveEnemiesBetweenEncounters", "ClearEnemiesOnEnter", "Enabled"}),
+    "tblEncounters": frozenset({
+        "StageId", "EndCondition", "MeleeTargetingPolicy", "BossCountsTowardUnitLimit", "ReplayPolicy", "Enabled",
+    }),
+    "tblEncounterWaves": frozenset({"EncounterId", "Enabled"}),
+    "tblSpawnProfiles": frozenset({"EnemyRole", "EnemyId", "DistributionPolicy", "SpacingPolicy", "Enabled"}),
+    "tblSpawnPolicy": frozenset({
+        "BoundaryPolicy", "CandidatePolicy", "PlayerPredictionPolicy", "MultiEchoPolicy", "Enabled",
+    }),
     "tblAudioEvents": frozenset({"Bus", "EventType", "Spatial3D", "PausePolicy"}),
 }
 
@@ -98,6 +113,8 @@ REFERENCE_LIST_VALIDATION_FORMULAS = {
     ("tblPartEffects", "PartId"): 'INDIRECT("tblParts[PartId]")',
     ("tblEnemyAbilities", "OwnerEnemyId"): 'INDIRECT("tblEnemies[Id]")',
     ("tblBossPhases", "BossEnemyId"): 'INDIRECT("tblEnemies[Id]")',
+    ("tblEncounters", "StageId"): 'INDIRECT("tblStages[Id]")',
+    ("tblEncounterWaves", "EncounterId"): 'INDIRECT("tblEncounters[Id]")',
 }
 
 
@@ -615,18 +632,26 @@ def recover_transaction(data_dir: Path, manifest_whitelist: set[str] | None = No
     files = state.get("files", [])
     if not isinstance(files, list) or not files:
         raise SyncError("transaction marker must contain a non-empty files list")
+    if any(not isinstance(item, str) for item in files):
+        raise SyncError("transaction marker files must be relative manifest filenames")
+    created_files = state.get("created_files", [])
+    if not isinstance(created_files, list) or any(not isinstance(item, str) for item in created_files):
+        raise SyncError("transaction marker created_files must be a list of manifest filenames")
+    created = set(created_files)
+    if not created.issubset(set(files)):
+        raise SyncError("transaction marker created_files must be a subset of files")
     validated: list[tuple[Path, Path]] = []
     for item in files:
-        if not isinstance(item, str):
-            raise SyncError("transaction marker files must be relative manifest filenames")
         target = ensure_data_dir_path(data_dir, item, whitelist, "transaction recovery")
         backup = (backup_dir / item).resolve()
         if backup.parent != backup_dir.resolve():
             raise SyncError("transaction backup path escapes backup_dir")
         validated.append((backup, target))
-    for backup, target in validated:
+    for (backup, target), name in zip(validated, files, strict=True):
         if backup.exists():
             os.replace(backup, target)
+        elif name in created:
+            target.unlink(missing_ok=True)
     marker.unlink(missing_ok=True)
     if backup_dir.exists():
         shutil.rmtree(backup_dir, ignore_errors=True)
@@ -634,6 +659,7 @@ def recover_transaction(data_dir: Path, manifest_whitelist: set[str] | None = No
 
 def rollback_transaction(state: dict[str, object], data_dir: Path, whitelist: set[str]) -> None:
     backup_dir = ensure_backup_dir(data_dir, str(state["backup_dir"]))
+    created = set(state.get("created_files", []))
     for name in reversed(state["files"]):
         target = ensure_data_dir_path(data_dir, str(name), whitelist, "transaction rollback")
         backup = (backup_dir / str(name)).resolve()
@@ -641,6 +667,8 @@ def rollback_transaction(state: dict[str, object], data_dir: Path, whitelist: se
             raise SyncError("transaction backup path escapes backup_dir")
         if backup.exists():
             os.replace(backup, target)
+        elif name in created:
+            target.unlink(missing_ok=True)
     transaction_path(data_dir).unlink(missing_ok=True)
     shutil.rmtree(backup_dir, ignore_errors=True)
 
@@ -667,11 +695,14 @@ def publish(
         ensure_data_dir_path(data_dir, name, whitelist, "transaction publish")
     backup_dir = data_dir / f".reecho_csv_publish_backup_{next(tempfile._get_candidate_names())}"
     backup_dir.mkdir()
-    state: dict[str, object] = {"backup_dir": backup_dir.name, "files": []}
+    state: dict[str, object] = {"backup_dir": backup_dir.name, "files": [], "created_files": []}
     for name in selected:
         target = ensure_data_dir_path(data_dir, name, whitelist, "transaction publish")
         backup = backup_dir / name
-        shutil.copy2(target, backup)
+        if target.exists():
+            shutil.copy2(target, backup)
+        else:
+            state["created_files"].append(name)
         state["files"].append(name)
     marker = transaction_path(data_dir)
     marker.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")

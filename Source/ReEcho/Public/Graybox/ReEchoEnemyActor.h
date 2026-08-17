@@ -27,11 +27,15 @@ enum class EReEchoEnemyKind : uint8
 	Grunt,
 	Shield,
 	Bomber,
-	Boss
+	Boss,
+	Slime,
+	Ranged,
+	Elite
 };
 
 /** Lightweight world host composing Enemy logic, Combat adjudication and read-only presentation. */
 UCLASS()
+
 class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface, public IReEchoCombatTarget
 {
 	GENERATED_BODY()
@@ -43,6 +47,17 @@ public:
 
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
 	bool ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, int32 SpawnIndex);
+
+	void SetEnemyId(FName InEnemyId)
+	{
+		EnemyId = InEnemyId;
+	}
+
+	FName GetEnemyId() const
+	{
+		return EnemyId;
+	}
+
 	void SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster);
 	float ReceiveGrayboxDamage(float Damage,
 	                           const FVector& SourceLocation,
@@ -61,28 +76,54 @@ public:
 	FReEchoElementState& EditElementState();
 #endif
 
-	UReEchoCombatantComponent* GetCombatantComponent() const { return Combatant; }
-	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const { return EnemyLogic; }
-	UReEchoEnemyEventsComponent* GetEnemyEventsComponent() const { return EnemyEvents; }
+	UReEchoCombatantComponent* GetCombatantComponent() const
+	{
+		return Combatant;
+	}
+
+	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const
+	{
+		return EnemyLogic;
+	}
+
+	UReEchoEnemyEventsComponent* GetEnemyEventsComponent() const
+	{
+		return EnemyEvents;
+	}
+
 	bool IsAlive() const;
 
-	virtual bool IsCombatTargetAlive() const override { return IsAlive(); }
-	virtual FVector GetCombatTargetLocation() const override { return GetActorLocation(); }
-	virtual int32 GetCombatTargetTieBreakIndex() const override { return GetSpawnIndex(); }
-	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override { return Combatant; }
+	virtual bool IsCombatTargetAlive() const override
+	{
+		return IsAlive();
+	}
+
+	virtual FVector GetCombatTargetLocation() const override
+	{
+		return GetActorLocation();
+	}
+
+	virtual int32 GetCombatTargetTieBreakIndex() const override
+	{
+		return GetSpawnIndex();
+	}
+
+	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override
+	{
+		return Combatant;
+	}
+
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
-	virtual bool IntersectsCombatPath(const FVector& PathStart,
-	                                  const FVector& PathEnd,
-	                                  float CarrierRadius) const override
+
+	virtual bool
+	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override
 	{
 		return IntersectsProjectilePath(PathStart, PathEnd, CarrierRadius);
 	}
 
 	int32 GetSpawnIndex() const;
 	EReEchoEnemyKind GetKind() const;
-	bool IntersectsProjectilePath(const FVector& PathStart,
-	                              const FVector& PathEnd,
-	                              float ProjectileRadius) const;
+	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -94,6 +135,7 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	FName EnemyId = NAME_None;
 	void BindComposedComponents();
 	FReEchoEnemyActionIntent AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);

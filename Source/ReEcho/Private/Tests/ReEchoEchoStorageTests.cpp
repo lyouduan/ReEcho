@@ -300,9 +300,7 @@ bool FReEchoEchoStorageCapabilitiesTest::RunTest(const FString& Parameters)
 	          Run->SetSpecificReplayLimit(2),
 	          EReEchoEchoStorageResult::Success);
 	const TArray<FReEchoRecording> UnselectedDefault = Run->ResolveReplayRecordings(3);
-	TestEqual(TEXT("Unlocked but unselected falls back to one echo"),
-	          UnselectedDefault.Num(),
-	          1);
+	TestEqual(TEXT("Unlocked but unselected falls back to one echo"), UnselectedDefault.Num(), 1);
 	if (UnselectedDefault.Num() == 1)
 	{
 		TestEqual(TEXT("The unselected default replay is the rolling previous encounter"),
@@ -343,7 +341,9 @@ bool FReEchoEchoStorageSaveMigrationTest::RunTest(const FString& Parameters)
 		UReEchoRunSaveGame* Legacy = NewObject<UReEchoRunSaveGame>(GetTransientPackage());
 		Legacy->SaveVersion = 4;
 		Legacy->SavedPhase = EReEchoRunPhase::Planning;
-		Legacy->EncounterIndex = 2;
+		// Keep the migration fixture before encounter progression. Plan48 explicitly rejects
+		// progressed legacy six-encounter saves rather than reinterpreting their history.
+		Legacy->EncounterIndex = 0;
 		Legacy->TimeShards = 30;
 		Legacy->CurrentBuild = Source->CurrentBuild;
 		if (bIncludeHistory)

@@ -10,7 +10,7 @@
 
 ## 敌人基础表
 
-- [ ] 启用的稳定 ID 为 `M_Grunt`、`M_Shield`、`M_Bomber`、`M_TimeGuard`。
+- [ ] 启用的稳定 ID 包含兼容行 `M_Grunt/M_Shield/M_Bomber`、开普勒 `M_SLIME/M_RABBIT/M_FOX` 和 Boss `M_TimeGuard`。
 - [ ] `Archetype` 与 `BehaviorProfileId` 配对正确，Boss 标记只用于 Boss。
 - [ ] 所有单位为 cm/seconds；生命、碰撞尺寸为正，其他字段在 schema 范围内。
 - [ ] Bomber 的触发半径、伤害半径、引信时间为正；其他敌人对应字段明确为 `0`。
@@ -31,4 +31,4 @@
 - [ ] `python scripts\validate_project.py` 通过。
 - [ ] Unreal `ReEcho.Data.Enemies.*` 与完整 `ReEcho.Data.*` 自动化通过。
 - [ ] 打包依赖包含三个怪物 CSV；`Content/Data/enemies.json` 不存在。
-- [ ] PIE 确认四种敌人按稳定 ID 加载，未知/禁用 ID 明确失败且不回退。
+- [ ] PIE 确认史莱姆接触、兔子锁点范围攻击、狐狸正面防御/直线突进和 Boss 行为，未知/禁用 ID 明确失败且不回退。

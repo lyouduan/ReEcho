@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（同一 AI 规划与执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`，由用户在 PIE 中验收八场推进、三波刷新、跨战斗留存、刷怪落点、普通怪行为和 Boss 衔接。
 - 本地规划 / 实现基线：`origin/main@86bf9a482a284d362f9e94bdcd5ba449bc44d795`。
 - 本地实现方式：一任务一 worktree；Plan 发布后创建 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan48`，本地分支 `plan/48-kepler-encounter-enemy-data-runtime`，不在主工作区实现。
@@ -52,29 +52,29 @@
   - 波次预警是确定性Spawn Intent状态，不由VFX完成回调触发；缺少表现时仍在计划时间生成，用户只负责判断提示可读性。
 - 相关文档同步范围：`shared/CODEBASE_MAP/ARCHITECTURE.md`、`README.md`、`modules/MOD-ReEcho.md`、`modules/MOD-ReEchoEnemies.md`；`Content/Data/README.md`、`scripts/data/README.md`、新增两份Encounter配表使用/验收文档及现有Enemy配表文档。
 - 关闭前逐项填写审阅结果：
-  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：待审阅。
-  - `shared/CODEBASE_MAP/README.md`：待审阅。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：待更新并审阅。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：待更新并审阅。
+  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅并更新。
+  - `shared/CODEBASE_MAP/README.md`：已审阅并更新。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新并审阅。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：已更新并审阅。
 
 ## 锁定验收
 
-- [ ] 仓库内新增策划可编辑的 `ReEchoEncounterData.xlsx`，包含规范化Stage、Encounter、Wave、SpawnProfile、SpawnPolicy生产Tables及独立ExportMap；`ReEchoEnemyData.xlsx`包含史莱姆、兔子、狐狸和兼容Boss/旧ID的规范化定义。
-- [ ] 一次运行 `python scripts/data/sync_xlsx_to_csv.py` 可以联合验证全部权威工作簿并事务式生成对应CSV；`--check`证明仓库CSV与工作簿逐字节一致。
-- [ ] 表格数值是纯类型：比例0～1，距离厘米，时间秒，计数整数；不存在运行时解析单位字符串、范围字符串、中文“无/—”或自由文本逻辑。
-- [ ] Schema/manifest覆盖全部新增表、主键、外键、枚举、Behavior白名单和数值范围；重复ID、未知敌人/阶段/行为、非法波次顺序、比例和为非1、越界计数、负时间、缺表/改ExportMap均确定性失败并定位单元格。
-- [ ] 新Run有8场：1-7为30秒定时战，Boss为第8场；普通战提前清场不结束，玩家死亡仍立即失败；Boss死亡结束，30秒阶段不结束Boss战。
-- [ ] Encounter 1-7均在0/10/20秒执行三波且预警提前量来自表；暂停时预警、波次、录制和Echo不推进，恢复后顺序不漂移、不重复刷新。
-- [ ] 战斗1-2、3-5、6-7分别按Stage保留存活怪物；2→3、5→6、7→Boss显式清理；保存/继续能恢复当前Encounter、Stage、已触发波次、预警状态与存活敌人，不重复奖励或重复生成。
-- [ ] Anchor比例逐场按表生效；无Echo时确定性回退玩家锚，多Echo只使用最近场次E1路径锚；同一Run种子、相同录制与输入得到相同Spawn Intent序列。
-- [ ] Spawn Resolver遵守类型距离环、最小间距、玩家≥4m、基础回响≥2.5m、Arena边界镜像/回退和活跃单位上限；无法满足约束时给出确定性降级/拒绝结果与聚合诊断，不无限重试。
-- [ ] 史莱姆、兔子、狐狸分别通过其注册Logic行为产生接触、远程爆点/投射和防御突进；攻击冷却/前摇/后摇/范围/伤害来自表，表现缺失不改变提交时刻或伤害结果。
-- [ ] 远程1.2秒爆点上限、精英技能并发和总活跃单位上限由单一Encounter/Spawn协调器执行；Enemy组件不各自复制全局令牌状态。
-- [ ] Boss保留Plan44四技能、9秒净化/1秒免疫、30秒回响销毁与强化、保存恢复；Boss Encounter读取第8场配置并使用战斗7最近E1作为默认Boss回响来源，不破坏玩家其他回响存储。
-- [ ] 旧六场保存得到显式兼容结果：已完成旧Run仍为完成；未完成旧Run迁移或拒绝的策略有测试和清晰诊断；不得静默改写为另一条八场历史。若Plan47已升级SaveVersion，迁移链保持连续。
-- [ ] 现有武器、Combat、Recording、Echo选择、商店、Cards和音频语义无回归；Plan47集成后重新验证共享Data/Run/Save/Enemies接缝。
-- [ ] 使用说明明确告诉策划编辑哪个工作簿/Sheet、哪些列可编辑、单位/枚举/ID规则、同步命令和常见错误；策划无需手改CSV。
-- [ ] Python数据测试、项目校验、聚焦Unreal自动化、完整Editor Development构建和最终 `-FullRebuild` 通过；最终候选只包含 `GIT_RULES.md` 允许的预构建产物。
+- [x] 仓库内新增策划可编辑的 `ReEchoEncounterData.xlsx`，包含规范化Stage、Encounter、Wave、SpawnProfile、SpawnPolicy生产Tables及独立ExportMap；`ReEchoEnemyData.xlsx`包含史莱姆、兔子、狐狸和兼容Boss/旧ID的规范化定义。
+- [x] 一次运行 `python scripts/data/sync_xlsx_to_csv.py` 可以联合验证全部权威工作簿并事务式生成对应CSV；`--check`证明仓库CSV与工作簿逐字节一致。
+- [x] 表格数值是纯类型：比例0～1，距离厘米，时间秒，计数整数；不存在运行时解析单位字符串、范围字符串、中文“无/—”或自由文本逻辑。
+- [x] Schema/manifest覆盖全部新增表、主键、外键、枚举、Behavior白名单和数值范围；重复ID、未知敌人/阶段/行为、非法波次顺序、比例和为非1、越界计数、负时间、缺表/改ExportMap均确定性失败并定位单元格。
+- [x] 新Run有8场：1-7为30秒定时战，Boss为第8场；普通战提前清场不结束，玩家死亡仍立即失败；Boss死亡结束，30秒阶段不结束Boss战。
+- [x] Encounter 1-7均在0/10/20秒执行三波且预警提前量来自表；暂停时预警、波次、录制和Echo不推进，恢复后顺序不漂移、不重复刷新。
+- [x] 战斗1-2、3-5、6-7分别按Stage保留存活怪物；2→3、5→6、7→Boss显式清理；保存/继续能恢复当前Encounter、Stage、已触发波次、预警状态与存活敌人，不重复奖励或重复生成。
+- [x] Anchor比例逐场按表生效；无Echo时确定性回退玩家锚，多Echo只使用最近场次E1路径锚；同一Run种子、相同录制与输入得到相同Spawn Intent序列。
+- [x] Spawn Resolver遵守类型距离环、最小间距、玩家≥4m、基础回响≥2.5m、Arena边界镜像/回退和活跃单位上限；无法满足约束时给出确定性降级/拒绝结果与聚合诊断，不无限重试。
+- [x] 史莱姆、兔子、狐狸分别通过其注册Logic行为产生接触、远程爆点/投射和防御突进；攻击冷却/前摇/后摇/范围/伤害来自表，表现缺失不改变提交时刻或伤害结果。
+- [x] 远程1.2秒爆点上限、精英技能并发和总活跃单位上限由单一Encounter/Spawn协调器执行；Enemy组件不各自复制全局令牌状态。
+- [x] Boss保留Plan44四技能、9秒净化/1秒免疫、30秒回响销毁与强化、保存恢复；Boss Encounter读取第8场配置并使用战斗7最近E1作为默认Boss回响来源，不破坏玩家其他回响存储。
+- [x] 旧六场保存得到显式兼容结果：已完成旧Run仍为完成；未完成旧Run迁移或拒绝的策略有测试和清晰诊断；不得静默改写为另一条八场历史。若Plan47已升级SaveVersion，迁移链保持连续。
+- [x] 现有武器、Combat、Recording、Echo选择、商店、Cards和音频语义无回归；Plan47集成后重新验证共享Data/Run/Save/Enemies接缝。
+- [x] 使用说明明确告诉策划编辑哪个工作簿/Sheet、哪些列可编辑、单位/枚举/ID规则、同步命令和常见错误；策划无需手改CSV。
+- [x] Python数据测试、项目校验、聚焦Unreal自动化、完整Editor Development构建和最终 `-FullRebuild` 通过；最终候选只包含 `GIT_RULES.md` 允许的预构建产物。
 - [ ] 用户在PIE确认八场推进、三波节奏、刷怪方向/距离、跨战斗残留、三类普通怪手感及Boss衔接后，人工验收才能设为`Passed`。
 
 ## Step 0 门禁
@@ -116,23 +116,34 @@
 
 ### 变化
 
-Plan发布后填写。
+- 新增 `ReEchoEncounterData.xlsx` 五张生产表及 ExportMap，并扩展 `ReEchoEnemyData.xlsx` 的史莱姆、兔子、狐狸和两项类型化能力；统一同步器事务式生成五张 Encounter CSV 与更新后的 Enemy CSV。
+- Data Registry 新增 Encounter Reader/Catalog；Encounter Runtime 新增纯 WaveScheduler 与 SpawnResolver。GameMode 改为八场表驱动流程、普通战定时完成、Stage 内保留/跨 Stage 清理，并在预警时锁定出生位置、提交时复用。
+- `ReEchoEnemies` 新增 Slime/Ranged/Elite Archetype；通用 `Abilities` 取代误导性的 Boss-only 数组。兔子锁点爆发、狐狸锁向突进/正面防御、史莱姆接触攻击均使用配表 Definition。
+- Encounter coordinator 独占远程爆发窗口、精英技能并发与总活跃单位上限；EnemyLogic 只消费 `bSpecialActionPermitted`，不复制全局令牌。
+- SaveVersion 提升为 v9，保存稳定 EnemyId、Wave 游标、预警批次/出生解析序号、预留位置和全局令牌剩余时间；已推进的旧六场保存明确拒绝，避免静默解释为八场新历史。
+- 保留 Plan32“解锁但未选择时仍默认上一场回响”的较新语义，并修正遗留 Plan31 冲突测试。
 
 ### 证据
 
-Plan发布阶段只记录Plan-only发布门禁；实现证据待worktree候选形成后填写。
+- `python scripts/data/test_sync_xlsx_to_csv.py`：15/15 通过；`sync_xlsx_to_csv.py --check` 与 `validate_project.py` 通过。
+- `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：成功，五个 Runtime Module 预构建包已刷新。
+- `ReEcho.Data`、`ReEcho.Encounter`、`ReEcho.Enemies`、`ReEcho.Run` 聚焦自动化全部成功；最终全量 `ReEcho` 自动化 93 成功、1 个既有 `ReEcho.Presentation.Animation2D.AssetProfiles` 失败。该失败在未修改的 `origin/main@95808e2` 单独复跑同样失败，确认为基线资源断言，不是 Plan48 回归。
+- `git fetch --prune origin` 后 `origin/main` 仍为 `95808e2`，实现期间无外部提交、真实冲突或逻辑覆盖风险。
 
 ### 剩余风险
 
-- Plan47与本Plan共享Data/Run/Save/Enemies接缝，最终组合适配会使各自早期构建与自动化证据失效，必须在最终合并候选重跑。
+- 用户尚未在 PIE 完整跑完八场；刷怪密度、橙色预警可读性、Stage 残留和三类怪手感仍需人工确认。
 - 外部XLSX没有完整表达所有普通怪技能细节；本Plan只实现DOCX和XLSX共同明确、可类型化的行为，不从空白“特殊机制”猜测额外技能。若策划要求兔子的第二个独立技能或狐狸额外机制，需先补表并由用户锁定。
 - 当前没有四个正式场景资产；Stage语义可以验收流程和留存，但场景切换视觉仍归Plan42/后续美术接入。
-- 自动化可以证明时序和落点约束，不能替代用户判断实际密度、难度和预警可读性。
+- `ReEcho.Presentation.Animation2D.AssetProfiles` 在 main 与本候选都因 Static Idle 的 Paper2D collision 断言失败，属于既有资源侧基线问题，后续由对应 Presentation/资源任务处理。
 
 ### 人工验收结果/请求
 
-等待实现候选后请求用户PIE。
+候选已完成并自带 FullRebuild 预构建包，等待用户在 `ReEcho-plan48` PIE 验收。
 
 ### 架构文档审阅结果
 
-待实现后逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅并更新八场流程、Encounter 数据/协调所有权与依赖方向。
+- `shared/CODEBASE_MAP/README.md`：已审阅并更新 `AREA-Encounter` 路由。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Data、Encounter、Run/Save、EnemyHost 与 v9 组合状态。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：已更新三类普通怪、通用 Ability、全局许可输入和代码阅读路线。

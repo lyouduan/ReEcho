@@ -11,12 +11,14 @@
 #include "Encounter/ReEchoEncounterDirector.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
+#include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
+#include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Kismet/GameplayStatics.h"
@@ -107,7 +109,8 @@ void AReEchoGameMode::PostUiEvent(const FName EventId) const
 
 void AReEchoGameMode::RestoreEncounterAudioState()
 {
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (!RunSubsystem || RunSubsystem->Phase != EReEchoRunPhase::Encounter)
 	{
 		return;
@@ -235,7 +238,7 @@ void AReEchoGameMode::GMWeather(const FString& Scene)
 	}
 	WeatherWidget->SetWeatherScene(WeatherScene);
 	SetAmbienceState(WeatherScene == EReEchoWeatherScene::Rain ? FReEchoAudioEvents::AmbienceRain
-	                                                        : FReEchoAudioEvents::AmbienceArena);
+	                                                           : FReEchoAudioEvents::AmbienceArena);
 	PrintGMResult(FString::Printf(TEXT("Weather=%s"), *Scene));
 }
 
@@ -289,7 +292,7 @@ void AReEchoGameMode::GMGotoBoss()
 		return;
 	}
 
-	const int32 BossEncounterIndex = GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	const int32 BossEncounterIndex = GetTotalEncounterCount();
 	if (BossEncounterIndex <= 0)
 	{
 		PrintGMResult(TEXT("The configured Boss encounter index is invalid."), false);
@@ -347,19 +350,17 @@ void AReEchoGameMode::StartPlay()
 	{
 		UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-		WeatherWidget = UIFlow
-		                    ? Cast<UReEchoWeatherWidget>(
-		                          UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Weather, false, false))
-		                    : nullptr;
+		WeatherWidget = UIFlow ? Cast<UReEchoWeatherWidget>(
+		                             UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Weather, false, false))
+		                       : nullptr;
 		if (WeatherWidget)
 		{
 			WeatherWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
 			RefreshFogRevealSources();
 		}
-		EncounterHudWidget = UIFlow
-		                         ? Cast<UReEchoEncounterHudWidget>(
-		                               UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::EncounterHud, false, false))
-		                         : nullptr;
+		EncounterHudWidget = UIFlow ? Cast<UReEchoEncounterHudWidget>(UIFlow->OpenScreen(
+		                                  PlayerController, EReEchoUIScreen::EncounterHud, false, false))
+		                            : nullptr;
 		if (EncounterHudWidget)
 		{
 			EncounterHudWidget->SetVisibility(ESlateVisibility::Collapsed);
@@ -376,10 +377,9 @@ void AReEchoGameMode::StartPlay()
 		{
 			UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 			    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-			PlayerHudWidget = UIFlow
-			                      ? Cast<UReEchoPlayerHudWidget>(
-			                            UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::PlayerHud, false, false))
-			                      : nullptr;
+			PlayerHudWidget = UIFlow ? Cast<UReEchoPlayerHudWidget>(UIFlow->OpenScreen(
+			                               PlayerController, EReEchoUIScreen::PlayerHud, false, false))
+			                         : nullptr;
 			if (PlayerHudWidget)
 			{
 				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
@@ -400,12 +400,11 @@ void AReEchoGameMode::ShowStartMenu()
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	StartMenuWidget = UIFlow
-	                      ? Cast<UReEchoStartMenuWidget>(
-	                            UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::StartMenu, true, true))
-	                      : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	StartMenuWidget =
+	    UIFlow
+	        ? Cast<UReEchoStartMenuWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::StartMenu, true, true))
+	        : nullptr;
 	if (!StartMenuWidget)
 	{
 		return;
@@ -527,12 +526,11 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	SettingsWidget = UIFlow
-	                     ? Cast<UReEchoSettingsWidget>(
-	                           UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Settings, true, false))
-	                     : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	SettingsWidget =
+	    UIFlow
+	        ? Cast<UReEchoSettingsWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Settings, true, false))
+	        : nullptr;
 	if (!SettingsWidget)
 	{
 		return;
@@ -549,8 +547,7 @@ void AReEchoGameMode::ShowLoadoutSelection()
 	{
 		return;
 	}
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	UReEchoLoadoutSelectionWidget* NewLoadoutSelectionWidget =
 	    UIFlow ? Cast<UReEchoLoadoutSelectionWidget>(
 	                 UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Loadout, true, true))
@@ -680,7 +677,7 @@ void AReEchoGameMode::UpdateWeatherScene(const int32 EncounterIndex)
 		WeatherWidget->SetWeatherScene(WeatherScene);
 	}
 	SetAmbienceState(WeatherScene == EReEchoWeatherScene::Rain ? FReEchoAudioEvents::AmbienceRain
-	                                                        : FReEchoAudioEvents::AmbienceArena);
+	                                                           : FReEchoAudioEvents::AmbienceArena);
 }
 
 void AReEchoGameMode::CreateArena()
@@ -746,6 +743,7 @@ void AReEchoGameMode::ClearCombatants()
 		}
 	}
 	EnemyRoster->ResetRoster();
+	EnemySpawnIndex = 0;
 	for (AReEchoEchoActor* Echo : Echoes)
 	{
 		if (Echo)
@@ -778,17 +776,50 @@ void AReEchoGameMode::RefreshFogRevealSources()
 
 void AReEchoGameMode::BeginNextEncounter()
 {
-	ClearCombatants();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || RunSubsystem->EncounterIndex >= GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
+	if (!RunSubsystem || RunSubsystem->EncounterIndex >= RunSubsystem->GetTotalEncounterCount())
 	{
 		return;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
+	const FReEchoCsvEncounterRow* PreviousEncounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
+	const FReEchoCsvEncounterRow* NextEncounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex + 1) : nullptr;
+	const FReEchoCsvStageRow* NextStage =
+	    NextEncounter && Snapshot.IsValid() ? Snapshot->FindStage(NextEncounter->StageId) : nullptr;
+	const bool bSameStage = PreviousEncounter && NextEncounter && PreviousEncounter->StageId == NextEncounter->StageId;
+	const bool bKeepRoster =
+	    PreviousEncounter && NextEncounter && NextStage &&
+	    (bSameStage ? NextStage->bPreserveEnemiesBetweenEncounters : !NextStage->bClearEnemiesOnEnter);
+	if (!bKeepRoster)
+	{
+		ClearCombatants();
+	}
+	else
+	{
+		for (AReEchoEchoActor* Echo : Echoes)
+		{
+			if (Echo)
+			{
+				Echo->Destroy();
+			}
+		}
+		Echoes.Reset();
+		RefreshFogRevealSources();
 	}
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
 	bBossPostEchoPhaseTriggered = false;
 	RunSubsystem->BeginEncounter();
-	Director->SetEndsOnDuration(!IsBossEncounter());
+	const FReEchoCsvEncounterRow* Encounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
+	if (!Encounter || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Encounter %d could not start from table data."), RunSubsystem->EncounterIndex);
+		return;
+	}
+	Director->ConfigureEncounter(Encounter->DurationSeconds, Encounter->EndCondition == TEXT("Duration"));
 	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 	if (Player)
@@ -828,8 +859,8 @@ void AReEchoGameMode::BeginNextEncounter()
 		}
 	}
 	RefreshFogRevealSources();
-	SpawnEnemies(RunSubsystem->EncounterIndex);
 	Director->StartEncounter();
+	ProcessScheduledSpawnEvents(0.0f);
 }
 
 FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() const
@@ -844,6 +875,25 @@ FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() con
 
 	Result.bValid = true;
 	Result.EncounterTime = Director->EncounterTime;
+	Result.NextScheduledSpawnEventIndex = EncounterWaveScheduler.GetNextEventIndex();
+	Result.PendingSpawnBatches = PendingSpawnBatches;
+	Result.SpawnResolveSequence = EncounterSpawnSequence;
+	Result.ReservedSpawnLocations = EncounterSpawnLocations;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem->GetRunDataSnapshot();
+	const FReEchoCsvEncounterRow* Encounter =
+	    DataSnapshot.IsValid() ? DataSnapshot->FindEncounter(CurrentEncounterId) : nullptr;
+	const float WorldTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (Encounter)
+	{
+		for (const float StartedAt : RecentRangedBurstWorldTimes)
+		{
+			const float Remaining = Encounter->RangedBurstWindowSeconds - (WorldTimeSeconds - StartedAt);
+			if (Remaining > 0.0f)
+			{
+				Result.RangedBurstWindowRemainingSeconds.Add(Remaining);
+			}
+		}
+	}
 	Result.PlayerTransform = Player->GetActorTransform();
 	Result.PlayerHealth = Player->Combatant->CurrentHealth;
 	Result.PlayerStats = Player->Combatant->Stats;
@@ -881,7 +931,29 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
 	bBossPostEchoPhaseTriggered = SavedState.bBossPostEchoPhaseTriggered;
-	Director->SetEndsOnDuration(!IsBossEncounter());
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
+	const FReEchoCsvEncounterRow* Encounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
+	if (!Encounter || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
+	{
+		UE_LOG(
+		    LogTemp, Error, TEXT("Saved encounter %d has no valid table configuration."), RunSubsystem->EncounterIndex);
+		return;
+	}
+	Director->ConfigureEncounter(Encounter->DurationSeconds, Encounter->EndCondition == TEXT("Duration"));
+	EncounterWaveScheduler.RestoreNextEventIndex(SavedState.NextScheduledSpawnEventIndex);
+	PendingSpawnBatches = SavedState.PendingSpawnBatches;
+	EncounterSpawnSequence = FMath::Max(0, SavedState.SpawnResolveSequence);
+	EncounterSpawnLocations = SavedState.ReservedSpawnLocations;
+	RecentRangedBurstWorldTimes.Reset();
+	const float ResumeWorldTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	for (const float Remaining : SavedState.RangedBurstWindowRemainingSeconds)
+	{
+		if (Remaining > 0.0f && Remaining <= Encounter->RangedBurstWindowSeconds)
+		{
+			RecentRangedBurstWorldTimes.Add(ResumeWorldTimeSeconds - (Encounter->RangedBurstWindowSeconds - Remaining));
+		}
+	}
 	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 
@@ -910,9 +982,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 			AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
 			if (Echo)
 			{
-				if (Echo->InitializeEcho(Recording,
-				                         RunSubsystem->CurrentBuild.Stats.EchoEfficiency,
-				                         RunSubsystem->GetRunDataSnapshot()))
+				if (Echo->InitializeEcho(
+				        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 				{
 					Echo->AdvanceEcho(SavedState.EncounterTime);
 					Echoes.Add(Echo);
@@ -929,16 +1000,21 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem->GetRunDataSnapshot();
 	for (const FReEchoEnemyRuntimeState& EnemyState : SavedState.Enemies)
 	{
+		EnemySpawnIndex = FMath::Max(EnemySpawnIndex, EnemyState.SpawnIndex);
 		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>();
 		if (Enemy)
 		{
-			const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
-			                                         ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
-			                                         : EReEchoEnemyKind::Grunt;
-			const FName EnemyId = SavedKind == EReEchoEnemyKind::Boss      ? FName(TEXT("M_TimeGuard"))
+			const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Elite)
+			                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
+			                                       : EReEchoEnemyKind::Grunt;
+			const FName EnemyId = !EnemyState.EnemyId.IsNone()            ? EnemyState.EnemyId
+			                      : SavedKind == EReEchoEnemyKind::Boss   ? FName(TEXT("M_TimeGuard"))
+			                      : SavedKind == EReEchoEnemyKind::Slime  ? FName(TEXT("M_SLIME"))
+			                      : SavedKind == EReEchoEnemyKind::Ranged ? FName(TEXT("M_RABBIT"))
+			                      : SavedKind == EReEchoEnemyKind::Elite  ? FName(TEXT("M_FOX"))
 			                      : SavedKind == EReEchoEnemyKind::Bomber ? FName(TEXT("M_Bomber"))
 			                      : SavedKind == EReEchoEnemyKind::Shield ? FName(TEXT("M_Shield"))
-			                                                                : FName(TEXT("M_Grunt"));
+			                                                              : FName(TEXT("M_Grunt"));
 			FReEchoEnemyDefinition Definition;
 			FString CompileError;
 			if (!DataSnapshot ||
@@ -950,6 +1026,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 				continue;
 			}
 			Enemy->RestoreRuntimeState(EnemyState);
+			Enemy->SetEnemyId(EnemyId);
 			Enemy->SetEnemyRoster(EnemyRoster);
 			if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
 			{
@@ -960,100 +1037,309 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Director->ResumeEncounter(SavedState.EncounterTime);
 }
 
-void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
+bool AReEchoGameMode::ConfigureEncounterSpawns(const int32 EncounterIndex)
 {
-	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
-	const bool bBossEncounter = EncounterIndex == BalanceSettings->GetTotalEncounterCount();
-	const int32 GruntCount =
-	    bBossEncounter ? FMath::Min(8, BalanceSettings->MaxGruntCount)
-	                   : FMath::Clamp(BalanceSettings->BaseGruntCount +
-	                                      FMath::Max(0, EncounterIndex - 1) * BalanceSettings->GruntsPerEncounter,
-	                                  1,
-	                                  BalanceSettings->MaxGruntCount);
-	const int32 BomberCount = bBossEncounter        ? FMath::Min(2, BalanceSettings->MaxBomberCount)
-	                          : EncounterIndex >= 2 ? FMath::Min(EncounterIndex, BalanceSettings->MaxBomberCount)
-	                                                : 0;
-	const float SpawnHalfX = FMath::Max(100.0f, ArenaSceneWorldHeight * 0.5f - BalanceSettings->EnemySpawnEdgeInset);
-	const float SpawnHalfY = FMath::Max(100.0f, ArenaSceneWorldWidth * 0.5f - BalanceSettings->EnemySpawnEdgeInset);
-	FRandomStream SpawnRandom(1337 + EncounterIndex * 7919);
-	int32 SpawnIndex = 0;
-
-	auto GetPeripheralSpawnLocation = [&]()
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const FReEchoCsvEncounterRow* Encounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(EncounterIndex) : nullptr;
+	if (!Encounter)
 	{
-		const FVector PlayerLocation = Player ? Player->GetActorLocation() : FVector::ZeroVector;
-		const float MinimumDistance =
-		    FMath::Min(BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
-		const float MaximumDistance =
-		    FMath::Max(BalanceSettings->EnemySpawnMinPlayerDistance, BalanceSettings->EnemySpawnMaxPlayerDistance);
-		const float Angle = SpawnRandom.FRandRange(0.0f, 2.0f * PI);
-		const float Distance =
-		    FMath::Sqrt(SpawnRandom.FRandRange(MinimumDistance * MinimumDistance, MaximumDistance * MaximumDistance));
-		FVector SpawnLocation = PlayerLocation + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
-		SpawnLocation.X = FMath::Clamp(SpawnLocation.X, -SpawnHalfX, SpawnHalfX);
-		SpawnLocation.Y = FMath::Clamp(SpawnLocation.Y, -SpawnHalfY, SpawnHalfY);
-		SpawnLocation.Z = 50.0f;
-		return SpawnLocation;
-	};
+		UE_LOG(LogTemp, Error, TEXT("Encounter %d has no enabled table definition."), EncounterIndex);
+		return false;
+	}
+	CurrentEncounterId = Encounter->Id;
+	EncounterSpawnSequence = 0;
+	EncounterSpawnLocations.Reset();
+	RecentRangedBurstWorldTimes.Reset();
+	PendingSpawnBatches.Reset();
+	FString Error;
+	if (!EncounterWaveScheduler.Configure(*Snapshot, CurrentEncounterId, Error))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Encounter wave setup failed: %s"), *Error);
+		return false;
+	}
+	return true;
+}
+
+bool AReEchoGameMode::CanStartEnemySpecial(const FName EnemyId, const int32 SpawnIndex, const float WorldTimeSeconds)
+{
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const FReEchoCsvEncounterRow* Encounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounter(CurrentEncounterId) : nullptr;
+	const FReEchoCsvEnemyRow* Enemy = Snapshot.IsValid() ? Snapshot->FindEnemy(EnemyId) : nullptr;
+	if (!Encounter || !Enemy)
+	{
+		return false;
+	}
+
+	if (Enemy->Archetype == TEXT("Ranged"))
+	{
+		RecentRangedBurstWorldTimes.RemoveAll(
+		    [WorldTimeSeconds, Encounter](const float StartedAt)
+		    {
+			    return WorldTimeSeconds - StartedAt >= Encounter->RangedBurstWindowSeconds;
+		    });
+		return RecentRangedBurstWorldTimes.Num() < Encounter->RangedBurstLimit;
+	}
+	if (Enemy->Archetype == TEXT("Elite"))
+	{
+		int32 ActiveEliteSkills = 0;
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+		{
+			if (!Entry.bAlive || Entry.SpawnIndex == SpawnIndex || Entry.Archetype != EReEchoEnemyArchetype::Elite)
+			{
+				continue;
+			}
+			const AReEchoEnemyActor* OtherEnemy = Cast<AReEchoEnemyActor>(Entry.Host.Get());
+			const UReEchoEnemyLogicComponent* OtherLogic = OtherEnemy ? OtherEnemy->GetEnemyLogicComponent() : nullptr;
+			if (OtherLogic && OtherLogic->GetSnapshot().SpecialActionPhase != EReEchoEnemySpecialActionPhase::None)
+			{
+				++ActiveEliteSkills;
+			}
+		}
+		return ActiveEliteSkills < Encounter->EliteSkillConcurrency;
+	}
+	return true;
+}
+
+void AReEchoGameMode::NotifyEnemySpecialStarted(const FName EnemyId,
+                                                const int32 SpawnIndex,
+                                                const float WorldTimeSeconds)
+{
+	(void)SpawnIndex;
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const FReEchoCsvEnemyRow* Enemy = Snapshot.IsValid() ? Snapshot->FindEnemy(EnemyId) : nullptr;
+	if (Enemy && Enemy->Archetype == TEXT("Ranged"))
+	{
+		RecentRangedBurstWorldTimes.Add(WorldTimeSeconds);
+	}
+}
+
+void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
+{
+	for (const FReEchoScheduledSpawnEvent& Event : EncounterWaveScheduler.AdvanceTo(EncounterSeconds))
+	{
+		if (Event.Type == EReEchoScheduledSpawnEventType::Warning)
+		{
+			PrepareScheduledSpawnBatch(Event);
+			UE_LOG(LogTemp,
+			       Display,
+			       TEXT("[EncounterSpawn] warning wave=%s role=%s count=%d spawn=%.2f"),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Event.Count,
+			       Event.SpawnSeconds);
+			const FReEchoPendingSpawnBatchState* Pending = PendingSpawnBatches.FindByPredicate(
+			    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
+			    {
+				    return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
+			    });
+			if (Pending && GetWorld())
+			{
+				const float DisplaySeconds = FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds);
+				for (const FVector& Location : Pending->Locations)
+				{
+					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Orange, false, DisplaySeconds, 0, 5.0f);
+				}
+			}
+			continue;
+		}
+		SpawnScheduledBatch(Event);
+	}
+}
+
+void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event)
+{
+	if (Event.EnemyRole == TEXT("Boss") || PendingSpawnBatches.ContainsByPredicate(
+	                                           [&Event](const FReEchoPendingSpawnBatchState& Candidate)
+	                                           {
+		                                           return Candidate.WaveId == Event.WaveId &&
+		                                                  Candidate.EnemyRole == Event.EnemyRole;
+	                                           }))
+	{
+		return;
+	}
 
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
-	auto SpawnEnemy = [&](const FName EnemyId)
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const FReEchoCsvEncounterRow* Encounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounter(CurrentEncounterId) : nullptr;
+	const FReEchoCsvSpawnPolicyRow* Policy = Snapshot.IsValid() ? Snapshot->FindEnabledSpawnPolicy() : nullptr;
+	const FReEchoCsvSpawnProfileRow* Profile =
+	    Snapshot.IsValid() ? Snapshot->FindSpawnProfileByRole(Event.EnemyRole) : nullptr;
+	if (!Snapshot.IsValid() || !Encounter || !Policy || !Profile || !Player)
 	{
-		if (!DataSnapshot)
+		UE_LOG(LogTemp, Error, TEXT("[EncounterSpawn] warning rejected because runtime data is unavailable."));
+		return;
+	}
+
+	FReEchoPendingSpawnBatchState Pending;
+	Pending.WaveId = Event.WaveId;
+	Pending.EnemyRole = Event.EnemyRole;
+	Pending.EnemyId = Event.EnemyId;
+	for (int32 Index = 0; Index < Event.Count; ++Index)
+	{
+		FReEchoSpawnResolveRequest Request;
+		Request.PlayerAnchor = Player->GetActorLocation() + Player->GetVelocity() * Policy->AnchorLeadSeconds;
+		Request.PlayerAnchor.X =
+		    FMath::Clamp(Request.PlayerAnchor.X, -ArenaSceneWorldHeight * 0.5f, ArenaSceneWorldHeight * 0.5f);
+		Request.PlayerAnchor.Y =
+		    FMath::Clamp(Request.PlayerAnchor.Y, -ArenaSceneWorldWidth * 0.5f, ArenaSceneWorldWidth * 0.5f);
+		Request.bHasEchoAnchor = Echoes.Num() > 0 && IsValid(Echoes[0]);
+		Request.EchoAnchor = Request.bHasEchoAnchor
+		                         ? Echoes[0]->EvaluateRecordedPosition(Event.SpawnSeconds + Policy->AnchorLeadSeconds)
+		                         : FVector::ZeroVector;
+		Request.EchoAnchorRatio = Encounter->EchoAnchorRatio;
+		Request.ArenaHalfX = FMath::Max(100.0f, ArenaSceneWorldHeight * 0.5f);
+		Request.ArenaHalfY = FMath::Max(100.0f, ArenaSceneWorldWidth * 0.5f);
+		Request.Seed = 1337 + Encounter->EncounterIndex * 7919;
+		Request.Sequence = EncounterSpawnSequence++;
+		Request.ExistingLocations = EncounterSpawnLocations;
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 		{
-			UE_LOG(LogTemp, Error, TEXT("Plan44 enemy spawn failed: run data snapshot is unavailable."));
-			return;
+			if (Entry.bAlive && Entry.Host.IsValid())
+			{
+				Request.ExistingLocations.Add(Entry.Host->GetActorLocation());
+			}
 		}
-		FReEchoEnemyDefinition Definition;
-		FString CompileError;
-		if (!ReEchoEnemyDefinitionCompiler::Compile(*DataSnapshot, EnemyId, Definition, CompileError))
+
+		FReEchoResolvedSpawn Resolved;
+		FString Error;
+		if (!FReEchoSpawnResolver::Resolve(*Profile, *Policy, Request, Resolved, Error))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Plan44 enemy spawn failed: %s"), *CompileError);
-			return;
+			UE_LOG(LogTemp,
+			       Warning,
+			       TEXT("[EncounterSpawn] warning wave=%s role=%s index=%d rejected: %s"),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Index,
+			       *Error);
+			continue;
 		}
-		AReEchoEnemyActor* Enemy =
-		    GetWorld()->SpawnActor<AReEchoEnemyActor>(GetPeripheralSpawnLocation(), FRotator::ZeroRotator);
+		Pending.Locations.Add(Resolved.Location);
+		EncounterSpawnLocations.Add(Resolved.Location);
+	}
+	PendingSpawnBatches.Add(MoveTemp(Pending));
+}
+
+void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event)
+{
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const FReEchoCsvEncounterRow* Encounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounter(CurrentEncounterId) : nullptr;
+	if (!Snapshot.IsValid() || !Encounter || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[EncounterSpawn] commit rejected because runtime data is unavailable."));
+		return;
+	}
+
+	if (Event.EnemyRole == TEXT("Boss"))
+	{
+		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f));
+		return;
+	}
+	PrepareScheduledSpawnBatch(Event);
+	const int32 PendingIndex = PendingSpawnBatches.IndexOfByPredicate(
+	    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
+	    {
+		    return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
+	    });
+	if (!PendingSpawnBatches.IsValidIndex(PendingIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[EncounterSpawn] wave %s has no prepared batch."), *Event.WaveId.ToString());
+		return;
+	}
+	const FReEchoPendingSpawnBatchState Pending = PendingSpawnBatches[PendingIndex];
+
+	int32 LivingCount = 0;
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		LivingCount +=
+		    Entry.bAlive && (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
+		        ? 1
+		        : 0;
+	}
+	const int32 AllowedCount = FMath::Clamp(Encounter->ActiveUnitLimit - LivingCount, 0, Pending.Locations.Num());
+	if (AllowedCount < Pending.Locations.Num())
+	{
+		UE_LOG(LogTemp,
+		       Warning,
+		       TEXT("[EncounterSpawn] wave=%s role=%s truncated %d->%d by active unit limit %d."),
+		       *Event.WaveId.ToString(),
+		       *Event.EnemyRole.ToString(),
+		       Pending.Locations.Num(),
+		       AllowedCount,
+		       Encounter->ActiveUnitLimit);
+	}
+
+	for (int32 Index = 0; Index < AllowedCount; ++Index)
+	{
+		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index]);
+	}
+	PendingSpawnBatches.RemoveAt(PendingIndex);
+}
+
+bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation)
+{
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	FReEchoEnemyDefinition Definition;
+	FString CompileError;
+	if (!Snapshot.IsValid() || !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
+		return false;
+	}
+	AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(SpawnLocation, FRotator::ZeroRotator);
+	if (!Enemy || !Enemy->ConfigureFromDefinition(Definition, ++EnemySpawnIndex))
+	{
 		if (Enemy)
 		{
-			if (!Enemy->ConfigureFromDefinition(Definition, ++SpawnIndex))
-			{
-				Enemy->Destroy();
-				return;
-			}
-			Enemy->SetEnemyRoster(EnemyRoster);
-			if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
-			{
-				Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
-			}
+			Enemy->Destroy();
 		}
-	};
+		return false;
+	}
+	Enemy->SetEnemyRoster(EnemyRoster);
+	Enemy->SetEnemyId(EnemyId);
+	if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
+	{
+		Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
+	}
+	return true;
+}
 
-	if (bBossEncounter)
-	{
-		SpawnEnemy(TEXT("M_TimeGuard"));
-	}
-	for (int32 EnemyIndex = 0; EnemyIndex < GruntCount; ++EnemyIndex)
-	{
-		SpawnEnemy(TEXT("M_Grunt"));
-	}
-	for (int32 EnemyIndex = 0; EnemyIndex < BomberCount; ++EnemyIndex)
-	{
-		SpawnEnemy(TEXT("M_Bomber"));
-	}
+int32 AReEchoGameMode::GetTotalEncounterCount() const
+{
+	const UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	return RunSubsystem ? RunSubsystem->GetTotalEncounterCount()
+	                    : GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
 }
 
 bool AReEchoGameMode::IsBossEncounter() const
 {
-	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
-	                                                          : nullptr;
-	return RunSubsystem &&
-	       RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	const UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const FReEchoCsvEncounterRow* Encounter =
+	    Snapshot.IsValid() && RunSubsystem ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
+	return Encounter && Encounter->EndCondition == TEXT("BossOrPlayerDeath");
 }
 
 void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition)
 {
-	if (bBossPostEchoPhaseTriggered || !IsBossEncounter() || !PhaseDefinition.bEnabled || !Player ||
-	    !Player->Combatant)
+	if (bBossPostEchoPhaseTriggered || !IsBossEncounter() || !PhaseDefinition.bEnabled || !Player || !Player->Combatant)
 	{
 		return;
 	}
@@ -1093,6 +1379,7 @@ void AReEchoGameMode::HandleFixedStep(float)
 		return;
 	}
 	Player->Recorder->AdvanceRecording(Director->EncounterTime, Player->GetActorLocation());
+	ProcessScheduledSpawnEvents(Director->EncounterTime);
 	for (AReEchoEchoActor* Echo : Echoes)
 	{
 		if (Echo)
@@ -1133,12 +1420,10 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	RestartWidget = UIFlow
-	                    ? Cast<UReEchoRestartWidget>(
-	                          UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Restart, false, true))
-	                    : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	RestartWidget =
+	    UIFlow ? Cast<UReEchoRestartWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Restart, false, true))
+	           : nullptr;
 	if (!RestartWidget)
 	{
 		return;
@@ -1231,12 +1516,10 @@ void AReEchoGameMode::ShowStatsMenu()
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	StatsWidget = UIFlow
-	                  ? Cast<UReEchoStatsWidget>(
-	                        UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Stats, false, true))
-	                  : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	StatsWidget =
+	    UIFlow ? Cast<UReEchoStatsWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Stats, false, true))
+	           : nullptr;
 	if (!StatsWidget)
 	{
 		return;
@@ -1310,12 +1593,10 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	InventoryShopWidget = UIFlow
-	                          ? Cast<UReEchoInventoryShopWidget>(
-	                                UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::InventoryShop, false, true))
-	                          : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	InventoryShopWidget = UIFlow ? Cast<UReEchoInventoryShopWidget>(UIFlow->OpenScreen(
+	                                   PlayerController, EReEchoUIScreen::InventoryShop, false, true))
+	                             : nullptr;
 	if (!InventoryShopWidget)
 	{
 		return;
@@ -1330,8 +1611,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		InventoryShopWidget->OnEchoSkipRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSkipRequested);
 		InventoryShopWidget->OnEchoReplaceRequested.AddUObject(this, &AReEchoGameMode::HandleEchoReplaceRequested);
 		InventoryShopWidget->OnEchoSelectionRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSelectionRequested);
-		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(
-		    this, &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
+		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(this,
+		                                                            &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
 		InventoryShopWidget->ShowPostTraitIntermission(
 		    RunSubsystem->TimeShards, RunSubsystem->InventoryItems, RunSubsystem->GetEchoStorageSummary());
 	}
@@ -1365,8 +1646,8 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	if (bPostTraitIntermission && RunSubsystem && RunSubsystem->GetEchoStorageSummary().bHasPendingRecording)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
+		InventoryShopWidget->ShowEchoStatus(NSLOCTEXT(
+		    "ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
 		return;
 	}
 	PostUiEvent(FReEchoAudioEvents::UiCancel);
@@ -1425,19 +1706,19 @@ FText GetEchoCommandFailureText(const EReEchoEchoStorageResult Result)
 {
 	switch (Result)
 	{
-	case EReEchoEchoStorageResult::NoPendingRecording:
-		return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
-	case EReEchoEchoStorageResult::StorageFull:
-		return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
-	case EReEchoEchoStorageResult::InvalidReplacementTarget:
-		return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
-	case EReEchoEchoStorageResult::ReplayLimitExceeded:
-		return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
-	case EReEchoEchoStorageResult::InvalidRecordingId:
-	case EReEchoEchoStorageResult::DuplicateRecordingId:
-		return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
-	default:
-		return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
+		case EReEchoEchoStorageResult::NoPendingRecording:
+			return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
+		case EReEchoEchoStorageResult::StorageFull:
+			return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
+		case EReEchoEchoStorageResult::InvalidReplacementTarget:
+			return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
+		case EReEchoEchoStorageResult::ReplayLimitExceeded:
+			return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
+		case EReEchoEchoStorageResult::InvalidRecordingId:
+		case EReEchoEchoStorageResult::DuplicateRecordingId:
+			return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
+		default:
+			return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
 	}
 }
 }
@@ -1533,7 +1814,8 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(
 		    bSaved ? NSLOCTEXT("ReEcho", "EchoSelectionSaved", "Replay selection saved.")
-		           : NSLOCTEXT("ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
+		           : NSLOCTEXT(
+		                 "ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
 	}
 	else
 	{
@@ -1565,8 +1847,8 @@ void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
 	if (!bSaved)
 	{
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoCloseSaveFailed", "The echo was skipped, but saving failed. The shop remains open."));
+		InventoryShopWidget->ShowEchoStatus(NSLOCTEXT(
+		    "ReEcho", "EchoCloseSaveFailed", "The echo was skipped, but saving failed. The shop remains open."));
 		return;
 	}
 	const FReEchoEchoStorageSummary Summary = RunSubsystem->GetEchoStorageSummary();
@@ -1715,9 +1997,8 @@ void AReEchoGameMode::HandleEncounterEnded()
 	const FReEchoRecording Recording = Player->Recorder->FinishRecording(
 	    Director ? Director->EncounterTime : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
 	const bool bPlayerSurvived = Player->Combatant->IsAlive();
-	const bool bBossKilled =
-	    bPlayerSurvived && bEncounterClearedByDefeat &&
-	    RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+	const bool bBossKilled = bPlayerSurvived && bEncounterClearedByDefeat &&
+	                         RunSubsystem->EncounterIndex == RunSubsystem->GetTotalEncounterCount();
 	RunSubsystem->CompleteEncounter(Recording, bPlayerSurvived, bBossKilled);
 	if (RunSubsystem->Phase == EReEchoRunPhase::Summary || RunSubsystem->Phase == EReEchoRunPhase::Failed)
 	{
@@ -1736,7 +2017,7 @@ void AReEchoGameMode::HandleEncounterEnded()
 	{
 		ShowRestartScreen(false, true);
 	}
-	else if (RunSubsystem->EncounterIndex < GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
+	else if (RunSubsystem->EncounterIndex < RunSubsystem->GetTotalEncounterCount())
 	{
 		ShowTraitCardChoice();
 	}
@@ -1763,12 +2044,10 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	TraitCardChoiceWidget = UIFlow
-	                            ? Cast<UReEchoTraitCardChoiceWidget>(
-	                                  UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::TraitChoice, false, true))
-	                            : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	TraitCardChoiceWidget = UIFlow ? Cast<UReEchoTraitCardChoiceWidget>(UIFlow->OpenScreen(
+	                                     PlayerController, EReEchoUIScreen::TraitChoice, false, true))
+	                               : nullptr;
 	if (!TraitCardChoiceWidget)
 	{
 		return;
@@ -1878,19 +2157,15 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	{
 		return;
 	}
-	if (!bEncounterTransitioning)
+	if (!bEncounterTransitioning && IsBossEncounter())
 	{
-		bool bEncounterDefeated = !EnemyRoster->HasLivingEnemies();
-		if (IsBossEncounter())
+		bool bEncounterDefeated = true;
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 		{
-			bEncounterDefeated = true;
-			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+			if (Entry.Archetype == EReEchoEnemyArchetype::Boss && Entry.bAlive)
 			{
-				if (Entry.Archetype == EReEchoEnemyArchetype::Boss && Entry.bAlive)
-				{
-					bEncounterDefeated = false;
-					break;
-				}
+				bEncounterDefeated = false;
+				break;
 			}
 		}
 		if (bEncounterDefeated)
@@ -1902,8 +2177,7 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (EncounterHudWidget)
 	{
-		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,
-		                                       GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount(),
-		                                       Director->GetRemainingTime());
+		EncounterHudWidget->SetEncounterStatus(
+		    RunSubsystem ? RunSubsystem->EncounterIndex : 0, GetTotalEncounterCount(), Director->GetRemainingTime());
 	}
 }

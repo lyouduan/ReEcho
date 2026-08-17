@@ -5,6 +5,7 @@
 AReEchoEncounterDirector::AReEchoEncounterDirector()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	EncounterDurationSeconds = GetDefault<UReEchoBalanceSettings>()->EncounterDuration;
 }
 
 void AReEchoEncounterDirector::StartEncounter()
@@ -18,9 +19,8 @@ void AReEchoEncounterDirector::StartEncounter()
 
 void AReEchoEncounterDirector::ResumeEncounter(const float SavedEncounterTime)
 {
-	const float MaximumResumeTime = bEndsOnDuration
-	                                    ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration - KINDA_SMALL_NUMBER
-	                                    : TNumericLimits<float>::Max();
+	const float MaximumResumeTime =
+	    bEndsOnDuration ? EncounterDurationSeconds - KINDA_SMALL_NUMBER : TNumericLimits<float>::Max();
 	EncounterTime = FMath::Clamp(SavedEncounterTime, 0.0f, MaximumResumeTime);
 	Accumulator = 0.0f;
 	FixedDelta = 1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
@@ -43,9 +43,15 @@ void AReEchoEncounterDirector::SetEndsOnDuration(const bool bInEndsOnDuration)
 	bEndsOnDuration = bInEndsOnDuration;
 }
 
+void AReEchoEncounterDirector::ConfigureEncounter(const float InDurationSeconds, const bool bInEndsOnDuration)
+{
+	EncounterDurationSeconds = FMath::Max(0.0f, InDurationSeconds);
+	bEndsOnDuration = bInEndsOnDuration;
+}
+
 float AReEchoEncounterDirector::GetRemainingTime() const
 {
-	return FMath::Max(0.f, GetDefault<UReEchoBalanceSettings>()->EncounterDuration - EncounterTime);
+	return FMath::Max(0.f, EncounterDurationSeconds - EncounterTime);
 }
 
 void AReEchoEncounterDirector::Tick(const float DeltaSeconds)
@@ -62,10 +68,9 @@ void AReEchoEncounterDirector::Tick(const float DeltaSeconds)
 		EncounterTime += FixedDelta;
 		bSetupPhase = EncounterTime < GetDefault<UReEchoBalanceSettings>()->SetupDuration;
 		OnFixedStep.Broadcast(FixedDelta);
-		if (bEndsOnDuration &&
-		    EncounterTime + KINDA_SMALL_NUMBER >= GetDefault<UReEchoBalanceSettings>()->EncounterDuration)
+		if (bEndsOnDuration && EncounterTime + KINDA_SMALL_NUMBER >= EncounterDurationSeconds)
 		{
-			EncounterTime = GetDefault<UReEchoBalanceSettings>()->EncounterDuration;
+			EncounterTime = EncounterDurationSeconds;
 			bRunning = false;
 			OnEncounterEnded.Broadcast();
 		}

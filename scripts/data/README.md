@@ -7,9 +7,10 @@ Canonical authoring workbooks:
 ```powershell
 Design\Data\ReEchoData.xlsx
 Design\Data\ReEchoEnemyData.xlsx
+Design\Data\ReEchoEncounterData.xlsx
 ```
 
-怪物策划只编辑独立工作簿；其说明与验收清单见 [`ReEchoEnemyData使用说明.md`](../../Design/Data/ReEchoEnemyData使用说明.md) 和 [`ReEchoEnemyData策划验收清单.md`](../../Design/Data/ReEchoEnemyData策划验收清单.md)。统一同步入口会联合验证两个工作簿的独立 ExportMap。
+怪物和 Encounter 分别编辑独立工作簿；说明与验收清单见 `Design/Data/*使用说明.md` 和 `*策划验收清单.md`。统一同步入口会联合验证所有权威工作簿的独立 ExportMap。
 
 Install the locked XLSX dependency once in the Python environment used for repository tooling:
 

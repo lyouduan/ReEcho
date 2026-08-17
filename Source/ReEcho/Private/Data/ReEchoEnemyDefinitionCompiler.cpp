@@ -26,6 +26,21 @@ bool ParseArchetype(const FName Value, EReEchoEnemyArchetype& OutArchetype)
 		OutArchetype = EReEchoEnemyArchetype::Boss;
 		return true;
 	}
+	if (Value == TEXT("Slime"))
+	{
+		OutArchetype = EReEchoEnemyArchetype::Slime;
+		return true;
+	}
+	if (Value == TEXT("Ranged"))
+	{
+		OutArchetype = EReEchoEnemyArchetype::Ranged;
+		return true;
+	}
+	if (Value == TEXT("Elite"))
+	{
+		OutArchetype = EReEchoEnemyArchetype::Elite;
+		return true;
+	}
 	return false;
 }
 
@@ -80,19 +95,21 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	const FReEchoCsvEnemyRow* Row = Snapshot.FindEnabledEnemy(EnemyId);
 	if (!Row)
 	{
-		OutError = FString::Printf(TEXT("EnemyId '%s' is unknown or disabled in the run data snapshot."), *EnemyId.ToString());
+		OutError =
+		    FString::Printf(TEXT("EnemyId '%s' is unknown or disabled in the run data snapshot."), *EnemyId.ToString());
 		return false;
 	}
 
 	if (!ParseArchetype(Row->Archetype, OutDefinition.Archetype))
 	{
-		OutError = FString::Printf(TEXT("Enemy '%s' has unsupported archetype '%s'."),
-		                           *EnemyId.ToString(),
-		                           *Row->Archetype.ToString());
+		OutError = FString::Printf(
+		    TEXT("Enemy '%s' has unsupported archetype '%s'."), *EnemyId.ToString(), *Row->Archetype.ToString());
 		return false;
 	}
 	OutDefinition.MaxHealth = Row->MaxHealth;
 	OutDefinition.MoveSpeedCmPerSecond = Row->MoveSpeedCmPerSecond;
+	OutDefinition.CollisionRadiusCm = Row->CollisionRadiusCm;
+	OutDefinition.CollisionHalfHeightCm = Row->CollisionHalfHeightCm;
 	OutDefinition.ContactDamage = Row->ContactDamage;
 	OutDefinition.AttackIntervalSeconds = Row->AttackIntervalSeconds;
 	OutDefinition.ContactRangeCm = Row->ContactRangeCm;
@@ -103,7 +120,8 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.BomberTriggerRadiusCm = Row->TriggerRadiusCm;
 	OutDefinition.BomberDamageRadiusCm = Row->DamageRadiusCm;
 	OutDefinition.BomberFuseDurationSeconds = Row->FuseSeconds;
-	OutDefinition.bUsesDirectionalShield = OutDefinition.Archetype == EReEchoEnemyArchetype::Shield;
+	OutDefinition.bUsesDirectionalShield = OutDefinition.Archetype == EReEchoEnemyArchetype::Shield ||
+	                                       OutDefinition.Archetype == EReEchoEnemyArchetype::Elite;
 
 	for (const FReEchoCsvEnemyAbilityRow& AbilityRow : Row->Abilities)
 	{
@@ -129,16 +147,18 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		if (!ParseTargetingMode(AbilityRow.TargetingMode, Ability.TargetingMode))
 		{
 			OutError = FString::Printf(TEXT("Enemy ability '%s' has unsupported targeting mode '%s'."),
-			                           *AbilityRow.Id.ToString(), *AbilityRow.TargetingMode.ToString());
+			                           *AbilityRow.Id.ToString(),
+			                           *AbilityRow.TargetingMode.ToString());
 			return false;
 		}
 		if (!ParseLockTiming(AbilityRow.LockTiming, Ability.LockTiming))
 		{
 			OutError = FString::Printf(TEXT("Enemy ability '%s' has unsupported lock timing '%s'."),
-			                           *AbilityRow.Id.ToString(), *AbilityRow.LockTiming.ToString());
+			                           *AbilityRow.Id.ToString(),
+			                           *AbilityRow.LockTiming.ToString());
 			return false;
 		}
-		OutDefinition.BossAbilities.Add(Ability);
+		OutDefinition.Abilities.Add(Ability);
 	}
 	for (const FReEchoCsvBossPhaseRow& PhaseRow : Row->BossPhases)
 	{
@@ -153,7 +173,8 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		else
 		{
 			OutError = FString::Printf(TEXT("Boss phase '%s' has unsupported echo policy '%s'."),
-			                           *PhaseRow.Id.ToString(), *PhaseRow.EchoPolicy.ToString());
+			                           *PhaseRow.Id.ToString(),
+			                           *PhaseRow.EchoPolicy.ToString());
 			return false;
 		}
 		Phase.PhysicalAttackMultiplier = PhaseRow.PhysicalAttackMultiplier;
@@ -171,7 +192,8 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		else
 		{
 			OutError = FString::Printf(TEXT("Boss phase '%s' has unsupported refill policy '%s'."),
-			                           *PhaseRow.Id.ToString(), *PhaseRow.RefillHealthPolicy.ToString());
+			                           *PhaseRow.Id.ToString(),
+			                           *PhaseRow.RefillHealthPolicy.ToString());
 			return false;
 		}
 		Phase.bEnabled = PhaseRow.bEnabled;

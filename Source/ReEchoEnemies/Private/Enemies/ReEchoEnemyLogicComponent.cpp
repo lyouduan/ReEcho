@@ -59,18 +59,16 @@ EReEchoBossAttackShape ResolveBossAttackShape(const EReEchoBossAbilityKind Abili
 
 bool IsActiveBossAbility(const EReEchoBossAbilityKind AbilityKind)
 {
-	return AbilityKind == EReEchoBossAbilityKind::MeleeSweep ||
-	       AbilityKind == EReEchoBossAbilityKind::Projectile ||
-	       AbilityKind == EReEchoBossAbilityKind::BlinkSlam ||
-	       AbilityKind == EReEchoBossAbilityKind::PrayerBeam;
+	return AbilityKind == EReEchoBossAbilityKind::MeleeSweep || AbilityKind == EReEchoBossAbilityKind::Projectile ||
+	       AbilityKind == EReEchoBossAbilityKind::BlinkSlam || AbilityKind == EReEchoBossAbilityKind::PrayerBeam;
 }
 }
 
 FReEchoEnemyDefinition ReEchoEnemyDefinitions::MakeLegacyEquivalent(const EReEchoEnemyArchetype Archetype,
-                                                                     const float BomberTriggerRadiusCm,
-                                                                     const float BomberDamageRadiusCm,
-                                                                     const float BomberFuseDurationSeconds,
-                                                                     const float BomberDamage)
+                                                                    const float BomberTriggerRadiusCm,
+                                                                    const float BomberDamageRadiusCm,
+                                                                    const float BomberFuseDurationSeconds,
+                                                                    const float BomberDamage)
 {
 	FReEchoEnemyDefinition Result;
 	Result.Archetype = Archetype;
@@ -117,6 +115,7 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	BossPhaseIndices.Reset();
 	BossCleanseAbilityIndex = INDEX_NONE;
 	if (InDefinition.MaxHealth <= 0.0f || InDefinition.MoveSpeedCmPerSecond < 0.0f ||
+	    InDefinition.CollisionRadiusCm <= 0.0f || InDefinition.CollisionHalfHeightCm <= 0.0f ||
 	    InDefinition.ContactDamage < 0.0f || InDefinition.AttackIntervalSeconds < 0.0f ||
 	    InDefinition.ContactRangeCm < 0.0f || InDefinition.MovementStopDistanceCm < 0.0f)
 	{
@@ -126,8 +125,7 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	Definition = InDefinition;
 	Definition.BomberTriggerRadiusCm = FMath::Max(0.0f, Definition.BomberTriggerRadiusCm);
 	Definition.BomberDamageRadiusCm = FMath::Max(0.0f, Definition.BomberDamageRadiusCm);
-	Definition.BomberFuseDurationSeconds =
-	    FMath::Max(MinimumFuseDurationSeconds, Definition.BomberFuseDurationSeconds);
+	Definition.BomberFuseDurationSeconds = FMath::Max(MinimumFuseDurationSeconds, Definition.BomberFuseDurationSeconds);
 	Definition.HitReactionDurationSeconds = FMath::Max(0.0f, Definition.HitReactionDurationSeconds);
 	Definition.KnockbackSpeedCmPerSecond = FMath::Max(0.0f, Definition.KnockbackSpeedCmPerSecond);
 	Definition.KnockbackDrag = FMath::Max(0.0f, Definition.KnockbackDrag);
@@ -138,6 +136,14 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 	State.bAlive = true;
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss && !BuildBossRuntime())
+	{
+		Definition = {};
+		State = {};
+		return false;
+	}
+	if ((Definition.Archetype == EReEchoEnemyArchetype::Ranged ||
+	     Definition.Archetype == EReEchoEnemyArchetype::Elite) &&
+	    !GetSpecialAbility())
 	{
 		Definition = {};
 		State = {};
@@ -159,9 +165,9 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 	bool bHasProjectile = false;
 	bool bHasBlinkSlam = false;
 	bool bHasPrayerBeam = false;
-	for (int32 AbilityIndex = 0; AbilityIndex < Definition.BossAbilities.Num(); ++AbilityIndex)
+	for (int32 AbilityIndex = 0; AbilityIndex < Definition.Abilities.Num(); ++AbilityIndex)
 	{
-		const FReEchoEnemyAbilityDefinition& Ability = Definition.BossAbilities[AbilityIndex];
+		const FReEchoEnemyAbilityDefinition& Ability = Definition.Abilities[AbilityIndex];
 		if (!Ability.bEnabled)
 		{
 			continue;
@@ -184,9 +190,8 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 			continue;
 		}
 		if (!IsActiveBossAbility(AbilityKind) || Ability.Damage < 0.0f || Ability.WindupSeconds < 0.0f ||
-		    Ability.ActiveSeconds < 0.0f || Ability.RecoverySeconds < 0.0f ||
-		    Ability.CooldownSeconds < 0.0f || Ability.MinRangeCm < 0.0f ||
-		    Ability.MaxRangeCm < Ability.MinRangeCm || Ability.MaxRangeCm <= 0.0f)
+		    Ability.ActiveSeconds < 0.0f || Ability.RecoverySeconds < 0.0f || Ability.CooldownSeconds < 0.0f ||
+		    Ability.MinRangeCm < 0.0f || Ability.MaxRangeCm < Ability.MinRangeCm || Ability.MaxRangeCm <= 0.0f)
 		{
 			return false;
 		}
@@ -216,16 +221,17 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 		return false;
 	}
 
-	BossActiveAbilityIndices.Sort([this](const int32 Left, const int32 Right)
-	{
-		const FReEchoEnemyAbilityDefinition& LeftAbility = Definition.BossAbilities[Left];
-		const FReEchoEnemyAbilityDefinition& RightAbility = Definition.BossAbilities[Right];
-		if (LeftAbility.SequenceOrder != RightAbility.SequenceOrder)
-		{
-			return LeftAbility.SequenceOrder < RightAbility.SequenceOrder;
-		}
-		return LeftAbility.Id.LexicalLess(RightAbility.Id);
-	});
+	BossActiveAbilityIndices.Sort(
+	    [this](const int32 Left, const int32 Right)
+	    {
+		    const FReEchoEnemyAbilityDefinition& LeftAbility = Definition.Abilities[Left];
+		    const FReEchoEnemyAbilityDefinition& RightAbility = Definition.Abilities[Right];
+		    if (LeftAbility.SequenceOrder != RightAbility.SequenceOrder)
+		    {
+			    return LeftAbility.SequenceOrder < RightAbility.SequenceOrder;
+		    }
+		    return LeftAbility.Id.LexicalLess(RightAbility.Id);
+	    });
 
 	TSet<int32> PhaseNumbers;
 	for (int32 PhaseDefinitionIndex = 0; PhaseDefinitionIndex < Definition.BossPhases.Num(); ++PhaseDefinitionIndex)
@@ -237,9 +243,8 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 		}
 		if (PhaseDefinition.Id.IsNone() || PhaseDefinition.PhaseIndex < 0 ||
 		    PhaseNumbers.Contains(PhaseDefinition.PhaseIndex) || PhaseDefinition.TriggerSeconds < 0.0f ||
-		    PhaseDefinition.PhysicalAttackMultiplier <= 0.0f ||
-		    PhaseDefinition.ElementalAttackMultiplier <= 0.0f || PhaseDefinition.AttackSpeedMultiplier <= 0.0f ||
-		    PhaseDefinition.MovementSpeedMultiplier <= 0.0f)
+		    PhaseDefinition.PhysicalAttackMultiplier <= 0.0f || PhaseDefinition.ElementalAttackMultiplier <= 0.0f ||
+		    PhaseDefinition.AttackSpeedMultiplier <= 0.0f || PhaseDefinition.MovementSpeedMultiplier <= 0.0f)
 		{
 			return false;
 		}
@@ -250,24 +255,24 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 	{
 		return false;
 	}
-	BossPhaseIndices.Sort([this](const int32 Left, const int32 Right)
-	{
-		const FReEchoBossPhaseDefinition& LeftPhase = Definition.BossPhases[Left];
-		const FReEchoBossPhaseDefinition& RightPhase = Definition.BossPhases[Right];
-		if (!FMath::IsNearlyEqual(LeftPhase.TriggerSeconds, RightPhase.TriggerSeconds))
-		{
-			return LeftPhase.TriggerSeconds < RightPhase.TriggerSeconds;
-		}
-		return LeftPhase.PhaseIndex < RightPhase.PhaseIndex;
-	});
+	BossPhaseIndices.Sort(
+	    [this](const int32 Left, const int32 Right)
+	    {
+		    const FReEchoBossPhaseDefinition& LeftPhase = Definition.BossPhases[Left];
+		    const FReEchoBossPhaseDefinition& RightPhase = Definition.BossPhases[Right];
+		    if (!FMath::IsNearlyEqual(LeftPhase.TriggerSeconds, RightPhase.TriggerSeconds))
+		    {
+			    return LeftPhase.TriggerSeconds < RightPhase.TriggerSeconds;
+		    }
+		    return LeftPhase.PhaseIndex < RightPhase.PhaseIndex;
+	    });
 
-	State.BossCleanseRemainingSeconds =
-	    Definition.BossAbilities[BossCleanseAbilityIndex].CleanseIntervalSeconds;
+	State.BossCleanseRemainingSeconds = Definition.Abilities[BossCleanseAbilityIndex].CleanseIntervalSeconds;
 	return true;
 }
 
 void UReEchoEnemyLogicComponent::BindEventSources(UReEchoEnemyEventsComponent* InEnemyEvents,
-                                                   UReEchoCombatEventsComponent* InCombatEvents)
+                                                  UReEchoCombatEventsComponent* InCombatEvents)
 {
 	if (CombatEvents)
 	{
@@ -291,7 +296,7 @@ void UReEchoEnemyLogicComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 }
 
 FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemySenseSnapshot& Sense,
-                                                              const float DeltaSeconds)
+                                                             const float DeltaSeconds)
 {
 	FReEchoEnemyActionIntent Intent;
 	if (!bInitialized || !State.bAlive)
@@ -309,6 +314,10 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	{
 		return AdvanceBoss(Sense, SafeDeltaSeconds);
 	}
+	if (Definition.Archetype == EReEchoEnemyArchetype::Ranged || Definition.Archetype == EReEchoEnemyArchetype::Elite)
+	{
+		return AdvanceSpecial(Sense, SafeDeltaSeconds);
+	}
 	if (State.HitReactionRemainingSeconds > 0.0f)
 	{
 		return AdvanceHitReaction(SafeDeltaSeconds);
@@ -319,8 +328,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 		return Intent;
 	}
-	State.AttackCooldownRemainingSeconds =
-	    FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - SafeDeltaSeconds);
+	State.AttackCooldownRemainingSeconds = FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - SafeDeltaSeconds);
 
 	FVector ToTarget = Sense.TargetLocation - Sense.SelfLocation;
 	ToTarget.Z = 0.0f;
@@ -358,10 +366,8 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 			PublishFuse(false);
 			if (State.FuseRemainingSeconds <= 0.0f)
 			{
-				CommitAttack(Sense,
-				             Distance <= Definition.BomberDamageRadiusCm && !Sense.bTargetInvulnerable,
-				             true,
-				             Intent);
+				CommitAttack(
+				    Sense, Distance <= Definition.BomberDamageRadiusCm && !Sense.bTargetInvulnerable, true, Intent);
 				return Intent;
 			}
 		}
@@ -375,8 +381,110 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	return Intent;
 }
 
+const FReEchoEnemyAbilityDefinition* UReEchoEnemyLogicComponent::GetSpecialAbility() const
+{
+	for (const FReEchoEnemyAbilityDefinition& Ability : Definition.Abilities)
+	{
+		const bool bRangedMatch =
+		    Definition.Archetype == EReEchoEnemyArchetype::Ranged && Ability.BehaviorId == TEXT("Enemy.RangedBurst");
+		const bool bEliteMatch =
+		    Definition.Archetype == EReEchoEnemyArchetype::Elite && Ability.BehaviorId == TEXT("Enemy.EliteDash");
+		if (Ability.bEnabled && (bRangedMatch || bEliteMatch))
+		{
+			return &Ability;
+		}
+	}
+	return nullptr;
+}
+
+FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense,
+                                                                    const float DeltaSeconds)
+{
+	FReEchoEnemyActionIntent Intent;
+	const FReEchoEnemyAbilityDefinition* Ability = GetSpecialAbility();
+	if (!Ability || !Sense.bTargetExists || !Sense.bTargetAlive)
+	{
+		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+		return Intent;
+	}
+
+	State.AttackCooldownRemainingSeconds = FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - DeltaSeconds);
+	FVector ToTarget = Sense.TargetLocation - Sense.SelfLocation;
+	ToTarget.Z = 0.0f;
+	const float Distance = ToTarget.Size();
+	const FVector Direction = ToTarget.GetSafeNormal();
+	if (!Direction.IsNearlyZero())
+	{
+		State.FacingDirection = Direction;
+		Intent.FacingDirection = Direction;
+		Intent.bHasFacing = true;
+	}
+
+	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None)
+	{
+		if (Sense.bSpecialActionPermitted && State.AttackCooldownRemainingSeconds <= 0.0f &&
+		    Distance >= Ability->MinRangeCm && Distance <= Ability->MaxRangeCm)
+		{
+			State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Windup;
+			State.SpecialAbilityId = Ability->Id;
+			State.SpecialActionRemainingSeconds = Ability->WindupSeconds;
+			State.SpecialLockedTargetLocation = Sense.TargetLocation;
+			State.SpecialLockedDirection = Direction.IsNearlyZero() ? State.FacingDirection : Direction;
+			State.Phase = EReEchoEnemyBehaviorPhase::Attacking;
+			return Intent;
+		}
+		if (Distance > Definition.MovementStopDistanceCm && !Direction.IsNearlyZero())
+		{
+			Intent.MovementDelta = Direction * Definition.MoveSpeedCmPerSecond * DeltaSeconds;
+			Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
+			State.Phase = EReEchoEnemyBehaviorPhase::Pursuing;
+		}
+		return Intent;
+	}
+
+	State.SpecialActionRemainingSeconds = FMath::Max(0.0f, State.SpecialActionRemainingSeconds - DeltaSeconds);
+	State.Phase = EReEchoEnemyBehaviorPhase::Attacking;
+	if (State.SpecialActionRemainingSeconds > 0.0f)
+	{
+		return Intent;
+	}
+	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
+	{
+		bool bCanDamage = false;
+		if (Definition.Archetype == EReEchoEnemyArchetype::Ranged)
+		{
+			bCanDamage = FVector::DistSquared2D(Sense.TargetLocation, State.SpecialLockedTargetLocation) <=
+			             FMath::Square(Ability->RadiusCm);
+		}
+		else
+		{
+			const FVector Right =
+			    FVector::CrossProduct(FVector::UpVector, State.SpecialLockedDirection).GetSafeNormal2D();
+			const FVector Offset = Sense.TargetLocation - Sense.SelfLocation;
+			const float Forward = FVector::DotProduct(Offset, State.SpecialLockedDirection);
+			const float Side = FMath::Abs(FVector::DotProduct(Offset, Right));
+			bCanDamage = Forward >= 0.0f && Forward <= Ability->LengthCm && Side <= Ability->WidthCm * 0.5f;
+			Intent.MovementDelta = State.SpecialLockedDirection * Ability->LengthCm;
+			Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
+		}
+		CommitAttack(Sense, bCanDamage && !Sense.bTargetInvulnerable, false, Intent);
+		Intent.RawDamage = Ability->Damage;
+		Intent.HitLocation = Definition.Archetype == EReEchoEnemyArchetype::Ranged ? State.SpecialLockedTargetLocation
+		                                                                           : Sense.TargetLocation;
+		State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Recovery;
+		State.SpecialActionRemainingSeconds = Ability->ActiveSeconds + Ability->RecoverySeconds;
+		State.AttackCooldownRemainingSeconds = Ability->CooldownSeconds;
+		return Intent;
+	}
+
+	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
+	State.SpecialAbilityId = NAME_None;
+	State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+	return Intent;
+}
+
 FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense,
-                                                                  const float DeltaSeconds)
+                                                                 const float DeltaSeconds)
 {
 	FReEchoEnemyActionIntent Intent;
 	State.BossSimulationAccumulatorSeconds += DeltaSeconds;
@@ -390,8 +498,8 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceBoss(const FReEchoEn
 }
 
 void UReEchoEnemyLogicComponent::AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
-                                                       const float FixedDeltaSeconds,
-                                                       FReEchoEnemyActionIntent& InOutIntent)
+                                                      const float FixedDeltaSeconds,
+                                                      FReEchoEnemyActionIntent& InOutIntent)
 {
 	AdvanceBossAmbientTimers(FixedDeltaSeconds, InOutIntent);
 
@@ -441,7 +549,7 @@ void UReEchoEnemyLogicComponent::AdvanceBossFixedStep(const FReEchoEnemySenseSna
 }
 
 void UReEchoEnemyLogicComponent::AdvanceBossAmbientTimers(const float FixedDeltaSeconds,
-                                                           FReEchoEnemyActionIntent& InOutIntent)
+                                                          FReEchoEnemyActionIntent& InOutIntent)
 {
 	for (FReEchoBossAbilityCooldownSnapshot& Cooldown : State.BossAbilityCooldowns)
 	{
@@ -464,7 +572,7 @@ void UReEchoEnemyLogicComponent::AdvanceBossAmbientTimers(const float FixedDelta
 		++State.BossNextPhaseIndex;
 	}
 
-	const FReEchoEnemyAbilityDefinition& CleanseAbility = Definition.BossAbilities[BossCleanseAbilityIndex];
+	const FReEchoEnemyAbilityDefinition& CleanseAbility = Definition.Abilities[BossCleanseAbilityIndex];
 	State.BossCleanseRemainingSeconds -= FixedDeltaSeconds;
 	while (State.BossCleanseRemainingSeconds <= KINDA_SMALL_NUMBER)
 	{
@@ -480,20 +588,19 @@ void UReEchoEnemyLogicComponent::AdvanceBossAmbientTimers(const float FixedDelta
 }
 
 void UReEchoEnemyLogicComponent::AdvanceBossAbility(const FReEchoEnemySenseSnapshot& Sense,
-                                                     const float FixedDeltaSeconds,
-                                                     FReEchoEnemyActionIntent& InOutIntent)
+                                                    const float FixedDeltaSeconds,
+                                                    FReEchoEnemyActionIntent& InOutIntent)
 {
 	const int32 AbilityIndex = FindBossAbilityIndex(State.BossCurrentAbilityId);
-	if (!Definition.BossAbilities.IsValidIndex(AbilityIndex))
+	if (!Definition.Abilities.IsValidIndex(AbilityIndex))
 	{
 		State.BossActionPhase = EReEchoBossActionPhase::None;
 		State.BossCurrentAbilityId = NAME_None;
 		State.BossActionPhaseRemainingSeconds = 0.0f;
 		return;
 	}
-	const FReEchoEnemyAbilityDefinition& Ability = Definition.BossAbilities[AbilityIndex];
-	State.BossActionPhaseRemainingSeconds =
-	    FMath::Max(0.0f, State.BossActionPhaseRemainingSeconds - FixedDeltaSeconds);
+	const FReEchoEnemyAbilityDefinition& Ability = Definition.Abilities[AbilityIndex];
+	State.BossActionPhaseRemainingSeconds = FMath::Max(0.0f, State.BossActionPhaseRemainingSeconds - FixedDeltaSeconds);
 	if (State.BossActionPhaseRemainingSeconds > KINDA_SMALL_NUMBER)
 	{
 		return;
@@ -525,10 +632,10 @@ void UReEchoEnemyLogicComponent::AdvanceBossAbility(const FReEchoEnemySenseSnaps
 }
 
 void UReEchoEnemyLogicComponent::BeginBossAbility(const FReEchoEnemySenseSnapshot& Sense,
-                                                   const int32 AbilityIndex,
-                                                   FReEchoEnemyActionIntent& InOutIntent)
+                                                  const int32 AbilityIndex,
+                                                  FReEchoEnemyActionIntent& InOutIntent)
 {
-	const FReEchoEnemyAbilityDefinition& Ability = Definition.BossAbilities[AbilityIndex];
+	const FReEchoEnemyAbilityDefinition& Ability = Definition.Abilities[AbilityIndex];
 	State.BossCurrentAbilityId = Ability.Id;
 	State.BossActionPhase = EReEchoBossActionPhase::Windup;
 	State.BossActionPhaseRemainingSeconds = Ability.WindupSeconds;
@@ -538,9 +645,8 @@ void UReEchoEnemyLogicComponent::BeginBossAbility(const FReEchoEnemySenseSnapsho
 	State.bBossHasLockedTeleportDestination = false;
 
 	const int32 SelectedSequenceIndex = BossActiveAbilityIndices.IndexOfByKey(AbilityIndex);
-	State.BossNextSequenceIndex = BossActiveAbilityIndices.IsEmpty()
-	                                  ? 0
-	                                  : (SelectedSequenceIndex + 1) % BossActiveAbilityIndices.Num();
+	State.BossNextSequenceIndex =
+	    BossActiveAbilityIndices.IsEmpty() ? 0 : (SelectedSequenceIndex + 1) % BossActiveAbilityIndices.Num();
 	if (Ability.LockTiming == EReEchoBossLockTiming::WindupStarted)
 	{
 		LockBossTarget(Sense);
@@ -590,8 +696,8 @@ void UReEchoEnemyLogicComponent::LockBossTarget(const FReEchoEnemySenseSnapshot&
 }
 
 void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapshot& Sense,
-                                                    const FReEchoEnemyAbilityDefinition& Ability,
-                                                    FReEchoEnemyActionIntent& InOutIntent)
+                                                   const FReEchoEnemyAbilityDefinition& Ability,
+                                                   FReEchoEnemyActionIntent& InOutIntent)
 {
 	const EReEchoBossAbilityKind AbilityKind = ResolveBossAbilityKind(Ability.BehaviorId);
 	FReEchoBossIntent BossIntent;
@@ -603,9 +709,8 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	BossIntent.Attack.Source = GetOwner();
 	BossIntent.Attack.Sequence = State.BossCurrentAttackSequence;
 	BossIntent.Target = Sense.Target;
-	BossIntent.Origin = AbilityKind == EReEchoBossAbilityKind::BlinkSlam
-	                        ? State.BossLockedTeleportDestination
-	                        : Sense.SelfLocation;
+	BossIntent.Origin =
+	    AbilityKind == EReEchoBossAbilityKind::BlinkSlam ? State.BossLockedTeleportDestination : Sense.SelfLocation;
 	BossIntent.LockedTargetLocation = State.BossLockedTargetLocation;
 	BossIntent.LockedDirection = State.BossLockedDirection;
 	BossIntent.TeleportDestination = State.BossLockedTeleportDestination;
@@ -620,8 +725,8 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	BossIntent.TargetingMode = Ability.TargetingMode;
 	BossIntent.LockTiming = Ability.LockTiming;
 	BossIntent.bCanDamageTarget = State.bBossHasLockedTarget && !Sense.bTargetInvulnerable;
-	BossIntent.bRequestTeleport = AbilityKind == EReEchoBossAbilityKind::BlinkSlam &&
-	                              State.bBossHasLockedTeleportDestination;
+	BossIntent.bRequestTeleport =
+	    AbilityKind == EReEchoBossAbilityKind::BlinkSlam && State.bBossHasLockedTeleportDestination;
 
 	InOutIntent.Attack = BossIntent.Attack;
 	InOutIntent.Target = Sense.Target;
@@ -641,7 +746,7 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 }
 
 void UReEchoEnemyLogicComponent::EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability,
-                                                 FReEchoEnemyActionIntent& InOutIntent)
+                                                FReEchoEnemyActionIntent& InOutIntent)
 {
 	FReEchoBossIntent BossIntent;
 	BossIntent.Type = EReEchoBossIntentType::AbilityEnded;
@@ -670,8 +775,7 @@ void UReEchoEnemyLogicComponent::EndBossAbility(const FReEchoEnemyAbilityDefinit
 	State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 }
 
-void UReEchoEnemyLogicComponent::AppendBossIntent(FReEchoBossIntent&& BossIntent,
-                                                   FReEchoEnemyActionIntent& InOutIntent)
+void UReEchoEnemyLogicComponent::AppendBossIntent(FReEchoBossIntent&& BossIntent, FReEchoEnemyActionIntent& InOutIntent)
 {
 	PublishBossIntent(BossIntent);
 	InOutIntent.BossIntents.Add(MoveTemp(BossIntent));
@@ -688,7 +792,7 @@ int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnaps
 	{
 		const int32 SequenceIndex = (State.BossNextSequenceIndex + Offset) % BossActiveAbilityIndices.Num();
 		const int32 AbilityIndex = BossActiveAbilityIndices[SequenceIndex];
-		const FReEchoEnemyAbilityDefinition& Ability = Definition.BossAbilities[AbilityIndex];
+		const FReEchoEnemyAbilityDefinition& Ability = Definition.Abilities[AbilityIndex];
 		if (GetBossAbilityCooldown(Ability.Id) > KINDA_SMALL_NUMBER || Distance < Ability.MinRangeCm ||
 		    Distance > Ability.MaxRangeCm)
 		{
@@ -706,16 +810,17 @@ int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnaps
 
 int32 UReEchoEnemyLogicComponent::FindBossAbilityIndex(const FName AbilityId) const
 {
-	return Definition.BossAbilities.IndexOfByPredicate([AbilityId](const FReEchoEnemyAbilityDefinition& Ability)
-	{
-		return Ability.Id == AbilityId;
-	});
+	return Definition.Abilities.IndexOfByPredicate(
+	    [AbilityId](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == AbilityId;
+	    });
 }
 
 float UReEchoEnemyLogicComponent::GetBossAbilityCooldown(const FName AbilityId) const
 {
-	const FReEchoBossAbilityCooldownSnapshot* Cooldown =
-	    State.BossAbilityCooldowns.FindByPredicate([AbilityId](const FReEchoBossAbilityCooldownSnapshot& Candidate)
+	const FReEchoBossAbilityCooldownSnapshot* Cooldown = State.BossAbilityCooldowns.FindByPredicate(
+	    [AbilityId](const FReEchoBossAbilityCooldownSnapshot& Candidate)
 	    {
 		    return Candidate.AbilityId == AbilityId;
 	    });
@@ -724,8 +829,8 @@ float UReEchoEnemyLogicComponent::GetBossAbilityCooldown(const FName AbilityId) 
 
 void UReEchoEnemyLogicComponent::SetBossAbilityCooldown(const FName AbilityId, const float RemainingSeconds)
 {
-	if (FReEchoBossAbilityCooldownSnapshot* Cooldown =
-	        State.BossAbilityCooldowns.FindByPredicate([AbilityId](const FReEchoBossAbilityCooldownSnapshot& Candidate)
+	if (FReEchoBossAbilityCooldownSnapshot* Cooldown = State.BossAbilityCooldowns.FindByPredicate(
+	        [AbilityId](const FReEchoBossAbilityCooldownSnapshot& Candidate)
 	        {
 		        return Candidate.AbilityId == AbilityId;
 	        }))
@@ -735,20 +840,19 @@ void UReEchoEnemyLogicComponent::SetBossAbilityCooldown(const FName AbilityId, c
 }
 
 void UReEchoEnemyLogicComponent::ApplyBossHitReaction(const float FixedDeltaSeconds,
-                                                       FReEchoEnemyActionIntent& InOutIntent)
+                                                      FReEchoEnemyActionIntent& InOutIntent)
 {
 	InOutIntent.MovementDelta += State.KnockbackVelocity * FixedDeltaSeconds;
 	InOutIntent.bHasMovement = !InOutIntent.MovementDelta.IsNearlyZero();
-	State.KnockbackVelocity = FMath::VInterpTo(
-	    State.KnockbackVelocity, FVector::ZeroVector, FixedDeltaSeconds, Definition.KnockbackDrag);
-	State.HitReactionRemainingSeconds =
-	    FMath::Max(0.0f, State.HitReactionRemainingSeconds - FixedDeltaSeconds);
+	State.KnockbackVelocity =
+	    FMath::VInterpTo(State.KnockbackVelocity, FVector::ZeroVector, FixedDeltaSeconds, Definition.KnockbackDrag);
+	State.HitReactionRemainingSeconds = FMath::Max(0.0f, State.HitReactionRemainingSeconds - FixedDeltaSeconds);
 	State.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
 }
 
 void UReEchoEnemyLogicComponent::ApplyStandardMovement(const FReEchoEnemySenseSnapshot& Sense,
-                                                        const float DeltaSeconds,
-                                                        FReEchoEnemyActionIntent& InOutIntent)
+                                                       const float DeltaSeconds,
+                                                       FReEchoEnemyActionIntent& InOutIntent)
 {
 	if (!Sense.bTargetExists || !Sense.bTargetAlive)
 	{
@@ -783,16 +887,16 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceHitReaction(const fl
 	State.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
 	Intent.MovementDelta = State.KnockbackVelocity * DeltaSeconds;
 	Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
-	State.KnockbackVelocity = FMath::VInterpTo(
-	    State.KnockbackVelocity, FVector::ZeroVector, DeltaSeconds, Definition.KnockbackDrag);
+	State.KnockbackVelocity =
+	    FMath::VInterpTo(State.KnockbackVelocity, FVector::ZeroVector, DeltaSeconds, Definition.KnockbackDrag);
 	State.HitReactionRemainingSeconds = FMath::Max(0.0f, State.HitReactionRemainingSeconds - DeltaSeconds);
 	return Intent;
 }
 
 void UReEchoEnemyLogicComponent::CommitAttack(const FReEchoEnemySenseSnapshot& Sense,
-                                               const bool bCanDamageTarget,
-                                               const bool bSelfDestruct,
-                                               FReEchoEnemyActionIntent& InOutIntent)
+                                              const bool bCanDamageTarget,
+                                              const bool bSelfDestruct,
+                                              FReEchoEnemyActionIntent& InOutIntent)
 {
 	InOutIntent.Attack.Source = GetOwner();
 	InOutIntent.Attack.Sequence = ++State.AttackSequence;
@@ -876,25 +980,23 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 		TArray<FReEchoBossAbilityCooldownSnapshot> RestoredCooldowns;
 		for (const int32 AbilityIndex : BossActiveAbilityIndices)
 		{
-			const FName AbilityId = Definition.BossAbilities[AbilityIndex].Id;
-			const FReEchoBossAbilityCooldownSnapshot* SavedCooldown =
-			    InSnapshot.BossAbilityCooldowns.FindByPredicate(
-			        [AbilityId](const FReEchoBossAbilityCooldownSnapshot& Candidate)
-			        {
-				        return Candidate.AbilityId == AbilityId;
-			        });
+			const FName AbilityId = Definition.Abilities[AbilityIndex].Id;
+			const FReEchoBossAbilityCooldownSnapshot* SavedCooldown = InSnapshot.BossAbilityCooldowns.FindByPredicate(
+			    [AbilityId](const FReEchoBossAbilityCooldownSnapshot& Candidate)
+			    {
+				    return Candidate.AbilityId == AbilityId;
+			    });
 			FReEchoBossAbilityCooldownSnapshot& Restored = RestoredCooldowns.AddDefaulted_GetRef();
 			Restored.AbilityId = AbilityId;
 			Restored.RemainingSeconds = SavedCooldown ? FMath::Max(0.0f, SavedCooldown->RemainingSeconds) : 0.0f;
 		}
 		State.BossAbilityCooldowns = MoveTemp(RestoredCooldowns);
-		State.BossNextSequenceIndex = BossActiveAbilityIndices.IsEmpty()
-		                                  ? 0
-		                                  : FMath::Clamp(State.BossNextSequenceIndex, 0,
-		                                                 BossActiveAbilityIndices.Num() - 1);
+		State.BossNextSequenceIndex =
+		    BossActiveAbilityIndices.IsEmpty()
+		        ? 0
+		        : FMath::Clamp(State.BossNextSequenceIndex, 0, BossActiveAbilityIndices.Num() - 1);
 		State.BossNextPhaseIndex = FMath::Clamp(State.BossNextPhaseIndex, 0, BossPhaseIndices.Num());
-		State.BossCurrentAttackSequence =
-		    FMath::Clamp<int64>(State.BossCurrentAttackSequence, 0, State.AttackSequence);
+		State.BossCurrentAttackSequence = FMath::Clamp<int64>(State.BossCurrentAttackSequence, 0, State.AttackSequence);
 		State.BossActionPhaseRemainingSeconds = FMath::Max(0.0f, State.BossActionPhaseRemainingSeconds);
 		State.BossCleanseRemainingSeconds = FMath::Max(0.0f, State.BossCleanseRemainingSeconds);
 		State.BossEncounterElapsedSeconds = FMath::Max(0.0f, State.BossEncounterElapsedSeconds);

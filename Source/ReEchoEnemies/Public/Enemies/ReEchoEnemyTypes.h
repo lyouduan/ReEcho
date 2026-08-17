@@ -10,6 +10,9 @@ enum class EReEchoEnemyArchetype : uint8
 	Grunt,
 	Shield,
 	Bomber,
+	Slime,
+	Ranged,
+	Elite,
 	Boss
 };
 
@@ -44,6 +47,14 @@ enum class EReEchoBossActionPhase : uint8
 	None,
 	Windup,
 	Active,
+	Recovery
+};
+
+UENUM(BlueprintType)
+enum class EReEchoEnemySpecialActionPhase : uint8
+{
+	None,
+	Windup,
 	Recovery
 };
 
@@ -99,6 +110,7 @@ enum class EReEchoBossRefillHealthPolicy : uint8
 
 /** Immutable active/passive Boss ability definition compiled from the authoritative data source. */
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoEnemyAbilityDefinition
 {
 	GENERATED_BODY()
@@ -166,6 +178,7 @@ struct REECHOENEMIES_API FReEchoEnemyAbilityDefinition
 
 /** Immutable encounter phase definition. The encounter host owns applying the returned policy and multipliers. */
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoBossPhaseDefinition
 {
 	GENERATED_BODY()
@@ -203,6 +216,7 @@ struct REECHOENEMIES_API FReEchoBossPhaseDefinition
 
 /** Immutable, presentation-free behavior definition compiled by the host. */
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoEnemyDefinition
 {
 	GENERATED_BODY()
@@ -215,6 +229,12 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float MoveSpeedCmPerSecond = 95.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CollisionRadiusCm = 51.84f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CollisionHalfHeightCm = 183.6f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float ContactDamage = 9.0f;
@@ -251,7 +271,8 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 
 	/** Boss-only immutable definitions. Non-Boss archetypes leave both arrays empty. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TArray<FReEchoEnemyAbilityDefinition> BossAbilities;
+	/** Data-authored abilities for any enemy archetype; Bosses simply own more entries. */
+	TArray<FReEchoEnemyAbilityDefinition> Abilities;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FReEchoBossPhaseDefinition> BossPhases;
@@ -259,6 +280,7 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 
 /** Explicit world sample. Enemy logic must not discover GameMode, PlayerController, or presentation state. */
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 {
 	GENERATED_BODY()
@@ -284,6 +306,10 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bTargetInvulnerable = false;
 
+	/** Encounter-owned global token gate. Individual enemies never copy or mutate the shared budget. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bSpecialActionPermitted = true;
+
 	/** Collision-safe blink destination explicitly solved by the world host for this sample. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector TeleportDestination = FVector::ZeroVector;
@@ -294,6 +320,7 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 
 /** One ordered Boss command. Multiple commands may be emitted by one large deterministic advance. */
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoBossIntent
 {
 	GENERATED_BODY()
@@ -376,6 +403,7 @@ struct REECHOENEMIES_API FReEchoBossIntent
 
 /** Deterministic behavior output. The host applies movement and forwards attack candidates to Combat. */
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoEnemyActionIntent
 {
 	GENERATED_BODY()
@@ -425,6 +453,7 @@ struct REECHOENEMIES_API FReEchoEnemyActionIntent
 };
 
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoBossAbilityCooldownSnapshot
 {
 	GENERATED_BODY()
@@ -438,6 +467,7 @@ struct REECHOENEMIES_API FReEchoBossAbilityCooldownSnapshot
 
 /** Read-only authoritative enemy behavior state. Health and elements remain Combat-owned. */
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 {
 	GENERATED_BODY()
@@ -475,6 +505,21 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 	/** Prevents a fuse-expired bomber from publishing the same self-destruct action more than once. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSelfDestructCommitted = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoEnemySpecialActionPhase SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName SpecialAbilityId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float SpecialActionRemainingSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector SpecialLockedTargetLocation = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector SpecialLockedDirection = FVector::ForwardVector;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoBossActionPhase BossActionPhase = EReEchoBossActionPhase::None;
@@ -531,8 +576,8 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 namespace ReEchoEnemyDefinitions
 {
 REECHOENEMIES_API FReEchoEnemyDefinition MakeLegacyEquivalent(EReEchoEnemyArchetype Archetype,
-                                                                float BomberTriggerRadiusCm = 260.0f,
-                                                                float BomberDamageRadiusCm = 180.0f,
-                                                                float BomberFuseDurationSeconds = 1.2f,
-                                                                float BomberDamage = 22.0f);
+                                                              float BomberTriggerRadiusCm = 260.0f,
+                                                              float BomberDamageRadiusCm = 180.0f,
+                                                              float BomberFuseDurationSeconds = 1.2f,
+                                                              float BomberDamage = 22.0f);
 }

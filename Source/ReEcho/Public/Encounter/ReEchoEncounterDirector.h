@@ -41,6 +41,8 @@ public:
 	/** Boss 遭遇可在标准时长后继续，直到 GameMode 根据胜负条件主动结束。 */
 	UFUNCTION(BlueprintCallable)
 	void SetEndsOnDuration(bool bInEndsOnDuration);
+	/** Configure the current encounter's authoritative table-driven duration and end policy. */
+	void ConfigureEncounter(float InDurationSeconds, bool bInEndsOnDuration);
 
 	UFUNCTION(BlueprintCallable)
 	void SetPaused(bool bInPaused);
@@ -48,7 +50,10 @@ public:
 	UFUNCTION(BlueprintPure)
 	float GetRemainingTime() const;
 #if WITH_DEV_AUTOMATION_TESTS
-	void AdvanceForTesting(float DeltaSeconds) { Tick(DeltaSeconds); }
+	void AdvanceForTesting(float DeltaSeconds)
+	{
+		Tick(DeltaSeconds);
+	}
 #endif
 
 protected:
@@ -60,4 +65,5 @@ private:
 	bool bRunning = false;
 	bool bSimulationPaused = false;
 	bool bEndsOnDuration = true;
+	float EncounterDurationSeconds = 30.0f;
 };

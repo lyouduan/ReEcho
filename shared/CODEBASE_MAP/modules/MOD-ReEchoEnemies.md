@@ -5,7 +5,7 @@
 - Runtime Module：`ReEchoEnemies`。
 - 代码根：`Source/ReEchoEnemies/`。
 - 架构标识：`MOD-ReEchoEnemies`；功能检索标识：`AREA-Enemies`。
-- 当前状态：Plan43 已建立通用逻辑边界；Plan44 候选在该边界内加入数据驱动 Boss Policy、敌方投射物逻辑、Boss 阶段/清洗语义和 v8 快照，等待用户 PIE 后关闭。
+- 当前状态：通用逻辑边界、数据驱动 Boss，以及开普勒史莱姆/兔子/狐狸类型化行为均位于本模块；Encounter/Spawn 协调仍由主模块负责。
 
 ## 存在原因
 
@@ -18,9 +18,10 @@
 **负责：**
 
 - 怪物 Archetype、行为阶段、攻击冷却、攻击序号与存活行为门控；
-- Grunt、Shield、Bomber、Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
+- 兼容 Grunt/Shield/Bomber、开普勒 Slime/Ranged/Elite 和 Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
 - Host 显式注入的目标感知到移动、朝向和攻击意图的确定性转换；
 - Bomber 不可取消引信、范围判定输入与一次性自毁提交；
+- Slime 表驱动接触攻击、Ranged 锁点前摇/范围判定、Elite 正面防御/锁向突进与恢复；
 - Combat Hurt 结果触发的游戏性击退状态，以及 Combat Death 后停止产出行为；
 - 表现中立的 EnemyEvents 与只读 LogicSnapshot；
 - 无世界纯逻辑回归。
@@ -50,7 +51,7 @@
 ### 输入
 
 - `FReEchoEnemyDefinition`：资源无关的不可变行为定义。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值，后续若迁移配表必须由主模块编译后注入。
-- `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
+- `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态，以及 Encounter 注入的 `bSpecialActionPermitted`。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
 - `BindEventSources(EnemyEvents, CombatEvents)`：由 Host 显式注入两个事件源。Logic 订阅 Combat Hurt/Death，不发现兄弟组件。
 - `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。
 
@@ -62,7 +63,7 @@
 - `UReEchoEnemyEventsComponent`：发布 `FReEchoEnemyActionCommittedEvent` 与 `FReEchoEnemyFuseEvent`。事件只描述已经发生的行为状态，不携带表现资源。
 - `UReEchoEnemyRosterComponent`：保存 Host/Logic 弱引用，以 SpawnIndex 稳定排序；存活状态即时读取 LogicSnapshot，不复制第二份 alive 标志。
 
-普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown，但 `bCanDamageTarget=false`。Bomber 进入触发半径后引信不可取消；引信到期只提交一次，自毁与目标是否仍在伤害半径无关。
+普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown。兔子/狐狸只有获得 Encounter 的全局许可才可开始前摇，已开始的动作不被撤销；兔子锁点后按半径判断，狐狸锁向后按长度/宽度突进，正面防御沿用 Definition 的明确能力标志。全局窗口与并发令牌不保存在单个 EnemyLogic。Bomber 引信不可取消且只提交一次。
 
 ## 依赖方向
 
@@ -81,7 +82,8 @@ ReEchoEnemies ─/─→ GameMode / UI / Paper2D / Presentation assets
 
 ```text
 Encounter / GameMode 提供世界上下文
-  → EnemyHost 构造 EnemySenseSnapshot
+  → Encounter coordinator 统一判断远程窗口/精英并发许可
+  → EnemyHost 构造 EnemySenseSnapshot（包含只读许可）
   → EnemyLogic::Advance(Sense, Delta)
   → EnemyActionIntent
       → Host 应用 Capsule swept movement
@@ -117,19 +119,19 @@ Combat OnDeath
 |---|---|---|
 | Definition、Sense、Intent、Snapshot | `Public/Enemies/ReEchoEnemyTypes.h` | 全部为资源无关值契约 |
 | 行为组件 API | `Public/Enemies/ReEchoEnemyLogicComponent.h` | 显式初始化、推进、事件注入和快照命令 |
-| 追踪、攻击、Fuse、击退 | `Private/Enemies/ReEchoEnemyLogicComponent.cpp` | 当前行为规则唯一实现 |
+| 追踪、接触、锁点远程、精英突进、Fuse、击退 | `Private/Enemies/ReEchoEnemyLogicComponent.cpp` | 当前行为规则唯一实现 |
 | 行为事件 | `Public/Enemies/ReEchoEnemyEventsComponent.h` | Presentation-neutral 的行为总线 |
 | 本场敌人集合 | `Public/Enemies/ReEchoEnemyRosterComponent.h` → `Private/Enemies/ReEchoEnemyRosterComponent.cpp` | 代替 GameMode 重复世界扫描的单一弱引用注册表 |
 | 规则回归 | `Private/Tests/ReEchoEnemyLogicTests.cpp` | 旧数值、节拍、无敌语义、Fuse、快照与死亡 |
 | 模块入口 | `Public/ReEchoEnemies.h`、`Private/ReEchoEnemies.cpp` | Runtime Module 注册 |
 | 世界装配 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*` | 轻量 Host、Sense/Intent/Combat/保存适配 |
 | 敌人表现 | `Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` | 只读快照/事件、Profile/贴图、动画/VFX/血条 |
-| 主流程 Roster 接线 | `Source/ReEcho/{Public,Private}/ReEchoGameMode.*` | 仅敌人生成、恢复、清理、保存与全灭窄切片 |
+| 主流程 Roster/全局技能令牌接线 | `Source/ReEcho/{Public,Private}/ReEchoGameMode.*` | 敌人生成、恢复、清理、保存及远程窗口/精英并发单一协调 |
 | Host 集成回归 | `Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp` | Logic/Combat/Transform/Roster 保存组合 |
 
 ## 扩展方式
 
-- 新怪物 Archetype：先扩资源无关 Definition/状态机与聚焦测试，再由 Host/Presentation 分别增加数据编译和外观映射；不要在 Logic 引入资产类。
+- 新怪物 Archetype：先在 `ReEchoEnemyData.xlsx` 注册稳定 ID/Behavior，再扩资源无关 Definition/状态机与聚焦测试，最后由 Host/Presentation 分别增加数据编译和外观映射；不要在 Logic 引入资产类。
 - 新感知条件：在 `FReEchoEnemySenseSnapshot` 增加稳定值字段，由 Host 采样；不要让 Logic 查询 GameMode、PlayerController 或世界 Actor。
 - 新攻击类型：EnemyLogic 只产生动作身份和候选参数，Host 转为 `FReEchoHitIntent`，最终裁决仍只进 Combat Resolver。
 - 新表现反馈：订阅 EnemyEvents/CombatEvents 或读取聚合 PresentationSnapshot；不向 Logic 添加动画完成回调。
@@ -143,6 +145,7 @@ Combat OnDeath
 - `ReEcho.Enemies.Logic.BomberFuse`：Fuse 不可取消、范围语义正确且只自毁一次。
 - `ReEcho.Enemies.Logic.HurtAndSnapshot`：击退、快照恢复与死亡门控。
 - `ReEcho.Enemies.Logic.Roster`：去重注册、稳定顺序、无复制存活查询与清理。
+- `ReEcho.Enemies.Logic.RangedAndEliteBehaviors`：兔子锁点可躲避、狐狸锁向突进与表驱动伤害/时序。
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
 - `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。
 - `ReEcho.Enemies.Host.CompositionAndSave`、`ReEcho.Run.SaveSnapshot` 与 Combat ElementReaction World 测试覆盖 Host/Combat/Roster/Save 接缝。

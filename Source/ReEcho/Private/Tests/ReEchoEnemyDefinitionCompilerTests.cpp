@@ -12,8 +12,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDefinitionCompilerTest,
 
 bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 {
-	const FReEchoCsvLoadResult LoadResult = FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(
-	    FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
 	if (!TestTrue(TEXT("Production CSV snapshot loads"), LoadResult.bSuccess))
 	{
 		AddError(LoadResult.FormatIssues());
@@ -30,12 +30,12 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("Boss archetype compiles"), Boss.Archetype, EReEchoEnemyArchetype::Boss);
 	TestEqual(TEXT("Boss health compiles without legacy fallback"), Boss.MaxHealth, 650.0f);
-	TestEqual(TEXT("Boss has five configured behaviors"), Boss.BossAbilities.Num(), 5);
+	TestEqual(TEXT("Boss has five configured behaviors"), Boss.Abilities.Num(), 5);
 	TestEqual(TEXT("Cleanse remains first only because passive order is zero"),
-	          Boss.BossAbilities[0].BehaviorId,
+	          Boss.Abilities[0].BehaviorId,
 	          FName(TEXT("Boss.ElementCleanse")));
 	TestEqual(TEXT("Active deterministic rotation starts with melee sweep"),
-	          Boss.BossAbilities[1].BehaviorId,
+	          Boss.Abilities[1].BehaviorId,
 	          FName(TEXT("Boss.MeleeSweep")));
 	TestEqual(TEXT("Boss thirty-second phase compiles"), Boss.BossPhases.Num(), 1);
 	TestEqual(TEXT("Phase retires encounter echoes"),

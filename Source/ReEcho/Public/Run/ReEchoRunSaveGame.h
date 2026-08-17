@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v8 persists the one-shot Boss post-echo phase across suspended encounters. */
-	static constexpr int32 CurrentSaveVersion = 8;
+	/** v9 pins stable enemy ids and the table-driven wave event cursor. */
+	static constexpr int32 CurrentSaveVersion = 9;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
