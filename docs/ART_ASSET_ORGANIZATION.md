@@ -5,6 +5,8 @@
 - `Content/SourceArt/`：保存 PNG 等源图和参考图，不放可运行的 `.uasset`。
 - `Content/ReEcho/Textures/`：保存 Unreal 导入后的运行时纹理资产。
 - `Content/ReEcho/Art/Animation2D/`：保存运行时 Texture2D、PaperSprite、Flipbook 与动画表现资产。
+- Plan45 UI 交付源包：`Content/SourceArt/UI/InteractionPlaceholder/`，其中 `Elements` 是候选切图、`References` 是效果参考、`Fonts/PendingLicense` 是未获授权的隔离字体。
+- Plan45 已消费的运行时 UI 纹理：`Content/ReEcho/Textures/UI/InteractionPlaceholder/`；只导入现有 WBP 实际引用的切图。
 
 ## 角色资产
 
@@ -20,6 +22,7 @@
 3. 重新导入后先检查引用、像素密度、过滤方式、透明通道、压缩和 Paper2D 碰撞设置，再提交二进制变更。
 4. `Player2D`、`SoftGroundShadow` 等 C++ 硬引用资产不得仅凭目录观感清理。
 5. 未跟踪且误生成在 `SourceArt` 的 `.uasset` 先隔离，确认无引用后再永久删除。
+6. UI 交付效果图不直接作为正常运行时整屏纹理；未附来源和授权证明的字体不得导入、在 WBP 中引用或提交分发，待授权 TTF 只保留在本地隔离目录。
 
 ## 当前审计结论（2026-08-13）
 

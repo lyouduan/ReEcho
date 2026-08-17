@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@7a89328ebb9afb433199d56b975763e1775c7cef`。
 - 本地实现方式：在当前 `main` 上小批量接入，每个 WBP 串行修改。
@@ -33,11 +33,11 @@
 
 ## 锁定验收
 
-- [ ] 交付包安全解压到 `Content/SourceArt/UI/InteractionPlaceholder/`，按 `References`、`Elements`、`Fonts/PendingLicense` 分层，保留来源、尺寸和 SHA-256 清单。
-- [ ] 只把已有页面实际需要的切图通过 Unreal Editor/可复现导入脚本导入 `Content/ReEcho/Textures/UI/InteractionPlaceholder/`，使用稳定 ASCII 资产名，不在 `SourceArt` 中生成 `.uasset`。
-- [ ] 选中的现有 WBP 使用新资产，所有原生父类、绑定控件名/类型、Delegate、屏幕层级、焦点、暂停和返回流程保持兼容。
-- [ ] 占位字体未经授权确认不导入/不用于运行时；“存档回溯/关于我们”效果图只作参考。
-- [ ] 目标 WBP 编译且 `CompileAllBlueprints` 无错误/加载失败，导入资产可加载，`python scripts/validate_project.py` 和 `git diff --check` 通过。
+- [x] 交付包安全解压到 `Content/SourceArt/UI/InteractionPlaceholder/`，按 `References`、`Elements`、`Fonts/PendingLicense` 分层，保留来源、尺寸和 SHA-256 清单。
+- [x] Start Menu 首批只把现有页面实际需要的切图通过 Unreal Editor/可复现导入脚本导入 `Content/ReEcho/Textures/UI/InteractionPlaceholder/StartMenu/`，使用稳定 ASCII 资产名，不在 `SourceArt` 中生成 `.uasset`。
+- [x] `WBP_ReEchoStartMenu` 使用新资产，所有原生父类、绑定控件名/类型、Delegate、屏幕层级、焦点和页面流程保持兼容。
+- [x] 占位字体未经授权确认不导入/不用于运行时、不提交分发；“存档回溯/关于我们”效果图只作参考。
+- [x] Start Menu WBP 编译且 `CompileAllBlueprints` 无错误/加载失败，导入资产可加载，`python scripts/validate_project.py` 和 `git diff --check` 通过。
 - [ ] 用户在 PIE 验收 Start Menu、Settings、Pause/Restart、Trait Choice、Inventory/Shop 和 HUD 的布局、中文可读性、点击/键盘焦点、返回路径以及 1280×720、1920×1080、2560×1440 和 21:9 DPI 表现。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物、原始 ZIP 或机器本地路径。
 
@@ -73,17 +73,29 @@
 
 ### 变化
 
-- 待执行。
+- Plan 45 已发布并进入执行；完成源包分类/清单，并以 Start Menu 作为首个 WBP 接入样板。
+- `正式-交互占位.zip` 的 101 个文件已归档为 77 个可评审切图、21 个参考图和 3 个待授权字体文件；原始 ZIP 未复制入仓库。
+- 新增可复现导入脚本，首批导入背景、标题 Logo、设置图标三张 UI Texture2D。
+- `WBP_ReEchoStartMenu` 新增命中测试不可见的全屏背景和左侧标题层，将现有按钮组移到右侧；设置图标嵌入既有 `GameSettingsButton`，原有绑定控件和按钮语义未替换。
+- 资产组织、UI 修改指导和 `MOD-ReEchoUI` 路由已同步；未新增 Runtime Module 或依赖拓扑。
 
 ### 证据
 
 - Plan 编号前 fetch：`main == origin/main == 7a89328ebb9afb433199d56b975763e1775c7cef`，工作区干净。
+- Plan-only 发布：`origin/main@131b084ac008bc35ecc8a6e6219c9bde065a6343`；`-FullRebuild`、`python scripts/validate_project.py` 和 `git diff --check` 通过。
 - 交付包静态目录：98 张 PNG、2 个 TTF、1 个字体说明 TXT；已识别 1920×1080 效果图与独立切图。
+- `_SourceManifest.csv` 与归档目录逐文件复核：101/101 存在，字节数和 SHA-256 全部匹配，0 errors。
+- Unreal Editor 导入日志记录 3 张审核后纹理；WBP 资产依赖明确包含 `T_UI_Start_Background`、`T_UI_Start_TitleLogo`、`T_UI_Start_SettingsIcon`。
+- UMG ToolSet 对 `WBP_ReEchoStartMenu` 的 Compile/Save 成功，保存后资产 `is_dirty=false`；既有 `StatusText`、`ContinueButton`、`NewGameButton`、`GameSettingsButton` 名称和类型保留。
+- `CompileAllBlueprints` 退出码 0；`WBP_ReEchoStartMenu` 编译成功，汇总为 0 errors、0 warnings、0 blueprints failed to load。
+- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，刷新精选 5-module Editor bundle（source fingerprint `36ade36d8b29`）；构建后 `python scripts/validate_project.py` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
-- TTF 仅有占位用途说明，没有授权/来源证明；保留在 `PendingLicense`，不导入运行时。
+- TTF 仅有占位用途说明，没有授权/来源证明；保留在本地 `PendingLicense` 并由 `.gitignore` 排除，不导入运行时、不提交分发。
 - 交付效果图展示了尚无现有产品契约的页面/操作，本 Plan 不根据图片自行创建。
+- Settings、Pause/Restart、Trait Choice、Inventory/Shop 和 HUD 尚未进入逐页接入批次；继续执行时仍需按现有 WBP 契约逐页审计。
+- Start Menu 的主观视觉、按钮点击/键盘焦点和多分辨率 DPI 表现仍需用户 PIE 验收。
 
 ### 人工验收结果/请求
 
@@ -91,4 +103,7 @@
 
 ### 架构文档审阅结果
 
-- 待候选完成后逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；本批次只新增源图、Texture2D 和 WBP 表现层，不改变模块/权威状态/依赖拓扑，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅；现有 UI 路由仍指向 `MOD-ReEchoUI`，索引拓扑不变，无需修改。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已更新 UI 源图、运行时纹理目录和 Plan45 阅读路线。
+- `docs/ART_ASSET_ORGANIZATION.md`、`Design/UI/ReEcho_UI修改指导.md`：已更新源图/参考图/字体隔离边界和 Start Menu 首批资产契约。
