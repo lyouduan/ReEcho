@@ -1,0 +1,41 @@
+#include "Presentation/Scene/ReEchoArenaSceneActor.h"
+
+#include "Misc/AutomationTest.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoArenaSceneContractTest,
+                                 "ReEcho.Presentation.ArenaScene.Contract",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
+{
+	const FVector2D Footprint = AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(
+	    2800.0f, 1376.0f / 768.0f, FRotator(-55.0f, 0.0f, 0.0f));
+	TestTrue(TEXT("Projected footprint has positive X extent"), Footprint.X > 0.0f);
+	TestTrue(TEXT("Projected footprint has positive Y extent"), Footprint.Y > 0.0f);
+
+	const FVector2D Center(200.0f, -300.0f);
+	const FVector2D MapHalfExtents(2500.0f, 3000.0f);
+	const FVector2D DesiredInside(400.0f, -100.0f);
+	TestEqual(TEXT("Safe-center focus follows the player"),
+	          AReEchoArenaSceneActor::ClampCameraFocus(DesiredInside, Center, MapHalfExtents, Footprint),
+	          DesiredInside);
+
+	const FVector2D SafeHalfExtents = MapHalfExtents - Footprint;
+	const FVector2D PositiveCorner =
+	    AReEchoArenaSceneActor::ClampCameraFocus(FVector2D(100000.0f, 100000.0f), Center, MapHalfExtents, Footprint);
+	TestEqual(TEXT("Positive X edge clamps"), PositiveCorner.X, Center.X + SafeHalfExtents.X);
+	TestEqual(TEXT("Positive Y edge clamps"), PositiveCorner.Y, Center.Y + SafeHalfExtents.Y);
+	const FVector2D NegativeCorner =
+	    AReEchoArenaSceneActor::ClampCameraFocus(FVector2D(-100000.0f, -100000.0f), Center, MapHalfExtents, Footprint);
+	TestEqual(TEXT("Negative X edge clamps"), NegativeCorner.X, Center.X - SafeHalfExtents.X);
+	TestEqual(TEXT("Negative Y edge clamps"), NegativeCorner.Y, Center.Y - SafeHalfExtents.Y);
+
+	const FVector2D UndersizedResult =
+	    AReEchoArenaSceneActor::ClampCameraFocus(FVector2D(100000.0f, -100000.0f), Center, Footprint * 0.5f, Footprint);
+	TestEqual(TEXT("Undersized map locks both axes to center"), UndersizedResult, Center);
+	return true;
+}
+
+#endif
