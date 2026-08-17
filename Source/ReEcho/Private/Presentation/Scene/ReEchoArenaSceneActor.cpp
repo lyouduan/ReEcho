@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -24,8 +25,23 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	PrimaryActorTick.bCanEverTick = true;
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
+	auto CreateSceneRoot = [this](const TCHAR* Name, USceneComponent* Parent)
+	{
+		USceneComponent* Component = CreateDefaultSubobject<USceneComponent>(Name);
+		Component->SetupAttachment(Parent);
+		return Component;
+	};
+	VisualRoot = CreateSceneRoot(TEXT("VisualRoot"), SceneRoot);
+	GameplayRoot = CreateSceneRoot(TEXT("GameplayRoot"), SceneRoot);
+	GroundRoot = CreateSceneRoot(TEXT("Ground"), VisualRoot);
+	GroundDetailRoot = CreateSceneRoot(TEXT("GroundDetail"), VisualRoot);
+	MidDecorationRoot = CreateSceneRoot(TEXT("MidDecoration"), VisualRoot);
+	ForegroundRoot = CreateSceneRoot(TEXT("Foreground"), VisualRoot);
+	AtmosphereRoot = CreateSceneRoot(TEXT("Atmosphere"), VisualRoot);
+	SceneEffectsRoot = CreateSceneRoot(TEXT("SceneEffects"), VisualRoot);
+	CollisionRoot = CreateSceneRoot(TEXT("Collision"), GameplayRoot);
 	ArenaCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ArenaCamera"));
-	ArenaCamera->SetupAttachment(SceneRoot);
+	ArenaCamera->SetupAttachment(GameplayRoot);
 	ArenaCamera->SetProjectionMode(ECameraProjectionMode::Orthographic);
 	ArenaCamera->SetOrthoWidth(2800.0f);
 	ArenaCamera->SetAspectRatio(1376.0f / 768.0f);
@@ -39,7 +55,7 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	    TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
 	BackdropMaterial = SpriteMaterialFinder.Object;
 	Backdrop = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Backdrop"));
-	Backdrop->SetupAttachment(SceneRoot);
+	Backdrop->SetupAttachment(GroundRoot);
 	Backdrop->SetStaticMesh(PlaneFinder.Object);
 	Backdrop->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Backdrop->SetCastShadow(false);
@@ -48,7 +64,7 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	auto CreateCollisionComponent = [this, Mesh = CubeFinder.Object](const TCHAR* Name)
 	{
 		UStaticMeshComponent* Component = CreateDefaultSubobject<UStaticMeshComponent>(Name);
-		Component->SetupAttachment(SceneRoot);
+		Component->SetupAttachment(CollisionRoot);
 		Component->SetStaticMesh(Mesh);
 		Component->SetCollisionProfileName(TEXT("BlockAll"));
 		Component->SetCastShadow(false);
@@ -64,7 +80,7 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	auto CreateBoundsVisualization = [this](const TCHAR* Name, const FColor Color)
 	{
 		UBoxComponent* Component = CreateDefaultSubobject<UBoxComponent>(Name);
-		Component->SetupAttachment(SceneRoot);
+		Component->SetupAttachment(GameplayRoot);
 		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Component->SetHiddenInGame(true);
 		Component->ShapeColor = Color;
@@ -85,6 +101,7 @@ void AReEchoArenaSceneActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	UpdateFollowCamera(DeltaSeconds);
+	UpdateParallax();
 }
 
 void AReEchoArenaSceneActor::SetFollowTarget(AReEchoPlayerPawn* Target)
@@ -106,6 +123,31 @@ FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 	return EnemySpawnHalfExtents;
 }
 
+int32 AReEchoArenaSceneActor::CalculateFootpointSortPriority(const FVector& WorldFootpoint) const
+{
+	return CalculateFootpointSortPriority(FVector2D(WorldFootpoint.X, WorldFootpoint.Y),
+	                                      FVector2D(GetActorLocation().X, GetActorLocation().Y),
+	                                      DepthSortAxis,
+	                                      DepthSortWorldUnitsPerStep,
+	                                      DepthSortBasePriority,
+	                                      DepthSortPriorityRange);
+}
+
+int32 AReEchoArenaSceneActor::CalculateFootpointSortPriority(const FVector2D& WorldFootpoint,
+	                                                          const FVector2D& WorldOrigin,
+	                                                          const FVector2D& SortAxis,
+	                                                          const float WorldUnitsPerStep,
+	                                                          const int32 BasePriority,
+	                                                          const FIntPoint& PriorityRange)
+{
+	const FVector2D SafeAxis = SortAxis.GetSafeNormal();
+	const float UnitsPerStep = FMath::Max(WorldUnitsPerStep, 1.0f);
+	const int32 Offset = FMath::RoundToInt(FVector2D::DotProduct(WorldFootpoint - WorldOrigin, SafeAxis) / UnitsPerStep);
+	const int32 MinimumPriority = FMath::Min(PriorityRange.X, PriorityRange.Y);
+	const int32 MaximumPriority = FMath::Max(PriorityRange.X, PriorityRange.Y);
+	return BasePriority + FMath::Clamp(Offset, MinimumPriority, MaximumPriority);
+}
+
 bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 {
 	auto Fail = [OutReason](const TCHAR* Reason)
@@ -116,7 +158,9 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 		}
 		return false;
 	};
-	if (!ArenaCamera || !Backdrop || !Floor || !WallNorth || !WallSouth || !WallEast || !WallWest ||
+	if (!VisualRoot || !GameplayRoot || !GroundRoot || !GroundDetailRoot || !MidDecorationRoot || !ForegroundRoot ||
+	    !AtmosphereRoot || !SceneEffectsRoot || !CollisionRoot || !ArenaCamera || !Backdrop || !Floor || !WallNorth ||
+	    !WallSouth || !WallEast || !WallWest ||
 	    !CameraClampBounds || !PlayerBounds || !EnemySpawnBounds)
 	{
 		return Fail(TEXT("Required Arena Scene components are missing."));
@@ -134,6 +178,10 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	if (ArenaCamera->GetForwardVector().Z >= -KINDA_SMALL_NUMBER)
 	{
 		return Fail(TEXT("Arena camera must face the gameplay plane."));
+	}
+	if (DepthSortAxis.IsNearlyZero() || DepthSortWorldUnitsPerStep < 1.0f)
+	{
+		return Fail(TEXT("Arena depth-sort configuration is degenerate."));
 	}
 	return true;
 }
@@ -260,4 +308,22 @@ void AReEchoArenaSceneActor::SetCameraGroundFocus(const FVector2D& Focus)
 {
 	const FVector Current = GetCameraGroundFocus();
 	ArenaCamera->AddWorldOffset(FVector(Focus.X - Current.X, Focus.Y - Current.Y, 0.0f));
+}
+
+void AReEchoArenaSceneActor::UpdateParallax()
+{
+	auto SetLayerOffset = [this](USceneComponent* Layer, const float Factor, const FVector2D& CameraDelta)
+	{
+		if (!Layer)
+		{
+			return;
+		}
+		const FVector2D Offset = (CameraDelta * Factor).GetClampedToMaxSize(MaximumParallaxOffset);
+		Layer->SetRelativeLocation(FVector(Offset.X, Offset.Y, 0.0f));
+	};
+	const FVector Focus = GetCameraGroundFocus();
+	const FVector2D CameraDelta(Focus.X - GetActorLocation().X, Focus.Y - GetActorLocation().Y);
+	SetLayerOffset(MidDecorationRoot, bEnableParallax ? MidDecorationParallaxFactor : 0.0f, CameraDelta);
+	SetLayerOffset(ForegroundRoot, bEnableParallax ? ForegroundParallaxFactor : 0.0f, CameraDelta);
+	SetLayerOffset(AtmosphereRoot, bEnableParallax ? AtmosphereParallaxFactor : 0.0f, CameraDelta);
 }

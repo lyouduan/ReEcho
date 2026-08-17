@@ -35,6 +35,14 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	const FVector2D UndersizedResult =
 	    AReEchoArenaSceneActor::ClampCameraFocus(FVector2D(100000.0f, -100000.0f), Center, Footprint * 0.5f, Footprint);
 	TestEqual(TEXT("Undersized map locks both axes to center"), UndersizedResult, Center);
+
+	const FIntPoint SortRange(-10, 10);
+	const int32 NearPriority = AReEchoArenaSceneActor::CalculateFootpointSortPriority(
+	    FVector2D(100.0f, 0.0f), FVector2D::ZeroVector, FVector2D(1.0f, 0.0f), 10.0f, 100, SortRange);
+	const int32 FarPriority = AReEchoArenaSceneActor::CalculateFootpointSortPriority(
+	    FVector2D(50.0f, 0.0f), FVector2D::ZeroVector, FVector2D(1.0f, 0.0f), 10.0f, 100, SortRange);
+	TestTrue(TEXT("Footpoint sorting is monotonic along its configured axis"), NearPriority > FarPriority);
+	TestEqual(TEXT("Footpoint sorting clamps to its configured range"), NearPriority, 110);
 	return true;
 }
 

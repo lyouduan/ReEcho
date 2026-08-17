@@ -40,9 +40,34 @@ public:
 	                                  const FVector2D& MapCenter,
 	                                  const FVector2D& MapHalfExtents,
 	                                  const FVector2D& FootprintHalfExtents);
+	static int32 CalculateFootpointSortPriority(const FVector2D& WorldFootpoint,
+	                                            const FVector2D& WorldOrigin,
+	                                            const FVector2D& SortAxis,
+	                                            float WorldUnitsPerStep,
+	                                            int32 BasePriority,
+	                                            const FIntPoint& PriorityRange);
+	int32 CalculateFootpointSortPriority(const FVector& WorldFootpoint) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena")
 	TObjectPtr<USceneComponent> SceneRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
+	TObjectPtr<USceneComponent> VisualRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
+	TObjectPtr<USceneComponent> GameplayRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
+	TObjectPtr<USceneComponent> GroundRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
+	TObjectPtr<USceneComponent> GroundDetailRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
+	TObjectPtr<USceneComponent> MidDecorationRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
+	TObjectPtr<USceneComponent> ForegroundRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
+	TObjectPtr<USceneComponent> AtmosphereRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
+	TObjectPtr<USceneComponent> SceneEffectsRoot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Gameplay")
+	TObjectPtr<USceneComponent> CollisionRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
 	TObjectPtr<UCameraComponent> ArenaCamera;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Visual")
@@ -82,9 +107,39 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
 	float GameplayPlaneZ = 0.0f;
 
+	/** 表现 Actor 以脚点消费该值；场景不直接持有或驱动 Flipbook。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|DepthSort")
+	FVector2D DepthSortAxis = FVector2D(-1.0f, 0.0f);
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|DepthSort", meta = (ClampMin = "1.0"))
+	float DepthSortWorldUnitsPerStep = 10.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|DepthSort")
+	int32 DepthSortBasePriority = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|DepthSort")
+	FIntPoint DepthSortPriorityRange = FIntPoint(-50, 50);
+
+	/** 角色表现可选消费的默认接触阴影参数；不参与玩法碰撞。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|ContactShadow")
+	TSoftObjectPtr<UTexture2D> DefaultContactShadowTexture;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|ContactShadow", meta = (ClampMin = "0.0"))
+	FVector2D DefaultContactShadowSize = FVector2D(90.0f, 45.0f);
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|ContactShadow", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float DefaultContactShadowOpacity = 0.45f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax")
+	bool bEnableParallax = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	float MidDecorationParallaxFactor = 0.04f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	float ForegroundParallaxFactor = 0.08f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	float AtmosphereParallaxFactor = 0.02f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "0.0"))
+	float MaximumParallaxOffset = 120.0f;
+
 private:
 	void UpdateEditorLayout();
 	void UpdateFollowCamera(float DeltaSeconds);
+	void UpdateParallax();
 	FVector GetCameraGroundFocus() const;
 	void SetCameraGroundFocus(const FVector2D& Focus);
 
