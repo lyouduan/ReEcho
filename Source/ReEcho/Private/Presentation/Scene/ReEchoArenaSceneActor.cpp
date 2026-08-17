@@ -56,7 +56,7 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	    TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
 	BackdropMaterial = SpriteMaterialFinder.Object;
 	Backdrop = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Backdrop"));
-	Backdrop->SetupAttachment(GroundRoot);
+	Backdrop->SetupAttachment(MapRoot);
 	Backdrop->SetStaticMesh(PlaneFinder.Object);
 	Backdrop->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Backdrop->SetCastShadow(false);
@@ -65,7 +65,7 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	auto CreateCollisionComponent = [this, Mesh = CubeFinder.Object](const TCHAR* Name)
 	{
 		UStaticMeshComponent* Component = CreateDefaultSubobject<UStaticMeshComponent>(Name);
-		Component->SetupAttachment(CollisionRoot);
+		Component->SetupAttachment(MapRoot);
 		Component->SetStaticMesh(Mesh);
 		Component->SetCollisionProfileName(TEXT("BlockAll"));
 		Component->SetCastShadow(false);
@@ -95,6 +95,7 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 void AReEchoArenaSceneActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	UpdateEditorHierarchy();
 	UpdateEditorLayout();
 }
 
@@ -245,6 +246,27 @@ FVector2D AReEchoArenaSceneActor::ClampCameraFocus(const FVector2D& DesiredFocus
 		        : MapCenter[Axis];
 	}
 	return Result;
+}
+
+void AReEchoArenaSceneActor::UpdateEditorHierarchy()
+{
+	auto AttachDirectlyToMapRoot = [this](USceneComponent* Component)
+	{
+		if (Component && Component->GetAttachParent() != MapRoot)
+		{
+			Component->AttachToComponent(MapRoot, FAttachmentTransformRules::KeepRelativeTransform);
+		}
+	};
+	AttachDirectlyToMapRoot(Backdrop);
+	AttachDirectlyToMapRoot(Floor);
+	AttachDirectlyToMapRoot(WallNorth);
+	AttachDirectlyToMapRoot(WallSouth);
+	AttachDirectlyToMapRoot(WallEast);
+	AttachDirectlyToMapRoot(WallWest);
+	if (ArenaCamera && ArenaCamera->GetAttachParent() != SceneRoot)
+	{
+		ArenaCamera->AttachToComponent(SceneRoot, FAttachmentTransformRules::KeepWorldTransform);
+	}
 }
 
 void AReEchoArenaSceneActor::UpdateEditorLayout()

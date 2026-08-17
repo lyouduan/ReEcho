@@ -148,6 +148,7 @@ public:
 
 private:
 	FVector2D GetMapScale2D() const;
+	void UpdateEditorHierarchy();
 	void UpdateEditorLayout();
 	void UpdateFollowCamera(float DeltaSeconds);
 	void UpdateParallax();
