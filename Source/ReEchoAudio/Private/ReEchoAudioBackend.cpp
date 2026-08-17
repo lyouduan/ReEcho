@@ -1,23 +1,59 @@
 #include "ReEchoAudioBackend.h"
-#include "Kismet/GameplayStatics.h"
 #include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundAttenuation.h"
+
+namespace
+{
+UAudioComponent*
+CreateConfiguredComponent(const FReEchoAudioPlayCommand& Command, USoundBase* Sound, const bool bAutoDestroy)
+{
+	UAudioComponent* Component = UGameplayStatics::CreateSound2D(
+	    Command.World, Sound, Command.Volume, Command.Pitch, 0.0f, nullptr, false, bAutoDestroy);
+	if (Component == nullptr)
+	{
+		return nullptr;
+	}
+
+	Component->SetUISound(Command.PausePolicy == EReEchoAudioPausePolicy::ContinueOnPause);
+	Component->bAllowSpatialization = Command.bSpatial3D;
+	if (Command.bSpatial3D)
+	{
+		Component->SetWorldLocation(Command.Location);
+
+		FSoundAttenuationSettings Attenuation;
+		Attenuation.bAttenuate = true;
+		Attenuation.bSpatialize = true;
+		Attenuation.DistanceAlgorithm = EAttenuationDistanceModel::Linear;
+		Attenuation.AttenuationShape = EAttenuationShape::Sphere;
+		Attenuation.AttenuationShapeExtents = FVector(Command.AttenuationMin, 0.0f, 0.0f);
+		Attenuation.FalloffDistance = FMath::Max(0.0f, Command.AttenuationMax - Command.AttenuationMin);
+		Component->SetOverrideAttenuation(true);
+		Component->SetAttenuationOverrides(Attenuation);
+	}
+	return Component;
+}
+}
 
 /**
  * Real UE playback backend.
  *
- * Non-blocking by design: it only calls C.Sound.Get() (the soft pointer is
- * expected to already be resident; a future Plan34 provider preloads it). When
- * the sound is null or there is no world, every method degrades to a safe
- * no-op returning 0. This guarantees Plan33 never blocks on disk and never
- * crashes with no audio device/assets.
- *
- * Components are tracked via TWeakObjectPtr; spawned sounds auto-destroy on
- * finish/stop, so no manual lifetime bookkeeping is required.
+ * Non-blocking by design: it only calls Command.Sound.Get() after the catalog's
+ * asynchronous preload. When the sound
+ * is not resident or there is no world,
+ * every method degrades to a safe no-op returning 0; callers can retry
+ * without
+ * blocking the gameplay thread or crashing with no audio device/assets.
+ * Components are tracked via
+ * TWeakObjectPtr; spawned sounds auto-destroy on finish/stop, so no manual lifetime bookkeeping is required.
  */
 class FReEchoAudioUnrealBackend : public IReEchoAudioBackend
 {
 public:
-	virtual bool IsAvailable() const override { return true; }
+	virtual bool IsAvailable() const override
+	{
+		return true;
+	}
 
 	virtual uint32 PlayOneShot(const FReEchoAudioPlayCommand& Command) override
 	{
@@ -31,18 +67,12 @@ public:
 			return 0;
 		}
 
-		UAudioComponent* Comp = Command.bSpatial3D
-			? UGameplayStatics::SpawnSoundAtLocation(
-				Command.World, Sound, Command.Location, FRotator::ZeroRotator,
-				Command.Volume, Command.Pitch, 0.0f, nullptr)
-			: UGameplayStatics::SpawnSound2D(
-				Command.World, Sound, Command.Volume, Command.Pitch, 0.0f);
-
+		UAudioComponent* Comp = CreateConfiguredComponent(Command, Sound, true);
 		if (Comp == nullptr)
 		{
 			return 0;
 		}
-		Comp->SetUISound(Command.PausePolicy == EReEchoAudioPausePolicy::ContinueOnPause);
+		Comp->Play();
 
 		const uint32 Handle = NextHandle++;
 		ActiveComponents.Add(Handle, Comp);
@@ -70,12 +100,6 @@ public:
 		USoundBase* Sound = Command.Sound.Get();
 		if (Sound == nullptr)
 		{
-			// Asset may not be resident yet (preload race). Block briefly to load it
-			// rather than silently dropping the loop.
-			Sound = Command.Sound.LoadSynchronous();
-		}
-		if (Sound == nullptr)
-		{
 			return 0;
 		}
 
@@ -84,20 +108,11 @@ public:
 		// zero volume therefore leaves the final gain at 0 * FadeTarget forever.
 		// Create without auto-playing, keep the resolved bus gain on the component,
 		// then let FadeIn move the independent fader from 0 to unity.
-		UAudioComponent* Comp = UGameplayStatics::CreateSound2D(
-			Command.World, Sound, Command.Volume, 1.0f, 0.0f, nullptr, false, true);
-
+		UAudioComponent* Comp = CreateConfiguredComponent(Command, Sound, true);
 		if (Comp == nullptr)
 		{
 			return 0;
 		}
-
-		Comp->bAllowSpatialization = Command.bSpatial3D;
-		if (Command.bSpatial3D)
-		{
-			Comp->SetWorldLocation(Command.Location);
-		}
-		Comp->SetUISound(Command.PausePolicy == EReEchoAudioPausePolicy::ContinueOnPause);
 		if (Command.FadeInSeconds > 0.0f)
 		{
 			Comp->FadeIn(Command.FadeInSeconds, 1.0f);
@@ -151,8 +166,8 @@ private:
 
 namespace ReEchoAudio
 {
-	TSharedRef<IReEchoAudioBackend> CreateUnrealBackend()
-	{
-		return MakeShared<FReEchoAudioUnrealBackend>();
-	}
+TSharedRef<IReEchoAudioBackend> CreateUnrealBackend()
+{
+	return MakeShared<FReEchoAudioUnrealBackend>();
+}
 }

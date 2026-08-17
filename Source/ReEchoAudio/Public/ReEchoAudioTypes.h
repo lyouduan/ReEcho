@@ -67,12 +67,14 @@ enum class EReEchoAudioSourceCategory : uint8
 /**
  * Stable, designer-facing audio event definition.
  *
- * Plan33 commits no real audio assets, so the Sound soft pointer is normally
- * null at runtime. Missing assets degrade to a safe no-op rather than a crash.
- * A future catalog provider (Plan34) loads these from designer tables without
- * changing the gameplay-facing API.
+ * The catalog populates the Sound soft pointer from designer-authored data and
+ * preloads it asynchronously. Missing
+ * or non-resident assets still degrade to
+ * a safe no-op rather than a crash or synchronous load on the gameplay
+ * thread.
  */
 USTRUCT(BlueprintType)
+
 struct REECHOAUDIO_API FReEchoAudioEventDefinition
 {
 	GENERATED_BODY()
@@ -136,6 +138,7 @@ struct REECHOAUDIO_API FReEchoAudioEventDefinition
  * UAudioComponent, asset paths, SoundClass/SoundMix, or any play duration here.
  */
 USTRUCT(BlueprintType)
+
 struct REECHOAUDIO_API FReEchoAudioEventRequest
 {
 	GENERATED_BODY()

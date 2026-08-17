@@ -25,4 +25,13 @@ public:
 	void FocusScreen(APlayerController* PlayerController, EReEchoUIScreen Screen, bool bUIOnly) const;
 	void PreparePausedScreenTransition(const UObject* WorldContextObject) const;
 	void RestoreGameplay(const UObject* WorldContextObject, APlayerController* PlayerController) const;
+	void PostUiEvent(FName EventId) const;
+
+private:
+	void BindAudioFeedback(UUserWidget* Widget);
+
+	UFUNCTION()
+	void HandleButtonHovered();
+	UFUNCTION()
+	void HandleButtonClicked();
 };

@@ -1,7 +1,11 @@
 #include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 
+#include "Blueprint/WidgetTree.h"
+#include "Components/Button.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "ReEchoAudioEvents.h"
+#include "ReEchoAudioService.h"
 #include "UI/ReEchoUIManagerSubsystem.h"
 
 UUserWidget* UReEchoUIFlowCoordinatorSubsystem::OpenScreen(APlayerController* PlayerController,
@@ -11,6 +15,7 @@ UUserWidget* UReEchoUIFlowCoordinatorSubsystem::OpenScreen(APlayerController* Pl
 {
 	UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>();
 	UUserWidget* Widget = UIManager ? UIManager->CreateScreen(PlayerController, Screen) : nullptr;
+	BindAudioFeedback(Widget);
 	if (Widget && Screen != EReEchoUIScreen::Weather && Screen != EReEchoUIScreen::EncounterHud &&
 	    Screen != EReEchoUIScreen::PlayerHud)
 	{
@@ -21,6 +26,46 @@ UUserWidget* UReEchoUIFlowCoordinatorSubsystem::OpenScreen(APlayerController* Pl
 		}
 	}
 	return Widget;
+}
+
+void UReEchoUIFlowCoordinatorSubsystem::BindAudioFeedback(UUserWidget* Widget)
+{
+	if (!Widget || !Widget->WidgetTree)
+	{
+		return;
+	}
+
+	TArray<UWidget*> Widgets;
+	Widget->WidgetTree->GetAllWidgets(Widgets);
+	for (UWidget* Child : Widgets)
+	{
+		if (UButton* Button = Cast<UButton>(Child))
+		{
+			Button->OnHovered.AddUniqueDynamic(this, &UReEchoUIFlowCoordinatorSubsystem::HandleButtonHovered);
+			Button->OnClicked.AddUniqueDynamic(this, &UReEchoUIFlowCoordinatorSubsystem::HandleButtonClicked);
+		}
+	}
+}
+
+void UReEchoUIFlowCoordinatorSubsystem::PostUiEvent(const FName EventId) const
+{
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UReEchoAudioService* AudioService = GameInstance->GetSubsystem<UReEchoAudioService>())
+		{
+			AudioService->PostEventById(GameInstance, EventId);
+		}
+	}
+}
+
+void UReEchoUIFlowCoordinatorSubsystem::HandleButtonHovered()
+{
+	PostUiEvent(FReEchoAudioEvents::UiHover);
+}
+
+void UReEchoUIFlowCoordinatorSubsystem::HandleButtonClicked()
+{
+	PostUiEvent(FReEchoAudioEvents::UiConfirm);
 }
 
 void UReEchoUIFlowCoordinatorSubsystem::CloseScreen(const EReEchoUIScreen Screen)

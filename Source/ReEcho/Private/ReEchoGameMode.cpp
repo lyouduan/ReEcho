@@ -26,6 +26,8 @@
 #include "GameFramework/FloatingPawnMovement.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Recording/ReEchoRecorderComponent.h"
+#include "ReEchoAudioEvents.h"
+#include "ReEchoAudioService.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
@@ -52,6 +54,66 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
+}
+
+UReEchoAudioService* AReEchoGameMode::GetAudioService() const
+{
+	return GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoAudioService>() : nullptr;
+}
+
+void AReEchoGameMode::SetMusicState(const FName StateId) const
+{
+	if (UReEchoAudioService* AudioService = GetAudioService())
+	{
+		AudioService->SetMusicState(StateId);
+	}
+}
+
+void AReEchoGameMode::SetAmbienceState(const FName StateId) const
+{
+	if (UReEchoAudioService* AudioService = GetAudioService())
+	{
+		AudioService->SetAmbienceState(StateId);
+	}
+}
+
+void AReEchoGameMode::StopAmbienceState() const
+{
+	if (UReEchoAudioService* AudioService = GetAudioService())
+	{
+		AudioService->StopAmbienceState();
+	}
+}
+
+void AReEchoGameMode::PostAudioEvent(const FName EventId, const FVector& WorldLocation) const
+{
+	if (UReEchoAudioService* AudioService = GetAudioService())
+	{
+		AudioService->PostEventById(const_cast<AReEchoGameMode*>(this), EventId, WorldLocation);
+	}
+}
+
+void AReEchoGameMode::PostUiEvent(const FName EventId) const
+{
+	if (GetGameInstance())
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->PostUiEvent(EventId);
+		}
+	}
+}
+
+void AReEchoGameMode::RestoreEncounterAudioState()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (!RunSubsystem || RunSubsystem->Phase != EReEchoRunPhase::Encounter)
+	{
+		return;
+	}
+	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
+	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 }
 
 void AReEchoGameMode::ResumeWorldForMenuTransition()
@@ -172,6 +234,8 @@ void AReEchoGameMode::GMWeather(const FString& Scene)
 		return;
 	}
 	WeatherWidget->SetWeatherScene(WeatherScene);
+	SetAmbienceState(WeatherScene == EReEchoWeatherScene::Rain ? FReEchoAudioEvents::AmbienceRain
+	                                                        : FReEchoAudioEvents::AmbienceArena);
 	PrintGMResult(FString::Printf(TEXT("Weather=%s"), *Scene));
 }
 
@@ -268,6 +332,7 @@ void AReEchoGameMode::StartPlay()
 		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 		{
 			PlayerController->SetViewTarget(FixedCamera);
+			PostAudioEvent(FReEchoAudioEvents::CameraMove, FixedCamera->GetActorLocation());
 		}
 		if (Player && Player->Camera)
 		{
@@ -345,6 +410,8 @@ void AReEchoGameMode::ShowStartMenu()
 	{
 		return;
 	}
+	SetMusicState(FReEchoAudioEvents::MusicMenu);
+	StopAmbienceState();
 	const bool bHasSavedRun = RunSubsystem->HasSavedRun();
 	StartMenuWidget->InitializeMenu(bHasSavedRun);
 	UE_LOG(LogTemp,
@@ -376,6 +443,7 @@ void AReEchoGameMode::HandleContinueGameRequested()
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || !RunSubsystem->LoadSavedRun())
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		if (StartMenuWidget)
 		{
 			StartMenuWidget->InitializeMenu(false);
@@ -417,6 +485,7 @@ void AReEchoGameMode::HandlePauseSettingsRequested()
 
 void AReEchoGameMode::HandleSettingsClosed()
 {
+	PostUiEvent(FReEchoAudioEvents::UiCancel);
 	if (SettingsWidget)
 	{
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
@@ -596,11 +665,6 @@ void AReEchoGameMode::SetGameplayPresentationVisible(const bool bVisible)
 
 void AReEchoGameMode::UpdateWeatherScene(const int32 EncounterIndex)
 {
-	if (!WeatherWidget)
-	{
-		return;
-	}
-
 	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
 	EReEchoWeatherScene WeatherScene = EReEchoWeatherScene::Clear;
 	if (BalanceSettings->RainEncounterIndices.Contains(EncounterIndex))
@@ -611,7 +675,12 @@ void AReEchoGameMode::UpdateWeatherScene(const int32 EncounterIndex)
 	{
 		WeatherScene = EReEchoWeatherScene::Fog;
 	}
-	WeatherWidget->SetWeatherScene(WeatherScene);
+	if (WeatherWidget)
+	{
+		WeatherWidget->SetWeatherScene(WeatherScene);
+	}
+	SetAmbienceState(WeatherScene == EReEchoWeatherScene::Rain ? FReEchoAudioEvents::AmbienceRain
+	                                                        : FReEchoAudioEvents::AmbienceArena);
 }
 
 void AReEchoGameMode::CreateArena()
@@ -720,6 +789,7 @@ void AReEchoGameMode::BeginNextEncounter()
 	bBossPostEchoPhaseTriggered = false;
 	RunSubsystem->BeginEncounter();
 	Director->SetEndsOnDuration(!IsBossEncounter());
+	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 	if (Player)
 	{
@@ -812,6 +882,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	bEncounterClearedByDefeat = false;
 	bBossPostEchoPhaseTriggered = SavedState.bBossPostEchoPhaseTriggered;
 	Director->SetEndsOnDuration(!IsBossEncounter());
+	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 
 	Player->SetActorTransform(SavedState.PlayerTransform, false, nullptr, ETeleportType::TeleportPhysics);
@@ -1074,6 +1145,12 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	}
 
 	bRestartScreenIsTerminal = bDeathScreen || bVictoryScreen;
+	bRestartScreenIsDeath = bDeathScreen;
+	if (bRestartScreenIsTerminal)
+	{
+		SetMusicState(bVictoryScreen ? FReEchoAudioEvents::MusicVictory : FReEchoAudioEvents::MusicDeath);
+		StopAmbienceState();
+	}
 	if (bVictoryScreen)
 	{
 		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
@@ -1266,6 +1343,11 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	{
 		InventoryShopWidget->ShowInventory(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
 	}
+	if (Mode != EReEchoInventoryShopMode::Inventory)
+	{
+		SetMusicState(FReEchoAudioEvents::MusicShop);
+		StopAmbienceState();
+	}
 	SetPlayerMenuAbilityBlocked(true);
 }
 
@@ -1278,12 +1360,16 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const bool bPostTraitIntermission =
 	    InventoryShopWidget && InventoryShopWidget->GetMode() == EReEchoInventoryShopMode::PostTraitIntermission;
+	const bool bManualShop =
+	    InventoryShopWidget && InventoryShopWidget->GetMode() == EReEchoInventoryShopMode::ManualShop;
 	if (bPostTraitIntermission && RunSubsystem && RunSubsystem->GetEchoStorageSummary().bHasPendingRecording)
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
 		    NSLOCTEXT("ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
 		return;
 	}
+	PostUiEvent(FReEchoAudioEvents::UiCancel);
 	if (bPostTraitIntermission)
 	{
 		bPostTraitShopClosing = true;
@@ -1304,6 +1390,10 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	{
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
 	}
+	else if (bManualShop)
+	{
+		RestoreEncounterAudioState();
+	}
 }
 
 void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
@@ -1311,6 +1401,7 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (RunSubsystem && InventoryShopWidget && RunSubsystem->PurchaseShopItem(ItemId))
 	{
+		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
 		if (InventoryShopWidget->GetMode() == EReEchoInventoryShopMode::PostTraitIntermission)
 		{
@@ -1321,6 +1412,10 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		{
 			InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
 		}
+	}
+	else
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 	}
 }
 
@@ -1370,6 +1465,7 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	}
 	else
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
 	}
@@ -1393,6 +1489,7 @@ void AReEchoGameMode::HandleEchoSkipRequested()
 	}
 	else
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
 	}
@@ -1416,6 +1513,7 @@ void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
 	}
 	else
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
 	}
@@ -1439,6 +1537,7 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 	}
 	else
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
 	}
@@ -1454,6 +1553,7 @@ void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
 	const EReEchoEchoStorageResult Result = RunSubsystem->SkipPendingRecordingStorage();
 	if (Result != EReEchoEchoStorageResult::Success)
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
 		return;
@@ -1581,6 +1681,14 @@ void AReEchoGameMode::HandleRestartRequested()
 		RestartWidget = nullptr;
 	}
 	bRestartScreenIsTerminal = false;
+	if (bRestartScreenIsDeath)
+	{
+		if (UReEchoAudioService* AudioService = GetAudioService())
+		{
+			AudioService->QueueEventForNextWorld(FReEchoAudioEvents::Revive);
+		}
+	}
+	bRestartScreenIsDeath = false;
 
 	UGameplayStatics::SetGamePaused(this, false);
 	if (UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>())
@@ -1665,6 +1773,8 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	{
 		return;
 	}
+	SetMusicState(FReEchoAudioEvents::MusicShop);
+	StopAmbienceState();
 
 	TraitCardChoiceWidget->InitializeOffers(
 	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
@@ -1683,8 +1793,10 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	const bool bApplied = bForgeChoice ? RunSubsystem->ApplyForgeChoice(CardId) : RunSubsystem->ApplyTraitCard(CardId);
 	if (!bApplied)
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}
+	PostUiEvent(FReEchoAudioEvents::UiCardSelect);
 	RunSubsystem->SaveRun();
 
 	if (TraitCardChoiceWidget)

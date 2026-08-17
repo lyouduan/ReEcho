@@ -6,11 +6,11 @@
 - Executor 负责人：Gavyn-side Executor。
 - Plan 编写方（AI 侧）：Gavyn-side AI（Codex）。
 - 实现编写方（AI 侧）：Gavyn-side AI（Codex）。
-- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划基线：`origin/main@87cde6c`；初始实现基线：Plan-only 发布提交 `origin/main@0fa465c`。Plan34 在该发布提交中关闭，其延期项由本 Plan 接管；2026-08-17 用户发现菜单无声后明确授权扩大 Plan46，扩围基线为已审计并合入本地任务分支的 `origin/main@4b05ee1`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan46-audio`、本地分支 `plan/46-audio-resource-integration`；发布前精选正式提交并刷新预构建包，不推送任务分支。
-- 依赖 / 阻塞：依赖已关闭 Plan33/34 的稳定音频 API、31 个 EventId、14 列目录 Schema 与五总线设置；原 Proposed Plan35/36 的全部非战斗/战斗触发范围由本 Plan 吸收并关闭，避免重复实现。用户已提供 7 个 AI 生成的长音频源文件；其具体生成工具/授权说明需在关闭前由用户确认并写入来源记录。
+- 依赖 / 阻塞：依赖已关闭 Plan33/34 的稳定音频 API、31 个 EventId、14 列目录 Schema 与五总线设置；原 Proposed Plan35/36 的全部非战斗/战斗触发范围由本 Plan 吸收并关闭，避免重复实现。用户提供的长音频已记录标题、项目路径与哈希；按用户明确指示不追踪生成平台，也不作未经证实的第三方许可声明。
 - Writes: `plans/34-audio-catalog-settings.md`、`plans/35-audio-noncombat-integration.md`、`plans/36-audio-combat-echo-integration.md`、本 Plan；`Design/Data/ReEchoAudioEvents.xlsx`、`Content/Data/audio_events.csv`、`scripts/data/author_audio_events.py`；`Design/Audio/**`、`scripts/audio/**`、`Content/ReEcho/Audio/**`；`Config/DefaultGame.ini`；`Source/ReEchoAudio/**` 的运行时硬化、跨 World 通用事件队列与自动化；`Source/ReEcho/**` 中 GameMode、UI Flow、Combat 音频适配、Enemy/Echo 世界宿主及聚焦测试；`shared/CODEBASE_MAP/modules/MOD-ReEchoAudio.md`、`MOD-ReEcho.md`、`MOD-ReEchoUI.md`。
 - Stable Reads: 用户提供的 `The_Keeper_of_Slow_Hours.mp3`、`The_Watchmaker_s_Garden.mp3`、`Weight_of_the_Hour.mp3`、`The_Last_Pendulum_Swing.mp3`、`Golden_Hour_Ascent.mp3`、`Weight_of_the_Rift.mp3`、`Under_The_Stone_Vault.mp3`；现有 `The_Iron_Waltz`；`MOD-ReEchoCombat` 的最终攻击/命中/受伤/击杀/死亡事件；`MOD-ReEchoEnemies` 的 Enemy/Boss Intent 与 Archetype；`MOD-ReEchoWeapons` 的成功 Commit；Run、Recording、Weather 与 UI 当前权威生命周期。
 - 影响模式：`Exclusive`，因为权威音频 XLSX、生成 CSV、同名 SoundWave 资产和 cook 配置必须作为单一发布单元更新。
@@ -44,25 +44,26 @@
   - `MOD-ReEchoAudio.md`：已按最终资源、cook、非阻塞与衰减实现更新；
   - `ARCHITECTURE.md`：已审阅运行时拓扑，无需修改；
   - `README.md`：已审阅路由标识，无需修改；
-  - `MOD-ReEcho.md`：已审阅稳定调用方契约，无需修改。
+  - `MOD-ReEcho.md`：已更新 GameMode、UI Flow、Combat 适配与世界宿主的语义装配边界；
+  - `MOD-ReEchoUI.md`：已更新通用按钮反馈与真实事务结果的职责分工；
 
 ## 锁定验收
 
 - [x] 权威 XLSX 与生成 CSV 保持锁定 14 列和完整 31 个稳定 ID；全量 `--check` 通过，旧非音频 CSV 字节不变。
 - [x] 31 个目录行都有非空合法软路径；Editor 中全部路径解析为 `USoundWave`，资产类、循环属性和 2D/3D 声道约束符合目录用途。
-- [ ] 7 个用户长音频及 23 个确定性短音效拥有准确来源/生成记录；用户提供资源的工具/授权状态不被 AI 猜测。
+- [x] 7 个用户长音频及 23 个确定性短音效拥有准确来源/生成记录；用户提供资源的工具/授权状态不被 AI 猜测。
 - [x] Music/Ambience 循环状态不会因未驻留资产进行同步加载；预载未完成/失败仍安全且可重试，不阻塞玩法线程。
 - [x] `AttenuationMin/Max` 实际影响空间 OneShot/Loop 的 Unreal 播放组件；非空间事件不启用衰减覆盖。
 - [x] CSV 文本软引用指向的 `/Game/ReEcho/Audio/**` 在 Windows cook/package 中存在，不依赖地图或硬引用偶然带入。
 - [x] author 脚本重建的音频目录不会清空已批准资产绑定；生成器和目录映射有聚焦测试。
 - [x] 音频模块没有新增对 `ReEcho`、Combat、Weapons、Enemies、Echo 或 UI 类型的反向依赖；存档、录制和玩法结果不变。
-- [ ] 31 个 EventId 均有实际生产发布路径或当前机制对应路径：背景 8、UI 6、Combat 6、Enemy 3、Boss 3、Echo 3、`CameraMove`、`Revive`；不存在仅测试引用的孤立事件。
-- [ ] 音乐/环境状态从权威流程一次切换且幂等：菜单、普通遭遇、Boss、商店、死亡、胜利、Arena/Rain 均不每 Tick 重发，不残留旧 Loop。
-- [ ] UI hover/confirm 由屏幕框架统一绑定；cancel/error/purchase/card-select 从真实用户操作和事务结果发布，音频禁用时 UI 结果完全相同。
-- [ ] Enemy/Boss/Echo Spawn、Attack、Death/End 从世界宿主的成功初始化、已提交动作和终止生命周期发布；玩家 Combat 六类来自既有最终 Combat 事件，致死结果不叠加普通 Hurt。
-- [ ] `CameraMove` 只对应真实 `SetViewTarget`；死亡重开把 `Revive` 放入通用 next-world 队列，`OpenLevel` 不等待音频且非死亡重开不误发。
-- [ ] 必需数据检查、项目校验、C++ 格式化（可用时）、聚焦自动化、Editor build、最终 `-FullRebuild`、预构建包刷新和 `git diff --check` 通过。
-- [ ] 用户在 PIE 中抽听 7 条长音频和每组短音效，验收可听性、循环、响度、空间感及是否需要替换；AI 不代签主观结果。
+- [x] 31 个 EventId 均有实际生产发布路径或当前机制对应路径：背景 8、UI 6、Combat 6、Enemy 3、Boss 3、Echo 3、`CameraMove`、`Revive`；不存在仅测试引用的孤立事件。
+- [x] 音乐/环境状态从权威流程一次切换且幂等：菜单、普通遭遇、Boss、商店、死亡、胜利、Arena/Rain 均不每 Tick 重发，不残留旧 Loop。
+- [x] UI hover/confirm 由屏幕框架统一绑定；cancel/error/purchase/card-select 从真实用户操作和事务结果发布，音频禁用时 UI 结果完全相同。
+- [x] Enemy/Boss/Echo Spawn、Attack、Death/End 从世界宿主的成功初始化、已提交动作和终止生命周期发布；玩家 Combat 六类来自既有最终 Combat 事件，致死结果不叠加普通 Hurt。
+- [x] `CameraMove` 只对应真实 `SetViewTarget`；死亡重开把 `Revive` 放入通用 next-world 队列，`OpenLevel` 不等待音频且非死亡重开不误发。
+- [x] 必需数据检查、项目校验、C++ 格式化（可用时）、聚焦自动化、Editor build、最终 `-FullRebuild`、预构建包刷新和 `git diff --check` 通过。
+- [x] 用户在 PIE 中抽听 7 条长音频和每组短音效，验收可听性、循环、响度、空间感及是否需要替换；AI 不代签主观结果。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -104,6 +105,10 @@
 ### 变化
 
 - 2026-08-17 用户在 PIE 菜单确认无声；日志证明音频设备和 31 行目录正常，但 `Music.Menu` 只有测试/常量引用。用户明确要求扩大 Plan46 并继续到现有资源全部实际接入；本 Plan 因此吸收 Proposed Plan35/36，状态从 `Review` 退回 `InProgress`。
+- GameMode 现从菜单、遭遇、Boss、商店、天气、死亡、胜利、固定相机切换与死亡重开发布稳定状态/事件；RunSubsystem 不再重复发布遭遇音乐。
+- UI Flow 在所有注册屏幕创建后统一绑定按钮 hover/confirm；GameMode 只在真实关闭、拒绝、购买和卡牌选择结果追加专用 UI 事件。
+- Combat 音频适配器支持 Player/Enemy/Boss/Echo 粗粒度路由；Enemy/Boss 的成功初始化和已提交 Intent、Echo 的成功初始化/销毁生命周期均发布专用事件，致死 Hurt 与 Echo End 重复已去除。
+- Audio Service 保存期望 Music/Ambience 状态，在异步预载完成后自动重试，并在 Game/PIE World 替换后重建 Loop；单槽 next-world 队列只投递声音，不延迟 `OpenLevel`。
 
 - 用户提供的 7 个 MP3 已复制到 `Design/Audio/Source/**`，记录原文件名与 SHA-256；23 个 OneShot 由固定参数/固定种子的仓库生成器生成，均为 48 kHz mono PCM16。
 - Unreal Editor Python 已导入/配置 31 个 SoundWave（含既有 `Music.Encounter`），长音与环境资产设为循环、OneShot 设为非循环。
@@ -121,23 +126,30 @@
 - `.clang-format`（四个改动 C++/Header）与 `scripts/ue/Build-Editor.cmd -Configuration Development`：通过；五模块预构建包已刷新，当前源码指纹 `9afab8c287f0`。
 - UE 资产审计：31/31 目录路径解析为 `USoundWave`，循环标记与空间音效 mono 约束通过。
 - `ReEcho.Audio` 聚焦自动化：13/13 通过，退出码 0；覆盖目录原子重载、异步预载失败重试、空间 OneShot/Loop 衰减传播和设置策略。
-- Windows Shipping clean `BuildCookRun`：通过，Cook 766 packages、0 errors；归档可执行文件存在，IoStore 清单对目录 31/31 资产包路径命中。
+- `python scripts/audio/validate_audio_event_routes.py`：31 个目录 ID、31 个稳定常量、31 个生产路由完全覆盖。
+- 扩围候选 `Build-Editor.cmd -Configuration Development`：通过，10 个最终增量动作完成；五模块预构建包刷新，源码指纹 `1764a02bc2e4`。
+- 扩围后聚焦自动化：`ReEcho.Audio`、`ReEcho.UI`、`ReEcho.Combat`、`ReEcho.Enemies`、`ReEcho.Shop` 均退出码 0。
+- 完整 `ReEcho` 自动化已运行；本候选相关测试通过，但现有非音频基线仍有 3 个失败：`AttackMode.SaveAndMigration` 仍断言旧 v7（运行时已为 v8）、`Presentation.Animation2D.AssetProfiles` 的 Static Idle 碰撞断言不匹配、`Run.EchoReplayResolver.EmptyStale` 返回 1 而测试期望 0。本 Plan 未修改对应权威逻辑，未把它们误记为音频通过项。
+- 最终发布工作树 Windows Shipping clean `BuildCookRun`：通过，Cook/IoStore 766 packages、0 errors；`Packages/Windows/ReEcho.exe` 归档存在并完成 10 秒启动冒烟。
+- 最终 Shipping IoStore 清单：`/Game/ReEcho/Audio` 的 31/31 个 SoundWave 包命中，其中 Music/Ambience 8/8，包含 `The_Iron_Waltz`、Menu、Boss、Shop、Death、Victory、Arena 与 Rain。
+- 最终 `Build-Editor.cmd -Configuration Development -FullRebuild`：71/71 actions 通过；五模块预构建包刷新并校验通过，源码指纹 `1764a02bc2e4`。
 
 ### 剩余风险
 
-- 用户提供的 7 个 MP3 的生成平台、账号授权范围或许可证尚未记录；关闭/最终发布前必须由用户确认，AI 不推断。
-- 程序化短音效是技术可用基线，最终音色和响度可能需要用户替换或重调。
-- `Music.Menu` 导入时 UE 报告文件尾部直流偏移，循环接缝可能爆音，必须由用户试听决定是否回源重生成或后处理。
-- 最终 `-FullRebuild` 与匹配预构建包只在用户听感/授权确认后的最终集成版本执行；当前 Review 候选不冒充最终发布门禁通过。
+- 程序化短音效是用户已接受的技术基线，后续仍可按美术方向替换或重调。
+- `Music.Menu` 导入时 UE 报告文件尾部直流偏移；用户已接受当前整体听感，若后续听到循环接缝爆音再单独回源处理。
+- 完整 `ReEcho` 套件的上述 3 个非音频基线失败需要各自所有者处理；不阻断本 Plan 的五个聚焦套件，但在项目要求恢复全绿时必须单独修复。
 - 远端规则提交 `origin/main@4b05ee1` 已经用户确认后合入本地任务分支；它改变项目校验规则，因此扩围前证据只保留为资源/后端历史证据，完整语义接入后的构建和自动化必须重跑。
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：用户抽听所有长音频类别及 UI/Combat/Enemy/Boss/Echo 短音效组，确认循环、响度、空间感和是否接受程序化基线。
+`Passed`：2026-08-17 用户在 PIE 查看实际音频活动并反馈“感觉基本没问题”，授权整理提交、推送和清理本地 Plan46 分支；AI 仅记录该人工结论，不代签听感。
 
 ### 架构文档审阅结果
 
 - `MOD-ReEchoAudio.md`：已更新 Plan46 资源位置、异步驻留/失败重试、实际衰减、AlwaysCook 与资产审计事实。
 - `ARCHITECTURE.md`：已审阅，无需修改；Runtime Module 拓扑、权威状态和依赖方向均未变化。
 - `README.md`：已审阅，无需修改；未新增、删除或重命名架构路由标识。
-- `MOD-ReEcho.md`：已审阅，无需修改；主模块仍只发布稳定语义，未修改调用点、公共 API 或玩法类型。
+- `MOD-ReEcho.md`：已更新 GameMode/UI/Combat/Enemy/Echo 的稳定语义装配路径；未改变领域权威或模块依赖方向。
+- `MOD-ReEchoUI.md`：已更新通用按钮反馈与真实事务结果反馈的分工。
+- `MOD-ReEchoCombat.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoEnemies.md`：已审阅；独立模块 API 与依赖方向未改，音频接入均在主模块宿主/适配层完成。

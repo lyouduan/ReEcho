@@ -53,6 +53,11 @@ void UReEchoAudioService::Initialize(FSubsystemCollectionBase& Collection)
 void UReEchoAudioService::Deinitialize()
 {
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+	DesiredMusicStateId = NAME_None;
+	DesiredAmbienceStateId = NAME_None;
+	StateWorld.Reset();
+	QueuedWorldEventId = NAME_None;
+	QueuedWorldEventOrigin.Reset();
 	if (Catalog.IsValid()) Catalog->CancelPreload();
 	if (PolicyEngine.IsValid()) PolicyEngine->Shutdown();
 	Catalog.Reset();
@@ -63,7 +68,60 @@ void UReEchoAudioService::Deinitialize()
 bool UReEchoAudioService::TickAudio(const float DeltaTime)
 {
 	if (PolicyEngine.IsValid()) PolicyEngine->Update(DeltaTime);
+	UWorld* ActiveWorld = ResolveActiveWorld();
+	PrepareStateWorld(ActiveWorld);
+	RetryDesiredStates(ActiveWorld);
+	TryPostQueuedWorldEvent();
 	return true;
+}
+
+void UReEchoAudioService::PrepareStateWorld(UWorld* ActiveWorld)
+{
+	if (!PolicyEngine.IsValid() || !ActiveWorld || ActiveWorld == StateWorld.Get())
+	{
+		return;
+	}
+	PolicyEngine->StopState(EReEchoAudioChannel::Music);
+	PolicyEngine->StopState(EReEchoAudioChannel::Ambience);
+	StateWorld = ActiveWorld;
+}
+
+void UReEchoAudioService::RetryDesiredStates(UWorld* ActiveWorld)
+{
+	if (!PolicyEngine.IsValid() || !ActiveWorld)
+	{
+		return;
+	}
+	if (!DesiredMusicStateId.IsNone() &&
+	    PolicyEngine->GetCurrentState(EReEchoAudioChannel::Music) != DesiredMusicStateId)
+	{
+		PolicyEngine->SetState(EReEchoAudioChannel::Music, DesiredMusicStateId, ActiveWorld);
+	}
+	if (!DesiredAmbienceStateId.IsNone() &&
+	    PolicyEngine->GetCurrentState(EReEchoAudioChannel::Ambience) != DesiredAmbienceStateId)
+	{
+		PolicyEngine->SetState(EReEchoAudioChannel::Ambience, DesiredAmbienceStateId, ActiveWorld);
+	}
+}
+
+void UReEchoAudioService::TryPostQueuedWorldEvent()
+{
+	if (QueuedWorldEventId.IsNone() || !PolicyEngine.IsValid())
+	{
+		return;
+	}
+
+	UWorld* ActiveWorld = ResolveActiveWorld();
+	if (!ActiveWorld || ActiveWorld == QueuedWorldEventOrigin.Get())
+	{
+		return;
+	}
+
+	FReEchoAudioEventRequest Request;
+	Request.EventId = QueuedWorldEventId;
+	PolicyEngine->PostEvent(Request, ActiveWorld);
+	QueuedWorldEventId = NAME_None;
+	QueuedWorldEventOrigin.Reset();
 }
 
 void UReEchoAudioService::PostEvent(UObject* WorldContextObject, const FReEchoAudioEventRequest& Request)
@@ -84,22 +142,50 @@ void UReEchoAudioService::PostEventById(UObject* WorldContextObject, const FName
 
 void UReEchoAudioService::SetMusicState(const FName StateId)
 {
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, ResolveActiveWorld());
+	if (StateId.IsNone())
+	{
+		StopMusicState();
+		return;
+	}
+	DesiredMusicStateId = StateId;
+	UWorld* ActiveWorld = ResolveActiveWorld();
+	PrepareStateWorld(ActiveWorld);
+	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, ActiveWorld);
 }
 
 void UReEchoAudioService::SetAmbienceState(const FName StateId)
 {
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, ResolveActiveWorld());
+	if (StateId.IsNone())
+	{
+		StopAmbienceState();
+		return;
+	}
+	DesiredAmbienceStateId = StateId;
+	UWorld* ActiveWorld = ResolveActiveWorld();
+	PrepareStateWorld(ActiveWorld);
+	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, ActiveWorld);
 }
 
 void UReEchoAudioService::StopMusicState()
 {
+	DesiredMusicStateId = NAME_None;
 	if (PolicyEngine.IsValid()) PolicyEngine->StopState(EReEchoAudioChannel::Music);
 }
 
 void UReEchoAudioService::StopAmbienceState()
 {
+	DesiredAmbienceStateId = NAME_None;
 	if (PolicyEngine.IsValid()) PolicyEngine->StopState(EReEchoAudioChannel::Ambience);
+}
+
+void UReEchoAudioService::QueueEventForNextWorld(const FName EventId)
+{
+	if (EventId.IsNone())
+	{
+		return;
+	}
+	QueuedWorldEventId = EventId;
+	QueuedWorldEventOrigin = ResolveActiveWorld();
 }
 
 void UReEchoAudioService::SetMasterVolume(const float Volume)

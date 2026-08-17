@@ -55,5 +55,5 @@ struct REECHOAUDIO_API FReEchoAudioEvents
 
 	// ---- Misc ----
 	static const FName CameraMove; // "CameraMove"
-	static const FName Revive;	  // "Revive" (event id reserved; no revive gameplay in Plan33)
+	static const FName Revive;	  // "Revive" (death-restart arrival; does not create revive gameplay)
 };

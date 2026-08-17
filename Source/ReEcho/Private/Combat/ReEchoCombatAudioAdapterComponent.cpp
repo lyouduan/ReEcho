@@ -4,6 +4,40 @@
 #include "ReEchoAudioService.h"
 #include "ReEchoAudioTypes.h"
 
+#include "Combat/ReEchoCombatTarget.h"
+
+namespace
+{
+EReEchoAudioSourceCategory ToAudioSourceCategory(const EReEchoCombatAudioSource Source)
+{
+	switch (Source)
+	{
+		case EReEchoCombatAudioSource::Enemy:
+			return EReEchoAudioSourceCategory::Enemy;
+		case EReEchoCombatAudioSource::Boss:
+			return EReEchoAudioSourceCategory::Boss;
+		case EReEchoCombatAudioSource::Echo:
+			return EReEchoAudioSourceCategory::Echo;
+		default:
+			return EReEchoAudioSourceCategory::Player;
+	}
+}
+}
+
+UReEchoCombatAudioAdapterComponent::UReEchoCombatAudioAdapterComponent()
+    : AttackEventId(FReEchoAudioEvents::CombatAttack), DeathEventId(FReEchoAudioEvents::CombatDeath)
+{
+}
+
+void UReEchoCombatAudioAdapterComponent::ConfigureRouting(const EReEchoCombatAudioSource InSource,
+                                                          const FName InAttackEventId,
+                                                          const FName InDeathEventId)
+{
+	Source = InSource;
+	AttackEventId = InAttackEventId;
+	DeathEventId = InDeathEventId;
+}
+
 void UReEchoCombatAudioAdapterComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -37,47 +71,81 @@ void UReEchoCombatAudioAdapterComponent::EndPlay(const EEndPlayReason::Type EndP
 
 void UReEchoCombatAudioAdapterComponent::HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 {
+	PostConfiguredAttack(Event.Origin, Event.WeaponId);
+}
+
+void UReEchoCombatAudioAdapterComponent::PostConfiguredAttack(const FVector& WorldLocation, const FName VariantId) const
+{
+	PostConfiguredEvent(AttackEventId, WorldLocation, VariantId);
+}
+
+void UReEchoCombatAudioAdapterComponent::PostConfiguredEvent(const FName EventId,
+                                                              const FVector& WorldLocation,
+                                                              const FName VariantId) const
+{
+	if (EventId.IsNone())
+	{
+		return;
+	}
 	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
 	{
 		FReEchoAudioEventRequest Request;
-		Request.EventId = FReEchoAudioEvents::CombatAttack;
-		Request.WorldLocation = Event.Origin;
-		Request.SourceCategory = EReEchoAudioSourceCategory::Player;
-		Request.VariantId = Event.WeaponId;
-		GameInstance->GetSubsystem<UReEchoAudioService>()->PostEvent(GetOwner(), Request);
+		Request.EventId = EventId;
+		Request.WorldLocation = WorldLocation;
+		Request.SourceCategory = ToAudioSourceCategory(Source);
+		Request.VariantId = VariantId;
+		if (UReEchoAudioService* AudioService = GameInstance->GetSubsystem<UReEchoAudioService>())
+		{
+			AudioService->PostEvent(GetOwner(), Request);
+		}
 	}
 }
 
-void UReEchoCombatAudioAdapterComponent::PostEvent(const FName EventId, const FReEchoDamageEvent& Event) const
+void UReEchoCombatAudioAdapterComponent::PostDamageEvent(const FName EventId, const FReEchoDamageEvent& Event) const
 {
+	if (EventId.IsNone())
+	{
+		return;
+	}
 	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
 	{
 		FReEchoAudioEventRequest Request;
 		Request.EventId = EventId;
 		Request.WorldLocation = Event.WorldLocation;
-		Request.SourceCategory = Event.Attack.Source.Get() == GetOwner() ? EReEchoAudioSourceCategory::Player
-		                                                              : EReEchoAudioSourceCategory::Enemy;
+		const AActor* SourceActor = Event.Attack.Source.Get();
+		const UReEchoCombatAudioAdapterComponent* SourceAdapter =
+		    SourceActor ? SourceActor->FindComponentByClass<UReEchoCombatAudioAdapterComponent>() : nullptr;
+		Request.SourceCategory = SourceAdapter ? ToAudioSourceCategory(SourceAdapter->Source)
+		                                       : EReEchoAudioSourceCategory::Player;
 		Request.Intensity = FMath::Max(0.0f, Event.AppliedDamage);
-		GameInstance->GetSubsystem<UReEchoAudioService>()->PostEvent(GetOwner(), Request);
+		if (UReEchoAudioService* AudioService = GameInstance->GetSubsystem<UReEchoAudioService>())
+		{
+			AudioService->PostEvent(GetOwner(), Request);
+		}
 	}
 }
 
 void UReEchoCombatAudioAdapterComponent::HandleHit(const FReEchoDamageEvent& Event)
 {
-	PostEvent(FReEchoAudioEvents::CombatHit, Event);
+	PostDamageEvent(FReEchoAudioEvents::CombatHit, Event);
 }
 
 void UReEchoCombatAudioAdapterComponent::HandleHurt(const FReEchoDamageEvent& Event)
 {
-	PostEvent(Event.bBlocked ? FReEchoAudioEvents::CombatBlock : FReEchoAudioEvents::CombatHurt, Event);
+	const IReEchoCombatTarget* Target = Event.Target ? Cast<IReEchoCombatTarget>(Event.Target) : nullptr;
+	if (!Event.bBlocked && Target && !Target->IsCombatTargetAlive())
+	{
+		return;
+	}
+	PostDamageEvent(Event.bBlocked ? FReEchoAudioEvents::CombatBlock : FReEchoAudioEvents::CombatHurt, Event);
 }
 
 void UReEchoCombatAudioAdapterComponent::HandleKill(const FReEchoDamageEvent& Event)
 {
-	PostEvent(FReEchoAudioEvents::CombatKill, Event);
+	PostDamageEvent(FReEchoAudioEvents::CombatKill, Event);
 }
 
 void UReEchoCombatAudioAdapterComponent::HandleDeath(const FReEchoDamageEvent& Event)
 {
-	PostEvent(FReEchoAudioEvents::CombatDeath, Event);
+	PostDamageEvent(DeathEventId, Event);
 }

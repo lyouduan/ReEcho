@@ -14,91 +14,112 @@
 
 namespace
 {
-	/** Records backend calls; used so tests need no speakers or real assets. */
-	class FFakeAudioBackend : public IReEchoAudioBackend
+/** Records backend calls; used so tests need no speakers or real assets. */
+class FFakeAudioBackend : public IReEchoAudioBackend
+{
+public:
+	int32 PlayOneShotCount = 0;
+	int32 StopOneShotCount = 0;
+	int32 StartLoopCount = 0;
+	int32 StopLoopCount = 0;
+	float FakeVoiceDuration = 1.0f;
+	FReEchoAudioPlayCommand LastOneShotCommand;
+	FReEchoAudioPlayCommand LastLoopCommand;
+	bool bFailLoopStart = false;
+	TMap<uint32, float> LoopVolumes;
+	uint32 NextHandle = 1;
+
+	virtual bool IsAvailable() const override
 	{
-	public:
-		int32 PlayOneShotCount = 0;
-		int32 StopOneShotCount = 0;
-		int32 StartLoopCount = 0;
-		int32 StopLoopCount = 0;
-		float FakeVoiceDuration = 1.0f;
-		FReEchoAudioPlayCommand LastOneShotCommand;
-		FReEchoAudioPlayCommand LastLoopCommand;
-		bool bFailLoopStart = false;
-		TMap<uint32, float> LoopVolumes;
-		uint32 NextHandle = 1;
+		return true;
+	}
 
-		virtual bool IsAvailable() const override { return true; }
-		virtual uint32 PlayOneShot(const FReEchoAudioPlayCommand& C) override
-		{
-			LastOneShotCommand = C;
-			PlayOneShotCount++;
-			return NextHandle++;
-		}
-		virtual void StopOneShot(uint32 VoiceHandle) override { StopOneShotCount++; }
-		virtual uint32 StartLoop(const FReEchoAudioPlayCommand& C) override
-		{
-			LastLoopCommand = C;
-			StartLoopCount++;
-			if (bFailLoopStart)
-			{
-				return 0;
-			}
-			const uint32 H = NextHandle++;
-			LoopVolumes.Add(H, C.Volume);
-			return H;
-		}
-		virtual void StopLoop(uint32 LoopHandle, float FadeOutSeconds) override
-		{
-			StopLoopCount++;
-			LoopVolumes.Remove(LoopHandle);
-		}
-		virtual void SetLoopVolume(uint32 LoopHandle, float Volume) override
-		{
-			LoopVolumes.FindOrAdd(LoopHandle) = Volume;
-		}
-		virtual float GetVoiceDuration(const FReEchoAudioPlayCommand& C) const override
-		{
-			return FakeVoiceDuration;
-		}
-	};
-
-	struct FAudioTestHarness
+	virtual uint32 PlayOneShot(const FReEchoAudioPlayCommand& C) override
 	{
-		TSharedPtr<FFakeAudioBackend> Backend;
-		TSharedPtr<FReEchoAudioCatalog> Catalog;
-		TSharedPtr<FReEchoAudioPolicyEngine> Engine;
+		LastOneShotCommand = C;
+		PlayOneShotCount++;
+		return NextHandle++;
+	}
 
-		void Setup()
+	virtual void StopOneShot(uint32 VoiceHandle) override
+	{
+		StopOneShotCount++;
+	}
+
+	virtual uint32 StartLoop(const FReEchoAudioPlayCommand& C) override
+	{
+		LastLoopCommand = C;
+		StartLoopCount++;
+		if (bFailLoopStart)
 		{
-			Backend = MakeShared<FFakeAudioBackend>();
-			Catalog = MakeShared<FReEchoAudioCatalog>();
-			Engine = MakeShared<FReEchoAudioPolicyEngine>();
-			Engine->SetCatalogProvider(Catalog);
-			Engine->SetBackend(Backend);
+			return 0;
 		}
+		const uint32 H = NextHandle++;
+		LoopVolumes.Add(H, C.Volume);
+		return H;
+	}
 
-		FReEchoAudioEventDefinition MakeDef(FName Id, EReEchoAudioBus Bus, bool bLoop)
-		{
-			FReEchoAudioEventDefinition Def;
-			Def.EventId = Id;
-			Def.Bus = Bus;
-			Def.Type = bLoop ? EReEchoAudioEventType::Loop : EReEchoAudioEventType::OneShot;
-			return Def;
-		}
+	virtual void StopLoop(uint32 LoopHandle, float FadeOutSeconds) override
+	{
+		StopLoopCount++;
+		LoopVolumes.Remove(LoopHandle);
+	}
 
-		void AddDef(const FReEchoAudioEventDefinition& Def) { Catalog->AddDefinition(Def); }
-	};
+	virtual void SetLoopVolume(uint32 LoopHandle, float Volume) override
+	{
+		LoopVolumes.FindOrAdd(LoopHandle) = Volume;
+	}
 
-	FReEchoAudioEventRequest Req(FName Id) { FReEchoAudioEventRequest R; R.EventId = Id; return R; }
+	virtual float GetVoiceDuration(const FReEchoAudioPlayCommand& C) const override
+	{
+		return FakeVoiceDuration;
+	}
+};
+
+struct FAudioTestHarness
+{
+	TSharedPtr<FFakeAudioBackend> Backend;
+	TSharedPtr<FReEchoAudioCatalog> Catalog;
+	TSharedPtr<FReEchoAudioPolicyEngine> Engine;
+
+	void Setup()
+	{
+		Backend = MakeShared<FFakeAudioBackend>();
+		Catalog = MakeShared<FReEchoAudioCatalog>();
+		Engine = MakeShared<FReEchoAudioPolicyEngine>();
+		Engine->SetCatalogProvider(Catalog);
+		Engine->SetBackend(Backend);
+	}
+
+	FReEchoAudioEventDefinition MakeDef(FName Id, EReEchoAudioBus Bus, bool bLoop)
+	{
+		FReEchoAudioEventDefinition Def;
+		Def.EventId = Id;
+		Def.Bus = Bus;
+		Def.Type = bLoop ? EReEchoAudioEventType::Loop : EReEchoAudioEventType::OneShot;
+		return Def;
+	}
+
+	void AddDef(const FReEchoAudioEventDefinition& Def)
+	{
+		Catalog->AddDefinition(Def);
+	}
+};
+
+FReEchoAudioEventRequest Req(FName Id)
+{
+	FReEchoAudioEventRequest R;
+	R.EventId = Id;
+	return R;
+}
 }
 
 // ---- Pause policy reaches both one-shot and state playback commands ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioPausePolicyTest,
-	"ReEcho.Audio.Foundation.PausePolicy",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.PausePolicy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioPausePolicyTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -106,28 +127,47 @@ bool FReEchoAudioPausePolicyTest::RunTest(const FString& Parameters)
 
 	FReEchoAudioEventDefinition OneShot = H.MakeDef(FReEchoAudioEvents::UiConfirm, EReEchoAudioBus::UiSfx, false);
 	OneShot.PausePolicy = EReEchoAudioPausePolicy::ContinueOnPause;
+	OneShot.bSpatial3D = true;
+	OneShot.AttenuationMin = 200.0f;
+	OneShot.AttenuationMax = 2000.0f;
 	H.AddDef(OneShot);
-	H.Engine->PostEvent(Req(FReEchoAudioEvents::UiConfirm));
-	TestEqual(TEXT("one-shot preserves continue-on-pause policy"), H.Backend->LastOneShotCommand.PausePolicy,
-		EReEchoAudioPausePolicy::ContinueOnPause);
+	FReEchoAudioEventRequest OneShotRequest = Req(FReEchoAudioEvents::UiConfirm);
+	OneShotRequest.WorldLocation = FVector(10.0f, 20.0f, 30.0f);
+	H.Engine->PostEvent(OneShotRequest);
+	TestEqual(TEXT("one-shot preserves continue-on-pause policy"),
+	          H.Backend->LastOneShotCommand.PausePolicy,
+	          EReEchoAudioPausePolicy::ContinueOnPause);
+	TestTrue(TEXT("one-shot preserves spatialization"), H.Backend->LastOneShotCommand.bSpatial3D);
+	TestEqual(
+	    TEXT("one-shot preserves location"), H.Backend->LastOneShotCommand.Location, OneShotRequest.WorldLocation);
+	TestEqual(TEXT("one-shot preserves attenuation minimum"), H.Backend->LastOneShotCommand.AttenuationMin, 200.0f);
+	TestEqual(TEXT("one-shot preserves attenuation maximum"), H.Backend->LastOneShotCommand.AttenuationMax, 2000.0f);
 
 	FReEchoAudioEventDefinition Loop = H.MakeDef(FReEchoAudioEvents::MusicMenu, EReEchoAudioBus::Music, true);
 	Loop.PausePolicy = EReEchoAudioPausePolicy::ContinueOnPause;
+	Loop.bSpatial3D = true;
+	Loop.AttenuationMin = 300.0f;
+	Loop.AttenuationMax = 2400.0f;
 	H.AddDef(Loop);
 	UWorld* ExpectedWorld = reinterpret_cast<UWorld*>(UPTRINT(1));
 	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicMenu, ExpectedWorld);
-	TestEqual(TEXT("state preserves continue-on-pause policy"), H.Backend->LastLoopCommand.PausePolicy,
-		EReEchoAudioPausePolicy::ContinueOnPause);
+	TestEqual(TEXT("state preserves continue-on-pause policy"),
+	          H.Backend->LastLoopCommand.PausePolicy,
+	          EReEchoAudioPausePolicy::ContinueOnPause);
 	TestEqual(TEXT("state forwards its world"), H.Backend->LastLoopCommand.World, ExpectedWorld);
 	TestTrue(TEXT("state requests a fade-in"), H.Backend->LastLoopCommand.FadeInSeconds > 0.0f);
+	TestTrue(TEXT("state preserves spatialization"), H.Backend->LastLoopCommand.bSpatial3D);
+	TestEqual(TEXT("state preserves attenuation minimum"), H.Backend->LastLoopCommand.AttenuationMin, 300.0f);
+	TestEqual(TEXT("state preserves attenuation maximum"), H.Backend->LastLoopCommand.AttenuationMax, 2400.0f);
 	return true;
 }
 
 // ---- Unknown event is safely rejected, and warned at most once ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioUnknownEventTest,
-	"ReEcho.Audio.Foundation.UnknownEventRejected",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.UnknownEventRejected",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioUnknownEventTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -146,8 +186,9 @@ bool FReEchoAudioUnknownEventTest::RunTest(const FString& Parameters)
 // ---- Master * bus * event volume, with clamp ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioVolumeMathTest,
-	"ReEcho.Audio.Foundation.VolumeMath",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.VolumeMath",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioVolumeMathTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -159,15 +200,17 @@ bool FReEchoAudioVolumeMathTest::RunTest(const FString& Parameters)
 	H.Engine->SetMasterVolume(0.5f);
 	H.Engine->SetBusVolume(EReEchoAudioBus::CombatSfx, 0.5f);
 	// 0.5 * 0.5 * 0.5 = 0.125
-	TestEqual(TEXT("master * bus * event base"), H.Engine->ComputeOneShotVolume(EReEchoAudioBus::CombatSfx, 0.5f), 0.125f);
+	TestEqual(
+	    TEXT("master * bus * event base"), H.Engine->ComputeOneShotVolume(EReEchoAudioBus::CombatSfx, 0.5f), 0.125f);
 	return true;
 }
 
 // ---- Mute (bus and master) forces zero volume ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioMuteTest,
-	"ReEcho.Audio.Foundation.Mute",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.Mute",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioMuteTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -185,8 +228,9 @@ bool FReEchoAudioMuteTest::RunTest(const FString& Parameters)
 // ---- Cooldown drops repeated plays within the window ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCooldownTest,
-	"ReEcho.Audio.Foundation.Cooldown",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.Cooldown",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioCooldownTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -210,8 +254,9 @@ bool FReEchoAudioCooldownTest::RunTest(const FString& Parameters)
 // ---- Per-event concurrency limit drops extra plays ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioConcurrencyTest,
-	"ReEcho.Audio.Foundation.Concurrency",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.Concurrency",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioConcurrencyTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -235,8 +280,9 @@ bool FReEchoAudioConcurrencyTest::RunTest(const FString& Parameters)
 //       equal/lower at its own limit is dropped ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioPriorityTest,
-	"ReEcho.Audio.Foundation.Priority",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.Priority",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioPriorityTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -285,8 +331,9 @@ bool FReEchoAudioPriorityTest::RunTest(const FString& Parameters)
 // ---- State channels are idempotent and transition exactly once ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioStateTest,
-	"ReEcho.Audio.Foundation.StateIdempotent",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.StateIdempotent",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioStateTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -301,7 +348,9 @@ bool FReEchoAudioStateTest::RunTest(const FString& Parameters)
 	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter);
 	TestEqual(TEXT("loop started once"), H.Backend->StartLoopCount, 1);
 	TestEqual(TEXT("active loop count 1"), H.Engine->GetActiveLoopCount(), 1);
-	TestEqual(TEXT("current state set"), H.Engine->GetCurrentState(EReEchoAudioChannel::Music), FReEchoAudioEvents::MusicEncounter);
+	TestEqual(TEXT("current state set"),
+	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
+	          FReEchoAudioEvents::MusicEncounter);
 
 	// Repeated same state is idempotent.
 	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter);
@@ -312,12 +361,15 @@ bool FReEchoAudioStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("old loop stopped"), H.Backend->StopLoopCount, 1);
 	TestEqual(TEXT("new loop started"), H.Backend->StartLoopCount, 2);
 	TestEqual(TEXT("transition happened once"), H.Engine->GetActiveLoopCount(), 1);
-	TestEqual(TEXT("current state updated"), H.Engine->GetCurrentState(EReEchoAudioChannel::Music), FReEchoAudioEvents::MusicBoss);
+	TestEqual(TEXT("current state updated"),
+	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
+	          FReEchoAudioEvents::MusicBoss);
 
 	// Unknown or unplayable replacements preserve the live state.
 	H.Engine->SetState(EReEchoAudioChannel::Music, FName(TEXT("Music.Unknown")));
 	TestEqual(TEXT("unknown replacement preserves current state"),
-		H.Engine->GetCurrentState(EReEchoAudioChannel::Music), FReEchoAudioEvents::MusicBoss);
+	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
+	          FReEchoAudioEvents::MusicBoss);
 	TestEqual(TEXT("unknown replacement does not stop current loop"), H.Backend->StopLoopCount, 1);
 
 	FReEchoAudioEventDefinition Menu = H.MakeDef(FReEchoAudioEvents::MusicMenu, EReEchoAudioBus::Music, true);
@@ -325,16 +377,24 @@ bool FReEchoAudioStateTest::RunTest(const FString& Parameters)
 	H.Backend->bFailLoopStart = true;
 	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicMenu);
 	TestEqual(TEXT("failed replacement preserves current state"),
-		H.Engine->GetCurrentState(EReEchoAudioChannel::Music), FReEchoAudioEvents::MusicBoss);
+	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
+	          FReEchoAudioEvents::MusicBoss);
 	TestEqual(TEXT("failed replacement does not stop current loop"), H.Backend->StopLoopCount, 1);
+	H.Backend->bFailLoopStart = false;
+	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicMenu);
+	TestEqual(TEXT("failed replacement remains retryable"),
+	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
+	          FReEchoAudioEvents::MusicMenu);
+	TestEqual(TEXT("successful retry stops previous loop once"), H.Backend->StopLoopCount, 2);
 	return true;
 }
 
 // ---- StopState and full shutdown clean up all loops ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCleanupTest,
-	"ReEcho.Audio.Foundation.StopStateAndCleanup",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.StopStateAndCleanup",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioCleanupTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -363,8 +423,9 @@ bool FReEchoAudioCleanupTest::RunTest(const FString& Parameters)
 // ---- No audio device / no asset must not crash ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioNoAssetTest,
-	"ReEcho.Audio.Foundation.NoDeviceNoAsset",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.NoDeviceNoAsset",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioNoAssetTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -391,8 +452,9 @@ bool FReEchoAudioNoAssetTest::RunTest(const FString& Parameters)
 // ---- Audio random variation must not touch gameplay RNG ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioRandomIsolationTest,
-	"ReEcho.Audio.Foundation.RandomIsolation",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.RandomIsolation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioRandomIsolationTest::RunTest(const FString& Parameters)
 {
 	FAudioTestHarness H;
@@ -426,28 +488,34 @@ bool FReEchoAudioRandomIsolationTest::RunTest(const FString& Parameters)
 // ---- Catalog reload is quote-aware and atomic ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCatalogAtomicLoadTest,
-	"ReEcho.Audio.Catalog.AtomicLoad",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Catalog.AtomicLoad",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 {
-	const FString Header = TEXT("EventId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax\n");
-	const FString ValidPath = FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogValid"), TEXT(".csv"));
-	const FString InvalidPath = FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogInvalid"), TEXT(".csv"));
+	const FString Header = TEXT("EventId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,"
+	                            "CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax\n");
+	const FString ValidPath =
+	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogValid"), TEXT(".csv"));
+	const FString InvalidPath =
+	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogInvalid"), TEXT(".csv"));
 	FFileHelper::SaveStringToFile(
-		Header + TEXT("\"Combat.Attack\",,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
-		*ValidPath);
+	    Header + TEXT("\"Combat.Attack\",,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+	    *ValidPath);
 	FFileHelper::SaveStringToFile(
-		Header + TEXT("Combat.Attack,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
-		*InvalidPath);
+	    Header + TEXT("Combat.Attack,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+	    *InvalidPath);
 
 	FReEchoAudioCatalog Catalog;
 	TestTrue(TEXT("valid quoted CSV loads"), Catalog.LoadCatalog(ValidPath));
 	TestEqual(TEXT("one definition committed"), Catalog.Num(), 1);
 	const FReEchoAudioEventDefinition* Before = Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack);
 	TestNotNull(TEXT("stable event is available"), Before);
+	AddExpectedError(TEXT("unsupported bus; preserving previous catalog"), EAutomationExpectedErrorFlags::Contains, 1);
 	TestFalse(TEXT("invalid enum rejects reload"), Catalog.LoadCatalog(InvalidPath));
 	TestEqual(TEXT("failed reload preserves previous catalog"), Catalog.Num(), 1);
-	TestNotNull(TEXT("previous definition remains available"), Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack));
+	TestNotNull(TEXT("previous definition remains available"),
+	            Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack));
 
 	IFileManager::Get().Delete(*ValidPath);
 	IFileManager::Get().Delete(*InvalidPath);
@@ -457,8 +525,9 @@ bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 // ---- Module loads and stable event/state constants are valid ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioModuleLoadTest,
-	"ReEcho.Audio.Foundation.ModuleLoads",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Audio.Foundation.ModuleLoads",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoAudioModuleLoadTest::RunTest(const FString& Parameters)
 {
 	IModuleInterface* Module = FModuleManager::Get().LoadModule(TEXT("ReEchoAudio"));

@@ -131,4 +131,5 @@ private:
 	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;
 
 	bool bVisualPlacementApplied = false;
+	bool bAudioSpawnPosted = false;
 };

@@ -28,7 +28,9 @@ void FReEchoAudioPolicyEngine::Update(float DeltaSeconds)
 
 float FReEchoAudioPolicyEngine::ComputeOneShotVolume(EReEchoAudioBus Bus, float EventBaseVolume) const
 {
-	float Volume = BusMuted[static_cast<int32>(EReEchoAudioBus::Master)] ? 0.0f : BusVolumes[static_cast<int32>(EReEchoAudioBus::Master)];
+	float Volume = BusMuted[static_cast<int32>(EReEchoAudioBus::Master)]
+	                   ? 0.0f
+	                   : BusVolumes[static_cast<int32>(EReEchoAudioBus::Master)];
 	Volume *= BusMuted[static_cast<int32>(Bus)] ? 0.0f : BusVolumes[static_cast<int32>(Bus)];
 	Volume *= EventBaseVolume;
 	return FMath::Clamp(Volume, 0.0f, 1.0f);
@@ -50,9 +52,10 @@ void FReEchoAudioPolicyEngine::PostEvent(const FReEchoAudioEventRequest& Request
 			WarnedUnknownEvents.Add(Request.EventId);
 			++UnknownEventWarningCount;
 #if !UE_BUILD_SHIPPING
-			UE_LOG(LogReEchoAudio, Warning,
-				TEXT("ReEchoAudio: unknown event id '%s' has no catalog definition; ignoring."),
-				*Request.EventId.ToString());
+			UE_LOG(LogReEchoAudio,
+			       Warning,
+			       TEXT("ReEchoAudio: unknown event id '%s' has no catalog definition; ignoring."),
+			       *Request.EventId.ToString());
 #endif
 		}
 		return;
@@ -97,10 +100,9 @@ void FReEchoAudioPolicyEngine::PostEvent(const FReEchoAudioEventRequest& Request
 				{
 					continue;
 				}
-				if (LowestIdx == INDEX_NONE ||
-					ActiveVoices[i].Priority < ActiveVoices[LowestIdx].Priority ||
-					(ActiveVoices[i].Priority == ActiveVoices[LowestIdx].Priority &&
-						ActiveVoices[i].EndTime < ActiveVoices[LowestIdx].EndTime))
+				if (LowestIdx == INDEX_NONE || ActiveVoices[i].Priority < ActiveVoices[LowestIdx].Priority ||
+				    (ActiveVoices[i].Priority == ActiveVoices[LowestIdx].Priority &&
+				     ActiveVoices[i].EndTime < ActiveVoices[LowestIdx].EndTime))
 				{
 					LowestIdx = i;
 				}
@@ -171,9 +173,10 @@ void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName State
 			WarnedUnknownEvents.Add(StateId);
 			++UnknownEventWarningCount;
 #if !UE_BUILD_SHIPPING
-			UE_LOG(LogReEchoAudio, Warning,
-				TEXT("ReEchoAudio: unknown state id '%s' has no catalog definition; preserving current state."),
-				*StateId.ToString());
+			UE_LOG(LogReEchoAudio,
+			       Warning,
+			       TEXT("ReEchoAudio: unknown state id '%s' has no catalog definition; preserving current state."),
+			       *StateId.ToString());
 #endif
 		}
 		return;
@@ -184,10 +187,13 @@ void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName State
 	Command.Sound = Def->Sound;
 	Command.Bus = Def->Bus;
 	Command.bSpatial3D = Def->bSpatial3D;
+	Command.Location = FVector::ZeroVector;
 	Command.Volume = ComputeOneShotVolume(Def->Bus, Def->BaseVolume);
 	Command.Pitch = 1.0f;
 	Command.PausePolicy = Def->PausePolicy;
 	Command.FadeInSeconds = StateFadeOutSeconds;
+	Command.AttenuationMin = Def->AttenuationMin;
+	Command.AttenuationMax = Def->AttenuationMax;
 	Command.World = World;
 
 	const uint32 Handle = Backend->StartLoop(Command);

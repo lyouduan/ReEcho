@@ -81,4 +81,5 @@ private:
 	float AttackVisualRemaining = 0.0f;
 	float AutoTargetRange = 1600.0f;
 	float DamageEfficiency = 1.0f;
+	bool bAudioLifecycleStarted = false;
 };

@@ -30,6 +30,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetAmbienceState(FName StateId);
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void StopMusicState();
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void StopAmbienceState();
+	/** Queue a one-shot until the current game world has been replaced. Never delays the world transition. */
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void QueueEventForNextWorld(FName EventId);
 
 	/** Preview values immediately in the policy engine; these calls do not persist. */
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void SetMasterVolume(float Volume);
@@ -53,12 +55,20 @@ public:
 
 private:
 	bool TickAudio(float DeltaTime);
+	void PrepareStateWorld(UWorld* ActiveWorld);
+	void RetryDesiredStates(UWorld* ActiveWorld);
+	void TryPostQueuedWorldEvent();
 	void LoadAndApplyUserSettings();
 	void ApplyPersistedUserSettings();
 
 	TSharedPtr<FReEchoAudioPolicyEngine> PolicyEngine;
 	TSharedPtr<FReEchoAudioCatalog> Catalog;
 	FStreamableManager AudioStreamableManager;
+	FName DesiredMusicStateId;
+	FName DesiredAmbienceStateId;
+	TWeakObjectPtr<UWorld> StateWorld;
+	FName QueuedWorldEventId;
+	TWeakObjectPtr<UWorld> QueuedWorldEventOrigin;
 	UPROPERTY()
 	TObjectPtr<UReEchoAudioUserSettings> UserSettings;
 	FTSTicker::FDelegateHandle TickerHandle;

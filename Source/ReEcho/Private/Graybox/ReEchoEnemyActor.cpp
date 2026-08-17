@@ -25,6 +25,7 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
+#include "ReEchoAudioEvents.h"
 #include "UI/ReEchoDamageNumberActor.h"
 #include "Graybox/ReEchoAttackEffects.h"
 
@@ -246,6 +247,16 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		bVisualPlacementApplied = true;
 	}
 	EnemyPresentation->ConfigureAppearance(Definition.Archetype, SpawnIndex);
+	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
+	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
+	                                     bBoss ? FReEchoAudioEvents::BossAttack : FReEchoAudioEvents::EnemyAttack,
+	                                     bBoss ? FReEchoAudioEvents::BossDeath : FReEchoAudioEvents::EnemyDeath);
+	if (!bAudioSpawnPosted)
+	{
+		CombatAudioAdapter->PostConfiguredEvent(
+		    bBoss ? FReEchoAudioEvents::BossSpawn : FReEchoAudioEvents::EnemySpawn, GetActorLocation());
+		bAudioSpawnPosted = true;
+	}
 	if (EnemyRoster)
 	{
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
@@ -645,6 +656,7 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 	{
 		return;
 	}
+	CombatAudioAdapter->PostConfiguredAttack(Intent.Origin, Intent.AbilityId);
 
 	AActor* Target = Intent.Target.Get();
 	IReEchoCombatTarget* CombatTarget = Target ? Cast<IReEchoCombatTarget>(Target) : nullptr;
@@ -716,6 +728,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 	{
 		return;
 	}
+	CombatAudioAdapter->PostConfiguredAttack(Intent.SourceLocation);
 	if (Intent.bCanDamageTarget && Intent.Target.IsValid())
 	{
 		FReEchoHitIntent HitIntent;

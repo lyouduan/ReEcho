@@ -20,6 +20,7 @@ class UReEchoWeatherWidget;
 class UReEchoEchoManagementWidget;
 class UReEchoStoredEchoEntryWidget;
 class UReEchoEnemyRosterComponent;
+class UReEchoAudioService;
 class UMaterialInterface;
 class UTexture2D;
 enum class EReEchoInventoryShopMode : uint8;
@@ -102,6 +103,7 @@ private:
 	TObjectPtr<UReEchoWeatherWidget> WeatherWidget;
 
 	bool bRestartScreenIsTerminal = false;
+	bool bRestartScreenIsDeath = false;
 	bool bAwaitingStartChoice = true;
 	bool bQuitConfirmationVisible = false;
 	bool bContinueRunAfterShop = false;
@@ -155,6 +157,13 @@ private:
 	void HandleTraitCardSelected(FName CardId);
 	void CreateArena();
 	void UpdateWeatherScene(int32 EncounterIndex);
+	UReEchoAudioService* GetAudioService() const;
+	void SetMusicState(FName StateId) const;
+	void SetAmbienceState(FName StateId) const;
+	void StopAmbienceState() const;
+	void PostAudioEvent(FName EventId, const FVector& WorldLocation = FVector::ZeroVector) const;
+	void PostUiEvent(FName EventId) const;
+	void RestoreEncounterAudioState();
 
 	UFUNCTION()
 	void HandleInventoryShopClosed();

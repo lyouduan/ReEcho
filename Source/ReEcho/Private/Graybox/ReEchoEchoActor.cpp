@@ -15,6 +15,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoPlaybackComponent.h"
 #include "ReEcho.h"
+#include "ReEchoAudioEvents.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -74,6 +75,9 @@ AReEchoEchoActor::AReEchoEchoActor()
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
+	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo,
+	                                     FReEchoAudioEvents::EchoAttack,
+	                                     NAME_None);
 }
 
 bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
@@ -128,6 +132,11 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 		EchoStats.ElementalAttack = FMath::Max(1.0f, EchoStats.ElementalAttack * DamageEfficiency);
 		Combatant->InitializeFromStats(EchoStats, true);
 	}
+	if (Weapon && !bAudioLifecycleStarted)
+	{
+		CombatAudioAdapter->PostConfiguredEvent(FReEchoAudioEvents::EchoSpawn, GetActorLocation());
+		bAudioLifecycleStarted = true;
+	}
 	return Weapon != nullptr;
 }
 
@@ -151,6 +160,11 @@ bool AReEchoEchoActor::ConfigureEchoAppearance(const FName CharacterId)
 
 void AReEchoEchoActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (bAudioLifecycleStarted && EndPlayReason == EEndPlayReason::Destroyed)
+	{
+		CombatAudioAdapter->PostConfiguredEvent(FReEchoAudioEvents::EchoEnd, GetActorLocation());
+		bAudioLifecycleStarted = false;
+	}
 	if (Weapon)
 	{
 		Weapon->Destroy();

@@ -83,6 +83,13 @@ MOD-ReEcho ──→ MOD-ReEchoAudio
 
 `ReEcho` 可以调用并组合独立模块；Audio、Combat、Weapons、Enemies 均不得反向依赖 `ReEcho`。主模块内部高层编排可以依赖领域契约，领域逻辑不应依赖具体 Widget、纹理、材质或 GameMode 私有实现。
 
+### 音频语义装配
+
+- `AReEchoGameMode` 从已经确认的菜单、遭遇、Boss、商店、天气、死亡、胜利、镜头切换和死亡重开生命周期发布状态或事件；`UReEchoRunSubsystem` 不保存第二份音乐状态。
+- `UReEchoUIFlowCoordinatorSubsystem` 为注册屏幕的按钮统一绑定 hover/基础 confirm；GameMode 仅在真实关闭、拒绝、购买和卡牌选择结果上追加专用 UI 事件。
+- `UReEchoCombatAudioAdapterComponent` 消费 Combat 最终事件；Enemy/Boss Host 把已提交 Intent 翻译为其专用攻击事件，Enemy Archetype 决定 Enemy/Boss 路由，Echo Host 发布自身生命周期。
+- 所有调用点只传 `FReEchoAudioEvents` 稳定 ID、位置、粗粒度来源和可选 VariantId，不加载 SoundWave，也不读取音频结果改变玩法。
+
 ## 运行时流程
 
 ```text
