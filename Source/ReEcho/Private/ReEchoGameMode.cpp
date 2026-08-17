@@ -25,6 +25,8 @@
 #include "Camera/CameraActor.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Scene/ReEchoArenaCameraActor.h"
+#include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
@@ -107,7 +109,8 @@ void AReEchoGameMode::PostUiEvent(const FName EventId) const
 
 void AReEchoGameMode::RestoreEncounterAudioState()
 {
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (!RunSubsystem || RunSubsystem->Phase != EReEchoRunPhase::Encounter)
 	{
 		return;
@@ -235,7 +238,7 @@ void AReEchoGameMode::GMWeather(const FString& Scene)
 	}
 	WeatherWidget->SetWeatherScene(WeatherScene);
 	SetAmbienceState(WeatherScene == EReEchoWeatherScene::Rain ? FReEchoAudioEvents::AmbienceRain
-	                                                        : FReEchoAudioEvents::AmbienceArena);
+	                                                           : FReEchoAudioEvents::AmbienceArena);
 	PrintGMResult(FString::Printf(TEXT("Weather=%s"), *Scene));
 }
 
@@ -309,37 +312,47 @@ void AReEchoGameMode::StartPlay()
 {
 	Super::StartPlay();
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
-	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
-	const float SceneWorldHeight = FMath::Max(100.0f, BalanceSettings->ArenaSceneWorldHeight);
-	const float SceneAspectRatio = ArenaBackgroundTexture ? static_cast<float>(ArenaBackgroundTexture->GetSizeX()) /
-	                                                            FMath::Max(1, ArenaBackgroundTexture->GetSizeY())
-	                                                      : 16.0f / 9.0f;
-	const float CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio * 2.0f;
-	ArenaSceneWorldHeight = SceneWorldHeight;
-	ArenaSceneWorldWidth = CameraOrthoWidth;
+	int32 ArenaSceneCount = 0;
+	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
+	{
+		ArenaScene = *It;
+		++ArenaSceneCount;
+	}
+	FString ArenaFailure;
+	if (ArenaSceneCount != 1 || !ArenaScene || !ArenaScene->HasValidConfiguration(&ArenaFailure))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[ArenaScene] Expected one valid ArenaScene; found %d. %s"),
+		       ArenaSceneCount,
+		       *ArenaFailure);
+		return;
+	}
+	const FVector2D PlayerHalfExtents = ArenaScene->GetPlayerHalfExtents();
+	const FVector2D EnemySpawnHalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
+	ArenaSceneWorldHeight = EnemySpawnHalfExtents.X * 2.0f;
+	ArenaSceneWorldWidth = EnemySpawnHalfExtents.Y * 2.0f;
 	if (Player)
 	{
-		Player->ConfigureArenaBounds(ArenaSceneWorldHeight * 0.5f, ArenaSceneWorldWidth * 0.5f);
+		Player->ConfigureArenaBounds(ArenaScene->GetArenaCenter(), PlayerHalfExtents);
 	}
-	FixedCamera = GetWorld()->SpawnActor<ACameraActor>(FVector(-700.0f, 0.0f, 900.0f), FRotator(-55.0f, 0.0f, 0.0f));
-	if (FixedCamera)
+	int32 ArenaCameraCount = 0;
+	for (TActorIterator<AReEchoArenaCameraActor> It(GetWorld()); It; ++It)
 	{
-		UCameraComponent* FixedCameraComponent = FixedCamera->GetCameraComponent();
-		FixedCameraComponent->SetProjectionMode(ECameraProjectionMode::Orthographic);
-		FixedCameraComponent->SetOrthoWidth(CameraOrthoWidth);
-		FixedCameraComponent->SetAspectRatio(SceneAspectRatio);
-		FixedCameraComponent->SetConstraintAspectRatio(true);
-		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
-		{
-			PlayerController->SetViewTarget(FixedCamera);
-			PostAudioEvent(FReEchoAudioEvents::CameraMove, FixedCamera->GetActorLocation());
-		}
-		if (Player && Player->Camera)
-		{
-			Player->Camera->Deactivate();
-		}
+		ArenaCameraActor = *It;
+		++ArenaCameraCount;
 	}
-	CreateArena();
+	if (ArenaCameraCount != 1 || !ArenaCameraActor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ArenaCamera] Expected one ArenaCameraActor; found %d."), ArenaCameraCount);
+		return;
+	}
+	ArenaCameraActor->Configure(Player, ArenaScene);
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PlayerController->SetViewTarget(ArenaCameraActor);
+		PostAudioEvent(FReEchoAudioEvents::CameraMove, ArenaCameraActor->GetActorLocation());
+	}
 	Director = GetWorld()->SpawnActor<AReEchoEncounterDirector>();
 	Director->OnFixedStep.AddDynamic(this, &AReEchoGameMode::HandleFixedStep);
 	Director->OnEncounterEnded.AddDynamic(this, &AReEchoGameMode::HandleEncounterEnded);
@@ -347,19 +360,17 @@ void AReEchoGameMode::StartPlay()
 	{
 		UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-		WeatherWidget = UIFlow
-		                    ? Cast<UReEchoWeatherWidget>(
-		                          UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Weather, false, false))
-		                    : nullptr;
+		WeatherWidget = UIFlow ? Cast<UReEchoWeatherWidget>(
+		                             UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Weather, false, false))
+		                       : nullptr;
 		if (WeatherWidget)
 		{
 			WeatherWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
 			RefreshFogRevealSources();
 		}
-		EncounterHudWidget = UIFlow
-		                         ? Cast<UReEchoEncounterHudWidget>(
-		                               UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::EncounterHud, false, false))
-		                         : nullptr;
+		EncounterHudWidget = UIFlow ? Cast<UReEchoEncounterHudWidget>(UIFlow->OpenScreen(
+		                                  PlayerController, EReEchoUIScreen::EncounterHud, false, false))
+		                            : nullptr;
 		if (EncounterHudWidget)
 		{
 			EncounterHudWidget->SetVisibility(ESlateVisibility::Collapsed);
@@ -376,13 +387,12 @@ void AReEchoGameMode::StartPlay()
 		{
 			UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 			    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-			PlayerHudWidget = UIFlow
-			                      ? Cast<UReEchoPlayerHudWidget>(
-			                            UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::PlayerHud, false, false))
-			                      : nullptr;
+			PlayerHudWidget = UIFlow ? Cast<UReEchoPlayerHudWidget>(UIFlow->OpenScreen(
+			                               PlayerController, EReEchoUIScreen::PlayerHud, false, false))
+			                         : nullptr;
 			if (PlayerHudWidget)
 			{
-				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
@@ -400,12 +410,11 @@ void AReEchoGameMode::ShowStartMenu()
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	StartMenuWidget = UIFlow
-	                      ? Cast<UReEchoStartMenuWidget>(
-	                            UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::StartMenu, true, true))
-	                      : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	StartMenuWidget =
+	    UIFlow
+	        ? Cast<UReEchoStartMenuWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::StartMenu, true, true))
+	        : nullptr;
 	if (!StartMenuWidget)
 	{
 		return;
@@ -527,12 +536,11 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	SettingsWidget = UIFlow
-	                     ? Cast<UReEchoSettingsWidget>(
-	                           UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Settings, true, false))
-	                     : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	SettingsWidget =
+	    UIFlow
+	        ? Cast<UReEchoSettingsWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Settings, true, false))
+	        : nullptr;
 	if (!SettingsWidget)
 	{
 		return;
@@ -549,8 +557,7 @@ void AReEchoGameMode::ShowLoadoutSelection()
 	{
 		return;
 	}
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	UReEchoLoadoutSelectionWidget* NewLoadoutSelectionWidget =
 	    UIFlow ? Cast<UReEchoLoadoutSelectionWidget>(
 	                 UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Loadout, true, true))
@@ -680,7 +687,7 @@ void AReEchoGameMode::UpdateWeatherScene(const int32 EncounterIndex)
 		WeatherWidget->SetWeatherScene(WeatherScene);
 	}
 	SetAmbienceState(WeatherScene == EReEchoWeatherScene::Rain ? FReEchoAudioEvents::AmbienceRain
-	                                                        : FReEchoAudioEvents::AmbienceArena);
+	                                                           : FReEchoAudioEvents::AmbienceArena);
 }
 
 void AReEchoGameMode::CreateArena()
@@ -802,7 +809,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
 		if (PlayerHudWidget)
 		{
-			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 		}
 		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
 		                                 TEXT("GrayboxArena"),
@@ -896,7 +903,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Player->Recorder->ResumeRecording(SavedState.ActiveRecording);
 	if (PlayerHudWidget)
 	{
-		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 	}
 
 	// Plan31: resume the same selected set as a fresh encounter, one independent Echo per
@@ -910,9 +917,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 			AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
 			if (Echo)
 			{
-				if (Echo->InitializeEcho(Recording,
-				                         RunSubsystem->CurrentBuild.Stats.EchoEfficiency,
-				                         RunSubsystem->GetRunDataSnapshot()))
+				if (Echo->InitializeEcho(
+				        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 				{
 					Echo->AdvanceEcho(SavedState.EncounterTime);
 					Echoes.Add(Echo);
@@ -933,12 +939,12 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		if (Enemy)
 		{
 			const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
-			                                         ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
-			                                         : EReEchoEnemyKind::Grunt;
-			const FName EnemyId = SavedKind == EReEchoEnemyKind::Boss      ? FName(TEXT("M_TimeGuard"))
+			                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
+			                                       : EReEchoEnemyKind::Grunt;
+			const FName EnemyId = SavedKind == EReEchoEnemyKind::Boss     ? FName(TEXT("M_TimeGuard"))
 			                      : SavedKind == EReEchoEnemyKind::Bomber ? FName(TEXT("M_Bomber"))
 			                      : SavedKind == EReEchoEnemyKind::Shield ? FName(TEXT("M_Shield"))
-			                                                                : FName(TEXT("M_Grunt"));
+			                                                              : FName(TEXT("M_Grunt"));
 			FReEchoEnemyDefinition Definition;
 			FString CompileError;
 			if (!DataSnapshot ||
@@ -996,7 +1002,8 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 	};
 
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
 	auto SpawnEnemy = [&](const FName EnemyId)
 	{
 		if (!DataSnapshot)
@@ -1044,16 +1051,15 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 
 bool AReEchoGameMode::IsBossEncounter() const
 {
-	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
-	                                                          : nullptr;
+	const UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	return RunSubsystem &&
 	       RunSubsystem->EncounterIndex == GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
 }
 
 void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition)
 {
-	if (bBossPostEchoPhaseTriggered || !IsBossEncounter() || !PhaseDefinition.bEnabled || !Player ||
-	    !Player->Combatant)
+	if (bBossPostEchoPhaseTriggered || !IsBossEncounter() || !PhaseDefinition.bEnabled || !Player || !Player->Combatant)
 	{
 		return;
 	}
@@ -1133,12 +1139,10 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	RestartWidget = UIFlow
-	                    ? Cast<UReEchoRestartWidget>(
-	                          UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Restart, false, true))
-	                    : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	RestartWidget =
+	    UIFlow ? Cast<UReEchoRestartWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Restart, false, true))
+	           : nullptr;
 	if (!RestartWidget)
 	{
 		return;
@@ -1231,12 +1235,10 @@ void AReEchoGameMode::ShowStatsMenu()
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	StatsWidget = UIFlow
-	                  ? Cast<UReEchoStatsWidget>(
-	                        UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Stats, false, true))
-	                  : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	StatsWidget =
+	    UIFlow ? Cast<UReEchoStatsWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Stats, false, true))
+	           : nullptr;
 	if (!StatsWidget)
 	{
 		return;
@@ -1310,12 +1312,10 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	InventoryShopWidget = UIFlow
-	                          ? Cast<UReEchoInventoryShopWidget>(
-	                                UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::InventoryShop, false, true))
-	                          : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	InventoryShopWidget = UIFlow ? Cast<UReEchoInventoryShopWidget>(UIFlow->OpenScreen(
+	                                   PlayerController, EReEchoUIScreen::InventoryShop, false, true))
+	                             : nullptr;
 	if (!InventoryShopWidget)
 	{
 		return;
@@ -1330,8 +1330,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		InventoryShopWidget->OnEchoSkipRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSkipRequested);
 		InventoryShopWidget->OnEchoReplaceRequested.AddUObject(this, &AReEchoGameMode::HandleEchoReplaceRequested);
 		InventoryShopWidget->OnEchoSelectionRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSelectionRequested);
-		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(
-		    this, &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
+		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(this,
+		                                                            &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
 		InventoryShopWidget->ShowPostTraitIntermission(
 		    RunSubsystem->TimeShards, RunSubsystem->InventoryItems, RunSubsystem->GetEchoStorageSummary());
 	}
@@ -1365,8 +1365,8 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	if (bPostTraitIntermission && RunSubsystem && RunSubsystem->GetEchoStorageSummary().bHasPendingRecording)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
+		InventoryShopWidget->ShowEchoStatus(NSLOCTEXT(
+		    "ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
 		return;
 	}
 	PostUiEvent(FReEchoAudioEvents::UiCancel);
@@ -1425,19 +1425,19 @@ FText GetEchoCommandFailureText(const EReEchoEchoStorageResult Result)
 {
 	switch (Result)
 	{
-	case EReEchoEchoStorageResult::NoPendingRecording:
-		return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
-	case EReEchoEchoStorageResult::StorageFull:
-		return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
-	case EReEchoEchoStorageResult::InvalidReplacementTarget:
-		return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
-	case EReEchoEchoStorageResult::ReplayLimitExceeded:
-		return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
-	case EReEchoEchoStorageResult::InvalidRecordingId:
-	case EReEchoEchoStorageResult::DuplicateRecordingId:
-		return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
-	default:
-		return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
+		case EReEchoEchoStorageResult::NoPendingRecording:
+			return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
+		case EReEchoEchoStorageResult::StorageFull:
+			return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
+		case EReEchoEchoStorageResult::InvalidReplacementTarget:
+			return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
+		case EReEchoEchoStorageResult::ReplayLimitExceeded:
+			return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
+		case EReEchoEchoStorageResult::InvalidRecordingId:
+		case EReEchoEchoStorageResult::DuplicateRecordingId:
+			return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
+		default:
+			return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
 	}
 }
 }
@@ -1533,7 +1533,8 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(
 		    bSaved ? NSLOCTEXT("ReEcho", "EchoSelectionSaved", "Replay selection saved.")
-		           : NSLOCTEXT("ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
+		           : NSLOCTEXT(
+		                 "ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
 	}
 	else
 	{
@@ -1565,8 +1566,8 @@ void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
 	if (!bSaved)
 	{
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoCloseSaveFailed", "The echo was skipped, but saving failed. The shop remains open."));
+		InventoryShopWidget->ShowEchoStatus(NSLOCTEXT(
+		    "ReEcho", "EchoCloseSaveFailed", "The echo was skipped, but saving failed. The shop remains open."));
 		return;
 	}
 	const FReEchoEchoStorageSummary Summary = RunSubsystem->GetEchoStorageSummary();
@@ -1763,12 +1764,10 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-	    GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	TraitCardChoiceWidget = UIFlow
-	                            ? Cast<UReEchoTraitCardChoiceWidget>(
-	                                  UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::TraitChoice, false, true))
-	                            : nullptr;
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	TraitCardChoiceWidget = UIFlow ? Cast<UReEchoTraitCardChoiceWidget>(UIFlow->OpenScreen(
+	                                     PlayerController, EReEchoUIScreen::TraitChoice, false, true))
+	                               : nullptr;
 	if (!TraitCardChoiceWidget)
 	{
 		return;
@@ -1859,9 +1858,10 @@ void AReEchoGameMode::RestoreGameInput()
 	SetPlayerMenuAbilityBlocked(false);
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		if (FixedCamera)
+		if (ArenaCameraActor)
 		{
-			PlayerController->SetViewTarget(FixedCamera);
+			ArenaCameraActor->Configure(Player, ArenaScene);
+			PlayerController->SetViewTarget(ArenaCameraActor);
 		}
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())

@@ -17,8 +17,13 @@ class REECHO_API UReEcho2DAnimationComponent : public UPaperFlipbookComponent
 
 public:
 	UReEcho2DAnimationComponent();
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
-	                           FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void
+	TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
+	static FRotator CalculateCameraFacingRotation(const FRotator& CameraRotation);
 
 	/** Faithfully plays one data-owned clip without resolving gameplay or character state. */
 	bool PlayClip(const FReEcho2DAnimationClip& Clip, bool bRestart = false);
@@ -27,10 +32,27 @@ public:
 	void DeactivateAnimation();
 	void SetFacingSign(float InFacingSign);
 	bool IsAnimationActive();
-	const FReEcho2DAnimationClip& GetActiveClip() const { return ActiveClip; }
+
+	const FReEcho2DAnimationClip& GetActiveClip() const
+	{
+		return ActiveClip;
+	}
+
 	int32 GetCurrentKeyFrameIndex();
-	float GetFacingSign() const { return FacingSign; }
+
+	float GetFacingSign() const
+	{
+		return FacingSign;
+	}
+
 	bool IsUsingEachFrameCollision() const;
+
+	/** Flipbook source art faces right when unmirrored. Clear this for assets authored facing left. */
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          Category = "Character Scene|Flipbook",
+	          meta = (DisplayName = "Source Faces Right (资源默认朝右)"))
+	bool bSourceFacesRight = true;
 
 	/** Editor asset-repair seam used by the deterministic import script; it has no runtime gameplay effect. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|Animation2D", meta = (DevelopmentOnly))

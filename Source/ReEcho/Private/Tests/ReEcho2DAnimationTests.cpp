@@ -2,18 +2,20 @@
 
 #include "Misc/AutomationTest.h"
 
-#include "Components/BillboardComponent.h"
-#include "Engine/Texture2D.h"
+#include "Components/SceneComponent.h"
+#include "Graybox/ReEchoEnemyActor.h"
 #include "PaperFlipbook.h"
 #include "PaperSprite.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationStateMachineAsset.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionTrack.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Player/ReEchoPlayerPawn.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
                                  "ReEcho.Presentation.Animation2D.AssetProfiles",
@@ -21,15 +23,24 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
 
 bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 {
-	UPaperFlipbook* WalkFlipbook = LoadObject<UPaperFlipbook>(
-	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk"));
+	const FRotator TestCameraRotation(-55.0f, 0.0f, 0.0f);
+	const FRotator SpriteRotation = UReEcho2DAnimationComponent::CalculateCameraFacingRotation(TestCameraRotation);
+	const FRotationMatrix SpriteMatrix(SpriteRotation);
+	const FRotationMatrix CameraMatrix(TestCameraRotation);
+	TestTrue(TEXT("Animated sprite normal faces the active camera"),
+	         FVector::DotProduct(SpriteMatrix.GetUnitAxis(EAxis::Y), -CameraMatrix.GetUnitAxis(EAxis::X)) > 0.999f);
+	TestTrue(TEXT("Animated sprite vertical axis follows screen up"),
+	         FVector::DotProduct(SpriteMatrix.GetUnitAxis(EAxis::Z), CameraMatrix.GetUnitAxis(EAxis::Z)) > 0.999f);
+
+	UPaperFlipbook* WalkFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk"));
 	UPaperFlipbook* PlayerFlipbook = WalkFlipbook;
-	UPaperFlipbook* GruntFlipbook =
-	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default.Default"));
+	UPaperFlipbook* GruntFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default.Default"));
 	UPaperFlipbook* StaffAttackFlipbook =
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
-	UPaperFlipbook* RabbitFlipbook =
-	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
+	UPaperFlipbook* RabbitFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
 	UPaperFlipbook* GoatFlipbook = LoadObject<UPaperFlipbook>(
 	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default.Default"));
 	TestNotNull(TEXT("J_SPADE reusable renderer Flipbook is loadable"), PlayerFlipbook);
@@ -61,8 +72,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 			for (int32 Index = 0; Index < Flipbook->GetNumKeyFrames(); ++Index)
 			{
 				const UPaperSprite* Sprite = Flipbook->GetKeyFrameChecked(Index).Sprite;
-				bEveryFrameHasCollision &= Sprite && Sprite->BodySetup &&
-				                           Sprite->BodySetup->AggGeom.GetElementCount() > 0;
+				bEveryFrameHasCollision &=
+				    Sprite && Sprite->BodySetup && Sprite->BodySetup->AggGeom.GetElementCount() > 0;
 			}
 		}
 		TestTrue(Label, bEveryFrameHasCollision);
@@ -86,6 +97,52 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	const UReEcho2DCharacterPresentationProfile* AuthoredSpade =
 	    AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_SPADE")) : nullptr;
 	TestNotNull(TEXT("Authored catalog resolves J_SPADE AppearanceId"), AuthoredSpade);
+	UClass* PlayerGameplayClass = LoadClass<AReEchoPlayerPawn>(
+	    nullptr, TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay.BP_PlayerGameplay_C"));
+	UClass* GruntGameplayClass = LoadClass<AReEchoEnemyActor>(
+	    nullptr, TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Grunt.BP_EnemyGameplay_Grunt_C"));
+	TestTrue(TEXT("Player Gameplay Blueprint owns the runtime character scene"),
+	         PlayerGameplayClass && PlayerGameplayClass->IsChildOf(AReEchoPlayerPawn::StaticClass()));
+	TestTrue(TEXT("Enemy Gameplay Blueprint owns the runtime character scene"),
+	         GruntGameplayClass && GruntGameplayClass->IsChildOf(AReEchoEnemyActor::StaticClass()));
+	auto TestGameplaySceneTree = [this](const TCHAR* Label, UClass* GameplayClass)
+	{
+		AActor* DefaultActor = GameplayClass ? Cast<AActor>(GameplayClass->GetDefaultObject()) : nullptr;
+		USceneComponent* Collision = DefaultActor ? DefaultActor->GetRootComponent() : nullptr;
+		USceneComponent* Presentation =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("PresentationRoot")))
+		                 : nullptr;
+		USceneComponent* FootRoot =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("FootRoot"))) : nullptr;
+		USceneComponent* MotionRoot =
+		    DefaultActor
+		        ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("PresentationMotionRoot")))
+		        : nullptr;
+		USceneComponent* FlipbookRoot =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("FlipbookRoot")))
+		                 : nullptr;
+		USceneComponent* GroundRoot =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("GroundRoot"))) : nullptr;
+		USceneComponent* EffectsRoot =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("EffectsRoot")))
+		                 : nullptr;
+		USceneComponent* Renderer =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("FlipbookRenderer")))
+		                 : nullptr;
+		TestTrue(Label,
+		         Collision && Presentation && FootRoot && MotionRoot && FlipbookRoot && GroundRoot && EffectsRoot &&
+		             Renderer && Presentation->GetAttachParent() == Collision &&
+		             FootRoot->GetAttachParent() == Presentation && MotionRoot->GetAttachParent() == FootRoot &&
+		             FlipbookRoot->GetAttachParent() == MotionRoot && GroundRoot->GetAttachParent() == MotionRoot &&
+		             EffectsRoot->GetAttachParent() == MotionRoot && Renderer->GetAttachParent() == FlipbookRoot &&
+		             !FlipbookRoot->IsUsingAbsoluteRotation() && !GroundRoot->IsUsingAbsoluteRotation() &&
+		             Renderer->GetRelativeRotation().IsNearlyZero() && Renderer->GetRelativeLocation().IsNearlyZero() &&
+		             Renderer->GetRelativeScale3D().Equals(FVector::OneVector) && !Renderer->bHiddenInGame);
+	};
+	TestGameplaySceneTree(TEXT("Player Blueprint exposes collision, Flipbook, ground and effects roots"),
+	                      PlayerGameplayClass);
+	TestGameplaySceneTree(TEXT("Enemy Blueprint exposes collision, Flipbook, ground and effects roots"),
+	                      GruntGameplayClass);
 	TestTrue(TEXT("Authored Spade default set owns looping Move"),
 	         AuthoredSpade && AuthoredSpade->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) &&
 	             AuthoredSpade->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->Flipbook == WalkFlipbook &&
@@ -95,31 +152,42 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	             AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic)->Flipbook ==
 	                 StaffAttackFlipbook &&
 	             !AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic)->bLooping);
-	TestTrue(TEXT("Authored Grunt profile owns only its looping Idle clip"),
+	TestTrue(TEXT("Authored Grunt profile owns its looping Idle clip"),
 	         AuthoredGrunt && AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) &&
 	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->Flipbook == GruntFlipbook &&
-	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping &&
-	             !AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move));
-	auto TestEnemyProfile = [this](const TCHAR* Label, const UReEcho2DCharacterPresentationProfile* Profile,
-	                             const UPaperFlipbook* ExpectedFlipbook)
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping);
+	auto TestEnemyProfile = [this](const TCHAR* Label,
+	                               const UReEcho2DCharacterPresentationProfile* Profile,
+	                               const UPaperFlipbook* ExpectedFlipbook)
 	{
 		const FReEcho2DAnimationClip* IdleClip =
 		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 		const FReEcho2DAnimationClip* MoveClip =
 		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) : nullptr;
-		TestTrue(Label, Profile && !Profile->StaticFallback && IdleClip && !MoveClip &&
-		                    IdleClip->Flipbook == ExpectedFlipbook && IdleClip->bLooping);
+		const FReEcho2DAnimationClip* AttackClip =
+		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
+		const FReEcho2DAnimationClip* HitClip =
+		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Hit) : nullptr;
+		TestTrue(Label,
+		         Profile && IdleClip && MoveClip && AttackClip && HitClip && IdleClip->Flipbook == ExpectedFlipbook &&
+		             MoveClip->Flipbook == ExpectedFlipbook && AttackClip->Flipbook == ExpectedFlipbook &&
+		             HitClip->Flipbook == ExpectedFlipbook && IdleClip->bLooping && MoveClip->bLooping &&
+		             !AttackClip->bLooping && !HitClip->bLooping);
 	};
-	TestEnemyProfile(TEXT("Rabbit profile owns only one looping animation state"), AuthoredRabbit, RabbitFlipbook);
-	TestEnemyProfile(TEXT("Goat profile owns only one looping animation state"), AuthoredGoat, GoatFlipbook);
+	TestEnemyProfile(
+	    TEXT("Grunt exposes four semantic slots through its single authored Flipbook"), AuthoredGrunt, GruntFlipbook);
+	TestEnemyProfile(TEXT("Rabbit exposes four semantic slots through its single authored Flipbook"),
+	                 AuthoredRabbit,
+	                 RabbitFlipbook);
+	TestEnemyProfile(
+	    TEXT("Goat exposes four semantic slots through its single authored Flipbook"), AuthoredGoat, GoatFlipbook);
 	const FReEcho2DAnimationClip* FoxWalkClip =
 	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 	const FReEcho2DAnimationClip* FoxAttackClip =
 	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
-	TestTrue(TEXT("Fox owns looping Walk and one-shot Attack without static fallback"),
-	         AuthoredFox && !AuthoredFox->StaticFallback && FoxWalkClip && FoxAttackClip &&
-	             FoxWalkClip->Flipbook && FoxWalkClip->bLooping && FoxAttackClip->Flipbook &&
-	             !FoxAttackClip->bLooping && FoxAttackClip->bRestartOnRequest);
+	TestTrue(TEXT("Fox owns looping Walk and one-shot Attack"),
+	         AuthoredFox && FoxWalkClip && FoxAttackClip && FoxWalkClip->Flipbook && FoxWalkClip->bLooping &&
+	             FoxAttackClip->Flipbook && !FoxAttackClip->bLooping && FoxAttackClip->bRestartOnRequest);
 	TestTrue(TEXT("Fox Walk uses authored EachFrame collision"),
 	         FoxWalkClip && FoxWalkClip->Flipbook &&
 	             FoxWalkClip->Flipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
@@ -132,6 +200,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	                              FoxAttackClip ? FoxAttackClip->Flipbook : nullptr);
 
 	UReEcho2DAnimationComponent* Component = NewObject<UReEcho2DAnimationComponent>();
+	TestNotNull(TEXT("Animation renderer owns an alpha-capable sprite material override"), Component->GetMaterial(0));
 	FReEcho2DAnimationProfile Profile;
 	Profile.DefaultFlipbook = PlayerFlipbook;
 	Profile.StateFlipbooks.Add(EReEcho2DAnimationState::Walk, WalkFlipbook);
@@ -144,8 +213,11 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Activated component owns the requested Flipbook"),
 	         Component->IsAnimationActive() && Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Activated Idel profile loops"), Component->IsLooping());
-	TestEqual(TEXT("Static Idle keeps Paper2D collision disabled"),
-	          Component->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestEqual(TEXT("Idle collision follows the authored per-frame query policy"),
+	          Component->GetCollisionEnabled(),
+	          PlayerFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision
+	              ? ECollisionEnabled::QueryOnly
+	              : ECollisionEnabled::NoCollision);
 	TestEqual(
 	    TEXT("Native-scale player profile keeps authored scale"), Component->GetRelativeScale3D(), FVector::OneVector);
 	TestTrue(TEXT("Activated Flipbook can tick to advance frames"), Component->PrimaryComponentTick.bCanEverTick);
@@ -169,7 +241,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Component->IsUsingEachFrameCollision() &&
 	             Component->GetCollisionEnabled() == ECollisionEnabled::QueryOnly);
 	TestEqual(TEXT("EachFrame collision never blocks Pawn movement"),
-	          Component->GetCollisionResponseToChannel(ECC_Pawn), ECollisionResponse::ECR_Overlap);
+	          Component->GetCollisionResponseToChannel(ECC_Pawn),
+	          ECollisionResponse::ECR_Overlap);
 	TestFalse(TEXT("EachFrame collision does not emit automatic overlap events"),
 	          Component->GetGenerateOverlapEvents());
 	TestTrue(TEXT("Moon Staff attack state resolves to attack Flipbook"),
@@ -190,8 +263,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Pure renderer preserves authored one-shot policy"), Component->IsLooping());
 	TestEqual(TEXT("Pure renderer preserves authored play rate"), Component->GetPlayRate(), 1.25f);
 
-	UReEcho2DCharacterPresentationProfile* PresentationProfile =
-	    NewObject<UReEcho2DCharacterPresentationProfile>();
+	UReEcho2DCharacterPresentationProfile* PresentationProfile = NewObject<UReEcho2DCharacterPresentationProfile>();
 	PresentationProfile->AppearanceId = TEXT("Appearance.Spade");
 	FReEcho2DCompositeAnimationSet& DefaultSet = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
 	DefaultSet.Clips.Add(ReEcho2DAnimationTags::Idle, AuthoredClip);
@@ -215,28 +287,54 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	Catalog->CharacterProfiles.Add(PresentationProfile);
 	TestTrue(TEXT("Catalog resolves profiles only through AppearanceId"),
 	         Catalog->ResolveProfile(TEXT("Appearance.Spade")) == PresentationProfile);
-	TestNull(TEXT("Catalog safely rejects an unknown AppearanceId"),
-	         Catalog->ResolveProfile(TEXT("J_SPADE")));
+	TestNull(TEXT("Catalog safely rejects an unknown AppearanceId"), Catalog->ResolveProfile(TEXT("J_SPADE")));
 
 	// Match the authored Spade policy for controller behavior: static Idle, default Move, MoonStaff attack.
 	PresentationProfile->AnimationSets[0].Clips.Remove(ReEcho2DAnimationTags::Idle);
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Move, StaffMoveClip);
 	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Attack_Basic, AuthoredClip);
-	UBillboardComponent* StaticRenderer = NewObject<UBillboardComponent>();
-	StaticRenderer->SetSprite(LoadObject<UTexture2D>(
-	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01")));
+	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Hit, AuthoredClip);
+	UReEcho2DAnimationStateMachineAsset* StateMachine = NewObject<UReEcho2DAnimationStateMachineAsset>();
+	auto AddState = [StateMachine](const FGameplayTag Tag, const int32 Priority, const bool bLock, const bool bTerminal)
+	{
+		FReEcho2DAnimationStateDefinition& State = StateMachine->States.AddDefaulted_GetRef();
+		State.StateTag = Tag;
+		State.SemanticKey = Tag;
+		State.InterruptPriority = Priority;
+		State.bLockUntilPlaybackComplete = bLock;
+		State.bTerminal = bTerminal;
+	};
+	AddState(ReEcho2DAnimationTags::Idle, 0, false, false);
+	AddState(ReEcho2DAnimationTags::Move, 10, false, false);
+	AddState(ReEcho2DAnimationTags::Attack_Basic, 40, true, false);
+	AddState(ReEcho2DAnimationTags::Hit, 60, true, false);
+	PresentationProfile->StateMachine = StateMachine;
 	UReEcho2DAnimationComponent* ControlledRenderer = NewObject<UReEcho2DAnimationComponent>();
 	UReEcho2DPresentationController* Controller = NewObject<UReEcho2DPresentationController>();
-	Controller->Configure(StaticRenderer, ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));
-	TestTrue(TEXT("Missing Idle clip selects the visible static fallback"),
-	         StaticRenderer->IsVisible() && !ControlledRenderer->IsAnimationActive());
-	Controller->SetMoving(true);
-	TestTrue(TEXT("Move intent selects the authored weapon-set clip"),
+	ControlledRenderer->SetFlipbook(WalkFlipbook);
+	Controller->Configure(ControlledRenderer, nullptr, NAME_None);
+	TestTrue(TEXT("Missing Profile retains the Gameplay Blueprint fallback Flipbook"),
 	         ControlledRenderer->IsAnimationActive() && ControlledRenderer->GetFlipbook() == WalkFlipbook &&
-	             !StaticRenderer->IsVisible());
+	             ControlledRenderer->IsVisible() && !ControlledRenderer->bHiddenInGame);
+	Controller->Configure(ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));
+	PresentationProfile->WorldHeight = 100.0f;
+	Controller->Configure(ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));
+	TestFalse(TEXT("Missing Idle clip deactivates the pure Flipbook renderer"),
+	          ControlledRenderer->IsAnimationActive());
+	Controller->SetMoving(true);
+	const float ControlledNativeHeight = ControlledRenderer->GetFlipbook()->GetRenderBounds().BoxExtent.Z * 2.0f;
+	TestTrue(TEXT("Profile world height normalizes the active animation renderer"),
+	         ControlledNativeHeight > 0.0f &&
+	             FMath::IsNearlyEqual(ControlledRenderer->GetRelativeScale3D().Z, 100.0f / ControlledNativeHeight));
+	TestTrue(TEXT("Move intent selects the authored weapon-set clip"),
+	         ControlledRenderer->IsAnimationActive() && ControlledRenderer->GetFlipbook() == WalkFlipbook);
 	TestTrue(TEXT("Authored basic action overrides Move"),
 	         Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic) &&
 	             ControlledRenderer->GetFlipbook() == StaffAttackFlipbook && !ControlledRenderer->IsLooping());
+	TestTrue(TEXT("Higher-priority Hit interrupts a locked Attack state"),
+	         Controller->PlayAction(ReEcho2DAnimationTags::Hit));
+	TestFalse(TEXT("Lower-priority Attack cannot interrupt a locked Hit state"),
+	          Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic));
 	ControlledRenderer->Stop();
 	Controller->UpdatePlaybackCompletion();
 	TestTrue(TEXT("Completed one-shot returns to the current Move base state"),
@@ -259,11 +357,9 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	CollisionTrack->PixelsPerUnrealUnit = 2.0f;
 	CollisionTrack->PivotPixels = FVector2D(10.0f, 20.0f);
 	FReEcho2DCollisionPolygon BodyPolygon;
-	BodyPolygon.Vertices = {
-	    FVector2D(10.0f, 20.0f), FVector2D(14.0f, 20.0f), FVector2D(14.0f, 24.0f)};
+	BodyPolygon.Vertices = {FVector2D(10.0f, 20.0f), FVector2D(14.0f, 20.0f), FVector2D(14.0f, 24.0f)};
 	FReEcho2DCollisionPolygon AttackPolygon;
-	AttackPolygon.Vertices = {
-	    FVector2D(14.0f, 20.0f), FVector2D(18.0f, 20.0f), FVector2D(18.0f, 24.0f)};
+	AttackPolygon.Vertices = {FVector2D(14.0f, 20.0f), FVector2D(18.0f, 20.0f), FVector2D(18.0f, 24.0f)};
 	CollisionTrack->Frames[0].BodyHurtboxes.Add(BodyPolygon);
 	CollisionTrack->Frames[0].WeaponAttackHitboxes.Add(AttackPolygon);
 	CollisionTrack->Frames[0].bAttackActive = true;
@@ -278,16 +374,17 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Driver accepts a source-matched authored track"), CollisionDriver->HasValidTrack());
 	TestEqual(TEXT("Driver follows the renderer key frame"), CollisionDriver->GetSnapshot().FrameIndex, 0);
 	TestEqual(TEXT("Body Hurtboxes remain queryable without an attack instance"),
-	          CollisionDriver->GetSnapshot().BodyHurtboxes.Num(), 1);
+	          CollisionDriver->GetSnapshot().BodyHurtboxes.Num(),
+	          1);
 	TestFalse(TEXT("Authored active frame cannot open AttackHitboxes without a committed attack"),
 	          CollisionDriver->GetSnapshot().bAttackActive);
 	CollisionDriver->BeginAttackInstance(42);
 	TestTrue(TEXT("Committed attack opens authored active-frame AttackHitboxes"),
-	         CollisionDriver->GetSnapshot().bAttackActive &&
-	             CollisionDriver->GetSnapshot().AttackInstanceId == 42 &&
+	         CollisionDriver->GetSnapshot().bAttackActive && CollisionDriver->GetSnapshot().AttackInstanceId == 42 &&
 	             CollisionDriver->GetSnapshot().WeaponAttackHitboxes.Num() == 1);
 	TestEqual(TEXT("Pixel geometry is pivoted and converted to Unreal units"),
-	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1], FVector2D(2.0f, 0.0f));
+	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1],
+	          FVector2D(2.0f, 0.0f));
 	TestTrue(TEXT("Body geometry supports Query-only local point tests"),
 	         CollisionDriver->IsLocalPointInsideBody(FVector2D(1.5f, 0.5f)));
 	TestTrue(TEXT("Attack geometry accepts only its committed attack instance"),
@@ -297,7 +394,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	Component->SetFacingSign(-1.0f);
 	CollisionDriver->RefreshSnapshot();
 	TestEqual(TEXT("Facing mirrors collision geometry around the authored pivot"),
-	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1], FVector2D(-2.0f, 0.0f));
+	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1],
+	          FVector2D(-2.0f, 0.0f));
 	CollisionDriver->EndAttackInstance(42);
 	TestFalse(TEXT("Ending the matching attack instance closes AttackHitboxes"),
 	          CollisionDriver->GetSnapshot().bAttackActive);
@@ -314,7 +412,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	          EReEcho2DAnimationActivationResult::MissingFlipbook);
 	TestFalse(TEXT("Failed activation leaves animation disabled"), Component->IsAnimationActive());
 	TestEqual(TEXT("Disabled animation also disables Paper2D collision"),
-	          Component->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	          Component->GetCollisionEnabled(),
+	          ECollisionEnabled::NoCollision);
 	TestFalse(TEXT("Disabled animation is not playing"), Component->IsPlaying());
 	return true;
 }

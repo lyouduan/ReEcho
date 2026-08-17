@@ -1,10 +1,14 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 
+#include "Camera/PlayerCameraManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "PaperFlipbook.h"
 #include "PaperSprite.h"
 #include "DrawDebugHelpers.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Presentation/Animation2D/ReEcho2DCollisionDebug.h"
+#include "UObject/ConstructorHelpers.h"
 
 EReEcho2DAnimationState ReEchoResolve2DAnimationState(const bool bMoving, const bool bAttacking)
 {
@@ -39,9 +43,26 @@ UReEcho2DAnimationComponent::UReEcho2DAnimationComponent()
 	SetLooping(true);
 	SetVisibility(false);
 	SetHiddenInGame(true);
-	SetAbsolute(false, true, false);
-	SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	SetRelativeRotation(FRotator::ZeroRotator);
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TransparentSpriteMaterialFinder(
+	    TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	if (TransparentSpriteMaterialFinder.Succeeded())
+	{
+		SetMaterial(0, TransparentSpriteMaterialFinder.Object);
+	}
 }
+
+#if WITH_EDITOR
+void UReEcho2DAnimationComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	if (PropertyChangedEvent.GetPropertyName() ==
+	    GET_MEMBER_NAME_CHECKED(UReEcho2DAnimationComponent, bSourceFacesRight))
+	{
+		ApplyDisplayScale();
+	}
+}
+#endif
 
 bool UReEcho2DAnimationComponent::PlayClip(const FReEcho2DAnimationClip& Clip, const bool bRestart)
 {
@@ -145,11 +166,20 @@ bool UReEcho2DAnimationComponent::IsAnimationActive()
 	return bAnimationActive && GetFlipbook() != nullptr;
 }
 
-void UReEcho2DAnimationComponent::TickComponent(const float DeltaTime, const ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction)
+void UReEcho2DAnimationComponent::TickComponent(const float DeltaTime,
+                                                const ELevelTick TickType,
+                                                FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	DrawCurrentFrameCollisionDebug();
+}
+
+FRotator UReEcho2DAnimationComponent::CalculateCameraFacingRotation(const FRotator& CameraRotation)
+{
+	const FRotationMatrix CameraMatrix(CameraRotation);
+	const FVector FacingNormal = -CameraMatrix.GetUnitAxis(EAxis::X);
+	const FVector ScreenUp = CameraMatrix.GetUnitAxis(EAxis::Z);
+	return FRotationMatrix::MakeFromYZ(FacingNormal, ScreenUp).Rotator();
 }
 
 int32 UReEcho2DAnimationComponent::GetCurrentKeyFrameIndex()
@@ -190,13 +220,14 @@ void UReEcho2DAnimationComponent::ApplyDisplayScale()
 	const float NativeWorldHeight = Flipbook ? Flipbook->GetRenderBounds().BoxExtent.Z * 2.0f : 0.0f;
 	const float UniformScale =
 	    ActiveClip.bUseNativeScale || NativeWorldHeight <= 0.0f ? 1.0f : ActiveClip.WorldHeight / NativeWorldHeight;
-	SetRelativeScale3D(FVector(UniformScale * FacingSign, UniformScale, UniformScale));
+	const float SourceOrientationSign = bSourceFacesRight ? 1.0f : -1.0f;
+	SetRelativeScale3D(FVector(UniformScale * FacingSign * SourceOrientationSign, UniformScale, UniformScale));
 }
 
 void UReEcho2DAnimationComponent::ApplyCollisionPolicy()
 {
 	// Paper2D recreates its physics state on every key-frame change. Keep it Query-only so the
-	// Actor root Capsule remains the sole movement/blocking authority.
+	// Actor root gameplay collision remains the sole movement/blocking authority.
 	SetCollisionEnabled(IsUsingEachFrameCollision() ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 }
 
@@ -210,8 +241,14 @@ void UReEcho2DAnimationComponent::DrawCurrentFrameCollisionDebug()
 	UBodySetup* BodySetup = GetBodySetup();
 	if (!BodySetup)
 	{
-		DrawDebugString(GetWorld(), GetComponentLocation(), TEXT("EachFrameCollision: no BodySetup"),
-		                nullptr, FColor::Orange, 0.0f, true, 0.9f);
+		DrawDebugString(GetWorld(),
+		                GetComponentLocation(),
+		                TEXT("EachFrameCollision: no BodySetup"),
+		                nullptr,
+		                FColor::Orange,
+		                0.0f,
+		                true,
+		                0.9f);
 		return;
 	}
 	const FTransform ComponentTransform = GetComponentTransform();
@@ -220,36 +257,56 @@ void UReEcho2DAnimationComponent::DrawCurrentFrameCollisionDebug()
 	for (const FKBoxElem& Elem : BodySetup->AggGeom.BoxElems)
 	{
 		const FTransform WorldTransform = Elem.GetTransform() * ComponentTransform;
-		DrawDebugBox(GetWorld(), WorldTransform.GetLocation(),
+		DrawDebugBox(GetWorld(),
+		             WorldTransform.GetLocation(),
 		             FVector(Elem.X, Elem.Y, Elem.Z) * ComponentScale * 0.5f,
-		             WorldTransform.GetRotation(), ShapeColor, false, 0.0f, 1, 2.0f);
+		             WorldTransform.GetRotation(),
+		             ShapeColor,
+		             false,
+		             0.0f,
+		             1,
+		             2.0f);
 	}
 	for (const FKSphereElem& Elem : BodySetup->AggGeom.SphereElems)
 	{
 		const FVector WorldCenter = ComponentTransform.TransformPosition(Elem.Center);
-		DrawDebugSphere(GetWorld(), WorldCenter, Elem.Radius * ComponentScale.GetMax(),
-		                16, ShapeColor, false, 0.0f, 1, 2.0f);
+		DrawDebugSphere(
+		    GetWorld(), WorldCenter, Elem.Radius * ComponentScale.GetMax(), 16, ShapeColor, false, 0.0f, 1, 2.0f);
 	}
 	for (const FKSphylElem& Elem : BodySetup->AggGeom.SphylElems)
 	{
 		const FTransform WorldTransform = Elem.GetTransform() * ComponentTransform;
-		DrawDebugCapsule(GetWorld(), WorldTransform.GetLocation(), Elem.GetScaledHalfLength(ComponentScale),
-		                 Elem.GetScaledRadius(ComponentScale), WorldTransform.GetRotation(),
-		                 ShapeColor, false, 0.0f, 1, 2.0f);
+		DrawDebugCapsule(GetWorld(),
+		                 WorldTransform.GetLocation(),
+		                 Elem.GetScaledHalfLength(ComponentScale),
+		                 Elem.GetScaledRadius(ComponentScale),
+		                 WorldTransform.GetRotation(),
+		                 ShapeColor,
+		                 false,
+		                 0.0f,
+		                 1,
+		                 2.0f);
 	}
 	for (const FKConvexElem& Elem : BodySetup->AggGeom.ConvexElems)
 	{
 		const FTransform WorldTransform = Elem.GetTransform() * ComponentTransform;
 		for (int32 Triangle = 0; Triangle + 2 < Elem.IndexData.Num(); Triangle += 3)
 		{
-			const int32 Indices[3] = {Elem.IndexData[Triangle], Elem.IndexData[Triangle + 1], Elem.IndexData[Triangle + 2]};
+			const int32 Indices[3] = {
+			    Elem.IndexData[Triangle], Elem.IndexData[Triangle + 1], Elem.IndexData[Triangle + 2]};
 			for (int32 Edge = 0; Edge < 3; ++Edge)
 			{
-				if (Elem.VertexData.IsValidIndex(Indices[Edge]) && Elem.VertexData.IsValidIndex(Indices[(Edge + 1) % 3]))
+				if (Elem.VertexData.IsValidIndex(Indices[Edge]) &&
+				    Elem.VertexData.IsValidIndex(Indices[(Edge + 1) % 3]))
 				{
-					DrawDebugLine(GetWorld(), WorldTransform.TransformPosition(Elem.VertexData[Indices[Edge]]),
+					DrawDebugLine(GetWorld(),
+					              WorldTransform.TransformPosition(Elem.VertexData[Indices[Edge]]),
 					              WorldTransform.TransformPosition(Elem.VertexData[Indices[(Edge + 1) % 3]]),
-					              ShapeColor, false, 0.0f, 1, 2.0f);
+					              ShapeColor,
+					              false,
+					              0.0f,
+					              1,
+					              2.0f);
 				}
 			}
 		}
@@ -261,7 +318,13 @@ void UReEcho2DAnimationComponent::DrawCurrentFrameCollisionDebug()
 	                                      BodySetup->AggGeom.SphereElems.Num(),
 	                                      BodySetup->AggGeom.SphylElems.Num(),
 	                                      BodySetup->AggGeom.ConvexElems.Num());
-	DrawDebugString(GetWorld(), DebugBounds.IsValid ? DebugBounds.Max : GetComponentLocation(), Label,
-	                nullptr, FColor::Yellow, 0.0f, true, 0.75f);
+	DrawDebugString(GetWorld(),
+	                DebugBounds.IsValid ? DebugBounds.Max : GetComponentLocation(),
+	                Label,
+	                nullptr,
+	                FColor::Yellow,
+	                0.0f,
+	                true,
+	                0.75f);
 #endif
 }

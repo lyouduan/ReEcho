@@ -11,7 +11,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoArenaSceneContractTest,
 bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 {
 	const FVector2D Footprint = AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(
-	    2800.0f, 1376.0f / 768.0f, FRotator(-55.0f, 0.0f, 0.0f));
+	    2800.0f, 1376.0f / 768.0f, FRotator(-45.0f, 0.0f, 0.0f));
 	TestTrue(TEXT("Projected footprint has positive X extent"), Footprint.X > 0.0f);
 	TestTrue(TEXT("Projected footprint has positive Y extent"), Footprint.Y > 0.0f);
 
@@ -43,6 +43,11 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	    FVector2D(50.0f, 0.0f), FVector2D::ZeroVector, FVector2D(1.0f, 0.0f), 10.0f, 100, SortRange);
 	TestTrue(TEXT("Footpoint sorting is monotonic along its configured axis"), NearPriority > FarPriority);
 	TestEqual(TEXT("Footpoint sorting clamps to its configured range"), NearPriority, 110);
+
+	const FTransform ShiftedMap(FRotator::ZeroRotator, FVector(0.0f, 0.0f, 137.0f), FVector(1.0f, 1.0f, 2.0f));
+	TestEqual(TEXT("MapRoot transform moves and scales the gameplay plane"),
+	          AReEchoArenaSceneActor::CalculateGameplayPlaneWorldZ(ShiftedMap, 5.0f),
+	          147.0f);
 	return true;
 }
 

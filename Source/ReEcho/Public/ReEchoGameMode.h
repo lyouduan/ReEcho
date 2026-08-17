@@ -4,6 +4,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "ReEchoGameMode.generated.h"
 class ACameraActor;
+class AReEchoArenaCameraActor;
+class AReEchoArenaSceneActor;
 class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoPlayerPawn;
@@ -67,6 +69,10 @@ private:
 	TObjectPtr<AReEchoPlayerPawn> Player;
 	UPROPERTY()
 	TObjectPtr<ACameraActor> FixedCamera;
+	UPROPERTY()
+	TObjectPtr<AReEchoArenaSceneActor> ArenaScene;
+	UPROPERTY()
+	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
 	UPROPERTY()
 	TArray<TObjectPtr<AReEchoEchoActor>> Echoes;
 	UPROPERTY(VisibleAnywhere)

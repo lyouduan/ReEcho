@@ -6,10 +6,11 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationClip.h"
 #include "ReEcho2DCharacterPresentationProfile.generated.h"
 
-class UTexture2D;
+class UReEcho2DAnimationStateMachineAsset;
 
 /** Animation clips selected by the equipped weapon's stable VisualKey. */
 USTRUCT(BlueprintType)
+
 struct REECHO_API FReEcho2DCompositeAnimationSet
 {
 	GENERATED_BODY()
@@ -26,6 +27,7 @@ struct REECHO_API FReEcho2DCompositeAnimationSet
 
 /** AppearanceId-owned presentation policy; gameplay IDs never select assets directly. */
 UCLASS(BlueprintType)
+
 class REECHO_API UReEcho2DCharacterPresentationProfile : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
@@ -34,8 +36,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
 	FName AppearanceId;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fallback")
-	TObjectPtr<UTexture2D> StaticFallback;
+	/** 同一外观全部序列统一归一化到该世界高度，避免源图画布尺寸影响比例。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scale", meta = (ClampMin = "1.0"))
+	float WorldHeight = 100.0f;
+
+	/** 表现状态、优先级和中断规则；Flipbook仍由下方外观/武器动画集提供。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TObjectPtr<UReEcho2DAnimationStateMachineAsset> StateMachine;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	TArray<FReEcho2DCompositeAnimationSet> AnimationSets;

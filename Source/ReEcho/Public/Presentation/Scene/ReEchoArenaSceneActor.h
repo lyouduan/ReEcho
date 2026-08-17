@@ -4,9 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "ReEchoArenaSceneActor.generated.h"
 
-class AReEchoPlayerPawn;
 class UBoxComponent;
-class UCameraComponent;
 class UMaterialInterface;
 class UStaticMeshComponent;
 class UTexture2D;
@@ -21,18 +19,12 @@ class REECHO_API AReEchoArenaSceneActor : public AActor
 public:
 	AReEchoArenaSceneActor();
 	virtual void OnConstruction(const FTransform& Transform) override;
-	virtual void Tick(float DeltaSeconds) override;
-
-	void SetFollowTarget(AReEchoPlayerPawn* Target);
-
-	UCameraComponent* GetArenaCamera() const
-	{
-		return ArenaCamera;
-	}
 
 	FVector2D GetPlayerHalfExtents() const;
 	FVector2D GetEnemySpawnHalfExtents() const;
 	FVector2D GetArenaCenter() const;
+	/** MapRoot-local gameplay plane converted to the current world-space height. */
+	float GetGameplayPlaneWorldZ() const;
 	bool HasValidConfiguration(FString* OutReason = nullptr) const;
 
 	static FVector2D
@@ -47,6 +39,7 @@ public:
 	                                            float WorldUnitsPerStep,
 	                                            int32 BasePriority,
 	                                            const FIntPoint& PriorityRange);
+	static float CalculateGameplayPlaneWorldZ(const FTransform& MapTransform, float LocalGameplayPlaneZ);
 	int32 CalculateFootpointSortPriority(const FVector& WorldFootpoint) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena")
@@ -62,6 +55,9 @@ public:
 	TObjectPtr<USceneComponent> GroundRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
 	TObjectPtr<USceneComponent> GroundDetailRoot;
+	/** Parent for baked, individually editable plant-card actors. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
+	TObjectPtr<USceneComponent> PlantRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
 	TObjectPtr<USceneComponent> MidDecorationRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Visual")
@@ -72,8 +68,6 @@ public:
 	TObjectPtr<USceneComponent> SceneEffectsRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy|Gameplay")
 	TObjectPtr<USceneComponent> CollisionRoot;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
-	TObjectPtr<UCameraComponent> ArenaCamera;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Visual")
 	TObjectPtr<UStaticMeshComponent> Backdrop;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Collision")
@@ -93,8 +87,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Bounds")
 	TObjectPtr<UBoxComponent> EnemySpawnBounds;
 
+	/** Complete Editor-authored map material. Replacing it changes the map without runtime texture injection. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual")
-	TObjectPtr<UTexture2D> MapTexture;
+	TObjectPtr<UMaterialInterface> MapMaterial;
 	/** 独立的背景、相机安全区、玩家活动区和敌人出生区；X/Y 对应世界 X/Y。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "100.0"))
 	FVector2D BackdropHalfExtents = FVector2D(1250.0f, 2240.0f);
@@ -104,10 +99,6 @@ public:
 	FVector2D PlayerHalfExtents = FVector2D(1200.0f, 2190.0f);
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "100.0"))
 	FVector2D EnemySpawnHalfExtents = FVector2D(1100.0f, 2090.0f);
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
-	bool bSmoothCameraFollow = true;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera", meta = (ClampMin = "0.0"))
-	float CameraFollowSpeed = 8.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
 	float GameplayPlaneZ = 0.0f;
 	/** 关闭后 Backdrop 的位置、旋转和缩放完全采用 Editor 组件 Transform。 */
@@ -132,16 +123,28 @@ public:
 	TSoftObjectPtr<UTexture2D> DefaultContactShadowTexture;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|ContactShadow", meta = (ClampMin = "0.0"))
 	FVector2D DefaultContactShadowSize = FVector2D(90.0f, 45.0f);
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|ContactShadow", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Arena|Visual|ContactShadow",
+	          meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float DefaultContactShadowOpacity = 0.45f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax")
 	bool bEnableParallax = false;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Arena|Visual|Parallax",
+	          meta = (ClampMin = "-1.0", ClampMax = "1.0"))
 	float MidDecorationParallaxFactor = 0.04f;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Arena|Visual|Parallax",
+	          meta = (ClampMin = "-1.0", ClampMax = "1.0"))
 	float ForegroundParallaxFactor = 0.08f;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Arena|Visual|Parallax",
+	          meta = (ClampMin = "-1.0", ClampMax = "1.0"))
 	float AtmosphereParallaxFactor = 0.02f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|Parallax", meta = (ClampMin = "0.0"))
 	float MaximumParallaxOffset = 120.0f;
@@ -150,14 +153,4 @@ private:
 	FVector2D GetMapScale2D() const;
 	void UpdateEditorHierarchy();
 	void UpdateEditorLayout();
-	void UpdateFollowCamera(float DeltaSeconds);
-	void UpdateParallax();
-	FVector GetCameraGroundFocus() const;
-	void SetCameraGroundFocus(const FVector2D& Focus);
-
-	UPROPERTY(Transient)
-	TObjectPtr<AReEchoPlayerPawn> FollowTarget;
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInterface> BackdropMaterial;
-	bool bLoggedUndersizedMap = false;
 };
