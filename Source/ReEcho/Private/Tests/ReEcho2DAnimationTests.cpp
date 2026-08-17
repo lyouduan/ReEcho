@@ -21,15 +21,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
 
 bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 {
-	UPaperFlipbook* WalkFlipbook = LoadObject<UPaperFlipbook>(
-	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk"));
+	UPaperFlipbook* WalkFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk"));
 	UPaperFlipbook* PlayerFlipbook = WalkFlipbook;
-	UPaperFlipbook* GruntFlipbook =
-	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default.Default"));
+	UPaperFlipbook* GruntFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default.Default"));
 	UPaperFlipbook* StaffAttackFlipbook =
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
-	UPaperFlipbook* RabbitFlipbook =
-	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
+	UPaperFlipbook* RabbitFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
 	UPaperFlipbook* GoatFlipbook = LoadObject<UPaperFlipbook>(
 	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default.Default"));
 	TestNotNull(TEXT("J_SPADE reusable renderer Flipbook is loadable"), PlayerFlipbook);
@@ -61,8 +61,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 			for (int32 Index = 0; Index < Flipbook->GetNumKeyFrames(); ++Index)
 			{
 				const UPaperSprite* Sprite = Flipbook->GetKeyFrameChecked(Index).Sprite;
-				bEveryFrameHasCollision &= Sprite && Sprite->BodySetup &&
-				                           Sprite->BodySetup->AggGeom.GetElementCount() > 0;
+				bEveryFrameHasCollision &=
+				    Sprite && Sprite->BodySetup && Sprite->BodySetup->AggGeom.GetElementCount() > 0;
 			}
 		}
 		TestTrue(Label, bEveryFrameHasCollision);
@@ -100,15 +100,17 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->Flipbook == GruntFlipbook &&
 	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping &&
 	             !AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move));
-	auto TestEnemyProfile = [this](const TCHAR* Label, const UReEcho2DCharacterPresentationProfile* Profile,
-	                             const UPaperFlipbook* ExpectedFlipbook)
+	auto TestEnemyProfile = [this](const TCHAR* Label,
+	                               const UReEcho2DCharacterPresentationProfile* Profile,
+	                               const UPaperFlipbook* ExpectedFlipbook)
 	{
 		const FReEcho2DAnimationClip* IdleClip =
 		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 		const FReEcho2DAnimationClip* MoveClip =
 		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) : nullptr;
-		TestTrue(Label, Profile && !Profile->StaticFallback && IdleClip && !MoveClip &&
-		                    IdleClip->Flipbook == ExpectedFlipbook && IdleClip->bLooping);
+		TestTrue(Label,
+		         Profile && !Profile->StaticFallback && IdleClip && !MoveClip &&
+		             IdleClip->Flipbook == ExpectedFlipbook && IdleClip->bLooping);
 	};
 	TestEnemyProfile(TEXT("Rabbit profile owns only one looping animation state"), AuthoredRabbit, RabbitFlipbook);
 	TestEnemyProfile(TEXT("Goat profile owns only one looping animation state"), AuthoredGoat, GoatFlipbook);
@@ -117,9 +119,9 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	const FReEcho2DAnimationClip* FoxAttackClip =
 	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
 	TestTrue(TEXT("Fox owns looping Walk and one-shot Attack without static fallback"),
-	         AuthoredFox && !AuthoredFox->StaticFallback && FoxWalkClip && FoxAttackClip &&
-	             FoxWalkClip->Flipbook && FoxWalkClip->bLooping && FoxAttackClip->Flipbook &&
-	             !FoxAttackClip->bLooping && FoxAttackClip->bRestartOnRequest);
+	         AuthoredFox && !AuthoredFox->StaticFallback && FoxWalkClip && FoxAttackClip && FoxWalkClip->Flipbook &&
+	             FoxWalkClip->bLooping && FoxAttackClip->Flipbook && !FoxAttackClip->bLooping &&
+	             FoxAttackClip->bRestartOnRequest);
 	TestTrue(TEXT("Fox Walk uses authored EachFrame collision"),
 	         FoxWalkClip && FoxWalkClip->Flipbook &&
 	             FoxWalkClip->Flipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
@@ -144,8 +146,9 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Activated component owns the requested Flipbook"),
 	         Component->IsAnimationActive() && Component->GetFlipbook() == PlayerFlipbook);
 	TestTrue(TEXT("Activated Idel profile loops"), Component->IsLooping());
-	TestEqual(TEXT("Static Idle keeps Paper2D collision disabled"),
-	          Component->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestEqual(TEXT("Each-frame Walk enables query-only Paper2D collision"),
+	          Component->GetCollisionEnabled(),
+	          ECollisionEnabled::QueryOnly);
 	TestEqual(
 	    TEXT("Native-scale player profile keeps authored scale"), Component->GetRelativeScale3D(), FVector::OneVector);
 	TestTrue(TEXT("Activated Flipbook can tick to advance frames"), Component->PrimaryComponentTick.bCanEverTick);
@@ -169,7 +172,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Component->IsUsingEachFrameCollision() &&
 	             Component->GetCollisionEnabled() == ECollisionEnabled::QueryOnly);
 	TestEqual(TEXT("EachFrame collision never blocks Pawn movement"),
-	          Component->GetCollisionResponseToChannel(ECC_Pawn), ECollisionResponse::ECR_Overlap);
+	          Component->GetCollisionResponseToChannel(ECC_Pawn),
+	          ECollisionResponse::ECR_Overlap);
 	TestFalse(TEXT("EachFrame collision does not emit automatic overlap events"),
 	          Component->GetGenerateOverlapEvents());
 	TestTrue(TEXT("Moon Staff attack state resolves to attack Flipbook"),
@@ -190,8 +194,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Pure renderer preserves authored one-shot policy"), Component->IsLooping());
 	TestEqual(TEXT("Pure renderer preserves authored play rate"), Component->GetPlayRate(), 1.25f);
 
-	UReEcho2DCharacterPresentationProfile* PresentationProfile =
-	    NewObject<UReEcho2DCharacterPresentationProfile>();
+	UReEcho2DCharacterPresentationProfile* PresentationProfile = NewObject<UReEcho2DCharacterPresentationProfile>();
 	PresentationProfile->AppearanceId = TEXT("Appearance.Spade");
 	FReEcho2DCompositeAnimationSet& DefaultSet = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
 	DefaultSet.Clips.Add(ReEcho2DAnimationTags::Idle, AuthoredClip);
@@ -215,8 +218,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	Catalog->CharacterProfiles.Add(PresentationProfile);
 	TestTrue(TEXT("Catalog resolves profiles only through AppearanceId"),
 	         Catalog->ResolveProfile(TEXT("Appearance.Spade")) == PresentationProfile);
-	TestNull(TEXT("Catalog safely rejects an unknown AppearanceId"),
-	         Catalog->ResolveProfile(TEXT("J_SPADE")));
+	TestNull(TEXT("Catalog safely rejects an unknown AppearanceId"), Catalog->ResolveProfile(TEXT("J_SPADE")));
 
 	// Match the authored Spade policy for controller behavior: static Idle, default Move, MoonStaff attack.
 	PresentationProfile->AnimationSets[0].Clips.Remove(ReEcho2DAnimationTags::Idle);
@@ -259,11 +261,9 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	CollisionTrack->PixelsPerUnrealUnit = 2.0f;
 	CollisionTrack->PivotPixels = FVector2D(10.0f, 20.0f);
 	FReEcho2DCollisionPolygon BodyPolygon;
-	BodyPolygon.Vertices = {
-	    FVector2D(10.0f, 20.0f), FVector2D(14.0f, 20.0f), FVector2D(14.0f, 24.0f)};
+	BodyPolygon.Vertices = {FVector2D(10.0f, 20.0f), FVector2D(14.0f, 20.0f), FVector2D(14.0f, 24.0f)};
 	FReEcho2DCollisionPolygon AttackPolygon;
-	AttackPolygon.Vertices = {
-	    FVector2D(14.0f, 20.0f), FVector2D(18.0f, 20.0f), FVector2D(18.0f, 24.0f)};
+	AttackPolygon.Vertices = {FVector2D(14.0f, 20.0f), FVector2D(18.0f, 20.0f), FVector2D(18.0f, 24.0f)};
 	CollisionTrack->Frames[0].BodyHurtboxes.Add(BodyPolygon);
 	CollisionTrack->Frames[0].WeaponAttackHitboxes.Add(AttackPolygon);
 	CollisionTrack->Frames[0].bAttackActive = true;
@@ -278,16 +278,17 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Driver accepts a source-matched authored track"), CollisionDriver->HasValidTrack());
 	TestEqual(TEXT("Driver follows the renderer key frame"), CollisionDriver->GetSnapshot().FrameIndex, 0);
 	TestEqual(TEXT("Body Hurtboxes remain queryable without an attack instance"),
-	          CollisionDriver->GetSnapshot().BodyHurtboxes.Num(), 1);
+	          CollisionDriver->GetSnapshot().BodyHurtboxes.Num(),
+	          1);
 	TestFalse(TEXT("Authored active frame cannot open AttackHitboxes without a committed attack"),
 	          CollisionDriver->GetSnapshot().bAttackActive);
 	CollisionDriver->BeginAttackInstance(42);
 	TestTrue(TEXT("Committed attack opens authored active-frame AttackHitboxes"),
-	         CollisionDriver->GetSnapshot().bAttackActive &&
-	             CollisionDriver->GetSnapshot().AttackInstanceId == 42 &&
+	         CollisionDriver->GetSnapshot().bAttackActive && CollisionDriver->GetSnapshot().AttackInstanceId == 42 &&
 	             CollisionDriver->GetSnapshot().WeaponAttackHitboxes.Num() == 1);
 	TestEqual(TEXT("Pixel geometry is pivoted and converted to Unreal units"),
-	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1], FVector2D(2.0f, 0.0f));
+	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1],
+	          FVector2D(2.0f, 0.0f));
 	TestTrue(TEXT("Body geometry supports Query-only local point tests"),
 	         CollisionDriver->IsLocalPointInsideBody(FVector2D(1.5f, 0.5f)));
 	TestTrue(TEXT("Attack geometry accepts only its committed attack instance"),
@@ -297,7 +298,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	Component->SetFacingSign(-1.0f);
 	CollisionDriver->RefreshSnapshot();
 	TestEqual(TEXT("Facing mirrors collision geometry around the authored pivot"),
-	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1], FVector2D(-2.0f, 0.0f));
+	          CollisionDriver->GetSnapshot().BodyHurtboxes[0].Vertices[1],
+	          FVector2D(-2.0f, 0.0f));
 	CollisionDriver->EndAttackInstance(42);
 	TestFalse(TEXT("Ending the matching attack instance closes AttackHitboxes"),
 	          CollisionDriver->GetSnapshot().bAttackActive);
@@ -314,7 +316,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	          EReEcho2DAnimationActivationResult::MissingFlipbook);
 	TestFalse(TEXT("Failed activation leaves animation disabled"), Component->IsAnimationActive());
 	TestEqual(TEXT("Disabled animation also disables Paper2D collision"),
-	          Component->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	          Component->GetCollisionEnabled(),
+	          ECollisionEnabled::NoCollision);
 	TestFalse(TEXT("Disabled animation is not playing"), Component->IsPlaying());
 	return true;
 }

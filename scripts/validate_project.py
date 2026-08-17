@@ -27,6 +27,35 @@ REGISTERED_BEHAVIOR_IDS = {
     "Character.BraveForge",
     "Card.StatModifier",
     "Card.InstantRecovery",
+    "Card.GrantTier",
+    "Card.RandomStatTrade",
+    "Card.TrackNextKills",
+    "Card.TrackNextReactions",
+    "Card.EchoElementAura",
+    "Card.EchoSlowAura",
+    "Card.ElementAttachedCrit",
+    "Card.ReactionHeal",
+    "Card.DamageSubstitution",
+    "Card.NextShardDrop",
+    "Card.ShopContract",
+    "Card.EncounterStun",
+    "Card.DoubleEcho",
+    "Card.TimeAnchor",
+    "Card.SoloBody",
+    "Card.TauntEcho",
+    "Card.SoulResonance",
+    "Card.EnemyImmunity",
+    "Card.CriticalElement",
+    "Card.ElementCanCrit",
+    "Card.DistanceDamage",
+    "Card.DoubleCritRoll",
+    "Card.BloodForging",
+    "Card.EndKillRefresh",
+    "Card.HarvestPenalty",
+    "Card.ShardOutgoingDamage",
+    "Card.ShardIncomingBarrier",
+    "Card.ReactionDiversity",
+    "Card.DoubleNonCoreSlots",
     "Status.ElementImmunity",
     "Status.Burn",
     "Reaction.Burn",
@@ -54,6 +83,7 @@ REGISTERED_EFFECT_KINDS = {
     "ScalarModifier",
     "StatModifier",
     "InstantRecovery",
+    "CardBehavior",
     "ElementReaction",
     "WeaponDamageChannel",
     "AttackPatternReplacement",
@@ -92,7 +122,47 @@ CARD_TARGETS = {
     "AttackSpeed",
     "MovementSpeed",
     "EchoEfficiency",
+    "CriticalRate",
+    "CriticalEffect",
+    "ReactionEfficiency",
+    "Tier",
+    "PhysicalOrElemental",
+    "Water",
+    "Grass",
+    "Damage",
+    "TimeShards",
+    "ShopDiscount",
+    "HpMaxAndPoint",
+    "Stun",
+    "EchoCount",
+    "AnchorRecording",
+    "AllBaseStats",
+    "EchoHealth",
+    "PhysicalAndElementalAttack",
+    "EnemyElementImmunity",
+    "RandomElement",
+    "ElementCanCrit",
+    "CriticalRollCount",
+    "MinimumGuaranteedTier",
+    "FreeShopRefresh",
+    "NonCoreSlotCapacity",
 }
+CARD_TRIGGERS = {
+    "OnApply",
+    "OnGrant",
+    "OnEncounterStart",
+    "OnEncounterTick",
+    "OnEncounterEnd",
+    "BeforeOutgoingHit",
+    "BeforeIncomingHit",
+    "OnHitResolved",
+    "OnReaction",
+    "OnPurchase",
+    "OnEchoKilled",
+    "OnResolveEchoes",
+    "OnCompileRules",
+}
+CARD_BEHAVIOR_IDS = {value for value in REGISTERED_BEHAVIOR_IDS if value.startswith("Card.")}
 CARD_EFFECT_BEHAVIOR_PAIRS = {
     "StatModifier": "Card.StatModifier",
     "InstantRecovery": "Card.InstantRecovery",
@@ -749,8 +819,27 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
 
     enabled_cards = {row["Id"] for row in cards if row["Enabled"] == "true"}
     offerable_traits = [row["Id"] for row in cards if row["OfferGroup"] == "Trait" and row["Offerable"] == "true"]
-    if offerable_traits != ["G_1_01", "G_1_02", "G_1_03", "G_1_04", "G_1_05", "G_1_08"]:
-        fail(f"{rel(entries['Cards'])}: current offerable trait pool changed: {offerable_traits}")
+    expected_traits = [
+        "G_1_01", "G_1_02", "G_1_03", "G_1_04", "G_1_05", "G_1_06", "G_1_07", "G_1_08",
+        "G_2_04", "G_2_05", "G_2_06", "G_2_07", "G_2_08", "G_2_09", "G_2_10", "G_2_12",
+        "G_2_13", "G_2_14", "G_2_15", "G_2_16", "G_2_17", "G_3_01", "G_3_02", "G_3_03",
+        "G_3_04", "G_3_05", "G_3_07", "G_3_09", "G_3_10", "G_3_11", "G_3_12", "G_3_13",
+        "G_3_14", "G_3_16", "G_3_17", "G_3_19", "G_3_20", "G_3_21", "G_3_22",
+    ]
+    if offerable_traits != expected_traits:
+        fail(f"{rel(entries['Cards'])}: canonical 39-card offerable trait pool changed: {offerable_traits}")
+    tier_counts = {
+        tier: sum(1 for row in cards if row["OfferGroup"] == "Trait" and row["Tier"] == tier)
+        for tier in ("1", "2", "3")
+    }
+    if tier_counts != {"1": 8, "2": 13, "3": 18}:
+        fail(f"{rel(entries['Cards'])}: canonical card tier counts changed: {tier_counts}")
+    removed_ids = {"G_2_01", "G_2_02", "G_2_03", "G_2_11", "G_3_15", "G_3_18"}
+    if removed_ids & {row["Id"] for row in cards}:
+        fail(f"{rel(entries['Cards'])}: removed legacy cards reappeared")
+    silent_scale = next((row for row in cards if row["Id"] == "G_2_17"), None)
+    if not silent_scale or silent_scale["DisplayName"] != "静默刻度":
+        fail(f"{rel(entries['Cards'])}: G_2_17 must be 静默刻度")
     for row in cards:
         if row["Enabled"] == "true" and row["ReviewStatus"] != "Approved":
             fail(f"{rel(entries['Cards'])}:{row['__line__']}: enabled card must be Approved")
@@ -762,12 +851,15 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
     effects_by_card: dict[str, list[dict[str, str]]] = {}
     seen_orders: set[tuple[str, str]] = set()
     for row in effects:
-        if row["Trigger"] != "OnApply":
+        if row["Trigger"] not in CARD_TRIGGERS:
             fail(f"{rel(entries['CardEffects'])}:{row['__line__']}: unsupported card effect trigger {row['Trigger']!r}")
         if row["Target"] not in CARD_TARGETS:
             fail(f"{rel(entries['CardEffects'])}:{row['__line__']}: unknown card effect target {row['Target']!r}")
         expected_behavior = CARD_EFFECT_BEHAVIOR_PAIRS.get(row["EffectKind"])
-        if not expected_behavior or row["BehaviorId"] != expected_behavior:
+        valid_pair = row["BehaviorId"] == expected_behavior if expected_behavior else False
+        if row["EffectKind"] == "CardBehavior":
+            valid_pair = row["BehaviorId"] in CARD_BEHAVIOR_IDS - set(CARD_EFFECT_BEHAVIOR_PAIRS.values())
+        if not valid_pair:
             fail(
                 f"{rel(entries['CardEffects'])}:{row['__line__']}: invalid EffectKind/BehaviorId pair "
                 f"{row['EffectKind']!r}/{row['BehaviorId']!r}"

@@ -154,6 +154,21 @@ float UReEchoCombatantComponent::ApplyHealing(const float Healing)
 	return CurrentHealth - PreviousHealth;
 }
 
+void UReEchoCombatantComponent::ClampElementImmunityDuration(const float CurrentTimeSeconds,
+                                                             const float MaximumRemainingSeconds)
+{
+	if (CurrentTimeSeconds < 0.0f || MaximumRemainingSeconds < 0.0f || ElementState.ImmunityUntil <= CurrentTimeSeconds)
+	{
+		return;
+	}
+	ElementState.ImmunityUntil = FMath::Min(ElementState.ImmunityUntil, CurrentTimeSeconds + MaximumRemainingSeconds);
+	const FName ImmunityStatusId = TEXT("Z_Elemental_Immunity");
+	if (float* StatusUntil = ElementState.ActiveStatusUntilSeconds.Find(ImmunityStatusId))
+	{
+		*StatusUntil = FMath::Min(*StatusUntil, ElementState.ImmunityUntil);
+	}
+}
+
 void UReEchoCombatantComponent::RestoreCurrentHealth(const float SavedHealth)
 {
 	const float PreviousHealth = CurrentHealth;

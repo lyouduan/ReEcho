@@ -67,6 +67,8 @@ ApplyDamage(AActor& Target, const float Damage, const EReEchoElement Element, co
 	Intent.DamageSource = EReEchoDamageSource::Reaction;
 	Intent.Element = Element;
 	Intent.ReactionEfficiency = Context.ReactionEfficiency;
+	Intent.bCritical = Context.bCritical;
+	Intent.bSourceRulesApplied = Context.bSourceRulesApplied;
 	Intent.SourceLocation = Context.SourceLocation;
 	Intent.HitLocation = Target.GetActorLocation();
 	return ReEchoHitResolver::ResolvePhysicalHit(Intent);
@@ -196,31 +198,42 @@ int32 ReEchoHitResolver::TickElementStatuses(AActor& Target, const float Current
 
 FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 {
-	if (Intent.Element == EReEchoElement::None)
+	FReEchoHitIntent Candidate = Intent;
+	if (!Candidate.bSourceRulesApplied)
 	{
-		return ResolvePhysicalHit(Intent);
+		if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Candidate.Attack.Source.Get()))
+		{
+			SourceRules->ModifyOutgoingHit(Candidate);
+		}
+		Candidate.bSourceRulesApplied = true;
+	}
+	if (Candidate.Element == EReEchoElement::None)
+	{
+		return ResolvePhysicalHit(Candidate);
 	}
 	FReEchoHitResolved Result;
-	Result.Attack = Intent.Attack;
-	Result.Target = Intent.Target;
-	Result.RawDamage = Intent.RawDamage;
-	Result.DamageSource = Intent.DamageSource;
-	Result.Element = Intent.Element;
-	Result.bCritical = Intent.bCritical;
-	Result.HitLocation = Intent.HitLocation;
-	IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Intent.Target);
+	Result.Attack = Candidate.Attack;
+	Result.Target = Candidate.Target;
+	Result.RawDamage = Candidate.RawDamage;
+	Result.DamageSource = Candidate.DamageSource;
+	Result.Element = Candidate.Element;
+	Result.bCritical = Candidate.bCritical;
+	Result.HitLocation = Candidate.HitLocation;
+	IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate.Target);
 	UReEchoCombatantComponent* Combatant = Target ? Target->GetCombatTargetCombatant() : nullptr;
-	if (!Intent.Target || !Combatant)
+	if (!Candidate.Target || !Combatant)
 	{
 		Result.bBlocked = true;
 		return Result;
 	}
 	const bool bWasAlive = Combatant->IsAlive();
 	FReEchoElementHitContext Context;
-	Context.SourceLocation = Intent.SourceLocation;
-	Context.Attack = Intent.Attack;
-	Context.ReactionEfficiency = Intent.ReactionEfficiency;
-	Context.SourceElementalAttack = Intent.RawDamage;
+	Context.SourceLocation = Candidate.SourceLocation;
+	Context.Attack = Candidate.Attack;
+	Context.ReactionEfficiency = Candidate.ReactionEfficiency;
+	Context.SourceElementalAttack = Candidate.RawDamage;
+	Context.bCritical = Candidate.bCritical;
+	Context.bSourceRulesApplied = true;
 	Context.SourceEchoEfficiency = 1.0f;
 	if (AActor* Source = Intent.Attack.Source.Get())
 	{
@@ -232,7 +245,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 		}
 	}
 	Result.AppliedDamage =
-	    ResolveElementHit(*Intent.Target, Intent.Element, Intent.RawDamage, Context).ImmediateDamageApplied;
+	    ResolveElementHit(*Candidate.Target, Candidate.Element, Candidate.RawDamage, Context).ImmediateDamageApplied;
 	Result.bBlocked = Result.AppliedDamage <= 0.0f;
 	Result.bKilled = bWasAlive && !Combatant->IsAlive();
 	return Result;
@@ -263,6 +276,10 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 		AddAffected(Execution, Target);
 		PublishElementStateChanged(*PrimaryCombatant);
 		return Execution;
+	}
+	if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Context.Attack.Source.Get()))
+	{
+		SourceRules->NotifyReactionResolved(Execution.Primary.ReactionId);
 	}
 
 	const float FinalMultiplier = GetFinalReactionMultiplier(Execution.Primary);

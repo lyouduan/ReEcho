@@ -64,7 +64,8 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 	const FName SelectedCardId = FirstOffers[0].CardId;
 	TestTrue(TEXT("A pending card can be applied"), RunSubsystem->ApplyTraitCard(SelectedCardId));
 	TestFalse(TEXT("The same offer cannot be applied twice"), RunSubsystem->ApplyTraitCard(SelectedCardId));
-	TestTrue(TEXT("The selected card enters the build"), RunSubsystem->CurrentBuild.Cards.Contains(SelectedCardId));
+	TestTrue(TEXT("The selected card enters the build"),
+	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(SelectedCardId));
 
 	RunSubsystem->BeginEncounter();
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
@@ -95,29 +96,23 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	    TEXT("CSV character base physical attack is used"), RunSubsystem->CurrentBuild.Stats.PhysicalAttack, 5.0f);
 
 	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
-	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(6);
-	TestEqual(TEXT("Only the six enabled trait cards are offered"), Offers.Num(), 6);
-	TestFalse(TEXT("Disabled legacy cards are excluded from offers"),
-	          Offers.ContainsByPredicate(
-	              [](const FReEchoTraitCardOffer& Offer)
-	              {
-		              return Offer.CardId == TEXT("G_1_06");
-	              }));
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(39);
+	TestEqual(TEXT("All 39 enabled trait cards are offered"), Offers.Num(), 39);
 	if (!Offers.ContainsByPredicate(
 	        [](const FReEchoTraitCardOffer& Offer)
 	        {
-		        return Offer.CardId == TEXT("G_1_04");
+		        return Offer.CardId == TEXT("G_1_03");
 	        }))
 	{
-		AddError(TEXT("G_1_04 was not present in the six-card trait pool"));
+		AddError(TEXT("G_1_03 was not present in the 39-card trait pool"));
 		return false;
 	}
 
 	const float PhysicalBefore = RunSubsystem->CurrentBuild.Stats.PhysicalAttack;
-	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->ApplyTraitCard(TEXT("G_1_04")));
+	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->ApplyTraitCard(TEXT("G_1_03")));
 	TestEqual(TEXT("Physical attack add comes from card_effects.csv"),
 	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
-	          PhysicalBefore + 2.0f);
+	          PhysicalBefore + 4.0f);
 	return true;
 }
 

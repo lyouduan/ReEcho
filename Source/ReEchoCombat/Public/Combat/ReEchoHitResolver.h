@@ -10,6 +10,8 @@ struct REECHOCOMBAT_API FReEchoElementHitContext
 	float ReactionEfficiency = 1.0f;
 	float SourceElementalAttack = 0.0f;
 	float SourceEchoEfficiency = 1.0f;
+	bool bCritical = false;
+	bool bSourceRulesApplied = false;
 };
 
 struct REECHOCOMBAT_API FReEchoElementExecutionResult

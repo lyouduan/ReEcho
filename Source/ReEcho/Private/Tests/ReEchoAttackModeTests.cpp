@@ -159,7 +159,7 @@ bool FReEchoAttackModeSaveTest::RunTest(const FString& Parameters)
 
 	Source->SetAutomaticAttackMode(false);
 	UReEchoRunSaveGame* CurrentSave = Source->CreateSaveSnapshot();
-	TestEqual(TEXT("attack-mode save uses v7"), CurrentSave->SaveVersion, 7);
+	TestEqual(TEXT("attack-mode save uses v9"), CurrentSave->SaveVersion, 9);
 	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(GameInstance);
 	TestTrue(TEXT("v7 save restores"), Restored->RestoreSaveSnapshot(*CurrentSave));
 	TestFalse(TEXT("continue restores manual mode"), Restored->IsAutomaticAttackMode());

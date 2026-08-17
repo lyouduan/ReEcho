@@ -56,13 +56,13 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,CardEffects,Id,StableId,true,,,,,Stable child effect row id.
 1,CardEffects,CardId,ForeignKey,true,,,Cards,,References Cards.Id.
 1,CardEffects,Order,Int,true,0,1000000,,,Effect application order within card.
-1,CardEffects,Trigger,StableId,true,,,,OnApply,Effect trigger.
-1,CardEffects,EffectKind,EffectKind,true,,,,StatModifier|InstantRecovery,Registered C++ effect kind.
-1,CardEffects,Target,StableId,true,,,,HpMax|HpPoint|PhysicalAttack|ElementalAttack|Block|AttackSpeed|MovementSpeed|EchoEfficiency,Typed stat target.
+1,CardEffects,Trigger,StableId,true,,,,OnApply|OnGrant|OnEncounterStart|OnEncounterTick|OnEncounterEnd|BeforeOutgoingHit|BeforeIncomingHit|OnHitResolved|OnReaction|OnPurchase|OnEchoKilled|OnResolveEchoes|OnCompileRules,Typed card lifecycle trigger.
+1,CardEffects,EffectKind,EffectKind,true,,,,StatModifier|InstantRecovery|CardBehavior,Registered C++ card effect kind.
+1,CardEffects,Target,StableId,true,,,,HpMax|HpPoint|PhysicalAttack|ElementalAttack|CriticalRate|CriticalEffect|MovementSpeed|EchoEfficiency|ReactionEfficiency|Tier|PhysicalOrElemental|Water|Grass|Damage|TimeShards|ShopDiscount|HpMaxAndPoint|Stun|EchoCount|AnchorRecording|AllBaseStats|EchoHealth|PhysicalAndElementalAttack|EnemyElementImmunity|RandomElement|ElementCanCrit|CriticalRollCount|MinimumGuaranteedTier|FreeShopRefresh|NonCoreSlotCapacity,Typed card effect target.
 1,CardEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
 1,CardEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
-1,CardEffects,BehaviorId,BehaviorId,true,,,,None|Card.StatModifier|Card.InstantRecovery,Registered C++ behavior id.
-1,CardEffects,ParamName,StableId,true,,,,None,Typed parameter name when needed.
+1,CardEffects,BehaviorId,BehaviorId,true,,,,Card.StatModifier|Card.InstantRecovery|Card.GrantTier|Card.RandomStatTrade|Card.TrackNextKills|Card.TrackNextReactions|Card.EchoElementAura|Card.EchoSlowAura|Card.ElementAttachedCrit|Card.ReactionHeal|Card.DamageSubstitution|Card.NextShardDrop|Card.ShopContract|Card.EncounterStun|Card.DoubleEcho|Card.TimeAnchor|Card.SoloBody|Card.TauntEcho|Card.SoulResonance|Card.EnemyImmunity|Card.CriticalElement|Card.ElementCanCrit|Card.DistanceDamage|Card.DoubleCritRoll|Card.BloodForging|Card.EndKillRefresh|Card.HarvestPenalty|Card.ShardOutgoingDamage|Card.ShardIncomingBarrier|Card.ReactionDiversity|Card.DoubleNonCoreSlots,Registered C++ card behavior id.
+1,CardEffects,ParamName,StableId,true,,,,None|Count|Penalty|Threshold|RadiusCm|CooldownSeconds|FreeHitCount|EncounterOffset|TriggerSeconds|EchoKillThreshold|PlayerKillThreshold|DistanceCm|KillThreshold|PenaltyChoices|ShardCost|DistinctCount,Typed parameter name when needed.
 1,CardEffects,ParamValue,Float,true,-100000,100000,,,Typed numeric parameter when needed.
 1,Elements,Id,StableId,true,,,,Flame|Lightning|Grass|Water,Canonical runtime element id.
 1,Elements,SourceWorkbookId,StableId,true,,,,Y_Flame|Y_Lightning|Y_Grass|Y_Water,Workbook or legacy JSON provenance id.

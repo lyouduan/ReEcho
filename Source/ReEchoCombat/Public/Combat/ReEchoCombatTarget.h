@@ -24,6 +24,23 @@ public:
 	virtual class UReEchoCombatantComponent* GetCombatTargetCombatant() const = 0;
 	virtual bool IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const = 0;
 
+	/** Optional source-side transformation. Implementations may mutate only the supplied candidate intent. */
+	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const
+	{
+	}
+
+	virtual void NotifyReactionResolved(FName ReactionId) const
+	{
+	}
+
+	virtual void NotifyKillResolved() const
+	{
+	}
+
+	virtual void NotifyDefeated(EReEchoDamageSource DamageSource) const
+	{
+	}
+
 	/** Target-specific defense profile hook; Combat still owns applying and publishing the final result. */
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 	{

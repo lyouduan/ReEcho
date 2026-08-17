@@ -285,6 +285,17 @@ bool FReEchoWeaponEquipmentAppliesModifiersTest::RunTest(const FString& Paramete
 	    TEXT("Duplicate slot fails atomically"),
 	    ReEchoWeaponRuntime::TryEquipParts(
 	        *Snapshot, DaggerBuild, {TEXT("P_DAGGER_STRENGTH_GRIP"), TEXT("P_DAGGER_THRUST_GRIP")}, Failed, Error));
+	FReEchoBuildSnapshot DoublePartBuild = DaggerBuild;
+	DoublePartBuild.CardState.OwnedCardIds.Add(TEXT("G_3_22"));
+	TestTrue(TEXT("G_3_22 permits two parts in a non-core slot"),
+	         ReEchoWeaponRuntime::TryEquipParts(*Snapshot,
+	                                            DoublePartBuild,
+	                                            {TEXT("P_DAGGER_STRENGTH_GRIP"), TEXT("P_DAGGER_THRUST_GRIP")},
+	                                            Equipped,
+	                                            Error));
+	TestFalse(TEXT("G_3_22 does not increase the core slot"),
+	          ReEchoWeaponRuntime::TryEquipParts(
+	              *Snapshot, DoublePartBuild, {TEXT("P_CORE_FLAME"), TEXT("P_CORE_TIDE")}, Failed, Error));
 	FReEchoBuildSnapshot LongSwordBuild = MakeBuild(*Snapshot, TEXT("W_J_01"));
 	TestFalse(
 	    TEXT("Dagger-only part cannot equip to LongSword"),
@@ -421,8 +432,7 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	AReEchoWeaponActor* LifetimeWeapon = LifetimeFixture.World->SpawnActor<AReEchoWeaponActor>();
 	LifetimeWeapon->SetOwner(LifetimeOwner);
 	LifetimeWeapon->InitializeWeapon(&LifetimeBuild, Snapshot);
-	AReEchoEnemyActor* DelayedTarget =
-	    LifetimeFixture.SpawnEnemy(FVector(1000.0f, 0.0f, 0.0f), 6, 100.0f);
+	AReEchoEnemyActor* DelayedTarget = LifetimeFixture.SpawnEnemy(FVector(1000.0f, 0.0f, 0.0f), 6, 100.0f);
 	TestTrue(TEXT("Delayed projectile attack executes"), LifetimeWeapon->ExecuteBasicAttack(LifetimeCombatant));
 	TestTrue(TEXT("Attack source can leave the world before impact"), LifetimeOwner->Destroy());
 	TickProjectiles(LifetimeFixture.World, 1.10f);

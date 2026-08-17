@@ -56,6 +56,8 @@ public:
 	/** Clears attachment and burn, then grants immunity without shortening an existing immunity window. */
 	UFUNCTION(BlueprintCallable, Category = "Combat|Element")
 	FReEchoElementCleanseResult ExecuteElementCleanse(const FReEchoElementCleanseCommand& Command);
+	/** Card-agnostic host command: shorten an active immunity window without extending it. */
+	void ClampElementImmunityDuration(float CurrentTimeSeconds, float MaximumRemainingSeconds);
 	/** Save/continue migration entry; runtime attacks must go through HitResolver. */
 	void RestoreElementState(const FReEchoElementState& SavedState);
 	void ResetElementState();

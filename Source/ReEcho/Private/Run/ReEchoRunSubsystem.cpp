@@ -6,6 +6,7 @@
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
+#include "Cards/ReEchoCardRuntime.h"
 #include "Weapons/ReEchoWeaponRuntime.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -74,6 +75,15 @@ FReEchoTraitCardOffer MakeTraitOffer(const FReEchoCsvCardRow& Card)
 	return Offer;
 }
 
+FReEchoTraitCardOffer MakeTraitOffer(const FReEchoCardDefinition& Card)
+{
+	FReEchoTraitCardOffer Offer;
+	Offer.CardId = Card.Id;
+	Offer.DisplayName = FText::FromString(Card.DisplayName);
+	Offer.Description = FText::FromString(Card.Description);
+	return Offer;
+}
+
 TArray<FReEchoCsvCardRow> GetOfferCatalog(const FName OfferGroup)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
@@ -93,7 +103,7 @@ int32 GetTraitStackCount(const TArray<FName>& OwnedCards, const FName CardId)
 	return Count;
 }
 
-void ShuffleOffers(TArray<FReEchoCsvCardRow>& Offers, FRandomStream& Random)
+template <typename T> void ShuffleOffers(TArray<T>& Offers, FRandomStream& Random)
 {
 	for (int32 Index = Offers.Num() - 1; Index > 0; --Index)
 	{
@@ -279,6 +289,8 @@ struct FReEchoEchoStorageRestoreState
 	FReEchoRecording PendingRecording;
 	bool bHasLatestCompletedRecording = false;
 	FReEchoRecording LatestCompletedRecording;
+	bool bHasPreviousCompletedRecording = false;
+	FReEchoRecording PreviousCompletedRecording;
 	TArray<FReEchoRecording> StoredEchoes;
 	TArray<FGuid> SelectedReplayIds;
 	int32 StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
@@ -292,6 +304,69 @@ bool ContainsRecordingId(const TArray<FReEchoRecording>& Recordings, const FGuid
 	    {
 		    return Candidate.Id == RecordingId;
 	    });
+}
+
+bool MigrateCardState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Snapshot, FReEchoBuildSnapshot& Build)
+{
+	if (!Snapshot.CardCatalog.IsValid())
+	{
+		return false;
+	}
+	if (SaveVersion >= 9)
+	{
+		if (!Build.Cards.IsEmpty() || Build.CardState.DomainRevision != Snapshot.CardDomainRevision ||
+		    Build.CardState.Runtime.RandomSequence < 0 || Build.CardState.Runtime.PreventedDamageCount < 0 ||
+		    Build.CardState.Runtime.HuntKillCount < 0 || Build.CardState.Runtime.ReactionCount < 0 ||
+		    Build.CardState.Runtime.EchoKillProgress < 0 || Build.CardState.Runtime.PlayerKillProgress < 0 ||
+		    Build.CardState.Runtime.FreeShopRefreshes < 0 ||
+		    static_cast<uint8>(Build.CardState.Runtime.EconomyPenalty) >
+		        static_cast<uint8>(EReEchoCardEconomyPenalty::NoEnemyShardDrops) ||
+		    (Build.CardState.Runtime.bHasAnchorRecording && !Build.CardState.Runtime.AnchorRecordingId.IsValid()))
+		{
+			return false;
+		}
+		TSet<FName> UniqueCards;
+		for (const FName CardId : Build.CardState.OwnedCardIds)
+		{
+			const FReEchoCardDefinition* Card = Snapshot.CardCatalog->Find(CardId);
+			if (!Card || !Card->bEnabled || Card->OfferGroup != TraitOfferGroup ||
+			    (Card->StackPolicy == TEXT("Unique") && UniqueCards.Contains(CardId)))
+			{
+				return false;
+			}
+			UniqueCards.Add(CardId);
+		}
+		return true;
+	}
+
+	Build.CardState = {};
+	Build.CardState.DomainRevision = Snapshot.CardDomainRevision;
+	for (const FName LegacyId : Build.Cards)
+	{
+		FName MigratedId = LegacyId;
+		if (LegacyId == TEXT("G_1_03"))
+		{
+			continue; // v8 emergency block has no equivalent and must not become physical attack.
+		}
+		if (LegacyId == TEXT("G_1_04"))
+		{
+			MigratedId = TEXT("G_1_03");
+		}
+		else if (LegacyId == TEXT("G_1_05"))
+		{
+			MigratedId = TEXT("G_1_04");
+		}
+		else if (LegacyId == TEXT("G_1_08"))
+		{
+			MigratedId = TEXT("G_1_07");
+		}
+		if (Snapshot.CardCatalog->Find(MigratedId))
+		{
+			Build.CardState.OwnedCardIds.Add(MigratedId);
+		}
+	}
+	Build.Cards.Reset();
+	return true;
 }
 
 /**
@@ -308,6 +383,11 @@ void MigrateV4EchoStorage(const UReEchoRunSaveGame& SaveGame, FReEchoEchoStorage
 	{
 		OutState.LatestCompletedRecording = SaveGame.RecordingHistory[0];
 		OutState.bHasLatestCompletedRecording = true;
+	}
+	if (SaveGame.RecordingHistory.Num() > 1 && SaveGame.RecordingHistory[1].Id.IsValid())
+	{
+		OutState.PreviousCompletedRecording = SaveGame.RecordingHistory[1];
+		OutState.bHasPreviousCompletedRecording = true;
 	}
 	if (!SaveGame.AnchorId.IsValid())
 	{
@@ -343,6 +423,11 @@ void ReadV5EchoStorage(const UReEchoRunSaveGame& SaveGame, FReEchoEchoStorageRes
 	{
 		OutState.LatestCompletedRecording = SaveGame.LatestCompletedRecording;
 		OutState.bHasLatestCompletedRecording = true;
+	}
+	if (SaveGame.bHasPreviousCompletedRecording && SaveGame.PreviousCompletedRecording.Id.IsValid())
+	{
+		OutState.PreviousCompletedRecording = SaveGame.PreviousCompletedRecording;
+		OutState.bHasPreviousCompletedRecording = true;
 	}
 	for (const FReEchoRecording& Stored : SaveGame.StoredEchoes)
 	{
@@ -415,6 +500,7 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	Result.Build.WeaponId = Weapon->Id;
 	Result.Build.WeaponDataRevision = Weapon->DataRevision;
 	Result.Build.WeaponDomainRevision = Snapshot->WeaponDomainRevision;
+	Result.Build.CardState.DomainRevision = Snapshot->CardDomainRevision;
 	Result.Build.Stats = Character->BaseStats;
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
 	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
@@ -507,6 +593,8 @@ TSharedPtr<const FReEchoCsvDataSnapshot> UReEchoRunSubsystem::GetRunDataSnapshot
 void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
+	CurrentBuild.CardState = ReEchoCardRuntime::BeginEncounter(CurrentBuild.CardState, EncounterIndex);
+	bPendingCardEchoRemoval = false;
 	SetPhase(EReEchoRunPhase::Encounter);
 }
 
@@ -521,7 +609,35 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		return;
 	}
 	StagePendingRecording(Recording);
-	TimeShards += 15;
+	const FReEchoCardRuleSnapshot CardRules = GetCardRules();
+	if (!CardRules.bDisableEnemyShardDrops)
+	{
+		const float RewardMultiplier =
+		    CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex == EncounterIndex ? 1.5f : 1.0f;
+		TimeShards += FMath::RoundToInt(15.0f * RewardMultiplier);
+	}
+	if (CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex == EncounterIndex)
+	{
+		CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex = INDEX_NONE;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> CardSnapshot = GetRunDataSnapshot();
+	FReEchoBuildSnapshot CardEndBuild;
+	if (CardSnapshot.IsValid() && CardSnapshot->CardCatalog.IsValid() &&
+	    TryMutateAuthoritativeBuild(
+	        *CardSnapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        const FReEchoCardEventResult Event = ReEchoCardRuntime::EndEncounter(
+		            *CardSnapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats, EncounterIndex, 0);
+		        BaseBuild.CardState = Event.CardState;
+		        BaseBuild.Stats = Event.Stats;
+		        return true;
+	        },
+	        CardEndBuild))
+	{
+		CurrentBuild = CardEndBuild;
+	}
 	if (CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.PoetReactionGrowth")))
 	{
 		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
@@ -554,29 +670,33 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
 {
 	PendingTraitCardIds.Reset();
-	const TArray<FReEchoCsvCardRow> Catalog = GetOfferCatalog(TraitOfferGroup);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const TArray<FReEchoCardDefinition> Catalog =
+	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
+	        ? ReEchoCardRuntime::BuildOfferPool(*Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup)
+	        : TArray<FReEchoCardDefinition>();
 	const int32 OfferCount = FMath::Clamp(RequestedCount, 0, Catalog.Num());
 	if (OfferCount == 0 || Phase != EReEchoRunPhase::CardChoice)
 	{
 		return {};
 	}
 
-	FRandomStream Random(BuildTraitOfferSeed(EncounterIndex, CurrentBuild.Cards));
+	FRandomStream Random(BuildTraitOfferSeed(EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
 	TArray<FReEchoTraitCardOffer> Result;
 	int32 StackLevel = 0;
 	while (Result.Num() < OfferCount)
 	{
-		TArray<FReEchoCsvCardRow> StackBucket;
-		for (const FReEchoCsvCardRow& Card : Catalog)
+		TArray<FReEchoCardDefinition> StackBucket;
+		for (const FReEchoCardDefinition& Card : Catalog)
 		{
-			if (GetTraitStackCount(CurrentBuild.Cards, Card.Id) == StackLevel)
+			if (ReEchoCardRuntime::CountOwned(CurrentBuild.CardState, Card.Id) == StackLevel)
 			{
 				StackBucket.Add(Card);
 			}
 		}
 
 		ShuffleOffers(StackBucket, Random);
-		for (const FReEchoCsvCardRow& Card : StackBucket)
+		for (const FReEchoCardDefinition& Card : StackBucket)
 		{
 			if (Result.Num() >= OfferCount)
 			{
@@ -602,8 +722,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	}
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(CardId) : nullptr;
-	if (!Card || !Card->bEnabled)
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid() || !Snapshot->CardCatalog->Find(CardId))
 	{
 		return false;
 	}
@@ -612,17 +731,28 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
 	const bool bSageBonusChoice = CurrentBuild.RuleFlags.Contains(SageBonusChoiceFlag);
 	bool bSageBonus = false;
+	int32 PendingTimeShards = TimeShards;
 	FReEchoBuildSnapshot PendingBuild;
 	if (!TryMutateAuthoritativeBuild(
 	        *Snapshot,
 	        CurrentBuild,
 	        [&](FReEchoBuildSnapshot& BaseBuild)
 	        {
-		        if (!ApplyCardEffects(*Card, BaseBuild))
+		        FReEchoCardGrantInput Input;
+		        Input.Stats = BaseBuild.Stats;
+		        Input.CardState = BaseBuild.CardState;
+		        Input.TimeShards = PendingTimeShards;
+		        Input.EncounterIndex = EncounterIndex;
+		        Input.RandomSeed = BuildTraitOfferSeed(EncounterIndex, BaseBuild.CardState.OwnedCardIds);
+		        const FReEchoCardGrantResult Grant =
+		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
+		        if (!Grant.bSucceeded)
 		        {
 			        return false;
 		        }
-		        BaseBuild.Cards.Add(CardId);
+		        BaseBuild.Stats = Grant.Stats;
+		        BaseBuild.CardState = Grant.CardState;
+		        PendingTimeShards = Grant.TimeShards;
 		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
 		        if (bSageBonusChoice)
 		        {
@@ -645,6 +775,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 	CurrentBuild = PendingBuild;
+	TimeShards = PendingTimeShards;
 	PendingTraitCardIds.Reset();
 	SetPhase(bSageBonus ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
 	return true;
@@ -658,8 +789,12 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateForgeOffers()
 		return {};
 	}
 
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	TArray<FReEchoTraitCardOffer> Offers;
-	for (const FReEchoCsvCardRow& Card : GetOfferCatalog(ForgeOfferGroup))
+	const TArray<FReEchoCardDefinition> ForgeCards = Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
+	                                                     ? Snapshot->CardCatalog->GetOfferable(ForgeOfferGroup)
+	                                                     : TArray<FReEchoCardDefinition>();
+	for (const FReEchoCardDefinition& Card : ForgeCards)
 	{
 		Offers.Add(MakeTraitOffer(Card));
 	}
@@ -678,7 +813,8 @@ bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
 	}
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	const FReEchoCsvCardRow* Card = Snapshot.IsValid() ? Snapshot->FindCard(ForgeId) : nullptr;
+	const FReEchoCardDefinition* Card =
+	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() ? Snapshot->CardCatalog->Find(ForgeId) : nullptr;
 	FReEchoBuildSnapshot PendingBuild;
 	if (!Card || !Card->bEnabled || Card->OfferGroup != ForgeOfferGroup ||
 	    !TryMutateAuthoritativeBuild(
@@ -686,10 +822,21 @@ bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
 	        CurrentBuild,
 	        [&](FReEchoBuildSnapshot& BaseBuild)
 	        {
-		        if (!ApplyCardEffects(*Card, BaseBuild))
+		        FReEchoCardGrantInput Input;
+		        Input.Stats = BaseBuild.Stats;
+		        Input.CardState = BaseBuild.CardState;
+		        Input.TimeShards = TimeShards;
+		        Input.EncounterIndex = EncounterIndex;
+		        Input.RandomSeed = BuildTraitOfferSeed(EncounterIndex, BaseBuild.CardState.OwnedCardIds);
+		        Input.bRecordOwnership = false;
+		        const FReEchoCardGrantResult Grant =
+		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, ForgeId, Input);
+		        if (!Grant.bSucceeded)
 		        {
 			        return false;
 		        }
+		        BaseBuild.Stats = Grant.Stats;
+		        BaseBuild.CardState = Grant.CardState;
 		        BaseBuild.Stats.HpMax = FMath::Max(1.0f, BaseBuild.Stats.HpMax);
 		        return true;
 	        },
@@ -704,6 +851,206 @@ bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
 	return true;
 }
 
+FReEchoCardRuleSnapshot UReEchoRunSubsystem::GetCardRules() const
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	return Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
+	           ? ReEchoCardRuntime::CompileRules(*Snapshot->CardCatalog, CurrentBuild.CardState)
+	           : FReEchoCardRuleSnapshot{};
+}
+
+FReEchoCardEncounterTickResult UReEchoRunSubsystem::AdvanceCardEncounter(const float EncounterTimeSeconds)
+{
+	FReEchoCardEncounterTickResult Result;
+	Result.CardState = CurrentBuild.CardState;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (Snapshot.IsValid() && Snapshot->CardCatalog.IsValid())
+	{
+		Result =
+		    ReEchoCardRuntime::AdvanceEncounter(*Snapshot->CardCatalog, CurrentBuild.CardState, EncounterTimeSeconds);
+		CurrentBuild.CardState = Result.CardState;
+	}
+	return Result;
+}
+
+void UReEchoRunSubsystem::ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
+                                                const FReEchoStatBlock& SourceStats,
+                                                const float EchoDistanceCm,
+                                                const bool bTargetHasElement)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return;
+	}
+	FReEchoCardOutgoingHitInput Input;
+	Input.RawDamage = Intent.RawDamage;
+	Input.CriticalRate = SourceStats.CriticalRate;
+	Input.CriticalEffect = SourceStats.CriticalEffect;
+	Input.DistanceCm = EchoDistanceCm;
+	Input.bCritical = Intent.bCritical;
+	Input.bTargetHasElement = bTargetHasElement;
+	Input.Element = Intent.Element;
+	Input.TimeShards = TimeShards;
+	Input.RandomSeed = HashCombine(GetTypeHash(EncounterIndex), GetTypeHash(Intent.Attack.Sequence));
+	const FReEchoCardOutgoingHitResult Result =
+	    ReEchoCardRuntime::ModifyOutgoingHit(*Snapshot->CardCatalog, CurrentBuild.CardState, Input);
+	CurrentBuild.CardState = Result.CardState;
+	TimeShards = Result.TimeShards;
+	Intent.RawDamage = Result.RawDamage;
+	Intent.bCritical = Result.bCritical;
+	Intent.Element = Result.Element;
+}
+
+float UReEchoRunSubsystem::ModifyCardIncomingHit(const float RawDamage)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return RawDamage;
+	}
+	const FReEchoCardIncomingHitResult Result =
+	    ReEchoCardRuntime::ModifyIncomingHit(*Snapshot->CardCatalog, CurrentBuild.CardState, RawDamage, TimeShards);
+	CurrentBuild.CardState = Result.CardState;
+	TimeShards = Result.TimeShards;
+	bPendingCardEchoRemoval |= Result.bRemoveAllEchoes;
+	return Result.RawDamage;
+}
+
+float UReEchoRunSubsystem::NotifyCardReaction(const FName ReactionId, const bool bTriggeredByPlayer)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return 0.0f;
+	}
+	float Healing = 0.0f;
+	FReEchoBuildSnapshot PendingBuild;
+	if (TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        const FReEchoCardEventResult Event = ReEchoCardRuntime::OnReaction(
+		            *Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats, ReactionId, bTriggeredByPlayer);
+		        BaseBuild.CardState = Event.CardState;
+		        BaseBuild.Stats = Event.Stats;
+		        Healing = Event.Healing;
+		        return true;
+	        },
+	        PendingBuild))
+	{
+		CurrentBuild = PendingBuild;
+	}
+	return Healing;
+}
+
+void UReEchoRunSubsystem::NotifyCardKill(const bool bKilledByEcho)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	FReEchoBuildSnapshot PendingBuild;
+	if (Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() &&
+	    TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        const FReEchoCardEventResult Event = ReEchoCardRuntime::OnKillResolved(
+		            *Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats, bKilledByEcho);
+		        BaseBuild.CardState = Event.CardState;
+		        BaseBuild.Stats = Event.Stats;
+		        return true;
+	        },
+	        PendingBuild))
+	{
+		CurrentBuild = PendingBuild;
+	}
+}
+
+void UReEchoRunSubsystem::NotifyCardEchoDefeated()
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	FReEchoBuildSnapshot PendingBuild;
+	if (Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() &&
+	    TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        const FReEchoCardEventResult Event =
+		            ReEchoCardRuntime::OnEchoKilled(*Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats);
+		        BaseBuild.CardState = Event.CardState;
+		        BaseBuild.Stats = Event.Stats;
+		        return true;
+	        },
+	        PendingBuild))
+	{
+		CurrentBuild = PendingBuild;
+	}
+}
+
+bool UReEchoRunSubsystem::ConsumeCardEchoRemovalRequest()
+{
+	const bool bResult = bPendingCardEchoRemoval;
+	bPendingCardEchoRemoval = false;
+	return bResult;
+}
+
+int32 UReEchoRunSubsystem::GetDiscountedShopPrice(const int32 BasePrice) const
+{
+	return FMath::Max(0, FMath::CeilToInt(BasePrice * (1.0f - GetCardRules().ShopDiscount)));
+}
+
+bool UReEchoRunSubsystem::TryConsumeShopRefresh(const int32 PaidRefreshPrice)
+{
+	const FReEchoCardRuleSnapshot Rules = GetCardRules();
+	if (Rules.bDisableShopRefresh)
+	{
+		return false;
+	}
+	if (CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0)
+	{
+		--CurrentBuild.CardState.Runtime.FreeShopRefreshes;
+		++CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+		return true;
+	}
+	if (PaidRefreshPrice <= 0)
+	{
+		return false;
+	}
+	const int32 Price = PaidRefreshPrice;
+	if (TimeShards < Price)
+	{
+		return false;
+	}
+	TimeShards -= Price;
+	++CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+	return true;
+}
+
+bool UReEchoRunSubsystem::CanPurchaseExtraShopCard() const
+{
+	return !GetCardRules().bDisableExtraCardPurchase;
+}
+
+bool UReEchoRunSubsystem::SetCardAnchorRecording(const FGuid RecordingId)
+{
+	if (!ReEchoCardRuntime::HasCard(CurrentBuild.CardState, TEXT("G_3_02")) ||
+	    FindStoredEchoIndex(RecordingId) == INDEX_NONE)
+	{
+		return false;
+	}
+	CurrentBuild.CardState.Runtime.bHasAnchorRecording = true;
+	CurrentBuild.CardState.Runtime.AnchorRecordingId = RecordingId;
+	return true;
+}
+
+void UReEchoRunSubsystem::ClearCardAnchorRecording()
+{
+	CurrentBuild.CardState.Runtime.bHasAnchorRecording = false;
+	CurrentBuild.CardState.Runtime.AnchorRecordingId.Invalidate();
+}
+
 bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 {
 	if (InventoryItems.Contains(ItemId))
@@ -716,12 +1063,14 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	    {
 		    return Candidate.ItemId == ItemId;
 	    });
-	if (!Offer || TimeShards < Offer->Price)
+	const int32 EffectivePrice = Offer ? GetDiscountedShopPrice(Offer->Price) : 0;
+	if (!Offer || TimeShards < EffectivePrice)
 	{
 		return false;
 	}
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoBuildSnapshot OriginalBuild = CurrentBuild;
 	FReEchoBuildSnapshot PendingBuild;
 	if (!Snapshot.IsValid() || !TryMutateAuthoritativeBuild(
 	                               *Snapshot,
@@ -742,12 +1091,18 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		                               }
 		                               else if (ItemId == TEXT("SHOP_OLD_COIN"))
 		                               {
-		                               BaseBuild.Stats.EchoEfficiency += 0.1f;
+			                               BaseBuild.Stats.EchoEfficiency += 0.1f;
 		                               }
 		                               else if (ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
 		                               {
-		                               // 不修改 build 属性；只解锁指定回放槽位上限（见下方统一处理）。
-		                               return true;
+			                               // 不修改 build 属性；只解锁指定回放槽位上限（见下方统一处理）。
+		                               }
+		                               if (Snapshot->CardCatalog.IsValid())
+		                               {
+			                               const FReEchoCardEventResult Event = ReEchoCardRuntime::OnPurchase(
+			                                   *Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats);
+			                               BaseBuild.CardState = Event.CardState;
+			                               BaseBuild.Stats = Event.Stats;
 		                               }
 		                               return true;
 	                               },
@@ -755,7 +1110,7 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	{
 		return false;
 	}
-	TimeShards -= Offer->Price;
+	TimeShards -= EffectivePrice;
 	InventoryItems.Add(ItemId);
 	CurrentBuild = PendingBuild;
 
@@ -763,12 +1118,12 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	{
 		// 一次性解锁：把指定回放槽位上限拉满（3），不修改 build 属性。
 		// 通用查重/余额检查（上方）已保证原子拒绝重复购买与碎片不足。
-		const EReEchoEchoStorageResult LimitResult =
-			SetSpecificReplayLimit(ReEchoEchoStorage::MaxSpecificReplayLimit);
+		const EReEchoEchoStorageResult LimitResult = SetSpecificReplayLimit(ReEchoEchoStorage::MaxSpecificReplayLimit);
 		if (LimitResult != EReEchoEchoStorageResult::Success)
 		{
-			TimeShards += Offer->Price; // 设定失败则回滚扣费
+			TimeShards += EffectivePrice; // 设定失败则回滚扣费
 			InventoryItems.Remove(ItemId);
+			CurrentBuild = OriginalBuild;
 			return false;
 		}
 	}
@@ -781,6 +1136,8 @@ void UReEchoRunSubsystem::ResetEchoStorage()
 	PendingRecording = {};
 	bHasLatestCompletedRecording = false;
 	LatestCompletedRecording = {};
+	bHasPreviousCompletedRecording = false;
+	PreviousCompletedRecording = {};
 	StoredEchoes.Reset();
 	SelectedReplayIds.Reset();
 	StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
@@ -833,6 +1190,11 @@ EReEchoEchoStorageResult UReEchoRunSubsystem::StagePendingRecording(const FReEch
 	}
 	PendingRecording = Recording;
 	bHasPendingRecording = true;
+	if (bHasLatestCompletedRecording && LatestCompletedRecording.Id != Recording.Id)
+	{
+		PreviousCompletedRecording = LatestCompletedRecording;
+		bHasPreviousCompletedRecording = true;
+	}
 	LatestCompletedRecording = Recording;
 	bHasLatestCompletedRecording = true;
 	return EReEchoEchoStorageResult::Success;
@@ -895,6 +1257,11 @@ EReEchoEchoStorageResult UReEchoRunSubsystem::StorePendingRecordingReplacing(con
 		return EReEchoEchoStorageResult::DuplicateRecordingId;
 	}
 	StoredEchoes[ReplacedIndex] = PendingRecording;
+	if (CurrentBuild.CardState.Runtime.bHasAnchorRecording &&
+	    CurrentBuild.CardState.Runtime.AnchorRecordingId == ReplacedRecordingId)
+	{
+		ClearCardAnchorRecording();
+	}
 	bHasPendingRecording = false;
 	PendingRecording = {};
 	NormalizeSelectedReplayIds();
@@ -1006,9 +1373,23 @@ bool UReEchoRunSubsystem::TryGetLatestCompletedRecording(FReEchoRecording& OutRe
 TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int32 RequestedCount) const
 {
 	TArray<FReEchoRecording> Result;
+	const FReEchoCardRuleSnapshot Rules = GetCardRules();
+	if (Rules.bEchoesDisabled)
+	{
+		return Result;
+	}
 	const int32 Count = FMath::Clamp(RequestedCount, 0, ReEchoEchoStorage::MaxStorageCapacity);
 	if (Count == 0)
 	{
+		return Result;
+	}
+	if (CurrentBuild.CardState.Runtime.bHasAnchorRecording)
+	{
+		FReEchoRecording Anchor;
+		if (TryGetStoredEcho(CurrentBuild.CardState.Runtime.AnchorRecordingId, Anchor))
+		{
+			Result.Add(MoveTemp(Anchor));
+		}
 		return Result;
 	}
 
@@ -1022,9 +1403,15 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int3
 	{
 		if (SelectedReplayIds.Num() == 0)
 		{
-			if (bHasLatestCompletedRecording)
+			const int32 DefaultCount = FMath::Min(Count, Rules.MaximumEchoes);
+			if (DefaultCount > 0 && bHasLatestCompletedRecording)
 			{
 				Result.Add(LatestCompletedRecording);
+			}
+			if (Result.Num() < DefaultCount && bHasPreviousCompletedRecording &&
+			    (!bHasLatestCompletedRecording || PreviousCompletedRecording.Id != LatestCompletedRecording.Id))
+			{
+				Result.Add(PreviousCompletedRecording);
 			}
 			return Result;
 		}
@@ -1047,9 +1434,15 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int3
 
 	// Specific replay not unlocked: the next encounter automatically replays the rolling
 	// previous-encounter echo. Stored echoes and any residual selection cannot override this.
-	if (bHasLatestCompletedRecording)
+	const int32 DefaultCount = FMath::Min(Count, Rules.MaximumEchoes);
+	if (DefaultCount > 0 && bHasLatestCompletedRecording)
 	{
 		Result.Add(LatestCompletedRecording);
+	}
+	if (Result.Num() < DefaultCount && bHasPreviousCompletedRecording &&
+	    (!bHasLatestCompletedRecording || PreviousCompletedRecording.Id != LatestCompletedRecording.Id))
+	{
+		Result.Add(PreviousCompletedRecording);
 	}
 	return Result;
 }
@@ -1123,6 +1516,7 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	}
 	SaveGame->TimeShards = TimeShards;
 	SaveGame->CurrentBuild = CurrentBuild;
+	SaveGame->CurrentBuild.Cards.Reset();
 	SaveGame->InventoryItems = InventoryItems;
 	SaveGame->bAutomaticAttackMode = bAutomaticAttackMode;
 	// v5+ writes only the new echo storage state; RecordingHistory and AnchorId stay empty on purpose.
@@ -1135,6 +1529,11 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	if (bHasLatestCompletedRecording)
 	{
 		SaveGame->LatestCompletedRecording = LatestCompletedRecording;
+	}
+	SaveGame->bHasPreviousCompletedRecording = bHasPreviousCompletedRecording;
+	if (bHasPreviousCompletedRecording)
+	{
+		SaveGame->PreviousCompletedRecording = PreviousCompletedRecording;
 	}
 	SaveGame->StoredEchoes = StoredEchoes;
 	SaveGame->SelectedReplayIds = SelectedReplayIds;
@@ -1155,8 +1554,10 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 		return false;
 	}
 	FReEchoBuildSnapshot NormalizedCurrentBuild;
-	if (!ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, SaveGame.CurrentBuild).IsEmpty() ||
-	    !TryNormalizeEquipmentBuild(*Snapshot, SaveGame.CurrentBuild, NormalizedCurrentBuild))
+	FReEchoBuildSnapshot MigratedCurrentBuild = SaveGame.CurrentBuild;
+	if (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, MigratedCurrentBuild) ||
+	    !ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, MigratedCurrentBuild).IsEmpty() ||
+	    !TryNormalizeEquipmentBuild(*Snapshot, MigratedCurrentBuild, NormalizedCurrentBuild))
 	{
 		return false;
 	}
@@ -1170,18 +1571,27 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 		ReadV5EchoStorage(SaveGame, RestoredStorage);
 	}
 	if (RestoredStorage.bHasPendingRecording &&
-	    !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.PendingRecording))
+	    (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.PendingRecording.BuildSnapshot) ||
+	     !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.PendingRecording)))
 	{
 		return false;
 	}
 	if (RestoredStorage.bHasLatestCompletedRecording &&
-	    !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.LatestCompletedRecording))
+	    (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.LatestCompletedRecording.BuildSnapshot) ||
+	     !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.LatestCompletedRecording)))
+	{
+		return false;
+	}
+	if (RestoredStorage.bHasPreviousCompletedRecording &&
+	    (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.PreviousCompletedRecording.BuildSnapshot) ||
+	     !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.PreviousCompletedRecording)))
 	{
 		return false;
 	}
 	for (FReEchoRecording& Stored : RestoredStorage.StoredEchoes)
 	{
-		if (!TryNormalizeRestoredRecording(*Snapshot, Stored))
+		if (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, Stored.BuildSnapshot) ||
+		    !TryNormalizeRestoredRecording(*Snapshot, Stored))
 		{
 			return false;
 		}
@@ -1189,9 +1599,14 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	FReEchoEncounterRuntimeState NormalizedEncounterRuntimeState = SaveGame.EncounterRuntimeState;
 	if (SaveGame.EncounterRuntimeState.bValid)
 	{
+		if (!MigrateCardState(
+		        SaveGame.SaveVersion, *Snapshot, NormalizedEncounterRuntimeState.ActiveRecording.BuildSnapshot))
+		{
+			return false;
+		}
 		FString ActiveRecordingError;
 		if (!ValidateRecordingAgainstSnapshot(
-		        *Snapshot, SaveGame.EncounterRuntimeState.ActiveRecording, ActiveRecordingError))
+		        *Snapshot, NormalizedEncounterRuntimeState.ActiveRecording, ActiveRecordingError))
 		{
 			return false;
 		}
@@ -1214,6 +1629,10 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	bHasLatestCompletedRecording = RestoredStorage.bHasLatestCompletedRecording;
 	LatestCompletedRecording =
 	    RestoredStorage.bHasLatestCompletedRecording ? RestoredStorage.LatestCompletedRecording : FReEchoRecording{};
+	bHasPreviousCompletedRecording = RestoredStorage.bHasPreviousCompletedRecording;
+	PreviousCompletedRecording = RestoredStorage.bHasPreviousCompletedRecording
+	                                 ? RestoredStorage.PreviousCompletedRecording
+	                                 : FReEchoRecording{};
 	StoredEchoes = MoveTemp(RestoredStorage.StoredEchoes);
 	StorageCapacity = RestoredStorage.StorageCapacity;
 	SpecificReplayLimit = RestoredStorage.SpecificReplayLimit;

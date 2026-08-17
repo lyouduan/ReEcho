@@ -1,33 +1,46 @@
 Id,SourceWorkbookId,Tier,DisplayName,Description,Tags,PromotionRoleId,OfferGroup,Enabled,Offerable,StackPolicy,ConflictPolicy,ReviewStatus,DisabledReason
-G_1_01,G_1_01,1,时序加速,移动速度 +10%，攻击速度 +10%,Base|Utility,Sage,Trait,true,true,Stackable,None,Approved,
-G_1_02,G_1_02,1,生命延展,最大生命 +15，立即恢复等量生命,Base|Survival,Brave,Trait,true,true,Stackable,None,Approved,
-G_1_03,Runtime.G_1_03,1,应急格挡,每个关卡抵挡 1 次伤害,Base|Survival,Brave,Trait,true,true,Stackable,None,Approved,
-G_1_04,G_1_03,1,物理增幅,物理攻击 +2,Base|Physical,Hunter,Trait,true,true,Stackable,None,Approved,
-G_1_05,G_1_04,1,元素增幅,元素攻击 +2,Base|Element,Poet,Trait,true,true,Stackable,None,Approved,
-G_1_06,G_1_05,1,CriticalExpert,Legacy JSON row not in current draw pool,Critical,Disabled,Disabled,false,false,Stackable,None,Unimplemented,Not part of current six offerable runtime cards.
-G_1_07,G_1_06,1,ElementExpert,Legacy JSON row not in current draw pool,Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,Not part of current six offerable runtime cards.
-G_1_08,G_1_07,1,回响共振,回响伤害效率 +10%,Echo|Utility,Sage,Trait,true,true,Stackable,None,Approved,
-G_2_01,G_2_01,2,WaterPath,存疑 row lacks implemented runtime handler,Element,Disabled,Disabled,false,false,Stackable,None,DesignReview,Workbook review status is doubtful and no handler is implemented.
-G_2_02,G_2_02,2,GrassPath,存疑 row lacks implemented runtime handler,Element,Disabled,Disabled,false,false,Stackable,None,DesignReview,Workbook review status is doubtful and no handler is implemented.
-G_2_03,G_2_03,2,SurvivalTraining,Legacy JSON row lacks implemented runtime handler,Echo|Body,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_2_04,G_2_04,2,CriticalDrain,Legacy JSON row lacks implemented runtime handler,Critical,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_2_05,G_2_05,2,ReactionDrain,Legacy JSON row lacks implemented runtime handler,Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_2_06,G_2_06,2,PhysicalII,Legacy JSON row lacks current draw-pool approval,Base|Critical,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_2_07,G_2_07,2,ElementalII,Legacy JSON row lacks current draw-pool approval,Base|Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_2_08,G_2_08,2,Reserved,Reserved legacy row,Reserved,Disabled,Disabled,false,false,Stackable,None,Reserved,Reserved in legacy JSON.
-G_2_09,G_2_09,2,Reserved,Reserved legacy row,Reserved,Disabled,Disabled,false,false,Stackable,None,Reserved,Reserved in legacy JSON.
-G_3_01,G_3_01,3,TripleEcho,Legacy JSON row lacks implemented runtime handler,Echo,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_02,G_3_02,3,TimeAnchor,Legacy JSON row lacks implemented runtime handler,Echo,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_03,G_3_03,3,SoloBody,Legacy JSON row lacks implemented runtime handler,Body,Disabled,Disabled,false,false,Unique,EchoKeystone,Unimplemented,No current runtime handler.
-G_3_04,G_3_04,3,TauntEcho,Legacy JSON row lacks implemented runtime handler,Body,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_05,G_3_05,3,MutualGrowth,Legacy JSON row lacks implemented runtime handler,Echo|Body,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_06,G_3_06,3,ElementScatter,Legacy JSON row lacks implemented runtime handler,Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_07,G_3_07,3,ImmunityPierce,Legacy JSON row lacks implemented runtime handler,Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_08,G_3_08,3,ReactionOverload,Legacy JSON row lacks implemented runtime handler,Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_09,G_3_09,3,SingleExtremeCrit,Legacy JSON row lacks implemented runtime handler,Critical,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_10,G_3_10,3,DoubleCrit,Legacy JSON row lacks implemented runtime handler,Critical,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_11,G_3_11,3,ElementCrit,Legacy JSON row lacks implemented runtime handler,Critical|Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
-G_3_12,G_3_12,3,ElementCanCrit,Legacy JSON row lacks implemented runtime handler,Critical|Element,Disabled,Disabled,false,false,Stackable,None,Unimplemented,No current runtime handler.
+G_1_01,G_1_01,1,速度强化,移动速度+10%,Base,Sage,Trait,true,true,Stackable,None,Approved,
+G_1_02,G_1_02,1,生命强化,生命值与生命上限+8,Base,Brave,Trait,true,true,Stackable,None,Approved,
+G_1_03,G_1_03,1,物理强化,物理攻击力+4,Base,Hunter,Trait,true,true,Stackable,None,Approved,
+G_1_04,G_1_04,1,元素强化,元素攻击力+4,Base,Poet,Trait,true,true,Stackable,None,Approved,
+G_1_05,G_1_05,1,暴击专家,暴击率与暴击效果+25%,Base,Hunter,Trait,true,true,Stackable,None,Approved,
+G_1_06,G_1_06,1,元素专家,元素反应效能+25%,Base,Poet,Trait,true,true,Stackable,None,Approved,
+G_1_07,G_1_07,1,回响强化,回响效能+10%,Base,Sage,Trait,true,true,Stackable,None,Approved,
+G_1_08,G_1_08,1,命运跃迁I,随机获得1张2级卡牌,Base,Sage,Trait,true,true,Stackable,None,Approved,
+G_2_04,G_2_04,2,孤注一掷,你的元素攻击力和物理攻击力，随机1项降低30%，另外1项+60%,Gamble,Sage,Trait,true,true,Stackable,None,Approved,
+G_2_05,G_2_05,2,猎杀淬炼,你获得永久物理攻击力，数值基于你与回响下一关击杀的怪物数量/5,Critical|Echo|Body,Hunter,Trait,true,true,Stackable,None,Approved,
+G_2_06,G_2_06,2,元素虹吸,你获得永久元素攻击力，数值基于你与回响下一关所触发的元素反应总数/4,Element|Echo|Body,Poet,Trait,true,true,Stackable,None,Approved,
+G_2_07,G_2_07,2,潮汐回响,回响每2秒为身边4m范围内的敌人附着水元素,Echo|Element,Poet,Trait,true,true,Stackable,None,Approved,
+G_2_08,G_2_08,2,森林回响,回响每2秒为身边4m范围内的敌人附着草元素,Echo|Element,Poet,Trait,true,true,Stackable,None,Approved,
+G_2_09,G_2_09,2,拒斥立场,回响周围4m的敌人会被【减速】30%,Echo,Sage,Trait,true,true,Stackable,None,Approved,
+G_2_10,G_2_10,2,命运跃迁II,随机获得1张3级卡牌,Gamble,Sage,Trait,true,true,Stackable,None,Approved,
+G_2_12,G_2_12,2,元素暴击,当敌方单位被附着任意元素时，你或回响对其造成的暴击效果+100%,Element|Critical,Hunter,Trait,true,true,Stackable,None,Approved,
+G_2_13,G_2_13,2,万象回春,每当你触发元素反应，回复2生命值。冷却1.5秒,Element|Survival,Poet,Trait,true,true,Stackable,None,Approved,
+G_2_14,G_2_14,2,替身余响,你每一关承受的前3次伤害无效；当你受到第4次伤害时，本关回响消失,Echo|Survival,Brave,Trait,true,true,Stackable,None,Approved,
+G_2_15,G_2_15,2,时砂豪赌,立即失去你的所有时间碎片。下一关，敌方单位将额外掉落1.5倍时间碎片,Economy,Sage,Trait,true,true,Stackable,None,Approved,
+G_2_16,G_2_16,2,繁荣契约,你的商店获得20%折扣。你每购买1次任意商品，你的生命值和生命上限+2,Economy|Survival,Brave,Trait,true,true,Stackable,None,Approved,
+G_2_17,G_2_17,2,静默刻度,在每一关卡的第10s和第20s时，使所有怪物【眩晕】2s,Survival,Brave,Trait,true,true,Unique,None,Approved,
+G_3_01,G_3_01,3,双重回声,现在，你至多可以拥有2个回响，分别对应你上一局、上上局的行为,Echo|Element,Poet,Trait,true,true,Unique,None,Approved,
+G_3_02,G_3_02,3,时空锚点,你可以为你的回响设置1个时间锚点。从此以后，你的回响只会重复你在这一关内的行为,Echo,Sage,Trait,true,true,Unique,None,Approved,
+G_3_03,G_3_03,3,涅槃之身,回响不再出现。你的所有基础属性*2；你之后将不再抽到“回响”相关卡牌,Body,Brave,Trait,true,true,Unique,EchoKeystone,Approved,
+G_3_04,G_3_04,3,殉身回响,你的回响继承你的生命值*3，但其无法攻击，且永久获得【嘲讽】状态。每当它被怪物击败，你的最大生命值和当前生命值永久+3,Body|Survival,Brave,Trait,true,true,Unique,None,Approved,
+G_3_05,G_3_05,3,灵魂共振,"你的回响每击杀15个敌方单位，你永久获得物理攻击力+1&元素攻击力+1
+你每击杀15个敌方单位，你的回响效能永久+2%",Echo|Body,Brave,Trait,true,true,Stackable,None,Approved,
+G_3_07,G_3_07,3,元素失衡,所有敌人的【元素免疫】状态持续时长降至0.5s,Element,Poet,Trait,true,true,Unique,None,Approved,
+G_3_09,G_3_09,3,元素创生,"当你或回响触发暴击时，伤害附带随机一种元素效果
+注：这个效果会覆盖武器原有的元素效果",Critical|Element|Echo,Hunter,Trait,true,true,Unique,None,Approved,
+G_3_10,G_3_10,3,元素会心,元素伤害可以暴击,Critical|Element,Hunter,Trait,true,true,Unique,None,Approved,
+G_3_11,G_3_11,3,时距共鸣,每当你或回响造成伤害时，你每和回响距离1m，这个伤害获得3%伤害增幅,Echo,Sage,Trait,true,true,Stackable,None,Approved,
+G_3_12,G_3_12,3,突破天际,你或回响造成的每1次伤害，都可以进行2次暴击判定,Critical,Hunter,Trait,true,true,Unique,None,Approved,
+G_3_13,G_3_13,3,命运跃迁III,随机获得2张卡牌。其中一张必定为3级卡牌,Gamble,Sage,Trait,true,true,Stackable,None,Approved,
+G_3_14,G_3_14,3,血肉铸锋,立即获得相当于你的物理攻击力和元素攻击力总和的生命上限，然后回复满生命,Body|Survival,Brave,Trait,true,true,Stackable,None,Approved,
+G_3_16,G_3_16,3,战利回流,每一关结束后，你获得免费商店刷新次数，数量基于你上一关击败敌方单位总数的10%,Economy,Sage,Trait,true,true,Stackable,None,Approved,
+G_3_17,G_3_17,3,代价丰收,"你获得3000时间碎片，但需要随机承受以下代价之一：
+（1）你将不能再刷新商店；（2）你将不能再购买额外卡牌组；（3）敌方单位将不再掉落时间碎片",Gamble|Economy,Sage,Trait,true,true,Unique,None,Approved,
+G_3_19,G_3_19,3,碎时锋芒,当你还持有时间碎片时，你每次造成伤害前，都会消耗1时间碎片，让该次伤害获得20%伤害增幅,Economy,Sage,Trait,true,true,Stackable,None,Approved,
+G_3_20,G_3_20,3,碎时壁垒,当你还持有时间碎片时，你每次受到伤害前，都会消耗5时间碎片，让该次伤害-1，最低为0,Economy|Survival,Brave,Trait,true,true,Stackable,None,Approved,
+G_3_21,G_3_21,3,万象共鸣,每当你触发4个不同种类的元素反应后，你的元素反应效能永久+5%,Element,Poet,Trait,true,true,Stackable,None,Approved,
+G_3_22,G_3_22,3,复调机括,你的武器的每个槽位现在可以装备2个配件（除核心外）,Base,Sage,Trait,true,true,Unique,None,Approved,
 FORGE_LIGHT,Runtime.FORGE_LIGHT,0,轻度锻炼,生命 +2，物理与元素攻击 +1,Forge,Disabled,Forge,true,true,Stackable,None,Approved,
 FORGE_MEDIUM,Runtime.FORGE_MEDIUM,0,中度锻炼,生命 -2，物理与元素攻击 +2,Forge,Disabled,Forge,true,true,Stackable,None,Approved,
 FORGE_EXTREME,Runtime.FORGE_EXTREME,0,极限锻炼,生命 -6，物理与元素攻击 +2,Forge,Disabled,Forge,true,true,Stackable,None,Approved,

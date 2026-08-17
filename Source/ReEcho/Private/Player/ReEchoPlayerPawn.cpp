@@ -25,6 +25,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameplayAbilitySpec.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
@@ -452,6 +453,66 @@ bool AReEchoPlayerPawn::IntersectsCombatPath(const FVector& PathStart,
 	return FMath::PointDistToSegment(GetActorLocation(), PathStart, PathEnd) <= FMath::Max(0.0f, CarrierRadius) + 35.0f;
 }
 
+float AReEchoPlayerPawn::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		return Run->ModifyCardIncomingHit(Intent.RawDamage);
+	}
+	return Intent.RawDamage;
+}
+
+void AReEchoPlayerPawn::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
+{
+	UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (!Run)
+	{
+		return;
+	}
+	float EchoDistanceCm = 0.0f;
+	for (TActorIterator<AReEchoEchoActor> It(GetWorld()); It; ++It)
+	{
+		if (It->IsCombatTargetAlive())
+		{
+			EchoDistanceCm = FMath::Max(EchoDistanceCm, FVector::Dist2D(GetActorLocation(), It->GetActorLocation()));
+		}
+	}
+	const UReEchoCombatantComponent* TargetCombatant =
+	    Intent.Target ? Intent.Target->FindComponentByClass<UReEchoCombatantComponent>() : nullptr;
+	Run->ModifyCardOutgoingHit(Intent,
+	                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
+	                           EchoDistanceCm,
+	                           TargetCombatant && TargetCombatant->GetElementState().Attached != EReEchoElement::None);
+}
+
+void AReEchoPlayerPawn::NotifyReactionResolved(const FName ReactionId) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardReaction(ReactionId, true);
+		if (Combatant && Healing > 0.0f)
+		{
+			Combatant->ApplyHealing(Healing);
+		}
+		if (Combatant)
+		{
+			Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
+		}
+	}
+}
+
+void AReEchoPlayerPawn::NotifyKillResolved() const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		Run->NotifyCardKill(false);
+		if (Combatant)
+		{
+			Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
+		}
+	}
+}
+
 void AReEchoPlayerPawn::GrantStartupAbilities()
 {
 	if (!HasAuthority() || !AbilitySystem)
@@ -843,8 +904,8 @@ void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Stre
 	AttackVisualStrength = Strength;
 	if (PresentationController)
 	{
-		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true,
-		                                   NextPresentationAttackInstanceId++);
+		PresentationController->PlayAction(
+		    ReEcho2DAnimationTags::Attack_Basic, true, NextPresentationAttackInstanceId++);
 	}
 }
 
@@ -892,13 +953,14 @@ void AReEchoPlayerPawn::RefreshPresentationProfile()
 	if (PresentationCatalog)
 	{
 		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-		const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(CurrentCharacterId) : nullptr;
+		const FReEchoCsvCharacterRow* Character =
+		    Snapshot.IsValid() ? Snapshot->FindCharacter(CurrentCharacterId) : nullptr;
 		Profile = Character ? PresentationCatalog->ResolveProfile(Character->AppearanceId) : nullptr;
 	}
 	if (PresentationController)
 	{
-		PresentationController->Configure(CharacterSprite, SequenceAnimation, Profile,
-		                                  Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
+		PresentationController->Configure(
+		    CharacterSprite, SequenceAnimation, Profile, Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
 	}
 }
 

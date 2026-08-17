@@ -56,4 +56,47 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Post-draw purchase deducts the available shards"), RunSubsystem->TimeShards, 0);
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardShopRulesTest,
+                                 "ReEcho.Shop.CardRulesAreAtomicAndPersistent",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_2_16"));
+	RunSubsystem->TimeShards = 50;
+	const float InitialHpMax = RunSubsystem->CurrentBuild.Stats.HpMax;
+
+	TestEqual(TEXT("Prosperity contract shows the same rounded price that purchase charges"),
+	          RunSubsystem->GetDiscountedShopPrice(15),
+	          12);
+	TestTrue(TEXT("Discounted purchase succeeds"), RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
+	TestEqual(TEXT("Discounted purchase deducts 12 shards"), RunSubsystem->TimeShards, 38);
+	TestEqual(TEXT("Successful purchase applies permanent maximum health growth"),
+	          RunSubsystem->CurrentBuild.Stats.HpMax,
+	          InitialHpMax + 2.0f);
+
+	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
+	const int32 InitialRefreshSequence = RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+	TestTrue(TEXT("Free refresh is consumed before currency"), RunSubsystem->TryConsumeShopRefresh(0));
+	TestEqual(TEXT("Free refresh leaves currency unchanged"), RunSubsystem->TimeShards, 38);
+	TestEqual(TEXT("Free refresh advances the deterministic shop page"),
+	          RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence,
+	          InitialRefreshSequence + 1);
+	TestFalse(TEXT("Zero-price refresh cannot become an infinite paid refresh"),
+	          RunSubsystem->TryConsumeShopRefresh(0));
+
+	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
+	RunSubsystem->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoShopRefresh;
+	TestFalse(TEXT("Permanent no-refresh penalty blocks even a free refresh"), RunSubsystem->TryConsumeShopRefresh(10));
+	TestEqual(TEXT("Blocked refresh does not consume the free count"),
+	          RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes,
+	          1);
+	RunSubsystem->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoExtraCardPurchase;
+	TestFalse(TEXT("Permanent extra-card penalty closes the purchase gate"), RunSubsystem->CanPurchaseExtraShopCard());
+	return true;
+}
 #endif

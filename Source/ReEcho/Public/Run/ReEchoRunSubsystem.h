@@ -59,8 +59,15 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 
-	bool IsAutomaticAttackMode() const { return bAutomaticAttackMode; }
-	void SetAutomaticAttackMode(bool bAutomatic) { bAutomaticAttackMode = bAutomatic; }
+	bool IsAutomaticAttackMode() const
+	{
+		return bAutomaticAttackMode;
+	}
+
+	void SetAutomaticAttackMode(bool bAutomatic)
+	{
+		bAutomaticAttackMode = bAutomatic;
+	}
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
@@ -83,6 +90,23 @@ public:
 	/** 勇者每关结束后的三档锻炼选择。 */
 	TArray<FReEchoTraitCardOffer> GenerateForgeOffers();
 	bool ApplyForgeChoice(FName ForgeId);
+
+	FReEchoCardRuleSnapshot GetCardRules() const;
+	FReEchoCardEncounterTickResult AdvanceCardEncounter(float EncounterTimeSeconds);
+	void ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
+	                           const FReEchoStatBlock& SourceStats,
+	                           float EchoDistanceCm,
+	                           bool bTargetHasElement);
+	float ModifyCardIncomingHit(float RawDamage);
+	float NotifyCardReaction(FName ReactionId, bool bTriggeredByPlayer);
+	void NotifyCardKill(bool bKilledByEcho);
+	void NotifyCardEchoDefeated();
+	bool ConsumeCardEchoRemovalRequest();
+	int32 GetDiscountedShopPrice(int32 BasePrice) const;
+	bool TryConsumeShopRefresh(int32 PaidRefreshPrice);
+	bool CanPurchaseExtraShopCard() const;
+	bool SetCardAnchorRecording(FGuid RecordingId);
+	void ClearCardAnchorRecording();
 
 	/** 消耗时间碎片购买一次性本轮商品；成功后写入背包并立即应用构筑效果。 */
 	UFUNCTION(BlueprintCallable)
@@ -188,6 +212,12 @@ private:
 	UPROPERTY()
 	FReEchoRecording LatestCompletedRecording;
 
+	UPROPERTY()
+	bool bHasPreviousCompletedRecording = false;
+
+	UPROPERTY()
+	FReEchoRecording PreviousCompletedRecording;
+
 	/** Explicitly stored echoes only; persistent identity is FReEchoRecording::Id. */
 	UPROPERTY()
 	TArray<FReEchoRecording> StoredEchoes;
@@ -208,6 +238,7 @@ private:
 	FReEchoEncounterRuntimeState PendingEncounterResume;
 
 	TSharedPtr<const FReEchoCsvDataSnapshot> RunDataSnapshot;
+	bool bPendingCardEchoRemoval = false;
 
 	void SetPhase(EReEchoRunPhase NewPhase);
 

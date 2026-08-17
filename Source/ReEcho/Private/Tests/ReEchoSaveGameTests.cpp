@@ -18,7 +18,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
 	Source->TimeShards = 45;
 	Source->InventoryItems.Add(TEXT("SHOP_OLD_COIN"));
-	Source->CurrentBuild.Cards.Add(TEXT("G_1_01"));
+	Source->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_1_01"));
 	FReEchoRecording Recording;
 	Recording.Id = FGuid::NewGuid();
 	Recording.EncounterIndex = 1;
@@ -48,7 +48,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_CAT")));
 	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_02")));
-	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.Cards.Num(), 1);
+	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 1);
 	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
 	TestEqual(TEXT("Legacy facade resolves one echo from the new state"), RestoredRecordings.Num(), 1);
 	if (RestoredRecordings.Num() == 1)
@@ -115,20 +115,16 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 		         DeserializedSnapshot->EncounterRuntimeState.bBossPostEchoPhaseTriggered);
 		if (DeserializedSnapshot->EncounterRuntimeState.Enemies.Num() == 1)
 		{
-			const FReEchoEnemyRuntimeState& SerializedEnemy =
-			    DeserializedSnapshot->EncounterRuntimeState.Enemies[0];
+			const FReEchoEnemyRuntimeState& SerializedEnemy = DeserializedSnapshot->EncounterRuntimeState.Enemies[0];
 			TestEqual(TEXT("Enemy attack cooldown survives round trip"), SerializedEnemy.AttackCooldown, 0.65f);
 			TestEqual(TEXT("Enemy fuse survives round trip"), SerializedEnemy.FuseRemaining, 0.4f);
 			TestTrue(TEXT("Enemy fuse-active state survives round trip"), SerializedEnemy.bBomberFuseActive);
-			TestEqual(TEXT("Enemy hit reaction survives round trip"),
-			          SerializedEnemy.HitReactionRemaining,
-			          0.12f);
+			TestEqual(TEXT("Enemy hit reaction survives round trip"), SerializedEnemy.HitReactionRemaining, 0.12f);
 			TestEqual(TEXT("Enemy knockback survives round trip"),
 			          SerializedEnemy.KnockbackVelocity,
 			          FVector(45.0f, -12.0f, 0.0f));
-			TestEqual(TEXT("Enemy attack identity sequence survives round trip"),
-			          SerializedEnemy.AttackSequence,
-			          int64(9));
+			TestEqual(
+			    TEXT("Enemy attack identity sequence survives round trip"), SerializedEnemy.AttackSequence, int64(9));
 			TestFalse(TEXT("Enemy one-shot self-destruct state survives round trip"),
 			          SerializedEnemy.bSelfDestructCommitted);
 			TestTrue(TEXT("Canonical enemy logic snapshot survives round trip"), SerializedEnemy.bHasLogicSnapshot);
@@ -154,6 +150,50 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 
 	Snapshot->SaveVersion = UReEchoRunSaveGame::CurrentSaveVersion + 1;
 	TestFalse(TEXT("Incompatible save version is rejected"), Restored->RestoreSaveSnapshot(*Snapshot));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV8CardMigrationTest,
+                                 "ReEcho.Run.SaveV8CardIdsMigrateByMeaning",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoV8CardMigrationTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
+	LegacySave->SaveVersion = 8;
+	LegacySave->CurrentBuild.CardState = {};
+	LegacySave->CurrentBuild.Cards = {TEXT("G_1_03"), TEXT("G_1_04"), TEXT("G_1_05"), TEXT("G_1_08"), TEXT("G_2_01")};
+
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	TestTrue(TEXT("v8 save restores through semantic card migration"), Restored->RestoreSaveSnapshot(*LegacySave));
+	TestEqual(TEXT("Only cards with a current semantic equivalent migrate"),
+	          Restored->CurrentBuild.CardState.OwnedCardIds.Num(),
+	          3);
+	TestTrue(TEXT("Legacy physical card migrates to the new physical ID"),
+	         Restored->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_1_03")));
+	TestTrue(TEXT("Legacy elemental card migrates to the new elemental ID"),
+	         Restored->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_1_04")));
+	TestTrue(TEXT("Legacy movement card migrates to the new movement ID"),
+	         Restored->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_1_07")));
+	TestFalse(TEXT("Removed tier-two card is not retained"),
+	          Restored->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_2_01")));
+	TestTrue(TEXT("Legacy card array is cleared after migration"), Restored->CurrentBuild.Cards.IsEmpty());
+	TestTrue(TEXT("Migrated build pins the current card data domain"),
+	         !Restored->CurrentBuild.CardState.DomainRevision.IsEmpty());
+
+	UReEchoRunSaveGame* EmergencyOnlySave = DuplicateObject<UReEchoRunSaveGame>(LegacySave, GetTransientPackage());
+	EmergencyOnlySave->CurrentBuild.CardState = {};
+	EmergencyOnlySave->CurrentBuild.Cards = {TEXT("G_1_03")};
+	UGameInstance* EmergencyGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* EmergencyRestored = NewObject<UReEchoRunSubsystem>(EmergencyGameInstance);
+	TestTrue(TEXT("v8 emergency-only save remains loadable"),
+	         EmergencyRestored->RestoreSaveSnapshot(*EmergencyOnlySave));
+	TestTrue(TEXT("Removed emergency block does not gain the new G_1_03 meaning"),
+	         EmergencyRestored->CurrentBuild.CardState.OwnedCardIds.IsEmpty());
 	return true;
 }
 

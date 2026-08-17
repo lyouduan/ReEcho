@@ -184,7 +184,7 @@ bool FReEchoEchoReplayResolverSpecificMulti::RunTest(const FString& Parameters)
 	return true;
 }
 
-// An unlocked ability with an empty or stale selection resolves to zero echoes; it never falls back to latest.
+// An unlocked ability with an empty selection keeps automatic replay; stale explicit ids remain atomic failures.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoReplayResolverEmptyStale,
                                  "ReEcho.Run.EchoReplayResolver.EmptyStale",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -201,11 +201,11 @@ bool FReEchoEchoReplayResolverEmptyStale::RunTest(const FString& Parameters)
 	Sub->StagePendingRecording(RecB);
 	Sub->StorePendingRecording();
 
-	// Empty selection -> zero echoes (no silent latest fallback). This is the Plan31 bug fix.
+	// Empty selection preserves the current automatic latest-recording fallback.
 	(void)Sub->SetSpecificReplayLimit(1);
 	(void)Sub->SetSelectedReplayIds({});
 	const TArray<FReEchoRecording> EmptyResolved = Sub->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
-	TestEqual(TEXT("Empty selection resolves to zero echoes (no latest fallback)"), EmptyResolved.Num(), 0);
+	TestEqual(TEXT("Empty selection falls back to the latest echo"), EmptyResolved.Num(), 1);
 
 	// An invalid/stale GUID is rejected atomically; the previously valid selection is preserved.
 	(void)Sub->SetSpecificReplayLimit(2);

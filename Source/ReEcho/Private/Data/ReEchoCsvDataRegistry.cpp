@@ -1,7 +1,10 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 
+#include "Cards/ReEchoCardCatalog.h"
 #include "Combat/ReEchoElementRuntime.h"
 #include "HAL/PlatformFilemanager.h"
+#include "Misc/Crc.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 #include "ReEcho.h"
@@ -38,6 +41,7 @@ constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
 constexpr const TCHAR* DefaultEffectKind = TEXT("ScalarModifier");
 constexpr const TCHAR* StatModifierEffectKind = TEXT("StatModifier");
 constexpr const TCHAR* InstantRecoveryEffectKind = TEXT("InstantRecovery");
+constexpr const TCHAR* CardBehaviorEffectKind = TEXT("CardBehavior");
 constexpr const TCHAR* ElementReactionEffectKind = TEXT("ElementReaction");
 
 FCriticalSection RegistryCriticalSection;
@@ -47,6 +51,93 @@ TSet<FName> RegisteredEffectKinds;
 TSet<FName> RegisteredFormulaIds;
 TSet<FName> RegisteredAttackPatternIds;
 bool bDefaultRegistrationsReady = false;
+
+EReEchoCardValueOperation ToCardValueOperation(const EReEchoCsvValueOp Operation)
+{
+	switch (Operation)
+	{
+		case EReEchoCsvValueOp::Add:
+			return EReEchoCardValueOperation::Add;
+		case EReEchoCsvValueOp::Multiply:
+			return EReEchoCardValueOperation::Multiply;
+		case EReEchoCsvValueOp::Override:
+			return EReEchoCardValueOperation::Override;
+		default:
+			return EReEchoCardValueOperation::Add;
+	}
+}
+
+bool CompileCardCatalog(const FString& DataDirectory,
+                        const TMap<FString, ReEchoCsv::FManifestEntry>& ManifestEntries,
+                        FReEchoCsvDataSnapshot& Snapshot,
+                        TArray<FReEchoCsvIssue>& Issues)
+{
+	TArray<uint8> RevisionBytes;
+	for (const TCHAR* TableId : {CardsTableId, CardEffectsTableId})
+	{
+		TArray<uint8> TableBytes;
+		const FString Path = FPaths::Combine(DataDirectory, ManifestEntries[TableId].FileName);
+		if (!FFileHelper::LoadFileToArray(TableBytes, *Path))
+		{
+			ReEchoCsv::AddIssue(Issues, Path, 1, TEXT("Revision"), TEXT("Cannot read card domain bytes"));
+			return false;
+		}
+		RevisionBytes.Append(TableBytes);
+	}
+	Snapshot.CardDomainRevision =
+	    FString::Printf(TEXT("cards-v1-%08x"), FCrc::MemCrc32(RevisionBytes.GetData(), RevisionBytes.Num()));
+
+	TArray<FReEchoCardDefinition> Definitions;
+	for (const FName CardId : Snapshot.CardOrder)
+	{
+		const FReEchoCsvCardRow* Row = Snapshot.Cards.Find(CardId);
+		if (!Row)
+		{
+			continue;
+		}
+		FReEchoCardDefinition Definition;
+		Definition.Id = Row->Id;
+		Definition.Tier = Row->Tier;
+		Definition.DisplayName = Row->DisplayName;
+		Definition.Description = Row->Description;
+		Definition.Tags = Row->Tags;
+		Definition.PromotionRoleId = Row->PromotionRoleId;
+		Definition.OfferGroup = Row->OfferGroup;
+		Definition.StackPolicy = Row->StackPolicy;
+		Definition.ConflictPolicy = Row->ConflictPolicy;
+		Definition.bEnabled = Row->bEnabled;
+		Definition.bOfferable = Row->bOfferable;
+		for (const FReEchoCsvCardEffectRow& EffectRow : Row->Effects)
+		{
+			FReEchoCardEffectDefinition Effect;
+			Effect.Id = EffectRow.Id;
+			Effect.Order = EffectRow.Order;
+			Effect.Trigger = EffectRow.Trigger;
+			Effect.BehaviorId = EffectRow.BehaviorId;
+			Effect.Target = EffectRow.Target;
+			Effect.Operation = ToCardValueOperation(EffectRow.ValueOp);
+			Effect.Value = EffectRow.Value;
+			Effect.ParamName = EffectRow.ParamName;
+			Effect.ParamValue = EffectRow.ParamValue;
+			Definition.Effects.Add(MoveTemp(Effect));
+		}
+		Definitions.Add(MoveTemp(Definition));
+	}
+
+	TSharedRef<FReEchoCardCatalog> Catalog = MakeShared<FReEchoCardCatalog>();
+	FString Error;
+	if (!Catalog->Initialize(Definitions, Snapshot.CardDomainRevision, Error))
+	{
+		ReEchoCsv::AddIssue(Issues,
+		                    FPaths::Combine(DataDirectory, ManifestEntries[CardsTableId].FileName),
+		                    1,
+		                    TEXT("CardCatalog"),
+		                    Error);
+		return false;
+	}
+	Snapshot.CardCatalog = Catalog;
+	return true;
+}
 
 TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDataSnapshot& Snapshot)
 {
@@ -412,6 +503,7 @@ void FReEchoCsvDataRegistry::EnsureDefaultRegistrations()
 	RegisteredEffectKinds.Add(FName(DefaultEffectKind));
 	RegisteredEffectKinds.Add(FName(StatModifierEffectKind));
 	RegisteredEffectKinds.Add(FName(InstantRecoveryEffectKind));
+	RegisteredEffectKinds.Add(FName(CardBehaviorEffectKind));
 	RegisteredEffectKinds.Add(FName(ElementReactionEffectKind));
 	RegisteredFormulaIds.Add(FName(BehaviorNone));
 	RegisteredAttackPatternIds.Add(FName(BehaviorNone));
@@ -425,6 +517,40 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterBehaviorId(TEXT("Character.BraveForge"));
 	RegisterBehaviorId(TEXT("Card.StatModifier"));
 	RegisterBehaviorId(TEXT("Card.InstantRecovery"));
+	for (const FName BehaviorId : {
+	         FName(TEXT("Card.GrantTier")),
+	         FName(TEXT("Card.RandomStatTrade")),
+	         FName(TEXT("Card.TrackNextKills")),
+	         FName(TEXT("Card.TrackNextReactions")),
+	         FName(TEXT("Card.EchoElementAura")),
+	         FName(TEXT("Card.EchoSlowAura")),
+	         FName(TEXT("Card.ElementAttachedCrit")),
+	         FName(TEXT("Card.ReactionHeal")),
+	         FName(TEXT("Card.DamageSubstitution")),
+	         FName(TEXT("Card.NextShardDrop")),
+	         FName(TEXT("Card.ShopContract")),
+	         FName(TEXT("Card.EncounterStun")),
+	         FName(TEXT("Card.DoubleEcho")),
+	         FName(TEXT("Card.TimeAnchor")),
+	         FName(TEXT("Card.SoloBody")),
+	         FName(TEXT("Card.TauntEcho")),
+	         FName(TEXT("Card.SoulResonance")),
+	         FName(TEXT("Card.EnemyImmunity")),
+	         FName(TEXT("Card.CriticalElement")),
+	         FName(TEXT("Card.ElementCanCrit")),
+	         FName(TEXT("Card.DistanceDamage")),
+	         FName(TEXT("Card.DoubleCritRoll")),
+	         FName(TEXT("Card.BloodForging")),
+	         FName(TEXT("Card.EndKillRefresh")),
+	         FName(TEXT("Card.HarvestPenalty")),
+	         FName(TEXT("Card.ShardOutgoingDamage")),
+	         FName(TEXT("Card.ShardIncomingBarrier")),
+	         FName(TEXT("Card.ReactionDiversity")),
+	         FName(TEXT("Card.DoubleNonCoreSlots")),
+	     })
+	{
+		RegisterBehaviorId(BehaviorId);
+	}
 	RegisterBehaviorId(TEXT("Status.ElementImmunity"));
 	RegisterBehaviorId(TEXT("Status.Burn"));
 	RegisterBehaviorId(TEXT("Reaction.Burn"));
@@ -564,6 +690,10 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 	if (Result.Issues.Num() == 0)
 	{
 		ReEchoCharacterBuildCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		CompileCardCatalog(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
 	}
 	if (Result.Issues.Num() == 0)
 	{

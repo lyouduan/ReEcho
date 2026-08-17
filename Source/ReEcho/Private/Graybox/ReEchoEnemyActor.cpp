@@ -18,8 +18,11 @@
 #include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Graybox/ReEchoEchoActor.h"
+#include "Run/ReEchoRunSubsystem.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
@@ -89,10 +92,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	GroundShadow->SetCastShadow(false);
 	GroundShadow->SetTranslucentSortPriority(-1);
 	GroundShadow->SetAbsolute(false, false, true);
-	GroundShadow->SetRelativeLocation(
-	    FVector(0.0f, 0.0f, -ReEchoEnemyHost::CharacterWorldHeight * 0.28f));
-	GroundShadow->SetRelativeScale3D(
-	    FVector(ReEchoEnemyHost::ShadowScaleX, ReEchoEnemyHost::ShadowScaleY, 1.0f));
+	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -ReEchoEnemyHost::CharacterWorldHeight * 0.28f));
+	GroundShadow->SetRelativeScale3D(FVector(ReEchoEnemyHost::ShadowScaleX, ReEchoEnemyHost::ShadowScaleY, 1.0f));
 
 	USceneComponent* VisualEffectRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualEffectRoot"));
 	VisualEffectRoot->SetupAttachment(RootComponent);
@@ -214,12 +215,12 @@ void AReEchoEnemyActor::Configure(const EReEchoEnemyKind InKind, const int32 Spa
 	}
 
 	const UReEchoBalanceSettings* Settings = GetDefault<UReEchoBalanceSettings>();
-	const FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(
-	    ReEchoEnemyHost::ToArchetype(InKind),
-	    Settings->BomberTriggerRadius,
-	    Settings->BomberDamageRadius,
-	    Settings->BomberFuseDuration,
-	    Settings->BomberDamage);
+	const FReEchoEnemyDefinition Definition =
+	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(ReEchoEnemyHost::ToArchetype(InKind),
+	                                                 Settings->BomberTriggerRadius,
+	                                                 Settings->BomberDamageRadius,
+	                                                 Settings->BomberFuseDuration,
+	                                                 Settings->BomberDamage);
 	check(ConfigureFromDefinition(Definition, SpawnIndex));
 }
 
@@ -253,8 +254,8 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	                                     bBoss ? FReEchoAudioEvents::BossDeath : FReEchoAudioEvents::EnemyDeath);
 	if (!bAudioSpawnPosted)
 	{
-		CombatAudioAdapter->PostConfiguredEvent(
-		    bBoss ? FReEchoAudioEvents::BossSpawn : FReEchoAudioEvents::EnemySpawn, GetActorLocation());
+		CombatAudioAdapter->PostConfiguredEvent(bBoss ? FReEchoAudioEvents::BossSpawn : FReEchoAudioEvents::EnemySpawn,
+		                                        GetActorLocation());
 		bAudioSpawnPosted = true;
 	}
 	if (EnemyRoster)
@@ -293,14 +294,14 @@ int32 AReEchoEnemyActor::GetSpawnIndex() const
 
 EReEchoEnemyKind AReEchoEnemyActor::GetKind() const
 {
-	return EnemyLogic ? ReEchoEnemyHost::ToLegacyKind(EnemyLogic->GetSnapshot().Archetype)
-	                  : EReEchoEnemyKind::Grunt;
+	return EnemyLogic ? ReEchoEnemyHost::ToLegacyKind(EnemyLogic->GetSnapshot().Archetype) : EReEchoEnemyKind::Grunt;
 }
 
 FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 {
 	FReEchoEnemyRuntimeState Result;
-	const FReEchoEnemyLogicSnapshot LogicSnapshot = EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
+	const FReEchoEnemyLogicSnapshot LogicSnapshot =
+	    EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
 	Result.LogicSnapshot = LogicSnapshot;
 	Result.bHasLogicSnapshot = EnemyLogic != nullptr;
 	Result.Kind = static_cast<uint8>(ReEchoEnemyHost::ToLegacyKind(LogicSnapshot.Archetype));
@@ -324,8 +325,8 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.bBomberFuseActive = LogicSnapshot.bFuseActive;
 	Result.HitReactionRemaining = LogicSnapshot.HitReactionRemainingSeconds;
 	Result.KnockbackVelocity = LogicSnapshot.KnockbackVelocity;
-	Result.ShakeDirection = FVector::CrossProduct(
-	    FVector::UpVector, LogicSnapshot.KnockbackVelocity.GetSafeNormal2D()).GetSafeNormal();
+	Result.ShakeDirection =
+	    FVector::CrossProduct(FVector::UpVector, LogicSnapshot.KnockbackVelocity.GetSafeNormal2D()).GetSafeNormal();
 	Result.AttackSequence = LogicSnapshot.AttackSequence;
 	Result.bSelfDestructCommitted = LogicSnapshot.bSelfDestructCommitted;
 	Result.BossProjectiles = BossProjectiles;
@@ -335,8 +336,8 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState)
 {
 	const EReEchoEnemyKind SavedKind = SavedState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
-	                                         ? static_cast<EReEchoEnemyKind>(SavedState.Kind)
-	                                         : EReEchoEnemyKind::Grunt;
+	                                       ? static_cast<EReEchoEnemyKind>(SavedState.Kind)
+	                                       : EReEchoEnemyKind::Grunt;
 	if (!EnemyLogic || !EnemyLogic->IsInitialized() ||
 	    EnemyLogic->GetDefinition().Archetype != ReEchoEnemyHost::ToArchetype(SavedKind))
 	{
@@ -372,10 +373,9 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		LogicSnapshot.FacingDirection = GetActorForwardVector().GetSafeNormal2D();
 		LogicSnapshot.AttackSequence = FMath::Max<int64>(0, SavedState.AttackSequence);
 		LogicSnapshot.bSelfDestructCommitted = SavedState.bSelfDestructCommitted;
-		LogicSnapshot.Phase = LogicSnapshot.HitReactionRemainingSeconds > 0.0f
-		                          ? EReEchoEnemyBehaviorPhase::HitReaction
-		                      : LogicSnapshot.bFuseActive ? EReEchoEnemyBehaviorPhase::Fuse
-		                                                   : EReEchoEnemyBehaviorPhase::Idle;
+		LogicSnapshot.Phase = LogicSnapshot.HitReactionRemainingSeconds > 0.0f ? EReEchoEnemyBehaviorPhase::HitReaction
+		                      : LogicSnapshot.bFuseActive                      ? EReEchoEnemyBehaviorPhase::Fuse
+		                                                                       : EReEchoEnemyBehaviorPhase::Idle;
 	}
 	LogicSnapshot.Archetype = ReEchoEnemyHost::ToArchetype(SavedKind);
 	LogicSnapshot.SpawnIndex = SavedState.SpawnIndex;
@@ -409,8 +409,7 @@ bool AReEchoEnemyActor::IntersectsProjectilePath(const FVector& PathStart,
 	const FVector CapsuleCenter = Collision->GetComponentLocation();
 	const FVector CapsuleAxis = Collision->GetUpVector();
 	const float CapsuleRadius = Collision->GetScaledCapsuleRadius();
-	const float CapsuleSegmentHalfLength =
-	    FMath::Max(0.0f, Collision->GetScaledCapsuleHalfHeight() - CapsuleRadius);
+	const float CapsuleSegmentHalfLength = FMath::Max(0.0f, Collision->GetScaledCapsuleHalfHeight() - CapsuleRadius);
 	const FVector CapsuleStart = CapsuleCenter - CapsuleAxis * CapsuleSegmentHalfLength;
 	const FVector CapsuleEnd = CapsuleCenter + CapsuleAxis * CapsuleSegmentHalfLength;
 	FVector ClosestOnProjectile;
@@ -496,25 +495,44 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(const float Damage,
 
 void AReEchoEnemyActor::AdvanceBossProjectiles(const float DeltaSeconds)
 {
-	AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+	AActor* TargetActor = UGameplayStatics::GetPlayerPawn(this, 0);
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (Run && Run->GetCardRules().bEchoTaunts)
+	{
+		float BestDistanceSquared = TNumericLimits<float>::Max();
+		for (TActorIterator<AReEchoEchoActor> EchoIt(GetWorld()); EchoIt; ++EchoIt)
+		{
+			if (EchoIt->IsCombatTargetAlive())
+			{
+				const float DistanceSquared = FVector::DistSquared2D(GetActorLocation(), EchoIt->GetActorLocation());
+				if (DistanceSquared < BestDistanceSquared)
+				{
+					BestDistanceSquared = DistanceSquared;
+					TargetActor = *EchoIt;
+				}
+			}
+		}
+	}
+	IReEchoCombatTarget* Target = TargetActor ? Cast<IReEchoCombatTarget>(TargetActor) : nullptr;
 	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
 	{
 		FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
-		const FReEchoEnemyProjectileAdvanceResult AdvanceResult = FReEchoEnemyProjectileLogic::Advance(
-		    Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
-		bool bHitPlayer = false;
-		if (AdvanceResult.bMoved && Player && Player->IsCombatTargetAlive() &&
-		    Player->IntersectsCombatPath(
+		const FReEchoEnemyProjectileAdvanceResult AdvanceResult =
+		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
+		bool bHitTarget = false;
+		if (AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive() &&
+		    Target->IntersectsCombatPath(
 		        AdvanceResult.PreviousLocation, AdvanceResult.NewLocation, Projectile.CollisionRadiusCm))
 		{
 			FReEchoBossIntent HitIntent;
 			HitIntent.Attack = Projectile.Attack;
 			HitIntent.Origin = AdvanceResult.PreviousLocation;
 			HitIntent.RawDamage = Projectile.Damage;
-			ApplyBossHit(HitIntent, Player, Player->GetActorLocation());
-			bHitPlayer = true;
+			ApplyBossHit(HitIntent, TargetActor, Target->GetCombatTargetLocation());
+			bHitTarget = true;
 		}
-		if (bHitPlayer || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
+		if (bHitTarget || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
 			BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
 		}
@@ -531,20 +549,41 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	}
 
 	FReEchoEnemyActionIntent Intent;
-	if (IsAlive())
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (IsAlive() && WorldTime >= CardStunnedUntilWorldTime)
 	{
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
 		Sense.WorldTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-		if (APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0))
+		AActor* DesiredTarget = UGameplayStatics::GetPlayerPawn(this, 0);
+		const UReEchoRunSubsystem* Run =
+		    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+		if (Run && Run->GetCardRules().bEchoTaunts)
 		{
-			Sense.Target = Player;
-			Sense.TargetLocation = Player->GetActorLocation();
+			float BestDistanceSquared = TNumericLimits<float>::Max();
+			for (TActorIterator<AReEchoEchoActor> EchoIt(GetWorld()); EchoIt; ++EchoIt)
+			{
+				if (EchoIt->IsCombatTargetAlive())
+				{
+					const float DistanceSquared =
+					    FVector::DistSquared2D(GetActorLocation(), EchoIt->GetActorLocation());
+					if (DistanceSquared < BestDistanceSquared)
+					{
+						BestDistanceSquared = DistanceSquared;
+						DesiredTarget = *EchoIt;
+					}
+				}
+			}
+		}
+		if (AActor* TargetActor = DesiredTarget)
+		{
+			Sense.Target = TargetActor;
+			Sense.TargetLocation = TargetActor->GetActorLocation();
 			Sense.bTargetExists = true;
 			const UReEchoCombatantComponent* PlayerCombatant =
-			    Player->FindComponentByClass<UReEchoCombatantComponent>();
+			    TargetActor->FindComponentByClass<UReEchoCombatantComponent>();
 			Sense.bTargetAlive = PlayerCombatant && PlayerCombatant->IsAlive();
-			if (const AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Player))
+			if (const AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(TargetActor))
 			{
 				Sense.bTargetInvulnerable = ReEchoPlayer->IsWeaponInvulnerable();
 			}
@@ -560,9 +599,10 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 }
 
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense,
-	                                                         const float DeltaSeconds)
+                                                            const float DeltaSeconds)
 {
-	const FReEchoEnemyActionIntent Intent = EnemyLogic->Advance(Sense, DeltaSeconds);
+	FReEchoEnemyActionIntent Intent = EnemyLogic->Advance(Sense, DeltaSeconds);
+	Intent.MovementDelta *= FMath::Clamp(CardMovementMultiplier, 0.0f, 1.0f);
 	if (Intent.bHasFacing)
 	{
 		SetActorRotation(Intent.FacingDirection.Rotation());
@@ -575,9 +615,20 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySe
 	return Intent;
 }
 
+void AReEchoEnemyActor::ApplyCardStun(const float DurationSeconds)
+{
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	CardStunnedUntilWorldTime = FMath::Max(CardStunnedUntilWorldTime, WorldTime + FMath::Max(0.0f, DurationSeconds));
+}
+
+void AReEchoEnemyActor::SetCardMovementMultiplier(const float Multiplier)
+{
+	CardMovementMultiplier = FMath::Clamp(Multiplier, 0.0f, 1.0f);
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense,
-	                                                                 const float DeltaSeconds)
+                                                                    const float DeltaSeconds)
 {
 	return AdvanceBehavior(Sense, DeltaSeconds);
 }
@@ -613,9 +664,7 @@ FVector AReEchoEnemyActor::ResolveBossTeleportDestination(const FVector& TargetL
 	return GetWorld()->FindTeleportSpot(this, Candidate, CandidateRotation) ? Candidate : FVector::ZeroVector;
 }
 
-void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent,
-                                     AActor* Target,
-                                     const FVector& HitLocation)
+void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation)
 {
 	if (!Target || Intent.RawDamage <= 0.0f)
 	{
@@ -638,8 +687,7 @@ void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent,
 		ReEchoPlayer->PlayHitVisual();
 	}
 	ReEchoAttackEffects::SpawnHitImpact(GetWorld(), HitLocation);
-	AReEchoDamageNumberActor::SpawnDamageNumber(
-	    GetWorld(), HitLocation, Resolved.AppliedDamage, FLinearColor::White);
+	AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), HitLocation, Resolved.AppliedDamage, FLinearColor::White);
 }
 
 void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
@@ -681,13 +729,13 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 			const FVector ToTarget = TargetLocation - Intent.Origin;
 			const float ForwardDistance = FVector::DotProduct(ToTarget, Direction);
 			const float SideDistance = FMath::Abs(FVector::DotProduct(ToTarget, Right));
-			bIntersectsAttack = ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm &&
-			                    SideDistance <= Intent.WidthCm * 0.5f;
+			bIntersectsAttack =
+			    ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm && SideDistance <= Intent.WidthCm * 0.5f;
 			break;
 		}
 		case EReEchoBossAttackShape::Circle:
-			bIntersectsAttack = FVector::DistSquared2D(TargetLocation, GetActorLocation()) <=
-			                    FMath::Square(Intent.RadiusCm);
+			bIntersectsAttack =
+			    FVector::DistSquared2D(TargetLocation, GetActorLocation()) <= FMath::Square(Intent.RadiusCm);
 			break;
 		case EReEchoBossAttackShape::Projectile:
 		{
@@ -774,9 +822,8 @@ FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(co
 	Result.SpawnIndex = LogicSnapshot.SpawnIndex;
 	Result.FacingDirection = LogicSnapshot.FacingDirection;
 	Result.KnockbackVelocity = LogicSnapshot.KnockbackVelocity;
-	Result.HealthRatio = Combatant && Combatant->Stats.HpMax > 0.0f
-	                         ? Combatant->CurrentHealth / Combatant->Stats.HpMax
-	                         : 0.0f;
+	Result.HealthRatio =
+	    Combatant && Combatant->Stats.HpMax > 0.0f ? Combatant->CurrentHealth / Combatant->Stats.HpMax : 0.0f;
 	Result.FuseRemainingSeconds = LogicSnapshot.FuseRemainingSeconds;
 	Result.FuseDurationSeconds = Definition.BomberFuseDurationSeconds;
 	Result.HitReactionRemainingSeconds = LogicSnapshot.HitReactionRemainingSeconds;

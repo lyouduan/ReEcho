@@ -80,7 +80,7 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Sage base health comes from CSV"), Sage->BaseStats.HpMax, 15.0f);
 
 	const TArray<FReEchoCsvCardRow> TraitCards = Snapshot->GetOfferableCards(TEXT("Trait"));
-	TestEqual(TEXT("Current trait draw pool contains six cards"), TraitCards.Num(), 6);
+	TestEqual(TEXT("Current trait draw pool contains all 39 cards"), TraitCards.Num(), 39);
 	const FReEchoCsvCardRow* HealthCard = Snapshot->FindCard(TEXT("G_1_02"));
 	if (!TestTrue(TEXT("Health card exists"), HealthCard != nullptr))
 	{
@@ -121,7 +121,9 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Four enemy definitions come from the independent workbook"), Snapshot->Enemies.Num(), 4);
 	TestEqual(TEXT("Boss health comes from enemy CSV"), Boss->MaxHealth, 650.0f);
 	TestEqual(TEXT("Boss owns four active abilities plus cleanse"), Boss->Abilities.Num(), 5);
-	TestEqual(TEXT("Boss active rotation begins with melee sweep"), Boss->Abilities[1].BehaviorId, FName(TEXT("Boss.MeleeSweep")));
+	TestEqual(TEXT("Boss active rotation begins with melee sweep"),
+	          Boss->Abilities[1].BehaviorId,
+	          FName(TEXT("Boss.MeleeSweep")));
 	TestEqual(TEXT("Boss owns the thirty-second phase"), Boss->BossPhases.Num(), 1);
 	TestEqual(TEXT("Boss phase trigger comes from CSV"), Boss->BossPhases[0].TriggerSeconds, 30.0f);
 	return true;

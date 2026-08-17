@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v8 persists the one-shot Boss post-echo phase across suspended encounters. */
-	static constexpr int32 CurrentSaveVersion = 8;
+	/** v9 replaces legacy card ids with the versioned ReEchoCards build/runtime state. */
+	static constexpr int32 CurrentSaveVersion = 9;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -69,6 +69,13 @@ public:
 	/** Rolling previous-encounter echo. Overwritten every successful encounter, occupies no slot. */
 	UPROPERTY(SaveGame)
 	FReEchoRecording LatestCompletedRecording;
+
+	/** v9 rolling recording immediately preceding LatestCompletedRecording. */
+	UPROPERTY(SaveGame)
+	bool bHasPreviousCompletedRecording = false;
+
+	UPROPERTY(SaveGame)
+	FReEchoRecording PreviousCompletedRecording;
 
 	/** Only echoes the player explicitly chose to store; identity is FReEchoRecording::Id, not index. */
 	UPROPERTY(SaveGame)

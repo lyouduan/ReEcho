@@ -1,5 +1,6 @@
 #include "ReEchoCharacterBuildCsvReader.h"
 
+#include "Cards/ReEchoCardCatalog.h"
 #include "Misc/Paths.h"
 
 namespace ReEchoCharacterBuildCsv
@@ -44,6 +45,30 @@ bool IsAllowedCardEffectTarget(const FName Target)
 	    TEXT("AttackSpeed"),
 	    TEXT("MovementSpeed"),
 	    TEXT("EchoEfficiency"),
+	    TEXT("CriticalRate"),
+	    TEXT("CriticalEffect"),
+	    TEXT("ReactionEfficiency"),
+	    TEXT("Tier"),
+	    TEXT("PhysicalOrElemental"),
+	    TEXT("Water"),
+	    TEXT("Grass"),
+	    TEXT("Damage"),
+	    TEXT("TimeShards"),
+	    TEXT("ShopDiscount"),
+	    TEXT("HpMaxAndPoint"),
+	    TEXT("Stun"),
+	    TEXT("EchoCount"),
+	    TEXT("AnchorRecording"),
+	    TEXT("AllBaseStats"),
+	    TEXT("EchoHealth"),
+	    TEXT("PhysicalAndElementalAttack"),
+	    TEXT("EnemyElementImmunity"),
+	    TEXT("RandomElement"),
+	    TEXT("ElementCanCrit"),
+	    TEXT("CriticalRollCount"),
+	    TEXT("MinimumGuaranteedTier"),
+	    TEXT("FreeShopRefresh"),
+	    TEXT("NonCoreSlotCapacity"),
 	};
 	return AllowedTargets.Contains(Target);
 }
@@ -57,6 +82,11 @@ bool IsAllowedEffectBehaviorPair(const FName EffectKind, const FName BehaviorId)
 	if (EffectKind == TEXT("InstantRecovery"))
 	{
 		return BehaviorId == TEXT("Card.InstantRecovery");
+	}
+	if (EffectKind == TEXT("CardBehavior"))
+	{
+		return FReEchoCardCatalog::IsSupportedBehavior(BehaviorId) && BehaviorId != TEXT("Card.StatModifier") &&
+		       BehaviorId != TEXT("Card.InstantRecovery");
 	}
 	return false;
 }
@@ -340,7 +370,7 @@ bool ReadCardEffectsTable(const FString& DataDirectory,
 		}
 		SeenCardOrders.Add(CardOrderKey);
 
-		if (Effect.Trigger != TEXT("OnApply"))
+		if (!FReEchoCardCatalog::IsSupportedTrigger(Effect.Trigger))
 		{
 			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Trigger"), TEXT("Unsupported card effect trigger"));
 		}

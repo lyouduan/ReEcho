@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Cards/ReEchoCardCatalog.h"
 #include "Core/ReEchoTypes.h"
 
 enum class EReEchoCsvValueOp : uint8
@@ -370,12 +371,14 @@ struct REECHO_API FReEchoCsvEnemyRow
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
+	FString CardDomainRevision;
 	FString WeaponDomainRevision;
 	TMap<FName, FReEchoRuntimeSmokeRow> RuntimeSmokeRows;
 	TMap<FName, FReEchoCsvCharacterRow> Characters;
 	TMap<FName, FName> CharacterAliases;
 	TMap<FName, FReEchoCsvCardRow> Cards;
 	TArray<FName> CardOrder;
+	TSharedPtr<const FReEchoCardCatalog> CardCatalog;
 	TMap<FName, FReEchoCsvElementRow> Elements;
 	TArray<FName> ElementOrder;
 	TMap<FName, FReEchoCsvStatusRow> Statuses;

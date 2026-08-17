@@ -32,6 +32,7 @@ enum class EReEchoEnemyKind : uint8
 
 /** Lightweight world host composing Enemy logic, Combat adjudication and read-only presentation. */
 UCLASS()
+
 class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface, public IReEchoCombatTarget
 {
 	GENERATED_BODY()
@@ -61,28 +62,56 @@ public:
 	FReEchoElementState& EditElementState();
 #endif
 
-	UReEchoCombatantComponent* GetCombatantComponent() const { return Combatant; }
-	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const { return EnemyLogic; }
-	UReEchoEnemyEventsComponent* GetEnemyEventsComponent() const { return EnemyEvents; }
-	bool IsAlive() const;
+	UReEchoCombatantComponent* GetCombatantComponent() const
+	{
+		return Combatant;
+	}
 
-	virtual bool IsCombatTargetAlive() const override { return IsAlive(); }
-	virtual FVector GetCombatTargetLocation() const override { return GetActorLocation(); }
-	virtual int32 GetCombatTargetTieBreakIndex() const override { return GetSpawnIndex(); }
-	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override { return Combatant; }
+	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const
+	{
+		return EnemyLogic;
+	}
+
+	UReEchoEnemyEventsComponent* GetEnemyEventsComponent() const
+	{
+		return EnemyEvents;
+	}
+
+	bool IsAlive() const;
+	void ApplyCardStun(float DurationSeconds);
+	void SetCardMovementMultiplier(float Multiplier);
+
+	virtual bool IsCombatTargetAlive() const override
+	{
+		return IsAlive();
+	}
+
+	virtual FVector GetCombatTargetLocation() const override
+	{
+		return GetActorLocation();
+	}
+
+	virtual int32 GetCombatTargetTieBreakIndex() const override
+	{
+		return GetSpawnIndex();
+	}
+
+	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override
+	{
+		return Combatant;
+	}
+
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
-	virtual bool IntersectsCombatPath(const FVector& PathStart,
-	                                  const FVector& PathEnd,
-	                                  float CarrierRadius) const override
+
+	virtual bool
+	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override
 	{
 		return IntersectsProjectilePath(PathStart, PathEnd, CarrierRadius);
 	}
 
 	int32 GetSpawnIndex() const;
 	EReEchoEnemyKind GetKind() const;
-	bool IntersectsProjectilePath(const FVector& PathStart,
-	                              const FVector& PathEnd,
-	                              float ProjectileRadius) const;
+	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -132,4 +161,6 @@ private:
 
 	bool bVisualPlacementApplied = false;
 	bool bAudioSpawnPosted = false;
+	float CardStunnedUntilWorldTime = 0.0f;
+	float CardMovementMultiplier = 1.0f;
 };

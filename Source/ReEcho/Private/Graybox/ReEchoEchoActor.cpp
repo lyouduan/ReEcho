@@ -9,11 +9,14 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
+#include "Kismet/GameplayStatics.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoTrajectoryActor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoPlaybackComponent.h"
+#include "Run/ReEchoRunSubsystem.h"
+#include "Player/ReEchoPlayerPawn.h"
 #include "ReEcho.h"
 #include "ReEchoAudioEvents.h"
 #include "Weapons/ReEchoWeaponActor.h"
@@ -75,9 +78,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
-	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo,
-	                                     FReEchoAudioEvents::EchoAttack,
-	                                     NAME_None);
+	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo, FReEchoAudioEvents::EchoAttack, NAME_None);
 }
 
 bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
@@ -184,6 +185,79 @@ float AReEchoEchoActor::GetCurrentHealth() const
 	return Combatant->CurrentHealth;
 }
 
+void AReEchoEchoActor::ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats)
+{
+	bCanAttack = Rules.bEchoesCanAttack;
+	if (Combatant && Rules.EchoHealthMultiplier > 1.0f)
+	{
+		FReEchoStatBlock Stats = Combatant->Stats;
+		Stats.HpMax = PlayerStats.HpMax * Rules.EchoHealthMultiplier;
+		Stats.HpPoint = Stats.HpMax;
+		Combatant->InitializeFromStats(Stats, true);
+	}
+}
+
+bool AReEchoEchoActor::IsCombatTargetAlive() const
+{
+	return Combatant && Combatant->IsAlive();
+}
+
+bool AReEchoEchoActor::IntersectsCombatPath(const FVector& PathStart,
+                                            const FVector& PathEnd,
+                                            const float CarrierRadius) const
+{
+	return FMath::PointDistToSegment(GetActorLocation(), PathStart, PathEnd) <= FMath::Max(0.0f, CarrierRadius) + 35.0f;
+}
+
+void AReEchoEchoActor::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
+{
+	UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (!Run)
+	{
+		return;
+	}
+	const AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+	const float DistanceCm = Player ? FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) : 0.0f;
+	const UReEchoCombatantComponent* TargetCombatant =
+	    Intent.Target ? Intent.Target->FindComponentByClass<UReEchoCombatantComponent>() : nullptr;
+	Run->ModifyCardOutgoingHit(Intent,
+	                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
+	                           DistanceCm,
+	                           TargetCombatant && TargetCombatant->GetElementState().Attached != EReEchoElement::None);
+}
+
+void AReEchoEchoActor::NotifyReactionResolved(const FName ReactionId) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		Run->NotifyCardReaction(ReactionId, false);
+	}
+}
+
+void AReEchoEchoActor::NotifyKillResolved() const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		Run->NotifyCardKill(true);
+	}
+}
+
+void AReEchoEchoActor::NotifyDefeated(const EReEchoDamageSource DamageSource) const
+{
+	if (DamageSource == EReEchoDamageSource::Enemy)
+	{
+		if (UReEchoRunSubsystem* Run =
+		        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+		{
+			Run->NotifyCardEchoDefeated();
+			if (AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)))
+			{
+				Player->Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
+			}
+		}
+	}
+}
+
 FString AReEchoEchoActor::GetPinnedWeaponDomainRevision() const
 {
 	return Weapon ? Weapon->GetPinnedWeaponDomainRevision() : FString();
@@ -213,7 +287,7 @@ void AReEchoEchoActor::Tick(const float DeltaSeconds)
 	CharacterSprite->SetRelativeScale3D(BaseSpriteScale *
 	                                    FVector(1.0f + AttackPulse * 0.07f, 1.0f - AttackPulse * 0.03f, 1.0f));
 
-	if (!Weapon)
+	if (!Weapon || !bCanAttack || !IsCombatTargetAlive())
 	{
 		return;
 	}

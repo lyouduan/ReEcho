@@ -46,6 +46,7 @@
 ### 输入
 
 - 主模块 `ReEchoWeaponRuntime::CompileLogicDefinition` 把 CSV/构筑结果编译为无资源引用的 `FReEchoWeaponDefinition`。
+- 主模块装备适配在编译前消费 Cards 的只读规则快照；`G_3_22` 只扩大非 `Core` 槽容量，并把已经校验的装备结果交给 Weapons。
 - Attack host 提供 Source、`FReEchoStatBlock`、目标/世界上下文并调用 `TryCommitBasicAttack` 或主动攻击入口。
 - 逻辑投射物初始化接收已快照的 `FReEchoLogicalProjectileSpec`，之后不回读 WeaponActor 的可写字段。
 
@@ -65,7 +66,7 @@ ReEchoWeapons ─/─→ ReEcho / ReEchoAudio / UI / Presentation
 ReEchoCombat  ─/─→ ReEchoWeapons
 ```
 
-模块公共依赖只有 UE Core/Engine 与 `ReEchoCombat` 的窄契约。策划数据、Run、Recording、资源和具体 Actor 都由主模块适配。
+模块公共依赖只有 UE Core/Engine 与 `ReEchoCombat` 的窄契约。策划数据、Run、Cards、Recording、资源和具体 Actor 都由主模块适配；`ReEchoWeapons` 不依赖 `ReEchoCards`。
 
 ## 运行时流程
 
@@ -136,6 +137,7 @@ Commit
 - 接缝：held Ability 遇到临时未就绪不会退出；自动/手动均能连续至少两次成功 Commit。
 - 生命周期：发射后 Source 销毁，延迟命中仍安全结算且不访问失效来源。
 - 命令：`scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons`，并回归 AttackMode、Combat、数据/Run Snapshot。
+- Plan47 接缝：`G_3_22` 可装备两个同类非 Core 配件，Core 仍保持原容量；装备重建、换武器和保存走同一有效槽上限。
 - 用户 PIE：不同武器的连续攻击、攻速变化、无目标、模式切换和实际手感。
 
 ## 不变量与常见错误
@@ -146,3 +148,4 @@ Commit
 - 逻辑 Projectile/Wave 拥有位置和命中集合；视觉 Actor 不能保存第二份飞行真相。
 - Commit 失败必须回滚可见武器状态，但 CommitId 保持单调且不复用。
 - Weapons 只能依赖 Combat，不能反向 include 主模块或表现层。
+- Cards 槽位规则必须在主模块数据/装备适配层求值；不得把 CardState 或卡牌 ID 下沉进 Weapons 逻辑模块。
