@@ -80,7 +80,8 @@ class REECHO_API UReEchoEnemyPresentationComponent : public UActorComponent
 public:
 	UReEchoEnemyPresentationComponent();
 
-	void ConfigureComponents(USceneComponent* InVisualEffectRoot,
+	void ConfigureComponents(USceneComponent* InPresentationRoot,
+	                         USceneComponent* InVisualEffectRoot,
 	                         USceneComponent* InFlipbookRoot,
 	                         USceneComponent* InEffectsRoot,
 	                         UBillboardComponent* InCharacterSprite,
@@ -140,6 +141,8 @@ private:
 	TObjectPtr<UReEchoEnemyEventsComponent> EnemyEvents;
 	UPROPERTY()
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> PresentationRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> VisualEffectRoot;
 	UPROPERTY()

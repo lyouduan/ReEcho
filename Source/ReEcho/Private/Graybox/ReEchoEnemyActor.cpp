@@ -115,7 +115,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CharacterSprite->SetAbsolute(false, false, true);
 	CharacterSprite->bIsScreenSizeScaled = false;
 	UReEcho2DAnimationComponent* SequenceAnimation =
-	    CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
+	    CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("FlipbookRenderer"));
 	SequenceAnimation->SetupAttachment(FlipbookRoot);
 	UReEcho2DPresentationController* PresentationController =
 	    CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
@@ -171,7 +171,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	EnemyLogic = CreateDefaultSubobject<UReEchoEnemyLogicComponent>(TEXT("EnemyLogic"));
 	EnemyEvents = CreateDefaultSubobject<UReEchoEnemyEventsComponent>(TEXT("EnemyEvents"));
 	EnemyPresentation = CreateDefaultSubobject<UReEchoEnemyPresentationComponent>(TEXT("EnemyPresentation"));
-	EnemyPresentation->ConfigureComponents(PresentationMotionRoot,
+	EnemyPresentation->ConfigureComponents(PresentationRoot,
+	                                       PresentationMotionRoot,
 	                                       FlipbookRoot,
 	                                       EffectsRoot,
 	                                       CharacterSprite,

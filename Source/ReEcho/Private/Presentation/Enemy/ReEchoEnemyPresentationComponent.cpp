@@ -29,11 +29,11 @@
 namespace ReEchoEnemyVisual
 {
 constexpr float ScaleMultiplier = 1.5f;
-constexpr float CharacterWorldHeight = 244.8f * ScaleMultiplier;
 constexpr float CollisionRadius = 34.56f * ScaleMultiplier;
 constexpr float CollisionHalfHeight = 122.4f * ScaleMultiplier;
-constexpr float HealthBarHeight = 65.28f * ScaleMultiplier;
-constexpr float HealthBarWidthScale = 0.72f * ScaleMultiplier;
+constexpr float BossWorldHeight = 220.0f;
+constexpr float HealthBarHeightRatio = 0.65f;
+constexpr float HealthBarWidthScale = 0.72f;
 constexpr float HitReactionDuration = 0.22f;
 }
 
@@ -57,7 +57,8 @@ UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
 	FoxPresentationProfile = FoxProfileFinder.Object;
 }
 
-void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InVisualEffectRoot,
+void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InPresentationRoot,
+                                                            USceneComponent* InVisualEffectRoot,
                                                             USceneComponent* InFlipbookRoot,
                                                             USceneComponent* InEffectsRoot,
                                                             UBillboardComponent* InCharacterSprite,
@@ -70,6 +71,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InV
                                                             UPointLightComponent* InElementAuraLight,
                                                             UCapsuleComponent* InCollision)
 {
+	PresentationRoot = InPresentationRoot;
 	VisualEffectRoot = InVisualEffectRoot;
 	FlipbookRoot = InFlipbookRoot;
 	EffectsRoot = InEffectsRoot;
@@ -148,11 +150,14 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 	}
 	if (HealthBar)
 	{
+		const UReEcho2DCharacterPresentationProfile* Profile =
+		    Archetype == EReEchoEnemyArchetype::Boss ? nullptr : ResolveEnemyPresentationProfile(AppearanceId);
+		const float PresentationHeight = Profile ? Profile->WorldHeight : ReEchoEnemyVisual::BossWorldHeight;
 		HealthBar->Initialize(Combatant,
 		                      FLinearColor(1.0f, 0.08f, 0.04f),
-		                      ReEchoEnemyVisual::HealthBarHeight,
+		                      PresentationHeight * ReEchoEnemyVisual::HealthBarHeightRatio,
 		                      ReEchoEnemyVisual::HealthBarWidthScale,
-		                      CharacterSprite);
+		                      PresentationRoot);
 	}
 }
 
