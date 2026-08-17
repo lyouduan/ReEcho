@@ -156,7 +156,7 @@
 - 地图编辑改造：用户后续明确取消地图 AO。Arena Scene 删除 `MapTexture`/`CharacterAOTexture` 与角色亮度采样，改由可编辑 `MapMaterial` 直接驱动 Backdrop；`ReEcho2DSceneLightingComponent` 仅保留脚点透明排序。`Content/ReEcho/Art/Scene/Map` 中的 Map00/Map01 分别生成材质实例，可通过 Arena Actor 属性切换。
 - 植物编辑改造：Arena Scene 新增 `PlantRoot`；`build_editable_map_and_plants.py` 从 `Content/ReEcho/Art/Scene/Plants` 导入 16 种透明植物材质，以固定种子 42001 在 Level00 烘焙 36 个无碰撞卡片。每个卡片都是可独立编辑的 StaticMeshActor，带生成标签，重复执行只替换生成集合，不触碰美术手工添加的无标签植物。
 - 植物朝向修正：36 个生成卡片不再写死角度，而是读取 `ArenaCamera` 当前 Pitch/Yaw，将 Engine Plane 的正面法线对准相机；生成器根据实际倾角、Plane 尺寸与缩放计算中心 Z，使卡片下缘落在 `GameplayPlaneZ=0`。相机只平移时朝向保持有效；聚焦资产校验覆盖卡片数量、相机朝向和贴地位置。
-- 后续表现一致性修正：保留 Plan43 的 EnemyLogic、Capsule、事件和存档契约，仅把 Enemy Host 的可见组件恢复为本地 Animation2D 分层；怪物统一使用本地 `FlipbookRenderer` 子对象约定，FlipbookRoot 按实际 ViewTarget 对齐，程序化位移/拉伸与 GroundShadow 解耦，并接入脚点透明排序。血条改为锚定 PresentationRoot，并按四种外观 Profile 的 WorldHeight 设置高度，避免跟随动画浮动或继续使用旧统一怪物尺寸。该修正不改变怪物玩法碰撞或动画状态选择。
+- 后续表现一致性修正：保留 Plan43 的 EnemyLogic、Capsule、事件和存档契约，仅把 Enemy Host 的可见组件恢复为本地 Animation2D 分层；节点全部恢复为 Host 的原生 `UPROPERTY` 组件成员，并在 Construction/BeginPlay 校正旧 Blueprint 序列化 Attachment，保证 Editor 节点树稳定为 `PresentationRoot → FootRoot → PresentationMotionRoot → {FlipbookRoot, GroundRoot, EffectsRoot}`。怪物统一使用本地 `FlipbookRenderer` 子对象约定，FlipbookRoot 按实际 ViewTarget 对齐，程序化位移/拉伸与 GroundShadow 解耦，并接入脚点透明排序。血条改为锚定 PresentationRoot，并按四种外观 Profile 的 WorldHeight 设置高度，避免跟随动画浮动或继续使用旧统一怪物尺寸。该修正不改变怪物玩法碰撞或动画状态选择。
 
 首轮人工验收：`Failed`。复查确认贴图轴向与 Editor 范围可视化未完整满足 Plan42，已形成追加修正候选；请用户重新在 PIE 中检查中心跟随、四边/四角锁定、地图外不曝光，以及 Editor 中四组独立边界和相机参数是否便于调整。
 

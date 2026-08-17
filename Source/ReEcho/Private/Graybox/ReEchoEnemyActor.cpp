@@ -82,23 +82,23 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	Collision->SetCollisionProfileName(TEXT("Pawn"));
 	Collision->SetVisibility(false);
 
-	USceneComponent* PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
+	PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
 	PresentationRoot->SetupAttachment(RootComponent);
-	USceneComponent* FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
+	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
 	FootRoot->SetupAttachment(PresentationRoot);
 	FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -ReEchoEnemyHost::CollisionHalfHeight));
-	USceneComponent* PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
+	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
 	PresentationMotionRoot->SetupAttachment(FootRoot);
-	USceneComponent* FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
+	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
 	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
-	USceneComponent* GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
+	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
 	GroundRoot->SetupAttachment(PresentationMotionRoot);
-	USceneComponent* EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
+	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 
-	UStaticMeshComponent* GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
+	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(GroundRoot);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GroundShadow->SetCastShadow(false);
@@ -114,18 +114,14 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CharacterSprite->SetVisibility(false);
 	CharacterSprite->SetAbsolute(false, false, true);
 	CharacterSprite->bIsScreenSizeScaled = false;
-	UReEcho2DAnimationComponent* SequenceAnimation =
-	    CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("FlipbookRenderer"));
+	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("FlipbookRenderer"));
 	SequenceAnimation->SetupAttachment(FlipbookRoot);
-	UReEcho2DPresentationController* PresentationController =
-	    CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
-	UReEcho2DFrameCollisionDriver* FrameCollisionDriver =
-	    CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
-	UReEcho2DSceneLightingComponent* SceneLighting =
-	    CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
+	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
+	FrameCollisionDriver = CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
+	SceneLighting = CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
 	SceneLighting->Configure(SequenceAnimation, GroundShadow);
 
-	UTextRenderComponent* ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
+	ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
 	ElementAuraRing->SetupAttachment(EffectsRoot);
 	ElementAuraRing->SetHorizontalAlignment(EHTA_Center);
 	ElementAuraRing->SetVerticalAlignment(EVRTA_TextCenter);
@@ -137,8 +133,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	ElementAuraRing->SetTranslucentSortPriority(-2);
 	ElementAuraRing->SetVisibility(false);
 
-	UTextRenderComponent* ElementAttachmentLabel =
-	    CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAttachmentLabel"));
+	ElementAttachmentLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAttachmentLabel"));
 	ElementAttachmentLabel->SetupAttachment(EffectsRoot);
 	ElementAttachmentLabel->SetHorizontalAlignment(EHTA_Center);
 	ElementAttachmentLabel->SetVerticalAlignment(EVRTA_TextCenter);
@@ -156,7 +151,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 		ElementAttachmentLabel->SetTextMaterial(UnlitTextMaterial);
 	}
 
-	UPointLightComponent* ElementAuraLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("ElementAuraLight"));
+	ElementAuraLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("ElementAuraLight"));
 	ElementAuraLight->SetupAttachment(EffectsRoot);
 	ElementAuraLight->SetRelativeLocation(FVector(0.0f, 0.0f, 45.0f));
 	ElementAuraLight->SetIntensity(900.0f);
@@ -188,9 +183,51 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
 
+void AReEchoEnemyActor::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	RefreshPresentationHierarchy();
+	RefreshFootRoot();
+}
+
+void AReEchoEnemyActor::RefreshPresentationHierarchy()
+{
+	const FAttachmentTransformRules KeepRelative = FAttachmentTransformRules::KeepRelativeTransform;
+	auto AttachIfNeeded = [&KeepRelative](USceneComponent* Child, USceneComponent* ExpectedParent)
+	{
+		if (Child && ExpectedParent && Child->GetAttachParent() != ExpectedParent)
+		{
+			Child->AttachToComponent(ExpectedParent, KeepRelative);
+		}
+	};
+
+	AttachIfNeeded(PresentationRoot, RootComponent);
+	AttachIfNeeded(FootRoot, PresentationRoot);
+	AttachIfNeeded(PresentationMotionRoot, FootRoot);
+	AttachIfNeeded(FlipbookRoot, PresentationMotionRoot);
+	AttachIfNeeded(GroundRoot, PresentationMotionRoot);
+	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
+	AttachIfNeeded(GroundShadow, GroundRoot);
+	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
+	AttachIfNeeded(ElementAuraRing, EffectsRoot);
+	AttachIfNeeded(ElementAttachmentLabel, EffectsRoot);
+	AttachIfNeeded(ElementAuraLight, EffectsRoot);
+}
+
+void AReEchoEnemyActor::RefreshFootRoot()
+{
+	if (FootRoot && Collision)
+	{
+		FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -Collision->GetUnscaledCapsuleHalfHeight()));
+		FootRoot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+}
+
 void AReEchoEnemyActor::BeginPlay()
 {
 	Super::BeginPlay();
+	RefreshPresentationHierarchy();
+	RefreshFootRoot();
 	AbilitySystem->InitAbilityActorInfo(this, this);
 	Combatant->BindToAbilitySystem(AbilitySystem);
 	BindComposedComponents();

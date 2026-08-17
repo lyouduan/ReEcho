@@ -1,7 +1,7 @@
 {
   "binaries": {
     "ReEchoEditor.target": "b9da0eaf449d2eb033aa2b4c42bf7d99d2aa04bc8a0f3fba92de3bd49fcfe609",
-    "UnrealEditor-ReEcho.dll": "02e8ec0ba0eebff2dc3164b600fc704b5b64e04cd279fe61a5b3fd95a910102a",
+    "UnrealEditor-ReEcho.dll": "df80d26302b4417c726064ab1bd97c64ce00a8f54bc6a4649f43f4fc4f0b2b9e",
     "UnrealEditor-ReEchoAudio.dll": "dace428f36de615daa2dadcac1ea3f6892e455a4eab8ac49ca18b1f90c0158ae",
     "UnrealEditor-ReEchoCombat.dll": "0bc55dae771e45a4687cefbb6e946b03d58ab78a57f2248244cfc2fbaefb7f8e",
     "UnrealEditor-ReEchoEnemies.dll": "814ee573a2a997a477a614b8d6df34322e92018b747bbb74d25d5cb360e5b27f",
@@ -44,7 +44,7 @@
     "Source/ReEcho/Private/Graybox/ReEchoBillboardScreenScale.h": "895de23ef637a3176d1acbfa2689ca892e462453671835bb90e2f8cf33d39662",
     "Source/ReEcho/Private/Graybox/ReEchoCollisionDebug.h": "305ac5a3ca3a83e9e6b2633bbdc3535b5fc2f534fc0c60ff2d80fa90f4d8e691",
     "Source/ReEcho/Private/Graybox/ReEchoEchoActor.cpp": "6ff1dae48b53112723fbe2b18fc9054677c8822923109c3c224714e7396a3e09",
-    "Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp": "cbd66f2337632962a624b94272b1a2bba9357913275fcc0cb29a45b44f7d5bfa",
+    "Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp": "e1891c168908e5c9d8516589267dfc58cf4e1dd2da1eb8ef9a059e656e8f9555",
     "Source/ReEcho/Private/Graybox/ReEchoHealthBarActor.cpp": "af271091f37ccff430e8896c3316802effa70391ea1fa8d7e27d18bc9654abd0",
     "Source/ReEcho/Private/Graybox/ReEchoHitImpactActor.cpp": "2d62ee63b7516c88eb1ec1512f2186e201e047a6c6788f1bbb92b92450e63d5e",
     "Source/ReEcho/Private/Graybox/ReEchoProjectileActor.cpp": "897afbf0fba14c8969b792bd5d3150f827f510e2fd06e3ec2f1f474994e2d33e",
@@ -127,7 +127,7 @@
     "Source/ReEcho/Public/Encounter/ReEchoEncounterDirector.h": "7f3200a99b503722b5b43b8bbe1a1121db9374165595d6a6c661e8bf68749382",
     "Source/ReEcho/Public/Graybox/ReEchoAttackEffects.h": "0c5c414d34e6a23d26ba4cdf61fb117bd8cd2a9a4b92ede1b8f88a661f199411",
     "Source/ReEcho/Public/Graybox/ReEchoEchoActor.h": "dc9f32bc33c48b7002a7c9db1b26f40d2f7ec2457609bd52130571b4d8183b10",
-    "Source/ReEcho/Public/Graybox/ReEchoEnemyActor.h": "f9d2bf48251ed73d4d7f92e5f54e875411d04a3290dee9f7e74ecc38c8d3dc14",
+    "Source/ReEcho/Public/Graybox/ReEchoEnemyActor.h": "ab4cd0d2f6a16b9c3aea56c0e1005d1276d6a0c4c214a357c2f5f8166eae67de",
     "Source/ReEcho/Public/Graybox/ReEchoHealthBarActor.h": "ca4760c604cc24da46a170629f2c428377816d83e50f8363f87537315802c247",
     "Source/ReEcho/Public/Graybox/ReEchoHitImpactActor.h": "cf02aa9db19011aae7dcc05fa8d0b1a6ba5202bb1d3fb9a74ec49588e517465d",
     "Source/ReEcho/Public/Graybox/ReEchoProjectileActor.h": "52ef14b4feece83363d079e30faa5e60c6089a1fb3ab27ccad1b29f8e07ec4f9",
@@ -261,6 +261,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "ea0880b5b439855fa278908d55a1db0eadbbc7cb0eb239f9f608c56d86629057",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "f413d7b7eff1f56afe27eeed02da256a31f349e7be5a0963055974cad88cb1bf",
+  "source_fingerprint": "1edc2f669d108e4a079142c4899df78a222b33a9b8d660db80f5ed0eff35beca",
   "target": "ReEchoEditor"
 }

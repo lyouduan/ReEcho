@@ -9,6 +9,11 @@
 
 class UAbilitySystemComponent;
 class UCapsuleComponent;
+class UPointLightComponent;
+class UReEcho2DAnimationComponent;
+class UReEcho2DFrameCollisionDriver;
+class UReEcho2DPresentationController;
+class UReEcho2DSceneLightingComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UReEchoCombatAudioAdapterComponent;
@@ -17,6 +22,9 @@ class UReEchoEnemyEventsComponent;
 class UReEchoEnemyLogicComponent;
 class UReEchoEnemyPresentationComponent;
 class UReEchoEnemyRosterComponent;
+class USceneComponent;
+class UStaticMeshComponent;
+class UTextRenderComponent;
 struct FReEchoEnemyActionIntent;
 struct FReEchoEnemyPresentationSnapshot;
 struct FReEchoEnemySenseSnapshot;
@@ -32,12 +40,14 @@ enum class EReEchoEnemyKind : uint8
 
 /** Lightweight world host composing Enemy logic, Combat adjudication and read-only presentation. */
 UCLASS()
+
 class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface, public IReEchoCombatTarget
 {
 	GENERATED_BODY()
 
 public:
 	AReEchoEnemyActor();
+	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
@@ -61,28 +71,54 @@ public:
 	FReEchoElementState& EditElementState();
 #endif
 
-	UReEchoCombatantComponent* GetCombatantComponent() const { return Combatant; }
-	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const { return EnemyLogic; }
-	UReEchoEnemyEventsComponent* GetEnemyEventsComponent() const { return EnemyEvents; }
+	UReEchoCombatantComponent* GetCombatantComponent() const
+	{
+		return Combatant;
+	}
+
+	UReEchoEnemyLogicComponent* GetEnemyLogicComponent() const
+	{
+		return EnemyLogic;
+	}
+
+	UReEchoEnemyEventsComponent* GetEnemyEventsComponent() const
+	{
+		return EnemyEvents;
+	}
+
 	bool IsAlive() const;
 
-	virtual bool IsCombatTargetAlive() const override { return IsAlive(); }
-	virtual FVector GetCombatTargetLocation() const override { return GetActorLocation(); }
-	virtual int32 GetCombatTargetTieBreakIndex() const override { return GetSpawnIndex(); }
-	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override { return Combatant; }
+	virtual bool IsCombatTargetAlive() const override
+	{
+		return IsAlive();
+	}
+
+	virtual FVector GetCombatTargetLocation() const override
+	{
+		return GetActorLocation();
+	}
+
+	virtual int32 GetCombatTargetTieBreakIndex() const override
+	{
+		return GetSpawnIndex();
+	}
+
+	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override
+	{
+		return Combatant;
+	}
+
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
-	virtual bool IntersectsCombatPath(const FVector& PathStart,
-	                                  const FVector& PathEnd,
-	                                  float CarrierRadius) const override
+
+	virtual bool
+	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override
 	{
 		return IntersectsProjectilePath(PathStart, PathEnd, CarrierRadius);
 	}
 
 	int32 GetSpawnIndex() const;
 	EReEchoEnemyKind GetKind() const;
-	bool IntersectsProjectilePath(const FVector& PathStart,
-	                              const FVector& PathEnd,
-	                              float ProjectileRadius) const;
+	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -95,6 +131,8 @@ protected:
 
 private:
 	void BindComposedComponents();
+	void RefreshPresentationHierarchy();
+	void RefreshFootRoot();
 	FReEchoEnemyActionIntent AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
@@ -112,6 +150,58 @@ private:
 	TObjectPtr<UReEchoCombatAttributeSet> CombatAttributes;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UCapsuleComponent> Collision;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Presentation",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> PresentationRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Ground",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> FootRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Presentation",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> PresentationMotionRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Flipbook",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> FlipbookRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Ground",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> GroundRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> EffectsRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Ground",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> GroundShadow;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Flipbook",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DSceneLightingComponent> SceneLighting;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UTextRenderComponent> ElementAuraRing;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY(VisibleAnywhere)
