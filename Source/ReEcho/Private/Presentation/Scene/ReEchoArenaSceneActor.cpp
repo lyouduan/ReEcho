@@ -31,9 +31,9 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 		Component->SetupAttachment(Parent);
 		return Component;
 	};
-	ArenaContentRoot = CreateSceneRoot(TEXT("ArenaContentRoot"), SceneRoot);
-	VisualRoot = CreateSceneRoot(TEXT("VisualRoot"), ArenaContentRoot);
-	GameplayRoot = CreateSceneRoot(TEXT("GameplayRoot"), ArenaContentRoot);
+	MapRoot = CreateSceneRoot(TEXT("MapRoot"), SceneRoot);
+	VisualRoot = CreateSceneRoot(TEXT("VisualRoot"), MapRoot);
+	GameplayRoot = CreateSceneRoot(TEXT("GameplayRoot"), MapRoot);
 	GroundRoot = CreateSceneRoot(TEXT("Ground"), VisualRoot);
 	GroundDetailRoot = CreateSceneRoot(TEXT("GroundDetail"), VisualRoot);
 	MidDecorationRoot = CreateSceneRoot(TEXT("MidDecoration"), VisualRoot);
@@ -42,7 +42,7 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 	SceneEffectsRoot = CreateSceneRoot(TEXT("SceneEffects"), VisualRoot);
 	CollisionRoot = CreateSceneRoot(TEXT("Collision"), GameplayRoot);
 	ArenaCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ArenaCamera"));
-	ArenaCamera->SetupAttachment(GameplayRoot);
+	ArenaCamera->SetupAttachment(SceneRoot);
 	ArenaCamera->SetProjectionMode(ECameraProjectionMode::Orthographic);
 	ArenaCamera->SetOrthoWidth(2800.0f);
 	ArenaCamera->SetAspectRatio(1376.0f / 768.0f);
@@ -116,18 +116,24 @@ void AReEchoArenaSceneActor::SetFollowTarget(AReEchoPlayerPawn* Target)
 
 FVector2D AReEchoArenaSceneActor::GetPlayerHalfExtents() const
 {
-	return PlayerHalfExtents;
+	return PlayerHalfExtents * GetMapScale2D();
 }
 
 FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 {
-	return EnemySpawnHalfExtents;
+	return EnemySpawnHalfExtents * GetMapScale2D();
 }
 
 FVector2D AReEchoArenaSceneActor::GetArenaCenter() const
 {
-	const FVector Center = ArenaContentRoot ? ArenaContentRoot->GetComponentLocation() : GetActorLocation();
+	const FVector Center = MapRoot ? MapRoot->GetComponentLocation() : GetActorLocation();
 	return FVector2D(Center.X, Center.Y);
+}
+
+FVector2D AReEchoArenaSceneActor::GetMapScale2D() const
+{
+	const FVector Scale = MapRoot ? MapRoot->GetComponentScale() : FVector::OneVector;
+	return FVector2D(FMath::Abs(Scale.X), FMath::Abs(Scale.Y));
 }
 
 int32 AReEchoArenaSceneActor::CalculateFootpointSortPriority(const FVector& WorldFootpoint) const
@@ -165,7 +171,7 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 		}
 		return false;
 	};
-	if (!ArenaContentRoot || !VisualRoot || !GameplayRoot || !GroundRoot || !GroundDetailRoot || !MidDecorationRoot ||
+	if (!MapRoot || !VisualRoot || !GameplayRoot || !GroundRoot || !GroundDetailRoot || !MidDecorationRoot ||
 	    !ForegroundRoot || !AtmosphereRoot || !SceneEffectsRoot || !CollisionRoot || !ArenaCamera || !Backdrop ||
 	    !Floor || !WallNorth || !WallSouth || !WallEast || !WallWest ||
 	    !CameraClampBounds || !PlayerBounds || !EnemySpawnBounds)
@@ -189,6 +195,10 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	if (DepthSortAxis.IsNearlyZero() || DepthSortWorldUnitsPerStep < 1.0f)
 	{
 		return Fail(TEXT("Arena depth-sort configuration is degenerate."));
+	}
+	if (GetMapScale2D().GetMin() <= KINDA_SMALL_NUMBER)
+	{
+		return Fail(TEXT("MapRoot scale must be positive on the gameplay axes."));
 	}
 	return true;
 }
@@ -290,14 +300,16 @@ void AReEchoArenaSceneActor::UpdateFollowCamera(const float DeltaSeconds)
 	    ArenaCamera->OrthoWidth, ArenaCamera->AspectRatio, ArenaCamera->GetComponentRotation());
 	const FVector2D MapCenter = GetArenaCenter();
 	const FVector2D Desired(FollowTarget->GetActorLocation().X, FollowTarget->GetActorLocation().Y);
-	const FVector2D Clamped = ClampCameraFocus(Desired, MapCenter, CameraClampHalfExtents, Footprint);
+	const FVector2D ScaledCameraClampHalfExtents = CameraClampHalfExtents * GetMapScale2D();
+	const FVector2D Clamped = ClampCameraFocus(Desired, MapCenter, ScaledCameraClampHalfExtents, Footprint);
 	const FVector CurrentFocus3D = GetCameraGroundFocus();
 	const FVector2D CurrentFocus(CurrentFocus3D.X, CurrentFocus3D.Y);
 	const FVector2D NewFocus = bSmoothCameraFollow && DeltaSeconds > 0.0f
 	                               ? FMath::Vector2DInterpTo(CurrentFocus, Clamped, DeltaSeconds, CameraFollowSpeed)
 	                               : Clamped;
 	SetCameraGroundFocus(NewFocus);
-	if (!bLoggedUndersizedMap && (Footprint.X >= CameraClampHalfExtents.X || Footprint.Y >= CameraClampHalfExtents.Y))
+	if (!bLoggedUndersizedMap &&
+	    (Footprint.X >= ScaledCameraClampHalfExtents.X || Footprint.Y >= ScaledCameraClampHalfExtents.Y))
 	{
 		UE_LOG(LogTemp,
 		       Warning,

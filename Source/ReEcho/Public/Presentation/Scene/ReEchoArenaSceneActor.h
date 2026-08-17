@@ -51,9 +51,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena")
 	TObjectPtr<USceneComponent> SceneRoot;
-	/** Editor 中移动此节点可整体平移地图、相机、碰撞和范围。 */
+	/** Editor 中移动或缩放此节点只影响地图、碰撞和玩法范围，不影响相机 Transform。 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
-	TObjectPtr<USceneComponent> ArenaContentRoot;
+	TObjectPtr<USceneComponent> MapRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
 	TObjectPtr<USceneComponent> VisualRoot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena|Hierarchy")
@@ -147,6 +147,7 @@ public:
 	float MaximumParallaxOffset = 120.0f;
 
 private:
+	FVector2D GetMapScale2D() const;
 	void UpdateEditorLayout();
 	void UpdateFollowCamera(float DeltaSeconds);
 	void UpdateParallax();
