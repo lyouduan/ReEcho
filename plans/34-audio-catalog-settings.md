@@ -6,7 +6,7 @@
 - Executor owner: Plan34 Executor.
 - Plan authored by (AI side): Gavyn-side AI.
 - Implementation authored by (AI side): Gavyn-side AI.
-- Task status: `Review` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
+- Task status: `Closed` (`Proposed | Ready | InProgress | Review | Closed | Blocked`).
 - Human validation: `PendingFollowUp` (`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`).
 - Local planning / implementation base: freshly fetched `origin/main` containing closed Plan33 and this Ready revision.
 - Implementation branch: local `plan/34-audio-catalog-settings-v3` in separate worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan34`.
@@ -137,3 +137,9 @@ Add a deterministic, script-generated diagnostic tone plus an Editor import scri
 ### Human validation result/request
 
 `PendingFollowUp`: user has confirmed `Music.Encounter` / `The_Iron_Waltz` is audible in local PIE. Diagnostic-event import plus the complete five-bus mute/default/apply/cancel/process-restart matrix remains explicitly deferred; Plan34 is published as an initial usable audio-system baseline rather than claimed fully closed.
+
+### Planner closure
+
+- 2026-08-17：用户明确决定关闭 Plan34，并把其余资源接入、诊断音替换、完整听感/设置矩阵及审计中新发现的非阻塞加载、衰减应用、author 脚本可复现性和动态软引用 cook 风险转入 Plan46。
+- 本次关闭不把聚焦音频自动化、诊断音导入或完整人工设置矩阵伪报为通过；它们保持 `PendingFollowUp`，由 Plan46 的新候选和用户验收重新建立证据。
+- 关闭前重新执行 `python scripts/data/sync_xlsx_to_csv.py --check` 与 `python scripts/validate_project.py`，均通过；证据等级仍为 `static verified only`，没有复用为 Plan46 的最终构建、自动化、cook 或 PIE 证据。
