@@ -1,79 +1,95 @@
 Id,PartId,WeaponTypeId,SlotTypeId,DisplayName,Description,Rarity,Tags,Enabled,ReviewStatus,ImplementationStatus,DisabledReason,SourceSheet,SourceRow
-P_CORE_PRIMORDIAL,P_CORE_PRIMORDIAL,Any,Core,原初之晶,武器造成物理伤害，伤害倍率受物理攻击力影响,Common,Core|DamageChannel,true,Approved,Implemented,,武器插槽C,2
-P_CORE_TIDE,P_CORE_TIDE,Any,Core,潮汐之晶,武器造成水元素伤害，伤害受元素攻击力影响,Common,Core|DamageChannel|Water,true,Approved,Implemented,,武器插槽C,3
-P_CORE_FOREST,P_CORE_FOREST,Any,Core,森林之晶,武器造成草元素伤害，伤害受元素攻击力影响,Common,Core|DamageChannel|Grass,true,Approved,Implemented,,武器插槽C,4
-P_CORE_FLAME,P_CORE_FLAME,Any,Core,焚绝之晶,武器造成火元素伤害，伤害受元素攻击力影响,Common,Core|DamageChannel|Flame,true,Approved,Implemented,,武器插槽C,5
-P_CORE_THUNDER,P_CORE_THUNDER,Any,Core,鸣雷之晶,武器造成电元素伤害，伤害受元素攻击力影响,Common,Core|DamageChannel|Lightning,true,Approved,Implemented,,武器插槽C,6
-P_CORE_PRISM,P_CORE_PRISM,Any,Core,棱镜之晶,武器造成随机元素伤害，伤害受元素攻击力影响,Common,Core|DamageChannel|RandomElement,true,Approved,Implemented,,武器插槽C,7
-P_DAGGER_THRUST_GRIP,P_DAGGER_THRUST_GRIP,Dagger,Grip,突刺握柄,攻击只会触发第三段攻击，冷却0.4s,Common,Grip|AttackPatternReplacement,true,Approved,Implemented,,武器插槽C,8
-P_DAGGER_STRENGTH_GRIP,P_DAGGER_STRENGTH_GRIP,Dagger,Grip,力量握柄,攻击速度+20%,Common,Grip|Numeric,true,Approved,Implemented,,武器插槽C,9
-AUDIT_WEAPON_SLOTS_C_10,None,Dagger,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,10
-AUDIT_WEAPON_SLOTS_C_11,None,Dagger,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,11
-P_DAGGER_NINJA_BLADE,P_DAGGER_NINJA_BLADE,Dagger,Blade,忍者之刃,击杀敌人后，获得【隐身】，持续1s,Rare,Blade|UniqueBehavior,false,Unimplemented,Disabled,Missing invisibility status handler.,武器插槽C,12
-P_DAGGER_STUNNING_BLADE,P_DAGGER_STUNNING_BLADE,Dagger,Blade,晕眩之刃,每次攻击有30%概率将敌人【晕眩】，持续1s,Rare,Blade|UniqueBehavior,false,Unimplemented,Disabled,Stun status and chance-on-hit handler are not implemented.,武器插槽C,13
-P_DAGGER_HOLY_BLADE,P_DAGGER_HOLY_BLADE,Dagger,Blade,神圣之刃,每击杀一名敌方单位，回复5%最大生命值,Rare,Blade|UniqueBehavior,true,Approved,Implemented,,武器插槽C,14
-P_DAGGER_SHADOW_BLADE,P_DAGGER_SHADOW_BLADE,Dagger,Blade,暗影之刃,敌方单位被命中3次后，获得【流血】，持续3秒，可以叠加,Rare,Blade|UniqueBehavior,false,Unimplemented,Disabled,Bleed status and hit-count handler are not implemented.,武器插槽C,15
-P_BOW_SPLIT_ARROWHEAD,P_BOW_SPLIT_ARROWHEAD,Bow,Arrowhead,分裂箭头,命中敌人后，分裂为若干箭矢飞向其周围的敌人，至多分裂出3支箭；这些分裂的箭伤害倍率-50%,Rare,Arrowhead|UniqueBehavior,false,Unimplemented,Disabled,Split projectile handler is not implemented.,武器插槽C,16
-P_BOW_EXPLOSIVE_ARROWHEAD,P_BOW_EXPLOSIVE_ARROWHEAD,Bow,Arrowhead,爆炸箭头,箭变为爆炸物。爆炸范围1m,Rare,Arrowhead|AttackPatternReplacement,false,Unimplemented,Disabled,Projectile explosion handler is not implemented.,武器插槽C,17
-P_BOW_PIERCING_ARROWHEAD,P_BOW_PIERCING_ARROWHEAD,Bow,Arrowhead,穿刺箭头,箭命中敌人且暴击后，会穿透该敌人,Rare,Arrowhead|UniqueBehavior,false,Unimplemented,Disabled,Pierce-on-crit handler is not implemented.,武器插槽C,18
-AUDIT_WEAPON_SLOTS_C_19,None,Bow,Arrowhead,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,19
-P_BOW_MULTISHOT_ARROWHEAD,P_BOW_MULTISHOT_ARROWHEAD,Bow,Arrowhead,多发箭头,弹道固定为3，武器集中性固定为60°,Rare,Arrowhead|AttackPatternReplacement,false,Unimplemented,Disabled,Multi-projectile spread handler is not implemented.,武器插槽C,20
-AUDIT_WEAPON_SLOTS_C_21,None,Bow,Arrowhead,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,21
-AUDIT_WEAPON_SLOTS_C_22,None,Bow,Bowstring,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,22
-AUDIT_WEAPON_SLOTS_C_23,None,Bow,Bowstring,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,23
-AUDIT_WEAPON_SLOTS_C_24,None,Bow,Bowstring,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,24
-AUDIT_WEAPON_SLOTS_C_25,None,Bow,Bowstring,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,25
-AUDIT_WEAPON_SLOTS_C_26,None,Scythe,RotaryBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,26
-AUDIT_WEAPON_SLOTS_C_27,None,Scythe,RotaryBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,27
-AUDIT_WEAPON_SLOTS_C_28,None,Scythe,RotaryBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,28
-AUDIT_WEAPON_SLOTS_C_29,None,Scythe,RotaryBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,29
-AUDIT_WEAPON_SLOTS_C_30,None,Scythe,RotaryBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,30
-AUDIT_WEAPON_SLOTS_C_31,None,Scythe,RotaryBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,31
-AUDIT_WEAPON_SLOTS_C_32,None,Scythe,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,32
-AUDIT_WEAPON_SLOTS_C_33,None,Scythe,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,33
-AUDIT_WEAPON_SLOTS_C_34,None,Scythe,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,34
-AUDIT_WEAPON_SLOTS_C_35,None,Scythe,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,35
-AUDIT_WEAPON_SLOTS_C_36,None,LongSword,SwordBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,36
-AUDIT_WEAPON_SLOTS_C_37,None,LongSword,SwordBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,37
-AUDIT_WEAPON_SLOTS_C_38,None,LongSword,SwordBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,38
-AUDIT_WEAPON_SLOTS_C_39,None,LongSword,SwordBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,39
-AUDIT_WEAPON_SLOTS_C_40,None,LongSword,SwordBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,40
-AUDIT_WEAPON_SLOTS_C_41,None,LongSword,SwordBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,41
-AUDIT_WEAPON_SLOTS_C_42,None,LongSword,SwordBlade,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,42
-AUDIT_WEAPON_SLOTS_C_43,None,LongSword,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,43
-AUDIT_WEAPON_SLOTS_C_44,None,LongSword,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,44
-AUDIT_WEAPON_SLOTS_C_45,None,LongSword,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,45
-AUDIT_WEAPON_SLOTS_C_46,None,LongSword,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,46
-AUDIT_WEAPON_SLOTS_C_47,None,LongSword,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,47
-AUDIT_WEAPON_SLOTS_C_48,None,Gun,Muzzle,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,48
-AUDIT_WEAPON_SLOTS_C_49,None,Gun,Muzzle,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,49
-AUDIT_WEAPON_SLOTS_C_50,None,Gun,Muzzle,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,50
-AUDIT_WEAPON_SLOTS_C_51,None,Gun,Muzzle,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,51
-AUDIT_WEAPON_SLOTS_C_52,None,Gun,Muzzle,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,52
-AUDIT_WEAPON_SLOTS_C_53,None,Gun,Muzzle,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,53
-AUDIT_WEAPON_SLOTS_C_54,None,Gun,GunAction,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,54
-AUDIT_WEAPON_SLOTS_C_55,None,Gun,GunAction,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,55
-AUDIT_WEAPON_SLOTS_C_56,None,Gun,GunAction,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,56
-AUDIT_WEAPON_SLOTS_C_57,None,Gun,GunAction,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,57
-AUDIT_WEAPON_SLOTS_C_58,None,Staff,StaffBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,58
-AUDIT_WEAPON_SLOTS_C_59,None,Staff,StaffBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,59
-AUDIT_WEAPON_SLOTS_C_60,None,Staff,StaffBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,60
-AUDIT_WEAPON_SLOTS_C_61,None,Staff,StaffBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,61
-AUDIT_WEAPON_SLOTS_C_62,None,Staff,StaffBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,62
-AUDIT_WEAPON_SLOTS_C_63,None,Staff,StaffBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,63
-AUDIT_WEAPON_SLOTS_C_64,None,Staff,StaffCrystal,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,64
-AUDIT_WEAPON_SLOTS_C_65,None,Staff,StaffCrystal,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,65
-AUDIT_WEAPON_SLOTS_C_66,None,Staff,StaffCrystal,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,66
-AUDIT_WEAPON_SLOTS_C_67,None,Staff,StaffCrystal,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,67
-AUDIT_WEAPON_SLOTS_C_68,None,Staff,StaffCrystal,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,68
-AUDIT_WEAPON_SLOTS_C_69,None,Staff,StaffCrystal,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,69
-AUDIT_WEAPON_SLOTS_C_70,None,Whip,WhipBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,70
-AUDIT_WEAPON_SLOTS_C_71,None,Whip,WhipBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,71
-AUDIT_WEAPON_SLOTS_C_72,None,Whip,WhipBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,72
-AUDIT_WEAPON_SLOTS_C_73,None,Whip,WhipBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,73
-AUDIT_WEAPON_SLOTS_C_74,None,Whip,WhipBody,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,74
-AUDIT_WEAPON_SLOTS_C_75,None,Whip,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,75
-AUDIT_WEAPON_SLOTS_C_76,None,Whip,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,76
-AUDIT_WEAPON_SLOTS_C_77,None,Whip,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,77
-AUDIT_WEAPON_SLOTS_C_78,None,Whip,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,78
-AUDIT_WEAPON_SLOTS_C_79,None,Whip,Grip,,,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,79
+P_CORE_PRIMORDIAL,P_CORE_PRIMORDIAL,Any,Core,原初之晶,"效果：武器造成物理伤害，伤害倍率受物理攻击力影响
+宝石介绍：絮扬填充",Common,Core|DamageChannel,true,Approved,Implemented,,武器插槽C,2
+P_CORE_TIDE,P_CORE_TIDE,Any,Core,潮汐之晶,"效果：武器造成水元素伤害，伤害受元素攻击力影响
+宝石介绍：絮扬填充",Common,Core|DamageChannel|Water,true,Approved,Implemented,,武器插槽C,3
+P_CORE_FOREST,P_CORE_FOREST,Any,Core,森林之晶,"效果：武器造成草元素伤害，伤害受元素攻击力影响
+宝石介绍：絮扬填充",Common,Core|DamageChannel|Grass,true,Approved,Implemented,,武器插槽C,4
+P_CORE_FLAME,P_CORE_FLAME,Any,Core,焚绝之晶,"效果：武器造成火元素伤害，伤害受元素攻击力影响
+宝石介绍：絮扬填充",Common,Core|DamageChannel|Flame,true,Approved,Implemented,,武器插槽C,5
+P_CORE_THUNDER,P_CORE_THUNDER,Any,Core,鸣雷之晶,"效果：武器造成电元素伤害，伤害受元素攻击力影响
+宝石介绍：絮扬填充",Common,Core|DamageChannel|Lightning,true,Approved,Implemented,,武器插槽C,6
+P_CORE_PRISM,P_CORE_PRISM,Any,Core,棱镜之晶,效果：武器造成随机元素伤害，伤害受元素攻击力影响,Common,Core|DamageChannel|RandomElement,true,Approved,Implemented,,武器插槽C,7
+P_DAGGER_THRUST_GRIP,P_DAGGER_THRUST_GRIP,Dagger,Grip,突刺握柄,效果：攻击只会触发第三段攻击，冷却0.4s,Common,Grip|AttackPatternReplacement,true,Approved,Implemented,,武器插槽C,8
+P_DAGGER_STRENGTH_GRIP,P_DAGGER_STRENGTH_GRIP,Dagger,Grip,力量握柄,效果：攻击速度+20%,Common,Grip|Numeric,true,Approved,Implemented,,武器插槽C,9
+AUDIT_WEAPON_SLOTS_C_10,None,Dagger,Grip,,效果：第三段攻击，冲刺距离+2m,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,10
+AUDIT_WEAPON_SLOTS_C_11,None,Dagger,Grip,,效果：每次攻击后，攻击速度+6%，持续5s。这个效果最多叠加5层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,11
+P_DAGGER_NINJA_BLADE,P_DAGGER_NINJA_BLADE,Dagger,Blade,忍者之刃,效果：击杀敌人后，获得【隐身】，持续1s,Rare,Blade|UniqueBehavior,false,Unimplemented,Disabled,Missing invisibility status handler.,武器插槽C,12
+P_DAGGER_STUNNING_BLADE,P_DAGGER_STUNNING_BLADE,Dagger,Blade,晕眩之刃,效果：每次攻击有30%概率将敌人【晕眩】，持续1s,Rare,Blade|UniqueBehavior,false,Unimplemented,Disabled,Stun status and chance-on-hit handler are not implemented.,武器插槽C,13
+P_DAGGER_HOLY_BLADE,P_DAGGER_HOLY_BLADE,Dagger,Blade,神圣之刃,效果：每击杀一名敌方单位，回复5%最大生命值,Rare,Blade|UniqueBehavior,true,Approved,Implemented,,武器插槽C,14
+P_DAGGER_SHADOW_BLADE,P_DAGGER_SHADOW_BLADE,Dagger,Blade,暗影之刃,效果：敌方单位被命中3次后，获得【流血】，持续3秒，可以叠加,Rare,Blade|UniqueBehavior,false,Unimplemented,Disabled,Bleed status and hit-count handler are not implemented.,武器插槽C,15
+P_BOW_SPLIT_ARROWHEAD,P_BOW_SPLIT_ARROWHEAD,Bow,Arrowhead,分裂箭头,"效果：命中敌人后，分裂为若干箭矢飞向其周围的敌人，至多分裂出3支箭
+这些分裂的箭伤害倍率-50%",Rare,Arrowhead|UniqueBehavior,false,Unimplemented,Disabled,Split projectile handler is not implemented.,武器插槽C,16
+P_BOW_EXPLOSIVE_ARROWHEAD,P_BOW_EXPLOSIVE_ARROWHEAD,Bow,Arrowhead,爆炸箭头,效果：箭变为爆炸物。爆炸范围1m,Rare,Arrowhead|AttackPatternReplacement,false,Unimplemented,Disabled,Projectile explosion handler is not implemented.,武器插槽C,17
+P_BOW_PIERCING_ARROWHEAD,P_BOW_PIERCING_ARROWHEAD,Bow,Arrowhead,穿刺箭头,效果：箭命中敌人且暴击后，会穿透该敌人,Rare,Arrowhead|UniqueBehavior,false,Unimplemented,Disabled,Pierce-on-crit handler is not implemented.,武器插槽C,18
+AUDIT_WEAPON_SLOTS_C_19,None,Bow,Arrowhead,,效果：箭命中敌人且暴击后，敌人获得【流血】，持续3秒，可以叠加,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,19
+P_BOW_MULTISHOT_ARROWHEAD,P_BOW_MULTISHOT_ARROWHEAD,Bow,Arrowhead,多发箭头,效果：弹道固定为3，武器集中性固定为60°,Rare,Arrowhead|AttackPatternReplacement,false,Unimplemented,Disabled,Multi-projectile spread handler is not implemented.,武器插槽C,20
+AUDIT_WEAPON_SLOTS_C_21,None,Bow,Arrowhead,,效果：击杀一名敌方单位后，额外掉落1时间碎片,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,21
+AUDIT_WEAPON_SLOTS_C_22,None,Bow,Bowstring,,效果：攻击速度+60%，伤害倍率-40%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,22
+AUDIT_WEAPON_SLOTS_C_23,None,Bow,Bowstring,,效果：攻击速度-30%，伤害倍率+50%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,23
+AUDIT_WEAPON_SLOTS_C_24,None,Bow,Bowstring,,效果：击杀一名敌方单位后，移动速度+20%，持续5s。不可叠加,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,24
+AUDIT_WEAPON_SLOTS_C_25,None,Bow,Bowstring,,效果：每次攻击后，攻击速度和移动速度+4%。这个效果最多叠加5层，持续5s，若1秒内没有攻击行为，层数自然流失。,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,25
+AUDIT_WEAPON_SLOTS_C_26,None,Scythe,RotaryBlade,,效果：每次攻击同时命中4名敌人后，攻击范围+2%，持续5s。这个效果可以叠加。,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,26
+AUDIT_WEAPON_SLOTS_C_27,None,Scythe,RotaryBlade,,效果：每次攻击，每命中一名敌方单位，回复自身1%最大生命值,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,27
+AUDIT_WEAPON_SLOTS_C_28,None,Scythe,RotaryBlade,,效果：攻击速度+40%，攻击范围-20%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,28
+AUDIT_WEAPON_SLOTS_C_29,None,Scythe,RotaryBlade,,效果：每次攻击有20%概率将敌人【晕眩】，持续1s,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,29
+AUDIT_WEAPON_SLOTS_C_30,None,Scythe,RotaryBlade,,效果：敌方单位被命中3次后，获得【流血】，持续3s，可以叠加,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,30
+AUDIT_WEAPON_SLOTS_C_31,None,Scythe,RotaryBlade,,效果：外圈敌人受到的额外伤害倍率+40%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,31
+AUDIT_WEAPON_SLOTS_C_32,None,Scythe,Grip,,效果：每次攻击，每命中一名敌方单位，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,32
+AUDIT_WEAPON_SLOTS_C_33,None,Scythe,Grip,,效果：攻击速度-50%。每次攻击，同时命中4名敌方单位时，获得【无敌】，持续0.5秒,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,33
+AUDIT_WEAPON_SLOTS_C_34,None,Scythe,Grip,,效果：每次攻击，每命中一名敌方单位，获得1%攻击速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,34
+AUDIT_WEAPON_SLOTS_C_35,None,Scythe,Grip,,"效果：你现在点击右键可以向前掷出镰刀并停留在其目标出。再次点击右键后，可将其召回
+最大投掷距离为5m；
+首次命中敌方单位伤害倍率：60% 物攻/元攻
+在到达终点后，每秒对周围敌方单位造成 20%/物攻/元攻伤害。
+攻击范围属性继承，持续伤害频率受攻速影响",None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,35
+AUDIT_WEAPON_SLOTS_C_36,None,LongSword,SwordBlade,,效果：攻击角度降为120°；攻击范围+30%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,36
+AUDIT_WEAPON_SLOTS_C_37,None,LongSword,SwordBlade,,效果：攻击速度-20%，攻击范围+30%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,37
+AUDIT_WEAPON_SLOTS_C_38,None,LongSword,SwordBlade,,效果：每次攻击同时命中4名敌人后，攻击范围+2%，持续5s。这个效果可以叠加。,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,38
+AUDIT_WEAPON_SLOTS_C_39,None,LongSword,SwordBlade,,效果：每击杀一名敌方单位，回复5%最大生命值,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,39
+AUDIT_WEAPON_SLOTS_C_40,None,LongSword,SwordBlade,,效果：每命中5名敌方单位，掉落1时间碎片,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,40
+AUDIT_WEAPON_SLOTS_C_41,None,LongSword,SwordBlade,,效果：命中敌方且暴击时，敌方单位获得【流血】，持续3s，可以叠加,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,41
+AUDIT_WEAPON_SLOTS_C_42,None,LongSword,SwordBlade,,"效果：当你单次命中超过6名敌方单位时，在距离你最近的敌方单位处坠落一颗流星，造成爆炸
+爆炸范围：1.5m
+伤害倍率继承",None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,42
+AUDIT_WEAPON_SLOTS_C_43,None,LongSword,Grip,,效果：攻击速度+20%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,43
+AUDIT_WEAPON_SLOTS_C_44,None,LongSword,Grip,,效果：每次攻击，每命中一名敌方单位，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,44
+AUDIT_WEAPON_SLOTS_C_45,None,LongSword,Grip,,效果：每次攻击，每命中一名敌方单位，获得1%攻击速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,45
+AUDIT_WEAPON_SLOTS_C_46,None,LongSword,Grip,,效果：每次攻击，有20%概率将敌人【晕眩】，持续1s,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,46
+AUDIT_WEAPON_SLOTS_C_47,None,LongSword,Grip,,效果：攻击速度-30%，伤害倍率+50%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,47
+AUDIT_WEAPON_SLOTS_C_48,None,Gun,Muzzle,,效果：弹道固定为3，武器集中性固定为60°,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,48
+AUDIT_WEAPON_SLOTS_C_49,None,Gun,Muzzle,,效果：攻击速度-500%，伤害倍率+180%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,49
+AUDIT_WEAPON_SLOTS_C_50,None,Gun,Muzzle,,效果：攻击速度+50%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,50
+AUDIT_WEAPON_SLOTS_C_51,None,Gun,Muzzle,,效果：子弹变为爆炸物。爆炸范围1m,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,51
+AUDIT_WEAPON_SLOTS_C_52,None,Gun,Muzzle,,效果：子弹命中敌人且暴击后，会穿透该敌人,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,52
+AUDIT_WEAPON_SLOTS_C_53,None,Gun,Muzzle,,效果：每次命中敌方单位时，敌方单位有30%概率获得【流血】，持续3s，可以叠加,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,53
+AUDIT_WEAPON_SLOTS_C_54,None,Gun,GunAction,,效果：每次命中敌方单位，回复1%最大生命值,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,54
+AUDIT_WEAPON_SLOTS_C_55,None,Gun,GunAction,,效果：每命中5名敌方单位，掉落1时间碎片,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,55
+AUDIT_WEAPON_SLOTS_C_56,None,Gun,GunAction,,效果：每次攻击，获得1%攻击速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,56
+AUDIT_WEAPON_SLOTS_C_57,None,Gun,GunAction,,效果：每次攻击，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,57
+AUDIT_WEAPON_SLOTS_C_58,None,Staff,StaffBody,,效果：每次攻击，每命中一名敌方单位，回复自身1%最大生命值,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,58
+AUDIT_WEAPON_SLOTS_C_59,None,Staff,StaffBody,,效果：弹道固定为2，武器集中性固定为60°,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,59
+AUDIT_WEAPON_SLOTS_C_60,None,Staff,StaffBody,,效果：每次攻击，每命中一名敌方单位，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,60
+AUDIT_WEAPON_SLOTS_C_61,None,Staff,StaffBody,,效果：每次攻击，每命中一名敌方单位，获得1%攻击速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,61
+AUDIT_WEAPON_SLOTS_C_62,None,Staff,StaffBody,,效果：每次攻击同时命中4名敌人后，爆炸范围+2%，持续5s。这个效果可以叠加。,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,62
+AUDIT_WEAPON_SLOTS_C_63,None,Staff,StaffBody,,"效果：你现在点击右键，可以挥动法杖进行近战攻击
+近战武器攻击角度：120°
+攻击范围：2m
+攻击时长：0.8s
+伤害倍率：120% 物攻/元攻",None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,63
+AUDIT_WEAPON_SLOTS_C_64,None,Staff,StaffCrystal,,效果：伤害倍率-30%，爆炸范围+50%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,64
+AUDIT_WEAPON_SLOTS_C_65,None,Staff,StaffCrystal,,效果：伤害倍率+70%，爆炸范围-50%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,65
+AUDIT_WEAPON_SLOTS_C_66,None,Staff,StaffCrystal,,效果：每命中5名敌方单位，掉落1时间碎片,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,66
+AUDIT_WEAPON_SLOTS_C_67,None,Staff,StaffCrystal,,效果：攻击速度-30%，爆炸范围+50%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,67
+AUDIT_WEAPON_SLOTS_C_68,None,Staff,StaffCrystal,,效果：爆炸范围中心1m的敌人被【眩晕】，持续1s,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,68
+AUDIT_WEAPON_SLOTS_C_69,None,Staff,StaffCrystal,,效果：炮弹不会爆炸。伤害倍率+70%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,69
+AUDIT_WEAPON_SLOTS_C_70,None,Whip,WhipBody,,效果：命中敌人且暴击后，敌人获得【流血】，持续3秒，可以叠加,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,70
+AUDIT_WEAPON_SLOTS_C_71,None,Whip,WhipBody,,效果：攻击速度-30%，伤害倍率+40%（第二段+80%）,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,71
+AUDIT_WEAPON_SLOTS_C_72,None,Whip,WhipBody,,效果：第一段攻击不再附带【击退】效果，伤害倍率+40%（第二段+80%）,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,72
+AUDIT_WEAPON_SLOTS_C_73,None,Whip,WhipBody,,效果：攻击速度+20%,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,73
+AUDIT_WEAPON_SLOTS_C_74,None,Whip,WhipBody,,效果：每击杀一名敌方单位，回复5%最大生命值,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,74
+AUDIT_WEAPON_SLOTS_C_75,None,Whip,Grip,,效果：只触发第一段攻击，并且第一段攻击外圈敌人也会受到额外伤害,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,75
+AUDIT_WEAPON_SLOTS_C_76,None,Whip,Grip,,效果：只触发第二段攻击，第二段攻击角度为60°,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,76
+AUDIT_WEAPON_SLOTS_C_77,None,Whip,Grip,,效果：每次攻击，每命中一名敌方单位，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,77
+AUDIT_WEAPON_SLOTS_C_78,None,Whip,Grip,,效果：每次攻击，每命中一名敌方单位，获得1%攻击速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,78
+AUDIT_WEAPON_SLOTS_C_79,None,Whip,Grip,,效果：每次攻击同时命中4名敌人后，攻击范围+2%，持续5s。这个效果可以叠加。,None,None,false,Unimplemented,Disabled,Unnamed workbook row; no stable PartId assigned.,武器插槽C,79

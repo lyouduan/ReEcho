@@ -176,9 +176,10 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 	                  Snapshot.WeaponTypeOrder,
 	                  Snapshot.WeaponTypes,
 	                  [&](const FReEchoCsvWeaponTypeRow& Row)
-	                  {
+		                  {
 		                  AppendCanonicalField(Canonical, Row.Id);
 		                  AppendCanonicalField(Canonical, Row.DisplayName);
+		                  AppendCanonicalField(Canonical, Row.Description);
 		                  AppendCanonicalField(Canonical, Row.BaseAttackPatternId);
 		                  AppendCanonicalField(Canonical, Row.SlotProfileId);
 		                  AppendCanonicalField(Canonical, Row.BaseIntervalSeconds);
@@ -395,6 +396,7 @@ bool ReadWeaponTypesTable(const FString& DataDirectory,
 	ReEchoCsv::HasExactColumns(Table,
 	                           {TEXT("Id"),
 	                            TEXT("DisplayName"),
+	                            TEXT("Description"),
 	                            TEXT("BaseAttackPatternId"),
 	                            TEXT("SlotProfileId"),
 	                            TEXT("BaseIntervalSeconds"),
@@ -416,6 +418,7 @@ bool ReadWeaponTypesTable(const FString& DataDirectory,
 		FReEchoCsvWeaponTypeRow WeaponType;
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), WeaponType.Id, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), WeaponType.DisplayName, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Description"), WeaponType.Description, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("BaseAttackPatternId"), WeaponType.BaseAttackPatternId, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("SlotProfileId"), WeaponType.SlotProfileId, Issues);
 		ReEchoCsv::RequireFloat(

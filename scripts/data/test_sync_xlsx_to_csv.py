@@ -24,6 +24,7 @@ DATA = sync.DATA_DIR
 SCRIPT = ROOT / "scripts" / "data" / "sync_xlsx_to_csv.py"
 CANONICAL = sync.CANONICAL_XLSX
 ENEMY_CANONICAL = sync.CANONICAL_ENEMY_XLSX
+AUDIO_CANONICAL = sync.CANONICAL_AUDIO_XLSX
 CANONICAL_WORKBOOKS = sync.CANONICAL_WORKBOOKS
 
 
@@ -63,7 +64,14 @@ class SyncXlsxToCsvTests(unittest.TestCase):
     def assert_invalid_workbook(self, mutator, token: str) -> None:
         workbook_path = self.mutate_workbook(mutator)
         result = self.run_sync(
-            "--input", str(workbook_path), "--input", str(ENEMY_CANONICAL), "--check", expect_success=False
+            "--input",
+            str(workbook_path),
+            "--input",
+            str(ENEMY_CANONICAL),
+            "--input",
+            str(AUDIO_CANONICAL),
+            "--check",
+            expect_success=False,
         )
         self.assertIn(token, result.stdout)
         self.assertRegex(result.stdout, r":tbl[A-Za-z]+:row \d+:column ")
@@ -108,14 +116,22 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         headers = [sheet.cell(min_row, column).value for column in range(min_col, max_col + 1)]
         return sheet.cell(min_row + 1 + row_index, min_col + headers.index(column_name))
 
-    def set_cell_locked(self, wb, table_name: str, address: str, locked: bool) -> None:
-        cell = self.sheet_with_table(wb, table_name)[address]
+    @staticmethod
+    def table_header_cell(wb, table_name: str, column_name: str):
+        sheet, table = sync.workbook_tables(wb)[table_name]
+        min_col, min_row, max_col, _ = range_boundaries(table.ref)
+        headers = [sheet.cell(min_row, column).value for column in range(min_col, max_col + 1)]
+        return sheet.cell(min_row, min_col + headers.index(column_name))
+
+    def set_cell_locked(self, wb, table_name: str, row_index: int, column_name: str, locked: bool) -> None:
+        cell = self.table_cell(wb, table_name, row_index, column_name)
         protection = copy(cell.protection)
         protection.locked = locked
         cell.protection = protection
 
-    def remove_validations_for_cell(self, wb, table_name: str, address: str) -> None:
+    def remove_validations_for_cell(self, wb, table_name: str, row_index: int, column_name: str) -> None:
         sheet = self.sheet_with_table(wb, table_name)
+        address = self.table_cell(wb, table_name, row_index, column_name).coordinate
         sheet.data_validations.dataValidation = [
             validation for validation in sheet.data_validations.dataValidation if address not in validation.cells
         ]
@@ -131,7 +147,7 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         outputs = [owner.output_csv for owner in all_owners]
         self.assertEqual(sorted(outputs), sorted(sync.TABLE_TO_CSV.values()))
         self.assertEqual(len(outputs), len(set(outputs)))
-        main_wb, enemy_wb = workbooks
+        main_wb, enemy_wb, audio_wb = workbooks
         by_sheet: dict[str, list[str]] = {}
         for owner in all_owners:
             by_sheet.setdefault(owner.sheet, []).append(owner.output_csv)
@@ -142,6 +158,7 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblEnemies").title]), ["enemies.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblEnemyAbilities").title]), ["enemy_abilities.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(enemy_wb, "tblBossPhases").title]), ["boss_phases.csv"])
+        self.assertEqual(sorted(by_sheet[self.sheet_with_table(audio_wb, "tblAudioEvents").title]), ["audio_events.csv"])
         for wb in workbooks:
             tables = sync.workbook_tables(wb)
             for table_name in set(tables) & sync.AUTHORING_TABLES:
@@ -176,7 +193,14 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             self.table_cell(wb, "tblEnemyAbilities", 0, "OwnerEnemyId").value = "M_Missing"
             wb.save(fixture)
             result = self.run_sync(
-                "--input", str(CANONICAL), "--input", str(fixture), "--check", expect_success=False
+                "--input",
+                str(CANONICAL),
+                "--input",
+                str(fixture),
+                "--input",
+                str(AUDIO_CANONICAL),
+                "--check",
+                expect_success=False,
             )
             self.assertIn("unknown reference 'M_Missing'", result.stdout)
             self.assertRegex(result.stdout, r"EnemyAbilities:tblEnemyAbilities:row \d+:column OwnerEnemyId")
@@ -189,7 +213,14 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             self.table_cell(wb, "tblEnemies", 0, "FuseSeconds").value = 1
             wb.save(fixture)
             result = self.run_sync(
-                "--input", str(CANONICAL), "--input", str(fixture), "--check", expect_success=False
+                "--input",
+                str(CANONICAL),
+                "--input",
+                str(fixture),
+                "--input",
+                str(AUDIO_CANONICAL),
+                "--check",
+                expect_success=False,
             )
             self.assertIn("non-Bomber fields must use explicit zero", result.stdout)
             self.assertRegex(result.stdout, r"Enemies:tblEnemies:row \d+:column TriggerRadiusCm")
@@ -232,16 +263,38 @@ class SyncXlsxToCsvTests(unittest.TestCase):
 
     def test_invalid_workbook_cases_fail_with_location(self) -> None:
         self.assert_invalid_workbook(lambda wb: self.sheet_with_table(wb, "tblCharacters").tables.pop("tblCharacters"), "Workbook table is missing")
-        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["Q3"], "value", "HpMaxBroken"), "Columns do not match")
-        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["Q4"], "value", "not-a-number"), "finite number")
-        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["N4"], "value", "W_UNKNOWN"), "DefaultWeaponId")
-        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblCharacters")["P4"], "value", "Unknown.Handler"), "behavior id")
-        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblRuntimeSmoke")["D4"], "value", "=1+1"), "Formula cells are not allowed")
-        self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblExportMap")["D2"], "value", "../characters.csv"), "plain manifest filename")
-        self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblCharacters", "G4", True), "must be unlocked for authoring")
-        self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblRuntimeSmoke", "A4", False), "must remain locked")
         self.assert_invalid_workbook(
-            lambda wb: self.remove_validations_for_cell(wb, "tblCharacters", "J4"),
+            lambda wb: setattr(self.table_header_cell(wb, "tblCharacters", "HpMax"), "value", "HpMaxBroken"),
+            "Columns do not match",
+        )
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblCharacters", 0, "HpMax"), "value", "not-a-number"),
+            "finite number",
+        )
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblCharacters", 0, "DefaultWeaponId"), "value", "W_UNKNOWN"),
+            "DefaultWeaponId",
+        )
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblCharacters", 0, "PassiveBehaviorId"), "value", "Unknown.Handler"),
+            "behavior id",
+        )
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblRuntimeSmoke", 0, "TestScalar"), "value", "=1+1"),
+            "Formula cells are not allowed",
+        )
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblExportMap", 0, "OutputCsv"), "value", "../characters.csv"),
+            "plain manifest filename",
+        )
+        self.assert_invalid_workbook(
+            lambda wb: self.set_cell_locked(wb, "tblCharacters", 0, "Id", True), "must be unlocked for authoring"
+        )
+        self.assert_invalid_workbook(
+            lambda wb: self.set_cell_locked(wb, "tblRuntimeSmoke", 0, "Id", False), "must remain locked"
+        )
+        self.assert_invalid_workbook(
+            lambda wb: self.remove_validations_for_cell(wb, "tblCharacters", 0, "Enabled"),
             "must use an in-cell list validation",
         )
 

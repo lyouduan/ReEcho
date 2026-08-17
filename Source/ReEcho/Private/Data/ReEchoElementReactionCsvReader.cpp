@@ -129,6 +129,7 @@ bool ReadElementsTable(const FString& DataDirectory,
 	                            TEXT("SourceWorkbookId"),
 	                            TEXT("Role"),
 	                            TEXT("DisplayName"),
+	                            TEXT("Description"),
 	                            TEXT("DisplayNameKey"),
 	                            TEXT("ColorHex"),
 	                            TEXT("VisualKey"),
@@ -146,6 +147,7 @@ bool ReadElementsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("SourceWorkbookId"), Element.SourceWorkbookId, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("Role"), RoleText, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Element.DisplayName, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Description"), Element.Description, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayNameKey"), Element.DisplayNameKey, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("ColorHex"), Element.ColorHex, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("VisualKey"), Element.VisualKey, Issues);
@@ -204,6 +206,7 @@ bool ReadStatusesTable(const FString& DataDirectory,
 	ReEchoCsv::HasExactColumns(Table,
 	                           {TEXT("Id"),
 	                            TEXT("DisplayName"),
+	                            TEXT("Description"),
 	                            TEXT("BehaviorId"),
 	                            TEXT("DurationSeconds"),
 	                            TEXT("StackPolicy"),
@@ -221,6 +224,7 @@ bool ReadStatusesTable(const FString& DataDirectory,
 		FString Tags;
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Status.Id, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Status.DisplayName, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Description"), Status.Description, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), Status.BehaviorId, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("DurationSeconds"), 0.0f, 3600.0f, Status.DurationSeconds, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("StackPolicy"), Status.StackPolicy, Issues);
@@ -277,6 +281,7 @@ bool ReadReactionsTable(const FString& DataDirectory,
 	ReEchoCsv::HasExactColumns(Table,
 	                           {TEXT("Id"),
 	                            TEXT("DisplayName"),
+	                            TEXT("Description"),
 	                            TEXT("TriggerElementId"),
 	                            TEXT("AttachmentElementId"),
 	                            TEXT("BehaviorId"),
@@ -301,6 +306,7 @@ bool ReadReactionsTable(const FString& DataDirectory,
 		FReEchoCsvReactionRow Reaction;
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Reaction.Id, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Reaction.DisplayName, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Description"), Reaction.Description, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("TriggerElementId"), Reaction.TriggerElementId, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("AttachmentElementId"), Reaction.AttachmentElementId, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), Reaction.BehaviorId, Issues);

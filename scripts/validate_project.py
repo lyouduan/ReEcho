@@ -236,6 +236,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "Id": CsvColumnSpec("StableId"),
         "SourceWorkbookId": CsvColumnSpec("StableId"),
         "DisplayName": CsvColumnSpec("Text"),
+        "Description": CsvColumnSpec("Text"),
         "Enabled": CsvColumnSpec("Bool"),
         "DisabledReason": CsvColumnSpec("Text", required=False),
         "RoleId": CsvColumnSpec("StableId"),
@@ -295,6 +296,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceWorkbookId": CsvColumnSpec("StableId"),
         "Role": CsvColumnSpec("StableId"),
         "DisplayName": CsvColumnSpec("Text"),
+        "Description": CsvColumnSpec("Text"),
         "DisplayNameKey": CsvColumnSpec("TextKey"),
         "ColorHex": CsvColumnSpec("Text"),
         "VisualKey": CsvColumnSpec("StableId"),
@@ -304,6 +306,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
     "Statuses": {
         "Id": CsvColumnSpec("StableId"),
         "DisplayName": CsvColumnSpec("Text"),
+        "Description": CsvColumnSpec("Text"),
         "BehaviorId": CsvColumnSpec("BehaviorId"),
         "DurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
         "StackPolicy": CsvColumnSpec("StableId"),
@@ -316,6 +319,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
     "Reactions": {
         "Id": CsvColumnSpec("StableId"),
         "DisplayName": CsvColumnSpec("Text"),
+        "Description": CsvColumnSpec("Text"),
         "TriggerElementId": CsvColumnSpec("ForeignKey", reference_table="Elements"),
         "AttachmentElementId": CsvColumnSpec("ForeignKey", reference_table="Elements"),
         "BehaviorId": CsvColumnSpec("BehaviorId"),
@@ -335,6 +339,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
     "WeaponTypes": {
         "Id": CsvColumnSpec("StableId"),
         "DisplayName": CsvColumnSpec("Text"),
+        "Description": CsvColumnSpec("Text"),
         "BaseAttackPatternId": CsvColumnSpec("AttackPatternId"),
         "SlotProfileId": CsvColumnSpec("StableId"),
         "BaseIntervalSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=60.0),

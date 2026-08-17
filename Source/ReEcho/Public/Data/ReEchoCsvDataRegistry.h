@@ -64,6 +64,7 @@ struct REECHO_API FReEchoCsvCharacterRow
 	FName Id;
 	FName SourceWorkbookId;
 	FString DisplayName;
+	FString Description;
 	bool bEnabled = false;
 	FString DisabledReason;
 	FName RoleId;
@@ -97,6 +98,7 @@ struct REECHO_API FReEchoCsvElementRow
 	EReEchoElement Element = EReEchoElement::None;
 	EReEchoElementRole Role = EReEchoElementRole::Attachment;
 	FString DisplayName;
+	FString Description;
 	FString DisplayNameKey;
 	FString ColorHex;
 	FName VisualKey;
@@ -108,6 +110,7 @@ struct REECHO_API FReEchoCsvStatusRow
 {
 	FName Id;
 	FString DisplayName;
+	FString Description;
 	FName BehaviorId;
 	float DurationSeconds = 0.0f;
 	FName StackPolicy;
@@ -122,6 +125,7 @@ struct REECHO_API FReEchoCsvReactionRow
 {
 	FName Id;
 	FString DisplayName;
+	FString Description;
 	FName TriggerElementId;
 	FName AttachmentElementId;
 	FName BehaviorId;
@@ -167,6 +171,7 @@ struct REECHO_API FReEchoCsvWeaponTypeRow
 {
 	FName Id;
 	FString DisplayName;
+	FString Description;
 	FName BaseAttackPatternId;
 	FName SlotProfileId;
 	float BaseIntervalSeconds = 0.0f;

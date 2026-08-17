@@ -107,6 +107,7 @@ bool ReadCharactersTable(const FString& DataDirectory,
 	                           {TEXT("Id"),
 	                            TEXT("SourceWorkbookId"),
 	                            TEXT("DisplayName"),
+	                            TEXT("Description"),
 	                            TEXT("Enabled"),
 	                            TEXT("DisabledReason"),
 	                            TEXT("RoleId"),
@@ -135,6 +136,7 @@ bool ReadCharactersTable(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Character.Id, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("SourceWorkbookId"), Character.SourceWorkbookId, Issues);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Character.DisplayName, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("Description"), Character.Description, Issues);
 		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), Character.bEnabled, Issues);
 		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Character.DisabledReason);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("RoleId"), Character.RoleId, Issues);

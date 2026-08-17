@@ -6,11 +6,11 @@
 - Executor 负责人：Codex（本对话不采用 Planner-Executor 分离，由同一 AI 规划、实现、评审与集成）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
-- 本地规划 / 实现基线：`origin/main@22df09ab90054971eb4dbb79ec3ad7b1be0b4ab2`。
+- 本地规划基线：`origin/main@22df09ab90054971eb4dbb79ec3ad7b1be0b4ab2`；最终实现候选先整合 Plan48，再按用户确认以 `origin/main@46211dc` 为远端优先基线合并 Plan42 演出更新。
 - 本地实现方式：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan47-card-build`，分支 `plan/47-card-build-runtime`。
-- 依赖 / 阻塞：依赖已关闭的 Plan18/22/24/25/30/31/41/43/44 所建立的数据快照、存档、Echo、Combat、Weapons、Enemies 契约；Plan45 正在修改 UI 二进制资产，本 Plan 不修改其 WBP/纹理，只在必要时维护可合并的 C++ 功能适配。
+- 依赖 / 阻塞：依赖已关闭的 Plan18/22/24/25/30/31/41/43/44 所建立的数据快照、存档、Echo、Combat、Weapons、Enemies 契约；不修改 Plan45 的 WBP/纹理，只维护可合并的 C++ 功能适配；Plan48 当前仅发布计划和预构建刷新，已并入最终基线，后续实现须在本模块公共契约上继续集成。
 - Writes：本 Plan；`ReEcho.uproject`；`Source/ReEchoCards/**`；`Source/ReEcho/ReEcho.Build.cs`；`Source/ReEcho/{Public,Private}/{Core,Data,Run,Recording,Encounter,Combat,Weapons,Player,Graybox,UI}/**` 与 `Source/ReEcho/{Public,Private}/ReEchoGameMode.*`；必要的 `Source/ReEchoCombat/**`、`Source/ReEchoEnemies/**`、`Source/ReEchoWeapons/**`；`Config/DefaultEngine.ini` 中精确反射重定向（仅确有类型迁移时）；`Design/Data/ReEchoData.xlsx`；与它同批生成的 `Content/Data/**`；`scripts/data/**`、相关静态校验/测试；`shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md,modules/MOD-ReEcho.md,modules/MOD-ReEchoCards.md,modules/MOD-ReEchoCombat.md,modules/MOD-ReEchoEnemies.md,modules/MOD-ReEchoWeapons.md,modules/MOD-ReEchoUI.md}`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
 - Stable Reads：外部策划源 `C:\Users\gavynqiu\Documents\miniGame\【开普勒】回响数值与构筑体系.xlsx`（确认时 SHA-256 `A7C53D56890B86627CAA0068E1598B1150A220E24D5BA1D776D3E8655A08720E`）；`ReEchoAudio` 公共 API；Plan45 的 UI 绑定/资产边界；现有角色、元素、武器、敌人、商店、Echo 和录制数据领域。
 - 影响模式：`SharedContract`（卡牌状态、Combat 事件/命中接缝、Echo/Weapons/Enemies/Shop 适配、存档与录制）；`Exclusive`（`Design/Data/ReEchoData.xlsx`、同批生产 CSV、模块描述符和最终预构建包）。
@@ -102,19 +102,19 @@
 
 ## 锁定验收
 
-- [ ] `ReEchoCards` 是可单独构建和自动化的 Runtime Module，依赖方向为 `ReEcho -> ReEchoCards -> ReEchoCombat`，且 Cards 不依赖 ReEcho/Weapons/Enemies/Audio/UI/资源资产。
-- [ ] 39 个表中 ID 与程序说明逐项对应；全部 Approved/Enabled/Offerable，六个删除 ID 和旧 `Runtime.G_1_03` 不在新卡池，`G_2_17`/`G_3_22` 正式存在。
-- [ ] 新表覆盖仓库 `构筑体系G` 设计区和规范化 `tblCards`/`tblCardEffects`；`_ExportMap`、Schema、manifest、C++ Reader 和行为注册同步；权威 `--check` 无漂移，XLSX/CSV 作为同一发布单元。
-- [ ] 所有 OnApply 卡、三张分级赠卡、冲突/Unique/回响过滤和确定性随机有原子性自动化；无合法候选时不部分修改状态。
-- [ ] 所有 Combat/Element 卡在统一 Hit/Reaction identity 上单次触发，Combat 继续独占最终伤害/生命/元素/死亡；Cards/Actor/Widget 不直接形成第二套结算。
-- [ ] 所有 Encounter/Echo/Enemy 卡覆盖跨关计数、10/20 秒阈值、2 秒光环、眩晕/减速/嘲讽、双 Echo/锚点/禁用 Echo、Echo 死亡成长与暂停/保存恢复。
-- [ ] 所有 Shop/Economy 卡覆盖折扣、购买成长、一次性下一关掉落、免费刷新、永久代价和伤害前原子时间碎片消费；无负货币、重复消费或失败半提交。
-- [ ] `G_3_22` 在装备、换武器、保存/恢复和录制快照中允许非核心双配件且核心不变；Weapons 不认识 CardId。
-- [ ] v8 保存/录制按旧表来源语义迁到 v9：旧 `G_1_04→G_1_03`、`G_1_05→G_1_04`、`G_1_08→G_1_07`，旧运行时 `G_1_03` 明确移除而不误映射；已物化的旧数值安全保留，新事件状态使用明确默认值。v9 固定 CardDomainRevision，坏 ID/坏状态/不兼容领域版本明确拒绝。
-- [ ] 现有角色晋升、Forge、普通候选 UI、商店、Echo 存储/选择、Combat、Weapons、Enemies、Save/Recording 自动化不回归；Plan45 WBP/纹理资产不被修改。
-- [ ] 聚焦数据/卡牌/Combat/Element/Encounter/Echo/Enemies/Weapons/Shop/Save/Recording 测试和完整 `ReEcho` 自动化通过；UE 5.8 Editor 全量重建、项目校验、工作簿公式错误扫描及 `git diff --check` 通过。
+- [x] `ReEchoCards` 是可单独构建和自动化的 Runtime Module，依赖方向为 `ReEcho -> ReEchoCards -> ReEchoCombat`，且 Cards 不依赖 ReEcho/Weapons/Enemies/Audio/UI/资源资产。
+- [x] 39 个表中 ID 与程序说明逐项对应；全部 Approved/Enabled/Offerable，六个删除 ID 和旧 `Runtime.G_1_03` 不在新卡池，`G_2_17`/`G_3_22` 正式存在。
+- [x] 新表覆盖仓库 `构筑体系G` 设计区和规范化 `tblCards`/`tblCardEffects`；`_ExportMap`、Schema、manifest、C++ Reader 和行为注册同步；权威 `--check` 无漂移，XLSX/CSV 作为同一发布单元。
+- [x] 所有 OnApply 卡、三张分级赠卡、冲突/Unique/回响过滤和确定性随机有原子性自动化；无合法候选时不部分修改状态。
+- [x] 所有 Combat/Element 卡在统一 Hit/Reaction identity 上单次触发，Combat 继续独占最终伤害/生命/元素/死亡；Cards/Actor/Widget 不直接形成第二套结算。
+- [x] 所有 Encounter/Echo/Enemy 卡覆盖跨关计数、10/20 秒阈值、2 秒光环、眩晕/减速/嘲讽、双 Echo/锚点/禁用 Echo、Echo 死亡成长与暂停/保存恢复。
+- [x] 所有 Shop/Economy 卡覆盖折扣、购买成长、一次性下一关掉落、免费刷新、永久代价和伤害前原子时间碎片消费；无负货币、重复消费或失败半提交。
+- [x] `G_3_22` 在装备、换武器、保存/恢复和录制快照中允许非核心双配件且核心不变；Weapons 不认识 CardId。
+- [x] v8 保存/录制按旧表来源语义迁到 v9：旧 `G_1_04→G_1_03`、`G_1_05→G_1_04`、`G_1_08→G_1_07`，旧运行时 `G_1_03` 明确移除而不误映射；已物化的旧数值安全保留，新事件状态使用明确默认值。v9 固定 CardDomainRevision，坏 ID/坏状态/不兼容领域版本明确拒绝。
+- [x] 现有角色晋升、Forge、普通候选 UI、商店、Echo 存储/选择、Combat、Weapons、Enemies、Save/Recording 自动化不回归；Plan45 WBP/纹理资产不被修改。
+- [ ] 聚焦数据/卡牌/Combat/Element/Encounter/Echo/Enemies/Weapons/Shop/Save/Recording 测试通过；UE 5.8 Editor 全量重建、项目校验、工作簿公式错误扫描及 `git diff --check` 通过。远端 `46211dc` 新增但未提交依赖资产的 Plan40 `Presentation.Animation2D.AssetProfiles` 测试仍失败，因此当前完整 `ReEcho` 为 97/98，不误记为全通过。
 - [ ] 用户在 PIE 验收：普通抽取和三种跃迁、卡牌说明/库存、商店折扣/刷新/购买、双 Echo/锚点/无 Echo、眩晕/减速/嘲讽、关键伤害前效果、保存退出/继续和双配件可用性。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物、临时工作簿、分析脚本或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物、临时工作簿、分析脚本或机器本地路径。
 
 ## Step 0 门禁
 
@@ -159,6 +159,14 @@
 
 - 2026-08-17：用户确认以程序说明为准、`静默刻度` ID 已补、抽出卡牌构筑模块，并以新表覆盖原表后实现全部 39 张卡。
 - 2026-08-17：用户确认基线、worktree、模块依赖、数据覆盖、旧 ID/保存迁移和完整验证范围；Plan 47 进入 `Ready`，发布后由同一 AI 执行。
+- 2026-08-17：创建独立 `ReEchoCards` Runtime Module，将卡牌目录、合法授予、状态、确定性随机和类型化事件规则从 Run 中抽出；Run/GameMode/Combat/Echo/Enemies/Weapons/Shop 只保留领域适配。
+- 2026-08-17：以外部工作簿程序说明覆盖仓库设计区及规范化表，发布 39 张 Trait 卡、3 张 Forge 卡和 54 条效果；存档升级至 v9，并加入旧 v8 ID 的语义迁移。
+- 2026-08-17：将 Plan47 候选 rebase 到 `origin/main@95808e2`。与 Plan48 的冲突仅发生在共享 manifest/DLL，未出现源码或数据语义冲突；在组合源码上统一 FullRebuild 后解决。
+- 2026-08-17：统一重排 `ReEchoData.xlsx` 的全部生产数据 Sheet：删除左侧重复说明区，将旧说明按稳定 ID 合入右侧生产 Table 的 `Description`，再把生产 Table 左移至 A 列；属性、怪物和经济等无生产 Table 的 Sheet 明确标记为只读说明页。
+- 2026-08-17：为角色、元素、反应、状态和武器类型补齐 `Description` Schema/CSV/C++ 读取链路，并同步测试夹具；保留工作表保护、可编辑数据单元格和下拉校验。
+- 2026-08-17：客观门禁通过，任务进入 `Review`；保留用户 PIE 为关闭前人工验收。
+- 2026-08-17：按用户确认以远端为标准，将 `origin/main@46211dc` 的 Plan42 场景/演出更新先合入，再恢复 Plan47 工作簿、数据与构筑实现；文本冲突采用远端演出接口并保留 Cards 类型化适配，所有共享预构建产物由合并源码统一 FullRebuild 重建。
+- 2026-08-17：为 `Content/Data/*.csv` 固定禁用 Git 文本换行转换，保留生成器要求的“记录 CRLF、引号内说明 LF”确定性字节，避免 `core.autocrlf=true` 在重新检出后制造 XLSX/CSV 漂移。
 
 ### 证据
 
@@ -166,12 +174,20 @@
 - 与仓库旧设计区比较：37 个共同 ID、2 个新 ID（`G_2_17`、`G_3_22`）、6 个删除 ID；共同项仅 13 个名称+程序效果完全相同。
 - 当前生产表仅 32 张记录、17 条效果，只有 6 张 Trait + 3 张 Forge 可获得；运行时只支持 `OnApply` 与 `StatModifier/InstantRecovery`，不足以表达新表事件行为。
 - 当前 v8 快照直接保存运行时 `Cards` ID；旧 `G_1_03` 是运行时占位“应急格挡”，新 `G_1_03` 是“物理强化”，已列为必须按版本迁移的冲突。
+- 仓库工作簿现含 12 个工作表、18 个 Excel Table、0 个公式及 0 个公式错误；生产表均从 A 列开始，`tblCards=A3:N45`、`tblCardEffects=A48:K102`，旧说明已并入各表 `Description`。权威同步 `--check`、项目 validator 与 39 ID/Tier/删除 ID 静态断言通过。
+- `ReEcho.Cards` 4/4 聚焦自动化通过，覆盖 Tier/原子授予、Encounter 阈值与资源、商店规则、持久进度及精确暴击随机；完整 `ReEcho` 自动化 97/97 通过，包含新增 v8 语义迁移、商店持久化和非核心双配件断言。
+- UE 5.8 `Development -FullRebuild` 在 Plan48 合并及 CSV 权威重发后的最终组合候选上成功，6 个 Runtime Module 与精选预构建包统一刷新；项目 validator、XLSX/CSV `--check` 和 `git diff --check` 通过。
+- 工作簿保护/可编辑性、数据校验与 12 个 Sheet 渲染逐页检查通过；电子表格同步测试 12/12 通过，最终完整 `ReEcho` 自动化仍为 97/97。
+- 商店程序说明未定义付费刷新价格或新的“额外卡牌组”商品内容，因此未发明第二套平衡常量：现有商店消费免费刷新，`G_3_17` 可禁用刷新，并输出/展示额外卡牌组购买门禁供现有或后续商品入口统一消费。
+- 远端优先合并后的 UE 5.8 `Development -FullRebuild` 再次成功并刷新 6 个 Runtime Module；XLSX/CSV 权威重发、同步测试 12/12、项目 validator、预构建指纹和 `git diff --check` 均通过，`ReEcho.Cards` 聚焦自动化 4/4 通过。
+- 合并后完整 `ReEcho` 自动化发现 98 项，其中 97 项成功；唯一失败为远端 `46211dc` 新增的 `ReEcho.Presentation.Animation2D.AssetProfiles`：其测试引用未随远端提交进入仓库的 `/Game/ReEcho/Gameplay/CharacterPrefabs/*`，配套生成脚本又假定当前敌人根碰撞为 Box，而远端实际仍为 Capsule。该项不在 Plan47 Writes 内，未通过修改卡牌候选掩盖远端基线缺陷。
 
 ### 剩余风险
 
-- 这是跨 Cards/Data/Run/Combat/Echo/Enemies/Weapons/Shop/Save 的大范围改造；任何远端基线、外部工作簿或产品语义变化都会使部分验证失效，须按外部提交审计或范围变更门禁重新确认。
-- Plan45 仍在独立 worktree 修改 UI 二进制资产；本 Plan 只提供 C++ 功能入口和 fallback，不对其视觉结果作假定，最终合并时需审计绑定兼容。
+- 这是跨 Cards/Data/Run/Combat/Echo/Enemies/Weapons/Shop/Save 的大范围改造；后续 Plan48 敌人与关卡实现必须从已合并的 Cards/Combat/Enemy 公共契约继续开发，并在最终候选重新生成共享预构建包。
+- 本 Plan 只提供 C++ 功能入口和 fallback，不修改 WBP/纹理；最终视觉绑定和手感仍由 PIE 人工验收确认。
 - 39 卡的自动化可以证明确定性和数值，不替代实际战斗手感、锚点可用性、信息可读性和多卡组合体验。
+- `origin/main@46211dc` 的 Plan40 Gameplay Blueprint 资产/生成脚本/敌人宿主契约彼此不一致；需要由对应演出计划补齐后，完整 `ReEcho` 才能恢复全绿。本 Plan 保留远端代码和失败证据，不扩张到无关资产重构。
 
 ### 人工验收结果/请求
 
@@ -179,4 +195,8 @@
 
 ### 架构文档审阅结果
 
-- 待实现候选形成后逐项填写；Plan 发布阶段已将所有直接修改/受公共契约影响的模块文档纳入 `Writes`。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已记录 `ReEcho -> ReEchoCards -> ReEchoCombat` 依赖、事件流、状态所有权和跨模块不变量。
+- `shared/CODEBASE_MAP/README.md`：已增加 `MOD-ReEchoCards` / `AREA-Cards` 路由并收紧 Run 边界。
+- `MOD-ReEchoCards.md`：已创建，记录模块职责、Catalog/BuildState/RuntimeState 所有权、事件契约、依赖、扩展方式、测试和代码位置。
+- `MOD-ReEcho.md`、`MOD-ReEchoCombat.md`、`MOD-ReEchoEnemies.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoUI.md`：已分别同步主装配、通用命中钩子、敌人状态消费、有效槽位容量和商店/锚点 C++ fallback 契约。
+- `MOD-ReEchoAudio.md`：已只读审阅；卡牌复用现有语义事件且未改变 Audio 公共 API，因此无需修改。

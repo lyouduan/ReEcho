@@ -1,9 +1,14 @@
-Id,DisplayName,BehaviorId,DurationSeconds,StackPolicy,RefreshPolicy,MutexGroup,Tags,Enabled,DisabledReason
-Z_Elemental_Immunity,Elemental Immunity,Status.ElementImmunity,2,NoStack,Refresh,ElementState,Element|Immunity,true,
-Z_Burn,Burn,Status.Burn,3,RefreshOnly,Refresh,ElementDot,Element|DamageOverTime,true,
-Z_Sarcasm,Taunt,None,0,NoStack,Refresh,Control,Control|Targeting,false,No current reaction or build handler in Plan 20
-Z_Vertigo,Stun,None,0,NoStack,Refresh,Control,Control|DisableAction,false,No current reaction or build handler in Plan 20
-Z_Decelerate,Slow,None,0,RefreshOnly,Refresh,Movement,Control|Movement,false,No current reaction or build handler in Plan 20
-Z_Unstoppable,Invincible,None,0,NoStack,Refresh,Protection,Protection,false,No current reaction or build handler in Plan 20
-Z_Invisible,Invisible,None,0,NoStack,Refresh,Targeting,Targeting,false,No current reaction or build handler in Plan 20
-Z_Bleeding,Bleeding,None,0,Stackable,Refresh,DamageOverTime,DamageOverTime,false,No current reaction or build handler in Plan 20
+Id,DisplayName,Description,BehaviorId,DurationSeconds,StackPolicy,RefreshPolicy,MutexGroup,Tags,Enabled,DisabledReason
+Z_Elemental_Immunity,Elemental Immunity,状态效果：在持续时间内，单位无法被附着任何元素以及收到任何元素效果,Status.ElementImmunity,2,NoStack,Refresh,ElementState,Element|Immunity,true,
+Z_Burn,Burn,"状态效果：在持续时间内，单位持续受到火元素伤害
+分类：负面",Status.Burn,3,RefreshOnly,Refresh,ElementDot,Element|DamageOverTime,true,
+Z_Sarcasm,Taunt,"状态效果：在持续时间内，单位持续吸引附近的敌方单位对其自身进行攻击
+吸引范围半径：2m
+分类：负面",None,0,NoStack,Refresh,Control,Control|Targeting,false,No current reaction or build handler in Plan 20
+Z_Vertigo,Stun,"状态效果：在持续时间内，单位无法进行移动、攻击等任何行为
+分类：负面",None,0,NoStack,Refresh,Control,Control|DisableAction,false,No current reaction or build handler in Plan 20
+Z_Decelerate,Slow,"状态效果：在持续时间内，单位降低移动速度
+分类：负面",None,0,RefreshOnly,Refresh,Movement,Control|Movement,false,No current reaction or build handler in Plan 20
+Z_Unstoppable,Invincible,状态效果：在持续时间内，单位无法受到一切伤害和其他负面状态,None,0,NoStack,Refresh,Protection,Protection,false,No current reaction or build handler in Plan 20
+Z_Invisible,Invisible,状态效果：在持续时间内，单位无法被锁定为攻击目标。单位主动攻击后，该效果移除,None,0,NoStack,Refresh,Targeting,Targeting,false,No current reaction or build handler in Plan 20
+Z_Bleeding,Bleeding,状态效果：在持续时间内，每秒失去0.5%*层数的生命值,None,0,Stackable,Refresh,DamageOverTime,DamageOverTime,false,No current reaction or build handler in Plan 20
