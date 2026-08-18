@@ -85,6 +85,21 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> EffectsRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> AttackVfxRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> HurtVfxRoot;
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> GroundShadow;

@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "Components/SceneComponent.h"
+#include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "PaperFlipbook.h"
 #include "PaperSprite.h"
@@ -160,15 +161,22 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		USceneComponent* EffectsRoot =
 		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("EffectsRoot")))
 		                 : nullptr;
+		USceneComponent* AttackVfxRoot =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("AttackVfxRoot")))
+		                 : nullptr;
+		USceneComponent* HurtVfxRoot =
+		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("HurtVfxRoot")))
+		                 : nullptr;
 		USceneComponent* Renderer =
 		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("FlipbookRenderer")))
 		                 : nullptr;
 		TestTrue(Label,
 		         Collision && Presentation && FootRoot && MotionRoot && FlipbookRoot && GroundRoot && EffectsRoot &&
-		             Renderer && Presentation->GetAttachParent() == Collision &&
+		             AttackVfxRoot && HurtVfxRoot && Renderer && Presentation->GetAttachParent() == Collision &&
 		             FootRoot->GetAttachParent() == Presentation && MotionRoot->GetAttachParent() == FootRoot &&
 		             FlipbookRoot->GetAttachParent() == MotionRoot && GroundRoot->GetAttachParent() == MotionRoot &&
-		             EffectsRoot->GetAttachParent() == MotionRoot && Renderer->GetAttachParent() == FlipbookRoot &&
+		             EffectsRoot->GetAttachParent() == MotionRoot && AttackVfxRoot->GetAttachParent() == EffectsRoot &&
+		             HurtVfxRoot->GetAttachParent() == EffectsRoot && Renderer->GetAttachParent() == FlipbookRoot &&
 		             !FlipbookRoot->IsUsingAbsoluteRotation() && !GroundRoot->IsUsingAbsoluteRotation() &&
 		             !Renderer->GetRelativeRotation().ContainsNaN() && !Renderer->GetRelativeLocation().ContainsNaN() &&
 		             !Renderer->GetRelativeScale3D().ContainsNaN() &&
@@ -178,6 +186,19 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	                      PlayerGameplayClass);
 	TestGameplaySceneTree(TEXT("Enemy Blueprint exposes collision, Flipbook, ground and effects roots"),
 	                      GruntGameplayClass);
+	AReEchoEchoActor* EchoDefault = GetMutableDefault<AReEchoEchoActor>();
+	USceneComponent* EchoRoot = EchoDefault ? EchoDefault->GetRootComponent() : nullptr;
+	USceneComponent* EchoEffectsRoot =
+	    EchoDefault ? Cast<USceneComponent>(EchoDefault->GetDefaultSubobjectByName(TEXT("EffectsRoot"))) : nullptr;
+	USceneComponent* EchoAttackVfxRoot =
+	    EchoDefault ? Cast<USceneComponent>(EchoDefault->GetDefaultSubobjectByName(TEXT("AttackVfxRoot"))) : nullptr;
+	USceneComponent* EchoHurtVfxRoot =
+	    EchoDefault ? Cast<USceneComponent>(EchoDefault->GetDefaultSubobjectByName(TEXT("HurtVfxRoot"))) : nullptr;
+	TestTrue(TEXT("Echo exposes separate attack and hurt VFX roots"),
+	         EchoRoot && EchoEffectsRoot && EchoAttackVfxRoot && EchoHurtVfxRoot &&
+	             EchoEffectsRoot->GetAttachParent() == EchoRoot &&
+	             EchoAttackVfxRoot->GetAttachParent() == EchoEffectsRoot &&
+	             EchoHurtVfxRoot->GetAttachParent() == EchoEffectsRoot);
 	TestTrue(TEXT("Authored Spade default set owns looping Move"),
 	         AuthoredSpade && AuthoredSpade->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) &&
 	             AuthoredSpade->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move)->Flipbook == WalkFlipbook &&

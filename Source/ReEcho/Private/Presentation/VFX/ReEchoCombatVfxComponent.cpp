@@ -28,6 +28,13 @@ UReEchoCombatVfxComponent::UReEchoCombatVfxComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
+                                                         USceneComponent* InHurtVfxRoot)
+{
+	AttackVfxRoot = InAttackVfxRoot;
+	HurtVfxRoot = InHurtVfxRoot;
+}
+
 void UReEchoCombatVfxComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -116,24 +123,25 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	return Effect;
 }
 
-UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 SemanticValue, const FVector& Direction) const
+UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 SemanticValue,
+                                                            const FVector& Direction,
+                                                            USceneComponent* AttachmentRoot,
+                                                            const bool bAutoDestroy) const
 {
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
-	AActor* Owner = GetOwner();
-	USceneComponent* Root = Owner ? Owner->GetRootComponent() : nullptr;
-	if (!System || !Root)
+	if (!System || !AttachmentRoot)
 	{
 		return nullptr;
 	}
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
 	    System,
-	    Root,
+	    AttachmentRoot,
 	    NAME_None,
 	    FVector::ZeroVector,
 	    FReEchoCombatVfxCatalog::ResolveRotation(static_cast<EReEchoCombatVfxSemantic>(SemanticValue), Direction),
 	    FVector::OneVector,
 	    EAttachLocation::KeepRelativeOffset,
-	    true,
+	    bAutoDestroy,
 	    ENCPoolMethod::None,
 	    true);
 	if (Effect)
@@ -141,6 +149,18 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
 	}
 	return Effect;
+}
+
+USceneComponent* UReEchoCombatVfxComponent::ResolveAttackVfxRoot() const
+{
+	AActor* Owner = GetOwner();
+	return AttackVfxRoot ? AttackVfxRoot.Get() : (Owner ? Owner->GetRootComponent() : nullptr);
+}
+
+USceneComponent* UReEchoCombatVfxComponent::ResolveHurtVfxRoot() const
+{
+	AActor* Owner = GetOwner();
+	return HurtVfxRoot ? HurtVfxRoot.Get() : (Owner ? Owner->GetRootComponent() : nullptr);
 }
 
 int32 UReEchoCombatVfxComponent::ResolveOwnerSortPriority(const bool bForeground) const
@@ -177,6 +197,7 @@ void UReEchoCombatVfxComponent::StopAllEffects()
 		}
 	}
 	ProjectileEffects.Reset();
+	ProjectileVisualOffsets.Reset();
 	ProjectileTrajectoryEventCounts.Reset();
 }
 
@@ -429,7 +450,8 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 	{
 		return;
 	}
-	SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::PlayerMeleeSlash), Event.Origin, Event.Direction);
+	SpawnAttached(
+	    static_cast<uint8>(EReEchoCombatVfxSemantic::PlayerMeleeSlash), Event.Direction, ResolveAttackVfxRoot());
 }
 
 void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
@@ -441,7 +463,7 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	const EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner())
 	                                              ? EReEchoCombatVfxSemantic::EnemyHurt
 	                                              : EReEchoCombatVfxSemantic::PlayerHurt;
-	SpawnWorld(static_cast<uint8>(Semantic), Event.WorldLocation, FVector::ForwardVector);
+	SpawnAttached(static_cast<uint8>(Semantic), FVector::ForwardVector, ResolveHurtVfxRoot());
 }
 
 void UReEchoCombatVfxComponent::HandleDeath(const FReEchoDamageEvent& Event)
@@ -466,11 +488,14 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 		StopEffect(DirectionEffect);
 		const EReEchoCombatVfxSemantic ChargingSemantic =
 		    bRabbit ? EReEchoCombatVfxSemantic::RabbitCharging : EReEchoCombatVfxSemantic::FoxCharging;
-		ChargingEffect = SpawnWorld(static_cast<uint8>(ChargingSemantic), Event.Origin, Event.LockedDirection, false);
+		ChargingEffect =
+		    SpawnAttached(static_cast<uint8>(ChargingSemantic), Event.LockedDirection, ResolveAttackVfxRoot(), false);
 		if (bFox)
 		{
-			DirectionEffect = SpawnWorld(
-			    static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection), Event.Origin, Event.LockedDirection, false);
+			DirectionEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection),
+			                                Event.LockedDirection,
+			                                ResolveAttackVfxRoot(),
+			                                false);
 			if (DirectionEffect)
 			{
 				DirectionEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
@@ -483,7 +508,10 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 	if (Event.Type == EReEchoEnemySpecialActionEventType::ActionCommitted && bFox)
 	{
 		StopEffect(DashEffect);
-		DashEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDash), Event.LockedDirection);
+		DashEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDash),
+		                           Event.LockedDirection,
+		                           ResolveAttackVfxRoot(),
+		                           false);
 	}
 	else if (Event.Type == EReEchoEnemySpecialActionEventType::ActionEnded)
 	{
@@ -506,13 +534,20 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 				(*Existing)->DestroyComponent();
 			}
 			ProjectileEffects.Remove(Event.Attack.Sequence);
+			ProjectileVisualOffsets.Remove(Event.Attack.Sequence);
 		}
-		UNiagaraComponent* Effect = SpawnWorld(
-		    static_cast<uint8>(EReEchoCombatVfxSemantic::RabbitProjectile), Event.Location, Event.Direction, false);
+		const USceneComponent* AttackRoot = ResolveAttackVfxRoot();
+		const FVector VisualOffset =
+		    AttackRoot ? AttackRoot->GetComponentLocation() - Event.Location : FVector::ZeroVector;
+		UNiagaraComponent* Effect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::RabbitProjectile),
+		                                       Event.Location + VisualOffset,
+		                                       Event.Direction,
+		                                       false);
 		if (Effect)
 		{
 			Effect->SetForceSolo(true);
 			ProjectileEffects.Add(Event.Attack.Sequence, Effect);
+			ProjectileVisualOffsets.Add(Event.Attack.Sequence, VisualOffset);
 		}
 		LogRabbitProjectileTrajectory(Event, Effect, TEXT("Spawned"));
 		return;
@@ -521,8 +556,9 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 	{
 		if (*Effect && Event.Type == EReEchoEnemyProjectileEventType::Moved)
 		{
+			const FVector VisualOffset = ProjectileVisualOffsets.FindRef(Event.Attack.Sequence);
 			(*Effect)->SetWorldLocationAndRotation(
-			    Event.Location,
+			    Event.Location + VisualOffset,
 			    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::RabbitProjectile, Event.Direction));
 			LogRabbitProjectileTrajectory(Event, *Effect, TEXT("Moved"));
 		}
@@ -535,6 +571,7 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 				(*Effect)->DestroyComponent();
 			}
 			ProjectileEffects.Remove(Event.Attack.Sequence);
+			ProjectileVisualOffsets.Remove(Event.Attack.Sequence);
 			ProjectileTrajectoryEventCounts.Remove(Event.Attack.Sequence);
 		}
 	}

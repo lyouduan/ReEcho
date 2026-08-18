@@ -109,6 +109,12 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	GroundRoot->SetupAttachment(PresentationMotionRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
+	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
+	AttackVfxRoot->SetupAttachment(EffectsRoot);
+	AttackVfxRoot->bEditableWhenInherited = true;
+	HurtVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("HurtVfxRoot"));
+	HurtVfxRoot->SetupAttachment(EffectsRoot);
+	HurtVfxRoot->bEditableWhenInherited = true;
 
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(GroundRoot);
@@ -176,6 +182,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
+	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot);
 	EnemyLogic = CreateDefaultSubobject<UReEchoEnemyLogicComponent>(TEXT("EnemyLogic"));
 	EnemyEvents = CreateDefaultSubobject<UReEchoEnemyEventsComponent>(TEXT("EnemyEvents"));
 	EnemyPresentation = CreateDefaultSubobject<UReEchoEnemyPresentationComponent>(TEXT("EnemyPresentation"));
@@ -222,6 +229,8 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 	AttachIfNeeded(FlipbookRoot, PresentationMotionRoot);
 	AttachIfNeeded(GroundRoot, PresentationMotionRoot);
 	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
+	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
+	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
 	AttachIfNeeded(GroundShadow, GroundRoot);
 	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
 	AttachIfNeeded(ElementAuraRing, EffectsRoot);

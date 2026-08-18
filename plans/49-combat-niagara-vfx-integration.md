@@ -163,6 +163,8 @@
 - 中间诊断候选发布到 `origin/main@9aa99c2` 后继续定位 System 内部：兔子投射物 Niagara 临时强制 Solo，在既有采样点读取 `Fountain004/005` CPU 粒子的实际 Position/Velocity，转换为世界与屏幕坐标，并输出 `[RabbitParticleTrace]` 的载体偏移、朝玩家向量和速度点积；这只用于诊断，定位并修复资产后必须连同 `[RabbitAimTrace]` 一起移除。该候选完成 Editor Development 增量构建并刷新预构建包。
 - 用户保持主角静止后的粒子读回已给出确定性根因：三个实际发射方向在资产本地空间约为 `0° / 32.5° / 65°`，中间球是 `32.5°`；旧实现却把文档声称的 `+Y=90°` 对准玩家，整组三球因此恒定偏转约 `57.5°`。修复不改目标选择或逻辑投射物，只由 `FReEchoCombatVfxCatalog` 集中声明 RabbitProjectile 的实测中轴并把它旋转到玩法方向；Host 和 Gameplay 不持有资产补偿角。
 - 实测中轴修复候选已完成 Editor Development 构建并刷新 7 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 1/1 成功，新增断言直接验证 Catalog 旋转后的 `32.5°` 中轴等于锁定玩家方向；`validate_project.py` 与 `git diff --check` 通过。临时粒子读回仍保留给下一次 PIE 做最终数值确认。
+- 用户明确要求后续美术调整必须通过 Blueprint 组件树挂点完成，并区分攻击与受击。Player、Enemy、Echo Host 因此统一新增 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`；攻击提交、前摇、方向提示、冲刺使用攻击挂点，最终 Hurt 使用受击挂点。兔子飞行粒子只记录发射时攻击挂点相对逻辑载体的视觉偏移，之后继续消费逻辑投射物轨迹，不把人物 Transform 变成玩法权威。
+- 独立挂点候选完成 Editor Development 构建并刷新预构建包；`ReEcho.Presentation.Animation2D.AssetProfiles` 通过并验证 Player/Enemy Gameplay Blueprint 以及 Echo CDO 的挂点父子关系，`ReEcho.Presentation.VFX.Catalog`、`validate_project.py` 和 `git diff --check` 同步通过。
 
 ### 剩余风险
 

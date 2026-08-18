@@ -66,6 +66,12 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	GroundRoot->SetupAttachment(PresentationMotionRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
+	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
+	AttackVfxRoot->SetupAttachment(EffectsRoot);
+	AttackVfxRoot->bEditableWhenInherited = true;
+	HurtVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("HurtVfxRoot"));
+	HurtVfxRoot->SetupAttachment(EffectsRoot);
+	HurtVfxRoot->bEditableWhenInherited = true;
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(GroundRoot);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -113,6 +119,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
+	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot);
 	Recorder = CreateDefaultSubobject<UReEchoRecorderComponent>(TEXT("Recorder"));
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
