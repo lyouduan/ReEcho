@@ -139,6 +139,10 @@ Combat OnDeath
 
 ## 验证与测试
 
+### 当前远程伤害安全状态（2026-08-18）
+
+敌方远程能力仍由 EnemyLogic 正常产生意图、由 Host 转换并交给 Combat；目前仅因投射物/预警表现不可见，在权威 `ReEchoEnemyData.xlsx / EnemyAbilities` 中把 `M_TimeGuard_Projectile`、`M_TimeGuard_BlinkSlam`、`M_TimeGuard_PrayerBeam` 和 `M_RABBIT_RangedBurst` 的 `Damage` 临时设为 `0`。不要在 Logic、Host 或 Combat 增加第二份禁伤开关。美术接入并通过 PIE 可读性验收后，直接恢复表格数值并重新发布 CSV。近战、突进和接触伤害不受影响。
+
 - `ReEcho.Enemies.Logic.LegacyDefinitions`：四类怪物现有数值等价。
 - `ReEcho.Enemies.Logic.ContactCadence`：移动与同帧攻击意图可共存，冷却按现有语义推进。
 - `ReEcho.Enemies.Logic.InvulnerableTargetConsumesAttack`：无敌只阻止伤害候选，不回滚动作与 cooldown。

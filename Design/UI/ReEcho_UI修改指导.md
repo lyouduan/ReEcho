@@ -73,7 +73,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 | `WBP_ReEchoPlayerHud` | `PlayerPortrait`, `PlayerHealthProgress`, `PlayerHealthText` |
 | `WBP_ReEchoEncounterHud` | `EncounterText`, `CountdownText` |
 | `WBP_ReEchoEnemyHealthBar` | `ProgressBar` |
-| `WBP_ReEchoStartMenu` | `StatusText`, `ContinueButton`, `NewGameButton`, `GameSettingsButton` |
+| `WBP_ReEchoStartMenu` | `StatusText`, `ContinueButton`, `NewGameButton`, `GameSettingsButton`, `QuitButton` |
 | `WBP_ReEchoLoadoutSelection` | `StatusText`, `CharacterRow`, `WeaponRow`, `ConfirmButton` |
 | `WBP_ReEchoSettings` | `DetailText`, `CategoryTitleText`, `GraphicsSettingsButton`, `AudioSettingsButton`, `ControlsSettingsButton`, `RestoreDefaultsButton`, `ApplyAndReturnButton`, `AudioPanel`, `MasterVolumeSlider`, `MusicVolumeSlider`, `AmbienceVolumeSlider`, `CombatSfxVolumeSlider`, `UiSfxVolumeSlider`, `MasterMuteCheckBox`, `MusicMuteCheckBox`, `AmbienceMuteCheckBox`, `CombatSfxMuteCheckBox`, `UiSfxMuteCheckBox`, `DiagnosticToneCheckBox` |
 | `WBP_ReEchoRestart` | `TitleText`, `MessageText`, `ResumeButton`, `RestartButton`, `QuitButton`, `SettingsButton`, `QuitButtonText` |
@@ -108,7 +108,11 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 可以修改面板尺寸、按钮布局、按钮 Style、文本、焦点高亮和转场动画。不要在 WBP 中直接开始游戏、读写存档、重启关卡或退出程序；按钮只应把请求交给 C++ Delegate。
 
-`WBP_ReEchoStartMenu` 的首批 Plan45 样板使用 `T_UI_Start_Background`、`T_UI_Start_TitleLogo` 和 `T_UI_Start_SettingsIcon`。背景和标题是命中测试不可见的表现层；设置图标放在既有 `GameSettingsButton` 内，不能用交付图中带烘焙文案的整按钮切图替换 Continue / New Game / Settings 的现有语义。
+`WBP_ReEchoStartMenu` 的 Plan45 正式样板使用 `T_UI_Start_Background`、`T_UI_Start_TitleLogo`、`T_UI_Start_PrimaryActions`、`T_UI_Start_SettingsIcon` 和 `T_UI_Start_Quit`。这些 Image 都是命中测试不可见的表现层，既有 `NewGameButton`、`ContinueButton`、`GameSettingsButton` 和 `QuitButton` 作为透明交互层覆盖对应图案。`存档回溯` 固定映射到继续当前存档；无存档时仍显示，但必须置灰并禁用。关于入口当前隐藏。开始页退出只发送 C++ Delegate，由 GameMode 直接退出程序；WBP 不得自行调用退出 API。设置继续打开既有 Settings 页面，不能在 WBP 中复制设置逻辑。
+
+项目将 `UserInterfaceSettings.RenderFocusRule` 设为 `Never`，不绘制 Unreal 默认的紫色虚线焦点框；这只隐藏默认 Focus Brush，不移除键盘/手柄焦点和导航。需要焦点反馈时，应使用与页面美术一致的按钮 Normal/Hovered/Pressed/Disabled 状态，不要重新启用默认紫色描边。
+
+`WBP_ReEchoSettings`、`WBP_ReEchoRestart`、`WBP_ReEchoTraitCardEntry`、`WBP_ReEchoInventoryShopScreen`、`WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` 和 `WBP_ReEchoStatsScreen` 已接入 Plan45 对应面板、卡框、立绘和 HUD 装饰。新增 Image 均不参与命中测试；原 `RootPanel`、`InventoryPanel`、`ShopPanel`、`OfferContainer`、按钮和文本绑定名称/类型保持不变。商店与装配室装饰必须继续放在各自原面板内部，使 `UReEchoInventoryShopWidget::Refresh()` 的显隐切换同时覆盖内容和美术层。
 
 `WBP_ReEchoSettings` 的 Graphics、Audio、Controls 是固定页面结构。固定的音频 Slider 和 Checkbox 必须由 WBP 正常路径静态提供，布局、间距、样式和焦点表现归 UMG；`UReEchoSettingsWidget` 只绑定控件、刷新状态并把预览/提交/撤销请求交给 `UReEchoAudioService`。不要依赖 C++ `BuildAudioPanel()` 向正常 WBP 动态注入整套布局，该路径只用于设计资产缺失时的最低可用 fallback。所有绑定控件必须勾选 `Is Variable`，并严格使用第 4 节列出的名称和类型。
 

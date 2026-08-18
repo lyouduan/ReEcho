@@ -74,7 +74,7 @@
 - [x] 旧六场保存得到显式兼容结果：已完成旧Run仍为完成；未完成旧Run迁移或拒绝的策略有测试和清晰诊断；不得静默改写为另一条八场历史。若Plan47已升级SaveVersion，迁移链保持连续。
 - [x] 现有武器、Combat、Recording、Echo选择、商店、Cards和音频语义无回归；Plan47集成后重新验证共享Data/Run/Save/Enemies接缝。
 - [x] 使用说明明确告诉策划编辑哪个工作簿/Sheet、哪些列可编辑、单位/枚举/ID规则、同步命令和常见错误；策划无需手改CSV。
-- [ ] Python数据测试、项目校验、聚焦Unreal自动化和 Editor Development 增量构建已通过；最终发布前仍须在最终 main 候选执行 `-FullRebuild` 并确认只包含 `GIT_RULES.md` 允许的预构建产物。
+- [x] Python数据测试、项目校验、聚焦Unreal自动化和 Editor Development 构建已通过；最终组合候选已执行 `-FullRebuild` 并确认只包含 `GIT_RULES.md` 允许的预构建产物。
 - [ ] 用户在PIE确认八场推进、三波节奏、刷怪方向/距离、跨战斗残留、三类普通怪手感及Boss衔接后，人工验收才能设为`Passed`。
 
 ## Step 0 门禁
@@ -128,6 +128,13 @@
 - 设计决策是保持逻辑/表现解耦，不恢复“瞄准时旋转整个玩家 Actor”。`AReEchoWeaponActor::ResolveOwnerAimDirection` 成为主模块世界适配的唯一方向入口：玩家读取显式逻辑瞄准，其他持有者回退自身前向；攻击位移、光波、投射物、近战几何、剑弧表现和 `AttackCommitted` 事件统一消费该入口。
 - 新增 `ReEcho.Weapons.PlayerLogicalAimDrivesProjectile` 接缝回归：在玩家 Actor 朝向不变时把逻辑目标放到侧方，断言生成投射物跟随 `AttackAimDirection` 而不是 Actor Forward。
 - `Build-Editor.cmd -Configuration Development` 成功；`validate_project.py`、15 项数据工具测试与 XLSX/CSV `--check` 通过；`ReEcho.Weapons` 10/10、`ReEcho.AttackMode` 7/7、`ReEcho.Encounter` 3/3、`ReEcho.Enemies` 16/16 全部成功且无失败。等待用户 PIE 复验实际自动/手动攻击方向。
+
+### 敌方远程伤害临时安全降级（2026-08-18）
+
+- 用户复验确认玩家攻击方向已修复，但敌方远程攻击的投射物/预警表现当前仍不可见。为避免玩家在缺少可读反馈时承受不可规避伤害，暂时把权威工作簿 `ReEchoEnemyData.xlsx / EnemyAbilities` 中四项敌方远程能力伤害设为 `0`：`M_TimeGuard_Projectile`、`M_TimeGuard_BlinkSlam`、`M_TimeGuard_PrayerBeam`、`M_RABBIT_RangedBurst`。
+- 本次只修改数据，不加入隐藏 C++ 特判；能力的前摇、冷却、锁点/锁向、投射物与事件仍照常运行，便于后续美术资产接入和链路验收。Boss 近战挥砍、狐狸突进、史莱姆/通用接触伤害均保持原值。
+- 待远程攻击表现可见且用户 PIE 验证可读性后，策划只需在同一工作簿恢复这四项 `Damage` 并运行统一同步脚本，不需要改代码。
+- 与 `origin/main@b27310e` 的 Plan45 UI 更新完成组合：文本改动为可加性合并，旧 DLL/target/prebuilt 未覆盖最终结果，全部由组合源码 FullRebuild 重新生成。发布候选验证结果为：数据同步测试 15/15、`ReEcho.Enemies` 16/16、`ReEcho.Encounter` 3/3、`ReEcho.Weapons` 10/10、`ReEcho.UI.SettingsInteraction` 1/1，均无失败；`sync_xlsx_to_csv.py --check`、`validate_project.py` 与发布级 FullRebuild 均通过。
 
 ### 变化
 

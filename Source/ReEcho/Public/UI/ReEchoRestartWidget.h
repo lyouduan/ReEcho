@@ -7,6 +7,7 @@
 
 class SWidget;
 class UButton;
+class UImage;
 class UTextBlock;
 class UVerticalBox;
 
@@ -115,6 +116,13 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> QuitButtonText;
+
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartDialogPanel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartCharacter;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtResultSummaryPanel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtSelectedCardsPanel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryTitle;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtDefeatTitle;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UReEchoAttackModeWidget> AttackModeWidget;

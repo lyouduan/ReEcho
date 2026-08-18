@@ -11,6 +11,7 @@ class UTextBlock;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoNewGameRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoContinueGameRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoGameSettingRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoStartQuitRequested);
 
 /** Blocking pre-run panel that offers actions based on resumable-save availability. */
 UCLASS()
@@ -28,6 +29,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FReEchoGameSettingRequested OnGameSettingRequested;
+
+	UPROPERTY(BlueprintAssignable)
+	FReEchoStartQuitRequested OnQuitRequested;
 
 	void InitializeMenu(bool bInHasSavedRun);
 
@@ -53,6 +57,9 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UReEchoIndexedButton> GameSettingsButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> QuitButton;
 
 	bool bHasSavedRun = false;
 };

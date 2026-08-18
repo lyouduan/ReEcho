@@ -43,11 +43,15 @@ private:
 	void BuildWidgetTree();
 	void BuildCardEntries();
 	void RefreshOffers();
+	void RefreshSelectionVisuals();
 	void ResetRevealAnimation();
 	void SelectOffer(int32 OfferIndex);
 
 	UFUNCTION()
 	void HandleCardClicked(int32 OfferIndex);
+
+	UFUNCTION()
+	void HandleConfirmClicked();
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> TraitCardContainer;
@@ -92,12 +96,17 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> NeedleWidget;
 
+	/** Final-effect flow: selecting a card previews it; this button commits the choice. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> ConfirmButton;
+
 	UPROPERTY()
 	TObjectPtr<UTexture2D> DrawBackgroundTexture;
 
 	TArray<FReEchoTraitCardOffer> Offers;
 	int32 CurrentTimeShards = 0;
 	float RevealElapsed = 0.0f;
+	int32 SelectedOfferIndex = INDEX_NONE;
 	bool bForgeChoice = false;
 	bool bRevealComplete = false;
 };
