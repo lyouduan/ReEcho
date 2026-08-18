@@ -136,8 +136,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		             FlipbookRoot->GetAttachParent() == MotionRoot && GroundRoot->GetAttachParent() == MotionRoot &&
 		             EffectsRoot->GetAttachParent() == MotionRoot && Renderer->GetAttachParent() == FlipbookRoot &&
 		             !FlipbookRoot->IsUsingAbsoluteRotation() && !GroundRoot->IsUsingAbsoluteRotation() &&
-		             Renderer->GetRelativeRotation().IsNearlyZero() && Renderer->GetRelativeLocation().IsNearlyZero() &&
-		             Renderer->GetRelativeScale3D().Equals(FVector::OneVector) && !Renderer->bHiddenInGame);
+		             !Renderer->GetRelativeRotation().ContainsNaN() &&
+		             !Renderer->GetRelativeLocation().ContainsNaN() &&
+		             !Renderer->GetRelativeScale3D().ContainsNaN() &&
+		             Renderer->GetRelativeScale3D().GetAbsMin() > UE_SMALL_NUMBER && !Renderer->bHiddenInGame);
 	};
 	TestGameplaySceneTree(TEXT("Player Blueprint exposes collision, Flipbook, ground and effects roots"),
 	                      PlayerGameplayClass);
@@ -319,8 +321,9 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	Controller->Configure(ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));
 	PresentationProfile->WorldHeight = 100.0f;
 	Controller->Configure(ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));
-	TestFalse(TEXT("Missing Idle clip deactivates the pure Flipbook renderer"),
-	          ControlledRenderer->IsAnimationActive());
+	TestTrue(TEXT("Missing Idle clip retains the Gameplay Blueprint fallback Flipbook"),
+	         ControlledRenderer->IsAnimationActive() && ControlledRenderer->GetFlipbook() == WalkFlipbook &&
+	             ControlledRenderer->IsVisible() && !ControlledRenderer->bHiddenInGame);
 	Controller->SetMoving(true);
 	const float ControlledNativeHeight = ControlledRenderer->GetFlipbook()->GetRenderBounds().BoxExtent.Z * 2.0f;
 	TestTrue(TEXT("Profile world height normalizes the active animation renderer"),

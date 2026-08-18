@@ -8,7 +8,12 @@
 #include "ReEchoEnemyActor.generated.h"
 
 class UAbilitySystemComponent;
-class UCapsuleComponent;
+class UBoxComponent;
+class UPointLightComponent;
+class UReEcho2DAnimationComponent;
+class UReEcho2DFrameCollisionDriver;
+class UReEcho2DPresentationController;
+class UReEcho2DSceneLightingComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UReEchoCombatAudioAdapterComponent;
@@ -17,6 +22,9 @@ class UReEchoEnemyEventsComponent;
 class UReEchoEnemyLogicComponent;
 class UReEchoEnemyPresentationComponent;
 class UReEchoEnemyRosterComponent;
+class USceneComponent;
+class UStaticMeshComponent;
+class UTextRenderComponent;
 struct FReEchoEnemyActionIntent;
 struct FReEchoEnemyPresentationSnapshot;
 struct FReEchoEnemySenseSnapshot;
@@ -39,11 +47,13 @@ class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterfa
 
 public:
 	AReEchoEnemyActor();
+	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
 	bool ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, int32 SpawnIndex);
+	void ConfigureGameplayPlane(float InGameplayPlaneWorldZ);
 	void SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster);
 	float ReceiveGrayboxDamage(float Damage,
 	                           const FVector& SourceLocation,
@@ -124,6 +134,9 @@ protected:
 
 private:
 	void BindComposedComponents();
+	void RefreshPresentationHierarchy();
+	void RefreshFootRoot();
+	void AlignToGameplayPlane();
 	FReEchoEnemyActionIntent AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
@@ -140,7 +153,59 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Abilities")
 	TObjectPtr<UReEchoCombatAttributeSet> CombatAttributes;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UCapsuleComponent> Collision;
+	TObjectPtr<UBoxComponent> Collision;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Presentation",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> PresentationRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Ground",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> FootRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Presentation",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> PresentationMotionRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Flipbook",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> FlipbookRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Ground",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> GroundRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> EffectsRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Ground",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> GroundShadow;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Flipbook",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UReEcho2DAnimationComponent> SequenceAnimation;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DSceneLightingComponent> SceneLighting;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UTextRenderComponent> ElementAuraRing;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY(VisibleAnywhere)
@@ -163,4 +228,5 @@ private:
 	bool bAudioSpawnPosted = false;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
+	float GameplayPlaneWorldZ = 0.0f;
 };

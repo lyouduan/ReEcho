@@ -8,7 +8,7 @@
 #include "Combat/ReEchoElementReaction.h"
 #include "Combat/ReEchoHitResolver.h"
 #include "Components/BillboardComponent.h"
-#include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -28,19 +28,13 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
+#include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "UI/ReEchoDamageNumberActor.h"
 #include "Graybox/ReEchoAttackEffects.h"
 
 namespace ReEchoEnemyHost
 {
-constexpr float ScaleMultiplier = 1.5f;
-constexpr float CharacterWorldHeight = 244.8f * ScaleMultiplier;
-constexpr float CollisionRadius = 34.56f * ScaleMultiplier;
-constexpr float CollisionHalfHeight = 122.4f * ScaleMultiplier;
-constexpr float ShadowScaleX = 0.512f * ScaleMultiplier;
-constexpr float ShadowScaleY = 0.5376f * ScaleMultiplier;
-
 EReEchoEnemyArchetype ToArchetype(const EReEchoEnemyKind Kind)
 {
 	switch (Kind)
@@ -80,40 +74,53 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	AbilitySystem->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	CombatAttributes = CreateDefaultSubobject<UReEchoCombatAttributeSet>(TEXT("CombatAttributes"));
 
-	Collision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Collision"));
+	Collision = CreateDefaultSubobject<UBoxComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
-	Collision->InitCapsuleSize(ReEchoEnemyHost::CollisionRadius, ReEchoEnemyHost::CollisionHalfHeight);
+	Collision->InitBoxExtent(FVector(22.0f, 22.0f, 40.0f));
 	Collision->SetCollisionProfileName(TEXT("Pawn"));
 	Collision->SetVisibility(false);
 
-	UStaticMeshComponent* GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
-	GroundShadow->SetupAttachment(RootComponent);
+	PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
+	PresentationRoot->SetupAttachment(RootComponent);
+	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
+	FootRoot->SetupAttachment(PresentationRoot);
+	FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -40.0f));
+	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
+	PresentationMotionRoot->SetupAttachment(FootRoot);
+	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
+	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
+	FlipbookRoot->SetRelativeRotation(
+	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
+	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
+	GroundRoot->SetupAttachment(PresentationMotionRoot);
+	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
+	EffectsRoot->SetupAttachment(PresentationMotionRoot);
+
+	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
+	GroundShadow->SetupAttachment(GroundRoot);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GroundShadow->SetCastShadow(false);
-	GroundShadow->SetTranslucentSortPriority(-1);
-	GroundShadow->SetAbsolute(false, false, true);
-	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -ReEchoEnemyHost::CharacterWorldHeight * 0.28f));
-	GroundShadow->SetRelativeScale3D(FVector(ReEchoEnemyHost::ShadowScaleX, ReEchoEnemyHost::ShadowScaleY, 1.0f));
+	GroundShadow->SetTranslucentSortPriority(-10);
+	GroundShadow->SetRelativeLocation(FVector::ZeroVector);
+	GroundShadow->SetRelativeScale3D(FVector(0.44f, 0.46f, 1.0f));
+	GroundShadow->bEditableWhenInherited = true;
 
-	USceneComponent* VisualEffectRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualEffectRoot"));
-	VisualEffectRoot->SetupAttachment(RootComponent);
 	UBillboardComponent* CharacterSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("CharacterSprite"));
-	CharacterSprite->SetupAttachment(VisualEffectRoot);
+	CharacterSprite->SetupAttachment(FlipbookRoot);
 	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CharacterSprite->SetHiddenInGame(false);
 	CharacterSprite->SetVisibility(false);
 	CharacterSprite->SetAbsolute(false, false, true);
 	CharacterSprite->bIsScreenSizeScaled = false;
-	UReEcho2DAnimationComponent* SequenceAnimation =
-	    CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("SequenceAnimation"));
-	SequenceAnimation->SetupAttachment(VisualEffectRoot);
-	UReEcho2DPresentationController* PresentationController =
-	    CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
-	UReEcho2DFrameCollisionDriver* FrameCollisionDriver =
-	    CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
+	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("FlipbookRenderer"));
+	SequenceAnimation->SetupAttachment(FlipbookRoot);
+	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
+	FrameCollisionDriver = CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
+	SceneLighting = CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
+	SceneLighting->Configure(SequenceAnimation, GroundShadow);
 
-	UTextRenderComponent* ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
-	ElementAuraRing->SetupAttachment(RootComponent);
+	ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
+	ElementAuraRing->SetupAttachment(EffectsRoot);
 	ElementAuraRing->SetHorizontalAlignment(EHTA_Center);
 	ElementAuraRing->SetVerticalAlignment(EVRTA_TextCenter);
 	ElementAuraRing->SetWorldSize(270.0f);
@@ -124,9 +131,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	ElementAuraRing->SetTranslucentSortPriority(-2);
 	ElementAuraRing->SetVisibility(false);
 
-	UTextRenderComponent* ElementAttachmentLabel =
-	    CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAttachmentLabel"));
-	ElementAttachmentLabel->SetupAttachment(RootComponent);
+	ElementAttachmentLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAttachmentLabel"));
+	ElementAttachmentLabel->SetupAttachment(EffectsRoot);
 	ElementAttachmentLabel->SetHorizontalAlignment(EHTA_Center);
 	ElementAttachmentLabel->SetVerticalAlignment(EVRTA_TextCenter);
 	ElementAttachmentLabel->SetWorldSize(30.0f);
@@ -143,8 +149,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 		ElementAttachmentLabel->SetTextMaterial(UnlitTextMaterial);
 	}
 
-	UPointLightComponent* ElementAuraLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("ElementAuraLight"));
-	ElementAuraLight->SetupAttachment(RootComponent);
+	ElementAuraLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("ElementAuraLight"));
+	ElementAuraLight->SetupAttachment(EffectsRoot);
 	ElementAuraLight->SetRelativeLocation(FVector(0.0f, 0.0f, 45.0f));
 	ElementAuraLight->SetIntensity(900.0f);
 	ElementAuraLight->SetAttenuationRadius(240.0f);
@@ -158,7 +164,10 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	EnemyLogic = CreateDefaultSubobject<UReEchoEnemyLogicComponent>(TEXT("EnemyLogic"));
 	EnemyEvents = CreateDefaultSubobject<UReEchoEnemyEventsComponent>(TEXT("EnemyEvents"));
 	EnemyPresentation = CreateDefaultSubobject<UReEchoEnemyPresentationComponent>(TEXT("EnemyPresentation"));
-	EnemyPresentation->ConfigureComponents(VisualEffectRoot,
+	EnemyPresentation->ConfigureComponents(PresentationRoot,
+	                                       PresentationMotionRoot,
+	                                       FlipbookRoot,
+	                                       EffectsRoot,
 	                                       CharacterSprite,
 	                                       SequenceAnimation,
 	                                       PresentationController,
@@ -172,9 +181,51 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	Tags.Add(TEXT("ReEchoEnemy"));
 }
 
+void AReEchoEnemyActor::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	RefreshPresentationHierarchy();
+	RefreshFootRoot();
+}
+
+void AReEchoEnemyActor::RefreshPresentationHierarchy()
+{
+	const FAttachmentTransformRules KeepRelative = FAttachmentTransformRules::KeepRelativeTransform;
+	auto AttachIfNeeded = [&KeepRelative](USceneComponent* Child, USceneComponent* ExpectedParent)
+	{
+		if (Child && ExpectedParent && Child->GetAttachParent() != ExpectedParent)
+		{
+			Child->AttachToComponent(ExpectedParent, KeepRelative);
+		}
+	};
+
+	AttachIfNeeded(PresentationRoot, RootComponent);
+	AttachIfNeeded(FootRoot, PresentationRoot);
+	AttachIfNeeded(PresentationMotionRoot, FootRoot);
+	AttachIfNeeded(FlipbookRoot, PresentationMotionRoot);
+	AttachIfNeeded(GroundRoot, PresentationMotionRoot);
+	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
+	AttachIfNeeded(GroundShadow, GroundRoot);
+	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
+	AttachIfNeeded(ElementAuraRing, EffectsRoot);
+	AttachIfNeeded(ElementAttachmentLabel, EffectsRoot);
+	AttachIfNeeded(ElementAuraLight, EffectsRoot);
+}
+
+void AReEchoEnemyActor::RefreshFootRoot()
+{
+	if (FootRoot && Collision)
+	{
+		FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -Collision->GetUnscaledBoxExtent().Z));
+		FootRoot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+}
+
 void AReEchoEnemyActor::BeginPlay()
 {
 	Super::BeginPlay();
+	RefreshPresentationHierarchy();
+	RefreshFootRoot();
 	AbilitySystem->InitAbilityActorInfo(this, this);
 	Combatant->BindToAbilitySystem(AbilitySystem);
 	BindComposedComponents();
@@ -239,14 +290,8 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	FReEchoStatBlock Stats;
 	Stats.HpMax = Definition.MaxHealth;
 	Combatant->InitializeFromStats(Stats, true);
-	if (!bVisualPlacementApplied)
-	{
-		SetActorLocation(GetActorLocation() + FVector(0.0f, 0.0f, ReEchoEnemyHost::CharacterWorldHeight * 0.5f),
-		                 false,
-		                 nullptr,
-		                 ETeleportType::TeleportPhysics);
-		bVisualPlacementApplied = true;
-	}
+	AlignToGameplayPlane();
+	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.Archetype, SpawnIndex);
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
@@ -406,18 +451,27 @@ bool AReEchoEnemyActor::IntersectsProjectilePath(const FVector& PathStart,
 	{
 		return false;
 	}
-	const FVector CapsuleCenter = Collision->GetComponentLocation();
-	const FVector CapsuleAxis = Collision->GetUpVector();
-	const float CapsuleRadius = Collision->GetScaledCapsuleRadius();
-	const float CapsuleSegmentHalfLength = FMath::Max(0.0f, Collision->GetScaledCapsuleHalfHeight() - CapsuleRadius);
-	const FVector CapsuleStart = CapsuleCenter - CapsuleAxis * CapsuleSegmentHalfLength;
-	const FVector CapsuleEnd = CapsuleCenter + CapsuleAxis * CapsuleSegmentHalfLength;
-	FVector ClosestOnProjectile;
-	FVector ClosestOnCapsule;
-	FMath::SegmentDistToSegmentSafe(
-	    PathStart, PathEnd, CapsuleStart, CapsuleEnd, ClosestOnProjectile, ClosestOnCapsule);
-	const float CombinedRadius = CapsuleRadius + FMath::Max(0.0f, ProjectileRadius);
-	return FVector::DistSquared(ClosestOnProjectile, ClosestOnCapsule) <= FMath::Square(CombinedRadius);
+	const FBox ExpandedBounds = Collision->Bounds.GetBox().ExpandBy(FMath::Max(0.0f, ProjectileRadius));
+	return ExpandedBounds.IsInsideOrOn(PathStart) || ExpandedBounds.IsInsideOrOn(PathEnd) ||
+	       FMath::LineBoxIntersection(ExpandedBounds, PathStart, PathEnd, PathEnd - PathStart);
+}
+
+void AReEchoEnemyActor::ConfigureGameplayPlane(const float InGameplayPlaneWorldZ)
+{
+	GameplayPlaneWorldZ = InGameplayPlaneWorldZ;
+	AlignToGameplayPlane();
+}
+
+void AReEchoEnemyActor::AlignToGameplayPlane()
+{
+	if (!Collision)
+	{
+		return;
+	}
+	FVector CenteredLocation = GetActorLocation();
+	CenteredLocation.Z = GameplayPlaneWorldZ + Collision->GetScaledBoxExtent().Z;
+	SetActorLocation(CenteredLocation, false, nullptr, ETeleportType::TeleportPhysics);
+	RefreshFootRoot();
 }
 
 void AReEchoEnemyActor::RefreshElementAttachmentVisual()

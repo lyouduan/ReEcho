@@ -48,7 +48,21 @@
 
 AReEchoGameMode::AReEchoGameMode()
 {
-	DefaultPawnClass = AReEchoPlayerPawn::StaticClass();
+	static ConstructorHelpers::FClassFinder<AReEchoPlayerPawn> PlayerPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay"));
+	DefaultPawnClass = PlayerPrefab.Succeeded() ? PlayerPrefab.Class.Get() : AReEchoPlayerPawn::StaticClass();
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> GruntPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Grunt"));
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> RabbitPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Rabbit"));
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> GoatPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Goat"));
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> FoxPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Fox"));
+	GruntEnemyClass = GruntPrefab.Succeeded() ? GruntPrefab.Class.Get() : AReEchoEnemyActor::StaticClass();
+	RabbitEnemyClass = RabbitPrefab.Succeeded() ? RabbitPrefab.Class.Get() : GruntEnemyClass.Get();
+	GoatEnemyClass = GoatPrefab.Succeeded() ? GoatPrefab.Class.Get() : GruntEnemyClass.Get();
+	FoxEnemyClass = FoxPrefab.Succeeded() ? FoxPrefab.Class.Get() : GruntEnemyClass.Get();
 	PrimaryActorTick.bCanEverTick = true;
 	EnemyRoster = CreateDefaultSubobject<UReEchoEnemyRosterComponent>(TEXT("EnemyRoster"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ArenaBackgroundFinder(
@@ -57,6 +71,26 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
+}
+
+TSubclassOf<AReEchoEnemyActor> AReEchoGameMode::ResolveEnemyClass(const EReEchoEnemyArchetype Archetype,
+                                                                  const int32 VisualVariantIndex) const
+{
+	if (Archetype == EReEchoEnemyArchetype::Boss)
+	{
+		return GoatEnemyClass;
+	}
+	switch (FMath::Abs(VisualVariantIndex) % 4)
+	{
+		case 1:
+			return RabbitEnemyClass;
+		case 2:
+			return GoatEnemyClass;
+		case 3:
+			return FoxEnemyClass;
+		default:
+			return GruntEnemyClass;
+	}
 }
 
 UReEchoAudioService* AReEchoGameMode::GetAudioService() const
@@ -938,12 +972,19 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem->GetRunDataSnapshot();
 	for (const FReEchoEnemyRuntimeState& EnemyState : SavedState.Enemies)
 	{
-		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>();
+		const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
+		                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
+		                                       : EReEchoEnemyKind::Grunt;
+		const EReEchoEnemyArchetype SavedArchetype =
+		    SavedKind == EReEchoEnemyKind::Boss     ? EReEchoEnemyArchetype::Boss
+		    : SavedKind == EReEchoEnemyKind::Bomber ? EReEchoEnemyArchetype::Bomber
+		    : SavedKind == EReEchoEnemyKind::Shield ? EReEchoEnemyArchetype::Shield
+		                                            : EReEchoEnemyArchetype::Grunt;
+		AReEchoEnemyActor* Enemy =
+		    GetWorld()->SpawnActor<AReEchoEnemyActor>(ResolveEnemyClass(SavedArchetype, EnemyState.SpawnIndex));
 		if (Enemy)
 		{
-			const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
-			                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
-			                                       : EReEchoEnemyKind::Grunt;
+			Enemy->ConfigureGameplayPlane(ArenaScene->GetGameplayPlaneWorldZ());
 			const FName EnemyId = SavedKind == EReEchoEnemyKind::Boss     ? FName(TEXT("M_TimeGuard"))
 			                      : SavedKind == EReEchoEnemyKind::Bomber ? FName(TEXT("M_Bomber"))
 			                      : SavedKind == EReEchoEnemyKind::Shield ? FName(TEXT("M_Shield"))
@@ -1021,11 +1062,16 @@ void AReEchoGameMode::SpawnEnemies(const int32 EncounterIndex)
 			UE_LOG(LogTemp, Error, TEXT("Plan44 enemy spawn failed: %s"), *CompileError);
 			return;
 		}
+		const int32 NextSpawnIndex = SpawnIndex + 1;
 		AReEchoEnemyActor* Enemy =
-		    GetWorld()->SpawnActor<AReEchoEnemyActor>(GetPeripheralSpawnLocation(), FRotator::ZeroRotator);
+		    GetWorld()->SpawnActor<AReEchoEnemyActor>(ResolveEnemyClass(Definition.Archetype, NextSpawnIndex),
+		                                              GetPeripheralSpawnLocation(),
+		                                              FRotator::ZeroRotator);
 		if (Enemy)
 		{
-			if (!Enemy->ConfigureFromDefinition(Definition, ++SpawnIndex))
+			SpawnIndex = NextSpawnIndex;
+			Enemy->ConfigureGameplayPlane(ArenaScene->GetGameplayPlaneWorldZ());
+			if (!Enemy->ConfigureFromDefinition(Definition, SpawnIndex))
 			{
 				Enemy->Destroy();
 				return;
