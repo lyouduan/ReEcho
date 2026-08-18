@@ -30,3 +30,14 @@ bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 	const FString Pattern = AttackPatternId.ToString();
 	return Pattern.Contains(TEXT("LongSword")) || Pattern.Contains(TEXT("Dagger")) || Pattern.Contains(TEXT("Scythe"));
 }
+
+FRotator FReEchoCombatVfxCatalog::ResolveRotation(const FVector& Direction, const bool bLocalYAxisForward)
+{
+	const FVector SafeDirection = Direction.IsNearlyZero() ? FVector::ForwardVector : Direction.GetSafeNormal2D();
+	FRotator Rotation = SafeDirection.Rotation();
+	if (bLocalYAxisForward)
+	{
+		Rotation.Yaw -= 90.0f;
+	}
+	return Rotation;
+}

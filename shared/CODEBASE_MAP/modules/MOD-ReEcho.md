@@ -112,6 +112,8 @@ DefaultEngine.ini
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
+Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`GMSpawnFox [distance]` 只用于快速表现验收：它复用生产 `M_FOX` Definition、EnemyHost、Roster 和竞技场出生边界，不建立第二套测试怪物。
+
 ## 代码位置与阅读路线
 
 | 目的 | Public 首读 | Private 实现 | 相关数据/资产 |

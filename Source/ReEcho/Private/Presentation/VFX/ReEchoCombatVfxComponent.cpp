@@ -4,24 +4,14 @@
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "ReEcho.h"
 
 namespace ReEchoCombatVfx
 {
-constexpr int32 ForegroundSortPriority = 1;
-constexpr int32 BackgroundSortPriority = -1;
-
-FRotator ResolveRotation(const FVector& Direction, const bool bLocalYAxisForward)
-{
-	const FVector SafeDirection = Direction.IsNearlyZero() ? FVector::ForwardVector : Direction.GetSafeNormal2D();
-	FRotator Rotation = SafeDirection.Rotation();
-	if (bLocalYAxisForward)
-	{
-		Rotation.Yaw -= 90.0f;
-	}
-	return Rotation;
-}
+constexpr int32 ForegroundSortOffset = 1;
+constexpr int32 BackgroundSortOffset = -1;
 } // namespace ReEchoCombatVfx
 
 UReEchoCombatVfxComponent::UReEchoCombatVfxComponent()
@@ -100,19 +90,19 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	{
 		return nullptr;
 	}
-	UNiagaraComponent* Effect =
-	    UNiagaraFunctionLibrary::SpawnSystemAtLocation(World,
-	                                                   System,
-	                                                   Location,
-	                                                   ReEchoCombatVfx::ResolveRotation(Direction, bLocalYAxisForward),
-	                                                   FVector::OneVector,
-	                                                   bAutoDestroy,
-	                                                   true,
-	                                                   ENCPoolMethod::None,
-	                                                   true);
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+	    World,
+	    System,
+	    Location,
+	    FReEchoCombatVfxCatalog::ResolveRotation(Direction, bLocalYAxisForward),
+	    FVector::OneVector,
+	    bAutoDestroy,
+	    true,
+	    ENCPoolMethod::None,
+	    true);
 	if (Effect)
 	{
-		Effect->SetTranslucentSortPriority(ReEchoCombatVfx::ForegroundSortPriority);
+		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority(true));
 	}
 	return Effect;
 }
@@ -131,7 +121,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                                 Root,
 	                                                 NAME_None,
 	                                                 FVector::ZeroVector,
-	                                                 ReEchoCombatVfx::ResolveRotation(Direction, false),
+	                                                 FReEchoCombatVfxCatalog::ResolveRotation(Direction, false),
 	                                                 FVector::OneVector,
 	                                                 EAttachLocation::KeepRelativeOffset,
 	                                                 true,
@@ -139,9 +129,19 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                                 true);
 	if (Effect)
 	{
-		Effect->SetTranslucentSortPriority(ReEchoCombatVfx::BackgroundSortPriority);
+		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
 	}
 	return Effect;
+}
+
+int32 UReEchoCombatVfxComponent::ResolveOwnerSortPriority(const bool bForeground) const
+{
+	const AActor* Owner = GetOwner();
+	const UReEcho2DAnimationComponent* Animation =
+	    Owner ? Owner->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
+	const int32 OwnerPriority = Animation ? Animation->TranslucencySortPriority : 0;
+	return OwnerPriority +
+	       (bForeground ? ReEchoCombatVfx::ForegroundSortOffset : ReEchoCombatVfx::BackgroundSortOffset);
 }
 
 void UReEchoCombatVfxComponent::StopEffect(TObjectPtr<UNiagaraComponent>& Effect)
@@ -224,7 +224,7 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 			                             false);
 			if (DirectionEffect)
 			{
-				DirectionEffect->SetTranslucentSortPriority(ReEchoCombatVfx::BackgroundSortPriority);
+				DirectionEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
 			}
 		}
 		return;
@@ -274,7 +274,7 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 		if (*Effect && Event.Type == EReEchoEnemyProjectileEventType::Moved)
 		{
 			(*Effect)->SetWorldLocationAndRotation(Event.Location,
-			                                       ReEchoCombatVfx::ResolveRotation(Event.Direction, true));
+			                                       FReEchoCombatVfxCatalog::ResolveRotation(Event.Direction, true));
 		}
 		else if (Event.Type == EReEchoEnemyProjectileEventType::Ended)
 		{

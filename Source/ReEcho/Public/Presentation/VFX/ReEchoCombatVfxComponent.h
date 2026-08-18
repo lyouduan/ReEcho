@@ -31,6 +31,7 @@ private:
 	                              bool bLocalYAxisForward = false,
 	                              bool bAutoDestroy = true) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue, const FVector& Direction) const;
+	int32 ResolveOwnerSortPriority(bool bForeground) const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopAllEffects();
 

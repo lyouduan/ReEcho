@@ -206,7 +206,7 @@ void AReEchoGameMode::GMHelp()
 		return;
 	}
 	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMWeather <Clear|Rain|Fog> | "
-	                   "GMKillAll | GMGotoBoss"));
+	                   "GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
 }
 
 void AReEchoGameMode::GMStatus()
@@ -314,6 +314,38 @@ void AReEchoGameMode::GMKillAll()
 	}
 	PrintGMResult(
 	    FString::Printf(TEXT("Killed %d enemies; normal encounter completion will run next tick."), KilledCount));
+}
+
+void AReEchoGameMode::GMSpawnFox(const float Distance)
+{
+	if (!EnsureGMCommandAvailable() || !Player || !Player->Combatant || !Player->Combatant->IsAlive())
+	{
+		PrintGMResult(TEXT("GMSpawnFox requires a living player."), false);
+		return;
+	}
+	const float SafeDistance = FMath::Clamp(Distance, 150.0f, 1000.0f);
+	const FVector PlayerLocation = Player->GetActorLocation();
+	FVector SpawnLocation = PlayerLocation + FVector(SafeDistance, 0.0f, 0.0f);
+	if (ArenaScene)
+	{
+		const FVector2D ArenaCenter = ArenaScene->GetArenaCenter();
+		FVector2D TowardCenter = ArenaCenter - FVector2D(PlayerLocation.X, PlayerLocation.Y);
+		if (TowardCenter.IsNearlyZero())
+		{
+			TowardCenter = FVector2D(1.0f, 0.0f);
+		}
+		const FVector2D Desired =
+		    FVector2D(PlayerLocation.X, PlayerLocation.Y) + TowardCenter.GetSafeNormal() * SafeDistance;
+		const FVector2D HalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
+		SpawnLocation.X = FMath::Clamp(Desired.X, ArenaCenter.X - HalfExtents.X, ArenaCenter.X + HalfExtents.X);
+		SpawnLocation.Y = FMath::Clamp(Desired.Y, ArenaCenter.Y - HalfExtents.Y, ArenaCenter.Y + HalfExtents.Y);
+		SpawnLocation.Z = ArenaScene->GetGameplayPlaneWorldZ();
+	}
+	const bool bSpawned = SpawnConfiguredEnemy(TEXT("M_FOX"), SpawnLocation);
+	PrintGMResult(bSpawned ? FString::Printf(TEXT("Spawned M_FOX %.0f cm from the player."),
+	                                         FVector::Dist2D(PlayerLocation, SpawnLocation))
+	                       : TEXT("Failed to spawn M_FOX from the production enemy definition."),
+	              bSpawned);
 }
 
 void AReEchoGameMode::GMGotoBoss()

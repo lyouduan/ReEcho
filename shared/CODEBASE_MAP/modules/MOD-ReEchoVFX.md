@@ -60,8 +60,8 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 | 语义 | 权威资产 | 播放约定 |
 |---|---|---|
-| RabbitCharging | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Charging_01` | 世界位置、前景、Windup 开始，提交/结束清理 |
-| RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 资产本地 `+Y` 为前向；随逻辑投射物移动，命中/越界清理 |
+| RabbitCharging | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Charging_01` | 世界位置；排序恒为兔子当前 Flipbook `+1`，Windup 开始，提交/结束清理 |
+| RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 三球资产本地 `+Y` 中轴严格对准锁定方向；随逻辑投射物移动，命中/越界清理 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02` | 世界位置、前景、Windup 开始 |
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 锁定方向、背景、Windup 开始 |
@@ -108,5 +108,5 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 - 投射物 Niagara 绝不是位置真相；每次 Moved 都覆盖其 Transform。
 - 循环/跟随效果必须在 Death、Ended 和 EndPlay 都可清理。
 - 资产朝向修正集中在适配器，禁止为了迁就特效轴修改玩法攻击方向。
-- 排序优先级是表现配置，不得复用为碰撞层或目标选择规则。
+- 前景/背景排序必须相对宿主当前 Flipbook 动态求 `+1/-1`，不能写固定全局值；排序不得复用为碰撞层或目标选择规则。
 - 当前是主模块内领域；只有依赖和团队边界确实稳定、能避免循环时才考虑拆独立 Runtime Module。

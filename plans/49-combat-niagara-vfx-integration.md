@@ -19,6 +19,7 @@
   - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`
   - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEchoActor.*`（仅限表现组件装配）
   - `Source/ReEcho/{Public,Private}/Player/ReEchoPlayerPawn.*`（仅限表现组件装配与只读事件接线）
+  - `Source/ReEcho/{Public,Private}/ReEchoGameMode.*`（仅限开发期 `GMSpawnFox` 调试入口）
   - `Source/ReEcho/{Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.cpp`
   - `Source/ReEcho/Private/Tests/*Vfx*Tests.cpp`
   - `Source/ReEchoEnemies/{Public,Private}/Enemies/ReEchoEnemyEventsComponent.*`
@@ -27,6 +28,7 @@
   - `Content/VFX/**`、`Content/Mat/**`、`Content/00_Textures/**`、`Content/01_Textures/**` 中导入清单明确列出的资产
   - `Design/Art/VFX/combat_vfx_import_manifest.csv`
   - `scripts/art/import_combat_vfx.py` 及其聚焦测试
+  - `docs/GM_COMMANDS.md`
   - `shared/CODEBASE_MAP/ARCHITECTURE.md`
   - `shared/CODEBASE_MAP/README.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
@@ -59,6 +61,7 @@
 3. 兔子攻击由当前锁点即时范围命中表现改为真实飞行投射物：逻辑拥有轨迹、碰撞、边界、存活期和销毁，Niagara 只跟随视觉载体；本 Plan 继续保持其伤害为 0。
 4. 狐狸按类型化特殊动作阶段播放“蓄力 + 方向箭头 + 冲刺”，玩家近战提交时播放刀光，玩家/怪物实际受伤时播放各自权威受击特效。
 5. 所有特效具备安全回退、确定性去重和生命周期清理，不因暂停、死亡、取消、关卡结束或对象销毁留下循环/悬空组件。
+6. 视觉返修要求：兔子蓄力特效必须使用“兔子当前 Flipbook 排序 + 1”的相对前景层；三球资产以本地 `+Y` 中轴严格旋转到锁定玩家方向；新增 Development-only `GMSpawnFox [distance]`，复用生产 Definition/Host/Roster 流程在玩家附近生成狐狸供快速验收。
 
 ## 架构影响与设计决策
 
@@ -141,6 +144,8 @@
 - 新增可重复执行的精确导入器与 SHA-256 manifest，从 8 个正式根解析并复制 84 个静态依赖资产；没有导入 Map、Developers、SourceArt、备用特效或整包资源。
 - 新增主模块内的战斗 VFX 语义目录/只读组件，并装配到 Player、Echo、Enemy Host；近战提交、最终 Hurt、兔子/狐狸特殊动作及敌方投射物生命周期分别从类型化事件进入 Niagara。
 - 兔子远程提交改为复用现有无资源投射物逻辑；速度优先读取 `ProjectileSpeedCmPerSecond`，当前表值为 0 时兼容推导 `MaxRangeCm / CooldownSeconds = 500 cm/s`，伤害仍保持表中 0。尝试直接补 XLSX 时发现通用工作簿编辑器会丢失受保护 Sheet 属性，已完整恢复工作簿且未产生 XLSX/CSV 修改。
+- 用户首轮视觉反馈要求继续返修：兔子蓄力明确压住兔子图层、三球中轴对准玩家，并增加玩家附近生成狐狸的 GM 命令；Plan 保持 `Review`，人工验收不关闭。
+- 返修实现使用宿主当前 `UReEcho2DAnimationComponent::TranslucencySortPriority + 1` 生成前景特效，避免固定值在脚点动态排序下落到兔子后方；三球本地 `+Y` 中轴通过集中旋转函数对齐逻辑锁定方向；`GMSpawnFox [distance]` 复用生产 `M_FOX` Definition、Host、Roster 和 Arena 出生边界。
 
 ### 证据
 
@@ -148,6 +153,7 @@
 - 美术包只读审计确认 8 个正式 Niagara 根资产可形成约 80 个 `.uasset` 的最小静态依赖闭包；实际 manifest 以实现阶段脚本生成并复核的精确结果为准。
 - 实际 manifest：8 个根、84 个 `.uasset`；`python scripts/art/import_combat_vfx.py --source-root "C:\Users\gavynqiu\Documents\miniGame\Content (2)\Content" --check` 通过；导入器单测 2/2 通过。
 - Editor Development 增量构建通过并刷新 6 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 通过并实际 `LoadObject` 8 个正式 Niagara System；新增生产兔子 Definition 的 Host 接缝测试，`ReEcho.Enemies` 17/17 通过。
+- 首轮视觉返修后再次完成 Editor Development 构建；VFX Catalog 自动化通过（包含三球 `+Y` 中轴对齐锁定玩家方向断言），Enemies 17/17 继续通过。`GMSpawnFox` 已通过 UHT/UBT，实际生成位置和狐狸表现留给用户 PIE 验收。
 
 ### 剩余风险
 

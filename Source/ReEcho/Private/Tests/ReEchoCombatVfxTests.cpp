@@ -20,6 +20,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Dagger is melee"), FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.DaggerCombo")));
 	TestFalse(TEXT("Staff projectile is not melee"),
 	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.StaffProjectile")));
+	const FVector LockedPlayerDirection = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
+	const FRotator RabbitProjectileRotation = FReEchoCombatVfxCatalog::ResolveRotation(LockedPlayerDirection, true);
+	const FVector RotatedThreeBallCenterAxis =
+	    RabbitProjectileRotation.RotateVector(FVector::YAxisVector).GetSafeNormal2D();
+	TestTrue(TEXT("Rabbit three-ball center (+Y) points at the locked player"),
+	         RotatedThreeBallCenterAxis.Equals(LockedPlayerDirection, KINDA_SMALL_NUMBER));
 
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
 	    EReEchoCombatVfxSemantic::RabbitCharging,

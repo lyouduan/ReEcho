@@ -60,6 +60,8 @@ public:
 	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
+	void GMSpawnFox(float Distance = 350.0f);
+	UFUNCTION(Exec)
 	void GMGotoBoss();
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
