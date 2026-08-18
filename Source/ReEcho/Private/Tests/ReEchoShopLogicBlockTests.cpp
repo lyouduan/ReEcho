@@ -72,6 +72,8 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("The scroll box owns a common logic panel"), ShopLogicPanel);
 	if (ShopLogicPanel)
 	{
+		TestTrue(TEXT("Weapon parts are the first visible shop block"),
+		         ShopLogicPanel->GetChildrenCount() > 0 && ShopLogicPanel->GetChildAt(0) == WeaponPartPanel);
 		TestTrue(TEXT("Run item block is inside the scrollable host"),
 		         RunItemPanel && RunItemPanel->GetParent() == ShopLogicPanel);
 		TestTrue(TEXT("Weapon part block is inside the scrollable host"),
@@ -156,6 +158,24 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Authored inventory/shop widget initializes"), Widget->Initialize());
 	Widget->TakeWidget();
+	FReEchoShopOffer WeaponPart;
+	WeaponPart.ItemId = TEXT("TEST_AUTHORED_WEAPON_PART_ITEM");
+	WeaponPart.ContentId = TEXT("TEST_AUTHORED_WEAPON_PART");
+	WeaponPart.DisplayName = FText::FromString(TEXT("Authored weapon part"));
+	WeaponPart.EffectText = FText::FromString(TEXT("Authored part effect"));
+	WeaponPart.Price = 10;
+	WeaponPart.Type = EReEchoShopOfferType::WeaponPart;
+	WeaponPart.SlotTypeId = TEXT("Core");
+	FReEchoWeaponPartShopView PartShopView;
+	PartShopView.WeaponId = TEXT("TEST_AUTHORED_WEAPON");
+	PartShopView.WeaponDisplayName = FText::FromString(TEXT("Authored weapon"));
+	PartShopView.Offers.Add(WeaponPart);
+	FReEchoWeaponSlotShopView PartSlot;
+	PartSlot.SlotTypeId = TEXT("Core");
+	PartSlot.DisplayName = FText::FromString(TEXT("Core"));
+	PartSlot.Capacity = 1;
+	PartShopView.Slots.Add(PartSlot);
+	Widget->SetWeaponPartShopView(PartShopView, true);
 	FReEchoEchoStorageSummary EchoSummary;
 	EchoSummary.StorageCapacity = 3;
 	EchoSummary.bHasPendingRecording = true;
@@ -164,10 +184,30 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UScrollBox* ShopScrollBox = Cast<UScrollBox>(Widget->GetWidgetFromName(TEXT("ShopLogicScrollBox")));
 	UScaleBox* EchoPanelScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("EchoPanelScale")));
 	UVerticalBox* EchoPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("EchoPanel")));
+	UVerticalBox* ShopLogicPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("ShopLogicPanel")));
+	UVerticalBox* WeaponPartPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("WeaponPartOfferPanel")));
 	TestNotNull(TEXT("Authored shop receives the scrollable logic host"), ShopScrollBox);
+	TestNotNull(TEXT("Authored shop creates a purchasable weapon-part entry"),
+	            Widget->GetWidgetFromName(TEXT("WeaponPartOffer0")));
+	TestTrue(TEXT("Authored weapon-part block is visible"),
+	         WeaponPartPanel && WeaponPartPanel->GetVisibility() == ESlateVisibility::Visible);
+	TestTrue(TEXT("Authored weapon parts appear before ordinary products"),
+	         ShopLogicPanel && ShopLogicPanel->GetChildrenCount() > 0 &&
+	             ShopLogicPanel->GetChildAt(0) == WeaponPartPanel);
 	TestNotNull(TEXT("Authored shop receives the independent echo tray"), EchoPanelScale);
 	TestTrue(TEXT("Post-trait echo management is visible in the authored shop"),
 	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible);
+	if (ShopScrollBox)
+	{
+		const UCanvasPanelSlot* ScrollCanvasSlot = Cast<UCanvasPanelSlot>(ShopScrollBox->Slot);
+		TestNotNull(TEXT("Authored shop scroll range has an independent canvas viewport"), ScrollCanvasSlot);
+		if (ScrollCanvasSlot)
+		{
+			TestEqual(TEXT("Shop product viewport renders below authored panel art"), ScrollCanvasSlot->GetZOrder(), 10);
+			TestTrue(TEXT("Post-trait product viewport stops above echo storage"),
+			         FMath::IsNearlyEqual(ScrollCanvasSlot->GetAnchors().Maximum.Y, 0.69f));
+		}
+	}
 	if (EchoPanelScale)
 	{
 		const UCanvasPanelSlot* EchoCanvasSlot = Cast<UCanvasPanelSlot>(EchoPanelScale->Slot);

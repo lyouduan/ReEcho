@@ -104,6 +104,8 @@ protected:
 private:
 	void BuildWidgetTree();
 	void BuildShopLogicHost();
+	void OrderShopLogicBlocks();
+	void UpdateShopLogicViewportBounds();
 	void BuildOfferEntries();
 	void BuildLoadoutEntries();
 	void Refresh();

@@ -223,12 +223,29 @@ void UReEchoInventoryShopWidget::BuildShopLogicHost()
 	{
 		ShopLogicScrollBox =
 		    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ShopLogicScrollBox"));
-		UVerticalBoxSlot* ScrollSlot = OfferContainer->AddChildToVerticalBox(ShopLogicScrollBox);
-		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		ScrollSlot->SetPadding(FMargin(0.0f, 4.0f));
-		if (UVerticalBoxSlot* OfferContainerSlot = Cast<UVerticalBoxSlot>(OfferContainer->Slot))
+		ShopLogicScrollBox->SetScrollBarVisibility(ESlateVisibility::Visible);
+
+		// The authored OfferContainer is sized by its contents, so nesting a ScrollBox under it lets the list
+		// grow off-screen. Give the authored shop an independently bounded canvas viewport instead.
+		if (OfferContainer != ShopPanel)
 		{
-			OfferContainerSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			if (UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget))
+			{
+				UCanvasPanelSlot* ScrollCanvasSlot = RootCanvas->AddChildToCanvas(ShopLogicScrollBox);
+				ScrollCanvasSlot->SetOffsets(FMargin(0.0f));
+				ScrollCanvasSlot->SetZOrder(10);
+				UpdateShopLogicViewportBounds();
+			}
+		}
+		if (!ShopLogicScrollBox->GetParent())
+		{
+			UVerticalBoxSlot* ScrollSlot = OfferContainer->AddChildToVerticalBox(ShopLogicScrollBox);
+			ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			ScrollSlot->SetPadding(FMargin(0.0f, 4.0f));
+			if (UVerticalBoxSlot* OfferContainerSlot = Cast<UVerticalBoxSlot>(OfferContainer->Slot))
+			{
+				OfferContainerSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			}
 		}
 	}
 	if (!ShopLogicPanel)
@@ -236,6 +253,43 @@ void UReEchoInventoryShopWidget::BuildShopLogicHost()
 		ShopLogicPanel =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopLogicPanel"));
 		ShopLogicScrollBox->AddChild(ShopLogicPanel);
+	}
+}
+
+void UReEchoInventoryShopWidget::OrderShopLogicBlocks()
+{
+	if (!ShopLogicPanel)
+	{
+		return;
+	}
+
+	// Purchasable weapon parts belong at the top of the shop, before ordinary run items.
+	const TArray<UWidget*> OrderedBlocks = {
+	    WeaponPartOfferPanel, RunItemOfferPanel, ShopControlPanel, WeaponLoadoutPanel};
+	for (UWidget* Block : OrderedBlocks)
+	{
+		if (Block && Block->GetParent() == ShopLogicPanel)
+		{
+			Block->RemoveFromParent();
+		}
+	}
+	for (UWidget* Block : OrderedBlocks)
+	{
+		if (Block)
+		{
+			ShopLogicPanel->AddChildToVerticalBox(Block);
+		}
+	}
+}
+
+void UReEchoInventoryShopWidget::UpdateShopLogicViewportBounds()
+{
+	if (UCanvasPanelSlot* ScrollCanvasSlot = ShopLogicScrollBox ? Cast<UCanvasPanelSlot>(ShopLogicScrollBox->Slot)
+	                                                          : nullptr)
+	{
+		const float Bottom = Mode == EReEchoInventoryShopMode::PostTraitIntermission ? 0.69f : 0.88f;
+		ScrollCanvasSlot->SetAnchors(FAnchors(0.035f, 0.23f, 0.405f, Bottom));
+		ScrollCanvasSlot->SetOffsets(FMargin(0.0f));
 	}
 }
 
@@ -344,6 +398,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		UVerticalBoxSlot* RuleSlot = ShopControlPanel->AddChildToVerticalBox(ShopRuleText);
 		RuleSlot->SetPadding(FMargin(8.0f, 2.0f));
 	}
+	OrderShopLogicBlocks();
 
 	// ---- Inline echo management panel (origin/main left-side layout) ----
 	// Built once (BuildWidgetTree is guarded). Visibility and content are driven by BuildEchoPanel().
@@ -609,6 +664,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 			WeaponPartOfferTexts.Add(Text);
 		}
 	}
+	OrderShopLogicBlocks();
 }
 
 void UReEchoInventoryShopWidget::Refresh()
@@ -635,6 +691,11 @@ void UReEchoInventoryShopWidget::Refresh()
 	BackgroundImage->SetBrushFromTexture(bShowingShop ? ShopBackgroundTexture : InventoryBackgroundTexture, true);
 	InventoryPanel->SetVisibility(bShowingShop ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	ShopPanel->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (ShopLogicScrollBox)
+	{
+		ShopLogicScrollBox->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		UpdateShopLogicViewportBounds();
+	}
 	if (RunItemOfferPanel)
 	{
 		RunItemOfferPanel->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
@@ -1205,6 +1266,7 @@ void UReEchoInventoryShopWidget::ShowPostTraitIntermission(int32 TimeShards,
 	         bExtraCardPurchaseAllowed,
 	         RefreshSequence);
 	Mode = EReEchoInventoryShopMode::PostTraitIntermission;
+	UpdateShopLogicViewportBounds();
 	SetEchoSummary(InEchoSummary);
 }
 
