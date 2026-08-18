@@ -122,6 +122,9 @@
 - 用户运行态复测发现音量滑条无法拖动；首轮层级审计修正装饰父级 `*VolumeVisualOverlay` 的整树禁用命中后，二次运行态反馈仍失败。进一步审计 OverlaySlot 定位真实 Slider 被交付 WBP 设为 Left/Top 对齐，只在宽轨道左上角保留极小命中区域。三组 Slider 现强制 Fill/Fill 覆盖完整轨道；装饰父级使用 `SelfHitTestInvisible`，Track/Fill 保持不可命中，并新增父级命中模式、Slider enabled/unlocked 与完整槽位覆盖回归断言。
 - 用户确认不为 `Ambience_Rain` 增加偏离目标稿的第四条滑条；交付版三滑条布局中的“音效音量”聚合写入 `Ambience`、`CombatSfx`、`UiSfx`，五滑条 C++ fallback 仍保持各总线独立控制。
 - 通关后商店的回响存储面板从左侧大面积锚点迁入底部紧凑缩放托盘，并提升到商店表现层之上；托盘自身不拦截鼠标，已有存储、跳过、替换和回放选择按钮继续参与命中测试。
+- 普通暂停按 `游戏暂停.png` 重新组装：全屏压暗、中央标题与“继续游戏 / 退出至主菜单 / 退出游戏”三按钮、右上设置入口均使用独立切图；展示 Image 统一不可命中，原按钮保留透明交互层。退出确认复用同一按钮区并区分“退出到主菜单”和“退出游戏”目标，切换为“保存并退出 / 不保存并退出 / 返回”，GameMode 继续负责存档、恢复输入、关卡切换和程序退出。
+- `scripts/ue/configure_pause_widget.py` 可重复创建并校验暂停表现控件，连续运行保持 30 个 Widget，不重复叠加；`WBP_ReEchoRestart` Compile/Save 成功。
+- 暂停候选完成 Development Editor 增量构建；`ReEcho.UI.RestartWidgetPresentation`、`ReEcho.UI.IntermissionContexts`、`ReEcho.UI.SettingsInteraction` 聚焦自动化通过；最终 `CompileAllBlueprints` 汇总 0 errors、0 warnings、0 blueprints failed to load。
 
 ### 剩余风险
 
@@ -130,6 +133,7 @@
 - 所有计划内页面已进入逐页接入批次并通过客观蓝图门禁；主观视觉、按钮点击/键盘焦点、显隐状态和多分辨率 DPI 表现仍需用户 PIE 验收。
 - 当前 Plan 已 rebase 到 `origin/main@39136cd`，远端 Plan42 场景/角色表现为基线，Plan45 的 UI 资产、设置交互和音频语义继续保留；rebase 前快照保存在 `backup/plan45-before-origin-rebase-20260818`。
 - 新基线上的 Development `-FullRebuild` 66/66 actions 已成功；最终功能回归和预构建包刷新结果记录在后续验证提交中。
+- 暂停页六态的客观构建、控件树和自动化门禁已通过；视觉比例、鼠标点击、Esc/P 返回、两种退出目标及设置页往返仍等待用户在 PIE 中确认，未把客观证据替代人工验收。
 
 ### 人工验收结果/请求
 

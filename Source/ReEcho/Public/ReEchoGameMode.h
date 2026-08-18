@@ -126,6 +126,7 @@ private:
 	bool bRestartScreenIsDeath = false;
 	bool bAwaitingStartChoice = true;
 	bool bQuitConfirmationVisible = false;
+	bool bExitToMainMenuAfterConfirmation = false;
 	bool bContinueRunAfterShop = false;
 	bool bPostTraitShopClosing = false;
 
@@ -161,6 +162,15 @@ private:
 
 	UFUNCTION()
 	void HandleQuitRequested();
+
+	UFUNCTION()
+	void HandleExitToMainMenuRequested();
+
+	UFUNCTION()
+	void HandleExitWithoutSavingRequested();
+
+	UFUNCTION()
+	void HandleCancelExitRequested();
 
 	UFUNCTION()
 	void HandleNewGameRequested();
@@ -260,5 +270,6 @@ private:
 	void HandleManualAttackRequested();
 
 	void ApplyAttackModeChoice(bool bAutomatic);
+	void CompletePauseExit();
 	bool bSettingsReturnToStartMenu = false;
 };

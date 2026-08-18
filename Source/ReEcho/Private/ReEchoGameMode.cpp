@@ -1535,6 +1535,9 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
 	RestartWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleQuitRequested);
+	RestartWidget->OnExitToMainMenuRequested.AddDynamic(this, &AReEchoGameMode::HandleExitToMainMenuRequested);
+	RestartWidget->OnExitWithoutSavingRequested.AddDynamic(this, &AReEchoGameMode::HandleExitWithoutSavingRequested);
+	RestartWidget->OnCancelExitRequested.AddDynamic(this, &AReEchoGameMode::HandleCancelExitRequested);
 	RestartWidget->OnSettingsRequested.AddDynamic(this, &AReEchoGameMode::HandlePauseSettingsRequested);
 	if (!bDeathScreen && !bVictoryScreen)
 	{
@@ -1573,7 +1576,14 @@ void AReEchoGameMode::TogglePauseMenu()
 	}
 	if (RestartWidget)
 	{
-		HandleResumeRequested();
+		if (bQuitConfirmationVisible)
+		{
+			HandleCancelExitRequested();
+		}
+		else
+		{
+			HandleResumeRequested();
+		}
 		return;
 	}
 	ShowRestartScreen(false);
@@ -1948,6 +1958,7 @@ void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
 void AReEchoGameMode::HandleResumeRequested()
 {
 	bQuitConfirmationVisible = false;
+	bExitToMainMenuAfterConfirmation = false;
 	if (RestartWidget)
 	{
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
@@ -2000,9 +2011,10 @@ void AReEchoGameMode::HandleQuitRequested()
 	{
 		UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing save-and-quit confirmation."));
 		bQuitConfirmationVisible = true;
+		bExitToMainMenuAfterConfirmation = false;
 		if (RestartWidget)
 		{
-			RestartWidget->SetQuitConfirmation(true);
+			RestartWidget->SetQuitConfirmation(true, false);
 		}
 		return;
 	}
@@ -2032,8 +2044,60 @@ void AReEchoGameMode::HandleQuitRequested()
 		       TEXT("[ReEchoStartFlow] Save-and-quit succeeded. EncounterSnapshot=%s"),
 		       EncounterState.bValid ? TEXT("true") : TEXT("false"));
 	}
+	CompletePauseExit();
+}
+
+void AReEchoGameMode::HandleExitToMainMenuRequested()
+{
+	if (bRestartScreenIsTerminal || bQuitConfirmationVisible)
+	{
+		return;
+	}
+	bQuitConfirmationVisible = true;
+	bExitToMainMenuAfterConfirmation = true;
+	if (RestartWidget)
+	{
+		RestartWidget->SetQuitConfirmation(true, true);
+	}
+}
+
+void AReEchoGameMode::HandleExitWithoutSavingRequested()
+{
+	if (!bQuitConfirmationVisible || bRestartScreenIsTerminal)
+	{
+		return;
+	}
+	CompletePauseExit();
+}
+
+void AReEchoGameMode::HandleCancelExitRequested()
+{
+	if (!bQuitConfirmationVisible || bRestartScreenIsTerminal)
+	{
+		return;
+	}
+	bQuitConfirmationVisible = false;
+	bExitToMainMenuAfterConfirmation = false;
+	if (RestartWidget)
+	{
+		RestartWidget->SetQuitConfirmation(false);
+	}
+}
+
+void AReEchoGameMode::CompletePauseExit()
+{
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
-	UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, false);
+	if (!bExitToMainMenuAfterConfirmation)
+	{
+		UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, false);
+		return;
+	}
+
+	bQuitConfirmationVisible = false;
+	bExitToMainMenuAfterConfirmation = false;
+	UGameplayStatics::SetGamePaused(this, false);
+	const FName CurrentLevelName(*UGameplayStatics::GetCurrentLevelName(this, true));
+	UGameplayStatics::OpenLevel(this, CurrentLevelName);
 }
 
 void AReEchoGameMode::HandleRestartRequested()

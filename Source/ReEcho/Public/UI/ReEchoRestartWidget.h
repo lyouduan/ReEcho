@@ -31,6 +31,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoRestartRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoResumeRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoQuitRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoSettingsRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoExitToMainMenuRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoExitWithoutSavingRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoCancelExitRequested);
 
 /** 运行时结算菜单：复用同一界面呈现暂停、死亡和胜利状态。 */
 UCLASS()
@@ -53,6 +56,15 @@ public:
 	FReEchoSettingsRequested OnSettingsRequested;
 
 	UPROPERTY(BlueprintAssignable)
+	FReEchoExitToMainMenuRequested OnExitToMainMenuRequested;
+
+	UPROPERTY(BlueprintAssignable)
+	FReEchoExitWithoutSavingRequested OnExitWithoutSavingRequested;
+
+	UPROPERTY(BlueprintAssignable)
+	FReEchoCancelExitRequested OnCancelExitRequested;
+
+	UPROPERTY(BlueprintAssignable)
 	FReEchoAttackModeRequested OnAutomaticAttackRequested;
 
 	UPROPERTY(BlueprintAssignable)
@@ -62,7 +74,7 @@ public:
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount);
 	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
-	void SetQuitConfirmation(bool bInQuitConfirmation);
+	void SetQuitConfirmation(bool bInQuitConfirmation, bool bInExitToMainMenu = false);
 	void ShowSaveFailure();
 	void SetAutomaticAttackMode(bool bAutomatic);
 
@@ -97,6 +109,9 @@ private:
 	TObjectPtr<UVerticalBox> MenuContent;
 
 	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> RootPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> TitleText;
 
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -115,6 +130,15 @@ private:
 	TObjectPtr<UButton> SettingsButton;
 
 	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> PauseSettingsButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ResumeButtonLabel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> RestartButtonLabel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> QuitButtonText;
 
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartDialogPanel;
@@ -123,6 +147,14 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtSelectedCardsPanel;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryTitle;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtDefeatTitle;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseDimmer;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseResume;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseExitToMenu;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseExitGame;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSaveAndExit;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseExitWithoutSave;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseBack;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSettings;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UReEchoAttackModeWidget> AttackModeWidget;
@@ -132,4 +164,5 @@ private:
 	int32 VictoryTimeShards = 0;
 	int32 VictoryTraitCount = 0;
 	bool bAutomaticAttackMode = true;
+	bool bExitToMainMenu = false;
 };
