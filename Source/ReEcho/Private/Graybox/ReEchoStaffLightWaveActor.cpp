@@ -38,14 +38,16 @@ AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 
 void AReEchoStaffLightWaveActor::InitializeWave(const FVector& Direction,
                                                 const float InDamage,
-                                                const FVector& InDamageSource,
-                                                const float InRange,
-                                                const FReEchoAttackIdentity InAttack)
+                                                 const FVector& InDamageSource,
+                                                 const float InRange,
+                                                 const FReEchoAttackIdentity InAttack,
+                                                 const EReEchoDamageSource InDamageSourceType)
 {
 	const FVector TravelDirection = Direction.GetSafeNormal2D();
 	FReEchoLogicalProjectileSpec Spec;
 	Spec.HitIntent.Attack = InAttack;
 	Spec.HitIntent.RawDamage = FMath::Max(0.0f, InDamage);
+	Spec.HitIntent.DamageSource = InDamageSourceType;
 	Spec.HitIntent.SourceLocation = InDamageSource;
 	Spec.Direction = TravelDirection;
 	Spec.SpeedCmPerSecond = Speed;

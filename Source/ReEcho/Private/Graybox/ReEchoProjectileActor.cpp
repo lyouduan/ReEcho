@@ -48,9 +48,10 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                   const FLinearColor& Color,
                                                   const EReEchoElement InElement,
                                                   const float InReactionEfficiency,
-                                                  const float InExplosionRadiusCm,
-                                                  const float InMaxRangeCm,
-                                                  const FReEchoAttackIdentity InAttack)
+                                                   const float InExplosionRadiusCm,
+                                                   const float InMaxRangeCm,
+                                                   const FReEchoAttackIdentity InAttack,
+                                                   const EReEchoDamageSource InDamageSourceType)
 {
 	Damage = FMath::Max(0.f, InDamage);
 	Element = InElement;
@@ -58,6 +59,7 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 	FReEchoLogicalProjectileSpec Spec;
 	Spec.HitIntent.Attack = InAttack;
 	Spec.HitIntent.RawDamage = Damage;
+	Spec.HitIntent.DamageSource = InDamageSourceType;
 	Spec.HitIntent.Element = Element;
 	Spec.HitIntent.ReactionEfficiency = FMath::Max(0.0f, InReactionEfficiency);
 	Spec.HitIntent.SourceLocation = InDamageSource;

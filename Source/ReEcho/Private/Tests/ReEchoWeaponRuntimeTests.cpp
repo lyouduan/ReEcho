@@ -496,6 +496,75 @@ bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponEchoFriendlyFireTest,
+	                             "ReEcho.Weapons.EchoAttacksIgnorePlayerSide",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponEchoFriendlyFireTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	auto InitializeEcho = [&](FReEchoWeaponWorldFixture& Fixture, const FName WeaponId)
+	{
+		FReEchoRecording Recording;
+		Recording.Id = FGuid::NewGuid();
+		Recording.BuildSnapshot = MakeBuild(*Snapshot, WeaponId);
+		Recording.Positions.Add({0.0f, FVector::ZeroVector});
+		Recording.Positions.Add({1.0f, FVector::ZeroVector});
+		Recording.Duration = 1.0f;
+		AReEchoEchoActor* Echo = Fixture.World->SpawnActor<AReEchoEchoActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+		return Echo && Echo->InitializeEcho(Recording, 1.0f, Snapshot) ? Echo : nullptr;
+	};
+	auto InitializePlayer = [](AReEchoPlayerPawn& Player)
+	{
+		FReEchoStatBlock Stats;
+		Stats.HpMax = 100.0f;
+		Stats.HpPoint = 100.0f;
+		Stats.Block = 0;
+		Player.GetCombatTargetCombatant()->InitializeFromStats(Stats, true);
+	};
+
+	FReEchoWeaponWorldFixture MeleeFixture;
+	AReEchoPlayerPawn* MeleePlayer =
+	    MeleeFixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(100.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoEnemyActor* MeleeEnemy = MeleeFixture.SpawnEnemy(FVector(180.0f, 0.0f, 0.0f), 30, 100.0f);
+	AReEchoEchoActor* MeleeEcho = InitializeEcho(MeleeFixture, TEXT("W_J_01"));
+	if (!TestNotNull(TEXT("Melee player spawns"), MeleePlayer) ||
+	    !TestNotNull(TEXT("Melee echo initializes"), MeleeEcho))
+	{
+		return false;
+	}
+	InitializePlayer(*MeleePlayer);
+	const float MeleePlayerHealth = MeleePlayer->GetCombatTargetCombatant()->CurrentHealth;
+	MeleeEcho->Tick(0.01f);
+	TestEqual(TEXT("Echo melee never damages the player side"),
+	          MeleePlayer->GetCombatTargetCombatant()->CurrentHealth,
+	          MeleePlayerHealth);
+	TestTrue(TEXT("Echo melee still damages an enemy"), WeaponEnemyHealth(MeleeEnemy) < 100.0f);
+
+	FReEchoWeaponWorldFixture ProjectileFixture;
+	AReEchoPlayerPawn* ProjectilePlayer =
+	    ProjectileFixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(100.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoEnemyActor* ProjectileEnemy = ProjectileFixture.SpawnEnemy(FVector(180.0f, 0.0f, 0.0f), 31, 100.0f);
+	AReEchoEchoActor* ProjectileEcho = InitializeEcho(ProjectileFixture, TEXT("W_J_03"));
+	if (!TestNotNull(TEXT("Projectile player spawns"), ProjectilePlayer) ||
+	    !TestNotNull(TEXT("Projectile echo initializes"), ProjectileEcho))
+	{
+		return false;
+	}
+	InitializePlayer(*ProjectilePlayer);
+	const float ProjectilePlayerHealth = ProjectilePlayer->GetCombatTargetCombatant()->CurrentHealth;
+	ProjectileEcho->Tick(0.01f);
+	TestEqual(TEXT("Echo projectile spawns"), CountProjectiles(ProjectileFixture.World), 1);
+	TickProjectiles(ProjectileFixture.World, 0.25f);
+	TestEqual(TEXT("Echo projectile passes the player side without damage"),
+	          ProjectilePlayer->GetCombatTargetCombatant()->CurrentHealth,
+	          ProjectilePlayerHealth);
+	TestTrue(TEXT("Echo projectile still damages an enemy behind the player"),
+	         WeaponEnemyHealth(ProjectileEnemy) < 100.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponEquipmentCombatRuntimeTest,
                                  "ReEcho.Weapons.EquipmentChangesActualCooldownAndDamage",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/ReEchoCombatTypes.h"
 
 class AActor;
 class UWorld;
@@ -12,5 +13,10 @@ IsInsideMeleeArc(const FVector& Origin, const FVector& Forward, const FVector& T
 REECHOWEAPONS_API TArray<FVector>
 BuildProjectileDirections(const FVector& Forward, int32 ProjectileCount, float SpreadDegrees);
 REECHOWEAPONS_API TArray<AActor*> FindMeleeTargets(
-    UWorld& World, AActor* Source, const FVector& Origin, const FVector& Forward, float RangeCm, float ArcDegrees);
+    UWorld& World,
+    const FReEchoAttackIdentity& Attack,
+    const FVector& Origin,
+    const FVector& Forward,
+    float RangeCm,
+    float ArcDegrees);
 }

@@ -11,7 +11,7 @@
 - 本地规划 / 实现基线：初始为 `origin/main@86bf9a482a284d362f9e94bdcd5ba449bc44d795`；当前组合基线为 `origin/main@39136cdb30a607e4beca949cdc6ac8f5bb91001a`。
 - 本地实现方式：一任务一 worktree；Plan 发布后创建 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan48`，本地分支 `plan/48-kepler-encounter-enemy-data-runtime`，不在主工作区实现。
 - 依赖 / 阻塞：依赖已关闭的 Plan25、29-31、41、43、44 所建立的 XLSX→CSV、Echo、Combat、Enemies、Boss 与保存契约。Plan47 已发布且正在重构 Cards，并声明可能修改 `ReEchoData.xlsx`、数据生成器、Data/Run/Encounter/Enemies 适配、存档和模块文档；本 Plan 允许本地并行，但最终集成必须以届时 `origin/main` 为基线组合适配，不得整块覆盖 Plan47 的 Schema、存档或模块契约。Plan42 的正式 Editor 场景资产不作为本 Plan 前置条件。
-- Writes：本 Plan；新增 `Design/Data/ReEchoEncounterData.xlsx`、使用说明与策划验收清单；维护 `Design/Data/ReEchoEnemyData.xlsx`、对应使用说明与验收清单；新增/生成 `Content/Data/stages.csv`、`encounters.csv`、`encounter_waves.csv`、`spawn_profiles.csv`、`spawn_policy.csv`，以及成组维护的 `enemies.csv`、`enemy_abilities.csv`、`csv_schema.csv`、`reecho_data_manifest.csv`、`Content/Data/README.md`；`scripts/data/sync_xlsx_to_csv.py` 与聚焦 Python 测试；`Source/ReEcho/{Public,Private}/Data/**`、`Encounter/**`、`Run/**`、`Recording/**`、`Graybox/ReEchoEnemyActor.*`、`ReEchoGameMode.*`、远端场景适配导致的 `Player/ReEchoPlayerPawn.*`、`Weapons/ReEchoWeaponActor.*` 与对应测试；`Source/ReEchoEnemies/**` 与对应测试；必要的 `Config/DefaultGame.ini`、`ReEcho.uproject` / Build.cs 依赖；`shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md,modules/MOD-ReEcho.md,modules/MOD-ReEchoEnemies.md,modules/MOD-ReEchoWeapons.md}`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
+- Writes：本 Plan；新增 `Design/Data/ReEchoEncounterData.xlsx`、使用说明与策划验收清单；维护 `Design/Data/ReEchoEnemyData.xlsx`、对应使用说明与验收清单；新增/生成 `Content/Data/stages.csv`、`encounters.csv`、`encounter_waves.csv`、`spawn_profiles.csv`、`spawn_policy.csv`，以及成组维护的 `enemies.csv`、`enemy_abilities.csv`、`csv_schema.csv`、`reecho_data_manifest.csv`、`Content/Data/README.md`；`scripts/data/sync_xlsx_to_csv.py` 与聚焦 Python 测试；`Source/ReEcho/{Public,Private}/Data/**`、`Encounter/**`、`Run/**`、`Recording/**`、`Graybox/ReEchoEnemyActor.*`、`Graybox/ReEchoEchoActor.*`、`ReEchoGameMode.*`、远端场景适配导致的 `Player/ReEchoPlayerPawn.*`、`Weapons/ReEchoWeaponActor.*`、投射物/光波适配与对应测试；`Source/ReEchoCombat/**`、`Source/ReEchoWeapons/**`、`Source/ReEchoEnemies/**` 与对应测试；必要的 `Config/DefaultGame.ini`、`ReEcho.uproject` / Build.cs 依赖；`shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md,modules/MOD-ReEcho.md,modules/MOD-ReEchoCombat.md,modules/MOD-ReEchoEnemies.md,modules/MOD-ReEchoWeapons.md}`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
 - Stable Reads：外部策划源 `C:\Users\gavynqiu\Documents\miniGame\【开普勒】回响配置表.xlsx`（确认时 SHA-256 `A2499C983574B1CFCC8A4EF4223E6F166E791A0662D08C99E516CF7F941C7B80`）；外部说明书 `C:\Users\gavynqiu\Documents\miniGame\时间回响_Demo关卡与怪物设计说明书_v1.0(1) (1).docx`（确认时 SHA-256 `4C47014779D8E11FE32DF7939F30152CD5E109F38DDD2E7F78BD62BE630C4769`）；`MOD-ReEchoCombat` 的命中/伤害公共契约；`MOD-ReEchoWeapons`；`MOD-ReEchoAudio`；Plan47 的 Cards 公共结果；Plan42 的场景提案与当前 Level00 空间边界。
 - 影响模式：`SharedContract`（CSV Schema/manifest、Data Registry、Encounter/Run/Save、Enemy Definition 与公共快照）；`Exclusive`（新增权威 `ReEchoEncounterData.xlsx`、维护后的 `ReEchoEnemyData.xlsx`、同批生成 CSV、最终预构建包）。这是远端集成影响说明，不是跨机器写锁。
 - 兼容承诺 / 下游操作：XLSX 是唯一策划可编辑真源，CSV 是确定生成并供运行时打包的真源；不在 C++、JSON、Config 或 Widget 复制已经迁移的关卡/刷怪数值。保留现有稳定 Boss ID `M_TimeGuard` 和旧敌人 ID 以支持旧保存恢复；策划源 `M_SHEEP` 作为来源映射/显示语义，不直接让旧存档失去定义。现有 v8/v9 保存按显式迁移处理，不能把原六场已完成存档静默解释成未完成八场新 Run。若 Plan47 先提升 SaveVersion，以其远端版本为基线追加迁移，不覆盖卡牌域修订。
@@ -31,8 +31,8 @@
 
 ## 架构影响与设计决策
 
-- 受影响架构标识：`MOD-ReEcho` 的 `AREA-Data`、`AREA-Encounter`、`AREA-Run`、`AREA-Recording`、`AREA-Enemies`、`AREA-Presentation`、`AREA-Tests`；`MOD-ReEchoEnemies`。`MOD-ReEchoCombat` 只作为稳定命中/伤害消费者，预期不修改公共契约；若实现必须修改Combat，则先扩充Plan并把 `MOD-ReEchoCombat.md` 加入Writes。
-- 对应模块文档：维护 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 与 `MOD-ReEchoEnemies.md`，均已加入Writes；审阅 `ARCHITECTURE.md` 和 `README.md`，如拓扑/稳定路由确有变化则同候选更新。
+- 受影响架构标识：`MOD-ReEcho` 的 `AREA-Data`、`AREA-Encounter`、`AREA-Run`、`AREA-Recording`、`AREA-Enemies`、`AREA-Presentation`、`AREA-Tests`；`MOD-ReEchoCombat`、`MOD-ReEchoWeapons`、`MOD-ReEchoEnemies`。Plan48 返修将阵营关系收敛为 Combat 公共契约，Weapons 的近战/投射物候选筛选和最终 Resolver 共同消费同一规则。
+- 对应模块文档：维护 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoCombat.md`、`MOD-ReEchoEnemies.md` 与 `MOD-ReEchoWeapons.md`，均已加入Writes；审阅 `ARCHITECTURE.md` 和 `README.md`，如拓扑/稳定路由确有变化则同候选更新。
 - 设计意图：将“怪物是什么”和“这一场何时、在哪里生成什么”分开。Enemies模块只拥有单个敌人的确定性行为状态；Encounter Catalog/Spawn Resolver拥有关卡、波次和出生决策；GameMode只编排并生成Host，不再持有刷怪平衡常量或逐类型分支。
 - 权威状态与依赖：
   - `ReEchoEnemyData.xlsx → enemies/enemy_abilities/boss_phases.csv → Enemy Catalog` 是敌人定义唯一链路。
@@ -42,6 +42,7 @@
   - `UReEchoEnemyLogicComponent` 继续独占敌人AI phase、冷却、攻击序号和行为状态；GameMode/EnemyHost只应用Intent并转发到Combat。
   - `UReEchoEnemyRosterComponent` 继续独占当前活动敌人集合；同阶段切场不清空，跨阶段由显式Stage策略清空。
 - 决策记录：
+  - 回响与玩家属于同一阵营，敌人属于敌对阵营。阵营由 Combat 公共值契约和 Actor 显式接口提供，并快照进攻击身份；不得在 Echo、Projectile、WeaponActor 或具体 Enemy 中散落按类型判断。Weapons 在候选阶段过滤友方以避免投射物被友方提前消费，HitResolver 再做最终裁决防线；显式自毁等例外必须通过命名 Intent 标志进入同一规则。
   - 新建独立 `ReEchoEncounterData.xlsx`，不把关卡/波次混入敌人工作簿，也不直接把外部原表作为运行时输入。原因是两类表拥有不同生命周期、外键和策划编辑边界。
   - 工作簿保留多个策划可编辑Sheet，但每个生产区域必须是命名Excel Table并由独立 `_ExportMap` 声明；说明性Sheet不导出。
   - `EncounterWaves` 使用逐Encounter显式行，不在运行时隐藏计算“每关+1”；当前数值以外部XLSX波次数量为准。后续策划要增加数量时直接改表。
@@ -169,3 +170,10 @@
 - `shared/CODEBASE_MAP/README.md`：已审阅并更新 `AREA-Encounter` 路由。
 - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Data、Encounter、Run/Save、EnemyHost 与 v9 组合状态。
 - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：已更新三类普通怪、通用 Ability、全局许可输入和代码阅读路线。
+
+### 回响友伤返修（2026-08-18）
+
+- 用户 PIE 发现回响会伤害主角。根因不是回响索敌：Echo 仍只锁定 Enemy；共享近战、投射物、爆炸与 HitResolver 只排除攻击源/检查存活，没有阵营契约，因此玩家作为 `IReEchoCombatTarget` 会被回响载体命中，且回响武器事件错误沿用默认 `DamageSource::Player`。
+- 新增 Combat 权威 `EReEchoCombatFaction`、`IReEchoCombatAffiliation` 与 `ReEchoCombatRelations`。Player/Echo=`PlayerSide`，Enemy=`EnemySide`；攻击 Commit 快照来源阵营。Weapons 在近战弧、投射物路径及爆炸候选阶段过滤友方，Combat Resolver 对物理、元素和连锁反应做最终防线；Bomber 自毁仅以具名 Intent 标志放行同阵营自身伤害。
+- 新增 `ReEcho.Weapons.EchoAttacksIgnorePlayerSide`：把玩家放在回响与敌人之间，分别验证回响近战不伤玩家且仍伤敌、投射物穿过玩家后仍命中敌人；新增 `ReEcho.Combat.FactionRelations` 锁定敌我、同阵营禁止、显式例外与旧调用兼容规则。增量 Editor 构建成功；新专项 2/2、`ReEcho.Weapons` 11/11、`ReEcho.Combat` 9/9、`ReEcho.Enemies` 16/16 全部成功。当前机器未发现 `clang-format`，已按仓库风格检查 diff，正式发布前仍执行项目校验、diff check 与最终 FullRebuild。
+- 架构文档审阅：`MOD-ReEchoCombat.md` 已补阵营权威和双层过滤；`MOD-ReEchoWeapons.md` 已补候选职责和 Echo 归因；`MOD-ReEcho.md` 已补三个 World Host 的阵营适配边界；`MOD-ReEchoEnemies.md` 已补 EnemySide 与自毁例外。`ARCHITECTURE.md` 已审阅，无模块拓扑或依赖方向变化；`README.md` 已审阅，无稳定标识或路由变化。

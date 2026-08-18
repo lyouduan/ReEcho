@@ -409,6 +409,11 @@ FVector AReEchoWeaponActor::ResolveOwnerAimDirection() const
 	return OwnerForward.IsNearlyZero() ? FVector::ForwardVector : OwnerForward;
 }
 
+EReEchoDamageSource AReEchoWeaponActor::ResolveOwnerDamageSource() const
+{
+	return ReEchoCombatRelations::ResolveActorDamageSource(GetOwner(), EReEchoDamageSource::Player);
+}
+
 bool AReEchoWeaponActor::RebuildEffectiveDefinition()
 {
 	if (!DataSnapshot.IsValid())
@@ -441,6 +446,7 @@ bool AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
 	Intent.Attack = Commit.Attack;
 	Intent.Target = &Target;
 	Intent.RawDamage = Commit.RawDamage;
+	Intent.DamageSource = ResolveOwnerDamageSource();
 	Intent.Element = Commit.Element;
 	Intent.ReactionEfficiency = Combatant ? Combatant->Stats.ReactionEfficiency : 1.0f;
 	Intent.bCritical = Commit.bCritical;
@@ -476,7 +482,8 @@ bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponAttackCommit& Com
 		return false;
 	}
 	Wave->SetOwner(WeaponOwner);
-	Wave->InitializeWave(AimDirection, Commit.RawDamage, OwnerLocation, Commit.RangeCm, Commit.Attack);
+	Wave->InitializeWave(
+	    AimDirection, Commit.RawDamage, OwnerLocation, Commit.RangeCm, Commit.Attack, ResolveOwnerDamageSource());
 	return true;
 }
 
@@ -510,7 +517,8 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		                                 Combatant->Stats.ReactionEfficiency,
 		                                 Commit.ExplosionRadiusCm,
 		                                 Commit.RangeCm,
-		                                 Commit.Attack);
+		                                 Commit.Attack,
+		                                 ResolveOwnerDamageSource());
 		bSpawnedAny = true;
 	}
 	return bSpawnedAny;
@@ -560,7 +568,7 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, URe
 	const FVector AimDirection = ResolveOwnerAimDirection();
 	// 旋转攻击以角色为圆心覆盖完整一周；敌人受伤逻辑会从圆心向外施加击退。
 	for (AActor* Target : ReEchoWeaponGeometry::FindMeleeTargets(
-	         *GetWorld(), WeaponOwner, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
+	         *GetWorld(), Commit.Attack, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
 	{
 		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant);
 	}

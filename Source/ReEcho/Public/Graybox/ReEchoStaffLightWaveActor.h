@@ -22,7 +22,8 @@ public:
 	                    float InDamage,
 	                    const FVector& InDamageSource,
 	                    float InRange,
-	                    FReEchoAttackIdentity InAttack = {});
+	                    FReEchoAttackIdentity InAttack = {},
+	                    EReEchoDamageSource InDamageSourceType = EReEchoDamageSource::Player);
 
 private:
 	UPROPERTY(VisibleAnywhere)

@@ -57,7 +57,8 @@ class REECHO_API AReEchoPlayerPawn : public APawn,
                                      public IAbilitySystemInterface,
                                      public IReEchoAttackHost,
                                      public IReEchoAttackControllerHost,
-                                     public IReEchoCombatTarget
+                                     public IReEchoCombatTarget,
+                                     public IReEchoCombatAffiliation
 {
 	GENERATED_BODY()
 
@@ -71,6 +72,14 @@ public:
 	virtual FVector GetCombatTargetLocation() const override;
 	virtual int32 GetCombatTargetTieBreakIndex() const override;
 	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override;
+	virtual EReEchoCombatFaction GetCombatFaction() const override
+	{
+		return EReEchoCombatFaction::PlayerSide;
+	}
+	virtual EReEchoDamageSource GetCombatDamageSource() const override
+	{
+		return EReEchoDamageSource::Player;
+	}
 	virtual bool
 	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override;
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;

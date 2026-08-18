@@ -1,5 +1,7 @@
 #include "Weapons/ReEchoWeaponLogic.h"
 
+#include "Combat/ReEchoCombatTarget.h"
+
 #include "GameFramework/Actor.h"
 
 namespace
@@ -199,6 +201,7 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	FReEchoAttackIdentity Attack;
 	Attack.Source = Source;
 	Attack.Sequence = ++LastAttackSequence;
+	Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(Source);
 	if (bRequireReadiness)
 	{
 		ReadinessRemainingSeconds = FMath::Max(0.01f, GetAttackInterval(Stats));

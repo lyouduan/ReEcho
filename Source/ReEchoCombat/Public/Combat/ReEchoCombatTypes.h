@@ -3,6 +3,14 @@
 #include "CoreMinimal.h"
 #include "ReEchoCombatTypes.generated.h"
 
+UENUM(BlueprintType)
+enum class EReEchoCombatFaction : uint8
+{
+	Unaligned,
+	PlayerSide,
+	EnemySide
+};
+
 USTRUCT(BlueprintType)
 
 struct REECHOCOMBAT_API FReEchoAttackIdentity
@@ -18,6 +26,11 @@ struct REECHOCOMBAT_API FReEchoAttackIdentity
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int64 Sequence = 0;
+
+	/** Snapshotted when the attack commits so delayed carriers keep their relation after the source leaves the world.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoCombatFaction SourceFaction = EReEchoCombatFaction::Unaligned;
 
 	bool IsValid() const
 	{
@@ -76,6 +89,8 @@ struct REECHOCOMBAT_API FReEchoHitIntent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
 	/** Internal adjudication guard: source-side rule providers already transformed this intent. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bSourceRulesApplied = false;
+	/** Explicit exception for authored self-damage such as enemy self-destruction. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bAllowSameFactionDamage = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector SourceLocation = FVector::ZeroVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector HitLocation = FVector::ZeroVector;
 };

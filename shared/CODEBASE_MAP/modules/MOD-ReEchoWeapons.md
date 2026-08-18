@@ -70,6 +70,12 @@ ReEchoCombat  ─/─→ ReEchoWeapons
 
 ## 运行时流程
 
+### 攻击候选与阵营
+
+Weapons 不拥有阵营规则，但所有候选载体必须消费 Combat 的 `ReEchoCombatRelations`。`FReEchoWeaponLogic` 在 Commit 时把来源 Actor 的阵营快照进 `FReEchoAttackIdentity`；近战弧、投射物连续路径和爆炸半径在形成 HitIntent 前排除同阵营目标。这样回响与玩家共用武器逻辑时不会互伤，投射物也不会因先撞到玩家而提前销毁。最终 Resolver 仍会重复校验，Weapons 的过滤只负责候选正确性，不取代 Combat 裁决。
+
+主模块 `AReEchoWeaponActor` 通过 `IReEchoCombatAffiliation` 解析事件归因：玩家为 `DamageSource::Player`，回响为 `DamageSource::Echo`。不要在具体 Projectile/Wave 中通过 `Cast<AReEchoEchoActor>` 重复判断来源类型。
+
 ### Definition 编译与装配
 
 ```text

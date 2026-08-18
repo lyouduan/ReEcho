@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "Core/ReEchoTypes.h"
 #include "Combat/ReEchoCombatTarget.h"
 #include "GameFramework/Actor.h"
@@ -21,7 +22,7 @@ struct FReEchoCsvDataSnapshot;
 /** 回响分身：使用录制构筑中的锁定武器，按固定时间轴重放历史位置与技能。 */
 UCLASS()
 
-class REECHO_API AReEchoEchoActor : public AActor, public IReEchoCombatTarget
+class REECHO_API AReEchoEchoActor : public AActor, public IReEchoCombatTarget, public IReEchoCombatAffiliation
 {
 	GENERATED_BODY()
 
@@ -69,6 +70,16 @@ public:
 	FString GetPinnedWeaponDomainRevision() const;
 	FName GetEquippedWeaponId() const;
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
+
+	virtual EReEchoCombatFaction GetCombatFaction() const override
+	{
+		return EReEchoCombatFaction::PlayerSide;
+	}
+
+	virtual EReEchoDamageSource GetCombatDamageSource() const override
+	{
+		return EReEchoDamageSource::Echo;
+	}
 
 private:
 	UPROPERTY(VisibleAnywhere)

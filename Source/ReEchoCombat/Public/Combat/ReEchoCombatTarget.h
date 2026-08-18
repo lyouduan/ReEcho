@@ -8,6 +8,22 @@
 
 UINTERFACE(MinimalAPI)
 
+class UReEchoCombatAffiliation : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class REECHOCOMBAT_API IReEchoCombatAffiliation
+{
+	GENERATED_BODY()
+
+public:
+	virtual EReEchoCombatFaction GetCombatFaction() const = 0;
+	virtual EReEchoDamageSource GetCombatDamageSource() const = 0;
+};
+
+UINTERFACE(MinimalAPI)
+
 class UReEchoCombatTarget : public UInterface
 {
 	GENERATED_BODY()
@@ -70,3 +86,16 @@ public:
 private:
 	TWeakObjectPtr<AActor> CurrentTarget;
 };
+
+namespace ReEchoCombatRelations
+{
+REECHOCOMBAT_API EReEchoCombatFaction ResolveActorFaction(const AActor* Actor);
+REECHOCOMBAT_API EReEchoDamageSource ResolveActorDamageSource(const AActor* Actor,
+                                                              EReEchoDamageSource Fallback);
+REECHOCOMBAT_API bool CanDamage(EReEchoCombatFaction SourceFaction,
+                                EReEchoCombatFaction TargetFaction,
+                                bool bAllowSameFactionDamage = false);
+REECHOCOMBAT_API bool CanDamage(const FReEchoAttackIdentity& Attack,
+                                const AActor& Target,
+                                bool bAllowSameFactionDamage = false);
+}

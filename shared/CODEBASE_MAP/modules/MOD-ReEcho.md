@@ -311,6 +311,8 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 ## 不变量与常见错误
 
+- PlayerPawn、EchoActor 和 EnemyActor 是 Combat 阵营的世界适配器：玩家/回响返回 `PlayerSide`，敌人返回 `EnemySide`；主模块只声明身份和事件来源，不复制 `CanDamage` 规则。回响武器归因为 `DamageSource::Echo`，但与玩家共享玩家阵营。
+
 - `AReEchoGameMode` 是编排器，不是各领域状态仓库。
 - Run/Combat/Weapon/Recording/UI 各自只有一个权威写入口。
 - 自动攻击不进入 Recording；Echo 在当前世界重新选目标与命中。

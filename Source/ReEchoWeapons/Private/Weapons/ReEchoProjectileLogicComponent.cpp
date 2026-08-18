@@ -75,7 +75,9 @@ void UReEchoProjectileLogicComponent::Advance(const float DeltaTime)
 	{
 		AActor* Candidate = *It;
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
-		if (!Target || Candidate == Spec.HitIntent.Attack.Source.Get() || !Target->IsCombatTargetAlive())
+		if (!Target || !Target->IsCombatTargetAlive() ||
+		    !ReEchoCombatRelations::CanDamage(
+		        Spec.HitIntent.Attack, *Candidate, Spec.HitIntent.bAllowSameFactionDamage))
 		{
 			continue;
 		}
@@ -109,7 +111,9 @@ void UReEchoProjectileLogicComponent::ApplyAtLocation(const FVector& ImpactLocat
 	auto Apply = [&](AActor* Candidate)
 	{
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
-		if (!Target || !Target->IsCombatTargetAlive() || AppliedTargets.Contains(Candidate))
+		if (!Target || !Target->IsCombatTargetAlive() || AppliedTargets.Contains(Candidate) ||
+		    !ReEchoCombatRelations::CanDamage(
+		        Spec.HitIntent.Attack, *Candidate, Spec.HitIntent.bAllowSameFactionDamage))
 		{
 			return;
 		}

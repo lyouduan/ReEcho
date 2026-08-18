@@ -885,6 +885,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		SelfDestruct.Target = this;
 		SelfDestruct.RawDamage = TNumericLimits<float>::Max();
 		SelfDestruct.DamageSource = EReEchoDamageSource::Enemy;
+		SelfDestruct.bAllowSameFactionDamage = true;
 		SelfDestruct.SourceLocation = GetActorLocation();
 		SelfDestruct.HitLocation = GetActorLocation();
 		ReEchoHitResolver::ResolvePhysicalHit(SelfDestruct);

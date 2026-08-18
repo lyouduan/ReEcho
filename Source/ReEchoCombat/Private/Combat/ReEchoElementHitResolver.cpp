@@ -118,7 +118,8 @@ bool SortTargetStable(const AActor& Left, const AActor& Right, const FVector& Or
 	return LeftIndex != RightIndex ? LeftIndex < RightIndex : Left.GetFName().LexicalLess(Right.GetFName());
 }
 
-TArray<AActor*> GetAliveTargetsInRadius(UWorld& World, const FVector& Origin, const float RadiusCm)
+TArray<AActor*>
+GetAliveTargetsInRadius(UWorld& World, const FVector& Origin, const float RadiusCm, const FReEchoAttackIdentity& Attack)
 {
 	TArray<AActor*> Targets;
 	const float RadiusSquared = FMath::Square(FMath::Max(0.0f, RadiusCm));
@@ -126,7 +127,7 @@ TArray<AActor*> GetAliveTargetsInRadius(UWorld& World, const FVector& Origin, co
 	{
 		AActor* Candidate = *It;
 		IReEchoCombatTarget* Target = Candidate ? Cast<IReEchoCombatTarget>(Candidate) : nullptr;
-		if (Target && Target->IsCombatTargetAlive() &&
+		if (Target && Target->IsCombatTargetAlive() && ReEchoCombatRelations::CanDamage(Attack, *Candidate) &&
 		    FVector::DistSquared2D(Target->GetCombatTargetLocation(), Origin) <= RadiusSquared)
 		{
 			Targets.Add(Candidate);
@@ -221,7 +222,8 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 	Result.HitLocation = Candidate.HitLocation;
 	IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate.Target);
 	UReEchoCombatantComponent* Combatant = Target ? Target->GetCombatTargetCombatant() : nullptr;
-	if (!Candidate.Target || !Combatant)
+	if (!Candidate.Target || !Target || !Combatant || !Target->IsCombatTargetAlive() ||
+	    !ReEchoCombatRelations::CanDamage(Candidate.Attack, *Candidate.Target, Candidate.bAllowSameFactionDamage))
 	{
 		Result.bBlocked = true;
 		return Result;
@@ -345,7 +347,7 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 		            *Rules,
 		            CurrentTime);
 		const float Radius = Reaction->RadiusCm * FMath::Max(0.0f, Context.ReactionEfficiency);
-		for (AActor* Candidate : GetAliveTargetsInRadius(*World, Target.GetActorLocation(), Radius))
+		for (AActor* Candidate : GetAliveTargetsInRadius(*World, Target.GetActorLocation(), Radius, Context.Attack))
 		{
 			UReEchoCombatantComponent* Combatant = Candidate ? GetCombatant(*Candidate) : nullptr;
 			if (!Combatant)
@@ -390,7 +392,8 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			ApplyElementalImmunity(State, *Rules, CurrentTime);
 			AddAffected(Execution, *Current);
 			PublishElementStateChanged(*Combatant);
-			for (AActor* Neighbor : GetAliveTargetsInRadius(*World, Current->GetActorLocation(), Reaction->RadiusCm))
+			for (AActor* Neighbor :
+			     GetAliveTargetsInRadius(*World, Current->GetActorLocation(), Reaction->RadiusCm, Context.Attack))
 			{
 				if (!Neighbor || Visited.Contains(Neighbor))
 				{
