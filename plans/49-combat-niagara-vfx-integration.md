@@ -165,6 +165,9 @@
 - 实测中轴修复候选已完成 Editor Development 构建并刷新 7 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 1/1 成功，新增断言直接验证 Catalog 旋转后的 `32.5°` 中轴等于锁定玩家方向；`validate_project.py` 与 `git diff --check` 通过。临时粒子读回仍保留给下一次 PIE 做最终数值确认。
 - 用户明确要求后续美术调整必须通过 Blueprint 组件树挂点完成，并区分攻击与受击。Player、Enemy、Echo Host 因此统一新增 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`；攻击提交、前摇、方向提示、冲刺使用攻击挂点，最终 Hurt 使用受击挂点。兔子飞行粒子只记录发射时攻击挂点相对逻辑载体的视觉偏移，之后继续消费逻辑投射物轨迹，不把人物 Transform 变成玩法权威。
 - 独立挂点候选完成 Editor Development 构建并刷新预构建包；`ReEcho.Presentation.Animation2D.AssetProfiles` 通过并验证 Player/Enemy Gameplay Blueprint 以及 Echo CDO 的挂点父子关系，`ReEcho.Presentation.VFX.Catalog`、`validate_project.py` 和 `git diff --check` 同步通过。
+- 用户进一步锁定图层规则：全部人物战斗特效必须覆盖宿主对象。VFX 组件取消前景/背景选择和狐狸方向提示例外，所有世界生成/挂点生成实例统一使用宿主动画层级 `+1`；该规则由一个无布尔分支的集中函数维护。
+- 用户视觉复测仍看到攻击/受击特效落在怪物下方。加入临时 `[CombatVfxLayerTrace]`：每次 World/Attached 生成立即及延迟 `0.1s` 记录语义、宿主动画与 Niagara 的透明排序优先级/距离偏移、挂点父子关系、世界位置、注册/激活/可见状态及优先级差。下一次 PIE 用于判定优先级被覆盖、深度位置错误或资产材质不参与透明排序；定位后移除。
+- 图层诊断候选完成 Editor Development 构建并刷新预构建包；`ReEcho.Presentation.VFX.Catalog` 1/1 成功（含宿主 `23 → 特效 24` 的集中层级策略断言），`validate_project.py` 与 `git diff --check` 通过。用户保存的 `BP_EnemyGameplay_Rabbit.uasset` 继续作为独立未提交修改保留，不混入诊断提交。
 
 ### 剩余风险
 

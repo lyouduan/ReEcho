@@ -19,6 +19,8 @@ class REECHO_API UReEchoCombatVfxComponent : public UActorComponent
 
 public:
 	UReEchoCombatVfxComponent();
+	/** Pure layer policy shared by runtime and automation. */
+	static int32 ResolveCombatEffectSortPriority(int32 OwnerSortPriority);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 
@@ -37,7 +39,8 @@ private:
 	                                 bool bAutoDestroy = true) const;
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
-	int32 ResolveOwnerSortPriority(bool bForeground) const;
+	/** Every character combat effect renders one layer above its owning presentation. */
+	int32 ResolveOwnerSortPriority() const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopAllEffects();
 	void LogRabbitProjectileTrajectory(const FReEchoEnemyProjectileEvent& Event,

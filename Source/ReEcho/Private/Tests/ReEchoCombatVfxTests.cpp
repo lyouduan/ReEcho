@@ -5,6 +5,7 @@
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraSystem.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
+#include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
                                  "ReEcho.Presentation.VFX.Catalog",
@@ -22,6 +23,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Dagger is melee"), FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.DaggerCombo")));
 	TestFalse(TEXT("Staff projectile is not melee"),
 	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.StaffProjectile")));
+	TestEqual(TEXT("Every combat effect renders exactly one layer above its owner"),
+	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(23),
+	          24);
 	const FVector LockedPlayerDirection = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
 	const FRotator RabbitProjectileRotation =
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::RabbitProjectile, LockedPlayerDirection);

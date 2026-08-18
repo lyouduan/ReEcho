@@ -14,18 +14,100 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "ReEcho.h"
+#include "TimerManager.h"
 
 namespace ReEchoCombatVfx
 {
-constexpr int32 ForegroundSortOffset = 1;
-constexpr int32 BackgroundSortOffset = -1;
+constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 TrajectoryLogEventStride = 6;
 constexpr int32 TrajectoryLogMaximumEventCount = 60;
+
+void LogLayerState(const AActor* Owner,
+                   const USceneComponent* AttachmentRoot,
+                   const UNiagaraComponent* Effect,
+                   const EReEchoCombatVfxSemantic Semantic,
+                   const TCHAR* SpawnMode,
+                   const TCHAR* Phase)
+{
+	const UReEcho2DAnimationComponent* Animation =
+	    Owner ? Owner->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
+	const int32 OwnerPriority = Animation ? Animation->TranslucencySortPriority : INDEX_NONE;
+	const int32 EffectPriority = Effect ? Effect->TranslucencySortPriority : INDEX_NONE;
+	const float OwnerDistanceOffset = Animation ? Animation->TranslucencySortDistanceOffset : 0.0f;
+	const float EffectDistanceOffset = Effect ? Effect->TranslucencySortDistanceOffset : 0.0f;
+	const USceneComponent* EffectParent = Effect ? Effect->GetAttachParent() : nullptr;
+	const USceneComponent* AttachmentParent = AttachmentRoot ? AttachmentRoot->GetAttachParent() : nullptr;
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[CombatVfxLayerTrace] Phase=%s Mode=%s Semantic=%s Owner=%s Animation=%s "
+	            "OwnerPriority=%d OwnerDistanceOffset=%.2f OwnerWorld=%s AnimationWorld=%s "
+	            "Anchor=%s AnchorParent=%s AnchorWorld=%s Effect=%s EffectParent=%s EffectPriority=%d "
+	            "EffectDistanceOffset=%.2f EffectWorld=%s Registered=%d Active=%d Visible=%d PriorityDelta=%d"),
+	       Phase,
+	       SpawnMode,
+	       FReEchoCombatVfxCatalog::ResolvePath(Semantic),
+	       *GetNameSafe(Owner),
+	       *GetNameSafe(Animation),
+	       OwnerPriority,
+	       OwnerDistanceOffset,
+	       Owner ? *Owner->GetActorLocation().ToCompactString() : TEXT("<none>"),
+	       Animation ? *Animation->GetComponentLocation().ToCompactString() : TEXT("<none>"),
+	       *GetNameSafe(AttachmentRoot),
+	       *GetNameSafe(AttachmentParent),
+	       AttachmentRoot ? *AttachmentRoot->GetComponentLocation().ToCompactString() : TEXT("<none>"),
+	       *GetNameSafe(Effect),
+	       *GetNameSafe(EffectParent),
+	       EffectPriority,
+	       EffectDistanceOffset,
+	       Effect ? *Effect->GetComponentLocation().ToCompactString() : TEXT("<none>"),
+	       Effect && Effect->IsRegistered(),
+	       Effect && Effect->IsActive(),
+	       Effect && Effect->IsVisible(),
+	       OwnerPriority != INDEX_NONE && EffectPriority != INDEX_NONE ? EffectPriority - OwnerPriority : INDEX_NONE);
+}
+
+void LogLayerStateNowAndDelayed(UWorld* World,
+                                AActor* Owner,
+                                USceneComponent* AttachmentRoot,
+                                UNiagaraComponent* Effect,
+                                const EReEchoCombatVfxSemantic Semantic,
+                                const TCHAR* SpawnMode)
+{
+	LogLayerState(Owner, AttachmentRoot, Effect, Semantic, SpawnMode, TEXT("Immediate"));
+	if (!World || !Effect)
+	{
+		return;
+	}
+
+	const TWeakObjectPtr<AActor> WeakOwner(Owner);
+	const TWeakObjectPtr<USceneComponent> WeakAttachmentRoot(AttachmentRoot);
+	const TWeakObjectPtr<UNiagaraComponent> WeakEffect(Effect);
+	const FString StableSpawnMode(SpawnMode);
+	FTimerHandle TimerHandle;
+	World->GetTimerManager().SetTimer(TimerHandle,
+	                                  FTimerDelegate::CreateLambda(
+	                                      [WeakOwner, WeakAttachmentRoot, WeakEffect, Semantic, StableSpawnMode]()
+	                                      {
+		                                      LogLayerState(WeakOwner.Get(),
+		                                                    WeakAttachmentRoot.Get(),
+		                                                    WeakEffect.Get(),
+		                                                    Semantic,
+		                                                    *StableSpawnMode,
+		                                                    TEXT("Delayed"));
+	                                      }),
+	                                  0.1f,
+	                                  false);
+}
 } // namespace ReEchoCombatVfx
 
 UReEchoCombatVfxComponent::UReEchoCombatVfxComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+}
+
+int32 UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(const int32 OwnerSortPriority)
+{
+	return OwnerSortPriority + ReEchoCombatVfx::CombatEffectSortOffset;
 }
 
 void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
@@ -118,7 +200,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	                                                   true);
 	if (Effect)
 	{
-		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority(true));
+		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+		ReEchoCombatVfx::LogLayerStateNowAndDelayed(World, GetOwner(), nullptr, Effect, Semantic, TEXT("World"));
 	}
 	return Effect;
 }
@@ -146,7 +229,13 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	    true);
 	if (Effect)
 	{
-		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
+		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+		ReEchoCombatVfx::LogLayerStateNowAndDelayed(GetWorld(),
+		                                            GetOwner(),
+		                                            AttachmentRoot,
+		                                            Effect,
+		                                            static_cast<EReEchoCombatVfxSemantic>(SemanticValue),
+		                                            TEXT("Attached"));
 	}
 	return Effect;
 }
@@ -163,14 +252,13 @@ USceneComponent* UReEchoCombatVfxComponent::ResolveHurtVfxRoot() const
 	return HurtVfxRoot ? HurtVfxRoot.Get() : (Owner ? Owner->GetRootComponent() : nullptr);
 }
 
-int32 UReEchoCombatVfxComponent::ResolveOwnerSortPriority(const bool bForeground) const
+int32 UReEchoCombatVfxComponent::ResolveOwnerSortPriority() const
 {
 	const AActor* Owner = GetOwner();
 	const UReEcho2DAnimationComponent* Animation =
 	    Owner ? Owner->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
 	const int32 OwnerPriority = Animation ? Animation->TranslucencySortPriority : 0;
-	return OwnerPriority +
-	       (bForeground ? ReEchoCombatVfx::ForegroundSortOffset : ReEchoCombatVfx::BackgroundSortOffset);
+	return ResolveCombatEffectSortPriority(OwnerPriority);
 }
 
 void UReEchoCombatVfxComponent::StopEffect(TObjectPtr<UNiagaraComponent>& Effect)
@@ -496,10 +584,6 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 			                                Event.LockedDirection,
 			                                ResolveAttackVfxRoot(),
 			                                false);
-			if (DirectionEffect)
-			{
-				DirectionEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
-			}
 		}
 		return;
 	}
