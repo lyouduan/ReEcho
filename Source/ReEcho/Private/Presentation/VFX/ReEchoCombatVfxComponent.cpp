@@ -19,6 +19,7 @@
 namespace ReEchoCombatVfx
 {
 constexpr int32 CombatEffectSortOffset = 1;
+constexpr int32 CombatEffectSortPriorityFloor = 100;
 constexpr int32 TrajectoryLogEventStride = 6;
 constexpr int32 TrajectoryLogMaximumEventCount = 60;
 
@@ -31,8 +32,10 @@ void LogLayerState(const AActor* Owner,
 {
 	const UReEcho2DAnimationComponent* Animation =
 	    Owner ? Owner->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
-	const int32 OwnerPriority = Animation ? Animation->TranslucencySortPriority : INDEX_NONE;
-	const int32 EffectPriority = Effect ? Effect->TranslucencySortPriority : INDEX_NONE;
+	const bool bHasOwnerPriority = Animation != nullptr;
+	const bool bHasEffectPriority = Effect != nullptr;
+	const int32 OwnerPriority = bHasOwnerPriority ? Animation->TranslucencySortPriority : INDEX_NONE;
+	const int32 EffectPriority = bHasEffectPriority ? Effect->TranslucencySortPriority : INDEX_NONE;
 	const float OwnerDistanceOffset = Animation ? Animation->TranslucencySortDistanceOffset : 0.0f;
 	const float EffectDistanceOffset = Effect ? Effect->TranslucencySortDistanceOffset : 0.0f;
 	const USceneComponent* EffectParent = Effect ? Effect->GetAttachParent() : nullptr;
@@ -63,7 +66,7 @@ void LogLayerState(const AActor* Owner,
 	       Effect && Effect->IsRegistered(),
 	       Effect && Effect->IsActive(),
 	       Effect && Effect->IsVisible(),
-	       OwnerPriority != INDEX_NONE && EffectPriority != INDEX_NONE ? EffectPriority - OwnerPriority : INDEX_NONE);
+	       bHasOwnerPriority && bHasEffectPriority ? EffectPriority - OwnerPriority : INDEX_NONE);
 }
 
 void LogLayerStateNowAndDelayed(UWorld* World,
@@ -107,7 +110,8 @@ UReEchoCombatVfxComponent::UReEchoCombatVfxComponent()
 
 int32 UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(const int32 OwnerSortPriority)
 {
-	return OwnerSortPriority + ReEchoCombatVfx::CombatEffectSortOffset;
+	return FMath::Max(ReEchoCombatVfx::CombatEffectSortPriorityFloor,
+	                  OwnerSortPriority + ReEchoCombatVfx::CombatEffectSortOffset);
 }
 
 void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,

@@ -39,7 +39,7 @@ private:
 	                                 bool bAutoDestroy = true) const;
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
-	/** Every character combat effect renders one layer above its owning presentation. */
+	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopAllEffects();
