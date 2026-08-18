@@ -99,4 +99,51 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Permanent extra-card penalty closes the purchase gate"), RunSubsystem->CanPurchaseExtraShopCard());
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponPartShopLoadoutTest,
+                                 "ReEcho.Shop.WeaponPartsPurchaseThenSaveThreeSlotLoadout",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_05"));
+	RunSubsystem->TimeShards = 100;
+
+	const FReEchoWeaponPartShopView InitialView = RunSubsystem->GetWeaponPartShopView();
+	TestEqual(TEXT("Dagger shop exposes three data-driven slot groups"), InitialView.Slots.Num(), 3);
+	TestTrue(TEXT("Core is offered in the shop"),
+	         InitialView.Offers.ContainsByPredicate(
+	             [](const FReEchoShopOffer& Offer)
+	             {
+		             return Offer.ItemId == TEXT("P_CORE_FLAME") && Offer.Type == EReEchoShopOfferType::WeaponPart;
+	             }));
+
+	FString Error;
+	TestFalse(TEXT("Unowned parts cannot be committed"),
+	          RunSubsystem->TrySaveWeaponPartLoadout({TEXT("P_CORE_FLAME")}, Error));
+	TestTrue(TEXT("Core purchase succeeds"), RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
+	TestTrue(TEXT("Grip purchase succeeds"), RunSubsystem->PurchaseShopItem(TEXT("P_DAGGER_STRENGTH_GRIP")));
+	TestTrue(TEXT("Blade purchase succeeds"), RunSubsystem->PurchaseShopItem(TEXT("P_DAGGER_HOLY_BLADE")));
+	TestEqual(TEXT("Three base-price parts deduct 30 shards"), RunSubsystem->TimeShards, 70);
+	TestTrue(TEXT("Purchased rune enters part ownership"),
+	         RunSubsystem->OwnedPartIds.Contains(TEXT("P_DAGGER_STRENGTH_GRIP")));
+	TestFalse(TEXT("Purchased rune stays out of ordinary item inventory"),
+	          RunSubsystem->InventoryItems.Contains(TEXT("P_DAGGER_STRENGTH_GRIP")));
+	TestTrue(TEXT("Purchases do not auto-replace committed equipment"),
+	         RunSubsystem->CurrentBuild.EquippedParts.IsEmpty());
+	TestFalse(TEXT("Duplicate rune purchase is rejected"),
+	          RunSubsystem->PurchaseShopItem(TEXT("P_DAGGER_STRENGTH_GRIP")));
+	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, 70);
+
+	TestTrue(TEXT("Owned core, grip and blade commit as one loadout"),
+	         RunSubsystem->TrySaveWeaponPartLoadout(
+	             {TEXT("P_CORE_FLAME"), TEXT("P_DAGGER_STRENGTH_GRIP"), TEXT("P_DAGGER_HOLY_BLADE")}, Error));
+	TestEqual(
+	    TEXT("Committed loadout contains all three slot groups"), RunSubsystem->CurrentBuild.EquippedParts.Num(), 3);
+	TestEqual(
+	    TEXT("Committed strength grip applies its runtime effect"), RunSubsystem->CurrentBuild.Stats.AttackSpeed, 1.2f);
+	return true;
+}
 #endif

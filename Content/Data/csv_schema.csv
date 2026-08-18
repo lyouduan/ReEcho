@@ -190,6 +190,8 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Parts,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Parts,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,Parts,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,Parts,ShopEnabled,Bool,true,,,,true|false,Whether this implemented part can appear as a shop offer.
+1,Parts,ShopPrice,Int,true,0,100000,,,Base time-shard price; must be positive when ShopEnabled is true and 0 otherwise.
 1,PartEffects,Id,StableId,true,,,,,Stable part effect row id.
 1,PartEffects,PartId,ForeignKey,true,,,Parts,,References enabled Parts.Id.
 1,PartEffects,Order,Int,true,0,1000000,,,Effect order within part.

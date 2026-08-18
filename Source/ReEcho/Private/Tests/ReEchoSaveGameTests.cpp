@@ -18,6 +18,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
 	Source->TimeShards = 45;
 	Source->InventoryItems.Add(TEXT("SHOP_OLD_COIN"));
+	Source->OwnedPartIds.Add(TEXT("P_CORE_FLAME"));
 	Source->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_1_01"));
 	FReEchoRecording Recording;
 	Recording.Id = FGuid::NewGuid();
@@ -46,6 +47,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Compatible save snapshot restores"), Restored->RestoreSaveSnapshot(*Snapshot));
 	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
+	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_CAT")));
 	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_02")));
 	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 1);

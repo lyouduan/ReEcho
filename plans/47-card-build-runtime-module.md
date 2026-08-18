@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（本对话不采用 Planner-Executor 分离，由同一 AI 规划、实现、评审与集成）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划基线：`origin/main@22df09ab90054971eb4dbb79ec3ad7b1be0b4ab2`；最终实现候选先整合 Plan48，再按用户确认以 `origin/main@39136cd` 为远端优先基线合并 Plan42 Gameplay Blueprint、敌人表现树与预构建更新。
 - 本地实现方式：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan47-card-build`，分支 `plan/47-card-build-runtime`。
@@ -15,13 +15,30 @@
 - Stable Reads：外部策划源 `C:\Users\gavynqiu\Documents\miniGame\【开普勒】回响数值与构筑体系.xlsx`（确认时 SHA-256 `A7C53D56890B86627CAA0068E1598B1150A220E24D5BA1D776D3E8655A08720E`）；`ReEchoAudio` 公共 API；Plan45 的 UI 绑定/资产边界；现有角色、元素、武器、敌人、商店、Echo 和录制数据领域。
 - 影响模式：`SharedContract`（卡牌状态、Combat 事件/命中接缝、Echo/Weapons/Enemies/Shop 适配、存档与录制）；`Exclusive`（`Design/Data/ReEchoData.xlsx`、同批生产 CSV、模块描述符和最终预构建包）。
 - 兼容承诺 / 下游操作：保留当前角色选择、普通结算抽卡、锻炼、商店、Echo 存储/回放和武器装备主流程；普通卡池仍按现有确定性生成流程提供候选，Tier 用于具名的分级随机赠卡与过滤；旧 v8 保存/录制按旧运行时 ID 语义迁移到 v9，不把旧 `G_1_03`“应急格挡”误解释成新 `G_1_03`“物理强化”；新保存固定 Card 数据领域版本，后续不兼容数据明确拒绝恢复。
-- 明确排除：不新增或重做美术、动画、音频和 WBP 二进制资产；不改变工作簿“效果详解（对程序）”明确给出的数值/行为；不引入任意文本脚本、表达式求值器或第二份平衡常量；不改变与卡牌无关的战斗、武器、敌人、Echo、商店玩法；不实施已从新表删除的 `G_2_01/G_2_02/G_2_03/G_2_11/G_3_15/G_3_18`；不保留旧运行时占位卡作为可抽取卡。
+- 明确排除：不新增或重做美术、动画和音频；除 2026-08-18 用户追加确认的符文购买/装配交互外，不改变工作簿“效果详解（对程序）”明确给出的数值/行为，不引入任意文本脚本、表达式求值器或第二份平衡常量，不改变与卡牌无关的战斗、敌人和 Echo 玩法；不实施已从新表删除的 `G_2_01/G_2_02/G_2_03/G_2_11/G_3_15/G_3_18`；不保留旧运行时占位卡作为可抽取卡。
 
 ## 锁定目标
 
 以外部工作簿 `构筑体系G` 的 39 个有效 ID 为新卡牌构筑权威，且“效果详解（对程序）”高于同表用户文案和旧实现。把卡牌目录、持有/冲突/抽取规则、事件状态和效果决策从 `UReEchoRunSubsystem` 抽到独立 Runtime Module `ReEchoCards`，然后用新表覆盖仓库工作簿中旧的卡牌设计与规范化 `tblCards` / `tblCardEffects`，事务式再生并校验生产 CSV。最终 39 张卡全部可被数据加载、合法获得、保存/恢复，并在其规定事件上产生可自动化观察的完整行为；主模块只负责把世界、Combat、Weapons、Enemies、Echo、Encounter、Shop 与 UI 输入适配到卡牌模块的类型化命令/结果。
 
 权威数据顺序固定为：外部工作簿程序说明 → 仓库 `Design/Data/ReEchoData.xlsx` 规范化表 → 事务式生成的 `Content/Data/*.csv` → 类型化 C++ 快照。运行时不得解析中文说明，也不得在 C++ 中复制卡牌数值。
+
+### 2026-08-18 用户追加：商店符文购买与三槽装配
+
+- 目标：在远端 Plan45 的时间商店页面内完成“购买兼容符文 → 进入本轮符文库存 → 调整当前武器槽位 → 显式保存配置”的闭环；购买立即持久化，未保存的装配草稿不改变战斗构筑。
+- 模块边界：`AREA-Run` 独占 `OwnedPartIds`、购买事务和保存恢复；`AREA-Weapons` 继续独占兼容性、槽容量和效果应用；`AREA-UI` 只展示只读报价/库存/三槽摘要并发送购买、草稿调整、保存命令。商店不解释符文效果，武器逻辑模块不拥有价格或货币。
+- 三槽语义：界面从 `slot_profiles.csv` 读取当前武器的一个 `Core` 和两个非核心槽，不在 UI 硬编码具体槽名；`G_3_22` 使每个非核心槽拥有两个子槽，核心仍为一个且保存时必须非空。
+- 报价语义：本轮只销售当前武器兼容、`Enabled=true`、`ImplementationStatus=Implemented` 且尚未拥有的符文。普通商品保持现状；符文报价使用独立类型化报价结构，名称/描述从 `parts.csv` 读取，不解析中文产生逻辑。
+- 原子性：余额不足、重复购买、报价过期、无效/禁用/不兼容符文、未拥有装备、槽超限或保存失败均不得扣款、改变库存或部分提交装备；成功购买仍只触发一次卡牌 `OnPurchase`。
+- 存档：`OwnedPartIds` 与已提交 `EquippedParts` 一起保存/恢复；旧存档默认无已拥有符文，但保留其合法旧装备并迁入拥有集合，避免恢复后出现“已装备但未拥有”。录制只需要已提交装备，不复制完整玩家库存。
+- 数据/价格：本次先为已实现符文建立稳定、可校验的商店报价契约；剩余禁用符文在效果实现并启用前不得进入报价池。
+- 受影响文档已在原 Plan Writes 内：维护 `MOD-ReEcho.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoUI.md`；不新增 Runtime Module，不改变 `ReEcho -> ReEchoWeapons` 依赖方向。
+- 追加验收：
+  - [ ] 商店可确定性展示并购买当前武器兼容的已实现符文，折扣、刷新和成功购买卡牌事件保持一致。
+  - [ ] 购买后符文进入独立库存；未拥有符文不能装备，普通 `InventoryItems` 不混入 PartId。
+  - [ ] 商店内可编辑一个核心和两个武器专属槽，显式保存后才更新 `EquippedParts`；取消/离开不提交草稿。
+  - [ ] 核心不可空、非核心可空，`G_3_22` 双非核心容量在 UI 摘要与运行时校验一致。
+  - [ ] 购买、配置、保存/恢复、旧存档迁移及实际效果消费具有聚焦自动化；远端 Plan45 的 WBP/纹理作为视觉权威并通过用户 PIE 验收。
 
 ## 锁定产品语义
 
@@ -168,6 +185,8 @@
 - 2026-08-17：按用户确认以远端为标准，将 `origin/main@46211dc` 的 Plan42 场景/演出更新先合入，再恢复 Plan47 工作簿、数据与构筑实现；文本冲突采用远端演出接口并保留 Cards 类型化适配，所有共享预构建产物由合并源码统一 FullRebuild 重建。
 - 2026-08-17：为 `Content/Data/*.csv` 固定禁用 Git 文本换行转换，保留生成器要求的“记录 CRLF、引号内说明 LF”确定性字节，避免 `core.autocrlf=true` 在重新检出后制造 XLSX/CSV 漂移。
 - 2026-08-18：再次按远端优先原则合并 `origin/main@39136cd`；采用远端 Box Collision、Gameplay Blueprint、敌人表现组件树和 Gameplay Plane，重新接入 Plan47 的卡牌眩晕/减速、Echo 嘲讽目标与通用 CombatTarget 命中，统一 FullRebuild 后完整自动化恢复 98/98。
+- 2026-08-18：按用户追加需求合并远端 Plan45 UI 检查点 `origin/main@b27310e`，保留远端 WBP/纹理权威；在其上增加数据驱动的武器配件商店报价、独立 `OwnedPartIds`、三槽装配草稿与显式保存事务。
+- 2026-08-18：`tblParts` 增加 `ShopEnabled/ShopPrice`（9 个已实现配件上架，默认 10 碎片）；右侧 `tblPartEffects` 平移并保留原保护、可编辑单元格和逻辑下拉。SaveVersion 升至 v10，v9 从有效 `EquippedParts` 派生所有权。
 
 ### 证据
 
@@ -182,6 +201,7 @@
 - 商店程序说明未定义付费刷新价格或新的“额外卡牌组”商品内容，因此未发明第二套平衡常量：现有商店消费免费刷新，`G_3_17` 可禁用刷新，并输出/展示额外卡牌组购买门禁供现有或后续商品入口统一消费。
 - 远端优先合并后的 UE 5.8 `Development -FullRebuild` 再次成功并刷新 6 个 Runtime Module；XLSX/CSV 权威重发、同步测试 12/12、项目 validator、预构建指纹和 `git diff --check` 均通过，`ReEcho.Cards` 聚焦自动化 4/4 通过。
 - `origin/main@39136cd` 已补齐 `/Game/ReEcho/Gameplay/CharacterPrefabs/*`、敌人 Box/表现树和对应预构建包；合并候选完整 `ReEcho` 自动化 98/98 通过，其中 `ReEcho.Presentation.Animation2D.AssetProfiles` 与 `ReEcho.Cards` 4/4 均通过。
+- 武器配件商店/装配室追加后，`tblParts` 权威发布与 XLSX/CSV `--check`、项目 validator、UE 5.8 `Development -FullRebuild` 均通过；`ReEcho.Shop` 7/7、`ReEcho.Weapons` 9/9、`ReEcho.Run.Save` 2/2 及完整 `ReEcho` 100/100 通过。
 
 ### 剩余风险
 

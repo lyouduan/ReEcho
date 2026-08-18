@@ -14,6 +14,7 @@ namespace
 {
 constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
 constexpr const TCHAR* ForgeOfferGroup = TEXT("Forge");
+const FName AnyWeaponTypeId = TEXT("Any");
 
 const FString RunSaveSlot = TEXT("ReEchoRun");
 constexpr int32 RunSaveUserIndex = 0;
@@ -82,6 +83,66 @@ FReEchoTraitCardOffer MakeTraitOffer(const FReEchoCardDefinition& Card)
 	Offer.DisplayName = FText::FromString(Card.DisplayName);
 	Offer.Description = FText::FromString(Card.Description);
 	return Offer;
+}
+
+bool IsPartCompatibleWithWeapon(const FReEchoCsvDataSnapshot& Snapshot,
+                                const FReEchoCsvPartRow& Part,
+                                const FReEchoCsvWeaponRow& Weapon)
+{
+	return Part.bEnabled && (Part.WeaponTypeId == AnyWeaponTypeId || Part.WeaponTypeId == Weapon.WeaponTypeId) &&
+	       ReEchoWeaponRuntime::GetEffectiveSlotCapacity(
+	           Snapshot, FReEchoBuildSnapshot{}, Weapon.WeaponTypeId, Part.SlotTypeId) > 0;
+}
+
+FReEchoShopOffer MakeWeaponPartOffer(const FReEchoCsvPartRow& Part)
+{
+	FReEchoShopOffer Offer;
+	Offer.ItemId = Part.PartId;
+	Offer.DisplayName = FText::FromString(Part.DisplayName);
+	Offer.EffectText = FText::FromString(Part.Description);
+	Offer.Price = Part.ShopPrice;
+	Offer.Type = EReEchoShopOfferType::WeaponPart;
+	Offer.ContentId = Part.PartId;
+	Offer.SlotTypeId = Part.SlotTypeId;
+	return Offer;
+}
+
+bool TryNormalizeOwnedParts(const FReEchoCsvDataSnapshot& Snapshot,
+                            const TArray<FName>& SavedOwnedParts,
+                            const TArray<FReEchoEquippedPartSnapshot>& EquippedParts,
+                            TArray<FName>& OutOwnedParts)
+{
+	OutOwnedParts.Reset();
+	TSet<FName> Seen;
+	auto AddPart = [&](const FName PartId)
+	{
+		const FReEchoCsvPartRow* Part = Snapshot.Parts.Find(PartId);
+		if (!Part || !Part->bEnabled || Part->PartId != PartId)
+		{
+			return false;
+		}
+		if (!Seen.Contains(PartId))
+		{
+			Seen.Add(PartId);
+			OutOwnedParts.Add(PartId);
+		}
+		return true;
+	};
+	for (const FName PartId : SavedOwnedParts)
+	{
+		if (!AddPart(PartId))
+		{
+			return false;
+		}
+	}
+	for (const FReEchoEquippedPartSnapshot& Equipped : EquippedParts)
+	{
+		if (!AddPart(Equipped.PartId))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 TArray<FReEchoCsvCardRow> GetOfferCatalog(const FName OfferGroup)
@@ -547,6 +608,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	EncounterIndex = 0;
 	TimeShards = 0;
 	InventoryItems.Reset();
+	OwnedPartIds.Reset();
 	bAutomaticAttackMode = true;
 	ResetEchoStorage();
 	PendingTraitCardIds.Reset();
@@ -583,6 +645,128 @@ bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& O
 	}
 	CurrentBuild = Candidate;
 	return true;
+}
+
+bool UReEchoRunSubsystem::TrySaveWeaponPartLoadout(const TArray<FName>& PartIds, FString& OutError)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoCsvWeaponRow* Weapon =
+	    Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(CurrentBuild.WeaponId) : nullptr;
+	if (!Snapshot.IsValid() || !Weapon)
+	{
+		OutError = TEXT("Cannot save weapon-part loadout: weapon data is unavailable");
+		return false;
+	}
+
+	TSet<FName> Seen;
+	TMap<FName, int32> SlotCounts;
+	for (const FName PartId : PartIds)
+	{
+		if (Seen.Contains(PartId) || !OwnedPartIds.Contains(PartId))
+		{
+			OutError = FString::Printf(TEXT("Cannot save weapon-part loadout: part '%s' is duplicate or not owned"),
+			                           *PartId.ToString());
+			return false;
+		}
+		Seen.Add(PartId);
+		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(PartId);
+		if (!Part || !IsPartCompatibleWithWeapon(*Snapshot, *Part, *Weapon))
+		{
+			OutError =
+			    FString::Printf(TEXT("Cannot save weapon-part loadout: part '%s' is incompatible"), *PartId.ToString());
+			return false;
+		}
+		SlotCounts.FindOrAdd(Part->SlotTypeId) += 1;
+	}
+
+	for (const TPair<FName, FReEchoCsvSlotProfileRow>& Pair : Snapshot->SlotProfiles)
+	{
+		const FReEchoCsvSlotProfileRow& Profile = Pair.Value;
+		if (Profile.bEnabled && Profile.WeaponTypeId == Weapon->WeaponTypeId && Profile.bRequired &&
+		    SlotCounts.FindRef(Profile.SlotTypeId) < Profile.SlotCount)
+		{
+			OutError = FString::Printf(TEXT("Cannot save weapon-part loadout: required slot '%s' needs %d part(s)"),
+			                           *Profile.SlotTypeId.ToString(),
+			                           Profile.SlotCount);
+			return false;
+		}
+	}
+
+	return TryEquipParts(PartIds, OutError);
+}
+
+FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
+{
+	FReEchoWeaponPartShopView View;
+	for (const FReEchoShopOffer& CatalogOffer : GetReEchoShopCatalog())
+	{
+		FReEchoShopOffer Offer = CatalogOffer;
+		Offer.ContentId = Offer.ItemId;
+		View.Offers.Add(Offer);
+	}
+
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoCsvWeaponRow* Weapon =
+	    Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(CurrentBuild.WeaponId) : nullptr;
+	if (!Snapshot.IsValid() || !Weapon)
+	{
+		return View;
+	}
+	View.WeaponId = Weapon->Id;
+	View.WeaponDisplayName = FText::FromString(Weapon->DisplayName);
+	View.EquippedParts = CurrentBuild.EquippedParts;
+
+	for (const TPair<FName, FReEchoCsvSlotProfileRow>& Pair : Snapshot->SlotProfiles)
+	{
+		const FReEchoCsvSlotProfileRow& Profile = Pair.Value;
+		if (!Profile.bEnabled || Profile.WeaponTypeId != Weapon->WeaponTypeId)
+		{
+			continue;
+		}
+		FReEchoWeaponSlotShopView Slot;
+		Slot.SlotTypeId = Profile.SlotTypeId;
+		const FReEchoCsvSlotTypeRow* SlotType = Snapshot->SlotTypes.Find(Profile.SlotTypeId);
+		Slot.DisplayName = FText::FromString(SlotType ? SlotType->DisplayName : Profile.SlotTypeId.ToString());
+		Slot.Capacity = ReEchoWeaponRuntime::GetEffectiveSlotCapacity(
+		    *Snapshot, CurrentBuild, Weapon->WeaponTypeId, Profile.SlotTypeId);
+		Slot.bRequired = Profile.bRequired;
+		View.Slots.Add(Slot);
+	}
+	View.Slots.Sort(
+	    [](const FReEchoWeaponSlotShopView& Left, const FReEchoWeaponSlotShopView& Right)
+	    {
+		    if (Left.SlotTypeId == TEXT("Core") || Right.SlotTypeId == TEXT("Core"))
+		    {
+			    return Left.SlotTypeId == TEXT("Core") && Right.SlotTypeId != TEXT("Core");
+		    }
+		    return Left.SlotTypeId.ToString() < Right.SlotTypeId.ToString();
+	    });
+
+	TArray<FName> PartIds;
+	Snapshot->Parts.GetKeys(PartIds);
+	PartIds.Sort(
+	    [](const FName Left, const FName Right)
+	    {
+		    return Left.ToString() < Right.ToString();
+	    });
+	for (const FName PartId : PartIds)
+	{
+		const FReEchoCsvPartRow& Part = Snapshot->Parts.FindChecked(PartId);
+		if (!IsPartCompatibleWithWeapon(*Snapshot, Part, *Weapon))
+		{
+			continue;
+		}
+		const FReEchoShopOffer PartOffer = MakeWeaponPartOffer(Part);
+		if (Part.bShopEnabled)
+		{
+			View.Offers.Add(PartOffer);
+		}
+		if (OwnedPartIds.Contains(Part.PartId))
+		{
+			View.OwnedParts.Add(PartOffer);
+		}
+	}
+	return View;
 }
 
 TSharedPtr<const FReEchoCsvDataSnapshot> UReEchoRunSubsystem::GetRunDataSnapshot() const
@@ -1053,18 +1237,19 @@ void UReEchoRunSubsystem::ClearCardAnchorRecording()
 
 bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 {
-	if (InventoryItems.Contains(ItemId))
-	{
-		return false;
-	}
-
-	const FReEchoShopOffer* Offer = GetReEchoShopCatalog().FindByPredicate(
+	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
+	const FReEchoShopOffer* Offer = ShopView.Offers.FindByPredicate(
 	    [&](const FReEchoShopOffer& Candidate)
 	    {
 		    return Candidate.ItemId == ItemId;
 	    });
-	const int32 EffectivePrice = Offer ? GetDiscountedShopPrice(Offer->Price) : 0;
-	if (!Offer || TimeShards < EffectivePrice)
+	if (!Offer || (Offer->Type == EReEchoShopOfferType::RunItem && InventoryItems.Contains(ItemId)) ||
+	    (Offer->Type == EReEchoShopOfferType::WeaponPart && OwnedPartIds.Contains(Offer->ContentId)))
+	{
+		return false;
+	}
+	const int32 EffectivePrice = GetDiscountedShopPrice(Offer->Price);
+	if (TimeShards < EffectivePrice)
 	{
 		return false;
 	}
@@ -1072,46 +1257,54 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoBuildSnapshot OriginalBuild = CurrentBuild;
 	FReEchoBuildSnapshot PendingBuild;
-	if (!Snapshot.IsValid() || !TryMutateAuthoritativeBuild(
-	                               *Snapshot,
-	                               CurrentBuild,
-	                               [&](FReEchoBuildSnapshot& BaseBuild)
-	                               {
-		                               if (ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
-		                               {
-			                               BaseBuild.Stats.PhysicalAttack += 2.0f;
-		                               }
-		                               else if (ItemId == TEXT("SHOP_DREAM_FRUIT"))
-		                               {
-			                               BaseBuild.Stats.HpMax += 10.0f;
-		                               }
-		                               else if (ItemId == TEXT("SHOP_BLACK_FEATHER"))
-		                               {
-			                               BaseBuild.Stats.MovementSpeed += 0.1f;
-		                               }
-		                               else if (ItemId == TEXT("SHOP_OLD_COIN"))
-		                               {
-			                               BaseBuild.Stats.EchoEfficiency += 0.1f;
-		                               }
-		                               else if (ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
-		                               {
-			                               // 不修改 build 属性；只解锁指定回放槽位上限（见下方统一处理）。
-		                               }
-		                               if (Snapshot->CardCatalog.IsValid())
-		                               {
-			                               const FReEchoCardEventResult Event = ReEchoCardRuntime::OnPurchase(
-			                                   *Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats);
-			                               BaseBuild.CardState = Event.CardState;
-			                               BaseBuild.Stats = Event.Stats;
-		                               }
-		                               return true;
-	                               },
-	                               PendingBuild))
+	if (!Snapshot.IsValid() ||
+	    !TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
+		        {
+			        BaseBuild.Stats.PhysicalAttack += 2.0f;
+		        }
+		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_DREAM_FRUIT"))
+		        {
+			        BaseBuild.Stats.HpMax += 10.0f;
+		        }
+		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_BLACK_FEATHER"))
+		        {
+			        BaseBuild.Stats.MovementSpeed += 0.1f;
+		        }
+		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_OLD_COIN"))
+		        {
+			        BaseBuild.Stats.EchoEfficiency += 0.1f;
+		        }
+		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
+		        {
+			        // 不修改 build 属性；只解锁指定回放槽位上限（见下方统一处理）。
+		        }
+		        if (Snapshot->CardCatalog.IsValid())
+		        {
+			        const FReEchoCardEventResult Event =
+			            ReEchoCardRuntime::OnPurchase(*Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats);
+			        BaseBuild.CardState = Event.CardState;
+			        BaseBuild.Stats = Event.Stats;
+		        }
+		        return true;
+	        },
+	        PendingBuild))
 	{
 		return false;
 	}
 	TimeShards -= EffectivePrice;
-	InventoryItems.Add(ItemId);
+	if (Offer->Type == EReEchoShopOfferType::WeaponPart)
+	{
+		OwnedPartIds.Add(Offer->ContentId);
+	}
+	else
+	{
+		InventoryItems.Add(ItemId);
+	}
 	CurrentBuild = PendingBuild;
 
 	if (ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
@@ -1518,6 +1711,7 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	SaveGame->CurrentBuild = CurrentBuild;
 	SaveGame->CurrentBuild.Cards.Reset();
 	SaveGame->InventoryItems = InventoryItems;
+	SaveGame->OwnedPartIds = OwnedPartIds;
 	SaveGame->bAutomaticAttackMode = bAutomaticAttackMode;
 	// v5+ writes only the new echo storage state; RecordingHistory and AnchorId stay empty on purpose.
 	SaveGame->bHasPendingRecording = bHasPendingRecording;
@@ -1558,6 +1752,12 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	if (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, MigratedCurrentBuild) ||
 	    !ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, MigratedCurrentBuild).IsEmpty() ||
 	    !TryNormalizeEquipmentBuild(*Snapshot, MigratedCurrentBuild, NormalizedCurrentBuild))
+	{
+		return false;
+	}
+	TArray<FName> NormalizedOwnedParts;
+	const TArray<FName> SavedOwnedParts = SaveGame.SaveVersion >= 10 ? SaveGame.OwnedPartIds : TArray<FName>{};
+	if (!TryNormalizeOwnedParts(*Snapshot, SavedOwnedParts, NormalizedCurrentBuild.EquippedParts, NormalizedOwnedParts))
 	{
 		return false;
 	}
@@ -1623,6 +1823,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	CurrentBuild = NormalizedCurrentBuild;
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
+	OwnedPartIds = MoveTemp(NormalizedOwnedParts);
 	bAutomaticAttackMode = SaveGame.SaveVersion >= 6 ? SaveGame.bAutomaticAttackMode : true;
 	bHasPendingRecording = RestoredStorage.bHasPendingRecording;
 	PendingRecording = RestoredStorage.bHasPendingRecording ? RestoredStorage.PendingRecording : FReEchoRecording{};

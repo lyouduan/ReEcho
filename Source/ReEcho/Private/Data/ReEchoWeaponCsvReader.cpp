@@ -176,7 +176,7 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 	                  Snapshot.WeaponTypeOrder,
 	                  Snapshot.WeaponTypes,
 	                  [&](const FReEchoCsvWeaponTypeRow& Row)
-		                  {
+	                  {
 		                  AppendCanonicalField(Canonical, Row.Id);
 		                  AppendCanonicalField(Canonical, Row.DisplayName);
 		                  AppendCanonicalField(Canonical, Row.Description);
@@ -813,7 +813,9 @@ bool ReadPartsTable(const FString& DataDirectory,
 	                            TEXT("ImplementationStatus"),
 	                            TEXT("DisabledReason"),
 	                            TEXT("SourceSheet"),
-	                            TEXT("SourceRow")},
+	                            TEXT("SourceRow"),
+	                            TEXT("ShopEnabled"),
+	                            TEXT("ShopPrice")},
 	                           Issues);
 
 	TSet<FName> SeenIds;
@@ -834,6 +836,8 @@ bool ReadPartsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), Part.bEnabled, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("ReviewStatus"), Part.ReviewStatus, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("ImplementationStatus"), Part.ImplementationStatus, Issues);
+		ReEchoCsv::RequireBool(Table, Row, TEXT("ShopEnabled"), Part.bShopEnabled, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("ShopPrice"), Part.ShopPrice, Issues);
 		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Part.DisabledReason);
 		ReEchoCsv::RequireCell(Table, Row, TEXT("SourceSheet"), Part.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("SourceRow"), Part.SourceRow, Issues);
@@ -876,11 +880,29 @@ bool ReadPartsTable(const FString& DataDirectory,
 				                    TEXT("ImplementationStatus"),
 				                    TEXT("Enabled part must be approved and implemented"));
 			}
+			if (Part.bShopEnabled && Part.ShopPrice <= 0)
+			{
+				ReEchoCsv::AddIssue(Issues,
+				                    Table.File,
+				                    Row.Line,
+				                    TEXT("ShopPrice"),
+				                    TEXT("Shop-enabled part requires a positive price"));
+			}
 		}
 		else if (Part.DisabledReason.IsEmpty())
 		{
 			ReEchoCsv::AddIssue(
 			    Issues, Table.File, Row.Line, TEXT("DisabledReason"), TEXT("Disabled source row requires a reason"));
+		}
+		if (!Part.bEnabled && Part.bShopEnabled)
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("ShopEnabled"), TEXT("Disabled part cannot be sold in the shop"));
+		}
+		if (!Part.bShopEnabled && Part.ShopPrice != 0)
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("ShopPrice"), TEXT("Non-shop part must use price 0"));
 		}
 
 		SeenIds.Add(Part.Id);

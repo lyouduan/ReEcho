@@ -22,6 +22,7 @@
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。
 - `UReEchoInventoryShopWidget` 的无资产 fallback 展示实际折扣价、免费刷新余量、刷新禁用和额外卡牌组禁用状态；刷新只广播命令，Run 成功消费并保存后才更新页面和确定性报价顺序。
+- 同一商店页展示数据驱动的武器槽组、已拥有配件和装配草稿；点击配件只编辑草稿，“保存配置”才发送完整 PartId 集合给 Run。关闭页面不提交草稿，已成功购买的配件所有权仍保留。
 - UI 只消费只读摘要或事件并发送受控命令，不直接写 Run、Combat、Weapons、Enemies 或存档权威状态。
 - 关闭、返回、事务拒绝、购买成功与卡牌选择成功的专用声音由命令结果宿主发布；按钮基础反馈不代替事务结果，也不得让音频失败改变 UI 行为。
 
@@ -52,4 +53,5 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - WBP 变更：在 Unreal Editor 中 Compile/Save，并运行 `CompileAllBlueprints`。
 - 静态检查：`python scripts/validate_project.py`、`git diff --check`。
 - Plan47 商店回归：折扣显示与实际扣款同舍入、免费刷新优先消费且无零价无限刷新、永久代价禁用状态可见；不修改 Plan45 WBP/纹理资产。
+- Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
 - 人工检查：按 UI 修改指导执行页面导航、焦点、DPI、可读性和交互验收。

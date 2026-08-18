@@ -174,6 +174,14 @@ float ReEchoWeaponRuntime::ApplyValueOperation(const float CurrentValue,
 	}
 }
 
+int32 ReEchoWeaponRuntime::GetEffectiveSlotCapacity(const FReEchoCsvDataSnapshot& Snapshot,
+                                                    const FReEchoBuildSnapshot& Build,
+                                                    const FName WeaponTypeId,
+                                                    const FName SlotTypeId)
+{
+	return FindEffectiveSlotLimit(Snapshot, Build, WeaponTypeId, SlotTypeId);
+}
+
 FString ReEchoWeaponRuntime::GetBuildConfigurationError(const FReEchoCsvDataSnapshot& Snapshot,
                                                         const FReEchoBuildSnapshot& Build)
 {

@@ -138,6 +138,7 @@ Commit
 - 生命周期：发射后 Source 销毁，延迟命中仍安全结算且不访问失效来源。
 - 命令：`scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons`，并回归 AttackMode、Combat、数据/Run Snapshot。
 - Plan47 接缝：`G_3_22` 可装备两个同类非 Core 配件，Core 仍保持原容量；装备重建、换武器和保存走同一有效槽上限。
+- 商店接缝：Weapons 只公开有效槽容量和装备重建；配件出售资格、价格、所有权、草稿与存档仍由主模块 Data/Run/UI 负责，购买不得自动替换已提交装备。
 - 用户 PIE：不同武器的连续攻击、攻速变化、无目标、模式切换和实际手感。
 
 ## 不变量与常见错误

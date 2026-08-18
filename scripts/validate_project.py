@@ -433,6 +433,8 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "DisabledReason": CsvColumnSpec("Text", required=False),
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "ShopEnabled": CsvColumnSpec("Bool"),
+        "ShopPrice": CsvColumnSpec("Int", min_value=0.0, max_value=100000.0),
     },
     "PartEffects": {
         "Id": CsvColumnSpec("StableId"),
@@ -1049,6 +1051,17 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     for row in parts:
         if row["WeaponTypeId"] != "Any" and row["WeaponTypeId"] not in WEAPON_TYPE_IDS:
             fail(f"{rel(entries['Parts'])}:{row['__line__']}: unknown WeaponTypeId {row['WeaponTypeId']!r}")
+        shop_enabled = row["ShopEnabled"] == "true"
+        try:
+            shop_price = int(row["ShopPrice"])
+        except ValueError:
+            fail(f"{rel(entries['Parts'])}:{row['__line__']}: ShopPrice must be an integer")
+        if shop_enabled and (row["Enabled"] != "true" or row["ImplementationStatus"] != "Implemented"):
+            fail(f"{rel(entries['Parts'])}:{row['__line__']}: only enabled implemented parts may be sold")
+        if shop_enabled and shop_price <= 0:
+            fail(f"{rel(entries['Parts'])}:{row['__line__']}: shop-enabled part requires positive ShopPrice")
+        if not shop_enabled and shop_price != 0:
+            fail(f"{rel(entries['Parts'])}:{row['__line__']}: non-shop part must use ShopPrice 0")
         if row["Enabled"] == "true":
             if row["PartId"] == "None" or not row["DisplayName"]:
                 fail(f"{rel(entries['Parts'])}:{row['__line__']}: enabled part needs stable PartId and name")

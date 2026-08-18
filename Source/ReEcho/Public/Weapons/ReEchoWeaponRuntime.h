@@ -25,6 +25,10 @@ REECHO_API bool TryEquipParts(const FReEchoCsvDataSnapshot& Snapshot,
                               const TArray<FName>& PartIds,
                               FReEchoBuildSnapshot& OutBuild,
                               FString& OutError);
+REECHO_API int32 GetEffectiveSlotCapacity(const FReEchoCsvDataSnapshot& Snapshot,
+                                          const FReEchoBuildSnapshot& Build,
+                                          FName WeaponTypeId,
+                                          FName SlotTypeId);
 REECHO_API bool
 TryGetEquipmentBaseBuild(const FReEchoBuildSnapshot& Build, FReEchoBuildSnapshot& OutBaseBuild, FString& OutError);
 REECHO_API bool TrySelectWeapon(const FReEchoCsvDataSnapshot& Snapshot,

@@ -1444,6 +1444,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
+	InventoryShopWidget->OnWeaponLoadoutSaveRequested.AddUObject(this,
+	                                                             &AReEchoGameMode::HandleWeaponLoadoutSaveRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		bPostTraitShopClosing = false;
@@ -1546,6 +1548,22 @@ void AReEchoGameMode::HandleShopRefreshRequested()
 	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
 
+void AReEchoGameMode::HandleWeaponLoadoutSaveRequested(const TArray<FName>& PartIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	FString Error;
+	if (!RunSubsystem || !InventoryShopWidget || !RunSubsystem->TrySaveWeaponPartLoadout(PartIds, Error))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ReEchoShop] Weapon loadout save rejected: %s"), *Error);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	PostUiEvent(FReEchoAudioEvents::UiPurchase);
+	RunSubsystem->SaveRun();
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(), true);
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
 void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, const EReEchoInventoryShopMode Mode)
 {
 	if (!RunSubsystem || !InventoryShopWidget)
@@ -1555,6 +1573,7 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
 	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView());
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,

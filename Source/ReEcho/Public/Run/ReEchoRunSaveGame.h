@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v9 replaces legacy card ids with the versioned ReEchoCards build/runtime state. */
-	static constexpr int32 CurrentSaveVersion = 9;
+	/** v10 persists weapon-part ownership separately from equipped parts and ordinary shop items. */
+	static constexpr int32 CurrentSaveVersion = 10;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -36,6 +36,10 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray<FName> InventoryItems;
+
+	/** Added in v10. Older saves derive ownership from their valid equipped parts. */
+	UPROPERTY(SaveGame)
+	TArray<FName> OwnedPartIds;
 
 	/** Added in v6. Older saves deterministically migrate to automatic attack. */
 	UPROPERTY(SaveGame)

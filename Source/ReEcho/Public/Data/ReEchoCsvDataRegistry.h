@@ -272,6 +272,8 @@ struct REECHO_API FReEchoCsvPartRow
 	bool bEnabled = false;
 	FName ReviewStatus;
 	FName ImplementationStatus;
+	bool bShopEnabled = false;
+	int32 ShopPrice = 0;
 	FString DisabledReason;
 	FString SourceSheet;
 	int32 SourceRow = 0;

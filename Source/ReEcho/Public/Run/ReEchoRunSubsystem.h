@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Core/ReEchoTypes.h"
+#include "Run/ReEchoShopCatalog.h"
 #include "ReEchoRunSubsystem.generated.h"
 
 class UReEchoRunSaveGame;
@@ -56,6 +57,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FName> InventoryItems;
 
+	/** Weapon parts purchased during this run. Kept separate from one-shot shop items. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FName> OwnedPartIds;
+
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 
@@ -70,6 +75,8 @@ public:
 	}
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
+	bool TrySaveWeaponPartLoadout(const TArray<FName>& PartIds, FString& OutError);
+	FReEchoWeaponPartShopView GetWeaponPartShopView() const;
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 
 	UFUNCTION(BlueprintCallable)

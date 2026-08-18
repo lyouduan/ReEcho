@@ -515,12 +515,16 @@ bool FReEchoWeaponLockAndPersistenceTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Equipped run has derived strength attack speed"), Run->CurrentBuild.Stats.AttackSpeed, 1.2f);
 
 	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
+	Save->SaveVersion = 9;
+	Save->OwnedPartIds.Reset();
 	UGameInstance* RestoreGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RestoreRun = NewObject<UReEchoRunSubsystem>(RestoreGameInstance);
 	TestTrue(TEXT("Equipment snapshot restores with authoritative base"), RestoreRun->RestoreSaveSnapshot(*Save));
 	TestTrue(TEXT("Restored build retains authoritative equipment base"), RestoreRun->CurrentBuild.bHasEquipmentBase);
 	TestEqual(
 	    TEXT("Restored build recomputes strength attack speed"), RestoreRun->CurrentBuild.Stats.AttackSpeed, 1.2f);
+	TestTrue(TEXT("v9 equipment migrates into v10 part ownership"),
+	         RestoreRun->OwnedPartIds.Contains(TEXT("P_DAGGER_STRENGTH_GRIP")));
 
 	UReEchoRecorderComponent* Recorder = NewObject<UReEchoRecorderComponent>();
 	Recorder->BeginRecording(1, TEXT("WeaponTest"), 77, Run->CurrentBuild);

@@ -5447,6 +5447,14 @@
       "Type": "SymbolFile"
     },
     {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.pdb",
+      "Type": "SymbolFile"
+    },
+    {
       "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.dll",
       "Type": "DynamicLibrary"
     },

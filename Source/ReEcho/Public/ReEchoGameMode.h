@@ -191,6 +191,7 @@ private:
 	UFUNCTION()
 	void HandleShopPurchaseRequested(FName ItemId);
 	void HandleShopRefreshRequested();
+	void HandleWeaponLoadoutSaveRequested(const TArray<FName>& PartIds);
 	void RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, EReEchoInventoryShopMode Mode);
 
 	UFUNCTION()
