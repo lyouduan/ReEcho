@@ -117,7 +117,7 @@ private:
 	void HandleRefreshClicked();
 
 	UFUNCTION()
-	void HandleOwnedPartClicked(int32 OwnedPartIndex);
+	void HandleWeaponPartOfferClicked(int32 PartOfferIndex);
 
 	UFUNCTION()
 	void HandleSaveLoadoutClicked();
@@ -189,34 +189,44 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> OfferContainer;
 
+	/** Logic-only blocks. Their names form the hand-off contract for a later authored UI. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> RunItemOfferPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> ShopControlPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> WeaponPartOfferPanel;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> OfferButtons;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> OfferTexts;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ShopRefreshButton;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshText;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRuleText;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UVerticalBox> LoadoutPanel;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> WeaponLoadoutPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> WeaponLoadoutText;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> LoadoutText;
+	TArray<TObjectPtr<UReEchoIndexedButton>> WeaponPartOfferButtons;
 
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UReEchoIndexedButton>> OwnedPartButtons;
+	TArray<TObjectPtr<UTextBlock>> WeaponPartOfferTexts;
 
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTextBlock>> OwnedPartTexts;
-
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> SaveLoadoutButton;
 
 	// ---- inline echo panel (origin/main layout) ----
@@ -260,6 +270,8 @@ private:
 	int32 CurrentShopRefreshSequence = 0;
 	TArray<FName> CurrentOwnedItems;
 	FReEchoWeaponPartShopView CurrentPartShopView;
+	TArray<FReEchoShopOffer> VisibleRunItemOffers;
+	TArray<FReEchoShopOffer> VisibleWeaponPartOffers;
 	TArray<FName> DraftPartIds;
 	FName DraftWeaponId;
 

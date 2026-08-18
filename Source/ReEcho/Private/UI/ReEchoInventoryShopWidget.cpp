@@ -218,9 +218,31 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		return;
 	}
 
-	const TArray<FReEchoShopOffer>& Offers =
+	VisibleRunItemOffers.Reset();
+	const TArray<FReEchoShopOffer>& SourceOffers =
 	    CurrentPartShopView.Offers.IsEmpty() ? GetReEchoShopCatalog() : CurrentPartShopView.Offers;
-	if (OfferButtons.Num() != Offers.Num())
+	for (const FReEchoShopOffer& Offer : SourceOffers)
+	{
+		if (Offer.Type == EReEchoShopOfferType::RunItem)
+		{
+			VisibleRunItemOffers.Add(Offer);
+		}
+	}
+	if (VisibleRunItemOffers.IsEmpty())
+	{
+		VisibleRunItemOffers = GetReEchoShopCatalog();
+	}
+	if (!RunItemOfferPanel)
+	{
+		RunItemOfferPanel =
+		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("RunItemOfferPanel"));
+		OfferContainer->AddChildToVerticalBox(RunItemOfferPanel);
+		UTextBlock* Title = CreateText(WidgetTree, TEXT("RunItemOfferTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
+		Title->SetText(NSLOCTEXT("ReEcho", "RunItemOfferTitle", "商品"));
+		RunItemOfferPanel->AddChildToVerticalBox(Title);
+	}
+
+	if (OfferButtons.Num() != VisibleRunItemOffers.Num())
 	{
 		for (UReEchoIndexedButton* Button : OfferButtons)
 		{
@@ -232,7 +254,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		OfferButtons.Reset();
 		OfferTexts.Reset();
 	}
-	for (int32 OfferIndex = 0; OfferIndex < Offers.Num(); ++OfferIndex)
+	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
 		if (OfferButtons.IsValidIndex(OfferIndex))
 		{
@@ -243,7 +265,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		OfferButton->SetEntryIndex(OfferIndex);
 		OfferButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleOfferClicked);
 		OfferButton->SetBackgroundColor(FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
-		UVerticalBoxSlot* OfferSlot = OfferContainer->AddChildToVerticalBox(OfferButton);
+		UVerticalBoxSlot* OfferSlot = RunItemOfferPanel->AddChildToVerticalBox(OfferButton);
 		OfferSlot->SetPadding(FMargin(8.0f, 6.0f));
 
 		UTextBlock* OfferText = CreateText(
@@ -254,20 +276,39 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		OfferTexts.Add(OfferText);
 	}
 
-	if (!ShopRefreshButton)
+	if (!ShopControlPanel)
+	{
+		ShopControlPanel =
+		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopControlPanel"));
+		ShopPanel->AddChildToVerticalBox(ShopControlPanel);
+		UTextBlock* Title = CreateText(WidgetTree, TEXT("ShopControlTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
+		Title->SetText(NSLOCTEXT("ReEcho", "ShopControlTitle", "商店规则"));
+		ShopControlPanel->AddChildToVerticalBox(Title);
+	}
+	const bool bCreatedRefreshButton = !ShopRefreshButton;
+	if (bCreatedRefreshButton)
 	{
 		ShopRefreshButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopRefreshButton"));
 		ShopRefreshButton->SetBackgroundColor(FLinearColor(0.18f, 0.3f, 0.42f, 0.9f));
-		UVerticalBoxSlot* RefreshSlot = OfferContainer->AddChildToVerticalBox(ShopRefreshButton);
+		UVerticalBoxSlot* RefreshSlot = ShopControlPanel->AddChildToVerticalBox(ShopRefreshButton);
 		RefreshSlot->SetPadding(FMargin(8.0f, 12.0f, 8.0f, 4.0f));
+	}
+	if (!ShopRefreshText)
+	{
 		ShopRefreshText = CreateText(WidgetTree, TEXT("ShopRefreshText"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		ShopRefreshText->SetJustification(ETextJustify::Center);
 		ShopRefreshButton->SetContent(ShopRefreshText);
-		ShopRefreshButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
-
+	}
+	else if (bCreatedRefreshButton)
+	{
+		ShopRefreshButton->SetContent(ShopRefreshText);
+	}
+	ShopRefreshButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
+	if (!ShopRuleText)
+	{
 		ShopRuleText = CreateText(WidgetTree, TEXT("ShopRuleText"), 17, FLinearColor(0.75f, 0.68f, 0.56f));
 		ShopRuleText->SetJustification(ETextJustify::Center);
-		UVerticalBoxSlot* RuleSlot = OfferContainer->AddChildToVerticalBox(ShopRuleText);
+		UVerticalBoxSlot* RuleSlot = ShopControlPanel->AddChildToVerticalBox(ShopRuleText);
 		RuleSlot->SetPadding(FMargin(8.0f, 2.0f));
 	}
 
@@ -446,49 +487,80 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 	{
 		return;
 	}
-	if (!LoadoutPanel)
+	VisibleWeaponPartOffers.Reset();
+	for (const FReEchoShopOffer& Offer : CurrentPartShopView.Offers)
 	{
-		LoadoutPanel =
+		if (Offer.Type == EReEchoShopOfferType::WeaponPart)
+		{
+			VisibleWeaponPartOffers.Add(Offer);
+		}
+	}
+	if (!WeaponPartOfferPanel)
+	{
+		WeaponPartOfferPanel =
+		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponPartOfferPanel"));
+		ShopPanel->AddChildToVerticalBox(WeaponPartOfferPanel);
+		UTextBlock* Title =
+		    CreateText(WidgetTree, TEXT("WeaponPartOfferTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
+		Title->SetText(NSLOCTEXT("ReEcho", "WeaponPartOfferTitle", "武器配件"));
+		WeaponPartOfferPanel->AddChildToVerticalBox(Title);
+	}
+	if (!WeaponLoadoutPanel)
+	{
+		WeaponLoadoutPanel =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponLoadoutPanel"));
-		ShopPanel->AddChildToVerticalBox(LoadoutPanel);
-		LoadoutText = CreateText(WidgetTree, TEXT("WeaponLoadoutText"), 18, FLinearColor(0.9f, 0.82f, 0.66f));
-		LoadoutPanel->AddChildToVerticalBox(LoadoutText);
+		ShopPanel->AddChildToVerticalBox(WeaponLoadoutPanel);
+		UTextBlock* Title = CreateText(WidgetTree, TEXT("WeaponLoadoutTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
+		Title->SetText(NSLOCTEXT("ReEcho", "WeaponLoadoutTitle", "装备槽位"));
+		WeaponLoadoutPanel->AddChildToVerticalBox(Title);
+	}
+	if (!WeaponLoadoutText)
+	{
+		WeaponLoadoutText =
+		    CreateText(WidgetTree, TEXT("WeaponLoadoutText"), 18, FLinearColor(0.9f, 0.82f, 0.66f));
+		UVerticalBoxSlot* LoadoutTextSlot = WeaponLoadoutPanel->AddChildToVerticalBox(WeaponLoadoutText);
+		LoadoutTextSlot->SetPadding(FMargin(18.0f, 16.0f, 18.0f, 8.0f));
+	}
+	if (!SaveLoadoutButton)
+	{
 		SaveLoadoutButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("SaveLoadoutButton"));
 		SaveLoadoutButton->SetBackgroundColor(FLinearColor(0.2f, 0.55f, 0.25f, 0.9f));
 		UTextBlock* SaveText = CreateText(WidgetTree, TEXT("SaveLoadoutText"), 22, FLinearColor::White);
 		SaveText->SetText(NSLOCTEXT("ReEcho", "SaveWeaponLoadout", "保存配置"));
 		SaveText->SetJustification(ETextJustify::Center);
 		SaveLoadoutButton->SetContent(SaveText);
-		SaveLoadoutButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleSaveLoadoutClicked);
-		LoadoutPanel->AddChildToVerticalBox(SaveLoadoutButton);
+		UVerticalBoxSlot* SaveSlot = WeaponLoadoutPanel->AddChildToVerticalBox(SaveLoadoutButton);
+		SaveSlot->SetPadding(FMargin(18.0f, 8.0f, 18.0f, 12.0f));
 	}
+	SaveLoadoutButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleSaveLoadoutClicked);
 
-	if (OwnedPartButtons.Num() != CurrentPartShopView.OwnedParts.Num())
+	if (WeaponPartOfferButtons.Num() != VisibleWeaponPartOffers.Num())
 	{
-		for (UReEchoIndexedButton* Button : OwnedPartButtons)
+		for (UReEchoIndexedButton* Button : WeaponPartOfferButtons)
 		{
 			if (Button)
 			{
 				Button->RemoveFromParent();
 			}
 		}
-		OwnedPartButtons.Reset();
-		OwnedPartTexts.Reset();
-		for (int32 Index = 0; Index < CurrentPartShopView.OwnedParts.Num(); ++Index)
+		WeaponPartOfferButtons.Reset();
+		WeaponPartOfferTexts.Reset();
+		for (int32 Index = 0; Index < VisibleWeaponPartOffers.Num(); ++Index)
 		{
 			UReEchoIndexedButton* Button = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
-			    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("OwnedWeaponPart%d"), Index));
+			    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("WeaponPartOffer%d"), Index));
 			Button->SetEntryIndex(Index);
-			Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleOwnedPartClicked);
+			Button->OnIndexedClicked.AddUniqueDynamic(this,
+			                                          &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
 			UTextBlock* Text = CreateText(WidgetTree,
-			                              *FString::Printf(TEXT("OwnedWeaponPartText%d"), Index),
+			                              *FString::Printf(TEXT("WeaponPartOfferText%d"), Index),
 			                              17,
 			                              FLinearColor(0.9f, 0.82f, 0.66f));
 			Text->SetJustification(ETextJustify::Center);
 			Button->SetContent(Text);
-			LoadoutPanel->InsertChildAt(FMath::Max(1, LoadoutPanel->GetChildrenCount() - 1), Button);
-			OwnedPartButtons.Add(Button);
-			OwnedPartTexts.Add(Text);
+			WeaponPartOfferPanel->AddChildToVerticalBox(Button);
+			WeaponPartOfferButtons.Add(Button);
+			WeaponPartOfferTexts.Add(Text);
 		}
 	}
 }
@@ -502,13 +574,11 @@ void UReEchoInventoryShopWidget::Refresh()
 
 	BuildOfferEntries();
 	BuildLoadoutEntries();
-	const TArray<FReEchoShopOffer>& Offers =
-	    CurrentPartShopView.Offers.IsEmpty() ? GetReEchoShopCatalog() : CurrentPartShopView.Offers;
-	if (OfferButtons.Num() != Offers.Num() || OfferTexts.Num() != Offers.Num())
+	if (OfferButtons.Num() != VisibleRunItemOffers.Num() || OfferTexts.Num() != VisibleRunItemOffers.Num())
 	{
 		return;
 	}
-	for (int32 OfferIndex = 0; OfferIndex < Offers.Num(); ++OfferIndex)
+	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
 		if (!OfferButtons[OfferIndex] || !OfferTexts[OfferIndex])
 		{
@@ -519,6 +589,14 @@ void UReEchoInventoryShopWidget::Refresh()
 	BackgroundImage->SetBrushFromTexture(bShowingShop ? ShopBackgroundTexture : InventoryBackgroundTexture, true);
 	InventoryPanel->SetVisibility(bShowingShop ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	ShopPanel->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (RunItemOfferPanel)
+	{
+		RunItemOfferPanel->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (ShopControlPanel)
+	{
+		ShopControlPanel->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
 
 	FString InventoryDescription;
 	for (const FReEchoShopOffer& Offer : GetReEchoShopCatalog())
@@ -537,18 +615,13 @@ void UReEchoInventoryShopWidget::Refresh()
 
 	CurrencyText->SetText(
 	    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
-	for (int32 OfferIndex = 0; OfferIndex < Offers.Num(); ++OfferIndex)
+	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
-		const int32 CatalogIndex = (OfferIndex + CurrentShopRefreshSequence) % Offers.Num();
-		const FReEchoShopOffer& Offer = Offers[CatalogIndex];
+		const int32 CatalogIndex =
+		    (OfferIndex + CurrentShopRefreshSequence) % VisibleRunItemOffers.Num();
+		const FReEchoShopOffer& Offer = VisibleRunItemOffers[CatalogIndex];
 		const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
-		const bool bOwned = Offer.Type == EReEchoShopOfferType::WeaponPart
-		                        ? CurrentPartShopView.OwnedParts.ContainsByPredicate(
-		                              [&](const FReEchoShopOffer& Owned)
-		                              {
-			                              return Owned.ContentId == Offer.ContentId;
-		                              })
-		                        : CurrentOwnedItems.Contains(Offer.ItemId);
+		const bool bOwned = CurrentOwnedItems.Contains(Offer.ItemId);
 		const bool bAffordable = CurrentTimeShards >= EffectivePrice;
 		OfferButtons[OfferIndex]->SetIsEnabled(!bOwned && bAffordable);
 		OfferTexts[OfferIndex]->SetText(FText::Format(
@@ -558,7 +631,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		    bOwned ? NSLOCTEXT("ReEcho", "ShopOwned", "已拥有")
 		           : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(EffectivePrice))));
 	}
-	if (ShopRefreshButton && ShopRefreshText && ShopRuleText)
+	if (ShopRefreshButton && ShopRefreshText)
 	{
 		const bool bCanUseFreeRefresh = bCurrentShopRefreshAllowed && CurrentFreeShopRefreshes > 0;
 		ShopRefreshButton->SetIsEnabled(bCanUseFreeRefresh);
@@ -566,17 +639,22 @@ void UReEchoInventoryShopWidget::Refresh()
 		                             ? NSLOCTEXT("ReEcho", "ShopRefreshDisabled", "刷新已被永久代价禁用")
 		                             : FText::Format(NSLOCTEXT("ReEcho", "ShopFreeRefresh", "免费刷新（剩余 {0}）"),
 		                                             FText::AsNumber(CurrentFreeShopRefreshes)));
+	}
+	if (ShopRuleText)
+	{
 		ShopRuleText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCardGroupRule", "商店折扣 {0}%　额外卡牌组：{1}"),
 		                                    FText::AsNumber(FMath::RoundToInt(CurrentShopDiscount * 100.0f)),
 		                                    bCurrentExtraCardPurchaseAllowed
 		                                        ? NSLOCTEXT("ReEcho", "ShopCardGroupAllowed", "可购买")
 		                                        : NSLOCTEXT("ReEcho", "ShopCardGroupDisabled", "已被永久代价禁用")));
 	}
-	if (LoadoutPanel && LoadoutText && SaveLoadoutButton)
+	if (WeaponLoadoutPanel && WeaponLoadoutText && SaveLoadoutButton)
 	{
-		LoadoutPanel->SetVisibility(bShowingShop && !CurrentPartShopView.WeaponId.IsNone()
-		                                ? ESlateVisibility::Visible
-		                                : ESlateVisibility::Collapsed);
+		const bool bShowWeaponBlocks = bShowingShop && !CurrentPartShopView.WeaponId.IsNone();
+		WeaponLoadoutPanel->SetVisibility(bShowWeaponBlocks ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		WeaponPartOfferPanel->SetVisibility(bShowWeaponBlocks && !VisibleWeaponPartOffers.IsEmpty()
+		                                        ? ESlateVisibility::Visible
+		                                        : ESlateVisibility::Collapsed);
 		FString LoadoutDescription =
 		    FString::Printf(TEXT("装配室 · %s\n"), *CurrentPartShopView.WeaponDisplayName.ToString());
 		for (const FReEchoWeaponSlotShopView& SlotView : CurrentPartShopView.Slots)
@@ -601,31 +679,40 @@ void UReEchoInventoryShopWidget::Refresh()
 			                                      SlotView.Capacity,
 			                                      Names.IsEmpty() ? TEXT("未装备") : *FString::Join(Names, TEXT("、")));
 		}
-		LoadoutDescription += TEXT("\n点击已拥有配件可加入或移出草稿：");
-		LoadoutText->SetText(FText::FromString(LoadoutDescription));
-		for (int32 Index = 0; Index < CurrentPartShopView.OwnedParts.Num(); ++Index)
+		LoadoutDescription += TEXT("\n在“武器配件”区购买配件；点击已拥有配件可调整槽位草稿。");
+		WeaponLoadoutText->SetText(FText::FromString(LoadoutDescription));
+		for (int32 Index = 0; Index < VisibleWeaponPartOffers.Num(); ++Index)
 		{
-			const FReEchoShopOffer& Owned = CurrentPartShopView.OwnedParts[Index];
-			const bool bDrafted = DraftPartIds.Contains(Owned.ContentId);
-			OwnedPartButtons[Index]->SetBackgroundColor(bDrafted ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f)
-			                                                     : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
-			OwnedPartTexts[Index]->SetText(FText::Format(
-			    NSLOCTEXT("ReEcho", "OwnedWeaponPartFormat", "{0} · {1}{2}"),
-			    Owned.DisplayName,
-			    FText::FromName(Owned.SlotTypeId),
-			    bDrafted ? NSLOCTEXT("ReEcho", "WeaponPartDrafted", "（草稿已装备）") : FText::GetEmpty()));
+			const FReEchoShopOffer& PartOffer = VisibleWeaponPartOffers[Index];
+			const bool bOwned = CurrentPartShopView.OwnedParts.ContainsByPredicate(
+			    [&](const FReEchoShopOffer& Owned)
+			    {
+				    return Owned.ContentId == PartOffer.ContentId;
+			    });
+			const bool bDrafted = DraftPartIds.Contains(PartOffer.ContentId);
+			const int32 EffectivePrice = GetEffectiveShopPrice(PartOffer.Price, CurrentShopDiscount);
+			WeaponPartOfferButtons[Index]->SetIsEnabled(bOwned || CurrentTimeShards >= EffectivePrice);
+			WeaponPartOfferButtons[Index]->SetBackgroundColor(
+			    bDrafted ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f) : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
+			WeaponPartOfferTexts[Index]->SetText(FText::Format(
+			    NSLOCTEXT("ReEcho", "WeaponPartOfferFormat", "{0} · {1}{2}"),
+			    PartOffer.DisplayName,
+			    FText::FromName(PartOffer.SlotTypeId),
+			    bDrafted
+			        ? NSLOCTEXT("ReEcho", "WeaponPartDrafted", "（草稿已装备）")
+			        : bOwned ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已拥有，点击装配）")
+			                 : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
+			                                 FText::AsNumber(EffectivePrice))));
 		}
 	}
 }
 
 void UReEchoInventoryShopWidget::RequestPurchase(const int32 OfferIndex)
 {
-	const TArray<FReEchoShopOffer>& Offers =
-	    CurrentPartShopView.Offers.IsEmpty() ? GetReEchoShopCatalog() : CurrentPartShopView.Offers;
-	if (Offers.IsValidIndex(OfferIndex))
+	if (VisibleRunItemOffers.IsValidIndex(OfferIndex))
 	{
-		const int32 CatalogIndex = (OfferIndex + CurrentShopRefreshSequence) % Offers.Num();
-		OnPurchaseRequested.Broadcast(Offers[CatalogIndex].ItemId);
+		const int32 CatalogIndex = (OfferIndex + CurrentShopRefreshSequence) % VisibleRunItemOffers.Num();
+		OnPurchaseRequested.Broadcast(VisibleRunItemOffers[CatalogIndex].ItemId);
 	}
 }
 
@@ -694,8 +781,23 @@ void UReEchoInventoryShopWidget::ToggleDraftPart(const int32 OwnedPartIndex)
 	Refresh();
 }
 
-void UReEchoInventoryShopWidget::HandleOwnedPartClicked(const int32 OwnedPartIndex)
+void UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked(const int32 PartOfferIndex)
 {
+	if (!VisibleWeaponPartOffers.IsValidIndex(PartOfferIndex))
+	{
+		return;
+	}
+	const FReEchoShopOffer& PartOffer = VisibleWeaponPartOffers[PartOfferIndex];
+	const int32 OwnedPartIndex = CurrentPartShopView.OwnedParts.IndexOfByPredicate(
+	    [&](const FReEchoShopOffer& Owned)
+	    {
+		    return Owned.ContentId == PartOffer.ContentId;
+	    });
+	if (OwnedPartIndex == INDEX_NONE)
+	{
+		OnPurchaseRequested.Broadcast(PartOffer.ItemId);
+		return;
+	}
 	ToggleDraftPart(OwnedPartIndex);
 }
 
