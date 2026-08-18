@@ -21,6 +21,7 @@
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoSwordArcActor.h"
 #include "Kismet/GameplayStatics.h"
+#include "Player/ReEchoPlayerPawn.h"
 #include "Weapons/ReEchoWeaponGeometry.h"
 
 namespace ReEchoWeaponVisual
@@ -261,7 +262,7 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 			Event.AttackStepId = LastCommittedAttackStepId;
 			Event.StepIndex = LastCommittedAttackStepIndex;
 			Event.Origin = WeaponOwner->GetActorLocation();
-			Event.Direction = WeaponOwner->GetActorForwardVector();
+			Event.Direction = ResolveOwnerAimDirection();
 			Events->PublishAttackCommitted(Event);
 		}
 	}
@@ -327,7 +328,7 @@ bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant, con
 	if (Commit.MovementCm > 0.0f)
 	{
 		AActor* WeaponOwner = GetOwner();
-		FVector Direction = WeaponOwner ? WeaponOwner->GetActorForwardVector().GetSafeNormal2D() : FVector::ZeroVector;
+		const FVector Direction = ResolveOwnerAimDirection();
 		if (WeaponOwner)
 		{
 			WeaponOwner->SetActorLocation(WeaponOwner->GetActorLocation() +
@@ -389,6 +390,25 @@ bool AReEchoWeaponActor::IsInvulnerableWindowActive() const
 	return WeaponLogic.GetSnapshot().bInvulnerable;
 }
 
+FVector AReEchoWeaponActor::ResolveOwnerAimDirection() const
+{
+	const AActor* WeaponOwner = GetOwner();
+	if (!WeaponOwner)
+	{
+		return FVector::ForwardVector;
+	}
+	if (const AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(WeaponOwner))
+	{
+		const FVector PlayerAim = Player->GetAttackAimDirection().GetSafeNormal2D();
+		if (!PlayerAim.IsNearlyZero())
+		{
+			return PlayerAim;
+		}
+	}
+	const FVector OwnerForward = WeaponOwner->GetActorForwardVector().GetSafeNormal2D();
+	return OwnerForward.IsNearlyZero() ? FVector::ForwardVector : OwnerForward;
+}
+
 bool AReEchoWeaponActor::RebuildEffectiveDefinition()
 {
 	if (!DataSnapshot.IsValid())
@@ -444,11 +464,7 @@ bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponAttackCommit& Com
 		return false;
 	}
 	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
-	FVector AimDirection = WeaponOwner->GetActorForwardVector().GetSafeNormal2D();
-	if (AimDirection.IsNearlyZero())
-	{
-		AimDirection = FVector::ForwardVector;
-	}
+	const FVector AimDirection = ResolveOwnerAimDirection();
 	// 固定相机的屏幕上方向；从法杖 Billboard 中心偏移到月牙水晶杖头。
 	const FVector CameraUp(0.8192f, 0.0f, 0.5736f);
 	const FVector StaffHeadLocation = StaffSprite->GetComponentLocation() + CameraUp * 45.0f;
@@ -472,11 +488,7 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		return false;
 	}
 	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
-	FVector AimDirection = WeaponOwner->GetActorForwardVector().GetSafeNormal();
-	if (AimDirection.IsNearlyZero())
-	{
-		AimDirection = FVector::ForwardVector;
-	}
+	const FVector AimDirection = ResolveOwnerAimDirection();
 	const TArray<FVector> Directions =
 	    ReEchoWeaponRuntime::BuildProjectileDirections(AimDirection, Commit.ProjectileCount, Commit.SpreadDegrees);
 	bool bSpawnedAny = false;
@@ -545,11 +557,7 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, URe
 		return false;
 	}
 	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
-	FVector AimDirection = WeaponOwner->GetActorForwardVector().GetSafeNormal2D();
-	if (AimDirection.IsNearlyZero())
-	{
-		AimDirection = FVector::ForwardVector;
-	}
+	const FVector AimDirection = ResolveOwnerAimDirection();
 	// 旋转攻击以角色为圆心覆盖完整一周；敌人受伤逻辑会从圆心向外施加击退。
 	for (AActor* Target : ReEchoWeaponGeometry::FindMeleeTargets(
 	         *GetWorld(), WeaponOwner, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
@@ -576,7 +584,7 @@ void AReEchoWeaponActor::SpawnSwordArc()
 	}
 	const FVector ArcLocation = WeaponOwner->GetActorLocation() + FVector(-12.0f, 0.0f, 42.0f);
 	if (AReEchoSwordArcActor* SwordArc =
-	        GetWorld()->SpawnActor<AReEchoSwordArcActor>(ArcLocation, WeaponOwner->GetActorRotation()))
+	        GetWorld()->SpawnActor<AReEchoSwordArcActor>(ArcLocation, ResolveOwnerAimDirection().Rotation()))
 	{
 		SwordArc->SetOwner(WeaponOwner);
 		SwordArc->InitializeArc(SwordSwingDirection);

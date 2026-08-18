@@ -27,6 +27,8 @@
 #include "Camera/CameraActor.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Scene/ReEchoArenaCameraActor.h"
+#include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
@@ -47,7 +49,21 @@
 
 AReEchoGameMode::AReEchoGameMode()
 {
-	DefaultPawnClass = AReEchoPlayerPawn::StaticClass();
+	static ConstructorHelpers::FClassFinder<AReEchoPlayerPawn> PlayerPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay"));
+	DefaultPawnClass = PlayerPrefab.Succeeded() ? PlayerPrefab.Class.Get() : AReEchoPlayerPawn::StaticClass();
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> GruntPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Grunt"));
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> RabbitPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Rabbit"));
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> GoatPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Goat"));
+	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> FoxPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Fox"));
+	GruntEnemyClass = GruntPrefab.Succeeded() ? GruntPrefab.Class.Get() : AReEchoEnemyActor::StaticClass();
+	RabbitEnemyClass = RabbitPrefab.Succeeded() ? RabbitPrefab.Class.Get() : GruntEnemyClass.Get();
+	GoatEnemyClass = GoatPrefab.Succeeded() ? GoatPrefab.Class.Get() : GruntEnemyClass.Get();
+	FoxEnemyClass = FoxPrefab.Succeeded() ? FoxPrefab.Class.Get() : GruntEnemyClass.Get();
 	PrimaryActorTick.bCanEverTick = true;
 	EnemyRoster = CreateDefaultSubobject<UReEchoEnemyRosterComponent>(TEXT("EnemyRoster"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ArenaBackgroundFinder(
@@ -56,6 +72,38 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ArenaMaterialFinder(
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
+}
+
+TSubclassOf<AReEchoEnemyActor> AReEchoGameMode::ResolveEnemyClass(const EReEchoEnemyArchetype Archetype,
+                                                                  const int32 VisualVariantIndex) const
+{
+	if (Archetype == EReEchoEnemyArchetype::Boss)
+	{
+		return GoatEnemyClass;
+	}
+	if (Archetype == EReEchoEnemyArchetype::Ranged)
+	{
+		return RabbitEnemyClass;
+	}
+	if (Archetype == EReEchoEnemyArchetype::Elite)
+	{
+		return FoxEnemyClass;
+	}
+	if (Archetype == EReEchoEnemyArchetype::Slime)
+	{
+		return GruntEnemyClass;
+	}
+	switch (FMath::Abs(VisualVariantIndex) % 4)
+	{
+		case 1:
+			return RabbitEnemyClass;
+		case 2:
+			return GoatEnemyClass;
+		case 3:
+			return FoxEnemyClass;
+		default:
+			return GruntEnemyClass;
+	}
 }
 
 UReEchoAudioService* AReEchoGameMode::GetAudioService() const
@@ -312,37 +360,47 @@ void AReEchoGameMode::StartPlay()
 {
 	Super::StartPlay();
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
-	const UReEchoBalanceSettings* BalanceSettings = GetDefault<UReEchoBalanceSettings>();
-	const float SceneWorldHeight = FMath::Max(100.0f, BalanceSettings->ArenaSceneWorldHeight);
-	const float SceneAspectRatio = ArenaBackgroundTexture ? static_cast<float>(ArenaBackgroundTexture->GetSizeX()) /
-	                                                            FMath::Max(1, ArenaBackgroundTexture->GetSizeY())
-	                                                      : 16.0f / 9.0f;
-	const float CameraOrthoWidth = SceneWorldHeight * SceneAspectRatio * 2.0f;
-	ArenaSceneWorldHeight = SceneWorldHeight;
-	ArenaSceneWorldWidth = CameraOrthoWidth;
+	int32 ArenaSceneCount = 0;
+	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
+	{
+		ArenaScene = *It;
+		++ArenaSceneCount;
+	}
+	FString ArenaFailure;
+	if (ArenaSceneCount != 1 || !ArenaScene || !ArenaScene->HasValidConfiguration(&ArenaFailure))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[ArenaScene] Expected one valid ArenaScene; found %d. %s"),
+		       ArenaSceneCount,
+		       *ArenaFailure);
+		return;
+	}
+	const FVector2D PlayerHalfExtents = ArenaScene->GetPlayerHalfExtents();
+	const FVector2D EnemySpawnHalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
+	ArenaSceneWorldHeight = EnemySpawnHalfExtents.X * 2.0f;
+	ArenaSceneWorldWidth = EnemySpawnHalfExtents.Y * 2.0f;
 	if (Player)
 	{
-		Player->ConfigureArenaBounds(ArenaSceneWorldHeight * 0.5f, ArenaSceneWorldWidth * 0.5f);
+		Player->ConfigureArenaBounds(ArenaScene->GetArenaCenter(), PlayerHalfExtents);
 	}
-	FixedCamera = GetWorld()->SpawnActor<ACameraActor>(FVector(-700.0f, 0.0f, 900.0f), FRotator(-55.0f, 0.0f, 0.0f));
-	if (FixedCamera)
+	int32 ArenaCameraCount = 0;
+	for (TActorIterator<AReEchoArenaCameraActor> It(GetWorld()); It; ++It)
 	{
-		UCameraComponent* FixedCameraComponent = FixedCamera->GetCameraComponent();
-		FixedCameraComponent->SetProjectionMode(ECameraProjectionMode::Orthographic);
-		FixedCameraComponent->SetOrthoWidth(CameraOrthoWidth);
-		FixedCameraComponent->SetAspectRatio(SceneAspectRatio);
-		FixedCameraComponent->SetConstraintAspectRatio(true);
-		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
-		{
-			PlayerController->SetViewTarget(FixedCamera);
-			PostAudioEvent(FReEchoAudioEvents::CameraMove, FixedCamera->GetActorLocation());
-		}
-		if (Player && Player->Camera)
-		{
-			Player->Camera->Deactivate();
-		}
+		ArenaCameraActor = *It;
+		++ArenaCameraCount;
 	}
-	CreateArena();
+	if (ArenaCameraCount != 1 || !ArenaCameraActor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ArenaCamera] Expected one ArenaCameraActor; found %d."), ArenaCameraCount);
+		return;
+	}
+	ArenaCameraActor->Configure(Player, ArenaScene);
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PlayerController->SetViewTarget(ArenaCameraActor);
+		PostAudioEvent(FReEchoAudioEvents::CameraMove, ArenaCameraActor->GetActorLocation());
+	}
 	Director = GetWorld()->SpawnActor<AReEchoEncounterDirector>();
 	Director->OnFixedStep.AddDynamic(this, &AReEchoGameMode::HandleFixedStep);
 	Director->OnEncounterEnded.AddDynamic(this, &AReEchoGameMode::HandleEncounterEnded);
@@ -382,7 +440,7 @@ void AReEchoGameMode::StartPlay()
 			                         : nullptr;
 			if (PlayerHudWidget)
 			{
-				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
@@ -833,7 +891,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
 		if (PlayerHudWidget)
 		{
-			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 		}
 		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
 		                                 TEXT("GrayboxArena"),
@@ -968,7 +1026,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Player->Recorder->ResumeRecording(SavedState.ActiveRecording);
 	if (PlayerHudWidget)
 	{
-		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CharacterSprite->Sprite);
+		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
 	}
 
 	// Plan31: resume the same selected set as a fresh encounter, one independent Echo per
@@ -1001,37 +1059,47 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	for (const FReEchoEnemyRuntimeState& EnemyState : SavedState.Enemies)
 	{
 		EnemySpawnIndex = FMath::Max(EnemySpawnIndex, EnemyState.SpawnIndex);
-		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>();
-		if (Enemy)
+		const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Elite)
+		                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
+		                                       : EReEchoEnemyKind::Grunt;
+		const FName EnemyId = !EnemyState.EnemyId.IsNone()            ? EnemyState.EnemyId
+		                      : SavedKind == EReEchoEnemyKind::Boss   ? FName(TEXT("M_TimeGuard"))
+		                      : SavedKind == EReEchoEnemyKind::Slime  ? FName(TEXT("M_SLIME"))
+		                      : SavedKind == EReEchoEnemyKind::Ranged ? FName(TEXT("M_RABBIT"))
+		                      : SavedKind == EReEchoEnemyKind::Elite  ? FName(TEXT("M_FOX"))
+		                      : SavedKind == EReEchoEnemyKind::Bomber ? FName(TEXT("M_Bomber"))
+		                      : SavedKind == EReEchoEnemyKind::Shield ? FName(TEXT("M_Shield"))
+		                                                              : FName(TEXT("M_Grunt"));
+		FReEchoEnemyDefinition Definition;
+		FString CompileError;
+		if (!DataSnapshot || !ReEchoEnemyDefinitionCompiler::Compile(*DataSnapshot, EnemyId, Definition, CompileError))
 		{
-			const EReEchoEnemyKind SavedKind = EnemyState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Elite)
-			                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
-			                                       : EReEchoEnemyKind::Grunt;
-			const FName EnemyId = !EnemyState.EnemyId.IsNone()            ? EnemyState.EnemyId
-			                      : SavedKind == EReEchoEnemyKind::Boss   ? FName(TEXT("M_TimeGuard"))
-			                      : SavedKind == EReEchoEnemyKind::Slime  ? FName(TEXT("M_SLIME"))
-			                      : SavedKind == EReEchoEnemyKind::Ranged ? FName(TEXT("M_RABBIT"))
-			                      : SavedKind == EReEchoEnemyKind::Elite  ? FName(TEXT("M_FOX"))
-			                      : SavedKind == EReEchoEnemyKind::Bomber ? FName(TEXT("M_Bomber"))
-			                      : SavedKind == EReEchoEnemyKind::Shield ? FName(TEXT("M_Shield"))
-			                                                              : FName(TEXT("M_Grunt"));
-			FReEchoEnemyDefinition Definition;
-			FString CompileError;
-			if (!DataSnapshot ||
-			    !ReEchoEnemyDefinitionCompiler::Compile(*DataSnapshot, EnemyId, Definition, CompileError) ||
-			    !Enemy->ConfigureFromDefinition(Definition, EnemyState.SpawnIndex))
-			{
-				UE_LOG(LogTemp, Error, TEXT("Plan44 enemy restore failed: %s"), *CompileError);
-				Enemy->Destroy();
-				continue;
-			}
-			Enemy->RestoreRuntimeState(EnemyState);
-			Enemy->SetEnemyId(EnemyId);
-			Enemy->SetEnemyRoster(EnemyRoster);
-			if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
-			{
-				Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
-			}
+			UE_LOG(LogTemp, Error, TEXT("Plan48 enemy restore failed: %s"), *CompileError);
+			continue;
+		}
+		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
+		    ResolveEnemyClass(Definition.Archetype, EnemyState.SpawnIndex),
+		    EnemyState.Transform.GetLocation(),
+		    EnemyState.Transform.Rotator());
+		if (!Enemy)
+		{
+			continue;
+		}
+		if (ArenaScene)
+		{
+			Enemy->ConfigureGameplayPlane(ArenaScene->GetGameplayPlaneWorldZ());
+		}
+		if (!Enemy->ConfigureFromDefinition(Definition, EnemyState.SpawnIndex))
+		{
+			Enemy->Destroy();
+			continue;
+		}
+		Enemy->RestoreRuntimeState(EnemyState);
+		Enemy->SetEnemyId(EnemyId);
+		Enemy->SetEnemyRoster(EnemyRoster);
+		if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
+		{
+			Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
 		}
 	}
 	Director->ResumeEncounter(SavedState.EncounterTime);
@@ -1300,8 +1368,18 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
 		return false;
 	}
-	AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(SpawnLocation, FRotator::ZeroRotator);
-	if (!Enemy || !Enemy->ConfigureFromDefinition(Definition, ++EnemySpawnIndex))
+	const int32 NextSpawnIndex = EnemySpawnIndex + 1;
+	AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
+	    ResolveEnemyClass(Definition.Archetype, NextSpawnIndex), SpawnLocation, FRotator::ZeroRotator);
+	if (Enemy)
+	{
+		EnemySpawnIndex = NextSpawnIndex;
+		if (ArenaScene)
+		{
+			Enemy->ConfigureGameplayPlane(ArenaScene->GetGameplayPlaneWorldZ());
+		}
+	}
+	if (!Enemy || !Enemy->ConfigureFromDefinition(Definition, NextSpawnIndex))
 	{
 		if (Enemy)
 		{
@@ -2138,9 +2216,10 @@ void AReEchoGameMode::RestoreGameInput()
 	SetPlayerMenuAbilityBlocked(false);
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		if (FixedCamera)
+		if (ArenaCameraActor)
 		{
-			PlayerController->SetViewTarget(FixedCamera);
+			ArenaCameraActor->Configure(Player, ArenaScene);
+			PlayerController->SetViewTarget(ArenaCameraActor);
 		}
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())

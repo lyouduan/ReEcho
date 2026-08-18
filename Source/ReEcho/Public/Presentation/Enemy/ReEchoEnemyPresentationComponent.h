@@ -8,7 +8,7 @@
 
 class AReEchoHealthBarActor;
 class UBillboardComponent;
-class UCapsuleComponent;
+class UBoxComponent;
 class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DCharacterPresentationProfile;
@@ -80,7 +80,10 @@ class REECHO_API UReEchoEnemyPresentationComponent : public UActorComponent
 public:
 	UReEchoEnemyPresentationComponent();
 
-	void ConfigureComponents(USceneComponent* InVisualEffectRoot,
+	void ConfigureComponents(USceneComponent* InPresentationRoot,
+	                         USceneComponent* InVisualEffectRoot,
+	                         USceneComponent* InFlipbookRoot,
+	                         USceneComponent* InEffectsRoot,
 	                         UBillboardComponent* InCharacterSprite,
 	                         UReEcho2DAnimationComponent* InSequenceAnimation,
 	                         UReEcho2DPresentationController* InPresentationController,
@@ -89,7 +92,7 @@ public:
 	                         UTextRenderComponent* InElementAuraRing,
 	                         UTextRenderComponent* InElementAttachmentLabel,
 	                         UPointLightComponent* InElementAuraLight,
-	                         UCapsuleComponent* InCollision);
+	                         UBoxComponent* InCollision);
 	void BindEventSources(AActor* InHost,
 	                      UReEchoCombatantComponent* InCombatant,
 	                      UReEchoEnemyEventsComponent* InEnemyEvents,
@@ -121,9 +124,11 @@ private:
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
 
 	void ApplyVisual(EReEchoEnemyArchetype Archetype, int32 AppearanceId);
+	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
 	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile(EReEchoEnemyArchetype Archetype,
 	                                                                       int32 AppearanceId) const;
 	void ResetTransientRoot();
+	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateElementAttachmentFacing();
 	void UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
@@ -138,7 +143,13 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
 	UPROPERTY()
+	TObjectPtr<USceneComponent> PresentationRoot;
+	UPROPERTY()
 	TObjectPtr<USceneComponent> VisualEffectRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> FlipbookRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> EffectsRoot;
 	UPROPERTY()
 	TObjectPtr<UBillboardComponent> CharacterSprite;
 	UPROPERTY()
@@ -156,7 +167,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY()
-	TObjectPtr<UCapsuleComponent> Collision;
+	TObjectPtr<UBoxComponent> Collision;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> BossTexture;
 	UPROPERTY()
@@ -172,6 +183,10 @@ private:
 
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
+	FVector BaseFlipbookLocation = FVector::ZeroVector;
+	FVector BaseFlipbookScale = FVector::OneVector;
+	FVector BaseEffectsLocation = FVector::ZeroVector;
+	FVector BaseEffectsScale = FVector::OneVector;
 	FVector ShakeDirection = FVector::ZeroVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;

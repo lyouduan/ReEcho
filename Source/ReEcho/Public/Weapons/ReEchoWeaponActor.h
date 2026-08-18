@@ -92,6 +92,8 @@ private:
 	bool FireStaffLightWave(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant);
 	bool FireProjectile(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant);
 	bool SwingMelee(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant);
+	/** Resolve the owner's gameplay aim without requiring the owner root actor to rotate for presentation. */
+	FVector ResolveOwnerAimDirection() const;
 	const FReEchoCsvWeaponRow* FindEquippedDefinition() const;
 	void UpdateElementIndicator();
 	void RefreshVisualState();

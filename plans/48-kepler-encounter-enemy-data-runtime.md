@@ -8,10 +8,10 @@
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`，由用户在 PIE 中验收八场推进、三波刷新、跨战斗留存、刷怪落点、普通怪行为和 Boss 衔接。
-- 本地规划 / 实现基线：`origin/main@86bf9a482a284d362f9e94bdcd5ba449bc44d795`。
+- 本地规划 / 实现基线：初始为 `origin/main@86bf9a482a284d362f9e94bdcd5ba449bc44d795`；当前组合基线为 `origin/main@39136cdb30a607e4beca949cdc6ac8f5bb91001a`。
 - 本地实现方式：一任务一 worktree；Plan 发布后创建 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan48`，本地分支 `plan/48-kepler-encounter-enemy-data-runtime`，不在主工作区实现。
 - 依赖 / 阻塞：依赖已关闭的 Plan25、29-31、41、43、44 所建立的 XLSX→CSV、Echo、Combat、Enemies、Boss 与保存契约。Plan47 已发布且正在重构 Cards，并声明可能修改 `ReEchoData.xlsx`、数据生成器、Data/Run/Encounter/Enemies 适配、存档和模块文档；本 Plan 允许本地并行，但最终集成必须以届时 `origin/main` 为基线组合适配，不得整块覆盖 Plan47 的 Schema、存档或模块契约。Plan42 的正式 Editor 场景资产不作为本 Plan 前置条件。
-- Writes：本 Plan；新增 `Design/Data/ReEchoEncounterData.xlsx`、使用说明与策划验收清单；维护 `Design/Data/ReEchoEnemyData.xlsx`、对应使用说明与验收清单；新增/生成 `Content/Data/stages.csv`、`encounters.csv`、`encounter_waves.csv`、`spawn_profiles.csv`、`spawn_policy.csv`，以及成组维护的 `enemies.csv`、`enemy_abilities.csv`、`csv_schema.csv`、`reecho_data_manifest.csv`、`Content/Data/README.md`；`scripts/data/sync_xlsx_to_csv.py` 与聚焦 Python 测试；`Source/ReEcho/{Public,Private}/Data/**`、`Encounter/**`、`Run/**`、`Recording/**`、`Graybox/ReEchoEnemyActor.*`、`ReEchoGameMode.*` 与对应测试；`Source/ReEchoEnemies/**` 与对应测试；必要的 `Config/DefaultGame.ini`、`ReEcho.uproject` / Build.cs 依赖；`shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md,modules/MOD-ReEcho.md,modules/MOD-ReEchoEnemies.md}`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
+- Writes：本 Plan；新增 `Design/Data/ReEchoEncounterData.xlsx`、使用说明与策划验收清单；维护 `Design/Data/ReEchoEnemyData.xlsx`、对应使用说明与验收清单；新增/生成 `Content/Data/stages.csv`、`encounters.csv`、`encounter_waves.csv`、`spawn_profiles.csv`、`spawn_policy.csv`，以及成组维护的 `enemies.csv`、`enemy_abilities.csv`、`csv_schema.csv`、`reecho_data_manifest.csv`、`Content/Data/README.md`；`scripts/data/sync_xlsx_to_csv.py` 与聚焦 Python 测试；`Source/ReEcho/{Public,Private}/Data/**`、`Encounter/**`、`Run/**`、`Recording/**`、`Graybox/ReEchoEnemyActor.*`、`ReEchoGameMode.*`、远端场景适配导致的 `Player/ReEchoPlayerPawn.*`、`Weapons/ReEchoWeaponActor.*` 与对应测试；`Source/ReEchoEnemies/**` 与对应测试；必要的 `Config/DefaultGame.ini`、`ReEcho.uproject` / Build.cs 依赖；`shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md,modules/MOD-ReEcho.md,modules/MOD-ReEchoEnemies.md,modules/MOD-ReEchoWeapons.md}`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
 - Stable Reads：外部策划源 `C:\Users\gavynqiu\Documents\miniGame\【开普勒】回响配置表.xlsx`（确认时 SHA-256 `A2499C983574B1CFCC8A4EF4223E6F166E791A0662D08C99E516CF7F941C7B80`）；外部说明书 `C:\Users\gavynqiu\Documents\miniGame\时间回响_Demo关卡与怪物设计说明书_v1.0(1) (1).docx`（确认时 SHA-256 `4C47014779D8E11FE32DF7939F30152CD5E109F38DDD2E7F78BD62BE630C4769`）；`MOD-ReEchoCombat` 的命中/伤害公共契约；`MOD-ReEchoWeapons`；`MOD-ReEchoAudio`；Plan47 的 Cards 公共结果；Plan42 的场景提案与当前 Level00 空间边界。
 - 影响模式：`SharedContract`（CSV Schema/manifest、Data Registry、Encounter/Run/Save、Enemy Definition 与公共快照）；`Exclusive`（新增权威 `ReEchoEncounterData.xlsx`、维护后的 `ReEchoEnemyData.xlsx`、同批生成 CSV、最终预构建包）。这是远端集成影响说明，不是跨机器写锁。
 - 兼容承诺 / 下游操作：XLSX 是唯一策划可编辑真源，CSV 是确定生成并供运行时打包的真源；不在 C++、JSON、Config 或 Widget 复制已经迁移的关卡/刷怪数值。保留现有稳定 Boss ID `M_TimeGuard` 和旧敌人 ID 以支持旧保存恢复；策划源 `M_SHEEP` 作为来源映射/显示语义，不直接让旧存档失去定义。现有 v8/v9 保存按显式迁移处理，不能把原六场已完成存档静默解释成未完成八场新 Run。若 Plan47 先提升 SaveVersion，以其远端版本为基线追加迁移，不覆盖卡牌域修订。
@@ -74,7 +74,7 @@
 - [x] 旧六场保存得到显式兼容结果：已完成旧Run仍为完成；未完成旧Run迁移或拒绝的策略有测试和清晰诊断；不得静默改写为另一条八场历史。若Plan47已升级SaveVersion，迁移链保持连续。
 - [x] 现有武器、Combat、Recording、Echo选择、商店、Cards和音频语义无回归；Plan47集成后重新验证共享Data/Run/Save/Enemies接缝。
 - [x] 使用说明明确告诉策划编辑哪个工作簿/Sheet、哪些列可编辑、单位/枚举/ID规则、同步命令和常见错误；策划无需手改CSV。
-- [x] Python数据测试、项目校验、聚焦Unreal自动化、完整Editor Development构建和最终 `-FullRebuild` 通过；最终候选只包含 `GIT_RULES.md` 允许的预构建产物。
+- [ ] Python数据测试、项目校验、聚焦Unreal自动化和 Editor Development 增量构建已通过；最终发布前仍须在最终 main 候选执行 `-FullRebuild` 并确认只包含 `GIT_RULES.md` 允许的预构建产物。
 - [ ] 用户在PIE确认八场推进、三波节奏、刷怪方向/距离、跨战斗残留、三类普通怪手感及Boss衔接后，人工验收才能设为`Passed`。
 
 ## Step 0 门禁
@@ -114,6 +114,21 @@
 
 ## 执行记录
 
+### 远端 Plan42 组合适配（2026-08-18）
+
+- 已按用户决定获取并采用 `origin/main@39136cdb30a607e4beca949cdc6ac8f5bb91001a` 作为新的表现与场景基线；主工作树已 fast-forward，同步前本地 `main` 工作区干净。
+- 物理冲突集中在 `ReEchoEnemyActor`、`ReEchoEnemyPresentationComponent`、`ReEchoGameMode`、`MOD-ReEcho.md` 和 Editor 预构建包。组合候选保留远端 ArenaScene/ArenaCamera、方盒碰撞、角色 Prefab、表现组件层级及场景资产，同时保留本 Plan 的八场/三波、稳定 EnemyId、三类新敌人、全局特殊技能许可与 v9 保存语义。
+- 新适配使用 `EnemyDefinition.Archetype` 为 `Slime/Ranged/Elite/Boss` 选择远端 Grunt/Rabbit/Fox/Goat Gameplay Prefab；旧 Archetype 才保留兼容外观变体路由。EnemyHost 按配表碰撞半径/半高设置远端 `UBoxComponent`，再通过 ArenaScene 的玩法平面落位。
+- 预编译包冲突未选择旧 Plan48 DLL；冲突阶段先采用远端包占位，待组合源码编译后由 `Build-Editor.cmd` 统一刷新。
+- 数据工具测试 15/15 通过，`sync_xlsx_to_csv.py --check` 通过。首次 `validate_project.py` 仅因组合源码尚未重建、prebuilt source fingerprint 过期而失败；用户关闭 UE 后已完成组合源码构建并刷新预构建包。
+
+### 玩家攻击方向组合缺陷修复（2026-08-18）
+
+- 人工 PIE 发现自动与手动攻击都固定朝屏幕上方，而 Echo 自动索敌正常。根因是 Plan42 为避免旋转玩家根碰撞，将瞄准改为只写 `AReEchoPlayerPawn::AttackAimDirection`，但 `AReEchoWeaponActor` 的世界执行仍从 `Owner->GetActorForwardVector()` 读取方向；玩家根 Actor 不再旋转后，该值始终是默认方向。Echo 会主动旋转自身 Actor，因此没有暴露同一缺陷。
+- 设计决策是保持逻辑/表现解耦，不恢复“瞄准时旋转整个玩家 Actor”。`AReEchoWeaponActor::ResolveOwnerAimDirection` 成为主模块世界适配的唯一方向入口：玩家读取显式逻辑瞄准，其他持有者回退自身前向；攻击位移、光波、投射物、近战几何、剑弧表现和 `AttackCommitted` 事件统一消费该入口。
+- 新增 `ReEcho.Weapons.PlayerLogicalAimDrivesProjectile` 接缝回归：在玩家 Actor 朝向不变时把逻辑目标放到侧方，断言生成投射物跟随 `AttackAimDirection` 而不是 Actor Forward。
+- `Build-Editor.cmd -Configuration Development` 成功；`validate_project.py`、15 项数据工具测试与 XLSX/CSV `--check` 通过；`ReEcho.Weapons` 10/10、`ReEcho.AttackMode` 7/7、`ReEcho.Encounter` 3/3、`ReEcho.Enemies` 16/16 全部成功且无失败。等待用户 PIE 复验实际自动/手动攻击方向。
+
 ### 变化
 
 - 新增 `ReEchoEncounterData.xlsx` 五张生产表及 ExportMap，并扩展 `ReEchoEnemyData.xlsx` 的史莱姆、兔子、狐狸和两项类型化能力；统一同步器事务式生成五张 Encounter CSV 与更新后的 Enemy CSV。
@@ -139,7 +154,7 @@
 
 ### 人工验收结果/请求
 
-候选已完成并自带 FullRebuild 预构建包，等待用户在 `ReEcho-plan48` PIE 验收。
+当前组合候选已通过增量 Editor 构建并自带匹配预构建包，等待用户在 `ReEcho-plan48` PIE 验收；进入 `origin/main` 前仍需在最终候选执行发布级 FullRebuild。
 
 ### 架构文档审阅结果
 

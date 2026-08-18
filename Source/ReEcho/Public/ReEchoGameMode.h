@@ -5,8 +5,11 @@
 #include "GameFramework/GameModeBase.h"
 #include "ReEchoGameMode.generated.h"
 class ACameraActor;
+class AReEchoArenaCameraActor;
+class AReEchoArenaSceneActor;
 class AReEchoEncounterDirector;
 class AReEchoEchoActor;
+class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
@@ -73,9 +76,21 @@ private:
 	UPROPERTY()
 	TObjectPtr<ACameraActor> FixedCamera;
 	UPROPERTY()
+	TObjectPtr<AReEchoArenaSceneActor> ArenaScene;
+	UPROPERTY()
+	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
+	UPROPERTY()
 	TArray<TObjectPtr<AReEchoEchoActor>> Echoes;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
+	UPROPERTY()
+	TSubclassOf<AReEchoEnemyActor> GruntEnemyClass;
+	UPROPERTY()
+	TSubclassOf<AReEchoEnemyActor> RabbitEnemyClass;
+	UPROPERTY()
+	TSubclassOf<AReEchoEnemyActor> GoatEnemyClass;
+	UPROPERTY()
+	TSubclassOf<AReEchoEnemyActor> FoxEnemyClass;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()
@@ -210,6 +225,7 @@ private:
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	void ResumeSavedEncounter();
+	TSubclassOf<AReEchoEnemyActor> ResolveEnemyClass(EReEchoEnemyArchetype Archetype, int32 VisualVariantIndex) const;
 	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;
 	bool ConfigureEncounterSpawns(int32 EncounterIndex);
 	void ProcessScheduledSpawnEvents(float EncounterSeconds);

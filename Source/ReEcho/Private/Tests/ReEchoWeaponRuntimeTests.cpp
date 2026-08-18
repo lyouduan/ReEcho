@@ -431,6 +431,61 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponPlayerAimDirectionTest,
+	                             "ReEcho.Weapons.PlayerLogicalAimDrivesProjectile",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	FReEchoWeaponWorldFixture Fixture;
+	AReEchoPlayerPawn* Player = Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector::ZeroVector, FRotator::ZeroRotator);
+	AActor* AimTarget = Fixture.World->SpawnActor<AActor>();
+	if (!TestNotNull(TEXT("Player spawns"), Player) || !TestNotNull(TEXT("Aim target spawns"), AimTarget))
+	{
+		return false;
+	}
+	USceneComponent* AimTargetRoot = NewObject<USceneComponent>(AimTarget, TEXT("AimTargetRoot"));
+	AimTarget->SetRootComponent(AimTargetRoot);
+	AimTarget->AddInstanceComponent(AimTargetRoot);
+	AimTargetRoot->RegisterComponent();
+	AimTarget->SetActorLocation(FVector(0.0f, 1000.0f, 0.0f));
+	Player->FaceAutomaticTarget(*AimTarget);
+	TestTrue(TEXT("Logical aim differs from the unchanged actor forward"),
+	         FVector::DotProduct(Player->GetAttackAimDirection(), FVector::RightVector) > 0.99f);
+
+	UReEchoCombatantComponent* Combatant = Player->GetCombatTargetCombatant();
+	if (!TestNotNull(TEXT("Player combatant exists"), Combatant))
+	{
+		return false;
+	}
+	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_03"));
+	SetBuildStats(Build, Combatant->Stats);
+	AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
+	Weapon->SetOwner(Player);
+	Weapon->InitializeWeapon(&Build, Snapshot);
+	TestTrue(TEXT("Player projectile attack executes"), Weapon->ExecuteBasicAttack(Combatant));
+
+	AReEchoProjectileActor* Projectile = nullptr;
+	for (TActorIterator<AReEchoProjectileActor> It(Fixture.World); It; ++It)
+	{
+		if (It->GetOwner() == Player)
+		{
+			Projectile = *It;
+			break;
+		}
+	}
+	if (!TestNotNull(TEXT("Player attack spawns a projectile"), Projectile))
+	{
+		return false;
+	}
+	const FVector ProjectileDirection = Projectile->GetVelocity().GetSafeNormal2D();
+	TestTrue(TEXT("Projectile consumes player logical aim instead of actor forward"),
+	         FVector::DotProduct(ProjectileDirection, Player->GetAttackAimDirection()) > 0.99f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponEquipmentCombatRuntimeTest,
                                  "ReEcho.Weapons.EquipmentChangesActualCooldownAndDamage",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
