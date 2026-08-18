@@ -61,7 +61,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 语义 | 权威资产 | 播放约定 |
 |---|---|---|
 | RabbitCharging | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Charging_01` | 世界位置；排序恒为兔子当前 Flipbook `+1`，Windup 开始，提交/结束清理 |
-| RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 三球资产本地 `+Y` 中轴严格对准锁定方向；随逻辑投射物移动，命中/越界清理 |
+| RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 三球资产所有启用发射器使用 Local Space，载体本地 `+Y` 严格对准锁定方向；System 内部粒子模块还必须服从该坐标系；载体随逻辑投射物移动，命中/越界清理 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02` | 世界位置、前景、Windup 开始 |
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 锁定方向、背景、Windup 开始 |
@@ -83,7 +83,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 1. 先为新语义确定逻辑事件、空间上下文和停止条件；事件不能携带 Niagara 对象。
 2. 把正式根资产加入 `scripts/art/import_combat_vfx.py`，生成/审阅新的递归依赖闭包。
-3. `--copy` 只复制清单文件；目标存在但哈希不同时必须停止，不能覆盖。
+3. `--copy` 只复制清单文件；目标存在但哈希不同时必须停止，不能覆盖。必须经 UE 修改的项目适配资产同时校验原包哈希与脚本中具名的项目哈希，未列入适配白名单的差异仍一律拒绝。
 4. 在 `FReEchoCombatVfxCatalog` 增加完整路径，并在组件内消费已有类型化事件。
 5. 增加资产加载和语义映射测试，构建后由用户在 PIE 验收尺寸、朝向、排序和裁剪。
 
@@ -108,5 +108,6 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 - 投射物 Niagara 绝不是位置真相；每次 Moved 都覆盖其 Transform。
 - 循环/跟随效果必须在 Death、Ended 和 EndPlay 都可清理。
 - 资产朝向修正集中在适配器，禁止为了迁就特效轴修改玩法攻击方向。
+- 旋转 Niagara Component 只能可靠影响 Local Space 发射器；有方向语义的资产必须同时校验启用发射器的 Simulation Space，并验证实际粒子位置/速度确实服从组件坐标系。组件 Transform、逻辑投射物轨迹和屏幕方向都正确时，禁止继续修改玩法方向来补偿 System 内部粒子模块。
 - 前景/背景排序必须相对宿主当前 Flipbook 动态求 `+1/-1`，不能写固定全局值；排序不得复用为碰撞层或目标选择规则。
 - 当前是主模块内领域；只有依赖和团队边界确实稳定、能避免循环时才考虑拆独立 Runtime Module。

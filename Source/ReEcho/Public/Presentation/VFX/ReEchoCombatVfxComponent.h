@@ -34,6 +34,9 @@ private:
 	int32 ResolveOwnerSortPriority(bool bForeground) const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopAllEffects();
+	void LogRabbitProjectileTrajectory(const FReEchoEnemyProjectileEvent& Event,
+	                                   const UNiagaraComponent* Effect,
+	                                   const TCHAR* Phase);
 
 	UFUNCTION()
 	void HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event);
@@ -63,6 +66,8 @@ private:
 
 	UPROPERTY(Transient)
 	TMap<int64, TObjectPtr<UNiagaraComponent>> ProjectileEffects;
+
+	TMap<int64, int32> ProjectileTrajectoryEventCounts;
 
 	mutable TSet<uint8> MissingSystemWarnings;
 };

@@ -1,6 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraEmitterHandle.h"
 #include "NiagaraSystem.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 
@@ -42,6 +44,24 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		const TCHAR* AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
 		UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, AssetPath);
 		TestNotNull(FString::Printf(TEXT("Niagara system loads: %s"), AssetPath), System);
+	}
+
+	UNiagaraSystem* RabbitProjectileSystem = LoadObject<UNiagaraSystem>(
+	    nullptr, FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::RabbitProjectile));
+	if (TestNotNull(TEXT("Rabbit projectile Niagara system loads for emitter-space validation"),
+	                RabbitProjectileSystem))
+	{
+		for (const FNiagaraEmitterHandle& EmitterHandle : RabbitProjectileSystem->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+			const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			TestTrue(FString::Printf(TEXT("Rabbit projectile emitter '%s' uses local space"),
+			                         *EmitterHandle.GetName().ToString()),
+			         EmitterData && EmitterData->bLocalSpace);
+		}
 	}
 	return true;
 }

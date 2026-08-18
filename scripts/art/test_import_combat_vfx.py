@@ -48,6 +48,35 @@ class CombatVfxImportTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "refusing to overwrite"):
                 MODULE.copy_rows(source_root, content_root, [row])
 
+    def test_copy_accepts_a_named_project_adaptation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_root = root / "source"
+            content_root = root / "project" / "Content"
+            relative_path = Path("VFX/Adapted.uasset")
+            source_path = source_root / relative_path
+            target_path = content_root / relative_path
+            source_path.parent.mkdir(parents=True)
+            target_path.parent.mkdir(parents=True)
+            source_path.write_bytes(b"source")
+            target_path.write_bytes(b"editor-adapted")
+            row = MODULE.ManifestRow(
+                package="/Game/VFX/Adapted",
+                relative_path=relative_path.as_posix(),
+                sha256=MODULE.sha256_file(source_path),
+                size=source_path.stat().st_size,
+                required_by="/Game/VFX/Adapted",
+            )
+            MODULE.PROJECT_ADAPTATIONS[row.relative_path] = (
+                MODULE.sha256_file(target_path),
+                target_path.stat().st_size,
+                "test adaptation",
+            )
+            try:
+                MODULE.copy_rows(source_root, content_root, [row])
+            finally:
+                MODULE.PROJECT_ADAPTATIONS.pop(row.relative_path)
+
 
 if __name__ == "__main__":
     unittest.main()

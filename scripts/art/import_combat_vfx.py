@@ -25,6 +25,17 @@ ROOT_PACKAGES = (
     "/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01",
 )
 
+# Project-side assets may only differ from the supplied art package through a named,
+# reviewed Unreal Editor adaptation. The source hash remains authoritative provenance;
+# this allowlist makes the derived project bytes equally explicit and auditable.
+PROJECT_ADAPTATIONS = {
+    "VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02.uasset": (
+        "4DDCA3728ADD001D6BB35367666900B79C3A570ABDCD7C6C36596D47B3039295",
+        1263687,
+        "Fountain004/Fountain005 emitters use Local Space so component rotation aims the burst",
+    ),
+}
+
 MANIFEST_FIELDS = ("Package", "RelativePath", "Sha256", "Bytes", "RequiredBy")
 ASCII_PACKAGE_RE = re.compile(rb"/Game/[A-Za-z0-9_./-]+")
 
@@ -172,8 +183,20 @@ def verify_rows(source_root: Path, content_root: Path, expected_rows: list[Manif
         target_path = content_root / Path(row.relative_path)
         if require_copy and not target_path.is_file():
             raise RuntimeError(f"project asset missing: {row.relative_path}")
-        if target_path.is_file() and sha256_file(target_path) != row.sha256:
-            raise RuntimeError(f"project asset conflicts with manifest: {row.relative_path}")
+        if target_path.is_file():
+            expected_target_hash, expected_target_size = expected_project_asset(row)
+            if (
+                target_path.stat().st_size != expected_target_size
+                or sha256_file(target_path) != expected_target_hash
+            ):
+                raise RuntimeError(f"project asset conflicts with manifest: {row.relative_path}")
+
+
+def expected_project_asset(row: ManifestRow) -> tuple[str, int]:
+    adaptation = PROJECT_ADAPTATIONS.get(row.relative_path)
+    if adaptation:
+        return adaptation[0], adaptation[1]
+    return row.sha256, row.size
 
 
 def copy_rows(source_root: Path, content_root: Path, rows: list[ManifestRow]) -> None:
@@ -181,9 +204,18 @@ def copy_rows(source_root: Path, content_root: Path, rows: list[ManifestRow]) ->
         source_path = source_root / Path(row.relative_path)
         target_path = content_root / Path(row.relative_path)
         if target_path.exists():
-            if sha256_file(target_path) != row.sha256:
+            expected_target_hash, expected_target_size = expected_project_asset(row)
+            if (
+                target_path.stat().st_size != expected_target_size
+                or sha256_file(target_path) != expected_target_hash
+            ):
                 raise RuntimeError(f"refusing to overwrite different project asset: {row.relative_path}")
             continue
+        if row.relative_path in PROJECT_ADAPTATIONS:
+            raise RuntimeError(
+                "adapted project asset is missing; restore the tracked project copy before importing: "
+                + row.relative_path
+            )
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, target_path)
 

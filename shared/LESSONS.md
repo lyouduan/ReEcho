@@ -13,7 +13,7 @@
 | 程序化生成 / 地编 | `PCG` | [§PCG](#pcg) | 8 |
 | 玩法 / 业务系统 | `GAME` | [§GAME](#game) | 34 |
 | 关卡搭建 | `LEVEL` | [§LEVEL](#level) | 4 |
-| 美术 / 资产管线 | `ART` | [§ART](#art) | 18 |
+| 美术 / 资产管线 | `ART` | [§ART](#art) | 19 |
 | 音频系统 | `AUDIO` | [§AUDIO](#audio) | 12 |
 | WebGL 构建 / 部署 | `WEB` | [§WEB](#web) | 11 |
 | 移动端打包 | `MOBILE` | [§MOBILE](#mobile) | 16 |
@@ -608,6 +608,15 @@ Blender 里给的 emission 材质（青色面罩/绿黏液点）导进 Unity **B
 两条要点：
 - **碰撞尺寸别被视觉模型带偏**：原射击胶囊是 root scale 下的默认 CapsuleCollider，换成空 root 后要显式补等价 CapsuleCollider（plan 10 用 `height=1.6/radius=0.35/center=0`）而不是拿 wolf bounds 当命中体；玩法/子弹命中/回放仍以逻辑根为准。
 - **远程怪朝向目标只转 Body**：`RangedEnemy` 根据 `_lastAimDir` `LookRotation` 视觉体，移动/idle 由本 tick 是否实际位移驱动，受击触发 `FlashAt+TriggerHit`。这些全是纯视觉；不要改 `Snapshot`、`RoundManager`、`Sim3D` 或子弹逻辑。验证至少看 ranged `rootMotion=False`、`ENEMY_FIRE`、玩家中弹、近战狐回归和 `echoMaxDrift=0`。
+
+### ART-19. Niagara 载体朝向与实际粒子轨迹必须分层验证 [UE]
+
+**来源**：ReEcho Plan49 兔子三球朝向返修。屏幕轨迹日志证明逻辑投射物、Niagara Component 和组件本地 `+Y` 都正确指向玩家；即使所有启用发射器改为 Local Space，画面中的粒子仍可能被 System 内部位置/速度模块写向其他方向。
+
+- 有方向语义的 Niagara 必须把相关发射器设为 Local Space，或显式用 User Parameter 驱动方向；仅旋转 `UNiagaraComponent` 不够。
+- 诊断时分别记录目标、逻辑投射物、组件和实际粒子的世界/屏幕坐标。前三者一致只能排除玩法和载体层，不能证明粒子模拟正确。
+- 自动化除验证方向向量和 `FNiagaraEmitterHandle::bLocalSpace` 外，还应在可行时验证实际粒子位置/速度；禁止用玩法方向补偿资产内部偏转。
+- `.uasset` 必须通过 Unreal Editor/Commandlet 修改和保存，不能在编辑器外改二进制。
 
 ---
 

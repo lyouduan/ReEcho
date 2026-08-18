@@ -154,10 +154,16 @@
 - 实际 manifest：8 个根、84 个 `.uasset`；`python scripts/art/import_combat_vfx.py --source-root "C:\Users\gavynqiu\Documents\miniGame\Content (2)\Content" --check` 通过；导入器单测 2/2 通过。
 - Editor Development 增量构建通过并刷新 6 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 通过并实际 `LoadObject` 8 个正式 Niagara System；新增生产兔子 Definition 的 Host 接缝测试，`ReEcho.Enemies` 17/17 通过。
 - 首轮视觉返修后再次完成 Editor Development 构建；VFX Catalog 自动化通过（包含三球 `+Y` 中轴对齐锁定玩家方向断言），Enemies 17/17 继续通过。`GMSpawnFox` 已通过 UHT/UBT，实际生成位置和狐狸表现留给用户 PIE 验收。
+- 用户 PIE 证明仅旋转 Niagara Component 不足以改变三球发射方向：`Fountain004`、`Fountain005` 两个启用发射器仍为 World Space，粒子速度不会随组件旋转。已在 UE 内把二者改为 Local Space，并把“所有启用发射器必须为 Local Space”加入 VFX Catalog 自动化；这一步保证组件坐标系随锁定方向旋转，但不能单独证明资产内部粒子的最终运动方向。
+- 导入器新增具名项目适配哈希：继续校验美术原包 `NS_Rabbit_Attack_02` 的来源哈希，同时只允许 UE 保存后的 Local Space 项目版本使用单独固定哈希；其他清单资产仍不得与来源静默分叉。
+- Local Space 候选完成 Editor Development 构建；`ReEcho.Presentation.VFX.Catalog` 通过并直接验证 `Fountain004`、`Fountain005` 两个启用发射器均为 Local Space；导入器单测 3/3、`validate_project.py`、`git diff --check` 通过。完整导入 `--check` 已确认兔子项目适配哈希通过，但随后被预先存在且明确保留的用户未提交资产 `Content/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.uasset` 阻塞，本候选未覆盖、暂存或将其误列为允许适配。
+- 用户复测后方向仍不符合画面。新增临时 `[RabbitAimTrace]` 诊断：同一 `Attack.Sequence` 限量记录玩家、兔子、逻辑投射物和 Niagara Component 的世界/屏幕坐标，并记录组件本地 `+Y` 在屏幕空间的方向及其与“子弹到玩家”方向点积；定位后移除临时日志再交付正式候选。
+- 2026-08-18 PIE 日志把故障边界缩到 Niagara 资产内部：例如主角屏幕坐标 `(1199.5,595.3)`，同一逻辑投射物从 `(1583.5,188.6)` 移到 `(1524.6,253.7)`，位移 `(-58.9,+65.1)` 与发射时指向主角的向量 `(-384.0,+406.6)` 同向；全部采样中逻辑投射物与 Niagara Component 的世界/屏幕坐标相等，发射瞬间组件本地 `+Y` 与指向主角的屏幕方向点积约为 `0.95–1.00`。因此目标选择、逻辑弹道、VFX 载体位置和载体旋转均正常；画面中的三球偏向来自 System 内部粒子位置/速度模块或其坐标空间，下一步应读取实际粒子坐标或在 Niagara 调试器中定位，不能继续改玩法方向补偿资产。
 
 ### 剩余风险
 
-- Niagara 资产的实际尺寸、朝向、透明排序、Fixed Bounds 与镜头裁剪仍需 UE 加载和用户 PIE 判断。
+- 三球实际粒子仍未服从正确的载体方向；需要读取内部粒子坐标/速度并修正 Niagara 模块。当前 `[RabbitAimTrace]` 是临时诊断，正式关闭 Plan49 前必须移除。
+- 三球尺寸、透明排序、Fixed Bounds 与镜头裁剪仍需用户 PIE 判断。
 - 兔子从锁点范围行为改为飞行投射物会改变攻击到达时序，但不恢复伤害；恢复伤害必须另行由策划/用户确认数据语义。
 
 ### 人工验收结果/请求
