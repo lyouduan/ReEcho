@@ -12,7 +12,7 @@
 
 TSharedRef<SWidget> UReEchoRestartWidget::RebuildWidget()
 {
-	if (!WidgetTree->RootWidget)
+	if (WidgetTree && !WidgetTree->RootWidget)
 	{
 		BuildWidgetTree();
 	}
@@ -42,6 +42,10 @@ void UReEchoRestartWidget::NativeConstruct()
 	{
 		SettingsButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleSettingsClicked);
 	}
+	if (PauseSettingsButton)
+	{
+		PauseSettingsButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleSettingsClicked);
+	}
 	RefreshMenuMode();
 	if (ScreenMode != EReEchoRestartScreenMode::Pause && RestartButton)
 	{
@@ -69,9 +73,10 @@ void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 
 	RefreshMenuMode();
 }
 
-void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation)
+void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation, const bool bInExitToMainMenu)
 {
 	QuitPromptState = bInQuitConfirmation ? EReEchoQuitPromptState::Confirm : EReEchoQuitPromptState::None;
+	bExitToMainMenu = bInQuitConfirmation && bInExitToMainMenu;
 	RefreshMenuMode();
 	if (QuitPromptState == EReEchoQuitPromptState::Confirm && ResumeButton)
 	{
@@ -160,11 +165,11 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		const FString Title = bVictoryScreen      ? TEXT("时间线收束")
 		                      : bDeathScreen      ? TEXT("回响中断")
 		                      : bSaveFailed       ? TEXT("保存失败")
-		                      : bQuitConfirmation ? TEXT("确认退出游戏")
-		                                          : TEXT("游戏菜单");
-		const FLinearColor TitleColor =
-		    bVictoryScreen ? FLinearColor(1.0f, 0.78f, 0.16f)
-		                   : (bDeathScreen ? FLinearColor(0.95f, 0.12f, 0.12f) : FLinearColor(0.4f, 0.85f, 1.0f));
+		                      : bQuitConfirmation ? (bExitToMainMenu ? TEXT("退出到主菜单?") : TEXT("退出游戏?"))
+		                                          : TEXT("游戏暂停");
+		const FLinearColor TitleColor = bVictoryScreen
+		                                    ? FLinearColor(1.0f, 0.78f, 0.16f)
+		                                    : (bDeathScreen ? FLinearColor(0.95f, 0.12f, 0.12f) : FLinearColor::White);
 		TitleText->SetText(FText::FromString(Title));
 		TitleText->SetColorAndOpacity(FSlateColor(TitleColor));
 	}
@@ -184,22 +189,51 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		}
 		else if (bQuitConfirmation)
 		{
-			MessageText->SetText(FText::FromString(TEXT("确认退出后将保存当前局内状态")));
+			MessageText->SetText(FText::FromString(TEXT("存档点：当前进度")));
 		}
 		else
 		{
 			MessageText->SetText(FText::FromString(bDeathScreen ? TEXT("玩家已阵亡，本次时间线结束")
 			                                                    : TEXT("游戏已暂停 · 按 P 可继续")));
 		}
+		MessageText->SetVisibility(!bDeathScreen && !bVictoryScreen && !bQuitConfirmation && !bSaveFailed
+		                               ? ESlateVisibility::Collapsed
+		                               : ESlateVisibility::HitTestInvisible);
 	}
-	const ESlateVisibility ResultArtVisibility = bVictoryScreen || bDeathScreen
-	                                                ? ESlateVisibility::HitTestInvisible
-	                                                : ESlateVisibility::Hidden;
+	const bool bPauseMenu = ScreenMode == EReEchoRestartScreenMode::Pause;
+	const bool bPausePrompt = bPauseMenu && (bQuitConfirmation || bSaveFailed);
+	const bool bPauseRootVisible = bPauseMenu;
+	if (RootPanel)
+	{
+		RootPanel->SetRenderTranslation(bPauseMenu ? FVector2D(0.0f, -72.0f) : FVector2D::ZeroVector);
+	}
+	if (ArtPauseDimmer)
+	{
+		ArtPauseDimmer->SetVisibility(bPauseRootVisible ? ESlateVisibility::HitTestInvisible
+		                                                : ESlateVisibility::Hidden);
+	}
+	auto SetPauseArtVisibility = [](UImage* Image, const bool bVisible)
+	{
+		if (Image)
+		{
+			Image->SetVisibility(bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	};
+	SetPauseArtVisibility(ArtPauseResume, bPauseMenu && !bPausePrompt);
+	SetPauseArtVisibility(ArtPauseExitToMenu, bPauseMenu && !bPausePrompt);
+	SetPauseArtVisibility(ArtPauseExitGame, bPauseMenu && !bPausePrompt);
+	SetPauseArtVisibility(ArtPauseSaveAndExit, bPausePrompt);
+	SetPauseArtVisibility(ArtPauseExitWithoutSave, bPausePrompt);
+	SetPauseArtVisibility(ArtPauseBack, bPausePrompt);
+	SetPauseArtVisibility(ArtPauseSettings, bPauseMenu && !bPausePrompt);
+	const ESlateVisibility ResultArtVisibility =
+	    bVictoryScreen || bDeathScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden;
 	if (ArtRestartDialogPanel)
 	{
-		ArtRestartDialogPanel->SetVisibility(bQuitConfirmation || bSaveFailed
-		                                         ? ESlateVisibility::HitTestInvisible
-		                                         : ESlateVisibility::Hidden);
+		// The pause exit prompts are composed directly over the dimmed game scene.
+		// The restart-dialog plate belongs to the save-failure fallback, not to either exit confirmation.
+		ArtRestartDialogPanel->SetVisibility(bSaveFailed ? ESlateVisibility::HitTestInvisible
+		                                                   : ESlateVisibility::Hidden);
 	}
 	if (ArtRestartCharacter)
 	{
@@ -215,13 +249,11 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	}
 	if (ArtVictoryTitle)
 	{
-		ArtVictoryTitle->SetVisibility(bVictoryScreen ? ESlateVisibility::HitTestInvisible
-		                                               : ESlateVisibility::Hidden);
+		ArtVictoryTitle->SetVisibility(bVictoryScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 	}
 	if (ArtDefeatTitle)
 	{
-		ArtDefeatTitle->SetVisibility(bDeathScreen ? ESlateVisibility::HitTestInvisible
-		                                             : ESlateVisibility::Hidden);
+		ArtDefeatTitle->SetVisibility(bDeathScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 	}
 	if (ResumeButton)
 	{
@@ -235,20 +267,45 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	}
 	if (SettingsButton)
 	{
-		const bool bShowSettingsEntry = !bDeathScreen && !bVictoryScreen && !bQuitConfirmation && !bSaveFailed;
+		const bool bShowSettingsEntry =
+		    !PauseSettingsButton && !bDeathScreen && !bVictoryScreen && !bQuitConfirmation && !bSaveFailed;
 		SettingsButton->SetVisibility(bShowSettingsEntry ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (PauseSettingsButton)
+	{
+		PauseSettingsButton->SetVisibility(bPauseMenu && !bPausePrompt ? ESlateVisibility::Visible
+		                                                               : ESlateVisibility::Collapsed);
+	}
+	const FLinearColor ButtonBackground = bPauseMenu ? FLinearColor::Transparent : FLinearColor::White;
+	for (UButton* Button : {ResumeButton.Get(), RestartButton.Get(), QuitButton.Get()})
+	{
+		if (Button)
+		{
+			Button->SetBackgroundColor(ButtonBackground);
+		}
+	}
+	const bool bUsePauseArt = bPauseMenu && ArtPauseResume && ArtPauseExitToMenu && ArtPauseExitGame;
+	if (ResumeButtonLabel)
+	{
+		ResumeButtonLabel->SetVisibility(bUsePauseArt ? ESlateVisibility::Collapsed
+		                                              : ESlateVisibility::HitTestInvisible);
+	}
+	if (RestartButtonLabel)
+	{
+		RestartButtonLabel->SetText(FText::FromString(bPauseMenu ? TEXT("退出至主菜单") : TEXT("重新开始")));
+		RestartButtonLabel->SetVisibility(bUsePauseArt ? ESlateVisibility::Collapsed
+		                                               : ESlateVisibility::HitTestInvisible);
 	}
 	if (QuitButtonText)
 	{
-		const FString QuitLabel = bQuitConfirmation ? TEXT("确认退出")
-		                          : bSaveFailed     ? TEXT("重试退出")
-		                                            : TEXT("退出游戏");
+		const FString QuitLabel = bPausePrompt ? TEXT("返回") : TEXT("退出游戏");
 		QuitButtonText->SetText(FText::FromString(QuitLabel));
+		QuitButtonText->SetVisibility(bUsePauseArt ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	}
 	if (AttackModeWidget)
 	{
 		const bool bShowAttackMode = ScreenMode == EReEchoRestartScreenMode::Pause &&
-		                             QuitPromptState == EReEchoQuitPromptState::None;
+		                             QuitPromptState == EReEchoQuitPromptState::None && !ArtPauseResume;
 		AttackModeWidget->SetVisibility(bShowAttackMode ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 		AttackModeWidget->SetAutomaticMode(bAutomaticAttackMode);
 	}
@@ -272,8 +329,8 @@ void UReEchoRestartWidget::EnsureAttackModeWidget()
 	{
 		return;
 	}
-	AttackModeWidget = WidgetTree->ConstructWidget<UReEchoAttackModeWidget>(
-	    UReEchoAttackModeWidget::StaticClass(), TEXT("AttackModePanel"));
+	AttackModeWidget = WidgetTree->ConstructWidget<UReEchoAttackModeWidget>(UReEchoAttackModeWidget::StaticClass(),
+	                                                                        TEXT("AttackModePanel"));
 	MenuContent->AddChildToVerticalBox(AttackModeWidget)->SetPadding(FMargin(4.0f, 8.0f));
 	AttackModeWidget->OnAutomaticRequested.AddDynamic(this, &UReEchoRestartWidget::HandleAutomaticAttackClicked);
 	AttackModeWidget->OnManualRequested.AddDynamic(this, &UReEchoRestartWidget::HandleManualAttackClicked);
@@ -282,16 +339,36 @@ void UReEchoRestartWidget::EnsureAttackModeWidget()
 
 void UReEchoRestartWidget::HandleResumeClicked()
 {
-	OnResumeRequested.Broadcast();
+	if (QuitPromptState == EReEchoQuitPromptState::None)
+	{
+		OnResumeRequested.Broadcast();
+		return;
+	}
+	OnQuitRequested.Broadcast();
 }
 
 void UReEchoRestartWidget::HandleRestartClicked()
 {
+	if (QuitPromptState != EReEchoQuitPromptState::None)
+	{
+		OnExitWithoutSavingRequested.Broadcast();
+		return;
+	}
+	if (ScreenMode == EReEchoRestartScreenMode::Pause)
+	{
+		OnExitToMainMenuRequested.Broadcast();
+		return;
+	}
 	OnRestartRequested.Broadcast();
 }
 
 void UReEchoRestartWidget::HandleQuitClicked()
 {
+	if (QuitPromptState != EReEchoQuitPromptState::None)
+	{
+		OnCancelExitRequested.Broadcast();
+		return;
+	}
 	OnQuitRequested.Broadcast();
 }
 

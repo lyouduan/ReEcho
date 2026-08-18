@@ -76,7 +76,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 | `WBP_ReEchoStartMenu` | `StatusText`, `ContinueButton`, `NewGameButton`, `GameSettingsButton`, `QuitButton` |
 | `WBP_ReEchoLoadoutSelection` | `StatusText`, `CharacterRow`, `WeaponRow`, `ConfirmButton` |
 | `WBP_ReEchoSettings` | `DetailText`, `CategoryTitleText`, `GraphicsSettingsButton`, `AudioSettingsButton`, `ControlsSettingsButton`, `RestoreDefaultsButton`, `ApplyAndReturnButton`, `AudioPanel`, `MasterVolumeSlider`, `MusicVolumeSlider`, `AmbienceVolumeSlider`, `CombatSfxVolumeSlider`, `UiSfxVolumeSlider`, `MasterMuteCheckBox`, `MusicMuteCheckBox`, `AmbienceMuteCheckBox`, `CombatSfxMuteCheckBox`, `UiSfxMuteCheckBox`, `DiagnosticToneCheckBox` |
-| `WBP_ReEchoRestart` | `TitleText`, `MessageText`, `ResumeButton`, `RestartButton`, `QuitButton`, `SettingsButton`, `QuitButtonText` |
+| `WBP_ReEchoRestart` | `TitleText`, `MessageText`, `ResumeButton`, `RestartButton`, `QuitButton`, `SettingsButton`, `QuitButtonText`；Plan45 暂停样板另提供可选 `RootPanel`, `PauseSettingsButton`, `ResumeButtonLabel`, `RestartButtonLabel`, `ArtPauseDimmer`, `ArtPauseResume`, `ArtPauseExitToMenu`, `ArtPauseExitGame`, `ArtPauseSaveAndExit`, `ArtPauseExitWithoutSave`, `ArtPauseBack`, `ArtPauseSettings` |
 | `WBP_ReEchoTraitCardChoice` | `TraitCardContainer`, `TraitCardSlot0`, `TraitCardSlot1`, `TraitCardSlot2`, `TitleText`, `SubtitleText`, `CurrencyText`, `NeedleWidget` |
 | `WBP_ReEchoInventoryShopScreen` | `BackgroundImage`, `InventoryPanel`, `ShopPanel`, `CurrencyText`, `InventoryText`, `CloseButton`, `OfferContainer` |
 | `WBP_ReEchoStatsScreen` | `BackgroundImage`, `PlayerStatsText`, `EchoStatsText`, `CloseButton` |
@@ -120,14 +120,18 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 `WBP_ReEchoSettings` 的 Graphics、Audio、Controls 是固定页面结构。固定的音频 Slider 和 Checkbox 必须由 WBP 正常路径静态提供，布局、间距、样式和焦点表现归 UMG；`UReEchoSettingsWidget` 只绑定控件、刷新状态并把预览/提交/撤销请求交给 `UReEchoAudioService`。不要依赖 C++ `BuildAudioPanel()` 向正常 WBP 动态注入整套布局，该路径只用于设计资产缺失时的最低可用 fallback。所有绑定控件必须勾选 `Is Variable`，并严格使用第 4 节列出的名称和类型。
 
-`WBP_ReEchoRestart` 是多状态页面。隐藏某个按钮或改文案前，必须检查四种显示场景：
+`WBP_ReEchoRestart` 是多状态页面。隐藏某个按钮或改文案前，必须检查六种显示场景：
 
 1. 普通暂停。
-2. 退出确认。
-3. 玩家死亡。
-4. Boss 胜利。
+2. 退出到主菜单确认。
+3. 退出游戏确认。
+4. 玩家死亡。
+5. Boss 胜利。
+6. 重开确认/结算状态。
 
 `QuitButtonText` 必须保持为 `QuitButton` 的可见内容层级，否则 C++ 更新确认文案时玩家可能看不到变化。
+
+Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层，实际交互继续由 `ResumeButton`、`RestartButton`、`QuitButton` 和右上 `PauseSettingsButton` 承担。普通状态依次表示继续、退出到主菜单、退出游戏；进入确认后，同一组按钮切换为保存并退出、不保存并退出、返回。退出到主菜单与退出游戏必须保留不同目标，保存/不保存语义由 GameMode 执行，WBP 不得直接写存档、开关关卡或退出程序。存在暂停切图时旧的 Attack Mode 动态区隐藏，避免偏离暂停效果图。
 
 ### 5.3 Loadout 动态容器
 
