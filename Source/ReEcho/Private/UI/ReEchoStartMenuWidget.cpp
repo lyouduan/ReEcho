@@ -14,7 +14,8 @@ enum class EStartMenuAction : int32
 {
 	Continue,
 	NewGame,
-	Settings
+	Settings,
+	Quit
 };
 }
 
@@ -47,6 +48,11 @@ void UReEchoStartMenuWidget::NativeConstruct()
 		GameSettingsButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Settings));
 		GameSettingsButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
+	if (QuitButton)
+	{
+		QuitButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Quit));
+		QuitButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
+	}
 	RefreshMenu();
 	if (bHasSavedRun && ContinueButton)
 	{
@@ -59,6 +65,10 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	else if (GameSettingsButton)
 	{
 		GameSettingsButton->SetKeyboardFocus();
+	}
+	else if (QuitButton)
+	{
+		QuitButton->SetKeyboardFocus();
 	}
 }
 
@@ -129,6 +139,12 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 	                                                      FText::FromString(TEXT("游戏设置")),
 	                                                      static_cast<int32>(EStartMenuAction::Settings),
 	                                                      PrimaryButtonStyle);
+	QuitButton = ReEcho::UI::AddIndexedMenuButton(*WidgetTree,
+	                                              *Content,
+	                                              TEXT("QuitButton"),
+	                                              FText::FromString(TEXT("退出")),
+	                                              static_cast<int32>(EStartMenuAction::Quit),
+	                                              PrimaryButtonStyle);
 	RefreshMenu();
 }
 
@@ -141,7 +157,9 @@ void UReEchoStartMenuWidget::RefreshMenu()
 	}
 	if (ContinueButton)
 	{
-		ContinueButton->SetVisibility(bHasSavedRun ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		ContinueButton->SetVisibility(ESlateVisibility::Visible);
+		ContinueButton->SetIsEnabled(bHasSavedRun);
+		ContinueButton->SetRenderOpacity(bHasSavedRun ? 0.0f : 0.55f);
 	}
 }
 
@@ -157,6 +175,9 @@ void UReEchoStartMenuWidget::HandleMenuAction(const int32 ActionIndex)
 			break;
 		case EStartMenuAction::Settings:
 			OnGameSettingRequested.Broadcast();
+			break;
+		case EStartMenuAction::Quit:
+			OnQuitRequested.Broadcast();
 			break;
 		default:
 			break;

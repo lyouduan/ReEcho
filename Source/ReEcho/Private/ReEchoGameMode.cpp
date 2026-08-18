@@ -465,6 +465,7 @@ void AReEchoGameMode::ShowStartMenu()
 	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
 	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
 	StartMenuWidget->OnGameSettingRequested.AddDynamic(this, &AReEchoGameMode::HandleStartSettingsRequested);
+	StartMenuWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleStartQuitRequested);
 	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 	SetPlayerMenuAbilityBlocked(true);
 }
@@ -510,6 +511,13 @@ void AReEchoGameMode::HandleStartSettingsRequested()
 	{
 		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 	}
+}
+
+void AReEchoGameMode::HandleStartQuitRequested()
+{
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Start menu quit requested."));
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, false);
 }
 
 void AReEchoGameMode::HandlePauseSettingsRequested()

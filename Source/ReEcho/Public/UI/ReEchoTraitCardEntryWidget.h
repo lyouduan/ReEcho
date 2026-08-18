@@ -5,6 +5,7 @@
 #include "ReEchoTraitCardEntryWidget.generated.h"
 
 class UReEchoIndexedButton;
+class UImage;
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoTraitCardEntrySelected, int32, EntryIndex);
@@ -25,6 +26,7 @@ public:
 	               const FText& Description,
 	               const FLinearColor& CardColor);
 	void SetSelectionEnabled(bool bEnabled);
+	void SetSelectedVisual(bool bSelected, bool bHasSelection);
 	void FocusSelection();
 
 protected:
@@ -36,6 +38,10 @@ private:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UReEchoIndexedButton> SelectButton;
+
+	/** Placeholder frame tinted with the runtime card palette so offers retain their existing identity. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtCardFrame;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> KickerText;

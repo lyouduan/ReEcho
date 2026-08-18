@@ -162,6 +162,9 @@ private:
 	void HandleStartSettingsRequested();
 
 	UFUNCTION()
+	void HandleStartQuitRequested();
+
+	UFUNCTION()
 	void HandlePauseSettingsRequested();
 
 	UFUNCTION()

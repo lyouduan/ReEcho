@@ -4,6 +4,7 @@
 #include "Core/ReEchoBalanceSettings.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -190,6 +191,37 @@ void UReEchoRestartWidget::RefreshMenuMode()
 			MessageText->SetText(FText::FromString(bDeathScreen ? TEXT("玩家已阵亡，本次时间线结束")
 			                                                    : TEXT("游戏已暂停 · 按 P 可继续")));
 		}
+	}
+	const ESlateVisibility ResultArtVisibility = bVictoryScreen || bDeathScreen
+	                                                ? ESlateVisibility::HitTestInvisible
+	                                                : ESlateVisibility::Hidden;
+	if (ArtRestartDialogPanel)
+	{
+		ArtRestartDialogPanel->SetVisibility(bQuitConfirmation || bSaveFailed
+		                                         ? ESlateVisibility::HitTestInvisible
+		                                         : ESlateVisibility::Hidden);
+	}
+	if (ArtRestartCharacter)
+	{
+		ArtRestartCharacter->SetVisibility(ResultArtVisibility);
+	}
+	if (ArtResultSummaryPanel)
+	{
+		ArtResultSummaryPanel->SetVisibility(ResultArtVisibility);
+	}
+	if (ArtSelectedCardsPanel)
+	{
+		ArtSelectedCardsPanel->SetVisibility(ResultArtVisibility);
+	}
+	if (ArtVictoryTitle)
+	{
+		ArtVictoryTitle->SetVisibility(bVictoryScreen ? ESlateVisibility::HitTestInvisible
+		                                               : ESlateVisibility::Hidden);
+	}
+	if (ArtDefeatTitle)
+	{
+		ArtDefeatTitle->SetVisibility(bDeathScreen ? ESlateVisibility::HitTestInvisible
+		                                             : ESlateVisibility::Hidden);
 	}
 	if (ResumeButton)
 	{
