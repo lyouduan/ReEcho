@@ -7,6 +7,7 @@
 
 class UNiagaraComponent;
 class UNiagaraSystem;
+class APlayerController;
 
 /** Read-only presentation adapter for Combat and Enemy semantic events. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
@@ -37,6 +38,11 @@ private:
 	void LogRabbitProjectileTrajectory(const FReEchoEnemyProjectileEvent& Event,
 	                                   const UNiagaraComponent* Effect,
 	                                   const TCHAR* Phase);
+	void LogRabbitParticleState(const UNiagaraComponent* Effect,
+	                            APlayerController* PlayerController,
+	                            const FVector2D& PlayerScreen,
+	                            int64 AttackSequence,
+	                            int32 EventCount) const;
 
 	UFUNCTION()
 	void HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event);

@@ -4,8 +4,13 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "NiagaraComponent.h"
+#include "NiagaraDataSet.h"
+#include "NiagaraDataSetAccessor.h"
+#include "NiagaraEmitterInstance.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "NiagaraSystemInstance.h"
+#include "NiagaraSystemInstanceController.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "ReEcho.h"
@@ -239,10 +244,11 @@ void UReEchoCombatVfxComponent::LogRabbitProjectileTrajectory(const FReEchoEnemy
 
 	UE_LOG(LogReEcho,
 	       Warning,
-	       TEXT("[RabbitAimTrace] Seq=%lld Phase=%s Sample=%d Viewport=(%d,%d) "
+	       TEXT("[RabbitAimTrace] Owner=%s Seq=%lld Phase=%s Sample=%d Viewport=(%d,%d) "
 	            "PlayerWorld=%s PlayerScreen=(%.1f,%.1f,%d) RabbitWorld=%s RabbitScreen=(%.1f,%.1f,%d) "
 	            "ProjectileWorld=%s ProjectileScreen=(%.1f,%.1f,%d) NiagaraWorld=%s NiagaraScreen=(%.1f,%.1f,%d) "
 	            "EventDir=%s LocalYWorld=%s LocalYScreen=(%.1f,%.1f,%d) ToPlayerScreen=(%.1f,%.1f) Dot=%.3f"),
+	       *GetNameSafe(GetOwner()),
 	       Event.Attack.Sequence,
 	       Phase,
 	       EventCount,
@@ -272,6 +278,145 @@ void UReEchoCombatVfxComponent::LogRabbitProjectileTrajectory(const FReEchoEnemy
 	       ToPlayerScreen.X,
 	       ToPlayerScreen.Y,
 	       ScreenDirectionDot);
+
+	LogRabbitParticleState(Effect, PlayerController, PlayerScreen, Event.Attack.Sequence, EventCount);
+}
+
+void UReEchoCombatVfxComponent::LogRabbitParticleState(const UNiagaraComponent* Effect,
+                                                       APlayerController* PlayerController,
+                                                       const FVector2D& PlayerScreen,
+                                                       const int64 AttackSequence,
+                                                       const int32 EventCount) const
+{
+	if (!Effect || !PlayerController)
+	{
+		return;
+	}
+
+	const auto Controller = Effect->GetSystemInstanceController();
+	FNiagaraSystemInstance* SystemInstance =
+	    Controller.IsValid() && Controller->IsSolo() ? Controller->GetSoloSystemInstance() : nullptr;
+	if (!SystemInstance)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d readback unavailable solo=%d"),
+		       *GetNameSafe(GetOwner()),
+		       AttackSequence,
+		       EventCount,
+		       Controller.IsValid() && Controller->IsSolo());
+		return;
+	}
+
+	FVector2D ComponentScreen = FVector2D::ZeroVector;
+	PlayerController->ProjectWorldLocationToScreen(Effect->GetComponentLocation(), ComponentScreen, true);
+	const FTransform& SystemTransform = SystemInstance->GetWorldTransform();
+	const FNiagaraLWCConverter LwcConverter = SystemInstance->GetLWCConverter(false);
+	static const FName PositionName(TEXT("Position"));
+	static const FName VelocityName(TEXT("Velocity"));
+	constexpr uint32 MaxParticlesPerEmitter = 3;
+
+	for (const FNiagaraEmitterInstanceRef& EmitterRef : SystemInstance->GetEmitters())
+	{
+		const FNiagaraEmitterInstance& Emitter = EmitterRef.Get();
+		const FName EmitterName = Emitter.GetEmitterHandle().GetName();
+		if (EmitterName != TEXT("Fountain004") && EmitterName != TEXT("Fountain005"))
+		{
+			continue;
+		}
+
+		if (Emitter.GetSimTarget() != ENiagaraSimTarget::CPUSim)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d Emitter=%s SimTarget=GPU readback skipped"),
+			       *GetNameSafe(GetOwner()),
+			       AttackSequence,
+			       EventCount,
+			       *EmitterName.ToString());
+			continue;
+		}
+
+		const FNiagaraDataSet& ParticleData = Emitter.GetParticleData();
+		const FNiagaraDataBuffer* DataBuffer = ParticleData.GetCurrentData();
+		const uint32 ParticleCount = DataBuffer ? DataBuffer->GetNumInstances() : 0;
+		FNiagaraDataSetAccessor<FNiagaraPosition> PositionAccessor(ParticleData, PositionName);
+		const auto PositionReader = PositionAccessor.GetReader(ParticleData);
+		FNiagaraDataSetAccessor<FVector3f> VelocityAccessor(ParticleData, VelocityName);
+		const auto VelocityReader = VelocityAccessor.GetReader(ParticleData);
+		if (!PositionReader.IsValid() || ParticleCount == 0)
+		{
+			UE_LOG(
+			    LogReEcho,
+			    Warning,
+			    TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d Emitter=%s Local=%d Count=%u PositionValid=%d"),
+			    *GetNameSafe(GetOwner()),
+			    AttackSequence,
+			    EventCount,
+			    *EmitterName.ToString(),
+			    Emitter.IsLocalSpace(),
+			    ParticleCount,
+			    PositionReader.IsValid());
+			continue;
+		}
+
+		const uint32 LoggedParticleCount = FMath::Min(ParticleCount, MaxParticlesPerEmitter);
+		for (uint32 ParticleIndex = 0; ParticleIndex < LoggedParticleCount; ++ParticleIndex)
+		{
+			const FVector SimulationPosition =
+			    LwcConverter.ConvertSimulationPositionToWorld(PositionReader.Get(ParticleIndex));
+			const FVector ParticleWorld =
+			    Emitter.IsLocalSpace() ? SystemTransform.TransformPosition(SimulationPosition) : SimulationPosition;
+			FVector WorldVelocity = FVector::ZeroVector;
+			if (VelocityReader.IsValid())
+			{
+				WorldVelocity = LwcConverter.ConvertSimulationVectorToWorld(VelocityReader.Get(ParticleIndex));
+				if (Emitter.IsLocalSpace())
+				{
+					WorldVelocity = SystemTransform.TransformVectorNoScale(WorldVelocity);
+				}
+			}
+
+			FVector2D ParticleScreen = FVector2D::ZeroVector;
+			FVector2D VelocityProbeScreen = FVector2D::ZeroVector;
+			const bool bParticleProjected =
+			    PlayerController->ProjectWorldLocationToScreen(ParticleWorld, ParticleScreen, true);
+			const bool bVelocityProjected = PlayerController->ProjectWorldLocationToScreen(
+			    ParticleWorld + WorldVelocity * 0.1f, VelocityProbeScreen, true);
+			const FVector2D VelocityScreen = VelocityProbeScreen - ParticleScreen;
+			const FVector2D ToPlayerScreen = PlayerScreen - ParticleScreen;
+			const float VelocityDot =
+			    !VelocityScreen.IsNearlyZero() && !ToPlayerScreen.IsNearlyZero()
+			        ? FVector2D::DotProduct(VelocityScreen.GetSafeNormal(), ToPlayerScreen.GetSafeNormal())
+			        : 0.0f;
+
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d Emitter=%s Local=%d Count=%u "
+			            "Particle=%u World=%s Screen=(%.1f,%.1f,%d) FromComponent=(%.1f,%.1f) "
+			            "Velocity=%s VelocityScreen=(%.1f,%.1f,%d) ToPlayer=(%.1f,%.1f) VelocityDot=%.3f"),
+			       *GetNameSafe(GetOwner()),
+			       AttackSequence,
+			       EventCount,
+			       *EmitterName.ToString(),
+			       Emitter.IsLocalSpace(),
+			       ParticleCount,
+			       ParticleIndex,
+			       *ParticleWorld.ToCompactString(),
+			       ParticleScreen.X,
+			       ParticleScreen.Y,
+			       bParticleProjected,
+			       ParticleScreen.X - ComponentScreen.X,
+			       ParticleScreen.Y - ComponentScreen.Y,
+			       *WorldVelocity.ToCompactString(),
+			       VelocityScreen.X,
+			       VelocityScreen.Y,
+			       bVelocityProjected,
+			       ToPlayerScreen.X,
+			       ToPlayerScreen.Y,
+			       VelocityDot);
+		}
+	}
 }
 
 void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event)
@@ -369,6 +514,7 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 		                                       false);
 		if (Effect)
 		{
+			Effect->SetForceSolo(true);
 			ProjectileEffects.Add(Event.Attack.Sequence, Effect);
 		}
 		LogRabbitProjectileTrajectory(Event, Effect, TEXT("Spawned"));
