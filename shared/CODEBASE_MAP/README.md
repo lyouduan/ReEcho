@@ -14,6 +14,7 @@
 | 架构标识 | 当前状态 | 设计与代码文档 | 一句话职责 |
 |---|---|---|---|
 | `MOD-ReEcho` | 当前 `main` Runtime Module | [`modules/MOD-ReEcho.md`](modules/MOD-ReEcho.md) | UE 世界与玩法装配根，组合主流程、局内/局外领域、表现与 UI |
+| `MOD-ReEchoPresentation` | Plan50 候选 Runtime Module | [`modules/MOD-ReEchoPresentation.md`](modules/MOD-ReEchoPresentation.md) | 统一管理角色与怪物的 2D Profile、状态机、渲染和逐帧查询表现 |
 | `MOD-ReEchoAudio` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) | 接收语义音频请求，独立管理目录、策略、总线状态与播放后端 |
 | `MOD-ReEchoCombat` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) | 攻击控制、战斗状态和最终结算的逻辑权威 |
 | `MOD-ReEchoCards` | Plan47 `Review` 候选 Runtime Module | [`modules/MOD-ReEchoCards.md`](modules/MOD-ReEchoCards.md) | 卡牌目录、构筑状态、抽取资格和跨领域规则计算的逻辑权威 |
@@ -47,7 +48,7 @@
 | `AREA-Run` | 本局构筑、阶段与存档 | `Source/ReEcho/{Public,Private}/Run/` | [Run](modules/MOD-ReEcho.md#area-runrun本局状态与存档) |
 | `AREA-Recording` | 玩家历史录制与 Echo 回放 | `Source/ReEcho/{Public,Private}/Recording/` | [Recording](modules/MOD-ReEcho.md#area-recordingrecording录制与回放) |
 | `AREA-Player` | 输入、移动、相机与玩家装配 | `Source/ReEcho/{Public,Private}/Player/` | [Player](modules/MOD-ReEcho.md#area-playerplayer玩家宿主) |
-| `AREA-Presentation` | 世界 Actor、Animation2D 与 VFX 可见反馈 | `Source/ReEcho/{Public,Private}/{Graybox,Presentation}/` | [Presentation](modules/MOD-ReEcho.md#area-presentationgraybox--presentation世界表现)；[战斗 VFX](modules/MOD-ReEchoVFX.md) |
+| `AREA-Presentation` | 通用 2D 表现、世界适配与战斗 VFX | `Source/ReEchoPresentation/`；主模块 Host/VFX 适配位于 `Source/ReEcho/{Public,Private}/{Graybox,Presentation}/` | [Presentation](modules/MOD-ReEchoPresentation.md)；[战斗 VFX](modules/MOD-ReEchoVFX.md) |
 | `AREA-UI` | 屏幕框架、Widget 与只读展示 | `Source/ReEcho/{Public,Private}/UI/` | [UI 文档入口](modules/MOD-ReEchoUI.md) |
 | `AREA-Tests` | 自动化与跨领域契约 | `Source/ReEcho/Private/Tests/`、各模块 `Private/Tests/` | [Tests](modules/MOD-ReEcho.md#area-teststests验证边界) |
 

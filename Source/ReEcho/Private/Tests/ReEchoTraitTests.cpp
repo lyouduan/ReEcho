@@ -15,7 +15,7 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 	{
 		UGameInstance* GameInstance = NewObject<UGameInstance>();
 		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-		RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 		RunSubsystem->BeginEncounter();
 		RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 		return RunSubsystem;
@@ -51,7 +51,7 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	RunSubsystem->BeginEncounter();
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 	const TArray<FReEchoTraitCardOffer> FirstOffers = RunSubsystem->GenerateTraitCardOffers(3);
@@ -88,7 +88,7 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), NAME_None);
+	RunSubsystem->StartRun(TEXT("J_SPADE"), NAME_None);
 	TestEqual(TEXT("CSV default weapon is used when none is supplied"),
 	          RunSubsystem->CurrentBuild.WeaponId,
 	          FName(TEXT("W_J_02")));
@@ -106,6 +106,19 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	{
 		AddError(TEXT("G_1_03 was not present in the 39-card trait pool"));
 		return false;
+	}
+	const FReEchoTraitCardOffer* TaggedOffer = Offers.FindByPredicate(
+	    [](const FReEchoTraitCardOffer& Offer)
+	    {
+		    return Offer.CardId == TEXT("G_2_05");
+	    });
+	TestNotNull(TEXT("G_2_05 is available for tag projection"), TaggedOffer);
+	if (TaggedOffer)
+	{
+		TestEqual(TEXT("Trait offers preserve the authored Tags column order"), TaggedOffer->Tags.Num(), 3);
+		TestTrue(TEXT("Trait offer includes the authored Critical tag"), TaggedOffer->Tags.Contains(TEXT("Critical")));
+		TestTrue(TEXT("Trait offer includes the authored Echo tag"), TaggedOffer->Tags.Contains(TEXT("Echo")));
+		TestTrue(TEXT("Trait offer includes the authored Body tag"), TaggedOffer->Tags.Contains(TEXT("Body")));
 	}
 
 	const float PhysicalBefore = RunSubsystem->CurrentBuild.Stats.PhysicalAttack;

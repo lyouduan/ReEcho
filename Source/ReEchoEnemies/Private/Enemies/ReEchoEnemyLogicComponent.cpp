@@ -74,6 +74,30 @@ FReEchoEnemyDefinition ReEchoEnemyDefinitions::MakeLegacyEquivalent(const EReEch
 {
 	FReEchoEnemyDefinition Result;
 	Result.Archetype = Archetype;
+	switch (Archetype)
+	{
+		case EReEchoEnemyArchetype::Shield:
+			Result.PresentationId = TEXT("Enemy.Shield");
+			break;
+		case EReEchoEnemyArchetype::Bomber:
+			Result.PresentationId = TEXT("Enemy.Bomber");
+			break;
+		case EReEchoEnemyArchetype::Boss:
+			Result.PresentationId = TEXT("Enemy.TimeGuard");
+			break;
+		case EReEchoEnemyArchetype::Slime:
+			Result.PresentationId = TEXT("Enemy.Slime");
+			break;
+		case EReEchoEnemyArchetype::Ranged:
+			Result.PresentationId = TEXT("Enemy.Rabbit");
+			break;
+		case EReEchoEnemyArchetype::Elite:
+			Result.PresentationId = TEXT("Enemy.Fox");
+			break;
+		default:
+			Result.PresentationId = TEXT("Enemy.Grunt");
+			break;
+	}
 	Result.BomberTriggerRadiusCm = FMath::Max(0.0f, BomberTriggerRadiusCm);
 	Result.BomberDamageRadiusCm = FMath::Max(0.0f, BomberDamageRadiusCm);
 	Result.BomberFuseDurationSeconds = FMath::Max(MinimumFuseDurationSeconds, BomberFuseDurationSeconds);

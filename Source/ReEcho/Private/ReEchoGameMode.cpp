@@ -30,10 +30,13 @@
 #include "Player/ReEchoPlayerPawn.h"
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
+#include "Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
@@ -53,18 +56,12 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<AReEchoPlayerPawn> PlayerPrefab(
 	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay"));
 	DefaultPawnClass = PlayerPrefab.Succeeded() ? PlayerPrefab.Class.Get() : AReEchoPlayerPawn::StaticClass();
-	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> GruntPrefab(
-	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Grunt"));
-	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> RabbitPrefab(
-	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Rabbit"));
-	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> GoatPrefab(
-	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Goat"));
-	static ConstructorHelpers::FClassFinder<AReEchoEnemyActor> FoxPrefab(
-	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Fox"));
-	GruntEnemyClass = GruntPrefab.Succeeded() ? GruntPrefab.Class.Get() : AReEchoEnemyActor::StaticClass();
-	RabbitEnemyClass = RabbitPrefab.Succeeded() ? RabbitPrefab.Class.Get() : GruntEnemyClass.Get();
-	GoatEnemyClass = GoatPrefab.Succeeded() ? GoatPrefab.Class.Get() : GruntEnemyClass.Get();
-	FoxEnemyClass = FoxPrefab.Succeeded() ? FoxPrefab.Class.Get() : GruntEnemyClass.Get();
+	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
+	    TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
+	PresentationCatalog = CatalogFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEchoEnemyGameplayClassRegistry> EnemyClassRegistryFinder(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/DA_EnemyGameplayClassRegistry.DA_EnemyGameplayClassRegistry"));
+	EnemyGameplayClassRegistry = EnemyClassRegistryFinder.Object;
 	PrimaryActorTick.bCanEverTick = true;
 	EnemyRoster = CreateDefaultSubobject<UReEchoEnemyRosterComponent>(TEXT("EnemyRoster"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ArenaBackgroundFinder(
@@ -75,36 +72,17 @@ AReEchoGameMode::AReEchoGameMode()
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
 }
 
-TSubclassOf<AReEchoEnemyActor> AReEchoGameMode::ResolveEnemyClass(const EReEchoEnemyArchetype Archetype,
-                                                                  const int32 VisualVariantIndex) const
+TSubclassOf<AReEchoEnemyActor> AReEchoGameMode::ResolveEnemyClass(const FName PresentationId) const
 {
-	if (Archetype == EReEchoEnemyArchetype::Boss)
+	if (EnemyGameplayClassRegistry)
 	{
-		return GoatEnemyClass;
+		if (const TSubclassOf<AReEchoEnemyActor> ResolvedClass =
+		        EnemyGameplayClassRegistry->ResolveGameplayClass(PresentationId))
+		{
+			return ResolvedClass;
+		}
 	}
-	if (Archetype == EReEchoEnemyArchetype::Ranged)
-	{
-		return RabbitEnemyClass;
-	}
-	if (Archetype == EReEchoEnemyArchetype::Elite)
-	{
-		return FoxEnemyClass;
-	}
-	if (Archetype == EReEchoEnemyArchetype::Slime)
-	{
-		return GruntEnemyClass;
-	}
-	switch (FMath::Abs(VisualVariantIndex) % 4)
-	{
-		case 1:
-			return RabbitEnemyClass;
-		case 2:
-			return GoatEnemyClass;
-		case 3:
-			return FoxEnemyClass;
-		default:
-			return GruntEnemyClass;
-	}
+	return AReEchoEnemyActor::StaticClass();
 }
 
 UReEchoAudioService* AReEchoGameMode::GetAudioService() const
@@ -1120,14 +1098,15 @@ void AReEchoGameMode::ResumeSavedEncounter()
 			UE_LOG(LogTemp, Error, TEXT("Plan48 enemy restore failed: %s"), *CompileError);
 			continue;
 		}
-		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
-		    ResolveEnemyClass(Definition.Archetype, EnemyState.SpawnIndex),
-		    EnemyState.Transform.GetLocation(),
-		    EnemyState.Transform.Rotator());
+		AReEchoEnemyActor* Enemy =
+		    GetWorld()->SpawnActor<AReEchoEnemyActor>(ResolveEnemyClass(Definition.PresentationId),
+		                                              EnemyState.Transform.GetLocation(),
+		                                              EnemyState.Transform.Rotator());
 		if (!Enemy)
 		{
 			continue;
 		}
+		Enemy->SetPresentationCatalog(PresentationCatalog);
 		if (ArenaScene)
 		{
 			Enemy->ConfigureGameplayPlane(ArenaScene->GetGameplayPlaneWorldZ());
@@ -1413,9 +1392,10 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	}
 	const int32 NextSpawnIndex = EnemySpawnIndex + 1;
 	AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
-	    ResolveEnemyClass(Definition.Archetype, NextSpawnIndex), SpawnLocation, FRotator::ZeroRotator);
+	    ResolveEnemyClass(Definition.PresentationId), SpawnLocation, FRotator::ZeroRotator);
 	if (Enemy)
 	{
+		Enemy->SetPresentationCatalog(PresentationCatalog);
 		EnemySpawnIndex = NextSpawnIndex;
 		if (ArenaScene)
 		{
@@ -1891,8 +1871,7 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 void AReEchoGameMode::HandleShopRefreshRequested()
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget || RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes <= 0 ||
-	    !RunSubsystem->TryConsumeShopRefresh(0))
+	if (!RunSubsystem || !InventoryShopWidget || !RunSubsystem->TryConsumeShopRefresh(ReEchoShopRefreshPrice))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
@@ -1982,6 +1961,14 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	{
 		return;
 	}
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "EchoStorageCardRequired", "需要先获得“时空锚点”才能存储回响。"));
+		return;
+	}
 	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecording();
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
@@ -2035,6 +2022,14 @@ void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
 	{
 		return;
 	}
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "EchoReplaceCardRequired", "需要先获得“时空锚点”才能替换回响。"));
+		return;
+	}
 	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingReplacing(RecordingId);
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
@@ -2057,6 +2052,14 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || !InventoryShopWidget)
 	{
+		return;
+	}
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "EchoSelectionCardRequired", "需要先获得“时空锚点”才能选择存储回响。"));
 		return;
 	}
 	const EReEchoEchoStorageResult Result = RunSubsystem->SetSelectedReplayIds(RecordingIds);

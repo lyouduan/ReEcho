@@ -111,8 +111,7 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 	}
 
 	AReEchoPlayerPawn* CharacterPawn = NewObject<AReEchoPlayerPawn>(GetTransientPackage());
-	const TArray<FName> CharacterIds = {
-	    TEXT("J_CAT"), TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
+	const TArray<FName> CharacterIds = {TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
 	for (const FName CharacterId : CharacterIds)
 	{
 		TestTrue(TEXT("Configured player character texture exists"), CharacterPawn->ConfigureCharacter(CharacterId));

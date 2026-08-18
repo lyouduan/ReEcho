@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v10 pins table-driven encounter state and persists weapon-part ownership separately. */
-	static constexpr int32 CurrentSaveVersion = 10;
+	/** v11 removes J_CAT and canonicalizes all persisted character identities to the retained four-character roster. */
+	static constexpr int32 CurrentSaveVersion = 11;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;

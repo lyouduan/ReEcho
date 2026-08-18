@@ -9,6 +9,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "ReEchoPresentation",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "ReEchoAudio",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

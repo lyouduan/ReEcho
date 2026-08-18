@@ -5,8 +5,8 @@ ASSET_NAMES = (
     "Enemy_Slime", "Enemy_ThornSlime", "Enemy_RabbitDoll",
     "Enemy_RabbitBeast", "Enemy_GoatPriest", "Enemy_DarkPriest",
     "Merchant_ClockKeeper",
-    "Player_Cat", "Player_Heart", "Player_Spade", "Player_Clover", "Player_Diamond",
-    "Echo_Cat", "Echo_Heart", "Echo_Spade", "Echo_Clover", "Echo_Diamond",
+    "Player_Heart", "Player_Spade", "Player_Clover", "Player_Diamond",
+    "Echo_Heart", "Echo_Spade", "Echo_Clover", "Echo_Diamond",
 )
 DESTINATION_PATH = "/Game/ReEcho/Textures/Characters/NewCast"
 

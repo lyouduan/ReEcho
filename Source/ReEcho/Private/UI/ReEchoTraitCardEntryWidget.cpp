@@ -14,6 +14,7 @@ void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,
                                             const FText& Kicker,
                                             const FText& DisplayName,
                                             const FText& Description,
+	                                        const TArray<FName>& Tags,
                                             const FLinearColor& CardColor)
 {
 	EntryIndex = InEntryIndex;
@@ -30,6 +31,27 @@ void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,
 	KickerText->SetText(Kicker);
 	NameText->SetText(DisplayName);
 	DescriptionText->SetText(Description);
+	if (PrimaryTagText)
+	{
+		PrimaryTagText->SetText(Tags.IsValidIndex(0) ? FText::FromName(Tags[0]) : FText::GetEmpty());
+		PrimaryTagText->SetVisibility(Tags.IsValidIndex(0) ? ESlateVisibility::HitTestInvisible
+		                                                   : ESlateVisibility::Collapsed);
+	}
+	if (SecondaryTagText)
+	{
+		FString SecondaryTags;
+		for (int32 TagIndex = 1; TagIndex < Tags.Num(); ++TagIndex)
+		{
+			if (!SecondaryTags.IsEmpty())
+			{
+				SecondaryTags += TEXT(" / ");
+			}
+			SecondaryTags += Tags[TagIndex].ToString();
+		}
+		SecondaryTagText->SetText(FText::FromString(SecondaryTags));
+		SecondaryTagText->SetVisibility(Tags.IsValidIndex(1) ? ESlateVisibility::HitTestInvisible
+		                                                       : ESlateVisibility::Collapsed);
+	}
 	SelectHintText->SetText(NSLOCTEXT("ReEcho", "TraitCardSelectHint", "点击选择 · 确认后不可撤回"));
 }
 

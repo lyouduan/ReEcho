@@ -56,8 +56,6 @@ AReEchoEchoActor::AReEchoEchoActor()
 	constexpr float CharacterWorldHeight = 224.0f;
 	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	CharacterSprite->bIsScreenSizeScaled = false;
-	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Cat.Echo_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Heart.Echo_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
@@ -66,12 +64,11 @@ AReEchoEchoActor::AReEchoEchoActor()
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Clover.Echo_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Diamond.Echo_Diamond"));
-	EchoTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
-	ConfigureEchoAppearance(TEXT("J_CAT"));
+	ConfigureEchoAppearance(TEXT("J_SPADE"));
 	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
 	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
 

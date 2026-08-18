@@ -357,6 +357,7 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			                                       CardKickers[CardIndex],
 			                                       Offers[CardIndex].DisplayName,
 			                                       Offers[CardIndex].Description,
+			                                       Offers[CardIndex].Tags,
 			                                       CardColors[CardIndex]);
 		}
 	}

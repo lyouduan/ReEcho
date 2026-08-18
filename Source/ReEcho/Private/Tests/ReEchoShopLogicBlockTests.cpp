@@ -1,9 +1,16 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Components/Button.h"
+#include "Components/Border.h"
+#include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/HorizontalBox.h"
+#include "Components/Image.h"
+#include "Components/OverlaySlot.h"
 #include "Components/ScaleBox.h"
 #include "Components/ScrollBox.h"
+#include "Components/SizeBox.h"
+#include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Misc/AutomationTest.h"
 #include "UI/ReEchoIndexedButton.h"
@@ -29,7 +36,9 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	RunItem.DisplayName = FText::FromString(TEXT("Run item"));
 	RunItem.EffectText = FText::FromString(TEXT("Run effect"));
 	RunItem.Price = 10;
-	RunItem.Type = EReEchoShopOfferType::RunItem;
+	RunItem.Type = EReEchoShopOfferType::BuildCard;
+	RunItem.ContentId = TEXT("TEST_BUILD_CARD");
+	RunItem.Tier = 1;
 
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_WEAPON_PART_ITEM");
@@ -83,24 +92,26 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	}
 
 	UScaleBox* EchoPanelScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("EchoPanelScale")));
-	TestNotNull(TEXT("Echo management uses a bottom scale tray"), EchoPanelScale);
+	TestNotNull(TEXT("Echo management has an independent popup host"), EchoPanelScale);
 	if (EchoPanelScale)
 	{
 		const UCanvasPanelSlot* EchoCanvasSlot = Cast<UCanvasPanelSlot>(EchoPanelScale->Slot);
-		TestNotNull(TEXT("Echo tray is independently anchored on the root canvas"), EchoCanvasSlot);
+		TestNotNull(TEXT("Echo popup is independently anchored on the root canvas"), EchoCanvasSlot);
 		if (EchoCanvasSlot)
 		{
-			TestEqual(TEXT("Echo tray renders over authored shop art"), EchoCanvasSlot->GetZOrder(), 20);
-			TestTrue(TEXT("Echo tray occupies the bottom band"), EchoCanvasSlot->GetAnchors().Minimum.Y >= 0.70f);
+			TestEqual(TEXT("Echo popup renders over authored shop art"), EchoCanvasSlot->GetZOrder(), 40);
+			TestTrue(TEXT("Echo popup is centered instead of occupying the bottom band"),
+			         EchoCanvasSlot->GetAnchors().Minimum.Y < 0.30f && EchoCanvasSlot->GetAnchors().Maximum.Y > 0.70f);
 		}
+		TestEqual(TEXT("Echo popup starts hidden"), EchoPanelScale->GetVisibility(), ESlateVisibility::Collapsed);
 	}
 
 	TArray<FName> PurchaseRequests;
 	Widget->OnPurchaseRequested.AddLambda([&PurchaseRequests](const FName ItemId) { PurchaseRequests.Add(ItemId); });
 	UReEchoIndexedButton* RunItemButton =
-	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("ShopOffer0")));
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy0")));
 	UReEchoIndexedButton* WeaponPartButton =
-	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponPartOffer0")));
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
 	TestNotNull(TEXT("Run item button exists"), RunItemButton);
 	TestNotNull(TEXT("Weapon part button exists"), WeaponPartButton);
 	if (!RunItemButton || !WeaponPartButton)
@@ -124,7 +135,7 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	TArray<FName> SavedDraft;
 	Widget->OnWeaponLoadoutSaveRequested.AddLambda(
 	    [&SavedDraft](const TArray<FName>& PartIds) { SavedDraft = PartIds; });
-	UButton* SaveButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("SaveLoadoutButton")));
+	UButton* SaveButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("TargetSaveLoadoutButton")));
 	TestNotNull(TEXT("Loadout save button exists"), SaveButton);
 	if (SaveButton)
 	{
@@ -175,6 +186,19 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	PartSlot.DisplayName = FText::FromString(TEXT("Core"));
 	PartSlot.Capacity = 1;
 	PartShopView.Slots.Add(PartSlot);
+	PartShopView.OwnedParts.Add(WeaponPart);
+	FReEchoEquippedPartSnapshot EquippedPart;
+	EquippedPart.PartId = WeaponPart.ContentId;
+	EquippedPart.SlotTypeId = WeaponPart.SlotTypeId;
+	PartShopView.EquippedParts.Add(EquippedPart);
+	FReEchoShopOffer StorageCard;
+	StorageCard.ItemId = TEXT("SHOP_CARD_G_3_02");
+	StorageCard.ContentId = FName(ReEchoEchoStorage::StorageUnlockCardId);
+	StorageCard.DisplayName = FText::FromString(TEXT("时空锚点"));
+	StorageCard.EffectText = FText::FromString(TEXT("开启回响存储"));
+	StorageCard.Type = EReEchoShopOfferType::BuildCard;
+	StorageCard.Tier = 3;
+	PartShopView.OwnedCards.Add(StorageCard);
 	Widget->SetWeaponPartShopView(PartShopView, true);
 	FReEchoEchoStorageSummary EchoSummary;
 	EchoSummary.StorageCapacity = 3;
@@ -184,37 +208,91 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UScrollBox* ShopScrollBox = Cast<UScrollBox>(Widget->GetWidgetFromName(TEXT("ShopLogicScrollBox")));
 	UScaleBox* EchoPanelScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("EchoPanelScale")));
 	UVerticalBox* EchoPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("EchoPanel")));
-	UVerticalBox* ShopLogicPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("ShopLogicPanel")));
 	UVerticalBox* WeaponPartPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("WeaponPartOfferPanel")));
-	TestNotNull(TEXT("Authored shop receives the scrollable logic host"), ShopScrollBox);
-	TestNotNull(TEXT("Authored shop creates a purchasable weapon-part entry"),
-	            Widget->GetWidgetFromName(TEXT("WeaponPartOffer0")));
-	TestTrue(TEXT("Authored weapon-part block is visible"),
-	         WeaponPartPanel && WeaponPartPanel->GetVisibility() == ESlateVisibility::Visible);
-	TestTrue(TEXT("Authored weapon parts appear before ordinary products"),
-	         ShopLogicPanel && ShopLogicPanel->GetChildrenCount() > 0 &&
-	             ShopLogicPanel->GetChildAt(0) == WeaponPartPanel);
-	TestNotNull(TEXT("Authored shop receives the independent echo tray"), EchoPanelScale);
-	TestTrue(TEXT("Post-trait echo management is visible in the authored shop"),
-	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible);
+	TestNotNull(TEXT("Authored shop keeps the legacy scroll host as a hidden compatibility host"), ShopScrollBox);
+	TestNotNull(TEXT("Authored shop creates the target presentation layer"),
+	            Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("ShopPresentationLayer"))));
+	TestNotNull(TEXT("Authored shop creates the three-part target row"),
+	            Cast<UHorizontalBox>(Widget->GetWidgetFromName(TEXT("TargetPartOfferRow"))));
+	TestNotNull(TEXT("Authored shop creates a purchasable target weapon-part entry"),
+	            Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
+	TestTrue(TEXT("Legacy weapon-part block is hidden behind the target composition"),
+	         WeaponPartPanel && WeaponPartPanel->GetVisibility() == ESlateVisibility::Collapsed);
+	TestNotNull(TEXT("Authored shop receives the independent echo popup"), EchoPanelScale);
+	TestTrue(TEXT("Post-trait echo management starts hidden until the storage-card slot is clicked"),
+	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Collapsed);
+	UButton* AttachmentHoverSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("AttachmentHoverSlot0")));
+	TestNotNull(TEXT("Equipped attachment has a hover target below the weapon"), AttachmentHoverSlot);
+	TestTrue(TEXT("Attachment hover uses a custom cursor-following tooltip"),
+	         AttachmentHoverSlot && Cast<USizeBox>(AttachmentHoverSlot->GetToolTip()) != nullptr);
+	if (AttachmentHoverSlot)
+	{
+		const USizeBox* TooltipSize = Cast<USizeBox>(AttachmentHoverSlot->GetToolTip());
+		const UBorder* TooltipFrame = TooltipSize ? Cast<UBorder>(TooltipSize->GetContent()) : nullptr;
+		const UBorder* TooltipSurface = TooltipFrame ? Cast<UBorder>(TooltipFrame->GetContent()) : nullptr;
+		const UVerticalBox* TooltipContent = TooltipSurface ? Cast<UVerticalBox>(TooltipSurface->GetContent()) : nullptr;
+		const UTextBlock* TooltipEffect = TooltipContent && TooltipContent->GetChildrenCount() > 1
+		                                          ? Cast<UTextBlock>(TooltipContent->GetChildAt(1))
+		                                          : nullptr;
+		TestTrue(TEXT("Attachment tooltip includes its effect explanation"),
+		         TooltipEffect && TooltipEffect->GetText().EqualTo(WeaponPart.EffectText));
+	}
+	TestNull(TEXT("Hover detail does not add another fixed panel over the authored board"),
+	         Widget->GetWidgetFromName(TEXT("SlotDetailPanel")));
+	UImage* LoadoutStatsBoard = Cast<UImage>(Widget->GetWidgetFromName(TEXT("ArtLoadoutStats")));
+	TestNotNull(TEXT("Authored loadout stats board still exists for layout compatibility"), LoadoutStatsBoard);
+	TestTrue(TEXT("Large black loadout stats board is hidden behind the card slots"),
+	         LoadoutStatsBoard && LoadoutStatsBoard->GetVisibility() == ESlateVisibility::Collapsed);
+	UButton* StorageCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("EchoStorageCardSlot0")));
+	TestNotNull(TEXT("G_3_02 owns a clickable card slot"), StorageCardSlot);
+	if (StorageCardSlot)
+	{
+		TestNotNull(TEXT("Owned card hover uses the same custom cursor-following tooltip"),
+		            Cast<USizeBox>(StorageCardSlot->GetToolTip()));
+		UImage* CardImage = Cast<UImage>(Widget->GetWidgetFromName(TEXT("OwnedCardSlot0")));
+		const UCanvasPanelSlot* CardImageSlot = CardImage ? Cast<UCanvasPanelSlot>(CardImage->Slot) : nullptr;
+		const UCanvasPanelSlot* InteractionSlot = Cast<UCanvasPanelSlot>(StorageCardSlot->Slot);
+		TestNotNull(TEXT("Owned card art stays directly on the fixed-size slot canvas"), CardImageSlot);
+		TestNotNull(TEXT("Owned card interaction is a separate same-size overlay"), InteractionSlot);
+		if (CardImageSlot && InteractionSlot)
+		{
+			TestEqual(TEXT("Owned card art remains 60 by 60"), CardImageSlot->GetSize(), FVector2D(60.0f, 60.0f));
+			TestEqual(TEXT("Interaction overlay matches the card art size"),
+			          InteractionSlot->GetSize(), CardImageSlot->GetSize());
+			TestEqual(TEXT("Interaction overlay matches the card art position"),
+			          InteractionSlot->GetPosition(), CardImageSlot->GetPosition());
+		}
+		StorageCardSlot->OnClicked.Broadcast();
+	}
+	TestTrue(TEXT("Clicking the G_3_02 slot opens echo storage"),
+	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible &&
+	             EchoPanelScale && EchoPanelScale->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
 	if (ShopScrollBox)
 	{
-		const UCanvasPanelSlot* ScrollCanvasSlot = Cast<UCanvasPanelSlot>(ShopScrollBox->Slot);
-		TestNotNull(TEXT("Authored shop scroll range has an independent canvas viewport"), ScrollCanvasSlot);
-		if (ScrollCanvasSlot)
-		{
-			TestEqual(TEXT("Shop product viewport renders below authored panel art"), ScrollCanvasSlot->GetZOrder(), 10);
-			TestTrue(TEXT("Post-trait product viewport stops above echo storage"),
-			         FMath::IsNearlyEqual(ScrollCanvasSlot->GetAnchors().Maximum.Y, 0.69f));
-		}
+		TestEqual(TEXT("Legacy shop scroll host does not intercept target buttons"),
+		          ShopScrollBox->GetVisibility(), ESlateVisibility::Collapsed);
 	}
 	if (EchoPanelScale)
 	{
 		const UCanvasPanelSlot* EchoCanvasSlot = Cast<UCanvasPanelSlot>(EchoPanelScale->Slot);
-		TestNotNull(TEXT("Authored echo tray is attached to a canvas"), EchoCanvasSlot);
+		TestNotNull(TEXT("Authored echo popup is attached to a canvas"), EchoCanvasSlot);
 		if (EchoCanvasSlot)
 		{
-			TestEqual(TEXT("Authored echo tray renders above shop art"), EchoCanvasSlot->GetZOrder(), 20);
+			TestEqual(TEXT("Authored echo popup renders above shop art"), EchoCanvasSlot->GetZOrder(), 40);
+			TestTrue(TEXT("Authored echo popup occupies a centered modal region"),
+			         EchoCanvasSlot->GetAnchors().Minimum.Y < 0.30f && EchoCanvasSlot->GetAnchors().Maximum.Y > 0.70f);
+		}
+	}
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		UImage* Attachment = Cast<UImage>(Widget->GetWidgetFromName(
+		    *FString::Printf(TEXT("ArtAttachmentSlot%d"), Index)));
+		const UOverlaySlot* AttachmentSlot = Attachment ? Cast<UOverlaySlot>(Attachment->Slot) : nullptr;
+		TestNotNull(*FString::Printf(TEXT("Attachment slot %d exists in the authored loadout"), Index), AttachmentSlot);
+		if (AttachmentSlot)
+		{
+			TestTrue(*FString::Printf(TEXT("Attachment slot %d is below the weapon"), Index),
+			         AttachmentSlot->GetPadding().Top >= 580.0f);
 		}
 	}
 	return true;

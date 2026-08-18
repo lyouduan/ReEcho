@@ -179,7 +179,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 - 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
 - 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent 和维护 Actor 生命周期。
-- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`，集中敌人 Profile/贴图路径、血条、动画、命中特效、元素光环与死亡残留。
+- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class，血条、动画、命中特效、元素光环与死亡残留不反向控制玩法。
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
 - 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素和 Boss 在途投射物；EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
 - 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
@@ -234,7 +234,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ### `AREA-Presentation`：`Graybox` / `Presentation`世界表现
 
-**设计意图：** 组装玩家、敌人、Echo、投射物、关卡场景、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。`Presentation/Animation2D` 通过 Appearance Profile、Catalog、Controller 与 Driver，把稳定视觉 ID 和玩法意图解析为角色/武器合成 Flipbook，不要求将同帧中的武器拆成独立渲染节点。
+**设计意图：** 组装玩家、敌人、Echo、投射物、关卡场景、血条、伤害数字和命中特效等世界对象，消费逻辑状态与事件形成可见反馈。`Presentation/Animation2D` 通过 Profile、Catalog、Controller 与 Driver，把玩家 `AppearanceId` 和敌人 `PresentationId` 统一解析为 Gameplay Blueprint + Flipbook；通用运行时代码不按具体角色、敌人、Boss 或生成序号硬加载资源。
 
 - 代码：`Source/ReEcho/Public/Graybox/`、`Private/Graybox/`、`Public/Presentation/`、`Private/Presentation/`。
 - 首读：`Presentation/Animation2D/*`、`ReEchoPlayerPawn.*`、`ReEchoEnemyActor.*`、`ReEchoEchoActor.*`、`docs/2D_SEQUENCE_ANIMATION.md`。
@@ -248,11 +248,14 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 碰撞边界：根 Box Collision 始终拥有移动 Sweep、阻挡、导航和位置记录权威；`BP_PlayerGameplay` 与四个 `BP_EnemyGameplay_*` 是尺寸/Transform 的 Editor 权威，GameMode 实际生成这些类。匹配序列的 PaperFlipbook 可使用 `EachFrameCollision` 提供 `QueryOnly` 身体轮廓，但不得推动 Actor 或替代根 Box。
 - 命中边界：语义 Body Hurtbox 与 Weapon AttackHitbox 由独立帧轨道表达。只有已提交攻击的只读身份和轨道 active frame 能开放攻击查询；动画时间、像素 alpha、Paper2D 内建碰撞和播放完成都不能产生或裁决伤害。
 - 资产：运行时 Texture2D、PaperSprite 和 Flipbook 位于 `Content/ReEcho/Art/Animation2D/`；Profile/Catalog 位于 `Content/ReEcho/Animation2D/`；PNG 源图保留在 `Content/SourceArt/Characters/`。导入与碰撞工具位于 `scripts/ue/`。
-- Gameplay Blueprint 表现树：`BP_PlayerGameplay` 与 `BP_EnemyGameplay_{Grunt,Rabbit,Goat,Fox}` 是运行时和 Editor 的单一角色实例，不再生成第二个 Visual Prefab Actor。根 `Collision` 保持原生移动碰撞权威；其下为 `PresentationRoot`，再分为 `FlipbookRoot -> FlipbookRenderer`、`FootRoot -> GroundRoot -> GroundShadow`、`EffectsRoot -> 特效组件`。当前范围不创建 UI 节点；后续挂点直接作为对应根的 Blueprint 子组件扩展。
-- Transform 权威：Gameplay Blueprint 的 `CharacterScale` 是整个 Actor 的统一尺寸入口，等比作用于根 Box Collision、表现、阴影、特效和未来新增子节点。全部组件使用相对父节点的 Transform，不设置绝对位置、旋转或缩放。`PresentationRoot -> FootRoot -> PresentationMotionRoot` 是共享脚点运动链；`FlipbookRoot`、`GroundRoot` 和 `EffectsRoot` 是 MotionRoot 的兄弟子节点。攻击前冲/受击平面位移只写一次 MotionRoot，Flipbook 与阴影自然同步；上下 bob 与挤压仅写 Flipbook/Effects 分支，阴影保持稳定形状。玩家瞄准只更新独立逻辑 `AttackAimDirection` 与 Flipbook 横向镜像，不再旋转整个 Actor；武器读取该逻辑方向，碰撞与阴影不会因瞄准旋转。
+- Gameplay Blueprint 表现树：四个玩家共享 `BP_PlayerGameplay`；Grunt、Shield、Bomber、Slime、Rabbit、Fox、TimeGuard 分别使用 Catalog 绑定的 `BP_EnemyGameplay_*`，但全部继承同一原生 Host/组件契约。根 `Collision` 保持移动碰撞权威；其下统一为 `PresentationRoot → FootRoot → PresentationMotionRoot → {FlipbookRoot, GroundRoot, EffectsRoot}`。子 Blueprint 只调整碰撞、比例、Tint、阴影、脚点和挂点，不拥有 AI、伤害或动画状态机真相。
+- Transform 权威：Gameplay Blueprint 的 `CharacterScale` 是玩家和怪物整个 Actor 的统一尺寸入口，等比作用于根 Box Collision、表现、阴影、特效和未来新增子节点。全部组件使用相对父节点的 Transform，不设置绝对位置、旋转或缩放。`PresentationRoot -> FootRoot -> PresentationMotionRoot` 是共享脚点运动链；`FlipbookRoot`、`GroundRoot` 和 `EffectsRoot` 是 MotionRoot 的兄弟子节点。Idle、Move 与 Attack 完全由 Flipbook 表现，运行时不再叠加 bob、表现前冲或拉伸挤压；Hit 仍可在 MotionRoot/Flipbook 分支播放短暂受击反馈，阴影随平面受击位移同步但不参与高度与形变。敌人血条是独立表现 Actor，但只消费 `FootRoot` 世界脚点、Profile 高度和宿主 `CharacterScale`，其位置与显示尺寸随 Gameplay BP 总缩放同步。玩家瞄准只更新独立逻辑 `AttackAimDirection` 与 Flipbook 横向镜像，不再旋转整个 Actor；武器读取该逻辑方向，碰撞与阴影不会因瞄准旋转。
 - 比例边界：Profile `WorldHeight` 只负责同一外观各 Flipbook 序列之间的基础归一化；Gameplay Blueprint 的 `CharacterScale` 负责碰撞、角色、阴影、特效及全部挂点的最终整体比例。局部 `FlipbookRoot`、`GroundRoot`、`EffectsRoot` 只作分层位置/朝向微调，不得再用局部 Scale 调整角色整体尺寸。场景整体比例由 Arena Blueprint 的 `MapRoot` 独立拥有，相机不继承 MapRoot。
+- 环境融合：每个 Gameplay Blueprint 的 `FlipbookRenderer.CharacterTint` 是角色/怪物与地图、植物卡片匹配色调的轻量入口；只影响 Paper2D 颜色，不改变源纹理、动画、碰撞或玩法状态。
 - Editor 构图预览：`ReEcho2DEditorPreviewActor` 是 EditorOnly 的单一 ChildActor 宿主，直接实例化真实 Gameplay Blueprint 类；目标类不变时不重建 ChildActor，避免 Construction 累积重复实例。ChildActor 标记为 Visualization Component，并在 BeginPlay 显式销毁，保证不会把碰撞、AI 或表现带入 PIE/Cook。
-- Gameplay Blueprint 编辑器：五个角色/怪物 Gameplay BP 必须各自拥有一个 Blueprint authored `ArtAuthoringRoot`，挂在 `PresentationMotionRoot` 下。该节点既是美术扩展特效/装饰子节点的稳定入口，也防止资产退化为没有 Viewport 的 Data Only Blueprint 精简界面；完整编辑器中仍可选择继承的 Collision、FlipbookRoot、GroundShadow 与 EffectsRoot。
+- Gameplay Blueprint 编辑器：玩家 Blueprint 与七个敌人 Blueprint 必须维持同一继承组件契约，并可使用挂在 `PresentationMotionRoot` 下的 `ArtAuthoringRoot` 作为美术扩展入口；完整编辑器中仍可选择继承的 Collision、FlipbookRoot、GroundShadow 与 EffectsRoot。
+- 角色/存档边界：生产角色只有 `J_SPADE/J_DIAMOND/J_CLOVER/J_HEART`。SaveVersion 11 把旧版本 CurrentBuild、所有 Echo Recording 和局中 ActiveRecording 内的 `J_CAT/J01` 迁移为 `J_SPADE`；新存档只写规范 ID。
+- Boss 表现边界：`Enemy.TimeGuard` 使用普通敌人相同的 Catalog/Profile/Gameplay Blueprint/FSM 路径；不存在 `Boss2D` 静态贴图特例。专属动画未交付时仅由 `DA_Enemy_TimeGuard` 显式复用 Goat 动画。
 - 阴影渲染层：GroundShadow 与 Flipbook 共享 MotionRoot 只解决位置同步，前后遮挡由整数 `TranslucencySortPriority` 明确控制。玩家与全部怪物阴影固定为 `-10`，角色 Flipbook 使用 Profile/Clip 的非负表现层，禁止使用会被截断为零的小数排序值，确保阴影始终绘制在角色下层。
 - 旧架构清理：`ReEcho2DVisualPrefabActor` 类型与 `/Game/ReEcho/Animation2D/VisualPrefabs/**` 蓝图资产已删除。角色表现只能从真实 Gameplay Blueprint 扩展，禁止重新引入运行时第二 Actor 或另一套表现组件树。
 - 场景 Prefab：Level00 放置 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene_Map00`，以 `ReEchoArenaSceneActor` 为稳定运行时契约。正式 Level00 的 Arena Actor 与 `MapRoot` 位于世界原点，`GameplayPlaneZ=0`；Backdrop 位于地面下方极小偏移，Floor 顶面与地面平面对齐但不阻挡 Pawn，角色高度由玩法平面保持，只有四面墙承担移动阻挡。生成植物卡片从 `ArenaCamera` 当前 Pitch/Yaw 计算朝向，使 Plane 正面法线对准相机；工具再按卡片尺寸和倾角补偿中心 Z，使卡片下缘始终位于玩法地面。相机运行时只平移，因此卡片不需要 Tick；生成后仍可在 Level00 单独编辑。美术可在 Blueprint 的可选视觉层新增组件；相机、MapRoot、玩法范围和碰撞仍由类型化原生接口供 GameMode 消费。

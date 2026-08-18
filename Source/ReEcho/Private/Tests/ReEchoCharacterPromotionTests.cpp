@@ -14,7 +14,7 @@ bool FReEchoCharacterPromotionRoleTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_01"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	TestEqual(TEXT("A new run starts with fifteen maximum health"), RunSubsystem->CurrentBuild.Stats.HpMax, 15.0f);
 
 	FReEchoBuildSnapshot Hunter;
