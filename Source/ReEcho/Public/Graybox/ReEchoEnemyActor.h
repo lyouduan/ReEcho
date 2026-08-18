@@ -13,6 +13,7 @@ class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DFrameCollisionDriver;
 class UReEcho2DPresentationController;
+class UReEcho2DPresentationCatalog;
 class UReEcho2DSceneLightingComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
@@ -58,6 +59,7 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
+	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
 	bool ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, int32 SpawnIndex);
 
 	void SetEnemyId(FName InEnemyId)

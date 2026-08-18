@@ -87,9 +87,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Encounter", meta = (ClampMin = "0.0"))
 	float EnemySpawnMaxPlayerDistance;
 
-	/** 默认玩家外观：J_CAT、J_HEART、J_SPADE、J_CLOVER 或 J_DIAMOND。 */
+	/** 默认玩家外观：J_SPADE、J_DIAMOND、J_CLOVER 或 J_HEART。 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Characters")
-	FName DefaultCharacterId = TEXT("J_CAT");
+	FName DefaultCharacterId = TEXT("J_SPADE");
 
 	/** Project Settings 中可编辑、打包时随 Game 配置发布的运行时武器定义。 */
 };

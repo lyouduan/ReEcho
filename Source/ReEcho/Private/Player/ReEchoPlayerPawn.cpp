@@ -84,8 +84,6 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	PresentationController->BindCollisionDriver(FrameCollisionDriver);
 	SceneLighting = CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
 	SceneLighting->Configure(SequenceAnimation, GroundShadow);
-	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
@@ -94,7 +92,6 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
-	CharacterTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
@@ -102,7 +99,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
-	ConfigureCharacter(TEXT("J_CAT"));
+	ConfigureCharacter(TEXT("J_SPADE"));
 	Movement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("Movement"));
 	Movement->MaxSpeed = 420.f;
 	AbilitySystem = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));

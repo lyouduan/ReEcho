@@ -146,7 +146,6 @@ def clip(flipbook, looping, restart=False):
 unreal.EditorAssetLibrary.make_directory(ROOT)
 
 appearance_textures = {
-    "J_CAT": "/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat",
     "J_HEART": "/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart",
     "J_SPADE": "/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01",
     "J_CLOVER": "/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover",
@@ -297,11 +296,8 @@ fox_set.set_editor_property(
 fox.set_editor_property("animation_sets", [fox_set])
 enemy_profiles.append(fox)
 
-cat_profile = next(
-    profile for profile in profiles if str(profile.get_editor_property("appearance_id")) == "J_CAT"
-)
-cat_clips = cat_profile.get_editor_property("animation_sets")[0].get_editor_property("clips")
-cat_idle_flipbook = cat_clips[tag("Animation.Idle")].get_editor_property("flipbook")
+spade_clips = spade.get_editor_property("animation_sets")[0].get_editor_property("clips")
+spade_idle_flipbook = spade_clips[tag("Animation.Idle")].get_editor_property("flipbook")
 
 gameplay_prefab_assets = [
     get_or_create_gameplay_prefab(
@@ -309,7 +305,7 @@ gameplay_prefab_assets = [
         "/Script/ReEcho.ReEchoPlayerPawn",
         (24.0, 24.0, 50.0),
         -50.0,
-        cat_idle_flipbook,
+        spade_idle_flipbook,
     ),
     get_or_create_gameplay_prefab(
         "BP_EnemyGameplay_Grunt", "/Script/ReEcho.ReEchoEnemyActor", (22.0, 22.0, 40.0), -40.0, grunt_flipbook

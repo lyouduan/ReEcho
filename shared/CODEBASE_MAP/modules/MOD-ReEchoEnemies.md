@@ -51,7 +51,7 @@
 
 ### 输入
 
-- `FReEchoEnemyDefinition`：资源无关的不可变行为定义。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值，后续若迁移配表必须由主模块编译后注入。
+- `FReEchoEnemyDefinition`：资源无关的不可变行为定义，携带稳定但资源无关的 `PresentationId`。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值和兼容 ID，生产定义由主模块从 CSV 编译后注入。
 - `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态，以及 Encounter 注入的 `bSpecialActionPermitted`。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
 - `BindEventSources(EnemyEvents, CombatEvents)`：由 Host 显式注入两个事件源。Logic 订阅 Combat Hurt/Death，不发现兄弟组件。
 - `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。
@@ -112,7 +112,7 @@ Combat OnDeath
 
 ### 当前候选接线状态
 
-`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率，并由 GameMode 为普通攻击与 Boss 投射物统一选择最近存活嘲讽 Echo；EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、清理、捕获存档和判断全灭。`UReEchoEnemyPresentationComponent` 独立拥有资源映射和瞬时可见状态，只读消费 EnemyEvents、CombatEvents 与聚合快照。
+`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率，并由 GameMode 为普通攻击与 Boss 投射物统一选择最近存活嘲讽 Echo；EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、清理、捕获存档和判断全灭。Host 仅把 Definition 的 `PresentationId` 传给 `UReEchoEnemyPresentationComponent`；后者在主模块 Catalog 中解析 Profile，EnemyLogic 不依赖 Blueprint、Paper2D 或资产路径。
 
 ## 代码位置与阅读路线
 

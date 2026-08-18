@@ -15,6 +15,7 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionTrack.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h"
 #include "Player/ReEchoPlayerPawn.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
@@ -41,8 +42,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
 	UPaperFlipbook* RabbitFlipbook = LoadObject<UPaperFlipbook>(
 	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
-	UPaperFlipbook* GoatWalkFlipbook = LoadObject<UPaperFlipbook>(
-	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk0.Walk0"));
+	UPaperFlipbook* GoatWalkFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk0.Walk0"));
 	UPaperFlipbook* GoatAttackFlipbook = LoadObject<UPaperFlipbook>(
 	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Attack0.Attack0"));
 	TestNotNull(TEXT("J_SPADE reusable renderer Flipbook is loadable"), PlayerFlipbook);
@@ -66,8 +67,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Rabbit Flipbook uses authored EachFrame collision"),
 	         RabbitFlipbook && RabbitFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	TestTrue(TEXT("Goat walk Flipbook uses authored EachFrame collision"),
-	         GoatWalkFlipbook &&
-	             GoatWalkFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	         GoatWalkFlipbook && GoatWalkFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	TestTrue(TEXT("Goat attack Flipbook uses authored EachFrame collision"),
 	         GoatAttackFlipbook &&
 	             GoatAttackFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
@@ -93,6 +93,9 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestEveryKeyFrameHasCollision(TEXT("Goat attack has collision geometry on every key frame"), GoatAttackFlipbook);
 	UReEcho2DPresentationCatalog* AuthoredCatalog = LoadObject<UReEcho2DPresentationCatalog>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
+	UReEchoEnemyGameplayClassRegistry* GameplayClassRegistry = LoadObject<UReEchoEnemyGameplayClassRegistry>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/DA_EnemyGameplayClassRegistry.DA_EnemyGameplayClassRegistry"));
 	UReEcho2DCharacterPresentationProfile* AuthoredGrunt = LoadObject<UReEcho2DCharacterPresentationProfile>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Grunt.DA_Enemy_Grunt"));
 	UReEcho2DCharacterPresentationProfile* AuthoredRabbit = LoadObject<UReEcho2DCharacterPresentationProfile>(
@@ -102,9 +105,32 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	UReEcho2DCharacterPresentationProfile* AuthoredFox = LoadObject<UReEcho2DCharacterPresentationProfile>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Fox.DA_Enemy_Fox"));
 	TestNotNull(TEXT("Cook-visible presentation catalog is loadable"), AuthoredCatalog);
+	TestNotNull(TEXT("Gameplay-owned enemy class registry is loadable"), GameplayClassRegistry);
 	const UReEcho2DCharacterPresentationProfile* AuthoredSpade =
 	    AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_SPADE")) : nullptr;
 	TestNotNull(TEXT("Authored catalog resolves J_SPADE AppearanceId"), AuthoredSpade);
+	const TArray<FName> PlayerPresentationIds = {TEXT("J_SPADE"), TEXT("J_DIAMOND"), TEXT("J_CLOVER"), TEXT("J_HEART")};
+	for (const FName PresentationId : PlayerPresentationIds)
+	{
+		TestNotNull(*FString::Printf(TEXT("Catalog resolves player profile %s"), *PresentationId.ToString()),
+		            AuthoredCatalog ? AuthoredCatalog->ResolveProfile(PresentationId) : nullptr);
+	}
+	const TArray<FName> EnemyPresentationIds = {TEXT("Enemy.Grunt"),
+	                                            TEXT("Enemy.Shield"),
+	                                            TEXT("Enemy.Bomber"),
+	                                            TEXT("Enemy.Slime"),
+	                                            TEXT("Enemy.Rabbit"),
+	                                            TEXT("Enemy.Fox"),
+	                                            TEXT("Enemy.TimeGuard")};
+	for (const FName PresentationId : EnemyPresentationIds)
+	{
+		TestNotNull(*FString::Printf(TEXT("Catalog resolves enemy profile %s"), *PresentationId.ToString()),
+		            AuthoredCatalog ? AuthoredCatalog->ResolveProfile(PresentationId) : nullptr);
+		TestTrue(*FString::Printf(TEXT("Gameplay registry resolves enemy Blueprint %s"), *PresentationId.ToString()),
+		         GameplayClassRegistry && GameplayClassRegistry->ResolveGameplayClass(PresentationId));
+	}
+	TestNull(TEXT("Removed J_CAT profile is absent from the production catalog"),
+	         AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_CAT")) : nullptr);
 	UClass* PlayerGameplayClass = LoadClass<AReEchoPlayerPawn>(
 	    nullptr, TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay.BP_PlayerGameplay_C"));
 	UClass* GruntGameplayClass = LoadClass<AReEchoEnemyActor>(
@@ -144,8 +170,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		             FlipbookRoot->GetAttachParent() == MotionRoot && GroundRoot->GetAttachParent() == MotionRoot &&
 		             EffectsRoot->GetAttachParent() == MotionRoot && Renderer->GetAttachParent() == FlipbookRoot &&
 		             !FlipbookRoot->IsUsingAbsoluteRotation() && !GroundRoot->IsUsingAbsoluteRotation() &&
-		             !Renderer->GetRelativeRotation().ContainsNaN() &&
-		             !Renderer->GetRelativeLocation().ContainsNaN() &&
+		             !Renderer->GetRelativeRotation().ContainsNaN() && !Renderer->GetRelativeLocation().ContainsNaN() &&
 		             !Renderer->GetRelativeScale3D().ContainsNaN() &&
 		             Renderer->GetRelativeScale3D().GetAbsMin() > UE_SMALL_NUMBER && !Renderer->bHiddenInGame);
 	};

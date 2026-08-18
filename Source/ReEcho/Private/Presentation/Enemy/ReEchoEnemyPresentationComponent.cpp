@@ -10,7 +10,6 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
-#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoBillboardDebug.h"
@@ -23,12 +22,12 @@
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "UI/ReEchoDamageNumberActor.h"
-#include "UObject/ConstructorHelpers.h"
 
 namespace ReEchoEnemyVisual
 {
-constexpr float BossWorldHeight = 220.0f;
+constexpr float DefaultWorldHeight = 100.0f;
 constexpr float HealthBarHeightRatio = 0.65f;
 constexpr float HealthBarWidthScale = 0.72f;
 constexpr float HitReactionDuration = 0.22f;
@@ -37,26 +36,16 @@ constexpr float HitReactionDuration = 0.22f;
 UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	static ConstructorHelpers::FObjectFinder<UTexture2D> BossTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/Boss2D.Boss2D"));
-	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> GruntProfileFinder(
-	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Grunt.DA_Enemy_Grunt"));
-	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> RabbitDollProfileFinder(
-	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll.DA_Enemy_RabbitDoll"));
-	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> GoatPriestProfileFinder(
-	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
-	static ConstructorHelpers::FObjectFinder<UReEcho2DCharacterPresentationProfile> FoxProfileFinder(
-	    TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Fox.DA_Enemy_Fox"));
-	BossTexture = BossTextureFinder.Object;
-	GruntPresentationProfile = GruntProfileFinder.Object;
-	RabbitDollPresentationProfile = RabbitDollProfileFinder.Object;
-	GoatPriestPresentationProfile = GoatPriestProfileFinder.Object;
-	FoxPresentationProfile = FoxProfileFinder.Object;
+}
+
+void UReEchoEnemyPresentationComponent::SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog)
+{
+	PresentationCatalog = InPresentationCatalog;
 }
 
 void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InPresentationRoot,
                                                             USceneComponent* InVisualEffectRoot,
-	                                                        USceneComponent* InFootRoot,
+                                                            USceneComponent* InFootRoot,
                                                             USceneComponent* InFlipbookRoot,
                                                             USceneComponent* InEffectsRoot,
                                                             UBillboardComponent* InCharacterSprite,
@@ -138,10 +127,9 @@ void UReEchoEnemyPresentationComponent::EndPlay(const EEndPlayReason::Type EndPl
 	Super::EndPlay(EndPlayReason);
 }
 
-void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyArchetype Archetype,
-                                                            const int32 AppearanceId)
+void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName PresentationId)
 {
-	ApplyVisual(Archetype, AppearanceId);
+	ApplyVisual(PresentationId);
 	RefreshElementAttachmentVisual();
 	if (!HealthBar && Host && Host->GetWorld())
 	{
@@ -150,9 +138,8 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 	if (HealthBar)
 	{
 		const UReEcho2DCharacterPresentationProfile* Profile =
-		    Archetype == EReEchoEnemyArchetype::Boss ? nullptr
-		                                              : ResolveEnemyPresentationProfile(Archetype, AppearanceId);
-		const float PresentationHeight = Profile ? Profile->WorldHeight : ReEchoEnemyVisual::BossWorldHeight;
+		    PresentationCatalog ? PresentationCatalog->ResolveProfile(PresentationId) : nullptr;
+		const float PresentationHeight = Profile ? Profile->WorldHeight : ReEchoEnemyVisual::DefaultWorldHeight;
 		HealthBar->Initialize(Combatant,
 		                      FLinearColor(1.0f, 0.08f, 0.04f),
 		                      PresentationHeight * ReEchoEnemyVisual::HealthBarHeightRatio,
@@ -161,21 +148,15 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 	}
 }
 
-void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype Archetype, const int32 AppearanceId)
+void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 {
-	const bool bIsBoss = Archetype == EReEchoEnemyArchetype::Boss;
 	UReEcho2DCharacterPresentationProfile* Profile =
-	    bIsBoss ? nullptr : ResolveEnemyPresentationProfile(Archetype, AppearanceId);
+	    PresentationCatalog ? PresentationCatalog->ResolveProfile(PresentationId) : nullptr;
 	if (CharacterSprite)
 	{
-		CharacterSprite->SetVisibility(bIsBoss || !Profile);
-		CharacterSprite->SetHiddenInGame(!bIsBoss && Profile);
+		CharacterSprite->SetVisibility(!Profile);
+		CharacterSprite->SetHiddenInGame(Profile != nullptr);
 		CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
-		if (bIsBoss && BossTexture)
-		{
-			CharacterSprite->SetSprite(BossTexture);
-			CharacterSprite->SetWorldScale3D(FVector::OneVector);
-		}
 	}
 	if (PresentationController)
 	{
@@ -203,35 +184,6 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype 
 	DeathVisualRemaining = 0.0f;
 	bHitVisualActive = false;
 	bDeathVisualActive = false;
-}
-
-UReEcho2DCharacterPresentationProfile*
-UReEchoEnemyPresentationComponent::ResolveEnemyPresentationProfile(const EReEchoEnemyArchetype Archetype,
-                                                                   const int32 AppearanceId) const
-{
-	if (Archetype == EReEchoEnemyArchetype::Ranged)
-	{
-		return RabbitDollPresentationProfile ? RabbitDollPresentationProfile : GruntPresentationProfile;
-	}
-	if (Archetype == EReEchoEnemyArchetype::Elite)
-	{
-		return FoxPresentationProfile ? FoxPresentationProfile : GruntPresentationProfile;
-	}
-	if (Archetype == EReEchoEnemyArchetype::Slime)
-	{
-		return GruntPresentationProfile;
-	}
-	switch (FMath::Abs(AppearanceId) % 4)
-	{
-		case 1:
-			return RabbitDollPresentationProfile ? RabbitDollPresentationProfile : GruntPresentationProfile;
-		case 2:
-			return GoatPriestPresentationProfile ? GoatPriestPresentationProfile : GruntPresentationProfile;
-		case 3:
-			return FoxPresentationProfile ? FoxPresentationProfile : GruntPresentationProfile;
-		default:
-			return GruntPresentationProfile;
-	}
 }
 
 void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSnapshot& Snapshot,

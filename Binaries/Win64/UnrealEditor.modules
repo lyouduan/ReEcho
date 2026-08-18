@@ -6,6 +6,7 @@
     "ReEchoCards": "UnrealEditor-ReEchoCards.dll",
     "ReEchoCombat": "UnrealEditor-ReEchoCombat.dll",
     "ReEchoEnemies": "UnrealEditor-ReEchoEnemies.dll",
+    "ReEchoPresentation": "UnrealEditor-ReEchoPresentation.dll",
     "ReEchoWeapons": "UnrealEditor-ReEchoWeapons.dll"
   }
 }

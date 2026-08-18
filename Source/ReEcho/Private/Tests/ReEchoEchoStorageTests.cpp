@@ -15,7 +15,7 @@ UReEchoRunSubsystem* CreateStartedRun(UGameInstance* GameInstance)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	return Run;
 }
 
@@ -509,7 +509,7 @@ bool FReEchoEchoStorageRecordingPayloadTest::RunTest(const FString& Parameters)
 	// only explicit active skill calls append events.
 	UReEchoRecorderComponent* Recorder = NewObject<UReEchoRecorderComponent>(GetTransientPackage());
 	FReEchoBuildSnapshot InitialBuild;
-	InitialBuild.CharacterId = TEXT("J_CAT");
+	InitialBuild.CharacterId = TEXT("J_SPADE");
 	InitialBuild.WeaponId = TEXT("W_J_02");
 	Recorder->BeginRecording(1, TEXT("TestArena"), 4242, InitialBuild);
 	Recorder->AdvanceRecording(0.05f, FVector(10.0f, 0.0f, 0.0f));

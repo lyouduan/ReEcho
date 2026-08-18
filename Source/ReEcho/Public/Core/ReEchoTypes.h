@@ -43,7 +43,7 @@ struct REECHO_API FReEchoBuildSnapshot
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 
-	FName CharacterId = "J01";
+	FName CharacterId = "J_SPADE";
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName WeaponId = "W_J_01";
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

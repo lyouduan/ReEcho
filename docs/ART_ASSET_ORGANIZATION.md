@@ -15,6 +15,8 @@
 - MushroomGirl 原始帧：`Content/SourceArt/Characters/MushroomGirl/`。
 - MushroomGirl 运行时纹理：`Content/ReEcho/Textures/Characters/MushroomGirl/`。
 - Plan40 序列动画：按角色、敌人和状态放在 `Content/ReEcho/Art/Animation2D/`，不把运行时资产导入 `SourceArt`。
+- 生产角色只保留 `J_SPADE/J_DIAMOND/J_CLOVER/J_HEART`；`ReEchoPresentation` 的 Catalog/Profile 是身份到表现资源的唯一绑定入口，运行时代码不得重新硬加载 CAT 或具体 Boss 贴图。
+- 敌人统一以 `PresentationId` 绑定资源：`DA_PresentationCatalog` 只绑定 `DA_Enemy_*` Profile，主模块 `DA_EnemyGameplayClassRegistry` 单独绑定 `BP_EnemyGameplay_*`。Boss/TimeGuard 与普通怪使用相同结构，缺少专属动画时在 Profile 内显式复用已批准资源。
 
 ## 导入规则
 
@@ -25,10 +27,11 @@
 5. 未跟踪且误生成在 `SourceArt` 的 `.uasset` 先隔离，确认无引用后再永久删除。
 6. UI 交付效果图不直接作为正常运行时整屏纹理；未附来源和授权证明的字体不得导入、在 WBP 中引用或提交分发，待授权 TTF 只保留在本地隔离目录。
 
-## 当前审计结论（2026-08-13）
+## 当前审计结论（2026-08-18）
 
 - `Player2D` 与 `SoftGroundShadow` 仍由运行时代码直接加载，必须保留。
 - `Echo2D`、`Grunt2D` 仍属于旧静态回退/Cook 兼容资产，暂不删除。
+- `Boss2D`、`DA_Character_J_CAT`、CAT 生成动画、Player/Echo CAT 贴图及其源 PNG 是 Plan50 的定向清理对象；必须先用 Unreal Asset Registry 确认无引用，再通过 Editor 删除并修复 Redirector。
 - MushroomGirl 旧单帧资源已按当前工作区清理意图移除。
 - `/Game/SourceArt/Characters/PlayerEchoReference` 与 `/Game/SourceArt/Characters/MushroomGirl/MushroomGirl_SpriteSheet` 是源 PNG 的重复 Texture2D 导入，无代码文本引用，应从 Content Browser 的运行时资产集合排除。
 

@@ -10,11 +10,12 @@
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@69487228edcddb5ccab754119c4837a95d757b8d`。
 - 2026-08-18 模块修订：经程序用户确认，动画表现必须成为独立 Runtime Module；此前“不拆新模块”的决策作废，执行候选必须先迁移到 `ReEchoPresentation`。
+- 2026-08-18 执行验收修订：经程序用户确认，本轮不新增或运行单元测试、自动化验证和机器验收；完成实现与资产配置后交由人工 Editor/PIE 验收。
 - 本地实现方式（可选，仅作交接说明）：`codex/plan50-unified-presentation`，独立 worktree `C:\Users\binnanliang\Documents\ReEcho-worktrees\plan50-unified-presentation`；主工作区中现有 Editor 资产改动保持隔离，不自动带入。
 - 依赖 / 阻塞：删除二进制资产前需在最终基线上通过 Unreal Editor Reference Viewer/Asset Registry 组合引用并取得用户对准确删除清单的风险确认；任何 Editor、构建或自动化命令前需用户保存并关闭交互式 Editor。权威角色表修改必须同步 `Design/Data/ReEchoData.xlsx` 与生成 CSV。
 - Writes:
   - `plans/50-unified-character-enemy-presentation.md`
-  - `Source/ReEchoPresentation/**`（新增 Runtime Module，拥有通用 Animation2D 类型、Profile、FSM、Catalog、Controller、Renderer、FrameCollision Query/Debug 与模块测试）
+  - `Source/ReEchoPresentation/**`（新增 Runtime Module，拥有通用 Animation2D 类型、Profile、FSM、Catalog、Controller、Renderer 与 FrameCollision Query/Debug）
   - `Source/ReEcho/ReEcho.Build.cs`
   - `ReEcho.uproject`
   - `Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`
@@ -138,7 +139,7 @@
 
 ## 实现提纲
 
-1. 新建 `ReEchoPresentation` Runtime Module，把通用 Animation2D 类型、Profile、FSM、Catalog、Controller、Renderer、FrameCollision Query/Debug 和模块单元测试迁入；更新 `.uproject`、Build 依赖和完整模块文档，并证明它不反向依赖任何玩法模块。
+1. 新建 `ReEchoPresentation` Runtime Module，把通用 Animation2D 类型、Profile、FSM、Catalog、Controller、Renderer 和 FrameCollision Query/Debug 迁入；更新 `.uproject`、Build 依赖和完整模块文档，并保持它不反向依赖任何玩法模块。
 2. 在主模块建立独立的 Enemy Gameplay Blueprint Class Registry；表现 Catalog 只解析 Profile。将 Enemy Definition 的 `PresentationId` 贯穿 Spawn/Restore -> EnemyActor -> EnemyPresentation，移除 SpawnIndex 外观选择、Boss 静态特殊分支和 Catalog 到主模块 Actor 类型的依赖。
 3. 通过 Unreal Editor API 创建/统一七个怪物 Blueprint/Profile；TimeGuard 临时绑定批准的 Goat 动画，修复全部 Profile 的重复/空 Key 和循环策略。
 4. 更新四玩家 Profile 与 Catalog，删除 CAT 的生成/导入入口；保持一个共享 Player Gameplay Blueprint。

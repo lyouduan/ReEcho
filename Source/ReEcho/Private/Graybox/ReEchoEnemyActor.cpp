@@ -290,6 +290,11 @@ void AReEchoEnemyActor::Configure(const EReEchoEnemyKind InKind, const int32 Spa
 	check(ConfigureFromDefinition(Definition, SpawnIndex));
 }
 
+void AReEchoEnemyActor::SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog)
+{
+	EnemyPresentation->SetPresentationCatalog(InPresentationCatalog);
+}
+
 bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, const int32 SpawnIndex)
 {
 	BindComposedComponents();
@@ -305,12 +310,11 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	FReEchoStatBlock Stats;
 	Stats.HpMax = Definition.MaxHealth;
 	Combatant->InitializeFromStats(Stats, true);
-	Collision->SetBoxExtent(FVector(Definition.CollisionRadiusCm,
-	                                Definition.CollisionRadiusCm,
-	                                Definition.CollisionHalfHeightCm));
+	Collision->SetBoxExtent(
+	    FVector(Definition.CollisionRadiusCm, Definition.CollisionRadiusCm, Definition.CollisionHalfHeightCm));
 	AlignToGameplayPlane();
 	bVisualPlacementApplied = true;
-	EnemyPresentation->ConfigureAppearance(Definition.Archetype, SpawnIndex);
+	EnemyPresentation->ConfigureAppearance(Definition.PresentationId);
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
 	                                     bBoss ? FReEchoAudioEvents::BossAttack : FReEchoAudioEvents::EnemyAttack,
@@ -901,7 +905,7 @@ FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(co
 	const FReEchoEnemyDefinition& Definition = EnemyLogic->GetDefinition();
 	Result.Archetype = LogicSnapshot.Archetype;
 	Result.Phase = LogicSnapshot.Phase;
-	Result.AppearanceId = LogicSnapshot.SpawnIndex;
+	Result.PresentationId = Definition.PresentationId;
 	Result.SpawnIndex = LogicSnapshot.SpawnIndex;
 	Result.FacingDirection = LogicSnapshot.FacingDirection;
 	Result.KnockbackVelocity = LogicSnapshot.KnockbackVelocity;

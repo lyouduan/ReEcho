@@ -14,6 +14,7 @@ class UReEcho2DAnimationComponent;
 class UReEcho2DCharacterPresentationProfile;
 class UReEcho2DFrameCollisionDriver;
 class UReEcho2DPresentationController;
+class UReEcho2DPresentationCatalog;
 class UReEchoCombatantComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -34,7 +35,7 @@ struct REECHO_API FReEchoEnemyPresentationSnapshot
 	EReEchoEnemyBehaviorPhase Phase = EReEchoEnemyBehaviorPhase::Idle;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	int32 AppearanceId = 0;
+	FName PresentationId;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 SpawnIndex = 0;
@@ -98,7 +99,8 @@ public:
 	                      UReEchoCombatantComponent* InCombatant,
 	                      UReEchoEnemyEventsComponent* InEnemyEvents,
 	                      UReEchoCombatEventsComponent* InCombatEvents);
-	void ConfigureAppearance(EReEchoEnemyArchetype Archetype, int32 AppearanceId);
+	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
+	void ConfigureAppearance(FName PresentationId);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	void RefreshElementAttachmentVisual();
 
@@ -124,10 +126,8 @@ private:
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
 
-	void ApplyVisual(EReEchoEnemyArchetype Archetype, int32 AppearanceId);
+	void ApplyVisual(FName PresentationId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
-	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile(EReEchoEnemyArchetype Archetype,
-	                                                                       int32 AppearanceId) const;
 	void ResetTransientRoot();
 	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateElementAttachmentFacing();
@@ -172,15 +172,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UBoxComponent> Collision;
 	UPROPERTY()
-	TObjectPtr<UTexture2D> BossTexture;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> GruntPresentationProfile;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> RabbitDollPresentationProfile;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> GoatPriestPresentationProfile;
-	UPROPERTY()
-	TObjectPtr<UReEcho2DCharacterPresentationProfile> FoxPresentationProfile;
+	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
 	UPROPERTY()
 	TObjectPtr<AReEchoHealthBarActor> HealthBar;
 

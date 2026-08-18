@@ -20,11 +20,13 @@ Attack > Walk > Idle
 
 因此移动中发动攻击时进入 `Attack`，攻击播放窗口结束后根据当时速度返回 `Walk` 或 `Idle`。
 
-其他玩家角色仍使用各自静态 Billboard，不启用该 Flipbook 状态机。
+通用 2D 动画代码属于独立 `ReEchoPresentation` Runtime Module。四个生产角色 `J_SPADE/J_DIAMOND/J_CLOVER/J_HEART` 都通过 `DA_PresentationCatalog` 解析 Profile；当前非 Spade Profile 可继续使用单帧 Flipbook，但不再由 Pawn 按角色硬编码贴图路径。`J_CAT` 已退出生产角色集合，旧存档身份迁移到 `J_SPADE`。
 
-### Grunt 敌人
+`DA_PresentationCatalog` 只保存 `PresentationId -> Profile`。敌人 Gameplay Blueprint Class 由主模块的 `DA_EnemyGameplayClassRegistry` 单独维护，避免表现模块反向依赖玩法 Actor。
 
-基础 Grunt、Rabbit、Goat、Fox 使用 `/Game/ReEcho/Art/Animation2D/Enemies` 下各自的 Flipbook。玩法 EnemyKind 与动画外观相互独立。
+### 敌人
+
+Grunt、Shield、Bomber、Slime、Rabbit、Fox、TimeGuard 都使用 Enemy Definition 的稳定 `PresentationId`，经同一 Catalog 解析 Profile 与 Gameplay Blueprint。动画外观不再按 `EnemyKind`、Archetype 或生成顺序选择；TimeGuard 没有专属序列时由 `DA_Enemy_TimeGuard` 显式复用 Goat 动画。
 
 ## 代码结构
 
@@ -50,7 +52,7 @@ Source/ReEcho/
 - `FReEcho2DAnimationProfile`：保存默认 Flipbook、状态到 Flipbook 的映射、显示尺寸、偏移和排序层级。
 - `UReEcho2DAnimationComponent`：加载 Profile、切换状态、控制循环或单次播放、重新播放、左右朝向和显示比例。
 - `AReEchoPlayerPawn`：读取角色、移动和成功攻击事实，决定玩家当前表现状态。
-- `AReEchoEnemyActor`：仅为 Grunt 激活序列动画，其他敌人走静态回退。
+- `AReEchoEnemyActor`：只把 Definition 的 `PresentationId` 交给表现组件；不读取 Flipbook、Profile 或具体敌人外观。
 
 ## 状态机设置
 
@@ -237,7 +239,7 @@ SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
 
 当前实际参与序列播放的玩家 `walk / attack` 与怪物 `Grount / Rabbit / Goat / Fox_Walk / Fox_Attack` 使用 Paper2D `EachFrameCollision`。Idle 仍使用静态 `Idel_01` 贴图。`UReEcho2DAnimationComponent` 会实际启用每帧 Sprite BodySetup，但固定使用 `QueryOnly`、对象类型 `WorldDynamic`，对 `Pawn` 保留查询响应且关闭自动 Overlap 事件；它不会阻挡角色移动，也不会在逐帧切换时产生无人消费的重叠回调。Actor Root Capsule 仍是移动与阻挡权威。动画停用或切换到非逐帧碰撞 Flipbook 时，Paper2D 碰撞同步关闭。
 
-最小验证阶段，非 Boss 敌人的表现保留 `Grount`、`Rabbit`、`Goat`、`Fox` 四种，按生成序号稳定循环选择。Grount/Rabbit/Goat Profile 不引用静态贴图，只配置一个持续循环的 `Animation.Idle` Clip；移动、攻击、受击和死亡期间不切换 Flipbook。Fox 的 `Animation.Idle` 使用循环 Walk，只有现有玩法攻击门真正提交攻击时才播放一次 `Animation.Attack.Basic`，结束后自动返回 Walk；伤害仍由原攻击流程触发，不使用动画通知。程序化位移、脉冲、抖动和缩小仍由 `VisualEffectRoot` 承担。玩法上的 Grunt、Shield、Bomber 类型及其数值、AI、攻击和存档语义不变；Boss 暂时保留原静态表现。
+生产敌人表现由 `PresentationId -> Catalog Entry -> Profile + Gameplay Blueprint` 唯一解析。Grunt、Shield、Bomber、Slime、Rabbit、Fox、TimeGuard 共用同一 Host/Controller/FSM 契约，各 Blueprint 只调整碰撞、比例、阴影、脚点和挂点。Fox 的 `Animation.Idle` 使用循环 Walk，只有玩法攻击门提交攻击时才播放一次 `Animation.Attack.Basic`，结束后自动返回基础状态；伤害仍由原攻击流程触发，不使用动画通知。TimeGuard 使用通用 Profile/FSM，不再加载 `Boss2D` 静态贴图。
 
 角色新增的 `walk` 内容仍由 `DA_Character_J_SPADE` 的 `Animation.Move` Clip 引用；替换同路径资产后无需增加 Pawn 分支，停止移动仍回到静态 `Idel_01`，攻击仍由 MoonStaff 组合集的一次性 `attack` Clip 覆盖。
 

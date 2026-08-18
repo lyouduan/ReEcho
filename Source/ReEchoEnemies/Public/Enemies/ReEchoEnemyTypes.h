@@ -221,6 +221,10 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 {
 	GENERATED_BODY()
 
+	/** Stable, resource-free key resolved by the host presentation catalog. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName PresentationId;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoEnemyArchetype Archetype = EReEchoEnemyArchetype::Grunt;
 

@@ -1,5 +1,4 @@
 Id,SourceWorkbookId,DisplayName,Description,Enabled,DisabledReason,RoleId,PromotionPriority,DefaultWeaponId,AppearanceId,PassiveBehaviorId,PassiveValue,HpMax,PhysicalAttack,ElementalAttack,AttackSpeed,MovementSpeed,CriticalRate,CriticalEffect,EchoEfficiency,ReactionEfficiency,EverySecondAttackBonus,RandomElementProjectiles
-J_CAT,RuntimeOnly.J_CAT,默认旅人,默认旅人,true,,None,99,W_J_02,J_CAT,None,0,15,5,5,1,1,0.2,0.5,0.5,1,0,false
 J_DIAMOND,J_02,猎手,"角色基础属性：生命值：12
 物理攻击力：8
 元素攻击力：2

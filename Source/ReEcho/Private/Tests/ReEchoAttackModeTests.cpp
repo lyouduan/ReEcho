@@ -154,7 +154,7 @@ bool FReEchoAttackModeSaveTest::RunTest(const FString& Parameters)
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	TestTrue(TEXT("new run defaults to automatic"), Source->IsAutomaticAttackMode());
 
 	Source->SetAutomaticAttackMode(false);

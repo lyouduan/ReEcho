@@ -14,7 +14,7 @@ UReEchoRunSubsystem* CreateReplayStartedRun(UGameInstance* GameInstance)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	return Run;
 }
 
