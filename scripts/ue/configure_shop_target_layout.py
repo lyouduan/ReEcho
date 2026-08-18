@@ -2,6 +2,10 @@ import unreal
 
 
 ASSET_PATH = "/Game/ReEcho/UI/WBP_ReEchoInventoryShopScreen"
+EMPTY_ATTACHMENT_SLOT_PATH = (
+    "/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/"
+    "T_UI_Shop_AttachmentSlot"
+)
 
 
 def load_required(path):
@@ -56,6 +60,7 @@ for widget_name, left in (("ArtAttachmentSlot0", 28.0), ("ArtAttachmentSlot1", 1
     slot.set_editor_property("padding", unreal.Margin(left, 587.0, 966.0 - left - 93.0, 117.0))
     slot.set_editor_property("horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_FILL)
     slot.set_editor_property("vertical_alignment", unreal.VerticalAlignment.V_ALIGN_FILL)
+    widgets[widget_name].set_brush_from_texture(load_required(EMPTY_ATTACHMENT_SLOT_PATH), False)
     widgets[widget_name].set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
 widgets["ArtAttachmentSlot3"].set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
 

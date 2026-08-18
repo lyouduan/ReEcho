@@ -115,6 +115,7 @@ private:
 	void RebuildTargetOfferRows();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
+	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	bool HasEchoStorageCard() const;
 	void AddTargetOfferCard(class UHorizontalBox* Row,
@@ -195,7 +196,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopItemCardTexture;
 	UPROPERTY()
-	TObjectPtr<UTexture2D> ShopAttachmentIconTexture;
+	TObjectPtr<UTexture2D> ShopAttachmentSlotTexture;
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UTexture2D>> WeaponPartIconTextures;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopCardIconTexture;
 	UPROPERTY()
