@@ -10,6 +10,8 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
+#include "Components/ScaleBox.h"
+#include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -211,9 +213,40 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 	OfferContainer = ShopPanel;
 }
 
+void UReEchoInventoryShopWidget::BuildShopLogicHost()
+{
+	if (!WidgetTree || !OfferContainer)
+	{
+		return;
+	}
+	if (!ShopLogicScrollBox)
+	{
+		ShopLogicScrollBox =
+		    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ShopLogicScrollBox"));
+		UVerticalBoxSlot* ScrollSlot = OfferContainer->AddChildToVerticalBox(ShopLogicScrollBox);
+		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		ScrollSlot->SetPadding(FMargin(0.0f, 4.0f));
+		if (UVerticalBoxSlot* OfferContainerSlot = Cast<UVerticalBoxSlot>(OfferContainer->Slot))
+		{
+			OfferContainerSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		}
+	}
+	if (!ShopLogicPanel)
+	{
+		ShopLogicPanel =
+		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopLogicPanel"));
+		ShopLogicScrollBox->AddChild(ShopLogicPanel);
+	}
+}
+
 void UReEchoInventoryShopWidget::BuildOfferEntries()
 {
 	if (!WidgetTree || !OfferContainer)
+	{
+		return;
+	}
+	BuildShopLogicHost();
+	if (!ShopLogicPanel)
 	{
 		return;
 	}
@@ -236,7 +269,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	{
 		RunItemOfferPanel =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("RunItemOfferPanel"));
-		OfferContainer->AddChildToVerticalBox(RunItemOfferPanel);
+		ShopLogicPanel->AddChildToVerticalBox(RunItemOfferPanel);
 		UTextBlock* Title = CreateText(WidgetTree, TEXT("RunItemOfferTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		Title->SetText(NSLOCTEXT("ReEcho", "RunItemOfferTitle", "商品"));
 		RunItemOfferPanel->AddChildToVerticalBox(Title);
@@ -280,7 +313,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	{
 		ShopControlPanel =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopControlPanel"));
-		ShopPanel->AddChildToVerticalBox(ShopControlPanel);
+		ShopLogicPanel->AddChildToVerticalBox(ShopControlPanel);
 		UTextBlock* Title = CreateText(WidgetTree, TEXT("ShopControlTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		Title->SetText(NSLOCTEXT("ReEcho", "ShopControlTitle", "商店规则"));
 		ShopControlPanel->AddChildToVerticalBox(Title);
@@ -323,11 +356,18 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	{
 		return;
 	}
+	EchoPanelScale = WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), TEXT("EchoPanelScale"));
+	EchoPanelScale->SetStretch(EStretch::ScaleToFit);
+	EchoPanelScale->SetStretchDirection(EStretchDirection::DownOnly);
+	EchoPanelScale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	UCanvasPanelSlot* EchoSlotCanvas = RootCanvas->AddChildToCanvas(EchoPanelScale);
+	EchoSlotCanvas->SetAnchors(FAnchors(0.06f, 0.70f, 0.66f, 0.95f));
+	EchoSlotCanvas->SetOffsets(FMargin(0.0f));
+	EchoSlotCanvas->SetZOrder(20);
+
 	EchoPanel = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("EchoPanel"));
 	EchoPanel->SetVisibility(ESlateVisibility::Collapsed);
-	UCanvasPanelSlot* EchoSlotCanvas = RootCanvas->AddChildToCanvas(EchoPanel);
-	EchoSlotCanvas->SetAnchors(FAnchors(0.04f, 0.16f, 0.50f, 0.86f));
-	EchoSlotCanvas->SetOffsets(FMargin(0.0f));
+	EchoPanelScale->SetContent(EchoPanel);
 
 	EchoCapacityText = CreateText(WidgetTree, TEXT("EchoCapacity"), 24, FLinearColor(0.9f, 0.8f, 0.55f));
 	EchoCapacityText->SetJustification(ETextJustify::Center);
@@ -453,6 +493,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	UCanvasPanelSlot* ConfirmSlot = RootCanvas->AddChildToCanvas(CloseConfirmWidget);
 	ConfirmSlot->SetAnchors(FAnchors(0.35f, 0.4f, 0.65f, 0.62f));
 	ConfirmSlot->SetOffsets(FMargin(0.0f));
+	ConfirmSlot->SetZOrder(30);
 	CloseConfirmWidget->SetVisibility(ESlateVisibility::Collapsed);
 	{
 		UTextBlock* CText = CreateText(WidgetTree, TEXT("EchoConfirmText"), 22, FLinearColor(0.95f, 0.85f, 0.6f));
@@ -487,6 +528,11 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 	{
 		return;
 	}
+	BuildShopLogicHost();
+	if (!ShopLogicPanel)
+	{
+		return;
+	}
 	VisibleWeaponPartOffers.Reset();
 	for (const FReEchoShopOffer& Offer : CurrentPartShopView.Offers)
 	{
@@ -499,7 +545,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 	{
 		WeaponPartOfferPanel =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponPartOfferPanel"));
-		ShopPanel->AddChildToVerticalBox(WeaponPartOfferPanel);
+		ShopLogicPanel->AddChildToVerticalBox(WeaponPartOfferPanel);
 		UTextBlock* Title =
 		    CreateText(WidgetTree, TEXT("WeaponPartOfferTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		Title->SetText(NSLOCTEXT("ReEcho", "WeaponPartOfferTitle", "武器配件"));
@@ -509,7 +555,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 	{
 		WeaponLoadoutPanel =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponLoadoutPanel"));
-		ShopPanel->AddChildToVerticalBox(WeaponLoadoutPanel);
+		ShopLogicPanel->AddChildToVerticalBox(WeaponLoadoutPanel);
 		UTextBlock* Title = CreateText(WidgetTree, TEXT("WeaponLoadoutTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		Title->SetText(NSLOCTEXT("ReEcho", "WeaponLoadoutTitle", "装备槽位"));
 		WeaponLoadoutPanel->AddChildToVerticalBox(Title);

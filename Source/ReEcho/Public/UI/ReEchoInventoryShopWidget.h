@@ -10,6 +10,8 @@ class SWidget;
 class UButton;
 class UImage;
 class UReEchoIndexedButton;
+class UScaleBox;
+class UScrollBox;
 class UTextBlock;
 class UTexture2D;
 class UVerticalBox;
@@ -101,6 +103,7 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void BuildShopLogicHost();
 	void BuildOfferEntries();
 	void BuildLoadoutEntries();
 	void Refresh();
@@ -189,6 +192,13 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> OfferContainer;
 
+	/** Scrollable logic-only host used until the authored shop UI supplies its own layout. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UScrollBox> ShopLogicScrollBox;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> ShopLogicPanel;
+
 	/** Logic-only blocks. Their names form the hand-off contract for a later authored UI. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> RunItemOfferPanel;
@@ -230,6 +240,9 @@ private:
 	TObjectPtr<UButton> SaveLoadoutButton;
 
 	// ---- inline echo panel (origin/main layout) ----
+	UPROPERTY(Transient)
+	TObjectPtr<UScaleBox> EchoPanelScale;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> EchoPanel;
 	UPROPERTY(Transient)
