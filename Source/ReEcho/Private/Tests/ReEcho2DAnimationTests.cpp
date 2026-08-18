@@ -41,14 +41,17 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
 	UPaperFlipbook* RabbitFlipbook = LoadObject<UPaperFlipbook>(
 	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
-	UPaperFlipbook* GoatFlipbook = LoadObject<UPaperFlipbook>(
-	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default.Default"));
+	UPaperFlipbook* GoatWalkFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk0.Walk0"));
+	UPaperFlipbook* GoatAttackFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Attack0.Attack0"));
 	TestNotNull(TEXT("J_SPADE reusable renderer Flipbook is loadable"), PlayerFlipbook);
 	TestNotNull(TEXT("J_SPADE walk Flipbook is loadable"), WalkFlipbook);
 	TestNotNull(TEXT("Grunt default Flipbook is loadable"), GruntFlipbook);
 	TestNotNull(TEXT("Moon Staff attack Flipbook is loadable"), StaffAttackFlipbook);
 	TestNotNull(TEXT("Rabbit Doll Flipbook is loadable"), RabbitFlipbook);
-	TestNotNull(TEXT("Goat Priest Flipbook is loadable"), GoatFlipbook);
+	TestNotNull(TEXT("Goat Priest walk Flipbook is loadable"), GoatWalkFlipbook);
+	TestNotNull(TEXT("Goat Priest attack Flipbook is loadable"), GoatAttackFlipbook);
 	TestTrue(TEXT("J_SPADE Flipbook has non-empty render bounds"),
 	         PlayerFlipbook && PlayerFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
 	TestTrue(TEXT("Grunt Flipbook has non-empty render bounds"),
@@ -62,8 +65,12 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         GruntFlipbook && GruntFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	TestTrue(TEXT("Rabbit Flipbook uses authored EachFrame collision"),
 	         RabbitFlipbook && RabbitFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
-	TestTrue(TEXT("Goat Flipbook uses authored EachFrame collision"),
-	         GoatFlipbook && GoatFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Goat walk Flipbook uses authored EachFrame collision"),
+	         GoatWalkFlipbook &&
+	             GoatWalkFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Goat attack Flipbook uses authored EachFrame collision"),
+	         GoatAttackFlipbook &&
+	             GoatAttackFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	auto TestEveryKeyFrameHasCollision = [this](const TCHAR* Label, const UPaperFlipbook* Flipbook)
 	{
 		bool bEveryFrameHasCollision = Flipbook && Flipbook->GetNumKeyFrames() > 0;
@@ -82,7 +89,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestEveryKeyFrameHasCollision(TEXT("Attack has collision geometry on every key frame"), StaffAttackFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Grunt has collision geometry on every key frame"), GruntFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Rabbit has collision geometry on every key frame"), RabbitFlipbook);
-	TestEveryKeyFrameHasCollision(TEXT("Goat has collision geometry on every key frame"), GoatFlipbook);
+	TestEveryKeyFrameHasCollision(TEXT("Goat walk has collision geometry on every key frame"), GoatWalkFlipbook);
+	TestEveryKeyFrameHasCollision(TEXT("Goat attack has collision geometry on every key frame"), GoatAttackFlipbook);
 	UReEcho2DPresentationCatalog* AuthoredCatalog = LoadObject<UReEcho2DPresentationCatalog>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
 	UReEcho2DCharacterPresentationProfile* AuthoredGrunt = LoadObject<UReEcho2DCharacterPresentationProfile>(
@@ -181,8 +189,14 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestEnemyProfile(TEXT("Rabbit exposes four semantic slots through its single authored Flipbook"),
 	                 AuthoredRabbit,
 	                 RabbitFlipbook);
-	TestEnemyProfile(
-	    TEXT("Goat exposes four semantic slots through its single authored Flipbook"), AuthoredGoat, GoatFlipbook);
+	const FReEcho2DAnimationClip* GoatIdleClip =
+	    AuthoredGoat ? AuthoredGoat->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
+	const FReEcho2DAnimationClip* GoatAttackClip =
+	    AuthoredGoat ? AuthoredGoat->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
+	TestTrue(TEXT("Goat owns looping Walk and one-shot Attack"),
+	         AuthoredGoat && GoatIdleClip && GoatAttackClip && GoatIdleClip->Flipbook == GoatWalkFlipbook &&
+	             GoatIdleClip->bLooping && GoatAttackClip->Flipbook == GoatAttackFlipbook &&
+	             !GoatAttackClip->bLooping && GoatAttackClip->bRestartOnRequest);
 	const FReEcho2DAnimationClip* FoxWalkClip =
 	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 	const FReEcho2DAnimationClip* FoxAttackClip =

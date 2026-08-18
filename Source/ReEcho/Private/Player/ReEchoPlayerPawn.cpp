@@ -964,18 +964,9 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
 	HitVisualRemaining = FMath::Max(0.0f, HitVisualRemaining - DeltaSeconds);
 	const bool bMoving = GetVelocity().SizeSquared2D() > 25.0f;
-	const float Bob = FMath::Sin(VisualTime * (bMoving ? 10.0f : 3.0f)) * (bMoving ? 4.0f : 1.8f);
 	float Lunge = 0.0f;
 	float ScaleX = 1.0f;
 	float ScaleY = 1.0f;
-	if (AttackVisualRemaining > 0.0f && AttackVisualDuration > 0.0f)
-	{
-		const float Progress = 1.0f - AttackVisualRemaining / AttackVisualDuration;
-		const float Pulse = FMath::Sin(Progress * PI);
-		Lunge = Pulse * AttackVisualStrength;
-		ScaleX += Pulse * 0.08f;
-		ScaleY -= Pulse * 0.04f;
-	}
 	if (HitVisualRemaining > 0.0f)
 	{
 		const float HitRatio = HitVisualRemaining / 0.18f;
@@ -983,7 +974,7 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 		ScaleX *= 1.12f;
 		ScaleY *= 0.86f;
 	}
-	ApplyPresentationMotion(FVector(Lunge, 0.0f, Bob), FVector(ScaleX, ScaleY, 1.0f));
+	ApplyPresentationMotion(FVector(Lunge, 0.0f, 0.0f), FVector(ScaleX, ScaleY, 1.0f));
 	if (PresentationController)
 	{
 		PresentationController->SetMoving(bMoving);

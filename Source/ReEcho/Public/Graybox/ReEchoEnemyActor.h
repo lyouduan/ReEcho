@@ -249,6 +249,13 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 
+	/** Uniform Blueprint-authored scale for collision, Flipbook, shadow, effects and presentation anchors. */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Scale",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.01"))
+	float CharacterScale = 1.0f;
+
 	UPROPERTY()
 	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;
 

@@ -50,16 +50,21 @@ UReEcho2DAnimationComponent::UReEcho2DAnimationComponent()
 	{
 		SetMaterial(0, TransparentSpriteMaterialFinder.Object);
 	}
+	ApplyCharacterTint();
 }
 
 #if WITH_EDITOR
 void UReEcho2DAnimationComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	if (PropertyChangedEvent.GetPropertyName() ==
-	    GET_MEMBER_NAME_CHECKED(UReEcho2DAnimationComponent, bSourceFacesRight))
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UReEcho2DAnimationComponent, bSourceFacesRight))
 	{
 		ApplyDisplayScale();
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UReEcho2DAnimationComponent, CharacterTint))
+	{
+		ApplyCharacterTint();
 	}
 }
 #endif
@@ -83,6 +88,7 @@ bool UReEcho2DAnimationComponent::PlayClip(const FReEcho2DAnimationClip& Clip, c
 	SetHiddenInGame(false);
 	SetVisibility(true);
 	SetComponentTickEnabled(true);
+	ApplyCharacterTint();
 	ApplyDisplayScale();
 	ApplyCollisionPolicy();
 	if (bRestart || Clip.bRestartOnRequest || bClipChanged || bPolicyChanged || !IsPlaying())
@@ -222,6 +228,11 @@ void UReEcho2DAnimationComponent::ApplyDisplayScale()
 	    ActiveClip.bUseNativeScale || NativeWorldHeight <= 0.0f ? 1.0f : ActiveClip.WorldHeight / NativeWorldHeight;
 	const float SourceOrientationSign = bSourceFacesRight ? 1.0f : -1.0f;
 	SetRelativeScale3D(FVector(UniformScale * FacingSign * SourceOrientationSign, UniformScale, UniformScale));
+}
+
+void UReEcho2DAnimationComponent::ApplyCharacterTint()
+{
+	SetSpriteColor(CharacterTint);
 }
 
 void UReEcho2DAnimationComponent::ApplyCollisionPolicy()

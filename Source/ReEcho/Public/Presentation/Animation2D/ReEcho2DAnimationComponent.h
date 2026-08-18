@@ -54,12 +54,17 @@ public:
 	          meta = (DisplayName = "Source Faces Right (资源默认朝右)"))
 	bool bSourceFacesRight = true;
 
+	/** Scene grading for 2D characters. Tune per Gameplay Blueprint to match the map and plant cards. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Scene|Flipbook")
+	FLinearColor CharacterTint = FLinearColor(0.82f, 0.84f, 0.78f, 1.0f);
+
 	/** Editor asset-repair seam used by the deterministic import script; it has no runtime gameplay effect. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|Animation2D", meta = (DevelopmentOnly))
 	static bool RebuildSpriteAsset(UPaperSprite* Sprite);
 
 private:
 	void ApplyDisplayScale();
+	void ApplyCharacterTint();
 	void ApplyCollisionPolicy();
 	void DrawCurrentFrameCollisionDebug();
 

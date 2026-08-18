@@ -179,6 +179,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	EnemyPresentation = CreateDefaultSubobject<UReEchoEnemyPresentationComponent>(TEXT("EnemyPresentation"));
 	EnemyPresentation->ConfigureComponents(PresentationRoot,
 	                                       PresentationMotionRoot,
+	                                       FootRoot,
 	                                       FlipbookRoot,
 	                                       EffectsRoot,
 	                                       CharacterSprite,
@@ -197,6 +198,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 void AReEchoEnemyActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	SetActorScale3D(FVector(FMath::Max(CharacterScale, 0.01f)));
 	RefreshPresentationHierarchy();
 	RefreshFootRoot();
 }

@@ -82,6 +82,7 @@ public:
 
 	void ConfigureComponents(USceneComponent* InPresentationRoot,
 	                         USceneComponent* InVisualEffectRoot,
+	                         USceneComponent* InFootRoot,
 	                         USceneComponent* InFlipbookRoot,
 	                         USceneComponent* InEffectsRoot,
 	                         UBillboardComponent* InCharacterSprite,
@@ -146,6 +147,8 @@ private:
 	TObjectPtr<USceneComponent> PresentationRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> VisualEffectRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> FootRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> FlipbookRoot;
 	UPROPERTY()

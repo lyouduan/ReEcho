@@ -56,6 +56,7 @@ UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
 
 void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InPresentationRoot,
                                                             USceneComponent* InVisualEffectRoot,
+	                                                        USceneComponent* InFootRoot,
                                                             USceneComponent* InFlipbookRoot,
                                                             USceneComponent* InEffectsRoot,
                                                             UBillboardComponent* InCharacterSprite,
@@ -70,6 +71,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 {
 	PresentationRoot = InPresentationRoot;
 	VisualEffectRoot = InVisualEffectRoot;
+	FootRoot = InFootRoot;
 	FlipbookRoot = InFlipbookRoot;
 	EffectsRoot = InEffectsRoot;
 	CharacterSprite = InCharacterSprite;
@@ -155,7 +157,7 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 		                      FLinearColor(1.0f, 0.08f, 0.04f),
 		                      PresentationHeight * ReEchoEnemyVisual::HealthBarHeightRatio,
 		                      ReEchoEnemyVisual::HealthBarWidthScale,
-		                      PresentationRoot);
+		                      FootRoot ? FootRoot.Get() : PresentationRoot.Get());
 	}
 }
 
@@ -348,11 +350,7 @@ void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemy
 		PresentationController->SetMoving(Snapshot.bMoving);
 	}
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
-	const float Bob = FMath::Sin(VisualTime * (Snapshot.bMoving ? 8.0f : 2.6f)) * (Snapshot.bMoving ? 3.5f : 1.5f);
-	const float AttackPulse =
-	    AttackVisualRemaining > 0.0f ? FMath::Sin((1.0f - AttackVisualRemaining / 0.22f) * PI) : 0.0f;
-	ApplyPresentationMotion(FVector(AttackPulse * 15.0f, 0.0f, Bob),
-	                        FVector(1.0f + AttackPulse * 0.08f, 1.0f - AttackPulse * 0.04f, 1.0f));
+	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 }
 
 void UReEchoEnemyPresentationComponent::UpdateDeathAnimation(const float DeltaSeconds)
