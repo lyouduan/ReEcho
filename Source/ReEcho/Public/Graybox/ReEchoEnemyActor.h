@@ -17,6 +17,7 @@ class UReEcho2DSceneLightingComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UReEchoCombatAudioAdapterComponent;
+class UReEchoCombatVfxComponent;
 class UReEchoCombatEventsComponent;
 class UReEchoEnemyEventsComponent;
 class UReEchoEnemyLogicComponent;
@@ -26,8 +27,11 @@ class USceneComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 struct FReEchoEnemyActionIntent;
+struct FReEchoEnemyAbilityDefinition;
+struct FReEchoEnemyLogicSnapshot;
 struct FReEchoEnemyPresentationSnapshot;
 struct FReEchoEnemySenseSnapshot;
+enum class EReEchoEnemyProjectileEventType : uint8;
 
 UENUM(BlueprintType)
 enum class EReEchoEnemyKind : uint8
@@ -153,6 +157,7 @@ public:
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
 #if WITH_DEV_AUTOMATION_TESTS
 	FReEchoEnemyActionIntent AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
+	void AdvanceEnemyProjectilesForTests(float DeltaSeconds);
 #endif
 
 protected:
@@ -169,7 +174,12 @@ private:
 	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
-	void AdvanceBossProjectiles(float DeltaSeconds);
+	void AdvanceEnemyProjectiles(float DeltaSeconds);
+	void PublishSpecialActionTransition(const FReEchoEnemyLogicSnapshot& PreviousSnapshot,
+	                                    const FReEchoEnemyActionIntent& Intent);
+	void PublishProjectileEvent(EReEchoEnemyProjectileEventType Type,
+	                            const FReEchoEnemyProjectileRuntimeState& Projectile) const;
+	const FReEchoEnemyAbilityDefinition* FindAbility(FName AbilityId) const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
 	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving) const;
 
@@ -240,6 +250,8 @@ private:
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoCombatVfxComponent> CombatVfx;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyLogicComponent> EnemyLogic;
 	UPROPERTY(VisibleAnywhere)

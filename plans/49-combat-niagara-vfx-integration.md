@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn 侧程序 AI。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@b029f05`。
 - 本地实现方式（可选，仅作交接说明）：发布本 Plan 后，从已核验的 `origin/main` 创建 `plan/49-combat-vfx` 分支及 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan49-vfx` 独立 worktree。
@@ -17,13 +17,14 @@
   - `Source/ReEcho/ReEcho.Build.cs`
   - `Source/ReEcho/{Public,Private}/Presentation/VFX/**`
   - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`
+  - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEchoActor.*`（仅限表现组件装配）
   - `Source/ReEcho/{Public,Private}/Player/ReEchoPlayerPawn.*`（仅限表现组件装配与只读事件接线）
   - `Source/ReEcho/{Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.cpp`
   - `Source/ReEcho/Private/Tests/*Vfx*Tests.cpp`
   - `Source/ReEchoEnemies/{Public,Private}/Enemies/ReEchoEnemyEventsComponent.*`
   - `Source/ReEchoEnemies/{Public,Private}/Enemies/ReEchoEnemyProjectileLogic.*`
   - `Source/ReEchoEnemies/Private/Tests/**`（仅限投射物和表现事件契约测试）
-  - `Content/VFX/**`、`Content/Mat/**`、`Content/01_Textures/**` 中导入清单明确列出的资产
+  - `Content/VFX/**`、`Content/Mat/**`、`Content/00_Textures/**`、`Content/01_Textures/**` 中导入清单明确列出的资产
   - `Design/Art/VFX/combat_vfx_import_manifest.csv`
   - `scripts/art/import_combat_vfx.py` 及其聚焦测试
   - `shared/CODEBASE_MAP/ARCHITECTURE.md`
@@ -38,7 +39,7 @@
   - `Source/ReEchoWeapons/**`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md`
-  - `Content/Data/enemies.csv` 与 `Design/Data/ReEchoData.xlsx`（只读；兔子敌方远程伤害继续保持当前 0 值）
+  - `Content/Data/enemies.csv` 与 `Design/Data/ReEchoEnemyData.xlsx`（只读；兔子敌方远程伤害继续保持当前 0 值）
 - 影响模式：`SharedContract`（增加敌人特殊动作的类型化表现事件，并让主模块消费；不改变 Combat/Weapons 的伤害权威）。
 - 兼容承诺 / 下游操作：缺失、加载失败或被裁剪的特效只降低视觉反馈，不能阻止攻击、命中、移动、存档或回放；保留现有灰盒命中反馈作为安全回退。导入资产保留原始 `/Game/VFX`、`/Game/Mat`、`/Game/01_Textures` 引用关系。兔子投射物在本 Plan 内仍为 0 伤害，待玩家看清并验收飞行表现后才允许由策划数据恢复伤害。
 - 明确排除：不整包复制 1438 个 `.uasset`；不迁移 `Map/`、`Developers/`、`SourceArt/`、备用特效或 `People/Bullet` 重复资产；不让 Niagara 回调、粒子碰撞或播放时长决定玩法伤害、攻击窗口、命中、冷却、销毁或存档；不修改武器/敌人平衡数值；不把 VFX 拆成新的 Runtime Module；不由 AI 代替用户完成视觉验收。
@@ -89,16 +90,16 @@
 
 ## 锁定验收
 
-- [ ] 精确导入清单只包含 8 个正式 Niagara System 及其实际递归静态依赖；脚本可在给定源根时校验 SHA-256、缺失依赖、目标冲突并重复执行，仓库不含整包无关资产。
-- [ ] UE 5.8 能加载并编译清单内 Niagara/材质/纹理资产；无丢失引用、重定向器、机器绝对路径或未确认插件依赖；必要的 Fixed Bounds 已检查。
+- [x] 精确导入清单只包含 8 个正式 Niagara System 及其实际递归静态依赖；脚本可在给定源根时校验 SHA-256、缺失依赖、目标冲突并重复执行，仓库不含整包无关资产。
+- [ ] UE 5.8 能加载并编译清单内 Niagara/材质/纹理资产；8 个正式 System 已通过自动化实际加载，Fixed Bounds、裁剪与视觉编译状态待用户 PIE 验收。
 - [ ] 兔子在 Windup 播放蓄力，Commit 后从兔子位置沿锁定方向生成可见飞行子弹；逻辑投射物负责移动、玩家/边界碰撞和销毁，视觉载体同步销毁，伤害保持 0。
 - [ ] 狐狸在 Windup 播放蓄力与方向箭头，在 Commit/Active 播放跟随冲刺特效；取消、打断、死亡和遭遇结束会清理陈旧特效。
 - [ ] 玩家近战攻击提交播放朝向正确的刀光；玩家与怪物仅在 `AppliedDamage > 0` 时分别播放正确目录的受击特效；Echo 的玩家武器攻击也沿同一语义接线播放刀光但不会被误判为敌方伤害。
-- [ ] 缺失/加载失败特效不会改变攻击、伤害、移动、暂停、回放、存档或关卡流程，并留下明确但限频的诊断信息。
+- [x] 缺失/加载失败特效不会改变攻击、伤害、移动、暂停、回放、存档或关卡流程，并留下明确但限频的诊断信息。
 - [ ] 类型化事件和运行时自动化覆盖：语义映射、阶段顺序、重复提交去重、兔子投射物轨迹/碰撞/到期、取消/死亡清理、缺失资产回退与“VFX 不影响玩法”。
 - [ ] 修改的 C++ 已格式化；Editor Development 构建、聚焦自动化、`python scripts/validate_project.py`、`git diff --check` 通过；最终发布候选完成 `-FullRebuild` 并刷新允许的预构建包。
 - [ ] 用户在 PIE 验收兔子/狐狸组合效果、刀光、玩家/怪物受击、方向、尺寸、前后景、裁剪与可读性。
-- [ ] 未提交清单外资源、精选预构建允许列表外 UE 生成产物、日志或机器本地路径。
+- [x] 未提交清单外资源、精选预构建允许列表外 UE 生成产物、日志或机器本地路径。
 
 ## Step 0 门禁
 
@@ -136,12 +137,17 @@
 
 ### 变化
 
-- 待实现。
+- `origin/main@3d71178` 已发布并核验包含本 Plan；已创建独立 `plan/49-combat-vfx` worktree，开始执行精确资产清单与表现接线。
+- 新增可重复执行的精确导入器与 SHA-256 manifest，从 8 个正式根解析并复制 84 个静态依赖资产；没有导入 Map、Developers、SourceArt、备用特效或整包资源。
+- 新增主模块内的战斗 VFX 语义目录/只读组件，并装配到 Player、Echo、Enemy Host；近战提交、最终 Hurt、兔子/狐狸特殊动作及敌方投射物生命周期分别从类型化事件进入 Niagara。
+- 兔子远程提交改为复用现有无资源投射物逻辑；速度优先读取 `ProjectileSpeedCmPerSecond`，当前表值为 0 时兼容推导 `MaxRangeCm / CooldownSeconds = 500 cm/s`，伤害仍保持表中 0。尝试直接补 XLSX 时发现通用工作簿编辑器会丢失受保护 Sheet 属性，已完整恢复工作簿且未产生 XLSX/CSV 修改。
 
 ### 证据
 
 - Plan 编写前只读确认：远端最大 Plan 编号为 48。首次规划基线为 `f874923`；发布门禁构建期间远端前进到 `b029f05`，用户确认以远端 Plan47/Card Runtime 为权威进行组合适配，本 Plan 基线随之更新。
 - 美术包只读审计确认 8 个正式 Niagara 根资产可形成约 80 个 `.uasset` 的最小静态依赖闭包；实际 manifest 以实现阶段脚本生成并复核的精确结果为准。
+- 实际 manifest：8 个根、84 个 `.uasset`；`python scripts/art/import_combat_vfx.py --source-root "C:\Users\gavynqiu\Documents\miniGame\Content (2)\Content" --check` 通过；导入器单测 2/2 通过。
+- Editor Development 增量构建通过并刷新 6 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 通过并实际 `LoadObject` 8 个正式 Niagara System；新增生产兔子 Definition 的 Host 接缝测试，`ReEcho.Enemies` 17/17 通过。
 
 ### 剩余风险
 
@@ -154,4 +160,9 @@
 
 ### 架构文档审阅结果
 
-- 待实现与关闭评审时逐项填写。
+- `ARCHITECTURE.md` / `README.md`：增加 Combat/Enemy 语义到 Niagara 的单向流及 VFX 文档型入口；未增加 Runtime Module。
+- `MOD-ReEcho.md`：补充 Player/Echo/Enemy Host 的只读 VFX 装配和逻辑投射物边界。
+- `MOD-ReEchoEnemies.md`：补充特殊动作/投射物事件、兔子真实逻辑投射物与兼容保存字段说明。
+- `MOD-ReEchoVFX.md`：已创建，记录存在原因、权威边界、8 个语义、导入/扩展规则、代码位置与不变量。
+- `MOD-ReEchoCombat.md`：已审阅；Combat 已有 AttackCommitted/Hurt/Death 最终事件且职责、公共契约和代码位置未变化，因此无需修改。
+- `MOD-ReEchoWeapons.md`：已审阅；Weapons 仍只提供 Commit/HitIntent 和逻辑载体，未接入 Niagara、未改变节拍/公共契约，因此无需修改。

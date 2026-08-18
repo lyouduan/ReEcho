@@ -6,6 +6,7 @@
 #include "ReEchoEnemyEventsComponent.generated.h"
 
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoEnemyActionCommittedEvent
 {
 	GENERATED_BODY()
@@ -30,6 +31,7 @@ struct REECHOENEMIES_API FReEchoEnemyActionCommittedEvent
 };
 
 USTRUCT(BlueprintType)
+
 struct REECHOENEMIES_API FReEchoEnemyFuseEvent
 {
 	GENERATED_BODY()
@@ -44,14 +46,84 @@ struct REECHOENEMIES_API FReEchoEnemyFuseEvent
 	bool bStarted = false;
 };
 
+UENUM(BlueprintType)
+enum class EReEchoEnemySpecialActionEventType : uint8
+{
+	WindupStarted,
+	ActionCommitted,
+	ActionEnded
+};
+
+/** Presentation-neutral transition emitted when a non-Boss special action changes phase. */
+USTRUCT(BlueprintType)
+
+struct REECHOENEMIES_API FReEchoEnemySpecialActionEvent
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName AbilityId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoEnemySpecialActionEventType Type = EReEchoEnemySpecialActionEventType::WindupStarted;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoAttackIdentity Attack;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector Origin = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector LockedDirection = FVector::ForwardVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector LockedTargetLocation = FVector::ZeroVector;
+};
+
+UENUM(BlueprintType)
+enum class EReEchoEnemyProjectileEventType : uint8
+{
+	Spawned,
+	Moved,
+	Ended
+};
+
+/** Read-only projectile lifecycle for presentation. Motion and collision remain Enemy Host authority. */
+USTRUCT(BlueprintType)
+
+struct REECHOENEMIES_API FReEchoEnemyProjectileEvent
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoEnemyProjectileEventType Type = EReEchoEnemyProjectileEventType::Spawned;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoAttackIdentity Attack;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName AbilityId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector Location = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector Direction = FVector::ForwardVector;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyActionCommittedDelegate,
                                             const FReEchoEnemyActionCommittedEvent&,
                                             Event);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyFuseDelegate, const FReEchoEnemyFuseEvent&, Event);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoBossIntentDelegate, const FReEchoBossIntent&, Intent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemySpecialActionDelegate,
+                                            const FReEchoEnemySpecialActionEvent&,
+                                            Event);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyProjectileDelegate, const FReEchoEnemyProjectileEvent&, Event);
 
 /** Presentation-neutral behavior event bus explicitly wired by the enemy host. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
+
 class REECHOENEMIES_API UReEchoEnemyEventsComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -66,6 +138,12 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoBossIntentDelegate OnBossIntent;
 
+	UPROPERTY(BlueprintAssignable)
+	FReEchoEnemySpecialActionDelegate OnSpecialAction;
+
+	UPROPERTY(BlueprintAssignable)
+	FReEchoEnemyProjectileDelegate OnProjectile;
+
 	void PublishActionCommitted(const FReEchoEnemyActionCommittedEvent& Event)
 	{
 		OnActionCommitted.Broadcast(Event);
@@ -79,5 +157,15 @@ public:
 	void PublishBossIntent(const FReEchoBossIntent& Intent)
 	{
 		OnBossIntent.Broadcast(Intent);
+	}
+
+	void PublishSpecialAction(const FReEchoEnemySpecialActionEvent& Event)
+	{
+		OnSpecialAction.Broadcast(Event);
+	}
+
+	void PublishProjectile(const FReEchoEnemyProjectileEvent& Event)
+	{
+		OnProjectile.Broadcast(Event);
 	}
 };

@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
@@ -51,7 +52,6 @@ struct FReEchoEnemyHostWorldFixture
 		}
 		return Enemy;
 	}
-
 };
 }
 
@@ -101,13 +101,10 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Restore returns archetype authority to EnemyLogic"),
 	          RestoredLogic.Archetype,
 	          EReEchoEnemyArchetype::Bomber);
-	TestEqual(TEXT("Restore returns cooldown authority to EnemyLogic"),
-	          RestoredLogic.AttackCooldownRemainingSeconds,
-	          0.75f);
+	TestEqual(
+	    TEXT("Restore returns cooldown authority to EnemyLogic"), RestoredLogic.AttackCooldownRemainingSeconds, 0.75f);
 	TestEqual(TEXT("Restore returns fuse authority to EnemyLogic"), RestoredLogic.FuseRemainingSeconds, 0.5f);
-	TestEqual(TEXT("Restore returns attack identity authority to EnemyLogic"),
-	          RestoredLogic.AttackSequence,
-	          int64(8));
+	TestEqual(TEXT("Restore returns attack identity authority to EnemyLogic"), RestoredLogic.AttackSequence, int64(8));
 	TestEqual(TEXT("Restore returns world transform authority to Host"),
 	          Restored->GetActorLocation(),
 	          FVector(10.0f, 20.0f, 30.0f));
@@ -128,8 +125,8 @@ bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 {
 	FReEchoEnemyHostWorldFixture Fixture;
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
-	AReEchoPlayerPawn* Player = Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector::ZeroVector,
-	                                                                       FRotator::ZeroRotator);
+	AReEchoPlayerPawn* Player =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector::ZeroVector, FRotator::ZeroRotator);
 	TestNotNull(TEXT("Player host spawns"), Player);
 	if (!Player)
 	{
@@ -145,8 +142,8 @@ bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 	PlayerStats.HpPoint = 100.0f;
 	Player->Combatant->InitializeFromStats(PlayerStats, true);
 
-	AReEchoEnemyActor* Enemy = Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector(50.0f, 0.0f, 0.0f),
-	                                                                       FRotator::ZeroRotator);
+	AReEchoEnemyActor* Enemy =
+	    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector(50.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
 	TestNotNull(TEXT("Enemy host spawns for attack pipeline"), Enemy);
 	if (!Enemy)
 	{
@@ -165,16 +162,12 @@ bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 	Sense.bTargetAlive = true;
 
 	Enemy->AdvanceBehaviorForTests(Sense, 0.01f);
-	TestEqual(TEXT("Enemy ActionIntent reaches Combat exactly once"),
-	          Player->Combatant->CurrentHealth,
-	          91.0f);
+	TestEqual(TEXT("Enemy ActionIntent reaches Combat exactly once"), Player->Combatant->CurrentHealth, 91.0f);
 	TestEqual(TEXT("Committed host attack uses EnemyLogic identity"),
 	          Enemy->GetEnemyLogicComponent()->GetSnapshot().AttackSequence,
 	          int64(1));
 	Enemy->AdvanceBehaviorForTests(Sense, 0.5f);
-	TestEqual(TEXT("Enemy cooldown prevents an early second hit"),
-	          Player->Combatant->CurrentHealth,
-	          91.0f);
+	TestEqual(TEXT("Enemy cooldown prevents an early second hit"), Player->Combatant->CurrentHealth, 91.0f);
 	TestEqual(TEXT("Enemy remains in normal contact behavior"),
 	          Enemy->GetEnemyLogicComponent()->GetSnapshot().Phase,
 	          EReEchoEnemyBehaviorPhase::Idle);
@@ -184,15 +177,86 @@ bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 	Enemy->AdvanceBehaviorForTests(Sense, 0.81f);
 	TestTrue(TEXT("Target remains inside contact range"),
 	         FVector::Dist2D(Enemy->GetActorLocation(), Player->GetActorLocation()) <= 85.0f);
-	TestEqual(TEXT("Enemy cooldown permits the second hit at the legacy cadence"),
-	          Player->Combatant->CurrentHealth,
-	          82.0f);
+	TestEqual(
+	    TEXT("Enemy cooldown permits the second hit at the legacy cadence"), Player->Combatant->CurrentHealth, 82.0f);
 	TestEqual(TEXT("Second attack restarts the legacy cooldown"),
 	          Enemy->GetEnemyLogicComponent()->GetSnapshot().AttackCooldownRemainingSeconds,
 	          1.3f);
 	TestEqual(TEXT("Second host attack increments the same identity sequence"),
 	          Enemy->GetEnemyLogicComponent()->GetSnapshot().AttackSequence,
 	          int64(2));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostRabbitProjectileTest,
+                                 "ReEcho.Enemies.Host.RabbitProjectilePipeline",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyHostWorldFixture Fixture;
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+	FReEchoEnemyDefinition RabbitDefinition;
+	FString CompileError;
+	if (!TestTrue(TEXT("Rabbit definition compiles"),
+	              ReEchoEnemyDefinitionCompiler::Compile(
+	                  *LoadResult.Snapshot, TEXT("M_RABBIT"), RabbitDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+
+	AReEchoPlayerPawn* Player =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoEnemyActor* Rabbit =
+	    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+	if (!TestNotNull(TEXT("Rabbit host spawns"), Rabbit) || !TestNotNull(TEXT("Target player spawns"), Player))
+	{
+		return false;
+	}
+	Rabbit->SetEnemyId(TEXT("M_RABBIT"));
+	if (!TestTrue(TEXT("Rabbit accepts production definition"), Rabbit->ConfigureFromDefinition(RabbitDefinition, 7)))
+	{
+		return false;
+	}
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.Target = Player;
+	Sense.SelfLocation = Rabbit->GetActorLocation();
+	Sense.TargetLocation = Player->GetActorLocation();
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.bSpecialActionPermitted = true;
+	Rabbit->AdvanceBehaviorForTests(Sense, 0.01f);
+	const FReEchoEnemyActionIntent Commit = Rabbit->AdvanceBehaviorForTests(Sense, 0.55f);
+	TestTrue(TEXT("Rabbit commits after configured windup"), Commit.bAttackCommitted);
+
+	const FReEchoEnemyRuntimeState SpawnedState = Rabbit->CaptureRuntimeState();
+	if (!TestEqual(TEXT("Commit creates one authoritative projectile"), SpawnedState.BossProjectiles.Num(), 1))
+	{
+		return false;
+	}
+	const FReEchoEnemyProjectileRuntimeState& Projectile = SpawnedState.BossProjectiles[0];
+	TestEqual(TEXT("Temporary safety data keeps rabbit projectile damage at zero"), Projectile.Damage, 0.0f);
+	TestEqual(TEXT("Zero table speed uses the documented legacy-derived speed"),
+	          Projectile.Definition.SpeedCmPerSecond,
+	          500.0f);
+	TestTrue(TEXT("Projectile starts active"), Projectile.Snapshot.bActive);
+
+	Rabbit->AdvanceEnemyProjectilesForTests(0.1f);
+	const FReEchoEnemyRuntimeState AdvancedState = Rabbit->CaptureRuntimeState();
+	TestEqual(TEXT("Projectile remains in flight before reaching target"), AdvancedState.BossProjectiles.Num(), 1);
+	if (AdvancedState.BossProjectiles.Num() == 1)
+	{
+		TestTrue(TEXT("Host advances projectile along the locked direction"),
+		         AdvancedState.BossProjectiles[0].Snapshot.Location.X > Projectile.Snapshot.Location.X);
+	}
 	return true;
 }
 

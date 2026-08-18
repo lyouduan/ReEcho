@@ -13,6 +13,7 @@ class UBillboardComponent;
 class UReEchoCombatantComponent;
 class UReEchoCombatEventsComponent;
 class UReEchoCombatAudioAdapterComponent;
+class UReEchoCombatVfxComponent;
 class UReEchoPlaybackComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -102,6 +103,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoCombatVfxComponent> CombatVfx;
 
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;

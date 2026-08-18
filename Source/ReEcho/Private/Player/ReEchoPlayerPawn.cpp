@@ -38,6 +38,7 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
+#include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoGameMode.h"
@@ -114,6 +115,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	Targeting = CreateDefaultSubobject<UReEchoTargetingComponent>(TEXT("Targeting"));
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
+	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
 	Recorder = CreateDefaultSubobject<UReEchoRecorderComponent>(TEXT("Recorder"));
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }

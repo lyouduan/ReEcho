@@ -28,6 +28,7 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
+#include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "ReEchoGameMode.h"
 #include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
 #include "ReEchoAudioEvents.h"
@@ -174,6 +175,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
+	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
 	EnemyLogic = CreateDefaultSubobject<UReEchoEnemyLogicComponent>(TEXT("EnemyLogic"));
 	EnemyEvents = CreateDefaultSubobject<UReEchoEnemyEventsComponent>(TEXT("EnemyEvents"));
 	EnemyPresentation = CreateDefaultSubobject<UReEchoEnemyPresentationComponent>(TEXT("EnemyPresentation"));
@@ -303,9 +305,8 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	FReEchoStatBlock Stats;
 	Stats.HpMax = Definition.MaxHealth;
 	Combatant->InitializeFromStats(Stats, true);
-	Collision->SetBoxExtent(FVector(Definition.CollisionRadiusCm,
-	                                Definition.CollisionRadiusCm,
-	                                Definition.CollisionHalfHeightCm));
+	Collision->SetBoxExtent(
+	    FVector(Definition.CollisionRadiusCm, Definition.CollisionRadiusCm, Definition.CollisionHalfHeightCm));
 	AlignToGameplayPlane();
 	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.Archetype, SpawnIndex);
@@ -455,6 +456,7 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		        SavedProjectile.Definition, SavedProjectile.Snapshot, RestoredProjectile.Snapshot))
 		{
 			BossProjectiles.Add(MoveTemp(RestoredProjectile));
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
 		}
 	}
 	EnemyPresentation->RefreshElementAttachmentVisual();
@@ -564,7 +566,7 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(const float Damage,
 	return ReEchoHitResolver::ResolvePhysicalHit(Intent).AppliedDamage;
 }
 
-void AReEchoEnemyActor::AdvanceBossProjectiles(const float DeltaSeconds)
+void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 {
 	AActor* TargetActor = UGameplayStatics::GetPlayerPawn(this, 0);
 	const UReEchoRunSubsystem* Run =
@@ -591,6 +593,10 @@ void AReEchoEnemyActor::AdvanceBossProjectiles(const float DeltaSeconds)
 		FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
 		const FReEchoEnemyProjectileAdvanceResult AdvanceResult =
 		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
+		if (AdvanceResult.bMoved)
+		{
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Moved, Projectile);
+		}
 		bool bHitTarget = false;
 		if (AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive() &&
 		    Target->IntersectsCombatPath(
@@ -605,6 +611,7 @@ void AReEchoEnemyActor::AdvanceBossProjectiles(const float DeltaSeconds)
 		}
 		if (bHitTarget || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
 			BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
 		}
 	}
@@ -613,7 +620,7 @@ void AReEchoEnemyActor::AdvanceBossProjectiles(const float DeltaSeconds)
 void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	AdvanceBossProjectiles(DeltaSeconds);
+	AdvanceEnemyProjectiles(DeltaSeconds);
 	if (IsAlive())
 	{
 		ReEchoElementReaction::TickElementStatuses(*this, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f);
@@ -667,9 +674,10 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
 		Sense.bSpecialActionPermitted =
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
-		const EReEchoEnemySpecialActionPhase PreviousSpecialPhase = EnemyLogic->GetSnapshot().SpecialActionPhase;
+		const FReEchoEnemyLogicSnapshot PreviousLogicSnapshot = EnemyLogic->GetSnapshot();
 		Intent = AdvanceBehavior(Sense, DeltaSeconds);
-		if (ReEchoGameMode && PreviousSpecialPhase == EReEchoEnemySpecialActionPhase::None &&
+		PublishSpecialActionTransition(PreviousLogicSnapshot, Intent);
+		if (ReEchoGameMode && PreviousLogicSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None &&
 		    EnemyLogic->GetSnapshot().SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
 		{
 			ReEchoGameMode->NotifyEnemySpecialStarted(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
@@ -711,6 +719,11 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEch
                                                                     const float DeltaSeconds)
 {
 	return AdvanceBehavior(Sense, DeltaSeconds);
+}
+
+void AReEchoEnemyActor::AdvanceEnemyProjectilesForTests(const float DeltaSeconds)
+{
+	AdvanceEnemyProjectiles(DeltaSeconds);
 }
 #endif
 
@@ -857,7 +870,32 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		return;
 	}
 	CombatAudioAdapter->PostConfiguredAttack(Intent.SourceLocation);
-	if (Intent.bCanDamageTarget && Intent.Target.IsValid())
+	const FReEchoEnemyLogicSnapshot LogicSnapshot = EnemyLogic->GetSnapshot();
+	const bool bRangedProjectile = EnemyLogic->GetDefinition().Archetype == EReEchoEnemyArchetype::Ranged;
+	if (bRangedProjectile)
+	{
+		const FReEchoEnemyAbilityDefinition* Ability = FindAbility(LogicSnapshot.SpecialAbilityId);
+		if (Ability)
+		{
+			const float DerivedLegacySpeed =
+			    Ability->CooldownSeconds > KINDA_SMALL_NUMBER ? Ability->MaxRangeCm / Ability->CooldownSeconds : 0.0f;
+			FReEchoEnemyProjectileRuntimeState Projectile;
+			Projectile.Definition.InitialLocation = Intent.SourceLocation;
+			Projectile.Definition.Direction = LogicSnapshot.SpecialLockedDirection.GetSafeNormal2D();
+			Projectile.Definition.SpeedCmPerSecond =
+			    Ability->ProjectileSpeedCmPerSecond > 0.0f ? Ability->ProjectileSpeedCmPerSecond : DerivedLegacySpeed;
+			Projectile.Definition.MaxRangeCm = Ability->MaxRangeCm;
+			Projectile.Attack = Intent.Attack;
+			Projectile.Damage = Intent.RawDamage;
+			Projectile.CollisionRadiusCm = FMath::Max(10.0f, EnemyLogic->GetDefinition().CollisionRadiusCm * 0.5f);
+			if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
+			{
+				BossProjectiles.Add(MoveTemp(Projectile));
+				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+			}
+		}
+	}
+	else if (Intent.bCanDamageTarget && Intent.Target.IsValid())
 	{
 		FReEchoHitIntent HitIntent;
 		HitIntent.Attack = Intent.Attack;
@@ -890,6 +928,78 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		SelfDestruct.HitLocation = GetActorLocation();
 		ReEchoHitResolver::ResolvePhysicalHit(SelfDestruct);
 	}
+}
+
+const FReEchoEnemyAbilityDefinition* AReEchoEnemyActor::FindAbility(const FName AbilityId) const
+{
+	if (!EnemyLogic || AbilityId.IsNone())
+	{
+		return nullptr;
+	}
+	return EnemyLogic->GetDefinition().Abilities.FindByPredicate(
+	    [AbilityId](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == AbilityId;
+	    });
+}
+
+void AReEchoEnemyActor::PublishSpecialActionTransition(const FReEchoEnemyLogicSnapshot& PreviousSnapshot,
+                                                       const FReEchoEnemyActionIntent& Intent)
+{
+	if (!EnemyEvents)
+	{
+		return;
+	}
+	const FReEchoEnemyLogicSnapshot CurrentSnapshot = EnemyLogic->GetSnapshot();
+	if (PreviousSnapshot.SpecialActionPhase == CurrentSnapshot.SpecialActionPhase)
+	{
+		return;
+	}
+	FReEchoEnemySpecialActionEvent Event;
+	Event.AbilityId = CurrentSnapshot.SpecialAbilityId.IsNone() ? PreviousSnapshot.SpecialAbilityId
+	                                                            : CurrentSnapshot.SpecialAbilityId;
+	Event.Attack = Intent.Attack;
+	Event.Origin = GetActorLocation();
+	Event.LockedDirection = CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None
+	                            ? PreviousSnapshot.SpecialLockedDirection
+	                            : CurrentSnapshot.SpecialLockedDirection;
+	Event.LockedTargetLocation = CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None
+	                                 ? PreviousSnapshot.SpecialLockedTargetLocation
+	                                 : CurrentSnapshot.SpecialLockedTargetLocation;
+	if (PreviousSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None &&
+	    CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
+	{
+		Event.Type = EReEchoEnemySpecialActionEventType::WindupStarted;
+	}
+	else if (Intent.bAttackCommitted && CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery)
+	{
+		Event.Type = EReEchoEnemySpecialActionEventType::ActionCommitted;
+	}
+	else if (CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None)
+	{
+		Event.Type = EReEchoEnemySpecialActionEventType::ActionEnded;
+	}
+	else
+	{
+		return;
+	}
+	EnemyEvents->PublishSpecialAction(Event);
+}
+
+void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEventType Type,
+                                               const FReEchoEnemyProjectileRuntimeState& Projectile) const
+{
+	if (!EnemyEvents)
+	{
+		return;
+	}
+	FReEchoEnemyProjectileEvent Event;
+	Event.Type = Type;
+	Event.Attack = Projectile.Attack;
+	Event.AbilityId = EnemyId == TEXT("M_RABBIT") ? FName(TEXT("M_RABBIT_RangedBurst")) : NAME_None;
+	Event.Location = Projectile.Snapshot.Location;
+	Event.Direction = Projectile.Snapshot.Direction;
+	EnemyEvents->PublishProjectile(Event);
 }
 
 FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving) const

@@ -21,6 +21,7 @@ class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
 class UReEchoCombatEventsComponent;
 class UReEchoCombatAudioAdapterComponent;
+class UReEchoCombatVfxComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DCharacterPresentationProfile;
 class UReEcho2DPresentationCatalog;
@@ -72,14 +73,17 @@ public:
 	virtual FVector GetCombatTargetLocation() const override;
 	virtual int32 GetCombatTargetTieBreakIndex() const override;
 	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override;
+
 	virtual EReEchoCombatFaction GetCombatFaction() const override
 	{
 		return EReEchoCombatFaction::PlayerSide;
 	}
+
 	virtual EReEchoDamageSource GetCombatDamageSource() const override
 	{
 		return EReEchoDamageSource::Player;
 	}
+
 	virtual bool
 	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override;
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
@@ -194,6 +198,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UReEchoCombatVfxComponent> CombatVfx;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UReEchoRecorderComponent> Recorder;

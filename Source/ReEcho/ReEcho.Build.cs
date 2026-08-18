@@ -52,7 +52,8 @@ public class ReEcho : ModuleRules
         // ReEchoAudio must never depend back on ReEcho (see Plan33).
         PrivateDependencyModuleNames.AddRange(new[]
         {
-            "ReEchoAudio"
+            "ReEchoAudio",
+            "Niagara"
         });
     }
 }

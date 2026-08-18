@@ -25,6 +25,7 @@
 - Slime 表驱动接触攻击、Ranged 锁点前摇/范围判定、Elite 正面防御/锁向突进与恢复；
 - Combat Hurt 结果触发的游戏性击退状态，以及 Combat Death 后停止产出行为；
 - 表现中立的 EnemyEvents 与只读 LogicSnapshot；
+- 表现中立的特殊动作阶段事件和逻辑投射物 Spawned/Moved/Ended 生命周期；
 - 无世界纯逻辑回归。
 
 **不负责：**
@@ -61,10 +62,12 @@
 - `FReEchoEnemyActionIntent`：单步朝向、移动距离、普通攻击候选和 `BossIntents`。Boss Intent 表达前摇、判定窗口、清洗和 EncounterPhase，仍不是最终命中结果。
 - `FReEchoEnemyLogicSnapshot`：只读行为副本；除通用状态外保存 Boss 当前招式、阶段剩余时间、轮转索引、锁点、清洗/阶段门控与固定步累计，支持中途恢复。
 - `FReEchoEnemyProjectileLogic`：资源无关的直线弹道 Advance/Snapshot；Host 只负责世界目标碰撞和 Combat 命中转发。
-- `UReEchoEnemyEventsComponent`：发布 `FReEchoEnemyActionCommittedEvent` 与 `FReEchoEnemyFuseEvent`。事件只描述已经发生的行为状态，不携带表现资源。
+- `UReEchoEnemyEventsComponent`：除提交/Fuse 外，发布 `FReEchoEnemySpecialActionEvent`（WindupStarted、ActionCommitted、ActionEnded）与 `FReEchoEnemyProjectileEvent`（Spawned、Moved、Ended）。事件只描述已经发生的行为状态和空间上下文，不携带表现资源。
 - `UReEchoEnemyRosterComponent`：保存 Host/Logic 弱引用，以 SpawnIndex 稳定排序；存活状态即时读取 LogicSnapshot，不复制第二份 alive 标志。
 
 普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown。兔子/狐狸只有获得 Encounter 的全局许可才可开始前摇，已开始的动作不被撤销；兔子锁点后按半径判断，狐狸锁向后按长度/宽度突进，正面防御沿用 Definition 的明确能力标志。全局窗口与并发令牌不保存在单个 EnemyLogic。Bomber 引信不可取消且只提交一次。
+
+兔子提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 创建直线逻辑投射物；Host 连续路径检查合法目标、向 Combat 提交命中并发布只读生命周期事件。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载通用敌方逻辑投射物；重命名需要独立存档迁移。若兔子表内速度仍为 0，Host 临时以 `MaxRangeCm / CooldownSeconds` 推导兼容速度，显式正数表值优先。
 
 ## 依赖方向
 
@@ -122,6 +125,7 @@ Combat OnDeath
 | 行为组件 API | `Public/Enemies/ReEchoEnemyLogicComponent.h` | 显式初始化、推进、事件注入和快照命令 |
 | 追踪、接触、锁点远程、精英突进、Fuse、击退 | `Private/Enemies/ReEchoEnemyLogicComponent.cpp` | 当前行为规则唯一实现 |
 | 行为事件 | `Public/Enemies/ReEchoEnemyEventsComponent.h` | Presentation-neutral 的行为总线 |
+| 直线投射物逻辑 | `Public/Enemies/ReEchoEnemyProjectileLogic.h` → Private 实现 | 位置、速度、最大射程与可保存 Snapshot；无世界/资源依赖 |
 | 本场敌人集合 | `Public/Enemies/ReEchoEnemyRosterComponent.h` → `Private/Enemies/ReEchoEnemyRosterComponent.cpp` | 代替 GameMode 重复世界扫描的单一弱引用注册表 |
 | 规则回归 | `Private/Tests/ReEchoEnemyLogicTests.cpp` | 旧数值、节拍、无敌语义、Fuse、快照与死亡 |
 | 模块入口 | `Public/ReEchoEnemies.h`、`Private/ReEchoEnemies.cpp` | Runtime Module 注册 |
@@ -135,7 +139,7 @@ Combat OnDeath
 - 新怪物 Archetype：先在 `ReEchoEnemyData.xlsx` 注册稳定 ID/Behavior，再扩资源无关 Definition/状态机与聚焦测试，最后由 Host/Presentation 分别增加数据编译和外观映射；不要在 Logic 引入资产类。
 - 新感知条件：在 `FReEchoEnemySenseSnapshot` 增加稳定值字段，由 Host 采样；不要让 Logic 查询 GameMode、PlayerController 或世界 Actor。
 - 新攻击类型：EnemyLogic 只产生动作身份和候选参数，Host 转为 `FReEchoHitIntent`，最终裁决仍只进 Combat Resolver。
-- 新表现反馈：订阅 EnemyEvents/CombatEvents 或读取聚合 PresentationSnapshot；不向 Logic 添加动画完成回调。
+- 新表现反馈：订阅 EnemyEvents/CombatEvents 或读取聚合 PresentationSnapshot；详细 Niagara 接法见 [`MOD-ReEchoVFX.md`](MOD-ReEchoVFX.md)，不向 Logic 添加动画完成回调。
 - 新保存字段：仅保存权威状态，并提供版本化迁移；不要把派生 UI/表现状态或 Combat 生命复制进 LogicSnapshot。
 
 ## 验证与测试

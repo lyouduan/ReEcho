@@ -17,6 +17,7 @@
 #include "Recording/ReEchoPlaybackComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "ReEcho.h"
 #include "ReEchoAudioEvents.h"
 #include "Weapons/ReEchoWeaponActor.h"
@@ -78,6 +79,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
+	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
 	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo, FReEchoAudioEvents::EchoAttack, NAME_None);
 }
 

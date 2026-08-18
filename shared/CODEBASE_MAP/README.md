@@ -27,6 +27,7 @@
 | 文档入口 | 当前状态 | 设计与代码文档 | 一句话职责 |
 |---|---|---|---|
 | UI | 文档型逻辑入口；非 Runtime Module | [`modules/MOD-ReEchoUI.md`](modules/MOD-ReEchoUI.md) | 路由到现有 UI Framework、Widget/WBP 分工和 UI 架构设计规范；当前实现仍属于 `MOD-ReEcho` |
+| VFX | 文档型逻辑入口；非 Runtime Module | [`modules/MOD-ReEchoVFX.md`](modules/MOD-ReEchoVFX.md) | 集中战斗语义到 Niagara 资产的只读适配、生命周期和精确导入规则；当前实现仍属于 `MOD-ReEcho` |
 
 文档型入口用于聚合成熟领域的阅读路线，不注册新的稳定架构标识，也不改变 `ReEcho.uproject`、Build 依赖或全局 Runtime Module 拓扑；不得将其表述为已经拆分的代码模块。
 
@@ -46,7 +47,7 @@
 | `AREA-Run` | 本局构筑、阶段与存档 | `Source/ReEcho/{Public,Private}/Run/` | [Run](modules/MOD-ReEcho.md#area-runrun本局状态与存档) |
 | `AREA-Recording` | 玩家历史录制与 Echo 回放 | `Source/ReEcho/{Public,Private}/Recording/` | [Recording](modules/MOD-ReEcho.md#area-recordingrecording录制与回放) |
 | `AREA-Player` | 输入、移动、相机与玩家装配 | `Source/ReEcho/{Public,Private}/Player/` | [Player](modules/MOD-ReEcho.md#area-playerplayer玩家宿主) |
-| `AREA-Presentation` | 世界 Actor 与可见反馈 | `Source/ReEcho/{Public,Private}/{Graybox,Presentation}/` | [Presentation](modules/MOD-ReEcho.md#area-presentationgraybox--presentation世界表现) |
+| `AREA-Presentation` | 世界 Actor、Animation2D 与 VFX 可见反馈 | `Source/ReEcho/{Public,Private}/{Graybox,Presentation}/` | [Presentation](modules/MOD-ReEcho.md#area-presentationgraybox--presentation世界表现)；[战斗 VFX](modules/MOD-ReEchoVFX.md) |
 | `AREA-UI` | 屏幕框架、Widget 与只读展示 | `Source/ReEcho/{Public,Private}/UI/` | [UI 文档入口](modules/MOD-ReEchoUI.md) |
 | `AREA-Tests` | 自动化与跨领域契约 | `Source/ReEcho/Private/Tests/`、各模块 `Private/Tests/` | [Tests](modules/MOD-ReEcho.md#area-teststests验证边界) |
 
