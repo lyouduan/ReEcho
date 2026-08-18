@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Core/ReEchoTypes.h"
+#include "Run/ReEchoShopCatalog.h"
 #include "ReEchoRunSubsystem.generated.h"
 
 class UReEchoRunSaveGame;
@@ -56,6 +57,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FName> InventoryItems;
 
+	/** Weapon parts purchased during this run. Kept separate from one-shot shop items. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FName> OwnedPartIds;
+
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 
@@ -70,6 +75,8 @@ public:
 	}
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
+	bool TrySaveWeaponPartLoadout(const TArray<FName>& PartIds, FString& OutError);
+	FReEchoWeaponPartShopView GetWeaponPartShopView() const;
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 	int32 GetTotalEncounterCount() const;
 
@@ -91,6 +98,23 @@ public:
 	/** 勇者每关结束后的三档锻炼选择。 */
 	TArray<FReEchoTraitCardOffer> GenerateForgeOffers();
 	bool ApplyForgeChoice(FName ForgeId);
+
+	FReEchoCardRuleSnapshot GetCardRules() const;
+	FReEchoCardEncounterTickResult AdvanceCardEncounter(float EncounterTimeSeconds);
+	void ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
+	                           const FReEchoStatBlock& SourceStats,
+	                           float EchoDistanceCm,
+	                           bool bTargetHasElement);
+	float ModifyCardIncomingHit(float RawDamage);
+	float NotifyCardReaction(FName ReactionId, bool bTriggeredByPlayer);
+	void NotifyCardKill(bool bKilledByEcho);
+	void NotifyCardEchoDefeated();
+	bool ConsumeCardEchoRemovalRequest();
+	int32 GetDiscountedShopPrice(int32 BasePrice) const;
+	bool TryConsumeShopRefresh(int32 PaidRefreshPrice);
+	bool CanPurchaseExtraShopCard() const;
+	bool SetCardAnchorRecording(FGuid RecordingId);
+	void ClearCardAnchorRecording();
 
 	/** 消耗时间碎片购买一次性本轮商品；成功后写入背包并立即应用构筑效果。 */
 	UFUNCTION(BlueprintCallable)
@@ -196,6 +220,12 @@ private:
 	UPROPERTY()
 	FReEchoRecording LatestCompletedRecording;
 
+	UPROPERTY()
+	bool bHasPreviousCompletedRecording = false;
+
+	UPROPERTY()
+	FReEchoRecording PreviousCompletedRecording;
+
 	/** Explicitly stored echoes only; persistent identity is FReEchoRecording::Id. */
 	UPROPERTY()
 	TArray<FReEchoRecording> StoredEchoes;
@@ -216,6 +246,7 @@ private:
 	FReEchoEncounterRuntimeState PendingEncounterResume;
 
 	TSharedPtr<const FReEchoCsvDataSnapshot> RunDataSnapshot;
+	bool bPendingCardEchoRemoval = false;
 
 	void SetPhase(EReEchoRunPhase NewPhase);
 

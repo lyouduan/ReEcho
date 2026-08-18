@@ -18,8 +18,11 @@
 #include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Graybox/ReEchoEchoActor.h"
+#include "Run/ReEchoRunSubsystem.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
@@ -563,25 +566,44 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(const float Damage,
 
 void AReEchoEnemyActor::AdvanceBossProjectiles(const float DeltaSeconds)
 {
-	AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+	AActor* TargetActor = UGameplayStatics::GetPlayerPawn(this, 0);
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (Run && Run->GetCardRules().bEchoTaunts)
+	{
+		float BestDistanceSquared = TNumericLimits<float>::Max();
+		for (TActorIterator<AReEchoEchoActor> EchoIt(GetWorld()); EchoIt; ++EchoIt)
+		{
+			if (EchoIt->IsCombatTargetAlive())
+			{
+				const float DistanceSquared = FVector::DistSquared2D(GetActorLocation(), EchoIt->GetActorLocation());
+				if (DistanceSquared < BestDistanceSquared)
+				{
+					BestDistanceSquared = DistanceSquared;
+					TargetActor = *EchoIt;
+				}
+			}
+		}
+	}
+	IReEchoCombatTarget* Target = TargetActor ? Cast<IReEchoCombatTarget>(TargetActor) : nullptr;
 	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
 	{
 		FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
 		const FReEchoEnemyProjectileAdvanceResult AdvanceResult =
 		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
-		bool bHitPlayer = false;
-		if (AdvanceResult.bMoved && Player && Player->IsCombatTargetAlive() &&
-		    Player->IntersectsCombatPath(
+		bool bHitTarget = false;
+		if (AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive() &&
+		    Target->IntersectsCombatPath(
 		        AdvanceResult.PreviousLocation, AdvanceResult.NewLocation, Projectile.CollisionRadiusCm))
 		{
 			FReEchoBossIntent HitIntent;
 			HitIntent.Attack = Projectile.Attack;
 			HitIntent.Origin = AdvanceResult.PreviousLocation;
 			HitIntent.RawDamage = Projectile.Damage;
-			ApplyBossHit(HitIntent, Player, Player->GetActorLocation());
-			bHitPlayer = true;
+			ApplyBossHit(HitIntent, TargetActor, Target->GetCombatTargetLocation());
+			bHitTarget = true;
 		}
-		if (bHitPlayer || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
+		if (bHitTarget || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
 			BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
 		}
@@ -598,20 +620,41 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	}
 
 	FReEchoEnemyActionIntent Intent;
-	if (IsAlive())
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (IsAlive() && WorldTime >= CardStunnedUntilWorldTime)
 	{
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
 		Sense.WorldTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-		if (APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0))
+		AActor* DesiredTarget = UGameplayStatics::GetPlayerPawn(this, 0);
+		const UReEchoRunSubsystem* Run =
+		    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+		if (Run && Run->GetCardRules().bEchoTaunts)
 		{
-			Sense.Target = Player;
-			Sense.TargetLocation = Player->GetActorLocation();
+			float BestDistanceSquared = TNumericLimits<float>::Max();
+			for (TActorIterator<AReEchoEchoActor> EchoIt(GetWorld()); EchoIt; ++EchoIt)
+			{
+				if (EchoIt->IsCombatTargetAlive())
+				{
+					const float DistanceSquared =
+					    FVector::DistSquared2D(GetActorLocation(), EchoIt->GetActorLocation());
+					if (DistanceSquared < BestDistanceSquared)
+					{
+						BestDistanceSquared = DistanceSquared;
+						DesiredTarget = *EchoIt;
+					}
+				}
+			}
+		}
+		if (AActor* TargetActor = DesiredTarget)
+		{
+			Sense.Target = TargetActor;
+			Sense.TargetLocation = TargetActor->GetActorLocation();
 			Sense.bTargetExists = true;
 			const UReEchoCombatantComponent* PlayerCombatant =
-			    Player->FindComponentByClass<UReEchoCombatantComponent>();
+			    TargetActor->FindComponentByClass<UReEchoCombatantComponent>();
 			Sense.bTargetAlive = PlayerCombatant && PlayerCombatant->IsAlive();
-			if (const AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Player))
+			if (const AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(TargetActor))
 			{
 				Sense.bTargetInvulnerable = ReEchoPlayer->IsWeaponInvulnerable();
 			}
@@ -638,7 +681,8 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense,
                                                             const float DeltaSeconds)
 {
-	const FReEchoEnemyActionIntent Intent = EnemyLogic->Advance(Sense, DeltaSeconds);
+	FReEchoEnemyActionIntent Intent = EnemyLogic->Advance(Sense, DeltaSeconds);
+	Intent.MovementDelta *= FMath::Clamp(CardMovementMultiplier, 0.0f, 1.0f);
 	if (Intent.bHasFacing)
 	{
 		SetActorRotation(Intent.FacingDirection.Rotation());
@@ -649,6 +693,17 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySe
 	}
 	ApplyActionIntent(Intent);
 	return Intent;
+}
+
+void AReEchoEnemyActor::ApplyCardStun(const float DurationSeconds)
+{
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	CardStunnedUntilWorldTime = FMath::Max(CardStunnedUntilWorldTime, WorldTime + FMath::Max(0.0f, DurationSeconds));
+}
+
+void AReEchoEnemyActor::SetCardMovementMultiplier(const float Multiplier)
+{
+	CardMovementMultiplier = FMath::Clamp(Multiplier, 0.0f, 1.0f);
 }
 
 #if WITH_DEV_AUTOMATION_TESTS

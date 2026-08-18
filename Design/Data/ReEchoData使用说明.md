@@ -32,7 +32,7 @@ python scripts\data\sync_xlsx_to_csv.py --check
 
 ## 3. 应该编辑哪里
 
-每个策划 Sheet 左侧保留原有说明或参考内容，右侧深色表头的 Excel Table 是实际生成 CSV 的生产区。
+每个生产 Sheet 从左侧开始直接放置生成 CSV 的 Excel Table，不再并排保留一套旧说明表。旧表中的程序说明、规则文字和备注已按稳定 ID 合并到主实体 Table 的 `Description` 列；生产 Table 是唯一编辑与导出真源。
 
 | Sheet | 可编辑生产 Table | 生成文件 |
 |---|---|---|
@@ -43,7 +43,7 @@ python scripts\data\sync_xlsx_to_csv.py --check
 | `武器体系W` | `tblWeaponTypes`、`tblWeapons`、`tblAttackSteps` | `weapon_types.csv`、`weapons.csv`、`attack_steps.csv` |
 | `武器插槽C` | `tblSlotTypes`、`tblSlotProfiles`、`tblParts`、`tblPartEffects` | `slot_types.csv`、`slot_profiles.csv`、`parts.csv`、`part_effects.csv` |
 
-这些 Table 的数据行可以直接编辑，也可以在 Table 内新增或删除整行。表头、系统契约和参考区被锁定是正常现象。
+这些 Table 的数据行可以直接编辑，也可以在 Table 内新增或删除整行。表头、Sheet 顶部说明、系统契约和 Table 外区域被锁定是正常现象。
 
 以下区域不生成当前生产 CSV：
 
@@ -102,7 +102,7 @@ python scripts\data\sync_xlsx_to_csv.py
 
 1. 读取完整工作簿。
 2. 校验表头、类型、必填字段、ID、引用、范围和逻辑白名单。
-3. 在临时目录生成全部 16 个 CSV。
+3. 在临时目录生成完整的跨工作簿 CSV 包。
 4. 全部校验通过后才一次性发布到 `Content/Data`。
 
 任何一步失败时，生产 CSV 不会留下部分更新。修正报错后重新运行同一命令即可。

@@ -24,6 +24,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameplayAbilitySpec.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "Graybox/ReEchoProjectileActor.h"
@@ -479,6 +480,66 @@ bool AReEchoPlayerPawn::IntersectsCombatPath(const FVector& PathStart,
 	const FBox ExpandedBounds = Collision->Bounds.GetBox().ExpandBy(FMath::Max(0.0f, CarrierRadius));
 	return ExpandedBounds.IsInsideOrOn(PathStart) || ExpandedBounds.IsInsideOrOn(PathEnd) ||
 	       FMath::LineBoxIntersection(ExpandedBounds, PathStart, PathEnd, PathEnd - PathStart);
+}
+
+float AReEchoPlayerPawn::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		return Run->ModifyCardIncomingHit(Intent.RawDamage);
+	}
+	return Intent.RawDamage;
+}
+
+void AReEchoPlayerPawn::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
+{
+	UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (!Run)
+	{
+		return;
+	}
+	float EchoDistanceCm = 0.0f;
+	for (TActorIterator<AReEchoEchoActor> It(GetWorld()); It; ++It)
+	{
+		if (It->IsCombatTargetAlive())
+		{
+			EchoDistanceCm = FMath::Max(EchoDistanceCm, FVector::Dist2D(GetActorLocation(), It->GetActorLocation()));
+		}
+	}
+	const UReEchoCombatantComponent* TargetCombatant =
+	    Intent.Target ? Intent.Target->FindComponentByClass<UReEchoCombatantComponent>() : nullptr;
+	Run->ModifyCardOutgoingHit(Intent,
+	                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
+	                           EchoDistanceCm,
+	                           TargetCombatant && TargetCombatant->GetElementState().Attached != EReEchoElement::None);
+}
+
+void AReEchoPlayerPawn::NotifyReactionResolved(const FName ReactionId) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardReaction(ReactionId, true);
+		if (Combatant && Healing > 0.0f)
+		{
+			Combatant->ApplyHealing(Healing);
+		}
+		if (Combatant)
+		{
+			Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
+		}
+	}
+}
+
+void AReEchoPlayerPawn::NotifyKillResolved() const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		Run->NotifyCardKill(false);
+		if (Combatant)
+		{
+			Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
+		}
+	}
 }
 
 void AReEchoPlayerPawn::GrantStartupAbilities()

@@ -20,6 +20,7 @@
 - 怪物 Archetype、行为阶段、攻击冷却、攻击序号与存活行为门控；
 - 兼容 Grunt/Shield/Bomber、开普勒 Slime/Ranged/Elite 和 Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
 - Host 显式注入的目标感知到移动、朝向和攻击意图的确定性转换；
+- Host 可在不改写 EnemyLogic 内部状态机的前提下应用外部眩晕门、移动倍率，并为当步 Sense 选择存活嘲讽 Echo；
 - Bomber 不可取消引信、范围判定输入与一次性自毁提交；
 - Slime 表驱动接触攻击、Ranged 锁点前摇/范围判定、Elite 正面防御/锁向突进与恢复；
 - Combat Hurt 结果触发的游戏性击退状态，以及 Combat Death 后停止产出行为；
@@ -74,7 +75,7 @@ ReEchoEnemies ─/─→ ReEcho / ReEchoWeapons / ReEchoAudio
 ReEchoEnemies ─/─→ GameMode / UI / Paper2D / Presentation assets
 ```
 
-模块公共依赖仅为 Core、CoreUObject、Engine 与 `ReEchoCombat`。`ReEchoCombat` 不反向依赖 Enemies。未来 EnemyHost 位于主模块，负责组合两个模块；不得为省接线把 Host 或资源类型下沉到 Enemies。
+模块公共依赖仅为 Core、CoreUObject、Engine 与 `ReEchoCombat`。`ReEchoCombat` 不反向依赖 Enemies；Cards 规则由主模块 Host 翻译成 Sense/推进门，不形成 `ReEchoEnemies -> ReEchoCards`。未来 EnemyHost 位于主模块，负责组合模块；不得为省接线把 Host 或资源类型下沉到 Enemies。
 
 ## 运行时流程
 
@@ -111,7 +112,7 @@ Combat OnDeath
 
 ### 当前候选接线状态
 
-`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。`AReEchoGameMode` 通过 Roster 生成、恢复、清理、捕获存档和判断全灭。`UReEchoEnemyPresentationComponent` 独立拥有资源映射和瞬时可见状态，只读消费 EnemyEvents、CombatEvents 与聚合快照。
+`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率，并由 GameMode 为普通攻击与 Boss 投射物统一选择最近存活嘲讽 Echo；EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、清理、捕获存档和判断全灭。`UReEchoEnemyPresentationComponent` 独立拥有资源映射和瞬时可见状态，只读消费 EnemyEvents、CombatEvents 与聚合快照。
 
 ## 代码位置与阅读路线
 
@@ -153,11 +154,13 @@ Combat OnDeath
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
 - `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。
 - `ReEcho.Enemies.Host.CompositionAndSave`、`ReEcho.Run.SaveSnapshot` 与 Combat ElementReaction World 测试覆盖 Host/Combat/Roster/Save 接缝。
+- Plan47 跨域回归覆盖 10/20 秒眩晕、Echo 400cm 减速/元素光环、0.5 秒敌方元素免疫上限和嘲讽目标；规则与持久状态仍由 Cards/Run 测试负责。
 - 怪物攻击、受击、爆破、Boss、动画和遭遇结束仍由用户 PIE 验收。
 
 ## 不变量与常见错误
 
 - Enemies 拥有行为，Combat 拥有伤害/生命/元素，Host 拥有世界 Transform，Presentation 拥有可见反馈；任何一方不得复制另一方的可写真相。
+- 卡牌眩晕与减速是 Host 当步输入；不得写回 EnemyLogic cooldown/Fuse 或为 Cards 增加 Enemies 反向依赖。
 - EnemyHost 显式声明 `EnemySide`，攻击身份在提交时快照该阵营；敌人不得在自身 Logic 中复制玩家/回响类型判断。Bomber 自毁通过单次 HitIntent 的 `bAllowSameFactionDamage` 明确放行自身伤害，不能为此全局开启敌人互伤。
 - Host 必须显式注入 Sense 和事件组件；组件内部 `FindComponentByClass` 会重新引入隐式装配和悬空 Actor 风险。
 - 同一步可以同时产生移动和攻击；提交攻击不得用新空对象覆盖已计算的移动/朝向意图。

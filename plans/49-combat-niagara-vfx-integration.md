@@ -8,7 +8,7 @@
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Ready`。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@f874923`。
+- 本地规划 / 实现基线：`origin/main@b029f05`。
 - 本地实现方式（可选，仅作交接说明）：发布本 Plan 后，从已核验的 `origin/main` 创建 `plan/49-combat-vfx` 分支及 `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan49-vfx` 独立 worktree。
 - 依赖 / 阻塞：美术资源位于 `C:\Users\gavynqiu\Documents\miniGame\Content (2)\Content`，制作版本已确认为 UE 5.8；美术播放约定来自 `C:\Users\gavynqiu\Documents\miniGame\Content (2)\回复.txt`；用户已确认采用真实飞行的兔子投射物，并确认这些资产可用于本项目交付。最终视觉质量由用户 PIE 验收。
 - Writes:
@@ -102,7 +102,7 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@f874923`；Plan 发布后再次 fetch，核验远端准确包含本文件且无新外部提交。
+- 基线分支/提交：`origin/main@b029f05`；Plan 发布后再次 fetch，核验远端准确包含本文件且无新外部提交。
 - 引擎/构建可用性：UE 5.8 安装版；执行任何 Editor/构建命令前使用 Git common-dir Unreal 锁，并先确认交互式 Editor 已关闭。
 - 现有聚焦测试结果：基线构建/自动化证据不冒充本候选证据；实现后重新运行受影响套件。
 - 共享契约 / 难合并资源风险：`.uasset` 为二进制，冲突不能自动选 ours/theirs；必须只从干净远端基线导入精确路径，并在推送前重新 fetch 审计同路径资产、EnemyActor、EnemyEvents 和预构建包变化。
@@ -140,7 +140,7 @@
 
 ### 证据
 
-- Plan 编写前只读确认：`origin/main` 与本地 `main` 均为 `f874923`，工作区干净，远端最大 Plan 编号为 48。
+- Plan 编写前只读确认：远端最大 Plan 编号为 48。首次规划基线为 `f874923`；发布门禁构建期间远端前进到 `b029f05`，用户确认以远端 Plan47/Card Runtime 为权威进行组合适配，本 Plan 基线随之更新。
 - 美术包只读审计确认 8 个正式 Niagara 根资产可形成约 80 个 `.uasset` 的最小静态依赖闭包；实际 manifest 以实现阶段脚本生成并复核的精确结果为准。
 
 ### 剩余风险

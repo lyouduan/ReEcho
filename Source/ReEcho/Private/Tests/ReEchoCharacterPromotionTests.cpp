@@ -21,7 +21,7 @@ bool FReEchoCharacterPromotionRoleTest::RunTest(const FString& Parameters)
 	Hunter.Stats.HpMax = 15.0f;
 	Hunter.Stats.PhysicalAttack = 5.0f;
 	Hunter.Stats.ElementalAttack = 5.0f;
-	Hunter.Cards = {TEXT("G_1_04"), TEXT("G_1_04"), TEXT("G_1_05"), TEXT("G_1_02")};
+	Hunter.CardState.OwnedCardIds = {TEXT("G_1_03"), TEXT("G_1_03"), TEXT("G_1_05"), TEXT("G_1_02")};
 	TestTrue(TEXT("Four cards promote the initial character"), ReEchoCharacterPromotion::TryPromote(Hunter));
 	TestEqual(TEXT("Physical majority promotes Hunter"), Hunter.Stats.RoleId, FName(TEXT("Hunter")));
 	TestEqual(TEXT("Hunter uses the diamond character art"), Hunter.CharacterId, FName(TEXT("J_DIAMOND")));
@@ -29,24 +29,24 @@ bool FReEchoCharacterPromotionRoleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Promotion is applied only once"), !ReEchoCharacterPromotion::TryPromote(Hunter));
 
 	FReEchoBuildSnapshot Poet;
-	Poet.Cards = {TEXT("G_1_05"), TEXT("G_1_05"), TEXT("G_1_01"), TEXT("G_1_08")};
+	Poet.CardState.OwnedCardIds = {TEXT("G_1_04"), TEXT("G_1_04"), TEXT("G_1_06"), TEXT("G_1_01")};
 	ReEchoCharacterPromotion::TryPromote(Poet);
 	TestEqual(TEXT("Element majority promotes Poet"), Poet.Stats.RoleId, FName(TEXT("Poet")));
 	TestTrue(TEXT("Poet projectiles use random combat elements"), Poet.Stats.bRandomElementProjectiles);
 
 	FReEchoBuildSnapshot Brave;
-	Brave.Cards = {TEXT("G_1_02"), TEXT("G_1_03"), TEXT("G_1_02"), TEXT("G_1_08")};
+	Brave.CardState.OwnedCardIds = {TEXT("G_1_02"), TEXT("G_1_02"), TEXT("G_2_14"), TEXT("G_1_01")};
 	ReEchoCharacterPromotion::TryPromote(Brave);
 	TestEqual(TEXT("Survival majority promotes Brave"), Brave.Stats.RoleId, FName(TEXT("Brave")));
 	TestTrue(TEXT("Brave has a second-hit bonus"), Brave.Stats.EverySecondAttackBonus > 0.0f);
 
 	FReEchoBuildSnapshot Sage;
-	Sage.Cards = {TEXT("G_1_01"), TEXT("G_1_08"), TEXT("G_1_01"), TEXT("G_1_05")};
+	Sage.CardState.OwnedCardIds = {TEXT("G_1_01"), TEXT("G_1_08"), TEXT("G_1_07"), TEXT("G_1_05")};
 	ReEchoCharacterPromotion::TryPromote(Sage);
 	TestEqual(TEXT("Utility majority promotes Sage"), Sage.Stats.RoleId, FName(TEXT("Sage")));
 
 	TestEqual(TEXT("Tie priority chooses physical first"),
-	          ReEchoCharacterPromotion::EvaluateRole({TEXT("G_1_04"), TEXT("G_1_05"), TEXT("G_1_02"), TEXT("G_1_01")}),
+	          ReEchoCharacterPromotion::EvaluateRole({TEXT("G_1_03"), TEXT("G_1_04"), TEXT("G_1_02"), TEXT("G_1_01")}),
 	          FName(TEXT("Hunter")));
 	return true;
 }

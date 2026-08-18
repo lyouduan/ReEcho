@@ -13,6 +13,8 @@ class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
 class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
+class UReEchoRunSubsystem;
+enum class EReEchoInventoryShopMode : uint8;
 class UReEchoLoadoutSelectionWidget;
 class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
@@ -210,6 +212,9 @@ private:
 
 	UFUNCTION()
 	void HandleShopPurchaseRequested(FName ItemId);
+	void HandleShopRefreshRequested();
+	void HandleWeaponLoadoutSaveRequested(const TArray<FName>& PartIds);
+	void RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, EReEchoInventoryShopMode Mode);
 
 	UFUNCTION()
 	void HandleEchoStoreRequested();

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/ReEchoCombatTypes.h"
+#include "Cards/ReEchoCardTypes.h"
 #include "Enemies/ReEchoEnemyProjectileLogic.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "ReEchoTypes.generated.h"
@@ -59,6 +60,9 @@ struct REECHO_API FReEchoBuildSnapshot
 	bool bHasEquipmentBase = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FReEchoCardBuildState CardState;
+	/** v8 migration input only. v9 writes CardState.OwnedCardIds and leaves this empty. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FName> Cards;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

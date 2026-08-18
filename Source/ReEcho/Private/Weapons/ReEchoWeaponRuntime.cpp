@@ -1,5 +1,6 @@
 #include "Weapons/ReEchoWeaponRuntime.h"
 
+#include "Cards/ReEchoCardRuntime.h"
 #include "Math/RotationMatrix.h"
 #include "Weapons/ReEchoWeaponGeometry.h"
 
@@ -47,6 +48,20 @@ int32 FindSlotLimit(const FReEchoCsvDataSnapshot& Snapshot, const FName WeaponTy
 		}
 	}
 	return 0;
+}
+
+int32 FindEffectiveSlotLimit(const FReEchoCsvDataSnapshot& Snapshot,
+                             const FReEchoBuildSnapshot& Build,
+                             const FName WeaponTypeId,
+                             const FName SlotTypeId)
+{
+	const int32 BaseLimit = FindSlotLimit(Snapshot, WeaponTypeId, SlotTypeId);
+	if (BaseLimit <= 0 || SlotTypeId == TEXT("Core") || !Snapshot.CardCatalog.IsValid())
+	{
+		return BaseLimit;
+	}
+	const FReEchoCardRuleSnapshot Rules = ReEchoCardRuntime::CompileRules(*Snapshot.CardCatalog, Build.CardState);
+	return Rules.bDoubleNonCoreSlotCapacity ? FMath::Max(2, BaseLimit * 2) : BaseLimit;
 }
 
 bool IsPartCompatibleWithWeapon(const FReEchoCsvDataSnapshot& Snapshot,
@@ -157,6 +172,14 @@ float ReEchoWeaponRuntime::ApplyValueOperation(const float CurrentValue,
 		default:
 			return CurrentValue;
 	}
+}
+
+int32 ReEchoWeaponRuntime::GetEffectiveSlotCapacity(const FReEchoCsvDataSnapshot& Snapshot,
+                                                    const FReEchoBuildSnapshot& Build,
+                                                    const FName WeaponTypeId,
+                                                    const FName SlotTypeId)
+{
+	return FindEffectiveSlotLimit(Snapshot, Build, WeaponTypeId, SlotTypeId);
 }
 
 FString ReEchoWeaponRuntime::GetBuildConfigurationError(const FReEchoCsvDataSnapshot& Snapshot,
@@ -273,7 +296,7 @@ bool ReEchoWeaponRuntime::TryEquipParts(const FReEchoCsvDataSnapshot& Snapshot,
 			                           *Weapon->WeaponTypeId.ToString());
 			return false;
 		}
-		const int32 SlotLimit = FindSlotLimit(Snapshot, Weapon->WeaponTypeId, Part->SlotTypeId);
+		const int32 SlotLimit = FindEffectiveSlotLimit(Snapshot, Candidate, Weapon->WeaponTypeId, Part->SlotTypeId);
 		if (SlotLimit <= 0)
 		{
 			OutError =
@@ -382,7 +405,7 @@ bool ReEchoWeaponRuntime::TrySelectWeapon(const FReEchoCsvDataSnapshot& Snapshot
 		{
 			continue;
 		}
-		const int32 SlotLimit = FindSlotLimit(Snapshot, Weapon->WeaponTypeId, Part->SlotTypeId);
+		const int32 SlotLimit = FindEffectiveSlotLimit(Snapshot, Candidate, Weapon->WeaponTypeId, Part->SlotTypeId);
 		const int32 RetainedCount = RetainedSlotCounts.FindRef(Part->SlotTypeId);
 		if (RetainedCount >= SlotLimit)
 		{

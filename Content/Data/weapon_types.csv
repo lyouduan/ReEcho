@@ -1,8 +1,70 @@
-Id,DisplayName,BaseAttackPatternId,SlotProfileId,BaseIntervalSeconds,BaseRangeCm,BaseArcDegrees,BaseProjectileCount,BaseConcentrationDegrees,BaseExplosionRadiusCm,ChainWindowSeconds,Enabled,SourceSheet,SourceRow,DisabledReason
-Dagger,匕首,Pattern.DaggerCombo,SP_DAGGER,0.5,150,120,0,0,0,0.5,true,武器体系W,2,
-LongSword,长剑,Pattern.LongSwordCombo,SP_LONGSWORD,0.8,250,180,0,0,0,0.8,true,武器体系W,3,
-Scythe,镰刀,Pattern.ScytheSweep,SP_SCYTHE,0.5,150,360,0,0,0,0,true,武器体系W,4,
-Whip,鞭,Pattern.WhipCombo,SP_WHIP,0.8,400,180,0,0,0,0.8,true,武器体系W,5,
-Bow,弓,Pattern.BowShot,SP_BOW,1,1000,0,1,0,0,0,true,武器体系W,6,
-Gun,枪,Pattern.GunShot,SP_GUN,0.3,1500,0,1,0,0,0,true,武器体系W,7,
-Staff,法杖,Pattern.StaffProjectile,SP_STAFF,1.2,1000,0,1,0,200,0,true,武器体系W,8,
+Id,DisplayName,Description,BaseAttackPatternId,SlotProfileId,BaseIntervalSeconds,BaseRangeCm,BaseArcDegrees,BaseProjectileCount,BaseConcentrationDegrees,BaseExplosionRadiusCm,ChainWindowSeconds,Enabled,SourceSheet,SourceRow,DisabledReason
+Dagger,匕首,"攻击模组：【三段攻击】
+一段：从右往左挥刀
+攻击时长：0.5s
+伤害倍率：60% 元攻/物攻
+二段：从左往右挥刀
+攻击时长：0.5s
+伤害倍率：60% 元攻/物攻
+三段：冲刺挥刀
+攻击时长：0.7s
+冲刺伤害倍率：60% 元攻/物攻
+终点挥刀伤害倍率：120% 元攻/物攻
+冲刺距离：2m
+
+冲刺时，对路径上的敌方单位造成伤害；在终点原地旋转挥刀，对360°的敌人造成伤害。此过程中获得【无敌】
+初始属性：近战武器攻击角度：120°
+攻击范围：1.5m
+连贯攻击阈值：0.5s
+武器介绍：絮扬填充",Pattern.DaggerCombo,SP_DAGGER,0.5,150,120,0,0,0,0.5,true,武器体系W,2,
+LongSword,长剑,"攻击模组：【二段攻击】
+一段：从左往右挥剑
+攻击时长：0.8s
+伤害倍率：100% 元攻/物攻
+二段：从右往左挥剑
+攻击时长：0.8s
+伤害倍率：100% 元攻/物攻
+初始属性：近战武器攻击角度：180°
+攻击范围：2.5m
+连贯攻击阈值：0.8s
+武器介绍：絮扬填充",Pattern.LongSwordCombo,SP_LONGSWORD,0.8,250,180,0,0,0,0.8,true,武器体系W,3,
+Scythe,镰刀,"攻击模组：攻击时长：0.5s
+伤害倍率：60% 元攻/物攻
+
+距离中心外50%范围的敌人会额外受到40% 元攻/物攻伤害
+初始属性：近战武器攻击角度：360°
+攻击范围：1.5m
+连贯攻击阈值：0s
+武器介绍：絮扬填充",Pattern.ScytheSweep,SP_SCYTHE,0.5,150,360,0,0,0,0,true,武器体系W,4,
+Whip,鞭,"攻击模组：【二段攻击】
+一段：从左往右挥鞭击打
+攻击时长：0.8s
+伤害倍率：60% 元攻/物攻
+二段：朝前方挥鞭击打
+攻击时长：0.8s
+伤害倍率：120% 元攻/物攻
+
+第一段攻击附带0.5m的击退效果；第二段攻击的攻击角度为30°，并且距离中心外50%范围的敌人会额外受到60% 元攻/物攻伤害
+初始属性：近战武器攻击角度：180°
+攻击范围：4m
+连贯攻击阈值：0.8s
+武器介绍：絮扬填充",Pattern.WhipCombo,SP_WHIP,0.8,400,180,0,0,0,0.8,true,武器体系W,5,
+Bow,弓,"攻击模组：攻击时长：1s
+伤害倍率：100% 元攻/物攻
+初始属性：弹道数量：1
+攻击范围：10m
+武器集中度：0°
+武器介绍：絮扬填充",Pattern.BowShot,SP_BOW,1,1000,0,1,0,0,0,true,武器体系W,6,
+Gun,枪,"攻击模组：攻击时长：0.3s
+伤害倍率：20% 元攻/物攻
+初始属性：弹道数量：1
+攻击范围：15m
+武器集中度：0°
+武器介绍：絮扬填充",Pattern.GunShot,SP_GUN,0.3,1500,0,1,0,0,0,true,武器体系W,7,
+Staff,法杖,"攻击模组：攻击时长：1.2s
+伤害倍率：80% 元攻/物攻
+初始属性：弹道数量：1
+攻击范围：10m
+武器集中度：0°
+爆炸范围：2m
+武器介绍：絮扬填充",Pattern.StaffProjectile,SP_STAFF,1.2,1000,0,1,0,200,0,true,武器体系W,8,

@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v9 pins stable enemy ids and the table-driven wave event cursor. */
-	static constexpr int32 CurrentSaveVersion = 9;
+	/** v10 pins table-driven encounter state and persists weapon-part ownership separately. */
+	static constexpr int32 CurrentSaveVersion = 10;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -36,6 +36,10 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray<FName> InventoryItems;
+
+	/** Added in v10. Older saves derive ownership from their valid equipped parts. */
+	UPROPERTY(SaveGame)
+	TArray<FName> OwnedPartIds;
 
 	/** Added in v6. Older saves deterministically migrate to automatic attack. */
 	UPROPERTY(SaveGame)
@@ -69,6 +73,13 @@ public:
 	/** Rolling previous-encounter echo. Overwritten every successful encounter, occupies no slot. */
 	UPROPERTY(SaveGame)
 	FReEchoRecording LatestCompletedRecording;
+
+	/** v9 rolling recording immediately preceding LatestCompletedRecording. */
+	UPROPERTY(SaveGame)
+	bool bHasPreviousCompletedRecording = false;
+
+	UPROPERTY(SaveGame)
+	FReEchoRecording PreviousCompletedRecording;
 
 	/** Only echoes the player explicitly chose to store; identity is FReEchoRecording::Id, not index. */
 	UPROPERTY(SaveGame)

@@ -105,6 +105,8 @@ public:
 	}
 
 	bool IsAlive() const;
+	void ApplyCardStun(float DurationSeconds);
+	void SetCardMovementMultiplier(float Multiplier);
 
 	virtual bool IsCombatTargetAlive() const override
 	{
@@ -252,5 +254,7 @@ private:
 
 	bool bVisualPlacementApplied = false;
 	bool bAudioSpawnPosted = false;
+	float CardStunnedUntilWorldTime = 0.0f;
+	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;
 };

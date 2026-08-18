@@ -80,7 +80,9 @@ AUTHORING_LIST_VALIDATION_COLUMNS = {
     "tblAttackSteps": frozenset({"AttackPatternId", "Invulnerable", "BehaviorId", "FormulaId", "ConditionId", "Enabled"}),
     "tblSlotTypes": frozenset({"Enabled"}),
     "tblSlotProfiles": frozenset({"WeaponTypeId", "SlotTypeId", "Required", "Enabled"}),
-    "tblParts": frozenset({"WeaponTypeId", "SlotTypeId", "Rarity", "Enabled", "ReviewStatus", "ImplementationStatus"}),
+    "tblParts": frozenset({
+        "WeaponTypeId", "SlotTypeId", "Rarity", "Enabled", "ReviewStatus", "ImplementationStatus", "ShopEnabled",
+    }),
     "tblPartEffects": frozenset({
         "PartId", "Trigger", "EffectKind", "Target", "ValueOp", "BehaviorId", "FormulaId", "AttackPatternId",
         "ParamName", "StackPolicy", "Enabled",

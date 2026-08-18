@@ -13,22 +13,25 @@ ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人
 | `MOD-ReEcho` | `ReEcho` | 作为 UE 玩法装配根，组合世界生命周期、主流程、尚未独立的玩法领域、表现和 UI | [`modules/MOD-ReEcho.md`](modules/MOD-ReEcho.md) |
 | `MOD-ReEchoAudio` | `ReEchoAudio` | 隔离音频目录、策略、总线和播放后端，使缺资源或无设备不影响玩法 | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) |
 | `MOD-ReEchoCombat` | `ReEchoCombat` | 集中攻击控制、战斗参与者、GAS、命中/元素/生命/死亡裁决和只读结果契约 | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) |
+| `MOD-ReEchoCards` | `ReEchoCards` | 集中卡牌定义、构筑状态、抽取资格与无世界规则计算 | [`modules/MOD-ReEchoCards.md`](modules/MOD-ReEchoCards.md) |
 | `MOD-ReEchoWeapons` | `ReEchoWeapons` | 集中武器不可变定义、唯一普通攻击节拍、步骤和无表现的攻击载体逻辑 | [`modules/MOD-ReEchoWeapons.md`](modules/MOD-ReEchoWeapons.md) |
 | `MOD-ReEchoEnemies` | `ReEchoEnemies` | 集中怪物 AI、攻击节奏、爆破引信、受击位移与行为快照，避免表现资源成为玩法前置 | [`modules/MOD-ReEchoEnemies.md`](modules/MOD-ReEchoEnemies.md) |
 
 ```text
 MOD-ReEcho ─────────────→ MOD-ReEchoAudio
     ├───────────────────→ MOD-ReEchoCombat
+    ├───────────────────→ MOD-ReEchoCards ──────→ MOD-ReEchoCombat
     ├───────────────────→ MOD-ReEchoWeapons ─────→ MOD-ReEchoCombat
     └───────────────────→ MOD-ReEchoEnemies ─────→ MOD-ReEchoCombat
 
 MOD-ReEchoCombat  ─/─→ MOD-ReEchoWeapons / MOD-ReEcho / MOD-ReEchoAudio
+MOD-ReEchoCards   ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoEnemies / MOD-ReEchoAudio / UI
 MOD-ReEchoWeapons ─/─→ MOD-ReEcho / MOD-ReEchoAudio
 MOD-ReEchoAudio   ─/─→ MOD-ReEcho / MOD-ReEchoCombat / MOD-ReEchoWeapons
 MOD-ReEchoEnemies ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoAudio / Presentation
 ```
 
-依赖必须保持单向。Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。Plan43 候选已经建立 `ReEcho -> ReEchoEnemies -> ReEchoCombat`，Enemies 不反向依赖主模块或表现资源。
+依赖必须保持单向。Cards 计算构筑状态、候选资格和类型化规则结果，但不接触世界；Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。
 
 ## 主运行流程
 
@@ -88,7 +91,7 @@ Design/Data/ReEchoData.xlsx + ReEchoEnemyData.xlsx + ReEchoEncounterData.xlsx + 
 
 ## 当前候选状态
 
-五个 Runtime Module 拓扑保持不变。Encounter Catalog、WaveScheduler 与 SpawnResolver 仍属于 `MOD-ReEcho/AREA-Encounter`；它们只向 EnemyHost 提供数据和 Spawn Intent，没有让 `ReEchoEnemies` 反向依赖主模块、工作簿或表现资源。
+Plan47 新增第六个 Runtime Module `ReEchoCards`、39 张构筑和版本化 CardState；Cards 只依赖 Combat，Weapons/Enemies 不反向依赖 Cards，主模块负责世界、商店与存档适配。Plan48 的 Encounter Catalog、WaveScheduler 与 SpawnResolver 仍属于 `MOD-ReEcho/AREA-Encounter`；它们只向 EnemyHost 提供数据和 Spawn Intent，没有让 `ReEchoEnemies` 反向依赖主模块、工作簿或表现资源。
 
 ## 维护规则
 

@@ -21,6 +21,7 @@
 - GAS Gameplay Tags、属性集、初始化/伤害/治疗 Effect 与基础/主动 Ability；
 - Combatant 的生命、属性、元素状态和存活状态；
 - `FReEchoAttackIdentity`、`FReEchoHitIntent`、`FReEchoHitResolved` 等跨模块值契约；
+- `IReEchoCombatTarget` 的可选来源规则、反应/击杀/被击败通知接缝，以及 `bSourceRulesApplied` 单次变换门；
 - HitResolver 对物理伤害、格挡、元素、生命、击杀与死亡的最终裁决；
 - CombatEvents 和只读 Combatant/Attack Snapshot；
 - 正式 `ElementCleanseCommand`：原子清除元素附着/灼烧并授予指定时长元素免疫，行为调用方不直接改 Combat 私有状态；
@@ -55,6 +56,7 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 - Pawn/流程通过 `UReEchoAttackControllerComponent` 发送自动/手动模式、Begin/End manual、运行门控和统一 Release 请求；不直接写 GAS spec 的 `InputPressed`。
 - `IReEchoAttackControllerHost` / `IReEchoAttackHost` 是主模块宿主与 Combat 的窄桥，Combat 不 include 具体 Pawn 或 WeaponActor。
 - Weapons、敌人接触攻击或合法环境来源提交完整 `FReEchoHitIntent`；Intent 只描述候选，不宣称最终伤害或死亡。
+- 来源宿主可在 Resolver 内通过 `ModifyOutgoingHit` 对候选执行一次类型化规则变换；元素内部伤害必须携带 `bSourceRulesApplied`，防止同一 Hit 重复扣资源或增伤。
 - 主模块把已校验 CSV 编译为不可变 `FReEchoElementRuleSet` 后发布；Combat 不认识 CSV Row、工作簿或资源字段。
 
 ### 结果、事件与快照
@@ -85,9 +87,10 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 ```text
 ReEchoWeapons ─────→ ReEchoCombat
 ReEchoEnemies ─────→ ReEchoCombat
+ReEchoCards ───────→ ReEchoCombat
 ReEcho ────────────→ ReEchoCombat
 
-ReEchoCombat ─/─→ ReEchoWeapons / ReEchoEnemies / ReEcho / ReEchoAudio / UI / Presentation
+ReEchoCombat ─/─→ ReEchoWeapons / ReEchoEnemies / ReEchoCards / ReEcho / ReEchoAudio / UI / Presentation
 ```
 
 公共依赖仅为 UE Core/Engine、GameplayAbilities、GameplayTags、GameplayTasks。需要世界装配、数据、音频或表现时，由 `ReEcho` 主模块适配。
@@ -113,10 +116,12 @@ Combat 管理“是否持续请求”，Weapons 管理“何时可提交”。�
 Weapons/接触攻击产生 HitIntent
   → ReEchoCombatRelations 最终校验来源/目标阵营
   → ReEchoHitResolver::ResolveHit
+  → 来源接口执行一次 outgoing rule（并设置 guard）
   → Target 接口修正原始输入（如格挡）
   → 物理/元素规则更新 Combatant 唯一状态
   → 形成 HitResolved
   → 发布 Hit/Hurt/HealthChanged/ElementStateChanged/Kill/Death
+  → 来源接口接收已裁决的 Reaction/Kill 通知，目标接口接收 Defeated 通知
   → 主模块表现、UI、音频只读消费
 ```
 
@@ -456,6 +461,7 @@ Input / Auto held
 - World/GAS：Combatant、ASC、AttackController、Targeting、Ability held 重试。
 - 生命周期：来源销毁后延迟命中仍安全结算，且不发布来源侧反馈。
 - 跨模块：Weapons 只产生 Intent；Combat 才改变生命并发布最终事件。
+- 卡牌接缝：来源规则只执行一次；元素二次分派不重复变换；Reaction/Kill/Defeated 仅在权威结果后通知。
 - 命令：`scripts/ue/Run-Automation.cmd -Filter ReEcho.Combat`，并回归 `ReEcho.AttackMode`、Element、Recording/Save。
 - 用户 PIE：自动/手动切换、连续攻击、无目标、菜单/死亡释放、命中/击杀和手感。
 
@@ -464,6 +470,7 @@ Input / Auto held
 - Combat 是最终结算权威；Weapons、Actor、Widget 与表现不得直接扣血或决定死亡。
 - `FReEchoAttackIdentity::Source` 必须保持弱引用；延迟逻辑不得凭非空裸地址判断 Actor 存活。
 - Combat 不依赖 Weapons、主模块、Audio、UI 或任何表现资源。
+- Combat 不认识具体卡牌；它只提供可选宿主钩子和 guard，`ReEchoCards`/主模块负责规则语义与状态。
 - 自动/手动共享 AttackController/GAS/Weapons 路径；自动攻击不进入 Recording。
 - 事件描述已发生结果，回调不能反向更改本次结果；Snapshot 也不是命令。
 - 不为兼容旧调用保留第二套生命、元素、held、目标或伤害算法。

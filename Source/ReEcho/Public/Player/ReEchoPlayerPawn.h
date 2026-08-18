@@ -82,6 +82,10 @@ public:
 	}
 	virtual bool
 	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override;
+	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
+	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const override;
+	virtual void NotifyReactionResolved(FName ReactionId) const override;
+	virtual void NotifyKillResolved() const override;
 
 	FString GetEquippedWeaponLabel() const;
 	float GetCurrentAttackInterval() const;

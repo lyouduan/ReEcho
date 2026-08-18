@@ -16,6 +16,7 @@
 | `MOD-ReEcho` | 当前 `main` Runtime Module | [`modules/MOD-ReEcho.md`](modules/MOD-ReEcho.md) | UE 世界与玩法装配根，组合主流程、局内/局外领域、表现与 UI |
 | `MOD-ReEchoAudio` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) | 接收语义音频请求，独立管理目录、策略、总线状态与播放后端 |
 | `MOD-ReEchoCombat` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) | 攻击控制、战斗状态和最终结算的逻辑权威 |
+| `MOD-ReEchoCards` | Plan47 `Review` 候选 Runtime Module | [`modules/MOD-ReEchoCards.md`](modules/MOD-ReEchoCards.md) | 卡牌目录、构筑状态、抽取资格和跨领域规则计算的逻辑权威 |
 | `MOD-ReEchoWeapons` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoWeapons.md`](modules/MOD-ReEchoWeapons.md) | 武器定义、唯一攻击节拍、步骤和攻击载体逻辑 |
 | `MOD-ReEchoEnemies` | 当前 `main` Runtime Module | [`modules/MOD-ReEchoEnemies.md`](modules/MOD-ReEchoEnemies.md) | 怪物 AI、Boss 技能策略、攻击节奏、引信、受击位移与行为快照的逻辑权威 |
 
@@ -37,6 +38,7 @@
 |---|---|---|---|
 | `AREA-Core` | 公共类型与兼容契约 | `Source/ReEcho/{Public,Private}/Core/` | [Core](modules/MOD-ReEcho.md#area-corecore公共类型与兼容契约) |
 | `AREA-Data` | XLSX/CSV 运行时适配 | `Source/ReEcho/{Public,Private}/Data/` | [Data](modules/MOD-ReEcho.md#area-datadata生产数据适配) |
+| `AREA-Cards` | 卡牌目录、构筑状态与规则计算 | `Source/ReEchoCards/`；主模块 `Run/` 负责流程适配 | [Cards](modules/MOD-ReEchoCards.md) |
 | `AREA-AbilityCombat` | GAS、攻击控制、战斗与元素结算 | `Source/ReEchoCombat/`；主模块 `Combat/` 仅适配 | [Combat](modules/MOD-ReEchoCombat.md#代码位置与阅读路线) |
 | `AREA-Weapons` | 武器定义、步骤与逻辑载体 | `Source/ReEchoWeapons/`；主模块 `Weapons/` 负责数据/表现适配 | [Weapons](modules/MOD-ReEchoWeapons.md#代码位置与阅读路线) |
 | `AREA-Enemies` | 怪物行为逻辑、Roster 与主模块接线 | `Source/ReEchoEnemies/`；主模块 EnemyHost 位于 `Graybox/`、只读表现位于 `Presentation/Enemy/` | [Enemies](modules/MOD-ReEchoEnemies.md#代码位置与阅读路线) |

@@ -17,6 +17,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Characters,Id,StableId,true,,,,,Canonical runtime character id.
 1,Characters,SourceWorkbookId,StableId,true,,,,,Workbook id or explicit runtime-only provenance id.
 1,Characters,DisplayName,Text,true,,,,,Designer-visible character name.
+1,Characters,Description,Text,true,,,,,Designer-visible character rules and source description.
 1,Characters,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,Characters,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Characters,RoleId,StableId,true,,,,None|Hunter|Poet|Brave|Sage,Role used by promotion scoring.
@@ -56,18 +57,19 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,CardEffects,Id,StableId,true,,,,,Stable child effect row id.
 1,CardEffects,CardId,ForeignKey,true,,,Cards,,References Cards.Id.
 1,CardEffects,Order,Int,true,0,1000000,,,Effect application order within card.
-1,CardEffects,Trigger,StableId,true,,,,OnApply,Effect trigger.
-1,CardEffects,EffectKind,EffectKind,true,,,,StatModifier|InstantRecovery,Registered C++ effect kind.
-1,CardEffects,Target,StableId,true,,,,HpMax|HpPoint|PhysicalAttack|ElementalAttack|Block|AttackSpeed|MovementSpeed|EchoEfficiency,Typed stat target.
+1,CardEffects,Trigger,StableId,true,,,,OnApply|OnGrant|OnEncounterStart|OnEncounterTick|OnEncounterEnd|BeforeOutgoingHit|BeforeIncomingHit|OnHitResolved|OnReaction|OnPurchase|OnEchoKilled|OnResolveEchoes|OnCompileRules,Typed card lifecycle trigger.
+1,CardEffects,EffectKind,EffectKind,true,,,,StatModifier|InstantRecovery|CardBehavior,Registered C++ card effect kind.
+1,CardEffects,Target,StableId,true,,,,HpMax|HpPoint|PhysicalAttack|ElementalAttack|CriticalRate|CriticalEffect|MovementSpeed|EchoEfficiency|ReactionEfficiency|Tier|PhysicalOrElemental|Water|Grass|Damage|TimeShards|ShopDiscount|HpMaxAndPoint|Stun|EchoCount|AnchorRecording|AllBaseStats|EchoHealth|PhysicalAndElementalAttack|EnemyElementImmunity|RandomElement|ElementCanCrit|CriticalRollCount|MinimumGuaranteedTier|FreeShopRefresh|NonCoreSlotCapacity,Typed card effect target.
 1,CardEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
 1,CardEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
-1,CardEffects,BehaviorId,BehaviorId,true,,,,None|Card.StatModifier|Card.InstantRecovery,Registered C++ behavior id.
-1,CardEffects,ParamName,StableId,true,,,,None,Typed parameter name when needed.
+1,CardEffects,BehaviorId,BehaviorId,true,,,,Card.StatModifier|Card.InstantRecovery|Card.GrantTier|Card.RandomStatTrade|Card.TrackNextKills|Card.TrackNextReactions|Card.EchoElementAura|Card.EchoSlowAura|Card.ElementAttachedCrit|Card.ReactionHeal|Card.DamageSubstitution|Card.NextShardDrop|Card.ShopContract|Card.EncounterStun|Card.DoubleEcho|Card.TimeAnchor|Card.SoloBody|Card.TauntEcho|Card.SoulResonance|Card.EnemyImmunity|Card.CriticalElement|Card.ElementCanCrit|Card.DistanceDamage|Card.DoubleCritRoll|Card.BloodForging|Card.EndKillRefresh|Card.HarvestPenalty|Card.ShardOutgoingDamage|Card.ShardIncomingBarrier|Card.ReactionDiversity|Card.DoubleNonCoreSlots,Registered C++ card behavior id.
+1,CardEffects,ParamName,StableId,true,,,,None|Count|Penalty|Threshold|RadiusCm|CooldownSeconds|FreeHitCount|EncounterOffset|TriggerSeconds|EchoKillThreshold|PlayerKillThreshold|DistanceCm|KillThreshold|PenaltyChoices|ShardCost|DistinctCount,Typed parameter name when needed.
 1,CardEffects,ParamValue,Float,true,-100000,100000,,,Typed numeric parameter when needed.
 1,Elements,Id,StableId,true,,,,Flame|Lightning|Grass|Water,Canonical runtime element id.
 1,Elements,SourceWorkbookId,StableId,true,,,,Y_Flame|Y_Lightning|Y_Grass|Y_Water,Workbook or legacy JSON provenance id.
 1,Elements,Role,StableId,true,,,,Trigger|Attachment,Element reaction role.
 1,Elements,DisplayName,Text,true,,,,,Designer-visible element name.
+1,Elements,Description,Text,true,,,,,Designer-visible element rules and source description.
 1,Elements,DisplayNameKey,TextKey,true,,,,,Localization key or designer-readable text key.
 1,Elements,ColorHex,Text,true,,,,,Presentation color as #RRGGBB.
 1,Elements,VisualKey,StableId,true,,,,Fire|Lightning|Grass|Water,Short visual label key.
@@ -75,6 +77,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Elements,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Statuses,Id,StableId,true,,,,,Stable status id.
 1,Statuses,DisplayName,Text,true,,,,,Designer-visible status name.
+1,Statuses,Description,Text,true,,,,,Designer-visible status rules and source description.
 1,Statuses,BehaviorId,BehaviorId,true,,,,None|Status.ElementImmunity|Status.Burn,Registered status behavior id.
 1,Statuses,DurationSeconds,Float,true,0,3600,,,Default status duration in seconds.
 1,Statuses,StackPolicy,StableId,true,,,,NoStack|RefreshOnly|Stackable,Stacking policy.
@@ -85,6 +88,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Statuses,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Reactions,Id,StableId,true,,,,,Stable reaction id.
 1,Reactions,DisplayName,Text,true,,,,,Designer-visible reaction name.
+1,Reactions,Description,Text,true,,,,,Designer-visible reaction rules and source description.
 1,Reactions,TriggerElementId,ForeignKey,true,,,Elements,,Ordered incoming element id.
 1,Reactions,AttachmentElementId,ForeignKey,true,,,Elements,,Ordered existing attached element id.
 1,Reactions,BehaviorId,BehaviorId,true,,,,Reaction.Burn|Reaction.Vaporize|Reaction.Growth|Reaction.Conduct|Reaction.Enhance,Registered reaction behavior id.
@@ -102,6 +106,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Reactions,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,WeaponTypes,Id,StableId,true,,,,Dagger|LongSword|Scythe|Whip|Bow|Gun|Staff,Stable weapon type id.
 1,WeaponTypes,DisplayName,Text,true,,,,,Designer-visible type name.
+1,WeaponTypes,Description,Text,true,,,,,Designer-visible weapon type rules and source description.
 1,WeaponTypes,BaseAttackPatternId,AttackPatternId,true,,,,Pattern.DaggerCombo|Pattern.LongSwordCombo|Pattern.ScytheSweep|Pattern.WhipCombo|Pattern.BowShot|Pattern.GunShot|Pattern.StaffProjectile,Registered base attack pattern id.
 1,WeaponTypes,SlotProfileId,StableId,true,,,,,Slot profile family id.
 1,WeaponTypes,BaseIntervalSeconds,Float,true,0,60,,,Base attack interval in seconds.
@@ -185,6 +190,8 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Parts,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Parts,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,Parts,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,Parts,ShopEnabled,Bool,true,,,,true|false,Whether this implemented part can appear as a shop offer.
+1,Parts,ShopPrice,Int,true,0,100000,,,Base time-shard price; must be positive when ShopEnabled is true and 0 otherwise.
 1,PartEffects,Id,StableId,true,,,,,Stable part effect row id.
 1,PartEffects,PartId,ForeignKey,true,,,Parts,,References enabled Parts.Id.
 1,PartEffects,Order,Int,true,0,1000000,,,Effect order within part.

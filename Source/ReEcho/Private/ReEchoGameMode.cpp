@@ -4,6 +4,7 @@
 #include "AbilitySystemComponent.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoHitResolver.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BillboardComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
@@ -917,6 +918,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		if (Echo && Echo->InitializeEcho(
 		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
+			Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 			Echoes.Add(Echo);
 		}
 		else if (Echo)
@@ -1051,6 +1053,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 				if (Echo->InitializeEcho(
 				        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 				{
+					Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 					Echo->AdvanceEcho(SavedState.EncounterTime);
 					Echoes.Add(Echo);
 				}
@@ -1473,6 +1476,69 @@ void AReEchoGameMode::HandleFixedStep(float)
 			Echo->AdvanceEcho(Director->EncounterTime);
 		}
 	}
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		return;
+	}
+	const FReEchoCardEncounterTickResult CardTick = RunSubsystem->AdvanceCardEncounter(Director->EncounterTime);
+	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+		if (!Enemy)
+		{
+			continue;
+		}
+		for (const float StunDuration : CardTick.EnemyStunDurations)
+		{
+			Enemy->ApplyCardStun(StunDuration);
+		}
+		if (Rules.EnemyElementImmunitySeconds >= 0.0f)
+		{
+			Enemy->GetCombatantComponent()->ClampElementImmunityDuration(
+			    GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f, Rules.EnemyElementImmunitySeconds);
+		}
+		bool bInsideSlowAura = false;
+		for (AReEchoEchoActor* Echo : Echoes)
+		{
+			if (Echo && Echo->IsCombatTargetAlive() &&
+			    FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) <= FMath::Square(400.0f))
+			{
+				bInsideSlowAura = true;
+				if (CardTick.EchoAuraPulseCount > 0 && (Rules.bWaterEchoAura || Rules.bGrassEchoAura))
+				{
+					FReEchoElementHitContext Context;
+					Context.Attack.Source = Echo;
+					Context.Attack.Sequence = CardTick.CardState.Runtime.LastEchoAuraPulseIndex;
+					Context.SourceLocation = Echo->GetActorLocation();
+					Context.ReactionEfficiency = RunSubsystem->CurrentBuild.Stats.ReactionEfficiency;
+					Context.SourceElementalAttack = 0.0f;
+					if (Rules.bWaterEchoAura)
+					{
+						ReEchoHitResolver::ResolveElementHit(*Enemy, EReEchoElement::Water, 0.0f, Context);
+					}
+					if (Rules.bGrassEchoAura)
+					{
+						ReEchoHitResolver::ResolveElementHit(*Enemy, EReEchoElement::Grass, 0.0f, Context);
+					}
+				}
+			}
+		}
+		Enemy->SetCardMovementMultiplier(bInsideSlowAura ? 1.0f - Rules.EchoSlowAura : 1.0f);
+	}
+	if (RunSubsystem->ConsumeCardEchoRemovalRequest())
+	{
+		for (AReEchoEchoActor* Echo : Echoes)
+		{
+			if (Echo)
+			{
+				Echo->Destroy();
+			}
+		}
+		Echoes.Reset();
+		RefreshFogRevealSources();
+	}
 }
 
 void AReEchoGameMode::HandlePlayerSkill(FVector Position, FName SkillId)
@@ -1700,6 +1766,9 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
+	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
+	InventoryShopWidget->OnWeaponLoadoutSaveRequested.AddUObject(this,
+	                                                             &AReEchoGameMode::HandleWeaponLoadoutSaveRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		bPostTraitShopClosing = false;
@@ -1709,12 +1778,11 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		InventoryShopWidget->OnEchoSelectionRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSelectionRequested);
 		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(this,
 		                                                            &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
-		InventoryShopWidget->ShowPostTraitIntermission(
-		    RunSubsystem->TimeShards, RunSubsystem->InventoryItems, RunSubsystem->GetEchoStorageSummary());
+		RefreshShopPresentation(RunSubsystem, Mode);
 	}
 	else if (Mode == EReEchoInventoryShopMode::ManualShop)
 	{
-		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
+		RefreshShopPresentation(RunSubsystem, Mode);
 	}
 	else
 	{
@@ -1780,19 +1848,75 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
-		if (InventoryShopWidget->GetMode() == EReEchoInventoryShopMode::PostTraitIntermission)
-		{
-			InventoryShopWidget->ShowPostTraitIntermission(
-			    RunSubsystem->TimeShards, RunSubsystem->InventoryItems, RunSubsystem->GetEchoStorageSummary());
-		}
-		else
-		{
-			InventoryShopWidget->ShowShop(RunSubsystem->TimeShards, RunSubsystem->InventoryItems);
-		}
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 	}
 	else
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
+	}
+}
+
+void AReEchoGameMode::HandleShopRefreshRequested()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget || RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes <= 0 ||
+	    !RunSubsystem->TryConsumeShopRefresh(0))
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+
+	PostUiEvent(FReEchoAudioEvents::UiPurchase);
+	RunSubsystem->SaveRun();
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
+void AReEchoGameMode::HandleWeaponLoadoutSaveRequested(const TArray<FName>& PartIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	FString Error;
+	if (!RunSubsystem || !InventoryShopWidget || !RunSubsystem->TrySaveWeaponPartLoadout(PartIds, Error))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ReEchoShop] Weapon loadout save rejected: %s"), *Error);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	PostUiEvent(FReEchoAudioEvents::UiPurchase);
+	RunSubsystem->SaveRun();
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(), true);
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
+void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, const EReEchoInventoryShopMode Mode)
+{
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		return;
+	}
+
+	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
+	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView());
+	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
+	{
+		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,
+		                                               RunSubsystem->InventoryItems,
+		                                               RunSubsystem->GetEchoStorageSummary(),
+		                                               Rules.ShopDiscount,
+		                                               Runtime.FreeShopRefreshes,
+		                                               !Rules.bDisableShopRefresh,
+		                                               !Rules.bDisableExtraCardPurchase,
+		                                               Runtime.ShopRefreshSequence);
+	}
+	else
+	{
+		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards,
+		                              RunSubsystem->InventoryItems,
+		                              Rules.ShopDiscount,
+		                              Runtime.FreeShopRefreshes,
+		                              !Rules.bDisableShopRefresh,
+		                              !Rules.bDisableExtraCardPurchase,
+		                              Runtime.ShopRefreshSequence);
 	}
 }
 
@@ -1906,6 +2030,17 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 	const EReEchoEchoStorageResult Result = RunSubsystem->SetSelectedReplayIds(RecordingIds);
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
+		if (RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_3_02")))
+		{
+			if (RecordingIds.Num() == 1)
+			{
+				RunSubsystem->SetCardAnchorRecording(RecordingIds[0]);
+			}
+			else
+			{
+				RunSubsystem->ClearCardAnchorRecording();
+			}
+		}
 		const bool bSaved = RunSubsystem->SaveRun();
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(

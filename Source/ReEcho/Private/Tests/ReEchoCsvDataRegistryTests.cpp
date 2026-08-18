@@ -80,7 +80,7 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Sage base health comes from CSV"), Sage->BaseStats.HpMax, 15.0f);
 
 	const TArray<FReEchoCsvCardRow> TraitCards = Snapshot->GetOfferableCards(TEXT("Trait"));
-	TestEqual(TEXT("Current trait draw pool contains six cards"), TraitCards.Num(), 6);
+	TestEqual(TEXT("Current trait draw pool contains all 39 cards"), TraitCards.Num(), 39);
 	const FReEchoCsvCardRow* HealthCard = Snapshot->FindCard(TEXT("G_1_02"));
 	if (!TestTrue(TEXT("Health card exists"), HealthCard != nullptr))
 	{

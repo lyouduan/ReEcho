@@ -40,6 +40,7 @@
 |---|---|---|---|
 | 主流程当前屏幕/阶段编排 | `AReEchoGameMode` + `UReEchoUIFlowCoordinatorSubsystem` | World/屏幕切换 | 类型化流程命令与屏幕 ID |
 | 本局阶段、构筑、背包、货币、Echo 存储/回放 | `UReEchoRunSubsystem` | GameInstance/整局 | 窄命令、只读摘要、SaveGame |
+| 卡牌目录、拥有/叠层、随机游标和事件状态 | `MOD-ReEchoCards` 的 Catalog/BuildState/RuntimeState | 整局并嵌入 Build/Recording | 主模块只调用纯命令并执行类型化结果 |
 | 玩家/敌人生命与战斗属性 | GAS/`UReEchoCombatantComponent` | Actor/遭遇 | GameplayEffect、战斗命令、快照与委托 |
 | 当前武器、攻击步骤与攻击载体 | `AReEchoWeaponActor` 及 Weapons 运行逻辑 | Actor/整局武器锁定 | 攻击请求、稳定 WeaponId、只读查询 |
 | 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
@@ -69,7 +70,7 @@
 ### 稳定契约
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
-- `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v9 组合保存 Encounter 波次/预警/全局令牌、EnemyLogic、Combatant 与 Transform。
+- `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -77,9 +78,20 @@
 
 ```text
 MOD-ReEcho ──→ MOD-ReEchoAudio
+           ├→ MOD-ReEchoCombat
+           ├→ MOD-ReEchoCards ─→ MOD-ReEchoCombat
+           ├→ MOD-ReEchoWeapons
+           └→ MOD-ReEchoEnemies ─→ MOD-ReEchoCombat
 ```
 
-`ReEcho` 可以调用独立服务模块；`ReEchoAudio` 不得反向依赖 `ReEcho`。主模块内部高层编排可以依赖领域契约，领域逻辑不应依赖具体 Widget、纹理、材质或 GameMode 私有实现。
+`ReEcho` 可以调用并组合独立模块；Audio、Combat、Cards、Weapons、Enemies 均不得反向依赖 `ReEcho`。Cards 只依赖 Combat 的稳定值类型；主模块内部高层编排可以依赖领域契约，领域逻辑不应依赖具体 Widget、纹理、材质或 GameMode 私有实现。
+
+### 音频语义装配
+
+- `AReEchoGameMode` 从已经确认的菜单、遭遇、Boss、商店、天气、死亡、胜利、镜头切换和死亡重开生命周期发布状态或事件；`UReEchoRunSubsystem` 不保存第二份音乐状态。
+- `UReEchoUIFlowCoordinatorSubsystem` 为注册屏幕的按钮统一绑定 hover/基础 confirm；GameMode 仅在真实关闭、拒绝、购买和卡牌选择结果上追加专用 UI 事件。
+- `UReEchoCombatAudioAdapterComponent` 消费 Combat 最终事件；Enemy/Boss Host 把已提交 Intent 翻译为其专用攻击事件，Enemy Archetype 决定 Enemy/Boss 路由，Echo Host 发布自身生命周期。
+- 所有调用点只传 `FReEchoAudioEvents` 稳定 ID、位置、粗粒度来源和可选 VariantId，不加载 SoundWave，也不读取音频结果改变玩法。
 
 ## 运行时流程
 
@@ -133,6 +145,14 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 - 扩展：先改 XLSX/Schema/生成器，再扩 Reader 与验证；Behavior/Formula 等逻辑字段必须映射到注册实现。
 - 禁止：运行时读取 XLSX、执行描述文本、把解析失败静默替换为默认逻辑、保存第二份平衡常量。
 
+### `AREA-Cards`：卡牌构筑适配
+
+**设计意图：** 卡牌定义、抽取资格、授予事务和事件状态由独立 [`MOD-ReEchoCards.md`](MOD-ReEchoCards.md) 负责；主模块只把 CSV 编译成目录，并把 Run、Combat、Echo、Enemies、Weapons、Shop/UI 接到类型化命令和规则快照。
+
+- 主模块适配：`Data/ReEchoCsvDataRegistry.*`、`Run/ReEchoRunSubsystem.*`、玩家/Echo/Enemy/GameMode/WeaponRuntime 接缝。
+- 权威：Cards 模块拥有 CardState 与规则计算；Run 拥有整局提交、货币、录制和 Save IO。
+- 禁止：Run、Widget 或 Actor 再按中文说明/卡牌 ID 编写第二套通用分派，或绕过 Cards 直接改卡牌运行态。
+
 ### `AREA-AbilityCombat`：`AbilitySystem` / `Combat`战斗执行
 
 **设计意图：** 权威战斗逻辑已迁入 `MOD-ReEchoCombat`；主模块只负责把世界 Actor、Run/Recording、音频和表现接到其命令、事件与快照上。
@@ -176,14 +196,15 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 ### `AREA-Run`：`Run`本局状态与存档
 
-**设计意图：** 将跨遭遇但限于本局的阶段、构筑、背包、货币、商店、Echo 存储/回放选择和安全保存集中在 GameInstance Subsystem。
+**设计意图：** 将跨遭遇但限于本局的阶段、构筑、背包、货币、商店、Echo 存储/回放选择和安全保存集中在 GameInstance Subsystem；卡牌内部状态与规则计算委托给 `MOD-ReEchoCards`。
 
 - 代码：`Source/ReEcho/Public/Run/`、`Source/ReEcho/Private/Run/`。
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
-- 权威：Run phase/index、BuildSnapshot、Inventory、Time Shard、Pending/Latest/Stored Echo、稳定回放 ID、SaveVersion。
+- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器配件 OwnedPartIds、Time Shard、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 10；BuildSnapshot 内的 CardState 语义由 Cards 定义。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
+- 商店配件：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成兼容当前武器的报价；购买立即提交所有权但不改装备，只有 `TrySaveWeaponPartLoadout` 校验所有权、必需槽和容量后才原子提交 `EquippedParts`。
 - 禁止：返回可写内部容器、让 Widget 直接改字段、用数组索引充当持久 Echo 身份。
 - 测试：Save、Shop、Trait、EchoStorage、EchoReplayRuntime 和 Run parity 测试。
 

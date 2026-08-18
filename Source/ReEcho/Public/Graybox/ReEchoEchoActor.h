@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Combat/ReEchoCombatTarget.h"
 #include "Core/ReEchoTypes.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoEchoActor.generated.h"
 
@@ -21,7 +22,7 @@ struct FReEchoCsvDataSnapshot;
 /** 回响分身：使用录制构筑中的锁定武器，按固定时间轴重放历史位置与技能。 */
 UCLASS()
 
-class REECHO_API AReEchoEchoActor : public AActor, public IReEchoCombatAffiliation
+class REECHO_API AReEchoEchoActor : public AActor, public IReEchoCombatTarget, public IReEchoCombatAffiliation
 {
 	GENERATED_BODY()
 
@@ -42,13 +43,39 @@ public:
 	/** 返回效率修正后的当前回响战斗属性。 */
 	const FReEchoStatBlock& GetCurrentStats() const;
 	float GetCurrentHealth() const;
+	void ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats);
+	virtual bool IsCombatTargetAlive() const override;
+
+	virtual FVector GetCombatTargetLocation() const override
+	{
+		return GetActorLocation();
+	}
+
+	virtual int32 GetCombatTargetTieBreakIndex() const override
+	{
+		return GetUniqueID();
+	}
+
+	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override
+	{
+		return Combatant;
+	}
+
+	virtual bool
+	IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const override;
+	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const override;
+	virtual void NotifyReactionResolved(FName ReactionId) const override;
+	virtual void NotifyKillResolved() const override;
+	virtual void NotifyDefeated(EReEchoDamageSource DamageSource) const override;
 	FString GetPinnedWeaponDomainRevision() const;
 	FName GetEquippedWeaponId() const;
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
+
 	virtual EReEchoCombatFaction GetCombatFaction() const override
 	{
 		return EReEchoCombatFaction::PlayerSide;
 	}
+
 	virtual EReEchoDamageSource GetCombatDamageSource() const override
 	{
 		return EReEchoDamageSource::Echo;
@@ -92,4 +119,5 @@ private:
 	float AutoTargetRange = 1600.0f;
 	float DamageEfficiency = 1.0f;
 	bool bAudioLifecycleStarted = false;
+	bool bCanAttack = true;
 };

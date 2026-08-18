@@ -89,7 +89,7 @@ FName EvaluateRole(const TArray<FName>& Cards)
 
 bool TryPromote(FReEchoBuildSnapshot& Build)
 {
-	if (Build.Cards.Num() != 4 || Build.RuleFlags.Contains(TEXT("Promoted")))
+	if (Build.CardState.OwnedCardIds.Num() < 4 || Build.RuleFlags.Contains(TEXT("Promoted")))
 	{
 		return false;
 	}
@@ -100,7 +100,7 @@ bool TryPromote(FReEchoBuildSnapshot& Build)
 		return false;
 	}
 
-	const FName Role = EvaluateRole(Build.Cards);
+	const FName Role = EvaluateRole(Build.CardState.OwnedCardIds);
 	const FReEchoCsvCharacterRow* TargetCharacter = FindCharacterForRole(*Snapshot, Role);
 	const FName BaseCharacterId(*Build.RuleFlags.FindRef(TEXT("BaseCharacterId")));
 	const FReEchoCsvCharacterRow* BaseCharacter =

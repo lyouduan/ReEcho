@@ -92,6 +92,10 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 `SelectButton` 必须是 `UReEchoIndexedButton`，不能替换成普通 `UButton`。它把动态数组索引送回父页面，再由 C++ 解析为稳定的 CharacterId、WeaponId 或 CardId。
 
+### 4.3 商店逻辑块的后续 WBP 接口
+
+当前版本不修改商店资产；C++ 会生成纯 UMG fallback。动态内容统一位于 `ShopLogicScrollBox > ShopLogicPanel`；现有 WBP 未提供有界宿主时，C++ 将滚动区挂到根 Canvas 的固定视口并显式显示滚动条，战后模式的视口下沿必须停在回响存储托盘上方。区块顺序固定为武器配件、普通商品、规则/刷新、槽位草稿。后续接入 WBP 时可按同名 `BindWidgetOptional` 提供这两个宿主、`RunItemOfferPanel`、`ShopControlPanel`、`WeaponPartOfferPanel`、`WeaponLoadoutPanel`，以及 `ShopRefreshButton`、`ShopRefreshText`、`ShopRuleText`、`WeaponLoadoutText`、`SaveLoadoutButton`。这些控件只负责容器和表现，不得改变购买、刷新、草稿或保存的事件语义。
+
 ## 5. 各页面的修改边界
 
 ### 5.1 玩家 HUD、遭遇 HUD、敌人血条
@@ -149,10 +153,14 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 ### 5.5 Inventory/Shop
 
 - `InventoryPanel` 与 `ShopPanel` 是同一屏幕的两种展示模式。
-- `OfferContainer` 是动态容器，不要在里面放固定报价按钮并依赖它们的序号。
-- C++ 会根据 `ReEchoShopCatalog` 创建报价条目并处理价格、已拥有状态和购买请求。
+- 商店逻辑固定拆为普通商品、规则/刷新、武器配件购买、装备槽位草稿、回响管理五块；不要再把不同类型的报价合并到同一索引数组。
+- `OfferContainer` 承载 `RunItemOfferPanel`；普通商品按钮由 `ReEchoShopCatalog` 生成。`WeaponPartOfferPanel` 单独承载 `parts.csv` 中兼容当前武器且允许出售的配件。
+- 两类报价各自解析稳定 ItemId；商店刷新只轮换普通商品，不改变配件按钮与配件 ID 的映射。
+- `ShopLogicScrollBox` 必须有独立固定边界并显示滚动条，`WeaponPartOfferPanel` 必须排在普通商品之前；回响管理使用独立底部 `ScaleBox` 托盘和高于商城美术的 Canvas ZOrder，不得重新塞回商品纵向列表或使用默认 ZOrder。
 - 可以调整容器宽度、间距、滚动方案、背景和按钮视觉；不可在 WBP 中扣除时间碎片或直接写 Inventory。
 - 页面数据可能先于 `NativeConstruct` 到达。新增刷新逻辑时必须允许“数据已到、动态控件尚未创建”的生命周期状态，禁止直接对未校验数组使用 `[0]`。
+- `ShopPanel` 内的装配室由 C++ 根据 `slot_profiles.csv` 动态生成槽组和容量，当前主要显示 Core/Grip/Blade 三类但不得硬编码具体名称；`G_3_22` 可增加非 Core 容量。
+- 点击已拥有配件只调整页面草稿；同槽满时由明确点击的新配件替换最早草稿项。购买立即保存所有权且不自动装备，“保存配置”才提交整套 `EquippedParts`；直接离开商店丢弃未保存草稿。
 
 ### 5.6 Stats
 

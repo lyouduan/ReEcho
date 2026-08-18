@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Cards/ReEchoCardCatalog.h"
 #include "Core/ReEchoTypes.h"
 
 enum class EReEchoCsvValueOp : uint8
@@ -63,6 +64,7 @@ struct REECHO_API FReEchoCsvCharacterRow
 	FName Id;
 	FName SourceWorkbookId;
 	FString DisplayName;
+	FString Description;
 	bool bEnabled = false;
 	FString DisabledReason;
 	FName RoleId;
@@ -96,6 +98,7 @@ struct REECHO_API FReEchoCsvElementRow
 	EReEchoElement Element = EReEchoElement::None;
 	EReEchoElementRole Role = EReEchoElementRole::Attachment;
 	FString DisplayName;
+	FString Description;
 	FString DisplayNameKey;
 	FString ColorHex;
 	FName VisualKey;
@@ -107,6 +110,7 @@ struct REECHO_API FReEchoCsvStatusRow
 {
 	FName Id;
 	FString DisplayName;
+	FString Description;
 	FName BehaviorId;
 	float DurationSeconds = 0.0f;
 	FName StackPolicy;
@@ -121,6 +125,7 @@ struct REECHO_API FReEchoCsvReactionRow
 {
 	FName Id;
 	FString DisplayName;
+	FString Description;
 	FName TriggerElementId;
 	FName AttachmentElementId;
 	FName BehaviorId;
@@ -166,6 +171,7 @@ struct REECHO_API FReEchoCsvWeaponTypeRow
 {
 	FName Id;
 	FString DisplayName;
+	FString Description;
 	FName BaseAttackPatternId;
 	FName SlotProfileId;
 	float BaseIntervalSeconds = 0.0f;
@@ -266,6 +272,8 @@ struct REECHO_API FReEchoCsvPartRow
 	bool bEnabled = false;
 	FName ReviewStatus;
 	FName ImplementationStatus;
+	bool bShopEnabled = false;
+	int32 ShopPrice = 0;
 	FString DisabledReason;
 	FString SourceSheet;
 	int32 SourceRow = 0;
@@ -457,12 +465,14 @@ struct REECHO_API FReEchoCsvSpawnPolicyRow
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
+	FString CardDomainRevision;
 	FString WeaponDomainRevision;
 	TMap<FName, FReEchoRuntimeSmokeRow> RuntimeSmokeRows;
 	TMap<FName, FReEchoCsvCharacterRow> Characters;
 	TMap<FName, FName> CharacterAliases;
 	TMap<FName, FReEchoCsvCardRow> Cards;
 	TArray<FName> CardOrder;
+	TSharedPtr<const FReEchoCardCatalog> CardCatalog;
 	TMap<FName, FReEchoCsvElementRow> Elements;
 	TArray<FName> ElementOrder;
 	TMap<FName, FReEchoCsvStatusRow> Statuses;
