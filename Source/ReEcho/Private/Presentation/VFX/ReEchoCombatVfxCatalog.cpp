@@ -31,13 +31,25 @@ bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 	return Pattern.Contains(TEXT("LongSword")) || Pattern.Contains(TEXT("Dagger")) || Pattern.Contains(TEXT("Scythe"));
 }
 
-FRotator FReEchoCombatVfxCatalog::ResolveRotation(const FVector& Direction, const bool bLocalYAxisForward)
+FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)
+{
+	if (Semantic == EReEchoCombatVfxSemantic::RabbitProjectile)
+	{
+		// Runtime particle readback shows the three authored launch angles are approximately 0, 32.5 and 65
+		// degrees. The middle projectile is therefore the visual center axis; the asset documentation's +Y
+		// statement does not match the delivered Niagara system.
+		constexpr float RabbitThreeBallCenterDegrees = 32.5f;
+		const float CenterRadians = FMath::DegreesToRadians(RabbitThreeBallCenterDegrees);
+		return FVector(FMath::Cos(CenterRadians), FMath::Sin(CenterRadians), 0.0f).GetSafeNormal();
+	}
+	return FVector::ForwardVector;
+}
+
+FRotator FReEchoCombatVfxCatalog::ResolveRotation(const EReEchoCombatVfxSemantic Semantic, const FVector& Direction)
 {
 	const FVector SafeDirection = Direction.IsNearlyZero() ? FVector::ForwardVector : Direction.GetSafeNormal2D();
+	const float AuthoredYaw = ResolveAuthoredForwardAxis(Semantic).Rotation().Yaw;
 	FRotator Rotation = SafeDirection.Rotation();
-	if (bLocalYAxisForward)
-	{
-		Rotation.Yaw -= 90.0f;
-	}
+	Rotation.Yaw -= AuthoredYaw;
 	return Rotation;
 }

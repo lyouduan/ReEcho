@@ -26,11 +26,8 @@ protected:
 private:
 	void BindEventSources(UReEchoCombatEventsComponent* InCombatEvents, UReEchoEnemyEventsComponent* InEnemyEvents);
 	UNiagaraSystem* ResolveSystem(uint8 SemanticValue) const;
-	UNiagaraComponent* SpawnWorld(uint8 SemanticValue,
-	                              const FVector& Location,
-	                              const FVector& Direction,
-	                              bool bLocalYAxisForward = false,
-	                              bool bAutoDestroy = true) const;
+	UNiagaraComponent*
+	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue, const FVector& Direction) const;
 	int32 ResolveOwnerSortPriority(bool bForeground) const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);

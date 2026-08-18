@@ -61,7 +61,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 语义 | 权威资产 | 播放约定 |
 |---|---|---|
 | RabbitCharging | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Charging_01` | 世界位置；排序恒为兔子当前 Flipbook `+1`，Windup 开始，提交/结束清理 |
-| RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 三球资产所有启用发射器使用 Local Space，载体本地 `+Y` 严格对准锁定方向；System 内部粒子模块还必须服从该坐标系；载体随逻辑投射物移动，命中/越界清理 |
+| RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 三球资产所有启用发射器使用 Local Space；运行时粒子速度实测为本地约 `0° / 32.5° / 65°`，目录集中把中间球的 `32.5°` 轴对准锁定方向；载体随逻辑投射物移动，命中/越界清理 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02` | 世界位置、前景、Windup 开始 |
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 锁定方向、背景、Windup 开始 |
@@ -109,5 +109,6 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 - 循环/跟随效果必须在 Death、Ended 和 EndPlay 都可清理。
 - 资产朝向修正集中在适配器，禁止为了迁就特效轴修改玩法攻击方向。
 - 旋转 Niagara Component 只能可靠影响 Local Space 发射器；有方向语义的资产必须同时校验启用发射器的 Simulation Space，并验证实际粒子位置/速度确实服从组件坐标系。组件 Transform、逻辑投射物轨迹和屏幕方向都正确时，禁止继续修改玩法方向来补偿 System 内部粒子模块。
+- 资产说明中的“前向轴”不是运行时真相。兔子三球交付说明称 `+Y` 为中轴，但 CPU 粒子速度读回证明中间球实际为本地 `32.5°`；该适配只允许集中在 `FReEchoCombatVfxCatalog`，Host、敌人逻辑和投射物逻辑不得复制角度补偿。
 - 前景/背景排序必须相对宿主当前 Flipbook 动态求 `+1/-1`，不能写固定全局值；排序不得复用为碰撞层或目标选择规则。
 - 当前是主模块内领域；只有依赖和团队边界确实稳定、能避免循环时才考虑拆独立 Runtime Module。

@@ -90,25 +90,25 @@ UNiagaraSystem* UReEchoCombatVfxComponent::ResolveSystem(const uint8 SemanticVal
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticValue,
                                                          const FVector& Location,
                                                          const FVector& Direction,
-                                                         const bool bLocalYAxisForward,
                                                          const bool bAutoDestroy) const
 {
+	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
 	UWorld* World = GetWorld();
 	if (!System || !World)
 	{
 		return nullptr;
 	}
-	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-	    World,
-	    System,
-	    Location,
-	    FReEchoCombatVfxCatalog::ResolveRotation(Direction, bLocalYAxisForward),
-	    FVector::OneVector,
-	    bAutoDestroy,
-	    true,
-	    ENCPoolMethod::None,
-	    true);
+	UNiagaraComponent* Effect =
+	    UNiagaraFunctionLibrary::SpawnSystemAtLocation(World,
+	                                                   System,
+	                                                   Location,
+	                                                   FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction),
+	                                                   FVector::OneVector,
+	                                                   bAutoDestroy,
+	                                                   true,
+	                                                   ENCPoolMethod::None,
+	                                                   true);
 	if (Effect)
 	{
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority(true));
@@ -125,17 +125,17 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	{
 		return nullptr;
 	}
-	UNiagaraComponent* Effect =
-	    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
-	                                                 Root,
-	                                                 NAME_None,
-	                                                 FVector::ZeroVector,
-	                                                 FReEchoCombatVfxCatalog::ResolveRotation(Direction, false),
-	                                                 FVector::OneVector,
-	                                                 EAttachLocation::KeepRelativeOffset,
-	                                                 true,
-	                                                 ENCPoolMethod::None,
-	                                                 true);
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
+	    System,
+	    Root,
+	    NAME_None,
+	    FVector::ZeroVector,
+	    FReEchoCombatVfxCatalog::ResolveRotation(static_cast<EReEchoCombatVfxSemantic>(SemanticValue), Direction),
+	    FVector::OneVector,
+	    EAttachLocation::KeepRelativeOffset,
+	    true,
+	    ENCPoolMethod::None,
+	    true);
 	if (Effect)
 	{
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
@@ -216,9 +216,12 @@ void UReEchoCombatVfxComponent::LogRabbitProjectileTrajectory(const FReEchoEnemy
 	const FVector PlayerWorld = PlayerPawn->GetActorLocation();
 	const FVector RabbitWorld = GetOwner() ? GetOwner()->GetActorLocation() : FVector::ZeroVector;
 	const FVector NiagaraWorld = Effect ? Effect->GetComponentLocation() : Event.Location;
-	const FVector LocalYWorld = Effect ? Effect->GetComponentQuat().RotateVector(FVector::YAxisVector).GetSafeNormal()
-	                                   : Event.Direction.GetSafeNormal();
-	const FVector AxisProbeWorld = NiagaraWorld + LocalYWorld * 100.0f;
+	const FVector AuthoredCenterWorld = Effect ? Effect->GetComponentQuat()
+	                                                 .RotateVector(FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(
+	                                                     EReEchoCombatVfxSemantic::RabbitProjectile))
+	                                                 .GetSafeNormal()
+	                                           : Event.Direction.GetSafeNormal();
+	const FVector AxisProbeWorld = NiagaraWorld + AuthoredCenterWorld * 100.0f;
 
 	FVector2D PlayerScreen = FVector2D::ZeroVector;
 	FVector2D RabbitScreen = FVector2D::ZeroVector;
@@ -233,10 +236,10 @@ void UReEchoCombatVfxComponent::LogRabbitProjectileTrajectory(const FReEchoEnemy
 	const bool bAxisProjected = PlayerController->ProjectWorldLocationToScreen(AxisProbeWorld, AxisProbeScreen, true);
 
 	const FVector2D ToPlayerScreen = PlayerScreen - NiagaraScreen;
-	const FVector2D LocalYScreen = AxisProbeScreen - NiagaraScreen;
+	const FVector2D AuthoredCenterScreen = AxisProbeScreen - NiagaraScreen;
 	const float ScreenDirectionDot =
-	    !ToPlayerScreen.IsNearlyZero() && !LocalYScreen.IsNearlyZero()
-	        ? FVector2D::DotProduct(ToPlayerScreen.GetSafeNormal(), LocalYScreen.GetSafeNormal())
+	    !ToPlayerScreen.IsNearlyZero() && !AuthoredCenterScreen.IsNearlyZero()
+	        ? FVector2D::DotProduct(ToPlayerScreen.GetSafeNormal(), AuthoredCenterScreen.GetSafeNormal())
 	        : 0.0f;
 	int32 ViewportWidth = 0;
 	int32 ViewportHeight = 0;
@@ -247,7 +250,8 @@ void UReEchoCombatVfxComponent::LogRabbitProjectileTrajectory(const FReEchoEnemy
 	       TEXT("[RabbitAimTrace] Owner=%s Seq=%lld Phase=%s Sample=%d Viewport=(%d,%d) "
 	            "PlayerWorld=%s PlayerScreen=(%.1f,%.1f,%d) RabbitWorld=%s RabbitScreen=(%.1f,%.1f,%d) "
 	            "ProjectileWorld=%s ProjectileScreen=(%.1f,%.1f,%d) NiagaraWorld=%s NiagaraScreen=(%.1f,%.1f,%d) "
-	            "EventDir=%s LocalYWorld=%s LocalYScreen=(%.1f,%.1f,%d) ToPlayerScreen=(%.1f,%.1f) Dot=%.3f"),
+	            "EventDir=%s AuthoredCenterWorld=%s AuthoredCenterScreen=(%.1f,%.1f,%d) "
+	            "ToPlayerScreen=(%.1f,%.1f) Dot=%.3f"),
 	       *GetNameSafe(GetOwner()),
 	       Event.Attack.Sequence,
 	       Phase,
@@ -271,9 +275,9 @@ void UReEchoCombatVfxComponent::LogRabbitProjectileTrajectory(const FReEchoEnemy
 	       NiagaraScreen.Y,
 	       bNiagaraProjected,
 	       *Event.Direction.ToCompactString(),
-	       *LocalYWorld.ToCompactString(),
-	       LocalYScreen.X,
-	       LocalYScreen.Y,
+	       *AuthoredCenterWorld.ToCompactString(),
+	       AuthoredCenterScreen.X,
+	       AuthoredCenterScreen.Y,
 	       bAxisProjected,
 	       ToPlayerScreen.X,
 	       ToPlayerScreen.Y,
@@ -462,15 +466,11 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 		StopEffect(DirectionEffect);
 		const EReEchoCombatVfxSemantic ChargingSemantic =
 		    bRabbit ? EReEchoCombatVfxSemantic::RabbitCharging : EReEchoCombatVfxSemantic::FoxCharging;
-		ChargingEffect =
-		    SpawnWorld(static_cast<uint8>(ChargingSemantic), Event.Origin, Event.LockedDirection, false, false);
+		ChargingEffect = SpawnWorld(static_cast<uint8>(ChargingSemantic), Event.Origin, Event.LockedDirection, false);
 		if (bFox)
 		{
-			DirectionEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection),
-			                             Event.Origin,
-			                             Event.LockedDirection,
-			                             false,
-			                             false);
+			DirectionEffect = SpawnWorld(
+			    static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection), Event.Origin, Event.LockedDirection, false);
 			if (DirectionEffect)
 			{
 				DirectionEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority(false));
@@ -507,11 +507,8 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 			}
 			ProjectileEffects.Remove(Event.Attack.Sequence);
 		}
-		UNiagaraComponent* Effect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::RabbitProjectile),
-		                                       Event.Location,
-		                                       Event.Direction,
-		                                       true,
-		                                       false);
+		UNiagaraComponent* Effect = SpawnWorld(
+		    static_cast<uint8>(EReEchoCombatVfxSemantic::RabbitProjectile), Event.Location, Event.Direction, false);
 		if (Effect)
 		{
 			Effect->SetForceSolo(true);
@@ -524,8 +521,9 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 	{
 		if (*Effect && Event.Type == EReEchoEnemyProjectileEventType::Moved)
 		{
-			(*Effect)->SetWorldLocationAndRotation(Event.Location,
-			                                       FReEchoCombatVfxCatalog::ResolveRotation(Event.Direction, true));
+			(*Effect)->SetWorldLocationAndRotation(
+			    Event.Location,
+			    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::RabbitProjectile, Event.Direction));
 			LogRabbitProjectileTrajectory(Event, *Effect, TEXT("Moved"));
 		}
 		else if (Event.Type == EReEchoEnemyProjectileEventType::Ended)

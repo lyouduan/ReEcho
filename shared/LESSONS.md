@@ -611,11 +611,12 @@ Blender 里给的 emission 材质（青色面罩/绿黏液点）导进 Unity **B
 
 ### ART-19. Niagara 载体朝向与实际粒子轨迹必须分层验证 [UE]
 
-**来源**：ReEcho Plan49 兔子三球朝向返修。屏幕轨迹日志证明逻辑投射物、Niagara Component 和组件本地 `+Y` 都正确指向玩家；即使所有启用发射器改为 Local Space，画面中的粒子仍可能被 System 内部位置/速度模块写向其他方向。
+**来源**：ReEcho Plan49 兔子三球朝向返修。屏幕轨迹日志证明逻辑投射物和 Niagara Component 正确指向玩家；实际 CPU 粒子速度读回进一步证明美术说明的 `+Y=90°` 不是三球中轴，交付资产的三颗球约为本地 `0° / 32.5° / 65°`，中间球实际是 `32.5°`。
 
 - 有方向语义的 Niagara 必须把相关发射器设为 Local Space，或显式用 User Parameter 驱动方向；仅旋转 `UNiagaraComponent` 不够。
 - 诊断时分别记录目标、逻辑投射物、组件和实际粒子的世界/屏幕坐标。前三者一致只能排除玩法和载体层，不能证明粒子模拟正确。
 - 自动化除验证方向向量和 `FNiagaraEmitterHandle::bLocalSpace` 外，还应在可行时验证实际粒子位置/速度；禁止用玩法方向补偿资产内部偏转。
+- 资产前向轴必须以运行时粒子数据或 Niagara 内部参数为准，不能仅凭命名说明推断；需要补偿时把语义资产的实测中轴集中进 Catalog，不得散落到 Host/玩法代码。
 - `.uasset` 必须通过 Unreal Editor/Commandlet 修改和保存，不能在编辑器外改二进制。
 
 ---

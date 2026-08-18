@@ -19,6 +19,8 @@ struct REECHO_API FReEchoCombatVfxCatalog
 {
 	static const TCHAR* ResolvePath(EReEchoCombatVfxSemantic Semantic);
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
-	/** Rotates an authored local forward axis onto the gameplay direction. */
-	static FRotator ResolveRotation(const FVector& Direction, bool bLocalYAxisForward);
+	/** Returns the measured authored center axis for a semantic asset. */
+	static FVector ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic Semantic);
+	/** Rotates the semantic asset's authored center axis onto the gameplay direction. */
+	static FRotator ResolveRotation(EReEchoCombatVfxSemantic Semantic, const FVector& Direction);
 };

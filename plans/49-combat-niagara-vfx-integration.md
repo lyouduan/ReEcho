@@ -161,10 +161,12 @@
 - 2026-08-18 PIE 日志把故障边界缩到 Niagara 资产内部：例如主角屏幕坐标 `(1199.5,595.3)`，同一逻辑投射物从 `(1583.5,188.6)` 移到 `(1524.6,253.7)`，位移 `(-58.9,+65.1)` 与发射时指向主角的向量 `(-384.0,+406.6)` 同向；全部采样中逻辑投射物与 Niagara Component 的世界/屏幕坐标相等，发射瞬间组件本地 `+Y` 与指向主角的屏幕方向点积约为 `0.95–1.00`。因此目标选择、逻辑弹道、VFX 载体位置和载体旋转均正常；画面中的三球偏向来自 System 内部粒子位置/速度模块或其坐标空间，下一步应读取实际粒子坐标或在 Niagara 调试器中定位，不能继续改玩法方向补偿资产。
 - 按用户确认把中间诊断候选组合到 `origin/main@17f4de4`：远端 Plan50 的 `ReEchoPresentation`、Gameplay Blueprint/Catalog 和宿主契约保持权威，Plan49 只叠加资源中立事件到主模块 VFX 适配器；预编译冲突未选任一侧旧 DLL，而是在组合源码上执行 `Build-Editor.cmd -Configuration Development -FullRebuild`，7 个模块全部成功并刷新预构建包。合并后 `ReEcho.Presentation.VFX.Catalog` 1/1 成功，导入器单测 3/3、`validate_project.py` 和 `git diff --check` 通过；15 个 Plan49 C++ 文件已使用仓库 `.clang-format` 检查。
 - 中间诊断候选发布到 `origin/main@9aa99c2` 后继续定位 System 内部：兔子投射物 Niagara 临时强制 Solo，在既有采样点读取 `Fountain004/005` CPU 粒子的实际 Position/Velocity，转换为世界与屏幕坐标，并输出 `[RabbitParticleTrace]` 的载体偏移、朝玩家向量和速度点积；这只用于诊断，定位并修复资产后必须连同 `[RabbitAimTrace]` 一起移除。该候选完成 Editor Development 增量构建并刷新预构建包。
+- 用户保持主角静止后的粒子读回已给出确定性根因：三个实际发射方向在资产本地空间约为 `0° / 32.5° / 65°`，中间球是 `32.5°`；旧实现却把文档声称的 `+Y=90°` 对准玩家，整组三球因此恒定偏转约 `57.5°`。修复不改目标选择或逻辑投射物，只由 `FReEchoCombatVfxCatalog` 集中声明 RabbitProjectile 的实测中轴并把它旋转到玩法方向；Host 和 Gameplay 不持有资产补偿角。
+- 实测中轴修复候选已完成 Editor Development 构建并刷新 7 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 1/1 成功，新增断言直接验证 Catalog 旋转后的 `32.5°` 中轴等于锁定玩家方向；`validate_project.py` 与 `git diff --check` 通过。临时粒子读回仍保留给下一次 PIE 做最终数值确认。
 
 ### 剩余风险
 
-- 三球实际粒子仍未服从正确的载体方向；需要读取内部粒子坐标/速度并修正 Niagara 模块。当前 `[RabbitAimTrace]` 是临时诊断，正式关闭 Plan49 前必须移除。
+- 三球中轴修复仍需用户 PIE 确认；本轮暂留 `[RabbitAimTrace]` / `[RabbitParticleTrace]`，预期中间粒子 `VelocityDot` 接近 `1.0`、两侧粒子约为 `cos(32.5°)`，确认后必须移除诊断再关闭 Plan49。
 - 三球尺寸、透明排序、Fixed Bounds 与镜头裁剪仍需用户 PIE 判断。
 - 兔子从锁点范围行为改为飞行投射物会改变攻击到达时序，但不恢复伤害；恢复伤害必须另行由策划/用户确认数据语义。
 
