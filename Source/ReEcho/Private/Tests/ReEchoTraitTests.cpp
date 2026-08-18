@@ -107,6 +107,19 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 		AddError(TEXT("G_1_03 was not present in the 39-card trait pool"));
 		return false;
 	}
+	const FReEchoTraitCardOffer* TaggedOffer = Offers.FindByPredicate(
+	    [](const FReEchoTraitCardOffer& Offer)
+	    {
+		    return Offer.CardId == TEXT("G_2_05");
+	    });
+	TestNotNull(TEXT("G_2_05 is available for tag projection"), TaggedOffer);
+	if (TaggedOffer)
+	{
+		TestEqual(TEXT("Trait offers preserve the authored Tags column order"), TaggedOffer->Tags.Num(), 3);
+		TestTrue(TEXT("Trait offer includes the authored Critical tag"), TaggedOffer->Tags.Contains(TEXT("Critical")));
+		TestTrue(TEXT("Trait offer includes the authored Echo tag"), TaggedOffer->Tags.Contains(TEXT("Echo")));
+		TestTrue(TEXT("Trait offer includes the authored Body tag"), TaggedOffer->Tags.Contains(TEXT("Body")));
+	}
 
 	const float PhysicalBefore = RunSubsystem->CurrentBuild.Stats.PhysicalAttack;
 	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->ApplyTraitCard(TEXT("G_1_03")));

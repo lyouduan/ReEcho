@@ -8,6 +8,8 @@
 
 class SWidget;
 class UButton;
+class UCanvasPanel;
+class UHorizontalBox;
 class UImage;
 class UReEchoIndexedButton;
 class UScaleBox;
@@ -15,6 +17,7 @@ class UScrollBox;
 class UTextBlock;
 class UTexture2D;
 class UVerticalBox;
+class UWidget;
 class UReEchoRunSubsystem;
 
 DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
@@ -108,6 +111,16 @@ private:
 	void UpdateShopLogicViewportBounds();
 	void BuildOfferEntries();
 	void BuildLoadoutEntries();
+	void BuildTargetShopPresentation();
+	void RebuildTargetOfferRows();
+	void RebuildOwnedCardSlots();
+	void RebuildAttachmentHoverSlots();
+	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
+	bool HasEchoStorageCard() const;
+	void AddTargetOfferCard(class UHorizontalBox* Row,
+	                        const FReEchoShopOffer& Offer,
+	                        int32 OfferIndex,
+	                        bool bWeaponPart);
 	void Refresh();
 	void RequestPurchase(int32 OfferIndex);
 	void ToggleDraftPart(int32 OwnedPartIndex);
@@ -126,6 +139,12 @@ private:
 
 	UFUNCTION()
 	void HandleSaveLoadoutClicked();
+
+	UFUNCTION()
+	void HandleEchoStorageCardSlotClicked();
+
+	UFUNCTION()
+	void HandleEchoPopupCloseClicked();
 
 	// ---- echo management (inline, mirroring origin/main left-panel layout) ----
 	void RefreshEchoState(UReEchoRunSubsystem* RunSubsystem);
@@ -172,6 +191,27 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopBackgroundTexture;
+
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopItemCardTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopAttachmentIconTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopCardIconTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopBuyTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopRefreshTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopCardSlotTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopSaveLoadoutTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopTitleTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopCurrencyFrameTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> WhiteTexture;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> BackgroundImage;
@@ -241,12 +281,31 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> SaveLoadoutButton;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> ShopPresentationLayer;
+	UPROPERTY(Transient)
+	TObjectPtr<UHorizontalBox> TargetPartOfferRow;
+	UPROPERTY(Transient)
+	TObjectPtr<UHorizontalBox> TargetCardOfferRow;
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> OwnedCardSlotPanel;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> TargetCurrencyText;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UButton>> AttachmentHoverButtons;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> TargetSaveLoadoutButton;
+
+	TArray<FReEchoShopOffer> DisplayedOwnedCards;
+
 	// ---- inline echo panel (origin/main layout) ----
 	UPROPERTY(Transient)
 	TObjectPtr<UScaleBox> EchoPanelScale;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> EchoPanel;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> EchoPopupCloseButton;
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> EchoCapacityText;
 	UPROPERTY(Transient)
@@ -297,4 +356,5 @@ private:
 	TArray<FGuid> EchoSelection;
 	TArray<FGuid> EchoSlotGuids;
 	EReEchoShopEchoPendingDecision EchoPendingDecision = EReEchoShopEchoPendingDecision::Undecided;
+	bool bEchoStoragePopupOpen = false;
 };

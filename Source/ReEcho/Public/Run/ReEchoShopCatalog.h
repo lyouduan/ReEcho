@@ -6,8 +6,12 @@
 enum class EReEchoShopOfferType : uint8
 {
 	RunItem,
-	WeaponPart
+	WeaponPart,
+	BuildCard
 };
+
+inline constexpr int32 ReEchoShopRefreshPrice = 10;
+inline constexpr int32 ReEchoShopOfferCountPerGroup = 3;
 
 struct REECHO_API FReEchoShopOffer
 {
@@ -18,6 +22,7 @@ struct REECHO_API FReEchoShopOffer
 	EReEchoShopOfferType Type = EReEchoShopOfferType::RunItem;
 	FName ContentId;
 	FName SlotTypeId;
+	int32 Tier = 0;
 };
 
 struct REECHO_API FReEchoWeaponSlotShopView
@@ -34,6 +39,7 @@ struct REECHO_API FReEchoWeaponPartShopView
 	FText WeaponDisplayName;
 	TArray<FReEchoShopOffer> Offers;
 	TArray<FReEchoShopOffer> OwnedParts;
+	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FReEchoWeaponSlotShopView> Slots;
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 };

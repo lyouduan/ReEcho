@@ -85,6 +85,10 @@ struct REECHO_API FReEchoTraitCardOffer
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FText Description;
+
+	/** Authored build tags from ReEchoData.xlsx / 构筑体系G / Tags. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<FName> Tags;
 };
 USTRUCT(BlueprintType)
 
@@ -307,6 +311,8 @@ struct REECHO_API FReEchoEncounterRuntimeState
 /** Prototype-locked bounds for the run-local echo storage and specific-replay capabilities. */
 namespace ReEchoEchoStorage
 {
+/** G_3_02（时空锚点）owns the player-facing permanent echo-storage entry. */
+constexpr const TCHAR* StorageUnlockCardId = TEXT("G_3_02");
 /** Slot count a fresh run starts with; the prototype does not grow or shrink it yet. */
 constexpr int32 DefaultStorageCapacity = 3;
 /** Hard prototype ceiling for stored echo slots. */

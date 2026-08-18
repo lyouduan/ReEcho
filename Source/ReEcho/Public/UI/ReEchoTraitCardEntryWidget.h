@@ -24,6 +24,7 @@ public:
 	               const FText& Kicker,
 	               const FText& DisplayName,
 	               const FText& Description,
+	               const TArray<FName>& Tags,
 	               const FLinearColor& CardColor);
 	void SetSelectionEnabled(bool bEnabled);
 	void SetSelectedVisual(bool bSelected, bool bHasSelection);
@@ -51,6 +52,12 @@ private:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> DescriptionText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> PrimaryTagText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> SecondaryTagText;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> SelectHintText;

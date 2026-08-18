@@ -34,6 +34,7 @@
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
@@ -1859,8 +1860,7 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 void AReEchoGameMode::HandleShopRefreshRequested()
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget || RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes <= 0 ||
-	    !RunSubsystem->TryConsumeShopRefresh(0))
+	if (!RunSubsystem || !InventoryShopWidget || !RunSubsystem->TryConsumeShopRefresh(ReEchoShopRefreshPrice))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
@@ -1950,6 +1950,14 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	{
 		return;
 	}
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "EchoStorageCardRequired", "需要先获得“时空锚点”才能存储回响。"));
+		return;
+	}
 	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecording();
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
@@ -2003,6 +2011,14 @@ void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
 	{
 		return;
 	}
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "EchoReplaceCardRequired", "需要先获得“时空锚点”才能替换回响。"));
+		return;
+	}
 	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingReplacing(RecordingId);
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
@@ -2025,6 +2041,14 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || !InventoryShopWidget)
 	{
+		return;
+	}
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		InventoryShopWidget->ShowEchoStatus(
+		    NSLOCTEXT("ReEcho", "EchoSelectionCardRequired", "需要先获得“时空锚点”才能选择存储回响。"));
 		return;
 	}
 	const EReEchoEchoStorageResult Result = RunSubsystem->SetSelectedReplayIds(RecordingIds);
