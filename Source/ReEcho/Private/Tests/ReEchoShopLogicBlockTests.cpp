@@ -12,6 +12,7 @@
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
+#include "Engine/Texture2D.h"
 #include "Misc/AutomationTest.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoInventoryShopWidget.h"
@@ -171,7 +172,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	Widget->TakeWidget();
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_AUTHORED_WEAPON_PART_ITEM");
-	WeaponPart.ContentId = TEXT("TEST_AUTHORED_WEAPON_PART");
+	WeaponPart.ContentId = TEXT("P_CORE_TIDE");
 	WeaponPart.DisplayName = FText::FromString(TEXT("Authored weapon part"));
 	WeaponPart.EffectText = FText::FromString(TEXT("Authored part effect"));
 	WeaponPart.Price = 10;
@@ -216,6 +217,13 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	            Cast<UHorizontalBox>(Widget->GetWidgetFromName(TEXT("TargetPartOfferRow"))));
 	TestNotNull(TEXT("Authored shop creates a purchasable target weapon-part entry"),
 	            Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
+	UTexture2D* ExpectedPartIcon = LoadObject<UTexture2D>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_TIDE.T_UI_Part_P_CORE_TIDE"));
+	UImage* OfferPartIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("TargetCardIcon1_0")));
+	TestNotNull(TEXT("Mapped weapon-part icon asset loads"), ExpectedPartIcon);
+	TestTrue(TEXT("Weapon-part offer uses its PartId icon instead of the attachment placeholder"),
+	         OfferPartIcon && OfferPartIcon->GetBrush().GetResourceObject() == ExpectedPartIcon);
 	TestTrue(TEXT("Legacy weapon-part block is hidden behind the target composition"),
 	         WeaponPartPanel && WeaponPartPanel->GetVisibility() == ESlateVisibility::Collapsed);
 	TestNotNull(TEXT("Authored shop receives the independent echo popup"), EchoPanelScale);
@@ -293,6 +301,11 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(*FString::Printf(TEXT("Attachment slot %d is below the weapon"), Index),
 			         AttachmentSlot->GetPadding().Top >= 580.0f);
+		}
+		if (Index == 0)
+		{
+			TestTrue(TEXT("Equipped attachment uses the same mapped PartId icon"),
+			         Attachment && Attachment->GetBrush().GetResourceObject() == ExpectedPartIcon);
 		}
 	}
 	return true;

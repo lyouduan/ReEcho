@@ -74,9 +74,57 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ItemCardFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_ItemCard.T_UI_Shop_ItemCard"));
 	ShopItemCardTexture = ItemCardFinder.Object;
-	static ConstructorHelpers::FObjectFinder<UTexture2D> AttachmentIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_AttachmentIcon.T_UI_Shop_AttachmentIcon"));
-	ShopAttachmentIconTexture = AttachmentIconFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> AttachmentSlotFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_AttachmentSlot.T_UI_Shop_AttachmentSlot"));
+	ShopAttachmentSlotTexture = AttachmentSlotFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CorePrimordialIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_PRIMORDIAL.T_UI_Part_P_CORE_PRIMORDIAL"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CoreTideIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_TIDE.T_UI_Part_P_CORE_TIDE"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CoreForestIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_FOREST.T_UI_Part_P_CORE_FOREST"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CoreFlameIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_FLAME.T_UI_Part_P_CORE_FLAME"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CoreThunderIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_THUNDER.T_UI_Part_P_CORE_THUNDER"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CorePrismIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_PRISM.T_UI_Part_P_CORE_PRISM"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerThrustGripIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_THRUST_GRIP.T_UI_Part_P_DAGGER_THRUST_GRIP"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerStrengthGripIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_STRENGTH_GRIP.T_UI_Part_P_DAGGER_STRENGTH_GRIP"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerNinjaBladeIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_NINJA_BLADE.T_UI_Part_P_DAGGER_NINJA_BLADE"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerStunningBladeIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_STUNNING_BLADE.T_UI_Part_P_DAGGER_STUNNING_BLADE"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerHolyBladeIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_HOLY_BLADE.T_UI_Part_P_DAGGER_HOLY_BLADE"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerShadowBladeIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_SHADOW_BLADE.T_UI_Part_P_DAGGER_SHADOW_BLADE"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> BowSplitArrowheadIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_SPLIT_ARROWHEAD.T_UI_Part_P_BOW_SPLIT_ARROWHEAD"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> BowExplosiveArrowheadIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_EXPLOSIVE_ARROWHEAD.T_UI_Part_P_BOW_EXPLOSIVE_ARROWHEAD"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> BowPiercingArrowheadIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_PIERCING_ARROWHEAD.T_UI_Part_P_BOW_PIERCING_ARROWHEAD"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> BowMultishotArrowheadIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_MULTISHOT_ARROWHEAD.T_UI_Part_P_BOW_MULTISHOT_ARROWHEAD"));
+	WeaponPartIconTextures.Add(TEXT("P_CORE_PRIMORDIAL"), CorePrimordialIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_CORE_TIDE"), CoreTideIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_CORE_FOREST"), CoreForestIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_CORE_FLAME"), CoreFlameIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_CORE_THUNDER"), CoreThunderIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_CORE_PRISM"), CorePrismIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_DAGGER_THRUST_GRIP"), DaggerThrustGripIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_DAGGER_STRENGTH_GRIP"), DaggerStrengthGripIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_DAGGER_NINJA_BLADE"), DaggerNinjaBladeIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_DAGGER_STUNNING_BLADE"), DaggerStunningBladeIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_DAGGER_HOLY_BLADE"), DaggerHolyBladeIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_DAGGER_SHADOW_BLADE"), DaggerShadowBladeIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_BOW_SPLIT_ARROWHEAD"), BowSplitArrowheadIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_BOW_EXPLOSIVE_ARROWHEAD"), BowExplosiveArrowheadIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_BOW_PIERCING_ARROWHEAD"), BowPiercingArrowheadIconFinder.Object);
+	WeaponPartIconTextures.Add(TEXT("P_BOW_MULTISHOT_ARROWHEAD"), BowMultishotArrowheadIconFinder.Object);
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CardIconFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_CardIcon.T_UI_Shop_CardIcon"));
 	ShopCardIconTexture = CardIconFinder.Object;
@@ -864,7 +912,7 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	AddImage(*FString::Printf(TEXT("TargetCardBase%d_%d"), bWeaponPart, OfferIndex), ShopItemCardTexture, FVector2D::ZeroVector, FVector2D(200.0f, 292.0f));
 	const FVector2D IconPosition = bWeaponPart ? FVector2D(37.0f, 17.0f) : FVector2D(29.0f, 4.0f);
 	const FVector2D IconSize = bWeaponPart ? FVector2D(127.0f, 124.0f) : FVector2D(141.0f, 173.0f);
-	AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex), bWeaponPart ? ShopAttachmentIconTexture : ShopCardIconTexture, IconPosition, IconSize);
+	AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex), bWeaponPart ? ResolveWeaponPartIcon(Offer.ContentId) : ShopCardIconTexture.Get(), IconPosition, IconSize);
 	if (!bWeaponPart)
 	{
 		UImage* TierPatch = AddImage(*FString::Printf(TEXT("TargetTierPatch%d"), OfferIndex), WhiteTexture, FVector2D(66.0f, 76.0f), FVector2D(70.0f, 34.0f));
@@ -1050,17 +1098,39 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 	for (int32 Index = 0; Index < AttachmentHoverButtons.Num(); ++Index)
 	{
 		UButton* HoverButton = AttachmentHoverButtons[Index];
+		UImage* AttachmentArt = Cast<UImage>(GetWidgetFromName(
+		    *FString::Printf(TEXT("ArtAttachmentSlot%d"), Index)));
+		const bool bHasPart = DisplayedAttachmentParts.IsValidIndex(Index);
+		if (AttachmentArt)
+		{
+			AttachmentArt->SetBrushFromTexture(
+			    bHasPart ? ResolveWeaponPartIcon(DisplayedAttachmentParts[Index]->ContentId)
+			             : ShopAttachmentSlotTexture.Get(),
+			    false);
+			AttachmentArt->SetColorAndOpacity(FLinearColor::White);
+		}
 		if (!HoverButton)
 		{
 			continue;
 		}
-		const bool bHasPart = DisplayedAttachmentParts.IsValidIndex(Index);
 		HoverButton->SetVisibility(bHasPart ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 		if (bHasPart)
 		{
 			HoverButton->SetToolTip(BuildSlotTooltip(*DisplayedAttachmentParts[Index]));
 		}
 	}
+}
+
+UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId) const
+{
+	if (const TObjectPtr<UTexture2D>* Icon = WeaponPartIconTextures.Find(PartId))
+	{
+		if (Icon->Get())
+		{
+			return Icon->Get();
+		}
+	}
+	return ShopAttachmentSlotTexture.Get();
 }
 
 UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Offer)
