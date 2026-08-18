@@ -67,6 +67,16 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	FReEchoEncounterRuntimeState EncounterState;
 	EncounterState.bValid = true;
 	EncounterState.EncounterTime = 12.5f;
+	EncounterState.NextScheduledSpawnEventIndex = 4;
+	EncounterState.RangedBurstWindowRemainingSeconds = {0.9f, 0.35f};
+	EncounterState.SpawnResolveSequence = 7;
+	EncounterState.ReservedSpawnLocations = {FVector(600.0f, 20.0f, 50.0f)};
+	FReEchoPendingSpawnBatchState PendingBatch;
+	PendingBatch.WaveId = TEXT("Encounter.2.Wave.2");
+	PendingBatch.EnemyRole = TEXT("Ranged");
+	PendingBatch.EnemyId = TEXT("M_RABBIT");
+	PendingBatch.Locations = {FVector(700.0f, 30.0f, 50.0f)};
+	EncounterState.PendingSpawnBatches.Add(PendingBatch);
 	EncounterState.PlayerHealth = 63.0f;
 	EncounterState.PlayerStats.HpMax = 95.0f;
 	EncounterState.PlayerStats.Block = 1;
@@ -77,6 +87,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	EncounterState.bBossPostEchoPhaseTriggered = true;
 	FReEchoEnemyRuntimeState EnemyState;
 	EnemyState.Kind = 2;
+	EnemyState.EnemyId = TEXT("M_RABBIT");
 	EnemyState.SpawnIndex = 4;
 	EnemyState.CurrentHealth = 7.0f;
 	EnemyState.AttackCooldown = 0.65f;
@@ -113,12 +124,25 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Serialized enemy runtime survives round trip"),
 		          DeserializedSnapshot->EncounterRuntimeState.Enemies.Num(),
 		          1);
+		TestEqual(TEXT("Wave scheduler cursor survives round trip"),
+		          DeserializedSnapshot->EncounterRuntimeState.NextScheduledSpawnEventIndex,
+		          4);
+		TestEqual(TEXT("Ranged burst leases survive round trip"),
+		          DeserializedSnapshot->EncounterRuntimeState.RangedBurstWindowRemainingSeconds.Num(),
+		          2);
+		TestEqual(TEXT("Prepared spawn batch survives round trip"),
+		          DeserializedSnapshot->EncounterRuntimeState.PendingSpawnBatches.Num(),
+		          1);
+		TestEqual(TEXT("Spawn resolver sequence survives round trip"),
+		          DeserializedSnapshot->EncounterRuntimeState.SpawnResolveSequence,
+		          7);
 		TestTrue(TEXT("Boss post-echo phase survives round trip"),
 		         DeserializedSnapshot->EncounterRuntimeState.bBossPostEchoPhaseTriggered);
 		if (DeserializedSnapshot->EncounterRuntimeState.Enemies.Num() == 1)
 		{
 			const FReEchoEnemyRuntimeState& SerializedEnemy = DeserializedSnapshot->EncounterRuntimeState.Enemies[0];
 			TestEqual(TEXT("Enemy attack cooldown survives round trip"), SerializedEnemy.AttackCooldown, 0.65f);
+			TestEqual(TEXT("Stable enemy id survives round trip"), SerializedEnemy.EnemyId, FName(TEXT("M_RABBIT")));
 			TestEqual(TEXT("Enemy fuse survives round trip"), SerializedEnemy.FuseRemaining, 0.4f);
 			TestTrue(TEXT("Enemy fuse-active state survives round trip"), SerializedEnemy.bBomberFuseActive);
 			TestEqual(TEXT("Enemy hit reaction survives round trip"), SerializedEnemy.HitReactionRemaining, 0.12f);
@@ -148,7 +172,17 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Player health restores from suspended encounter"), RestoredEncounter.PlayerHealth, 63.0f);
 	TestTrue(TEXT("Restored encounter keeps Boss post-echo phase"), RestoredEncounter.bBossPostEchoPhaseTriggered);
 	TestEqual(TEXT("Enemy runtime state restores"), RestoredEncounter.Enemies.Num(), 1);
+	TestEqual(TEXT("Wave scheduler cursor restores"), RestoredEncounter.NextScheduledSpawnEventIndex, 4);
+	TestEqual(TEXT("Ranged burst leases restore"), RestoredEncounter.RangedBurstWindowRemainingSeconds.Num(), 2);
+	TestEqual(TEXT("Prepared spawn batch restores"), RestoredEncounter.PendingSpawnBatches.Num(), 1);
+	TestEqual(TEXT("Reserved spawn positions restore"), RestoredEncounter.ReservedSpawnLocations.Num(), 1);
 	TestFalse(TEXT("Suspended encounter snapshot is consumed once"), SuspendedRun->HasPendingEncounterResume());
+
+	SuspendedSnapshot->SaveVersion = 8;
+	UGameInstance* LegacyProgressGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* LegacyProgressRun = NewObject<UReEchoRunSubsystem>(LegacyProgressGameInstance);
+	TestFalse(TEXT("Progressed legacy six-encounter save is explicitly rejected"),
+	          LegacyProgressRun->RestoreSaveSnapshot(*SuspendedSnapshot));
 
 	Snapshot->SaveVersion = UReEchoRunSaveGame::CurrentSaveVersion + 1;
 	TestFalse(TEXT("Incompatible save version is rejected"), Restored->RestoreSaveSnapshot(*Snapshot));

@@ -28,6 +28,7 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
+#include "ReEchoGameMode.h"
 #include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "UI/ReEchoDamageNumberActor.h"
@@ -45,6 +46,12 @@ EReEchoEnemyArchetype ToArchetype(const EReEchoEnemyKind Kind)
 			return EReEchoEnemyArchetype::Bomber;
 		case EReEchoEnemyKind::Boss:
 			return EReEchoEnemyArchetype::Boss;
+		case EReEchoEnemyKind::Slime:
+			return EReEchoEnemyArchetype::Slime;
+		case EReEchoEnemyKind::Ranged:
+			return EReEchoEnemyArchetype::Ranged;
+		case EReEchoEnemyKind::Elite:
+			return EReEchoEnemyArchetype::Elite;
 		default:
 			return EReEchoEnemyArchetype::Grunt;
 	}
@@ -60,6 +67,12 @@ EReEchoEnemyKind ToLegacyKind(const EReEchoEnemyArchetype Archetype)
 			return EReEchoEnemyKind::Bomber;
 		case EReEchoEnemyArchetype::Boss:
 			return EReEchoEnemyKind::Boss;
+		case EReEchoEnemyArchetype::Slime:
+			return EReEchoEnemyKind::Slime;
+		case EReEchoEnemyArchetype::Ranged:
+			return EReEchoEnemyKind::Ranged;
+		case EReEchoEnemyArchetype::Elite:
+			return EReEchoEnemyKind::Elite;
 		default:
 			return EReEchoEnemyKind::Grunt;
 	}
@@ -290,6 +303,9 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	FReEchoStatBlock Stats;
 	Stats.HpMax = Definition.MaxHealth;
 	Combatant->InitializeFromStats(Stats, true);
+	Collision->SetBoxExtent(FVector(Definition.CollisionRadiusCm,
+	                                Definition.CollisionRadiusCm,
+	                                Definition.CollisionHalfHeightCm));
 	AlignToGameplayPlane();
 	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.Archetype, SpawnIndex);
@@ -350,6 +366,7 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.LogicSnapshot = LogicSnapshot;
 	Result.bHasLogicSnapshot = EnemyLogic != nullptr;
 	Result.Kind = static_cast<uint8>(ReEchoEnemyHost::ToLegacyKind(LogicSnapshot.Archetype));
+	Result.EnemyId = EnemyId;
 	Result.SpawnIndex = LogicSnapshot.SpawnIndex;
 	Result.Transform = GetActorTransform();
 	Result.CurrentHealth = Combatant ? Combatant->CurrentHealth : 0.0f;
@@ -380,7 +397,7 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 
 void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState)
 {
-	const EReEchoEnemyKind SavedKind = SavedState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Boss)
+	const EReEchoEnemyKind SavedKind = SavedState.Kind <= static_cast<uint8>(EReEchoEnemyKind::Elite)
 	                                       ? static_cast<EReEchoEnemyKind>(SavedState.Kind)
 	                                       : EReEchoEnemyKind::Grunt;
 	if (!EnemyLogic || !EnemyLogic->IsInitialized() ||
@@ -524,7 +541,7 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 
 float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
-	if (!EnemyLogic || EnemyLogic->GetSnapshot().Archetype != EReEchoEnemyArchetype::Shield)
+	if (!EnemyLogic || !EnemyLogic->GetDefinition().bUsesDirectionalShield)
 	{
 		return Intent.RawDamage;
 	}
@@ -647,7 +664,16 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 				Sense.bHasTeleportDestination = !Sense.TeleportDestination.IsNearlyZero();
 			}
 		}
+		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+		Sense.bSpecialActionPermitted =
+		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		const EReEchoEnemySpecialActionPhase PreviousSpecialPhase = EnemyLogic->GetSnapshot().SpecialActionPhase;
 		Intent = AdvanceBehavior(Sense, DeltaSeconds);
+		if (ReEchoGameMode && PreviousSpecialPhase == EReEchoEnemySpecialActionPhase::None &&
+		    EnemyLogic->GetSnapshot().SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
+		{
+			ReEchoGameMode->NotifyEnemySpecialStarted(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		}
 	}
 	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement), DeltaSeconds);
 }
@@ -693,7 +719,7 @@ FVector AReEchoEnemyActor::ResolveBossTeleportDestination(const FVector& TargetL
 	float TeleportOffsetCm = 0.0f;
 	if (EnemyLogic)
 	{
-		for (const FReEchoEnemyAbilityDefinition& Ability : EnemyLogic->GetDefinition().BossAbilities)
+		for (const FReEchoEnemyAbilityDefinition& Ability : EnemyLogic->GetDefinition().Abilities)
 		{
 			if (Ability.BehaviorId == TEXT("Boss.BlinkSlam") && Ability.bEnabled)
 			{

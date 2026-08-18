@@ -18,4 +18,9 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,Enemies,enemies.csv,Id
 1,EnemyAbilities,enemy_abilities.csv,Id
 1,BossPhases,boss_phases.csv,Id
+1,Stages,stages.csv,Id
+1,Encounters,encounters.csv,Id
+1,EncounterWaves,encounter_waves.csv,Id
+1,SpawnProfiles,spawn_profiles.csv,Id
+1,SpawnPolicy,spawn_policy.csv,Id
 1,AudioEvents,audio_events.csv,EventId

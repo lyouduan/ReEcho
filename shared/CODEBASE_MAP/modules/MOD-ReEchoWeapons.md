@@ -109,6 +109,10 @@ Commit
 
 可见 Projectile/Wave Actor 不是飞行真相源；即使没有美术资源，逻辑载体也必须完成移动、命中和过期。
 
+### 持有者瞄准适配
+
+`AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，使自动索敌和手动鼠标瞄准无需旋转根 Actor；Echo 等保持旋转语义的宿主回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile、Wave 与 SwordArc 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。
+
 ## 代码位置与阅读路线
 
 | 目的 | 先读代码 | 说明 |

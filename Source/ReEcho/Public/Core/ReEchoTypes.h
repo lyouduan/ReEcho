@@ -175,6 +175,10 @@ struct REECHO_API FReEchoEnemyRuntimeState
 	UPROPERTY()
 	uint8 Kind = 0;
 
+	/** v9+: stable data identity; Kind remains legacy migration input. */
+	UPROPERTY()
+	FName EnemyId = NAME_None;
+
 	UPROPERTY()
 	int32 SpawnIndex = 0;
 
@@ -214,7 +218,7 @@ struct REECHO_API FReEchoEnemyRuntimeState
 	UPROPERTY()
 	bool bSelfDestructCommitted = false;
 
-	/** v8 canonical logic state, including deterministic Boss ability/phase timing. */
+	/** v8+ canonical logic state, including deterministic special/Boss ability timing. */
 	UPROPERTY()
 	FReEchoEnemyLogicSnapshot LogicSnapshot;
 
@@ -224,6 +228,26 @@ struct REECHO_API FReEchoEnemyRuntimeState
 
 	UPROPERTY()
 	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;
+};
+
+/** A warned spawn batch whose exact locations are reserved before its commit time. */
+USTRUCT()
+
+struct REECHO_API FReEchoPendingSpawnBatchState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName WaveId = NAME_None;
+
+	UPROPERTY()
+	FName EnemyRole = NAME_None;
+
+	UPROPERTY()
+	FName EnemyId = NAME_None;
+
+	UPROPERTY()
+	TArray<FVector> Locations;
 };
 
 /** Exact resumable state captured only when the player confirms an in-encounter quit. */
@@ -238,6 +262,24 @@ struct REECHO_API FReEchoEncounterRuntimeState
 
 	UPROPERTY()
 	float EncounterTime = 0.0f;
+
+	/** v9+: next warning/commit gate; prevents duplicate wave generation after continue. */
+	UPROPERTY()
+	int32 NextScheduledSpawnEventIndex = 0;
+
+	/** v9+: remaining durations of Encounter-owned ranged burst leases. */
+	UPROPERTY()
+	TArray<float> RangedBurstWindowRemainingSeconds;
+
+	/** v9+: warning-resolved positions that must commit unchanged after continue. */
+	UPROPERTY()
+	TArray<FReEchoPendingSpawnBatchState> PendingSpawnBatches;
+
+	UPROPERTY()
+	int32 SpawnResolveSequence = 0;
+
+	UPROPERTY()
+	TArray<FVector> ReservedSpawnLocations;
 
 	UPROPERTY()
 	FTransform PlayerTransform;

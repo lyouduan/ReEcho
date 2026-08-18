@@ -13,7 +13,7 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v10 persists weapon-part ownership separately from equipped parts and ordinary shop items. */
+	/** v10 pins table-driven encounter state and persists weapon-part ownership separately. */
 	static constexpr int32 CurrentSaveVersion = 10;
 
 	/** Oldest layout this build can still migrate forward. */

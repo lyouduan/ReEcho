@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Encounter/ReEchoEncounterRuntime.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
 #include "ReEchoGameMode.generated.h"
@@ -60,6 +61,10 @@ public:
 	void GMKillAll();
 	UFUNCTION(Exec)
 	void GMGotoBoss();
+
+	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
+	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
+	void NotifyEnemySpecialStarted(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
 
 private:
 	/** Lets the next-frame World Timer run while retaining menu input and ability blocking. */
@@ -133,6 +138,13 @@ private:
 	bool bBossPostEchoPhaseTriggered = false;
 	float ArenaSceneWorldHeight = 0.0f;
 	float ArenaSceneWorldWidth = 0.0f;
+	FReEchoEncounterWaveScheduler EncounterWaveScheduler;
+	FName CurrentEncounterId = NAME_None;
+	int32 EncounterSpawnSequence = 0;
+	int32 EnemySpawnIndex = 0;
+	TArray<FVector> EncounterSpawnLocations;
+	TArray<float> RecentRangedBurstWorldTimes;
+	TArray<FReEchoPendingSpawnBatchState> PendingSpawnBatches;
 	UFUNCTION()
 	void HandleFixedStep(float FixedDeltaSeconds);
 	UFUNCTION()
@@ -223,7 +235,12 @@ private:
 	void ResumeSavedEncounter();
 	TSubclassOf<AReEchoEnemyActor> ResolveEnemyClass(EReEchoEnemyArchetype Archetype, int32 VisualVariantIndex) const;
 	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;
-	void SpawnEnemies(int32 EncounterIndex);
+	bool ConfigureEncounterSpawns(int32 EncounterIndex);
+	void ProcessScheduledSpawnEvents(float EncounterSeconds);
+	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
+	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
+	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation);
+	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
 	UFUNCTION()

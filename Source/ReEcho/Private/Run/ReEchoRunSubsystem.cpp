@@ -774,6 +774,21 @@ TSharedPtr<const FReEchoCsvDataSnapshot> UReEchoRunSubsystem::GetRunDataSnapshot
 	return RunDataSnapshot.IsValid() ? RunDataSnapshot : FReEchoCsvDataRegistry::GetSnapshot();
 }
 
+int32 UReEchoRunSubsystem::GetTotalEncounterCount() const
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	int32 EnabledCount = 0;
+	if (Snapshot.IsValid())
+	{
+		for (const FName EncounterId : Snapshot->EncounterOrder)
+		{
+			const FReEchoCsvEncounterRow* Encounter = Snapshot->FindEncounter(EncounterId);
+			EnabledCount += Encounter && Encounter->bEnabled ? 1 : 0;
+		}
+	}
+	return EnabledCount > 0 ? EnabledCount : GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
+}
+
 void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
@@ -842,7 +857,7 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 			CurrentBuild = Candidate;
 		}
 	}
-	if (EncounterIndex >= GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount())
+	if (EncounterIndex >= GetTotalEncounterCount())
 	{
 		SetPhase(bBossKilled ? EReEchoRunPhase::Summary : EReEchoRunPhase::Failed);
 		return;
@@ -1588,10 +1603,9 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int3
 
 	const int32 AllowedCount = FMath::Clamp(SpecificReplayLimit, 0, ReEchoEchoStorage::MaxSpecificReplayLimit);
 
-	// Once the specific replay ability is unlocked, explicitly selected stored echoes take
-	// priority. But when the player has not picked anything, the next encounter still replays
-	// automatically: we fall back to the rolling previous-encounter echo (the pre-unlock
-	// default) so an empty selection is never a silent "no replay".
+	// Once the specific replay ability is unlocked, explicit selections take priority. If the
+	// player has not selected anything yet, keep the Plan32 automatic fallback to the rolling
+	// previous encounter so the transition never silently loses all replay.
 	if (AllowedCount > 0)
 	{
 		if (SelectedReplayIds.Num() == 0)
@@ -1740,6 +1754,16 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 {
 	if (!IsValidResumableSave(SaveGame))
 	{
+		return false;
+	}
+	if (SaveGame.SaveVersion < 9 && SaveGame.EncounterIndex > 0)
+	{
+		UE_LOG(LogTemp,
+		       Warning,
+		       TEXT("Legacy six-encounter save version %d at encounter %d is rejected instead of being reinterpreted "
+		            "as the eight-encounter run."),
+		       SaveGame.SaveVersion,
+		       SaveGame.EncounterIndex);
 		return false;
 	}
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();

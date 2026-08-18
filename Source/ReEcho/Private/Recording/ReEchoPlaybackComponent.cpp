@@ -34,3 +34,8 @@ int32 UReEchoPlaybackComponent::GetSourceEncounter() const
 {
 	return Recording.EncounterIndex;
 }
+
+FVector UReEchoPlaybackComponent::EvaluateRecordedPosition(const float EncounterTime) const
+{
+	return Recording.EvaluatePosition(EncounterTime);
+}

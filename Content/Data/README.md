@@ -1,6 +1,6 @@
 # ReEcho 数据源
 
-`Design/Data/ReEchoData.xlsx` 是主策划数据编辑源；怪物体系由独立 `Design/Data/ReEchoEnemyData.xlsx` 唯一负责。两者通过同一入口生成本目录供 Unreal 读取和打包的 CSV，但不共享二进制文件或 ExportMap 所有权。本目录里的旧 JSON 文件只作为未迁移领域的参考材料保留；对应领域迁移到 CSV 后，不要再在 CSV、JSON、C++、DeveloperSettings、Actor 或 Widget 里手工维护第二份可编辑真源。
+`Design/Data/ReEchoData.xlsx` 是主策划数据编辑源；怪物体系和关卡/刷怪体系分别由独立 `ReEchoEnemyData.xlsx`、`ReEchoEncounterData.xlsx` 唯一负责。统一入口联合生成本目录 CSV，但工作簿不共享二进制文件或 ExportMap 所有权。
 
 主数据操作步骤见 [`Design/Data/ReEchoData使用说明.md`](../../Design/Data/ReEchoData使用说明.md)；怪物数据见 [`Design/Data/ReEchoEnemyData使用说明.md`](../../Design/Data/ReEchoEnemyData使用说明.md)。
 验收分别见 [`Design/Data/ReEchoData策划验收清单.md`](../../Design/Data/ReEchoData策划验收清单.md) 和 [`Design/Data/ReEchoEnemyData策划验收清单.md`](../../Design/Data/ReEchoEnemyData策划验收清单.md)。
@@ -44,9 +44,11 @@
 - `attack_steps.csv`：有序攻击 pattern 阶段。
 - `slot_types.csv` / `slot_profiles.csv`：配件槽类型和各武器类型允许槽位。
 - `parts.csv` / `part_effects.csv`：78 条武器插槽源行审计和启用配件的一对多 typed effects。
-- `enemies.csv`：四类敌人的稳定 `EnemyId`、基础属性和注册 Behavior Profile。
-- `enemy_abilities.csv`：Boss 四个主动技能与元素清洗被动，按 `OwnerEnemyId` 归属。
+- `enemies.csv`：兼容敌人及开普勒史莱姆、兔子、狐狸、Boss 的稳定定义。
+- `enemy_abilities.csv`：普通怪类型化技能、Boss 四个主动技能与元素清洗被动。
 - `boss_phases.csv`：Boss 确定性阶段与临时战斗倍率。
+- `stages.csv` / `encounters.csv` / `encounter_waves.csv`：四个逻辑阶段、八场遭遇与逐场显式波次。
+- `spawn_profiles.csv` / `spawn_policy.csv`：角色→稳定 EnemyId、距离环、预警、双锚和边界约束。
 - `TestFixtures/CsvRuntime/`：自动化用的正向和负向 fixtures，不是生产数据。
 
 ## 表目录
@@ -74,6 +76,11 @@
 | `Enemies` | `Content/Data/enemies.csv` | 稳定 EnemyId、基础属性、行为 Profile 与表现键 |
 | `EnemyAbilities` | `Content/Data/enemy_abilities.csv` | Boss 主动/被动技能、确定性顺序与空间参数 |
 | `BossPhases` | `Content/Data/boss_phases.csv` | Boss 时间阶段、Echo 策略与临时强化倍率 |
+| `Stages` | `Content/Data/stages.csv` | 逻辑阶段、遭遇范围和跨场清理策略 |
+| `Encounters` | `Content/Data/encounters.csv` | 八场结束条件、双锚比例、并发和单位上限 |
+| `EncounterWaves` | `Content/Data/encounter_waves.csv` | 0/10/20 秒波次及 Boss 生成 |
+| `SpawnProfiles` | `Content/Data/spawn_profiles.csv` | 类型敌人 ID、距离环、间距和预警 |
+| `SpawnPolicy` | `Content/Data/spawn_policy.csv` | 玩家/回响安全距离、预测和边界策略 |
 
 自动化 fixture 目录：`Content/Data/TestFixtures/CsvRuntime/`
 

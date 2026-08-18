@@ -268,6 +268,11 @@ FName AReEchoEchoActor::GetEquippedWeaponId() const
 	return Weapon ? Weapon->GetEquippedWeaponId() : NAME_None;
 }
 
+FVector AReEchoEchoActor::EvaluateRecordedPosition(const float EncounterTime) const
+{
+	return Playback ? Playback->EvaluateRecordedPosition(EncounterTime) : GetActorLocation();
+}
+
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 {
 	Playback->AdvancePlayback(EncounterTime);

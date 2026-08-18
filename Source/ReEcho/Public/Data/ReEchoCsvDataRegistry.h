@@ -375,6 +375,93 @@ struct REECHO_API FReEchoCsvEnemyRow
 	TArray<FReEchoCsvBossPhaseRow> BossPhases;
 };
 
+struct REECHO_API FReEchoCsvStageRow
+{
+	FName Id;
+	int32 StageIndex = 0;
+	FName SceneId;
+	int32 FirstEncounterIndex = 0;
+	int32 LastEncounterIndex = 0;
+	bool bPreserveEnemiesBetweenEncounters = false;
+	bool bClearEnemiesOnEnter = true;
+	bool bEnabled = false;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+};
+
+struct REECHO_API FReEchoCsvEncounterRow
+{
+	FName Id;
+	int32 EncounterIndex = 0;
+	FName StageId;
+	float DurationSeconds = 0.0f;
+	FName EndCondition;
+	float EchoAnchorRatio = 0.0f;
+	float PlayerAnchorRatio = 1.0f;
+	FName MeleeTargetingPolicy;
+	int32 RangedBurstLimit = 0;
+	float RangedBurstWindowSeconds = 0.0f;
+	int32 EliteSkillConcurrency = 0;
+	int32 ActiveUnitLimit = 0;
+	bool bBossCountsTowardUnitLimit = true;
+	FName ReplayPolicy;
+	bool bEnabled = false;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+};
+
+struct REECHO_API FReEchoCsvEncounterWaveRow
+{
+	FName Id;
+	FName EncounterId;
+	int32 WaveIndex = 0;
+	float TriggerSeconds = 0.0f;
+	int32 MeleeCount = 0;
+	int32 RangedCount = 0;
+	int32 EliteCount = 0;
+	FName BossEnemyId;
+	bool bEnabled = false;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+};
+
+struct REECHO_API FReEchoCsvSpawnProfileRow
+{
+	FName Id;
+	FName EnemyRole;
+	FName EnemyId;
+	float MinAnchorDistanceCm = 0.0f;
+	float MaxAnchorDistanceCm = 0.0f;
+	float MinSpacingCm = 0.0f;
+	float WarningLeadSeconds = 0.0f;
+	FName DistributionPolicy;
+	FName SpacingPolicy;
+	bool bEnabled = false;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+};
+
+struct REECHO_API FReEchoCsvSpawnPolicyRow
+{
+	FName Id;
+	float AnchorLeadSeconds = 0.0f;
+	float MinPlayerDistanceCm = 0.0f;
+	float MinEchoDistanceCm = 0.0f;
+	FName BoundaryPolicy;
+	FName CandidatePolicy;
+	FName PlayerPredictionPolicy;
+	FName MultiEchoPolicy;
+	int32 MaxCandidateAttempts = 0;
+	bool bEnabled = false;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
+};
+
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
@@ -403,6 +490,15 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvPartRow> Parts;
 	TMap<FName, FReEchoCsvEnemyRow> Enemies;
 	TArray<FName> EnemyOrder;
+	TMap<FName, FReEchoCsvStageRow> Stages;
+	TArray<FName> StageOrder;
+	TMap<FName, FReEchoCsvEncounterRow> Encounters;
+	TArray<FName> EncounterOrder;
+	TMap<FName, FReEchoCsvEncounterWaveRow> EncounterWaves;
+	TArray<FName> EncounterWaveOrder;
+	TMap<FName, FReEchoCsvSpawnProfileRow> SpawnProfiles;
+	TArray<FName> SpawnProfileOrder;
+	TMap<FName, FReEchoCsvSpawnPolicyRow> SpawnPolicies;
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;
@@ -421,6 +517,12 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TArray<FReEchoCsvAttackStepRow> GetAttackSteps(FName AttackPatternId) const;
 	const FReEchoCsvEnemyRow* FindEnemy(FName EnemyId) const;
 	const FReEchoCsvEnemyRow* FindEnabledEnemy(FName EnemyId) const;
+	const FReEchoCsvStageRow* FindStage(FName StageId) const;
+	const FReEchoCsvEncounterRow* FindEncounter(FName EncounterId) const;
+	const FReEchoCsvEncounterRow* FindEncounterByIndex(int32 EncounterIndex) const;
+	TArray<FReEchoCsvEncounterWaveRow> GetEncounterWaves(FName EncounterId) const;
+	const FReEchoCsvSpawnProfileRow* FindSpawnProfileByRole(FName EnemyRole) const;
+	const FReEchoCsvSpawnPolicyRow* FindEnabledSpawnPolicy() const;
 };
 
 struct REECHO_API FReEchoCsvLoadResult

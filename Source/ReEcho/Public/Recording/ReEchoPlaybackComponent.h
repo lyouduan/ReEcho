@@ -35,6 +35,9 @@ public:
 	UFUNCTION(BlueprintPure)
 	int32 GetSourceEncounter() const;
 
+	/** Read-only path sample used by deterministic encounter spawn anchoring. */
+	FVector EvaluateRecordedPosition(float EncounterTime) const;
+
 private:
 	UPROPERTY()
 	FReEchoRecording Recording;

@@ -8,11 +8,8 @@
 
 namespace
 {
-FReEchoEnemyAbilityDefinition MakeBossAbility(const TCHAR* Id,
-                                               const TCHAR* BehaviorId,
-                                               const int32 SequenceOrder,
-                                               const float MinRangeCm,
-                                               const float MaxRangeCm)
+FReEchoEnemyAbilityDefinition MakeBossAbility(
+    const TCHAR* Id, const TCHAR* BehaviorId, const int32 SequenceOrder, const float MinRangeCm, const float MaxRangeCm)
 {
 	FReEchoEnemyAbilityDefinition Ability;
 	Ability.Id = FName(Id);
@@ -41,19 +38,17 @@ FReEchoEnemyDefinition MakeBossTestDefinition()
 	Definition.MoveSpeedCmPerSecond = 60.0f;
 	Definition.MovementStopDistanceCm = 50.0f;
 
-	Definition.BossAbilities.Add(MakeBossAbility(TEXT("A_Melee"), TEXT("Boss.MeleeSweep"), 0, 0.0f, 250.0f));
+	Definition.Abilities.Add(MakeBossAbility(TEXT("A_Melee"), TEXT("Boss.MeleeSweep"), 0, 0.0f, 250.0f));
 	FReEchoEnemyAbilityDefinition Projectile =
 	    MakeBossAbility(TEXT("A_Projectile"), TEXT("Boss.Projectile"), 1, 200.0f, 1200.0f);
 	Projectile.ProjectileSpeedCmPerSecond = 700.0f;
 	Projectile.LockTiming = EReEchoBossLockTiming::WindupEnded;
-	Definition.BossAbilities.Add(Projectile);
+	Definition.Abilities.Add(Projectile);
 
-	FReEchoEnemyAbilityDefinition Blink =
-	    MakeBossAbility(TEXT("A_Blink"), TEXT("Boss.BlinkSlam"), 2, 0.0f, 1000.0f);
+	FReEchoEnemyAbilityDefinition Blink = MakeBossAbility(TEXT("A_Blink"), TEXT("Boss.BlinkSlam"), 2, 0.0f, 1000.0f);
 	Blink.TeleportOffsetCm = 180.0f;
-	Definition.BossAbilities.Add(Blink);
-	Definition.BossAbilities.Add(
-	    MakeBossAbility(TEXT("A_Beam"), TEXT("Boss.PrayerBeam"), 3, 0.0f, 1200.0f));
+	Definition.Abilities.Add(Blink);
+	Definition.Abilities.Add(MakeBossAbility(TEXT("A_Beam"), TEXT("Boss.PrayerBeam"), 3, 0.0f, 1200.0f));
 
 	FReEchoEnemyAbilityDefinition Cleanse;
 	Cleanse.Id = TEXT("A_Cleanse");
@@ -61,7 +56,7 @@ FReEchoEnemyDefinition MakeBossTestDefinition()
 	Cleanse.CleanseIntervalSeconds = 0.15f;
 	Cleanse.ImmunitySeconds = 0.1f;
 	Cleanse.bEnabled = true;
-	Definition.BossAbilities.Add(Cleanse);
+	Definition.Abilities.Add(Cleanse);
 
 	FReEchoBossPhaseDefinition Phase;
 	Phase.Id = TEXT("P_Enrage");
@@ -81,10 +76,11 @@ const FReEchoBossIntent* FindBossIntent(const FReEchoEnemyActionIntent& Intent,
                                         const EReEchoBossIntentType Type,
                                         const FName AbilityId = NAME_None)
 {
-	return Intent.BossIntents.FindByPredicate([Type, AbilityId](const FReEchoBossIntent& BossIntent)
-	{
-		return BossIntent.Type == Type && (AbilityId.IsNone() || BossIntent.AbilityId == AbilityId);
-	});
+	return Intent.BossIntents.FindByPredicate(
+	    [Type, AbilityId](const FReEchoBossIntent& BossIntent)
+	    {
+		    return BossIntent.Type == Type && (AbilityId.IsNone() || BossIntent.AbilityId == AbilityId);
+	    });
 }
 
 int32 CountBossIntents(const FReEchoEnemyActionIntent& Intent, const EReEchoBossIntentType Type)
@@ -104,15 +100,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyLegacyDefinitionTest,
 
 bool FReEchoEnemyLegacyDefinitionTest::RunTest(const FString& Parameters)
 {
-	const FReEchoEnemyDefinition Grunt =
-	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
+	const FReEchoEnemyDefinition Grunt = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
 	TestEqual(TEXT("Grunt health"), Grunt.MaxHealth, 28.0f);
 	TestEqual(TEXT("Grunt speed"), Grunt.MoveSpeedCmPerSecond, 95.0f);
 	TestEqual(TEXT("Grunt damage"), Grunt.ContactDamage, 9.0f);
 	TestEqual(TEXT("Grunt interval"), Grunt.AttackIntervalSeconds, 1.3f);
 
-	const FReEchoEnemyDefinition Shield =
-	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Shield);
+	const FReEchoEnemyDefinition Shield = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Shield);
 	TestEqual(TEXT("Shield health"), Shield.MaxHealth, 55.0f);
 	TestTrue(TEXT("Shield retains directional defense policy"), Shield.bUsesDirectionalShield);
 
@@ -124,8 +118,7 @@ bool FReEchoEnemyLegacyDefinitionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Bomber fuse comes from host tuning"), Bomber.BomberFuseDurationSeconds, 0.8f);
 	TestEqual(TEXT("Bomber damage comes from host tuning"), Bomber.ContactDamage, 31.0f);
 
-	const FReEchoEnemyDefinition Boss =
-	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Boss);
+	const FReEchoEnemyDefinition Boss = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Boss);
 	TestEqual(TEXT("Boss health"), Boss.MaxHealth, 650.0f);
 	TestEqual(TEXT("Boss knockback speed"), Boss.KnockbackSpeedCmPerSecond, 140.0f);
 	return true;
@@ -151,9 +144,8 @@ bool FReEchoEnemyContactCadenceTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Ready contact attack commits"), First.bAttackCommitted);
 	TestTrue(TEXT("Target in 80cm range still receives movement before contact"), First.bHasMovement);
 	TestEqual(TEXT("First attack sequence"), First.Attack.Sequence, int64(1));
-	TestEqual(TEXT("Committed attack starts legacy cooldown"),
-	          Logic->GetSnapshot().AttackCooldownRemainingSeconds,
-	          1.3f);
+	TestEqual(
+	    TEXT("Committed attack starts legacy cooldown"), Logic->GetSnapshot().AttackCooldownRemainingSeconds, 1.3f);
 
 	const FReEchoEnemyActionIntent Busy = Logic->Advance(Sense, 0.5f);
 	TestFalse(TEXT("Cooldown blocks another contact attack"), Busy.bAttackCommitted);
@@ -185,9 +177,7 @@ bool FReEchoEnemyInvulnerableTargetTest::RunTest(const FString& Parameters)
 	const FReEchoEnemyActionIntent Intent = Logic->Advance(Sense, 0.0f);
 	TestTrue(TEXT("Attack action still commits while target is invulnerable"), Intent.bAttackCommitted);
 	TestFalse(TEXT("Invulnerable target is not a damage candidate"), Intent.bCanDamageTarget);
-	TestEqual(TEXT("Invulnerable action consumes cooldown"),
-	          Logic->GetSnapshot().AttackCooldownRemainingSeconds,
-	          1.3f);
+	TestEqual(TEXT("Invulnerable action consumes cooldown"), Logic->GetSnapshot().AttackCooldownRemainingSeconds, 1.3f);
 	return true;
 }
 
@@ -199,8 +189,7 @@ bool FReEchoEnemyBomberFuseTest::RunTest(const FString& Parameters)
 {
 	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
 	Logic->Initialize(
-	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Bomber, 260.0f, 180.0f, 1.2f, 22.0f),
-	    2);
+	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Bomber, 260.0f, 180.0f, 1.2f, 22.0f), 2);
 	FReEchoEnemySenseSnapshot Sense;
 	Sense.bTargetExists = true;
 	Sense.bTargetAlive = true;
@@ -223,10 +212,8 @@ bool FReEchoEnemyBomberFuseTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Explosion always requests self destruction"), Explosion.bSelfDestructAfterAttack);
 	TestFalse(TEXT("Invulnerable target takes no explosion damage"), Explosion.bCanDamageTarget);
 	TestEqual(TEXT("Bomber attack sequence"), Explosion.Attack.Sequence, int64(1));
-	TestTrue(TEXT("Self destruct is recorded as a one-shot action"),
-	         Logic->GetSnapshot().bSelfDestructCommitted);
-	TestFalse(TEXT("Expired fuse cannot publish a second explosion"),
-	          Logic->Advance(Sense, 0.1f).bAttackCommitted);
+	TestTrue(TEXT("Self destruct is recorded as a one-shot action"), Logic->GetSnapshot().bSelfDestructCommitted);
+	TestFalse(TEXT("Expired fuse cannot publish a second explosion"), Logic->Advance(Sense, 0.1f).bAttackCommitted);
 	return true;
 }
 
@@ -275,8 +262,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossInjectedDefinitionTest,
 bool FReEchoBossInjectedDefinitionTest::RunTest(const FString& Parameters)
 {
 	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
-	const FReEchoEnemyDefinition LegacyBoss =
-	    ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Boss);
+	const FReEchoEnemyDefinition LegacyBoss = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Boss);
 	TestFalse(TEXT("Boss cannot silently run without injected abilities and phase"), Logic->Initialize(LegacyBoss, 1));
 	TestTrue(TEXT("Complete injected Boss definition initializes"), Logic->Initialize(MakeBossTestDefinition(), 1));
 	return true;
@@ -296,8 +282,7 @@ bool FReEchoBossRotationAndSkipTest::RunTest(const FString& Parameters)
 	Sense.bTargetAlive = true;
 	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
 	const FReEchoEnemyActionIntent First = Logic->Advance(Sense, 1.0f / 60.0f);
-	const FReEchoBossIntent* FirstTelegraph =
-	    FindBossIntent(First, EReEchoBossIntentType::TelegraphStarted);
+	const FReEchoBossIntent* FirstTelegraph = FindBossIntent(First, EReEchoBossIntentType::TelegraphStarted);
 	TestNotNull(TEXT("First legal ability starts a telegraph"), FirstTelegraph);
 	if (FirstTelegraph)
 	{
@@ -328,8 +313,7 @@ bool FReEchoBossLockAndIdentityTest::RunTest(const FString& Parameters)
 	Sense.TargetLocation = FVector(300.0f, 0.0f, 0.0f);
 
 	const FReEchoEnemyActionIntent Telegraph = Logic->Advance(Sense, 1.0f / 60.0f);
-	const FReEchoBossIntent* ProjectileTelegraph =
-	    FindBossIntent(Telegraph, EReEchoBossIntentType::TelegraphStarted);
+	const FReEchoBossIntent* ProjectileTelegraph = FindBossIntent(Telegraph, EReEchoBossIntentType::TelegraphStarted);
 	TestNotNull(TEXT("Projectile telegraph starts after melee range skip"), ProjectileTelegraph);
 	if (ProjectileTelegraph)
 	{
@@ -418,10 +402,8 @@ bool FReEchoBossSnapshotDeterminismTest::RunTest(const FString& Parameters)
 	Sense.TargetLocation = FVector(650.0f, 0.0f, 0.0f);
 	const FReEchoEnemyActionIntent OriginalNext = Original->Advance(Sense, 0.1f);
 	const FReEchoEnemyActionIntent RestoredNext = Restored->Advance(Sense, 0.1f);
-	const FReEchoBossIntent* OriginalAttack =
-	    FindBossIntent(OriginalNext, EReEchoBossIntentType::AttackWindowStarted);
-	const FReEchoBossIntent* RestoredAttack =
-	    FindBossIntent(RestoredNext, EReEchoBossIntentType::AttackWindowStarted);
+	const FReEchoBossIntent* OriginalAttack = FindBossIntent(OriginalNext, EReEchoBossIntentType::AttackWindowStarted);
+	const FReEchoBossIntent* RestoredAttack = FindBossIntent(RestoredNext, EReEchoBossIntentType::AttackWindowStarted);
 	TestNotNull(TEXT("Original commits after saved windup"), OriginalAttack);
 	TestNotNull(TEXT("Restored commits after saved windup"), RestoredAttack);
 	if (OriginalAttack && RestoredAttack)
@@ -460,8 +442,7 @@ bool FReEchoBossSnapshotDeterminismTest::RunTest(const FString& Parameters)
 	          PartitionState.BossCurrentAbilityId,
 	          ChunkState.BossCurrentAbilityId);
 	TestTrue(TEXT("Frame partition keeps encounter clock"),
-	         FMath::IsNearlyEqual(PartitionState.BossEncounterElapsedSeconds,
-	                              ChunkState.BossEncounterElapsedSeconds));
+	         FMath::IsNearlyEqual(PartitionState.BossEncounterElapsedSeconds, ChunkState.BossEncounterElapsedSeconds));
 	return true;
 }
 
@@ -496,6 +477,85 @@ bool FReEchoEnemyRosterTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("No living enemies remain after unregister"), Roster->HasLivingEnemies());
 	Roster->ResetRoster();
 	TestEqual(TEXT("Reset removes retained dead entries"), Roster->GetEntries().Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemySpecialBehaviorsTest,
+                                 "ReEcho.Enemies.Logic.RangedAndEliteBehaviors",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Ranged;
+	Ranged.Archetype = EReEchoEnemyArchetype::Ranged;
+	Ranged.MaxHealth = 20.0f;
+	Ranged.MoveSpeedCmPerSecond = 165.0f;
+	Ranged.MovementStopDistanceCm = 650.0f;
+	FReEchoEnemyAbilityDefinition Burst;
+	Burst.Id = TEXT("RabbitBurst");
+	Burst.BehaviorId = TEXT("Enemy.RangedBurst");
+	Burst.bEnabled = true;
+	Burst.Damage = 10.0f;
+	Burst.WindupSeconds = 0.55f;
+	Burst.CooldownSeconds = 2.0f;
+	Burst.MaxRangeCm = 1000.0f;
+	Burst.RadiusCm = 150.0f;
+	Ranged.Abilities.Add(Burst);
+
+	UReEchoEnemyLogicComponent* RangedLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Ranged definition initializes"), RangedLogic->Initialize(Ranged, 1));
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
+	Sense.bSpecialActionPermitted = false;
+	RangedLogic->Advance(Sense, 0.01f);
+	TestEqual(TEXT("Encounter gate prevents a ranged windup"),
+	          RangedLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::None);
+	Sense.bSpecialActionPermitted = true;
+	RangedLogic->Advance(Sense, 0.01f);
+	TestEqual(TEXT("Ranged attack enters windup"),
+	          RangedLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Windup);
+	Sense.TargetLocation = FVector(800.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent MissedBurst = RangedLogic->Advance(Sense, 0.56f);
+	TestTrue(TEXT("Ranged burst commits after table windup"), MissedBurst.bAttackCommitted);
+	TestFalse(TEXT("Moving outside the locked radius avoids the burst"), MissedBurst.bCanDamageTarget);
+	TestEqual(TEXT("Ranged burst uses table damage"), MissedBurst.RawDamage, 10.0f);
+
+	FReEchoEnemyDefinition Elite;
+	Elite.Archetype = EReEchoEnemyArchetype::Elite;
+	Elite.MaxHealth = 55.0f;
+	Elite.MoveSpeedCmPerSecond = 120.0f;
+	Elite.bUsesDirectionalShield = true;
+	FReEchoEnemyAbilityDefinition Dash;
+	Dash.Id = TEXT("FoxDash");
+	Dash.BehaviorId = TEXT("Enemy.EliteDash");
+	Dash.bEnabled = true;
+	Dash.Damage = 18.0f;
+	Dash.WindupSeconds = 0.8f;
+	Dash.RecoverySeconds = 0.9f;
+	Dash.CooldownSeconds = 4.0f;
+	Dash.MaxRangeCm = 450.0f;
+	Dash.WidthCm = 140.0f;
+	Dash.LengthCm = 450.0f;
+	Elite.Abilities.Add(Dash);
+	UReEchoEnemyLogicComponent* EliteLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Elite definition initializes"), EliteLogic->Initialize(Elite, 2));
+	Sense.TargetLocation = FVector(300.0f, 0.0f, 0.0f);
+	Sense.bSpecialActionPermitted = false;
+	EliteLogic->Advance(Sense, 0.01f);
+	TestEqual(TEXT("Encounter gate prevents an elite windup"),
+	          EliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::None);
+	Sense.bSpecialActionPermitted = true;
+	EliteLogic->Advance(Sense, 0.01f);
+	const FReEchoEnemyActionIntent DashCommit = EliteLogic->Advance(Sense, 0.81f);
+	TestTrue(TEXT("Elite dash commits after table warning"), DashCommit.bAttackCommitted);
+	TestTrue(TEXT("Elite dash moves along the locked line"), DashCommit.bHasMovement);
+	TestEqual(TEXT("Elite dash length comes from table ability"), DashCommit.MovementDelta.Size2D(), 450.0);
+	TestEqual(TEXT("Elite dash uses table damage"), DashCommit.RawDamage, 18.0f);
 	return true;
 }
 

@@ -68,6 +68,7 @@ public:
 	virtual void NotifyDefeated(EReEchoDamageSource DamageSource) const override;
 	FString GetPinnedWeaponDomainRevision() const;
 	FName GetEquippedWeaponId() const;
+	FVector EvaluateRecordedPosition(float EncounterTime) const;
 
 private:
 	UPROPERTY(VisibleAnywhere)

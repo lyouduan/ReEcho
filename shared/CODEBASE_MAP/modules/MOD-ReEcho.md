@@ -19,7 +19,7 @@
 
 ### 负责
 
-- 启动/继续、装载选择、竞技场、六场遭遇、局间构筑、商店、Echo 选择和结束流程编排。
+- 启动/继续、装载选择、竞技场、八场表驱动遭遇、局间构筑、商店、Echo 选择和结束流程编排。
 - 玩家、敌人、Echo、武器、投射物、世界 UI 与表现 Actor 的创建和生命周期装配。
 - 将 XLSX 生成的 CSV 编译为类型化运行时快照。
 - 本局阶段、构筑、存档、Echo 存储与回放选择。
@@ -43,7 +43,10 @@
 | 卡牌目录、拥有/叠层、随机游标和事件状态 | `MOD-ReEchoCards` 的 Catalog/BuildState/RuntimeState | 整局并嵌入 Build/Recording | 主模块只调用纯命令并执行类型化结果 |
 | 玩家/敌人生命与战斗属性 | GAS/`UReEchoCombatantComponent` | Actor/遭遇 | GameplayEffect、战斗命令、快照与委托 |
 | 当前武器、攻击步骤与攻击载体 | `AReEchoWeaponActor` 及 Weapons 运行逻辑 | Actor/整局武器锁定 | 攻击请求、稳定 WeaponId、只读查询 |
-| 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 固定步推进与完成委托 |
+| 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
+| 本场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | 单场遭遇 | GameMode 生成/清理，保存与全灭判断读取；不扫描世界复制状态 |
+| 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
+| Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
 | Actor 可见状态 | 各 Presentation/Graybox Actor | Actor | 消费逻辑结果，不反写逻辑 |
@@ -67,7 +70,7 @@
 ### 稳定契约
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
-- `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v9 固定 `CardDomainRevision`、卡牌运行态与 EnemyLogic/Combatant/Transform。
+- `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -100,9 +103,9 @@ DefaultEngine.ini
       → 新游戏：角色和初始武器选择 → RunSubsystem::StartRun
       → 继续：加载安全检查点或暂停遭遇
       → BeginNextEncounter / ResumeSavedEncounter
-          → 玩家、Recorder、可用 Echo、敌人
-          → 60 Hz 固定步遭遇
-          → 全部敌人死亡或超时
+          → 玩家、Recorder、可用 Echo、EnemyHost + Roster
+          → 60 Hz 固定步遭遇 → 0/10/20 秒 WaveScheduler
+          → 普通战按 30 秒完成；同 Stage 保留 Roster，跨 Stage 清理；Boss 按胜负
           → 完成录制与 RunSubsystem::CompleteEncounter
           → 特质选择 → 商店 → Echo 管理 → 下一场
 ```
@@ -137,7 +140,7 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 
 - 代码：`Source/ReEcho/Public/Data/`、`Source/ReEcho/Private/Data/`。
 - 首读：`ReEchoCsvDataRegistry.*`、`ReEchoWeaponCsvReader.*`、角色/卡牌/元素 Reader。
-- 数据链：`Design/Data/ReEchoData.xlsx` → `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`。
+- 数据链：主策划、怪物、Encounter、音频四个独立 canonical 工作簿 → 统一 `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`；二进制工作簿保持独立所有权。
 - 权威：CSV Schema 校验、稳定 ID 引用、运行时快照发布和领域修订值。
 - 扩展：先改 XLSX/Schema/生成器，再扩 Reader 与验证；Behavior/Formula 等逻辑字段必须映射到注册实现。
 - 禁止：运行时读取 XLSX、执行描述文本、把解析失败静默替换为默认逻辑、保存第二份平衡常量。
@@ -168,15 +171,27 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
 - 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。
 
+### `AREA-Enemies`：怪物逻辑、宿主与表现接线
+
+**设计意图：** `MOD-ReEchoEnemies` 独占怪物行为状态；主模块只提供世界感知、Transform/Collision 应用、Combat 转发和资源表现，避免逻辑与美术继续争用同一份实现。
+
+- 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
+- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent 和维护 Actor 生命周期。
+- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`，集中敌人 Profile/贴图路径、血条、动画、命中特效、元素光环与死亡残留。
+- 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
+- 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素和 Boss 在途投射物；EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
+- 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
+- 测试：`ReEcho.Enemies.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
+
 ### `AREA-Encounter`：`Encounter`遭遇时钟
 
-**设计意图：** 提供可暂停、确定性的 60 Hz 固定步遭遇时钟与完成信号，让 Recording/Echo/敌人生成共享同一时间语义。
+**设计意图：** 提供可暂停、确定性的 60 Hz 固定步遭遇时钟、表驱动波次门和单一出生解析，让 Recording/Echo/敌人生成共享同一时间语义，同时不让 GameMode 保存刷怪平衡常量。
 
 - 代码：`Source/ReEcho/Public/Encounter/`、`Source/ReEcho/Private/Encounter/`。
-- 首读：`ReEchoEncounterDirector.*`。
-- 权威：本场准备/运行时间、固定步累计与超时完成。
-- 输入：开始、恢复、暂停和 World Tick。
-- 输出：固定步事件、剩余时间和完成委托。
+- 首读：`ReEchoEncounterDirector.*`、`ReEchoEncounterRuntime.*`、`ReEchoEncounterCsvReader.*`。
+- 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只做纯确定性计算；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
+- 输入：开始、恢复、暂停、World Tick、不可变 Encounter/Wave/Spawn 数据、玩家运动样本和录制路径样本。
+- 输出：固定步事件、剩余时间、完成委托、预警/提交事件和确定性出生位置。预警先解析并保存位置，提交必须复用同一位置。
 - 禁止：持有构筑、货币、存档或 Widget 状态。
 
 ### `AREA-Run`：`Run`本局状态与存档

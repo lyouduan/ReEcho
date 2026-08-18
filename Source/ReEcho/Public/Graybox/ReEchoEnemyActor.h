@@ -35,7 +35,10 @@ enum class EReEchoEnemyKind : uint8
 	Grunt,
 	Shield,
 	Bomber,
-	Boss
+	Boss,
+	Slime,
+	Ranged,
+	Elite
 };
 
 /** Lightweight world host composing Enemy logic, Combat adjudication and read-only presentation. */
@@ -53,6 +56,17 @@ public:
 
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
 	bool ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, int32 SpawnIndex);
+
+	void SetEnemyId(FName InEnemyId)
+	{
+		EnemyId = InEnemyId;
+	}
+
+	FName GetEnemyId() const
+	{
+		return EnemyId;
+	}
+
 	void ConfigureGameplayPlane(float InGameplayPlaneWorldZ);
 	void SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster);
 	float ReceiveGrayboxDamage(float Damage,
@@ -133,6 +147,7 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	FName EnemyId = NAME_None;
 	void BindComposedComponents();
 	void RefreshPresentationHierarchy();
 	void RefreshFootRoot();

@@ -11,6 +11,7 @@
 #include "ReEchoCharacterBuildCsvReader.h"
 #include "ReEchoCsvDataReader.h"
 #include "ReEchoElementReactionCsvReader.h"
+#include "ReEchoEncounterCsvReader.h"
 #include "ReEchoEnemyCsvReader.h"
 #include "ReEchoWeaponCsvReader.h"
 
@@ -35,6 +36,11 @@ constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
 constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
 constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
 constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
+constexpr const TCHAR* StagesTableId = TEXT("Stages");
+constexpr const TCHAR* EncountersTableId = TEXT("Encounters");
+constexpr const TCHAR* EncounterWavesTableId = TEXT("EncounterWaves");
+constexpr const TCHAR* SpawnProfilesTableId = TEXT("SpawnProfiles");
+constexpr const TCHAR* SpawnPolicyTableId = TEXT("SpawnPolicy");
 
 constexpr const TCHAR* BehaviorNone = TEXT("None");
 constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
@@ -187,25 +193,12 @@ TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDa
 
 TArray<FString> GetRequiredTableIds()
 {
-	return {RuntimeSmokeTableId,
-	        RuntimeSmokeEffectsTableId,
-	        CharactersTableId,
-	        CharacterAliasesTableId,
-	        CardsTableId,
-	        CardEffectsTableId,
-	        ElementsTableId,
-	        StatusesTableId,
-	        ReactionsTableId,
-	        WeaponTypesTableId,
-	        WeaponsTableId,
-	        AttackStepsTableId,
-	        SlotTypesTableId,
-	        SlotProfilesTableId,
-	        PartsTableId,
-	        PartEffectsTableId,
-	        EnemiesTableId,
-	        EnemyAbilitiesTableId,
-	        BossPhasesTableId};
+	return {RuntimeSmokeTableId, RuntimeSmokeEffectsTableId, CharactersTableId,    CharacterAliasesTableId,
+	        CardsTableId,        CardEffectsTableId,         ElementsTableId,      StatusesTableId,
+	        ReactionsTableId,    WeaponTypesTableId,         WeaponsTableId,       AttackStepsTableId,
+	        SlotTypesTableId,    SlotProfilesTableId,        PartsTableId,         PartEffectsTableId,
+	        EnemiesTableId,      EnemyAbilitiesTableId,      BossPhasesTableId,    StagesTableId,
+	        EncountersTableId,   EncounterWavesTableId,      SpawnProfilesTableId, SpawnPolicyTableId};
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
@@ -481,6 +474,73 @@ const FReEchoCsvEnemyRow* FReEchoCsvDataSnapshot::FindEnabledEnemy(const FName E
 	return Enemy && Enemy->bEnabled ? Enemy : nullptr;
 }
 
+const FReEchoCsvStageRow* FReEchoCsvDataSnapshot::FindStage(const FName StageId) const
+{
+	return Stages.Find(StageId);
+}
+
+const FReEchoCsvEncounterRow* FReEchoCsvDataSnapshot::FindEncounter(const FName EncounterId) const
+{
+	return Encounters.Find(EncounterId);
+}
+
+const FReEchoCsvEncounterRow* FReEchoCsvDataSnapshot::FindEncounterByIndex(const int32 EncounterIndex) const
+{
+	for (const FName EncounterId : EncounterOrder)
+	{
+		const FReEchoCsvEncounterRow* Encounter = Encounters.Find(EncounterId);
+		if (Encounter && Encounter->bEnabled && Encounter->EncounterIndex == EncounterIndex)
+		{
+			return Encounter;
+		}
+	}
+	return nullptr;
+}
+
+TArray<FReEchoCsvEncounterWaveRow> FReEchoCsvDataSnapshot::GetEncounterWaves(const FName EncounterId) const
+{
+	TArray<FReEchoCsvEncounterWaveRow> Result;
+	for (const FName WaveId : EncounterWaveOrder)
+	{
+		const FReEchoCsvEncounterWaveRow* Wave = EncounterWaves.Find(WaveId);
+		if (Wave && Wave->bEnabled && Wave->EncounterId == EncounterId)
+		{
+			Result.Add(*Wave);
+		}
+	}
+	Result.Sort(
+	    [](const FReEchoCsvEncounterWaveRow& Left, const FReEchoCsvEncounterWaveRow& Right)
+	    {
+		    return Left.WaveIndex < Right.WaveIndex;
+	    });
+	return Result;
+}
+
+const FReEchoCsvSpawnProfileRow* FReEchoCsvDataSnapshot::FindSpawnProfileByRole(const FName EnemyRole) const
+{
+	for (const FName ProfileId : SpawnProfileOrder)
+	{
+		const FReEchoCsvSpawnProfileRow* Profile = SpawnProfiles.Find(ProfileId);
+		if (Profile && Profile->bEnabled && Profile->EnemyRole == EnemyRole)
+		{
+			return Profile;
+		}
+	}
+	return nullptr;
+}
+
+const FReEchoCsvSpawnPolicyRow* FReEchoCsvDataSnapshot::FindEnabledSpawnPolicy() const
+{
+	for (const TPair<FName, FReEchoCsvSpawnPolicyRow>& Pair : SpawnPolicies)
+	{
+		if (Pair.Value.bEnabled)
+		{
+			return &Pair.Value;
+		}
+	}
+	return nullptr;
+}
+
 FString FReEchoCsvLoadResult::FormatIssues() const
 {
 	TArray<FString> Lines;
@@ -572,12 +632,17 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterBehaviorId(TEXT("Enemy.Grunt"));
 	RegisterBehaviorId(TEXT("Enemy.Shield"));
 	RegisterBehaviorId(TEXT("Enemy.Bomber"));
+	RegisterBehaviorId(TEXT("Enemy.Slime"));
+	RegisterBehaviorId(TEXT("Enemy.Ranged"));
+	RegisterBehaviorId(TEXT("Enemy.Elite"));
 	RegisterBehaviorId(TEXT("Boss.TimeGuard"));
 	RegisterBehaviorId(TEXT("Boss.MeleeSweep"));
 	RegisterBehaviorId(TEXT("Boss.Projectile"));
 	RegisterBehaviorId(TEXT("Boss.BlinkSlam"));
 	RegisterBehaviorId(TEXT("Boss.PrayerBeam"));
 	RegisterBehaviorId(TEXT("Boss.ElementCleanse"));
+	RegisterBehaviorId(TEXT("Enemy.RangedBurst"));
+	RegisterBehaviorId(TEXT("Enemy.EliteDash"));
 	RegisterEffectKind(TEXT("WeaponDamageChannel"));
 	RegisterEffectKind(TEXT("AttackPatternReplacement"));
 	RegisterEffectKind(TEXT("ParameterizedBehavior"));
@@ -706,6 +771,10 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 	if (Result.Issues.Num() == 0)
 	{
 		ReEchoEnemyCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReEchoEncounterCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
 	}
 	if (Result.Issues.Num() == 0 && MutableSnapshot->RuntimeSmokeRows.Num() == 0)
 	{

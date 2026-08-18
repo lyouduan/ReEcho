@@ -10,6 +10,7 @@ class UReEchoEnemyEventsComponent;
 
 /** Authoritative, presentation-free enemy behavior. The host supplies sense input and applies returned intents. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
+
 class REECHOENEMIES_API UReEchoEnemyLogicComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -27,7 +28,11 @@ public:
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
-	bool IsInitialized() const { return bInitialized; }
+
+	bool IsInitialized() const
+	{
+		return bInitialized;
+	}
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -44,6 +49,8 @@ private:
 	void PublishBossIntent(const FReEchoBossIntent& Intent) const;
 	FReEchoEnemyActionIntent AdvanceHitReaction(float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
+	FReEchoEnemyActionIntent AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
+	const FReEchoEnemyAbilityDefinition* GetSpecialAbility() const;
 	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
 	                          float FixedDeltaSeconds,
 	                          FReEchoEnemyActionIntent& InOutIntent);
@@ -51,15 +58,13 @@ private:
 	void AdvanceBossAbility(const FReEchoEnemySenseSnapshot& Sense,
 	                        float FixedDeltaSeconds,
 	                        FReEchoEnemyActionIntent& InOutIntent);
-	void BeginBossAbility(const FReEchoEnemySenseSnapshot& Sense,
-	                      int32 AbilityIndex,
-	                      FReEchoEnemyActionIntent& InOutIntent);
+	void
+	BeginBossAbility(const FReEchoEnemySenseSnapshot& Sense, int32 AbilityIndex, FReEchoEnemyActionIntent& InOutIntent);
 	void LockBossTarget(const FReEchoEnemySenseSnapshot& Sense);
 	void CommitBossAbility(const FReEchoEnemySenseSnapshot& Sense,
 	                       const FReEchoEnemyAbilityDefinition& Ability,
 	                       FReEchoEnemyActionIntent& InOutIntent);
-	void EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability,
-	                    FReEchoEnemyActionIntent& InOutIntent);
+	void EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability, FReEchoEnemyActionIntent& InOutIntent);
 	void AppendBossIntent(FReEchoBossIntent&& BossIntent, FReEchoEnemyActionIntent& InOutIntent);
 	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense) const;
 	int32 FindBossAbilityIndex(FName AbilityId) const;
@@ -67,8 +72,8 @@ private:
 	void SetBossAbilityCooldown(FName AbilityId, float RemainingSeconds);
 	void ApplyBossHitReaction(float FixedDeltaSeconds, FReEchoEnemyActionIntent& InOutIntent);
 	void ApplyStandardMovement(const FReEchoEnemySenseSnapshot& Sense,
-	                          float DeltaSeconds,
-	                          FReEchoEnemyActionIntent& InOutIntent);
+	                           float DeltaSeconds,
+	                           FReEchoEnemyActionIntent& InOutIntent);
 	bool BuildBossRuntime();
 	void CommitAttack(const FReEchoEnemySenseSnapshot& Sense,
 	                  bool bCanDamageTarget,

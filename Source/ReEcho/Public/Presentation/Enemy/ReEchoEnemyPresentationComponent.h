@@ -125,7 +125,8 @@ private:
 
 	void ApplyVisual(EReEchoEnemyArchetype Archetype, int32 AppearanceId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
-	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile(int32 AppearanceId) const;
+	UReEcho2DCharacterPresentationProfile* ResolveEnemyPresentationProfile(EReEchoEnemyArchetype Archetype,
+	                                                                       int32 AppearanceId) const;
 	void ResetTransientRoot();
 	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateElementAttachmentFacing();

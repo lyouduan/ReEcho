@@ -148,7 +148,8 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 	if (HealthBar)
 	{
 		const UReEcho2DCharacterPresentationProfile* Profile =
-		    Archetype == EReEchoEnemyArchetype::Boss ? nullptr : ResolveEnemyPresentationProfile(AppearanceId);
+		    Archetype == EReEchoEnemyArchetype::Boss ? nullptr
+		                                              : ResolveEnemyPresentationProfile(Archetype, AppearanceId);
 		const float PresentationHeight = Profile ? Profile->WorldHeight : ReEchoEnemyVisual::BossWorldHeight;
 		HealthBar->Initialize(Combatant,
 		                      FLinearColor(1.0f, 0.08f, 0.04f),
@@ -161,7 +162,8 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const EReEchoEnemyAr
 void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype Archetype, const int32 AppearanceId)
 {
 	const bool bIsBoss = Archetype == EReEchoEnemyArchetype::Boss;
-	UReEcho2DCharacterPresentationProfile* Profile = bIsBoss ? nullptr : ResolveEnemyPresentationProfile(AppearanceId);
+	UReEcho2DCharacterPresentationProfile* Profile =
+	    bIsBoss ? nullptr : ResolveEnemyPresentationProfile(Archetype, AppearanceId);
 	if (CharacterSprite)
 	{
 		CharacterSprite->SetVisibility(bIsBoss || !Profile);
@@ -202,8 +204,21 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const EReEchoEnemyArchetype 
 }
 
 UReEcho2DCharacterPresentationProfile*
-UReEchoEnemyPresentationComponent::ResolveEnemyPresentationProfile(const int32 AppearanceId) const
+UReEchoEnemyPresentationComponent::ResolveEnemyPresentationProfile(const EReEchoEnemyArchetype Archetype,
+                                                                   const int32 AppearanceId) const
 {
+	if (Archetype == EReEchoEnemyArchetype::Ranged)
+	{
+		return RabbitDollPresentationProfile ? RabbitDollPresentationProfile : GruntPresentationProfile;
+	}
+	if (Archetype == EReEchoEnemyArchetype::Elite)
+	{
+		return FoxPresentationProfile ? FoxPresentationProfile : GruntPresentationProfile;
+	}
+	if (Archetype == EReEchoEnemyArchetype::Slime)
+	{
+		return GruntPresentationProfile;
+	}
 	switch (FMath::Abs(AppearanceId) % 4)
 	{
 		case 1:

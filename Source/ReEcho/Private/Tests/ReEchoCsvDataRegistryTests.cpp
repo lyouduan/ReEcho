@@ -118,7 +118,7 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestEqual(TEXT("Four enemy definitions come from the independent workbook"), Snapshot->Enemies.Num(), 4);
+	TestEqual(TEXT("Seven enemy definitions include compatibility and Kepler rows"), Snapshot->Enemies.Num(), 7);
 	TestEqual(TEXT("Boss health comes from enemy CSV"), Boss->MaxHealth, 650.0f);
 	TestEqual(TEXT("Boss owns four active abilities plus cleanse"), Boss->Abilities.Num(), 5);
 	TestEqual(TEXT("Boss active rotation begins with melee sweep"),
@@ -126,6 +126,11 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	          FName(TEXT("Boss.MeleeSweep")));
 	TestEqual(TEXT("Boss owns the thirty-second phase"), Boss->BossPhases.Num(), 1);
 	TestEqual(TEXT("Boss phase trigger comes from CSV"), Boss->BossPhases[0].TriggerSeconds, 30.0f);
+	TestNotNull(TEXT("Kepler slime resolves by stable id"), Snapshot->FindEnabledEnemy(TEXT("M_SLIME")));
+	TestNotNull(TEXT("Kepler rabbit resolves by stable id"), Snapshot->FindEnabledEnemy(TEXT("M_RABBIT")));
+	TestNotNull(TEXT("Kepler fox resolves by stable id"), Snapshot->FindEnabledEnemy(TEXT("M_FOX")));
+	TestEqual(TEXT("Eight table-driven encounters load"), Snapshot->Encounters.Num(), 8);
+	TestEqual(TEXT("Encounter one owns three waves"), Snapshot->GetEncounterWaves(TEXT("Encounter.1")).Num(), 3);
 	return true;
 }
 

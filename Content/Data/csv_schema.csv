@@ -274,6 +274,73 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,BossPhases,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,BossPhases,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,BossPhases,Notes,Text,false,,,,,Designer notes.
+1,Stages,Id,StableId,true,,,,,Stable stage id.
+1,Stages,StageIndex,Int,true,1,1000000,,,Deterministic stage order.
+1,Stages,SceneId,StableId,true,,,,Level00,Registered scene id; does not execute a soft path.
+1,Stages,FirstEncounterIndex,Int,true,1,1000000,,,First encounter index in this stage.
+1,Stages,LastEncounterIndex,Int,true,1,1000000,,,Last encounter index in this stage.
+1,Stages,PreserveEnemiesBetweenEncounters,Bool,true,,,,true|false,Whether living enemies persist between encounters in the same stage.
+1,Stages,ClearEnemiesOnEnter,Bool,true,,,,true|false,Whether entering the stage clears the previous roster.
+1,Stages,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Stages,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,Stages,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,Stages,Notes,Text,false,,,,,Designer notes.
+1,Encounters,Id,StableId,true,,,,,Stable encounter id.
+1,Encounters,EncounterIndex,Int,true,1,1000000,,,Deterministic run encounter order.
+1,Encounters,StageId,ForeignKey,true,,,Stages,,References Stages.Id.
+1,Encounters,DurationSeconds,Float,true,0,3600,,,Duration condition time; zero for non-duration encounters.
+1,Encounters,EndCondition,StableId,true,,,,Duration|BossOrPlayerDeath,Typed encounter completion policy.
+1,Encounters,EchoAnchorRatio,PercentDecimal,true,0,1,,,Probability of selecting the latest E1 echo anchor.
+1,Encounters,PlayerAnchorRatio,PercentDecimal,true,0,1,,,Probability of selecting the predicted player anchor.
+1,Encounters,MeleeTargetingPolicy,StableId,true,,,,AllLocked,Typed melee targeting policy.
+1,Encounters,RangedBurstLimit,Int,true,0,1000000,,,Maximum ranged impact commitments in the burst window.
+1,Encounters,RangedBurstWindowSeconds,Float,true,0,3600,,,Ranged burst token window.
+1,Encounters,EliteSkillConcurrency,Int,true,0,1000000,,,Maximum concurrent elite committed skills.
+1,Encounters,ActiveUnitLimit,Int,true,1,1000000,,,Active non-exempt unit cap.
+1,Encounters,BossCountsTowardUnitLimit,Bool,true,,,,true|false,Whether the boss consumes an active unit slot.
+1,Encounters,ReplayPolicy,StableId,true,,,,None|LatestEncounterE1|SelectedOrLatest,Typed replay policy.
+1,Encounters,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,Encounters,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,Encounters,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,Encounters,Notes,Text,false,,,,,Designer notes.
+1,EncounterWaves,Id,StableId,true,,,,,Stable wave id.
+1,EncounterWaves,EncounterId,ForeignKey,true,,,Encounters,,References Encounters.Id.
+1,EncounterWaves,WaveIndex,Int,true,1,1000000,,,Ordered wave index within the encounter.
+1,EncounterWaves,TriggerSeconds,Float,true,0,3600,,,Encounter time when the wave commits.
+1,EncounterWaves,MeleeCount,Int,true,0,1000000,,,Melee enemy count.
+1,EncounterWaves,RangedCount,Int,true,0,1000000,,,Ranged enemy count.
+1,EncounterWaves,EliteCount,Int,true,0,1000000,,,Elite enemy count.
+1,EncounterWaves,BossEnemyId,ForeignKey,false,,,Enemies,,Optional boss enemy spawned by this wave.
+1,EncounterWaves,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,EncounterWaves,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,EncounterWaves,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,EncounterWaves,Notes,Text,false,,,,,Designer notes.
+1,SpawnProfiles,Id,StableId,true,,,,,Stable spawn profile id.
+1,SpawnProfiles,EnemyRole,StableId,true,,,,Melee|Ranged|Elite|BossReinforcement,Typed spawn role.
+1,SpawnProfiles,EnemyId,ForeignKey,true,,,Enemies,,Stable enemy definition spawned for this role.
+1,SpawnProfiles,MinAnchorDistanceCm,Float,true,0,100000,,,Minimum distance from the selected anchor.
+1,SpawnProfiles,MaxAnchorDistanceCm,Float,true,0,100000,,,Maximum distance from the selected anchor.
+1,SpawnProfiles,MinSpacingCm,Float,true,0,100000,,,Minimum same-role spacing; zero when inherited.
+1,SpawnProfiles,WarningLeadSeconds,Float,true,0,3600,,,Warning lead time before spawn commit.
+1,SpawnProfiles,DistributionPolicy,StableId,true,,,,NormalAroundAnchor,Typed candidate distribution policy.
+1,SpawnProfiles,SpacingPolicy,StableId,true,,,,Explicit|UseEnemyRole,Typed spacing source policy.
+1,SpawnProfiles,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,SpawnProfiles,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,SpawnProfiles,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,SpawnProfiles,Notes,Text,false,,,,,Designer notes.
+1,SpawnPolicy,Id,StableId,true,,,,,Stable global spawn policy id.
+1,SpawnPolicy,AnchorLeadSeconds,Float,true,0,3600,,,Prediction lead applied to player and echo anchors.
+1,SpawnPolicy,MinPlayerDistanceCm,Float,true,0,100000,,,Minimum candidate distance from the current player.
+1,SpawnPolicy,MinEchoDistanceCm,Float,true,0,100000,,,Minimum candidate distance from the base echo.
+1,SpawnPolicy,BoundaryPolicy,StableId,true,,,,MirrorInward,Typed arena boundary policy.
+1,SpawnPolicy,CandidatePolicy,StableId,true,,,,DeterministicNormal,Typed deterministic candidate policy.
+1,SpawnPolicy,PlayerPredictionPolicy,StableId,true,,,,LinearVelocity,Typed player prediction policy.
+1,SpawnPolicy,MultiEchoPolicy,StableId,true,,,,LatestEncounterE1,Typed multi-echo anchor policy.
+1,SpawnPolicy,MaxCandidateAttempts,Int,true,1,1000000,,,Bounded candidate attempts per spawn.
+1,SpawnPolicy,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,SpawnPolicy,SourceSheet,Text,true,,,,,Workbook source sheet.
+1,SpawnPolicy,SourceRow,Int,true,0,1000000,,,Workbook source row.
+1,SpawnPolicy,Notes,Text,false,,,,,Designer notes.
 1,AudioEvents,EventId,StableId,true,,,,,Stable semantic audio event id.
 1,AudioEvents,AssetPath,Text,false,,,,,Optional Unreal soft object path; blank is a safe no-op.
 1,AudioEvents,Bus,StableId,true,,,,Music|Ambience|CombatSfx|UiSfx,Audio mix bus; Master is not a catalog bus.

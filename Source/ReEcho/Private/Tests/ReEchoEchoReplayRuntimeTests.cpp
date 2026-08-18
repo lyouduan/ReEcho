@@ -184,7 +184,7 @@ bool FReEchoEchoReplayResolverSpecificMulti::RunTest(const FString& Parameters)
 	return true;
 }
 
-// An unlocked ability with an empty selection keeps automatic replay; stale explicit ids remain atomic failures.
+// An unlocked ability with no explicit selection preserves Plan32's rolling-latest fallback.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoReplayResolverEmptyStale,
                                  "ReEcho.Run.EchoReplayResolver.EmptyStale",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -201,11 +201,15 @@ bool FReEchoEchoReplayResolverEmptyStale::RunTest(const FString& Parameters)
 	Sub->StagePendingRecording(RecB);
 	Sub->StorePendingRecording();
 
-	// Empty selection preserves the current automatic latest-recording fallback.
+	// Empty selection -> one automatic rolling-latest echo until the player explicitly selects stored echoes.
 	(void)Sub->SetSpecificReplayLimit(1);
 	(void)Sub->SetSelectedReplayIds({});
 	const TArray<FReEchoRecording> EmptyResolved = Sub->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
-	TestEqual(TEXT("Empty selection falls back to the latest echo"), EmptyResolved.Num(), 1);
+	TestEqual(TEXT("Empty selection keeps one rolling-latest fallback"), EmptyResolved.Num(), 1);
+	if (EmptyResolved.Num() == 1)
+	{
+		TestEqual(TEXT("Fallback is the latest completed recording"), EmptyResolved[0].Id, RecB.Id);
+	}
 
 	// An invalid/stale GUID is rejected atomically; the previously valid selection is preserved.
 	(void)Sub->SetSpecificReplayLimit(2);

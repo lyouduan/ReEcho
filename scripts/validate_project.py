@@ -72,12 +72,17 @@ REGISTERED_BEHAVIOR_IDS = {
     "Enemy.Grunt",
     "Enemy.Shield",
     "Enemy.Bomber",
+    "Enemy.Slime",
+    "Enemy.Ranged",
+    "Enemy.Elite",
     "Boss.TimeGuard",
     "Boss.MeleeSweep",
     "Boss.Projectile",
     "Boss.BlinkSlam",
     "Boss.PrayerBeam",
     "Boss.ElementCleanse",
+    "Enemy.RangedBurst",
+    "Enemy.EliteDash",
 }
 REGISTERED_EFFECT_KINDS = {
     "ScalarModifier",
@@ -526,6 +531,83 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Notes": CsvColumnSpec("Text", required=False),
     },
+    "Stages": {
+        "Id": CsvColumnSpec("StableId"),
+        "StageIndex": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "SceneId": CsvColumnSpec("StableId"),
+        "FirstEncounterIndex": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "LastEncounterIndex": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "PreserveEnemiesBetweenEncounters": CsvColumnSpec("Bool"),
+        "ClearEnemiesOnEnter": CsvColumnSpec("Bool"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
+    "Encounters": {
+        "Id": CsvColumnSpec("StableId"),
+        "EncounterIndex": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "StageId": CsvColumnSpec("ForeignKey", reference_table="Stages"),
+        "DurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "EndCondition": CsvColumnSpec("StableId"),
+        "EchoAnchorRatio": CsvColumnSpec("PercentDecimal", min_value=0.0, max_value=1.0),
+        "PlayerAnchorRatio": CsvColumnSpec("PercentDecimal", min_value=0.0, max_value=1.0),
+        "MeleeTargetingPolicy": CsvColumnSpec("StableId"),
+        "RangedBurstLimit": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "RangedBurstWindowSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "EliteSkillConcurrency": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "ActiveUnitLimit": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "BossCountsTowardUnitLimit": CsvColumnSpec("Bool"),
+        "ReplayPolicy": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
+    "EncounterWaves": {
+        "Id": CsvColumnSpec("StableId"),
+        "EncounterId": CsvColumnSpec("ForeignKey", reference_table="Encounters"),
+        "WaveIndex": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "TriggerSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "MeleeCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "RangedCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "EliteCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "BossEnemyId": CsvColumnSpec("ForeignKey", required=False, reference_table="Enemies"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
+    "SpawnProfiles": {
+        "Id": CsvColumnSpec("StableId"),
+        "EnemyRole": CsvColumnSpec("StableId"),
+        "EnemyId": CsvColumnSpec("ForeignKey", reference_table="Enemies"),
+        "MinAnchorDistanceCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MaxAnchorDistanceCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MinSpacingCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "WarningLeadSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "DistributionPolicy": CsvColumnSpec("StableId"),
+        "SpacingPolicy": CsvColumnSpec("StableId"),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
+    "SpawnPolicy": {
+        "Id": CsvColumnSpec("StableId"),
+        "AnchorLeadSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "MinPlayerDistanceCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MinEchoDistanceCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "BoundaryPolicy": CsvColumnSpec("StableId"),
+        "CandidatePolicy": CsvColumnSpec("StableId"),
+        "PlayerPredictionPolicy": CsvColumnSpec("StableId"),
+        "MultiEchoPolicy": CsvColumnSpec("StableId"),
+        "MaxCandidateAttempts": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "Enabled": CsvColumnSpec("Bool"),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
+    },
     "AudioEvents": {
         "EventId": CsvColumnSpec("StableId"),
         "AssetPath": CsvColumnSpec("Text", required=False),
@@ -758,12 +840,18 @@ def validate_csv_package(data_dir: Path) -> None:
     references["Enemies"] = validate_table(entries["Enemies"], "Enemies", references)
     references["EnemyAbilities"] = validate_table(entries["EnemyAbilities"], "EnemyAbilities", references)
     references["BossPhases"] = validate_table(entries["BossPhases"], "BossPhases", references)
+    references["Stages"] = validate_table(entries["Stages"], "Stages", references)
+    references["Encounters"] = validate_table(entries["Encounters"], "Encounters", references)
+    references["EncounterWaves"] = validate_table(entries["EncounterWaves"], "EncounterWaves", references)
+    references["SpawnProfiles"] = validate_table(entries["SpawnProfiles"], "SpawnProfiles", references)
+    references["SpawnPolicy"] = validate_table(entries["SpawnPolicy"], "SpawnPolicy", references)
     references["AudioEvents"] = validate_table(entries["AudioEvents"], "AudioEvents", references)
     validate_audio_events_domain(entries)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)
     validate_weapon_domain(data_dir, entries)
     validate_enemy_domain(data_dir, entries)
+    validate_encounter_domain(data_dir, entries)
 
 
 def assemble_fixture_package(fixture_dir: Path, temp_root: Path) -> Path:
@@ -1112,14 +1200,17 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     enemies = load_csv(entries["Enemies"])
     abilities = load_csv(entries["EnemyAbilities"])
     phases = load_csv(entries["BossPhases"])
-    archetypes = {"Grunt", "Shield", "Bomber", "Boss"}
+    archetypes = {"Grunt", "Shield", "Bomber", "Boss", "Slime", "Ranged", "Elite"}
     profiles = {
         "Grunt": "Enemy.Grunt",
         "Shield": "Enemy.Shield",
         "Bomber": "Enemy.Bomber",
         "Boss": "Boss.TimeGuard",
+        "Slime": "Enemy.Slime",
+        "Ranged": "Enemy.Ranged",
+        "Elite": "Enemy.Elite",
     }
-    required_ids = {"M_Grunt", "M_Shield", "M_Bomber", "M_TimeGuard"}
+    required_ids = {"M_Grunt", "M_Shield", "M_Bomber", "M_TimeGuard", "M_SLIME", "M_RABBIT", "M_FOX"}
     enabled_enemies = {row["Id"]: row for row in enemies if row["Enabled"] == "true"}
     if set(enabled_enemies) != required_ids:
         fail(f"{rel(entries['Enemies'])}: enabled enemy ids changed: {sorted(enabled_enemies)}")
@@ -1148,6 +1239,8 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         "Boss.BlinkSlam",
         "Boss.PrayerBeam",
         "Boss.ElementCleanse",
+        "Enemy.RangedBurst",
+        "Enemy.EliteDash",
     }
     active_orders: set[tuple[str, int]] = set()
     active_by_boss: dict[str, int] = {boss_id: 0 for boss_id in boss_ids}
@@ -1155,10 +1248,17 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         line = row["__line__"]
         owner = row["OwnerEnemyId"]
         behavior = row["BehaviorId"]
-        if owner not in boss_ids:
-            fail(f"{rel(entries['EnemyAbilities'])}:{line}:OwnerEnemyId: abilities require an enabled boss owner")
+        owner_enemy = enabled_enemies.get(owner)
+        if owner_enemy is None:
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:OwnerEnemyId: abilities require an enabled enemy owner")
         if behavior not in allowed_behaviors:
-            fail(f"{rel(entries['EnemyAbilities'])}:{line}:BehaviorId: unsupported boss behavior {behavior!r}")
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:BehaviorId: unsupported enemy behavior {behavior!r}")
+        if behavior.startswith("Boss.") and owner not in boss_ids:
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:OwnerEnemyId: Boss behavior requires a Boss owner")
+        if behavior == "Enemy.RangedBurst" and owner_enemy["Archetype"] != "Ranged":
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:OwnerEnemyId: RangedBurst requires a Ranged owner")
+        if behavior == "Enemy.EliteDash" and owner_enemy["Archetype"] != "Elite":
+            fail(f"{rel(entries['EnemyAbilities'])}:{line}:OwnerEnemyId: EliteDash requires an Elite owner")
         if float(row["MinRangeCm"]) > float(row["MaxRangeCm"]):
             fail(f"{rel(entries['EnemyAbilities'])}:{line}:MinRangeCm: cannot exceed MaxRangeCm")
         enabled = row["Enabled"] == "true"
@@ -1182,7 +1282,7 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
             if key in active_orders:
                 fail(f"{rel(entries['EnemyAbilities'])}:{line}:SequenceOrder: duplicate owner/order {key}")
             active_orders.add(key)
-            if enabled:
+            if enabled and owner in active_by_boss:
                 active_by_boss[owner] += 1
             if float(row["CleanseIntervalSeconds"]) != 0.0 or float(row["ImmunitySeconds"]) != 0.0:
                 fail(f"{rel(entries['EnemyAbilities'])}:{line}:CleanseIntervalSeconds: active abilities must use explicit zero")
@@ -1208,6 +1308,116 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
             fail(f"{rel(entries['BossPhases'])}:{line}:EchoPolicy: unsupported policy {row['EchoPolicy']!r}")
         if row["RefillHealthPolicy"] != "None":
             fail(f"{rel(entries['BossPhases'])}:{line}:RefillHealthPolicy: first release must not refill health")
+
+
+def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
+    stages = load_csv(entries["Stages"])
+    encounters = load_csv(entries["Encounters"])
+    waves = load_csv(entries["EncounterWaves"])
+    profiles = load_csv(entries["SpawnProfiles"])
+    policies = load_csv(entries["SpawnPolicy"])
+
+    enabled_stages = [row for row in stages if row["Enabled"] == "true"]
+    if [int(row["StageIndex"]) for row in enabled_stages] != [1, 2, 3, 4]:
+        fail(f"{rel(entries['Stages'])}: enabled StageIndex values must be exactly 1..4 in file order")
+    expected_stage_ranges = [(1, 2), (3, 5), (6, 7), (8, 8)]
+    stage_ranges: dict[str, tuple[int, int]] = {}
+    for row, expected_range in zip(enabled_stages, expected_stage_ranges, strict=True):
+        line = row["__line__"]
+        actual_range = (int(row["FirstEncounterIndex"]), int(row["LastEncounterIndex"]))
+        if actual_range != expected_range:
+            fail(f"{rel(entries['Stages'])}:{line}:FirstEncounterIndex: expected stage range {expected_range}, got {actual_range}")
+        if row["SceneId"] != "Level00":
+            fail(f"{rel(entries['Stages'])}:{line}:SceneId: first release only registers Level00")
+        if row["ClearEnemiesOnEnter"] != "true":
+            fail(f"{rel(entries['Stages'])}:{line}:ClearEnemiesOnEnter: stage entry must clear the previous roster")
+        should_preserve = int(row["StageIndex"]) < 4
+        if (row["PreserveEnemiesBetweenEncounters"] == "true") != should_preserve:
+            fail(f"{rel(entries['Stages'])}:{line}:PreserveEnemiesBetweenEncounters: only stages 1..3 preserve enemies")
+        stage_ranges[row["Id"]] = actual_range
+
+    enabled_encounters = [row for row in encounters if row["Enabled"] == "true"]
+    if [int(row["EncounterIndex"]) for row in enabled_encounters] != list(range(1, 9)):
+        fail(f"{rel(entries['Encounters'])}: enabled EncounterIndex values must be exactly 1..8 in file order")
+    encounter_by_id = {row["Id"]: row for row in enabled_encounters}
+    for row in enabled_encounters:
+        line = row["__line__"]
+        encounter_index = int(row["EncounterIndex"])
+        stage_range = stage_ranges[row["StageId"]]
+        if not stage_range[0] <= encounter_index <= stage_range[1]:
+            fail(f"{rel(entries['Encounters'])}:{line}:StageId: encounter index is outside its stage range")
+        ratio_sum = float(row["EchoAnchorRatio"]) + float(row["PlayerAnchorRatio"])
+        if abs(ratio_sum - 1.0) > 1e-6:
+            fail(f"{rel(entries['Encounters'])}:{line}:EchoAnchorRatio: anchor ratios must sum to 1")
+        if row["MeleeTargetingPolicy"] != "AllLocked":
+            fail(f"{rel(entries['Encounters'])}:{line}:MeleeTargetingPolicy: unsupported policy {row['MeleeTargetingPolicy']!r}")
+        if float(row["RangedBurstWindowSeconds"]) <= 0.0:
+            fail(f"{rel(entries['Encounters'])}:{line}:RangedBurstWindowSeconds: must be positive")
+        if encounter_index < 8:
+            if row["EndCondition"] != "Duration" or float(row["DurationSeconds"]) != 30.0:
+                fail(f"{rel(entries['Encounters'])}:{line}:EndCondition: encounters 1..7 require Duration=30 seconds")
+            if row["BossCountsTowardUnitLimit"] != "true":
+                fail(f"{rel(entries['Encounters'])}:{line}:BossCountsTowardUnitLimit: normal encounters use the standard cap")
+        else:
+            if row["EndCondition"] != "BossOrPlayerDeath" or float(row["DurationSeconds"]) != 0.0:
+                fail(f"{rel(entries['Encounters'])}:{line}:EndCondition: encounter 8 must use BossOrPlayerDeath with zero duration")
+            if row["BossCountsTowardUnitLimit"] != "false":
+                fail(f"{rel(entries['Encounters'])}:{line}:BossCountsTowardUnitLimit: boss is additional to the reinforcement cap")
+
+    waves_by_encounter: dict[str, list[dict[str, str]]] = {}
+    for row in waves:
+        if row["Enabled"] == "true":
+            waves_by_encounter.setdefault(row["EncounterId"], []).append(row)
+    if set(waves_by_encounter) != set(encounter_by_id):
+        fail(f"{rel(entries['EncounterWaves'])}: every enabled encounter must own at least one enabled wave")
+    for encounter_index in range(1, 8):
+        encounter_id = f"Encounter.{encounter_index}"
+        encounter_waves = waves_by_encounter[encounter_id]
+        indexes = [int(row["WaveIndex"]) for row in encounter_waves]
+        triggers = [float(row["TriggerSeconds"]) for row in encounter_waves]
+        if indexes != [1, 2, 3] or triggers != [0.0, 10.0, 20.0]:
+            line = encounter_waves[0]["__line__"]
+            fail(f"{rel(entries['EncounterWaves'])}:{line}:WaveIndex: encounters 1..7 require waves 1..3 at 0/10/20 seconds")
+        if any(row["BossEnemyId"] for row in encounter_waves):
+            line = encounter_waves[0]["__line__"]
+            fail(f"{rel(entries['EncounterWaves'])}:{line}:BossEnemyId: normal encounters cannot spawn a boss")
+        if encounter_index <= 2 and any(int(row["EliteCount"]) != 0 for row in encounter_waves):
+            line = encounter_waves[0]["__line__"]
+            fail(f"{rel(entries['EncounterWaves'])}:{line}:EliteCount: encounters 1 and 2 cannot spawn elites")
+
+    boss_waves = waves_by_encounter["Encounter.8"]
+    if len(boss_waves) != 1 or int(boss_waves[0]["WaveIndex"]) != 1 or float(boss_waves[0]["TriggerSeconds"]) != 0.0:
+        fail(f"{rel(entries['EncounterWaves'])}: encounter 8 requires one boss wave at zero seconds")
+    if boss_waves[0]["BossEnemyId"] != "M_TimeGuard":
+        fail(f"{rel(entries['EncounterWaves'])}:{boss_waves[0]['__line__']}:BossEnemyId: must preserve stable boss id M_TimeGuard")
+
+    enabled_profiles = {row["EnemyRole"]: row for row in profiles if row["Enabled"] == "true"}
+    expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement"}
+    if set(enabled_profiles) != expected_roles:
+        fail(f"{rel(entries['SpawnProfiles'])}: enabled roles must be {sorted(expected_roles)}")
+    for role, row in enabled_profiles.items():
+        line = row["__line__"]
+        if float(row["MinAnchorDistanceCm"]) > float(row["MaxAnchorDistanceCm"]):
+            fail(f"{rel(entries['SpawnProfiles'])}:{line}:MinAnchorDistanceCm: cannot exceed MaxAnchorDistanceCm")
+        if row["DistributionPolicy"] != "NormalAroundAnchor":
+            fail(f"{rel(entries['SpawnProfiles'])}:{line}:DistributionPolicy: unsupported policy")
+        expected_spacing = "UseEnemyRole" if role == "BossReinforcement" else "Explicit"
+        if row["SpacingPolicy"] != expected_spacing:
+            fail(f"{rel(entries['SpawnProfiles'])}:{line}:SpacingPolicy: expected {expected_spacing} for {role}")
+
+    enabled_policies = [row for row in policies if row["Enabled"] == "true"]
+    if len(enabled_policies) != 1 or enabled_policies[0]["Id"] != "SpawnPolicy.Default":
+        fail(f"{rel(entries['SpawnPolicy'])}: exactly one enabled SpawnPolicy.Default row is required")
+    policy = enabled_policies[0]
+    allowed_values = {
+        "BoundaryPolicy": "MirrorInward",
+        "CandidatePolicy": "DeterministicNormal",
+        "PlayerPredictionPolicy": "LinearVelocity",
+        "MultiEchoPolicy": "LatestEncounterE1",
+    }
+    for column, expected in allowed_values.items():
+        if policy[column] != expected:
+            fail(f"{rel(entries['SpawnPolicy'])}:{policy['__line__']}:{column}: expected {expected}")
 
 
 def expect_fixture_failure(name: str, token: str) -> None:
