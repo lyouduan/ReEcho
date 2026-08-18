@@ -44,7 +44,10 @@ enum class EReEchoEnemyKind : uint8
 /** Lightweight world host composing Enemy logic, Combat adjudication and read-only presentation. */
 UCLASS()
 
-class REECHO_API AReEchoEnemyActor : public AActor, public IAbilitySystemInterface, public IReEchoCombatTarget
+class REECHO_API AReEchoEnemyActor : public AActor,
+                                     public IAbilitySystemInterface,
+                                     public IReEchoCombatTarget,
+                                     public IReEchoCombatAffiliation
 {
 	GENERATED_BODY()
 
@@ -121,6 +124,16 @@ public:
 	virtual UReEchoCombatantComponent* GetCombatTargetCombatant() const override
 	{
 		return Combatant;
+	}
+
+	virtual EReEchoCombatFaction GetCombatFaction() const override
+	{
+		return EReEchoCombatFaction::EnemySide;
+	}
+
+	virtual EReEchoDamageSource GetCombatDamageSource() const override
+	{
+		return EReEchoDamageSource::Enemy;
 	}
 
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;

@@ -43,7 +43,7 @@ TArray<FVector> ReEchoWeaponGeometry::BuildProjectileDirections(const FVector& F
 }
 
 TArray<AActor*> ReEchoWeaponGeometry::FindMeleeTargets(UWorld& World,
-                                                       AActor* Source,
+                                                       const FReEchoAttackIdentity& Attack,
                                                        const FVector& Origin,
                                                        const FVector& Forward,
                                                        const float RangeCm,
@@ -54,7 +54,7 @@ TArray<AActor*> ReEchoWeaponGeometry::FindMeleeTargets(UWorld& World,
 	{
 		AActor* Candidate = *It;
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
-		if (!Target || Candidate == Source || !Target->IsCombatTargetAlive() ||
+		if (!Target || !Target->IsCombatTargetAlive() || !ReEchoCombatRelations::CanDamage(Attack, *Candidate) ||
 		    !IsInsideMeleeArc(Origin, Forward, Target->GetCombatTargetLocation(), RangeCm, ArcDegrees))
 		{
 			continue;

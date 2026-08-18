@@ -28,7 +28,8 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 
 	IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Intent.Target);
 	UReEchoCombatantComponent* TargetCombatant = Target ? Target->GetCombatTargetCombatant() : nullptr;
-	if (!Target || !TargetCombatant || !Target->IsCombatTargetAlive() || Intent.RawDamage <= 0.0f)
+	if (!Target || !TargetCombatant || !Target->IsCombatTargetAlive() || Intent.RawDamage <= 0.0f ||
+	    !ReEchoCombatRelations::CanDamage(Intent.Attack, *Intent.Target, Intent.bAllowSameFactionDamage))
 	{
 		Result.bBlocked = true;
 		return Result;

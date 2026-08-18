@@ -1,5 +1,7 @@
 #include "Enemies/ReEchoEnemyLogicComponent.h"
 
+#include "Combat/ReEchoCombatTarget.h"
+
 #include "Combat/ReEchoCombatContracts.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "GameFramework/Actor.h"
@@ -659,6 +661,7 @@ void UReEchoEnemyLogicComponent::BeginBossAbility(const FReEchoEnemySenseSnapsho
 	BossIntent.AbilityId = Ability.Id;
 	BossIntent.BehaviorId = Ability.BehaviorId;
 	BossIntent.Attack.Source = GetOwner();
+	BossIntent.Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
 	BossIntent.Attack.Sequence = State.BossCurrentAttackSequence;
 	BossIntent.Target = Sense.Target;
 	BossIntent.Origin = Sense.SelfLocation;
@@ -707,6 +710,7 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	BossIntent.AbilityId = Ability.Id;
 	BossIntent.BehaviorId = Ability.BehaviorId;
 	BossIntent.Attack.Source = GetOwner();
+	BossIntent.Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
 	BossIntent.Attack.Sequence = State.BossCurrentAttackSequence;
 	BossIntent.Target = Sense.Target;
 	BossIntent.Origin =
@@ -755,6 +759,7 @@ void UReEchoEnemyLogicComponent::EndBossAbility(const FReEchoEnemyAbilityDefinit
 	BossIntent.AbilityId = Ability.Id;
 	BossIntent.BehaviorId = Ability.BehaviorId;
 	BossIntent.Attack.Source = GetOwner();
+	BossIntent.Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
 	BossIntent.Attack.Sequence = State.BossCurrentAttackSequence;
 	BossIntent.LockedTargetLocation = State.BossLockedTargetLocation;
 	BossIntent.LockedDirection = State.BossLockedDirection;
@@ -899,6 +904,7 @@ void UReEchoEnemyLogicComponent::CommitAttack(const FReEchoEnemySenseSnapshot& S
                                               FReEchoEnemyActionIntent& InOutIntent)
 {
 	InOutIntent.Attack.Source = GetOwner();
+	InOutIntent.Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
 	InOutIntent.Attack.Sequence = ++State.AttackSequence;
 	InOutIntent.Target = Sense.Target;
 	InOutIntent.RawDamage = Definition.ContactDamage;

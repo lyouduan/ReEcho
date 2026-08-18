@@ -41,6 +41,7 @@
 | 自动/手动模式、held 请求、当前目标 | `UReEchoAttackControllerComponent` / `UReEchoTargetingComponent` | 命令入口与 `FReEchoAttackSnapshot` |
 | 元素规则集 | `ReEchoElementRuntime` 发布的不可变 `FReEchoElementRuleSet` | 主模块一次编译发布；Combat 只读 |
 | 一次攻击的关联身份 | `FReEchoAttackIdentity` 值对象 | 全链按值传递，不由调用者拆分比较 |
+| 阵营与可伤害关系 | `EReEchoCombatFaction`、`IReEchoCombatAffiliation`、`ReEchoCombatRelations` | Source 提交时快照阵营；候选层与 Resolver 共用同一判定 |
 | 最终伤害、格挡、命中、击杀、死亡结果 | `ReEchoHitResolver` | `FReEchoHitResolved` 与 `UReEchoCombatEventsComponent` |
 
 Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为可写真相。
@@ -73,6 +74,12 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 
 身份相等使用对象索引/序列语义和 CommitId，不使用消息对象地址。消息和值对象可能被复制、序列化或跨帧保存，指针不能作为稳定业务身份。
 
+### 阵营与友方伤害
+
+玩家和回响显式实现 `IReEchoCombatAffiliation` 并返回 `PlayerSide`，EnemyHost 返回 `EnemySide`。武器或敌人提交攻击时把来源阵营快照进 `FReEchoAttackIdentity::SourceFaction`，所以延迟投射物在来源销毁后仍能稳定判断关系。`ReEchoCombatRelations::CanDamage` 是唯一关系规则：Weapons 在候选阶段调用它，避免友方碰撞提前消费攻击载体；HitResolver 在最终结算前再次调用，防止未来载体漏筛。未迁移的 `Unaligned` 来源保持兼容放行，但正式玩家、回响和敌人宿主必须显式声明阵营。
+
+阵营与 `EReEchoDamageSource` 分工不同：阵营决定能否伤害，DamageSource 用于事件归因。回响武器必须发布 `Echo`，不能沿用 `Player`。同阵营伤害默认禁止；敌人自毁等真实例外只能在单次 `FReEchoHitIntent::bAllowSameFactionDamage` 上显式声明，禁止在 Resolver 外按 Actor 类型写特判。
+
 ## 依赖方向
 
 ```text
@@ -104,6 +111,7 @@ Combat 管理“是否持续请求”，Weapons 管理“何时可提交”。�
 
 ```text
 Weapons/接触攻击产生 HitIntent
+  → ReEchoCombatRelations 最终校验来源/目标阵营
   → ReEchoHitResolver::ResolveHit
   → Target 接口修正原始输入（如格挡）
   → 物理/元素规则更新 Combatant 唯一状态

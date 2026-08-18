@@ -158,6 +158,7 @@ Combat OnDeath
 ## 不变量与常见错误
 
 - Enemies 拥有行为，Combat 拥有伤害/生命/元素，Host 拥有世界 Transform，Presentation 拥有可见反馈；任何一方不得复制另一方的可写真相。
+- EnemyHost 显式声明 `EnemySide`，攻击身份在提交时快照该阵营；敌人不得在自身 Logic 中复制玩家/回响类型判断。Bomber 自毁通过单次 HitIntent 的 `bAllowSameFactionDamage` 明确放行自身伤害，不能为此全局开启敌人互伤。
 - Host 必须显式注入 Sense 和事件组件；组件内部 `FindComponentByClass` 会重新引入隐式装配和悬空 Actor 风险。
 - 同一步可以同时产生移动和攻击；提交攻击不得用新空对象覆盖已计算的移动/朝向意图。
 - Bomber Fuse 到期只提交一次；等待 Host/Combat 销毁的间隙不能再次爆炸。

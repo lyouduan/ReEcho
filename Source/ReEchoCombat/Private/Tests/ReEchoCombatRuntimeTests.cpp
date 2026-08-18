@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoElementRuntime.h"
 #include "GameFramework/Actor.h"
@@ -162,6 +163,29 @@ bool FReEchoAttackIdentitySourceLifetimeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Identity comparison remains stable after source destruction"), Identity == IdentityCopy);
 	TestFalse(TEXT("Destroyed source is unavailable for optional feedback"), Identity.HasLiveSource());
 	TestNull(TEXT("Destroyed source cannot be dereferenced by delayed hit resolution"), Identity.Source.Get());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatFactionRelationsTest,
+                                 "ReEcho.Combat.FactionRelations",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCombatFactionRelationsTest::RunTest(const FString& Parameters)
+{
+	using namespace ReEchoCombatRelations;
+
+	TestFalse(TEXT("Player-side attacks cannot damage player-side targets"),
+	          CanDamage(EReEchoCombatFaction::PlayerSide, EReEchoCombatFaction::PlayerSide));
+	TestTrue(TEXT("Player-side attacks can damage enemy-side targets"),
+	         CanDamage(EReEchoCombatFaction::PlayerSide, EReEchoCombatFaction::EnemySide));
+	TestFalse(TEXT("Enemy-side attacks cannot damage enemy-side targets"),
+	          CanDamage(EReEchoCombatFaction::EnemySide, EReEchoCombatFaction::EnemySide));
+	TestTrue(TEXT("Enemy-side attacks can damage player-side targets"),
+	         CanDamage(EReEchoCombatFaction::EnemySide, EReEchoCombatFaction::PlayerSide));
+	TestTrue(TEXT("Authored same-faction damage exceptions remain possible"),
+	         CanDamage(EReEchoCombatFaction::EnemySide, EReEchoCombatFaction::EnemySide, true));
+	TestTrue(TEXT("Unaligned legacy callers retain compatibility"),
+	         CanDamage(EReEchoCombatFaction::Unaligned, EReEchoCombatFaction::PlayerSide));
 	return true;
 }
 

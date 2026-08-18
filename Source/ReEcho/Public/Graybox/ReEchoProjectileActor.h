@@ -27,7 +27,8 @@ public:
 	                          float InReactionEfficiency = 1.0f,
 	                          float InExplosionRadiusCm = 0.0f,
 	                          float InMaxRangeCm = 0.0f,
-	                          FReEchoAttackIdentity InAttack = {});
+	                          FReEchoAttackIdentity InAttack = {},
+	                          EReEchoDamageSource InDamageSourceType = EReEchoDamageSource::Player);
 
 	float GetDamage() const
 	{
