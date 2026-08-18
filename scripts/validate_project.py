@@ -906,8 +906,17 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
     cards = load_csv(entries["Cards"])
     effects = load_csv(entries["CardEffects"])
     enabled_characters = {row["Id"] for row in characters if row["Enabled"] == "true"}
-    if {"J_CAT", "J_SPADE", "J_DIAMOND", "J_CLOVER", "J_HEART"} - enabled_characters:
-        fail(f"{rel(entries['Characters'])}: current playable character ids must remain enabled")
+    expected_characters = {"J_SPADE", "J_DIAMOND", "J_CLOVER", "J_HEART"}
+    if expected_characters - enabled_characters:
+        fail(
+            f"{rel(entries['Characters'])}: production playable character ids must include "
+            f"{sorted(expected_characters)}"
+        )
+    if data_dir.resolve() == DATA.resolve() and enabled_characters != expected_characters:
+        fail(
+            f"{rel(entries['Characters'])}: production playable character ids must be exactly "
+            f"{sorted(expected_characters)}"
+        )
     for row in characters:
         if row["Enabled"] == "false" and not row["DisabledReason"]:
             fail(f"{rel(entries['Characters'])}:{row['__line__']}: disabled character requires DisabledReason")
@@ -1997,6 +2006,34 @@ def validate_build_dependencies() -> None:
     build_cs = (ROOT / "Source" / "ReEcho" / "ReEcho.Build.cs").read_text(encoding="utf-8")
     if '"ReEchoEnemies"' not in build_cs:
         fail("ReEcho host module must depend on ReEchoEnemies for EnemyHost composition")
+    if '"ReEchoPresentation"' not in build_cs:
+        fail("ReEcho host module must depend on ReEchoPresentation for 2D presentation composition")
+
+    presentation_root = ROOT / "Source" / "ReEchoPresentation"
+    presentation_build_path = presentation_root / "ReEchoPresentation.Build.cs"
+    if not presentation_build_path.is_file():
+        fail("missing ReEchoPresentation runtime module")
+    presentation_build = presentation_build_path.read_text(encoding="utf-8")
+    for required_module in ("Core", "CoreUObject", "Engine", "GameplayTags", "Paper2D"):
+        if f'"{required_module}"' not in presentation_build:
+            fail(f"ReEchoPresentation must depend on {required_module}")
+    for forbidden_module in ("ReEcho", "ReEchoEnemies", "ReEchoCombat", "ReEchoWeapons"):
+        if re.search(rf'"{re.escape(forbidden_module)}"', presentation_build):
+            fail(f"ReEchoPresentation must not depend on {forbidden_module}")
+    for source_path in presentation_root.rglob("*"):
+        if source_path.suffix not in {".h", ".cpp"}:
+            continue
+        source_text = source_path.read_text(encoding="utf-8")
+        for forbidden_token in ("AReEchoEnemyActor", "AReEchoPlayerPawn", "AReEchoGameMode"):
+            if forbidden_token in source_text:
+                fail(f"{rel(source_path)} has forbidden gameplay host dependency: {forbidden_token}")
+
+    descriptor = load_json(ROOT / "ReEcho.uproject")
+    presentation_modules = [
+        module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoPresentation"
+    ]
+    if len(presentation_modules) != 1 or presentation_modules[0].get("Type") != "Runtime":
+        fail("ReEcho.uproject must declare exactly one ReEchoPresentation Runtime module")
     for file_name in (
         "reecho_data_manifest.csv",
         "csv_schema.csv",

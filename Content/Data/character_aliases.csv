@@ -1,6 +1,7 @@
 Id,CanonicalCharacterId,Reason
-J01,J_CAT,Legacy BuildSnapshot default before canonical runtime ids.
+J01,J_SPADE,Legacy BuildSnapshot ids J01/J_CAT migrate to retained Sage character.
 J_01,J_SPADE,Workbook Sage id approved by Plan 18 notes.
 J_02,J_DIAMOND,Workbook Hunter id approved by Plan 18 notes.
 J_03,J_CLOVER,Workbook Poet id approved by Plan 18 notes.
 J_04,J_HEART,Workbook Brave id approved by Plan 18 notes.
+J_CAT,J_SPADE,Legacy removed character id migrates to retained Sage character.

@@ -39,7 +39,7 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	RunSubsystem->BeginEncounter();
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 
@@ -65,7 +65,7 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_2_16"));
 	RunSubsystem->TimeShards = 50;
 	const float InitialHpMax = RunSubsystem->CurrentBuild.Stats.HpMax;
@@ -108,7 +108,7 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_05"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_05"));
 	RunSubsystem->TimeShards = 100;
 
 	const FReEchoWeaponPartShopView InitialView = RunSubsystem->GetWeaponPartShopView();

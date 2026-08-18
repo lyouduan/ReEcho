@@ -106,6 +106,7 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		    TEXT("Enemy '%s' has unsupported archetype '%s'."), *EnemyId.ToString(), *Row->Archetype.ToString());
 		return false;
 	}
+	OutDefinition.PresentationId = Row->PresentationId;
 	OutDefinition.MaxHealth = Row->MaxHealth;
 	OutDefinition.MoveSpeedCmPerSecond = Row->MoveSpeedCmPerSecond;
 	OutDefinition.CollisionRadiusCm = Row->CollisionRadiusCm;

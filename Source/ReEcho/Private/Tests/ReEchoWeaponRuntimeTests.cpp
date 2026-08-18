@@ -112,7 +112,7 @@ void SetBuildStats(FReEchoBuildSnapshot& Build, const FReEchoStatBlock& Stats)
 FReEchoBuildSnapshot MakeBuild(const FReEchoCsvDataSnapshot& Snapshot, const FName WeaponId)
 {
 	FReEchoStartRunResolveResult Result =
-	    ReEchoRunData::ResolveStartingBuildFromSnapshot(&Snapshot, TEXT("J_CAT"), WeaponId);
+	    ReEchoRunData::ResolveStartingBuildFromSnapshot(&Snapshot, TEXT("J_SPADE"), WeaponId);
 	check(Result.bSuccess);
 	return Result.Build;
 }
@@ -442,15 +442,16 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponPlayerAimDirectionTest,
-	                             "ReEcho.Weapons.PlayerLogicalAimDrivesProjectile",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Weapons.PlayerLogicalAimDrivesProjectile",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	FReEchoWeaponWorldFixture Fixture;
-	AReEchoPlayerPawn* Player = Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector::ZeroVector, FRotator::ZeroRotator);
+	AReEchoPlayerPawn* Player =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector::ZeroVector, FRotator::ZeroRotator);
 	AActor* AimTarget = Fixture.World->SpawnActor<AActor>();
 	if (!TestNotNull(TEXT("Player spawns"), Player) || !TestNotNull(TEXT("Aim target spawns"), AimTarget))
 	{
@@ -497,8 +498,8 @@ bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponEchoFriendlyFireTest,
-	                             "ReEcho.Weapons.EchoAttacksIgnorePlayerSide",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Weapons.EchoAttacksIgnorePlayerSide",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoWeaponEchoFriendlyFireTest::RunTest(const FString& Parameters)
 {
@@ -512,7 +513,8 @@ bool FReEchoWeaponEchoFriendlyFireTest::RunTest(const FString& Parameters)
 		Recording.Positions.Add({0.0f, FVector::ZeroVector});
 		Recording.Positions.Add({1.0f, FVector::ZeroVector});
 		Recording.Duration = 1.0f;
-		AReEchoEchoActor* Echo = Fixture.World->SpawnActor<AReEchoEchoActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+		AReEchoEchoActor* Echo =
+		    Fixture.World->SpawnActor<AReEchoEchoActor>(FVector::ZeroVector, FRotator::ZeroRotator);
 		return Echo && Echo->InitializeEcho(Recording, 1.0f, Snapshot) ? Echo : nullptr;
 	};
 	auto InitializePlayer = [](AReEchoPlayerPawn& Player)
@@ -632,7 +634,7 @@ bool FReEchoWeaponLockAndPersistenceTest::RunTest(const FString& Parameters)
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_05"));
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_05"));
 	FString Error;
 	TestTrue(TEXT("Run equips compatible core and Dagger-only grip"),
 	         Run->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_DAGGER_STRENGTH_GRIP")}, Error));
@@ -687,7 +689,7 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	const TSharedPtr<const FReEchoCsvDataSnapshot> OldSnapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_06"));
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_06"));
 	const FString OldRevision = Run->CurrentBuild.WeaponDomainRevision;
 	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
 

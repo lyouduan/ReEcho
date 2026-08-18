@@ -26,6 +26,8 @@ class UReEchoWeatherWidget;
 class UReEchoEchoManagementWidget;
 class UReEchoStoredEchoEntryWidget;
 class UReEchoEnemyRosterComponent;
+class UReEcho2DPresentationCatalog;
+class UReEchoEnemyGameplayClassRegistry;
 class UReEchoAudioService;
 class UMaterialInterface;
 class UTexture2D;
@@ -86,13 +88,9 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 	UPROPERTY()
-	TSubclassOf<AReEchoEnemyActor> GruntEnemyClass;
+	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
 	UPROPERTY()
-	TSubclassOf<AReEchoEnemyActor> RabbitEnemyClass;
-	UPROPERTY()
-	TSubclassOf<AReEchoEnemyActor> GoatEnemyClass;
-	UPROPERTY()
-	TSubclassOf<AReEchoEnemyActor> FoxEnemyClass;
+	TObjectPtr<UReEchoEnemyGameplayClassRegistry> EnemyGameplayClassRegistry;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()
@@ -243,7 +241,7 @@ private:
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	void ResumeSavedEncounter();
-	TSubclassOf<AReEchoEnemyActor> ResolveEnemyClass(EReEchoEnemyArchetype Archetype, int32 VisualVariantIndex) const;
+	TSubclassOf<AReEchoEnemyActor> ResolveEnemyClass(FName PresentationId) const;
 	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;
 	bool ConfigureEncounterSpawns(int32 EncounterIndex);
 	void ProcessScheduledSpawnEvents(float EncounterSeconds);

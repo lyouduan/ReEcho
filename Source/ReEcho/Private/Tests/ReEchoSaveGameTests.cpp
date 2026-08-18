@@ -15,7 +15,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
-	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	Source->TimeShards = 45;
 	Source->InventoryItems.Add(TEXT("SHOP_OLD_COIN"));
 	Source->OwnedPartIds.Add(TEXT("P_CORE_FLAME"));
@@ -48,7 +48,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
-	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_CAT")));
+	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
 	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_02")));
 	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 1);
 	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
@@ -189,6 +189,52 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV10CharacterIdentityMigrationTest,
+                                 "ReEcho.Run.SaveV10CharacterIdentityMigratesAcrossSnapshots",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoV10CharacterIdentityMigrationTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
+	LegacySave->SaveVersion = 10;
+
+	auto MakeLegacyRecording = [Source](const FName LegacyCharacterId)
+	{
+		FReEchoRecording Recording;
+		Recording.Id = FGuid::NewGuid();
+		Recording.BuildSnapshot = Source->CurrentBuild;
+		Recording.BuildSnapshot.CharacterId = LegacyCharacterId;
+		Recording.BuildSnapshot.RuleFlags.Add(TEXT("BaseCharacterId"), LegacyCharacterId.ToString());
+		return Recording;
+	};
+
+	LegacySave->CurrentBuild.CharacterId = TEXT("J_CAT");
+	LegacySave->CurrentBuild.RuleFlags.Add(TEXT("BaseCharacterId"), TEXT("J_CAT"));
+	LegacySave->bHasPendingRecording = true;
+	LegacySave->PendingRecording = MakeLegacyRecording(TEXT("J_CAT"));
+	LegacySave->bHasLatestCompletedRecording = true;
+	LegacySave->LatestCompletedRecording = MakeLegacyRecording(TEXT("J01"));
+	LegacySave->bHasPreviousCompletedRecording = true;
+	LegacySave->PreviousCompletedRecording = MakeLegacyRecording(TEXT("J_CAT"));
+	LegacySave->StoredEchoes = {MakeLegacyRecording(TEXT("J01"))};
+	LegacySave->EncounterRuntimeState.bValid = true;
+	LegacySave->EncounterRuntimeState.ActiveRecording = MakeLegacyRecording(TEXT("J_CAT"));
+
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	TestTrue(TEXT("v10 save migrates every nested legacy character identity"),
+	         Restored->RestoreSaveSnapshot(*LegacySave));
+	TestEqual(
+	    TEXT("Current build migrates J_CAT to J_SPADE"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
+	TestEqual(TEXT("Base character rule flag migrates to J_SPADE"),
+	          Restored->CurrentBuild.RuleFlags.FindRef(TEXT("BaseCharacterId")),
+	          FString(TEXT("J_SPADE")));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV8CardMigrationTest,
                                  "ReEcho.Run.SaveV8CardIdsMigrateByMeaning",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -197,7 +243,7 @@ bool FReEchoV8CardMigrationTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
-	Source->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
 	LegacySave->SaveVersion = 8;
 	LegacySave->CurrentBuild.CardState = {};

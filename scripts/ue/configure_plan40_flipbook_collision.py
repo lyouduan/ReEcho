@@ -12,6 +12,10 @@ FLIPBOOK_PATHS = (
     "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack",
     "/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default",
     "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk0",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk1",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Attack0",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Attack1",
     "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default",
 )
 

@@ -13,6 +13,7 @@ class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DFrameCollisionDriver;
 class UReEcho2DPresentationController;
+class UReEcho2DPresentationCatalog;
 class UReEcho2DSceneLightingComponent;
 class UReEchoCombatAttributeSet;
 class UReEchoCombatantComponent;
@@ -58,6 +59,7 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	void Configure(EReEchoEnemyKind InKind, int32 SpawnIndex);
+	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
 	bool ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, int32 SpawnIndex);
 
 	void SetEnemyId(FName InEnemyId)
@@ -248,6 +250,13 @@ private:
 	TObjectPtr<UReEchoEnemyPresentationComponent> EnemyPresentation;
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
+
+	/** Uniform Blueprint-authored scale for collision, Flipbook, shadow, effects and presentation anchors. */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Scale",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.01"))
+	float CharacterScale = 1.0f;
 
 	UPROPERTY()
 	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;

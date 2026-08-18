@@ -19,6 +19,7 @@ public class ReEcho : ModuleRules
             "ReEchoCards",
             "ReEchoCombat",
             "ReEchoEnemies",
+			"ReEchoPresentation",
             "ReEchoWeapons",
             "Paper2D",
             "UMG",

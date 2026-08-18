@@ -11,6 +11,7 @@ ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人
 | 架构标识 | Runtime Module | 存在原因 | 详细文档 |
 |---|---|---|---|
 | `MOD-ReEcho` | `ReEcho` | 作为 UE 玩法装配根，组合世界生命周期、主流程、尚未独立的玩法领域、表现和 UI | [`modules/MOD-ReEcho.md`](modules/MOD-ReEcho.md) |
+| `MOD-ReEchoPresentation` | `ReEchoPresentation` | 隔离角色与怪物共享的 2D Profile、状态机、渲染和逐帧 Query/Debug，使表现资产不反向进入玩法模块 | [`modules/MOD-ReEchoPresentation.md`](modules/MOD-ReEchoPresentation.md) |
 | `MOD-ReEchoAudio` | `ReEchoAudio` | 隔离音频目录、策略、总线和播放后端，使缺资源或无设备不影响玩法 | [`modules/MOD-ReEchoAudio.md`](modules/MOD-ReEchoAudio.md) |
 | `MOD-ReEchoCombat` | `ReEchoCombat` | 集中攻击控制、战斗参与者、GAS、命中/元素/生命/死亡裁决和只读结果契约 | [`modules/MOD-ReEchoCombat.md`](modules/MOD-ReEchoCombat.md) |
 | `MOD-ReEchoCards` | `ReEchoCards` | 集中卡牌定义、构筑状态、抽取资格与无世界规则计算 | [`modules/MOD-ReEchoCards.md`](modules/MOD-ReEchoCards.md) |
@@ -19,6 +20,7 @@ ReEcho 是 Unreal Engine 5.8 的 2.5D 时间回响肉鸽原型。角色、敌人
 
 ```text
 MOD-ReEcho ─────────────→ MOD-ReEchoAudio
+    ├───────────────────→ MOD-ReEchoPresentation
     ├───────────────────→ MOD-ReEchoCombat
     ├───────────────────→ MOD-ReEchoCards ──────→ MOD-ReEchoCombat
     ├───────────────────→ MOD-ReEchoWeapons ─────→ MOD-ReEchoCombat
@@ -29,9 +31,10 @@ MOD-ReEchoCards   ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoEnemies 
 MOD-ReEchoWeapons ─/─→ MOD-ReEcho / MOD-ReEchoAudio
 MOD-ReEchoAudio   ─/─→ MOD-ReEcho / MOD-ReEchoCombat / MOD-ReEchoWeapons
 MOD-ReEchoEnemies ─/─→ MOD-ReEcho / MOD-ReEchoWeapons / MOD-ReEchoAudio / Presentation
+MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCombat / MOD-ReEchoWeapons
 ```
 
-依赖必须保持单向。Cards 计算构筑状态、候选资格和类型化规则结果，但不接触世界；Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。音频和表现只消费结果，不决定攻击、命中或流程是否成功。
+依赖必须保持单向。Cards 计算构筑状态、候选资格和类型化规则结果，但不接触世界；Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。`ReEchoPresentation` 只消费稳定表现 ID 与命令，不引用玩法 Actor；音频和表现只消费结果，不决定攻击、命中或流程是否成功。
 
 ## 主运行流程
 

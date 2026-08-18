@@ -15,7 +15,7 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 	{
 		UGameInstance* GameInstance = NewObject<UGameInstance>();
 		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-		RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 		RunSubsystem->BeginEncounter();
 		RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 		return RunSubsystem;
@@ -51,7 +51,7 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	RunSubsystem->BeginEncounter();
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 	const TArray<FReEchoTraitCardOffer> FirstOffers = RunSubsystem->GenerateTraitCardOffers(3);
@@ -88,7 +88,7 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), NAME_None);
+	RunSubsystem->StartRun(TEXT("J_SPADE"), NAME_None);
 	TestEqual(TEXT("CSV default weapon is used when none is supplied"),
 	          RunSubsystem->CurrentBuild.WeaponId,
 	          FName(TEXT("W_J_02")));

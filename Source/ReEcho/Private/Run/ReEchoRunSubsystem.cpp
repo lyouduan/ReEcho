@@ -394,8 +394,39 @@ bool ContainsRecordingId(const TArray<FReEchoRecording>& Recordings, const FGuid
 	    });
 }
 
-bool MigrateCardState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Snapshot, FReEchoBuildSnapshot& Build)
+bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Snapshot, FReEchoBuildSnapshot& Build)
 {
+	const FName CanonicalCharacterId = Snapshot.ResolveCharacterId(Build.CharacterId);
+	if (!Snapshot.FindCharacter(CanonicalCharacterId))
+	{
+		return false;
+	}
+	if (SaveVersion < 11)
+	{
+		Build.CharacterId = CanonicalCharacterId;
+	}
+	else if (CanonicalCharacterId != Build.CharacterId)
+	{
+		return false;
+	}
+
+	if (FString* BaseCharacterId = Build.RuleFlags.Find(TEXT("BaseCharacterId")))
+	{
+		const FName CanonicalBaseCharacterId = Snapshot.ResolveCharacterId(FName(**BaseCharacterId));
+		if (!Snapshot.FindCharacter(CanonicalBaseCharacterId))
+		{
+			return false;
+		}
+		if (SaveVersion < 11)
+		{
+			*BaseCharacterId = CanonicalBaseCharacterId.ToString();
+		}
+		else if (CanonicalBaseCharacterId.ToString() != *BaseCharacterId)
+		{
+			return false;
+		}
+	}
+
 	if (!Snapshot.CardCatalog.IsValid())
 	{
 		return false;
@@ -1878,7 +1909,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	}
 	FReEchoBuildSnapshot NormalizedCurrentBuild;
 	FReEchoBuildSnapshot MigratedCurrentBuild = SaveGame.CurrentBuild;
-	if (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, MigratedCurrentBuild) ||
+	if (!MigrateBuildState(SaveGame.SaveVersion, *Snapshot, MigratedCurrentBuild) ||
 	    !ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, MigratedCurrentBuild).IsEmpty() ||
 	    !TryNormalizeEquipmentBuild(*Snapshot, MigratedCurrentBuild, NormalizedCurrentBuild))
 	{
@@ -1900,26 +1931,27 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 		ReadV5EchoStorage(SaveGame, RestoredStorage);
 	}
 	if (RestoredStorage.bHasPendingRecording &&
-	    (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.PendingRecording.BuildSnapshot) ||
+	    (!MigrateBuildState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.PendingRecording.BuildSnapshot) ||
 	     !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.PendingRecording)))
 	{
 		return false;
 	}
 	if (RestoredStorage.bHasLatestCompletedRecording &&
-	    (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.LatestCompletedRecording.BuildSnapshot) ||
+	    (!MigrateBuildState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.LatestCompletedRecording.BuildSnapshot) ||
 	     !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.LatestCompletedRecording)))
 	{
 		return false;
 	}
 	if (RestoredStorage.bHasPreviousCompletedRecording &&
-	    (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, RestoredStorage.PreviousCompletedRecording.BuildSnapshot) ||
+	    (!MigrateBuildState(
+	         SaveGame.SaveVersion, *Snapshot, RestoredStorage.PreviousCompletedRecording.BuildSnapshot) ||
 	     !TryNormalizeRestoredRecording(*Snapshot, RestoredStorage.PreviousCompletedRecording)))
 	{
 		return false;
 	}
 	for (FReEchoRecording& Stored : RestoredStorage.StoredEchoes)
 	{
-		if (!MigrateCardState(SaveGame.SaveVersion, *Snapshot, Stored.BuildSnapshot) ||
+		if (!MigrateBuildState(SaveGame.SaveVersion, *Snapshot, Stored.BuildSnapshot) ||
 		    !TryNormalizeRestoredRecording(*Snapshot, Stored))
 		{
 			return false;
@@ -1928,7 +1960,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	FReEchoEncounterRuntimeState NormalizedEncounterRuntimeState = SaveGame.EncounterRuntimeState;
 	if (SaveGame.EncounterRuntimeState.bValid)
 	{
-		if (!MigrateCardState(
+		if (!MigrateBuildState(
 		        SaveGame.SaveVersion, *Snapshot, NormalizedEncounterRuntimeState.ActiveRecording.BuildSnapshot))
 		{
 			return false;

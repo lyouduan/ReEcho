@@ -84,8 +84,6 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	PresentationController->BindCollisionDriver(FrameCollisionDriver);
 	SceneLighting = CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
 	SceneLighting->Configure(SequenceAnimation, GroundShadow);
-	static ConstructorHelpers::FObjectFinder<UTexture2D> CatTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
@@ -94,7 +92,6 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
-	CharacterTextures.Add(TEXT("J_CAT"), CatTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
@@ -102,7 +99,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
-	ConfigureCharacter(TEXT("J_CAT"));
+	ConfigureCharacter(TEXT("J_SPADE"));
 	Movement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("Movement"));
 	Movement->MaxSpeed = 420.f;
 	AbilitySystem = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
@@ -964,18 +961,9 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
 	HitVisualRemaining = FMath::Max(0.0f, HitVisualRemaining - DeltaSeconds);
 	const bool bMoving = GetVelocity().SizeSquared2D() > 25.0f;
-	const float Bob = FMath::Sin(VisualTime * (bMoving ? 10.0f : 3.0f)) * (bMoving ? 4.0f : 1.8f);
 	float Lunge = 0.0f;
 	float ScaleX = 1.0f;
 	float ScaleY = 1.0f;
-	if (AttackVisualRemaining > 0.0f && AttackVisualDuration > 0.0f)
-	{
-		const float Progress = 1.0f - AttackVisualRemaining / AttackVisualDuration;
-		const float Pulse = FMath::Sin(Progress * PI);
-		Lunge = Pulse * AttackVisualStrength;
-		ScaleX += Pulse * 0.08f;
-		ScaleY -= Pulse * 0.04f;
-	}
 	if (HitVisualRemaining > 0.0f)
 	{
 		const float HitRatio = HitVisualRemaining / 0.18f;
@@ -983,7 +971,7 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 		ScaleX *= 1.12f;
 		ScaleY *= 0.86f;
 	}
-	ApplyPresentationMotion(FVector(Lunge, 0.0f, Bob), FVector(ScaleX, ScaleY, 1.0f));
+	ApplyPresentationMotion(FVector(Lunge, 0.0f, 0.0f), FVector(ScaleX, ScaleY, 1.0f));
 	if (PresentationController)
 	{
 		PresentationController->SetMoving(bMoving);
