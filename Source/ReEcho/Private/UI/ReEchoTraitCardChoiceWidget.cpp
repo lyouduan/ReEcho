@@ -80,6 +80,10 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	{
 		CardEntry->OnEntrySelected.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
 	}
+	if (ConfirmButton)
+	{
+		ConfirmButton->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleConfirmClicked);
+	}
 
 	RefreshOffers();
 	ResetRevealAnimation();
@@ -312,8 +316,8 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 {
 	if (TitleText)
 	{
-		TitleText->SetText(bForgeChoice ? NSLOCTEXT("ReEcho", "ForgeChoiceTitle", "选择本轮锻炼")
-		                                : NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择一项时间特质"));
+		TitleText->SetText(bForgeChoice ? NSLOCTEXT("ReEcho", "ForgeChoiceTitle", "选择1张锻造卡牌")
+		                                : NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择1张构筑卡牌"));
 	}
 	if (SubtitleText)
 	{
@@ -356,12 +360,32 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			                                       CardColors[CardIndex]);
 		}
 	}
+	RefreshSelectionVisuals();
+}
+
+void UReEchoTraitCardChoiceWidget::RefreshSelectionVisuals()
+{
+	const bool bHasSelection = Offers.IsValidIndex(SelectedOfferIndex);
+	for (int32 CardIndex = 0; CardIndex < CardEntries.Num(); ++CardIndex)
+	{
+		CardEntries[CardIndex]->SetSelectedVisual(CardIndex == SelectedOfferIndex, bHasSelection);
+	}
+	for (int32 CardIndex = 0; CardIndex < CardButtons.Num(); ++CardIndex)
+	{
+		CardButtons[CardIndex]->SetRenderOpacity(!bHasSelection || CardIndex == SelectedOfferIndex ? 1.0f : 0.38f);
+	}
+	if (ConfirmButton)
+	{
+		ConfirmButton->SetIsEnabled(bRevealComplete && bHasSelection);
+		ConfirmButton->SetRenderOpacity(bHasSelection ? 1.0f : 0.48f);
+	}
 }
 
 void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 {
 	RevealElapsed = 0.0f;
 	bRevealComplete = false;
+	SelectedOfferIndex = INDEX_NONE;
 	for (int32 CardIndex = 0; CardIndex < CardPanels.Num(); ++CardIndex)
 	{
 		CardPanels[CardIndex]->SetRenderOpacity(0.0f);
@@ -376,6 +400,7 @@ void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 			CardEntries[CardIndex]->SetSelectionEnabled(false);
 		}
 	}
+	RefreshSelectionVisuals();
 }
 
 void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
@@ -397,5 +422,23 @@ void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
 
 void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)
 {
-	SelectOffer(OfferIndex);
+	if (!bRevealComplete || !Offers.IsValidIndex(OfferIndex))
+	{
+		return;
+	}
+
+	// The code-only fallback has no confirmation control, so preserve its one-click behavior.
+	if (!ConfirmButton)
+	{
+		SelectOffer(OfferIndex);
+		return;
+	}
+
+	SelectedOfferIndex = OfferIndex;
+	RefreshSelectionVisuals();
+}
+
+void UReEchoTraitCardChoiceWidget::HandleConfirmClicked()
+{
+	SelectOffer(SelectedOfferIndex);
 }

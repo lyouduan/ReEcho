@@ -11,7 +11,11 @@ class UTextBlock;
 class UVerticalBox;
 class USlider;
 class UCheckBox;
+class UComboBoxString;
+class UImage;
 class UReEchoAudioService;
+class UWidget;
+enum class EReEchoAudioBus : uint8;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoSettingsClosed);
 
@@ -26,6 +30,9 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoSettingsClosed OnClosed;
 
+	/** Non-music buses represented by the delivered compact effects slider. */
+	static TConstArrayView<EReEchoAudioBus> GetCompactEffectsBuses();
+
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
@@ -39,6 +46,13 @@ private:
 	void BuildAudioPanel();
 	void BindAudioControls();
 	void RefreshAudioControls();
+	void BuildInteractiveSettingsControls();
+	void RefreshGraphicsControls();
+	bool UsesCompactAudioLayout() const;
+	void UpdateVolumeVisual(UImage* FillImage, UTextBlock* PercentText, float Value) const;
+	void PostUiEvent(FName EventId) const;
+	UComboBoxString* AddComboBoxOverlay(FName ComboName, FName FieldName, FName ValueName, FName ArrowName);
+	USlider* AddSliderOverlay(FName SliderName, FName TrackName);
 	UReEchoAudioService* GetAudioService() const;
 
 	UFUNCTION()
@@ -49,6 +63,9 @@ private:
 
 	UFUNCTION()
 	void HandleApplyAndReturnClicked();
+
+	UFUNCTION()
+	void HandleCloseClicked();
 
 	UFUNCTION()
 	void HandleMasterVolumeChanged(float Value);
@@ -73,6 +90,23 @@ private:
 	UFUNCTION()
 	void HandleDiagnosticToneChanged(bool bChecked);
 
+	UFUNCTION()
+	void HandleResolutionChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	UFUNCTION()
+	void HandleDisplayModeChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	UFUNCTION()
+	void HandleGraphicsQualityChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	UFUNCTION()
+	void HandleVSyncChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	UFUNCTION()
+	void HandleAudioOutputChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	UFUNCTION()
+	void HandleBrightnessChanged(float Value);
+	UFUNCTION()
+	void HandleSliderInteractionFinished();
+	UFUNCTION()
+	UWidget* GenerateComboBoxItem(FString Item);
+
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> DetailText;
 
@@ -94,11 +128,20 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ApplyAndReturnButton;
 
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> SettingsCloseButton;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CategoryButtons;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> AudioPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> GraphicsPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> ControlsPanel;
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> DetailContent;
 
@@ -107,6 +150,22 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<USlider> AmbienceVolumeSlider;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<USlider> CombatSfxVolumeSlider;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<USlider> UiSfxVolumeSlider;
+	UPROPERTY(Transient) TObjectPtr<USlider> GraphicsBrightnessSlider;
+
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> MasterVolumeFill;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> MusicVolumeFill;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> CombatVolumeFill;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> GraphicsBrightnessFill;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> MasterVolumePercent;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> MusicVolumePercent;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> CombatVolumePercent;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> GraphicsValue4;
+
+	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsResolutionComboBox;
+	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsDisplayModeComboBox;
+	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsQualityComboBox;
+	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsVSyncComboBox;
+	UPROPERTY(Transient) TObjectPtr<UComboBoxString> AudioOutputComboBox;
 
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MasterMuteCheckBox;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MusicMuteCheckBox;
@@ -117,5 +176,9 @@ private:
 
 	int32 SelectedCategory = 0;
 	bool bAudioSettingsApplied = false;
+	bool bGraphicsSettingsApplied = false;
 	bool bRefreshingAudioControls = false;
+	bool bRefreshingGraphicsControls = false;
+	float InitialDisplayGamma = 2.2f;
+	float PendingBrightness = 0.65f;
 };

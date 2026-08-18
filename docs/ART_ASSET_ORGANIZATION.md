@@ -6,7 +6,8 @@
 - `Content/ReEcho/Textures/`：保存 Unreal 导入后的运行时纹理资产。
 - `Content/ReEcho/Art/Animation2D/`：保存运行时 Texture2D、PaperSprite、Flipbook 与动画表现资产。
 - Plan45 UI 交付源包：`Content/SourceArt/UI/InteractionPlaceholder/`，其中 `Elements` 是候选切图、`References` 是效果参考、`Fonts/PendingLicense` 是未获授权的隔离字体。
-- Plan45 已消费的运行时 UI 纹理：`Content/ReEcho/Textures/UI/InteractionPlaceholder/`；只导入现有 WBP 实际引用的切图。
+- Plan45 已消费的运行时 UI 纹理：`Content/ReEcho/Textures/UI/InteractionPlaceholder/`；只导入现有 WBP 实际引用的切图。目前按 `StartMenu`、`Settings`、`PauseAndCombat`、`ResultsAndRestart`、`TraitChoice`、`InventoryShop` 分页，未被 WBP 消费的按钮、参考图和字体仍只保留在 `SourceArt`。
+- `scripts/ue/import_ui_interaction_placeholders.py` 默认跳过已存在的运行时纹理，避免重复执行改写既有资产；只有明确传入 `-Plan45ReimportExisting` 才重导同名纹理。
 
 ## 角色资产
 
