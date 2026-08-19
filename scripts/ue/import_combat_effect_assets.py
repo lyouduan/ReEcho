@@ -11,7 +11,6 @@ ASSETS = {
     "MoonStaff.png": "MoonStaff",
     "CrescentWeapon.png": "CrescentWeapon",
     "SlashCrescent.png": "SlashCrescent",
-    "HitStarburst.png": "HitStarburst",
 }
 
 
@@ -39,4 +38,4 @@ def import_texture(filename: str, asset_name: str) -> None:
 for source_filename, destination_name in ASSETS.items():
     import_texture(source_filename, destination_name)
 
-unreal.log("Imported ReEcho crescent weapon, slash trail, and hit impact textures.")
+unreal.log("Imported ReEcho crescent weapon and slash trail textures.")

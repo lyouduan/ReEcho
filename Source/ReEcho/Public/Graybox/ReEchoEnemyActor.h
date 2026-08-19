@@ -188,6 +188,7 @@ private:
 	                                    const FReEchoEnemyActionIntent& Intent);
 	void PublishProjectileEvent(EReEchoEnemyProjectileEventType Type,
 	                            const FReEchoEnemyProjectileRuntimeState& Projectile) const;
+	bool ShouldPublishProjectileEvent(const FReEchoEnemyProjectileRuntimeState& Projectile) const;
 	const FReEchoEnemyAbilityDefinition* FindAbility(FName AbilityId) const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
 	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving) const;

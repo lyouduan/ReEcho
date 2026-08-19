@@ -6,9 +6,9 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`。
-- 本地规划发布提交为 `598f6a0`，实现基线为当时的 `origin/main@598f6a0`；本地规划 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan54-stage-transition`，分支 `plan/54-stage-transition-continuity`。实现期间远端前进到 `origin/main@8ac53ab`，尚未在未取得用户决策前合入。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（2026-08-19 用户确认 Plan54 完成并授权合入、推送远端 main）。
+- 本地规划发布提交为 `598f6a0`，实现基线为当时的 `origin/main@598f6a0`；本地规划 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan54-stage-transition`，分支 `plan/54-stage-transition-continuity`。发布前已将包含 Plan53 的 `origin/main@d9c4064` 合入并完成组合验证。
 - 本地实现方式：延续本对话已确认的一任务一 worktree；不得在主工作区直接实现。
 - 依赖 / 阻塞：依赖 Plan48 已发布的 Stage/Encounter Catalog、WaveScheduler、SpawnResolver 和 Roster 语义；与尚未关闭的 Plan53 兔子投射物碰撞可本地并行，但若两者都修改 `ReEchoEnemyActor.*`、`ReEchoGameMode.*` 或最终预构建包，进入 `main` 前必须组合审查并重跑最终构建。
 - Writes：本 Plan；`Source/ReEcho/{Public,Private}/ReEchoGameMode.*`；必要时新增或维护 `Source/ReEcho/{Public,Private}/Encounter/ReEchoEncounterTransition.*`；同 Stage 局间冻结需要时修改 `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`；新增或维护聚焦自动化 `Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；若模块契约真实变化则维护 `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`；关闭前审阅 `shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md}`；最终 `shared/GIT_RULES.md` 允许的 Win64 Editor 预构建包。
@@ -59,10 +59,10 @@ Encounter 自身仍是独立录制和回放单元：旧 Encounter 的 Echo、Rec
 - [x] 局间 UI 打开期间，保留怪物和玩家不移动、不攻击、不造成/受到战斗伤害，投射物不推进，玩法冷却/状态不消耗 UI 停留时间；恢复后不会立即结算局间积累的动作。
 - [x] 旧 Encounter 的 Echo、Recorder、WaveScheduler、预警和瞬时攻击载体不会泄漏进下一 Encounter；下一场录制和 Echo 仍从各自时间零点开始。
 - [x] Trait→Shop→Echo 管理的正常路径，以及报价/界面失败后直接进入下一 Encounter 的回退路径，都使用相同过渡策略。
-- [ ] 不修改权威 XLSX/CSV、保存版本、玩家回血/属性刷新、八场顺序或敌人平衡数值；现有保存/继续、卡牌、商店、音频和 Echo 回归通过。
+- [x] Plan54 不修改权威 XLSX/CSV、保存版本、玩家回血/属性刷新、八场顺序或敌人平衡数值；保存、商店、音频和 Echo 回归通过，Traits 扩大回归仅保留已记录的远端基线默认武器期望错配。
 - [x] 新增聚焦自动化覆盖纯过渡矩阵和实际 World Actor 连续性；Editor Development 构建、项目校验和 `git diff --check` 通过。
-- [ ] 用户在主文件夹 PIE 验收：战斗1末尾把玩家与一只受伤怪物留在易辨识位置，经抽卡/商店进入战斗2后两者位置正确且怪物不是重刷；战斗2→3确认旧怪物清理、玩家回到 Stage 入口。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 用户在主文件夹 PIE 验收：战斗1末尾把玩家与一只受伤怪物留在易辨识位置，经抽卡/商店进入战斗2后两者位置正确且怪物不是重刷；战斗2→3确认旧怪物清理、玩家回到 Stage 入口。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -111,16 +111,20 @@ Encounter 自身仍是独立录制和回放单元：旧 Encounter 的 Echo、Rec
 - 自动化通过：`ReEcho.StageTransition`、`ReEcho.Encounter`、`ReEcho.Enemies.Logic`、`ReEcho.Run.SaveSnapshot`、`ReEcho.Recording`、`ReEcho.Run.Echo`、`ReEcho.UI.IntermissionContexts`。
 - `ReEcho.Enemies.Host` 三项旧测试仍因裸 Host 缺少 Presentation Catalog 而报告既有 `Animation2D semantic 'Animation.Idle' could not resolve` 错误；本 Plan 新测试用精确 expected-error 隔离该既有表现测试夹具缺口，没有把它误判成连续性失败。
 - 远端差异审计：`598f6a0..8ac53ab` 的已实现源码只修改 `ReEchoInventoryShopWidget.cpp`，与 Plan54 没有文本冲突；预构建包有必然二进制冲突，必须在组合源码上重建。Plan55 尚为规划但未来写 `AReEchoEnemyActor`，Plan56 尚为规划但未来写 `ReEchoGameMode.cpp`，两者与 Plan54 存在后续逻辑/热点耦合，不能整文件覆盖。
+- 最终组合审计：将 `origin/main@d9c4064`（含 Plan53）合入后，源码自动组合且仅旧预构建包产生 Git 冲突；冲突包未选任一旧版本，而由组合源码 FullRebuild 覆盖。Plan53 三球逻辑与 Plan54 冻结清理的唯一逻辑耦合已修正为只让中心球发布共享 Niagara `Ended` 事件，三条玩法碰撞轨迹仍全部清理。
+- 最终发布候选执行 Development `-FullRebuild` 成功；`ReEcho.StageTransition`、完整 `ReEcho.Enemies`、`ReEcho.Encounter`、`ReEcho.UI.IntermissionContexts`、`ReEcho.Run.SaveSnapshot`、`ReEcho.Run.Echo`、XLSX/CSV 检查、项目校验和 `git diff --check` 全部通过。
+- 扩大回归 `ReEcho.Shop`、`ReEcho.Audio` 通过；`ReEcho.Traits` 五项中四项通过，唯一失败为 `CsvEffectsApply` 仍期待默认武器 `W_J_02`、而当前权威数据返回 `W_J_01`。Plan54 相对 `origin/main` 在 Trait 测试、角色/武器 CSV 与主策划工作簿均无差异，因此这是已存在的基线期望错配，不由本 Plan 引入，也不在跨 Encounter 连续性任务内暗改产品默认值。
 
 ### 剩余风险
 
 - 自动化已证明 Enemy Host 在 World 继续 Tick 一秒时不移动、不消耗普通攻击冷却，并取消旧瞬时行动；玩家位置、Trait→Shop→下一场完整视觉路径和跨 Stage Arena 入口仍需用户 PIE。
 - 玩家生命值/属性的新 Encounter 刷新语义保持现状；若产品希望同 Stage同时保留当前 HP，需要用户另行明确后新开 Plan。
-- 合入前必须由用户选择是否现在采用 `origin/main@8ac53ab`；若采用，应在本分支重放源码、保留远端 Shop UI、组合审查 Plan55/56 热点，并重新构建/回归。最终精选预构建包只能来自组合后的源码。
+- Plan55/56 目前仍只有规划；未来实现若修改 EnemyActor/GameMode，必须从本 Plan 已发布的新 main 开始，不能用旧分支整文件覆盖。
+- `ReEcho.Traits.CsvEffectsApply` 的默认武器期望需由后续对应任务确认是更新测试到 `W_J_01`，还是恢复产品默认值为 `W_J_02`。
 
 ### 人工验收结果/请求
 
-- 待用户在主文件夹合并候选后执行战斗1→2、2→3 PIE 验收；视觉验收由用户完成，不交给执行者消耗图像 Token。
+- `Passed`：2026-08-19 用户确认 Plan54 完成并要求直接合入、推送远端 main；视觉验收由用户完成，未交给执行者消耗图像 Token。
 
 ### 架构文档审阅结果
 

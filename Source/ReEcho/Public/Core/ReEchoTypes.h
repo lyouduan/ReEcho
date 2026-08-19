@@ -167,6 +167,14 @@ struct REECHO_API FReEchoEnemyProjectileRuntimeState
 
 	UPROPERTY()
 	float CollisionRadiusCm = 20.0f;
+
+	/** Rabbit volley lane [0,2]; INDEX_NONE keeps legacy/Boss single-projectile semantics. */
+	UPROPERTY()
+	int32 VolleyBallIndex = INDEX_NONE;
+
+	/** A rabbit ball keeps flying visually after its one authoritative collision is consumed. */
+	UPROPERTY()
+	bool bCollisionConsumed = false;
 };
 
 /** Serializable runtime state for one living enemy in a suspended encounter. */

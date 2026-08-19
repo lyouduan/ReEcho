@@ -14,6 +14,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
@@ -29,11 +30,11 @@
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
+#include "ReEcho.h"
 #include "ReEchoGameMode.h"
 #include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "UI/ReEchoDamageNumberActor.h"
-#include "Graybox/ReEchoAttackEffects.h"
 
 namespace ReEchoEnemyHost
 {
@@ -472,7 +473,10 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		        SavedProjectile.Definition, SavedProjectile.Snapshot, RestoredProjectile.Snapshot))
 		{
 			BossProjectiles.Add(MoveTemp(RestoredProjectile));
-			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+			if (ShouldPublishProjectileEvent(BossProjectiles.Last()))
+			{
+				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+			}
 		}
 	}
 	EnemyPresentation->RefreshElementAttachmentVisual();
@@ -496,7 +500,10 @@ void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
 		}
 		for (const FReEchoEnemyProjectileRuntimeState& Projectile : BossProjectiles)
 		{
-			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+			if (ShouldPublishProjectileEvent(Projectile))
+			{
+				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+			}
 		}
 		BossProjectiles.Reset();
 	}
@@ -634,12 +641,12 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 		FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
 		const FReEchoEnemyProjectileAdvanceResult AdvanceResult =
 		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
-		if (AdvanceResult.bMoved)
+		if (AdvanceResult.bMoved && ShouldPublishProjectileEvent(Projectile))
 		{
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Moved, Projectile);
 		}
 		bool bHitTarget = false;
-		if (AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive() &&
+		if (!Projectile.bCollisionConsumed && AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive() &&
 		    Target->IntersectsCombatPath(
 		        AdvanceResult.PreviousLocation, AdvanceResult.NewLocation, Projectile.CollisionRadiusCm))
 		{
@@ -649,10 +656,15 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 			HitIntent.RawDamage = Projectile.Damage;
 			ApplyBossHit(HitIntent, TargetActor, Target->GetCombatTargetLocation());
 			bHitTarget = true;
+			Projectile.bCollisionConsumed = true;
 		}
-		if (bHitTarget || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
+		const bool bRabbitVolleyBall = Projectile.VolleyBallIndex != INDEX_NONE;
+		if ((bHitTarget && !bRabbitVolleyBall) || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
-			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+			if (ShouldPublishProjectileEvent(Projectile))
+			{
+				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+			}
 			BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
 		}
 	}
@@ -824,8 +836,20 @@ void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent, AActor* Ta
 	{
 		ReEchoPlayer->PlayHitVisual();
 	}
-	ReEchoAttackEffects::SpawnHitImpact(GetWorld(), HitLocation);
 	AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), HitLocation, Resolved.AppliedDamage, FLinearColor::White);
+	if (EnemyId == TEXT("M_RABBIT"))
+	{
+		const IReEchoCombatTarget* CombatTarget = Cast<IReEchoCombatTarget>(Target);
+		const UReEchoCombatantComponent* TargetCombatant =
+		    CombatTarget ? CombatTarget->GetCombatTargetCombatant() : nullptr;
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[RabbitProjectileDamage] TableRaw=%.2f ResolvedRaw=%.2f Applied=%.2f TargetHealth=%.2f"),
+		       Intent.RawDamage,
+		       Resolved.RawDamage,
+		       Resolved.AppliedDamage,
+		       TargetCombatant ? TargetCombatant->CurrentHealth : -1.0f);
+	}
 }
 
 void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
@@ -924,19 +948,29 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		{
 			const float DerivedLegacySpeed =
 			    Ability->CooldownSeconds > KINDA_SMALL_NUMBER ? Ability->MaxRangeCm / Ability->CooldownSeconds : 0.0f;
-			FReEchoEnemyProjectileRuntimeState Projectile;
-			Projectile.Definition.InitialLocation = Intent.SourceLocation;
-			Projectile.Definition.Direction = LogicSnapshot.SpecialLockedDirection.GetSafeNormal2D();
-			Projectile.Definition.SpeedCmPerSecond =
-			    Ability->ProjectileSpeedCmPerSecond > 0.0f ? Ability->ProjectileSpeedCmPerSecond : DerivedLegacySpeed;
-			Projectile.Definition.MaxRangeCm = Ability->MaxRangeCm;
-			Projectile.Attack = Intent.Attack;
-			Projectile.Damage = Intent.RawDamage;
-			Projectile.CollisionRadiusCm = FMath::Max(10.0f, EnemyLogic->GetDefinition().CollisionRadiusCm * 0.5f);
-			if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
+			for (int32 BallIndex = 0; BallIndex < ReEchoRabbitProjectilePattern::BallCount; ++BallIndex)
 			{
-				BossProjectiles.Add(MoveTemp(Projectile));
-				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+				FReEchoEnemyProjectileRuntimeState Projectile;
+				Projectile.Definition.InitialLocation = Intent.SourceLocation;
+				Projectile.Definition.Direction =
+				    ReEchoRabbitProjectilePattern::ResolveDirection(LogicSnapshot.SpecialLockedDirection, BallIndex);
+				Projectile.Definition.SpeedCmPerSecond = Ability->ProjectileSpeedCmPerSecond > 0.0f
+				                                             ? Ability->ProjectileSpeedCmPerSecond
+				                                             : DerivedLegacySpeed;
+				Projectile.Definition.MaxRangeCm = Ability->MaxRangeCm;
+				Projectile.Attack = Intent.Attack;
+				Projectile.Damage = Intent.RawDamage;
+				Projectile.CollisionRadiusCm =
+				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm);
+				Projectile.VolleyBallIndex = BallIndex;
+				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
+				{
+					BossProjectiles.Add(MoveTemp(Projectile));
+					if (ShouldPublishProjectileEvent(BossProjectiles.Last()))
+					{
+						PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+					}
+				}
 			}
 		}
 	}
@@ -956,7 +990,6 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 			{
 				ReEchoPlayer->PlayHitVisual();
 			}
-			ReEchoAttackEffects::SpawnHitImpact(GetWorld(), Intent.HitLocation);
 			AReEchoDamageNumberActor::SpawnDamageNumber(
 			    GetWorld(), Intent.HitLocation, Resolved.AppliedDamage, FLinearColor::White);
 		}
@@ -1045,6 +1078,12 @@ void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEvent
 	Event.Location = Projectile.Snapshot.Location;
 	Event.Direction = Projectile.Snapshot.Direction;
 	EnemyEvents->PublishProjectile(Event);
+}
+
+bool AReEchoEnemyActor::ShouldPublishProjectileEvent(const FReEchoEnemyProjectileRuntimeState& Projectile) const
+{
+	return Projectile.VolleyBallIndex == INDEX_NONE ||
+	       Projectile.VolleyBallIndex == ReEchoRabbitProjectilePattern::CenterBallIndex;
 }
 
 FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving) const

@@ -180,7 +180,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 **设计意图：** `MOD-ReEchoEnemies` 独占怪物行为状态；主模块只提供世界感知、Transform/Collision 应用、Combat 转发和资源表现，避免逻辑与美术继续争用同一份实现。
 
 - 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
-- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent 和维护 Actor 生命周期。
+- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把每条敌方逻辑投射物的连续路径与世界目标碰撞盒相交结果转为一次 Combat `HitIntent`；兔子一次 Commit 展开三条扇形轨迹，每条最多结算一次，伤害与整组碰撞尺寸仍来自注入的 Ability Definition。
 - 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class，血条、动画、命中特效、元素光环与死亡残留不反向控制玩法。
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；`SetEncounterSimulationSuspended` 在同 Stage 局间冻结原 Host，并在进入下一 Encounter 前恢复。Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
 - 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素和 Boss 在途投射物；EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。

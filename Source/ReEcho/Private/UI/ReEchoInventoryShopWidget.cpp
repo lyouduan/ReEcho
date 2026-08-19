@@ -918,6 +918,7 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	    UCanvasPanel::StaticClass(),
 	    *FString::Printf(TEXT("Target%sCard%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
 	CardSize->SetContent(Card);
+	Card->SetToolTip(BuildSlotTooltip(Offer));
 	auto AddImage = [&](const TCHAR* Name, UTexture2D* Texture, FVector2D Position, FVector2D Size)
 	{
 		UImage* Image = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
@@ -958,10 +959,11 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 
 	UTextBlock* Description = CreateText(WidgetTree,
 	                                     *FString::Printf(TEXT("TargetOfferDescription%d_%d"), bWeaponPart, OfferIndex),
-	                                     13,
+	                                     15,
 	                                     FLinearColor(0.05f, 0.05f, 0.05f));
-	Description->SetText(
-	    FText::Format(NSLOCTEXT("ReEcho", "TargetOfferDescription", "{0}：{1}"), Offer.DisplayName, Offer.EffectText));
+	Description->SetText(Offer.DisplayName);
+	Description->SetJustification(ETextJustify::Center);
+	Description->SetAutoWrapText(true);
 	UCanvasPanelSlot* DescriptionSlot = Card->AddChildToCanvas(Description);
 	DescriptionSlot->SetPosition(FVector2D(10.0f, 180.0f));
 	DescriptionSlot->SetSize(FVector2D(180.0f, 55.0f));
@@ -1015,8 +1017,6 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 		TextSlot->SetVerticalAlignment(VAlign_Center);
 	}
 	Buy->SetContent(ButtonOverlay);
-	Buy->SetToolTipText(
-	    FText::Format(NSLOCTEXT("ReEcho", "TargetOfferTooltip", "{0}\n{1}"), Offer.DisplayName, Offer.EffectText));
 	const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
 	Buy->SetIsEnabled((bOwnedPart || (!bPurchasedCard && CurrentTimeShards >= EffectivePrice)) &&
 	                  (bWeaponPart || bCurrentExtraCardPurchaseAllowed));
