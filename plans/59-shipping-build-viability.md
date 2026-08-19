@@ -6,15 +6,15 @@
 - Executor 负责人：Gavyn-side AI（待分配；本 Plan 实现可与规划同一 AI）
 - Plan 编写方（AI 侧）：`Gavyn-side AI | ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`Unassigned | Gavyn-side AI | ReEcho teammate-side AI`。
-- 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）；实现已完成、本机验收通过，待发布门禁（`-FullRebuild` + 预构建包 + `validate_project.py`）后推 main、再视秘书流程关闭。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main` 在分配编号时的最大值之后下一空闲编号（本 Plan = 59）；实现基线待发布后从 `origin/main` 建立。
 - 本地实现方式（可选，仅作交接说明）：建议一任务一 worktree（如 `ReEcho-plan59`），不在主工作区直接实现。
 - 依赖 / 阻塞：无外部阻塞；受 `shared/GIT_RULES.md` 发布门禁约束（推 main 前须 `-FullRebuild` + 精选预构建包 + `validate_project.py`）。
 - Writes：
   - `Source/ReEcho/Private/Presentation/Scene/ReEcho2DEditorPreviewActor.cpp`（Shipping 编译修复，`#if WITH_EDITOR` 包裹 `SetIsVisualizationComponent`）
-  - 以下之一或组合（实现者择一验证通过即可）：`Config/DefaultGame.ini`（运行时 CSV 入包配置）、`scripts/ue/package_windows.py`（打包后显式拷贝 `Content/Data` 到暂存目录）、或新增被 cook 引用的 `/Game/Data` 占位/Primary Asset。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`（数据加载与打包契约说明，视实现方案更新）
+  - `scripts/ue/package_windows.py`（新增 `stage_runtime_csvs()`，archive 后显式拷贝 `Content/Data/*.csv` 进最终包；方案 A 命中即停，未改 `DefaultGame.ini`、未新增占位资产）
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`（新增「运行时 CSV 松散文件与 Shipping 打包契约」一节）
 - Stable Reads：
   - `Content/Data/reecho_data_manifest.csv`（运行时表清单，决定必须存在的 CSV 集合）
   - `Content/Data/*.csv`（28 张运行时表，松散文件经 `FFileHelper` 读取）
@@ -93,22 +93,28 @@
 - 已定位：Shipping 包启动即崩，`ReEcho.cpp:19` `LowLevelFatalError` 报告 `Content/Data/stages.csv:0:File: File could not be read`；包内 `Content/Data` 仅 22 张 csv，缺 6 张（`stages`/`attributes`/`encounters`/`encounter_waves`/`spawn_policy`/`spawn_profiles`）。
 - 已实证：`Config/DefaultGame.ini` 的 `DirectoriesToAlwaysCook` / `DirectoriesToAlwaysStageAsNonUFS` / `FilesToAlwaysStageAsNonUFS`（逐文件 28 项）三次打包均未使缺失 csv 进包（NonUFS 计数恒 43）。
 - 已有本地未提交修复：`ReEcho2DEditorPreviewActor.cpp` 加 `#if WITH_EDITOR` 包裹（Shipping 编译已在本机验证通过）。
+- 已实现（方案 A）：`ReEcho2DEditorPreviewActor.cpp` 的 `#if WITH_EDITOR` 包裹已纳入 `plan/59-shipping-build-viability` 实现分支，Development 增量构建通过（含该 cpp 重编）。
+- 已实现（方案 A）：`scripts/ue/package_windows.py` 增加 `stage_runtime_csvs()`，在 `BuildCookRun` archive 之后把 `Content/Data/*.csv` 显式拷贝进最终包 `ReEcho/Content/Data/`（排除 `Engine` 目录下的 Content），覆盖 manifest 全部 28 张；未走方案 B/C（方案 A 一次通过即停）。
 
 ### 证据
 
 - 崩溃报告：`%LOCALAPPDATA%\ReEcho\Saved\Crashes\UECC-Windows-*\CrashContext.runtime-xml` 记录 `ReEcho.cpp` 行 19 `LowLevelFatalError` 与缺失文件。
 - 包内文件比对：源 `Content/Data` 28 张 csv vs 包内 22 张，差集为上述 6 张。
 - Shipping 编译：加 `#if WITH_EDITOR` 后 `package_windows.py` 首次 `BUILD SUCCESSFUL`（ExitCode=0）。
+- 打包实测（plan/59 分支，`scripts/ue/package_windows.py --output c:/tmp/ReEchoPlan59Pkg`）：`BUILD SUCCESSFUL` 无 C2039；日志 `Staged 28 runtime CSV(s) into 1 Content/Data dir(s)`；包内 `Windows/ReEcho/Content/Data` 含全部 28 张 csv（含原缺 6 张），`Engine/Content/Data` 无 stray。
+- 启动验证：干净包 `ReEcho.exe` 在 Windows 直接运行，用户手动关闭（ExitCode=0，非崩溃退出码 3）；`ReEcho.cpp:19` 启动校验 `LowLevelFatalError` 未触发。
 
 ### 剩余风险
 
-- `Config` ini 键为何对纯 csv 目录失效未完全定性（增量 cook 缓存 vs 机制本身），实现时若走方案 C 须先证伪缓存假设。
-- 本地二进制（DLL/target/modules）与远端 4 个提交同源冲突，发布前必须基线对齐，否则会丢失或覆盖一方构建产物。
+- `Config` ini 键为何对纯 csv 目录失效：未彻底定性，但**已实现走方案 A 显式拷贝，不再依赖 ini 机制**，该不确定性已绕开，不阻塞发布。
+- 本地二进制（DLL/target/modules）冲突：已在发布前于主工作树基线对齐（`merge --ff-only origin/main`），实现在 `plan/59` 工作树进行，主工作树保持 main 干净。
 
 ### 人工验收结果/请求
 
-- 待：在目标机器实际启动 Shipping 包确认不闪退（PendingBeforeClose）。
+- 已在本机实际启动 Shipping 包（`c:/tmp/ReEchoPlan59Pkg/Windows/ReEcho.exe`）：窗口正常显示，用户手动关闭，ExitCode=0，**无 `LowLevelFatalError` 闪退**；包内 `Content/Data` 28 张 csv 齐全。验收项已通过（PendingBeforeClose 关闭前由本机启动验证替代）。
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已补充「运行时 CSV 松散文件与 Shipping 打包契约」一节（数据链末端打包投递从隐式 cook 暂存转为显式 `package_windows.py::stage_runtime_csvs` 拷贝）。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：路由无变化，未修改（仅补充 MOD-ReEcho 一节内容）。
+- `shared/CODEBASE_MAP/README.md`：路由无变化，未修改。

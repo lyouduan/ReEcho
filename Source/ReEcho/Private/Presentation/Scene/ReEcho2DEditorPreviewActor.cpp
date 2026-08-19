@@ -12,7 +12,9 @@ AReEcho2DEditorPreviewActor::AReEcho2DEditorPreviewActor()
 	SetRootComponent(PreviewRoot);
 	CharacterPreview = CreateDefaultSubobject<UChildActorComponent>(TEXT("CharacterPreview"));
 	CharacterPreview->SetupAttachment(PreviewRoot);
+#if WITH_EDITOR
 	CharacterPreview->SetIsVisualizationComponent(true);
+#endif
 	// HiddenInGame keeps the exact Blueprint visible in the editor viewport while
 	// guaranteeing that its render children never leak into PIE for even one frame.
 	CharacterPreview->SetHiddenInGame(true);
