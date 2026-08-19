@@ -1,16 +1,11 @@
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 
 #include "Graybox/ReEchoEnemyActor.h"
-#include "GameFramework/Pawn.h"
-#include "GameFramework/PlayerController.h"
+#include "Components/BillboardComponent.h"
+#include "Engine/Texture2D.h"
 #include "NiagaraComponent.h"
-#include "NiagaraDataSet.h"
-#include "NiagaraDataSetAccessor.h"
-#include "NiagaraEmitterInstance.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
-#include "NiagaraSystemInstance.h"
-#include "NiagaraSystemInstanceController.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "ReEcho.h"
@@ -20,8 +15,7 @@ namespace ReEchoCombatVfx
 {
 constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 CombatEffectSortPriorityFloor = 100;
-constexpr int32 TrajectoryLogEventStride = 6;
-constexpr int32 TrajectoryLogMaximumEventCount = 60;
+constexpr float RabbitProjectileOpaqueDiameterFraction = 154.0f / 512.0f;
 
 void LogLayerState(const AActor* Owner,
                    const USceneComponent* AttachmentRoot,
@@ -114,6 +108,51 @@ int32 UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(const int32 Own
 	                  OwnerSortPriority + ReEchoCombatVfx::CombatEffectSortOffset);
 }
 
+FReEchoProjectileVisualKey
+UReEchoCombatVfxComponent::ResolveProjectileVisualKey(const FReEchoEnemyProjectileEvent& Event)
+{
+	FReEchoProjectileVisualKey Key;
+	Key.Source = Event.Attack.Source;
+	Key.Sequence = Event.Attack.Sequence;
+	Key.VolleyBallIndex = Event.VolleyBallIndex;
+	return Key;
+}
+
+float UReEchoCombatVfxComponent::ResolveProjectileVisualScale(const float CollisionRadiusCm,
+                                                              const int32 TextureSizePixels)
+{
+	if (CollisionRadiusCm <= 0.0f || TextureSizePixels <= 0)
+	{
+		return 1.0f;
+	}
+	const float OpaqueDiameterPixels = TextureSizePixels * ReEchoCombatVfx::RabbitProjectileOpaqueDiameterFraction;
+	return CollisionRadiusCm * 2.0f / OpaqueDiameterPixels;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+int32 UReEchoCombatVfxComponent::GetProjectileVisualCountForTests() const
+{
+	return ProjectileVisuals.Num();
+}
+
+bool UReEchoCombatVfxComponent::TryGetProjectileVisualLocationForTests(const int64 AttackSequence,
+                                                                       const int32 VolleyBallIndex,
+                                                                       FVector& OutLocation) const
+{
+	FReEchoProjectileVisualKey Key;
+	Key.Source = GetOwner();
+	Key.Sequence = AttackSequence;
+	Key.VolleyBallIndex = VolleyBallIndex;
+	const TObjectPtr<UBillboardComponent>* Visual = ProjectileVisuals.Find(Key);
+	if (!Visual || !Visual->Get())
+	{
+		return false;
+	}
+	OutLocation = (*Visual)->GetComponentLocation();
+	return true;
+}
+#endif
+
 void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
                                                          USceneComponent* InHurtVfxRoot)
 {
@@ -178,6 +217,21 @@ UNiagaraSystem* UReEchoCombatVfxComponent::ResolveSystem(const uint8 SemanticVal
 		       FReEchoCombatVfxCatalog::ResolvePath(Semantic));
 	}
 	return System;
+}
+
+UTexture2D* UReEchoCombatVfxComponent::ResolveRabbitProjectileTexture() const
+{
+	UTexture2D* Texture =
+	    LoadObject<UTexture2D>(nullptr, FReEchoCombatVfxCatalog::ResolveRabbitProjectileTexturePath());
+	if (!Texture && !bMissingRabbitProjectileTextureWarned)
+	{
+		bMissingRabbitProjectileTextureWarned = true;
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[VFX] Missing rabbit projectile texture '%s'; gameplay continues without it"),
+		       FReEchoCombatVfxCatalog::ResolveRabbitProjectileTexturePath());
+	}
+	return Texture;
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticValue,
@@ -275,265 +329,24 @@ void UReEchoCombatVfxComponent::StopEffect(TObjectPtr<UNiagaraComponent>& Effect
 	}
 }
 
+void UReEchoCombatVfxComponent::StopProjectileVisual(UBillboardComponent* Visual) const
+{
+	if (Visual)
+	{
+		Visual->DestroyComponent();
+	}
+}
+
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);
-	for (TPair<int64, TObjectPtr<UNiagaraComponent>>& Pair : ProjectileEffects)
+	for (TPair<FReEchoProjectileVisualKey, TObjectPtr<UBillboardComponent>>& Pair : ProjectileVisuals)
 	{
-		if (Pair.Value)
-		{
-			Pair.Value->Deactivate();
-			Pair.Value->DestroyComponent();
-		}
+		StopProjectileVisual(Pair.Value);
 	}
-	ProjectileEffects.Reset();
-	ProjectileVisualOffsets.Reset();
-	ProjectileTrajectoryEventCounts.Reset();
-}
-
-void UReEchoCombatVfxComponent::LogRabbitProjectileTrajectory(const FReEchoEnemyProjectileEvent& Event,
-                                                              const UNiagaraComponent* Effect,
-                                                              const TCHAR* Phase)
-{
-	int32& EventCount = ProjectileTrajectoryEventCounts.FindOrAdd(Event.Attack.Sequence);
-	if (Event.Type == EReEchoEnemyProjectileEventType::Moved)
-	{
-		++EventCount;
-		if (EventCount > ReEchoCombatVfx::TrajectoryLogMaximumEventCount ||
-		    EventCount % ReEchoCombatVfx::TrajectoryLogEventStride != 0)
-		{
-			return;
-		}
-	}
-	else if (Event.Type == EReEchoEnemyProjectileEventType::Spawned)
-	{
-		EventCount = 0;
-	}
-
-	UWorld* World = GetWorld();
-	APlayerController* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
-	const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
-	if (!PlayerController || !PlayerPawn)
-	{
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[RabbitAimTrace] Seq=%lld Phase=%s Sample=%d projection unavailable"),
-		       Event.Attack.Sequence,
-		       Phase,
-		       EventCount);
-		return;
-	}
-
-	const FVector PlayerWorld = PlayerPawn->GetActorLocation();
-	const FVector RabbitWorld = GetOwner() ? GetOwner()->GetActorLocation() : FVector::ZeroVector;
-	const FVector NiagaraWorld = Effect ? Effect->GetComponentLocation() : Event.Location;
-	const FVector AuthoredCenterWorld = Effect ? Effect->GetComponentQuat()
-	                                                 .RotateVector(FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(
-	                                                     EReEchoCombatVfxSemantic::RabbitProjectile))
-	                                                 .GetSafeNormal()
-	                                           : Event.Direction.GetSafeNormal();
-	const FVector AxisProbeWorld = NiagaraWorld + AuthoredCenterWorld * 100.0f;
-
-	FVector2D PlayerScreen = FVector2D::ZeroVector;
-	FVector2D RabbitScreen = FVector2D::ZeroVector;
-	FVector2D ProjectileScreen = FVector2D::ZeroVector;
-	FVector2D NiagaraScreen = FVector2D::ZeroVector;
-	FVector2D AxisProbeScreen = FVector2D::ZeroVector;
-	const bool bPlayerProjected = PlayerController->ProjectWorldLocationToScreen(PlayerWorld, PlayerScreen, true);
-	const bool bRabbitProjected = PlayerController->ProjectWorldLocationToScreen(RabbitWorld, RabbitScreen, true);
-	const bool bProjectileProjected =
-	    PlayerController->ProjectWorldLocationToScreen(Event.Location, ProjectileScreen, true);
-	const bool bNiagaraProjected = PlayerController->ProjectWorldLocationToScreen(NiagaraWorld, NiagaraScreen, true);
-	const bool bAxisProjected = PlayerController->ProjectWorldLocationToScreen(AxisProbeWorld, AxisProbeScreen, true);
-
-	const FVector2D ToPlayerScreen = PlayerScreen - NiagaraScreen;
-	const FVector2D AuthoredCenterScreen = AxisProbeScreen - NiagaraScreen;
-	const float ScreenDirectionDot =
-	    !ToPlayerScreen.IsNearlyZero() && !AuthoredCenterScreen.IsNearlyZero()
-	        ? FVector2D::DotProduct(ToPlayerScreen.GetSafeNormal(), AuthoredCenterScreen.GetSafeNormal())
-	        : 0.0f;
-	int32 ViewportWidth = 0;
-	int32 ViewportHeight = 0;
-	PlayerController->GetViewportSize(ViewportWidth, ViewportHeight);
-
-	UE_LOG(LogReEcho,
-	       Warning,
-	       TEXT("[RabbitAimTrace] Owner=%s Seq=%lld Phase=%s Sample=%d Viewport=(%d,%d) "
-	            "PlayerWorld=%s PlayerScreen=(%.1f,%.1f,%d) RabbitWorld=%s RabbitScreen=(%.1f,%.1f,%d) "
-	            "ProjectileWorld=%s ProjectileScreen=(%.1f,%.1f,%d) NiagaraWorld=%s NiagaraScreen=(%.1f,%.1f,%d) "
-	            "EventDir=%s AuthoredCenterWorld=%s AuthoredCenterScreen=(%.1f,%.1f,%d) "
-	            "ToPlayerScreen=(%.1f,%.1f) Dot=%.3f"),
-	       *GetNameSafe(GetOwner()),
-	       Event.Attack.Sequence,
-	       Phase,
-	       EventCount,
-	       ViewportWidth,
-	       ViewportHeight,
-	       *PlayerWorld.ToCompactString(),
-	       PlayerScreen.X,
-	       PlayerScreen.Y,
-	       bPlayerProjected,
-	       *RabbitWorld.ToCompactString(),
-	       RabbitScreen.X,
-	       RabbitScreen.Y,
-	       bRabbitProjected,
-	       *Event.Location.ToCompactString(),
-	       ProjectileScreen.X,
-	       ProjectileScreen.Y,
-	       bProjectileProjected,
-	       *NiagaraWorld.ToCompactString(),
-	       NiagaraScreen.X,
-	       NiagaraScreen.Y,
-	       bNiagaraProjected,
-	       *Event.Direction.ToCompactString(),
-	       *AuthoredCenterWorld.ToCompactString(),
-	       AuthoredCenterScreen.X,
-	       AuthoredCenterScreen.Y,
-	       bAxisProjected,
-	       ToPlayerScreen.X,
-	       ToPlayerScreen.Y,
-	       ScreenDirectionDot);
-
-	LogRabbitParticleState(Effect, PlayerController, PlayerScreen, Event.Attack.Sequence, EventCount);
-}
-
-void UReEchoCombatVfxComponent::LogRabbitParticleState(const UNiagaraComponent* Effect,
-                                                       APlayerController* PlayerController,
-                                                       const FVector2D& PlayerScreen,
-                                                       const int64 AttackSequence,
-                                                       const int32 EventCount) const
-{
-	if (!Effect || !PlayerController)
-	{
-		return;
-	}
-
-	const auto Controller = Effect->GetSystemInstanceController();
-	FNiagaraSystemInstance* SystemInstance =
-	    Controller.IsValid() && Controller->IsSolo() ? Controller->GetSoloSystemInstance() : nullptr;
-	if (!SystemInstance)
-	{
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d readback unavailable solo=%d"),
-		       *GetNameSafe(GetOwner()),
-		       AttackSequence,
-		       EventCount,
-		       Controller.IsValid() && Controller->IsSolo());
-		return;
-	}
-
-	FVector2D ComponentScreen = FVector2D::ZeroVector;
-	PlayerController->ProjectWorldLocationToScreen(Effect->GetComponentLocation(), ComponentScreen, true);
-	const FTransform& SystemTransform = SystemInstance->GetWorldTransform();
-	const FNiagaraLWCConverter LwcConverter = SystemInstance->GetLWCConverter(false);
-	static const FName PositionName(TEXT("Position"));
-	static const FName VelocityName(TEXT("Velocity"));
-	constexpr uint32 MaxParticlesPerEmitter = 3;
-
-	for (const FNiagaraEmitterInstanceRef& EmitterRef : SystemInstance->GetEmitters())
-	{
-		const FNiagaraEmitterInstance& Emitter = EmitterRef.Get();
-		const FName EmitterName = Emitter.GetEmitterHandle().GetName();
-		if (EmitterName != TEXT("Fountain004") && EmitterName != TEXT("Fountain005"))
-		{
-			continue;
-		}
-
-		if (Emitter.GetSimTarget() != ENiagaraSimTarget::CPUSim)
-		{
-			UE_LOG(LogReEcho,
-			       Warning,
-			       TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d Emitter=%s SimTarget=GPU readback skipped"),
-			       *GetNameSafe(GetOwner()),
-			       AttackSequence,
-			       EventCount,
-			       *EmitterName.ToString());
-			continue;
-		}
-
-		const FNiagaraDataSet& ParticleData = Emitter.GetParticleData();
-		const FNiagaraDataBuffer* DataBuffer = ParticleData.GetCurrentData();
-		const uint32 ParticleCount = DataBuffer ? DataBuffer->GetNumInstances() : 0;
-		FNiagaraDataSetAccessor<FNiagaraPosition> PositionAccessor(ParticleData, PositionName);
-		const auto PositionReader = PositionAccessor.GetReader(ParticleData);
-		FNiagaraDataSetAccessor<FVector3f> VelocityAccessor(ParticleData, VelocityName);
-		const auto VelocityReader = VelocityAccessor.GetReader(ParticleData);
-		if (!PositionReader.IsValid() || ParticleCount == 0)
-		{
-			UE_LOG(
-			    LogReEcho,
-			    Warning,
-			    TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d Emitter=%s Local=%d Count=%u PositionValid=%d"),
-			    *GetNameSafe(GetOwner()),
-			    AttackSequence,
-			    EventCount,
-			    *EmitterName.ToString(),
-			    Emitter.IsLocalSpace(),
-			    ParticleCount,
-			    PositionReader.IsValid());
-			continue;
-		}
-
-		const uint32 LoggedParticleCount = FMath::Min(ParticleCount, MaxParticlesPerEmitter);
-		for (uint32 ParticleIndex = 0; ParticleIndex < LoggedParticleCount; ++ParticleIndex)
-		{
-			const FVector SimulationPosition =
-			    LwcConverter.ConvertSimulationPositionToWorld(PositionReader.Get(ParticleIndex));
-			const FVector ParticleWorld =
-			    Emitter.IsLocalSpace() ? SystemTransform.TransformPosition(SimulationPosition) : SimulationPosition;
-			FVector WorldVelocity = FVector::ZeroVector;
-			if (VelocityReader.IsValid())
-			{
-				WorldVelocity = LwcConverter.ConvertSimulationVectorToWorld(VelocityReader.Get(ParticleIndex));
-				if (Emitter.IsLocalSpace())
-				{
-					WorldVelocity = SystemTransform.TransformVectorNoScale(WorldVelocity);
-				}
-			}
-
-			FVector2D ParticleScreen = FVector2D::ZeroVector;
-			FVector2D VelocityProbeScreen = FVector2D::ZeroVector;
-			const bool bParticleProjected =
-			    PlayerController->ProjectWorldLocationToScreen(ParticleWorld, ParticleScreen, true);
-			const bool bVelocityProjected = PlayerController->ProjectWorldLocationToScreen(
-			    ParticleWorld + WorldVelocity * 0.1f, VelocityProbeScreen, true);
-			const FVector2D VelocityScreen = VelocityProbeScreen - ParticleScreen;
-			const FVector2D ToPlayerScreen = PlayerScreen - ParticleScreen;
-			const float VelocityDot =
-			    !VelocityScreen.IsNearlyZero() && !ToPlayerScreen.IsNearlyZero()
-			        ? FVector2D::DotProduct(VelocityScreen.GetSafeNormal(), ToPlayerScreen.GetSafeNormal())
-			        : 0.0f;
-
-			UE_LOG(LogReEcho,
-			       Warning,
-			       TEXT("[RabbitParticleTrace] Owner=%s Seq=%lld Sample=%d Emitter=%s Local=%d Count=%u "
-			            "Particle=%u World=%s Screen=(%.1f,%.1f,%d) FromComponent=(%.1f,%.1f) "
-			            "Velocity=%s VelocityScreen=(%.1f,%.1f,%d) ToPlayer=(%.1f,%.1f) VelocityDot=%.3f"),
-			       *GetNameSafe(GetOwner()),
-			       AttackSequence,
-			       EventCount,
-			       *EmitterName.ToString(),
-			       Emitter.IsLocalSpace(),
-			       ParticleCount,
-			       ParticleIndex,
-			       *ParticleWorld.ToCompactString(),
-			       ParticleScreen.X,
-			       ParticleScreen.Y,
-			       bParticleProjected,
-			       ParticleScreen.X - ComponentScreen.X,
-			       ParticleScreen.Y - ComponentScreen.Y,
-			       *WorldVelocity.ToCompactString(),
-			       VelocityScreen.X,
-			       VelocityScreen.Y,
-			       bVelocityProjected,
-			       ToPlayerScreen.X,
-			       ToPlayerScreen.Y,
-			       VelocityDot);
-		}
-	}
+	ProjectileVisuals.Reset();
 }
 
 void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event)
@@ -609,58 +422,50 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 
 void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEvent& Event)
 {
-	if (Event.AbilityId != TEXT("M_RABBIT_RangedBurst") || Event.Attack.Sequence <= 0)
+	if (Event.AbilityId != TEXT("M_RABBIT_RangedBurst") || Event.Attack.Sequence <= 0 || Event.VolleyBallIndex < 0)
 	{
 		return;
 	}
+	const FReEchoProjectileVisualKey Key = ResolveProjectileVisualKey(Event);
 	if (Event.Type == EReEchoEnemyProjectileEventType::Spawned)
 	{
-		if (TObjectPtr<UNiagaraComponent>* Existing = ProjectileEffects.Find(Event.Attack.Sequence))
+		if (TObjectPtr<UBillboardComponent>* Existing = ProjectileVisuals.Find(Key))
 		{
-			if (*Existing)
-			{
-				(*Existing)->DestroyComponent();
-			}
-			ProjectileEffects.Remove(Event.Attack.Sequence);
-			ProjectileVisualOffsets.Remove(Event.Attack.Sequence);
+			StopProjectileVisual(*Existing);
+			ProjectileVisuals.Remove(Key);
 		}
-		const USceneComponent* AttackRoot = ResolveAttackVfxRoot();
-		const FVector VisualOffset =
-		    AttackRoot ? AttackRoot->GetComponentLocation() - Event.Location : FVector::ZeroVector;
-		UNiagaraComponent* Effect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::RabbitProjectile),
-		                                       Event.Location + VisualOffset,
-		                                       Event.Direction,
-		                                       false);
-		if (Effect)
+		AActor* Owner = GetOwner();
+		UTexture2D* Texture = ResolveRabbitProjectileTexture();
+		if (Owner && Texture)
 		{
-			Effect->SetForceSolo(true);
-			ProjectileEffects.Add(Event.Attack.Sequence, Effect);
-			ProjectileVisualOffsets.Add(Event.Attack.Sequence, VisualOffset);
+			UBillboardComponent* Visual = NewObject<UBillboardComponent>(Owner);
+			Owner->AddInstanceComponent(Visual);
+			Visual->SetMobility(EComponentMobility::Movable);
+			Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Visual->SetCastShadow(false);
+			Visual->SetSprite(Texture);
+			Visual->bIsScreenSizeScaled = false;
+			Visual->SetRelativeScale3D(FVector(ResolveProjectileVisualScale(
+			    Event.CollisionRadiusCm, FMath::Max(Texture->GetSizeX(), Texture->GetSizeY()))));
+			Visual->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+			Visual->SetWorldLocation(Event.Location);
+			Visual->SetHiddenInGame(false);
+			Visual->SetVisibility(true);
+			Visual->RegisterComponent();
+			ProjectileVisuals.Add(Key, Visual);
 		}
-		LogRabbitProjectileTrajectory(Event, Effect, TEXT("Spawned"));
 		return;
 	}
-	if (TObjectPtr<UNiagaraComponent>* Effect = ProjectileEffects.Find(Event.Attack.Sequence))
+	if (TObjectPtr<UBillboardComponent>* Visual = ProjectileVisuals.Find(Key))
 	{
-		if (*Effect && Event.Type == EReEchoEnemyProjectileEventType::Moved)
+		if (*Visual && Event.Type == EReEchoEnemyProjectileEventType::Moved)
 		{
-			const FVector VisualOffset = ProjectileVisualOffsets.FindRef(Event.Attack.Sequence);
-			(*Effect)->SetWorldLocationAndRotation(
-			    Event.Location + VisualOffset,
-			    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::RabbitProjectile, Event.Direction));
-			LogRabbitProjectileTrajectory(Event, *Effect, TEXT("Moved"));
+			(*Visual)->SetWorldLocation(Event.Location);
 		}
 		else if (Event.Type == EReEchoEnemyProjectileEventType::Ended)
 		{
-			LogRabbitProjectileTrajectory(Event, *Effect, TEXT("Ended"));
-			if (*Effect)
-			{
-				(*Effect)->Deactivate();
-				(*Effect)->DestroyComponent();
-			}
-			ProjectileEffects.Remove(Event.Attack.Sequence);
-			ProjectileVisualOffsets.Remove(Event.Attack.Sequence);
-			ProjectileTrajectoryEventCounts.Remove(Event.Attack.Sequence);
+			StopProjectileVisual(*Visual);
+			ProjectileVisuals.Remove(Key);
 		}
 	}
 }

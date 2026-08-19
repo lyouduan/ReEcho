@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Engine/Texture2D.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraSystem.h"
@@ -29,6 +30,20 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Combat effects still render above an owner already beyond the foreground band"),
 	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(150),
 	          151);
+	FReEchoEnemyProjectileEvent BallZero;
+	BallZero.Attack.Sequence = 17;
+	BallZero.VolleyBallIndex = 0;
+	FReEchoEnemyProjectileEvent BallOne = BallZero;
+	BallOne.VolleyBallIndex = 1;
+	const FReEchoProjectileVisualKey BallZeroKey = UReEchoCombatVfxComponent::ResolveProjectileVisualKey(BallZero);
+	const FReEchoProjectileVisualKey BallOneKey = UReEchoCombatVfxComponent::ResolveProjectileVisualKey(BallOne);
+	TestTrue(TEXT("Same committed volley and same ball resolve a stable visual key"),
+	         BallZeroKey == UReEchoCombatVfxComponent::ResolveProjectileVisualKey(BallZero));
+	TestFalse(TEXT("Two balls in one committed volley cannot overwrite the same visual"), BallZeroKey == BallOneKey);
+	TestTrue(TEXT("Rabbit opaque texture scales its visible diameter to the gameplay collider"),
+	         FMath::IsNearlyEqual(UReEchoCombatVfxComponent::ResolveProjectileVisualScale(50.0f, 512),
+	                              100.0f / 154.0f,
+	                              KINDA_SMALL_NUMBER));
 	const FVector LockedPlayerDirection = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
 	const FRotator RabbitProjectileRotation =
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::RabbitProjectile, LockedPlayerDirection);
@@ -55,6 +70,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, AssetPath);
 		TestNotNull(FString::Printf(TEXT("Niagara system loads: %s"), AssetPath), System);
 	}
+	TestNotNull(TEXT("Logic-driven rabbit projectile texture loads"),
+	            LoadObject<UTexture2D>(nullptr, FReEchoCombatVfxCatalog::ResolveRabbitProjectileTexturePath()));
 
 	UNiagaraSystem* RabbitProjectileSystem = LoadObject<UNiagaraSystem>(
 	    nullptr, FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::RabbitProjectile));

@@ -27,6 +27,11 @@ const TCHAR* FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic
 	}
 }
 
+const TCHAR* FReEchoCombatVfxCatalog::ResolveRabbitProjectileTexturePath()
+{
+	return TEXT("/Game/VFX/Monster/Rabbit/Tex/0814_04.0814_04");
+}
+
 bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 {
 	const FString Pattern = AttackPatternId.ToString();

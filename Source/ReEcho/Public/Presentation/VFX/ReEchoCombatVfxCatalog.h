@@ -18,6 +18,8 @@ enum class EReEchoCombatVfxSemantic : uint8
 struct REECHO_API FReEchoCombatVfxCatalog
 {
 	static const TCHAR* ResolvePath(EReEchoCombatVfxSemantic Semantic);
+	/** Single-ball texture used by the logic-driven rabbit projectile proxy. */
+	static const TCHAR* ResolveRabbitProjectileTexturePath();
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
 	/** Returns the measured authored center axis for a semantic asset. */
 	static FVector ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic Semantic);

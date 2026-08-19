@@ -36,7 +36,7 @@ MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCom
 
 依赖必须保持单向。Cards 计算构筑状态、候选资格和类型化规则结果，但不接触世界；Weapons 和 Enemies 可以产生攻击提交或命中候选，但只有 Combat 能形成最终伤害、元素、生命与死亡结果；主模块负责把结果装配到世界 Actor、表现、UI、音频、Run 与 Recording。`ReEchoPresentation` 只消费稳定表现 ID 与命令，不引用玩法 Actor；音频和表现只消费结果，不决定攻击、命中或流程是否成功。
 
-战斗 Niagara 仍属于 `MOD-ReEcho/AREA-Presentation`，以[战斗 VFX 文档入口](modules/MOD-ReEchoVFX.md)维护。Combat/Weapons/Enemies 只发布资源中立的提交、最终伤害、特殊动作阶段和逻辑投射物生命周期；主模块 VFX 适配器选择资产并管理 Niagara。粒子碰撞、播放完成、加载成败、朝向轴和透明层级均不得反向影响玩法。
+战斗 VFX 仍属于 `MOD-ReEcho/AREA-Presentation`，以[战斗 VFX 文档入口](modules/MOD-ReEchoVFX.md)维护。Combat/Weapons/Enemies 只发布资源中立的提交、最终伤害、特殊动作阶段和逻辑投射物生命周期；主模块 VFX 适配器选择 Niagara、纹理等表现资产并管理实例。粒子碰撞、播放完成、加载成败、朝向轴和透明层级均不得反向影响玩法。
 
 ## 主运行流程
 
@@ -69,7 +69,7 @@ MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCom
 | 玩家历史与 Echo Playback | Recording/Playback | 世界流程启动/停止，当前世界重新选目标与结算 |
 | 屏幕实例、焦点、输入模式与暂停策略 | UI Manager/Flow Coordinator | GameMode 发送屏幕命令，不直接管理 Viewport |
 | 音频目录、总线、音乐/环境状态与播放实例 | `MOD-ReEchoAudio` | 主模块发送语义请求，不读取播放内部状态决定玩法 |
-| Niagara 实例、语义资产映射与视觉跟随索引 | `MOD-ReEcho/AREA-Presentation` 的 VFX 适配器 | 只读消费 Combat/Enemy 事件；逻辑投射物位置、命中和有效性仍归 Enemies/Host |
+| 战斗 VFX 实例、语义资产映射与视觉跟随索引 | `MOD-ReEcho/AREA-Presentation` 的 VFX 适配器 | 只读消费 Combat/Enemy 事件；逻辑投射物位置、命中和有效性仍归 Enemies/Host；逐球可见代理只投影逻辑位置 |
 
 ## 数据权威流
 
