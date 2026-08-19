@@ -10,6 +10,7 @@ GM commands use Unreal Engine's development console. Press `~` in PIE or a Devel
 | `GMHeal 25` | Restores 25 HP, clamped to maximum HP. |
 | `GMAddShards 100` | Adds 100 Time Shards; negative values subtract without going below zero. |
 | `GMWeather Clear` | Disables weather. `Rain` and `Fog` are also accepted. |
+| `GMEndEncounter` | Immediately ends the current non-Boss countdown and runs the normal encounter-completion flow. Resume gameplay before using it. |
 | `GMKillAll` | Defeats all current enemies and lets the normal encounter-completion flow run. |
 | `GMSpawnFox` | Spawns one production `M_FOX` enemy about 350 cm from the living player. |
 | `GMSpawnFox 500` | Spawns the fox 500 cm toward the arena center; accepted distance is clamped to 150–1000 cm. |

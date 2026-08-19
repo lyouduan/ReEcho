@@ -2,12 +2,6 @@ import unreal
 
 
 ASSET_PATH = "/Game/ReEcho/UI/WBP_ReEchoInventoryShopScreen"
-EMPTY_ATTACHMENT_SLOT_PATH = (
-    "/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/"
-    "T_UI_Shop_AttachmentSlot"
-)
-
-
 def load_required(path):
     asset = unreal.load_asset(path)
     if asset is None:
@@ -51,18 +45,17 @@ widgets["ArtShopTitle"].set_editor_property("visibility", unreal.SlateVisibility
 # Slot descriptions now use the cursor-following custom tooltip. The large
 # authored stats board behind the card slots is therefore intentionally hidden.
 widgets["ArtLoadoutStats"].set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
-
-# The target places exactly three attachment icons in one row directly below
-# the weapon art. These are Overlay children, so the margins define the exact
-# 93x93 boxes within the 966x797 loadout overlay.
-for widget_name, left in (("ArtAttachmentSlot0", 28.0), ("ArtAttachmentSlot1", 140.0), ("ArtAttachmentSlot2", 252.0)):
-    slot = widgets[widget_name].get_editor_property("slot")
-    slot.set_editor_property("padding", unreal.Margin(left, 587.0, 966.0 - left - 93.0, 117.0))
-    slot.set_editor_property("horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_FILL)
-    slot.set_editor_property("vertical_alignment", unreal.VerticalAlignment.V_ALIGN_FILL)
-    widgets[widget_name].set_brush_from_texture(load_required(EMPTY_ATTACHMENT_SLOT_PATH), False)
-    widgets[widget_name].set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
-widgets["ArtAttachmentSlot3"].set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
+# These legacy Overlay children are intentionally retired. Their replacements
+# live under DesignerLoadoutCanvas and must not be repositioned by this script.
+for widget_name in (
+    "ArtLoadoutWeapon",
+    "ArtShopClock",
+    "ArtAttachmentSlot0",
+    "ArtAttachmentSlot1",
+    "ArtAttachmentSlot2",
+    "ArtAttachmentSlot3",
+):
+    widgets[widget_name].set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
 
 if not toolset.call_method("CompileWidgetBlueprint", args=(blueprint,)):
     raise RuntimeError("WBP_ReEchoInventoryShopScreen failed to compile")

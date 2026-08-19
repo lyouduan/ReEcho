@@ -112,16 +112,15 @@ private:
 	void BuildOfferEntries();
 	void BuildLoadoutEntries();
 	void BuildTargetShopPresentation();
+	void BindDesignerLoadoutLayout();
 	void RebuildTargetOfferRows();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	bool HasEchoStorageCard() const;
-	void AddTargetOfferCard(class UHorizontalBox* Row,
-	                        const FReEchoShopOffer& Offer,
-	                        int32 OfferIndex,
-	                        bool bWeaponPart);
+	void
+	AddTargetOfferCard(class UHorizontalBox* Row, const FReEchoShopOffer& Offer, int32 OfferIndex, bool bWeaponPart);
 	void Refresh();
 	void RequestPurchase(int32 OfferIndex);
 	void ToggleDraftPart(int32 OwnedPartIndex);
@@ -290,12 +289,18 @@ private:
 	TObjectPtr<UHorizontalBox> TargetPartOfferRow;
 	UPROPERTY(Transient)
 	TObjectPtr<UHorizontalBox> TargetCardOfferRow;
-	UPROPERTY(Transient)
-	TObjectPtr<UCanvasPanel> OwnedCardSlotPanel;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UCanvasPanel> DesignerLoadoutCanvas;
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> TargetCurrencyText;
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> AttachmentHoverButtons;
+	TArray<TObjectPtr<UButton>> DesignerAttachmentSlotButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerAttachmentSlotArts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UButton>> DesignerCardSlotButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerCardSlotArts;
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> TargetSaveLoadoutButton;
 

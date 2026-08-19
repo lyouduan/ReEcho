@@ -60,6 +60,8 @@ public:
 	UFUNCTION(Exec)
 	void GMWeather(const FString& Scene = TEXT("Clear"));
 	UFUNCTION(Exec)
+	void GMEndEncounter();
+	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
 	void GMSpawnFox(float Distance = 350.0f);

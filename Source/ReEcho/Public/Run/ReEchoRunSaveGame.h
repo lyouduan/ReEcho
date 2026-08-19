@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v11 removes J_CAT and canonicalizes all persisted character identities to the retained four-character roster. */
-	static constexpr int32 CurrentSaveVersion = 11;
+	/** v12 persists the per-run trait-card offer seed. */
+	static constexpr int32 CurrentSaveVersion = 12;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -30,6 +30,10 @@ public:
 
 	UPROPERTY(SaveGame)
 	int32 TimeShards = 0;
+
+	/** Added in v12. Makes each run's card offers random while keeping save/load reproducible. */
+	UPROPERTY(SaveGame)
+	int32 TraitOfferSeed = 0;
 
 	UPROPERTY(SaveGame)
 	FReEchoBuildSnapshot CurrentBuild;

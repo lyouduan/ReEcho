@@ -39,12 +39,16 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 
 	UReEchoRunSaveGame* Snapshot = Source->CreateSaveSnapshot();
 	TestNotNull(TEXT("A save snapshot is created"), Snapshot);
+	TestTrue(TEXT("A save snapshot persists a non-zero card-offer seed"), Snapshot->TraitOfferSeed != 0);
 	TestEqual(TEXT("Mid-encounter save resumes before that encounter"), Snapshot->EncounterIndex, 0);
 	TestEqual(TEXT("Mid-encounter phase normalizes to planning"), Snapshot->SavedPhase, EReEchoRunPhase::Planning);
 
 	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
 	TestTrue(TEXT("Compatible save snapshot restores"), Restored->RestoreSaveSnapshot(*Snapshot));
+	TestEqual(TEXT("Card-offer seed restores"),
+	          Restored->CreateSaveSnapshot()->TraitOfferSeed,
+	          Snapshot->TraitOfferSeed);
 	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));

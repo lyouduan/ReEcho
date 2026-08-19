@@ -108,7 +108,11 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	}
 
 	TArray<FName> PurchaseRequests;
-	Widget->OnPurchaseRequested.AddLambda([&PurchaseRequests](const FName ItemId) { PurchaseRequests.Add(ItemId); });
+	Widget->OnPurchaseRequested.AddLambda(
+	    [&PurchaseRequests](const FName ItemId)
+	    {
+		    PurchaseRequests.Add(ItemId);
+	    });
 	UReEchoIndexedButton* RunItemButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy0")));
 	UReEchoIndexedButton* WeaponPartButton =
@@ -135,7 +139,10 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 
 	TArray<FName> SavedDraft;
 	Widget->OnWeaponLoadoutSaveRequested.AddLambda(
-	    [&SavedDraft](const TArray<FName>& PartIds) { SavedDraft = PartIds; });
+	    [&SavedDraft](const TArray<FName>& PartIds)
+	    {
+		    SavedDraft = PartIds;
+	    });
 	UButton* SaveButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("TargetSaveLoadoutButton")));
 	TestNotNull(TEXT("Loadout save button exists"), SaveButton);
 	if (SaveButton)
@@ -161,8 +168,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UReEchoInventoryShopWidget* Widget =
-	    NewObject<UReEchoInventoryShopWidget>(GetTransientPackage(), ShopWidgetClass);
+	UReEchoInventoryShopWidget* Widget = NewObject<UReEchoInventoryShopWidget>(GetTransientPackage(), ShopWidgetClass);
 	TestNotNull(TEXT("Authored inventory/shop widget can be instantiated"), Widget);
 	if (!Widget)
 	{
@@ -201,6 +207,14 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	StorageCard.Tier = 3;
 	PartShopView.OwnedCards.Add(StorageCard);
 	Widget->SetWeaponPartShopView(PartShopView, true);
+	UImage* DesignerClock = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerShopClock")));
+	UCanvasPanelSlot* DesignerClockSlot = DesignerClock ? Cast<UCanvasPanelSlot>(DesignerClock->Slot) : nullptr;
+	TestNotNull(TEXT("Shop clock is authored as a direct Canvas child"), DesignerClockSlot);
+	const FVector2D DesignerClockTestPosition(431.0f, 397.0f);
+	if (DesignerClockSlot)
+	{
+		DesignerClockSlot->SetPosition(DesignerClockTestPosition);
+	}
 	FReEchoEchoStorageSummary EchoSummary;
 	EchoSummary.StorageCapacity = 3;
 	EchoSummary.bHasPendingRecording = true;
@@ -218,8 +232,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Authored shop creates a purchasable target weapon-part entry"),
 	            Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
 	UTexture2D* ExpectedPartIcon = LoadObject<UTexture2D>(
-	    nullptr,
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_TIDE.T_UI_Part_P_CORE_TIDE"));
+	    nullptr, TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_TIDE.T_UI_Part_P_CORE_TIDE"));
 	UImage* OfferPartIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("TargetCardIcon1_0")));
 	TestNotNull(TEXT("Mapped weapon-part icon asset loads"), ExpectedPartIcon);
 	TestTrue(TEXT("Weapon-part offer uses its PartId icon instead of the attachment placeholder"),
@@ -229,7 +242,12 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Authored shop receives the independent echo popup"), EchoPanelScale);
 	TestTrue(TEXT("Post-trait echo management starts hidden until the storage-card slot is clicked"),
 	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Collapsed);
-	UButton* AttachmentHoverSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("AttachmentHoverSlot0")));
+	TestTrue(TEXT("Runtime refresh preserves the clock's Blueprint-authored position"),
+	         DesignerClockSlot && DesignerClockSlot->GetPosition() == DesignerClockTestPosition);
+	UImage* DesignerWeaponPanel = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerWeaponPanel")));
+	TestNotNull(TEXT("Weapon panel is authored as a direct Canvas child"),
+	            DesignerWeaponPanel ? Cast<UCanvasPanelSlot>(DesignerWeaponPanel->Slot) : nullptr);
+	UButton* AttachmentHoverSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerAttachmentSlot0")));
 	TestNotNull(TEXT("Equipped attachment has a hover target below the weapon"), AttachmentHoverSlot);
 	TestTrue(TEXT("Attachment hover uses a custom cursor-following tooltip"),
 	         AttachmentHoverSlot && Cast<USizeBox>(AttachmentHoverSlot->GetToolTip()) != nullptr);
@@ -238,10 +256,11 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		const USizeBox* TooltipSize = Cast<USizeBox>(AttachmentHoverSlot->GetToolTip());
 		const UBorder* TooltipFrame = TooltipSize ? Cast<UBorder>(TooltipSize->GetContent()) : nullptr;
 		const UBorder* TooltipSurface = TooltipFrame ? Cast<UBorder>(TooltipFrame->GetContent()) : nullptr;
-		const UVerticalBox* TooltipContent = TooltipSurface ? Cast<UVerticalBox>(TooltipSurface->GetContent()) : nullptr;
+		const UVerticalBox* TooltipContent =
+		    TooltipSurface ? Cast<UVerticalBox>(TooltipSurface->GetContent()) : nullptr;
 		const UTextBlock* TooltipEffect = TooltipContent && TooltipContent->GetChildrenCount() > 1
-		                                          ? Cast<UTextBlock>(TooltipContent->GetChildAt(1))
-		                                          : nullptr;
+		                                      ? Cast<UTextBlock>(TooltipContent->GetChildAt(1))
+		                                      : nullptr;
 		TestTrue(TEXT("Attachment tooltip includes its effect explanation"),
 		         TooltipEffect && TooltipEffect->GetText().EqualTo(WeaponPart.EffectText));
 	}
@@ -251,34 +270,30 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Authored loadout stats board still exists for layout compatibility"), LoadoutStatsBoard);
 	TestTrue(TEXT("Large black loadout stats board is hidden behind the card slots"),
 	         LoadoutStatsBoard && LoadoutStatsBoard->GetVisibility() == ESlateVisibility::Collapsed);
-	UButton* StorageCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("EchoStorageCardSlot0")));
+	UButton* StorageCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardSlot0")));
 	TestNotNull(TEXT("G_3_02 owns a clickable card slot"), StorageCardSlot);
 	if (StorageCardSlot)
 	{
 		TestNotNull(TEXT("Owned card hover uses the same custom cursor-following tooltip"),
 		            Cast<USizeBox>(StorageCardSlot->GetToolTip()));
-		UImage* CardImage = Cast<UImage>(Widget->GetWidgetFromName(TEXT("OwnedCardSlot0")));
-		const UCanvasPanelSlot* CardImageSlot = CardImage ? Cast<UCanvasPanelSlot>(CardImage->Slot) : nullptr;
-		const UCanvasPanelSlot* InteractionSlot = Cast<UCanvasPanelSlot>(StorageCardSlot->Slot);
-		TestNotNull(TEXT("Owned card art stays directly on the fixed-size slot canvas"), CardImageSlot);
-		TestNotNull(TEXT("Owned card interaction is a separate same-size overlay"), InteractionSlot);
-		if (CardImageSlot && InteractionSlot)
+		UImage* CardImage = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt0")));
+		const UCanvasPanelSlot* DesignerCardSlot = Cast<UCanvasPanelSlot>(StorageCardSlot->Slot);
+		TestNotNull(TEXT("Owned card slot is directly editable on the designer canvas"), DesignerCardSlot);
+		TestNotNull(TEXT("Owned card art remains the authored button content"), CardImage);
+		if (DesignerCardSlot)
 		{
-			TestEqual(TEXT("Owned card art remains 60 by 60"), CardImageSlot->GetSize(), FVector2D(60.0f, 60.0f));
-			TestEqual(TEXT("Interaction overlay matches the card art size"),
-			          InteractionSlot->GetSize(), CardImageSlot->GetSize());
-			TestEqual(TEXT("Interaction overlay matches the card art position"),
-			          InteractionSlot->GetPosition(), CardImageSlot->GetPosition());
+			TestEqual(TEXT("Owned card slot remains 60 by 60"), DesignerCardSlot->GetSize(), FVector2D(60.0f, 60.0f));
 		}
 		StorageCardSlot->OnClicked.Broadcast();
 	}
 	TestTrue(TEXT("Clicking the G_3_02 slot opens echo storage"),
-	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible &&
-	             EchoPanelScale && EchoPanelScale->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
+	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible && EchoPanelScale &&
+	             EchoPanelScale->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
 	if (ShopScrollBox)
 	{
 		TestEqual(TEXT("Legacy shop scroll host does not intercept target buttons"),
-		          ShopScrollBox->GetVisibility(), ESlateVisibility::Collapsed);
+		          ShopScrollBox->GetVisibility(),
+		          ESlateVisibility::Collapsed);
 	}
 	if (EchoPanelScale)
 	{
@@ -293,14 +308,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	}
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		UImage* Attachment = Cast<UImage>(Widget->GetWidgetFromName(
-		    *FString::Printf(TEXT("ArtAttachmentSlot%d"), Index)));
-		const UOverlaySlot* AttachmentSlot = Attachment ? Cast<UOverlaySlot>(Attachment->Slot) : nullptr;
+		UButton* AttachmentSlotButton =
+		    Cast<UButton>(Widget->GetWidgetFromName(*FString::Printf(TEXT("DesignerAttachmentSlot%d"), Index)));
+		UImage* Attachment =
+		    Cast<UImage>(Widget->GetWidgetFromName(*FString::Printf(TEXT("DesignerAttachmentSlotArt%d"), Index)));
+		const UCanvasPanelSlot* AttachmentSlot =
+		    AttachmentSlotButton ? Cast<UCanvasPanelSlot>(AttachmentSlotButton->Slot) : nullptr;
 		TestNotNull(*FString::Printf(TEXT("Attachment slot %d exists in the authored loadout"), Index), AttachmentSlot);
 		if (AttachmentSlot)
 		{
-			TestTrue(*FString::Printf(TEXT("Attachment slot %d is below the weapon"), Index),
-			         AttachmentSlot->GetPadding().Top >= 580.0f);
+			TestEqual(*FString::Printf(TEXT("Attachment slot %d keeps its authored size"), Index),
+			          AttachmentSlot->GetSize(),
+			          FVector2D(93.0f, 93.0f));
 		}
 		if (Index == 0)
 		{

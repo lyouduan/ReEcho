@@ -242,6 +242,10 @@ private:
 	UPROPERTY()
 	TArray<FName> PendingTraitCardIds;
 
+	/** Randomized once per run and persisted so reopening a card choice cannot reroll it. */
+	UPROPERTY()
+	int32 TraitOfferSeed = 0;
+
 	UPROPERTY()
 	FReEchoEncounterRuntimeState PendingEncounterResume;
 

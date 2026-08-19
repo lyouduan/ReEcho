@@ -97,6 +97,7 @@
 - 使用 `artifact-tool` 对 `EnemyAbilities!F9` 做了最小值修改和前后视觉/值检查，但其 XLSX 导出会删除既有 Sheet Protection，仓库同步器正确拒绝。无效导出当时已从实现 worktree 恢复到基线状态，之后才执行下述定向 OOXML 修改。
 - 经程序用户明确确认，改用定向 OOXML 补丁只改 `EnemyAbilities!F9` 的值 `0 → 10`；补丁在写入前后验证目标旧/新值和 `sheetProtection`，用临时文件原子替换。随后由 `artifact-tool` 只读检查/渲染最终工作簿，未再通过其导出。
 - 完整 `ReEcho.Enemies` 扩大测试最初暴露三个既有 Host 测试在 headless 世界产生的精确 `Animation.Idle` Presentation 错误；各测试按实际出现次数声明该已知错误，未放宽其他错误或玩法断言。
+- 集成阶段把 `origin/main@8ac53ab` 合入 Plan53：远端商店/UI、Plan54 规划以及 Plan55/56 规划全部保留；源码与资产自动组合无冲突，唯一 Git 冲突是双方旧 Editor 预构建包。冲突解决时不选择旧 DLL，先采用远端占位，再由最终组合源码 `-FullRebuild` 全量覆盖。
 
 ### 证据
 
@@ -105,6 +106,7 @@
 - 定向 OOXML 补丁后，`sync_xlsx_to_csv.py --sheet EnemyAbilities` 成功发布，`sync_xlsx_to_csv.py --check` 通过；CSV diff 仅为 `M_RABBIT_RangedBurst.Damage 0 → 10`，三个 Boss 远程能力仍为 0。最终 `artifact-tool` 区域检查确认 `EnemyAbilities!F9 == 10`、公式错误扫描为 0，视觉渲染保持原表布局。
 - 修改的 C++ 已执行仓库 `.clang-format`；Editor Development 构建成功并刷新预构建包。`ReEcho.Enemies.Host.RabbitProjectilePipeline`、完整 `ReEcho.Enemies`、`ReEcho.Presentation.VFX` 与 `ReEcho.Run.SaveSnapshot` 均通过。
 - `python scripts/validate_project.py`、`python scripts/data/sync_xlsx_to_csv.py --check` 与 `git diff --check` 通过。完整 `scripts/data/test_sync_xlsx_to_csv.py` 为 14/15：失败项 `test_invalid_workbook_cases_fail_with_location` 同样可在未修改的 `main@158287b` 复现，属于既有错误消息定位顺序问题，不由本 Plan 引入。
+- `origin/main@8ac53ab + Plan53` 组合候选执行 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，七个 Runtime Module 预构建包均由该组合源码生成；重新运行完整 `ReEcho.Enemies`、`ReEcho.Presentation.VFX.Catalog`、XLSX/CSV 同步检查、项目校验和 `git diff --check` 均通过。
 
 ### 剩余风险
 
