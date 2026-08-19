@@ -6,7 +6,6 @@
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "ReEchoEnemyPresentationComponent.generated.h"
 
-class AReEchoHealthBarActor;
 class UBillboardComponent;
 class UBoxComponent;
 class UPointLightComponent;
@@ -173,8 +172,6 @@ private:
 	TObjectPtr<UBoxComponent> Collision;
 	UPROPERTY()
 	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
-	UPROPERTY()
-	TObjectPtr<AReEchoHealthBarActor> HealthBar;
 
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
