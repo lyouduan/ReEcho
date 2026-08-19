@@ -81,14 +81,18 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	LogicState.HitReactionRemainingSeconds = 0.1f;
 	LogicState.KnockbackVelocity = FVector(30.0f, -20.0f, 0.0f);
 	LogicState.AttackSequence = 8;
+	LogicState.FacingDirection = FVector(0.0f, -1.0f, 0.0f);
 	LogicState.bFuseActive = true;
 	Source->GetEnemyLogicComponent()->RestoreSnapshot(LogicState);
 	Source->SetActorLocation(FVector(10.0f, 20.0f, 30.0f));
+	Source->SetActorRotation(FRotator(0.0f, 73.0f, 0.0f));
 	const FReEchoEnemyRuntimeState Saved = Source->CaptureRuntimeState();
 	TestEqual(TEXT("Host save composes logic cooldown"), Saved.AttackCooldown, 0.75f);
 	TestEqual(TEXT("Host save composes fuse"), Saved.FuseRemaining, 0.5f);
 	TestEqual(TEXT("Host save composes hit reaction"), Saved.HitReactionRemaining, 0.1f);
 	TestEqual(TEXT("Host save composes attack identity"), Saved.AttackSequence, int64(8));
+	TestTrue(TEXT("Enemy save transform no longer persists visual facing rotation"),
+	         Saved.Transform.GetRotation().Equals(FQuat::Identity));
 
 	AReEchoEnemyActor* Restored = Fixture.Spawn(EReEchoEnemyKind::Grunt, 99);
 	TestNotNull(TEXT("Restore host spawns"), Restored);
@@ -108,6 +112,9 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Restore returns world transform authority to Host"),
 	          Restored->GetActorLocation(),
 	          FVector(10.0f, 20.0f, 30.0f));
+	TestTrue(TEXT("Restore keeps Enemy Actor rotation identity"), Restored->GetActorQuat().Equals(FQuat::Identity));
+	TestTrue(TEXT("Restore preserves explicit logical facing"),
+	         RestoredLogic.FacingDirection.Equals(FVector(0.0f, -1.0f, 0.0f)));
 
 	Source->ReceiveGrayboxDamage(TNumericLimits<float>::Max(), Source->GetActorLocation());
 	TestFalse(TEXT("Combat death immediately closes EnemyLogic"),
@@ -162,6 +169,7 @@ bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 	Sense.bTargetAlive = true;
 
 	Enemy->AdvanceBehaviorForTests(Sense, 0.01f);
+	TestTrue(TEXT("Enemy logic facing does not rotate the Actor"), Enemy->GetActorQuat().Equals(FQuat::Identity));
 	TestEqual(TEXT("Enemy ActionIntent reaches Combat exactly once"), Player->Combatant->CurrentHealth, 91.0f);
 	TestEqual(TEXT("Committed host attack uses EnemyLogic identity"),
 	          Enemy->GetEnemyLogicComponent()->GetSnapshot().AttackSequence,

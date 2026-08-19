@@ -42,6 +42,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scale", meta = (ClampMin = "1.0"))
 	float WorldHeight = 100.0f;
 
+	/** Automatically place the complete Flipbook render bounds so its bottom center meets the character footpoint. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
+	bool bAutoAlignFootpoint = true;
+
+	/** Art-authored correction in FootRoot space, applied after automatic bounds alignment. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
+	FVector FootpointOffset = FVector::ZeroVector;
+
 	/** 表现状态、优先级和中断规则；Flipbook仍由下方外观/武器动画集提供。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	TObjectPtr<UReEcho2DAnimationStateMachineAsset> StateMachine;

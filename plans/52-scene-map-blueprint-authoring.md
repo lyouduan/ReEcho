@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（同一 AI 兼任规划、实现、评审与集成）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`main` / `c7ddd304f3767374ea0b80f6a2d24ea921f2c551`。
 - 本地实现方式（可选，仅作交接说明）：用户已确认不采用 Planner-Executor 模式、不采用任务 worktree，直接在当前本地 `main` 工作；仅显式暂存本任务路径并保护既有未提交内容。
@@ -84,16 +84,34 @@
 ### 变化
 
 - 2026-08-18：基于 `origin/main` 最大编号 51 创建 Plan52；尚未进入实质实现。
+- 新增 `UReEchoArenaSceneProfile`，由 Arena Actor 在 Construction 中消费地图材质及 Ground 调色；Profile 仅拥有表现，不改变玩法边界、碰撞或关卡流程。
+- 通过 Editor Python 创建 `M_ArenaGround`、`MI_SC01..04`、`DA_ArenaScene_SC01..04`、通用 `BP_ArenaScene` 与四个薄子 Blueprint；Level00 已迁移到 SC01 并保留原 Arena 参数。
+- 四个 Profile 按插片实际内容设置独立白名单、密度、固定种子和中央 60% 安全区；SC01 已烘焙 18 个带 `ReEchoGeneratedDecoration_Plan52` 标签、可单独编辑的确定性卡片。
+- 经用户确认，使用 Unreal Editor 删除 11 个旧地图 `.uasset`，并删除 6 个旧 JPG/PNG 源图；保留的 `BP_ArenaScene_Map00` 在清理前已重定向到 SC01，避免断链。
+- 删除已失效且引用旧 `map01`/已移除属性的 `create_plan42_arena_scene.py`；新增可重复资产构建、Level 迁移、插片 Bake/Clear、旧引用审计、删除与最终验证工具。
+- 用户反馈地图贴图不正确后，先将本地 `main` 快进同步到远程 `d496b24`，再修正贴图导入流程：`sc01..04.png` 作为权威源，每次构建均覆盖重导入同名 Texture2D，禁止同名 `.uasset` 静默保留旧像素。
 
 ### 证据
 
 - `main` 与 `origin/main` 均为 `c7ddd304f3767374ea0b80f6a2d24ea921f2c551`；无待集成远端 main 提交。
 - 已只读确认四张新 PNG 位于 `Content/ReEcho/Art/Scene/Map/`；当前仅 `sc02.uasset` 已导入，旧 Map00/Map01/Night 与材质实例仍存在。
+- 四张 `sc01..04.png` 均为 3840x2160、16:9；对应 Texture2D、材质实例、Profile 与场景 Blueprint 均由 Editor 加载验证。
+- 首次增量构建因错误包含 `Engine/PrimaryDataAsset.h` 失败；修正为 UE 5.8 的 `Engine/DataAsset.h` 后构建通过。
+- 资产工具依次发现并修正 UE 5.8 Python API 差异：材质实例工厂无 `initial_parent`、Class 无 `is_child_of`；最终日志为 `[Plan52] Built four map materials, scene profiles, and editable Arena Blueprints`。
+- Level00 迁移工具依次修正按类筛选、布尔属性名和组件 Transform 反射 API；最终日志为 `[Plan52] Migrated Level00 to BP_ArenaScene_SC01 with preserved authored settings`。
+- 插片工具依次修正自定义 Arena Camera 查找、世界 Up 常量和 Python 不可调用的原生排序入口；最终以同公式本地计算脚点排序并成功烘焙 18 个卡片。
+- `ReEcho.Presentation.ArenaScene` 聚焦自动化退出码为 0。
+- Editor 资产验证通过：四个场景资产图、Level00 唯一 SC01 Arena、18 个插片、11 个旧地图资产均不存在。
+- 远程同步前已创建本地保护分支 `codex/local-main-pre-sync-20260818-map52`，保护提交为 `ac9341e`；远端变更只涉及商店武器部件图标/UI 与生成二进制，没有触及场景资产。
+- 同步后完整重建通过并刷新预构建包；四张 PNG 均为互不相同的 3840x2160 源图。增强后的资产验证同时核对 `MI_SC01..04` 的 `MapTexture` 参数精确指向对应 Texture2D，并在强制重导入后通过。
+- 用户 PIE 截图显示 Backdrop 为浅灰默认面；运行日志确认 `M_ArenaGround` 在 PCD3D_SM5 编译失败并回退 Default Material。根因为 UE 5.8 Python 材质连接 API 的 Desaturation/OneMinus 主输入是无名引脚，使用反射属性名会静默不连接。改用空引脚名重建后，真实 D3D 加载 Level00 不再报告 `M_ArenaGround` 编译失败。
 
 ### 剩余风险
 
 - 当前工作区包含本任务开始前的未提交二进制与配置改动，必须持续显式暂存并避免覆盖。
 - 旧资产删除具有二进制引用和恢复风险，执行前仍需准确人工确认。
+- 删除已由当前程序用户针对准确 17 项确认并完成；恢复点为发布的 Plan-only 提交 `5cae018`。
+- 最终全量构建、静态校验和用户 Editor/PIE 视觉验收尚未完成。
 
 ### 人工验收结果/请求
 
@@ -101,4 +119,6 @@
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录 Scene Profile 权威边界、四图/BP/Profile 资产路径与确定性插片工具。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：稳定标识仍为 `AREA-Presentation`，没有新增 Runtime Module 或索引路由。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑和依赖方向未变化，本任务只扩展主模块内的 Editor-authored 场景表现契约。

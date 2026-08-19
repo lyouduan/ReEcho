@@ -319,7 +319,7 @@ void AReEchoGameMode::GMKillAll()
 	{
 		AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(EnemyHost.Get());
 		const FVector DamageSource =
-		    Enemy ? Enemy->GetActorLocation() - Enemy->GetActorForwardVector() * 100.0f : FVector::ZeroVector;
+		    Enemy ? Enemy->GetActorLocation() - Enemy->GetFacingDirection() * 100.0f : FVector::ZeroVector;
 		for (int32 Attempt = 0; Enemy && Enemy->IsAlive() && Attempt < 32; ++Attempt)
 		{
 			Enemy->ReceiveGrayboxDamage(TNumericLimits<float>::Max(), DamageSource);
@@ -1137,10 +1137,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 			UE_LOG(LogTemp, Error, TEXT("Plan48 enemy restore failed: %s"), *CompileError);
 			continue;
 		}
-		AReEchoEnemyActor* Enemy =
-		    GetWorld()->SpawnActor<AReEchoEnemyActor>(ResolveEnemyClass(Definition.PresentationId),
-		                                              EnemyState.Transform.GetLocation(),
-		                                              EnemyState.Transform.Rotator());
+		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
+		    ResolveEnemyClass(Definition.PresentationId), EnemyState.Transform.GetLocation(), FRotator::ZeroRotator);
 		if (!Enemy)
 		{
 			continue;

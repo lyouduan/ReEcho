@@ -8,6 +8,7 @@ class UBoxComponent;
 class UMaterialInterface;
 class UStaticMeshComponent;
 class UTexture2D;
+class UReEchoArenaSceneProfile;
 
 /** Editor-authored first-arena scene and camera contract. Gameplay consumes its bounds but never owns its layout. */
 UCLASS()
@@ -90,6 +91,9 @@ public:
 	/** Complete Editor-authored map material. Replacing it changes the map without runtime texture injection. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual")
 	TObjectPtr<UMaterialInterface> MapMaterial;
+	/** Preferred visual configuration. When assigned, its map material and tuning override MapMaterial. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual")
+	TObjectPtr<UReEchoArenaSceneProfile> SceneProfile;
 	/** 独立的背景、相机安全区、玩家活动区和敌人出生区；X/Y 对应世界 X/Y。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "100.0"))
 	FVector2D BackdropHalfExtents = FVector2D(1250.0f, 2240.0f);
@@ -153,4 +157,5 @@ private:
 	FVector2D GetMapScale2D() const;
 	void UpdateEditorHierarchy();
 	void UpdateEditorLayout();
+	void ApplySceneProfile();
 };

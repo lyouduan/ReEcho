@@ -1,4 +1,5 @@
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
+#include "Presentation/Scene/ReEchoArenaSceneProfile.h"
 
 #include "Misc/AutomationTest.h"
 
@@ -10,6 +11,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoArenaSceneContractTest,
 
 bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 {
+	const UReEchoArenaSceneProfile* DefaultProfile = GetDefault<UReEchoArenaSceneProfile>();
+	TestEqual(TEXT("Scene profile defaults keep a broad center safe zone"),
+	          DefaultProfile->CenterSafeZoneRatio,
+	          FVector2D(0.6f, 0.6f));
+	TestEqual(TEXT("Scene profile defaults permit at most one landmark"), DefaultProfile->MaximumLandmarks, 1);
+
 	const FVector2D Footprint = AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(
 	    2800.0f, 1376.0f / 768.0f, FRotator(-45.0f, 0.0f, 0.0f));
 	TestTrue(TEXT("Projected footprint has positive X extent"), Footprint.X > 0.0f);
