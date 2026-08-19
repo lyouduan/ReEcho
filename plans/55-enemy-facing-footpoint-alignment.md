@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（lyouduan / Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@5e66e6b`。
 - 本地实现方式：当前本地 `main` 直接实施；不创建 worktree。
@@ -70,12 +70,32 @@
 
 ### 变化
 
+- 删除 EnemyHost 按 ActionIntent 旋转 Actor 的路径；保存时将 Rotation 规范化为 Identity，恢复与 GameMode 重生只恢复位置/缩放，旧格式缺少逻辑快照时仍可一次性从旧 Rotation 推导朝向。
+- 方向盾、Boss 传送回退、GMKillAll 与受击表现回退统一读取 EnemyLogic `FacingDirection`；Actor Forward 不再表达怪物玩法朝向。
+- Enemy `GroundRoot` 改为直属 `FootRoot`；Profile 新增 `bAutoAlignFootpoint` / `FootpointOffset`，PresentationMotionRoot 分离 authored、完整 Flipbook RenderBounds 自动对齐和 transient motion 三类位移。
+- GroundShadow 保留 Blueprint authored 的纵深、Z、地面旋转、材质和透明度；独立 GroundRoot 只同步当前 Flipbook 底边中心的 XY，Plane 屏幕横向宽度按完整 RenderBounds、Renderer 缩放/镜像及 FlipbookRoot 变换自动匹配，不继承 FlipbookRoot 或 Actor Rotation。
+- 增加脚点变换数学、Actor Identity/save-facing 与 Enemy 层级契约测试，并同步 `MOD-ReEcho`。
+
 ### 证据
+
+- 以 `origin/main@8248732` 为远程新基线完成受控三方合并：远程 Plan53/54/56、Rabbit 投射物与新版 VFX 保留；本地 Plan52 地图和 Plan55 朝向/脚点/阴影保留；五个本地旧特效 Key 资产未带回。
+- 合并后 `Build-Editor.cmd -Configuration Development -FullRebuild`：成功，100/100 actions，全部 Win64 Editor 模块统一刷新。
+- 合并后完整 `ReEcho.Enemies.Host` 三项（AttackPipeline、CompositionAndSave、RabbitProjectilePipeline）、`ReEcho.StageTransition` 两项与 `ReEcho.Presentation.Animation2D.FootpointAlignment`：全部 Success。
+- `Build-Editor.cmd -Configuration Development -FullRebuild`：成功，100/100 actions，Win64 Editor 预构建包已刷新。
+- `ReEcho.Presentation.Animation2D.FootpointAlignment`：Success；覆盖非零 Bounds Origin、Renderer 镜像/缩放和相机倾角组合。
+- 阴影宽度补充后增量 Editor 编译成功；同一自动化测试再次 Success，并验证上述变换后的 Flipbook 实际宽度。
+- 阴影改为“只跟随 Flipbook 位置/宽度、不跟随旋转”后再次增量编译成功；`FootpointAlignment`、`validate_project.py` 与 `git diff --check` 均通过。
+- `python scripts/validate_project.py`：全部静态项目检查通过；`git diff --check` 通过。
+- 定向源码扫描：EnemyActor/EnemyPresentation/GameMode 中不再存在怪物 `SetActorRotation`、Actor Rotation/Forward 消费；唯一 `GetActorForwardVector` 是固定相机视向读取，与怪物朝向无关。
 
 ### 剩余风险
 
+- 自动脚点采用完整 Flipbook 联合 RenderBounds，已做变换单测；不同实际角色、动画语义和镜头俯角的最终观感仍需 PIE 验收。
+
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`。
+- `PendingBeforeClose`：请在 PIE 中让怪物连续左右转向并触发 Idle/Move/Attack/Hit，确认阴影不旋转/公转且脚底不漂移；必要时在对应 Presentation Profile 中调整 `FootpointOffset`。
 
 ### 架构文档审阅结果
+
+- 已更新 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 的 Animation2D 契约；本次不改变模块拓扑，`ARCHITECTURE.md` 与根 `README.md` 无需修改。

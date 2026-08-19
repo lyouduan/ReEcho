@@ -5,7 +5,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Scene/ReEchoArenaSceneProfile.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace ReEchoArenaScene
@@ -88,6 +90,7 @@ void AReEchoArenaSceneActor::OnConstruction(const FTransform& Transform)
 	Super::OnConstruction(Transform);
 	UpdateEditorHierarchy();
 	UpdateEditorLayout();
+	ApplySceneProfile();
 }
 
 FVector2D AReEchoArenaSceneActor::GetPlayerHalfExtents() const
@@ -167,9 +170,9 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	{
 		return Fail(TEXT("Required Arena Scene components are missing."));
 	}
-	if (!MapMaterial)
+	if (!MapMaterial && (!SceneProfile || !SceneProfile->MapMaterial))
 	{
-		return Fail(TEXT("MapMaterial is not assigned."));
+		return Fail(TEXT("Neither SceneProfile nor MapMaterial provides an arena map material."));
 	}
 	if (BackdropHalfExtents.GetMin() < 100.0f || CameraClampHalfExtents.GetMin() < 100.0f ||
 	    PlayerHalfExtents.GetMin() < 100.0f || EnemySpawnHalfExtents.GetMin() < 100.0f)
@@ -253,13 +256,13 @@ void AReEchoArenaSceneActor::UpdateEditorLayout()
 	if (bAutoLayoutBackdrop)
 	{
 		Backdrop->SetRelativeLocation(FVector(0.0f, 0.0f, ReEchoArenaScene::BackdropSurfaceZ));
-		// map01 的 U 轴对应画面横向（世界 +Y），V 轴对应画面向下（世界 -X）。
+		// Arena map U is screen-right (world +Y); V is screen-down (world -X).
 		Backdrop->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
 		Backdrop->SetRelativeScale3D(FVector(BackdropHalfExtents.Y * 2.0f / ReEchoArenaScene::MeshSize,
 		                                     BackdropHalfExtents.X * 2.0f / ReEchoArenaScene::MeshSize,
 		                                     1.0f));
 	}
-	if (MapMaterial)
+	if (MapMaterial && !SceneProfile)
 	{
 		Backdrop->SetMaterial(0, MapMaterial);
 	}
@@ -287,4 +290,22 @@ void AReEchoArenaSceneActor::UpdateEditorLayout()
 	PlayerBounds->SetBoxExtent(FVector(PlayerHalfExtents.X, PlayerHalfExtents.Y, 5.0f));
 	EnemySpawnBounds->SetRelativeLocation(FVector(0.0f, 0.0f, GameplayPlaneZ + 15.0f));
 	EnemySpawnBounds->SetBoxExtent(FVector(EnemySpawnHalfExtents.X, EnemySpawnHalfExtents.Y, 5.0f));
+}
+
+void AReEchoArenaSceneActor::ApplySceneProfile()
+{
+	if (!Backdrop || !SceneProfile || !SceneProfile->MapMaterial)
+	{
+		return;
+	}
+	UMaterialInstanceDynamic* MaterialInstance = Backdrop->CreateDynamicMaterialInstance(0, SceneProfile->MapMaterial);
+	if (!MaterialInstance)
+	{
+		Backdrop->SetMaterial(0, SceneProfile->MapMaterial);
+		return;
+	}
+	MaterialInstance->SetVectorParameterValue(TEXT("GroundTint"), SceneProfile->GroundTint);
+	MaterialInstance->SetScalarParameterValue(TEXT("GroundBrightness"), SceneProfile->GroundBrightness);
+	MaterialInstance->SetScalarParameterValue(TEXT("GroundSaturation"), SceneProfile->GroundSaturation);
+	MaterialInstance->SetScalarParameterValue(TEXT("GroundContrast"), SceneProfile->GroundContrast);
 }

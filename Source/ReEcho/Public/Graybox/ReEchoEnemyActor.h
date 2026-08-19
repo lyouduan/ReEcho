@@ -161,6 +161,12 @@ public:
 
 	int32 GetSpawnIndex() const;
 	EReEchoEnemyKind GetKind() const;
+
+	FVector GetFacingDirection() const
+	{
+		return ResolveFacingDirection();
+	}
+
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
@@ -190,6 +196,7 @@ private:
 	                            const FReEchoEnemyProjectileRuntimeState& Projectile) const;
 	bool ShouldPublishProjectileEvent(const FReEchoEnemyProjectileRuntimeState& Projectile) const;
 	const FReEchoEnemyAbilityDefinition* FindAbility(FName AbilityId) const;
+	FVector ResolveFacingDirection() const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
 	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving) const;
 

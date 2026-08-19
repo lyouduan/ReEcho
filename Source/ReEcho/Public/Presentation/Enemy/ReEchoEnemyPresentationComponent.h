@@ -81,6 +81,14 @@ class REECHO_API UReEchoEnemyPresentationComponent : public UActorComponent
 public:
 	UReEchoEnemyPresentationComponent();
 
+	static FVector CalculateFootAlignmentOffset(const FBoxSphereBounds& FlipbookBounds,
+	                                            const FTransform& RendererToFlipbookRoot,
+	                                            const FTransform& FlipbookRootToMotionRoot,
+	                                            const FVector& AuthoredOffset = FVector::ZeroVector);
+	static float CalculateFlipbookPresentationWidth(const FBoxSphereBounds& FlipbookBounds,
+	                                                const FTransform& RendererToFlipbookRoot,
+	                                                const FTransform& FlipbookRootToFootRoot);
+
 	void ConfigureComponents(USceneComponent* InPresentationRoot,
 	                         USceneComponent* InVisualEffectRoot,
 	                         USceneComponent* InFootRoot,
@@ -128,6 +136,8 @@ private:
 
 	void ApplyVisual(FName PresentationId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
+	void RefreshFootpointAlignment();
+	void RefreshGroundShadowFromFlipbook();
 	void ResetTransientRoot();
 	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateElementAttachmentFacing();
@@ -149,6 +159,8 @@ private:
 	TObjectPtr<USceneComponent> VisualEffectRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> FootRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> GroundRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> FlipbookRoot;
 	UPROPERTY()
@@ -174,14 +186,19 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
 	UPROPERTY()
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> ActiveProfile;
+	UPROPERTY()
 	TObjectPtr<AReEchoHealthBarActor> HealthBar;
 
-	FVector BaseVisualLocation = FVector::ZeroVector;
+	FVector AuthoredMotionLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
+	FVector CalculatedFootAlignmentOffset = FVector::ZeroVector;
 	FVector BaseFlipbookLocation = FVector::ZeroVector;
 	FVector BaseFlipbookScale = FVector::OneVector;
 	FVector BaseEffectsLocation = FVector::ZeroVector;
 	FVector BaseEffectsScale = FVector::OneVector;
+	FVector AuthoredGroundRootLocation = FVector::ZeroVector;
+	FVector AuthoredGroundShadowScale = FVector::OneVector;
 	FVector ShakeDirection = FVector::ZeroVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;

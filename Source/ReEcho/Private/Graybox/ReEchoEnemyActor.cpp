@@ -107,7 +107,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
 	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
-	GroundRoot->SetupAttachment(PresentationMotionRoot);
+	GroundRoot->SetupAttachment(FootRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
@@ -228,7 +228,7 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 	AttachIfNeeded(FootRoot, PresentationRoot);
 	AttachIfNeeded(PresentationMotionRoot, FootRoot);
 	AttachIfNeeded(FlipbookRoot, PresentationMotionRoot);
-	AttachIfNeeded(GroundRoot, PresentationMotionRoot);
+	AttachIfNeeded(GroundRoot, FootRoot);
 	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
 	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
@@ -387,6 +387,7 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.EnemyId = EnemyId;
 	Result.SpawnIndex = LogicSnapshot.SpawnIndex;
 	Result.Transform = GetActorTransform();
+	Result.Transform.SetRotation(FQuat::Identity);
 	Result.CurrentHealth = Combatant ? Combatant->CurrentHealth : 0.0f;
 	Result.ElementState = Combatant ? Combatant->GetElementState() : FReEchoElementState{};
 	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -423,7 +424,8 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 	{
 		Configure(SavedKind, SavedState.SpawnIndex);
 	}
-	SetActorTransform(SavedState.Transform, false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorLocation(SavedState.Transform.GetLocation(), false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorScale3D(SavedState.Transform.GetScale3D());
 	Combatant->RestoreCurrentHealth(SavedState.CurrentHealth);
 
 	FReEchoElementState RestoredElementState = SavedState.ElementState;
@@ -450,7 +452,11 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		LogicSnapshot.bFuseActive = SavedState.bBomberFuseActive;
 		LogicSnapshot.HitReactionRemainingSeconds = FMath::Max(0.0f, SavedState.HitReactionRemaining);
 		LogicSnapshot.KnockbackVelocity = SavedState.KnockbackVelocity;
-		LogicSnapshot.FacingDirection = GetActorForwardVector().GetSafeNormal2D();
+		LogicSnapshot.FacingDirection = SavedState.Transform.GetRotation().GetForwardVector().GetSafeNormal2D();
+		if (LogicSnapshot.FacingDirection.IsNearlyZero())
+		{
+			LogicSnapshot.FacingDirection = FVector::ForwardVector;
+		}
 		LogicSnapshot.AttackSequence = FMath::Max<int64>(0, SavedState.AttackSequence);
 		LogicSnapshot.bSelfDestructCommitted = SavedState.bSelfDestructCommitted;
 		LogicSnapshot.Phase = LogicSnapshot.HitReactionRemainingSeconds > 0.0f ? EReEchoEnemyBehaviorPhase::HitReaction
@@ -596,7 +602,7 @@ float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent)
 		return Intent.RawDamage;
 	}
 	const FVector ToSource = (Intent.SourceLocation - GetActorLocation()).GetSafeNormal2D();
-	const FVector Forward = GetActorForwardVector().GetSafeNormal2D();
+	const FVector Forward = ResolveFacingDirection();
 	return FVector::DotProduct(Forward, ToSource) >= 0.0f ? 0.0f : Intent.RawDamage * 2.0f;
 }
 
@@ -748,10 +754,6 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySe
 {
 	FReEchoEnemyActionIntent Intent = EnemyLogic->Advance(Sense, DeltaSeconds);
 	Intent.MovementDelta *= FMath::Clamp(CardMovementMultiplier, 0.0f, 1.0f);
-	if (Intent.bHasFacing)
-	{
-		SetActorRotation(Intent.FacingDirection.Rotation());
-	}
 	if (Intent.bHasMovement)
 	{
 		AddActorWorldOffset(Intent.MovementDelta, true);
@@ -806,12 +808,19 @@ FVector AReEchoEnemyActor::ResolveBossTeleportDestination(const FVector& TargetL
 	FVector AwayFromTarget = (GetActorLocation() - TargetLocation).GetSafeNormal2D();
 	if (AwayFromTarget.IsNearlyZero())
 	{
-		AwayFromTarget = -GetActorForwardVector().GetSafeNormal2D();
+		AwayFromTarget = -ResolveFacingDirection();
 	}
 	FVector Candidate = TargetLocation + AwayFromTarget * TeleportOffsetCm;
 	Candidate.Z = GetActorLocation().Z;
-	FRotator CandidateRotation = (TargetLocation - Candidate).GetSafeNormal2D().Rotation();
-	return GetWorld()->FindTeleportSpot(this, Candidate, CandidateRotation) ? Candidate : FVector::ZeroVector;
+	FRotator IdentityRotation = FRotator::ZeroRotator;
+	return GetWorld()->FindTeleportSpot(this, Candidate, IdentityRotation) ? Candidate : FVector::ZeroVector;
+}
+
+FVector AReEchoEnemyActor::ResolveFacingDirection() const
+{
+	const FVector Facing =
+	    EnemyLogic ? EnemyLogic->GetSnapshot().FacingDirection.GetSafeNormal2D() : FVector::ZeroVector;
+	return Facing.IsNearlyZero() ? FVector::ForwardVector : Facing;
 }
 
 void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation)

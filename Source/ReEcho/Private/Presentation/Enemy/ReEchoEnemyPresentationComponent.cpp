@@ -14,8 +14,10 @@
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "Graybox/ReEchoHealthBarActor.h"
+#include "Graybox/ReEchoEnemyActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
+#include "PaperFlipbook.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
@@ -35,6 +37,36 @@ constexpr float HitReactionDuration = 0.22f;
 UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+}
+
+FVector UReEchoEnemyPresentationComponent::CalculateFootAlignmentOffset(const FBoxSphereBounds& FlipbookBounds,
+                                                                        const FTransform& RendererToFlipbookRoot,
+                                                                        const FTransform& FlipbookRootToMotionRoot,
+                                                                        const FVector& AuthoredOffset)
+{
+	const FVector LocalBottomCenter(
+	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector BottomInFlipbookRoot = RendererToFlipbookRoot.TransformPosition(LocalBottomCenter);
+	const FVector BottomInMotionRoot = FlipbookRootToMotionRoot.TransformPosition(BottomInFlipbookRoot);
+	return AuthoredOffset - BottomInMotionRoot;
+}
+
+float UReEchoEnemyPresentationComponent::CalculateFlipbookPresentationWidth(
+    const FBoxSphereBounds& FlipbookBounds,
+    const FTransform& RendererToFlipbookRoot,
+    const FTransform& FlipbookRootToFootRoot)
+{
+	const FVector LocalLeft(FlipbookBounds.Origin.X - FlipbookBounds.BoxExtent.X,
+	                        FlipbookBounds.Origin.Y,
+	                        FlipbookBounds.Origin.Z);
+	const FVector LocalRight(FlipbookBounds.Origin.X + FlipbookBounds.BoxExtent.X,
+	                         FlipbookBounds.Origin.Y,
+	                         FlipbookBounds.Origin.Z);
+	const FVector LeftInFootRoot =
+	    FlipbookRootToFootRoot.TransformPosition(RendererToFlipbookRoot.TransformPosition(LocalLeft));
+	const FVector RightInFootRoot =
+	    FlipbookRootToFootRoot.TransformPosition(RendererToFlipbookRoot.TransformPosition(LocalRight));
+	return FVector::Distance(LeftInFootRoot, RightInFootRoot);
 }
 
 void UReEchoEnemyPresentationComponent::SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog)
@@ -67,16 +99,20 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	PresentationController = InPresentationController;
 	FrameCollisionDriver = InFrameCollisionDriver;
 	GroundShadow = InGroundShadow;
+	GroundRoot = GroundShadow ? GroundShadow->GetAttachParent() : nullptr;
 	ElementAuraRing = InElementAuraRing;
 	ElementAttachmentLabel = InElementAttachmentLabel;
 	ElementAuraLight = InElementAuraLight;
 	Collision = InCollision;
+	AuthoredMotionLocation = VisualEffectRoot ? VisualEffectRoot->GetRelativeLocation() : FVector::ZeroVector;
 	if (PresentationController)
 	{
 		PresentationController->BindCollisionDriver(FrameCollisionDriver);
 	}
 	if (GroundShadow)
 	{
+		AuthoredGroundRootLocation = GroundRoot ? GroundRoot->GetRelativeLocation() : FVector::ZeroVector;
+		AuthoredGroundShadowScale = GroundShadow->GetRelativeScale3D();
 		GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
 		GroundShadow->SetMaterial(
 		    0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/ReEcho/Materials/M_GroundShadow.M_GroundShadow")));
@@ -149,8 +185,8 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName Presenta
 
 void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 {
-	UReEcho2DCharacterPresentationProfile* Profile =
-	    PresentationCatalog ? PresentationCatalog->ResolveProfile(PresentationId) : nullptr;
+	ActiveProfile = PresentationCatalog ? PresentationCatalog->ResolveProfile(PresentationId) : nullptr;
+	UReEcho2DCharacterPresentationProfile* Profile = ActiveProfile.Get();
 	if (CharacterSprite)
 	{
 		CharacterSprite->SetVisibility(!Profile);
@@ -163,9 +199,8 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 	}
 	if (VisualEffectRoot)
 	{
-		VisualEffectRoot->SetRelativeLocation(FVector::ZeroVector);
+		VisualEffectRoot->SetRelativeLocation(AuthoredMotionLocation);
 		VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
-		BaseVisualLocation = VisualEffectRoot->GetRelativeLocation();
 		BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
 	}
 	if (FlipbookRoot)
@@ -251,21 +286,68 @@ void UReEchoEnemyPresentationComponent::ResetTransientRoot()
 
 void UReEchoEnemyPresentationComponent::ApplyPresentationMotion(const FVector& Offset, const FVector& Scale)
 {
-	if (VisualEffectRoot)
-	{
-		VisualEffectRoot->SetRelativeLocation(BaseVisualLocation + FVector(Offset.X, Offset.Y, 0.0f));
-		VisualEffectRoot->SetRelativeScale3D(BaseVisualScale);
-	}
 	if (FlipbookRoot)
 	{
-		FlipbookRoot->SetRelativeLocation(BaseFlipbookLocation + FVector(0.0f, 0.0f, Offset.Z));
+		FlipbookRoot->SetRelativeLocation(BaseFlipbookLocation);
 		FlipbookRoot->SetRelativeScale3D(BaseFlipbookScale * Scale);
 	}
 	if (EffectsRoot)
 	{
-		EffectsRoot->SetRelativeLocation(BaseEffectsLocation + FVector(0.0f, 0.0f, Offset.Z));
+		EffectsRoot->SetRelativeLocation(BaseEffectsLocation);
 		EffectsRoot->SetRelativeScale3D(BaseEffectsScale * Scale);
 	}
+	RefreshFootpointAlignment();
+	if (VisualEffectRoot)
+	{
+		VisualEffectRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset + Offset);
+		VisualEffectRoot->SetRelativeScale3D(BaseVisualScale);
+	}
+	RefreshGroundShadowFromFlipbook();
+}
+
+void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
+{
+	const UPaperFlipbook* Flipbook = SequenceAnimation ? SequenceAnimation->GetFlipbook() : nullptr;
+	const UStaticMesh* ShadowMesh = GroundShadow ? GroundShadow->GetStaticMesh() : nullptr;
+	if (!FootRoot || !GroundRoot || !FlipbookRoot || !SequenceAnimation || !Flipbook || !GroundShadow || !ShadowMesh)
+	{
+		return;
+	}
+
+	const FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
+	const FVector LocalBottomCenter(FlipbookBounds.Origin.X,
+	                                FlipbookBounds.Origin.Y,
+	                                FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
+	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
+	GroundRoot->SetRelativeLocation(
+	    FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+
+	const float FlipbookWidth = CalculateFlipbookPresentationWidth(
+	    FlipbookBounds, SequenceAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());
+	const float ShadowNativeWidth = ShadowMesh->GetBounds().BoxExtent.Y * 2.0f;
+	if (FlipbookWidth <= UE_SMALL_NUMBER || ShadowNativeWidth <= UE_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	FVector ShadowScale = AuthoredGroundShadowScale;
+	ShadowScale.Y = FlipbookWidth / ShadowNativeWidth;
+	GroundShadow->SetRelativeScale3D(ShadowScale);
+}
+
+void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
+{
+	CalculatedFootAlignmentOffset = ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector;
+	const UPaperFlipbook* Flipbook = SequenceAnimation ? SequenceAnimation->GetFlipbook() : nullptr;
+	if (!FlipbookRoot || !SequenceAnimation || !Flipbook || (ActiveProfile && !ActiveProfile->bAutoAlignFootpoint))
+	{
+		return;
+	}
+	CalculatedFootAlignmentOffset = CalculateFootAlignmentOffset(Flipbook->GetRenderBounds(),
+	                                                             SequenceAnimation->GetRelativeTransform(),
+	                                                             FlipbookRoot->GetRelativeTransform(),
+	                                                             CalculatedFootAlignmentOffset);
 }
 
 void UReEchoEnemyPresentationComponent::UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot)
@@ -406,7 +488,8 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	FVector KnockbackDirection = (Event.WorldLocation - Event.SourceWorldLocation).GetSafeNormal2D();
 	if (KnockbackDirection.IsNearlyZero() && Host)
 	{
-		KnockbackDirection = -Host->GetActorForwardVector().GetSafeNormal2D();
+		const AReEchoEnemyActor* EnemyHost = Cast<AReEchoEnemyActor>(Host);
+		KnockbackDirection = EnemyHost ? -EnemyHost->GetFacingDirection() : FVector::BackwardVector;
 	}
 	ShakeDirection = FVector::CrossProduct(FVector::UpVector, KnockbackDirection).GetSafeNormal();
 	bHitVisualActive = true;
