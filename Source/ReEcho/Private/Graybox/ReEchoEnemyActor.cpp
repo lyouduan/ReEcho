@@ -903,7 +903,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 			Projectile.Definition.MaxRangeCm = Ability->MaxRangeCm;
 			Projectile.Attack = Intent.Attack;
 			Projectile.Damage = Intent.RawDamage;
-			Projectile.CollisionRadiusCm = FMath::Max(10.0f, EnemyLogic->GetDefinition().CollisionRadiusCm * 0.5f);
+			Projectile.CollisionRadiusCm = FMath::Max(10.0f, Ability->RadiusCm);
 			if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
 			{
 				BossProjectiles.Add(MoveTemp(Projectile));

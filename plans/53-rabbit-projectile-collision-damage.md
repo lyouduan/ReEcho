@@ -6,13 +6,13 @@
 - Executor 负责人：Codex（JosephLE910 / Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@f2ce2a5`。
 - 本地实现方式（可选，仅作交接说明）：Plan 发布后使用专属 `plan/53-rabbit-projectile-collision-damage` worktree。
 - 依赖 / 阻塞：Plan49 已让兔子三球 Niagara 可见并由逻辑投射物事件驱动；本 Plan 不等待 Plan49 关闭，但最终人工验收需同时观察弹道、碰撞时机和扣血。
-- Writes：本 Plan；`Design/Data/ReEchoEnemyData.xlsx` 与同批生成的 `Content/Data/enemy_abilities.csv`；`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`；`Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`；必要时最小维护 `Source/ReEcho/Public/Core/ReEchoTypes.h`；`shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
-- Stable Reads：`Source/ReEchoEnemies/**/ReEchoEnemyProjectileLogic.*`、`Source/ReEchoCombat/**`、`Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp`、`shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`。
+- Writes：本 Plan；`Design/Data/ReEchoEnemyData.xlsx` 与同批生成的 `Content/Data/enemy_abilities.csv`；`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`；`Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`；必要时最小维护 `Source/ReEcho/Public/Core/ReEchoTypes.h`；`shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`；最终 `GIT_RULES.md` 允许的 Win64 Editor 预构建包。
+- Stable Reads：`Source/ReEchoEnemies/**/ReEchoEnemyProjectileLogic.*`、`Source/ReEchoCombat/**`、`Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp`、`shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`。
 - 影响模式：`SharedContract`（敌人能力表、EnemyHost 到 Combat 的命中接缝）；权威 XLSX/生成 CSV 为同一发布单元。
 - 兼容承诺 / 下游操作：沿用现有 `FReEchoEnemyProjectileRuntimeState`、保存数组 `BossProjectiles`、投射物生命周期事件和 Combat `HitIntent`；不改变存档版本、敌我阵营规则、兔子弹道方向、Niagara 资产或其他敌方远程能力的临时零伤害状态。
 - 明确排除：Boss 投射物/闪现/光束恢复伤害；世界障碍物碰撞；反弹、穿透、多目标伤害；让 Niagara 或物理回调直接扣血；为三颗可见粒子各建一套独立玩法投射物；调整玩家/怪物血量平衡。
@@ -43,19 +43,19 @@
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：更新兔子投射物碰撞尺寸来源、一次命中和远程安全状态。
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：更新 EnemyHost 的世界碰撞适配职责与代码落点（若现有说明已完整则记录无需正文修改）。
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`：审阅并记录无需修改；Resolver/HitIntent 公共契约不变。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`：审阅并记录无需修改；Niagara 仍只读投射物事件。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`：更新兔子伤害从临时零值恢复为 10 的事实，并重申 Niagara 仍不拥有碰撞/伤害。
 
 ## 锁定验收
 
-- [ ] `ReEchoEnemyData.xlsx` 中 `M_RABBIT_RangedBurst.Damage == 10`，同步生成的 `enemy_abilities.csv` 字节一致；其他当前为零的 Boss 远程能力保持为零。
-- [ ] 兔子投射物碰撞尺寸来自该能力的 `RadiusCm == 150`，不再由兔子本体碰撞半径推导。
-- [ ] 连续扫掠能够命中路径上的玩家，造成一次大于零且符合表值/Combat 修正的伤害，随后删除逻辑投射物并发布 `Ended`。
-- [ ] 路径外玩家不受伤；命中后继续推进不会重复扣血。
-- [ ] Echo 嘲讽、阵营、无敌和保存/恢复不被绕过或复制；Niagara 不参与命中裁决。
-- [ ] 现有兔子弹道方向、速度、三球表现、VFX 生命周期和其他敌人攻击无回归。
-- [ ] `.clang-format`、聚焦自动化、Editor 构建、`python scripts/validate_project.py`、XLSX/CSV `--check` 与 `git diff --check` 通过。
+- [x] `ReEchoEnemyData.xlsx` 中 `M_RABBIT_RangedBurst.Damage == 10`，同步生成的 `enemy_abilities.csv` 字节一致；其他当前为零的 Boss 远程能力保持为零。
+- [x] 兔子投射物碰撞尺寸来自该能力的 `RadiusCm == 150`，不再由兔子本体碰撞半径推导。
+- [x] 连续扫掠能够命中路径上的玩家，造成一次大于零且符合表值/Combat 修正的伤害，随后删除逻辑投射物并发布 `Ended`。
+- [x] 路径外玩家不受伤；命中后继续推进不会重复扣血。
+- [x] Echo 嘲讽、阵营、无敌和保存/恢复不被绕过或复制；Niagara 不参与命中裁决。
+- [x] 现有兔子弹道方向、速度、三球表现、VFX 生命周期和其他敌人攻击无回归。
+- [x] `.clang-format`、聚焦自动化、Editor 构建、`python scripts/validate_project.py`、XLSX/CSV `--check` 与 `git diff --check` 通过。
 - [ ] 用户 PIE 验证“被三球簇扫中会扣血、躲开不扣血、单簇只扣一次”。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -86,7 +86,19 @@
 
 ### 变化
 
+- EnemyHost 创建兔子逻辑投射物时改用能力定义 `RadiusCm` 作为碰撞半径，不再使用兔子本体碰撞半径的一半；连续扫掠、一次命中消费、Combat Resolver 和投射物事件链保持原结构。
+- Host 聚焦测试扩展为生产伤害/半径、路径外不扣血、路径内扣血一次、命中后结束及后续不重复扣血。
+- 使用 `artifact-tool` 对 `EnemyAbilities!F9` 做了最小值修改和前后视觉/值检查，但其 XLSX 导出会删除既有 Sheet Protection，仓库同步器正确拒绝。无效导出当时已从实现 worktree 恢复到基线状态，之后才执行下述定向 OOXML 修改。
+- 经程序用户明确确认，改用定向 OOXML 补丁只改 `EnemyAbilities!F9` 的值 `0 → 10`；补丁在写入前后验证目标旧/新值和 `sheetProtection`，用临时文件原子替换。随后由 `artifact-tool` 只读检查/渲染最终工作簿，未再通过其导出。
+- 完整 `ReEcho.Enemies` 扩大测试最初暴露三个既有 Host 测试在 headless 世界产生的精确 `Animation.Idle` Presentation 错误；各测试按实际出现次数声明该已知错误，未放宽其他错误或玩法断言。
+
 ### 证据
+
+- 历史 `enemy_abilities.csv` 证明 `M_RABBIT_RangedBurst` 在临时安全置零前的权威伤害为 `10`；当前 `RadiusCm` 为 `150`。
+- `artifact-tool` 渲染确认目标行和格式可读，区域检查确认目标值可变为 `10` 且公式错误扫描为 0；随后 `sync_xlsx_to_csv.py --sheet EnemyAbilities` 以 `Authoring sheet protection must remain enabled` 拒绝其导出。恢复基线工作簿后 `sync_xlsx_to_csv.py --check` 重新通过。
+- 定向 OOXML 补丁后，`sync_xlsx_to_csv.py --sheet EnemyAbilities` 成功发布，`sync_xlsx_to_csv.py --check` 通过；CSV diff 仅为 `M_RABBIT_RangedBurst.Damage 0 → 10`，三个 Boss 远程能力仍为 0。最终 `artifact-tool` 区域检查确认 `EnemyAbilities!F9 == 10`、公式错误扫描为 0，视觉渲染保持原表布局。
+- 修改的 C++ 已执行仓库 `.clang-format`；Editor Development 构建成功并刷新 7 模块预构建包。`ReEcho.Enemies.Host.RabbitProjectilePipeline` 通过；扩大 `ReEcho.Enemies` 为 17/17 成功。
+- `python scripts/validate_project.py`、`python scripts/data/sync_xlsx_to_csv.py --check` 与 `git diff --check` 通过。完整 `scripts/data/test_sync_xlsx_to_csv.py` 为 14/15：失败项 `test_invalid_workbook_cases_fail_with_location` 同样可在未修改的 `main@158287b` 复现，属于既有错误消息定位顺序问题，不由本 Plan 引入。
 
 ### 剩余风险
 
@@ -99,4 +111,9 @@
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑与依赖方向不变。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：稳定标识和阅读路由不变。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md` 已更新：记录 Ability 半径驱动的连续扫掠、一次命中消费和兔子恢复伤害后的安全状态。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：明确 EnemyHost 把逻辑投射物连续路径与世界目标碰撞盒相交结果转换为单次 Combat `HitIntent`。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md` 已审阅、无需修改：`FReEchoHitIntent`、Resolver、阵营和最终伤害契约未变化。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md` 已更新：同步兔子伤害恢复事实，并保留 Niagara 只读事件边界。

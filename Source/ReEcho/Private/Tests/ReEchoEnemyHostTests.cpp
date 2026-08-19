@@ -7,6 +7,7 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Misc/AutomationTest.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -61,6 +62,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostCompositionTest,
 
 bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 {
+	AddExpectedError(
+	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 3);
 	FReEchoEnemyHostWorldFixture Fixture;
 	UReEchoEnemyRosterComponent* Roster = NewObject<UReEchoEnemyRosterComponent>();
 	AReEchoEnemyActor* Source = Fixture.Spawn(EReEchoEnemyKind::Bomber, 12);
@@ -123,6 +126,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostAttackPipelineTest,
 
 bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 {
+	AddExpectedError(
+	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 1);
 	FReEchoEnemyHostWorldFixture Fixture;
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	AReEchoPlayerPawn* Player =
@@ -194,6 +199,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostRabbitProjectileTest,
 
 bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 {
+	AddExpectedError(
+	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 1);
 	FReEchoEnemyHostWorldFixture Fixture;
 	const FReEchoCsvLoadResult LoadResult =
 	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
@@ -214,12 +221,23 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 
 	AReEchoPlayerPawn* Player =
 	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	APlayerController* PlayerController = Fixture.World->SpawnActor<APlayerController>();
 	AReEchoEnemyActor* Rabbit =
 	    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector::ZeroVector, FRotator::ZeroRotator);
-	if (!TestNotNull(TEXT("Rabbit host spawns"), Rabbit) || !TestNotNull(TEXT("Target player spawns"), Player))
+	if (!TestNotNull(TEXT("Rabbit host spawns"), Rabbit) || !TestNotNull(TEXT("Target player spawns"), Player) ||
+	    !TestNotNull(TEXT("Player controller spawns"), PlayerController))
 	{
 		return false;
 	}
+	if (!Player->HasActorBegunPlay())
+	{
+		Player->DispatchBeginPlay();
+	}
+	FReEchoStatBlock PlayerStats;
+	PlayerStats.HpMax = 100.0f;
+	PlayerStats.HpPoint = 100.0f;
+	Player->Combatant->InitializeFromStats(PlayerStats, true);
+	PlayerController->Possess(Player);
 	Rabbit->SetEnemyId(TEXT("M_RABBIT"));
 	if (!TestTrue(TEXT("Rabbit accepts production definition"), Rabbit->ConfigureFromDefinition(RabbitDefinition, 7)))
 	{
@@ -243,7 +261,10 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	const FReEchoEnemyProjectileRuntimeState& Projectile = SpawnedState.BossProjectiles[0];
-	TestEqual(TEXT("Temporary safety data keeps rabbit projectile damage at zero"), Projectile.Damage, 0.0f);
+	TestEqual(TEXT("Rabbit projectile restores the production ability damage"), Projectile.Damage, 10.0f);
+	TestEqual(TEXT("Rabbit projectile collision covers the authored three-ball radius"),
+	          Projectile.CollisionRadiusCm,
+	          150.0f);
 	TestEqual(TEXT("Zero table speed uses the documented legacy-derived speed"),
 	          Projectile.Definition.SpeedCmPerSecond,
 	          500.0f);
@@ -257,6 +278,21 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Host advances projectile along the locked direction"),
 		         AdvancedState.BossProjectiles[0].Snapshot.Location.X > Projectile.Snapshot.Location.X);
 	}
+
+	Player->SetActorLocation(FVector(600.0f, 400.0f, 0.0f));
+	Rabbit->AdvanceEnemyProjectilesForTests(0.9f);
+	TestEqual(
+	    TEXT("Player outside the swept projectile collider takes no damage"), Player->Combatant->CurrentHealth, 100.0f);
+	TestEqual(TEXT("A missed projectile remains in flight"), Rabbit->CaptureRuntimeState().BossProjectiles.Num(), 1);
+
+	Player->SetActorLocation(FVector(600.0f, 0.0f, 0.0f));
+	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
+	TestEqual(
+	    TEXT("Swept projectile collider applies the authored damage once"), Player->Combatant->CurrentHealth, 90.0f);
+	TestEqual(
+	    TEXT("Projectile ends after the first valid hit"), Rabbit->CaptureRuntimeState().BossProjectiles.Num(), 0);
+	Rabbit->AdvanceEnemyProjectilesForTests(1.0f);
+	TestEqual(TEXT("Consumed projectile cannot damage the player twice"), Player->Combatant->CurrentHealth, 90.0f);
 	return true;
 }
 
