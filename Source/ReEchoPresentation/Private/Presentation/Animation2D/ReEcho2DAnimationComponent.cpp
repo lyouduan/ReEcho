@@ -188,6 +188,37 @@ FRotator UReEcho2DAnimationComponent::CalculateCameraFacingRotation(const FRotat
 	return FRotationMatrix::MakeFromYZ(FacingNormal, ScreenUp).Rotator();
 }
 
+FVector UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(const FBoxSphereBounds& FlipbookBounds,
+                                                                  const FTransform& RendererToFlipbookRoot,
+                                                                  const FTransform& FlipbookRootToMotionRoot,
+                                                                  const FVector& AuthoredMotionLocation,
+                                                                  const FVector& FootpointOffset)
+{
+	const FVector LocalBottomCenter(
+	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector BottomInFlipbookRoot = RendererToFlipbookRoot.TransformPosition(LocalBottomCenter);
+	const FVector BottomInMotionRoot = FlipbookRootToMotionRoot.TransformPosition(BottomInFlipbookRoot);
+	return FootpointOffset - AuthoredMotionLocation - BottomInMotionRoot;
+}
+
+float UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
+    const FBoxSphereBounds& FlipbookBounds,
+    const FTransform& RendererToFlipbookRoot,
+    const FTransform& FlipbookRootToTarget)
+{
+	const FVector LocalLeft(FlipbookBounds.Origin.X - FlipbookBounds.BoxExtent.X,
+	                        FlipbookBounds.Origin.Y,
+	                        FlipbookBounds.Origin.Z);
+	const FVector LocalRight(FlipbookBounds.Origin.X + FlipbookBounds.BoxExtent.X,
+	                         FlipbookBounds.Origin.Y,
+	                         FlipbookBounds.Origin.Z);
+	const FVector LeftInTarget =
+	    FlipbookRootToTarget.TransformPosition(RendererToFlipbookRoot.TransformPosition(LocalLeft));
+	const FVector RightInTarget =
+	    FlipbookRootToTarget.TransformPosition(RendererToFlipbookRoot.TransformPosition(LocalRight));
+	return FVector::Distance(LeftInTarget, RightInTarget);
+}
+
 int32 UReEcho2DAnimationComponent::GetCurrentKeyFrameIndex()
 {
 	const UPaperFlipbook* Flipbook = GetFlipbook();

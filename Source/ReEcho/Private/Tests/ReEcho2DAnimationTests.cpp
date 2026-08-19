@@ -29,15 +29,16 @@ bool FReEcho2DFootpointAlignmentTest::RunTest(const FString& Parameters)
 	const FBoxSphereBounds Bounds(FVector(6.0f, -4.0f, 58.0f), FVector(22.0f, 18.0f, 42.0f), 64.0f);
 	const FTransform RendererToRoot(FRotator::ZeroRotator, FVector(3.0f, 5.0f, 7.0f), FVector(-1.5f, 1.5f, 1.5f));
 	const FTransform RootToMotion(FRotator(-55.0f, 90.0f, 0.0f), FVector(11.0f, -9.0f, 13.0f));
-	const FVector AuthoredOffset(2.0f, 3.0f, 4.0f);
-	const FVector Alignment = UReEchoEnemyPresentationComponent::CalculateFootAlignmentOffset(
-	    Bounds, RendererToRoot, RootToMotion, AuthoredOffset);
+	const FVector AuthoredMotionLocation(17.0f, -8.0f, 21.0f);
+	const FVector FootpointOffset(2.0f, 3.0f, 4.0f);
+	const FVector Alignment = UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(
+	    Bounds, RendererToRoot, RootToMotion, AuthoredMotionLocation, FootpointOffset);
 	const FVector LocalBottom(Bounds.Origin.X, Bounds.Origin.Y, Bounds.Origin.Z - Bounds.BoxExtent.Z);
-	const FVector AlignedBottom =
-	    Alignment + RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalBottom));
+	const FVector AlignedBottom = AuthoredMotionLocation + Alignment +
+	                              RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalBottom));
 	TestTrue(TEXT("Mirrored, scaled and camera-tilted Flipbook bottom center meets authored footpoint"),
-	         AlignedBottom.Equals(AuthoredOffset, KINDA_SMALL_NUMBER));
-	const float PresentationWidth = UReEchoEnemyPresentationComponent::CalculateFlipbookPresentationWidth(
+	         AlignedBottom.Equals(FootpointOffset, KINDA_SMALL_NUMBER));
+	const float PresentationWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
 	    Bounds, RendererToRoot, RootToMotion);
 	const FVector LocalLeft(Bounds.Origin.X - Bounds.BoxExtent.X, Bounds.Origin.Y, Bounds.Origin.Z);
 	const FVector LocalRight(Bounds.Origin.X + Bounds.BoxExtent.X, Bounds.Origin.Y, Bounds.Origin.Z);
@@ -215,7 +216,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		             Renderer->GetRelativeScale3D().GetAbsMin() > UE_SMALL_NUMBER && !Renderer->bHiddenInGame);
 	};
 	TestGameplaySceneTree(
-	    TEXT("Player Blueprint exposes collision, Flipbook, ground and effects roots"), PlayerGameplayClass, false);
+	    TEXT("Player Blueprint exposes collision, Flipbook, ground and effects roots"), PlayerGameplayClass, true);
 	TestGameplaySceneTree(
 	    TEXT("Enemy Blueprint exposes collision, Flipbook, ground and effects roots"), GruntGameplayClass, true);
 	AReEchoEchoActor* EchoDefault = GetMutableDefault<AReEchoEchoActor>();

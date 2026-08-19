@@ -81,14 +81,6 @@ class REECHO_API UReEchoEnemyPresentationComponent : public UActorComponent
 public:
 	UReEchoEnemyPresentationComponent();
 
-	static FVector CalculateFootAlignmentOffset(const FBoxSphereBounds& FlipbookBounds,
-	                                            const FTransform& RendererToFlipbookRoot,
-	                                            const FTransform& FlipbookRootToMotionRoot,
-	                                            const FVector& AuthoredOffset = FVector::ZeroVector);
-	static float CalculateFlipbookPresentationWidth(const FBoxSphereBounds& FlipbookBounds,
-	                                                const FTransform& RendererToFlipbookRoot,
-	                                                const FTransform& FlipbookRootToFootRoot);
-
 	void ConfigureComponents(USceneComponent* InPresentationRoot,
 	                         USceneComponent* InVisualEffectRoot,
 	                         USceneComponent* InFootRoot,

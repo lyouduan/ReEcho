@@ -74,6 +74,8 @@
 - 方向盾、Boss 传送回退、GMKillAll 与受击表现回退统一读取 EnemyLogic `FacingDirection`；Actor Forward 不再表达怪物玩法朝向。
 - Enemy `GroundRoot` 改为直属 `FootRoot`；Profile 新增 `bAutoAlignFootpoint` / `FootpointOffset`，PresentationMotionRoot 分离 authored、完整 Flipbook RenderBounds 自动对齐和 transient motion 三类位移。
 - GroundShadow 保留 Blueprint authored 的纵深、Z、地面旋转、材质和透明度；独立 GroundRoot 只同步当前 Flipbook 底边中心的 XY，Plane 屏幕横向宽度按完整 RenderBounds、Renderer 缩放/镜像及 FlipbookRoot 变换自动匹配，不继承 FlipbookRoot 或 Actor Rotation。
+- 后续按人工确认将同一阴影契约扩展到玩家：Player GroundRoot 直属 FootRoot，阴影只同步当前 Flipbook 底边中心 XY 与实际宽度，不继承瞄准、镜像、面片或 Actor 旋转；玩家与怪物共用 Animation2D 宽度计算。
+- 后续按人工确认将完整脚点契约扩展到玩家，并把脚点纯计算下沉到 Animation2D 共享接口；玩家和怪物都使用 authored + calculated alignment + transient motion，修正 authored MotionRoot 非零时的精确对齐。
 - 增加脚点变换数学、Actor Identity/save-facing 与 Enemy 层级契约测试，并同步 `MOD-ReEcho`。
 
 ### 证据
@@ -85,12 +87,15 @@
 - `ReEcho.Presentation.Animation2D.FootpointAlignment`：Success；覆盖非零 Bounds Origin、Renderer 镜像/缩放和相机倾角组合。
 - 阴影宽度补充后增量 Editor 编译成功；同一自动化测试再次 Success，并验证上述变换后的 Flipbook 实际宽度。
 - 阴影改为“只跟随 Flipbook 位置/宽度、不跟随旋转”后再次增量编译成功；`FootpointAlignment`、`validate_project.py` 与 `git diff --check` 均通过。
+- 玩家阴影统一后完整 Editor 重建成功（95/95 actions）；共享 `FootpointAlignment` 测试 Success，项目静态校验与 `git diff --check` 通过。`AssetProfiles` 的玩家层级断言未报错，测试整体仅被已删除的 Grunt/Bomber Blueprint 与注册表项阻断。
+- 玩家完整脚点对齐统一后最终 FullRebuild 成功（95/95 actions）；共享测试以非零 authored motion、镜像、缩放和相机倾角验证最终底边中心严格等于 `FootpointOffset`，结果 Success。
 - `python scripts/validate_project.py`：全部静态项目检查通过；`git diff --check` 通过。
 - 定向源码扫描：EnemyActor/EnemyPresentation/GameMode 中不再存在怪物 `SetActorRotation`、Actor Rotation/Forward 消费；唯一 `GetActorForwardVector` 是固定相机视向读取，与怪物朝向无关。
 
 ### 剩余风险
 
 - 自动脚点采用完整 Flipbook 联合 RenderBounds，已做变换单测；不同实际角色、动画语义和镜头俯角的最终观感仍需 PIE 验收。
+- 玩家阴影仍需 PIE 验证鼠标左右瞄准和 Attack/Hit 时只同步 Flipbook 平面位置/宽度且不旋转。
 
 ### 人工验收结果/请求
 

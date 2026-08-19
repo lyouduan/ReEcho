@@ -39,36 +39,6 @@ UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-FVector UReEchoEnemyPresentationComponent::CalculateFootAlignmentOffset(const FBoxSphereBounds& FlipbookBounds,
-                                                                        const FTransform& RendererToFlipbookRoot,
-                                                                        const FTransform& FlipbookRootToMotionRoot,
-                                                                        const FVector& AuthoredOffset)
-{
-	const FVector LocalBottomCenter(
-	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
-	const FVector BottomInFlipbookRoot = RendererToFlipbookRoot.TransformPosition(LocalBottomCenter);
-	const FVector BottomInMotionRoot = FlipbookRootToMotionRoot.TransformPosition(BottomInFlipbookRoot);
-	return AuthoredOffset - BottomInMotionRoot;
-}
-
-float UReEchoEnemyPresentationComponent::CalculateFlipbookPresentationWidth(
-    const FBoxSphereBounds& FlipbookBounds,
-    const FTransform& RendererToFlipbookRoot,
-    const FTransform& FlipbookRootToFootRoot)
-{
-	const FVector LocalLeft(FlipbookBounds.Origin.X - FlipbookBounds.BoxExtent.X,
-	                        FlipbookBounds.Origin.Y,
-	                        FlipbookBounds.Origin.Z);
-	const FVector LocalRight(FlipbookBounds.Origin.X + FlipbookBounds.BoxExtent.X,
-	                         FlipbookBounds.Origin.Y,
-	                         FlipbookBounds.Origin.Z);
-	const FVector LeftInFootRoot =
-	    FlipbookRootToFootRoot.TransformPosition(RendererToFlipbookRoot.TransformPosition(LocalLeft));
-	const FVector RightInFootRoot =
-	    FlipbookRootToFootRoot.TransformPosition(RendererToFlipbookRoot.TransformPosition(LocalRight));
-	return FVector::Distance(LeftInFootRoot, RightInFootRoot);
-}
-
 void UReEchoEnemyPresentationComponent::SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog)
 {
 	PresentationCatalog = InPresentationCatalog;
@@ -323,7 +293,7 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 	GroundRoot->SetRelativeLocation(
 	    FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
 
-	const float FlipbookWidth = CalculateFlipbookPresentationWidth(
+	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
 	    FlipbookBounds, SequenceAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());
 	const float ShadowNativeWidth = ShadowMesh->GetBounds().BoxExtent.Y * 2.0f;
 	if (FlipbookWidth <= UE_SMALL_NUMBER || ShadowNativeWidth <= UE_SMALL_NUMBER)
@@ -338,16 +308,18 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 
 void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 {
-	CalculatedFootAlignmentOffset = ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector;
+	CalculatedFootAlignmentOffset = FVector::ZeroVector;
 	const UPaperFlipbook* Flipbook = SequenceAnimation ? SequenceAnimation->GetFlipbook() : nullptr;
 	if (!FlipbookRoot || !SequenceAnimation || !Flipbook || (ActiveProfile && !ActiveProfile->bAutoAlignFootpoint))
 	{
 		return;
 	}
-	CalculatedFootAlignmentOffset = CalculateFootAlignmentOffset(Flipbook->GetRenderBounds(),
-	                                                             SequenceAnimation->GetRelativeTransform(),
-	                                                             FlipbookRoot->GetRelativeTransform(),
-	                                                             CalculatedFootAlignmentOffset);
+	CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(
+	    Flipbook->GetRenderBounds(),
+	    SequenceAnimation->GetRelativeTransform(),
+	    FlipbookRoot->GetRelativeTransform(),
+	    AuthoredMotionLocation,
+	    ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector);
 }
 
 void UReEchoEnemyPresentationComponent::UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot)
