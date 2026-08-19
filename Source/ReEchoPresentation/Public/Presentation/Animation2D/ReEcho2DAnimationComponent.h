@@ -26,6 +26,14 @@ public:
 #endif
 
 	static FRotator CalculateCameraFacingRotation(const FRotator& CameraRotation);
+	static FVector CalculateFootAlignmentOffset(const FBoxSphereBounds& FlipbookBounds,
+	                                            const FTransform& RendererToFlipbookRoot,
+	                                            const FTransform& FlipbookRootToMotionRoot,
+	                                            const FVector& AuthoredMotionLocation,
+	                                            const FVector& FootpointOffset = FVector::ZeroVector);
+	static float CalculateFlipbookPresentationWidth(const FBoxSphereBounds& FlipbookBounds,
+	                                                const FTransform& RendererToFlipbookRoot,
+	                                                const FTransform& FlipbookRootToTarget);
 
 	/** Faithfully plays one data-owned clip without resolving gameplay or character state. */
 	bool PlayClip(const FReEcho2DAnimationClip& Clip, bool bRestart = false);

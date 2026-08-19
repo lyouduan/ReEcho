@@ -62,7 +62,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
 	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
-	GroundRoot->SetupAttachment(PresentationMotionRoot);
+	GroundRoot->SetupAttachment(FootRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
@@ -165,7 +165,7 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	RefreshPresentationProfile();
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
-	BaseMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
 	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
 	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
 	UE_LOG(LogTemp,
@@ -234,6 +234,12 @@ void AReEchoPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
 	RefreshFootRoot();
+	if (GroundRoot && FootRoot && GroundRoot->GetAttachParent() != FootRoot)
+	{
+		GroundRoot->AttachToComponent(FootRoot, FAttachmentTransformRules::KeepRelativeTransform);
+	}
+	AuthoredGroundRootLocation = GroundRoot ? GroundRoot->GetRelativeLocation() : FVector::ZeroVector;
+	AuthoredGroundShadowScale = GroundShadow ? GroundShadow->GetRelativeScale3D() : FVector::OneVector;
 	TInlineComponentArray<UReEcho2DAnimationComponent*> AnimationComponents(this);
 	for (UReEcho2DAnimationComponent* AnimationComponent : AnimationComponents)
 	{
@@ -252,7 +258,7 @@ void AReEchoPlayerPawn::BeginPlay()
 	}
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
-	BaseMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
 	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
 	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
 
@@ -981,12 +987,13 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 		ScaleX *= 1.12f;
 		ScaleY *= 0.86f;
 	}
-	ApplyPresentationMotion(FVector(Lunge, 0.0f, 0.0f), FVector(ScaleX, ScaleY, 1.0f));
 	if (PresentationController)
 	{
 		PresentationController->SetMoving(bMoving);
 	}
 	UpdateSequenceFrame();
+	ApplyPresentationMotion(FVector(Lunge, 0.0f, 0.0f), FVector(ScaleX, ScaleY, 1.0f));
+	RefreshGroundShadowFromFlipbook();
 }
 
 void AReEchoPlayerPawn::RefreshPresentationProfile()
@@ -1007,18 +1014,68 @@ void AReEchoPlayerPawn::RefreshPresentationProfile()
 	ActivePresentationProfile = Profile;
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
-	BaseMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
 	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
 	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
 }
 
 void AReEchoPlayerPawn::ApplyPresentationMotion(const FVector& Offset, const FVector& Scale)
 {
-	PresentationMotionRoot->SetRelativeLocation(BaseMotionLocation + FVector(Offset.X, Offset.Y, 0.0f));
-	FlipbookRoot->SetRelativeLocation(BaseVisualLocation + FVector(0.0f, 0.0f, Offset.Z));
+	FlipbookRoot->SetRelativeLocation(BaseVisualLocation);
 	FlipbookRoot->SetRelativeScale3D(BaseVisualScale * Scale);
-	EffectsRoot->SetRelativeLocation(BaseEffectsLocation + FVector(0.0f, 0.0f, Offset.Z));
+	EffectsRoot->SetRelativeLocation(BaseEffectsLocation);
 	EffectsRoot->SetRelativeScale3D(BaseEffectsScale * Scale);
+	RefreshFootpointAlignment();
+	PresentationMotionRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset + Offset);
+}
+
+void AReEchoPlayerPawn::RefreshFootpointAlignment()
+{
+	CalculatedFootAlignmentOffset = FVector::ZeroVector;
+	const UPaperFlipbook* Flipbook = SequenceAnimation ? SequenceAnimation->GetFlipbook() : nullptr;
+	if (!FlipbookRoot || !SequenceAnimation || !Flipbook ||
+	    (ActivePresentationProfile && !ActivePresentationProfile->bAutoAlignFootpoint))
+	{
+		return;
+	}
+
+	CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(
+	    Flipbook->GetRenderBounds(),
+	    SequenceAnimation->GetRelativeTransform(),
+	    FlipbookRoot->GetRelativeTransform(),
+	    AuthoredMotionLocation,
+	    ActivePresentationProfile ? ActivePresentationProfile->FootpointOffset : FVector::ZeroVector);
+}
+
+void AReEchoPlayerPawn::RefreshGroundShadowFromFlipbook()
+{
+	const UPaperFlipbook* Flipbook = SequenceAnimation ? SequenceAnimation->GetFlipbook() : nullptr;
+	const UStaticMesh* ShadowMesh = GroundShadow ? GroundShadow->GetStaticMesh() : nullptr;
+	if (!FootRoot || !GroundRoot || !FlipbookRoot || !SequenceAnimation || !Flipbook || !GroundShadow || !ShadowMesh)
+	{
+		return;
+	}
+
+	const FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
+	const FVector LocalBottomCenter(FlipbookBounds.Origin.X,
+	                                FlipbookBounds.Origin.Y,
+	                                FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
+	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
+	GroundRoot->SetRelativeLocation(
+	    FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+
+	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
+	    FlipbookBounds, SequenceAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());
+	const float ShadowNativeWidth = ShadowMesh->GetBounds().BoxExtent.Y * 2.0f;
+	if (FlipbookWidth <= UE_SMALL_NUMBER || ShadowNativeWidth <= UE_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	FVector ShadowScale = AuthoredGroundShadowScale;
+	ShadowScale.Y = FlipbookWidth / ShadowNativeWidth;
+	GroundShadow->SetRelativeScale3D(ShadowScale);
 }
 
 void AReEchoPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)

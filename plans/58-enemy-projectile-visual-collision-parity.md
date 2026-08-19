@@ -103,6 +103,8 @@
 - 用户截图显示两类互相矛盾的现象：可见红球覆盖主角但未扣血；主角附近没有对应可见红球时突然出现 `-10`。
 - 只读代码审计确认：玩法保存并推进三条 `BossProjectiles`，但 `ShouldPublishProjectileEvent` 只允许中心球发布事件；VFX 仅以共享 `Attack.Sequence` 创建一套自行模拟三球的 Niagara，因此表现位置与两条侧向逻辑轨迹没有一一映射。
 - Editor Development 构建成功；`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Presentation.VFX.Catalog`、`ReEcho.Run.SaveSnapshot` 自动化通过。
+- 2026-08-19 将 `origin/main@be305cc` 合入本 Plan：采用远端 Plan52/55 的场景、脚点和表现层级，保留 Plan58 的逐球事件、视觉代理及碰撞一致性。唯一源码冲突位于 `ReEchoEnemyHostTests.cpp`，已语义合并两侧断言；旧 DLL、target 与 prebuilt 未选择任一侧，均由组合源码重新构建生成。
+- 合并候选的 Editor Development 构建和 `python scripts/validate_project.py` 通过；`ReEcho.Enemies.Host` 全组及 `ReEcho.Presentation.VFX.Catalog` 自动化通过。尝试的 `ReEcho.Presentation.Scene` 过滤器在项目中不存在，因此未作为失败回归计入。
 
 ### 剩余风险
 

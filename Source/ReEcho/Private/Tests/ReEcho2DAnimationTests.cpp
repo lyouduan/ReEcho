@@ -17,7 +17,39 @@
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h"
+#include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
 #include "Player/ReEchoPlayerPawn.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DFootpointAlignmentTest,
+                                 "ReEcho.Presentation.Animation2D.FootpointAlignment",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEcho2DFootpointAlignmentTest::RunTest(const FString& Parameters)
+{
+	const FBoxSphereBounds Bounds(FVector(6.0f, -4.0f, 58.0f), FVector(22.0f, 18.0f, 42.0f), 64.0f);
+	const FTransform RendererToRoot(FRotator::ZeroRotator, FVector(3.0f, 5.0f, 7.0f), FVector(-1.5f, 1.5f, 1.5f));
+	const FTransform RootToMotion(FRotator(-55.0f, 90.0f, 0.0f), FVector(11.0f, -9.0f, 13.0f));
+	const FVector AuthoredMotionLocation(17.0f, -8.0f, 21.0f);
+	const FVector FootpointOffset(2.0f, 3.0f, 4.0f);
+	const FVector Alignment = UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(
+	    Bounds, RendererToRoot, RootToMotion, AuthoredMotionLocation, FootpointOffset);
+	const FVector LocalBottom(Bounds.Origin.X, Bounds.Origin.Y, Bounds.Origin.Z - Bounds.BoxExtent.Z);
+	const FVector AlignedBottom = AuthoredMotionLocation + Alignment +
+	                              RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalBottom));
+	TestTrue(TEXT("Mirrored, scaled and camera-tilted Flipbook bottom center meets authored footpoint"),
+	         AlignedBottom.Equals(FootpointOffset, KINDA_SMALL_NUMBER));
+	const float PresentationWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
+	    Bounds, RendererToRoot, RootToMotion);
+	const FVector LocalLeft(Bounds.Origin.X - Bounds.BoxExtent.X, Bounds.Origin.Y, Bounds.Origin.Z);
+	const FVector LocalRight(Bounds.Origin.X + Bounds.BoxExtent.X, Bounds.Origin.Y, Bounds.Origin.Z);
+	const float ExpectedWidth = FVector::Distance(
+	    RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalLeft)),
+	    RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalRight)));
+	TestEqual(TEXT("Ground shadow width source includes Flipbook mirror, scale and camera-facing transform"),
+	          PresentationWidth,
+	          ExpectedWidth);
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
                                  "ReEcho.Presentation.Animation2D.AssetProfiles",
@@ -140,7 +172,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         PlayerGameplayClass && PlayerGameplayClass->IsChildOf(AReEchoPlayerPawn::StaticClass()));
 	TestTrue(TEXT("Enemy Gameplay Blueprint owns the runtime character scene"),
 	         GruntGameplayClass && GruntGameplayClass->IsChildOf(AReEchoEnemyActor::StaticClass()));
-	auto TestGameplaySceneTree = [this](const TCHAR* Label, UClass* GameplayClass)
+	auto TestGameplaySceneTree = [this](const TCHAR* Label, UClass* GameplayClass, const bool bStableEnemyGround)
 	{
 		AActor* DefaultActor = GameplayClass ? Cast<AActor>(GameplayClass->GetDefaultObject()) : nullptr;
 		USceneComponent* Collision = DefaultActor ? DefaultActor->GetRootComponent() : nullptr;
@@ -174,7 +206,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		         Collision && Presentation && FootRoot && MotionRoot && FlipbookRoot && GroundRoot && EffectsRoot &&
 		             AttackVfxRoot && HurtVfxRoot && Renderer && Presentation->GetAttachParent() == Collision &&
 		             FootRoot->GetAttachParent() == Presentation && MotionRoot->GetAttachParent() == FootRoot &&
-		             FlipbookRoot->GetAttachParent() == MotionRoot && GroundRoot->GetAttachParent() == MotionRoot &&
+		             FlipbookRoot->GetAttachParent() == MotionRoot &&
+		             GroundRoot->GetAttachParent() == (bStableEnemyGround ? FootRoot : MotionRoot) &&
 		             EffectsRoot->GetAttachParent() == MotionRoot && AttackVfxRoot->GetAttachParent() == EffectsRoot &&
 		             HurtVfxRoot->GetAttachParent() == EffectsRoot && Renderer->GetAttachParent() == FlipbookRoot &&
 		             !FlipbookRoot->IsUsingAbsoluteRotation() && !GroundRoot->IsUsingAbsoluteRotation() &&
@@ -182,10 +215,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		             !Renderer->GetRelativeScale3D().ContainsNaN() &&
 		             Renderer->GetRelativeScale3D().GetAbsMin() > UE_SMALL_NUMBER && !Renderer->bHiddenInGame);
 	};
-	TestGameplaySceneTree(TEXT("Player Blueprint exposes collision, Flipbook, ground and effects roots"),
-	                      PlayerGameplayClass);
-	TestGameplaySceneTree(TEXT("Enemy Blueprint exposes collision, Flipbook, ground and effects roots"),
-	                      GruntGameplayClass);
+	TestGameplaySceneTree(
+	    TEXT("Player Blueprint exposes collision, Flipbook, ground and effects roots"), PlayerGameplayClass, true);
+	TestGameplaySceneTree(
+	    TEXT("Enemy Blueprint exposes collision, Flipbook, ground and effects roots"), GruntGameplayClass, true);
 	AReEchoEchoActor* EchoDefault = GetMutableDefault<AReEchoEchoActor>();
 	USceneComponent* EchoRoot = EchoDefault ? EchoDefault->GetRootComponent() : nullptr;
 	USceneComponent* EchoEffectsRoot =

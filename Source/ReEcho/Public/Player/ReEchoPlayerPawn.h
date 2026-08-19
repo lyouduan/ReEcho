@@ -286,6 +286,8 @@ private:
 	void RefreshPresentationProfile();
 	void RefreshWeaponPresentationSet();
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
+	void RefreshFootpointAlignment();
+	void RefreshGroundShadowFromFlipbook();
 	/** 根据当前动画状态选择并显示对应的角色序列帧。 */
 	void UpdateSequenceFrame();
 	void RefreshFootRoot();
@@ -307,9 +309,12 @@ private:
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
-	FVector BaseMotionLocation = FVector::ZeroVector;
+	FVector AuthoredMotionLocation = FVector::ZeroVector;
+	FVector CalculatedFootAlignmentOffset = FVector::ZeroVector;
 	FVector BaseEffectsLocation = FVector::ZeroVector;
 	FVector BaseEffectsScale = FVector::OneVector;
+	FVector AuthoredGroundRootLocation = FVector::ZeroVector;
+	FVector AuthoredGroundShadowScale = FVector::OneVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
 	float AttackVisualDuration = 0.0f;
