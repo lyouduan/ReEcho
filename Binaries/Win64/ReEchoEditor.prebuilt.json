@@ -1,13 +1,13 @@
 {
   "binaries": {
     "ReEchoEditor.target": "78ca660a835e2e1fecb130d7d0e1f4406266e85b9a8b8255e5dfd68d20b3c6fa",
-    "UnrealEditor-ReEcho.dll": "89bdf690848554a969db3a06462590b99f8e7aa5b30b5051f8e29eb8322585a6",
-    "UnrealEditor-ReEchoAudio.dll": "ef552472899a73ce3f54deccb7058d393c4fd2591fe2ec088ed7cc15127c58ef",
-    "UnrealEditor-ReEchoCards.dll": "390bcd3aa55145622d5ca2e1efe0485fd1dab3266ee37d3097b6d49895f7ed95",
-    "UnrealEditor-ReEchoCombat.dll": "cb324ca561ab3c519a778ac9a6e01218885a06d0dbd7e15166206dda2c7523b4",
-    "UnrealEditor-ReEchoEnemies.dll": "2f51a34818c0f984edcbd4043df0bdac7b682afea19f13f7ff16387032c3d811",
-    "UnrealEditor-ReEchoPresentation.dll": "4e524bf5cdc9a38cdfe015327297a8825c1742e70947fc00d2f2a24ec7f08032",
-    "UnrealEditor-ReEchoWeapons.dll": "1659aa251ee98649430942b0f5a8633114c264a2632389a436de650d6798ba73",
+    "UnrealEditor-ReEcho.dll": "c0bf3cb19bad2896fa6cba93e10a17db066481296468bc9ae9d9889070f9aa52",
+    "UnrealEditor-ReEchoAudio.dll": "b3c04a7afe29be789d7a9938a0de8c1ad6a1e77667cd983d925950f407e0ccce",
+    "UnrealEditor-ReEchoCards.dll": "c36000251e8e5d427244e3f7257d172546ed6d8362728a5ca089fad1eda9b2fb",
+    "UnrealEditor-ReEchoCombat.dll": "850c184ec5695328ec4b5f6cb4f01434b2df654c6e293f30ecd679e306ac448b",
+    "UnrealEditor-ReEchoEnemies.dll": "d48af9630fb9a9c824a8bf38f7e2934d17763fd20b5590a5e30f5cebd625043d",
+    "UnrealEditor-ReEchoPresentation.dll": "6fd962ed105761a5a31d6e1e1eed547f140e1ba40f748a88c7f70bba851f9158",
+    "UnrealEditor-ReEchoWeapons.dll": "1070f6311fec24c6d8610ee086b9c8635df851b0a882807f1ed2c8ba0f2f4615",
     "UnrealEditor.modules": "ba4535bd63b6eba65aec19614a2631d70f0de46fb7ae3b773c24dbce84bc73fb"
   },
   "configuration": "Development",
@@ -59,7 +59,7 @@
     "Source/ReEcho/Private/Player/ReEchoPlayerController.cpp": "7de37172e0a5e5ede81acb68567fcc498b2878f0883b3f7900809b2354a72a78",
     "Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp": "0ee3109278489af37a7f55ff95c2bbffb4565ddfc8317b8846138727853c8f37",
     "Source/ReEcho/Private/Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.cpp": "9158a5fcb4f7a55185d798b864e6ca30578f39786162c4ba814d8ad0f1ab4862",
-    "Source/ReEcho/Private/Presentation/Enemy/ReEchoEnemyPresentationComponent.cpp": "7436a700aa23fdb0e6b35d8a8a0cfbf07fda07c4ef95d6e50b833e55c8eeec09",
+    "Source/ReEcho/Private/Presentation/Enemy/ReEchoEnemyPresentationComponent.cpp": "ebd56cee671f91ef0b1ffe4edf27822b8f4ffc614ad701ff1a46b444fe0d581e",
     "Source/ReEcho/Private/Presentation/Scene/ReEcho2DEditorPreviewActor.cpp": "f85bf4cb33a7f1bd48e34f15b426282bf9c84b7b1fb52950ace045012e6f6045",
     "Source/ReEcho/Private/Presentation/Scene/ReEcho2DSceneLightingComponent.cpp": "229a9befc561012d4a3df18940b4dd7dcdd8c94ec733ec72dc2fb87c67acd609",
     "Source/ReEcho/Private/Presentation/Scene/ReEchoArenaCameraActor.cpp": "2342c500d4fc97fb95458db14cf5efeb9828fceff1c69d2542df571cb336ffea",
@@ -142,7 +142,7 @@
     "Source/ReEcho/Public/Player/ReEchoPlayerController.h": "b016f672c3dfb9dbee822cbfc670b5ac4d4a64805cbfb7843b12ba28c140ca51",
     "Source/ReEcho/Public/Player/ReEchoPlayerPawn.h": "5c0eddc8c9783c78d6ddda8cf0b426b2702d6f7cf36c414f5c1bb24eae7e3251",
     "Source/ReEcho/Public/Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h": "444e6a79030dff70a567ca6468b4dc8f374b5a647ad1f98aaf779a567d6e831d",
-    "Source/ReEcho/Public/Presentation/Enemy/ReEchoEnemyPresentationComponent.h": "ebc6199dbc6571bb05e74a07e7de1c9716e929e3edd52e4c8bf146860d2f1fe8",
+    "Source/ReEcho/Public/Presentation/Enemy/ReEchoEnemyPresentationComponent.h": "bb7f96c671d0e81320e2106a217a221a4f3fa05d6ac9e337c76bed66326c752d",
     "Source/ReEcho/Public/Presentation/Scene/ReEcho2DEditorPreviewActor.h": "b226a1494f53ed7d383902c96b6744f0bdfdd3030861f61a7afa9c6d6cb4c33e",
     "Source/ReEcho/Public/Presentation/Scene/ReEcho2DSceneLightingComponent.h": "be274a514605f082d7bd268b93ceb83b442e18985d218d3c9d4faa33ced2e579",
     "Source/ReEcho/Public/Presentation/Scene/ReEchoArenaCameraActor.h": "5ed5a7dd7ae8e2bc396ffd9cfd29bf4e7ba4069e6105a0069d943f2da01f848c",
@@ -292,6 +292,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "ea0880b5b439855fa278908d55a1db0eadbbc7cb0eb239f9f608c56d86629057",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "e9ca065ad09a5bd80f1484e045902f3ed666eba669b69d5a8a41f7a74ec662e7",
+  "source_fingerprint": "ca60fa8deecc6e54d557d16f031907b513dbbbb40402483d8acdd1c163a25912",
   "target": "ReEchoEditor"
 }
