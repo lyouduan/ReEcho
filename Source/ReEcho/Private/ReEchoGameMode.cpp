@@ -1,5 +1,6 @@
 #include "ReEchoGameMode.h"
 
+#include "ReEcho.h"
 #include "AbilitySystem/ReEchoGameplayTags.h"
 #include "AbilitySystemComponent.h"
 
@@ -1874,6 +1875,8 @@ void AReEchoGameMode::HandleStatsClosed()
 
 void AReEchoGameMode::ToggleInventoryMenu()
 {
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] GameMode: ToggleInventoryMenu called; InventoryShopWidget=%s"),
+		InventoryShopWidget ? TEXT("open") : TEXT("closed"));
 	if (InventoryShopWidget)
 	{
 		HandleInventoryShopClosed();
@@ -1884,6 +1887,8 @@ void AReEchoGameMode::ToggleInventoryMenu()
 
 void AReEchoGameMode::ToggleShopMenu()
 {
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] GameMode: ToggleShopMenu called; InventoryShopWidget=%s"),
+		InventoryShopWidget ? TEXT("open") : TEXT("closed"));
 	if (InventoryShopWidget)
 	{
 		HandleInventoryShopClosed();
@@ -1894,8 +1899,12 @@ void AReEchoGameMode::ToggleShopMenu()
 
 void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 {
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Stats=%d Trait=%d Restart=%d Terminal=%d)"),
+		(int32)Mode,
+		StatsWidget ? 1 : 0, TraitCardChoiceWidget ? 1 : 0, RestartWidget ? 1 : 0, bRestartScreenIsTerminal ? 1 : 0);
 	if (StatsWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
 	{
+		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] ShowInventoryShopMenu guard TRIPPED - early return"));
 		return;
 	}
 
@@ -1912,9 +1921,13 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	                             : nullptr;
 	if (!InventoryShopWidget)
 	{
+		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] InventoryShopWidget invalid (OpenScreen returned non-shop or null)"));
 		return;
 	}
 
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] InventoryShopWidget valid; Player=%s Combatant=%s"),
+		Player ? TEXT("valid") : TEXT("null"),
+		(Player && Player->Combatant) ? TEXT("valid") : TEXT("null"));
 	if (Player && Player->Combatant)
 	{
 		InventoryShopWidget->SetPlayerStats(Player->Combatant->Stats);

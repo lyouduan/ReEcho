@@ -619,6 +619,7 @@ void AReEchoPlayerPawn::TogglePauseMenu()
 
 void AReEchoPlayerPawn::ToggleInventoryMenu()
 {
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] Pawn: ToggleInventoryMenu key received"));
 	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
 	{
 		GameMode->ToggleInventoryMenu();
@@ -627,6 +628,7 @@ void AReEchoPlayerPawn::ToggleInventoryMenu()
 
 void AReEchoPlayerPawn::ToggleShopMenu()
 {
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] Pawn: ToggleShopMenu key received"));
 	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
 	{
 		GameMode->ToggleShopMenu();

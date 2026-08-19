@@ -1,5 +1,6 @@
 #include "UI/ReEchoInventoryShopWidget.h"
 
+#include "ReEcho.h"
 #include "Core/ReEchoTypes.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Run/ReEchoShopCatalog.h"
@@ -1229,15 +1230,39 @@ UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Of
 void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)
 {
 	CachedPlayerStats = Stats;
-	if (UImage* Clock = Cast<UImage>(GetWidgetFromName(TEXT("DesignerShopClock"))))
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] SetPlayerStats called; HpMax=%.1f Atk=%.1f"),
+		Stats.HpMax, Stats.PhysicalAttack);
+	// DesignerShopClock is a designer-authored widget whose concrete type is not guaranteed to be UImage
+	// (it is typically wrapped in a UBorder/UOverlay/UButton or is a UUserWidget). Attach the tooltip to
+	// the widget itself so hover works regardless of its concrete type.
+	if (UWidget* Clock = GetWidgetFromName(TEXT("DesignerShopClock")))
 	{
-		Clock->SetToolTip(BuildAttributePanel(Stats));
+		UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] DesignerShopClock FOUND type=%s vis=%d"),
+			*Clock->GetClass()->GetName(), (int32)Clock->GetVisibility());
+		// The designer authored this image as HitTestInvisible (vis=3), which renders it but makes it
+		// ignore mouse hit-testing, so Slate never fires OnMouseEnter and the tooltip never appears.
+		// Switch to Visible so the tooltip triggers on hover. Rendering is unchanged.
+		if (Clock->GetVisibility() != ESlateVisibility::Visible)
+		{
+			Clock->SetVisibility(ESlateVisibility::Visible);
+			UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] DesignerShopClock visibility forced to Visible for hover"));
+		}
+		UWidget* Panel = BuildAttributePanel(Stats);
+		UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] BuildAttributePanel returned %s; attaching tooltip"),
+			Panel ? TEXT("valid") : TEXT("NULL"));
+		Clock->SetToolTip(Panel);
+	}
+	else
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] DesignerShopClock NOT FOUND (GetWidgetFromName returned null)"));
 	}
 }
 
 UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock& Stats) const
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] BuildAttributePanel Snapshot=%s"),
+		Snapshot.IsValid() ? TEXT("valid") : TEXT("NULL"));
 	USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
 	TooltipSize->SetWidthOverride(320.0f);
 	UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
@@ -1250,6 +1275,7 @@ UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock&
 
 	if (Snapshot)
 	{
+		UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] AttributeOrder count=%d"), Snapshot->GetAttributeOrder().Num());
 		for (const FName& AttrId : Snapshot->GetAttributeOrder())
 		{
 			const FReEchoCsvAttributeRow* Attr = Snapshot->FindAttribute(AttrId);
