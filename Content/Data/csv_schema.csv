@@ -104,10 +104,10 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Reactions,ClearsAttachment,Bool,true,,,,true|false,Whether the reaction consumes current attachment.
 1,Reactions,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,Reactions,DisabledReason,Text,false,,,,,Required when Enabled is false.
-1,WeaponTypes,Id,StableId,true,,,,Dagger|LongSword|Scythe|Whip|Bow|Gun|Staff,Stable weapon type id.
+1,WeaponTypes,Id,StableId,true,,,,LongSword|Scythe|Whip|Bow|Gun|Staff,Stable weapon type id.
 1,WeaponTypes,DisplayName,Text,true,,,,,Designer-visible type name.
 1,WeaponTypes,Description,Text,true,,,,,Designer-visible weapon type rules and source description.
-1,WeaponTypes,BaseAttackPatternId,AttackPatternId,true,,,,Pattern.DaggerCombo|Pattern.LongSwordCombo|Pattern.ScytheSweep|Pattern.WhipCombo|Pattern.BowShot|Pattern.GunShot|Pattern.StaffProjectile,Registered base attack pattern id.
+1,WeaponTypes,BaseAttackPatternId,AttackPatternId,true,,,,Pattern.LongSwordCombo|Pattern.ScytheSweep|Pattern.WhipCombo|Pattern.BowShot|Pattern.GunShot|Pattern.StaffProjectile,Registered base attack pattern id.
 1,WeaponTypes,SlotProfileId,StableId,true,,,,,Slot profile family id.
 1,WeaponTypes,BaseIntervalSeconds,Float,true,0,60,,,Base attack interval in seconds.
 1,WeaponTypes,BaseRangeCm,Float,true,0,100000,,,Base attack range in Unreal centimeters.
@@ -168,7 +168,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,SlotTypes,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,SlotTypes,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,SlotProfiles,Id,StableId,true,,,,,Stable slot profile row id.
-1,SlotProfiles,WeaponTypeId,StableId,true,,,,Any|Dagger|LongSword|Scythe|Whip|Bow|Gun|Staff,Weapon type allowed for this slot row.
+1,SlotProfiles,WeaponTypeId,StableId,true,,,,Any|LongSword|Scythe|Whip|Bow|Gun|Staff,Weapon type allowed for this slot row.
 1,SlotProfiles,SlotTypeId,ForeignKey,true,,,SlotTypes,,References SlotTypes.Id.
 1,SlotProfiles,SlotCount,Int,true,0,1000000,,,Number of slots of this type.
 1,SlotProfiles,Required,Bool,true,,,,true|false,Whether this slot is required.
@@ -178,7 +178,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,SlotProfiles,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Parts,Id,StableId,true,,,,,Stable audit row id; enabled rows use this as PartId.
 1,Parts,PartId,StableId,true,,,,None,Stable runtime PartId or None for unnamed audit-only source rows.
-1,Parts,WeaponTypeId,StableId,true,,,,Any|Dagger|LongSword|Scythe|Whip|Bow|Gun|Staff,Allowed weapon type.
+1,Parts,WeaponTypeId,StableId,true,,,,Any|LongSword|Scythe|Whip|Bow|Gun|Staff,Allowed weapon type.
 1,Parts,SlotTypeId,ForeignKey,true,,,SlotTypes,,References SlotTypes.Id.
 1,Parts,DisplayName,Text,false,,,,,Designer-visible part name; blank unnamed rows remain disabled.
 1,Parts,Description,Text,false,,,,,Designer-visible effect description.
@@ -202,7 +202,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,PartEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
 1,PartEffects,BehaviorId,BehaviorId,true,,,,Part.CoreDamageChannel|Part.StatModifier|Part.AttackPatternReplacement|Part.OnKillHealPercent,Registered behavior id.
 1,PartEffects,FormulaId,FormulaId,true,,,,None,Registered formula id or None.
-1,PartEffects,AttackPatternId,AttackPatternId,true,,,,None|Pattern.DaggerDashOnly,Registered attack pattern id or None.
+1,PartEffects,AttackPatternId,AttackPatternId,true,,,,None,Registered attack pattern id or None.
 1,PartEffects,ParamName,StableId,true,,,,None,Typed parameter name.
 1,PartEffects,ParamValue,Float,true,-100000,100000,,,Typed parameter value.
 1,PartEffects,DurationSeconds,Float,true,0,3600,,,Effect duration.

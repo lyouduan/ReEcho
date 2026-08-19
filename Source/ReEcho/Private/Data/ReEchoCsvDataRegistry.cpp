@@ -719,8 +719,6 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterEffectKind(TEXT("ParameterizedBehavior"));
 	RegisterEffectKind(TEXT("UniqueBehavior"));
 	RegisterFormulaId(TEXT("Weapon.PhysicalOrElementalCoefficient"));
-	RegisterAttackPatternId(TEXT("Pattern.DaggerCombo"));
-	RegisterAttackPatternId(TEXT("Pattern.DaggerDashOnly"));
 	RegisterAttackPatternId(TEXT("Pattern.LongSwordCombo"));
 	RegisterAttackPatternId(TEXT("Pattern.ScytheSweep"));
 	RegisterAttackPatternId(TEXT("Pattern.WhipCombo"));

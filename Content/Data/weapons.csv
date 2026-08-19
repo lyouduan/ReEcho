@@ -1,7 +1,7 @@
 Id,WeaponTypeId,DisplayName,VisualKey,InputSlot,StartSelectable,LoadoutOrder,AttackPatternId,AttackIntervalSeconds,PhysicalCoefficient,ElementalCoefficient,RangeCm,ArcDegrees,ProjectileCount,ConcentrationDegrees,ExplosionRadiusCm,DataRevision,Enabled,SourceSheet,SourceRow,DisabledReason
-W_J_02,Staff,Moon Staff,MoonStaff,1,true,1,Pattern.MoonStaffWave,0.30,0.55,0,2500,0,1,0,0,1,true,RuntimeCompatibility,1,
+W_J_02,Staff,Staff,Staff,1,true,1,Pattern.StaffProjectile,1.20,0,0.80,1000,0,1,0,200,1,true,武器体系W,8,
 W_J_01,LongSword,Crescent Blade,CrescentBlade,2,true,2,Pattern.LongSwordCombo,0.28,1.20,0,180,100,0,0,0,1,true,RuntimeCompatibility,2,
-W_J_03,Staff,Elemental Reaction,ElementalOrb,3,true,3,Pattern.ElementalProjectile,0.70,0,0.75,240,0,1,0,0,1,true,RuntimeCompatibility,3,
-W_J_05,Dagger,Training Dagger,CrescentBlade,None,false,0,Pattern.DaggerCombo,0.50,0.60,0.60,150,120,0,0,0,1,true,RuntimeCompatibility,5,
-W_J_06,Staff,Apprentice Staff,ElementalOrb,None,false,0,Pattern.StaffProjectile,1.20,0,0.80,1000,0,3,30,200,1,true,RuntimeCompatibility,6,
-W_J_04,Scythe,Harvest Scythe,CrescentBlade,None,false,0,Pattern.ScytheSweep,0.50,0.60,0,150,360,0,0,0,1,true,武器体系W,4,
+W_J_04,Scythe,Harvest Scythe,Scythe,None,false,0,Pattern.ScytheSweep,0.50,0.60,0,150,360,0,0,0,1,true,武器体系W,4,
+W_J_07,Whip,Whip,Whip,4,true,4,Pattern.WhipCombo,0.80,0.60,0.60,400,180,0,0,0,1,true,RuntimeCompatibility,7,
+W_J_08,Bow,Bow,Bow,3,true,5,Pattern.BowShot,1.00,1.00,1.00,1000,0,1,0,0,1,true,RuntimeCompatibility,8,
+W_J_09,Gun,Gun,Gun,5,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,RuntimeCompatibility,9,

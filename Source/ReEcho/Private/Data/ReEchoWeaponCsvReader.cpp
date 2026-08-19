@@ -78,7 +78,22 @@ bool ParseInputSlot(const ReEchoCsv::FTable& Table,
 		OutSlot = EReEchoInputSlot::Slot3;
 		return true;
 	}
-	ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, Field, TEXT("InputSlot must be None, 1, 2 or 3"));
+	if (Text == TEXT("4"))
+	{
+		OutSlot = EReEchoInputSlot::Slot4;
+		return true;
+	}
+	if (Text == TEXT("5"))
+	{
+		OutSlot = EReEchoInputSlot::Slot5;
+		return true;
+	}
+	if (Text == TEXT("6"))
+	{
+		OutSlot = EReEchoInputSlot::Slot6;
+		return true;
+	}
+	ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, Field, TEXT("InputSlot must be None, 1, 2, 3, 4, 5 or 6"));
 	return false;
 }
 
@@ -1028,7 +1043,6 @@ bool ReadPartEffectsTable(const FString& DataDirectory,
 	}
 
 	int32 EnabledCores = 0;
-	bool bHasStrengthGrip = false;
 	bool bHasPatternReplacement = false;
 	bool bHasUniqueBehavior = false;
 	for (auto& PartPair : Snapshot.Parts)
@@ -1042,16 +1056,15 @@ bool ReadPartEffectsTable(const FString& DataDirectory,
 		if (Part.bEnabled && Part.Effects.Num() == 0)
 		{
 			ReEchoCsv::AddIssue(Issues,
-			                    Table.File,
-			                    1,
-			                    TEXT("PartId"),
-			                    FString::Printf(TEXT("Enabled part %s has no effect rows"), *Part.Id.ToString()));
+		                        Table.File,
+		                        1,
+		                        TEXT("PartId"),
+		                        FString::Printf(TEXT("Enabled part %s has no effect rows"), *Part.Id.ToString()));
 		}
 		if (Part.bEnabled && Part.SlotTypeId == TEXT("Core"))
 		{
 			++EnabledCores;
 		}
-		bHasStrengthGrip |= Part.bEnabled && Part.Id == TEXT("P_DAGGER_STRENGTH_GRIP");
 		for (const FReEchoCsvPartEffectRow& Effect : Part.Effects)
 		{
 			bHasPatternReplacement |= Effect.bEnabled && Effect.EffectKind == TEXT("AttackPatternReplacement");
@@ -1061,10 +1074,6 @@ bool ReadPartEffectsTable(const FString& DataDirectory,
 	if (EnabledCores < 6)
 	{
 		ReEchoCsv::AddIssue(Issues, Table.File, 1, TEXT("PartId"), TEXT("At least six generic cores must be enabled"));
-	}
-	if (!bHasStrengthGrip)
-	{
-		ReEchoCsv::AddIssue(Issues, Table.File, 1, TEXT("PartId"), TEXT("Strength grip must be enabled"));
 	}
 	if (!bHasPatternReplacement)
 	{
@@ -1102,49 +1111,32 @@ void ValidateCrossDomain(FReEchoCsvDataSnapshot& Snapshot, TArray<FReEchoCsvIssu
 	}
 
 	const TArray<FReEchoCsvWeaponRow> StartSelectable = Snapshot.GetStartSelectableWeapons();
-	if (StartSelectable.Num() != 3)
+	if (StartSelectable.Num() < 1)
 	{
 		ReEchoCsv::AddIssue(Issues,
 		                    TEXT("weapons.csv"),
 		                    1,
 		                    TEXT("StartSelectable"),
-		                    TEXT("Exactly three weapons must be StartSelectable"));
+		                    TEXT("At least one weapon must be StartSelectable"));
 	}
-	const TArray<FName> ExpectedLoadout = {TEXT("W_J_02"), TEXT("W_J_01"), TEXT("W_J_03")};
+	const TArray<FName> ExpectedLoadout = {TEXT("W_J_02"), TEXT("W_J_01"), TEXT("W_J_07"), TEXT("W_J_08"), TEXT("W_J_09")};
 	for (int32 Index = 0; Index < StartSelectable.Num() && Index < ExpectedLoadout.Num(); ++Index)
 	{
 		if (StartSelectable[Index].Id != ExpectedLoadout[Index])
 		{
 			ReEchoCsv::AddIssue(
-			    Issues, TEXT("weapons.csv"), 1, TEXT("LoadoutOrder"), TEXT("Legacy start weapon order changed"));
+			    Issues, TEXT("weapons.csv"), 1, TEXT("LoadoutOrder"), TEXT("Start weapon loadout order changed"));
 		}
 	}
 	const FReEchoCsvWeaponRow* Slot1 = Snapshot.FindWeaponByInputSlot(EReEchoInputSlot::Slot1);
 	const FReEchoCsvWeaponRow* Slot2 = Snapshot.FindWeaponByInputSlot(EReEchoInputSlot::Slot2);
-	const FReEchoCsvWeaponRow* Slot3 = Snapshot.FindWeaponByInputSlot(EReEchoInputSlot::Slot3);
-	if (!Slot1 || Slot1->Id != TEXT("W_J_02") || !Slot2 || Slot2->Id != TEXT("W_J_01") || !Slot3 ||
-	    Slot3->Id != TEXT("W_J_03"))
+	if (!Slot1 || Slot1->Id != TEXT("W_J_02") || !Slot2 || Slot2->Id != TEXT("W_J_01"))
 	{
 		ReEchoCsv::AddIssue(Issues,
 		                    TEXT("weapons.csv"),
 		                    1,
 		                    TEXT("InputSlot"),
-		                    TEXT("Legacy W_J_02/W_J_01/W_J_03 input mapping changed"));
-	}
-	const bool bHasReachableDagger = Snapshot.WeaponOrder.ContainsByPredicate(
-	    [&](const FName WeaponId)
-	    {
-		    const FReEchoCsvWeaponRow* Weapon = Snapshot.FindEnabledWeapon(WeaponId);
-		    return Weapon && Weapon->WeaponTypeId == TEXT("Dagger") && Weapon->InputSlot == EReEchoInputSlot::None &&
-		           !Weapon->bStartSelectable;
-	    });
-	if (!bHasReachableDagger)
-	{
-		ReEchoCsv::AddIssue(Issues,
-		                    TEXT("weapons.csv"),
-		                    1,
-		                    TEXT("WeaponTypeId"),
-		                    TEXT("At least one enabled non-start Dagger weapon is required for Dagger-only parts"));
+		                    TEXT("Legacy W_J_02/W_J_01 input mapping changed"));
 	}
 }
 }

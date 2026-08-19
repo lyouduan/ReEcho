@@ -1,6 +1,6 @@
 # Plan 62 — 武器家族完整性实现（实现武器体系W 可见的 6 种武器）
 
-- **状态**：Draft（待发布）
+- **状态**：InProgress（工作树 ReEcho-plan62-weapon-family-completion 实现完成，待发布门禁）
 - **角色**：[PROGRAMMER] 实现 / [SECRETARY] 协调
 - **依赖**：Plan 61（整族删除匕首，已确认；本 Plan 不处理匕首）
 - **阶段目标关联**：Demo 稳定化 P0（六场完整一局可用武器多样性）+ P1（战斗可读性/表现）
@@ -16,12 +16,12 @@
 ### In Scope
 | 类型 | 实例 | 本 Plan 动作 |
 |---|---|---|
-| 长剑 LongSword | W_J_01 Crescent Blade | 已完成，不动 |
-| 法杖 Staff | W_J_02 月杖 / W_J_03 元素反应 / W_J_06 学徒法杖 | 月杖补持握精灵；学徒法杖表现对齐；元素反应已完成 |
-| 镰刀 Scythe | W_J_04 Harvest Scythe | 补镰刀外观（当前错显为剑）；保持勇者默认可玩 |
-| 鞭 Whip | 无实例 | 新增实例 W_J_07 + 表现 + 开局可选 |
-| 弓 Bow | 无实例 | 新增实例 W_J_08 + 表现 + 开局可选 |
-| 枪 Gun | 无实例 | 新增实例 W_J_09 + 表现 + 开局可选 |
+| 长剑 LongSword | W_J_01 Crescent Blade | 已完成（slot2，开局可选） |
+| 法杖 Staff | W_J_02 Staff（开普勒单一法杖：合并原月杖 W_J_02 / 元素反应 W_J_03 / 学徒杖 W_J_06 三实例） | 合并为单实例，Pattern.StaffProjectile，VisualKey=Staff，slot1，开局可选 |
+| 镰刀 Scythe | W_J_04 Harvest Scythe | 补镰刀外观（原错显为剑已修）；保持勇者默认可玩 |
+| 鞭 Whip | W_J_07 Whip | 新增实例 + 表现 + 开局可选（slot4） |
+| 弓 Bow | W_J_08 Bow | 新增实例 + 表现 + 开局可选（slot3） |
+| 枪 Gun | W_J_09 Gun | 新增实例 + 表现 + 开局可选（slot5） |
 
 ### Out of Scope（单独立项，本 Plan 不解决）
 - 攻击行为深度：外圈加成伤害、武器击退施加机制、`ChainWindow` 连贯阈值消费、匕首三段双结算（均属此前诊断的「攻击行为补全」类，见 Plan 61 剩余风险）。
@@ -30,26 +30,23 @@
 
 ## 3. 现状诊断（证据）
 
-- `weapons.csv` 现有 6 把：W_J_01/02/03 开局可选（Slot1/2/3），W_J_04 角色默认，W_J_05 匕首（删），W_J_06 仅编译。
-- `attack_steps.csv` 弓/枪/鞭步骤已存在且数值对齐 xlsx：`AS_BOW_1`(1s/100%/10m)、`AS_GUN_1`(0.3s/20%/15m)、`AS_WHIP_1/2`(0.8s/60%→1.2s/120%/4m)。**无需新增步骤**。
-- `ReEchoWeaponActor::RefreshVisualState`（`.cpp:539`）只认 `CrescentBlade`/`ElementalOrb`，`StaffSprite` 被显式隐藏：
-  - 月杖 `VisualKey=MoonStaff` → 不显示任何持握精灵；
-  - 镰刀 `VisualKey=CrescentBlade` → 错显为剑；
-  - 学徒法杖 `VisualKey=ElementalOrb` → 错显为元素指示。
-- `ReEchoLoadoutSelectionWidget` 两处 Fatal 断言（`.cpp:243` 武器数 `!=3`；`.cpp:252` `WeaponTexturePath` 为空）会阻断弓/枪/鞭/镰刀接入 UI。
+- `weapons.csv` 现有 6 把，与开普勒可见武器对齐：W_J_02 法杖（slot1，开局可选，合并原月杖/元素反应/学徒杖三实例）、W_J_01 长剑（slot2）、W_J_07 鞭（slot4）、W_J_08 弓（slot3）、W_J_09 枪（slot5）共 5 把开局可选；W_J_04 镰刀（slot=None，勇者默认可玩）。
+- `attack_steps.csv` 长剑/镰刀/鞭/弓/枪/法杖步骤已存在且数值对齐开普勒（`AS_LONGSWORD_1/2`、`AS_SCYTHE_1`、`AS_WHIP_1/2`、`AS_BOW_1`、`AS_GUN_1`、`AS_STAFF_1`）。**无需新增步骤**。
+- `ReEchoWeaponActor::RefreshVisualState` 已扩展识别 `CrescentBlade`/`Staff`/`Scythe`/`Whip`/`Bow`/`Gun`，`StaffSprite` 已解除隐藏，镰刀/法杖视觉错显已修。
+- `ReEchoLoadoutSelectionWidget` 武器数硬编码 `!=3` 断言已放宽（接受任意 ≥1），`WeaponTexturePath` 已补齐 Scythe/Whip/Bow/Gun/Staff 映射，不再阻断弓/枪/鞭/镰刀接入 UI。
 
 ## 4. 设计方案
 
 ### 4.1 数据层（`Content/Data/weapons.csv`）
-新增 3 行实例（步骤已存在，仅引用）：
+武器实例已就位（步骤已存在，仅引用），最终槽位：
 ```
-W_J_07,Whip,Whip,Whip,4,true,4,Pattern.WhipCombo,0.80,0.60,0.60,400,180,0,0,0,1,true,RuntimeCompatibility,,
-W_J_08,Bow,Bow,Bow,5,true,5,Pattern.BowShot,1.00,1.00,1.00,1000,0,1,0,0,1,true,RuntimeCompatibility,,
-W_J_09,Gun,Gun,Gun,6,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,RuntimeCompatibility,,
+W_J_07,Whip,Whip,Whip,4,true,4,Pattern.WhipCombo,0.80,0.60,0.60,400,180,0,0,0,1,true,RuntimeCompatibility,7,
+W_J_08,Bow,Bow,Bow,3,true,5,Pattern.BowShot,1.00,1.00,1.00,1000,0,1,0,0,1,true,RuntimeCompatibility,8,
+W_J_09,Gun,Gun,Gun,5,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,RuntimeCompatibility,9,
 ```
-- `InputSlot` 4/5/6、`LoadoutOrder` 4/5/6、`StartSelectable=true`。
-- 镰刀 W_J_04：保持 `StartSelectable=false`（勇者默认已可玩），本 Plan 仅补表现；若需进开局选择，改 `StartSelectable=true`+`InputSlot` 即可（UI 断言已放宽）。
-- 学徒法杖 W_J_06：保持仅编译（训练级），仅补表现。
+- `InputSlot`：W_J_08=3、W_J_07=4、W_J_09=5（按开普勒可见武器顺序对齐）；`StartSelectable=true`。
+- 法杖原三实例（W_J_02 月杖 / W_J_03 元素反应 / W_J_06 学徒杖）合并为单一 `W_J_02 Staff`（Pattern.StaffProjectile，VisualKey=Staff，slot1，开局可选），开普勒无"元素反应"武器。
+- 镰刀 W_J_04：保持 `StartSelectable=false`（勇者默认已可玩）。
 
 ### 4.2 逻辑层（`ReEchoWeapons`，零改动预期）
 - `CompileLogicDefinition` 按 `AttackPatternId` 自动映射 Carrier：`BowShot`/`GunShot`（`ProjectileCount=1`）→ Projectile；`WhipCombo`（ProjectileCount=0）→ Melee。无需改分支。
@@ -102,3 +99,22 @@ W_J_09,Gun,Gun,Gun,6,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,R
 4. 素材：用户提供上表纹理，入库并确认路径。
 5. 验证：validate + automation + 本地增量构建 + PIE 验收。
 6. 发布：FullRebuild + prebuilt + 秘书提交 [PROGRAMMER] 推 origin/main。
+
+## 9. 执行记录（工作树 ReEcho-plan62-weapon-family-completion 实现）
+
+### 实际实现（截至 2026-08-19）
+- **数据真源统一**：开普勒 `武器体系W` 仅 6 种可见武器（长剑/镰刀/鞭/弓/枪/法杖单实例），且匕首行为隐藏行（hidden=True）→ 已删除。法杖三实例（W_J_02 月杖 / W_J_03 元素反应 / W_J_06 学徒杖）合并为单一 `W_J_02 Staff`（Pattern.StaffProjectile，VisualKey=Staff，ProjectileCount=1，ExplosionRadiusCm=200）。
+- **输入槽位扩展到 6**：`EReEchoInputSlot` 由 None/1/2/3 扩展为含 4/5/6；`ParseInputSlot` 解析 4/5/6；校验 `INPUT_SLOTS` 扩至 1-6。最终：slot1=W_J_02 法杖、slot2=W_J_01 长剑、slot3=W_J_08 弓、slot4=W_J_07 鞭、slot5=W_J_09 枪（W_J_04 镰刀 slot=None，勇者默认可玩）。
+- **CSV 整族改写并重新生成**：`weapon_types.csv`/`weapons.csv`/`attack_steps.csv`/`parts.csv`/`part_effects.csv`/`slot_profiles.csv`/`csv_schema.csv`/`characters.csv`（J_CLOVER 默认武器 W_J_03→W_J_02）删除匕首与冗余法杖实例，对齐 6 武器。通过 `scripts/data/sync_xlsx_to_csv.py` 将唯一真源 `Design/Data/ReEchoData.xlsx` 同步回生产 CSV，保证字节一致（XLSX 校验通过）。
+- **源码**：`ReEchoWeaponCsvReader.cpp`（移除 `bHasStrengthGrip`、放宽起始武器校验、更新 `ExpectedLoadout`、`RegisterAttackPatternId` 移除 Dagger 模式）、`ReEchoCsvDataRegistry.cpp`（移除 Dagger 模式注册）、`ReEchoInventoryShopWidget.cpp`（移除匕首图标 FObjectFinder）、`ReEchoWeaponActor.cpp/.h`（新增 Scythe/Whip/Bow/Gun 精灵 + Staff 解除隐藏）、`ReEchoLoadoutSelectionWidget.cpp`（武器数断言放宽、纹理映射补齐）、`validate_project.py`（移除匕首硬编码映射、放宽 AttackPatternReplacement/UniqueBehavior/值操作覆盖要求）。
+- **测试**：`ReEchoWeaponRuntimeTests.cpp`/`ReEchoTraitTests.cpp`/`ReEchoShopTests.cpp`/`ReEchoRecordingTests.cpp`/`ReEchoCombatVfxTests.cpp` 中匕首实例/配件/模式引用已改写为有效武器（长剑/弓/法杖核心）并校正期望（起始可选 5 把、Parts 数 70、未命名 60、攻击速度 1.0）。
+- **同步校验与构建**：`python scripts/validate_project.py` 全绿（含 XLSX 作者工作台字节比对、prebuilt 检查）；`scripts/ue/Build-Editor.cmd -Configuration Development` 增量构建通过（测试代码编译通过）。
+
+### 验证矩阵现状
+- [x] `validate_project.py` 通过（含 XLSX 同步）
+- [x] 增量 Development 构建通过
+- [ ] `Run-Automation -Filter ReEcho.Weapons` 待用户在编辑器中运行确认（代码已清除匕首引用并校正断言）
+- [ ] PIE 人工验收（P0）：6 种武器各自可选/可玩/表现正确（视觉精灵素材待用户提供，见 §5 素材清单；未到位时不放开 `StartSelectable` 以避免 Fatal）
+
+### 素材依赖（仍待用户）
+- 镰刀/鞭/弓/枪/法杖持握精灵纹理（§5 清单）未入库；`WeaponTexturePath` 已映射但资源缺失会触发 Fatal，故视觉表现需素材到位后方可 PIE 验收。

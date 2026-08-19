@@ -208,8 +208,8 @@ bool FReEchoStartRunResolveErrorsTest::RunTest(const FString& Parameters)
 
 	FReEchoCsvWeaponRow EnabledWeapon;
 	EnabledWeapon.Id = TEXT("W_DEFAULT");
-	EnabledWeapon.WeaponTypeId = TEXT("Dagger");
-	EnabledWeapon.AttackPatternId = TEXT("Pattern.DaggerCombo");
+	EnabledWeapon.WeaponTypeId = TEXT("LongSword");
+	EnabledWeapon.AttackPatternId = TEXT("Pattern.LongSwordCombo");
 	EnabledWeapon.DisplayName = TEXT("Default Test Weapon");
 	EnabledWeapon.bEnabled = true;
 	EnabledWeapon.DataRevision = 7;

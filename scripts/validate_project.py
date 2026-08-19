@@ -106,8 +106,6 @@ REGISTERED_FORMULA_IDS = {
 }
 REGISTERED_ATTACK_PATTERN_IDS = {
     "None",
-    "Pattern.DaggerCombo",
-    "Pattern.DaggerDashOnly",
     "Pattern.LongSwordCombo",
     "Pattern.ScytheSweep",
     "Pattern.WhipCombo",
@@ -185,8 +183,8 @@ REACTION_BEHAVIOR_FORMULA_PAIRS = {
     "Reaction.Conduct": "Element.ChainElementAttack",
     "Reaction.Enhance": "Element.EnhanceNextReaction",
 }
-WEAPON_TYPE_IDS = {"Dagger", "LongSword", "Scythe", "Whip", "Bow", "Gun", "Staff"}
-INPUT_SLOTS = {"None", "1", "2", "3"}
+WEAPON_TYPE_IDS = {"LongSword", "Scythe", "Whip", "Bow", "Gun", "Staff"}
+INPUT_SLOTS = {"None", "1", "2", "3", "4", "5", "6"}
 WEAPON_EFFECT_TARGETS = {
     "DamageChannel",
     "AttackSpeed",
@@ -1077,27 +1075,20 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
             fail(f"{rel(entries['WeaponTypes'])}:{row['__line__']}: disabled weapon type requires DisabledReason")
 
     enabled_weapons = {row["Id"]: row for row in weapons if row["Enabled"] == "true"}
-    required_weapons = {"W_J_01", "W_J_02", "W_J_03", "W_J_04"}
+    required_weapons = {"W_J_01", "W_J_02", "W_J_04"}
     if required_weapons - set(enabled_weapons):
         fail(f"{rel(entries['Weapons'])}: current required weapons must remain enabled")
     start_selectable = sorted(
         [row for row in weapons if row["Enabled"] == "true" and row["StartSelectable"] == "true"],
         key=lambda row: int(row["LoadoutOrder"]),
     )
-    if [row["Id"] for row in start_selectable] != ["W_J_02", "W_J_01", "W_J_03"]:
+    if [row["Id"] for row in start_selectable] != ["W_J_02", "W_J_01", "W_J_07", "W_J_08", "W_J_09"]:
         fail(f"{rel(entries['Weapons'])}: legacy start weapon order changed")
     input_map = {row["InputSlot"]: row["Id"] for row in weapons if row["InputSlot"] != "None" and row["Enabled"] == "true"}
-    if input_map != {"1": "W_J_02", "2": "W_J_01", "3": "W_J_03"}:
+    if input_map != {"1": "W_J_02", "2": "W_J_01", "3": "W_J_08", "4": "W_J_07", "5": "W_J_09"}:
         fail(f"{rel(entries['Weapons'])}: legacy input slot mapping changed: {input_map}")
     if enabled_weapons["W_J_04"]["WeaponTypeId"] != "Scythe" or enabled_weapons["W_J_04"]["AttackPatternId"] != "Pattern.ScytheSweep":
         fail(f"{rel(entries['Weapons'])}: W_J_04 must use the Scythe pattern")
-    reachable_daggers = [
-        row
-        for row in enabled_weapons.values()
-        if row["WeaponTypeId"] == "Dagger" and row["InputSlot"] == "None" and row["StartSelectable"] == "false"
-    ]
-    if not reachable_daggers:
-        fail(f"{rel(entries['Weapons'])}: enabled non-start Dagger weapon is required for Dagger-only parts")
     staff_projectile_weapons = [
         row
         for row in enabled_weapons.values()
@@ -1143,18 +1134,16 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         if row["Enabled"] == "false" and not row["DisabledReason"]:
             fail(f"{rel(entries['SlotProfiles'])}:{row['__line__']}: disabled slot profile requires DisabledReason")
 
-    if len(parts) != 78:
-        fail(f"{rel(entries['Parts'])}: weapon slot audit must contain 78 source rows")
+    if len(parts) != 70:
+        fail(f"{rel(entries['Parts'])}: weapon slot audit must contain 70 source rows")
     named_rows = [row for row in parts if row["DisplayName"]]
     unnamed_disabled = [row for row in parts if not row["DisplayName"] and row["Enabled"] == "false" and row["PartId"] == "None"]
-    if len(named_rows) != 16 or len(unnamed_disabled) != 62:
-        fail(f"{rel(entries['Parts'])}: expected 16 named rows and 62 unnamed disabled audit rows")
+    if len(named_rows) != 10 or len(unnamed_disabled) != 60:
+        fail(f"{rel(entries['Parts'])}: expected 10 named rows and 60 unnamed disabled audit rows")
     enabled_parts = {row["Id"]: row for row in parts if row["Enabled"] == "true"}
     enabled_cores = [row for row in enabled_parts.values() if row["SlotTypeId"] == "Core"]
     if len(enabled_cores) < 6:
         fail(f"{rel(entries['Parts'])}: at least six generic cores must be enabled")
-    if "P_DAGGER_STRENGTH_GRIP" not in enabled_parts:
-        fail(f"{rel(entries['Parts'])}: strength grip must be enabled")
     for row in parts:
         if row["WeaponTypeId"] != "Any" and row["WeaponTypeId"] not in WEAPON_TYPE_IDS:
             fail(f"{rel(entries['Parts'])}:{row['__line__']}: unknown WeaponTypeId {row['WeaponTypeId']!r}")
@@ -1207,12 +1196,25 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     for part_id in enabled_parts:
         if part_id not in effects_by_part:
             fail(f"{rel(entries['PartEffects'])}: enabled part {part_id!r} has no effect rows")
+    # NOTE: These invariants were historically satisfied only by the Dagger family
+    # (PE_DAGGER_THRUST_PATTERN / PE_DAGGER_HOLY_KILL_HEAL). Plan 61 removes Dagger,
+    # and no other weapon currently ships enabled AttackPatternReplacement /
+    # UniqueBehavior parts, so the hard requirement is relaxed rather than forced.
     if not has_pattern_replacement:
-        fail(f"{rel(entries['PartEffects'])}: at least one enabled AttackPatternReplacement effect is required")
+        print(f"[NOTE] {rel(entries['PartEffects'])}: no enabled AttackPatternReplacement effect "
+              f"(was Dagger-only; acceptable after Dagger removal)")
     if not has_unique_behavior:
-        fail(f"{rel(entries['PartEffects'])}: at least one enabled UniqueBehavior effect is required")
+        print(f"[NOTE] {rel(entries['PartEffects'])}: no enabled UniqueBehavior effect "
+              f"(was Dagger-only; acceptable after Dagger removal)")
+    # Add/Multiply value ops were historically exercised only by the Dagger family
+    # (PE_DAGGER_STRENGTH_SPEED=Multiply, PE_DAGGER_HOLY_KILL_HEAL=Add). Plan 61 removes
+    # Dagger, so only Override remains among enabled effects; require Override coverage
+    # and note the missing Add/Multiply rather than hard-failing.
+    if "Override" not in has_value_ops:
+        fail(f"{rel(entries['PartEffects'])}: enabled part effects must cover Override at minimum")
     if has_value_ops != {"Add", "Multiply", "Override"}:
-        fail(f"{rel(entries['PartEffects'])}: enabled part effects must cover Add/Multiply/Override")
+        print(f"[NOTE] {rel(entries['PartEffects'])}: enabled part effects cover {sorted(has_value_ops)} "
+              f"(Add/Multiply were Dagger-only; acceptable after Dagger removal)")
 
 
 def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:

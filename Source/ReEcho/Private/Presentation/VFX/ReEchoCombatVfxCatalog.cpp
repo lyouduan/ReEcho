@@ -30,7 +30,7 @@ const TCHAR* FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic
 bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 {
 	const FString Pattern = AttackPatternId.ToString();
-	return Pattern.Contains(TEXT("LongSword")) || Pattern.Contains(TEXT("Dagger")) || Pattern.Contains(TEXT("Scythe"));
+	return Pattern.Contains(TEXT("LongSword")) || Pattern.Contains(TEXT("Scythe"));
 }
 
 FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)

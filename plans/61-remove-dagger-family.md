@@ -6,8 +6,8 @@
 - Executor 负责人：Gavyn-side AI（同 AI 在用户 程序 指导下执行）
 - Plan 编写方（AI 侧）：`Gavyn-side AI | ReEcho teammate-side AI`
 - 实现编写方（AI 侧）：`Gavyn-side AI`
-- 任务状态：`Proposed`
-- 人工验收：`PendingBeforeClose`（删除后需确认 3 把可玩武器 + 其余武器配件/构筑套件仍可玩、测试套件通过）
+- 任务状态：`Completed`（匕首整族已从 canonical XLSX + 8 个生产 CSV + 源码测试/UI 删除；本 Plan 实现并入 Plan 62 工作树 `ReEcho-plan62-weapon-family-completion`）
+- 人工验收：`PendingBeforeClose`（需用户在 PIE 确认 6 把可见武器可选可玩、测试套件 `Run-Automation -Filter ReEcho.Weapons` 通过）
 - 本地规划 / 实现基线：`origin/main @ 1ed2615`（fetch 确认本地 main 与 origin/main 一致，无基线外提交）
 - 本地实现方式：一任务一 worktree（`plan/61-remove-dagger-family`），主工作树仅快进合并；实现先在 worktree 完成并自验，再快进进 main。
 - 依赖 / 阻塞：无外部依赖；需用户确认 canonical `ReEchoData.xlsx` 匕首行的处理方式（本 Plan 采用物理删除 canonical 匕首行 + CSV 整族删除，开普勒那份保留隐藏状态，不再同步）。
@@ -36,7 +36,7 @@
 将匕首武器整族从工程真源与运行时中彻底移除：canonical `ReEchoData.xlsx`（武器体系W/武器插槽C/_SystemData）+ 8 个 `Content/Data/*.csv` + 源码中的匕首专属测试与 UI 引用。移除后：
 - `validate_project.py` 通过（无悬空外键、无 schema 残留）；
 - `Run-Automation -Filter ReEcho.Weapons` 通过（改写后的测试套件无编译/断言失败）；
-- 当前 3 把可玩武器（长剑/月杖/元素球）+ 学徒杖的数据与运行不受影响；
+- 当前 6 把可见武器已对齐开普勒（长剑/镰刀/鞭/弓/枪/法杖；原月杖/元素反应/学徒杖三法杖实例已合并为单一 `W_J_02` 法杖），数据与运行不受影响；
 - 下次 `sync_xlsx_to_csv.py` 不会从 canonical 复活匕首。
 
 ## 架构影响与设计决策
