@@ -1,6 +1,6 @@
 # Plan 62 — 武器家族完整性实现（实现武器体系W 可见的 6 种武器）
 
-- **状态**：InProgress（工作树 ReEcho-plan62-weapon-family-completion 实现完成，待发布门禁）
+- **状态**：Published（代码已推 origin/main `4ba6180`；PIE 人工验收 `PendingBeforeClose`）
 - **角色**：[PROGRAMMER] 实现 / [SECRETARY] 协调
 - **依赖**：Plan 61（整族删除匕首，已确认；本 Plan 不处理匕首）
 - **阶段目标关联**：Demo 稳定化 P0（六场完整一局可用武器多样性）+ P1（战斗可读性/表现）
