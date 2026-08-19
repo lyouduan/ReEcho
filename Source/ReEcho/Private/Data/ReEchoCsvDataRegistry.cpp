@@ -41,6 +41,7 @@ constexpr const TCHAR* EncountersTableId = TEXT("Encounters");
 constexpr const TCHAR* EncounterWavesTableId = TEXT("EncounterWaves");
 constexpr const TCHAR* SpawnProfilesTableId = TEXT("SpawnProfiles");
 constexpr const TCHAR* SpawnPolicyTableId = TEXT("SpawnPolicy");
+constexpr const TCHAR* AttributesTableId = TEXT("Attributes");
 
 constexpr const TCHAR* BehaviorNone = TEXT("None");
 constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
@@ -198,7 +199,8 @@ TArray<FString> GetRequiredTableIds()
 	        ReactionsTableId,    WeaponTypesTableId,         WeaponsTableId,       AttackStepsTableId,
 	        SlotTypesTableId,    SlotProfilesTableId,        PartsTableId,         PartEffectsTableId,
 	        EnemiesTableId,      EnemyAbilitiesTableId,      BossPhasesTableId,    StagesTableId,
-	        EncountersTableId,   EncounterWavesTableId,      SpawnProfilesTableId, SpawnPolicyTableId};
+	        EncountersTableId,   EncounterWavesTableId,      SpawnProfilesTableId, SpawnPolicyTableId,
+        AttributesTableId};
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
@@ -262,6 +264,65 @@ bool ReadRuntimeSmokeTable(const FString& DataDirectory,
 		SeenIds.Add(RuntimeRow.Id);
 		Snapshot.RuntimeSmokeRows.Add(RuntimeRow.Id, RuntimeRow);
 	}
+	return Issues.Num() == 0;
+}
+
+bool ReadAttributesTable(const FString& DataDirectory,
+                          const ReEchoCsv::FManifestEntry& Entry,
+                          FReEchoCsvDataSnapshot& Snapshot,
+                          TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("DisplayName"),
+	                            TEXT("Tier"),
+	                            TEXT("IconName"),
+	                            TEXT("ValueKind"),
+	                            TEXT("DisplayOrder"),
+	                            TEXT("Explanation")},
+	                           Issues);
+
+	TSet<FName> SeenIds;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvAttributeRow Attr;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Attr.Id, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Attr.DisplayName, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("Tier"), Attr.Tier, Issues);
+		ReEchoCsv::RequireCell(Table, Row, TEXT("IconName"), Attr.IconName, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("ValueKind"), Attr.ValueKind, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("DisplayOrder"), Attr.DisplayOrder, Issues);
+		ReEchoCsv::ReadOptionalCell(Row, TEXT("Explanation"), Attr.Explanation);
+
+		if (Attr.Id.IsNone())
+		{
+			continue;
+		}
+		if (SeenIds.Contains(Attr.Id))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+		}
+		SeenIds.Add(Attr.Id);
+		Snapshot.Attributes.Add(Attr.Id, Attr);
+		Snapshot.AttributeOrder.Add(Attr.Id);
+	}
+
+	Snapshot.AttributeOrder.Sort([&Snapshot](const FName& A, const FName& B)
+	{
+		const FReEchoCsvAttributeRow* RA = Snapshot.Attributes.Find(A);
+		const FReEchoCsvAttributeRow* RB = Snapshot.Attributes.Find(B);
+		const int32 OA = RA ? RA->DisplayOrder : 0;
+		const int32 OB = RB ? RB->DisplayOrder : 0;
+		return OA < OB;
+	});
+
 	return Issues.Num() == 0;
 }
 
@@ -531,14 +592,24 @@ const FReEchoCsvSpawnProfileRow* FReEchoCsvDataSnapshot::FindSpawnProfileByRole(
 
 const FReEchoCsvSpawnPolicyRow* FReEchoCsvDataSnapshot::FindEnabledSpawnPolicy() const
 {
-	for (const TPair<FName, FReEchoCsvSpawnPolicyRow>& Pair : SpawnPolicies)
+for (const TPair<FName, FReEchoCsvSpawnPolicyRow>& Pair : SpawnPolicies)
+{
+	if (Pair.Value.bEnabled)
 	{
-		if (Pair.Value.bEnabled)
-		{
-			return &Pair.Value;
-		}
+		return &Pair.Value;
 	}
-	return nullptr;
+}
+return nullptr;
+}
+
+const FReEchoCsvAttributeRow* FReEchoCsvDataSnapshot::FindAttribute(FName AttributeId) const
+{
+return Attributes.Find(AttributeId);
+}
+
+const TArray<FName>& FReEchoCsvDataSnapshot::GetAttributeOrder() const
+{
+return AttributeOrder;
 }
 
 FString FReEchoCsvLoadResult::FormatIssues() const
@@ -775,6 +846,10 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FSt
 	if (Result.Issues.Num() == 0)
 	{
 		ReEchoEncounterCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() == 0)
+	{
+		ReadAttributesTable(DataDirectory, ManifestEntries[AttributesTableId], *MutableSnapshot, Result.Issues);
 	}
 	if (Result.Issues.Num() == 0 && MutableSnapshot->RuntimeSmokeRows.Num() == 0)
 	{

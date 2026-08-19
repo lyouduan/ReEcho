@@ -355,3 +355,10 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,AudioEvents,PausePolicy,StableId,true,,,,PauseWithGame|ContinueOnPause,Pause behavior.
 1,AudioEvents,AttenuationMin,Float,true,0,100000,,,Minimum 3D attenuation distance in cm.
 1,AudioEvents,AttenuationMax,Float,true,0,100000,,,Maximum 3D attenuation distance in cm.
+1,Attributes,Id,StableId,true,,,,,
+1,Attributes,DisplayName,Text,true,,,,,
+1,Attributes,Tier,Int,true,1,2,,,
+1,Attributes,IconName,Text,true,,,,,
+1,Attributes,ValueKind,StableId,true,,,,,
+1,Attributes,DisplayOrder,Int,true,1,100,,,
+1,Attributes,Explanation,Text,false,,,,,

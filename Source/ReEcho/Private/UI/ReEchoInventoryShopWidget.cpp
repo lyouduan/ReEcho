@@ -22,6 +22,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UI/ReEchoIndexedButton.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 
 namespace
 {
@@ -34,6 +35,19 @@ UTextBlock* CreateText(UWidgetTree* WidgetTree, const FName Name, const int32 Si
 	Font.Size = Size;
 	Text->SetFont(Font);
 	return Text;
+}
+
+float GetAttributeRawValue(const FName& Id, const FReEchoStatBlock& Stats)
+{
+	if (Id == FName(TEXT("S_HP"))) return Stats.HpMax;
+	if (Id == FName(TEXT("S_P_Attack_Power"))) return Stats.PhysicalAttack;
+	if (Id == FName(TEXT("S_E_Attack_Power"))) return Stats.ElementalAttack;
+	if (Id == FName(TEXT("S_Movement_Speed"))) return Stats.MovementSpeed;
+	if (Id == FName(TEXT("S_Critical_Hit_Rate"))) return Stats.CriticalRate;
+	if (Id == FName(TEXT("S_Critical_Hit_Effect"))) return Stats.CriticalEffect;
+	if (Id == FName(TEXT("S_Echo_Efficiency"))) return Stats.EchoEfficiency;
+	if (Id == FName(TEXT("S_Elemental_Reaction_Efficiency"))) return Stats.ReactionEfficiency;
+	return 0.0f;
 }
 
 int32 GetEffectiveShopPrice(const int32 BasePrice, const float Discount)
@@ -1206,6 +1220,67 @@ UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Of
 	TooltipEffect->SetText(Offer.EffectText);
 	TooltipEffect->SetJustification(ETextJustify::Center);
 	TooltipContent->AddChildToVerticalBox(TooltipEffect);
+	TooltipSurface->SetContent(TooltipContent);
+	TooltipFrame->SetContent(TooltipSurface);
+	TooltipSize->SetContent(TooltipFrame);
+	return TooltipSize;
+}
+
+void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)
+{
+	CachedPlayerStats = Stats;
+	if (UImage* Clock = Cast<UImage>(GetWidgetFromName(TEXT("DesignerShopClock"))))
+	{
+		Clock->SetToolTip(BuildAttributePanel(Stats));
+	}
+}
+
+UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock& Stats) const
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
+	TooltipSize->SetWidthOverride(320.0f);
+	UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
+	TooltipFrame->SetBrushColor(FLinearColor::White);
+	TooltipFrame->SetPadding(FMargin(3.0f));
+	UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
+	TooltipSurface->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f));
+	TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
+	UVerticalBox* TooltipContent = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
+
+	if (Snapshot)
+	{
+		for (const FName& AttrId : Snapshot->GetAttributeOrder())
+		{
+			const FReEchoCsvAttributeRow* Attr = Snapshot->FindAttribute(AttrId);
+			if (!Attr)
+			{
+				continue;
+			}
+			const float Raw = GetAttributeRawValue(Attr->Id, Stats);
+			const FString ValueText = Attr->ValueKind == FName(TEXT("Percent"))
+				? FString::FromInt(FMath::RoundToInt(Raw * 100.0f)) + TEXT("%")
+				: FString::FromInt(FMath::RoundToInt(Raw));
+			UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), NAME_None);
+			UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), NAME_None);
+			const FString IconPath = FString::Printf(
+				TEXT("/Game/ReEcho/Textures/UI/Attributes/%s.%s"), *Attr->IconName, *Attr->IconName);
+			if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *IconPath))
+			{
+				Icon->SetBrushFromTexture(Tex);
+			}
+			Icon->SetDesiredSizeOverride(FVector2D(28.0f, 28.0f));
+			UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(Icon);
+			IconSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+			IconSlot->SetVerticalAlignment(VAlign_Center);
+			UTextBlock* Name = CreateText(WidgetTree, NAME_None, 16, FLinearColor::White);
+			Name->SetText(FText::FromString(FString::Printf(TEXT("%s：%s"), *Attr->DisplayName, *ValueText)));
+			Name->SetJustification(ETextJustify::Left);
+			UHorizontalBoxSlot* NameSlot = Row->AddChildToHorizontalBox(Name);
+			NameSlot->SetVerticalAlignment(VAlign_Center);
+			TooltipContent->AddChildToVerticalBox(Row);
+		}
+	}
 	TooltipSurface->SetContent(TooltipContent);
 	TooltipFrame->SetContent(TooltipSurface);
 	TooltipSize->SetContent(TooltipFrame);

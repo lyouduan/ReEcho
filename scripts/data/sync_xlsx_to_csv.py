@@ -57,6 +57,7 @@ TABLE_TO_CSV = {
     "tblSpawnProfiles": "spawn_profiles.csv",
     "tblSpawnPolicy": "spawn_policy.csv",
     "tblAudioEvents": "audio_events.csv",
+    "tblAttributes": "attributes.csv",
 }
 
 SYSTEM_TABLES = frozenset({"tblRuntimeSmoke", "tblRuntimeSmokeEffects"})

@@ -1,0 +1,9 @@
+Id,DisplayName,Tier,IconName,ValueKind,DisplayOrder,Explanation
+S_HP,生命值,1,生命值,Absolute,1,角色受到伤害的承受上限
+S_P_Attack_Power,物理攻击力,1,物理攻击力,Absolute,2,物理系攻击加值
+S_E_Attack_Power,元素攻击力,1,元素攻击力,Absolute,3,元素系攻击加值
+S_Movement_Speed,移动速度,2,移动速度,Percent,4,角色移动速度（以百分比表示）
+S_Critical_Hit_Rate,暴击率,2,暴击率,Percent,5,触发暴击的概率
+S_Critical_Hit_Effect,暴击效果,2,暴击效果,Percent,6,暴击造成的额外伤害比例
+S_Echo_Efficiency,回响效能,2,回响效能,Percent,7,回响造成的伤害效率
+S_Elemental_Reaction_Efficiency,元素反应效能,2,元素反应效能,Percent,8,元素反应造成的效率

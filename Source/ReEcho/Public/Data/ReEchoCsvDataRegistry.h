@@ -462,6 +462,17 @@ struct REECHO_API FReEchoCsvSpawnPolicyRow
 	FString Notes;
 };
 
+struct REECHO_API FReEchoCsvAttributeRow
+{
+	FName Id;
+	FString DisplayName;
+	int32 Tier = 0;
+	FString IconName;
+	FName ValueKind;
+	int32 DisplayOrder = 0;
+	FString Explanation;
+};
+
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
@@ -499,6 +510,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvSpawnProfileRow> SpawnProfiles;
 	TArray<FName> SpawnProfileOrder;
 	TMap<FName, FReEchoCsvSpawnPolicyRow> SpawnPolicies;
+	TMap<FName, FReEchoCsvAttributeRow> Attributes;
+	TArray<FName> AttributeOrder;
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;
@@ -523,6 +536,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TArray<FReEchoCsvEncounterWaveRow> GetEncounterWaves(FName EncounterId) const;
 	const FReEchoCsvSpawnProfileRow* FindSpawnProfileByRole(FName EnemyRole) const;
 	const FReEchoCsvSpawnPolicyRow* FindEnabledSpawnPolicy() const;
+	const FReEchoCsvAttributeRow* FindAttribute(FName AttributeId) const;
+	const TArray<FName>& GetAttributeOrder() const;
 };
 
 struct REECHO_API FReEchoCsvLoadResult

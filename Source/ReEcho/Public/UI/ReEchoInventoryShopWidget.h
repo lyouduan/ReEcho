@@ -4,6 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Core/ReEchoTypes.h"
 #include "Run/ReEchoShopCatalog.h"
+#include "Combat/ReEchoCombatTypes.h"
 #include "ReEchoInventoryShopWidget.generated.h"
 
 class SWidget;
@@ -95,6 +96,9 @@ public:
 	void CompletePostTraitClose();
 	void RequestClose();
 
+	/** 注入当前玩家属性块，用于 DesignerShopClock 悬停属性面板。 */
+	void SetPlayerStats(const FReEchoStatBlock& Stats);
+
 	EReEchoInventoryShopMode GetMode() const
 	{
 		return Mode;
@@ -118,6 +122,7 @@ private:
 	void RebuildAttachmentHoverSlots();
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
+	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
 	bool HasEchoStorageCard() const;
 	void
 	AddTargetOfferCard(class UHorizontalBox* Row, const FReEchoShopOffer& Offer, int32 OfferIndex, bool bWeaponPart);
@@ -360,6 +365,7 @@ private:
 	// echo state mirrors
 	UPROPERTY(Transient)
 	TObjectPtr<UReEchoRunSubsystem> CachedRunSubsystem;
+	FReEchoStatBlock CachedPlayerStats;
 	FReEchoEchoStorageSummary EchoSummary;
 	TArray<FGuid> EchoSelection;
 	TArray<FGuid> EchoSlotGuids;

@@ -624,6 +624,15 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "AttenuationMin": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "AttenuationMax": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
     },
+    "Attributes": {
+        "Id": CsvColumnSpec("StableId"),
+        "DisplayName": CsvColumnSpec("Text"),
+        "Tier": CsvColumnSpec("Int", min_value=1.0, max_value=2.0),
+        "IconName": CsvColumnSpec("Text"),
+        "ValueKind": CsvColumnSpec("StableId"),
+        "DisplayOrder": CsvColumnSpec("Int", min_value=1.0, max_value=100.0),
+        "Explanation": CsvColumnSpec("Text", required=False),
+    },
 }
 
 
@@ -846,6 +855,7 @@ def validate_csv_package(data_dir: Path) -> None:
     references["SpawnProfiles"] = validate_table(entries["SpawnProfiles"], "SpawnProfiles", references)
     references["SpawnPolicy"] = validate_table(entries["SpawnPolicy"], "SpawnPolicy", references)
     references["AudioEvents"] = validate_table(entries["AudioEvents"], "AudioEvents", references)
+    references["Attributes"] = validate_table(entries["Attributes"], "Attributes", references)
     validate_audio_events_domain(entries)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)
