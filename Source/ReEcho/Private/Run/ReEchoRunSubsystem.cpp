@@ -199,14 +199,30 @@ template <typename T> void ShuffleOffers(TArray<T>& Offers, FRandomStream& Rando
 	}
 }
 
-int32 BuildTraitOfferSeed(const int32 EncounterIndex, const TArray<FName>& OwnedCards)
+int32 BuildTraitOfferSeed(const int32 RunSeed, const int32 EncounterIndex, const TArray<FName>& OwnedCards)
 {
-	uint32 Seed = HashCombine(GetTypeHash(EncounterIndex), GetTypeHash(OwnedCards.Num()));
+	uint32 Seed = HashCombine(GetTypeHash(RunSeed), GetTypeHash(EncounterIndex));
+	Seed = HashCombine(Seed, GetTypeHash(OwnedCards.Num()));
 	for (const FName CardId : OwnedCards)
 	{
 		Seed = HashCombine(Seed, GetTypeHash(CardId));
 	}
 	return static_cast<int32>(Seed);
+}
+
+int32 MakeNewTraitOfferSeed()
+{
+	const int32 Seed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()));
+	return Seed != 0 ? Seed : 1;
+}
+
+int32 MigrateLegacyTraitOfferSeed(const UReEchoRunSaveGame& SaveGame)
+{
+	uint32 Seed = HashCombine(GetTypeHash(SaveGame.CurrentBuild.CharacterId),
+	                          GetTypeHash(SaveGame.CurrentBuild.WeaponId));
+	Seed = HashCombine(Seed, GetTypeHash(SaveGame.EncounterIndex));
+	Seed = HashCombine(Seed, 0x52454348u); // "RECH": stable migration salt.
+	return Seed != 0 ? static_cast<int32>(Seed) : 1;
 }
 
 float ApplyValueOperation(const float CurrentValue, const EReEchoCsvValueOp ValueOp, const float Value)
@@ -665,6 +681,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 {
 	EncounterIndex = 0;
 	TimeShards = 0;
+	TraitOfferSeed = MakeNewTraitOfferSeed();
 	InventoryItems.Reset();
 	OwnedPartIds.Reset();
 	bAutomaticAttackMode = true;
@@ -974,7 +991,7 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 		return {};
 	}
 
-	FRandomStream Random(BuildTraitOfferSeed(EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
+	FRandomStream Random(BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
 	TArray<FReEchoTraitCardOffer> Result;
 	int32 StackLevel = 0;
 	while (Result.Num() < OfferCount)
@@ -1036,7 +1053,8 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        Input.CardState = BaseBuild.CardState;
 		        Input.TimeShards = PendingTimeShards;
 		        Input.EncounterIndex = EncounterIndex;
-		        Input.RandomSeed = BuildTraitOfferSeed(EncounterIndex, BaseBuild.CardState.OwnedCardIds);
+		        Input.RandomSeed =
+		            BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, BaseBuild.CardState.OwnedCardIds);
 		        const FReEchoCardGrantResult Grant =
 		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
 		        if (!Grant.bSucceeded)
@@ -1120,7 +1138,8 @@ bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
 		        Input.CardState = BaseBuild.CardState;
 		        Input.TimeShards = TimeShards;
 		        Input.EncounterIndex = EncounterIndex;
-		        Input.RandomSeed = BuildTraitOfferSeed(EncounterIndex, BaseBuild.CardState.OwnedCardIds);
+		        Input.RandomSeed =
+		            BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, BaseBuild.CardState.OwnedCardIds);
 		        Input.bRecordOwnership = false;
 		        const FReEchoCardGrantResult Grant =
 		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, ForgeId, Input);
@@ -1858,6 +1877,7 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 		SaveGame->SavedPhase = EReEchoRunPhase::Planning;
 	}
 	SaveGame->TimeShards = TimeShards;
+	SaveGame->TraitOfferSeed = TraitOfferSeed;
 	SaveGame->CurrentBuild = CurrentBuild;
 	SaveGame->CurrentBuild.Cards.Reset();
 	SaveGame->InventoryItems = InventoryItems;
@@ -1981,6 +2001,9 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 
 	EncounterIndex = FMath::Max(0, SaveGame.EncounterIndex);
 	TimeShards = FMath::Max(0, SaveGame.TimeShards);
+	TraitOfferSeed = SaveGame.SaveVersion >= 12 && SaveGame.TraitOfferSeed != 0
+	                     ? SaveGame.TraitOfferSeed
+	                     : MigrateLegacyTraitOfferSeed(SaveGame);
 	CurrentBuild = NormalizedCurrentBuild;
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;

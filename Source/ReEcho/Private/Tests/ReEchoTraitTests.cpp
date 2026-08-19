@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
+#include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoRunSubsystem.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -22,24 +23,56 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 	};
 
 	UReEchoRunSubsystem* FirstRun = PrepareChoice();
-	UReEchoRunSubsystem* SecondRun = PrepareChoice();
+	UReEchoRunSaveGame* SavedChoice = FirstRun->CreateSaveSnapshot();
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* SecondRun = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	TestTrue(TEXT("Card-choice snapshot restores"), SecondRun->RestoreSaveSnapshot(*SavedChoice));
 	const TArray<FReEchoTraitCardOffer> FirstOffers = FirstRun->GenerateTraitCardOffers(3);
 	const TArray<FReEchoTraitCardOffer> SecondOffers = SecondRun->GenerateTraitCardOffers(3);
 
 	TestEqual(TEXT("A draw returns three offers"), FirstOffers.Num(), 3);
-	TestEqual(TEXT("Equivalent run state returns three offers"), SecondOffers.Num(), 3);
+	TestEqual(TEXT("The restored run returns three offers"), SecondOffers.Num(), 3);
 	TSet<FName> UniqueIds;
 	for (int32 Index = 0; Index < FirstOffers.Num(); ++Index)
 	{
 		UniqueIds.Add(FirstOffers[Index].CardId);
 		if (SecondOffers.IsValidIndex(Index))
 		{
-			TestEqual(TEXT("Equivalent run state preserves offer order"),
+			TestEqual(TEXT("Save/load preserves the current offer order"),
 			          FirstOffers[Index].CardId,
 			          SecondOffers[Index].CardId);
 		}
 	}
 	TestEqual(TEXT("A draw never repeats a card"), UniqueIds.Num(), FirstOffers.Num());
+
+	TSet<FString> EncounterOfferSignatures;
+	for (int32 Encounter = 1; Encounter <= 6; ++Encounter)
+	{
+		FirstRun->EncounterIndex = Encounter;
+		const TArray<FReEchoTraitCardOffer> EncounterOffers = FirstRun->GenerateTraitCardOffers(3);
+		FString Signature;
+		for (const FReEchoTraitCardOffer& Offer : EncounterOffers)
+		{
+			Signature += Offer.CardId.ToString() + TEXT("|");
+		}
+		EncounterOfferSignatures.Add(Signature);
+	}
+	TestTrue(TEXT("Different encounters do not reuse one fixed card sequence"),
+	         EncounterOfferSignatures.Num() > 1);
+
+	TSet<FString> NewRunOfferSignatures;
+	for (int32 RunIndex = 0; RunIndex < 6; ++RunIndex)
+	{
+		UReEchoRunSubsystem* FreshRun = PrepareChoice();
+		const TArray<FReEchoTraitCardOffer> FreshOffers = FreshRun->GenerateTraitCardOffers(3);
+		FString Signature;
+		for (const FReEchoTraitCardOffer& Offer : FreshOffers)
+		{
+			Signature += Offer.CardId.ToString() + TEXT("|");
+		}
+		NewRunOfferSignatures.Add(Signature);
+	}
+	TestTrue(TEXT("Fresh runs do not reuse one fixed card sequence"), NewRunOfferSignatures.Num() > 1);
 	return true;
 }
 
