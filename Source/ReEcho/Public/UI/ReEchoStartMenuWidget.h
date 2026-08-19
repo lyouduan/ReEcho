@@ -47,9 +47,6 @@ private:
 	void HandleMenuAction(int32 ActionIndex);
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UTextBlock> StatusText;
-
-	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UReEchoIndexedButton> ContinueButton;
 
 	UPROPERTY(meta = (BindWidgetOptional))

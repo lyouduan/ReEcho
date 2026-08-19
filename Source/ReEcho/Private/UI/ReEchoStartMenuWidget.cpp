@@ -107,16 +107,6 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 	TitleSlot->SetHorizontalAlignment(HAlign_Center);
 	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 20.0f));
 
-	StatusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StartStatus"));
-	StatusText->SetJustification(ETextJustify::Center);
-	StatusText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	FSlateFontInfo StatusFont = StatusText->GetFont();
-	StatusFont.Size = 21;
-	StatusText->SetFont(StatusFont);
-	UVerticalBoxSlot* StatusSlot = Content->AddChildToVerticalBox(StatusText);
-	StatusSlot->SetHorizontalAlignment(HAlign_Center);
-	StatusSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 30.0f));
-
 	const ReEcho::UI::FMenuButtonStyle PrimaryButtonStyle{
 	    FLinearColor(0.12f, 0.32f, 0.62f, 1.0f), FMargin(0.0f, 7.0f), FMargin(58.0f, 14.0f), 26};
 	ReEcho::UI::FMenuButtonStyle ContinueButtonStyle = PrimaryButtonStyle;
@@ -150,11 +140,6 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 
 void UReEchoStartMenuWidget::RefreshMenu()
 {
-	if (StatusText)
-	{
-		StatusText->SetText(bHasSavedRun ? NSLOCTEXT("ReEcho", "SavedRunFound", "检测到未完成的时间线")
-		                                 : NSLOCTEXT("ReEcho", "NoSavedRun", "开始一条新的时间线"));
-	}
 	if (ContinueButton)
 	{
 		ContinueButton->SetVisibility(ESlateVisibility::Visible);
