@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@7a89328ebb9afb433199d56b975763e1775c7cef`。
 - 本地实现方式：Start Menu 首批已在 `main` 发布；剩余页面在独立 worktree 小批量接入，每个 WBP 串行修改。
 - 后续隔离工作区：`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan45-ui`，分支 `plan/45-ui-interaction-assets`，从 `origin/main@87cde6c8534b484e020f4b16b656eebe831a1836` 继续剩余页面批次。
@@ -41,9 +41,9 @@
 - [x] Start Menu WBP 编译且 `CompileAllBlueprints` 无错误/加载失败，导入资产可加载，`python scripts/validate_project.py` 和 `git diff --check` 通过。
 - [x] Start Menu 对齐已确认参考：新游戏/存档回溯使用交付按钮视觉；无存档时存档回溯保持显示但置灰禁用；设置为右上角同风格图标；关于我们隐藏；退出位于右下并直接退出。
 - [x] Trait Choice 按两张“通关后3选1”效果图组装三卡、未选中压暗、选中强调、标题/确认区；动态卡名、说明和选择事件仍由现有 C++ 数据驱动。
-- [ ] Restart/Pause 按胜利、失败、重开确认、普通暂停、退出到主菜单确认、退出游戏确认六种效果组装；复用现有多状态 Widget，不把效果图作为整屏运行时贴图。
+- [x] Restart/Pause 按胜利、失败、重开确认、普通暂停、退出到主菜单确认、退出游戏确认六种效果组装；复用现有多状态 Widget，不把效果图作为整屏运行时贴图。
 - [x] Settings 按画面/声音/键位三张效果图组装页签、表单区、关闭/恢复/应用按钮；已有音频控件保持真实绑定，尚无运行时能力的画面/键位字段仅作明确占位展示。
-- [ ] Inventory/Shop 按商店、卡牌说明、属性面板效果图组装左右双区、动态商品卡、武器/配件槽和悬浮信息层；购买、货币、已拥有状态继续由现有 C++ 数据驱动。
+- [x] Inventory/Shop 按商店、卡牌说明、属性面板效果图组装左右双区、动态商品卡、武器/配件槽和悬浮信息层；购买、货币、已拥有状态继续由现有 C++ 数据驱动。
 - [ ] Player/Encounter HUD 按战斗场景效果图组装血条、时间碎片、时钟/指针、轨迹板和技能栏；不存在数据契约的装饰不伪造玩法状态。
 - [ ] 用户在 PIE 验收 Start Menu、Settings、Pause/Restart、Trait Choice、Inventory/Shop 和 HUD 的布局、中文可读性、点击/键盘焦点、返回路径以及 1280×720、1920×1080、2560×1440 和 21:9 DPI 表现。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物、原始 ZIP 或机器本地路径。
@@ -125,6 +125,8 @@
 - 普通暂停按 `游戏暂停.png` 重新组装：全屏压暗、中央标题与“继续游戏 / 退出至主菜单 / 退出游戏”三按钮、右上设置入口均使用独立切图；展示 Image 统一不可命中，原按钮保留透明交互层。退出确认复用同一按钮区并区分“退出到主菜单”和“退出游戏”目标，切换为“保存并退出 / 不保存并退出 / 返回”，GameMode 继续负责存档、恢复输入、关卡切换和程序退出。
 - `scripts/ue/configure_pause_widget.py` 可重复创建并校验暂停表现控件，连续运行保持 30 个 Widget，不重复叠加；`WBP_ReEchoRestart` Compile/Save 成功。
 - 暂停候选完成 Development Editor 增量构建；`ReEcho.UI.RestartWidgetPresentation`、`ReEcho.UI.IntermissionContexts`、`ReEcho.UI.SettingsInteraction` 聚焦自动化通过；最终 `CompileAllBlueprints` 汇总 0 errors、0 warnings、0 blueprints failed to load。
+- 商店装配室新增 `DesignerLoadoutCanvas`，将武器面板、时钟、3 个配件槽和 12 个卡牌槽迁为 WBP Canvas 直接子项；`UReEchoInventoryShopWidget` 删除配件/卡牌槽固定坐标，只按稳定控件名填充图片、Tooltip、置灰和存储卡点击行为。`configure_shop_designer_layout.py` 只为缺失控件提供一次初始位置，不覆盖之后在 UMG Designer 中完成的手工布局。
+- 商店设计器布局候选完成 Development Editor 构建；`WBP_ReEchoInventoryShopScreen` 经 `CompileAllBlueprints` 编译成功，`ReEcho.UI.Shop.AuthoredLayoutHosts` 与 `ReEcho.UI.Shop.LogicBlocks` 均通过。回归断言会在运行时修改时钟坐标并刷新页面，确认 C++ 不会把设计器坐标写回固定值；`python scripts/validate_project.py`、Python 导入脚本语法检查与 `git diff --check` 通过。
 
 ### 剩余风险
 
@@ -137,7 +139,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：用户对 Start Menu 首批进行了初步测试并报告“初步没问题”；本轮进一步确认通关后商店的回响存储底部托盘“没问题”，批准作为 Plan45 阶段性检查点发布到 `origin/main`。Settings、Pause/Restart、Trait Choice、Inventory/Shop 其余状态、Stats、Player/Encounter HUD 以及完整多分辨率/DPI 验收仍待完成。
+- `Passed`：用户在完成 Start Menu、Settings、Pause/Restart、Trait Choice、Inventory/Shop、商店时钟/配件图标及装配室 Designer 布局的多轮 PIE 复测后明确宣布“45完成”，批准发布并清理本地 Plan45 worktree。未单独覆盖的多分辨率/DPI 组合继续作为后续 UI 回归关注项，不阻塞本 Plan 关闭。
 
 ### 架构文档审阅结果
 

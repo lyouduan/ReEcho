@@ -184,7 +184,7 @@ void AReEchoGameMode::GMHelp()
 		return;
 	}
 	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMWeather <Clear|Rain|Fog> | "
-	                   "GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
+	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
 }
 
 void AReEchoGameMode::GMStatus()
@@ -267,6 +267,45 @@ void AReEchoGameMode::GMWeather(const FString& Scene)
 	SetAmbienceState(WeatherScene == EReEchoWeatherScene::Rain ? FReEchoAudioEvents::AmbienceRain
 	                                                           : FReEchoAudioEvents::AmbienceArena);
 	PrintGMResult(FString::Printf(TEXT("Weather=%s"), *Scene));
+}
+
+void AReEchoGameMode::GMEndEncounter()
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !Director || !Player || !Player->Combatant)
+	{
+		PrintGMResult(TEXT("The active encounter is not initialized."), false);
+		return;
+	}
+	if (RunSubsystem->Phase != EReEchoRunPhase::Encounter || bAwaitingStartChoice || bEncounterTransitioning ||
+	    !Player->Combatant->IsAlive())
+	{
+		PrintGMResult(TEXT("GMEndEncounter requires a living player in an active encounter."), false);
+		return;
+	}
+	if (UGameplayStatics::IsGamePaused(this))
+	{
+		PrintGMResult(TEXT("Resume gameplay before using GMEndEncounter."), false);
+		return;
+	}
+	if (IsBossEncounter())
+	{
+		PrintGMResult(TEXT("GMEndEncounter cannot clear a Boss encounter; use GMKillAll instead."), false);
+		return;
+	}
+
+	const int32 EncounterIndex = RunSubsystem->EncounterIndex;
+	const float RemainingTime = Director->GetRemainingTime();
+	Director->EndEncounter();
+	PrintGMResult(FString::Printf(
+	    TEXT("Ended encounter %d with %.1f seconds remaining; normal completion flow started."),
+	    EncounterIndex,
+	    RemainingTime));
 }
 
 void AReEchoGameMode::GMKillAll()

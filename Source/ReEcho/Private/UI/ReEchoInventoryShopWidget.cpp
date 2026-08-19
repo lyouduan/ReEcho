@@ -75,7 +75,8 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_ItemCard.T_UI_Shop_ItemCard"));
 	ShopItemCardTexture = ItemCardFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> AttachmentSlotFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_AttachmentSlot.T_UI_Shop_AttachmentSlot"));
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/"
+	         "T_UI_Shop_AttachmentSlot.T_UI_Shop_AttachmentSlot"));
 	ShopAttachmentSlotTexture = AttachmentSlotFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CorePrimordialIconFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_PRIMORDIAL.T_UI_Part_P_CORE_PRIMORDIAL"));
@@ -89,26 +90,31 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_THUNDER.T_UI_Part_P_CORE_THUNDER"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CorePrismIconFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_PRISM.T_UI_Part_P_CORE_PRISM"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerThrustGripIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_THRUST_GRIP.T_UI_Part_P_DAGGER_THRUST_GRIP"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerThrustGripIconFinder(TEXT(
+	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_THRUST_GRIP.T_UI_Part_P_DAGGER_THRUST_GRIP"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerStrengthGripIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_STRENGTH_GRIP.T_UI_Part_P_DAGGER_STRENGTH_GRIP"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerNinjaBladeIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_NINJA_BLADE.T_UI_Part_P_DAGGER_NINJA_BLADE"));
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/"
+	         "T_UI_Part_P_DAGGER_STRENGTH_GRIP.T_UI_Part_P_DAGGER_STRENGTH_GRIP"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerNinjaBladeIconFinder(TEXT(
+	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_NINJA_BLADE.T_UI_Part_P_DAGGER_NINJA_BLADE"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerStunningBladeIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_STUNNING_BLADE.T_UI_Part_P_DAGGER_STUNNING_BLADE"));
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/"
+	         "T_UI_Part_P_DAGGER_STUNNING_BLADE.T_UI_Part_P_DAGGER_STUNNING_BLADE"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerHolyBladeIconFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_HOLY_BLADE.T_UI_Part_P_DAGGER_HOLY_BLADE"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerShadowBladeIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_SHADOW_BLADE.T_UI_Part_P_DAGGER_SHADOW_BLADE"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> BowSplitArrowheadIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_SPLIT_ARROWHEAD.T_UI_Part_P_BOW_SPLIT_ARROWHEAD"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerShadowBladeIconFinder(TEXT(
+	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_SHADOW_BLADE.T_UI_Part_P_DAGGER_SHADOW_BLADE"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> BowSplitArrowheadIconFinder(TEXT(
+	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_SPLIT_ARROWHEAD.T_UI_Part_P_BOW_SPLIT_ARROWHEAD"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BowExplosiveArrowheadIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_EXPLOSIVE_ARROWHEAD.T_UI_Part_P_BOW_EXPLOSIVE_ARROWHEAD"));
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/"
+	         "T_UI_Part_P_BOW_EXPLOSIVE_ARROWHEAD.T_UI_Part_P_BOW_EXPLOSIVE_ARROWHEAD"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BowPiercingArrowheadIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_PIERCING_ARROWHEAD.T_UI_Part_P_BOW_PIERCING_ARROWHEAD"));
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/"
+	         "T_UI_Part_P_BOW_PIERCING_ARROWHEAD.T_UI_Part_P_BOW_PIERCING_ARROWHEAD"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BowMultishotArrowheadIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_MULTISHOT_ARROWHEAD.T_UI_Part_P_BOW_MULTISHOT_ARROWHEAD"));
+	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/"
+	         "T_UI_Part_P_BOW_MULTISHOT_ARROWHEAD.T_UI_Part_P_BOW_MULTISHOT_ARROWHEAD"));
 	WeaponPartIconTextures.Add(TEXT("P_CORE_PRIMORDIAL"), CorePrimordialIconFinder.Object);
 	WeaponPartIconTextures.Add(TEXT("P_CORE_TIDE"), CoreTideIconFinder.Object);
 	WeaponPartIconTextures.Add(TEXT("P_CORE_FOREST"), CoreForestIconFinder.Object);
@@ -135,16 +141,18 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_Refresh.T_UI_Shop_Refresh"));
 	ShopRefreshTexture = RefreshFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CardSlotFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_HoverCardSlot.T_UI_Shop_HoverCardSlot"));
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/"
+	         "T_UI_Shop_HoverCardSlot.T_UI_Shop_HoverCardSlot"));
 	ShopCardSlotTexture = CardSlotFinder.Object;
-	static ConstructorHelpers::FObjectFinder<UTexture2D> SaveLoadoutFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_SaveLoadout.T_UI_Shop_SaveLoadout"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> SaveLoadoutFinder(TEXT(
+	    "/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_SaveLoadout.T_UI_Shop_SaveLoadout"));
 	ShopSaveLoadoutTexture = SaveLoadoutFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ShopTitleFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_Title.T_UI_Shop_Title"));
 	ShopTitleTexture = ShopTitleFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CurrencyFrameFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_CurrencyFrame.T_UI_Shop_CurrencyFrame"));
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/"
+	         "T_UI_Shop_CurrencyFrame.T_UI_Shop_CurrencyFrame"));
 	ShopCurrencyFrameTexture = CurrencyFrameFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> WhiteFinder(
 	    TEXT("/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"));
@@ -335,8 +343,7 @@ void UReEchoInventoryShopWidget::BuildShopLogicHost()
 	}
 	if (!ShopLogicPanel)
 	{
-		ShopLogicPanel =
-		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopLogicPanel"));
+		ShopLogicPanel = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopLogicPanel"));
 		ShopLogicScrollBox->AddChild(ShopLogicPanel);
 	}
 }
@@ -369,8 +376,8 @@ void UReEchoInventoryShopWidget::OrderShopLogicBlocks()
 
 void UReEchoInventoryShopWidget::UpdateShopLogicViewportBounds()
 {
-	if (UCanvasPanelSlot* ScrollCanvasSlot = ShopLogicScrollBox ? Cast<UCanvasPanelSlot>(ShopLogicScrollBox->Slot)
-	                                                          : nullptr)
+	if (UCanvasPanelSlot* ScrollCanvasSlot =
+	        ShopLogicScrollBox ? Cast<UCanvasPanelSlot>(ShopLogicScrollBox->Slot) : nullptr)
 	{
 		const float Bottom = Mode == EReEchoInventoryShopMode::PostTraitIntermission ? 0.69f : 0.88f;
 		ScrollCanvasSlot->SetAnchors(FAnchors(0.035f, 0.23f, 0.405f, Bottom));
@@ -520,8 +527,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 
 	EchoPopupCloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("EchoPopupCloseButton"));
 	EchoPopupCloseButton->SetBackgroundColor(FLinearColor(0.12f, 0.12f, 0.12f, 1.0f));
-	UTextBlock* EchoPopupCloseLabel =
-	    CreateText(WidgetTree, TEXT("EchoPopupCloseLabel"), 20, FLinearColor::White);
+	UTextBlock* EchoPopupCloseLabel = CreateText(WidgetTree, TEXT("EchoPopupCloseLabel"), 20, FLinearColor::White);
 	EchoPopupCloseLabel->SetText(NSLOCTEXT("ReEcho", "EchoPopupClose", "关闭回响存储"));
 	EchoPopupCloseLabel->SetJustification(ETextJustify::Center);
 	EchoPopupCloseButton->SetContent(EchoPopupCloseLabel);
@@ -705,8 +711,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 		WeaponPartOfferPanel =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponPartOfferPanel"));
 		ShopLogicPanel->AddChildToVerticalBox(WeaponPartOfferPanel);
-		UTextBlock* Title =
-		    CreateText(WidgetTree, TEXT("WeaponPartOfferTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
+		UTextBlock* Title = CreateText(WidgetTree, TEXT("WeaponPartOfferTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		Title->SetText(NSLOCTEXT("ReEcho", "WeaponPartOfferTitle", "武器配件"));
 		WeaponPartOfferPanel->AddChildToVerticalBox(Title);
 	}
@@ -721,8 +726,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 	}
 	if (!WeaponLoadoutText)
 	{
-		WeaponLoadoutText =
-		    CreateText(WidgetTree, TEXT("WeaponLoadoutText"), 18, FLinearColor(0.9f, 0.82f, 0.66f));
+		WeaponLoadoutText = CreateText(WidgetTree, TEXT("WeaponLoadoutText"), 18, FLinearColor(0.9f, 0.82f, 0.66f));
 		UVerticalBoxSlot* LoadoutTextSlot = WeaponLoadoutPanel->AddChildToVerticalBox(WeaponLoadoutText);
 		LoadoutTextSlot->SetPadding(FMargin(18.0f, 16.0f, 18.0f, 8.0f));
 	}
@@ -755,8 +759,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 			UReEchoIndexedButton* Button = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
 			    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("WeaponPartOffer%d"), Index));
 			Button->SetEntryIndex(Index);
-			Button->OnIndexedClicked.AddUniqueDynamic(this,
-			                                          &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
+			Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
 			UTextBlock* Text = CreateText(WidgetTree,
 			                              *FString::Printf(TEXT("WeaponPartOfferText%d"), Index),
 			                              17,
@@ -773,6 +776,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 
 void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 {
+	BindDesignerLoadoutLayout();
 	if (ShopPresentationLayer || !WidgetTree)
 	{
 		return;
@@ -783,7 +787,8 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 		return;
 	}
 
-	ShopPresentationLayer = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ShopPresentationLayer"));
+	ShopPresentationLayer =
+	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ShopPresentationLayer"));
 	UCanvasPanelSlot* LayerSlot = RootCanvas->AddChildToCanvas(ShopPresentationLayer);
 	LayerSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 	LayerSlot->SetOffsets(FMargin(0.0f));
@@ -802,7 +807,11 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	CurrencyFrameSlot->SetPosition(FVector2D(390.0f, 103.0f));
 	CurrencyFrameSlot->SetSize(FVector2D(270.0f, 38.0f));
 
-	auto AddLabel = [&](const TCHAR* Name, const FString& Value, const FVector2D Position, const FVector2D Size, const int32 FontSize)
+	auto AddLabel = [&](const TCHAR* Name,
+	                    const FString& Value,
+	                    const FVector2D Position,
+	                    const FVector2D Size,
+	                    const int32 FontSize)
 	{
 		UTextBlock* Label = CreateText(WidgetTree, Name, FontSize, FLinearColor(0.05f, 0.05f, 0.05f));
 		Label->SetText(FText::FromString(Value));
@@ -814,17 +823,21 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	AddLabel(TEXT("TargetPartTitle"), TEXT("配件"), FVector2D(84.0f, 178.0f), FVector2D(180.0f, 38.0f), 24);
 	AddLabel(TEXT("TargetCardTitle"), TEXT("卡牌"), FVector2D(84.0f, 570.0f), FVector2D(180.0f, 38.0f), 24);
 
-	TargetCurrencyText = AddLabel(TEXT("TargetShopCurrency"), TEXT(""), FVector2D(415.0f, 106.0f), FVector2D(230.0f, 32.0f), 19);
+	TargetCurrencyText =
+	    AddLabel(TEXT("TargetShopCurrency"), TEXT(""), FVector2D(415.0f, 106.0f), FVector2D(230.0f, 32.0f), 19);
 	TargetCurrencyText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	TargetCurrencyText->SetJustification(ETextJustify::Center);
-	UTextBlock* CurrencyDiamond = AddLabel(TEXT("TargetShopCurrencyDiamond"), TEXT("◆"), FVector2D(402.0f, 104.0f), FVector2D(42.0f, 34.0f), 25);
+	UTextBlock* CurrencyDiamond =
+	    AddLabel(TEXT("TargetShopCurrencyDiamond"), TEXT("◆"), FVector2D(402.0f, 104.0f), FVector2D(42.0f, 34.0f), 25);
 	CurrencyDiamond->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.82f, 0.0f, 1.0f)));
 
-	TargetPartOfferRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TargetPartOfferRow"));
+	TargetPartOfferRow =
+	    WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TargetPartOfferRow"));
 	UCanvasPanelSlot* PartRowSlot = ShopPresentationLayer->AddChildToCanvas(TargetPartOfferRow);
 	PartRowSlot->SetPosition(FVector2D(106.0f, 238.0f));
 	PartRowSlot->SetSize(FVector2D(760.0f, 330.0f));
-	TargetCardOfferRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TargetCardOfferRow"));
+	TargetCardOfferRow =
+	    WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TargetCardOfferRow"));
 	UCanvasPanelSlot* CardRowSlot = ShopPresentationLayer->AddChildToCanvas(TargetCardOfferRow);
 	CardRowSlot->SetPosition(FVector2D(106.0f, 628.0f));
 	CardRowSlot->SetSize(FVector2D(760.0f, 330.0f));
@@ -847,12 +860,8 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	RefreshSlot->SetPosition(FVector2D(691.0f, 103.0f));
 	RefreshSlot->SetSize(FVector2D(156.0f, 44.0f));
 
-	OwnedCardSlotPanel = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("OwnedCardSlotPanel"));
-	UCanvasPanelSlot* OwnedSlot = ShopPresentationLayer->AddChildToCanvas(OwnedCardSlotPanel);
-	OwnedSlot->SetPosition(FVector2D(1440.0f, 190.0f));
-	OwnedSlot->SetSize(FVector2D(350.0f, 640.0f));
-
-	TargetSaveLoadoutButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("TargetSaveLoadoutButton"));
+	TargetSaveLoadoutButton =
+	    WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("TargetSaveLoadoutButton"));
 	TargetSaveLoadoutButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
 	UImage* SaveArt = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("TargetSaveLoadoutArt"));
 	SaveArt->SetBrushFromTexture(ShopSaveLoadoutTexture, true);
@@ -862,42 +871,52 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	UCanvasPanelSlot* SaveSlot = ShopPresentationLayer->AddChildToCanvas(TargetSaveLoadoutButton);
 	SaveSlot->SetPosition(FVector2D(875.0f, 862.0f));
 	SaveSlot->SetSize(FVector2D(337.0f, 83.0f));
+}
 
-	static const FVector2D AttachmentPositions[] = {
-	    FVector2D(890.0f, 751.0f), FVector2D(1002.0f, 751.0f), FVector2D(1114.0f, 751.0f)};
-	AttachmentHoverButtons.Reset();
-	for (int32 Index = 0; Index < static_cast<int32>(UE_ARRAY_COUNT(AttachmentPositions)); ++Index)
+void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
+{
+	DesignerLoadoutCanvas = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("DesignerLoadoutCanvas")));
+	DesignerAttachmentSlotButtons.Reset();
+	DesignerAttachmentSlotArts.Reset();
+	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		UButton* HoverButton = WidgetTree->ConstructWidget<UButton>(
-		    UButton::StaticClass(), *FString::Printf(TEXT("AttachmentHoverSlot%d"), Index));
-		HoverButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
-		HoverButton->SetVisibility(ESlateVisibility::Collapsed);
-		UCanvasPanelSlot* HoverSlot = ShopPresentationLayer->AddChildToCanvas(HoverButton);
-		HoverSlot->SetPosition(AttachmentPositions[Index]);
-		HoverSlot->SetSize(FVector2D(93.0f, 93.0f));
-		HoverSlot->SetZOrder(20);
-		AttachmentHoverButtons.Add(HoverButton);
+		DesignerAttachmentSlotButtons.Add(
+		    Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerAttachmentSlot%d"), Index))));
+		DesignerAttachmentSlotArts.Add(
+		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerAttachmentSlotArt%d"), Index))));
+	}
+
+	DesignerCardSlotButtons.Reset();
+	DesignerCardSlotArts.Reset();
+	for (int32 Index = 0; Index < 12; ++Index)
+	{
+		DesignerCardSlotButtons.Add(
+		    Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlot%d"), Index))));
+		DesignerCardSlotArts.Add(
+		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlotArt%d"), Index))));
 	}
 }
 
 void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
-	                                                  const FReEchoShopOffer& Offer,
-	                                                  const int32 OfferIndex,
-	                                                  const bool bWeaponPart)
+                                                    const FReEchoShopOffer& Offer,
+                                                    const int32 OfferIndex,
+                                                    const bool bWeaponPart)
 {
 	if (!Row)
 	{
 		return;
 	}
 	USizeBox* CardSize = WidgetTree->ConstructWidget<USizeBox>(
-	    USizeBox::StaticClass(), *FString::Printf(TEXT("Target%sCardSize%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
+	    USizeBox::StaticClass(),
+	    *FString::Printf(TEXT("Target%sCardSize%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
 	CardSize->SetWidthOverride(200.0f);
 	CardSize->SetHeightOverride(292.0f);
 	UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(CardSize);
 	RowSlot->SetPadding(FMargin(4.0f, 0.0f, 25.0f, 0.0f));
 
 	UCanvasPanel* Card = WidgetTree->ConstructWidget<UCanvasPanel>(
-	    UCanvasPanel::StaticClass(), *FString::Printf(TEXT("Target%sCard%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
+	    UCanvasPanel::StaticClass(),
+	    *FString::Printf(TEXT("Target%sCard%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
 	CardSize->SetContent(Card);
 	auto AddImage = [&](const TCHAR* Name, UTexture2D* Texture, FVector2D Position, FVector2D Size)
 	{
@@ -909,64 +928,95 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 		Slot->SetSize(Size);
 		return Image;
 	};
-	AddImage(*FString::Printf(TEXT("TargetCardBase%d_%d"), bWeaponPart, OfferIndex), ShopItemCardTexture, FVector2D::ZeroVector, FVector2D(200.0f, 292.0f));
+	AddImage(*FString::Printf(TEXT("TargetCardBase%d_%d"), bWeaponPart, OfferIndex),
+	         ShopItemCardTexture,
+	         FVector2D::ZeroVector,
+	         FVector2D(200.0f, 292.0f));
 	const FVector2D IconPosition = bWeaponPart ? FVector2D(37.0f, 17.0f) : FVector2D(29.0f, 4.0f);
 	const FVector2D IconSize = bWeaponPart ? FVector2D(127.0f, 124.0f) : FVector2D(141.0f, 173.0f);
-	AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex), bWeaponPart ? ResolveWeaponPartIcon(Offer.ContentId) : ShopCardIconTexture.Get(), IconPosition, IconSize);
+	AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex),
+	         bWeaponPart ? ResolveWeaponPartIcon(Offer.ContentId) : ShopCardIconTexture.Get(),
+	         IconPosition,
+	         IconSize);
 	if (!bWeaponPart)
 	{
-		UImage* TierPatch = AddImage(*FString::Printf(TEXT("TargetTierPatch%d"), OfferIndex), WhiteTexture, FVector2D(66.0f, 76.0f), FVector2D(70.0f, 34.0f));
+		UImage* TierPatch = AddImage(*FString::Printf(TEXT("TargetTierPatch%d"), OfferIndex),
+		                             WhiteTexture,
+		                             FVector2D(66.0f, 76.0f),
+		                             FVector2D(70.0f, 34.0f));
 		TierPatch->SetColorAndOpacity(FLinearColor(0.94f, 0.94f, 0.94f, 1.0f));
-		UTextBlock* TierText = CreateText(WidgetTree, *FString::Printf(TEXT("TargetTierText%d"), OfferIndex), 18, FLinearColor(0.05f, 0.05f, 0.05f));
-		TierText->SetText(FText::FromString(Offer.Tier == 1 ? TEXT("一级") : Offer.Tier == 2 ? TEXT("二级") : TEXT("三级")));
+		UTextBlock* TierText = CreateText(
+		    WidgetTree, *FString::Printf(TEXT("TargetTierText%d"), OfferIndex), 18, FLinearColor(0.05f, 0.05f, 0.05f));
+		TierText->SetText(FText::FromString(Offer.Tier == 1   ? TEXT("一级")
+		                                    : Offer.Tier == 2 ? TEXT("二级")
+		                                                      : TEXT("三级")));
 		TierText->SetJustification(ETextJustify::Center);
 		UCanvasPanelSlot* TierSlot = Card->AddChildToCanvas(TierText);
 		TierSlot->SetPosition(FVector2D(66.0f, 78.0f));
 		TierSlot->SetSize(FVector2D(70.0f, 30.0f));
 	}
 
-	UTextBlock* Description = CreateText(WidgetTree, *FString::Printf(TEXT("TargetOfferDescription%d_%d"), bWeaponPart, OfferIndex), 13, FLinearColor(0.05f, 0.05f, 0.05f));
-	Description->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetOfferDescription", "{0}：{1}"), Offer.DisplayName, Offer.EffectText));
+	UTextBlock* Description = CreateText(WidgetTree,
+	                                     *FString::Printf(TEXT("TargetOfferDescription%d_%d"), bWeaponPart, OfferIndex),
+	                                     13,
+	                                     FLinearColor(0.05f, 0.05f, 0.05f));
+	Description->SetText(
+	    FText::Format(NSLOCTEXT("ReEcho", "TargetOfferDescription", "{0}：{1}"), Offer.DisplayName, Offer.EffectText));
 	UCanvasPanelSlot* DescriptionSlot = Card->AddChildToCanvas(Description);
 	DescriptionSlot->SetPosition(FVector2D(10.0f, 180.0f));
 	DescriptionSlot->SetSize(FVector2D(180.0f, 55.0f));
 
-	UTextBlock* Cost = CreateText(WidgetTree, *FString::Printf(TEXT("TargetOfferCost%d_%d"), bWeaponPart, OfferIndex), 17, FLinearColor(0.04f, 0.04f, 0.04f));
-	Cost->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"), FText::AsNumber(GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount))));
+	UTextBlock* Cost = CreateText(WidgetTree,
+	                              *FString::Printf(TEXT("TargetOfferCost%d_%d"), bWeaponPart, OfferIndex),
+	                              17,
+	                              FLinearColor(0.04f, 0.04f, 0.04f));
+	Cost->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"),
+	                            FText::AsNumber(GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount))));
 	Cost->SetJustification(ETextJustify::Right);
 	UCanvasPanelSlot* CostSlot = Card->AddChildToCanvas(Cost);
 	CostSlot->SetPosition(FVector2D(112.0f, 145.0f));
 	CostSlot->SetSize(FVector2D(80.0f, 30.0f));
 
 	UReEchoIndexedButton* Buy = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
-	    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("Target%sBuy%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
+	    UReEchoIndexedButton::StaticClass(),
+	    *FString::Printf(TEXT("Target%sBuy%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
 	Buy->SetEntryIndex(OfferIndex);
 	Buy->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
 	const bool bOwnedPart = bWeaponPart && CurrentPartShopView.OwnedParts.ContainsByPredicate(
-	    [&](const FReEchoShopOffer& Owned) { return Owned.ContentId == Offer.ContentId; });
+	                                           [&](const FReEchoShopOffer& Owned)
+	                                           {
+		                                           return Owned.ContentId == Offer.ContentId;
+	                                           });
 	const bool bPurchasedCard = !bWeaponPart && CurrentOwnedItems.Contains(Offer.ItemId);
-	UOverlay* ButtonOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), *FString::Printf(TEXT("TargetBuyOverlay%d_%d"), bWeaponPart, OfferIndex));
-	UImage* BuyArt = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), *FString::Printf(TEXT("TargetBuyArt%d_%d"), bWeaponPart, OfferIndex));
+	UOverlay* ButtonOverlay = WidgetTree->ConstructWidget<UOverlay>(
+	    UOverlay::StaticClass(), *FString::Printf(TEXT("TargetBuyOverlay%d_%d"), bWeaponPart, OfferIndex));
+	UImage* BuyArt = WidgetTree->ConstructWidget<UImage>(
+	    UImage::StaticClass(), *FString::Printf(TEXT("TargetBuyArt%d_%d"), bWeaponPart, OfferIndex));
 	BuyArt->SetBrushFromTexture((bOwnedPart || bPurchasedCard) ? WhiteTexture : ShopBuyTexture, true);
 	if (bOwnedPart || bPurchasedCard)
 	{
 		BuyArt->SetColorAndOpacity(bPurchasedCard ? FLinearColor(0.55f, 0.55f, 0.55f, 1.0f)
-		                                              : FLinearColor(0.65f, 0.9f, 0.65f, 1.0f));
+		                                          : FLinearColor(0.65f, 0.9f, 0.65f, 1.0f));
 	}
 	BuyArt->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ButtonOverlay->AddChildToOverlay(BuyArt);
 	if (bOwnedPart || bPurchasedCard)
 	{
-		UTextBlock* BuyText = CreateText(WidgetTree, *FString::Printf(TEXT("TargetBuyText%d_%d"), bWeaponPart, OfferIndex), 18, FLinearColor(0.03f, 0.03f, 0.03f));
-		BuyText->SetText(bOwnedPart ? (DraftPartIds.Contains(Offer.ContentId) ? FText::FromString(TEXT("已装配")) : FText::FromString(TEXT("装配")))
-		                              : FText::FromString(TEXT("已购买")));
+		UTextBlock* BuyText = CreateText(WidgetTree,
+		                                 *FString::Printf(TEXT("TargetBuyText%d_%d"), bWeaponPart, OfferIndex),
+		                                 18,
+		                                 FLinearColor(0.03f, 0.03f, 0.03f));
+		BuyText->SetText(bOwnedPart ? (DraftPartIds.Contains(Offer.ContentId) ? FText::FromString(TEXT("已装配"))
+		                                                                      : FText::FromString(TEXT("装配")))
+		                            : FText::FromString(TEXT("已购买")));
 		BuyText->SetJustification(ETextJustify::Center);
 		UOverlaySlot* TextSlot = ButtonOverlay->AddChildToOverlay(BuyText);
 		TextSlot->SetHorizontalAlignment(HAlign_Fill);
 		TextSlot->SetVerticalAlignment(VAlign_Center);
 	}
 	Buy->SetContent(ButtonOverlay);
-	Buy->SetToolTipText(FText::Format(NSLOCTEXT("ReEcho", "TargetOfferTooltip", "{0}\n{1}"), Offer.DisplayName, Offer.EffectText));
+	Buy->SetToolTipText(
+	    FText::Format(NSLOCTEXT("ReEcho", "TargetOfferTooltip", "{0}\n{1}"), Offer.DisplayName, Offer.EffectText));
 	const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
 	Buy->SetIsEnabled((bOwnedPart || (!bPurchasedCard && CurrentTimeShards >= EffectivePrice)) &&
 	                  (bWeaponPart || bCurrentExtraCardPurchaseAllowed));
@@ -1012,18 +1062,14 @@ bool UReEchoInventoryShopWidget::HasEchoStorageCard() const
 
 void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 {
-	if (!OwnedCardSlotPanel)
+	if (DesignerCardSlotButtons.IsEmpty() || DesignerCardSlotArts.IsEmpty())
 	{
 		return;
 	}
-	OwnedCardSlotPanel->ClearChildren();
-	static const FVector2D Positions[] = {
-	    {2, 7}, {2, 87}, {2, 167}, {285, 47}, {285, 127}, {285, 207},
-	    {39, 284}, {39, 364}, {285, 294}, {285, 374}, {149, 394}, {149, 474}};
 	DisplayedOwnedCards.Reset();
 	for (const FReEchoShopOffer& Card : CurrentPartShopView.OwnedCards)
 	{
-		if (DisplayedOwnedCards.Num() >= static_cast<int32>(UE_ARRAY_COUNT(Positions)))
+		if (DisplayedOwnedCards.Num() >= DesignerCardSlotButtons.Num())
 		{
 			break;
 		}
@@ -1035,7 +1081,10 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		    return Card.ContentId == FName(ReEchoEchoStorage::StorageUnlockCardId);
 	    });
 	if (StorageCard && !DisplayedOwnedCards.ContainsByPredicate(
-	                       [&](const FReEchoShopOffer& Card) { return Card.ContentId == StorageCard->ContentId; }))
+	                       [&](const FReEchoShopOffer& Card)
+	                       {
+		                       return Card.ContentId == StorageCard->ContentId;
+	                       }))
 	{
 		if (DisplayedOwnedCards.IsEmpty())
 		{
@@ -1047,33 +1096,32 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		}
 	}
 	const int32 VisibleCount = DisplayedOwnedCards.Num();
-	for (int32 Index = 0; Index < static_cast<int32>(UE_ARRAY_COUNT(Positions)); ++Index)
+	const int32 SlotCount = FMath::Min(DesignerCardSlotButtons.Num(), DesignerCardSlotArts.Num());
+	for (int32 Index = 0; Index < SlotCount; ++Index)
 	{
-		UImage* SlotImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), *FString::Printf(TEXT("OwnedCardSlot%d"), Index));
+		UButton* CardSlotButton = DesignerCardSlotButtons[Index];
+		UImage* SlotImage = DesignerCardSlotArts[Index];
+		if (!CardSlotButton || !SlotImage)
+		{
+			continue;
+		}
+		CardSlotButton->OnClicked.Clear();
+		CardSlotButton->SetToolTip(nullptr);
+		CardSlotButton->SetVisibility(ESlateVisibility::Visible);
 		SlotImage->SetBrushFromTexture(ShopCardSlotTexture, true);
-		SlotImage->SetColorAndOpacity(Index < VisibleCount ? FLinearColor::White : FLinearColor(0.35f, 0.35f, 0.35f, 0.72f));
+		SlotImage->SetColorAndOpacity(Index < VisibleCount ? FLinearColor::White
+		                                                   : FLinearColor(0.35f, 0.35f, 0.35f, 0.72f));
 		SlotImage->SetVisibility(ESlateVisibility::HitTestInvisible);
-		UCanvasPanelSlot* CardImageSlot = OwnedCardSlotPanel->AddChildToCanvas(SlotImage);
-		CardImageSlot->SetPosition(Positions[Index]);
-		CardImageSlot->SetSize(FVector2D(60.0f, 60.0f));
 		if (Index < VisibleCount)
 		{
-			const bool bStorageCard = DisplayedOwnedCards[Index].ContentId == FName(ReEchoEchoStorage::StorageUnlockCardId);
-			const FString SlotName = bStorageCard
-			                                 ? FString::Printf(TEXT("EchoStorageCardSlot%d"), Index)
-			                                 : FString::Printf(TEXT("OwnedCardHoverSlot%d"), Index);
-			UButton* CardSlotButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), *SlotName);
-			CardSlotButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
+			const bool bStorageCard =
+			    DisplayedOwnedCards[Index].ContentId == FName(ReEchoEchoStorage::StorageUnlockCardId);
 			CardSlotButton->SetToolTip(BuildSlotTooltip(DisplayedOwnedCards[Index]));
 			if (bStorageCard)
 			{
 				CardSlotButton->OnClicked.AddUniqueDynamic(
 				    this, &UReEchoInventoryShopWidget::HandleEchoStorageCardSlotClicked);
 			}
-			UCanvasPanelSlot* InteractionSlot = OwnedCardSlotPanel->AddChildToCanvas(CardSlotButton);
-			InteractionSlot->SetPosition(Positions[Index]);
-			InteractionSlot->SetSize(FVector2D(60.0f, 60.0f));
-			InteractionSlot->SetZOrder(1);
 		}
 	}
 }
@@ -1084,36 +1132,40 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 	for (const FName DraftPartId : DraftPartIds)
 	{
 		const FReEchoShopOffer* Part = CurrentPartShopView.OwnedParts.FindByPredicate(
-		    [&](const FReEchoShopOffer& Candidate) { return Candidate.ContentId == DraftPartId; });
+		    [&](const FReEchoShopOffer& Candidate)
+		    {
+			    return Candidate.ContentId == DraftPartId;
+		    });
 		if (Part)
 		{
 			DisplayedAttachmentParts.Add(Part);
-			if (DisplayedAttachmentParts.Num() >= AttachmentHoverButtons.Num())
+			if (DisplayedAttachmentParts.Num() >= DesignerAttachmentSlotButtons.Num())
 			{
 				break;
 			}
 		}
 	}
 
-	for (int32 Index = 0; Index < AttachmentHoverButtons.Num(); ++Index)
+	const int32 SlotCount = FMath::Min(DesignerAttachmentSlotButtons.Num(), DesignerAttachmentSlotArts.Num());
+	for (int32 Index = 0; Index < SlotCount; ++Index)
 	{
-		UButton* HoverButton = AttachmentHoverButtons[Index];
-		UImage* AttachmentArt = Cast<UImage>(GetWidgetFromName(
-		    *FString::Printf(TEXT("ArtAttachmentSlot%d"), Index)));
+		UButton* HoverButton = DesignerAttachmentSlotButtons[Index];
+		UImage* AttachmentArt = DesignerAttachmentSlotArts[Index];
 		const bool bHasPart = DisplayedAttachmentParts.IsValidIndex(Index);
 		if (AttachmentArt)
 		{
-			AttachmentArt->SetBrushFromTexture(
-			    bHasPart ? ResolveWeaponPartIcon(DisplayedAttachmentParts[Index]->ContentId)
-			             : ShopAttachmentSlotTexture.Get(),
-			    false);
+			AttachmentArt->SetBrushFromTexture(bHasPart
+			                                       ? ResolveWeaponPartIcon(DisplayedAttachmentParts[Index]->ContentId)
+			                                       : ShopAttachmentSlotTexture.Get(),
+			                                   false);
 			AttachmentArt->SetColorAndOpacity(FLinearColor::White);
 		}
 		if (!HoverButton)
 		{
 			continue;
 		}
-		HoverButton->SetVisibility(bHasPart ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		HoverButton->SetVisibility(ESlateVisibility::Visible);
+		HoverButton->SetToolTip(nullptr);
 		if (bHasPart)
 		{
 			HoverButton->SetToolTip(BuildSlotTooltip(*DisplayedAttachmentParts[Index]));
@@ -1188,8 +1240,8 @@ void UReEchoInventoryShopWidget::Refresh()
 	if (ShopLogicScrollBox)
 	{
 		ShopLogicScrollBox->SetVisibility(ShopPresentationLayer ? ESlateVisibility::Collapsed
-		                                                       : bShowingShop ? ESlateVisibility::Visible
-		                                                                      : ESlateVisibility::Collapsed);
+		                                  : bShowingShop        ? ESlateVisibility::Visible
+		                                                        : ESlateVisibility::Collapsed);
 		UpdateShopLogicViewportBounds();
 	}
 	if (RunItemOfferPanel)
@@ -1220,8 +1272,7 @@ void UReEchoInventoryShopWidget::Refresh()
 	    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
 	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
-		const int32 CatalogIndex =
-		    (OfferIndex + CurrentShopRefreshSequence) % VisibleRunItemOffers.Num();
+		const int32 CatalogIndex = (OfferIndex + CurrentShopRefreshSequence) % VisibleRunItemOffers.Num();
 		const FReEchoShopOffer& Offer = VisibleRunItemOffers[CatalogIndex];
 		const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
 		const bool bOwned = CurrentOwnedItems.Contains(Offer.ItemId);
@@ -1236,8 +1287,8 @@ void UReEchoInventoryShopWidget::Refresh()
 	}
 	if (ShopRefreshButton && ShopRefreshText)
 	{
-		const bool bCanRefresh = bCurrentShopRefreshAllowed &&
-		                         (CurrentFreeShopRefreshes > 0 || CurrentTimeShards >= ReEchoShopRefreshPrice);
+		const bool bCanRefresh =
+		    bCurrentShopRefreshAllowed && (CurrentFreeShopRefreshes > 0 || CurrentTimeShards >= ReEchoShopRefreshPrice);
 		ShopRefreshButton->SetIsEnabled(bCanRefresh);
 		ShopRefreshText->SetText(NSLOCTEXT("ReEcho", "ShopRefreshShort", "刷新"));
 	}
@@ -1293,40 +1344,58 @@ void UReEchoInventoryShopWidget::Refresh()
 			const bool bDrafted = DraftPartIds.Contains(PartOffer.ContentId);
 			const int32 EffectivePrice = GetEffectiveShopPrice(PartOffer.Price, CurrentShopDiscount);
 			WeaponPartOfferButtons[Index]->SetIsEnabled(bOwned || CurrentTimeShards >= EffectivePrice);
-			WeaponPartOfferButtons[Index]->SetBackgroundColor(
-			    bDrafted ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f) : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
-			WeaponPartOfferTexts[Index]->SetText(FText::Format(
-			    NSLOCTEXT("ReEcho", "WeaponPartOfferFormat", "{0} · {1}{2}"),
-			    PartOffer.DisplayName,
-			    FText::FromName(PartOffer.SlotTypeId),
-			    bDrafted
-			        ? NSLOCTEXT("ReEcho", "WeaponPartDrafted", "（草稿已装备）")
-			        : bOwned ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已拥有，点击装配）")
-			                 : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
-			                                 FText::AsNumber(EffectivePrice))));
+			WeaponPartOfferButtons[Index]->SetBackgroundColor(bDrafted ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f)
+			                                                           : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
+			WeaponPartOfferTexts[Index]->SetText(
+			    FText::Format(NSLOCTEXT("ReEcho", "WeaponPartOfferFormat", "{0} · {1}{2}"),
+			                  PartOffer.DisplayName,
+			                  FText::FromName(PartOffer.SlotTypeId),
+			                  bDrafted ? NSLOCTEXT("ReEcho", "WeaponPartDrafted", "（草稿已装备）")
+			                  : bOwned ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已拥有，点击装配）")
+			                           : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
+			                                           FText::AsNumber(EffectivePrice))));
 		}
 	}
 	if (ShopPresentationLayer)
 	{
 		ShopPresentationLayer->SetVisibility(bShowingShop ? ESlateVisibility::SelfHitTestInvisible
-		                                                       : ESlateVisibility::Collapsed);
+		                                                  : ESlateVisibility::Collapsed);
 		if (TargetCurrencyText)
 		{
-			TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"), FText::AsNumber(CurrentTimeShards)));
+			TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
+			                                          FText::AsNumber(CurrentTimeShards)));
 		}
 		CurrencyText->SetVisibility(ESlateVisibility::Collapsed);
 		if (ShopRefreshButton)
 		{
-			ShopRefreshButton->SetIsEnabled(bCurrentShopRefreshAllowed &&
-			                                (CurrentFreeShopRefreshes > 0 || CurrentTimeShards >= ReEchoShopRefreshPrice));
+			ShopRefreshButton->SetIsEnabled(
+			    bCurrentShopRefreshAllowed &&
+			    (CurrentFreeShopRefreshes > 0 || CurrentTimeShards >= ReEchoShopRefreshPrice));
 		}
-		if (RunItemOfferPanel) RunItemOfferPanel->SetVisibility(ESlateVisibility::Collapsed);
-		if (WeaponPartOfferPanel) WeaponPartOfferPanel->SetVisibility(ESlateVisibility::Collapsed);
-		if (ShopControlPanel) ShopControlPanel->SetVisibility(ESlateVisibility::Collapsed);
-		if (WeaponLoadoutPanel) WeaponLoadoutPanel->SetVisibility(ESlateVisibility::Collapsed);
+		if (RunItemOfferPanel)
+		{
+			RunItemOfferPanel->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		if (WeaponPartOfferPanel)
+		{
+			WeaponPartOfferPanel->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		if (ShopControlPanel)
+		{
+			ShopControlPanel->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		if (WeaponLoadoutPanel)
+		{
+			WeaponLoadoutPanel->SetVisibility(ESlateVisibility::Collapsed);
+		}
 		RebuildTargetOfferRows();
 		RebuildOwnedCardSlots();
 		RebuildAttachmentHoverSlots();
+	}
+	if (DesignerLoadoutCanvas)
+	{
+		DesignerLoadoutCanvas->SetVisibility(bShowingShop ? ESlateVisibility::SelfHitTestInvisible
+		                                                  : ESlateVisibility::Collapsed);
 	}
 }
 
@@ -1577,8 +1646,7 @@ void UReEchoInventoryShopWidget::BuildEchoPanel()
 	{
 		return;
 	}
-	if (Mode != EReEchoInventoryShopMode::PostTraitIntermission || !HasEchoStorageCard() ||
-	    !bEchoStoragePopupOpen)
+	if (Mode != EReEchoInventoryShopMode::PostTraitIntermission || !HasEchoStorageCard() || !bEchoStoragePopupOpen)
 	{
 		EchoPanel->SetVisibility(ESlateVisibility::Collapsed);
 		if (EchoPanelScale)
