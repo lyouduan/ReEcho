@@ -6,8 +6,8 @@
 - Executor 负责人：Codex（JosephLE910 / Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`。
+- 人工验收：`PendingFollowUp`（2026-08-19 用户明确授权先发布；后续 PIE 若发现残留问题，另开 Plan 修复）。
 - 本地规划 / 实现基线：`origin/main@f2ce2a5`。
 - 本地实现方式（可选，仅作交接说明）：Plan 发布后使用专属 `plan/53-rabbit-projectile-collision-damage` worktree。
 - 依赖 / 阻塞：Plan49 已让兔子三球 Niagara 可见并由逻辑投射物事件驱动；本 Plan 不等待 Plan49 关闭，但最终人工验收需同时观察弹道、碰撞时机和扣血。
@@ -117,7 +117,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：用户 PIE 验证兔子三球路径内/外和单次扣血。
+- `PendingFollowUp`：2026-08-19 用户明确要求先将当前候选合入并推送远端 main，不再以本轮 PIE 阻塞发布；后续验证兔子三球路径内/外、单次扣血或旧表现残留时，若发现问题按用户决定新开 Plan，不回写已关闭 Plan53 的锁定范围。
 
 ### 架构文档审阅结果
 
