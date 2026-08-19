@@ -46,6 +46,8 @@
 
 VFX 唯一拥有的是 Niagara 组件实例及其表现生命周期。逻辑投射物的 `AttackIdentity`、位置、方向、行进距离、碰撞和有效性仍由 Enemies/Host 拥有；VFX 中的 `TMap<AttackSequence, NiagaraComponent>` 只是可丢弃的视觉索引。
 
+Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`。两个子节点都是 Blueprint 可编辑的表现挂点：攻击提交、前摇、方向提示和冲刺读取 `AttackVfxRoot`，最终受伤读取 `HurtVfxRoot`。美术可在具体 Gameplay Blueprint 中独立调整两者的相对位置、旋转和缩放，不必修改 C++。兔子子弹只在发射时读取攻击挂点形成纯视觉偏移，离开发射者后仍由逻辑投射物位置推进，绝不附着人物或反向修改命中。
+
 ```text
 Weapons / EnemyLogic
   → CombatEvents / EnemyEvents（稳定语义和值上下文）
@@ -64,8 +66,8 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 三球资产所有启用发射器使用 Local Space；运行时粒子速度实测为本地约 `0° / 32.5° / 65°`，目录集中把中间球的 `32.5°` 轴对准锁定方向；载体随逻辑投射物移动，命中/越界清理 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02` | 世界位置、前景、Windup 开始 |
-| FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 锁定方向、背景、Windup 开始 |
-| FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_04` | 附着狐狸、背景、提交到动作结束 |
+| FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 攻击挂点、前景、Windup 开始 |
+| FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_04` | 附着狐狸攻击挂点、前景、提交到动作结束 |
 | PlayerMeleeSlash | `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01` | 近战提交位置和攻击方向，前景单次播放 |
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
 
@@ -95,6 +97,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 |---|---|
 | 语义与资产目录 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` |
 | 事件订阅、生成和清理 | `Presentation/VFX/ReEchoCombatVfxComponent.*` |
+| 人物攻击/受击挂点 | `Player/ReEchoPlayerPawn.*`、`Graybox/ReEchoEnemyActor.*`、`Graybox/ReEchoEchoActor.*` 中的 `AttackVfxRoot` / `HurtVfxRoot` |
 | 敌人阶段/投射物事件契约 | `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyEventsComponent.h` |
 | 敌人投射物装配 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*` |
 | 玩家/Echo/敌人 Host 装配 | 对应 `PlayerPawn` / `EchoActor` / `EnemyActor` 构造函数 |
@@ -106,6 +109,8 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 - 资源加载失败只能少一个视觉，不得让攻击失败。
 - 受击只消费 Combat 的最终 `AppliedDamage`，不能从重叠或预测命中提前播放。
 - 投射物 Niagara 绝不是位置真相；每次 Moved 都覆盖其 Transform。
+- 攻击与受击必须使用两个独立的 Blueprint 可编辑挂点；不得重新合并到一个通用位置，也不得在 VFX 组件里按角色 ID 写死偏移。
+- 所有角色战斗特效进入独立的全局前景排序带：`max(100, 宿主当前 UReEcho2DAnimationComponent::TranslucencySortPriority + 1)`。这既保证特效覆盖所属对象，也避免宿主之间动态脚点排序使某个对象的特效被其他角色遮住；不得为单个语义重新设置为背景层，挂点 Transform 也不得改变这一覆盖保证。
 - 循环/跟随效果必须在 Death、Ended 和 EndPlay 都可清理。
 - 资产朝向修正集中在适配器，禁止为了迁就特效轴修改玩法攻击方向。
 - 旋转 Niagara Component 只能可靠影响 Local Space 发射器；有方向语义的资产必须同时校验启用发射器的 Simulation Space，并验证实际粒子位置/速度确实服从组件坐标系。组件 Transform、逻辑投射物轨迹和屏幕方向都正确时，禁止继续修改玩法方向来补偿 System 内部粒子模块。

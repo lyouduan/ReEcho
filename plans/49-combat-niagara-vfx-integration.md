@@ -163,6 +163,14 @@
 - 中间诊断候选发布到 `origin/main@9aa99c2` 后继续定位 System 内部：兔子投射物 Niagara 临时强制 Solo，在既有采样点读取 `Fountain004/005` CPU 粒子的实际 Position/Velocity，转换为世界与屏幕坐标，并输出 `[RabbitParticleTrace]` 的载体偏移、朝玩家向量和速度点积；这只用于诊断，定位并修复资产后必须连同 `[RabbitAimTrace]` 一起移除。该候选完成 Editor Development 增量构建并刷新预构建包。
 - 用户保持主角静止后的粒子读回已给出确定性根因：三个实际发射方向在资产本地空间约为 `0° / 32.5° / 65°`，中间球是 `32.5°`；旧实现却把文档声称的 `+Y=90°` 对准玩家，整组三球因此恒定偏转约 `57.5°`。修复不改目标选择或逻辑投射物，只由 `FReEchoCombatVfxCatalog` 集中声明 RabbitProjectile 的实测中轴并把它旋转到玩法方向；Host 和 Gameplay 不持有资产补偿角。
 - 实测中轴修复候选已完成 Editor Development 构建并刷新 7 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 1/1 成功，新增断言直接验证 Catalog 旋转后的 `32.5°` 中轴等于锁定玩家方向；`validate_project.py` 与 `git diff --check` 通过。临时粒子读回仍保留给下一次 PIE 做最终数值确认。
+- 用户明确要求后续美术调整必须通过 Blueprint 组件树挂点完成，并区分攻击与受击。Player、Enemy、Echo Host 因此统一新增 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`；攻击提交、前摇、方向提示、冲刺使用攻击挂点，最终 Hurt 使用受击挂点。兔子飞行粒子只记录发射时攻击挂点相对逻辑载体的视觉偏移，之后继续消费逻辑投射物轨迹，不把人物 Transform 变成玩法权威。
+- 独立挂点候选完成 Editor Development 构建并刷新预构建包；`ReEcho.Presentation.Animation2D.AssetProfiles` 通过并验证 Player/Enemy Gameplay Blueprint 以及 Echo CDO 的挂点父子关系，`ReEcho.Presentation.VFX.Catalog`、`validate_project.py` 和 `git diff --check` 同步通过。
+- 用户进一步锁定图层规则：全部人物战斗特效必须覆盖宿主对象。VFX 组件取消前景/背景选择和狐狸方向提示例外，所有世界生成/挂点生成实例统一使用宿主动画层级 `+1`；该规则由一个无布尔分支的集中函数维护。
+- 用户视觉复测仍看到攻击/受击特效落在怪物下方。加入临时 `[CombatVfxLayerTrace]`：每次 World/Attached 生成立即及延迟 `0.1s` 记录语义、宿主动画与 Niagara 的透明排序优先级/距离偏移、挂点父子关系、世界位置、注册/激活/可见状态及优先级差。下一次 PIE 用于判定优先级被覆盖、深度位置错误或资产材质不参与透明排序；定位后移除。
+- 图层诊断候选完成 Editor Development 构建并刷新预构建包；`ReEcho.Presentation.VFX.Catalog` 1/1 成功（含宿主 `23 → 特效 24` 的集中层级策略断言），`validate_project.py` 与 `git diff --check` 通过。用户保存的 `BP_EnemyGameplay_Rabbit.uasset` 继续作为独立未提交修改保留，不混入诊断提交。
+- 用户 PIE 图层日志确认 Attack/Hurt 挂点、注册、激活和可见状态均正常，Niagara 的优先级也未被引擎重置；根因是旧策略只取“所属对象 `+1`”，而场上角色因脚点动态排序分布在约 `-50～10`，例如优先级 `-21` 的受击特效仍会被另一只优先级 `10` 的怪物遮住。统一策略改为 `max(100, 宿主优先级 + 1)` 的全局战斗特效前景带；诊断日志暂留一轮，用于确认是否还存在材质深度测试造成的同面遮挡。
+- 全局前景带候选完成 Editor Development 构建并刷新 7 模块预构建包；`ReEcho.Presentation.VFX.Catalog` 1/1 成功，覆盖普通宿主 `23 → 100` 与超出前景带宿主 `150 → 151` 两条策略边界；`validate_project.py` 和 `git diff --check` 通过。诊断日志不再把合法优先级 `-1` 误判为缺失值。
+- 按用户要求将当前候选组合到 `origin/main@d496b24`：远端 Plan52 场景地图与 UI 武器部件图标源码/资产保持原样，合并只在预构建清单和主模块 DLL 产生生成物冲突；未选择任一侧旧二进制，而是在组合源码上执行 Editor Development `FullRebuild`，7 个模块全部成功并刷新预构建包。组合后的 `ReEcho.Presentation.VFX.Catalog` 1/1、`validate_project.py` 与 `git diff --check` 通过。
 
 ### 剩余风险
 

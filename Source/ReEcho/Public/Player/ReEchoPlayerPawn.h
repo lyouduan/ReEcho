@@ -159,6 +159,12 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Effects")
 	TObjectPtr<USceneComponent> EffectsRoot;
+	/** Blueprint-editable origin for outgoing attack, windup and weapon effects. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Effects")
+	TObjectPtr<USceneComponent> AttackVfxRoot;
+	/** Blueprint-editable origin for effects played when this character is hurt. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Effects")
+	TObjectPtr<USceneComponent> HurtVfxRoot;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Ground")
 	TObjectPtr<UStaticMeshComponent> GroundShadow;

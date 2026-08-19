@@ -29,6 +29,14 @@ AReEchoEchoActor::AReEchoEchoActor()
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
+	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
+	EffectsRoot->SetupAttachment(RootComponent);
+	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
+	AttackVfxRoot->SetupAttachment(EffectsRoot);
+	AttackVfxRoot->bEditableWhenInherited = true;
+	HurtVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("HurtVfxRoot"));
+	HurtVfxRoot->SetupAttachment(EffectsRoot);
+	HurtVfxRoot->bEditableWhenInherited = true;
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(RootComponent);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -77,6 +85,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
+	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot);
 	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo, FReEchoAudioEvents::EchoAttack, NAME_None);
 }
 

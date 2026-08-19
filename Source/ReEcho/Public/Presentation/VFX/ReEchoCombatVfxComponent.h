@@ -8,6 +8,7 @@
 class UNiagaraComponent;
 class UNiagaraSystem;
 class APlayerController;
+class USceneComponent;
 
 /** Read-only presentation adapter for Combat and Enemy semantic events. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
@@ -18,6 +19,10 @@ class REECHO_API UReEchoCombatVfxComponent : public UActorComponent
 
 public:
 	UReEchoCombatVfxComponent();
+	/** Pure layer policy shared by runtime and automation. */
+	static int32 ResolveCombatEffectSortPriority(int32 OwnerSortPriority);
+	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
+	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 
 protected:
 	virtual void BeginPlay() override;
@@ -28,8 +33,14 @@ private:
 	UNiagaraSystem* ResolveSystem(uint8 SemanticValue) const;
 	UNiagaraComponent*
 	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
-	UNiagaraComponent* SpawnAttached(uint8 SemanticValue, const FVector& Direction) const;
-	int32 ResolveOwnerSortPriority(bool bForeground) const;
+	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
+	                                 const FVector& Direction,
+	                                 USceneComponent* AttachmentRoot,
+	                                 bool bAutoDestroy = true) const;
+	USceneComponent* ResolveAttackVfxRoot() const;
+	USceneComponent* ResolveHurtVfxRoot() const;
+	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
+	int32 ResolveOwnerSortPriority() const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopAllEffects();
 	void LogRabbitProjectileTrajectory(const FReEchoEnemyProjectileEvent& Event,
@@ -69,6 +80,13 @@ private:
 
 	UPROPERTY(Transient)
 	TMap<int64, TObjectPtr<UNiagaraComponent>> ProjectileEffects;
+	TMap<int64, FVector> ProjectileVisualOffsets;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> AttackVfxRoot;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> HurtVfxRoot;
 
 	TMap<int64, int32> ProjectileTrajectoryEventCounts;
 

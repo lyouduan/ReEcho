@@ -224,6 +224,18 @@ private:
 	          Category = "Character Scene|Effects",
 	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> EffectsRoot;
+	/** Blueprint-editable origin for outgoing attack, windup and dash effects. */
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> AttackVfxRoot;
+	/** Blueprint-editable origin for effects played when this enemy is hurt. */
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> HurtVfxRoot;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Ground",
