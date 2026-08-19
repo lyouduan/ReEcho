@@ -13,6 +13,7 @@
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/ReEchoWeatherWidget.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -168,7 +169,24 @@ void UReEchoUIManagerSubsystem::ConfigureGameplayInput(APlayerController* Player
 	PlayerController->SetShowMouseCursor(true);
 }
 
+void UReEchoUIManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	PreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &UReEchoUIManagerSubsystem::HandlePreLoadMap);
+}
+
 void UReEchoUIManagerSubsystem::Deinitialize()
+{
+	if (PreLoadMapHandle.IsValid())
+	{
+		FCoreUObjectDelegates::PreLoadMap.Remove(PreLoadMapHandle);
+		PreLoadMapHandle.Reset();
+	}
+	ResetScreens();
+	Super::Deinitialize();
+}
+
+void UReEchoUIManagerSubsystem::ResetScreens()
 {
 	for (UUserWidget* Widget : ManagedWidgets)
 	{
@@ -179,7 +197,12 @@ void UReEchoUIManagerSubsystem::Deinitialize()
 	}
 	ManagedWidgets.Reset();
 	ActiveScreens.Reset();
-	Super::Deinitialize();
+}
+
+void UReEchoUIManagerSubsystem::HandlePreLoadMap(const FString& MapName)
+{
+	(void)MapName;
+	ResetScreens();
 }
 
 EReEchoUILayer UReEchoUIManagerSubsystem::GetScreenLayer(const EReEchoUIScreen Screen)

@@ -25,9 +25,19 @@ public:
 	void AddToLayer(UUserWidget* Widget, EReEchoUILayer Layer);
 	void ConfigureMenuInput(APlayerController* PlayerController, UUserWidget* Widget, bool bUIOnly) const;
 	void ConfigureGameplayInput(APlayerController* PlayerController) const;
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FReEchoUIManagerSubsystemResetOnTravelTest;
+#endif
+
+	void ResetScreens();
+	void HandlePreLoadMap(const FString& MapName);
+
+	FDelegateHandle PreLoadMapHandle;
+
 	static int32 GetLayerZOrder(EReEchoUILayer Layer);
 	static EReEchoUILayer GetScreenLayer(EReEchoUIScreen Screen);
 	TSubclassOf<UUserWidget> GetScreenClass(EReEchoUIScreen Screen) const;
