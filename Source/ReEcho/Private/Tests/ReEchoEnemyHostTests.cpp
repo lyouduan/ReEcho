@@ -274,7 +274,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	for (int32 BallIndex = 0; BallIndex < SpawnedState.BossProjectiles.Num(); ++BallIndex)
 	{
 		const FReEchoEnemyProjectileRuntimeState& Ball = SpawnedState.BossProjectiles[BallIndex];
-		TestEqual(TEXT("Rabbit ball keeps the authored damage"), Ball.Damage, 10.0f);
+		TestEqual(TEXT("Rabbit ball keeps the authored damage"), Ball.Damage, 1.0f);
 		TestEqual(TEXT("Rabbit volley radius is divided into one collider per ball"), Ball.CollisionRadiusCm, 50.0f);
 		TestEqual(TEXT("Rabbit ball stores its stable volley index"), Ball.VolleyBallIndex, BallIndex);
 		TestEqual(TEXT("Zero table speed uses the documented legacy-derived speed"),
@@ -328,7 +328,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	         Player->IntersectsCombatPath(
 	             CenterBeforeHit->Snapshot.Location, CenterNextLocation, CenterBeforeHit->CollisionRadiusCm));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
-	TestEqual(TEXT("Center ball applies exactly ten damage"), Player->Combatant->CurrentHealth, 90.0f);
+	TestEqual(TEXT("Center ball applies exactly one damage"), Player->Combatant->CurrentHealth, 99.0f);
 	TestEqual(TEXT("A hit ball keeps flying while the shared Niagara volley is alive"),
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          ReEchoRabbitProjectilePattern::BallCount);
@@ -336,20 +336,20 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	const FVector UpperDirection = ReEchoRabbitProjectilePattern::ResolveDirection(FVector::ForwardVector, 2);
 	Player->SetActorLocation(UpperDirection * 700.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
-	TestEqual(TEXT("Upper fan ball independently applies exactly ten damage"), Player->Combatant->CurrentHealth, 80.0f);
+	TestEqual(TEXT("Upper fan ball independently applies exactly one damage"), Player->Combatant->CurrentHealth, 98.0f);
 
 	const FVector LowerDirection = ReEchoRabbitProjectilePattern::ResolveDirection(FVector::ForwardVector, 0);
 	Player->SetActorLocation(LowerDirection * 800.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
-	TestEqual(TEXT("Lower fan ball independently applies exactly ten damage"), Player->Combatant->CurrentHealth, 70.0f);
+	TestEqual(TEXT("Lower fan ball independently applies exactly one damage"), Player->Combatant->CurrentHealth, 97.0f);
 
 	Rabbit->AdvanceEnemyProjectilesForTests(0.1f);
-	TestEqual(TEXT("Consumed balls cannot damage the player twice"), Player->Combatant->CurrentHealth, 70.0f);
+	TestEqual(TEXT("Consumed balls cannot damage the player twice"), Player->Combatant->CurrentHealth, 97.0f);
 	Rabbit->AdvanceEnemyProjectilesForTests(1.0f);
 	TestEqual(TEXT("All balls end after their authored maximum range"),
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          0);
-	TestEqual(TEXT("Volley expiry cannot add damage"), Player->Combatant->CurrentHealth, 70.0f);
+	TestEqual(TEXT("Volley expiry cannot add damage"), Player->Combatant->CurrentHealth, 97.0f);
 	return true;
 }
 

@@ -13,7 +13,6 @@
 #include "Engine/World.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
-#include "Graybox/ReEchoHealthBarActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
@@ -28,9 +27,6 @@
 
 namespace ReEchoEnemyVisual
 {
-constexpr float DefaultWorldHeight = 100.0f;
-constexpr float HealthBarHeightRatio = 0.65f;
-constexpr float HealthBarWidthScale = 0.72f;
 constexpr float HitReactionDuration = 0.22f;
 }
 
@@ -136,21 +132,6 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName Presenta
 {
 	ApplyVisual(PresentationId);
 	RefreshElementAttachmentVisual();
-	if (!HealthBar && Host && Host->GetWorld())
-	{
-		HealthBar = Host->GetWorld()->SpawnActor<AReEchoHealthBarActor>();
-	}
-	if (HealthBar)
-	{
-		const UReEcho2DCharacterPresentationProfile* Profile =
-		    PresentationCatalog ? PresentationCatalog->ResolveProfile(PresentationId) : nullptr;
-		const float PresentationHeight = Profile ? Profile->WorldHeight : ReEchoEnemyVisual::DefaultWorldHeight;
-		HealthBar->Initialize(Combatant,
-		                      FLinearColor(1.0f, 0.08f, 0.04f),
-		                      PresentationHeight * ReEchoEnemyVisual::HealthBarHeightRatio,
-		                      ReEchoEnemyVisual::HealthBarWidthScale,
-		                      FootRoot ? FootRoot.Get() : PresentationRoot.Get());
-	}
 }
 
 void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
