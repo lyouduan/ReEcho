@@ -15,6 +15,7 @@ enum class EStartMenuAction : int32
 	Continue,
 	NewGame,
 	Settings,
+	About,
 	Quit
 };
 }
@@ -47,6 +48,11 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	{
 		GameSettingsButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Settings));
 		GameSettingsButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
+	}
+	if (AboutButton)
+	{
+		AboutButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::About));
+		AboutButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	if (QuitButton)
 	{
@@ -143,8 +149,6 @@ void UReEchoStartMenuWidget::RefreshMenu()
 	if (ContinueButton)
 	{
 		ContinueButton->SetVisibility(ESlateVisibility::Visible);
-		ContinueButton->SetIsEnabled(bHasSavedRun);
-		ContinueButton->SetRenderOpacity(bHasSavedRun ? 0.0f : 0.55f);
 	}
 }
 
@@ -160,6 +164,9 @@ void UReEchoStartMenuWidget::HandleMenuAction(const int32 ActionIndex)
 			break;
 		case EStartMenuAction::Settings:
 			OnGameSettingRequested.Broadcast();
+			break;
+		case EStartMenuAction::About:
+			OnAboutRequested.Broadcast();
 			break;
 		case EStartMenuAction::Quit:
 			OnQuitRequested.Broadcast();
