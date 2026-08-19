@@ -1,5 +1,7 @@
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 
+#include "Core/ReEchoRabbitProjectilePattern.h"
+
 const TCHAR* FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Semantic)
 {
 	switch (Semantic)
@@ -38,8 +40,7 @@ FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatV
 		// Runtime particle readback shows the three authored launch angles are approximately 0, 32.5 and 65
 		// degrees. The middle projectile is therefore the visual center axis; the asset documentation's +Y
 		// statement does not match the delivered Niagara system.
-		constexpr float RabbitThreeBallCenterDegrees = 32.5f;
-		const float CenterRadians = FMath::DegreesToRadians(RabbitThreeBallCenterDegrees);
+		const float CenterRadians = FMath::DegreesToRadians(ReEchoRabbitProjectilePattern::HalfSpreadDegrees);
 		return FVector(FMath::Cos(CenterRadians), FMath::Sin(CenterRadians), 0.0f).GetSafeNormal();
 	}
 	return FVector::ForwardVector;

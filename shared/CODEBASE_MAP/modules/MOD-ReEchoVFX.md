@@ -75,9 +75,11 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 ## 兔子投射物边界
 
-兔子远程 Commit 后，EnemyHost 使用 `FReEchoEnemyProjectileLogic` 创建真实逻辑投射物。位置按 Definition 的速度和最大射程推进，Host 用连续路径检查当前合法战斗目标并把命中交给 Combat。VFX 只消费 Spawned/Moved/Ended。
+兔子远程 Commit 后，EnemyHost 使用 `FReEchoEnemyProjectileLogic` 创建三条真实逻辑轨迹，中心锁定目标、两侧扇形展开，每球独立一次命中。三条逻辑轨迹共享一份三球 Niagara：仅中心逻辑轨迹发布 Spawned/Moved/Ended，VFX 不读取其他两球的位置，也不拥有碰撞或伤害。
 
 当前表中 `ProjectileSpeedCmPerSecond == 0`，兼容路径暂按 `MaxRangeCm / CooldownSeconds` 推导 500 cm/s，使旧表能够生成可见飞行载体；一旦策划填写正数，显式表值立即成为权威。Plan53 在碰撞接缝完成后从 `ReEchoEnemyData.xlsx → enemy_abilities.csv` 恢复兔子能力伤害 `10`；VFX 仍不拥有伤害、碰撞或禁伤开关。
+
+旧 `AReEchoHitImpactActor / ReEchoAttackEffects / HitStarburst` 已删除；玩家和敌人受击只能走本模块的 `PlayerHurt / EnemyHurt` Niagara 语义，禁止再生成独立火焰星爆 Actor。
 
 保存结构为兼容既有版本仍使用 `BossProjectiles` 字段名，但其数组现已承载通用敌方逻辑投射物；恢复后 Host 重发 Spawned，使视觉可重建。字段重命名需要独立存档迁移，不在表现任务中顺手修改。
 

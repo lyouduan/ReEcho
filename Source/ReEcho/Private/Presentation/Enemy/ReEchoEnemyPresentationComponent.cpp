@@ -11,7 +11,6 @@
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
-#include "Graybox/ReEchoAttackEffects.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "Graybox/ReEchoHealthBarActor.h"
@@ -399,7 +398,6 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	{
 		return;
 	}
-	ReEchoAttackEffects::SpawnHitImpact(Host ? Host->GetWorld() : nullptr, Event.WorldLocation);
 	const FLinearColor Color = Event.Element == EReEchoElement::None
 	                               ? FLinearColor::White
 	                               : ReEchoElementReaction::GetElementColor(Event.Element);
