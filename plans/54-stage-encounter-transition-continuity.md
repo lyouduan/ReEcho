@@ -3,12 +3,12 @@
 ## 协调
 
 - Planner 负责人：Gavyn（JosephLE910）/ Codex。
-- Executor 负责人：未分配。
+- Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@44ccf4a`；本地规划 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan54-stage-transition`，分支 `plan/54-stage-transition-continuity`。
+- 本地规划发布提交为 `598f6a0`，实现基线为当时的 `origin/main@598f6a0`；本地规划 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan54-stage-transition`，分支 `plan/54-stage-transition-continuity`。实现期间远端前进到 `origin/main@8ac53ab`，尚未在未取得用户决策前合入。
 - 本地实现方式：延续本对话已确认的一任务一 worktree；不得在主工作区直接实现。
 - 依赖 / 阻塞：依赖 Plan48 已发布的 Stage/Encounter Catalog、WaveScheduler、SpawnResolver 和 Roster 语义；与尚未关闭的 Plan53 兔子投射物碰撞可本地并行，但若两者都修改 `ReEchoEnemyActor.*`、`ReEchoGameMode.*` 或最终预构建包，进入 `main` 前必须组合审查并重跑最终构建。
 - Writes：本 Plan；`Source/ReEcho/{Public,Private}/ReEchoGameMode.*`；必要时新增或维护 `Source/ReEcho/{Public,Private}/Encounter/ReEchoEncounterTransition.*`；同 Stage 局间冻结需要时修改 `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`；新增或维护聚焦自动化 `Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；若模块契约真实变化则维护 `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`；关闭前审阅 `shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md}`；最终 `shared/GIT_RULES.md` 允许的 Win64 Editor 预构建包。
@@ -44,29 +44,29 @@ Encounter 自身仍是独立录制和回放单元：旧 Encounter 的 Echo、Rec
   - 现有 `ShowTraitCardChoice()` 的无条件 `ClearCombatants()` 与 `BeginNextEncounter()` 的无条件 `SetActorLocation(FVector(0,0,112))` 是本次已确认根因；修复必须移除这两个绕过 Stage 策略的独立决策点。
 - 相关文档同步范围：`shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 必改；`MOD-ReEchoEnemies.md` 按公共契约是否变化决定正文修改；`ARCHITECTURE.md` 审阅 Stage/Encounter 跨模块不变量，若只落实既有 Plan48 拓扑则无需修改正文；`README.md` 审阅路由标识，预计无需修改。
 - 关闭前逐项填写审阅结果：
-  - `MOD-ReEcho.md` 已更新：记录最终连续性、冻结入口与代码位置；
-  - `MOD-ReEchoEnemies.md` 已更新或已审阅无需修改：说明公共契约是否变化；
-  - `ARCHITECTURE.md` 已更新或已审阅无需修改：说明是否改变跨模块不变量；
-  - `README.md` 已审阅、无需修改：若稳定标识和阅读路由未变化。
+  - `MOD-ReEcho.md` 已更新：记录 Stage/Encounter 连续性、纯过渡决策、冻结入口与代码位置；
+  - `MOD-ReEchoEnemies.md` 已更新：记录新增的 `ResetEncounterTransientState` 窄命令及持久/瞬时状态边界；
+  - `ARCHITECTURE.md` 已审阅、无需修改：本 Plan 只落实既有 `ReEcho → ReEchoEnemies` Host/Logic 拓扑，没有新增 Runtime Module 或反向依赖；
+  - `README.md` 已审阅、无需修改：稳定模块标识和阅读路由未变化。
 
 ## 锁定验收
 
-- [ ] 配表矩阵正确：1→2、3→4、4→5、6→7为同 Stage 连续；2→3、5→6、7→Boss 为跨 Stage 重置。非法/缺失 Stage 引用必须安全失败并记录诊断，不能默认为保留。
-- [ ] 同 Stage 局间前后，每个存活怪物的 Enemy Host 对象身份、EnemyId、SpawnIndex、世界位置、当前生命值和应保留逻辑状态一致；没有 Destroy/重新 Spawn 伪连续。
-- [ ] 同 Stage 下一 Encounter 的 0 秒波次正常新增；原 Roster 仍在且被计入 `ActiveUnitLimit`，不会因保留数量导致超上限或重复注册。
-- [ ] 跨 Stage 时旧 Roster 只清理一次且没有悬空弱引用；下一 Stage 只包含其合法新增敌人。
-- [ ] 玩家在同 Stage 前后保持非原点结束位置；跨 Stage 和新 Run 仍使用合法 Arena 入口。局间开始时速度归零，Camera/ViewTarget 不跳回错误对象。
-- [ ] 局间 UI 打开期间，保留怪物和玩家不移动、不攻击、不造成/受到战斗伤害，投射物不推进，玩法冷却/状态不消耗 UI 停留时间；恢复后不会立即结算局间积累的动作。
-- [ ] 旧 Encounter 的 Echo、Recorder、WaveScheduler、预警和瞬时攻击载体不会泄漏进下一 Encounter；下一场录制和 Echo 仍从各自时间零点开始。
-- [ ] Trait→Shop→Echo 管理的正常路径，以及报价/界面失败后直接进入下一 Encounter 的回退路径，都使用相同过渡策略。
+- [x] 配表矩阵正确：1→2、3→4、4→5、6→7为同 Stage 连续；2→3、5→6、7→Boss 为跨 Stage 重置。非法/缺失 Stage 引用必须安全失败并记录诊断，不能默认为保留。
+- [x] 同 Stage 局间前后，每个存活怪物的 Enemy Host 对象身份、EnemyId、SpawnIndex、世界位置、当前生命值和应保留逻辑状态一致；没有 Destroy/重新 Spawn 伪连续。
+- [x] 同 Stage 下一 Encounter 的 0 秒波次正常新增；原 Roster 仍在且被计入 `ActiveUnitLimit`，不会因保留数量导致超上限或重复注册。
+- [x] 跨 Stage 时旧 Roster 只清理一次且没有悬空弱引用；下一 Stage 只包含其合法新增敌人。
+- [x] 玩家在同 Stage 前后保持非原点结束位置；跨 Stage 和新 Run 仍使用合法 Arena 入口。局间开始时速度归零，Camera/ViewTarget 不跳回错误对象。
+- [x] 局间 UI 打开期间，保留怪物和玩家不移动、不攻击、不造成/受到战斗伤害，投射物不推进，玩法冷却/状态不消耗 UI 停留时间；恢复后不会立即结算局间积累的动作。
+- [x] 旧 Encounter 的 Echo、Recorder、WaveScheduler、预警和瞬时攻击载体不会泄漏进下一 Encounter；下一场录制和 Echo 仍从各自时间零点开始。
+- [x] Trait→Shop→Echo 管理的正常路径，以及报价/界面失败后直接进入下一 Encounter 的回退路径，都使用相同过渡策略。
 - [ ] 不修改权威 XLSX/CSV、保存版本、玩家回血/属性刷新、八场顺序或敌人平衡数值；现有保存/继续、卡牌、商店、音频和 Echo 回归通过。
-- [ ] 新增聚焦自动化覆盖纯过渡矩阵和实际 World Actor 连续性；Editor Development 构建、项目校验和 `git diff --check` 通过。
+- [x] 新增聚焦自动化覆盖纯过渡矩阵和实际 World Actor 连续性；Editor Development 构建、项目校验和 `git diff --check` 通过。
 - [ ] 用户在主文件夹 PIE 验收：战斗1末尾把玩家与一只受伤怪物留在易辨识位置，经抽卡/商店进入战斗2后两者位置正确且怪物不是重刷；战斗2→3确认旧怪物清理、玩家回到 Stage 入口。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
-- 基线分支/提交：实现前 fetch；批准基线为已核验的 `origin/main@44ccf4a`。若远端前进，按外部提交集成审计报告 GameMode、EnemyActor、Encounter、UI、Cards、Plan53 与预构建包耦合后等待用户选择。
+- 基线分支/提交：实现前 fetch；批准基线为已核验的 `origin/main@598f6a0`。实现期间远端前进到 `8ac53ab`；只读审计见执行记录，尚待用户决定是否现在重放到新基线。
 - 引擎/构建可用性：UE 5.8 安装版；构建前确认交互式 Editor 已关闭并取得 Git common-dir Unreal 锁。
 - 现有聚焦测试结果：实现前记录 `ReEcho.Encounter`、Roster/Enemy Host 与 Save 聚焦基线；当前人工失败证据为同 Stage 敌人重刷感和玩家被传送回原点。
 - 共享契约 / 难合并资源风险：主要热点是 `ReEchoGameMode.*`、`ReEchoEnemyActor.*`、模块文档和最终预构建包；Plan53 若尚未集成，不能整分支覆盖，需在最新 main 上组合其兔子投射物差异。
@@ -99,23 +99,32 @@ Encounter 自身仍是独立录制和回放单元：旧 Encounter 的 Echo、Rec
 
 ### 变化
 
-- 规划阶段已定位根因：`AReEchoGameMode::ShowTraitCardChoice()` 当前无条件调用 `ClearCombatants()`，在 Stage 策略生效前销毁所有存活 Enemy Host；`BeginNextEncounter()` 随后无条件调用 `Player->SetActorLocation(FVector(0, 0, 112))`，导致同 Stage玩家位置丢失。
-- 当前 `BeginNextEncounter()` 已有 `bSameStage/bKeepRoster` 判定，Spawn Resolver 也把 Roster 位置加入避让并在提交波次时计入 `ActiveUnitLimit`；本 Plan 应复用这些能力并消除绕过点，而不是重写刷怪系统。
+- 在 `ReEchoEncounterRuntime` 新增纯值 `FReEchoStageTransitionDecision` / `ReEchoStageTransition::Resolve`，由生产 Stage/Encounter Catalog 唯一决定 Roster 和玩家位置策略，非法引用失败关闭。
+- `AReEchoGameMode` 拆分 Enemy Roster/Echo 清理，移除 Trait 屏无条件清场和下一场隐藏坐标传送；所有正常/失败 UI 路径复用同一过渡解析。跨 Stage 入口从 Arena Scene 中心、玩法平面与玩家碰撞半高解析。
+- 同 Stage 局间保留原 Enemy Host，显式停止玩家、阻断能力并冻结 Host；恢复下一场前解除冻结。旧 Echo、敌方逻辑投射物、特殊/Boss/Fuse/受击位移等瞬时状态在具名边界清理，普通攻击冷却、序号、身份、Transform 和生命保留。
+- 新增 `ReEcho.StageTransition.PolicyMatrix` 与 `ReEcho.StageTransition.WorldContinuity`，覆盖生产矩阵、最终边界失败和实际 World 中对象身份/EnemyId/SpawnIndex/位置/生命/冷却连续性。
 
 ### 证据
 
 - 用户 PIE：同 Stage怪物位置表现为重刷，玩家在跨小关时回到错误入口。
-- 代码审计：上述两个无条件调用与 Plan48 锁定的“同 Stage保留 Roster”直接矛盾；Enemy Host 拥有独立 Tick，说明仅跳过 `ClearCombatants()` 仍不足以保证局间安全冻结。
+- Editor Development 增量构建通过并刷新 Editor 预构建包；`python scripts/validate_project.py` 与 `git diff --check` 通过。
+- 自动化通过：`ReEcho.StageTransition`、`ReEcho.Encounter`、`ReEcho.Enemies.Logic`、`ReEcho.Run.SaveSnapshot`、`ReEcho.Recording`、`ReEcho.Run.Echo`、`ReEcho.UI.IntermissionContexts`。
+- `ReEcho.Enemies.Host` 三项旧测试仍因裸 Host 缺少 Presentation Catalog 而报告既有 `Animation2D semantic 'Animation.Idle' could not resolve` 错误；本 Plan 新测试用精确 expected-error 隔离该既有表现测试夹具缺口，没有把它误判成连续性失败。
+- 远端差异审计：`598f6a0..8ac53ab` 的已实现源码只修改 `ReEchoInventoryShopWidget.cpp`，与 Plan54 没有文本冲突；预构建包有必然二进制冲突，必须在组合源码上重建。Plan55 尚为规划但未来写 `AReEchoEnemyActor`，Plan56 尚为规划但未来写 `ReEchoGameMode.cpp`，两者与 Plan54 存在后续逻辑/热点耦合，不能整文件覆盖。
 
 ### 剩余风险
 
-- 需要实现阶段确认 EnemyLogic 中所有基于绝对 WorldTime 的截止状态，并证明局间冻结不会导致恢复瞬间跳过冷却/状态。
-- 玩家生命值/属性的新 Encounter 刷新语义保持现状；若产品希望同 Stage同时保留当前 HP，需要用户另行明确后扩展本 Plan 锁定范围。
+- 自动化已证明 Enemy Host 在 World 继续 Tick 一秒时不移动、不消耗普通攻击冷却，并取消旧瞬时行动；玩家位置、Trait→Shop→下一场完整视觉路径和跨 Stage Arena 入口仍需用户 PIE。
+- 玩家生命值/属性的新 Encounter 刷新语义保持现状；若产品希望同 Stage同时保留当前 HP，需要用户另行明确后新开 Plan。
+- 合入前必须由用户选择是否现在采用 `origin/main@8ac53ab`；若采用，应在本分支重放源码、保留远端 Shop UI、组合审查 Plan55/56 热点，并重新构建/回归。最终精选预构建包只能来自组合后的源码。
 
 ### 人工验收结果/请求
 
-- 待用户审阅本 Plan，并在实现后执行战斗1→2、2→3 PIE 验收。
+- 待用户在主文件夹合并候选后执行战斗1→2、2→3 PIE 验收；视觉验收由用户完成，不交给执行者消耗图像 Token。
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `MOD-ReEcho.md` 已补 Stage/Encounter 连续性、过渡策略、Host 冻结和测试入口。
+- `MOD-ReEchoEnemies.md` 已补 `ResetEncounterTransientState` 公共命令与瞬时/持久状态边界。
+- `ARCHITECTURE.md` 已审阅：Runtime Module 和依赖方向未改变，无需修改。
+- `README.md` 已审阅：模块稳定标识与导航未改变，无需修改。

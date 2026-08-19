@@ -257,6 +257,12 @@ private:
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);
+	bool ResolveNextStageTransition(FReEchoStageTransitionDecision& OutDecision, FString& OutError) const;
+	void PrepareEncounterIntermission();
+	void SetEnemyEncounterSimulationSuspended(bool bSuspended);
+	FVector ResolveStageEntryLocation() const;
+	void ClearEnemyRoster();
+	void ClearEchoes();
 	void ClearCombatants();
 	void RefreshFogRevealSources();
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */

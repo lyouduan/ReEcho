@@ -56,6 +56,7 @@
 - `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态，以及 Encounter 注入的 `bSpecialActionPermitted`。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
 - `BindEventSources(EnemyEvents, CombatEvents)`：由 Host 显式注入两个事件源。Logic 订阅 Combat Hurt/Death，不发现兄弟组件。
 - `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。
+- `ResetEncounterTransientState`：同 Stage 局间边界的窄命令。取消尚未提交的 Fuse/特殊行动/Boss 行动、受击位移和瞬时计时，但保留 Actor 身份、生命、普通攻击冷却、攻击序号及其他持久逻辑；Enemy Host 负责在调用后冻结自己的 World Tick 和逻辑投射物。
 
 ### 输出
 
@@ -115,7 +116,7 @@ Combat OnDeath
 
 ### 当前候选接线状态
 
-`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率，并由 GameMode 为普通攻击与 Boss 投射物统一选择最近存活嘲讽 Echo；EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、清理、捕获存档和判断全灭。Host 仅把 Definition 的 `PresentationId` 传给 `UReEchoEnemyPresentationComponent`；后者在主模块 Catalog 中解析 Profile，EnemyLogic 不依赖 Blueprint、Paper2D 或资产路径。
+`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率，并由 GameMode 为普通攻击与 Boss 投射物统一选择最近存活嘲讽 Echo；EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、按 Stage 策略清理、捕获存档和判断全灭；同 Stage 局间由主模块 Host 的显式 suspension 停止 World 推进，并通过 `ResetEncounterTransientState` 取消旧 Encounter 的瞬时动作，普通攻击冷却等持久状态不消耗 UI 时间。Host 仅把 Definition 的 `PresentationId` 传给 `UReEchoEnemyPresentationComponent`；后者在主模块 Catalog 中解析 Profile，EnemyLogic 不依赖 Blueprint、Paper2D 或资产路径。
 
 ## 代码位置与阅读路线
 
@@ -171,4 +172,5 @@ Combat OnDeath
 - Bomber Fuse 到期只提交一次；等待 Host/Combat 销毁的间隙不能再次爆炸。
 - 事件表示已发生结果，订阅回调没有玩法否决权；表现缺失、资源加载失败和动画结束都不能改变行为。
 - Snapshot 是只读副本，不是命令；外部不得修改副本后假定 Logic 状态已变化。
+- Encounter 局间重置只允许清理具名瞬时字段；不得重建 Logic、重置普通攻击冷却/序号或用快照重生 Host 冒充同 Stage 连续性。
 - 不引入 `ReEchoEnemies -> ReEchoWeapons`：敌人攻击节拍由 EnemyLogic 拥有，玩家武器节拍由 Weapons 拥有。

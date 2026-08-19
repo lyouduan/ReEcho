@@ -7,6 +7,7 @@
 #include "Combat/ReEchoHitResolver.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BillboardComponent.h"
+#include "Components/BoxComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Encounter/ReEchoEncounterDirector.h"
@@ -851,6 +852,12 @@ void AReEchoGameMode::CreateArena()
 
 void AReEchoGameMode::ClearCombatants()
 {
+	ClearEnemyRoster();
+	ClearEchoes();
+}
+
+void AReEchoGameMode::ClearEnemyRoster()
+{
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
 		if (AActor* EnemyHost = Entry.Host.Get())
@@ -860,6 +867,10 @@ void AReEchoGameMode::ClearCombatants()
 	}
 	EnemyRoster->ResetRoster();
 	EnemySpawnIndex = 0;
+}
+
+void AReEchoGameMode::ClearEchoes()
+{
 	for (AReEchoEchoActor* Echo : Echoes)
 	{
 		if (Echo)
@@ -869,6 +880,86 @@ void AReEchoGameMode::ClearCombatants()
 	}
 	Echoes.Reset();
 	RefreshFogRevealSources();
+}
+
+bool AReEchoGameMode::ResolveNextStageTransition(FReEchoStageTransitionDecision& OutDecision, FString& OutError) const
+{
+	const UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	if (!RunSubsystem || !Snapshot.IsValid())
+	{
+		OutDecision = {};
+		OutError = TEXT("Run data snapshot is unavailable.");
+		return false;
+	}
+	return ReEchoStageTransition::Resolve(*Snapshot, RunSubsystem->EncounterIndex, OutDecision, OutError);
+}
+
+void AReEchoGameMode::SetEnemyEncounterSimulationSuspended(const bool bSuspended)
+{
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		if (!Entry.bAlive)
+		{
+			continue;
+		}
+		if (AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Entry.Host.Get()))
+		{
+			Enemy->SetEncounterSimulationSuspended(bSuspended);
+		}
+	}
+}
+
+FVector AReEchoGameMode::ResolveStageEntryLocation() const
+{
+	if (!ArenaScene)
+	{
+		return Player ? Player->GetActorLocation() : FVector::ZeroVector;
+	}
+	const FVector2D Center = ArenaScene->GetArenaCenter();
+	const float HalfHeight = Player && Player->Collision ? Player->Collision->GetScaledBoxExtent().Z : 0.0f;
+	return FVector(Center.X, Center.Y, ArenaScene->GetGameplayPlaneWorldZ() + HalfHeight);
+}
+
+void AReEchoGameMode::PrepareEncounterIntermission()
+{
+	FReEchoStageTransitionDecision Transition;
+	FString Error;
+	if (!ResolveNextStageTransition(Transition, Error))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StageTransition] Intermission rejected: %s"), *Error);
+		ClearCombatants();
+		return;
+	}
+
+	ClearEchoes();
+	if (Player && Player->Movement)
+	{
+		Player->Movement->StopMovementImmediately();
+	}
+	SetPlayerMenuAbilityBlocked(true);
+	if (Transition.bPreserveEnemyRoster)
+	{
+		SetEnemyEncounterSimulationSuspended(true);
+	}
+	else
+	{
+		ClearEnemyRoster();
+	}
+	const FVector PlayerLocation = Player ? Player->GetActorLocation() : FVector::ZeroVector;
+	UE_LOG(
+	    LogTemp,
+	    Display,
+	    TEXT("[StageTransition] intermission previous=%s next=%s sameStage=%s keepRoster=%s player=(%.1f,%.1f,%.1f)"),
+	    *Transition.PreviousStageId.ToString(),
+	    *Transition.NextStageId.ToString(),
+	    Transition.bSameStage ? TEXT("true") : TEXT("false"),
+	    Transition.bPreserveEnemyRoster ? TEXT("true") : TEXT("false"),
+	    PlayerLocation.X,
+	    PlayerLocation.Y,
+	    PlayerLocation.Z);
 }
 
 void AReEchoGameMode::RefreshFogRevealSources()
@@ -897,37 +988,24 @@ void AReEchoGameMode::BeginNextEncounter()
 	{
 		return;
 	}
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
-	const FReEchoCsvEncounterRow* PreviousEncounter =
-	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
-	const FReEchoCsvEncounterRow* NextEncounter =
-	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex + 1) : nullptr;
-	const FReEchoCsvStageRow* NextStage =
-	    NextEncounter && Snapshot.IsValid() ? Snapshot->FindStage(NextEncounter->StageId) : nullptr;
-	const bool bSameStage = PreviousEncounter && NextEncounter && PreviousEncounter->StageId == NextEncounter->StageId;
-	const bool bKeepRoster =
-	    PreviousEncounter && NextEncounter && NextStage &&
-	    (bSameStage ? NextStage->bPreserveEnemiesBetweenEncounters : !NextStage->bClearEnemiesOnEnter);
-	if (!bKeepRoster)
+	FReEchoStageTransitionDecision Transition;
+	FString TransitionError;
+	if (!ResolveNextStageTransition(Transition, TransitionError))
 	{
+		UE_LOG(LogTemp, Error, TEXT("[StageTransition] Next encounter rejected: %s"), *TransitionError);
 		ClearCombatants();
+		return;
 	}
-	else
+	if (!Transition.bPreserveEnemyRoster)
 	{
-		for (AReEchoEchoActor* Echo : Echoes)
-		{
-			if (Echo)
-			{
-				Echo->Destroy();
-			}
-		}
-		Echoes.Reset();
-		RefreshFogRevealSources();
+		ClearEnemyRoster();
 	}
+	ClearEchoes();
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
 	bBossPostEchoPhaseTriggered = false;
 	RunSubsystem->BeginEncounter();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* Encounter =
 	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
 	if (!Encounter || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
@@ -940,7 +1018,14 @@ void AReEchoGameMode::BeginNextEncounter()
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 	if (Player)
 	{
-		Player->SetActorLocation(FVector(0, 0, 112));
+		if (!Transition.bPreservePlayerLocation)
+		{
+			Player->SetActorLocation(ResolveStageEntryLocation(), false, nullptr, ETeleportType::TeleportPhysics);
+		}
+		if (Player->Movement)
+		{
+			Player->Movement->StopMovementImmediately();
+		}
 		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 		Player->RestoreEquippedWeapon(RunSubsystem->CurrentBuild.WeaponId);
 		Player->SetAutoAttackMode(RunSubsystem->IsAutomaticAttackMode());
@@ -976,6 +1061,21 @@ void AReEchoGameMode::BeginNextEncounter()
 		}
 	}
 	RefreshFogRevealSources();
+	SetEnemyEncounterSimulationSuspended(false);
+	RestoreGameInput();
+	const FVector PlayerLocation = Player ? Player->GetActorLocation() : FVector::ZeroVector;
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[StageTransition] started previous=%s next=%s keepRoster=%s keepPlayerLocation=%s roster=%d "
+	            "player=(%.1f,%.1f,%.1f)"),
+	       *Transition.PreviousStageId.ToString(),
+	       *Transition.NextStageId.ToString(),
+	       Transition.bPreserveEnemyRoster ? TEXT("true") : TEXT("false"),
+	       Transition.bPreservePlayerLocation ? TEXT("true") : TEXT("false"),
+	       EnemyRoster->GetLivingEnemyCount(),
+	       PlayerLocation.X,
+	       PlayerLocation.Y,
+	       PlayerLocation.Z);
 	Director->StartEncounter();
 	ProcessScheduledSpawnEvents(0.0f);
 }
@@ -1881,14 +1981,18 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 		}
 		InventoryShopWidget = nullptr;
 	}
-	RestoreGameInput();
 	if (bShouldStartNextEncounter)
 	{
+		ResumeWorldForMenuTransition();
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
 	}
-	else if (bManualShop)
+	else
 	{
-		RestoreEncounterAudioState();
+		RestoreGameInput();
+		if (bManualShop)
+		{
+			RestoreEncounterAudioState();
+		}
 	}
 }
 
@@ -2378,14 +2482,13 @@ void AReEchoGameMode::HandleEncounterEnded()
 	}
 	else if (RunSubsystem->EncounterIndex < RunSubsystem->GetTotalEncounterCount())
 	{
+		PrepareEncounterIntermission();
 		ShowTraitCardChoice();
 	}
 }
 
 void AReEchoGameMode::ShowTraitCardChoice()
 {
-	ClearCombatants();
-
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	if (!RunSubsystem || !PlayerController || TraitCardChoiceWidget)
@@ -2474,7 +2577,7 @@ void AReEchoGameMode::ShowPostTraitShop()
 		return;
 	}
 	bContinueRunAfterShop = false;
-	RestoreGameInput();
+	ResumeWorldForMenuTransition();
 	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
 }
 

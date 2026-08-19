@@ -9,6 +9,26 @@ enum class EReEchoScheduledSpawnEventType : uint8
 	Commit
 };
 
+/** Pure lifecycle decision between the completed encounter and the next configured encounter. */
+struct REECHO_API FReEchoStageTransitionDecision
+{
+	FName PreviousStageId = NAME_None;
+	FName NextStageId = NAME_None;
+	bool bHasPreviousEncounter = false;
+	bool bSameStage = false;
+	bool bPreserveEnemyRoster = false;
+	bool bPreservePlayerLocation = false;
+};
+
+namespace ReEchoStageTransition
+{
+/** Resolves the single transition policy consumed by intermission and next-encounter startup. */
+REECHO_API bool Resolve(const FReEchoCsvDataSnapshot& Snapshot,
+                        int32 CompletedEncounterIndex,
+                        FReEchoStageTransitionDecision& OutDecision,
+                        FString& OutError);
+}
+
 /** One typed, deterministic role batch emitted by the encounter clock. */
 struct REECHO_API FReEchoScheduledSpawnEvent
 {

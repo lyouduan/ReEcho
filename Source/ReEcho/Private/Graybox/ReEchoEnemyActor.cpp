@@ -478,6 +478,31 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 	EnemyPresentation->RefreshElementAttachmentVisual();
 }
 
+void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
+{
+	if (bEncounterSimulationSuspended == bSuspended)
+	{
+		return;
+	}
+
+	if (bSuspended)
+	{
+		const FReEchoEnemyLogicSnapshot PreviousSnapshot =
+		    EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
+		if (EnemyLogic)
+		{
+			EnemyLogic->ResetEncounterTransientState();
+			PublishSpecialActionTransition(PreviousSnapshot, FReEchoEnemyActionIntent{});
+		}
+		for (const FReEchoEnemyProjectileRuntimeState& Projectile : BossProjectiles)
+		{
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+		}
+		BossProjectiles.Reset();
+	}
+	bEncounterSimulationSuspended = bSuspended;
+}
+
 bool AReEchoEnemyActor::IntersectsProjectilePath(const FVector& PathStart,
                                                  const FVector& PathEnd,
                                                  const float ProjectileRadius) const
@@ -636,6 +661,10 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bEncounterSimulationSuspended)
+	{
+		return;
+	}
 	AdvanceEnemyProjectiles(DeltaSeconds);
 	if (IsAlive())
 	{

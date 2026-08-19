@@ -994,6 +994,36 @@ void UReEchoEnemyLogicComponent::NotifyDeath()
 	State.Phase = EReEchoEnemyBehaviorPhase::Dead;
 }
 
+void UReEchoEnemyLogicComponent::ResetEncounterTransientState()
+{
+	if (!bInitialized || !State.bAlive)
+	{
+		return;
+	}
+
+	State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+	State.FuseRemainingSeconds = 0.0f;
+	State.HitReactionRemainingSeconds = 0.0f;
+	State.KnockbackVelocity = FVector::ZeroVector;
+	State.bFuseActive = false;
+	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
+	State.SpecialAbilityId = NAME_None;
+	State.SpecialActionRemainingSeconds = 0.0f;
+	State.SpecialLockedTargetLocation = FVector::ZeroVector;
+	State.SpecialLockedDirection = State.FacingDirection.GetSafeNormal2D();
+	State.BossActionPhase = EReEchoBossActionPhase::None;
+	State.BossCurrentAbilityId = NAME_None;
+	State.BossCurrentAttackSequence = 0;
+	State.BossActionPhaseRemainingSeconds = 0.0f;
+	State.BossSimulationAccumulatorSeconds = 0.0f;
+	State.BossLockedTargetLocation = FVector::ZeroVector;
+	State.BossLockedDirection = State.FacingDirection.GetSafeNormal2D();
+	State.BossLockedTeleportDestination = FVector::ZeroVector;
+	State.bBossHasLockedTarget = false;
+	State.bBossHasLockedTeleportDestination = false;
+	State.bBossCurrentAbilityCommitted = false;
+}
+
 void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot)
 {
 	if (!bInitialized || InSnapshot.Archetype != Definition.Archetype)

@@ -24,6 +24,8 @@ public:
 
 	void NotifyHurt(float AppliedDamage, const FVector& SourceLocation, const FVector& SelfLocation);
 	void NotifyDeath();
+	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
+	void ResetEncounterTransientState();
 	void RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot);
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;

@@ -113,6 +113,13 @@ public:
 	bool IsAlive() const;
 	void ApplyCardStun(float DurationSeconds);
 	void SetCardMovementMultiplier(float Multiplier);
+	/** Freezes this host across a same-Stage intermission while preserving its long-lived runtime state. */
+	void SetEncounterSimulationSuspended(bool bSuspended);
+
+	bool IsEncounterSimulationSuspended() const
+	{
+		return bEncounterSimulationSuspended;
+	}
 
 	virtual bool IsCombatTargetAlive() const override
 	{
@@ -287,6 +294,7 @@ private:
 
 	bool bVisualPlacementApplied = false;
 	bool bAudioSpawnPosted = false;
+	bool bEncounterSimulationSuspended = false;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;

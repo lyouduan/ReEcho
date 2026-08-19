@@ -44,6 +44,64 @@ float Distance2D(const FVector& Left, const FVector& Right)
 }
 } // namespace
 
+bool ReEchoStageTransition::Resolve(const FReEchoCsvDataSnapshot& Snapshot,
+                                    const int32 CompletedEncounterIndex,
+                                    FReEchoStageTransitionDecision& OutDecision,
+                                    FString& OutError)
+{
+	OutDecision = {};
+	OutError.Reset();
+	if (CompletedEncounterIndex < 0)
+	{
+		OutError = TEXT("Completed encounter index cannot be negative.");
+		return false;
+	}
+
+	const FReEchoCsvEncounterRow* NextEncounter = Snapshot.FindEncounterByIndex(CompletedEncounterIndex + 1);
+	if (!NextEncounter)
+	{
+		OutError = FString::Printf(TEXT("No enabled encounter exists at index %d."), CompletedEncounterIndex + 1);
+		return false;
+	}
+	const FReEchoCsvStageRow* NextStage = Snapshot.FindStage(NextEncounter->StageId);
+	if (!NextStage)
+	{
+		OutError = FString::Printf(TEXT("Encounter '%s' references unknown StageId '%s'."),
+		                           *NextEncounter->Id.ToString(),
+		                           *NextEncounter->StageId.ToString());
+		return false;
+	}
+	OutDecision.NextStageId = NextStage->Id;
+
+	if (CompletedEncounterIndex == 0)
+	{
+		return true;
+	}
+
+	const FReEchoCsvEncounterRow* PreviousEncounter = Snapshot.FindEncounterByIndex(CompletedEncounterIndex);
+	if (!PreviousEncounter)
+	{
+		OutError = FString::Printf(TEXT("No enabled completed encounter exists at index %d."), CompletedEncounterIndex);
+		return false;
+	}
+	const FReEchoCsvStageRow* PreviousStage = Snapshot.FindStage(PreviousEncounter->StageId);
+	if (!PreviousStage)
+	{
+		OutError = FString::Printf(TEXT("Encounter '%s' references unknown StageId '%s'."),
+		                           *PreviousEncounter->Id.ToString(),
+		                           *PreviousEncounter->StageId.ToString());
+		return false;
+	}
+
+	OutDecision.bHasPreviousEncounter = true;
+	OutDecision.PreviousStageId = PreviousStage->Id;
+	OutDecision.bSameStage = PreviousStage->Id == NextStage->Id;
+	OutDecision.bPreserveEnemyRoster =
+	    OutDecision.bSameStage ? NextStage->bPreserveEnemiesBetweenEncounters : !NextStage->bClearEnemiesOnEnter;
+	OutDecision.bPreservePlayerLocation = OutDecision.bSameStage;
+	return true;
+}
+
 bool FReEchoEncounterWaveScheduler::Configure(const FReEchoCsvDataSnapshot& Snapshot,
                                               const FName EncounterId,
                                               FString& OutError)
