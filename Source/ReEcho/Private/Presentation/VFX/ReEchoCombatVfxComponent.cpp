@@ -1,8 +1,9 @@
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 
 #include "Graybox/ReEchoEnemyActor.h"
-#include "Components/BillboardComponent.h"
+#include "Components/MaterialBillboardComponent.h"
 #include "Engine/Texture2D.h"
+#include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
@@ -143,7 +144,7 @@ bool UReEchoCombatVfxComponent::TryGetProjectileVisualLocationForTests(const int
 	Key.Source = GetOwner();
 	Key.Sequence = AttackSequence;
 	Key.VolleyBallIndex = VolleyBallIndex;
-	const TObjectPtr<UBillboardComponent>* Visual = ProjectileVisuals.Find(Key);
+	const TObjectPtr<UMaterialBillboardComponent>* Visual = ProjectileVisuals.Find(Key);
 	if (!Visual || !Visual->Get())
 	{
 		return false;
@@ -232,6 +233,21 @@ UTexture2D* UReEchoCombatVfxComponent::ResolveRabbitProjectileTexture() const
 		       FReEchoCombatVfxCatalog::ResolveRabbitProjectileTexturePath());
 	}
 	return Texture;
+}
+
+UMaterialInterface* UReEchoCombatVfxComponent::ResolveRabbitProjectileMaterial() const
+{
+	UMaterialInterface* Material =
+	    LoadObject<UMaterialInterface>(nullptr, FReEchoCombatVfxCatalog::ResolveRabbitProjectileMaterialPath());
+	if (!Material && !bMissingRabbitProjectileMaterialWarned)
+	{
+		bMissingRabbitProjectileMaterialWarned = true;
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[VFX] Missing rabbit projectile material '%s'; gameplay continues without it"),
+		       FReEchoCombatVfxCatalog::ResolveRabbitProjectileMaterialPath());
+	}
+	return Material;
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticValue,
@@ -329,7 +345,7 @@ void UReEchoCombatVfxComponent::StopEffect(TObjectPtr<UNiagaraComponent>& Effect
 	}
 }
 
-void UReEchoCombatVfxComponent::StopProjectileVisual(UBillboardComponent* Visual) const
+void UReEchoCombatVfxComponent::StopProjectileVisual(UMaterialBillboardComponent* Visual) const
 {
 	if (Visual)
 	{
@@ -342,7 +358,7 @@ void UReEchoCombatVfxComponent::StopAllEffects()
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);
-	for (TPair<FReEchoProjectileVisualKey, TObjectPtr<UBillboardComponent>>& Pair : ProjectileVisuals)
+	for (TPair<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>>& Pair : ProjectileVisuals)
 	{
 		StopProjectileVisual(Pair.Value);
 	}
@@ -429,24 +445,25 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 	const FReEchoProjectileVisualKey Key = ResolveProjectileVisualKey(Event);
 	if (Event.Type == EReEchoEnemyProjectileEventType::Spawned)
 	{
-		if (TObjectPtr<UBillboardComponent>* Existing = ProjectileVisuals.Find(Key))
+		if (TObjectPtr<UMaterialBillboardComponent>* Existing = ProjectileVisuals.Find(Key))
 		{
 			StopProjectileVisual(*Existing);
 			ProjectileVisuals.Remove(Key);
 		}
 		AActor* Owner = GetOwner();
 		UTexture2D* Texture = ResolveRabbitProjectileTexture();
-		if (Owner && Texture)
+		UMaterialInterface* Material = ResolveRabbitProjectileMaterial();
+		if (Owner && Texture && Material)
 		{
-			UBillboardComponent* Visual = NewObject<UBillboardComponent>(Owner);
+			UMaterialBillboardComponent* Visual = NewObject<UMaterialBillboardComponent>(Owner);
 			Owner->AddInstanceComponent(Visual);
 			Visual->SetMobility(EComponentMobility::Movable);
 			Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Visual->SetCastShadow(false);
-			Visual->SetSprite(Texture);
-			Visual->bIsScreenSizeScaled = false;
-			Visual->SetRelativeScale3D(FVector(ResolveProjectileVisualScale(
-			    Event.CollisionRadiusCm, FMath::Max(Texture->GetSizeX(), Texture->GetSizeY()))));
+			const int32 TextureExtentPixels = FMath::Max(Texture->GetSizeX(), Texture->GetSizeY());
+			const float WorldDiameter =
+			    TextureExtentPixels * ResolveProjectileVisualScale(Event.CollisionRadiusCm, TextureExtentPixels);
+			Visual->AddElement(Material, nullptr, false, WorldDiameter, WorldDiameter, nullptr);
 			Visual->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 			Visual->SetWorldLocation(Event.Location);
 			Visual->SetHiddenInGame(false);
@@ -456,7 +473,7 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 		}
 		return;
 	}
-	if (TObjectPtr<UBillboardComponent>* Visual = ProjectileVisuals.Find(Key))
+	if (TObjectPtr<UMaterialBillboardComponent>* Visual = ProjectileVisuals.Find(Key))
 	{
 		if (*Visual && Event.Type == EReEchoEnemyProjectileEventType::Moved)
 		{

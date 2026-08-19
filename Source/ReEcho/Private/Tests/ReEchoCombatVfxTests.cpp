@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Engine/Texture2D.h"
+#include "Materials/MaterialInterface.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraSystem.h"
@@ -72,6 +73,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	}
 	TestNotNull(TEXT("Logic-driven rabbit projectile texture loads"),
 	            LoadObject<UTexture2D>(nullptr, FReEchoCombatVfxCatalog::ResolveRabbitProjectileTexturePath()));
+	TestNotNull(
+	    TEXT("Logic-driven rabbit projectile keeps the authored emissive material"),
+	    LoadObject<UMaterialInterface>(nullptr, FReEchoCombatVfxCatalog::ResolveRabbitProjectileMaterialPath()));
 
 	UNiagaraSystem* RabbitProjectileSystem = LoadObject<UNiagaraSystem>(
 	    nullptr, FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::RabbitProjectile));

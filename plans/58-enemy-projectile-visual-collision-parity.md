@@ -105,6 +105,7 @@
 - Editor Development 构建成功；`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Presentation.VFX.Catalog`、`ReEcho.Run.SaveSnapshot` 自动化通过。
 - 2026-08-19 将 `origin/main@be305cc` 合入本 Plan：采用远端 Plan52/55 的场景、脚点和表现层级，保留 Plan58 的逐球事件、视觉代理及碰撞一致性。唯一源码冲突位于 `ReEchoEnemyHostTests.cpp`，已语义合并两侧断言；旧 DLL、target 与 prebuilt 未选择任一侧，均由组合源码重新构建生成。
 - 合并候选的 Editor Development 构建和 `python scripts/validate_project.py` 通过；`ReEcho.Enemies.Host` 全组及 `ReEcho.Presentation.VFX.Catalog` 自动化通过。尝试的 `ReEcho.Presentation.Scene` 过滤器在项目中不存在，因此未作为失败回归计入。
+- 人工复测确认命中位置已基本一致，但纹理 Billboard 没有原 Niagara 材质的红色 Emissive/Bloom 光晕。视觉代理改用同一交付纹理对应的 `BaseVFX003_Inst12` Material Billboard；只替换渲染材质，逐球身份、位置、尺寸和生命周期仍完全服从逻辑事件。
 
 ### 剩余风险
 

@@ -7,7 +7,8 @@
 
 class UNiagaraComponent;
 class UNiagaraSystem;
-class UBillboardComponent;
+class UMaterialBillboardComponent;
+class UMaterialInterface;
 class UTexture2D;
 class APlayerController;
 class USceneComponent;
@@ -72,6 +73,7 @@ private:
 	void BindEventSources(UReEchoCombatEventsComponent* InCombatEvents, UReEchoEnemyEventsComponent* InEnemyEvents);
 	UNiagaraSystem* ResolveSystem(uint8 SemanticValue) const;
 	UTexture2D* ResolveRabbitProjectileTexture() const;
+	UMaterialInterface* ResolveRabbitProjectileMaterial() const;
 	UNiagaraComponent*
 	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
@@ -83,7 +85,7 @@ private:
 	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
-	void StopProjectileVisual(UBillboardComponent* Visual) const;
+	void StopProjectileVisual(UMaterialBillboardComponent* Visual) const;
 	void StopAllEffects();
 
 	UFUNCTION()
@@ -113,7 +115,7 @@ private:
 	TObjectPtr<UNiagaraComponent> DashEffect;
 
 	UPROPERTY(Transient)
-	TMap<FReEchoProjectileVisualKey, TObjectPtr<UBillboardComponent>> ProjectileVisuals;
+	TMap<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>> ProjectileVisuals;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> AttackVfxRoot;
@@ -123,4 +125,5 @@ private:
 
 	mutable TSet<uint8> MissingSystemWarnings;
 	mutable bool bMissingRabbitProjectileTextureWarned = false;
+	mutable bool bMissingRabbitProjectileMaterialWarned = false;
 };
