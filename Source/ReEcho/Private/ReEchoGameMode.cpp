@@ -671,11 +671,11 @@ void AReEchoGameMode::HandleAboutClosed()
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 		{
-			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::Start, false);
-		}
-		StartMenuWidget->SetKeyboardFocus();
-	}
-	else if (RestartWidget)
+			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::StartMenu, false);
+			}
+			StartMenuWidget->SetKeyboardFocus();
+			}
+			else if (RestartWidget)
 	{
 		RestartWidget->SetVisibility(ESlateVisibility::Visible);
 		RestartWidget->SetKeyboardFocus();
@@ -721,7 +721,7 @@ void AReEchoGameMode::ShowAboutScreen(const bool bReturnToStartMenu)
 	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	AboutWidget =
 	    UIFlow
-	        ? UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::About, true, false)
+	        ? Cast<UReEchoAboutWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::About, true, false))
 	        : nullptr;
 	if (!AboutWidget)
 	{
@@ -729,9 +729,9 @@ void AReEchoGameMode::ShowAboutScreen(const bool bReturnToStartMenu)
 	}
 
 	bAboutReturnToStartMenu = bReturnToStartMenu;
-	if (UUserWidget* UserWidget = Cast<UUserWidget>(AboutWidget))
+	if (AboutWidget)
 	{
-		UserWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleAboutClosed);
+		AboutWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleAboutClosed);
 	}
 }
 

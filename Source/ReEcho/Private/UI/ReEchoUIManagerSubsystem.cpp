@@ -8,6 +8,7 @@
 #include "UI/ReEchoPlayerHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoSettingsWidget.h"
+#include "UI/ReEchoAboutWidget.h"
 #include "UI/ReEchoStartMenuWidget.h"
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
@@ -63,7 +64,7 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	ScreenClasses.Add(EReEchoUIScreen::Settings,
 	                  SettingsClass.Class ? SettingsClass.Class.Get() : UReEchoSettingsWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::About,
-	                  AboutClass.Class ? AboutClass.Class.Get() : UUserWidget::StaticClass());
+	                  AboutClass.Class ? AboutClass.Class.Get() : UReEchoAboutWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::Restart,
 	                  RestartClass.Class ? RestartClass.Class.Get() : UReEchoRestartWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::TraitChoice,

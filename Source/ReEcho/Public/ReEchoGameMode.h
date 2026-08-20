@@ -3,6 +3,7 @@
 #include "Encounter/ReEchoEncounterRuntime.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
+#include "UI/ReEchoAboutWidget.h"
 #include "ReEchoGameMode.generated.h"
 class ACameraActor;
 class AReEchoArenaCameraActor;
@@ -109,7 +110,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoSettingsWidget> SettingsWidget;
 	UPROPERTY()
-	TObjectPtr<UUserWidget> AboutWidget;
+	TObjectPtr<UReEchoAboutWidget> AboutWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoStartMenuWidget> StartMenuWidget;
 	UPROPERTY()
