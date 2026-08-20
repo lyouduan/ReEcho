@@ -5,9 +5,9 @@ void UReEchoAboutWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	if (CloseButton)
+	if (Button_Close)
 	{
-		CloseButton->OnClicked.AddUniqueDynamic(this, &UReEchoAboutWidget::HandleCloseClicked);
+		Button_Close->OnClicked.AddUniqueDynamic(this, &UReEchoAboutWidget::HandleCloseClicked);
 	}
 }
 

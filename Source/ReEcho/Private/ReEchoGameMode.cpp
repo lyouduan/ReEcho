@@ -632,14 +632,12 @@ void AReEchoGameMode::HandleStartAboutRequested()
 	}
 
 	// Keep the start menu visible as the background behind the About panel (so it reads as
-	// "on the main interface" rather than over the battle level), but disable its input so
-	// the About panel behaves as a modal dialog over the menu.
-	StartMenuWidget->SetIsEnabled(false);
+	// "on the main interface" rather than over the battle level). The About screen is already
+	// a modal dialog (UIOnly input mode + focus lock in UReEchoUIFlowCoordinatorSubsystem), so
+	// the start menu behind it receives no input. Do NOT call SetIsEnabled(false) here: the
+	// start menu's RenderOpacity is bound to IsEnabled, and disabling it would turn the menu
+	// transparent and let the battle scene show through as a ghost behind the About panel.
 	ShowAboutScreen(true);
-	if (!AboutWidget)
-	{
-		StartMenuWidget->SetIsEnabled(true);
-	}
 }
 
 void AReEchoGameMode::HandleStartQuitRequested()
@@ -716,7 +714,6 @@ void AReEchoGameMode::HandleAboutClosed()
 	if (bAboutReturnToStartMenu && StartMenuWidget)
 	{
 		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
-		StartMenuWidget->SetIsEnabled(true);
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 		{

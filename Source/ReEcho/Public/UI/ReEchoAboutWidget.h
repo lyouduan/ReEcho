@@ -26,5 +26,5 @@ private:
 	void HandleCloseClicked();
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UButton> CloseButton;
+	TObjectPtr<UButton> Button_Close;
 };
