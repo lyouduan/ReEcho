@@ -59,6 +59,8 @@ public:
 	UFUNCTION(Exec)
 	void GMAddShards(int32 Amount = 100);
 	UFUNCTION(Exec)
+	void GMSetShards(int32 Amount = 0);
+	UFUNCTION(Exec)
 	void GMWeather(const FString& Scene = TEXT("Clear"));
 	UFUNCTION(Exec)
 	void GMEndEncounter();

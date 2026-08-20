@@ -185,7 +185,7 @@ void AReEchoGameMode::GMHelp()
 	{
 		return;
 	}
-	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMWeather <Clear|Rain|Fog> | "
+	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMSetShards [amount] | GMWeather <Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
 }
 
@@ -238,6 +238,22 @@ void AReEchoGameMode::GMAddShards(const int32 Amount)
 	}
 	const int64 UpdatedShards = static_cast<int64>(RunSubsystem->TimeShards) + static_cast<int64>(Amount);
 	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(UpdatedShards, 0, MAX_int32));
+	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
+}
+
+void AReEchoGameMode::GMSetShards(const int32 Amount)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		PrintGMResult(TEXT("Run subsystem is unavailable."), false);
+		return;
+	}
+	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(static_cast<int64>(Amount), 0, MAX_int32));
 	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
 }
 
@@ -616,14 +632,12 @@ void AReEchoGameMode::HandleStartAboutRequested()
 	}
 
 	// Keep the start menu visible as the background behind the About panel (so it reads as
-	// "on the main interface" rather than over the battle level), but disable its input so
-	// the About panel behaves as a modal dialog over the menu.
-	StartMenuWidget->SetIsEnabled(false);
+	// "on the main interface" rather than over the battle level). The About screen is already
+	// a modal dialog (UIOnly input mode + focus lock in UReEchoUIFlowCoordinatorSubsystem), so
+	// the start menu behind it receives no input. Do NOT call SetIsEnabled(false) here: the
+	// start menu's RenderOpacity is bound to IsEnabled, and disabling it would turn the menu
+	// transparent and let the battle scene show through as a ghost behind the About panel.
 	ShowAboutScreen(true);
-	if (!AboutWidget)
-	{
-		StartMenuWidget->SetIsEnabled(true);
-	}
 }
 
 void AReEchoGameMode::HandleStartQuitRequested()
@@ -700,7 +714,6 @@ void AReEchoGameMode::HandleAboutClosed()
 	if (bAboutReturnToStartMenu && StartMenuWidget)
 	{
 		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
-		StartMenuWidget->SetIsEnabled(true);
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 		{

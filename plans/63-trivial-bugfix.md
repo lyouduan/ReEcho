@@ -68,4 +68,14 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **shipping 兼容 / Shipping**：使用 `UE_LOG(LogReEcho, Warning, ...)`，**不包裹 `#ifndef _SHIPPING`**，故编译进 Shipping 二进制并写入日志文件（控制台不显示，但存档可查）。与项目既有 `LogReEcho` Warning 日志一致。
 - **验证 / Verification**：PIE 实机受伤时 Output Log 出现 `[PlayerDamage]` 行；来源应仅为 `Enemy`/环境类（Echo=PlayerSide 同阵营不可互伤，见 #5 结论）。待验收。
 
-<!-- 后续修复继续在此处追加 #7、#8…… -->
+### #7 — 商店购买 BuildCard 类商品导致时间碎片变负数
+
+- **现象 / Symptom**：在商店购买 `G_2_15 时砂豪赌`（Tier2 / Trait / Economy 卡）后，时间碎片变为负数（如 `-售价`）。用户用 `GMSetShards <售价>` 把碎片设为刚好等于售价、再购买该卡可稳定复现。
+- **根因 / Root cause**：`PurchaseShopItem`（`ReEchoRunSubsystem.cpp`）的 BuildCard 分支先以外部 `TimeShards` 做 `TimeShards < EffectivePrice` 校验（通过），再调用 `TryMutateAuthoritativeBuild` 内 `ReEchoCardRuntime::TryGrantCard`。`G_2_15` 的 `Card.NextShardDrop` 在 `OnGrant`（`ReEchoCardRuntime.cpp:324`）将 `Result.TimeShards = 0`（清零全部碎片），闭包随后 `PendingTimeShards = Grant.TimeShards`（=0）覆盖了校验基准；最后再 `PendingTimeShards -= EffectivePrice` → `0 - 售价 = 负数`。即"校验用买前余额、扣费用被卡效果覆盖后的余额"两基准不一致，且卡牌 OnGrant 的碎片清零与售价扣费是两个独立操作叠加成负。
+- **改动 / Changes**：
+  - `Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp` `PurchaseShopItem`：扣费改为**原子**——以购买前余额 `TimeShards` 为基准，叠加卡牌 `OnGrant` 对碎片的净改变 `GrantShardDelta = PendingTimeShards - TimeShards`，并对结果 `FMath::Max(0, TimeShards - EffectivePrice + GrantShardDelta)` 夹紧到 ≥0。这样 `G_2_15` 购买后碎片为 0（符合"失去所有碎片"语义）、`G_3_17 代价丰收`（+3000）等正向卡仍正常加碎片、普通卡正常扣售价，且永远不会出现负数。
+  - 配套调试：`[ShopDebug]` 系列日志（enter / BuildCard grant 的 inTimeShards-outTimeShards / before-deduct / NEGATIVE RISK blocked 告警 / after-deduct），验证修复前后行为对比。
+- **复现 / Repro**：`GMSetShards <G_2_15 售价>` → 商店购买 `G_2_15` → 修复后碎片应为 0（不再为负）；Output Log 过滤 `ShopDebug` 可见 `NEGATIVE RISK blocked` 告警（已被夹紧拦截）。
+- **验证 / Verification**：待用户 PIE 实机确认——购买 `G_2_15` 后碎片 ≥0（预期 0），`[ShopDebug]` 日志 `after deduct timeShards=0`；并尝试其它 BuildCard/普通商品确认扣费正常。本条目待验收。
+
+<!-- 后续修复继续在此处追加 #8、#9…… -->
