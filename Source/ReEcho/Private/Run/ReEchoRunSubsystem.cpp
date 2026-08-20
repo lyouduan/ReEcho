@@ -1094,13 +1094,29 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 
 bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 {
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[DebugGrantCard] enter: CardId=%s Phase=%d EncounterIndex=%d TimeShards=%d CurrentCards=%d"),
+	       *CardId.ToString(),
+	       static_cast<int32>(Phase),
+	       EncounterIndex,
+	       TimeShards,
+	       CurrentBuild.CardState.OwnedCardIds.Num());
+
 	if (CardId.IsNone())
 	{
+		UE_LOG(LogReEcho, Warning, TEXT("[DebugGrantCard] abort: CardId is None"));
 		return false;
 	}
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid() || !Snapshot->CardCatalog->Find(CardId))
 	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[DebugGrantCard] abort: snapshot valid=%d catalog valid=%d card found=%d"),
+		       Snapshot.IsValid(),
+		       Snapshot.IsValid() && Snapshot->CardCatalog.IsValid(),
+		       Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() && Snapshot->CardCatalog->Find(CardId) != nullptr);
 		return false;
 	}
 
@@ -1119,18 +1135,38 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 					ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
 				if (!Grant.bSucceeded)
 				{
+					UE_LOG(LogReEcho,
+					       Warning,
+					       TEXT("[DebugGrantCard] grant failed: CardId=%s bSucceeded=%d"),
+					       *CardId.ToString(),
+					       Grant.bSucceeded);
 					return false;
 				}
+				UE_LOG(LogReEcho,
+				       Warning,
+				       TEXT("[DebugGrantCard] grant ok: CardId=%s newCards=%d"),
+				       *CardId.ToString(),
+				       BaseBuild.CardState.OwnedCardIds.Num());
 				BaseBuild.Stats = Grant.Stats;
 				BaseBuild.CardState = Grant.CardState;
 				ReEchoCharacterPromotion::TryPromote(BaseBuild);
+				UE_LOG(LogReEcho,
+				       Warning,
+				       TEXT("[DebugGrantCard] after promote: Cards=%d"),
+				       BaseBuild.CardState.OwnedCardIds.Num());
 				return true;
 			},
 			PendingBuild))
 	{
+		UE_LOG(LogReEcho, Warning, TEXT("[DebugGrantCard] abort: TryMutateAuthoritativeBuild rejected"));
 		return false;
 	}
 	CurrentBuild = PendingBuild;
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
+	       *CardId.ToString(),
+	       CurrentBuild.CardState.OwnedCardIds.Num());
 	return true;
 }
 

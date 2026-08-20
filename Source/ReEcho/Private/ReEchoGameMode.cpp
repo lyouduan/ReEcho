@@ -423,9 +423,12 @@ void AReEchoGameMode::GMGrantCard(const FName CardId)
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem)
 	{
+		UE_LOG(LogReEcho, Warning, TEXT("[GMGrantCard] RunSubsystem unavailable for CardId=%s"), *CardId.ToString());
 		PrintGMResult(TEXT("Run subsystem is unavailable."), false);
 		return;
 	}
+
+	UE_LOG(LogReEcho, Warning, TEXT("[GMGrantCard] invoking DebugGrantCard for CardId=%s"), *CardId.ToString());
 
 	const bool bGranted = RunSubsystem->DebugGrantCard(CardId);
 	PrintGMResult(bGranted ? FString::Printf(TEXT("Granted card %s."), *CardId.ToString())

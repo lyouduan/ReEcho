@@ -37,4 +37,14 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **改动 / Changes**：校验上限改为从 `EReEchoInputSlot::Slot6` 派生的具名常量；部件审计同步为当前权威表的 `70` 总行、`10` 具名行和 `60` 禁用空名行；保留两类效果的 Schema/Behavior 校验能力，但不再强制生产表必须至少配置一条。继续保留 `LoadoutOrder` 唯一性和 `StartSelectable` 必须绑定输入槽等既有规则，不重排生产表。
 - **验证 / Verification**：Plan58 合入最新 main 的组合候选已通过启动期 CSV 加载、VFX 与兔子投射物聚焦自动化、Editor `-FullRebuild`、静态项目校验和 diff 检查。
 
-<!-- 后续修复继续在此处追加 #3、#4…… -->
+### #3 — 启动崩溃排查（实为工作树落后 main）+ 保留 `GMGrantCard` 诊断日志
+
+- **现象 / Symptom**：从 `plan/63-trivial-bugfix` 工作树直接打开编辑器启动即崩溃。
+- **根因 / Root cause**：plan63 工作树当时落后 `origin/main` 共 6 个提交（Plan58 兔子投射物视觉/碰撞对齐等），其 `ReEchoEnemyActor` / VFX 的启动期改动修复了崩溃；plan63 未合入这些提交，故复现崩溃。并非 Plan63 自身代码引入缺陷。
+- **改动 / Changes**：
+  - 将 `origin/main`（`3164f52`）fast-forward 合并进 `plan/63-trivial-bugfix`，消除启动崩溃。
+  - 保留并正式提交 `DebugGrantCard` / `GMGrantCard` 上的诊断日志（`[DebugGrantCard]` / `[GMGrantCard]` 前缀，`LogReEcho` Warning 级），用于后续任意卡牌授予的可追溯复现；日志仅打印 `Phase / EncounterIndex / TimeShards / OwnedCardIds.Num()` 等只读状态，不影响构建快照。
+  - 二进制冲突（ReEcho.dll / prebuilt.json）按 main 版本解决后本地增量重建，不随本提交入库，待发布时由 `-FullRebuild` 重新生成。
+- **验证 / Verification**：用户实机打开合并后的 plan63 工作树，启动崩溃消失；`GMGrantCard G_2_17` 诊断日志链路打印正常（enter → grant ok → done，卡数 +1）。本条目结束，Plan 保持开放等待下一琐碎 bug。
+
+<!-- 后续修复继续在此处追加 #4、#5…… -->
