@@ -47,4 +47,11 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
   - 二进制冲突（ReEcho.dll / prebuilt.json）按 main 版本解决后本地增量重建，不随本提交入库，待发布时由 `-FullRebuild` 重新生成。
 - **验证 / Verification**：用户实机打开合并后的 plan63 工作树，启动崩溃消失；`GMGrantCard G_2_17` 诊断日志链路打印正常（enter → grant ok → done，卡数 +1）。本条目结束，Plan 保持开放等待下一琐碎 bug。
 
-<!-- 后续修复继续在此处追加 #4、#5…… -->
+### #4 — 仅大关切换回血，小关保留残余血量
+
+- **现象 / Symptom**：原 `BeginNextEncounter` 无条件 `InitializeFromStats(Stats, true)`，小关（同 Stage 内连续遭遇）与大关（跨 Stage 切换）进入时都回满血，与"小关连续作战应保留血量"的设计意图不符。
+- **改动 / Changes**：`ReEchoGameMode.cpp` `BeginNextEncounter`（约 L1144）将 `bFillHealth` 由硬编码 `true` 改为 `!Transition.bSameStage`——仅跨 Stage（大关切换）回满，小关进入保留 `FMath::Min(当前血, HpMax)`（见 `ReEchoGameplayEffects::ApplyInitialization`：bFillHealth=false 时 `Health = FMath::Min(Attributes->GetHealth(), Stats.HpMax)`）。同时加 `[StageTransition] enter encounter ... fillHealth=...` 诊断日志，供 PIE 验证。
+- **依据 / Basis**：`FReEchoStageTransitionDecision.bSameStage` 在同 Stage 连续遭遇为 `true`（小关）、跨 Stage 为 `false`（大关）；测试 `ReEchoStageTransitionTests` Cases 表（0→1 大关 / 1→2 小关 / … / Boss 边界大关）印证切换结构。
+- **验证 / Verification**：待用户 PIE 实机确认——小关连续（如第2→3场）血量不回满、大关切换（如第1→2场、Boss 边界）回满。本条目待验收。
+
+<!-- 后续修复继续在此处追加 #5、#6…… -->

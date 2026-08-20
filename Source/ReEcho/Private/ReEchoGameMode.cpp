@@ -1141,7 +1141,14 @@ void AReEchoGameMode::BeginNextEncounter()
 		Player->RestoreEquippedWeapon(RunSubsystem->CurrentBuild.WeaponId);
 		Player->SetAutoAttackMode(RunSubsystem->IsAutomaticAttackMode());
 		const FReEchoStatBlock& Stats = RunSubsystem->CurrentBuild.Stats;
-		Player->Combatant->InitializeFromStats(Stats, true);
+		const bool bFillHealthOnEnter = !Transition.bSameStage;
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[StageTransition] enter encounter %d sameStage=%s fillHealth=%s"),
+		       RunSubsystem->EncounterIndex,
+		       Transition.bSameStage ? TEXT("true") : TEXT("false"),
+		       bFillHealthOnEnter ? TEXT("true") : TEXT("false"));
+		Player->Combatant->InitializeFromStats(Stats, bFillHealthOnEnter);
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
 		if (PlayerHudWidget)
 		{
