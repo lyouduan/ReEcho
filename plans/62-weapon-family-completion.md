@@ -1,9 +1,15 @@
 # Plan 62 — 武器家族完整性实现（实现武器体系W 可见的 6 种武器）
 
-- **状态**：Published（代码已推 origin/main `4ba6180`；PIE 人工验收 `PendingBeforeClose`）
+- **状态**：InProgress（第一阶段静态武器贴图已推 origin/main `354e010`；第二阶段专属攻击表现接入中；PIE 人工验收 `PendingBeforeClose`）
 - **角色**：[PROGRAMMER] 实现 / [SECRETARY] 协调
 - **依赖**：Plan 61（整族删除匕首，已确认；本 Plan 不处理匕首）
 - **阶段目标关联**：Demo 稳定化 P0（六场完整一局可用武器多样性）+ P1（战斗可读性/表现）
+- **Planner / Executor 负责人**：当前程序 AI（非 Planner-Executor 模式，直接在本地主线执行）
+- **本地规划 / 实现基线**：`origin/main@354e010`
+- **Writes**：`plans/62-weapon-family-completion.md`；`Source/ReEcho/{Public,Private}/Weapons/ReEchoWeaponActor.*`；`Source/ReEcho/{Public,Private}/Graybox/ReEchoProjectileActor.*`；按最终实现需要新增或调整的武器攻击表现 Actor；`Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp` / `ReEchoCombatVfxTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoVFX.md`；到位的 `/Game/ReEcho/Textures/Effects/` 专属攻击纹理。
+- **Stable Reads**：`Design/Data/ReEchoData.xlsx` 及其生成 CSV；`Source/ReEchoWeapons/` 的攻击 Commit/Carrier 公共契约；`Source/ReEchoCombat/` 的最终命中结算契约；现有静态武器纹理和 `SlashCrescent` / `StaffLightWave` 资产。
+- **影响模式**：`SharedContract`（保持 Weapons/Combat 逻辑契约不变，在主模块表现适配层增加武器语义路由）。
+- **兼容承诺**：不改变六把武器的攻速、伤害、范围、连段、投射数量、爆炸半径和最终命中裁决；缺失专属美术时必须安全回退，不能 Fatal 或误用手持静态图冒充攻击特效。
 
 ## 1. 目标
 
@@ -27,6 +33,14 @@
 - 攻击行为深度：外圈加成伤害、武器击退施加机制、`ChainWindow` 连贯阈值消费、匕首三段双结算（均属此前诊断的「攻击行为补全」类，见 Plan 61 剩余风险）。
   - **鞭的 `AS_WHIP_1` 的 `MovementCm=50` 是「击退误用」字段**：本 Plan 范围内将其按「角色冲刺位移」语义处理（或归零），不实现击退；击退机制单独立项。
 - 角色主题名与武器错位（猎手"羽翼弓"→月杖、智者"手杖"→长剑、诗人"竖琴"→元素反应）：仅文案，不在本 Plan 机械改动范围，列于剩余风险。
+- 程序侧生成最终美术：镰刀横扫、鞭击、弓箭、枪弹的正式纹理由美术提供；本 Plan 负责资产契约、导入后的路由和安全回退。
+
+### 2026-08-20 范围扩展：六把武器专属攻击表现
+
+- 保留现有六套攻击数据和攻击执行逻辑，补齐 `AttackPatternId / VisualKey → 攻击表现` 的明确映射。
+- 长剑继续使用 `SlashCrescent`；法杖当前 `Pattern.StaffProjectile` 接入已有 `StaffLightWave` 视觉，但不得改变其逻辑投射物/爆炸结算。
+- 镰刀、鞭、弓、枪建立专属表现入口；素材未到位时使用明确、非崩溃的程序回退，并在人工验收中标记为美术阻塞。
+- 禁止所有 Melee 无条件生成长剑刀光；禁止 Bow/Gun/Staff 永久共用不可区分的 Engine 球体作为最终表现。
 
 ## 3. 现状诊断（证据）
 
@@ -34,6 +48,17 @@
 - `attack_steps.csv` 长剑/镰刀/鞭/弓/枪/法杖步骤已存在且数值对齐开普勒（`AS_LONGSWORD_1/2`、`AS_SCYTHE_1`、`AS_WHIP_1/2`、`AS_BOW_1`、`AS_GUN_1`、`AS_STAFF_1`）。**无需新增步骤**。
 - `ReEchoWeaponActor::RefreshVisualState` 已扩展识别 `CrescentBlade`/`Staff`/`Scythe`/`Whip`/`Bow`/`Gun`，`StaffSprite` 已解除隐藏，镰刀/法杖视觉错显已修。
 - `ReEchoLoadoutSelectionWidget` 武器数硬编码 `!=3` 断言已放宽（接受任意 ≥1），`WeaponTexturePath` 已补齐 Scythe/Whip/Bow/Gun/Staff 映射，不再阻断弓/枪/鞭/镰刀接入 UI。
+- 六把武器并非只有两把具备攻击逻辑：`attack_steps.csv` 已包含六种 Pattern 的步骤，`CompileLogicDefinition` 将弓/枪/法杖编译为 Projectile，长剑/镰刀/鞭编译为 Melee，均能生成 Commit 并进入世界命中流程。
+- 实际缺口是专属攻击表现：`SwingMelee()` 统一调用 `StartSwordAnimation()` / `SpawnSwordArc()`，导致长剑、镰刀、鞭都生成 `SlashCrescent`；`FireProjectile()` 对弓、枪、法杖统一生成只显示 Engine 球体/元素文字的 `AReEchoProjectileActor`。
+- `StaffLightWave.uasset` 和 `AReEchoStaffLightWaveActor` 已存在，但只在旧 `Pattern.MoonStaffWave` 的 Wave Carrier 下调用；当前 canonical `Pattern.StaffProjectile` 走 Projectile，因此该光波不是当前法杖攻击的有效表现。
+
+## 3.1 架构影响与设计决策
+
+- **受影响架构标识**：`MOD-ReEcho`、`MOD-ReEchoWeapons`、文档型 VFX 入口 `MOD-ReEchoVFX`；`MOD-ReEchoCombat` 仅作为 Stable Read，不改变最终伤害权威。
+- **对应模块文档**：`MOD-ReEcho.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoVFX.md` 已加入 Writes；实现完成时同步实际表现路由和资源回退契约。`MOD-ReEchoCombat.md` 只读复核，无契约变化时记录“已审阅、无需修改”。
+- **设计意图**：让 `ReEchoWeapons` 继续只产生稳定的攻击 Commit，让 `AReEchoWeaponActor` 及表现 Actor 根据已装备武器选择可视载体；命中、伤害和死亡仍由现有逻辑组件与 Combat Resolver 权威裁决。
+- **决策记录**：不把手持静态武器图直接当攻击 VFX；不通过修改 Carrier 把法杖强行切到旧 Wave 行为。优先扩展现有逻辑投射物的视觉语义，以避免碰撞、速度、范围和爆炸行为漂移。
+- **公共契约影响**：默认不修改 `ReEchoWeapons` / `ReEchoCombat` 公共结构；如果实现证明必须向表现层传递武器视觉语义，应先在本 Plan 记录最小契约变化并完整重建所有依赖模块。
 
 ## 4. 设计方案
 
@@ -83,6 +108,9 @@ W_J_09,Gun,Gun,Gun,5,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,R
 - **CSV/数据**：`python scripts/validate_project.py` + `Run-Automation -Filter ReEcho.Weapons` 通过；重跑 `sync_xlsx_to_csv.py` 确认弓/枪/鞭实例不复活冲突。
 - **C++ 改动（UI/表现）**：本地增量 `scripts/ue/Build-Editor.cmd -Configuration Development` 验证；推 `origin/main` 前 `-FullRebuild` + 刷新精选预构建包 + `validate_project.py` + `git diff --check`。
 - **PIE 人工验收（P0）**：6 种武器各自可选/可玩/表现正确；攻速<动作锁持续攻击无回归；无 Fatal；录制/回响稳定。
+- **攻击逻辑回归**：自动化覆盖六种 Pattern 的 Carrier、Step/Combo 选择和 Commit 数值不变；表现分流不参与伤害计算。
+- **攻击表现静态检查**：长剑/镰刀/鞭不再无条件共用刀光；弓/枪/法杖具有独立视觉语义；资源缺失路径有受测回退且不触发 Fatal。
+- **攻击表现 PIE（P0）**：逐把录制基础攻击，确认方向、生成点、尺寸、生命周期、命中同步和镜像正确；正式素材未到位的武器只能记为 `PendingFollowUp`，不得误报“表现完成”。
 
 ## 7. 风险与剩余问题
 
@@ -99,6 +127,15 @@ W_J_09,Gun,Gun,Gun,5,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,R
 4. 素材：用户提供上表纹理，入库并确认路径。
 5. 验证：validate + automation + 本地增量构建 + PIE 验收。
 6. 发布：FullRebuild + prebuilt + 秘书提交 [PROGRAMMER] 推 origin/main。
+
+### 第二阶段：攻击表现接入（当前本地主线）
+
+1. 锁定六种 Pattern 的逻辑基线测试，证明六把武器已有攻击 Commit/Carrier，且本阶段不改伤害行为。
+2. 将 `SwingMelee()` 的长剑专用动画/刀光从通用近战命中路径分离：长剑、镰刀、鞭按装备语义选择表现。
+3. 扩展逻辑投射物的视觉初始化参数：弓、枪、法杖各自选择表现；法杖复用已有 `StaffLightWave` 视觉资源但继续使用 Projectile 逻辑组件。
+4. 为镰刀、鞭、弓、枪建立精确的攻击纹理路径和安全回退；正式资源到位后仅需导入同名资产，无需改命中逻辑。
+5. 更新 `MOD-ReEcho` / `MOD-ReEchoWeapons` / `MOD-ReEchoVFX`，运行聚焦自动化、增量构建、静态验证；最终候选执行 FullRebuild 门禁。
+6. 请求人工 PIE 逐把验收；正式攻击纹理未到位的项目保持明确 Pending，不阻塞代码契约合入，但阻塞“六把最终美术完成”的关闭结论。
 
 ## 9. 执行记录（工作树 ReEcho-plan62-weapon-family-completion 实现）
 
