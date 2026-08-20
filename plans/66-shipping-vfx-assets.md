@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side AI（待分配；本 Plan 实现可与规划同一 AI）
 - Plan 编写方（AI 侧）：`Gavyn-side AI | ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`Unassigned | Gavyn-side AI | ReEcho teammate-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）；实现已完成、IoStore 客观验证通过（包内 81 个 VFX 资产），待发布门禁（`-FullRebuild` + 预构建包 + `validate_project.py`）后推 main、再视秘书流程关闭。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）；实现已发布至 `origin/main`（`d117118`，含合并 `fdb53cd`/Plan63 后重编的发布门禁），FullRebuild 门禁通过，`validate_project.py` 全 PASS；合并后桌面包实机验证 VFX 恢复（用户确认“没问题了”）。由秘书流程依用户指令关闭。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main` 在分配编号时的最大值之后下一空闲编号（本 Plan = 66）；实现基线发布后从 `origin/main` 建立。
 - 本地实现方式（可选，仅作交接说明）：建议一任务一 worktree（如 `ReEcho-plan66`），不在主工作区直接实现。
