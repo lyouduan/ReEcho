@@ -6,15 +6,15 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（由用户在 PIE 验证可见子弹与受伤时机）。
-- 本地规划 / 实现基线：`origin/main@8248732fa971c95b9f3bd525f866902f881d6f00`。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（用户确认碰撞与最终红色柔光表现大致无问题，并授权发布远端主线）。
+- 本地规划 / 实现基线：规划发布提交 `914307c`；实现采用随后发布的 `origin/main@a6e08c3`，包含用户已决定的兔子单球伤害 `1`。
 - 本地实现方式：规划先发布到 `origin/main`；随后从已发布基线创建独立 `plan/58-enemy-projectile-visual-collision-parity` worktree 实现。
 - 依赖 / 阻塞：依赖 Plan53 的三条权威兔子逻辑投射物与 Plan49 的 Niagara 资产接入。现有本地 `plan/57-remove-enemy-healthbar` 不写本 Plan 契约；Plan55 已发布实现会写 EnemyHost，但当前 main 已包含其代码。
-- Writes：本 Plan；`Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyEventsComponent.h`；`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`；`Source/ReEcho/{Public,Private}/Presentation/VFX/ReEchoCombatVfxComponent.*`；必要时修改 `ReEchoCombatVfxCatalog.*` 与兔子投射物项目适配资产；`Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`、`ReEchoCombatVfxTests.cpp` 或新增聚焦测试；`shared/CODEBASE_MAP/modules/{MOD-ReEchoEnemies.md,MOD-ReEchoVFX.md}`；关闭前审阅 `MOD-ReEcho.md`、`ARCHITECTURE.md`、`README.md`；最终精选 Win64 Editor 预构建包。
+- Writes：本 Plan；`Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyEventsComponent.h`；`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`；`Source/ReEcho/{Public,Private}/Presentation/VFX/ReEchoCombatVfxComponent.*`；必要时修改 `ReEchoCombatVfxCatalog.*` 与兔子投射物项目适配资产；`Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`、`ReEchoCombatVfxTests.cpp` 或新增聚焦测试；`shared/CODEBASE_MAP/{ARCHITECTURE.md,README.md,modules/MOD-ReEcho.md,modules/MOD-ReEchoEnemies.md,modules/MOD-ReEchoVFX.md}`；最终精选 Win64 Editor 预构建包。
 - Stable Reads：`Source/ReEchoCombat/**` 命中结算契约；`Core/ReEchoRabbitProjectilePattern.h`；`Design/Data/ReEchoEnemyData.xlsx` 与 `Content/Data/enemy_abilities.csv`；`/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` 及其静态依赖；玩家碰撞与 `IReEchoCombatTarget::IntersectsCombatPath` 契约；Plan49/53/55/57 的非本任务功能。
 - 影响模式：`SharedContract`（EnemyHost 向 Presentation 发布的投射物事件增加逐球身份；不改变 Combat 伤害权威或数据表数值）。
-- 兼容承诺 / 下游操作：维持三球、中心球指向锁定目标、两侧 `±32.5°`、单球半径 `50 cm`、每球一次伤害 `10`、Echo 嘲讽目标、保存恢复和前景排序；旧存档缺失逐球表现身份时从既有 `Attack.Sequence + VolleyBallIndex` 确定性重建，不升级保存版本。
+- 兼容承诺 / 下游操作：维持三球、中心球指向锁定目标、两侧 `±32.5°`、单球半径 `50 cm`、每球一次伤害 `1`、Echo 嘲讽目标、保存恢复和前景排序；旧存档缺失逐球表现身份时从既有 `Attack.Sequence + VolleyBallIndex` 确定性重建，不升级保存版本。
 - 明确排除：不调整伤害、速度、散射角、半径、敌人 AI 或玩家碰撞体；不让 Niagara 粒子/碰撞成为玩法权威；不以扩大碰撞半径掩盖错位；不顺带实现 Plan57 敌人血条或修改其他攻击特效。
 
 ## 锁定目标
@@ -37,7 +37,7 @@
   - 已确认根因是三条逻辑弹道只由中心球发布事件，而一套 Niagara System 自行模拟三颗粒子；两者没有逐球位置对应关系。
   - 不采用“读取 Niagara CPU 粒子位置来伤害玩家”，因为这会把帧率、渲染裁剪和资源改动变成玩法输入。
   - 不采用“继续一套三球 Niagara，只调旋转/半径”，因为内部粒子仍独立移动，无法证明逐球同源。
-  - 表现适配必须做到每个逻辑 Ball 恰有一个可见代理。可采用单球 Niagara 项目适配资产或由三个明确的位置参数驱动一套 System；选择取决于资产可编辑能力，但禁止生成三套原三球 System 导致九球。
+  - 表现适配必须做到每个逻辑 Ball 恰有一个可见代理。资产审计确认交付 System 只有独立内部粒子模拟、没有可安全复用的逐球位置参数；因此采用其正式依赖纹理 `0814_04` 创建三个 World Billboard。它保留交付红球外观并完全移除第二套运动模拟；未来增强尾迹必须制作单球、逻辑位置驱动的适配资产。
   - 发射挂点偏移只允许在 Spawn 时作为整组一致的视觉原点校准；逐球后续位置必须由对应逻辑位置推进，不能在 VFX 内再次积分速度。
   - 原有临时粒子读回/屏幕坐标诊断在完成验证后删除，长期保留的诊断只记录逐球身份、逻辑位置、命中结果和必要的限频错误。
 - 相关文档同步范围：`MOD-ReEchoEnemies.md` 更新逐球事件契约；`MOD-ReEchoVFX.md` 更新逐球视觉所有权、资产适配与不变量；`MOD-ReEcho.md`、`ARCHITECTURE.md`、`README.md` 关闭前审阅，若模块拓扑与导航不变则记录无需修改。
@@ -48,22 +48,22 @@
 
 ## 锁定验收
 
-- [ ] 每次兔子齐射产生三个稳定且互不冲突的逐球身份；三球均收到 Spawned/Moved/Ended，表现恰好三球，不是一个共享实例，也不是九球。
-- [ ] 三颗可见球分别使用其对应逻辑球的位置和方向；自动化或运行时诊断证明表现锚点与逻辑位置误差不超过具名的资产中心偏移容差，且不会随飞行时间累计漂移。
-- [ ] 玩家静止时：可见球扫过玩家碰撞体会由同一球精确扣 `10`；没有任何可见球扫过时不扣血；每球至多命中一次。
-- [ ] 玩家移动时使用连续线段扫掠，不因低帧率穿透；三条侧向轨迹都可独立命中，碰撞结果与画面轨迹一致。
-- [ ] 命中后逻辑球若按既有规则继续飞行，其可见代理保持同轨；射程结束、Encounter 清理、敌人销毁、保存恢复后没有残留或重复视觉。
-- [ ] Echo 嘲讽目标、中心球锁定方向、两侧散射、伤害/半径/速度表值和战斗前景排序无回归。
-- [ ] 新增聚焦自动化覆盖逐球事件身份、三球生命周期、路径内/外、一次命中和 Presentation 键冲突；`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Presentation.VFX`、保存相关回归通过。
-- [ ] Editor Development 构建、`python scripts/validate_project.py`、`git diff --check` 通过；最终发布前在最新组合候选执行 `-FullRebuild` 并刷新精选预构建包。
-- [ ] 用户在主项目 PIE 复测静止与移动两个场景，确认“碰到不伤 / 隔空受伤”均消失。
-- [ ] 未提交 `shared/GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 每次兔子齐射产生三个稳定且互不冲突的逐球身份；三球均收到 Spawned/Moved/Ended，表现恰好三球，不是一个共享实例，也不是九球。
+- [x] 三颗可见球分别使用其对应逻辑球的位置和方向；自动化或运行时诊断证明表现锚点与逻辑位置误差不超过具名的资产中心偏移容差，且不会随飞行时间累计漂移。
+- [x] 玩家静止时：可见球扫过玩家碰撞体会由同一球精确扣 `1`；没有任何可见球扫过时不扣血；每球至多命中一次。
+- [x] 玩家移动时使用连续线段扫掠，不因低帧率穿透；三条侧向轨迹都可独立命中，碰撞结果与画面轨迹一致。
+- [x] 命中后逻辑球若按既有规则继续飞行，其可见代理保持同轨；射程结束、Encounter 清理、敌人销毁、保存恢复后没有残留或重复视觉。
+- [x] Echo 嘲讽目标、中心球锁定方向、两侧散射、伤害/半径/速度表值和战斗前景排序无回归。
+- [x] 新增聚焦自动化覆盖逐球事件身份、三球生命周期、路径内/外、一次命中和 Presentation 键冲突；`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Presentation.VFX`、保存相关回归通过。
+- [x] Editor Development 构建、`python scripts/validate_project.py`、`git diff --check` 通过；最终发布前在最新组合候选执行 `-FullRebuild` 并刷新精选预构建包。
+- [x] 用户在主项目 PIE 复测静止与移动两个场景，确认“碰到不伤 / 隔空受伤”均消失。
+- [x] 未提交 `shared/GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`main == origin/main == 8248732fa971c95b9f3bd525f866902f881d6f00`，规划前工作区干净。
+- 基线分支/提交：规划前 `main == origin/main == 8248732`；规划发布后远端依次加入 Plan57 和兔子伤害 `1` 提交，当前实现基线为 `origin/main@a6e08c3`，与本 Plan 源码无文本冲突，伤害语义按用户既有决定采用远端。
 - 引擎/构建可用性：UE 5.8；实现构建前关闭交互式 Editor，并使用仓库构建脚本取得共享 Unreal 锁。
-- 现有聚焦测试结果：Plan53 自动化已证明三条逻辑轨迹各自可命中并一次扣 `10`，但测试只检查逻辑状态；Plan49 VFX 测试只证明共享三球 Niagara 中轴旋转，没有验证可见粒子与三条逻辑球位置一致。
+- 现有聚焦测试结果：Plan53 自动化已证明三条逻辑轨迹各自可命中，但测试只检查逻辑状态；远端随后把表值改为每球 `1`。Plan49 VFX 测试只证明共享三球 Niagara 中轴旋转，没有验证可见粒子与三条逻辑球位置一致。
 - 共享契约 / 难合并资源风险：`ReEchoEnemyActor.*` 与 Plan55 历史热点同文件但当前实现已在基线；本地 Plan57 不应触碰本 Plan。若必须生成新的 Niagara `.uasset`，只能在本 Plan worktree 用 UE 创建并验证依赖，不得整包复制或选择二进制 ours/theirs。
 - 基线损坏时的停止条件：生产兔子定义无法加载、现有三球逻辑测试失败、Niagara 资产无法安全拆成一球且没有明确参数驱动方案，或远端在发布/合并前修改相同公共事件契约时，停止扩大修改并报告真实/逻辑冲突。
 
@@ -93,21 +93,37 @@
 
 ### 变化
 
-- 待实现。
+- `FReEchoEnemyProjectileEvent` 增加 `VolleyBallIndex` 与只读 `CollisionRadiusCm`；EnemyHost 为三个球分别发布 Spawned/Moved/Ended，保存恢复和局间清理同样逐球处理。
+- VFX 用 `(AttackIdentity, VolleyBallIndex)` 管理三个独立 World Billboard；每次 Moved 直接采用逻辑事件位置，不再移动会自行模拟三球的 Niagara System，也不保留攻击挂点平移偏差。
+- 使用交付资产依赖 `0814_04` 作为红球视觉，按 `2 * CollisionRadius` 映射可见直径；碰撞仍只由 EnemyHost 连续扫掠裁决。
+- 删除 `[RabbitAimTrace]` / `[RabbitParticleTrace]` CPU 粒子读回诊断和相应 Niagara 内部依赖。
 
 ### 证据
 
 - 用户截图显示两类互相矛盾的现象：可见红球覆盖主角但未扣血；主角附近没有对应可见红球时突然出现 `-10`。
 - 只读代码审计确认：玩法保存并推进三条 `BossProjectiles`，但 `ShouldPublishProjectileEvent` 只允许中心球发布事件；VFX 仅以共享 `Attack.Sequence` 创建一套自行模拟三球的 Niagara，因此表现位置与两条侧向逻辑轨迹没有一一映射。
+- Editor Development 构建成功；`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Presentation.VFX.Catalog`、`ReEcho.Run.SaveSnapshot` 自动化通过。
+- 2026-08-19 将 `origin/main@be305cc` 合入本 Plan：采用远端 Plan52/55 的场景、脚点和表现层级，保留 Plan58 的逐球事件、视觉代理及碰撞一致性。唯一源码冲突位于 `ReEchoEnemyHostTests.cpp`，已语义合并两侧断言；旧 DLL、target 与 prebuilt 未选择任一侧，均由组合源码重新构建生成。
+- 合并候选的 Editor Development 构建和 `python scripts/validate_project.py` 通过；`ReEcho.Enemies.Host` 全组及 `ReEcho.Presentation.VFX.Catalog` 自动化通过。尝试的 `ReEcho.Presentation.Scene` 过滤器在项目中不存在，因此未作为失败回归计入。
+- 人工复测确认命中位置已基本一致，但纹理 Billboard 没有原 Niagara 材质的红色 Emissive/Bloom 光晕。视觉代理改用同一交付纹理对应的 `BaseVFX003_Inst12` Material Billboard；只替换渲染材质，逐球身份、位置、尺寸和生命周期仍完全服从逻辑事件。
+- 第二轮日志证实：碰撞直径 `100 cm / 93.91 px`，旧 Material Billboard Quad 为 `332.47 cm / 312.21 px`，固定放大 `3.325` 倍；且仅使用 Translucent `Inst12`，原 System 的 Additive `Inst1/2/3` 均存在但未渲染。修订后核心球直径精确等于碰撞直径，三个 Additive 层以 `1.5×` 核心直径同位置叠加，仍由同一个逐球视觉代理统一移动和销毁；人工通过后已删除精简 trace。
+- 上述“三个 Additive 层常驻叠加”经人工截图否决：脱离 Niagara 后材质没有 `Particles.Color`，`Inst2/Glo_C178` 被错误显示为白色大圆环。资产逐张导出确认 `Inst1/Glo_c002` 才是柔和光晕，`Inst2` 是圆环、`Inst3` 是尖刺；最终常驻代理只保留 `Inst1`，用每球独立 MID 将“基础颜色”设为红色，圆环和尖刺不再常驻渲染。
+- 单独复用 `Inst1` 仍无法恢复原光晕：该 Niagara 材质的颜色/强度依赖粒子数据，普通 Billboard 即使写入实例参数也不能完整重现。最终增加独立适配材质 `/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow`，只复用原 `Glo_c002` 柔光纹理，并显式定义红色、Unlit、Additive 和 Emissive 强度；它与核心球同属一个逐球 Billboard，完全服从逻辑位置和生命周期。
+- 2026-08-20 发布审计发现 `origin/main` 已前进到 `e79ffc5`（Plan59–63）。经用户确认采用远端，将最新 main 合入本 Plan：远端的匕首删除、Shipping、UI 与 GM 命令全部保留；Plan58 仅叠加逐球视觉/碰撞和柔光材质。源码自动组合无文本冲突；冲突只发生在 manifest/DLL，未选择任一旧二进制，统一由组合源码重新生成。
+- 组合候选启动自动化时发现远端 Plan62 Reader 仍校验删除匕首前的 `LoadoutOrder 1..3`、部件 `78/16/62` 计数和必需效果种类，导致最新 main 自身 CSV Fatal。该集成遗漏作为 Plan63 #2 修复：同步六槽与当前权威表，同时保留已配置行的 Schema/Behavior 校验。修复后 `ReEcho.Presentation.VFX` 与 `ReEcho.Enemies.Host.RabbitProjectilePipeline` 自动化通过；发布候选执行 Editor `-FullRebuild`、项目静态校验与 diff 检查。
 
 ### 剩余风险
 
-- 交付 Niagara 是三球 System；需要在 UE 中确定最小单球/显式位置参数适配，不能仅靠 C++ 重复 Spawn 原 System。
+- 无阻塞发布的已知风险；后续若美术要求精调光晕尺寸或强度，作为独立表现参数调整处理，不改变逐球碰撞同源契约。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现和构建后由用户在 PIE 验收。
+- `Passed`：2026-08-20 用户确认最终表现大致无问题并要求提交远端主分支。
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `MOD-ReEchoEnemies.md` 已更新：逐球事件、稳定索引、半径上下文和当前单球伤害 `1`。
+- `MOD-ReEchoVFX.md` 已更新：逐球 Billboard、纹理路径、身份键、生命周期和禁止恢复独立 Niagara 运动链。
+- `MOD-ReEcho.md` 已更新：主模块表现适配改为 Niagara/纹理目录，并写明三球逐球投影。
+- `ARCHITECTURE.md` 已更新：全局状态流以战斗 VFX 实例概括 Niagara 与 Billboard，依赖方向不变。
+- `README.md` 已更新：VFX 文档入口的资产范围同步为 Niagara/纹理；模块和 AREA 导航不变。

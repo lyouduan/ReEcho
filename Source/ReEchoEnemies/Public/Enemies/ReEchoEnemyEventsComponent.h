@@ -109,6 +109,14 @@ struct REECHOENEMIES_API FReEchoEnemyProjectileEvent
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector Direction = FVector::ForwardVector;
+
+	/** Stable identity inside one committed volley. INDEX_NONE is reserved for legacy single projectiles. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 VolleyBallIndex = INDEX_NONE;
+
+	/** Read-only size context for the visual proxy; gameplay collision remains Enemy Host authority. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CollisionRadiusCm = 0.0f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyActionCommittedDelegate,
@@ -166,6 +174,24 @@ public:
 
 	void PublishProjectile(const FReEchoEnemyProjectileEvent& Event)
 	{
+#if WITH_DEV_AUTOMATION_TESTS
+		PublishedProjectileEventsForTests.Add(Event);
+#endif
 		OnProjectile.Broadcast(Event);
 	}
+
+#if WITH_DEV_AUTOMATION_TESTS
+	const TArray<FReEchoEnemyProjectileEvent>& GetPublishedProjectileEventsForTests() const
+	{
+		return PublishedProjectileEventsForTests;
+	}
+
+	void ClearPublishedProjectileEventsForTests()
+	{
+		PublishedProjectileEventsForTests.Reset();
+	}
+
+private:
+	TArray<FReEchoEnemyProjectileEvent> PublishedProjectileEventsForTests;
+#endif
 };

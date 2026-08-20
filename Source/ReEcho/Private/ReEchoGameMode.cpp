@@ -408,6 +408,32 @@ void AReEchoGameMode::GMGotoBoss()
 	              bStartedBossEncounter);
 }
 
+void AReEchoGameMode::GMGrantCard(const FName CardId)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	if (CardId.IsNone())
+	{
+		PrintGMResult(TEXT("Usage: GMGrantCard <CardId> (e.g. G_2_17 for 静默刻度)."), false);
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		PrintGMResult(TEXT("Run subsystem is unavailable."), false);
+		return;
+	}
+
+	const bool bGranted = RunSubsystem->DebugGrantCard(CardId);
+	PrintGMResult(bGranted ? FString::Printf(TEXT("Granted card %s."), *CardId.ToString())
+	                        : FString::Printf(TEXT("Failed to grant card %s (not found / conflict / locked run)."),
+	                                          *CardId.ToString()),
+	              bGranted);
+}
+
 void AReEchoGameMode::StartPlay()
 {
 	Super::StartPlay();

@@ -125,12 +125,14 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 	}
 
 	const TArray<FReEchoCsvWeaponRow> StartWeapons = Snapshot->GetStartSelectableWeapons();
-	TestEqual(TEXT("CSV has exactly three start-selectable weapons"), StartWeapons.Num(), 3);
-	if (StartWeapons.Num() == 3)
+	TestEqual(TEXT("CSV has exactly five start-selectable weapons"), StartWeapons.Num(), 5);
+	if (StartWeapons.Num() == 5)
 	{
-		TestEqual(TEXT("Legacy hotkey 1 remains W_J_02"), StartWeapons[0].Id, FName(TEXT("W_J_02")));
-		TestEqual(TEXT("Legacy hotkey 2 remains W_J_01"), StartWeapons[1].Id, FName(TEXT("W_J_01")));
-		TestEqual(TEXT("Legacy hotkey 3 remains W_J_03"), StartWeapons[2].Id, FName(TEXT("W_J_03")));
+		TestEqual(TEXT("Hotkey 1 remains W_J_02"), StartWeapons[0].Id, FName(TEXT("W_J_02")));
+		TestEqual(TEXT("Hotkey 2 remains W_J_01"), StartWeapons[1].Id, FName(TEXT("W_J_01")));
+		TestEqual(TEXT("Hotkey 3 remains W_J_07"), StartWeapons[2].Id, FName(TEXT("W_J_07")));
+		TestEqual(TEXT("Hotkey 4 remains W_J_08"), StartWeapons[3].Id, FName(TEXT("W_J_08")));
+		TestEqual(TEXT("Hotkey 5 remains W_J_09"), StartWeapons[4].Id, FName(TEXT("W_J_09")));
 	}
 	const FReEchoCsvWeaponRow* Slot1Weapon = Snapshot->FindWeaponByInputSlot(EReEchoInputSlot::Slot1);
 	const FReEchoCsvWeaponRow* Slot2Weapon = Snapshot->FindWeaponByInputSlot(EReEchoInputSlot::Slot2);
@@ -142,7 +144,7 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(TEXT("Hotkey 1 resolves to W_J_02"), Slot1Weapon->Id, FName(TEXT("W_J_02")));
 		TestEqual(TEXT("Hotkey 2 resolves to W_J_01"), Slot2Weapon->Id, FName(TEXT("W_J_01")));
-		TestEqual(TEXT("Hotkey 3 resolves to W_J_03"), Slot3Weapon->Id, FName(TEXT("W_J_03")));
+		TestEqual(TEXT("Hotkey 3 resolves to W_J_08"), Slot3Weapon->Id, FName(TEXT("W_J_08")));
 	}
 
 	const FReEchoCsvWeaponRow* Scythe = Snapshot->FindEnabledWeapon(TEXT("W_J_04"));
@@ -155,9 +157,7 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 
 	int32 EnabledCoreCount = 0;
 	int32 DisabledUnnamedCount = 0;
-	bool bHasStrengthGrip = false;
-	bool bHasPatternReplacement = false;
-	bool bHasUniqueBehavior = false;
+	bool bHasGenericCore = false;
 	for (const TPair<FName, FReEchoCsvPartRow>& PartPair : Snapshot->Parts)
 	{
 		const FReEchoCsvPartRow& Part = PartPair.Value;
@@ -169,22 +169,15 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 		{
 			++EnabledCoreCount;
 		}
-		if (Part.bEnabled && Part.PartId == TEXT("P_DAGGER_STRENGTH_GRIP"))
+		if (Part.bEnabled && Part.PartId == TEXT("P_CORE_FLAME"))
 		{
-			bHasStrengthGrip = true;
-		}
-		for (const FReEchoCsvPartEffectRow& Effect : Part.Effects)
-		{
-			bHasPatternReplacement |= Effect.EffectKind == TEXT("AttackPatternReplacement");
-			bHasUniqueBehavior |= Effect.EffectKind == TEXT("UniqueBehavior");
+			bHasGenericCore = true;
 		}
 	}
-	TestEqual(TEXT("Weapon slots audit keeps all 78 source rows"), Snapshot->Parts.Num(), 78);
-	TestEqual(TEXT("Unnamed source rows remain disabled"), DisabledUnnamedCount, 62);
+	TestEqual(TEXT("Weapon slots audit keeps all 70 source rows"), Snapshot->Parts.Num(), 70);
+	TestEqual(TEXT("Unnamed source rows remain disabled"), DisabledUnnamedCount, 60);
 	TestTrue(TEXT("At least six generic cores are enabled"), EnabledCoreCount >= 6);
-	TestTrue(TEXT("Power/strength grip is enabled"), bHasStrengthGrip);
-	TestTrue(TEXT("At least one named attack-pattern replacement is enabled"), bHasPatternReplacement);
-	TestTrue(TEXT("At least one named generic event behavior is enabled"), bHasUniqueBehavior);
+	TestTrue(TEXT("A generic core is enabled"), bHasGenericCore);
 
 	return true;
 }

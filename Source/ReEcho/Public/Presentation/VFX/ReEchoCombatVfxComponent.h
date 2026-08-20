@@ -7,8 +7,40 @@
 
 class UNiagaraComponent;
 class UNiagaraSystem;
+class UMaterialBillboardComponent;
+class UMaterialInterface;
+class UTexture2D;
 class APlayerController;
 class USceneComponent;
+
+/** Per-owner stable key for one visible projectile in a committed enemy volley. */
+USTRUCT()
+
+struct FReEchoProjectileVisualKey
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TWeakObjectPtr<AActor> Source;
+
+	UPROPERTY()
+	int64 Sequence = 0;
+
+	UPROPERTY()
+	int32 VolleyBallIndex = INDEX_NONE;
+
+	bool operator==(const FReEchoProjectileVisualKey& Other) const
+	{
+		return Source.HasSameIndexAndSerialNumber(Other.Source) && Sequence == Other.Sequence &&
+		       VolleyBallIndex == Other.VolleyBallIndex;
+	}
+};
+
+FORCEINLINE uint32 GetTypeHash(const FReEchoProjectileVisualKey& Key)
+{
+	return HashCombineFast(HashCombineFast(GetTypeHash(Key.Source), GetTypeHash(Key.Sequence)),
+	                       GetTypeHash(Key.VolleyBallIndex));
+}
 
 /** Read-only presentation adapter for Combat and Enemy semantic events. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
@@ -21,8 +53,19 @@ public:
 	UReEchoCombatVfxComponent();
 	/** Pure layer policy shared by runtime and automation. */
 	static int32 ResolveCombatEffectSortPriority(int32 OwnerSortPriority);
+	/** Pure identity projection shared by runtime and automation. */
+	static FReEchoProjectileVisualKey ResolveProjectileVisualKey(const FReEchoEnemyProjectileEvent& Event);
+	/** Material sprites fill their quad, so the core diameter matches the authoritative collider exactly. */
+	static float ResolveProjectileCoreDiameter(float CollisionRadiusCm);
+	/** Additive glow extends beyond the core without changing gameplay collision. */
+	static float ResolveProjectileGlowDiameter(float CollisionRadiusCm);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
+#if WITH_DEV_AUTOMATION_TESTS
+	int32 GetProjectileVisualCountForTests() const;
+	bool
+	TryGetProjectileVisualLocationForTests(int64 AttackSequence, int32 VolleyBallIndex, FVector& OutLocation) const;
+#endif
 
 protected:
 	virtual void BeginPlay() override;
@@ -31,6 +74,9 @@ protected:
 private:
 	void BindEventSources(UReEchoCombatEventsComponent* InCombatEvents, UReEchoEnemyEventsComponent* InEnemyEvents);
 	UNiagaraSystem* ResolveSystem(uint8 SemanticValue) const;
+	UTexture2D* ResolveRabbitProjectileTexture() const;
+	UMaterialInterface* ResolveRabbitProjectileMaterial() const;
+	TArray<UMaterialInterface*> ResolveRabbitProjectileGlowMaterials() const;
 	UNiagaraComponent*
 	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
@@ -42,15 +88,8 @@ private:
 	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
+	void StopProjectileVisual(UMaterialBillboardComponent* Visual) const;
 	void StopAllEffects();
-	void LogRabbitProjectileTrajectory(const FReEchoEnemyProjectileEvent& Event,
-	                                   const UNiagaraComponent* Effect,
-	                                   const TCHAR* Phase);
-	void LogRabbitParticleState(const UNiagaraComponent* Effect,
-	                            APlayerController* PlayerController,
-	                            const FVector2D& PlayerScreen,
-	                            int64 AttackSequence,
-	                            int32 EventCount) const;
 
 	UFUNCTION()
 	void HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event);
@@ -79,8 +118,7 @@ private:
 	TObjectPtr<UNiagaraComponent> DashEffect;
 
 	UPROPERTY(Transient)
-	TMap<int64, TObjectPtr<UNiagaraComponent>> ProjectileEffects;
-	TMap<int64, FVector> ProjectileVisualOffsets;
+	TMap<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>> ProjectileVisuals;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> AttackVfxRoot;
@@ -88,7 +126,8 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> HurtVfxRoot;
 
-	TMap<int64, int32> ProjectileTrajectoryEventCounts;
-
 	mutable TSet<uint8> MissingSystemWarnings;
+	mutable bool bMissingRabbitProjectileTextureWarned = false;
+	mutable bool bMissingRabbitProjectileMaterialWarned = false;
+	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;
 };

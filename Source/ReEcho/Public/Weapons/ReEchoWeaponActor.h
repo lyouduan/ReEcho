@@ -109,6 +109,14 @@ private:
 	TObjectPtr<UStaticMeshComponent> SwordSprite;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementIndicator;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBillboardComponent> ScytheSprite;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBillboardComponent> WhipSprite;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBillboardComponent> BowSprite;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBillboardComponent> GunSprite;
 
 	TMap<FName, FReEchoCsvWeaponRow> Definitions;
 	TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot;

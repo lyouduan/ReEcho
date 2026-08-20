@@ -41,12 +41,12 @@
 | `FReEchoAttackCommittedEvent` | `MOD-ReEchoCombat` / Weapons 提交链 | 近战 Pattern 播放一次刀光 |
 | `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击 |
 | `FReEchoEnemySpecialActionEvent` | `MOD-ReEchoEnemies` + EnemyHost | Rabbit/Fox 的 Windup、Committed、Ended 驱动阶段表现 |
-| `FReEchoEnemyProjectileEvent` | EnemyHost 的逻辑投射物集合 | Spawn 创建、Moved 跟随、Ended 销毁兔子子弹表现 |
+| `FReEchoEnemyProjectileEvent` | EnemyHost 的逐球逻辑投射物 | 按 `(AttackIdentity, VolleyBallIndex)` 创建、移动和销毁唯一兔子子弹代理；位置直接采用事件快照 |
 | Actor Death / EndPlay | Combat/UE 生命周期 | 清理所有跟随和非自动销毁实例 |
 
-VFX 唯一拥有的是 Niagara 组件实例及其表现生命周期。逻辑投射物的 `AttackIdentity`、位置、方向、行进距离、碰撞和有效性仍由 Enemies/Host 拥有；VFX 中的 `TMap<AttackSequence, NiagaraComponent>` 只是可丢弃的视觉索引。
+VFX 唯一拥有的是 Niagara/Material Billboard 组件实例及其表现生命周期。逻辑投射物的 `AttackIdentity`、位置、方向、行进距离、碰撞和有效性仍由 Enemies/Host 拥有；VFX 中的 `(AttackIdentity, VolleyBallIndex) → MaterialBillboardComponent` 只是可丢弃的视觉索引。
 
-Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`。两个子节点都是 Blueprint 可编辑的表现挂点：攻击提交、前摇、方向提示和冲刺读取 `AttackVfxRoot`，最终受伤读取 `HurtVfxRoot`。美术可在具体 Gameplay Blueprint 中独立调整两者的相对位置、旋转和缩放，不必修改 C++。兔子子弹只在发射时读取攻击挂点形成纯视觉偏移，离开发射者后仍由逻辑投射物位置推进，绝不附着人物或反向修改命中。
+Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`。两个子节点都是 Blueprint 可编辑的表现挂点：攻击提交、前摇、方向提示和冲刺读取 `AttackVfxRoot`，最终受伤读取 `HurtVfxRoot`。美术可在具体 Gameplay Blueprint 中独立调整两者的相对位置、旋转和缩放，不必修改 C++。兔子子弹从 Spawned 起就直接使用逻辑投射物世界位置，离开发射者后继续由逻辑事件覆盖位置，绝不附着人物、叠加挂点偏移或反向修改命中。
 
 ```text
 Weapons / EnemyLogic
@@ -63,7 +63,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 语义 | 权威资产 | 播放约定 |
 |---|---|---|
 | RabbitCharging | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Charging_01` | 世界位置；排序恒为兔子当前 Flipbook `+1`，Windup 开始，提交/结束清理 |
-| RabbitProjectile | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` | 三球资产所有启用发射器使用 Local Space；运行时粒子速度实测为本地约 `0° / 32.5° / 65°`，目录集中把中间球的 `32.5°` 轴对准锁定方向；载体随逻辑投射物移动，命中/越界清理 |
+| RabbitProjectile | 核心球 `/Game/VFX/Monster/Rabbit/MI/BaseVFX003_Inst12`；柔光适配材质 `/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow` | 从正式单球材质与原 `Glo_c002` 纹理创建三个 World Material Billboard；适配材质显式提供红色 Additive/Unlit/Emissive，不依赖 Niagara 粒子参数；核心直径精确等于事件碰撞直径，光晕直径为核心的 `1.5` 倍但不参与碰撞；位置逐帧覆盖为对应逻辑球位置，Ended/清场销毁 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02` | 世界位置、前景、Windup 开始 |
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 攻击挂点、前景、Windup 开始 |
@@ -75,9 +75,11 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 ## 兔子投射物边界
 
-兔子远程 Commit 后，EnemyHost 使用 `FReEchoEnemyProjectileLogic` 创建三条真实逻辑轨迹，中心锁定目标、两侧扇形展开，每球独立一次命中。三条逻辑轨迹共享一份三球 Niagara：仅中心逻辑轨迹发布 Spawned/Moved/Ended，VFX 不读取其他两球的位置，也不拥有碰撞或伤害。
+兔子远程 Commit 后，EnemyHost 使用 `FReEchoEnemyProjectileLogic` 创建三条真实逻辑轨迹，中心锁定目标、两侧扇形展开，每球独立一次命中并分别发布 Spawned/Moved/Ended。`UReEchoCombatVfxComponent` 以 `(Attack.Source, Attack.Sequence, VolleyBallIndex)` 建立三个独立 Material Billboard，直接使用事件位置；同一齐射的三球不会再因只用 `Attack.Sequence` 互相覆盖。视觉使用交付资产的 `BaseVFX003_Inst12` 与 `0814_04` 绘制核心球；原 Niagara 的材质审计确认 `Inst1/Glo_c002` 是柔和渐变光晕，`Inst2/Glo_C178` 是圆环，`Inst3/Glo_c130` 是尖刺。由于原 Niagara 材质依赖 `Particles.Color` 等粒子输入，普通 Billboard 不直接复用这些实例；`M_RabbitProjectileGlow` 只复用 `Glo_c002`，显式定义红色 Additive/Unlit/Emissive 输出。核心可见直径等于逻辑碰撞直径，光晕只向外扩展表现，不参与碰撞。
 
-当前表中 `ProjectileSpeedCmPerSecond == 0`，兼容路径暂按 `MaxRangeCm / CooldownSeconds` 推导 500 cm/s，使旧表能够生成可见飞行载体；一旦策划填写正数，显式表值立即成为权威。Plan53 在碰撞接缝完成后从 `ReEchoEnemyData.xlsx → enemy_abilities.csv` 恢复兔子能力伤害 `10`；VFX 仍不拥有伤害、碰撞或禁伤开关。
+交付的 `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` 仍保留为原始美术资产和依赖清单根，但不再承担运行时三球位移。它内部自行模拟三颗粒子，历史实现同时移动 Niagara Component 与本地粒子，造成“画面覆盖却不命中 / 看不到球却受伤”；禁止恢复这条独立运动链。若未来要恢复尾迹或更复杂表现，必须制作读取逐球逻辑位置的单球适配资产，不能让粒子位置反向驱动玩法。
+
+当前表中 `ProjectileSpeedCmPerSecond == 0`，兼容路径暂按 `MaxRangeCm / CooldownSeconds` 推导 500 cm/s，使旧表能够生成可见飞行载体；一旦策划填写正数，显式表值立即成为权威。当前 `ReEchoEnemyData.xlsx → enemy_abilities.csv` 的兔子能力伤害为 `1`；VFX 仍不拥有伤害、碰撞或禁伤开关。
 
 旧 `AReEchoHitImpactActor / ReEchoAttackEffects / HitStarburst` 已删除；玩家和敌人受击只能走本模块的 `PlayerHurt / EnemyHurt` Niagara 语义，禁止再生成独立火焰星爆 Actor。
 
@@ -110,7 +112,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 - 资源加载失败只能少一个视觉，不得让攻击失败。
 - 受击只消费 Combat 的最终 `AppliedDamage`，不能从重叠或预测命中提前播放。
-- 投射物 Niagara 绝不是位置真相；每次 Moved 都覆盖其 Transform。
+- 投射物表现绝不是位置真相；每颗球的 Moved 都直接覆盖对应 World Material Billboard 的 Transform，禁止在表现侧再次积分速度。补光晕只能更换同一代理的材质或叠加同位置表现层，不得恢复会自行运动的三球 Niagara。
 - 攻击与受击必须使用两个独立的 Blueprint 可编辑挂点；不得重新合并到一个通用位置，也不得在 VFX 组件里按角色 ID 写死偏移。
 - 所有角色战斗特效进入独立的全局前景排序带：`max(100, 宿主当前 UReEcho2DAnimationComponent::TranslucencySortPriority + 1)`。这既保证特效覆盖所属对象，也避免宿主之间动态脚点排序使某个对象的特效被其他角色遮住；不得为单个语义重新设置为背景层，挂点 Transform 也不得改变这一覆盖保证。
 - 循环/跟随效果必须在 Death、Ended 和 EndPlay 都可清理。

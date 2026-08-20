@@ -105,20 +105,6 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_THUNDER.T_UI_Part_P_CORE_THUNDER"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CorePrismIconFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_PRISM.T_UI_Part_P_CORE_PRISM"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerThrustGripIconFinder(TEXT(
-	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_THRUST_GRIP.T_UI_Part_P_DAGGER_THRUST_GRIP"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerStrengthGripIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/"
-	         "T_UI_Part_P_DAGGER_STRENGTH_GRIP.T_UI_Part_P_DAGGER_STRENGTH_GRIP"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerNinjaBladeIconFinder(TEXT(
-	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_NINJA_BLADE.T_UI_Part_P_DAGGER_NINJA_BLADE"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerStunningBladeIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/"
-	         "T_UI_Part_P_DAGGER_STUNNING_BLADE.T_UI_Part_P_DAGGER_STUNNING_BLADE"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerHolyBladeIconFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_HOLY_BLADE.T_UI_Part_P_DAGGER_HOLY_BLADE"));
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DaggerShadowBladeIconFinder(TEXT(
-	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_DAGGER_SHADOW_BLADE.T_UI_Part_P_DAGGER_SHADOW_BLADE"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BowSplitArrowheadIconFinder(TEXT(
 	    "/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_BOW_SPLIT_ARROWHEAD.T_UI_Part_P_BOW_SPLIT_ARROWHEAD"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> BowExplosiveArrowheadIconFinder(
@@ -136,12 +122,6 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	WeaponPartIconTextures.Add(TEXT("P_CORE_FLAME"), CoreFlameIconFinder.Object);
 	WeaponPartIconTextures.Add(TEXT("P_CORE_THUNDER"), CoreThunderIconFinder.Object);
 	WeaponPartIconTextures.Add(TEXT("P_CORE_PRISM"), CorePrismIconFinder.Object);
-	WeaponPartIconTextures.Add(TEXT("P_DAGGER_THRUST_GRIP"), DaggerThrustGripIconFinder.Object);
-	WeaponPartIconTextures.Add(TEXT("P_DAGGER_STRENGTH_GRIP"), DaggerStrengthGripIconFinder.Object);
-	WeaponPartIconTextures.Add(TEXT("P_DAGGER_NINJA_BLADE"), DaggerNinjaBladeIconFinder.Object);
-	WeaponPartIconTextures.Add(TEXT("P_DAGGER_STUNNING_BLADE"), DaggerStunningBladeIconFinder.Object);
-	WeaponPartIconTextures.Add(TEXT("P_DAGGER_HOLY_BLADE"), DaggerHolyBladeIconFinder.Object);
-	WeaponPartIconTextures.Add(TEXT("P_DAGGER_SHADOW_BLADE"), DaggerShadowBladeIconFinder.Object);
 	WeaponPartIconTextures.Add(TEXT("P_BOW_SPLIT_ARROWHEAD"), BowSplitArrowheadIconFinder.Object);
 	WeaponPartIconTextures.Add(TEXT("P_BOW_EXPLOSIVE_ARROWHEAD"), BowExplosiveArrowheadIconFinder.Object);
 	WeaponPartIconTextures.Add(TEXT("P_BOW_PIERCING_ARROWHEAD"), BowPiercingArrowheadIconFinder.Object);

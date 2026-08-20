@@ -1,22 +1,4 @@
 Id,DisplayName,Description,BaseAttackPatternId,SlotProfileId,BaseIntervalSeconds,BaseRangeCm,BaseArcDegrees,BaseProjectileCount,BaseConcentrationDegrees,BaseExplosionRadiusCm,ChainWindowSeconds,Enabled,SourceSheet,SourceRow,DisabledReason
-Dagger,匕首,"攻击模组：【三段攻击】
-一段：从右往左挥刀
-攻击时长：0.5s
-伤害倍率：60% 元攻/物攻
-二段：从左往右挥刀
-攻击时长：0.5s
-伤害倍率：60% 元攻/物攻
-三段：冲刺挥刀
-攻击时长：0.7s
-冲刺伤害倍率：60% 元攻/物攻
-终点挥刀伤害倍率：120% 元攻/物攻
-冲刺距离：2m
-
-冲刺时，对路径上的敌方单位造成伤害；在终点原地旋转挥刀，对360°的敌人造成伤害。此过程中获得【无敌】
-初始属性：近战武器攻击角度：120°
-攻击范围：1.5m
-连贯攻击阈值：0.5s
-武器介绍：絮扬填充",Pattern.DaggerCombo,SP_DAGGER,0.5,150,120,0,0,0,0.5,true,武器体系W,2,
 LongSword,长剑,"攻击模组：【二段攻击】
 一段：从左往右挥剑
 攻击时长：0.8s

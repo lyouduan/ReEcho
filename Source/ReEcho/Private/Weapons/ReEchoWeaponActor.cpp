@@ -78,6 +78,28 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 		StaffSprite->SetRelativeScale3D(FVector(StaffWorldHeight / FMath::Max(1, StaffTexture->GetSizeY())));
 	}
 
+	auto CreateWeaponBillboard = [this](const TCHAR* Name, const TCHAR* TexturePath)
+	{
+		UBillboardComponent* Billboard = CreateDefaultSubobject<UBillboardComponent>(Name);
+		Billboard->SetupAttachment(Root);
+		Billboard->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Billboard->SetCastShadow(false);
+		Billboard->SetTranslucentSortPriority(6);
+		Billboard->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
+		Billboard->SetHiddenInGame(false);
+		if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, TexturePath))
+		{
+			Billboard->SetSprite(Tex);
+			constexpr float WorldHeight = 250.0f;
+			Billboard->SetRelativeScale3D(FVector(WorldHeight / FMath::Max(1, Tex->GetSizeY())));
+		}
+		return Billboard;
+	};
+	ScytheSprite = CreateWeaponBillboard(TEXT("ScytheSprite"), TEXT("/Game/ReEcho/Textures/Effects/Scythe.Scythe"));
+	WhipSprite = CreateWeaponBillboard(TEXT("WhipSprite"), TEXT("/Game/ReEcho/Textures/Effects/Whip.Whip"));
+	BowSprite = CreateWeaponBillboard(TEXT("BowSprite"), TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow"));
+	GunSprite = CreateWeaponBillboard(TEXT("GunSprite"), TEXT("/Game/ReEcho/Textures/Effects/Gun.Gun"));
+
 	// Billboard 会在渲染阶段覆盖组件旋转；使用透明 Plane 才能稳定显示武器自身的 360 度旋转。
 	SwordSprite = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordSprite"));
 	SwordSprite->SetupAttachment(Root);
@@ -542,10 +564,15 @@ void AReEchoWeaponActor::RefreshVisualState()
 	const FName VisualKey = Definition ? Definition->VisualKey : NAME_None;
 	const bool bShowSword = VisualKey == TEXT("CrescentBlade");
 	const bool bShowElement = VisualKey == TEXT("ElementalOrb");
+	const bool bShowStaff = VisualKey == TEXT("MoonStaff") || VisualKey == TEXT("Staff");
+	const bool bShowScythe = VisualKey == TEXT("Scythe");
+	const bool bShowWhip = VisualKey == TEXT("Whip");
+	const bool bShowBow = VisualKey == TEXT("Bow");
+	const bool bShowGun = VisualKey == TEXT("Gun");
 	if (StaffSprite)
 	{
-		StaffSprite->SetVisibility(false);
-		StaffSprite->SetHiddenInGame(true);
+		StaffSprite->SetVisibility(bShowStaff);
+		StaffSprite->SetHiddenInGame(!bShowStaff);
 	}
 	if (SwordSprite)
 	{
@@ -554,6 +581,26 @@ void AReEchoWeaponActor::RefreshVisualState()
 	if (ElementIndicator)
 	{
 		ElementIndicator->SetVisibility(bShowElement);
+	}
+	if (ScytheSprite)
+	{
+		ScytheSprite->SetVisibility(bShowScythe);
+		ScytheSprite->SetHiddenInGame(!bShowScythe);
+	}
+	if (WhipSprite)
+	{
+		WhipSprite->SetVisibility(bShowWhip);
+		WhipSprite->SetHiddenInGame(!bShowWhip);
+	}
+	if (BowSprite)
+	{
+		BowSprite->SetVisibility(bShowBow);
+		BowSprite->SetHiddenInGame(!bShowBow);
+	}
+	if (GunSprite)
+	{
+		GunSprite->SetVisibility(bShowGun);
+		GunSprite->SetHiddenInGame(!bShowGun);
 	}
 }
 

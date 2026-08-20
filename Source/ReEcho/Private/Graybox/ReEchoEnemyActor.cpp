@@ -479,10 +479,7 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		        SavedProjectile.Definition, SavedProjectile.Snapshot, RestoredProjectile.Snapshot))
 		{
 			BossProjectiles.Add(MoveTemp(RestoredProjectile));
-			if (ShouldPublishProjectileEvent(BossProjectiles.Last()))
-			{
-				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
-			}
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
 		}
 	}
 	EnemyPresentation->RefreshElementAttachmentVisual();
@@ -506,10 +503,7 @@ void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
 		}
 		for (const FReEchoEnemyProjectileRuntimeState& Projectile : BossProjectiles)
 		{
-			if (ShouldPublishProjectileEvent(Projectile))
-			{
-				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
-			}
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
 		}
 		BossProjectiles.Reset();
 	}
@@ -647,7 +641,7 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 		FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
 		const FReEchoEnemyProjectileAdvanceResult AdvanceResult =
 		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
-		if (AdvanceResult.bMoved && ShouldPublishProjectileEvent(Projectile))
+		if (AdvanceResult.bMoved)
 		{
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Moved, Projectile);
 		}
@@ -667,10 +661,7 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 		const bool bRabbitVolleyBall = Projectile.VolleyBallIndex != INDEX_NONE;
 		if ((bHitTarget && !bRabbitVolleyBall) || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
-			if (ShouldPublishProjectileEvent(Projectile))
-			{
-				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
-			}
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
 			BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
 		}
 	}
@@ -975,10 +966,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
 				{
 					BossProjectiles.Add(MoveTemp(Projectile));
-					if (ShouldPublishProjectileEvent(BossProjectiles.Last()))
-					{
-						PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
-					}
+					PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
 				}
 			}
 		}
@@ -1086,13 +1074,9 @@ void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEvent
 	Event.AbilityId = EnemyId == TEXT("M_RABBIT") ? FName(TEXT("M_RABBIT_RangedBurst")) : NAME_None;
 	Event.Location = Projectile.Snapshot.Location;
 	Event.Direction = Projectile.Snapshot.Direction;
+	Event.VolleyBallIndex = Projectile.VolleyBallIndex;
+	Event.CollisionRadiusCm = Projectile.CollisionRadiusCm;
 	EnemyEvents->PublishProjectile(Event);
-}
-
-bool AReEchoEnemyActor::ShouldPublishProjectileEvent(const FReEchoEnemyProjectileRuntimeState& Projectile) const
-{
-	return Projectile.VolleyBallIndex == INDEX_NONE ||
-	       Projectile.VolleyBallIndex == ReEchoRabbitProjectilePattern::CenterBallIndex;
 }
 
 FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving) const

@@ -3,6 +3,7 @@
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
+#include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
@@ -12,6 +13,7 @@
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Misc/AutomationTest.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 
 namespace
 {
@@ -252,6 +254,10 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	if (!Rabbit->HasActorBegunPlay())
+	{
+		Rabbit->DispatchBeginPlay();
+	}
 
 	FReEchoEnemySenseSnapshot Sense;
 	Sense.Target = Player;
@@ -286,8 +292,50 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		         Ball.Definition.Direction.Equals(
 		             ReEchoRabbitProjectilePattern::ResolveDirection(FVector::ForwardVector, BallIndex), 0.001f));
 	}
+	const TArray<FReEchoEnemyProjectileEvent>& SpawnEvents =
+	    Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests();
+	bool bSawSpawnForBall[ReEchoRabbitProjectilePattern::BallCount] = {false, false, false};
+	int32 SpawnEventCount = 0;
+	for (const FReEchoEnemyProjectileEvent& Event : SpawnEvents)
+	{
+		if (Event.Type != EReEchoEnemyProjectileEventType::Spawned)
+		{
+			continue;
+		}
+		++SpawnEventCount;
+		if (Event.VolleyBallIndex >= 0 && Event.VolleyBallIndex < ReEchoRabbitProjectilePattern::BallCount)
+		{
+			bSawSpawnForBall[Event.VolleyBallIndex] = true;
+		}
+		TestEqual(
+		    TEXT("Each presentation event carries the authoritative collider radius"), Event.CollisionRadiusCm, 50.0f);
+	}
+	TestEqual(TEXT("Host publishes one presentation spawn per authoritative ball"),
+	          SpawnEventCount,
+	          ReEchoRabbitProjectilePattern::BallCount);
+	for (int32 BallIndex = 0; BallIndex < ReEchoRabbitProjectilePattern::BallCount; ++BallIndex)
+	{
+		TestTrue(FString::Printf(TEXT("Presentation spawn includes ball %d"), BallIndex), bSawSpawnForBall[BallIndex]);
+	}
+	UReEchoCombatVfxComponent* RabbitVfx = Rabbit->FindComponentByClass<UReEchoCombatVfxComponent>();
+	if (TestNotNull(TEXT("Rabbit host composes the combat VFX adapter"), RabbitVfx))
+	{
+		TestEqual(TEXT("One visual proxy exists for every authoritative ball"),
+		          RabbitVfx->GetProjectileVisualCountForTests(),
+		          ReEchoRabbitProjectilePattern::BallCount);
+		for (const FReEchoEnemyProjectileRuntimeState& Ball : SpawnedState.BossProjectiles)
+		{
+			FVector VisualLocation = FVector::ZeroVector;
+			TestTrue(TEXT("Spawned ball has a keyed visual proxy"),
+			         RabbitVfx->TryGetProjectileVisualLocationForTests(
+			             Ball.Attack.Sequence, Ball.VolleyBallIndex, VisualLocation));
+			TestTrue(TEXT("Spawned visual proxy is exactly at its logical ball"),
+			         VisualLocation.Equals(Ball.Snapshot.Location, KINDA_SMALL_NUMBER));
+		}
+	}
 	const float ProjectileGameplayZ = SpawnedState.BossProjectiles[0].Snapshot.Location.Z;
 
+	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
 	Rabbit->AdvanceEnemyProjectilesForTests(0.1f);
 	const FReEchoEnemyRuntimeState AdvancedState = Rabbit->CaptureRuntimeState();
 	TestEqual(TEXT("All balls remain in flight before reaching target"),
@@ -299,8 +347,26 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("Host advances each rabbit ball along its fan direction"),
 			         Ball.Snapshot.DistanceTravelledCm > 0.0f);
+			if (RabbitVfx)
+			{
+				FVector VisualLocation = FVector::ZeroVector;
+				TestTrue(TEXT("Moved ball keeps its keyed visual proxy"),
+				         RabbitVfx->TryGetProjectileVisualLocationForTests(
+				             Ball.Attack.Sequence, Ball.VolleyBallIndex, VisualLocation));
+				TestTrue(TEXT("Moved visual proxy remains exactly at its logical ball"),
+				         VisualLocation.Equals(Ball.Snapshot.Location, KINDA_SMALL_NUMBER));
+			}
 		}
 	}
+	int32 MoveEventCount = 0;
+	for (const FReEchoEnemyProjectileEvent& Event :
+	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())
+	{
+		MoveEventCount += Event.Type == EReEchoEnemyProjectileEventType::Moved ? 1 : 0;
+	}
+	TestEqual(TEXT("Every authoritative ball publishes its own moved event"),
+	          MoveEventCount,
+	          ReEchoRabbitProjectilePattern::BallCount);
 
 	Player->SetActorLocation(FVector(0.0f, 1000.0f, ProjectileGameplayZ));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.9f);
@@ -329,7 +395,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	             CenterBeforeHit->Snapshot.Location, CenterNextLocation, CenterBeforeHit->CollisionRadiusCm));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
 	TestEqual(TEXT("Center ball applies exactly one damage"), Player->Combatant->CurrentHealth, 99.0f);
-	TestEqual(TEXT("A hit ball keeps flying while the shared Niagara volley is alive"),
+	TestEqual(TEXT("A hit ball keeps flying while its logic-driven visual is alive"),
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          ReEchoRabbitProjectilePattern::BallCount);
 
@@ -350,6 +416,20 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          0);
 	TestEqual(TEXT("Volley expiry cannot add damage"), Player->Combatant->CurrentHealth, 97.0f);
+	int32 EndEventCount = 0;
+	for (const FReEchoEnemyProjectileEvent& Event :
+	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())
+	{
+		EndEventCount += Event.Type == EReEchoEnemyProjectileEventType::Ended ? 1 : 0;
+	}
+	TestEqual(TEXT("Every authoritative ball publishes its own ended event"),
+	          EndEventCount,
+	          ReEchoRabbitProjectilePattern::BallCount);
+	if (RabbitVfx)
+	{
+		TestEqual(
+		    TEXT("Ended volley leaves no projectile visual proxies"), RabbitVfx->GetProjectileVisualCountForTests(), 0);
+	}
 	return true;
 }
 

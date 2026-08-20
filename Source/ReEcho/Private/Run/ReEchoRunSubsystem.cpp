@@ -1092,6 +1092,48 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	return true;
 }
 
+bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
+{
+	if (CardId.IsNone())
+	{
+		return false;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid() || !Snapshot->CardCatalog->Find(CardId))
+	{
+		return false;
+	}
+
+	FReEchoBuildSnapshot PendingBuild;
+	if (!TryMutateAuthoritativeBuild(
+			*Snapshot,
+			CurrentBuild,
+			[&](FReEchoBuildSnapshot& BaseBuild)
+			{
+				FReEchoCardGrantInput Input;
+				Input.Stats = BaseBuild.Stats;
+				Input.CardState = BaseBuild.CardState;
+				Input.TimeShards = TimeShards;
+				Input.EncounterIndex = EncounterIndex;
+				const FReEchoCardGrantResult Grant =
+					ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
+				if (!Grant.bSucceeded)
+				{
+					return false;
+				}
+				BaseBuild.Stats = Grant.Stats;
+				BaseBuild.CardState = Grant.CardState;
+				ReEchoCharacterPromotion::TryPromote(BaseBuild);
+				return true;
+			},
+			PendingBuild))
+	{
+		return false;
+	}
+	CurrentBuild = PendingBuild;
+	return true;
+}
+
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateForgeOffers()
 {
 	PendingTraitCardIds.Reset();

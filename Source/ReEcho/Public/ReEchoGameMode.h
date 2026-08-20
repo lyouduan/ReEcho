@@ -68,6 +68,8 @@ public:
 	void GMSpawnFox(float Distance = 350.0f);
 	UFUNCTION(Exec)
 	void GMGotoBoss();
+	UFUNCTION(Exec)
+	void GMGrantCard(FName CardId);
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
