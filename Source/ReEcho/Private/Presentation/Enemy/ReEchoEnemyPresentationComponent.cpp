@@ -85,8 +85,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 			GroundShadow->SetMaterial(
 			    0,
 			    LoadObject<UMaterialInterface>(
-			        nullptr,
-			        TEXT("/Game/ReEcho/Materials/M_GroundShadow_Procedural.M_GroundShadow_Procedural")));
+			        nullptr, TEXT("/Game/ReEcho/Materials/M_GroundShadow_Procedural.M_GroundShadow_Procedural")));
 		}
 	}
 }
@@ -100,6 +99,8 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	{
 		EnemyEvents->OnActionCommitted.RemoveAll(this);
 		EnemyEvents->OnBossIntent.RemoveAll(this);
+		EnemyEvents->OnSpecialAction.RemoveAll(this);
+		EnemyEvents->OnPhaseTransition.RemoveAll(this);
 		EnemyEvents->OnFuseChanged.RemoveAll(this);
 	}
 	if (CombatEvents)
@@ -117,6 +118,8 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	{
 		EnemyEvents->OnActionCommitted.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleActionCommitted);
 		EnemyEvents->OnBossIntent.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleBossIntent);
+		EnemyEvents->OnSpecialAction.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleSpecialAction);
+		EnemyEvents->OnPhaseTransition.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandlePhaseTransition);
 		EnemyEvents->OnFuseChanged.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleFuseChanged);
 	}
 	if (CombatEvents)
@@ -272,13 +275,11 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 	}
 
 	const FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
-	const FVector LocalBottomCenter(FlipbookBounds.Origin.X,
-	                                FlipbookBounds.Origin.Y,
-	                                FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector LocalBottomCenter(
+	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
 	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
 	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
-	GroundRoot->SetRelativeLocation(
-	    FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+	GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
 
 	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
 	    FlipbookBounds, SequenceAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());
@@ -415,7 +416,41 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 	if (PresentationController)
 	{
 		const int64 Sequence = Intent.Attack.IsValid() ? Intent.Attack.Sequence : INDEX_NONE;
-		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true, Sequence);
+		PresentationController->PlayAction(Intent.Type == EReEchoBossIntentType::TelegraphStarted
+		                                       ? ReEcho2DAnimationTags::Attack_Charge
+		                                       : ReEcho2DAnimationTags::Attack_Basic,
+		                                   true,
+		                                   Sequence);
+	}
+}
+
+void UReEchoEnemyPresentationComponent::HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event)
+{
+	if (!PresentationController || Event.Type == EReEchoEnemySpecialActionEventType::ActionEnded)
+	{
+		return;
+	}
+	PresentationController->PlayAction(Event.Type == EReEchoEnemySpecialActionEventType::WindupStarted
+	                                       ? ReEcho2DAnimationTags::Attack_Charge
+	                                       : ReEcho2DAnimationTags::Attack_Basic,
+	                                   true,
+	                                   Event.Attack.IsValid() ? Event.Attack.Sequence : INDEX_NONE);
+}
+
+void UReEchoEnemyPresentationComponent::HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event)
+{
+	if (!PresentationController)
+	{
+		return;
+	}
+	if (Event.bStarted)
+	{
+		PresentationController->BeginAnimationSetTransition(Event.AnimationSetId,
+		                                                    ReEcho2DAnimationTags::Transform_Phase2);
+	}
+	else
+	{
+		PresentationController->CompleteAnimationSetTransition(Event.AnimationSetId);
 	}
 }
 

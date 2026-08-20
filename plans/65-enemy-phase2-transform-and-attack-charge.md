@@ -5,7 +5,7 @@
 - Planner 负责人：JosephLE910（程序）
 - Executor 负责人：JosephLE910（程序）
 - Plan / 实现编写方（AI 侧）：`JosephLE910-side AI | ReEcho teammate-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main @ 4250740`（ReEcho 主工作树，直接在本地主线开发）。
 - 依赖 / 阻塞：通用系统可立即实现；正式启用的怪物名单、触发距离、攻击次数、变身时长、变身期间无敌、生命处理和二阶段倍率仍需产品配置确认，未确认前仅使用测试夹具和临时动画资产。
@@ -94,12 +94,20 @@
 
 ### 变化
 
+- 已新增可选 Phase2 定义、`Transforming` 逻辑状态、攻击次数去重快照与当前仇恨目标距离输入。
+- 已实现 OR 触发、攻击次数优先的稳定同帧决策、变身期间动作取消、逻辑计时完成及存档恢复。
+- 已新增 `Animation.Attack.Charge` / `Animation.Transform.Phase2`，特殊怪和 Boss 按 windup/commit 事件切换 Charge/Basic；阶段事件驱动 Transform 与 Phase2 AnimationSet。
+- Enemy Host 仅在玩家或已由 EchoTaunt 规则选中的回响为当前目标时设置距离触发资格。
+
 ### 证据
+
+- UE 5.8 Development Editor 增量构建通过（UHT/UBT，2026-08-20）。
+- `ReEcho.Enemies.Logic` 自动化通过；新增 `Phase2.RangeAggroPolicy` 与 `Phase2.AttackCountAndSnapshot` 均为 Success。
 
 ### 剩余风险
 
 - 生产怪物与数值未确认前只能证明通用系统和测试夹具，不能宣称正式关卡配置完成。
-- 现有伤害事件若不能稳定区分 Echo 或唯一攻击，需扩展共享契约并全量重建依赖模块。
+- 变身次数以 Combat 最终 `AppliedDamage > 0` 的实际扣血事件为准；同一攻击多段扣血逐段计数。
 - DataAsset 为二进制 Exclusive；迁移时必须关闭编辑器并只提交具名资产。
 
 ### 人工验收结果/请求

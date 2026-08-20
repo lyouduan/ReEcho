@@ -6,6 +6,8 @@ import unreal
 PROFILE_PATH = "/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll"
 DEFAULT_FLIPBOOK_PATH = "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default"
 ATTACK_FLIPBOOK_PATH = "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/NRA"
+PHASE2_FLIPBOOK_PATH = "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/BadRabbitWalk"
+PHASE2_SET_ID = "Phase2"
 ATTACK_SPRITE_ROOT = "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Attack/Sprites"
 ATTACK_UNION_UV = unreal.Vector2D(366.0, 295.0)
 ATTACK_UNION_SIZE = unreal.Vector2D(291.0, 434.0)
@@ -54,6 +56,7 @@ def configure_profile():
     profile = required(PROFILE_PATH, unreal.ReEcho2DCharacterPresentationProfile)
     default_flipbook = required(DEFAULT_FLIPBOOK_PATH, unreal.PaperFlipbook)
     attack_flipbook = required(ATTACK_FLIPBOOK_PATH, unreal.PaperFlipbook)
+    phase2_flipbook = required(PHASE2_FLIPBOOK_PATH, unreal.PaperFlipbook)
 
     sets = list(profile.get_editor_property("animation_sets"))
     default_set = None
@@ -66,16 +69,40 @@ def configure_profile():
         default_set.set_editor_property("weapon_visual_set_id", "")
         sets.insert(0, default_set)
 
-    clips = dict(default_set.get_editor_property("clips"))
+    # Rebuild the map instead of mutating Python-wrapped GameplayTag keys. The wrapper can preserve
+    # stale equivalent keys and serialize duplicate semantics into the UE TMap.
+    clips = {}
     clips[semantic("Animation.Idle")] = clip(default_flipbook, True, False)
     clips[semantic("Animation.Move")] = clip(default_flipbook, True, False)
     clips[semantic("Animation.Attack.Basic")] = clip(attack_flipbook, False, True)
     clips[semantic("Animation.Hit")] = clip(default_flipbook, False, True)
     default_set.set_editor_property("clips", clips)
+
+    phase2_set = None
+    for candidate in sets:
+        if str(candidate.get_editor_property("weapon_visual_set_id")) == PHASE2_SET_ID:
+            phase2_set = candidate
+            break
+    if phase2_set is None:
+        phase2_set = unreal.ReEcho2DCompositeAnimationSet()
+        phase2_set.set_editor_property("weapon_visual_set_id", PHASE2_SET_ID)
+        sets.append(phase2_set)
+
+    phase2_clips = {}
+    phase2_clips[semantic("Animation.Idle")] = clip(phase2_flipbook, True, False)
+    phase2_clips[semantic("Animation.Move")] = clip(phase2_flipbook, True, False)
+    phase2_clips[semantic("Animation.Attack.Charge")] = clip(phase2_flipbook, True, True)
+    phase2_clips[semantic("Animation.Attack.Basic")] = clip(phase2_flipbook, False, True)
+    phase2_clips[semantic("Animation.Hit")] = clip(phase2_flipbook, False, True)
+    phase2_clips[semantic("Animation.Transform.Phase2")] = clip(phase2_flipbook, False, True)
+    phase2_set.set_editor_property("clips", phase2_clips)
     profile.set_editor_property("animation_sets", sets)
     unreal.EditorAssetLibrary.save_loaded_asset(profile, only_if_is_dirty=False)
 
 
 normalize_attack_sprites()
 configure_profile()
-unreal.log("Rabbit profile configured: all semantics use Profile.WorldHeight; attack crop normalized")
+unreal.log(
+    "Rabbit profile configured: Phase2 temporarily uses BadRabbitWalk; "
+    "all semantics use Profile.WorldHeight; attack crop normalized"
+)

@@ -23,6 +23,8 @@ public:
 	FReEchoEnemyActionIntent Advance(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 
 	void NotifyHurt(float AppliedDamage, const FVector& SourceLocation, const FVector& SelfLocation);
+	/** Counts one actual health-reduction event for the optional phase trigger, then applies hurt reaction. */
+	void NotifyReceivedAttack(const FReEchoDamageEvent& Event);
 	void NotifyDeath();
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
 	void ResetEncounterTransientState();
@@ -76,6 +78,9 @@ private:
 	void ApplyStandardMovement(const FReEchoEnemySenseSnapshot& Sense,
 	                           float DeltaSeconds,
 	                           FReEchoEnemyActionIntent& InOutIntent);
+	bool TryBeginPhaseTransition(const FReEchoEnemySenseSnapshot& Sense, FReEchoEnemyActionIntent& InOutIntent);
+	FReEchoEnemyActionIntent AdvancePhaseTransition(float DeltaSeconds);
+	void CancelUncommittedActionsForPhaseTransition();
 	bool BuildBossRuntime();
 	void CommitAttack(const FReEchoEnemySenseSnapshot& Sense,
 	                  bool bCanDamageTarget,

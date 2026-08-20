@@ -38,13 +38,13 @@ bool FReEcho2DFootpointAlignmentTest::RunTest(const FString& Parameters)
 	                              RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalBottom));
 	TestTrue(TEXT("Mirrored, scaled and camera-tilted Flipbook bottom center meets authored footpoint"),
 	         AlignedBottom.Equals(FootpointOffset, KINDA_SMALL_NUMBER));
-	const float PresentationWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
-	    Bounds, RendererToRoot, RootToMotion);
+	const float PresentationWidth =
+	    UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(Bounds, RendererToRoot, RootToMotion);
 	const FVector LocalLeft(Bounds.Origin.X - Bounds.BoxExtent.X, Bounds.Origin.Y, Bounds.Origin.Z);
 	const FVector LocalRight(Bounds.Origin.X + Bounds.BoxExtent.X, Bounds.Origin.Y, Bounds.Origin.Z);
-	const float ExpectedWidth = FVector::Distance(
-	    RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalLeft)),
-	    RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalRight)));
+	const float ExpectedWidth =
+	    FVector::Distance(RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalLeft)),
+	                      RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalRight)));
 	TestEqual(TEXT("Ground shadow width source includes Flipbook mirror, scale and camera-facing transform"),
 	          PresentationWidth,
 	          ExpectedWidth);
@@ -452,6 +452,23 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	ControlledRenderer->Stop();
 	Controller->UpdatePlaybackCompletion();
 	TestTrue(TEXT("Completed one-shot returns to the current Move base state"),
+	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&
+	             ControlledRenderer->GetFlipbook() == WalkFlipbook);
+
+	FReEcho2DCompositeAnimationSet& Phase2Set = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
+	Phase2Set.WeaponVisualSetId = TEXT("Phase2");
+	FReEcho2DAnimationClip Phase2TransformClip = AuthoredClip;
+	Phase2TransformClip.Flipbook = StaffAttackFlipbook;
+	Phase2Set.Clips.Add(ReEcho2DAnimationTags::Transform_Phase2, Phase2TransformClip);
+	FReEcho2DAnimationClip Phase2MoveClip = StaffMoveClip;
+	Phase2MoveClip.Flipbook = WalkFlipbook;
+	Phase2Set.Clips.Add(ReEcho2DAnimationTags::Move, Phase2MoveClip);
+	TestTrue(TEXT("Animation-set transition resolves Transform from the target set before base-state playback"),
+	         Controller->BeginAnimationSetTransition(TEXT("Phase2"), ReEcho2DAnimationTags::Transform_Phase2) &&
+	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Transform_Phase2 &&
+	             ControlledRenderer->GetFlipbook() == StaffAttackFlipbook);
+	Controller->CompleteAnimationSetTransition(TEXT("Phase2"));
+	TestTrue(TEXT("Completing an animation-set transition enters the target set's current base state"),
 	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&
 	             ControlledRenderer->GetFlipbook() == WalkFlipbook);
 

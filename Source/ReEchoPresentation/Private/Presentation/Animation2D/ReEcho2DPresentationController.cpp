@@ -101,6 +101,33 @@ void UReEcho2DPresentationController::SetWeaponVisualSetId(const FName InWeaponV
 	}
 }
 
+bool UReEcho2DPresentationController::BeginAnimationSetTransition(const FName InAnimationSetId,
+                                                                  const FGameplayTag TransitionSemanticKey)
+{
+	if (CollisionDriver && ActiveAttackInstanceId >= 0)
+	{
+		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
+	}
+	ActiveAttackInstanceId = INDEX_NONE;
+	bWaitingForOneShot = false;
+	ActiveStateTag = FGameplayTag();
+	WeaponVisualSetId = InAnimationSetId;
+	return PlayAction(TransitionSemanticKey, true);
+}
+
+void UReEcho2DPresentationController::CompleteAnimationSetTransition(const FName InAnimationSetId)
+{
+	if (CollisionDriver && ActiveAttackInstanceId >= 0)
+	{
+		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
+	}
+	ActiveAttackInstanceId = INDEX_NONE;
+	bWaitingForOneShot = false;
+	ActiveStateTag = FGameplayTag();
+	WeaponVisualSetId = InAnimationSetId;
+	ApplyBaseState(true);
+}
+
 void UReEcho2DPresentationController::SetMoving(const bool bInMoving)
 {
 	if (bMoving == bInMoving)
@@ -257,4 +284,5 @@ void UReEcho2DPresentationController::DeactivatePresentation()
 		AnimationRenderer->DeactivateAnimation();
 	}
 }
+
 // ReEchoPresentation runtime implementation.

@@ -155,6 +155,14 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	Definition.HitReactionDurationSeconds = FMath::Max(0.0f, Definition.HitReactionDurationSeconds);
 	Definition.KnockbackSpeedCmPerSecond = FMath::Max(0.0f, Definition.KnockbackSpeedCmPerSecond);
 	Definition.KnockbackDrag = FMath::Max(0.0f, Definition.KnockbackDrag);
+	if (Definition.Phase2.bEnabled &&
+	    (Definition.Phase2.Id.IsNone() || Definition.Phase2.TransformSeconds < 0.0f ||
+	     (Definition.Phase2.TriggerRangeCm <= 0.0f && Definition.Phase2.RequiredAttackCount <= 0)))
+	{
+		Definition = {};
+		State = {};
+		return false;
+	}
 
 	State = {};
 	State.Archetype = Definition.Archetype;
@@ -336,6 +344,14 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	}
 
 	const float SafeDeltaSeconds = FMath::Max(0.0f, DeltaSeconds);
+	if (State.Phase == EReEchoEnemyBehaviorPhase::Transforming)
+	{
+		return AdvancePhaseTransition(SafeDeltaSeconds);
+	}
+	if (TryBeginPhaseTransition(Sense, Intent))
+	{
+		return Intent;
+	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
 		return AdvanceBoss(Sense, SafeDeltaSeconds);
@@ -973,6 +989,91 @@ void UReEchoEnemyLogicComponent::NotifyHurt(const float AppliedDamage,
 	State.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
 }
 
+void UReEchoEnemyLogicComponent::NotifyReceivedAttack(const FReEchoDamageEvent& Event)
+{
+	if (!bInitialized || !State.bAlive || Event.Target != GetOwner() || Event.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+
+	const bool bCountsForPhase = Event.DamageSource != EReEchoDamageSource::Enemy;
+	if (Definition.Phase2.bEnabled && !State.bPhase2Triggered && bCountsForPhase)
+	{
+		++State.ReceivedDamageCount;
+	}
+
+	NotifyHurt(Event.AppliedDamage, Event.SourceWorldLocation, Event.WorldLocation);
+}
+
+bool UReEchoEnemyLogicComponent::TryBeginPhaseTransition(const FReEchoEnemySenseSnapshot& Sense,
+                                                         FReEchoEnemyActionIntent& InOutIntent)
+{
+	if (!Definition.Phase2.bEnabled || State.bPhase2Triggered)
+	{
+		return false;
+	}
+
+	const bool bAttackCountReached =
+	    Definition.Phase2.RequiredAttackCount > 0 && State.ReceivedDamageCount >= Definition.Phase2.RequiredAttackCount;
+	const bool bRangeEntered =
+	    Definition.Phase2.TriggerRangeCm > 0.0f && Sense.bTargetExists && Sense.bTargetAlive &&
+	    Sense.bTargetCanAttractAggro &&
+	    FVector::Dist2D(Sense.SelfLocation, Sense.TargetLocation) <= Definition.Phase2.TriggerRangeCm;
+	if (!bAttackCountReached && !bRangeEntered)
+	{
+		return false;
+	}
+
+	State.bPhase2Triggered = true;
+	State.PhaseTriggerReason = bAttackCountReached ? EReEchoEnemyPhaseTriggerReason::AttackCountReached
+	                                               : EReEchoEnemyPhaseTriggerReason::RangeEntered;
+	State.PhaseTransitionRemainingSeconds = FMath::Max(0.0f, Definition.Phase2.TransformSeconds);
+	State.Phase = EReEchoEnemyBehaviorPhase::Transforming;
+	CancelUncommittedActionsForPhaseTransition();
+	InOutIntent.bPhaseTransitionStarted = true;
+	InOutIntent.PhaseTriggerReason = State.PhaseTriggerReason;
+	if (State.PhaseTransitionRemainingSeconds <= 0.0f)
+	{
+		State.CurrentPhaseIndex = 2;
+		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+		InOutIntent.bPhaseTransitionCompleted = true;
+	}
+	return true;
+}
+
+FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvancePhaseTransition(const float DeltaSeconds)
+{
+	FReEchoEnemyActionIntent Intent;
+	State.PhaseTransitionRemainingSeconds =
+	    FMath::Max(0.0f, State.PhaseTransitionRemainingSeconds - FMath::Max(0.0f, DeltaSeconds));
+	if (State.PhaseTransitionRemainingSeconds <= 0.0f)
+	{
+		State.CurrentPhaseIndex = 2;
+		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+		Intent.bPhaseTransitionCompleted = true;
+		Intent.PhaseTriggerReason = State.PhaseTriggerReason;
+	}
+	return Intent;
+}
+
+void UReEchoEnemyLogicComponent::CancelUncommittedActionsForPhaseTransition()
+{
+	State.HitReactionRemainingSeconds = 0.0f;
+	State.KnockbackVelocity = FVector::ZeroVector;
+	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
+	State.SpecialAbilityId = NAME_None;
+	State.SpecialActionRemainingSeconds = 0.0f;
+	if (!State.bBossCurrentAbilityCommitted)
+	{
+		State.BossActionPhase = EReEchoBossActionPhase::None;
+		State.BossCurrentAbilityId = NAME_None;
+		State.BossCurrentAttackSequence = 0;
+		State.BossActionPhaseRemainingSeconds = 0.0f;
+		State.bBossHasLockedTarget = false;
+		State.bBossHasLockedTeleportDestination = false;
+	}
+}
+
 void UReEchoEnemyLogicComponent::NotifyDeath()
 {
 	if (!bInitialized)
@@ -1035,6 +1136,26 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 	State.FuseRemainingSeconds = FMath::Max(0.0f, State.FuseRemainingSeconds);
 	State.HitReactionRemainingSeconds = FMath::Max(0.0f, State.HitReactionRemainingSeconds);
 	State.AttackSequence = FMath::Max<int64>(0, State.AttackSequence);
+	State.CurrentPhaseIndex = FMath::Clamp(State.CurrentPhaseIndex, 1, 2);
+	State.ReceivedDamageCount = FMath::Max(0, State.ReceivedDamageCount);
+	State.PhaseTransitionRemainingSeconds = FMath::Max(0.0f, State.PhaseTransitionRemainingSeconds);
+	if (!Definition.Phase2.bEnabled)
+	{
+		State.CurrentPhaseIndex = 1;
+		State.ReceivedDamageCount = 0;
+		State.PhaseTransitionRemainingSeconds = 0.0f;
+		State.PhaseTriggerReason = EReEchoEnemyPhaseTriggerReason::None;
+		State.bPhase2Triggered = false;
+	}
+	else if (State.CurrentPhaseIndex >= 2)
+	{
+		State.bPhase2Triggered = true;
+		State.PhaseTransitionRemainingSeconds = 0.0f;
+		if (State.Phase == EReEchoEnemyBehaviorPhase::Transforming)
+		{
+			State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+		}
+	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
 		TArray<FReEchoBossAbilityCooldownSnapshot> RestoredCooldowns;
@@ -1102,7 +1223,7 @@ void UReEchoEnemyLogicComponent::HandleCombatHurt(const FReEchoDamageEvent& Even
 	{
 		return;
 	}
-	NotifyHurt(Event.AppliedDamage, Event.SourceWorldLocation, Event.WorldLocation);
+	NotifyReceivedAttack(Event);
 }
 
 void UReEchoEnemyLogicComponent::HandleCombatDeath(const FReEchoDamageEvent& Event)

@@ -715,6 +715,11 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 			const UReEchoCombatantComponent* PlayerCombatant =
 			    TargetActor->FindComponentByClass<UReEchoCombatantComponent>();
 			Sense.bTargetAlive = PlayerCombatant && PlayerCombatant->IsAlive();
+			// DesiredTarget is the authoritative aggro selection for this tick. Echoes only reach this branch as
+			// transform-range candidates when the run's taunt rule selected them above.
+			Sense.bTargetCanAttractAggro =
+			    Cast<AReEchoPlayerPawn>(TargetActor) != nullptr ||
+			    (Run && Run->GetCardRules().bEchoTaunts && Cast<AReEchoEchoActor>(TargetActor) != nullptr);
 			if (const AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(TargetActor))
 			{
 				Sense.bTargetInvulnerable = ReEchoPlayer->IsWeaponInvulnerable();
@@ -730,6 +735,16 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
 		const FReEchoEnemyLogicSnapshot PreviousLogicSnapshot = EnemyLogic->GetSnapshot();
 		Intent = AdvanceBehavior(Sense, DeltaSeconds);
+		if (Intent.bPhaseTransitionStarted || Intent.bPhaseTransitionCompleted)
+		{
+			FReEchoEnemyPhaseTransitionEvent PhaseEvent;
+			PhaseEvent.PhaseId = EnemyLogic->GetDefinition().Phase2.Id;
+			PhaseEvent.AnimationSetId = EnemyLogic->GetDefinition().Phase2.AnimationSetId;
+			PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
+			PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
+			PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
+			EnemyEvents->PublishPhaseTransition(PhaseEvent);
+		}
 		PublishSpecialActionTransition(PreviousLogicSnapshot, Intent);
 		if (ReEchoGameMode && PreviousLogicSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None &&
 		    EnemyLogic->GetSnapshot().SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)

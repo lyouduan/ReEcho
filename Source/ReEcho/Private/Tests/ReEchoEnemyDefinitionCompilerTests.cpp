@@ -51,6 +51,17 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Unknown EnemyId never falls back"),
 	          ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_Unknown"), Missing, Error));
 	TestTrue(TEXT("Unknown EnemyId reports explicit error"), Error.Contains(TEXT("unknown or disabled")));
+	FReEchoEnemyDefinition Rabbit;
+	TestTrue(TEXT("Rabbit definition compiles"),
+	         ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_RABBIT"), Rabbit, Error));
+	TestTrue(TEXT("Rabbit temporarily enables phase two"), Rabbit.Phase2.bEnabled);
+	TestEqual(TEXT("Rabbit phase two animation set"), Rabbit.Phase2.AnimationSetId, FName(TEXT("Phase2")));
+	TestEqual(TEXT("Rabbit phase two attack threshold"), Rabbit.Phase2.RequiredAttackCount, 2);
+	TestEqual(TEXT("Rabbit phase two aggro range"), Rabbit.Phase2.TriggerRangeCm, 300.0f);
+	TestTrue(TEXT("Boss also exposes the shared temporary phase two"), Boss.Phase2.bEnabled);
+	TestEqual(TEXT("Every transformable enemy uses two health reductions"), Boss.Phase2.RequiredAttackCount, 2);
+	TestEqual(
+	    TEXT("Every transformable enemy selects Phase2 animations"), Boss.Phase2.AnimationSetId, FName(TEXT("Phase2")));
 	return true;
 }
 

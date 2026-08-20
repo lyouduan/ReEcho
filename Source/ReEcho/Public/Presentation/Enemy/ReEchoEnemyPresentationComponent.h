@@ -117,6 +117,10 @@ private:
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);
 	UFUNCTION()
+	void HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event);
+	UFUNCTION()
+	void HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event);
+	UFUNCTION()
 	void HandleFuseChanged(const FReEchoEnemyFuseEvent& Event);
 	UFUNCTION()
 	void HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event);
