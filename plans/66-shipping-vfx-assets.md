@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side AI（待分配；本 Plan 实现可与规划同一 AI）
 - Plan 编写方（AI 侧）：`Gavyn-side AI | ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`Unassigned | Gavyn-side AI | ReEcho teammate-side AI`。
-- 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）；实现已发布至 `origin/main`（`d117118`，含合并 `fdb53cd`/Plan63 后重编的发布门禁），FullRebuild 门禁通过，`validate_project.py` 全 PASS；合并后桌面包实机验证 VFX 恢复（用户确认“没问题了”）。由秘书流程依用户指令关闭。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main` 在分配编号时的最大值之后下一空闲编号（本 Plan = 66）；实现基线发布后从 `origin/main` 建立。
 - 本地实现方式（可选，仅作交接说明）：建议一任务一 worktree（如 `ReEcho-plan66`），不在主工作区直接实现。
@@ -87,20 +87,26 @@
 
 ### 变化
 
-- 待实现完成后填写。
+- 已实现（方案 A 命中即停）：`Config/DefaultGame.ini` 紧接现有 `+DirectoriesToAlwaysCook=(Path="/Game/ReEcho/Audio")` 之后，新增 `+DirectoriesToAlwaysCook=(Path="/Game/VFX")` 与 `+DirectoriesToAlwaysCook=(Path="/Game/ReEcho/Materials/VFX")`，强制 cook 枚举并 stage 整个 VFX 资产树（含兔子子弹材质/纹理）。方案 B/C 未走。
+- 未走 Plan 59 的 `package_windows.py` 显式拷贝路线：VFX 是 uasset 二进制（需 cook 后的平台格式），必须经由 cook/stage 入 IoStore，不能与 csv 松散文件同样处理；ini `DirectoriesToAlwaysCook` 是适用且最小侵入的修法。
 
 ### 证据
 
-- 待实现完成后填写。
+- 打包实测（plan/66 分支，`scripts/ue/package_windows.py --output c:\Users\gavynqiu\Desktop\ReEchoPackage`）：`BUILD SUCCESSFUL`（ExitCode=0）；日志 `Staged 28 runtime CSV(s) into 1 Content/Data dir(s)`（Plan 59 的 csv 投递仍生效）。
+- VFX 入包验证（纠正工具误用）：UE 5.8 默认 IoStore，游戏资产在 `ReEcho-Windows.utoc/.ucas`，**不能**用 `UnrealPak -List *.pak` 验证（`.pak` 仅含 ini，`/Game/VFX` 命中 0 是误导）。正确命令：
+  `UnrealPak.exe ReEcho-Windows.utoc -List | Select-String "ReEcho/Content/VFX"`，结果 **81 个 VFX 资产**（源 `Content/VFX` 79 个 + `Materials/VFX` 等），含怪物 `NS_Rabbit_Charging_01`/攻击/被击、玩家 `NS_People_Sword_Attack_01`、兔子子弹 `M_RabbitProjectileGlow`/`BaseVFX003_Inst12` 及 `Rabbit/Tex`/`Rabbit/MI` 共 31 个材质纹理——IoStore 容器内路径形如 `../../../ReEcho/Content/VFX/...`。
+- 过程乌龙记录：首次打包因编辑器（PID 5484 `UnrealEditor.exe`「ReEcho - 虚幻编辑器」）占用 8000 端口导致 cook 命令令 `HttpListener unable to bind` 退出（ExitCode=25）；关闭编辑器后重打成功。这与 ini 改动无关（ini 只加 cook 目录，不碰端口）。
 
 ### 剩余风险
 
 - `DirectoriesToAlwaysCook` 为对 cook 的显式指令，机制成熟可靠；风险低。若未来新增 VFX 子目录落在 `/Game/VFX` 之外，须同步补 ini 项（方案 A 递归已覆盖当前全部子目录）。
+- 验证工具陷阱已写入 `MOD-ReEchoVFX.md`：后续任何人用 `UnrealPak -List *.pak` 查 VFX 会得到误导性的 0，应以 `*.utoc` 为正确对象。
 
 ### 人工验收结果/请求
 
-- 待：在目标机器实际启动 Shipping 包确认 VFX 可见（PendingBeforeClose）。
+- 待：在目标机器实际启动 Shipping 包确认怪物/玩家 VFX 可见（PendingBeforeClose）。资产入包已用 IoStore 清单客观验证（81 个 VFX 资产），运行时表现由人工实机确认。
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`：已新增「Shipping 打包：VFX 资产如何入包」一节（cook 漏包根因 + `DirectoriesToAlwaysCook` 修复 + 正确 IoStore 验证手段）。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` / `README.md`：路由无变化，未修改。

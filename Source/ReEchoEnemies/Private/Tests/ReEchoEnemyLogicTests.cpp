@@ -559,4 +559,89 @@ bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyPhaseRangeAggroPolicyTest,
+                                 "ReEcho.Enemies.Logic.Phase2.RangeAggroPolicy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyPhaseRangeAggroPolicyTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
+	Definition.Phase2.Id = TEXT("Phase2");
+	Definition.Phase2.TriggerRangeCm = 200.0f;
+	Definition.Phase2.TransformSeconds = 0.5f;
+	Definition.Phase2.bEnabled = true;
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Phase definition initializes"), Logic->Initialize(Definition, 1));
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	TestFalse(TEXT("A non-aggro Echo cannot range-trigger"), Logic->Advance(Sense, 0.1f).bPhaseTransitionStarted);
+	Sense.bTargetCanAttractAggro = true;
+	const FReEchoEnemyActionIntent Started = Logic->Advance(Sense, 0.1f);
+	TestTrue(TEXT("Current valid aggro target can range-trigger"), Started.bPhaseTransitionStarted);
+	TestEqual(TEXT("Range trigger reason"), Started.PhaseTriggerReason, EReEchoEnemyPhaseTriggerReason::RangeEntered);
+	TestFalse(TEXT("Transformation emits no movement"), Started.bHasMovement);
+	TestTrue(TEXT("Transformation remains active"),
+	         Logic->GetSnapshot().Phase == EReEchoEnemyBehaviorPhase::Transforming);
+	TestTrue(TEXT("Logic time completes transformation"), Logic->Advance(Sense, 0.5f).bPhaseTransitionCompleted);
+	TestEqual(TEXT("Transformation enters phase two"), Logic->GetSnapshot().CurrentPhaseIndex, 2);
+	TestFalse(TEXT("Transition never starts twice"), Logic->Advance(Sense, 1.0f).bPhaseTransitionStarted);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyPhaseAttackCountTest,
+                                 "ReEcho.Enemies.Logic.Phase2.AttackCountAndSnapshot",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyPhaseAttackCountTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
+	Definition.Phase2.Id = TEXT("Phase2");
+	Definition.Phase2.RequiredAttackCount = 3;
+	Definition.Phase2.TransformSeconds = 1.0f;
+	Definition.Phase2.bEnabled = true;
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Attack-count definition initializes"), Logic->Initialize(Definition, 2));
+	AActor* PlayerSource = NewObject<AActor>();
+	AActor* EchoSource = NewObject<AActor>();
+	FReEchoDamageEvent Event;
+	Event.DamageSource = EReEchoDamageSource::Player;
+	Event.Attack.Source = PlayerSource;
+	Event.Attack.Sequence = 10;
+	Event.RawDamage = 20.0f;
+	Event.AppliedDamage = 0.0f;
+	Event.bBlocked = true;
+	Logic->NotifyReceivedAttack(Event);
+	TestEqual(
+	    TEXT("Raw damage with zero final applied damage does not count"), Logic->GetSnapshot().ReceivedDamageCount, 0);
+	Event.AppliedDamage = 1.0f;
+	Event.bBlocked = false;
+	Logic->NotifyReceivedAttack(Event);
+	Logic->NotifyReceivedAttack(Event);
+	TestEqual(TEXT("Each actual health reduction counts even for the same attack identity"),
+	          Logic->GetSnapshot().ReceivedDamageCount,
+	          2);
+	Event.DamageSource = EReEchoDamageSource::Echo;
+	Event.Attack.Source = EchoSource;
+	Event.Attack.Sequence = 3;
+	Logic->NotifyReceivedAttack(Event);
+	TestEqual(TEXT("Echo health reduction counts"), Logic->GetSnapshot().ReceivedDamageCount, 3);
+	FReEchoEnemySenseSnapshot NoTarget;
+	const FReEchoEnemyActionIntent Started = Logic->Advance(NoTarget, 0.0f);
+	TestTrue(TEXT("Attack threshold starts transformation"), Started.bPhaseTransitionStarted);
+	TestEqual(TEXT("Attack count has deterministic OR precedence"),
+	          Started.PhaseTriggerReason,
+	          EReEchoEnemyPhaseTriggerReason::AttackCountReached);
+	const FReEchoEnemyLogicSnapshot Saved = Logic->GetSnapshot();
+	UReEchoEnemyLogicComponent* Restored = NewObject<UReEchoEnemyLogicComponent>();
+	Restored->Initialize(Definition, 2);
+	Restored->RestoreSnapshot(Saved);
+	TestEqual(TEXT("Snapshot restores health-reduction count"), Restored->GetSnapshot().ReceivedDamageCount, 3);
+	TestEqual(TEXT("Snapshot restores transition time"), Restored->GetSnapshot().PhaseTransitionRemainingSeconds, 1.0f);
+	TestTrue(TEXT("Restored transition completes without retrigger"),
+	         Restored->Advance(NoTarget, 1.0f).bPhaseTransitionCompleted);
+	return true;
+}
+
 #endif

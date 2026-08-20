@@ -119,6 +119,19 @@ struct REECHOENEMIES_API FReEchoEnemyProjectileEvent
 	float CollisionRadiusCm = 0.0f;
 };
 
+USTRUCT(BlueprintType)
+
+struct REECHOENEMIES_API FReEchoEnemyPhaseTransitionEvent
+{
+	GENERATED_BODY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName PhaseId = NAME_None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName AnimationSetId = NAME_None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoEnemyPhaseTriggerReason TriggerReason = EReEchoEnemyPhaseTriggerReason::None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DurationSeconds = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bStarted = false;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyActionCommittedDelegate,
                                             const FReEchoEnemyActionCommittedEvent&,
                                             Event);
@@ -128,6 +141,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemySpecialActionDelegate,
                                             const FReEchoEnemySpecialActionEvent&,
                                             Event);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyProjectileDelegate, const FReEchoEnemyProjectileEvent&, Event);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoEnemyPhaseTransitionDelegate,
+                                            const FReEchoEnemyPhaseTransitionEvent&,
+                                            Event);
 
 /** Presentation-neutral behavior event bus explicitly wired by the enemy host. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
@@ -151,6 +167,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FReEchoEnemyProjectileDelegate OnProjectile;
+
+	UPROPERTY(BlueprintAssignable)
+	FReEchoEnemyPhaseTransitionDelegate OnPhaseTransition;
 
 	void PublishActionCommitted(const FReEchoEnemyActionCommittedEvent& Event)
 	{
@@ -178,6 +197,11 @@ public:
 		PublishedProjectileEventsForTests.Add(Event);
 #endif
 		OnProjectile.Broadcast(Event);
+	}
+
+	void PublishPhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event)
+	{
+		OnPhaseTransition.Broadcast(Event);
 	}
 
 #if WITH_DEV_AUTOMATION_TESTS

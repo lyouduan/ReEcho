@@ -24,10 +24,19 @@ enum class EReEchoEnemyBehaviorPhase : uint8
 	Attacking,
 	Fuse,
 	HitReaction,
+	Transforming,
 	Dead,
 	BossWindup,
 	BossActive,
 	BossRecovery
+};
+
+UENUM(BlueprintType)
+enum class EReEchoEnemyPhaseTriggerReason : uint8
+{
+	None,
+	AttackCountReached,
+	RangeEntered
 };
 
 UENUM(BlueprintType)
@@ -214,6 +223,34 @@ struct REECHOENEMIES_API FReEchoBossPhaseDefinition
 	bool bEnabled = false;
 };
 
+/** Optional one-shot transition into the enemy's second presentation/gameplay phase. */
+USTRUCT(BlueprintType)
+
+struct REECHOENEMIES_API FReEchoEnemyPhaseTransitionDefinition
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName Id = NAME_None;
+
+	/** Non-positive disables the current-aggro-target range trigger. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float TriggerRangeCm = 0.0f;
+
+	/** Non-positive disables the actual health-reduction-count trigger. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 RequiredAttackCount = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float TransformSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName AnimationSetId = TEXT("Phase2");
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bEnabled = false;
+};
+
 /** Immutable, presentation-free behavior definition compiled by the host. */
 USTRUCT(BlueprintType)
 
@@ -280,6 +317,10 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FReEchoBossPhaseDefinition> BossPhases;
+
+	/** Optional generic second phase. Production values are injected by the data host. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoEnemyPhaseTransitionDefinition Phase2;
 };
 
 /** Explicit world sample. Enemy logic must not discover GameMode, PlayerController, or presentation state. */
@@ -309,6 +350,10 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bTargetInvulnerable = false;
+
+	/** True only when Target is the currently selected target and is allowed to attract aggro. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bTargetCanAttractAggro = false;
 
 	/** Encounter-owned global token gate. Individual enemies never copy or mutate the shared budget. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -451,6 +496,15 @@ struct REECHOENEMIES_API FReEchoEnemyActionIntent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSelfDestructAfterAttack = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bPhaseTransitionStarted = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bPhaseTransitionCompleted = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoEnemyPhaseTriggerReason PhaseTriggerReason = EReEchoEnemyPhaseTriggerReason::None;
+
 	/** Ordered semantic commands for Boss-only world execution. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FReEchoBossIntent> BossIntents;
@@ -509,6 +563,21 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 	/** Prevents a fuse-expired bomber from publishing the same self-destruct action more than once. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSelfDestructCommitted = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 CurrentPhaseIndex = 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ReceivedDamageCount = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float PhaseTransitionRemainingSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoEnemyPhaseTriggerReason PhaseTriggerReason = EReEchoEnemyPhaseTriggerReason::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bPhase2Triggered = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoEnemySpecialActionPhase SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;

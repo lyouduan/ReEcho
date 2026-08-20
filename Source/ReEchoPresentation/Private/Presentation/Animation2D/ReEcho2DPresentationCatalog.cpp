@@ -32,7 +32,10 @@ FGameplayTag UReEcho2DPresentationCatalog::ResolveSemanticTag(const FName TagNam
 	    ReEcho2DAnimationTags::Idle,
 	    ReEcho2DAnimationTags::Move,
 	    ReEcho2DAnimationTags::Attack_Basic,
+	    ReEcho2DAnimationTags::Attack_Charge,
+	    ReEcho2DAnimationTags::Transform_Phase2,
 	    ReEcho2DAnimationTags::Hit,
+	    ReEcho2DAnimationTags::Death,
 	};
 	for (const FGameplayTag Candidate : Candidates)
 	{
@@ -43,4 +46,5 @@ FGameplayTag UReEcho2DPresentationCatalog::ResolveSemanticTag(const FName TagNam
 	}
 	return FGameplayTag();
 }
+
 // ReEchoPresentation runtime implementation.

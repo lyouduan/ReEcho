@@ -37,6 +37,10 @@ public:
 	               UReEcho2DCharacterPresentationProfile* InProfile);
 	void ClearProfile();
 	void SetWeaponVisualSetId(FName InWeaponVisualSetId);
+	/** Select a target animation set without flashing its base state, then play its transition clip. */
+	bool BeginAnimationSetTransition(FName InAnimationSetId, FGameplayTag TransitionSemanticKey);
+	/** End a transition deterministically and enter the target set's current Idle/Move base state. */
+	void CompleteAnimationSetTransition(FName InAnimationSetId);
 	void SetMoving(bool bInMoving);
 	bool PlayAction(FGameplayTag SemanticKey, bool bRestart = true, int64 AttackInstanceId = INDEX_NONE);
 	void SetFacingSign(float FacingSign);

@@ -2041,6 +2041,9 @@ def validate_build_dependencies() -> None:
                 fail(f"{rel(source_path)} has forbidden gameplay host dependency: {forbidden_token}")
 
     descriptor = load_json(ROOT / "ReEcho.uproject")
+    default_game = (ROOT / "Config" / "DefaultGame.ini").read_text(encoding="utf-8")
+    if '+DirectoriesToAlwaysCook=(Path="/Game/VFX")' not in default_game:
+        fail("Config/DefaultGame.ini must always cook the runtime combat VFX directory")
     presentation_modules = [
         module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoPresentation"
     ]
