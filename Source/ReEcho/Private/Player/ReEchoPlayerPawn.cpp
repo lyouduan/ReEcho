@@ -495,6 +495,26 @@ bool AReEchoPlayerPawn::IntersectsCombatPath(const FVector& PathStart,
 
 float AReEchoPlayerPawn::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
+	if (const AActor* SourceActor = Intent.Attack.Source.Get())
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[PlayerDamage] raw=%.2f from=%s(%s) source=%d element=%d"),
+		       Intent.RawDamage,
+		       *SourceActor->GetName(),
+		       *SourceActor->GetClass()->GetName(),
+		       static_cast<int32>(Intent.DamageSource),
+		       static_cast<int32>(Intent.Element));
+	}
+	else
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[PlayerDamage] raw=%.2f from=None source=%d element=%d"),
+		       Intent.RawDamage,
+		       static_cast<int32>(Intent.DamageSource),
+		       static_cast<int32>(Intent.Element));
+	}
 	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
 	{
 		return Run->ModifyCardIncomingHit(Intent.RawDamage);

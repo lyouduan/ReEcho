@@ -54,4 +54,18 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **依据 / Basis**：`FReEchoStageTransitionDecision.bSameStage` 在同 Stage 连续遭遇为 `true`（小关）、跨 Stage 为 `false`（大关）；测试 `ReEchoStageTransitionTests` Cases 表（0→1 大关 / 1→2 小关 / … / Boss 边界大关）印证切换结构。
 - **验证 / Verification**：待用户 PIE 实机确认——小关连续（如第2→3场）血量不回满、大关切换（如第1→2场、Boss 边界）回满。本条目待验收。
 
-<!-- 后续修复继续在此处追加 #5、#6…… -->
+### #5 — 狐狸（Elite）正面方向护盾：待策划确认是否调整（记录挂起）
+
+- **现象 / Symptom**：测试反馈 `GMSpawnFox` 生成的狐狸（敌人定义 `M_FOX`，kind=Elite）从正面打"不吃伤害"。
+- **根因 / Root cause**：方向护盾是 **所有 Elite 敌人的统一机制**，非狐狸专属。`ReEchoEnemyDefinitionCompiler.cpp:124-125` 将 `bUsesDirectionalShield` 设为 `true`（Archetype 为 Shield 或 Elite）；`AReEchoEnemyActor::ModifyIncomingRawDamage`（`ReEchoEnemyActor.cpp:592-601`）对正面来向伤害返回 `0.0f`、背面返回 `RawDamage*2.0f`。故狐狸正面攻击归零、背面双倍——属设计行为，不是专属 bug 也不是不吃伤害。
+- **待策划确认 / Open question**：① 是否预期（Elite 正面防御+背面弱点）；② 若改，方向是否反了、或想从"正面完全免疫"改为"正面减伤"（如 ×0.5）、或处理自动攻击（FIX-8/FIX-9 锁定正面时序）永远打正面的问题。
+- **状态 / Status**：记录挂起（PendingDesigner），未实现改动；等策划确认后再决定改为代码修复或关闭。
+
+### #6 — 主角受伤害来源日志（shipping 可用）
+
+- **需求 / Need**：记录主角每次受到的伤害来自哪个对象，用于线上/发布包排查误伤与伤害来源（计划于 shipping 包保留）。
+- **改动 / Changes**：`AReEchoPlayerPawn::ModifyIncomingRawDamage`（`ReEchoPlayerPawn.cpp:496`，玩家受伤最后一道关，每次受击必调）增加 `[PlayerDamage]` 诊断日志，打印 `RawDamage / 来源 Actor 名+类名 / EReEchoDamageSource 枚举 / EReEchoElement 枚举`；来源 Actor 取自 `Intent.Attack.Source`（TWeakObjectPtr，失效时记 `from=None`）。
+- **shipping 兼容 / Shipping**：使用 `UE_LOG(LogReEcho, Warning, ...)`，**不包裹 `#ifndef _SHIPPING`**，故编译进 Shipping 二进制并写入日志文件（控制台不显示，但存档可查）。与项目既有 `LogReEcho` Warning 日志一致。
+- **验证 / Verification**：PIE 实机受伤时 Output Log 出现 `[PlayerDamage]` 行；来源应仅为 `Enemy`/环境类（Echo=PlayerSide 同阵营不可互伤，见 #5 结论）。待验收。
+
+<!-- 后续修复继续在此处追加 #7、#8…… -->
