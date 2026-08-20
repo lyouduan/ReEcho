@@ -45,6 +45,7 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void EnsureOpaqueBackground();
 	void RefreshMenu();
 
 	UFUNCTION()

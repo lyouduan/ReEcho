@@ -586,11 +586,14 @@ void AReEchoGameMode::HandleStartAboutRequested()
 		return;
 	}
 
-	StartMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
+	// Keep the start menu visible as the background behind the About panel (so it reads as
+	// "on the main interface" rather than over the battle level), but disable its input so
+	// the About panel behaves as a modal dialog over the menu.
+	StartMenuWidget->SetIsEnabled(false);
 	ShowAboutScreen(true);
 	if (!AboutWidget)
 	{
-		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
+		StartMenuWidget->SetIsEnabled(true);
 	}
 }
 
@@ -668,6 +671,7 @@ void AReEchoGameMode::HandleAboutClosed()
 	if (bAboutReturnToStartMenu && StartMenuWidget)
 	{
 		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
+		StartMenuWidget->SetIsEnabled(true);
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 		{
