@@ -78,4 +78,14 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **复现 / Repro**：`GMSetShards <G_2_15 售价>` → 商店购买 `G_2_15` → 修复后碎片应为 0（不再为负）；Output Log 过滤 `ShopDebug` 可见 `NEGATIVE RISK blocked` 告警（已被夹紧拦截）。
 - **验证 / Verification**：待用户 PIE 实机确认——购买 `G_2_15` 后碎片 ≥0（预期 0），`[ShopDebug]` 日志 `after deduct timeShards=0`；并尝试其它 BuildCard/普通商品确认扣费正常。本条目待验收。
 
-<!-- 后续修复继续在此处追加 #8、#9…… -->
+### #8 — UI 数值展示（战斗血量上限 / 商店主角属性面板 / 持有碎片）不在数值变化时即时刷新
+
+- **现象 / Symptom**：在商店内购买会改变属性的卡（如 `FORGE_MEDIUM_HP` 减 HpMax / `FORGE_EXTREME` 减 HpMax+加攻击）后，商店主角属性面板仍显示购买前数值；用 GM（`GMAddShards` / `GMSetShards`）改动持有碎片时，商店内持有碎片显示不刷新。根因：属性面板 `SetPlayerStats` 仅在商店**打开时**被调用一次，且读取的是上一场战斗的 `Player->Combatant->Stats`（非"下一场将带着的属性"）；持有碎片显示同样只在商店内购买路径刷新，外部 GM 改动不触发。
+- **根因 / Root cause**：UI 采用"打开时拉取一次"的快照式更新，而非"数值变更事件驱动"。商店主角属性面板来源应为权威构建 `CurrentBuild.Stats`（购买属性卡后立即反映），而非 `Combatant->Stats`（上一场残留）。
+- **改动 / Changes**（`Source/ReEcho/Private/ReEchoGameMode.cpp`）：
+  - `#8-A` 打开商店 `ShowInventoryShopMenu`：属性面板改读 `RunSubsystem ? RunSubsystem->CurrentBuild.Stats : Player->Combatant->Stats`（展示"下一场将带着的属性"）。
+  - `#8-A` `RefreshShopPresentation` 末尾：每次刷新（打开/购买/刷新）都调用 `InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats)`，确保已购属性卡即时反映。
+  - `#8-B` `GMAddShards` / `GMSetShards`：若商店已打开（`InventoryShopWidget` 非空），在改完碎片后调用 `RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode())`，即时刷新持有碎片显示。
+- **验证 / Verification**：`Build-Editor -FullRebuild` 通过；`validate_project.py` 静态校验通过；用户 PIE 实机确认——商店内购买属性卡后主角属性面板即时更新、GM 改碎片后持有碎片显示即时刷新。本条目待验收（用户已确认"感觉没问题"）。
+
+<!-- 后续修复继续在此处追加 #9、#10…… -->

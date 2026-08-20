@@ -239,6 +239,11 @@ void AReEchoGameMode::GMAddShards(const int32 Amount)
 	const int64 UpdatedShards = static_cast<int64>(RunSubsystem->TimeShards) + static_cast<int64>(Amount);
 	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(UpdatedShards, 0, MAX_int32));
 	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
+	// #8-B: 商店打开时，GM 改动碎片后即时刷新持有碎片显示。
+	if (InventoryShopWidget)
+	{
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+	}
 }
 
 void AReEchoGameMode::GMSetShards(const int32 Amount)
@@ -255,6 +260,11 @@ void AReEchoGameMode::GMSetShards(const int32 Amount)
 	}
 	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(static_cast<int64>(Amount), 0, MAX_int32));
 	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
+	// #8-B: 商店打开时，GM 改动碎片后即时刷新持有碎片显示。
+	if (InventoryShopWidget)
+	{
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+	}
 }
 
 void AReEchoGameMode::GMWeather(const FString& Scene)
@@ -2058,7 +2068,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		(Player && Player->Combatant) ? TEXT("valid") : TEXT("null"));
 	if (Player && Player->Combatant)
 	{
-		InventoryShopWidget->SetPlayerStats(Player->Combatant->Stats);
+		// 展示"下一场将带着的属性"：购买改属性卡后立即反映，而非上一场的 Combatant->Stats。
+		InventoryShopWidget->SetPlayerStats(RunSubsystem ? RunSubsystem->CurrentBuild.Stats : Player->Combatant->Stats);
 	}
 
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
@@ -2218,6 +2229,9 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 		                              !Rules.bDisableExtraCardPurchase,
 		                              Runtime.ShopRefreshSequence);
 	}
+	// #8-A: 商店每次刷新(打开/购买/刷新)都重设主角属性面板，并读取 CurrentBuild.Stats
+	// 以反映已购属性卡，而非上一场的 Combatant->Stats。
+	InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats);
 }
 
 namespace
