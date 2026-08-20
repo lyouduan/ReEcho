@@ -57,13 +57,6 @@ public:
 
 	bool IsUsingEachFrameCollision() const;
 
-	/** Flipbook source art faces right when unmirrored. Clear this for assets authored facing left. */
-	UPROPERTY(EditAnywhere,
-	          BlueprintReadWrite,
-	          Category = "Character Scene|Flipbook",
-	          meta = (DisplayName = "Source Faces Right (资源默认朝右)"))
-	bool bSourceFacesRight = true;
-
 	/** Scene grading for 2D characters. Tune per Gameplay Blueprint to match the map and plant cards. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Scene|Flipbook")
 	FLinearColor CharacterTint = FLinearColor(0.82f, 0.84f, 0.78f, 1.0f);

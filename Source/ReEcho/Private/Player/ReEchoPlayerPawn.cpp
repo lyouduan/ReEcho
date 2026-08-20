@@ -81,7 +81,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));
 	GroundShadow->bEditableWhenInherited = true;
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> GroundShadowMaterialFinder(
-	    TEXT("/Game/ReEcho/Materials/M_GroundShadow.M_GroundShadow"));
+	    TEXT("/Game/ReEcho/Materials/M_GroundShadow_Procedural.M_GroundShadow_Procedural"));
 	GroundShadow->SetMaterial(0, GroundShadowMaterialFinder.Object);
 	SequenceAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("FlipbookRenderer"));
 	SequenceAnimation->SetupAttachment(FlipbookRoot);

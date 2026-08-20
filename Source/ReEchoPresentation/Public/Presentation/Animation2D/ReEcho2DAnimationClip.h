@@ -32,6 +32,10 @@ struct REECHOPRESENTATION_API FReEcho2DAnimationClip
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	bool bUseNativeScale = false;
 
+	/** Extra per-clip horizontal mirror for source art authored in the opposite direction. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	bool bMirrorHorizontally = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0"))
 	float WorldHeight = 224.0f;
 

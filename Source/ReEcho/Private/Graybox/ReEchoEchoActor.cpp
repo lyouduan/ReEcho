@@ -13,7 +13,7 @@
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoTrajectoryActor.h"
-#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Recording/ReEchoPlaybackComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -46,14 +46,9 @@ AReEchoEchoActor::AReEchoEchoActor()
 	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
 	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -224.0f * 0.28f));
 	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));
-	if (UMaterialInterface* ShadowBase = LoadObject<UMaterialInterface>(
-	        nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial")))
+	if (UMaterialInterface* ShadowMaterial = LoadObject<UMaterialInterface>(
+	        nullptr, TEXT("/Game/ReEcho/Materials/M_GroundShadow_Procedural.M_GroundShadow_Procedural")))
 	{
-		UMaterialInstanceDynamic* ShadowMaterial = UMaterialInstanceDynamic::Create(ShadowBase, this);
-		ShadowMaterial->SetTextureParameterValue(
-		    TEXT("SpriteTexture"),
-		    LoadObject<UTexture2D>(nullptr,
-		                           TEXT("/Game/ReEcho/Textures/Characters/SoftGroundShadow.SoftGroundShadow")));
 		GroundShadow->SetMaterial(0, ShadowMaterial);
 	}
 	CharacterSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("CharacterSprite"));
@@ -65,13 +60,13 @@ AReEchoEchoActor::AReEchoEchoActor()
 	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	CharacterSprite->bIsScreenSizeScaled = false;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Heart.Echo_Heart"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Spade.Echo_Spade"));
+	    TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Clover.Echo_Clover"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
-	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Echo_Diamond.Echo_Diamond"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Diamond.Player_Diamond"));
 	EchoTextures.Add(TEXT("J_HEART"), HeartTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
