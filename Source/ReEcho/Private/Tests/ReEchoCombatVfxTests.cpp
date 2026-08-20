@@ -8,6 +8,8 @@
 #include "NiagaraSystem.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
+#include "Graybox/ReEchoProjectileActor.h"
+#include "Graybox/ReEchoSwordArcActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
                                  "ReEcho.Presentation.VFX.Catalog",
@@ -22,9 +24,23 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestNotEqual(TEXT("Same short name resolves to distinct packages"), PlayerHurt, EnemyHurt);
 	TestTrue(TEXT("Long sword is melee"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
-	TestTrue(TEXT("Scythe is melee"), FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
+	TestFalse(TEXT("Scythe does not reuse the longsword Niagara"),
+	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
+	TestFalse(TEXT("Whip does not reuse the longsword Niagara"),
+	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.WhipCombo")));
 	TestFalse(TEXT("Staff projectile is not melee"),
 	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.StaffProjectile")));
+	TestNotEqual(TEXT("Scythe has a dedicated attack texture contract"),
+	             AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("Scythe")),
+	             AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("CrescentBlade")));
+	TestNotEqual(TEXT("Whip has a dedicated attack texture contract"),
+	             AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("Whip")),
+	             AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("CrescentBlade")));
+	TestNotEqual(TEXT("Bow and gun projectile contracts are distinct"),
+	             AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Bow")),
+	             AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Gun")));
+	TestTrue(TEXT("Canonical staff projectile reuses the existing light-wave art contract"),
+	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Staff")).Contains(TEXT("StaffLightWave")));
 	TestEqual(TEXT("Combat effects use the global foreground band above ordinary actors"),
 	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(23),
 	          100);

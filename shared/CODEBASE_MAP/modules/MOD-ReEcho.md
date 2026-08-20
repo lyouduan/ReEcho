@@ -173,6 +173,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 - 逻辑代码与完整意图：[`MOD-ReEchoWeapons.md`](MOD-ReEchoWeapons.md)。
 - 主模块适配：`ReEchoWeaponRuntime.*` 把策划数据编译为资源无关 Definition；`ReEchoWeaponActor.*` 组合逻辑对象与 Sprite/Mesh/VFX Actor。
+- 攻击表现路由：`ReEchoWeaponActor` 只依据稳定 `VisualKey` 选择近战弧或投射物视觉；长剑/镰刀/鞭分别使用 `SlashCrescent`、`ScytheSweep`、`WhipLash` 契约，弓/枪/法杖分别使用 `BowProjectile`、`GunProjectile`、`StaffLightWave` 契约。缺少专属纹理时视觉 Actor 安全回退为现有刀光或可区分的程序形状，逻辑 Commit、飞行和命中不受影响；手持静态纹理不得充当攻击特效。
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
 - 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。
 

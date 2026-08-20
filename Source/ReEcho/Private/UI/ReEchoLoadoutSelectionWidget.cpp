@@ -127,6 +127,11 @@ FString CharacterTexturePath(const FName AppearanceId)
 
 FString WeaponTexturePath(const FName VisualKey)
 {
+	if (VisualKey == TEXT("Whip"))
+	{
+		// Whip texture asset not yet produced; reuse longsword icon as placeholder.
+		return TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon");
+	}
 	if (VisualKey == TEXT("MoonStaff"))
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff");

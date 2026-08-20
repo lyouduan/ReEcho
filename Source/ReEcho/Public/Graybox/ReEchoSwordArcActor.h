@@ -16,7 +16,8 @@ class REECHO_API AReEchoSwordArcActor : public AActor
 public:
 	AReEchoSwordArcActor();
 	virtual void Tick(float DeltaSeconds) override;
-	void InitializeArc(float SwingDirection);
+	void InitializeArc(float SwingDirection, FName WeaponVisualKey);
+	static FString ResolveWeaponTexturePath(FName WeaponVisualKey);
 
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -28,4 +29,5 @@ private:
 	FVector SlashBaseScale = FVector::OneVector;
 	float ElapsedTime = 0.0f;
 	float Lifetime = 0.26f;
+	void ConfigureWeaponVisual(FName WeaponVisualKey);
 };

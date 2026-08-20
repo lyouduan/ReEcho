@@ -29,8 +29,7 @@ AReEchoSwordArcActor::AReEchoSwordArcActor()
 	}
 	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
 		nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
-	UTexture2D* SlashTexture = LoadObject<UTexture2D>(
-		nullptr, TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent"));
+	UTexture2D* SlashTexture = LoadObject<UTexture2D>(nullptr, *ResolveWeaponTexturePath(TEXT("CrescentBlade")));
 	if (SpriteMaterial && SlashTexture)
 	{
 		UMaterialInstanceDynamic* MaterialInstance =
@@ -49,12 +48,50 @@ AReEchoSwordArcActor::AReEchoSwordArcActor()
 	SetActorEnableCollision(false);
 }
 
-void AReEchoSwordArcActor::InitializeArc(const float SwingDirection)
+FString AReEchoSwordArcActor::ResolveWeaponTexturePath(const FName WeaponVisualKey)
+{
+	if (WeaponVisualKey == TEXT("Scythe"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/ScytheSweep.ScytheSweep");
+	}
+	if (WeaponVisualKey == TEXT("Whip"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash");
+	}
+	return TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent");
+}
+
+void AReEchoSwordArcActor::ConfigureWeaponVisual(const FName WeaponVisualKey)
+{
+	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, *ResolveWeaponTexturePath(WeaponVisualKey));
+	// Missing specialist art falls back explicitly to the known-safe slash, never to a hand-held static texture.
+	if (!Texture)
+	{
+		Texture = LoadObject<UTexture2D>(
+			nullptr, TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent"));
+	}
+	if (!SpriteMaterial || !Texture)
+	{
+		SlashSprite->SetVisibility(false);
+		return;
+	}
+	UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
+	MaterialInstance->SetTextureParameterValue(TEXT("SpriteTexture"), Texture);
+	SlashSprite->SetMaterial(0, MaterialInstance);
+	const float WorldHeight = WeaponVisualKey == TEXT("Whip") ? 260.0f : 360.0f;
+	const float AspectRatio = static_cast<float>(Texture->GetSizeX()) / FMath::Max(1, Texture->GetSizeY());
+	SlashBaseScale = FVector(WorldHeight * AspectRatio / 100.0f, WorldHeight / 100.0f, 1.0f);
+}
+
+void AReEchoSwordArcActor::InitializeArc(const float SwingDirection, const FName WeaponVisualKey)
 {
 	if (!SlashSprite)
 	{
 		return;
 	}
+	ConfigureWeaponVisual(WeaponVisualKey);
 	FVector DirectedScale = SlashBaseScale;
 	DirectedScale.X *= SwingDirection >= 0.0f ? 1.0f : -1.0f;
 	SlashSprite->SetRelativeScale3D(DirectedScale);
