@@ -9,6 +9,7 @@ GM commands use Unreal Engine's development console. Press `~` in PIE or a Devel
 | `GMHeal` | Fully heals the living player. |
 | `GMHeal 25` | Restores 25 HP, clamped to maximum HP. |
 | `GMAddShards 100` | Adds 100 Time Shards; negative values subtract without going below zero. |
+| `GMSetShards 50` | Sets Time Shards to exactly 50 (clamped to >= 0). Handy to reproduce price-boundary shop bugs. |
 | `GMWeather Clear` | Disables weather. `Rain` and `Fog` are also accepted. |
 | `GMEndEncounter` | Immediately ends the current non-Boss countdown and runs the normal encounter-completion flow. Resume gameplay before using it. |
 | `GMKillAll` | Defeats all current enemies and lets the normal encounter-completion flow run. |

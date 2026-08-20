@@ -185,7 +185,7 @@ void AReEchoGameMode::GMHelp()
 	{
 		return;
 	}
-	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMWeather <Clear|Rain|Fog> | "
+	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMSetShards [amount] | GMWeather <Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
 }
 
@@ -238,6 +238,22 @@ void AReEchoGameMode::GMAddShards(const int32 Amount)
 	}
 	const int64 UpdatedShards = static_cast<int64>(RunSubsystem->TimeShards) + static_cast<int64>(Amount);
 	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(UpdatedShards, 0, MAX_int32));
+	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
+}
+
+void AReEchoGameMode::GMSetShards(const int32 Amount)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		PrintGMResult(TEXT("Run subsystem is unavailable."), false);
+		return;
+	}
+	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(static_cast<int64>(Amount), 0, MAX_int32));
 	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
 }
 

@@ -1472,13 +1472,17 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		return false;
 	}
 	const int32 EffectivePrice = GetDiscountedShopPrice(Offer->Price);
+	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] PurchaseShopItem enter item=%s type=%d price=%d effectivePrice=%d timeShards=%d"), *ItemId.ToString(), (int32)Offer->Type, Offer->Price, EffectivePrice, TimeShards);
+	UE_LOG(LogReEcho, Warning, TEXT("[ShopPurchase] pre: item=%s type=%d shardsBefore=%d price=%d"), *ItemId.ToString(), (int32)Offer->Type, TimeShards, EffectivePrice);
 	if (TimeShards < EffectivePrice)
 	{
+		UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] abort insufficient item=%s timeShards=%d < effectivePrice=%d"), *ItemId.ToString(), TimeShards, EffectivePrice);
 		return false;
 	}
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoBuildSnapshot OriginalBuild = CurrentBuild;
+	const int32 TimeShardsBeforePurchase = TimeShards;
 	int32 PendingTimeShards = TimeShards;
 	FReEchoBuildSnapshot PendingBuild;
 	if (!Snapshot.IsValid() ||
@@ -1509,7 +1513,8 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			        BaseBuild.Stats = Grant.Stats;
 			        BaseBuild.CardState = Grant.CardState;
 			        PendingTimeShards = Grant.TimeShards;
-		        }
+			        UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] BuildCard grant item=%s inTimeShards=%d outTimeShards=%d bSucceeded=%d"), *Offer->ContentId.ToString(), Input.TimeShards, Grant.TimeShards, Grant.bSucceeded);
+			        }
 		        if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
 		        {
 			        BaseBuild.Stats.PhysicalAttack += 2.0f;
@@ -1543,8 +1548,19 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	{
 		return false;
 	}
-	PendingTimeShards -= EffectivePrice;
+	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] before deduct item=%s effectivePrice=%d pendingTimeShards=%d timeShards=%d"), *ItemId.ToString(), EffectivePrice, PendingTimeShards, TimeShards);
+	// 原子扣费：以购买前余额 TimeShards 为基准，叠加卡牌 OnGrant 对碎片的净改变(GrantShardDelta)，
+	// 结果夹紧到 >=0。防止如 G_2_15(时砂豪赌，OnGrant 清零碎片)在 grant 后余额被覆盖为 0，
+	// 再减售价导致 TimeShards 变负数。
+	const int32 GrantShardDelta = PendingTimeShards - TimeShards;
+	PendingTimeShards = FMath::Max(0, TimeShards - EffectivePrice + GrantShardDelta);
+	if (PendingTimeShards < EffectivePrice)
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] NEGATIVE RISK blocked item=%s pendingTimeShards=%d timeShards=%d effectivePrice=%d grantDelta=%d"), *ItemId.ToString(), PendingTimeShards, TimeShards, EffectivePrice, GrantShardDelta);
+	}
 	TimeShards = PendingTimeShards;
+	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] after deduct item=%s timeShards=%d"), *ItemId.ToString(), TimeShards);
+	UE_LOG(LogReEcho, Warning, TEXT("[ShopPurchase] post: item=%s type=%d shardsAfter=%d price=%d delta=%d"), *ItemId.ToString(), (int32)Offer->Type, TimeShards, EffectivePrice, TimeShards - TimeShardsBeforePurchase);
 	if (Offer->Type == EReEchoShopOfferType::WeaponPart)
 	{
 		OwnedPartIds.Add(Offer->ContentId);
