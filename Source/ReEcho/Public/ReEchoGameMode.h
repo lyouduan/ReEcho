@@ -144,6 +144,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
 	bool bEncounterTransitioning = false;
+	/** #9 倒计时归零到弹出选卡之间的短暂停顿定时器（让"0"可见）。 */
+	FTimerHandle EncounterEndSettleTimerHandle;
 	bool bEncounterClearedByDefeat = false;
 	bool bBossPostEchoPhaseTriggered = false;
 	float ArenaSceneWorldHeight = 0.0f;
@@ -159,6 +161,9 @@ private:
 	void HandleFixedStep(float FixedDeltaSeconds);
 	UFUNCTION()
 	void HandleEncounterEnded();
+	/** #9 倒计时显示到 0 后，再收起 HUD 并弹出选卡/结算界面的延时回调。 */
+	UFUNCTION()
+	void ProceedToPostEncounterUI();
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 

@@ -1,6 +1,7 @@
 ﻿#include "Encounter/ReEchoEncounterDirector.h"
 
 #include "Core/ReEchoBalanceSettings.h"
+#include "ReEcho.h"
 
 AReEchoEncounterDirector::AReEchoEncounterDirector()
 {
@@ -34,6 +35,10 @@ void AReEchoEncounterDirector::EndEncounter()
 	{
 		return;
 	}
+	// [EncounterTimer] 真实计时：被外部主动结束（Boss 击败 / 玩家死亡 / GM / 等），此时剩余通常 > 0。
+	UE_LOG(LogReEcho, Warning,
+	       TEXT("[EncounterTimer][END] reason=manual EncounterTime=%.3f Duration=%.3f Remaining=%.3f"),
+	       EncounterTime, EncounterDurationSeconds, GetRemainingTime());
 	bRunning = false;
 	OnEncounterEnded.Broadcast();
 }
@@ -70,6 +75,10 @@ void AReEchoEncounterDirector::Tick(const float DeltaSeconds)
 		OnFixedStep.Broadcast(FixedDelta);
 		if (bEndsOnDuration && EncounterTime + KINDA_SMALL_NUMBER >= EncounterDurationSeconds)
 		{
+			// [EncounterTimer] 真实计时：达到标准时长自然结束，此刻剩余应≈0。
+			UE_LOG(LogReEcho, Warning,
+			       TEXT("[EncounterTimer][END] reason=duration EncounterTime=%.3f Duration=%.3f Remaining=%.3f"),
+			       EncounterTime, EncounterDurationSeconds, GetRemainingTime());
 			EncounterTime = EncounterDurationSeconds;
 			bRunning = false;
 			OnEncounterEnded.Broadcast();

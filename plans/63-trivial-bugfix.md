@@ -88,4 +88,15 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
   - `#8-B` `GMAddShards` / `GMSetShards`：若商店已打开（`InventoryShopWidget` 非空），在改完碎片后调用 `RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode())`，即时刷新持有碎片显示。
 - **验证 / Verification**：`Build-Editor -FullRebuild` 通过；`validate_project.py` 静态校验通过；用户 PIE 实机确认——商店内购买属性卡后主角属性面板即时更新、GM 改碎片后持有碎片显示即时刷新。本条目待验收（用户已确认"感觉没问题"）。
 
-<!-- 后续修复继续在此处追加 #9、#10…… -->
+### #9 — 遭遇结束时倒计时仍显示"剩余 1 秒"就进入了选卡/结算界面
+
+- **现象 / Symptom**：玩家在倒计时还显示"剩余 1 秒"时就已经无法操作、进入了"选择构筑卡牌"界面（截图证实 `CountdownText=1` 与选卡面板同屏）。`[EncounterTimer][END] reason=duration Remaining=0.000` 表明真实计时在 `Remaining=0` 时正确结束，问题不在真实计时早停，而在**显示端**：HUD 用 `CeilToInt(RemainingTime)` 取整，最后整秒（remaining∈(0,1]）都显示"1"，而选卡由 `Director::Tick` 内 `OnEncounterEnded` 触发，发生在 `GameMode::UpdateEncounterHud` 把"0"帧绘制出来**之前**，于是 HUD 冻结在"1"、选卡页弹出覆盖其上。
+- **根因 / Root cause**：结束本局 / 弹出选卡的触发时机与"显示倒计时归零"没有对齐——直接隐藏 HUD 只是掩盖症状，正确的行为是**倒计时显示到 0 才停止本局并弹出选卡**。
+- **改动 / Changes**（`Source/ReEcho/Private/ReEchoGameMode.cpp` + `Public/ReEchoGameMode.h`）：
+  - 撤销原先"遭遇结束立即 `SetVisibility(Collapsed)`"的掩盖式修法。
+  - `HandleEncounterEnded`：先 `EncounterHudWidget->SetEncounterStatus(Idx, Total, 0.0f)` 把 HUD 强制刷成"剩余 0 秒"（确保显示到 0 而非冻结在"1"）；幸存分支不再立即弹卡，而是用 `FTimerHandle EncounterEndSettleTimerHandle` + `FTimerDelegate` 延时 `EncounterEndSettleSeconds=0.5f` 调用新增回调 `ProceedToPostEncounterUI()`；死亡分支直接收起 HUD 返回。
+  - 新增 `ProceedToPostEncounterUI()`：收起 HUD（`Collapsed`），再按原逻辑 `ShowRestartScreen(false,true)`（Boss 击杀）或 `PrepareEncounterIntermission()`+`ShowTraitCardChoice()`（普通/锻造选卡）。
+  - 头文件新增 `void ProceedToPostEncounterUI();`（`UFUNCTION`）与 `FTimerHandle EncounterEndSettleTimerHandle;`。
+- **验证 / Verification**：`Build-Editor -Development` 通过；用户 PIE 实机确认——倒计时清晰显示"0"后约半秒才弹出选卡/结算，且选卡时不再残留"CoundownText=1"。本条目待验收。
+
+<!-- 后续修复继续在此处追加 #10、#11…… -->

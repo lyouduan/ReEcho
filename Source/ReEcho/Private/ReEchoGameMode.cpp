@@ -2612,6 +2612,23 @@ void AReEchoGameMode::HandleEncounterEnded()
 		return;
 	}
 	bEncounterTransitioning = true;
+	// #9 修正：倒计时必须显示到 0 才结束本局。先把 HUD 强制刷成剩余 0 秒（让玩家看到"0"，
+	// 而非冻结在上一个"1"帧），再用一个短暂 settle 节拍让"0"可见，最后收起 HUD 并弹出选卡/结算。
+	UReEchoRunSubsystem* RunSubsystemForHud = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (EncounterHudWidget)
+	{
+		EncounterHudWidget->SetEncounterStatus(
+			RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0,
+			GetTotalEncounterCount(),
+			0.0f);
+	}
+	// [EncounterEnded] 选卡/结算入口：记录此刻真实剩余时间，与上面的 [EncounterTimer][END] 对照。
+	UE_LOG(LogReEcho, Warning,
+	       TEXT("[EncounterEnded] enter -> card/shop/victory; EncounterTime=%.3f Remaining=%.3f EncounterIndex=%d"),
+	       Director ? Director->EncounterTime : -1.0f, Director ? Director->GetRemainingTime() : -1.0f,
+	       GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
+	           ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()->EncounterIndex
+	           : -1);
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem)
 	{
@@ -2633,9 +2650,25 @@ void AReEchoGameMode::HandleEncounterEnded()
 	}
 	if (!bPlayerSurvived)
 	{
+		// 死亡：保留 HUD 可见（显示"剩余 0 秒"+"关卡 X/Y"），不收起。
 		return;
 	}
+	const float EncounterEndSettleSeconds = 0.5f;
+	FTimerDelegate SettleDelegate = FTimerDelegate::CreateUObject(this, &AReEchoGameMode::ProceedToPostEncounterUI);
+	GetWorldTimerManager().SetTimer(EncounterEndSettleTimerHandle, SettleDelegate, EncounterEndSettleSeconds, false);
+}
 
+void AReEchoGameMode::ProceedToPostEncounterUI()
+{
+	GetWorldTimerManager().ClearTimer(EncounterEndSettleTimerHandle);
+	// #9 保留 HUD 可见（显示"剩余 0 秒"+"关卡 X/Y"），不收起。
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		return;
+	}
+	const bool bBossKilled = bEncounterClearedByDefeat &&
+	                         RunSubsystem->EncounterIndex == RunSubsystem->GetTotalEncounterCount();
 	if (bBossKilled)
 	{
 		ShowRestartScreen(false, true);
@@ -2793,6 +2826,10 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 		if (bEncounterDefeated)
 		{
+			// [EncounterTimer] Boss 被提前击败：真实计时尚未到 0 即结束，剩余 > 0 属预期。
+			UE_LOG(LogReEcho, Warning,
+			       TEXT("[EncounterTimer][END] reason=boss-defeat EncounterTime=%.3f Remaining=%.3f"),
+			       Director ? Director->EncounterTime : -1.0f, Director ? Director->GetRemainingTime() : -1.0f);
 			bEncounterClearedByDefeat = true;
 			Director->EndEncounter();
 		}

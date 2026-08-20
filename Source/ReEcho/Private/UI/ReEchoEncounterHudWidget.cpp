@@ -1,6 +1,7 @@
 #include "UI/ReEchoEncounterHudWidget.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "ReEcho.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
