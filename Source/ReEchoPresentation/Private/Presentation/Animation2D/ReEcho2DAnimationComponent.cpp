@@ -58,11 +58,7 @@ void UReEcho2DAnimationComponent::PostEditChangeProperty(FPropertyChangedEvent& 
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UReEcho2DAnimationComponent, bSourceFacesRight))
-	{
-		ApplyDisplayScale();
-	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UReEcho2DAnimationComponent, CharacterTint))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UReEcho2DAnimationComponent, CharacterTint))
 	{
 		ApplyCharacterTint();
 	}
@@ -257,8 +253,8 @@ void UReEcho2DAnimationComponent::ApplyDisplayScale()
 	const float NativeWorldHeight = Flipbook ? Flipbook->GetRenderBounds().BoxExtent.Z * 2.0f : 0.0f;
 	const float UniformScale =
 	    ActiveClip.bUseNativeScale || NativeWorldHeight <= 0.0f ? 1.0f : ActiveClip.WorldHeight / NativeWorldHeight;
-	const float SourceOrientationSign = bSourceFacesRight ? 1.0f : -1.0f;
-	SetRelativeScale3D(FVector(UniformScale * FacingSign * SourceOrientationSign, UniformScale, UniformScale));
+	const float ClipMirrorSign = ActiveClip.bMirrorHorizontally ? -1.0f : 1.0f;
+	SetRelativeScale3D(FVector(UniformScale * FacingSign * ClipMirrorSign, UniformScale, UniformScale));
 }
 
 void UReEcho2DAnimationComponent::ApplyCharacterTint()

@@ -75,6 +75,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
 	UPaperFlipbook* RabbitFlipbook = LoadObject<UPaperFlipbook>(
 	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default.Default"));
+	UPaperFlipbook* RabbitAttackFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/NRA.NRA"));
 	UPaperFlipbook* GoatWalkFlipbook =
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk0.Walk0"));
 	UPaperFlipbook* GoatAttackFlipbook = LoadObject<UPaperFlipbook>(
@@ -84,6 +86,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Grunt default Flipbook is loadable"), GruntFlipbook);
 	TestNotNull(TEXT("Moon Staff attack Flipbook is loadable"), StaffAttackFlipbook);
 	TestNotNull(TEXT("Rabbit Doll Flipbook is loadable"), RabbitFlipbook);
+	TestNotNull(TEXT("Rabbit Doll attack Flipbook is loadable"), RabbitAttackFlipbook);
 	TestNotNull(TEXT("Goat Priest walk Flipbook is loadable"), GoatWalkFlipbook);
 	TestNotNull(TEXT("Goat Priest attack Flipbook is loadable"), GoatAttackFlipbook);
 	TestTrue(TEXT("J_SPADE Flipbook has non-empty render bounds"),
@@ -265,9 +268,24 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	};
 	TestEnemyProfile(
 	    TEXT("Grunt exposes four semantic slots through its single authored Flipbook"), AuthoredGrunt, GruntFlipbook);
-	TestEnemyProfile(TEXT("Rabbit exposes four semantic slots through its single authored Flipbook"),
-	                 AuthoredRabbit,
-	                 RabbitFlipbook);
+	const FReEcho2DAnimationClip* RabbitIdleClip =
+	    AuthoredRabbit ? AuthoredRabbit->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
+	const FReEcho2DAnimationClip* RabbitMoveClip =
+	    AuthoredRabbit ? AuthoredRabbit->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) : nullptr;
+	const FReEcho2DAnimationClip* RabbitAttackClip =
+	    AuthoredRabbit ? AuthoredRabbit->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
+	const FReEcho2DAnimationClip* RabbitHitClip =
+	    AuthoredRabbit ? AuthoredRabbit->ResolveClip(NAME_None, ReEcho2DAnimationTags::Hit) : nullptr;
+	TestTrue(TEXT("Rabbit uses Default for locomotion and NRA for attack"),
+	         AuthoredRabbit && RabbitIdleClip && RabbitMoveClip && RabbitAttackClip && RabbitHitClip &&
+	             RabbitIdleClip->Flipbook == RabbitFlipbook && RabbitMoveClip->Flipbook == RabbitFlipbook &&
+	             RabbitAttackClip->Flipbook == RabbitAttackFlipbook && RabbitHitClip->Flipbook == RabbitFlipbook &&
+	             RabbitIdleClip->bLooping && RabbitMoveClip->bLooping && !RabbitAttackClip->bLooping &&
+	             RabbitAttackClip->bRestartOnRequest && !RabbitHitClip->bLooping);
+	TestTrue(TEXT("Rabbit semantic clips all use shared Profile.WorldHeight normalization"),
+	         RabbitIdleClip && RabbitMoveClip && RabbitAttackClip && RabbitHitClip &&
+	             !RabbitIdleClip->bUseNativeScale && !RabbitMoveClip->bUseNativeScale &&
+	             !RabbitAttackClip->bUseNativeScale && !RabbitHitClip->bUseNativeScale);
 	const FReEcho2DAnimationClip* GoatIdleClip =
 	    AuthoredGoat ? AuthoredGoat->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 	const FReEcho2DAnimationClip* GoatAttackClip =

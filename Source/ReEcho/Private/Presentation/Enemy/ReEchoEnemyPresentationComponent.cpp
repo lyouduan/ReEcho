@@ -80,8 +80,14 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 		AuthoredGroundRootLocation = GroundRoot ? GroundRoot->GetRelativeLocation() : FVector::ZeroVector;
 		AuthoredGroundShadowScale = GroundShadow->GetRelativeScale3D();
 		GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
-		GroundShadow->SetMaterial(
-		    0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/ReEcho/Materials/M_GroundShadow.M_GroundShadow")));
+		if (!GroundShadow->GetMaterial(0))
+		{
+			GroundShadow->SetMaterial(
+			    0,
+			    LoadObject<UMaterialInterface>(
+			        nullptr,
+			        TEXT("/Game/ReEcho/Materials/M_GroundShadow_Procedural.M_GroundShadow_Procedural")));
+		}
 	}
 }
 
