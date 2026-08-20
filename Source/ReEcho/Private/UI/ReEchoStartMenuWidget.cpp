@@ -2,6 +2,8 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -15,6 +17,7 @@ enum class EStartMenuAction : int32
 	Continue,
 	NewGame,
 	Settings,
+	About,
 	Quit
 };
 }
@@ -33,6 +36,8 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	Super::NativeConstruct();
 	SetIsFocusable(true);
 	BuildWidgetTree();
+	EnsureOpaqueBackground();
+
 	if (ContinueButton)
 	{
 		ContinueButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Continue));
@@ -47,6 +52,11 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	{
 		GameSettingsButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Settings));
 		GameSettingsButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
+	}
+	if (AboutButton)
+	{
+		AboutButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::About));
+		AboutButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
 	if (QuitButton)
 	{
@@ -78,6 +88,32 @@ void UReEchoStartMenuWidget::InitializeMenu(const bool bInHasSavedRun)
 	RefreshMenu();
 }
 
+void UReEchoStartMenuWidget::EnsureOpaqueBackground()
+{
+	if (!WidgetTree)
+	{
+		return;
+	}
+
+	UPanelWidget* Root = Cast<UPanelWidget>(WidgetTree->RootWidget);
+	if (!Root)
+	{
+		return;
+	}
+
+	UBorder* Background = NewObject<UBorder>(this, TEXT("OpaqueStartMenuBackground"));
+	Background->SetBrushColor(FLinearColor(0.01f, 0.015f, 0.035f, 1.0f));
+
+	Root->AddChild(Background);
+	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Background->Slot))
+	{
+		// Anchor to fill the entire viewport and draw behind every other element.
+		CanvasSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+		CanvasSlot->SetOffsets(FMargin(0.0f));
+		CanvasSlot->SetZOrder(-100);
+	}
+}
+
 void UReEchoStartMenuWidget::BuildWidgetTree()
 {
 	if (NewGameButton || !WidgetTree)
@@ -86,7 +122,7 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 	}
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("StartBackground"));
-	Background->SetBrushColor(FLinearColor(0.01f, 0.015f, 0.035f, 0.95f));
+	Background->SetBrushColor(FLinearColor(0.01f, 0.015f, 0.035f, 1.0f));
 	Background->SetPadding(FMargin(140.0f));
 	Background->SetHorizontalAlignment(HAlign_Center);
 	Background->SetVerticalAlignment(VAlign_Center);
@@ -106,16 +142,6 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 	UVerticalBoxSlot* TitleSlot = Content->AddChildToVerticalBox(TitleText);
 	TitleSlot->SetHorizontalAlignment(HAlign_Center);
 	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 20.0f));
-
-	StatusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StartStatus"));
-	StatusText->SetJustification(ETextJustify::Center);
-	StatusText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	FSlateFontInfo StatusFont = StatusText->GetFont();
-	StatusFont.Size = 21;
-	StatusText->SetFont(StatusFont);
-	UVerticalBoxSlot* StatusSlot = Content->AddChildToVerticalBox(StatusText);
-	StatusSlot->SetHorizontalAlignment(HAlign_Center);
-	StatusSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 30.0f));
 
 	const ReEcho::UI::FMenuButtonStyle PrimaryButtonStyle{
 	    FLinearColor(0.12f, 0.32f, 0.62f, 1.0f), FMargin(0.0f, 7.0f), FMargin(58.0f, 14.0f), 26};
@@ -139,6 +165,12 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 	                                                      FText::FromString(TEXT("游戏设置")),
 	                                                      static_cast<int32>(EStartMenuAction::Settings),
 	                                                      PrimaryButtonStyle);
+	AboutButton = ReEcho::UI::AddIndexedMenuButton(*WidgetTree,
+	                                               *Content,
+	                                               TEXT("AboutButton"),
+	                                               FText::FromString(TEXT("关于我们")),
+	                                               static_cast<int32>(EStartMenuAction::About),
+	                                               PrimaryButtonStyle);
 	QuitButton = ReEcho::UI::AddIndexedMenuButton(*WidgetTree,
 	                                              *Content,
 	                                              TEXT("QuitButton"),
@@ -150,16 +182,9 @@ void UReEchoStartMenuWidget::BuildWidgetTree()
 
 void UReEchoStartMenuWidget::RefreshMenu()
 {
-	if (StatusText)
-	{
-		StatusText->SetText(bHasSavedRun ? NSLOCTEXT("ReEcho", "SavedRunFound", "检测到未完成的时间线")
-		                                 : NSLOCTEXT("ReEcho", "NoSavedRun", "开始一条新的时间线"));
-	}
 	if (ContinueButton)
 	{
 		ContinueButton->SetVisibility(ESlateVisibility::Visible);
-		ContinueButton->SetIsEnabled(bHasSavedRun);
-		ContinueButton->SetRenderOpacity(bHasSavedRun ? 0.0f : 0.55f);
 	}
 }
 
@@ -175,6 +200,9 @@ void UReEchoStartMenuWidget::HandleMenuAction(const int32 ActionIndex)
 			break;
 		case EStartMenuAction::Settings:
 			OnGameSettingRequested.Broadcast();
+			break;
+		case EStartMenuAction::About:
+			OnAboutRequested.Broadcast();
 			break;
 		case EStartMenuAction::Quit:
 			OnQuitRequested.Broadcast();

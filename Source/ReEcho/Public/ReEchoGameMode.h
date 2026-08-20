@@ -3,6 +3,7 @@
 #include "Encounter/ReEchoEncounterRuntime.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
+#include "UI/ReEchoAboutWidget.h"
 #include "ReEchoGameMode.generated.h"
 class ACameraActor;
 class AReEchoArenaCameraActor;
@@ -111,6 +112,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoSettingsWidget> SettingsWidget;
 	UPROPERTY()
+	TObjectPtr<UReEchoAboutWidget> AboutWidget;
+	UPROPERTY()
 	TObjectPtr<UReEchoStartMenuWidget> StartMenuWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoLoadoutSelectionWidget> LoadoutSelectionWidget;
@@ -188,6 +191,9 @@ private:
 	void HandleStartSettingsRequested();
 
 	UFUNCTION()
+	void HandleStartAboutRequested();
+
+	UFUNCTION()
 	void HandleStartQuitRequested();
 
 	UFUNCTION()
@@ -195,6 +201,9 @@ private:
 
 	UFUNCTION()
 	void HandleSettingsClosed();
+
+	UFUNCTION()
+	void HandleAboutClosed();
 
 	UFUNCTION()
 	void HandleLoadoutConfirmed(FName CharacterId, FName WeaponId);
@@ -270,6 +279,7 @@ private:
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowSettingsScreen(bool bReturnToStartMenu);
+	void ShowAboutScreen(bool bReturnToStartMenu);
 	void ShowTraitCardChoice();
 	void ShowStartMenu();
 	void ShowLoadoutSelection();
@@ -287,4 +297,5 @@ private:
 	void ApplyAttackModeChoice(bool bAutomatic);
 	void CompletePauseExit();
 	bool bSettingsReturnToStartMenu = false;
+	bool bAboutReturnToStartMenu = false;
 };

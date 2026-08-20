@@ -13,6 +13,7 @@ enum class EReEchoUIScreen : uint8
 	StartMenu,
 	Loadout,
 	Settings,
+	About,
 	Restart,
 	TraitChoice,
 	InventoryShop,

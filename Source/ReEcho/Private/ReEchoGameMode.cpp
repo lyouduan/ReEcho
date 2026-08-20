@@ -559,6 +559,7 @@ void AReEchoGameMode::ShowStartMenu()
 	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
 	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
 	StartMenuWidget->OnGameSettingRequested.AddDynamic(this, &AReEchoGameMode::HandleStartSettingsRequested);
+	StartMenuWidget->OnAboutRequested.AddDynamic(this, &AReEchoGameMode::HandleStartAboutRequested);
 	StartMenuWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleStartQuitRequested);
 	StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
 	SetPlayerMenuAbilityBlocked(true);
@@ -604,6 +605,24 @@ void AReEchoGameMode::HandleStartSettingsRequested()
 	if (!SettingsWidget)
 	{
 		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+void AReEchoGameMode::HandleStartAboutRequested()
+{
+	if (!StartMenuWidget || AboutWidget)
+	{
+		return;
+	}
+
+	// Keep the start menu visible as the background behind the About panel (so it reads as
+	// "on the main interface" rather than over the battle level), but disable its input so
+	// the About panel behaves as a modal dialog over the menu.
+	StartMenuWidget->SetIsEnabled(false);
+	ShowAboutScreen(true);
+	if (!AboutWidget)
+	{
+		StartMenuWidget->SetIsEnabled(true);
 	}
 }
 
@@ -665,6 +684,43 @@ void AReEchoGameMode::HandleSettingsClosed()
 	bSettingsReturnToStartMenu = false;
 }
 
+void AReEchoGameMode::HandleAboutClosed()
+{
+	PostUiEvent(FReEchoAudioEvents::UiCancel);
+	if (AboutWidget)
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::About);
+		}
+		AboutWidget = nullptr;
+	}
+
+	if (bAboutReturnToStartMenu && StartMenuWidget)
+	{
+		StartMenuWidget->SetVisibility(ESlateVisibility::Visible);
+		StartMenuWidget->SetIsEnabled(true);
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::StartMenu, false);
+			}
+			StartMenuWidget->SetKeyboardFocus();
+			}
+			else if (RestartWidget)
+	{
+		RestartWidget->SetVisibility(ESlateVisibility::Visible);
+		RestartWidget->SetKeyboardFocus();
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::Restart, false);
+		}
+	}
+	bAboutReturnToStartMenu = false;
+}
+
 void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 {
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
@@ -685,6 +741,31 @@ void AReEchoGameMode::ShowSettingsScreen(const bool bReturnToStartMenu)
 
 	bSettingsReturnToStartMenu = bReturnToStartMenu;
 	SettingsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleSettingsClosed);
+}
+
+void AReEchoGameMode::ShowAboutScreen(const bool bReturnToStartMenu)
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PlayerController || AboutWidget)
+	{
+		return;
+	}
+
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	AboutWidget =
+	    UIFlow
+	        ? Cast<UReEchoAboutWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::About, true, false))
+	        : nullptr;
+	if (!AboutWidget)
+	{
+		return;
+	}
+
+	bAboutReturnToStartMenu = bReturnToStartMenu;
+	if (AboutWidget)
+	{
+		AboutWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleAboutClosed);
+	}
 }
 
 void AReEchoGameMode::ShowLoadoutSelection()

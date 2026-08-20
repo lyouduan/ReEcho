@@ -8,6 +8,7 @@
 #include "UI/ReEchoPlayerHudWidget.h"
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoSettingsWidget.h"
+#include "UI/ReEchoAboutWidget.h"
 #include "UI/ReEchoStartMenuWidget.h"
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
@@ -40,6 +41,8 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection"));
 	static ConstructorHelpers::FClassFinder<UReEchoSettingsWidget> SettingsClass(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoSettings"));
+	static ConstructorHelpers::FClassFinder<UUserWidget> AboutClass(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoAbout"));
 	static ConstructorHelpers::FClassFinder<UReEchoRestartWidget> RestartClass(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoRestart"));
 	static ConstructorHelpers::FClassFinder<UReEchoTraitCardChoiceWidget> TraitClass(
@@ -60,6 +63,8 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	                  LoadoutClass.Class ? LoadoutClass.Class.Get() : UReEchoLoadoutSelectionWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::Settings,
 	                  SettingsClass.Class ? SettingsClass.Class.Get() : UReEchoSettingsWidget::StaticClass());
+	ScreenClasses.Add(EReEchoUIScreen::About,
+	                  AboutClass.Class ? AboutClass.Class.Get() : UReEchoAboutWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::Restart,
 	                  RestartClass.Class ? RestartClass.Class.Get() : UReEchoRestartWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::TraitChoice,
@@ -227,6 +232,7 @@ EReEchoUILayer UReEchoUIManagerSubsystem::GetScreenLayer(const EReEchoUIScreen S
 		case EReEchoUIScreen::Loadout:
 			return EReEchoUILayer::Loadout;
 		case EReEchoUIScreen::Settings:
+		case EReEchoUIScreen::About:
 			return EReEchoUILayer::Settings;
 		default:
 			return EReEchoUILayer::GameplayHud;
