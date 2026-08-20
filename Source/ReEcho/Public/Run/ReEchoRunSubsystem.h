@@ -95,6 +95,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool ApplyTraitCard(FName CardId);
 
+	/** 调试用：将指定卡牌直接加入当前构筑（忽略阶段/候选限制），用于复现与验证卡牌效果（如静默刻度 G_2_17）。仅由 GM 命令调用，Shipping 构建不暴露。 */
+	UFUNCTION(BlueprintCallable)
+	bool DebugGrantCard(FName CardId);
+
 	/** 勇者每关结束后的三档锻炼选择。 */
 	TArray<FReEchoTraitCardOffer> GenerateForgeOffers();
 	bool ApplyForgeChoice(FName ForgeId);
