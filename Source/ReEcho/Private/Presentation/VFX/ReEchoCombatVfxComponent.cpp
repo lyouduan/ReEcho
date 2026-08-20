@@ -16,7 +16,7 @@ namespace ReEchoCombatVfx
 {
 constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 CombatEffectSortPriorityFloor = 100;
-constexpr float RabbitProjectileOpaqueDiameterFraction = 154.0f / 512.0f;
+constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
 
 void LogLayerState(const AActor* Owner,
                    const USceneComponent* AttachmentRoot,
@@ -96,6 +96,7 @@ void LogLayerStateNowAndDelayed(UWorld* World,
 	                                  0.1f,
 	                                  false);
 }
+
 } // namespace ReEchoCombatVfx
 
 UReEchoCombatVfxComponent::UReEchoCombatVfxComponent()
@@ -119,15 +120,14 @@ UReEchoCombatVfxComponent::ResolveProjectileVisualKey(const FReEchoEnemyProjecti
 	return Key;
 }
 
-float UReEchoCombatVfxComponent::ResolveProjectileVisualScale(const float CollisionRadiusCm,
-                                                              const int32 TextureSizePixels)
+float UReEchoCombatVfxComponent::ResolveProjectileCoreDiameter(const float CollisionRadiusCm)
 {
-	if (CollisionRadiusCm <= 0.0f || TextureSizePixels <= 0)
-	{
-		return 1.0f;
-	}
-	const float OpaqueDiameterPixels = TextureSizePixels * ReEchoCombatVfx::RabbitProjectileOpaqueDiameterFraction;
-	return CollisionRadiusCm * 2.0f / OpaqueDiameterPixels;
+	return FMath::Max(0.0f, CollisionRadiusCm) * 2.0f;
+}
+
+float UReEchoCombatVfxComponent::ResolveProjectileGlowDiameter(const float CollisionRadiusCm)
+{
+	return ResolveProjectileCoreDiameter(CollisionRadiusCm) * ReEchoCombatVfx::RabbitProjectileGlowDiameterScale;
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -248,6 +248,30 @@ UMaterialInterface* UReEchoCombatVfxComponent::ResolveRabbitProjectileMaterial()
 		       FReEchoCombatVfxCatalog::ResolveRabbitProjectileMaterialPath());
 	}
 	return Material;
+}
+
+TArray<UMaterialInterface*> UReEchoCombatVfxComponent::ResolveRabbitProjectileGlowMaterials() const
+{
+	TArray<UMaterialInterface*> Materials;
+	Materials.Reserve(FReEchoCombatVfxCatalog::GetRabbitProjectileGlowMaterialCount());
+	for (int32 LayerIndex = 0; LayerIndex < FReEchoCombatVfxCatalog::GetRabbitProjectileGlowMaterialCount();
+	     ++LayerIndex)
+	{
+		const TCHAR* Path = FReEchoCombatVfxCatalog::ResolveRabbitProjectileGlowMaterialPath(LayerIndex);
+		if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, Path))
+		{
+			Materials.Add(Material);
+		}
+		else if (!bMissingRabbitProjectileGlowMaterialWarned)
+		{
+			bMissingRabbitProjectileGlowMaterialWarned = true;
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[VFX] Missing rabbit projectile glow material '%s'; gameplay continues without it"),
+			       Path);
+		}
+	}
+	return Materials;
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticValue,
@@ -453,6 +477,7 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 		AActor* Owner = GetOwner();
 		UTexture2D* Texture = ResolveRabbitProjectileTexture();
 		UMaterialInterface* Material = ResolveRabbitProjectileMaterial();
+		const TArray<UMaterialInterface*> GlowMaterials = ResolveRabbitProjectileGlowMaterials();
 		if (Owner && Texture && Material)
 		{
 			UMaterialBillboardComponent* Visual = NewObject<UMaterialBillboardComponent>(Owner);
@@ -460,10 +485,13 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 			Visual->SetMobility(EComponentMobility::Movable);
 			Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Visual->SetCastShadow(false);
-			const int32 TextureExtentPixels = FMath::Max(Texture->GetSizeX(), Texture->GetSizeY());
-			const float WorldDiameter =
-			    TextureExtentPixels * ResolveProjectileVisualScale(Event.CollisionRadiusCm, TextureExtentPixels);
-			Visual->AddElement(Material, nullptr, false, WorldDiameter, WorldDiameter, nullptr);
+			const float CoreWorldDiameter = ResolveProjectileCoreDiameter(Event.CollisionRadiusCm);
+			const float GlowWorldDiameter = ResolveProjectileGlowDiameter(Event.CollisionRadiusCm);
+			for (UMaterialInterface* GlowMaterial : GlowMaterials)
+			{
+				Visual->AddElement(GlowMaterial, nullptr, false, GlowWorldDiameter, GlowWorldDiameter, nullptr);
+			}
+			Visual->AddElement(Material, nullptr, false, CoreWorldDiameter, CoreWorldDiameter, nullptr);
 			Visual->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 			Visual->SetWorldLocation(Event.Location);
 			Visual->SetHiddenInGame(false);

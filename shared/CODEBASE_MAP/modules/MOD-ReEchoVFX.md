@@ -63,7 +63,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 语义 | 权威资产 | 播放约定 |
 |---|---|---|
 | RabbitCharging | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Charging_01` | 世界位置；排序恒为兔子当前 Flipbook `+1`，Windup 开始，提交/结束清理 |
-| RabbitProjectile | `/Game/VFX/Monster/Rabbit/MI/BaseVFX003_Inst12`（纹理 `/Game/VFX/Monster/Rabbit/Tex/0814_04`） | 从交付 System 的正式单球材质创建三个 World Material Billboard；保留材质的 Emissive/Bloom 红色光晕，单球可见直径按事件碰撞直径缩放，位置逐帧覆盖为对应逻辑球位置，Ended/清场销毁 |
+| RabbitProjectile | 核心球 `/Game/VFX/Monster/Rabbit/MI/BaseVFX003_Inst12`；柔光适配材质 `/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow` | 从正式单球材质与原 `Glo_c002` 纹理创建三个 World Material Billboard；适配材质显式提供红色 Additive/Unlit/Emissive，不依赖 Niagara 粒子参数；核心直径精确等于事件碰撞直径，光晕直径为核心的 `1.5` 倍但不参与碰撞；位置逐帧覆盖为对应逻辑球位置，Ended/清场销毁 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02` | 世界位置、前景、Windup 开始 |
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 攻击挂点、前景、Windup 开始 |
@@ -75,7 +75,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 ## 兔子投射物边界
 
-兔子远程 Commit 后，EnemyHost 使用 `FReEchoEnemyProjectileLogic` 创建三条真实逻辑轨迹，中心锁定目标、两侧扇形展开，每球独立一次命中并分别发布 Spawned/Moved/Ended。`UReEchoCombatVfxComponent` 以 `(Attack.Source, Attack.Sequence, VolleyBallIndex)` 建立三个独立 Material Billboard，直接使用事件位置；同一齐射的三球不会再因只用 `Attack.Sequence` 互相覆盖。视觉使用交付资产的 `BaseVFX003_Inst12` 发光材质及其 `0814_04` 红球纹理，既保留 Emissive/Bloom 光晕，又把可见直径映射到逻辑碰撞直径；材质与 Billboard 都不参与碰撞。
+兔子远程 Commit 后，EnemyHost 使用 `FReEchoEnemyProjectileLogic` 创建三条真实逻辑轨迹，中心锁定目标、两侧扇形展开，每球独立一次命中并分别发布 Spawned/Moved/Ended。`UReEchoCombatVfxComponent` 以 `(Attack.Source, Attack.Sequence, VolleyBallIndex)` 建立三个独立 Material Billboard，直接使用事件位置；同一齐射的三球不会再因只用 `Attack.Sequence` 互相覆盖。视觉使用交付资产的 `BaseVFX003_Inst12` 与 `0814_04` 绘制核心球；原 Niagara 的材质审计确认 `Inst1/Glo_c002` 是柔和渐变光晕，`Inst2/Glo_C178` 是圆环，`Inst3/Glo_c130` 是尖刺。由于原 Niagara 材质依赖 `Particles.Color` 等粒子输入，普通 Billboard 不直接复用这些实例；`M_RabbitProjectileGlow` 只复用 `Glo_c002`，显式定义红色 Additive/Unlit/Emissive 输出。核心可见直径等于逻辑碰撞直径，光晕只向外扩展表现，不参与碰撞。
 
 交付的 `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` 仍保留为原始美术资产和依赖清单根，但不再承担运行时三球位移。它内部自行模拟三颗粒子，历史实现同时移动 Niagara Component 与本地粒子，造成“画面覆盖却不命中 / 看不到球却受伤”；禁止恢复这条独立运动链。若未来要恢复尾迹或更复杂表现，必须制作读取逐球逻辑位置的单球适配资产，不能让粒子位置反向驱动玩法。
 

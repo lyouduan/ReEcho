@@ -22,6 +22,9 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static const TCHAR* ResolveRabbitProjectileTexturePath();
 	/** Authored emissive material used to preserve the rabbit ball's red bloom without restoring Niagara motion. */
 	static const TCHAR* ResolveRabbitProjectileMaterialPath();
+	static int32 GetRabbitProjectileGlowMaterialCount();
+	/** Standalone soft additive halo adapted from the delivered Glo_c002 texture. */
+	static const TCHAR* ResolveRabbitProjectileGlowMaterialPath(int32 LayerIndex);
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
 	/** Returns the measured authored center axis for a semantic asset. */
 	static FVector ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic Semantic);

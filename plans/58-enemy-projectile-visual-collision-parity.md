@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（由用户在 PIE 验证可见子弹与受伤时机）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（用户确认碰撞与最终红色柔光表现大致无问题，并授权发布远端主线）。
 - 本地规划 / 实现基线：规划发布提交 `914307c`；实现采用随后发布的 `origin/main@a6e08c3`，包含用户已决定的兔子单球伤害 `1`。
 - 本地实现方式：规划先发布到 `origin/main`；随后从已发布基线创建独立 `plan/58-enemy-projectile-visual-collision-parity` worktree 实现。
 - 依赖 / 阻塞：依赖 Plan53 的三条权威兔子逻辑投射物与 Plan49 的 Niagara 资产接入。现有本地 `plan/57-remove-enemy-healthbar` 不写本 Plan 契约；Plan55 已发布实现会写 EnemyHost，但当前 main 已包含其代码。
@@ -51,12 +51,12 @@
 - [x] 每次兔子齐射产生三个稳定且互不冲突的逐球身份；三球均收到 Spawned/Moved/Ended，表现恰好三球，不是一个共享实例，也不是九球。
 - [x] 三颗可见球分别使用其对应逻辑球的位置和方向；自动化或运行时诊断证明表现锚点与逻辑位置误差不超过具名的资产中心偏移容差，且不会随飞行时间累计漂移。
 - [x] 玩家静止时：可见球扫过玩家碰撞体会由同一球精确扣 `1`；没有任何可见球扫过时不扣血；每球至多命中一次。
-- [ ] 玩家移动时使用连续线段扫掠，不因低帧率穿透；三条侧向轨迹都可独立命中，碰撞结果与画面轨迹一致。
+- [x] 玩家移动时使用连续线段扫掠，不因低帧率穿透；三条侧向轨迹都可独立命中，碰撞结果与画面轨迹一致。
 - [x] 命中后逻辑球若按既有规则继续飞行，其可见代理保持同轨；射程结束、Encounter 清理、敌人销毁、保存恢复后没有残留或重复视觉。
-- [ ] Echo 嘲讽目标、中心球锁定方向、两侧散射、伤害/半径/速度表值和战斗前景排序无回归。
+- [x] Echo 嘲讽目标、中心球锁定方向、两侧散射、伤害/半径/速度表值和战斗前景排序无回归。
 - [x] 新增聚焦自动化覆盖逐球事件身份、三球生命周期、路径内/外、一次命中和 Presentation 键冲突；`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Presentation.VFX`、保存相关回归通过。
 - [x] Editor Development 构建、`python scripts/validate_project.py`、`git diff --check` 通过；最终发布前在最新组合候选执行 `-FullRebuild` 并刷新精选预构建包。
-- [ ] 用户在主项目 PIE 复测静止与移动两个场景，确认“碰到不伤 / 隔空受伤”均消失。
+- [x] 用户在主项目 PIE 复测静止与移动两个场景，确认“碰到不伤 / 隔空受伤”均消失。
 - [x] 未提交 `shared/GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -106,14 +106,17 @@
 - 2026-08-19 将 `origin/main@be305cc` 合入本 Plan：采用远端 Plan52/55 的场景、脚点和表现层级，保留 Plan58 的逐球事件、视觉代理及碰撞一致性。唯一源码冲突位于 `ReEchoEnemyHostTests.cpp`，已语义合并两侧断言；旧 DLL、target 与 prebuilt 未选择任一侧，均由组合源码重新构建生成。
 - 合并候选的 Editor Development 构建和 `python scripts/validate_project.py` 通过；`ReEcho.Enemies.Host` 全组及 `ReEcho.Presentation.VFX.Catalog` 自动化通过。尝试的 `ReEcho.Presentation.Scene` 过滤器在项目中不存在，因此未作为失败回归计入。
 - 人工复测确认命中位置已基本一致，但纹理 Billboard 没有原 Niagara 材质的红色 Emissive/Bloom 光晕。视觉代理改用同一交付纹理对应的 `BaseVFX003_Inst12` Material Billboard；只替换渲染材质，逐球身份、位置、尺寸和生命周期仍完全服从逻辑事件。
+- 第二轮日志证实：碰撞直径 `100 cm / 93.91 px`，旧 Material Billboard Quad 为 `332.47 cm / 312.21 px`，固定放大 `3.325` 倍；且仅使用 Translucent `Inst12`，原 System 的 Additive `Inst1/2/3` 均存在但未渲染。修订后核心球直径精确等于碰撞直径，三个 Additive 层以 `1.5×` 核心直径同位置叠加，仍由同一个逐球视觉代理统一移动和销毁；人工通过后已删除精简 trace。
+- 上述“三个 Additive 层常驻叠加”经人工截图否决：脱离 Niagara 后材质没有 `Particles.Color`，`Inst2/Glo_C178` 被错误显示为白色大圆环。资产逐张导出确认 `Inst1/Glo_c002` 才是柔和光晕，`Inst2` 是圆环、`Inst3` 是尖刺；最终常驻代理只保留 `Inst1`，用每球独立 MID 将“基础颜色”设为红色，圆环和尖刺不再常驻渲染。
+- 单独复用 `Inst1` 仍无法恢复原光晕：该 Niagara 材质的颜色/强度依赖粒子数据，普通 Billboard 即使写入实例参数也不能完整重现。最终增加独立适配材质 `/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow`，只复用原 `Glo_c002` 柔光纹理，并显式定义红色、Unlit、Additive 和 Emissive 强度；它与核心球同属一个逐球 Billboard，完全服从逻辑位置和生命周期。
 
 ### 剩余风险
 
-- 逻辑、组件数量和 World Transform 已自动验证；Billboard 的最终屏幕尺寸、透明边缘、与人物遮挡关系以及移动玩家实战中的视觉一致性仍需用户 PIE。
+- 无阻塞发布的已知风险；后续若美术要求精调光晕尺寸或强度，作为独立表现参数调整处理，不改变逐球碰撞同源契约。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现和构建后由用户在 PIE 验收。
+- `Passed`：2026-08-20 用户确认最终表现大致无问题并要求提交远端主分支。
 
 ### 架构文档审阅结果
 

@@ -37,6 +37,19 @@ const TCHAR* FReEchoCombatVfxCatalog::ResolveRabbitProjectileMaterialPath()
 	return TEXT("/Game/VFX/Monster/Rabbit/MI/BaseVFX003_Inst12.BaseVFX003_Inst12");
 }
 
+int32 FReEchoCombatVfxCatalog::GetRabbitProjectileGlowMaterialCount()
+{
+	return 1;
+}
+
+const TCHAR* FReEchoCombatVfxCatalog::ResolveRabbitProjectileGlowMaterialPath(const int32 LayerIndex)
+{
+	static const TCHAR* Paths[] = {
+	    TEXT("/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow.M_RabbitProjectileGlow"),
+	};
+	return LayerIndex >= 0 && LayerIndex < UE_ARRAY_COUNT(Paths) ? Paths[LayerIndex] : TEXT("");
+}
+
 bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 {
 	const FString Pattern = AttackPatternId.ToString();

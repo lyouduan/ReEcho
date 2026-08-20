@@ -55,8 +55,10 @@ public:
 	static int32 ResolveCombatEffectSortPriority(int32 OwnerSortPriority);
 	/** Pure identity projection shared by runtime and automation. */
 	static FReEchoProjectileVisualKey ResolveProjectileVisualKey(const FReEchoEnemyProjectileEvent& Event);
-	/** Converts the authored texture's opaque ball diameter to the authoritative collider diameter. */
-	static float ResolveProjectileVisualScale(float CollisionRadiusCm, int32 TextureSizePixels);
+	/** Material sprites fill their quad, so the core diameter matches the authoritative collider exactly. */
+	static float ResolveProjectileCoreDiameter(float CollisionRadiusCm);
+	/** Additive glow extends beyond the core without changing gameplay collision. */
+	static float ResolveProjectileGlowDiameter(float CollisionRadiusCm);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -74,6 +76,7 @@ private:
 	UNiagaraSystem* ResolveSystem(uint8 SemanticValue) const;
 	UTexture2D* ResolveRabbitProjectileTexture() const;
 	UMaterialInterface* ResolveRabbitProjectileMaterial() const;
+	TArray<UMaterialInterface*> ResolveRabbitProjectileGlowMaterials() const;
 	UNiagaraComponent*
 	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
@@ -126,4 +129,5 @@ private:
 	mutable TSet<uint8> MissingSystemWarnings;
 	mutable bool bMissingRabbitProjectileTextureWarned = false;
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;
+	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;
 };

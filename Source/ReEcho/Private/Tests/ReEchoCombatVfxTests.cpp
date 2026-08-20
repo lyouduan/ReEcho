@@ -41,10 +41,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Same committed volley and same ball resolve a stable visual key"),
 	         BallZeroKey == UReEchoCombatVfxComponent::ResolveProjectileVisualKey(BallZero));
 	TestFalse(TEXT("Two balls in one committed volley cannot overwrite the same visual"), BallZeroKey == BallOneKey);
-	TestTrue(TEXT("Rabbit opaque texture scales its visible diameter to the gameplay collider"),
-	         FMath::IsNearlyEqual(UReEchoCombatVfxComponent::ResolveProjectileVisualScale(50.0f, 512),
-	                              100.0f / 154.0f,
-	                              KINDA_SMALL_NUMBER));
+	TestEqual(TEXT("Rabbit material core diameter matches the gameplay collider"),
+	          UReEchoCombatVfxComponent::ResolveProjectileCoreDiameter(50.0f),
+	          100.0f);
+	TestEqual(TEXT("Rabbit additive glow is larger without changing collision"),
+	          UReEchoCombatVfxComponent::ResolveProjectileGlowDiameter(50.0f),
+	          150.0f);
 	const FVector LockedPlayerDirection = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
 	const FRotator RabbitProjectileRotation =
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::RabbitProjectile, LockedPlayerDirection);
@@ -76,6 +78,13 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestNotNull(
 	    TEXT("Logic-driven rabbit projectile keeps the authored emissive material"),
 	    LoadObject<UMaterialInterface>(nullptr, FReEchoCombatVfxCatalog::ResolveRabbitProjectileMaterialPath()));
+	for (int32 GlowLayerIndex = 0; GlowLayerIndex < FReEchoCombatVfxCatalog::GetRabbitProjectileGlowMaterialCount();
+	     ++GlowLayerIndex)
+	{
+		const TCHAR* GlowPath = FReEchoCombatVfxCatalog::ResolveRabbitProjectileGlowMaterialPath(GlowLayerIndex);
+		TestNotNull(FString::Printf(TEXT("Rabbit additive glow material loads: %s"), GlowPath),
+		            LoadObject<UMaterialInterface>(nullptr, GlowPath));
+	}
 
 	UNiagaraSystem* RabbitProjectileSystem = LoadObject<UNiagaraSystem>(
 	    nullptr, FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::RabbitProjectile));
