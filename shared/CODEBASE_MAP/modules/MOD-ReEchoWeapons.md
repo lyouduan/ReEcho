@@ -115,6 +115,8 @@ Commit
 
 可见 Projectile/Wave Actor 不是飞行真相源；即使没有美术资源，逻辑载体也必须完成移动、命中和过期。
 
+主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。当前 canonical Staff 仍是 `Pattern.StaffProjectile → Projectile`；复用 `StaffLightWave` 只表示视觉资源复用，不得切回旧 `Pattern.MoonStaffWave` 行为。
+
 ### 持有者瞄准适配
 
 `AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，使自动索敌和手动鼠标瞄准无需旋转根 Actor；Echo 等保持旋转语义的宿主回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile、Wave 与 SwordArc 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。

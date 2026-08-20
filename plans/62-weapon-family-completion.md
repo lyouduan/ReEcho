@@ -6,7 +6,7 @@
 - **阶段目标关联**：Demo 稳定化 P0（六场完整一局可用武器多样性）+ P1（战斗可读性/表现）
 - **Planner / Executor 负责人**：当前程序 AI（非 Planner-Executor 模式，直接在本地主线执行）
 - **本地规划 / 实现基线**：`origin/main@354e010`
-- **Writes**：`plans/62-weapon-family-completion.md`；`Source/ReEcho/{Public,Private}/Weapons/ReEchoWeaponActor.*`；`Source/ReEcho/{Public,Private}/Graybox/ReEchoProjectileActor.*`；按最终实现需要新增或调整的武器攻击表现 Actor；`Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp` / `ReEchoCombatVfxTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoVFX.md`；到位的 `/Game/ReEcho/Textures/Effects/` 专属攻击纹理。
+- **Writes**：`plans/62-weapon-family-completion.md`；`Source/ReEcho/{Public,Private}/Weapons/ReEchoWeaponActor.*`；`Source/ReEcho/{Public,Private}/Graybox/ReEchoProjectileActor.*` 与近战弧 Actor；`Source/ReEcho/{Public,Private}/Presentation/VFX/ReEchoCombatVfxCatalog.*`；`Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp` / `ReEchoCombatVfxTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoVFX.md`；到位的 `/Game/ReEcho/Textures/Effects/` 专属攻击纹理。
 - **Stable Reads**：`Design/Data/ReEchoData.xlsx` 及其生成 CSV；`Source/ReEchoWeapons/` 的攻击 Commit/Carrier 公共契约；`Source/ReEchoCombat/` 的最终命中结算契约；现有静态武器纹理和 `SlashCrescent` / `StaffLightWave` 资产。
 - **影响模式**：`SharedContract`（保持 Weapons/Combat 逻辑契约不变，在主模块表现适配层增加武器语义路由）。
 - **兼容承诺**：不改变六把武器的攻速、伤害、范围、连段、投射数量、爆炸半径和最终命中裁决；缺失专属美术时必须安全回退，不能 Fatal 或误用手持静态图冒充攻击特效。
@@ -152,6 +152,17 @@ W_J_09,Gun,Gun,Gun,5,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,R
 - [x] 增量 Development 构建通过
 - [ ] `Run-Automation -Filter ReEcho.Weapons` 待用户在编辑器中运行确认（代码已清除匕首引用并校正断言）
 - [ ] PIE 人工验收（P0）：6 种武器各自可选/可玩/表现正确（视觉精灵素材待用户提供，见 §5 素材清单；未到位时不放开 `StartSelectable` 以避免 Fatal）
+
+### 第二阶段执行记录（截至 2026-08-20）
+
+- 已确认六种 Pattern 均有攻击步骤和 Commit/Carrier 逻辑；用户观察到的缺口是专属攻击表现，不是攻击逻辑缺失。
+- `AReEchoWeaponActor` 已把通用近战命中与长剑手持摆动分离，并把稳定 `VisualKey` 传给近战弧/投射视觉；镰刀和鞭不再驱动长剑手持动画。
+- `AReEchoSwordArcActor` 建立 `SlashCrescent` / `ScytheSweep` / `WhipLash` 三条纹理契约；专属资源缺失时显式回退现有刀光，不影响攻击成功。
+- `AReEchoProjectileActor` 建立 `BowProjectile` / `GunProjectile` / `StaffLightWave` 三条纹理契约；法杖复用现有光波纹理但保持 `Pattern.StaffProjectile` 的逻辑投射物，弓/枪缺图时使用不同尺寸的程序形状。
+- `PlayerMeleeSlash` Niagara 收紧为 `Pattern.LongSwordCombo` 专属，镰刀/鞭不再误播长剑 Niagara。
+- [x] 增量 Development 构建通过。
+- [x] `ReEcho.Presentation.VFX.Catalog` 聚焦自动化通过。
+- [ ] 镰刀横扫、鞭击、弓箭、枪弹正式纹理仍需美术提供；当前仅完成代码契约与安全回退。
 
 ### 素材依赖（仍待用户）
 - 镰刀/鞭/弓/枪/法杖持握精灵纹理（§5 清单）未入库；`WeaponTexturePath` 已映射但资源缺失会触发 Fatal，故视觉表现需素材到位后方可 PIE 验收。

@@ -7,9 +7,11 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Math/RotationMatrix.h"
 
 AReEchoProjectileActor::AReEchoProjectileActor()
 {
@@ -51,7 +53,8 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                    const float InExplosionRadiusCm,
                                                    const float InMaxRangeCm,
                                                    const FReEchoAttackIdentity InAttack,
-                                                   const EReEchoDamageSource InDamageSourceType)
+                                                   const EReEchoDamageSource InDamageSourceType,
+                                                   const FName InWeaponVisualKey)
 {
 	Damage = FMath::Max(0.f, InDamage);
 	Element = InElement;
@@ -88,6 +91,66 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this);
 		Material->SetVectorParameterValue(TEXT("Color"), Color);
 		Shape->SetMaterial(0, Material);
+	}
+	ConfigureWeaponVisual(InWeaponVisualKey, Color);
+}
+
+FString AReEchoProjectileActor::ResolveWeaponTexturePath(const FName WeaponVisualKey)
+{
+	if (WeaponVisualKey == TEXT("Bow"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/BowProjectile.BowProjectile");
+	}
+	if (WeaponVisualKey == TEXT("Gun"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/GunProjectile.GunProjectile");
+	}
+	if (WeaponVisualKey == TEXT("Staff") || WeaponVisualKey == TEXT("MoonStaff"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave");
+	}
+	return FString();
+}
+
+void AReEchoProjectileActor::ConfigureWeaponVisual(const FName WeaponVisualKey, const FLinearColor& Color)
+{
+	const FString TexturePath = ResolveWeaponTexturePath(WeaponVisualKey);
+	UTexture2D* Texture = TexturePath.IsEmpty() ? nullptr : LoadObject<UTexture2D>(nullptr, *TexturePath);
+	if (Texture)
+	{
+		UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+		UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
+			nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+		if (Plane && SpriteMaterial)
+		{
+			Shape->SetStaticMesh(Plane);
+			// The texture is a camera card. Gameplay direction remains owned by ProjectileLogic.
+			Shape->SetAbsolute(false, true, false);
+			Shape->SetWorldRotation(FRotationMatrix::MakeFromZX(
+				FVector(-0.573576f, 0.0f, 0.819152f), FVector::RightVector).Rotator());
+			UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
+			Material->SetTextureParameterValue(TEXT("SpriteTexture"), Texture);
+			Shape->SetMaterial(0, Material);
+			const float Height = WeaponVisualKey == TEXT("Bow") ? 34.0f : 56.0f;
+			const float Aspect = static_cast<float>(Texture->GetSizeX()) / FMath::Max(1, Texture->GetSizeY());
+			Shape->SetRelativeScale3D(FVector(Height * Aspect / 100.0f, Height / 100.0f, 1.0f));
+			Shape->SetVisibility(true);
+			return;
+		}
+	}
+
+	// Distinct procedural fallbacks keep missing art playable and visually diagnosable.
+	if (WeaponVisualKey == TEXT("Bow"))
+	{
+		Shape->SetRelativeScale3D(FVector(0.12f, 0.48f, 0.12f));
+	}
+	else if (WeaponVisualKey == TEXT("Gun"))
+	{
+		Shape->SetRelativeScale3D(FVector(0.14f));
+	}
+	else if (WeaponVisualKey == TEXT("Staff") || WeaponVisualKey == TEXT("MoonStaff"))
+	{
+		Shape->SetRelativeScale3D(FVector(0.34f, 0.18f, 0.34f));
 	}
 }
 

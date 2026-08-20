@@ -98,8 +98,8 @@ private:
 	const FReEchoCsvWeaponRow* FindEquippedDefinition() const;
 	void UpdateElementIndicator();
 	void RefreshVisualState();
-	void StartSwordAnimation();
-	void SpawnSwordArc();
+	void StartMeleeAnimation(FName WeaponVisualKey);
+	void SpawnMeleeArc(FName WeaponVisualKey);
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;

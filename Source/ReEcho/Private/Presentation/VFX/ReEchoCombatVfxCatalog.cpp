@@ -52,8 +52,8 @@ const TCHAR* FReEchoCombatVfxCatalog::ResolveRabbitProjectileGlowMaterialPath(co
 
 bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 {
-	const FString Pattern = AttackPatternId.ToString();
-	return Pattern.Contains(TEXT("LongSword")) || Pattern.Contains(TEXT("Scythe"));
+	// This gate selects the delivered sword Niagara, not generic melee gameplay.
+	return AttackPatternId == TEXT("Pattern.LongSwordCombo");
 }
 
 FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)

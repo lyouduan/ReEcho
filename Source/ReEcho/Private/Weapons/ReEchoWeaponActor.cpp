@@ -540,7 +540,8 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		                                 Commit.ExplosionRadiusCm,
 		                                 Commit.RangeCm,
 		                                 Commit.Attack,
-		                                 ResolveOwnerDamageSource());
+		                                 ResolveOwnerDamageSource(),
+		                                 GetEquippedWeaponVisualKey());
 		bSpawnedAny = true;
 	}
 	return bSpawnedAny;
@@ -620,18 +621,19 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, URe
 	{
 		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant);
 	}
-	StartSwordAnimation();
+	StartMeleeAnimation(GetEquippedWeaponVisualKey());
 	return true;
 }
 
-void AReEchoWeaponActor::StartSwordAnimation()
+void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 {
 	SwordSwingDirection *= -1.0f;
-	SwordAnimationTime = SwordAnimationDuration;
-	SpawnSwordArc();
+	// Only the longsword owns the hand-sprite swing. Scythe and whip keep their billboard pose.
+	SwordAnimationTime = WeaponVisualKey == TEXT("CrescentBlade") ? SwordAnimationDuration : 0.0f;
+	SpawnMeleeArc(WeaponVisualKey);
 }
 
-void AReEchoWeaponActor::SpawnSwordArc()
+void AReEchoWeaponActor::SpawnMeleeArc(const FName WeaponVisualKey)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -643,7 +645,7 @@ void AReEchoWeaponActor::SpawnSwordArc()
 	        GetWorld()->SpawnActor<AReEchoSwordArcActor>(ArcLocation, ResolveOwnerAimDirection().Rotation()))
 	{
 		SwordArc->SetOwner(WeaponOwner);
-		SwordArc->InitializeArc(SwordSwingDirection);
+		SwordArc->InitializeArc(SwordSwingDirection, WeaponVisualKey);
 	}
 }
 

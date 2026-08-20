@@ -28,7 +28,11 @@ public:
 	                          float InExplosionRadiusCm = 0.0f,
 	                          float InMaxRangeCm = 0.0f,
 	                          FReEchoAttackIdentity InAttack = {},
-	                          EReEchoDamageSource InDamageSourceType = EReEchoDamageSource::Player);
+	                          EReEchoDamageSource InDamageSourceType = EReEchoDamageSource::Player,
+	                          FName InWeaponVisualKey = NAME_None);
+
+	/** Weapon-specific presentation asset contract. Empty means procedural fallback. */
+	static FString ResolveWeaponTexturePath(FName WeaponVisualKey);
 
 	float GetDamage() const
 	{
@@ -63,4 +67,5 @@ private:
 	EReEchoElement Element = EReEchoElement::None;
 	float Speed = 950.f;
 	float ExplosionRadiusCm = 0.0f;
+	void ConfigureWeaponVisual(FName WeaponVisualKey, const FLinearColor& Color);
 };
