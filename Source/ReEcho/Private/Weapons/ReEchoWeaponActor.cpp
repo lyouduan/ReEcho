@@ -562,11 +562,12 @@ void AReEchoWeaponActor::RefreshVisualState()
 {
 	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
 	const FName VisualKey = Definition ? Definition->VisualKey : NAME_None;
-	const bool bShowSword = VisualKey == TEXT("CrescentBlade");
+	const bool bShowSword = VisualKey == TEXT("CrescentBlade") || VisualKey == TEXT("Whip");
 	const bool bShowElement = VisualKey == TEXT("ElementalOrb");
 	const bool bShowStaff = VisualKey == TEXT("MoonStaff") || VisualKey == TEXT("Staff");
 	const bool bShowScythe = VisualKey == TEXT("Scythe");
-	const bool bShowWhip = VisualKey == TEXT("Whip");
+	// Whip asset pending production; rendered as longsword placeholder, so its billboard stays hidden.
+	const bool bShowWhip = false;
 	const bool bShowBow = VisualKey == TEXT("Bow");
 	const bool bShowGun = VisualKey == TEXT("Gun");
 	if (StaffSprite)
