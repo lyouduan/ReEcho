@@ -140,6 +140,11 @@ public:
 	void ConfigureArenaBounds(const FVector2D& Center, const FVector2D& HalfExtents);
 	void ConfigureArenaBounds(float HalfExtentX, float HalfExtentY);
 
+	/** 玩家活动范围中心（世界 XY），供小地图坐标映射。 */
+	FVector2D GetArenaCenter2D() const { return ArenaCenter; }
+	/** 玩家活动范围半尺寸（世界 XY），供小地图坐标映射。 */
+	FVector2D GetArenaHalfExtents2D() const { return ArenaHalfExtents; }
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Collision")
 	TObjectPtr<UBoxComponent> Collision;
 

@@ -12,8 +12,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoBillboardDebug.h"
-#include "Graybox/ReEchoTrajectoryActor.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Recording/ReEchoPlaybackComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -101,17 +101,12 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 	DamageEfficiency = Efficiency;
 	Playback->LoadRecording(Recording);
 
-	for (TActorIterator<AReEchoTrajectoryActor> TrajectoryIterator(GetWorld()); TrajectoryIterator;
-	     ++TrajectoryIterator)
+	// Plan 64: 世界地面轨迹已迁移至右上角小地图。此处仅缓存平面 XY 轨迹点供小地图绘制。
+	RecordedPath.Reset();
+	RecordedPath.Reserve(Recording.Positions.Num());
+	for (const FReEchoPositionSample& Sample : Recording.Positions)
 	{
-		TrajectoryIterator->Destroy();
-	}
-
-	Trajectory = GetWorld()->SpawnActor<AReEchoTrajectoryActor>();
-	if (Trajectory)
-	{
-		Trajectory->SetOwner(this);
-		Trajectory->InitializeTrajectory(Recording);
+		RecordedPath.Add(FVector2D(Sample.Position.X, Sample.Position.Y));
 	}
 
 	Weapon = GetWorld()->SpawnActor<AReEchoWeaponActor>();

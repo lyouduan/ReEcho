@@ -34,6 +34,7 @@ class UMaterialInterface;
 class UTexture2D;
 enum class EReEchoInventoryShopMode : uint8;
 struct FReEchoEncounterRuntimeState;
+struct FReEchoMinimapView;
 /** 游戏总流程协调器：创建战斗场景，衔接遭遇、构筑选择和结算界面。 */
 UCLASS()
 
@@ -297,6 +298,9 @@ private:
 
 	UFUNCTION()
 	void HandleAutomaticAttackRequested();
+
+	/** 每帧从 Player/Echoes 收集数据填充小地图视图（Plan 64）。 */
+	void BuildMinimapView(FReEchoMinimapView& OutView) const;
 
 	UFUNCTION()
 	void HandleManualAttackRequested();

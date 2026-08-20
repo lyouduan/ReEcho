@@ -7,7 +7,6 @@
 #include "GameFramework/Actor.h"
 #include "ReEchoEchoActor.generated.h"
 
-class AReEchoTrajectoryActor;
 class AReEchoWeaponActor;
 class UBillboardComponent;
 class UReEchoCombatantComponent;
@@ -72,6 +71,9 @@ public:
 	FName GetEquippedWeaponId() const;
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
 
+	/** 返回录制的历史位置（世界 XY 平面），供右上角小地图绘制回响轨迹。 */
+	const TArray<FVector2D>& GetRecordedPath() const { return RecordedPath; }
+
 	virtual EReEchoCombatFaction GetCombatFaction() const override
 	{
 		return EReEchoCombatFaction::PlayerSide;
@@ -126,7 +128,7 @@ private:
 	TObjectPtr<AReEchoWeaponActor> Weapon;
 
 	UPROPERTY()
-	TObjectPtr<AReEchoTrajectoryActor> Trajectory;
+	TArray<FVector2D> RecordedPath;
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> EchoTextures;
