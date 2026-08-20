@@ -109,6 +109,8 @@
 - 第二轮日志证实：碰撞直径 `100 cm / 93.91 px`，旧 Material Billboard Quad 为 `332.47 cm / 312.21 px`，固定放大 `3.325` 倍；且仅使用 Translucent `Inst12`，原 System 的 Additive `Inst1/2/3` 均存在但未渲染。修订后核心球直径精确等于碰撞直径，三个 Additive 层以 `1.5×` 核心直径同位置叠加，仍由同一个逐球视觉代理统一移动和销毁；人工通过后已删除精简 trace。
 - 上述“三个 Additive 层常驻叠加”经人工截图否决：脱离 Niagara 后材质没有 `Particles.Color`，`Inst2/Glo_C178` 被错误显示为白色大圆环。资产逐张导出确认 `Inst1/Glo_c002` 才是柔和光晕，`Inst2` 是圆环、`Inst3` 是尖刺；最终常驻代理只保留 `Inst1`，用每球独立 MID 将“基础颜色”设为红色，圆环和尖刺不再常驻渲染。
 - 单独复用 `Inst1` 仍无法恢复原光晕：该 Niagara 材质的颜色/强度依赖粒子数据，普通 Billboard 即使写入实例参数也不能完整重现。最终增加独立适配材质 `/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow`，只复用原 `Glo_c002` 柔光纹理，并显式定义红色、Unlit、Additive 和 Emissive 强度；它与核心球同属一个逐球 Billboard，完全服从逻辑位置和生命周期。
+- 2026-08-20 发布审计发现 `origin/main` 已前进到 `e79ffc5`（Plan59–63）。经用户确认采用远端，将最新 main 合入本 Plan：远端的匕首删除、Shipping、UI 与 GM 命令全部保留；Plan58 仅叠加逐球视觉/碰撞和柔光材质。源码自动组合无文本冲突；冲突只发生在 manifest/DLL，未选择任一旧二进制，统一由组合源码重新生成。
+- 组合候选启动自动化时发现远端 Plan62 Reader 仍校验删除匕首前的 `LoadoutOrder 1..3`、部件 `78/16/62` 计数和必需效果种类，导致最新 main 自身 CSV Fatal。该集成遗漏作为 Plan63 #2 修复：同步六槽与当前权威表，同时保留已配置行的 Schema/Behavior 校验。修复后 `ReEcho.Presentation.VFX` 与 `ReEcho.Enemies.Host.RabbitProjectilePipeline` 自动化通过；发布候选执行 Editor `-FullRebuild`、项目静态校验与 diff 检查。
 
 ### 剩余风险
 

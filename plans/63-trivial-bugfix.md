@@ -30,4 +30,11 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **用法 / Usage**：PIE 或 Development 构建按 `~` 打开控制台，输入 `GMGrantCard G_2_17` 即可获得静默刻度；`GMGrantCard` 无参打印用法。Shipping 构建命令体被守卫跳过。
 - **验证 / Verification**：`Build-Editor -FullRebuild` 通过；`validate_project.py` 静态校验通过；逻辑复用已验证的 `TryGrantCard` 路径，与正常特质卡授予行为一致。
 
-<!-- 后续修复继续在此处追加 #2、#3…… -->
+### #2 — 修复六武器生产表触发启动期 CSV Fatal
+
+- **现象 / Symptom**：Plan62 已把输入槽扩展到 `1..6`，且五个可选武器使用 `LoadoutOrder 1、2、4、5、6`；但 Editor/自动化在模块启动时依次因旧的 `1..3` 顺序上限、匕首删除前的 `78/16/62` 部件计数、以及“至少存在一个 AttackPatternReplacement/UniqueBehavior”而 Fatal。
+- **根因 / Root cause**：`ReEchoWeaponCsvReader.cpp` 的输入槽解析和枚举已经扩展到 6，但三组生产数据审计仍绑定删除匕首前的内容；删除匕首后，当前生产表不再含由匕首提供的替换攻击模式和唯一行为部件效果。
+- **改动 / Changes**：校验上限改为从 `EReEchoInputSlot::Slot6` 派生的具名常量；部件审计同步为当前权威表的 `70` 总行、`10` 具名行和 `60` 禁用空名行；保留两类效果的 Schema/Behavior 校验能力，但不再强制生产表必须至少配置一条。继续保留 `LoadoutOrder` 唯一性和 `StartSelectable` 必须绑定输入槽等既有规则，不重排生产表。
+- **验证 / Verification**：Plan58 合入最新 main 的组合候选已通过启动期 CSV 加载、VFX 与兔子投射物聚焦自动化、Editor `-FullRebuild`、静态项目校验和 diff 检查。
+
+<!-- 后续修复继续在此处追加 #3、#4…… -->
