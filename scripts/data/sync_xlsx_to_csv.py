@@ -51,6 +51,7 @@ TABLE_TO_CSV = {
     "tblEnemies": "enemies.csv",
     "tblEnemyAbilities": "enemy_abilities.csv",
     "tblBossPhases": "boss_phases.csv",
+    "tblEnemyCombatStats": "enemy_combat_stats.csv",
     "tblStages": "stages.csv",
     "tblEncounters": "encounters.csv",
     "tblEncounterWaves": "encounter_waves.csv",
