@@ -122,5 +122,15 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 - 资产朝向修正集中在适配器，禁止为了迁就特效轴修改玩法攻击方向。
 - 旋转 Niagara Component 只能可靠影响 Local Space 发射器；有方向语义的资产必须同时校验启用发射器的 Simulation Space，并验证实际粒子位置/速度确实服从组件坐标系。组件 Transform、逻辑投射物轨迹和屏幕方向都正确时，禁止继续修改玩法方向来补偿 System 内部粒子模块。
 - 资产说明中的“前向轴”不是运行时真相。兔子三球交付说明称 `+Y` 为中轴，但 CPU 粒子速度读回证明中间球实际为本地 `32.5°`；该适配只允许集中在 `FReEchoCombatVfxCatalog`，Host、敌人逻辑和投射物逻辑不得复制角度补偿。
+
+## Shipping 打包：VFX 资产如何入包
+
+VFX 资产（`/Game/VFX/...` 下的 `NS_*`/`M_*`/`MI_*`/`T_*`/`BP_*`，以及 `/Game/ReEcho/Materials/VFX` 下的兔子子弹材质/纹理）是**纯资产 + C++ 字符串路径运行时加载**（`ReEchoCombatVfxComponent.cpp` 经 `LoadObject<UNiagaraSystem>(ResolvePath(...))` 按路径挂载，不写进任何数据表、不构造成 GAS 装配）。这带来一项打包约束：
+
+- cooker 只 cook「从根地图 `/Game/Level00` 出发、沿资产引用图可达」的资产。VFX 资产只在 `.cpp` 字符串路径里出现，没有任何 cooked 资产（地图/蓝图/DataAsset）硬/软引用它们，因此默认被 cook **漏掉**，Shipping 包运行时 `LoadObject` 返回 null，组件走降级分支只打 `Warning: [VFX] Missing semantic asset ... gameplay continues without it`——不崩、玩法照常、仅缺特效。
+- **确定化投递**：`Config/DefaultGame.ini` 的 `+DirectoriesToAlwaysCook` 已显式列出 `/Game/VFX` 与 `/Game/ReEcho/Materials/VFX`，强制 cook 枚举并 stage 整个 VFX 树（递归覆盖 People/Monster/Weapon/Common 全部子目录及兔子子弹材质/纹理）。新增 VFX 子目录只要落在 `/Game/VFX` 之内即自动入包；若落在之外须同步补 ini 项。
+- **验证手段（重要，避免误判）**：UE 5.8 默认启用 IoStore，游戏资产打包进 `ReEcho-Windows.utoc` + `ReEcho-Windows.ucas`，而 `ReEcho-Windows.pak` 仅含 ini 等零散文件。**切勿用 `UnrealPak -List ReEcho-Windows.pak` 验证 VFX 是否入包**（该 pak 不含游戏资产，会得到误导性的 0）；正确做法是对 IoStore 容器：
+  `UnrealPak.exe ReEcho-Windows.utoc -List | Select-String "ReEcho/Content/VFX"`（IoStore 容器内路径前缀为 `../../../ReEcho/Content/VFX/...`，非 `/Game/VFX`）。
+- 此契约仅影响打包投递，不改变 VFX 语义、资产路径映射、资产命名或运行时 `LoadObject` 契约；不影响 Development/PIE 既有路径。
 - 前景/背景排序必须相对宿主当前 Flipbook 动态求 `+1/-1`，不能写固定全局值；排序不得复用为碰撞层或目标选择规则。
 - 当前是主模块内领域；只有依赖和团队边界确实稳定、能避免循环时才考虑拆独立 Runtime Module。
