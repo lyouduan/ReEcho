@@ -162,6 +162,8 @@ W_J_09,Gun,Gun,Gun,5,true,6,Pattern.GunShot,0.30,0.20,0.20,1500,0,1,0,0,1,true,R
 - `PlayerMeleeSlash` Niagara 收紧为 `Pattern.LongSwordCombo` 专属，镰刀/鞭不再误播长剑 Niagara。
 - [x] 增量 Development 构建通过。
 - [x] `ReEcho.Presentation.VFX.Catalog` 聚焦自动化通过。
+- [x] 修复 `ReEcho.Weapons.DomainRevisionRejectsChangedTablesAndPinsActiveRun` 的两处过期 CSV 整行夹具：当前长剑 `ProjectileCount=0`，测试改用 `AttackIntervalSeconds 0.28→0.29`；当前核心火焰效果优先级为 `0`，测试改用 `0→1`。两者只触发合法域修订，不再因旧 `ProjectileCount=3` / 优先级 `9` 文本触发 `check` 崩溃。
+- [x] `ReEcho.Weapons` 九项自动化全绿：测试按当前单发法杖和当前物理/元素属性推导断言，纯函数单独保留三发散射覆盖；Legacy 测试敌人的已知空表现日志使用精确次数声明，不再把表现夹具噪声误判为玩法失败。
 - [ ] 镰刀横扫、鞭击、弓箭、枪弹正式纹理仍需美术提供；当前仅完成代码契约与安全回退。
 
 ### 素材依赖（仍待用户）
