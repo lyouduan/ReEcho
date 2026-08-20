@@ -22,7 +22,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestNotEqual(TEXT("Same short name resolves to distinct packages"), PlayerHurt, EnemyHurt);
 	TestTrue(TEXT("Long sword is melee"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
-	TestTrue(TEXT("Dagger is melee"), FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.DaggerCombo")));
+	TestTrue(TEXT("Scythe is melee"), FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
 	TestFalse(TEXT("Staff projectile is not melee"),
 	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.StaffProjectile")));
 	TestEqual(TEXT("Combat effects use the global foreground band above ordinary actors"),

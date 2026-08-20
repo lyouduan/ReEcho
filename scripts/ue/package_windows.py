@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 import platform
 import subprocess
@@ -127,6 +128,55 @@ def find_packaged_exe(output: Path) -> Path:
     return matches[0]
 
 
+def stage_runtime_csvs(output: Path) -> int:
+    """Copy every runtime CSV from the project's loose Content/Data into the
+    packaged game's Content/Data.
+
+    The runtime registry reads CSVs from disk via FFileHelper, but the cooker
+    only stages files that are referenced by cooked assets. Pure data CSVs in
+    Content/Data are not asset-referenced, so a subset (the 6 stage/encounter/
+    spawn/attribute tables) is silently dropped from Shipping packages,
+    causing a LowLevelFatalError at startup. Copying them explicitly after the
+    archive guarantees all manifest CSVs ship as loose files — the same
+    mechanism the 22 already-staged CSVs rely on.
+    """
+    source_data = PROJECT_ROOT / "Content" / "Data"
+    if not source_data.is_dir():
+        print("[ReEchoPackage] Skipping CSV staging: Content/Data not found.", flush=True)
+        return 0
+    csv_files = sorted(source_data.glob("*.csv"))
+    if not csv_files:
+        print("[ReEchoPackage] Skipping CSV staging: no CSV files in Content/Data.", flush=True)
+        return 0
+
+    content_dirs = [
+        d
+        for d in output.rglob("Content")
+        if d.is_dir() and "Engine" not in d.parts
+    ]
+    if not content_dirs:
+        print(
+            f"[ReEchoPackage] WARNING: no (non-Engine) Content directory under {output}; "
+            "runtime CSVs were NOT staged into the package.",
+            flush=True,
+        )
+        return 0
+
+    copied = 0
+    for content_dir in content_dirs:
+        dest = content_dir / "Data"
+        dest.mkdir(parents=True, exist_ok=True)
+        for csv in csv_files:
+            shutil.copy2(csv, dest / csv.name)
+            copied += 1
+    print(
+        f"[ReEchoPackage] Staged {len(csv_files)} runtime CSV(s) into "
+        f"{len(content_dirs)} Content/Data dir(s) ({copied} files copied).",
+        flush=True,
+    )
+    return copied
+
+
 def smoke_test(exe: Path, duration: float) -> None:
     if duration <= 0.0:
         print("[ReEchoPackage] Smoke test skipped because duration is zero.", flush=True)
@@ -177,6 +227,7 @@ def main() -> int:
 
     packaged_exe = find_packaged_exe(output)
     print(f"[ReEchoPackage] Package created: {packaged_exe}")
+    stage_runtime_csvs(output)
     if not args.no_smoke:
         smoke_test(packaged_exe, args.smoke_seconds)
     print("[ReEchoPackage] BUILD SUCCESSFUL", flush=True)

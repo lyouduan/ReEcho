@@ -108,11 +108,11 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_05"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_08"));
 	RunSubsystem->TimeShards = 100;
 
 	const FReEchoWeaponPartShopView InitialView = RunSubsystem->GetWeaponPartShopView();
-	TestEqual(TEXT("Dagger shop exposes three data-driven slot groups"), InitialView.Slots.Num(), 3);
+	TestEqual(TEXT("Bow shop exposes three data-driven slot groups"), InitialView.Slots.Num(), 3);
 	TestEqual(TEXT("Shop page exposes exactly three weapon-part offers"),
 	          InitialView.Offers.FilterByPredicate([](const FReEchoShopOffer& Offer)
 	                                               { return Offer.Type == EReEchoShopOfferType::WeaponPart; }).Num(),
@@ -137,26 +137,25 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	};
 	RunSubsystem->TimeShards = 1000;
 	TestTrue(TEXT("Core purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_CORE_FLAME")));
-	TestTrue(TEXT("Grip purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_DAGGER_STRENGTH_GRIP")));
-	TestTrue(TEXT("Blade purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_DAGGER_HOLY_BLADE")));
+	TestTrue(TEXT("Arrowhead purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_BOW_SPLIT_ARROWHEAD")));
 	TestTrue(TEXT("Purchased rune enters part ownership"),
-	         RunSubsystem->OwnedPartIds.Contains(TEXT("P_DAGGER_STRENGTH_GRIP")));
+	         RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestFalse(TEXT("Purchased rune stays out of ordinary item inventory"),
-	          RunSubsystem->InventoryItems.Contains(TEXT("P_DAGGER_STRENGTH_GRIP")));
+	          RunSubsystem->InventoryItems.Contains(TEXT("P_CORE_FLAME")));
 	TestTrue(TEXT("Purchases do not auto-replace committed equipment"),
 	         RunSubsystem->CurrentBuild.EquippedParts.IsEmpty());
 	const int32 ShardsAfterDuplicate = RunSubsystem->TimeShards;
 	TestFalse(TEXT("Duplicate rune purchase is rejected"),
-	          RunSubsystem->PurchaseShopItem(TEXT("P_DAGGER_STRENGTH_GRIP")));
+	          RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, ShardsAfterDuplicate);
 
 	TestTrue(TEXT("Owned core, grip and blade commit as one loadout"),
 	         RunSubsystem->TrySaveWeaponPartLoadout(
-	             {TEXT("P_CORE_FLAME"), TEXT("P_DAGGER_STRENGTH_GRIP"), TEXT("P_DAGGER_HOLY_BLADE")}, Error));
+	             {TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
 	TestEqual(
-	    TEXT("Committed loadout contains all three slot groups"), RunSubsystem->CurrentBuild.EquippedParts.Num(), 3);
+	    TEXT("Committed loadout contains both equipped slot groups"), RunSubsystem->CurrentBuild.EquippedParts.Num(), 2);
 	TestEqual(
-	    TEXT("Committed strength grip applies its runtime effect"), RunSubsystem->CurrentBuild.Stats.AttackSpeed, 1.2f);
+	    TEXT("Committed strength grip applies its runtime effect"), RunSubsystem->CurrentBuild.Stats.AttackSpeed, 1.0f);
 	return true;
 }
 
@@ -168,7 +167,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_05"));
+	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
 	RunSubsystem->TimeShards = 200;
 
 	const FReEchoWeaponPartShopView FirstPage = RunSubsystem->GetWeaponPartShopView();

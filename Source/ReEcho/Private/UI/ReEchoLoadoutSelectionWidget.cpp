@@ -139,6 +139,26 @@ FString WeaponTexturePath(const FName VisualKey)
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave");
 	}
+	if (VisualKey == TEXT("Scythe"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/Scythe.Scythe");
+	}
+	if (VisualKey == TEXT("Whip"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/Whip.Whip");
+	}
+	if (VisualKey == TEXT("Bow"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow");
+	}
+	if (VisualKey == TEXT("Gun"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/Gun.Gun");
+	}
+	if (VisualKey == TEXT("Staff"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff");
+	}
 	return FString();
 }
 }
@@ -240,11 +260,11 @@ void UReEchoLoadoutSelectionWidget::LoadOptions()
 	}
 
 	TArray<FReEchoCsvWeaponRow> Weapons = Snapshot->GetStartSelectableWeapons();
-	if (Weapons.Num() != 3)
+	if (Weapons.Num() < 1)
 	{
 		UE_LOG(LogReEcho,
 		       Fatal,
-		       TEXT("Cannot build loadout UI: expected 3 StartSelectable CSV weapons, found %d"),
+		       TEXT("Cannot build loadout UI: expected at least 1 StartSelectable CSV weapon, found %d"),
 		       Weapons.Num());
 	}
 	for (const FReEchoCsvWeaponRow& Weapon : Weapons)

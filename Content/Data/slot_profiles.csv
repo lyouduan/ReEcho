@@ -1,7 +1,4 @@
 Id,WeaponTypeId,SlotTypeId,SlotCount,Required,Enabled,SourceSheet,SourceRow,DisabledReason
-SP_DAGGER_CORE,Dagger,Core,1,true,true,武器插槽C,2,
-SP_DAGGER_GRIP,Dagger,Grip,1,false,true,武器插槽C,8,
-SP_DAGGER_BLADE,Dagger,Blade,1,false,true,武器插槽C,12,
 SP_LONGSWORD_CORE,LongSword,Core,1,true,true,武器插槽C,2,
 SP_LONGSWORD_GRIP,LongSword,Grip,1,false,true,武器插槽C,43,
 SP_LONGSWORD_BLADE,LongSword,SwordBlade,1,false,true,武器插槽C,36,

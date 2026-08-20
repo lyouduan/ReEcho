@@ -15,5 +15,6 @@ GM commands use Unreal Engine's development console. Press `~` in PIE or a Devel
 | `GMSpawnFox` | Spawns one production `M_FOX` enemy about 350 cm from the living player. |
 | `GMSpawnFox 500` | Spawns the fox 500 cm toward the arena center; accepted distance is clamped to 150–1000 cm. |
 | `GMGotoBoss` | Abandons the active encounter and immediately starts the configured final Boss encounter. |
+| `GMGrantCard G_2_17` | Grants the named card directly to the current build, ignoring phase/offer restrictions (debug only). Useful to reproduce card effects such as 静默刻度. No-arg prints usage. |
 
 All commands report to both the screen and Unreal log with a `[GM]` prefix. Invalid weather values print usage instead of changing state.
