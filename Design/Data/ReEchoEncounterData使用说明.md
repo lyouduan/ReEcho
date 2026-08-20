@@ -34,6 +34,20 @@ python scripts\data\test_sync_xlsx_to_csv.py
 
 统一入口会联合检查主数据、怪物、Encounter 和音频工作簿，先在临时目录生成完整包，通过 schema、外键和领域校验后才事务发布 CSV。Unreal 只读取 CSV，不读取 XLSX。
 
+## 注意事项
+
+以下列已作为稳定契约存在（同步脚本与 C++ 读取器都会按 `HasExactColumns` 精确校验），但当前首版运行时**不消费其值**：策划在 XLSX 中修改这些列的**数值不会改变任何玩法行为**，属于预留字段。它们被解析后存入运行时结构体，但没有任何行为分支读取：
+
+| Table / Sheet | 预留列 | 当前固定行为 |
+|---|---|---|
+| `Encounters / tblEncounters` | `MeleeTargetingPolicy`、`ReplayPolicy` | 近战索敌、回响重放均走固定默认行为 |
+| `SpawnProfiles / tblSpawnProfiles` | `DistributionPolicy`、`SpacingPolicy` | 出生固定为环形取样 + 最小间距夹取 |
+| `SpawnPolicy / tblSpawnPolicy` | `BoundaryPolicy`、`CandidatePolicy`、`PlayerPredictionPolicy`、`MultiEchoPolicy` | 边界固定夹取、候选固定取首回声锚点、按速度预测 |
+
+- **不要依赖这些列做玩法调整**；要让其生效，需先由程序注册并接上对应行为分支，再开放编辑。
+- **不要删除这些列**：读取器要求 CSV 列与契约 1:1，删列会让 `validate_project.py` 与运行时精确列校验失败。
+- 这 8 个列与 Boss（`boss_phases.csv` 的 `RefillHealthPolicy=RefillToMaximum`）同理，均为首版最小实现之外的预留位。
+
 ## 常见报错
 
 - `Anchor ratios must sum to one`：双锚比例和不为 1。
