@@ -117,9 +117,11 @@ Commit
 
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。当前 canonical Staff 仍是 `Pattern.StaffProjectile → Projectile`；复用 `StaffLightWave` 只表示视觉资源复用，不得切回旧 `Pattern.MoonStaffWave` 行为。
 
+六武器的手持与首用攻击纹理由主模块 `FReEchoWeaponVisualCatalog` 集中解析和枚举，GameInstance 预加载器在菜单阶段异步预热。该机制不进入 `ReEchoWeapons` 逻辑模块；缺图或异步失败时，世界 Actor 继续使用原同步读取与程序/刀光回退，Commit 和命中不等待表现成功。
+
 ### 持有者瞄准适配
 
-`AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，使自动索敌和手动鼠标瞄准无需旋转根 Actor；Echo 等保持旋转语义的宿主回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile、Wave 与 SwordArc 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。
+`AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，Echo 宿主读取 `AReEchoEchoActor::AttackAimDirection`，两者都无需旋转根 Actor；其他宿主才回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile、Wave 与 SwordArc 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。
 
 ## 代码位置与阅读路线
 
@@ -132,6 +134,7 @@ Commit
 | 模块测试 | `Private/Tests/ReEchoWeaponLogicTests.cpp` | cadence、步骤、投射物、来源生命周期 |
 | 数据编译适配 | `Source/ReEcho/Public/Weapons/ReEchoWeaponRuntime.h` → Private 实现 | CSV/Build → Logic Definition |
 | 世界/表现宿主 | `Source/ReEcho/Public/Weapons/ReEchoWeaponActor.h` → Private 实现 | 组合 Logic、Actor、Sprite/Mesh/VFX；不拥有规则 |
+| 表现资源目录/预热 | `Source/ReEcho/Public/Weapons/ReEchoWeaponVisualCatalog.h` → Private 实现 | 主模块资源适配；`ReEchoWeapons` 不依赖它 |
 | 跨域回归 | `Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp`、`ReEchoAttackModeTests.cpp` | 数据、构筑、Actor、GAS 与世界接缝 |
 
 ## 扩展方式

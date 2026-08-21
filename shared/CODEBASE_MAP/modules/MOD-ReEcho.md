@@ -50,6 +50,7 @@
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
 | Actor 可见状态 | 各 Presentation/Graybox Actor | Actor | 消费逻辑结果，不反写逻辑 |
+| 首场表现资源预加载状态与驻留句柄 | `UReEchoRuntimeAssetPreloader` | GameInstance | Catalog 枚举软路径；完成/失败均以幂等终态释放开始门控 |
 
 ## 输入、输出与公共契约
 
@@ -101,8 +102,10 @@ DefaultEngine.ini
   → /Game/Level00
   → AReEchoGameMode::StartPlay
       → 校验并消费 Level00 唯一 Arena Scene / EncounterDirector / StartMenu
+      → GameInstance 预加载器异步预热 Combat VFX、兔子代理与六武器首用表现
       → 新游戏：角色和初始武器选择 → RunSubsystem::StartRun
       → 继续：加载安全检查点或暂停遭遇
+      → 预加载未完成时保留当前菜单；完成或失败后只进入一次 BeginSelectedRun
       → BeginNextEncounter / ResumeSavedEncounter
           → 玩家、Recorder、可用 Echo、EnemyHost + Roster
           → 60 Hz 固定步遭遇 → 0/10/20 秒 WaveScheduler
@@ -124,6 +127,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 | 模块注册与编排 | `Source/ReEcho/Public/ReEchoGameMode.h` | `Private/ReEcho.cpp`、`Private/ReEchoGameMode.cpp` | `ReEcho.uproject`、`Config/DefaultEngine.ini` |
 | 领域实现 | 下方匹配 `AREA-*` 的 Public 目录 | 同领域 Private 目录 | 对应 CSV、Config 或 Content 资产 |
 | 跨领域修改 | 先读权威状态表和公共头 | 再读调用方与被调用方实现 | 对应自动化与 Plan |
+| 首场表现资源预加载 | `Presentation/Loading/ReEchoRuntimeAssetPreloader.h` | 配对实现、`ReEchoGameMode.cpp` | VFX/Weapon Visual Catalog、`ReEchoRuntimeAssetPreloadTests.cpp` |
 
 不要先全文搜索所有 `Source/ReEcho`。先从下方选择一个领域，再沿 Public 契约 → Private 实现 → 数据/测试扩展。
 
@@ -175,6 +179,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 逻辑代码与完整意图：[`MOD-ReEchoWeapons.md`](MOD-ReEchoWeapons.md)。
 - 主模块适配：`ReEchoWeaponRuntime.*` 把策划数据编译为资源无关 Definition；`ReEchoWeaponActor.*` 组合逻辑对象与 Sprite/Mesh/VFX Actor。
 - 攻击表现路由：`ReEchoWeaponActor` 只依据稳定 `VisualKey` 选择近战弧或投射物视觉；长剑/镰刀/鞭分别使用 `SlashCrescent`、`ScytheSweep`、`WhipLash` 契约，弓/枪/法杖分别使用 `BowProjectile`、`GunProjectile`、`StaffLightWave` 契约。缺少专属纹理时视觉 Actor 安全回退为现有刀光或可区分的程序形状，逻辑 Commit、飞行和命中不受影响；手持静态纹理不得充当攻击特效。
+- 资源路径由主模块 `FReEchoWeaponVisualCatalog` 唯一枚举；预加载器只聚合路径并持有异步句柄，Actor 的同步 `LoadObject` 继续作为缺失资源/异步失败回退。
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
 - 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。
 

@@ -115,6 +115,11 @@ void SetSelected(UButton* Button, const bool bSelected)
 
 FString CharacterTexturePath(const FName AppearanceId)
 {
+	if (AppearanceId == TEXT("J_SPADE"))
+	{
+		return TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat");
+	}
+
 	FString Token = AppearanceId.ToString();
 	Token.RemoveFromStart(TEXT("J_"));
 	Token = Token.ToLower();

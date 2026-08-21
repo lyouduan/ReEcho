@@ -35,6 +35,7 @@
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h"
+#include "Presentation/Loading/ReEchoRuntimeAssetPreloader.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
@@ -468,6 +469,11 @@ void AReEchoGameMode::GMGrantCard(const FName CardId)
 void AReEchoGameMode::StartPlay()
 {
 	Super::StartPlay();
+	if (UReEchoRuntimeAssetPreloader* Preloader =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRuntimeAssetPreloader>() : nullptr)
+	{
+		Preloader->RequestPreload(FSimpleDelegate());
+	}
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
 	int32 ArenaSceneCount = 0;
 	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
@@ -619,7 +625,7 @@ void AReEchoGameMode::HandleContinueGameRequested()
 		}
 		return;
 	}
-	BeginSelectedRun();
+	RequestBeginSelectedRun();
 }
 
 void AReEchoGameMode::HandleStartSettingsRequested()
@@ -841,6 +847,45 @@ void AReEchoGameMode::HandleLoadoutConfirmed(const FName CharacterId, const FNam
 	       TEXT("[ReEchoStartFlow] Loadout locked. Character=%s Weapon=%s"),
 	       *CharacterId.ToString(),
 	       *WeaponId.ToString());
+	RequestBeginSelectedRun();
+}
+
+void AReEchoGameMode::RequestBeginSelectedRun()
+{
+	if (bBeginSelectedRunRequested || bBeginSelectedRunStarted)
+	{
+		return;
+	}
+	bBeginSelectedRunRequested = true;
+	UReEchoRuntimeAssetPreloader* Preloader =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRuntimeAssetPreloader>() : nullptr;
+	if (!Preloader)
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("[ReEchoStartFlow] Runtime asset preloader unavailable; continuing."));
+		HandleRuntimeAssetPreloadComplete();
+		return;
+	}
+	if (!Preloader->IsPreloadComplete())
+	{
+		UE_LOG(LogReEcho, Display, TEXT("[ReEchoStartFlow] Waiting for first-encounter presentation assets."));
+	}
+	Preloader->RequestPreload(
+	    FSimpleDelegate::CreateUObject(this, &AReEchoGameMode::HandleRuntimeAssetPreloadComplete));
+}
+
+void AReEchoGameMode::HandleRuntimeAssetPreloadComplete()
+{
+	if (!bBeginSelectedRunRequested || bBeginSelectedRunStarted)
+	{
+		return;
+	}
+	bBeginSelectedRunStarted = true;
+	UReEchoRuntimeAssetPreloader* Preloader =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRuntimeAssetPreloader>() : nullptr;
+	UE_LOG(LogReEcho,
+	       Display,
+	       TEXT("[ReEchoStartFlow] First-encounter asset gate released. Success=%s"),
+	       Preloader && Preloader->DidPreloadSucceed() ? TEXT("true") : TEXT("false"));
 	BeginSelectedRun();
 }
 

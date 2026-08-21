@@ -15,6 +15,8 @@
 
 本入口把两类变化隔离开：Combat/Enemies/Weapons 发布资源中立的稳定语义；`UReEchoCombatVfxComponent` 集中选择资产并管理表现实例。程序可修改玩法而不散落资源路径，美术可替换同语义资产而不进入逻辑模块。
 
+`FReEchoCombatVfxCatalog::GatherPreloadAssetPaths` 同时枚举全部八个语义根和兔子代理纹理/材质。GameInstance 预加载器在菜单阶段异步持有这些 UObject；VFX Component 原同步加载仍是安全回退，加载失败只缺视觉并释放开始门控。
+
 ## 职责与排除项
 
 **负责：**
@@ -108,6 +110,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 敌人投射物装配 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*` |
 | 玩家/Echo/敌人 Host 装配 | 对应 `PlayerPawn` / `EchoActor` / `EnemyActor` 构造函数 |
 | 映射与资产加载自动化 | `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp` |
+| 首场资源清单与驻留 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` → `Presentation/Loading/ReEchoRuntimeAssetPreloader.*`；测试为 `ReEchoRuntimeAssetPreloadTests.cpp` |
 | 玩家武器轻量纹理路由 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoSwordArcActor.*`、`ReEchoProjectileActor.*`；入口为 `Weapons/ReEchoWeaponActor.*` |
 | 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py` |
 

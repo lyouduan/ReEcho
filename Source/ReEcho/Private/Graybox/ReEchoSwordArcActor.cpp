@@ -6,6 +6,7 @@
 #include "Engine/Texture2D.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 AReEchoSwordArcActor::AReEchoSwordArcActor()
 {
@@ -20,29 +21,24 @@ AReEchoSwordArcActor::AReEchoSwordArcActor()
 	SlashSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SlashSprite->SetCastShadow(false);
 	SlashSprite->SetTranslucentSortPriority(8);
-	SlashSprite->SetRelativeRotation(FRotationMatrix::MakeFromZX(
-		FVector(-0.573576f, 0.0f, 0.819152f), FVector::RightVector).Rotator());
-	if (UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(
-		    nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
+	SlashSprite->SetRelativeRotation(
+	    FRotationMatrix::MakeFromZX(FVector(-0.573576f, 0.0f, 0.819152f), FVector::RightVector).Rotator());
+	if (UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
 	{
 		SlashSprite->SetStaticMesh(PlaneMesh);
 	}
 	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
-		nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
 	UTexture2D* SlashTexture = LoadObject<UTexture2D>(nullptr, *ResolveWeaponTexturePath(TEXT("CrescentBlade")));
 	if (SpriteMaterial && SlashTexture)
 	{
-		UMaterialInstanceDynamic* MaterialInstance =
-			UMaterialInstanceDynamic::Create(SpriteMaterial, this);
+		UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
 		MaterialInstance->SetTextureParameterValue(TEXT("SpriteTexture"), SlashTexture);
 		SlashSprite->SetMaterial(0, MaterialInstance);
 		constexpr float SlashWorldHeight = 360.0f;
-		const float AspectRatio = static_cast<float>(SlashTexture->GetSizeX())
-			/ FMath::Max(1, SlashTexture->GetSizeY());
-		SlashBaseScale = FVector(
-			SlashWorldHeight * AspectRatio / 100.0f,
-			SlashWorldHeight / 100.0f,
-			1.0f);
+		const float AspectRatio =
+		    static_cast<float>(SlashTexture->GetSizeX()) / FMath::Max(1, SlashTexture->GetSizeY());
+		SlashBaseScale = FVector(SlashWorldHeight * AspectRatio / 100.0f, SlashWorldHeight / 100.0f, 1.0f);
 		SlashSprite->SetRelativeScale3D(SlashBaseScale);
 	}
 	SetActorEnableCollision(false);
@@ -50,27 +46,19 @@ AReEchoSwordArcActor::AReEchoSwordArcActor()
 
 FString AReEchoSwordArcActor::ResolveWeaponTexturePath(const FName WeaponVisualKey)
 {
-	if (WeaponVisualKey == TEXT("Scythe"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/ScytheSweep.ScytheSweep");
-	}
-	if (WeaponVisualKey == TEXT("Whip"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash");
-	}
-	return TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent");
+	return FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(WeaponVisualKey);
 }
 
 void AReEchoSwordArcActor::ConfigureWeaponVisual(const FName WeaponVisualKey)
 {
 	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
-		nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
 	UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, *ResolveWeaponTexturePath(WeaponVisualKey));
 	// Missing specialist art falls back explicitly to the known-safe slash, never to a hand-held static texture.
 	if (!Texture)
 	{
-		Texture = LoadObject<UTexture2D>(
-			nullptr, TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent"));
+		Texture = LoadObject<UTexture2D>(nullptr,
+		                                 FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(TEXT("CrescentBlade")));
 	}
 	if (!SpriteMaterial || !Texture)
 	{

@@ -56,6 +56,21 @@ bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 	return AttackPatternId == TEXT("Pattern.LongSwordCombo");
 }
 
+void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
+{
+	for (uint8 SemanticValue = 0; SemanticValue <= static_cast<uint8>(EReEchoCombatVfxSemantic::EnemyHurt);
+	     ++SemanticValue)
+	{
+		OutPaths.Add(ResolvePath(static_cast<EReEchoCombatVfxSemantic>(SemanticValue)));
+	}
+	OutPaths.Add(ResolveRabbitProjectileTexturePath());
+	OutPaths.Add(ResolveRabbitProjectileMaterialPath());
+	for (int32 LayerIndex = 0; LayerIndex < GetRabbitProjectileGlowMaterialCount(); ++LayerIndex)
+	{
+		OutPaths.Add(ResolveRabbitProjectileGlowMaterialPath(LayerIndex));
+	}
+}
+
 FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)
 {
 	if (Semantic == EReEchoCombatVfxSemantic::RabbitProjectile)

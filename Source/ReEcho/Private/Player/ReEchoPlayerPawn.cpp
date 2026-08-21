@@ -93,7 +93,7 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-	    TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
@@ -149,19 +149,27 @@ void AReEchoPlayerPawn::ConfigureArenaBounds(const FVector2D& Center, const FVec
 bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 {
 	const TObjectPtr<UTexture2D>* TextureEntry = CharacterTextures.Find(CharacterId);
-	if (!TextureEntry || !TextureEntry->Get())
+	if (!TextureEntry)
 	{
 		UE_LOG(LogTemp,
 		       Error,
-		       TEXT("[PlayerSource] ConfigureCharacter failed. Actor=%s Character=%s"),
+		       TEXT("[PlayerSource] ConfigureCharacter rejected unknown character. Actor=%s Character=%s"),
 		       *GetNameSafe(this),
 		       *CharacterId.ToString());
 		return false;
 	}
 
-	UTexture2D* Texture = TextureEntry->Get();
 	CurrentCharacterId = CharacterId;
-	PortraitTexture = Texture;
+	PortraitTexture = TextureEntry->Get();
+	if (!PortraitTexture)
+	{
+		UE_LOG(LogTemp,
+		       Warning,
+		       TEXT("[PlayerSource] Character portrait is unavailable; gameplay presentation will continue. Actor=%s "
+		            "Character=%s"),
+		       *GetNameSafe(this),
+		       *CharacterId.ToString());
+	}
 	RefreshPresentationProfile();
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();

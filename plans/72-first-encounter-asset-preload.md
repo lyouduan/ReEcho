@@ -5,9 +5,9 @@
 - Planner 负责人：当前程序侧 Planner。
 - Executor 负责人：Plan 发布后分配。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`。
-- 人工验收：`PendingBeforeClose`。
+- 实现编写方（AI 侧）：`Socrates-side AI`。
+- 任务状态：`Closed`。
+- 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main@bfc2384fbf6a1c7fe6c2cfc4e3b309c4ab01a019`。
 - 本地实现方式：用户已确认不采用一任务一 worktree；Plan-only 在临时干净副本发布，随后直接在本地 `main` 实现。
 - 依赖 / 阻塞：依赖已发布 Plan71 Echo Catalog/Profile；保护当前本地 Sage 与用户美术脏工作。
@@ -70,20 +70,40 @@
 
 ### 变化
 
-待执行。
+- 新增 GameInstance 生命周期的 `UReEchoRuntimeAssetPreloader`：从 VFX/武器 Catalog 聚合、规范化和去重软路径，持有高优先级异步句柄；空清单、请求失败和部分资产缺失均进入幂等终态并释放等待者。
+- `FReEchoCombatVfxCatalog` 枚举八个语义根与兔子核心纹理、材质、光晕；新增 `FReEchoWeaponVisualCatalog` 集中六武器的手持/攻击表现路径，现有 Weapon/Projectile/SwordArc/Staff Actor 改为消费该 Catalog，同时保留原同步读取和程序/刀光回退。
+- GameMode 在 `StartPlay` 确保预热已启动；新游戏装载确认与继续游戏统一经单次开始门控。未完成时保留当前菜单，完成或失败后只调用一次 `BeginSelectedRun`，已完成路径同步放行。
+- 新增 `ReEcho.Presentation.RuntimeAssetPreload.{Catalog,Completion}`，覆盖 23 个规范化路径、去重、空清单、失败终态和回调幂等。
+- 已知当前缺失资源：`Whip` 手持纹理以及 `ScytheSweep`、`WhipLash`、`BowProjectile`、`GunProjectile` 专用攻击纹理；清单仍预热这些稳定路径，失败不会阻塞，运行时维持既有回退。
 
 ### 证据
 
-待执行。
+- `.clang-format`：使用 VS2022 LLVM x64 `clang-format.exe -i --style=file` 格式化全部 Plan72 修改的 C++ 文件。
+- `Build-Editor.cmd -Configuration Development -FullRebuild`：成功，104 actions；预构建 Editor bundle 刷新为 7 个模块，source fingerprint `7df5ee10698f`。
+- `Run-Automation.cmd -Filter ReEcho.Presentation.RuntimeAssetPreload`：Found 2，Catalog/Completion 均 Success。
+- `Run-Automation.cmd -Filter ReEcho.Presentation.EchoAppearance.CharacterMappings`：Success。
+- `Run-Automation.cmd -Filter ReEcho.Presentation.VFX.Catalog`：Success。
+- 最终发布候选同时纳入用户指定的本地 Animation2D 重构；`RuntimeAssetPreload` 2/2、`SpadeAppearance`、`EchoAppearance.CharacterMappings` 与 `VFX.Catalog` 均再次通过。
+- 旧聚合测试 `ReEcho.Presentation.Animation2D.AssetProfiles` 仍失败：其硬编码已删除的 Grunt 路径并保留 Plan71 前 Echo 组件树断言；用户明确指定本地 Animation2D 重构为权威，未回退资源。该旧测试需后续按新动画契约重构，不能记为通过。
+- 一次无匹配的命令 `ReEcho.Presentation.CombatVfx` 返回失败；更正为实际注册名 `ReEcho.Presentation.VFX.Catalog` 后通过，不是功能失败。
+- `python scripts/validate_project.py`：通过；`git diff --check`：通过，仅报告工作区 LF→CRLF 转换警告。
 
 ### 剩余风险
 
 Shader/PSO、驱动缓存与 OS 冷盘读取不完全等同于 UObject 异步加载，人工验证需区分 hitch 来源。
 
+当前五个专用武器纹理路径缺少资产，其中鞭手持表现本就隐藏，四种攻击表现走既有回退；异步预热不能生成缺失美术，但不会增加玩法阻塞。预加载清单固定覆盖当前全部六武器，而非按已选武器裁剪，资源规模可控但会增加菜单阶段 IO。
+
 ### 人工验收结果/请求
 
-`PendingBeforeClose`。
+`Passed`：用户确认当前表现可以，并授权将 Plan72 实现与指定 Animation2D 资源发布到远程 `main`。缺失专用纹理的美术质量不属于本 Plan 的程序验收。
 
 ### 架构文档审阅结果
 
-待执行。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新首场预加载权威状态、开始门控流程、代码路线和 Weapons 主模块适配说明。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`：已更新 Catalog 枚举、GameInstance 驻留与同步失败回退边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md`：已更新主模块 WeaponVisualCatalog 接缝，确认资源预热不进入资源无关逻辑模块。
+- Planner 评审同时纠正该文档中已被 Plan71 取代的 Echo 瞄准说明：Echo 与 Player 均使用独立 `AttackAimDirection`，仅其他宿主回退到 Actor 前向。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅，无需修改；模块拓扑和依赖方向不变，预加载器仍在 `MOD-ReEcho` 内。
+- `shared/CODEBASE_MAP/README.md`：已审阅，无需修改；没有新增模块或 `AREA-*` 路由标识。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：已审阅，无需修改；没有改变独立 Presentation 模块的公共契约或依赖。

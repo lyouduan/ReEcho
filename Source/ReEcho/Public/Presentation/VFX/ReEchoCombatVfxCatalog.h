@@ -25,6 +25,8 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static int32 GetRabbitProjectileGlowMaterialCount();
 	/** Standalone soft additive halo adapted from the delivered Glo_c002 texture. */
 	static const TCHAR* ResolveRabbitProjectileGlowMaterialPath(int32 LayerIndex);
+	/** Enumerates every first-encounter VFX root and proxy dependency for asynchronous warmup. */
+	static void GatherPreloadAssetPaths(TArray<FString>& OutPaths);
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
 	/** Returns the measured authored center axis for a semantic asset. */
 	static FVector ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic Semantic);

@@ -24,6 +24,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Weapons/ReEchoWeaponGeometry.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 namespace ReEchoWeaponVisual
 {
@@ -72,7 +73,7 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	StaffSprite->SetHiddenInGame(false);
 	StaffSprite->bIsScreenSizeScaled = false;
 	if (UTexture2D* StaffTexture =
-	        LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff")))
+	        LoadObject<UTexture2D>(nullptr, FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Staff"))))
 	{
 		StaffSprite->SetSprite(StaffTexture);
 		constexpr float StaffWorldHeight = 250.0f;
@@ -96,10 +97,14 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 		}
 		return Billboard;
 	};
-	ScytheSprite = CreateWeaponBillboard(TEXT("ScytheSprite"), TEXT("/Game/ReEcho/Textures/Effects/Scythe.Scythe"));
-	WhipSprite = CreateWeaponBillboard(TEXT("WhipSprite"), TEXT("/Game/ReEcho/Textures/Effects/Whip.Whip"));
-	BowSprite = CreateWeaponBillboard(TEXT("BowSprite"), TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow"));
-	GunSprite = CreateWeaponBillboard(TEXT("GunSprite"), TEXT("/Game/ReEcho/Textures/Effects/Gun.Gun"));
+	ScytheSprite =
+	    CreateWeaponBillboard(TEXT("ScytheSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Scythe")));
+	WhipSprite =
+	    CreateWeaponBillboard(TEXT("WhipSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Whip")));
+	BowSprite =
+	    CreateWeaponBillboard(TEXT("BowSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Bow")));
+	GunSprite =
+	    CreateWeaponBillboard(TEXT("GunSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Gun")));
 
 	// Billboard 会在渲染阶段覆盖组件旋转；使用透明 Plane 才能稳定显示武器自身的 360 度旋转。
 	SwordSprite = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordSprite"));
@@ -117,7 +122,7 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
 	    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
 	UTexture2D* WeaponTexture =
-	    LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon"));
+	    LoadObject<UTexture2D>(nullptr, FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("CrescentBlade")));
 	if (SpriteMaterial && WeaponTexture)
 	{
 		UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(SpriteMaterial, this);

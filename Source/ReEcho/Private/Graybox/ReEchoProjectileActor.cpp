@@ -12,6 +12,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 AReEchoProjectileActor::AReEchoProjectileActor()
 {
@@ -50,11 +51,11 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                   const FLinearColor& Color,
                                                   const EReEchoElement InElement,
                                                   const float InReactionEfficiency,
-                                                   const float InExplosionRadiusCm,
-                                                   const float InMaxRangeCm,
-                                                   const FReEchoAttackIdentity InAttack,
-                                                   const EReEchoDamageSource InDamageSourceType,
-                                                   const FName InWeaponVisualKey)
+                                                  const float InExplosionRadiusCm,
+                                                  const float InMaxRangeCm,
+                                                  const FReEchoAttackIdentity InAttack,
+                                                  const EReEchoDamageSource InDamageSourceType,
+                                                  const FName InWeaponVisualKey)
 {
 	Damage = FMath::Max(0.f, InDamage);
 	Element = InElement;
@@ -97,19 +98,12 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 
 FString AReEchoProjectileActor::ResolveWeaponTexturePath(const FName WeaponVisualKey)
 {
-	if (WeaponVisualKey == TEXT("Bow"))
+	if (WeaponVisualKey != TEXT("Bow") && WeaponVisualKey != TEXT("Gun") && WeaponVisualKey != TEXT("Staff") &&
+	    WeaponVisualKey != TEXT("MoonStaff"))
 	{
-		return TEXT("/Game/ReEcho/Textures/Effects/BowProjectile.BowProjectile");
+		return FString();
 	}
-	if (WeaponVisualKey == TEXT("Gun"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/GunProjectile.GunProjectile");
-	}
-	if (WeaponVisualKey == TEXT("Staff") || WeaponVisualKey == TEXT("MoonStaff"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave");
-	}
-	return FString();
+	return FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(WeaponVisualKey);
 }
 
 void AReEchoProjectileActor::ConfigureWeaponVisual(const FName WeaponVisualKey, const FLinearColor& Color)
@@ -120,14 +114,14 @@ void AReEchoProjectileActor::ConfigureWeaponVisual(const FName WeaponVisualKey, 
 	{
 		UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
 		UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
-			nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+		    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
 		if (Plane && SpriteMaterial)
 		{
 			Shape->SetStaticMesh(Plane);
 			// The texture is a camera card. Gameplay direction remains owned by ProjectileLogic.
 			Shape->SetAbsolute(false, true, false);
-			Shape->SetWorldRotation(FRotationMatrix::MakeFromZX(
-				FVector(-0.573576f, 0.0f, 0.819152f), FVector::RightVector).Rotator());
+			Shape->SetWorldRotation(
+			    FRotationMatrix::MakeFromZX(FVector(-0.573576f, 0.0f, 0.819152f), FVector::RightVector).Rotator());
 			UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
 			Material->SetTextureParameterValue(TEXT("SpriteTexture"), Texture);
 			Shape->SetMaterial(0, Material);

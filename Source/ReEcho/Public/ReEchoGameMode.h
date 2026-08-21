@@ -290,6 +290,8 @@ private:
 	void ShowTraitCardChoice();
 	void ShowStartMenu();
 	void ShowLoadoutSelection();
+	void RequestBeginSelectedRun();
+	void HandleRuntimeAssetPreloadComplete();
 	void BeginSelectedRun();
 	void SetGameplayPresentationVisible(bool bVisible);
 	void RestoreGameInput();
@@ -308,4 +310,6 @@ private:
 	void CompletePauseExit();
 	bool bSettingsReturnToStartMenu = false;
 	bool bAboutReturnToStartMenu = false;
+	bool bBeginSelectedRunRequested = false;
+	bool bBeginSelectedRunStarted = false;
 };

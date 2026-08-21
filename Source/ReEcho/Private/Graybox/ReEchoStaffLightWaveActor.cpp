@@ -5,6 +5,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 {
@@ -31,17 +32,17 @@ AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this);
 		Material->SetTextureParameterValue(
 		    TEXT("SpriteTexture"),
-		    LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave")));
+		    LoadObject<UTexture2D>(nullptr, FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(TEXT("Staff"))));
 		WaveVisual->SetMaterial(0, Material);
 	}
 }
 
 void AReEchoStaffLightWaveActor::InitializeWave(const FVector& Direction,
                                                 const float InDamage,
-                                                 const FVector& InDamageSource,
-                                                 const float InRange,
-                                                 const FReEchoAttackIdentity InAttack,
-                                                 const EReEchoDamageSource InDamageSourceType)
+                                                const FVector& InDamageSource,
+                                                const float InRange,
+                                                const FReEchoAttackIdentity InAttack,
+                                                const EReEchoDamageSource InDamageSourceType)
 {
 	const FVector TravelDirection = Direction.GetSafeNormal2D();
 	FReEchoLogicalProjectileSpec Spec;
