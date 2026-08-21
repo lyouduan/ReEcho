@@ -1928,7 +1928,7 @@ void AReEchoGameMode::TogglePauseMenu()
 		HandleInventoryShopClosed();
 		return;
 	}
-	if (TraitCardChoiceWidget || bRestartScreenIsTerminal)
+	if (bRestartScreenIsTerminal)
 	{
 		return;
 	}
@@ -2475,6 +2475,10 @@ void AReEchoGameMode::HandleResumeRequested()
 	}
 	bRestartScreenIsTerminal = false;
 	RestoreGameInput();
+	if (TraitCardChoiceWidget)
+	{
+		SetPlayerMenuAbilityBlocked(true);
+	}
 }
 
 void AReEchoGameMode::HandleAutomaticAttackRequested()

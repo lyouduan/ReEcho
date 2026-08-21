@@ -14,6 +14,9 @@
 #include "UObject/ConstructorHelpers.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoTraitCardEntryWidget.h"
+#include "InputCoreTypes.h"
+#include "Kismet/GameplayStatics.h"
+#include "ReEchoGameMode.h"
 
 namespace
 {
@@ -469,4 +472,17 @@ void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)
 void UReEchoTraitCardChoiceWidget::HandleConfirmClicked()
 {
 	SelectOffer(SelectedOfferIndex);
+}
+
+FReply UReEchoTraitCardChoiceWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (InKeyEvent.GetKey() == EKeys::P)
+	{
+		if (AReEchoGameMode* GameMode = Cast<AReEchoGameMode>(UGameplayStatics::GetGameMode(this)))
+		{
+			GameMode->TogglePauseMenu();
+		}
+		return FReply::Handled();
+	}
+	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }
