@@ -15,9 +15,23 @@ void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,
                                             const FText& DisplayName,
                                             const FText& Description,
 	                                        const TArray<FName>& Tags,
-                                            const FLinearColor& CardColor)
+                                            const FLinearColor& CardColor,
+                                            UTexture2D* CardArt,
+                                            UTexture2D* CardIcon)
 {
 	EntryIndex = InEntryIndex;
+	if (ArtImage)
+	{
+		ArtImage->SetBrushFromTexture(CardArt);
+		ArtImage->SetVisibility(CardArt ? ESlateVisibility::SelfHitTestInvisible
+		                                : ESlateVisibility::Collapsed);
+	}
+	if (IconImage)
+	{
+		IconImage->SetBrushFromTexture(CardIcon);
+		IconImage->SetVisibility(CardIcon ? ESlateVisibility::SelfHitTestInvisible
+		                                  : ESlateVisibility::Collapsed);
+	}
 	SelectButton->SetEntryIndex(EntryIndex);
 	SelectButton->SetBackgroundColor(FLinearColor::White);
 	if (ArtCardFrame)

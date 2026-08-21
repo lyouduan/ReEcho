@@ -11,6 +11,5 @@ namespace ReEchoEnemyDefinitionCompiler
 REECHO_API bool Compile(const FReEchoCsvDataSnapshot& Snapshot,
                         FName EnemyId,
                         FReEchoEnemyDefinition& OutDefinition,
-                        FString& OutError,
-                        int32 CombatIndex = 0);
+                        FString& OutError);
 }

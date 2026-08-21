@@ -549,7 +549,8 @@ void AReEchoGameMode::StartPlay()
 			                         : nullptr;
 			if (PlayerHudWidget)
 			{
-				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
+				PlayerHudWidget->InitializePlayerHud(
+				    Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
@@ -1176,7 +1177,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
 		if (PlayerHudWidget)
 		{
-			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
+			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 		}
 		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
 		                                 TEXT("GrayboxArena"),
@@ -1327,7 +1328,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Player->Recorder->ResumeRecording(SavedState.ActiveRecording);
 	if (PlayerHudWidget)
 	{
-		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
+		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 	}
 
 	// Plan31: resume the same selected set as a fresh encounter, one independent Echo per
@@ -1613,8 +1614,7 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 
 	if (Event.EnemyRole == TEXT("Boss"))
 	{
-		// WS4: Boss now integrates the EnemyCombatStats growth framework (reads C6 at the 6th encounter).
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), RunSubsystem ? RunSubsystem->EncounterIndex + 1 : 0);
+		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f));
 		return;
 	}
 	PrepareScheduledSpawnBatch(Event);
@@ -1651,24 +1651,21 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		       Encounter->ActiveUnitLimit);
 	}
 
-	// WS3 (Plan 68): 按场次成长 —— CombatIndex为1-based场次档位(EncounterIndex 0-based + 1)。
-	const int32 CombatIndex = RunSubsystem ? RunSubsystem->EncounterIndex + 1 : 0;
 	for (int32 Index = 0; Index < AllowedCount; ++Index)
 	{
-		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], CombatIndex);
+		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index]);
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
 
-bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex)
+bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation)
 {
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
 	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
 	FReEchoEnemyDefinition Definition;
 	FString CompileError;
-	if (!Snapshot.IsValid() ||
-	    !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError, CombatIndex))
+	if (!Snapshot.IsValid() || !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
 		return false;
@@ -1745,30 +1742,6 @@ void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition&
 	BoostedStats.MovementSpeed *= FMath::Max(0.0f, PhaseDefinition.MovementSpeedMultiplier);
 	Player->Combatant->InitializeFromStats(BoostedStats, false);
 	Player->Movement->MaxSpeed = 420.0f * BoostedStats.MovementSpeed;
-
-	if (PhaseDefinition.RefillHealthPolicy == EReEchoBossRefillHealthPolicy::RefillToMaximum &&
-	    PhaseDefinition.PhaseMaxHealth > 0.0f && EnemyRoster)
-	{
-		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
-		{
-			if (Entry.Archetype != EReEchoEnemyArchetype::Boss || !Entry.bAlive)
-			{
-				continue;
-			}
-			AReEchoEnemyActor* BossActor = Cast<AReEchoEnemyActor>(Entry.Host.Get());
-			if (!BossActor)
-			{
-				continue;
-			}
-			if (UReEchoCombatantComponent* BossCombatant = BossActor->GetCombatantComponent())
-			{
-				FReEchoStatBlock BossStats = BossCombatant->Stats;
-				BossStats.HpMax = PhaseDefinition.PhaseMaxHealth;
-				BossCombatant->InitializeFromStats(BossStats, /*bFillHealth=*/true);
-			}
-			break;
-		}
-	}
 }
 
 void AReEchoGameMode::HandleBossIntent(const FReEchoBossIntent& Intent)

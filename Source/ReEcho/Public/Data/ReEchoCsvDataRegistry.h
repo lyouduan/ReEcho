@@ -342,7 +342,6 @@ struct REECHO_API FReEchoCsvBossPhaseRow
 	float AttackSpeedMultiplier = 1.0f;
 	float MovementSpeedMultiplier = 1.0f;
 	FName RefillHealthPolicy;
-	float PhaseMaxHealth = 0.0f;
 	bool bEnabled = false;
 	FString SourceSheet;
 	int32 SourceRow = 0;

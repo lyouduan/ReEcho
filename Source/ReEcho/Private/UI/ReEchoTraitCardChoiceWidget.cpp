@@ -302,6 +302,26 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 	RefreshOffers();
 }
 
+FString UReEchoTraitCardChoiceWidget::ResolveCardArtTexturePath(const int32 Tier)
+{
+	if (Tier < 1)
+	{
+		return FString();
+	}
+	return FString::Printf(
+		TEXT("/Game/ReEcho/Textures/UI/Cards/Art/T_UI_CardTier%d.T_UI_CardTier%d"),
+		Tier,
+		Tier);
+}
+
+FString UReEchoTraitCardChoiceWidget::ResolveCardIconTexturePath(const FName CardId)
+{
+	return FString::Printf(
+		TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+		*CardId.ToString(),
+		*CardId.ToString());
+}
+
 void UReEchoTraitCardChoiceWidget::RefreshOffers()
 {
 	if (TitleText)
@@ -343,12 +363,32 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 		CardEntries[CardIndex]->SetSelectionEnabled(bHasOffer && bRevealComplete);
 		if (bHasOffer)
 		{
+			FReEchoTraitCardOffer& Offer = Offers[CardIndex];
+			if (!Offer.CardArt)
+			{
+				Offer.CardArt = LoadObject<UTexture2D>(
+					nullptr, *ResolveCardArtTexturePath(Offer.Tier));
+			}
+			if (!Offer.CardIcon)
+			{
+				Offer.CardIcon = LoadObject<UTexture2D>(
+					nullptr, *ResolveCardIconTexturePath(Offer.CardId));
+				if (!Offer.CardIcon)
+				{
+					Offer.CardIcon = LoadObject<UTexture2D>(
+						nullptr,
+						TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/"
+						     "InventoryShop/T_UI_Shop_CardIcon.T_UI_Shop_CardIcon"));
+				}
+			}
 			CardEntries[CardIndex]->Configure(CardIndex,
-			                                       CardKickers[CardIndex],
-			                                       Offers[CardIndex].DisplayName,
-			                                       Offers[CardIndex].Description,
-			                                       Offers[CardIndex].Tags,
-			                                       CardColors[CardIndex]);
+			                                   CardKickers[CardIndex],
+			                                   Offer.DisplayName,
+			                                   Offer.Description,
+			                                   Offer.Tags,
+			                                   CardColors[CardIndex],
+			                                   Offer.CardArt,
+			                                   Offer.CardIcon);
 		}
 	}
 	RefreshSelectionVisuals();

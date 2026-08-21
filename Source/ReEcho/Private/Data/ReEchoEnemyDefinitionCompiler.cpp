@@ -88,8 +88,7 @@ bool ParseLockTiming(const FName Value, EReEchoBossLockTiming& OutTiming)
 bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapshot,
                                             const FName EnemyId,
                                             FReEchoEnemyDefinition& OutDefinition,
-                                            FString& OutError,
-                                            int32 CombatIndex)
+                                            FString& OutError)
 {
 	OutDefinition = FReEchoEnemyDefinition{};
 	OutError.Reset();
@@ -119,20 +118,6 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.HitReactionDurationSeconds = Row->HitReactionDurationSeconds;
 	OutDefinition.KnockbackSpeedCmPerSecond = Row->KnockbackSpeedCmPerSecond;
 	OutDefinition.KnockbackDrag = Row->KnockbackDrag;
-
-	// WS3 (Plan 68): per-encounter growth. When the authoritative EnemyCombatStats worksheet provides a row for
-	// (EnemyId, CombatIndex), override the base health/contact-damage/attack-interval from that row. CombatIndex 0
-	// (e.g. save-restore) intentionally skips growth and keeps the base Enemies worksheet values.
-	if (CombatIndex > 0)
-	{
-		if (const FReEchoCsvEnemyCombatStatRow* Growth = Snapshot.FindEnemyCombatStat(EnemyId, CombatIndex))
-		{
-			OutDefinition.MaxHealth = Growth->MaxHealth;
-			OutDefinition.ContactDamage = Growth->ContactDamage;
-			OutDefinition.AttackIntervalSeconds = Growth->AttackIntervalSeconds;
-		}
-	}
-
 	OutDefinition.BomberTriggerRadiusCm = Row->TriggerRadiusCm;
 	OutDefinition.BomberDamageRadiusCm = Row->DamageRadiusCm;
 	OutDefinition.BomberFuseDurationSeconds = Row->FuseSeconds;
@@ -220,10 +205,9 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 			                           *PhaseRow.Id.ToString(),
 			                           *PhaseRow.RefillHealthPolicy.ToString());
 			return false;
-			}
-			Phase.PhaseMaxHealth = PhaseRow.PhaseMaxHealth;
-			Phase.bEnabled = PhaseRow.bEnabled;
-			OutDefinition.BossPhases.Add(Phase);
+		}
+		Phase.bEnabled = PhaseRow.bEnabled;
+		OutDefinition.BossPhases.Add(Phase);
 	}
 
 	if (OutDefinition.MaxHealth <= 0.0f || OutDefinition.MoveSpeedCmPerSecond < 0.0f ||

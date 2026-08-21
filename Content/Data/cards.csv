@@ -37,8 +37,8 @@ G_3_14,G_3_14,3,血肉铸锋,立即获得相当于你的物理攻击力和元素
 G_3_16,G_3_16,3,战利回流,每一关结束后，你获得免费商店刷新次数，数量基于你上一关击败敌方单位总数的10%,Economy,Sage,Trait,true,true,Stackable,None,Approved,
 G_3_17,G_3_17,3,代价丰收,"你获得3000时间碎片，但需要随机承受以下代价之一：
 （1）你将不能再刷新商店；（2）你将不能再购买额外卡牌组；（3）敌方单位将不再掉落时间碎片",Gamble|Economy,Sage,Trait,true,true,Unique,None,Approved,
-G_3_19,G_3_19,3,碎时锋芒,当你还持有时间碎片时，你每次造成伤害前，都会消耗1时间碎片，让该次伤害获得20%伤害增幅,Economy,Sage,Trait,true,true,Stackable,None,Approved,
-G_3_20,G_3_20,3,碎时壁垒,当你还持有时间碎片时，你每次受到伤害前，都会消耗5时间碎片，让该次伤害-1，最低为0,Economy|Survival,Brave,Trait,true,true,Stackable,None,Approved,
+G_3_19,G_3_19,3,碎时锋芒,当你还持有时间碎片时，你每次造成伤害前，都会消耗1时间碎片，让该次伤害获得20%伤害增幅,Economy,Sage,Trait,false,false,Stackable,None,Disabled,已废弃-设计数值稿最新版移除-保留数据与Shard机制测试
+G_3_20,G_3_20,3,碎时壁垒,当你还持有时间碎片时，你每次受到伤害前，都会消耗5时间碎片，让该次伤害-1，最低为0,Economy|Survival,Brave,Trait,false,false,Stackable,None,Disabled,已废弃-设计数值稿最新版移除-保留数据与Shard机制测试
 G_3_21,G_3_21,3,万象共鸣,每当你触发4个不同种类的元素反应后，你的元素反应效能永久+5%,Element,Poet,Trait,true,true,Stackable,None,Approved,
 G_3_22,G_3_22,3,复调机括,你的武器的每个槽位现在可以装备2个配件（除核心外）,Base,Sage,Trait,true,true,Unique,None,Approved,
 FORGE_LIGHT,Runtime.FORGE_LIGHT,0,轻度锻炼,生命 +2，物理与元素攻击 +1,Forge,Disabled,Forge,true,true,Stackable,None,Approved,

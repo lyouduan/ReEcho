@@ -65,6 +65,7 @@
 - 世界 Actor、确定性遭遇推进、战斗请求与结果。
 - 本局只读摘要、保存文件、录制与 Echo Playback。
 - UI 屏幕命令、只读展示数据和表现事件。
+- 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 
 ### 稳定契约
@@ -212,7 +213,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
-- 商店配件：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成兼容当前武器的报价；购买即装备——`PurchaseShopItem` 提交所有权后由 `TryEquipPurchasedPart` 校验所有权与兼容性、按槽位容量顶替最早的旧件并原子提交 `EquippedParts`，被顶替的旧件仍留在 `OwnedPartIds`（回落背包）。商店不再有配件草稿或保存配置入口。
+- 商店配件：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成兼容当前武器的报价；购买立即提交所有权但不改装备，只有 `TrySaveWeaponPartLoadout` 校验所有权、必需槽和容量后才原子提交 `EquippedParts`。
 - 禁止：返回可写内部容器、让 Widget 直接改字段、用数组索引充当持久 Echo 身份。
 - 测试：Save、Shop、Trait、EchoStorage、EchoReplayRuntime 和 Run parity 测试。
 
@@ -251,6 +252,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 比例契约：人物 `100 UU`；Grunt/史莱姆 `80 UU`；Rabbit `140 UU`；Fox `200 UU`；Goat/Boss `220 UU`。Animation2D Profile 拥有外观目标高度；Gameplay Blueprint 独立拥有可编辑 Box Collision 的尺寸和变换，运行时代码不得按外观高度覆盖碰撞；同一 Profile 的不同语义序列必须同尺寸。
 - Arena Scene：`Presentation/Scene/ReEchoArenaSceneActor.*` 是 `/Game/Level00` 中 Editor authored 的场景契约，独立拥有可替换 `MapMaterial`、相机安全边界、玩家活动边界和敌人出生边界；不再持有或采样地图 AO。`UReEchoArenaSceneProfile` 只拥有地图材质、Ground 调色和插片白名单/密度/固定种子/中央安全区等表现默认值；Actor 的 `SceneProfile` 在 Construction 中建立地图 MID 并应用 `GroundTint/GroundBrightness/GroundSaturation/GroundContrast`，但 Profile 不拥有玩法边界、碰撞、遭遇或关卡流程。`ArenaCamera` 独立直属 `SceneRoot`，直接拥有可编辑的位置、旋转、正交宽度和宽高比，不继承地图 Transform。默认中心锁定模式在地图安全区内让相机地面焦点严格跟随玩家脚点，边缘/角落仍以地图 Clamp 为先。`MapRoot` 是地图、碰撞和玩法范围的 Editor 平移/缩放节点；Backdrop、Floor 和四墙是其直接子节点，`OnConstruction()` 会修复旧关卡实例遗留的 Attachment。`PlantRoot` 位于 `GroundDetailRoot` 下，Level00 中烘焙的植物卡片可单独选择、移动、缩放、替换材质或删除；Plan52 工具使用 Profile 固定种子并只清理带 `ReEchoGeneratedDecoration_Plan52` 标签的卡片。GameMode、相机 Clamp、脚点排序与视差读取 MapRoot 世界中心，玩家/出生/相机范围消费其 XY Scale。`GameplayPlaneZ` 是 MapRoot 局部脚底平面，统一转换为世界高度；玩家和怪物 Actor 中心始终为该高度加各自 Box 半高，GroundRoot/阴影因此贴合相同平面。`ReEcho2DSceneLightingComponent` 只维护脚点透明排序，不修改角色明暗。Backdrop 与 Collision 各有独立 Auto Layout 开关；关闭后 Construction 保留关卡实例中直接编辑的组件 Transform。GameMode 只验证唯一实例并消费边界；相机按组件当前倾斜正交视锥投影到同一玩法平面的实际 footprint 跟随/钳制，不在运行时生成备用场地或覆盖 Editor 相机参数。
 - Animation2D 状态：Profile 只选择 Flipbook 语义 Clip，并以目标 `WorldHeight` 统一归一化同一外观所有序列；默认状态机只包含 Idle、Move（Walk）、Attack.Basic、Hit，初始播放 Idle，单次播放结束返回当前 Idle/Move 基础状态。敌人 Actor Rotation 始终保持 Identity，玩法朝向只读 `EnemyLogic` 的 `FacingDirection`，表现仅由相机面片和 Renderer 左右镜像解释。玩家和敌人的 `GroundRoot` 都直属稳定的 `FootRoot`；两类 `PresentationMotionRoot` 都按 `AuthoredMotionLocation + CalculatedFootAlignmentOffset + TransientMotionOffset` 定位，共用当前 Flipbook 完整 RenderBounds、Renderer 缩放/镜像和 FlipbookRoot 相机面片角度的脚点计算，使 authored 非零时底边中心仍严格落在 `FootRoot + Profile.FootpointOffset`。两类 GroundShadow 共用 `UReEcho2DAnimationComponent` 的表现宽度计算：保留 Blueprint authored 的纵深、Z、材质、透明度和地面旋转，只将 XY 同步到当前 Flipbook 底边中心，并将屏幕横向宽度按实际变换匹配；阴影不继承 FlipbookRoot、瞄准或 Actor 的旋转。`FlipbookRoot` 根据当前实际 ViewTarget 相机旋转对齐，并以相机 Right 轴解释左右朝向。玩家和敌人各自只保留一个可继承编辑的 `GroundShadow`；玩家、Grunt、Rabbit、Fox、Goat 分别绑定 `MI_Shadow_*` 材质实例，通过实例的 `ShadowOpacity` 调整强度。运行时表现更新不创建 MID；阴影不进入碰撞或动画状态。Renderer 统一使用 Paper2D 透明 Unlit Sprite 材质消费源纹理 Alpha。
+- Echo 动画映射：`AReEchoEchoActor` 复用 Player 的 `PresentationRoot → FootRoot → PresentationMotionRoot/GroundRoot` 组件树以及 `Catalog/Profile/Controller/UReEcho2DAnimationComponent` 执行链。独立 `DA_EchoPresentationCatalog` 按录制快照中的规范角色 ID 将 `J_HEART/J_SPADE/J_CLOVER/J_DIAMOND` 一一解析到对应 Echo Profile；默认与移动使用各自 `Walk`，默认近战攻击使用 `Attack`，Staff/Bow/Gun 的 `WeaponVisualKey` 动画集覆盖为 `Attack_Arrow`。Echo Host 只提交移动、朝向和成功攻击语义，Controller 负责单次播放结束回到当前基础状态；原 Billboard 仅在 Profile/Flipbook 缺失时作为不影响玩法的回退。Echo 的武器瞄准与 Player 一样使用独立 `AttackAimDirection`，不再通过旋转 Actor 根节点驱动武器或 Flipbook。
 - 碰撞边界：根 Box Collision 始终拥有移动 Sweep、阻挡、导航和位置记录权威；`BP_PlayerGameplay` 与四个 `BP_EnemyGameplay_*` 是尺寸/Transform 的 Editor 权威，GameMode 实际生成这些类。匹配序列的 PaperFlipbook 可使用 `EachFrameCollision` 提供 `QueryOnly` 身体轮廓，但不得推动 Actor 或替代根 Box。
 - 命中边界：语义 Body Hurtbox 与 Weapon AttackHitbox 由独立帧轨道表达。只有已提交攻击的只读身份和轨道 active frame 能开放攻击查询；动画时间、像素 alpha、Paper2D 内建碰撞和播放完成都不能产生或裁决伤害。
 - 资产：运行时 Texture2D、PaperSprite 和 Flipbook 位于 `Content/ReEcho/Art/Animation2D/`；Profile/Catalog 位于 `Content/ReEcho/Animation2D/`；PNG 源图保留在 `Content/SourceArt/Characters/`。导入与碰撞工具位于 `scripts/ue/`。
@@ -264,7 +266,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - Boss 表现边界：`Enemy.TimeGuard` 使用普通敌人相同的 Catalog/Profile/Gameplay Blueprint/FSM 路径；不存在 `Boss2D` 静态贴图特例。专属动画未交付时仅由 `DA_Enemy_TimeGuard` 显式复用 Goat 动画。
 - 阴影渲染层：GroundShadow 与 Flipbook 共享 MotionRoot 只解决位置同步，前后遮挡由整数 `TranslucencySortPriority` 明确控制。玩家与全部怪物阴影固定为 `-10`，角色 Flipbook 使用 Profile/Clip 的非负表现层，禁止使用会被截断为零的小数排序值，确保阴影始终绘制在角色下层。
 - 旧架构清理：`ReEcho2DVisualPrefabActor` 类型与 `/Game/ReEcho/Animation2D/VisualPrefabs/**` 蓝图资产已删除。角色表现只能从真实 Gameplay Blueprint 扩展，禁止重新引入运行时第二 Actor 或另一套表现组件树。
-- 场景 Prefab：通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 是只选择对应 `DA_ArenaScene_SC01..04` 的薄子 Blueprint；Level00 当前放置 SC01 子类。四张唯一权威地图源图/Texture2D 为 `/Game/ReEcho/Art/Scene/Map/sc01..04`，统一由 `M_ArenaGround` 与 `MI_SC01..04` 消费。正式 Level00 的 Arena Actor 与 `MapRoot` 位于世界原点，`GameplayPlaneZ=0`；Backdrop 位于地面下方极小偏移，Floor 顶面与地面平面对齐但不阻挡 Pawn，角色高度由玩法平面保持，只有四面墙承担移动阻挡。`author_plan52_decorations.py` 从 ArenaCamera 计算卡片朝向，按 Profile 中央安全区拒绝高卡片落点，并以三档尺寸和脚点排序烘焙可单独编辑的 StaticMeshActor；Bake/Clear 只替换 Plan52 专用标签集合，不触碰手工作品。美术可在 Blueprint 的可选视觉层继续新增组件；相机、MapRoot、玩法范围和碰撞仍由类型化原生接口供 GameMode 消费。
+- 场景 Prefab：通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 是只选择对应 `DA_ArenaScene_SC01..04` 的薄子 Blueprint；Level00 当前放置 SC02 子类。四张唯一权威地图源图/Texture2D 为 `/Game/ReEcho/Art/Scene/Map/sc01..04`，统一由 `M_ArenaGround` 与 `MI_SC01..04` 消费。正式 Level00 的 Arena Actor 与 `MapRoot` 位于世界原点，`GameplayPlaneZ=0`；Backdrop 位于地面下方极小偏移，Floor 顶面与地面平面对齐但不阻挡 Pawn，角色高度由玩法平面保持，只有四面墙承担移动阻挡。`author_plan52_decorations.py` 从 ArenaCamera 计算卡片朝向，按 Profile 中央安全区拒绝高卡片落点，并以三档尺寸和脚点排序烘焙可单独编辑的 StaticMeshActor；Bake/Clear 只替换 Plan52 专用标签集合，不触碰手工作品。美术可在 Blueprint 的可选视觉层继续新增组件；相机、MapRoot、玩法范围和碰撞仍由类型化原生接口供 GameMode 消费。
 - 2D表现FSM：`ReEcho2DAnimationStateMachineAsset` 保存 Idle/Move/Attack/Hit 状态Tag、语义、可中断优先级和播放完成去向；`ReEcho2DPresentationController` 是纯 Flipbook 执行器并保留Gameplay宿主的稳定意图API。Profile负责绑定FSM与Appearance/WeaponVisualSet Clip，状态机只选择Flipbook和表现状态，不通过动画帧或完成回调反向驱动伤害、移动、AI或根 Box Collision。
 - 扩展：表现缺失、提前结束或加载失败必须不改变玩法；Animation2D 不依赖具体角色枚举，也不通过回调反向控制 Combat/Weapons。新增关卡场景应复用类型化 Arena Scene 契约，并由 Editor 维护关卡资产，不在 GameMode 增加路径或 Actor Label 分支。
 - 测试：`ReEchoArenaSceneTests.cpp` 覆盖正交视锥地面 footprint、中心跟随、四边/四角 Clamp 与地图小于视野时的中心锁定；场景 Actor 唯一性和资产绑定由 Editor 自动化与人工 PIE 验收。

@@ -132,20 +132,8 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Weapon part click maps to the weapon part id"), PurchaseRequests[1], WeaponPart.ItemId);
 	}
 
-	View.OwnedParts.Add(WeaponPart);
-	FReEchoEquippedPartSnapshot AutoEquipped;
-	AutoEquipped.PartId = WeaponPart.ContentId;
-	AutoEquipped.SlotTypeId = WeaponPart.SlotTypeId;
-	View.EquippedParts.Add(AutoEquipped);
-	Widget->SetWeaponPartShopView(View);
-	WeaponPartButton->OnClicked.Broadcast();
-	TestEqual(TEXT("Owned part click no longer emits any command because purchases equip instantly"),
-	          PurchaseRequests.Num(),
-	          2);
-	TestNull(TEXT("Shop no longer builds a loadout save button"),
-	         Widget->GetWidgetFromName(TEXT("TargetSaveLoadoutButton")));
-	TestNull(TEXT("Legacy loadout save button is not rebuilt in the logic block either"),
-	         Widget->GetWidgetFromName(TEXT("SaveLoadoutButton")));
+	// Plan 67 removed the draft/save-loadout flow (purchase equals equip). An owned
+	// part is no longer edited into a draft nor saved via a loadout button.
 	return true;
 }
 

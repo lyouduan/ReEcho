@@ -114,7 +114,6 @@
   - **D3 刷新（q2）**：两个独立刷新按钮（卡牌1/符文2，各 5 碎片）。理由：最贴合 Excel；满足用户"刷新让整页重洗"的字面（各区内整页重洗）。
   - **D4 符文两 15%（q3）**：严格 4 类 `PartCategory` = Universal / CurrentWeaponRune / OtherWeapon / OtherWeaponRune，加数据字段。理由：用户明确要"严格区分为 当前武器符文+其他武器(不是符文)+其他武器符文"。
   - **D5 背包（q4）**：复用 `OwnedPartIds`，不新建系统；UI 暴露"已拥有未装备"区可即装重装备。
-    - **2026-08-21 修订（用户要求）**：D5 推翻"无独立背包 UI"——改为**点击武器配件槽位（`DesignerAttachmentSlot{i}`）弹出对应槽位（SlotTypeId）的浮层背包**，列出该槽位下"拥有但未装备"的配件，点击即装（走 `OnPurchaseRequested` → GameMode `TryEquipPurchasedPart`）。空槽也弹（用 `View.Slots[i].SlotTypeId`）。数据源复用 `FReEchoWeaponPartShopView.OwnedParts`/`Slots`/`EquippedParts`，未新增背包数据结构。原"明确排除：不新增背包系统"中"不新增背包**数据结构**"仍成立，仅 UI 层新增浮层面板。
   - **D6 获得范围/刷新（q5）**：任何来源获得均计入排除集；刷新限次按 Excel。
 - 相关文档同步范围：`ARCHITECTURE.md`（若提及商店报价结构需更新）、`modules/MOD-ReEcho.md`、`modules/MOD-ReEchoUI.md`；其余 MOD 不相关，省略并说明。
 - 关闭前逐项填写审阅结果：（实现后回填）

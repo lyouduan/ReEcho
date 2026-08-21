@@ -74,6 +74,7 @@ FReEchoTraitCardOffer MakeTraitOffer(const FReEchoCsvCardRow& Card)
 	Offer.DisplayName = FText::FromString(Card.DisplayName);
 	Offer.Description = FText::FromString(Card.Description);
 	Offer.Tags = Card.Tags;
+	Offer.Tier = Card.Tier;
 	return Offer;
 }
 
@@ -84,6 +85,7 @@ FReEchoTraitCardOffer MakeTraitOffer(const FReEchoCardDefinition& Card)
 	Offer.DisplayName = FText::FromString(Card.DisplayName);
 	Offer.Description = FText::FromString(Card.Description);
 	Offer.Tags = Card.Tags;
+	Offer.Tier = Card.Tier;
 	return Offer;
 }
 

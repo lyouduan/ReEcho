@@ -45,6 +45,11 @@ private:
 	void BuildCardEntries();
 	void RefreshOffers();
 	void RefreshSelectionVisuals();
+
+	/** UI art contract for trait cards (Plan 69). Mirrors the weapon-texture resolution convention:
+	    resolve a per-card texture path from the CardId, falling back to a generic icon when absent. */
+	static FString ResolveCardArtTexturePath(int32 Tier);
+	static FString ResolveCardIconTexturePath(FName CardId);
 	void ResetRevealAnimation();
 	void SelectOffer(int32 OfferIndex);
 
