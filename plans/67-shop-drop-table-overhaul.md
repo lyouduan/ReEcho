@@ -8,9 +8,10 @@
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（商店交互、置灰手感、即装替换需 PIE 人工确认）。
-- 本地规划 / 实现基线：`origin/main` @ af9b6e47（已 `git fetch` 确认远端无更新）。
+- 本地规划 / 实现基线：worktree `ReEcho-plan67-shop-drop` @ `826f9bd`（plan/67-shop-drop，含 Plan67 完整交付；落后 origin/main，实现阶段再吸收最新 main）。
 - 本地实现方式：独立 worktree `ReEcho-plan67-shop-drop`（避免在主工作树做 plan 类改动）。
 - 依赖 / 阻塞：需先在 `ReEchoData.xlsx` 投放系统表与武器符文表落地两处新数据（见实现提纲 Step 1），再改运行时。
+- **策划数据真源（2026-08-21 用户提供）**：`策划数据源/【开普勒】回响数值与构筑体系.xlsx` 的 **`投放系统` sheet**（A1:E47，全部可见行）。本 Plan 的所有投放数值（价格区间、关卡投放等级、刷新次数、三槽概率、怪物掉落时间碎片）以此表为唯一权威；实现时须导入 `ReEchoData.xlsx` → CSV，不得硬编码于 C++/JSON。分类依据：`武器符文C` sheet 第 1 列 `武器类型`（`通用` / 具体武器名）支撑左槽"通用符文"与中/右槽"当前武器 vs 其他武器"判定。
 - Writes：`Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`、`Public/Run/ReEchoShopCatalog.h`、`Private/UI/ReEchoInventoryShopWidget.cpp`、`Private/ReEchoGameMode.cpp`、`Private/Tests/ReEchoShopTests.cpp`、`scripts/data/sync_xlsx_to_csv.py`、`ReEchoData.xlsx` 相关 sheet 与衍生 CSV、WBP `ReEchoInventoryShop`。
 - Stable Reads：`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoUI.md`（文档型）、`ARCHITECTURE.md`（`MOD-ReEchoUI` 非 Runtime Module 标注）。
 - 影响模式：`SharedContract`（改变 `FReEchoWeaponPartShopView` 结构、刷新计数契约、配件分类字段，影响 UI/测试/数据三处消费方）。
@@ -32,6 +33,74 @@
 3. **获得过的配件/卡牌不再出现**（任何来源：商店购买、战斗结束三选一、奖励、GM 等）；**一级卡牌例外**——可反复获得、可反复在商店出现。
 4. **购买即装备、无保存配置**：买配件直接装进对应武器槽，被替换下的旧配件回落 `OwnedPartIds`（背包）；点"已拥有未装备"区的配件直接重装（同样即装即替）。删除现有 draft/保存配置全流程。
 5. **两个独立刷新**：卡牌区刷新（限 1 次，耗 5 时间碎片）、符文/配件区刷新（限 2 次，耗 5 时间碎片）；各自独立计数、各自只重洗本区。
+
+## 策划数据真源（开普勒 · `投放系统` sheet，A1:E47）
+
+> 来源：`策划数据源/【开普勒】回响数值与构筑体系.xlsx` → `投放系统` sheet（2026-08-21 用户提供，全部可见行）。以下为权威数值，实现时导入 `ReEchoData.xlsx` → CSV。
+
+### 表1 · 卡牌组投放配置（关卡 → 战斗后免费三选一等级 / 商店卡牌组三选一等级）
+
+| 关卡 | 战斗后免费投放(三选一) | 商店卡牌组投放(三选一) |
+|---|---|---|
+| 第1关 | 不投放 | 不投放 |
+| 第2关 | 2级 | 1级 |
+| 第3关 | 3级 | 1级 |
+| 第4关 | 1级 | 2级、3级 |
+| 第5关 | 2级 | 不投放 |
+| 第6关 | 3级 | 1级、2级 |
+| 第7关 | 2级 | 1级、3级 |
+| 第8关 | 不投放 | 不投放 |
+
+> 注：本 Plan **仅落地"商店卡牌组投放"列**（D1）；"战斗后免费三选一"列不在本 Plan 范围（见协调·明确排除），但授予结果仍计入"获得过"排除集。
+
+### 表2 · 商店物品售价配置（按区间随机）
+
+| 售卖物品 | 价格区间 |
+|---|---|
+| 1级卡牌组 | 30–50 |
+| 2级卡牌组 | 100–120 |
+| 3级卡牌组 | 150–200 |
+| 原初之晶 | 10–20 |
+| 潮汐/森林/焚绝/鸣雷/棱镜之晶 | 20–30 |
+| 棱镜水晶 | 100–120 |
+| 其他武器符文 | 30–40 |
+| 其他武器 | 10–20 |
+
+> 实现要点：售价由现有固定值 `Part.ShopPrice` / `Tier*10` 改为**按物品类别取区间随机**。类别映射依赖 `武器符文C` 的 `武器类型` 列 + 卡牌等级。
+
+### 表3 · 刷新次数限制
+
+| 项 | 卡牌组刷新 | 武器符文刷新 |
+|---|---|---|
+| 限制刷新次数 | 1 次 | 2 次 |
+| 刷新消耗时间碎片 | 5 | 5 |
+
+> 对应 D3：拆为 `CardShopRefreshCount`(限1) / `RuneShopRefreshCount`(限2)，各扣 5 时间碎片。
+
+### 表4 · 商店武器符文刷新概率与占位（左/中/右三槽）
+
+| 槽位 | 内容逻辑 |
+|---|---|
+| 左槽位 | 必定刷新【通用】武器符文；当所有【通用】武器符文都已被购买后，改为与中槽位一致 |
+| 中槽位 | 70% 当前持有武器对应符文(除通用)；15% 一把其他武器；15% 其他武器对应符文 |
+| 右槽位 | 与中槽位一致 |
+
+> 对应 D2/D4：配件区改左/中/右三固定槽；严格 4 类 `PartCategory` = Universal / CurrentWeaponRune / OtherWeapon / OtherWeaponRune。分类依据 `武器符文C` sheet `武器类型` 列（`通用` / 具体武器名）。
+
+### 表5 · 怪物掉落时间碎片配置（关卡 × 怪物类型）
+
+| 关卡 | 近战小怪 | 远程小怪 | 精英怪 |
+|---|---|---|---|
+| 第1关 | 1–2 | 1–2 | / |
+| 第2关 | 1–2 | 1–2 | / |
+| 第3关 | 3–5 | 3–5 | 5–8 |
+| 第4关 | 3–5 | 3–5 | 5–8 |
+| 第5关 | 5–7 | 5–7 | 8–10 |
+| 第6关 | 5–7 | 5–7 | 8–10 |
+| 第7关 | 7–9 | 7–9 | 10–12 |
+| 第8关 | 7–9 | 7–9 | 10–12 |
+
+> 说明：此表属掉落模块（另一消费方），本 Plan 仅记录其为权威来源；刷新消耗的"时间碎片"货币与此掉落同源，供表3引用。
 
 ## 架构影响与设计决策
 
@@ -63,7 +132,7 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main` af9b6e47（已 fetch 确认一致）。
+- 基线分支/提交：worktree `ReEcho-plan67-shop-drop` @ `826f9bd`（plan/67-shop-drop）。实现阶段前须 `git fetch` 并吸收最新 `origin/main`。
 - 引擎/构建可用性：worktree 内 `scripts/ue/Build-Editor.cmd -Configuration Development` 可跑（编辑器关闭时）。
 - 现有聚焦测试结果：`ReEcho.Shop.*` 当前通过（将随结构变更更新）。
 - 共享契约 / 难合并资源风险：`FReEchoWeaponPartShopView` 结构变更影响 UI/测试；WBP `ReEchoInventoryShop` 需同步重排（UMG 资源，合并注意）。
@@ -117,6 +186,12 @@
 
 ### 变化
 
+- 2026-08-21（完善 plan · 固化策划数据真源，用户要求）：
+  - 用户提供策划数据源 `策划数据源/【开普勒】回响数值与构筑体系.xlsx`，其 `投放系统` sheet（A1:E47，全部可见行）为本 Plan 投放数值的唯一权威。
+  - 本 Plan 文档新增「策划数据真源」节，固化 5 张表：卡牌组投放配置（关卡→等级）、商店售价区间、刷新次数限制（卡牌1/符文2，各扣5碎片）、三槽概率与占位（左通用/中右70·15·15）、怪物掉落时间碎片（关卡×怪类型）。
+  - 协调段补充数据来源说明与分类依据（`武器符文C` sheet `武器类型` 列支撑 Universal/CurrentWeapon/OtherWeapon 判定）。
+  - 修订 Step 0 / 本地基线为 worktree @ `826f9bd`。
+  - **本次提交仅含 plan 文档 + 策划数据源文件夹，不含代码、不动 `ReEchoData.xlsx`**（xlsx 新增投放表与代码实现为后续独立步骤）。纯 Markdown + 数据源文件变更，豁免 FullRebuild。
 - 2026-08-21（背包浮层，用户要求）：`UReEchoInventoryShopWidget`(.h/.cpp) 新增槽位点击 → 对应槽位背包浮层。
   - `.h`：新增 `BackpackPopupPanel`(UCanvasPanel*)、`ActiveBackpackSlotIndex`、`CachedBackpackItemIds`；新增 `GetSlotTypeIdForIndex`、`FindOwnedPartByContentId`、`HandleAttachmentSlotClicked`、`HandleAttachmentSlot0/1/2Clicked`（无参 UFUNCTION wrapper）、`BuildBackpackPopup`、`HideBackpackPopup`、`HandleBackpackItemClicked`。
   - `.cpp`：`RebuildAttachmentHoverSlots` 末尾为 3 个 `DesignerAttachmentSlot{i}` 绑无参 OnClicked；`BuildBackpackPopup` 按 SlotTypeId 筛"拥有未装备"配件，用 `UReEchoIndexedButton`+`OnIndexedClicked` 生成列表项（避免无参 OnClicked 委托带参绑定失败），浮层定位到被点槽位旁；`Refresh()` 开头 `HideBackpackPopup()` 防残留；购买走既有 `OnPurchaseRequested`。
