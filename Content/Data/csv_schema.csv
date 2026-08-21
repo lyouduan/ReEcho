@@ -236,6 +236,10 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Enemies,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,Enemies,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,Enemies,Notes,Text,false,,,,,Designer notes.
+1,Enemies,Phase2Enabled,Bool,true,,,,true|false,Double-form phase transition enabled (presentation-only for normal monsters).
+1,Enemies,Phase2TriggerRangeCm,Float,true,0,100000,,,Double-form trigger range in cm (distance below value triggers phase 2).
+1,Enemies,Phase2RequiredAttackCount,Int,true,0,1000000,,,Double-form required hit count (hits at or above value trigger phase 2).
+1,Enemies,Phase2TransformSeconds,Float,true,0,3600,,,Double-form transform duration in seconds.
 1,EnemyAbilities,Id,StableId,true,,,,,Stable enemy ability id.
 1,EnemyAbilities,OwnerEnemyId,ForeignKey,true,,,Enemies,,References Enemies.Id.
 1,EnemyAbilities,BehaviorId,BehaviorId,true,,,,Boss.MeleeSweep|Boss.Projectile|Boss.BlinkSlam|Boss.PrayerBeam|Boss.ElementCleanse,Registered boss behavior.
@@ -362,3 +366,9 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Attributes,ValueKind,StableId,true,,,,,
 1,Attributes,DisplayOrder,Int,true,1,100,,,
 1,Attributes,Explanation,Text,false,,,,,
+1,EnemyCombatStats,Id,StableId,true,,,,,Stable per-combat enemy stat row id.
+1,EnemyCombatStats,EnemyId,ForeignKey,true,,,Enemies,,References Enemies.Id.
+1,EnemyCombatStats,CombatIndex,Int,true,1,8,,,Deterministic combat/encounter index (1..8).
+1,EnemyCombatStats,MaxHealth,Float,true,1,1000000,,,Maximum health for this combat index.
+1,EnemyCombatStats,ContactDamage,Float,true,0,100000,,,Contact/attack damage for this combat index.
+1,EnemyCombatStats,AttackIntervalSeconds,Float,true,0,3600,,,Contact attack interval for this combat index.

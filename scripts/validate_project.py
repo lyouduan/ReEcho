@@ -497,6 +497,10 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Notes": CsvColumnSpec("Text", required=False),
+        "Phase2Enabled": CsvColumnSpec("Bool"),
+        "Phase2TriggerRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "Phase2RequiredAttackCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Phase2TransformSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
     },
     "EnemyAbilities": {
         "Id": CsvColumnSpec("StableId"),
@@ -539,6 +543,14 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Notes": CsvColumnSpec("Text", required=False),
+    },
+    "EnemyCombatStats": {
+        "Id": CsvColumnSpec("StableId"),
+        "EnemyId": CsvColumnSpec("ForeignKey", reference_table="Enemies"),
+        "CombatIndex": CsvColumnSpec("Int", min_value=1.0, max_value=8.0),
+        "MaxHealth": CsvColumnSpec("Float", min_value=1.0, max_value=1000000.0),
+        "ContactDamage": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "AttackIntervalSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
     },
     "Stages": {
         "Id": CsvColumnSpec("StableId"),
@@ -858,6 +870,7 @@ def validate_csv_package(data_dir: Path) -> None:
     references["Enemies"] = validate_table(entries["Enemies"], "Enemies", references)
     references["EnemyAbilities"] = validate_table(entries["EnemyAbilities"], "EnemyAbilities", references)
     references["BossPhases"] = validate_table(entries["BossPhases"], "BossPhases", references)
+    references["EnemyCombatStats"] = validate_table(entries["EnemyCombatStats"], "EnemyCombatStats", references)
     references["Stages"] = validate_table(entries["Stages"], "Stages", references)
     references["Encounters"] = validate_table(entries["Encounters"], "Encounters", references)
     references["EncounterWaves"] = validate_table(entries["EncounterWaves"], "EncounterWaves", references)

@@ -47,9 +47,6 @@ float EaseOutBack(const float Progress)
 UReEchoTraitCardChoiceWidget::UReEchoTraitCardChoiceWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
-	static ConstructorHelpers::FObjectFinder<UTexture2D> DrawBackgroundFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/ShopBackground.ShopBackground"));
-	DrawBackgroundTexture = DrawBackgroundFinder.Object;
 	static ConstructorHelpers::FClassFinder<UReEchoTraitCardEntryWidget> CardEntryClassFinder(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardEntry"));
 	CardEntryWidgetClass = CardEntryClassFinder.Class;
@@ -156,16 +153,6 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 	UCanvasPanel* RootCanvas =
 	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("TraitDrawRoot"));
 	WidgetTree->RootWidget = RootCanvas;
-
-	UImage* BackgroundImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("TraitDrawBackground"));
-	if (DrawBackgroundTexture)
-	{
-		BackgroundImage->SetBrushFromTexture(DrawBackgroundTexture, true);
-	}
-	BackgroundImage->SetColorAndOpacity(FLinearColor(0.48f, 0.48f, 0.48f, 1.0f));
-	UCanvasPanelSlot* BackgroundSlot = RootCanvas->AddChildToCanvas(BackgroundImage);
-	BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-	BackgroundSlot->SetOffsets(FMargin(0.0f));
 
 	UBorder* Vignette = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("TraitDrawVignette"));
 	Vignette->SetBrushColor(FLinearColor(0.0f, 0.015f, 0.025f, 0.48f));

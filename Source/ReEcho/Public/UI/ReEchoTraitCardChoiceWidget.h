@@ -100,9 +100,6 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConfirmButton;
 
-	UPROPERTY()
-	TObjectPtr<UTexture2D> DrawBackgroundTexture;
-
 	TArray<FReEchoTraitCardOffer> Offers;
 	int32 CurrentTimeShards = 0;
 	float RevealElapsed = 0.0f;
