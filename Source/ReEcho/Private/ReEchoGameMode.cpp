@@ -186,7 +186,8 @@ void AReEchoGameMode::GMHelp()
 	{
 		return;
 	}
-	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMSetShards [amount] | GMWeather <Clear|Rain|Fog> | "
+	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMSetShards [amount] | GMWeather "
+	                   "<Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
 }
 
@@ -331,10 +332,10 @@ void AReEchoGameMode::GMEndEncounter()
 	const int32 EncounterIndex = RunSubsystem->EncounterIndex;
 	const float RemainingTime = Director->GetRemainingTime();
 	Director->EndEncounter();
-	PrintGMResult(FString::Printf(
-	    TEXT("Ended encounter %d with %.1f seconds remaining; normal completion flow started."),
-	    EncounterIndex,
-	    RemainingTime));
+	PrintGMResult(
+	    FString::Printf(TEXT("Ended encounter %d with %.1f seconds remaining; normal completion flow started."),
+	                    EncounterIndex,
+	                    RemainingTime));
 }
 
 void AReEchoGameMode::GMKillAll()
@@ -459,8 +460,8 @@ void AReEchoGameMode::GMGrantCard(const FName CardId)
 
 	const bool bGranted = RunSubsystem->DebugGrantCard(CardId);
 	PrintGMResult(bGranted ? FString::Printf(TEXT("Granted card %s."), *CardId.ToString())
-	                        : FString::Printf(TEXT("Failed to grant card %s (not found / conflict / locked run)."),
-	                                          *CardId.ToString()),
+	                       : FString::Printf(TEXT("Failed to grant card %s (not found / conflict / locked run)."),
+	                                         *CardId.ToString()),
 	              bGranted);
 }
 
@@ -548,7 +549,8 @@ void AReEchoGameMode::StartPlay()
 			                         : nullptr;
 			if (PlayerHudWidget)
 			{
-				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
+				PlayerHudWidget->InitializePlayerHud(
+				    Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
@@ -729,10 +731,10 @@ void AReEchoGameMode::HandleAboutClosed()
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 		{
 			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::StartMenu, false);
-			}
-			StartMenuWidget->SetKeyboardFocus();
-			}
-			else if (RestartWidget)
+		}
+		StartMenuWidget->SetKeyboardFocus();
+	}
+	else if (RestartWidget)
 	{
 		RestartWidget->SetVisibility(ESlateVisibility::Visible);
 		RestartWidget->SetKeyboardFocus();
@@ -777,9 +779,8 @@ void AReEchoGameMode::ShowAboutScreen(const bool bReturnToStartMenu)
 
 	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	AboutWidget =
-	    UIFlow
-	        ? Cast<UReEchoAboutWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::About, true, false))
-	        : nullptr;
+	    UIFlow ? Cast<UReEchoAboutWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::About, true, false))
+	           : nullptr;
 	if (!AboutWidget)
 	{
 		return;
@@ -2014,8 +2015,10 @@ void AReEchoGameMode::HandleStatsClosed()
 
 void AReEchoGameMode::ToggleInventoryMenu()
 {
-	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] GameMode: ToggleInventoryMenu called; InventoryShopWidget=%s"),
-		InventoryShopWidget ? TEXT("open") : TEXT("closed"));
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[AttrPanel] GameMode: ToggleInventoryMenu called; InventoryShopWidget=%s"),
+	       InventoryShopWidget ? TEXT("open") : TEXT("closed"));
 	if (InventoryShopWidget)
 	{
 		HandleInventoryShopClosed();
@@ -2026,8 +2029,10 @@ void AReEchoGameMode::ToggleInventoryMenu()
 
 void AReEchoGameMode::ToggleShopMenu()
 {
-	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] GameMode: ToggleShopMenu called; InventoryShopWidget=%s"),
-		InventoryShopWidget ? TEXT("open") : TEXT("closed"));
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[AttrPanel] GameMode: ToggleShopMenu called; InventoryShopWidget=%s"),
+	       InventoryShopWidget ? TEXT("open") : TEXT("closed"));
 	if (InventoryShopWidget)
 	{
 		HandleInventoryShopClosed();
@@ -2038,9 +2043,14 @@ void AReEchoGameMode::ToggleShopMenu()
 
 void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 {
-	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Stats=%d Trait=%d Restart=%d Terminal=%d)"),
-		(int32)Mode,
-		StatsWidget ? 1 : 0, TraitCardChoiceWidget ? 1 : 0, RestartWidget ? 1 : 0, bRestartScreenIsTerminal ? 1 : 0);
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Stats=%d Trait=%d Restart=%d Terminal=%d)"),
+	       (int32)Mode,
+	       StatsWidget ? 1 : 0,
+	       TraitCardChoiceWidget ? 1 : 0,
+	       RestartWidget ? 1 : 0,
+	       bRestartScreenIsTerminal ? 1 : 0);
 	if (StatsWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
 	{
 		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] ShowInventoryShopMenu guard TRIPPED - early return"));
@@ -2060,13 +2070,16 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	                             : nullptr;
 	if (!InventoryShopWidget)
 	{
-		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] InventoryShopWidget invalid (OpenScreen returned non-shop or null)"));
+		UE_LOG(
+		    LogReEcho, Warning, TEXT("[AttrPanel] InventoryShopWidget invalid (OpenScreen returned non-shop or null)"));
 		return;
 	}
 
-	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] InventoryShopWidget valid; Player=%s Combatant=%s"),
-		Player ? TEXT("valid") : TEXT("null"),
-		(Player && Player->Combatant) ? TEXT("valid") : TEXT("null"));
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[AttrPanel] InventoryShopWidget valid; Player=%s Combatant=%s"),
+	       Player ? TEXT("valid") : TEXT("null"),
+	       (Player && Player->Combatant) ? TEXT("valid") : TEXT("null"));
 	if (Player && Player->Combatant)
 	{
 		// 展示"下一场将带着的属性"：购买改属性卡后立即反映，而非上一场的 Combatant->Stats。
@@ -2155,8 +2168,47 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (RunSubsystem && InventoryShopWidget && RunSubsystem->PurchaseShopItem(ItemId))
+	if (!RunSubsystem || !InventoryShopWidget)
 	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+
+	// 背包重装：点击“拥有但未装备”的配件 → 直接重新装备，不扣钱、不走购买防重复。
+	if (RunSubsystem->OwnedPartIds.Contains(ItemId))
+	{
+		FString EquipError;
+		if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
+		{
+			UE_LOG(LogTemp,
+			       Warning,
+			       TEXT("[ReEchoShop] Owned part '%s' could not be re-equipped: %s"),
+			       *ItemId.ToString(),
+			       *EquipError);
+			PostUiEvent(FReEchoAudioEvents::UiError);
+			return;
+		}
+		RunSubsystem->SaveRun();
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+		return;
+	}
+
+	// 新购：走完整购买流程（防重复/扣钱/入背包），购买即装备。
+	if (RunSubsystem->PurchaseShopItem(ItemId))
+	{
+		// 购买即装备：武器配件报价的 ItemId 与 PartId 同名，购买后立即装入对应槽位。
+		if (RunSubsystem->OwnedPartIds.Contains(ItemId))
+		{
+			FString EquipError;
+			if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
+			{
+				UE_LOG(LogTemp,
+				       Warning,
+				       TEXT("[ReEchoShop] Purchased part '%s' could not be equipped: %s"),
+				       *ItemId.ToString(),
+				       *EquipError);
+			}
+		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
 		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
@@ -2247,8 +2299,7 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
-	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
@@ -2308,8 +2359,7 @@ void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
-	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
@@ -2340,8 +2390,7 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
-	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
@@ -2601,14 +2650,14 @@ void AReEchoGameMode::HandleEncounterEnded()
 	if (EncounterHudWidget)
 	{
 		EncounterHudWidget->SetEncounterStatus(
-			RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0,
-			GetTotalEncounterCount(),
-			0.0f);
+		    RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0, GetTotalEncounterCount(), 0.0f);
 	}
 	// [EncounterEnded] 选卡/结算入口：记录此刻真实剩余时间，与上面的 [EncounterTimer][END] 对照。
-	UE_LOG(LogReEcho, Warning,
+	UE_LOG(LogReEcho,
+	       Warning,
 	       TEXT("[EncounterEnded] enter -> card/shop/victory; EncounterTime=%.3f Remaining=%.3f EncounterIndex=%d"),
-	       Director ? Director->EncounterTime : -1.0f, Director ? Director->GetRemainingTime() : -1.0f,
+	       Director ? Director->EncounterTime : -1.0f,
+	       Director ? Director->GetRemainingTime() : -1.0f,
 	       GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
 	           ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()->EncounterIndex
 	           : -1);
@@ -2650,8 +2699,8 @@ void AReEchoGameMode::ProceedToPostEncounterUI()
 	{
 		return;
 	}
-	const bool bBossKilled = bEncounterClearedByDefeat &&
-	                         RunSubsystem->EncounterIndex == RunSubsystem->GetTotalEncounterCount();
+	const bool bBossKilled =
+	    bEncounterClearedByDefeat && RunSubsystem->EncounterIndex == RunSubsystem->GetTotalEncounterCount();
 	if (bBossKilled)
 	{
 		ShowRestartScreen(false, true);
@@ -2769,10 +2818,12 @@ void AReEchoGameMode::BuildMinimapView(FReEchoMinimapView& OutView) const
 	const FVector PlayerLocation = Player->GetActorLocation();
 	OutView.PlayerLocation = FVector2D(PlayerLocation.X, PlayerLocation.Y);
 
-	static const FLinearColor Palette[] = {
-		FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue,
-		FLinearColor::Yellow, FLinearColor(0.0f, 1.0f, 1.0f), FLinearColor(1.0f, 0.0f, 1.0f)
-	};
+	static const FLinearColor Palette[] = {FLinearColor::Red,
+	                                       FLinearColor::Green,
+	                                       FLinearColor::Blue,
+	                                       FLinearColor::Yellow,
+	                                       FLinearColor(0.0f, 1.0f, 1.0f),
+	                                       FLinearColor(1.0f, 0.0f, 1.0f)};
 	for (const TObjectPtr<AReEchoEchoActor>& Echo : Echoes)
 	{
 		if (!IsValid(Echo))
@@ -2848,9 +2899,11 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		if (bEncounterDefeated)
 		{
 			// [EncounterTimer] Boss 被提前击败：真实计时尚未到 0 即结束，剩余 > 0 属预期。
-			UE_LOG(LogReEcho, Warning,
+			UE_LOG(LogReEcho,
+			       Warning,
 			       TEXT("[EncounterTimer][END] reason=boss-defeat EncounterTime=%.3f Remaining=%.3f"),
-			       Director ? Director->EncounterTime : -1.0f, Director ? Director->GetRemainingTime() : -1.0f);
+			       Director ? Director->EncounterTime : -1.0f,
+			       Director ? Director->GetRemainingTime() : -1.0f);
 			bEncounterClearedByDefeat = true;
 			Director->EndEncounter();
 		}

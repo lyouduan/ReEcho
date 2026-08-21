@@ -220,8 +220,8 @@ int32 MakeNewTraitOfferSeed()
 
 int32 MigrateLegacyTraitOfferSeed(const UReEchoRunSaveGame& SaveGame)
 {
-	uint32 Seed = HashCombine(GetTypeHash(SaveGame.CurrentBuild.CharacterId),
-	                          GetTypeHash(SaveGame.CurrentBuild.WeaponId));
+	uint32 Seed =
+	    HashCombine(GetTypeHash(SaveGame.CurrentBuild.CharacterId), GetTypeHash(SaveGame.CurrentBuild.WeaponId));
 	Seed = HashCombine(Seed, GetTypeHash(SaveGame.EncounterIndex));
 	Seed = HashCombine(Seed, 0x52454348u); // "RECH": stable migration salt.
 	return Seed != 0 ? static_cast<int32>(Seed) : 1;
@@ -724,6 +724,71 @@ bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& O
 	return true;
 }
 
+bool UReEchoRunSubsystem::TryEquipPurchasedPart(const FName PartId, FString& OutError)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoCsvWeaponRow* Weapon =
+	    Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(CurrentBuild.WeaponId) : nullptr;
+	if (!Snapshot.IsValid() || !Weapon)
+	{
+		OutError = TEXT("Cannot equip purchased part: weapon data is unavailable");
+		return false;
+	}
+	if (!OwnedPartIds.Contains(PartId))
+	{
+		OutError = FString::Printf(TEXT("Cannot equip purchased part: part '%s' is not owned"), *PartId.ToString());
+		return false;
+	}
+	const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(PartId);
+	if (!Part || !IsPartCompatibleWithWeapon(*Snapshot, *Part, *Weapon))
+	{
+		OutError = FString::Printf(TEXT("Cannot equip purchased part: part '%s' is incompatible"), *PartId.ToString());
+		return false;
+	}
+
+	TArray<FName> DesiredPartIds;
+	DesiredPartIds.Reserve(CurrentBuild.EquippedParts.Num() + 1);
+	for (const FReEchoEquippedPartSnapshot& EquippedPart : CurrentBuild.EquippedParts)
+	{
+		DesiredPartIds.Add(EquippedPart.PartId);
+	}
+	if (DesiredPartIds.Contains(PartId))
+	{
+		return true;
+	}
+
+	const int32 Capacity =
+	    ReEchoWeaponRuntime::GetEffectiveSlotCapacity(*Snapshot, CurrentBuild, Weapon->WeaponTypeId, Part->SlotTypeId);
+	if (Capacity <= 0)
+	{
+		OutError = FString::Printf(TEXT("Cannot equip purchased part: slot '%s' has no capacity"),
+		                           *Part->SlotTypeId.ToString());
+		return false;
+	}
+
+	// 同槽位已满时挤出最早装备的旧件；旧件仍在 OwnedPartIds 中，因此回落为背包库存。
+	TArray<int32> SameSlotIndices;
+	for (int32 Index = 0; Index < DesiredPartIds.Num(); ++Index)
+	{
+		const FReEchoCsvPartRow* EquippedRow = Snapshot->Parts.Find(DesiredPartIds[Index]);
+		if (EquippedRow && EquippedRow->SlotTypeId == Part->SlotTypeId)
+		{
+			SameSlotIndices.Add(Index);
+		}
+	}
+	while (SameSlotIndices.Num() >= Capacity)
+	{
+		DesiredPartIds.RemoveAt(SameSlotIndices[0]);
+		SameSlotIndices.RemoveAt(0);
+		for (int32& ShiftedIndex : SameSlotIndices)
+		{
+			--ShiftedIndex;
+		}
+	}
+	DesiredPartIds.Add(PartId);
+	return TryEquipParts(DesiredPartIds, OutError);
+}
+
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 {
 	FReEchoWeaponPartShopView View;
@@ -790,8 +855,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		}
 	}
 
-	FRandomStream PartRandom(BuildShopOfferSeed(
-	    View.WeaponId, EncounterIndex, CurrentBuild.CardState.Runtime.ShopRefreshSequence));
+	FRandomStream PartRandom(
+	    BuildShopOfferSeed(View.WeaponId, EncounterIndex, CurrentBuild.CardState.Runtime.ShopRefreshSequence));
 	ShuffleOffers(CompatiblePartOffers, PartRandom);
 	for (int32 Index = 0; Index < FMath::Min(ReEchoShopOfferCountPerGroup, CompatiblePartOffers.Num()); ++Index)
 	{
@@ -808,13 +873,18 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		{
 			const FName OfferId = MakeShopCardOfferId(RefreshSequence, Card.Id);
 			const bool bPurchasedOnThisPage = InventoryItems.Contains(OfferId);
-			if (!bPurchasedOnThisPage && !ReEchoCardRuntime::CanOffer(*Snapshot->CardCatalog, CurrentBuild.CardState, Card))
+			if (!bPurchasedOnThisPage &&
+			    !ReEchoCardRuntime::CanOffer(*Snapshot->CardCatalog, CurrentBuild.CardState, Card))
 			{
 				continue;
 			}
 			View.Offers.Add(MakeBuildCardOffer(Card, RefreshSequence));
-			if (View.Offers.FilterByPredicate([](const FReEchoShopOffer& Offer)
-			                                     { return Offer.Type == EReEchoShopOfferType::BuildCard; })
+			if (View.Offers
+			        .FilterByPredicate(
+			            [](const FReEchoShopOffer& Offer)
+			            {
+				            return Offer.Type == EReEchoShopOfferType::BuildCard;
+			            })
 			        .Num() >= ReEchoShopOfferCountPerGroup)
 			{
 				break;
@@ -1076,41 +1146,41 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 
 	FReEchoBuildSnapshot PendingBuild;
 	if (!TryMutateAuthoritativeBuild(
-			*Snapshot,
-			CurrentBuild,
-			[&](FReEchoBuildSnapshot& BaseBuild)
-			{
-				FReEchoCardGrantInput Input;
-				Input.Stats = BaseBuild.Stats;
-				Input.CardState = BaseBuild.CardState;
-				Input.TimeShards = TimeShards;
-				Input.EncounterIndex = EncounterIndex;
-				const FReEchoCardGrantResult Grant =
-					ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
-				if (!Grant.bSucceeded)
-				{
-					UE_LOG(LogReEcho,
-					       Warning,
-					       TEXT("[DebugGrantCard] grant failed: CardId=%s bSucceeded=%d"),
-					       *CardId.ToString(),
-					       Grant.bSucceeded);
-					return false;
-				}
-				UE_LOG(LogReEcho,
-				       Warning,
-				       TEXT("[DebugGrantCard] grant ok: CardId=%s newCards=%d"),
-				       *CardId.ToString(),
-				       BaseBuild.CardState.OwnedCardIds.Num());
-				BaseBuild.Stats = Grant.Stats;
-				BaseBuild.CardState = Grant.CardState;
-				ReEchoCharacterPromotion::TryPromote(BaseBuild);
-				UE_LOG(LogReEcho,
-				       Warning,
-				       TEXT("[DebugGrantCard] after promote: Cards=%d"),
-				       BaseBuild.CardState.OwnedCardIds.Num());
-				return true;
-			},
-			PendingBuild))
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        FReEchoCardGrantInput Input;
+		        Input.Stats = BaseBuild.Stats;
+		        Input.CardState = BaseBuild.CardState;
+		        Input.TimeShards = TimeShards;
+		        Input.EncounterIndex = EncounterIndex;
+		        const FReEchoCardGrantResult Grant =
+		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
+		        if (!Grant.bSucceeded)
+		        {
+			        UE_LOG(LogReEcho,
+			               Warning,
+			               TEXT("[DebugGrantCard] grant failed: CardId=%s bSucceeded=%d"),
+			               *CardId.ToString(),
+			               Grant.bSucceeded);
+			        return false;
+		        }
+		        UE_LOG(LogReEcho,
+		               Warning,
+		               TEXT("[DebugGrantCard] grant ok: CardId=%s newCards=%d"),
+		               *CardId.ToString(),
+		               BaseBuild.CardState.OwnedCardIds.Num());
+		        BaseBuild.Stats = Grant.Stats;
+		        BaseBuild.CardState = Grant.CardState;
+		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
+		        UE_LOG(LogReEcho,
+		               Warning,
+		               TEXT("[DebugGrantCard] after promote: Cards=%d"),
+		               BaseBuild.CardState.OwnedCardIds.Num());
+		        return true;
+	        },
+	        PendingBuild))
 	{
 		UE_LOG(LogReEcho, Warning, TEXT("[DebugGrantCard] abort: TryMutateAuthoritativeBuild rejected"));
 		return false;
@@ -1407,16 +1477,19 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	if (!Offer)
 	{
 		if (const FReEchoShopOffer* Legacy = GetReEchoShopCatalog().FindByPredicate(
-		        [&](const FReEchoShopOffer& Candidate) { return Candidate.ItemId == ItemId; }))
+		        [&](const FReEchoShopOffer& Candidate)
+		        {
+			        return Candidate.ItemId == ItemId;
+		        }))
 		{
 			LegacyOffer = *Legacy;
 			LegacyOffer.ContentId = LegacyOffer.ItemId;
 			Offer = &LegacyOffer;
 		}
 	}
-	if (!Offer || ((Offer->Type == EReEchoShopOfferType::RunItem ||
-	                Offer->Type == EReEchoShopOfferType::BuildCard) &&
-	               InventoryItems.Contains(ItemId)) ||
+	if (!Offer ||
+	    ((Offer->Type == EReEchoShopOfferType::RunItem || Offer->Type == EReEchoShopOfferType::BuildCard) &&
+	     InventoryItems.Contains(ItemId)) ||
 	    (Offer->Type == EReEchoShopOfferType::WeaponPart && OwnedPartIds.Contains(Offer->ContentId)))
 	{
 		return false;
@@ -1426,11 +1499,29 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		return false;
 	}
 	const int32 EffectivePrice = GetDiscountedShopPrice(Offer->Price);
-	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] PurchaseShopItem enter item=%s type=%d price=%d effectivePrice=%d timeShards=%d"), *ItemId.ToString(), (int32)Offer->Type, Offer->Price, EffectivePrice, TimeShards);
-	UE_LOG(LogReEcho, Warning, TEXT("[ShopPurchase] pre: item=%s type=%d shardsBefore=%d price=%d"), *ItemId.ToString(), (int32)Offer->Type, TimeShards, EffectivePrice);
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[ShopDebug] PurchaseShopItem enter item=%s type=%d price=%d effectivePrice=%d timeShards=%d"),
+	       *ItemId.ToString(),
+	       (int32)Offer->Type,
+	       Offer->Price,
+	       EffectivePrice,
+	       TimeShards);
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[ShopPurchase] pre: item=%s type=%d shardsBefore=%d price=%d"),
+	       *ItemId.ToString(),
+	       (int32)Offer->Type,
+	       TimeShards,
+	       EffectivePrice);
 	if (TimeShards < EffectivePrice)
 	{
-		UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] abort insufficient item=%s timeShards=%d < effectivePrice=%d"), *ItemId.ToString(), TimeShards, EffectivePrice);
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ShopDebug] abort insufficient item=%s timeShards=%d < effectivePrice=%d"),
+		       *ItemId.ToString(),
+		       TimeShards,
+		       EffectivePrice);
 		return false;
 	}
 
@@ -1458,8 +1549,8 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			        Input.EncounterIndex = EncounterIndex;
 			        Input.RandomSeed = BuildShopOfferSeed(
 			            Offer->ContentId, EncounterIndex, BaseBuild.CardState.Runtime.ShopRefreshSequence);
-			        const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(
-			            *Snapshot->CardCatalog, Offer->ContentId, Input);
+			        const FReEchoCardGrantResult Grant =
+			            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, Offer->ContentId, Input);
 			        if (!Grant.bSucceeded)
 			        {
 				        return false;
@@ -1467,8 +1558,14 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			        BaseBuild.Stats = Grant.Stats;
 			        BaseBuild.CardState = Grant.CardState;
 			        PendingTimeShards = Grant.TimeShards;
-			        UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] BuildCard grant item=%s inTimeShards=%d outTimeShards=%d bSucceeded=%d"), *Offer->ContentId.ToString(), Input.TimeShards, Grant.TimeShards, Grant.bSucceeded);
-			        }
+			        UE_LOG(LogReEcho,
+			               Warning,
+			               TEXT("[ShopDebug] BuildCard grant item=%s inTimeShards=%d outTimeShards=%d bSucceeded=%d"),
+			               *Offer->ContentId.ToString(),
+			               Input.TimeShards,
+			               Grant.TimeShards,
+			               Grant.bSucceeded);
+		        }
 		        if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
 		        {
 			        BaseBuild.Stats.PhysicalAttack += 2.0f;
@@ -1502,7 +1599,13 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	{
 		return false;
 	}
-	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] before deduct item=%s effectivePrice=%d pendingTimeShards=%d timeShards=%d"), *ItemId.ToString(), EffectivePrice, PendingTimeShards, TimeShards);
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[ShopDebug] before deduct item=%s effectivePrice=%d pendingTimeShards=%d timeShards=%d"),
+	       *ItemId.ToString(),
+	       EffectivePrice,
+	       PendingTimeShards,
+	       TimeShards);
 	// 原子扣费：以购买前余额 TimeShards 为基准，叠加卡牌 OnGrant 对碎片的净改变(GrantShardDelta)，
 	// 结果夹紧到 >=0。防止如 G_2_15(时砂豪赌，OnGrant 清零碎片)在 grant 后余额被覆盖为 0，
 	// 再减售价导致 TimeShards 变负数。
@@ -1510,11 +1613,26 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	PendingTimeShards = FMath::Max(0, TimeShards - EffectivePrice + GrantShardDelta);
 	if (PendingTimeShards < EffectivePrice)
 	{
-		UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] NEGATIVE RISK blocked item=%s pendingTimeShards=%d timeShards=%d effectivePrice=%d grantDelta=%d"), *ItemId.ToString(), PendingTimeShards, TimeShards, EffectivePrice, GrantShardDelta);
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ShopDebug] NEGATIVE RISK blocked item=%s pendingTimeShards=%d timeShards=%d effectivePrice=%d "
+		            "grantDelta=%d"),
+		       *ItemId.ToString(),
+		       PendingTimeShards,
+		       TimeShards,
+		       EffectivePrice,
+		       GrantShardDelta);
 	}
 	TimeShards = PendingTimeShards;
 	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] after deduct item=%s timeShards=%d"), *ItemId.ToString(), TimeShards);
-	UE_LOG(LogReEcho, Warning, TEXT("[ShopPurchase] post: item=%s type=%d shardsAfter=%d price=%d delta=%d"), *ItemId.ToString(), (int32)Offer->Type, TimeShards, EffectivePrice, TimeShards - TimeShardsBeforePurchase);
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[ShopPurchase] post: item=%s type=%d shardsAfter=%d price=%d delta=%d"),
+	       *ItemId.ToString(),
+	       (int32)Offer->Type,
+	       TimeShards,
+	       EffectivePrice,
+	       TimeShards - TimeShardsBeforePurchase);
 	if (Offer->Type == EReEchoShopOfferType::WeaponPart)
 	{
 		OwnedPartIds.Add(Offer->ContentId);
@@ -2049,9 +2167,8 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 
 	EncounterIndex = FMath::Max(0, SaveGame.EncounterIndex);
 	TimeShards = FMath::Max(0, SaveGame.TimeShards);
-	TraitOfferSeed = SaveGame.SaveVersion >= 12 && SaveGame.TraitOfferSeed != 0
-	                     ? SaveGame.TraitOfferSeed
-	                     : MigrateLegacyTraitOfferSeed(SaveGame);
+	TraitOfferSeed = SaveGame.SaveVersion >= 12 && SaveGame.TraitOfferSeed != 0 ? SaveGame.TraitOfferSeed
+	                                                                            : MigrateLegacyTraitOfferSeed(SaveGame);
 	CurrentBuild = NormalizedCurrentBuild;
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
