@@ -17,8 +17,6 @@ constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
 constexpr const TCHAR* NoneId = TEXT("None");
 constexpr int32 MaxStartSelectableLoadoutOrder = static_cast<int32>(EReEchoInputSlot::Slot6);
 constexpr int32 ExpectedPartSourceRows = 70;
-constexpr int32 ExpectedNamedPartRows = 10;
-constexpr int32 ExpectedUnnamedDisabledPartRows = 60;
 
 TArray<FName> ParseNameList(const FString& Text)
 {
@@ -111,6 +109,15 @@ bool IsAllowedWeaponEffectTarget(const FName Target)
 	    TEXT("ElementalCoefficient"),
 	    TEXT("AttackPattern"),
 	    TEXT("OnKill"),
+	    // Weapon-parameter StatModifier targets. Each one is landed by
+	    // ReEchoWeaponRuntime::ApplyPartEffect as a RuleFlag and read back by
+	    // BuildEffectiveWeaponDefinition. Keep in sync with validate_project.py
+	    // WEAPON_EFFECT_TARGETS.
+	    TEXT("AttackRange"),
+	    TEXT("AttackArc"),
+	    TEXT("ProjectileCount"),
+	    TEXT("ConcentrationDegrees"),
+	    TEXT("ExplosionRadius"),
 	};
 	return AllowedTargets.Contains(Target);
 }
@@ -874,6 +881,17 @@ bool ReadPartsTable(const FString& DataDirectory,
 		{
 			++UnnamedDisabledRows;
 		}
+		else
+		{
+			// Unnamed audit row that is not an inert placeholder (enabled, or carrying a
+			// PartId without a name): a half-migrated row that must not reach the runtime.
+			// Mirrors the validator guard "unnamed audit row must stay disabled with PartId None".
+			ReEchoCsv::AddIssue(Issues,
+			                    Table.File,
+			                    Row.Line,
+			                    TEXT("DisplayName"),
+			                    TEXT("Unnamed audit row must stay disabled with PartId None"));
+		}
 		if (!Snapshot.WeaponTypes.Contains(Part.WeaponTypeId) && Part.WeaponTypeId != TEXT("Any"))
 		{
 			ReEchoCsv::AddIssue(
@@ -932,13 +950,18 @@ bool ReadPartsTable(const FString& DataDirectory,
 		ReEchoCsv::AddIssue(
 		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Weapon slot audit must contain 70 source rows"));
 	}
-	if (NamedRows != ExpectedNamedPartRows || UnnamedDisabledRows != ExpectedUnnamedDisabledPartRows)
+	// The named/unnamed split is no longer pinned to 10/60: weapon part families are implemented
+	// incrementally, so naming + enabling rows is expected progress. The real invariant kept here is
+	// that every source row is either a named part or an inert unnamed placeholder (disabled, PartId None),
+	// which still blocks half-migrated rows from reaching the runtime. Mirrors the validator guard.
+	if (NamedRows + UnnamedDisabledRows != Table.Rows.Num())
 	{
 		ReEchoCsv::AddIssue(Issues,
 		                    Table.File,
 		                    1,
 		                    TEXT("DisplayName"),
-		                    TEXT("Weapon slot audit must contain 10 named rows and 60 unnamed disabled rows"));
+		                    TEXT("Weapon slot audit: every source row must be a named part or an unnamed "
+		                         "disabled placeholder (PartId None)"));
 	}
 	return Issues.Num() == 0;
 }
