@@ -6,3 +6,4 @@ M_TimeGuard,Boss,Boss.TimeGuard,Enemy.TimeGuard,true,650,45,60,183.6,18,2,85,75,
 M_SLIME,Slime,Enemy.Slime,Enemy.Slime,true,28,190,45,90,9,1.3,100,90,0.22,360,10,0,0,0,2,false,怪物配置表,4,开普勒近战史莱姆；接触攻击,true,2000,2,1
 M_RABBIT,Ranged,Enemy.Ranged,Enemy.Rabbit,true,20,165,42,85,10,2,0,650,0.22,360,10,0,0,0,3,false,怪物配置表,5,开普勒远程兔子；锁定位置范围攻击,true,1500,2,1
 M_FOX,Elite,Enemy.Elite,Enemy.Fox,true,55,120,65,130,18,4,450,400,0.22,360,10,0,0,0,4,false,怪物配置表,6,开普勒精英狐狸；正面防御与直线突进,true,2000,2,1
+M_SHEEP,Boss,Boss.TimeGuard,Enemy.Sheep,true,2600,45,60,183.6,18,2,85,75,0.22,140,10,0,0,0,30,true,Boss,4,SHEEP two-phase boss,false,0,0,0

@@ -1613,8 +1613,8 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 
 	if (Event.EnemyRole == TEXT("Boss"))
 	{
-		// Boss两阶段成长在WS4实现；此处不按场次成长（EnemyCombatStats无Boss行）。
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), 0);
+		// WS4: Boss now integrates the EnemyCombatStats growth framework (reads C6 at the 6th encounter).
+		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), RunSubsystem ? RunSubsystem->EncounterIndex + 1 : 0);
 		return;
 	}
 	PrepareScheduledSpawnBatch(Event);
@@ -1745,6 +1745,30 @@ void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition&
 	BoostedStats.MovementSpeed *= FMath::Max(0.0f, PhaseDefinition.MovementSpeedMultiplier);
 	Player->Combatant->InitializeFromStats(BoostedStats, false);
 	Player->Movement->MaxSpeed = 420.0f * BoostedStats.MovementSpeed;
+
+	if (PhaseDefinition.RefillHealthPolicy == EReEchoBossRefillHealthPolicy::RefillToMaximum &&
+	    PhaseDefinition.PhaseMaxHealth > 0.0f && EnemyRoster)
+	{
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+		{
+			if (Entry.Archetype != EReEchoEnemyArchetype::Boss || !Entry.bAlive)
+			{
+				continue;
+			}
+			AReEchoEnemyActor* BossActor = Cast<AReEchoEnemyActor>(Entry.Host.Get());
+			if (!BossActor)
+			{
+				continue;
+			}
+			if (UReEchoCombatantComponent* BossCombatant = BossActor->GetCombatantComponent())
+			{
+				FReEchoStatBlock BossStats = BossCombatant->Stats;
+				BossStats.HpMax = PhaseDefinition.PhaseMaxHealth;
+				BossCombatant->InitializeFromStats(BossStats, /*bFillHealth=*/true);
+			}
+			break;
+		}
+	}
 }
 
 void AReEchoGameMode::HandleBossIntent(const FReEchoBossIntent& Intent)

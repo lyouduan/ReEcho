@@ -11,6 +11,23 @@ namespace
 constexpr float MinimumFuseDurationSeconds = 0.1f;
 constexpr float BossFixedDeltaSeconds = 1.0f / 60.0f;
 
+/** Idle-wander tuning. Wander speed is a fraction of the enemy's pursuit speed; direction re-rolls every period. */
+constexpr float IdleWanderSpeedFraction = 0.35f;
+constexpr float IdleWanderPeriodSeconds = 3.0f;
+constexpr float IdleWanderDirectionJitter = 0.78539816339744831f; // +/-45 degrees
+
+/**
+ * Deterministic wander heading. Uses only WorldTime + SpawnIndex so the same sample produces the same
+ * movement across runs, saves, and replay (no FMath::Rand —录像/回放 must stay bit-identical).
+ */
+FVector MakeIdleWanderDirection(const FReEchoEnemySenseSnapshot& Sense, const int32 SpawnIndex, const float Elapsed)
+{
+	const double Phase = static_cast<double>(Sense.WorldTimeSeconds) * 0.36787944117149756 +
+	                     static_cast<double>(SpawnIndex) * 2.3999632297286531 + Elapsed * 1.1314029747174113;
+	const double Angle = FMath::Fmod(Phase, 2.0 * PI);
+	return FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+}
+
 const FName BossMeleeSweepBehaviorId(TEXT("Boss.MeleeSweep"));
 const FName BossProjectileBehaviorId(TEXT("Boss.Projectile"));
 const FName BossBlinkSlamBehaviorId(TEXT("Boss.BlinkSlam"));
@@ -282,6 +299,11 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 		{
 			return false;
 		}
+		if (PhaseDefinition.RefillHealthPolicy == EReEchoBossRefillHealthPolicy::RefillToMaximum &&
+		    PhaseDefinition.PhaseMaxHealth <= 0.0f)
+		{
+			return false;
+		}
 		PhaseNumbers.Add(PhaseDefinition.PhaseIndex);
 		BossPhaseIndices.Add(PhaseDefinitionIndex);
 	}
@@ -365,11 +387,19 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 		return AdvanceHitReaction(SafeDeltaSeconds);
 	}
 
-	if (!Sense.bTargetExists || !Sense.bTargetAlive)
+	const bool bHasLiveTarget = Sense.bTargetExists && Sense.bTargetAlive;
+	const bool bAggroEnabled = Sense.HateRangeCm > 0.0f;
+	const bool bInAggroRange = bAggroEnabled && Sense.bInCombat;
+	if (!bHasLiveTarget || (bAggroEnabled && !bInAggroRange))
 	{
+		if (!State.bHasEngaged)
+		{
+			return AdvanceIdleWander(Sense, SafeDeltaSeconds);
+		}
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 		return Intent;
 	}
+	State.bHasEngaged = true;
 	State.AttackCooldownRemainingSeconds = FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - SafeDeltaSeconds);
 
 	FVector ToTarget = Sense.TargetLocation - Sense.SelfLocation;
@@ -924,6 +954,38 @@ void UReEchoEnemyLogicComponent::ApplyStandardMovement(const FReEchoEnemySenseSn
 	{
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 	}
+}
+
+FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceIdleWander(const FReEchoEnemySenseSnapshot& Sense,
+                                                                       const float DeltaSeconds)
+{
+	FReEchoEnemyActionIntent Intent;
+	State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+
+	const float WanderSpeed = Definition.MoveSpeedCmPerSecond * IdleWanderSpeedFraction;
+	if (WanderSpeed <= 0.0f || DeltaSeconds <= 0.0f)
+	{
+		return Intent;
+	}
+
+	State.IdleWanderElapsedSeconds += DeltaSeconds;
+	if (State.IdleWanderElapsedSeconds >= IdleWanderPeriodSeconds)
+	{
+		State.IdleWanderElapsedSeconds = FMath::Fmod(State.IdleWanderElapsedSeconds, IdleWanderPeriodSeconds);
+		State.IdleWanderDirection = MakeIdleWanderDirection(Sense, State.SpawnIndex, State.IdleWanderElapsedSeconds);
+	}
+
+	const FVector Direction = State.IdleWanderDirection.GetSafeNormal2D();
+	if (Direction.IsNearlyZero())
+	{
+		return Intent;
+	}
+	State.FacingDirection = Direction;
+	Intent.FacingDirection = Direction;
+	Intent.bHasFacing = true;
+	Intent.MovementDelta = Direction * WanderSpeed * DeltaSeconds;
+	Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
+	return Intent;
 }
 
 FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceHitReaction(const float DeltaSeconds)
