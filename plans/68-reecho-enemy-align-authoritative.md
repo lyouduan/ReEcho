@@ -134,11 +134,11 @@
 7. 表现：SHEEP 复用现有 Boss 表现路径；黑色形态播 `Transform_Phase2` 同类动画；新动画/特效/音频留后续 Plan。
 8. 聚焦测试：SHEEP 血清空切二阶段；二阶段伤害 ×1.5、冷却 ×0.7。
 
-### WS5 未战斗游走（MOD-ReEchoEnemies）
-1. `ReEchoEnemyTypes.h`：`FReEchoEnemySenseSnapshot` 加 `bool bInCombat = false` 与 `float HateRangeCm = 0.0f`（由 Host 注入）。
-2. `ReEchoEnemyLogicComponent`：新增 `IdleWander` 行为（玩家距离 > 仇恨范围 且 未受击 → 无规则游走，不消费攻击候选）；进入战斗后转 `Pursuing`。
-3. Host（EnemyHost/Sense 注入点）按「玩家距离 < 仇恨范围 或 已受击」置 `bInCombat`，不引入 GameMode 引用。
-4. 聚焦测试：未战斗怪物游走；玩家靠近后接敌。
+### WS5 未战斗游走（MOD-ReEchoEnemies）✅ 已完成
+1. `ReEchoEnemyTypes.h`：`FReEchoEnemySenseSnapshot` 加 `bool bInCombat = false` 与 `float HateRangeCm = 0.0f`（由 Host 注入）；`FReEchoEnemyLogicSnapshot` 加 `IdleWanderElapsedSeconds` / `IdleWanderDirection` / `bHasEngaged`。
+2. `ReEchoEnemyLogicComponent`：脱战（无目标 / 目标在仇恨范围外）且 `!bHasEngaged` → `AdvanceIdleWander`（`MoveSpeed*0.35`、每 3s 以 `WorldTime+SpawnIndex` 确定性换向，不用 `FMath::Rand` 保录像一致）；接敌 `bHasEngaged=true` 后脱战静止 Idle。Boss/Ranged/Elite/Bomber 特化分支不受影响。
+3. Host（`ReEchoEnemyActor`）按「玩家距离 ≤ 仇恨范围」置 `bInCombat`（Grunt/Slime/Shield/Bomber=520、Ranged=640、Elite=720cm；Boss 返回 0 关闭游走），不引入 GameMode 引用。
+4. 聚焦测试 `ReEcho.Enemies.Logic.IdleWander`：未战斗游走、靠近接敌、接敌后脱战不再游走、跨 run 方向确定。
 
 ## 验证矩阵
 
