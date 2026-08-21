@@ -8,7 +8,7 @@
 - 实现编写方（AI 侧）：`Unassigned`。
 - 任务状态：`Ready`。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@2027652`。
+- 本地规划基线：`origin/main@2027652`；批准实现基线：`origin/main@2983308`（已组合 Plan68 WS4/WS5 与 Windows 打包加固，并在组合源码上重新 FullRebuild）。
 - 本地实现方式：用户已确认不采用一任务一 worktree，直接在当前本地 `main` 工作区执行；必须保护现有未跟踪的 BadRabbit/Rabbit Death 美术目录。
 - 依赖 / 阻塞：受伤事实复用 `UReEchoCombatEventsComponent::OnHurt`；生命变化复用 `UReEchoCombatantComponent::OnHealthChanged`。最终红光颜色、范围、曲线与呼吸观感需要用户在 PIE 验收。
 - Writes:
@@ -82,7 +82,7 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@2027652`；Plan 发布前与实现发布前均重新 fetch 审计。
+- 基线分支/提交：`origin/main@2983308`；Plan 发布前已完成外部提交审计和组合 FullRebuild，实现发布前再次 fetch 审计。
 - 引擎/构建可用性：UE 5.8 安装版；构建/Editor 命令前使用 Git common-dir Unreal 锁，并要求用户保存和关闭交互式 Editor。
 - 现有聚焦测试结果：不复用旧 HUD/VFX 构建证据；本候选重新验证。
 - 共享契约 / 难合并资源风险：`WBP_ReEchoPlayerHud.uasset` 为 Exclusive 二进制资产，执行前必须确认同路径无外部变化；当前未跟踪 BadRabbit/Rabbit Death 目录不在 Writes，必须保持原样。
@@ -116,7 +116,7 @@ Plan-only，尚未执行实现。
 
 ### 证据
 
-Plan 编写基于 `origin/main@2027652` 的 Player HUD、GameMode 装配、Combat Contracts、Plan49/51 与 `MOD-ReEcho`/`MOD-ReEchoUI` 当前事实。
+Plan 编写基于 `origin/main@2027652` 的 Player HUD、GameMode 装配、Combat Contracts、Plan49/51 与 `MOD-ReEcho`/`MOD-ReEchoUI` 当前事实；发布前发现远端前进至 `a07efb6`，已完成无冲突组合、重新 FullRebuild 与最新静态校验，批准实现基线为 `origin/main@2983308`。
 
 ### 剩余风险
 
