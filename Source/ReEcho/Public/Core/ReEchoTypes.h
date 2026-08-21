@@ -8,6 +8,7 @@
 #include "ReEchoTypes.generated.h"
 
 class AActor;
+class UTexture2D;
 
 UENUM(BlueprintType)
 enum class EReEchoRunPhase : uint8
@@ -89,6 +90,18 @@ struct REECHO_API FReEchoTraitCardOffer
 	/** Authored build tags from ReEchoData.xlsx / 构筑体系G / Tags. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FName> Tags;
+
+	/** Card tier (0 = FORGE). Drives the star-frame card art (Plan 69). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 Tier = 0;
+
+	/** Optional card presentation textures resolved at runtime by the choice widget (Plan 69).
+	    Empty when source art is absent; never a hard dependency, so missing art degrades gracefully. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UTexture2D> CardArt = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UTexture2D> CardIcon = nullptr;
 };
 USTRUCT(BlueprintType)
 

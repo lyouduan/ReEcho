@@ -75,12 +75,7 @@ public:
 	}
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
-
-	/**
-	 * 购买即装备：把刚购买的配件直接装入其槽位。
-	 * 槽位已满时挤出该槽位最早装备的旧件，旧件仍保留在 OwnedPartIds（回落背包）。
-	 */
-	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
+	bool TrySaveWeaponPartLoadout(const TArray<FName>& PartIds, FString& OutError);
 	FReEchoWeaponPartShopView GetWeaponPartShopView() const;
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 	int32 GetTotalEncounterCount() const;
@@ -100,8 +95,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool ApplyTraitCard(FName CardId);
 
-	/** 调试用：将指定卡牌直接加入当前构筑（忽略阶段/候选限制），用于复现与验证卡牌效果（如静默刻度 G_2_17）。仅由 GM
-	 * 命令调用，Shipping 构建不暴露。 */
+	/** 调试用：将指定卡牌直接加入当前构筑（忽略阶段/候选限制），用于复现与验证卡牌效果（如静默刻度 G_2_17）。仅由 GM 命令调用，Shipping 构建不暴露。 */
 	UFUNCTION(BlueprintCallable)
 	bool DebugGrantCard(FName CardId);
 

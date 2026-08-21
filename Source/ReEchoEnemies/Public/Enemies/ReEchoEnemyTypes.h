@@ -220,9 +220,6 @@ struct REECHOENEMIES_API FReEchoBossPhaseDefinition
 	EReEchoBossRefillHealthPolicy RefillHealthPolicy = EReEchoBossRefillHealthPolicy::None;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	float PhaseMaxHealth = 0.0f;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bEnabled = false;
 };
 
@@ -368,14 +365,6 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bHasTeleportDestination = false;
-
-	/** True when the target is inside this enemy's aggro range or the enemy has been struck; Host-owned. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bInCombat = false;
-
-	/** Host-authored aggro radius in cm. Values <= 0 fall back to pursuit-only (legacy) behavior. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	float HateRangeCm = 0.0f;
 };
 
 /** One ordered Boss command. Multiple commands may be emitted by one large deterministic advance. */
@@ -652,17 +641,6 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bBossCurrentAbilityCommitted = false;
-
-	/** Idle-wander state. Direction is re-derived deterministically every WanderPeriodSeconds. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	float IdleWanderElapsedSeconds = 0.0f;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	FVector IdleWanderDirection = FVector::ForwardVector;
-
-	/** True once the enemy has ever entered combat this encounter (prevents re-wander after aggro). */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bHasEngaged = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bAlive = true;

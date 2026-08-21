@@ -539,7 +539,6 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "AttackSpeedMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "MovementSpeedMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "RefillHealthPolicy": CsvColumnSpec("StableId"),
-        "PhaseMaxHealth": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "Enabled": CsvColumnSpec("Bool"),
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
@@ -961,10 +960,10 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
         "G_2_04", "G_2_05", "G_2_06", "G_2_07", "G_2_08", "G_2_09", "G_2_10", "G_2_12",
         "G_2_13", "G_2_14", "G_2_15", "G_2_16", "G_2_17", "G_3_01", "G_3_02", "G_3_03",
         "G_3_04", "G_3_05", "G_3_07", "G_3_09", "G_3_10", "G_3_11", "G_3_12", "G_3_13",
-        "G_3_14", "G_3_16", "G_3_17", "G_3_19", "G_3_20", "G_3_21", "G_3_22",
+        "G_3_14", "G_3_16", "G_3_17", "G_3_21", "G_3_22",
     ]
     if offerable_traits != expected_traits:
-        fail(f"{rel(entries['Cards'])}: canonical 39-card offerable trait pool changed: {offerable_traits}")
+        fail(f"{rel(entries['Cards'])}: canonical 37-card offerable trait pool changed: {offerable_traits}")
     tier_counts = {
         tier: sum(1 for row in cards if row["OfferGroup"] == "Trait" and row["Tier"] == tier)
         for tier in ("1", "2", "3")
@@ -1267,7 +1266,7 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         "Ranged": "Enemy.Ranged",
         "Elite": "Enemy.Elite",
     }
-    required_ids = {"M_Grunt", "M_Shield", "M_Bomber", "M_TimeGuard", "M_SLIME", "M_RABBIT", "M_FOX", "M_SHEEP"}
+    required_ids = {"M_Grunt", "M_Shield", "M_Bomber", "M_TimeGuard", "M_SLIME", "M_RABBIT", "M_FOX"}
     enabled_enemies = {row["Id"]: row for row in enemies if row["Enabled"] == "true"}
     if set(enabled_enemies) != required_ids:
         fail(f"{rel(entries['Enemies'])}: enabled enemy ids changed: {sorted(enabled_enemies)}")
@@ -1363,11 +1362,8 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         phase_keys.add(key)
         if row["EchoPolicy"] != "DestroyEncounterEchoes":
             fail(f"{rel(entries['BossPhases'])}:{line}:EchoPolicy: unsupported policy {row['EchoPolicy']!r}")
-        if row["RefillHealthPolicy"] == "RefillToMaximum":
-            if float(row["PhaseMaxHealth"]) <= 0.0:
-                fail(f"{rel(entries['BossPhases'])}:{line}:PhaseMaxHealth: RefillToMaximum requires PhaseMaxHealth > 0")
-        elif row["RefillHealthPolicy"] != "None":
-            fail(f"{rel(entries['BossPhases'])}:{line}:RefillHealthPolicy: unsupported policy {row['RefillHealthPolicy']!r}")
+        if row["RefillHealthPolicy"] != "None":
+            fail(f"{rel(entries['BossPhases'])}:{line}:RefillHealthPolicy: first release must not refill health")
 
 
 def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
@@ -1448,8 +1444,8 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     boss_waves = waves_by_encounter["Encounter.8"]
     if len(boss_waves) != 1 or int(boss_waves[0]["WaveIndex"]) != 1 or float(boss_waves[0]["TriggerSeconds"]) != 0.0:
         fail(f"{rel(entries['EncounterWaves'])}: encounter 8 requires one boss wave at zero seconds")
-    if boss_waves[0]["BossEnemyId"] != "M_SHEEP":
-        fail(f"{rel(entries['EncounterWaves'])}:{boss_waves[0]['__line__']}:BossEnemyId: must preserve stable boss id M_SHEEP")
+    if boss_waves[0]["BossEnemyId"] != "M_TimeGuard":
+        fail(f"{rel(entries['EncounterWaves'])}:{boss_waves[0]['__line__']}:BossEnemyId: must preserve stable boss id M_TimeGuard")
 
     enabled_profiles = {row["EnemyRole"]: row for row in profiles if row["Enabled"] == "true"}
     expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement"}

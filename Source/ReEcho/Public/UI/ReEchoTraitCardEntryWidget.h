@@ -7,6 +7,7 @@
 class UReEchoIndexedButton;
 class UImage;
 class UTextBlock;
+class UTexture2D;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoTraitCardEntrySelected, int32, EntryIndex);
 
@@ -25,7 +26,9 @@ public:
 	               const FText& DisplayName,
 	               const FText& Description,
 	               const TArray<FName>& Tags,
-	               const FLinearColor& CardColor);
+	               const FLinearColor& CardColor,
+	               UTexture2D* CardArt = nullptr,
+	               UTexture2D* CardIcon = nullptr);
 	void SetSelectionEnabled(bool bEnabled);
 	void SetSelectedVisual(bool bSelected, bool bHasSelection);
 	void FocusSelection();
@@ -43,6 +46,14 @@ private:
 	/** Placeholder frame tinted with the runtime card palette so offers retain their existing identity. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> ArtCardFrame;
+
+	/** Card art (main visual). Optional; hidden when no source texture is provided (Plan 69). */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtImage;
+
+	/** Small corner icon. Optional; hidden when no source texture is provided (Plan 69). */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> IconImage;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> KickerText;

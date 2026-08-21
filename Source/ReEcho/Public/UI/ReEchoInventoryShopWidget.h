@@ -24,6 +24,7 @@ class UReEchoRunSubsystem;
 DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
+DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponLoadoutSaveRequested, const TArray<FName>&);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoGuidCommandRequested, FGuid);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoSelectionCommandRequested, const TArray<FGuid>&);
@@ -59,6 +60,7 @@ public:
 
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
 	FReEchoShopRefreshRequested OnRefreshRequested;
+	FReEchoWeaponLoadoutSaveRequested OnWeaponLoadoutSaveRequested;
 
 	FReEchoEchoCommandRequested OnEchoStoreRequested;
 	FReEchoEchoCommandRequested OnEchoSkipRequested;
@@ -68,7 +70,7 @@ public:
 
 	/** 以只读背包模式刷新当前资源与已拥有物品。 */
 	void ShowInventory(int32 TimeShards, const TArray<FName>& OwnedItems);
-	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView);
+	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView, bool bResetDraft = false);
 
 	/** 以商店模式刷新报价；实际扣款由外部订阅者决定。 */
 	void ShowShop(int32 TimeShards,
@@ -118,19 +120,6 @@ private:
 	void RebuildTargetOfferRows();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
-	FName GetSlotTypeIdForIndex(int32 SlotIndex) const;
-	const FReEchoShopOffer* FindOwnedPartByContentId(FName ContentId) const;
-	void HandleAttachmentSlotClicked(int32 SlotIndex);
-	UFUNCTION()
-	void HandleAttachmentSlot0Clicked();
-	UFUNCTION()
-	void HandleAttachmentSlot1Clicked();
-	UFUNCTION()
-	void HandleAttachmentSlot2Clicked();
-	void BuildBackpackPopup(int32 SlotIndex);
-	void HideBackpackPopup();
-	UFUNCTION()
-	void HandleBackpackItemClicked(int32 ItemIndex);
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
@@ -139,7 +128,7 @@ private:
 	AddTargetOfferCard(class UHorizontalBox* Row, const FReEchoShopOffer& Offer, int32 OfferIndex, bool bWeaponPart);
 	void Refresh();
 	void RequestPurchase(int32 OfferIndex);
-	bool IsPartEquipped(FName PartId) const;
+	void ToggleDraftPart(int32 OwnedPartIndex);
 
 	UFUNCTION()
 	void HandleCloseClicked();
@@ -152,6 +141,9 @@ private:
 
 	UFUNCTION()
 	void HandleWeaponPartOfferClicked(int32 PartOfferIndex);
+
+	UFUNCTION()
+	void HandleSaveLoadoutClicked();
 
 	UFUNCTION()
 	void HandleEchoStorageCardSlotClicked();
@@ -213,6 +205,8 @@ private:
 	TObjectPtr<UTexture2D> ShopRefreshTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopCardSlotTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopSaveLoadoutTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopTitleTexture;
 	UPROPERTY()
@@ -282,6 +276,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> WeaponPartOfferTexts;
 
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> SaveLoadoutButton;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> ShopPresentationLayer;
 	UPROPERTY(Transient)
@@ -297,13 +294,11 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerAttachmentSlotArts;
 	UPROPERTY(Transient)
-	TObjectPtr<UCanvasPanel> BackpackPopupPanel;
-	int32 ActiveBackpackSlotIndex = INDEX_NONE;
-	TArray<FName> CachedBackpackItemIds;
-	UPROPERTY(Transient)
 	TArray<TObjectPtr<UButton>> DesignerCardSlotButtons;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerCardSlotArts;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> TargetSaveLoadoutButton;
 
 	TArray<FReEchoShopOffer> DisplayedOwnedCards;
 
@@ -355,6 +350,8 @@ private:
 	FReEchoWeaponPartShopView CurrentPartShopView;
 	TArray<FReEchoShopOffer> VisibleRunItemOffers;
 	TArray<FReEchoShopOffer> VisibleWeaponPartOffers;
+	TArray<FName> DraftPartIds;
+	FName DraftWeaponId;
 
 	// echo state mirrors
 	UPROPERTY(Transient)

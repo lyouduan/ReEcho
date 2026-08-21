@@ -186,8 +186,7 @@ void AReEchoGameMode::GMHelp()
 	{
 		return;
 	}
-	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMSetShards [amount] | GMWeather "
-	                   "<Clear|Rain|Fog> | "
+	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMSetShards [amount] | GMWeather <Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
 }
 
@@ -332,10 +331,10 @@ void AReEchoGameMode::GMEndEncounter()
 	const int32 EncounterIndex = RunSubsystem->EncounterIndex;
 	const float RemainingTime = Director->GetRemainingTime();
 	Director->EndEncounter();
-	PrintGMResult(
-	    FString::Printf(TEXT("Ended encounter %d with %.1f seconds remaining; normal completion flow started."),
-	                    EncounterIndex,
-	                    RemainingTime));
+	PrintGMResult(FString::Printf(
+	    TEXT("Ended encounter %d with %.1f seconds remaining; normal completion flow started."),
+	    EncounterIndex,
+	    RemainingTime));
 }
 
 void AReEchoGameMode::GMKillAll()
@@ -460,8 +459,8 @@ void AReEchoGameMode::GMGrantCard(const FName CardId)
 
 	const bool bGranted = RunSubsystem->DebugGrantCard(CardId);
 	PrintGMResult(bGranted ? FString::Printf(TEXT("Granted card %s."), *CardId.ToString())
-	                       : FString::Printf(TEXT("Failed to grant card %s (not found / conflict / locked run)."),
-	                                         *CardId.ToString()),
+	                        : FString::Printf(TEXT("Failed to grant card %s (not found / conflict / locked run)."),
+	                                          *CardId.ToString()),
 	              bGranted);
 }
 
@@ -730,10 +729,10 @@ void AReEchoGameMode::HandleAboutClosed()
 		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 		{
 			UIFlow->FocusScreen(UGameplayStatics::GetPlayerController(this, 0), EReEchoUIScreen::StartMenu, false);
-		}
-		StartMenuWidget->SetKeyboardFocus();
-	}
-	else if (RestartWidget)
+			}
+			StartMenuWidget->SetKeyboardFocus();
+			}
+			else if (RestartWidget)
 	{
 		RestartWidget->SetVisibility(ESlateVisibility::Visible);
 		RestartWidget->SetKeyboardFocus();
@@ -778,8 +777,9 @@ void AReEchoGameMode::ShowAboutScreen(const bool bReturnToStartMenu)
 
 	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	AboutWidget =
-	    UIFlow ? Cast<UReEchoAboutWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::About, true, false))
-	           : nullptr;
+	    UIFlow
+	        ? Cast<UReEchoAboutWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::About, true, false))
+	        : nullptr;
 	if (!AboutWidget)
 	{
 		return;
@@ -1613,8 +1613,7 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 
 	if (Event.EnemyRole == TEXT("Boss"))
 	{
-		// WS4: Boss now integrates the EnemyCombatStats growth framework (reads C6 at the 6th encounter).
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), RunSubsystem ? RunSubsystem->EncounterIndex + 1 : 0);
+		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f));
 		return;
 	}
 	PrepareScheduledSpawnBatch(Event);
@@ -1651,24 +1650,21 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		       Encounter->ActiveUnitLimit);
 	}
 
-	// WS3 (Plan 68): 按场次成长 —— CombatIndex为1-based场次档位(EncounterIndex 0-based + 1)。
-	const int32 CombatIndex = RunSubsystem ? RunSubsystem->EncounterIndex + 1 : 0;
 	for (int32 Index = 0; Index < AllowedCount; ++Index)
 	{
-		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], CombatIndex);
+		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index]);
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
 
-bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex)
+bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation)
 {
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
 	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
 	FReEchoEnemyDefinition Definition;
 	FString CompileError;
-	if (!Snapshot.IsValid() ||
-	    !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError, CombatIndex))
+	if (!Snapshot.IsValid() || !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
 		return false;
@@ -1745,30 +1741,6 @@ void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition&
 	BoostedStats.MovementSpeed *= FMath::Max(0.0f, PhaseDefinition.MovementSpeedMultiplier);
 	Player->Combatant->InitializeFromStats(BoostedStats, false);
 	Player->Movement->MaxSpeed = 420.0f * BoostedStats.MovementSpeed;
-
-	if (PhaseDefinition.RefillHealthPolicy == EReEchoBossRefillHealthPolicy::RefillToMaximum &&
-	    PhaseDefinition.PhaseMaxHealth > 0.0f && EnemyRoster)
-	{
-		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
-		{
-			if (Entry.Archetype != EReEchoEnemyArchetype::Boss || !Entry.bAlive)
-			{
-				continue;
-			}
-			AReEchoEnemyActor* BossActor = Cast<AReEchoEnemyActor>(Entry.Host.Get());
-			if (!BossActor)
-			{
-				continue;
-			}
-			if (UReEchoCombatantComponent* BossCombatant = BossActor->GetCombatantComponent())
-			{
-				FReEchoStatBlock BossStats = BossCombatant->Stats;
-				BossStats.HpMax = PhaseDefinition.PhaseMaxHealth;
-				BossCombatant->InitializeFromStats(BossStats, /*bFillHealth=*/true);
-			}
-			break;
-		}
-	}
 }
 
 void AReEchoGameMode::HandleBossIntent(const FReEchoBossIntent& Intent)
@@ -1955,7 +1927,7 @@ void AReEchoGameMode::TogglePauseMenu()
 		HandleInventoryShopClosed();
 		return;
 	}
-	if (bRestartScreenIsTerminal)
+	if (TraitCardChoiceWidget || bRestartScreenIsTerminal)
 	{
 		return;
 	}
@@ -2042,10 +2014,8 @@ void AReEchoGameMode::HandleStatsClosed()
 
 void AReEchoGameMode::ToggleInventoryMenu()
 {
-	UE_LOG(LogReEcho,
-	       Log,
-	       TEXT("[AttrPanel] GameMode: ToggleInventoryMenu called; InventoryShopWidget=%s"),
-	       InventoryShopWidget ? TEXT("open") : TEXT("closed"));
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] GameMode: ToggleInventoryMenu called; InventoryShopWidget=%s"),
+		InventoryShopWidget ? TEXT("open") : TEXT("closed"));
 	if (InventoryShopWidget)
 	{
 		HandleInventoryShopClosed();
@@ -2056,10 +2026,8 @@ void AReEchoGameMode::ToggleInventoryMenu()
 
 void AReEchoGameMode::ToggleShopMenu()
 {
-	UE_LOG(LogReEcho,
-	       Log,
-	       TEXT("[AttrPanel] GameMode: ToggleShopMenu called; InventoryShopWidget=%s"),
-	       InventoryShopWidget ? TEXT("open") : TEXT("closed"));
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] GameMode: ToggleShopMenu called; InventoryShopWidget=%s"),
+		InventoryShopWidget ? TEXT("open") : TEXT("closed"));
 	if (InventoryShopWidget)
 	{
 		HandleInventoryShopClosed();
@@ -2070,14 +2038,9 @@ void AReEchoGameMode::ToggleShopMenu()
 
 void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 {
-	UE_LOG(LogReEcho,
-	       Log,
-	       TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Stats=%d Trait=%d Restart=%d Terminal=%d)"),
-	       (int32)Mode,
-	       StatsWidget ? 1 : 0,
-	       TraitCardChoiceWidget ? 1 : 0,
-	       RestartWidget ? 1 : 0,
-	       bRestartScreenIsTerminal ? 1 : 0);
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Stats=%d Trait=%d Restart=%d Terminal=%d)"),
+		(int32)Mode,
+		StatsWidget ? 1 : 0, TraitCardChoiceWidget ? 1 : 0, RestartWidget ? 1 : 0, bRestartScreenIsTerminal ? 1 : 0);
 	if (StatsWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
 	{
 		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] ShowInventoryShopMenu guard TRIPPED - early return"));
@@ -2097,16 +2060,13 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	                             : nullptr;
 	if (!InventoryShopWidget)
 	{
-		UE_LOG(
-		    LogReEcho, Warning, TEXT("[AttrPanel] InventoryShopWidget invalid (OpenScreen returned non-shop or null)"));
+		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] InventoryShopWidget invalid (OpenScreen returned non-shop or null)"));
 		return;
 	}
 
-	UE_LOG(LogReEcho,
-	       Log,
-	       TEXT("[AttrPanel] InventoryShopWidget valid; Player=%s Combatant=%s"),
-	       Player ? TEXT("valid") : TEXT("null"),
-	       (Player && Player->Combatant) ? TEXT("valid") : TEXT("null"));
+	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] InventoryShopWidget valid; Player=%s Combatant=%s"),
+		Player ? TEXT("valid") : TEXT("null"),
+		(Player && Player->Combatant) ? TEXT("valid") : TEXT("null"));
 	if (Player && Player->Combatant)
 	{
 		// 展示"下一场将带着的属性"：购买改属性卡后立即反映，而非上一场的 Combatant->Stats。
@@ -2116,6 +2076,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
+	InventoryShopWidget->OnWeaponLoadoutSaveRequested.AddUObject(this,
+	                                                             &AReEchoGameMode::HandleWeaponLoadoutSaveRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		bPostTraitShopClosing = false;
@@ -2195,47 +2157,8 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget)
+	if (RunSubsystem && InventoryShopWidget && RunSubsystem->PurchaseShopItem(ItemId))
 	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		return;
-	}
-
-	// 背包重装：点击“拥有但未装备”的配件 → 直接重新装备，不扣钱、不走购买防重复。
-	if (RunSubsystem->OwnedPartIds.Contains(ItemId))
-	{
-		FString EquipError;
-		if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
-		{
-			UE_LOG(LogTemp,
-			       Warning,
-			       TEXT("[ReEchoShop] Owned part '%s' could not be re-equipped: %s"),
-			       *ItemId.ToString(),
-			       *EquipError);
-			PostUiEvent(FReEchoAudioEvents::UiError);
-			return;
-		}
-		RunSubsystem->SaveRun();
-		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
-		return;
-	}
-
-	// 新购：走完整购买流程（防重复/扣钱/入背包），购买即装备。
-	if (RunSubsystem->PurchaseShopItem(ItemId))
-	{
-		// 购买即装备：武器配件报价的 ItemId 与 PartId 同名，购买后立即装入对应槽位。
-		if (RunSubsystem->OwnedPartIds.Contains(ItemId))
-		{
-			FString EquipError;
-			if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
-			{
-				UE_LOG(LogTemp,
-				       Warning,
-				       TEXT("[ReEchoShop] Purchased part '%s' could not be equipped: %s"),
-				       *ItemId.ToString(),
-				       *EquipError);
-			}
-		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
 		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
@@ -2257,6 +2180,22 @@ void AReEchoGameMode::HandleShopRefreshRequested()
 
 	PostUiEvent(FReEchoAudioEvents::UiPurchase);
 	RunSubsystem->SaveRun();
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
+void AReEchoGameMode::HandleWeaponLoadoutSaveRequested(const TArray<FName>& PartIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	FString Error;
+	if (!RunSubsystem || !InventoryShopWidget || !RunSubsystem->TrySaveWeaponPartLoadout(PartIds, Error))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ReEchoShop] Weapon loadout save rejected: %s"), *Error);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	PostUiEvent(FReEchoAudioEvents::UiPurchase);
+	RunSubsystem->SaveRun();
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(), true);
 	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
 
@@ -2326,7 +2265,8 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
@@ -2386,7 +2326,8 @@ void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
@@ -2417,7 +2358,8 @@ void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& Recordin
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(
+	        FName(ReEchoEchoStorage::StorageUnlockCardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
@@ -2502,10 +2444,6 @@ void AReEchoGameMode::HandleResumeRequested()
 	}
 	bRestartScreenIsTerminal = false;
 	RestoreGameInput();
-	if (TraitCardChoiceWidget)
-	{
-		SetPlayerMenuAbilityBlocked(true);
-	}
 }
 
 void AReEchoGameMode::HandleAutomaticAttackRequested()
@@ -2681,14 +2619,14 @@ void AReEchoGameMode::HandleEncounterEnded()
 	if (EncounterHudWidget)
 	{
 		EncounterHudWidget->SetEncounterStatus(
-		    RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0, GetTotalEncounterCount(), 0.0f);
+			RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0,
+			GetTotalEncounterCount(),
+			0.0f);
 	}
 	// [EncounterEnded] 选卡/结算入口：记录此刻真实剩余时间，与上面的 [EncounterTimer][END] 对照。
-	UE_LOG(LogReEcho,
-	       Warning,
+	UE_LOG(LogReEcho, Warning,
 	       TEXT("[EncounterEnded] enter -> card/shop/victory; EncounterTime=%.3f Remaining=%.3f EncounterIndex=%d"),
-	       Director ? Director->EncounterTime : -1.0f,
-	       Director ? Director->GetRemainingTime() : -1.0f,
+	       Director ? Director->EncounterTime : -1.0f, Director ? Director->GetRemainingTime() : -1.0f,
 	       GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
 	           ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()->EncounterIndex
 	           : -1);
@@ -2730,8 +2668,8 @@ void AReEchoGameMode::ProceedToPostEncounterUI()
 	{
 		return;
 	}
-	const bool bBossKilled =
-	    bEncounterClearedByDefeat && RunSubsystem->EncounterIndex == RunSubsystem->GetTotalEncounterCount();
+	const bool bBossKilled = bEncounterClearedByDefeat &&
+	                         RunSubsystem->EncounterIndex == RunSubsystem->GetTotalEncounterCount();
 	if (bBossKilled)
 	{
 		ShowRestartScreen(false, true);
@@ -2849,12 +2787,10 @@ void AReEchoGameMode::BuildMinimapView(FReEchoMinimapView& OutView) const
 	const FVector PlayerLocation = Player->GetActorLocation();
 	OutView.PlayerLocation = FVector2D(PlayerLocation.X, PlayerLocation.Y);
 
-	static const FLinearColor Palette[] = {FLinearColor::Red,
-	                                       FLinearColor::Green,
-	                                       FLinearColor::Blue,
-	                                       FLinearColor::Yellow,
-	                                       FLinearColor(0.0f, 1.0f, 1.0f),
-	                                       FLinearColor(1.0f, 0.0f, 1.0f)};
+	static const FLinearColor Palette[] = {
+		FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue,
+		FLinearColor::Yellow, FLinearColor(0.0f, 1.0f, 1.0f), FLinearColor(1.0f, 0.0f, 1.0f)
+	};
 	for (const TObjectPtr<AReEchoEchoActor>& Echo : Echoes)
 	{
 		if (!IsValid(Echo))
@@ -2930,11 +2866,9 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		if (bEncounterDefeated)
 		{
 			// [EncounterTimer] Boss 被提前击败：真实计时尚未到 0 即结束，剩余 > 0 属预期。
-			UE_LOG(LogReEcho,
-			       Warning,
+			UE_LOG(LogReEcho, Warning,
 			       TEXT("[EncounterTimer][END] reason=boss-defeat EncounterTime=%.3f Remaining=%.3f"),
-			       Director ? Director->EncounterTime : -1.0f,
-			       Director ? Director->GetRemainingTime() : -1.0f);
+			       Director ? Director->EncounterTime : -1.0f, Director ? Director->GetRemainingTime() : -1.0f);
 			bEncounterClearedByDefeat = true;
 			Director->EndEncounter();
 		}

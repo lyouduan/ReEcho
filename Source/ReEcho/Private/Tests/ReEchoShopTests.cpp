@@ -101,7 +101,7 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponPartShopLoadoutTest,
-                                 "ReEcho.Shop.WeaponPartPurchaseEquipsInstantlyAndReturnsReplacedPart",
+                                 "ReEcho.Shop.WeaponPartsPurchaseThenSaveThreeSlotLoadout",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
@@ -114,84 +114,54 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	const FReEchoWeaponPartShopView InitialView = RunSubsystem->GetWeaponPartShopView();
 	TestEqual(TEXT("Bow shop exposes three data-driven slot groups"), InitialView.Slots.Num(), 3);
 	TestEqual(TEXT("Shop page exposes exactly three weapon-part offers"),
-	          InitialView.Offers
-	              .FilterByPredicate(
-	                  [](const FReEchoShopOffer& Offer)
-	                  {
-		                  return Offer.Type == EReEchoShopOfferType::WeaponPart;
-	                  })
-	              .Num(),
+	          InitialView.Offers.FilterByPredicate([](const FReEchoShopOffer& Offer)
+	                                               { return Offer.Type == EReEchoShopOfferType::WeaponPart; }).Num(),
 	          ReEchoShopOfferCountPerGroup);
 
 	FString Error;
-	TestFalse(TEXT("Unowned parts cannot be equipped"),
-	          RunSubsystem->TryEquipPurchasedPart(TEXT("P_CORE_FLAME"), Error));
-	// 复刻 AReEchoGameMode::HandleShopPurchaseRequested 的“购买即装备”序列。
-	auto FindBuyAndEquip = [&](const FName PartId)
+	TestFalse(TEXT("Unowned parts cannot be committed"),
+	          RunSubsystem->TrySaveWeaponPartLoadout({TEXT("P_CORE_FLAME")}, Error));
+	auto FindAndBuy = [&](const FName PartId)
 	{
 		for (int32 Attempt = 0; Attempt < 64; ++Attempt)
 		{
 			const FReEchoWeaponPartShopView Page = RunSubsystem->GetWeaponPartShopView();
-			if (Page.Offers.ContainsByPredicate(
-			        [&](const FReEchoShopOffer& Offer)
-			        {
-				        return Offer.Type == EReEchoShopOfferType::WeaponPart && Offer.ContentId == PartId;
-			        }))
+			if (Page.Offers.ContainsByPredicate([&](const FReEchoShopOffer& Offer)
+			                                    { return Offer.Type == EReEchoShopOfferType::WeaponPart && Offer.ContentId == PartId; }))
 			{
-				FString EquipError;
-				return RunSubsystem->PurchaseShopItem(PartId) &&
-				       RunSubsystem->TryEquipPurchasedPart(PartId, EquipError);
+				return RunSubsystem->PurchaseShopItem(PartId);
 			}
 			RunSubsystem->TryConsumeShopRefresh(1);
 		}
 		return false;
 	};
 	RunSubsystem->TimeShards = 1000;
-	TestTrue(TEXT("Core purchase equips instantly when it is on the current page"),
-	         FindBuyAndEquip(TEXT("P_CORE_FLAME")));
-	TestTrue(TEXT("Arrowhead purchase equips instantly when it is on the current page"),
-	         FindBuyAndEquip(TEXT("P_BOW_SPLIT_ARROWHEAD")));
-	TestTrue(TEXT("Purchased rune enters part ownership"), RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
+	TestTrue(TEXT("Core purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_CORE_FLAME")));
+	TestTrue(TEXT("Arrowhead purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_BOW_SPLIT_ARROWHEAD")));
+	TestTrue(TEXT("Purchased rune enters part ownership"),
+	         RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestFalse(TEXT("Purchased rune stays out of ordinary item inventory"),
 	          RunSubsystem->InventoryItems.Contains(TEXT("P_CORE_FLAME")));
-	TestEqual(
-	    TEXT("Both purchases are equipped without any save step"), RunSubsystem->CurrentBuild.EquippedParts.Num(), 2);
+	TestTrue(TEXT("Purchases do not auto-replace committed equipment"),
+	         RunSubsystem->CurrentBuild.EquippedParts.IsEmpty());
 	const int32 ShardsAfterDuplicate = RunSubsystem->TimeShards;
-	TestFalse(TEXT("Duplicate rune purchase is rejected"), RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
+	TestFalse(TEXT("Duplicate rune purchase is rejected"),
+	          RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, ShardsAfterDuplicate);
 
-	// 同槽位再买一件：新件顶替旧件，旧件回落 OwnedPartIds（背包库存）。
-	TestTrue(TEXT("A second core purchase equips into the single-capacity core slot"),
-	         FindBuyAndEquip(TEXT("P_CORE_TIDE")));
-	TestEqual(TEXT("Single-capacity core slot never exceeds its capacity"),
-	          RunSubsystem->CurrentBuild.EquippedParts.Num(),
-	          2);
-	const bool bTideEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	    [](const FReEchoEquippedPartSnapshot& Equipped)
-	    {
-		    return Equipped.PartId == TEXT("P_CORE_TIDE");
-	    });
-	const bool bFlameEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	    [](const FReEchoEquippedPartSnapshot& Equipped)
-	    {
-		    return Equipped.PartId == TEXT("P_CORE_FLAME");
-	    });
-	TestTrue(TEXT("The newly purchased core is the equipped one"), bTideEquipped);
-	TestFalse(TEXT("The replaced core is no longer equipped"), bFlameEquipped);
-	TestTrue(TEXT("The replaced core falls back to owned inventory"),
-	         RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
-	TestTrue(TEXT("The arrowhead in another slot is untouched by the core replacement"),
-	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	             [](const FReEchoEquippedPartSnapshot& Equipped)
-	             {
-		             return Equipped.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD");
-	             }));
+	TestTrue(TEXT("Owned core, grip and blade commit as one loadout"),
+	         RunSubsystem->TrySaveWeaponPartLoadout(
+	             {TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
+	TestEqual(
+	    TEXT("Committed loadout contains both equipped slot groups"), RunSubsystem->CurrentBuild.EquippedParts.Num(), 2);
+	TestEqual(
+	    TEXT("Committed strength grip applies its runtime effect"), RunSubsystem->CurrentBuild.Stats.AttackSpeed, 1.0f);
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardAndPartShopPageTest,
-                                 "ReEcho.Shop.PageHasThreePartsThreeTieredCardsAndJointRefresh",
-                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	                             "ReEcho.Shop.PageHasThreePartsThreeTieredCardsAndJointRefresh",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 {
@@ -202,15 +172,9 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 
 	const FReEchoWeaponPartShopView FirstPage = RunSubsystem->GetWeaponPartShopView();
 	const TArray<FReEchoShopOffer> FirstParts = FirstPage.Offers.FilterByPredicate(
-	    [](const FReEchoShopOffer& Offer)
-	    {
-		    return Offer.Type == EReEchoShopOfferType::WeaponPart;
-	    });
+	    [](const FReEchoShopOffer& Offer) { return Offer.Type == EReEchoShopOfferType::WeaponPart; });
 	const TArray<FReEchoShopOffer> FirstCards = FirstPage.Offers.FilterByPredicate(
-	    [](const FReEchoShopOffer& Offer)
-	    {
-		    return Offer.Type == EReEchoShopOfferType::BuildCard;
-	    });
+	    [](const FReEchoShopOffer& Offer) { return Offer.Type == EReEchoShopOfferType::BuildCard; });
 	TestEqual(TEXT("First page has three compatible parts"), FirstParts.Num(), ReEchoShopOfferCountPerGroup);
 	TestEqual(TEXT("First page has three build cards"), FirstCards.Num(), ReEchoShopOfferCountPerGroup);
 	for (const FReEchoShopOffer& Card : FirstCards)
@@ -224,25 +188,18 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	const int32 ShardsBefore = RunSubsystem->TimeShards;
 	TestTrue(TEXT("Current card offer can be purchased"), RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
 	TestEqual(TEXT("Card purchase grants one owned-card slot"),
-	          RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num(),
-	          OwnedBefore + 1);
+	          RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num(), OwnedBefore + 1);
 	TestTrue(TEXT("Granted card id is the offer content id"),
 	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedCard.ContentId));
-	TestEqual(
-	    TEXT("Card purchase deducts the tier price"), RunSubsystem->TimeShards, ShardsBefore - PurchasedCard.Price);
+	TestEqual(TEXT("Card purchase deducts the tier price"),
+	          RunSubsystem->TimeShards, ShardsBefore - PurchasedCard.Price);
 	const FReEchoWeaponPartShopView PurchasedPage = RunSubsystem->GetWeaponPartShopView();
 	TestTrue(TEXT("Purchased card is projected into the right-side owned slots"),
-	         PurchasedPage.OwnedCards.ContainsByPredicate(
-	             [&](const FReEchoShopOffer& Card)
-	             {
-		             return Card.ContentId == PurchasedCard.ContentId;
-	             }));
+	         PurchasedPage.OwnedCards.ContainsByPredicate([&](const FReEchoShopOffer& Card)
+	                                                   { return Card.ContentId == PurchasedCard.ContentId; }));
 	TestTrue(TEXT("Purchased card remains on the same page as a disabled offer"),
-	         PurchasedPage.Offers.ContainsByPredicate(
-	             [&](const FReEchoShopOffer& Offer)
-	             {
-		             return Offer.ItemId == PurchasedCard.ItemId;
-	             }));
+	         PurchasedPage.Offers.ContainsByPredicate([&](const FReEchoShopOffer& Offer)
+	                                                { return Offer.ItemId == PurchasedCard.ItemId; }));
 	TestFalse(TEXT("Same card offer cannot be bought twice on one page"),
 	          RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
 
@@ -251,29 +208,17 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Paid refresh succeeds after free refreshes are exhausted"),
 	         RunSubsystem->TryConsumeShopRefresh(ReEchoShopRefreshPrice));
 	TestEqual(TEXT("Joint refresh advances one shared sequence"),
-	          RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence,
-	          SequenceBefore + 1);
+	          RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence, SequenceBefore + 1);
 	TestEqual(TEXT("Paid refresh deducts the configured price"),
-	          RunSubsystem->TimeShards,
-	          BeforeRefreshShards - ReEchoShopRefreshPrice);
+	          RunSubsystem->TimeShards, BeforeRefreshShards - ReEchoShopRefreshPrice);
 	const FReEchoWeaponPartShopView RefreshedPage = RunSubsystem->GetWeaponPartShopView();
 	TestEqual(TEXT("Refreshed page still has three parts"),
-	          RefreshedPage.Offers
-	              .FilterByPredicate(
-	                  [](const FReEchoShopOffer& Offer)
-	                  {
-		                  return Offer.Type == EReEchoShopOfferType::WeaponPart;
-	                  })
-	              .Num(),
+	          RefreshedPage.Offers.FilterByPredicate([](const FReEchoShopOffer& Offer)
+	                                                { return Offer.Type == EReEchoShopOfferType::WeaponPart; }).Num(),
 	          ReEchoShopOfferCountPerGroup);
 	TestEqual(TEXT("Refreshed page still has three cards"),
-	          RefreshedPage.Offers
-	              .FilterByPredicate(
-	                  [](const FReEchoShopOffer& Offer)
-	                  {
-		                  return Offer.Type == EReEchoShopOfferType::BuildCard;
-	                  })
-	              .Num(),
+	          RefreshedPage.Offers.FilterByPredicate([](const FReEchoShopOffer& Offer)
+	                                                { return Offer.Type == EReEchoShopOfferType::BuildCard; }).Num(),
 	          ReEchoShopOfferCountPerGroup);
 	return true;
 }

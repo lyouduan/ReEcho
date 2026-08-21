@@ -234,6 +234,7 @@ private:
 	UFUNCTION()
 	void HandleShopPurchaseRequested(FName ItemId);
 	void HandleShopRefreshRequested();
+	void HandleWeaponLoadoutSaveRequested(const TArray<FName>& PartIds);
 	void RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, EReEchoInventoryShopMode Mode);
 
 	UFUNCTION()
@@ -269,7 +270,7 @@ private:
 	void ProcessScheduledSpawnEvents(float EncounterSeconds);
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
 	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
-	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = 0);
+	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
