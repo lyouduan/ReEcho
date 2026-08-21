@@ -6,7 +6,6 @@ SOURCE_ROOT = Path(unreal.Paths.project_content_dir()) / "SourceArt" / "UI"
 DESTINATION_PATH = "/Game/ReEcho/Textures/UI"
 IMPORTS = {
     "InventoryBackground.png": "InventoryBackground",
-    "ShopBackground.png": "ShopBackground",
 }
 
 

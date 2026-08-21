@@ -192,12 +192,6 @@ private:
 	void HandleConfirmReturnClicked();
 
 	UPROPERTY()
-	TObjectPtr<UTexture2D> InventoryBackgroundTexture;
-
-	UPROPERTY()
-	TObjectPtr<UTexture2D> ShopBackgroundTexture;
-
-	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopItemCardTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopAttachmentSlotTexture;
@@ -219,9 +213,6 @@ private:
 	TObjectPtr<UTexture2D> ShopCurrencyFrameTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> WhiteTexture;
-
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UImage> BackgroundImage;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> InventoryPanel;

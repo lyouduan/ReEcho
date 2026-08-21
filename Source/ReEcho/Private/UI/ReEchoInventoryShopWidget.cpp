@@ -80,12 +80,6 @@ int32 CountDraftPartsForSlot(const TArray<FName>& DraftPartIds,
 UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
-	static ConstructorHelpers::FObjectFinder<UTexture2D> InventoryBackgroundFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/InventoryBackground.InventoryBackground"));
-	InventoryBackgroundTexture = InventoryBackgroundFinder.Object;
-	static ConstructorHelpers::FObjectFinder<UTexture2D> ShopBackgroundFinder(
-	    TEXT("/Game/ReEcho/Textures/UI/ShopBackground.ShopBackground"));
-	ShopBackgroundTexture = ShopBackgroundFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ItemCardFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_ItemCard.T_UI_Shop_ItemCard"));
 	ShopItemCardTexture = ItemCardFinder.Object;
@@ -247,7 +241,7 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards,
 
 void UReEchoInventoryShopWidget::BuildWidgetTree()
 {
-	if (!WidgetTree || (WidgetTree->RootWidget && BackgroundImage && InventoryPanel && ShopPanel && CurrencyText &&
+	if (!WidgetTree || (WidgetTree->RootWidget && InventoryPanel && ShopPanel && CurrencyText &&
 	                    InventoryText && CloseButton && OfferContainer))
 	{
 		return;
@@ -256,11 +250,6 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 	UCanvasPanel* RootCanvas =
 	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("InventoryShopRoot"));
 	WidgetTree->RootWidget = RootCanvas;
-
-	BackgroundImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("MenuBackground"));
-	UCanvasPanelSlot* BackgroundSlot = RootCanvas->AddChildToCanvas(BackgroundImage);
-	BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-	BackgroundSlot->SetOffsets(FMargin(0.0f));
 
 	CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CloseButton"));
 	CloseButton->SetBackgroundColor(FLinearColor(0.12f, 0.09f, 0.06f, 0.88f));
@@ -1295,7 +1284,7 @@ UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock&
 
 void UReEchoInventoryShopWidget::Refresh()
 {
-	if (!BackgroundImage || !InventoryPanel || !ShopPanel || !InventoryText || !CurrencyText)
+	if (!InventoryPanel || !ShopPanel || !InventoryText || !CurrencyText)
 	{
 		return;
 	}
@@ -1315,7 +1304,6 @@ void UReEchoInventoryShopWidget::Refresh()
 		}
 	}
 
-	BackgroundImage->SetBrushFromTexture(bShowingShop ? ShopBackgroundTexture : InventoryBackgroundTexture, true);
 	InventoryPanel->SetVisibility(bShowingShop ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	ShopPanel->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	if (ShopLogicScrollBox)
