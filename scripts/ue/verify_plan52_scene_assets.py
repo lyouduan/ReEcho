@@ -80,10 +80,10 @@ arenas = unreal.EditorFilterLibrary.by_class(actor_subsystem.get_all_level_actor
 if len(arenas) != 1:
     fail(f"Level00 must contain one Arena Scene, found {len(arenas)}")
 arena = arenas[0]
-if arena.get_class().get_path_name() != "/Game/ReEcho/Scene/Prefabs/BP_ArenaScene_SC01.BP_ArenaScene_SC01_C":
+if arena.get_class().get_path_name() != "/Game/ReEcho/Scene/Prefabs/BP_ArenaScene_SC02.BP_ArenaScene_SC02_C":
     fail(f"Level00 uses unexpected Arena class: {arena.get_class().get_path_name()}")
-if arena.get_editor_property("scene_profile").get_editor_property("scene_id") != "SC01":
-    fail("Level00 Arena does not use SC01 profile")
+if arena.get_editor_property("scene_profile").get_editor_property("scene_id") != "SC02":
+    fail("Level00 Arena does not use SC02 profile")
 generated = [
     actor
     for actor in actor_subsystem.get_all_level_actors()
@@ -91,4 +91,4 @@ generated = [
 ]
 if len(generated) != 18:
     fail(f"Expected 18 Plan52 generated decorations, found {len(generated)}")
-unreal.log("[Plan52] Asset verification passed: four scenes, Level00 SC01, 18 decorations, legacy maps absent")
+unreal.log("[Plan52] Asset verification passed: four scenes, Level00 SC02, 18 decorations, legacy maps absent")
