@@ -270,7 +270,7 @@ private:
 	void ProcessScheduledSpawnEvents(float EncounterSeconds);
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
 	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
-	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation);
+	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = 0);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);

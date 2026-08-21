@@ -1613,7 +1613,8 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 
 	if (Event.EnemyRole == TEXT("Boss"))
 	{
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f));
+		// Boss两阶段成长在WS4实现；此处不按场次成长（EnemyCombatStats无Boss行）。
+		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), 0);
 		return;
 	}
 	PrepareScheduledSpawnBatch(Event);
@@ -1650,21 +1651,24 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		       Encounter->ActiveUnitLimit);
 	}
 
+	// WS3 (Plan 68): 按场次成长 —— CombatIndex为1-based场次档位(EncounterIndex 0-based + 1)。
+	const int32 CombatIndex = RunSubsystem ? RunSubsystem->EncounterIndex + 1 : 0;
 	for (int32 Index = 0; Index < AllowedCount; ++Index)
 	{
-		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index]);
+		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], CombatIndex);
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
 
-bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation)
+bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex)
 {
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
 	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
 	FReEchoEnemyDefinition Definition;
 	FString CompileError;
-	if (!Snapshot.IsValid() || !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError))
+	if (!Snapshot.IsValid() ||
+	    !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError, CombatIndex))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
 		return false;
