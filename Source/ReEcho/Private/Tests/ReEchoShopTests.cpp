@@ -119,8 +119,12 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	          ReEchoShopOfferCountPerGroup);
 
 	FString Error;
-	TestFalse(TEXT("Unowned parts cannot be committed"),
-	          RunSubsystem->TrySaveWeaponPartLoadout({TEXT("P_CORE_FLAME")}, Error));
+	// Plan 67: committing a loadout equals equipping it; ownership is no longer a
+	// precondition. The submit path still rejects invalid (None) part ids.
+	TestFalse(TEXT("Invalid (None) part id is rejected by the equip path"),
+	          RunSubsystem->TryEquipParts({NAME_None}, Error));
+	TestFalse(TEXT("Unknown part id is rejected by the equip path"),
+	          RunSubsystem->TryEquipParts({TEXT("P_UNKNOWN_PART")}, Error));
 	auto FindAndBuy = [&](const FName PartId)
 	{
 		for (int32 Attempt = 0; Attempt < 64; ++Attempt)
@@ -149,8 +153,9 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	          RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, ShardsAfterDuplicate);
 
-	TestTrue(TEXT("Owned core, grip and blade commit as one loadout"),
-	         RunSubsystem->TrySaveWeaponPartLoadout(
+	// Plan 67: committing a loadout is now exactly equipping it.
+	TestTrue(TEXT("Core and arrowhead equip as one loadout"),
+	         RunSubsystem->TryEquipParts(
 	             {TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
 	TestEqual(
 	    TEXT("Committed loadout contains both equipped slot groups"), RunSubsystem->CurrentBuild.EquippedParts.Num(), 2);

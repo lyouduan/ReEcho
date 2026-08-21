@@ -724,54 +724,6 @@ bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& O
 	return true;
 }
 
-bool UReEchoRunSubsystem::TrySaveWeaponPartLoadout(const TArray<FName>& PartIds, FString& OutError)
-{
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	const FReEchoCsvWeaponRow* Weapon =
-	    Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(CurrentBuild.WeaponId) : nullptr;
-	if (!Snapshot.IsValid() || !Weapon)
-	{
-		OutError = TEXT("Cannot save weapon-part loadout: weapon data is unavailable");
-		return false;
-	}
-
-	TSet<FName> Seen;
-	TMap<FName, int32> SlotCounts;
-	for (const FName PartId : PartIds)
-	{
-		if (Seen.Contains(PartId) || !OwnedPartIds.Contains(PartId))
-		{
-			OutError = FString::Printf(TEXT("Cannot save weapon-part loadout: part '%s' is duplicate or not owned"),
-			                           *PartId.ToString());
-			return false;
-		}
-		Seen.Add(PartId);
-		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(PartId);
-		if (!Part || !IsPartCompatibleWithWeapon(*Snapshot, *Part, *Weapon))
-		{
-			OutError =
-			    FString::Printf(TEXT("Cannot save weapon-part loadout: part '%s' is incompatible"), *PartId.ToString());
-			return false;
-		}
-		SlotCounts.FindOrAdd(Part->SlotTypeId) += 1;
-	}
-
-	for (const TPair<FName, FReEchoCsvSlotProfileRow>& Pair : Snapshot->SlotProfiles)
-	{
-		const FReEchoCsvSlotProfileRow& Profile = Pair.Value;
-		if (Profile.bEnabled && Profile.WeaponTypeId == Weapon->WeaponTypeId && Profile.bRequired &&
-		    SlotCounts.FindRef(Profile.SlotTypeId) < Profile.SlotCount)
-		{
-			OutError = FString::Printf(TEXT("Cannot save weapon-part loadout: required slot '%s' needs %d part(s)"),
-			                           *Profile.SlotTypeId.ToString(),
-			                           Profile.SlotCount);
-			return false;
-		}
-	}
-
-	return TryEquipParts(PartIds, OutError);
-}
-
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 {
 	FReEchoWeaponPartShopView View;

@@ -40,14 +40,38 @@ UTextBlock* CreateText(UWidgetTree* WidgetTree, const FName Name, const int32 Si
 
 float GetAttributeRawValue(const FName& Id, const FReEchoStatBlock& Stats)
 {
-	if (Id == FName(TEXT("S_HP"))) return Stats.HpMax;
-	if (Id == FName(TEXT("S_P_Attack_Power"))) return Stats.PhysicalAttack;
-	if (Id == FName(TEXT("S_E_Attack_Power"))) return Stats.ElementalAttack;
-	if (Id == FName(TEXT("S_Movement_Speed"))) return Stats.MovementSpeed;
-	if (Id == FName(TEXT("S_Critical_Hit_Rate"))) return Stats.CriticalRate;
-	if (Id == FName(TEXT("S_Critical_Hit_Effect"))) return Stats.CriticalEffect;
-	if (Id == FName(TEXT("S_Echo_Efficiency"))) return Stats.EchoEfficiency;
-	if (Id == FName(TEXT("S_Elemental_Reaction_Efficiency"))) return Stats.ReactionEfficiency;
+	if (Id == FName(TEXT("S_HP")))
+	{
+		return Stats.HpMax;
+	}
+	if (Id == FName(TEXT("S_P_Attack_Power")))
+	{
+		return Stats.PhysicalAttack;
+	}
+	if (Id == FName(TEXT("S_E_Attack_Power")))
+	{
+		return Stats.ElementalAttack;
+	}
+	if (Id == FName(TEXT("S_Movement_Speed")))
+	{
+		return Stats.MovementSpeed;
+	}
+	if (Id == FName(TEXT("S_Critical_Hit_Rate")))
+	{
+		return Stats.CriticalRate;
+	}
+	if (Id == FName(TEXT("S_Critical_Hit_Effect")))
+	{
+		return Stats.CriticalEffect;
+	}
+	if (Id == FName(TEXT("S_Echo_Efficiency")))
+	{
+		return Stats.EchoEfficiency;
+	}
+	if (Id == FName(TEXT("S_Elemental_Reaction_Efficiency")))
+	{
+		return Stats.ReactionEfficiency;
+	}
 	return 0.0f;
 }
 
@@ -56,25 +80,6 @@ int32 GetEffectiveShopPrice(const int32 BasePrice, const float Discount)
 	return FMath::Max(0, FMath::CeilToInt(BasePrice * (1.0f - FMath::Clamp(Discount, 0.0f, 1.0f))));
 }
 
-int32 CountDraftPartsForSlot(const TArray<FName>& DraftPartIds,
-                             const TArray<FReEchoShopOffer>& OwnedParts,
-                             const FName SlotTypeId)
-{
-	int32 Count = 0;
-	for (const FName DraftId : DraftPartIds)
-	{
-		const FReEchoShopOffer* DraftPart = OwnedParts.FindByPredicate(
-		    [&](const FReEchoShopOffer& Owned)
-		    {
-			    return Owned.ContentId == DraftId;
-		    });
-		if (DraftPart && DraftPart->SlotTypeId == SlotTypeId)
-		{
-			++Count;
-		}
-	}
-	return Count;
-}
 }
 
 UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer& ObjectInitializer)
@@ -133,9 +138,6 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/"
 	         "T_UI_Shop_HoverCardSlot.T_UI_Shop_HoverCardSlot"));
 	ShopCardSlotTexture = CardSlotFinder.Object;
-	static ConstructorHelpers::FObjectFinder<UTexture2D> SaveLoadoutFinder(TEXT(
-	    "/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_SaveLoadout.T_UI_Shop_SaveLoadout"));
-	ShopSaveLoadoutTexture = SaveLoadoutFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ShopTitleFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_Title.T_UI_Shop_Title"));
 	ShopTitleTexture = ShopTitleFinder.Object;
@@ -192,19 +194,9 @@ void UReEchoInventoryShopWidget::ShowInventory(const int32 TimeShards, const TAr
 	Refresh();
 }
 
-void UReEchoInventoryShopWidget::SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView,
-                                                       const bool bResetDraft)
+void UReEchoInventoryShopWidget::SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView)
 {
 	CurrentPartShopView = PartShopView;
-	if (bResetDraft || DraftWeaponId != PartShopView.WeaponId)
-	{
-		DraftWeaponId = PartShopView.WeaponId;
-		DraftPartIds.Reset();
-		for (const FReEchoEquippedPartSnapshot& Equipped : PartShopView.EquippedParts)
-		{
-			DraftPartIds.Add(Equipped.PartId);
-		}
-	}
 	BuildOfferEntries();
 	BuildLoadoutEntries();
 	Refresh();
@@ -241,8 +233,8 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards,
 
 void UReEchoInventoryShopWidget::BuildWidgetTree()
 {
-	if (!WidgetTree || (WidgetTree->RootWidget && InventoryPanel && ShopPanel && CurrencyText &&
-	                    InventoryText && CloseButton && OfferContainer))
+	if (!WidgetTree || (WidgetTree->RootWidget && InventoryPanel && ShopPanel && CurrencyText && InventoryText &&
+	                    CloseButton && OfferContainer))
 	{
 		return;
 	}
@@ -714,19 +706,6 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 		UVerticalBoxSlot* LoadoutTextSlot = WeaponLoadoutPanel->AddChildToVerticalBox(WeaponLoadoutText);
 		LoadoutTextSlot->SetPadding(FMargin(18.0f, 16.0f, 18.0f, 8.0f));
 	}
-	if (!SaveLoadoutButton)
-	{
-		SaveLoadoutButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("SaveLoadoutButton"));
-		SaveLoadoutButton->SetBackgroundColor(FLinearColor(0.2f, 0.55f, 0.25f, 0.9f));
-		UTextBlock* SaveText = CreateText(WidgetTree, TEXT("SaveLoadoutText"), 22, FLinearColor::White);
-		SaveText->SetText(NSLOCTEXT("ReEcho", "SaveWeaponLoadout", "保存配置"));
-		SaveText->SetJustification(ETextJustify::Center);
-		SaveLoadoutButton->SetContent(SaveText);
-		UVerticalBoxSlot* SaveSlot = WeaponLoadoutPanel->AddChildToVerticalBox(SaveLoadoutButton);
-		SaveSlot->SetPadding(FMargin(18.0f, 8.0f, 18.0f, 12.0f));
-	}
-	SaveLoadoutButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleSaveLoadoutClicked);
-
 	if (WeaponPartOfferButtons.Num() != VisibleWeaponPartOffers.Num())
 	{
 		for (UReEchoIndexedButton* Button : WeaponPartOfferButtons)
@@ -843,18 +822,6 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	UCanvasPanelSlot* RefreshSlot = ShopPresentationLayer->AddChildToCanvas(ShopRefreshButton);
 	RefreshSlot->SetPosition(FVector2D(691.0f, 103.0f));
 	RefreshSlot->SetSize(FVector2D(156.0f, 44.0f));
-
-	TargetSaveLoadoutButton =
-	    WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("TargetSaveLoadoutButton"));
-	TargetSaveLoadoutButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
-	UImage* SaveArt = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("TargetSaveLoadoutArt"));
-	SaveArt->SetBrushFromTexture(ShopSaveLoadoutTexture, true);
-	SaveArt->SetVisibility(ESlateVisibility::HitTestInvisible);
-	TargetSaveLoadoutButton->SetContent(SaveArt);
-	TargetSaveLoadoutButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleSaveLoadoutClicked);
-	UCanvasPanelSlot* SaveSlot = ShopPresentationLayer->AddChildToCanvas(TargetSaveLoadoutButton);
-	SaveSlot->SetPosition(FVector2D(875.0f, 862.0f));
-	SaveSlot->SetSize(FVector2D(337.0f, 83.0f));
 }
 
 void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
@@ -992,8 +959,8 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 		                                 *FString::Printf(TEXT("TargetBuyText%d_%d"), bWeaponPart, OfferIndex),
 		                                 18,
 		                                 FLinearColor(0.03f, 0.03f, 0.03f));
-		BuyText->SetText(bOwnedPart ? (DraftPartIds.Contains(Offer.ContentId) ? FText::FromString(TEXT("已装配"))
-		                                                                      : FText::FromString(TEXT("装配")))
+		BuyText->SetText(bOwnedPart ? (IsPartEquipped(Offer.ContentId) ? FText::FromString(TEXT("已装备"))
+		                                                               : FText::FromString(TEXT("已拥有")))
 		                            : FText::FromString(TEXT("已购买")));
 		BuyText->SetJustification(ETextJustify::Center);
 		UOverlaySlot* TextSlot = ButtonOverlay->AddChildToOverlay(BuyText);
@@ -1113,12 +1080,12 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 {
 	TArray<const FReEchoShopOffer*> DisplayedAttachmentParts;
-	for (const FName DraftPartId : DraftPartIds)
+	for (const FReEchoEquippedPartSnapshot& EquippedPart : CurrentPartShopView.EquippedParts)
 	{
 		const FReEchoShopOffer* Part = CurrentPartShopView.OwnedParts.FindByPredicate(
 		    [&](const FReEchoShopOffer& Candidate)
 		    {
-			    return Candidate.ContentId == DraftPartId;
+			    return Candidate.ContentId == EquippedPart.PartId;
 		    });
 		if (Part)
 		{
@@ -1155,6 +1122,209 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 			HoverButton->SetToolTip(BuildSlotTooltip(*DisplayedAttachmentParts[Index]));
 		}
 	}
+
+	// 给每个槽位按钮绑无参点击处理（点击弹出对应槽位的背包）。
+	if (DesignerAttachmentSlotButtons.IsValidIndex(0) && DesignerAttachmentSlotButtons[0])
+	{
+		DesignerAttachmentSlotButtons[0]->OnClicked.RemoveDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot0Clicked);
+		DesignerAttachmentSlotButtons[0]->OnClicked.AddDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot0Clicked);
+	}
+	if (DesignerAttachmentSlotButtons.IsValidIndex(1) && DesignerAttachmentSlotButtons[1])
+	{
+		DesignerAttachmentSlotButtons[1]->OnClicked.RemoveDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot1Clicked);
+		DesignerAttachmentSlotButtons[1]->OnClicked.AddDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot1Clicked);
+	}
+	if (DesignerAttachmentSlotButtons.IsValidIndex(2) && DesignerAttachmentSlotButtons[2])
+	{
+		DesignerAttachmentSlotButtons[2]->OnClicked.RemoveDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot2Clicked);
+		DesignerAttachmentSlotButtons[2]->OnClicked.AddDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot2Clicked);
+	}
+}
+
+void UReEchoInventoryShopWidget::HandleAttachmentSlot0Clicked()
+{
+	HandleAttachmentSlotClicked(0);
+}
+
+void UReEchoInventoryShopWidget::HandleAttachmentSlot1Clicked()
+{
+	HandleAttachmentSlotClicked(1);
+}
+
+void UReEchoInventoryShopWidget::HandleAttachmentSlot2Clicked()
+{
+	HandleAttachmentSlotClicked(2);
+}
+
+FName UReEchoInventoryShopWidget::GetSlotTypeIdForIndex(int32 SlotIndex) const
+{
+	// 优先用已装备快照的槽位类型；空槽回落到该索引对应的槽位定义。
+	if (CurrentPartShopView.EquippedParts.IsValidIndex(SlotIndex))
+	{
+		const FName EquippedSlotTypeId = CurrentPartShopView.EquippedParts[SlotIndex].SlotTypeId;
+		if (!EquippedSlotTypeId.IsNone())
+		{
+			return EquippedSlotTypeId;
+		}
+	}
+	if (CurrentPartShopView.Slots.IsValidIndex(SlotIndex))
+	{
+		return CurrentPartShopView.Slots[SlotIndex].SlotTypeId;
+	}
+	return NAME_None;
+}
+
+const FReEchoShopOffer* UReEchoInventoryShopWidget::FindOwnedPartByContentId(const FName ContentId) const
+{
+	return CurrentPartShopView.OwnedParts.FindByPredicate(
+	    [&](const FReEchoShopOffer& Candidate)
+	    {
+		    return Candidate.ContentId == ContentId;
+	    });
+}
+
+void UReEchoInventoryShopWidget::HandleAttachmentSlotClicked(const int32 SlotIndex)
+{
+	const FName SlotTypeId = GetSlotTypeIdForIndex(SlotIndex);
+	if (SlotTypeId.IsNone())
+	{
+		return;
+	}
+	// 统计该槽位下“拥有但未装备”的配件数量；为空则无背包可弹。
+	const bool bHasBackpack = CurrentPartShopView.OwnedParts.ContainsByPredicate(
+	    [&](const FReEchoShopOffer& Candidate)
+	    {
+		    return Candidate.SlotTypeId == SlotTypeId && !IsPartEquipped(Candidate.ContentId);
+	    });
+	if (!bHasBackpack)
+	{
+		HideBackpackPopup();
+		return;
+	}
+	if (ActiveBackpackSlotIndex == SlotIndex && BackpackPopupPanel)
+	{
+		HideBackpackPopup();
+		return;
+	}
+	BuildBackpackPopup(SlotIndex);
+}
+
+void UReEchoInventoryShopWidget::HideBackpackPopup()
+{
+	if (BackpackPopupPanel)
+	{
+		BackpackPopupPanel->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	ActiveBackpackSlotIndex = INDEX_NONE;
+	CachedBackpackItemIds.Reset();
+}
+
+void UReEchoInventoryShopWidget::HandleBackpackItemClicked(const int32 ItemIndex)
+{
+	if (!CachedBackpackItemIds.IsValidIndex(ItemIndex))
+	{
+		return;
+	}
+	OnPurchaseRequested.Broadcast(CachedBackpackItemIds[ItemIndex]);
+}
+
+void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
+{
+	if (!DesignerLoadoutCanvas)
+	{
+		return;
+	}
+	const FName SlotTypeId = GetSlotTypeIdForIndex(SlotIndex);
+	if (SlotTypeId.IsNone())
+	{
+		return;
+	}
+
+	if (!BackpackPopupPanel)
+	{
+		BackpackPopupPanel =
+		    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("BackpackPopupPanel"));
+		DesignerLoadoutCanvas->AddChildToCanvas(BackpackPopupPanel);
+	}
+	BackpackPopupPanel->ClearChildren();
+
+	UVerticalBox* PopupList =
+	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("BackpackPopupList"));
+	UCanvasPanelSlot* PanelSlot = DesignerLoadoutCanvas->AddChildToCanvas(PopupList);
+	PanelSlot->SetPosition(FVector2D(0.0f, 0.0f));
+	PanelSlot->SetSize(FVector2D(240.0f, 320.0f));
+	PanelSlot->SetAutoSize(true);
+	BackpackPopupPanel->AddChild(PopupList);
+
+	UTextBlock* Title = CreateText(WidgetTree, TEXT("BackpackPopupTitle"), 18, FLinearColor::White);
+	Title->SetText(FText::FromString(TEXT("背包")));
+	Title->SetAutoWrapText(false);
+	UVerticalBoxSlot* TitleSlot = PopupList->AddChildToVerticalBox(Title);
+	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+
+	TArray<FName> BackpackItemIds;
+	int32 EntryCount = 0;
+	for (const FReEchoShopOffer& Candidate : CurrentPartShopView.OwnedParts)
+	{
+		if (Candidate.SlotTypeId != SlotTypeId || IsPartEquipped(Candidate.ContentId))
+		{
+			continue;
+		}
+		BackpackItemIds.Add(Candidate.ItemId);
+		const int32 ThisIndex = EntryCount++;
+		UReEchoIndexedButton* ItemButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("BackpackItem%d"), ThisIndex));
+		ItemButton->SetEntryIndex(ThisIndex);
+		ItemButton->SetToolTip(BuildSlotTooltip(Candidate));
+		UHorizontalBox* ItemRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+		    UHorizontalBox::StaticClass(), *FString::Printf(TEXT("BackpackItemRow%d"), ThisIndex));
+		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
+		                                                   *FString::Printf(TEXT("BackpackItemIcon%d"), ThisIndex));
+		Icon->SetBrushFromTexture(ResolveWeaponPartIcon(Candidate.ContentId), false);
+		Icon->SetBrushTintColor(FLinearColor::White);
+		UHorizontalBoxSlot* IconSlot = ItemRow->AddChildToHorizontalBox(Icon);
+		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+		UTextBlock* NameText =
+		    CreateText(WidgetTree, *FString::Printf(TEXT("BackpackItemName%d"), ThisIndex), 15, FLinearColor::White);
+		NameText->SetText(Candidate.DisplayName);
+		NameText->SetAutoWrapText(true);
+		ItemRow->AddChildToHorizontalBox(NameText);
+		ItemButton->AddChild(ItemRow);
+		PopupList->AddChildToVerticalBox(ItemButton);
+		ItemButton->OnIndexedClicked.RemoveDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
+		ItemButton->OnIndexedClicked.AddDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
+	}
+	CachedBackpackItemIds = MoveTemp(BackpackItemIds);
+
+	if (EntryCount == 0)
+	{
+		HideBackpackPopup();
+		return;
+	}
+
+	// 定位浮层到点击槽位附近：取对应 DesignerAttachmentSlot 按钮在 canvas 中的位置偏移。
+	if (DesignerAttachmentSlotButtons.IsValidIndex(SlotIndex) && DesignerAttachmentSlotArts.IsValidIndex(SlotIndex))
+	{
+		UImage* SlotArt = DesignerAttachmentSlotArts[SlotIndex];
+		if (SlotArt)
+		{
+			UCanvasPanelSlot* ArtSlot = Cast<UCanvasPanelSlot>(SlotArt->Slot);
+			if (ArtSlot)
+			{
+				const FVector2D ArtPos = ArtSlot->GetPosition();
+				PanelSlot->SetPosition(FVector2D(ArtPos.X + 90.0f, ArtPos.Y));
+			}
+		}
+	}
+
+	BackpackPopupPanel->SetVisibility(ESlateVisibility::Visible);
+	ActiveBackpackSlotIndex = SlotIndex;
 }
 
 UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId) const
@@ -1199,15 +1369,21 @@ UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Of
 void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)
 {
 	CachedPlayerStats = Stats;
-	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] SetPlayerStats called; HpMax=%.1f Atk=%.1f"),
-		Stats.HpMax, Stats.PhysicalAttack);
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[AttrPanel] SetPlayerStats called; HpMax=%.1f Atk=%.1f"),
+	       Stats.HpMax,
+	       Stats.PhysicalAttack);
 	// DesignerShopClock is a designer-authored widget whose concrete type is not guaranteed to be UImage
 	// (it is typically wrapped in a UBorder/UOverlay/UButton or is a UUserWidget). Attach the tooltip to
 	// the widget itself so hover works regardless of its concrete type.
 	if (UWidget* Clock = GetWidgetFromName(TEXT("DesignerShopClock")))
 	{
-		UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] DesignerShopClock FOUND type=%s vis=%d"),
-			*Clock->GetClass()->GetName(), (int32)Clock->GetVisibility());
+		UE_LOG(LogReEcho,
+		       Log,
+		       TEXT("[AttrPanel] DesignerShopClock FOUND type=%s vis=%d"),
+		       *Clock->GetClass()->GetName(),
+		       (int32)Clock->GetVisibility());
 		// The designer authored this image as HitTestInvisible (vis=3), which renders it but makes it
 		// ignore mouse hit-testing, so Slate never fires OnMouseEnter and the tooltip never appears.
 		// Switch to Visible so the tooltip triggers on hover. Rendering is unchanged.
@@ -1217,8 +1393,10 @@ void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)
 			UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] DesignerShopClock visibility forced to Visible for hover"));
 		}
 		UWidget* Panel = BuildAttributePanel(Stats);
-		UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] BuildAttributePanel returned %s; attaching tooltip"),
-			Panel ? TEXT("valid") : TEXT("NULL"));
+		UE_LOG(LogReEcho,
+		       Log,
+		       TEXT("[AttrPanel] BuildAttributePanel returned %s; attaching tooltip"),
+		       Panel ? TEXT("valid") : TEXT("NULL"));
 		Clock->SetToolTip(Panel);
 	}
 	else
@@ -1230,8 +1408,10 @@ void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)
 UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock& Stats) const
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] BuildAttributePanel Snapshot=%s"),
-		Snapshot.IsValid() ? TEXT("valid") : TEXT("NULL"));
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[AttrPanel] BuildAttributePanel Snapshot=%s"),
+	       Snapshot.IsValid() ? TEXT("valid") : TEXT("NULL"));
 	USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
 	TooltipSize->SetWidthOverride(320.0f);
 	UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
@@ -1254,12 +1434,12 @@ UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock&
 			}
 			const float Raw = GetAttributeRawValue(Attr->Id, Stats);
 			const FString ValueText = Attr->ValueKind == FName(TEXT("Percent"))
-				? FString::FromInt(FMath::RoundToInt(Raw * 100.0f)) + TEXT("%")
-				: FString::FromInt(FMath::RoundToInt(Raw));
+			                              ? FString::FromInt(FMath::RoundToInt(Raw * 100.0f)) + TEXT("%")
+			                              : FString::FromInt(FMath::RoundToInt(Raw));
 			UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), NAME_None);
 			UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), NAME_None);
-			const FString IconPath = FString::Printf(
-				TEXT("/Game/ReEcho/Textures/UI/Attributes/%s.%s"), *Attr->IconName, *Attr->IconName);
+			const FString IconPath =
+			    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Attributes/%s.%s"), *Attr->IconName, *Attr->IconName);
 			if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *IconPath))
 			{
 				Icon->SetBrushFromTexture(Tex);
@@ -1288,6 +1468,8 @@ void UReEchoInventoryShopWidget::Refresh()
 	{
 		return;
 	}
+
+	HideBackpackPopup();
 
 	BuildOfferEntries();
 	BuildLoadoutEntries();
@@ -1369,7 +1551,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		                                        ? NSLOCTEXT("ReEcho", "ShopCardGroupAllowed", "可购买")
 		                                        : NSLOCTEXT("ReEcho", "ShopCardGroupDisabled", "已被永久代价禁用")));
 	}
-	if (WeaponLoadoutPanel && WeaponLoadoutText && SaveLoadoutButton)
+	if (WeaponLoadoutPanel && WeaponLoadoutText)
 	{
 		const bool bShowWeaponBlocks = bShowingShop && !CurrentPartShopView.WeaponId.IsNone();
 		WeaponLoadoutPanel->SetVisibility(bShowWeaponBlocks ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
@@ -1381,16 +1563,16 @@ void UReEchoInventoryShopWidget::Refresh()
 		for (const FReEchoWeaponSlotShopView& SlotView : CurrentPartShopView.Slots)
 		{
 			TArray<FString> Names;
-			for (const FName DraftId : DraftPartIds)
+			for (const FReEchoEquippedPartSnapshot& EquippedPart : CurrentPartShopView.EquippedParts)
 			{
-				const FReEchoShopOffer* DraftPart = CurrentPartShopView.OwnedParts.FindByPredicate(
+				const FReEchoShopOffer* OwnedPart = CurrentPartShopView.OwnedParts.FindByPredicate(
 				    [&](const FReEchoShopOffer& Owned)
 				    {
-					    return Owned.ContentId == DraftId && Owned.SlotTypeId == SlotView.SlotTypeId;
+					    return Owned.ContentId == EquippedPart.PartId && Owned.SlotTypeId == SlotView.SlotTypeId;
 				    });
-				if (DraftPart)
+				if (OwnedPart)
 				{
-					Names.Add(DraftPart->DisplayName.ToString());
+					Names.Add(OwnedPart->DisplayName.ToString());
 				}
 			}
 			LoadoutDescription += FString::Printf(TEXT("%s%s [%d/%d]：%s\n"),
@@ -1400,7 +1582,7 @@ void UReEchoInventoryShopWidget::Refresh()
 			                                      SlotView.Capacity,
 			                                      Names.IsEmpty() ? TEXT("未装备") : *FString::Join(Names, TEXT("、")));
 		}
-		LoadoutDescription += TEXT("\n在“武器配件”区购买配件；点击已拥有配件可调整槽位草稿。");
+		LoadoutDescription += TEXT("\n在“武器配件”区购买配件，购买后立即装备；槽位已满时最早的旧配件回落背包。");
 		WeaponLoadoutText->SetText(FText::FromString(LoadoutDescription));
 		for (int32 Index = 0; Index < VisibleWeaponPartOffers.Num(); ++Index)
 		{
@@ -1410,19 +1592,19 @@ void UReEchoInventoryShopWidget::Refresh()
 			    {
 				    return Owned.ContentId == PartOffer.ContentId;
 			    });
-			const bool bDrafted = DraftPartIds.Contains(PartOffer.ContentId);
+			const bool bEquipped = IsPartEquipped(PartOffer.ContentId);
 			const int32 EffectivePrice = GetEffectiveShopPrice(PartOffer.Price, CurrentShopDiscount);
-			WeaponPartOfferButtons[Index]->SetIsEnabled(bOwned || CurrentTimeShards >= EffectivePrice);
-			WeaponPartOfferButtons[Index]->SetBackgroundColor(bDrafted ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f)
-			                                                           : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
+			WeaponPartOfferButtons[Index]->SetIsEnabled(!bOwned && CurrentTimeShards >= EffectivePrice);
+			WeaponPartOfferButtons[Index]->SetBackgroundColor(bEquipped ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f)
+			                                                            : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
 			WeaponPartOfferTexts[Index]->SetText(
 			    FText::Format(NSLOCTEXT("ReEcho", "WeaponPartOfferFormat", "{0} · {1}{2}"),
 			                  PartOffer.DisplayName,
 			                  FText::FromName(PartOffer.SlotTypeId),
-			                  bDrafted ? NSLOCTEXT("ReEcho", "WeaponPartDrafted", "（草稿已装备）")
-			                  : bOwned ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已拥有，点击装配）")
-			                           : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
-			                                           FText::AsNumber(EffectivePrice))));
+			                  bEquipped ? NSLOCTEXT("ReEcho", "WeaponPartEquipped", "（已装备）")
+			                  : bOwned  ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已拥有）")
+			                            : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
+                                                       FText::AsNumber(EffectivePrice))));
 		}
 	}
 	if (ShopPresentationLayer)
@@ -1491,54 +1673,13 @@ void UReEchoInventoryShopWidget::HandleRefreshClicked()
 	OnRefreshRequested.Broadcast();
 }
 
-void UReEchoInventoryShopWidget::ToggleDraftPart(const int32 OwnedPartIndex)
+bool UReEchoInventoryShopWidget::IsPartEquipped(const FName PartId) const
 {
-	if (!CurrentPartShopView.OwnedParts.IsValidIndex(OwnedPartIndex))
-	{
-		return;
-	}
-	const FReEchoShopOffer& Part = CurrentPartShopView.OwnedParts[OwnedPartIndex];
-	const FReEchoWeaponSlotShopView* SlotView = CurrentPartShopView.Slots.FindByPredicate(
-	    [&](const FReEchoWeaponSlotShopView& Candidate)
+	return CurrentPartShopView.EquippedParts.ContainsByPredicate(
+	    [&](const FReEchoEquippedPartSnapshot& Equipped)
 	    {
-		    return Candidate.SlotTypeId == Part.SlotTypeId;
+		    return Equipped.PartId == PartId;
 	    });
-	if (!SlotView || SlotView->Capacity <= 0)
-	{
-		return;
-	}
-	if (DraftPartIds.RemoveSingle(Part.ContentId) > 0)
-	{
-		const int32 RemainingInSlot =
-		    CountDraftPartsForSlot(DraftPartIds, CurrentPartShopView.OwnedParts, Part.SlotTypeId);
-		if (SlotView->bRequired && RemainingInSlot == 0)
-		{
-			DraftPartIds.Add(Part.ContentId);
-		}
-		Refresh();
-		return;
-	}
-
-	while (CountDraftPartsForSlot(DraftPartIds, CurrentPartShopView.OwnedParts, Part.SlotTypeId) >= SlotView->Capacity)
-	{
-		const int32 ReplaceIndex = DraftPartIds.IndexOfByPredicate(
-		    [&](const FName DraftId)
-		    {
-			    const FReEchoShopOffer* DraftPart = CurrentPartShopView.OwnedParts.FindByPredicate(
-			        [&](const FReEchoShopOffer& Owned)
-			        {
-				        return Owned.ContentId == DraftId;
-			        });
-			    return DraftPart && DraftPart->SlotTypeId == Part.SlotTypeId;
-		    });
-		if (ReplaceIndex == INDEX_NONE)
-		{
-			break;
-		}
-		DraftPartIds.RemoveAt(ReplaceIndex);
-	}
-	DraftPartIds.Add(Part.ContentId);
-	Refresh();
 }
 
 void UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked(const int32 PartOfferIndex)
@@ -1548,22 +1689,17 @@ void UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked(const int32 PartOf
 		return;
 	}
 	const FReEchoShopOffer& PartOffer = VisibleWeaponPartOffers[PartOfferIndex];
-	const int32 OwnedPartIndex = CurrentPartShopView.OwnedParts.IndexOfByPredicate(
+	const bool bAlreadyOwned = CurrentPartShopView.OwnedParts.ContainsByPredicate(
 	    [&](const FReEchoShopOffer& Owned)
 	    {
 		    return Owned.ContentId == PartOffer.ContentId;
 	    });
-	if (OwnedPartIndex == INDEX_NONE)
+	if (bAlreadyOwned)
 	{
-		OnPurchaseRequested.Broadcast(PartOffer.ItemId);
+		// 购买即装备：已拥有的配件没有二次装配动作。
 		return;
 	}
-	ToggleDraftPart(OwnedPartIndex);
-}
-
-void UReEchoInventoryShopWidget::HandleSaveLoadoutClicked()
-{
-	OnWeaponLoadoutSaveRequested.Broadcast(DraftPartIds);
+	OnPurchaseRequested.Broadcast(PartOffer.ItemId);
 }
 
 void UReEchoInventoryShopWidget::HandleEchoStorageCardSlotClicked()

@@ -75,7 +75,6 @@ public:
 	}
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
-	bool TrySaveWeaponPartLoadout(const TArray<FName>& PartIds, FString& OutError);
 	FReEchoWeaponPartShopView GetWeaponPartShopView() const;
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 	int32 GetTotalEncounterCount() const;
