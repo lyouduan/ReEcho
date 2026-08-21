@@ -65,6 +65,7 @@
 - 世界 Actor、确定性遭遇推进、战斗请求与结果。
 - 本局只读摘要、保存文件、录制与 Echo Playback。
 - UI 屏幕命令、只读展示数据和表现事件。
+- 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 
 ### 稳定契约
@@ -264,7 +265,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - Boss 表现边界：`Enemy.TimeGuard` 使用普通敌人相同的 Catalog/Profile/Gameplay Blueprint/FSM 路径；不存在 `Boss2D` 静态贴图特例。专属动画未交付时仅由 `DA_Enemy_TimeGuard` 显式复用 Goat 动画。
 - 阴影渲染层：GroundShadow 与 Flipbook 共享 MotionRoot 只解决位置同步，前后遮挡由整数 `TranslucencySortPriority` 明确控制。玩家与全部怪物阴影固定为 `-10`，角色 Flipbook 使用 Profile/Clip 的非负表现层，禁止使用会被截断为零的小数排序值，确保阴影始终绘制在角色下层。
 - 旧架构清理：`ReEcho2DVisualPrefabActor` 类型与 `/Game/ReEcho/Animation2D/VisualPrefabs/**` 蓝图资产已删除。角色表现只能从真实 Gameplay Blueprint 扩展，禁止重新引入运行时第二 Actor 或另一套表现组件树。
-- 场景 Prefab：通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 是只选择对应 `DA_ArenaScene_SC01..04` 的薄子 Blueprint；Level00 当前放置 SC01 子类。四张唯一权威地图源图/Texture2D 为 `/Game/ReEcho/Art/Scene/Map/sc01..04`，统一由 `M_ArenaGround` 与 `MI_SC01..04` 消费。正式 Level00 的 Arena Actor 与 `MapRoot` 位于世界原点，`GameplayPlaneZ=0`；Backdrop 位于地面下方极小偏移，Floor 顶面与地面平面对齐但不阻挡 Pawn，角色高度由玩法平面保持，只有四面墙承担移动阻挡。`author_plan52_decorations.py` 从 ArenaCamera 计算卡片朝向，按 Profile 中央安全区拒绝高卡片落点，并以三档尺寸和脚点排序烘焙可单独编辑的 StaticMeshActor；Bake/Clear 只替换 Plan52 专用标签集合，不触碰手工作品。美术可在 Blueprint 的可选视觉层继续新增组件；相机、MapRoot、玩法范围和碰撞仍由类型化原生接口供 GameMode 消费。
+- 场景 Prefab：通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 是只选择对应 `DA_ArenaScene_SC01..04` 的薄子 Blueprint；Level00 当前放置 SC02 子类。四张唯一权威地图源图/Texture2D 为 `/Game/ReEcho/Art/Scene/Map/sc01..04`，统一由 `M_ArenaGround` 与 `MI_SC01..04` 消费。正式 Level00 的 Arena Actor 与 `MapRoot` 位于世界原点，`GameplayPlaneZ=0`；Backdrop 位于地面下方极小偏移，Floor 顶面与地面平面对齐但不阻挡 Pawn，角色高度由玩法平面保持，只有四面墙承担移动阻挡。`author_plan52_decorations.py` 从 ArenaCamera 计算卡片朝向，按 Profile 中央安全区拒绝高卡片落点，并以三档尺寸和脚点排序烘焙可单独编辑的 StaticMeshActor；Bake/Clear 只替换 Plan52 专用标签集合，不触碰手工作品。美术可在 Blueprint 的可选视觉层继续新增组件；相机、MapRoot、玩法范围和碰撞仍由类型化原生接口供 GameMode 消费。
 - 2D表现FSM：`ReEcho2DAnimationStateMachineAsset` 保存 Idle/Move/Attack/Hit 状态Tag、语义、可中断优先级和播放完成去向；`ReEcho2DPresentationController` 是纯 Flipbook 执行器并保留Gameplay宿主的稳定意图API。Profile负责绑定FSM与Appearance/WeaponVisualSet Clip，状态机只选择Flipbook和表现状态，不通过动画帧或完成回调反向驱动伤害、移动、AI或根 Box Collision。
 - 扩展：表现缺失、提前结束或加载失败必须不改变玩法；Animation2D 不依赖具体角色枚举，也不通过回调反向控制 Combat/Weapons。新增关卡场景应复用类型化 Arena Scene 契约，并由 Editor 维护关卡资产，不在 GameMode 增加路径或 Actor Label 分支。
 - 测试：`ReEchoArenaSceneTests.cpp` 覆盖正交视锥地面 footprint、中心跟随、四边/四角 Clamp 与地图小于视野时的中心锁定；场景 Actor 唯一性和资产绑定由 Editor 自动化与人工 PIE 验收。

@@ -548,7 +548,7 @@ void AReEchoGameMode::StartPlay()
 			                         : nullptr;
 			if (PlayerHudWidget)
 			{
-				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
+				PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 				PlayerHudWidget->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
@@ -1176,7 +1176,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		Player->Movement->MaxSpeed = 420.0f * Stats.MovementSpeed;
 		if (PlayerHudWidget)
 		{
-			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
+			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 		}
 		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
 		                                 TEXT("GrayboxArena"),
@@ -1327,7 +1327,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Player->Recorder->ResumeRecording(SavedState.ActiveRecording);
 	if (PlayerHudWidget)
 	{
-		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->GetPortraitTexture());
+		PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 	}
 
 	// Plan31: resume the same selected set as a fresh encounter, one independent Echo per

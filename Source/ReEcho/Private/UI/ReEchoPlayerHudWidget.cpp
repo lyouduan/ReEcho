@@ -1,6 +1,7 @@
 #include "UI/ReEchoPlayerHudWidget.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
@@ -13,6 +14,8 @@
 #include "Components/TextBlock.h"
 #include "Engine/Texture2D.h"
 #include "Styling/SlateBrush.h"
+#include "UI/ReEchoPlayerScreenFeedbackWidget.h"
+#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -29,6 +32,17 @@ FSlateBrush MakeRoundedBrush(const FLinearColor& FillColor,
 }
 } // namespace
 
+UReEchoPlayerHudWidget::UReEchoPlayerHudWidget(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+{
+	static ConstructorHelpers::FClassFinder<UReEchoPlayerScreenFeedbackWidget> FeedbackWidgetFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoPlayerScreenFeedback"));
+	PlayerScreenFeedbackClass = FeedbackWidgetFinder.Class;
+	if (!PlayerScreenFeedbackClass)
+	{
+		PlayerScreenFeedbackClass = UReEchoPlayerScreenFeedbackWidget::StaticClass();
+	}
+}
+
 TSharedRef<SWidget> UReEchoPlayerHudWidget::RebuildWidget()
 {
 	if (GetClass() == StaticClass())
@@ -42,12 +56,17 @@ void UReEchoPlayerHudWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	BuildWidgetTree();
+	EnsureScreenFeedbackWidget();
 	Refresh();
 }
 
-void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCombatant, UTexture2D* InPortraitTexture)
+void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCombatant,
+                                                 UReEchoCombatEventsComponent* InCombatEvents,
+                                                 UTexture2D* InPortraitTexture)
 {
 	BindCombatant(InCombatant);
+	BindCombatEvents(InCombatEvents);
+	EnsureScreenFeedbackWidget();
 	PortraitTexture = InPortraitTexture;
 	if (PlayerPortrait && PortraitTexture)
 	{
@@ -59,6 +78,7 @@ void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCo
 void UReEchoPlayerHudWidget::NativeDestruct()
 {
 	BindCombatant(nullptr);
+	BindCombatEvents(nullptr);
 	Super::NativeDestruct();
 }
 
@@ -152,6 +172,33 @@ void UReEchoPlayerHudWidget::BuildWidgetTree()
 	Refresh();
 }
 
+void UReEchoPlayerHudWidget::EnsureScreenFeedbackWidget()
+{
+	if (PlayerScreenFeedback || !WidgetTree)
+	{
+		return;
+	}
+
+	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!RootCanvas)
+	{
+		return;
+	}
+
+	TSubclassOf<UReEchoPlayerScreenFeedbackWidget> FeedbackClass = PlayerScreenFeedbackClass;
+	if (!FeedbackClass)
+	{
+		FeedbackClass = UReEchoPlayerScreenFeedbackWidget::StaticClass();
+	}
+	PlayerScreenFeedback =
+	    WidgetTree->ConstructWidget<UReEchoPlayerScreenFeedbackWidget>(FeedbackClass, TEXT("PlayerScreenFeedback"));
+	PlayerScreenFeedback->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* FeedbackSlot = RootCanvas->AddChildToCanvas(PlayerScreenFeedback);
+	FeedbackSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	FeedbackSlot->SetOffsets(FMargin(0.0f));
+	FeedbackSlot->SetZOrder(-100);
+}
+
 void UReEchoPlayerHudWidget::Refresh()
 {
 	if (!Combatant.IsValid())
@@ -175,17 +222,58 @@ void UReEchoPlayerHudWidget::BindCombatant(UReEchoCombatantComponent* InCombatan
 	}
 }
 
+void UReEchoPlayerHudWidget::BindCombatEvents(UReEchoCombatEventsComponent* InCombatEvents)
+{
+	if (CombatEvents.IsValid())
+	{
+		CombatEvents->OnHurt.RemoveDynamic(this, &UReEchoPlayerHudWidget::HandlePlayerHurt);
+	}
+	CombatEvents = InCombatEvents;
+	if (CombatEvents.IsValid())
+	{
+		CombatEvents->OnHurt.AddUniqueDynamic(this, &UReEchoPlayerHudWidget::HandlePlayerHurt);
+	}
+}
+
 void UReEchoPlayerHudWidget::HandleHealthChanged(const float CurrentHealth, const float MaximumHealth)
 {
+	const float SafeMaximumHealth = FMath::Max(1.0f, MaximumHealth);
+	const float ClampedHealth = FMath::Clamp(CurrentHealth, 0.0f, SafeMaximumHealth);
+	if (PlayerScreenFeedback)
+	{
+		PlayerScreenFeedback->SetHealth(ClampedHealth, SafeMaximumHealth);
+	}
+
 	if (!PlayerHealthProgress || !PlayerHealthText)
 	{
 		return;
 	}
 
-	const float SafeMaximumHealth = FMath::Max(1.0f, MaximumHealth);
-	const float ClampedHealth = FMath::Clamp(CurrentHealth, 0.0f, SafeMaximumHealth);
 	PlayerHealthProgress->SetPercent(ClampedHealth / SafeMaximumHealth);
 	PlayerHealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0}/{1}"),
 	                                        FText::AsNumber(FMath::CeilToInt(ClampedHealth)),
 	                                        FText::AsNumber(FMath::CeilToInt(SafeMaximumHealth))));
 }
+
+void UReEchoPlayerHudWidget::HandlePlayerHurt(const FReEchoDamageEvent& Event)
+{
+	if (!PlayerScreenFeedback || !Combatant.IsValid() || Combatant->CurrentHealth <= 0.0f ||
+	    !UReEchoPlayerScreenFeedbackWidget::ShouldPlayHurtFeedback(Event.AppliedDamage, Event.bBlocked))
+	{
+		return;
+	}
+
+	PlayerScreenFeedback->PlayHurtFeedback(Event.AppliedDamage, Combatant->Stats.HpMax);
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+bool UReEchoPlayerHudWidget::IsBoundToCombatEventsForTests(const UReEchoCombatEventsComponent* InCombatEvents) const
+{
+	return InCombatEvents && InCombatEvents->OnHurt.IsAlreadyBound(this, &UReEchoPlayerHudWidget::HandlePlayerHurt);
+}
+
+UClass* UReEchoPlayerHudWidget::GetScreenFeedbackClassForTests() const
+{
+	return PlayerScreenFeedbackClass.Get();
+}
+#endif
