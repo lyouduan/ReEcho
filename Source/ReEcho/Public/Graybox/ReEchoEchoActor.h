@@ -9,6 +9,12 @@
 
 class AReEchoWeaponActor;
 class UBillboardComponent;
+class UReEcho2DAnimationComponent;
+class UReEcho2DCharacterPresentationProfile;
+class UReEcho2DFrameCollisionDriver;
+class UReEcho2DPresentationCatalog;
+class UReEcho2DPresentationController;
+class UReEcho2DSceneLightingComponent;
 class UReEchoCombatantComponent;
 class UReEchoCombatEventsComponent;
 class UReEchoCombatAudioAdapterComponent;
@@ -71,8 +77,16 @@ public:
 	FName GetEquippedWeaponId() const;
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
 
+	FVector GetAttackAimDirection() const
+	{
+		return AttackAimDirection;
+	}
+
 	/** 返回录制的历史位置（世界 XY 平面），供右上角小地图绘制回响轨迹。 */
-	const TArray<FVector2D>& GetRecordedPath() const { return RecordedPath; }
+	const TArray<FVector2D>& GetRecordedPath() const
+	{
+		return RecordedPath;
+	}
 
 	virtual EReEchoCombatFaction GetCombatFaction() const override
 	{
@@ -87,6 +101,16 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USceneComponent> PresentationRoot;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USceneComponent> FootRoot;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USceneComponent> PresentationMotionRoot;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USceneComponent> FlipbookRoot;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USceneComponent> GroundRoot;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Effects",
@@ -108,6 +132,15 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBillboardComponent> CharacterSprite;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DAnimationComponent> EchoAnimation;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DPresentationController> PresentationController;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEcho2DSceneLightingComponent> SceneLighting;
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoPlaybackComponent> Playback;
@@ -133,12 +166,30 @@ private:
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> EchoTextures;
 
-	FVector BaseSpriteLocation = FVector::ZeroVector;
-	FVector BaseSpriteScale = FVector::OneVector;
-	float VisualTime = 0.0f;
-	float AttackVisualRemaining = 0.0f;
+	UPROPERTY()
+	TObjectPtr<UReEcho2DPresentationCatalog> EchoPresentationCatalog;
+	UPROPERTY()
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> ActivePresentationProfile;
+
+	void RefreshPresentationProfile();
+	void UpdatePresentationState();
+	void RefreshFootpointAlignment();
+	void RefreshGroundShadowFromFlipbook();
+	void UpdateFacingSign(const FVector& AimDirection);
+	FName ConfiguredCharacterId = NAME_None;
+	FVector BaseVisualLocation = FVector::ZeroVector;
+	FVector BaseVisualScale = FVector::OneVector;
+	FVector AuthoredMotionLocation = FVector::ZeroVector;
+	FVector CalculatedFootAlignmentOffset = FVector::ZeroVector;
+	FVector AuthoredGroundRootLocation = FVector::ZeroVector;
+	FVector AuthoredGroundShadowScale = FVector::OneVector;
+	FVector LastPresentationLocation = FVector::ZeroVector;
+	FVector AttackAimDirection = FVector::ForwardVector;
+	float VisualFacingSign = 1.0f;
+	int64 NextPresentationAttackInstanceId = 1;
 	float AutoTargetRange = 1600.0f;
 	float DamageEfficiency = 1.0f;
+	bool bHasPresentationLocation = false;
 	bool bAudioLifecycleStarted = false;
 	bool bCanAttack = true;
 };

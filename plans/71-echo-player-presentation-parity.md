@@ -6,7 +6,7 @@
 - Executor 负责人：当前对话程序 Executor。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@a2817442`。
 - 本地实现方式：用户已确认不采用一任务一 worktree，直接在当前本地 `main` 执行；Plan-only 发布使用临时干净副本，不承载实现。
@@ -15,6 +15,7 @@
   - `plans/71-echo-player-presentation-parity.md`
   - `Source/ReEcho/Public/Graybox/ReEchoEchoActor.h`
   - `Source/ReEcho/Private/Graybox/ReEchoEchoActor.cpp`
+  - `Source/ReEcho/Private/Weapons/ReEchoWeaponActor.cpp`（只读取 Echo 独立瞄准方向）
   - `Source/ReEcho/Private/Tests/ReEchoSpadeAppearanceTests.cpp` 或独立 Echo 表现测试
   - `Content/ReEcho/Animation2D/DA_Echo_J_HEART.uasset`
   - `Content/ReEcho/Animation2D/DA_Echo_J_SPADE.uasset`
@@ -100,10 +101,30 @@
 
 ### 变化
 
+- EchoActor 已改为 Player 同构的 Presentation/Foot/Motion/Flipbook/Ground 组件树，并装配 PresentationController、FrameCollisionDriver 与 SceneLighting。
+- 新增独立 Echo Catalog 与四个 Profile；四角色分别绑定自己的 Walk/Attack/Attack_Arrow，Staff/Bow/Gun 通过 WeaponVisualKey 覆盖远程攻击动画。
+- 移除 EchoActor 内三组 Flipbook Map、AttackPattern 字符串分支、攻击动画秒表和程序缩放脉冲；攻击成功只提交 `Animation.Attack.Basic`，播放完成由 Controller 回到 Idle/Move。
+- Echo 自动索敌写入独立 `AttackAimDirection` 并驱动相机横向镜像；WeaponActor 读取该方向，玩法根 Actor 不再为表现或瞄准旋转。
+- 保留 Billboard 作为 Profile/Flipbook 缺失时的静态安全回退。
+
 ### 证据
+
+- `author_echo_presentation_profiles.py` 连续执行后日志确认 `[Plan71] Echo presentation profiles and isolated catalog verified`。
+- 隔离未发布 Sage 源码后的最终 Development FullRebuild 通过，95 个 action 完成并刷新预构建源码指纹 `9ddb7f5f3fa1`。
+- `ReEcho.Presentation.EchoAppearance.CharacterMappings` 发现 1 项并 `Success`；覆盖四 Catalog 映射、12 个 Flipbook 加载、近战 Attack、Bow Attack_Arrow、Actor 实际 Walk 与未知 ID 拒绝。
 
 ### 剩余风险
 
+- 自动化不能判断四角色在 SC02 中的最终视觉尺寸、脚点、阴影宽度和攻击动作观感，仍需 PIE 人工验收。
+- 人工 PIE 视觉验收仍未记录；按用户要求先发布 Review 候选，Plan 保持未关闭。
+
 ### 人工验收结果/请求
 
+`PendingBeforeClose`：PIE 逐一检查 Heart/Spade/Clover/Diamond 的移动、停止、左右朝向，以及近战和 Staff/Bow/Gun 攻击切换。
+
 ### 架构文档审阅结果
+
+- `MOD-ReEcho.md`：已更新，记录 Echo 与 Player 同构表现链、独立 Catalog/Profile、WeaponVisualKey 路由和独立瞄准方向。
+- `MOD-ReEchoPresentation.md`：已审阅、无需修改；本 Plan 只消费既有 Catalog/Profile/Controller 公共契约，没有修改 Presentation 模块接口或所有权。
+- `ARCHITECTURE.md`：已审阅、无需修改；Runtime Module 拓扑与 `ReEcho -> ReEchoPresentation` 单向依赖不变。
+- `README.md`：已审阅、无需修改；仍属于现有 `AREA-Presentation` 与 `AREA-Recording` 路由。

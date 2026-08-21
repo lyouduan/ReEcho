@@ -3,6 +3,7 @@
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatAudioAdapterComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/BillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -14,6 +15,15 @@
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Math/RotationMatrix.h"
+#include "PaperFlipbook.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
+#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
 #include "Recording/ReEchoPlaybackComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -29,8 +39,20 @@ AReEchoEchoActor::AReEchoEchoActor()
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
+	PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
+	PresentationRoot->SetupAttachment(RootComponent);
+	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
+	FootRoot->SetupAttachment(PresentationRoot);
+	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
+	PresentationMotionRoot->SetupAttachment(FootRoot);
+	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
+	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
+	FlipbookRoot->SetRelativeRotation(
+	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
+	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
+	GroundRoot->SetupAttachment(FootRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
-	EffectsRoot->SetupAttachment(RootComponent);
+	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
 	AttackVfxRoot->SetupAttachment(EffectsRoot);
 	AttackVfxRoot->bEditableWhenInherited = true;
@@ -38,13 +60,12 @@ AReEchoEchoActor::AReEchoEchoActor()
 	HurtVfxRoot->SetupAttachment(EffectsRoot);
 	HurtVfxRoot->bEditableWhenInherited = true;
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
-	GroundShadow->SetupAttachment(RootComponent);
+	GroundShadow->SetupAttachment(GroundRoot);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GroundShadow->SetCastShadow(false);
-	GroundShadow->SetTranslucentSortPriority(-1);
-	GroundShadow->SetAbsolute(false, false, true);
+	GroundShadow->SetTranslucentSortPriority(-10);
 	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
-	GroundShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -224.0f * 0.28f));
+	GroundShadow->SetRelativeLocation(FVector::ZeroVector);
 	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));
 	if (UMaterialInterface* ShadowMaterial = LoadObject<UMaterialInterface>(
 	        nullptr, TEXT("/Game/ReEcho/Materials/M_GroundShadow_Procedural.M_GroundShadow_Procedural")))
@@ -52,17 +73,23 @@ AReEchoEchoActor::AReEchoEchoActor()
 		GroundShadow->SetMaterial(0, ShadowMaterial);
 	}
 	CharacterSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("CharacterSprite"));
-	CharacterSprite->SetupAttachment(RootComponent);
+	CharacterSprite->SetupAttachment(FlipbookRoot);
 	CharacterSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CharacterSprite->SetHiddenInGame(false);
 	CharacterSprite->SetVisibility(true);
-	constexpr float CharacterWorldHeight = 224.0f;
 	CharacterSprite->SetRelativeLocation(FVector::ZeroVector);
 	CharacterSprite->bIsScreenSizeScaled = false;
+	EchoAnimation = CreateDefaultSubobject<UReEcho2DAnimationComponent>(TEXT("FlipbookRenderer"));
+	EchoAnimation->SetupAttachment(FlipbookRoot);
+	PresentationController = CreateDefaultSubobject<UReEcho2DPresentationController>(TEXT("PresentationController"));
+	FrameCollisionDriver = CreateDefaultSubobject<UReEcho2DFrameCollisionDriver>(TEXT("FrameCollisionDriver"));
+	PresentationController->BindCollisionDriver(FrameCollisionDriver);
+	SceneLighting = CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
+	SceneLighting->Configure(EchoAnimation, GroundShadow);
 	static ConstructorHelpers::FObjectFinder<UTexture2D> HeartTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Heart.Player_Heart"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> SpadeTextureFinder(
-	    TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Walk/Textures/Idel_01.Idel_01"));
+	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Cat.Player_Cat"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CloverTextureFinder(
 	    TEXT("/Game/ReEcho/Textures/Characters/NewCast/Player_Clover.Player_Clover"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DiamondTextureFinder(
@@ -71,9 +98,15 @@ AReEchoEchoActor::AReEchoEchoActor()
 	EchoTextures.Add(TEXT("J_SPADE"), SpadeTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
+	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> EchoCatalogFinder(
+	    TEXT("/Game/ReEcho/Animation2D/DA_EchoPresentationCatalog.DA_EchoPresentationCatalog"));
+	EchoPresentationCatalog = EchoCatalogFinder.Object;
 	ConfigureEchoAppearance(TEXT("J_SPADE"));
-	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
-	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
+	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
+	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
+	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	AuthoredGroundRootLocation = GroundRoot->GetRelativeLocation();
+	AuthoredGroundShadowScale = GroundShadow->GetRelativeScale3D();
 
 	Playback = CreateDefaultSubobject<UReEchoPlaybackComponent>(TEXT("Playback"));
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
@@ -126,6 +159,10 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 			Weapon = nullptr;
 			return false;
 		}
+		if (PresentationController)
+		{
+			PresentationController->SetWeaponVisualSetId(Weapon->GetEquippedWeaponVisualKey());
+		}
 		FReEchoStatBlock EchoStats = Weapon->GetBuildSnapshot().Stats;
 		EchoStats.PhysicalAttack = FMath::Max(1.0f, EchoStats.PhysicalAttack * DamageEfficiency);
 		EchoStats.ElementalAttack = FMath::Max(1.0f, EchoStats.ElementalAttack * DamageEfficiency);
@@ -147,14 +184,35 @@ bool AReEchoEchoActor::ConfigureEchoAppearance(const FName CharacterId)
 		return false;
 	}
 
-	UTexture2D* Texture = TextureEntry->Get();
-	constexpr float CharacterWorldHeight = 224.0f;
-	CharacterSprite->SetSprite(Texture);
-	const float TextureScale = CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY());
-	CharacterSprite->SetRelativeScale3D(FVector(TextureScale));
-	BaseSpriteLocation = CharacterSprite->GetRelativeLocation();
-	BaseSpriteScale = CharacterSprite->GetRelativeScale3D();
+	ConfiguredCharacterId = CharacterId;
+	RefreshPresentationProfile();
+	const bool bHasAnimation = EchoAnimation && EchoAnimation->IsAnimationActive();
+	CharacterSprite->SetVisibility(!bHasAnimation);
+	CharacterSprite->SetHiddenInGame(bHasAnimation);
+	if (!EchoAnimation || !EchoAnimation->IsAnimationActive())
+	{
+		UTexture2D* Texture = TextureEntry->Get();
+		constexpr float CharacterWorldHeight = 224.0f;
+		CharacterSprite->SetSprite(Texture);
+		CharacterSprite->SetRelativeScale3D(FVector(CharacterWorldHeight / FMath::Max(1, Texture->GetSizeY())));
+		CharacterSprite->SetVisibility(true);
+		CharacterSprite->SetHiddenInGame(false);
+	}
 	return true;
+}
+
+void AReEchoEchoActor::RefreshPresentationProfile()
+{
+	ActivePresentationProfile =
+	    EchoPresentationCatalog ? EchoPresentationCatalog->ResolveProfile(ConfiguredCharacterId) : nullptr;
+	if (PresentationController)
+	{
+		PresentationController->Configure(
+		    EchoAnimation, ActivePresentationProfile, Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
+	}
+	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
+	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
+	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
 }
 
 void AReEchoEchoActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -276,19 +334,94 @@ void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 	Playback->AdvancePlayback(EncounterTime);
 }
 
+void AReEchoEchoActor::UpdatePresentationState()
+{
+	const FVector CurrentLocation = GetActorLocation();
+	const bool bMoving =
+	    bHasPresentationLocation && FVector::DistSquared2D(CurrentLocation, LastPresentationLocation) > 1.0f;
+	if (PresentationController)
+	{
+		PresentationController->SetMoving(bMoving);
+		PresentationController->SetFacingSign(VisualFacingSign);
+	}
+	LastPresentationLocation = CurrentLocation;
+	bHasPresentationLocation = true;
+	FlipbookRoot->SetRelativeLocation(BaseVisualLocation);
+	FlipbookRoot->SetRelativeScale3D(BaseVisualScale);
+	RefreshFootpointAlignment();
+	PresentationMotionRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset);
+	RefreshGroundShadowFromFlipbook();
+}
+
+void AReEchoEchoActor::RefreshFootpointAlignment()
+{
+	CalculatedFootAlignmentOffset = FVector::ZeroVector;
+	const UPaperFlipbook* Flipbook = EchoAnimation ? EchoAnimation->GetFlipbook() : nullptr;
+	if (!FlipbookRoot || !EchoAnimation || !Flipbook ||
+	    (ActivePresentationProfile && !ActivePresentationProfile->bAutoAlignFootpoint))
+	{
+		return;
+	}
+	CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(
+	    Flipbook->GetRenderBounds(),
+	    EchoAnimation->GetRelativeTransform(),
+	    FlipbookRoot->GetRelativeTransform(),
+	    AuthoredMotionLocation,
+	    ActivePresentationProfile ? ActivePresentationProfile->FootpointOffset : FVector::ZeroVector);
+}
+
+void AReEchoEchoActor::RefreshGroundShadowFromFlipbook()
+{
+	const UPaperFlipbook* Flipbook = EchoAnimation ? EchoAnimation->GetFlipbook() : nullptr;
+	const UStaticMesh* ShadowMesh = GroundShadow ? GroundShadow->GetStaticMesh() : nullptr;
+	if (!FootRoot || !GroundRoot || !FlipbookRoot || !EchoAnimation || !Flipbook || !GroundShadow || !ShadowMesh)
+	{
+		return;
+	}
+	const FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
+	const FVector LocalBottomCenter(
+	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector BottomWorld = EchoAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
+	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
+	GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+
+	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
+	    FlipbookBounds, EchoAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());
+	const float ShadowNativeWidth = ShadowMesh->GetBounds().BoxExtent.Y * 2.0f;
+	if (FlipbookWidth > UE_SMALL_NUMBER && ShadowNativeWidth > UE_SMALL_NUMBER)
+	{
+		FVector ShadowScale = AuthoredGroundShadowScale;
+		ShadowScale.Y = FlipbookWidth / ShadowNativeWidth;
+		GroundShadow->SetRelativeScale3D(ShadowScale);
+	}
+}
+
+void AReEchoEchoActor::UpdateFacingSign(const FVector& AimDirection)
+{
+	if (AimDirection.IsNearlyZero())
+	{
+		return;
+	}
+	const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0);
+	const FVector CameraRight = CameraManager
+	                                ? FRotationMatrix(CameraManager->GetCameraRotation()).GetUnitAxis(EAxis::Y)
+	                                : FVector::RightVector;
+	const float HorizontalAim = FVector::DotProduct(AimDirection, CameraRight);
+	if (FMath::Abs(HorizontalAim) > UE_SMALL_NUMBER)
+	{
+		VisualFacingSign = HorizontalAim >= 0.0f ? 1.0f : -1.0f;
+	}
+}
+
 void AReEchoEchoActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor(180, 70, 255));
+	if (CharacterSprite->IsVisible())
+	{
+		ReEchoBillboardDebug::DrawBounds(this, CharacterSprite, FColor(180, 70, 255));
+	}
 
-	VisualTime += DeltaSeconds;
-	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
-	const float Bob = FMath::Sin(VisualTime * 3.2f) * 2.5f;
-	const float AttackPulse =
-	    AttackVisualRemaining > 0.0f ? FMath::Sin((1.0f - AttackVisualRemaining / 0.2f) * PI) : 0.0f;
-	CharacterSprite->SetRelativeLocation(BaseSpriteLocation + FVector(AttackPulse * 18.0f, 0.0f, Bob));
-	CharacterSprite->SetRelativeScale3D(BaseSpriteScale *
-	                                    FVector(1.0f + AttackPulse * 0.07f, 1.0f - AttackPulse * 0.03f, 1.0f));
+	UpdatePresentationState();
 
 	if (!Weapon || !bCanAttack || !IsCombatTargetAlive())
 	{
@@ -320,11 +453,13 @@ void AReEchoEchoActor::Tick(const float DeltaSeconds)
 	const FVector AimDirection = (NearestEnemy->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
 	if (!AimDirection.IsNearlyZero())
 	{
-		SetActorRotation(AimDirection.Rotation());
+		AttackAimDirection = AimDirection;
+		UpdateFacingSign(AimDirection);
 	}
 
 	if (Weapon->TryBasicAttack(Combatant))
 	{
-		AttackVisualRemaining = 0.2f;
+		PresentationController->PlayAction(
+		    ReEcho2DAnimationTags::Attack_Basic, true, NextPresentationAttackInstanceId++);
 	}
 }

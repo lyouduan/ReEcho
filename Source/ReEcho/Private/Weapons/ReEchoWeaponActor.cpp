@@ -18,6 +18,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
 #include "Graybox/ReEchoStaffLightWaveActor.h"
+#include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoSwordArcActor.h"
 #include "Kismet/GameplayStatics.h"
@@ -425,6 +426,14 @@ FVector AReEchoWeaponActor::ResolveOwnerAimDirection() const
 		if (!PlayerAim.IsNearlyZero())
 		{
 			return PlayerAim;
+		}
+	}
+	if (const AReEchoEchoActor* Echo = Cast<AReEchoEchoActor>(WeaponOwner))
+	{
+		const FVector EchoAim = Echo->GetAttackAimDirection().GetSafeNormal2D();
+		if (!EchoAim.IsNearlyZero())
+		{
+			return EchoAim;
 		}
 	}
 	const FVector OwnerForward = WeaponOwner->GetActorForwardVector().GetSafeNormal2D();
