@@ -220,9 +220,10 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 			                           *PhaseRow.Id.ToString(),
 			                           *PhaseRow.RefillHealthPolicy.ToString());
 			return false;
-		}
-		Phase.bEnabled = PhaseRow.bEnabled;
-		OutDefinition.BossPhases.Add(Phase);
+			}
+			Phase.PhaseMaxHealth = PhaseRow.PhaseMaxHealth;
+			Phase.bEnabled = PhaseRow.bEnabled;
+			OutDefinition.BossPhases.Add(Phase);
 	}
 
 	if (OutDefinition.MaxHealth <= 0.0f || OutDefinition.MoveSpeedCmPerSecond < 0.0f ||
