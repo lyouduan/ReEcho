@@ -212,7 +212,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
-- 商店配件：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成兼容当前武器的报价；购买立即提交所有权但不改装备，只有 `TrySaveWeaponPartLoadout` 校验所有权、必需槽和容量后才原子提交 `EquippedParts`。
+- 商店配件：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成兼容当前武器的报价；购买即装备——`PurchaseShopItem` 提交所有权后由 `TryEquipPurchasedPart` 校验所有权与兼容性、按槽位容量顶替最早的旧件并原子提交 `EquippedParts`，被顶替的旧件仍留在 `OwnedPartIds`（回落背包）。商店不再有配件草稿或保存配置入口。
 - 禁止：返回可写内部容器、让 Widget 直接改字段、用数组索引充当持久 Echo 身份。
 - 测试：Save、Shop、Trait、EchoStorage、EchoReplayRuntime 和 Run parity 测试。
 

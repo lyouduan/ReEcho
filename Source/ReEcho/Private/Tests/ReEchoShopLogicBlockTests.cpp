@@ -60,7 +60,7 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	Slot.Capacity = 1;
 	View.Slots.Add(Slot);
 
-	Widget->SetWeaponPartShopView(View, true);
+	Widget->SetWeaponPartShopView(View);
 	Widget->ShowShop(100, {});
 
 	TestNotNull(TEXT("Run item offers have an independent block"),
@@ -133,24 +133,19 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	}
 
 	View.OwnedParts.Add(WeaponPart);
+	FReEchoEquippedPartSnapshot AutoEquipped;
+	AutoEquipped.PartId = WeaponPart.ContentId;
+	AutoEquipped.SlotTypeId = WeaponPart.SlotTypeId;
+	View.EquippedParts.Add(AutoEquipped);
 	Widget->SetWeaponPartShopView(View);
 	WeaponPartButton->OnClicked.Broadcast();
-	TestEqual(TEXT("Owned part click edits the draft instead of buying again"), PurchaseRequests.Num(), 2);
-
-	TArray<FName> SavedDraft;
-	Widget->OnWeaponLoadoutSaveRequested.AddLambda(
-	    [&SavedDraft](const TArray<FName>& PartIds)
-	    {
-		    SavedDraft = PartIds;
-	    });
-	UButton* SaveButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("TargetSaveLoadoutButton")));
-	TestNotNull(TEXT("Loadout save button exists"), SaveButton);
-	if (SaveButton)
-	{
-		SaveButton->OnClicked.Broadcast();
-	}
-	TestTrue(TEXT("Saved draft contains the owned part selected from its offer"),
-	         SavedDraft.Contains(WeaponPart.ContentId));
+	TestEqual(TEXT("Owned part click no longer emits any command because purchases equip instantly"),
+	          PurchaseRequests.Num(),
+	          2);
+	TestNull(TEXT("Shop no longer builds a loadout save button"),
+	         Widget->GetWidgetFromName(TEXT("TargetSaveLoadoutButton")));
+	TestNull(TEXT("Legacy loadout save button is not rebuilt in the logic block either"),
+	         Widget->GetWidgetFromName(TEXT("SaveLoadoutButton")));
 	return true;
 }
 
@@ -206,7 +201,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	StorageCard.Type = EReEchoShopOfferType::BuildCard;
 	StorageCard.Tier = 3;
 	PartShopView.OwnedCards.Add(StorageCard);
-	Widget->SetWeaponPartShopView(PartShopView, true);
+	Widget->SetWeaponPartShopView(PartShopView);
 	UImage* DesignerClock = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerShopClock")));
 	UCanvasPanelSlot* DesignerClockSlot = DesignerClock ? Cast<UCanvasPanelSlot>(DesignerClock->Slot) : nullptr;
 	TestNotNull(TEXT("Shop clock is authored as a direct Canvas child"), DesignerClockSlot);

@@ -94,7 +94,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 ### 4.3 商店逻辑块的后续 WBP 接口
 
-动态商品内容统一位于 `ShopLogicScrollBox > ShopLogicPanel`；WBP 未提供有界宿主时，C++ 将滚动区挂到根 Canvas 的固定视口并显式显示滚动条，战后模式的视口下沿必须停在回响存储托盘上方。区块顺序固定为武器配件、普通商品、规则/刷新、槽位草稿。WBP 可按同名 `BindWidgetOptional` 提供这两个宿主、`RunItemOfferPanel`、`ShopControlPanel`、`WeaponPartOfferPanel`、`WeaponLoadoutPanel`，以及 `ShopRefreshButton`、`ShopRefreshText`、`ShopRuleText`、`WeaponLoadoutText`、`SaveLoadoutButton`。这些控件只负责容器和表现，不得改变购买、刷新、草稿或保存的事件语义。
+动态商品内容统一位于 `ShopLogicScrollBox > ShopLogicPanel`；WBP 未提供有界宿主时，C++ 将滚动区挂到根 Canvas 的固定视口并显式显示滚动条，战后模式的视口下沿必须停在回响存储托盘上方。区块顺序固定为武器配件、普通商品、规则/刷新、当前装配。WBP 可按同名 `BindWidgetOptional` 提供这两个宿主、`RunItemOfferPanel`、`ShopControlPanel`、`WeaponPartOfferPanel`、`WeaponLoadoutPanel`，以及 `ShopRefreshButton`、`ShopRefreshText`、`ShopRuleText`、`WeaponLoadoutText`。这些控件只负责容器和表现，不得改变购买或刷新的事件语义。武器配件是购买即装备，商店没有配件草稿，也没有“保存配置”按钮，不要再为其预留 WBP 控件。
 
 装配室的位置权威位于 `WBP_ReEchoInventoryShopScreen > Overlay_0 > DesignerLoadoutCanvas`。其中 `DesignerWeaponPanel`、`DesignerShopClock`、`DesignerAttachmentSlot0..2` 和 `DesignerCardSlot0..11` 都是 Canvas 直接子项，可在 Designer 中直接拖动或在 Slot 面板修改 Position X/Y、Size X/Y。配件槽和卡牌槽的 `*Art*` 子控件只负责图片，不应单独移动；C++ 只更新图片、置灰状态、Tooltip 和点击逻辑。不要重新运行旧式位置写入脚本覆盖人工布局；`configure_shop_designer_layout.py` 只在控件缺失时写入初始坐标，已存在控件不会被重置。
 
@@ -155,7 +155,7 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 ### 5.5 Inventory/Shop
 
 - `InventoryPanel` 与 `ShopPanel` 是同一屏幕的两种展示模式。
-- 商店逻辑固定拆为普通商品、规则/刷新、武器配件购买、装备槽位草稿、回响管理五块；不要再把不同类型的报价合并到同一索引数组。
+- 商店逻辑固定拆为普通商品、规则/刷新、武器配件购买、当前装配摘要、回响管理五块；不要再把不同类型的报价合并到同一索引数组。
 - `OfferContainer` 承载 `RunItemOfferPanel`；普通商品按钮由 `ReEchoShopCatalog` 生成。`WeaponPartOfferPanel` 单独承载 `parts.csv` 中兼容当前武器且允许出售的配件。
 - 两类报价各自解析稳定 ItemId；商店刷新只轮换普通商品，不改变配件按钮与配件 ID 的映射。
 - `ShopLogicScrollBox` 必须有独立固定边界并显示滚动条，`WeaponPartOfferPanel` 必须排在普通商品之前；回响管理使用独立底部 `ScaleBox` 托盘和高于商城美术的 Canvas ZOrder，不得重新塞回商品纵向列表或使用默认 ZOrder。
@@ -163,7 +163,7 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 - 可以调整容器宽度、间距、滚动方案、背景和按钮视觉；不可在 WBP 中扣除时间碎片或直接写 Inventory。
 - 页面数据可能先于 `NativeConstruct` 到达。新增刷新逻辑时必须允许“数据已到、动态控件尚未创建”的生命周期状态，禁止直接对未校验数组使用 `[0]`。
 - `ShopPanel` 内的装配室由 C++ 根据 `slot_profiles.csv` 动态生成槽组和容量，当前主要显示 Core/Grip/Blade 三类但不得硬编码具体名称；`G_3_22` 可增加非 Core 容量。
-- 点击已拥有配件只调整页面草稿；同槽满时由明确点击的新配件替换最早草稿项。购买立即保存所有权且不自动装备，“保存配置”才提交整套 `EquippedParts`；直接离开商店丢弃未保存草稿。
+- 武器配件是购买即装备：购买成功后立即装入对应槽位，同槽已满时顶替该槽最早装备的旧件，旧件回落 `OwnedPartIds`（背包）。点击已拥有的配件不再有任何装配动作，页面没有草稿状态，也没有“保存配置”按钮，离开商店不会丢失已购买或已装备结果。
 
 ### 5.6 Stats
 
