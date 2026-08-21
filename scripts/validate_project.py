@@ -193,12 +193,23 @@ WEAPON_EFFECT_TARGETS = {
     "ElementalCoefficient",
     "AttackPattern",
     "OnKill",
+    # Weapon-parameter StatModifier targets. Each one is landed by
+    # ReEchoWeaponRuntime::ApplyPartEffect as a RuleFlag and read back by
+    # BuildEffectiveWeaponDefinition, so the runtime honours them for real.
+    # Do not extend this set before the matching C++ branch exists.
+    "AttackRange",
+    "AttackArc",
+    "ProjectileCount",
+    "ConcentrationDegrees",
+    "ExplosionRadius",
 }
+# EffectKind -> set of BehaviorIds the runtime accepts for that kind. A kind may map to
+# several behaviours (UniqueBehavior in particular), so membership is checked, not equality.
 PART_EFFECT_BEHAVIOR_PAIRS = {
-    "WeaponDamageChannel": "Part.CoreDamageChannel",
-    "StatModifier": "Part.StatModifier",
-    "AttackPatternReplacement": "Part.AttackPatternReplacement",
-    "UniqueBehavior": "Part.OnKillHealPercent",
+    "WeaponDamageChannel": {"Part.CoreDamageChannel"},
+    "StatModifier": {"Part.StatModifier"},
+    "AttackPatternReplacement": {"Part.AttackPatternReplacement"},
+    "UniqueBehavior": {"Part.OnKillHealPercent"},
 }
 
 
@@ -1150,9 +1161,20 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     if len(parts) != 70:
         fail(f"{rel(entries['Parts'])}: weapon slot audit must contain 70 source rows")
     named_rows = [row for row in parts if row["DisplayName"]]
-    unnamed_disabled = [row for row in parts if not row["DisplayName"] and row["Enabled"] == "false" and row["PartId"] == "None"]
-    if len(named_rows) != 10 or len(unnamed_disabled) != 60:
-        fail(f"{rel(entries['Parts'])}: expected 10 named rows and 60 unnamed disabled audit rows")
+    # The named/unnamed split is no longer pinned to 10/60: weapon part families are being
+    # implemented incrementally, so naming + enabling rows is expected progress. The real
+    # invariant kept here is that an unnamed audit row must stay inert (disabled, no PartId),
+    # which still blocks half-migrated rows from reaching the runtime.
+    for row in parts:
+        if row["DisplayName"]:
+            continue
+        if row["Enabled"] != "false" or row["PartId"] != "None":
+            fail(
+                f"{rel(entries['Parts'])}:{row['__line__']}: unnamed audit row must stay disabled "
+                f"with PartId None"
+            )
+    if not named_rows:
+        fail(f"{rel(entries['Parts'])}: at least one named part row is required")
     enabled_parts = {row["Id"]: row for row in parts if row["Enabled"] == "true"}
     enabled_cores = [row for row in enabled_parts.values() if row["SlotTypeId"] == "Core"]
     if len(enabled_cores) < 6:
@@ -1187,8 +1209,8 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     for row in part_effects:
         if row["Target"] not in WEAPON_EFFECT_TARGETS:
             fail(f"{rel(entries['PartEffects'])}:{row['__line__']}: unsupported weapon effect target {row['Target']!r}")
-        expected_behavior = PART_EFFECT_BEHAVIOR_PAIRS.get(row["EffectKind"])
-        if not expected_behavior or row["BehaviorId"] != expected_behavior:
+        allowed_behaviors = PART_EFFECT_BEHAVIOR_PAIRS.get(row["EffectKind"])
+        if not allowed_behaviors or row["BehaviorId"] not in allowed_behaviors:
             fail(
                 f"{rel(entries['PartEffects'])}:{row['__line__']}: invalid EffectKind/BehaviorId pair "
                 f"{row['EffectKind']!r}/{row['BehaviorId']!r}"

@@ -724,6 +724,7 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterEffectKind(TEXT("WeaponDamageChannel"));
 	RegisterEffectKind(TEXT("AttackPatternReplacement"));
 	RegisterEffectKind(TEXT("ParameterizedBehavior"));
+	RegisterEffectKind(TEXT("StatModifier"));
 	RegisterEffectKind(TEXT("UniqueBehavior"));
 	RegisterFormulaId(TEXT("Weapon.PhysicalOrElementalCoefficient"));
 	RegisterAttackPatternId(TEXT("Pattern.LongSwordCombo"));

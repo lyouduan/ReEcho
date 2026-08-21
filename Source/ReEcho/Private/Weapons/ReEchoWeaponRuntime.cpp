@@ -14,6 +14,11 @@ const FName AttackIntervalRule = TEXT("Weapon.AttackIntervalSeconds");
 const FName PhysicalCoefficientRule = TEXT("Weapon.PhysicalCoefficient");
 const FName ElementalCoefficientRule = TEXT("Weapon.ElementalCoefficient");
 const FName OnKillHealRule = TEXT("Weapon.OnKillHealPercent");
+const FName WeaponRangeRule = TEXT("Weapon.RangeCm");
+const FName WeaponArcRule = TEXT("Weapon.ArcDegrees");
+const FName WeaponProjectileRule = TEXT("Weapon.ProjectileCount");
+const FName WeaponConcentrationRule = TEXT("Weapon.ConcentrationDegrees");
+const FName WeaponExplosionRule = TEXT("Weapon.ExplosionRadiusCm");
 
 bool IsNoneName(const FName Name)
 {
@@ -144,6 +149,63 @@ bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
 		WriteRuleFloat(Build,
 		               OnKillHealRule,
 		               FMath::Max(0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Value)));
+		return true;
+	}
+
+	// Weapon-parameter StatModifiers: override the matching weapon-level field through a RuleFlag,
+	// consumed by BuildEffectiveWeaponDefinition. Excel effects like "攻击范围+30%" / "弹道固定为3" land here.
+	// Each branch clamps into the field's legal domain, mirroring the coefficient branches above, so a
+	// bad table value can never produce a zero/negative range, arc or projectile count at runtime.
+	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("AttackRange"))
+	{
+		float Current = Weapon.RangeCm;
+		ReadRuleFloat(Build, WeaponRangeRule, Current, Current);
+		WriteRuleFloat(
+		    Build,
+		    WeaponRangeRule,
+		    FMath::Max(1.0f, ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value)));
+		return true;
+	}
+	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("AttackArc"))
+	{
+		float Current = Weapon.ArcDegrees;
+		ReadRuleFloat(Build, WeaponArcRule, Current, Current);
+		WriteRuleFloat(
+		    Build,
+		    WeaponArcRule,
+		    FMath::Clamp(
+		        ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value), 1.0f, 360.0f));
+		return true;
+	}
+	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("ProjectileCount"))
+	{
+		float Current = static_cast<float>(Weapon.ProjectileCount);
+		ReadRuleFloat(Build, WeaponProjectileRule, Current, Current);
+		WriteRuleFloat(
+		    Build,
+		    WeaponProjectileRule,
+		    FMath::Max(1.0f, ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value)));
+		return true;
+	}
+	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("ConcentrationDegrees"))
+	{
+		float Current = Weapon.ConcentrationDegrees;
+		ReadRuleFloat(Build, WeaponConcentrationRule, Current, Current);
+		WriteRuleFloat(
+		    Build,
+		    WeaponConcentrationRule,
+		    FMath::Clamp(
+		        ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value), 0.0f, 360.0f));
+		return true;
+	}
+	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("ExplosionRadius"))
+	{
+		float Current = Weapon.ExplosionRadiusCm;
+		ReadRuleFloat(Build, WeaponExplosionRule, Current, Current);
+		WriteRuleFloat(
+		    Build,
+		    WeaponExplosionRule,
+		    FMath::Max(0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value)));
 		return true;
 	}
 
@@ -447,6 +509,15 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 	              ElementalCoefficientRule,
 	              OutDefinition.Weapon.ElementalCoefficient,
 	              OutDefinition.Weapon.ElementalCoefficient);
+	ReadRuleFloat(Build, WeaponRangeRule, OutDefinition.Weapon.RangeCm, OutDefinition.Weapon.RangeCm);
+	ReadRuleFloat(Build, WeaponArcRule, OutDefinition.Weapon.ArcDegrees, OutDefinition.Weapon.ArcDegrees);
+	{
+		float ProjectileCount = static_cast<float>(OutDefinition.Weapon.ProjectileCount);
+		ReadRuleFloat(Build, WeaponProjectileRule, ProjectileCount, ProjectileCount);
+		OutDefinition.Weapon.ProjectileCount = FMath::RoundToInt(ProjectileCount);
+	}
+	ReadRuleFloat(Build, WeaponConcentrationRule, OutDefinition.Weapon.ConcentrationDegrees, OutDefinition.Weapon.ConcentrationDegrees);
+	ReadRuleFloat(Build, WeaponExplosionRule, OutDefinition.Weapon.ExplosionRadiusCm, OutDefinition.Weapon.ExplosionRadiusCm);
 	ReadRuleFloat(Build, OnKillHealRule, 0.0f, OutDefinition.OnKillHealPercent);
 	OutDefinition.DamageChannelId = RuleNameOrDefault(Build, DamageChannelRule, NAME_None);
 
