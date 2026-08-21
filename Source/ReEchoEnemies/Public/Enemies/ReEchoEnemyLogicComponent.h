@@ -52,6 +52,7 @@ private:
 	void PublishAction(const FReEchoEnemyActionIntent& Intent) const;
 	void PublishBossIntent(const FReEchoBossIntent& Intent) const;
 	FReEchoEnemyActionIntent AdvanceHitReaction(float DeltaSeconds);
+	FReEchoEnemyActionIntent AdvanceIdleWander(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	const FReEchoEnemyAbilityDefinition* GetSpecialAbility() const;

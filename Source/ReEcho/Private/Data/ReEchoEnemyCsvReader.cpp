@@ -429,6 +429,7 @@ bool ReadBossPhases(const FString& DataDirectory,
 	                            TEXT("AttackSpeedMultiplier"),
 	                            TEXT("MovementSpeedMultiplier"),
 	                            TEXT("RefillHealthPolicy"),
+	                            TEXT("PhaseMaxHealth"),
 	                            TEXT("Enabled"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
@@ -454,6 +455,7 @@ bool ReadBossPhases(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(
 		    Table, CsvRow, TEXT("MovementSpeedMultiplier"), 0.0f, 100.0f, Row.MovementSpeedMultiplier, Issues);
 		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("RefillHealthPolicy"), Row.RefillHealthPolicy, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("PhaseMaxHealth"), 0.0f, 100000.0f, Row.PhaseMaxHealth, Issues);
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Enabled"), Row.bEnabled, Issues);
 		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);
@@ -490,13 +492,24 @@ bool ReadBossPhases(const FString& DataDirectory,
 			ReEchoCsv::AddIssue(
 			    Issues, Table.File, CsvRow.Line, TEXT("EchoPolicy"), TEXT("Unsupported echo phase policy"));
 		}
-		if (Row.RefillHealthPolicy != TEXT("None"))
+		if (Row.RefillHealthPolicy == TEXT("RefillToMaximum"))
+		{
+			if (Row.PhaseMaxHealth <= 0.0f)
+			{
+				ReEchoCsv::AddIssue(Issues,
+				                    Table.File,
+				                    CsvRow.Line,
+				                    TEXT("PhaseMaxHealth"),
+				                    TEXT("RefillToMaximum requires PhaseMaxHealth > 0"));
+			}
+		}
+		else if (Row.RefillHealthPolicy != TEXT("None"))
 		{
 			ReEchoCsv::AddIssue(Issues,
 			                    Table.File,
 			                    CsvRow.Line,
 			                    TEXT("RefillHealthPolicy"),
-			                    TEXT("First release must not refill health"));
+			                    TEXT("Unsupported refill policy"));
 		}
 		SeenIds.Add(Row.Id);
 		SeenPhases.Add(PhaseKey);

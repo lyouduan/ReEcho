@@ -59,6 +59,29 @@ EReEchoEnemyArchetype ToArchetype(const EReEchoEnemyKind Kind)
 	}
 }
 
+float ResolveHateRangeCm(const EReEchoEnemyKind Kind)
+{
+	// Bosses keep their own aggro logic and never wander; return 0 to disable the wander branch.
+	if (Kind == EReEchoEnemyKind::Boss)
+	{
+		return 0.0f;
+	}
+	// Per-archetype idle aggro radius. Larger for elites so they pull from farther out.
+	switch (Kind)
+	{
+		case EReEchoEnemyKind::Elite:
+			return 720.0f;
+		case EReEchoEnemyKind::Ranged:
+			return 640.0f;
+		case EReEchoEnemyKind::Slime:
+		case EReEchoEnemyKind::Shield:
+		case EReEchoEnemyKind::Bomber:
+		case EReEchoEnemyKind::Grunt:
+		default:
+			return 520.0f;
+	}
+}
+
 EReEchoEnemyKind ToLegacyKind(const EReEchoEnemyArchetype Archetype)
 {
 	switch (Archetype)
@@ -730,6 +753,10 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 				Sense.bHasTeleportDestination = !Sense.TeleportDestination.IsNearlyZero();
 			}
 		}
+		// WS5: aggro injection for non-Boss idle wander. HateRangeCm <= 0 disables wander (legacy pursuit-only).
+		const float AggroDistanceCm = FVector::Dist2D(GetActorLocation(), Sense.TargetLocation);
+		Sense.HateRangeCm = ReEchoEnemyHost::ResolveHateRangeCm(GetKind());
+		Sense.bInCombat = Sense.HateRangeCm > 0.0f && AggroDistanceCm <= Sense.HateRangeCm;
 		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
 		Sense.bSpecialActionPermitted =
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);

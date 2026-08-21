@@ -160,6 +160,57 @@ bool FReEchoEnemyContactCadenceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyIdleWanderTest,
+                                 "ReEcho.Enemies.Logic.IdleWander",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyIdleWanderTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Grunt initializes"),
+	         Logic->Initialize(ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt), 3));
+
+	// No target + aggro enabled (HateRangeCm injected by Host) => idle wander, not standing still.
+	FReEchoEnemySenseSnapshot OutOfRange;
+	OutOfRange.SelfLocation = FVector::ZeroVector;
+	OutOfRange.TargetLocation = FVector(2000.0f, 0.0f, 0.0f); // far outside any sane aggro range
+	OutOfRange.HateRangeCm = 520.0f;
+	OutOfRange.bInCombat = false;
+
+	const FReEchoEnemyActionIntent Wander = Logic->Advance(OutOfRange, 1.0f);
+	TestEqual(TEXT("Out-of-range without target stays in Idle phase"),
+	          Logic->GetSnapshot().Phase, EReEchoEnemyBehaviorPhase::Idle);
+	TestTrue(TEXT("Idle wander emits movement (not standing still)"), Wander.bHasMovement);
+	TestFalse(TEXT("Idle wander never commits an attack"), Wander.bAttackCommitted);
+
+	// Deterministic: identical samples produce bit-identical movement.
+	UReEchoEnemyLogicComponent* Replay = NewObject<UReEchoEnemyLogicComponent>();
+	Replay->Initialize(ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt), 3);
+	const FReEchoEnemyActionIntent ReplayWander = Replay->Advance(OutOfRange, 1.0f);
+	TestEqual(TEXT("Wander direction is deterministic across runs"),
+	          ReplayWander.MovementDelta, Wander.MovementDelta);
+
+	// Engage: bring target inside aggro range => pursue and mark engaged.
+	FReEchoEnemySenseSnapshot InRange;
+	InRange.SelfLocation = FVector::ZeroVector;
+	InRange.TargetLocation = FVector(200.0f, 0.0f, 0.0f);
+	InRange.HateRangeCm = 520.0f;
+	InRange.bInCombat = true;
+	const FReEchoEnemyActionIntent Pursue = Logic->Advance(InRange, 0.1f);
+	TestEqual(TEXT("Target inside aggro range switches to Pursuing"),
+	          Logic->GetSnapshot().Phase, EReEchoEnemyBehaviorPhase::Pursuing);
+	TestTrue(TEXT("Engaged enemy moves toward target"), Pursue.bHasMovement);
+	TestTrue(TEXT("Engagement latches bHasEngaged"), Logic->GetSnapshot().bHasEngaged);
+
+	// Disengage after having engaged => stand still (never re-wander once aggro happened this encounter).
+	Logic->Advance(OutOfRange, 1.0f);
+	const FReEchoEnemyActionIntent AfterDisengage = Logic->Advance(OutOfRange, 1.0f);
+	TestEqual(TEXT("Disengaged-after-engagement idles without re-wander"),
+	          Logic->GetSnapshot().Phase, EReEchoEnemyBehaviorPhase::Idle);
+	TestFalse(TEXT("No re-wander after engagement"), AfterDisengage.bHasMovement);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyInvulnerableTargetTest,
                                  "ReEcho.Enemies.Logic.InvulnerableTargetConsumesAttack",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
