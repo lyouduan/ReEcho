@@ -54,14 +54,13 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	FReEchoEnemyDefinition Rabbit;
 	TestTrue(TEXT("Rabbit definition compiles"),
 	         ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_RABBIT"), Rabbit, Error));
-	TestTrue(TEXT("Rabbit temporarily enables phase two"), Rabbit.Phase2.bEnabled);
+	TestTrue(TEXT("Rabbit phase two enabled by authoritative data"), Rabbit.Phase2.bEnabled);
 	TestEqual(TEXT("Rabbit phase two animation set"), Rabbit.Phase2.AnimationSetId, FName(TEXT("Phase2")));
-	TestEqual(TEXT("Rabbit phase two attack threshold"), Rabbit.Phase2.RequiredAttackCount, 2);
-	TestEqual(TEXT("Rabbit phase two aggro range"), Rabbit.Phase2.TriggerRangeCm, 300.0f);
-	TestTrue(TEXT("Boss also exposes the shared temporary phase two"), Boss.Phase2.bEnabled);
-	TestEqual(TEXT("Every transformable enemy uses two health reductions"), Boss.Phase2.RequiredAttackCount, 2);
-	TestEqual(
-	    TEXT("Every transformable enemy selects Phase2 animations"), Boss.Phase2.AnimationSetId, FName(TEXT("Phase2")));
+	TestEqual(TEXT("Rabbit phase two attack threshold from data"), Rabbit.Phase2.RequiredAttackCount, 2);
+	TestEqual(TEXT("Rabbit phase two aggro range from data"), Rabbit.Phase2.TriggerRangeCm, 1500.0f);
+	TestEqual(TEXT("Rabbit phase two transform seconds from data"), Rabbit.Phase2.TransformSeconds, 1.0f);
+	// Boss two-stage data is authored in WS4; the authoritative Enemies worksheet currently leaves Boss Phase2 disabled.
+	TestFalse(TEXT("Boss phase two not enabled until WS4 authoritative two-stage data"), Boss.Phase2.bEnabled);
 	return true;
 }
 

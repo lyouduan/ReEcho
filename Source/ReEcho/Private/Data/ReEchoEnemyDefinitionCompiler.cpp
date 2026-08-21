@@ -124,14 +124,14 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.bUsesDirectionalShield = OutDefinition.Archetype == EReEchoEnemyArchetype::Shield ||
 	                                       OutDefinition.Archetype == EReEchoEnemyArchetype::Elite;
 
-	// Plan 65 temporary bridge until the authoritative EnemyPhases worksheet is available. Every production enemy
-	// profile now owns a Phase2 animation set, so they share the same two-health-reductions threshold for PIE tuning.
+	// WS2 (Plan 68): double-form trigger thresholds are now data-driven from the authoritative Enemies worksheet
+	// (WS1). The shared "Phase2" presentation animation set stays a fixed authored asset (表现-only; 不改数值/资产).
 	OutDefinition.Phase2.Id = FName(*(EnemyId.ToString() + TEXT("_PHASE2")));
-	OutDefinition.Phase2.TriggerRangeCm = 300.0f;
-	OutDefinition.Phase2.RequiredAttackCount = 2;
-	OutDefinition.Phase2.TransformSeconds = 1.0f;
+	OutDefinition.Phase2.bEnabled = Row->bPhase2Enabled;
+	OutDefinition.Phase2.TriggerRangeCm = Row->Phase2TriggerRangeCm;
+	OutDefinition.Phase2.RequiredAttackCount = Row->Phase2RequiredAttackCount;
+	OutDefinition.Phase2.TransformSeconds = Row->Phase2TransformSeconds;
 	OutDefinition.Phase2.AnimationSetId = TEXT("Phase2");
-	OutDefinition.Phase2.bEnabled = true;
 
 	for (const FReEchoCsvEnemyAbilityRow& AbilityRow : Row->Abilities)
 	{
