@@ -374,8 +374,22 @@ struct REECHO_API FReEchoCsvEnemyRow
 	FString SourceSheet;
 	int32 SourceRow = 0;
 	FString Notes;
+	bool bPhase2Enabled = false;
+	float Phase2TriggerRangeCm = 0.0f;
+	int32 Phase2RequiredAttackCount = 0;
+	float Phase2TransformSeconds = 0.0f;
 	TArray<FReEchoCsvEnemyAbilityRow> Abilities;
 	TArray<FReEchoCsvBossPhaseRow> BossPhases;
+};
+
+struct REECHO_API FReEchoCsvEnemyCombatStatRow
+{
+	FName Id;
+	FName EnemyId;
+	int32 CombatIndex = 0;
+	float MaxHealth = 0.0f;
+	float ContactDamage = 0.0f;
+	float AttackIntervalSeconds = 0.0f;
 };
 
 struct REECHO_API FReEchoCsvStageRow
@@ -504,6 +518,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvPartRow> Parts;
 	TMap<FName, FReEchoCsvEnemyRow> Enemies;
 	TArray<FName> EnemyOrder;
+	TMap<FName, FReEchoCsvEnemyCombatStatRow> EnemyCombatStats;
+	TArray<FName> EnemyCombatStatOrder;
 	TMap<FName, FReEchoCsvStageRow> Stages;
 	TArray<FName> StageOrder;
 	TMap<FName, FReEchoCsvEncounterRow> Encounters;
@@ -533,6 +549,7 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TArray<FReEchoCsvAttackStepRow> GetAttackSteps(FName AttackPatternId) const;
 	const FReEchoCsvEnemyRow* FindEnemy(FName EnemyId) const;
 	const FReEchoCsvEnemyRow* FindEnabledEnemy(FName EnemyId) const;
+	const FReEchoCsvEnemyCombatStatRow* FindEnemyCombatStat(FName EnemyId, int32 CombatIndex) const;
 	const FReEchoCsvStageRow* FindStage(FName StageId) const;
 	const FReEchoCsvEncounterRow* FindEncounter(FName EncounterId) const;
 	const FReEchoCsvEncounterRow* FindEncounterByIndex(int32 EncounterIndex) const;

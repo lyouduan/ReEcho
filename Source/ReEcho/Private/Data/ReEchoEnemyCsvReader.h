@@ -9,4 +9,9 @@ bool ReadTables(const FString& DataDirectory,
                 const TMap<FString, ReEchoCsv::FManifestEntry>& ManifestEntries,
                 FReEchoCsvDataSnapshot& Snapshot,
                 TArray<FReEchoCsvIssue>& Issues);
+
+bool ReadEnemyCombatStats(const FString& DataDirectory,
+                          const ReEchoCsv::FManifestEntry& Entry,
+                          FReEchoCsvDataSnapshot& Snapshot,
+                          TArray<FReEchoCsvIssue>& Issues);
 }

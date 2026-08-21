@@ -9,6 +9,7 @@ namespace
 constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
 constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
 constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
+constexpr const TCHAR* EnemyCombatStatsTableId = TEXT("EnemyCombatStats");
 
 bool ReadTable(const FString& DataDirectory,
                const ReEchoCsv::FManifestEntry& Entry,
@@ -57,7 +58,11 @@ bool ReadEnemies(const FString& DataDirectory,
 	                            TEXT("Boss"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
-	                            TEXT("Notes")},
+	                            TEXT("Notes"),
+	                            TEXT("Phase2Enabled"),
+	                            TEXT("Phase2TriggerRangeCm"),
+	                            TEXT("Phase2RequiredAttackCount"),
+	                            TEXT("Phase2TransformSeconds")},
 	                           Issues);
 
 	const TMap<FName, FName> ExpectedProfiles = {
@@ -104,6 +109,10 @@ bool ReadEnemies(const FString& DataDirectory,
 		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);
 		ReEchoCsv::ReadOptionalCell(CsvRow, TEXT("Notes"), Row.Notes);
+		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Phase2Enabled"), Row.bPhase2Enabled, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2TriggerRangeCm"), 0.0f, 100000.0f, Row.Phase2TriggerRangeCm, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("Phase2RequiredAttackCount"), Row.Phase2RequiredAttackCount, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2TransformSeconds"), 0.0f, 3600.0f, Row.Phase2TransformSeconds, Issues);
 
 		if (Row.Id.IsNone())
 		{
@@ -506,6 +515,46 @@ bool ReadBossPhases(const FString& DataDirectory,
 }
 }
 
+bool ReadEnemyCombatStats(const FString& DataDirectory,
+                          const ReEchoCsv::FManifestEntry& Entry,
+                          FReEchoCsvDataSnapshot& Snapshot,
+                          TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	if (!ReadTable(DataDirectory, Entry, Table, Issues))
+	{
+		return false;
+	}
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("EnemyId"),
+	                            TEXT("CombatIndex"),
+	                            TEXT("MaxHealth"),
+	                            TEXT("ContactDamage"),
+	                            TEXT("AttackIntervalSeconds")},
+	                           Issues);
+
+	for (const ReEchoCsv::FRow& CsvRow : Table.Rows)
+	{
+		FReEchoCsvEnemyCombatStatRow Row;
+		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("Id"), Row.Id, Issues);
+		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("EnemyId"), Row.EnemyId, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("CombatIndex"), Row.CombatIndex, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("MaxHealth"), 1.0f, 1000000.0f, Row.MaxHealth, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("ContactDamage"), 0.0f, 100000.0f, Row.ContactDamage, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("AttackIntervalSeconds"), 0.0f, 3600.0f, Row.AttackIntervalSeconds, Issues);
+
+		if (Row.Id.IsNone())
+		{
+			continue;
+		}
+		const FName CompositeKey = FName(*FString::Printf(TEXT("%s#%d"), *Row.EnemyId.ToString(), Row.CombatIndex));
+		Snapshot.EnemyCombatStats.Add(CompositeKey, MoveTemp(Row));
+		Snapshot.EnemyCombatStatOrder.Add(CompositeKey);
+	}
+	return Issues.Num() == 0;
+}
+
 bool ReadTables(const FString& DataDirectory,
                 const TMap<FString, ReEchoCsv::FManifestEntry>& ManifestEntries,
                 FReEchoCsvDataSnapshot& Snapshot,
@@ -519,6 +568,10 @@ bool ReadTables(const FString& DataDirectory,
 	{
 		return false;
 	}
-	return ReadBossPhases(DataDirectory, ManifestEntries[BossPhasesTableId], Snapshot, Issues);
+	if (!ReadBossPhases(DataDirectory, ManifestEntries[BossPhasesTableId], Snapshot, Issues))
+	{
+		return false;
+	}
+	return ReadEnemyCombatStats(DataDirectory, ManifestEntries[EnemyCombatStatsTableId], Snapshot, Issues);
 }
 }

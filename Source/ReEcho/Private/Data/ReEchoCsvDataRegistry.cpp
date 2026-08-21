@@ -36,6 +36,7 @@ constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
 constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
 constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
 constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
+constexpr const TCHAR* EnemyCombatStatsTableId = TEXT("EnemyCombatStats");
 constexpr const TCHAR* StagesTableId = TEXT("Stages");
 constexpr const TCHAR* EncountersTableId = TEXT("Encounters");
 constexpr const TCHAR* EncounterWavesTableId = TEXT("EncounterWaves");
@@ -198,7 +199,7 @@ TArray<FString> GetRequiredTableIds()
 	        CardsTableId,        CardEffectsTableId,         ElementsTableId,      StatusesTableId,
 	        ReactionsTableId,    WeaponTypesTableId,         WeaponsTableId,       AttackStepsTableId,
 	        SlotTypesTableId,    SlotProfilesTableId,        PartsTableId,         PartEffectsTableId,
-	        EnemiesTableId,      EnemyAbilitiesTableId,      BossPhasesTableId,    StagesTableId,
+	        EnemiesTableId,      EnemyAbilitiesTableId,      BossPhasesTableId,    EnemyCombatStatsTableId, StagesTableId,
 	        EncountersTableId,   EncounterWavesTableId,      SpawnProfilesTableId, SpawnPolicyTableId,
         AttributesTableId};
 }
@@ -533,6 +534,12 @@ const FReEchoCsvEnemyRow* FReEchoCsvDataSnapshot::FindEnabledEnemy(const FName E
 {
 	const FReEchoCsvEnemyRow* Enemy = FindEnemy(EnemyId);
 	return Enemy && Enemy->bEnabled ? Enemy : nullptr;
+}
+
+const FReEchoCsvEnemyCombatStatRow* FReEchoCsvDataSnapshot::FindEnemyCombatStat(const FName EnemyId, const int32 CombatIndex) const
+{
+	const FName CompositeKey = FName(*FString::Printf(TEXT("%s#%d"), *EnemyId.ToString(), CombatIndex));
+	return EnemyCombatStats.Find(CompositeKey);
 }
 
 const FReEchoCsvStageRow* FReEchoCsvDataSnapshot::FindStage(const FName StageId) const
