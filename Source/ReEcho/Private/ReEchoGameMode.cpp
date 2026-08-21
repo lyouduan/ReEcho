@@ -24,6 +24,7 @@
 #include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "UI/ReEchoMinimapCanvasWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameFramework/PlayerController.h"
@@ -2774,6 +2775,38 @@ void AReEchoGameMode::ShowPostTraitShop()
 	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
 }
 
+void AReEchoGameMode::BuildMinimapView(FReEchoMinimapView& OutView) const
+{
+	OutView = FReEchoMinimapView();
+	if (!Player)
+	{
+		return;
+	}
+	OutView.ArenaCenter = Player->GetArenaCenter2D();
+	OutView.ArenaHalfExtents = Player->GetArenaHalfExtents2D();
+	const FVector PlayerLocation = Player->GetActorLocation();
+	OutView.PlayerLocation = FVector2D(PlayerLocation.X, PlayerLocation.Y);
+
+	static const FLinearColor Palette[] = {
+		FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue,
+		FLinearColor::Yellow, FLinearColor(0.0f, 1.0f, 1.0f), FLinearColor(1.0f, 0.0f, 1.0f)
+	};
+	for (const TObjectPtr<AReEchoEchoActor>& Echo : Echoes)
+	{
+		if (!IsValid(Echo))
+		{
+			continue;
+		}
+		FReEchoMinimapEchoEntry Entry;
+		const FVector EchoLocation = Echo->GetActorLocation();
+		Entry.CurrentLocation = FVector2D(EchoLocation.X, EchoLocation.Y);
+		Entry.PathPoints = Echo->GetRecordedPath();
+		Entry.Color = Palette[OutView.Echoes.Num() % 6];
+		OutView.Echoes.Add(Entry);
+	}
+	OutView.bValid = true;
+}
+
 void AReEchoGameMode::SetPlayerMenuAbilityBlocked(const bool bBlocked)
 {
 	if (bBlocked && Player)
@@ -2812,6 +2845,12 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	if (bAwaitingStartChoice || !Director || !Player)
 	{
 		return;
+	}
+	if (EncounterHudWidget)
+	{
+		FReEchoMinimapView View;
+		BuildMinimapView(View);
+		EncounterHudWidget->SetMinimapView(View);
 	}
 	if (!bEncounterTransitioning && IsBossEncounter())
 	{

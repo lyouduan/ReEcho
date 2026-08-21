@@ -2,6 +2,7 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "ReEcho.h"
+#include "UI/ReEchoMinimapCanvasWidget.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
@@ -22,6 +23,23 @@ void UReEchoEncounterHudWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	BuildWidgetTree();
+
+	// 从 WBP 控件树中按类型找到小地图画布（在编辑器里放入的 ReEchoMinimapCanvasWidget）。
+	MinimapCanvas = nullptr;
+	if (WidgetTree)
+	{
+		TArray<UWidget*> AllWidgets;
+		WidgetTree->GetAllWidgets(AllWidgets);
+		for (UWidget* Child : AllWidgets)
+		{
+			if (UReEchoMinimapCanvasWidget* CanvasWidget = Cast<UReEchoMinimapCanvasWidget>(Child))
+			{
+				MinimapCanvas = CanvasWidget;
+				break;
+			}
+		}
+	}
+
 	RefreshText();
 }
 
@@ -33,6 +51,14 @@ void UReEchoEncounterHudWidget::SetEncounterStatus(const int32 EncounterIndex,
 	EncounterCount = FMath::Max(1, TotalEncounters);
 	RemainingTime = FMath::Max(0.0f, RemainingSeconds);
 	RefreshText();
+}
+
+void UReEchoEncounterHudWidget::SetMinimapView(const FReEchoMinimapView& View)
+{
+	if (MinimapCanvas)
+	{
+		MinimapCanvas->SetView(View);
+	}
 }
 
 void UReEchoEncounterHudWidget::BuildWidgetTree()
