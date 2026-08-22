@@ -117,7 +117,7 @@ Commit
 
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。当前 canonical Staff 仍是 `Pattern.StaffProjectile → Projectile`；复用 `StaffLightWave` 只表示视觉资源复用，不得切回旧 `Pattern.MoonStaffWave` 行为。
 
-六武器的手持与首用攻击纹理由主模块 `FReEchoWeaponVisualCatalog` 集中解析和枚举，GameInstance 预加载器在菜单阶段异步预热。该机制不进入 `ReEchoWeapons` 逻辑模块；缺图或异步失败时，世界 Actor 继续使用原同步读取与程序/刀光回退，Commit 和命中不等待表现成功。
+六武器的手持纹理以及鞭/法杖剩余旧攻击纹理由主模块 `FReEchoWeaponVisualCatalog` 集中解析和枚举。长剑、镰刀、弓和枪的攻击表现由 `FReEchoCombatVfxCatalog` 映射 Niagara 并在菜单阶段异步预热：近战消费 AttackCommitted，投射物飞行 System 绑定逻辑 Actor、命中 System 消费 `OnProjectileImpacted`；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次，不保存第二份方向或每帧重复计算。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续，禁止回退为长剑平面刀光或程序球体冒充正式攻击特效。
 
 ### 持有者瞄准适配
 

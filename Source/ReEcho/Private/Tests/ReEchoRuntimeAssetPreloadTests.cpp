@@ -12,9 +12,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuntimeAssetPreloadCatalogTest,
 bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 {
 	const TArray<FSoftObjectPath> AssetPaths = UReEchoRuntimeAssetPreloader::BuildDefaultAssetList();
-	TestEqual(TEXT("The preload catalog contains combat, element and weapon presentation assets"),
-	          AssetPaths.Num(),
-	          31);
+	TestEqual(
+	    TEXT("The preload catalog contains combat, element and weapon presentation assets"), AssetPaths.Num(), 32);
 	TSet<FSoftObjectPath> UniquePaths;
 	for (const FSoftObjectPath& AssetPath : AssetPaths)
 	{
@@ -22,16 +21,26 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Every preload path is unique"), UniquePaths.Contains(AssetPath));
 		UniquePaths.Add(AssetPath);
 	}
-	TestTrue(TEXT("Known-safe melee fallback is included"),
-	         UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent"))));
+	TestTrue(TEXT("Longsword Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(
+	             TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01.NS_People_Sword_Attack_01"))));
+	TestTrue(TEXT("Scythe Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(
+	             TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01.NS_People_Sickle_Attack_01"))));
+	TestTrue(TEXT("Bow flight Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(
+	             TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01.NS_People_Bow_Attack_01"))));
+	TestTrue(TEXT("Gun impact Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(
+	             TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark.NS_People_Bullet_spark"))));
 	TestTrue(TEXT("Missing specialist art is still warmed before its synchronous fallback"),
 	         UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash"))));
 	TestTrue(TEXT("Grass attachment Niagara is preloaded"),
-	         UniquePaths.Contains(FSoftObjectPath(
-	             TEXT("/Game/VFX/Element/Grass/Particle/NS_Element_Grass.NS_Element_Grass"))));
+	         UniquePaths.Contains(
+	             FSoftObjectPath(TEXT("/Game/VFX/Element/Grass/Particle/NS_Element_Grass.NS_Element_Grass"))));
 	TestTrue(TEXT("Conduct Niagara is preloaded"),
-	         UniquePaths.Contains(FSoftObjectPath(TEXT(
-	             "/Game/VFX/Element/Elctricity/Particle/NS_Element_Electricity.NS_Element_Electricity"))));
+	         UniquePaths.Contains(FSoftObjectPath(
+	             TEXT("/Game/VFX/Element/Elctricity/Particle/NS_Element_Electricity.NS_Element_Electricity"))));
 
 	const TArray<FString> DirtyPaths = {TEXT("  /Game/ReEcho/Textures/Effects/Bow.Bow  "),
 	                                    TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow"),

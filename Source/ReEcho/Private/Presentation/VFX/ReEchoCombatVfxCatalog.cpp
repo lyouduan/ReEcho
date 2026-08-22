@@ -20,6 +20,16 @@ const TCHAR* FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic
 			return TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_04.NS_Fox_Rush_04");
 		case EReEchoCombatVfxSemantic::PlayerMeleeSlash:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01.NS_People_Sword_Attack_01");
+		case EReEchoCombatVfxSemantic::PlayerScytheSlash:
+			return TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01.NS_People_Sickle_Attack_01");
+		case EReEchoCombatVfxSemantic::PlayerBowFlight:
+			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01.NS_People_Bow_Attack_01");
+		case EReEchoCombatVfxSemantic::PlayerBowImpact:
+			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Boom.NS_People_Bow_Boom");
+		case EReEchoCombatVfxSemantic::PlayerGunFlight:
+			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly.NS_People_Bullet_Fly");
+		case EReEchoCombatVfxSemantic::PlayerGunImpact:
+			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark.NS_People_Bullet_spark");
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		default:
@@ -52,8 +62,24 @@ const TCHAR* FReEchoCombatVfxCatalog::ResolveRabbitProjectileGlowMaterialPath(co
 
 bool FReEchoCombatVfxCatalog::IsMeleeAttackPattern(const FName AttackPatternId)
 {
-	// This gate selects the delivered sword Niagara, not generic melee gameplay.
-	return AttackPatternId == TEXT("Pattern.LongSwordCombo");
+	EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
+	return ResolveMeleeAttackSemantic(AttackPatternId, Semantic);
+}
+
+bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatternId,
+                                                         EReEchoCombatVfxSemantic& OutSemantic)
+{
+	if (AttackPatternId == TEXT("Pattern.LongSwordCombo"))
+	{
+		OutSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
+		return true;
+	}
+	if (AttackPatternId == TEXT("Pattern.ScytheSweep"))
+	{
+		OutSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlash;
+		return true;
+	}
+	return false;
 }
 
 void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)

@@ -733,7 +733,12 @@ void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 	SwordSwingDirection *= -1.0f;
 	// Only the longsword owns the hand-sprite swing. Scythe and whip keep their billboard pose.
 	SwordAnimationTime = WeaponVisualKey == TEXT("CrescentBlade") ? SwordAnimationDuration : 0.0f;
-	SpawnMeleeArc(WeaponVisualKey);
+	// Longsword and scythe attack presentation is owned by the combat Niagara event adapter.
+	// Whip remains on its legacy placeholder until dedicated Niagara art is delivered.
+	if (WeaponVisualKey == TEXT("Whip"))
+	{
+		SpawnMeleeArc(WeaponVisualKey);
+	}
 }
 
 void AReEchoWeaponActor::SpawnMeleeArc(const FName WeaponVisualKey)

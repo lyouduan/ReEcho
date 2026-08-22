@@ -12,12 +12,17 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 AReEchoProjectileActor::AReEchoProjectileActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	ProjectileLogic = CreateDefaultSubobject<UReEchoProjectileLogicComponent>(TEXT("ProjectileLogic"));
+	ProjectileLogic->OnProjectileImpacted.AddUObject(this, &AReEchoProjectileActor::HandleProjectileImpact);
 	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
 	Collision->InitSphereRadius(13.f);
@@ -60,6 +65,8 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 	Damage = FMath::Max(0.f, InDamage);
 	Element = InElement;
 	ExplosionRadiusCm = FMath::Max(0.0f, InExplosionRadiusCm);
+	WeaponVisualKey = InWeaponVisualKey;
+	bImpactVfxSpawned = false;
 	FReEchoLogicalProjectileSpec Spec;
 	Spec.HitIntent.Attack = InAttack;
 	Spec.HitIntent.RawDamage = Damage;
@@ -94,6 +101,96 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 		Shape->SetMaterial(0, Material);
 	}
 	ConfigureWeaponVisual(InWeaponVisualKey, Color);
+	ConfigureWeaponNiagara(InWeaponVisualKey, Direction);
+}
+
+void AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKey, const FVector& Direction)
+{
+	EReEchoCombatVfxSemantic Semantic;
+	if (InWeaponVisualKey == TEXT("Bow"))
+	{
+		Semantic = EReEchoCombatVfxSemantic::PlayerBowFlight;
+	}
+	else if (InWeaponVisualKey == TEXT("Gun"))
+	{
+		Semantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+	}
+	else
+	{
+		return;
+	}
+	Shape->SetVisibility(false);
+	if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, FReEchoCombatVfxCatalog::ResolvePath(Semantic)))
+	{
+		const FRotator FlightRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+		FlightEffect =
+		    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
+		                                                 RootComponent,
+		                                                 NAME_None,
+		                                                 FVector::ZeroVector,
+		                                                 InWeaponVisualKey == TEXT("Bow") ? FRotator::ZeroRotator
+		                                                                                 : FlightRotation,
+		                                                 FVector::OneVector,
+		                                                 EAttachLocation::KeepRelativeOffset,
+		                                                 false,
+		                                                 ENCPoolMethod::None,
+		                                                 true);
+		if (FlightEffect)
+		{
+			FlightEffect->SetTranslucentSortPriority(1000);
+			if (InWeaponVisualKey == TEXT("Bow"))
+			{
+				// Preserve every authored particle/renderer setting. Only rotate the complete system once so its
+				// authored +X flight axis matches the committed shooter-to-target direction.
+				FlightEffect->SetAbsolute(false, true, false);
+				FlightEffect->SetWorldRotation(FlightRotation);
+			}
+		}
+	}
+}
+
+void AReEchoProjectileActor::HandleProjectileImpact(const FReEchoProjectileSnapshot& Snapshot,
+                                                    const FReEchoHitResolved& Result)
+{
+	if (bImpactVfxSpawned)
+	{
+		return;
+	}
+	bImpactVfxSpawned = true;
+	SpawnWeaponImpactNiagara(GetActorLocation(), Snapshot.Velocity);
+}
+
+void AReEchoProjectileActor::SpawnWeaponImpactNiagara(const FVector& Location, const FVector& Direction)
+{
+	EReEchoCombatVfxSemantic Semantic;
+	if (WeaponVisualKey == TEXT("Bow"))
+	{
+		Semantic = EReEchoCombatVfxSemantic::PlayerBowImpact;
+	}
+	else if (WeaponVisualKey == TEXT("Gun"))
+	{
+		Semantic = EReEchoCombatVfxSemantic::PlayerGunImpact;
+	}
+	else
+	{
+		return;
+	}
+	if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, FReEchoCombatVfxCatalog::ResolvePath(Semantic)))
+	{
+		if (UNiagaraComponent* ImpactEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		        GetWorld(),
+		        System,
+		        Location,
+		        FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction),
+		        FVector::OneVector,
+		        true,
+		        true,
+		        ENCPoolMethod::None,
+		        true))
+		{
+			ImpactEffect->SetTranslucentSortPriority(1000);
+		}
+	}
 }
 
 FString AReEchoProjectileActor::ResolveWeaponTexturePath(const FName WeaponVisualKey)
@@ -106,9 +203,9 @@ FString AReEchoProjectileActor::ResolveWeaponTexturePath(const FName WeaponVisua
 	return FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(WeaponVisualKey);
 }
 
-void AReEchoProjectileActor::ConfigureWeaponVisual(const FName WeaponVisualKey, const FLinearColor& Color)
+void AReEchoProjectileActor::ConfigureWeaponVisual(const FName InWeaponVisualKey, const FLinearColor& Color)
 {
-	const FString TexturePath = ResolveWeaponTexturePath(WeaponVisualKey);
+	const FString TexturePath = ResolveWeaponTexturePath(InWeaponVisualKey);
 	UTexture2D* Texture = TexturePath.IsEmpty() ? nullptr : LoadObject<UTexture2D>(nullptr, *TexturePath);
 	if (Texture)
 	{
@@ -125,7 +222,7 @@ void AReEchoProjectileActor::ConfigureWeaponVisual(const FName WeaponVisualKey, 
 			UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
 			Material->SetTextureParameterValue(TEXT("SpriteTexture"), Texture);
 			Shape->SetMaterial(0, Material);
-			const float Height = WeaponVisualKey == TEXT("Bow") ? 34.0f : 56.0f;
+			const float Height = InWeaponVisualKey == TEXT("Bow") ? 34.0f : 56.0f;
 			const float Aspect = static_cast<float>(Texture->GetSizeX()) / FMath::Max(1, Texture->GetSizeY());
 			Shape->SetRelativeScale3D(FVector(Height * Aspect / 100.0f, Height / 100.0f, 1.0f));
 			Shape->SetVisibility(true);
@@ -134,15 +231,15 @@ void AReEchoProjectileActor::ConfigureWeaponVisual(const FName WeaponVisualKey, 
 	}
 
 	// Distinct procedural fallbacks keep missing art playable and visually diagnosable.
-	if (WeaponVisualKey == TEXT("Bow"))
+	if (InWeaponVisualKey == TEXT("Bow"))
 	{
 		Shape->SetRelativeScale3D(FVector(0.12f, 0.48f, 0.12f));
 	}
-	else if (WeaponVisualKey == TEXT("Gun"))
+	else if (InWeaponVisualKey == TEXT("Gun"))
 	{
 		Shape->SetRelativeScale3D(FVector(0.14f));
 	}
-	else if (WeaponVisualKey == TEXT("Staff") || WeaponVisualKey == TEXT("MoonStaff"))
+	else if (InWeaponVisualKey == TEXT("Staff") || InWeaponVisualKey == TEXT("MoonStaff"))
 	{
 		Shape->SetRelativeScale3D(FVector(0.34f, 0.18f, 0.34f));
 	}

@@ -6,7 +6,7 @@
 - Executor 负责人：当前对话程序 Executor。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@085a3ca9d029b418597ff28e94d14d08d53fd12e`。
 - 本地实现方式：用户已确认不采用一任务一 worktree，直接在当前本地 `main` 工作区执行；现有大量本地美术/VFX 修改均受保护，只显式处理本 Plan 路径。
@@ -53,9 +53,9 @@
 
 ## 锁定验收
 
-- [ ] 长剑单次攻击只创建一个 Niagara 斩击且旧 `SwordArcActor` 不再用于长剑攻击表现。
-- [ ] 镰刀攻击 Niagara 的方向、位置和触发次数与权威 Commit 一致。
-- [ ] 弓、枪飞行 Niagara 跟随逻辑投射物，命中特效在权威终止位置只播放一次。
+- [x] 长剑单次攻击只创建一个 Niagara 斩击且旧 `SwordArcActor` 不再用于长剑攻击表现。
+- [x] 镰刀攻击 Niagara 的方向、位置和触发次数与权威 Commit 一致。
+- [x] 弓、枪飞行 Niagara 跟随逻辑投射物，命中特效在权威命中位置只播放一次。
 - [ ] 四种武器的攻击节拍、伤害、碰撞、穿透、爆炸和元素行为回归不变。
 - [ ] 四种 Niagara 根可加载并进入预加载清单；正式依赖闭包可从 Git/Shipping 获得。
 - [ ] 修改 C++ 完成格式化，并通过 Development `-FullRebuild`、聚焦自动化、`validate_project.py` 和 `git diff --check`。
@@ -95,12 +95,34 @@
 
 ### 变化
 
+- Combat VFX Catalog 新增长剑、镰刀、弓飞行/命中、枪飞行/命中六个明确语义；长剑与镰刀按稳定 AttackPattern 在 AttackCommitted 后分别播放专用 Niagara。
+- `AReEchoWeaponActor` 只为尚未迁移的 Whip 保留 `SwordArcActor`；长剑与镰刀不再创建旧平面刀光，Plan75 新增符文接口与状态完整保留。
+- `AReEchoProjectileActor` 为 Bow/Gun 隐藏旧贴图/程序形状，将飞行 Niagara 绑定权威逻辑 Actor，并在首次 `OnProjectileImpacted` 回调播放一次命中特效；爆炸多目标回调不会重复生成表现。
+- 首轮 PIE 发现长剑/镰刀层级和方向错误、弓/枪缺少可见飞行过程；四个方向/移动 System 的全部内嵌发射器已通过 Unreal Editor 版本化 Emitter 数据接口改为 Local Space，武器战斗特效前景排序下限提高到 `1000`。
+- 弓箭后续 PIE 反馈确认只应修改完整特效的整体旋转，不应改变资源内部表现；已撤销三个 Sprite Renderer 的 `VelocityAligned` 改造并恢复原 `Automatic`，Catalog 使用 System 实际 authored `+X` 整体轴。飞行 Niagara 生成后只对完整 Component 设置一次绝对世界旋转，使其对齐 Commit 已锁定的“角色射向目标”方向；直线弹道不做 Tick 更新。
+- Weapon Visual Catalog 不再枚举或同步读取长剑、镰刀、弓、枪旧攻击贴图；GameInstance 预加载通过 Combat VFX Catalog 纳入六个正式语义。
+
 ### 证据
+
+- 修改后 Development 增量构建通过（9 actions），UHT/UBT 退出成功并刷新预构建包。
+- 格式化后的最终候选 Development `-FullRebuild` 通过（99 actions），7 个模块精选预构建包刷新成功。
+- 恢复弓箭原始 Renderer 并改为完整 Component 单次世界旋转后的最终 Development `-FullRebuild` 再次通过（99 actions）；`ReEcho.Presentation.VFX.Catalog` 返回 `Result={Success}`，同时验证 authored `+X` 整体轴旋转后等于锁定目标方向、三个 Sprite Renderer 均保持原 `Automatic`；`prebuilt_editor.py check` 返回 7 个模块、`build_id=55116800`、`source=f6e6728f66d2`，`validate_project.py` 与 `git diff --check` 均通过。
+- 静态二进制引用闭包审计从六个 Niagara 根解析到 55 个现存资产；本地待发布依赖集中在 People/Bow、People/Bullet、People/Sickle、必要 Sword/Rabbit MI 与五张公共纹理，未把整套公共素材库自动纳入。
+- 仓库 `Run-Automation.cmd` 仍被本机 LinuxArm64/VisionOS `MainVersion` SDK 校验阻断；改用 Win64 Editor 命令行与内存 DDC 后，`ReEcho.Presentation.VFX.Catalog` 已完成并返回 `Result={Success}`，同时锁定长剑/镰刀/弓飞行/枪飞行全部启用发射器为 Local Space。
 
 ### 剩余风险
 
+- 客观门禁已完成；仍需用户在 PIE 对四种武器做最终视觉验收。
+- Niagara 自身尺寸、朝向轴、Local/World Space、透明层级和飞行跟随必须由用户在 PIE 主观验收；弓的 Boom 对爆炸多目标只在第一个权威命中回调播放一次，避免视觉重复。
+- 鞭和法杖不在本 Plan 范围，继续保留旧攻击表现。
+
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：实现和客观检查完成后，请用户执行四种武器 PIE 视觉验收。
+`AcceptedWithKnownLimitations`：用户确认本轮暂时按当前表现发布；弓箭只保留完整 Component 单次旋转方案，最终方向观感尚未作为完全通过项关闭，后续如继续调整应保持 Niagara 内部原表现不变。
 
 ### 架构文档审阅结果
+
+- `MOD-ReEcho.md`：已更新四武器 Niagara 路由及玩法/表现边界。
+- `MOD-ReEchoVFX.md`：已更新六个武器语义、事件来源、生命周期与代码落点。
+- `MOD-ReEchoWeapons.md`：已更新主模块 Niagara 适配；资源无关 Weapons 逻辑契约未变化。
+- `ARCHITECTURE.md`、`CODEBASE_MAP/README.md`：已审阅，无模块依赖拓扑或 AREA 路由变化。
