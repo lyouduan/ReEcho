@@ -5,7 +5,7 @@
 - Planner 负责人：JosephLE910（程序）
 - Executor 负责人：JosephLE910（程序）
 - Plan / 实现编写方（AI 侧）：`JosephLE910-side AI | Codex`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main @ 887722b176867d682976e81aafb42860861d921c`。
 - 本地实现方式：`C:\Users\binnanliang\Documents\ReEcho-worktrees\2d-animation-redesign`，分支 `codex/2d-animation-redesign`。
@@ -65,11 +65,11 @@
 
 ## 锁定验收
 
-- [ ] 默认 FSM 正式包含 Idle、Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death，并锁定明确优先级/完成归宿。
-- [ ] 生产狐狸 Base 与 Phase2 Profile 均解析到可加载的 Charge/Basic Clip；Charge 循环，Basic 单次且可重播。
-- [ ] 生产 Boss/TimeGuard Profile 可解析 Transform 与 Phase2 基础/攻击 Clip；阶段切换期间 Transform 不被普通攻击/Hit 覆盖。
-- [ ] 所有生产玩家、Echo、怪物 Profile 通过覆盖审计；缺失项按允许回退表报告，不静默失败。
-- [ ] 自动化覆盖生产狐狸 `Charge -> Basic -> Base`、生产 Boss `Base -> Transform -> Phase2`、抢占/取消和缺失回退。
+- [x] 默认 FSM 正式包含 Idle、Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death，并锁定明确优先级/完成归宿。
+- [x] 生产狐狸 Base 与 Phase2 Profile 均解析到可加载的 Charge/Basic Clip；Charge 循环，Basic 单次且可重播。
+- [x] 生产 Boss/TimeGuard Profile 可解析 Transform 与 Phase2 基础/攻击 Clip；阶段切换期间 Transform 不被普通攻击/Hit 覆盖。
+- [x] 所有生产玩家、Echo、怪物 Profile 通过覆盖审计；缺失项按允许回退表报告，不静默失败。
+- [x] 自动化已执行生产狐狸、Boss、抢占/取消与缺失回退断言；新增断言无报错，但所在既有 `AssetProfiles` 用例仍被删除资产路径等基线断言判失败，详见证据。
 - [ ] `.clang-format`、`Build-Editor.cmd -Configuration Development`、聚焦自动化、`python scripts/validate_project.py` 与 `git diff --check` 通过。
 - [ ] 用户在 PIE 验收狐狸蓄力、Boss 变身、脚点/比例/阴影/朝向/首帧闪烁后，人工验收方可设为 `Passed`。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
@@ -105,14 +105,31 @@
 
 ### 变化
 
+- 默认 FSM 扩为七态，并用独立动作占用保护循环 Charge；`ActionEnded` 显式取消攻击表现，单次动作完成后回到当前 Idle/Move。
+- 8 个生产怪物 Profile 补齐 Base 语义；狐狸 Base/Phase2 补齐 Charge/Basic；TimeGuard Phase2 使用暗形态 Walk/Attack 组合，Transform 具名复用暗形态素材。
+- 新增可重复的 Editor 配置脚本和只读覆盖审计，覆盖 8 个玩家/Echo 与 8 个怪物 Profile。
+
 ### 证据
+
+- `audit_plan74_animation_contracts.py`：`enemy_profiles=8 character_profiles=8 issues=0`。
+- Development 增量构建：12 actions；最终 FullRebuild：94 actions；均为 Result Succeeded，prebuilt source `53a118aabb0b` 且校验通过。
+- `ReEcho.Presentation.Animation2D.FootpointAlignment`：Success。`AssetProfiles` 中本轮新增 Charge/Transform/取消/抢占断言无错误；整体 Fail 来自既有测试仍加载已删除的 Grunt Flipbook、Grunt/Bomber Gameplay BP，以及现有逐帧碰撞断言与资产不符，共 16 条错误。本轮未删除或削弱这些断言。
+- `python scripts/validate_project.py` 与 `git diff --check`：通过。
 
 ### 剩余风险
 
 - 正式美术帧若不存在，本 Plan 不生成替代画面；对应 Profile 只能具名回退并等待美术资产。
+- Boss 独立 Transform 帧仍缺失，目前使用暗形态 Flipbook 的一次性锁定过渡；需要美术替换和用户 PIE 视觉确认。
+- 既有 `AssetProfiles` 自动化基线需单独清理已删除资产路径/Gameplay Blueprint 与逐帧碰撞契约漂移；在此之前不能声称整个专项套件通过。
 
 ### 人工验收结果/请求
 
 - `PendingBeforeClose`：狐狸蓄力、Boss 变身和 Phase2 连续性需要用户 PIE 验收。
 
 ### 架构文档审阅结果
+
+- `ARCHITECTURE.md`：已审阅；模块依赖和所有权未改变，无需修改。
+- `README.md`：已审阅；入口和运行命令未改变，无需修改。
+- `MOD-ReEchoPresentation.md`：已更新七态、动作占用、审计与验证边界。
+- `MOD-ReEcho.md`：已更新特殊动作事件链、Transform/Phase2 与状态优先级。
+- `MOD-ReEchoEnemies.md`：已审阅；敌人事件权威未改变，无需修改。

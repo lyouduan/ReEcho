@@ -140,6 +140,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
 	UReEcho2DCharacterPresentationProfile* AuthoredFox = LoadObject<UReEcho2DCharacterPresentationProfile>(
 	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Fox.DA_Enemy_Fox"));
+	UReEcho2DCharacterPresentationProfile* AuthoredTimeGuard = LoadObject<UReEcho2DCharacterPresentationProfile>(
+	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_TimeGuard.DA_Enemy_TimeGuard"));
 	TestNotNull(TEXT("Cook-visible presentation catalog is loadable"), AuthoredCatalog);
 	TestNotNull(TEXT("Gameplay-owned enemy class registry is loadable"), GameplayClassRegistry);
 	const UReEcho2DCharacterPresentationProfile* AuthoredSpade =
@@ -298,9 +300,30 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 	const FReEcho2DAnimationClip* FoxAttackClip =
 	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
-	TestTrue(TEXT("Fox owns looping Walk and one-shot Attack"),
-	         AuthoredFox && FoxWalkClip && FoxAttackClip && FoxWalkClip->Flipbook && FoxWalkClip->bLooping &&
+	const FReEcho2DAnimationClip* FoxChargeClip =
+	    AuthoredFox ? AuthoredFox->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Charge) : nullptr;
+	TestTrue(TEXT("Fox owns looping Walk and Charge plus one-shot Attack"),
+	         AuthoredFox && FoxWalkClip && FoxChargeClip && FoxAttackClip && FoxWalkClip->Flipbook &&
+	             FoxWalkClip->bLooping && FoxChargeClip->Flipbook && FoxChargeClip->bLooping &&
 	             FoxAttackClip->Flipbook && !FoxAttackClip->bLooping && FoxAttackClip->bRestartOnRequest);
+	const FReEcho2DAnimationClip* TimeGuardTransformClip =
+	    AuthoredTimeGuard ? AuthoredTimeGuard->ResolveClip(TEXT("Phase2"), ReEcho2DAnimationTags::Transform_Phase2)
+	                      : nullptr;
+	const FReEcho2DAnimationClip* TimeGuardPhase2MoveClip =
+	    AuthoredTimeGuard ? AuthoredTimeGuard->ResolveClip(TEXT("Phase2"), ReEcho2DAnimationTags::Move) : nullptr;
+	const FReEcho2DAnimationClip* TimeGuardPhase2ChargeClip =
+	    AuthoredTimeGuard ? AuthoredTimeGuard->ResolveClip(TEXT("Phase2"), ReEcho2DAnimationTags::Attack_Charge)
+	                      : nullptr;
+	const FReEcho2DAnimationClip* TimeGuardPhase2AttackClip =
+	    AuthoredTimeGuard ? AuthoredTimeGuard->ResolveClip(TEXT("Phase2"), ReEcho2DAnimationTags::Attack_Basic)
+	                      : nullptr;
+	TestTrue(TEXT("TimeGuard Phase2 resolves transform, locomotion, charge and attack clips"),
+	         AuthoredTimeGuard && TimeGuardTransformClip && TimeGuardTransformClip->Flipbook &&
+	             !TimeGuardTransformClip->bLooping && TimeGuardPhase2MoveClip && TimeGuardPhase2MoveClip->Flipbook &&
+	             TimeGuardPhase2MoveClip->bLooping && TimeGuardPhase2ChargeClip &&
+	             TimeGuardPhase2ChargeClip->Flipbook && TimeGuardPhase2ChargeClip->bLooping &&
+	             TimeGuardPhase2AttackClip && TimeGuardPhase2AttackClip->Flipbook &&
+	             !TimeGuardPhase2AttackClip->bLooping);
 	TestTrue(TEXT("Fox Walk uses authored EachFrame collision"),
 	         FoxWalkClip && FoxWalkClip->Flipbook &&
 	             FoxWalkClip->Flipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
@@ -406,6 +429,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	PresentationProfile->AnimationSets[0].Clips.Remove(ReEcho2DAnimationTags::Idle);
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Move, StaffMoveClip);
 	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Attack_Basic, AuthoredClip);
+	FReEcho2DAnimationClip ChargeClip = StaffMoveClip;
+	ChargeClip.bLooping = true;
+	ChargeClip.bRestartOnRequest = true;
+	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Attack_Charge, ChargeClip);
 	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Hit, AuthoredClip);
 	UReEcho2DAnimationStateMachineAsset* StateMachine = NewObject<UReEcho2DAnimationStateMachineAsset>();
 	auto AddState = [StateMachine](const FGameplayTag Tag, const int32 Priority, const bool bLock, const bool bTerminal)
@@ -419,8 +446,11 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	};
 	AddState(ReEcho2DAnimationTags::Idle, 0, false, false);
 	AddState(ReEcho2DAnimationTags::Move, 10, false, false);
+	AddState(ReEcho2DAnimationTags::Attack_Charge, 30, true, false);
 	AddState(ReEcho2DAnimationTags::Attack_Basic, 40, true, false);
 	AddState(ReEcho2DAnimationTags::Hit, 60, true, false);
+	AddState(ReEcho2DAnimationTags::Transform_Phase2, 80, true, false);
+	AddState(ReEcho2DAnimationTags::Death, 100, true, true);
 	PresentationProfile->StateMachine = StateMachine;
 	UReEcho2DAnimationComponent* ControlledRenderer = NewObject<UReEcho2DAnimationComponent>();
 	UReEcho2DPresentationController* Controller = NewObject<UReEcho2DPresentationController>();
@@ -435,6 +465,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Missing Idle clip retains the Gameplay Blueprint fallback Flipbook"),
 	         ControlledRenderer->IsAnimationActive() && ControlledRenderer->GetFlipbook() == WalkFlipbook &&
 	             ControlledRenderer->IsVisible() && !ControlledRenderer->bHiddenInGame);
+	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Idle, AuthoredClip);
+	Controller->Configure(ControlledRenderer, PresentationProfile, TEXT("MoonStaff"));
 	Controller->SetMoving(true);
 	const float ControlledNativeHeight = ControlledRenderer->GetFlipbook()->GetRenderBounds().BoxExtent.Z * 2.0f;
 	TestTrue(TEXT("Profile world height normalizes the active animation renderer"),
@@ -442,6 +474,14 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	             FMath::IsNearlyEqual(ControlledRenderer->GetRelativeScale3D().Z, 100.0f / ControlledNativeHeight));
 	TestTrue(TEXT("Move intent selects the authored weapon-set clip"),
 	         ControlledRenderer->IsAnimationActive() && ControlledRenderer->GetFlipbook() == WalkFlipbook);
+	TestTrue(TEXT("Looping Charge begins as an owned action"),
+	         Controller->PlayAction(ReEcho2DAnimationTags::Attack_Charge) && ControlledRenderer->IsLooping());
+	Controller->SetMoving(false);
+	TestTrue(TEXT("Movement changes cannot replace an owned looping Charge"),
+	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Attack_Charge);
+	TestTrue(TEXT("Explicit attack cancellation returns Charge to the current base state"),
+	         Controller->CancelAttackAction() && Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Idle);
+	Controller->SetMoving(true);
 	TestTrue(TEXT("Authored basic action overrides Move"),
 	         Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic) &&
 	             ControlledRenderer->GetFlipbook() == StaffAttackFlipbook && !ControlledRenderer->IsLooping());
@@ -467,6 +507,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Controller->BeginAnimationSetTransition(TEXT("Phase2"), ReEcho2DAnimationTags::Transform_Phase2) &&
 	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Transform_Phase2 &&
 	             ControlledRenderer->GetFlipbook() == StaffAttackFlipbook);
+	TestFalse(TEXT("Hit cannot interrupt a locked phase transformation"),
+	          Controller->PlayAction(ReEcho2DAnimationTags::Hit));
 	Controller->CompleteAnimationSetTransition(TEXT("Phase2"));
 	TestTrue(TEXT("Completing an animation-set transition enters the target set's current base state"),
 	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&

@@ -25,6 +25,7 @@ void UReEcho2DPresentationController::UpdatePlaybackCompletion()
 {
 	if (bWaitingForOneShot && AnimationRenderer && !AnimationRenderer->IsPlaying())
 	{
+		bActionActive = false;
 		bWaitingForOneShot = false;
 		if (CollisionDriver && ActiveAttackInstanceId >= 0)
 		{
@@ -59,6 +60,7 @@ void UReEcho2DPresentationController::Configure(UReEcho2DAnimationComponent* InA
 		CollisionDriver->BindRenderer(AnimationRenderer);
 	}
 	bWaitingForOneShot = false;
+	bActionActive = false;
 	ActiveAttackInstanceId = INDEX_NONE;
 	if (!Profile && GetOwner() && !GetOwner()->HasAnyFlags(RF_ClassDefaultObject))
 	{
@@ -83,6 +85,7 @@ void UReEcho2DPresentationController::ClearProfile()
 	WeaponVisualSetId = NAME_None;
 	ActiveSemanticKey = FGameplayTag();
 	ActiveStateTag = FGameplayTag();
+	bActionActive = false;
 	bWaitingForOneShot = false;
 	ActiveAttackInstanceId = INDEX_NONE;
 	DeactivatePresentation();
@@ -95,7 +98,7 @@ void UReEcho2DPresentationController::SetWeaponVisualSetId(const FName InWeaponV
 		return;
 	}
 	WeaponVisualSetId = InWeaponVisualSetId;
-	if (!bWaitingForOneShot)
+	if (!bActionActive)
 	{
 		ApplyBaseState(true);
 	}
@@ -109,6 +112,7 @@ bool UReEcho2DPresentationController::BeginAnimationSetTransition(const FName In
 		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
 	}
 	ActiveAttackInstanceId = INDEX_NONE;
+	bActionActive = false;
 	bWaitingForOneShot = false;
 	ActiveStateTag = FGameplayTag();
 	WeaponVisualSetId = InAnimationSetId;
@@ -122,6 +126,7 @@ void UReEcho2DPresentationController::CompleteAnimationSetTransition(const FName
 		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
 	}
 	ActiveAttackInstanceId = INDEX_NONE;
+	bActionActive = false;
 	bWaitingForOneShot = false;
 	ActiveStateTag = FGameplayTag();
 	WeaponVisualSetId = InAnimationSetId;
@@ -135,7 +140,7 @@ void UReEcho2DPresentationController::SetMoving(const bool bInMoving)
 		return;
 	}
 	bMoving = bInMoving;
-	if (!bWaitingForOneShot)
+	if (!bActionActive)
 	{
 		ApplyBaseState();
 	}
@@ -152,18 +157,47 @@ bool UReEcho2DPresentationController::PlayAction(const FGameplayTag SemanticKey,
 	}
 	if (!ApplySemantic(SemanticKey, bRestart))
 	{
+		if (GetOwner() && !GetOwner()->HasAnyFlags(RF_ClassDefaultObject))
+		{
+			UE_LOG(LogReEchoPresentation,
+			       Warning,
+			       TEXT("Animation2D action '%s' could not resolve for profile '%s' on '%s'."),
+			       *SemanticKey.ToString(),
+			       *GetPathNameSafe(Profile),
+			       *GetNameSafe(GetOwner()));
+		}
 		return false;
 	}
 	if (CollisionDriver && ActiveAttackInstanceId >= 0 && ActiveAttackInstanceId != AttackInstanceId)
 	{
 		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
 	}
+	bActionActive = true;
 	bWaitingForOneShot = AnimationRenderer && !AnimationRenderer->IsLooping();
 	ActiveAttackInstanceId = AttackInstanceId;
 	if (CollisionDriver && ActiveAttackInstanceId >= 0)
 	{
 		CollisionDriver->BeginAttackInstance(ActiveAttackInstanceId);
 	}
+	return true;
+}
+
+bool UReEcho2DPresentationController::CancelAttackAction()
+{
+	if (ActiveSemanticKey != ReEcho2DAnimationTags::Attack_Charge &&
+	    ActiveSemanticKey != ReEcho2DAnimationTags::Attack_Basic)
+	{
+		return false;
+	}
+	if (CollisionDriver && ActiveAttackInstanceId >= 0)
+	{
+		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
+	}
+	ActiveAttackInstanceId = INDEX_NONE;
+	bActionActive = false;
+	bWaitingForOneShot = false;
+	ActiveStateTag = FGameplayTag();
+	ApplyBaseState(true);
 	return true;
 }
 
@@ -186,6 +220,7 @@ void UReEcho2DPresentationController::SetFacingSign(const float FacingSign)
 
 void UReEcho2DPresentationController::ApplyBaseState(const bool bRestart)
 {
+	bActionActive = false;
 	const FGameplayTag DesiredKey = bMoving ? ReEcho2DAnimationTags::Move : ReEcho2DAnimationTags::Idle;
 	if (!ApplySemantic(DesiredKey, bRestart))
 	{
@@ -271,7 +306,7 @@ bool UReEcho2DPresentationController::CanEnterState(const FReEcho2DAnimationStat
 	{
 		return false;
 	}
-	return !CurrentState->bLockUntilPlaybackComplete || !bWaitingForOneShot ||
+	return !CurrentState->bLockUntilPlaybackComplete || !bActionActive ||
 	       DesiredState->InterruptPriority >= CurrentState->InterruptPriority;
 }
 
@@ -279,6 +314,7 @@ void UReEcho2DPresentationController::DeactivatePresentation()
 {
 	ActiveSemanticKey = FGameplayTag();
 	ActiveStateTag = FGameplayTag();
+	bActionActive = false;
 	if (AnimationRenderer)
 	{
 		AnimationRenderer->DeactivateAnimation();

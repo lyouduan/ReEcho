@@ -426,8 +426,13 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 
 void UReEchoEnemyPresentationComponent::HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event)
 {
-	if (!PresentationController || Event.Type == EReEchoEnemySpecialActionEventType::ActionEnded)
+	if (!PresentationController)
 	{
+		return;
+	}
+	if (Event.Type == EReEchoEnemySpecialActionEventType::ActionEnded)
+	{
+		PresentationController->CancelAttackAction();
 		return;
 	}
 	PresentationController->PlayAction(Event.Type == EReEchoEnemySpecialActionEventType::WindupStarted

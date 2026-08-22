@@ -1,6 +1,14 @@
 # ReEcho 2D 序列动画修改与扩展指南
 
-本文说明 ReEcho 当前 Paper2D 序列动画架构、已接入资源、`Idle / Walk / Attack` 状态机，以及后续增加角色或动画时的修改入口。
+本文说明 ReEcho 当前 Paper2D 序列动画架构、生产 Profile、七态语义状态机，以及后续增加角色或动画时的修改入口。旧的 `Idle / Walk / Attack` 说明仅适用于玩家基础路径；生产 FSM 以本节契约为准。
+
+## 当前生产状态契约（Plan74）
+
+默认 FSM 为 `Idle(0) < Move(10) < Attack.Charge(30) < Attack.Basic(40) < Hit(60) < Transform.Phase2(80) < Death(100)`。Charge 循环且拥有动作占用，移动变化不能覆盖它；玩法提交后进入 Basic，动作结束/取消可显式返回当前 Idle/Move。Transform 是不可被普通攻击或 Hit 覆盖的一次性阶段过渡，完成后切换 Phase2 AnimationSet；Death 为终结状态。任何播放完成都只改变表现，不产生伤害、移动或 AI 结果。
+
+狐狸 Base/Phase2 均显式配置 Charge 与 Basic。TimeGuard 的 Base 和 Phase2 均配置完整基础状态；阶段开始播放 Transform，阶段完成切换暗形态集合。仓库当前没有独立 Boss 变身帧，因此 Transform 显式复用暗形态素材作为具名回退，后续只需替换 Profile Clip，无需修改玩法代码。
+
+生产资产覆盖可用 `scripts/ue/audit_plan74_animation_contracts.py` 只读检查；它覆盖 8 个玩家/Echo Profile、8 个怪物 Profile、七态 FSM、必需 Clip 和循环策略。运行时缺失语义会记录警告并保留安全表现回退，不静默改变玩法。
 
 ## 当前接入范围
 

@@ -43,6 +43,8 @@ public:
 	void CompleteAnimationSetTransition(FName InAnimationSetId);
 	void SetMoving(bool bInMoving);
 	bool PlayAction(FGameplayTag SemanticKey, bool bRestart = true, int64 AttackInstanceId = INDEX_NONE);
+	/** End an active attack presentation without affecting Hit, Transform or Death. */
+	bool CancelAttackAction();
 	void SetFacingSign(float FacingSign);
 	void BindCollisionDriver(UReEcho2DFrameCollisionDriver* InCollisionDriver);
 	/** Poll one-shot completion without owning gameplay time; also used by deterministic tests. */
@@ -81,6 +83,7 @@ private:
 	FGameplayTag ActiveSemanticKey;
 	FGameplayTag ActiveStateTag;
 	bool bMoving = false;
+	bool bActionActive = false;
 	bool bWaitingForOneShot = false;
 	int64 ActiveAttackInstanceId = INDEX_NONE;
 };
