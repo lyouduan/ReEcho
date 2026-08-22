@@ -91,7 +91,7 @@ MOD-ReEcho ──→ MOD-ReEchoAudio
 ### 音频语义装配
 
 - `AReEchoGameMode` 从已经确认的菜单、遭遇、Boss、商店、天气、死亡、胜利、镜头切换和死亡重开生命周期发布状态或事件；`UReEchoRunSubsystem` 不保存第二份音乐状态。
-- `UReEchoUIFlowCoordinatorSubsystem` 为注册屏幕的按钮统一绑定 hover/基础 confirm，并通过无玩法状态的 `UReEchoButtonVisualFeedback` 缩放按钮完整视觉根；GameMode 仅在真实关闭、拒绝、购买和卡牌选择结果上追加专用 UI 事件。
+- `UReEchoUIFlowCoordinatorSubsystem` 为注册屏幕的按钮统一绑定 hover/基础 confirm，并通过无玩法状态的 `UReEchoButtonVisualFeedback` 缩放按钮完整视觉根；单按钮 Overlay 即使其 Button 自带 Content 仍优先作为完整根。Settings/Restart 的作者ing WBP Root 是正常表现权威，原生整页构建只在没有 Root 时降级；GameMode 仅在真实关闭、拒绝、购买和卡牌选择结果上追加专用 UI 事件。
 - `UReEchoCombatAudioAdapterComponent` 消费 Combat 最终事件；Enemy/Boss Host 把已提交 Intent 翻译为其专用攻击事件，Enemy Archetype 决定 Enemy/Boss 路由，Echo Host 发布自身生命周期。
 - 所有调用点只传 `FReEchoAudioEvents` 稳定 ID、位置、粗粒度来源和可选 VariantId，不加载 SoundWave，也不读取音频结果改变玩法。
 

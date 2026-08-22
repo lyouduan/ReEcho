@@ -114,7 +114,7 @@ void UReEchoSettingsWidget::NativeDestruct()
 
 void UReEchoSettingsWidget::BuildWidgetTree()
 {
-	if (DetailText || !WidgetTree)
+	if (!WidgetTree || WidgetTree->RootWidget)
 	{
 		return;
 	}
@@ -225,10 +225,16 @@ void UReEchoSettingsWidget::BuildWidgetTree()
 }
 
 UComboBoxString* UReEchoSettingsWidget::AddComboBoxOverlay(const FName ComboName,
-	const FName FieldName,
-	const FName ValueName,
-	const FName ArrowName)
+                                                           const FName FieldName,
+                                                           const FName ValueName,
+                                                           const FName ArrowName)
 {
+	if (UComboBoxString* ExistingComboBox =
+	        Cast<UComboBoxString>(WidgetTree ? WidgetTree->FindWidget(ComboName) : nullptr))
+	{
+		return ExistingComboBox;
+	}
+
 	UWidget* FieldWidget = WidgetTree ? WidgetTree->FindWidget(FieldName) : nullptr;
 	UPanelWidget* Parent = FieldWidget ? FieldWidget->GetParent() : nullptr;
 	if (!FieldWidget || !Parent)
@@ -259,15 +265,15 @@ UComboBoxString* UReEchoSettingsWidget::AddComboBoxOverlay(const FName ComboName
 	FSlateBrush HoveredRowBrush = RowBrush;
 	HoveredRowBrush.TintColor = FSlateColor(FLinearColor(0.78f, 0.88f, 0.92f, 1.0f));
 	ItemStyle.SetEvenRowBackgroundBrush(RowBrush)
-		.SetOddRowBackgroundBrush(RowBrush)
-		.SetEvenRowBackgroundHoveredBrush(HoveredRowBrush)
-		.SetOddRowBackgroundHoveredBrush(HoveredRowBrush)
-		.SetActiveBrush(HoveredRowBrush)
-		.SetActiveHoveredBrush(HoveredRowBrush)
-		.SetInactiveBrush(HoveredRowBrush)
-		.SetInactiveHoveredBrush(HoveredRowBrush)
-		.SetTextColor(FSlateColor(FLinearColor(0.12f, 0.12f, 0.12f, 1.0f)))
-		.SetSelectedTextColor(FSlateColor(FLinearColor(0.12f, 0.12f, 0.12f, 1.0f)));
+	    .SetOddRowBackgroundBrush(RowBrush)
+	    .SetEvenRowBackgroundHoveredBrush(HoveredRowBrush)
+	    .SetOddRowBackgroundHoveredBrush(HoveredRowBrush)
+	    .SetActiveBrush(HoveredRowBrush)
+	    .SetActiveHoveredBrush(HoveredRowBrush)
+	    .SetInactiveBrush(HoveredRowBrush)
+	    .SetInactiveHoveredBrush(HoveredRowBrush)
+	    .SetTextColor(FSlateColor(FLinearColor(0.12f, 0.12f, 0.12f, 1.0f)))
+	    .SetSelectedTextColor(FSlateColor(FLinearColor(0.12f, 0.12f, 0.12f, 1.0f)));
 	ComboBox->SetItemStyle(ItemStyle);
 
 	UPanelSlot* NewSlot = nullptr;
@@ -285,8 +291,8 @@ UComboBoxString* UReEchoSettingsWidget::AddComboBoxOverlay(const FName ComboName
 		const EVerticalAlignment FieldVAlign = SourceHorizontalSlot->GetVerticalAlignment();
 
 		Row->RemoveChild(FieldWidget);
-		UOverlay* FieldOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(),
-			*FString::Printf(TEXT("%sOverlay"), *ComboName.ToString()));
+		UOverlay* FieldOverlay = WidgetTree->ConstructWidget<UOverlay>(
+		    UOverlay::StaticClass(), *FString::Printf(TEXT("%sOverlay"), *ComboName.ToString()));
 		Row->InsertChildAt(FieldIndex, FieldOverlay);
 		if (UHorizontalBoxSlot* OverlayRowSlot = Cast<UHorizontalBoxSlot>(FieldOverlay->Slot))
 		{
@@ -366,6 +372,11 @@ UComboBoxString* UReEchoSettingsWidget::AddComboBoxOverlay(const FName ComboName
 
 USlider* UReEchoSettingsWidget::AddSliderOverlay(const FName SliderName, const FName TrackName)
 {
+	if (USlider* ExistingSlider = Cast<USlider>(WidgetTree ? WidgetTree->FindWidget(SliderName) : nullptr))
+	{
+		return ExistingSlider;
+	}
+
 	UWidget* TrackWidget = WidgetTree ? WidgetTree->FindWidget(TrackName) : nullptr;
 	UPanelWidget* Parent = TrackWidget ? TrackWidget->GetParent() : nullptr;
 	if (!TrackWidget || !Parent)
@@ -409,6 +420,16 @@ USlider* UReEchoSettingsWidget::AddSliderOverlay(const FName SliderName, const F
 
 void UReEchoSettingsWidget::BuildInteractiveSettingsControls()
 {
+	if (WidgetTree)
+	{
+		GraphicsResolutionComboBox = Cast<UComboBoxString>(WidgetTree->FindWidget(TEXT("GraphicsResolutionComboBox")));
+		GraphicsDisplayModeComboBox =
+		    Cast<UComboBoxString>(WidgetTree->FindWidget(TEXT("GraphicsDisplayModeComboBox")));
+		GraphicsQualityComboBox = Cast<UComboBoxString>(WidgetTree->FindWidget(TEXT("GraphicsQualityComboBox")));
+		GraphicsVSyncComboBox = Cast<UComboBoxString>(WidgetTree->FindWidget(TEXT("GraphicsVSyncComboBox")));
+		AudioOutputComboBox = Cast<UComboBoxString>(WidgetTree->FindWidget(TEXT("AudioOutputComboBox")));
+		GraphicsBrightnessSlider = Cast<USlider>(WidgetTree->FindWidget(TEXT("GraphicsBrightnessSlider")));
+	}
 	if (GraphicsResolutionComboBox)
 	{
 		RefreshGraphicsControls();
@@ -463,23 +484,31 @@ void UReEchoSettingsWidget::BuildInteractiveSettingsControls()
 		}
 	}
 
-	GraphicsResolutionComboBox = AddComboBoxOverlay(TEXT("GraphicsResolutionComboBox"), TEXT("GraphicsDropdown0"), TEXT("GraphicsValue0"), TEXT("GraphicsArrow0"));
-	GraphicsDisplayModeComboBox = AddComboBoxOverlay(TEXT("GraphicsDisplayModeComboBox"), TEXT("GraphicsDropdown1"), TEXT("GraphicsValue1"), TEXT("GraphicsArrow1"));
-	GraphicsQualityComboBox = AddComboBoxOverlay(TEXT("GraphicsQualityComboBox"), TEXT("GraphicsDropdown2"), TEXT("GraphicsValue2"), TEXT("GraphicsArrow2"));
-	GraphicsVSyncComboBox = AddComboBoxOverlay(TEXT("GraphicsVSyncComboBox"), TEXT("GraphicsDropdown3"), TEXT("GraphicsValue3"), TEXT("GraphicsArrow3"));
-	AudioOutputComboBox = AddComboBoxOverlay(TEXT("AudioOutputComboBox"), TEXT("AudioOutputField"), TEXT("AudioOutputValue"), TEXT("AudioOutputArrow"));
+	GraphicsResolutionComboBox = AddComboBoxOverlay(
+	    TEXT("GraphicsResolutionComboBox"), TEXT("GraphicsDropdown0"), TEXT("GraphicsValue0"), TEXT("GraphicsArrow0"));
+	GraphicsDisplayModeComboBox = AddComboBoxOverlay(
+	    TEXT("GraphicsDisplayModeComboBox"), TEXT("GraphicsDropdown1"), TEXT("GraphicsValue1"), TEXT("GraphicsArrow1"));
+	GraphicsQualityComboBox = AddComboBoxOverlay(
+	    TEXT("GraphicsQualityComboBox"), TEXT("GraphicsDropdown2"), TEXT("GraphicsValue2"), TEXT("GraphicsArrow2"));
+	GraphicsVSyncComboBox = AddComboBoxOverlay(
+	    TEXT("GraphicsVSyncComboBox"), TEXT("GraphicsDropdown3"), TEXT("GraphicsValue3"), TEXT("GraphicsArrow3"));
+	AudioOutputComboBox = AddComboBoxOverlay(
+	    TEXT("AudioOutputComboBox"), TEXT("AudioOutputField"), TEXT("AudioOutputValue"), TEXT("AudioOutputArrow"));
 
 	if (GraphicsResolutionComboBox)
 	{
-		GraphicsResolutionComboBox->OnSelectionChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleResolutionChanged);
+		GraphicsResolutionComboBox->OnSelectionChanged.AddUniqueDynamic(
+		    this, &UReEchoSettingsWidget::HandleResolutionChanged);
 	}
 	if (GraphicsDisplayModeComboBox)
 	{
-		GraphicsDisplayModeComboBox->OnSelectionChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDisplayModeChanged);
+		GraphicsDisplayModeComboBox->OnSelectionChanged.AddUniqueDynamic(
+		    this, &UReEchoSettingsWidget::HandleDisplayModeChanged);
 	}
 	if (GraphicsQualityComboBox)
 	{
-		GraphicsQualityComboBox->OnSelectionChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleGraphicsQualityChanged);
+		GraphicsQualityComboBox->OnSelectionChanged.AddUniqueDynamic(
+		    this, &UReEchoSettingsWidget::HandleGraphicsQualityChanged);
 	}
 	if (GraphicsVSyncComboBox)
 	{
@@ -489,18 +518,20 @@ void UReEchoSettingsWidget::BuildInteractiveSettingsControls()
 	{
 		AudioOutputComboBox->AddOption(TEXT("系统默认"));
 		AudioOutputComboBox->SetSelectedOption(TEXT("系统默认"));
-		AudioOutputComboBox->OnSelectionChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAudioOutputChanged);
+		AudioOutputComboBox->OnSelectionChanged.AddUniqueDynamic(this,
+		                                                         &UReEchoSettingsWidget::HandleAudioOutputChanged);
 	}
 
 	GraphicsBrightnessSlider = AddSliderOverlay(TEXT("GraphicsBrightnessSlider"), TEXT("GraphicsBrightnessTrack"));
 	if (GraphicsBrightnessSlider)
 	{
 		GraphicsBrightnessSlider->SetValue(PendingBrightness);
-		GraphicsBrightnessSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleBrightnessChanged);
+		GraphicsBrightnessSlider->OnValueChanged.AddUniqueDynamic(this,
+		                                                          &UReEchoSettingsWidget::HandleBrightnessChanged);
 		GraphicsBrightnessSlider->OnMouseCaptureEnd.AddUniqueDynamic(
-			this, &UReEchoSettingsWidget::HandleSliderInteractionFinished);
+		    this, &UReEchoSettingsWidget::HandleSliderInteractionFinished);
 		GraphicsBrightnessSlider->OnControllerCaptureEnd.AddUniqueDynamic(
-			this, &UReEchoSettingsWidget::HandleSliderInteractionFinished);
+		    this, &UReEchoSettingsWidget::HandleSliderInteractionFinished);
 	}
 	RefreshGraphicsControls();
 }
@@ -517,8 +548,10 @@ void UReEchoSettingsWidget::RefreshGraphicsControls()
 	if (GraphicsResolutionComboBox)
 	{
 		GraphicsResolutionComboBox->ClearOptions();
-		const FString CurrentResolution = FString::Printf(TEXT("%d*%d"), Settings->GetScreenResolution().X, Settings->GetScreenResolution().Y);
-		const FString ResolutionOptions[] = {TEXT("1280*720"), TEXT("1600*900"), TEXT("1920*1080"), TEXT("2560*1440"), TEXT("3840*2160")};
+		const FString CurrentResolution =
+		    FString::Printf(TEXT("%d*%d"), Settings->GetScreenResolution().X, Settings->GetScreenResolution().Y);
+		const FString ResolutionOptions[] = {
+		    TEXT("1280*720"), TEXT("1600*900"), TEXT("1920*1080"), TEXT("2560*1440"), TEXT("3840*2160")};
 		for (const FString& Option : ResolutionOptions)
 		{
 			GraphicsResolutionComboBox->AddOption(Option);
@@ -535,8 +568,9 @@ void UReEchoSettingsWidget::RefreshGraphicsControls()
 		GraphicsDisplayModeComboBox->AddOption(TEXT("全屏"));
 		GraphicsDisplayModeComboBox->AddOption(TEXT("无边框窗口"));
 		GraphicsDisplayModeComboBox->AddOption(TEXT("窗口"));
-		const FString Mode = Settings->GetFullscreenMode() == EWindowMode::Fullscreen ? TEXT("全屏")
-			: Settings->GetFullscreenMode() == EWindowMode::WindowedFullscreen ? TEXT("无边框窗口") : TEXT("窗口");
+		const FString Mode = Settings->GetFullscreenMode() == EWindowMode::Fullscreen           ? TEXT("全屏")
+		                     : Settings->GetFullscreenMode() == EWindowMode::WindowedFullscreen ? TEXT("无边框窗口")
+		                                                                                        : TEXT("窗口");
 		GraphicsDisplayModeComboBox->SetSelectedOption(Mode);
 	}
 	if (GraphicsQualityComboBox)
@@ -547,7 +581,10 @@ void UReEchoSettingsWidget::RefreshGraphicsControls()
 		GraphicsQualityComboBox->AddOption(TEXT("高"));
 		GraphicsQualityComboBox->AddOption(TEXT("极高"));
 		const int32 Quality = Settings->GetOverallScalabilityLevel();
-		GraphicsQualityComboBox->SetSelectedOption(Quality <= 0 ? TEXT("低") : Quality == 1 ? TEXT("中") : Quality == 2 ? TEXT("高") : TEXT("极高"));
+		GraphicsQualityComboBox->SetSelectedOption(Quality <= 0   ? TEXT("低")
+		                                           : Quality == 1 ? TEXT("中")
+		                                           : Quality == 2 ? TEXT("高")
+		                                                          : TEXT("极高"));
 	}
 	if (GraphicsVSyncComboBox)
 	{
@@ -587,7 +624,8 @@ void UReEchoSettingsWidget::UpdateVolumeVisual(UImage* FillImage, UTextBlock* Pe
 	}
 	if (PercentText)
 	{
-		PercentText->SetText(FText::FromString(FString::Printf(TEXT("%d%%"), FMath::RoundToInt(ClampedValue * 100.0f))));
+		PercentText->SetText(
+		    FText::FromString(FString::Printf(TEXT("%d%%"), FMath::RoundToInt(ClampedValue * 100.0f))));
 	}
 }
 
@@ -646,7 +684,7 @@ void UReEchoSettingsWidget::RefreshCategory()
 		{
 			const bool bHasDesignedPanel = SelectedCategory == 2 ? ControlsPanel != nullptr : GraphicsPanel != nullptr;
 			DetailText->SetVisibility(bHasDesignedPanel ? ESlateVisibility::Collapsed
-			                                              : ESlateVisibility::SelfHitTestInvisible);
+			                                            : ESlateVisibility::SelfHitTestInvisible);
 			DetailText->SetText(FText::FromString(Detail));
 		}
 		if (AudioPanel)
@@ -791,35 +829,75 @@ void UReEchoSettingsWidget::BuildAudioPanel()
 	AddMuteRow(TEXT("静音 环境"), AmbienceMuteCheckBox, TEXT("AmbienceMuteCheckBox"));
 	AmbienceMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceMuteChanged);
 	AddMuteRow(TEXT("静音 战斗音效"), CombatSfxMuteCheckBox, TEXT("CombatSfxMuteCheckBox"));
-	CombatSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
+	CombatSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this,
+	                                                            &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
 	AddMuteRow(TEXT("静音 界面音效"), UiSfxMuteCheckBox, TEXT("UiSfxMuteCheckBox"));
 	UiSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxMuteChanged);
 	AddMuteRow(TEXT("诊断音 (440Hz，仅用于验证音量/静音)"), DiagnosticToneCheckBox, TEXT("DiagnosticToneCheckBox"));
-	DiagnosticToneCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
+	DiagnosticToneCheckBox->OnCheckStateChanged.AddUniqueDynamic(this,
+	                                                             &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
 }
 
 void UReEchoSettingsWidget::BindAudioControls()
 {
-	if (MasterVolumeSlider) MasterVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterVolumeChanged);
-	if (MusicVolumeSlider) MusicVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicVolumeChanged);
-	if (AmbienceVolumeSlider) AmbienceVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceVolumeChanged);
-	if (CombatSfxVolumeSlider) CombatSfxVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxVolumeChanged);
-	if (UiSfxVolumeSlider) UiSfxVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxVolumeChanged);
-	if (MasterMuteCheckBox) MasterMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterMuteChanged);
-	if (MusicMuteCheckBox) MusicMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicMuteChanged);
-	if (AmbienceMuteCheckBox) AmbienceMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleAmbienceMuteChanged);
-	if (CombatSfxMuteCheckBox) CombatSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
-	if (UiSfxMuteCheckBox) UiSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxMuteChanged);
-	if (DiagnosticToneCheckBox) DiagnosticToneCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
+	if (MasterVolumeSlider)
+	{
+		MasterVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterVolumeChanged);
+	}
+	if (MusicVolumeSlider)
+	{
+		MusicVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicVolumeChanged);
+	}
+	if (AmbienceVolumeSlider)
+	{
+		AmbienceVolumeSlider->OnValueChanged.AddUniqueDynamic(this,
+		                                                      &UReEchoSettingsWidget::HandleAmbienceVolumeChanged);
+	}
+	if (CombatSfxVolumeSlider)
+	{
+		CombatSfxVolumeSlider->OnValueChanged.AddUniqueDynamic(this,
+		                                                       &UReEchoSettingsWidget::HandleCombatSfxVolumeChanged);
+	}
+	if (UiSfxVolumeSlider)
+	{
+		UiSfxVolumeSlider->OnValueChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxVolumeChanged);
+	}
+	if (MasterMuteCheckBox)
+	{
+		MasterMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMasterMuteChanged);
+	}
+	if (MusicMuteCheckBox)
+	{
+		MusicMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleMusicMuteChanged);
+	}
+	if (AmbienceMuteCheckBox)
+	{
+		AmbienceMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this,
+		                                                           &UReEchoSettingsWidget::HandleAmbienceMuteChanged);
+	}
+	if (CombatSfxMuteCheckBox)
+	{
+		CombatSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this,
+		                                                            &UReEchoSettingsWidget::HandleCombatSfxMuteChanged);
+	}
+	if (UiSfxMuteCheckBox)
+	{
+		UiSfxMuteCheckBox->OnCheckStateChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleUiSfxMuteChanged);
+	}
+	if (DiagnosticToneCheckBox)
+	{
+		DiagnosticToneCheckBox->OnCheckStateChanged.AddUniqueDynamic(
+		    this, &UReEchoSettingsWidget::HandleDiagnosticToneChanged);
+	}
 	USlider* const VolumeSliders[] = {
-		MasterVolumeSlider, MusicVolumeSlider, AmbienceVolumeSlider, CombatSfxVolumeSlider, UiSfxVolumeSlider};
+	    MasterVolumeSlider, MusicVolumeSlider, AmbienceVolumeSlider, CombatSfxVolumeSlider, UiSfxVolumeSlider};
 	for (USlider* Slider : VolumeSliders)
 	{
 		if (Slider)
 		{
 			Slider->OnMouseCaptureEnd.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleSliderInteractionFinished);
-			Slider->OnControllerCaptureEnd.AddUniqueDynamic(
-				this, &UReEchoSettingsWidget::HandleSliderInteractionFinished);
+			Slider->OnControllerCaptureEnd.AddUniqueDynamic(this,
+			                                                &UReEchoSettingsWidget::HandleSliderInteractionFinished);
 		}
 	}
 }
@@ -968,8 +1046,9 @@ void UReEchoSettingsWidget::HandleDisplayModeChanged(FString SelectedItem, ESele
 	}
 	if (UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
 	{
-		const EWindowMode::Type Mode = SelectedItem == TEXT("全屏") ? EWindowMode::Fullscreen
-			: SelectedItem == TEXT("无边框窗口") ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed;
+		const EWindowMode::Type Mode = SelectedItem == TEXT("全屏")         ? EWindowMode::Fullscreen
+		                               : SelectedItem == TEXT("无边框窗口") ? EWindowMode::WindowedFullscreen
+		                                                                    : EWindowMode::Windowed;
 		Settings->SetFullscreenMode(Mode);
 	}
 	PostUiEvent(FReEchoAudioEvents::UiConfirm);
@@ -983,7 +1062,10 @@ void UReEchoSettingsWidget::HandleGraphicsQualityChanged(FString SelectedItem, E
 	}
 	if (UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
 	{
-		const int32 Quality = SelectedItem == TEXT("低") ? 0 : SelectedItem == TEXT("中") ? 1 : SelectedItem == TEXT("高") ? 2 : 3;
+		const int32 Quality = SelectedItem == TEXT("低")   ? 0
+		                      : SelectedItem == TEXT("中") ? 1
+		                      : SelectedItem == TEXT("高") ? 2
+		                                                   : 3;
 		Settings->SetOverallScalabilityLevel(Quality);
 	}
 	PostUiEvent(FReEchoAudioEvents::UiConfirm);

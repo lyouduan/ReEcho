@@ -14,6 +14,40 @@ ASSET_PATHS = (
     "/Game/ReEcho/UI/WBP_ReEchoAbout",
 )
 
+REQUIRED_VARIABLES = {
+    "/Game/ReEcho/UI/WBP_ReEchoSettings": {
+        "DetailText": unreal.TextBlock,
+        "CategoryTitleText": unreal.TextBlock,
+        "GraphicsSettingsButton": unreal.ReEchoIndexedButton,
+        "AudioSettingsButton": unreal.ReEchoIndexedButton,
+        "ControlsSettingsButton": unreal.ReEchoIndexedButton,
+        "RestoreDefaultsButton": unreal.Button,
+        "ApplyAndReturnButton": unreal.Button,
+        "SettingsCloseButton": unreal.Button,
+        "GraphicsPanel": unreal.Widget,
+        "ControlsPanel": unreal.Widget,
+        "MasterVolumeSlider": unreal.Slider,
+        "MusicVolumeSlider": unreal.Slider,
+        "CombatSfxVolumeSlider": unreal.Slider,
+    },
+    "/Game/ReEcho/UI/WBP_ReEchoRestart": {
+        "RootPanel": unreal.VerticalBox,
+        "TitleText": unreal.TextBlock,
+        "MessageText": unreal.TextBlock,
+        "ResumeButton": unreal.Button,
+        "RestartButton": unreal.Button,
+        "QuitButton": unreal.Button,
+        "PauseSettingsButton": unreal.Button,
+        "ArtPauseDimmer": unreal.Image,
+        "ArtPauseResume": unreal.Image,
+        "ArtPauseExitToMenu": unreal.Image,
+        "ArtPauseExitGame": unreal.Image,
+        "ArtPauseSaveAndExit": unreal.Image,
+        "ArtPauseExitWithoutSave": unreal.Image,
+        "ArtPauseBack": unreal.Image,
+    },
+}
+
 
 def load_required(path):
     asset = unreal.load_asset(path)
@@ -22,8 +56,8 @@ def load_required(path):
     return asset
 
 
-def get_widgets(toolset, blueprint):
-    return [info.widget for info in toolset.call_method("GetWidgets", args=(blueprint,)).widgets if info.widget]
+def get_widget_infos(toolset, blueprint):
+    return [info for info in toolset.call_method("GetWidgets", args=(blueprint,)).widgets if info.widget]
 
 
 def widget_name(widget):
@@ -37,20 +71,24 @@ def direct_children(widget):
 
 
 def resolve_visual_root(button):
-    if button.get_children_count() > 0:
-        return button
     parent = button.get_parent()
-    if not isinstance(parent, unreal.Overlay):
-        return button
-    button_count = sum(isinstance(child, unreal.Button) for child in direct_children(parent))
-    return parent if button_count == 1 else button
+    if isinstance(parent, unreal.Overlay):
+        parent_children = direct_children(parent)
+        button_count = sum(isinstance(child, unreal.Button) for child in parent_children)
+        if button_count == 1 and len(parent_children) > 1:
+            return parent
+    return button
 
 
 toolset = unreal.UMGToolSet.get_default_object()
 for asset_path in ASSET_PATHS:
     blueprint = load_required(asset_path)
-    widgets = get_widgets(toolset, blueprint)
+    widget_infos = get_widget_infos(toolset, blueprint)
+    widgets = [info.widget for info in widget_infos]
+    info_by_name = {str(info.widget_name): info for info in widget_infos}
     unreal.log(f"[Plan80Audit] ASSET {asset_path} widgets={len(widgets)}")
+    authored_roots = [widget_name(widget) for widget in widgets if widget.get_parent() is None]
+    unreal.log(f"[Plan80Audit] ROOTS {asset_path} roots={authored_roots}")
     for widget in widgets:
         if isinstance(widget, unreal.Button):
             parent = widget.get_parent()
@@ -65,6 +103,26 @@ for asset_path in ASSET_PATHS:
                 f"visual_members=[{visual_members}] "
                 f"visibility={widget.get_editor_property('visibility')}"
             )
+    for required_name, required_type in REQUIRED_VARIABLES.get(asset_path, {}).items():
+        info = info_by_name.get(required_name)
+        if info is None or not isinstance(info.widget, required_type):
+            actual_type = info.widget.get_class().get_name() if info and info.widget else "<missing>"
+            raise RuntimeError(
+                f"{asset_path} binding {required_name} expected {required_type.__name__}, got {actual_type}"
+            )
+        is_variable = info.get_editor_property("is_variable")
+        if not is_variable:
+            toolset.call_method("ToggleWidgetAsVariable", args=(blueprint, info.widget, True))
+            refreshed_info = {
+                str(candidate.widget_name): candidate for candidate in get_widget_infos(toolset, blueprint)
+            }.get(required_name)
+            is_variable = refreshed_info and refreshed_info.get_editor_property("is_variable")
+        if not is_variable:
+            raise RuntimeError(f"{asset_path} binding {required_name} could not be marked as variable")
+        unreal.log(
+            f"[Plan80Binding] {asset_path} {required_name} "
+            f"type={info.widget.get_class().get_name()} is_variable={bool(is_variable)}"
+        )
     if not toolset.call_method("CompileWidgetBlueprint", args=(blueprint,)):
         raise RuntimeError(f"Widget failed to compile: {asset_path}")
     if not unreal.EditorAssetLibrary.save_loaded_asset(blueprint, only_if_is_dirty=False):

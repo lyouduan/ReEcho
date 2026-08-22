@@ -102,7 +102,7 @@ void UReEchoRestartWidget::SetAutomaticAttackMode(const bool bAutomatic)
 
 void UReEchoRestartWidget::BuildWidgetTree()
 {
-	if (RestartButton || !WidgetTree)
+	if (!WidgetTree || WidgetTree->RootWidget)
 	{
 		return;
 	}
@@ -233,7 +233,7 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		// The pause exit prompts are composed directly over the dimmed game scene.
 		// The restart-dialog plate belongs to the save-failure fallback, not to either exit confirmation.
 		ArtRestartDialogPanel->SetVisibility(bSaveFailed ? ESlateVisibility::HitTestInvisible
-		                                                   : ESlateVisibility::Hidden);
+		                                                 : ESlateVisibility::Hidden);
 	}
 	if (ArtRestartCharacter)
 	{

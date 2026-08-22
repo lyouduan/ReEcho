@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 
+#include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
@@ -36,6 +37,12 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Designed restart widget initializes its widget tree"), RestartWidget->Initialize());
 	RestartWidget->TakeWidget();
+	TestEqual(TEXT("Runtime class is the authored restart WBP"),
+	          RestartWidget->GetClass()->GetPathName(),
+	          FString(TEXT("/Game/ReEcho/UI/WBP_ReEchoRestart.WBP_ReEchoRestart_C")));
+	TestEqual(TEXT("Designed restart keeps its authored root"),
+	          RestartWidget->WidgetTree->RootWidget->GetFName(),
+	          FName(TEXT("CanvasPanel_0")));
 
 	UTextBlock* TitleText = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("TitleText"));
 	UVerticalBox* RootPanel = FindRestartWidget<UVerticalBox>(RestartWidget, TEXT("RootPanel"));

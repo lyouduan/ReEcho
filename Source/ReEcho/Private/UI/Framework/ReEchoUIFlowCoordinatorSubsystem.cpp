@@ -52,24 +52,26 @@ void UReEchoUIFlowCoordinatorSubsystem::BindAudioFeedback(UUserWidget* Widget)
 
 UWidget* UReEchoUIFlowCoordinatorSubsystem::ResolveButtonVisualRoot(UButton* Button)
 {
-	if (!Button || Button->GetChildrenCount() > 0)
+	if (!Button)
 	{
 		return Button;
 	}
 
 	UOverlay* ParentOverlay = Cast<UOverlay>(Button->GetParent());
-	if (!ParentOverlay)
+	if (ParentOverlay)
 	{
-		return Button;
+		int32 DirectButtonCount = 0;
+		for (int32 ChildIndex = 0; ChildIndex < ParentOverlay->GetChildrenCount(); ++ChildIndex)
+		{
+			DirectButtonCount += ParentOverlay->GetChildAt(ChildIndex)->IsA<UButton>() ? 1 : 0;
+		}
+		if (DirectButtonCount == 1 && ParentOverlay->GetChildrenCount() > 1)
+		{
+			return ParentOverlay;
+		}
 	}
 
-	int32 DirectButtonCount = 0;
-	for (int32 ChildIndex = 0; ChildIndex < ParentOverlay->GetChildrenCount(); ++ChildIndex)
-	{
-		DirectButtonCount += ParentOverlay->GetChildAt(ChildIndex)->IsA<UButton>() ? 1 : 0;
-	}
-
-	return DirectButtonCount == 1 ? static_cast<UWidget*>(ParentOverlay) : static_cast<UWidget*>(Button);
+	return Button;
 }
 
 void UReEchoUIFlowCoordinatorSubsystem::BindButtonVisualFeedback(UButton* Button)

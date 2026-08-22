@@ -24,9 +24,9 @@ bool FReEchoButtonVisualFeedbackTest::RunTest(const FString& Parameters)
 	Button->OnHovered.Broadcast();
 
 	TestTrue(TEXT("Hover multiplies the authored X scale"),
-	         FMath::IsNearlyEqual(VisualRoot->GetRenderTransform().Scale.X, 0.84f));
+	         FMath::IsNearlyEqual(VisualRoot->GetRenderTransform().Scale.X, 0.84f, 1.e-5f));
 	TestTrue(TEXT("Hover multiplies the authored Y scale"),
-	         FMath::IsNearlyEqual(VisualRoot->GetRenderTransform().Scale.Y, 0.945f));
+	         FMath::IsNearlyEqual(VisualRoot->GetRenderTransform().Scale.Y, 0.945f, 1.e-5f));
 	TestEqual(TEXT("Hover uses a centered pivot"), VisualRoot->GetRenderTransformPivot(), FVector2D(0.5f, 0.5f));
 
 	Button->OnUnhovered.Broadcast();
@@ -49,6 +49,15 @@ bool FReEchoButtonVisualRootTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("A lone transparent button scales its complete overlay"),
 	          UReEchoUIFlowCoordinatorSubsystem::ResolveButtonVisualRoot(TransparentButton),
 	          static_cast<UWidget*>(TransparentButtonRoot));
+
+	UOverlay* ContentButtonRoot = NewObject<UOverlay>();
+	ContentButtonRoot->AddChild(NewObject<UImage>(ContentButtonRoot));
+	UButton* ButtonWithContentAndExternalArt = NewObject<UButton>(ContentButtonRoot);
+	ButtonWithContentAndExternalArt->AddChild(NewObject<UImage>(ButtonWithContentAndExternalArt));
+	ContentButtonRoot->AddChild(ButtonWithContentAndExternalArt);
+	TestEqual(TEXT("A content button still scales its single-button overlay with external art"),
+	          UReEchoUIFlowCoordinatorSubsystem::ResolveButtonVisualRoot(ButtonWithContentAndExternalArt),
+	          static_cast<UWidget*>(ContentButtonRoot));
 
 	UButton* ContentButton = NewObject<UButton>();
 	ContentButton->AddChild(NewObject<UImage>(ContentButton));

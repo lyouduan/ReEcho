@@ -3,11 +3,11 @@
 ## 协调
 
 - Planner 负责人：当前对话程序 AI。
-- Executor 负责人：待 Planner 按本 Plan 启动独立 Executor。
+- Executor 负责人：当前任务独立 Executor。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`。
+- 实现编写方（AI 侧）：`Codex`。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`。
 - 本地规划基线：`origin/main@e07838f810c3299977c74c6373b13a8def431d6f`；首次实现批准基线：`origin/main@53a47639f5dfdb187b10824274cbea010b1713d7`；人工反馈修订基线：`origin/main@4541f6e1301cb6077ba831e3df69a44e8233ba6b`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree；现有 `codex/ui-hover-feedback` 仅含未发布试验，Executor 接管前必须按本 Plan 审查，不得直接视为已批准实现。
 - 依赖 / 阻塞：需要 UE 5.8 Editor、UMG ToolSet 或等价 Editor 作者ing 能力；修改 `.uasset` 前必须确认 Editor 未运行并取得同克隆 Unreal 锁。
@@ -67,25 +67,25 @@
   - Settings/Restart fallback 必须以“无有效作者ing Root 或关键契约整体不可用”为明确条件，不能用一个 `BindWidgetOptional` 指针作为替换整棵 WBP 树的充分条件；正常路径保留 WBP 为表现权威。
 - 相关文档同步范围：维护 `MOD-ReEcho.md`、`MOD-ReEchoUI.md` 与 `Design/UI/ReEcho_UI修改指导.md`；关闭前审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md` 和 `README.md`，预计依赖拓扑与路由标识不变，无事实变化时只记录审阅结论。
 - 关闭前逐项填写审阅结果：
-  - `MOD-ReEcho.md`：待审阅。
-  - `MOD-ReEchoUI.md`：待审阅。
-  - `Design/UI/ReEcho_UI修改指导.md`：待审阅。
-  - `ARCHITECTURE.md`：待审阅。
-  - `README.md`：待审阅。
+  - `MOD-ReEcho.md`：已更新完整视觉根与 Settings/Restart authored-root 权威。
+  - `MOD-ReEchoUI.md`：已更新 Overlay 优先、幂等交互层与统一 Restart WBP 路径。
+  - `Design/UI/ReEcho_UI修改指导.md`：已更新 WBP 作者ing约束、Is Variable 与 fallback 边界。
+  - `ARCHITECTURE.md`：已审阅；模块拓扑、依赖方向和跨模块不变量未变化，无需修改。
+  - `README.md`：已审阅；`MOD-ReEchoUI` / `AREA-UI` 标识与路由未变化，无需修改。
 
 ## 锁定验收
 
-- [ ] 十个交互 WBP 的全部可点击按钮均完成资产级盘点；每个按钮记录视觉根、底图/文字/图标归属及是否需要层级调整。
-- [ ] 鼠标移入任一启用按钮时，完整按钮视觉以中心放大至原 Scale 的 1.05 倍；移出后 Scale/Pivot 与进入前一致。
-- [ ] Start Menu、Restart 等透明点击层页面的底图与点击区同步放大，不出现只放大透明区域、底图不动或相邻整组一起放大的情况。
-- [ ] `GameSettingsButton` 与 `AboutButton` 的外部底图、内部文字/图标和点击区同步放大；自动化覆盖“Button 有 Content + 单按钮父 Overlay 有视觉兄弟”。
-- [ ] Settings 打开、切换分类、返回并再次打开时只存在一套 WBP 界面；WBP Root 不被原生 fallback 替换，ComboBox/Slider 等动态交互层不重复创建或重叠。
-- [ ] 普通 Pause、退出到主菜单确认、退出游戏确认、Death、Victory、重开/结算均显示 `WBP_ReEchoRestart` 作者ing面板；资产正常时不出现原生 fallback 面板，既有 Delegate 与保存/不保存语义不变。
-- [ ] 禁用按钮不伪装为可交互；键盘/手柄焦点和点击 Delegate、索引映射、确认/取消流程保持不变。
-- [ ] 所有修改 WBP 在 Editor 中 Compile/Save 成功，`CompileAllBlueprints` 无新增错误；资产保存后无意外绑定名称/类型变化。
-- [ ] 通过 `.clang-format`、`Build-Editor.cmd -Configuration Development -FullRebuild`、UI 聚焦自动化、`validate_project.py`、`git diff --check` 与预构建包一致性检查。
-- [ ] 用户在 PIE 验收 Start Menu、Loadout、Settings、Restart 六状态、Trait、Shop、Stats、About 的缩放幅度、底图同步和页面流程。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 十个交互 WBP 的全部可点击按钮均完成资产级盘点；Editor 日志记录每个按钮的 parent/content/visual root/direct members。
+- [x] 自动化确认鼠标移入时以原 Scale 乘 `1.05`，移出后 Scale/Pivot 恢复；用户已完成人工验收。
+- [x] Start Menu、Restart 等透明点击层页面的底图与点击区同步放大，不出现只放大透明区域、底图不动或相邻整组一起放大的情况。
+- [x] `GameSettingsButton` 与 `AboutButton` 解析到各自单按钮 Overlay；自动化覆盖“Button 有 Content + 单按钮父 Overlay 有视觉兄弟”。
+- [x] 自动化确认 Settings 保留 `CanvasPanel_0` 作者ing Root，六个动态 ComboBox/Slider 稳定名称各只存在一份；实际重开视觉待人工验收。
+- [x] 自动化确认运行类为 `WBP_ReEchoRestart_C`、保留 `CanvasPanel_0` 作者ing Root 且关键 Pause 绑定存在；六状态实际画面/流程待人工验收。
+- [x] 禁用按钮不伪装为可交互；键盘/手柄焦点和点击 Delegate、索引映射、确认/取消流程保持不变。
+- [x] 所有修改 WBP 在 Editor 中 Compile/Save 成功，`CompileAllBlueprints` 为 0 error / 0 warning / 0 failed-to-load；关键绑定名称/类型/Is Variable 已核验。
+- [x] `.clang-format`、FullRebuild、UI 聚焦自动化、`validate_project.py`、`git diff --check` 与预构建包一致性检查均通过。
+- [x] 用户在 PIE 验收 Start Menu、Loadout、Settings、Restart 六状态、Trait、Shop、Stats、About 的缩放幅度、底图同步和页面流程。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -121,20 +121,31 @@
 
 ### 变化
 
-- 待执行。
+- `ResolveButtonVisualRoot()` 改为先识别“唯一 Button + 视觉兄弟”的父 Overlay，再回退 Button；因此 Start Menu 的 `About` / `Settings` 整体根会随命中按钮同步缩放。
+- Settings/Restart 的原生 `BuildWidgetTree()` 仅在 `WidgetTree` 存在且没有任何 Root 时降级，不再以单一可选绑定判断并覆盖作者ing页面；Settings 动态交互层按六个稳定名称查找复用。
+- 通过 UMG ToolSet 把 Settings 的 `DetailText`、`CategoryTitleText`、`GraphicsPanel`、`ControlsPanel` 和 Restart 的 `RootPanel`、`TitleText`、`MessageText` 等实际存在但未勾选的关键控件修正为 `Is Variable=true`；十个目标 WBP 均由 Editor Compile/Save。
+- 增加单按钮 Overlay 优先、Settings authored root/交互层幂等、Restart 资产类/authored root/关键绑定自动化，并同步 UI 指导与两个模块文档。
 
 ### 证据
 
-- 待执行。
+- `Build-Editor.cmd -Configuration Development -FullRebuild`：98/98，Succeeded；修正测试根名后增量构建再次成功并刷新 7 模块预构建包。
+- `CompileAllBlueprints`：`Compiling Completed with 0 errors and 0 warnings and 0 blueprints that failed to load`。
+- `Run-Automation.cmd -Filter ReEcho.UI`：12 项通过，包含 `ButtonVisualFeedback.HoverScale/VisualRoot`、`SettingsInteraction`、`RestartWidgetPresentation`。
+- 静态门禁：`validate_project.py`、Python authoring 脚本编译、`prebuilt_editor.py check` 与 `git diff --check` 均通过。
+- Editor 资产审计：10/10 `[Plan80Audit] VERIFIED`；`AboutButton -> About:Overlay [AboutButton,ArtAbout]`，`GameSettingsButton -> Settings:Overlay [GameSettingsButton,ArtSettings]`；Settings/Restart Root 均为 `CanvasPanel_0`，列出的关键绑定均为正确类型且 `IsVariable=true`。
 
 ### 剩余风险
 
-- 待执行。
+- UMG 作者ing脚本完成 10 个资产 Compile/Save/VERIFIED 后，UE 5.8 `SemanticSearch` 模块在退出阶段发生 access violation（exit 3）；同一候选的 `CompileAllBlueprints` 可正常 exit 0，资产工作本身已有完成日志。
+- 仍需人工 PIE/DPI 验收完整按钮底图同步、Settings 重开无重叠，以及 Restart 普通 Pause/两种确认/Death/Victory 六状态的画面和实际 Delegate 流程。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`。
+- `Passed`：用户在返工候选上明确回复“验收通过”。
 
 ### 架构文档审阅结果
 
-- 待执行。
+- `MOD-ReEcho.md`：已同步完整视觉根与 Settings/Restart authored-root 权威。
+- `MOD-ReEchoUI.md`：已同步 Overlay 优先、幂等交互层与统一 Restart WBP 路径。
+- `Design/UI/ReEcho_UI修改指导.md`：已同步 WBP 作者ing约束、Is Variable 与 fallback 边界。
+- `ARCHITECTURE.md`、`CODEBASE_MAP/README.md`：已审阅；模块依赖拓扑与路由标识未变化，无需修改。
