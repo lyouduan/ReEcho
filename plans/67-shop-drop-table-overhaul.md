@@ -88,6 +88,7 @@
 | 右槽位 | 与中槽位一致 |
 
 > 对应 D2/D4：配件区改左/中/右三固定槽；严格 4 类 `PartCategory` = Universal / CurrentWeaponRune / OtherWeapon / OtherWeaponRune。分类依据 `武器符文C` sheet `武器类型` 列（`通用` / 具体武器名）。
+> **`OtherWeapon`(其他武器·非符文) = 整把武器，必须可购买（D7，2026-08-22 终裁）**：策划 `投放系统` sheet 表2 单列「其他武器」售价 10–20，与「其他武器符文」30–40 并列、互不等价；表4 中/右槽 15% 即「一把其他武器」。故本 Plan **必须实现整把武器的购买**（非仅配件）。候选源=**武器目录**（`weapons.csv`，策划武器表为真源），排除当前武器与已拥有/已选武器；售价取 `投放系统` 表2「其他武器」区间 [10,20] 随机（Q6 售价区间 CSV）。购买即装=授予并切换为该武器（沿用 Plan75 `SelectWeaponById`）。**权威以策划表（`投放系统`+武器体系）为准，非 `parts.csv` 现状**；`parts.csv` 仅含符文/配件、无整把武器行，整把武器候选直接来自武器目录。运行时 `SlotOffers` 单条带 `EOfferKind Kind`(Part|Weapon) 判别（见 Step 2）。此条覆盖交接段 Q7「其他武器=其他武器配件」的旧解释。
 
 ### 表5 · 怪物掉落时间碎片配置（关卡 × 怪物类型）
 
@@ -117,6 +118,7 @@
   - **D4 符文两 15%（q3）**：严格 4 类 `PartCategory` = Universal / CurrentWeaponRune / OtherWeapon / OtherWeaponRune，加数据字段。理由：用户明确要"严格区分为 当前武器符文+其他武器(不是符文)+其他武器符文"。
   - **D5 背包（q4）**：复用 `OwnedPartIds`，不新建系统；UI 暴露"已拥有未装备"区可即装重装备。
   - **D6 获得范围/刷新（q5）**：任何来源获得均计入排除集；刷新限次按 Excel。
+  - **D7 其他武器(非符文)=整把武器可购买（q7，覆盖前稿回落）**：以策划 `投放系统` sheet 为准——表2 单列「其他武器」售价 10–20（与「其他武器符文」30–40 区分），表4 中/右槽 15% 为「一把其他武器」。故本 Plan **必须实现整把武器购买**，候选源=武器目录（排除当前武器、排除已拥有/已选武器），售价取 `投放系统` 区间 [10,20]，购买即装=授予并切换武器（沿用 Plan75 `SelectWeaponById`）。权威为策划表而非 `parts.csv`；`SlotOffers` 单条带 `Kind`(Part|Weapon) 判别。数据导入须按铁律过滤 hidden 行（策划表可见视图为唯一真源）。详见表4 备注。
 - 相关文档同步范围：`ARCHITECTURE.md`（若提及商店报价结构需更新）、`modules/MOD-ReEcho.md`、`modules/MOD-ReEchoUI.md`；其余 MOD 不相关，省略并说明。
 - 关闭前逐项填写审阅结果：（实现后回填）
 
@@ -143,8 +145,8 @@
 ### Q7 — 数据真源与"其他武器"含义
 
 - **真源纪律**（同协调段新增条）：**以策划文件夹 xlsx 为准，CSV 随表改**。现网 CSV 与 xlsx 不一致时，以 xlsx 为准重新 sync，不手改 CSV 覆盖表。
-- **"其他武器"语义**：指**开局未选的那几把武器**对应的配件。即中/右槽 15% "一把其他武器" = 从玩家本局未选择的武器类型中抽一把，再从其配件池取一件。
-- **决策**：因此"其他武器/其他武器符文"的候选集 = `WeaponTypeId != Any && WeaponTypeId != 当前武器类型`（其他武器符文）与 `WeaponTypeId != Any && WeaponTypeId == 某非当前武器类型`（其他武器本体件）。需确认 parts.csv 是否含"武器本体件"行；若当前只有符文件，则"其他武器"项可能需策划补行或降级为"其他武器符文"。**实现前先与 Gavyn/策划确认"其他武器"是否有独立配件行**（开放项，见交接说明）。
+- **"其他武器"语义（2026-08-22 终裁，覆盖本段旧解释）**：指**整把武器**（如当前未持有的长剑/弓/镰刀/鞭/枪/法杖），**必须可购买并即装切换**；不与"其他武器符文"（其他武器的某件配件）混淆。策划 `投放系统` 表2 对二者给出不同售价区间（其他武器 10–20 / 其他武器符文 30–40），证实其为两类独立商品。中/右槽 15% "一把其他武器" = 从武器目录中抽一把玩家当前未持有、未拥有的武器。
+- **决策**：候选集 = 武器目录（各 `WeaponTypeId` 武器，排除当前武器 + 已拥有/已选武器；含非 `StartSelectable` 武器，购买即解锁）。无需在 parts.csv 补"武器本体件"行——整把武器候选直接来自 `weapons.csv`（策划武器表为真源），售价来自 `投放系统` 表2 区间 [10,20]（Q6）。购买路径 = 运行时 `SelectWeaponById`（Plan75）。此决策取代本段原"先与策划确认是否有独立配件行"的开放项；**若重构商店报价结构（新增 `Kind` 判别）或新增/调整 CSV（售价区间列、ShopDropTable）为此所必需，照做**。
 
 ### Q8 — cards 现状核查
 
@@ -166,8 +168,8 @@
   2. `sync_xlsx_to_csv.py`：导出售价区间列 + 新 `ShopDropTable.csv`；注意 `LOCKED_REFERENCE_SHEETS` 与 AUTHORING_LIST_VALIDATION_COLUMNS。
   3. `FReEchoCsvPartRow` / `ReEchoCsvDataRegistry`：售价区间字段（可选，亦可运行时查表）；`ShopDropTable` 读取结构。
   4. 构建（增量 Development）使 Binaries 与源码一致后，sync 才会把 xlsx 新列真正发布进 CSV（见记忆 13038418）。
-- **待确认开放项**：
-  - **"其他武器"是否有独立配件行**（Q7）：当前 parts.csv 是否含"武器本体件"（非符文件）？若无，需向策划确认"其他武器"项如何落地（补行 or 并入"其他武器符文"）。
+- **待确认开放项**（Q7 已终裁，其余保留）：
+  - ~~"其他武器"是否有独立配件行~~（**已决 2026-08-22**：其他武器=整把武器，候选来自 `weapons.csv` 武器目录，不在 parts.csv 补行；无需策划确认）。
   - 售价区间的 8 个品类与 `WeaponTypeId`/卡牌 Tier 的确切映射规则（尤其"棱镜水晶"vs"棱镜之晶"、元素之晶按元素还是统一）。
 
 ## 交接说明（给下一个模型）
@@ -176,10 +178,9 @@
 - **工作树纪律**：所有 plan 类改动只在 `ReEcho-plan67-shop-drop` 内做；主工作树 `ReEcho/main` 只 fast-forward。本地 debug 循环用增量构建 `scripts/ue/Build-Editor.cmd -Configuration Development`（编辑器关闭时），推 origin/main 前才需 `-FullRebuild`。
 - **数据真源铁律**：xlsx → sync → CSV。永远以策划 xlsx 为准，CSV 随表改，绝不手改 CSV 反推（Q7）。改了 cpp 必须先增量构建刷新 Binaries，sync 才会把 xlsx 新列真正发布进 CSV。
 - **下一步建议顺序**：
-  1. 先与 Gavyn 敲定 Q7 开放项（"其他武器"是否有独立配件行）——这会决定中/右槽 15% 的候选来源。
-  2. 落地 Step 1 数据层：xlsx 加售价区间(Min/Max)列 + 关卡投放等级列表列；`sync_xlsx_to_csv.py` 导出；新增 `ShopDropTable.csv`。
-  3. 增量构建 → sync 发布 CSV → `validate_project.py`。
-  4. 再进入 Step 2 运行时报价重写（扁平 Offers → 左/中/右三槽 + 卡牌钉死等级槽，见上文实现提纲）。
+  1. 落地 Step 1 数据层：xlsx 加售价区间(Min/Max)列（8 品类，含"其他武器"10–20）+ 关卡投放等级列表列；`sync_xlsx_to_csv.py` 导出；新增 `ShopDropTable.csv`。"其他武器"候选来自 `weapons.csv`（无需补行）。
+  2. 增量构建 → sync 发布 CSV → `validate_project.py`。
+  3. 进入 Step 2 运行时报价重写（扁平 Offers → 左/中/右三槽 + `Kind`(Part|Weapon) 判别；整把武器走 `SelectWeaponById`）+ 卡牌钉死等级槽（见上文实现提纲）。
 - **关键文件**：plan 文档（本文件）、`Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`（`GetWeaponPartShopView`/`MakeWeaponPartOffer`/`MakeBuildCardOffer`/`ShuffleOffers`/`PurchaseShopItem`）、`Public/Run/ReEchoShopCatalog.h`（`FReEchoWeaponPartShopView`）、`Private/UI/ReEchoInventoryShopWidget.cpp`、`scripts/data/sync_xlsx_to_csv.py`、`Content/Data/parts.csv`/`cards.csv`、`Design/Data/ReEchoData.xlsx`、`策划数据源/【开普勒】回响数值与构筑体系.xlsx`（`投放系统` sheet = 权威数值）。
 - **勿踩坑**：openpyxl `iter_rows` 含隐藏行，须查 `row_dimensions[r].hidden`；中文路径在 cmd 下易乱码，git add 用 `./*`；PowerShell 内嵌中文 here-string 易解析失败，脚本输出尽量英文。
 - **本次交接提交**：仅 plan 文档更新（Q5–Q8 决策 + 现状 + 交接），纯 Markdown，豁免 FullRebuild；**本地提交，未推送**（按 Gavyn 指示，推送合入待后续）。
@@ -214,14 +215,16 @@
    - `FReEchoCsvPartRow`（`ReEchoCsvDataRegistry.h`）：**不加 PartCategory**；如需可在运行时用 `WeaponTypeId` 直接分类。新增 `ShopDropTable` 读取结构（若需要）。
 2. **运行时报价生成（`ReEchoRunSubsystem.cpp` 的 `GetWeaponPartShopView`）**
    - 重写：不再产出扁平 `Offers`，改为：
-     - `TArray<FReEchoWeaponSlotOffer> SlotOffers`（长度=武器槽数 3）：每槽一条报价。
-       - 槽0（假定=Core/左）：候选=PartCategory==Universal 且兼容当前武器 且未拥有未装备。
-       - 槽1/2（中/右）：按权重 70/15/15 从 {CurrentWeaponRune, OtherWeapon, OtherWeaponRune} 候选中抽取一条（兼容判定沿用 `IsPartCompatibleWithWeapon`）。
-       - 排除集 = `OwnedPartIds` ∪ 已装备 `EquippedParts`；卡牌不混入此视图。
+     - `TArray<FReEchoWeaponSlotOffer> SlotOffers`（长度=武器槽数 3）：每槽一条报价，单条带 `EOfferKind Kind`（Part | Weapon）。
+       - 槽0（左）：候选=`WeaponTypeId==Any`（通用符文）且兼容当前武器 且未拥有未装备（符文）。
+       - 槽1/2（中/右）：按权重 70/15/15 从 {CurrentWeaponRune(符文), OtherWeapon(整把武器), OtherWeaponRune(符文)} 抽取一条；`Kind` 随类别。
+         - `OtherWeapon` 候选=**武器目录中排除当前武器、排除已拥有/已选武器**（购买即解锁；含非 `StartSelectable` 武器）；售价取 `投放系统` 表2「其他武器」区间 [10,20] 随机。
+       - 符文排除集 = `OwnedPartIds` ∪ 已装备 `EquippedParts`；整把武器排除集=已拥有/已选武器（不与符文排除集混）。
      - `TArray<FReEchoCardSlotOffer> CardSlotOffers`：读当前 `EncounterIndex` 的 shop-drop 等级表；每级一槽，槽内从该等级可投放卡中抽一张（排除非一级已拥有卡；一级卡不受排除限制）。等级列表空→空数组。
    - 刷新种子分两套：`CardShopRefreshCount`、`RuneShopRefreshCount`（替换原 `ShopRefreshSequence` 单计数），各驱动本区确定性洗牌。
 3. **购买即装（`PurchaseShopItem` / `HandleShopPurchaseRequested`）**
-   - 配件：直接 `TryEquipParts(已装备+新件)`；成功则被替下的旧件保持/回 `OwnedPartIds`（确认 `TryEquipParts` 已处理回落）；删除 draft/保存配置相关调用。
+   - 配件（符文）：直接 `TryEquipParts(已装备+新件)`；成功则被替下的旧件保持/回 `OwnedPartIds`（确认 `TryEquipParts` 已处理回落）；删除 draft/保存配置相关调用。
+   - **整把武器（`Kind==Weapon`）**：直接 `SelectWeaponById(新武器Id)` 授予并切换为当前武器（即装；沿用 Plan75 接口）；计入"获得过"排除集。
    - 卡牌：直接 `TryGrantCard`/等效授予（一级卡可重复叠加）。
    - 购买后调用仅刷新"该槽置灰"状态（不再整页 `RebuildTargetOfferRows`）。
 4. **刷新拆分（`HandleShopRefreshRequested` → `HandleCardShopRefreshRequested` / `HandleRuneShopRefreshRequested`）**
@@ -245,7 +248,7 @@
 | 静态 | `python scripts/validate_project.py` | CSV schema/UTF-8 不变量通过 |
 | C++ 变化时构建 | `scripts/ue/Build-Editor.cmd -Configuration Development` | UHT/UBT 退出码 0 |
 | 运行时自动化 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.Shop` | 更新后报告通过 |
-| 数据 | `python scripts/data/sync_xlsx_to_csv.py` + 校验 | 新 CSV 含 PartCategory 与 ShopDrop 表 |
+| 数据 | `python scripts/data/sync_xlsx_to_csv.py` + 校验 | 新 CSV 含售价区间 与 ShopDrop 表 |
 | 人工 | 具名 PIE 任务 | 置灰/即装/两刷新计数与扣费记录 |
 
 ## 执行记录
