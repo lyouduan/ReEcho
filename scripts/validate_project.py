@@ -654,6 +654,16 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "DisplayOrder": CsvColumnSpec("Int", min_value=1.0, max_value=100.0),
         "Explanation": CsvColumnSpec("Text", required=False),
     },
+    "shop_price_ranges": {
+        "PriceCategory": CsvColumnSpec("StableId"),
+        "MinPrice": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "MaxPrice": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+    },
+    "shop_drop_levels": {
+        "EncounterIndex": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
+        "FreeTier": CsvColumnSpec("Int", required=False, min_value=1.0, max_value=3.0),
+        "ShopTiers": CsvColumnSpec("StableIdList", required=False),
+    },
 }
 
 
@@ -878,6 +888,8 @@ def validate_csv_package(data_dir: Path) -> None:
     references["SpawnPolicy"] = validate_table(entries["SpawnPolicy"], "SpawnPolicy", references)
     references["AudioEvents"] = validate_table(entries["AudioEvents"], "AudioEvents", references)
     references["Attributes"] = validate_table(entries["Attributes"], "Attributes", references)
+    references["shop_price_ranges"] = validate_table(entries["shop_price_ranges"], "shop_price_ranges", references)
+    references["shop_drop_levels"] = validate_table(entries["shop_drop_levels"], "shop_drop_levels", references)
     validate_audio_events_domain(entries)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)

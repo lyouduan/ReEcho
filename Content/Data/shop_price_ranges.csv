@@ -1,0 +1,9 @@
+PriceCategory,MinPrice,MaxPrice
+Core_Primordial,10,20
+Core_Element,20,30
+Rune,30,40
+Weapon,10,20
+Card_T1,30,50
+Card_T2,100,120
+Card_T3,150,200
+PrismCrystal,100,120

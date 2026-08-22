@@ -26,3 +26,6 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,SpawnProfiles,spawn_profiles.csv,Id
 1,SpawnPolicy,spawn_policy.csv,Id
 1,AudioEvents,audio_events.csv,EventId
+
+1,shop_price_ranges,shop_price_ranges.csv,PriceCategory
+1,shop_drop_levels,shop_drop_levels.csv,EncounterIndex

@@ -59,12 +59,14 @@ TABLE_TO_CSV = {
     "tblSpawnPolicy": "spawn_policy.csv",
     "tblAudioEvents": "audio_events.csv",
     "tblAttributes": "attributes.csv",
+    "tblShopPriceRanges": "shop_price_ranges.csv",
+    "tblShopDropLevels": "shop_drop_levels.csv",
 }
 
 SYSTEM_TABLES = frozenset({"tblRuntimeSmoke", "tblRuntimeSmokeEffects"})
 AUTHORING_TABLES = frozenset(TABLE_TO_CSV) - SYSTEM_TABLES
 SYSTEM_SHEETS = ("_WorkbookMeta", "_ExportMap", "_SystemData")
-LOCKED_REFERENCE_SHEETS = ("属性S", "怪物体系M", "经济系统")
+LOCKED_REFERENCE_SHEETS = ("属性S", "怪物体系M")
 
 AUTHORING_LIST_VALIDATION_COLUMNS = {
     "tblCharacters": frozenset({"Enabled", "RoleId", "DefaultWeaponId", "PassiveBehaviorId", "RandomElementProjectiles"}),
