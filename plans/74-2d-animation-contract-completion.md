@@ -69,7 +69,7 @@
 - [x] 生产狐狸 Base 与 Phase2 Profile 均解析到可加载的 Charge/Basic Clip；Charge 循环，Basic 单次且可重播。
 - [x] 生产 Boss/TimeGuard Profile 可解析 Transform 与 Phase2 基础/攻击 Clip；阶段切换期间 Transform 不被普通攻击/Hit 覆盖。
 - [x] 所有生产玩家、Echo、怪物 Profile 通过覆盖审计；缺失项按允许回退表报告，不静默失败。
-- [x] 自动化已执行生产狐狸、Boss、抢占/取消与缺失回退断言；新增断言无报错，但所在既有 `AssetProfiles` 用例仍被删除资产路径等基线断言判失败，详见证据。
+- [x] 自动化覆盖生产狐狸 `Charge -> Basic -> Base`、生产 Boss `Base -> Transform -> Phase2`、抢占/取消和缺失回退。
 - [ ] `.clang-format`、`Build-Editor.cmd -Configuration Development`、聚焦自动化、`python scripts/validate_project.py` 与 `git diff --check` 通过。
 - [ ] 用户在 PIE 验收狐狸蓄力、Boss 变身、脚点/比例/阴影/朝向/首帧闪烁后，人工验收方可设为 `Passed`。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
@@ -112,15 +112,15 @@
 ### 证据
 
 - `audit_plan74_animation_contracts.py`：`enemy_profiles=8 character_profiles=8 issues=0`。
-- Development 增量构建：12 actions；最终 FullRebuild：94 actions；均为 Result Succeeded，prebuilt source `53a118aabb0b` 且校验通过。
-- `ReEcho.Presentation.Animation2D.FootpointAlignment`：Success。`AssetProfiles` 中本轮新增 Charge/Transform/取消/抢占断言无错误；整体 Fail 来自既有测试仍加载已删除的 Grunt Flipbook、Grunt/Bomber Gameplay BP，以及现有逐帧碰撞断言与资产不符，共 16 条错误。本轮未删除或削弱这些断言。
+- Development 增量构建通过；清理后最终 FullRebuild：93 actions，Result Succeeded，prebuilt source `063096af42bf` 且校验通过。
+- 清理已删除的 Grunt Flipbook、Grunt/Bomber Gameplay Blueprint 测试引用；Grunt Profile 改为验证当前 Slime 共享回退，场景树改用现存 Slime Gameplay Blueprint，Registry 显式验证 Grunt/Bomber 不再持有 Gameplay Class。
+- 经用户授权，用 Unreal 资产 API 恢复生产 Player/Slime/Goat/Rabbit/Fox Flipbook 的 `EachFrameCollision` 元数据；`ReEcho.Presentation.Animation2D.AssetProfiles` 与 `FootpointAlignment` 均为 Success。
 - `python scripts/validate_project.py` 与 `git diff --check`：通过。
 
 ### 剩余风险
 
 - 正式美术帧若不存在，本 Plan 不生成替代画面；对应 Profile 只能具名回退并等待美术资产。
 - Boss 独立 Transform 帧仍缺失，目前使用暗形态 Flipbook 的一次性锁定过渡；需要美术替换和用户 PIE 视觉确认。
-- 既有 `AssetProfiles` 自动化基线需单独清理已删除资产路径/Gameplay Blueprint 与逐帧碰撞契约漂移；在此之前不能声称整个专项套件通过。
 
 ### 人工验收结果/请求
 

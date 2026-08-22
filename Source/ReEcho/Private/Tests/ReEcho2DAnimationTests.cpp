@@ -69,8 +69,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	UPaperFlipbook* WalkFlipbook =
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk"));
 	UPaperFlipbook* PlayerFlipbook = WalkFlipbook;
-	UPaperFlipbook* GruntFlipbook = LoadObject<UPaperFlipbook>(
-	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default.Default"));
+	UPaperFlipbook* SharedSlimeFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Slime/Flipbooks/Default.Default"));
 	UPaperFlipbook* StaffAttackFlipbook =
 	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
 	UPaperFlipbook* RabbitFlipbook = LoadObject<UPaperFlipbook>(
@@ -83,7 +83,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Attack0.Attack0"));
 	TestNotNull(TEXT("J_SPADE reusable renderer Flipbook is loadable"), PlayerFlipbook);
 	TestNotNull(TEXT("J_SPADE walk Flipbook is loadable"), WalkFlipbook);
-	TestNotNull(TEXT("Grunt default Flipbook is loadable"), GruntFlipbook);
+	TestNotNull(TEXT("Shared Slime fallback Flipbook is loadable"), SharedSlimeFlipbook);
 	TestNotNull(TEXT("Moon Staff attack Flipbook is loadable"), StaffAttackFlipbook);
 	TestNotNull(TEXT("Rabbit Doll Flipbook is loadable"), RabbitFlipbook);
 	TestNotNull(TEXT("Rabbit Doll attack Flipbook is loadable"), RabbitAttackFlipbook);
@@ -91,15 +91,16 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Goat Priest attack Flipbook is loadable"), GoatAttackFlipbook);
 	TestTrue(TEXT("J_SPADE Flipbook has non-empty render bounds"),
 	         PlayerFlipbook && PlayerFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
-	TestTrue(TEXT("Grunt Flipbook has non-empty render bounds"),
-	         GruntFlipbook && GruntFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
+	TestTrue(TEXT("Shared Slime fallback Flipbook has non-empty render bounds"),
+	         SharedSlimeFlipbook && SharedSlimeFlipbook->GetRenderBounds().BoxExtent.Z > 0.0f);
 	TestTrue(TEXT("Walk Flipbook uses authored EachFrame collision"),
 	         WalkFlipbook && WalkFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	TestTrue(TEXT("Attack Flipbook uses authored EachFrame collision"),
 	         StaffAttackFlipbook &&
 	             StaffAttackFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
-	TestTrue(TEXT("Grunt Flipbook uses authored EachFrame collision"),
-	         GruntFlipbook && GruntFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
+	TestTrue(TEXT("Shared Slime fallback Flipbook uses authored EachFrame collision"),
+	         SharedSlimeFlipbook &&
+	             SharedSlimeFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	TestTrue(TEXT("Rabbit Flipbook uses authored EachFrame collision"),
 	         RabbitFlipbook && RabbitFlipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
 	TestTrue(TEXT("Goat walk Flipbook uses authored EachFrame collision"),
@@ -123,7 +124,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	};
 	TestEveryKeyFrameHasCollision(TEXT("Walk has collision geometry on every key frame"), WalkFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Attack has collision geometry on every key frame"), StaffAttackFlipbook);
-	TestEveryKeyFrameHasCollision(TEXT("Grunt has collision geometry on every key frame"), GruntFlipbook);
+	TestEveryKeyFrameHasCollision(TEXT("Shared Slime fallback has collision geometry on every key frame"),
+	                              SharedSlimeFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Rabbit has collision geometry on every key frame"), RabbitFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Goat walk has collision geometry on every key frame"), GoatWalkFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Goat attack has collision geometry on every key frame"), GoatAttackFlipbook);
@@ -164,19 +166,29 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	{
 		TestNotNull(*FString::Printf(TEXT("Catalog resolves enemy profile %s"), *PresentationId.ToString()),
 		            AuthoredCatalog ? AuthoredCatalog->ResolveProfile(PresentationId) : nullptr);
-		TestTrue(*FString::Printf(TEXT("Gameplay registry resolves enemy Blueprint %s"), *PresentationId.ToString()),
+	}
+	const TArray<FName> GameplayPresentationIds = {
+	    TEXT("Enemy.Shield"), TEXT("Enemy.Slime"), TEXT("Enemy.Rabbit"), TEXT("Enemy.Fox"), TEXT("Enemy.TimeGuard")};
+	for (const FName PresentationId : GameplayPresentationIds)
+	{
+		TestTrue(*FString::Printf(TEXT("Gameplay registry resolves existing enemy Blueprint %s"),
+		                          *PresentationId.ToString()),
 		         GameplayClassRegistry && GameplayClassRegistry->ResolveGameplayClass(PresentationId));
 	}
+	TestNull(TEXT("Removed Grunt Gameplay Blueprint is not referenced"),
+	         GameplayClassRegistry ? GameplayClassRegistry->ResolveGameplayClass(TEXT("Enemy.Grunt")) : nullptr);
+	TestNull(TEXT("Removed Bomber Gameplay Blueprint is not referenced"),
+	         GameplayClassRegistry ? GameplayClassRegistry->ResolveGameplayClass(TEXT("Enemy.Bomber")) : nullptr);
 	TestNull(TEXT("Removed J_CAT profile is absent from the production catalog"),
 	         AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_CAT")) : nullptr);
 	UClass* PlayerGameplayClass = LoadClass<AReEchoPlayerPawn>(
 	    nullptr, TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay.BP_PlayerGameplay_C"));
-	UClass* GruntGameplayClass = LoadClass<AReEchoEnemyActor>(
-	    nullptr, TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Grunt.BP_EnemyGameplay_Grunt_C"));
+	UClass* SlimeGameplayClass = LoadClass<AReEchoEnemyActor>(
+	    nullptr, TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EnemyGameplay_Slime.BP_EnemyGameplay_Slime_C"));
 	TestTrue(TEXT("Player Gameplay Blueprint owns the runtime character scene"),
 	         PlayerGameplayClass && PlayerGameplayClass->IsChildOf(AReEchoPlayerPawn::StaticClass()));
 	TestTrue(TEXT("Enemy Gameplay Blueprint owns the runtime character scene"),
-	         GruntGameplayClass && GruntGameplayClass->IsChildOf(AReEchoEnemyActor::StaticClass()));
+	         SlimeGameplayClass && SlimeGameplayClass->IsChildOf(AReEchoEnemyActor::StaticClass()));
 	auto TestGameplaySceneTree = [this](const TCHAR* Label, UClass* GameplayClass, const bool bStableEnemyGround)
 	{
 		AActor* DefaultActor = GameplayClass ? Cast<AActor>(GameplayClass->GetDefaultObject()) : nullptr;
@@ -223,18 +235,21 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestGameplaySceneTree(
 	    TEXT("Player Blueprint exposes collision, Flipbook, ground and effects roots"), PlayerGameplayClass, true);
 	TestGameplaySceneTree(
-	    TEXT("Enemy Blueprint exposes collision, Flipbook, ground and effects roots"), GruntGameplayClass, true);
+	    TEXT("Enemy Blueprint exposes collision, Flipbook, ground and effects roots"), SlimeGameplayClass, true);
 	AReEchoEchoActor* EchoDefault = GetMutableDefault<AReEchoEchoActor>();
 	USceneComponent* EchoRoot = EchoDefault ? EchoDefault->GetRootComponent() : nullptr;
 	USceneComponent* EchoEffectsRoot =
 	    EchoDefault ? Cast<USceneComponent>(EchoDefault->GetDefaultSubobjectByName(TEXT("EffectsRoot"))) : nullptr;
+	USceneComponent* EchoMotionRoot =
+	    EchoDefault ? Cast<USceneComponent>(EchoDefault->GetDefaultSubobjectByName(TEXT("PresentationMotionRoot")))
+	                : nullptr;
 	USceneComponent* EchoAttackVfxRoot =
 	    EchoDefault ? Cast<USceneComponent>(EchoDefault->GetDefaultSubobjectByName(TEXT("AttackVfxRoot"))) : nullptr;
 	USceneComponent* EchoHurtVfxRoot =
 	    EchoDefault ? Cast<USceneComponent>(EchoDefault->GetDefaultSubobjectByName(TEXT("HurtVfxRoot"))) : nullptr;
 	TestTrue(TEXT("Echo exposes separate attack and hurt VFX roots"),
-	         EchoRoot && EchoEffectsRoot && EchoAttackVfxRoot && EchoHurtVfxRoot &&
-	             EchoEffectsRoot->GetAttachParent() == EchoRoot &&
+	         EchoRoot && EchoMotionRoot && EchoEffectsRoot && EchoAttackVfxRoot && EchoHurtVfxRoot &&
+	             EchoEffectsRoot->GetAttachParent() == EchoMotionRoot &&
 	             EchoAttackVfxRoot->GetAttachParent() == EchoEffectsRoot &&
 	             EchoHurtVfxRoot->GetAttachParent() == EchoEffectsRoot);
 	TestTrue(TEXT("Authored Spade default set owns looping Move"),
@@ -248,28 +263,19 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	             !AuthoredSpade->ResolveClip(TEXT("MoonStaff"), ReEcho2DAnimationTags::Attack_Basic)->bLooping);
 	TestTrue(TEXT("Authored Grunt profile owns its looping Idle clip"),
 	         AuthoredGrunt && AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) &&
-	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->Flipbook == GruntFlipbook &&
+	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->Flipbook == SharedSlimeFlipbook &&
 	             AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle)->bLooping);
-	auto TestEnemyProfile = [this](const TCHAR* Label,
-	                               const UReEcho2DCharacterPresentationProfile* Profile,
-	                               const UPaperFlipbook* ExpectedFlipbook)
-	{
-		const FReEcho2DAnimationClip* IdleClip =
-		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
-		const FReEcho2DAnimationClip* MoveClip =
-		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) : nullptr;
-		const FReEcho2DAnimationClip* AttackClip =
-		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
-		const FReEcho2DAnimationClip* HitClip =
-		    Profile ? Profile->ResolveClip(NAME_None, ReEcho2DAnimationTags::Hit) : nullptr;
-		TestTrue(Label,
-		         Profile && IdleClip && MoveClip && AttackClip && HitClip && IdleClip->Flipbook == ExpectedFlipbook &&
-		             MoveClip->Flipbook == ExpectedFlipbook && AttackClip->Flipbook == ExpectedFlipbook &&
-		             HitClip->Flipbook == ExpectedFlipbook && IdleClip->bLooping && MoveClip->bLooping &&
-		             !AttackClip->bLooping && !HitClip->bLooping);
-	};
-	TestEnemyProfile(
-	    TEXT("Grunt exposes four semantic slots through its single authored Flipbook"), AuthoredGrunt, GruntFlipbook);
+	const FReEcho2DAnimationClip* GruntMoveClip =
+	    AuthoredGrunt ? AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Move) : nullptr;
+	const FReEcho2DAnimationClip* GruntAttackClip =
+	    AuthoredGrunt ? AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Attack_Basic) : nullptr;
+	const FReEcho2DAnimationClip* GruntHitClip =
+	    AuthoredGrunt ? AuthoredGrunt->ResolveClip(NAME_None, ReEcho2DAnimationTags::Hit) : nullptr;
+	TestTrue(TEXT("Grunt profile explicitly uses current shared Slime fallback clips"),
+	         AuthoredGrunt && GruntMoveClip && GruntAttackClip && GruntHitClip &&
+	             GruntMoveClip->Flipbook == SharedSlimeFlipbook && GruntAttackClip->Flipbook == SharedSlimeFlipbook &&
+	             GruntHitClip->Flipbook && GruntHitClip->Flipbook != SharedSlimeFlipbook && GruntMoveClip->bLooping &&
+	             !GruntAttackClip->bLooping && !GruntHitClip->bLooping);
 	const FReEcho2DAnimationClip* RabbitIdleClip =
 	    AuthoredRabbit ? AuthoredRabbit->ResolveClip(NAME_None, ReEcho2DAnimationTags::Idle) : nullptr;
 	const FReEcho2DAnimationClip* RabbitMoveClip =

@@ -251,7 +251,7 @@ SetAnimationState(EReEcho2DAnimationState::Attack, false, true);
 
 角色新增的 `walk` 内容仍由 `DA_Character_J_SPADE` 的 `Animation.Move` Clip 引用；替换同路径资产后无需增加 Pawn 分支，停止移动仍回到静态 `Idel_01`，攻击仍由 MoonStaff 组合集的一次性 `attack` Clip 覆盖。
 
-Collision Source 必须保存进资产，不能只停留在未保存的 Editor 会话。关闭交互 Editor 后可运行 `scripts/ue/configure_plan40_flipbook_collision.py`；该脚本只把上述三个 Flipbook 设置为 `EachFrameCollision` 并保存，不会生成或猜测各 PaperSprite 的碰撞轮廓。
+Collision Source 必须保存进资产，不能只停留在未保存的 Editor 会话。关闭交互 Editor 后可运行 `scripts/ue/configure_plan40_flipbook_collision.py`；该脚本只把明确列出的生产 Flipbook 设置为 `EachFrameCollision` 并保存，不会生成或猜测各 PaperSprite 的碰撞轮廓。
 
 Paper2D 内建每帧碰撞表示整帧 Sprite 的通用查询轮廓；它不携带 Body/Weapon 语义，也不直接触发伤害。`UReEcho2DFrameCollisionTrack` 继续负责经过审核的 Body Hurtbox、Weapon AttackHitbox 和攻击窗口。如果没有 Track，伤害逻辑仍回退到既有 Capsule/武器范围查询。
 

@@ -1,7 +1,7 @@
 """Persist the human-approved Plan40 Paper2D collision mode through Unreal's asset API.
 
 Run with UnrealEditor-Cmd/UnrealEditor and -ExecutePythonScript. This script changes only
-the three active animated Flipbooks; it never generates or guesses per-frame Sprite geometry.
+the explicitly listed production Flipbooks; it never generates or guesses per-frame Sprite geometry.
 """
 
 import unreal
@@ -10,26 +10,21 @@ import unreal
 FLIPBOOK_PATHS = (
     "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk",
     "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack",
-    "/Game/ReEcho/Art/Animation2D/Enemies/Grunt/Flipbooks/Default",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Slime/Flipbooks/Default",
     "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Default",
     "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk0",
     "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Walk1",
     "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Attack0",
     "/Game/ReEcho/Art/Animation2D/Enemies/Goat/Flipbooks/Attack1",
     "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Fox/Flipbooks/Walk",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Fox/Flipbooks/gfa",
+    "/Game/ReEcho/Art/Animation2D/Enemies/Fox/Flipbooks/gfar",
 )
 
 
 def main() -> None:
     paths = list(FLIPBOOK_PATHS)
-    paths.extend(
-        asset_path.split(".")[0]
-        for asset_path in unreal.EditorAssetLibrary.list_assets(
-            "/Game/ReEcho/Art/Animation2D/Enemies/Fox/Flipbooks", recursive=True
-        )
-        if "fox" in asset_path.lower()
-        and ("walk" in asset_path.lower() or "attack" in asset_path.lower())
-    )
     for path in dict.fromkeys(paths):
         flipbook = unreal.EditorAssetLibrary.load_asset(path)
         if not isinstance(flipbook, unreal.PaperFlipbook):
