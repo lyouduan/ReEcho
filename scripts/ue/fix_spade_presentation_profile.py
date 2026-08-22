@@ -3,7 +3,7 @@
 import unreal
 
 
-PROFILE_PATH = "/Game/ReEcho/Animation2D/DA_Character_J_SPADE"
+PROFILE_PATH = "/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_SPADE"
 WALK_PATH = "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/walk"
 ATTACK_PATH = "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack"
 

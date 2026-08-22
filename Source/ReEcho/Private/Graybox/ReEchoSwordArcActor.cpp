@@ -58,7 +58,7 @@ void AReEchoSwordArcActor::ConfigureWeaponVisual(const FName WeaponVisualKey)
 	if (!Texture)
 	{
 		Texture = LoadObject<UTexture2D>(nullptr,
-		                                 FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(TEXT("CrescentBlade")));
+		                                 *FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(TEXT("CrescentBlade")));
 	}
 	if (!SpriteMaterial || !Texture)
 	{

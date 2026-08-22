@@ -22,7 +22,7 @@ enum class EReEchoCombatVfxSemantic : uint8
 /** Centralized semantic-to-asset mapping. Gameplay code never stores Niagara paths. */
 struct REECHO_API FReEchoCombatVfxCatalog
 {
-	static const TCHAR* ResolvePath(EReEchoCombatVfxSemantic Semantic);
+	static FString ResolvePath(EReEchoCombatVfxSemantic Semantic);
 	/** Single-ball texture used by the logic-driven rabbit projectile proxy. */
 	static const TCHAR* ResolveRabbitProjectileTexturePath();
 	/** Authored emissive material used to preserve the rabbit ball's red bloom without restoring Niagara motion. */

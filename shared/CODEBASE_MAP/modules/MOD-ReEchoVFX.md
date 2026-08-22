@@ -77,7 +77,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | PlayerGunFlight / Impact | `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly` / `NS_People_Bullet_spark` | 飞行 System 绑定权威投射物 Actor；首次权威命中播放一次 Impact |
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
 
-`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签；`Pattern.WhipCombo` 不得复用二者。长剑、镰刀、弓和枪的攻击表现已迁移为 Niagara：长剑/镰刀由 AttackCommitted 事件触发一次性表现；弓/枪由 `AReEchoProjectileActor` 把飞行 System 附着到逻辑载体，并在 `OnProjectileImpacted` 首次回调播放命中 System。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。四者不再同步读取旧攻击贴图或生成长剑平面回退。鞭与法杖暂时保留 `WhipLash` / `StaffLightWave` 旧适配，缺图不得阻塞攻击。
+`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签；`Pattern.WhipCombo` 不得复用二者。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀使用 AttackCommitted Slot；弓/枪的 Travel Slot 附着逻辑载体，DamageApplied Slot 只在首次 `AppliedDamage > 0` 的权威结果播放。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭与法杖阶段槽默认未启用；缺图不得阻塞攻击。
 
 禁止用 `NS_Rabbit_BeAttacked_01` 这个短名查找资产；玩家和怪物受击是两个不同 Package。
 

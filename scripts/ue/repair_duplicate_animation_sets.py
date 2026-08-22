@@ -6,10 +6,10 @@ import unreal
 
 
 PROFILE_PATHS = (
-    "/Game/ReEcho/Animation2D/DA_Character_J_CLOVER",
-    "/Game/ReEcho/Animation2D/DA_Character_J_DIAMOND",
-    "/Game/ReEcho/Animation2D/DA_Character_J_HEART",
-    "/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll",
+    "/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_CLOVER",
+    "/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_DIAMOND",
+    "/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_HEART",
+    "/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_RabbitDoll",
 )
 
 

@@ -1,9 +1,22 @@
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 
 #include "Core/ReEchoRabbitProjectilePattern.h"
+#include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
-const TCHAR* FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Semantic)
+FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Semantic)
 {
+	auto ResolveWeaponSlot =
+	    [](const FName VisualKey, const FReEchoWeaponVfxSlot UReEchoWeaponPresentationProfile::* SlotMember)
+	{
+		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(VisualKey);
+		if (!Profile)
+		{
+			return FString();
+		}
+		const FReEchoWeaponVfxSlot& Slot = Profile->*SlotMember;
+		return Slot.IsConfigured() ? Slot.System.ToSoftObjectPath().ToString() : FString();
+	};
 	switch (Semantic)
 	{
 		case EReEchoCombatVfxSemantic::RabbitCharging:
@@ -19,17 +32,17 @@ const TCHAR* FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic
 		case EReEchoCombatVfxSemantic::FoxDash:
 			return TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_04.NS_Fox_Rush_04");
 		case EReEchoCombatVfxSemantic::PlayerMeleeSlash:
-			return TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01.NS_People_Sword_Attack_01");
+			return ResolveWeaponSlot(TEXT("CrescentBlade"), &UReEchoWeaponPresentationProfile::AttackCommitted);
 		case EReEchoCombatVfxSemantic::PlayerScytheSlash:
-			return TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01.NS_People_Sickle_Attack_01");
+			return ResolveWeaponSlot(TEXT("Scythe"), &UReEchoWeaponPresentationProfile::AttackCommitted);
 		case EReEchoCombatVfxSemantic::PlayerBowFlight:
-			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01.NS_People_Bow_Attack_01");
+			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::Travel);
 		case EReEchoCombatVfxSemantic::PlayerBowImpact:
-			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Boom.NS_People_Bow_Boom");
+			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerGunFlight:
-			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly.NS_People_Bullet_Fly");
+			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::Travel);
 		case EReEchoCombatVfxSemantic::PlayerGunImpact:
-			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark.NS_People_Bullet_spark");
+			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		default:

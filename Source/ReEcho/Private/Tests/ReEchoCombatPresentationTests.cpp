@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
+#include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatPresentationLifecycleTest,
@@ -64,21 +65,24 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	    TEXT("CrescentBlade"), TEXT("Scythe"), TEXT("Whip"), TEXT("Bow"), TEXT("Gun"), TEXT("Staff")};
 	for (const FName Key : Keys)
 	{
-		const FReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(Key);
+		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(Key);
 		TestNotNull(*FString::Printf(TEXT("%s has one presentation profile"), *Key.ToString()), Profile);
 		if (Profile)
 		{
-			TestEqual(TEXT("Profile identity matches lookup"), Profile->VisualKey, Key);
-			TestTrue(TEXT("Profile has held visual"), Profile->HeldTexturePath[0] != TCHAR('\0'));
+			TestEqual(TEXT("Profile identity matches lookup"), Profile->WeaponVisualKey, Key);
 		}
 	}
+	TestTrue(TEXT("Missing legacy Whip hand art remains an explicit empty optional field"),
+	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Whip"))->HeldTexture.IsNull());
+	TestFalse(TEXT("Bow has held visual"),
+	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->HeldTexture.IsNull());
 	TestTrue(TEXT("Longsword owns full-spin weapon motion"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->MotionMode ==
 	             EReEchoWeaponMotionMode::FullSpin);
-	TestTrue(TEXT("Sword uses dedicated attack VFX"),
-	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->bUsesDedicatedAttackVfx);
-	TestTrue(TEXT("Bow uses dedicated attack VFX"),
-	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->bUsesDedicatedAttackVfx);
+	TestTrue(TEXT("Sword uses committed attack VFX"),
+	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->AttackCommitted.IsConfigured());
+	TestTrue(TEXT("Bow uses travel VFX"),
+	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->Travel.IsConfigured());
 	return true;
 }
 

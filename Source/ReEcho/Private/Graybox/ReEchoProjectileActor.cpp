@@ -120,21 +120,20 @@ void AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKe
 		return;
 	}
 	Shape->SetVisibility(false);
-	if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, FReEchoCombatVfxCatalog::ResolvePath(Semantic)))
+	if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *FReEchoCombatVfxCatalog::ResolvePath(Semantic)))
 	{
 		const FRotator FlightRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
-		FlightEffect =
-		    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
-		                                                 RootComponent,
-		                                                 NAME_None,
-		                                                 FVector::ZeroVector,
-		                                                 InWeaponVisualKey == TEXT("Bow") ? FRotator::ZeroRotator
-		                                                                                 : FlightRotation,
-		                                                 FVector::OneVector,
-		                                                 EAttachLocation::KeepRelativeOffset,
-		                                                 false,
-		                                                 ENCPoolMethod::None,
-		                                                 true);
+		FlightEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(
+		    System,
+		    RootComponent,
+		    NAME_None,
+		    FVector::ZeroVector,
+		    InWeaponVisualKey == TEXT("Bow") ? FRotator::ZeroRotator : FlightRotation,
+		    FVector::OneVector,
+		    EAttachLocation::KeepRelativeOffset,
+		    false,
+		    ENCPoolMethod::None,
+		    true);
 		if (FlightEffect)
 		{
 			FlightEffect->SetTranslucentSortPriority(1000);
@@ -152,7 +151,7 @@ void AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKe
 void AReEchoProjectileActor::HandleProjectileImpact(const FReEchoProjectileSnapshot& Snapshot,
                                                     const FReEchoHitResolved& Result)
 {
-	if (bImpactVfxSpawned)
+	if (bImpactVfxSpawned || Result.AppliedDamage <= 0.0f)
 	{
 		return;
 	}
@@ -175,7 +174,7 @@ void AReEchoProjectileActor::SpawnWeaponImpactNiagara(const FVector& Location, c
 	{
 		return;
 	}
-	if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, FReEchoCombatVfxCatalog::ResolvePath(Semantic)))
+	if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *FReEchoCombatVfxCatalog::ResolvePath(Semantic)))
 	{
 		if (UNiagaraComponent* ImpactEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 		        GetWorld(),

@@ -3,7 +3,7 @@
 import unreal
 
 
-PROFILE_PATH = "/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll"
+PROFILE_PATH = "/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_RabbitDoll"
 DEFAULT_FLIPBOOK_PATH = "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/Default"
 ATTACK_FLIPBOOK_PATH = "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/NRA"
 PHASE2_FLIPBOOK_PATH = "/Game/ReEcho/Art/Animation2D/Enemies/Rabbit/Flipbooks/BadRabbitWalk"

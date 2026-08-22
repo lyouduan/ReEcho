@@ -8,8 +8,8 @@ profiles whose serialized contract changes.
 import unreal
 
 
-ROOT = "/Game/ReEcho/Animation2D"
-STATE_MACHINE_PATH = f"{ROOT}/SM2D_DefaultCharacter"
+PROFILE_ROOT = "/Game/ReEcho/DataAsset/Enemy/Profiles"
+STATE_MACHINE_PATH = "/Game/ReEcho/DataAsset/Common/Animation2D/SM2D_DefaultCharacter"
 PHASE2_SET_ID = "Phase2"
 
 ENEMY_FALLBACKS = {
@@ -135,7 +135,7 @@ unreal.EditorAssetLibrary.save_loaded_asset(state_machine, only_if_is_dirty=Fals
 
 changed_profiles = []
 for profile_name, fallback_paths in ENEMY_FALLBACKS.items():
-    profile = required(f"{ROOT}/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile)
+    profile = required(f"{PROFILE_ROOT}/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile)
     profile.set_editor_property("state_machine", state_machine)
     animation_sets = list(profile.get_editor_property("animation_sets"))
     base_index, base_set = find_set(animation_sets, "")

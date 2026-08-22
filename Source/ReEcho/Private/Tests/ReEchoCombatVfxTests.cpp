@@ -47,9 +47,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.WhipCombo")));
 	TestFalse(TEXT("Staff projectile is not melee"),
 	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.StaffProjectile")));
-	TestNotEqual(TEXT("Whip has a dedicated attack texture contract"),
-	             AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("Whip")),
-	             AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("CrescentBlade")));
+	TestTrue(TEXT("Whip safely omits its unavailable legacy attack texture"),
+	         AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("Whip")).IsEmpty());
 	TestTrue(TEXT("Bow no longer resolves a legacy projectile texture"),
 	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Bow")).IsEmpty());
 	TestTrue(TEXT("Gun no longer resolves a legacy projectile texture"),
@@ -91,9 +90,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FRotator BowFlightRotation =
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::PlayerBowFlight, BowTargetDirection);
 	const FVector RotatedBowAuthoredAxis = BowFlightRotation
-	                                            .RotateVector(FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(
-	                                                EReEchoCombatVfxSemantic::PlayerBowFlight))
-	                                            .GetSafeNormal2D();
+	                                           .RotateVector(FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(
+	                                               EReEchoCombatVfxSemantic::PlayerBowFlight))
+	                                           .GetSafeNormal2D();
 	TestTrue(TEXT("Bow authored arrow axis points from the shooter toward the target"),
 	         RotatedBowAuthoredAxis.Equals(BowTargetDirection, KINDA_SMALL_NUMBER));
 
@@ -114,9 +113,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	};
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
-		const TCHAR* AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
-		UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, AssetPath);
-		if (!TestNotNull(FString::Printf(TEXT("Niagara system loads: %s"), AssetPath), System))
+		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
+		UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *AssetPath);
+		if (!TestNotNull(FString::Printf(TEXT("Niagara system loads: %s"), *AssetPath), System))
 		{
 			continue;
 		}
@@ -195,7 +194,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	}
 
 	UNiagaraSystem* RabbitProjectileSystem = LoadObject<UNiagaraSystem>(
-	    nullptr, FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::RabbitProjectile));
+	    nullptr, *FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::RabbitProjectile));
 	if (TestNotNull(TEXT("Rabbit projectile Niagara system loads for emitter-space validation"),
 	                RabbitProjectileSystem))
 	{

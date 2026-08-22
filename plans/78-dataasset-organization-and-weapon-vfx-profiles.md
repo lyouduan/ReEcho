@@ -4,7 +4,7 @@
 
 - Planner / Executor：当前对话同一程序 AI；用户已确认不采用规划者-执行者拆分。
 - 工作区：一任务一 worktree，`codex/dataasset-organization`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
 - 规划基线：`origin/main@bda8985077f447bf8bf155caf6fb0d9e3dda3286`。
 - 前置结果：Plan77 已建立统一表现生命周期与一武器一表现 Profile 的 C++ 过渡实现；本 Plan 将武器表现迁移为 Editor 可配置 DataAsset，并整理角色/怪物相关 DA 目录。
@@ -133,12 +133,20 @@
 
 ### 变化
 
-- 待执行。
+- 已将 Character、Echo、Enemy Profile/Catalog、Enemy Gameplay Registry 与共享 FSM 迁入锁定的 `DataAsset` 分域目录；原混合 Catalog 拆为 Character/Enemy，并修复所有生产加载路径。
+- 新增 Weapon Presentation Profile/Catalog 类型与六把武器 DA。长剑/镰刀使用明确的 `AttackCommitted`；弓/枪使用 `Travel + DamageApplied`；鞭/法杖对应阶段保持未勾选。
+- 武器 Actor、Projectile、Combat VFX 与预加载闭包改从 Weapon DA 解析；`DamageApplied` 仅在最终正伤害后触发。普通怪物与狐狸/兔子 Ability VFX 未进入 Weapon Catalog。
+- 迁移脚本可重复运行；缺失的 Whip/WhipLash 原始贴图按可选缺口保留为空，不创建伪造回退。
 
 ### 证据
 
-- 待执行。
+- `migrate_plan78_dataassets.py` 连续复跑成功：`PLAN78_DATAASSET_RESULT character=8 enemy=8 weapon=6`，0 error；仅报告既有 Whip/WhipLash 缺失告警。
+- `ReEcho.Presentation.Combat`、`ReEcho.Presentation.VFX`、`ReEcho.Weapons` 通过。
+- `ReEcho.Presentation.Animation2D` 的目录迁移、Character/Enemy Catalog 解析均通过；套件仍仅因迁移前已知的 TimeGuard Phase2 四语义素材不完整失败。
+- 最终 FullRebuild、静态校验与预构建一致性见提交前验证记录。
 
 ### 剩余风险与人工验收
 
-- 待执行。
+- 待用户在 Editor/PIE 验收目录可编辑性，以及长剑 Commit、弓 Flight/Impact 实际画面与角色动画的同步观感。
+- TimeGuard Phase2 缺失素材属于既有基线问题，不在本次 DA 分类与武器 VFX 配置范围内。
+- Whip/WhipLash 源贴图当前不存在，因此相关字段保持未配置；补入正式素材后可直接在 Weapon Profile 勾选并绑定。

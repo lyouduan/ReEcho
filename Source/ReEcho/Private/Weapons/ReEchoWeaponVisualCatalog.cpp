@@ -1,62 +1,42 @@
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
+#include "Presentation/Weapon/ReEchoWeaponPresentationCatalog.h"
+#include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
+
 namespace
 {
-const FReEchoWeaponPresentationProfile Profiles[] = {
-    {TEXT("CrescentBlade"),
-     TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon"),
-     TEXT(""),
-     EReEchoWeaponMotionMode::FullSpin,
-     true},
-    {TEXT("Scythe"),
-     TEXT("/Game/ReEcho/Textures/Effects/Scythe.Scythe"),
-     TEXT(""),
-     EReEchoWeaponMotionMode::None,
-     true},
-    {TEXT("Whip"),
-     TEXT("/Game/ReEcho/Textures/Effects/Whip.Whip"),
-     TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash"),
-     EReEchoWeaponMotionMode::None,
-     false},
-    {TEXT("Bow"), TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow"), TEXT(""), EReEchoWeaponMotionMode::None, true},
-    {TEXT("Gun"), TEXT("/Game/ReEcho/Textures/Effects/Gun.Gun"), TEXT(""), EReEchoWeaponMotionMode::None, true},
-    {TEXT("Staff"),
-     TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff"),
-     TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave"),
-     EReEchoWeaponMotionMode::None,
-     false}};
+constexpr const TCHAR* CatalogPath =
+    TEXT("/Game/ReEcho/DataAsset/Weapon/Catalogs/DA_WeaponPresentationCatalog.DA_WeaponPresentationCatalog");
 }
 
-const FReEchoWeaponPresentationProfile* FReEchoWeaponVisualCatalog::ResolveProfile(const FName WeaponVisualKey)
+UReEchoWeaponPresentationCatalog* FReEchoWeaponVisualCatalog::ResolveCatalog()
 {
-	const FName CanonicalKey = WeaponVisualKey == TEXT("MoonStaff") ? FName(TEXT("Staff")) : WeaponVisualKey;
-	for (const FReEchoWeaponPresentationProfile& Profile : Profiles)
-	{
-		if (Profile.VisualKey == CanonicalKey)
-		{
-			return &Profile;
-		}
-	}
-	return nullptr;
+	return LoadObject<UReEchoWeaponPresentationCatalog>(nullptr, CatalogPath);
 }
 
-const TCHAR* FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(const FName WeaponVisualKey)
+UReEchoWeaponPresentationProfile* FReEchoWeaponVisualCatalog::ResolveProfile(const FName WeaponVisualKey)
 {
-	const FReEchoWeaponPresentationProfile* Profile = ResolveProfile(WeaponVisualKey);
-	return Profile ? Profile->HeldTexturePath : TEXT("");
+	const UReEchoWeaponPresentationCatalog* Catalog = ResolveCatalog();
+	return Catalog ? Catalog->ResolveProfile(WeaponVisualKey) : nullptr;
 }
 
-const TCHAR* FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(const FName WeaponVisualKey)
+FString FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(const FName WeaponVisualKey)
 {
-	const FReEchoWeaponPresentationProfile* Profile = ResolveProfile(WeaponVisualKey);
-	return Profile ? Profile->LegacyAttackTexturePath : TEXT("");
+	const UReEchoWeaponPresentationProfile* Profile = ResolveProfile(WeaponVisualKey);
+	return Profile ? Profile->HeldTexture.ToSoftObjectPath().ToString() : FString();
+}
+
+FString FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(const FName WeaponVisualKey)
+{
+	const UReEchoWeaponPresentationProfile* Profile = ResolveProfile(WeaponVisualKey);
+	return Profile ? Profile->LegacyAttackTexture.ToSoftObjectPath().ToString() : FString();
 }
 
 void FReEchoWeaponVisualCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 {
-	for (const FReEchoWeaponPresentationProfile& Profile : Profiles)
+	OutPaths.Add(CatalogPath);
+	if (const UReEchoWeaponPresentationCatalog* Catalog = ResolveCatalog())
 	{
-		OutPaths.Add(Profile.HeldTexturePath);
-		OutPaths.Add(Profile.LegacyAttackTexturePath);
+		Catalog->GatherPreloadAssetPaths(OutPaths);
 	}
 }

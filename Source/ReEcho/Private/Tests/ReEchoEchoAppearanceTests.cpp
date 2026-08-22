@@ -22,13 +22,28 @@ bool FReEchoEchoAppearanceMappingTest::RunTest(const FString& Parameters)
 		const TCHAR* AttackPath;
 		const TCHAR* RangedAttackPath;
 	};
+
 	const FExpectedMapping Mappings[] = {
-	    {TEXT("J_HEART"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Heart/Flipbooks/walk.walk"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Heart/Flipbooks/Attack.Attack"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Heart/Flipbooks/Attack_Arrow.Attack_Arrow")},
-	    {TEXT("J_SPADE"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Spade/Flipbooks/walk.walk"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Spade/Flipbooks/Attack.Attack"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Spade/Flipbooks/Attack_Arrow.Attack_Arrow")},
-	    {TEXT("J_CLOVER"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Clover/Flipbooks/walk.walk"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Clover/Flipbooks/Attack.Attack"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Clover/Flipbooks/Attack_Arrow.Attack_Arrow")},
-	    {TEXT("J_DIAMOND"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Diamond/Flipbooks/Walk.Walk"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Diamond/Flipbooks/Attack.Attack"), TEXT("/Game/ReEcho/Art/Animation2D/Echos/Diamond/Flipbooks/Attack_Arrow.Attack_Arrow")},
+	    {TEXT("J_HEART"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Heart/Flipbooks/walk.walk"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Heart/Flipbooks/Attack.Attack"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Heart/Flipbooks/Attack_Arrow.Attack_Arrow")},
+	    {TEXT("J_SPADE"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Spade/Flipbooks/walk.walk"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Spade/Flipbooks/Attack.Attack"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Spade/Flipbooks/Attack_Arrow.Attack_Arrow")},
+	    {TEXT("J_CLOVER"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Clover/Flipbooks/walk.walk"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Clover/Flipbooks/Attack.Attack"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Clover/Flipbooks/Attack_Arrow.Attack_Arrow")},
+	    {TEXT("J_DIAMOND"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Diamond/Flipbooks/Walk.Walk"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Diamond/Flipbooks/Attack.Attack"),
+	     TEXT("/Game/ReEcho/Art/Animation2D/Echos/Diamond/Flipbooks/Attack_Arrow.Attack_Arrow")},
 	};
-	UReEcho2DPresentationCatalog* Catalog = LoadObject<UReEcho2DPresentationCatalog>(nullptr, TEXT("/Game/ReEcho/Animation2D/DA_EchoPresentationCatalog.DA_EchoPresentationCatalog"));
+	UReEcho2DPresentationCatalog* Catalog = LoadObject<UReEcho2DPresentationCatalog>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/DataAsset/Character/Catalogs/DA_EchoPresentationCatalog.DA_EchoPresentationCatalog"));
 	if (!TestNotNull(TEXT("Echo presentation catalog loads"), Catalog))
 	{
 		return false;
@@ -49,8 +64,10 @@ bool FReEchoEchoAppearanceMappingTest::RunTest(const FString& Parameters)
 		TestNotNull(*FString::Printf(TEXT("%s walk loads"), *Mapping.CharacterId.ToString()), Walk);
 		TestNotNull(*FString::Printf(TEXT("%s attack loads"), *Mapping.CharacterId.ToString()), Attack);
 		TestNotNull(*FString::Printf(TEXT("%s ranged attack loads"), *Mapping.CharacterId.ToString()), RangedAttack);
-		const FReEcho2DAnimationClip* MeleeClip = Profile ? Profile->ResolveClip(TEXT("CrescentBlade"), ReEcho2DAnimationTags::Attack_Basic) : nullptr;
-		const FReEcho2DAnimationClip* RangedClip = Profile ? Profile->ResolveClip(TEXT("Bow"), ReEcho2DAnimationTags::Attack_Basic) : nullptr;
+		const FReEcho2DAnimationClip* MeleeClip =
+		    Profile ? Profile->ResolveClip(TEXT("CrescentBlade"), ReEcho2DAnimationTags::Attack_Basic) : nullptr;
+		const FReEcho2DAnimationClip* RangedClip =
+		    Profile ? Profile->ResolveClip(TEXT("Bow"), ReEcho2DAnimationTags::Attack_Basic) : nullptr;
 		TestEqual(TEXT("Melee maps to Attack"), MeleeClip ? MeleeClip->Flipbook.Get() : nullptr, Attack);
 		TestEqual(TEXT("Bow maps to Attack_Arrow"), RangedClip ? RangedClip->Flipbook.Get() : nullptr, RangedAttack);
 		TestTrue(TEXT("Echo configures"), Echo->ConfigureEchoAppearance(Mapping.CharacterId));

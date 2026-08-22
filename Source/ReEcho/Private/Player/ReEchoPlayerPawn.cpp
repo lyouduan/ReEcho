@@ -103,7 +103,8 @@ AReEchoPlayerPawn::AReEchoPlayerPawn()
 	CharacterTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
 	CharacterTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
-	    TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
+	    TEXT("/Game/ReEcho/DataAsset/Character/Catalogs/DA_CharacterPresentationCatalog."
+	         "DA_CharacterPresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
 	ConfigureCharacter(TEXT("J_SPADE"));
 	Movement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("Movement"));

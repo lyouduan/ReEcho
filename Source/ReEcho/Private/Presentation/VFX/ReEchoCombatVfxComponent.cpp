@@ -47,7 +47,7 @@ void LogLayerState(const AActor* Owner,
 	            "EffectDistanceOffset=%.2f EffectWorld=%s Registered=%d Active=%d Visible=%d PriorityDelta=%d"),
 	       Phase,
 	       SpawnMode,
-	       FReEchoCombatVfxCatalog::ResolvePath(Semantic),
+	       *FReEchoCombatVfxCatalog::ResolvePath(Semantic),
 	       *GetNameSafe(Owner),
 	       *GetNameSafe(Animation),
 	       OwnerPriority,
@@ -231,14 +231,13 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 UNiagaraSystem* UReEchoCombatVfxComponent::ResolveSystem(const uint8 SemanticValue) const
 {
 	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
-	UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, FReEchoCombatVfxCatalog::ResolvePath(Semantic));
+	const FString SystemPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
+	UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *SystemPath);
 	if (!System && !MissingSystemWarnings.Contains(SemanticValue))
 	{
 		MissingSystemWarnings.Add(SemanticValue);
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[VFX] Missing semantic asset '%s'; gameplay continues without it"),
-		       FReEchoCombatVfxCatalog::ResolvePath(Semantic));
+		UE_LOG(
+		    LogReEcho, Warning, TEXT("[VFX] Missing semantic asset '%s'; gameplay continues without it"), *SystemPath);
 	}
 	return System;
 }

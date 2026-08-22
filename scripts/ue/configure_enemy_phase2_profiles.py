@@ -85,7 +85,7 @@ def find_default_flipbook(profile, profile_name):
 
 def configure_profile(profile_name):
     profile = required(
-        f"/Game/ReEcho/Animation2D/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile
+        f"/Game/ReEcho/DataAsset/Enemy/Profiles/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile
     )
     default_flipbook = find_default_flipbook(profile, profile_name)
     variant = VARIANTS.get(profile_name, {})

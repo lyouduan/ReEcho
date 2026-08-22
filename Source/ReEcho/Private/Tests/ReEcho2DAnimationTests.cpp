@@ -130,21 +130,27 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestEveryKeyFrameHasCollision(TEXT("Goat walk has collision geometry on every key frame"), GoatWalkFlipbook);
 	TestEveryKeyFrameHasCollision(TEXT("Goat attack has collision geometry on every key frame"), GoatAttackFlipbook);
 	UReEcho2DPresentationCatalog* AuthoredCatalog = LoadObject<UReEcho2DPresentationCatalog>(
-	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
+	    nullptr,
+	    TEXT("/Game/ReEcho/DataAsset/Character/Catalogs/DA_CharacterPresentationCatalog."
+	         "DA_CharacterPresentationCatalog"));
 	UReEchoEnemyGameplayClassRegistry* GameplayClassRegistry = LoadObject<UReEchoEnemyGameplayClassRegistry>(
 	    nullptr,
-	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/DA_EnemyGameplayClassRegistry.DA_EnemyGameplayClassRegistry"));
+	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyGameplayClassRegistry."
+	         "DA_EnemyGameplayClassRegistry"));
+	UReEcho2DPresentationCatalog* EnemyCatalog = LoadObject<UReEcho2DPresentationCatalog>(
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
 	UReEcho2DCharacterPresentationProfile* AuthoredGrunt = LoadObject<UReEcho2DCharacterPresentationProfile>(
-	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Grunt.DA_Enemy_Grunt"));
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_Grunt.DA_Enemy_Grunt"));
 	UReEcho2DCharacterPresentationProfile* AuthoredRabbit = LoadObject<UReEcho2DCharacterPresentationProfile>(
-	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_RabbitDoll.DA_Enemy_RabbitDoll"));
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_RabbitDoll.DA_Enemy_RabbitDoll"));
 	UReEcho2DCharacterPresentationProfile* AuthoredGoat = LoadObject<UReEcho2DCharacterPresentationProfile>(
-	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_GoatPriest.DA_Enemy_GoatPriest"));
 	UReEcho2DCharacterPresentationProfile* AuthoredFox = LoadObject<UReEcho2DCharacterPresentationProfile>(
-	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_Fox.DA_Enemy_Fox"));
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_Fox.DA_Enemy_Fox"));
 	UReEcho2DCharacterPresentationProfile* AuthoredTimeGuard = LoadObject<UReEcho2DCharacterPresentationProfile>(
-	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_Enemy_TimeGuard.DA_Enemy_TimeGuard"));
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_TimeGuard.DA_Enemy_TimeGuard"));
 	TestNotNull(TEXT("Cook-visible presentation catalog is loadable"), AuthoredCatalog);
+	TestNotNull(TEXT("Cook-visible enemy presentation catalog is loadable"), EnemyCatalog);
 	TestNotNull(TEXT("Gameplay-owned enemy class registry is loadable"), GameplayClassRegistry);
 	const UReEcho2DCharacterPresentationProfile* AuthoredSpade =
 	    AuthoredCatalog ? AuthoredCatalog->ResolveProfile(TEXT("J_SPADE")) : nullptr;
@@ -165,7 +171,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	for (const FName PresentationId : EnemyPresentationIds)
 	{
 		TestNotNull(*FString::Printf(TEXT("Catalog resolves enemy profile %s"), *PresentationId.ToString()),
-		            AuthoredCatalog ? AuthoredCatalog->ResolveProfile(PresentationId) : nullptr);
+		            EnemyCatalog ? EnemyCatalog->ResolveProfile(PresentationId) : nullptr);
 	}
 	const TArray<FName> GameplayPresentationIds = {
 	    TEXT("Enemy.Shield"), TEXT("Enemy.Slime"), TEXT("Enemy.Rabbit"), TEXT("Enemy.Fox"), TEXT("Enemy.TimeGuard")};

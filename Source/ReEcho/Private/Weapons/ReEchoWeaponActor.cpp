@@ -23,6 +23,7 @@
 #include "Graybox/ReEchoSwordArcActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponGeometry.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
@@ -72,15 +73,15 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	StaffSprite->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
 	StaffSprite->SetHiddenInGame(false);
 	StaffSprite->bIsScreenSizeScaled = false;
-	if (UTexture2D* StaffTexture =
-	        LoadObject<UTexture2D>(nullptr, FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Staff"))))
+	const FString StaffTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Staff"));
+	if (UTexture2D* StaffTexture = LoadObject<UTexture2D>(nullptr, *StaffTexturePath))
 	{
 		StaffSprite->SetSprite(StaffTexture);
 		constexpr float StaffWorldHeight = 250.0f;
 		StaffSprite->SetRelativeScale3D(FVector(StaffWorldHeight / FMath::Max(1, StaffTexture->GetSizeY())));
 	}
 
-	auto CreateWeaponBillboard = [this](const TCHAR* Name, const TCHAR* TexturePath)
+	auto CreateWeaponBillboard = [this](const TCHAR* Name, const FString& TexturePath)
 	{
 		UBillboardComponent* Billboard = CreateDefaultSubobject<UBillboardComponent>(Name);
 		Billboard->SetupAttachment(Root);
@@ -89,7 +90,7 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 		Billboard->SetTranslucentSortPriority(6);
 		Billboard->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
 		Billboard->SetHiddenInGame(false);
-		if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, TexturePath))
+		if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *TexturePath))
 		{
 			Billboard->SetSprite(Tex);
 			constexpr float WorldHeight = 250.0f;
@@ -121,8 +122,8 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	}
 	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
 	    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
-	UTexture2D* WeaponTexture =
-	    LoadObject<UTexture2D>(nullptr, FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("CrescentBlade")));
+	const FString WeaponTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("CrescentBlade"));
+	UTexture2D* WeaponTexture = LoadObject<UTexture2D>(nullptr, *WeaponTexturePath);
 	if (SpriteMaterial && WeaponTexture)
 	{
 		UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
@@ -731,12 +732,12 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, URe
 void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 {
 	SwordSwingDirection *= -1.0f;
-	const FReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(WeaponVisualKey);
+	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(WeaponVisualKey);
 	SwordAnimationTime =
 	    Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin ? SwordAnimationDuration : 0.0f;
 	// Longsword and scythe attack presentation is owned by the combat Niagara event adapter.
 	// Whip remains on its legacy placeholder until dedicated Niagara art is delivered.
-	if (Profile && Profile->LegacyAttackTexturePath[0] != TCHAR('\0') && WeaponVisualKey == TEXT("Whip"))
+	if (Profile && !Profile->LegacyAttackTexture.IsNull() && WeaponVisualKey == TEXT("Whip"))
 	{
 		SpawnMeleeArc(WeaponVisualKey);
 	}
@@ -770,7 +771,7 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 		}
 	}
 	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
-	const FReEchoWeaponPresentationProfile* Profile =
+	const UReEchoWeaponPresentationProfile* Profile =
 	    Definition ? FReEchoWeaponVisualCatalog::ResolveProfile(Definition->VisualKey) : nullptr;
 	const bool bUsesSwordVisual = Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin;
 	if (SwordAnimationTime <= 0.0f || !bUsesSwordVisual)

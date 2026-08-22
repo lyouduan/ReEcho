@@ -33,7 +33,9 @@ bool FReEchoSpadeAppearanceTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Sage Echo configures"), Echo->ConfigureEchoAppearance(TEXT("J_SPADE")));
 
 	UReEcho2DPresentationCatalog* Catalog = LoadObject<UReEcho2DPresentationCatalog>(
-	    nullptr, TEXT("/Game/ReEcho/Animation2D/DA_PresentationCatalog.DA_PresentationCatalog"));
+	    nullptr,
+	    TEXT("/Game/ReEcho/DataAsset/Character/Catalogs/DA_CharacterPresentationCatalog."
+	         "DA_CharacterPresentationCatalog"));
 	const UReEcho2DCharacterPresentationProfile* Profile = Catalog ? Catalog->ResolveProfile(TEXT("J_SPADE")) : nullptr;
 	TestNotNull(TEXT("Catalog resolves Sage profile"), Profile);
 	const FReEcho2DAnimationClip* MoonStaffAttack =

@@ -3,7 +3,9 @@
 import unreal
 
 
-ROOT = "/Game/ReEcho/Animation2D"
+CHARACTER_ROOT = "/Game/ReEcho/DataAsset/Character/Profiles"
+ENEMY_ROOT = "/Game/ReEcho/DataAsset/Enemy/Profiles"
+STATE_MACHINE_PATH = "/Game/ReEcho/DataAsset/Common/Animation2D/SM2D_DefaultCharacter"
 ENEMY_PROFILE_NAMES = (
     "DA_Enemy_Bomber",
     "DA_Enemy_Fox",
@@ -75,9 +77,7 @@ def find_set(profile, set_id):
 
 
 issues = []
-state_machine = required(
-    f"{ROOT}/SM2D_DefaultCharacter", unreal.ReEcho2DAnimationStateMachineAsset
-)
+state_machine = required(STATE_MACHINE_PATH, unreal.ReEcho2DAnimationStateMachineAsset)
 states_by_semantic = {
     str(state.get_editor_property("semantic_key").get_editor_property("tag_name")): state
     for state in state_machine.get_editor_property("states")
@@ -95,7 +95,7 @@ for name, priority, lock, terminal in FSM_EXPECTATIONS:
         issues.append(f"FSM terminal mismatch {name}")
 
 for profile_name in ENEMY_PROFILE_NAMES:
-    profile = required(f"{ROOT}/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile)
+    profile = required(f"{ENEMY_ROOT}/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile)
     if profile.get_editor_property("state_machine") != state_machine:
         issues.append(f"{profile_name} does not reference the production FSM")
     for set_id, required_semantics in (("", BASE_SEMANTICS), ("Phase2", PHASE2_SEMANTICS)):
@@ -128,7 +128,7 @@ for profile_name in ENEMY_PROFILE_NAMES:
             )
 
 for profile_name in CHARACTER_PROFILE_NAMES:
-    profile = required(f"{ROOT}/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile)
+    profile = required(f"{CHARACTER_ROOT}/{profile_name}", unreal.ReEcho2DCharacterPresentationProfile)
     if profile.get_editor_property("state_machine") != state_machine:
         issues.append(f"{profile_name} does not reference the production FSM")
     animation_set = find_set(profile, "")

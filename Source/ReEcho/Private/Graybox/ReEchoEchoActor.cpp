@@ -99,7 +99,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	EchoTextures.Add(TEXT("J_CLOVER"), CloverTextureFinder.Object);
 	EchoTextures.Add(TEXT("J_DIAMOND"), DiamondTextureFinder.Object);
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> EchoCatalogFinder(
-	    TEXT("/Game/ReEcho/Animation2D/DA_EchoPresentationCatalog.DA_EchoPresentationCatalog"));
+	    TEXT("/Game/ReEcho/DataAsset/Character/Catalogs/DA_EchoPresentationCatalog.DA_EchoPresentationCatalog"));
 	EchoPresentationCatalog = EchoCatalogFinder.Object;
 	ConfigureEchoAppearance(TEXT("J_SPADE"));
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();

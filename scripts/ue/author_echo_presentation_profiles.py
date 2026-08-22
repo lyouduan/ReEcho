@@ -3,9 +3,9 @@
 import unreal
 
 
-ROOT = "/Game/ReEcho/Animation2D"
-CATALOG_PATH = f"{ROOT}/DA_EchoPresentationCatalog"
-STATE_MACHINE_PATH = f"{ROOT}/SM2D_DefaultCharacter"
+ROOT = "/Game/ReEcho/DataAsset/Character/Profiles"
+CATALOG_PATH = "/Game/ReEcho/DataAsset/Character/Catalogs/DA_EchoPresentationCatalog"
+STATE_MACHINE_PATH = "/Game/ReEcho/DataAsset/Common/Animation2D/SM2D_DefaultCharacter"
 CHARACTERS = {
     "J_HEART": ("Heart", "walk"),
     "J_SPADE": ("Spade", "walk"),

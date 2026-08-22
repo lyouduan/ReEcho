@@ -9,7 +9,7 @@ ATTACK_BINDINGS = {
     "J_HEART": "/Game/ReEcho/Art/Animation2D/Players/Heart/Flipbooks/Attack",
     "J_SPADE": "/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack",
 }
-PROFILE_ROOT = "/Game/ReEcho/Animation2D"
+PROFILE_ROOT = "/Game/ReEcho/DataAsset/Character/Profiles"
 
 
 def load_required(path, expected_type):

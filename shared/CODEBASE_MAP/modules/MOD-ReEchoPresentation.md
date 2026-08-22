@@ -83,14 +83,14 @@
 
 | 目的 | Public 首读 | Private 实现 | 相关数据/资产 |
 |---|---|---|---|
-| 目录解析 | `ReEcho2DPresentationCatalog.h` | `ReEcho2DPresentationCatalog.cpp` | `DA_PresentationCatalog` |
+| 目录解析 | `ReEcho2DPresentationCatalog.h` | `ReEcho2DPresentationCatalog.cpp` | Character/Enemy/Echo 分域 Catalog |
 | 状态播放 | `ReEcho2DPresentationController.h` | `ReEcho2DPresentationController.cpp` | Character/Enemy Profile、StateMachine |
 | Flipbook 渲染 | `ReEcho2DAnimationComponent.h` | `ReEcho2DAnimationComponent.cpp` | Flipbook/Sprite |
 | 逐帧查询 | `ReEcho2DFrameCollisionDriver.h` | `ReEcho2DFrameCollisionDriver.cpp` | Collision Track |
 
 ## 扩展方式
 
-新增外观时创建 Profile 并注册稳定 PresentationId；新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。敌人 Gameplay Blueprint 映射只在主模块 Registry 中扩展。
+新增外观时在 `DataAsset/Character/Profiles` 或 `DataAsset/Enemy/Profiles` 创建 Profile 并注册到对应域 Catalog；共享 FSM 位于 `DataAsset/Common/Animation2D`。新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。敌人 Gameplay Blueprint 映射只在 `DataAsset/Enemy/Catalogs` 的 Registry 中扩展。
 
 ## 验证与测试
 

@@ -117,7 +117,7 @@ Commit
 
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。当前 canonical Staff 仍是 `Pattern.StaffProjectile → Projectile`；复用 `StaffLightWave` 只表示视觉资源复用，不得切回旧 `Pattern.MoonStaffWave` 行为。
 
-六武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `FReEchoWeaponPresentationProfile`，集中声明手持资源、武器本体动作模式、鞭/法杖剩余旧攻击纹理和专属攻击 VFX 能力。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。长剑、镰刀、弓和枪的攻击表现由 `FReEchoCombatVfxCatalog` 映射 Niagara 并在菜单阶段异步预热：近战消费 AttackCommitted，投射物飞行 System 绑定逻辑 Actor、命中 System 消费 `OnProjectileImpacted`；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次，不保存第二份方向或每帧重复计算。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续，禁止回退为长剑平面刀光或程序球体冒充正式攻击特效。
+六武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
 
 ### 持有者瞄准适配
 
