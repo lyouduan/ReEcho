@@ -26,6 +26,7 @@
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
+#include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "ReEcho.h"
@@ -145,6 +146,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot);
 	EnemyLogic = CreateDefaultSubobject<UReEchoEnemyLogicComponent>(TEXT("EnemyLogic"));
 	EnemyEvents = CreateDefaultSubobject<UReEchoEnemyEventsComponent>(TEXT("EnemyEvents"));
+	CombatPresentationCoordinator =
+	    CreateDefaultSubobject<UReEchoCombatPresentationCoordinator>(TEXT("CombatPresentationCoordinator"));
 	EnemyPresentation = CreateDefaultSubobject<UReEchoEnemyPresentationComponent>(TEXT("EnemyPresentation"));
 	EnemyPresentation->ConfigureComponents(PresentationRoot,
 	                                       PresentationMotionRoot,

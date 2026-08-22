@@ -117,7 +117,7 @@ Commit
 
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。当前 canonical Staff 仍是 `Pattern.StaffProjectile → Projectile`；复用 `StaffLightWave` 只表示视觉资源复用，不得切回旧 `Pattern.MoonStaffWave` 行为。
 
-六武器的手持纹理以及鞭/法杖剩余旧攻击纹理由主模块 `FReEchoWeaponVisualCatalog` 集中解析和枚举。长剑、镰刀、弓和枪的攻击表现由 `FReEchoCombatVfxCatalog` 映射 Niagara 并在菜单阶段异步预热：近战消费 AttackCommitted，投射物飞行 System 绑定逻辑 Actor、命中 System 消费 `OnProjectileImpacted`；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次，不保存第二份方向或每帧重复计算。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续，禁止回退为长剑平面刀光或程序球体冒充正式攻击特效。
+六武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `FReEchoWeaponPresentationProfile`，集中声明手持资源、武器本体动作模式、鞭/法杖剩余旧攻击纹理和专属攻击 VFX 能力。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。长剑、镰刀、弓和枪的攻击表现由 `FReEchoCombatVfxCatalog` 映射 Niagara 并在菜单阶段异步预热：近战消费 AttackCommitted，投射物飞行 System 绑定逻辑 Actor、命中 System 消费 `OnProjectileImpacted`；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次，不保存第二份方向或每帧重复计算。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续，禁止回退为长剑平面刀光或程序球体冒充正式攻击特效。
 
 ### 持有者瞄准适配
 
@@ -143,6 +143,7 @@ Commit
 - 新投射物/光波形状：扩资源无关 Spec/Geometry/Logic；表现使用 Snapshot，不把碰撞回调变成权威命中。
 - 新 OnHit/OnKill 效果：Weapons 在 Intent/Commit 中携带稳定 effect/behavior ID，Combat 在最终结果后执行合法规则；不要在 Actor 回调直接改目标。
 - 新武器表现：只改主模块 WeaponActor/Presentation 适配，不修改 readiness 或逻辑位置。
+- 武器持有能力：Player/Echo 可启用 Weapon Track；普通怪物永远无武器；Boss 只有显式非空 WeaponPresentationId 才允许启用，不得从 EnemyKind 或攻击模式推断。
 - 新攻速来源：汇总进 `FReEchoStatBlock::AttackSpeed`，仍由同一 WeaponLogic 计算间隔。
 
 ## 验证与测试

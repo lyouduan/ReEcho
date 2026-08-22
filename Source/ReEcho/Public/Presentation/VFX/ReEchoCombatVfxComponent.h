@@ -3,6 +3,7 @@
 #include "Combat/ReEchoCombatContracts.h"
 #include "Components/ActorComponent.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
+#include "Presentation/Combat/ReEchoCombatPresentationTypes.h"
 #include "ReEchoCombatVfxComponent.generated.h"
 
 class UNiagaraComponent;
@@ -12,6 +13,7 @@ class UMaterialInterface;
 class UTexture2D;
 class APlayerController;
 class USceneComponent;
+class UReEchoCombatPresentationCoordinator;
 
 /** Per-owner stable key for one visible projectile in a committed enemy volley. */
 USTRUCT()
@@ -111,7 +113,7 @@ private:
 	UFUNCTION()
 	void HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 	UFUNCTION()
-	void HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event);
+	void HandlePresentationAction(const FReEchoPresentationActionEvent& Event);
 	UFUNCTION()
 	void HandleProjectile(const FReEchoEnemyProjectileEvent& Event);
 
@@ -120,6 +122,8 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyEventsComponent> EnemyEvents;
+	UPROPERTY()
+	TObjectPtr<UReEchoCombatPresentationCoordinator> CombatPresentationCoordinator;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> ChargingEffect;

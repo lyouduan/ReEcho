@@ -731,11 +731,12 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, URe
 void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 {
 	SwordSwingDirection *= -1.0f;
-	// Only the longsword owns the hand-sprite swing. Scythe and whip keep their billboard pose.
-	SwordAnimationTime = WeaponVisualKey == TEXT("CrescentBlade") ? SwordAnimationDuration : 0.0f;
+	const FReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(WeaponVisualKey);
+	SwordAnimationTime =
+	    Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin ? SwordAnimationDuration : 0.0f;
 	// Longsword and scythe attack presentation is owned by the combat Niagara event adapter.
 	// Whip remains on its legacy placeholder until dedicated Niagara art is delivered.
-	if (WeaponVisualKey == TEXT("Whip"))
+	if (Profile && Profile->LegacyAttackTexturePath[0] != TCHAR('\0') && WeaponVisualKey == TEXT("Whip"))
 	{
 		SpawnMeleeArc(WeaponVisualKey);
 	}
@@ -769,7 +770,9 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 		}
 	}
 	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
-	const bool bUsesSwordVisual = Definition && Definition->VisualKey == TEXT("CrescentBlade");
+	const FReEchoWeaponPresentationProfile* Profile =
+	    Definition ? FReEchoWeaponVisualCatalog::ResolveProfile(Definition->VisualKey) : nullptr;
+	const bool bUsesSwordVisual = Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin;
 	if (SwordAnimationTime <= 0.0f || !bUsesSwordVisual)
 	{
 		SwordAnimationTime = 0.0f;

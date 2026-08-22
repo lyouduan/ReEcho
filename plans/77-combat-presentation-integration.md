@@ -4,7 +4,7 @@
 
 - Planner / Executor：当前对话同一程序 AI；用户已确认不采用规划者-执行者拆分。
 - 工作区：一任务一 worktree，`codex/combat-presentation-integration`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
 - 规划基线：`origin/main@b7c4212f033e1fadd044ddda9167dd55f4b6201b`。
 - 前置结果：Plan74 已提供 Attack.Charge / Attack.Basic / Transform.Phase2 语义动画；Plan76 已完成长剑、镰刀、弓、枪的一武器一特效路由。本 Plan 只整合触发与生命周期，不复制 Niagara 资产映射。
@@ -90,12 +90,18 @@
 
 ### 变化
 
-- 待执行。
+- 新增主模块 `UReEchoCombatPresentationCoordinator` 与资源中立动作键/阶段事件；Enemy Host 显式装配后，普通攻击 Commit 与特殊动作 Windup/Commit/End 统一从 Coordinator 广播。
+- Enemy Presentation 与 Combat VFX 不再分别订阅原始 SpecialAction；狐狸和兔子的动画、蓄力/方向/Dash 特效消费同一个动作实例。重复阶段被忽略，Death、EndPlay 和新动作抢占会发布幂等 Cancelled。
+- 六种武器收敛到 `WeaponVisualKey -> FReEchoWeaponPresentationProfile` 一对一映射，集中描述手持资源、武器动作模式和专属攻击 VFX 能力；长剑 FullSpin 不再由散落的 VisualKey 分支决定。
+- 能力策略明确锁定：Player/Echo 只有非空武器表现 ID 才启用 Weapon Track；普通怪物始终无武器；Boss 也必须显式配置。
 
 ### 证据
 
-- 待执行。
+- Development 增量构建与最终 `-FullRebuild`（99 actions）通过；精选预构建包校验为 7 个模块、`build_id=55116800`、`source=495e7214b155`。`ReEcho.Presentation.Combat` 两项新增测试、`ReEcho.Presentation.VFX` 和 9 项 `ReEcho.Weapons` 回归通过。
+- `ReEcho.Presentation.Animation2D.FootpointAlignment` 通过；`AssetProfiles` 在未被本 Plan 修改的 `DA_Enemy_TimeGuard` Phase2 Clip 完整性断言失败。当前 diff 不含 Content 资产，记录为远端基线资产缺口，不冒充本 Plan 回归或顺手修改二进制资产。
+- `validate_project.py`、`git diff --check` 和 `prebuilt_editor.py check` 通过。`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅：模块拓扑及 AREA 路由未改变，无需修改；四份受影响模块文档已同步。
 
 ### 剩余风险与人工验收
 
-- 待执行。
+- 仍需用户在 PIE 验收狐狸、兔子、长剑和弓的动作/特效同拍、层级、朝向及死亡/取消清理。
+- TimeGuard Phase2 生产资产缺口需要独立资产任务补齐或确认基线预期；本 Plan 保留现状。

@@ -1,55 +1,62 @@
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
+namespace
+{
+const FReEchoWeaponPresentationProfile Profiles[] = {
+    {TEXT("CrescentBlade"),
+     TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon"),
+     TEXT(""),
+     EReEchoWeaponMotionMode::FullSpin,
+     true},
+    {TEXT("Scythe"),
+     TEXT("/Game/ReEcho/Textures/Effects/Scythe.Scythe"),
+     TEXT(""),
+     EReEchoWeaponMotionMode::None,
+     true},
+    {TEXT("Whip"),
+     TEXT("/Game/ReEcho/Textures/Effects/Whip.Whip"),
+     TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash"),
+     EReEchoWeaponMotionMode::None,
+     false},
+    {TEXT("Bow"), TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow"), TEXT(""), EReEchoWeaponMotionMode::None, true},
+    {TEXT("Gun"), TEXT("/Game/ReEcho/Textures/Effects/Gun.Gun"), TEXT(""), EReEchoWeaponMotionMode::None, true},
+    {TEXT("Staff"),
+     TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff"),
+     TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave"),
+     EReEchoWeaponMotionMode::None,
+     false}};
+}
+
+const FReEchoWeaponPresentationProfile* FReEchoWeaponVisualCatalog::ResolveProfile(const FName WeaponVisualKey)
+{
+	const FName CanonicalKey = WeaponVisualKey == TEXT("MoonStaff") ? FName(TEXT("Staff")) : WeaponVisualKey;
+	for (const FReEchoWeaponPresentationProfile& Profile : Profiles)
+	{
+		if (Profile.VisualKey == CanonicalKey)
+		{
+			return &Profile;
+		}
+	}
+	return nullptr;
+}
+
 const TCHAR* FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(const FName WeaponVisualKey)
 {
-	if (WeaponVisualKey == TEXT("CrescentBlade"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon");
-	}
-	if (WeaponVisualKey == TEXT("Scythe"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/Scythe.Scythe");
-	}
-	if (WeaponVisualKey == TEXT("Whip"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/Whip.Whip");
-	}
-	if (WeaponVisualKey == TEXT("Bow"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow");
-	}
-	if (WeaponVisualKey == TEXT("Gun"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/Gun.Gun");
-	}
-	if (WeaponVisualKey == TEXT("Staff") || WeaponVisualKey == TEXT("MoonStaff"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff");
-	}
-	return TEXT("");
+	const FReEchoWeaponPresentationProfile* Profile = ResolveProfile(WeaponVisualKey);
+	return Profile ? Profile->HeldTexturePath : TEXT("");
 }
 
 const TCHAR* FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(const FName WeaponVisualKey)
 {
-	if (WeaponVisualKey == TEXT("Whip"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash");
-	}
-	if (WeaponVisualKey == TEXT("Staff") || WeaponVisualKey == TEXT("MoonStaff"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave");
-	}
-	// Longsword, scythe, bow and gun attacks are Niagara-only. Empty prevents synchronous legacy texture loads.
-	return TEXT("");
+	const FReEchoWeaponPresentationProfile* Profile = ResolveProfile(WeaponVisualKey);
+	return Profile ? Profile->LegacyAttackTexturePath : TEXT("");
 }
 
 void FReEchoWeaponVisualCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 {
-	static const FName VisualKeys[] = {
-	    TEXT("CrescentBlade"), TEXT("Scythe"), TEXT("Whip"), TEXT("Bow"), TEXT("Gun"), TEXT("Staff")};
-	for (const FName VisualKey : VisualKeys)
+	for (const FReEchoWeaponPresentationProfile& Profile : Profiles)
 	{
-		OutPaths.Add(ResolveHeldTexturePath(VisualKey));
-		OutPaths.Add(ResolveAttackTexturePath(VisualKey));
+		OutPaths.Add(Profile.HeldTexturePath);
+		OutPaths.Add(Profile.LegacyAttackTexturePath);
 	}
 }

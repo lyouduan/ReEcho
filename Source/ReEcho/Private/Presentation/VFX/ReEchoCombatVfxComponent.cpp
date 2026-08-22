@@ -10,6 +10,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
+#include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "ReEcho.h"
@@ -197,11 +198,16 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	}
 	if (EnemyEvents)
 	{
-		EnemyEvents->OnSpecialAction.RemoveAll(this);
 		EnemyEvents->OnProjectile.RemoveAll(this);
+	}
+	if (CombatPresentationCoordinator)
+	{
+		CombatPresentationCoordinator->OnActionPhase.RemoveAll(this);
 	}
 	CombatEvents = InCombatEvents;
 	EnemyEvents = InEnemyEvents;
+	CombatPresentationCoordinator =
+	    GetOwner() ? GetOwner()->FindComponentByClass<UReEchoCombatPresentationCoordinator>() : nullptr;
 	if (CombatEvents)
 	{
 		CombatEvents->OnAttackCommitted.AddDynamic(this, &UReEchoCombatVfxComponent::HandleAttackCommitted);
@@ -213,8 +219,12 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	}
 	if (EnemyEvents)
 	{
-		EnemyEvents->OnSpecialAction.AddDynamic(this, &UReEchoCombatVfxComponent::HandleSpecialAction);
 		EnemyEvents->OnProjectile.AddDynamic(this, &UReEchoCombatVfxComponent::HandleProjectile);
+	}
+	if (CombatPresentationCoordinator)
+	{
+		CombatPresentationCoordinator->OnActionPhase.AddDynamic(this,
+		                                                        &UReEchoCombatVfxComponent::HandlePresentationAction);
 	}
 }
 
@@ -658,15 +668,15 @@ void UReEchoCombatVfxComponent::HandleElementReactionResolved(const FReEchoEleme
 	}
 }
 
-void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event)
+void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentationActionEvent& Event)
 {
-	const bool bRabbit = Event.AbilityId == TEXT("M_RABBIT_RangedBurst");
-	const bool bFox = Event.AbilityId == TEXT("M_FOX_Dash");
+	const bool bRabbit = Event.Key.AbilityId == TEXT("M_RABBIT_RangedBurst");
+	const bool bFox = Event.Key.AbilityId == TEXT("M_FOX_Dash");
 	if (!bRabbit && !bFox)
 	{
 		return;
 	}
-	if (Event.Type == EReEchoEnemySpecialActionEventType::WindupStarted)
+	if (Event.Phase == EReEchoPresentationActionPhase::Windup)
 	{
 		StopEffect(ChargingEffect);
 		StopEffect(DirectionEffect);
@@ -685,7 +695,7 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 	}
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
-	if (Event.Type == EReEchoEnemySpecialActionEventType::ActionCommitted && bFox)
+	if (Event.Phase == EReEchoPresentationActionPhase::Committed && bFox)
 	{
 		StopEffect(DashEffect);
 		DashEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDash),
@@ -693,7 +703,8 @@ void UReEchoCombatVfxComponent::HandleSpecialAction(const FReEchoEnemySpecialAct
 		                           ResolveAttackVfxRoot(),
 		                           false);
 	}
-	else if (Event.Type == EReEchoEnemySpecialActionEventType::ActionEnded)
+	else if (Event.Phase == EReEchoPresentationActionPhase::Ended ||
+	         Event.Phase == EReEchoPresentationActionPhase::Cancelled)
 	{
 		StopEffect(DashEffect);
 	}

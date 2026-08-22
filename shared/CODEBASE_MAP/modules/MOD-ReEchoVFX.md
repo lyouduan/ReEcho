@@ -42,7 +42,7 @@
 |---|---|---|
 | `FReEchoAttackCommittedEvent` | `MOD-ReEchoCombat` / Weapons 提交链 | 近战 Pattern 播放一次刀光 |
 | `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击 |
-| `FReEchoEnemySpecialActionEvent` | `MOD-ReEchoEnemies` + EnemyHost | Rabbit/Fox 的 Windup、Committed、Ended 驱动阶段表现 |
+| `FReEchoPresentationActionEvent` | EnemyHost 的 CombatPresentationCoordinator | Rabbit/Fox 的同一动作键与有序 Windup、Committed、Ended/Cancelled 驱动阶段表现 |
 | `FReEchoEnemyProjectileEvent` | EnemyHost 的逐球逻辑投射物 | 按 `(AttackIdentity, VolleyBallIndex)` 创建、移动和销毁唯一兔子子弹代理；位置直接采用事件快照 |
 | Actor Death / EndPlay | Combat/UE 生命周期 | 清理所有跟随和非自动销毁实例 |
 
@@ -53,6 +53,7 @@ Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfx
 ```text
 Weapons / EnemyLogic
   → CombatEvents / EnemyEvents（稳定语义和值上下文）
+  → CombatPresentationCoordinator（特殊动作阶段排序、去重和取消）
   → Enemy/Player/Echo Host 上的 UReEchoCombatVfxComponent
   → FReEchoCombatVfxCatalog（唯一资产映射）
   → Niagara Component（只读表现）
@@ -107,6 +108,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 目的 | 位置 |
 |---|---|
 | 语义与资产目录 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` |
+| 阶段协调 | `Presentation/Combat/ReEchoCombatPresentationCoordinator.*` |
 | 事件订阅、生成和清理 | `Presentation/VFX/ReEchoCombatVfxComponent.*` |
 | 人物攻击/受击挂点 | `Player/ReEchoPlayerPawn.*`、`Graybox/ReEchoEnemyActor.*`、`Graybox/ReEchoEchoActor.*` 中的 `AttackVfxRoot` / `HurtVfxRoot` |
 | 敌人阶段/投射物事件契约 | `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyEventsComponent.h` |

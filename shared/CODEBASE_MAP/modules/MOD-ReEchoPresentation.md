@@ -61,6 +61,7 @@
 ```text
 玩法事件 / 移动状态
   -> ReEcho 主模块 Host Adapter
+  -> CombatPresentationCoordinator（动作身份、阶段排序与去重）
   -> PresentationId / 语义命令
   -> PresentationCatalog / Profile / FSM
   -> PresentationController
@@ -74,6 +75,7 @@
 - Catalog：稳定 ID 到 Profile。
 - Profile/FSM：美术可配置语义动画集合和转换策略。
 - Controller：执行表现状态切换，持有显式动作占用；循环 Charge 只能由提交、结束或取消事件收束，不回写玩法。
+- 主模块 Coordinator：不属于本 Runtime Module；把同一玩法动作阶段同时交给 Animation 与 VFX 轨，避免两个消费者建立彼此漂移的本地时钟。
 - AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退。
 - FrameCollisionDriver：生成 Query/Debug 快照。
 
@@ -92,7 +94,7 @@
 
 ## 验证与测试
 
-`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、完成归宿与缺失资源回退；`scripts/ue/audit_plan74_animation_contracts.py` 只读审计全部生产玩家、Echo 和怪物 Profile。脚点、比例、朝向与首帧闪烁仍由人工在 PIE 验收。
+`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、完成归宿与缺失资源回退；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan74_animation_contracts.py` 只读审计全部生产玩家、Echo 和怪物 Profile。脚点、比例、朝向与首帧闪烁仍由人工在 PIE 验收。
 
 ## 不变量与常见错误
 

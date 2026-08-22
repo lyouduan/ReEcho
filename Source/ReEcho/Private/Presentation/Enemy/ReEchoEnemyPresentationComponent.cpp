@@ -20,6 +20,7 @@
 #include "Presentation/Animation2D/ReEcho2DFrameCollisionDriver.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
+#include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "UI/ReEchoDamageNumberActor.h"
 
 namespace ReEchoEnemyVisual
@@ -87,11 +88,13 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 {
 	if (EnemyEvents)
 	{
-		EnemyEvents->OnActionCommitted.RemoveAll(this);
 		EnemyEvents->OnBossIntent.RemoveAll(this);
-		EnemyEvents->OnSpecialAction.RemoveAll(this);
 		EnemyEvents->OnPhaseTransition.RemoveAll(this);
 		EnemyEvents->OnFuseChanged.RemoveAll(this);
+	}
+	if (CombatPresentationCoordinator)
+	{
+		CombatPresentationCoordinator->OnActionPhase.RemoveAll(this);
 	}
 	if (CombatEvents)
 	{
@@ -102,13 +105,18 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	Host = InHost;
 	EnemyEvents = InEnemyEvents;
 	CombatEvents = InCombatEvents;
+	CombatPresentationCoordinator =
+	    InHost ? InHost->FindComponentByClass<UReEchoCombatPresentationCoordinator>() : nullptr;
 	if (EnemyEvents)
 	{
-		EnemyEvents->OnActionCommitted.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleActionCommitted);
 		EnemyEvents->OnBossIntent.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleBossIntent);
-		EnemyEvents->OnSpecialAction.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleSpecialAction);
 		EnemyEvents->OnPhaseTransition.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandlePhaseTransition);
 		EnemyEvents->OnFuseChanged.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleFuseChanged);
+	}
+	if (CombatPresentationCoordinator)
+	{
+		CombatPresentationCoordinator->OnActionPhase.AddDynamic(
+		    this, &UReEchoEnemyPresentationComponent::HandlePresentationAction);
 	}
 	if (CombatEvents)
 	{
@@ -341,15 +349,6 @@ void UReEchoEnemyPresentationComponent::UpdateDeathAnimation(const float DeltaSe
 	ApplyPresentationMotion(FVector(0.0f, 0.0f, -28.0f * (1.0f - Ratio)), FVector(Ratio, Ratio, 1.0f));
 }
 
-void UReEchoEnemyPresentationComponent::HandleActionCommitted(const FReEchoEnemyActionCommittedEvent& Event)
-{
-	AttackVisualRemaining = 0.22f;
-	if (PresentationController)
-	{
-		PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true, Event.Attack.Sequence);
-	}
-}
-
 void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
 	if (Intent.Type != EReEchoBossIntentType::TelegraphStarted &&
@@ -369,22 +368,23 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 	}
 }
 
-void UReEchoEnemyPresentationComponent::HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event)
+void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPresentationActionEvent& Event)
 {
 	if (!PresentationController)
 	{
 		return;
 	}
-	if (Event.Type == EReEchoEnemySpecialActionEventType::ActionEnded)
+	if (Event.Phase == EReEchoPresentationActionPhase::Ended ||
+	    Event.Phase == EReEchoPresentationActionPhase::Cancelled)
 	{
 		PresentationController->CancelAttackAction();
 		return;
 	}
-	PresentationController->PlayAction(Event.Type == EReEchoEnemySpecialActionEventType::WindupStarted
+	PresentationController->PlayAction(Event.Phase == EReEchoPresentationActionPhase::Windup
 	                                       ? ReEcho2DAnimationTags::Attack_Charge
 	                                       : ReEcho2DAnimationTags::Attack_Basic,
 	                                   true,
-	                                   Event.Attack.IsValid() ? Event.Attack.Sequence : INDEX_NONE);
+	                                   Event.Key.Sequence);
 }
 
 void UReEchoEnemyPresentationComponent::HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event)

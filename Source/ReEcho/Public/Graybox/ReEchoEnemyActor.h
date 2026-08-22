@@ -19,6 +19,7 @@ class UReEchoCombatantComponent;
 class UReEchoCombatAudioAdapterComponent;
 class UReEchoCombatVfxComponent;
 class UReEchoCombatEventsComponent;
+class UReEchoCombatPresentationCoordinator;
 class UReEchoEnemyEventsComponent;
 class UReEchoEnemyLogicComponent;
 class UReEchoEnemyPresentationComponent;
@@ -273,6 +274,8 @@ private:
 	TObjectPtr<UReEchoCombatAudioAdapterComponent> CombatAudioAdapter;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatVfxComponent> CombatVfx;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UReEchoCombatPresentationCoordinator> CombatPresentationCoordinator;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyLogicComponent> EnemyLogic;
 	UPROPERTY(VisibleAnywhere)

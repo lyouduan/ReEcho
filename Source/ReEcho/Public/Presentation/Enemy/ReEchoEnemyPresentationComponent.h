@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "Enemies/ReEchoEnemyTypes.h"
+#include "Presentation/Combat/ReEchoCombatPresentationTypes.h"
 #include "ReEchoEnemyPresentationComponent.generated.h"
 
 class UBillboardComponent;
@@ -13,6 +14,7 @@ class UReEcho2DCharacterPresentationProfile;
 class UReEcho2DFrameCollisionDriver;
 class UReEcho2DPresentationController;
 class UReEcho2DPresentationCatalog;
+class UReEchoCombatPresentationCoordinator;
 class USceneComponent;
 class UStaticMeshComponent;
 class UTexture2D;
@@ -105,11 +107,9 @@ protected:
 
 private:
 	UFUNCTION()
-	void HandleActionCommitted(const FReEchoEnemyActionCommittedEvent& Event);
-	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);
 	UFUNCTION()
-	void HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event);
+	void HandlePresentationAction(const FReEchoPresentationActionEvent& Event);
 	UFUNCTION()
 	void HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event);
 	UFUNCTION()
@@ -135,6 +135,8 @@ private:
 	TObjectPtr<UReEchoEnemyEventsComponent> EnemyEvents;
 	UPROPERTY()
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
+	UPROPERTY()
+	TObjectPtr<UReEchoCombatPresentationCoordinator> CombatPresentationCoordinator;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> PresentationRoot;
 	UPROPERTY()
