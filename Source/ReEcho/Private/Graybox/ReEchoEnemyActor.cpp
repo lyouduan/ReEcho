@@ -21,6 +21,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Graybox/ReEchoEchoActor.h"
+#include "Graybox/ReEchoEnemyCrowdSteering.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
@@ -218,6 +219,7 @@ void AReEchoEnemyActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (EnemyRoster)
 	{
+		ClearCrowdCollisionIgnores();
 		EnemyRoster->UnregisterEnemy(this);
 	}
 	if (CombatEvents)
@@ -245,6 +247,7 @@ void AReEchoEnemyActor::Configure(const EReEchoEnemyKind InKind, const int32 Spa
 	BindComposedComponents();
 	if (EnemyRoster)
 	{
+		ClearCrowdCollisionIgnores();
 		EnemyRoster->UnregisterEnemy(this);
 	}
 
@@ -268,6 +271,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	BindComposedComponents();
 	if (EnemyRoster)
 	{
+		ClearCrowdCollisionIgnores();
 		EnemyRoster->UnregisterEnemy(this);
 	}
 	if (!EnemyLogic->Initialize(Definition, SpawnIndex))
@@ -280,6 +284,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	Combatant->InitializeFromStats(Stats, true);
 	Collision->SetBoxExtent(
 	    FVector(Definition.CollisionRadiusCm, Definition.CollisionRadiusCm, Definition.CollisionHalfHeightCm));
+	Collision->ClearMoveIgnoreActors();
 	AlignToGameplayPlane();
 	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.PresentationId);
@@ -296,6 +301,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	if (EnemyRoster)
 	{
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
+		RefreshCrowdCollisionIgnores();
 	}
 	return true;
 }
@@ -313,12 +319,14 @@ void AReEchoEnemyActor::SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster)
 	}
 	if (EnemyRoster)
 	{
+		ClearCrowdCollisionIgnores();
 		EnemyRoster->UnregisterEnemy(this);
 	}
 	EnemyRoster = InRoster;
 	if (EnemyRoster && EnemyLogic && EnemyLogic->IsInitialized())
 	{
 		EnemyRoster->RegisterEnemy(this, EnemyLogic);
+		RefreshCrowdCollisionIgnores();
 	}
 }
 
@@ -722,11 +730,104 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySe
 	Intent.MovementDelta *= FMath::Clamp(CardMovementMultiplier, 0.0f, 1.0f);
 	if (Intent.bHasMovement)
 	{
-		AddActorWorldOffset(Intent.MovementDelta, true);
+		const FReEchoEnemyLogicSnapshot Snapshot = EnemyLogic->GetSnapshot();
+		if (Snapshot.Archetype != EReEchoEnemyArchetype::Boss && Snapshot.Phase == EReEchoEnemyBehaviorPhase::Pursuing)
+		{
+			Intent.MovementDelta = ResolveCrowdMovement(Intent.MovementDelta, Sense.TargetLocation);
+		}
+		const FVector PreviousLocation = GetActorLocation();
+		FHitResult Hit;
+		AddActorWorldOffset(Intent.MovementDelta, true, &Hit);
+		const float ExpectedDistance = Intent.MovementDelta.Size2D();
+		const float ActualDistance = FVector::Dist2D(PreviousLocation, GetActorLocation());
+		CrowdBlockedSeconds = ExpectedDistance > KINDA_SMALL_NUMBER && ActualDistance < ExpectedDistance * 0.2f
+		                          ? CrowdBlockedSeconds + DeltaSeconds
+		                          : 0.0f;
+	}
+	else
+	{
+		CrowdBlockedSeconds = 0.0f;
 	}
 	ApplyActionIntent(Intent);
 	return Intent;
 }
+
+FVector AReEchoEnemyActor::ResolveCrowdMovement(const FVector& DesiredMovementDelta,
+                                                const FVector& TargetLocation) const
+{
+	if (!EnemyRoster || !Collision || !EnemyLogic)
+	{
+		return DesiredMovementDelta;
+	}
+
+	FReEchoEnemyCrowdSteeringInput Input;
+	Input.SelfLocation = GetActorLocation();
+	Input.TargetLocation = TargetLocation;
+	Input.DesiredMovementDelta = DesiredMovementDelta;
+	Input.SelfRadiusCm = Collision->GetScaledBoxExtent().X;
+	Input.PreferredTargetDistanceCm = EnemyLogic->GetDefinition().MovementStopDistanceCm;
+	Input.BlockedSeconds = CrowdBlockedSeconds;
+	Input.SpawnIndex = GetSpawnIndex();
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		AReEchoEnemyActor* Neighbor = Cast<AReEchoEnemyActor>(Entry.Host.Get());
+		if (!Entry.bAlive || !Neighbor || Neighbor == this || !Neighbor->Collision)
+		{
+			continue;
+		}
+		FReEchoEnemyCrowdNeighbor& Sample = Input.Neighbors.AddDefaulted_GetRef();
+		Sample.Location = Neighbor->GetActorLocation();
+		Sample.RadiusCm = Neighbor->Collision->GetScaledBoxExtent().X;
+		Sample.SpawnIndex = Entry.SpawnIndex;
+		Sample.bBoss = Entry.Archetype == EReEchoEnemyArchetype::Boss;
+	}
+	return FReEchoEnemyCrowdSteering::ResolveMovement(Input);
+}
+
+void AReEchoEnemyActor::RefreshCrowdCollisionIgnores()
+{
+	if (!EnemyRoster || !Collision || !EnemyLogic)
+	{
+		return;
+	}
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		AReEchoEnemyActor* Neighbor = Cast<AReEchoEnemyActor>(Entry.Host.Get());
+		if (!Entry.bAlive || !Neighbor || Neighbor == this || !Neighbor->Collision || !Neighbor->EnemyLogic ||
+		    !FReEchoEnemyCrowdSteering::ShouldIgnoreMovementCollision(EnemyLogic->GetSnapshot().Archetype,
+		                                                              Neighbor->EnemyLogic->GetSnapshot().Archetype))
+		{
+			continue;
+		}
+		Collision->IgnoreActorWhenMoving(Neighbor, true);
+		Neighbor->Collision->IgnoreActorWhenMoving(this, true);
+	}
+}
+
+void AReEchoEnemyActor::ClearCrowdCollisionIgnores()
+{
+	if (!EnemyRoster || !Collision)
+	{
+		return;
+	}
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		AReEchoEnemyActor* Neighbor = Cast<AReEchoEnemyActor>(Entry.Host.Get());
+		if (!Neighbor || Neighbor == this || !Neighbor->Collision)
+		{
+			continue;
+		}
+		Collision->IgnoreActorWhenMoving(Neighbor, false);
+		Neighbor->Collision->IgnoreActorWhenMoving(this, false);
+	}
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+bool AReEchoEnemyActor::IsIgnoringEnemyMovementForTests(const AActor* Other) const
+{
+	return Collision && Collision->GetMoveIgnoreActors().Contains(Other);
+}
+#endif
 
 void AReEchoEnemyActor::ApplyCardStun(const float DurationSeconds)
 {

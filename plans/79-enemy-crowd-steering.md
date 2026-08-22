@@ -6,7 +6,7 @@
 - Executor 负责人：当前对话程序 AI。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@cd962b9297aef9eb773d44b5a12a50319f271105`。
 - 本地实现方式：`codex/enemy-crowd-steering`，独立 worktree `ReEcho-worktrees/enemy-crowd-steering`。
@@ -87,15 +87,22 @@
 
 ### 变化
 
-- 待执行。
+- 新增纯值 `FReEchoEnemyCrowdSteering`：按 SpawnIndex 生成稳定目标环槽位，组合邻居 Separation、前向阻塞切向绕行和 0.35 秒受阻恢复，且保持原 MovementDelta 速度预算。
+- `AReEchoEnemyActor` 只在普通 `Pursuing` 阶段应用 Crowd 修正；击退、特殊动作与 Boss 位移保持原路径。Host 比较期望/实际位移并持有可丢弃的短时受阻计时。
+- 同一 Roster 内非 Boss 怪物建立双向 MoveIgnore，消除普通 Pawn Sweep 静止队列；Boss 不参与互穿策略，玩家和场景碰撞未修改。
+- 增加 Crowd 纯值/碰撞策略测试与 Host 实际 MoveIgnore 组合测试。
 
 ### 证据
 
-- 待执行。
+- 修改源码已执行仓库 `.clang-format` 风格格式化；Development 增量构建通过。
+- `ReEcho.Enemies.Crowd` 通过：槽位/分离/绕行输出确定、速度预算稳定、完全重叠无 NaN、Boss 碰撞策略明确。
+- `ReEcho.Enemies` 全套通过：Crowd、Host、Logic、Rabbit Projectile 与 Boss 测试均成功。
+- 最终 FullRebuild、静态校验与预构建一致性见提交前验证记录。
 
 ### 剩余风险
 
-- 待执行。
+- 第一版每只 Host 从稳定 Roster 采样全部邻居，目标规模 20～50 只为 O(n²)；若后续同屏规模显著扩大，再以相同输入契约替换为空间哈希。
+- 自动化验证确定性、碰撞策略与原玩法回归；密集场景中的视觉松紧、绕行自然度仍需 PIE 调参验收。
 
 ### 人工验收结果/请求
 
@@ -103,4 +110,7 @@
 
 ### 架构文档审阅结果
 
-- 待执行。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录 Host Crowd Steering 和普通怪物 MoveIgnore 世界移动职责。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md` 已更新：记录 EnemyLogic 不变、Host/Roster 群体协调边界、测试与代码位置。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块依赖拓扑和权威状态所有者未变化。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：未新增或移动架构标识与模块路由。

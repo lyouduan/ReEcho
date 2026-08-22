@@ -130,6 +130,30 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostCrowdCollisionTest,
+                                 "ReEcho.Enemies.Host.CrowdCollision",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostCrowdCollisionTest::RunTest(const FString& Parameters)
+{
+	AddExpectedError(
+	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 2);
+	FReEchoEnemyHostWorldFixture Fixture;
+	UReEchoEnemyRosterComponent* Roster = NewObject<UReEchoEnemyRosterComponent>();
+	AReEchoEnemyActor* First = Fixture.Spawn(EReEchoEnemyKind::Grunt, 1);
+	AReEchoEnemyActor* Second = Fixture.Spawn(EReEchoEnemyKind::Shield, 2);
+	if (!TestNotNull(TEXT("First crowd enemy spawns"), First) ||
+	    !TestNotNull(TEXT("Second crowd enemy spawns"), Second))
+	{
+		return false;
+	}
+	First->SetEnemyRoster(Roster);
+	Second->SetEnemyRoster(Roster);
+	TestTrue(TEXT("Ordinary enemies mutually ignore swept movement"),
+	         First->IsIgnoringEnemyMovementForTests(Second) && Second->IsIgnoringEnemyMovementForTests(First));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostAttackPipelineTest,
                                  "ReEcho.Enemies.Host.AttackPipeline",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

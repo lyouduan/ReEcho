@@ -93,6 +93,7 @@ public:
 	const FReEchoElementState& GetElementState() const;
 #if WITH_DEV_AUTOMATION_TESTS
 	FReEchoElementState& EditElementState();
+	bool IsIgnoringEnemyMovementForTests(const AActor* Other) const;
 #endif
 
 	UReEchoCombatantComponent* GetCombatantComponent() const
@@ -187,6 +188,9 @@ private:
 	void AlignToGameplayPlane();
 	FReEchoEnemyActionIntent AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void ApplyActionIntent(const FReEchoEnemyActionIntent& Intent);
+	FVector ResolveCrowdMovement(const FVector& DesiredMovementDelta, const FVector& TargetLocation) const;
+	void RefreshCrowdCollisionIgnores();
+	void ClearCrowdCollisionIgnores();
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void AdvanceEnemyProjectiles(float DeltaSeconds);
@@ -301,4 +305,5 @@ private:
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;
+	float CrowdBlockedSeconds = 0.0f;
 };
