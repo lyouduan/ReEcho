@@ -116,4 +116,3 @@
 - `PendingBeforeClose`：狐狸蓄力、Boss 变身和 Phase2 连续性需要用户 PIE 验收。
 
 ### 架构文档审阅结果
-
