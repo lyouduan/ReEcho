@@ -11,6 +11,11 @@ enum class EReEchoCombatVfxSemantic : uint8
 	FoxDirection,
 	FoxDash,
 	PlayerMeleeSlash,
+	PlayerScytheSlash,
+	PlayerBowFlight,
+	PlayerBowImpact,
+	PlayerGunFlight,
+	PlayerGunImpact,
 	EnemyHurt
 };
 
@@ -28,6 +33,8 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	/** Enumerates every first-encounter VFX root and proxy dependency for asynchronous warmup. */
 	static void GatherPreloadAssetPaths(TArray<FString>& OutPaths);
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
+	/** Resolves the dedicated one-shot Niagara semantic for a supported melee attack pattern. */
+	static bool ResolveMeleeAttackSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Returns the measured authored center axis for a semantic asset. */
 	static FVector ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic Semantic);
 	/** Rotates the semantic asset's authored center axis onto the gameplay direction. */

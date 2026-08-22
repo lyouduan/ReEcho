@@ -183,7 +183,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 逻辑代码与完整意图：[`MOD-ReEchoWeapons.md`](MOD-ReEchoWeapons.md)。
 - 主模块适配：`ReEchoWeaponRuntime.*` 把策划数据编译为资源无关 Definition；`ReEchoWeaponActor.*` 组合逻辑对象与 Sprite/Mesh/VFX Actor。
 - 武器符文装载（Plan75）：每把武器 3 槽（1 核心 Core + 2 武器专属命名槽，如弓=弓弦+箭头），符文语义即 `parts.csv` 配件。`AReEchoWeaponActor` 持有局内活权威 `EquippedRunes`（`TArray<FReEchoEquippedPartSnapshot>`）并提供 `EquipRune`/`UnequipRune`；装配/卸下复用 `ReEchoWeaponRuntime::TryEquipParts` 的统一校验与 Effect 编译，并触发 `RebuildEffectiveDefinition`，使"装了符文的武器"对外是半径统一的有效武器（"一体"）。持久真值仍为 `BuildSnapshot.EquippedParts`，`EquippedRunes` 每次变动后镜像之，存档/回放由 `BuildSnapshot` 重建。符文行为数据驱动（特殊行为走 `BehaviorId`），不继承子类；装配/Effect 不进入 `ReEchoWeapons` 逻辑模块。
-- 攻击表现路由：`ReEchoWeaponActor` 只依据稳定 `VisualKey` 选择近战弧或投射物视觉；长剑/镰刀/鞭分别使用 `SlashCrescent`、`ScytheSweep`、`WhipLash` 契约，弓/枪/法杖分别使用 `BowProjectile`、`GunProjectile`、`StaffLightWave` 契约。缺少专属纹理时视觉 Actor 安全回退为现有刀光或可区分的程序形状，逻辑 Commit、飞行和命中不受影响；手持静态纹理不得充当攻击特效。
+- 攻击表现路由（Plan76）：长剑与镰刀的稳定 AttackPattern 由 Combat VFX Catalog 分别映射专用一次性 Niagara，不再生成旧平面刀光；弓与枪的飞行 Niagara 附着到 `AReEchoProjectileActor`，首次权威 `OnProjectileImpacted` 播放各自命中特效，表现不积分位移、不决定命中。四者不再读取 `SlashCrescent/ScytheSweep/BowProjectile/GunProjectile`；鞭与法杖暂时保留 `WhipLash/StaffLightWave` 旧表现。任何表现缺失都不得影响逻辑 Commit、飞行和伤害。
 - 资源路径由主模块 `FReEchoWeaponVisualCatalog` 唯一枚举；预加载器只聚合路径并持有异步句柄，Actor 的同步 `LoadObject` 继续作为缺失资源/异步失败回退。
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
 - 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。

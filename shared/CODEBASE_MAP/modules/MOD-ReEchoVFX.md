@@ -71,9 +71,12 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01` | 攻击挂点、前景、Windup 开始 |
 | FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_04` | 附着狐狸攻击挂点、前景、提交到动作结束 |
 | PlayerMeleeSlash | `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01` | 近战提交位置和攻击方向，前景单次播放 |
+| PlayerScytheSlash | `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01` | 镰刀提交位置和攻击方向，前景单次播放 |
+| PlayerBowFlight / Impact | `/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01` / `NS_People_Bow_Boom` | 飞行 System 绑定权威投射物 Actor；保持资源内部 Renderer 与粒子模块不变，只把完整 Niagara Component 的 authored `+X` 轴在发射时按锁定攻击方向旋转一次；首次权威命中播放一次 Impact |
+| PlayerGunFlight / Impact | `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly` / `NS_People_Bullet_spark` | 飞行 System 绑定权威投射物 Actor；首次权威命中播放一次 Impact |
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
 
-`PlayerMeleeSlash` 是长剑专属 Niagara，不是通用 Melee 标签；`Pattern.ScytheSweep` 和 `Pattern.WhipCombo` 不得复用它。六武器的轻量攻击纹理由 `AReEchoWeaponActor`、`AReEchoSwordArcActor`、`AReEchoProjectileActor` 在主模块世界表现层适配：长剑/镰刀/鞭对应 `SlashCrescent`/`ScytheSweep`/`WhipLash`，弓/枪/法杖对应 `BowProjectile`/`GunProjectile`/`StaffLightWave`。缺图回退不得阻塞攻击，且不得把手持静态纹理当攻击特效。
+`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签；`Pattern.WhipCombo` 不得复用二者。长剑、镰刀、弓和枪的攻击表现已迁移为 Niagara：长剑/镰刀由 AttackCommitted 事件触发一次性表现；弓/枪由 `AReEchoProjectileActor` 把飞行 System 附着到逻辑载体，并在 `OnProjectileImpacted` 首次回调播放命中 System。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。四者不再同步读取旧攻击贴图或生成长剑平面回退。鞭与法杖暂时保留 `WhipLash` / `StaffLightWave` 旧适配，缺图不得阻塞攻击。
 
 禁止用 `NS_Rabbit_BeAttacked_01` 这个短名查找资产；玩家和怪物受击是两个不同 Package。
 
@@ -111,7 +114,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 玩家/Echo/敌人 Host 装配 | 对应 `PlayerPawn` / `EchoActor` / `EnemyActor` 构造函数 |
 | 映射与资产加载自动化 | `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp` |
 | 首场资源清单与驻留 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` → `Presentation/Loading/ReEchoRuntimeAssetPreloader.*`；测试为 `ReEchoRuntimeAssetPreloadTests.cpp` |
-| 玩家武器轻量纹理路由 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoSwordArcActor.*`、`ReEchoProjectileActor.*`；入口为 `Weapons/ReEchoWeaponActor.*` |
+| 玩家武器攻击表现路由 | `Presentation/VFX/ReEchoCombatVfxCatalog.*`、`Graybox/ReEchoProjectileActor.*`；鞭旧平面入口仍为 `Weapons/ReEchoWeaponActor.*` / `ReEchoSwordArcActor.*` |
 | 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py` |
 
 ## 不变量与常见错误

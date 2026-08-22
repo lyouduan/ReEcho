@@ -18,7 +18,7 @@
 namespace ReEchoCombatVfx
 {
 constexpr int32 CombatEffectSortOffset = 1;
-constexpr int32 CombatEffectSortPriorityFloor = 100;
+constexpr int32 CombatEffectSortPriorityFloor = 1000;
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
 
 void LogLayerState(const AActor* Owner,
@@ -208,8 +208,8 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoCombatVfxComponent::HandleHurt);
 		CombatEvents->OnDeath.AddDynamic(this, &UReEchoCombatVfxComponent::HandleDeath);
 		CombatEvents->OnElementStateChanged.AddDynamic(this, &UReEchoCombatVfxComponent::HandleElementStateChanged);
-		CombatEvents->OnElementReactionResolved.AddDynamic(
-		    this, &UReEchoCombatVfxComponent::HandleElementReactionResolved);
+		CombatEvents->OnElementReactionResolved.AddDynamic(this,
+		                                                   &UReEchoCombatVfxComponent::HandleElementReactionResolved);
 	}
 	if (EnemyEvents)
 	{
@@ -457,9 +457,16 @@ void UReEchoCombatVfxComponent::RefreshElementAttachment(const EReEchoElement El
 	UNiagaraSystem* System = ResolveElementSystem(static_cast<uint8>(Semantic), GetOwner());
 	if (System && ResolveHurtVfxRoot())
 	{
-		ElementAttachmentEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(
-		    System, ResolveHurtVfxRoot(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator, FVector::OneVector,
-		    EAttachLocation::KeepRelativeOffset, false, ENCPoolMethod::None, true);
+		ElementAttachmentEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(System,
+		                                                                       ResolveHurtVfxRoot(),
+		                                                                       NAME_None,
+		                                                                       FVector::ZeroVector,
+		                                                                       FRotator::ZeroRotator,
+		                                                                       FVector::OneVector,
+		                                                                       EAttachLocation::KeepRelativeOffset,
+		                                                                       false,
+		                                                                       ENCPoolMethod::None,
+		                                                                       true);
 		if (ElementAttachmentEffect)
 		{
 			ElementAttachmentEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
@@ -483,13 +490,20 @@ void UReEchoCombatVfxComponent::RefreshBurnStatus(const bool bBurnActive)
 		}
 		return;
 	}
-	UNiagaraSystem* System = ResolveElementSystem(
-	    static_cast<uint8>(EReEchoElementReactionVfxSemantic::Burn), GetOwner());
+	UNiagaraSystem* System =
+	    ResolveElementSystem(static_cast<uint8>(EReEchoElementReactionVfxSemantic::Burn), GetOwner());
 	if (System && ResolveHurtVfxRoot())
 	{
-		BurnStatusEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(
-		    System, ResolveHurtVfxRoot(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator, FVector::OneVector,
-		    EAttachLocation::KeepRelativeOffset, false, ENCPoolMethod::None, true);
+		BurnStatusEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(System,
+		                                                                ResolveHurtVfxRoot(),
+		                                                                NAME_None,
+		                                                                FVector::ZeroVector,
+		                                                                FRotator::ZeroRotator,
+		                                                                FVector::OneVector,
+		                                                                EAttachLocation::KeepRelativeOffset,
+		                                                                false,
+		                                                                ENCPoolMethod::None,
+		                                                                true);
 		if (BurnStatusEffect)
 		{
 			BurnStatusEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
@@ -509,12 +523,20 @@ void UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8 SemanticValue
 	USceneComponent* AttachmentRoot = TargetVfx ? TargetVfx->ResolveHurtVfxRoot() : Target->GetRootComponent();
 	if (AttachmentRoot)
 	{
-		if (UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
-		        System, AttachmentRoot, NAME_None, FVector::ZeroVector, FRotator::ZeroRotator, FVector::OneVector,
-		        EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None, true))
+		if (UNiagaraComponent* Effect =
+		        UNiagaraFunctionLibrary::SpawnSystemAttached(System,
+		                                                     AttachmentRoot,
+		                                                     NAME_None,
+		                                                     FVector::ZeroVector,
+		                                                     FRotator::ZeroRotator,
+		                                                     FVector::OneVector,
+		                                                     EAttachLocation::KeepRelativeOffset,
+		                                                     true,
+		                                                     ENCPoolMethod::None,
+		                                                     true))
 		{
-			Effect->SetTranslucentSortPriority(
-			    TargetVfx ? TargetVfx->ResolveOwnerSortPriority() : ResolveOwnerSortPriority());
+			Effect->SetTranslucentSortPriority(TargetVfx ? TargetVfx->ResolveOwnerSortPriority()
+			                                             : ResolveOwnerSortPriority());
 		}
 	}
 }
@@ -530,24 +552,30 @@ void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLin
 	{
 		return;
 	}
-	UNiagaraSystem* System = ResolveElementSystem(
-	    static_cast<uint8>(EReEchoElementReactionVfxSemantic::Conduct), TargetTarget);
+	UNiagaraSystem* System =
+	    ResolveElementSystem(static_cast<uint8>(EReEchoElementReactionVfxSemantic::Conduct), TargetTarget);
 	if (!System)
 	{
 		return;
 	}
 	const FVector Start = SourceCombatTarget->GetCombatTargetLocation();
 	const FVector End = TargetCombatTarget->GetCombatTargetLocation();
-	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-	    GetWorld(), System, Start, (End - Start).Rotation(), FVector::OneVector, true, false, ENCPoolMethod::None, true);
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(),
+	                                                                           System,
+	                                                                           Start,
+	                                                                           (End - Start).Rotation(),
+	                                                                           FVector::OneVector,
+	                                                                           true,
+	                                                                           false,
+	                                                                           ENCPoolMethod::None,
+	                                                                           true);
 	if (!Effect)
 	{
 		return;
 	}
 	Effect->SetVariableVec3(TEXT("User.StartPosition"), Start);
 	Effect->SetVariableVec3(TEXT("User.EndPosition"), End);
-	if (const UReEchoCombatVfxComponent* TargetVfx =
-	        TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>())
+	if (const UReEchoCombatVfxComponent* TargetVfx = TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>())
 	{
 		Effect->SetTranslucentSortPriority(TargetVfx->ResolveOwnerSortPriority());
 	}
@@ -556,12 +584,12 @@ void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLin
 
 void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 {
-	if (!FReEchoCombatVfxCatalog::IsMeleeAttackPattern(Event.AttackPatternId))
+	EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
+	if (!FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(Event.AttackPatternId, Semantic))
 	{
 		return;
 	}
-	SpawnAttached(
-	    static_cast<uint8>(EReEchoCombatVfxSemantic::PlayerMeleeSlash), Event.Direction, ResolveAttackVfxRoot());
+	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveAttackVfxRoot());
 }
 
 void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
@@ -609,13 +637,21 @@ void UReEchoCombatVfxComponent::HandleElementReactionResolved(const FReEchoEleme
 		return;
 	}
 	if (Event.ReactionId == TEXT("Y_ER_F_W"))
+	{
 		Semantic = EReEchoElementReactionVfxSemantic::Vaporize;
+	}
 	else if (Event.ReactionId == TEXT("Y_ER_G_W"))
+	{
 		Semantic = EReEchoElementReactionVfxSemantic::EnhanceGrass;
+	}
 	else if (Event.ReactionId == TEXT("Y_ER_W_G"))
+	{
 		Semantic = EReEchoElementReactionVfxSemantic::EnhanceWater;
+	}
 	else
+	{
 		return;
+	}
 	for (AActor* Target : Event.AffectedTargets)
 	{
 		SpawnElementReactionAt(static_cast<uint8>(Semantic), Target);

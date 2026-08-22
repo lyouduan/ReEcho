@@ -10,6 +10,7 @@
 class USphereComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class UNiagaraComponent;
 
 UCLASS()
 
@@ -55,6 +56,10 @@ public:
 	}
 
 private:
+	void HandleProjectileImpact(const FReEchoProjectileSnapshot& Snapshot, const FReEchoHitResolved& Result);
+	void ConfigureWeaponNiagara(FName WeaponVisualKey, const FVector& Direction);
+	void SpawnWeaponImpactNiagara(const FVector& Location, const FVector& Direction);
+
 	UPROPERTY()
 	TObjectPtr<USphereComponent> Collision;
 	UPROPERTY()
@@ -63,9 +68,13 @@ private:
 	TObjectPtr<UTextRenderComponent> ElementLabel;
 	UPROPERTY()
 	TObjectPtr<UReEchoProjectileLogicComponent> ProjectileLogic;
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> FlightEffect;
 	float Damage = 1.f;
 	EReEchoElement Element = EReEchoElement::None;
 	float Speed = 950.f;
 	float ExplosionRadiusCm = 0.0f;
-	void ConfigureWeaponVisual(FName WeaponVisualKey, const FLinearColor& Color);
+	FName WeaponVisualKey;
+	bool bImpactVfxSpawned = false;
+	void ConfigureWeaponVisual(FName InWeaponVisualKey, const FLinearColor& Color);
 };

@@ -31,27 +31,16 @@ const TCHAR* FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(const FName Weap
 
 const TCHAR* FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(const FName WeaponVisualKey)
 {
-	if (WeaponVisualKey == TEXT("Scythe"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/ScytheSweep.ScytheSweep");
-	}
 	if (WeaponVisualKey == TEXT("Whip"))
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash");
-	}
-	if (WeaponVisualKey == TEXT("Bow"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/BowProjectile.BowProjectile");
-	}
-	if (WeaponVisualKey == TEXT("Gun"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/GunProjectile.GunProjectile");
 	}
 	if (WeaponVisualKey == TEXT("Staff") || WeaponVisualKey == TEXT("MoonStaff"))
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/StaffLightWave.StaffLightWave");
 	}
-	return TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent");
+	// Longsword, scythe, bow and gun attacks are Niagara-only. Empty prevents synchronous legacy texture loads.
+	return TEXT("");
 }
 
 void FReEchoWeaponVisualCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
