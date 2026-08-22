@@ -59,6 +59,8 @@ public:
 	static float ResolveProjectileCoreDiameter(float CollisionRadiusCm);
 	/** Additive glow extends beyond the core without changing gameplay collision. */
 	static float ResolveProjectileGlowDiameter(float CollisionRadiusCm);
+	/** Burn and Growth visuals follow authoritative status/attachment events instead of duplicating one-shots. */
+	static bool IsElementReactionStateDriven(FName ReactionId);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -90,6 +92,13 @@ private:
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopProjectileVisual(UMaterialBillboardComponent* Visual) const;
 	void StopAllEffects();
+	FName ResolveElementVfxTargetId(AActor* Target) const;
+	UNiagaraSystem* ResolveElementSystem(uint8 SemanticValue, AActor* Target) const;
+	void RefreshElementEffects(const FReEchoElementState& State);
+	void RefreshElementAttachment(EReEchoElement Element);
+	void RefreshBurnStatus(bool bBurnActive);
+	void SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
+	void SpawnConductLink(const FReEchoElementReactionLink& Link) const;
 
 	UFUNCTION()
 	void HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event);
@@ -97,6 +106,10 @@ private:
 	void HandleHurt(const FReEchoDamageEvent& Event);
 	UFUNCTION()
 	void HandleDeath(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event);
+	UFUNCTION()
+	void HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 	UFUNCTION()
 	void HandleSpecialAction(const FReEchoEnemySpecialActionEvent& Event);
 	UFUNCTION()
@@ -118,6 +131,14 @@ private:
 	TObjectPtr<UNiagaraComponent> DashEffect;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> ElementAttachmentEffect;
+
+	EReEchoElement ActiveAttachmentElement = EReEchoElement::None;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> BurnStatusEffect;
+
+	UPROPERTY(Transient)
 	TMap<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>> ProjectileVisuals;
 
 	UPROPERTY(Transient)
@@ -127,6 +148,7 @@ private:
 	TObjectPtr<USceneComponent> HurtVfxRoot;
 
 	mutable TSet<uint8> MissingSystemWarnings;
+	mutable TSet<FString> MissingElementSystemWarnings;
 	mutable bool bMissingRabbitProjectileTextureWarned = false;
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;
 	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;

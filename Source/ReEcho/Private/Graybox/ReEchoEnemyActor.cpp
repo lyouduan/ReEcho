@@ -9,10 +9,8 @@
 #include "Combat/ReEchoHitResolver.h"
 #include "Components/BillboardComponent.h"
 #include "Components/BoxComponent.h"
-#include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/TextRenderComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -140,45 +138,6 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	SceneLighting = CreateDefaultSubobject<UReEcho2DSceneLightingComponent>(TEXT("SceneLighting"));
 	SceneLighting->Configure(SequenceAnimation, GroundShadow);
 
-	ElementAuraRing = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAuraRing"));
-	ElementAuraRing->SetupAttachment(EffectsRoot);
-	ElementAuraRing->SetHorizontalAlignment(EHTA_Center);
-	ElementAuraRing->SetVerticalAlignment(EVRTA_TextCenter);
-	ElementAuraRing->SetWorldSize(270.0f);
-	ElementAuraRing->SetText(FText::FromString(TEXT("O")));
-	ElementAuraRing->SetRelativeLocation(FVector(0.0f, 0.0f, 18.0f));
-	ElementAuraRing->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	ElementAuraRing->SetCastShadow(false);
-	ElementAuraRing->SetTranslucentSortPriority(-2);
-	ElementAuraRing->SetVisibility(false);
-
-	ElementAttachmentLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementAttachmentLabel"));
-	ElementAttachmentLabel->SetupAttachment(EffectsRoot);
-	ElementAttachmentLabel->SetHorizontalAlignment(EHTA_Center);
-	ElementAttachmentLabel->SetVerticalAlignment(EVRTA_TextCenter);
-	ElementAttachmentLabel->SetWorldSize(30.0f);
-	ElementAttachmentLabel->SetRelativeLocation(FVector(0.0f, 0.0f, 205.0f));
-	ElementAttachmentLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	ElementAttachmentLabel->SetCastShadow(false);
-	ElementAttachmentLabel->SetTranslucentSortPriority(23);
-	ElementAttachmentLabel->SetVisibility(false);
-
-	if (UMaterialInterface* UnlitTextMaterial =
-	        LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/UnlitText.UnlitText")))
-	{
-		ElementAuraRing->SetTextMaterial(UnlitTextMaterial);
-		ElementAttachmentLabel->SetTextMaterial(UnlitTextMaterial);
-	}
-
-	ElementAuraLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("ElementAuraLight"));
-	ElementAuraLight->SetupAttachment(EffectsRoot);
-	ElementAuraLight->SetRelativeLocation(FVector(0.0f, 0.0f, 45.0f));
-	ElementAuraLight->SetIntensity(900.0f);
-	ElementAuraLight->SetAttenuationRadius(240.0f);
-	ElementAuraLight->SetSourceRadius(35.0f);
-	ElementAuraLight->SetCastShadows(false);
-	ElementAuraLight->SetVisibility(false);
-
 	Combatant = CreateDefaultSubobject<UReEchoCombatantComponent>(TEXT("Combatant"));
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
@@ -197,9 +156,6 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	                                       PresentationController,
 	                                       FrameCollisionDriver,
 	                                       GroundShadow,
-	                                       ElementAuraRing,
-	                                       ElementAttachmentLabel,
-	                                       ElementAuraLight,
 	                                       Collision);
 
 	Tags.Add(TEXT("ReEchoEnemy"));
@@ -234,9 +190,6 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
 	AttachIfNeeded(GroundShadow, GroundRoot);
 	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
-	AttachIfNeeded(ElementAuraRing, EffectsRoot);
-	AttachIfNeeded(ElementAttachmentLabel, EffectsRoot);
-	AttachIfNeeded(ElementAuraLight, EffectsRoot);
 }
 
 void AReEchoEnemyActor::RefreshFootRoot()
@@ -274,7 +227,7 @@ void AReEchoEnemyActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void AReEchoEnemyActor::BindComposedComponents()
 {
 	EnemyLogic->BindEventSources(EnemyEvents, CombatEvents);
-	EnemyPresentation->BindEventSources(this, Combatant, EnemyEvents, CombatEvents);
+	EnemyPresentation->BindEventSources(this, EnemyEvents, CombatEvents);
 	CombatEvents->OnDeath.RemoveAll(this);
 	CombatEvents->OnDeath.AddDynamic(this, &AReEchoEnemyActor::HandleCombatDeath);
 }
@@ -342,6 +295,11 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
 	}
 	return true;
+}
+
+FName AReEchoEnemyActor::GetPresentationId() const
+{
+	return EnemyLogic ? EnemyLogic->GetDefinition().PresentationId : NAME_None;
 }
 
 void AReEchoEnemyActor::SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster)
@@ -482,7 +440,6 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
 		}
 	}
-	EnemyPresentation->RefreshElementAttachmentVisual();
 }
 
 void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
@@ -494,6 +451,11 @@ void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
 
 	if (bSuspended)
 	{
+		// Element attachments are encounter-scoped by design, even when the same enemy Host survives intermission.
+		if (Combatant)
+		{
+			Combatant->ResetElementState();
+		}
 		const FReEchoEnemyLogicSnapshot PreviousSnapshot =
 		    EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
 		if (EnemyLogic)
@@ -539,11 +501,6 @@ void AReEchoEnemyActor::AlignToGameplayPlane()
 	CenteredLocation.Z = GameplayPlaneWorldZ + Collision->GetScaledBoxExtent().Z;
 	SetActorLocation(CenteredLocation, false, nullptr, ETeleportType::TeleportPhysics);
 	RefreshFootRoot();
-}
-
-void AReEchoEnemyActor::RefreshElementAttachmentVisual()
-{
-	EnemyPresentation->RefreshElementAttachmentVisual();
 }
 
 EReEchoElement AReEchoEnemyActor::GetAttachedElement() const

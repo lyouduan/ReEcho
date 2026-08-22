@@ -1,14 +1,11 @@
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
 
 #include "Camera/PlayerCameraManager.h"
-#include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoElementReaction.h"
 #include "Components/BillboardComponent.h"
 #include "Components/BoxComponent.h"
-#include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Graybox/ReEchoBillboardDebug.h"
@@ -50,9 +47,6 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
                                                             UReEcho2DPresentationController* InPresentationController,
                                                             UReEcho2DFrameCollisionDriver* InFrameCollisionDriver,
                                                             UStaticMeshComponent* InGroundShadow,
-                                                            UTextRenderComponent* InElementAuraRing,
-                                                            UTextRenderComponent* InElementAttachmentLabel,
-                                                            UPointLightComponent* InElementAuraLight,
                                                             UBoxComponent* InCollision)
 {
 	PresentationRoot = InPresentationRoot;
@@ -66,9 +60,6 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	FrameCollisionDriver = InFrameCollisionDriver;
 	GroundShadow = InGroundShadow;
 	GroundRoot = GroundShadow ? GroundShadow->GetAttachParent() : nullptr;
-	ElementAuraRing = InElementAuraRing;
-	ElementAttachmentLabel = InElementAttachmentLabel;
-	ElementAuraLight = InElementAuraLight;
 	Collision = InCollision;
 	AuthoredMotionLocation = VisualEffectRoot ? VisualEffectRoot->GetRelativeLocation() : FVector::ZeroVector;
 	if (PresentationController)
@@ -91,7 +82,6 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 }
 
 void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
-                                                         UReEchoCombatantComponent* InCombatant,
                                                          UReEchoEnemyEventsComponent* InEnemyEvents,
                                                          UReEchoCombatEventsComponent* InCombatEvents)
 {
@@ -105,13 +95,11 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	}
 	if (CombatEvents)
 	{
-		CombatEvents->OnElementStateChanged.RemoveAll(this);
 		CombatEvents->OnHurt.RemoveAll(this);
 		CombatEvents->OnDeath.RemoveAll(this);
 	}
 
 	Host = InHost;
-	Combatant = InCombatant;
 	EnemyEvents = InEnemyEvents;
 	CombatEvents = InCombatEvents;
 	if (EnemyEvents)
@@ -124,8 +112,6 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	}
 	if (CombatEvents)
 	{
-		CombatEvents->OnElementStateChanged.AddDynamic(this,
-		                                               &UReEchoEnemyPresentationComponent::HandleElementStateChanged);
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatHurt);
 		CombatEvents->OnDeath.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatDeath);
 	}
@@ -133,14 +119,13 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 
 void UReEchoEnemyPresentationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	BindEventSources(nullptr, nullptr, nullptr, nullptr);
+	BindEventSources(nullptr, nullptr, nullptr);
 	Super::EndPlay(EndPlayReason);
 }
 
 void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName PresentationId)
 {
 	ApplyVisual(PresentationId);
-	RefreshElementAttachmentVisual();
 }
 
 void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
@@ -196,7 +181,6 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		    Host, Collision, Snapshot.Archetype == EReEchoEnemyArchetype::Boss ? FColor::Orange : FColor::Cyan);
 	}
 	UpdateCameraFacing(Snapshot);
-	UpdateElementAttachmentFacing();
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
 		UpdateDeathAnimation(SafeDelta);
@@ -357,45 +341,6 @@ void UReEchoEnemyPresentationComponent::UpdateDeathAnimation(const float DeltaSe
 	ApplyPresentationMotion(FVector(0.0f, 0.0f, -28.0f * (1.0f - Ratio)), FVector(Ratio, Ratio, 1.0f));
 }
 
-void UReEchoEnemyPresentationComponent::RefreshElementAttachmentVisual()
-{
-	if (!Combatant || !ElementAuraRing || !ElementAttachmentLabel || !ElementAuraLight)
-	{
-		return;
-	}
-	const EReEchoElement AttachedElement = Combatant->GetElementState().Attached;
-	const bool bHasAttachment = ReEchoElementReaction::IsCombatElement(AttachedElement);
-	ElementAuraRing->SetVisibility(bHasAttachment);
-	ElementAttachmentLabel->SetVisibility(bHasAttachment);
-	ElementAuraLight->SetVisibility(bHasAttachment);
-	if (!bHasAttachment)
-	{
-		return;
-	}
-	const FLinearColor ElementColor = ReEchoElementReaction::GetElementColor(AttachedElement);
-	ElementAuraRing->SetTextRenderColor(ElementColor.ToFColor(false));
-	ElementAttachmentLabel->SetText(FText::FromString(ReEchoElementReaction::GetElementLabel(AttachedElement)));
-	ElementAttachmentLabel->SetTextRenderColor(ElementColor.ToFColor(false));
-	ElementAuraLight->SetLightColor(ElementColor);
-}
-
-void UReEchoEnemyPresentationComponent::UpdateElementAttachmentFacing()
-{
-	if (!ElementAuraRing || !ElementAuraRing->IsVisible())
-	{
-		return;
-	}
-	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
-	{
-		const FRotator CameraFacingRotation = (-Camera->GetCameraRotation().Vector()).Rotation();
-		ElementAuraRing->SetWorldRotation(CameraFacingRotation);
-		ElementAttachmentLabel->SetWorldRotation(CameraFacingRotation);
-	}
-	const float Pulse = 1.0f + 0.055f * FMath::Sin(VisualTime * 3.2f);
-	ElementAuraRing->SetRelativeScale3D(FVector(Pulse, Pulse, 1.0f));
-	ElementAuraLight->SetIntensity(850.0f + 180.0f * FMath::Sin(VisualTime * 2.6f));
-}
-
 void UReEchoEnemyPresentationComponent::HandleActionCommitted(const FReEchoEnemyActionCommittedEvent& Event)
 {
 	AttackVisualRemaining = 0.22f;
@@ -465,14 +410,6 @@ void UReEchoEnemyPresentationComponent::HandleFuseChanged(const FReEchoEnemyFuse
 	LastFuseDuration = Event.DurationSeconds;
 }
 
-void UReEchoEnemyPresentationComponent::HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event)
-{
-	if (Event.Combatant == Combatant)
-	{
-		RefreshElementAttachmentVisual();
-	}
-}
-
 void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEvent& Event)
 {
 	if (Event.Target != Host || Event.AppliedDamage <= 0.0f)
@@ -504,7 +441,6 @@ void UReEchoEnemyPresentationComponent::HandleCombatDeath(const FReEchoDamageEve
 	{
 		return;
 	}
-	RefreshElementAttachmentVisual();
 	DeathVisualRemaining = 0.45f;
 	bDeathVisualActive = true;
 	if (PresentationController)

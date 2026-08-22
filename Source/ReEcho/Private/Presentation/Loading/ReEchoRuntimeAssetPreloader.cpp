@@ -4,6 +4,7 @@
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
+#include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 void UReEchoRuntimeAssetPreloader::Initialize(FSubsystemCollectionBase& Collection)
@@ -41,6 +42,7 @@ TArray<FSoftObjectPath> UReEchoRuntimeAssetPreloader::BuildDefaultAssetList()
 {
 	TArray<FString> RawPaths;
 	FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(RawPaths);
+	FReEchoElementReactionVfxCatalog::GatherPreloadAssetPaths(RawPaths);
 	FReEchoWeaponVisualCatalog::GatherPreloadAssetPaths(RawPaths);
 	return NormalizeAssetPaths(RawPaths);
 }

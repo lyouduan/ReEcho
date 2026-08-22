@@ -7,6 +7,7 @@
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraSystem.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
+#include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoSwordArcActor.h"
@@ -17,6 +18,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
 
 bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 {
+	TestNotEqual(TEXT("Ordered Enhance reactions use distinct entered-element Niagara"),
+	             FString(FReEchoElementReactionVfxCatalog::ResolvePath(
+	                 EReEchoElementReactionVfxSemantic::EnhanceGrass)),
+	             FString(FReEchoElementReactionVfxCatalog::ResolvePath(
+	                 EReEchoElementReactionVfxSemantic::EnhanceWater)));
+	TestNotEqual(TEXT("Rabbit and Fox burn body variants are distinct"),
+	             FString(FReEchoElementReactionVfxCatalog::ResolvePath(
+	                 EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.Rabbit"))),
+	             FString(FReEchoElementReactionVfxCatalog::ResolvePath(
+	                 EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.Fox"))));
+	TestTrue(TEXT("Burn visual lifetime follows the timed Burn status"),
+	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_G")));
+	TestTrue(TEXT("Growth visual lifetime follows authoritative Grass attachments"),
+	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
+	TestFalse(TEXT("Vaporize remains a target-bound one-shot"),
+	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_W")));
 	const FString PlayerHurt = FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerHurt);
 	const FString EnemyHurt = FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EnemyHurt);
 	TestTrue(TEXT("Player hurt uses the Rabbit-folder authority"), PlayerHurt.Contains(TEXT("/Monster/Rabbit/")));
@@ -88,6 +105,29 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		const TCHAR* AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
 		UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, AssetPath);
 		TestNotNull(FString::Printf(TEXT("Niagara system loads: %s"), AssetPath), System);
+	}
+	const TCHAR* FireSystems[] = {
+	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.Slime")),
+	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.Rabbit")),
+	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.Fox")),
+	};
+	for (const TCHAR* FirePath : FireSystems)
+	{
+		UNiagaraSystem* FireSystem = LoadObject<UNiagaraSystem>(nullptr, FirePath);
+		if (!TestNotNull(FString::Printf(TEXT("Fire Niagara loads: %s"), FirePath), FireSystem))
+		{
+			continue;
+		}
+		for (const FNiagaraEmitterHandle& EmitterHandle : FireSystem->GetEmitterHandles())
+		{
+			if (EmitterHandle.GetIsEnabled())
+			{
+				const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+				TestTrue(FString::Printf(TEXT("Attached Fire emitter '%s' uses local space"),
+				                         *EmitterHandle.GetName().ToString()),
+				         EmitterData && EmitterData->bLocalSpace);
+			}
+		}
 	}
 	TestNotNull(TEXT("Logic-driven rabbit projectile texture loads"),
 	            LoadObject<UTexture2D>(nullptr, FReEchoCombatVfxCatalog::ResolveRabbitProjectileTexturePath()));

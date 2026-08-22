@@ -90,6 +90,9 @@ public:
 	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const override;
 	virtual void NotifyReactionResolved(FName ReactionId) const override;
 	virtual void NotifyKillResolved() const override;
+	/** Development-only override applied to every outgoing player hit; None restores weapon-authored elements. */
+	void SetDebugOutgoingElementOverride(EReEchoElement Element);
+	EReEchoElement GetDebugOutgoingElementOverride() const;
 
 	FString GetEquippedWeaponLabel() const;
 	float GetCurrentAttackInterval() const;
@@ -141,9 +144,16 @@ public:
 	void ConfigureArenaBounds(float HalfExtentX, float HalfExtentY);
 
 	/** 玩家活动范围中心（世界 XY），供小地图坐标映射。 */
-	FVector2D GetArenaCenter2D() const { return ArenaCenter; }
+	FVector2D GetArenaCenter2D() const
+	{
+		return ArenaCenter;
+	}
+
 	/** 玩家活动范围半尺寸（世界 XY），供小地图坐标映射。 */
-	FVector2D GetArenaHalfExtents2D() const { return ArenaHalfExtents; }
+	FVector2D GetArenaHalfExtents2D() const
+	{
+		return ArenaHalfExtents;
+	}
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Scene|Collision")
 	TObjectPtr<UBoxComponent> Collision;
@@ -328,6 +338,7 @@ private:
 	float VisualFacingSign = 1.0f;
 	FVector AttackAimDirection = FVector::ForwardVector;
 	int64 NextPresentationAttackInstanceId = 1;
+	EReEchoElement DebugOutgoingElementOverride = EReEchoElement::None;
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> CharacterTextures;

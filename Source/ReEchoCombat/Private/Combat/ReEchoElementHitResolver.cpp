@@ -42,6 +42,18 @@ void PublishElementStateChanged(UReEchoCombatantComponent& Combatant)
 	Events->PublishElementStateChanged(Event);
 }
 
+void PublishElementReactionResolved(UReEchoCombatantComponent& Combatant,
+	                                 const FReEchoElementReactionResolvedEvent& Event)
+{
+	if (AActor* Owner = Combatant.GetOwner())
+	{
+		if (UReEchoCombatEventsComponent* Events = Owner->FindComponentByClass<UReEchoCombatEventsComponent>())
+		{
+			Events->PublishElementReactionResolved(Event);
+		}
+	}
+}
+
 float GetFinalReactionMultiplier(const FReEchoElementHitResult& Result)
 {
 	return Result.bAppliedEnhancement ? FMath::Max(1.0f, Result.EnhancementMultiplier) : 1.0f;
@@ -259,6 +271,7 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
                                                                    const FReEchoElementHitContext& Context)
 {
 	FReEchoElementExecutionResult Execution;
+	TArray<FReEchoElementReactionLink> ReactionLinks;
 	UReEchoCombatantComponent* PrimaryCombatant = GetCombatant(Target);
 	const TSharedPtr<const FReEchoElementRuleSet> Rules = ReEchoElementRuntime::GetRuleSet();
 	UWorld* World = Target.GetWorld();
@@ -268,6 +281,7 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 	}
 	const float CurrentTime = World ? World->GetTimeSeconds() : -1.0f;
 	FReEchoElementState& PrimaryState = FReEchoElementResolverAccess::Edit(*PrimaryCombatant);
+	const EReEchoElement PreviousElement = PrimaryState.Attached;
 	Execution.Primary = ReEchoElementRuntime::ResolveHit(
 	    PrimaryState, IncomingElement, BaseDamage, Context.ReactionEfficiency, CurrentTime);
 	const FReEchoReactionRuleDefinition* Reaction = Rules->Reactions.Find(Execution.Primary.ReactionId);
@@ -360,7 +374,10 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			{
 				State.Attached = EReEchoElement::Grass;
 				AddAffected(Execution, *Candidate);
-				PublishElementStateChanged(*Combatant);
+				if (Candidate != &Target)
+				{
+					PublishElementStateChanged(*Combatant);
+				}
 			}
 		}
 	}
@@ -391,7 +408,10 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			Execution.ImmediateDamageApplied += ApplyDamage(*Current, Damage, IncomingElement, Context).AppliedDamage;
 			ApplyElementalImmunity(State, *Rules, CurrentTime);
 			AddAffected(Execution, *Current);
-			PublishElementStateChanged(*Combatant);
+			if (Current != &Target)
+			{
+				PublishElementStateChanged(*Combatant);
+			}
 			for (AActor* Neighbor :
 			     GetAliveTargetsInRadius(*World, Current->GetActorLocation(), Reaction->RadiusCm, Context.Attack))
 			{
@@ -407,6 +427,9 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 				}
 				Visited.Add(Neighbor);
 				Queue.Add(Neighbor);
+				FReEchoElementReactionLink& Link = ReactionLinks.AddDefaulted_GetRef();
+				Link.SourceTarget = Current;
+				Link.TargetTarget = Neighbor;
 			}
 		}
 	}
@@ -420,5 +443,25 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 		AddAffected(Execution, Target);
 	}
 	PublishElementStateChanged(*PrimaryCombatant);
+	FReEchoElementReactionResolvedEvent ReactionEvent;
+	ReactionEvent.Attack = Context.Attack;
+	ReactionEvent.ReactionId = Execution.Primary.ReactionId;
+	ReactionEvent.ReactionBehaviorId = Execution.Primary.ReactionBehaviorId;
+	ReactionEvent.RadiusCm = Reaction->BehaviorId == TEXT("Reaction.Growth")
+	                             ? Reaction->RadiusCm * FMath::Max(0.0f, Context.ReactionEfficiency)
+	                             : Execution.Primary.RadiusCm;
+	ReactionEvent.PreviousElement = PreviousElement;
+	ReactionEvent.IncomingElement = IncomingElement;
+	ReactionEvent.ResultingElement = PrimaryState.Attached;
+	ReactionEvent.PrimaryTarget = &Target;
+	for (const TWeakObjectPtr<AActor>& AffectedTarget : Execution.AffectedTargets)
+	{
+		if (AActor* Actor = AffectedTarget.Get())
+		{
+			ReactionEvent.AffectedTargets.Add(Actor);
+		}
+	}
+	ReactionEvent.ReactionLinks = MoveTemp(ReactionLinks);
+	PublishElementReactionResolved(*PrimaryCombatant, ReactionEvent);
 	return Execution;
 }

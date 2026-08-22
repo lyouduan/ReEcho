@@ -47,7 +47,7 @@
 
 Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为可写真相。
 
-`UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。
+`UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。Development 的 `SetDebugInvulnerable` 仅在最终伤害入口返回零，不改写 ASC 属性、不消费格挡，并在 Shipping 固定关闭。
 
 ## 输入、输出与公共契约
 
@@ -474,3 +474,6 @@ Input / Auto held
 - 自动/手动共享 AttackController/GAS/Weapons 路径；自动攻击不进入 Recording。
 - 事件描述已发生结果，回调不能反向更改本次结果；Snapshot 也不是命令。
 - 不为兼容旧调用保留第二套生命、元素、held、目标或伤害算法。
+# Plan73 元素反应表现契约
+
+`UReEchoCombatEventsComponent::OnElementReactionResolved` 只在有效反应完整结算后发布一次资源中立结果，携带 ReactionId、ReactionBehaviorId、RadiusCm、反应前/进入/结算后元素以及玩法确定的受影响目标顺序；表现消费者不得重新计算半径或连锁拓扑。

@@ -12,9 +12,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuntimeAssetPreloadCatalogTest,
 bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 {
 	const TArray<FSoftObjectPath> AssetPaths = UReEchoRuntimeAssetPreloader::BuildDefaultAssetList();
-	TestEqual(TEXT("The preload catalog contains 8 VFX roots, 3 rabbit proxy assets and 12 weapon assets"),
+	TestEqual(TEXT("The preload catalog contains combat, element and weapon presentation assets"),
 	          AssetPaths.Num(),
-	          23);
+	          31);
 	TSet<FSoftObjectPath> UniquePaths;
 	for (const FSoftObjectPath& AssetPath : AssetPaths)
 	{
@@ -26,6 +26,12 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 	         UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/ReEcho/Textures/Effects/SlashCrescent.SlashCrescent"))));
 	TestTrue(TEXT("Missing specialist art is still warmed before its synchronous fallback"),
 	         UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash"))));
+	TestTrue(TEXT("Grass attachment Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(
+	             TEXT("/Game/VFX/Element/Grass/Particle/NS_Element_Grass.NS_Element_Grass"))));
+	TestTrue(TEXT("Conduct Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(TEXT(
+	             "/Game/VFX/Element/Elctricity/Particle/NS_Element_Electricity.NS_Element_Electricity"))));
 
 	const TArray<FString> DirtyPaths = {TEXT("  /Game/ReEcho/Textures/Effects/Bow.Bow  "),
 	                                    TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow"),

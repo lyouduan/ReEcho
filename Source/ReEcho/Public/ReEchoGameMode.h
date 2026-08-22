@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Combat/ReEchoCombatTypes.h"
 #include "Encounter/ReEchoEncounterRuntime.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
@@ -57,6 +58,9 @@ public:
 	void GMStatus();
 	UFUNCTION(Exec)
 	void GMHeal(float Amount = 0.0f);
+	/** Toggles final-damage immunity on the current player. */
+	UFUNCTION(Exec)
+	void GMGod(const FString& Mode = TEXT("Toggle"));
 	UFUNCTION(Exec)
 	void GMAddShards(int32 Amount = 100);
 	UFUNCTION(Exec)
@@ -73,6 +77,12 @@ public:
 	void GMGotoBoss();
 	UFUNCTION(Exec)
 	void GMGrantCard(FName CardId);
+	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */
+	UFUNCTION(Exec)
+	void GMElement(const FString& Element = TEXT("Flame"));
+	/** Prepares and triggers one authored reaction through the production resolver on the nearest living enemy. */
+	UFUNCTION(Exec)
+	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
@@ -83,6 +93,8 @@ private:
 	void ResumeWorldForMenuTransition();
 	bool EnsureGMCommandAvailable() const;
 	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
+	AReEchoEnemyActor* FindNearestLivingEnemyForGM() const;
+	FReEchoAttackIdentity MakeGMElementAttack();
 	UPROPERTY()
 	TObjectPtr<AReEchoEncounterDirector> Director;
 	UPROPERTY()
@@ -101,6 +113,7 @@ private:
 	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyGameplayClassRegistry> EnemyGameplayClassRegistry;
+	int64 GMElementAttackSequence = 0;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()

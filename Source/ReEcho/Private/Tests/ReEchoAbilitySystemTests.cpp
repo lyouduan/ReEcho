@@ -87,6 +87,32 @@ bool FReEchoGasAttributeEffectTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDebugInvulnerabilityTest,
+                                 "ReEcho.GAS.DebugInvulnerability",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoDebugInvulnerabilityTest::RunTest(const FString& Parameters)
+{
+	FReEchoGasFixture Fixture;
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.Block = 1;
+	Fixture.Combatant->InitializeFromStats(Stats, true);
+
+	Fixture.Combatant->SetDebugInvulnerable(true);
+	TestTrue(TEXT("Debug invulnerability reports enabled"), Fixture.Combatant->IsDebugInvulnerable());
+	TestEqual(TEXT("Invulnerability rejects final damage"), Fixture.Combatant->ApplyFinalDamageForTests(25.0f), 0.0f);
+	TestEqual(TEXT("Invulnerability preserves health"), Fixture.Combatant->CurrentHealth, 100.0f);
+	TestEqual(TEXT("Invulnerability does not consume block"), Fixture.Combatant->Stats.Block, 1);
+
+	Fixture.Combatant->SetDebugInvulnerable(false);
+	TestFalse(TEXT("Debug invulnerability reports disabled"), Fixture.Combatant->IsDebugInvulnerable());
+	TestEqual(
+	    TEXT("Normal damage path resumes after disabling"), Fixture.Combatant->ApplyFinalDamageForTests(25.0f), 0.0f);
+	TestEqual(TEXT("Normal damage consumes block after disabling"), Fixture.Combatant->Stats.Block, 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGasDeathAndTagsTest,
                                  "ReEcho.GAS.DeathAndAbilityTags",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

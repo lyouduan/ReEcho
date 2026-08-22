@@ -127,6 +127,8 @@ bool FReEchoStageTransitionWorldContinuityTest::RunTest(const FString& Parameter
 	Logic.SpecialActionRemainingSeconds = 0.5f;
 	Logic.SpecialLockedTargetLocation = FVector(900.0f, 200.0f, 0.0f);
 	Enemy->GetEnemyLogicComponent()->RestoreSnapshot(Logic);
+	Enemy->GetCombatantComponent()->EditElementStateForTests().Attached = EReEchoElement::Water;
+	Enemy->GetCombatantComponent()->EditElementStateForTests().bEnhancedNextReaction = true;
 
 	AReEchoEnemyActor* const StableIdentity = Enemy;
 	const FVector StableLocation = Enemy->GetActorLocation();
@@ -142,6 +144,11 @@ bool FReEchoStageTransitionWorldContinuityTest::RunTest(const FString& Parameter
 	TestEqual(TEXT("Enemy current health is retained"), Enemy->GetCombatantComponent()->CurrentHealth, StableHealth);
 	TestEqual(TEXT("Enemy stable EnemyId is retained"), Enemy->GetEnemyId(), FName(TEXT("M_PLAN54_STABLE")));
 	TestEqual(TEXT("Enemy stable SpawnIndex is retained"), Enemy->GetSpawnIndex(), 42);
+	TestEqual(TEXT("Encounter-scoped attachment is cleared during intermission"),
+	          Enemy->GetElementState().Attached,
+	          EReEchoElement::None);
+	TestFalse(TEXT("Encounter-scoped enhancement is cleared during intermission"),
+	          Enemy->GetElementState().bEnhancedNextReaction);
 	TestEqual(TEXT("Persistent attack cooldown does not consume intermission time"),
 	          SuspendedLogic.AttackCooldownRemainingSeconds,
 	          0.75f);

@@ -47,6 +47,9 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	bool IsAlive() const;
+	/** Development-only final-damage gate used by player GM testing. */
+	void SetDebugInvulnerable(bool bEnabled);
+	bool IsDebugInvulnerable() const;
 
 	void BindToAbilitySystem(UAbilitySystemComponent* InAbilitySystem);
 	UAbilitySystemComponent* GetBoundAbilitySystem() const;
@@ -87,6 +90,7 @@ private:
 	TObjectPtr<UAbilitySystemComponent> BoundAbilitySystem;
 
 	bool bDeathBroadcast = false;
+	bool bDebugInvulnerable = false;
 	FReEchoElementState ElementState;
 	FName HealthChangeReason = NAME_None;
 	FReEchoAttackIdentity HealthChangeAttack;

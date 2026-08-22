@@ -118,7 +118,11 @@ DefaultEngine.ini
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
-Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`GMSpawnFox [distance]` 只用于快速表现验收：它复用生产 `M_FOX` Definition、EnemyHost、Roster 和竞技场出生边界，不建立第二套测试怪物。
+Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMSpawnFox [distance]` 只用于快速表现验收：它复用生产 `M_FOX` Definition、EnemyHost、Roster 和竞技场出生边界，不建立第二套测试怪物。
+
+`GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
+
+`GMElement <None|Flame|Lightning|Grass|Water>` 在 Player 的最终出手修正末端持续覆盖每次攻击的元素，直至再次指定；`None` 关闭覆盖并恢复武器权威元素。`GMReaction` 仍是一键准备并触发指定反应的独立验收入口。
 
 ## 代码位置与阅读路线
 
@@ -348,3 +352,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - **确定化投递**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 拷贝进最终包 `ReEcho/Content/Data/`（见其 `stage_runtime_csvs`）。该函数排除 `Engine` 目录下的 `Content`，只写入游戏模块目录，保证 manifest 列示的 28 张 csv 全部就位，与已进包的 22 张走同一松散文件机制。
 - 修改 csv 集合时：保持 `reecho_data_manifest.csv` 为真源；`package_windows.py` 不写死表名，按目录通配拷贝，因此新增/删除运行时 csv 无需改脚本。
 - 此契约仅影响打包投递，不改变 Development/PIE 既有的松散文件读取路径，也不改变 CSV schema、稳定 ID 或 `ReEcho.cpp` 的启动校验逻辑。
+# Plan73 元素表现装配
+
+运行时 Host 通过 `UReEchoCombatVfxComponent` 订阅元素状态与反应完成事件；玩法保持权威，Host 只按敌人 Definition 的稳定 `PresentationId` 选择、生成和清理 Niagara。旧元素状态表现三件套 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 及其更新、朝向和脉冲契约已整体删除，元素附着与反应表现只走 Niagara。
+元素附着为 Encounter 作用域：同 Stage 保留的敌人在进入局间暂停时、Player 在进入局间时均重置元素战斗态并广播最终状态，确保绑定 Niagara 同步清理。

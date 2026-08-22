@@ -79,6 +79,34 @@ struct REECHOCOMBAT_API FReEchoElementStateChangedEvent
 };
 
 USTRUCT(BlueprintType)
+struct REECHOCOMBAT_API FReEchoElementReactionLink
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> SourceTarget = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> TargetTarget = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct REECHOCOMBAT_API FReEchoElementReactionResolvedEvent
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FReEchoAttackIdentity Attack;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionId = NAME_None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RadiusCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement PreviousElement = EReEchoElement::None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement IncomingElement = EReEchoElement::None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement ResultingElement = EReEchoElement::None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<AActor> PrimaryTarget = nullptr;
+	/** Authoritative stable gameplay order; Growth contains only newly attached targets. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TArray<TObjectPtr<AActor>> AffectedTargets;
+	/** Authoritative Conduct discovery edges; empty for non-link reactions. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TArray<FReEchoElementReactionLink> ReactionLinks;
+};
+
+USTRUCT(BlueprintType)
 
 struct REECHOCOMBAT_API FReEchoAttackSnapshot
 {
@@ -99,6 +127,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoHealthChangedEventDelegate, c
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoElementStateChangedDelegate,
                                             const FReEchoElementStateChangedEvent&,
                                             Event);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoElementReactionResolvedDelegate,
+	                                        const FReEchoElementReactionResolvedEvent&,
+	                                        Event);
 
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 
@@ -114,6 +145,7 @@ public:
 	UPROPERTY(BlueprintAssignable) FReEchoDamageDelegate OnDeath;
 	UPROPERTY(BlueprintAssignable) FReEchoHealthChangedEventDelegate OnHealthChanged;
 	UPROPERTY(BlueprintAssignable) FReEchoElementStateChangedDelegate OnElementStateChanged;
+	UPROPERTY(BlueprintAssignable) FReEchoElementReactionResolvedDelegate OnElementReactionResolved;
 
 	void PublishAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 	{
@@ -153,13 +185,29 @@ public:
 		OnElementStateChanged.Broadcast(Event);
 	}
 
+	void PublishElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event)
+	{
+#if WITH_DEV_AUTOMATION_TESTS
+		++ElementReactionPublishCountForTests;
+		LastElementReactionEventForTests = Event;
+#endif
+		OnElementReactionResolved.Broadcast(Event);
+	}
+
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetElementStatePublishCountForTests() const
 	{
 		return ElementStatePublishCountForTests;
 	}
+	int32 GetElementReactionPublishCountForTests() const { return ElementReactionPublishCountForTests; }
+	const FReEchoElementReactionResolvedEvent& GetLastElementReactionEventForTests() const
+	{
+		return LastElementReactionEventForTests;
+	}
 
 private:
 	int32 ElementStatePublishCountForTests = 0;
+	int32 ElementReactionPublishCountForTests = 0;
+	FReEchoElementReactionResolvedEvent LastElementReactionEventForTests;
 #endif
 };

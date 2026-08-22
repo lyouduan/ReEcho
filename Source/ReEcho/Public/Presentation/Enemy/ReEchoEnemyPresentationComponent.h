@@ -8,16 +8,13 @@
 
 class UBillboardComponent;
 class UBoxComponent;
-class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DCharacterPresentationProfile;
 class UReEcho2DFrameCollisionDriver;
 class UReEcho2DPresentationController;
 class UReEcho2DPresentationCatalog;
-class UReEchoCombatantComponent;
 class USceneComponent;
 class UStaticMeshComponent;
-class UTextRenderComponent;
 class UTexture2D;
 
 /** Host-aggregated, read-only input for enemy presentation. */
@@ -90,18 +87,13 @@ public:
 	                         UReEcho2DPresentationController* InPresentationController,
 	                         UReEcho2DFrameCollisionDriver* InFrameCollisionDriver,
 	                         UStaticMeshComponent* InGroundShadow,
-	                         UTextRenderComponent* InElementAuraRing,
-	                         UTextRenderComponent* InElementAttachmentLabel,
-	                         UPointLightComponent* InElementAuraLight,
 	                         UBoxComponent* InCollision);
 	void BindEventSources(AActor* InHost,
-	                      UReEchoCombatantComponent* InCombatant,
 	                      UReEchoEnemyEventsComponent* InEnemyEvents,
 	                      UReEchoCombatEventsComponent* InCombatEvents);
 	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
 	void ConfigureAppearance(FName PresentationId);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
-	void RefreshElementAttachmentVisual();
 
 	UBillboardComponent* GetCharacterSprite() const
 	{
@@ -123,8 +115,6 @@ private:
 	UFUNCTION()
 	void HandleFuseChanged(const FReEchoEnemyFuseEvent& Event);
 	UFUNCTION()
-	void HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event);
-	UFUNCTION()
 	void HandleCombatHurt(const FReEchoDamageEvent& Event);
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
@@ -135,15 +125,12 @@ private:
 	void RefreshGroundShadowFromFlipbook();
 	void ResetTransientRoot();
 	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
-	void UpdateElementAttachmentFacing();
 	void UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	void UpdateDeathAnimation(float DeltaSeconds);
 
 	UPROPERTY()
 	TObjectPtr<AActor> Host;
-	UPROPERTY()
-	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyEventsComponent> EnemyEvents;
 	UPROPERTY()
@@ -170,12 +157,6 @@ private:
 	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
-	UPROPERTY()
-	TObjectPtr<UTextRenderComponent> ElementAuraRing;
-	UPROPERTY()
-	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
-	UPROPERTY()
-	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY()
 	TObjectPtr<UBoxComponent> Collision;
 	UPROPERTY()

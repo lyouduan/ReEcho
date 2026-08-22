@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoElementReaction.h"
 #include "Combat/ReEchoHitResolver.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BillboardComponent.h"
@@ -187,9 +188,172 @@ void AReEchoGameMode::GMHelp()
 	{
 		return;
 	}
-	PrintGMResult(TEXT("GMStatus | GMHeal [amount, 0=full] | GMAddShards [amount] | GMSetShards [amount] | GMWeather "
+	PrintGMResult(TEXT("The GM console pauses while open and resumes when closed. GMStatus | GMHeal [amount, 0=full] | "
+	                   "GMGod [On|Off|Toggle] | "
+	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
 	                   "<Clear|Rain|Fog> | "
-	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss"));
+	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss | "
+	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
+	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> [damage]"));
+	PrintGMResult(TEXT("Reactions: Flame+Grass=Burn | Flame+Water=Vaporize | Lightning+Grass=Growth | "
+	                   "Lightning+Water=Conduct | Grass+Water=EnhanceGrass | Water+Grass=EnhanceWater"));
+}
+
+AReEchoEnemyActor* AReEchoGameMode::FindNearestLivingEnemyForGM() const
+{
+	if (!EnemyRoster)
+	{
+		return nullptr;
+	}
+	const FVector Origin = Player ? Player->GetActorLocation() : FVector::ZeroVector;
+	AReEchoEnemyActor* Nearest = nullptr;
+	float NearestDistanceSquared = TNumericLimits<float>::Max();
+	for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+	{
+		AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+		if (!Enemy || !Enemy->IsAlive())
+		{
+			continue;
+		}
+		const float DistanceSquared = FVector::DistSquared2D(Origin, Enemy->GetActorLocation());
+		if (!Nearest || DistanceSquared < NearestDistanceSquared)
+		{
+			Nearest = Enemy;
+			NearestDistanceSquared = DistanceSquared;
+		}
+	}
+	return Nearest;
+}
+
+FReEchoAttackIdentity AReEchoGameMode::MakeGMElementAttack()
+{
+	FReEchoAttackIdentity Attack;
+	Attack.Source = Player;
+	Attack.Sequence = ++GMElementAttackSequence;
+	Attack.SourceFaction = EReEchoCombatFaction::PlayerSide;
+	return Attack;
+}
+
+void AReEchoGameMode::GMElement(const FString& Element)
+{
+	if (!EnsureGMCommandAvailable() || !Player)
+	{
+		PrintGMResult(TEXT("GMElement requires an active player."), false);
+		return;
+	}
+
+	EReEchoElement ParsedElement = EReEchoElement::None;
+	if (Element.Equals(TEXT("Flame"), ESearchCase::IgnoreCase) || Element.Equals(TEXT("Fire"), ESearchCase::IgnoreCase))
+	{
+		ParsedElement = EReEchoElement::Flame;
+	}
+	else if (Element.Equals(TEXT("Lightning"), ESearchCase::IgnoreCase) ||
+	         Element.Equals(TEXT("Electricity"), ESearchCase::IgnoreCase))
+	{
+		ParsedElement = EReEchoElement::Lightning;
+	}
+	else if (Element.Equals(TEXT("Grass"), ESearchCase::IgnoreCase))
+	{
+		ParsedElement = EReEchoElement::Grass;
+	}
+	else if (Element.Equals(TEXT("Water"), ESearchCase::IgnoreCase))
+	{
+		ParsedElement = EReEchoElement::Water;
+	}
+	else if (!Element.Equals(TEXT("None"), ESearchCase::IgnoreCase) &&
+	         !Element.Equals(TEXT("Clear"), ESearchCase::IgnoreCase))
+	{
+		PrintGMResult(TEXT("Usage: GMElement <None|Flame|Lightning|Grass|Water>"), false);
+		return;
+	}
+
+	Player->SetDebugOutgoingElementOverride(ParsedElement);
+	PrintGMResult(
+	    ParsedElement == EReEchoElement::None
+	        ? TEXT("Player element override=Off; weapon-authored elements restored.")
+	        : FString::Printf(TEXT("Player element override=%s; all subsequent player hits use this element."),
+	                          *ReEchoElementReaction::GetElementId(ParsedElement).ToString()));
+}
+
+void AReEchoGameMode::GMReaction(const FString& Reaction, const float Damage)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	AReEchoEnemyActor* Target = FindNearestLivingEnemyForGM();
+	if (!Target)
+	{
+		PrintGMResult(TEXT("GMReaction requires at least one living enemy."), false);
+		return;
+	}
+
+	EReEchoElement Attachment = EReEchoElement::None;
+	EReEchoElement Trigger = EReEchoElement::None;
+	bool bPrepareAllLivingEnemies = false;
+	if (Reaction.Equals(TEXT("Burn"), ESearchCase::IgnoreCase))
+	{
+		Attachment = EReEchoElement::Grass;
+		Trigger = EReEchoElement::Flame;
+	}
+	else if (Reaction.Equals(TEXT("Vaporize"), ESearchCase::IgnoreCase))
+	{
+		Attachment = EReEchoElement::Water;
+		Trigger = EReEchoElement::Flame;
+	}
+	else if (Reaction.Equals(TEXT("Growth"), ESearchCase::IgnoreCase))
+	{
+		Attachment = EReEchoElement::Grass;
+		Trigger = EReEchoElement::Lightning;
+	}
+	else if (Reaction.Equals(TEXT("Conduct"), ESearchCase::IgnoreCase))
+	{
+		Attachment = EReEchoElement::Water;
+		Trigger = EReEchoElement::Lightning;
+		bPrepareAllLivingEnemies = true;
+	}
+	else if (Reaction.Equals(TEXT("EnhanceGrass"), ESearchCase::IgnoreCase))
+	{
+		Attachment = EReEchoElement::Water;
+		Trigger = EReEchoElement::Grass;
+	}
+	else if (Reaction.Equals(TEXT("EnhanceWater"), ESearchCase::IgnoreCase))
+	{
+		Attachment = EReEchoElement::Grass;
+		Trigger = EReEchoElement::Water;
+	}
+	else
+	{
+		PrintGMResult(TEXT("Usage: GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> [damage]"),
+		              false);
+		return;
+	}
+
+	TArray<AReEchoEnemyActor*> PreparedTargets;
+	if (bPrepareAllLivingEnemies)
+	{
+		for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+		{
+			if (AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(EnemyHost.Get()); Enemy && Enemy->IsAlive())
+			{
+				PreparedTargets.Add(Enemy);
+			}
+		}
+	}
+	else
+	{
+		PreparedTargets.Add(Target);
+	}
+
+	const FVector SourceLocation = Player ? Player->GetActorLocation() : Target->GetActorLocation();
+	for (AReEchoEnemyActor* PreparedTarget : PreparedTargets)
+	{
+		PreparedTarget->GetCombatantComponent()->ResetElementState();
+		PreparedTarget->ReceiveElementalDamage(0.0f, Attachment, SourceLocation, 1.0f, MakeGMElementAttack());
+	}
+	Target->ReceiveElementalDamage(FMath::Max(0.0f, Damage), Trigger, SourceLocation, 1.0f, MakeGMElementAttack());
+	PrintGMResult(FString::Printf(
+	    TEXT("Triggered %s on %s; prepared targets=%d."), *Reaction, *Target->GetName(), PreparedTargets.Num()));
 }
 
 void AReEchoGameMode::GMStatus()
@@ -201,10 +365,17 @@ void AReEchoGameMode::GMStatus()
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const float Health = Player && Player->Combatant ? Player->Combatant->CurrentHealth : 0.0f;
 	const float MaximumHealth = Player && Player->Combatant ? Player->Combatant->Stats.HpMax : 0.0f;
-	PrintGMResult(FString::Printf(TEXT("Encounter=%d, HP=%.0f/%.0f, TimeShards=%d, Echoes=%d"),
+	const EReEchoElement ElementOverride = Player ? Player->GetDebugOutgoingElementOverride() : EReEchoElement::None;
+	const FString ElementLabel = ElementOverride == EReEchoElement::None
+	                                 ? TEXT("Weapon")
+	                                 : ReEchoElementReaction::GetElementId(ElementOverride).ToString();
+	PrintGMResult(FString::Printf(TEXT("Encounter=%d, HP=%.0f/%.0f, God=%s, Element=%s, TimeShards=%d, Echoes=%d"),
 	                              RunSubsystem ? RunSubsystem->EncounterIndex : 0,
 	                              Health,
 	                              MaximumHealth,
+	                              Player && Player->Combatant && Player->Combatant->IsDebugInvulnerable() ? TEXT("On")
+	                                                                                                      : TEXT("Off"),
+	                              *ElementLabel,
 	                              RunSubsystem ? RunSubsystem->TimeShards : 0,
 	                              Echoes.Num()));
 }
@@ -225,6 +396,34 @@ void AReEchoGameMode::GMHeal(const float Amount)
 	Combatant->ApplyHealing(Amount <= 0.0f ? Combatant->Stats.HpMax : Amount);
 	PrintGMResult(FString::Printf(
 	    TEXT("Player HP %.0f -> %.0f/%.0f"), PreviousHealth, Combatant->CurrentHealth, Combatant->Stats.HpMax));
+}
+
+void AReEchoGameMode::GMGod(const FString& Mode)
+{
+	if (!EnsureGMCommandAvailable() || !Player || !Player->Combatant)
+	{
+		PrintGMResult(TEXT("GMGod requires an active player."), false);
+		return;
+	}
+
+	const bool bCurrentlyEnabled = Player->Combatant->IsDebugInvulnerable();
+	bool bEnable = !bCurrentlyEnabled;
+	if (Mode.Equals(TEXT("On"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("1")))
+	{
+		bEnable = true;
+	}
+	else if (Mode.Equals(TEXT("Off"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("0")))
+	{
+		bEnable = false;
+	}
+	else if (!Mode.Equals(TEXT("Toggle"), ESearchCase::IgnoreCase))
+	{
+		PrintGMResult(TEXT("Usage: GMGod <On|Off|Toggle>"), false);
+		return;
+	}
+
+	Player->Combatant->SetDebugInvulnerable(bEnable);
+	PrintGMResult(FString::Printf(TEXT("Player invulnerability=%s."), bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMAddShards(const int32 Amount)
@@ -319,11 +518,6 @@ void AReEchoGameMode::GMEndEncounter()
 		PrintGMResult(TEXT("GMEndEncounter requires a living player in an active encounter."), false);
 		return;
 	}
-	if (UGameplayStatics::IsGamePaused(this))
-	{
-		PrintGMResult(TEXT("Resume gameplay before using GMEndEncounter."), false);
-		return;
-	}
 	if (IsBossEncounter())
 	{
 		PrintGMResult(TEXT("GMEndEncounter cannot clear a Boss encounter; use GMKillAll instead."), false);
@@ -413,11 +607,6 @@ void AReEchoGameMode::GMGotoBoss()
 	    !Player->Combatant->IsAlive())
 	{
 		PrintGMResult(TEXT("GMGotoBoss requires a living player in an active encounter."), false);
-		return;
-	}
-	if (UGameplayStatics::IsGamePaused(this))
-	{
-		PrintGMResult(TEXT("Resume gameplay before using GMGotoBoss."), false);
 		return;
 	}
 
@@ -1116,6 +1305,10 @@ void AReEchoGameMode::PrepareEncounterIntermission()
 	}
 
 	ClearEchoes();
+	if (Player && Player->Combatant)
+	{
+		Player->Combatant->ResetElementState();
+	}
 	if (Player && Player->Movement)
 	{
 		Player->Movement->StopMovementImmediately();

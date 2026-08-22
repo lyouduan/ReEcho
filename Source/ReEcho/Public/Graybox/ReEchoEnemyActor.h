@@ -9,7 +9,6 @@
 
 class UAbilitySystemComponent;
 class UBoxComponent;
-class UPointLightComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DFrameCollisionDriver;
 class UReEcho2DPresentationController;
@@ -26,7 +25,6 @@ class UReEchoEnemyPresentationComponent;
 class UReEchoEnemyRosterComponent;
 class USceneComponent;
 class UStaticMeshComponent;
-class UTextRenderComponent;
 struct FReEchoEnemyActionIntent;
 struct FReEchoEnemyAbilityDefinition;
 struct FReEchoEnemyLogicSnapshot;
@@ -76,6 +74,9 @@ public:
 		return EnemyId;
 	}
 
+	/** Stable presentation identity from the active compiled enemy definition. */
+	FName GetPresentationId() const;
+
 	void ConfigureGameplayPlane(float InGameplayPlaneWorldZ);
 	void SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster);
 	float ReceiveGrayboxDamage(float Damage,
@@ -87,8 +88,6 @@ public:
 	                             const FVector& SourceLocation,
 	                             float ReactionEfficiency = 1.0f,
 	                             FReEchoAttackIdentity Attack = {});
-	void RefreshElementAttachmentVisual();
-
 	EReEchoElement GetAttachedElement() const;
 	const FReEchoElementState& GetElementState() const;
 #if WITH_DEV_AUTOMATION_TESTS
@@ -266,12 +265,6 @@ private:
 	TObjectPtr<UReEcho2DFrameCollisionDriver> FrameCollisionDriver;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEcho2DSceneLightingComponent> SceneLighting;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UTextRenderComponent> ElementAuraRing;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UTextRenderComponent> ElementAttachmentLabel;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UPointLightComponent> ElementAuraLight;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoCombatantComponent> Combatant;
 	UPROPERTY(VisibleAnywhere)

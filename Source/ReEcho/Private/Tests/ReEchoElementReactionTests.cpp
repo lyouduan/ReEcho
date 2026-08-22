@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Combat/ReEchoElementReaction.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/Engine.h"
@@ -502,9 +503,34 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 	{
 		FReEchoElementWorldFixture Fixture;
 		AReEchoEnemyActor* Target = Fixture.SpawnEnemy(FVector::ZeroVector, 1);
-		Target->EditElementState().Attached = EReEchoElement::Grass;
+		UReEchoCombatEventsComponent* Events = Target->FindComponentByClass<UReEchoCombatEventsComponent>();
+		TestNotNull(TEXT("Element target owns Combat events"), Events);
+		FReEchoElementHitContext Context = Fixture.MakeContext(10.0f);
+		Context.Attack.Sequence = 7301;
+		ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Grass, 0.0f, Context);
+		TestEqual(TEXT("Ordinary attachment publishes no resolved-reaction event"),
+		          Events ? Events->GetElementReactionPublishCountForTests() : -1,
+		          0);
 		const FReEchoElementExecutionResult Result =
-		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f));
+		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 999.0f, Context);
+		TestEqual(TEXT("Valid reaction publishes exactly once after settlement"),
+		          Events ? Events->GetElementReactionPublishCountForTests() : -1,
+		          1);
+		if (Events)
+		{
+			const FReEchoElementReactionResolvedEvent& Event = Events->GetLastElementReactionEventForTests();
+			TestEqual(TEXT("Resolved event keeps attack identity"), Event.Attack.Sequence, int64(7301));
+			TestEqual(TEXT("Resolved event keeps reaction id"), Event.ReactionId, FName(TEXT("Y_ER_F_G")));
+			TestEqual(TEXT("Resolved event keeps behavior id"),
+			          Event.ReactionBehaviorId,
+			          FName(TEXT("Reaction.Burn")));
+			TestEqual(TEXT("Resolved event keeps settled radius"), Event.RadiusCm, 0.0f);
+			TestEqual(TEXT("Resolved event keeps previous attachment"), Event.PreviousElement, EReEchoElement::Grass);
+			TestEqual(TEXT("Resolved event keeps incoming element"), Event.IncomingElement, EReEchoElement::Flame);
+			TestEqual(TEXT("Resolved event keeps resulting attachment"), Event.ResultingElement, EReEchoElement::None);
+			TestEqual(TEXT("Resolved event contains the authoritative primary target once"), Event.AffectedTargets.Num(), 1);
+			TestTrue(TEXT("Resolved event primary target matches gameplay"), Event.AffectedTargets[0].Get() == Target);
+		}
 		TestEqual(TEXT("Burn has no immediate damage"), Result.ImmediateDamageApplied, 0.0f);
 		TestEqual(TEXT("Burn keeps one deterministic tick per second for three seconds"), Result.DotTicksScheduled, 3);
 		TestEqual(TEXT("Burn records three DOT delays"), Result.DotTickDelaySeconds.Num(), 3);
@@ -631,6 +657,36 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
 		    *Primary, EReEchoElement::Lightning, 0.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Conduct chain deduplicates visited targets"), Result.AffectedTargets.Num(), 5);
+		UReEchoCombatEventsComponent* Events = Primary->FindComponentByClass<UReEchoCombatEventsComponent>();
+		TestNotNull(TEXT("Conduct primary owns Combat events"), Events);
+		if (Events)
+		{
+			const FReEchoElementReactionResolvedEvent& Event = Events->GetLastElementReactionEventForTests();
+			TestEqual(TEXT("Conduct publishes exactly one resolved event"),
+			          Events->GetElementReactionPublishCountForTests(),
+			          1);
+			TestEqual(TEXT("Conduct event retains configured radius"), Event.RadiusCm, 100.0f);
+			TestEqual(TEXT("Conduct event retains authoritative target count"), Event.AffectedTargets.Num(), 5);
+			TestEqual(TEXT("Conduct event retains one authoritative edge per discovered secondary target"),
+			          Event.ReactionLinks.Num(),
+			          4);
+			if (Event.ReactionLinks.Num() == 4)
+			{
+				TestTrue(TEXT("Conduct first edge starts at the primary"),
+				         Event.ReactionLinks[0].SourceTarget.Get() == Primary);
+				TestTrue(TEXT("Conduct first edge reaches the stable first neighbor"),
+				         Event.ReactionLinks[0].TargetTarget.Get() == Left);
+				TestTrue(TEXT("Conduct bridge edge keeps its gameplay discovery parent"),
+				         Event.ReactionLinks[3].SourceTarget &&
+				             Event.AffectedTargets.Contains(Event.ReactionLinks[3].SourceTarget) &&
+				             Event.ReactionLinks[3].TargetTarget.Get() == Bridge);
+			}
+			for (int32 Index = 0; Index < Result.AffectedTargets.Num(); ++Index)
+			{
+				TestTrue(TEXT("Conduct event target order matches gameplay execution"),
+				         Event.AffectedTargets[Index].Get() == Result.AffectedTargets[Index].Get());
+			}
+		}
 		TestEqual(TEXT("Conduct starts with primary target"),
 		          Cast<AReEchoEnemyActor>(ResolveWeak(Result.AffectedTargets[0])),
 		          Primary);

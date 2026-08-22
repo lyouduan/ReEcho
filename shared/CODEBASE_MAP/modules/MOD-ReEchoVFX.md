@@ -137,3 +137,7 @@ VFX 资产（`/Game/VFX/...` 下的 `NS_*`/`M_*`/`MI_*`/`T_*`/`BP_*`，以及 `/
 - 此契约仅影响打包投递，不改变 VFX 语义、资产路径映射、资产命名或运行时 `LoadObject` 契约；不影响 Development/PIE 既有路径。
 - 前景/背景排序必须相对宿主当前 Flipbook 动态求 `+1/-1`，不能写固定全局值；排序不得复用为碰撞层或目标选择规则。
 - 当前是主模块内领域；只有依赖和团队边界确实稳定、能避免循环时才考虑拆独立 Runtime Module。
+# 元素反应 Niagara
+
+`FReEchoElementReactionVfxCatalog` 是 Grass/Water 附着及六类反应的唯一语义资产映射，敌人体型只使用生产 Definition 的稳定 `PresentationId`。`UReEchoCombatVfxComponent` 管理可丢弃的持续附着组件，并按 Combat 提供的权威目标及 Conduct 发现边播放瞬时反应；正式根进入首场预加载。旧 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 三件套已经整体删除，不再保留文字、环形或点光源表现双轨。
+Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。

@@ -84,7 +84,7 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
                                                   const FReEchoAttackIdentity& Attack,
                                                   const EReEchoDamageSource DamageSource)
 {
-	if (!IsAlive() || Damage <= 0.f)
+	if (!IsAlive() || Damage <= 0.f || bDebugInvulnerable)
 	{
 		return 0.f;
 	}
@@ -128,6 +128,22 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 	HealthChangeReason = NAME_None;
 	HealthChangeAttack = {};
 	return Applied;
+}
+
+void UReEchoCombatantComponent::SetDebugInvulnerable(const bool bEnabled)
+{
+#if !UE_BUILD_SHIPPING
+	bDebugInvulnerable = bEnabled;
+#endif
+}
+
+bool UReEchoCombatantComponent::IsDebugInvulnerable() const
+{
+#if UE_BUILD_SHIPPING
+	return false;
+#else
+	return bDebugInvulnerable;
+#endif
 }
 
 float UReEchoCombatantComponent::ApplyHealing(const float Healing)

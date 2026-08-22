@@ -533,24 +533,48 @@ float AReEchoPlayerPawn::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent)
 void AReEchoPlayerPawn::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
 {
 	UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
-	if (!Run)
+	if (Run)
 	{
-		return;
-	}
-	float EchoDistanceCm = 0.0f;
-	for (TActorIterator<AReEchoEchoActor> It(GetWorld()); It; ++It)
-	{
-		if (It->IsCombatTargetAlive())
+		float EchoDistanceCm = 0.0f;
+		for (TActorIterator<AReEchoEchoActor> It(GetWorld()); It; ++It)
 		{
-			EchoDistanceCm = FMath::Max(EchoDistanceCm, FVector::Dist2D(GetActorLocation(), It->GetActorLocation()));
+			if (It->IsCombatTargetAlive())
+			{
+				EchoDistanceCm =
+				    FMath::Max(EchoDistanceCm, FVector::Dist2D(GetActorLocation(), It->GetActorLocation()));
+			}
 		}
+		const UReEchoCombatantComponent* TargetCombatant =
+		    Intent.Target ? Intent.Target->FindComponentByClass<UReEchoCombatantComponent>() : nullptr;
+		Run->ModifyCardOutgoingHit(Intent,
+		                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
+		                           EchoDistanceCm,
+		                           TargetCombatant &&
+		                               TargetCombatant->GetElementState().Attached != EReEchoElement::None);
 	}
-	const UReEchoCombatantComponent* TargetCombatant =
-	    Intent.Target ? Intent.Target->FindComponentByClass<UReEchoCombatantComponent>() : nullptr;
-	Run->ModifyCardOutgoingHit(Intent,
-	                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
-	                           EchoDistanceCm,
-	                           TargetCombatant && TargetCombatant->GetElementState().Attached != EReEchoElement::None);
+
+#if !UE_BUILD_SHIPPING
+	if (DebugOutgoingElementOverride != EReEchoElement::None)
+	{
+		Intent.Element = DebugOutgoingElementOverride;
+	}
+#endif
+}
+
+void AReEchoPlayerPawn::SetDebugOutgoingElementOverride(const EReEchoElement Element)
+{
+#if !UE_BUILD_SHIPPING
+	DebugOutgoingElementOverride = Element;
+#endif
+}
+
+EReEchoElement AReEchoPlayerPawn::GetDebugOutgoingElementOverride() const
+{
+#if UE_BUILD_SHIPPING
+	return EReEchoElement::None;
+#else
+	return DebugOutgoingElementOverride;
+#endif
 }
 
 void AReEchoPlayerPawn::NotifyReactionResolved(const FName ReactionId) const
@@ -1085,13 +1109,11 @@ void AReEchoPlayerPawn::RefreshGroundShadowFromFlipbook()
 	}
 
 	const FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
-	const FVector LocalBottomCenter(FlipbookBounds.Origin.X,
-	                                FlipbookBounds.Origin.Y,
-	                                FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector LocalBottomCenter(
+	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
 	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
 	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
-	GroundRoot->SetRelativeLocation(
-	    FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+	GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
 
 	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
 	    FlipbookBounds, SequenceAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());

@@ -1,5 +1,7 @@
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 
+#include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Components/MaterialBillboardComponent.h"
 #include "Engine/Texture2D.h"
@@ -9,6 +11,7 @@
 #include "NiagaraSystem.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
+#include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "ReEcho.h"
 #include "TimerManager.h"
 
@@ -36,7 +39,7 @@ void LogLayerState(const AActor* Owner,
 	const USceneComponent* EffectParent = Effect ? Effect->GetAttachParent() : nullptr;
 	const USceneComponent* AttachmentParent = AttachmentRoot ? AttachmentRoot->GetAttachParent() : nullptr;
 	UE_LOG(LogReEcho,
-	       Warning,
+	       VeryVerbose,
 	       TEXT("[CombatVfxLayerTrace] Phase=%s Mode=%s Semantic=%s Owner=%s Animation=%s "
 	            "OwnerPriority=%d OwnerDistanceOffset=%.2f OwnerWorld=%s AnimationWorld=%s "
 	            "Anchor=%s AnchorParent=%s AnchorWorld=%s Effect=%s EffectParent=%s EffectPriority=%d "
@@ -130,6 +133,11 @@ float UReEchoCombatVfxComponent::ResolveProjectileGlowDiameter(const float Colli
 	return ResolveProjectileCoreDiameter(CollisionRadiusCm) * ReEchoCombatVfx::RabbitProjectileGlowDiameterScale;
 }
 
+bool UReEchoCombatVfxComponent::IsElementReactionStateDriven(const FName ReactionId)
+{
+	return ReactionId == TEXT("Y_ER_F_G") || ReactionId == TEXT("Y_ER_L_G");
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 int32 UReEchoCombatVfxComponent::GetProjectileVisualCountForTests() const
 {
@@ -184,6 +192,8 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 		CombatEvents->OnAttackCommitted.RemoveAll(this);
 		CombatEvents->OnHurt.RemoveAll(this);
 		CombatEvents->OnDeath.RemoveAll(this);
+		CombatEvents->OnElementStateChanged.RemoveAll(this);
+		CombatEvents->OnElementReactionResolved.RemoveAll(this);
 	}
 	if (EnemyEvents)
 	{
@@ -197,6 +207,9 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 		CombatEvents->OnAttackCommitted.AddDynamic(this, &UReEchoCombatVfxComponent::HandleAttackCommitted);
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoCombatVfxComponent::HandleHurt);
 		CombatEvents->OnDeath.AddDynamic(this, &UReEchoCombatVfxComponent::HandleDeath);
+		CombatEvents->OnElementStateChanged.AddDynamic(this, &UReEchoCombatVfxComponent::HandleElementStateChanged);
+		CombatEvents->OnElementReactionResolved.AddDynamic(
+		    this, &UReEchoCombatVfxComponent::HandleElementReactionResolved);
 	}
 	if (EnemyEvents)
 	{
@@ -382,11 +395,163 @@ void UReEchoCombatVfxComponent::StopAllEffects()
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);
+	StopEffect(ElementAttachmentEffect);
+	StopEffect(BurnStatusEffect);
+	ActiveAttachmentElement = EReEchoElement::None;
 	for (TPair<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>>& Pair : ProjectileVisuals)
 	{
 		StopProjectileVisual(Pair.Value);
 	}
 	ProjectileVisuals.Reset();
+}
+
+FName UReEchoCombatVfxComponent::ResolveElementVfxTargetId(AActor* Target) const
+{
+	if (const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Target))
+	{
+		return Enemy->GetPresentationId();
+	}
+	return NAME_None;
+}
+
+UNiagaraSystem* UReEchoCombatVfxComponent::ResolveElementSystem(const uint8 SemanticValue, AActor* Target) const
+{
+	const TCHAR* Path = FReEchoElementReactionVfxCatalog::ResolvePath(
+	    static_cast<EReEchoElementReactionVfxSemantic>(SemanticValue), ResolveElementVfxTargetId(Target));
+	UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, Path);
+	if (!System && !MissingElementSystemWarnings.Contains(Path))
+	{
+		MissingElementSystemWarnings.Add(Path);
+		UE_LOG(LogReEcho, Warning, TEXT("[ElementVFX] Missing Niagara system '%s'; gameplay continues"), Path);
+	}
+	return System;
+}
+
+void UReEchoCombatVfxComponent::RefreshElementEffects(const FReEchoElementState& State)
+{
+	RefreshElementAttachment(State.Attached);
+	RefreshBurnStatus(State.bBurnActive);
+}
+
+void UReEchoCombatVfxComponent::RefreshElementAttachment(const EReEchoElement Element)
+{
+	if (ActiveAttachmentElement == Element && ElementAttachmentEffect)
+	{
+		return;
+	}
+	StopEffect(ElementAttachmentEffect);
+	ActiveAttachmentElement = EReEchoElement::None;
+	EReEchoElementReactionVfxSemantic Semantic;
+	if (Element == EReEchoElement::Grass)
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::AttachmentGrass;
+	}
+	else if (Element == EReEchoElement::Water)
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::AttachmentWater;
+	}
+	else
+	{
+		return;
+	}
+	UNiagaraSystem* System = ResolveElementSystem(static_cast<uint8>(Semantic), GetOwner());
+	if (System && ResolveHurtVfxRoot())
+	{
+		ElementAttachmentEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(
+		    System, ResolveHurtVfxRoot(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator, FVector::OneVector,
+		    EAttachLocation::KeepRelativeOffset, false, ENCPoolMethod::None, true);
+		if (ElementAttachmentEffect)
+		{
+			ElementAttachmentEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+			ActiveAttachmentElement = Element;
+		}
+	}
+}
+
+void UReEchoCombatVfxComponent::RefreshBurnStatus(const bool bBurnActive)
+{
+	if (!bBurnActive)
+	{
+		StopEffect(BurnStatusEffect);
+		return;
+	}
+	if (BurnStatusEffect)
+	{
+		if (!BurnStatusEffect->IsActive())
+		{
+			BurnStatusEffect->Activate(true);
+		}
+		return;
+	}
+	UNiagaraSystem* System = ResolveElementSystem(
+	    static_cast<uint8>(EReEchoElementReactionVfxSemantic::Burn), GetOwner());
+	if (System && ResolveHurtVfxRoot())
+	{
+		BurnStatusEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(
+		    System, ResolveHurtVfxRoot(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator, FVector::OneVector,
+		    EAttachLocation::KeepRelativeOffset, false, ENCPoolMethod::None, true);
+		if (BurnStatusEffect)
+		{
+			BurnStatusEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+		}
+	}
+}
+
+void UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8 SemanticValue, AActor* Target) const
+{
+	UNiagaraSystem* System = ResolveElementSystem(SemanticValue, Target);
+	const IReEchoCombatTarget* CombatTarget = Target ? Cast<IReEchoCombatTarget>(Target) : nullptr;
+	if (!System || !Target || !CombatTarget || !CombatTarget->IsCombatTargetAlive())
+	{
+		return;
+	}
+	UReEchoCombatVfxComponent* TargetVfx = Target->FindComponentByClass<UReEchoCombatVfxComponent>();
+	USceneComponent* AttachmentRoot = TargetVfx ? TargetVfx->ResolveHurtVfxRoot() : Target->GetRootComponent();
+	if (AttachmentRoot)
+	{
+		if (UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
+		        System, AttachmentRoot, NAME_None, FVector::ZeroVector, FRotator::ZeroRotator, FVector::OneVector,
+		        EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None, true))
+		{
+			Effect->SetTranslucentSortPriority(
+			    TargetVfx ? TargetVfx->ResolveOwnerSortPriority() : ResolveOwnerSortPriority());
+		}
+	}
+}
+
+void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLink& Link) const
+{
+	AActor* SourceTarget = Link.SourceTarget;
+	AActor* TargetTarget = Link.TargetTarget;
+	const IReEchoCombatTarget* SourceCombatTarget = SourceTarget ? Cast<IReEchoCombatTarget>(SourceTarget) : nullptr;
+	const IReEchoCombatTarget* TargetCombatTarget = TargetTarget ? Cast<IReEchoCombatTarget>(TargetTarget) : nullptr;
+	if (!SourceCombatTarget || !TargetCombatTarget || !SourceCombatTarget->IsCombatTargetAlive() ||
+	    !TargetCombatTarget->IsCombatTargetAlive() || !GetWorld())
+	{
+		return;
+	}
+	UNiagaraSystem* System = ResolveElementSystem(
+	    static_cast<uint8>(EReEchoElementReactionVfxSemantic::Conduct), TargetTarget);
+	if (!System)
+	{
+		return;
+	}
+	const FVector Start = SourceCombatTarget->GetCombatTargetLocation();
+	const FVector End = TargetCombatTarget->GetCombatTargetLocation();
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+	    GetWorld(), System, Start, (End - Start).Rotation(), FVector::OneVector, true, false, ENCPoolMethod::None, true);
+	if (!Effect)
+	{
+		return;
+	}
+	Effect->SetVariableVec3(TEXT("User.StartPosition"), Start);
+	Effect->SetVariableVec3(TEXT("User.EndPosition"), End);
+	if (const UReEchoCombatVfxComponent* TargetVfx =
+	        TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>())
+	{
+		Effect->SetTranslucentSortPriority(TargetVfx->ResolveOwnerSortPriority());
+	}
+	Effect->Activate(true);
 }
 
 void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event)
@@ -416,6 +581,44 @@ void UReEchoCombatVfxComponent::HandleDeath(const FReEchoDamageEvent& Event)
 	if (Event.Target == GetOwner())
 	{
 		StopAllEffects();
+	}
+}
+
+void UReEchoCombatVfxComponent::HandleElementStateChanged(const FReEchoElementStateChangedEvent& Event)
+{
+	if (Event.Combatant && Event.Combatant->GetOwner() == GetOwner())
+	{
+		RefreshElementEffects(Event.State);
+	}
+}
+
+void UReEchoCombatVfxComponent::HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event)
+{
+	EReEchoElementReactionVfxSemantic Semantic;
+	if (IsElementReactionStateDriven(Event.ReactionId))
+	{
+		// Burn is driven by the authoritative timed status; Growth is driven by each target's attached Grass state.
+		return;
+	}
+	if (Event.ReactionId == TEXT("Y_ER_L_W"))
+	{
+		for (const FReEchoElementReactionLink& Link : Event.ReactionLinks)
+		{
+			SpawnConductLink(Link);
+		}
+		return;
+	}
+	if (Event.ReactionId == TEXT("Y_ER_F_W"))
+		Semantic = EReEchoElementReactionVfxSemantic::Vaporize;
+	else if (Event.ReactionId == TEXT("Y_ER_G_W"))
+		Semantic = EReEchoElementReactionVfxSemantic::EnhanceGrass;
+	else if (Event.ReactionId == TEXT("Y_ER_W_G"))
+		Semantic = EReEchoElementReactionVfxSemantic::EnhanceWater;
+	else
+		return;
+	for (AActor* Target : Event.AffectedTargets)
+	{
+		SpawnElementReactionAt(static_cast<uint8>(Semantic), Target);
 	}
 }
 
