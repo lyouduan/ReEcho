@@ -113,12 +113,18 @@
 
 ### 证据
 
-（实现后回填；本 Plan 当前为设计阶段，无代码变更）
+- 2026-08-22（实现，工作树 `ReEcho-plan75-weapon-rune-component`）：
+  - `Source/ReEcho/Public/Weapons/ReEchoWeaponActor.h`：新增 `EquippedRunes` 成员（局内活权威，`TArray<FReEchoEquippedPartSnapshot>`）；新增 public `EquipRune(FName, FString&)` / `UnequipRune(FName, FString&)` / `GetEquippedRunes()`。
+  - `Source/ReEcho/Private/Weapons/ReEchoWeaponActor.cpp`：`EquipRune` / `UnequipRune` 实现——复用 `ReEchoWeaponRuntime::TryEquipParts`（与现有 `InitializeWeapon`/`SelectWeaponById` 完全相同的兼容/容量/启用/Effect 校验与 Effect 编译），成功则写回 `BuildSnapshot` + 镜像 `EquippedRunes` + `RebuildEffectiveDefinition()` + 重编译 `WeaponLogic`，达成"一体"；失败则状态不变。`InitializeWeapon` 与 `SelectWeaponById` 在重建 `BuildSnapshot` 后同步 `EquippedRunes = BuildSnapshot.EquippedParts`。
+  - 实现偏差（功能等价）：Step 2/3 原写"导出 `FindEffectiveSlotLimit`/`IsPartCompatibleWithWeapon` 复用"，实际改为直接复用 `TryEquipParts` 整体重建——更零重复、校验与 `TrySelectWeapon`/`InitializeWeapon` 完全一致，且天然处理"重复符文/超槽/不兼容"整体失败。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：`AREA-Weapons` 补武器符文装载职责段（Plan75）。
+  - 验证：增量 Development 构建门禁 + `validate_project.py` 全绿；运行时/PIE 人工验收见下。
 
 ### 剩余风险
 
-- `AReEchoWeaponActor` 初始化路径需确认 `BuildSnapshot` 在 `InitializeWeapon` 时已持有正确 `EquippedParts`，否则 `EquippedRunes` 加载会空。实现 Step 1 前先核对 `InitializeWeapon` 调用链。
-- 现有代码若有无经 actor、直接写 `BuildSnapshot.EquippedParts` 的装配点（如 Run 子系统初始化构筑），需在 D5 同步点统一收口，避免双写。
+- `AReEchoWeaponActor::EquipRune`/`UnequipRune` 在商店（非攻击中）调用才安全：`WeaponLogic.Initialize` 会重置逻辑攻击状态；若未来在战斗中实时换符文需改触发时机（当前符文装配只发生在构筑/商店，无冲突）。
+- 存档/回放：持久真值仍是 `BuildSnapshot.EquippedParts`，`EquippedRunes` 仅局内镜像，未新增序列化字段，故存盘/回放路径零改动（D5 不变式保持）。仍待 PIE 验收存档→读档符文保留。
+- 现有 Run 子系统若直接写 `BuildSnapshot.EquippedParts`（不经 actor），会出现 `EquippedRunes` 滞后；当前 `InitializeWeapon` 每次重建都会从 `BuildSnapshot` 重载 `EquippedRunes`，故无长期漂移，但建议 Run 侧构筑初始化也经 actor 装配接口（留给 Plan67 收口）。
 
 ### 人工验收结果/请求
 

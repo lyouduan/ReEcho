@@ -175,11 +175,13 @@ void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSna
 		{
 			UE_LOG(LogReEcho, Fatal, TEXT("Cannot initialize weapon actor: %s"), *Error);
 		}
+		EquippedRunes = BuildSnapshot.EquippedParts;
 	}
 	else
 	{
 		BuildSnapshot = {};
 		BuildSnapshot.WeaponDomainRevision = DataSnapshot->WeaponDomainRevision;
+		EquippedRunes.Reset();
 	}
 	const FReEchoCsvWeaponRow* InitialWeapon = InBuildSnapshot
 	                                               ? DataSnapshot->FindEnabledWeapon(BuildSnapshot.WeaponId)
@@ -242,6 +244,7 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 	EffectiveDefinition = CandidateDefinition;
 	bHasEffectiveDefinition = true;
 	EquippedWeaponId = WeaponId;
+	EquippedRunes = BuildSnapshot.EquippedParts;
 	LastAttackCommit = {};
 	LastCommittedAttackStepId = NAME_None;
 	LastCommittedAttackStepIndex = INDEX_NONE;
@@ -254,6 +257,92 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 	UpdateElementIndicator();
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+	return true;
+}
+
+bool AReEchoWeaponActor::EquipRune(FName PartId, FString& OutError)
+{
+	if (!DataSnapshot.IsValid())
+	{
+		OutError = TEXT("Cannot equip rune: CSV snapshot is unavailable");
+		return false;
+	}
+	const FReEchoCsvWeaponRow* Weapon = Definitions.Find(EquippedWeaponId);
+	if (!Weapon)
+	{
+		OutError = FString::Printf(TEXT("Cannot equip rune '%s': no equipped weapon"), *PartId.ToString());
+		return false;
+	}
+	// Candidate part list = currently equipped runes + the new one. Reuse TryEquipParts so the
+	// exact same compatibility / capacity / enabled / effect validation and effect rebuild apply.
+	TArray<FName> PartIds;
+	PartIds.Reserve(EquippedRunes.Num() + 1);
+	for (const FReEchoEquippedPartSnapshot& Equipped : EquippedRunes)
+	{
+		PartIds.Add(Equipped.PartId);
+	}
+	PartIds.Add(PartId);
+
+	FReEchoBuildSnapshot CandidateBuild;
+	if (!ReEchoWeaponRuntime::TryEquipParts(*DataSnapshot, BuildSnapshot, PartIds, CandidateBuild, OutError))
+	{
+		// State unchanged: validation failed (incompatible / over-capacity / duplicate / disabled).
+		return false;
+	}
+	BuildSnapshot = CandidateBuild;
+	EquippedRunes = CandidateBuild.EquippedParts;
+	if (!RebuildEffectiveDefinition())
+	{
+		OutError = TEXT("Cannot equip rune: failed to rebuild effective weapon definition");
+		return false;
+	}
+	if (!WeaponLogic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(EffectiveDefinition)))
+	{
+		OutError = TEXT("Cannot equip rune: failed to recompile weapon logic");
+		return false;
+	}
+	return true;
+}
+
+bool AReEchoWeaponActor::UnequipRune(FName SlotTypeId, FString& OutError)
+{
+	if (!DataSnapshot.IsValid())
+	{
+		OutError = TEXT("Cannot unequip rune: CSV snapshot is unavailable");
+		return false;
+	}
+	if (!Definitions.Find(EquippedWeaponId))
+	{
+		OutError = TEXT("Cannot unequip rune: no equipped weapon");
+		return false;
+	}
+	// Candidate part list = every currently equipped rune except those in the requested slot.
+	TArray<FName> PartIds;
+	for (const FReEchoEquippedPartSnapshot& Equipped : EquippedRunes)
+	{
+		if (Equipped.SlotTypeId != SlotTypeId)
+		{
+			PartIds.Add(Equipped.PartId);
+		}
+	}
+
+	FReEchoBuildSnapshot CandidateBuild;
+	if (!ReEchoWeaponRuntime::TryEquipParts(*DataSnapshot, BuildSnapshot, PartIds, CandidateBuild, OutError))
+	{
+		return false;
+	}
+	BuildSnapshot = CandidateBuild;
+	EquippedRunes = CandidateBuild.EquippedParts;
+	if (!RebuildEffectiveDefinition())
+	{
+		OutError = TEXT("Cannot unequip rune: failed to rebuild effective weapon definition");
+		return false;
+	}
+	if (!WeaponLogic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(EffectiveDefinition)))
+	{
+		OutError = TEXT("Cannot unequip rune: failed to recompile weapon logic");
+		return false;
+	}
 	return true;
 }
 

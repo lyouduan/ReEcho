@@ -27,6 +27,12 @@ public:
 	void InitializeWeapon(const FReEchoBuildSnapshot* InBuildSnapshot = nullptr,
 	                      TSharedPtr<const FReEchoCsvDataSnapshot> InSnapshot = nullptr);
 	bool SelectWeaponById(FName WeaponId);
+	/** Equip a rune (weapon part) into the first compatible, capacity-available slot. Returns false (state unchanged) if invalid / incompatible / over-capacity / duplicate. Rebuilds the effective weapon definition so the weapon "is" its runes (Plan75). */
+	bool EquipRune(FName PartId, FString& OutError);
+	/** Remove all runes in the given slot type and rebuild. Returns false if validation fails. */
+	bool UnequipRune(FName SlotTypeId, FString& OutError);
+	/** In-run live rune loadout (mirrors BuildSnapshot.EquippedParts after every Equip/Unequip). */
+	const TArray<FReEchoEquippedPartSnapshot>& GetEquippedRunes() const { return EquippedRunes; }
 	/** 在冷却允许时执行当前武器基础攻击，并返回是否成功出手。 */
 	bool TryBasicAttack(UReEchoCombatantComponent* Combatant);
 	bool TryActiveAttack(UReEchoCombatantComponent* Combatant);
@@ -121,6 +127,8 @@ private:
 	TMap<FName, FReEchoCsvWeaponRow> Definitions;
 	TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot;
 	FReEchoBuildSnapshot BuildSnapshot;
+	/** Plan75: in-run weapon rune loadout (3 slot types per weapon, capacity from SlotProfiles). Mirror of BuildSnapshot.EquippedParts; the live authority that Equip/Unequip mutate, then drive BuildSnapshot + effective definition rebuild. Transient (not UPROPERTY-serialized); BuildSnapshot.EquippedParts is the save/replay truth. */
+	TArray<FReEchoEquippedPartSnapshot> EquippedRunes;
 	FReEchoEffectiveWeaponDefinition EffectiveDefinition;
 	bool bHasEffectiveDefinition = false;
 	FName EquippedWeaponId;
