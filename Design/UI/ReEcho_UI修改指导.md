@@ -118,6 +118,8 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 项目将 `UserInterfaceSettings.RenderFocusRule` 设为 `Never`，不绘制 Unreal 默认的紫色虚线焦点框；这只隐藏默认 Focus Brush，不移除键盘/手柄焦点和导航。需要焦点反馈时，应使用与页面美术一致的按钮 Normal/Hovered/Pressed/Disabled 状态，不要重新启用默认紫色描边。
 
+所有交互 WBP 的按钮由 Flow Coordinator 统一提供 `1.05` 倍中心悬停缩放。按钮的底图、文字、图标、选中装饰和真实点击区必须属于同一个按钮视觉根：图文在 Button 内时直接缩放 Button；透明 Button 与底图并列时，应放进只服务该按钮的 `Overlay`，由该 Overlay 作为完整视觉根。不要把多个按钮放进同一个候选悬停根，也不要在各 WBP 的 Blueprint Graph 复制 Hover/Unhover 逻辑。移出时系统会恢复进入前的 Render Scale 和 Pivot，WBP 作者可继续调整原始尺寸与布局。
+
 `WBP_ReEchoSettings`、`WBP_ReEchoRestart`、`WBP_ReEchoTraitCardEntry`、`WBP_ReEchoInventoryShopScreen`、`WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` 和 `WBP_ReEchoStatsScreen` 已接入 Plan45 对应面板、卡框、立绘和 HUD 装饰。新增 Image 均不参与命中测试；原 `RootPanel`、`InventoryPanel`、`ShopPanel`、`OfferContainer`、按钮和文本绑定名称/类型保持不变。商店与装配室装饰必须继续放在各自原面板内部，使 `UReEchoInventoryShopWidget::Refresh()` 的显隐切换同时覆盖内容和美术层。
 
 `WBP_ReEchoSettings` 的 Graphics、Audio、Controls 是固定页面结构。固定的音频 Slider 和 Checkbox 必须由 WBP 正常路径静态提供，布局、间距、样式和焦点表现归 UMG；`UReEchoSettingsWidget` 只绑定控件、刷新状态并把预览/提交/撤销请求交给 `UReEchoAudioService`。不要依赖 C++ `BuildAudioPanel()` 向正常 WBP 动态注入整套布局，该路径只用于设计资产缺失时的最低可用 fallback。所有绑定控件必须勾选 `Is Variable`，并严格使用第 4 节列出的名称和类型。

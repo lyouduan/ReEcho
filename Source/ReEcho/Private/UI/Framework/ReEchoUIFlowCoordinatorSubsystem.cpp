@@ -2,16 +2,18 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/Overlay.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
+#include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "UI/ReEchoUIManagerSubsystem.h"
 
 UUserWidget* UReEchoUIFlowCoordinatorSubsystem::OpenScreen(APlayerController* PlayerController,
-                                                            const EReEchoUIScreen Screen,
-                                                            const bool bUIOnly,
-                                                            const bool bPauseWorld)
+                                                           const EReEchoUIScreen Screen,
+                                                           const bool bUIOnly,
+                                                           const bool bPauseWorld)
 {
 	UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>();
 	UUserWidget* Widget = UIManager ? UIManager->CreateScreen(PlayerController, Screen) : nullptr;
@@ -43,8 +45,57 @@ void UReEchoUIFlowCoordinatorSubsystem::BindAudioFeedback(UUserWidget* Widget)
 		{
 			Button->OnHovered.AddUniqueDynamic(this, &UReEchoUIFlowCoordinatorSubsystem::HandleButtonHovered);
 			Button->OnClicked.AddUniqueDynamic(this, &UReEchoUIFlowCoordinatorSubsystem::HandleButtonClicked);
+			BindButtonVisualFeedback(Button);
 		}
 	}
+}
+
+UWidget* UReEchoUIFlowCoordinatorSubsystem::ResolveButtonVisualRoot(UButton* Button)
+{
+	if (!Button || Button->GetChildrenCount() > 0)
+	{
+		return Button;
+	}
+
+	UOverlay* ParentOverlay = Cast<UOverlay>(Button->GetParent());
+	if (!ParentOverlay)
+	{
+		return Button;
+	}
+
+	int32 DirectButtonCount = 0;
+	for (int32 ChildIndex = 0; ChildIndex < ParentOverlay->GetChildrenCount(); ++ChildIndex)
+	{
+		DirectButtonCount += ParentOverlay->GetChildAt(ChildIndex)->IsA<UButton>() ? 1 : 0;
+	}
+
+	return DirectButtonCount == 1 ? static_cast<UWidget*>(ParentOverlay) : static_cast<UWidget*>(Button);
+}
+
+void UReEchoUIFlowCoordinatorSubsystem::BindButtonVisualFeedback(UButton* Button)
+{
+	if (!Button)
+	{
+		return;
+	}
+
+	ButtonVisualFeedbackBindings.RemoveAll(
+	    [](const UReEchoButtonVisualFeedback* Binding)
+	    {
+		    return !Binding || !Binding->HasValidButton();
+	    });
+
+	for (const UReEchoButtonVisualFeedback* Binding : ButtonVisualFeedbackBindings)
+	{
+		if (Binding->IsBoundTo(Button))
+		{
+			return;
+		}
+	}
+
+	UReEchoButtonVisualFeedback* Binding = NewObject<UReEchoButtonVisualFeedback>(this);
+	Binding->Bind(Button, ResolveButtonVisualRoot(Button));
+	ButtonVisualFeedbackBindings.Add(Binding);
 }
 
 void UReEchoUIFlowCoordinatorSubsystem::PostUiEvent(const FName EventId) const
@@ -88,8 +139,8 @@ bool UReEchoUIFlowCoordinatorSubsystem::IsScreenOpen(const EReEchoUIScreen Scree
 }
 
 void UReEchoUIFlowCoordinatorSubsystem::FocusScreen(APlayerController* PlayerController,
-                                                     const EReEchoUIScreen Screen,
-                                                     const bool bUIOnly) const
+                                                    const EReEchoUIScreen Screen,
+                                                    const bool bUIOnly) const
 {
 	UReEchoUIManagerSubsystem* UIManager = GetGameInstance()->GetSubsystem<UReEchoUIManagerSubsystem>();
 	if (UIManager)
