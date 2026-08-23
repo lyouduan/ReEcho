@@ -13,6 +13,14 @@ struct FOnAttributeChangeData;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoHealthChanged, float, Current, float, Maximum);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoDeath);
 
+/**
+ * WS4 (Plan 68): fatal-damage pre-hook. Invoked the moment an attack would reduce health to zero or below,
+ * before OnDeath is broadcast. If the bound delegate returns true, the death is deferred (health is clamped to a
+ * survivable value instead of being killed) so the enemy can enter its second phase. Returns false by default,
+ * preserving normal death for every unit that does not opt in.
+ */
+DECLARE_DELEGATE_RetVal_OneParam(bool, FReEchoFatalDamageIntercept, float&);
+
 /** Compatibility facade over GAS combat attributes; legacy fallback remains for actors not migrated to ASC. */
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 
@@ -45,6 +53,16 @@ public:
 	float ApplyHealing(float Healing);
 	/** Restore serialized health without producing damage/heal feedback or consuming block. */
 	void RestoreCurrentHealth(float SavedHealth);
+
+	/**
+	 * WS4 (Plan 68): optional fatal-damage intercept hook. When bound and returning true, a lethal hit is converted
+	 * into a survivable state (death deferred) so the enemy can transition to its second phase instead of dying.
+	 * The hook receives the incoming raw damage and the resulting post-damage health (would be <= 0).
+	 */
+	void SetFatalDamageInterceptDelegate(const FReEchoFatalDamageIntercept& InDelegate)
+	{
+		OnFatalDamage = InDelegate;
+	}
 
 	UFUNCTION(BlueprintPure)
 	bool IsAlive() const;
@@ -103,9 +121,15 @@ private:
 	void RefreshTickState();
 	void AdvanceTimedRuntimeState(float CurrentTimeSeconds);
 	float ApplyFinalDamage(float Damage, const FReEchoAttackIdentity& Attack, EReEchoDamageSource DamageSource);
+	// WS4 (Plan 68): asks the optional fatal-damage hook to defer a lethal hit into a phase transition. On defer it
+	// clamps InOutHealth to a survivable value (and corrects the GAS attribute) and returns true; callers then skip
+	// OnDeath. Returns false when no hook is bound or the hook declines, leaving normal death flow to the caller.
+	bool TryDeferFatalDamageForPhaseTransition(float& InOutHealth);
 
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> BoundAbilitySystem;
+
+	FReEchoFatalDamageIntercept OnFatalDamage;
 
 	bool bDeathBroadcast = false;
 	bool bDebugInvulnerable = false;

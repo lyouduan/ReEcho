@@ -504,7 +504,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "PresentationId": CsvColumnSpec("StableId"),
         "Enabled": CsvColumnSpec("Bool"),
         "MaxHealth": CsvColumnSpec("Float", min_value=1.0, max_value=1000000.0),
-        "MoveSpeedCmPerSecond": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MoveSpeedMultiplier": CsvColumnSpec("Float", min_value=0.01, max_value=10.0),
         "CollisionRadiusCm": CsvColumnSpec("Float", min_value=0.1, max_value=100000.0),
         "CollisionHalfHeightCm": CsvColumnSpec("Float", min_value=0.1, max_value=100000.0),
         "ContactDamage": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
@@ -526,6 +526,9 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "Phase2TriggerRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "Phase2RequiredAttackCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Phase2TransformSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+        "Phase2TriggerMode": CsvColumnSpec("StableId", required=False),
+        "Phase2HealthThresholdRatio": CsvColumnSpec("Float", required=False, min_value=0.0, max_value=1.0),
+        "HateRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
     },
     "EnemyAbilities": {
         "Id": CsvColumnSpec("StableId"),
@@ -552,6 +555,9 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Notes": CsvColumnSpec("Text", required=False),
+        "ProjectileCount": CsvColumnSpec("Int", min_value=1.0, max_value=64.0),
+        "SpreadAngleDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "bMovementDuringCast": CsvColumnSpec("Bool"),
     },
     "BossPhases": {
         "Id": CsvColumnSpec("StableId"),
@@ -564,6 +570,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "AttackSpeedMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "MovementSpeedMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "RefillHealthPolicy": CsvColumnSpec("StableId"),
+        "PhaseMaxHealth": CsvColumnSpec("Float", min_value=0.0, max_value=1000000.0),
         "Enabled": CsvColumnSpec("Bool"),
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
@@ -1303,7 +1310,7 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         "Ranged": "Enemy.Ranged",
         "Elite": "Enemy.Elite",
     }
-    required_ids = {"M_Grunt", "M_Shield", "M_Bomber", "M_TimeGuard", "M_SLIME", "M_RABBIT", "M_FOX"}
+    required_ids = {"M_Grunt", "M_Shield", "M_Bomber", "M_SHEEP", "M_SLIME", "M_RABBIT", "M_FOX"}
     enabled_enemies = {row["Id"]: row for row in enemies if row["Enabled"] == "true"}
     if set(enabled_enemies) != required_ids:
         fail(f"{rel(entries['Enemies'])}: enabled enemy ids changed: {sorted(enabled_enemies)}")
@@ -1397,10 +1404,21 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         if key in phase_keys:
             fail(f"{rel(entries['BossPhases'])}:{line}:PhaseIndex: duplicate boss phase {key}")
         phase_keys.add(key)
-        if row["EchoPolicy"] != "DestroyEncounterEchoes":
+        # EchoPolicy drives the legacy timed echo-buff (TimeGuard). A blood-depleted boss such as M_SHEEP does not use
+        # it (None), so allow both the legacy DestroyEncounterEchoes and None.
+        if row["EchoPolicy"] not in {"DestroyEncounterEchoes", "None"}:
             fail(f"{rel(entries['BossPhases'])}:{line}:EchoPolicy: unsupported policy {row['EchoPolicy']!r}")
-        if row["RefillHealthPolicy"] != "None":
-            fail(f"{rel(entries['BossPhases'])}:{line}:RefillHealthPolicy: first release must not refill health")
+        # First-release rule: normal phases must not refill health. The only exception is a blood-depleted second phase
+        # (M_SHEEP) that explicitly refills to its PhaseMaxHealth when transforming, which requires PhaseMaxHealth > 0.
+        if row["RefillHealthPolicy"] == "RefillToMaximum":
+            try:
+                phase_max = float(row.get("PhaseMaxHealth", "0"))
+            except ValueError:
+                fail(f"{rel(entries['BossPhases'])}:{line}:PhaseMaxHealth: RefillToMaximum requires a numeric value")
+            if phase_max <= 0.0:
+                fail(f"{rel(entries['BossPhases'])}:{line}:PhaseMaxHealth: RefillToMaximum requires PhaseMaxHealth > 0")
+        elif row["RefillHealthPolicy"] != "None":
+            fail(f"{rel(entries['BossPhases'])}:{line}:RefillHealthPolicy: unsupported policy {row['RefillHealthPolicy']!r}")
 
 
 def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
@@ -1481,8 +1499,8 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     boss_waves = waves_by_encounter["Encounter.8"]
     if len(boss_waves) != 1 or int(boss_waves[0]["WaveIndex"]) != 1 or float(boss_waves[0]["TriggerSeconds"]) != 0.0:
         fail(f"{rel(entries['EncounterWaves'])}: encounter 8 requires one boss wave at zero seconds")
-    if boss_waves[0]["BossEnemyId"] != "M_TimeGuard":
-        fail(f"{rel(entries['EncounterWaves'])}:{boss_waves[0]['__line__']}:BossEnemyId: must preserve stable boss id M_TimeGuard")
+    if boss_waves[0]["BossEnemyId"] != "M_SHEEP":
+        fail(f"{rel(entries['EncounterWaves'])}:{boss_waves[0]['__line__']}:BossEnemyId: must preserve stable boss id M_SHEEP")
 
     enabled_profiles = {row["EnemyRole"]: row for row in profiles if row["Enabled"] == "true"}
     expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement"}

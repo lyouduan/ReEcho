@@ -307,12 +307,13 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Rabbit ball stores its stable volley index"), Ball.VolleyBallIndex, BallIndex);
 		TestEqual(TEXT("Zero table speed uses the documented legacy-derived speed"),
 		          Ball.Definition.SpeedCmPerSecond,
-		          500.0f);
+		          432.0f);
 		TestTrue(TEXT("Rabbit ball starts active"), Ball.Snapshot.bActive);
 		TestFalse(TEXT("Rabbit ball starts without a consumed collision"), Ball.bCollisionConsumed);
 		TestTrue(TEXT("Rabbit ball uses the authoritative fan direction"),
 		         Ball.Definition.Direction.Equals(
-		             ReEchoRabbitProjectilePattern::ResolveDirection(FVector::ForwardVector, BallIndex), 0.001f));
+		             ReEchoRabbitProjectilePattern::ResolveVolleyDirection(FVector::ForwardVector, 40.0f, BallIndex, 3),
+		             0.001f));
 	}
 	const TArray<FReEchoEnemyProjectileEvent>& SpawnEvents =
 	    Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests();
@@ -398,7 +399,10 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          ReEchoRabbitProjectilePattern::BallCount);
 
-	Player->SetActorLocation(FVector(600.0f, 0.0f, ProjectileGameplayZ));
+	// Player placed on the center ball's ray inside its swept segment for the data-driven
+	// legacy-derived speed (MaxRangeCm 1080 / CooldownSeconds 2.5 = 432 cm/s): the ball travels
+	// 432 cm after the 0.1+0.9 warmup and reaches 518.4 cm after this +0.2 step (segment 432..518.4).
+	Player->SetActorLocation(FVector(475.0f, 0.0f, ProjectileGameplayZ));
 	const FReEchoEnemyRuntimeState BeforeCenterHit = Rabbit->CaptureRuntimeState();
 	const FReEchoEnemyProjectileRuntimeState* CenterBeforeHit = BeforeCenterHit.BossProjectiles.FindByPredicate(
 	    [](const FReEchoEnemyProjectileRuntimeState& Ball)
@@ -421,13 +425,15 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          ReEchoRabbitProjectilePattern::BallCount);
 
-	const FVector UpperDirection = ReEchoRabbitProjectilePattern::ResolveDirection(FVector::ForwardVector, 2);
-	Player->SetActorLocation(UpperDirection * 700.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
+	const FVector UpperDirection =
+	    ReEchoRabbitProjectilePattern::ResolveVolleyDirection(FVector::ForwardVector, 40.0f, 2, 3);
+	Player->SetActorLocation(UpperDirection * 560.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
 	TestEqual(TEXT("Upper fan ball independently applies exactly one damage"), Player->Combatant->CurrentHealth, 98.0f);
 
-	const FVector LowerDirection = ReEchoRabbitProjectilePattern::ResolveDirection(FVector::ForwardVector, 0);
-	Player->SetActorLocation(LowerDirection * 800.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
+	const FVector LowerDirection =
+	    ReEchoRabbitProjectilePattern::ResolveVolleyDirection(FVector::ForwardVector, 40.0f, 0, 3);
+	Player->SetActorLocation(LowerDirection * 645.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
 	TestEqual(TEXT("Lower fan ball independently applies exactly one damage"), Player->Combatant->CurrentHealth, 97.0f);
 

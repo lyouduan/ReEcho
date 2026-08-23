@@ -20,6 +20,8 @@ GM commands use Unreal Engine's development console. Press `~` in PIE or a Devel
 | `GMGrantCard G_2_17` | Grants the named card directly to the current build, ignoring phase/offer restrictions (debug only). Useful to reproduce card effects such as 静默刻度. No-arg prints usage. |
 | `GMElement Flame` | Locks every subsequent player hit to Flame. Also accepts `Lightning`, `Grass`, and `Water`; `None` restores weapon-authored elements. |
 | `GMReaction Burn 10` | Prepares and triggers the named authored reaction through the production resolver on the nearest living enemy. |
+| `GMShowEnemyHealth On` | Toggles a debug overlay that floats each living enemy's remaining HP (current / max / percent) above its head. `Off` disables it and `Toggle` switches it. |
+| `GMShowEnemyRange On` | Toggles a debug overlay that draws each living enemy's damage range: a red ring for the contact/melee damage range (`ContactRangeCm`) and an orange ring for the farthest ranged damage range (largest `MaxRangeCm` among abilities that deal damage). `Off` disables it and `Toggle` switches it. |
 
 All commands report to both the screen and Unreal log with a `[GM]` prefix. Invalid weather values print usage instead of changing state.
 

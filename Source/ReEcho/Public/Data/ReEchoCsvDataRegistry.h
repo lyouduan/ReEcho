@@ -345,6 +345,9 @@ struct REECHO_API FReEchoCsvEnemyAbilityRow
 	FName LockTiming;
 	float CleanseIntervalSeconds = 0.0f;
 	float ImmunitySeconds = 0.0f;
+	int32 ProjectileCount = 1;
+	float SpreadAngleDegrees = 0.0f;
+	bool bMovementDuringCast = false;
 	FString SourceSheet;
 	int32 SourceRow = 0;
 	FString Notes;
@@ -362,6 +365,10 @@ struct REECHO_API FReEchoCsvBossPhaseRow
 	float AttackSpeedMultiplier = 1.0f;
 	float MovementSpeedMultiplier = 1.0f;
 	FName RefillHealthPolicy;
+	// WS4 (Plan 68): authoritative per-phase maximum health from the BossPhases worksheet. When > 0, the boss is
+	// resized to this value when its phase advances (blood-bar depleted transition). It does NOT refill health —
+	// first release forbids refill; this only sets the new ceiling for the incoming phase.
+	float PhaseMaxHealth = 0.0f;
 	bool bEnabled = false;
 	FString SourceSheet;
 	int32 SourceRow = 0;
@@ -376,7 +383,7 @@ struct REECHO_API FReEchoCsvEnemyRow
 	FName PresentationId;
 	bool bEnabled = false;
 	float MaxHealth = 0.0f;
-	float MoveSpeedCmPerSecond = 0.0f;
+	float MoveSpeedMultiplier = 0.0f;
 	float CollisionRadiusCm = 0.0f;
 	float CollisionHalfHeightCm = 0.0f;
 	float ContactDamage = 0.0f;
@@ -398,6 +405,11 @@ struct REECHO_API FReEchoCsvEnemyRow
 	float Phase2TriggerRangeCm = 0.0f;
 	int32 Phase2RequiredAttackCount = 0;
 	float Phase2TransformSeconds = 0.0f;
+	// WS4 (Plan 68): second-phase trigger model. "HealthThreshold" makes the boss transform when its health ratio
+	// drops to/at HealthThresholdRatio (0 = depleted to zero). Empty/other keeps the legacy attack-count/range model.
+	FString Phase2TriggerMode;
+	float Phase2HealthThresholdRatio = 0.0f;
+	float HateRangeCm = 0.0f;
 	TArray<FReEchoCsvEnemyAbilityRow> Abilities;
 	TArray<FReEchoCsvBossPhaseRow> BossPhases;
 };
@@ -552,8 +564,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvAttributeRow> Attributes;
 	TArray<FName> AttributeOrder;
 
-	TMap<FName, FReEchoCsvShopPriceRangeRow> ShopPriceRanges;   // keyed by PriceCategory
-	TMap<int32, FReEchoCsvShopDropLevelRow> ShopDropLevels;     // keyed by EncounterIndex (clamped to run length)
+	TMap<FName, FReEchoCsvShopPriceRangeRow> ShopPriceRanges; // keyed by PriceCategory
+	TMap<int32, FReEchoCsvShopDropLevelRow> ShopDropLevels;   // keyed by EncounterIndex (clamped to run length)
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;

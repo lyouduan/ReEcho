@@ -127,6 +127,14 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 	PublishHealthChange(PreviousHealth);
 	if (!IsAlive() && !bDeathBroadcast)
 	{
+		// WS4 (Plan 68): a lethal hit may be converted into a phase transition instead of death. If the bound hook
+		// defers the kill, clamp health to a survivable value and skip OnDeath; otherwise fall through to normal death.
+		if (TryDeferFatalDamageForPhaseTransition(CurrentHealth))
+		{
+			HealthChangeReason = NAME_None;
+			HealthChangeAttack = {};
+			return Applied;
+		}
 		bDeathBroadcast = true;
 		if (BoundAbilitySystem)
 		{
@@ -390,6 +398,37 @@ bool UReEchoCombatantComponent::IsAlive() const
 	return CurrentHealth > 0.f;
 }
 
+bool UReEchoCombatantComponent::TryDeferFatalDamageForPhaseTransition(float& InOutHealth)
+{
+	if (!OnFatalDamage.IsBound())
+	{
+		return false;
+	}
+	// The hook decides whether this lethal hit should be converted into a phase transition. While it runs we mark
+	// bDeathBroadcast so a recursive health-change delegate (e.g. the GAS attribute write-back below) cannot re-enter
+	// and broadcast OnDeath a second time. Normal death flow resets bDeathBroadcast appropriately afterwards.
+	const bool bPreviousDeathBroadcast = bDeathBroadcast;
+	bDeathBroadcast = true;
+	const bool bDeferDeath = OnFatalDamage.Execute(InOutHealth);
+	bDeathBroadcast = bPreviousDeathBroadcast;
+	if (!bDeferDeath)
+	{
+		return false;
+	}
+	// Convert the would-be-lethal value into a survivable one. Callers route this through their own path (fallback
+	// writes CurrentHealth directly; the GAS delegate path must also correct the attribute).
+	InOutHealth = FMath::Max(1.0f, InOutHealth);
+	if (BoundAbilitySystem)
+	{
+		// GAS is authoritative: pin the attribute to the survivable value and clear the dead tag so the enemy lives
+		// long enough to enter its second phase. The caller will then publish the corrected health change.
+		BoundAbilitySystem->SetNumericAttributeBase(UReEchoCombatAttributeSet::GetHealthAttribute(), InOutHealth);
+		BoundAbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Dead);
+		SyncFromAbilitySystem();
+	}
+	return true;
+}
+
 FReEchoCombatantSnapshot UReEchoCombatantComponent::GetSnapshot() const
 {
 	FReEchoCombatantSnapshot Snapshot;
@@ -593,6 +632,11 @@ void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData
 	PublishHealthChange(Data.OldValue);
 	if (Data.OldValue > 0.0f && Data.NewValue <= 0.0f && !bDeathBroadcast)
 	{
+		// WS4 (Plan 68): defer a lethal hit if the enemy opts into a blood-depleted phase transition.
+		if (TryDeferFatalDamageForPhaseTransition(CurrentHealth))
+		{
+			return;
+		}
 		bDeathBroadcast = true;
 		if (BoundAbilitySystem)
 		{

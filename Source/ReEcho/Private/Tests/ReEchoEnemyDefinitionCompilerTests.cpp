@@ -22,28 +22,29 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 
 	FReEchoEnemyDefinition Boss;
 	FString Error;
+	// WS4 (Plan 68): the authoritative boss is M_SHEEP (blood-bar-depleted two-form). Validate its compiled shape.
 	if (!TestTrue(TEXT("Stable boss id compiles"),
-	              ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_TimeGuard"), Boss, Error)))
+	              ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_SHEEP"), Boss, Error)))
 	{
 		AddError(Error);
 		return false;
 	}
 	TestEqual(TEXT("Boss archetype compiles"), Boss.Archetype, EReEchoEnemyArchetype::Boss);
-	TestEqual(TEXT("Boss health compiles without legacy fallback"), Boss.MaxHealth, 650.0f);
-	TestEqual(TEXT("Boss has five configured behaviors"), Boss.Abilities.Num(), 5);
-	TestEqual(TEXT("Cleanse remains first only because passive order is zero"),
+	TestEqual(TEXT("Boss health compiles from the one-phase maximum"), Boss.MaxHealth, 1300.0f);
+	TestEqual(
+	    TEXT("Boss has five configured behaviors (melee + volley + spread + blink + beam)"), Boss.Abilities.Num(), 5);
+	TestEqual(TEXT("Deterministic rotation starts with the melee basic attack"),
 	          Boss.Abilities[0].BehaviorId,
-	          FName(TEXT("Boss.ElementCleanse")));
-	TestEqual(TEXT("Active deterministic rotation starts with melee sweep"),
-	          Boss.Abilities[1].BehaviorId,
 	          FName(TEXT("Boss.MeleeSweep")));
-	TestEqual(TEXT("Boss thirty-second phase compiles"), Boss.BossPhases.Num(), 1);
-	TestEqual(TEXT("Phase retires encounter echoes"),
-	          Boss.BossPhases[0].EchoPolicy,
-	          EReEchoBossEchoPolicy::RetireEncounterEchoes);
-	TestEqual(TEXT("Phase does not refill health"),
+	TestEqual(TEXT("Boss ships two phases: one-form and blood-depleted two-form"), Boss.BossPhases.Num(), 2);
+	TestEqual(TEXT("Phase one uses no timed echo policy"), Boss.BossPhases[0].EchoPolicy, EReEchoBossEchoPolicy::None);
+	TestEqual(TEXT("Phase one does not refill health"),
 	          Boss.BossPhases[0].RefillHealthPolicy,
 	          EReEchoBossRefillHealthPolicy::None);
+	TestEqual(TEXT("Phase two refills to its blood-depleted maximum"),
+	          Boss.BossPhases[1].RefillHealthPolicy,
+	          EReEchoBossRefillHealthPolicy::RefillToMaximum);
+	TestEqual(TEXT("Phase two maximum health is the black-form ceiling"), Boss.BossPhases[1].PhaseMaxHealth, 650.0f);
 	UReEchoEnemyLogicComponent* BossLogic = NewObject<UReEchoEnemyLogicComponent>();
 	TestTrue(TEXT("Compiled production Boss definition initializes runtime policy"), BossLogic->Initialize(Boss, 1));
 
@@ -54,13 +55,16 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	FReEchoEnemyDefinition Rabbit;
 	TestTrue(TEXT("Rabbit definition compiles"),
 	         ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_RABBIT"), Rabbit, Error));
-	TestTrue(TEXT("Rabbit phase two enabled by authoritative data"), Rabbit.Phase2.bEnabled);
+	TestFalse(TEXT("Rabbit dual forms remain presentation-only in authoritative data"), Rabbit.Phase2.bEnabled);
 	TestEqual(TEXT("Rabbit phase two animation set"), Rabbit.Phase2.AnimationSetId, FName(TEXT("Phase2")));
 	TestEqual(TEXT("Rabbit phase two attack threshold from data"), Rabbit.Phase2.RequiredAttackCount, 2);
 	TestEqual(TEXT("Rabbit phase two aggro range from data"), Rabbit.Phase2.TriggerRangeCm, 1500.0f);
 	TestEqual(TEXT("Rabbit phase two transform seconds from data"), Rabbit.Phase2.TransformSeconds, 1.0f);
-	// Boss two-stage data is authored in WS4; the authoritative Enemies worksheet currently leaves Boss Phase2 disabled.
-	TestFalse(TEXT("Boss phase two not enabled until WS4 authoritative two-stage data"), Boss.Phase2.bEnabled);
+	TestTrue(TEXT("Boss blood-depleted phase two is enabled by authoritative data"), Boss.Phase2.bEnabled);
+	TestEqual(TEXT("Boss phase two uses the health-threshold trigger"),
+	          Boss.Phase2.TriggerMode,
+	          EReEchoEnemyPhase2TriggerMode::HealthThreshold);
+	TestEqual(TEXT("Boss phase two triggers at an empty health bar"), Boss.Phase2.HealthThresholdRatio, 0.0f);
 	return true;
 }
 

@@ -218,7 +218,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Enemies,PresentationId,StableId,true,,,,,Presentation lookup id without asset dependency.
 1,Enemies,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,Enemies,MaxHealth,Float,true,1,1000000,,,Maximum health.
-1,Enemies,MoveSpeedCmPerSecond,Float,true,0,100000,,,Movement speed in cm per second.
+1,Enemies,MoveSpeedMultiplier,Float,true,0.01,10,,,Movement speed multiplier relative to the player base move speed (player = 1.0). Resolved at compile time to BaseMoveSpeed * MoveSpeedMultiplier.
 1,Enemies,CollisionRadiusCm,Float,true,0.1,100000,,,Collision radius in cm.
 1,Enemies,CollisionHalfHeightCm,Float,true,0.1,100000,,,Collision half height in cm.
 1,Enemies,ContactDamage,Float,true,0,100000,,,Contact or bomber explosion damage.
@@ -240,6 +240,9 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Enemies,Phase2TriggerRangeCm,Float,true,0,100000,,,Double-form trigger range in cm (distance below value triggers phase 2).
 1,Enemies,Phase2RequiredAttackCount,Int,true,0,1000000,,,Double-form required hit count (hits at or above value trigger phase 2).
 1,Enemies,Phase2TransformSeconds,Float,true,0,3600,,,Double-form transform duration in seconds.
+1,Enemies,Phase2TriggerMode,StableId,false,,,,,Second-phase trigger model. Empty/other = legacy attack-count-or-range; "HealthThreshold" = transform when health ratio <= HealthThresholdRatio (0 = depleted to zero).
+1,Enemies,Phase2HealthThresholdRatio,Float,true,0,1,,,Health ratio threshold for HealthThreshold mode (CurrentHealth/HpMax <= value triggers). 0 means depleted to zero. Ignored otherwise.
+1,Enemies,HateRangeCm,Float,true,0,100000,,,Aggro / sensing range in cm. Enemy enters combat when the player is within this distance (data-driven from planner 变身范围).
 1,EnemyAbilities,Id,StableId,true,,,,,Stable enemy ability id.
 1,EnemyAbilities,OwnerEnemyId,ForeignKey,true,,,Enemies,,References Enemies.Id.
 1,EnemyAbilities,BehaviorId,BehaviorId,true,,,,Boss.MeleeSweep|Boss.Projectile|Boss.BlinkSlam|Boss.PrayerBeam|Boss.ElementCleanse,Registered boss behavior.
@@ -264,6 +267,9 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,EnemyAbilities,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,EnemyAbilities,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,EnemyAbilities,Notes,Text,false,,,,,Designer notes.
+1,EnemyAbilities,ProjectileCount,Int,true,1,64,,,Number of projectiles in one volley (1 = single shot; >1 fans across SpreadAngleDegrees). Data-driven from planner 投射物数量.
+1,EnemyAbilities,SpreadAngleDegrees,Float,true,0,360,,,Total fan angle in degrees across the whole volley centered on the locked aim direction. Data-driven from planner 散射角度.
+1,EnemyAbilities,bMovementDuringCast,Bool,true,,,,When true the enemy keeps moving toward its target during the cast window. Data-driven from planner 可否位移.
 1,BossPhases,Id,StableId,true,,,,,Stable boss phase id.
 1,BossPhases,BossEnemyId,ForeignKey,true,,,Enemies,,References boss Enemies.Id.
 1,BossPhases,PhaseIndex,Int,true,0,1000000,,,Unique deterministic phase order per boss.
@@ -274,6 +280,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,BossPhases,AttackSpeedMultiplier,Float,true,0,100,,,Temporary attack speed multiplier.
 1,BossPhases,MovementSpeedMultiplier,Float,true,0,100,,,Temporary movement speed multiplier.
 1,BossPhases,RefillHealthPolicy,StableId,true,,,,None,Typed health refill policy.
+1,BossPhases,PhaseMaxHealth,Float,true,0,1000000,,,Authoritative per-phase maximum health; applied when the phase advances (no refill).
 1,BossPhases,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,BossPhases,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,BossPhases,SourceRow,Int,true,0,1000000,,,Workbook source row.
