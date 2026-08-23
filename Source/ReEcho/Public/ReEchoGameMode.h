@@ -83,6 +83,17 @@ public:
 	/** Prepares and triggers one authored reaction through the production resolver on the nearest living enemy. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
+	/** Toggles a debug overlay that floats each living enemy's remaining HP above its head. */
+	UFUNCTION(Exec)
+	void GMShowEnemyHealth(const FString& Mode = TEXT("Toggle"));
+	/** Toggles a debug overlay that draws each living enemy's damage range (contact + ranged max). */
+	UFUNCTION(Exec)
+	void GMShowEnemyRange(const FString& Mode = TEXT("Toggle"));
+
+	/** True while the GM enemy-health overlay is enabled. */
+	bool IsEnemyHealthDebugEnabled() const { return bShowEnemyHealthDebug; }
+	/** True while the GM enemy-range overlay is enabled. */
+	bool IsEnemyRangeDebugEnabled() const { return bShowEnemyRangeDebug; }
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
@@ -114,6 +125,11 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyGameplayClassRegistry> EnemyGameplayClassRegistry;
 	int64 GMElementAttackSequence = 0;
+
+	/** Whether the GM enemy-health overlay is currently enabled (GMShowEnemyHealth). */
+	bool bShowEnemyHealthDebug = false;
+	/** Whether the GM enemy-range overlay is currently enabled (GMShowEnemyRange). */
+	bool bShowEnemyRangeDebug = false;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()

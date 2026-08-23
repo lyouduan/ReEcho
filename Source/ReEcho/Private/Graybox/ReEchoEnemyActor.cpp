@@ -11,6 +11,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "DrawDebugHelpers.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -761,6 +762,62 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		}
 	}
 	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement), DeltaSeconds);
+
+#if !UE_BUILD_SHIPPING
+	// GM debug overlay (GMShowEnemyHealth): float remaining HP above the enemy's head when enabled.
+	const AReEchoGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+	if (GM && GM->IsEnemyHealthDebugEnabled() && IsAlive() && Combatant && Combatant->Stats.HpMax > 0.0f)
+	{
+		const FVector HeadLocation = GetActorLocation() + FVector(0.0f, 0.0f, 130.0f);
+		const FString HealthText = FString::Printf(
+			TEXT("HP %.0f / %.0f (%.0f%%)"),
+			Combatant->CurrentHealth,
+			Combatant->Stats.HpMax,
+			100.0f * Combatant->CurrentHealth / Combatant->Stats.HpMax);
+		DrawDebugString(GetWorld(), HeadLocation, HealthText, nullptr, FColor::Green, 0.0f, true, 1.0f);
+	}
+
+	// GM debug overlay (GMShowEnemyRange): draw each enemy's damage range.
+	// Red = contact/melee damage range (ContactRangeCm); Orange = farthest ranged damage range
+	// (largest MaxRangeCm among abilities that deal damage).
+	if (GM && GM->IsEnemyRangeDebugEnabled() && IsAlive() && EnemyLogic)
+	{
+		const FReEchoEnemyDefinition& Def = EnemyLogic->GetDefinition();
+		const FVector Center = GetActorLocation();
+		if (Def.ContactRangeCm > KINDA_SMALL_NUMBER)
+		{
+			DrawDebugCircle(GetWorld(), Center, Def.ContactRangeCm, 48, FColor::Red, false, 0.0f, 0, 2.0f, FVector::ForwardVector, FVector::RightVector);
+			DrawDebugString(GetWorld(),
+			                Center + FVector(Def.ContactRangeCm, 0.0f, 30.0f),
+			                FString::Printf(TEXT("接触 %.0fcm"), Def.ContactRangeCm),
+			                nullptr,
+			                FColor::Red,
+			                0.0f,
+			                true,
+			                1.0f);
+		}
+		float MaxRangedRangeCm = 0.0f;
+		for (const FReEchoEnemyAbilityDefinition& Ability : Def.Abilities)
+		{
+			if (Ability.Damage > 0.0f && Ability.MaxRangeCm > MaxRangedRangeCm)
+			{
+				MaxRangedRangeCm = Ability.MaxRangeCm;
+			}
+		}
+		if (MaxRangedRangeCm > KINDA_SMALL_NUMBER && MaxRangedRangeCm > Def.ContactRangeCm)
+		{
+			DrawDebugCircle(GetWorld(), Center, MaxRangedRangeCm, 48, FColor(255, 140, 0), false, 0.0f, 0, 2.0f, FVector::ForwardVector, FVector::RightVector);
+			DrawDebugString(GetWorld(),
+			                Center + FVector(MaxRangedRangeCm, 0.0f, 30.0f),
+			                FString::Printf(TEXT("远程 %.0fcm"), MaxRangedRangeCm),
+			                nullptr,
+			                FColor(255, 140, 0),
+			                0.0f,
+			                true,
+			                1.0f);
+		}
+	}
+#endif
 }
 
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense,
