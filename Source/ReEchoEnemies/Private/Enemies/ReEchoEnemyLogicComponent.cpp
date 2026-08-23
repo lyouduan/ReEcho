@@ -482,10 +482,10 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 	}
 
 	State.AttackCooldownRemainingSeconds = FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - DeltaSeconds);
-	FVector ToTarget = Sense.TargetLocation - Sense.SelfLocation;
-	ToTarget.Z = 0.0f;
-	const float Distance = ToTarget.Size();
-	const FVector Direction = ToTarget.GetSafeNormal();
+	FVector ToTargetVec = Sense.TargetLocation - Sense.SelfLocation;
+	ToTargetVec.Z = 0.0f;
+	const float Distance = ToTargetVec.Size();
+	const FVector Direction = ToTargetVec.GetSafeNormal();
 	if (!Direction.IsNearlyZero())
 	{
 		State.FacingDirection = Direction;
@@ -519,6 +519,27 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 	State.Phase = EReEchoEnemyBehaviorPhase::Attacking;
 	if (State.SpecialActionRemainingSeconds > 0.0f)
 	{
+		// During the recovery of a move-while-casting ability, keep pursuing the target instead of freezing.
+		if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery)
+		{
+			const FReEchoEnemyAbilityDefinition* SpecialAbility = nullptr;
+			for (const FReEchoEnemyAbilityDefinition& Candidate : Definition.Abilities)
+			{
+				if (Candidate.Id == State.SpecialAbilityId)
+				{
+					SpecialAbility = &Candidate;
+					break;
+				}
+			}
+			if (SpecialAbility && SpecialAbility->bMovementDuringCast)
+			{
+				const FVector TowardTarget =
+				    (Sense.TargetLocation - Sense.SelfLocation).GetSafeNormal2D();
+				Intent.MovementDelta = TowardTarget * Definition.MoveSpeedCmPerSecond * DeltaSeconds;
+				Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
+				return Intent;
+			}
+		}
 		return Intent;
 	}
 	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)

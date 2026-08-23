@@ -1025,17 +1025,25 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 			break;
 		case EReEchoBossAttackShape::Projectile:
 		{
-			FReEchoEnemyProjectileRuntimeState Projectile;
-			Projectile.Definition.InitialLocation = Intent.Origin;
-			Projectile.Definition.Direction = Intent.LockedDirection.GetSafeNormal2D();
-			Projectile.Definition.SpeedCmPerSecond = Intent.ProjectileSpeedCmPerSecond;
-			Projectile.Definition.MaxRangeCm = Intent.LengthCm;
-			Projectile.Attack = Intent.Attack;
-			Projectile.Damage = Intent.RawDamage;
-			Projectile.CollisionRadiusCm = FMath::Max(10.0f, Intent.WidthCm * 0.5f);
-			if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
+			const FReEchoEnemyAbilityDefinition* VolleyAbility = FindAbility(Intent.AbilityId);
+			const int32 VolleyCount = VolleyAbility ? FMath::Max(1, VolleyAbility->ProjectileCount) : 1;
+			const float VolleySpreadDegrees = VolleyAbility ? VolleyAbility->SpreadAngleDegrees : 0.0f;
+			for (int32 BallIndex = 0; BallIndex < VolleyCount; ++BallIndex)
 			{
-				BossProjectiles.Add(MoveTemp(Projectile));
+				FReEchoEnemyProjectileRuntimeState Projectile;
+				Projectile.Definition.InitialLocation = Intent.Origin;
+				Projectile.Definition.Direction = ReEchoRabbitProjectilePattern::ResolveVolleyDirection(
+				    Intent.LockedDirection.GetSafeNormal2D(), VolleySpreadDegrees, BallIndex, VolleyCount);
+				Projectile.Definition.SpeedCmPerSecond = Intent.ProjectileSpeedCmPerSecond;
+				Projectile.Definition.MaxRangeCm = Intent.LengthCm;
+				Projectile.Attack = Intent.Attack;
+				Projectile.Damage = Intent.RawDamage;
+				Projectile.CollisionRadiusCm = FMath::Max(10.0f, Intent.WidthCm * 0.5f);
+				Projectile.VolleyBallIndex = BallIndex;
+				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
+				{
+					BossProjectiles.Add(MoveTemp(Projectile));
+				}
 			}
 			break;
 		}
@@ -1072,12 +1080,14 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		{
 			const float DerivedLegacySpeed =
 			    Ability->CooldownSeconds > KINDA_SMALL_NUMBER ? Ability->MaxRangeCm / Ability->CooldownSeconds : 0.0f;
-			for (int32 BallIndex = 0; BallIndex < ReEchoRabbitProjectilePattern::BallCount; ++BallIndex)
+			const int32 VolleyCount = FMath::Max(1, Ability->ProjectileCount);
+			const float VolleySpreadDegrees = Ability->SpreadAngleDegrees;
+			for (int32 BallIndex = 0; BallIndex < VolleyCount; ++BallIndex)
 			{
 				FReEchoEnemyProjectileRuntimeState Projectile;
 				Projectile.Definition.InitialLocation = Intent.SourceLocation;
-				Projectile.Definition.Direction =
-				    ReEchoRabbitProjectilePattern::ResolveDirection(LogicSnapshot.SpecialLockedDirection, BallIndex);
+				Projectile.Definition.Direction = ReEchoRabbitProjectilePattern::ResolveVolleyDirection(
+				    LogicSnapshot.SpecialLockedDirection, VolleySpreadDegrees, BallIndex, VolleyCount);
 				Projectile.Definition.SpeedCmPerSecond = Ability->ProjectileSpeedCmPerSecond > 0.0f
 				                                             ? Ability->ProjectileSpeedCmPerSecond
 				                                             : DerivedLegacySpeed;
@@ -1085,7 +1095,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 				Projectile.Attack = Intent.Attack;
 				Projectile.Damage = Intent.RawDamage;
 				Projectile.CollisionRadiusCm =
-				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm);
+				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm, VolleyCount);
 				Projectile.VolleyBallIndex = BallIndex;
 				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
 				{

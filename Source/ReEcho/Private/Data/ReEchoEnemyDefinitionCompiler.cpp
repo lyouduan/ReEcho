@@ -177,6 +177,9 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		Ability.TeleportOffsetCm = AbilityRow.TeleportOffsetCm;
 		Ability.CleanseIntervalSeconds = AbilityRow.CleanseIntervalSeconds;
 		Ability.ImmunitySeconds = AbilityRow.ImmunitySeconds;
+		Ability.ProjectileCount = AbilityRow.ProjectileCount;
+		Ability.SpreadAngleDegrees = AbilityRow.SpreadAngleDegrees;
+		Ability.bMovementDuringCast = AbilityRow.bMovementDuringCast;
 		if (!ParseTargetingMode(AbilityRow.TargetingMode, Ability.TargetingMode))
 		{
 			OutError = FString::Printf(TEXT("Enemy ability '%s' has unsupported targeting mode '%s'."),

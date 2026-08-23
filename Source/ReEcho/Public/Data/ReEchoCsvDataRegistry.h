@@ -345,6 +345,9 @@ struct REECHO_API FReEchoCsvEnemyAbilityRow
 	FName LockTiming;
 	float CleanseIntervalSeconds = 0.0f;
 	float ImmunitySeconds = 0.0f;
+	int32 ProjectileCount = 1;
+	float SpreadAngleDegrees = 0.0f;
+	bool bMovementDuringCast = false;
 	FString SourceSheet;
 	int32 SourceRow = 0;
 	FString Notes;
