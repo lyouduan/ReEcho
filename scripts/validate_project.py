@@ -528,6 +528,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "Phase2TransformSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
         "Phase2TriggerMode": CsvColumnSpec("StableId", required=False),
         "Phase2HealthThresholdRatio": CsvColumnSpec("Float", required=False, min_value=0.0, max_value=1.0),
+        "HateRangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
     },
     "EnemyAbilities": {
         "Id": CsvColumnSpec("StableId"),

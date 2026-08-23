@@ -64,7 +64,8 @@ bool ReadEnemies(const FString& DataDirectory,
 	                            TEXT("Phase2RequiredAttackCount"),
 	                            TEXT("Phase2TransformSeconds"),
 	                            TEXT("Phase2TriggerMode"),
-	                            TEXT("Phase2HealthThresholdRatio")},
+	                            TEXT("Phase2HealthThresholdRatio"),
+	                            TEXT("HateRangeCm")},
 	                           Issues);
 
 	const TMap<FName, FName> ExpectedProfiles = {
@@ -117,6 +118,7 @@ bool ReadEnemies(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2TransformSeconds"), 0.0f, 3600.0f, Row.Phase2TransformSeconds, Issues);
 		ReEchoCsv::ReadOptionalCell(CsvRow, TEXT("Phase2TriggerMode"), Row.Phase2TriggerMode);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2HealthThresholdRatio"), 0.0f, 1.0f, Row.Phase2HealthThresholdRatio, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("HateRangeCm"), 0.0f, 100000.0f, Row.HateRangeCm, Issues);
 
 		if (Row.Id.IsNone())
 		{

@@ -406,6 +406,7 @@ struct REECHO_API FReEchoCsvEnemyRow
 	// drops to/at HealthThresholdRatio (0 = depleted to zero). Empty/other keeps the legacy attack-count/range model.
 	FString Phase2TriggerMode;
 	float Phase2HealthThresholdRatio = 0.0f;
+	float HateRangeCm = 0.0f;
 	TArray<FReEchoCsvEnemyAbilityRow> Abilities;
 	TArray<FReEchoCsvBossPhaseRow> BossPhases;
 };
