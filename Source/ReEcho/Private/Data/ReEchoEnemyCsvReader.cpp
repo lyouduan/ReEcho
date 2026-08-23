@@ -41,7 +41,7 @@ bool ReadEnemies(const FString& DataDirectory,
 	                            TEXT("PresentationId"),
 	                            TEXT("Enabled"),
 	                            TEXT("MaxHealth"),
-	                            TEXT("MoveSpeedCmPerSecond"),
+	                            TEXT("MoveSpeedMultiplier"),
 	                            TEXT("CollisionRadiusCm"),
 	                            TEXT("CollisionHalfHeightCm"),
 	                            TEXT("ContactDamage"),
@@ -87,7 +87,7 @@ bool ReadEnemies(const FString& DataDirectory,
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Enabled"), Row.bEnabled, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("MaxHealth"), 1.0f, 1000000.0f, Row.MaxHealth, Issues);
 		ReEchoCsv::RequireFloat(
-		    Table, CsvRow, TEXT("MoveSpeedCmPerSecond"), 0.0f, 100000.0f, Row.MoveSpeedCmPerSecond, Issues);
+		    Table, CsvRow, TEXT("MoveSpeedMultiplier"), 0.01f, 10.0f, Row.MoveSpeedMultiplier, Issues);
 		ReEchoCsv::RequireFloat(
 		    Table, CsvRow, TEXT("CollisionRadiusCm"), 0.1f, 100000.0f, Row.CollisionRadiusCm, Issues);
 		ReEchoCsv::RequireFloat(

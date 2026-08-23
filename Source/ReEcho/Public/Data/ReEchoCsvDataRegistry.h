@@ -360,7 +360,7 @@ struct REECHO_API FReEchoCsvEnemyRow
 	FName PresentationId;
 	bool bEnabled = false;
 	float MaxHealth = 0.0f;
-	float MoveSpeedCmPerSecond = 0.0f;
+	float MoveSpeedMultiplier = 0.0f;
 	float CollisionRadiusCm = 0.0f;
 	float CollisionHalfHeightCm = 0.0f;
 	float ContactDamage = 0.0f;

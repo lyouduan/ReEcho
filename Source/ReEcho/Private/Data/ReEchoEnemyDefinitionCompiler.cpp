@@ -1,6 +1,7 @@
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Core/ReEchoBalanceSettings.h"
 
 namespace
 {
@@ -108,7 +109,7 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	}
 	OutDefinition.PresentationId = Row->PresentationId;
 	OutDefinition.MaxHealth = Row->MaxHealth;
-	OutDefinition.MoveSpeedCmPerSecond = Row->MoveSpeedCmPerSecond;
+	OutDefinition.MoveSpeedCmPerSecond = GetDefault<UReEchoBalanceSettings>()->BaseMoveSpeed * Row->MoveSpeedMultiplier;
 	OutDefinition.CollisionRadiusCm = Row->CollisionRadiusCm;
 	OutDefinition.CollisionHalfHeightCm = Row->CollisionHalfHeightCm;
 	OutDefinition.ContactDamage = Row->ContactDamage;
