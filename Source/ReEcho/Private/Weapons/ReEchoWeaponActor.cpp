@@ -25,6 +25,7 @@
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponGeometry.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
@@ -35,11 +36,32 @@ const FVector StaffLocation(-16.0f, 30.0f, 6.0f);
 const FVector SwordLocation(8.0f, 0.0f, 0.0f);
 constexpr float SwordRestAngleRadians = -PI / 4.0f;
 const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
+const FVector DefaultWeaponAnchorRatio(-0.16f, 0.30f, 0.06f);
 
 FQuat GetSwordRotation(const float SpinRadians = 0.0f)
 {
 	const FQuat CameraFacingRotation = FRotationMatrix::MakeFromZX(CameraFacingNormal, FVector::RightVector).ToQuat();
 	return FQuat(CameraFacingNormal, SpinRadians) * CameraFacingRotation;
+}
+
+float ResolveHeldLength(const UReEchoWeaponPresentationProfile& WeaponProfile, const float CharacterWorldHeight)
+{
+	return WeaponProfile.bOverrideHeldLength ? FMath::Max(WeaponProfile.HeldLengthOverrideCm, 1.0f)
+	                                         : CharacterWorldHeight * FMath::Max(WeaponProfile.HeldLengthRatio, 0.01f);
+}
+
+FVector2D ResolveHeldDimensions(const UTexture2D& Texture,
+                                const UReEchoWeaponPresentationProfile& WeaponProfile,
+                                const float CharacterWorldHeight)
+{
+	const float TextureWidth = FMath::Max(Texture.GetSizeX(), 1);
+	const float TextureHeight = FMath::Max(Texture.GetSizeY(), 1);
+	const float HeldLength = ResolveHeldLength(WeaponProfile, CharacterWorldHeight);
+	if (WeaponProfile.HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width)
+	{
+		return FVector2D(HeldLength, HeldLength * TextureHeight / TextureWidth);
+	}
+	return FVector2D(HeldLength * TextureWidth / TextureHeight, HeldLength);
 }
 }
 
@@ -50,6 +72,7 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	SetRootComponent(Root);
 	// 武器只继承持有者位置，不继承鼠标瞄准产生的角色旋转。
 	Root->SetAbsolute(false, true, false);
+	SwordSpriteRestRotation = ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians);
 
 	ElementIndicator = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementIndicator"));
 	ElementIndicator->SetupAttachment(Root);
@@ -140,6 +163,12 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	SetActorEnableCollision(false);
 }
 
+void AReEchoWeaponActor::ConfigureHeldPresentation(const UReEcho2DCharacterPresentationProfile* CharacterProfile)
+{
+	HeldCharacterProfile = CharacterProfile;
+	RefreshHeldPresentation();
+}
+
 void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSnapshot,
                                           TSharedPtr<const FReEchoCsvDataSnapshot> InSnapshot)
 {
@@ -219,9 +248,10 @@ void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSna
 		    LogReEcho, Fatal, TEXT("Cannot initialize weapon logic for WeaponId '%s'"), *EquippedWeaponId.ToString());
 	}
 	RefreshVisualState();
+	RefreshHeldPresentation();
 	UpdateElementIndicator();
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+	SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 }
 
 bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
@@ -266,9 +296,10 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 		return false;
 	}
 	RefreshVisualState();
+	RefreshHeldPresentation();
 	UpdateElementIndicator();
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+	SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 	return true;
 }
 
@@ -1229,6 +1260,74 @@ void AReEchoWeaponActor::RefreshVisualState()
 	}
 }
 
+void AReEchoWeaponActor::RefreshHeldPresentation()
+{
+	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
+	const FName VisualKey = Definition ? Definition->VisualKey : NAME_None;
+	const UReEchoWeaponPresentationProfile* WeaponProfile = FReEchoWeaponVisualCatalog::ResolveProfile(VisualKey);
+	if (!WeaponProfile)
+	{
+		return;
+	}
+
+	const UReEcho2DCharacterPresentationProfile* CharacterProfile = HeldCharacterProfile.Get();
+	const float CharacterReferenceHeight = CharacterProfile ? FMath::Max(CharacterProfile->WorldHeight, 1.0f) : 100.0f;
+	const float OwnerScale = GetOwner() ? FMath::Max(FMath::Abs(GetOwner()->GetActorScale3D().Z), 0.01f) : 1.0f;
+	const float CharacterWorldHeight = CharacterReferenceHeight * OwnerScale;
+	const FVector AnchorRatio =
+	    CharacterProfile ? CharacterProfile->WeaponAnchorRatio : ReEchoWeaponVisual::DefaultWeaponAnchorRatio;
+	SetActorRelativeLocation(AnchorRatio * CharacterReferenceHeight);
+
+	UTexture2D* Texture = WeaponProfile->HeldTexture.LoadSynchronous();
+	if (!Texture && VisualKey == TEXT("Whip"))
+	{
+		Texture = WeaponProfile->LegacyAttackTexture.LoadSynchronous();
+	}
+
+	UBillboardComponent* Billboard = nullptr;
+	if (VisualKey == TEXT("MoonStaff") || VisualKey == TEXT("Staff"))
+	{
+		Billboard = StaffSprite;
+	}
+	else if (VisualKey == TEXT("Scythe"))
+	{
+		Billboard = ScytheSprite;
+	}
+	else if (VisualKey == TEXT("Bow"))
+	{
+		Billboard = BowSprite;
+	}
+	else if (VisualKey == TEXT("Gun"))
+	{
+		Billboard = GunSprite;
+	}
+
+	const FVector VisualOffset = WeaponProfile->HeldOffsetRatio * CharacterWorldHeight;
+	if (Billboard && Texture)
+	{
+		const float TextureAxisLength = WeaponProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width
+		                                    ? FMath::Max(Texture->GetSizeX(), 1)
+		                                    : FMath::Max(Texture->GetSizeY(), 1);
+		const float UniformScale =
+		    ReEchoWeaponVisual::ResolveHeldLength(*WeaponProfile, CharacterWorldHeight) / TextureAxisLength;
+		Billboard->SetRelativeLocation(VisualOffset);
+		Billboard->SetRelativeRotation(WeaponProfile->HeldRotationOffset);
+		Billboard->SetRelativeScale3D(FVector(UniformScale));
+	}
+
+	if (SwordSprite && (VisualKey == TEXT("CrescentBlade") || VisualKey == TEXT("Whip")) && Texture)
+	{
+		const FVector2D Dimensions =
+		    ReEchoWeaponVisual::ResolveHeldDimensions(*Texture, *WeaponProfile, CharacterWorldHeight);
+		SwordSpriteRestLocation = VisualOffset;
+		SwordSpriteRestRotation = WeaponProfile->HeldRotationOffset.Quaternion() *
+		                          ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians);
+		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
+		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
+		SwordSprite->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
+	}
+}
+
 bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
                                     UReEchoCombatantComponent* Combatant,
                                     const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
@@ -1434,8 +1533,7 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	{
 		SwordAnimationTime = 0.0f;
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-		SwordSprite->SetRelativeRotation(
-		    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
+		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 		return;
 	}
 	SwordAnimationTime = FMath::Max(0.0f, SwordAnimationTime - DeltaSeconds);

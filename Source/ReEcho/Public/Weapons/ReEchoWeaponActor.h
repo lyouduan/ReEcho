@@ -9,6 +9,7 @@
 #include "ReEchoWeaponActor.generated.h"
 
 class UReEchoCombatantComponent;
+class UReEcho2DCharacterPresentationProfile;
 class UBillboardComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -27,6 +28,8 @@ public:
 	void InitializeWeapon(const FReEchoBuildSnapshot* InBuildSnapshot = nullptr,
 	                      TSharedPtr<const FReEchoCsvDataSnapshot> InSnapshot = nullptr);
 	bool SelectWeaponById(FName WeaponId);
+	/** Rebuild held-weapon scale and anchor from stable presentation profiles. Event driven; never called from Tick. */
+	void ConfigureHeldPresentation(const UReEcho2DCharacterPresentationProfile* CharacterProfile);
 	/** Equip a rune (weapon part) into the first compatible, capacity-available slot. Returns false (state unchanged)
 	 * if invalid / incompatible / over-capacity / duplicate. Rebuilds the effective weapon definition so the weapon
 	 * "is" its runes (Plan75). */
@@ -155,6 +158,7 @@ private:
 	const FReEchoCsvWeaponRow* FindEquippedDefinition() const;
 	void UpdateElementIndicator();
 	void RefreshVisualState();
+	void RefreshHeldPresentation();
 	void StartMeleeAnimation(FName WeaponVisualKey);
 	void SpawnMeleeArc(FName WeaponVisualKey);
 
@@ -217,4 +221,6 @@ private:
 	float SwordAnimationDuration = 0.18f;
 	float SwordSwingDirection = -1.0f;
 	FVector SwordSpriteRestLocation = FVector(8.0f, 0.0f, 0.0f);
+	FQuat SwordSpriteRestRotation = FQuat::Identity;
+	TWeakObjectPtr<const UReEcho2DCharacterPresentationProfile> HeldCharacterProfile;
 };
