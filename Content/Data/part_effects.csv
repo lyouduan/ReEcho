@@ -39,7 +39,7 @@ PE_WHIP_KILLHEAL_WHIPBODY_1,P_WHIP_KILLHEAL_WHIPBODY,1,OnKill,UniqueBehavior,OnK
 PE_BOW_SPLIT_ARROWHEAD_1,P_BOW_SPLIT_ARROWHEAD,1,OnHit,UniqueBehavior,RuntimeBehavior,Multiply,0.5,Part.ProjectileSplitOnHit,None,None,MaxChildren,3,0,0,Unique,true,,武器插槽C,16
 PE_BOW_EXPLOSIVE_ARROWHEAD_1,P_BOW_EXPLOSIVE_ARROWHEAD,1,OnEquip,StatModifier,ExplosionRadius,Override,100,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,17
 PE_BOW_PIERCING_ARROWHEAD_1,P_BOW_PIERCING_ARROWHEAD,1,OnCriticalHit,UniqueBehavior,RuntimeBehavior,Override,1,Part.ProjectilePierceOnCritical,None,None,None,0,0,0,Unique,true,,武器插槽C,18
-PE_BOW_CRITBLEED_ARROWHEAD_1,P_BOW_CRITBLEED_ARROWHEAD,1,OnCriticalHit,UniqueBehavior,RuntimeBehavior,Add,0.005,Part.ApplyBleedOnCritical,None,None,None,0,3,0,Stackable,true,,武器插槽C,19
+PE_BOW_CRITBLEED_ARROWHEAD_1,P_BOW_CRITBLEED_ARROWHEAD,1,OnCriticalHit,UniqueBehavior,RuntimeBehavior,Add,0.005,Part.ApplyBleedOnCritical,None,None,None,0,3,0,Stackable,false,策划确认不想要,武器插槽C,19
 PE_BOW_MULTISHOT_ARROWHEAD_1,P_BOW_MULTISHOT_ARROWHEAD,1,OnEquip,StatModifier,ProjectileCount,Override,3,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,20
 PE_BOW_MULTISHOT_ARROWHEAD_2,P_BOW_MULTISHOT_ARROWHEAD,2,OnEquip,StatModifier,ConcentrationDegrees,Override,60,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,20
 PE_BOW_KILLSHARD_ARROWHEAD_1,P_BOW_KILLSHARD_ARROWHEAD,1,OnKill,UniqueBehavior,RuntimeBehavior,Add,1,Part.DropShardOnKill,None,None,ShardCount,1,0,0,Unique,true,,武器插槽C,21
@@ -67,7 +67,7 @@ PE_LONGSWORD_STUN_GRIP_1,P_LONGSWORD_STUN_GRIP,1,OnHit,UniqueBehavior,RuntimeBeh
 PE_GUN_CHARGED_MUZZLE_1,P_GUN_CHARGED_MUZZLE,1,OnEquip,StatModifier,AttackSpeed,Multiply,0.166666667,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,49
 PE_GUN_CHARGED_MUZZLE_2,P_GUN_CHARGED_MUZZLE,2,OnEquip,StatModifier,PhysicalCoefficient,Multiply,2.8,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,49
 PE_GUN_CHARGED_MUZZLE_3,P_GUN_CHARGED_MUZZLE,3,OnEquip,StatModifier,ElementalCoefficient,Multiply,2.8,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,49
-PE_GUN_RAPID_MUZZLE_1,P_GUN_RAPID_MUZZLE,1,OnEquip,StatModifier,AttackSpeed,Multiply,1.5,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,50
+PE_GUN_RAPID_MUZZLE_1,P_GUN_RAPID_MUZZLE,1,OnEquip,StatModifier,AttackSpeed,Multiply,1.5,Part.StatModifier,None,None,None,0,0,0,Unique,false,策划确认不想要,武器插槽C,50
 PE_GUN_EXPLOSIVE_MUZZLE_1,P_GUN_EXPLOSIVE_MUZZLE,1,OnEquip,StatModifier,ExplosionRadius,Override,100,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,51
 PE_GUN_PIERCING_MUZZLE_1,P_GUN_PIERCING_MUZZLE,1,OnCriticalHit,UniqueBehavior,RuntimeBehavior,Override,1,Part.ProjectilePierceOnCritical,None,None,None,0,0,0,Unique,true,,武器插槽C,52
 PE_GUN_BLEED_MUZZLE_1,P_GUN_BLEED_MUZZLE,1,OnHit,UniqueBehavior,RuntimeBehavior,Add,0.005,Part.ApplyBleedOnHitChance,None,None,Chance,0.3,3,0,Stackable,true,,武器插槽C,53
