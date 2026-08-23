@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，待 Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`InProgress`（首轮候选人工评审失败，返工由 Plan84 接管）。
+- 任务状态：`InProgress`（首轮候选评审失败，收束由 Plan84 接管）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@eab92341219463fbb8acd9b11c658114ed2bc5b4`。
 - 本地实现方式：用户已确认一任务一 worktree；使用 `codex/plan83-sc01-edge-inserts` / `C:\Users\binnanliang\Documents\ReEcho-worktrees\plan83-sc01-edge-inserts`。
@@ -102,13 +102,15 @@
 
 ### 证据
 
+- Plan83 的 Child Actor 候选未进入本次候选；Plan84 仅复用了 7 张原始 PNG 和材质作者ing经验。
+
 ### 剩余风险
 
 - 首轮 Child Actor 结构不满足父 Arena Blueprint 直接编辑要求；不得发布。Plan84 将插片改为 `BP_ArenaScene_SC01` 的直接组件，并补齐本 Plan 原先排除但用户现已明确要求的 CSV Stage→Scene 运行时切换。
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：等待实现后的 Editor/PIE 构图与遮挡验收。
+`SupersededByPlan84`：人工验收转由 Plan84 直接组件与 Stage 场景切换候选承担。
 
 ### 架构文档审阅结果
 

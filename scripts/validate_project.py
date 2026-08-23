@@ -1433,13 +1433,19 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         fail(f"{rel(entries['Stages'])}: enabled StageIndex values must be exactly 1..4 in file order")
     expected_stage_ranges = [(1, 2), (3, 5), (6, 7), (8, 8)]
     stage_ranges: dict[str, tuple[int, int]] = {}
-    for row, expected_range in zip(enabled_stages, expected_stage_ranges, strict=True):
+    expected_scene_ids = ["SC01", "SC02", "SC03", "SC04"]
+    for row, expected_range, expected_scene_id in zip(
+        enabled_stages, expected_stage_ranges, expected_scene_ids, strict=True
+    ):
         line = row["__line__"]
         actual_range = (int(row["FirstEncounterIndex"]), int(row["LastEncounterIndex"]))
         if actual_range != expected_range:
             fail(f"{rel(entries['Stages'])}:{line}:FirstEncounterIndex: expected stage range {expected_range}, got {actual_range}")
-        if row["SceneId"] != "Level00":
-            fail(f"{rel(entries['Stages'])}:{line}:SceneId: first release only registers Level00")
+        if row["SceneId"] != expected_scene_id:
+            fail(
+                f"{rel(entries['Stages'])}:{line}:SceneId: expected {expected_scene_id} "
+                f"for StageIndex {row['StageIndex']}"
+            )
         if row["ClearEnemiesOnEnter"] != "true":
             fail(f"{rel(entries['Stages'])}:{line}:ClearEnemiesOnEnter: stage entry must clear the previous roster")
         should_preserve = int(row["StageIndex"]) < 4

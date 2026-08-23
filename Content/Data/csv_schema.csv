@@ -287,7 +287,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,BossPhases,Notes,Text,false,,,,,Designer notes.
 1,Stages,Id,StableId,true,,,,,Stable stage id.
 1,Stages,StageIndex,Int,true,1,1000000,,,Deterministic stage order.
-1,Stages,SceneId,StableId,true,,,,Level00,Registered scene id; does not execute a soft path.
+1,Stages,SceneId,StableId,true,,,,SC01|SC02|SC03|SC04,Registered Arena Scene id resolved through the Editor-authored scene registry.
 1,Stages,FirstEncounterIndex,Int,true,1,1000000,,,First encounter index in this stage.
 1,Stages,LastEncounterIndex,Int,true,1,1000000,,,Last encounter index in this stage.
 1,Stages,PreserveEnemiesBetweenEncounters,Bool,true,,,,true|false,Whether living enemies persist between encounters in the same stage.

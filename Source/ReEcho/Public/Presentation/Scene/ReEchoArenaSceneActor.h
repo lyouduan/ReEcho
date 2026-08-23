@@ -10,6 +10,19 @@ class UStaticMeshComponent;
 class UTexture2D;
 class UReEchoArenaSceneProfile;
 
+USTRUCT(BlueprintType)
+
+struct FReEchoArenaSceneRegistration
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Scene Switching")
+	FName SceneId = NAME_None;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Scene Switching")
+	TSubclassOf<class AReEchoArenaSceneActor> ArenaClass;
+};
+
 /** Editor-authored first-arena scene and camera contract. Gameplay consumes its bounds but never owns its layout. */
 UCLASS()
 
@@ -22,11 +35,26 @@ public:
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 	FVector2D GetPlayerHalfExtents() const;
+	FVector2D GetCameraClampHalfExtents() const;
 	FVector2D GetEnemySpawnHalfExtents() const;
 	FVector2D GetArenaCenter() const;
 	/** MapRoot-local gameplay plane converted to the current world-space height. */
 	float GetGameplayPlaneWorldZ() const;
 	bool HasValidConfiguration(FString* OutReason = nullptr) const;
+
+	FName GetSceneId() const
+	{
+		return SceneId;
+	}
+
+	const TArray<FReEchoArenaSceneRegistration>& GetSceneRegistry() const
+	{
+		return SceneRegistry;
+	}
+
+	static bool BuildSceneRegistry(const TArray<FReEchoArenaSceneRegistration>& Registrations,
+	                               TMap<FName, TSubclassOf<AReEchoArenaSceneActor>>& OutRegistry,
+	                               FString& OutError);
 
 	static FVector2D
 	CalculateGroundFootprintHalfExtents(float OrthoWidth, float AspectRatio, const FRotator& CameraRotation);
@@ -34,6 +62,12 @@ public:
 	                                  const FVector2D& MapCenter,
 	                                  const FVector2D& MapHalfExtents,
 	                                  const FVector2D& FootprintHalfExtents);
+	static FVector2D ClampCameraFocusWithInsets(const FVector2D& DesiredFocus,
+	                                            const FVector2D& MapCenter,
+	                                            const FVector2D& MapHalfExtents,
+	                                            const FVector2D& NegativeAxisInsets,
+	                                            const FVector2D& PositiveAxisInsets,
+	                                            const FVector2D& FootprintHalfExtents);
 	static int32 CalculateFootpointSortPriority(const FVector2D& WorldFootpoint,
 	                                            const FVector2D& WorldOrigin,
 	                                            const FVector2D& SortAxis,
@@ -154,6 +188,20 @@ public:
 	float MaximumParallaxOffset = 120.0f;
 
 private:
+	/** Stable CSV SceneId represented by this Arena Blueprint. */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Arena|Scene Switching",
+	          meta = (AllowPrivateAccess = "true"))
+	FName SceneId = NAME_None;
+
+	/** Editor-authored SceneId to Arena Blueprint registry. Every entry must be unique and non-null. */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Arena|Scene Switching",
+	          meta = (AllowPrivateAccess = "true"))
+	TArray<FReEchoArenaSceneRegistration> SceneRegistry;
+
 	FVector2D GetMapScale2D() const;
 	void UpdateEditorHierarchy();
 	void UpdateEditorLayout();
