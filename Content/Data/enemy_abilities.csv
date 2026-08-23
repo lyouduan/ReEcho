@@ -6,3 +6,4 @@ M_SHEEP_BlinkSlam,M_SHEEP,Boss.BlinkSlam,4,true,30,0.9,0.35,0.9,5,0,1000,180,0,0
 M_SHEEP_PrayerBeam,M_SHEEP,Boss.PrayerBeam,5,true,20,1.2,0.15,1,13,0,2000,0,160,1200,0,0,LockedDirection,WindupEnd,0,0,怪物配置表,8,祷告光束Prayer Beam；锁定方向范围攻击；半径5m/射程20m；20伤/次；冷却未定义取默认13s
 M_RABBIT_RangedBurst,M_RABBIT,Enemy.RangedBurst,1,true,1,0.55,0.1,0,2,0,1000,150,0,0,0,0,LockedLocation,WindupStart,0,0,怪物配置表,5,锁定落点；半径1.5m；每技能冷却2s
 M_FOX_Dash,M_FOX,Enemy.EliteDash,1,true,18,0.8,0.15,0.9,4,0,450,0,140,450,0,0,LockedDirection,WindupStart,0,0,怪物配置表,6,预警0.8s；长4.5m宽1.4m；冷却4s
+M_RABBIT_MovingVolley,M_RABBIT,Enemy.RangedBurst,2,true,1,0.55,0.1,0,2.5,0,1080,150,0,0,0,0,LockedDirection,WindupStart,0,0,全怪物技能表,121,移动散射(3发)
