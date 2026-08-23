@@ -269,6 +269,8 @@ void AReEchoEnemyActor::SetPresentationCatalog(UReEcho2DPresentationCatalog* InP
 bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, const int32 SpawnIndex)
 {
 	BindComposedComponents();
+	bDeathSequenceStarted = false;
+	SetLifeSpan(0.0f);
 	if (EnemyRoster)
 	{
 		ClearCrowdCollisionIgnores();
@@ -643,6 +645,10 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		return;
 	}
 	AdvanceEnemyProjectiles(DeltaSeconds);
+	if (bDeathSequenceStarted)
+	{
+		return;
+	}
 	if (IsAlive())
 	{
 		ReEchoElementReaction::TickElementStatuses(*this, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f);
@@ -1187,10 +1193,38 @@ FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(co
 
 void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 {
-	if (Event.Target != this)
+	if (Event.Target != this || bDeathSequenceStarted)
 	{
 		return;
 	}
+	bDeathSequenceStarted = true;
+	if (EnemyLogic)
+	{
+		EnemyLogic->NotifyDeath();
+	}
 	SetActorEnableCollision(false);
-	SetLifeSpan(0.45f);
+	float ExpectedDurationSeconds = 0.0f;
+	const bool bPlayingDeath =
+	    EnemyPresentation &&
+	    EnemyPresentation->BeginTerminalDeath(
+	        FSimpleDelegate::CreateUObject(this, &AReEchoEnemyActor::CompleteDeathSequence), ExpectedDurationSeconds);
+	if (!bPlayingDeath)
+	{
+		// Avoid destroying the owner from inside the OnDeath multicast stack. This is effectively immediate
+		// while allowing remaining death-only subscribers to finish deterministically.
+		SetLifeSpan(UE_KINDA_SMALL_NUMBER);
+		return;
+	}
+	constexpr float CompletionGraceSeconds = 0.1f;
+	constexpr float MaximumDeathLifetimeSeconds = 10.0f;
+	SetLifeSpan(FMath::Clamp(
+	    ExpectedDurationSeconds + CompletionGraceSeconds, CompletionGraceSeconds, MaximumDeathLifetimeSeconds));
+}
+
+void AReEchoEnemyActor::CompleteDeathSequence()
+{
+	if (!IsActorBeingDestroyed())
+	{
+		Destroy();
+	}
 }

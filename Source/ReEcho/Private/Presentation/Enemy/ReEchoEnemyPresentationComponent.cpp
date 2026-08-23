@@ -99,7 +99,6 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.RemoveAll(this);
-		CombatEvents->OnDeath.RemoveAll(this);
 	}
 
 	Host = InHost;
@@ -121,7 +120,6 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatHurt);
-		CombatEvents->OnDeath.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatDeath);
 	}
 }
 
@@ -168,9 +166,34 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 	}
 	VisualTime = 0.0f;
 	AttackVisualRemaining = 0.0f;
-	DeathVisualRemaining = 0.0f;
 	bHitVisualActive = false;
 	bDeathVisualActive = false;
+}
+
+bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCompleted,
+                                                           float& OutExpectedDurationSeconds)
+{
+	OutExpectedDurationSeconds = 0.0f;
+	if (bDeathVisualActive)
+	{
+		return false;
+	}
+	bDeathVisualActive = true;
+	bHitVisualActive = false;
+	AttackVisualRemaining = 0.0f;
+	ResetTransientRoot();
+	if (EffectsRoot)
+	{
+		EffectsRoot->SetVisibility(false, true);
+		EffectsRoot->SetHiddenInGame(true, true);
+	}
+	if (GroundShadow)
+	{
+		GroundShadow->SetVisibility(false);
+		GroundShadow->SetHiddenInGame(true);
+	}
+	return PresentationController &&
+	       PresentationController->BeginTerminalDeath(MoveTemp(OnCompleted), OutExpectedDurationSeconds);
 }
 
 void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSnapshot& Snapshot,
@@ -191,7 +214,6 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 	UpdateCameraFacing(Snapshot);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
-		UpdateDeathAnimation(SafeDelta);
 		return;
 	}
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::HitReaction)
@@ -338,17 +360,6 @@ void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemy
 	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 }
 
-void UReEchoEnemyPresentationComponent::UpdateDeathAnimation(const float DeltaSeconds)
-{
-	if (!VisualEffectRoot)
-	{
-		return;
-	}
-	DeathVisualRemaining = FMath::Max(0.0f, DeathVisualRemaining - DeltaSeconds);
-	const float Ratio = DeathVisualRemaining / 0.45f;
-	ApplyPresentationMotion(FVector(0.0f, 0.0f, -28.0f * (1.0f - Ratio)), FVector(Ratio, Ratio, 1.0f));
-}
-
 void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
 	if (Intent.Type != EReEchoBossIntentType::TelegraphStarted &&
@@ -421,6 +432,10 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	                               : ReEchoElementReaction::GetElementColor(Event.Element);
 	AReEchoDamageNumberActor::SpawnDamageNumber(
 	    Host ? Host->GetWorld() : nullptr, Event.WorldLocation, Event.AppliedDamage, Color);
+	if (Event.bFatal || bDeathVisualActive)
+	{
+		return;
+	}
 	FVector KnockbackDirection = (Event.WorldLocation - Event.SourceWorldLocation).GetSafeNormal2D();
 	if (KnockbackDirection.IsNearlyZero() && Host)
 	{
@@ -432,19 +447,5 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	if (PresentationController)
 	{
 		PresentationController->PlayAction(ReEcho2DAnimationTags::Hit, true);
-	}
-}
-
-void UReEchoEnemyPresentationComponent::HandleCombatDeath(const FReEchoDamageEvent& Event)
-{
-	if (Event.Target != Host)
-	{
-		return;
-	}
-	DeathVisualRemaining = 0.45f;
-	bDeathVisualActive = true;
-	if (PresentationController)
-	{
-		PresentationController->PlayAction(ReEcho2DAnimationTags::Death, true);
 	}
 }

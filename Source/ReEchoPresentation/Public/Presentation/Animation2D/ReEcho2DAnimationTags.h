@@ -6,7 +6,6 @@
 
 namespace ReEcho2DAnimationTags
 {
-extern REECHOPRESENTATION_API FNativeGameplayTag Idle;
 extern REECHOPRESENTATION_API FNativeGameplayTag Move;
 extern REECHOPRESENTATION_API FNativeGameplayTag Attack_Basic;
 extern REECHOPRESENTATION_API FNativeGameplayTag Attack_Charge;

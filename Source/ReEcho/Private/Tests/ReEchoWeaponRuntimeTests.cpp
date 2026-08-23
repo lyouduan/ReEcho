@@ -188,8 +188,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponMeleeStepRuntimeTest,
 
 bool FReEchoWeaponMeleeStepRuntimeTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 2);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	FReEchoWeaponWorldFixture Fixture;
@@ -221,8 +219,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponProjectileRuntimeTest,
 
 bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 3);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 
@@ -344,8 +340,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponEchoFriendlyFireTest,
 
 bool FReEchoWeaponEchoFriendlyFireTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 2);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	auto InitializeEcho = [&](FReEchoWeaponWorldFixture& Fixture, const FName WeaponId)
@@ -416,8 +410,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponEquipmentCombatRuntimeTest,
 
 bool FReEchoWeaponEquipmentCombatRuntimeTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 2);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 
@@ -515,8 +507,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponDomainRevisionRuntimeTest,
 
 bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 1);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> OldSnapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
@@ -855,8 +845,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneDynamicHitHandlersTest,
 
 bool FReEchoWeaponRuneDynamicHitHandlersTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 6);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	FReEchoWeaponWorldFixture Fixture;
@@ -1040,8 +1028,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneGroupOuterAndScytheTest,
 
 bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 12);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	FReEchoWeaponWorldFixture Fixture;
@@ -1156,8 +1142,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneProjectileCombinationTest,
 
 bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 12);
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 

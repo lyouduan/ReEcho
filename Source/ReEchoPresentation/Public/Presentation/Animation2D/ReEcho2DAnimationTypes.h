@@ -8,15 +8,14 @@
 UENUM(BlueprintType)
 enum class EReEcho2DAnimationState : uint8
 {
-	Default,
-	Idle,
-	Walk,
-	Attack,
-	Hit,
-	Death
+	Default = 0,
+	Walk = 2,
+	Attack = 3,
+	Hit = 4,
+	Death = 5
 };
 
-/** Resolve the presentation state with Attack taking priority over locomotion. */
+/** Resolve the presentation state with Attack taking priority over the Move base loop. */
 REECHOPRESENTATION_API EReEcho2DAnimationState ReEchoResolve2DAnimationState(bool bMoving, bool bAttacking);
 
 UENUM(BlueprintType)

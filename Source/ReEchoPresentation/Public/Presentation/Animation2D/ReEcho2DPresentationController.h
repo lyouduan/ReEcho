@@ -39,10 +39,12 @@ public:
 	void SetWeaponVisualSetId(FName InWeaponVisualSetId);
 	/** Select a target animation set without flashing its base state, then play its transition clip. */
 	bool BeginAnimationSetTransition(FName InAnimationSetId, FGameplayTag TransitionSemanticKey);
-	/** End a transition deterministically and enter the target set's current Idle/Move base state. */
+	/** End a transition deterministically and enter the target set's Move base loop when authored. */
 	void CompleteAnimationSetTransition(FName InAnimationSetId);
 	void SetMoving(bool bInMoving);
 	bool PlayAction(FGameplayTag SemanticKey, bool bRestart = true, int64 AttackInstanceId = INDEX_NONE);
+	/** Replace every other presentation with one non-looping terminal Death. Completion never returns to Move. */
+	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
 	/** End an active attack presentation without affecting Hit, Transform or Death. */
 	bool CancelAttackAction();
 	void SetFacingSign(float FacingSign);
@@ -85,5 +87,7 @@ private:
 	bool bMoving = false;
 	bool bActionActive = false;
 	bool bWaitingForOneShot = false;
+	bool bTerminalDeathActive = false;
+	FSimpleDelegate TerminalDeathCompleted;
 	int64 ActiveAttackInstanceId = INDEX_NONE;
 };

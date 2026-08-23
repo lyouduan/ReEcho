@@ -37,7 +37,7 @@
 ### 输入
 
 - 稳定 `FName PresentationId`。
-- Idle、Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。
+- Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。除 Move 基础循环外均为可选能力；Profile 缺少语义时表现层保持当前有效画面并返回未播放，不借用其他语义。
 - 朝向和武器视觉集合 ID。
 
 ### 输出
@@ -77,7 +77,7 @@
 
 - Catalog：稳定 ID 到 Profile。
 - Profile/FSM：美术可配置语义动画集合和转换策略。
-- Controller：执行表现状态切换，持有显式动作占用；循环 Charge 只能由提交、结束或取消事件收束，不回写玩法。
+- Controller：执行表现状态切换，持有显式动作占用；循环 Charge 只能由提交、结束或取消事件收束，不回写玩法。Host 判定死亡后可调用 `BeginTerminalDeath` 独占播放一次非循环 Death；进入后拒绝 Move、Attack、Hit、Transform 与动画集切换，完成回调只通知 Host 销毁表现宿主，不返回 Move，也不裁决玩法死亡。
 - 主模块 Coordinator：不属于本 Runtime Module；把同一玩法动作阶段同时交给 Animation 与 VFX 轨，避免两个消费者建立彼此漂移的本地时钟。
 - AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退。
 - FrameCollisionDriver：生成 Query/Debug 快照。
@@ -93,16 +93,16 @@
 
 ## 扩展方式
 
-新增外观时在 `DataAsset/Character/Profiles` 或 `DataAsset/Enemy/Profiles` 创建 Profile 并注册到对应域 Catalog；共享 FSM 位于 `DataAsset/Common/Animation2D`。新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。敌人 Gameplay Blueprint 映射只在 `DataAsset/Enemy/Catalogs` 的 Registry 中扩展。
+新增外观时在 `DataAsset/Character/Profiles` 或 `DataAsset/Enemy/Profiles` 创建 Profile 并注册到对应域 Catalog；共享 FSM 位于 `DataAsset/Common/Animation2D`。新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。当前生产敌人的 Death 映射保持角色族一致：Grunt/Shield/Bomber/Slime 共用 Slime Death，Rabbit/Fox 使用各自 Death，GoatPriest/TimeGuard 共用 Goat Death；均为非循环、可重启动作。敌人 Gameplay Blueprint 映射只在 `DataAsset/Enemy/Catalogs` 的 Registry 中扩展。
 
 ## 验证与测试
 
-`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、完成归宿与缺失资源回退；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan74_animation_contracts.py` 只读审计全部生产玩家、Echo 和怪物 Profile。脚点、比例、朝向与首帧闪烁仍由人工在 PIE 验收。
+`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、Move 完成归宿、Death 终结独占/一次完成与缺失资源 no-op；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan82_animation_assets.py` 只读审计全部生产玩家、Echo、怪物 Profile 与源贴图导入链。脚点、比例、朝向、Death 实际播放完成与首帧闪烁仍由人工在 PIE 验收。
 
 ## 不变量与常见错误
 
 - Catalog 不得引用主模块 Actor 或 Gameplay Blueprint Class。
 - Animation/Profile 不得决定命中、伤害、移动或死亡。
-- 武器挂点只使用 Profile 的稳定参考高度；不得随 Idle/Move/Attack 的单帧 Bounds 重算。
+- 武器挂点只使用 Profile 的稳定参考高度；不得随 Move/Attack 的单帧 Bounds 重算。
 - 不允许 SpawnIndex、EnemyKind 或生成顺序替代稳定 PresentationId。
 - 移动类路径必须保留精确 Core Redirect，旧资产通过 Editor 保存后完成升级。

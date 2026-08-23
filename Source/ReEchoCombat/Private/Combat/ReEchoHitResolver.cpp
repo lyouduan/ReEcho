@@ -61,6 +61,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	Event.Element = Result.Element;
 	Event.bCritical = Result.bCritical;
 	Event.bBlocked = Result.bBlocked;
+	Event.bFatal = Result.bKilled;
 	Event.WorldLocation = Result.HitLocation;
 	Event.SourceWorldLocation = Candidate.SourceLocation;
 

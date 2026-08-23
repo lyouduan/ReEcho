@@ -603,7 +603,7 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 
 void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 {
-	if (Event.Target != GetOwner() || Event.AppliedDamage <= 0.0f)
+	if (Event.Target != GetOwner() || Event.AppliedDamage <= 0.0f || Event.bFatal)
 	{
 		return;
 	}
