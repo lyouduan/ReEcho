@@ -83,6 +83,12 @@ public:
 	/** Prepares and triggers one authored reaction through the production resolver on the nearest living enemy. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
+	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id. */
+	UFUNCTION(Exec)
+	void GMEquipRune(FName PartId);
+	/** Removes every equipped rune in the given slot from the player's weapon (debug). SlotTypeId matches parts.csv SlotTypeId. */
+	UFUNCTION(Exec)
+	void GMUnequipRune(FName SlotTypeId);
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);

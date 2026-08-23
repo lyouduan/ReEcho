@@ -1354,6 +1354,63 @@ UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId
 	{
 		return Tex;
 	}
+	// Plan76 兼容回退：部分符文的纹理按开普勒源行命名（T_UI_Part_P_AUDIT_C_<SrcRow>），
+	// 与 parts.csv 的 PartId 命名不一致，动态加载 T_UI_Part_<PartId> 会落空。这里复用源行命名资产。
+	static const TMap<FName, FString> LegacyPartIconPaths = {
+	    {TEXT("P_CORE_PRIMORDIAL"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_2.T_UI_Part_P_AUDIT_C_2")},
+	    {TEXT("P_CORE_TIDE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_3.T_UI_Part_P_AUDIT_C_3")},
+	    {TEXT("P_CORE_FOREST"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_4.T_UI_Part_P_AUDIT_C_4")},
+	    {TEXT("P_CORE_FLAME"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_5.T_UI_Part_P_AUDIT_C_5")},
+	    {TEXT("P_CORE_THUNDER"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_6.T_UI_Part_P_AUDIT_C_6")},
+	    {TEXT("P_CORE_PRISM"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_7.T_UI_Part_P_AUDIT_C_7")},
+	    {TEXT("P_BOW_SPLIT_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_16.T_UI_Part_P_AUDIT_C_16")},
+	    {TEXT("P_BOW_EXPLOSIVE_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_17.T_UI_Part_P_AUDIT_C_17")},
+	    {TEXT("P_BOW_PIERCING_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_18.T_UI_Part_P_AUDIT_C_18")},
+	    {TEXT("P_BOW_CRITBLEED_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_19.T_UI_Part_P_AUDIT_C_19")},
+	    {TEXT("P_BOW_MULTISHOT_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_20.T_UI_Part_P_AUDIT_C_20")},
+	    {TEXT("P_BOW_KILLSHARD_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_21.T_UI_Part_P_AUDIT_C_21")},
+	    {TEXT("P_BOW_HASTE_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_22.T_UI_Part_P_AUDIT_C_22")},
+	    {TEXT("P_BOW_HEAVY_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_23.T_UI_Part_P_AUDIT_C_23")},
+	    {TEXT("P_BOW_KILLHASTE_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_24.T_UI_Part_P_AUDIT_C_24")},
+	    {TEXT("P_BOW_COMBOHASTE_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_25.T_UI_Part_P_AUDIT_C_25")},
+	    {TEXT("P_SCYTHE_GROUPGROWTH_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_26.T_UI_Part_P_AUDIT_C_26")},
+	    {TEXT("P_SCYTHE_LIFESTEAL_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_27.T_UI_Part_P_AUDIT_C_27")},
+	    {TEXT("P_SCYTHE_HASTE_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_28.T_UI_Part_P_AUDIT_C_28")},
+	    {TEXT("P_SCYTHE_STUN_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_29.T_UI_Part_P_AUDIT_C_29")},
+	    {TEXT("P_SCYTHE_BLEED_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_30.T_UI_Part_P_AUDIT_C_30")},
+	    {TEXT("P_SCYTHE_OUTERRING_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_31.T_UI_Part_P_AUDIT_C_31")},
+	    {TEXT("P_SCYTHE_MOVESTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_32.T_UI_Part_P_AUDIT_C_32")},
+	    {TEXT("P_SCYTHE_GROUPINVULN_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_33.T_UI_Part_P_AUDIT_C_33")},
+	    {TEXT("P_SCYTHE_ATTACKSTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_34.T_UI_Part_P_AUDIT_C_34")},
+	    {TEXT("P_SCYTHE_THROWRECALL_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_35.T_UI_Part_P_AUDIT_C_35")},
+	    {TEXT("P_LONGSWORD_NARROWWIDE_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_36.T_UI_Part_P_AUDIT_C_36")},
+	    {TEXT("P_LONGSWORD_SLOWWIDE_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_37.T_UI_Part_P_AUDIT_C_37")},
+	    {TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_38.T_UI_Part_P_AUDIT_C_38")},
+	    {TEXT("P_LONGSWORD_KILLHEAL_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_39.T_UI_Part_P_AUDIT_C_39")},
+	    {TEXT("P_LONGSWORD_HITSHARD_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_40.T_UI_Part_P_AUDIT_C_40")},
+	    {TEXT("P_LONGSWORD_CRITBLEED_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_41.T_UI_Part_P_AUDIT_C_41")},
+	    {TEXT("P_LONGSWORD_METEOR_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_42.T_UI_Part_P_AUDIT_C_42")},
+	    {TEXT("P_LONGSWORD_HASTE_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_43.T_UI_Part_P_AUDIT_C_43")},
+	    {TEXT("P_LONGSWORD_MOVESTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_44.T_UI_Part_P_AUDIT_C_44")},
+	    {TEXT("P_LONGSWORD_ATTACKSTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_45.T_UI_Part_P_AUDIT_C_45")},
+	    {TEXT("P_LONGSWORD_STUN_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_46.T_UI_Part_P_AUDIT_C_46")},
+	    {TEXT("P_LONGSWORD_HEAVY_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_47.T_UI_Part_P_AUDIT_C_47")},
+	    {TEXT("P_GUN_TRIPLESPREAD_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_48.T_UI_Part_P_AUDIT_C_48")},
+	    {TEXT("P_GUN_CHARGED_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_49.T_UI_Part_P_AUDIT_C_49")},
+	    {TEXT("P_GUN_EXPLOSIVE_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_51.T_UI_Part_P_AUDIT_C_51")},
+	    {TEXT("P_GUN_PIERCING_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_52.T_UI_Part_P_AUDIT_C_52")},
+	    {TEXT("P_GUN_BLEED_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_53.T_UI_Part_P_AUDIT_C_53")},
+	    {TEXT("P_GUN_LIFESTEAL_GUNACTION"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_54.T_UI_Part_P_AUDIT_C_54")},
+	    {TEXT("P_GUN_HITSHARD_GUNACTION"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_55.T_UI_Part_P_AUDIT_C_55")},
+	    {TEXT("P_GUN_ATTACKSTACK_GUNACTION"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_56.T_UI_Part_P_AUDIT_C_56")},
+	};
+	if (const FString* LegacyPath = LegacyPartIconPaths.Find(PartId))
+	{
+		if (UTexture2D* LegacyTex = LoadObject<UTexture2D>(nullptr, *LegacyPath))
+		{
+			return LegacyTex;
+		}
+	}
 	return ShopAttachmentSlotTexture.Get();
 }
 

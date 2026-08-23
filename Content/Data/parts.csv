@@ -63,7 +63,6 @@ P_LONGSWORD_STUN_GRIP,P_LONGSWORD_STUN_GRIP,LongSword,Grip,晕眩剑柄,效果�
 P_LONGSWORD_HEAVY_GRIP,P_LONGSWORD_HEAVY_GRIP,LongSword,Grip,重击剑柄,效果：攻击速度-30%，伤害倍率+50%,Common,Grip|Numeric,true,Approved,Implemented,,武器插槽C,47,true,30
 P_GUN_TRIPLESPREAD_MUZZLE,P_GUN_TRIPLESPREAD_MUZZLE,Gun,Muzzle,三发散射枪口,效果：弹道固定为3，武器集中性固定为60°,Rare,Muzzle|Numeric,true,Approved,Implemented,,武器插槽C,48,true,45
 P_GUN_CHARGED_MUZZLE,P_GUN_CHARGED_MUZZLE,Gun,Muzzle,极限蓄能枪口,效果：攻击速度-500%，伤害倍率+180%,Common,Muzzle|Numeric,true,Approved,Implemented,,武器插槽C,49,true,30
-P_GUN_RAPID_MUZZLE,P_GUN_RAPID_MUZZLE,Gun,Muzzle,连发枪口,效果：攻击速度+50%,Common,Muzzle|Numeric,true,Approved,Implemented,,武器插槽C,50,true,30
 P_GUN_EXPLOSIVE_MUZZLE,P_GUN_EXPLOSIVE_MUZZLE,Gun,Muzzle,爆炸枪口,效果：子弹变为爆炸物。爆炸范围1m,Rare,Muzzle|Numeric,true,Approved,Implemented,,武器插槽C,51,true,45
 P_GUN_PIERCING_MUZZLE,P_GUN_PIERCING_MUZZLE,Gun,Muzzle,暴击穿透枪口,效果：子弹命中敌人且暴击后，会穿透该敌人,Rare,Muzzle|UniqueBehavior,true,Approved,Implemented,,武器插槽C,52,true,45
 P_GUN_BLEED_MUZZLE,P_GUN_BLEED_MUZZLE,Gun,Muzzle,命中流血枪口,效果：每次命中敌方单位时，敌方单位有30%概率获得【流血】，持续3s，可以叠加,Rare,Muzzle|UniqueBehavior|Bleeding,true,Approved,Implemented,,武器插槽C,53,true,45

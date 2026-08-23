@@ -32,6 +32,7 @@
 #include "Camera/CameraActor.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Weapons/ReEchoWeaponActor.h"
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
@@ -355,6 +356,126 @@ void AReEchoGameMode::GMReaction(const FString& Reaction, const float Damage)
 	Target->ReceiveElementalDamage(FMath::Max(0.0f, Damage), Trigger, SourceLocation, 1.0f, MakeGMElementAttack());
 	PrintGMResult(FString::Printf(
 	    TEXT("Triggered %s on %s; prepared targets=%d."), *Reaction, *Target->GetName(), PreparedTargets.Num()));
+}
+
+void AReEchoGameMode::GMEquipRune(const FName PartId)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	if (PartId.IsNone())
+	{
+		PrintGMResult(TEXT("Usage: GMEquipRune <PartId>  (e.g. P_LONGSWORD_METEOR_SWORDBLADE)"), false);
+		return;
+	}
+
+	// Authoritative run build (matches shop semantics; survives save/load). Non-fatal if no run is active yet.
+	UReEchoRunSubsystem* RunSubsystem =
+		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (RunSubsystem)
+	{
+		TArray<FName> Desired;
+		Desired.Reserve(RunSubsystem->CurrentBuild.EquippedParts.Num() + 1);
+		for (const FReEchoEquippedPartSnapshot& Equipped : RunSubsystem->CurrentBuild.EquippedParts)
+		{
+			Desired.Add(Equipped.PartId);
+		}
+		if (!Desired.Contains(PartId))
+		{
+			Desired.Add(PartId);
+			FString RunError;
+			if (!RunSubsystem->TryEquipParts(Desired, RunError))
+			{
+				PrintGMResult(FString::Printf(
+					TEXT("GMEquipRune: run build not updated (%s); still applying to live weapon"), *RunError), false);
+			}
+		}
+	}
+
+	// Reflect immediately on the live weapon actor so the rune is active without re-attacking.
+	AReEchoWeaponActor* Weapon = nullptr;
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		if (AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(PC->GetPawn()))
+		{
+			Weapon = PlayerPawn->GetWeapon();
+		}
+	}
+	if (!Weapon)
+	{
+		PrintGMResult(TEXT("GMEquipRune: no live weapon actor (start an encounter first)"), false);
+		return;
+	}
+	FString OutError;
+	if (Weapon->EquipRune(PartId, OutError))
+	{
+		PrintGMResult(FString::Printf(TEXT("Equipped rune %s on weapon"), *PartId.ToString()), true);
+	}
+	else
+	{
+		PrintGMResult(FString::Printf(TEXT("GMEquipRune %s failed: %s"), *PartId.ToString(), *OutError), false);
+	}
+}
+
+void AReEchoGameMode::GMUnequipRune(const FName SlotTypeId)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	if (SlotTypeId.IsNone())
+	{
+		PrintGMResult(TEXT("Usage: GMUnequipRune <SlotTypeId>  (e.g. Blade / Grip / Muzzle / GunAction / Arrowhead)"), false);
+		return;
+	}
+
+	// Sync authoritative run build first (drop every equipped part in that slot).
+	UReEchoRunSubsystem* RunSubsystem =
+		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (RunSubsystem)
+	{
+		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
+		TArray<FName> Desired;
+		for (const FReEchoEquippedPartSnapshot& Equipped : RunSubsystem->CurrentBuild.EquippedParts)
+		{
+			const FReEchoCsvPartRow* Part = Snapshot ? Snapshot->Parts.Find(Equipped.PartId) : nullptr;
+			if (Part && Part->SlotTypeId == SlotTypeId)
+			{
+				continue;
+			}
+			Desired.Add(Equipped.PartId);
+		}
+		FString RunError;
+		if (!RunSubsystem->TryEquipParts(Desired, RunError))
+		{
+			PrintGMResult(FString::Printf(TEXT("GMUnequipRune: run build not updated (%s)"), *RunError), false);
+		}
+	}
+
+	// Reflect on the live weapon actor.
+	AReEchoWeaponActor* Weapon = nullptr;
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		if (AReEchoPlayerPawn* PlayerPawn = Cast<AReEchoPlayerPawn>(PC->GetPawn()))
+		{
+			Weapon = PlayerPawn->GetWeapon();
+		}
+	}
+	if (!Weapon)
+	{
+		PrintGMResult(TEXT("GMUnequipRune: no live weapon actor (start an encounter first)"), false);
+		return;
+	}
+	FString OutError;
+	if (Weapon->UnequipRune(SlotTypeId, OutError))
+	{
+		PrintGMResult(FString::Printf(TEXT("Unequipped rune in slot %s"), *SlotTypeId.ToString()), true);
+	}
+	else
+	{
+		PrintGMResult(FString::Printf(TEXT("GMUnequipRune %s failed: %s"), *SlotTypeId.ToString(), *OutError), false);
+	}
 }
 
 void AReEchoGameMode::GMStatus()
