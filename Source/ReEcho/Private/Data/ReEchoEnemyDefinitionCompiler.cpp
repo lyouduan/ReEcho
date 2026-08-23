@@ -89,7 +89,8 @@ bool ParseLockTiming(const FName Value, EReEchoBossLockTiming& OutTiming)
 bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapshot,
                                             const FName EnemyId,
                                             FReEchoEnemyDefinition& OutDefinition,
-                                            FString& OutError)
+                                            FString& OutError,
+                                            const int32 CombatIndex)
 {
 	OutDefinition = FReEchoEnemyDefinition{};
 	OutError.Reset();
@@ -114,6 +115,17 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.CollisionHalfHeightCm = Row->CollisionHalfHeightCm;
 	OutDefinition.ContactDamage = Row->ContactDamage;
 	OutDefinition.AttackIntervalSeconds = Row->AttackIntervalSeconds;
+	// Per-combat growth (怪物.xlsx 战斗场次 C1-C8): when a valid CombatIndex is supplied, override the
+	// base stats with the combat-specific row. Missing rows (e.g. Boss/legacy enemies) fall back to base.
+	if (CombatIndex >= 1)
+	{
+		if (const FReEchoCsvEnemyCombatStatRow* Stat = Snapshot.FindEnemyCombatStat(EnemyId, CombatIndex))
+		{
+			OutDefinition.MaxHealth = Stat->MaxHealth;
+			OutDefinition.ContactDamage = Stat->ContactDamage;
+			OutDefinition.AttackIntervalSeconds = Stat->AttackIntervalSeconds;
+		}
+	}
 	OutDefinition.ContactRangeCm = Row->ContactRangeCm;
 	OutDefinition.MovementStopDistanceCm = Row->MovementStopDistanceCm;
 	OutDefinition.HitReactionDurationSeconds = Row->HitReactionDurationSeconds;
