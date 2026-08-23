@@ -267,6 +267,9 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,EnemyAbilities,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,EnemyAbilities,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,EnemyAbilities,Notes,Text,false,,,,,Designer notes.
+1,EnemyAbilities,ProjectileCount,Int,true,1,64,,,Number of projectiles in one volley (1 = single shot; >1 fans across SpreadAngleDegrees). Data-driven from planner 投射物数量.
+1,EnemyAbilities,SpreadAngleDegrees,Float,true,0,360,,,Total fan angle in degrees across the whole volley centered on the locked aim direction. Data-driven from planner 散射角度.
+1,EnemyAbilities,bMovementDuringCast,Bool,true,,,,When true the enemy keeps moving toward its target during the cast window. Data-driven from planner 可否位移.
 1,BossPhases,Id,StableId,true,,,,,Stable boss phase id.
 1,BossPhases,BossEnemyId,ForeignKey,true,,,Enemies,,References boss Enemies.Id.
 1,BossPhases,PhaseIndex,Int,true,0,1000000,,,Unique deterministic phase order per boss.

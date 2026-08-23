@@ -209,6 +209,9 @@ bool ReadAbilities(const FString& DataDirectory,
 	                            TEXT("LockTiming"),
 	                            TEXT("CleanseIntervalSeconds"),
 	                            TEXT("ImmunitySeconds"),
+	                            TEXT("ProjectileCount"),
+	                            TEXT("SpreadAngleDegrees"),
+	                            TEXT("bMovementDuringCast"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
 	                            TEXT("Notes")},
@@ -257,6 +260,10 @@ bool ReadAbilities(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(
 		    Table, CsvRow, TEXT("CleanseIntervalSeconds"), 0.0f, 3600.0f, Row.CleanseIntervalSeconds, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("ImmunitySeconds"), 0.0f, 3600.0f, Row.ImmunitySeconds, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("ProjectileCount"), Row.ProjectileCount, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, CsvRow, TEXT("SpreadAngleDegrees"), 0.0f, 360.0f, Row.SpreadAngleDegrees, Issues);
+		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("bMovementDuringCast"), Row.bMovementDuringCast, Issues);
 		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);
 		ReEchoCsv::ReadOptionalCell(CsvRow, TEXT("Notes"), Row.Notes);
@@ -494,18 +501,20 @@ bool ReadBossPhases(const FString& DataDirectory,
 			ReEchoCsv::AddIssue(
 			    Issues, Table.File, CsvRow.Line, TEXT("PhaseIndex"), TEXT("Duplicate boss phase index"));
 		}
-		if (Row.EchoPolicy != TEXT("DestroyEncounterEchoes"))
+		// EchoPolicy must be a supported enum string (see EReEchoBossEchoPolicy in ReEchoEnemyTypes.h).
+		if (Row.EchoPolicy != TEXT("None") && Row.EchoPolicy != TEXT("DestroyEncounterEchoes"))
 		{
 			ReEchoCsv::AddIssue(
 			    Issues, Table.File, CsvRow.Line, TEXT("EchoPolicy"), TEXT("Unsupported echo phase policy"));
 		}
-		if (Row.RefillHealthPolicy != TEXT("None"))
+		// RefillHealthPolicy must be a supported enum string (see EReEchoBossRefillHealthPolicy).
+		if (Row.RefillHealthPolicy != TEXT("None") && Row.RefillHealthPolicy != TEXT("RefillToMaximum"))
 		{
 			ReEchoCsv::AddIssue(Issues,
 			                    Table.File,
 			                    CsvRow.Line,
 			                    TEXT("RefillHealthPolicy"),
-			                    TEXT("First release must not refill health"));
+			                    TEXT("Unsupported refill health policy"));
 		}
 		SeenIds.Add(Row.Id);
 		SeenPhases.Add(PhaseKey);

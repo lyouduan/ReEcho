@@ -195,6 +195,18 @@ struct REECHOENEMIES_API FReEchoEnemyAbilityDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoBossLockTiming LockTiming = EReEchoBossLockTiming::WindupStarted;
 
+	/** Number of projectiles in one volley. 1 = single shot; >1 fans them across SpreadAngleDegrees. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ProjectileCount = 1;
+
+	/** Total fan angle in degrees across the whole volley, centered on the locked aim direction. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float SpreadAngleDegrees = 0.0f;
+
+	/** When true, the enemy keeps moving toward its target during the active/recovery window of this ability. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bMovementDuringCast = false;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bEnabled = false;
 };

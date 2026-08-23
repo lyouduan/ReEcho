@@ -530,6 +530,9 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Notes": CsvColumnSpec("Text", required=False),
+        "ProjectileCount": CsvColumnSpec("Int", min_value=1.0, max_value=64.0),
+        "SpreadAngleDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
+        "bMovementDuringCast": CsvColumnSpec("Bool"),
     },
     "BossPhases": {
         "Id": CsvColumnSpec("StableId"),
