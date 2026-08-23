@@ -139,6 +139,7 @@ FReEchoEnemyDefinition ReEchoEnemyDefinitions::MakeLegacyEquivalent(const EReEch
 			Result.ContactDamage = 18.0f;
 			Result.AttackIntervalSeconds = 2.0f;
 			Result.KnockbackSpeedCmPerSecond = 140.0f;
+			Result.HateRangeCm = 0.0f;
 			break;
 		default:
 			break;

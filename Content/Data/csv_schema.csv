@@ -242,6 +242,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Enemies,Phase2TransformSeconds,Float,true,0,3600,,,Double-form transform duration in seconds.
 1,Enemies,Phase2TriggerMode,StableId,false,,,,,Second-phase trigger model. Empty/other = legacy attack-count-or-range; "HealthThreshold" = transform when health ratio <= HealthThresholdRatio (0 = depleted to zero).
 1,Enemies,Phase2HealthThresholdRatio,Float,true,0,1,,,Health ratio threshold for HealthThreshold mode (CurrentHealth/HpMax <= value triggers). 0 means depleted to zero. Ignored otherwise.
+1,Enemies,HateRangeCm,Float,true,0,100000,,,Aggro / sensing range in cm. Enemy enters combat when the player is within this distance (data-driven from planner 变身范围).
 1,EnemyAbilities,Id,StableId,true,,,,,Stable enemy ability id.
 1,EnemyAbilities,OwnerEnemyId,ForeignKey,true,,,Enemies,,References Enemies.Id.
 1,EnemyAbilities,BehaviorId,BehaviorId,true,,,,Boss.MeleeSweep|Boss.Projectile|Boss.BlinkSlam|Boss.PrayerBeam|Boss.ElementCleanse,Registered boss behavior.

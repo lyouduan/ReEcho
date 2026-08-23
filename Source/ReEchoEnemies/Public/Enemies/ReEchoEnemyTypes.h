@@ -316,6 +316,10 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float MovementStopDistanceCm = 75.0f;
 
+	/** Aggro / sensing range in cm. Enemy enters combat (wander + aggro) when the player is within this distance. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float HateRangeCm = 520.0f;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float BomberTriggerRadiusCm = 260.0f;
 

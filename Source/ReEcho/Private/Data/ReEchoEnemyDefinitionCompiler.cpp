@@ -126,6 +126,9 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 			OutDefinition.AttackIntervalSeconds = Stat->AttackIntervalSeconds;
 		}
 	}
+	// WS1 (Plan 68): aggro / sensing range is now data-driven from the authoritative Enemies worksheet
+	// (planner 变身范围 / 索敌范围). Bosses keep 0 so they never wander (legacy pursuit-only behavior).
+	OutDefinition.HateRangeCm = Row->HateRangeCm;
 	OutDefinition.ContactRangeCm = Row->ContactRangeCm;
 	OutDefinition.MovementStopDistanceCm = Row->MovementStopDistanceCm;
 	OutDefinition.HitReactionDurationSeconds = Row->HitReactionDurationSeconds;
