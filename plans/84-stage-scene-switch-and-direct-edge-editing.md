@@ -47,6 +47,8 @@
 3. Scene 切换同步更新地图材质、场景专属装饰、Arena Bounds/Gameplay Plane 消费和 Camera Arena 引用；旧场景视觉/碰撞不得残留或叠加。
 4. SC01 七张插片成为 `BP_ArenaScene_SC01` 内直接可选中的组件；美术无需打开子 Actor、运行脚本或修改 C++ 即可逐片编辑 Transform、显隐、材质和排序。
 5. 切换失败必须阻止错误 Encounter 开始并输出具名 `StageId/SceneId`，不得静默沿用上一张图冒充成功。
+6. SC01 地图底图在 Arena Blueprint 中提供独立宽高编辑入口，调整后实时更新 Backdrop 尺寸，不要求修改源纹理；不得连带改变玩家、相机或出生边界，除非美术明确编辑对应 Bounds。
+7. 七张插片分别提供可编辑透明排序优先级，以确定底图、角色、中景和前景之间的遮挡关系；作者ing工具重复执行不得覆盖美术已调整的 Transform、尺寸、显隐或排序值。
 
 ## 架构影响与设计决策
 
@@ -60,6 +62,8 @@
   3. SC01 插片直接进入 `BP_ArenaScene_SC01` 组件树；删除首轮 `BP_SC01EdgeInserts` 包装，解决父 Blueprint 不可逐片编辑的问题。
   4. Stage 跨界时先完成场景切换，再解析入口并启动 Encounter；同 Stage 保留现有敌人/玩家位置策略。
   5. `csv_schema.csv` 与项目校验器必须共同接受且只接受已注册的 `SC01/SC02/SC03/SC04`；不得继续以旧 `Level00` 白名单造成生产数据与运行时契约分叉。
+  6. 复用 Arena 已有 `BackdropHalfExtents`/自动布局作为底图宽高编辑权威，并在 SC01 Blueprint 暴露可见默认值；不把底图显示尺寸固化到纹理导入尺寸。
+  7. 插片遮挡使用每个直接组件的 `TranslucencySortPriority`，而非组件创建顺序或文件名；作者ing只为新建/缺失组件写初始 Transform 与排序，已有组件的美术值必须保留。
 - 文档同步：关闭前审阅 `ARCHITECTURE.md`、`README.md`；维护 `MOD-ReEcho.md`，逐项记录结果。
 
 ## 锁定验收
@@ -68,6 +72,8 @@
 - [ ] 自动化证明初始、同 Stage、跨 Stage、Boss、未知 SceneId 与重复 Scene 注册行为。
 - [ ] 实际 World 中始终只有一个激活且有效的 Arena 场景；切换后 GameMode/Camera/Bounds 使用新场景。
 - [ ] `BP_ArenaScene_SC01` 中七张插片均为直接组件，可逐片编辑；不再通过 Child Actor 包装。
+- [ ] `BP_ArenaScene_SC01` 可独立编辑底图宽高，Backdrop 随 Construction 更新且不会暗改 Player/Camera/Enemy Bounds。
+- [ ] 七张插片可独立调整 `TranslucencySortPriority` 并改变遮挡关系；作者ing第二次执行后，人工修改过的 Transform、显隐和排序保持不变。
 - [ ] 作者ing重复执行无重复组件；SC02–SC04 不获得 SC01 插片。
 - [ ] C++ 格式化、FullRebuild、聚焦自动化、XLSX/CSV check、项目校验、预构建检查和 `git diff --check` 通过。
 - [ ] 用户 PIE 验收 Encounter 1–8 的 SC01→SC02→SC03→SC04 切换、SC01 插片编辑与视觉构图。
