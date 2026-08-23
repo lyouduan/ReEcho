@@ -131,6 +131,13 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.Phase2.TriggerRangeCm = Row->Phase2TriggerRangeCm;
 	OutDefinition.Phase2.RequiredAttackCount = Row->Phase2RequiredAttackCount;
 	OutDefinition.Phase2.TransformSeconds = Row->Phase2TransformSeconds;
+	// WS4 (Plan 68): blood-depleted trigger model. "HealthThreshold" makes the boss transform when its health ratio
+	// reaches the configured threshold; otherwise the legacy attack-count/range model applies.
+	OutDefinition.Phase2.TriggerMode =
+	    Row->Phase2TriggerMode.Equals(TEXT("HealthThreshold"), ESearchCase::IgnoreCase)
+	        ? EReEchoEnemyPhase2TriggerMode::HealthThreshold
+	        : EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
+	OutDefinition.Phase2.HealthThresholdRatio = Row->Phase2HealthThresholdRatio;
 	OutDefinition.Phase2.AnimationSetId = TEXT("Phase2");
 
 	for (const FReEchoCsvEnemyAbilityRow& AbilityRow : Row->Abilities)
@@ -191,6 +198,7 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		Phase.ElementalAttackMultiplier = PhaseRow.ElementalAttackMultiplier;
 		Phase.AttackSpeedMultiplier = PhaseRow.AttackSpeedMultiplier;
 		Phase.MovementSpeedMultiplier = PhaseRow.MovementSpeedMultiplier;
+		Phase.PhaseMaxHealth = PhaseRow.PhaseMaxHealth;
 		if (PhaseRow.RefillHealthPolicy == TEXT("None"))
 		{
 			Phase.RefillHealthPolicy = EReEchoBossRefillHealthPolicy::None;

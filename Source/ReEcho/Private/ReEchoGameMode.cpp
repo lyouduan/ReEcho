@@ -1605,7 +1605,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
 		                                       : EReEchoEnemyKind::Grunt;
 		const FName EnemyId = !EnemyState.EnemyId.IsNone()            ? EnemyState.EnemyId
-		                      : SavedKind == EReEchoEnemyKind::Boss   ? FName(TEXT("M_TimeGuard"))
+		                      : SavedKind == EReEchoEnemyKind::Boss   ? FName(TEXT("M_SHEEP"))
 		                      : SavedKind == EReEchoEnemyKind::Slime  ? FName(TEXT("M_SLIME"))
 		                      : SavedKind == EReEchoEnemyKind::Ranged ? FName(TEXT("M_RABBIT"))
 		                      : SavedKind == EReEchoEnemyKind::Elite  ? FName(TEXT("M_FOX"))
