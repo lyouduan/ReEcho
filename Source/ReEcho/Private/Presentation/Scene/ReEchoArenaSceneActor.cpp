@@ -98,6 +98,11 @@ FVector2D AReEchoArenaSceneActor::GetPlayerHalfExtents() const
 	return PlayerHalfExtents * GetMapScale2D();
 }
 
+FVector2D AReEchoArenaSceneActor::GetCameraClampHalfExtents() const
+{
+	return CameraClampHalfExtents * GetMapScale2D();
+}
+
 FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 {
 	return EnemySpawnHalfExtents * GetMapScale2D();
@@ -190,6 +195,37 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	return true;
 }
 
+bool AReEchoArenaSceneActor::BuildSceneRegistry(const TArray<FReEchoArenaSceneRegistration>& Registrations,
+                                                TMap<FName, TSubclassOf<AReEchoArenaSceneActor>>& OutRegistry,
+                                                FString& OutError)
+{
+	OutRegistry.Reset();
+	OutError.Reset();
+	for (const FReEchoArenaSceneRegistration& Registration : Registrations)
+	{
+		if (Registration.SceneId.IsNone() || !Registration.ArenaClass)
+		{
+			OutError = TEXT("Arena Scene registration requires a non-empty SceneId and ArenaClass.");
+			OutRegistry.Reset();
+			return false;
+		}
+		if (OutRegistry.Contains(Registration.SceneId))
+		{
+			OutError = FString::Printf(TEXT("Duplicate Arena Scene registration for SceneId=%s."),
+			                           *Registration.SceneId.ToString());
+			OutRegistry.Reset();
+			return false;
+		}
+		OutRegistry.Add(Registration.SceneId, Registration.ArenaClass);
+	}
+	if (OutRegistry.IsEmpty())
+	{
+		OutError = TEXT("Arena Scene registry is empty.");
+		return false;
+	}
+	return true;
+}
+
 FVector2D AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(const float OrthoWidth,
                                                                       const float AspectRatio,
                                                                       const FRotator& CameraRotation)
@@ -222,14 +258,26 @@ FVector2D AReEchoArenaSceneActor::ClampCameraFocus(const FVector2D& DesiredFocus
                                                    const FVector2D& MapHalfExtents,
                                                    const FVector2D& FootprintHalfExtents)
 {
+	return ClampCameraFocusWithInsets(
+	    DesiredFocus, MapCenter, MapHalfExtents, FVector2D::ZeroVector, FVector2D::ZeroVector, FootprintHalfExtents);
+}
+
+FVector2D AReEchoArenaSceneActor::ClampCameraFocusWithInsets(const FVector2D& DesiredFocus,
+                                                             const FVector2D& MapCenter,
+                                                             const FVector2D& MapHalfExtents,
+                                                             const FVector2D& NegativeAxisInsets,
+                                                             const FVector2D& PositiveAxisInsets,
+                                                             const FVector2D& FootprintHalfExtents)
+{
 	FVector2D Result = MapCenter;
 	for (int32 Axis = 0; Axis < 2; ++Axis)
 	{
-		const float SafeHalfExtent = MapHalfExtents[Axis] - FootprintHalfExtents[Axis];
-		Result[Axis] =
-		    SafeHalfExtent > 0.0f
-		        ? FMath::Clamp(DesiredFocus[Axis], MapCenter[Axis] - SafeHalfExtent, MapCenter[Axis] + SafeHalfExtent)
-		        : MapCenter[Axis];
+		const float MinimumFocus = MapCenter[Axis] - MapHalfExtents[Axis] + FMath::Max(0.0f, NegativeAxisInsets[Axis]) +
+		                           FootprintHalfExtents[Axis];
+		const float MaximumFocus = MapCenter[Axis] + MapHalfExtents[Axis] - FMath::Max(0.0f, PositiveAxisInsets[Axis]) -
+		                           FootprintHalfExtents[Axis];
+		Result[Axis] = MinimumFocus <= MaximumFocus ? FMath::Clamp(DesiredFocus[Axis], MinimumFocus, MaximumFocus)
+		                                            : (MinimumFocus + MaximumFocus) * 0.5f;
 	}
 	return Result;
 }

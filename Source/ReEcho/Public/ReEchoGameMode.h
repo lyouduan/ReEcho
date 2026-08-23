@@ -33,6 +33,7 @@ class UReEchoEnemyGameplayClassRegistry;
 class UReEchoAudioService;
 class UMaterialInterface;
 class UTexture2D;
+struct FReEchoCsvStageRow;
 enum class EReEchoInventoryShopMode : uint8;
 struct FReEchoEncounterRuntimeState;
 struct FReEchoMinimapView;
@@ -121,6 +122,9 @@ private:
 	TObjectPtr<ACameraActor> FixedCamera;
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaSceneActor> ArenaScene;
+	UPROPERTY()
+	TMap<FName, TSubclassOf<AReEchoArenaSceneActor>> ArenaSceneRegistry;
+	FName ActiveArenaSceneId = NAME_None;
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
 	UPROPERTY()
@@ -298,6 +302,9 @@ private:
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
+	bool InitializeArenaSceneRegistry(FString& OutError);
+	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
+	void RefreshArenaSceneConsumers();
 	void ResumeSavedEncounter();
 	TSubclassOf<AReEchoEnemyActor> ResolveEnemyClass(FName PresentationId) const;
 	FReEchoEncounterRuntimeState CaptureEncounterRuntimeState() const;

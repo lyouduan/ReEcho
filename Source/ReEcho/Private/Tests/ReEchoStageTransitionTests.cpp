@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Misc/AutomationTest.h"
+#include "Presentation/Scene/ReEchoArenaSceneActor.h"
 
 namespace
 {
@@ -52,6 +53,20 @@ bool FReEchoStageTransitionPolicyTest::RunTest(const FString& Parameters)
 	{
 		AddError(LoadResult.FormatIssues());
 		return false;
+	}
+	const TMap<FName, FName> ExpectedScenes = {
+	    {TEXT("Stage.1"), TEXT("SC01")},
+	    {TEXT("Stage.2"), TEXT("SC02")},
+	    {TEXT("Stage.3"), TEXT("SC03")},
+	    {TEXT("Stage.Boss"), TEXT("SC04")},
+	};
+	for (const TPair<FName, FName>& Expected : ExpectedScenes)
+	{
+		const FReEchoCsvStageRow* Stage = LoadResult.Snapshot->FindStage(Expected.Key);
+		if (TestNotNull(*FString::Printf(TEXT("%s exists"), *Expected.Key.ToString()), Stage))
+		{
+			TestEqual(*FString::Printf(TEXT("%s SceneId"), *Expected.Key.ToString()), Stage->SceneId, Expected.Value);
+		}
 	}
 
 	struct FExpectedTransition
@@ -99,6 +114,33 @@ bool FReEchoStageTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Transition beyond the configured final encounter fails closed"),
 	          ReEchoStageTransition::Resolve(*LoadResult.Snapshot, 8, MissingDecision, MissingError));
 	TestFalse(TEXT("Missing next encounter reports a diagnostic"), MissingError.IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoArenaSceneRegistryTest,
+                                 "ReEcho.StageTransition.SceneRegistry",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoArenaSceneRegistryTest::RunTest(const FString& Parameters)
+{
+	FReEchoArenaSceneRegistration SC01;
+	SC01.SceneId = TEXT("SC01");
+	SC01.ArenaClass = AReEchoArenaSceneActor::StaticClass();
+	FReEchoArenaSceneRegistration SC02 = SC01;
+	SC02.SceneId = TEXT("SC02");
+
+	TMap<FName, TSubclassOf<AReEchoArenaSceneActor>> Registry;
+	FString Error;
+	TestTrue(TEXT("Unique Scene registrations compile"),
+	         AReEchoArenaSceneActor::BuildSceneRegistry({SC01, SC02}, Registry, Error));
+	TestEqual(TEXT("Unique registry contains both scenes"), Registry.Num(), 2);
+	TestTrue(TEXT("Known SceneId resolves"), Registry.Contains(TEXT("SC01")));
+	TestFalse(TEXT("Unknown SceneId stays unresolved"), Registry.Contains(TEXT("SC99")));
+
+	TestFalse(TEXT("Duplicate SceneId fails closed"),
+	          AReEchoArenaSceneActor::BuildSceneRegistry({SC01, SC01}, Registry, Error));
+	TestTrue(TEXT("Duplicate diagnostic names SceneId"), Error.Contains(TEXT("SC01")));
+	TestEqual(TEXT("Failed registry does not leave partial entries"), Registry.Num(), 0);
 	return true;
 }
 

@@ -23,8 +23,7 @@ AReEchoArenaCameraActor::AReEchoArenaCameraActor()
 	SetActorRotation(FRotator(-45.0f, 0.0f, 0.0f));
 }
 
-void AReEchoArenaCameraActor::Configure(AReEchoPlayerPawn* InFollowTarget,
-                                        AReEchoArenaSceneActor* InArenaSource)
+void AReEchoArenaCameraActor::Configure(AReEchoPlayerPawn* InFollowTarget, AReEchoArenaSceneActor* InArenaSource)
 {
 	if (FollowTarget && FollowTarget != InFollowTarget)
 	{
@@ -61,8 +60,15 @@ void AReEchoArenaCameraActor::UpdateFollow(const float DeltaSeconds)
 	{
 		const FVector2D Footprint = AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(
 		    ArenaCamera->OrthoWidth, ArenaCamera->AspectRatio, GetActorRotation());
-		Target = AReEchoArenaSceneActor::ClampCameraFocus(
-		    Desired, ArenaSource->GetArenaCenter(), ArenaSource->GetPlayerHalfExtents(), Footprint);
+		// With the default yaw, screen up/down maps to world +/-X and screen left/right maps to world -/+Y.
+		const FVector2D NegativeAxisInsets(BottomEdgeInset, LeftEdgeInset);
+		const FVector2D PositiveAxisInsets(TopEdgeInset, RightEdgeInset);
+		Target = AReEchoArenaSceneActor::ClampCameraFocusWithInsets(Desired,
+		                                                            ArenaSource->GetArenaCenter(),
+		                                                            ArenaSource->GetCameraClampHalfExtents(),
+		                                                            NegativeAxisInsets,
+		                                                            PositiveAxisInsets,
+		                                                            Footprint);
 	}
 	const FVector Current3D = GetGroundFocus();
 	const FVector2D Current(Current3D.X, Current3D.Y);

@@ -1,5 +1,5 @@
 Id,StageIndex,SceneId,FirstEncounterIndex,LastEncounterIndex,PreserveEnemiesBetweenEncounters,ClearEnemiesOnEnter,Enabled,SourceSheet,SourceRow,Notes
-Stage.1,1,Level00,1,2,true,true,true,关卡配置表,2,第1关：战斗1-2
-Stage.2,2,Level00,3,5,true,true,true,关卡配置表,4,第2关：战斗3-5
-Stage.3,3,Level00,6,7,true,true,true,关卡配置表,7,第3关：战斗6-7
-Stage.Boss,4,Level00,8,8,false,true,true,关卡配置表,9,Boss独立阶段；正式场景资产后续接入
+Stage.1,1,SC01,1,2,true,true,true,关卡配置表,2,第1关：战斗1-2
+Stage.2,2,SC02,3,5,true,true,true,关卡配置表,4,第2关：战斗3-5
+Stage.3,3,SC03,6,7,true,true,true,关卡配置表,7,第3关：战斗6-7
+Stage.Boss,4,SC04,8,8,false,true,true,关卡配置表,9,Boss独立阶段；正式场景资产后续接入

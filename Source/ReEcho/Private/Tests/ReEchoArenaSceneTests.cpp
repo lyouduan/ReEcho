@@ -43,6 +43,20 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	    AReEchoArenaSceneActor::ClampCameraFocus(FVector2D(100000.0f, -100000.0f), Center, Footprint * 0.5f, Footprint);
 	TestEqual(TEXT("Undersized map locks both axes to center"), UndersizedResult, Center);
 
+	const FVector2D AsymmetricResult =
+	    AReEchoArenaSceneActor::ClampCameraFocusWithInsets(FVector2D(100000.0f, -100000.0f),
+	                                                       Center,
+	                                                       MapHalfExtents,
+	                                                       FVector2D(150.0f, 250.0f),
+	                                                       FVector2D(350.0f, 450.0f),
+	                                                       Footprint);
+	TestEqual(TEXT("Positive X edge applies its independent inset"),
+	          AsymmetricResult.X,
+	          Center.X + MapHalfExtents.X - 350.0f - Footprint.X);
+	TestEqual(TEXT("Negative Y edge applies its independent inset"),
+	          AsymmetricResult.Y,
+	          Center.Y - MapHalfExtents.Y + 250.0f + Footprint.Y);
+
 	const FIntPoint SortRange(-10, 10);
 	const int32 NearPriority = AReEchoArenaSceneActor::CalculateFootpointSortPriority(
 	    FVector2D(100.0f, 0.0f), FVector2D::ZeroVector, FVector2D(1.0f, 0.0f), 10.0f, 100, SortRange);

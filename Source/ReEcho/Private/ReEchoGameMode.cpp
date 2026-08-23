@@ -732,13 +732,10 @@ void AReEchoGameMode::StartPlay()
 		       *ArenaFailure);
 		return;
 	}
-	const FVector2D PlayerHalfExtents = ArenaScene->GetPlayerHalfExtents();
-	const FVector2D EnemySpawnHalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
-	ArenaSceneWorldHeight = EnemySpawnHalfExtents.X * 2.0f;
-	ArenaSceneWorldWidth = EnemySpawnHalfExtents.Y * 2.0f;
-	if (Player)
+	if (!InitializeArenaSceneRegistry(ArenaFailure))
 	{
-		Player->ConfigureArenaBounds(ArenaScene->GetArenaCenter(), PlayerHalfExtents);
+		UE_LOG(LogTemp, Error, TEXT("[ArenaScene] Registry initialization failed: %s"), *ArenaFailure);
+		return;
 	}
 	int32 ArenaCameraCount = 0;
 	for (TActorIterator<AReEchoArenaCameraActor> It(GetWorld()); It; ++It)
@@ -751,7 +748,7 @@ void AReEchoGameMode::StartPlay()
 		UE_LOG(LogTemp, Error, TEXT("[ArenaCamera] Expected one ArenaCameraActor; found %d."), ArenaCameraCount);
 		return;
 	}
-	ArenaCameraActor->Configure(Player, ArenaScene);
+	RefreshArenaSceneConsumers();
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
 		PlayerController->SetViewTarget(ArenaCameraActor);
@@ -1345,6 +1342,120 @@ FVector AReEchoGameMode::ResolveStageEntryLocation() const
 	return FVector(Center.X, Center.Y, ArenaScene->GetGameplayPlaneWorldZ() + HalfHeight);
 }
 
+bool AReEchoGameMode::InitializeArenaSceneRegistry(FString& OutError)
+{
+	if (!ArenaScene ||
+	    !AReEchoArenaSceneActor::BuildSceneRegistry(ArenaScene->GetSceneRegistry(), ArenaSceneRegistry, OutError))
+	{
+		return false;
+	}
+	ActiveArenaSceneId = ArenaScene->GetSceneId();
+	if (ActiveArenaSceneId.IsNone() || !ArenaSceneRegistry.Contains(ActiveArenaSceneId))
+	{
+		OutError =
+		    FString::Printf(TEXT("Placed Arena Scene has unregistered SceneId=%s."), *ActiveArenaSceneId.ToString());
+		ArenaSceneRegistry.Reset();
+		ActiveArenaSceneId = NAME_None;
+		return false;
+	}
+	return true;
+}
+
+bool AReEchoGameMode::ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError)
+{
+	OutError.Reset();
+	if (Stage.SceneId.IsNone())
+	{
+		OutError = FString::Printf(TEXT("StageId=%s has an empty SceneId."), *Stage.Id.ToString());
+		return false;
+	}
+	if (ArenaScene && ActiveArenaSceneId == Stage.SceneId)
+	{
+		return true;
+	}
+	const TSubclassOf<AReEchoArenaSceneActor>* SceneClassReference = ArenaSceneRegistry.Find(Stage.SceneId);
+	if (!SceneClassReference)
+	{
+		OutError = FString::Printf(
+		    TEXT("StageId=%s references unknown SceneId=%s."), *Stage.Id.ToString(), *Stage.SceneId.ToString());
+		return false;
+	}
+	UClass* SceneClass = SceneClassReference->Get();
+	if (!SceneClass || !SceneClass->IsChildOf(AReEchoArenaSceneActor::StaticClass()))
+	{
+		OutError = FString::Printf(TEXT("StageId=%s SceneId=%s could not load a valid Arena class."),
+		                           *Stage.Id.ToString(),
+		                           *Stage.SceneId.ToString());
+		return false;
+	}
+	const FTransform SpawnTransform = ArenaScene ? ArenaScene->GetActorTransform() : FTransform::Identity;
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AReEchoArenaSceneActor* NewArenaScene =
+	    GetWorld()->SpawnActor<AReEchoArenaSceneActor>(SceneClass, SpawnTransform, SpawnParameters);
+	FString ConfigurationError;
+	if (!NewArenaScene || NewArenaScene->GetSceneId() != Stage.SceneId ||
+	    !NewArenaScene->HasValidConfiguration(&ConfigurationError))
+	{
+		if (NewArenaScene)
+		{
+			NewArenaScene->Destroy();
+		}
+		OutError = FString::Printf(TEXT("StageId=%s SceneId=%s produced an invalid Arena: %s"),
+		                           *Stage.Id.ToString(),
+		                           *Stage.SceneId.ToString(),
+		                           *ConfigurationError);
+		return false;
+	}
+	AReEchoArenaSceneActor* PreviousArenaScene = ArenaScene;
+	ArenaScene = NewArenaScene;
+	ActiveArenaSceneId = Stage.SceneId;
+	RefreshArenaSceneConsumers();
+	if (PreviousArenaScene)
+	{
+		PreviousArenaScene->SetActorEnableCollision(false);
+		PreviousArenaScene->SetActorHiddenInGame(true);
+		PreviousArenaScene->Destroy();
+	}
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[ArenaScene] Applied StageId=%s SceneId=%s Arena=%s"),
+	       *Stage.Id.ToString(),
+	       *Stage.SceneId.ToString(),
+	       *GetNameSafe(ArenaScene));
+	return true;
+}
+
+void AReEchoGameMode::RefreshArenaSceneConsumers()
+{
+	if (!ArenaScene)
+	{
+		return;
+	}
+	const FVector2D PlayerHalfExtents = ArenaScene->GetPlayerHalfExtents();
+	const FVector2D EnemySpawnHalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
+	ArenaSceneWorldHeight = EnemySpawnHalfExtents.X * 2.0f;
+	ArenaSceneWorldWidth = EnemySpawnHalfExtents.Y * 2.0f;
+	if (Player)
+	{
+		Player->ConfigureArenaBounds(ArenaScene->GetArenaCenter(), PlayerHalfExtents);
+	}
+	if (ArenaCameraActor)
+	{
+		ArenaCameraActor->Configure(Player, ArenaScene);
+	}
+	if (EnemyRoster)
+	{
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+		{
+			if (AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Entry.Host.Get()))
+			{
+				Enemy->ConfigureGameplayPlane(ArenaScene->GetGameplayPlaneWorldZ());
+			}
+		}
+	}
+}
+
 void AReEchoGameMode::PrepareEncounterIntermission()
 {
 	FReEchoStageTransitionDecision Transition;
@@ -1427,6 +1538,25 @@ void AReEchoGameMode::BeginNextEncounter()
 		ClearEnemyRoster();
 	}
 	ClearEchoes();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> PreBeginSnapshot = RunSubsystem->GetRunDataSnapshot();
+	const FReEchoCsvEncounterRow* NextEncounter =
+	    PreBeginSnapshot.IsValid() ? PreBeginSnapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex + 1) : nullptr;
+	const FReEchoCsvStageRow* NextStage =
+	    NextEncounter && PreBeginSnapshot.IsValid() ? PreBeginSnapshot->FindStage(NextEncounter->StageId) : nullptr;
+	FString SceneError;
+	if (!NextEncounter || !NextStage || !ApplyArenaSceneForStage(*NextStage, SceneError))
+	{
+		const FName StageId = NextEncounter ? NextEncounter->StageId : NAME_None;
+		const FName SceneId = NextStage ? NextStage->SceneId : NAME_None;
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[ArenaScene] Encounter start blocked StageId=%s SceneId=%s: %s"),
+		       *StageId.ToString(),
+		       *SceneId.ToString(),
+		       *SceneError);
+		ClearCombatants();
+		return;
+	}
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
 	bBossPostEchoPhaseTriggered = false;
@@ -1584,10 +1714,19 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* Encounter =
 	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
-	if (!Encounter || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
+	const FReEchoCsvStageRow* Stage =
+	    Encounter && Snapshot.IsValid() ? Snapshot->FindStage(Encounter->StageId) : nullptr;
+	FString SceneError;
+	if (!Encounter || !Stage || !ApplyArenaSceneForStage(*Stage, SceneError) ||
+	    !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
 	{
-		UE_LOG(
-		    LogTemp, Error, TEXT("Saved encounter %d has no valid table configuration."), RunSubsystem->EncounterIndex);
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("Saved encounter %d has no valid table/Arena configuration StageId=%s SceneId=%s: %s"),
+		       RunSubsystem->EncounterIndex,
+		       Encounter ? *Encounter->StageId.ToString() : TEXT("None"),
+		       Stage ? *Stage->SceneId.ToString() : TEXT("None"),
+		       *SceneError);
 		return;
 	}
 	Director->ConfigureEncounter(Encounter->DurationSeconds, Encounter->EndCondition == TEXT("Duration"));

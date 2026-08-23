@@ -11,6 +11,7 @@ class USceneComponent;
 
 /** Independent Editor-authored camera. It never inherits the map Actor transform. */
 UCLASS()
+
 class REECHO_API AReEchoArenaCameraActor : public AActor
 {
 	GENERATED_BODY()
@@ -32,7 +33,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Follow", meta = (ClampMin = "0.0"))
 	float CameraFollowSpeed = 8.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Follow")
-	bool bClampToArenaBounds = false;
+	bool bClampToArenaBounds = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Edge Limits", meta = (ClampMin = "0.0"))
+	float LeftEdgeInset = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Edge Limits", meta = (ClampMin = "0.0"))
+	float RightEdgeInset = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Edge Limits", meta = (ClampMin = "0.0"))
+	float BottomEdgeInset = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Edge Limits", meta = (ClampMin = "0.0"))
+	float TopEdgeInset = 0.0f;
 
 private:
 	void UpdateFollow(float DeltaSeconds);

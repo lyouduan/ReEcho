@@ -47,6 +47,7 @@
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
 | Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
+| 当前 Arena 场景与 SceneId 注册 | `AReEchoArenaSceneActor` 注册表；Stage CSV `SceneId` 为选择权威 | World/Stage | GameMode 在初始、恢复和跨 Stage 入口先应用场景；同 Stage 不重建，失败阻止 Encounter 开始 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
 | Actor 可见状态 | 各 Presentation/Graybox Actor | Actor | 消费逻辑结果，不反写逻辑 |
@@ -107,14 +108,17 @@ DefaultEngine.ini
       → 继续：加载安全检查点或暂停遭遇
       → 预加载未完成时保留当前菜单；完成或失败后只进入一次 BeginSelectedRun
       → BeginNextEncounter / ResumeSavedEncounter
+          → 按 Stage CSV SceneId 从 Arena Blueprint 注册表解析 SC01-SC04；只在 SceneId 变化时原位替换 Arena，并重绑 Player/Camera/Bounds
           → 玩家、Recorder、可用 Echo、EnemyHost + Roster
           → 60 Hz 固定步遭遇 → 0/10/20 秒 WaveScheduler
           → 普通战按 30 秒完成；ReEchoStageTransition 统一解析下一场策略；Boss 按胜负
           → 完成录制与 RunSubsystem::CompleteEncounter
           → 局间停止玩家并冻结保留 Enemy Host，清理旧 Echo/瞬时攻击
           → 特质选择 → 商店 → Echo 管理
-          → 同 Stage 原 Actor/Roster 与玩家位置继续；跨 Stage 清理并解析 Arena 入口 → 下一场
+          → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
 ```
+
+Arena 作者ing中，`BackdropHalfExtents` 只控制底图显示宽高，与 Camera/Player/Enemy Bounds 分离。SC01-SC04 Blueprint 默认关闭碰撞自动布局，Floor/四墙采用组件模板 Transform，construction 与作者ing重跑不得覆盖美术手调值。各 Backdrop 模板直接绑定对应 Profile 的 MI 以供 Blueprint Editor 预览，运行时仍由 `ApplySceneProfile` 创建动态实例并应用调色参数；Floor 不承载视觉底图。相机基础锁边范围读取当前 Arena 的 `CameraClampHalfExtents`，相机 Actor 另有左、右、下、上四个独立 inset；正交视锥 footprint 到达任一边缘时仅锁定对应轴，角色继续由 Player Bounds 与墙体限制。SC01 边缘插片是 Arena Blueprint 的直接组件；初始排序为 Backdrop < 角色/怪物 < Mid < Foreground，作者ing脚本只初始化缺失组件并保留已有美术 Transform、显隐、材质与透明排序。
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
