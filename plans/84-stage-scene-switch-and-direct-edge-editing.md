@@ -14,7 +14,7 @@
 - Writes:
   - `plans/83-sc01-editable-edge-inserts.md`
   - `plans/84-stage-scene-switch-and-direct-edge-editing.md`
-  - `Design/Data/ReEchoData.xlsx` 与同步生成的 `Content/Data/stages.csv`
+  - `Design/Data/ReEchoEncounterData.xlsx` 中 `tblStages` 与同步生成的 `Content/Data/stages.csv`
   - `Content/Data/csv_schema.csv`（将 `Stages.SceneId` 允许值更新为 `SC01/SC02/SC03/SC04`）
   - `scripts/validate_project.py`（同步 SceneId 生产数据不变量）
   - `Source/ReEcho/Public/Presentation/Scene/ReEchoArenaSceneActor.h`
