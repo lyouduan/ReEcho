@@ -276,3 +276,59 @@
 ### 当前卡点（与 ws45 WIP 合并后）
 - C++ 改动使 prebuilt bundle stale；需本地增量 `Build-Editor -Configuration Development`（编辑器须关闭）刷新指纹，sync 才能持久化 `enemies.csv`（曾因 stale 被 sync 回滚）。
 - 分支 `plan/68-ws1-5` 与 origin/main 分叉（本地 1 WIP / 远端 2：Plan75 implement loadout + Plan76 Niagara）；合 main 前须 rebase 到 origin/main 并核对 weapon 相关无冲突（优先手动逐文件落位 + grep 核验，避 ort 静默选边）。
+
+---
+
+## 实现现状总览与交接给下一个 AI（2026-08-23，Secretary/Programmer 侧 AI 记录）
+
+> 本段是**最新、最权威**的实现现状快照，供接手 AI 直接据此继续。与上文任何较旧提纲/数值冲突处，以本段为准。已把整个 γ-B 重构 + WS1..WS5 恢复线整合进单一分支 `plan/68-ws1-5`。
+
+### A. 分支 / 工作树 / 提交拓扑（发布前实测）
+
+- 实现工作树：`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan68`；分支 `plan/68-ws1-5`；HEAD = `d382758`。
+- 共同祖先（merge-base with origin/main）= `b7c4212` = `origin/plan/67-shop-drop` 的 tip。**注意：本分支实际基于 plan67（尚未进 main）而非直接基于 origin/main。**
+- 领先该基线 **6 个提交**，落后 `origin/main` **27 个提交**（origin/main 已推进到 Plan84；期间合入 Plan76/77/78/79/80/81/82/83/84 等大量 weapon/UI/敌群/关卡工作）。
+- 远端另有一条 WS4/WS5 独立实现线 `origin/plan/68-ws4-sheep-boss`（`771db62` "SHEEP two-phase boss and idle-wander aggro state machine"）——与本分支是**并行的两种实现**，接手前须先决定以哪条为准（本分支 `plan/68-ws1-5` 是更完整的整合线）。
+
+本分支领先基线的 6 个提交（新→旧）：
+
+| 提交 | 语义 | 层 |
+|---|---|---|
+| `d382758` | 投射物齐射数据驱动：`ProjectileCount`/`SpreadAngleDegrees`/`bMovementDuringCast` 三列映射 + N 发扇形散射行为；修 RABBIT 测试调参（速度 500→432 → 玩家参照点改 475/560/645cm）+ 修 `ResolveVolleyDirection` 误用全局 BallCount 的潜伏 bug（改 InBallCount 参数）；清理 stale boss-phase validator | 数据+行为+测试 |
+| `8f7e4ef` | 仇恨/感知范围 `HateRangeCm` 数据驱动（来自策划「变身范围」列），退役硬编码 resolver | WS5 |
+| `d5a6dbc` | `EnemyCombatStats` 按场次成长接入 spawn（按 EncounterIndex 覆盖 MaxHealth/ContactDamage/AttackInterval） | WS3 |
+| `36516de` | 非 boss 对齐 `怪物.xlsx`（HP/contact/Phase2）+ RABBIT RB_01B；发布 csv + 刷新 prebuilt | WS1/WS2 |
+| `890de67` | γ-B 相对移速（player=1.0，`BaseMoveSpeed=210`，编译期归一）+ SHEEP align | γ-B |
+| `e45242d` | **WIP WS4/WS5 恢复快照，提交说明标注「local temp, not for remote」** —— SHEEP 二阶段 csv/schema + 致命伤拦截委托 + Phase2 血量触发 C++ + 测试 + plan 文档 70 行 | WS4/WS5 |
+
+### B. 未提交工作（本会话新增，尚未 commit，7 个文件）
+
+GM 调试可视化工具（Plan68 验证用，非原 Plan Writes 清单）：
+- `Source/ReEcho/Public/ReEchoGameMode.h`（+16）：`UFUNCTION(Exec) GMShowEnemyHealth` / `GMShowEnemyRange` 声明 + `IsEnemyHealthDebugEnabled()`/`IsEnemyRangeDebugEnabled()` 访问器 + `bShowEnemyHealthDebug`/`bShowEnemyRangeDebug` 标志。
+- `Source/ReEcho/Private/ReEchoGameMode.cpp`（+53）：两个 Exec 命令实现（On/Off/Toggle + `EnsureGMCommandAvailable` + `PrintGMResult`），GMHelp 追加两行。
+- `Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`（+57）：`Tick` 内 `#if !UE_BUILD_SHIPPING` 段——头顶 `DrawDebugString` 血量（HP/百分比）；`DrawDebugCircle` 红圈=近战 `ContactRangeCm`、橙圈=远程最大 `MaxRangeCm`（`Damage>0` 技能取最大），圈旁 `DrawDebugString` 标「接触 Xcm」/「远程 Xcm」。
+- `docs/GM_COMMANDS.md`（+2）：登记两条命令。
+- `Binaries/Win64/UnrealEditor-ReEcho.dll` / `UnrealEditor-ReEchoEnemies.dll` / `ReEchoEditor.prebuilt.json`：本会话增量构建刷新（非 FullRebuild）。
+
+### C. 现状 vs 原提纲的确定性差异（以此为准）
+
+- **Boss = 羊 `M_SHEEP`**（原 `M_TimeGuard` 废除）；SHEEP 复用 `Boss.TimeGuard` 的 BehaviorProfile/Presentation（仅换 enemy id），`MaxHealth=1300`。
+- **二阶段触发 = 血条清空（HP→0）变身**，二阶段回满血到 **650**；SH_04 冷却默认 **13s**。已放弃 `TriggerHealthFraction=百分比` 与 `MaxHealth=2600` 旧提纲。
+- **移速 = γ-B 彻底相对化**：废弃绝对 `MoveSpeedCmPerSecond`，改 `MoveSpeedMultiplier`（player=1.0，`BaseMoveSpeed=210` 编译期归一）；7 敌相对值见上文 γ 章节对照表。
+- SHEEP 5 技能（SH_01 MeleeSweep / SH_02A、SH_02B Projectile / SH_03 BlinkSlam / SH_04 PrayerBeam）与双阶段已按 `怪物.xlsx` 落地到 csv + xlsx 真源。
+
+### D. 当前卡点与待办（接手 AI 的关键路径）
+
+1. **`e45242d` WIP 去留**：该提交标「not for remote」。发布分支给协作前应 `reword`/`squash` 成正式 `[PROGRAMMER] Plan68 ...` 提交（或用户明确确认可原样带上远端 feature 分支）。
+2. **未提交 GM 工作**：决定是否随分支一起提交（对接手 AI 用 GM 命令 PIE 调试 SHEEP/怪物有用）。
+3. **落后 origin/main 27 提交**：接手若要合 main，须 rebase/merge 到最新 origin/main，重点核对与 Plan76/77/78/79/80/81/82/83/84 的 weapon/敌群/关卡改动无冲突（优先手动逐文件落位 + grep 核验，避 ort 静默选边）。
+4. **发布 origin/main 门禁**（仅当最终合 main 时）：`scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` + `python scripts/validate_project.py` 绿灯 + 刷新精选预构建二进制 + 用户 PIE 实测 + 用户明确「可以推 main」。
+5. **人工验收（PendingBeforeClose）**：PIE 验证 SHEEP 血清空→变黑二阶段（满血 650）→再打死→击败结算；四怪双形态表现；按场次成长；未战斗游走。
+
+### E. 接手须知（风险点，详见上文「WS4/WS5 恢复交接记录」第五节）
+
+- xlsx 改前先备份，只改目标单元格；遍历行必查 `row_dimensions[r].hidden`（隐藏行=废除数据）。
+- 运行时绝不直读 xlsx；禁止把手改 CSV 当真源——必须 `sync_xlsx_to_csv.py` 回一致。
+- `enemy_abilities.BehaviorId` 必须落在 C++ 硬编码 5 个（`Boss.MeleeSweep/Projectile/BlinkSlam/PrayerBeam/ElementCleanse`）；SH_04 用 `PrayerBeam`。
+- 模块边界：EnemyLogic 不得 include GameMode/PlayerController/presentation；血量由 host 注入 `Sense.CurrentHealthRatio`。
+- 致命伤拦截委托签名 `FReEchoFatalDamageIntercept = bool(float&)`，改动须同步所有绑定/调用点。
