@@ -13,6 +13,14 @@ enum class EReEchoWeaponMotionMode : uint8
 	FullSpin
 };
 
+/** Texture axis normalized to the character reference height for held-weapon layout. */
+UENUM(BlueprintType)
+enum class EReEchoHeldWeaponSizeAxis : uint8
+{
+	Width,
+	Height
+};
+
 UENUM(BlueprintType)
 enum class EReEchoWeaponVfxSpawnMode : uint8
 {
@@ -60,6 +68,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity") FName WeaponVisualKey = NAME_None;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual") TSoftObjectPtr<UTexture2D> HeldTexture;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual") TSoftObjectPtr<UTexture2D> LegacyAttackTexture;
+	/** Held weapon length as a ratio of the owning character profile's stable WorldHeight. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual", meta = (ClampMin = "0.01"))
+	float HeldLengthRatio = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
+	EReEchoHeldWeaponSizeAxis HeldSizeAxis = EReEchoHeldWeaponSizeAxis::Height;
+	/** World-space visual offset normalized to the owning character's final reference height. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
+	FVector HeldOffsetRatio = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
+	FRotator HeldRotationOffset = FRotator::ZeroRotator;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
+	bool bOverrideHeldLength = false;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Held Visual",
+	          meta = (ClampMin = "1.0", EditCondition = "bOverrideHeldLength", EditConditionHides))
+	float HeldLengthOverrideCm = 100.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Motion")
 	EReEchoWeaponMotionMode MotionMode = EReEchoWeaponMotionMode::None;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Motion", meta = (ClampMin = "0.0"))

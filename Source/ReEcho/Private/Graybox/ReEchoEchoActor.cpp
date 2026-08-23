@@ -163,6 +163,7 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 		{
 			PresentationController->SetWeaponVisualSetId(Weapon->GetEquippedWeaponVisualKey());
 		}
+		Weapon->ConfigureHeldPresentation(ActivePresentationProfile);
 		FReEchoStatBlock EchoStats = Weapon->GetBuildSnapshot().Stats;
 		EchoStats.PhysicalAttack = FMath::Max(1.0f, EchoStats.PhysicalAttack * DamageEfficiency);
 		EchoStats.ElementalAttack = FMath::Max(1.0f, EchoStats.ElementalAttack * DamageEfficiency);
@@ -209,6 +210,10 @@ void AReEchoEchoActor::RefreshPresentationProfile()
 	{
 		PresentationController->Configure(
 		    EchoAnimation, ActivePresentationProfile, Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
+	}
+	if (Weapon)
+	{
+		Weapon->ConfigureHeldPresentation(ActivePresentationProfile);
 	}
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();

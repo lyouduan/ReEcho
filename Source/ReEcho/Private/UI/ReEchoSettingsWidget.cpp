@@ -605,10 +605,13 @@ UWidget* UReEchoSettingsWidget::GenerateComboBoxItem(FString Item)
 	UTextBlock* ItemText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	ItemText->SetText(FText::FromString(Item));
 	ItemText->SetJustification(ETextJustify::Center);
-	ItemText->SetColorAndOpacity(FSlateColor(FLinearColor(0.12f, 0.12f, 0.12f, 1.0f)));
-	FSlateFontInfo ItemFont = ItemText->GetFont();
-	ItemFont.Size = 28;
-	ItemText->SetFont(ItemFont);
+	if (const UTextBlock* AuthoredContentText =
+	        Cast<UTextBlock>(WidgetTree ? WidgetTree->FindWidget(TEXT("GraphicsValue0")) : nullptr))
+	{
+		ItemText->SetColorAndOpacity(AuthoredContentText->GetColorAndOpacity());
+		ItemText->SetFont(AuthoredContentText->GetFont());
+		ItemText->SetRenderTransform(AuthoredContentText->GetRenderTransform());
+	}
 	return ItemText;
 }
 

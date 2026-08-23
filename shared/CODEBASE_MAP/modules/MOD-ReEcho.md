@@ -186,6 +186,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 攻击表现路由（Plan76）：长剑与镰刀的稳定 AttackPattern 由 Combat VFX Catalog 分别映射专用一次性 Niagara，不再生成旧平面刀光；弓与枪的飞行 Niagara 附着到 `AReEchoProjectileActor`，首次权威 `OnProjectileImpacted` 播放各自命中特效，表现不积分位移、不决定命中。四者不再读取 `SlashCrescent/ScytheSweep/BowProjectile/GunProjectile`；鞭与法杖暂时保留 `WhipLash/StaffLightWave` 旧表现。任何表现缺失都不得影响逻辑 Commit、飞行和伤害。
 - 武器表现 Profile（Plan77）：`FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析本体资源、武器动作模式和专属攻击 VFX 能力；Profile 不包含角色动画或玩法规则。Player/Echo 可启用 Weapon Track，普通怪物强制无武器，Boss 只有显式配置武器表现 ID 时才允许启用。
 - 武器表现资源由 `/Game/ReEcho/DataAsset/Weapon` 下的一武器一 `UReEchoWeaponPresentationProfile` 配置，并由 `DA_WeaponPresentationCatalog` 按 VisualKey 唯一解析；预加载器只聚合已启用的 Soft Reference。Profile 提供 Charge、Travel、DamageApplied 三个可选阶段槽，并保留明确的 AttackCommitted 槽承载长剑/镰刀现有提交斩击。
+- 手持武器装配（Plan81）：角色 Animation2D Profile 以 `WeaponAnchorRatio × WorldHeight` 提供稳定挂点，Weapon Presentation Profile 以 `HeldLengthRatio`、尺寸主轴、相对偏移、旋转及稀有绝对覆盖描述武器自身。`AReEchoWeaponActor` 按角色 `WorldHeight × CharacterScale` 计算最终武器长度；Player/Echo 只在初始化、武器选择或 Profile 刷新时调用统一布局入口，不读取当前动画帧 Bounds，也不把受击临时形变传给武器。
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
 - 测试：逻辑模块 `Source/ReEchoWeapons/Private/Tests/`；主模块保留数据编译、构筑、Actor 装配和跨域回归。
 

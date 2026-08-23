@@ -50,6 +50,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
 	FVector FootpointOffset = FVector::ZeroVector;
 
+	/** Stable held-weapon anchor in actor space, normalized to WorldHeight. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	FVector WeaponAnchorRatio = FVector(-0.16f, 0.30f, 0.06f);
+
 	/** 表现状态、优先级和中断规则；Flipbook仍由下方外观/武器动画集提供。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	TObjectPtr<UReEcho2DAnimationStateMachineAsset> StateMachine;

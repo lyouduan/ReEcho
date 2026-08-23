@@ -1065,6 +1065,10 @@ void AReEchoPlayerPawn::RefreshPresentationProfile()
 		    SequenceAnimation, Profile, Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
 	}
 	ActivePresentationProfile = Profile;
+	if (Weapon)
+	{
+		Weapon->ConfigureHeldPresentation(ActivePresentationProfile);
+	}
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
 	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
@@ -1139,6 +1143,10 @@ void AReEchoPlayerPawn::RefreshWeaponPresentationSet()
 	if (PresentationController)
 	{
 		PresentationController->SetWeaponVisualSetId(Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None);
+	}
+	if (Weapon)
+	{
+		Weapon->ConfigureHeldPresentation(ActivePresentationProfile);
 	}
 }
 

@@ -19,6 +19,7 @@
 - `PresentationId -> Profile` 的 Cook 可追踪表现目录。
 - 语义动画状态、Clip/Profile、状态机和播放控制。
 - Flipbook 尺寸、朝向、锚点及安全隐藏。
+- 角色稳定 `WorldHeight` 及归一化手持武器挂点；只描述外观空间，不引用具体武器。
 - 逐帧碰撞快照与调试显示。
 
 ### 不负责
@@ -70,6 +71,8 @@
 
 敌人 Gameplay Blueprint Class 由主模块 `UReEchoEnemyGameplayClassRegistry` 单独解析，不存入表现 Catalog。
 
+`UReEcho2DCharacterPresentationProfile::WeaponAnchorRatio` 以稳定 `WorldHeight` 为单位描述角色手部挂点。主模块可以消费该只读空间契约装配武器，但本模块不解析 Weapon Profile，也不按当前 Flipbook 帧 Bounds 改写挂点。
+
 ## 内部组成
 
 - Catalog：稳定 ID 到 Profile。
@@ -100,5 +103,6 @@
 
 - Catalog 不得引用主模块 Actor 或 Gameplay Blueprint Class。
 - Animation/Profile 不得决定命中、伤害、移动或死亡。
+- 武器挂点只使用 Profile 的稳定参考高度；不得随 Idle/Move/Attack 的单帧 Bounds 重算。
 - 不允许 SpawnIndex、EnemyKind 或生成顺序替代稳定 PresentationId。
 - 移动类路径必须保留精确 Core Redirect，旧资产通过 Editor 保存后完成升级。

@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
@@ -70,8 +71,14 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 		if (Profile)
 		{
 			TestEqual(TEXT("Profile identity matches lookup"), Profile->WeaponVisualKey, Key);
+			TestTrue(TEXT("Held weapon ratio remains positive"), Profile->HeldLengthRatio > 0.0f);
+			TestTrue(TEXT("Absolute held length override remains positive"), Profile->HeldLengthOverrideCm > 0.0f);
 		}
 	}
+	const UReEcho2DCharacterPresentationProfile* DefaultCharacterProfile =
+	    GetDefault<UReEcho2DCharacterPresentationProfile>();
+	TestTrue(TEXT("Character profile exposes a normalized weapon anchor"),
+	         !DefaultCharacterProfile->WeaponAnchorRatio.ContainsNaN());
 	TestTrue(TEXT("Missing legacy Whip hand art remains an explicit empty optional field"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Whip"))->HeldTexture.IsNull());
 	TestFalse(TEXT("Bow has held visual"),

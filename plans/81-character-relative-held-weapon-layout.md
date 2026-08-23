@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序 Executor）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@df356c10`。
 - 本地实现方式（可选，仅作交接说明）：按当前对话确认，直接在本地 `main` 工作区实施；保护现有未提交美术、VFX、UI 和动画资源。
@@ -73,20 +73,34 @@
 
 ### 变化
 
-待执行。
+- 删除 WeaponActor 构造阶段六武器固定 `250 UU` 缩放；新增以角色 Profile `WorldHeight`、宿主 `CharacterScale` 和 Weapon Profile 长度比例计算的统一布局。
+- Character Profile 新增归一化 `WeaponAnchorRatio`；Weapon Profile 新增尺寸主轴、长度比例、相对偏移、静态旋转与可选绝对长度覆盖。
+- Player/Echo 在 Profile 刷新、武器初始化和选择事件调用同一 `ConfigureHeldPresentation`；Tick 只保留原有武器动作，不参与基础布局计算。
+- 未保存或覆盖任何 Character/Weapon Profile 二进制资产；本地已有 `DA_WeaponPresentation_Gun.uasset` 修改保持原样。首版通过 CDO 默认值立即生效，后续可在 Editor 中逐武器调参。
 
 ### 证据
 
-Plan-only 候选待执行静态验证。
+- `.clang-format`：已使用 Visual Studio LLVM 对全部修改的 `.h/.cpp` 执行。
+- `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：通过，97/97 actions，最终预构建指纹 `746b41b4af9e`。
+- `python scripts/validate_project.py`：通过。
+- `python scripts/ue/prebuilt_editor.py check`：通过，7 modules，Build ID `55116800`。
+- `git diff --check`：通过，仅有 Git 的 LF→CRLF 提示。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Presentation`：未进入测试队列；UE 5.8 平台预检因 LinuxArm64/VisionOS 缺少 `MainVersion` SDK 退出，未声称自动化通过或失败。
 
 ### 剩余风险
 
-不同武器源贴图透明边界和美术留白不同；统一几何比例后仍可能需要按武器 DA 做少量视觉调校。
+- 不同武器源贴图透明边界和美术留白不同；统一几何比例后仍可能需要按武器 DA 做少量视觉调校。
+- `UBillboardComponent` 会保持面向相机，DA 的静态旋转对 Billboard 手持武器不保证产生可见绕屏幕轴旋转；当前首版的核心验收为尺寸和挂点，若需要可控武器本体旋转，应后续统一迁移为可旋转的 Plane/Sprite 表现组件。
+- 聚焦自动化受安装版平台 SDK 基线阻塞，当前客观证据为 UHT/UBT 完整构建和静态检查；仍需人工 PIE。
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：实现后请求用户执行具名 PIE 检查。
+`PendingBeforeClose`：请在 PIE 抽查四角色的 Player/Echo，至少覆盖长剑、镰刀、弓、枪，并观察 Idle/Move/Attack 切换时武器尺寸是否稳定、挂点是否需要 DA 调整。
 
 ### 架构文档审阅结果
 
-待实现完成后逐项记录。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录主模块事件式角色相对武器装配流程。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md` 已更新：记录角色 Profile 归一化挂点契约及不按帧 Bounds 重算的不变量。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md` 已更新：记录 Weapon Profile 布局职责以及 Player/Echo 共用刷新边界。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑和依赖方向未变化。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：稳定模块/区域标识和检索路径未变化。
