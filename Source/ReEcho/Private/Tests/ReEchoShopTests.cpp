@@ -192,6 +192,13 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	for (const FReEchoShopOffer& Card : FirstCards)
 	{
 		TestTrue(TEXT("Card tier follows encounter-four configuration"), Card.Tier == 2 || Card.Tier == 3);
+		TestEqual(
+		    TEXT("Card offer carries its authored card icon path"),
+		    Card.IconTexturePath,
+		    FString::Printf(
+		        TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+		        *Card.ContentId.ToString(),
+		        *Card.ContentId.ToString()));
 		const int32 MinPrice = Card.Tier == 2 ? 100 : 150;
 		const int32 MaxPrice = Card.Tier == 2 ? 120 : 200;
 		TestTrue(TEXT("Card price comes from the configured tier range"), Card.Price >= MinPrice && Card.Price <= MaxPrice);

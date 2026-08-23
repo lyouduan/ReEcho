@@ -1109,6 +1109,10 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		Offer.Price = Card.Price;
 		Offer.Type = EReEchoShopOfferType::BuildCard;
 		Offer.Tier = Card.Tier;
+		Offer.IconTexturePath =
+		    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+		                    *Card.CardId.ToString(),
+		                    *Card.CardId.ToString());
 		View.Offers.Add(Offer);
 	}
 	return View;
