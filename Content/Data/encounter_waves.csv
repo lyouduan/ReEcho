@@ -20,4 +20,4 @@ Encounter.6.Wave.3,Encounter.6,3,20,5,5,2,,true,刷怪规则,5,按外部XLSX波�
 Encounter.7.Wave.1,Encounter.7,1,0,5,5,0,,true,刷怪规则,3,按外部XLSX波次数量
 Encounter.7.Wave.2,Encounter.7,2,10,3,3,2,,true,刷怪规则,4,按外部XLSX波次数量
 Encounter.7.Wave.3,Encounter.7,3,20,5,5,2,,true,刷怪规则,5,按外部XLSX波次数量
-Encounter.8.Wave.1,Encounter.8,1,0,0,0,0,M_SHEEP,true,怪物配置表,8,羊Boss在0秒刷新；血条清空变身二阶段
+Encounter.8.Wave.1,Encounter.8,1,0,0,0,0,M_SHEEP,true,关卡配置表,9,Boss在0秒刷新
