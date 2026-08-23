@@ -32,6 +32,13 @@ void UReEcho2DPresentationController::UpdatePlaybackCompletion()
 			CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
 		}
 		ActiveAttackInstanceId = INDEX_NONE;
+		if (bTerminalDeathActive)
+		{
+			bTerminalDeathActive = false;
+			FSimpleDelegate Completion = MoveTemp(TerminalDeathCompleted);
+			Completion.ExecuteIfBound();
+			return;
+		}
 		{
 			const FReEcho2DAnimationStateDefinition* ActiveState =
 			    Profile && Profile->StateMachine ? Profile->StateMachine->FindState(ActiveStateTag) : nullptr;
@@ -61,6 +68,8 @@ void UReEcho2DPresentationController::Configure(UReEcho2DAnimationComponent* InA
 	}
 	bWaitingForOneShot = false;
 	bActionActive = false;
+	bTerminalDeathActive = false;
+	TerminalDeathCompleted.Unbind();
 	ActiveAttackInstanceId = INDEX_NONE;
 	if (!Profile && GetOwner() && !GetOwner()->HasAnyFlags(RF_ClassDefaultObject))
 	{
@@ -88,11 +97,17 @@ void UReEcho2DPresentationController::ClearProfile()
 	bActionActive = false;
 	bWaitingForOneShot = false;
 	ActiveAttackInstanceId = INDEX_NONE;
+	bTerminalDeathActive = false;
+	TerminalDeathCompleted.Unbind();
 	DeactivatePresentation();
 }
 
 void UReEcho2DPresentationController::SetWeaponVisualSetId(const FName InWeaponVisualSetId)
 {
+	if (bTerminalDeathActive)
+	{
+		return;
+	}
 	if (WeaponVisualSetId == InWeaponVisualSetId)
 	{
 		return;
@@ -107,6 +122,10 @@ void UReEcho2DPresentationController::SetWeaponVisualSetId(const FName InWeaponV
 bool UReEcho2DPresentationController::BeginAnimationSetTransition(const FName InAnimationSetId,
                                                                   const FGameplayTag TransitionSemanticKey)
 {
+	if (bTerminalDeathActive)
+	{
+		return false;
+	}
 	if (CollisionDriver && ActiveAttackInstanceId >= 0)
 	{
 		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
@@ -121,6 +140,10 @@ bool UReEcho2DPresentationController::BeginAnimationSetTransition(const FName In
 
 void UReEcho2DPresentationController::CompleteAnimationSetTransition(const FName InAnimationSetId)
 {
+	if (bTerminalDeathActive)
+	{
+		return;
+	}
 	if (CollisionDriver && ActiveAttackInstanceId >= 0)
 	{
 		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
@@ -135,6 +158,10 @@ void UReEcho2DPresentationController::CompleteAnimationSetTransition(const FName
 
 void UReEcho2DPresentationController::SetMoving(const bool bInMoving)
 {
+	if (bTerminalDeathActive)
+	{
+		return;
+	}
 	if (bMoving == bInMoving)
 	{
 		return;
@@ -150,6 +177,10 @@ bool UReEcho2DPresentationController::PlayAction(const FGameplayTag SemanticKey,
                                                  const bool bRestart,
                                                  const int64 AttackInstanceId)
 {
+	if (bTerminalDeathActive)
+	{
+		return false;
+	}
 	const FReEcho2DAnimationStateDefinition* DesiredState = ResolveState(SemanticKey);
 	if (!CanEnterState(DesiredState))
 	{
@@ -157,15 +188,6 @@ bool UReEcho2DPresentationController::PlayAction(const FGameplayTag SemanticKey,
 	}
 	if (!ApplySemantic(SemanticKey, bRestart))
 	{
-		if (GetOwner() && !GetOwner()->HasAnyFlags(RF_ClassDefaultObject))
-		{
-			UE_LOG(LogReEchoPresentation,
-			       Warning,
-			       TEXT("Animation2D action '%s' could not resolve for profile '%s' on '%s'."),
-			       *SemanticKey.ToString(),
-			       *GetPathNameSafe(Profile),
-			       *GetNameSafe(GetOwner()));
-		}
 		return false;
 	}
 	if (CollisionDriver && ActiveAttackInstanceId >= 0 && ActiveAttackInstanceId != AttackInstanceId)
@@ -182,8 +204,54 @@ bool UReEcho2DPresentationController::PlayAction(const FGameplayTag SemanticKey,
 	return true;
 }
 
+bool UReEcho2DPresentationController::BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds)
+{
+	OutExpectedDurationSeconds = 0.0f;
+	if (bTerminalDeathActive || !Profile || !AnimationRenderer)
+	{
+		return false;
+	}
+	const FReEcho2DAnimationClip* AuthoredClip = Profile->ResolveClip(WeaponVisualSetId, ReEcho2DAnimationTags::Death);
+	if (!AuthoredClip || !AuthoredClip->Flipbook)
+	{
+		return false;
+	}
+	if (CollisionDriver && ActiveAttackInstanceId >= 0)
+	{
+		CollisionDriver->EndAttackInstance(ActiveAttackInstanceId);
+	}
+	ActiveAttackInstanceId = INDEX_NONE;
+	FReEcho2DAnimationClip DeathClip = *AuthoredClip;
+	DeathClip.bLooping = false;
+	DeathClip.bRestartOnRequest = true;
+	DeathClip.bUseNativeScale = false;
+	DeathClip.WorldHeight = FMath::Max(Profile->WorldHeight, 1.0f);
+	if (!AnimationRenderer->PlayClip(DeathClip, true))
+	{
+		return false;
+	}
+	ActiveSemanticKey = ReEcho2DAnimationTags::Death;
+	if (const FReEcho2DAnimationStateDefinition* State = ResolveState(ReEcho2DAnimationTags::Death))
+	{
+		ActiveStateTag = State->StateTag;
+	}
+	bActionActive = true;
+	bWaitingForOneShot = true;
+	bTerminalDeathActive = true;
+	TerminalDeathCompleted = MoveTemp(OnCompleted);
+	AnimationRenderer->SetVisibility(true);
+	AnimationRenderer->SetHiddenInGame(false);
+	const float SafeRate = FMath::Max(FMath::Abs(AnimationRenderer->GetPlayRate()), 0.01f);
+	OutExpectedDurationSeconds = AnimationRenderer->GetFlipbookLength() / SafeRate;
+	return OutExpectedDurationSeconds > 0.0f;
+}
+
 bool UReEcho2DPresentationController::CancelAttackAction()
 {
+	if (bTerminalDeathActive)
+	{
+		return false;
+	}
 	if (ActiveSemanticKey != ReEcho2DAnimationTags::Attack_Charge &&
 	    ActiveSemanticKey != ReEcho2DAnimationTags::Attack_Basic)
 	{
@@ -220,8 +288,12 @@ void UReEcho2DPresentationController::SetFacingSign(const float FacingSign)
 
 void UReEcho2DPresentationController::ApplyBaseState(const bool bRestart)
 {
+	if (bTerminalDeathActive)
+	{
+		return;
+	}
 	bActionActive = false;
-	const FGameplayTag DesiredKey = bMoving ? ReEcho2DAnimationTags::Move : ReEcho2DAnimationTags::Idle;
+	const FGameplayTag DesiredKey = ReEcho2DAnimationTags::Move;
 	if (!ApplySemantic(DesiredKey, bRestart))
 	{
 		// Derived Blueprint component overrides are not applied while native and
@@ -238,21 +310,6 @@ void UReEcho2DPresentationController::ApplyBaseState(const bool bRestart)
 			FallbackClip.bLooping = true;
 			FallbackClip.bUseNativeScale = true;
 			AnimationRenderer->PlayClip(FallbackClip, bRestart);
-			UE_LOG(LogReEchoPresentation,
-			       Warning,
-			       TEXT("Animation2D semantic '%s' could not resolve for '%s'; using Blueprint fallback '%s'."),
-			       *DesiredKey.ToString(),
-			       *GetNameSafe(GetOwner()),
-			       *GetPathNameSafe(AnimationRenderer->GetFlipbook()));
-		}
-		else
-		{
-			DeactivatePresentation();
-			UE_LOG(LogReEchoPresentation,
-			       Error,
-			       TEXT("Animation2D semantic '%s' could not resolve for '%s' and no Blueprint fallback exists."),
-			       *DesiredKey.ToString(),
-			       *GetNameSafe(GetOwner()));
 		}
 	}
 }

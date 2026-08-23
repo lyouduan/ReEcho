@@ -112,8 +112,10 @@ Combat OnHurt
 
 Combat OnDeath
   → EnemyLogic 立即停止所有行为
-  → Host 关闭玩法碰撞并更新 Roster
-  → Presentation 可继续播放死亡残留，但不阻挡遭遇结束
+  → Host 关闭玩法碰撞并让 Roster 立即视为死亡
+  → Host 停止后续 AI/攻击/表现推进，但继续推进已经脱离出手阶段的逻辑投射物
+  → Presentation 清除普通 Hit/Attack/VFX/阴影，只独占播放一次非循环 Death
+  → Death 播放完成由 Host 销毁 Actor；没有有效 Death Clip 时在当前死亡广播栈退出后的下一安全帧销毁
 ```
 
 ### 当前候选接线状态

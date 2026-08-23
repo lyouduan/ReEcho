@@ -61,7 +61,7 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 
 ### 结果、事件与快照
 
-- `FReEchoHitResolved` 是最终裁决结果；只有 Resolver 能决定实际伤害、格挡与死亡。
+- `FReEchoHitResolved` 是最终裁决结果；只有 Resolver 能决定实际伤害、格挡与死亡。对应的 `FReEchoDamageEvent::bFatal` 明确标记本次 Hurt 已把存活目标降至零血，表现消费者仍可显示伤害数字，但必须抑制普通受击动画与受击 VFX。
 - `UReEchoCombatEventsComponent` 发布 AttackCommitted、Hit、Hurt、HealthChanged、ElementStateChanged、Kill、Death。
 - `FReEchoCombatantSnapshot` 和 `FReEchoAttackSnapshot` 是调用瞬间的只读副本，不持久化，也不能被 UI 当成可写缓存。
 - 事件 Payload 只包含稳定 ID、值、弱/受控对象句柄和世界信息，不携带 Widget、Sound、Animation、Texture 或 Material。
@@ -122,7 +122,7 @@ Weapons/接触攻击产生 HitIntent
   → Target 接口修正原始输入（如格挡）
   → 物理/元素规则更新 Combatant 唯一状态
   → 形成 HitResolved
-  → 发布 Hit/Hurt/HealthChanged/ElementStateChanged/Kill/Death
+  → 发布 Hit/Hurt（致命时携带 bFatal）/HealthChanged/ElementStateChanged/Kill/Death
   → 来源接口接收已裁决的 Reaction/Kill 通知，目标接口接收 Defeated 通知
   → 主模块表现、UI、音频只读消费
 ```

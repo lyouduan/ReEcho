@@ -209,6 +209,7 @@ private:
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
+	void CompleteDeathSequence();
 
 	UPROPERTY(VisibleAnywhere, Category = "Abilities")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystem;
@@ -306,6 +307,7 @@ private:
 	bool bVisualPlacementApplied = false;
 	bool bAudioSpawnPosted = false;
 	bool bEncounterSimulationSuspended = false;
+	bool bDeathSequenceStarted = false;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;

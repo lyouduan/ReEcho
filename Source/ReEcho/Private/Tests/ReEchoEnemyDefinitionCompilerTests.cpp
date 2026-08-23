@@ -65,6 +65,15 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	          Boss.Phase2.TriggerMode,
 	          EReEchoEnemyPhase2TriggerMode::HealthThreshold);
 	TestEqual(TEXT("Boss phase two triggers at an empty health bar"), Boss.Phase2.HealthThresholdRatio, 0.0f);
+	FReEchoEnemyDefinition Fox;
+	TestTrue(TEXT("Fox definition compiles"),
+	         ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_FOX"), Fox, Error));
+	TestEqual(TEXT("Fox remains an elite dash enemy"), Fox.Archetype, EReEchoEnemyArchetype::Elite);
+	TestFalse(TEXT("Elite fox does not inherit shield-only frontal immunity"), Fox.bUsesDirectionalShield);
+	FReEchoEnemyDefinition Shield;
+	TestTrue(TEXT("Shield definition compiles"),
+	         ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_Shield"), Shield, Error));
+	TestTrue(TEXT("Shield enemy retains directional defense"), Shield.bUsesDirectionalShield);
 	return true;
 }
 

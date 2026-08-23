@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -65,8 +66,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostCompositionTest,
 
 bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 3);
 	FReEchoEnemyHostWorldFixture Fixture;
 	UReEchoEnemyRosterComponent* Roster = NewObject<UReEchoEnemyRosterComponent>();
 	AReEchoEnemyActor* Source = Fixture.Spawn(EReEchoEnemyKind::Bomber, 12);
@@ -122,11 +121,16 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Restore preserves explicit logical facing"),
 	         RestoredLogic.FacingDirection.Equals(FVector(0.0f, -1.0f, 0.0f)));
 
+	UReEchoCombatEventsComponent* SourceCombatEvents = Source->FindComponentByClass<UReEchoCombatEventsComponent>();
 	Source->ReceiveGrayboxDamage(TNumericLimits<float>::Max(), Source->GetActorLocation());
 	TestFalse(TEXT("Combat death immediately closes EnemyLogic"),
 	          Source->GetEnemyLogicComponent()->GetSnapshot().bAlive);
 	TestFalse(TEXT("Combat death immediately disables host collision"), Source->GetActorEnableCollision());
 	TestEqual(TEXT("Roster reads death from EnemyLogic without a copied life flag"), Roster->GetLivingEnemyCount(), 0);
+	TestTrue(TEXT("Enemy without a Death clip schedules immediate safe destruction"), Source->GetLifeSpan() > 0.0f);
+	TestTrue(TEXT("Lethal Hurt is explicitly marked fatal for presentation suppression"),
+	         SourceCombatEvents && SourceCombatEvents->GetHurtPublishCountForTests() == 1 &&
+	             SourceCombatEvents->GetLastHurtEventForTests().bFatal);
 	return true;
 }
 
@@ -136,8 +140,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostCrowdCollisionTest,
 
 bool FReEchoEnemyHostCrowdCollisionTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 2);
 	FReEchoEnemyHostWorldFixture Fixture;
 	UReEchoEnemyRosterComponent* Roster = NewObject<UReEchoEnemyRosterComponent>();
 	AReEchoEnemyActor* First = Fixture.Spawn(EReEchoEnemyKind::Grunt, 1);
@@ -160,8 +162,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostAttackPipelineTest,
 
 bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 1);
 	FReEchoEnemyHostWorldFixture Fixture;
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	AReEchoPlayerPawn* Player =
@@ -234,8 +234,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostRabbitProjectileTest,
 
 bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 1);
 	FReEchoEnemyHostWorldFixture Fixture;
 	const FReEchoCsvLoadResult LoadResult =
 	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());

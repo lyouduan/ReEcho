@@ -35,6 +35,8 @@ struct REECHOCOMBAT_API FReEchoDamageEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
+	/** This damage reduced an alive target to zero health. Consumers must suppress ordinary Hurt presentation. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bFatal = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector WorldLocation = FVector::ZeroVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector SourceWorldLocation = FVector::ZeroVector;
 };
@@ -79,6 +81,7 @@ struct REECHOCOMBAT_API FReEchoElementStateChangedEvent
 };
 
 USTRUCT(BlueprintType)
+
 struct REECHOCOMBAT_API FReEchoElementReactionLink
 {
 	GENERATED_BODY()
@@ -88,6 +91,7 @@ struct REECHOCOMBAT_API FReEchoElementReactionLink
 };
 
 USTRUCT(BlueprintType)
+
 struct REECHOCOMBAT_API FReEchoElementReactionResolvedEvent
 {
 	GENERATED_BODY()
@@ -128,8 +132,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoElementStateChangedDelegate,
                                             const FReEchoElementStateChangedEvent&,
                                             Event);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoElementReactionResolvedDelegate,
-	                                        const FReEchoElementReactionResolvedEvent&,
-	                                        Event);
+                                            const FReEchoElementReactionResolvedEvent&,
+                                            Event);
 
 UCLASS(ClassGroup = (ReEcho), meta = (BlueprintSpawnableComponent))
 
@@ -159,6 +163,10 @@ public:
 
 	void PublishHurt(const FReEchoDamageEvent& Event)
 	{
+#if WITH_DEV_AUTOMATION_TESTS
+		++HurtPublishCountForTests;
+		LastHurtEventForTests = Event;
+#endif
 		OnHurt.Broadcast(Event);
 	}
 
@@ -199,7 +207,22 @@ public:
 	{
 		return ElementStatePublishCountForTests;
 	}
-	int32 GetElementReactionPublishCountForTests() const { return ElementReactionPublishCountForTests; }
+
+	int32 GetElementReactionPublishCountForTests() const
+	{
+		return ElementReactionPublishCountForTests;
+	}
+
+	int32 GetHurtPublishCountForTests() const
+	{
+		return HurtPublishCountForTests;
+	}
+
+	const FReEchoDamageEvent& GetLastHurtEventForTests() const
+	{
+		return LastHurtEventForTests;
+	}
+
 	const FReEchoElementReactionResolvedEvent& GetLastElementReactionEventForTests() const
 	{
 		return LastElementReactionEventForTests;
@@ -208,6 +231,8 @@ public:
 private:
 	int32 ElementStatePublishCountForTests = 0;
 	int32 ElementReactionPublishCountForTests = 0;
+	int32 HurtPublishCountForTests = 0;
+	FReEchoDamageEvent LastHurtEventForTests;
 	FReEchoElementReactionResolvedEvent LastElementReactionEventForTests;
 #endif
 };

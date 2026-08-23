@@ -14,6 +14,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
 #include "PaperFlipbook.h"
+#include "PaperSprite.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
@@ -99,7 +100,6 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.RemoveAll(this);
-		CombatEvents->OnDeath.RemoveAll(this);
 	}
 
 	Host = InHost;
@@ -121,7 +121,6 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatHurt);
-		CombatEvents->OnDeath.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatDeath);
 	}
 }
 
@@ -168,9 +167,36 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 	}
 	VisualTime = 0.0f;
 	AttackVisualRemaining = 0.0f;
-	DeathVisualRemaining = 0.0f;
 	bHitVisualActive = false;
 	bDeathVisualActive = false;
+}
+
+bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCompleted,
+                                                           float& OutExpectedDurationSeconds)
+{
+	OutExpectedDurationSeconds = 0.0f;
+	if (bDeathVisualActive)
+	{
+		return false;
+	}
+	bDeathVisualActive = true;
+	bHitVisualActive = false;
+	AttackVisualRemaining = 0.0f;
+	ResetTransientRoot();
+	if (EffectsRoot)
+	{
+		EffectsRoot->SetVisibility(false, true);
+		EffectsRoot->SetHiddenInGame(true, true);
+	}
+	const bool bStarted = PresentationController &&
+	                      PresentationController->BeginTerminalDeath(MoveTemp(OnCompleted), OutExpectedDurationSeconds);
+	if (bStarted)
+	{
+		// The shadow is grounded presentation, not a transient effect. Keep its authored visibility and
+		// realign it after switching to the Death Flipbook so the final pose retains contact with the floor.
+		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+	}
+	return bStarted;
 }
 
 void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSnapshot& Snapshot,
@@ -191,7 +217,12 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 	UpdateCameraFacing(Snapshot);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
-		UpdateDeathAnimation(SafeDelta);
+		RefreshFootpointAlignment();
+		if (VisualEffectRoot)
+		{
+			VisualEffectRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset);
+		}
+		RefreshGroundShadowFromFlipbook();
 		return;
 	}
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::HitReaction)
@@ -266,7 +297,15 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 		return;
 	}
 
-	const FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
+	FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
+	if (bDeathVisualActive)
+	{
+		const UPaperSprite* CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
+		if (CurrentSprite)
+		{
+			FlipbookBounds = CurrentSprite->GetRenderBounds();
+		}
+	}
 	const FVector LocalBottomCenter(
 	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
 	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
@@ -294,8 +333,17 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 	{
 		return;
 	}
+	FBoxSphereBounds AlignmentBounds = Flipbook->GetRenderBounds();
+	if (bDeathVisualActive)
+	{
+		const UPaperSprite* CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
+		if (CurrentSprite)
+		{
+			AlignmentBounds = CurrentSprite->GetRenderBounds();
+		}
+	}
 	CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(
-	    Flipbook->GetRenderBounds(),
+	    AlignmentBounds,
 	    SequenceAnimation->GetRelativeTransform(),
 	    FlipbookRoot->GetRelativeTransform(),
 	    AuthoredMotionLocation,
@@ -336,17 +384,6 @@ void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemy
 	}
 	AttackVisualRemaining = FMath::Max(0.0f, AttackVisualRemaining - DeltaSeconds);
 	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
-}
-
-void UReEchoEnemyPresentationComponent::UpdateDeathAnimation(const float DeltaSeconds)
-{
-	if (!VisualEffectRoot)
-	{
-		return;
-	}
-	DeathVisualRemaining = FMath::Max(0.0f, DeathVisualRemaining - DeltaSeconds);
-	const float Ratio = DeathVisualRemaining / 0.45f;
-	ApplyPresentationMotion(FVector(0.0f, 0.0f, -28.0f * (1.0f - Ratio)), FVector(Ratio, Ratio, 1.0f));
 }
 
 void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
@@ -421,6 +458,10 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	                               : ReEchoElementReaction::GetElementColor(Event.Element);
 	AReEchoDamageNumberActor::SpawnDamageNumber(
 	    Host ? Host->GetWorld() : nullptr, Event.WorldLocation, Event.AppliedDamage, Color);
+	if (Event.bFatal || bDeathVisualActive)
+	{
+		return;
+	}
 	FVector KnockbackDirection = (Event.WorldLocation - Event.SourceWorldLocation).GetSafeNormal2D();
 	if (KnockbackDirection.IsNearlyZero() && Host)
 	{
@@ -432,19 +473,5 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	if (PresentationController)
 	{
 		PresentationController->PlayAction(ReEcho2DAnimationTags::Hit, true);
-	}
-}
-
-void UReEchoEnemyPresentationComponent::HandleCombatDeath(const FReEchoDamageEvent& Event)
-{
-	if (Event.Target != Host)
-	{
-		return;
-	}
-	DeathVisualRemaining = 0.45f;
-	bDeathVisualActive = true;
-	if (PresentationController)
-	{
-		PresentationController->PlayAction(ReEcho2DAnimationTags::Death, true);
 	}
 }

@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（同一 AI 规划并执行）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@7c69a037`；当前主工作区中未提交的 `Content/ReEcho/Art/Animation2D/**` 与相关 Profile 仅作为用户已确认的美术输入源，不在主工作区直接实施。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:/Users/binnanliang/Documents/ReEcho-worktrees/animation2d-asset-cleanup`，分支 `codex/animation2d-asset-cleanup`。
@@ -35,11 +35,11 @@
 - 资产目录决策：目标采用 `Art/Animation2D/{Players|Echos|Enemies}/<Role>/<Semantic>/{Textures|Sprites}` 与角色级 `Flipbooks/`；Flipbook 使用规范语义名。Base/Phase2 仍由 Profile AnimationSet 区分，不通过含义不明的缩写资产名表达状态。
 - 相关文档同步范围：必审 `ARCHITECTURE.md`（预期依赖拓扑不变）、`README.md`（预期稳定路由不变）、`MOD-ReEchoPresentation.md`（更新可选状态、无 Idle、缺失状态行为与资产布局）、`MOD-ReEcho.md`（更新 Host 的基础状态语义）、`MOD-ReEchoEnemies.md`（审阅事件契约是否仍准确）。
 - 关闭前逐项填写审阅结果：
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：待更新。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：待更新。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：待审阅。
-  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：待审阅。
-  - `shared/CODEBASE_MAP/README.md`：待审阅。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：已更新稀疏语义、Move 归宿与 Plan82 审计入口。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Profile/FSM 路径、无 Idle 状态与缺失语义 no-op。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：已审阅；AI/行为事件权威未变化，无需更新。
+  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；模块依赖拓扑未变化，无需更新。
+  - `shared/CODEBASE_MAP/README.md`：已审阅；模块路由未变化，无需更新。
 
 ## 锁定验收
 
@@ -91,18 +91,30 @@
 
 ### 变化
 
-待执行。
+- 删除表现层原生 `Animation.Idle` 与旧枚举成员；Move 成为唯一基础循环，保留旧枚举数值以避免序列化漂移。
+- Controller 对缺失 Move/动作执行无副作用 no-op；已有 Blueprint Flipbook 可作为首次配置安全画面，但不再打印缺失状态错误或隐藏 Actor。
+- 16 个生产 Profile 统一指向 Common FSM，移除全部 Idle Clip 与 7 个空 Flipbook 条目；删除旧重复 FSM。
+- 从主工作区迁入已确认的狐狸/兔子死亡与出生等动画增量，并按导入源记录补导 59 个 Texture2D；不自动发明 Sprite、Flipbook 或语义映射。
+- 新增可重复执行的 Plan82 整理脚本与只读审计，更新受影响测试及模块文档。
+- 新增致命 Hurt 标记与 Host 所有的终结死亡序列；死亡期间普通 Hit/Attack/VFX/阴影均被清除或拒绝，Death 不循环且不会回到 Move，完成回调销毁 Actor，无 Death Clip 时安全延迟至下一帧销毁。
 
 ### 证据
 
 - 2026-08-23 基线只读审计：当前资产目录 1136 个文件，其中 731 个 `.uasset`、405 个源图片、角色级 `Flipbooks` 目录中 50 个 `.uasset`。
 - 2026-08-23 旧 Plan74 契约审计可运行，报告 23 个问题；证明资产可加载但 FSM 迁移和必填语义契约已经过期。
+- 2026-08-23 Plan82 整理：`profiles=16 imported_textures=59 explicitly_deleted_skipped=20`。
+- 2026-08-23 新二进制只读审计：`profiles=16 states=6 imported_sources=398 issues=0`。
+- 2026-08-23 FullRebuild：96 actions，成功并刷新 7 个精选 Editor 模块；源指纹随后因枚举显式数值注释性兼容调整需最终重跑。
+- 2026-08-23 敌人死亡增量 Editor Build：成功；`ReEcho.Presentation.Animation2D` 2/2 通过，`ReEcho.Enemies.Host.CompositionAndSave` 1/1 通过。启动仍报告既有 LinuxArm64/VisionOS `MainVersion` 警告与 `WBP_ReEchoSettings.Button_Close` GUID ensure，但聚焦测试已实际执行并完成。
+- 2026-08-23 最终 FullRebuild：99 actions 成功并刷新 7 个精选 Editor 模块，源指纹 `e81b79e38211`；`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 全部通过。
+- 2026-08-23 从本地 main 的未提交美术输入中定向迁入八组 Death 资源；八个生产 Enemy Profile 已绑定对应非循环 Death：Grunt/Shield/Bomber/Slime 共用 Slime，Rabbit/Fox 使用各自资源，GoatPriest/TimeGuard 共用 Goat。更新后 Plan82 审计仍为 `profiles=16 states=6 imported_sources=398 issues=0`，`ReEcho.Presentation.Animation2D` 2/2 通过。
 
 ### 剩余风险
 
-- 主工作区未提交动画资产尚未迁入独立 worktree。
-- 删除、重命名和 Redirector fixup 尚未执行。
-- 当前 UI 基线 ensure 可能继续阻塞通用自动化入口。
+- 历史 Plan40/74 一次性配置脚本仍保留旧契约文本，未删除以避免超出本任务授权；生产入口已经切换为 Plan82 脚本。
+- 当前 UI 基线 `WBP_ReEchoSettings.Button_Close` ensure 与跨平台 SDK 校验仍会阻塞通用自动化入口。
+- 角色实际帧序、脚点、循环观感与缺失状态切换仍需 PIE 人工验收。
+- Death 实际观感、特效清除时机、完成帧销毁和 Boss 已发射投射物延续仍需 PIE 人工验收；watchdog 仅防资产异常导致 Actor 永不销毁。
 
 ### 人工验收结果/请求
 
@@ -110,4 +122,4 @@
 
 ### 架构文档审阅结果
 
-待实现后填写。
+Presentation 与主模块文档已更新；Enemies、ARCHITECTURE、README 审阅后确认无需改动。

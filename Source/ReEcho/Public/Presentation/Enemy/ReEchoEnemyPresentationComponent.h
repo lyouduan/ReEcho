@@ -95,6 +95,8 @@ public:
 	                      UReEchoCombatEventsComponent* InCombatEvents);
 	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
 	void ConfigureAppearance(FName PresentationId);
+	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
+	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 
 	UBillboardComponent* GetCharacterSprite() const
@@ -116,8 +118,6 @@ private:
 	void HandleFuseChanged(const FReEchoEnemyFuseEvent& Event);
 	UFUNCTION()
 	void HandleCombatHurt(const FReEchoDamageEvent& Event);
-	UFUNCTION()
-	void HandleCombatDeath(const FReEchoDamageEvent& Event);
 
 	void ApplyVisual(FName PresentationId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
@@ -127,7 +127,6 @@ private:
 	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
-	void UpdateDeathAnimation(float DeltaSeconds);
 
 	UPROPERTY()
 	TObjectPtr<AActor> Host;
@@ -178,7 +177,6 @@ private:
 	FVector ShakeDirection = FVector::ZeroVector;
 	float VisualTime = 0.0f;
 	float AttackVisualRemaining = 0.0f;
-	float DeathVisualRemaining = 0.0f;
 	float LastFuseRemaining = 0.0f;
 	float LastFuseDuration = 0.0f;
 	bool bHitVisualActive = false;

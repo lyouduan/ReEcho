@@ -137,8 +137,9 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.BomberTriggerRadiusCm = Row->TriggerRadiusCm;
 	OutDefinition.BomberDamageRadiusCm = Row->DamageRadiusCm;
 	OutDefinition.BomberFuseDurationSeconds = Row->FuseSeconds;
-	OutDefinition.bUsesDirectionalShield = OutDefinition.Archetype == EReEchoEnemyArchetype::Shield ||
-	                                       OutDefinition.Archetype == EReEchoEnemyArchetype::Elite;
+	// Directional defense is a Shield-specific combat rule. Elite describes the fox's dash behavior and must not
+	// implicitly make every elite enemy immune to frontal damage.
+	OutDefinition.bUsesDirectionalShield = OutDefinition.Archetype == EReEchoEnemyArchetype::Shield;
 
 	// WS2 (Plan 68): double-form trigger thresholds are now data-driven from the authoritative Enemies worksheet
 	// (WS1). The shared "Phase2" presentation animation set stays a fixed authored asset (表现-only; 不改数值/资产).

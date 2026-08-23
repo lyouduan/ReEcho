@@ -29,7 +29,6 @@ UReEcho2DCharacterPresentationProfile* UReEcho2DPresentationCatalog::ResolveProf
 FGameplayTag UReEcho2DPresentationCatalog::ResolveSemanticTag(const FName TagName)
 {
 	const FGameplayTag Candidates[] = {
-	    ReEcho2DAnimationTags::Idle,
 	    ReEcho2DAnimationTags::Move,
 	    ReEcho2DAnimationTags::Attack_Basic,
 	    ReEcho2DAnimationTags::Attack_Charge,

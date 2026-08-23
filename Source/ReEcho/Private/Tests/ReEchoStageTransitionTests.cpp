@@ -108,8 +108,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoStageTransitionWorldContinuityTest,
 
 bool FReEchoStageTransitionWorldContinuityTest::RunTest(const FString& Parameters)
 {
-	AddExpectedError(
-	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 1);
 	FReEchoStageTransitionWorldFixture Fixture;
 	AReEchoEnemyActor* Enemy =
 	    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector(321.0f, -187.0f, 50.0f), FRotator::ZeroRotator);
