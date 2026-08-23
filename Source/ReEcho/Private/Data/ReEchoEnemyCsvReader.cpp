@@ -113,11 +113,14 @@ bool ReadEnemies(const FString& DataDirectory,
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);
 		ReEchoCsv::ReadOptionalCell(CsvRow, TEXT("Notes"), Row.Notes);
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Phase2Enabled"), Row.bPhase2Enabled, Issues);
-		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2TriggerRangeCm"), 0.0f, 100000.0f, Row.Phase2TriggerRangeCm, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, CsvRow, TEXT("Phase2TriggerRangeCm"), 0.0f, 100000.0f, Row.Phase2TriggerRangeCm, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("Phase2RequiredAttackCount"), Row.Phase2RequiredAttackCount, Issues);
-		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2TransformSeconds"), 0.0f, 3600.0f, Row.Phase2TransformSeconds, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, CsvRow, TEXT("Phase2TransformSeconds"), 0.0f, 3600.0f, Row.Phase2TransformSeconds, Issues);
 		ReEchoCsv::ReadOptionalCell(CsvRow, TEXT("Phase2TriggerMode"), Row.Phase2TriggerMode);
-		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2HealthThresholdRatio"), 0.0f, 1.0f, Row.Phase2HealthThresholdRatio, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, CsvRow, TEXT("Phase2HealthThresholdRatio"), 0.0f, 1.0f, Row.Phase2HealthThresholdRatio, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("HateRangeCm"), 0.0f, 100000.0f, Row.HateRangeCm, Issues);
 
 		if (Row.Id.IsNone())
@@ -468,8 +471,7 @@ bool ReadBossPhases(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(
 		    Table, CsvRow, TEXT("MovementSpeedMultiplier"), 0.0f, 100.0f, Row.MovementSpeedMultiplier, Issues);
 		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("RefillHealthPolicy"), Row.RefillHealthPolicy, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, CsvRow, TEXT("PhaseMaxHealth"), 0.0f, 1000000.0f, Row.PhaseMaxHealth, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("PhaseMaxHealth"), 0.0f, 1000000.0f, Row.PhaseMaxHealth, Issues);
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Enabled"), Row.bEnabled, Issues);
 		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);
@@ -510,11 +512,8 @@ bool ReadBossPhases(const FString& DataDirectory,
 		// RefillHealthPolicy must be a supported enum string (see EReEchoBossRefillHealthPolicy).
 		if (Row.RefillHealthPolicy != TEXT("None") && Row.RefillHealthPolicy != TEXT("RefillToMaximum"))
 		{
-			ReEchoCsv::AddIssue(Issues,
-			                    Table.File,
-			                    CsvRow.Line,
-			                    TEXT("RefillHealthPolicy"),
-			                    TEXT("Unsupported refill health policy"));
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, CsvRow.Line, TEXT("RefillHealthPolicy"), TEXT("Unsupported refill health policy"));
 		}
 		SeenIds.Add(Row.Id);
 		SeenPhases.Add(PhaseKey);
@@ -560,7 +559,8 @@ bool ReadEnemyCombatStats(const FString& DataDirectory,
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("CombatIndex"), Row.CombatIndex, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("MaxHealth"), 1.0f, 1000000.0f, Row.MaxHealth, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("ContactDamage"), 0.0f, 100000.0f, Row.ContactDamage, Issues);
-		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("AttackIntervalSeconds"), 0.0f, 3600.0f, Row.AttackIntervalSeconds, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, CsvRow, TEXT("AttackIntervalSeconds"), 0.0f, 3600.0f, Row.AttackIntervalSeconds, Issues);
 
 		if (Row.Id.IsNone())
 		{

@@ -31,16 +31,13 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("Boss archetype compiles"), Boss.Archetype, EReEchoEnemyArchetype::Boss);
 	TestEqual(TEXT("Boss health compiles from the one-phase maximum"), Boss.MaxHealth, 1300.0f);
-	TestEqual(TEXT("Boss has five configured behaviors (melee + volley + spread + blink + beam)"),
-	          Boss.Abilities.Num(),
-	          5);
+	TestEqual(
+	    TEXT("Boss has five configured behaviors (melee + volley + spread + blink + beam)"), Boss.Abilities.Num(), 5);
 	TestEqual(TEXT("Deterministic rotation starts with the melee basic attack"),
 	          Boss.Abilities[0].BehaviorId,
 	          FName(TEXT("Boss.MeleeSweep")));
 	TestEqual(TEXT("Boss ships two phases: one-form and blood-depleted two-form"), Boss.BossPhases.Num(), 2);
-	TestEqual(TEXT("Phase one uses no timed echo policy"),
-	          Boss.BossPhases[0].EchoPolicy,
-	          EReEchoBossEchoPolicy::None);
+	TestEqual(TEXT("Phase one uses no timed echo policy"), Boss.BossPhases[0].EchoPolicy, EReEchoBossEchoPolicy::None);
 	TestEqual(TEXT("Phase one does not refill health"),
 	          Boss.BossPhases[0].RefillHealthPolicy,
 	          EReEchoBossRefillHealthPolicy::None);
@@ -58,13 +55,16 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	FReEchoEnemyDefinition Rabbit;
 	TestTrue(TEXT("Rabbit definition compiles"),
 	         ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_RABBIT"), Rabbit, Error));
-	TestTrue(TEXT("Rabbit phase two enabled by authoritative data"), Rabbit.Phase2.bEnabled);
+	TestFalse(TEXT("Rabbit dual forms remain presentation-only in authoritative data"), Rabbit.Phase2.bEnabled);
 	TestEqual(TEXT("Rabbit phase two animation set"), Rabbit.Phase2.AnimationSetId, FName(TEXT("Phase2")));
 	TestEqual(TEXT("Rabbit phase two attack threshold from data"), Rabbit.Phase2.RequiredAttackCount, 2);
 	TestEqual(TEXT("Rabbit phase two aggro range from data"), Rabbit.Phase2.TriggerRangeCm, 1500.0f);
 	TestEqual(TEXT("Rabbit phase two transform seconds from data"), Rabbit.Phase2.TransformSeconds, 1.0f);
-	// Boss two-stage data is authored in WS4; the authoritative Enemies worksheet currently leaves Boss Phase2 disabled.
-	TestFalse(TEXT("Boss phase two not enabled until WS4 authoritative two-stage data"), Boss.Phase2.bEnabled);
+	TestTrue(TEXT("Boss blood-depleted phase two is enabled by authoritative data"), Boss.Phase2.bEnabled);
+	TestEqual(TEXT("Boss phase two uses the health-threshold trigger"),
+	          Boss.Phase2.TriggerMode,
+	          EReEchoEnemyPhase2TriggerMode::HealthThreshold);
+	TestEqual(TEXT("Boss phase two triggers at an empty health bar"), Boss.Phase2.HealthThresholdRatio, 0.0f);
 	return true;
 }
 

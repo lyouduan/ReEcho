@@ -314,8 +314,8 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Rabbit ball starts without a consumed collision"), Ball.bCollisionConsumed);
 		TestTrue(TEXT("Rabbit ball uses the authoritative fan direction"),
 		         Ball.Definition.Direction.Equals(
-		             ReEchoRabbitProjectilePattern::ResolveVolleyDirection(
-		                 FVector::ForwardVector, 40.0f, BallIndex, 3), 0.001f));
+		             ReEchoRabbitProjectilePattern::ResolveVolleyDirection(FVector::ForwardVector, 40.0f, BallIndex, 3),
+		             0.001f));
 	}
 	const TArray<FReEchoEnemyProjectileEvent>& SpawnEvents =
 	    Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests();

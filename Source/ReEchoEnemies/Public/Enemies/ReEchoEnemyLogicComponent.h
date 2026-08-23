@@ -28,7 +28,7 @@ public:
 	void NotifyDeath();
 	// WS4 (Plan 68): attempts to convert a just-lethal hit into a blood-depleted second-phase transition. Returns
 	// true when the owner is a HealthThreshold boss that has not yet transformed (the caller defers real death).
-	bool TryTriggerPhase2OnFatalWound();
+	bool TryTriggerPhase2OnFatalWound(FReEchoEnemyActionIntent& OutIntent);
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
 	void ResetEncounterTransientState();
 	void RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot);

@@ -8,7 +8,7 @@
 - Executor 负责人：Gavyn-side AI。
 - Plan 编写方（AI 侧）：`Gavyn-side AI | ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Proposed`。
+- 任务状态：`Review`（已 rebase 到 `origin/main@faf6e04f` 并形成隔离集成候选；等待 gavynqiu PIE 验收与推送批准）。
 - 人工验收：`PendingBeforeClose`（SHEEP 两阶段表现/手感需 PIE 判断；普通怪双形态表现需确认）。
 - 本地规划 / 实现基线：origin/main（fetch 2026-08-20，本地与远端 0/0 一致；远端最大 Plan 编号 = 66，本地 `plans/67-shop-drop-table-overhaul.md` 为无关未发布草稿，故本 Plan 取 68 避开）。
 - 本地实现方式：每 WS 一个 worktree，验证后 fast-forward 合并回 main，main 保持仅接收合并。
@@ -153,21 +153,35 @@
 ## 执行记录
 
 ### 变化
-（各 WS 合并后回填）
+- 将 `origin/plan/68-ws1-5` 的 8 个实现/Plan 提交重放到 `origin/main@faf6e04f`；排除两个仅维护 `PLAN68_HANDOFF_PROMPT.md` 的交接提示提交，未合入并行实现 `origin/plan/68-ws4-sheep-boss`。
+- 保留冻结设计：普通怪 `M_SLIME/M_RABBIT/M_FOX`，Boss `M_SHEEP`；γ-B 相对移速；`EnemyCombatStats` 按 EncounterIndex 编译期覆盖；HateRange、N 发扇形投射物和 IdleWander 全部由不可变数据快照驱动。
+- 修复 rebase 后审计发现的契约缺口：HealthThreshold-only Phase2 定义可初始化；`EchoPolicy=None` 可编译；Boss `ElementCleanse` 为可选被动；GAS 致命伤延迟把生存生命写回权威属性；致命伤启动 Phase2 时不再丢失变身开始事件。
+- 同步 `MOD-ReEcho`、`MOD-ReEchoEnemies`、`MOD-ReEchoCombat` 与聚焦回归测试。
 
 ### 证据
-（各 WS 验证输出回填）
+- `scripts/data/sync_xlsx_to_csv.py --check`：通过，XLSX 导出包有效且生产 CSV 字节一致。
+- `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：最终审计候选通过（101 actions，`Result: Succeeded`）；精选预构建包刷新为 7 个模块，source fingerprint `7bf4359d2b4a`。
+- `python scripts/validate_project.py`：通过；CSV schema、生产表、ID/引用、XLSX 字节一致性与预构建指纹通过。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies`：通过。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Data.Enemies.Compiler`：通过。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Combat`：Combatant、AttackIdentity、TimedStatus、Faction、ElementCleanse 等核心测试通过；`ElementReactionBurnRefresh`、`ElementReactionSaveContinuity`、`ElementReactionWorld` 被当前 main 的缺失 Animation2D Idle profile 错误污染，记录为基线 Presentation 问题，不声称全套通过。
 
 ### 剩余风险
-- 多 WS 共用 xlsx/csv，需顺序合并避免 `HasExactColumns` / sync 冲突。
-- SHEEP 技能弹（SH_02）若走武器系统投射物，需确认 `MOD-ReEchoWeapons` 契约，可能扩 Writes。
-- 「全局技能间隔 1.5→1.0」需映射为 Boss 级间隔缩放，WS4 实现时定。
+- 人工 PIE 仍为 `PendingBeforeClose`：SHEEP 1300 血清空→黑色变身→650 满血→第二次死亡结算；四怪表现、按场次成长、IdleWander 与 GM 调试圈。
+- 当前 main 的 `WBP_ReEchoSettings` 含已删除 `Button_Close` 的陈旧 GUID，Automation 启动产生 UMG ensure；与 Plan68 路径无重叠，但会污染部分世界测试。
+- 当前 main 的测试世界缺少若干 Enemy Animation2D Idle profile，导致上述 3 个 Combat 世界测试把表现日志升级为失败；Plan68 未修改对应表现资产。
+- 推送前必须重新 fetch 审计最新 `origin/main`；若远端前进，当前 FullRebuild、自动化和冲突结论按受影响范围失效并需重验。
 
 ### 人工验收结果/请求
-（PIE 后回填）
+- `PendingBeforeClose`：把候选提交清单与本节证据交给 gavynqiu；等待其本地 PIE 实测并明确回复“可以推 main”。当前 AI 不自行推送 `origin/main`。
 
 ### 架构文档审阅结果
-（关闭前回填）
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：已更新数据驱动 N 发扇形投射物、M_SHEEP 1300→650 致命伤 Phase2 契约、HateRange/IdleWander 权威边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新怪物 XLSX→CSV 四表、`EnemyId + EncounterIndex` 编译、γ-B `BaseMoveSpeed=210` 归一、Host/Spawn 接线。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`：已更新可选致命伤拦截委托与 Combat 生命/死亡权威边界。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅，无新增 Runtime Module、依赖方向或全局拓扑变化，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅，现有 `AREA-Enemies`、`AREA-Data`、`AREA-Encounter` 路由仍准确，无需修改。
+- `MOD-ReEchoWeapons.md`、`MOD-ReEchoAudio.md`、`MOD-ReEchoUI.md`：已审阅为 Stable Read；SHEEP 投射物仍走 EnemyLogic→EnemyHost→Combat，不引入 Weapons/Audio/UI 公共契约变化，无需修改。
 
 ---
 

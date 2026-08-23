@@ -91,9 +91,16 @@ public:
 	void GMShowEnemyRange(const FString& Mode = TEXT("Toggle"));
 
 	/** True while the GM enemy-health overlay is enabled. */
-	bool IsEnemyHealthDebugEnabled() const { return bShowEnemyHealthDebug; }
+	bool IsEnemyHealthDebugEnabled() const
+	{
+		return bShowEnemyHealthDebug;
+	}
+
 	/** True while the GM enemy-range overlay is enabled. */
-	bool IsEnemyRangeDebugEnabled() const { return bShowEnemyRangeDebug; }
+	bool IsEnemyRangeDebugEnabled() const
+	{
+		return bShowEnemyRangeDebug;
+	}
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);

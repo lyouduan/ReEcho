@@ -17,7 +17,8 @@ inline FVector ResolveDirection(const FVector& CenterDirection, const int32 Ball
 	return FRotator(0.0f, YawOffset, 0.0f).RotateVector(SafeCenter).GetSafeNormal2D();
 }
 
-/** Data-driven volley direction: fans `BallCount` projectiles across `TotalSpreadDegrees`, centered on CenterDirection. */
+/** Data-driven volley direction: fans `BallCount` projectiles across `TotalSpreadDegrees`, centered on CenterDirection.
+ */
 inline FVector ResolveVolleyDirection(const FVector& CenterDirection,
                                       const float TotalSpreadDegrees,
                                       const int32 BallIndex,

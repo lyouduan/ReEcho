@@ -149,10 +149,9 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.Phase2.TransformSeconds = Row->Phase2TransformSeconds;
 	// WS4 (Plan 68): blood-depleted trigger model. "HealthThreshold" makes the boss transform when its health ratio
 	// reaches the configured threshold; otherwise the legacy attack-count/range model applies.
-	OutDefinition.Phase2.TriggerMode =
-	    Row->Phase2TriggerMode.Equals(TEXT("HealthThreshold"), ESearchCase::IgnoreCase)
-	        ? EReEchoEnemyPhase2TriggerMode::HealthThreshold
-	        : EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
+	OutDefinition.Phase2.TriggerMode = Row->Phase2TriggerMode.Equals(TEXT("HealthThreshold"), ESearchCase::IgnoreCase)
+	                                       ? EReEchoEnemyPhase2TriggerMode::HealthThreshold
+	                                       : EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
 	OutDefinition.Phase2.HealthThresholdRatio = Row->Phase2HealthThresholdRatio;
 	OutDefinition.Phase2.AnimationSetId = TEXT("Phase2");
 
@@ -202,7 +201,11 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		Phase.Id = PhaseRow.Id;
 		Phase.PhaseIndex = PhaseRow.PhaseIndex;
 		Phase.TriggerSeconds = PhaseRow.TriggerSeconds;
-		if (PhaseRow.EchoPolicy == TEXT("DestroyEncounterEchoes"))
+		if (PhaseRow.EchoPolicy == TEXT("None"))
+		{
+			Phase.EchoPolicy = EReEchoBossEchoPolicy::None;
+		}
+		else if (PhaseRow.EchoPolicy == TEXT("DestroyEncounterEchoes"))
 		{
 			Phase.EchoPolicy = EReEchoBossEchoPolicy::RetireEncounterEchoes;
 		}

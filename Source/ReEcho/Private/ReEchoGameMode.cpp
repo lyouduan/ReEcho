@@ -446,8 +446,8 @@ void AReEchoGameMode::GMShowEnemyRange(const FString& Mode)
 		return;
 	}
 	bShowEnemyRangeDebug = bEnable;
-	PrintGMResult(FString::Printf(
-		TEXT("Enemy damage-range overlay=%s (red=contact, orange=ranged max)."), bEnable ? TEXT("On") : TEXT("Off")));
+	PrintGMResult(FString::Printf(TEXT("Enemy damage-range overlay=%s (red=contact, orange=ranged max)."),
+	                              bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMGod(const FString& Mode)
@@ -1665,7 +1665,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		                                                              : FName(TEXT("M_Grunt"));
 		FReEchoEnemyDefinition Definition;
 		FString CompileError;
-		if (!DataSnapshot || !ReEchoEnemyDefinitionCompiler::Compile(*DataSnapshot, EnemyId, Definition, CompileError, RunSubsystem->EncounterIndex))
+		if (!DataSnapshot || !ReEchoEnemyDefinitionCompiler::Compile(
+		                         *DataSnapshot, EnemyId, Definition, CompileError, RunSubsystem->EncounterIndex))
 		{
 			UE_LOG(LogTemp, Error, TEXT("Plan48 enemy restore failed: %s"), *CompileError);
 			continue;
@@ -1955,7 +1956,8 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
 	FReEchoEnemyDefinition Definition;
 	FString CompileError;
-	if (!Snapshot.IsValid() || !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError, CombatIndex))
+	if (!Snapshot.IsValid() ||
+	    !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError, CombatIndex))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
 		return false;

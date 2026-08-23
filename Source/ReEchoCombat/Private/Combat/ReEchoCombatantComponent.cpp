@@ -418,7 +418,7 @@ bool UReEchoCombatantComponent::TryDeferFatalDamageForPhaseTransition(float& InO
 	// Convert the would-be-lethal value into a survivable one. Callers route this through their own path (fallback
 	// writes CurrentHealth directly; the GAS delegate path must also correct the attribute).
 	InOutHealth = FMath::Max(1.0f, InOutHealth);
-	if (BoundAbilitySystem && InOutHealth <= 0.0f)
+	if (BoundAbilitySystem)
 	{
 		// GAS is authoritative: pin the attribute to the survivable value and clear the dead tag so the enemy lives
 		// long enough to enter its second phase. The caller will then publish the corrected health change.

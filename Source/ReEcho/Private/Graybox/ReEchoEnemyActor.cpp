@@ -304,10 +304,11 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
 		RefreshCrowdCollisionIgnores();
 	}
-	// WS4 (Plan 68): arm the blood-depleted second-phase transition. When a lethal hit lands and this boss is configured
-	// for a HealthThreshold phase change it has not yet used, convert the kill into a phase transition instead of death.
-	Combatant->SetFatalDamageInterceptDelegate(
-	    FReEchoFatalDamageIntercept::CreateLambda([this](float& InOutHealth) -> bool
+	// WS4 (Plan 68): arm the blood-depleted second-phase transition. When a lethal hit lands and this boss is
+	// configured for a HealthThreshold phase change it has not yet used, convert the kill into a phase transition
+	// instead of death.
+	Combatant->SetFatalDamageInterceptDelegate(FReEchoFatalDamageIntercept::CreateLambda(
+	    [this](float& InOutHealth) -> bool
 	    {
 		    if (!EnemyLogic || !EnemyLogic->GetDefinition().Phase2.bEnabled)
 		    {
@@ -323,7 +324,13 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		    {
 			    return false;
 		    }
-		    return EnemyLogic->TryTriggerPhase2OnFatalWound();
+		    FReEchoEnemyActionIntent PhaseIntent;
+		    if (!EnemyLogic->TryTriggerPhase2OnFatalWound(PhaseIntent))
+		    {
+			    return false;
+		    }
+		    HandlePhaseTransitionIntent(PhaseIntent);
+		    return true;
 	    }));
 	return true;
 }
@@ -735,25 +742,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		}
 		const FReEchoEnemyLogicSnapshot PreviousLogicSnapshot = EnemyLogic->GetSnapshot();
 		Intent = AdvanceBehavior(Sense, DeltaSeconds);
-		if (Intent.bPhaseTransitionStarted || Intent.bPhaseTransitionCompleted)
-		{
-			FReEchoEnemyPhaseTransitionEvent PhaseEvent;
-			PhaseEvent.PhaseId = EnemyLogic->GetDefinition().Phase2.Id;
-			PhaseEvent.AnimationSetId = EnemyLogic->GetDefinition().Phase2.AnimationSetId;
-			PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
-			PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
-			PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
-			EnemyEvents->PublishPhaseTransition(PhaseEvent);
-			// WS4 (Plan 68): a blood-depleted (HealthDepleted) transition resizes the boss to its second-phase maximum
-			// and refills it there, so the black form fights as a full-health second encounter. Only meaningful for
-			// bosses that opt into a RefillToMaximum second phase.
-			if (Intent.bPhaseTransitionCompleted &&
-			    Intent.PhaseTriggerReason == EReEchoEnemyPhaseTriggerReason::HealthDepleted &&
-			    EnemyLogic && EnemyLogic->GetDefinition().Archetype == EReEchoEnemyArchetype::Boss)
-			{
-				ApplyBloodDepletedPhase2MaxHealth();
-			}
-		}
+		HandlePhaseTransitionIntent(Intent);
 		PublishSpecialActionTransition(PreviousLogicSnapshot, Intent);
 		if (ReEchoGameMode && PreviousLogicSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None &&
 		    EnemyLogic->GetSnapshot().SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
@@ -769,11 +758,10 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	if (GM && GM->IsEnemyHealthDebugEnabled() && IsAlive() && Combatant && Combatant->Stats.HpMax > 0.0f)
 	{
 		const FVector HeadLocation = GetActorLocation() + FVector(0.0f, 0.0f, 130.0f);
-		const FString HealthText = FString::Printf(
-			TEXT("HP %.0f / %.0f (%.0f%%)"),
-			Combatant->CurrentHealth,
-			Combatant->Stats.HpMax,
-			100.0f * Combatant->CurrentHealth / Combatant->Stats.HpMax);
+		const FString HealthText = FString::Printf(TEXT("HP %.0f / %.0f (%.0f%%)"),
+		                                           Combatant->CurrentHealth,
+		                                           Combatant->Stats.HpMax,
+		                                           100.0f * Combatant->CurrentHealth / Combatant->Stats.HpMax);
 		DrawDebugString(GetWorld(), HeadLocation, HealthText, nullptr, FColor::Green, 0.0f, true, 1.0f);
 	}
 
@@ -786,7 +774,17 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		const FVector Center = GetActorLocation();
 		if (Def.ContactRangeCm > KINDA_SMALL_NUMBER)
 		{
-			DrawDebugCircle(GetWorld(), Center, Def.ContactRangeCm, 48, FColor::Red, false, 0.0f, 0, 2.0f, FVector::ForwardVector, FVector::RightVector);
+			DrawDebugCircle(GetWorld(),
+			                Center,
+			                Def.ContactRangeCm,
+			                48,
+			                FColor::Red,
+			                false,
+			                0.0f,
+			                0,
+			                2.0f,
+			                FVector::ForwardVector,
+			                FVector::RightVector);
 			DrawDebugString(GetWorld(),
 			                Center + FVector(Def.ContactRangeCm, 0.0f, 30.0f),
 			                FString::Printf(TEXT("接触 %.0fcm"), Def.ContactRangeCm),
@@ -806,7 +804,17 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		}
 		if (MaxRangedRangeCm > KINDA_SMALL_NUMBER && MaxRangedRangeCm > Def.ContactRangeCm)
 		{
-			DrawDebugCircle(GetWorld(), Center, MaxRangedRangeCm, 48, FColor(255, 140, 0), false, 0.0f, 0, 2.0f, FVector::ForwardVector, FVector::RightVector);
+			DrawDebugCircle(GetWorld(),
+			                Center,
+			                MaxRangedRangeCm,
+			                48,
+			                FColor(255, 140, 0),
+			                false,
+			                0.0f,
+			                0,
+			                2.0f,
+			                FVector::ForwardVector,
+			                FVector::RightVector);
 			DrawDebugString(GetWorld(),
 			                Center + FVector(MaxRangedRangeCm, 0.0f, 30.0f),
 			                FString::Printf(TEXT("远程 %.0fcm"), MaxRangedRangeCm),
@@ -1300,6 +1308,29 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 	}
 	SetActorEnableCollision(false);
 	SetLifeSpan(0.45f);
+}
+
+void AReEchoEnemyActor::HandlePhaseTransitionIntent(const FReEchoEnemyActionIntent& Intent)
+{
+	if ((!Intent.bPhaseTransitionStarted && !Intent.bPhaseTransitionCompleted) || !EnemyLogic || !EnemyEvents)
+	{
+		return;
+	}
+
+	FReEchoEnemyPhaseTransitionEvent PhaseEvent;
+	PhaseEvent.PhaseId = EnemyLogic->GetDefinition().Phase2.Id;
+	PhaseEvent.AnimationSetId = EnemyLogic->GetDefinition().Phase2.AnimationSetId;
+	PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
+	PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
+	PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
+	EnemyEvents->PublishPhaseTransition(PhaseEvent);
+
+	if (Intent.bPhaseTransitionCompleted &&
+	    Intent.PhaseTriggerReason == EReEchoEnemyPhaseTriggerReason::HealthDepleted &&
+	    EnemyLogic->GetDefinition().Archetype == EReEchoEnemyArchetype::Boss)
+	{
+		ApplyBloodDepletedPhase2MaxHealth();
+	}
 }
 
 void AReEchoEnemyActor::ApplyBloodDepletedPhase2MaxHealth()

@@ -198,6 +198,7 @@ private:
 	                                    const FReEchoEnemyActionIntent& Intent);
 	void PublishProjectileEvent(EReEchoEnemyProjectileEventType Type,
 	                            const FReEchoEnemyProjectileRuntimeState& Projectile) const;
+	void HandlePhaseTransitionIntent(const FReEchoEnemyActionIntent& Intent);
 	// WS4 (Plan 68): after a blood-depleted second-phase transition, resize this boss to its phase-two maximum health
 	// (from BossPhases.PhaseMaxHealth) and refill it there. No-op unless the phase is RefillToMaximum.
 	void ApplyBloodDepletedPhase2MaxHealth();

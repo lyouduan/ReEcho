@@ -564,8 +564,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvAttributeRow> Attributes;
 	TArray<FName> AttributeOrder;
 
-	TMap<FName, FReEchoCsvShopPriceRangeRow> ShopPriceRanges;   // keyed by PriceCategory
-	TMap<int32, FReEchoCsvShopDropLevelRow> ShopDropLevels;     // keyed by EncounterIndex (clamped to run length)
+	TMap<FName, FReEchoCsvShopPriceRangeRow> ShopPriceRanges; // keyed by PriceCategory
+	TMap<int32, FReEchoCsvShopDropLevelRow> ShopDropLevels;   // keyed by EncounterIndex (clamped to run length)
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;

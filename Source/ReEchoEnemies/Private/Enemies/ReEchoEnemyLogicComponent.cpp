@@ -173,9 +173,13 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	Definition.HitReactionDurationSeconds = FMath::Max(0.0f, Definition.HitReactionDurationSeconds);
 	Definition.KnockbackSpeedCmPerSecond = FMath::Max(0.0f, Definition.KnockbackSpeedCmPerSecond);
 	Definition.KnockbackDrag = FMath::Max(0.0f, Definition.KnockbackDrag);
-	if (Definition.Phase2.bEnabled &&
-	    (Definition.Phase2.Id.IsNone() || Definition.Phase2.TransformSeconds < 0.0f ||
-	     (Definition.Phase2.TriggerRangeCm <= 0.0f && Definition.Phase2.RequiredAttackCount <= 0)))
+	const bool bHasHealthThresholdTrigger =
+	    Definition.Phase2.TriggerMode == EReEchoEnemyPhase2TriggerMode::HealthThreshold &&
+	    Definition.Phase2.HealthThresholdRatio >= 0.0f && Definition.Phase2.HealthThresholdRatio <= 1.0f;
+	const bool bHasLegacyPhaseTrigger =
+	    Definition.Phase2.TriggerRangeCm > 0.0f || Definition.Phase2.RequiredAttackCount > 0;
+	if (Definition.Phase2.bEnabled && (Definition.Phase2.Id.IsNone() || Definition.Phase2.TransformSeconds < 0.0f ||
+	                                   (!bHasHealthThresholdTrigger && !bHasLegacyPhaseTrigger)))
 	{
 		Definition = {};
 		State = {};
@@ -267,8 +271,7 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 		Cooldown.AbilityId = Ability.Id;
 		State.BossAbilityCooldowns.Add(Cooldown);
 	}
-	if (!bHasMeleeSweep || !bHasProjectile || !bHasBlinkSlam || !bHasPrayerBeam ||
-	    BossCleanseAbilityIndex == INDEX_NONE)
+	if (!bHasMeleeSweep || !bHasProjectile || !bHasBlinkSlam || !bHasPrayerBeam)
 	{
 		return false;
 	}
@@ -324,7 +327,9 @@ bool UReEchoEnemyLogicComponent::BuildBossRuntime()
 		    return LeftPhase.PhaseIndex < RightPhase.PhaseIndex;
 	    });
 
-	State.BossCleanseRemainingSeconds = Definition.Abilities[BossCleanseAbilityIndex].CleanseIntervalSeconds;
+	State.BossCleanseRemainingSeconds = BossCleanseAbilityIndex != INDEX_NONE
+	                                        ? Definition.Abilities[BossCleanseAbilityIndex].CleanseIntervalSeconds
+	                                        : 0.0f;
 	return true;
 }
 
@@ -533,8 +538,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 			}
 			if (SpecialAbility && SpecialAbility->bMovementDuringCast)
 			{
-				const FVector TowardTarget =
-				    (Sense.TargetLocation - Sense.SelfLocation).GetSafeNormal2D();
+				const FVector TowardTarget = (Sense.TargetLocation - Sense.SelfLocation).GetSafeNormal2D();
 				Intent.MovementDelta = TowardTarget * Definition.MoveSpeedCmPerSecond * DeltaSeconds;
 				Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
 				return Intent;
@@ -666,18 +670,21 @@ void UReEchoEnemyLogicComponent::AdvanceBossAmbientTimers(const float FixedDelta
 		++State.BossNextPhaseIndex;
 	}
 
-	const FReEchoEnemyAbilityDefinition& CleanseAbility = Definition.Abilities[BossCleanseAbilityIndex];
-	State.BossCleanseRemainingSeconds -= FixedDeltaSeconds;
-	while (State.BossCleanseRemainingSeconds <= KINDA_SMALL_NUMBER)
+	if (BossCleanseAbilityIndex != INDEX_NONE)
 	{
-		FReEchoBossIntent BossIntent;
-		BossIntent.Type = EReEchoBossIntentType::ElementCleanse;
-		BossIntent.AbilityKind = EReEchoBossAbilityKind::ElementCleanse;
-		BossIntent.AbilityId = CleanseAbility.Id;
-		BossIntent.BehaviorId = CleanseAbility.BehaviorId;
-		BossIntent.ElementImmunitySeconds = CleanseAbility.ImmunitySeconds;
-		AppendBossIntent(MoveTemp(BossIntent), InOutIntent);
-		State.BossCleanseRemainingSeconds += CleanseAbility.CleanseIntervalSeconds;
+		const FReEchoEnemyAbilityDefinition& CleanseAbility = Definition.Abilities[BossCleanseAbilityIndex];
+		State.BossCleanseRemainingSeconds -= FixedDeltaSeconds;
+		while (State.BossCleanseRemainingSeconds <= KINDA_SMALL_NUMBER)
+		{
+			FReEchoBossIntent BossIntent;
+			BossIntent.Type = EReEchoBossIntentType::ElementCleanse;
+			BossIntent.AbilityKind = EReEchoBossAbilityKind::ElementCleanse;
+			BossIntent.AbilityId = CleanseAbility.Id;
+			BossIntent.BehaviorId = CleanseAbility.BehaviorId;
+			BossIntent.ElementImmunitySeconds = CleanseAbility.ImmunitySeconds;
+			AppendBossIntent(MoveTemp(BossIntent), InOutIntent);
+			State.BossCleanseRemainingSeconds += CleanseAbility.CleanseIntervalSeconds;
+		}
 	}
 }
 
@@ -1112,8 +1119,8 @@ bool UReEchoEnemyLogicComponent::TryBeginPhaseTransition(const FReEchoEnemySense
 	    FVector::Dist2D(Sense.SelfLocation, Sense.TargetLocation) <= Definition.Phase2.TriggerRangeCm;
 	// WS4 (Plan 68): blood-bar depleted trigger. Only meaningful in HealthThreshold mode; fires when the current
 	// health ratio is at or below the configured threshold (ratio == 0 means "depleted to zero").
-	const bool bHealthDepleted =
-	    Definition.Phase2.TriggerMode == EReEchoEnemyPhase2TriggerMode::HealthThreshold && IsHealthAtOrBelowPhase2Threshold(Sense.CurrentHealthRatio);
+	const bool bHealthDepleted = Definition.Phase2.TriggerMode == EReEchoEnemyPhase2TriggerMode::HealthThreshold &&
+	                             IsHealthAtOrBelowPhase2Threshold(Sense.CurrentHealthRatio);
 	if (!bAttackCountReached && !bRangeEntered && !bHealthDepleted)
 	{
 		return false;
@@ -1336,8 +1343,9 @@ void UReEchoEnemyLogicComponent::HandleCombatDeath(const FReEchoDamageEvent& Eve
 	}
 }
 
-bool UReEchoEnemyLogicComponent::TryTriggerPhase2OnFatalWound()
+bool UReEchoEnemyLogicComponent::TryTriggerPhase2OnFatalWound(FReEchoEnemyActionIntent& OutIntent)
 {
+	OutIntent = {};
 	if (!bInitialized || !State.bAlive)
 	{
 		return false;
@@ -1349,8 +1357,7 @@ bool UReEchoEnemyLogicComponent::TryTriggerPhase2OnFatalWound()
 	// This is called from the combatant fatal-damage hook, i.e. exactly when health has been driven to zero or below,
 	// so the blood-depleted threshold is trivially satisfied. The target/range branches stay inert here.
 	Sense.CurrentHealthRatio = 0.0f;
-	FReEchoEnemyActionIntent Intent;
-	return TryBeginPhaseTransition(Sense, Intent);
+	return TryBeginPhaseTransition(Sense, OutIntent);
 }
 
 void UReEchoEnemyLogicComponent::PublishFuse(const bool bStarted) const
