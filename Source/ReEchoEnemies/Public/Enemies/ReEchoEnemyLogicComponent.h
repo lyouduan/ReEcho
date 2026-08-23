@@ -26,6 +26,9 @@ public:
 	/** Counts one actual health-reduction event for the optional phase trigger, then applies hurt reaction. */
 	void NotifyReceivedAttack(const FReEchoDamageEvent& Event);
 	void NotifyDeath();
+	// WS4 (Plan 68): attempts to convert a just-lethal hit into a blood-depleted second-phase transition. Returns
+	// true when the owner is a HealthThreshold boss that has not yet transformed (the caller defers real death).
+	bool TryTriggerPhase2OnFatalWound();
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
 	void ResetEncounterTransientState();
 	void RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot);
@@ -52,6 +55,7 @@ private:
 	void PublishAction(const FReEchoEnemyActionIntent& Intent) const;
 	void PublishBossIntent(const FReEchoBossIntent& Intent) const;
 	FReEchoEnemyActionIntent AdvanceHitReaction(float DeltaSeconds);
+	FReEchoEnemyActionIntent AdvanceIdleWander(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	const FReEchoEnemyAbilityDefinition* GetSpecialAbility() const;
@@ -79,6 +83,9 @@ private:
 	                           float DeltaSeconds,
 	                           FReEchoEnemyActionIntent& InOutIntent);
 	bool TryBeginPhaseTransition(const FReEchoEnemySenseSnapshot& Sense, FReEchoEnemyActionIntent& InOutIntent);
+	// WS4 (Plan 68): true when the given current-health ratio is at or below the configured Phase2 threshold
+	// (blood-bar depleted). The host samples health and passes it in; enemy logic never reads the combat component.
+	bool IsHealthAtOrBelowPhase2Threshold(float CurrentHealthRatio) const;
 	FReEchoEnemyActionIntent AdvancePhaseTransition(float DeltaSeconds);
 	void CancelUncommittedActionsForPhaseTransition();
 	bool BuildBossRuntime();

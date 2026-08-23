@@ -168,3 +168,73 @@
 
 ### 架构文档审阅结果
 （关闭前回填）
+
+---
+
+## WS4/WS5 恢复交接记录（2026-08-22）
+
+> 本段为「转交另一模型执行」的交接说明。工作树：`ReEcho-plan68-ws45-recovery`（分支 `plan/68-ws45-recovery`，基线 a281744）。本节描述当前真实进度，与上文较旧的 WS4 提纲有出入处以本节为准。
+
+### 背景与方向变更（相对上文旧提纲）
+
+- **Boss 方向已改**：以最新 `怪物.xlsx` 为准，boss 是**羊 M_SHEEP**；原 `M_TimeGuard` **废除**。上文 WS4 提纲里写的 `BehaviorProfileId=Boss.Sheep / PresentationId=Enemy.Sheep / MaxHealth=2600` 等已被实际实现取代——SHEEP 复用现有 `Boss.TimeGuard` 的 BehaviorProfile/Presentation（profile 名不改，仅 enemy id 换），MaxHealth=**1300**。
+- **二阶段触发方式**：由「血清空百分比阈值(`TriggerHealthFraction`)」改为「**血条清空（HP 降到 0）变身**」，二阶段回满血到 **650** 再战（方案 i）。SH_04 冷却用默认 **13s**。
+- 因此下文「锁定验收」「WS4 提纲」中关于 TriggerHealthFraction / MaxHealth=2600 / SH_01..04 旧数值的条目，一律以本节为准。
+
+### 一、C++ 代码改动（已全部落位 + 增量 Development 构建 Result: Succeeded）
+
+| 文件 | 改动 |
+|---|---|
+| `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyTypes.h` | `EReEchoEnemyPhaseTriggerReason` 加 `HealthDepleted`；新增 `enum class EReEchoEnemyPhase2TriggerMode : uint8 { AttackCountOrRange, HealthThreshold }`；`FReEchoEnemyPhaseDefinition` 加 `TriggerMode`(默认 AttackCountOrRange) + `float HealthThresholdRatio=0.0f`；`FReEchoEnemySenseSnapshot` 加 `float CurrentHealthRatio=1.0f`（host 注入血量比）。 |
+| `Source/ReEcho/Public/Data/ReEchoCsvDataRegistry.h` | `FReEchoCsvBossPhaseRow` 加 `float PhaseMaxHealth=0.0f`；`FReEchoCsvEnemyRow` 加 `FString Phase2TriggerMode` + `float Phase2HealthThresholdRatio=0.0f`。 |
+| `Source/ReEcho/Private/Data/ReEchoEnemyCsvReader.cpp` | ReadBossPhases `HasExactColumns` 加 `PhaseMaxHealth` 并 `RequireFloat`；ReadEnemies `HasExactColumns` 加 `Phase2TriggerMode/Phase2HealthThresholdRatio` 并解析。**移除了对 `Graybox/ReEchoEnemyActor.h` 的 include**（违反模块边界）。 |
+| `Source/ReEcho/Private/Data/ReEchoEnemyDefinitionCompiler.cpp` | Phase 循环加 `Phase.PhaseMaxHealth = PhaseRow.PhaseMaxHealth;`；Phase2 赋值按 `Equals("HealthThreshold")` 解析 TriggerMode + `Phase2.HealthThresholdRatio = Row->Phase2HealthThresholdRatio;`。 |
+| `Source/ReEchoEnemies/Private/Enemies/ReEchoEnemyLogicComponent.cpp` | `TryBeginPhaseTransition` 加第三条触发路径 `bHealthDepleted`（TriggerMode==HealthThreshold 且 `IsHealthAtOrBelowPhase2Threshold(Sense.CurrentHealthRatio)`）；`IsHealthAtOrBelowPhase2Threshold(float)` 改为纯读 Sense 传入值（不查 Combatant）；新增 `TryTriggerPhase2OnFatalWound()`（构造 CurrentHealthRatio=0 的 Sense 调 TryBeginPhaseTransition）。 |
+| `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyLogicComponent.h` | 声明 `bool TryTriggerPhase2OnFatalWound();` + `bool IsHealthAtOrBelowPhase2Threshold(float) const;`。 |
+| `Source/ReEchoCombat/Public/Combat/ReEchoCombatantComponent.h` | `DECLARE_DELEGATE_RetVal_OneParam(bool, FReEchoFatalDamageIntercept, float&)`；加成员 `FReEchoFatalDamageIntercept OnFatalDamage;` + `SetFatalDamageInterceptDelegate(...)` + `TryDeferFatalDamageForPhaseTransition(float& InOutHealth)`。 |
+| `Source/ReEchoCombat/Private/Combat/ReEchoCombatantComponent.cpp` | fallback 与 GAS(`HandleHealthChanged`) 两条死亡路径在 `OnDeath.Broadcast()` 前调用 `TryDeferFatalDamageForPhaseTransition(InOutHealth)`；GAS 路径若延迟则 `SetNumericAttributeBase` 钉住血量 + 移除 State_Dead tag。 |
+| `Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp` | `ConfigureFromDefinition` 末尾注册致命伤拦截 lambda（判断 bEnabled+HealthThreshold+未变身 → `TryTriggerPhase2OnFatalWound()`）；tick 注入 `Sense.CurrentHealthRatio = Clamp(Combatant->CurrentHealth/Stats.HpMax,0,1)`；phase-completed 分支：`bPhaseTransitionCompleted && TriggerReason==HealthDepleted && Archetype==Boss` → `ApplyBloodDepletedPhase2MaxHealth()`；新增 `ApplyBloodDepletedPhase2MaxHealth()`（找 BossPhases 里 PhaseIndex==2 且 RefillToMaximum && PhaseMaxHealth>0 → `Combatant->Stats.HpMax=PhaseMaxHealth; InitializeFromStats(_, true)` 回满）。header 加 `void ApplyBloodDepletedPhase2MaxHealth();`。 |
+| `Source/ReEcho/Private/ReEchoGameMode.cpp` | 存档恢复 boss fallback id `M_TimeGuard` → `M_SHEEP`（行 ~1369）。 |
+| 测试 | `ReEchoEnemyDefinitionCompilerTests.cpp`、`ReEchoCsvDataRegistryTests.cpp` 的 M_TimeGuard 断言重写为 M_SHEEP（HP=1300、5 技能、2 阶段、phase2 RefillToMaximum PhaseMaxHealth=650）。 |
+
+### 二、数据改动（CSV 层已手工落位，但 xlsx 真源尚未同步 ← 待办核心）
+
+- `Content/Data/enemies.csv`：删 M_TimeGuard，加 M_SHEEP（HP=1300, Boss, BehaviorProfileId=Boss.TimeGuard, PresentationId=Enemy.TimeGuard, Phase2Enabled=true, Phase2TransformSeconds=1, Phase2TriggerMode=HealthThreshold, Phase2HealthThresholdRatio=0）；header 加 Phase2TriggerMode/Phase2HealthThresholdRatio 两列；其余行补 `,,`。
+- `Content/Data/enemy_abilities.csv`：删 TimeGuard 5 技能，加 SHEEP 5 技能（SH_01 MeleeSweep dmg10 cd3；SH_02A Projectile dmg5×4 cd3；SH_02B Projectile dmg5×3 cd2；SH_03 BlinkSlam dmg30 cd5；SH_04 PrayerBeam dmg20 cd13）。
+- `Content/Data/boss_phases.csv`：删 TimeGuard，加 M_SHEEP_Phase1(PhaseIndex1,TriggerSeconds0,EchoPolicy None,不回血,PhaseMaxHealth0) + M_SHEEP_Phase2(PhaseIndex2,RefillToMaximum,PhaseMaxHealth650)；header 加 PhaseMaxHealth 列。
+- `Content/Data/encounter_waves.csv` Encounter.8.Wave.1 BossEnemyId → M_SHEEP。
+- `Content/Data/encounters.json` index:6 boss → M_SHEEP。
+- `Content/Data/csv_schema.csv`：Enemies 加 Phase2TriggerMode/Phase2HealthThresholdRatio；BossPhases 加 PhaseMaxHealth。
+- `scripts/validate_project.py`：Enemies schema 加两列(ratio required=False)；BossPhases schema 加 PhaseMaxHealth；required_ids M_TimeGuard→M_SHEEP；EchoPolicy 允许 None；RefillHealthPolicy 允许 RefillToMaximum(需 PhaseMaxHealth>0)；boss wave BossEnemyId→M_SHEEP。
+
+### 三、当前卡点
+
+`python scripts/validate_project.py` 的 **XLSX authoring sync check FAIL** —— CSV 已手工领先于 `Design/Data/ReEchoEnemyData.xlsx` 真源（字节不一致）。根因：`怪物.xlsx` 更新后，`ReEchoEnemyData.xlsx` 的三张表仍是 TimeGuard：
+- `tblEnemies` header=28 列（到 Phase2TransformSeconds），仍含 M_TimeGuard(r7)，无 Phase2TriggerMode/Phase2HealthThresholdRatio 列；
+- `tblEnemyAbilities` 全是 TimeGuard 5 技能；
+- `tblBossPhases` 只有 TimeGuard，无 PhaseMaxHealth 列。
+
+### 四、待办（方案甲：写回 xlsx 真源 → sync → validate）
+
+**【核心】把 WS4 数据写回 `Design/Data/ReEchoEnemyData.xlsx` 真源：**
+1. `tblEnemies`：删 M_TimeGuard 行，加 M_SHEEP 行（HP=1300, Boss, BehaviorProfileId=Boss.TimeGuard, PresentationId=Enemy.TimeGuard, Phase2Enabled=true, Phase2TransformSeconds=1, Phase2TriggerMode=HealthThreshold, Phase2HealthThresholdRatio=0）；其余现存行在这两新列补空值。
+2. `tblEnemyAbilities`：删 TimeGuard 5 行，加 SHEEP 5 技能行（SH_01..SH_04，数值同上第二节）。
+3. `tblBossPhases`：删 TimeGuard 行，加 M_SHEEP 两阶段行（phase1: PhaseIndex=1, TriggerSeconds=0, EchoPolicy=None, 不回血, PhaseMaxHealth=0；phase2: PhaseIndex=2, RefillToMaximum, PhaseMaxHealth=650）；header 加 PhaseMaxHealth 列。
+4. 运行 `python scripts/data/sync_xlsx_to_csv.py` 重新生成 CSV（会覆盖手改 CSV，使其与真源一致）。
+5. 运行 `python scripts/validate_project.py` 确认通过（含 XLSX authoring sync check）。
+
+**发布门禁（推 origin/main 前）：**
+- `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 全量构建 + 刷新精选预构建二进制（`Binaries/Win64/UnrealEditor-*.dll` + `ReEchoEditor.prebuilt.json`）。
+- 正式提交 Author 须含人类 GitHub 账号 + AI 身份，标题以一个标签 `[PROGRAMMER]` 开头。
+
+**人工验收（PendingBeforeClose）：** PIE 验证 SHEEP 血清空 → 变黑二阶段（满血 650）→ 再打死 → Boss 击败结算。
+
+### 五、接手模型需注意的风险点
+
+- **xlsx 备份**：改 `ReEchoEnemyData.xlsx` 前先备份（openpyxl 写表可能丢公式/格式）；只改目标单元格，勿重建整表。
+- **openpyxl 隐藏行陷阱**：遍历行时务必同时检查 `ws.row_dimensions[r].hidden`，不要误把隐藏行当可见数据（见项目记忆）。
+- **数据链铁律**：运行时绝不直读 xlsx；禁止把手改 CSV 当真源长期保留——必须 sync 回一致。
+- **BehaviorId 枚举约束**：enemy_abilities 的 BehaviorId 必须落在 C++ 硬编码的 5 个（`Boss.MeleeSweep/Projectile/BlinkSlam/PrayerBeam/ElementCleanse`），经 `ResolveBossAbilityKind` 映射；SH_04 用 `PrayerBeam`。
+- **模块边界纪律**：EnemyLogic 不得 include GameMode/PlayerController/presentation；血量由 host(EnemyActor) 注入 `Sense.CurrentHealthRatio`，Logic 只读 Sense（已在本次改动修复，勿回退引入 Graybox include）。
+- **致命伤拦截签名**：`FReEchoFatalDamageIntercept` 为 `bool(float&)`（非无参），改委托须同步所有绑定/调用点。
+- **ort 合并缺陷**：本恢复分支涉及整段删除，rebase/merge 易静默选边；如需合入远端 main，优先手动逐文件落位 + grep 核验，勿直接 merge。

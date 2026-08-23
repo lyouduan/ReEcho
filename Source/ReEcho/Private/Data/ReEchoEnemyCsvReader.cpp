@@ -62,7 +62,9 @@ bool ReadEnemies(const FString& DataDirectory,
 	                            TEXT("Phase2Enabled"),
 	                            TEXT("Phase2TriggerRangeCm"),
 	                            TEXT("Phase2RequiredAttackCount"),
-	                            TEXT("Phase2TransformSeconds")},
+	                            TEXT("Phase2TransformSeconds"),
+	                            TEXT("Phase2TriggerMode"),
+	                            TEXT("Phase2HealthThresholdRatio")},
 	                           Issues);
 
 	const TMap<FName, FName> ExpectedProfiles = {
@@ -113,6 +115,8 @@ bool ReadEnemies(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2TriggerRangeCm"), 0.0f, 100000.0f, Row.Phase2TriggerRangeCm, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("Phase2RequiredAttackCount"), Row.Phase2RequiredAttackCount, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2TransformSeconds"), 0.0f, 3600.0f, Row.Phase2TransformSeconds, Issues);
+		ReEchoCsv::ReadOptionalCell(CsvRow, TEXT("Phase2TriggerMode"), Row.Phase2TriggerMode);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("Phase2HealthThresholdRatio"), 0.0f, 1.0f, Row.Phase2HealthThresholdRatio, Issues);
 
 		if (Row.Id.IsNone())
 		{
@@ -429,6 +433,7 @@ bool ReadBossPhases(const FString& DataDirectory,
 	                            TEXT("AttackSpeedMultiplier"),
 	                            TEXT("MovementSpeedMultiplier"),
 	                            TEXT("RefillHealthPolicy"),
+	                            TEXT("PhaseMaxHealth"),
 	                            TEXT("Enabled"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
@@ -454,6 +459,8 @@ bool ReadBossPhases(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(
 		    Table, CsvRow, TEXT("MovementSpeedMultiplier"), 0.0f, 100.0f, Row.MovementSpeedMultiplier, Issues);
 		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("RefillHealthPolicy"), Row.RefillHealthPolicy, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, CsvRow, TEXT("PhaseMaxHealth"), 0.0f, 1000000.0f, Row.PhaseMaxHealth, Issues);
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Enabled"), Row.bEnabled, Issues);
 		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);

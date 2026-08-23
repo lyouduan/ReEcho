@@ -57,6 +57,29 @@ EReEchoEnemyArchetype ToArchetype(const EReEchoEnemyKind Kind)
 	}
 }
 
+float ResolveHateRangeCm(const EReEchoEnemyKind Kind)
+{
+	// Bosses keep their own aggro logic and never wander; return 0 to disable the wander branch.
+	if (Kind == EReEchoEnemyKind::Boss)
+	{
+		return 0.0f;
+	}
+	// Per-archetype idle aggro radius. Larger for elites so they pull from farther out.
+	switch (Kind)
+	{
+		case EReEchoEnemyKind::Elite:
+			return 720.0f;
+		case EReEchoEnemyKind::Ranged:
+			return 640.0f;
+		case EReEchoEnemyKind::Slime:
+		case EReEchoEnemyKind::Shield:
+		case EReEchoEnemyKind::Bomber:
+		case EReEchoEnemyKind::Grunt:
+		default:
+			return 520.0f;
+	}
+}
+
 EReEchoEnemyKind ToLegacyKind(const EReEchoEnemyArchetype Archetype)
 {
 	switch (Archetype)
@@ -294,6 +317,27 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	{
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
 	}
+	// WS4 (Plan 68): arm the blood-depleted second-phase transition. When a lethal hit lands and this boss is configured
+	// for a HealthThreshold phase change it has not yet used, convert the kill into a phase transition instead of death.
+	Combatant->SetFatalDamageInterceptDelegate(
+	    FReEchoFatalDamageIntercept::CreateLambda([this](float& InOutHealth) -> bool
+	    {
+		    if (!EnemyLogic || !EnemyLogic->GetDefinition().Phase2.bEnabled)
+		    {
+			    return false;
+		    }
+		    if (EnemyLogic->GetDefinition().Phase2.TriggerMode != EReEchoEnemyPhase2TriggerMode::HealthThreshold)
+		    {
+			    return false;
+		    }
+		    // Arm only while still in phase one and alive; once transformed, normal death rules apply.
+		    const FReEchoEnemyLogicSnapshot& Snapshot = EnemyLogic->GetSnapshot();
+		    if (Snapshot.bPhase2Triggered || Snapshot.CurrentPhaseIndex >= 2 || !Snapshot.bAlive)
+		    {
+			    return false;
+		    }
+		    return EnemyLogic->TryTriggerPhase2OnFatalWound();
+	    }));
 	return true;
 }
 
@@ -687,9 +731,19 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 				Sense.bHasTeleportDestination = !Sense.TeleportDestination.IsNearlyZero();
 			}
 		}
+		// WS5: aggro injection for non-Boss idle wander. HateRangeCm <= 0 disables wander (legacy pursuit-only).
+		const float AggroDistanceCm = FVector::Dist2D(GetActorLocation(), Sense.TargetLocation);
+		Sense.HateRangeCm = ReEchoEnemyHost::ResolveHateRangeCm(GetKind());
+		Sense.bInCombat = Sense.HateRangeCm > 0.0f && AggroDistanceCm <= Sense.HateRangeCm;
 		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
 		Sense.bSpecialActionPermitted =
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		// WS4 (Plan 68): sample current health ratio so the logic layer can drive a blood-depleted phase transition
+		// without reaching into the combat component itself. Full/unknown defaults keep legacy enemies inert.
+		if (Combatant && Combatant->Stats.HpMax > 0.0f)
+		{
+			Sense.CurrentHealthRatio = FMath::Clamp(Combatant->CurrentHealth / Combatant->Stats.HpMax, 0.0f, 1.0f);
+		}
 		const FReEchoEnemyLogicSnapshot PreviousLogicSnapshot = EnemyLogic->GetSnapshot();
 		Intent = AdvanceBehavior(Sense, DeltaSeconds);
 		if (Intent.bPhaseTransitionStarted || Intent.bPhaseTransitionCompleted)
@@ -701,6 +755,15 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 			PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
 			PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
 			EnemyEvents->PublishPhaseTransition(PhaseEvent);
+			// WS4 (Plan 68): a blood-depleted (HealthDepleted) transition resizes the boss to its second-phase maximum
+			// and refills it there, so the black form fights as a full-health second encounter. Only meaningful for
+			// bosses that opt into a RefillToMaximum second phase.
+			if (Intent.bPhaseTransitionCompleted &&
+			    Intent.PhaseTriggerReason == EReEchoEnemyPhaseTriggerReason::HealthDepleted &&
+			    EnemyLogic && EnemyLogic->GetDefinition().Archetype == EReEchoEnemyArchetype::Boss)
+			{
+				ApplyBloodDepletedPhase2MaxHealth();
+			}
 		}
 		PublishSpecialActionTransition(PreviousLogicSnapshot, Intent);
 		if (ReEchoGameMode && PreviousLogicSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None &&
@@ -1081,4 +1144,30 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 	}
 	SetActorEnableCollision(false);
 	SetLifeSpan(0.45f);
+}
+
+void AReEchoEnemyActor::ApplyBloodDepletedPhase2MaxHealth()
+{
+	if (!Combatant || !EnemyLogic || EnemyLogic->GetDefinition().BossPhases.Num() == 0)
+	{
+		return;
+	}
+	// Locate the second-phase definition by PhaseIndex and apply its maximum health only when it requests a refill.
+	const FReEchoBossPhaseDefinition* PhaseTwo = nullptr;
+	for (const FReEchoBossPhaseDefinition& Phase : EnemyLogic->GetDefinition().BossPhases)
+	{
+		if (Phase.PhaseIndex == 2)
+		{
+			PhaseTwo = &Phase;
+			break;
+		}
+	}
+	if (!PhaseTwo || PhaseTwo->RefillHealthPolicy != EReEchoBossRefillHealthPolicy::RefillToMaximum ||
+	    PhaseTwo->PhaseMaxHealth <= 0.0f)
+	{
+		return;
+	}
+	// Resize to the new ceiling and refill to full so the second form starts as a fresh fight.
+	Combatant->Stats.HpMax = PhaseTwo->PhaseMaxHealth;
+	Combatant->InitializeFromStats(Combatant->Stats, /*bFullHealth=*/true);
 }

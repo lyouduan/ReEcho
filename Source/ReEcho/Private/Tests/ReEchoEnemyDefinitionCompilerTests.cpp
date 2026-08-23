@@ -22,28 +22,32 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 
 	FReEchoEnemyDefinition Boss;
 	FString Error;
+	// WS4 (Plan 68): the authoritative boss is M_SHEEP (blood-bar-depleted two-form). Validate its compiled shape.
 	if (!TestTrue(TEXT("Stable boss id compiles"),
-	              ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_TimeGuard"), Boss, Error)))
+	              ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_SHEEP"), Boss, Error)))
 	{
 		AddError(Error);
 		return false;
 	}
 	TestEqual(TEXT("Boss archetype compiles"), Boss.Archetype, EReEchoEnemyArchetype::Boss);
-	TestEqual(TEXT("Boss health compiles without legacy fallback"), Boss.MaxHealth, 650.0f);
-	TestEqual(TEXT("Boss has five configured behaviors"), Boss.Abilities.Num(), 5);
-	TestEqual(TEXT("Cleanse remains first only because passive order is zero"),
+	TestEqual(TEXT("Boss health compiles from the one-phase maximum"), Boss.MaxHealth, 1300.0f);
+	TestEqual(TEXT("Boss has five configured behaviors (melee + volley + spread + blink + beam)"),
+	          Boss.Abilities.Num(),
+	          5);
+	TestEqual(TEXT("Deterministic rotation starts with the melee basic attack"),
 	          Boss.Abilities[0].BehaviorId,
-	          FName(TEXT("Boss.ElementCleanse")));
-	TestEqual(TEXT("Active deterministic rotation starts with melee sweep"),
-	          Boss.Abilities[1].BehaviorId,
 	          FName(TEXT("Boss.MeleeSweep")));
-	TestEqual(TEXT("Boss thirty-second phase compiles"), Boss.BossPhases.Num(), 1);
-	TestEqual(TEXT("Phase retires encounter echoes"),
+	TestEqual(TEXT("Boss ships two phases: one-form and blood-depleted two-form"), Boss.BossPhases.Num(), 2);
+	TestEqual(TEXT("Phase one uses no timed echo policy"),
 	          Boss.BossPhases[0].EchoPolicy,
-	          EReEchoBossEchoPolicy::RetireEncounterEchoes);
-	TestEqual(TEXT("Phase does not refill health"),
+	          EReEchoBossEchoPolicy::None);
+	TestEqual(TEXT("Phase one does not refill health"),
 	          Boss.BossPhases[0].RefillHealthPolicy,
 	          EReEchoBossRefillHealthPolicy::None);
+	TestEqual(TEXT("Phase two refills to its blood-depleted maximum"),
+	          Boss.BossPhases[1].RefillHealthPolicy,
+	          EReEchoBossRefillHealthPolicy::RefillToMaximum);
+	TestEqual(TEXT("Phase two maximum health is the black-form ceiling"), Boss.BossPhases[1].PhaseMaxHealth, 650.0f);
 	UReEchoEnemyLogicComponent* BossLogic = NewObject<UReEchoEnemyLogicComponent>();
 	TestTrue(TEXT("Compiled production Boss definition initializes runtime policy"), BossLogic->Initialize(Boss, 1));
 
