@@ -54,7 +54,7 @@ void AReEchoDamageNumberActor::InitializeDamage(
 {
 	InitialColor = Color;
 	const int32 DisplayDamage = FMath::Max(1, FMath::RoundToInt(Damage));
-	Text->SetText(FText::FromString(FString::Printf(TEXT("-%d"), DisplayDamage)));
+	Text->SetText(FText::FromString(FString::Printf(TEXT("%d"), DisplayDamage)));
 	Text->SetTextRenderColor(InitialColor.ToFColor(false));
 }
 

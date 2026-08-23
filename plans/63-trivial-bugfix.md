@@ -100,3 +100,22 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **验证 / Verification**：`Build-Editor -Development` 通过；用户 PIE 实机确认——倒计时清晰显示"0"后约半秒才弹出选卡/结算，且选卡时不再残留"CoundownText=1"。本条目待验收。
 
 <!-- 后续修复继续在此处追加 #10、#11…… -->
+
+### #12 — 死亡/胜利「重新开始」进入角色/武器选择界面（不再重载关卡）
+
+- **现象 / Symptom**：玩家死亡（或通关胜利）后弹窗点「重新开始」，会回到主菜单（StartMenu），而不是直接进入角色/武器选择界面；与选卡暂停重载回归（#11 同类）问题同源——都是「重载关卡 → 新 `StartPlay` 无条件 `ShowStartMenu`」。
+- **根因 / Root cause**：`ReEchoGameMode.cpp` 的 `HandleRestartRequested()` 用 `UGameplayStatics::OpenLevel(this, CurrentLevelName)` 重开，会销毁并重建整个 World（含 GameMode），于是新的 `StartPlay()` 末尾无条件调用 `ShowStartMenu()`，把玩家送回主菜单，而非预期的 Loadout 选择界面。
+- **改动 / Changes**：
+  - `Source/ReEcho/Private/ReEchoGameMode.cpp`（`HandleRestartRequested`）：不再 `OpenLevel`，改为就地清理并复用「新游戏」后续流程——`RunSubsystem->DeleteSavedRun()` + 复位 `bBeginSelectedRunRequested`/`bBeginSelectedRunStarted`（否则 `RequestBeginSelectedRun` 会直接 return、无法再次开局）+ `ClearCombatants()`（清残留敌人/Echo）+ `SetGamePaused(false)` + `ShowLoadoutSelection()`。
+  - 玩家与战场的最终复位交给 `BeginNextEncounter` 在开局时统一完成（回出生点、满血复活、清残留敌人/Echo、重启 Director），避免就地手动复位的不完整风险。
+  - 顺带移除死亡分支的 `QueueEventForNextWorld(Revive)`（不再重载世界，该队列事件永不触发）。
+- **验证 / Verification**：Development 增量构建 + `-FullRebuild` 通过；`validate_project.py` 静态校验通过；编辑器实测：死亡→「重新开始」直接进入角色/武器选择界面；胜利→「重新开始」同理；「退出游戏」仍回主菜单（路径未改）；选择后新一局战斗/自动攻击/再次阵亡均正常。
+
+### #13 — 怪物扣血浮动数字去掉负号
+
+- **现象 / Symptom**：怪物受伤时跳出的浮动伤害数字带负号（如 `-123`），体验上希望只显示数值。
+- **根因 / Root cause**：`ReEchoDamageNumberActor::SpawnDamageNumber` 用 `FString::Printf(TEXT("-%d"), DisplayDamage)` 拼接负号前缀。
+- **改动 / Changes**：
+  - `Source/ReEcho/Private/UI/ReEchoDamageNumberActor.cpp`：改为 `FString::Printf(TEXT("%d"), DisplayDamage)`，只显示数值。
+  - 该生成路径仅被敌人受伤数字使用（`ReEchoEnemyActor.cpp`、`ReEchoEnemyPresentationComponent.cpp` 调用），不影响玩家受伤表现。
+- **验证 / Verification**：Development 增量构建通过；编辑器实测攻击怪物时伤害数字不再带负号。
