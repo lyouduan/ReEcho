@@ -238,3 +238,41 @@
 - **模块边界纪律**：EnemyLogic 不得 include GameMode/PlayerController/presentation；血量由 host(EnemyActor) 注入 `Sense.CurrentHealthRatio`，Logic 只读 Sense（已在本次改动修复，勿回退引入 Graybox include）。
 - **致命伤拦截签名**：`FReEchoFatalDamageIntercept` 为 `bool(float&)`（非无参），改委托须同步所有绑定/调用点。
 - **ort 合并缺陷**：本恢复分支涉及整段删除，rebase/merge 易静默选边；如需合入远端 main，优先手动逐文件落位 + grep 核验，勿直接 merge。
+
+---
+
+## γ 重构：以怪物.xlsx 为权威重定义敌人数据模型（2026-08-22，决策 γ-B 已确认）
+
+> 接手模型经核对判定：现有 `Enemies.MoveSpeedCmPerSecond` 量级混乱（Grunt95/Bomber175/TimeGuard45），怪物.xlsx 用相对值（人物=1.0，SHEEP=1.2），无直接映射，导致 SHEEP 数值被 TimeGuard 遗留值限制。用户决策 γ：以怪物.xlsx 为干净权威重定义敌人数据模型。**已确认采用 γ-B（彻底相对化）**（2026-08-22 三决策答复：q-ms=B 彻底相对化 / q-base210=不惜代价实现策划表(人物=1.0) / q-keep=不惜代价实现策划表）。
+
+### 决策（已确认）
+- **移速方案 = γ-B 彻底相对化**：废弃绝对列 `MoveSpeedCmPerSecond`，所有敌人改填相对 `MoveSpeedMultiplier`（玩家=1.0 基准）。全部 7 敌重填相对值。
+- **相对基准 = 策划表（人物=1.0）**：全局 `ReEchoBalanceSettings.BaseMoveSpeed = 210.f` 作为基准；编译期归一 `EffectiveMoveSpeed = BaseMoveSpeed * MoveSpeedMultiplier`，运行时零改动。
+- **EnemyAbilities / BossPhases = 按怪物.xlsx 落地，不另重构 schema**：SHEEP 5 技能 + 双阶段(回满650) 按怪物.xlsx 数值精确填入（ws45 WIP 已实现并随本重构一并 sync）。
+
+### 实现落位（C++ / schema / 数据层已改，待增量构建刷新预构建指纹）
+- C++：`FReEchoCsvEnemyRow.MoveSpeedCmPerSecond` → `float MoveSpeedMultiplier = 0.0f`；`ReEchoEnemyCsvReader` `HasExactColumns` 列名 `MoveSpeedCmPerSecond`→`MoveSpeedMultiplier`，`RequireFloat("MoveSpeedMultiplier", 0.01f, 10.0f)`；`ReEchoEnemyDefinitionCompiler` 归一 `OutDefinition.MoveSpeedCmPerSecond = GetDefault<UReEchoBalanceSettings>()->BaseMoveSpeed * Row->MoveSpeedMultiplier`（`#include "Core/ReEchoBalanceSettings.h"`）。
+- 运行时零改动：`ReEchoEnemyLogicComponent` L417/L1012/L1025 仍读 `FReEchoEnemyDefinition::MoveSpeedCmPerSecond`；`ReEchoBalanceSettings` 为 UDeveloperSettings（无 `Get()`，用 `GetDefault<>`）。
+- schema：`csv_schema.csv` Enemies `MoveSpeedMultiplier,Float,true,0.01,10`；`validate_project.py` 列 spec 同改。
+- 数据：`ReEchoEnemyData.xlsx` Enemies header 改 `MoveSpeedMultiplier` + 补 `Phase2TriggerMode/Phase2HealthThresholdRatio`；7 敌相对值（SLIME0.8/RABBIT0.7/FOX1.2/SHEEP1.2/Grunt≈0.452/Shield≈0.238/Bomber≈0.833）；非二阶段 `Phase2HealthThresholdRatio=0`；`M_TimeGuard`→`M_SHEEP`；EnemyAbilities 7 行(SH系列)、BossPhases 2 行(补PhaseMaxHealth) 重写；校验/表范围 openpyxl 重建。`ReEchoEncounterData.xlsx` `BossEnemyId` M_TimeGuard→M_SHEEP。
+
+### 相对移速对照（基准 210）
+| 敌 | Multiplier | 解析 cm/s | 来源 |
+|---|---|---|---|
+| M_SLIME | 0.8 | 168 | 怪物.xlsx |
+| M_RABBIT | 0.7 | 147 | 怪物.xlsx |
+| M_FOX | 1.2 | 252 | 怪物.xlsx |
+| M_SHEEP | 1.2 | 252 | 怪物.xlsx |
+| M_Grunt | ≈0.452 | 95 | legacy 95 ÷ 210 |
+| M_Shield | ≈0.238 | 50 | legacy 50 ÷ 210 |
+| M_Bomber | ≈0.833 | 175 | legacy 175 ÷ 210 |
+
+### 验收
+- `python scripts/data/sync_xlsx_to_csv.py` 通过（xlsx↔csv 一致）；`python scripts/validate_project.py` 通过（含 prebuilt 指纹）。
+- 推 main 门禁：`-FullRebuild` + 刷精选预构建二进制。
+- PIE：SHEEP≈252、SLIME/RABBIT/FOX=168/147/252、Grunt/Shield/Bomber 速度保持；血清空→黑二阶段650→击败；其他敌人不变。
+- WS1-3 核查：EnemyCombatStats 按怪物.xlsx 补成长数据（现仅 SLIME_C1 一行）。
+
+### 当前卡点（与 ws45 WIP 合并后）
+- C++ 改动使 prebuilt bundle stale；需本地增量 `Build-Editor -Configuration Development`（编辑器须关闭）刷新指纹，sync 才能持久化 `enemies.csv`（曾因 stale 被 sync 回滚）。
+- 分支 `plan/68-ws1-5` 与 origin/main 分叉（本地 1 WIP / 远端 2：Plan75 implement loadout + Plan76 Niagara）；合 main 前须 rebase 到 origin/main 并核对 weapon 相关无冲突（优先手动逐文件落位 + grep 核验，避 ort 静默选边）。

@@ -504,7 +504,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "PresentationId": CsvColumnSpec("StableId"),
         "Enabled": CsvColumnSpec("Bool"),
         "MaxHealth": CsvColumnSpec("Float", min_value=1.0, max_value=1000000.0),
-        "MoveSpeedCmPerSecond": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MoveSpeedMultiplier": CsvColumnSpec("Float", min_value=0.01, max_value=10.0),
         "CollisionRadiusCm": CsvColumnSpec("Float", min_value=0.1, max_value=100000.0),
         "CollisionHalfHeightCm": CsvColumnSpec("Float", min_value=0.1, max_value=100000.0),
         "ContactDamage": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
