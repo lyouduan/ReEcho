@@ -15,6 +15,8 @@
   - `plans/83-sc01-editable-edge-inserts.md`
   - `plans/84-stage-scene-switch-and-direct-edge-editing.md`
   - `Design/Data/ReEchoData.xlsx` 与同步生成的 `Content/Data/stages.csv`
+  - `Content/Data/csv_schema.csv`（将 `Stages.SceneId` 允许值更新为 `SC01/SC02/SC03/SC04`）
+  - `scripts/validate_project.py`（同步 SceneId 生产数据不变量）
   - `Source/ReEcho/Public/Presentation/Scene/ReEchoArenaSceneActor.h`
   - `Source/ReEcho/Private/Presentation/Scene/ReEchoArenaSceneActor.cpp`
   - `Source/ReEcho/Public/ReEchoGameMode.h`
@@ -57,6 +59,7 @@
   2. SceneId 到 Scene 资产必须经 Editor 可配置注册表/目录解析，不在 GameMode 堆散落硬编码路径；未知或重复 ID 明确失败。
   3. SC01 插片直接进入 `BP_ArenaScene_SC01` 组件树；删除首轮 `BP_SC01EdgeInserts` 包装，解决父 Blueprint 不可逐片编辑的问题。
   4. Stage 跨界时先完成场景切换，再解析入口并启动 Encounter；同 Stage 保留现有敌人/玩家位置策略。
+  5. `csv_schema.csv` 与项目校验器必须共同接受且只接受已注册的 `SC01/SC02/SC03/SC04`；不得继续以旧 `Level00` 白名单造成生产数据与运行时契约分叉。
 - 文档同步：关闭前审阅 `ARCHITECTURE.md`、`README.md`；维护 `MOD-ReEcho.md`，逐项记录结果。
 
 ## 锁定验收
@@ -74,6 +77,7 @@
 - 基线：`origin/main@4cbc5f99`；Plan 发布后重新 fetch 核验。
 - Editor/构建：执行前要求关闭 ReEcho Editor并使用 common-dir 锁。
 - 难合并面：XLSX/CSV 发布单元、`ReEchoGameMode.cpp`、`BP_ArenaScene_SC01.uasset` 和可能的 `Level00.umap`；远端同路径变化即停止审计。
+- 契约补充：Executor Step 0 发现 `Content/Data/csv_schema.csv` 与 `scripts/validate_project.py` 仍硬限制 `Stages.SceneId=Level00`；两者已在实现前补入 Writes，必须与 XLSX/CSV/Reader/运行时测试作为一个一致候选验证。
 - 既有主工作区 `DA_ArenaScene_SC01.uasset` 未提交修改不属于本任务，不得拷入或覆盖。
 
 ## 实现提纲
