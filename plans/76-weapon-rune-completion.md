@@ -6,10 +6,10 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`InProgress`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划基线：`origin/main@73dd2b9738139d06997ab157a7014a3a5f329a4e`（包含 Plan81 的角色相对武器表现约束）。
-- 本地实现基线：保留 Plan67 CodeBuddy 候选 `0f7c15f` 已形成的商店、数据表和图标工作，并在本 Plan 发布后合入最新 `origin/main`；不把 CodeBuddy 的 Plan76 半成品直接合入。最终组合提交在实现分支建立时回填。
+- 本地实现基线：组合提交 `fb6ece549d5338b0a408fa9994720dd695a5bfe1`，包含 Plan67 CodeBuddy 候选 `0f7c15f` 已形成的商店、数据表和图标工作，以及 `origin/main@ad75909` 中的 Plan81 与本 Plan；不把 CodeBuddy 的 Plan76 半成品直接合入。
 - 本地实现方式：一任务一 worktree；Plan76 使用独立分支/worktree，Plan67 恢复分支只作组合基线和恢复点。
 - 依赖 / 阻塞：Plan75 的三槽符文装备、`part_effects.csv` 解释器和武器选择契约；Plan67 的 XLSX/CSV/图标候选。正式实现提交因包含 Plan67 未发布候选，发布前必须同时完成 Plan67 集成审计。
 - Writes:
@@ -96,7 +96,7 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：Plan 文档从 `origin/main@73dd2b9` 发布；实现从“Plan67 CodeBuddy 保留成果 + 包含 Plan81 与本 Plan 的最新主线”组合恢复点建立独立分支。
+- 基线分支/提交：Plan 文档发布为 `origin/main@ad75909`；实现从组合恢复点 `fb6ece5` 建立独立分支 `plan/76-weapon-rune-completion-integrated`。
 - 引擎/构建可用性：待实现前确认 Editor 已关闭；先执行静态校验，最终执行 Development 构建与聚焦自动化。
 - 现有聚焦测试结果：组合基线尚未生成可复用的最终构建证据；CodeBuddy Plan76 半成品验证失败，不作为证据。
 - 共享契约 / 难合并资源风险：XLSX/CSV 必须成组集成；`WeaponActor`、`ProjectileLogic`、Combatant/状态契约与主分支 Plan77-80 表现改动耦合，表现路径必须保持只读。
@@ -132,21 +132,38 @@
 - 2026-08-23：完成 CodeBuddy 审计；确认其中断补丁只开始长剑批次且存在数据真源、计数、确定性、状态和编译问题，不直接合入。
 - 2026-08-23：保留 Plan67 CodeBuddy 候选并合入 `origin/main@df356c1`；二进制冲突临时采用主分支版本，等待最终重建。
 - 2026-08-23：主线新增 Plan81；确认其只约束武器持握表现，不改变 Plan76 的攻击范围、伤害、投射物和符文语义，并纳入后续组合基线。
+- 2026-08-23：Plan76 发布为 `origin/main@ad75909`，随后与 Plan67 CodeBuddy 保留成果组合为实现基线 `fb6ece5`，并建立独立实现工作树。
 - 2026-08-23：按源工作簿实际隐藏行确认正式范围为 47 个，补完数为 32；生产表中的枪源行57误分类纳入本 Plan修正。
+- 2026-08-23：已在 `plan/76-weapon-rune-completion-integrated` 工作树完成 32 个补完符文的数据与运行时代码候选；覆盖 19 个注册 `RuntimeBehavior`、静态攻击步骤修改、流血/晕眩/限时无敌、独立临时属性层、时间碎片拾取、分裂/暴击穿透/爆炸组合、群攻阈值/陨星/外圈和镰刀投掷召回。
+- 2026-08-23：编译前审计修正了五处不能只靠读表发现的问题：限时无敌正式构建缺少实现、群攻阈值误按重复命中计数、概率采样误用 Actor 路径、临时百分比层误按复利叠加、延迟投射物未完整冻结攻击时符文上下文；并补充双槽卡同槽组合与换装后延迟投射物测试。
+- 2026-08-23：XLSX 保留原表保护/样式/验证与导出结构，完成全部 13 个工作表渲染检查和公式错误扫描；同步到隔离输出包通过。源文案“击杀移速弓弦”确认为可叠加，表描述与独立 5 秒层逻辑已统一。
+- 2026-08-23：按用户要求暂停。尚未执行 Development `-FullRebuild`，因此尚未把 XLSX 同步到生产 `Content/Data`，也尚未运行最终项目校验、聚焦自动化或 PIE；当前候选不得视为已完成、可发布或可合并。
+- 2026-08-23：恢复后完成 Development FullRebuild、生产 CSV 同步与项目校验；修正编译、状态白名单、群攻范围测试、投射物组合测试和连击 Tick 测试夹具问题。
+- 2026-08-23：Plan67 集成回归发现两张投放表未进入启动必读清单、Manifest 主键契约仍硬编码为 `Id`、Legacy 商品价格未传入购买事务；已修复数据装载与扣费主链，并按权威表把战后 `FreeTier` 与商店 `ShopTiers` 分离。
 
 ### 证据
 
 - 只读工作簿审计：`武器符文C` 隐藏行为 8-15、57-77；非隐藏数据行 2-56 排除 8-15，共 47。
 - CodeBuddy Plan76 工作树 `validate_project.py` 失败于未注册 `OnAttackGroupGrowth`，未提供构建/PIE证据。
+- 隔离数据同步：`python scripts/data/sync_xlsx_to_csv.py --output-dir outputs/plan76/csv` 通过；当前输出为 47 个启用可见符文、75 行 Effect（63 行启用）、19 个动态 BehaviorId，注册表与运行时分支集合一致。
+- XLSX 质量检查：13 个工作表全部成功渲染；Artifact Tool 单元格错误搜索结果为 0；`武器插槽C` 的表保护、4 个表对象、25 个数据验证仍保留。
+- 静态检查：修改 C++ 已运行仓库 `.clang-format`，`python -m py_compile scripts/validate_project.py scripts/data/sync_xlsx_to_csv.py` 与 `git diff --check` 通过。
+- Development FullRebuild 已通过；生产同步 `python scripts/data/sync_xlsx_to_csv.py`、`python scripts/validate_project.py`、数据 `--check` 与 `git diff --check` 已通过。最终远端集成后仍须重跑发布候选 FullRebuild。
+- `ReEcho.Combat.Runes.TimedStatusAndIndependentStacks` 通过。
+- `ReEcho.Weapons.Runes` 全部 6 项通过：目录/注册覆盖、静态步骤、碎片事务、动态命中、群攻/外圈/镰刀、分裂/穿透/爆炸组合。
+- `ReEcho.Shop` 全部 8 项通过；覆盖 Legacy 商品、固定三槽武器/符文报价、按关卡 `ShopTiers` 投放卡牌、购买即装和三槽装备。
 
 ### 剩余风险
 
 - Plan67 与 Plan76 的实现候选组合发布，最终需同时审查 Plan67 商店语义和 Plan76 符文语义，避免将 WIP 提交直接推入 main。
 - 符文手感、流血/叠层节奏和镰刀召回操作仍需用户 PIE。
+- `origin/main` 已前进到 Plan81 最新提交，且与本 Plan 在 XLSX、CSV、WeaponActor、RunSubsystem、模块文档和预构建包上重叠；发布前须以最新主分支为底执行 squash 集成并再次全量构建。
+- Plan67 的独立卡牌/符文刷新计数和最终 UI 布局仍属后续实现；本次先发布其数据驱动固定报价槽、购买即装与 Plan76 全符文运行时大框架。
 
 ### 人工验收结果/请求
 
 - `PendingBeforeClose`：等待实现完成后的四武器逐符文 PIE。
+- 用户允许小型问题延期，要求大框架验证后先合并远端主分支；PIE 仍保持待验收，不据此标记 Plan Closed。
 
 ### 架构文档审阅结果
 

@@ -166,6 +166,72 @@ bool FReEchoAttackIdentitySourceLifetimeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuneTimedStatusRuntimeTest,
+                                 "ReEcho.Combat.Runes.TimedStatusAndIndependentStacks",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoRuneTimedStatusRuntimeTest::RunTest(const FString& Parameters)
+{
+	UReEchoCombatantComponent* Combatant = NewObject<UReEchoCombatantComponent>();
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.HpPoint = 100.0f;
+	Stats.AttackSpeed = 1.0f;
+	Stats.MovementSpeed = 100.0f;
+	Combatant->InitializeFromStats(Stats, true);
+
+	FReEchoTimedStatusCommand Stun;
+	Stun.StatusId = TEXT("Z_Vertigo");
+	Stun.CurrentTimeSeconds = 0.0f;
+	Stun.DurationSeconds = 1.0f;
+	TestTrue(TEXT("Vertigo command is accepted"), Combatant->ApplyTimedStatus(Stun));
+	TestTrue(TEXT("Vertigo disables actions before expiry"), Combatant->IsActionDisabled(0.999f));
+	TestFalse(TEXT("Vertigo expires exactly at its boundary"), Combatant->IsActionDisabled(1.0f));
+	Combatant->GrantTimedInvulnerability(0.0f, 0.5f);
+	TestTrue(TEXT("Group-hit invulnerability is active before its boundary"), Combatant->IsTimedInvulnerable(0.499f));
+	TestFalse(TEXT("Group-hit invulnerability expires exactly at its boundary"), Combatant->IsTimedInvulnerable(0.5f));
+
+	FReEchoTimedStatusCommand Bleed;
+	Bleed.StatusId = TEXT("Z_Bleeding");
+	Bleed.CurrentTimeSeconds = 0.0f;
+	Bleed.DurationSeconds = 3.0f;
+	Bleed.DamagePerTickMaxHealthFraction = 0.005f;
+	TestTrue(TEXT("First bleeding stack is accepted"), Combatant->ApplyTimedStatus(Bleed));
+	TestTrue(TEXT("Second bleeding stack is independent"), Combatant->ApplyTimedStatus(Bleed));
+	Combatant->AdvanceTimedRuneEffectsForTests(1.0f);
+	TestTrue(TEXT("Two stacks each deal exactly 0.5% max HP per second"),
+	         FMath::IsNearlyEqual(Combatant->CurrentHealth, 99.0f));
+
+	FReEchoTimedStatusCommand LaterBleed = Bleed;
+	LaterBleed.CurrentTimeSeconds = 1.5f;
+	TestTrue(TEXT("Later bleeding stack receives its own expiry"), Combatant->ApplyTimedStatus(LaterBleed));
+	Combatant->AdvanceTimedRuneEffectsForTests(3.0f);
+	TestTrue(TEXT("Earlier stacks tick three times while later stack ticks once"),
+	         FMath::IsNearlyEqual(Combatant->CurrentHealth, 96.5f));
+	TestTrue(TEXT("Later stack remains after earlier stacks expire"),
+	         Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Bleeding")));
+	Combatant->AdvanceTimedRuneEffectsForTests(4.5f);
+	TestTrue(TEXT("Later stack ticks through its own three-second boundary"),
+	         FMath::IsNearlyEqual(Combatant->CurrentHealth, 95.5f));
+	TestFalse(TEXT("Bleeding status clears after the final independent stack expires"),
+	          Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Bleeding")));
+
+	Combatant->AddTransientStatModifier(TEXT("Rune.Attack"), 0.01f, 0.0f, 5.0f, 30);
+	Combatant->AddTransientStatModifier(TEXT("Rune.Attack"), 0.01f, 0.0f, 5.0f, 30);
+	TestEqual(TEXT("Transient rune stat stacks are tracked independently"),
+	          Combatant->GetTransientStatStackCount(TEXT("Rune.Attack")),
+	          2);
+	TestTrue(TEXT("Transient percentage layers add against the unmodified base instead of compounding"),
+	         FMath::IsNearlyEqual(Combatant->Stats.AttackSpeed, 1.02f, 0.0001f));
+	Combatant->AdvanceTimedRuneEffectsForTests(5.0f);
+	TestEqual(TEXT("All independently expired transient stacks are removed"),
+	          Combatant->GetTransientStatStackCount(TEXT("Rune.Attack")),
+	          0);
+	TestTrue(TEXT("Removing transient stacks restores the base stat"),
+	         FMath::IsNearlyEqual(Combatant->Stats.AttackSpeed, 1.0f, 0.0001f));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatFactionRelationsTest,
                                  "ReEcho.Combat.FactionRelations",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

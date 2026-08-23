@@ -125,6 +125,7 @@ struct REECHOWEAPONS_API FReEchoLogicalProjectileSpec
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CarrierRadiusCm = 13.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ExplosionRadiusCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float MaximumRangeCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bPierceOnCritical = false;
 };
 
 USTRUCT(BlueprintType)

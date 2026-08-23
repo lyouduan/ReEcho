@@ -8,6 +8,7 @@
 #include "Run/ReEchoShopCatalog.h"
 #include "Cards/ReEchoCardRuntime.h"
 #include "Weapons/ReEchoWeaponRuntime.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
@@ -134,6 +135,41 @@ int32 BuildShopOfferSeed(const FName WeaponId, const int32 EncounterIndex, const
 	uint32 Seed = HashCombine(GetTypeHash(WeaponId), GetTypeHash(EncounterIndex));
 	Seed = HashCombine(Seed, GetTypeHash(RefreshSequence));
 	return static_cast<int32>(Seed);
+}
+
+// Derive the shop price-range category for a part.
+// Universal/core parts (WeaponTypeId == Any) split by tags: Primordial (Core|DamageChannel only) -> Core_Primordial,
+// element crystals (extra element tag) -> Core_Element, prism (RandomElement tag) -> PrismCrystal.
+// Weapon-specific runes (WeaponTypeId != Any) -> Rune.
+// NOTE: exact Core/Element/Prism split is a Plan67 open item pending designer confirmation; current mapping follows
+// parts.csv tags.
+FName DerivePartPriceCategory(const FReEchoCsvPartRow& Part)
+{
+	if (!Part.WeaponTypeId.IsNone() && Part.WeaponTypeId != TEXT("Any"))
+	{
+		return TEXT("Rune");
+	}
+	if (Part.Tags.Contains(TEXT("RandomElement")))
+	{
+		return TEXT("PrismCrystal");
+	}
+	if (Part.Tags.Num() > 2)
+	{
+		return TEXT("Core_Element");
+	}
+	return TEXT("Core_Primordial");
+}
+
+int32 GetShopPriceInRange(const FReEchoCsvDataSnapshot& Snapshot, FName Category, int32 Fallback, FRandomStream& Rand)
+{
+	if (const FReEchoCsvShopPriceRangeRow* Range = Snapshot.ShopPriceRanges.Find(Category))
+	{
+		if (Range->MaxPrice >= Range->MinPrice && Range->MaxPrice > 0)
+		{
+			return Rand.RandRange(Range->MinPrice, Range->MaxPrice);
+		}
+	}
+	return Fallback;
 }
 
 bool TryNormalizeOwnedParts(const FReEchoCsvDataSnapshot& Snapshot,
@@ -829,65 +865,198 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		    return Left.SlotTypeId.ToString() < Right.SlotTypeId.ToString();
 	    });
 
-	TArray<FReEchoShopOffer> CompatiblePartOffers;
-	TArray<FName> PartIds;
-	Snapshot->Parts.GetKeys(PartIds);
-	PartIds.Sort(
-	    [](const FName Left, const FName Right)
-	    {
-		    return Left.ToString() < Right.ToString();
-	    });
-	for (const FName PartId : PartIds)
+	// Owned parts (backpack panel).
+	for (const auto& Pair : Snapshot->Parts)
 	{
-		const FReEchoCsvPartRow& Part = Snapshot->Parts.FindChecked(PartId);
-		if (!IsPartCompatibleWithWeapon(*Snapshot, Part, *Weapon))
-		{
-			continue;
-		}
-		const FReEchoShopOffer PartOffer = MakeWeaponPartOffer(Part);
-		if (Part.bShopEnabled)
-		{
-			CompatiblePartOffers.Add(PartOffer);
-		}
+		const FReEchoCsvPartRow& Part = Pair.Value;
 		if (OwnedPartIds.Contains(Part.PartId))
 		{
-			View.OwnedParts.Add(PartOffer);
+			View.OwnedParts.Add(MakeWeaponPartOffer(Part));
 		}
 	}
 
-	FRandomStream PartRandom(
-	    BuildShopOfferSeed(View.WeaponId, EncounterIndex, CurrentBuild.CardState.Runtime.ShopRefreshSequence));
-	ShuffleOffers(CompatiblePartOffers, PartRandom);
-	for (int32 Index = 0; Index < FMath::Min(ReEchoShopOfferCountPerGroup, CompatiblePartOffers.Num()); ++Index)
+	// ===== Weapon/Part shop: 3 fixed slots (Plan67 Step2) =====
+	View.SlotOffers.SetNum(ReEchoShopOfferCountPerGroup);
+
+	TArray<FName> EquippedPartIds;
+	for (const FReEchoEquippedPartSnapshot& Eq : CurrentBuild.EquippedParts)
 	{
-		View.Offers.Add(CompatiblePartOffers[Index]);
+		EquippedPartIds.Add(Eq.PartId);
+	}
+	const auto IsPartExcluded = [&](const FName& PartId) -> bool
+	{
+		return OwnedPartIds.Contains(PartId) || EquippedPartIds.Contains(PartId) || InventoryItems.Contains(PartId);
+	};
+	const auto IsPartCompatible = [&](const FReEchoCsvPartRow& Part) -> bool
+	{
+		return Weapon ? IsPartCompatibleWithWeapon(*Snapshot, Part, *Weapon) : true;
+	};
+
+	TArray<const FReEchoCsvPartRow*> UniversalRuneCandidates;     // WeaponTypeId == Any, compatible, not owned/equipped
+	TArray<const FReEchoCsvPartRow*> CurrentWeaponRuneCandidates; // WeaponTypeId == current weapon, not owned
+	TArray<const FReEchoCsvPartRow*> OtherWeaponRuneCandidates; // WeaponTypeId != Any and != current weapon, not owned
+	TArray<const FReEchoCsvWeaponRow*> OtherWeaponCandidates;   // StartSelectable except current weapon
+	for (const auto& Pair : Snapshot->Parts)
+	{
+		const FReEchoCsvPartRow& Part = Pair.Value;
+		if (!Part.bShopEnabled)
+		{
+			continue;
+		}
+		if (Part.WeaponTypeId.IsNone() || Part.WeaponTypeId == TEXT("Any"))
+		{
+			if (IsPartCompatible(Part) && !IsPartExcluded(Part.Id))
+			{
+				UniversalRuneCandidates.Add(&Part);
+			}
+		}
+		else if (Weapon && Part.WeaponTypeId == Weapon->WeaponTypeId)
+		{
+			if (!IsPartExcluded(Part.Id))
+			{
+				CurrentWeaponRuneCandidates.Add(&Part);
+			}
+		}
+		else
+		{
+			if (!IsPartExcluded(Part.Id))
+			{
+				OtherWeaponRuneCandidates.Add(&Part);
+			}
+		}
+	}
+	const TArray<FReEchoCsvWeaponRow> StartWeapons = Snapshot->GetStartSelectableWeapons();
+	for (const FReEchoCsvWeaponRow& CandidateWeapon : StartWeapons)
+	{
+		if (CandidateWeapon.Id != CurrentBuild.WeaponId)
+		{
+			OtherWeaponCandidates.Add(&CandidateWeapon);
+		}
+	}
+
+	const auto MakePartSlotOffer = [&](const FReEchoCsvPartRow& Part, FRandomStream& R) -> FReEchoWeaponSlotOffer
+	{
+		FReEchoWeaponSlotOffer Offer;
+		Offer.Kind = EReEchoShopOfferKind::Part;
+		Offer.PartId = Part.Id;
+		Offer.ItemId = Part.Id;
+		Offer.ContentId = Part.Id;
+		Offer.SlotTypeId = Part.SlotTypeId;
+		Offer.DisplayName = FText::FromString(Part.DisplayName);
+		Offer.EffectText = FText::FromString(Part.Description);
+		Offer.Price = GetShopPriceInRange(*Snapshot, DerivePartPriceCategory(Part), Part.ShopPrice, R);
+		return Offer;
+	};
+	const auto MakeWeaponSlotOffer = [&](const FReEchoCsvWeaponRow& CandidateWeapon,
+	                                     FRandomStream& R) -> FReEchoWeaponSlotOffer
+	{
+		FReEchoWeaponSlotOffer Offer;
+		Offer.Kind = EReEchoShopOfferKind::Weapon;
+		Offer.WeaponId = CandidateWeapon.Id;
+		Offer.ItemId = CandidateWeapon.Id;
+		Offer.ContentId = CandidateWeapon.Id;
+		Offer.SlotTypeId = NAME_None;
+		Offer.DisplayName = FText::FromString(CandidateWeapon.DisplayName);
+		Offer.EffectText = FText::Format(NSLOCTEXT("ReEcho", "WeaponSlotOfferEffect", "武器：{0}"),
+		                                 FText::FromString(CandidateWeapon.DisplayName));
+		Offer.Price = GetShopPriceInRange(*Snapshot, TEXT("Weapon"), 10, R);
+		return Offer;
+	};
+	const auto PickPart = [&](const TArray<const FReEchoCsvPartRow*>& Arr, FRandomStream& R) -> const FReEchoCsvPartRow*
+	{
+		return Arr.Num() > 0 ? Arr[R.RandRange(0, Arr.Num() - 1)] : nullptr;
+	};
+	const auto PickWeapon = [&](const TArray<const FReEchoCsvWeaponRow*>& Arr,
+	                            FRandomStream& R) -> const FReEchoCsvWeaponRow*
+	{
+		return Arr.Num() > 0 ? Arr[R.RandRange(0, Arr.Num() - 1)] : nullptr;
+	};
+
+	// Slot 0: universal rune (deterministic by seed).
+	FRandomStream Slot0Rand(
+	    BuildShopOfferSeed(View.WeaponId, EncounterIndex, CurrentBuild.CardState.Runtime.ShopRefreshSequence));
+	if (const FReEchoCsvPartRow* Chosen = PickPart(UniversalRuneCandidates, Slot0Rand))
+	{
+		View.SlotOffers[0] = MakePartSlotOffer(*Chosen, Slot0Rand);
+	}
+
+	// Slots 1 & 2: weighted 70/15/15 (current-weapon rune / other weapon / other-weapon rune), with fallbacks.
+	FRandomStream SlotRand(
+	    BuildShopOfferSeed(TEXT("SHOP_SLOTS"), EncounterIndex, CurrentBuild.CardState.Runtime.ShopRefreshSequence));
+	for (int32 SlotIndex = 1; SlotIndex <= 2; ++SlotIndex)
+	{
+		const float Roll = SlotRand.GetFraction();
+		FReEchoWeaponSlotOffer Offer;
+		if (Roll < 0.70f && CurrentWeaponRuneCandidates.Num() > 0)
+		{
+			Offer = MakePartSlotOffer(*PickPart(CurrentWeaponRuneCandidates, SlotRand), SlotRand);
+		}
+		else if (Roll < 0.85f && OtherWeaponCandidates.Num() > 0)
+		{
+			Offer = MakeWeaponSlotOffer(*PickWeapon(OtherWeaponCandidates, SlotRand), SlotRand);
+		}
+		else if (OtherWeaponRuneCandidates.Num() > 0)
+		{
+			Offer = MakePartSlotOffer(*PickPart(OtherWeaponRuneCandidates, SlotRand), SlotRand);
+		}
+		else if (CurrentWeaponRuneCandidates.Num() > 0)
+		{
+			Offer = MakePartSlotOffer(*PickPart(CurrentWeaponRuneCandidates, SlotRand), SlotRand);
+		}
+		else if (OtherWeaponCandidates.Num() > 0)
+		{
+			Offer = MakeWeaponSlotOffer(*PickWeapon(OtherWeaponCandidates, SlotRand), SlotRand);
+		}
+		View.SlotOffers[SlotIndex] = Offer; // empty if no candidates
 	}
 
 	if (Snapshot->CardCatalog.IsValid())
 	{
 		const int32 RefreshSequence = CurrentBuild.CardState.Runtime.ShopRefreshSequence;
-		TArray<FReEchoCardDefinition> ShopCards = Snapshot->CardCatalog->GetOfferable(TraitOfferGroup);
-		FRandomStream CardRandom(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
-		ShuffleOffers(ShopCards, CardRandom);
-		for (const FReEchoCardDefinition& Card : ShopCards)
+		// ===== Build-card shop: one slot per drop-level tier (Plan67 Step2) =====
+		const int32 LevelEncounter = FMath::Clamp(EncounterIndex, 1, 6);
+		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(LevelEncounter))
 		{
-			const FName OfferId = MakeShopCardOfferId(RefreshSequence, Card.Id);
-			const bool bPurchasedOnThisPage = InventoryItems.Contains(OfferId);
-			if (!bPurchasedOnThisPage &&
-			    !ReEchoCardRuntime::CanOffer(*Snapshot->CardCatalog, CurrentBuild.CardState, Card))
+			TArray<int32> CardTiers;
+			if (!DropLevel->ShopTiers.IsEmpty())
 			{
-				continue;
+				TArray<FString> TierTokens;
+				DropLevel->ShopTiers.ParseIntoArray(TierTokens, TEXT("|"));
+				for (const FString& Tok : TierTokens)
+				{
+					const int32 Tier = FCString::Atoi(*Tok);
+					if (Tier > 0)
+					{
+						CardTiers.Add(Tier);
+					}
+				}
 			}
-			View.Offers.Add(MakeBuildCardOffer(Card, RefreshSequence));
-			if (View.Offers
-			        .FilterByPredicate(
-			            [](const FReEchoShopOffer& Offer)
-			            {
-				            return Offer.Type == EReEchoShopOfferType::BuildCard;
-			            })
-			        .Num() >= ReEchoShopOfferCountPerGroup)
+			FRandomStream CardRand(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
+			for (const int32 Tier : CardTiers)
 			{
-				break;
+				TArray<FReEchoCardDefinition> Eligible;
+				for (const FReEchoCardDefinition& Card : Snapshot->CardCatalog->GetOfferable(TraitOfferGroup, Tier))
+				{
+					if (ReEchoCardRuntime::CanOffer(*Snapshot->CardCatalog, CurrentBuild.CardState, Card))
+					{
+						Eligible.Add(Card);
+					}
+				}
+				if (Eligible.Num() == 0)
+				{
+					continue;
+				}
+				const FReEchoCardDefinition& Chosen = Eligible[CardRand.RandRange(0, Eligible.Num() - 1)];
+				FReEchoCardSlotOffer CardOffer;
+				CardOffer.Tier = Tier;
+				CardOffer.CardId = Chosen.Id;
+				CardOffer.ItemId = MakeShopCardOfferId(RefreshSequence, Chosen.Id);
+				CardOffer.DisplayName = FText::FromString(Chosen.DisplayName);
+				CardOffer.EffectText = FText::FromString(Chosen.Description);
+				CardOffer.bFree = false;
+				CardOffer.Price =
+				    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, CardRand);
+				View.CardSlotOffers.Add(CardOffer);
 			}
 		}
 
@@ -900,6 +1069,47 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 				View.OwnedCards.Add(MoveTemp(OwnedCard));
 			}
 		}
+	}
+
+	// Backward-compatibility bridge (Plan67 Step2): flatten SlotOffers + CardSlotOffers into the legacy
+	// Offers list so the existing WBP widget and automation tests keep compiling until the UI is rearranged
+	// (Plan67 Step5 follow-up). Whole-weapon offers are surfaced here with Type == Weapon so the shop can sell them.
+	for (const FReEchoWeaponSlotOffer& Slot : View.SlotOffers)
+	{
+		if (Slot.PartId.IsNone() && Slot.WeaponId.IsNone())
+		{
+			continue;
+		}
+		FReEchoShopOffer Offer;
+		Offer.ItemId = Slot.ItemId;
+		Offer.ContentId = Slot.PartId.IsNone() ? Slot.WeaponId : Slot.PartId;
+		Offer.DisplayName = Slot.DisplayName;
+		Offer.EffectText = Slot.EffectText;
+		Offer.Price = Slot.Price;
+		Offer.SlotTypeId = Slot.SlotTypeId;
+		Offer.Type = (Slot.Kind == EReEchoShopOfferKind::Weapon) ? EReEchoShopOfferType::Weapon
+		                                                         : EReEchoShopOfferType::WeaponPart;
+		// 武器 Offer 携带对应配图路径(开局选武器界面同款)，渲染时优先于默认卡片图标
+		if (Slot.Kind == EReEchoShopOfferKind::Weapon)
+		{
+			if (const FReEchoCsvWeaponRow* WeaponRow = Snapshot->FindWeapon(Slot.WeaponId))
+			{
+				Offer.IconTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(WeaponRow->VisualKey);
+			}
+		}
+		View.Offers.Add(Offer);
+	}
+	for (const FReEchoCardSlotOffer& Card : View.CardSlotOffers)
+	{
+		FReEchoShopOffer Offer;
+		Offer.ItemId = Card.ItemId;
+		Offer.ContentId = Card.CardId;
+		Offer.DisplayName = Card.DisplayName;
+		Offer.EffectText = Card.EffectText;
+		Offer.Price = Card.Price;
+		Offer.Type = EReEchoShopOfferType::BuildCard;
+		Offer.Tier = Card.Tier;
+		View.Offers.Add(Offer);
 	}
 	return View;
 }
@@ -1465,55 +1675,256 @@ void UReEchoRunSubsystem::ClearCardAnchorRecording()
 	CurrentBuild.CardState.Runtime.AnchorRecordingId.Invalidate();
 }
 
+void UReEchoRunSubsystem::LogWeaponRunePurchaseState(const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot,
+                                                     FName PurchasedItem,
+                                                     const TCHAR* PurchaseKind,
+                                                     const FReEchoBuildSnapshot& BeforeBuild,
+                                                     const FReEchoBuildSnapshot& AfterBuild,
+                                                     FName AffectedSlotTypeId)
+{
+	if (!Snapshot)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[WeaponRuneLog] purchase=%s kind=%s | <no snapshot>"),
+		       *PurchasedItem.ToString(),
+		       PurchaseKind);
+		return;
+	}
+
+	const FReEchoCsvWeaponRow* Weapon = Snapshot->FindEnabledWeapon(AfterBuild.WeaponId);
+
+	// 1) 当前装备的武器
+	if (Weapon)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[WeaponRuneLog] purchase=%s kind=%s | EquippedWeapon=%s (WeaponId=%s, WeaponTypeId=%s)"),
+		       *PurchasedItem.ToString(),
+		       PurchaseKind,
+		       *Weapon->DisplayName,
+		       *AfterBuild.WeaponId.ToString(),
+		       *Weapon->WeaponTypeId.ToString());
+	}
+	else
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[WeaponRuneLog] purchase=%s kind=%s | EquippedWeapon=<none> (WeaponId=%s)"),
+		       *PurchasedItem.ToString(),
+		       PurchaseKind,
+		       *AfterBuild.WeaponId.ToString());
+		return;
+	}
+
+	const auto PartName = [&](FName Pid) -> FString
+	{
+		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(Pid);
+		return Part ? Part->DisplayName : Pid.ToString();
+	};
+
+	// 2) 各槽位：装备中 / 本次装备 / 本次卸下 / 背包
+	for (const TPair<FName, FReEchoCsvSlotProfileRow>& ProfilePair : Snapshot->SlotProfiles)
+	{
+		const FReEchoCsvSlotProfileRow& Profile = ProfilePair.Value;
+		if (Profile.WeaponTypeId != Weapon->WeaponTypeId)
+		{
+			continue;
+		}
+		const FName SlotTypeId = Profile.SlotTypeId;
+		// 购买武器符文时只关注对应槽位；购买整把武器时打印全部槽位
+		if (AffectedSlotTypeId != NAME_None && SlotTypeId != AffectedSlotTypeId)
+		{
+			continue;
+		}
+
+		const int32 Capacity =
+		    ReEchoWeaponRuntime::GetEffectiveSlotCapacity(*Snapshot, AfterBuild, Weapon->WeaponTypeId, SlotTypeId);
+		const FReEchoCsvSlotTypeRow* SlotType = Snapshot->SlotTypes.Find(SlotTypeId);
+		const FString SlotName = SlotType ? SlotType->DisplayName : SlotTypeId.ToString();
+
+		TArray<FName> EquippedBefore;
+		TArray<FName> EquippedNow;
+		for (const FReEchoEquippedPartSnapshot& Eq : BeforeBuild.EquippedParts)
+		{
+			if (Eq.SlotTypeId == SlotTypeId)
+			{
+				EquippedBefore.Add(Eq.PartId);
+			}
+		}
+		for (const FReEchoEquippedPartSnapshot& Eq : AfterBuild.EquippedParts)
+		{
+			if (Eq.SlotTypeId == SlotTypeId)
+			{
+				EquippedNow.Add(Eq.PartId);
+			}
+		}
+
+		TArray<FString> EquippedNames;
+		TArray<FString> EquippedThisTime;
+		for (const FName& Pid : EquippedNow)
+		{
+			EquippedNames.Add(PartName(Pid));
+			if (!EquippedBefore.Contains(Pid))
+			{
+				EquippedThisTime.Add(PartName(Pid));
+			}
+		}
+		TArray<FString> UnequippedThisTime;
+		for (const FName& Pid : EquippedBefore)
+		{
+			if (!EquippedNow.Contains(Pid))
+			{
+				UnequippedThisTime.Add(PartName(Pid));
+			}
+		}
+
+		// 对应槽位的背包：已拥有、与该武器兼容、属于该槽位、但未装备
+		TArray<FString> BackpackNames;
+		for (const FName& OwnedId : OwnedPartIds)
+		{
+			const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(OwnedId);
+			if (!Part || !Part->bEnabled)
+			{
+				continue;
+			}
+			if (Part->SlotTypeId != SlotTypeId)
+			{
+				continue;
+			}
+			if (!IsPartCompatibleWithWeapon(*Snapshot, *Part, *Weapon))
+			{
+				continue;
+			}
+			if (EquippedNow.Contains(OwnedId))
+			{
+				continue;
+			}
+			BackpackNames.Add(Part->DisplayName);
+		}
+
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[WeaponRuneLog]   slot=%s capacity=%d | equipped[%d]=%s | unequipped=%s | backpack[%d]=%s"),
+		       *SlotName,
+		       Capacity,
+		       EquippedNow.Num(),
+		       *FString::Join(EquippedNames, TEXT(", ")),
+		       *FString::Join(UnequippedThisTime, TEXT(", ")),
+		       BackpackNames.Num(),
+		       *FString::Join(BackpackNames, TEXT(", ")));
+
+		if (EquippedThisTime.Num() > 0)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[WeaponRuneLog]   EQUIP -> %s"),
+			       *FString::Join(EquippedThisTime, TEXT(", ")));
+		}
+		if (UnequippedThisTime.Num() > 0)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[WeaponRuneLog]   UNEQUIP -> %s"),
+			       *FString::Join(UnequippedThisTime, TEXT(", ")));
+		}
+	}
+}
+
 bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 {
 	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
-	const FReEchoShopOffer* Offer = ShopView.Offers.FindByPredicate(
-	    [&](const FReEchoShopOffer& Candidate)
-	    {
-		    return Candidate.ItemId == ItemId;
-	    });
-	FReEchoShopOffer LegacyOffer;
-	if (!Offer)
+
+	// Locate offer across the new fixed slots + card slots (Plan67 Step2/3).
+	FReEchoWeaponSlotOffer SlotOffer;
+	bool bFoundSlot = false;
+	for (const FReEchoWeaponSlotOffer& Candidate : ShopView.SlotOffers)
 	{
-		if (const FReEchoShopOffer* Legacy = GetReEchoShopCatalog().FindByPredicate(
-		        [&](const FReEchoShopOffer& Candidate)
-		        {
-			        return Candidate.ItemId == ItemId;
-		        }))
+		if (Candidate.ItemId == ItemId && (!Candidate.PartId.IsNone() || !Candidate.WeaponId.IsNone()))
 		{
-			LegacyOffer = *Legacy;
-			LegacyOffer.ContentId = LegacyOffer.ItemId;
-			Offer = &LegacyOffer;
+			SlotOffer = Candidate;
+			bFoundSlot = true;
+			break;
 		}
 	}
-	if (!Offer ||
-	    ((Offer->Type == EReEchoShopOfferType::RunItem || Offer->Type == EReEchoShopOfferType::BuildCard) &&
-	     InventoryItems.Contains(ItemId)) ||
-	    (Offer->Type == EReEchoShopOfferType::WeaponPart && OwnedPartIds.Contains(Offer->ContentId)))
+	FReEchoCardSlotOffer CardSlotOffer;
+	bool bFoundCard = false;
+	if (!bFoundSlot)
+	{
+		for (const FReEchoCardSlotOffer& Candidate : ShopView.CardSlotOffers)
+		{
+			if (Candidate.ItemId == ItemId)
+			{
+				CardSlotOffer = Candidate;
+				bFoundCard = true;
+				break;
+			}
+		}
+	}
+
+	// Legacy rune-item catalog (SHOP_RUSTED_SCISSORS etc.) kept for backward compatibility.
+	EReEchoShopOfferType LegacyType = EReEchoShopOfferType::RunItem;
+	int32 LegacyPrice = 0;
+	bool bIsLegacy = false;
+	if (!bFoundSlot && !bFoundCard)
+	{
+		for (const FReEchoShopOffer& Legacy : GetReEchoShopCatalog())
+		{
+			if (Legacy.ItemId == ItemId)
+			{
+				LegacyType = Legacy.Type;
+				LegacyPrice = Legacy.Price;
+				bIsLegacy = true;
+				break;
+			}
+		}
+	}
+	if (!bFoundSlot && !bFoundCard && !bIsLegacy)
 	{
 		return false;
 	}
-	if (Offer->Type == EReEchoShopOfferType::BuildCard && !CanPurchaseExtraShopCard())
+
+	// Price + free handling.
+	const bool bIsFree = bFoundCard && CardSlotOffer.bFree;
+	int32 RawPrice = 0;
+	if (bFoundSlot)
+	{
+		RawPrice = SlotOffer.Price;
+	}
+	else if (bFoundCard)
+	{
+		RawPrice = CardSlotOffer.Price;
+	}
+	else if (bIsLegacy)
+	{
+		RawPrice = LegacyPrice;
+	}
+	const int32 EffectivePrice = bIsFree ? 0 : GetDiscountedShopPrice(RawPrice);
+
+	if (InventoryItems.Contains(ItemId))
 	{
 		return false;
 	}
-	const int32 EffectivePrice = GetDiscountedShopPrice(Offer->Price);
+	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part && OwnedPartIds.Contains(SlotOffer.PartId))
+	{
+		return false;
+	}
+	if (bFoundCard && !bIsFree && !CanPurchaseExtraShopCard())
+	{
+		return false;
+	}
+
 	UE_LOG(LogReEcho,
 	       Warning,
-	       TEXT("[ShopDebug] PurchaseShopItem enter item=%s type=%d price=%d effectivePrice=%d timeShards=%d"),
+	       TEXT("[ShopPurchase] enter item=%s slot=%d card=%d free=%d price=%d effective=%d shards=%d"),
 	       *ItemId.ToString(),
-	       (int32)Offer->Type,
-	       Offer->Price,
+	       bFoundSlot ? static_cast<int32>(SlotOffer.Kind) : -1,
+	       bFoundCard,
+	       bIsFree,
+	       RawPrice,
 	       EffectivePrice,
 	       TimeShards);
-	UE_LOG(LogReEcho,
-	       Warning,
-	       TEXT("[ShopPurchase] pre: item=%s type=%d shardsBefore=%d price=%d"),
-	       *ItemId.ToString(),
-	       (int32)Offer->Type,
-	       TimeShards,
-	       EffectivePrice);
+
 	if (TimeShards < EffectivePrice)
 	{
 		UE_LOG(LogReEcho,
@@ -1536,7 +1947,7 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	        CurrentBuild,
 	        [&](FReEchoBuildSnapshot& BaseBuild)
 	        {
-		        if (Offer->Type == EReEchoShopOfferType::BuildCard)
+		        if (bFoundCard)
 		        {
 			        if (!Snapshot->CardCatalog.IsValid())
 			        {
@@ -1548,9 +1959,9 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			        Input.TimeShards = PendingTimeShards;
 			        Input.EncounterIndex = EncounterIndex;
 			        Input.RandomSeed = BuildShopOfferSeed(
-			            Offer->ContentId, EncounterIndex, BaseBuild.CardState.Runtime.ShopRefreshSequence);
+			            CardSlotOffer.CardId, EncounterIndex, BaseBuild.CardState.Runtime.ShopRefreshSequence);
 			        const FReEchoCardGrantResult Grant =
-			            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, Offer->ContentId, Input);
+			            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardSlotOffer.CardId, Input);
 			        if (!Grant.bSucceeded)
 			        {
 				        return false;
@@ -1561,30 +1972,31 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			        UE_LOG(LogReEcho,
 			               Warning,
 			               TEXT("[ShopDebug] BuildCard grant item=%s inTimeShards=%d outTimeShards=%d bSucceeded=%d"),
-			               *Offer->ContentId.ToString(),
+			               *CardSlotOffer.CardId.ToString(),
 			               Input.TimeShards,
 			               Grant.TimeShards,
 			               Grant.bSucceeded);
 		        }
-		        if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
+		        else if (bIsLegacy && LegacyType == EReEchoShopOfferType::RunItem)
 		        {
-			        BaseBuild.Stats.PhysicalAttack += 2.0f;
-		        }
-		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_DREAM_FRUIT"))
-		        {
-			        BaseBuild.Stats.HpMax += 10.0f;
-		        }
-		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_BLACK_FEATHER"))
-		        {
-			        BaseBuild.Stats.MovementSpeed += 0.1f;
-		        }
-		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_OLD_COIN"))
-		        {
-			        BaseBuild.Stats.EchoEfficiency += 0.1f;
-		        }
-		        else if (Offer->Type == EReEchoShopOfferType::RunItem && ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
-		        {
-			        // 不修改 build 属性；只解锁指定回放槽位上限（见下方统一处理）。
+			        // Legacy rune-item stat modifiers.
+			        if (ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
+			        {
+				        BaseBuild.Stats.PhysicalAttack += 2.0f;
+			        }
+			        else if (ItemId == TEXT("SHOP_DREAM_FRUIT"))
+			        {
+				        BaseBuild.Stats.HpMax += 10.0f;
+			        }
+			        else if (ItemId == TEXT("SHOP_BLACK_FEATHER"))
+			        {
+				        BaseBuild.Stats.MovementSpeed += 0.1f;
+			        }
+			        else if (ItemId == TEXT("SHOP_OLD_COIN"))
+			        {
+				        BaseBuild.Stats.EchoEfficiency += 0.1f;
+			        }
+			        // SHOP_REPLAY_UNLOCK: no stat change (handled below).
 		        }
 		        if (Snapshot->CardCatalog.IsValid())
 		        {
@@ -1599,54 +2011,66 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	{
 		return false;
 	}
-	UE_LOG(LogReEcho,
-	       Warning,
-	       TEXT("[ShopDebug] before deduct item=%s effectivePrice=%d pendingTimeShards=%d timeShards=%d"),
-	       *ItemId.ToString(),
-	       EffectivePrice,
-	       PendingTimeShards,
-	       TimeShards);
+
 	// 原子扣费：以购买前余额 TimeShards 为基准，叠加卡牌 OnGrant 对碎片的净改变(GrantShardDelta)，
 	// 结果夹紧到 >=0。防止如 G_2_15(时砂豪赌，OnGrant 清零碎片)在 grant 后余额被覆盖为 0，
 	// 再减售价导致 TimeShards 变负数。
 	const int32 GrantShardDelta = PendingTimeShards - TimeShards;
 	PendingTimeShards = FMath::Max(0, TimeShards - EffectivePrice + GrantShardDelta);
-	if (PendingTimeShards < EffectivePrice)
-	{
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[ShopDebug] NEGATIVE RISK blocked item=%s pendingTimeShards=%d timeShards=%d effectivePrice=%d "
-		            "grantDelta=%d"),
-		       *ItemId.ToString(),
-		       PendingTimeShards,
-		       TimeShards,
-		       EffectivePrice,
-		       GrantShardDelta);
-	}
-	TimeShards = PendingTimeShards;
-	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] after deduct item=%s timeShards=%d"), *ItemId.ToString(), TimeShards);
 	UE_LOG(LogReEcho,
 	       Warning,
-	       TEXT("[ShopPurchase] post: item=%s type=%d shardsAfter=%d price=%d delta=%d"),
+	       TEXT("[ShopDebug] before deduct item=%s effectivePrice=%d pendingTimeShards=%d timeShards=%d grantDelta=%d"),
 	       *ItemId.ToString(),
-	       (int32)Offer->Type,
-	       TimeShards,
 	       EffectivePrice,
-	       TimeShards - TimeShardsBeforePurchase);
-	if (Offer->Type == EReEchoShopOfferType::WeaponPart)
+	       PendingTimeShards,
+	       TimeShards,
+	       GrantShardDelta);
+	TimeShards = PendingTimeShards;
+	CurrentBuild = PendingBuild;
+	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] after deduct item=%s timeShards=%d"), *ItemId.ToString(), TimeShards);
+
+	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Weapon)
 	{
-		OwnedPartIds.Add(Offer->ContentId);
+		// Switch weapon (Plan67 Step3): change build weapon, retain compatible equipped parts only
+		// (mirrors Plan75 SelectWeaponById's "compatible core only" policy at the build level).
+		CurrentBuild.WeaponId = SlotOffer.WeaponId;
+		if (Snapshot.IsValid())
+		{
+			if (const FReEchoCsvWeaponRow* NewWeapon = Snapshot->FindEnabledWeapon(SlotOffer.WeaponId))
+			{
+				TArray<FReEchoEquippedPartSnapshot> Compatible;
+				for (const FReEchoEquippedPartSnapshot& Eq : CurrentBuild.EquippedParts)
+				{
+					if (const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(Eq.PartId))
+					{
+						if (IsPartCompatibleWithWeapon(*Snapshot, *Part, *NewWeapon))
+						{
+							Compatible.Add(Eq);
+						}
+					}
+				}
+				CurrentBuild.EquippedParts = Compatible;
+			}
+		}
 	}
-	else
+	else if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part)
+	{
+		// Equip rune (购买即装): mark owned then equip into current weapon.
+		if (!OwnedPartIds.Contains(SlotOffer.PartId))
+		{
+			OwnedPartIds.Add(SlotOffer.PartId);
+		}
+		FString EquipError;
+		TryEquipPurchasedPart(SlotOffer.PartId, EquipError);
+	}
+	else if (bFoundCard || bIsLegacy)
 	{
 		InventoryItems.Add(ItemId);
 	}
-	CurrentBuild = PendingBuild;
 
 	if (ItemId == TEXT("SHOP_REPLAY_UNLOCK"))
 	{
 		// 一次性解锁：把指定回放槽位上限拉满（3），不修改 build 属性。
-		// 通用查重/余额检查（上方）已保证原子拒绝重复购买与碎片不足。
 		const EReEchoEchoStorageResult LimitResult = SetSpecificReplayLimit(ReEchoEchoStorage::MaxSpecificReplayLimit);
 		if (LimitResult != EReEchoEchoStorageResult::Success)
 		{
@@ -1656,6 +2080,34 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			return false;
 		}
 	}
+
+	// 购买武器 / 武器符文后打印装备与背包状态（UE_LOG Warning，Shipping 包内可见）。
+	if (bFoundSlot)
+	{
+		if (SlotOffer.Kind == EReEchoShopOfferKind::Weapon)
+		{
+			LogWeaponRunePurchaseState(
+			    Snapshot, SlotOffer.WeaponId, TEXT("Weapon"), OriginalBuild, CurrentBuild, NAME_None);
+		}
+		else if (SlotOffer.Kind == EReEchoShopOfferKind::Part)
+		{
+			LogWeaponRunePurchaseState(
+			    Snapshot, SlotOffer.PartId, TEXT("WeaponPart"), OriginalBuild, CurrentBuild, SlotOffer.SlotTypeId);
+		}
+	}
+
+	return true;
+}
+
+bool UReEchoRunSubsystem::GrantTimeShards(const int32 Amount)
+{
+	if (Amount <= 0 || TimeShards == TNumericLimits<int32>::Max())
+	{
+		return false;
+	}
+
+	const int64 GrantedTotal = static_cast<int64>(TimeShards) + static_cast<int64>(Amount);
+	TimeShards = static_cast<int32>(FMath::Min<int64>(GrantedTotal, TNumericLimits<int32>::Max()));
 	return true;
 }
 

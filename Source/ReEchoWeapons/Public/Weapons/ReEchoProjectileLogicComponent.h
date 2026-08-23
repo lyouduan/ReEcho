@@ -36,7 +36,7 @@ protected:
 private:
 	void Advance(float DeltaTime);
 	FReEchoHitResolved ResolveIntent(AActor* Target, const FVector& HitLocation) const;
-	void ApplyAtLocation(const FVector& ImpactLocation, AActor* DirectTarget);
+	FReEchoHitResolved ApplyAtLocation(const FVector& ImpactLocation, AActor* DirectTarget);
 	void Expire();
 
 	FReEchoLogicalProjectileSpec Spec;
@@ -45,4 +45,5 @@ private:
 	FVector Velocity = FVector::ZeroVector;
 	float TravelledCm = 0.0f;
 	bool bActive = false;
+	TSet<TWeakObjectPtr<AActor>> HitTargets;
 };

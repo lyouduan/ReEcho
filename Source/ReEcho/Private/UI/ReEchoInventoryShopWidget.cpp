@@ -677,7 +677,7 @@ void UReEchoInventoryShopWidget::BuildLoadoutEntries()
 	VisibleWeaponPartOffers.Reset();
 	for (const FReEchoShopOffer& Offer : CurrentPartShopView.Offers)
 	{
-		if (Offer.Type == EReEchoShopOfferType::WeaponPart)
+		if (Offer.Type == EReEchoShopOfferType::WeaponPart || Offer.Type == EReEchoShopOfferType::Weapon)
 		{
 			VisibleWeaponPartOffers.Add(Offer);
 		}
@@ -886,8 +886,18 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	         FVector2D(200.0f, 292.0f));
 	const FVector2D IconPosition = bWeaponPart ? FVector2D(37.0f, 17.0f) : FVector2D(29.0f, 4.0f);
 	const FVector2D IconSize = bWeaponPart ? FVector2D(127.0f, 124.0f) : FVector2D(141.0f, 173.0f);
+	// 图标按 Offer 类型区分：配件走 PartId 动态加载；武器走对应配图(开局选武器界面同款)；其余回退默认卡片图标
+	const bool bIsPart = (Offer.Type == EReEchoShopOfferType::WeaponPart);
+	UTexture2D* ResolvedIcon = ShopCardIconTexture.Get();
+	if (!bIsPart && !Offer.IconTexturePath.IsEmpty())
+	{
+		if (UTexture2D* LoadedWeaponIcon = LoadObject<UTexture2D>(nullptr, *Offer.IconTexturePath))
+		{
+			ResolvedIcon = LoadedWeaponIcon;
+		}
+	}
 	AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex),
-	         bWeaponPart ? ResolveWeaponPartIcon(Offer.ContentId) : ShopCardIconTexture.Get(),
+	         bIsPart ? ResolveWeaponPartIcon(Offer.ContentId) : ResolvedIcon,
 	         IconPosition,
 	         IconSize);
 	if (!bWeaponPart)
@@ -1335,6 +1345,14 @@ UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId
 		{
 			return Icon->Get();
 		}
+	}
+	// 动态加载：按 PartId 在 Icons 目录查找纹理（覆盖硬编码 map 之外的所有武器符文）
+	const FString IconPath = FString::Printf(
+		TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_%s.T_UI_Part_%s"),
+		*PartId.ToString(), *PartId.ToString());
+	if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *IconPath))
+	{
+		return Tex;
 	}
 	return ShopAttachmentSlotTexture.Get();
 }

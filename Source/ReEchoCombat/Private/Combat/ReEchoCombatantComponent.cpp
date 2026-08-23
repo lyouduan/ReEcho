@@ -8,7 +8,8 @@
 
 UReEchoCombatantComponent::UReEchoCombatantComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
 void UReEchoCombatantComponent::BeginPlay()
@@ -60,6 +61,13 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 {
 	const float PreviousHealth = CurrentHealth;
 	bDeathBroadcast = false;
+	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+	{
+		RemoveTransientStatStack(Index);
+	}
+	BleedingStacks.Reset();
+	StunnedUntilWorldTime = 0.0f;
+	InvulnerableUntilWorldTime = 0.0f;
 	HealthChangeReason = TEXT("Initialize");
 	HealthChangeAttack = {};
 	if (BoundAbilitySystem)
@@ -84,7 +92,8 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
                                                   const FReEchoAttackIdentity& Attack,
                                                   const EReEchoDamageSource DamageSource)
 {
-	if (!IsAlive() || Damage <= 0.f || bDebugInvulnerable)
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (!IsAlive() || Damage <= 0.f || bDebugInvulnerable || IsTimedInvulnerable(WorldTime))
 	{
 		return 0.f;
 	}
@@ -108,7 +117,7 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 		--Stats.Block;
 		return 0.f;
 	}
-	const float Applied = FMath::Min(CurrentHealth, FMath::Max(1.f, Damage));
+	const float Applied = FMath::Min(CurrentHealth, Damage);
 	const float PreviousHealth = CurrentHealth;
 	HealthChangeReason = TEXT("Damage");
 	HealthChangeAttack = Attack;
@@ -144,6 +153,169 @@ bool UReEchoCombatantComponent::IsDebugInvulnerable() const
 #else
 	return bDebugInvulnerable;
 #endif
+}
+
+bool UReEchoCombatantComponent::ApplyTimedStatus(const FReEchoTimedStatusCommand& Command)
+{
+	if (!IsAlive() || !FMath::IsFinite(Command.CurrentTimeSeconds) || Command.CurrentTimeSeconds < 0.0f ||
+	    !FMath::IsFinite(Command.DurationSeconds) || Command.DurationSeconds <= 0.0f)
+	{
+		return false;
+	}
+	const float ExpiresAt = Command.CurrentTimeSeconds + Command.DurationSeconds;
+	if (Command.StatusId == TEXT("Z_Vertigo"))
+	{
+		StunnedUntilWorldTime = FMath::Max(StunnedUntilWorldTime, ExpiresAt);
+		ElementState.ActiveStatusUntilSeconds.Add(Command.StatusId, StunnedUntilWorldTime);
+		if (BoundAbilitySystem)
+		{
+			BoundAbilitySystem->AddLooseGameplayTag(ReEchoGameplayTags::State_Stunned);
+		}
+	}
+	else if (Command.StatusId == TEXT("Z_Bleeding") && Command.DamagePerTickMaxHealthFraction > 0.0f)
+	{
+		FBleedingStack& Stack = BleedingStacks.AddDefaulted_GetRef();
+		Stack.ExpiresAt = ExpiresAt;
+		Stack.NextTickAt = Command.CurrentTimeSeconds + 1.0f;
+		Stack.DamageFraction = Command.DamagePerTickMaxHealthFraction;
+		Stack.Attack = Command.Attack;
+		Stack.DamageSource = Command.DamageSource;
+		ElementState.ActiveStatusUntilSeconds.Add(
+		    Command.StatusId, FMath::Max(ElementState.ActiveStatusUntilSeconds.FindRef(Command.StatusId), ExpiresAt));
+	}
+	else
+	{
+		return false;
+	}
+	PublishElementStateChange();
+	RefreshTickState();
+	return true;
+}
+
+bool UReEchoCombatantComponent::IsActionDisabled(const float CurrentTimeSeconds) const
+{
+	return CurrentTimeSeconds < StunnedUntilWorldTime;
+}
+
+void UReEchoCombatantComponent::GrantTimedInvulnerability(const float CurrentTimeSeconds, const float DurationSeconds)
+{
+	if (CurrentTimeSeconds >= 0.0f && DurationSeconds > 0.0f)
+	{
+		InvulnerableUntilWorldTime = FMath::Max(InvulnerableUntilWorldTime, CurrentTimeSeconds + DurationSeconds);
+		RefreshTickState();
+	}
+}
+
+bool UReEchoCombatantComponent::IsTimedInvulnerable(const float CurrentTimeSeconds) const
+{
+	return CurrentTimeSeconds < InvulnerableUntilWorldTime;
+}
+
+void UReEchoCombatantComponent::AddTransientStatModifier(const FName SourceId,
+                                                         const float AttackSpeedBonusFraction,
+                                                         const float MovementSpeedBonusFraction,
+                                                         const float DurationSeconds,
+                                                         const int32 MaxStacks)
+{
+	if (SourceId.IsNone() || DurationSeconds <= 0.0f || MaxStacks <= 0)
+	{
+		return;
+	}
+	while (GetTransientStatStackCount(SourceId) >= MaxStacks)
+	{
+		if (!RemoveOldestTransientStatModifier(SourceId))
+		{
+			break;
+		}
+	}
+	FTransientStatStack& Stack = TransientStatStacks.AddDefaulted_GetRef();
+	Stack.SourceId = SourceId;
+	Stack.ExpiresAt = (GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f) + DurationSeconds;
+	Stack.AttackSpeedMultiplier = FMath::Max(0.01f, 1.0f + AttackSpeedBonusFraction);
+	Stack.MovementSpeedMultiplier = FMath::Max(0.01f, 1.0f + MovementSpeedBonusFraction);
+	float FallbackBaseAttackSpeed = Stats.AttackSpeed;
+	float FallbackBaseMovementSpeed = Stats.MovementSpeed;
+	for (const FTransientStatStack& Existing : TransientStatStacks)
+	{
+		if (&Existing != &Stack)
+		{
+			FallbackBaseAttackSpeed -= Existing.FallbackAttackSpeedDelta;
+			FallbackBaseMovementSpeed -= Existing.FallbackMovementSpeedDelta;
+		}
+	}
+	Stack.FallbackAttackSpeedDelta = FallbackBaseAttackSpeed * (Stack.AttackSpeedMultiplier - 1.0f);
+	Stack.FallbackMovementSpeedDelta = FallbackBaseMovementSpeed * (Stack.MovementSpeedMultiplier - 1.0f);
+	if (BoundAbilitySystem)
+	{
+		Stack.GameplayEffectHandle = ReEchoGameplayEffects::ApplyTransientStatMultiplier(
+		    *BoundAbilitySystem, Stack.AttackSpeedMultiplier, Stack.MovementSpeedMultiplier);
+	}
+	else
+	{
+		Stats.AttackSpeed += Stack.FallbackAttackSpeedDelta;
+		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	}
+	RefreshTickState();
+}
+
+bool UReEchoCombatantComponent::RemoveOldestTransientStatModifier(const FName SourceId)
+{
+	int32 OldestIndex = INDEX_NONE;
+	float OldestExpiry = TNumericLimits<float>::Max();
+	for (int32 Index = 0; Index < TransientStatStacks.Num(); ++Index)
+	{
+		const FTransientStatStack& Stack = TransientStatStacks[Index];
+		if (Stack.SourceId == SourceId && Stack.ExpiresAt < OldestExpiry)
+		{
+			OldestExpiry = Stack.ExpiresAt;
+			OldestIndex = Index;
+		}
+	}
+	if (OldestIndex == INDEX_NONE)
+	{
+		return false;
+	}
+	RemoveTransientStatStack(OldestIndex);
+	return true;
+}
+
+int32 UReEchoCombatantComponent::GetTransientStatStackCount(const FName SourceId) const
+{
+	int32 Count = 0;
+	for (const FTransientStatStack& Stack : TransientStatStacks)
+	{
+		if (Stack.SourceId == SourceId)
+		{
+			++Count;
+		}
+	}
+	return Count;
+}
+
+void UReEchoCombatantComponent::RemoveTransientStatStack(const int32 Index)
+{
+	if (!TransientStatStacks.IsValidIndex(Index))
+	{
+		return;
+	}
+	const FTransientStatStack Stack = TransientStatStacks[Index];
+	if (BoundAbilitySystem && Stack.GameplayEffectHandle.IsValid())
+	{
+		BoundAbilitySystem->RemoveActiveGameplayEffect(Stack.GameplayEffectHandle);
+	}
+	else if (!BoundAbilitySystem)
+	{
+		Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
+		Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
+	}
+	TransientStatStacks.RemoveAt(Index);
+}
+
+void UReEchoCombatantComponent::RefreshTickState()
+{
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	SetComponentTickEnabled(!BleedingStacks.IsEmpty() || !TransientStatStacks.IsEmpty() ||
+	                        StunnedUntilWorldTime > WorldTime || InvulnerableUntilWorldTime > WorldTime);
 }
 
 float UReEchoCombatantComponent::ApplyHealing(const float Healing)
@@ -309,7 +481,73 @@ float UReEchoCombatantComponent::ApplyFinalDamageForTests(const float Damage)
 {
 	return ApplyFinalDamage(Damage, {}, EReEchoDamageSource::Player);
 }
+
+void UReEchoCombatantComponent::AdvanceTimedRuneEffectsForTests(const float CurrentTimeSeconds)
+{
+	AdvanceTimedRuntimeState(CurrentTimeSeconds);
+}
 #endif
+
+void UReEchoCombatantComponent::TickComponent(const float DeltaTime,
+                                              const ELevelTick TickType,
+                                              FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	AdvanceTimedRuntimeState(WorldTime);
+}
+
+void UReEchoCombatantComponent::AdvanceTimedRuntimeState(const float CurrentTimeSeconds)
+{
+	if (StunnedUntilWorldTime > 0.0f && CurrentTimeSeconds >= StunnedUntilWorldTime)
+	{
+		StunnedUntilWorldTime = 0.0f;
+		ElementState.ActiveStatusUntilSeconds.Remove(TEXT("Z_Vertigo"));
+		if (BoundAbilitySystem)
+		{
+			BoundAbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Stunned);
+		}
+		PublishElementStateChange();
+	}
+	if (InvulnerableUntilWorldTime > 0.0f && CurrentTimeSeconds >= InvulnerableUntilWorldTime)
+	{
+		InvulnerableUntilWorldTime = 0.0f;
+	}
+	for (int32 Index = BleedingStacks.Num() - 1; Index >= 0; --Index)
+	{
+		FBleedingStack& Stack = BleedingStacks[Index];
+		while (Stack.NextTickAt <= CurrentTimeSeconds && Stack.NextTickAt <= Stack.ExpiresAt && IsAlive())
+		{
+			ApplyFinalDamage(Stats.HpMax * Stack.DamageFraction, Stack.Attack, Stack.DamageSource);
+			Stack.NextTickAt += 1.0f;
+		}
+		if (CurrentTimeSeconds >= Stack.ExpiresAt)
+		{
+			BleedingStacks.RemoveAt(Index);
+		}
+	}
+	if (BleedingStacks.IsEmpty())
+	{
+		ElementState.ActiveStatusUntilSeconds.Remove(TEXT("Z_Bleeding"));
+	}
+	else
+	{
+		float LatestExpiry = 0.0f;
+		for (const FBleedingStack& Stack : BleedingStacks)
+		{
+			LatestExpiry = FMath::Max(LatestExpiry, Stack.ExpiresAt);
+		}
+		ElementState.ActiveStatusUntilSeconds.Add(TEXT("Z_Bleeding"), LatestExpiry);
+	}
+	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+	{
+		if (CurrentTimeSeconds >= TransientStatStacks[Index].ExpiresAt)
+		{
+			RemoveTransientStatStack(Index);
+		}
+	}
+	RefreshTickState();
+}
 
 void UReEchoCombatantComponent::PublishElementStateChange()
 {

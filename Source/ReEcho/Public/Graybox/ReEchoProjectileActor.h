@@ -4,6 +4,7 @@
 #include "Core/ReEchoTypes.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Weapons/ReEchoProjectileLogicComponent.h"
+#include "Weapons/ReEchoWeaponRuntime.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoProjectileActor.generated.h"
 
@@ -11,6 +12,7 @@ class USphereComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 class UNiagaraComponent;
+class AReEchoWeaponActor;
 
 UCLASS()
 
@@ -29,8 +31,13 @@ public:
 	                          float InExplosionRadiusCm = 0.0f,
 	                          float InMaxRangeCm = 0.0f,
 	                          FReEchoAttackIdentity InAttack = {},
+	                          bool bInCritical = false,
 	                          EReEchoDamageSource InDamageSourceType = EReEchoDamageSource::Player,
-	                          FName InWeaponVisualKey = NAME_None);
+	                          FName InWeaponVisualKey = NAME_None,
+	                          bool bInPierceOnCritical = false,
+	                          AReEchoWeaponActor* InRuneHost = nullptr,
+	                          TSharedPtr<FReEchoWeaponRuneAttackContext> InRuneContext = nullptr,
+	                          bool bInAllowSplit = true);
 
 	/** Weapon-specific presentation asset contract. Empty means procedural fallback. */
 	static FString ResolveWeaponTexturePath(FName WeaponVisualKey);
@@ -76,5 +83,8 @@ private:
 	float ExplosionRadiusCm = 0.0f;
 	FName WeaponVisualKey;
 	bool bImpactVfxSpawned = false;
+	TWeakObjectPtr<AReEchoWeaponActor> RuneHost;
+	TSharedPtr<FReEchoWeaponRuneAttackContext> RuneContext;
+	bool bAllowSplit = true;
 	void ConfigureWeaponVisual(FName InWeaponVisualKey, const FLinearColor& Color);
 };

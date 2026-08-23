@@ -194,3 +194,19 @@ struct REECHOCOMBAT_API FReEchoElementCleanseResult
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bClearedBurn = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ImmunityUntil = 0.0f;
 };
+
+/** Resource-free command for rune/card status application. Combat owns all timers and damage. */
+USTRUCT(BlueprintType)
+
+struct REECHOCOMBAT_API FReEchoTimedStatusCommand
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName StatusId = NAME_None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float CurrentTimeSeconds = -1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float DurationSeconds = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float DamagePerTickMaxHealthFraction = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FReEchoAttackIdentity Attack;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
+};

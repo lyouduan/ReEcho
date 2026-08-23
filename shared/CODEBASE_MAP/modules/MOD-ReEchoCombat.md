@@ -448,6 +448,10 @@ Input / Auto held
 
 ## 扩展方式
 
+### 武器符文状态宿主
+
+Plan76 的晕眩、流血、短暂无敌和临时攻速/移速均通过 `UReEchoCombatantComponent` 的窄命令进入 Combat。`Z_Vertigo` 维护动作禁止边界；`Z_Bleeding` 每层每秒结算最大生命 0.5%，每层独立保存到期时间；临时属性层通过独立 GAS Effect Handle 应用和移除，非 GAS 兼容路径保持相同乘数语义。Weapons/主模块只能提交命令并读取查询，不能直接改生命、状态标签或最终属性。
+
 - 新伤害类型：先扩 Intent/Resolved 的稳定枚举和值字段，再只在 Resolver 增加裁决分支和 focused tests。
 - 新元素/状态：由主模块 Data Adapter 编译 RuleSet；Combat 扩纯规则与 Combatant 状态，不读取 CSV。
 - 新 Combat 消费者：优先订阅事件或读取 Snapshot；若需要改变状态，新增窄 Command，不公开可写组件字段。

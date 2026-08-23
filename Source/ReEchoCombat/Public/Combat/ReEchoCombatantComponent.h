@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatTypes.h"
+#include "GameplayEffectTypes.h"
 #include "ReEchoCombatantComponent.generated.h"
 
 class UAbilitySystemComponent;
@@ -59,6 +60,17 @@ public:
 	/** Clears attachment and burn, then grants immunity without shortening an existing immunity window. */
 	UFUNCTION(BlueprintCallable, Category = "Combat|Element")
 	FReEchoElementCleanseResult ExecuteElementCleanse(const FReEchoElementCleanseCommand& Command);
+	bool ApplyTimedStatus(const FReEchoTimedStatusCommand& Command);
+	bool IsActionDisabled(float CurrentTimeSeconds) const;
+	void GrantTimedInvulnerability(float CurrentTimeSeconds, float DurationSeconds);
+	bool IsTimedInvulnerable(float CurrentTimeSeconds) const;
+	void AddTransientStatModifier(FName SourceId,
+	                              float AttackSpeedBonusFraction,
+	                              float MovementSpeedBonusFraction,
+	                              float DurationSeconds,
+	                              int32 MaxStacks);
+	bool RemoveOldestTransientStatModifier(FName SourceId);
+	int32 GetTransientStatStackCount(FName SourceId) const;
 	/** Card-agnostic host command: shorten an active immunity window without extending it. */
 	void ClampElementImmunityDuration(float CurrentTimeSeconds, float MaximumRemainingSeconds);
 	/** Save/continue migration entry; runtime attacks must go through HitResolver. */
@@ -67,10 +79,13 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
 	FReEchoElementState& EditElementStateForTests();
 	float ApplyFinalDamageForTests(float Damage);
+	void AdvanceTimedRuneEffectsForTests(float CurrentTimeSeconds);
 #endif
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void
+	TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
 	void SyncFromAbilitySystem();
@@ -84,6 +99,9 @@ private:
 	void HandleEchoEfficiencyChanged(const FOnAttributeChangeData& Data);
 	void PublishHealthChange(float PreviousHealth);
 	void PublishElementStateChange();
+	void RemoveTransientStatStack(int32 Index);
+	void RefreshTickState();
+	void AdvanceTimedRuntimeState(float CurrentTimeSeconds);
 	float ApplyFinalDamage(float Damage, const FReEchoAttackIdentity& Attack, EReEchoDamageSource DamageSource);
 
 	UPROPERTY()
@@ -92,6 +110,31 @@ private:
 	bool bDeathBroadcast = false;
 	bool bDebugInvulnerable = false;
 	FReEchoElementState ElementState;
+
+	struct FBleedingStack
+	{
+		float ExpiresAt = 0.0f;
+		float NextTickAt = 0.0f;
+		float DamageFraction = 0.0f;
+		FReEchoAttackIdentity Attack;
+		EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
+	};
+
+	struct FTransientStatStack
+	{
+		FName SourceId = NAME_None;
+		float ExpiresAt = 0.0f;
+		float AttackSpeedMultiplier = 1.0f;
+		float MovementSpeedMultiplier = 1.0f;
+		float FallbackAttackSpeedDelta = 0.0f;
+		float FallbackMovementSpeedDelta = 0.0f;
+		FActiveGameplayEffectHandle GameplayEffectHandle;
+	};
+
+	TArray<FBleedingStack> BleedingStacks;
+	TArray<FTransientStatStack> TransientStatStacks;
+	float StunnedUntilWorldTime = 0.0f;
+	float InvulnerableUntilWorldTime = 0.0f;
 	FName HealthChangeReason = NAME_None;
 	FReEchoAttackIdentity HealthChangeAttack;
 	EReEchoDamageSource HealthChangeDamageSource = EReEchoDamageSource::Player;

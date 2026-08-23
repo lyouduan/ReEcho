@@ -430,9 +430,22 @@ bool ReadManifest(const FString& DataDirectory,
 		// registry only owns RequiredTables; external tables (for example the
 		// ReEchoAudio catalog keyed by EventId) validate their primary key in
 		// their own module/tooling and must not make gameplay startup fatal.
-		if (RequiredTables.Contains(Entry.TableId) && Entry.PrimaryKey != TEXT("Id"))
+		FString ExpectedPrimaryKey = TEXT("Id");
+		if (Entry.TableId == TEXT("shop_price_ranges"))
 		{
-			AddIssue(Issues, Manifest.File, Row.Line, TEXT("PrimaryKey"), TEXT("PrimaryKey must be Id"));
+			ExpectedPrimaryKey = TEXT("PriceCategory");
+		}
+		else if (Entry.TableId == TEXT("shop_drop_levels"))
+		{
+			ExpectedPrimaryKey = TEXT("EncounterIndex");
+		}
+		if (RequiredTables.Contains(Entry.TableId) && Entry.PrimaryKey != ExpectedPrimaryKey)
+		{
+			AddIssue(Issues,
+			         Manifest.File,
+			         Row.Line,
+			         TEXT("PrimaryKey"),
+			         FString::Printf(TEXT("PrimaryKey must be %s"), *ExpectedPrimaryKey));
 		}
 		if (Entry.FileName.Contains(TEXT("/")) || Entry.FileName.Contains(TEXT("\\")))
 		{

@@ -14,6 +14,8 @@ constexpr const TCHAR* SlotTypesTableId = TEXT("SlotTypes");
 constexpr const TCHAR* SlotProfilesTableId = TEXT("SlotProfiles");
 constexpr const TCHAR* PartsTableId = TEXT("Parts");
 constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
+constexpr const TCHAR* ShopPriceRangesTableId = TEXT("shop_price_ranges");
+constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
 constexpr const TCHAR* NoneId = TEXT("None");
 constexpr int32 MaxStartSelectableLoadoutOrder = static_cast<int32>(EReEchoInputSlot::Slot6);
 constexpr int32 ExpectedPartSourceRows = 70;
@@ -118,6 +120,7 @@ bool IsAllowedWeaponEffectTarget(const FName Target)
 	    TEXT("ProjectileCount"),
 	    TEXT("ConcentrationDegrees"),
 	    TEXT("ExplosionRadius"),
+	    TEXT("RuntimeBehavior"),
 	};
 	return AllowedTargets.Contains(Target);
 }
@@ -138,7 +141,8 @@ bool IsAllowedPartEffectPair(const FName EffectKind, const FName BehaviorId)
 	}
 	if (EffectKind == TEXT("UniqueBehavior"))
 	{
-		return BehaviorId == TEXT("Part.OnKillHealPercent");
+		return BehaviorId.ToString().StartsWith(TEXT("Part.")) && BehaviorId != TEXT("Part.CoreDamageChannel") &&
+		       BehaviorId != TEXT("Part.StatModifier") && BehaviorId != TEXT("Part.AttackPatternReplacement");
 	}
 	return false;
 }
@@ -174,17 +178,17 @@ void AppendRowEnd(FString& Out)
 	Out += TEXT("\n");
 }
 
-template <typename RowType, typename AppendFunc>
+template <typename KeyType, typename RowType, typename AppendFunc>
 void AppendOrderedRows(FString& Out,
                        const FString& TableName,
-                       const TArray<FName>& Order,
-                       const TMap<FName, RowType>& Rows,
+                       const TArray<KeyType>& Order,
+                       const TMap<KeyType, RowType>& Rows,
                        AppendFunc Append)
 {
 	Out += TEXT("[");
 	Out += TableName;
 	Out += TEXT("]\n");
-	for (const FName RowId : Order)
+	for (const KeyType& RowId : Order)
 	{
 		if (const RowType* Row = Rows.Find(RowId))
 		{
@@ -316,6 +320,48 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.SlotCount);
 		                  AppendCanonicalField(Canonical, Row.bRequired);
 		                  AppendCanonicalField(Canonical, Row.bEnabled);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+
+	TArray<FName> ShopPriceRangeCategories;
+	Snapshot.ShopPriceRanges.GetKeys(ShopPriceRangeCategories);
+	ShopPriceRangeCategories.Sort(
+	    [](const FName& Left, const FName& Right)
+	    {
+		    return Left.ToString() < Right.ToString();
+	    });
+	AppendOrderedRows(Canonical,
+	                  TEXT("shop_price_ranges"),
+	                  ShopPriceRangeCategories,
+	                  Snapshot.ShopPriceRanges,
+	                  [&](const FReEchoCsvShopPriceRangeRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.PriceCategory);
+		                  AppendCanonicalField(Canonical, Row.MinPrice);
+		                  AppendCanonicalField(Canonical, Row.MaxPrice);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
+		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+
+	TArray<int32> ShopDropEncounterIndices;
+	Snapshot.ShopDropLevels.GetKeys(ShopDropEncounterIndices);
+	ShopDropEncounterIndices.Sort(
+	    [](const int32& Left, const int32& Right)
+	    {
+		    return Left < Right;
+	    });
+	AppendOrderedRows(Canonical,
+	                  TEXT("shop_drop_levels"),
+	                  ShopDropEncounterIndices,
+	                  Snapshot.ShopDropLevels,
+	                  [&](const FReEchoCsvShopDropLevelRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.EncounterIndex);
+		                  AppendCanonicalField(Canonical, Row.FreeTier);
+		                  AppendCanonicalField(Canonical, Row.ShopTiers);
 		                  AppendCanonicalField(Canonical, Row.SourceSheet);
 		                  AppendCanonicalField(Canonical, Row.SourceRow);
 		                  AppendCanonicalField(Canonical, Row.DisabledReason);
@@ -814,6 +860,105 @@ bool ReadSlotProfilesTable(const FString& DataDirectory,
 	return Issues.Num() == 0;
 }
 
+bool ReadShopPriceRangesTable(const FString& DataDirectory,
+                              const ReEchoCsv::FManifestEntry& Entry,
+                              FReEchoCsvDataSnapshot& Snapshot,
+                              TArray<FReEchoCsvIssue>& Issues)
+{
+
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+	TArray<FString> ExpectedColumns = {TEXT("PriceCategory"), TEXT("MinPrice"), TEXT("MaxPrice")};
+	if (!ReEchoCsv::HasExactColumns(Table, ExpectedColumns, Issues))
+	{
+		return false;
+	}
+	TArray<FName> SeenCategories;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvShopPriceRangeRow Range;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("PriceCategory"), Range.PriceCategory, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("MinPrice"), Range.MinPrice, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("MaxPrice"), Range.MaxPrice, Issues);
+		Range.SourceSheet = Entry.FileName;
+		Range.SourceRow = Row.Line;
+		if (Range.MinPrice > Range.MaxPrice)
+		{
+			ReEchoCsv::AddIssue(Issues,
+			                    Table.File,
+			                    Row.Line,
+			                    TEXT("MinPrice"),
+			                    FString::Printf(TEXT("shop_price_ranges %s min>max"), *Range.PriceCategory.ToString()));
+		}
+		if (SeenCategories.Contains(Range.PriceCategory))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues,
+			    Table.File,
+			    Row.Line,
+			    TEXT("PriceCategory"),
+			    FString::Printf(TEXT("shop_price_ranges duplicate PriceCategory %s"), *Range.PriceCategory.ToString()));
+		}
+		SeenCategories.Add(Range.PriceCategory);
+		Snapshot.ShopPriceRanges.Add(Range.PriceCategory, Range);
+	}
+	return Issues.Num() == 0;
+}
+
+bool ReadShopDropLevelsTable(const FString& DataDirectory,
+                             const ReEchoCsv::FManifestEntry& Entry,
+                             FReEchoCsvDataSnapshot& Snapshot,
+                             TArray<FReEchoCsvIssue>& Issues)
+{
+
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+	TArray<FString> ExpectedColumns = {TEXT("EncounterIndex"), TEXT("FreeTier"), TEXT("ShopTiers")};
+	if (!ReEchoCsv::HasExactColumns(Table, ExpectedColumns, Issues))
+	{
+		return false;
+	}
+	TArray<int32> SeenIndices;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvShopDropLevelRow Level;
+		ReEchoCsv::RequireInt(Table, Row, TEXT("EncounterIndex"), Level.EncounterIndex, Issues);
+		FString FreeTierStr;
+		ReEchoCsv::ReadOptionalCell(Row, TEXT("FreeTier"), FreeTierStr);
+		if (FreeTierStr.IsEmpty())
+		{
+			Level.FreeTier = -1;
+		}
+		else
+		{
+			ReEchoCsv::RequireInt(Table, Row, TEXT("FreeTier"), Level.FreeTier, Issues);
+		}
+		ReEchoCsv::ReadOptionalCell(Row, TEXT("ShopTiers"), Level.ShopTiers);
+		Level.SourceSheet = Entry.FileName;
+		Level.SourceRow = Row.Line;
+		if (SeenIndices.Contains(Level.EncounterIndex))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues,
+			    Table.File,
+			    Row.Line,
+			    TEXT("EncounterIndex"),
+			    FString::Printf(TEXT("shop_drop_levels duplicate EncounterIndex %d"), Level.EncounterIndex));
+		}
+		SeenIndices.Add(Level.EncounterIndex);
+		Snapshot.ShopDropLevels.Add(Level.EncounterIndex, Level);
+	}
+	return Issues.Num() == 0;
+}
+
 bool ReadPartsTable(const FString& DataDirectory,
                     const ReEchoCsv::FManifestEntry& Entry,
                     FReEchoCsvDataSnapshot& Snapshot,
@@ -1178,6 +1323,14 @@ bool ReadTables(const FString& DataDirectory,
 	if (Issues.Num() == 0)
 	{
 		ReadPartEffectsTable(DataDirectory, ManifestEntries[PartEffectsTableId], Snapshot, Issues);
+	}
+	if (Issues.Num() == 0)
+	{
+		ReadShopPriceRangesTable(DataDirectory, ManifestEntries[ShopPriceRangesTableId], Snapshot, Issues);
+	}
+	if (Issues.Num() == 0)
+	{
+		ReadShopDropLevelsTable(DataDirectory, ManifestEntries[ShopDropLevelsTableId], Snapshot, Issues);
 	}
 	if (Issues.Num() == 0)
 	{

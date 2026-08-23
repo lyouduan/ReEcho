@@ -15,15 +15,16 @@
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
+#include "EngineUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
 #include "Graybox/ReEchoStaffLightWaveActor.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoSwordArcActor.h"
+#include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
-#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponGeometry.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
@@ -34,32 +35,11 @@ const FVector StaffLocation(-16.0f, 30.0f, 6.0f);
 const FVector SwordLocation(8.0f, 0.0f, 0.0f);
 constexpr float SwordRestAngleRadians = -PI / 4.0f;
 const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
-const FVector DefaultWeaponAnchorRatio(-0.16f, 0.30f, 0.06f);
 
 FQuat GetSwordRotation(const float SpinRadians = 0.0f)
 {
 	const FQuat CameraFacingRotation = FRotationMatrix::MakeFromZX(CameraFacingNormal, FVector::RightVector).ToQuat();
 	return FQuat(CameraFacingNormal, SpinRadians) * CameraFacingRotation;
-}
-
-float ResolveHeldLength(const UReEchoWeaponPresentationProfile& WeaponProfile, const float CharacterWorldHeight)
-{
-	return WeaponProfile.bOverrideHeldLength ? FMath::Max(WeaponProfile.HeldLengthOverrideCm, 1.0f)
-	                                         : CharacterWorldHeight * FMath::Max(WeaponProfile.HeldLengthRatio, 0.01f);
-}
-
-FVector2D ResolveHeldDimensions(const UTexture2D& Texture,
-                                const UReEchoWeaponPresentationProfile& WeaponProfile,
-                                const float CharacterWorldHeight)
-{
-	const float TextureWidth = FMath::Max(Texture.GetSizeX(), 1);
-	const float TextureHeight = FMath::Max(Texture.GetSizeY(), 1);
-	const float HeldLength = ResolveHeldLength(WeaponProfile, CharacterWorldHeight);
-	if (WeaponProfile.HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width)
-	{
-		return FVector2D(HeldLength, HeldLength * TextureHeight / TextureWidth);
-	}
-	return FVector2D(HeldLength * TextureWidth / TextureHeight, HeldLength);
 }
 }
 
@@ -70,7 +50,6 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	SetRootComponent(Root);
 	// 武器只继承持有者位置，不继承鼠标瞄准产生的角色旋转。
 	Root->SetAbsolute(false, true, false);
-	SwordSpriteRestRotation = ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians);
 
 	ElementIndicator = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementIndicator"));
 	ElementIndicator->SetupAttachment(Root);
@@ -100,6 +79,8 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	if (UTexture2D* StaffTexture = LoadObject<UTexture2D>(nullptr, *StaffTexturePath))
 	{
 		StaffSprite->SetSprite(StaffTexture);
+		constexpr float StaffWorldHeight = 250.0f;
+		StaffSprite->SetRelativeScale3D(FVector(StaffWorldHeight / FMath::Max(1, StaffTexture->GetSizeY())));
 	}
 
 	auto CreateWeaponBillboard = [this](const TCHAR* Name, const FString& TexturePath)
@@ -114,6 +95,8 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 		if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *TexturePath))
 		{
 			Billboard->SetSprite(Tex);
+			constexpr float WorldHeight = 250.0f;
+			Billboard->SetRelativeScale3D(FVector(WorldHeight / FMath::Max(1, Tex->GetSizeY())));
 		}
 		return Billboard;
 	};
@@ -148,14 +131,13 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 		UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
 		MaterialInstance->SetTextureParameterValue(TEXT("SpriteTexture"), WeaponTexture);
 		SwordSprite->SetMaterial(0, MaterialInstance);
+		constexpr float WeaponWorldWidth = 250.0f;
+		const float AspectRatio =
+		    static_cast<float>(WeaponTexture->GetSizeY()) / FMath::Max(1, WeaponTexture->GetSizeX());
+		SwordSprite->SetRelativeScale3D(
+		    FVector(WeaponWorldWidth / 100.0f, WeaponWorldWidth * AspectRatio / 100.0f, 1.0f));
 	}
 	SetActorEnableCollision(false);
-}
-
-void AReEchoWeaponActor::ConfigureHeldPresentation(const UReEcho2DCharacterPresentationProfile* CharacterProfile)
-{
-	HeldCharacterProfile = CharacterProfile;
-	RefreshHeldPresentation();
 }
 
 void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSnapshot,
@@ -164,6 +146,12 @@ void AReEchoWeaponActor::InitializeWeapon(const FReEchoBuildSnapshot* InBuildSna
 	SwordSpriteRestLocation = ReEchoWeaponVisual::SwordLocation;
 	WeaponLogic.Reset();
 	LastAttackCommit = {};
+	LastRuneAttackContext.Reset();
+	PersistentRuneHitCounters.Reset();
+	PersistentTargetHitCounters.Reset();
+	TimedRangeStacks.Reset();
+	bScytheThrown = false;
+	ScytheRuneContext.Reset();
 	LastCommittedAttackStepId = NAME_None;
 	LastCommittedAttackStepIndex = INDEX_NONE;
 	Definitions.Reset();
@@ -267,6 +255,9 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 	EquippedWeaponId = WeaponId;
 	EquippedRunes = BuildSnapshot.EquippedParts;
 	LastAttackCommit = {};
+	LastRuneAttackContext.Reset();
+	TimedRangeStacks.Reset();
+	RecallScythe();
 	LastCommittedAttackStepId = NAME_None;
 	LastCommittedAttackStepIndex = INDEX_NONE;
 	SwordAnimationTime = 0.0f;
@@ -275,10 +266,9 @@ bool AReEchoWeaponActor::SelectWeaponById(const FName WeaponId)
 		return false;
 	}
 	RefreshVisualState();
-	RefreshHeldPresentation();
 	UpdateElementIndicator();
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-	SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
+	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 	return true;
 }
 
@@ -384,6 +374,7 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 		return false;
 	}
 	WeaponLogic.ConfirmLastCommit();
+	ProcessOnAttackRuneEffects(LastRuneAttackContext);
 	UpdateElementIndicator();
 	if (AActor* WeaponOwner = GetOwner())
 	{
@@ -410,16 +401,29 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 
 bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
 {
+	if (bScytheThrown)
+	{
+		RecallScythe();
+		return true;
+	}
 	if (!Combatant || !WeaponLogic.TryCommitActiveAttack(GetOwner(), Combatant->Stats, LastAttackCommit))
 	{
 		return false;
 	}
-	if (!ExecuteAttack(Combatant, LastAttackCommit))
+	if (HasRuneBehavior(TEXT("Part.ScytheThrowRecall")))
+	{
+		FReEchoWeaponAttackCommit EffectiveCommit = LastAttackCommit;
+		EffectiveCommit.RangeCm *= GetTimedRangeMultiplier();
+		LastRuneAttackContext = BuildRuneAttackContext(EffectiveCommit, Combatant);
+		BeginScytheThrow(LastRuneAttackContext);
+	}
+	else if (!ExecuteAttack(Combatant, LastAttackCommit))
 	{
 		WeaponLogic.RollbackLastCommit();
 		return false;
 	}
 	WeaponLogic.ConfirmLastCommit();
+	ProcessOnAttackRuneEffects(LastRuneAttackContext);
 	UpdateElementIndicator();
 	return true;
 }
@@ -440,7 +444,7 @@ float AReEchoWeaponActor::GetCurrentAttackRangeCm() const
 	{
 		return 0.0f;
 	}
-	return WeaponLogic.GetCurrentRangeCm();
+	return WeaponLogic.GetCurrentRangeCm() * GetTimedRangeMultiplier();
 }
 
 float AReEchoWeaponActor::GetAttackCooldownRemaining() const
@@ -478,14 +482,18 @@ bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant, con
 			                              ETeleportType::TeleportPhysics);
 		}
 	}
-	switch (Commit.Carrier)
+	LastRuneAttackContext = BuildRuneAttackContext(Commit, Combatant);
+	FReEchoWeaponAttackCommit EffectiveCommit = Commit;
+	EffectiveCommit.RangeCm *= GetTimedRangeMultiplier();
+	LastRuneAttackContext->Commit = EffectiveCommit;
+	switch (EffectiveCommit.Carrier)
 	{
 		case EReEchoWeaponAttackCarrier::Wave:
-			return FireStaffLightWave(Commit, Combatant);
+			return FireStaffLightWave(EffectiveCommit, Combatant);
 		case EReEchoWeaponAttackCarrier::Projectile:
-			return FireProjectile(Commit, Combatant);
+			return FireProjectile(EffectiveCommit, Combatant, LastRuneAttackContext);
 		default:
-			return SwingMelee(Commit, Combatant);
+			return SwingMelee(EffectiveCommit, Combatant, LastRuneAttackContext);
 	}
 }
 
@@ -577,35 +585,406 @@ bool AReEchoWeaponActor::RebuildEffectiveDefinition()
 	return bHasEffectiveDefinition;
 }
 
-bool AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
-                                             const FReEchoWeaponAttackCommit& Commit,
-                                             const FVector& DamageSource,
-                                             UReEchoCombatantComponent* Combatant) const
+#if WITH_DEV_AUTOMATION_TESTS
+TSharedPtr<FReEchoWeaponRuneAttackContext>
+AReEchoWeaponActor::BuildRuneAttackContextForTests(const FReEchoWeaponAttackCommit& Commit,
+                                                   UReEchoCombatantComponent* Combatant) const
+{
+	return BuildRuneAttackContext(Commit, Combatant);
+}
+
+void AReEchoWeaponActor::ProcessRuneHitForTests(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
+                                                const FReEchoHitResolved& Result)
+{
+	ProcessResolvedHit(Context, Result);
+}
+
+void AReEchoWeaponActor::ProcessRuneAttackForTests(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
+{
+	ProcessAttackResolved(Context);
+}
+
+void AReEchoWeaponActor::ProcessRuneOnAttackForTests(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
+{
+	LastRuneAttackContext = Context;
+	ProcessOnAttackRuneEffects(Context);
+}
+
+FReEchoHitResolved
+AReEchoWeaponActor::ApplyRuneDamageForTests(AActor& Target,
+                                            const FReEchoWeaponAttackCommit& Commit,
+                                            const FVector& DamageSource,
+                                            UReEchoCombatantComponent* Combatant,
+                                            const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
+{
+	return ApplyDamageToTarget(Target, Commit, DamageSource, Combatant, Context);
+}
+
+float AReEchoWeaponActor::GetTimedRangeMultiplierForTests() const
+{
+	return GetTimedRangeMultiplier();
+}
+
+bool AReEchoWeaponActor::IsScytheThrownForTests() const
+{
+	return bScytheThrown;
+}
+
+void AReEchoWeaponActor::AdvanceScytheThrowForTests(const float DeltaSeconds)
+{
+	AdvanceScytheThrow(DeltaSeconds);
+}
+#endif
+
+TSharedPtr<FReEchoWeaponRuneAttackContext>
+AReEchoWeaponActor::BuildRuneAttackContext(const FReEchoWeaponAttackCommit& Commit,
+                                           UReEchoCombatantComponent* Combatant) const
+{
+	TSharedPtr<FReEchoWeaponRuneAttackContext> Context = MakeShared<FReEchoWeaponRuneAttackContext>();
+	Context->Commit = Commit;
+	Context->Effects = EffectiveDefinition.RuneEffects;
+	Context->SourceCombatant = Combatant;
+	Context->DamageSource = ResolveOwnerDamageSource();
+	Context->WeaponVisualKey = GetEquippedWeaponVisualKey();
+	Context->ReactionEfficiency = Combatant ? Combatant->Stats.ReactionEfficiency : 1.0f;
+	Context->OnKillHealPercent = WeaponLogic.GetOnKillHealPercent();
+	return Context;
+}
+
+bool AReEchoWeaponActor::HasRuneBehavior(const FName BehaviorId) const
+{
+	return EffectiveDefinition.RuneEffects.ContainsByPredicate(
+	    [BehaviorId](const FReEchoWeaponRuneEffectSpec& Effect)
+	    {
+		    return Effect.BehaviorId == BehaviorId;
+	    });
+}
+
+float AReEchoWeaponActor::GetRuneParam(const FName BehaviorId, const FName ParamName, const float DefaultValue) const
+{
+	for (const FReEchoWeaponRuneEffectSpec& Effect : EffectiveDefinition.RuneEffects)
+	{
+		if (Effect.BehaviorId == BehaviorId && Effect.ParamName == ParamName)
+		{
+			return Effect.ParamValue;
+		}
+	}
+	return DefaultValue;
+}
+
+float AReEchoWeaponActor::GetRuneEffectValue(const FName BehaviorId,
+                                             const FName ParamName,
+                                             const float DefaultValue) const
+{
+	for (const FReEchoWeaponRuneEffectSpec& Effect : EffectiveDefinition.RuneEffects)
+	{
+		if (Effect.BehaviorId == BehaviorId && Effect.ParamName == ParamName)
+		{
+			return Effect.Value;
+		}
+	}
+	return DefaultValue;
+}
+
+float AReEchoWeaponActor::GetTimedRangeMultiplier() const
+{
+	float BonusFraction = 0.0f;
+	for (const FTimedRangeStack& Stack : TimedRangeStacks)
+	{
+		BonusFraction += Stack.BonusFraction;
+	}
+	return FMath::Max(0.01f, 1.0f + BonusFraction);
+}
+
+void AReEchoWeaponActor::ProcessOnAttackRuneEffects(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
+{
+	if (!Context.IsValid())
+	{
+		return;
+	}
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	LastRuneAttackWorldTime = WorldTime;
+	NextComboDecayWorldTime = WorldTime + 1.0f;
+	UReEchoCombatantComponent* SourceCombatant = Context->SourceCombatant.Get();
+	if (!SourceCombatant)
+	{
+		return;
+	}
+	for (const FReEchoWeaponRuneEffectSpec& Effect : Context->Effects)
+	{
+		if (Effect.Trigger != TEXT("OnAttack"))
+		{
+			continue;
+		}
+		const int32 MaxStacks = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+		if (Effect.BehaviorId == TEXT("Part.AttackMoveSpeedOnAttack"))
+		{
+			SourceCombatant->AddTransientStatModifier(
+			    Effect.PartId, Effect.Value, Effect.Value, Effect.DurationSeconds, MaxStacks);
+		}
+		else if (Effect.BehaviorId == TEXT("Part.AttackSpeedOnAttack"))
+		{
+			SourceCombatant->AddTransientStatModifier(
+			    Effect.PartId, Effect.Value, 0.0f, Effect.DurationSeconds, MaxStacks);
+		}
+	}
+}
+
+void AReEchoWeaponActor::ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
+                                            const FReEchoHitResolved& Result)
+{
+	if (!Context.IsValid() || Result.AppliedDamage <= 0.0f || !Result.Target)
+	{
+		return;
+	}
+	UReEchoCombatantComponent* SourceCombatant = Context->SourceCombatant.Get();
+	const IReEchoCombatTarget* CombatTarget = Cast<IReEchoCombatTarget>(Result.Target);
+	UReEchoCombatantComponent* TargetCombatant = CombatTarget ? CombatTarget->GetCombatTargetCombatant() : nullptr;
+	if (!TargetCombatant)
+	{
+		return;
+	}
+	++Context->EffectiveHitCount;
+	Context->EffectiveHitTargets.AddUnique(Result.Target);
+	const int32 HitOrdinal = ++Context->TargetHitOrdinals.FindOrAdd(Result.Target);
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	auto DeterministicRoll = [&](const FReEchoWeaponRuneEffectSpec& Effect, const float Chance)
+	{
+		uint32 Hash = HashCombine(GetTypeHash(Context->Commit.Attack.Sequence), GetTypeHash(Effect.PartId));
+		Hash = HashCombine(Hash, GetTypeHash(CombatTarget->GetCombatTargetTieBreakIndex()));
+		Hash = HashCombine(Hash, GetTypeHash(HitOrdinal));
+		return static_cast<float>(Hash % 100000u) / 100000.0f < Chance;
+	};
+	auto ApplyBleeding = [&](const FReEchoWeaponRuneEffectSpec& Effect)
+	{
+		FReEchoTimedStatusCommand Command;
+		Command.StatusId = TEXT("Z_Bleeding");
+		Command.CurrentTimeSeconds = WorldTime;
+		Command.DurationSeconds = Effect.DurationSeconds;
+		Command.DamagePerTickMaxHealthFraction = Effect.Value;
+		Command.Attack = Result.Attack;
+		Command.DamageSource = Result.DamageSource;
+		TargetCombatant->ApplyTimedStatus(Command);
+	};
+	auto ApplyStun = [&](const FReEchoWeaponRuneEffectSpec& Effect)
+	{
+		FReEchoTimedStatusCommand Command;
+		Command.StatusId = TEXT("Z_Vertigo");
+		Command.CurrentTimeSeconds = WorldTime;
+		Command.DurationSeconds = Effect.DurationSeconds;
+		Command.Attack = Result.Attack;
+		Command.DamageSource = Result.DamageSource;
+		TargetCombatant->ApplyTimedStatus(Command);
+	};
+
+	for (const FReEchoWeaponRuneEffectSpec& Effect : Context->Effects)
+	{
+		if (Effect.BehaviorId == TEXT("Part.HealOnHit") && SourceCombatant)
+		{
+			SourceCombatant->ApplyHealing(SourceCombatant->Stats.HpMax * Effect.Value);
+		}
+		else if (Effect.BehaviorId == TEXT("Part.ApplyBleedOnCritical") && Result.bCritical)
+		{
+			ApplyBleeding(Effect);
+		}
+		else if (Effect.BehaviorId == TEXT("Part.ApplyBleedOnHitChance") &&
+		         DeterministicRoll(Effect, Effect.ParamValue))
+		{
+			ApplyBleeding(Effect);
+		}
+		else if (Effect.BehaviorId == TEXT("Part.StunOnHit") && DeterministicRoll(Effect, Effect.Value))
+		{
+			ApplyStun(Effect);
+		}
+		else if (Effect.BehaviorId == TEXT("Part.BleedEveryTargetHits"))
+		{
+			int32& Count = PersistentTargetHitCounters.FindOrAdd(Effect.PartId).FindOrAdd(Result.Target);
+			++Count;
+			const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+			if (Count >= Threshold)
+			{
+				Count -= Threshold;
+				ApplyBleeding(Effect);
+			}
+		}
+		else if (Effect.BehaviorId == TEXT("Part.MoveSpeedPerHit") && SourceCombatant)
+		{
+			SourceCombatant->AddTransientStatModifier(Effect.PartId,
+			                                          0.0f,
+			                                          Effect.Value,
+			                                          Effect.DurationSeconds,
+			                                          FMath::Max(1, FMath::RoundToInt(Effect.ParamValue)));
+		}
+		else if (Effect.BehaviorId == TEXT("Part.AttackSpeedPerHit") && SourceCombatant)
+		{
+			SourceCombatant->AddTransientStatModifier(Effect.PartId,
+			                                          Effect.Value,
+			                                          0.0f,
+			                                          Effect.DurationSeconds,
+			                                          FMath::Max(1, FMath::RoundToInt(Effect.ParamValue)));
+		}
+		else if (Effect.BehaviorId == TEXT("Part.DropShardEveryHits") &&
+		         Result.DamageSource == EReEchoDamageSource::Player)
+		{
+			int32& Count = PersistentRuneHitCounters.FindOrAdd(Effect.PartId);
+			++Count;
+			const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+			if (Count >= Threshold)
+			{
+				Count -= Threshold;
+				SpawnTimeShardPickup(Result.HitLocation, FMath::Max(1, FMath::RoundToInt(Effect.Value)));
+			}
+		}
+		if (Result.bKilled && Effect.BehaviorId == TEXT("Part.DropShardOnKill") &&
+		    Result.DamageSource == EReEchoDamageSource::Player)
+		{
+			SpawnTimeShardPickup(Result.HitLocation, FMath::Max(1, FMath::RoundToInt(Effect.Value)));
+		}
+		else if (Result.bKilled && Effect.BehaviorId == TEXT("Part.MoveSpeedOnKill") && SourceCombatant)
+		{
+			const int32 MaxStacks = Effect.ParamName == TEXT("MaxStacks")
+			                            ? FMath::Max(1, FMath::RoundToInt(Effect.ParamValue))
+			                            : TNumericLimits<int32>::Max();
+			SourceCombatant->AddTransientStatModifier(
+			    Effect.PartId, 0.0f, Effect.Value, Effect.DurationSeconds, MaxStacks);
+		}
+	}
+}
+
+void AReEchoWeaponActor::ProcessAttackResolved(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
+{
+	if (!Context.IsValid() || Context->bAttackResolved)
+	{
+		return;
+	}
+	Context->bAttackResolved = true;
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	for (const FReEchoWeaponRuneEffectSpec& Effect : Context->Effects)
+	{
+		if (Effect.ParamName != TEXT("GroupThreshold") ||
+		    Context->EffectiveHitTargets.Num() < FMath::RoundToInt(Effect.ParamValue))
+		{
+			continue;
+		}
+		if (Effect.BehaviorId == TEXT("Part.RangeOnGroupHit"))
+		{
+			FTimedRangeStack& Stack = TimedRangeStacks.AddDefaulted_GetRef();
+			Stack.SourceId = Effect.PartId;
+			Stack.BonusFraction = Effect.Value;
+			Stack.ExpiresAt = WorldTime + Effect.DurationSeconds;
+		}
+		else if (Effect.BehaviorId == TEXT("Part.InvulnerableOnGroupHit"))
+		{
+			if (UReEchoCombatantComponent* SourceCombatant = Context->SourceCombatant.Get())
+			{
+				SourceCombatant->GrantTimedInvulnerability(WorldTime, Effect.DurationSeconds);
+			}
+		}
+		else if (Effect.BehaviorId == TEXT("Part.MeteorOnGroupHit"))
+		{
+			AActor* WeaponOwner = GetOwner();
+			AActor* CenterTarget = nullptr;
+			float BestDistanceSquared = TNumericLimits<float>::Max();
+			for (const TWeakObjectPtr<AActor>& Target : Context->EffectiveHitTargets)
+			{
+				if (Target.IsValid() && WeaponOwner)
+				{
+					const float DistanceSquared =
+					    FVector::DistSquared2D(WeaponOwner->GetActorLocation(), Target->GetActorLocation());
+					if (DistanceSquared < BestDistanceSquared)
+					{
+						BestDistanceSquared = DistanceSquared;
+						CenterTarget = Target.Get();
+					}
+				}
+			}
+			if (!CenterTarget)
+			{
+				continue;
+			}
+			const float Radius = GetRuneParam(Effect.BehaviorId, TEXT("ExplosionRadiusCm"), 150.0f);
+			for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+			{
+				const IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(*It);
+				if (Target &&
+				    FVector::Dist2D(CenterTarget->GetActorLocation(), Target->GetCombatTargetLocation()) <= Radius)
+				{
+					ApplyDamageToTarget(**It,
+					                    Context->Commit,
+					                    CenterTarget->GetActorLocation(),
+					                    Context->SourceCombatant.Get(),
+					                    Context,
+					                    Effect.Value,
+					                    false);
+				}
+			}
+		}
+	}
+}
+
+void AReEchoWeaponActor::SpawnTimeShardPickup(const FVector& Location, const int32 Amount) const
+{
+	if (!GetWorld() || Amount <= 0)
+	{
+		return;
+	}
+	if (AReEchoTimeShardPickupActor* Pickup =
+	        GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(Location, FRotator::ZeroRotator))
+	{
+		Pickup->InitializePickup(Amount);
+	}
+}
+
+FReEchoHitResolved AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
+                                                           const FReEchoWeaponAttackCommit& Commit,
+                                                           const FVector& DamageSource,
+                                                           UReEchoCombatantComponent* Combatant,
+                                                           const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
+                                                           const float DamageMultiplier,
+                                                           const bool bProcessRuneEffects)
 {
 	const IReEchoCombatTarget* CombatTarget = Cast<IReEchoCombatTarget>(&Target);
 	UReEchoCombatantComponent* TargetCombatant = CombatTarget ? CombatTarget->GetCombatTargetCombatant() : nullptr;
 	if (!TargetCombatant || !TargetCombatant->IsAlive())
 	{
-		return false;
+		return {};
 	}
-	const bool bWasAlive = TargetCombatant->IsAlive();
 	FReEchoHitIntent Intent;
 	Intent.Attack = Commit.Attack;
 	Intent.Target = &Target;
-	Intent.RawDamage = Commit.RawDamage;
+	float RuneDamageMultiplier = DamageMultiplier;
+	if (Context.IsValid())
+	{
+		for (const FReEchoWeaponRuneEffectSpec& Effect : Context->Effects)
+		{
+			if (Effect.BehaviorId == TEXT("Part.OuterRingDamage") && Commit.RangeCm > 0.0f)
+			{
+				const float OuterFraction = FMath::Clamp(Effect.ParamValue, 0.0f, 1.0f);
+				const float Distance = FVector::Dist2D(DamageSource, Target.GetActorLocation());
+				if (Distance >= Commit.RangeCm * (1.0f - OuterFraction))
+				{
+					RuneDamageMultiplier *= 1.0f + Effect.Value;
+				}
+			}
+		}
+	}
+	Intent.RawDamage = Commit.RawDamage * RuneDamageMultiplier;
 	Intent.DamageSource = ResolveOwnerDamageSource();
 	Intent.Element = Commit.Element;
 	Intent.ReactionEfficiency = Combatant ? Combatant->Stats.ReactionEfficiency : 1.0f;
 	Intent.bCritical = Commit.bCritical;
 	Intent.SourceLocation = DamageSource;
 	Intent.HitLocation = Target.GetActorLocation();
-	const float AppliedDamage = ReEchoHitResolver::ResolveHit(Intent).AppliedDamage;
-	const bool bKilled = bWasAlive && !TargetCombatant->IsAlive();
-	if (bKilled && Combatant && WeaponLogic.GetOnKillHealPercent() > 0.0f)
+	const FReEchoHitResolved Result = ReEchoHitResolver::ResolveHit(Intent);
+	if (Result.bKilled && Combatant && WeaponLogic.GetOnKillHealPercent() > 0.0f)
 	{
 		Combatant->ApplyHealing(Combatant->Stats.HpMax * WeaponLogic.GetOnKillHealPercent());
 	}
-	return AppliedDamage > 0.0f || TargetCombatant->IsAlive();
+	if (bProcessRuneEffects)
+	{
+		ProcessResolvedHit(Context, Result);
+	}
+	return Result;
 }
 
 bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponAttackCommit& Commit,
@@ -634,7 +1013,9 @@ bool AReEchoWeaponActor::FireStaffLightWave(const FReEchoWeaponAttackCommit& Com
 	return true;
 }
 
-bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
+                                        UReEchoCombatantComponent* Combatant,
+                                        const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -646,6 +1027,12 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 	const TArray<FVector> Directions =
 	    ReEchoWeaponRuntime::BuildProjectileDirections(AimDirection, Commit.ProjectileCount, Commit.SpreadDegrees);
 	bool bSpawnedAny = false;
+	const bool bPierceOnCritical =
+	    Context.IsValid() && Context->Effects.ContainsByPredicate(
+	                             [](const FReEchoWeaponRuneEffectSpec& Effect)
+	                             {
+		                             return Effect.BehaviorId == TEXT("Part.ProjectilePierceOnCritical");
+	                             });
 	for (const FVector& Direction : Directions)
 	{
 		const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
@@ -661,15 +1048,126 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		                                 OwnerLocation,
 		                                 ReEchoElementReaction::GetElementColor(Commit.Element),
 		                                 Commit.Element,
-		                                 Combatant->Stats.ReactionEfficiency,
+		                                 Context.IsValid() ? Context->ReactionEfficiency
+		                                                   : Combatant->Stats.ReactionEfficiency,
 		                                 Commit.ExplosionRadiusCm,
 		                                 Commit.RangeCm,
 		                                 Commit.Attack,
-		                                 ResolveOwnerDamageSource(),
-		                                 GetEquippedWeaponVisualKey());
+		                                 Commit.bCritical,
+		                                 Context.IsValid() ? Context->DamageSource : ResolveOwnerDamageSource(),
+		                                 Context.IsValid() ? Context->WeaponVisualKey : GetEquippedWeaponVisualKey(),
+		                                 bPierceOnCritical,
+		                                 this,
+		                                 Context,
+		                                 true);
 		bSpawnedAny = true;
 	}
 	return bSpawnedAny;
+}
+
+void AReEchoWeaponActor::HandleProjectileResolved(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
+                                                  const FReEchoProjectileSnapshot& Snapshot,
+                                                  const FReEchoHitResolved& Result,
+                                                  const bool bAllowSplit)
+{
+	if (!Context.IsValid())
+	{
+		return;
+	}
+	if (Result.bKilled && Context->SourceCombatant.IsValid() && Context->OnKillHealPercent > 0.0f)
+	{
+		UReEchoCombatantComponent* SourceCombatant = Context->SourceCombatant.Get();
+		SourceCombatant->ApplyHealing(SourceCombatant->Stats.HpMax * Context->OnKillHealPercent);
+	}
+	ProcessResolvedHit(Context, Result);
+	if (!bAllowSplit || Result.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+	for (const FReEchoWeaponRuneEffectSpec& Effect : Context->Effects)
+	{
+		if (Effect.BehaviorId == TEXT("Part.ProjectileSplitOnHit"))
+		{
+			SpawnSplitProjectiles(Context, Snapshot, Result, Effect);
+			break;
+		}
+	}
+}
+
+void AReEchoWeaponActor::SpawnSplitProjectiles(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
+                                               const FReEchoProjectileSnapshot& Snapshot,
+                                               const FReEchoHitResolved& Result,
+                                               const FReEchoWeaponRuneEffectSpec& Effect)
+{
+	if (!GetWorld() || !Result.Target)
+	{
+		return;
+	}
+	const uint32 ProjectileHash = GetTypeHash(Snapshot.ProjectileId.Value);
+	if (Context->SplitProjectileHashes.Contains(ProjectileHash))
+	{
+		return;
+	}
+	Context->SplitProjectileHashes.Add(ProjectileHash);
+	TArray<AActor*> Candidates;
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(*It);
+		if (*It != Result.Target && Target && Target->IsCombatTargetAlive() &&
+		    ReEchoCombatRelations::CanDamage(Context->Commit.Attack, **It, false) &&
+		    FVector::Dist2D(Result.HitLocation, Target->GetCombatTargetLocation()) <= Context->Commit.RangeCm)
+		{
+			Candidates.Add(*It);
+		}
+	}
+	Candidates.Sort(
+	    [&Result](const AActor& Left, const AActor& Right)
+	    {
+		    const float LeftDistance = FVector::DistSquared2D(Result.HitLocation, Left.GetActorLocation());
+		    const float RightDistance = FVector::DistSquared2D(Result.HitLocation, Right.GetActorLocation());
+		    if (!FMath::IsNearlyEqual(LeftDistance, RightDistance))
+		    {
+			    return LeftDistance < RightDistance;
+		    }
+		    const IReEchoCombatTarget* LeftTarget = Cast<IReEchoCombatTarget>(&Left);
+		    const IReEchoCombatTarget* RightTarget = Cast<IReEchoCombatTarget>(&Right);
+		    return LeftTarget && RightTarget &&
+		           LeftTarget->GetCombatTargetTieBreakIndex() < RightTarget->GetCombatTargetTieBreakIndex();
+	    });
+	const int32 ChildCount = FMath::Min(Candidates.Num(), FMath::Max(0, FMath::RoundToInt(Effect.ParamValue)));
+	const bool bPierceOnCritical = Context->Effects.ContainsByPredicate(
+	    [](const FReEchoWeaponRuneEffectSpec& RuneEffect)
+	    {
+		    return RuneEffect.BehaviorId == TEXT("Part.ProjectilePierceOnCritical");
+	    });
+	for (int32 Index = 0; Index < ChildCount; ++Index)
+	{
+		const FVector Direction = (Candidates[Index]->GetActorLocation() - Result.HitLocation).GetSafeNormal2D();
+		const FVector SpawnLocation = Result.HitLocation + FVector(0.0f, 0.0f, 20.0f) + Direction * 18.0f;
+		AReEchoProjectileActor* Projectile =
+		    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, Direction.Rotation());
+		if (!Projectile)
+		{
+			continue;
+		}
+		Projectile->SetOwner(GetOwner());
+		Projectile->InitializeProjectile(Direction,
+		                                 Context->Commit.RawDamage * Effect.Value,
+		                                 Result.HitLocation,
+		                                 ReEchoElementReaction::GetElementColor(Context->Commit.Element),
+		                                 Context->Commit.Element,
+		                                 Context->ReactionEfficiency,
+		                                 Context->Commit.ExplosionRadiusCm,
+		                                 Context->Commit.RangeCm,
+		                                 Context->Commit.Attack,
+		                                 Context->Commit.bCritical,
+		                                 Context->DamageSource,
+		                                 Context->WeaponVisualKey,
+		                                 bPierceOnCritical,
+		                                 this,
+		                                 Context,
+		                                 false);
+	}
 }
 
 void AReEchoWeaponActor::UpdateElementIndicator()
@@ -731,76 +1229,9 @@ void AReEchoWeaponActor::RefreshVisualState()
 	}
 }
 
-void AReEchoWeaponActor::RefreshHeldPresentation()
-{
-	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
-	const FName VisualKey = Definition ? Definition->VisualKey : NAME_None;
-	const UReEchoWeaponPresentationProfile* WeaponProfile = FReEchoWeaponVisualCatalog::ResolveProfile(VisualKey);
-	if (!WeaponProfile)
-	{
-		return;
-	}
-
-	const UReEcho2DCharacterPresentationProfile* CharacterProfile = HeldCharacterProfile.Get();
-	const float CharacterReferenceHeight = CharacterProfile ? FMath::Max(CharacterProfile->WorldHeight, 1.0f) : 100.0f;
-	const float OwnerScale = GetOwner() ? FMath::Max(FMath::Abs(GetOwner()->GetActorScale3D().Z), 0.01f) : 1.0f;
-	const float CharacterWorldHeight = CharacterReferenceHeight * OwnerScale;
-	const FVector AnchorRatio =
-	    CharacterProfile ? CharacterProfile->WeaponAnchorRatio : ReEchoWeaponVisual::DefaultWeaponAnchorRatio;
-	SetActorRelativeLocation(AnchorRatio * CharacterReferenceHeight);
-
-	UTexture2D* Texture = WeaponProfile->HeldTexture.LoadSynchronous();
-	if (!Texture && VisualKey == TEXT("Whip"))
-	{
-		const UReEchoWeaponPresentationProfile* SwordProfile =
-		    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"));
-		Texture = SwordProfile ? SwordProfile->HeldTexture.LoadSynchronous() : nullptr;
-	}
-	UBillboardComponent* Billboard = nullptr;
-	if (VisualKey == TEXT("MoonStaff") || VisualKey == TEXT("Staff"))
-	{
-		Billboard = StaffSprite;
-	}
-	else if (VisualKey == TEXT("Scythe"))
-	{
-		Billboard = ScytheSprite;
-	}
-	else if (VisualKey == TEXT("Bow"))
-	{
-		Billboard = BowSprite;
-	}
-	else if (VisualKey == TEXT("Gun"))
-	{
-		Billboard = GunSprite;
-	}
-
-	const FVector VisualOffset = WeaponProfile->HeldOffsetRatio * CharacterWorldHeight;
-	if (Billboard && Texture)
-	{
-		const float TextureAxisLength = WeaponProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width
-		                                    ? FMath::Max(Texture->GetSizeX(), 1)
-		                                    : FMath::Max(Texture->GetSizeY(), 1);
-		const float UniformScale =
-		    ReEchoWeaponVisual::ResolveHeldLength(*WeaponProfile, CharacterWorldHeight) / TextureAxisLength;
-		Billboard->SetRelativeLocation(VisualOffset);
-		Billboard->SetRelativeRotation(WeaponProfile->HeldRotationOffset);
-		Billboard->SetRelativeScale3D(FVector(UniformScale));
-	}
-
-	if (SwordSprite && (VisualKey == TEXT("CrescentBlade") || VisualKey == TEXT("Whip")) && Texture)
-	{
-		const FVector2D Dimensions =
-		    ReEchoWeaponVisual::ResolveHeldDimensions(*Texture, *WeaponProfile, CharacterWorldHeight);
-		SwordSpriteRestLocation = VisualOffset;
-		SwordSpriteRestRotation = WeaponProfile->HeldRotationOffset.Quaternion() *
-		                          ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians);
-		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
-		SwordSprite->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
-	}
-}
-
-bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, UReEchoCombatantComponent* Combatant)
+bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
+                                    UReEchoCombatantComponent* Combatant,
+                                    const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
 {
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
@@ -813,8 +1244,9 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit, URe
 	for (AActor* Target : ReEchoWeaponGeometry::FindMeleeTargets(
 	         *GetWorld(), Commit.Attack, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
 	{
-		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant);
+		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant, Context);
 	}
+	ProcessAttackResolved(Context);
 	StartMeleeAnimation(GetEquippedWeaponVisualKey());
 	return true;
 }
@@ -849,10 +1281,144 @@ void AReEchoWeaponActor::SpawnMeleeArc(const FName WeaponVisualKey)
 	}
 }
 
+void AReEchoWeaponActor::BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
+{
+	if (!Context.IsValid() || !GetOwner())
+	{
+		return;
+	}
+	bScytheThrown = true;
+	bScytheStationary = false;
+	ScytheRuneContext = Context;
+	ScytheThrowOrigin = GetOwner()->GetActorLocation();
+	ScytheThrowLocation = ScytheThrowOrigin;
+	ScytheThrowDirection = ResolveOwnerAimDirection().GetSafeNormal2D();
+	ScytheTravelledCm = 0.0f;
+	ScytheTickAccumulator = 0.0f;
+	ScytheInitialHitTargets.Reset();
+	if (ScytheSprite)
+	{
+		ScytheSprite->SetAbsolute(true, true, false);
+		ScytheSprite->SetWorldLocation(ScytheThrowLocation);
+	}
+}
+
+void AReEchoWeaponActor::RecallScythe()
+{
+	bScytheThrown = false;
+	bScytheStationary = false;
+	ScytheRuneContext.Reset();
+	ScytheInitialHitTargets.Reset();
+	if (ScytheSprite)
+	{
+		ScytheSprite->SetAbsolute(false, true, false);
+		ScytheSprite->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
+	}
+}
+
+void AReEchoWeaponActor::AdvanceScytheThrow(const float DeltaSeconds)
+{
+	if (!bScytheThrown || !ScytheRuneContext.IsValid() || !GetWorld())
+	{
+		return;
+	}
+	UReEchoCombatantComponent* SourceCombatant = ScytheRuneContext->SourceCombatant.Get();
+	if (!SourceCombatant)
+	{
+		RecallScythe();
+		return;
+	}
+	if (!bScytheStationary)
+	{
+		const FVector PreviousLocation = ScytheThrowLocation;
+		const float MaximumRangeCm =
+		    FMath::Max(1.0f, GetRuneParam(TEXT("Part.ScytheThrowRecall"), TEXT("MaxRangeCm"), 500.0f));
+		const float RemainingDistance = FMath::Max(0.0f, MaximumRangeCm - ScytheTravelledCm);
+		const float StepDistance = FMath::Min(RemainingDistance, 950.0f * FMath::Max(0.0f, DeltaSeconds));
+		ScytheThrowLocation += ScytheThrowDirection * StepDistance;
+		ScytheTravelledCm += StepDistance;
+		for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+		{
+			IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(*It);
+			if (!Target || !Target->IsCombatTargetAlive() || ScytheInitialHitTargets.Contains(*It) ||
+			    !ReEchoCombatRelations::CanDamage(ScytheRuneContext->Commit.Attack, **It, false) ||
+			    !Target->IntersectsCombatPath(PreviousLocation, ScytheThrowLocation, 20.0f))
+			{
+				continue;
+			}
+			ScytheInitialHitTargets.Add(*It);
+			ApplyDamageToTarget(**It,
+			                    ScytheRuneContext->Commit,
+			                    PreviousLocation,
+			                    SourceCombatant,
+			                    ScytheRuneContext,
+			                    GetRuneEffectValue(TEXT("Part.ScytheThrowRecall"), TEXT("MaxRangeCm"), 0.6f));
+		}
+		if (ScytheTravelledCm >= MaximumRangeCm)
+		{
+			bScytheStationary = true;
+			ProcessAttackResolved(ScytheRuneContext);
+		}
+	}
+	else
+	{
+		ScytheTickAccumulator += DeltaSeconds;
+		const float Interval = 1.0f / FMath::Max(0.1f, SourceCombatant->Stats.AttackSpeed);
+		while (ScytheTickAccumulator >= Interval)
+		{
+			ScytheTickAccumulator -= Interval;
+			TSharedPtr<FReEchoWeaponRuneAttackContext> TickContext =
+			    BuildRuneAttackContext(ScytheRuneContext->Commit, SourceCombatant);
+			TickContext->Commit.RawDamage *=
+			    GetRuneEffectValue(TEXT("Part.ScytheThrowRecall"), TEXT("StationaryDamageMultiplier"), 0.2f);
+			TickContext->Commit.RangeCm = ScytheRuneContext->Commit.RangeCm;
+			TickContext->bSecondaryEffect = true;
+			for (AActor* Target : ReEchoWeaponGeometry::FindMeleeTargets(*GetWorld(),
+			                                                             TickContext->Commit.Attack,
+			                                                             ScytheThrowLocation,
+			                                                             FVector::ForwardVector,
+			                                                             TickContext->Commit.RangeCm,
+			                                                             360.0f))
+			{
+				ApplyDamageToTarget(*Target, TickContext->Commit, ScytheThrowLocation, SourceCombatant, TickContext);
+			}
+			ProcessAttackResolved(TickContext);
+		}
+	}
+	if (ScytheSprite)
+	{
+		ScytheSprite->SetWorldLocation(ScytheThrowLocation);
+	}
+}
+
 void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	WeaponLogic.Tick(DeltaSeconds);
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	for (int32 Index = TimedRangeStacks.Num() - 1; Index >= 0; --Index)
+	{
+		if (WorldTime >= TimedRangeStacks[Index].ExpiresAt)
+		{
+			TimedRangeStacks.RemoveAt(Index);
+		}
+	}
+	if (LastRuneAttackContext.IsValid() && LastRuneAttackWorldTime >= 0.0f &&
+	    WorldTime >= LastRuneAttackWorldTime + 1.0f && WorldTime >= NextComboDecayWorldTime)
+	{
+		if (UReEchoCombatantComponent* SourceCombatant = LastRuneAttackContext->SourceCombatant.Get())
+		{
+			for (const FReEchoWeaponRuneEffectSpec& Effect : LastRuneAttackContext->Effects)
+			{
+				if (Effect.BehaviorId == TEXT("Part.AttackMoveSpeedOnAttack"))
+				{
+					SourceCombatant->RemoveOldestTransientStatModifier(Effect.PartId);
+				}
+			}
+		}
+		NextComboDecayWorldTime = WorldTime + 1.0f;
+	}
+	AdvanceScytheThrow(DeltaSeconds);
 	if (ElementIndicator && ElementIndicator->IsVisible())
 	{
 		if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
@@ -868,7 +1434,8 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	{
 		SwordAnimationTime = 0.0f;
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
+		SwordSprite->SetRelativeRotation(
+		    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 		return;
 	}
 	SwordAnimationTime = FMath::Max(0.0f, SwordAnimationTime - DeltaSeconds);
@@ -876,5 +1443,6 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	const float Angle = Progress * 2.0f * PI * SwordSwingDirection;
 	// 武器位置固定在手部挂点，只旋转贴图自身，不再绕角色公转。
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-	SwordSprite->SetRelativeRotation(FQuat(ReEchoWeaponVisual::CameraFacingNormal, Angle) * SwordSpriteRestRotation);
+	SwordSprite->SetRelativeRotation(
+	    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians + Angle));
 }

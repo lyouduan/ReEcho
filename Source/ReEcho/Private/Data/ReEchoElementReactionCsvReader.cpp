@@ -84,6 +84,14 @@ bool IsAllowedStatusBehavior(const FName StatusId, const FName BehaviorId)
 	{
 		return StatusId == TEXT("Z_Burn");
 	}
+	if (BehaviorId == TEXT("Status.Stun"))
+	{
+		return StatusId == TEXT("Z_Vertigo");
+	}
+	if (BehaviorId == TEXT("Status.Bleeding"))
+	{
+		return StatusId == TEXT("Z_Bleeding");
+	}
 	return BehaviorId == BehaviorNone;
 }
 

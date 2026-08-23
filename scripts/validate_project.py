@@ -58,6 +58,8 @@ REGISTERED_BEHAVIOR_IDS = {
     "Card.DoubleNonCoreSlots",
     "Status.ElementImmunity",
     "Status.Burn",
+    "Status.Stun",
+    "Status.Bleeding",
     "Reaction.Burn",
     "Reaction.Vaporize",
     "Reaction.Growth",
@@ -69,6 +71,25 @@ REGISTERED_BEHAVIOR_IDS = {
     "Part.StatModifier",
     "Part.AttackPatternReplacement",
     "Part.OnKillHealPercent",
+    "Part.ProjectileSplitOnHit",
+    "Part.ProjectilePierceOnCritical",
+    "Part.ApplyBleedOnCritical",
+    "Part.DropShardOnKill",
+    "Part.MoveSpeedOnKill",
+    "Part.AttackMoveSpeedOnAttack",
+    "Part.RangeOnGroupHit",
+    "Part.HealOnHit",
+    "Part.StunOnHit",
+    "Part.BleedEveryTargetHits",
+    "Part.OuterRingDamage",
+    "Part.MoveSpeedPerHit",
+    "Part.InvulnerableOnGroupHit",
+    "Part.AttackSpeedPerHit",
+    "Part.ScytheThrowRecall",
+    "Part.DropShardEveryHits",
+    "Part.MeteorOnGroupHit",
+    "Part.ApplyBleedOnHitChance",
+    "Part.AttackSpeedOnAttack",
     "Enemy.Grunt",
     "Enemy.Shield",
     "Enemy.Bomber",
@@ -175,6 +196,8 @@ ELEMENT_ROLES = {"Trigger", "Attachment"}
 STATUS_BEHAVIOR_PAIRS = {
     "Z_Elemental_Immunity": "Status.ElementImmunity",
     "Z_Burn": "Status.Burn",
+    "Z_Vertigo": "Status.Stun",
+    "Z_Bleeding": "Status.Bleeding",
 }
 REACTION_BEHAVIOR_FORMULA_PAIRS = {
     "Reaction.Burn": "Element.ElementAttackDot",
@@ -202,6 +225,7 @@ WEAPON_EFFECT_TARGETS = {
     "ProjectileCount",
     "ConcentrationDegrees",
     "ExplosionRadius",
+    "RuntimeBehavior",
 }
 # EffectKind -> set of BehaviorIds the runtime accepts for that kind. A kind may map to
 # several behaviours (UniqueBehavior in particular), so membership is checked, not equality.
@@ -209,7 +233,8 @@ PART_EFFECT_BEHAVIOR_PAIRS = {
     "WeaponDamageChannel": {"Part.CoreDamageChannel"},
     "StatModifier": {"Part.StatModifier"},
     "AttackPatternReplacement": {"Part.AttackPatternReplacement"},
-    "UniqueBehavior": {"Part.OnKillHealPercent"},
+    "UniqueBehavior": {value for value in REGISTERED_BEHAVIOR_IDS if value.startswith("Part.")}
+    - {"Part.CoreDamageChannel", "Part.StatModifier", "Part.AttackPatternReplacement"},
 }
 
 

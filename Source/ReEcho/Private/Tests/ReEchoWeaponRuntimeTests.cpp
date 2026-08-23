@@ -12,6 +12,7 @@
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
+#include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
@@ -181,7 +182,6 @@ FString AssembleModifiedCsvDirectory(const TCHAR* FileName, const TCHAR* SearchT
 }
 } // namespace
 
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponMeleeStepRuntimeTest,
                                  "ReEcho.Weapons.MeleeStepsUseOrderArcAndTiming",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -214,7 +214,6 @@ bool FReEchoWeaponMeleeStepRuntimeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Front target is killed by second step"), !Front->IsAlive());
 	return true;
 }
-
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponProjectileRuntimeTest,
                                  "ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndExplosion",
@@ -469,8 +468,7 @@ bool FReEchoWeaponLockAndPersistenceTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
 	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	FString Error;
-	TestTrue(TEXT("Run equips compatible core"),
-	         Run->TryEquipParts({TEXT("P_CORE_FLAME")}, Error));
+	TestTrue(TEXT("Run equips compatible core"), Run->TryEquipParts({TEXT("P_CORE_FLAME")}, Error));
 	TestEqual(TEXT("Equipped run has recomputed core attack speed"), Run->CurrentBuild.Stats.AttackSpeed, 1.0f);
 
 	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
@@ -480,8 +478,7 @@ bool FReEchoWeaponLockAndPersistenceTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* RestoreRun = NewObject<UReEchoRunSubsystem>(RestoreGameInstance);
 	TestTrue(TEXT("Equipment snapshot restores with authoritative base"), RestoreRun->RestoreSaveSnapshot(*Save));
 	TestTrue(TEXT("Restored build retains authoritative equipment base"), RestoreRun->CurrentBuild.bHasEquipmentBase);
-	TestEqual(
-	    TEXT("Restored build recomputes core attack speed"), RestoreRun->CurrentBuild.Stats.AttackSpeed, 1.0f);
+	TestEqual(TEXT("Restored build recomputes core attack speed"), RestoreRun->CurrentBuild.Stats.AttackSpeed, 1.0f);
 	TestTrue(TEXT("v9 equipment migrates into v10 part ownership"),
 	         RestoreRun->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 
@@ -587,7 +584,7 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	Echo->Tick(0.01f);
 	TestEqual(TEXT("New echo executes old pinned projectile count after global republish"),
 	          CountProjectiles(ConsumerFixture.World),
-		  1);
+	          1);
 
 	UGameInstance* RestoreGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RestoreRun = NewObject<UReEchoRunSubsystem>(RestoreGameInstance);
@@ -598,8 +595,10 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 
 	const FString ModifiedEffectsDir = AssembleModifiedCsvDirectory(
 	    TEXT("part_effects.csv"),
-	    TEXT("PE_CORE_FLAME_CHANNEL,P_CORE_FLAME,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.CoreDamageChannel,None,None,Flame,0,0,0,Unique,true,,武器插槽C,5"),
-	    TEXT("PE_CORE_FLAME_CHANNEL,P_CORE_FLAME,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,1,Part.CoreDamageChannel,None,None,Flame,0,0,0,Unique,true,,武器插槽C,5"));
+	    TEXT("PE_CORE_FLAME_CHANNEL,P_CORE_FLAME,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part."
+	         "CoreDamageChannel,None,None,Flame,0,0,0,Unique,true,,武器插槽C,5"),
+	    TEXT("PE_CORE_FLAME_CHANNEL,P_CORE_FLAME,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,1,Part."
+	         "CoreDamageChannel,None,None,Flame,0,0,0,Unique,true,,武器插槽C,5"));
 	const FReEchoCsvLoadResult EffectsPublishResult =
 	    FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(ModifiedEffectsDir);
 	TestTrue(TEXT("Modified part effects publish"), EffectsPublishResult.bSuccess);
@@ -645,6 +644,652 @@ bool FReEchoWeaponStepLockScalesWithAttackSpeedTest::RunTest(const FString& Para
 
 	TestTrue(TEXT("step lock scales inversely with attack speed"),
 	         FMath::IsNearlyEqual(SlowLock, FastLock * 2.5f, 0.01f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneCatalogCoverageTest,
+                                 "ReEcho.Weapons.Runes.CatalogAndHandlerCoverage",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponRuneCatalogCoverageTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!TestTrue(TEXT("Production data snapshot loads"), Snapshot.IsValid()))
+	{
+		return false;
+	}
+
+	const TArray<TPair<FName, FName>> NewRuneWeapons = {
+	    {TEXT("P_BOW_SPLIT_ARROWHEAD"), TEXT("W_J_08")},
+	    {TEXT("P_BOW_EXPLOSIVE_ARROWHEAD"), TEXT("W_J_08")},
+	    {TEXT("P_BOW_PIERCING_ARROWHEAD"), TEXT("W_J_08")},
+	    {TEXT("P_BOW_CRITBLEED_ARROWHEAD"), TEXT("W_J_08")},
+	    {TEXT("P_BOW_MULTISHOT_ARROWHEAD"), TEXT("W_J_08")},
+	    {TEXT("P_BOW_KILLSHARD_ARROWHEAD"), TEXT("W_J_08")},
+	    {TEXT("P_BOW_KILLHASTE_BOWSTRING"), TEXT("W_J_08")},
+	    {TEXT("P_BOW_COMBOHASTE_BOWSTRING"), TEXT("W_J_08")},
+	    {TEXT("P_SCYTHE_GROUPGROWTH_ROTARYBLADE"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_LIFESTEAL_ROTARYBLADE"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_STUN_ROTARYBLADE"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_BLEED_ROTARYBLADE"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_OUTERRING_ROTARYBLADE"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_MOVESTACK_GRIP"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_GROUPINVULN_GRIP"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_ATTACKSTACK_GRIP"), TEXT("W_J_04")},
+	    {TEXT("P_SCYTHE_THROWRECALL_GRIP"), TEXT("W_J_04")},
+	    {TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"), TEXT("W_J_01")},
+	    {TEXT("P_LONGSWORD_HITSHARD_SWORDBLADE"), TEXT("W_J_01")},
+	    {TEXT("P_LONGSWORD_CRITBLEED_SWORDBLADE"), TEXT("W_J_01")},
+	    {TEXT("P_LONGSWORD_METEOR_SWORDBLADE"), TEXT("W_J_01")},
+	    {TEXT("P_LONGSWORD_MOVESTACK_GRIP"), TEXT("W_J_01")},
+	    {TEXT("P_LONGSWORD_ATTACKSTACK_GRIP"), TEXT("W_J_01")},
+	    {TEXT("P_LONGSWORD_STUN_GRIP"), TEXT("W_J_01")},
+	    {TEXT("P_GUN_CHARGED_MUZZLE"), TEXT("W_J_09")},
+	    {TEXT("P_GUN_RAPID_MUZZLE"), TEXT("W_J_09")},
+	    {TEXT("P_GUN_EXPLOSIVE_MUZZLE"), TEXT("W_J_09")},
+	    {TEXT("P_GUN_PIERCING_MUZZLE"), TEXT("W_J_09")},
+	    {TEXT("P_GUN_BLEED_MUZZLE"), TEXT("W_J_09")},
+	    {TEXT("P_GUN_LIFESTEAL_GUNACTION"), TEXT("W_J_09")},
+	    {TEXT("P_GUN_HITSHARD_GUNACTION"), TEXT("W_J_09")},
+	    {TEXT("P_GUN_ATTACKSTACK_GUNACTION"), TEXT("W_J_09")},
+	};
+	TestEqual(TEXT("Plan76 contains exactly 32 newly completed runes"), NewRuneWeapons.Num(), 32);
+
+	int32 ActiveVisibleRuneCount = 0;
+	for (const TPair<FName, FReEchoCsvPartRow>& Pair : Snapshot->Parts)
+	{
+		const FReEchoCsvPartRow& Part = Pair.Value;
+		if (Part.bEnabled && Part.SourceRow >= 2 && Part.SourceRow <= 56)
+		{
+			++ActiveVisibleRuneCount;
+		}
+	}
+	TestEqual(TEXT("Visible production rune scope remains 47"), ActiveVisibleRuneCount, 47);
+
+	for (const TPair<FName, FName>& RuneWeapon : NewRuneWeapons)
+	{
+		const FName PartId = RuneWeapon.Key;
+		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(PartId);
+		if (!TestNotNull(*FString::Printf(TEXT("%s exists"), *PartId.ToString()), Part))
+		{
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("%s is enabled"), *PartId.ToString()), Part->bEnabled);
+		TestTrue(*FString::Printf(TEXT("%s is shop-enabled"), *PartId.ToString()), Part->bShopEnabled);
+		TestEqual(*FString::Printf(TEXT("%s is implemented"), *PartId.ToString()),
+		          Part->ImplementationStatus,
+		          FName(TEXT("Implemented")));
+		TestTrue(*FString::Printf(TEXT("%s has effect rows"), *PartId.ToString()), !Part->Effects.IsEmpty());
+
+		FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, RuneWeapon.Value);
+		FReEchoBuildSnapshot EquippedBuild;
+		FString Error;
+		if (!TestTrue(*FString::Printf(TEXT("%s equips"), *PartId.ToString()),
+		              ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Build, {PartId}, EquippedBuild, Error)))
+		{
+			AddError(Error);
+			continue;
+		}
+		FReEchoEffectiveWeaponDefinition Definition;
+		if (!TestTrue(*FString::Printf(TEXT("%s compiles"), *PartId.ToString()),
+		              ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*Snapshot, EquippedBuild, Definition, Error)))
+		{
+			AddError(Error);
+			continue;
+		}
+		for (const FReEchoCsvPartEffectRow& Effect : Part->Effects)
+		{
+			if (Effect.bEnabled && Effect.EffectKind == TEXT("UniqueBehavior") &&
+			    Effect.Target == TEXT("RuntimeBehavior"))
+			{
+				TestTrue(*FString::Printf(TEXT("%s has a closed runtime handler"), *Effect.BehaviorId.ToString()),
+				         ReEchoWeaponRuntime::IsRuntimeRuneBehaviorSupported(Effect.BehaviorId));
+				TestTrue(*FString::Printf(TEXT("%s is compiled into the equipped definition"), *Effect.Id.ToString()),
+				         Definition.RuneEffects.ContainsByPredicate(
+				             [&Effect](const FReEchoWeaponRuneEffectSpec& Spec)
+				             {
+					             return Spec.PartId == Effect.PartId && Spec.BehaviorId == Effect.BehaviorId;
+				             }));
+			}
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneStaticStepCompilationTest,
+                                 "ReEcho.Weapons.Runes.StaticEffectsReachAttackSteps",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponRuneStaticStepCompilationTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	auto CompilePart = [this, &Snapshot](const FName WeaponId,
+	                                     const FName PartId,
+	                                     FReEchoBuildSnapshot& OutBuild,
+	                                     FReEchoEffectiveWeaponDefinition& OutDefinition)
+	{
+		const FReEchoBuildSnapshot BaseBuild = MakeBuild(*Snapshot, WeaponId);
+		FString Error;
+		if (!TestTrue(*FString::Printf(TEXT("%s equips"), *PartId.ToString()),
+		              ReEchoWeaponRuntime::TryEquipParts(*Snapshot, BaseBuild, {PartId}, OutBuild, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		if (!TestTrue(*FString::Printf(TEXT("%s compiles"), *PartId.ToString()),
+		              ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*Snapshot, OutBuild, OutDefinition, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		return true;
+	};
+
+	FReEchoBuildSnapshot LongSwordBuild;
+	FReEchoEffectiveWeaponDefinition LongSword;
+	if (CompilePart(TEXT("W_J_01"), TEXT("P_LONGSWORD_NARROWWIDE_SWORDBLADE"), LongSwordBuild, LongSword))
+	{
+		TestTrue(TEXT("Longsword rune scales the authored step range"),
+		         FMath::IsNearlyEqual(LongSword.AttackSteps[0].RangeCm, 325.0f));
+		TestTrue(TEXT("Longsword rune overrides the authored step arc"),
+		         FMath::IsNearlyEqual(LongSword.AttackSteps[0].ArcDegrees, 120.0f));
+	}
+
+	FReEchoBuildSnapshot BowBuild;
+	FReEchoEffectiveWeaponDefinition Bow;
+	if (CompilePart(TEXT("W_J_08"), TEXT("P_BOW_MULTISHOT_ARROWHEAD"), BowBuild, Bow))
+	{
+		TestEqual(TEXT("Multishot reaches the authored projectile step"), Bow.AttackSteps[0].ProjectileCount, 3);
+		TestTrue(TEXT("Multishot reaches the authored spread step"),
+		         FMath::IsNearlyEqual(Bow.AttackSteps[0].ConcentrationDegrees, 60.0f));
+	}
+
+	FReEchoBuildSnapshot ExplosiveBuild;
+	FReEchoEffectiveWeaponDefinition Explosive;
+	if (CompilePart(TEXT("W_J_09"), TEXT("P_GUN_EXPLOSIVE_MUZZLE"), ExplosiveBuild, Explosive))
+	{
+		TestTrue(TEXT("Explosive rune reaches the authored projectile step"),
+		         FMath::IsNearlyEqual(Explosive.AttackSteps[0].ExplosionRadiusCm, 100.0f));
+	}
+
+	FReEchoBuildSnapshot ChargedBuild;
+	FReEchoEffectiveWeaponDefinition Charged;
+	const FReEchoBuildSnapshot ChargedBase = MakeBuild(*Snapshot, TEXT("W_J_09"));
+	if (CompilePart(TEXT("W_J_09"), TEXT("P_GUN_CHARGED_MUZZLE"), ChargedBuild, Charged))
+	{
+		TestTrue(TEXT("Charged gun implements -500% cadence as speed x 1/6"),
+		         FMath::IsNearlyEqual(ChargedBuild.Stats.AttackSpeed, ChargedBase.Stats.AttackSpeed / 6.0f, 0.001f));
+		TestTrue(TEXT("Charged gun applies +180% physical damage to the authored step"),
+		         FMath::IsNearlyEqual(Charged.AttackSteps[0].PhysicalCoefficient, 0.56f, 0.001f));
+		TestTrue(TEXT("Charged gun applies +180% elemental damage to the authored step"),
+		         FMath::IsNearlyEqual(Charged.AttackSteps[0].ElementalCoefficient, 0.56f, 0.001f));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneShardGrantTransactionTest,
+                                 "ReEcho.Weapons.Runes.TimeShardGrantTransaction",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponRuneShardGrantTransactionTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->TimeShards = 5;
+	TestFalse(TEXT("Non-positive pickup grants are rejected"), Run->GrantTimeShards(0));
+	TestEqual(TEXT("Rejected grant is atomic"), Run->TimeShards, 5);
+	TestTrue(TEXT("Positive pickup grants currency"), Run->GrantTimeShards(2));
+	TestEqual(TEXT("Pickup grant applies exact amount"), Run->TimeShards, 7);
+	Run->TimeShards = TNumericLimits<int32>::Max() - 1;
+	TestTrue(TEXT("Overflowing pickup grant is accepted and clamped"), Run->GrantTimeShards(10));
+	TestEqual(TEXT("Pickup grant never overflows"), Run->TimeShards, TNumericLimits<int32>::Max());
+	TestFalse(TEXT("Already-saturated balance rejects an uncollectable pickup"), Run->GrantTimeShards(1));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneDynamicHitHandlersTest,
+                                 "ReEcho.Weapons.Runes.DynamicHitHandlers",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponRuneDynamicHitHandlersTest::RunTest(const FString& Parameters)
+{
+	AddExpectedError(
+	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 6);
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	FReEchoWeaponWorldFixture Fixture;
+	UReEchoCombatantComponent* SourceCombatant = nullptr;
+	AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, SourceCombatant);
+	const FReEchoStatBlock BaseStats = SourceCombatant->Stats;
+	int32 EnemyIndex = 100;
+
+	auto SpawnRuneWeapon = [&](const FName WeaponId, const FName PartId)
+	{
+		FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, WeaponId);
+		SetBuildStats(Build, BaseStats);
+		FReEchoBuildSnapshot Equipped;
+		FString Error;
+		if (!TestTrue(*FString::Printf(TEXT("%s equips for handler proof"), *PartId.ToString()),
+		              ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Build, {PartId}, Equipped, Error)))
+		{
+			AddError(Error);
+			return static_cast<AReEchoWeaponActor*>(nullptr);
+		}
+		SourceCombatant->InitializeFromStats(Equipped.Stats, true);
+		AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
+		Weapon->SetOwner(Owner);
+		Weapon->InitializeWeapon(&Equipped, Snapshot);
+		return Weapon;
+	};
+	auto MakeCommit = [&](const int64 Sequence)
+	{
+		FReEchoWeaponAttackCommit Commit;
+		Commit.Attack.Source = Owner;
+		Commit.Attack.Sequence = Sequence;
+		Commit.Attack.SourceFaction = EReEchoCombatFaction::PlayerSide;
+		Commit.RawDamage = 10.0f;
+		Commit.RangeCm = 200.0f;
+		return Commit;
+	};
+	auto MakeHit = [&](AReEchoEnemyActor* Target, const int64 Sequence)
+	{
+		FReEchoHitResolved Hit;
+		Hit.Attack = MakeCommit(Sequence).Attack;
+		Hit.Target = Target;
+		Hit.RawDamage = 10.0f;
+		Hit.AppliedDamage = 10.0f;
+		Hit.DamageSource = EReEchoDamageSource::Player;
+		Hit.HitLocation = Target->GetActorLocation();
+		return Hit;
+	};
+
+	AReEchoEnemyActor* HealTarget = Fixture.SpawnEnemy(FVector(50.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
+	AReEchoWeaponActor* HealWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_LIFESTEAL_ROTARYBLADE"));
+	SourceCombatant->RestoreCurrentHealth(50.0f);
+	auto HealContext = HealWeapon->BuildRuneAttackContextForTests(MakeCommit(1), SourceCombatant);
+	HealWeapon->ProcessRuneHitForTests(HealContext, MakeHit(HealTarget, 1));
+	TestTrue(TEXT("HealOnHit restores 1% maximum health per effective target"),
+	         FMath::IsNearlyEqual(SourceCombatant->CurrentHealth, 51.0f));
+
+	AReEchoEnemyActor* CriticalBleedTarget = Fixture.SpawnEnemy(FVector(60.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
+	AReEchoWeaponActor* CriticalBleedWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_CRITBLEED_SWORDBLADE"));
+	FReEchoHitResolved CriticalHit = MakeHit(CriticalBleedTarget, 2);
+	CriticalHit.bCritical = true;
+	CriticalBleedWeapon->ProcessRuneHitForTests(
+	    CriticalBleedWeapon->BuildRuneAttackContextForTests(MakeCommit(2), SourceCombatant), CriticalHit);
+	TestTrue(TEXT("Critical bleed handler applies Z_Bleeding"),
+	         CriticalBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
+	             TEXT("Z_Bleeding")));
+
+	AReEchoEnemyActor* ChanceBleedTarget = Fixture.SpawnEnemy(FVector(70.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
+	AReEchoWeaponActor* ChanceBleedWeapon = SpawnRuneWeapon(TEXT("W_J_09"), TEXT("P_GUN_BLEED_MUZZLE"));
+	for (int64 Sequence = 1; Sequence <= 100; ++Sequence)
+	{
+		ChanceBleedWeapon->ProcessRuneHitForTests(
+		    ChanceBleedWeapon->BuildRuneAttackContextForTests(MakeCommit(Sequence), SourceCombatant),
+		    MakeHit(ChanceBleedTarget, Sequence));
+	}
+	TestTrue(TEXT("Deterministic 30% hit sampling reaches the bleed handler"),
+	         ChanceBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
+	             TEXT("Z_Bleeding")));
+
+	AReEchoEnemyActor* StunTarget = Fixture.SpawnEnemy(FVector(80.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
+	AReEchoWeaponActor* StunWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_STUN_GRIP"));
+	for (int64 Sequence = 1; Sequence <= 100; ++Sequence)
+	{
+		StunWeapon->ProcessRuneHitForTests(
+		    StunWeapon->BuildRuneAttackContextForTests(MakeCommit(Sequence), SourceCombatant),
+		    MakeHit(StunTarget, Sequence));
+	}
+	TestTrue(TEXT("Deterministic 20% hit sampling reaches the stun handler"),
+	         StunTarget->GetCombatantComponent()->IsActionDisabled(Fixture.World->GetTimeSeconds() + 0.5f));
+
+	AReEchoEnemyActor* ThresholdBleedTarget = Fixture.SpawnEnemy(FVector(90.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
+	AReEchoWeaponActor* ThresholdBleedWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_BLEED_ROTARYBLADE"));
+	auto ThresholdContext = ThresholdBleedWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant);
+	ThresholdBleedWeapon->ProcessRuneHitForTests(ThresholdContext, MakeHit(ThresholdBleedTarget, 3));
+	ThresholdBleedWeapon->ProcessRuneHitForTests(ThresholdContext, MakeHit(ThresholdBleedTarget, 3));
+	TestFalse(TEXT("Per-target bleed threshold does not fire before hit three"),
+	          ThresholdBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
+	              TEXT("Z_Bleeding")));
+	ThresholdBleedWeapon->ProcessRuneHitForTests(ThresholdContext, MakeHit(ThresholdBleedTarget, 3));
+	TestTrue(TEXT("Per-target bleed threshold fires on hit three"),
+	         ThresholdBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
+	             TEXT("Z_Bleeding")));
+
+	AReEchoEnemyActor* StatTarget = Fixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
+	AReEchoWeaponActor* MoveWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_MOVESTACK_GRIP"));
+	MoveWeapon->ProcessRuneHitForTests(MoveWeapon->BuildRuneAttackContextForTests(MakeCommit(4), SourceCombatant),
+	                                   MakeHit(StatTarget, 4));
+	TestEqual(TEXT("MoveSpeedPerHit creates one independent timed layer"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_SCYTHE_MOVESTACK_GRIP")),
+	          1);
+	AReEchoWeaponActor* AttackWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_ATTACKSTACK_GRIP"));
+	AttackWeapon->ProcessRuneHitForTests(AttackWeapon->BuildRuneAttackContextForTests(MakeCommit(5), SourceCombatant),
+	                                     MakeHit(StatTarget, 5));
+	TestEqual(TEXT("AttackSpeedPerHit creates one independent timed layer"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_LONGSWORD_ATTACKSTACK_GRIP")),
+	          1);
+
+	AReEchoWeaponActor* ComboWeapon = SpawnRuneWeapon(TEXT("W_J_08"), TEXT("P_BOW_COMBOHASTE_BOWSTRING"));
+	auto ComboContext = ComboWeapon->BuildRuneAttackContextForTests(MakeCommit(6), SourceCombatant);
+	ComboWeapon->ProcessRuneOnAttackForTests(ComboContext);
+	ComboWeapon->ProcessRuneOnAttackForTests(ComboContext);
+	TestEqual(TEXT("Bow combo handler stacks attack and move speed"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_BOW_COMBOHASTE_BOWSTRING")),
+	          2);
+	Fixture.Advance(1.01f);
+	Fixture.Advance(0.01f);
+	ComboWeapon->Tick(0.0f);
+	TestEqual(TEXT("Bow combo loses one layer after one idle second"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_BOW_COMBOHASTE_BOWSTRING")),
+	          1);
+	AReEchoWeaponActor* GunAttackWeapon = SpawnRuneWeapon(TEXT("W_J_09"), TEXT("P_GUN_ATTACKSTACK_GUNACTION"));
+	GunAttackWeapon->ProcessRuneOnAttackForTests(
+	    GunAttackWeapon->BuildRuneAttackContextForTests(MakeCommit(7), SourceCombatant));
+	TestEqual(TEXT("Gun on-attack speed handler creates a timed layer"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_GUN_ATTACKSTACK_GUNACTION")),
+	          1);
+
+	auto CountShardPickups = [&]()
+	{
+		int32 Count = 0;
+		for (TActorIterator<AReEchoTimeShardPickupActor> It(Fixture.World); It; ++It)
+		{
+			if (!It->IsActorBeingDestroyed())
+			{
+				++Count;
+			}
+		}
+		return Count;
+	};
+	AReEchoWeaponActor* HitShardWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_HITSHARD_SWORDBLADE"));
+	auto HitShardContext = HitShardWeapon->BuildRuneAttackContextForTests(MakeCommit(8), SourceCombatant);
+	for (int32 HitIndex = 0; HitIndex < 5; ++HitIndex)
+	{
+		HitShardWeapon->ProcessRuneHitForTests(HitShardContext, MakeHit(StatTarget, 8));
+	}
+	TestEqual(TEXT("Every-five-hits handler spawns one shard pickup"), CountShardPickups(), 1);
+	AReEchoWeaponActor* KillShardWeapon = SpawnRuneWeapon(TEXT("W_J_08"), TEXT("P_BOW_KILLSHARD_ARROWHEAD"));
+	FReEchoHitResolved KillHit = MakeHit(StatTarget, 9);
+	KillHit.bKilled = true;
+	KillShardWeapon->ProcessRuneHitForTests(
+	    KillShardWeapon->BuildRuneAttackContextForTests(MakeCommit(9), SourceCombatant), KillHit);
+	TestEqual(TEXT("Player kill handler spawns one additional shard pickup"), CountShardPickups(), 2);
+	KillHit.DamageSource = EReEchoDamageSource::Echo;
+	KillShardWeapon->ProcessRuneHitForTests(
+	    KillShardWeapon->BuildRuneAttackContextForTests(MakeCommit(10), SourceCombatant), KillHit);
+	TestEqual(TEXT("Echo kill handler cannot duplicate economy"), CountShardPickups(), 2);
+
+	AReEchoWeaponActor* KillMoveWeapon = SpawnRuneWeapon(TEXT("W_J_08"), TEXT("P_BOW_KILLHASTE_BOWSTRING"));
+	auto KillMoveContext = KillMoveWeapon->BuildRuneAttackContextForTests(MakeCommit(11), SourceCombatant);
+	KillHit.DamageSource = EReEchoDamageSource::Player;
+	KillMoveWeapon->ProcessRuneHitForTests(KillMoveContext, KillHit);
+	KillMoveWeapon->ProcessRuneHitForTests(KillMoveContext, KillHit);
+	TestEqual(TEXT("Kill move-speed handler remains stackable with independent five-second layers"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_BOW_KILLHASTE_BOWSTRING")),
+	          2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneGroupOuterAndScytheTest,
+                                 "ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters)
+{
+	AddExpectedError(
+	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 12);
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	FReEchoWeaponWorldFixture Fixture;
+	UReEchoCombatantComponent* SourceCombatant = nullptr;
+	AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, SourceCombatant);
+	const FReEchoStatBlock BaseStats = SourceCombatant->Stats;
+	TArray<AReEchoEnemyActor*> GroupTargets;
+	for (int32 Index = 0; Index < 7; ++Index)
+	{
+		GroupTargets.Add(Fixture.SpawnEnemy(FVector(1200.0f, 1000.0f + 100.0f * Index, 0.0f), 180 + Index, 1000.0f));
+	}
+
+	auto SpawnRuneWeapon = [&](const FName WeaponId, const FName PartId)
+	{
+		FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, WeaponId);
+		SetBuildStats(Build, BaseStats);
+		FReEchoBuildSnapshot Equipped;
+		FString Error;
+		if (!TestTrue(*FString::Printf(TEXT("%s equips for group proof"), *PartId.ToString()),
+		              ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Build, {PartId}, Equipped, Error)))
+		{
+			AddError(Error);
+			return static_cast<AReEchoWeaponActor*>(nullptr);
+		}
+		SourceCombatant->InitializeFromStats(Equipped.Stats, true);
+		AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
+		Weapon->SetOwner(Owner);
+		Weapon->InitializeWeapon(&Equipped, Snapshot);
+		return Weapon;
+	};
+	auto MakeCommit = [&](const int64 Sequence)
+	{
+		FReEchoWeaponAttackCommit Commit;
+		Commit.Attack.Source = Owner;
+		Commit.Attack.Sequence = Sequence;
+		Commit.Attack.SourceFaction = EReEchoCombatFaction::PlayerSide;
+		Commit.RawDamage = 10.0f;
+		Commit.RangeCm = 200.0f;
+		return Commit;
+	};
+
+	AReEchoWeaponActor* RangeWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"));
+	auto RangeContext = RangeWeapon->BuildRuneAttackContextForTests(MakeCommit(1), SourceCombatant);
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		RangeContext->EffectiveHitTargets.Add(GroupTargets[Index]);
+	}
+	RangeWeapon->ProcessRuneAttackForTests(RangeContext);
+	TestTrue(TEXT("Four-target group hit adds one additive +2% range layer"),
+	         FMath::IsNearlyEqual(RangeWeapon->GetTimedRangeMultiplierForTests(), 1.02f));
+
+	AReEchoWeaponActor* InvulnerableWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_GROUPINVULN_GRIP"));
+	auto InvulnerableContext = InvulnerableWeapon->BuildRuneAttackContextForTests(MakeCommit(2), SourceCombatant);
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		InvulnerableContext->EffectiveHitTargets.Add(GroupTargets[Index]);
+	}
+	InvulnerableWeapon->ProcessRuneAttackForTests(InvulnerableContext);
+	TestTrue(TEXT("Four-target group hit grants the configured half-second invulnerability"),
+	         SourceCombatant->IsTimedInvulnerable(Fixture.World->GetTimeSeconds() + 0.49f));
+
+	AReEchoEnemyActor* MeteorCenter = Fixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 200, 1000.0f);
+	AReEchoEnemyActor* MeteorNeighbor = Fixture.SpawnEnemy(FVector(100.0f, 100.0f, 0.0f), 201, 1000.0f);
+	AReEchoWeaponActor* MeteorWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_METEOR_SWORDBLADE"));
+	auto MeteorContext = MeteorWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant);
+	MeteorContext->EffectiveHitTargets.Add(MeteorCenter);
+	for (int32 Index = 0; Index < 6; ++Index)
+	{
+		MeteorContext->EffectiveHitTargets.Add(GroupTargets[Index]);
+	}
+	const float MeteorCenterBefore = WeaponEnemyHealth(MeteorCenter);
+	const float MeteorNeighborBefore = WeaponEnemyHealth(MeteorNeighbor);
+	MeteorWeapon->ProcessRuneAttackForTests(MeteorContext);
+	TestTrue(TEXT("Seven-target threshold drops a non-recursive meteor on the nearest hit target"),
+	         WeaponEnemyHealth(MeteorCenter) < MeteorCenterBefore);
+	TestTrue(TEXT("Meteor uses the configured 1.5m explosion radius"),
+	         WeaponEnemyHealth(MeteorNeighbor) < MeteorNeighborBefore);
+
+	AReEchoEnemyActor* InnerTarget = Fixture.SpawnEnemy(FVector(40.0f, 0.0f, 0.0f), 202, 1000.0f);
+	AReEchoEnemyActor* OuterTarget = Fixture.SpawnEnemy(FVector(160.0f, 0.0f, 0.0f), 203, 1000.0f);
+	AReEchoWeaponActor* OuterWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_OUTERRING_ROTARYBLADE"));
+	const FReEchoWeaponAttackCommit OuterCommit = MakeCommit(4);
+	auto OuterContext = OuterWeapon->BuildRuneAttackContextForTests(OuterCommit, SourceCombatant);
+	const FReEchoHitResolved InnerResult = OuterWeapon->ApplyRuneDamageForTests(
+	    *InnerTarget, OuterCommit, FVector::ZeroVector, SourceCombatant, OuterContext);
+	const FReEchoHitResolved OuterResult = OuterWeapon->ApplyRuneDamageForTests(
+	    *OuterTarget, OuterCommit, FVector::ZeroVector, SourceCombatant, OuterContext);
+	TestTrue(TEXT("Inner half keeps base damage"), FMath::IsNearlyEqual(InnerResult.AppliedDamage, 10.0f));
+	TestTrue(TEXT("Outer half receives exactly +40% damage"), FMath::IsNearlyEqual(OuterResult.AppliedDamage, 14.0f));
+
+	AReEchoEnemyActor* ThrowTarget = Fixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 204, 1000.0f);
+	AReEchoWeaponActor* ThrowWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_THROWRECALL_GRIP"));
+	const float ThrowBefore = WeaponEnemyHealth(ThrowTarget);
+	TestTrue(TEXT("First active input starts the data-authored scythe throw"),
+	         ThrowWeapon->TryActiveAttack(SourceCombatant));
+	TestTrue(TEXT("Scythe remains in a thrown state"), ThrowWeapon->IsScytheThrownForTests());
+	ThrowWeapon->AdvanceScytheThrowForTests(0.6f);
+	const float AfterTravel = WeaponEnemyHealth(ThrowTarget);
+	TestTrue(TEXT("Travel contact applies the configured 60% attack damage"), AfterTravel < ThrowBefore);
+	ThrowWeapon->AdvanceScytheThrowForTests(1.0f);
+	TestTrue(TEXT("Stationary scythe ticks at inherited attack speed for configured 20% damage"),
+	         WeaponEnemyHealth(ThrowTarget) < AfterTravel);
+	TestTrue(TEXT("Second active input recalls without creating another attack"),
+	         ThrowWeapon->TryActiveAttack(SourceCombatant));
+	TestFalse(TEXT("Recall clears the thrown state"), ThrowWeapon->IsScytheThrownForTests());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponRuneProjectileCombinationTest,
+                                 "ReEcho.Weapons.Runes.ProjectileSplitPierceExplosion",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Parameters)
+{
+	AddExpectedError(
+	    TEXT("Animation2D semantic 'Animation.Idle' could not resolve"), EAutomationExpectedErrorFlags::Contains, 12);
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+
+	FReEchoWeaponWorldFixture SplitFixture;
+	UReEchoCombatantComponent* SplitCombatant = nullptr;
+	AActor* SplitOwner = SplitFixture.SpawnWeaponOwner(FVector::ZeroVector, SplitCombatant);
+	FReEchoBuildSnapshot SplitBuild = MakeBuild(*Snapshot, TEXT("W_J_08"));
+	SetBuildStats(SplitBuild, SplitCombatant->Stats);
+	SplitBuild.CardState.OwnedCardIds.Add(TEXT("G_3_22"));
+	FString Error;
+	TestTrue(TEXT("Double-slot card allows split and explosive arrowheads in the same slot"),
+	         ReEchoWeaponRuntime::TryEquipParts(*Snapshot,
+	                                            SplitBuild,
+	                                            {TEXT("P_BOW_SPLIT_ARROWHEAD"), TEXT("P_BOW_EXPLOSIVE_ARROWHEAD")},
+	                                            SplitBuild,
+	                                            Error));
+	FReEchoEffectiveWeaponDefinition SplitDefinition;
+	TestTrue(TEXT("Same-slot split and explosive arrowheads compile together"),
+	         ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*Snapshot, SplitBuild, SplitDefinition, Error));
+	AReEchoWeaponActor* SplitWeapon = SplitFixture.World->SpawnActor<AReEchoWeaponActor>();
+	SplitWeapon->SetOwner(SplitOwner);
+	SplitWeapon->InitializeWeapon(&SplitBuild, Snapshot);
+	AReEchoEnemyActor* Direct = SplitFixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 300, 1000.0f);
+	SplitFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 301, 1000.0f);
+	SplitFixture.SpawnEnemy(FVector(250.0f, 50.0f, 0.0f), 302, 1000.0f);
+	SplitFixture.SpawnEnemy(FVector(300.0f, -50.0f, 0.0f), 303, 1000.0f);
+	SplitFixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 304, 1000.0f);
+	FReEchoWeaponAttackCommit SplitCommit;
+	SplitCommit.Attack.Source = SplitOwner;
+	SplitCommit.Attack.Sequence = 1;
+	SplitCommit.Attack.SourceFaction = EReEchoCombatFaction::PlayerSide;
+	SplitCommit.RawDamage = 10.0f;
+	SplitCommit.RangeCm = 1000.0f;
+	SplitCommit.ExplosionRadiusCm = SplitDefinition.AttackSteps[0].ExplosionRadiusCm;
+	auto SplitContext = SplitWeapon->BuildRuneAttackContextForTests(SplitCommit, SplitCombatant);
+	FReEchoHitResolved SplitHit;
+	SplitHit.Attack = SplitCommit.Attack;
+	SplitHit.Target = Direct;
+	SplitHit.AppliedDamage = 10.0f;
+	SplitHit.DamageSource = EReEchoDamageSource::Player;
+	SplitHit.HitLocation = Direct->GetActorLocation();
+	FReEchoProjectileSnapshot SplitSnapshot;
+	SplitSnapshot.ProjectileId.Value = FGuid::NewGuid();
+	SplitWeapon->HandleProjectileResolved(SplitContext, SplitSnapshot, SplitHit, true);
+	TestEqual(TEXT("Split chooses at most three other nearest valid targets"), CountProjectiles(SplitFixture.World), 3);
+	for (TActorIterator<AReEchoProjectileActor> It(SplitFixture.World); It; ++It)
+	{
+		TestTrue(TEXT("Split children inherit the same-slot explosive arrowhead"),
+		         FMath::IsNearlyEqual(It->GetExplosionRadiusCm(), 100.0f));
+	}
+	SplitWeapon->HandleProjectileResolved(SplitContext, SplitSnapshot, SplitHit, true);
+	TestEqual(TEXT("The same projectile cannot split recursively or twice"), CountProjectiles(SplitFixture.World), 3);
+
+	FReEchoWeaponWorldFixture PierceFixture;
+	UReEchoCombatantComponent* PierceCombatant = nullptr;
+	AActor* PierceOwner = PierceFixture.SpawnWeaponOwner(FVector::ZeroVector, PierceCombatant);
+	FReEchoBuildSnapshot PierceBuild = MakeBuild(*Snapshot, TEXT("W_J_09"));
+	SetBuildStats(PierceBuild, PierceCombatant->Stats);
+	TestTrue(TEXT("Pierce rune equips"),
+	         ReEchoWeaponRuntime::TryEquipParts(
+	             *Snapshot, PierceBuild, {TEXT("P_GUN_PIERCING_MUZZLE")}, PierceBuild, Error));
+	PierceCombatant->InitializeFromStats(PierceBuild.Stats, true);
+	PierceCombatant->Stats.RoleId = TEXT("Hunter");
+	PierceCombatant->Stats.CriticalRate = 1.0f;
+	AReEchoWeaponActor* PierceWeapon = PierceFixture.World->SpawnActor<AReEchoWeaponActor>();
+	PierceWeapon->SetOwner(PierceOwner);
+	PierceWeapon->InitializeWeapon(&PierceBuild, Snapshot);
+	AReEchoEnemyActor* First = PierceFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 310, 1000.0f);
+	AReEchoEnemyActor* Second = PierceFixture.SpawnEnemy(FVector(450.0f, 0.0f, 0.0f), 311, 1000.0f);
+	TestTrue(TEXT("Critical projectile attack executes"), PierceWeapon->ExecuteBasicAttack(PierceCombatant));
+	TickProjectiles(PierceFixture.World, 0.3f);
+	TickProjectiles(PierceFixture.World, 0.3f);
+	TestTrue(TEXT("Critical projectile damages the first target"), WeaponEnemyHealth(First) < 1000.0f);
+	TestTrue(TEXT("Critical projectile continues into the second target"), WeaponEnemyHealth(Second) < 1000.0f);
+
+	FReEchoWeaponWorldFixture CombinationFixture;
+	UReEchoCombatantComponent* CombinationCombatant = nullptr;
+	AActor* CombinationOwner = CombinationFixture.SpawnWeaponOwner(FVector::ZeroVector, CombinationCombatant);
+	AReEchoEnemyActor* ContactOne = CombinationFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 320, 1000.0f);
+	AReEchoEnemyActor* SplashOne = CombinationFixture.SpawnEnemy(FVector(200.0f, 80.0f, 0.0f), 321, 1000.0f);
+	AReEchoEnemyActor* ContactTwo = CombinationFixture.SpawnEnemy(FVector(500.0f, 0.0f, 0.0f), 322, 1000.0f);
+	AReEchoEnemyActor* SplashTwo = CombinationFixture.SpawnEnemy(FVector(500.0f, 80.0f, 0.0f), 323, 1000.0f);
+	AReEchoProjectileActor* CombinationProjectile =
+	    CombinationFixture.World->SpawnActor<AReEchoProjectileActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+	CombinationProjectile->SetOwner(CombinationOwner);
+	FReEchoAttackIdentity CombinationAttack;
+	CombinationAttack.Source = CombinationOwner;
+	CombinationAttack.Sequence = 1;
+	CombinationAttack.SourceFaction = EReEchoCombatFaction::PlayerSide;
+	CombinationProjectile->InitializeProjectile(FVector::ForwardVector,
+	                                            10.0f,
+	                                            FVector::ZeroVector,
+	                                            FLinearColor::White,
+	                                            EReEchoElement::None,
+	                                            1.0f,
+	                                            100.0f,
+	                                            1000.0f,
+	                                            CombinationAttack,
+	                                            true,
+	                                            EReEchoDamageSource::Player,
+	                                            TEXT("Gun"),
+	                                            true);
+	TickProjectiles(CombinationFixture.World, 0.3f);
+	TickProjectiles(CombinationFixture.World, 0.35f);
+	TestTrue(TEXT("Pierce plus explosion damages the first contact"), WeaponEnemyHealth(ContactOne) < 1000.0f);
+	TestTrue(TEXT("First contact performs its own explosion"), WeaponEnemyHealth(SplashOne) < 1000.0f);
+	TestTrue(TEXT("Piercing reaches the second contact"), WeaponEnemyHealth(ContactTwo) < 1000.0f);
+	TestTrue(TEXT("Second contact performs a second explosion"), WeaponEnemyHealth(SplashTwo) < 1000.0f);
+
+	FReEchoWeaponWorldFixture DelayedFixture;
+	UReEchoCombatantComponent* DelayedCombatant = nullptr;
+	AActor* DelayedOwner = DelayedFixture.SpawnWeaponOwner(FVector::ZeroVector, DelayedCombatant);
+	FReEchoBuildSnapshot DelayedBuild = MakeBuild(*Snapshot, TEXT("W_J_08"));
+	SetBuildStats(DelayedBuild, DelayedCombatant->Stats);
+	TestTrue(TEXT("Delayed critical-bleed rune equips"),
+	         ReEchoWeaponRuntime::TryEquipParts(
+	             *Snapshot, DelayedBuild, {TEXT("P_BOW_CRITBLEED_ARROWHEAD")}, DelayedBuild, Error));
+	DelayedCombatant->InitializeFromStats(DelayedBuild.Stats, true);
+	DelayedCombatant->Stats.RoleId = TEXT("Hunter");
+	DelayedCombatant->Stats.CriticalRate = 1.0f;
+	AReEchoWeaponActor* DelayedWeapon = DelayedFixture.World->SpawnActor<AReEchoWeaponActor>();
+	DelayedWeapon->SetOwner(DelayedOwner);
+	DelayedWeapon->InitializeWeapon(&DelayedBuild, Snapshot);
+	AReEchoEnemyActor* DelayedTarget = DelayedFixture.SpawnEnemy(FVector(450.0f, 0.0f, 0.0f), 330, 1000.0f);
+	TestTrue(TEXT("Delayed rune projectile attack executes"), DelayedWeapon->ExecuteBasicAttack(DelayedCombatant));
+	FReEchoBuildSnapshot PlainBow = MakeBuild(*Snapshot, TEXT("W_J_08"));
+	SetBuildStats(PlainBow, DelayedCombatant->Stats);
+	DelayedWeapon->InitializeWeapon(&PlainBow, Snapshot);
+	TickProjectiles(DelayedFixture.World, 0.6f);
+	TestTrue(TEXT("Projectile retains its attack-time rune snapshot after the weapon is rebuilt"),
+	         DelayedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
+	             TEXT("Z_Bleeding")));
 	return true;
 }
 

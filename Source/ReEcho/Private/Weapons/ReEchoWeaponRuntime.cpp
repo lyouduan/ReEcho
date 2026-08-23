@@ -20,6 +20,28 @@ const FName WeaponProjectileRule = TEXT("Weapon.ProjectileCount");
 const FName WeaponConcentrationRule = TEXT("Weapon.ConcentrationDegrees");
 const FName WeaponExplosionRule = TEXT("Weapon.ExplosionRadiusCm");
 
+const TSet<FName> RuntimeRuneBehaviorIds = {
+    TEXT("Part.ProjectileSplitOnHit"),
+    TEXT("Part.ProjectilePierceOnCritical"),
+    TEXT("Part.ApplyBleedOnCritical"),
+    TEXT("Part.DropShardOnKill"),
+    TEXT("Part.MoveSpeedOnKill"),
+    TEXT("Part.AttackMoveSpeedOnAttack"),
+    TEXT("Part.RangeOnGroupHit"),
+    TEXT("Part.HealOnHit"),
+    TEXT("Part.StunOnHit"),
+    TEXT("Part.BleedEveryTargetHits"),
+    TEXT("Part.OuterRingDamage"),
+    TEXT("Part.MoveSpeedPerHit"),
+    TEXT("Part.InvulnerableOnGroupHit"),
+    TEXT("Part.AttackSpeedPerHit"),
+    TEXT("Part.ScytheThrowRecall"),
+    TEXT("Part.DropShardEveryHits"),
+    TEXT("Part.MeteorOnGroupHit"),
+    TEXT("Part.ApplyBleedOnHitChance"),
+    TEXT("Part.AttackSpeedOnAttack"),
+};
+
 bool IsNoneName(const FName Name)
 {
 	return Name.IsNone() || Name == NoneId;
@@ -152,6 +174,14 @@ bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
 		return true;
 	}
 
+	// Dynamic rune behaviors are compiled into the effective definition after equipment validation.
+	// Applying equipment only needs to accept them here; WeaponActor executes the typed specs after Combat resolves.
+	if (Effect.EffectKind == TEXT("UniqueBehavior") && Effect.Target == TEXT("RuntimeBehavior") &&
+	    ReEchoWeaponRuntime::IsRuntimeRuneBehaviorSupported(Effect.BehaviorId))
+	{
+		return true;
+	}
+
 	// Weapon-parameter StatModifiers: override the matching weapon-level field through a RuleFlag,
 	// consumed by BuildEffectiveWeaponDefinition. Excel effects like "攻击范围+30%" / "弹道固定为3" land here.
 	// Each branch clamps into the field's legal domain, mirroring the coefficient branches above, so a
@@ -170,11 +200,11 @@ bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
 	{
 		float Current = Weapon.ArcDegrees;
 		ReadRuleFloat(Build, WeaponArcRule, Current, Current);
-		WriteRuleFloat(
-		    Build,
-		    WeaponArcRule,
-		    FMath::Clamp(
-		        ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value), 1.0f, 360.0f));
+		WriteRuleFloat(Build,
+		               WeaponArcRule,
+		               FMath::Clamp(ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value),
+		                            1.0f,
+		                            360.0f));
 		return true;
 	}
 	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("ProjectileCount"))
@@ -191,11 +221,11 @@ bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
 	{
 		float Current = Weapon.ConcentrationDegrees;
 		ReadRuleFloat(Build, WeaponConcentrationRule, Current, Current);
-		WriteRuleFloat(
-		    Build,
-		    WeaponConcentrationRule,
-		    FMath::Clamp(
-		        ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value), 0.0f, 360.0f));
+		WriteRuleFloat(Build,
+		               WeaponConcentrationRule,
+		               FMath::Clamp(ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value),
+		                            0.0f,
+		                            360.0f));
 		return true;
 	}
 	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("ExplosionRadius"))
@@ -217,6 +247,57 @@ FName RuleNameOrDefault(const FReEchoBuildSnapshot& Build, const FName Key, cons
 	const FString* Text = Build.RuleFlags.Find(Key);
 	return Text ? FName(**Text) : DefaultValue;
 }
+
+void ApplyPartEffectToAttackSteps(const FReEchoCsvPartEffectRow& Effect, TArray<FReEchoCsvAttackStepRow>& AttackSteps)
+{
+	if (!Effect.bEnabled || Effect.EffectKind != TEXT("StatModifier"))
+	{
+		return;
+	}
+	for (FReEchoCsvAttackStepRow& Step : AttackSteps)
+	{
+		if (Effect.Target == TEXT("PhysicalCoefficient"))
+		{
+			Step.PhysicalCoefficient = FMath::Max(
+			    0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Step.PhysicalCoefficient, Effect.ValueOp, Effect.Value));
+		}
+		else if (Effect.Target == TEXT("ElementalCoefficient"))
+		{
+			Step.ElementalCoefficient = FMath::Max(
+			    0.0f,
+			    ReEchoWeaponRuntime::ApplyValueOperation(Step.ElementalCoefficient, Effect.ValueOp, Effect.Value));
+		}
+		else if (Effect.Target == TEXT("AttackRange"))
+		{
+			Step.RangeCm =
+			    FMath::Max(1.0f, ReEchoWeaponRuntime::ApplyValueOperation(Step.RangeCm, Effect.ValueOp, Effect.Value));
+		}
+		else if (Effect.Target == TEXT("AttackArc"))
+		{
+			Step.ArcDegrees = FMath::Clamp(
+			    ReEchoWeaponRuntime::ApplyValueOperation(Step.ArcDegrees, Effect.ValueOp, Effect.Value), 1.0f, 360.0f);
+		}
+		else if (Effect.Target == TEXT("ProjectileCount"))
+		{
+			Step.ProjectileCount =
+			    FMath::Max(1,
+			               FMath::RoundToInt(ReEchoWeaponRuntime::ApplyValueOperation(
+			                   static_cast<float>(Step.ProjectileCount), Effect.ValueOp, Effect.Value)));
+		}
+		else if (Effect.Target == TEXT("ConcentrationDegrees"))
+		{
+			Step.ConcentrationDegrees = FMath::Clamp(
+			    ReEchoWeaponRuntime::ApplyValueOperation(Step.ConcentrationDegrees, Effect.ValueOp, Effect.Value),
+			    0.0f,
+			    360.0f);
+		}
+		else if (Effect.Target == TEXT("ExplosionRadius"))
+		{
+			Step.ExplosionRadiusCm = FMath::Max(
+			    0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Step.ExplosionRadiusCm, Effect.ValueOp, Effect.Value));
+		}
+	}
+}
 } // namespace
 
 float ReEchoWeaponRuntime::ApplyValueOperation(const float CurrentValue,
@@ -234,6 +315,11 @@ float ReEchoWeaponRuntime::ApplyValueOperation(const float CurrentValue,
 		default:
 			return CurrentValue;
 	}
+}
+
+bool ReEchoWeaponRuntime::IsRuntimeRuneBehaviorSupported(const FName BehaviorId)
+{
+	return RuntimeRuneBehaviorIds.Contains(BehaviorId);
 }
 
 int32 ReEchoWeaponRuntime::GetEffectiveSlotCapacity(const FReEchoCsvDataSnapshot& Snapshot,
@@ -516,9 +602,38 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 		ReadRuleFloat(Build, WeaponProjectileRule, ProjectileCount, ProjectileCount);
 		OutDefinition.Weapon.ProjectileCount = FMath::RoundToInt(ProjectileCount);
 	}
-	ReadRuleFloat(Build, WeaponConcentrationRule, OutDefinition.Weapon.ConcentrationDegrees, OutDefinition.Weapon.ConcentrationDegrees);
-	ReadRuleFloat(Build, WeaponExplosionRule, OutDefinition.Weapon.ExplosionRadiusCm, OutDefinition.Weapon.ExplosionRadiusCm);
+	ReadRuleFloat(Build,
+	              WeaponConcentrationRule,
+	              OutDefinition.Weapon.ConcentrationDegrees,
+	              OutDefinition.Weapon.ConcentrationDegrees);
+	ReadRuleFloat(
+	    Build, WeaponExplosionRule, OutDefinition.Weapon.ExplosionRadiusCm, OutDefinition.Weapon.ExplosionRadiusCm);
 	ReadRuleFloat(Build, OnKillHealRule, 0.0f, OutDefinition.OnKillHealPercent);
+	for (const FReEchoEquippedPartSnapshot& EquippedPart : Build.EquippedParts)
+	{
+		const FReEchoCsvPartRow* Part = Snapshot.Parts.Find(EquippedPart.PartId);
+		if (!Part || !Part->bEnabled)
+		{
+			continue;
+		}
+		for (const FReEchoCsvPartEffectRow& Effect : Part->Effects)
+		{
+			if (!Effect.bEnabled || Effect.EffectKind != TEXT("UniqueBehavior") ||
+			    Effect.Target != TEXT("RuntimeBehavior"))
+			{
+				continue;
+			}
+			FReEchoWeaponRuneEffectSpec& Spec = OutDefinition.RuneEffects.AddDefaulted_GetRef();
+			Spec.PartId = Part->PartId;
+			Spec.Trigger = Effect.Trigger;
+			Spec.BehaviorId = Effect.BehaviorId;
+			Spec.ParamName = Effect.ParamName;
+			Spec.StackPolicy = Effect.StackPolicy;
+			Spec.Value = Effect.Value;
+			Spec.ParamValue = Effect.ParamValue;
+			Spec.DurationSeconds = Effect.DurationSeconds;
+		}
+	}
 	OutDefinition.DamageChannelId = RuleNameOrDefault(Build, DamageChannelRule, NAME_None);
 
 	if (OutDefinition.DamageChannelId.IsNone())
@@ -536,6 +651,18 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 		                           *Build.WeaponId.ToString(),
 		                           *OutDefinition.Weapon.AttackPatternId.ToString());
 		return false;
+	}
+	for (const FReEchoEquippedPartSnapshot& EquippedPart : Build.EquippedParts)
+	{
+		const FReEchoCsvPartRow* Part = Snapshot.Parts.Find(EquippedPart.PartId);
+		if (!Part || !Part->bEnabled)
+		{
+			continue;
+		}
+		for (const FReEchoCsvPartEffectRow& Effect : Part->Effects)
+		{
+			ApplyPartEffectToAttackSteps(Effect, OutDefinition.AttackSteps);
+		}
 	}
 	OutError.Reset();
 	return true;

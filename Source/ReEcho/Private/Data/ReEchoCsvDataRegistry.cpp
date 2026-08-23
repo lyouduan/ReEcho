@@ -33,6 +33,8 @@ constexpr const TCHAR* SlotTypesTableId = TEXT("SlotTypes");
 constexpr const TCHAR* SlotProfilesTableId = TEXT("SlotProfiles");
 constexpr const TCHAR* PartsTableId = TEXT("Parts");
 constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
+constexpr const TCHAR* ShopPriceRangesTableId = TEXT("shop_price_ranges");
+constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
 constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
 constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
 constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
@@ -195,13 +197,14 @@ TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDa
 
 TArray<FString> GetRequiredTableIds()
 {
-	return {RuntimeSmokeTableId, RuntimeSmokeEffectsTableId, CharactersTableId,    CharacterAliasesTableId,
-	        CardsTableId,        CardEffectsTableId,         ElementsTableId,      StatusesTableId,
-	        ReactionsTableId,    WeaponTypesTableId,         WeaponsTableId,       AttackStepsTableId,
-	        SlotTypesTableId,    SlotProfilesTableId,        PartsTableId,         PartEffectsTableId,
-	        EnemiesTableId,      EnemyAbilitiesTableId,      BossPhasesTableId,    EnemyCombatStatsTableId, StagesTableId,
-	        EncountersTableId,   EncounterWavesTableId,      SpawnProfilesTableId, SpawnPolicyTableId,
-        AttributesTableId};
+	return {RuntimeSmokeTableId, RuntimeSmokeEffectsTableId, CharactersTableId,     CharacterAliasesTableId,
+	        CardsTableId,        CardEffectsTableId,         ElementsTableId,       StatusesTableId,
+	        ReactionsTableId,    WeaponTypesTableId,         WeaponsTableId,        AttackStepsTableId,
+	        SlotTypesTableId,    SlotProfilesTableId,        PartsTableId,          PartEffectsTableId,
+	        ShopPriceRangesTableId, ShopDropLevelsTableId,
+	        EnemiesTableId,      EnemyAbilitiesTableId,      BossPhasesTableId,     EnemyCombatStatsTableId,
+	        StagesTableId,       EncountersTableId,          EncounterWavesTableId, SpawnProfilesTableId,
+	        SpawnPolicyTableId,  AttributesTableId};
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
@@ -269,9 +272,9 @@ bool ReadRuntimeSmokeTable(const FString& DataDirectory,
 }
 
 bool ReadAttributesTable(const FString& DataDirectory,
-                          const ReEchoCsv::FManifestEntry& Entry,
-                          FReEchoCsvDataSnapshot& Snapshot,
-                          TArray<FReEchoCsvIssue>& Issues)
+                         const ReEchoCsv::FManifestEntry& Entry,
+                         FReEchoCsvDataSnapshot& Snapshot,
+                         TArray<FReEchoCsvIssue>& Issues)
 {
 	ReEchoCsv::FTable Table;
 	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
@@ -315,14 +318,15 @@ bool ReadAttributesTable(const FString& DataDirectory,
 		Snapshot.AttributeOrder.Add(Attr.Id);
 	}
 
-	Snapshot.AttributeOrder.Sort([&Snapshot](const FName& A, const FName& B)
-	{
-		const FReEchoCsvAttributeRow* RA = Snapshot.Attributes.Find(A);
-		const FReEchoCsvAttributeRow* RB = Snapshot.Attributes.Find(B);
-		const int32 OA = RA ? RA->DisplayOrder : 0;
-		const int32 OB = RB ? RB->DisplayOrder : 0;
-		return OA < OB;
-	});
+	Snapshot.AttributeOrder.Sort(
+	    [&Snapshot](const FName& A, const FName& B)
+	    {
+		    const FReEchoCsvAttributeRow* RA = Snapshot.Attributes.Find(A);
+		    const FReEchoCsvAttributeRow* RB = Snapshot.Attributes.Find(B);
+		    const int32 OA = RA ? RA->DisplayOrder : 0;
+		    const int32 OB = RB ? RB->DisplayOrder : 0;
+		    return OA < OB;
+	    });
 
 	return Issues.Num() == 0;
 }
@@ -536,7 +540,8 @@ const FReEchoCsvEnemyRow* FReEchoCsvDataSnapshot::FindEnabledEnemy(const FName E
 	return Enemy && Enemy->bEnabled ? Enemy : nullptr;
 }
 
-const FReEchoCsvEnemyCombatStatRow* FReEchoCsvDataSnapshot::FindEnemyCombatStat(const FName EnemyId, const int32 CombatIndex) const
+const FReEchoCsvEnemyCombatStatRow* FReEchoCsvDataSnapshot::FindEnemyCombatStat(const FName EnemyId,
+                                                                                const int32 CombatIndex) const
 {
 	const FName CompositeKey = FName(*FString::Printf(TEXT("%s#%d"), *EnemyId.ToString(), CombatIndex));
 	return EnemyCombatStats.Find(CompositeKey);
@@ -599,24 +604,24 @@ const FReEchoCsvSpawnProfileRow* FReEchoCsvDataSnapshot::FindSpawnProfileByRole(
 
 const FReEchoCsvSpawnPolicyRow* FReEchoCsvDataSnapshot::FindEnabledSpawnPolicy() const
 {
-for (const TPair<FName, FReEchoCsvSpawnPolicyRow>& Pair : SpawnPolicies)
-{
-	if (Pair.Value.bEnabled)
+	for (const TPair<FName, FReEchoCsvSpawnPolicyRow>& Pair : SpawnPolicies)
 	{
-		return &Pair.Value;
+		if (Pair.Value.bEnabled)
+		{
+			return &Pair.Value;
+		}
 	}
-}
-return nullptr;
+	return nullptr;
 }
 
 const FReEchoCsvAttributeRow* FReEchoCsvDataSnapshot::FindAttribute(FName AttributeId) const
 {
-return Attributes.Find(AttributeId);
+	return Attributes.Find(AttributeId);
 }
 
 const TArray<FName>& FReEchoCsvDataSnapshot::GetAttributeOrder() const
 {
-return AttributeOrder;
+	return AttributeOrder;
 }
 
 FString FReEchoCsvLoadResult::FormatIssues() const
@@ -691,6 +696,8 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	}
 	RegisterBehaviorId(TEXT("Status.ElementImmunity"));
 	RegisterBehaviorId(TEXT("Status.Burn"));
+	RegisterBehaviorId(TEXT("Status.Stun"));
+	RegisterBehaviorId(TEXT("Status.Bleeding"));
 	RegisterBehaviorId(TEXT("Reaction.Burn"));
 	RegisterBehaviorId(TEXT("Reaction.Vaporize"));
 	RegisterBehaviorId(TEXT("Reaction.Growth"));
@@ -707,6 +714,30 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterBehaviorId(TEXT("Part.StatModifier"));
 	RegisterBehaviorId(TEXT("Part.AttackPatternReplacement"));
 	RegisterBehaviorId(TEXT("Part.OnKillHealPercent"));
+	for (const FName BehaviorId : {
+	         FName(TEXT("Part.ProjectileSplitOnHit")),
+	         FName(TEXT("Part.ProjectilePierceOnCritical")),
+	         FName(TEXT("Part.ApplyBleedOnCritical")),
+	         FName(TEXT("Part.DropShardOnKill")),
+	         FName(TEXT("Part.MoveSpeedOnKill")),
+	         FName(TEXT("Part.AttackMoveSpeedOnAttack")),
+	         FName(TEXT("Part.RangeOnGroupHit")),
+	         FName(TEXT("Part.HealOnHit")),
+	         FName(TEXT("Part.StunOnHit")),
+	         FName(TEXT("Part.BleedEveryTargetHits")),
+	         FName(TEXT("Part.OuterRingDamage")),
+	         FName(TEXT("Part.MoveSpeedPerHit")),
+	         FName(TEXT("Part.InvulnerableOnGroupHit")),
+	         FName(TEXT("Part.AttackSpeedPerHit")),
+	         FName(TEXT("Part.ScytheThrowRecall")),
+	         FName(TEXT("Part.DropShardEveryHits")),
+	         FName(TEXT("Part.MeteorOnGroupHit")),
+	         FName(TEXT("Part.ApplyBleedOnHitChance")),
+	         FName(TEXT("Part.AttackSpeedOnAttack")),
+	     })
+	{
+		RegisterBehaviorId(BehaviorId);
+	}
 	RegisterBehaviorId(TEXT("Enemy.Grunt"));
 	RegisterBehaviorId(TEXT("Enemy.Shield"));
 	RegisterBehaviorId(TEXT("Enemy.Bomber"));

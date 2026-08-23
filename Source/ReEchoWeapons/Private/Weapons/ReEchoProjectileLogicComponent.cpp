@@ -23,6 +23,7 @@ bool UReEchoProjectileLogicComponent::InitializeProjectile(const FReEchoLogicalP
 	const FVector Direction = Spec.Direction.GetSafeNormal();
 	Velocity = (Direction.IsNearlyZero() ? FVector::ForwardVector : Direction) * Spec.SpeedCmPerSecond;
 	TravelledCm = 0.0f;
+	HitTargets.Reset();
 	bActive = true;
 	SetComponentTickEnabled(true);
 	OnProjectileUpdated.Broadcast(GetSnapshot());
@@ -75,7 +76,7 @@ void UReEchoProjectileLogicComponent::Advance(const float DeltaTime)
 	{
 		AActor* Candidate = *It;
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
-		if (!Target || !Target->IsCombatTargetAlive() ||
+		if (!Target || !Target->IsCombatTargetAlive() || HitTargets.Contains(Candidate) ||
 		    !ReEchoCombatRelations::CanDamage(
 		        Spec.HitIntent.Attack, *Candidate, Spec.HitIntent.bAllowSameFactionDamage))
 		{
@@ -83,8 +84,11 @@ void UReEchoProjectileLogicComponent::Advance(const float DeltaTime)
 		}
 		if (Target->IntersectsCombatPath(PreviousLocation, NewLocation, Spec.CarrierRadiusCm))
 		{
-			ApplyAtLocation(Target->GetCombatTargetLocation(), Candidate);
-			Expire();
+			const FReEchoHitResolved DirectResult = ApplyAtLocation(Target->GetCombatTargetLocation(), Candidate);
+			if (!Spec.bPierceOnCritical || !DirectResult.bCritical || DirectResult.AppliedDamage <= 0.0f)
+			{
+				Expire();
+			}
 			return;
 		}
 	}
@@ -105,36 +109,41 @@ FReEchoHitResolved UReEchoProjectileLogicComponent::ResolveIntent(AActor* Target
 	return ReEchoHitResolver::ResolveHit(Intent);
 }
 
-void UReEchoProjectileLogicComponent::ApplyAtLocation(const FVector& ImpactLocation, AActor* DirectTarget)
+FReEchoHitResolved UReEchoProjectileLogicComponent::ApplyAtLocation(const FVector& ImpactLocation, AActor* DirectTarget)
 {
-	TSet<TWeakObjectPtr<AActor>> AppliedTargets;
+	FReEchoHitResolved DirectResult;
 	auto Apply = [&](AActor* Candidate)
 	{
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
-		if (!Target || !Target->IsCombatTargetAlive() || AppliedTargets.Contains(Candidate) ||
+		if (!Target || !Target->IsCombatTargetAlive() || HitTargets.Contains(Candidate) ||
 		    !ReEchoCombatRelations::CanDamage(
 		        Spec.HitIntent.Attack, *Candidate, Spec.HitIntent.bAllowSameFactionDamage))
 		{
-			return;
+			return FReEchoHitResolved{};
 		}
-		AppliedTargets.Add(Candidate);
+		HitTargets.Add(Candidate);
 		const FReEchoHitResolved Result = ResolveIntent(Candidate, Target->GetCombatTargetLocation());
 		OnProjectileImpacted.Broadcast(GetSnapshot(), Result);
+		return Result;
 	};
 
 	if (Spec.ExplosionRadiusCm <= 0.0f)
 	{
-		Apply(DirectTarget);
-		return;
+		return Apply(DirectTarget);
 	}
 	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
 	{
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(*It);
 		if (Target && FVector::Dist2D(ImpactLocation, Target->GetCombatTargetLocation()) <= Spec.ExplosionRadiusCm)
 		{
-			Apply(*It);
+			const FReEchoHitResolved Result = Apply(*It);
+			if (*It == DirectTarget)
+			{
+				DirectResult = Result;
+			}
 		}
 	}
+	return DirectResult;
 }
 
 void UReEchoProjectileLogicComponent::Expire()

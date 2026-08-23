@@ -17,6 +17,7 @@
 #include "NiagaraSystem.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
+#include "Weapons/ReEchoWeaponActor.h"
 
 AReEchoProjectileActor::AReEchoProjectileActor()
 {
@@ -59,17 +60,26 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                   const float InExplosionRadiusCm,
                                                   const float InMaxRangeCm,
                                                   const FReEchoAttackIdentity InAttack,
+                                                  const bool bInCritical,
                                                   const EReEchoDamageSource InDamageSourceType,
-                                                  const FName InWeaponVisualKey)
+                                                  const FName InWeaponVisualKey,
+                                                  const bool bInPierceOnCritical,
+                                                  AReEchoWeaponActor* InRuneHost,
+                                                  TSharedPtr<FReEchoWeaponRuneAttackContext> InRuneContext,
+                                                  const bool bInAllowSplit)
 {
 	Damage = FMath::Max(0.f, InDamage);
 	Element = InElement;
 	ExplosionRadiusCm = FMath::Max(0.0f, InExplosionRadiusCm);
 	WeaponVisualKey = InWeaponVisualKey;
+	RuneHost = InRuneHost;
+	RuneContext = MoveTemp(InRuneContext);
+	bAllowSplit = bInAllowSplit;
 	bImpactVfxSpawned = false;
 	FReEchoLogicalProjectileSpec Spec;
 	Spec.HitIntent.Attack = InAttack;
 	Spec.HitIntent.RawDamage = Damage;
+	Spec.HitIntent.bCritical = bInCritical;
 	Spec.HitIntent.DamageSource = InDamageSourceType;
 	Spec.HitIntent.Element = Element;
 	Spec.HitIntent.ReactionEfficiency = FMath::Max(0.0f, InReactionEfficiency);
@@ -79,6 +89,7 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 	Spec.CarrierRadiusCm = Collision->GetScaledSphereRadius();
 	Spec.ExplosionRadiusCm = ExplosionRadiusCm;
 	Spec.MaximumRangeCm = FMath::Max(1.0f, InMaxRangeCm);
+	Spec.bPierceOnCritical = bInPierceOnCritical;
 	if (!ProjectileLogic->InitializeProjectile(Spec))
 	{
 		Destroy();
@@ -151,6 +162,10 @@ void AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKe
 void AReEchoProjectileActor::HandleProjectileImpact(const FReEchoProjectileSnapshot& Snapshot,
                                                     const FReEchoHitResolved& Result)
 {
+	if (RuneHost.IsValid() && RuneContext.IsValid())
+	{
+		RuneHost->HandleProjectileResolved(RuneContext, Snapshot, Result, bAllowSplit);
+	}
 	if (bImpactVfxSpawned || Result.AppliedDamage <= 0.0f)
 	{
 		return;

@@ -650,7 +650,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 
 	FReEchoEnemyActionIntent Intent;
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (IsAlive() && WorldTime >= CardStunnedUntilWorldTime)
+	if (IsAlive() && WorldTime >= CardStunnedUntilWorldTime && (!Combatant || !Combatant->IsActionDisabled(WorldTime)))
 	{
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
@@ -833,6 +833,14 @@ void AReEchoEnemyActor::ApplyCardStun(const float DurationSeconds)
 {
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	CardStunnedUntilWorldTime = FMath::Max(CardStunnedUntilWorldTime, WorldTime + FMath::Max(0.0f, DurationSeconds));
+	if (Combatant)
+	{
+		FReEchoTimedStatusCommand Command;
+		Command.StatusId = TEXT("Z_Vertigo");
+		Command.CurrentTimeSeconds = WorldTime;
+		Command.DurationSeconds = DurationSeconds;
+		Combatant->ApplyTimedStatus(Command);
+	}
 }
 
 void AReEchoEnemyActor::SetCardMovementMultiplier(const float Multiplier)
