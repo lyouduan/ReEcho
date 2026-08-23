@@ -676,6 +676,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	AdvanceEnemyProjectiles(DeltaSeconds);
 	if (bDeathSequenceStarted)
 	{
+		EnemyPresentation->Advance(BuildPresentationSnapshot(false), DeltaSeconds);
 		return;
 	}
 	if (IsAlive())
