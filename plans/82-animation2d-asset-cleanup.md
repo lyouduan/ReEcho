@@ -11,11 +11,11 @@
 - 本地规划 / 实现基线：`origin/main@7c69a037`；当前主工作区中未提交的 `Content/ReEcho/Art/Animation2D/**` 与相关 Profile 仅作为用户已确认的美术输入源，不在主工作区直接实施。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:/Users/binnanliang/Documents/ReEcho-worktrees/animation2d-asset-cleanup`，分支 `codex/animation2d-asset-cleanup`。
 - 依赖 / 阻塞：发布本 Plan 后，将当前主工作区内具名动画资产增量安全复制到独立 worktree；所有 `.uasset` 重命名、移动、导入和引用修复必须通过 Unreal Editor API 完成。当前 `WBP_ReEchoSettings` 残留变量 GUID ensure 会阻塞通用 Automation 入口，须与动画结果分开记录。
-- Writes: `Content/ReEcho/Art/Animation2D/**`；`Content/ReEcho/DataAsset/{Character,Enemy,Common}/**` 中 Animation2D Profile/FSM/Catalog；`Config/DefaultGameplayTags.ini`（若存在 Idle 原生标签声明）；`Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/**`；主模块 Animation2D Host 适配与聚焦测试；`scripts/ue/*animation*`、`scripts/ue/*presentation*` 中仍使用旧动画契约的脚本；`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；本 Plan；精选 Win64 Editor 预构建包。
+- Writes: `Content/ReEcho/Art/Animation2D/**`；`Content/ReEcho/DataAsset/{Character,Enemy,Common}/**` 中 Animation2D Profile/FSM/Catalog；`Config/DefaultGameplayTags.ini`（若存在 Idle 原生标签声明）；`Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/**`；`Source/ReEchoCombat/{Public,Private}/Combat/**` 的致死事件契约；`Source/ReEchoEnemies/{Public,Private}/Enemies/**` 的 Dead 行为终止；主模块 Enemy Host、Enemy Presentation 与聚焦测试；`scripts/ue/*animation*`、`scripts/ue/*presentation*` 中仍使用旧动画契约的脚本；`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；本 Plan；精选 Win64 Editor 预构建包。
 - Stable Reads: 当前主工作区未提交动画资产、`Source/ReEchoPresentation/**`、主模块 Player/Enemy Presentation Host、Plan40/50/71/74/77、`shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`。
 - 影响模式：`Exclusive`；大量二进制动画资产与 Profile 迁移不可文本合并，且公共 Animation2D 语义契约变化会影响玩家、Echo 和全部怪物表现。
 - 兼容承诺 / 下游操作：Gameplay、AI、伤害、移动和死亡权威不变；缺少某语义 Clip 合法且不再作为错误；请求未配置语义时保持当前有效表现，不借用其他语义 Clip；动作结束优先回到 `Move` 基础循环，没有 `Move` 时保持当前安全表现。旧资产路径仅在迁移期间通过 Editor Redirector/fixup 保证引用收口，发布候选不得依赖未提交 Redirector。
-- 明确排除：不重画贴图、不改变帧内容或主观播放速度；不补造角色本来不存在的动作；除下述敌人终结死亡收口外，不修改其他战斗/VFX/武器时序；不顺带修复 `WBP_ReEchoSettings`；不整理 `Content/ReEcho/Art/Animation2D` 之外的通用 VFX 纹理库。
+- 明确排除：不重画贴图、不改变帧内容或主观播放速度；不补造角色本来不存在的动作；除怪物致死帧抑制普通 Hurt 表现、终止当前攻击/VFX/武器表现外，不修改其他战斗/VFX/武器时序；不销毁已经脱离怪物生成的投射物；不顺带修复 `WBP_ReEchoSettings`；不整理 `Content/ReEcho/Art/Animation2D` 之外的通用 VFX 纹理库。
 
 ## 锁定目标
 
@@ -23,10 +23,12 @@
 
 从公共动画契约中删除 `Animation.Idle`。除 `Move` 基础循环外，Charge、Attack、Hit、Transform、Born、Death 等状态全部为角色可选能力：Profile 未配置即表示该角色不需要该表现，请求该语义时不得报契约错误、不得借用另一语义动画，也不得影响玩法结果。
 
+怪物受到致死伤害时原子化进入唯一终结态：不再发布普通 Hurt 表现，不再接受伤害、移动、攻击或切换其他动画；立即终止当前攻击判定、受击/蓄力/攻击 VFX 与 Boss 手持武器表现，只播放一次不可中断的 Death Flipbook。Death 播放完成后销毁怪物；缺少有效 Death Clip 时立即销毁；完成事件失效时按实际 Flipbook 时长加小幅余量的安全超时销毁。
+
 ## 架构影响与设计决策
 
-- 受影响架构标识：`MOD-ReEchoPresentation` / `AREA-Presentation` 直接修改；`MOD-ReEcho` 的 Player/Enemy Host 适配和测试受公共契约影响。`MOD-ReEchoEnemies` 仅作为只读事件来源审阅，不改变其 AI/行为权威。
-- 对应模块文档：维护 `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md` 与 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`，两者已加入 `Writes`；审阅 `MOD-ReEchoEnemies.md` 并在本 Plan 记录是否需要更新。
+- 受影响架构标识：`MOD-ReEchoPresentation` / `AREA-Presentation` 直接修改；`MOD-ReEcho` 的 Enemy Host/Presentation 负责死亡生命周期；`MOD-ReEchoCombat` 增加致死事件标识并抑制普通 Hurt 发布；`MOD-ReEchoEnemies` 在 Dead 后终止行为提交。伤害结算权威仍归 Combat，Actor 销毁权威仍归 Host。
+- 对应模块文档：维护 `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`MOD-ReEcho.md`、`MOD-ReEchoCombat.md` 与 `MOD-ReEchoEnemies.md`，四者均已加入 `Writes`。
 - 设计意图：Profile 是“该外观真正拥有的表现能力集合”，不是要求每个角色填写同一张完整状态表。Gameplay 仍可发送统一语义事件，Presentation 对缺失能力做无副作用忽略。
 - 权威状态与依赖：删除 `Idle` 公共语义和 FSM 状态；默认稳定表现从 Idle 改为可选 `Move` 基础循环。资产所有权仍归 Character/Enemy Profile，状态播放仍归 Presentation Controller，依赖方向不变。
 - 决策记录：不再用 Walk/Hit 等现有 Flipbook填充缺失 Charge/Death；这种占位虽然能通过旧“全状态必填”审计，但会制造错误表现。保留统一语义事件接口，同时把 Profile Clip 变为稀疏集合，可兼容不同角色能力。
@@ -51,6 +53,9 @@
 - [ ] `ReEcho.Presentation.Animation2D` 与相关 Player/Enemy Presentation 测试通过；若仍被独立 UI 基线 ensure 阻塞，必须提供绕过 UI 的等价聚焦审计证据并明确未运行项。
 - [ ] `-FullRebuild`、项目校验、预构建包校验和 `git diff --check` 通过。
 - [ ] 用户在 PIE 验收玩家/Echo/兔子/狐狸/山羊/史莱姆的移动、攻击、变身、出生、受击和死亡中实际存在的动作；确认无首帧闪烁、错误循环或动作结束卡死。
+- [ ] 致死命中不启动 Hit 动画、受击抖动或受击 VFX；伤害数字是否显示保持现有独立 UI 规则，Death 事件只触发一次。
+- [ ] Death 期间目标不再受伤、移动、攻击、生成新投射物或切换状态；攻击碰撞、血条、非死亡 VFX 与 Boss 武器表现均退出。
+- [ ] 有 Death Clip 时严格播放一次且不可中断，完成后立即销毁；无有效 Clip 时立即销毁；完成通知异常时按实际动画长度计算的兜底超时销毁。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -67,9 +72,9 @@
 2. 扩展只读审计，输出源贴图导入缺口、重复 FSM、Profile 稀疏语义覆盖、Flipbook→Sprite→Texture 完整性和 Redirector 状态。
 3. 通过 UE Editor API 导入未加载贴图、创建/修复 Sprite 与 Flipbook，并按统一目录/语义重命名移动；先修引用再删除旧资产。
 4. 删除 `Animation.Idle` 并把 Controller/Host 完成归宿改为 `Move` 或安全 no-op；允许 Profile 稀疏 Clip，不再补造动作。
-5. 更新生产 Profile、FSM、Catalog、脚本、测试和模块文档，运行聚焦审计与自动化。
-6. 完整重编译并刷新预构建包，执行项目/差异验证；提交候选后请求 PIE 人工验收，验收前保持 `Review`。
-7. 收口敌人终结死亡：致命 Hurt 显式标记并抑制普通受击表现；Host 立即停止 Logic、碰撞、新攻击及非死亡表现，保留已发射投射物；Death 独占播放一次，实际完成后销毁，缺失 Clip 时下一安全帧销毁，并以实际动画时长加宽限作为防卡死 watchdog。
+5. 增加 Enemy Actor 拥有的死亡生命周期与 Presentation 专用终结播放接口；致死帧抑制普通 Hurt 表现，清理玩法/表现状态，并以动画完成、缺失 Clip 或动态超时三条路径统一销毁。
+6. 更新生产 Profile、FSM、Catalog、脚本、测试和四个受影响模块文档，运行聚焦审计与自动化。
+7. 完整重编译并刷新预构建包，执行项目/差异验证；提交候选后请求 PIE 人工验收，验收前保持 `Review`。
 
 ## 验证矩阵
 
