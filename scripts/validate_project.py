@@ -2140,6 +2140,15 @@ def validate_build_dependencies() -> None:
     default_game = (ROOT / "Config" / "DefaultGame.ini").read_text(encoding="utf-8")
     if '+DirectoriesToAlwaysCook=(Path="/Game/VFX")' not in default_game:
         fail("Config/DefaultGame.ini must always cook the runtime combat VFX directory")
+    for runtime_ui_directory in (
+        "/Game/ReEcho/Textures/UI/Cards",
+        "/Game/ReEcho/Textures/UI/WeaponParts/Icons",
+    ):
+        if f'+DirectoriesToAlwaysCook=(Path="{runtime_ui_directory}")' not in default_game:
+            fail(
+                "Config/DefaultGame.ini must always cook dynamically loaded UI assets from "
+                f"{runtime_ui_directory}"
+            )
     presentation_modules = [
         module for module in descriptor.get("Modules", []) if module.get("Name") == "ReEchoPresentation"
     ]
