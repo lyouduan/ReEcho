@@ -113,19 +113,23 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Conduct damage increase comes from CSV"), Conduct->DamageIncrease, 2.0f);
 	TestEqual(TEXT("Six workbook reactions are enabled"), Snapshot->Reactions.Num(), 6);
 
-	const FReEchoCsvEnemyRow* Boss = Snapshot->FindEnabledEnemy(TEXT("M_TimeGuard"));
+	// WS4 (Plan 68): the authoritative boss is M_SHEEP (blood-bar-depleted two-form).
+	const FReEchoCsvEnemyRow* Boss = Snapshot->FindEnabledEnemy(TEXT("M_SHEEP"));
 	if (!TestTrue(TEXT("Stable boss EnemyId resolves from CSV"), Boss != nullptr))
 	{
 		return false;
 	}
 	TestEqual(TEXT("Seven enemy definitions include compatibility and Kepler rows"), Snapshot->Enemies.Num(), 7);
-	TestEqual(TEXT("Boss health comes from enemy CSV"), Boss->MaxHealth, 650.0f);
-	TestEqual(TEXT("Boss owns four active abilities plus cleanse"), Boss->Abilities.Num(), 5);
-	TestEqual(TEXT("Boss active rotation begins with melee sweep"),
-	          Boss->Abilities[1].BehaviorId,
+	TestEqual(TEXT("Boss one-form health comes from enemy CSV"), Boss->MaxHealth, 1300.0f);
+	TestEqual(TEXT("Boss owns five behaviors (melee + volley + spread + blink + beam)"), Boss->Abilities.Num(), 5);
+	TestEqual(TEXT("Boss active rotation begins with the melee basic attack"),
+	          Boss->Abilities[0].BehaviorId,
 	          FName(TEXT("Boss.MeleeSweep")));
-	TestEqual(TEXT("Boss owns the thirty-second phase"), Boss->BossPhases.Num(), 1);
-	TestEqual(TEXT("Boss phase trigger comes from CSV"), Boss->BossPhases[0].TriggerSeconds, 30.0f);
+	TestEqual(TEXT("Boss ships two phases (one-form + blood-depleted two-form)"), Boss->BossPhases.Num(), 2);
+	TestEqual(TEXT("Phase-two maximum health is the black-form ceiling"), Boss->BossPhases[1].PhaseMaxHealth, 650.0f);
+	TestEqual(TEXT("Phase-two refill policy is RefillToMaximum"),
+	          Boss->BossPhases[1].RefillHealthPolicy,
+	          TEXT("RefillToMaximum"));
 	TestNotNull(TEXT("Kepler slime resolves by stable id"), Snapshot->FindEnabledEnemy(TEXT("M_SLIME")));
 	TestNotNull(TEXT("Kepler rabbit resolves by stable id"), Snapshot->FindEnabledEnemy(TEXT("M_RABBIT")));
 	TestNotNull(TEXT("Kepler fox resolves by stable id"), Snapshot->FindEnabledEnemy(TEXT("M_FOX")));

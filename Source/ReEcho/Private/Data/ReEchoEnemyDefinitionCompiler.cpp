@@ -1,6 +1,7 @@
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Core/ReEchoBalanceSettings.h"
 
 namespace
 {
@@ -88,7 +89,8 @@ bool ParseLockTiming(const FName Value, EReEchoBossLockTiming& OutTiming)
 bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapshot,
                                             const FName EnemyId,
                                             FReEchoEnemyDefinition& OutDefinition,
-                                            FString& OutError)
+                                            FString& OutError,
+                                            const int32 CombatIndex)
 {
 	OutDefinition = FReEchoEnemyDefinition{};
 	OutError.Reset();
@@ -108,11 +110,25 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	}
 	OutDefinition.PresentationId = Row->PresentationId;
 	OutDefinition.MaxHealth = Row->MaxHealth;
-	OutDefinition.MoveSpeedCmPerSecond = Row->MoveSpeedCmPerSecond;
+	OutDefinition.MoveSpeedCmPerSecond = GetDefault<UReEchoBalanceSettings>()->BaseMoveSpeed * Row->MoveSpeedMultiplier;
 	OutDefinition.CollisionRadiusCm = Row->CollisionRadiusCm;
 	OutDefinition.CollisionHalfHeightCm = Row->CollisionHalfHeightCm;
 	OutDefinition.ContactDamage = Row->ContactDamage;
 	OutDefinition.AttackIntervalSeconds = Row->AttackIntervalSeconds;
+	// Per-combat growth (怪物.xlsx 战斗场次 C1-C8): when a valid CombatIndex is supplied, override the
+	// base stats with the combat-specific row. Missing rows (e.g. Boss/legacy enemies) fall back to base.
+	if (CombatIndex >= 1)
+	{
+		if (const FReEchoCsvEnemyCombatStatRow* Stat = Snapshot.FindEnemyCombatStat(EnemyId, CombatIndex))
+		{
+			OutDefinition.MaxHealth = Stat->MaxHealth;
+			OutDefinition.ContactDamage = Stat->ContactDamage;
+			OutDefinition.AttackIntervalSeconds = Stat->AttackIntervalSeconds;
+		}
+	}
+	// WS1 (Plan 68): aggro / sensing range is now data-driven from the authoritative Enemies worksheet
+	// (planner 变身范围 / 索敌范围). Bosses keep 0 so they never wander (legacy pursuit-only behavior).
+	OutDefinition.HateRangeCm = Row->HateRangeCm;
 	OutDefinition.ContactRangeCm = Row->ContactRangeCm;
 	OutDefinition.MovementStopDistanceCm = Row->MovementStopDistanceCm;
 	OutDefinition.HitReactionDurationSeconds = Row->HitReactionDurationSeconds;
@@ -131,6 +147,12 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 	OutDefinition.Phase2.TriggerRangeCm = Row->Phase2TriggerRangeCm;
 	OutDefinition.Phase2.RequiredAttackCount = Row->Phase2RequiredAttackCount;
 	OutDefinition.Phase2.TransformSeconds = Row->Phase2TransformSeconds;
+	// WS4 (Plan 68): blood-depleted trigger model. "HealthThreshold" makes the boss transform when its health ratio
+	// reaches the configured threshold; otherwise the legacy attack-count/range model applies.
+	OutDefinition.Phase2.TriggerMode = Row->Phase2TriggerMode.Equals(TEXT("HealthThreshold"), ESearchCase::IgnoreCase)
+	                                       ? EReEchoEnemyPhase2TriggerMode::HealthThreshold
+	                                       : EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
+	OutDefinition.Phase2.HealthThresholdRatio = Row->Phase2HealthThresholdRatio;
 	OutDefinition.Phase2.AnimationSetId = TEXT("Phase2");
 
 	for (const FReEchoCsvEnemyAbilityRow& AbilityRow : Row->Abilities)
@@ -154,6 +176,9 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		Ability.TeleportOffsetCm = AbilityRow.TeleportOffsetCm;
 		Ability.CleanseIntervalSeconds = AbilityRow.CleanseIntervalSeconds;
 		Ability.ImmunitySeconds = AbilityRow.ImmunitySeconds;
+		Ability.ProjectileCount = AbilityRow.ProjectileCount;
+		Ability.SpreadAngleDegrees = AbilityRow.SpreadAngleDegrees;
+		Ability.bMovementDuringCast = AbilityRow.bMovementDuringCast;
 		if (!ParseTargetingMode(AbilityRow.TargetingMode, Ability.TargetingMode))
 		{
 			OutError = FString::Printf(TEXT("Enemy ability '%s' has unsupported targeting mode '%s'."),
@@ -176,7 +201,11 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		Phase.Id = PhaseRow.Id;
 		Phase.PhaseIndex = PhaseRow.PhaseIndex;
 		Phase.TriggerSeconds = PhaseRow.TriggerSeconds;
-		if (PhaseRow.EchoPolicy == TEXT("DestroyEncounterEchoes"))
+		if (PhaseRow.EchoPolicy == TEXT("None"))
+		{
+			Phase.EchoPolicy = EReEchoBossEchoPolicy::None;
+		}
+		else if (PhaseRow.EchoPolicy == TEXT("DestroyEncounterEchoes"))
 		{
 			Phase.EchoPolicy = EReEchoBossEchoPolicy::RetireEncounterEchoes;
 		}
@@ -191,6 +220,7 @@ bool ReEchoEnemyDefinitionCompiler::Compile(const FReEchoCsvDataSnapshot& Snapsh
 		Phase.ElementalAttackMultiplier = PhaseRow.ElementalAttackMultiplier;
 		Phase.AttackSpeedMultiplier = PhaseRow.AttackSpeedMultiplier;
 		Phase.MovementSpeedMultiplier = PhaseRow.MovementSpeedMultiplier;
+		Phase.PhaseMaxHealth = PhaseRow.PhaseMaxHealth;
 		if (PhaseRow.RefillHealthPolicy == TEXT("None"))
 		{
 			Phase.RefillHealthPolicy = EReEchoBossRefillHealthPolicy::None;

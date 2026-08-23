@@ -36,7 +36,21 @@ enum class EReEchoEnemyPhaseTriggerReason : uint8
 {
 	None,
 	AttackCountReached,
-	RangeEntered
+	RangeEntered,
+	// WS4 (Plan 68): second phase entered because the blood bar was depleted (HP reached the configured threshold,
+	// including a full depletion to zero).
+	HealthDepleted
+};
+
+/** How a boss's optional second phase is triggered. Attack-count/range is the legacy model; health-threshold makes
+ *  the transition fire when the current health ratio drops to (or below) HealthThresholdRatio. */
+UENUM(BlueprintType)
+enum class EReEchoEnemyPhase2TriggerMode : uint8
+{
+	// Legacy: trigger on received-attack count or aggro-target entering range (TimeGuard-style).
+	AttackCountOrRange,
+	// Blood-bar depleted transition: trigger when CurrentHealth/HpMax <= HealthThresholdRatio.
+	HealthThreshold
 };
 
 UENUM(BlueprintType)
@@ -181,6 +195,18 @@ struct REECHOENEMIES_API FReEchoEnemyAbilityDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoBossLockTiming LockTiming = EReEchoBossLockTiming::WindupStarted;
 
+	/** Number of projectiles in one volley. 1 = single shot; >1 fans them across SpreadAngleDegrees. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ProjectileCount = 1;
+
+	/** Total fan angle in degrees across the whole volley, centered on the locked aim direction. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float SpreadAngleDegrees = 0.0f;
+
+	/** When true, the enemy keeps moving toward its target during the active/recovery window of this ability. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bMovementDuringCast = false;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bEnabled = false;
 };
@@ -220,6 +246,9 @@ struct REECHOENEMIES_API FReEchoBossPhaseDefinition
 	EReEchoBossRefillHealthPolicy RefillHealthPolicy = EReEchoBossRefillHealthPolicy::None;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float PhaseMaxHealth = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bEnabled = false;
 };
 
@@ -243,6 +272,16 @@ struct REECHOENEMIES_API FReEchoEnemyPhaseTransitionDefinition
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float TransformSeconds = 0.0f;
+
+	/** WS4 (Plan 68): how the second phase is triggered. HealthThreshold makes the boss transform when its health
+	 *  ratio drops to/at HealthThresholdRatio (0 = full depletion). AttackCountOrRange keeps legacy behavior. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	EReEchoEnemyPhase2TriggerMode TriggerMode = EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
+
+	/** WS4 (Plan 68): health ratio threshold for HealthThreshold mode. The transition fires when
+	 *  CurrentHealth/HpMax <= this value. 0.0 means "depleted to zero". Ignored in AttackCountOrRange mode. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float HealthThresholdRatio = 0.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FName AnimationSetId = TEXT("Phase2");
@@ -288,6 +327,10 @@ struct REECHOENEMIES_API FReEchoEnemyDefinition
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float MovementStopDistanceCm = 75.0f;
+
+	/** Aggro / sensing range in cm. Enemy enters combat (wander + aggro) when the player is within this distance. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float HateRangeCm = 520.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float BomberTriggerRadiusCm = 260.0f;
@@ -365,6 +408,20 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bHasTeleportDestination = false;
+
+	/** True when the target is inside this enemy's aggro range or the enemy has been struck; Host-owned. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bInCombat = false;
+
+	/** Host-authored aggro radius in cm. Values <= 0 fall back to pursuit-only (legacy) behavior. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float HateRangeCm = 0.0f;
+
+	/** WS4 (Plan 68): current health ratio (CurrentHealth/HpMax) sampled by the host, clamped to [0,1]. Default 1.0
+	 *  (full/unknown) keeps legacy enemies inert for the blood-depleted phase trigger. Enemy logic never reads the
+	 *  owner's combat component directly. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CurrentHealthRatio = 1.0f;
 };
 
 /** One ordered Boss command. Multiple commands may be emitted by one large deterministic advance. */
@@ -641,6 +698,17 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bBossCurrentAbilityCommitted = false;
+
+	/** Idle-wander state. Direction is re-derived deterministically every WanderPeriodSeconds. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float IdleWanderElapsedSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector IdleWanderDirection = FVector::ForwardVector;
+
+	/** True once the enemy has ever entered combat this encounter (prevents re-wander after aggro). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bHasEngaged = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bAlive = true;

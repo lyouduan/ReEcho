@@ -68,7 +68,9 @@
 
 普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown。兔子/狐狸只有获得 Encounter 的全局许可才可开始前摇，已开始的动作不被撤销；兔子锁点后按半径判断，狐狸锁向后按长度/宽度突进，正面防御沿用 Definition 的明确能力标志。全局窗口与并发令牌不保存在单个 EnemyLogic。Bomber 引信不可取消且只提交一次。
 
-兔子提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 展开三条直线逻辑投射物：中心轨迹锁定目标，两侧按 `ReEchoRabbitProjectilePattern` 的稳定半角展开。Host 使用每条移动线段与“按单球半径扩张后的目标碰撞盒”做连续扫掠，每球向 Combat 提交至多一次命中；命中后该球继续飞行但不再碰撞，直到整组射程结束。能力 `RadiusCm` 是三球碰撞预算，当前 `150 / 3 = 50 cm` 为单球半径；不得从兔子本体碰撞尺寸推导，也不得让 Niagara 粒子参与裁决。三条逻辑轨迹分别发布 Spawned/Moved/Ended，事件携带共享 AttackIdentity、稳定 `VolleyBallIndex`、逻辑位置/方向和只读碰撞半径；Presentation 必须以 `(AttackIdentity, VolleyBallIndex)` 一一投影，不得只消费中心球。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载通用敌方逻辑投射物；重命名需要独立存档迁移。若兔子表内速度仍为 0，Host 临时以 `MaxRangeCm / CooldownSeconds` 推导兼容速度，显式正数表值优先。
+远程敌人提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 按能力表的 `ProjectileCount` 与 `SpreadAngleDegrees` 展开确定性扇形直线投射物；单发沿锁定方向，多发以中心方向对称展开。Host 使用每条移动线段与“按单球半径扩张后的目标碰撞盒”做连续扫掠，每球向 Combat 提交至多一次命中；命中后该球继续飞行但不再碰撞，直到整组射程结束。能力 `RadiusCm` 是整组碰撞预算，单球半径为 `RadiusCm / ProjectileCount`；不得从敌人本体碰撞尺寸推导，也不得让 Niagara 粒子参与裁决。各逻辑轨迹分别发布 Spawned/Moved/Ended，事件携带共享 AttackIdentity、稳定 `VolleyBallIndex`、逻辑位置/方向和只读碰撞半径；Presentation 必须以 `(AttackIdentity, VolleyBallIndex)` 一一投影。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载通用敌方逻辑投射物；重命名需要独立存档迁移。显式正数表内投射物速度优先，兼容数据才按 `MaxRangeCm / CooldownSeconds` 推导。
+
+Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、`M_RABBIT`、`M_FOX`，Boss 为 `M_SHEEP`。`M_SHEEP` 第一阶段最大生命 1300；第一次致命伤由 Combatant 的窄委托交给 EnemyLogic 转为 `HealthDepleted` Phase2 过渡，Host 发布变身事件，完成后按 Phase2 定义把最大生命与当前生命统一设为 650；第二次致命伤沿正常 Combat 死亡路径。未进入仇恨范围的普通怪执行可保存的确定性 IdleWander，一旦进入战斗后不恢复游走；Host 只注入 `bInCombat`、`HateRangeCm` 和当前生命比率，Logic 不读取 GameMode 或 Combatant。
 
 ## 依赖方向
 

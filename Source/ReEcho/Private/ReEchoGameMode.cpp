@@ -196,7 +196,9 @@ void AReEchoGameMode::GMHelp()
 	                   "<Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
-	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> [damage]"));
+	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> [damage] | "
+	                   "GMShowEnemyHealth <On|Off|Toggle> | "
+	                   "GMShowEnemyRange <On|Off|Toggle>"));
 	PrintGMResult(TEXT("Reactions: Flame+Grass=Burn | Flame+Water=Vaporize | Lightning+Grass=Growth | "
 	                   "Lightning+Water=Conduct | Grass+Water=EnhanceGrass | Water+Grass=EnhanceWater"));
 }
@@ -518,6 +520,55 @@ void AReEchoGameMode::GMHeal(const float Amount)
 	Combatant->ApplyHealing(Amount <= 0.0f ? Combatant->Stats.HpMax : Amount);
 	PrintGMResult(FString::Printf(
 	    TEXT("Player HP %.0f -> %.0f/%.0f"), PreviousHealth, Combatant->CurrentHealth, Combatant->Stats.HpMax));
+}
+
+void AReEchoGameMode::GMShowEnemyHealth(const FString& Mode)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	bool bEnable = !bShowEnemyHealthDebug;
+	if (Mode.Equals(TEXT("On"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("1")))
+	{
+		bEnable = true;
+	}
+	else if (Mode.Equals(TEXT("Off"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("0")))
+	{
+		bEnable = false;
+	}
+	else if (!Mode.Equals(TEXT("Toggle"), ESearchCase::IgnoreCase))
+	{
+		PrintGMResult(TEXT("Usage: GMShowEnemyHealth <On|Off|Toggle>"), false);
+		return;
+	}
+	bShowEnemyHealthDebug = bEnable;
+	PrintGMResult(FString::Printf(TEXT("Enemy health overlay=%s."), bEnable ? TEXT("On") : TEXT("Off")));
+}
+
+void AReEchoGameMode::GMShowEnemyRange(const FString& Mode)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	bool bEnable = !bShowEnemyRangeDebug;
+	if (Mode.Equals(TEXT("On"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("1")))
+	{
+		bEnable = true;
+	}
+	else if (Mode.Equals(TEXT("Off"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("0")))
+	{
+		bEnable = false;
+	}
+	else if (!Mode.Equals(TEXT("Toggle"), ESearchCase::IgnoreCase))
+	{
+		PrintGMResult(TEXT("Usage: GMShowEnemyRange <On|Off|Toggle>"), false);
+		return;
+	}
+	bShowEnemyRangeDebug = bEnable;
+	PrintGMResult(FString::Printf(TEXT("Enemy damage-range overlay=%s (red=contact, orange=ranged max)."),
+	                              bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMGod(const FString& Mode)
@@ -1726,7 +1777,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		                                       ? static_cast<EReEchoEnemyKind>(EnemyState.Kind)
 		                                       : EReEchoEnemyKind::Grunt;
 		const FName EnemyId = !EnemyState.EnemyId.IsNone()            ? EnemyState.EnemyId
-		                      : SavedKind == EReEchoEnemyKind::Boss   ? FName(TEXT("M_TimeGuard"))
+		                      : SavedKind == EReEchoEnemyKind::Boss   ? FName(TEXT("M_SHEEP"))
 		                      : SavedKind == EReEchoEnemyKind::Slime  ? FName(TEXT("M_SLIME"))
 		                      : SavedKind == EReEchoEnemyKind::Ranged ? FName(TEXT("M_RABBIT"))
 		                      : SavedKind == EReEchoEnemyKind::Elite  ? FName(TEXT("M_FOX"))
@@ -1735,7 +1786,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		                                                              : FName(TEXT("M_Grunt"));
 		FReEchoEnemyDefinition Definition;
 		FString CompileError;
-		if (!DataSnapshot || !ReEchoEnemyDefinitionCompiler::Compile(*DataSnapshot, EnemyId, Definition, CompileError))
+		if (!DataSnapshot || !ReEchoEnemyDefinitionCompiler::Compile(
+		                         *DataSnapshot, EnemyId, Definition, CompileError, RunSubsystem->EncounterIndex))
 		{
 			UE_LOG(LogTemp, Error, TEXT("Plan48 enemy restore failed: %s"), *CompileError);
 			continue;
@@ -1974,7 +2026,7 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 
 	if (Event.EnemyRole == TEXT("Boss"))
 	{
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f));
+		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), RunSubsystem->EncounterIndex);
 		return;
 	}
 	PrepareScheduledSpawnBatch(Event);
@@ -2013,19 +2065,20 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 
 	for (int32 Index = 0; Index < AllowedCount; ++Index)
 	{
-		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index]);
+		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex);
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
 
-bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation)
+bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex)
 {
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
 	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
 	FReEchoEnemyDefinition Definition;
 	FString CompileError;
-	if (!Snapshot.IsValid() || !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError))
+	if (!Snapshot.IsValid() ||
+	    !ReEchoEnemyDefinitionCompiler::Compile(*Snapshot, EnemyId, Definition, CompileError, CombatIndex))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
 		return false;

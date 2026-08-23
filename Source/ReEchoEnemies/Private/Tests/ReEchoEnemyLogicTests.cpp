@@ -160,6 +160,61 @@ bool FReEchoEnemyContactCadenceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyIdleWanderTest,
+                                 "ReEcho.Enemies.Logic.IdleWander",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyIdleWanderTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Grunt initializes"),
+	         Logic->Initialize(ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt), 3));
+
+	// No target + aggro enabled (HateRangeCm injected by Host) => idle wander, not standing still.
+	FReEchoEnemySenseSnapshot OutOfRange;
+	OutOfRange.SelfLocation = FVector::ZeroVector;
+	OutOfRange.TargetLocation = FVector(2000.0f, 0.0f, 0.0f); // far outside any sane aggro range
+	OutOfRange.HateRangeCm = 520.0f;
+	OutOfRange.bInCombat = false;
+
+	const FReEchoEnemyActionIntent Wander = Logic->Advance(OutOfRange, 1.0f);
+	TestEqual(TEXT("Out-of-range without target stays in Idle phase"),
+	          Logic->GetSnapshot().Phase,
+	          EReEchoEnemyBehaviorPhase::Idle);
+	TestTrue(TEXT("Idle wander emits movement (not standing still)"), Wander.bHasMovement);
+	TestFalse(TEXT("Idle wander never commits an attack"), Wander.bAttackCommitted);
+
+	// Deterministic: identical samples produce bit-identical movement.
+	UReEchoEnemyLogicComponent* Replay = NewObject<UReEchoEnemyLogicComponent>();
+	Replay->Initialize(ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt), 3);
+	const FReEchoEnemyActionIntent ReplayWander = Replay->Advance(OutOfRange, 1.0f);
+	TestEqual(TEXT("Wander direction is deterministic across runs"), ReplayWander.MovementDelta, Wander.MovementDelta);
+
+	// Engage: bring target inside aggro range => pursue and mark engaged.
+	FReEchoEnemySenseSnapshot InRange;
+	InRange.SelfLocation = FVector::ZeroVector;
+	InRange.TargetLocation = FVector(200.0f, 0.0f, 0.0f);
+	InRange.bTargetExists = true;
+	InRange.bTargetAlive = true;
+	InRange.HateRangeCm = 520.0f;
+	InRange.bInCombat = true;
+	const FReEchoEnemyActionIntent Pursue = Logic->Advance(InRange, 0.1f);
+	TestEqual(TEXT("Target inside aggro range switches to Pursuing"),
+	          Logic->GetSnapshot().Phase,
+	          EReEchoEnemyBehaviorPhase::Pursuing);
+	TestTrue(TEXT("Engaged enemy moves toward target"), Pursue.bHasMovement);
+	TestTrue(TEXT("Engagement latches bHasEngaged"), Logic->GetSnapshot().bHasEngaged);
+
+	// Disengage after having engaged => stand still (never re-wander once aggro happened this encounter).
+	Logic->Advance(OutOfRange, 1.0f);
+	const FReEchoEnemyActionIntent AfterDisengage = Logic->Advance(OutOfRange, 1.0f);
+	TestEqual(TEXT("Disengaged-after-engagement idles without re-wander"),
+	          Logic->GetSnapshot().Phase,
+	          EReEchoEnemyBehaviorPhase::Idle);
+	TestFalse(TEXT("No re-wander after engagement"), AfterDisengage.bHasMovement);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyInvulnerableTargetTest,
                                  "ReEcho.Enemies.Logic.InvulnerableTargetConsumesAttack",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -641,6 +696,31 @@ bool FReEchoEnemyPhaseAttackCountTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Snapshot restores transition time"), Restored->GetSnapshot().PhaseTransitionRemainingSeconds, 1.0f);
 	TestTrue(TEXT("Restored transition completes without retrigger"),
 	         Restored->Advance(NoTarget, 1.0f).bPhaseTransitionCompleted);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyFatalWoundPhaseTest,
+                                 "ReEcho.Enemies.Logic.Phase2.FatalWoundIntent",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyFatalWoundPhaseTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
+	Definition.Phase2.Id = TEXT("M_SHEEP_PHASE2");
+	Definition.Phase2.TriggerMode = EReEchoEnemyPhase2TriggerMode::HealthThreshold;
+	Definition.Phase2.HealthThresholdRatio = 0.0f;
+	Definition.Phase2.TransformSeconds = 1.0f;
+	Definition.Phase2.bEnabled = true;
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Health-threshold phase definition initializes"), Logic->Initialize(Definition, 3));
+
+	FReEchoEnemyActionIntent Started;
+	TestTrue(TEXT("Fatal wound starts the health-threshold transition"), Logic->TryTriggerPhase2OnFatalWound(Started));
+	TestTrue(TEXT("Fatal wound preserves the transition-start intent"), Started.bPhaseTransitionStarted);
+	TestEqual(TEXT("Fatal wound reports the health-depleted reason"),
+	          Started.PhaseTriggerReason,
+	          EReEchoEnemyPhaseTriggerReason::HealthDepleted);
+	TestFalse(TEXT("Fatal wound transition cannot start twice"), Logic->TryTriggerPhase2OnFatalWound(Started));
 	return true;
 }
 

@@ -11,6 +11,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "DrawDebugHelpers.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -303,6 +304,34 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
 		RefreshCrowdCollisionIgnores();
 	}
+	// WS4 (Plan 68): arm the blood-depleted second-phase transition. When a lethal hit lands and this boss is
+	// configured for a HealthThreshold phase change it has not yet used, convert the kill into a phase transition
+	// instead of death.
+	Combatant->SetFatalDamageInterceptDelegate(FReEchoFatalDamageIntercept::CreateLambda(
+	    [this](float& InOutHealth) -> bool
+	    {
+		    if (!EnemyLogic || !EnemyLogic->GetDefinition().Phase2.bEnabled)
+		    {
+			    return false;
+		    }
+		    if (EnemyLogic->GetDefinition().Phase2.TriggerMode != EReEchoEnemyPhase2TriggerMode::HealthThreshold)
+		    {
+			    return false;
+		    }
+		    // Arm only while still in phase one and alive; once transformed, normal death rules apply.
+		    const FReEchoEnemyLogicSnapshot& Snapshot = EnemyLogic->GetSnapshot();
+		    if (Snapshot.bPhase2Triggered || Snapshot.CurrentPhaseIndex >= 2 || !Snapshot.bAlive)
+		    {
+			    return false;
+		    }
+		    FReEchoEnemyActionIntent PhaseIntent;
+		    if (!EnemyLogic->TryTriggerPhase2OnFatalWound(PhaseIntent))
+		    {
+			    return false;
+		    }
+		    HandlePhaseTransitionIntent(PhaseIntent);
+		    return true;
+	    }));
 	return true;
 }
 
@@ -698,21 +727,22 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 				Sense.bHasTeleportDestination = !Sense.TeleportDestination.IsNearlyZero();
 			}
 		}
+		// WS5: aggro injection for non-Boss idle wander. HateRangeCm <= 0 disables wander (legacy pursuit-only).
+		const float AggroDistanceCm = FVector::Dist2D(GetActorLocation(), Sense.TargetLocation);
+		Sense.HateRangeCm = EnemyLogic->GetDefinition().HateRangeCm;
+		Sense.bInCombat = Sense.HateRangeCm > 0.0f && AggroDistanceCm <= Sense.HateRangeCm;
 		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
 		Sense.bSpecialActionPermitted =
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		// WS4 (Plan 68): sample current health ratio so the logic layer can drive a blood-depleted phase transition
+		// without reaching into the combat component itself. Full/unknown defaults keep legacy enemies inert.
+		if (Combatant && Combatant->Stats.HpMax > 0.0f)
+		{
+			Sense.CurrentHealthRatio = FMath::Clamp(Combatant->CurrentHealth / Combatant->Stats.HpMax, 0.0f, 1.0f);
+		}
 		const FReEchoEnemyLogicSnapshot PreviousLogicSnapshot = EnemyLogic->GetSnapshot();
 		Intent = AdvanceBehavior(Sense, DeltaSeconds);
-		if (Intent.bPhaseTransitionStarted || Intent.bPhaseTransitionCompleted)
-		{
-			FReEchoEnemyPhaseTransitionEvent PhaseEvent;
-			PhaseEvent.PhaseId = EnemyLogic->GetDefinition().Phase2.Id;
-			PhaseEvent.AnimationSetId = EnemyLogic->GetDefinition().Phase2.AnimationSetId;
-			PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
-			PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
-			PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
-			EnemyEvents->PublishPhaseTransition(PhaseEvent);
-		}
+		HandlePhaseTransitionIntent(Intent);
 		PublishSpecialActionTransition(PreviousLogicSnapshot, Intent);
 		if (ReEchoGameMode && PreviousLogicSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None &&
 		    EnemyLogic->GetSnapshot().SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
@@ -721,6 +751,81 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		}
 	}
 	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement), DeltaSeconds);
+
+#if !UE_BUILD_SHIPPING
+	// GM debug overlay (GMShowEnemyHealth): float remaining HP above the enemy's head when enabled.
+	const AReEchoGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+	if (GM && GM->IsEnemyHealthDebugEnabled() && IsAlive() && Combatant && Combatant->Stats.HpMax > 0.0f)
+	{
+		const FVector HeadLocation = GetActorLocation() + FVector(0.0f, 0.0f, 130.0f);
+		const FString HealthText = FString::Printf(TEXT("HP %.0f / %.0f (%.0f%%)"),
+		                                           Combatant->CurrentHealth,
+		                                           Combatant->Stats.HpMax,
+		                                           100.0f * Combatant->CurrentHealth / Combatant->Stats.HpMax);
+		DrawDebugString(GetWorld(), HeadLocation, HealthText, nullptr, FColor::Green, 0.0f, true, 1.0f);
+	}
+
+	// GM debug overlay (GMShowEnemyRange): draw each enemy's damage range.
+	// Red = contact/melee damage range (ContactRangeCm); Orange = farthest ranged damage range
+	// (largest MaxRangeCm among abilities that deal damage).
+	if (GM && GM->IsEnemyRangeDebugEnabled() && IsAlive() && EnemyLogic)
+	{
+		const FReEchoEnemyDefinition& Def = EnemyLogic->GetDefinition();
+		const FVector Center = GetActorLocation();
+		if (Def.ContactRangeCm > KINDA_SMALL_NUMBER)
+		{
+			DrawDebugCircle(GetWorld(),
+			                Center,
+			                Def.ContactRangeCm,
+			                48,
+			                FColor::Red,
+			                false,
+			                0.0f,
+			                0,
+			                2.0f,
+			                FVector::ForwardVector,
+			                FVector::RightVector);
+			DrawDebugString(GetWorld(),
+			                Center + FVector(Def.ContactRangeCm, 0.0f, 30.0f),
+			                FString::Printf(TEXT("接触 %.0fcm"), Def.ContactRangeCm),
+			                nullptr,
+			                FColor::Red,
+			                0.0f,
+			                true,
+			                1.0f);
+		}
+		float MaxRangedRangeCm = 0.0f;
+		for (const FReEchoEnemyAbilityDefinition& Ability : Def.Abilities)
+		{
+			if (Ability.Damage > 0.0f && Ability.MaxRangeCm > MaxRangedRangeCm)
+			{
+				MaxRangedRangeCm = Ability.MaxRangeCm;
+			}
+		}
+		if (MaxRangedRangeCm > KINDA_SMALL_NUMBER && MaxRangedRangeCm > Def.ContactRangeCm)
+		{
+			DrawDebugCircle(GetWorld(),
+			                Center,
+			                MaxRangedRangeCm,
+			                48,
+			                FColor(255, 140, 0),
+			                false,
+			                0.0f,
+			                0,
+			                2.0f,
+			                FVector::ForwardVector,
+			                FVector::RightVector);
+			DrawDebugString(GetWorld(),
+			                Center + FVector(MaxRangedRangeCm, 0.0f, 30.0f),
+			                FString::Printf(TEXT("远程 %.0fcm"), MaxRangedRangeCm),
+			                nullptr,
+			                FColor(255, 140, 0),
+			                0.0f,
+			                true,
+			                1.0f);
+		}
+	}
+#endif
 }
 
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySenseSnapshot& Sense,
@@ -985,17 +1090,25 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 			break;
 		case EReEchoBossAttackShape::Projectile:
 		{
-			FReEchoEnemyProjectileRuntimeState Projectile;
-			Projectile.Definition.InitialLocation = Intent.Origin;
-			Projectile.Definition.Direction = Intent.LockedDirection.GetSafeNormal2D();
-			Projectile.Definition.SpeedCmPerSecond = Intent.ProjectileSpeedCmPerSecond;
-			Projectile.Definition.MaxRangeCm = Intent.LengthCm;
-			Projectile.Attack = Intent.Attack;
-			Projectile.Damage = Intent.RawDamage;
-			Projectile.CollisionRadiusCm = FMath::Max(10.0f, Intent.WidthCm * 0.5f);
-			if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
+			const FReEchoEnemyAbilityDefinition* VolleyAbility = FindAbility(Intent.AbilityId);
+			const int32 VolleyCount = VolleyAbility ? FMath::Max(1, VolleyAbility->ProjectileCount) : 1;
+			const float VolleySpreadDegrees = VolleyAbility ? VolleyAbility->SpreadAngleDegrees : 0.0f;
+			for (int32 BallIndex = 0; BallIndex < VolleyCount; ++BallIndex)
 			{
-				BossProjectiles.Add(MoveTemp(Projectile));
+				FReEchoEnemyProjectileRuntimeState Projectile;
+				Projectile.Definition.InitialLocation = Intent.Origin;
+				Projectile.Definition.Direction = ReEchoRabbitProjectilePattern::ResolveVolleyDirection(
+				    Intent.LockedDirection.GetSafeNormal2D(), VolleySpreadDegrees, BallIndex, VolleyCount);
+				Projectile.Definition.SpeedCmPerSecond = Intent.ProjectileSpeedCmPerSecond;
+				Projectile.Definition.MaxRangeCm = Intent.LengthCm;
+				Projectile.Attack = Intent.Attack;
+				Projectile.Damage = Intent.RawDamage;
+				Projectile.CollisionRadiusCm = FMath::Max(10.0f, Intent.WidthCm * 0.5f);
+				Projectile.VolleyBallIndex = BallIndex;
+				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
+				{
+					BossProjectiles.Add(MoveTemp(Projectile));
+				}
 			}
 			break;
 		}
@@ -1032,12 +1145,14 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		{
 			const float DerivedLegacySpeed =
 			    Ability->CooldownSeconds > KINDA_SMALL_NUMBER ? Ability->MaxRangeCm / Ability->CooldownSeconds : 0.0f;
-			for (int32 BallIndex = 0; BallIndex < ReEchoRabbitProjectilePattern::BallCount; ++BallIndex)
+			const int32 VolleyCount = FMath::Max(1, Ability->ProjectileCount);
+			const float VolleySpreadDegrees = Ability->SpreadAngleDegrees;
+			for (int32 BallIndex = 0; BallIndex < VolleyCount; ++BallIndex)
 			{
 				FReEchoEnemyProjectileRuntimeState Projectile;
 				Projectile.Definition.InitialLocation = Intent.SourceLocation;
-				Projectile.Definition.Direction =
-				    ReEchoRabbitProjectilePattern::ResolveDirection(LogicSnapshot.SpecialLockedDirection, BallIndex);
+				Projectile.Definition.Direction = ReEchoRabbitProjectilePattern::ResolveVolleyDirection(
+				    LogicSnapshot.SpecialLockedDirection, VolleySpreadDegrees, BallIndex, VolleyCount);
 				Projectile.Definition.SpeedCmPerSecond = Ability->ProjectileSpeedCmPerSecond > 0.0f
 				                                             ? Ability->ProjectileSpeedCmPerSecond
 				                                             : DerivedLegacySpeed;
@@ -1045,7 +1160,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 				Projectile.Attack = Intent.Attack;
 				Projectile.Damage = Intent.RawDamage;
 				Projectile.CollisionRadiusCm =
-				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm);
+				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm, VolleyCount);
 				Projectile.VolleyBallIndex = BallIndex;
 				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
 				{
@@ -1193,4 +1308,53 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 	}
 	SetActorEnableCollision(false);
 	SetLifeSpan(0.45f);
+}
+
+void AReEchoEnemyActor::HandlePhaseTransitionIntent(const FReEchoEnemyActionIntent& Intent)
+{
+	if ((!Intent.bPhaseTransitionStarted && !Intent.bPhaseTransitionCompleted) || !EnemyLogic || !EnemyEvents)
+	{
+		return;
+	}
+
+	FReEchoEnemyPhaseTransitionEvent PhaseEvent;
+	PhaseEvent.PhaseId = EnemyLogic->GetDefinition().Phase2.Id;
+	PhaseEvent.AnimationSetId = EnemyLogic->GetDefinition().Phase2.AnimationSetId;
+	PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
+	PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
+	PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
+	EnemyEvents->PublishPhaseTransition(PhaseEvent);
+
+	if (Intent.bPhaseTransitionCompleted &&
+	    Intent.PhaseTriggerReason == EReEchoEnemyPhaseTriggerReason::HealthDepleted &&
+	    EnemyLogic->GetDefinition().Archetype == EReEchoEnemyArchetype::Boss)
+	{
+		ApplyBloodDepletedPhase2MaxHealth();
+	}
+}
+
+void AReEchoEnemyActor::ApplyBloodDepletedPhase2MaxHealth()
+{
+	if (!Combatant || !EnemyLogic || EnemyLogic->GetDefinition().BossPhases.Num() == 0)
+	{
+		return;
+	}
+	// Locate the second-phase definition by PhaseIndex and apply its maximum health only when it requests a refill.
+	const FReEchoBossPhaseDefinition* PhaseTwo = nullptr;
+	for (const FReEchoBossPhaseDefinition& Phase : EnemyLogic->GetDefinition().BossPhases)
+	{
+		if (Phase.PhaseIndex == 2)
+		{
+			PhaseTwo = &Phase;
+			break;
+		}
+	}
+	if (!PhaseTwo || PhaseTwo->RefillHealthPolicy != EReEchoBossRefillHealthPolicy::RefillToMaximum ||
+	    PhaseTwo->PhaseMaxHealth <= 0.0f)
+	{
+		return;
+	}
+	// Resize to the new ceiling and refill to full so the second form starts as a fresh fight.
+	Combatant->Stats.HpMax = PhaseTwo->PhaseMaxHealth;
+	Combatant->InitializeFromStats(Combatant->Stats, /*bFullHealth=*/true);
 }
