@@ -5,9 +5,10 @@
 #include "ReEchoTimeShardPickupActor.generated.h"
 
 class UPrimitiveComponent;
+class UBillboardComponent;
 class USphereComponent;
 
-/** Lightweight world pickup spawned by weapon-rune shard rewards. */
+/** Shared world pickup for configured enemy drops and weapon-rune shard rewards. */
 UCLASS()
 
 class REECHO_API AReEchoTimeShardPickupActor : public AActor
@@ -17,7 +18,18 @@ class REECHO_API AReEchoTimeShardPickupActor : public AActor
 public:
 	AReEchoTimeShardPickupActor();
 
-	void InitializePickup(int32 InAmount);
+	/** Lifetime <= 0 keeps the pickup until collection or explicit world cleanup. */
+	void InitializePickup(int32 InAmount, float LifetimeSeconds = 20.0f);
+
+	int32 GetAmount() const
+	{
+		return Amount;
+	}
+
+	UBillboardComponent* GetVisualComponent() const
+	{
+		return Visual;
+	}
 
 private:
 	UFUNCTION()
@@ -31,5 +43,9 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USphereComponent> Collision;
 
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UBillboardComponent> Visual;
+
 	int32 Amount = 1;
+	bool bCollected = false;
 };

@@ -46,14 +46,16 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	RunSubsystem->BeginEncounter();
 	for (int32 SpawnIndex = 1; SpawnIndex <= 6; ++SpawnIndex)
 	{
-		RunSubsystem->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), SpawnIndex);
+		RunSubsystem->GrantTimeShards(
+		    RunSubsystem->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), SpawnIndex));
 	}
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 	TestEqual(TEXT("Encounter one has no free card group"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
 	RunSubsystem->BeginEncounter();
 	for (int32 SpawnIndex = 1; SpawnIndex <= 6; ++SpawnIndex)
 	{
-		RunSubsystem->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), SpawnIndex);
+		RunSubsystem->GrantTimeShards(
+		    RunSubsystem->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), SpawnIndex));
 	}
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 
@@ -66,10 +68,13 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Completed draw enters planning before the shop"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
 	const int32 ShardsBeforePurchase = RunSubsystem->TimeShards;
 	TestTrue(TEXT("Per-enemy rewards provide shop currency"), ShardsBeforePurchase >= 24 && ShardsBeforePurchase <= 36);
+	const int32 ExpectedPrice = RunSubsystem->GetDiscountedShopPrice(15);
 	TestTrue(TEXT("Post-draw currency can buy the entry-price item"),
 	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
 	TestEqual(
-	    TEXT("Post-draw purchase deducts the available shards"), RunSubsystem->TimeShards, ShardsBeforePurchase - 15);
+	    TEXT("Post-draw purchase deducts the current effective price"),
+	    RunSubsystem->TimeShards,
+	    ShardsBeforePurchase - ExpectedPrice);
 	return true;
 }
 

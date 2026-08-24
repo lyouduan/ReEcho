@@ -25,6 +25,7 @@
 #include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "UI/ReEchoMinimapCanvasWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -2294,18 +2295,32 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 	}
 	if (UReEchoCombatEventsComponent* CombatEvents = Enemy->GetCombatEventsComponent())
 	{
-		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleEnemyDeathReward);
+		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleEnemyDeathShardDrop);
 	}
 }
 
-void AReEchoGameMode::HandleEnemyDeathReward(const FReEchoDamageEvent& Event)
+void AReEchoGameMode::HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event)
 {
 	const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Event.Target);
 	UReEchoRunSubsystem* RunSubsystem =
 	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
-	if (Enemy && RunSubsystem)
+	if (!Enemy || !RunSubsystem || !GetWorld())
 	{
-		RunSubsystem->GrantEnemyDeathTimeShards(Enemy->GetEnemyId(), Enemy->GetSpawnIndex());
+		return;
+	}
+
+	const int32 DropAmount =
+	    RunSubsystem->ResolveEnemyDeathTimeShardDrop(Enemy->GetEnemyId(), Enemy->GetSpawnIndex());
+	if (DropAmount <= 0)
+	{
+		return;
+	}
+
+	const FVector SpawnLocation = Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 8.0f);
+	if (AReEchoTimeShardPickupActor* Pickup =
+	        GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(SpawnLocation, FRotator::ZeroRotator))
+	{
+		Pickup->InitializePickup(DropAmount, 0.0f);
 	}
 }
 

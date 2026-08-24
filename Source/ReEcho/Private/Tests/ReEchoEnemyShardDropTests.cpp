@@ -5,6 +5,7 @@
 #include "Cards/ReEchoCardTypes.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
+#include "Engine/Texture2D.h"
 #include "Run/ReEchoRunSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyShardDropDataTest,
@@ -55,6 +56,8 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Encounter three elite range begins at ten"), Third->EliteMin, 10);
 	TestEqual(TEXT("Encounter five ranged range begins at seven"), Fifth->RangedMin, 7);
 	TestEqual(TEXT("Encounter five elite range ends at twenty"), Fifth->EliteMax, 20);
+	TestNotNull(TEXT("Reviewed pickup texture is available to the runtime"),
+	            LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard")));
 	return true;
 }
 
@@ -68,27 +71,31 @@ bool FReEchoEnemyShardDropRuntimeTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
 	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	Run->BeginEncounter();
+	const int32 InitialBalance = Run->TimeShards;
 
-	const int32 MeleeReward = Run->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), 1);
+	const int32 MeleeReward = Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 1);
 	TestTrue(TEXT("Melee reward uses encounter-one 2..3 range"), MeleeReward >= 2 && MeleeReward <= 3);
 	TestEqual(
-	    TEXT("Duplicate death notification grants nothing"), Run->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), 1), 0);
-	const int32 RangedReward = Run->GrantEnemyDeathTimeShards(TEXT("M_RABBIT"), 2);
+	    TEXT("Duplicate death notification grants nothing"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 1), 0);
+	const int32 RangedReward = Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_RABBIT"), 2);
 	TestTrue(TEXT("Ranged reward uses encounter-one 4..6 range"), RangedReward >= 4 && RangedReward <= 6);
-	TestEqual(TEXT("Encounter one has no elite reward"), Run->GrantEnemyDeathTimeShards(TEXT("M_FOX"), 3), 0);
+	TestEqual(TEXT("Encounter one has no elite reward"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_FOX"), 3), 0);
 	TestEqual(
-	    TEXT("Bosses never use the regular enemy reward table"), Run->GrantEnemyDeathTimeShards(TEXT("M_SHEEP"), 4), 0);
+	    TEXT("Bosses never use the regular enemy reward table"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_SHEEP"), 4), 0);
 
 	Run->CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex = Run->EncounterIndex;
-	const int32 BonusReward = Run->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), 5);
+	const int32 BonusReward = Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 5);
 	TestTrue(TEXT("One-shot bonus multiplies and rounds each enemy reward"), BonusReward >= 3 && BonusReward <= 5);
 	Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoEnemyShardDrops;
 	TestEqual(
-	    TEXT("No-drop penalty suppresses the enemy reward"), Run->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), 6), 0);
+	    TEXT("No-drop penalty suppresses the enemy reward"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 6), 0);
 	Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::None;
 	TestEqual(TEXT("Suppressed deaths remain idempotent after the penalty changes"),
-	          Run->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), 6),
+	          Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 6),
 	          0);
+	TestEqual(TEXT("Resolving enemy deaths never changes the balance before collection"),
+	          Run->TimeShards,
+	          InitialBalance);
 	return true;
 }
 

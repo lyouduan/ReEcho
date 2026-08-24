@@ -132,8 +132,8 @@ public:
 	/** Adds collected world-drop currency without exposing a writable currency field to the pickup actor. */
 	bool GrantTimeShards(int32 Amount);
 
-	/** Resolves and grants one configured enemy-death reward; duplicate spawn notifications grant zero. */
-	int32 GrantEnemyDeathTimeShards(FName EnemyId, int32 SpawnIndex);
+	/** Resolves one configured enemy-death drop amount without changing the currency balance. */
+	int32 ResolveEnemyDeathTimeShardDrop(FName EnemyId, int32 SpawnIndex);
 
 	// --- Echo storage commands (Plan30) -------------------------------------------------
 	// Every command is narrow and transactional: on a non-Success result nothing is mutated.

@@ -1,9 +1,12 @@
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 
+#include "Components/BillboardComponent.h"
 #include "Components/SphereComponent.h"
 #include "Engine/GameInstance.h"
+#include "Engine/Texture2D.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "UObject/ConstructorHelpers.h"
 
 AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
 {
@@ -19,12 +22,31 @@ AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
 	Collision->SetGenerateOverlapEvents(true);
 	Collision->OnComponentBeginOverlap.AddDynamic(this, &AReEchoTimeShardPickupActor::HandleBeginOverlap);
 
+	Visual = CreateDefaultSubobject<UBillboardComponent>(TEXT("TimeShardVisual"));
+	Visual->SetupAttachment(Collision);
+	Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Visual->SetCastShadow(false);
+	Visual->SetTranslucentSortPriority(30);
+	Visual->SetRelativeLocation(FVector(0.0f, 0.0f, 28.0f));
+	Visual->bIsScreenSizeScaled = false;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> TimeShardTexture(
+	    TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard"));
+	if (TimeShardTexture.Succeeded())
+	{
+		Visual->SetSprite(TimeShardTexture.Object);
+		constexpr float PickupWorldHeight = 38.0f;
+		Visual->SetRelativeScale3D(
+		    FVector(PickupWorldHeight / FMath::Max(1, TimeShardTexture.Object->GetSizeY())));
+	}
+
 	SetLifeSpan(20.0f);
 }
 
-void AReEchoTimeShardPickupActor::InitializePickup(const int32 InAmount)
+void AReEchoTimeShardPickupActor::InitializePickup(const int32 InAmount, const float LifetimeSeconds)
 {
 	Amount = FMath::Max(1, InAmount);
+	bCollected = false;
+	SetLifeSpan(FMath::Max(0.0f, LifetimeSeconds));
 }
 
 void AReEchoTimeShardPickupActor::HandleBeginOverlap(UPrimitiveComponent* OverlappedComponent,
@@ -34,7 +56,7 @@ void AReEchoTimeShardPickupActor::HandleBeginOverlap(UPrimitiveComponent* Overla
                                                      const bool bFromSweep,
                                                      const FHitResult& SweepResult)
 {
-	if (!Cast<AReEchoPlayerPawn>(OtherActor))
+	if (bCollected || !Cast<AReEchoPlayerPawn>(OtherActor))
 	{
 		return;
 	}
@@ -43,6 +65,9 @@ void AReEchoTimeShardPickupActor::HandleBeginOverlap(UPrimitiveComponent* Overla
 	UReEchoRunSubsystem* RunSubsystem = GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem && RunSubsystem->GrantTimeShards(Amount))
 	{
+		bCollected = true;
+		Collision->SetGenerateOverlapEvents(false);
+		Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Destroy();
 	}
 }

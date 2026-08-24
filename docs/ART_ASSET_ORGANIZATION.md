@@ -4,6 +4,7 @@
 
 - `Content/SourceArt/`：保存 PNG 等源图和参考图，不放可运行的 `.uasset`。
 - `Content/ReEcho/Textures/`：保存 Unreal 导入后的运行时纹理资产。
+- `Content/SourceArt/Pickups/`：保存世界拾取物的审核源图；运行时纹理导入到 `Content/ReEcho/Textures/Pickups/`。
 - `Content/ReEcho/Art/Animation2D/`：保存运行时 Texture2D、PaperSprite、Flipbook 与动画表现资产。
 - Plan45 UI 交付源包：`Content/SourceArt/UI/InteractionPlaceholder/`，其中 `Elements` 是候选切图、`References` 是效果参考、`Fonts/PendingLicense` 是未获授权的隔离字体。
 - Plan45 已消费的运行时 UI 纹理：`Content/ReEcho/Textures/UI/InteractionPlaceholder/`；只导入现有 WBP 实际引用的切图。目前按 `StartMenu`、`Settings`、`PauseAndCombat`、`ResultsAndRestart`、`TraitChoice`、`InventoryShop` 分页，未被 WBP 消费的按钮、参考图和字体仍只保留在 `SourceArt`。

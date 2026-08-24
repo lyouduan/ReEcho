@@ -2243,7 +2243,7 @@ bool UReEchoRunSubsystem::GrantTimeShards(const int32 Amount)
 	return true;
 }
 
-int32 UReEchoRunSubsystem::GrantEnemyDeathTimeShards(const FName EnemyId, const int32 SpawnIndex)
+int32 UReEchoRunSubsystem::ResolveEnemyDeathTimeShardDrop(const FName EnemyId, const int32 SpawnIndex)
 {
 	if (EncounterIndex <= 0 || SpawnIndex <= 0)
 	{
@@ -2279,9 +2279,7 @@ int32 UReEchoRunSubsystem::GrantEnemyDeathTimeShards(const FName EnemyId, const 
 	{
 		Reward = FMath::RoundToInt(static_cast<float>(Reward) * 1.5f);
 	}
-	const int32 PreviousBalance = TimeShards;
-	GrantTimeShards(Reward);
-	return TimeShards - PreviousBalance;
+	return Reward;
 }
 
 void UReEchoRunSubsystem::ResetEchoStorage()

@@ -122,7 +122,7 @@ Combat OnDeath
 
 `AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率，并由 GameMode 为普通攻击与 Boss 投射物统一选择最近存活嘲讽 Echo；EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、按 Stage 策略清理、捕获存档和判断全灭；同 Stage 局间由主模块 Host 的显式 suspension 停止 World 推进，并通过 `ResetEncounterTransientState` 取消旧 Encounter 的瞬时动作，普通攻击冷却等持久状态不消耗 UI 时间。Host 仅把 Definition 的 `PresentationId` 传给 `UReEchoEnemyPresentationComponent`；后者在主模块 Catalog 中解析 Profile，EnemyLogic 不依赖 Blueprint、Paper2D 或资产路径。
 
-敌人死亡只发布类型化最终事实，不拥有时间碎片区间、随机种子或余额。主模块在出生与读档恢复共用的装配函数中订阅死亡事件，再由 Run 按死亡时 Encounter 结算；因此同 Stage 留存敌人不会把出生关次误当奖励关次，玩家与 Echo 击杀也不会形成两条经济路径。
+敌人死亡只发布类型化最终事实，不拥有时间碎片区间、随机种子、拾取物或余额。主模块在出生与读档恢复共用的装配函数中订阅死亡事件，由 Run 按死亡时 Encounter 解析一次掉落数额，再由 GameMode 在死亡位置生成通用时间碎片拾取物；因此同 Stage 留存敌人不会把出生关次误当奖励关次，玩家与 Echo 击杀也不会形成两条经济路径。
 
 Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 `Pursuing` 阶段的普通追踪位移，使用 SpawnIndex 稳定槽位、Roster 稳定邻居顺序、软分离和切向恢复。普通怪物互相忽略 swept movement 硬碰撞，Boss、玩家和场景仍硬阻挡；EnemyLogic 的 Phase/攻击/击退/特殊位移、Combat 命中与保存格式均不改变。短时受阻计时属于 Host 可丢弃世界协调状态，不进入 Snapshot。
 

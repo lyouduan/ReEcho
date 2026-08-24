@@ -46,7 +46,7 @@
 - `slot_types.csv` / `slot_profiles.csv`：配件槽类型和各武器类型允许槽位。
 - `parts.csv` / `part_effects.csv`：78 条武器插槽源行审计和启用配件的一对多 typed effects。
 - `enemies.csv`：兼容敌人及开普勒史莱姆、兔子、狐狸、Boss 的稳定定义。
-- `enemy_shard_drops.csv`：第 1–8 场近战、远程、精英怪死亡时的时间碎片闭区间；空精英区间表示该场不产出。
+- `enemy_shard_drops.csv`：第 1–8 场近战、远程、精英怪死亡时生成的世界时间碎片拾取物数额闭区间；空精英区间表示该场不产出，余额只在玩家拾取后增加。
 - `enemy_abilities.csv`：普通怪类型化技能、Boss 四个主动技能与元素清洗被动。
 - `boss_phases.csv`：Boss 确定性阶段与临时战斗倍率。
 - `stages.csv` / `encounters.csv` / `encounter_waves.csv`：四个逻辑阶段、八场遭遇与逐场显式波次。

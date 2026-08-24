@@ -36,8 +36,9 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	          Source->SetSelectedReplayIds({Recording.Id}),
 	          EReEchoEchoStorageResult::Success);
 	Source->BeginEncounter();
-	const int32 EnemyReward = Source->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), 17);
-	TestTrue(TEXT("A death reward is available for save roundtrip"), EnemyReward >= 2 && EnemyReward <= 3);
+	const int32 EnemyDrop = Source->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 17);
+	TestTrue(TEXT("A death drop is available for save roundtrip"), EnemyDrop >= 2 && EnemyDrop <= 3);
+	TestEqual(TEXT("Uncollected death drops do not change the saved balance"), Source->TimeShards, 45);
 
 	UReEchoRunSaveGame* Snapshot = Source->CreateSaveSnapshot();
 	TestNotNull(TEXT("A save snapshot is created"), Snapshot);
@@ -56,7 +57,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	const UReEchoRunSaveGame* RestoredSnapshot = Restored->CreateSaveSnapshot();
 	TestEqual(TEXT("Enemy-reward seed restores"), RestoredSnapshot->EnemyShardDropSeed, Snapshot->EnemyShardDropSeed);
 	TestEqual(TEXT("Processed enemy reward keys restore"), RestoredSnapshot->RewardedEnemyShardDropKeys.Num(), 1);
-	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45 + EnemyReward);
+	TestEqual(TEXT("Time Shards restore without an uncollected drop"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));

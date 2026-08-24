@@ -335,7 +335,7 @@ private:
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
-	void HandleEnemyDeathReward(const FReEchoDamageEvent& Event);
+	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
