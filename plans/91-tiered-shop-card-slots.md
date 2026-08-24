@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`InProgress`（2026-08-24 扩展：商店武器展示与武器背包切换）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main` @ `f8e8a40bf8ce7974d24b7b296c51bdc4cb35344b`。
 - 最终集成基线：`origin/main` @ `513ec51b6d101979b6d2cf548dfc3403762b7966`（仅新增 Plan92 文档）。
@@ -15,7 +15,12 @@
 - Writes:
   - `plans/91-tiered-shop-card-slots.md`
   - `Source/ReEcho/Public/Run/ReEchoShopCatalog.h`
+  - `Source/ReEcho/Public/Run/ReEchoRunSaveGame.h`
+  - `Source/ReEcho/Public/Run/ReEchoRunSubsystem.h`
   - `Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`
+  - `Source/ReEcho/Public/ReEchoGameMode.h`
+  - `Source/ReEcho/Private/ReEchoGameMode.cpp`
+  - `Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h`
   - `Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoShopTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp`
@@ -29,8 +34,8 @@
   - `Source/ReEchoCards/Public/Cards/ReEchoCardRuntime.h`
   - `Source/ReEchoCards/Private/Cards/ReEchoCardRuntime.cpp`
 - 影响模式：`SharedContract`。
-- 兼容承诺 / 下游操作：继续以 `ShopTiers` 决定本关哪些等级槽投放；继续复用 Cards 的“1级可重复、2/3级持有排除”资格。缓存数组改为固定 `[Tier1, Tier2, Tier3]` 位置并允许 `None` 空位；读取旧的混合池缓存页时按等级形状失配自动重建，不提升 SaveVersion。扁平 `Offers` 兼容投影保留三个卡牌位置，空位置不可购买。
-- 明确排除：不修改战斗结束免费三选一；不修改卡牌效果、价格区间、刷新成本、逐关 XLSX 配置或商店美术资产；空槽不跨级补卡。
+- 兼容承诺 / 下游操作：继续以 `ShopTiers` 决定本关哪些等级槽投放；继续复用 Cards 的“1级可重复、2/3级持有排除”资格。缓存数组改为固定 `[Tier1, Tier2, Tier3]` 位置并允许 `None` 空位；读取旧的混合池缓存页时按等级形状失配自动重建。扁平 `Offers` 兼容投影保留三个卡牌位置，空位置不可购买。武器拥有集合新增存档字段并提升 SaveVersion；旧存档以当前装备武器作为最小拥有集合迁移。
+- 明确排除：不修改战斗结束免费三选一；不修改卡牌效果、价格区间、刷新成本、逐关 XLSX 配置或商店美术资产；空槽不跨级补卡；不引入“每把武器独立保存一套符文装配”。
 
 ## 锁定目标
 
@@ -38,6 +43,9 @@
 - `ShopTiers` 仍是逐关投放开关：未配置的等级槽保持空；配置等级但已无合格候选时显示空/售罄。
 - 任一等级槽都不得从其他等级回退或补位；刷新只在各槽自己的等级牌池内重抽。
 - 保持1级卡可重复投放/叠加，已获得2、3级卡不得再投放；同一稳定页面购买后不重摇其他槽。
+- 商店装配室的大武器区域展示 `CurrentBuild.WeaponId` 对应的手持武器图；点击该区域打开武器背包。
+- 武器背包列出本轮已获得的全部有效武器并标记当前装备；选择其他已拥有武器时不扣碎片、不重摇商店，只原子切换当前武器并立即刷新武器图、符文槽和装备说明。
+- 初始武器与商店购买武器都进入拥有集合并随本轮存档恢复。切换武器复用 `ReEchoWeaponRuntime::TrySelectWeapon`：兼容符文保留，不兼容符文保持拥有但卸下回背包。
 
 ## 架构影响与设计决策
 
@@ -46,6 +54,7 @@
 - 设计意图：把“投放等级”固化为槽位身份，避免 UI 或调用方把 `ShopTiers` 再解释为共享混合牌池；Run 继续负责编排页面，Cards 继续唯一负责候选资格。
 - 权威状态与依赖：不改变权威拥有者和模块依赖方向。Run 持有 `EncounterIndex + ShopRefreshSequence` 页面缓存；Cards 的运行态只保存固定位置 CardId，UI 只消费只读槽投影。
 - 决策记录：三个槽始终构造，Tier 固定为1/2/3；未投放或候选耗尽以不可购买的空槽表示。放弃“只返回已填槽”的方案，因为它会让数组位置随关次变化，重新把等级语义泄漏给 UI。放弃跨级补卡，因为用户已明确禁止。
+- 扩展决策记录：Run 继续作为武器拥有与当前构筑的唯一权威；UI 只消费包含武器显示名/图标的只读投影，并通过独立“装备武器”请求交给 GameMode。符文兼容裁剪统一调用 WeaponRuntime，拒绝未知、未拥有或禁用武器时不得改变构筑。武器背包复用现有符文背包的按钮/浮层交互形态，但不复用购买请求，避免把免费换装误判为再次购买。
 - 相关文档同步范围：更新三个模块文档的商店投放契约；`ARCHITECTURE.md` 已审阅，本 Plan 不新增模块、不改变拓扑或依赖方向；`README.md` 已审阅，稳定标识与阅读路由不变。
 - 关闭前逐项填写审阅结果：
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：待实现后记录。
@@ -61,6 +70,9 @@
 - [x] 对应等级合格牌池耗尽时仅该槽为空/售罄，其他槽不受影响且不跨级补位。
 - [x] 1级重复、2/3级持有排除、页面刷新、购买稳定性和存读档行为有自动化证据。
 - [x] 商店表现层固定构造三个卡牌位置；空槽不可点击、不可广播购买 ID，并能显示“未投放”或“售罄”。
+- [ ] 当前装备武器图显示于 Designer 武器区域，点击后能看到包含初始武器和已购武器的背包；当前武器明确标记且不可重复装备。
+- [ ] 选择已拥有的其他武器不扣费、不刷新报价，切换成功后武器图/名称/符文槽同步更新；兼容符文保留，不兼容符文回背包。
+- [ ] 未拥有、未知或禁用武器切换被拒绝且 `CurrentBuild` 不变；武器拥有集合存读档与旧存档迁移有自动化证据。
 - [x] C++ 格式化、聚焦自动化、Editor 构建、项目校验和 `git diff --check` 通过。
 - [ ] 用户在 PIE 确认第4关三个槽的等级/空槽表现以及第1关全空表现。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
@@ -80,6 +92,8 @@
 3. 读取旧缓存时校验位置等级与本关配置；不匹配则在当前页面键下重建，购买后继续保留页面。
 4. 扁平兼容投影和 Widget 固定渲染三个位置；空槽禁用购买并显示状态，不加载不存在的卡图标。
 5. 更新逐关矩阵、资格耗尽、刷新、购买和存档自动化，并同步模块文档。
+6. 将初始/购买武器纳入可持久化拥有集合，为 Run 增加窄的已拥有武器切换事务，并让购买武器也复用同一 WeaponRuntime 切换规则。
+7. 在只读商店视图中投影当前武器图和已拥有武器详情；在 Designer 武器区域叠加可点击武器图，复用符文背包形态构造武器背包并通过独立装备委托刷新整个商店投影。
 
 ## 验证矩阵
 
@@ -89,6 +103,7 @@
 | C++ 格式 | 仓库 `.clang-format` 仅格式化本 Plan 修改的 `.h/.cpp` | diff 无无关格式噪声 |
 | 商店逻辑 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.Shop` | 固定等级槽、资格、刷新、购买、存档通过 |
 | 商店 UI | `scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.Shop` | 三槽及空槽不可购买通过 |
+| 武器背包 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.Shop`、`-Filter ReEcho.UI.Shop` | 武器拥有/切换事务、持久化、当前武器图与背包请求通过 |
 | Run/卡牌回归 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.Run`、`-Filter ReEcho.Cards`、`-Filter ReEcho.Traits` | 页面缓存与统一资格无回归 |
 | C++ 构建 | `scripts/ue/Build-Editor.cmd -Configuration Development` | UHT/UBT 成功并刷新精选预构建包 |
 | 发布构建 | `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` | 最终集成候选完整构建并刷新指纹 |
@@ -104,6 +119,7 @@
 - 扁平兼容报价与目标商店表现都保留三个位置；空槽隐藏卡图和价格、显示“未投放”或“售罄”、禁用按钮，并在请求边界拒绝 `None` ID。刷新不再旋转卡牌位置。
 - 商店矩阵自动化改为核对槽位等级身份、逐关启用、Tier2 耗尽不影响 Tier3、页面稳定购买和存读档。顺带修正既有随机测试：不再无条件选择可能清空全部货币的 `G_2_15` 后断言货币仍存在。
 - 发布门禁发现远端新增 `513ec51b` 的 Plan92 怪物时间碎片掉落计划。经用户确认组合适配后，Plan91 干净变基到该文档提交之上；传入提交没有产品源码、配置或二进制变化。
+- 2026-08-24 用户要求继续复用 Plan91 工作分支，新增商店当前武器图与武器背包切换闭环；Plan 状态重新打开为 `InProgress`。清理门禁同时确认 Plan88 工作树干净且 HEAD 已进入 `origin/main`，仅移除其本地工作树目录，保留 Git 分支。
 
 ### 证据
 
@@ -116,6 +132,7 @@
 ### 剩余风险
 
 - 空槽的最终美术样式仍需用户在 PIE 判断；本 Plan 只保证状态、交互和基础文字正确。
+- 武器背包扩展正在实现，完成前不能关闭本 Plan。
 
 ### 人工验收结果/请求
 
