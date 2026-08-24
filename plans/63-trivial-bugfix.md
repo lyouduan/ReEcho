@@ -131,3 +131,11 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
   - `ReEcho.UI.Shop.LogicBlocks` 与 `ReEcho.UI.Shop.AuthoredLayoutHosts` 增加响应式宿主、设计尺寸、背景分层和控件归属断言。
 - **影响面 / Impact**：`MOD-ReEcho` / `AREA-UI`，仅商店/背包共用页面布局；无 Schema、存档、玩法或资产内容变化。
 - **验证 / Verification**：`ReEcho.UI.Shop.AuthoredLayoutHosts`、`ReEcho.UI.Shop.LogicBlocks` 自动化通过；Development Editor `-FullRebuild`、`validate_project.py`、`git diff --check` 通过；Win64 Shipping 完整 Build/Cook/Stage/Pak/Archive 成功，补齐项目规定的 31 张运行时 CSV 后，以 `1366×768` 窗口启动并稳定运行 12 秒。最终仍需在问题笔记本上进入商店做人工视觉与点击验收。
+
+### #15 — 商店界面按 P 无法打开暂停菜单
+
+- **现象 / Symptom**：商店/背包页面已经使世界暂停，但按 `P` 不会显示暂停菜单，而是执行商店关闭路径。
+- **根因 / Root cause**：玩家的 `PauseMenu` 输入已设置 `bExecuteWhenPaused=true`，但 `AReEchoGameMode::TogglePauseMenu()` 遇到 `InventoryShopWidget` 时调用 `HandleInventoryShopClosed()` 后直接返回，把暂停键错误复用成了商店关闭键。
+- **改动 / Changes**：商店打开时按 `P` 改为在更高的 Pause 层打开 `WBP_ReEchoRestart`，不关闭商店、不触发结算推进或回响存储门禁；再次按 `P`/点击继续时关闭 Pause，并恢复商店焦点、菜单能力阻挡和暂停状态。显式记录“Pause 从商店打开”的返回目标，避免普通战斗暂停受影响。
+- **影响面 / Impact**：`MOD-ReEcho` / `AREA-UI`，仅暂停与商店页面切换；无商品、存档、战斗、Schema 或资产变化。
+- **验证 / Verification**：Development Editor 增量构建与 `-FullRebuild` 通过；`ReEcho.UIManagerSubsystem.PauseOverInventoryShop`、`ReEcho.UIManagerSubsystem.ResetOnTravel` 自动化通过；`validate_project.py`、`git diff --check` 通过。商店内按 `P` 打开 Pause、再次按 `P`/点击继续返回商店仍需人工验收。

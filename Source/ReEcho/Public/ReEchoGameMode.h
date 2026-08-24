@@ -187,6 +187,7 @@ private:
 	bool bExitToMainMenuAfterConfirmation = false;
 	bool bContinueRunAfterShop = false;
 	bool bPostTraitShopClosing = false;
+	bool bPauseOpenedOverInventoryShop = false;
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;

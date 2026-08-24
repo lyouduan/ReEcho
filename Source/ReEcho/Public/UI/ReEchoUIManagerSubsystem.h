@@ -31,6 +31,7 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoUIManagerSubsystemResetOnTravelTest;
+	friend class FReEchoPauseOverlayLayerPolicyTest;
 #endif
 
 	void ResetScreens();

@@ -2475,11 +2475,6 @@ void AReEchoGameMode::TogglePauseMenu()
 		HandleStatsClosed();
 		return;
 	}
-	if (InventoryShopWidget)
-	{
-		HandleInventoryShopClosed();
-		return;
-	}
 	if (bRestartScreenIsTerminal)
 	{
 		return;
@@ -2496,6 +2491,17 @@ void AReEchoGameMode::TogglePauseMenu()
 		}
 		return;
 	}
+	if (InventoryShopWidget)
+	{
+		bPauseOpenedOverInventoryShop = true;
+		ShowRestartScreen(false);
+		if (!RestartWidget)
+		{
+			bPauseOpenedOverInventoryShop = false;
+		}
+		return;
+	}
+	bPauseOpenedOverInventoryShop = false;
 	ShowRestartScreen(false);
 }
 
@@ -2686,6 +2692,7 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 		    "ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
 		return;
 	}
+	bPauseOpenedOverInventoryShop = false;
 	PostUiEvent(FReEchoAudioEvents::UiCancel);
 	if (bPostTraitIntermission)
 	{
@@ -3018,6 +3025,8 @@ void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
 
 void AReEchoGameMode::HandleResumeRequested()
 {
+	const bool bReturnToInventoryShop = bPauseOpenedOverInventoryShop && InventoryShopWidget;
+	bPauseOpenedOverInventoryShop = false;
 	bQuitConfirmationVisible = false;
 	bExitToMainMenuAfterConfirmation = false;
 	if (RestartWidget)
@@ -3030,6 +3039,21 @@ void AReEchoGameMode::HandleResumeRequested()
 		RestartWidget = nullptr;
 	}
 	bRestartScreenIsTerminal = false;
+	if (bReturnToInventoryShop)
+	{
+		UGameplayStatics::SetGamePaused(this, true);
+		SetPlayerMenuAbilityBlocked(true);
+		InventoryShopWidget->SetKeyboardFocus();
+		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, false);
+			}
+		}
+		return;
+	}
 	RestoreGameInput();
 	if (TraitCardChoiceWidget)
 	{

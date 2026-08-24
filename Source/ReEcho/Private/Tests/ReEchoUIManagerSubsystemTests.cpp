@@ -76,4 +76,22 @@ bool FReEchoUIManagerSubsystemResetOnTravelTest::RunTest(const FString& Paramete
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoPauseOverlayLayerPolicyTest,
+                                 "ReEcho.UIManagerSubsystem.PauseOverInventoryShop",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoPauseOverlayLayerPolicyTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Inventory/shop uses the regular screen layer"),
+	          UReEchoUIManagerSubsystem::GetScreenLayer(EReEchoUIScreen::InventoryShop),
+	          EReEchoUILayer::Screen);
+	TestEqual(TEXT("Pause uses the dedicated pause layer"),
+	          UReEchoUIManagerSubsystem::GetScreenLayer(EReEchoUIScreen::Restart),
+	          EReEchoUILayer::Pause);
+	TestTrue(TEXT("Pause renders above inventory/shop"),
+	         UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::Pause) >
+	             UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::Screen));
+	return true;
+}
+
 #endif
