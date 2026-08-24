@@ -8,7 +8,7 @@
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
-- 最终集成基线：`origin/main` @ `e3a8701a66b1abe664736993a6e6c8f798baac3e`。
+- 最终集成基线：`origin/main` @ `860ae39752f34d1ebe035d2500bd68347750d313`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan88-card-drop-system`，分支 `plan/88-card-drop-system`。
 - 依赖 / 阻塞：依赖 Plan47 的 `MOD-ReEchoCards` 目录/资格过滤，并与 Plan85 的商店所有权排除保持兼容。2026-08-24 用户锁定：商店有投放时固定显示 3 个卡牌槽，三个槽均从当前行 `ShopTiers` 指定 Tier 的合并牌池抽取；最新资格规则为1级卡可重复投放/叠加，2、3级卡及已获得武器、符文不得再次投放。该决定覆盖此前“所有已获得卡一律排除”及 Plan67“一配置 Tier 对应一槽”的旧解释。Plan87 已进入最终基线；Forge 已删除，本 Plan 只保留普通卡牌投放路由。
 - Writes:
@@ -112,7 +112,7 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：最初实现基于 `b8836ed1`；发布前先按用户确认变基到 `a4a72b98`，吸收 Plan87 角色能力数据化/Forge 删除、商店暂停与响应式布局；推送前远端又加入 Plan71 Echo Blueprint/空间表现，二次确认后组合适配到最终 `origin/main@e3a8701a`。
+- 基线分支/提交：最初实现基于 `b8836ed1`；发布前先按用户确认变基到 `a4a72b98`，吸收 Plan87 角色能力数据化/Forge 删除、商店暂停与响应式布局；随后吸收 Plan71 Echo Blueprint/空间表现并组合适配到 `e3a8701a`；最终推送门禁又发现仅新增 Plan90 计划文档，经用户确认后干净变基到最终 `origin/main@860ae397`。
 - 引擎/构建可用性：变基前完整构建与聚焦回归已通过；变基后的最终候选必须重新执行完整构建与全部相关自动化，旧二进制证据不沿用。
 - 现有聚焦测试结果：变基前证据仅作历史记录；最终发布以本节后续追加的变基后结果为准。
 - 共享契约 / 难合并资源风险：本 Plan 将编辑近期商店/Run 高频文件，尤其 `ReEchoRunSubsystem.cpp`、`ReEchoGameMode.cpp`、`ReEchoShopTests.cpp`；发布前必须再次 fetch 并审计 Plan85 之后的新提交。工作簿与 CSV 当前无需写入，避免与策划表二进制变更产生无意义冲突。
@@ -161,6 +161,7 @@
 - 2026-08-24：按用户确认将 Plan88 变基到 `origin/main@a4a72b98`。冲突以主分支为基线：保留角色能力数据化、Forge 删除、商店暂停与响应式布局，再叠加逐关投放、稳定三槽商店页、1级重复规则和购买后即时卡槽显示。
 - 2026-08-24：变基后角色回归发现两个组合问题：第 1 关按表进入 `Planning` 后重复结算回调会重复应用诗人增长；Plan87 的角色测试仍预期第 1 关进入普通选卡、且 Sage 测试未指定投放关次。Run 现对 `Planning/Shop` 等已结算阶段保持幂等，角色测试改为验证第 1 关跳过、第 2 关进入 Tier 2 普通选卡，并在第 2 关验证 Sage 节奏。
 - 2026-08-24：推送前 fetch 发现 Plan71 Echo Gameplay Blueprint/空间表现进入远端。经用户再次确认组合适配后变基到 `origin/main@e3a8701a`；`ReEchoGameMode.cpp` 的 Echo 构造/生成入口与 Plan88 的战后卡牌阶段路由位于不同区段并自动合并，`MOD-ReEcho.md` 两项契约并存，精选二进制等待在最终组合源码上重新生成。
+- 2026-08-24：最终推送门禁 fetch 发现 `860ae397` 仅新增 Plan90 可编辑特效测试场景计划文档。经用户确认后干净变基；该提交不修改产品源码、配置或精选二进制，因此 `e3a8701a` 组合源码上的完整构建与自动化证据继续有效。
 
 ### 证据
 
@@ -185,6 +186,7 @@
 - 首次变基到 `a4a72b98` 后的 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过，96/96 actions 成功；精选 Editor 预构建源指纹 `502a05de5495`。该证据因随后吸收 Plan71 而失效，最终发布只采用 `e3a8701a` 组合候选上重新生成的证据。
 - 最终 `origin/main@e3a8701a` 组合候选回归：`ReEcho.Cards` 5/5、`ReEcho.Traits` 8/8、`ReEcho.Shop` 8/8、`ReEcho.Characters` 3/3、`ReEcho.UI.Shop` 2/2、`ReEcho.Run` 14/14、`ReEcho.Presentation.EchoAppearance` 2/2，全部通过。
 - 最终组合候选的 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过，93/93 actions 成功；精选 Editor 预构建源指纹 `03970a38b501`。
+- 变基到最终 `origin/main@860ae397` 后复核：Plan90 仅增加计划文档；重新执行 XLSX/CSV 同步检查、项目静态校验、精选 Editor 预构建校验与 `git diff --check`，均通过，预构建源指纹仍为 `03970a38b501`。
 
 ### 剩余风险
 
