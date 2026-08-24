@@ -73,10 +73,13 @@ void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 
 	RefreshMenuMode();
 }
 
-void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation, const bool bInExitToMainMenu)
+void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation,
+                                               const bool bInExitToMainMenu,
+                                               const int32 InEncounterIndex)
 {
 	QuitPromptState = bInQuitConfirmation ? EReEchoQuitPromptState::Confirm : EReEchoQuitPromptState::None;
 	bExitToMainMenu = bInQuitConfirmation && bInExitToMainMenu;
+	PauseEncounterIndex = bInQuitConfirmation ? FMath::Max(0, InEncounterIndex) : 0;
 	RefreshMenuMode();
 	if (QuitPromptState == EReEchoQuitPromptState::Confirm && ResumeButton)
 	{
@@ -189,7 +192,8 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		}
 		else if (bQuitConfirmation)
 		{
-			MessageText->SetText(FText::FromString(TEXT("存档点：当前进度")));
+			MessageText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PauseSavePoint", "存档点：第 {0} 关"),
+			                                   FText::AsNumber(PauseEncounterIndex)));
 		}
 		else
 		{
@@ -203,10 +207,6 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	const bool bPauseMenu = ScreenMode == EReEchoRestartScreenMode::Pause;
 	const bool bPausePrompt = bPauseMenu && (bQuitConfirmation || bSaveFailed);
 	const bool bPauseRootVisible = bPauseMenu;
-	if (RootPanel)
-	{
-		RootPanel->SetRenderTranslation(bPauseMenu ? FVector2D(0.0f, -72.0f) : FVector2D::ZeroVector);
-	}
 	if (ArtPauseDimmer)
 	{
 		ArtPauseDimmer->SetVisibility(bPauseRootVisible ? ESlateVisibility::HitTestInvisible
@@ -219,12 +219,9 @@ void UReEchoRestartWidget::RefreshMenuMode()
 			Image->SetVisibility(bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		}
 	};
-	SetPauseArtVisibility(ArtPauseResume, bPauseMenu && !bPausePrompt);
-	SetPauseArtVisibility(ArtPauseExitToMenu, bPauseMenu && !bPausePrompt);
-	SetPauseArtVisibility(ArtPauseExitGame, bPauseMenu && !bPausePrompt);
-	SetPauseArtVisibility(ArtPauseSaveAndExit, bPausePrompt);
-	SetPauseArtVisibility(ArtPauseExitWithoutSave, bPausePrompt);
-	SetPauseArtVisibility(ArtPauseBack, bPausePrompt);
+	SetPauseArtVisibility(ArtPausePrimaryButton, bPauseMenu);
+	SetPauseArtVisibility(ArtPauseSecondaryButton, bPauseMenu);
+	SetPauseArtVisibility(ArtPauseTertiaryButton, bPauseMenu);
 	SetPauseArtVisibility(ArtPauseSettings, bPauseMenu && !bPausePrompt);
 	const ESlateVisibility ResultArtVisibility =
 	    bVictoryScreen || bDeathScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden;
@@ -262,8 +259,7 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	}
 	if (RestartButton)
 	{
-		RestartButton->SetVisibility(bQuitConfirmation || bSaveFailed ? ESlateVisibility::Collapsed
-		                                                              : ESlateVisibility::Visible);
+		RestartButton->SetVisibility(ESlateVisibility::Visible);
 	}
 	if (SettingsButton)
 	{
@@ -284,28 +280,29 @@ void UReEchoRestartWidget::RefreshMenuMode()
 			Button->SetBackgroundColor(ButtonBackground);
 		}
 	}
-	const bool bUsePauseArt = bPauseMenu && ArtPauseResume && ArtPauseExitToMenu && ArtPauseExitGame;
 	if (ResumeButtonLabel)
 	{
-		ResumeButtonLabel->SetVisibility(bUsePauseArt ? ESlateVisibility::Collapsed
-		                                              : ESlateVisibility::HitTestInvisible);
+		ResumeButtonLabel->SetText(FText::FromString(bPausePrompt ? TEXT("保存并退出") : TEXT("继续游戏")));
+		ResumeButtonLabel->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 	if (RestartButtonLabel)
 	{
-		RestartButtonLabel->SetText(FText::FromString(bPauseMenu ? TEXT("退出至主菜单") : TEXT("重新开始")));
-		RestartButtonLabel->SetVisibility(bUsePauseArt ? ESlateVisibility::Collapsed
-		                                               : ESlateVisibility::HitTestInvisible);
+		const FString RestartLabel = bPausePrompt      ? TEXT("不保存并退出")
+		                             : bPauseMenu      ? TEXT("退出至主菜单")
+		                                               : TEXT("重新开始");
+		RestartButtonLabel->SetText(FText::FromString(RestartLabel));
+		RestartButtonLabel->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 	if (QuitButtonText)
 	{
 		const FString QuitLabel = bPausePrompt ? TEXT("返回") : TEXT("退出游戏");
 		QuitButtonText->SetText(FText::FromString(QuitLabel));
-		QuitButtonText->SetVisibility(bUsePauseArt ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		QuitButtonText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 	if (AttackModeWidget)
 	{
 		const bool bShowAttackMode = ScreenMode == EReEchoRestartScreenMode::Pause &&
-		                             QuitPromptState == EReEchoQuitPromptState::None && !ArtPauseResume;
+		                             QuitPromptState == EReEchoQuitPromptState::None && !ArtPausePrimaryButton;
 		AttackModeWidget->SetVisibility(bShowAttackMode ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 		AttackModeWidget->SetAutomaticMode(bAutomaticAttackMode);
 	}

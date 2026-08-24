@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "Presentation/Combat/ReEchoCombatPresentationTypes.h"
+#include "TimerManager.h"
 #include "ReEchoCombatVfxComponent.generated.h"
 
 class UNiagaraComponent;
@@ -55,6 +56,8 @@ public:
 	UReEchoCombatVfxComponent();
 	/** Pure layer policy shared by runtime and automation. */
 	static int32 ResolveCombatEffectSortPriority(int32 OwnerSortPriority);
+	/** Echo card auras are a dedicated background layer immediately below their owning character. */
+	static int32 ResolveEchoAuraSortPriority(int32 OwnerSortPriority);
 	/** Pure identity projection shared by runtime and automation. */
 	static FReEchoProjectileVisualKey ResolveProjectileVisualKey(const FReEchoEnemyProjectileEvent& Event);
 	/** Material sprites fill their quad, so the core diameter matches the authoritative collider exactly. */
@@ -66,12 +69,35 @@ public:
 	/** Resolves and directly previews one reaction VFX without mutating combat element state. */
 	static bool TryResolveDebugElementReactionSemantic(FName ReactionName, uint8& OutSemanticValue);
 	bool PlayElementReactionForDebug(uint8 SemanticValue, AActor* Target) const;
+	static float ResolveConductLinkScheduledTime(int32 LinkIndex, float DelaySeconds);
+	/** Conduct Niagara uses world-space endpoints on an identity component at the world origin. */
+	static void ResolveConductLinkWorldEndpoints(const FVector& StartWorld,
+	                                             const FVector& EndWorld,
+	                                             FVector& OutStartParameter,
+	                                             FVector& OutEndParameter);
+	static float ResolveConductPropagationDelaySeconds(FName WeaponId);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
+	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
+	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
+	/** Editor repair seam for attached Niagara systems that must follow their owning presentation root. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetNiagaraSystemEmittersLocalSpace(UNiagaraSystem* System);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
 	bool
 	TryGetProjectileVisualLocationForTests(int64 AttackSequence, int32 VolleyBallIndex, FVector& OutLocation) const;
+	void ScheduleConductLinksForTests(const FReEchoElementReactionResolvedEvent& Event, float DelaySeconds);
+
+	void CancelConductPropagationForTests()
+	{
+		CancelConductPropagation();
+	}
+
+	int32 GetPendingConductTimerCountForTests() const
+	{
+		return ConductPropagationTimers.Num();
+	}
 #endif
 
 protected:
@@ -92,8 +118,10 @@ private:
 	                                 bool bAutoDestroy = true) const;
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
+	USceneComponent* ResolveEchoAuraVfxRoot() const;
 	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
+	int32 ResolveOwnerAuraSortPriority() const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopProjectileVisual(UMaterialBillboardComponent* Visual) const;
 	void StopAllEffects();
@@ -104,6 +132,9 @@ private:
 	void RefreshBurnStatus(bool bBurnActive);
 	UNiagaraComponent* SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
 	void SpawnConductLink(const FReEchoElementReactionLink& Link) const;
+	void CancelConductPropagation();
+	void ScheduleConductLinks(const FReEchoElementReactionResolvedEvent& Event);
+	void ScheduleConductLinksWithDelay(const FReEchoElementReactionResolvedEvent& Event, float DelaySeconds);
 
 	UFUNCTION()
 	void HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event);
@@ -154,9 +185,14 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> HurtVfxRoot;
 
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> EchoAuraVfxRoot;
+
 	mutable TSet<uint8> MissingSystemWarnings;
 	mutable TSet<FString> MissingElementSystemWarnings;
 	mutable bool bMissingRabbitProjectileTextureWarned = false;
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;
 	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;
+	TArray<FTimerHandle> ConductPropagationTimers;
+	uint64 ConductBatchSerial = 0;
 };

@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Combat/ReEchoCombatTypes.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Encounter/ReEchoEncounterRuntime.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
@@ -13,6 +14,7 @@ class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
+class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
 class UReEchoRunSubsystem;
@@ -114,6 +116,10 @@ public:
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
 	void NotifyEnemySpecialStarted(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
+	/** Central world-spawn boundary for all time-shard rewards. Uses the editor-authored pickup Blueprint when valid. */
+	AReEchoTimeShardPickupActor* SpawnTimeShardPickup(const FVector& Location,
+	                                                  int32 Amount,
+	                                                  float LifetimeSeconds = 20.0f);
 
 #if WITH_DEV_AUTOMATION_TESTS
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;
@@ -146,6 +152,8 @@ private:
 	TArray<TObjectPtr<AReEchoEchoActor>> Echoes;
 	UPROPERTY()
 	TSubclassOf<AReEchoEchoActor> EchoGameplayClass;
+	UPROPERTY(EditDefaultsOnly, Category = "World Pickups")
+	TSubclassOf<AReEchoTimeShardPickupActor> TimeShardPickupClass;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 	UPROPERTY()
@@ -331,6 +339,9 @@ private:
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
 	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
+	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
+	UFUNCTION()
+	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
@@ -344,6 +355,7 @@ private:
 	void ClearEchoes();
 	void ClearCombatants();
 	void RefreshFogRevealSources();
+	void PlayEchoCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowSettingsScreen(bool bReturnToStartMenu);

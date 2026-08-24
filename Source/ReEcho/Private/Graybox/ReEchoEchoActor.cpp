@@ -62,6 +62,9 @@ AReEchoEchoActor::AReEchoEchoActor()
 	HurtVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("HurtVfxRoot"));
 	HurtVfxRoot->SetupAttachment(EffectsRoot);
 	HurtVfxRoot->bEditableWhenInherited = true;
+	EchoAuraVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EchoAuraVfxRoot"));
+	EchoAuraVfxRoot->SetupAttachment(EffectsRoot);
+	EchoAuraVfxRoot->bEditableWhenInherited = true;
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(GroundRoot);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -124,6 +127,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
 	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot);
+	CombatVfx->ConfigureEchoAuraRoot(EchoAuraVfxRoot);
 	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo, FReEchoAudioEvents::EchoAttack, NAME_None);
 }
 
@@ -378,6 +382,14 @@ void AReEchoEchoActor::ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, 
 	}
 }
 
+void AReEchoEchoActor::PlayCardAuraPulse(const FReEchoCardRuleSnapshot& Rules)
+{
+	if (CombatVfx && IsCombatTargetAlive())
+	{
+		CombatVfx->PlayEchoCardAuraPulse(Rules.bWaterEchoAura, Rules.bGrassEchoAura);
+	}
+}
+
 bool AReEchoEchoActor::IsCombatTargetAlive() const
 {
 	return Combatant && Combatant->IsAlive();
@@ -478,6 +490,19 @@ void AReEchoEchoActor::UpdatePresentationState()
 	RefreshFootpointAlignment();
 	PresentationMotionRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset);
 	RefreshGroundShadowFromFlipbook();
+	RefreshEchoAuraCenter();
+}
+
+void AReEchoEchoActor::RefreshEchoAuraCenter()
+{
+	const UPaperFlipbook* Flipbook = EchoAnimation ? EchoAnimation->GetFlipbook() : nullptr;
+	if (!EffectsRoot || !EchoAuraVfxRoot || !EchoAnimation || !Flipbook)
+	{
+		return;
+	}
+	const FVector CenterWorld =
+	    EchoAnimation->GetComponentTransform().TransformPosition(Flipbook->GetRenderBounds().Origin);
+	EchoAuraVfxRoot->SetRelativeLocation(EffectsRoot->GetComponentTransform().InverseTransformPosition(CenterWorld));
 }
 
 void AReEchoEchoActor::RefreshFootpointAlignment()

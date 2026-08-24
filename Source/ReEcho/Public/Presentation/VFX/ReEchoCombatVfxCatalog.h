@@ -16,7 +16,9 @@ enum class EReEchoCombatVfxSemantic : uint8
 	PlayerBowImpact,
 	PlayerGunFlight,
 	PlayerGunImpact,
-	EnemyHurt
+	EnemyHurt,
+	EchoWaterAura,
+	EchoGrassAura
 };
 
 /** Centralized semantic-to-asset mapping. Gameplay code never stores Niagara paths. */

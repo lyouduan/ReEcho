@@ -51,12 +51,9 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	UButton* QuitButton = FindRestartWidget<UButton>(RestartWidget, TEXT("QuitButton"));
 	UButton* PauseSettingsButton = FindRestartWidget<UButton>(RestartWidget, TEXT("PauseSettingsButton"));
 	UImage* ArtPauseDimmer = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseDimmer"));
-	UImage* ArtPauseResume = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseResume"));
-	UImage* ArtPauseExitToMenu = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseExitToMenu"));
-	UImage* ArtPauseExitGame = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseExitGame"));
-	UImage* ArtPauseSaveAndExit = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseSaveAndExit"));
-	UImage* ArtPauseExitWithoutSave = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseExitWithoutSave"));
-	UImage* ArtPauseBack = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseBack"));
+	UImage* ArtPausePrimaryButton = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPausePrimaryButton"));
+	UImage* ArtPauseSecondaryButton = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseSecondaryButton"));
+	UImage* ArtPauseTertiaryButton = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtPauseTertiaryButton"));
 	UImage* ArtRestartDialogPanel = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtRestartDialogPanel"));
 
 	TestNotNull(TEXT("Pause title exists"), TitleText);
@@ -66,25 +63,22 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Exit-game button exists"), QuitButton);
 	TestNotNull(TEXT("Pause settings button exists"), PauseSettingsButton);
 	TestNotNull(TEXT("Pause dimmer exists"), ArtPauseDimmer);
-	TestNotNull(TEXT("Pause resume art exists"), ArtPauseResume);
-	TestNotNull(TEXT("Pause exit-to-menu art exists"), ArtPauseExitToMenu);
-	TestNotNull(TEXT("Pause exit-game art exists"), ArtPauseExitGame);
-	TestNotNull(TEXT("Pause save-and-exit art exists"), ArtPauseSaveAndExit);
-	TestNotNull(TEXT("Pause exit-without-save art exists"), ArtPauseExitWithoutSave);
-	TestNotNull(TEXT("Pause back art exists"), ArtPauseBack);
+	TestNotNull(TEXT("Pause primary button art exists"), ArtPausePrimaryButton);
+	TestNotNull(TEXT("Pause secondary button art exists"), ArtPauseSecondaryButton);
+	TestNotNull(TEXT("Pause tertiary button art exists"), ArtPauseTertiaryButton);
 	TestNotNull(TEXT("Restart dialog panel exists"), ArtRestartDialogPanel);
 	if (!TitleText || !RootPanel || !ResumeButton || !RestartButton || !QuitButton || !PauseSettingsButton ||
-	    !ArtPauseDimmer || !ArtPauseResume || !ArtPauseExitToMenu || !ArtPauseExitGame || !ArtPauseSaveAndExit ||
-	    !ArtPauseExitWithoutSave || !ArtPauseBack || !ArtRestartDialogPanel)
+	    !ArtPauseDimmer || !ArtPausePrimaryButton || !ArtPauseSecondaryButton || !ArtPauseTertiaryButton ||
+	    !ArtRestartDialogPanel)
 	{
 		return false;
 	}
 
 	RestartWidget->SetDeathScreen(false);
 	TestEqual(TEXT("Normal pause title"), TitleText->GetText().ToString(), FString(TEXT("游戏暂停")));
-	TestEqual(TEXT("Pause content is lifted into the target composition"),
+	TestEqual(TEXT("C++ preserves the authored pause composition position"),
 	          RootPanel->GetRenderTransform().Translation,
-	          FVector2D(0.0f, -72.0f));
+	          FVector2D::ZeroVector);
 	TestEqual(TEXT("Resume button is interactive"), ResumeButton->GetVisibility(), ESlateVisibility::Visible);
 	TestEqual(TEXT("Exit-to-menu button is interactive"), RestartButton->GetVisibility(), ESlateVisibility::Visible);
 	TestEqual(TEXT("Exit-game button is interactive"), QuitButton->GetVisibility(), ESlateVisibility::Visible);
@@ -92,21 +86,29 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Pause dimmer does not intercept input"),
 	          ArtPauseDimmer->GetVisibility(),
 	          ESlateVisibility::HitTestInvisible);
-	TestEqual(TEXT("Resume art is visible"), ArtPauseResume->GetVisibility(), ESlateVisibility::HitTestInvisible);
-	TestEqual(
-	    TEXT("Exit-to-menu art is visible"), ArtPauseExitToMenu->GetVisibility(), ESlateVisibility::HitTestInvisible);
-	TestEqual(TEXT("Exit-game art is visible"), ArtPauseExitGame->GetVisibility(), ESlateVisibility::HitTestInvisible);
-	TestTrue(TEXT("Resume art retains its source width"), ArtPauseResume->GetBrush().ImageSize.X >= 420.0f);
-	TestTrue(TEXT("Resume art retains its source height"), ArtPauseResume->GetBrush().ImageSize.Y >= 86.0f);
+	TestEqual(TEXT("Primary art is visible"), ArtPausePrimaryButton->GetVisibility(), ESlateVisibility::HitTestInvisible);
+	TestEqual(TEXT("Secondary art is visible"), ArtPauseSecondaryButton->GetVisibility(), ESlateVisibility::HitTestInvisible);
+	TestEqual(TEXT("Tertiary art is visible"), ArtPauseTertiaryButton->GetVisibility(), ESlateVisibility::HitTestInvisible);
+	TestTrue(TEXT("Primary art retains its source width"), ArtPausePrimaryButton->GetBrush().ImageSize.X >= 420.0f);
+	TestTrue(TEXT("Primary art preserves the formal aspect height"), ArtPausePrimaryButton->GetBrush().ImageSize.Y >= 140.0f);
 
-	RestartWidget->SetQuitConfirmation(true, true);
+	RestartWidget->SetQuitConfirmation(true, true, 4);
 	TestEqual(TEXT("Exit-to-menu confirmation title"), TitleText->GetText().ToString(), FString(TEXT("退出到主菜单?")));
-	TestEqual(
-	    TEXT("Save-and-exit art is visible"), ArtPauseSaveAndExit->GetVisibility(), ESlateVisibility::HitTestInvisible);
-	TestEqual(TEXT("Exit-without-save art is visible"),
-	          ArtPauseExitWithoutSave->GetVisibility(),
-	          ESlateVisibility::HitTestInvisible);
-	TestEqual(TEXT("Back art is visible"), ArtPauseBack->GetVisibility(), ESlateVisibility::HitTestInvisible);
+	TestEqual(TEXT("Exit-to-menu confirmation uses the current encounter as its save point"),
+	          FindRestartWidget<UTextBlock>(RestartWidget, TEXT("MessageText"))->GetText().ToString(),
+	          FString(TEXT("存档点：第 4 关")));
+	TestEqual(TEXT("Exit-without-save button remains interactive"),
+	          RestartButton->GetVisibility(),
+	          ESlateVisibility::Visible);
+	TestEqual(TEXT("Save-and-exit label"),
+	          FindRestartWidget<UTextBlock>(RestartWidget, TEXT("ResumeButtonLabel"))->GetText().ToString(),
+	          FString(TEXT("保存并退出")));
+	TestEqual(TEXT("Exit-without-save label"),
+	          FindRestartWidget<UTextBlock>(RestartWidget, TEXT("RestartButtonLabel"))->GetText().ToString(),
+	          FString(TEXT("不保存并退出")));
+	TestEqual(TEXT("Back label"),
+	          FindRestartWidget<UTextBlock>(RestartWidget, TEXT("QuitButtonText"))->GetText().ToString(),
+	          FString(TEXT("返回")));
 	TestEqual(TEXT("Settings gear is hidden during confirmation"),
 	          PauseSettingsButton->GetVisibility(),
 	          ESlateVisibility::Collapsed);
@@ -114,7 +116,7 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	          ArtRestartDialogPanel->GetVisibility(),
 	          ESlateVisibility::Hidden);
 
-	RestartWidget->SetQuitConfirmation(true, false);
+	RestartWidget->SetQuitConfirmation(true, false, 4);
 	TestEqual(TEXT("Exit-game confirmation title"), TitleText->GetText().ToString(), FString(TEXT("退出游戏?")));
 	TestEqual(TEXT("Exit-game confirmation has no dialog plate"),
 	          ArtRestartDialogPanel->GetVisibility(),

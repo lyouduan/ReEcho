@@ -55,6 +55,10 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Conduct Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/Element/Elctricity/Particle/NS_Element_Electricity.NS_Element_Electricity"))));
+	TestTrue(TEXT("Echo Water aura Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/VFX/Echo/Particle/NS_Echo_Water.NS_Echo_Water"))));
+	TestTrue(TEXT("Echo Grass aura Niagara is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/VFX/Echo/Particle/NS_Echo_Grass.NS_Echo_Grass"))));
 
 	const TArray<FString> DirtyPaths = {TEXT("  /Game/ReEcho/Textures/Effects/Bow.Bow  "),
 	                                    TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow"),

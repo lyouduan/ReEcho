@@ -410,7 +410,6 @@ struct REECHO_API FReEchoCsvEnemyRow
 	float TriggerRadiusCm = 0.0f;
 	float DamageRadiusCm = 0.0f;
 	float FuseSeconds = 0.0f;
-	int32 Reward = 0;
 	bool bBoss = false;
 	FString SourceSheet;
 	int32 SourceRow = 0;
@@ -426,6 +425,21 @@ struct REECHO_API FReEchoCsvEnemyRow
 	float HateRangeCm = 0.0f;
 	TArray<FReEchoCsvEnemyAbilityRow> Abilities;
 	TArray<FReEchoCsvBossPhaseRow> BossPhases;
+};
+
+struct REECHO_API FReEchoCsvEnemyShardDropRow
+{
+	int32 EncounterIndex = 0;
+	int32 MeleeMin = 0;
+	int32 MeleeMax = 0;
+	int32 RangedMin = 0;
+	int32 RangedMax = 0;
+	/** INDEX_NONE on both fields means that this encounter has no elite reward. */
+	int32 EliteMin = INDEX_NONE;
+	int32 EliteMax = INDEX_NONE;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+	FString Notes;
 };
 
 struct REECHO_API FReEchoCsvEnemyCombatStatRow
@@ -566,6 +580,7 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvPartRow> Parts;
 	TMap<FName, FReEchoCsvEnemyRow> Enemies;
 	TArray<FName> EnemyOrder;
+	TMap<int32, FReEchoCsvEnemyShardDropRow> EnemyShardDrops;
 	TMap<FName, FReEchoCsvEnemyCombatStatRow> EnemyCombatStats;
 	TArray<FName> EnemyCombatStatOrder;
 	TMap<FName, FReEchoCsvStageRow> Stages;
@@ -601,6 +616,7 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TArray<FReEchoCsvAttackStepRow> GetAttackSteps(FName AttackPatternId) const;
 	const FReEchoCsvEnemyRow* FindEnemy(FName EnemyId) const;
 	const FReEchoCsvEnemyRow* FindEnabledEnemy(FName EnemyId) const;
+	const FReEchoCsvEnemyShardDropRow* FindEnemyShardDrop(int32 EncounterIndex) const;
 	const FReEchoCsvEnemyCombatStatRow* FindEnemyCombatStat(FName EnemyId, int32 CombatIndex) const;
 	const FReEchoCsvStageRow* FindStage(FName StageId) const;
 	const FReEchoCsvEncounterRow* FindEncounter(FName EncounterId) const;

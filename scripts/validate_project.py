@@ -529,7 +529,6 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "TriggerRadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "DamageRadiusCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "FuseSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
-        "Reward": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Boss": CsvColumnSpec("Bool"),
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
@@ -595,6 +594,18 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "MaxHealth": CsvColumnSpec("Float", min_value=1.0, max_value=1000000.0),
         "ContactDamage": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "AttackIntervalSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=3600.0),
+    },
+    "EnemyShardDrops": {
+        "EncounterIndex": CsvColumnSpec("Int", min_value=1.0, max_value=8.0),
+        "MeleeMin": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "MeleeMax": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "RangedMin": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "RangedMax": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "EliteMin": CsvColumnSpec("Int", required=False, min_value=0.0, max_value=1000000.0),
+        "EliteMax": CsvColumnSpec("Int", required=False, min_value=0.0, max_value=1000000.0),
+        "SourceSheet": CsvColumnSpec("Text"),
+        "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Notes": CsvColumnSpec("Text", required=False),
     },
     "Stages": {
         "Id": CsvColumnSpec("StableId"),
@@ -895,7 +906,7 @@ def validate_table(path: Path, table_id: str, references: dict[str, set[str]]) -
         row_id = row[primary_key]
         if row_id in ids:
             duplicate_label = "id" if primary_key == "Id" else primary_key
-            fail(f"{rel(path)}:{line}: duplicate {duplicate_label} {row_id!r}")
+            fail(f"{rel(path)}:{line}:{primary_key}: duplicate {duplicate_label} {row_id!r}")
         ids.add(row_id)
     if not ids and table_id == "RuntimeSmoke":
         fail(f"{rel(path)}: RuntimeSmoke must contain at least one row")
@@ -926,6 +937,7 @@ def validate_csv_package(data_dir: Path) -> None:
     references["EnemyAbilities"] = validate_table(entries["EnemyAbilities"], "EnemyAbilities", references)
     references["BossPhases"] = validate_table(entries["BossPhases"], "BossPhases", references)
     references["EnemyCombatStats"] = validate_table(entries["EnemyCombatStats"], "EnemyCombatStats", references)
+    references["EnemyShardDrops"] = validate_table(entries["EnemyShardDrops"], "EnemyShardDrops", references)
     references["Stages"] = validate_table(entries["Stages"], "Stages", references)
     references["Encounters"] = validate_table(entries["Encounters"], "Encounters", references)
     references["EncounterWaves"] = validate_table(entries["EncounterWaves"], "EncounterWaves", references)
@@ -940,6 +952,7 @@ def validate_csv_package(data_dir: Path) -> None:
     validate_element_reaction_domain(data_dir, entries)
     validate_weapon_domain(data_dir, entries)
     validate_enemy_domain(data_dir, entries)
+    validate_enemy_shard_drop_domain(entries)
     validate_encounter_domain(data_dir, entries)
 
 
@@ -1476,6 +1489,33 @@ def validate_enemy_domain(data_dir: Path, entries: dict[str, Path]) -> None:
                 fail(f"{rel(entries['BossPhases'])}:{line}:PhaseMaxHealth: RefillToMaximum requires PhaseMaxHealth > 0")
         elif row["RefillHealthPolicy"] != "None":
             fail(f"{rel(entries['BossPhases'])}:{line}:RefillHealthPolicy: unsupported policy {row['RefillHealthPolicy']!r}")
+
+
+def validate_enemy_shard_drop_domain(entries: dict[str, Path]) -> None:
+    rows = load_csv(entries["EnemyShardDrops"])
+    indices = [int(row["EncounterIndex"]) for row in rows]
+    if indices != list(range(1, 9)):
+        fail(f"{rel(entries['EnemyShardDrops'])}: EncounterIndex rows must be exactly 1..8 in order")
+    for row in rows:
+        line = row["__line__"]
+        for minimum_field, maximum_field in (
+            ("MeleeMin", "MeleeMax"),
+            ("RangedMin", "RangedMax"),
+        ):
+            if int(row[minimum_field]) > int(row[maximum_field]):
+                fail(
+                    f"{rel(entries['EnemyShardDrops'])}:{line}:{minimum_field}: "
+                    f"minimum cannot exceed maximum"
+                )
+        elite_min = row["EliteMin"]
+        elite_max = row["EliteMax"]
+        if bool(elite_min) != bool(elite_max):
+            fail(
+                f"{rel(entries['EnemyShardDrops'])}:{line}:EliteMin: "
+                "EliteMin and EliteMax must both be blank or both configured"
+            )
+        if elite_min and int(elite_min) > int(elite_max):
+            fail(f"{rel(entries['EnemyShardDrops'])}:{line}:EliteMin: minimum cannot exceed maximum")
 
 
 def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:

@@ -2,14 +2,18 @@
 
 #include "Misc/AutomationTest.h"
 #include "Engine/Texture2D.h"
+#include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
+#include "NiagaraVariant.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
+#include "Presentation/VFX/ReEchoVfxPreviewActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoSwordArcActor.h"
 
@@ -45,6 +49,132 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	uint8 InvalidSemanticValue = 0;
 	TestFalse(TEXT("Unknown GM reaction does not spawn an unrelated VFX"),
 	          UReEchoCombatVfxComponent::TryResolveDebugElementReactionSemantic(TEXT("Unknown"), InvalidSemanticValue));
+	TestEqual(TEXT("Conduct delay zero preserves simultaneous compatibility"),
+	          UReEchoCombatVfxComponent::ResolveConductLinkScheduledTime(4, 0.0f),
+	          0.0f);
+	TestTrue(TEXT("Conduct BFS schedule preserves authoritative index order"),
+	         FMath::IsNearlyEqual(UReEchoCombatVfxComponent::ResolveConductLinkScheduledTime(3, 0.2f), 0.6f));
+	const FVector StartWorld(1250.0f, -375.0f, 80.0f);
+	const FVector EndWorld(1550.0f, 25.0f, 180.0f);
+	FVector StartParameter = FVector::ZeroVector;
+	FVector EndParameter = FVector::ZeroVector;
+	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(StartWorld, EndWorld, StartParameter, EndParameter);
+	TestTrue(TEXT("World-space Conduct preserves a non-zero source origin"),
+	         StartParameter.Equals(StartWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("World-space Conduct preserves oblique direction and distance"),
+	         EndParameter.Equals(EndWorld, KINDA_SMALL_NUMBER));
+	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
+	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
+	    StartWorld, MovedEndWorld, StartParameter, EndParameter);
+	TestTrue(TEXT("Moved target is recomputed rather than retaining the event snapshot"),
+	         EndParameter.Equals(MovedEndWorld, KINDA_SMALL_NUMBER));
+	const FString ConductPath =
+	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Conduct, TEXT("Enemy.Slime"));
+	UNiagaraSystem* ConductSystem = LoadObject<UNiagaraSystem>(nullptr, *ConductPath);
+	TestNotNull(TEXT("Conduct Niagara loads for coordinate-space contract validation"), ConductSystem);
+	if (ConductSystem)
+	{
+		TArray<FNiagaraVariable> UserParameters;
+		ConductSystem->GetExposedParameters().GetUserParameters(UserParameters);
+		for (const FNiagaraVariable& Variable : UserParameters)
+		{
+			AddInfo(FString::Printf(TEXT("Conduct user parameter Name=%s Type=%s"),
+			                        *Variable.GetName().ToString(),
+			                        *Variable.GetType().GetName()));
+		}
+		const FNiagaraVariable* StartPositionParameter = UserParameters.FindByPredicate(
+		    [](const FNiagaraVariable& Variable)
+		    {
+			    return Variable.GetName() == TEXT("StartPosition");
+		    });
+		const FNiagaraVariable* EndPositionParameter = UserParameters.FindByPredicate(
+		    [](const FNiagaraVariable& Variable)
+		    {
+			    return Variable.GetName() == TEXT("EndPosition");
+		    });
+		TestTrue(TEXT("Conduct exposes exact User.StartPosition Niagara Position"),
+		         StartPositionParameter &&
+		             StartPositionParameter->GetType() == FNiagaraTypeDefinition::GetPositionDef());
+		TestTrue(TEXT("Conduct exposes exact User.EndPosition Niagara Position"),
+		         EndPositionParameter && EndPositionParameter->GetType() == FNiagaraTypeDefinition::GetPositionDef());
+		UNiagaraComponent* ParameterComponent = NewObject<UNiagaraComponent>();
+		ParameterComponent->SetAsset(ConductSystem);
+		ParameterComponent->SetAutoActivate(false);
+		ParameterComponent->SetVariablePosition(TEXT("User.StartPosition"), StartWorld);
+		ParameterComponent->SetVariablePosition(TEXT("User.EndPosition"), EndWorld);
+		const FNiagaraVariant StartOverride = ParameterComponent->FindParameterOverride(
+		    FNiagaraVariableBase(FNiagaraTypeDefinition::GetPositionDef(), TEXT("StartPosition")));
+		const FNiagaraVariant EndOverride = ParameterComponent->FindParameterOverride(
+		    FNiagaraVariableBase(FNiagaraTypeDefinition::GetPositionDef(), TEXT("EndPosition")));
+		TestTrue(TEXT("Position API writes Start before activation"), StartOverride.IsValid());
+		TestTrue(TEXT("Position API writes End before activation"), EndOverride.IsValid());
+		TestEqual(TEXT("Start Position override stores an LWC FVector"),
+		          StartOverride.GetNumBytes(),
+		          static_cast<int32>(sizeof(FVector)));
+		TestEqual(TEXT("End Position override stores an LWC FVector"),
+		          EndOverride.GetNumBytes(),
+		          static_cast<int32>(sizeof(FVector)));
+		if (StartOverride.IsValid() && EndOverride.IsValid() && StartOverride.GetNumBytes() == sizeof(FVector) &&
+		    EndOverride.GetNumBytes() == sizeof(FVector))
+		{
+			FVector StartReadback;
+			FVector EndReadback;
+			FMemory::Memcpy(&StartReadback, StartOverride.GetBytes(), sizeof(FVector));
+			FMemory::Memcpy(&EndReadback, EndOverride.GetBytes(), sizeof(FVector));
+			TestTrue(TEXT("Start Position override reads back the combat target world location"),
+			         StartReadback.Equals(StartWorld, KINDA_SMALL_NUMBER));
+			TestTrue(TEXT("End Position override reads back the combat target world location"),
+			         EndReadback.Equals(EndWorld, KINDA_SMALL_NUMBER));
+		}
+		for (const FNiagaraEmitterHandle& Handle : ConductSystem->GetEmitterHandles())
+		{
+			const FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
+			TestTrue(*FString::Printf(TEXT("Conduct emitter %s exposes coordinate-space data"),
+			                          *Handle.GetName().ToString()),
+			         EmitterData != nullptr);
+			if (EmitterData)
+			{
+				TestFalse(*FString::Printf(TEXT("Conduct emitter %s uses world space"), *Handle.GetName().ToString()),
+				          EmitterData->bLocalSpace);
+			}
+		}
+	}
+	UWorld* TimerWorld = UWorld::CreateWorld(EWorldType::EditorPreview, false);
+	AActor* TimerOwner = TimerWorld ? TimerWorld->SpawnActor<AActor>() : nullptr;
+	UReEchoCombatVfxComponent* TimerComponent = TimerOwner ? NewObject<UReEchoCombatVfxComponent>(TimerOwner) : nullptr;
+	if (TimerComponent)
+	{
+		TimerOwner->AddInstanceComponent(TimerComponent);
+		TimerComponent->RegisterComponent();
+		AReEchoVfxScenarioTargetActor* Target0 = TimerWorld->SpawnActor<AReEchoVfxScenarioTargetActor>();
+		AReEchoVfxScenarioTargetActor* Target1 = TimerWorld->SpawnActor<AReEchoVfxScenarioTargetActor>();
+		AReEchoVfxScenarioTargetActor* Target2 = TimerWorld->SpawnActor<AReEchoVfxScenarioTargetActor>();
+		FReEchoElementReactionResolvedEvent TimedEvent;
+		FReEchoElementReactionLink& FirstLink = TimedEvent.ReactionLinks.AddDefaulted_GetRef();
+		FirstLink.SourceTarget = Target0;
+		FirstLink.TargetTarget = Target1;
+		FReEchoElementReactionLink& SecondLink = TimedEvent.ReactionLinks.AddDefaulted_GetRef();
+		SecondLink.SourceTarget = Target1;
+		SecondLink.TargetTarget = Target2;
+		TimerComponent->ScheduleConductLinksForTests(TimedEvent, 0.2f);
+		TestEqual(TEXT("Only delayed BFS links retain cancellable timers"),
+		          TimerComponent->GetPendingConductTimerCountForTests(),
+		          1);
+		TimerComponent->ScheduleConductLinksForTests(TimedEvent, 0.2f);
+		TestEqual(TEXT("A new reaction batch cancels instead of interleaving old links"),
+		          TimerComponent->GetPendingConductTimerCountForTests(),
+		          1);
+		Target2->Destroy();
+		TimerWorld->GetTimerManager().Tick(0.25f);
+		TimerComponent->CancelConductPropagationForTests();
+		TestEqual(TEXT("Explicit cleanup and EndPlay contract leave no pending Conduct timers"),
+		          TimerComponent->GetPendingConductTimerCountForTests(),
+		          0);
+	}
+	if (TimerWorld)
+	{
+		TimerWorld->DestroyWorld(false);
+	}
 	const FString PlayerHurt = FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerHurt);
 	const FString EnemyHurt = FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EnemyHurt);
 	TestTrue(TEXT("Player hurt uses the Rabbit-folder authority"), PlayerHurt.Contains(TEXT("/Monster/Rabbit/")));
@@ -72,6 +202,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Combat effects still render above an owner already beyond the foreground band"),
 	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(1500),
 	          1501);
+	TestEqual(TEXT("Echo card auras render immediately below their owning character"),
+	          UReEchoCombatVfxComponent::ResolveEchoAuraSortPriority(23),
+	          22);
+	TestNotEqual(TEXT("Water and Grass Echo auras use distinct systems"),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoWaterAura),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoGrassAura));
 	FReEchoEnemyProjectileEvent BallZero;
 	BallZero.Attack.Sequence = 17;
 	BallZero.VolleyBallIndex = 0;
@@ -124,6 +260,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerGunFlight,
 	    EReEchoCombatVfxSemantic::PlayerGunImpact,
 	    EReEchoCombatVfxSemantic::EnemyHurt,
+	    EReEchoCombatVfxSemantic::EchoWaterAura,
+	    EReEchoCombatVfxSemantic::EchoGrassAura,
 	};
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
@@ -136,7 +274,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		const bool bRequiresComponentSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
 		                                     Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
 		                                     Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight;
+		                                     Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		                                     Semantic == EReEchoCombatVfxSemantic::EchoWaterAura ||
+		                                     Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;
