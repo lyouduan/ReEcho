@@ -35,6 +35,7 @@ class UReEchoEnemyGameplayClassRegistry;
 class UReEchoAudioService;
 class UMaterialInterface;
 class UTexture2D;
+class UWorld;
 struct FReEchoCsvStageRow;
 enum class EReEchoInventoryShopMode : uint8;
 struct FReEchoEncounterRuntimeState;
@@ -127,6 +128,7 @@ public:
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;
 	AReEchoEchoActor* SpawnEchoActorForTests();
 	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
+	static int32 ClearTimeShardPickupsInWorldForTests(UWorld* World);
 #endif
 
 private:
@@ -356,6 +358,8 @@ private:
 	void ClearEnemyRoster();
 	void ClearEchoes();
 	void ClearCombatants();
+	void ClearTimeShardPickups();
+	static int32 ClearTimeShardPickupsInWorld(UWorld* World);
 	void RefreshFogRevealSources();
 	void PlayEchoCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */

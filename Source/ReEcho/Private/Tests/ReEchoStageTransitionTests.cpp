@@ -7,8 +7,10 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "Misc/AutomationTest.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
+#include "ReEchoGameMode.h"
 
 namespace
 {
@@ -169,6 +171,19 @@ bool FReEchoStageTransitionWorldContinuityTest::RunTest(const FString& Parameter
 	Enemy->GetEnemyLogicComponent()->RestoreSnapshot(Logic);
 	Enemy->GetCombatantComponent()->EditElementStateForTests().Attached = EReEchoElement::Water;
 	Enemy->GetCombatantComponent()->EditElementStateForTests().bEnhancedNextReaction = true;
+	AReEchoTimeShardPickupActor* FirstPickup =
+	    Fixture.World->SpawnActor<AReEchoTimeShardPickupActor>(FVector(100.0f, 50.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoTimeShardPickupActor* SecondPickup =
+	    Fixture.World->SpawnActor<AReEchoTimeShardPickupActor>(FVector(-100.0f, -50.0f, 0.0f), FRotator::ZeroRotator);
+	TestNotNull(TEXT("First encounter-scoped shard pickup spawns"), FirstPickup);
+	TestNotNull(TEXT("Second encounter-scoped shard pickup spawns"), SecondPickup);
+	TestEqual(TEXT("Encounter cleanup destroys every uncollected shard pickup"),
+	          AReEchoGameMode::ClearTimeShardPickupsInWorldForTests(Fixture.World),
+	          2);
+	TestEqual(TEXT("Encounter cleanup is idempotent"),
+	          AReEchoGameMode::ClearTimeShardPickupsInWorldForTests(Fixture.World),
+	          0);
+	TestTrue(TEXT("Encounter cleanup does not destroy retained enemies"), IsValid(Enemy));
 
 	AReEchoEnemyActor* const StableIdentity = Enemy;
 	const FVector StableLocation = Enemy->GetActorLocation();

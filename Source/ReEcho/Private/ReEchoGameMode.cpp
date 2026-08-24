@@ -1374,9 +1374,47 @@ void AReEchoGameMode::CreateArena()
 
 void AReEchoGameMode::ClearCombatants()
 {
+	ClearTimeShardPickups();
 	ClearEnemyRoster();
 	ClearEchoes();
 }
+
+int32 AReEchoGameMode::ClearTimeShardPickupsInWorld(UWorld* World)
+{
+	if (!World)
+	{
+		return 0;
+	}
+	int32 ClearedCount = 0;
+	for (TActorIterator<AReEchoTimeShardPickupActor> It(World); It; ++It)
+	{
+		AReEchoTimeShardPickupActor* Pickup = *It;
+		if (IsValid(Pickup) && !Pickup->IsActorBeingDestroyed() && Pickup->Destroy())
+		{
+			++ClearedCount;
+		}
+	}
+	return ClearedCount;
+}
+
+void AReEchoGameMode::ClearTimeShardPickups()
+{
+	const int32 ClearedCount = ClearTimeShardPickupsInWorld(GetWorld());
+	if (ClearedCount > 0)
+	{
+		UE_LOG(LogReEcho,
+		       Display,
+		       TEXT("[TimeShardPickup] cleared %d encounter-scoped pickup(s)"),
+		       ClearedCount);
+	}
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+int32 AReEchoGameMode::ClearTimeShardPickupsInWorldForTests(UWorld* World)
+{
+	return ClearTimeShardPickupsInWorld(World);
+}
+#endif
 
 void AReEchoGameMode::ClearEnemyRoster()
 {
@@ -1623,6 +1661,7 @@ void AReEchoGameMode::RefreshFogRevealSources()
 
 void AReEchoGameMode::BeginNextEncounter()
 {
+	ClearTimeShardPickups();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || RunSubsystem->EncounterIndex >= RunSubsystem->GetTotalEncounterCount())
 	{
@@ -3327,6 +3366,7 @@ void AReEchoGameMode::HandleEncounterEnded()
 		return;
 	}
 	bEncounterTransitioning = true;
+	ClearTimeShardPickups();
 	// #9 修正：倒计时必须显示到 0 才结束本局。先把 HUD 强制刷成剩余 0 秒（让玩家看到"0"，
 	// 而非冻结在上一个"1"帧），再用一个短暂 settle 节拍让"0"可见，最后收起 HUD 并弹出选卡/结算。
 	UReEchoRunSubsystem* RunSubsystemForHud = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
