@@ -1,0 +1,101 @@
+#include "Misc/AutomationTest.h"
+
+#include "Blueprint/WidgetTree.h"
+#include "Components/Image.h"
+#include "Components/SizeBox.h"
+#include "Components/TextBlock.h"
+#include "UI/ReEchoEncounterHudWidget.h"
+#include "UI/ReEchoMinimapCanvasWidget.h"
+#include "UI/ReEchoPlayerHudWidget.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatHudFormattingTest,
+                                 "ReEcho.UI.CombatHud.Formatting",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Encounter label follows the visual spec"),
+	          UReEchoEncounterHudWidget::FormatEncounterLabel(3).ToString(),
+	          FString(TEXT("第 3 关")));
+	TestEqual(TEXT("Countdown rounds up partial seconds"),
+	          UReEchoEncounterHudWidget::FormatCountdown(59.1f).ToString(),
+	          FString(TEXT("01:00")));
+	TestEqual(TEXT("Countdown clamps negative values"),
+	          UReEchoEncounterHudWidget::FormatCountdown(-1.0f).ToString(),
+	          FString(TEXT("00:00")));
+
+	UReEchoPlayerHudWidget* PlayerHud = NewObject<UReEchoPlayerHudWidget>();
+	PlayerHud->SetTimeShards(12);
+	TestEqual(TEXT("Time shards retain the live run value"), PlayerHud->GetTimeShardsForTests(), 12);
+	PlayerHud->SetTimeShards(-5);
+	TestEqual(TEXT("Time shards cannot display a negative value"), PlayerHud->GetTimeShardsForTests(), 0);
+
+	UClass* PlayerHudClass =
+	    LoadClass<UReEchoPlayerHudWidget>(nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoPlayerHud.WBP_ReEchoPlayerHud_C"));
+	TestNotNull(TEXT("Authored Player HUD class loads"), PlayerHudClass);
+	if (!PlayerHudClass)
+	{
+		return false;
+	}
+	UReEchoPlayerHudWidget* AuthoredPlayerHud =
+	    NewObject<UReEchoPlayerHudWidget>(GetTransientPackage(), PlayerHudClass);
+	TestTrue(TEXT("Authored Player HUD initializes"), AuthoredPlayerHud->Initialize());
+	AuthoredPlayerHud->TakeWidget();
+	AuthoredPlayerHud->SetTimeShards(27);
+	UTextBlock* TimeShardText = Cast<UTextBlock>(AuthoredPlayerHud->GetWidgetFromName(TEXT("TimeShardText")));
+	TestNotNull(TEXT("Player HUD exposes the time-shard binding"), TimeShardText);
+	if (TimeShardText)
+	{
+		TestEqual(TEXT("Time-shard binding renders the live balance"),
+		          TimeShardText->GetText().ToString(),
+		          FString(TEXT("27")));
+	}
+	TestNotNull(TEXT("Player HUD exposes the image health fill"),
+	            Cast<UImage>(AuthoredPlayerHud->GetWidgetFromName(TEXT("PlayerHealthFill"))));
+	USizeBox* PortraitSize = Cast<USizeBox>(AuthoredPlayerHud->GetWidgetFromName(TEXT("PlayerPortraitSize")));
+	TestNotNull(TEXT("Legacy portrait host is retained for compatibility"), PortraitSize);
+	if (PortraitSize)
+	{
+		TestEqual(TEXT("Legacy portrait is absent from the authored composition"),
+		          PortraitSize->GetVisibility(),
+		          ESlateVisibility::Collapsed);
+	}
+
+	UClass* EncounterHudClass = LoadClass<UReEchoEncounterHudWidget>(
+	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoEncounterHud.WBP_ReEchoEncounterHud_C"));
+	TestNotNull(TEXT("Authored Encounter HUD class loads"), EncounterHudClass);
+	if (!EncounterHudClass)
+	{
+		return false;
+	}
+	UReEchoEncounterHudWidget* AuthoredEncounterHud =
+	    NewObject<UReEchoEncounterHudWidget>(GetTransientPackage(), EncounterHudClass);
+	TestTrue(TEXT("Authored Encounter HUD initializes"), AuthoredEncounterHud->Initialize());
+	AuthoredEncounterHud->TakeWidget();
+	AuthoredEncounterHud->SetEncounterStatus(3, 6, 59.1f);
+	UTextBlock* EncounterText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("EncounterText")));
+	UTextBlock* CountdownText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("CountdownText")));
+	TestNotNull(TEXT("Encounter HUD keeps the encounter label binding"), EncounterText);
+	TestNotNull(TEXT("Encounter HUD keeps the countdown binding"), CountdownText);
+	if (EncounterText && CountdownText)
+	{
+		TestEqual(
+		    TEXT("Authored encounter label refreshes"), EncounterText->GetText().ToString(), FString(TEXT("第 3 关")));
+		TestEqual(TEXT("Authored countdown refreshes"), CountdownText->GetText().ToString(), FString(TEXT("01:00")));
+	}
+	TArray<UWidget*> EncounterWidgets;
+	AuthoredEncounterHud->WidgetTree->GetAllWidgets(EncounterWidgets);
+	const bool bHasRealMinimap = EncounterWidgets.ContainsByPredicate(
+	    [](const UWidget* Widget)
+	    {
+		    return Cast<UReEchoMinimapCanvasWidget>(Widget) != nullptr;
+	    });
+	TestTrue(TEXT("Encounter HUD retains the real minimap widget"), bHasRealMinimap);
+	TestNull(TEXT("Rejected bottom panel is absent from the Encounter HUD"),
+	         AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtSkillBar")));
+	return true;
+}
+
+#endif

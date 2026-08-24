@@ -62,6 +62,9 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<AReEchoPlayerPawn> PlayerPrefab(
 	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay"));
 	DefaultPawnClass = PlayerPrefab.Succeeded() ? PlayerPrefab.Class.Get() : AReEchoPlayerPawn::StaticClass();
+	static ConstructorHelpers::FClassFinder<AReEchoEchoActor> EchoPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay"));
+	EchoGameplayClass = EchoPrefab.Succeeded() ? EchoPrefab.Class.Get() : nullptr;
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
@@ -78,6 +81,37 @@ AReEchoGameMode::AReEchoGameMode()
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
 }
+
+TSubclassOf<AReEchoEchoActor> AReEchoGameMode::ResolveEchoClass() const
+{
+	if (EchoGameplayClass)
+	{
+		return EchoGameplayClass;
+	}
+	return TSubclassOf<AReEchoEchoActor>(AReEchoEchoActor::StaticClass());
+}
+
+AReEchoEchoActor* AReEchoGameMode::SpawnEchoActor()
+{
+	return GetWorld() ? GetWorld()->SpawnActor<AReEchoEchoActor>(ResolveEchoClass()) : nullptr;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+TSubclassOf<AReEchoEchoActor> AReEchoGameMode::ResolveEchoClassForTests() const
+{
+	return ResolveEchoClass();
+}
+
+AReEchoEchoActor* AReEchoGameMode::SpawnEchoActorForTests()
+{
+	return SpawnEchoActor();
+}
+
+void AReEchoGameMode::SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass)
+{
+	EchoGameplayClass = InClass;
+}
+#endif
 
 TSubclassOf<AReEchoEnemyActor> AReEchoGameMode::ResolveEnemyClass(const FName PresentationId) const
 {
@@ -374,7 +408,7 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 
 	// Authoritative run build (matches shop semantics; survives save/load). Non-fatal if no run is active yet.
 	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem)
 	{
 		TArray<FName> Desired;
@@ -389,8 +423,10 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 			FString RunError;
 			if (!RunSubsystem->TryEquipParts(Desired, RunError))
 			{
-				PrintGMResult(FString::Printf(
-					TEXT("GMEquipRune: run build not updated (%s); still applying to live weapon"), *RunError), false);
+				PrintGMResult(
+				    FString::Printf(TEXT("GMEquipRune: run build not updated (%s); still applying to live weapon"),
+				                    *RunError),
+				    false);
 			}
 		}
 	}
@@ -428,13 +464,14 @@ void AReEchoGameMode::GMUnequipRune(const FName SlotTypeId)
 	}
 	if (SlotTypeId.IsNone())
 	{
-		PrintGMResult(TEXT("Usage: GMUnequipRune <SlotTypeId>  (e.g. Blade / Grip / Muzzle / GunAction / Arrowhead)"), false);
+		PrintGMResult(TEXT("Usage: GMUnequipRune <SlotTypeId>  (e.g. Blade / Grip / Muzzle / GunAction / Arrowhead)"),
+		              false);
 		return;
 	}
 
 	// Sync authoritative run build first (drop every equipped part in that slot).
 	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem)
 	{
 		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
@@ -1280,7 +1317,7 @@ void AReEchoGameMode::BeginSelectedRun()
 		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 	}
 	RestoreGameInput();
-	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice || RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice)
+	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
 	{
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
 	}
@@ -1732,7 +1769,7 @@ void AReEchoGameMode::BeginNextEncounter()
 	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
 	for (const FReEchoRecording& Recording : Recordings)
 	{
-		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
+		AReEchoEchoActor* Echo = SpawnEchoActor();
 		if (Echo && Echo->InitializeEcho(
 		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
@@ -1889,7 +1926,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
 		for (const FReEchoRecording& Recording : Recordings)
 		{
-			AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
+			AReEchoEchoActor* Echo = SpawnEchoActor();
 			if (Echo)
 			{
 				if (Echo->InitializeEcho(
@@ -2475,11 +2512,6 @@ void AReEchoGameMode::TogglePauseMenu()
 		HandleStatsClosed();
 		return;
 	}
-	if (InventoryShopWidget)
-	{
-		HandleInventoryShopClosed();
-		return;
-	}
 	if (bRestartScreenIsTerminal)
 	{
 		return;
@@ -2496,6 +2528,17 @@ void AReEchoGameMode::TogglePauseMenu()
 		}
 		return;
 	}
+	if (InventoryShopWidget)
+	{
+		bPauseOpenedOverInventoryShop = true;
+		ShowRestartScreen(false);
+		if (!RestartWidget)
+		{
+			bPauseOpenedOverInventoryShop = false;
+		}
+		return;
+	}
+	bPauseOpenedOverInventoryShop = false;
 	ShowRestartScreen(false);
 }
 
@@ -2640,6 +2683,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
+	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
@@ -2686,6 +2730,7 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 		    "ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
 		return;
 	}
+	bPauseOpenedOverInventoryShop = false;
 	PostUiEvent(FReEchoAudioEvents::UiCancel);
 	if (bPostTraitIntermission)
 	{
@@ -2745,34 +2790,51 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		return;
 	}
 
-	// 新购：走完整购买流程（防重复/扣钱/入背包），购买即装备。
-	if (RunSubsystem->PurchaseShopItem(ItemId))
+	// 新购统一走结构化事务；成功、拒绝、购买前后状态都由同一接口审计。
+	const FReEchoShopPurchaseOutcome PurchaseOutcome = RunSubsystem->PurchaseShopItemDetailed(ItemId);
+	if (PurchaseOutcome.IsSuccess())
 	{
-		// 购买即装备：武器配件报价的 ItemId 与 PartId 同名，购买后立即装入对应槽位。
-		if (RunSubsystem->OwnedPartIds.Contains(ItemId))
-		{
-			FString EquipError;
-			if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
-			{
-				UE_LOG(LogTemp,
-				       Warning,
-				       TEXT("[ReEchoShop] Purchased part '%s' could not be equipped: %s"),
-				       *ItemId.ToString(),
-				       *EquipError);
-			}
-		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
-		InventoryShopWidget->SetTimeShards(RunSubsystem->TimeShards);
-		InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats);
-		InventoryShopWidget->MarkItemPurchased(ItemId);
-		// 购买即装备后，仅重绘符文装备槽以立即反映已装备结果；不重摇、不重绘投放槽，保持 Step1 的“已购不刷新”行为。
-		InventoryShopWidget->RefreshWeaponLoadoutAfterPurchase(RunSubsystem->CurrentBuild.EquippedParts);
+		// The authoritative page is stable for EncounterIndex + ShopRefreshSequence. Rebuilding the complete read-only
+		// projection updates ownership, backpack and equipped state without rerolling any remaining offer.
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 	}
 	else
 	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Purchase request rejected tx=%s item=%s code=%d detail=%s"),
+		       *PurchaseOutcome.TransactionId,
+		       *ItemId.ToString(),
+		       static_cast<int32>(PurchaseOutcome.Result),
+		       *PurchaseOutcome.Detail);
 		PostUiEvent(FReEchoAudioEvents::UiError);
 	}
+}
+
+void AReEchoGameMode::HandleShopWeaponEquipRequested(const FName WeaponId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	FString EquipError;
+	if (!RunSubsystem->TryEquipOwnedWeapon(WeaponId, EquipError))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Owned weapon '%s' could not be equipped: %s"),
+		       *WeaponId.ToString(),
+		       *EquipError);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	PostUiEvent(FReEchoAudioEvents::UiConfirm);
+	RunSubsystem->SaveRun();
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
 
 void AReEchoGameMode::HandleShopRefreshRequested()
@@ -3018,6 +3080,8 @@ void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
 
 void AReEchoGameMode::HandleResumeRequested()
 {
+	const bool bReturnToInventoryShop = bPauseOpenedOverInventoryShop && InventoryShopWidget;
+	bPauseOpenedOverInventoryShop = false;
 	bQuitConfirmationVisible = false;
 	bExitToMainMenuAfterConfirmation = false;
 	if (RestartWidget)
@@ -3030,6 +3094,21 @@ void AReEchoGameMode::HandleResumeRequested()
 		RestartWidget = nullptr;
 	}
 	bRestartScreenIsTerminal = false;
+	if (bReturnToInventoryShop)
+	{
+		UGameplayStatics::SetGamePaused(this, true);
+		SetPlayerMenuAbilityBlocked(true);
+		InventoryShopWidget->SetKeyboardFocus();
+		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, false);
+			}
+		}
+		return;
+	}
 	RestoreGameInput();
 	if (TraitCardChoiceWidget)
 	{
@@ -3267,7 +3346,15 @@ void AReEchoGameMode::ProceedToPostEncounterUI()
 	else if (RunSubsystem->EncounterIndex < RunSubsystem->GetTotalEncounterCount())
 	{
 		PrepareEncounterIntermission();
-		ShowTraitCardChoice();
+		if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+		{
+			ShowTraitCardChoice();
+		}
+		else
+		{
+			bContinueRunAfterShop = true;
+			ShowPostTraitShop();
+		}
 	}
 }
 
@@ -3280,13 +3367,19 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice
-	                                                 ? RunSubsystem->GenerateForgeOffers()
-	                                                 : RunSubsystem->GenerateTraitCardOffers(3);
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
 	if (Offers.Num() != 3)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Expected three trait card offers, received %d"), Offers.Num());
-		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		if (RunSubsystem->Phase == EReEchoRunPhase::Planning)
+		{
+			bContinueRunAfterShop = true;
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		}
 		return;
 	}
 
@@ -3301,8 +3394,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	SetMusicState(FReEchoAudioEvents::MusicShop);
 	StopAmbienceState();
 
-	TraitCardChoiceWidget->InitializeOffers(
-	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
+	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	SetPlayerMenuAbilityBlocked(true);
 }
@@ -3314,8 +3406,7 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	{
 		return;
 	}
-	const bool bForgeChoice = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice;
-	const bool bApplied = bForgeChoice ? RunSubsystem->ApplyForgeChoice(CardId) : RunSubsystem->ApplyTraitCard(CardId);
+	const bool bApplied = RunSubsystem->ApplyTraitCard(CardId);
 	if (!bApplied)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
@@ -3468,6 +3559,10 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 	}
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (PlayerHudWidget)
+	{
+		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
+	}
 	if (EncounterHudWidget)
 	{
 		EncounterHudWidget->SetEncounterStatus(

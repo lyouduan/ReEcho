@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
@@ -16,6 +17,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoInventoryShopWidget.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopLogicBlocksTest,
                                  "ReEcho.UI.Shop.LogicBlocks",
@@ -31,6 +33,31 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Shop widget initializes its widget tree"), Widget->Initialize());
 	Widget->TakeWidget();
+	UScaleBox* ResponsiveScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("ResponsiveContentScale")));
+	USizeBox* ResponsiveSize = Cast<USizeBox>(Widget->GetWidgetFromName(TEXT("ResponsiveContentSize")));
+	UCanvasPanel* ResponsiveCanvas = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("ResponsiveContentCanvas")));
+	TestNotNull(TEXT("Shop owns a responsive design-surface scale box"), ResponsiveScale);
+	TestNotNull(TEXT("Shop owns a fixed design-size host"), ResponsiveSize);
+	TestNotNull(TEXT("Shop owns a responsive content canvas"), ResponsiveCanvas);
+	if (ResponsiveScale)
+	{
+		TestEqual(
+		    TEXT("Shop design surface preserves aspect ratio"), ResponsiveScale->GetStretch(), EStretch::ScaleToFit);
+		TestEqual(TEXT("Shop design surface scales up and down"),
+		          ResponsiveScale->GetStretchDirection(),
+		          EStretchDirection::Both);
+		const UCanvasPanelSlot* ScaleSlot = Cast<UCanvasPanelSlot>(ResponsiveScale->Slot);
+		TestTrue(TEXT("Responsive design surface fills the viewport"),
+		         ScaleSlot && ScaleSlot->GetAnchors().Minimum == FVector2D::ZeroVector &&
+		             ScaleSlot->GetAnchors().Maximum == FVector2D(1.0f, 1.0f));
+	}
+	if (ResponsiveSize)
+	{
+		TestEqual(TEXT("Shop design width remains 1920"), ResponsiveSize->GetWidthOverride(), 1920.0f);
+		TestEqual(TEXT("Shop design height remains 1080"), ResponsiveSize->GetHeightOverride(), 1080.0f);
+	}
+	TestTrue(TEXT("Fallback shop controls live on the scaled design surface"),
+	         ResponsiveCanvas && Widget->GetWidgetFromName(TEXT("CloseButton"))->GetParent() == ResponsiveCanvas);
 
 	FReEchoShopOffer RunItem;
 	RunItem.ItemId = TEXT("TEST_RUN_ITEM");
@@ -40,6 +67,13 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	RunItem.Type = EReEchoShopOfferType::BuildCard;
 	RunItem.ContentId = TEXT("TEST_BUILD_CARD");
 	RunItem.Tier = 1;
+	FReEchoShopOffer EmptyTierTwo;
+	EmptyTierTwo.DisplayName = FText::FromString(TEXT("未投放"));
+	EmptyTierTwo.EffectText = FText::FromString(TEXT("本关不投放该等级卡牌"));
+	EmptyTierTwo.Type = EReEchoShopOfferType::BuildCard;
+	EmptyTierTwo.Tier = 2;
+	FReEchoShopOffer EmptyTierThree = EmptyTierTwo;
+	EmptyTierThree.Tier = 3;
 
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_WEAPON_PART_ITEM");
@@ -53,7 +87,7 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	FReEchoWeaponPartShopView View;
 	View.WeaponId = TEXT("TEST_WEAPON");
 	View.WeaponDisplayName = FText::FromString(TEXT("Test weapon"));
-	View.Offers = {RunItem, WeaponPart};
+	View.Offers = {RunItem, EmptyTierTwo, EmptyTierThree, WeaponPart};
 	FReEchoWeaponSlotShopView Slot;
 	Slot.SlotTypeId = TEXT("Core");
 	Slot.DisplayName = FText::FromString(TEXT("Core"));
@@ -115,17 +149,27 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	    });
 	UReEchoIndexedButton* RunItemButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy0")));
+	UReEchoIndexedButton* EmptyTierTwoButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy1")));
+	UReEchoIndexedButton* EmptyTierThreeButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy2")));
 	UReEchoIndexedButton* WeaponPartButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
 	TestNotNull(TEXT("Run item button exists"), RunItemButton);
+	TestNotNull(TEXT("Empty tier-two slot button exists"), EmptyTierTwoButton);
+	TestNotNull(TEXT("Empty tier-three slot button exists"), EmptyTierThreeButton);
 	TestNotNull(TEXT("Weapon part button exists"), WeaponPartButton);
-	if (!RunItemButton || !WeaponPartButton)
+	if (!RunItemButton || !EmptyTierTwoButton || !EmptyTierThreeButton || !WeaponPartButton)
 	{
 		return false;
 	}
+	TestFalse(TEXT("Empty tier-two slot cannot be purchased"), EmptyTierTwoButton->GetIsEnabled());
+	TestFalse(TEXT("Empty tier-three slot cannot be purchased"), EmptyTierThreeButton->GetIsEnabled());
 	RunItemButton->OnClicked.Broadcast();
+	EmptyTierTwoButton->OnClicked.Broadcast();
+	EmptyTierThreeButton->OnClicked.Broadcast();
 	WeaponPartButton->OnClicked.Broadcast();
-	TestEqual(TEXT("Two independent purchase commands are emitted"), PurchaseRequests.Num(), 2);
+	TestEqual(TEXT("Only filled slots emit independent purchase commands"), PurchaseRequests.Num(), 2);
 	if (PurchaseRequests.Num() == 2)
 	{
 		TestEqual(TEXT("Run item click maps to the run item id"), PurchaseRequests[0], RunItem.ItemId);
@@ -159,6 +203,17 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Authored inventory/shop widget initializes"), Widget->Initialize());
 	Widget->TakeWidget();
+	UScaleBox* ResponsiveScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("ResponsiveContentScale")));
+	UCanvasPanel* ResponsiveCanvas = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("ResponsiveContentCanvas")));
+	UImage* BackgroundImage = Cast<UImage>(Widget->GetWidgetFromName(TEXT("BackgroundImage")));
+	TestNotNull(TEXT("Authored shop uses the responsive design surface"), ResponsiveScale);
+	TestNotNull(TEXT("Authored shop exposes the responsive content canvas"), ResponsiveCanvas);
+	TestTrue(TEXT("Full-screen background remains outside the aspect-preserving surface"),
+	         BackgroundImage && BackgroundImage->GetParent() != ResponsiveCanvas);
+	TestTrue(TEXT("Authored shop controls move together on the responsive surface"),
+	         ResponsiveCanvas && Widget->GetWidgetFromName(TEXT("ShopPanel"))->GetParent() == ResponsiveCanvas &&
+	             Widget->GetWidgetFromName(TEXT("Overlay_0"))->GetParent() == ResponsiveCanvas &&
+	             Widget->GetWidgetFromName(TEXT("CloseButton"))->GetParent() == ResponsiveCanvas);
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_AUTHORED_WEAPON_PART_ITEM");
 	WeaponPart.ContentId = TEXT("P_CORE_TIDE");
@@ -170,13 +225,34 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	FReEchoWeaponPartShopView PartShopView;
 	PartShopView.WeaponId = TEXT("TEST_AUTHORED_WEAPON");
 	PartShopView.WeaponDisplayName = FText::FromString(TEXT("Authored weapon"));
+	PartShopView.WeaponIconTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Bow"));
+	FReEchoShopOffer CurrentWeapon;
+	CurrentWeapon.ItemId = TEXT("TEST_AUTHORED_WEAPON");
+	CurrentWeapon.ContentId = CurrentWeapon.ItemId;
+	CurrentWeapon.DisplayName = PartShopView.WeaponDisplayName;
+	CurrentWeapon.EffectText = FText::FromString(TEXT("Current weapon"));
+	CurrentWeapon.Type = EReEchoShopOfferType::Weapon;
+	CurrentWeapon.IconTexturePath = PartShopView.WeaponIconTexturePath;
+	FReEchoShopOffer AlternateWeapon = CurrentWeapon;
+	AlternateWeapon.ItemId = TEXT("TEST_ALTERNATE_WEAPON");
+	AlternateWeapon.ContentId = AlternateWeapon.ItemId;
+	AlternateWeapon.DisplayName = FText::FromString(TEXT("Alternate weapon"));
+	AlternateWeapon.EffectText = FText::FromString(TEXT("Alternate weapon effect"));
+	PartShopView.OwnedWeapons = {CurrentWeapon.ContentId, AlternateWeapon.ContentId};
+	PartShopView.OwnedWeaponOffers = {CurrentWeapon, AlternateWeapon};
 	PartShopView.Offers.Add(WeaponPart);
+	PartShopView.Offers.Add(CurrentWeapon);
 	FReEchoWeaponSlotShopView PartSlot;
 	PartSlot.SlotTypeId = TEXT("Core");
 	PartSlot.DisplayName = FText::FromString(TEXT("Core"));
 	PartSlot.Capacity = 1;
 	PartShopView.Slots.Add(PartSlot);
 	PartShopView.OwnedParts.Add(WeaponPart);
+	FReEchoShopOffer BackpackPart = WeaponPart;
+	BackpackPart.ItemId = TEXT("P_CORE_PRIMORDIAL");
+	BackpackPart.ContentId = BackpackPart.ItemId;
+	BackpackPart.DisplayName = FText::FromString(TEXT("Backpack rune"));
+	PartShopView.OwnedParts.Add(BackpackPart);
 	FReEchoEquippedPartSnapshot EquippedPart;
 	EquippedPart.PartId = WeaponPart.ContentId;
 	EquippedPart.SlotTypeId = WeaponPart.SlotTypeId;
@@ -188,7 +264,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	StorageCard.EffectText = FText::FromString(TEXT("开启回响存储"));
 	StorageCard.Type = EReEchoShopOfferType::BuildCard;
 	StorageCard.Tier = 3;
+	StorageCard.IconTexturePath = TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_3_02.T_UI_CardIcon_G_3_02");
 	PartShopView.OwnedCards.Add(StorageCard);
+	FReEchoShopOffer PurchasedCard;
+	PurchasedCard.ItemId = TEXT("SHOP_CARD_0_G_1_01");
+	PurchasedCard.ContentId = TEXT("G_1_01");
+	PurchasedCard.DisplayName = FText::FromString(TEXT("生命强化"));
+	PurchasedCard.EffectText = FText::FromString(TEXT("提高最大生命"));
+	PurchasedCard.Type = EReEchoShopOfferType::BuildCard;
+	PurchasedCard.Tier = 1;
+	PurchasedCard.IconTexturePath =
+	    TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_1_01.T_UI_CardIcon_G_1_01");
+	PartShopView.Offers.Add(PurchasedCard);
 	Widget->SetWeaponPartShopView(PartShopView);
 	UImage* DesignerClock = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerShopClock")));
 	UCanvasPanelSlot* DesignerClockSlot = DesignerClock ? Cast<UCanvasPanelSlot>(DesignerClock->Slot) : nullptr;
@@ -220,6 +307,13 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Mapped weapon-part icon asset loads"), ExpectedPartIcon);
 	TestTrue(TEXT("Weapon-part offer uses its PartId icon instead of the attachment placeholder"),
 	         OfferPartIcon && OfferPartIcon->GetBrush().GetResourceObject() == ExpectedPartIcon);
+	UReEchoIndexedButton* OwnedWeaponBuy =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy1")));
+	UTextBlock* OwnedWeaponBuyText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TargetBuyText1_1")));
+	TestTrue(TEXT("An owned weapon retained on the stable page is projected as unavailable"),
+	         OwnedWeaponBuy && !OwnedWeaponBuy->GetIsEnabled());
+	TestTrue(TEXT("An owned weapon retained on the stable page is labelled as already obtained"),
+	         OwnedWeaponBuyText && OwnedWeaponBuyText->GetText().EqualTo(FText::FromString(TEXT("已获得"))));
 	TestTrue(TEXT("Legacy weapon-part block is hidden behind the target composition"),
 	         WeaponPartPanel && WeaponPartPanel->GetVisibility() == ESlateVisibility::Collapsed);
 	TestNotNull(TEXT("Authored shop receives the independent echo popup"), EchoPanelScale);
@@ -230,6 +324,62 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UImage* DesignerWeaponPanel = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerWeaponPanel")));
 	TestNotNull(TEXT("Weapon panel is authored as a direct Canvas child"),
 	            DesignerWeaponPanel ? Cast<UCanvasPanelSlot>(DesignerWeaponPanel->Slot) : nullptr);
+	UButton* EquippedWeaponButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerEquippedWeaponButton")));
+	UImage* EquippedWeaponArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerEquippedWeaponArt")));
+	UTexture2D* ExpectedWeaponTexture = LoadObject<UTexture2D>(nullptr, *PartShopView.WeaponIconTexturePath);
+	TestNotNull(TEXT("Current weapon has a clickable overlay in the authored weapon panel"), EquippedWeaponButton);
+	TestTrue(TEXT("Current weapon overlay renders the equipped weapon texture"),
+	         EquippedWeaponArt && ExpectedWeaponTexture &&
+	             EquippedWeaponArt->GetBrush().GetResourceObject() == ExpectedWeaponTexture);
+	TestTrue(TEXT("Current weapon art uses the source texture dimensions instead of the default 32px brush"),
+	         EquippedWeaponArt && ExpectedWeaponTexture &&
+	             EquippedWeaponArt->GetBrush().ImageSize ==
+	                 FVector2D(ExpectedWeaponTexture->GetSizeX(), ExpectedWeaponTexture->GetSizeY()));
+	const UButtonSlot* EquippedWeaponContentSlot = EquippedWeaponButton && EquippedWeaponButton->GetContent()
+	                                                   ? Cast<UButtonSlot>(EquippedWeaponButton->GetContent()->Slot)
+	                                                   : nullptr;
+	TestTrue(TEXT("Current weapon art fills the authored weapon button"),
+	         EquippedWeaponContentSlot && EquippedWeaponContentSlot->GetHorizontalAlignment() == HAlign_Fill &&
+	             EquippedWeaponContentSlot->GetVerticalAlignment() == VAlign_Fill);
+	TArray<FName> WeaponEquipRequests;
+	Widget->OnWeaponEquipRequested.AddLambda(
+	    [&WeaponEquipRequests](const FName WeaponId)
+	    {
+		    WeaponEquipRequests.Add(WeaponId);
+	    });
+	if (EquippedWeaponButton)
+	{
+		EquippedWeaponButton->OnClicked.Broadcast();
+	}
+	UCanvasPanel* WeaponBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("WeaponBackpackPopupPanel")));
+	UCanvasPanel* BackpackPopupLayer = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("BackpackPopupLayer")));
+	UReEchoIndexedButton* CurrentWeaponButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItem0")));
+	UReEchoIndexedButton* AlternateWeaponButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItem1")));
+	TestTrue(TEXT("Clicking the weapon art opens the weapon backpack"),
+	         WeaponBackpack && WeaponBackpack->GetVisibility() == ESlateVisibility::Visible);
+	const UCanvasPanelSlot* BackpackLayerSlot =
+	    BackpackPopupLayer ? Cast<UCanvasPanelSlot>(BackpackPopupLayer->Slot) : nullptr;
+	TestTrue(TEXT("Weapon backpack is parented to the root-level popup layer"),
+	         WeaponBackpack && WeaponBackpack->GetParent() == BackpackPopupLayer);
+	TestTrue(TEXT("Backpack popup layer renders above the shop and echo presentation"),
+	         BackpackLayerSlot && BackpackLayerSlot->GetZOrder() == 100);
+	TestTrue(TEXT("Current weapon is listed and cannot be equipped twice"),
+	         CurrentWeaponButton && !CurrentWeaponButton->GetIsEnabled());
+	TestTrue(TEXT("Another owned weapon is selectable"),
+	         AlternateWeaponButton && AlternateWeaponButton->GetIsEnabled());
+	if (AlternateWeaponButton)
+	{
+		AlternateWeaponButton->OnIndexedClicked.Broadcast(1);
+	}
+	TestEqual(TEXT("Weapon backpack emits one independent equip request"), WeaponEquipRequests.Num(), 1);
+	if (WeaponEquipRequests.Num() == 1)
+	{
+		TestEqual(TEXT("Weapon backpack request carries the selected owned weapon"),
+		          WeaponEquipRequests[0],
+		          AlternateWeapon.ContentId);
+	}
 	UButton* AttachmentHoverSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerAttachmentSlot0")));
 	TestNotNull(TEXT("Equipped attachment has a hover target below the weapon"), AttachmentHoverSlot);
 	TestTrue(TEXT("Attachment hover uses a custom cursor-following tooltip"),
@@ -246,7 +396,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		                                      : nullptr;
 		TestTrue(TEXT("Attachment tooltip includes its effect explanation"),
 		         TooltipEffect && TooltipEffect->GetText().EqualTo(WeaponPart.EffectText));
+		AttachmentHoverSlot->OnClicked.Broadcast();
 	}
+	UCanvasPanel* RuneBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("BackpackPopupPanel")));
+	UScrollBox* RuneBackpackScroll = Cast<UScrollBox>(Widget->GetWidgetFromName(TEXT("BackpackPopupScroll")));
+	UBorder* RuneBackpackSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackPopupSurface")));
+	UTextBlock* RuneBackpackTitle = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackPopupTitle")));
+	UTextBlock* RuneBackpackItemName = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackItemName0")));
+	TestTrue(TEXT("Rune backpack is parented to the same root-level popup layer"),
+	         RuneBackpack && RuneBackpack->GetParent() == BackpackPopupLayer);
+	TestTrue(TEXT("Rune backpack uses the same framed scroll layout as the weapon backpack"),
+	         RuneBackpackSurface && RuneBackpackScroll && RuneBackpackTitle && RuneBackpackItemName &&
+	             RuneBackpackTitle->GetFont().Size == 20 && RuneBackpackItemName->GetFont().Size == 17);
 	TestNull(TEXT("Hover detail does not add another fixed panel over the authored board"),
 	         Widget->GetWidgetFromName(TEXT("SlotDetailPanel")));
 	UImage* LoadoutStatsBoard = Cast<UImage>(Widget->GetWidgetFromName(TEXT("ArtLoadoutStats")));
@@ -272,6 +433,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Clicking the G_3_02 slot opens echo storage"),
 	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible && EchoPanelScale &&
 	             EchoPanelScale->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
+	UButton* PurchasedCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardSlot1")));
+	TestNotNull(TEXT("The next authored card slot exists"), PurchasedCardSlot);
+	TestNull(TEXT("An unowned card is absent from the loadout before purchase"),
+	         PurchasedCardSlot ? PurchasedCardSlot->GetToolTip() : nullptr);
+	Widget->MarkItemPurchased(PurchasedCard.ItemId);
+	TestNotNull(TEXT("A purchased build card appears in the loadout immediately"),
+	            PurchasedCardSlot ? Cast<USizeBox>(PurchasedCardSlot->GetToolTip()) : nullptr);
+	UImage* PurchasedCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt1")));
+	UTexture2D* ExpectedPurchasedCardIcon = LoadObject<UTexture2D>(nullptr, *PurchasedCard.IconTexturePath);
+	TestNotNull(TEXT("The purchased card icon asset loads"), ExpectedPurchasedCardIcon);
+	TestTrue(TEXT("The purchased card slot shows the purchased card icon"),
+	         PurchasedCardArt && PurchasedCardArt->GetBrush().GetResourceObject() == ExpectedPurchasedCardIcon);
 	if (ShopScrollBox)
 	{
 		TestEqual(TEXT("Legacy shop scroll host does not intercept target buttons"),

@@ -8,6 +8,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
@@ -27,6 +28,12 @@
 
 namespace
 {
+constexpr float ShopDesignWidth = 1920.0f;
+constexpr float ShopDesignHeight = 1080.0f;
+constexpr int32 BackpackPopupLayerZOrder = 100;
+const FVector2D WeaponBackpackPopupSize(340.0f, 430.0f);
+const FVector2D RuneBackpackPopupSize(320.0f, 390.0f);
+
 UTextBlock* CreateText(UWidgetTree* WidgetTree, const FName Name, const int32 Size, const FLinearColor Color)
 {
 	UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
@@ -156,6 +163,7 @@ TSharedRef<SWidget> UReEchoInventoryShopWidget::RebuildWidget()
 	{
 		BuildWidgetTree();
 	}
+	EnsureResponsiveLayout();
 	return Super::RebuildWidget();
 }
 
@@ -284,6 +292,85 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 	OfferContainer = ShopPanel;
 }
 
+void UReEchoInventoryShopWidget::EnsureResponsiveLayout()
+{
+	if (!WidgetTree || ResponsiveContentCanvas)
+	{
+		return;
+	}
+
+	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!RootCanvas)
+	{
+		return;
+	}
+
+	struct FRootChildLayout
+	{
+		UWidget* Widget = nullptr;
+		FAnchorData Layout;
+		int32 ZOrder = 0;
+		bool bAutoSize = false;
+	};
+
+	UWidget* Background = GetWidgetFromName(TEXT("BackgroundImage"));
+	TArray<FRootChildLayout> ContentChildren;
+	for (int32 ChildIndex = 0; ChildIndex < RootCanvas->GetChildrenCount(); ++ChildIndex)
+	{
+		UWidget* Child = RootCanvas->GetChildAt(ChildIndex);
+		if (!Child || Child == Background)
+		{
+			continue;
+		}
+		const UCanvasPanelSlot* ChildSlot = Cast<UCanvasPanelSlot>(Child->Slot);
+		if (!ChildSlot)
+		{
+			continue;
+		}
+		ContentChildren.Add({Child, ChildSlot->GetLayout(), ChildSlot->GetZOrder(), ChildSlot->GetAutoSize()});
+	}
+
+	ResponsiveContentScale =
+	    WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), TEXT("ResponsiveContentScale"));
+	ResponsiveContentScale->SetStretch(EStretch::ScaleToFit);
+	ResponsiveContentScale->SetStretchDirection(EStretchDirection::Both);
+	ResponsiveContentScale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	USizeBox* ResponsiveContentSize =
+	    WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ResponsiveContentSize"));
+	ResponsiveContentSize->SetWidthOverride(ShopDesignWidth);
+	ResponsiveContentSize->SetHeightOverride(ShopDesignHeight);
+	ResponsiveContentScale->SetContent(ResponsiveContentSize);
+
+	ResponsiveContentCanvas =
+	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ResponsiveContentCanvas"));
+	ResponsiveContentCanvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	ResponsiveContentSize->SetContent(ResponsiveContentCanvas);
+
+	for (const FRootChildLayout& ChildLayout : ContentChildren)
+	{
+		RootCanvas->RemoveChild(ChildLayout.Widget);
+		UCanvasPanelSlot* NewSlot = ResponsiveContentCanvas->AddChildToCanvas(ChildLayout.Widget);
+		NewSlot->SetLayout(ChildLayout.Layout);
+		NewSlot->SetZOrder(ChildLayout.ZOrder);
+		NewSlot->SetAutoSize(ChildLayout.bAutoSize);
+	}
+
+	UCanvasPanelSlot* ScaleSlot = RootCanvas->AddChildToCanvas(ResponsiveContentScale);
+	ScaleSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	ScaleSlot->SetOffsets(FMargin(0.0f));
+	ScaleSlot->SetZOrder(1);
+}
+
+UCanvasPanel* UReEchoInventoryShopWidget::GetLayoutCanvas() const
+{
+	if (ResponsiveContentCanvas)
+	{
+		return ResponsiveContentCanvas.Get();
+	}
+	return WidgetTree ? Cast<UCanvasPanel>(WidgetTree->RootWidget) : nullptr;
+}
+
 void UReEchoInventoryShopWidget::BuildShopLogicHost()
 {
 	if (!WidgetTree || !OfferContainer)
@@ -300,7 +387,7 @@ void UReEchoInventoryShopWidget::BuildShopLogicHost()
 		// grow off-screen. Give the authored shop an independently bounded canvas viewport instead.
 		if (OfferContainer != ShopPanel)
 		{
-			if (UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget))
+			if (UCanvasPanel* RootCanvas = GetLayoutCanvas())
 			{
 				UCanvasPanelSlot* ScrollCanvasSlot = RootCanvas->AddChildToCanvas(ShopLogicScrollBox);
 				ScrollCanvasSlot->SetOffsets(FMargin(0.0f));
@@ -476,7 +563,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	{
 		return;
 	}
-	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	UCanvasPanel* RootCanvas = GetLayoutCanvas();
 	if (!RootCanvas)
 	{
 		return;
@@ -746,7 +833,7 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	{
 		return;
 	}
-	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	UCanvasPanel* RootCanvas = GetLayoutCanvas();
 	if (!RootCanvas)
 	{
 		return;
@@ -829,6 +916,44 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 {
 	DesignerLoadoutCanvas = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("DesignerLoadoutCanvas")));
+	DesignerWeaponPanelWidget = Cast<UImage>(GetWidgetFromName(TEXT("DesignerWeaponPanel")));
+	DesignerEquippedWeaponButton = Cast<UButton>(GetWidgetFromName(TEXT("DesignerEquippedWeaponButton")));
+	DesignerEquippedWeaponArt = Cast<UImage>(GetWidgetFromName(TEXT("DesignerEquippedWeaponArt")));
+	if (DesignerLoadoutCanvas && DesignerWeaponPanelWidget && !DesignerEquippedWeaponButton)
+	{
+		DesignerEquippedWeaponButton =
+		    WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("DesignerEquippedWeaponButton"));
+		DesignerEquippedWeaponButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
+		UScaleBox* WeaponScale =
+		    WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), TEXT("DesignerEquippedWeaponScale"));
+		WeaponScale->SetStretch(EStretch::ScaleToFit);
+		WeaponScale->SetStretchDirection(EStretchDirection::Both);
+		DesignerEquippedWeaponArt =
+		    WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("DesignerEquippedWeaponArt"));
+		DesignerEquippedWeaponArt->SetVisibility(ESlateVisibility::HitTestInvisible);
+		WeaponScale->SetContent(DesignerEquippedWeaponArt);
+		DesignerEquippedWeaponButton->SetContent(WeaponScale);
+		if (UButtonSlot* WeaponContentSlot = Cast<UButtonSlot>(WeaponScale->Slot))
+		{
+			WeaponContentSlot->SetPadding(FMargin(0.0f));
+			WeaponContentSlot->SetHorizontalAlignment(HAlign_Fill);
+			WeaponContentSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+		UCanvasPanelSlot* WeaponButtonSlot = DesignerLoadoutCanvas->AddChildToCanvas(DesignerEquippedWeaponButton);
+		if (const UCanvasPanelSlot* WeaponPanelSlot = Cast<UCanvasPanelSlot>(DesignerWeaponPanelWidget->Slot))
+		{
+			WeaponButtonSlot->SetPosition(WeaponPanelSlot->GetPosition());
+			WeaponButtonSlot->SetSize(WeaponPanelSlot->GetSize());
+		}
+		WeaponButtonSlot->SetZOrder(9);
+	}
+	if (DesignerEquippedWeaponButton)
+	{
+		DesignerEquippedWeaponButton->OnClicked.RemoveDynamic(this,
+		                                                      &UReEchoInventoryShopWidget::HandleEquippedWeaponClicked);
+		DesignerEquippedWeaponButton->OnClicked.AddDynamic(this,
+		                                                   &UReEchoInventoryShopWidget::HandleEquippedWeaponClicked);
+	}
 	DesignerAttachmentSlotButtons.Reset();
 	DesignerAttachmentSlotArts.Reset();
 	for (int32 Index = 0; Index < 3; ++Index)
@@ -871,7 +996,12 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	    UCanvasPanel::StaticClass(),
 	    *FString::Printf(TEXT("Target%sCard%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
 	CardSize->SetContent(Card);
-	Card->SetToolTip(BuildSlotTooltip(Offer));
+	const bool bEmptyBuildCardSlot =
+	    !bWeaponPart && Offer.Type == EReEchoShopOfferType::BuildCard && Offer.ItemId.IsNone();
+	if (!bEmptyBuildCardSlot)
+	{
+		Card->SetToolTip(BuildSlotTooltip(Offer));
+	}
 	auto AddImage = [&](const TCHAR* Name, UTexture2D* Texture, FVector2D Position, FVector2D Size)
 	{
 		UImage* Image = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
@@ -898,10 +1028,11 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 			ResolvedIcon = LoadedWeaponIcon;
 		}
 	}
-	AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex),
-	         bIsPart ? ResolveWeaponPartIcon(Offer.ContentId) : ResolvedIcon,
-	         IconPosition,
-	         IconSize);
+	UImage* OfferIcon = AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex),
+	                             bIsPart ? ResolveWeaponPartIcon(Offer.ContentId) : ResolvedIcon,
+	                             IconPosition,
+	                             IconSize);
+	OfferIcon->SetVisibility(bEmptyBuildCardSlot ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	if (!bWeaponPart)
 	{
 		UImage* TierPatch = AddImage(*FString::Printf(TEXT("TargetTierPatch%d"), OfferIndex),
@@ -935,8 +1066,10 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	                              *FString::Printf(TEXT("TargetOfferCost%d_%d"), bWeaponPart, OfferIndex),
 	                              17,
 	                              FLinearColor(0.04f, 0.04f, 0.04f));
-	Cost->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"),
-	                            FText::AsNumber(GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount))));
+	Cost->SetText(bEmptyBuildCardSlot
+	                  ? FText::FromString(TEXT("—"))
+	                  : FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"),
+	                                  FText::AsNumber(GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount))));
 	Cost->SetJustification(ETextJustify::Right);
 	UCanvasPanelSlot* CostSlot = Card->AddChildToCanvas(Cost);
 	CostSlot->SetPosition(FVector2D(112.0f, 145.0f));
@@ -953,32 +1086,39 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 		                                           return Owned.ContentId == Offer.ContentId;
 	                                           });
 	const bool bPurchasedCard = !bWeaponPart && CurrentOwnedItems.Contains(Offer.ItemId);
-	const bool bOwnedWeapon = !bWeaponPart && Offer.Type == EReEchoShopOfferType::Weapon && CurrentPartShopView.OwnedWeapons.Contains(Offer.ContentId);
+	const bool bOwnedWeapon =
+	    Offer.Type == EReEchoShopOfferType::Weapon && CurrentPartShopView.OwnedWeapons.Contains(Offer.ContentId);
 	const bool bPurchasedSlot = PurchasedItemIds.Contains(Offer.ItemId);
 	const bool bShowPurchased = bOwnedPart || bPurchasedCard || bPurchasedSlot || bOwnedWeapon;
 	UOverlay* ButtonOverlay = WidgetTree->ConstructWidget<UOverlay>(
 	    UOverlay::StaticClass(), *FString::Printf(TEXT("TargetBuyOverlay%d_%d"), bWeaponPart, OfferIndex));
 	UImage* BuyArt = WidgetTree->ConstructWidget<UImage>(
 	    UImage::StaticClass(), *FString::Printf(TEXT("TargetBuyArt%d_%d"), bWeaponPart, OfferIndex));
-	BuyArt->SetBrushFromTexture(bShowPurchased ? WhiteTexture : ShopBuyTexture, true);
-	if (bOwnedPart || bPurchasedCard)
+	BuyArt->SetBrushFromTexture(bEmptyBuildCardSlot || bShowPurchased ? WhiteTexture : ShopBuyTexture, true);
+	if (bEmptyBuildCardSlot)
+	{
+		BuyArt->SetColorAndOpacity(FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
+	}
+	else if (bOwnedPart || bPurchasedCard)
 	{
 		BuyArt->SetColorAndOpacity(bPurchasedCard ? FLinearColor(0.55f, 0.55f, 0.55f, 1.0f)
 		                                          : FLinearColor(0.65f, 0.9f, 0.65f, 1.0f));
 	}
 	BuyArt->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ButtonOverlay->AddChildToOverlay(BuyArt);
-	if (bShowPurchased)
+	if (bEmptyBuildCardSlot || bShowPurchased)
 	{
 		UTextBlock* BuyText = CreateText(WidgetTree,
 		                                 *FString::Printf(TEXT("TargetBuyText%d_%d"), bWeaponPart, OfferIndex),
 		                                 18,
 		                                 FLinearColor(0.03f, 0.03f, 0.03f));
-		BuyText->SetText(bOwnedWeapon ? FText::FromString(TEXT("已获得"))
-		                            : (bPurchasedSlot ? FText::FromString(TEXT("已购"))
-		                                : (bOwnedPart ? (IsPartEquipped(Offer.ContentId) ? FText::FromString(TEXT("已装备"))
-		                                                                       : FText::FromString(TEXT("已获得")))
-		                                    : FText::FromString(TEXT("已获得")))));
+		BuyText->SetText(bEmptyBuildCardSlot ? Offer.DisplayName
+		                 : bOwnedWeapon      ? FText::FromString(TEXT("已获得"))
+		                                     : (bPurchasedSlot ? FText::FromString(TEXT("已购"))
+		                                                       : (bOwnedPart ? (IsPartEquipped(Offer.ContentId)
+		                                                                            ? FText::FromString(TEXT("已装备"))
+		                                                                            : FText::FromString(TEXT("已获得")))
+		                                                                     : FText::FromString(TEXT("已获得")))));
 		BuyText->SetJustification(ETextJustify::Center);
 		UOverlaySlot* TextSlot = ButtonOverlay->AddChildToOverlay(BuyText);
 		TextSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -986,7 +1126,7 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	}
 	Buy->SetContent(ButtonOverlay);
 	const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
-	Buy->SetIsEnabled(!bShowPurchased &&
+	Buy->SetIsEnabled(!bEmptyBuildCardSlot && !bShowPurchased &&
 	                  (bOwnedPart || (!bPurchasedCard && CurrentTimeShards >= EffectivePrice)) &&
 	                  (bWeaponPart || bCurrentExtraCardPurchaseAllowed));
 	if (bWeaponPart)
@@ -1077,7 +1217,16 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		CardSlotButton->OnClicked.Clear();
 		CardSlotButton->SetToolTip(nullptr);
 		CardSlotButton->SetVisibility(ESlateVisibility::Visible);
-		SlotImage->SetBrushFromTexture(ShopCardSlotTexture, true);
+		UTexture2D* CardTexture = ShopCardSlotTexture.Get();
+		if (Index < VisibleCount && !DisplayedOwnedCards[Index].IconTexturePath.IsEmpty())
+		{
+			if (UTexture2D* LoadedCardTexture =
+			        LoadObject<UTexture2D>(nullptr, *DisplayedOwnedCards[Index].IconTexturePath))
+			{
+				CardTexture = LoadedCardTexture;
+			}
+		}
+		SlotImage->SetBrushFromTexture(CardTexture, true);
 		SlotImage->SetColorAndOpacity(Index < VisibleCount ? FLinearColor::White
 		                                                   : FLinearColor(0.35f, 0.35f, 0.35f, 0.72f));
 		SlotImage->SetVisibility(ESlateVisibility::HitTestInvisible);
@@ -1100,22 +1249,33 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 	// 按固定槽位顺序（Slots 已排序：核心在最左）填充 UI 左中右槽位，避免随装备插入顺序变化。
 	TArray<const FReEchoShopOffer*> DisplayedAttachmentParts;
 	DisplayedAttachmentParts.SetNumZeroed(DesignerAttachmentSlotButtons.Num());
-	for (int32 SlotIndex = 0; SlotIndex < CurrentPartShopView.Slots.Num() && SlotIndex < DesignerAttachmentSlotButtons.Num(); ++SlotIndex)
+	for (int32 SlotIndex = 0;
+	     SlotIndex < CurrentPartShopView.Slots.Num() && SlotIndex < DesignerAttachmentSlotButtons.Num();
+	     ++SlotIndex)
 	{
 		const FName SlotTypeId = CurrentPartShopView.Slots[SlotIndex].SlotTypeId;
 		const FReEchoEquippedPartSnapshot* Equipped = CurrentPartShopView.EquippedParts.FindByPredicate(
-		    [&](const FReEchoEquippedPartSnapshot& E) { return E.SlotTypeId == SlotTypeId; });
+		    [&](const FReEchoEquippedPartSnapshot& E)
+		    {
+			    return E.SlotTypeId == SlotTypeId;
+		    });
 		if (!Equipped)
 		{
 			continue;
 		}
 		const FReEchoShopOffer* Part = CurrentPartShopView.OwnedParts.FindByPredicate(
-		    [&](const FReEchoShopOffer& Candidate) { return Candidate.ContentId == Equipped->PartId; });
+		    [&](const FReEchoShopOffer& Candidate)
+		    {
+			    return Candidate.ContentId == Equipped->PartId;
+		    });
 		if (!Part)
 		{
 			// 刚购买即装备的符文尚未进入 OwnedParts 快照，回落到投放槽报价中取展示信息。
 			Part = VisibleWeaponPartOffers.FindByPredicate(
-			    [&](const FReEchoShopOffer& Candidate) { return Candidate.ContentId == Equipped->PartId; });
+			    [&](const FReEchoShopOffer& Candidate)
+			    {
+				    return Candidate.ContentId == Equipped->PartId;
+			    });
 		}
 		if (Part)
 		{
@@ -1128,7 +1288,8 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 	{
 		UButton* HoverButton = DesignerAttachmentSlotButtons[Index];
 		UImage* AttachmentArt = DesignerAttachmentSlotArts[Index];
-		const bool bHasPart = DisplayedAttachmentParts.IsValidIndex(Index) && DisplayedAttachmentParts[Index] != nullptr;
+		const bool bHasPart =
+		    DisplayedAttachmentParts.IsValidIndex(Index) && DisplayedAttachmentParts[Index] != nullptr;
 		if (AttachmentArt)
 		{
 			AttachmentArt->SetBrushFromTexture(bHasPart
@@ -1173,6 +1334,37 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 	}
 }
 
+void UReEchoInventoryShopWidget::RebuildEquippedWeaponDisplay()
+{
+	if (!DesignerEquippedWeaponButton || !DesignerEquippedWeaponArt)
+	{
+		return;
+	}
+	const bool bHasWeapon = !CurrentPartShopView.WeaponId.IsNone();
+	DesignerEquippedWeaponButton->SetVisibility(bHasWeapon ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	DesignerEquippedWeaponButton->SetToolTip(nullptr);
+	if (!bHasWeapon)
+	{
+		return;
+	}
+
+	UTexture2D* WeaponTexture = nullptr;
+	if (!CurrentPartShopView.WeaponIconTexturePath.IsEmpty())
+	{
+		WeaponTexture = LoadObject<UTexture2D>(nullptr, *CurrentPartShopView.WeaponIconTexturePath);
+	}
+	DesignerEquippedWeaponArt->SetBrushFromTexture(WeaponTexture ? WeaponTexture : ShopCardIconTexture.Get(), true);
+	DesignerEquippedWeaponArt->SetColorAndOpacity(FLinearColor::White);
+	if (const FReEchoShopOffer* CurrentWeapon = CurrentPartShopView.OwnedWeaponOffers.FindByPredicate(
+	        [&](const FReEchoShopOffer& Candidate)
+	        {
+		        return Candidate.ContentId == CurrentPartShopView.WeaponId;
+	        }))
+	{
+		DesignerEquippedWeaponButton->SetToolTip(BuildSlotTooltip(*CurrentWeapon));
+	}
+}
+
 void UReEchoInventoryShopWidget::HandleAttachmentSlot0Clicked()
 {
 	HandleAttachmentSlotClicked(0);
@@ -1207,8 +1399,60 @@ const FReEchoShopOffer* UReEchoInventoryShopWidget::FindOwnedPartByContentId(con
 	    });
 }
 
+UCanvasPanel* UReEchoInventoryShopWidget::EnsureBackpackPopupLayer()
+{
+	if (BackpackPopupLayer)
+	{
+		return BackpackPopupLayer.Get();
+	}
+	UCanvasPanel* RootCanvas = GetLayoutCanvas();
+	if (!RootCanvas || !WidgetTree)
+	{
+		return nullptr;
+	}
+	BackpackPopupLayer =
+	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("BackpackPopupLayer"));
+	BackpackPopupLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	UCanvasPanelSlot* LayerSlot = RootCanvas->AddChildToCanvas(BackpackPopupLayer);
+	LayerSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	LayerSlot->SetOffsets(FMargin(0.0f));
+	LayerSlot->SetZOrder(BackpackPopupLayerZOrder);
+	return BackpackPopupLayer.Get();
+}
+
+FVector2D UReEchoInventoryShopWidget::ResolveBackpackPopupPosition(const UWidget* AnchorWidget,
+                                                                   const FVector2D& PopupSize,
+                                                                   const FVector2D& FallbackPosition) const
+{
+	const UCanvasPanel* RootCanvas = GetLayoutCanvas();
+	if (!RootCanvas || !AnchorWidget)
+	{
+		return FallbackPosition;
+	}
+	const FGeometry& RootGeometry = RootCanvas->GetCachedGeometry();
+	const FGeometry& AnchorGeometry = AnchorWidget->GetCachedGeometry();
+	const FVector2D RootSize = RootGeometry.GetLocalSize();
+	const FVector2D AnchorSize = AnchorGeometry.GetLocalSize();
+	if (RootSize.IsNearlyZero() || AnchorSize.IsNearlyZero())
+	{
+		return FallbackPosition;
+	}
+
+	constexpr float PopupMargin = 16.0f;
+	const FVector2D AnchorTopLeft = RootGeometry.AbsoluteToLocal(AnchorGeometry.LocalToAbsolute(FVector2D::ZeroVector));
+	FVector2D Position(AnchorTopLeft.X + AnchorSize.X + PopupMargin, AnchorTopLeft.Y);
+	if (Position.X + PopupSize.X > RootSize.X - PopupMargin)
+	{
+		Position.X = AnchorTopLeft.X - PopupSize.X - PopupMargin;
+	}
+	Position.X = FMath::Clamp(Position.X, PopupMargin, FMath::Max(PopupMargin, RootSize.X - PopupSize.X - PopupMargin));
+	Position.Y = FMath::Clamp(Position.Y, PopupMargin, FMath::Max(PopupMargin, RootSize.Y - PopupSize.Y - PopupMargin));
+	return Position;
+}
+
 void UReEchoInventoryShopWidget::HandleAttachmentSlotClicked(const int32 SlotIndex)
 {
+	HideWeaponBackpackPopup();
 	const FName SlotTypeId = GetSlotTypeIdForIndex(SlotIndex);
 	if (SlotTypeId.IsNone())
 	{
@@ -1243,6 +1487,114 @@ void UReEchoInventoryShopWidget::HideBackpackPopup()
 	CachedBackpackItemIds.Reset();
 }
 
+void UReEchoInventoryShopWidget::HandleEquippedWeaponClicked()
+{
+	HideBackpackPopup();
+	if (WeaponBackpackPopupPanel && WeaponBackpackPopupPanel->GetVisibility() == ESlateVisibility::Visible)
+	{
+		HideWeaponBackpackPopup();
+		return;
+	}
+	BuildWeaponBackpackPopup();
+}
+
+void UReEchoInventoryShopWidget::HideWeaponBackpackPopup()
+{
+	if (WeaponBackpackPopupPanel)
+	{
+		WeaponBackpackPopupPanel->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	CachedWeaponBackpackIds.Reset();
+}
+
+void UReEchoInventoryShopWidget::HandleWeaponBackpackItemClicked(const int32 ItemIndex)
+{
+	if (CachedWeaponBackpackIds.IsValidIndex(ItemIndex) &&
+	    CachedWeaponBackpackIds[ItemIndex] != CurrentPartShopView.WeaponId)
+	{
+		OnWeaponEquipRequested.Broadcast(CachedWeaponBackpackIds[ItemIndex]);
+	}
+}
+
+void UReEchoInventoryShopWidget::BuildWeaponBackpackPopup()
+{
+	UCanvasPanel* PopupLayer = EnsureBackpackPopupLayer();
+	if (!PopupLayer || CurrentPartShopView.OwnedWeaponOffers.IsEmpty())
+	{
+		return;
+	}
+	if (!WeaponBackpackPopupPanel)
+	{
+		WeaponBackpackPopupPanel =
+		    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("WeaponBackpackPopupPanel"));
+		PopupLayer->AddChildToCanvas(WeaponBackpackPopupPanel);
+	}
+	if (UCanvasPanelSlot* PopupSlot = Cast<UCanvasPanelSlot>(WeaponBackpackPopupPanel->Slot))
+	{
+		PopupSlot->SetPosition(ResolveBackpackPopupPosition(
+		    DesignerEquippedWeaponButton, WeaponBackpackPopupSize, FVector2D(1040.0f, 180.0f)));
+		PopupSlot->SetSize(WeaponBackpackPopupSize);
+		PopupSlot->SetZOrder(1);
+	}
+	WeaponBackpackPopupPanel->ClearChildren();
+	CachedWeaponBackpackIds.Reset();
+
+	UBorder* Surface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("WeaponBackpackSurface"));
+	Surface->SetBrushColor(FLinearColor(0.04f, 0.04f, 0.04f, 0.96f));
+	Surface->SetPadding(FMargin(14.0f));
+	UCanvasPanelSlot* SurfaceSlot = WeaponBackpackPopupPanel->AddChildToCanvas(Surface);
+	SurfaceSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	SurfaceSlot->SetOffsets(FMargin(0.0f));
+
+	UScrollBox* Scroll =
+	    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("WeaponBackpackScroll"));
+	Scroll->SetScrollBarVisibility(ESlateVisibility::Visible);
+	UVerticalBox* List =
+	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponBackpackList"));
+	Scroll->AddChild(List);
+	Surface->SetContent(Scroll);
+
+	UTextBlock* Title = CreateText(WidgetTree, TEXT("WeaponBackpackTitle"), 20, FLinearColor::White);
+	Title->SetText(NSLOCTEXT("ReEcho", "WeaponBackpackTitle", "武器背包"));
+	UVerticalBoxSlot* TitleSlot = List->AddChildToVerticalBox(Title);
+	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+
+	for (const FReEchoShopOffer& Weapon : CurrentPartShopView.OwnedWeaponOffers)
+	{
+		const int32 EntryIndex = CachedWeaponBackpackIds.Add(Weapon.ContentId);
+		UReEchoIndexedButton* Button = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("WeaponBackpackItem%d"), EntryIndex));
+		Button->SetEntryIndex(EntryIndex);
+		Button->SetIsEnabled(Weapon.ContentId != CurrentPartShopView.WeaponId);
+		Button->SetToolTip(BuildSlotTooltip(Weapon));
+		Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleWeaponBackpackItemClicked);
+
+		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
+		    UHorizontalBox::StaticClass(), *FString::Printf(TEXT("WeaponBackpackRow%d"), EntryIndex));
+		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
+		                                                   *FString::Printf(TEXT("WeaponBackpackIcon%d"), EntryIndex));
+		UTexture2D* Texture =
+		    Weapon.IconTexturePath.IsEmpty() ? nullptr : LoadObject<UTexture2D>(nullptr, *Weapon.IconTexturePath);
+		Icon->SetBrushFromTexture(Texture ? Texture : ShopCardIconTexture.Get(), false);
+		Icon->SetDesiredSizeOverride(FVector2D(72.0f, 72.0f));
+		UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(Icon);
+		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
+		IconSlot->SetVerticalAlignment(VAlign_Center);
+		UTextBlock* Label = CreateText(
+		    WidgetTree, *FString::Printf(TEXT("WeaponBackpackLabel%d"), EntryIndex), 17, FLinearColor::White);
+		Label->SetText(
+		    Weapon.ContentId == CurrentPartShopView.WeaponId
+		        ? FText::Format(NSLOCTEXT("ReEcho", "WeaponBackpackEquipped", "{0}（已装备）"), Weapon.DisplayName)
+		        : Weapon.DisplayName);
+		UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(Label);
+		LabelSlot->SetVerticalAlignment(VAlign_Center);
+		Button->SetContent(Row);
+		UVerticalBoxSlot* ButtonSlot = List->AddChildToVerticalBox(Button);
+		ButtonSlot->SetPadding(FMargin(0.0f, 3.0f));
+	}
+	WeaponBackpackPopupPanel->SetVisibility(ESlateVisibility::Visible);
+}
+
 void UReEchoInventoryShopWidget::HandleBackpackItemClicked(const int32 ItemIndex)
 {
 	if (!CachedBackpackItemIds.IsValidIndex(ItemIndex))
@@ -1254,7 +1606,8 @@ void UReEchoInventoryShopWidget::HandleBackpackItemClicked(const int32 ItemIndex
 
 void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 {
-	if (!DesignerLoadoutCanvas)
+	UCanvasPanel* PopupLayer = EnsureBackpackPopupLayer();
+	if (!PopupLayer)
 	{
 		return;
 	}
@@ -1268,23 +1621,40 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 	{
 		BackpackPopupPanel =
 		    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("BackpackPopupPanel"));
-		DesignerLoadoutCanvas->AddChildToCanvas(BackpackPopupPanel);
+		PopupLayer->AddChildToCanvas(BackpackPopupPanel);
+	}
+	if (UCanvasPanelSlot* PopupSlot = Cast<UCanvasPanelSlot>(BackpackPopupPanel->Slot))
+	{
+		const UWidget* AnchorWidget = DesignerAttachmentSlotButtons.IsValidIndex(SlotIndex)
+		                                  ? DesignerAttachmentSlotButtons[SlotIndex].Get()
+		                                  : nullptr;
+		PopupSlot->SetPosition(
+		    ResolveBackpackPopupPosition(AnchorWidget, RuneBackpackPopupSize, FVector2D(1120.0f, 360.0f)));
+		PopupSlot->SetSize(RuneBackpackPopupSize);
+		PopupSlot->SetZOrder(1);
 	}
 	BackpackPopupPanel->ClearChildren();
 
+	UBorder* Surface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("BackpackPopupSurface"));
+	Surface->SetBrushColor(FLinearColor(0.04f, 0.04f, 0.04f, 0.96f));
+	Surface->SetPadding(FMargin(14.0f));
+	UCanvasPanelSlot* SurfaceSlot = BackpackPopupPanel->AddChildToCanvas(Surface);
+	SurfaceSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	SurfaceSlot->SetOffsets(FMargin(0.0f));
+
+	UScrollBox* Scroll =
+	    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("BackpackPopupScroll"));
+	Scroll->SetScrollBarVisibility(ESlateVisibility::Visible);
 	UVerticalBox* PopupList =
 	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("BackpackPopupList"));
-	UCanvasPanelSlot* PanelSlot = DesignerLoadoutCanvas->AddChildToCanvas(PopupList);
-	PanelSlot->SetPosition(FVector2D(0.0f, 0.0f));
-	PanelSlot->SetSize(FVector2D(240.0f, 320.0f));
-	PanelSlot->SetAutoSize(true);
-	BackpackPopupPanel->AddChild(PopupList);
+	Scroll->AddChild(PopupList);
+	Surface->SetContent(Scroll);
 
-	UTextBlock* Title = CreateText(WidgetTree, TEXT("BackpackPopupTitle"), 18, FLinearColor::White);
-	Title->SetText(FText::FromString(TEXT("背包")));
+	UTextBlock* Title = CreateText(WidgetTree, TEXT("BackpackPopupTitle"), 20, FLinearColor::White);
+	Title->SetText(NSLOCTEXT("ReEcho", "RuneBackpackTitle", "符文背包"));
 	Title->SetAutoWrapText(false);
 	UVerticalBoxSlot* TitleSlot = PopupList->AddChildToVerticalBox(Title);
-	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
 
 	TArray<FName> BackpackItemIds;
 	int32 EntryCount = 0;
@@ -1306,15 +1676,19 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 		                                                   *FString::Printf(TEXT("BackpackItemIcon%d"), ThisIndex));
 		Icon->SetBrushFromTexture(ResolveWeaponPartIcon(Candidate.ContentId), false);
 		Icon->SetBrushTintColor(FLinearColor::White);
+		Icon->SetDesiredSizeOverride(FVector2D(72.0f, 72.0f));
 		UHorizontalBoxSlot* IconSlot = ItemRow->AddChildToHorizontalBox(Icon);
-		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
+		IconSlot->SetVerticalAlignment(VAlign_Center);
 		UTextBlock* NameText =
-		    CreateText(WidgetTree, *FString::Printf(TEXT("BackpackItemName%d"), ThisIndex), 15, FLinearColor::White);
+		    CreateText(WidgetTree, *FString::Printf(TEXT("BackpackItemName%d"), ThisIndex), 17, FLinearColor::White);
 		NameText->SetText(Candidate.DisplayName);
-		NameText->SetAutoWrapText(true);
-		ItemRow->AddChildToHorizontalBox(NameText);
-		ItemButton->AddChild(ItemRow);
-		PopupList->AddChildToVerticalBox(ItemButton);
+		NameText->SetAutoWrapText(false);
+		UHorizontalBoxSlot* NameSlot = ItemRow->AddChildToHorizontalBox(NameText);
+		NameSlot->SetVerticalAlignment(VAlign_Center);
+		ItemButton->SetContent(ItemRow);
+		UVerticalBoxSlot* ButtonSlot = PopupList->AddChildToVerticalBox(ItemButton);
+		ButtonSlot->SetPadding(FMargin(0.0f, 3.0f));
 		ItemButton->OnIndexedClicked.RemoveDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
 		ItemButton->OnIndexedClicked.AddDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
 	}
@@ -1324,21 +1698,6 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 	{
 		HideBackpackPopup();
 		return;
-	}
-
-	// 定位浮层到点击槽位附近：取对应 DesignerAttachmentSlot 按钮在 canvas 中的位置偏移。
-	if (DesignerAttachmentSlotButtons.IsValidIndex(SlotIndex) && DesignerAttachmentSlotArts.IsValidIndex(SlotIndex))
-	{
-		UImage* SlotArt = DesignerAttachmentSlotArts[SlotIndex];
-		if (SlotArt)
-		{
-			UCanvasPanelSlot* ArtSlot = Cast<UCanvasPanelSlot>(SlotArt->Slot);
-			if (ArtSlot)
-			{
-				const FVector2D ArtPos = ArtSlot->GetPosition();
-				PanelSlot->SetPosition(FVector2D(ArtPos.X + 90.0f, ArtPos.Y));
-			}
-		}
 	}
 
 	BackpackPopupPanel->SetVisibility(ESlateVisibility::Visible);
@@ -1355,9 +1714,10 @@ UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId
 		}
 	}
 	// 动态加载：按 PartId 在 Icons 目录查找纹理（覆盖硬编码 map 之外的所有武器符文）
-	const FString IconPath = FString::Printf(
-		TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_%s.T_UI_Part_%s"),
-		*PartId.ToString(), *PartId.ToString());
+	const FString IconPath =
+	    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_%s.T_UI_Part_%s"),
+	                    *PartId.ToString(),
+	                    *PartId.ToString());
 	if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *IconPath))
 	{
 		return Tex;
@@ -1365,52 +1725,98 @@ UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId
 	// Plan76 兼容回退：部分符文的纹理按开普勒源行命名（T_UI_Part_P_AUDIT_C_<SrcRow>），
 	// 与 parts.csv 的 PartId 命名不一致，动态加载 T_UI_Part_<PartId> 会落空。这里复用源行命名资产。
 	static const TMap<FName, FString> LegacyPartIconPaths = {
-	    {TEXT("P_CORE_PRIMORDIAL"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_2.T_UI_Part_P_AUDIT_C_2")},
-	    {TEXT("P_CORE_TIDE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_3.T_UI_Part_P_AUDIT_C_3")},
-	    {TEXT("P_CORE_FOREST"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_4.T_UI_Part_P_AUDIT_C_4")},
-	    {TEXT("P_CORE_FLAME"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_5.T_UI_Part_P_AUDIT_C_5")},
-	    {TEXT("P_CORE_THUNDER"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_6.T_UI_Part_P_AUDIT_C_6")},
-	    {TEXT("P_CORE_PRISM"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_7.T_UI_Part_P_AUDIT_C_7")},
-	    {TEXT("P_BOW_SPLIT_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_16.T_UI_Part_P_AUDIT_C_16")},
-	    {TEXT("P_BOW_EXPLOSIVE_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_17.T_UI_Part_P_AUDIT_C_17")},
-	    {TEXT("P_BOW_PIERCING_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_18.T_UI_Part_P_AUDIT_C_18")},
-	    {TEXT("P_BOW_CRITBLEED_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_19.T_UI_Part_P_AUDIT_C_19")},
-	    {TEXT("P_BOW_MULTISHOT_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_20.T_UI_Part_P_AUDIT_C_20")},
-	    {TEXT("P_BOW_KILLSHARD_ARROWHEAD"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_21.T_UI_Part_P_AUDIT_C_21")},
-	    {TEXT("P_BOW_HASTE_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_22.T_UI_Part_P_AUDIT_C_22")},
-	    {TEXT("P_BOW_HEAVY_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_23.T_UI_Part_P_AUDIT_C_23")},
-	    {TEXT("P_BOW_KILLHASTE_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_24.T_UI_Part_P_AUDIT_C_24")},
-	    {TEXT("P_BOW_COMBOHASTE_BOWSTRING"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_25.T_UI_Part_P_AUDIT_C_25")},
-	    {TEXT("P_SCYTHE_GROUPGROWTH_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_26.T_UI_Part_P_AUDIT_C_26")},
-	    {TEXT("P_SCYTHE_LIFESTEAL_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_27.T_UI_Part_P_AUDIT_C_27")},
-	    {TEXT("P_SCYTHE_HASTE_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_28.T_UI_Part_P_AUDIT_C_28")},
-	    {TEXT("P_SCYTHE_STUN_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_29.T_UI_Part_P_AUDIT_C_29")},
-	    {TEXT("P_SCYTHE_BLEED_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_30.T_UI_Part_P_AUDIT_C_30")},
-	    {TEXT("P_SCYTHE_OUTERRING_ROTARYBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_31.T_UI_Part_P_AUDIT_C_31")},
-	    {TEXT("P_SCYTHE_MOVESTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_32.T_UI_Part_P_AUDIT_C_32")},
-	    {TEXT("P_SCYTHE_GROUPINVULN_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_33.T_UI_Part_P_AUDIT_C_33")},
-	    {TEXT("P_SCYTHE_ATTACKSTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_34.T_UI_Part_P_AUDIT_C_34")},
-	    {TEXT("P_SCYTHE_THROWRECALL_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_35.T_UI_Part_P_AUDIT_C_35")},
-	    {TEXT("P_LONGSWORD_NARROWWIDE_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_36.T_UI_Part_P_AUDIT_C_36")},
-	    {TEXT("P_LONGSWORD_SLOWWIDE_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_37.T_UI_Part_P_AUDIT_C_37")},
-	    {TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_38.T_UI_Part_P_AUDIT_C_38")},
-	    {TEXT("P_LONGSWORD_KILLHEAL_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_39.T_UI_Part_P_AUDIT_C_39")},
-	    {TEXT("P_LONGSWORD_HITSHARD_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_40.T_UI_Part_P_AUDIT_C_40")},
-	    {TEXT("P_LONGSWORD_CRITBLEED_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_41.T_UI_Part_P_AUDIT_C_41")},
-	    {TEXT("P_LONGSWORD_METEOR_SWORDBLADE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_42.T_UI_Part_P_AUDIT_C_42")},
-	    {TEXT("P_LONGSWORD_HASTE_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_43.T_UI_Part_P_AUDIT_C_43")},
-	    {TEXT("P_LONGSWORD_MOVESTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_44.T_UI_Part_P_AUDIT_C_44")},
-	    {TEXT("P_LONGSWORD_ATTACKSTACK_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_45.T_UI_Part_P_AUDIT_C_45")},
-	    {TEXT("P_LONGSWORD_STUN_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_46.T_UI_Part_P_AUDIT_C_46")},
-	    {TEXT("P_LONGSWORD_HEAVY_GRIP"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_47.T_UI_Part_P_AUDIT_C_47")},
-	    {TEXT("P_GUN_TRIPLESPREAD_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_48.T_UI_Part_P_AUDIT_C_48")},
-	    {TEXT("P_GUN_CHARGED_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_49.T_UI_Part_P_AUDIT_C_49")},
-	    {TEXT("P_GUN_EXPLOSIVE_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_51.T_UI_Part_P_AUDIT_C_51")},
-	    {TEXT("P_GUN_PIERCING_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_52.T_UI_Part_P_AUDIT_C_52")},
-	    {TEXT("P_GUN_BLEED_MUZZLE"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_53.T_UI_Part_P_AUDIT_C_53")},
-	    {TEXT("P_GUN_LIFESTEAL_GUNACTION"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_54.T_UI_Part_P_AUDIT_C_54")},
-	    {TEXT("P_GUN_HITSHARD_GUNACTION"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_55.T_UI_Part_P_AUDIT_C_55")},
-	    {TEXT("P_GUN_ATTACKSTACK_GUNACTION"), TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_56.T_UI_Part_P_AUDIT_C_56")},
+	    {TEXT("P_CORE_PRIMORDIAL"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_2.T_UI_Part_P_AUDIT_C_2")},
+	    {TEXT("P_CORE_TIDE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_3.T_UI_Part_P_AUDIT_C_3")},
+	    {TEXT("P_CORE_FOREST"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_4.T_UI_Part_P_AUDIT_C_4")},
+	    {TEXT("P_CORE_FLAME"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_5.T_UI_Part_P_AUDIT_C_5")},
+	    {TEXT("P_CORE_THUNDER"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_6.T_UI_Part_P_AUDIT_C_6")},
+	    {TEXT("P_CORE_PRISM"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_7.T_UI_Part_P_AUDIT_C_7")},
+	    {TEXT("P_BOW_SPLIT_ARROWHEAD"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_16.T_UI_Part_P_AUDIT_C_16")},
+	    {TEXT("P_BOW_EXPLOSIVE_ARROWHEAD"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_17.T_UI_Part_P_AUDIT_C_17")},
+	    {TEXT("P_BOW_PIERCING_ARROWHEAD"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_18.T_UI_Part_P_AUDIT_C_18")},
+	    {TEXT("P_BOW_CRITBLEED_ARROWHEAD"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_19.T_UI_Part_P_AUDIT_C_19")},
+	    {TEXT("P_BOW_MULTISHOT_ARROWHEAD"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_20.T_UI_Part_P_AUDIT_C_20")},
+	    {TEXT("P_BOW_KILLSHARD_ARROWHEAD"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_21.T_UI_Part_P_AUDIT_C_21")},
+	    {TEXT("P_BOW_HASTE_BOWSTRING"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_22.T_UI_Part_P_AUDIT_C_22")},
+	    {TEXT("P_BOW_HEAVY_BOWSTRING"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_23.T_UI_Part_P_AUDIT_C_23")},
+	    {TEXT("P_BOW_KILLHASTE_BOWSTRING"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_24.T_UI_Part_P_AUDIT_C_24")},
+	    {TEXT("P_BOW_COMBOHASTE_BOWSTRING"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_25.T_UI_Part_P_AUDIT_C_25")},
+	    {TEXT("P_SCYTHE_GROUPGROWTH_ROTARYBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_26.T_UI_Part_P_AUDIT_C_26")},
+	    {TEXT("P_SCYTHE_LIFESTEAL_ROTARYBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_27.T_UI_Part_P_AUDIT_C_27")},
+	    {TEXT("P_SCYTHE_HASTE_ROTARYBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_28.T_UI_Part_P_AUDIT_C_28")},
+	    {TEXT("P_SCYTHE_STUN_ROTARYBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_29.T_UI_Part_P_AUDIT_C_29")},
+	    {TEXT("P_SCYTHE_BLEED_ROTARYBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_30.T_UI_Part_P_AUDIT_C_30")},
+	    {TEXT("P_SCYTHE_OUTERRING_ROTARYBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_31.T_UI_Part_P_AUDIT_C_31")},
+	    {TEXT("P_SCYTHE_MOVESTACK_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_32.T_UI_Part_P_AUDIT_C_32")},
+	    {TEXT("P_SCYTHE_GROUPINVULN_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_33.T_UI_Part_P_AUDIT_C_33")},
+	    {TEXT("P_SCYTHE_ATTACKSTACK_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_34.T_UI_Part_P_AUDIT_C_34")},
+	    {TEXT("P_SCYTHE_THROWRECALL_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_35.T_UI_Part_P_AUDIT_C_35")},
+	    {TEXT("P_LONGSWORD_NARROWWIDE_SWORDBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_36.T_UI_Part_P_AUDIT_C_36")},
+	    {TEXT("P_LONGSWORD_SLOWWIDE_SWORDBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_37.T_UI_Part_P_AUDIT_C_37")},
+	    {TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_38.T_UI_Part_P_AUDIT_C_38")},
+	    {TEXT("P_LONGSWORD_KILLHEAL_SWORDBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_39.T_UI_Part_P_AUDIT_C_39")},
+	    {TEXT("P_LONGSWORD_HITSHARD_SWORDBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_40.T_UI_Part_P_AUDIT_C_40")},
+	    {TEXT("P_LONGSWORD_CRITBLEED_SWORDBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_41.T_UI_Part_P_AUDIT_C_41")},
+	    {TEXT("P_LONGSWORD_METEOR_SWORDBLADE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_42.T_UI_Part_P_AUDIT_C_42")},
+	    {TEXT("P_LONGSWORD_HASTE_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_43.T_UI_Part_P_AUDIT_C_43")},
+	    {TEXT("P_LONGSWORD_MOVESTACK_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_44.T_UI_Part_P_AUDIT_C_44")},
+	    {TEXT("P_LONGSWORD_ATTACKSTACK_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_45.T_UI_Part_P_AUDIT_C_45")},
+	    {TEXT("P_LONGSWORD_STUN_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_46.T_UI_Part_P_AUDIT_C_46")},
+	    {TEXT("P_LONGSWORD_HEAVY_GRIP"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_47.T_UI_Part_P_AUDIT_C_47")},
+	    {TEXT("P_GUN_TRIPLESPREAD_MUZZLE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_48.T_UI_Part_P_AUDIT_C_48")},
+	    {TEXT("P_GUN_CHARGED_MUZZLE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_49.T_UI_Part_P_AUDIT_C_49")},
+	    {TEXT("P_GUN_EXPLOSIVE_MUZZLE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_51.T_UI_Part_P_AUDIT_C_51")},
+	    {TEXT("P_GUN_PIERCING_MUZZLE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_52.T_UI_Part_P_AUDIT_C_52")},
+	    {TEXT("P_GUN_BLEED_MUZZLE"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_53.T_UI_Part_P_AUDIT_C_53")},
+	    {TEXT("P_GUN_LIFESTEAL_GUNACTION"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_54.T_UI_Part_P_AUDIT_C_54")},
+	    {TEXT("P_GUN_HITSHARD_GUNACTION"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_55.T_UI_Part_P_AUDIT_C_55")},
+	    {TEXT("P_GUN_ATTACKSTACK_GUNACTION"),
+	     TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_AUDIT_C_56.T_UI_Part_P_AUDIT_C_56")},
 	};
 	if (const FString* LegacyPath = LegacyPartIconPaths.Find(PartId))
 	{
@@ -1553,6 +1959,7 @@ void UReEchoInventoryShopWidget::Refresh()
 	}
 
 	HideBackpackPopup();
+	HideWeaponBackpackPopup();
 
 	BuildOfferEntries();
 	BuildLoadoutEntries();
@@ -1606,18 +2013,19 @@ void UReEchoInventoryShopWidget::Refresh()
 	    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
 	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
-		const int32 CatalogIndex = (OfferIndex + CurrentShopRefreshSequence) % VisibleRunItemOffers.Num();
-		const FReEchoShopOffer& Offer = VisibleRunItemOffers[CatalogIndex];
+		const FReEchoShopOffer& Offer = VisibleRunItemOffers[OfferIndex];
 		const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
+		const bool bAvailable = !Offer.ItemId.IsNone();
 		const bool bOwned = CurrentOwnedItems.Contains(Offer.ItemId);
 		const bool bAffordable = CurrentTimeShards >= EffectivePrice;
-		OfferButtons[OfferIndex]->SetIsEnabled(!bOwned && bAffordable);
+		OfferButtons[OfferIndex]->SetIsEnabled(bAvailable && !bOwned && bAffordable);
 		OfferTexts[OfferIndex]->SetText(FText::Format(
 		    NSLOCTEXT("ReEcho", "ShopOfferFormat", "{0}\n{1}\n{2}"),
 		    Offer.DisplayName,
 		    Offer.EffectText,
-		    bOwned ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
-		           : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(EffectivePrice))));
+		    !bAvailable ? Offer.DisplayName
+		    : bOwned    ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
+		             : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(EffectivePrice))));
 	}
 	if (ShopRefreshButton && ShopRefreshText)
 	{
@@ -1700,6 +2108,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		RebuildTargetOfferRows();
 		RebuildOwnedCardSlots();
 		RebuildAttachmentHoverSlots();
+		RebuildEquippedWeaponDisplay();
 	}
 	if (DesignerLoadoutCanvas)
 	{
@@ -1710,7 +2119,7 @@ void UReEchoInventoryShopWidget::Refresh()
 
 void UReEchoInventoryShopWidget::RequestPurchase(const int32 OfferIndex)
 {
-	if (VisibleRunItemOffers.IsValidIndex(OfferIndex))
+	if (VisibleRunItemOffers.IsValidIndex(OfferIndex) && !VisibleRunItemOffers[OfferIndex].ItemId.IsNone())
 	{
 		OnPurchaseRequested.Broadcast(VisibleRunItemOffers[OfferIndex].ItemId);
 	}
@@ -2147,50 +2556,37 @@ void UReEchoInventoryShopWidget::SetTimeShards(int32 NewShards)
 void UReEchoInventoryShopWidget::MarkItemPurchased(FName ItemId)
 {
 	PurchasedItemIds.Add(ItemId);
+	if (const FReEchoShopOffer* PurchasedCard = VisibleRunItemOffers.FindByPredicate(
+	        [&](const FReEchoShopOffer& Offer)
+	        {
+		        return Offer.ItemId == ItemId && Offer.Type == EReEchoShopOfferType::BuildCard;
+	        }))
+	{
+		if (!CurrentPartShopView.OwnedCards.ContainsByPredicate(
+		        [&](const FReEchoShopOffer& OwnedCard)
+		        {
+			        return OwnedCard.ContentId == PurchasedCard->ContentId;
+		        }))
+		{
+			FReEchoShopOffer OwnedCard = *PurchasedCard;
+			OwnedCard.ItemId = OwnedCard.ContentId;
+			CurrentPartShopView.OwnedCards.Add(MoveTemp(OwnedCard));
+		}
+		RebuildOwnedCardSlots();
+	}
 	RebuildTargetOfferRows();
 	if (bShowingShop)
 	{
 		if (TargetCurrencyText)
 		{
-			TargetCurrencyText->SetText(FText::Format(
-				NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"), FText::AsNumber(CurrentTimeShards)));
+			TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
+			                                          FText::AsNumber(CurrentTimeShards)));
 		}
 	}
 	else if (CurrencyText)
 	{
-		CurrencyText->SetText(FText::Format(
-			NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
-	}
-}
-
-void UReEchoInventoryShopWidget::RefreshWeaponLoadoutAfterPurchase(const TArray<FReEchoEquippedPartSnapshot>& LatestEquippedParts)
-{
-	if (!bShowingShop)
-	{
-		return;
-	}
-	// 仅同步数据层最新装备快照并重绘符文装备槽；保持当前 CurrentPartShopView 的 SlotOffers 不变，不重摇、不重绘投放槽。
-	CurrentPartShopView.EquippedParts = LatestEquippedParts;
-	RebuildAttachmentHoverSlots();
-	UpdateWeaponLoadoutText();
-
-	// 若背包弹窗正打开，同步刷新其内容：被新装备挤下、回落背包的符文需立即显示，无需重开槽位。
-	if (BackpackPopupPanel && ActiveBackpackSlotIndex != INDEX_NONE)
-	{
-		const FName SlotTypeId = GetSlotTypeIdForIndex(ActiveBackpackSlotIndex);
-		const bool bHasBackpack = CurrentPartShopView.OwnedParts.ContainsByPredicate(
-		    [&](const FReEchoShopOffer& Candidate)
-		    {
-			    return Candidate.SlotTypeId == SlotTypeId && !IsPartEquipped(Candidate.ContentId);
-		    });
-		if (bHasBackpack)
-		{
-			BuildBackpackPopup(ActiveBackpackSlotIndex);
-		}
-		else
-		{
-			HideBackpackPopup();
-		}
+		CurrencyText->SetText(
+		    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
 	}
 }
 

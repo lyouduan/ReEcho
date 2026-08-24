@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v12 persists the per-run trait-card offer seed. */
-	static constexpr int32 CurrentSaveVersion = 12;
+	/** v14 persists the stable weapon/rune shop page independently from ownership changes. */
+	static constexpr int32 CurrentSaveVersion = 14;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -44,6 +44,21 @@ public:
 	/** Added in v10. Older saves derive ownership from their valid equipped parts. */
 	UPROPERTY(SaveGame)
 	TArray<FName> OwnedPartIds;
+
+	/** Added in v13. Older saves derive the minimum weapon backpack from CurrentBuild.WeaponId. */
+	UPROPERTY(SaveGame)
+	TArray<FName> OwnedWeaponIds;
+
+	/** Added in v14. Stable weapon/rune offers for one encounter + refresh-sequence page. */
+	UPROPERTY(SaveGame)
+	int32 WeaponPartShopOfferEncounterIndex = INDEX_NONE;
+
+	UPROPERTY(SaveGame)
+	int32 WeaponPartShopOfferRefreshSequence = INDEX_NONE;
+
+	/** Fixed three content ids; NAME_None represents an empty slot. */
+	UPROPERTY(SaveGame)
+	TArray<FName> WeaponPartShopOfferIds;
 
 	/** Added in v6. Older saves deterministically migrate to automatic attack. */
 	UPROPERTY(SaveGame)

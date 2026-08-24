@@ -24,8 +24,6 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Characters,PromotionPriority,Int,true,0,1000000,,,Lower value wins role ties.
 1,Characters,DefaultWeaponId,StableId,true,,,,,Initial weapon id.
 1,Characters,AppearanceId,StableId,true,,,,,Stable appearance id consumed by hard asset maps.
-1,Characters,PassiveBehaviorId,BehaviorId,true,,,,None|Character.SageBonusChoice|Character.PoetReactionGrowth|Character.BraveForge,Registered passive behavior id.
-1,Characters,PassiveValue,Float,true,0,100000,,,Typed passive numeric parameter.
 1,Characters,HpMax,Float,true,1,100000,,,Base maximum health.
 1,Characters,PhysicalAttack,Float,true,0,100000,,,Base physical attack.
 1,Characters,ElementalAttack,Float,true,0,100000,,,Base elemental attack.
@@ -35,11 +33,21 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Characters,CriticalEffect,Float,true,0,100,,,Base critical damage effect.
 1,Characters,EchoEfficiency,Float,true,0,100,,,Echo damage efficiency multiplier.
 1,Characters,ReactionEfficiency,Float,true,0,100,,,Element reaction efficiency multiplier.
-1,Characters,EverySecondAttackBonus,Float,true,0,100,,,Brave second-hit damage bonus.
-1,Characters,RandomElementProjectiles,Bool,true,,,,true|false,Whether projectile attacks roll random elements.
 1,CharacterAliases,Id,StableId,true,,,,,Legacy or workbook character id.
 1,CharacterAliases,CanonicalCharacterId,ForeignKey,true,,,Characters,,References Characters.Id.
 1,CharacterAliases,Reason,Text,true,,,,,Why the alias exists.
+1,CharacterAbilities,Id,StableId,true,,,,,Stable character ability row id.
+1,CharacterAbilities,CharacterId,ForeignKey,true,,,Characters,,References Characters.Id.
+1,CharacterAbilities,Order,Int,true,0,1000000,,,Deterministic order within one character and trigger.
+1,CharacterAbilities,Trigger,StableId,true,,,,OnBuildInitialized|OnEncounterCompleted|OnTraitChoiceApplied|OnHealthChanged,Typed character lifecycle trigger.
+1,CharacterAbilities,EffectKind,EffectKind,true,,,,StatModifier|ExtraCardChoice,Typed character effect kind.
+1,CharacterAbilities,Target,StableId,true,,,,MovementSpeed|CriticalRate|CriticalEffect|ReactionEfficiency|TraitCardChoice|PhysicalAttack|ElementalAttack,Typed effect target.
+1,CharacterAbilities,ValueOp,ValueOp,true,,,,Add,Character abilities currently use additive values.
+1,CharacterAbilities,Value,Float,true,-100000,100000,,,Per-application or per-stack numeric value.
+1,CharacterAbilities,BehaviorId,BehaviorId,true,,,,Character.StaticStat|Character.PersistentGrowth|Character.EveryNth|Character.MissingHealthSteps,Registered character behavior id.
+1,CharacterAbilities,Interval,Float,true,0,100000,,,Every-N count or missing-health fraction; zero when unused.
+1,CharacterAbilities,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
+1,CharacterAbilities,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Cards,Id,StableId,true,,,,,Canonical runtime card id.
 1,Cards,SourceWorkbookId,StableId,true,,,,,Workbook id or runtime-only provenance id.
 1,Cards,Tier,Int,true,0,1000000,,,Card tier.
@@ -47,7 +55,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Cards,Description,Text,true,,,,,Designer-visible card description.
 1,Cards,Tags,StableIdList,true,,,,,Pipe-separated stable tags.
 1,Cards,PromotionRoleId,StableId,true,,,,Disabled|Hunter|Poet|Brave|Sage,Role score bucket for promotion.
-1,Cards,OfferGroup,StableId,true,,,,Trait|Forge|Disabled,Offer pool group.
+1,Cards,OfferGroup,StableId,true,,,,Trait|Disabled,Offer pool group.
 1,Cards,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,Cards,Offerable,Bool,true,,,,true|false,Whether the card may enter generated offers.
 1,Cards,StackPolicy,StableId,true,,,,Stackable|Unique,Stacking policy.

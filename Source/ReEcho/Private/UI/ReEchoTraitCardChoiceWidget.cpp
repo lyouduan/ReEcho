@@ -136,19 +136,17 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 }
 
 void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers,
-                                                    const int32 InTimeShards,
-                                                    const bool bInForgeChoice)
+                                                    const int32 InTimeShards)
 {
 	Offers = InOffers;
 	CurrentTimeShards = InTimeShards;
-	bForgeChoice = bInForgeChoice;
 	RefreshOffers();
 }
 
 void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 {
-	if (!WidgetTree || (WidgetTree->RootWidget && TraitCardContainer && TitleText && SubtitleText && CurrencyText &&
-	                    NeedleWidget))
+	if (!WidgetTree ||
+	    (WidgetTree->RootWidget && TraitCardContainer && TitleText && SubtitleText && CurrencyText && NeedleWidget))
 	{
 		return;
 	}
@@ -234,8 +232,8 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 		USizeBox* CardSize = bUseDesignerCardSlots ? DesignerCardSlots[CardIndex] : nullptr;
 		if (!CardSize)
 		{
-			CardSize = WidgetTree->ConstructWidget<USizeBox>(
-			    USizeBox::StaticClass(), *FString::Printf(TEXT("TraitCardSize%d"), CardIndex));
+			CardSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),
+			                                                 *FString::Printf(TEXT("TraitCardSize%d"), CardIndex));
 			CardSize->SetWidthOverride(310.0f);
 			CardSize->SetHeightOverride(390.0f);
 			UCanvasPanelSlot* CardSlot = TraitCardContainer->AddChildToCanvas(CardSize);
@@ -308,26 +306,21 @@ FString UReEchoTraitCardChoiceWidget::ResolveCardArtTexturePath(const int32 Tier
 	{
 		return FString();
 	}
-	return FString::Printf(
-		TEXT("/Game/ReEcho/Textures/UI/Cards/Art/T_UI_CardTier%d.T_UI_CardTier%d"),
-		Tier,
-		Tier);
+	return FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Art/T_UI_CardTier%d.T_UI_CardTier%d"), Tier, Tier);
 }
 
 FString UReEchoTraitCardChoiceWidget::ResolveCardIconTexturePath(const FName CardId)
 {
-	return FString::Printf(
-		TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
-		*CardId.ToString(),
-		*CardId.ToString());
+	return FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+	                       *CardId.ToString(),
+	                       *CardId.ToString());
 }
 
 void UReEchoTraitCardChoiceWidget::RefreshOffers()
 {
 	if (TitleText)
 	{
-		TitleText->SetText(bForgeChoice ? NSLOCTEXT("ReEcho", "ForgeChoiceTitle", "选择1张锻造卡牌")
-		                                : NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择1张构筑卡牌"));
+		TitleText->SetText(NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择1张构筑卡牌"));
 	}
 	if (SubtitleText)
 	{
@@ -366,29 +359,27 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			FReEchoTraitCardOffer& Offer = Offers[CardIndex];
 			if (!Offer.CardArt)
 			{
-				Offer.CardArt = LoadObject<UTexture2D>(
-					nullptr, *ResolveCardArtTexturePath(Offer.Tier));
+				Offer.CardArt = LoadObject<UTexture2D>(nullptr, *ResolveCardArtTexturePath(Offer.Tier));
 			}
 			if (!Offer.CardIcon)
 			{
-				Offer.CardIcon = LoadObject<UTexture2D>(
-					nullptr, *ResolveCardIconTexturePath(Offer.CardId));
+				Offer.CardIcon = LoadObject<UTexture2D>(nullptr, *ResolveCardIconTexturePath(Offer.CardId));
 				if (!Offer.CardIcon)
 				{
-					Offer.CardIcon = LoadObject<UTexture2D>(
-						nullptr,
-						TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/"
-						     "InventoryShop/T_UI_Shop_CardIcon.T_UI_Shop_CardIcon"));
+					Offer.CardIcon =
+					    LoadObject<UTexture2D>(nullptr,
+					                           TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/"
+					                                "InventoryShop/T_UI_Shop_CardIcon.T_UI_Shop_CardIcon"));
 				}
 			}
 			CardEntries[CardIndex]->Configure(CardIndex,
-			                                   CardKickers[CardIndex],
-			                                   Offer.DisplayName,
-			                                   Offer.Description,
-			                                   Offer.Tags,
-			                                   CardColors[CardIndex],
-			                                   Offer.CardArt,
-			                                   Offer.CardIcon);
+			                                  CardKickers[CardIndex],
+			                                  Offer.DisplayName,
+			                                  Offer.Description,
+			                                  Offer.Tags,
+			                                  CardColors[CardIndex],
+			                                  Offer.CardArt,
+			                                  Offer.CardIcon);
 		}
 	}
 	RefreshSelectionVisuals();

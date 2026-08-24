@@ -22,9 +22,10 @@ CSV_SCHEMA_VERSION = 1
 REGISTERED_BEHAVIOR_IDS = {
     "None",
     "RuntimeSmoke.LogValue",
-    "Character.SageBonusChoice",
-    "Character.PoetReactionGrowth",
-    "Character.BraveForge",
+    "Character.StaticStat",
+    "Character.PersistentGrowth",
+    "Character.EveryNth",
+    "Character.MissingHealthSteps",
     "Card.StatModifier",
     "Card.InstantRecovery",
     "Card.GrantTier",
@@ -111,6 +112,7 @@ REGISTERED_EFFECT_KINDS = {
     "InstantRecovery",
     "CardBehavior",
     "ElementReaction",
+    "ExtraCardChoice",
     "WeaponDamageChannel",
     "AttackPatternReplacement",
     "ParameterizedBehavior",
@@ -282,8 +284,6 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "PromotionPriority": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "DefaultWeaponId": CsvColumnSpec("StableId"),
         "AppearanceId": CsvColumnSpec("StableId"),
-        "PassiveBehaviorId": CsvColumnSpec("BehaviorId"),
-        "PassiveValue": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "HpMax": CsvColumnSpec("Float", min_value=1.0, max_value=100000.0),
         "PhysicalAttack": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "ElementalAttack": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
@@ -293,13 +293,25 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "CriticalEffect": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "EchoEfficiency": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "ReactionEfficiency": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
-        "EverySecondAttackBonus": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
-        "RandomElementProjectiles": CsvColumnSpec("Bool"),
     },
     "CharacterAliases": {
         "Id": CsvColumnSpec("StableId"),
         "CanonicalCharacterId": CsvColumnSpec("ForeignKey", reference_table="Characters"),
         "Reason": CsvColumnSpec("Text"),
+    },
+    "CharacterAbilities": {
+        "Id": CsvColumnSpec("StableId"),
+        "CharacterId": CsvColumnSpec("ForeignKey", reference_table="Characters"),
+        "Order": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "Trigger": CsvColumnSpec("StableId"),
+        "EffectKind": CsvColumnSpec("EffectKind"),
+        "Target": CsvColumnSpec("StableId"),
+        "ValueOp": CsvColumnSpec("ValueOp"),
+        "Value": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
+        "BehaviorId": CsvColumnSpec("BehaviorId"),
+        "Interval": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "Enabled": CsvColumnSpec("Bool"),
+        "DisabledReason": CsvColumnSpec("Text", required=False),
     },
     "Cards": {
         "Id": CsvColumnSpec("StableId"),
@@ -897,6 +909,7 @@ def validate_csv_package(data_dir: Path) -> None:
     references["RuntimeSmokeEffects"] = validate_table(entries["RuntimeSmokeEffects"], "RuntimeSmokeEffects", references)
     references["Characters"] = validate_table(entries["Characters"], "Characters", references)
     references["CharacterAliases"] = validate_table(entries["CharacterAliases"], "CharacterAliases", references)
+    references["CharacterAbilities"] = validate_table(entries["CharacterAbilities"], "CharacterAbilities", references)
     references["Cards"] = validate_table(entries["Cards"], "Cards", references)
     references["CardEffects"] = validate_table(entries["CardEffects"], "CardEffects", references)
     references["Elements"] = validate_table(entries["Elements"], "Elements", references)
@@ -979,6 +992,7 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
 
 def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     characters = load_csv(entries["Characters"])
+    abilities = load_csv(entries["CharacterAbilities"])
     cards = load_csv(entries["Cards"])
     effects = load_csv(entries["CardEffects"])
     enabled_characters = {row["Id"] for row in characters if row["Enabled"] == "true"}
@@ -997,7 +1011,50 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
         if row["Enabled"] == "false" and not row["DisabledReason"]:
             fail(f"{rel(entries['Characters'])}:{row['__line__']}: disabled character requires DisabledReason")
 
+    expected_ability_ids = {
+        "HUNTER_MOVE", "HUNTER_CRIT_RATE", "HUNTER_CRIT_EFFECT", "POET_REACTION_GROWTH",
+        "SAGE_BONUS_CHOICE", "BRAVE_PHYSICAL", "BRAVE_ELEMENTAL",
+    }
+    enabled_ability_ids = {row["Id"] for row in abilities if row["Enabled"] == "true"}
+    if data_dir.resolve() == DATA.resolve() and enabled_ability_ids != expected_ability_ids:
+        fail(f"{rel(entries['CharacterAbilities'])}: canonical character ability ids changed: {sorted(enabled_ability_ids)}")
+    seen_ability_orders: set[tuple[str, str, str]] = set()
+    for row in abilities:
+        key = (row["CharacterId"], row["Trigger"], row["Order"])
+        if key in seen_ability_orders:
+            fail(f"{rel(entries['CharacterAbilities'])}:{row['__line__']}: duplicate CharacterId/Trigger/Order {key}")
+        seen_ability_orders.add(key)
+        behavior = row["BehaviorId"]
+        target = row["Target"]
+        interval = float(row["Interval"])
+        value = float(row["Value"])
+        valid = row["ValueOp"] == "Add"
+        if behavior == "Character.StaticStat":
+            valid = valid and row["Trigger"] == "OnBuildInitialized" and row["EffectKind"] == "StatModifier"
+            valid = valid and target in {"MovementSpeed", "CriticalRate", "CriticalEffect"} and interval == 0
+        elif behavior == "Character.PersistentGrowth":
+            valid = valid and row["Trigger"] == "OnEncounterCompleted" and row["EffectKind"] == "StatModifier"
+            valid = valid and target == "ReactionEfficiency" and interval == 0
+        elif behavior == "Character.EveryNth":
+            valid = valid and row["Trigger"] == "OnTraitChoiceApplied" and row["EffectKind"] == "ExtraCardChoice"
+            valid = valid and target == "TraitCardChoice" and interval >= 1 and interval.is_integer()
+            valid = valid and value > 0 and value.is_integer()
+        elif behavior == "Character.MissingHealthSteps":
+            valid = valid and row["Trigger"] == "OnHealthChanged" and row["EffectKind"] == "StatModifier"
+            valid = valid and target in {"PhysicalAttack", "ElementalAttack"} and value >= 0 and 0 < interval <= 1
+        else:
+            valid = False
+        if not valid:
+            fail(
+                f"{rel(entries['CharacterAbilities'])}:{row['__line__']}: unsupported character ability "
+                "trigger/effect/target/value combination"
+            )
+        if row["Enabled"] == "false" and not row["DisabledReason"]:
+            fail(f"{rel(entries['CharacterAbilities'])}:{row['__line__']}: disabled ability requires DisabledReason")
+
     enabled_cards = {row["Id"] for row in cards if row["Enabled"] == "true"}
+    if any(row["OfferGroup"] == "Forge" or row["Id"].startswith("FORGE_") for row in cards):
+        fail(f"{rel(entries['Cards'])}: removed Forge offers reappeared")
     offerable_traits = [row["Id"] for row in cards if row["OfferGroup"] == "Trait" and row["Offerable"] == "true"]
     expected_traits = [
         "G_1_01", "G_1_02", "G_1_03", "G_1_04", "G_1_05", "G_1_06", "G_1_07", "G_1_08",

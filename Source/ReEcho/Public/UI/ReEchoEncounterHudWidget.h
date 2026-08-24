@@ -18,6 +18,9 @@ class REECHO_API UReEchoEncounterHudWidget : public UUserWidget
 public:
 	void SetEncounterStatus(int32 EncounterIndex, int32 TotalEncounters, float RemainingSeconds);
 
+	static FText FormatEncounterLabel(int32 EncounterIndex);
+	static FText FormatCountdown(float RemainingSeconds);
+
 	/** 由 GameMode::Tick 每帧调用，转发小地图视图给 WBP 中放入的 ReEchoMinimapCanvasWidget。 */
 	void SetMinimapView(const FReEchoMinimapView& View);
 

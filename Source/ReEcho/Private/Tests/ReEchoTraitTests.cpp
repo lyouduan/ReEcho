@@ -1,4 +1,6 @@
 #include "Misc/AutomationTest.h"
+#include "Cards/ReEchoCardCatalog.h"
+#include "Cards/ReEchoCardRuntime.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
 #include "Run/ReEchoRunSaveGame.h"
@@ -17,8 +19,8 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 		UGameInstance* GameInstance = NewObject<UGameInstance>();
 		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
-		RunSubsystem->BeginEncounter();
-		RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
+		RunSubsystem->EncounterIndex = 2;
+		RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
 		return RunSubsystem;
 	};
 
@@ -46,9 +48,10 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("A draw never repeats a card"), UniqueIds.Num(), FirstOffers.Num());
 
 	TSet<FString> EncounterOfferSignatures;
-	for (int32 Encounter = 1; Encounter <= 6; ++Encounter)
+	for (int32 Encounter = 2; Encounter <= 7; ++Encounter)
 	{
 		FirstRun->EncounterIndex = Encounter;
+		FirstRun->Phase = EReEchoRunPhase::CardChoice;
 		const TArray<FReEchoTraitCardOffer> EncounterOffers = FirstRun->GenerateTraitCardOffers(3);
 		FString Signature;
 		for (const FReEchoTraitCardOffer& Offer : EncounterOffers)
@@ -57,8 +60,7 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 		}
 		EncounterOfferSignatures.Add(Signature);
 	}
-	TestTrue(TEXT("Different encounters do not reuse one fixed card sequence"),
-	         EncounterOfferSignatures.Num() > 1);
+	TestTrue(TEXT("Different encounters do not reuse one fixed card sequence"), EncounterOfferSignatures.Num() > 1);
 
 	TSet<FString> NewRunOfferSignatures;
 	for (int32 RunIndex = 0; RunIndex < 6; ++RunIndex)
@@ -76,6 +78,82 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTraitDropMatrixTest,
+                                 "ReEcho.Traits.PostEncounterDropMatrix",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTraitDropMatrixTest::RunTest(const FString& Parameters)
+{
+	const TArray<int32> ExpectedFreeTiers = {INDEX_NONE, 2, 3, 1, 2, 3, 2, INDEX_NONE};
+	for (int32 EncounterIndex = 1; EncounterIndex <= ExpectedFreeTiers.Num(); ++EncounterIndex)
+	{
+		UGameInstance* GameInstance = NewObject<UGameInstance>();
+		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+		RunSubsystem->EncounterIndex = EncounterIndex;
+		RunSubsystem->Phase = EReEchoRunPhase::Encounter;
+		RunSubsystem->CompleteEncounter(FReEchoRecording(), true, EncounterIndex == ExpectedFreeTiers.Num());
+
+		const int32 ExpectedTier = ExpectedFreeTiers[EncounterIndex - 1];
+		if (EncounterIndex == ExpectedFreeTiers.Num())
+		{
+			TestEqual(TEXT("The final boss encounter enters summary without a card drop"),
+			          RunSubsystem->Phase,
+			          EReEchoRunPhase::Summary);
+			continue;
+		}
+		if (ExpectedTier == INDEX_NONE)
+		{
+			TestEqual(TEXT("An encounter with no free drop continues to the shop phase route"),
+			          RunSubsystem->Phase,
+			          EReEchoRunPhase::Planning);
+			continue;
+		}
+
+		TestEqual(TEXT("A configured free drop enters card choice"), RunSubsystem->Phase, EReEchoRunPhase::CardChoice);
+		const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
+		TestEqual(
+		    *FString::Printf(TEXT("Encounter %d produces one three-card group"), EncounterIndex), Offers.Num(), 3);
+		for (const FReEchoTraitCardOffer& Offer : Offers)
+		{
+			TestEqual(*FString::Printf(TEXT("Encounter %d offer stays in configured tier"), EncounterIndex),
+			          Offer.Tier,
+			          ExpectedTier);
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTraitDropFailureFallbackTest,
+                                 "ReEcho.Traits.DropFailureContinuesToShop",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTraitDropFailureFallbackTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+
+	RunSubsystem->EncounterIndex = 2;
+	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
+	AddExpectedError(TEXT("requires 100 card offers"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestTrue(TEXT("An undersized tier pool returns no partial or cross-tier group"),
+	         RunSubsystem->GenerateTraitCardOffers(100).IsEmpty());
+	TestEqual(TEXT("An undersized tier pool continues through the shop route"),
+	          RunSubsystem->Phase,
+	          EReEchoRunPhase::Planning);
+
+	RunSubsystem->EncounterIndex = 99;
+	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
+	AddExpectedError(TEXT("has no shop_drop_levels row"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedError(TEXT("has no configured free card tier"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestTrue(TEXT("A missing encounter row returns no offers"), RunSubsystem->GenerateTraitCardOffers(3).IsEmpty());
+	TestEqual(TEXT("A missing encounter row continues through the shop route"),
+	          RunSubsystem->Phase,
+	          EReEchoRunPhase::Planning);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTraitOfferApplicationTest,
                                  "ReEcho.Traits.AppliesOnlyPendingOffer",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -85,8 +163,8 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
-	RunSubsystem->BeginEncounter();
-	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
+	RunSubsystem->EncounterIndex = 2;
+	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
 	const TArray<FReEchoTraitCardOffer> FirstOffers = RunSubsystem->GenerateTraitCardOffers(3);
 	if (!TestEqual(TEXT("Initial draw returns three offers"), FirstOffers.Num(), 3))
 	{
@@ -100,16 +178,55 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("The selected card enters the build"),
 	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(SelectedCardId));
 
-	RunSubsystem->BeginEncounter();
-	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
+	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
 	const TArray<FReEchoTraitCardOffer> SecondOffers = RunSubsystem->GenerateTraitCardOffers(3);
 	TestEqual(TEXT("The next draw returns three offers"), SecondOffers.Num(), 3);
-	TestFalse(TEXT("Unowned traits are preferred before repeating the selected card"),
+	TestFalse(TEXT("An owned trait is excluded from later free offers"),
 	          SecondOffers.ContainsByPredicate(
 	              [&](const FReEchoTraitCardOffer& Offer)
 	              {
 		              return Offer.CardId == SelectedCardId;
 	              }));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTierOneRepeatableFreeOfferTest,
+                                 "ReEcho.Traits.TierOneOwnedCardsRemainInFreePool",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTierOneRepeatableFreeOfferTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	const TArray<FName> TierOneCardIds = {TEXT("G_1_01"),
+	                                      TEXT("G_1_02"),
+	                                      TEXT("G_1_03"),
+	                                      TEXT("G_1_04"),
+	                                      TEXT("G_1_05"),
+	                                      TEXT("G_1_06"),
+	                                      TEXT("G_1_07"),
+	                                      TEXT("G_1_08")};
+	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Append(TierOneCardIds);
+	RunSubsystem->EncounterIndex = 4;
+	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
+
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
+	if (!TestEqual(TEXT("A fully-owned tier-one free pool still returns three repeatable cards"), Offers.Num(), 3))
+	{
+		return false;
+	}
+	for (const FReEchoTraitCardOffer& Offer : Offers)
+	{
+		TestTrue(TEXT("Every repeated free offer comes from the owned tier-one pool"),
+		         TierOneCardIds.Contains(Offer.CardId));
+	}
+	const FName SelectedCardId = Offers[0].CardId;
+	const int32 StackCountBefore = ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, SelectedCardId);
+	TestTrue(TEXT("An owned tier-one free offer can be selected again"), RunSubsystem->ApplyTraitCard(SelectedCardId));
+	TestEqual(TEXT("Repeated free selection adds one tier-one stack"),
+	          ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, SelectedCardId),
+	          StackCountBefore + 1);
 	return true;
 }
 
@@ -124,38 +241,28 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	RunSubsystem->StartRun(TEXT("J_SPADE"), NAME_None);
 	TestEqual(TEXT("CSV default weapon is used when none is supplied"),
 	          RunSubsystem->CurrentBuild.WeaponId,
-	          FName(TEXT("W_J_02")));
+	          FName(TEXT("W_J_01")));
 	TestEqual(
 	    TEXT("CSV character base physical attack is used"), RunSubsystem->CurrentBuild.Stats.PhysicalAttack, 5.0f);
 
-	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
-	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(39);
-	TestEqual(TEXT("All 39 enabled trait cards are offered"), Offers.Num(), 39);
-	if (!Offers.ContainsByPredicate(
-	        [](const FReEchoTraitCardOffer& Offer)
-	        {
-		        return Offer.CardId == TEXT("G_1_03");
-	        }))
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
+	if (!TestTrue(TEXT("Card data snapshot is available"), Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()))
 	{
-		AddError(TEXT("G_1_03 was not present in the 39-card trait pool"));
 		return false;
 	}
-	const FReEchoTraitCardOffer* TaggedOffer = Offers.FindByPredicate(
-	    [](const FReEchoTraitCardOffer& Offer)
-	    {
-		    return Offer.CardId == TEXT("G_2_05");
-	    });
-	TestNotNull(TEXT("G_2_05 is available for tag projection"), TaggedOffer);
-	if (TaggedOffer)
+	const FReEchoCardDefinition* TaggedCard = Snapshot->CardCatalog->Find(TEXT("G_2_05"));
+	TestNotNull(TEXT("G_2_05 is available for tag projection"), TaggedCard);
+	if (TaggedCard)
 	{
-		TestEqual(TEXT("Trait offers preserve the authored Tags column order"), TaggedOffer->Tags.Num(), 3);
-		TestTrue(TEXT("Trait offer includes the authored Critical tag"), TaggedOffer->Tags.Contains(TEXT("Critical")));
-		TestTrue(TEXT("Trait offer includes the authored Echo tag"), TaggedOffer->Tags.Contains(TEXT("Echo")));
-		TestTrue(TEXT("Trait offer includes the authored Body tag"), TaggedOffer->Tags.Contains(TEXT("Body")));
+		TestEqual(TEXT("Trait definitions preserve the authored Tags column order"), TaggedCard->Tags.Num(), 3);
+		TestTrue(TEXT("Trait definition includes the authored Critical tag"),
+		         TaggedCard->Tags.Contains(TEXT("Critical")));
+		TestTrue(TEXT("Trait definition includes the authored Echo tag"), TaggedCard->Tags.Contains(TEXT("Echo")));
+		TestTrue(TEXT("Trait definition includes the authored Body tag"), TaggedCard->Tags.Contains(TEXT("Body")));
 	}
 
 	const float PhysicalBefore = RunSubsystem->CurrentBuild.Stats.PhysicalAttack;
-	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->ApplyTraitCard(TEXT("G_1_03")));
+	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->DebugGrantCard(TEXT("G_1_03")));
 	TestEqual(TEXT("Physical attack add comes from card_effects.csv"),
 	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
 	          PhysicalBefore + 4.0f);

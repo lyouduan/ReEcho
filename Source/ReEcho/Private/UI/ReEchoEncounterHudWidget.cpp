@@ -61,6 +61,20 @@ void UReEchoEncounterHudWidget::SetMinimapView(const FReEchoMinimapView& View)
 	}
 }
 
+FText UReEchoEncounterHudWidget::FormatEncounterLabel(const int32 EncounterIndex)
+{
+	return FText::Format(NSLOCTEXT("ReEcho", "EncounterHudStage", "第 {0} 关"),
+	                     FText::AsNumber(FMath::Max(0, EncounterIndex)));
+}
+
+FText UReEchoEncounterHudWidget::FormatCountdown(const float RemainingSeconds)
+{
+	const int32 DisplaySeconds = FMath::CeilToInt(FMath::Max(0.0f, RemainingSeconds));
+	const int32 Minutes = DisplaySeconds / 60;
+	const int32 Seconds = DisplaySeconds % 60;
+	return FText::FromString(FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds));
+}
+
 void UReEchoEncounterHudWidget::BuildWidgetTree()
 {
 	if (EncounterText || !WidgetTree)
@@ -113,15 +127,12 @@ void UReEchoEncounterHudWidget::RefreshText()
 {
 	if (EncounterText)
 	{
-		EncounterText->SetText(FText::Format(NSLOCTEXT("ReEcho", "EncounterHudStage", "关卡 {0}/{1}"),
-		                                     FText::AsNumber(CurrentEncounterIndex),
-		                                     FText::AsNumber(EncounterCount)));
+		EncounterText->SetText(FormatEncounterLabel(CurrentEncounterIndex));
 	}
 	if (CountdownText)
 	{
 		const int32 DisplaySeconds = FMath::CeilToInt(RemainingTime);
-		CountdownText->SetText(FText::Format(NSLOCTEXT("ReEcho", "EncounterHudCountdown", "剩余 {0} 秒"),
-		                                     FText::AsNumber(DisplaySeconds)));
+		CountdownText->SetText(FormatCountdown(RemainingTime));
 		CountdownText->SetColorAndOpacity(
 		    FSlateColor(DisplaySeconds <= 5 ? FLinearColor(1.0f, 0.2f, 0.12f, 1.0f) : FLinearColor::White));
 	}

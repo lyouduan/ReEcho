@@ -21,6 +21,7 @@ constexpr const TCHAR* RuntimeSmokeTableId = TEXT("RuntimeSmoke");
 constexpr const TCHAR* RuntimeSmokeEffectsTableId = TEXT("RuntimeSmokeEffects");
 constexpr const TCHAR* CharactersTableId = TEXT("Characters");
 constexpr const TCHAR* CharacterAliasesTableId = TEXT("CharacterAliases");
+constexpr const TCHAR* CharacterAbilitiesTableId = TEXT("CharacterAbilities");
 constexpr const TCHAR* CardsTableId = TEXT("Cards");
 constexpr const TCHAR* CardEffectsTableId = TEXT("CardEffects");
 constexpr const TCHAR* ElementsTableId = TEXT("Elements");
@@ -197,14 +198,21 @@ TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDa
 
 TArray<FString> GetRequiredTableIds()
 {
-	return {RuntimeSmokeTableId, RuntimeSmokeEffectsTableId, CharactersTableId,     CharacterAliasesTableId,
-	        CardsTableId,        CardEffectsTableId,         ElementsTableId,       StatusesTableId,
-	        ReactionsTableId,    WeaponTypesTableId,         WeaponsTableId,        AttackStepsTableId,
-	        SlotTypesTableId,    SlotProfilesTableId,        PartsTableId,          PartEffectsTableId,
-	        ShopPriceRangesTableId, ShopDropLevelsTableId,
-	        EnemiesTableId,      EnemyAbilitiesTableId,      BossPhasesTableId,     EnemyCombatStatsTableId,
-	        StagesTableId,       EncountersTableId,          EncounterWavesTableId, SpawnProfilesTableId,
-	        SpawnPolicyTableId,  AttributesTableId};
+	return {RuntimeSmokeTableId,       RuntimeSmokeEffectsTableId,
+	        CharactersTableId,         CharacterAliasesTableId,
+	        CharacterAbilitiesTableId, CardsTableId,
+	        CardEffectsTableId,        ElementsTableId,
+	        StatusesTableId,           ReactionsTableId,
+	        WeaponTypesTableId,        WeaponsTableId,
+	        AttackStepsTableId,        SlotTypesTableId,
+	        SlotProfilesTableId,       PartsTableId,
+	        PartEffectsTableId,        ShopPriceRangesTableId,
+	        ShopDropLevelsTableId,     EnemiesTableId,
+	        EnemyAbilitiesTableId,     BossPhasesTableId,
+	        EnemyCombatStatsTableId,   StagesTableId,
+	        EncountersTableId,         EncounterWavesTableId,
+	        SpawnProfilesTableId,      SpawnPolicyTableId,
+	        AttributesTableId};
 }
 
 bool ReadRuntimeSmokeTable(const FString& DataDirectory,
@@ -402,6 +410,22 @@ FName FReEchoCsvDataSnapshot::ResolveCharacterId(const FName CharacterId) const
 const FReEchoCsvCharacterRow* FReEchoCsvDataSnapshot::FindCharacter(const FName CharacterId) const
 {
 	return Characters.Find(ResolveCharacterId(CharacterId));
+}
+
+TArray<FReEchoCsvCharacterAbilityRow> FReEchoCsvDataSnapshot::GetCharacterAbilities(const FName CharacterId,
+                                                                                    const FName Trigger) const
+{
+	TArray<FReEchoCsvCharacterAbilityRow> Result;
+	const FName CanonicalId = ResolveCharacterId(CharacterId);
+	for (const FName AbilityId : CharacterAbilityOrder)
+	{
+		const FReEchoCsvCharacterAbilityRow* Ability = CharacterAbilities.Find(AbilityId);
+		if (Ability && Ability->bEnabled && Ability->CharacterId == CanonicalId && Ability->Trigger == Trigger)
+		{
+			Result.Add(*Ability);
+		}
+	}
+	return Result;
 }
 
 const FReEchoCsvCardRow* FReEchoCsvDataSnapshot::FindCard(const FName CardId) const
@@ -648,6 +672,7 @@ void FReEchoCsvDataRegistry::EnsureDefaultRegistrations()
 	RegisteredEffectKinds.Add(FName(InstantRecoveryEffectKind));
 	RegisteredEffectKinds.Add(FName(CardBehaviorEffectKind));
 	RegisteredEffectKinds.Add(FName(ElementReactionEffectKind));
+	RegisteredEffectKinds.Add(TEXT("ExtraCardChoice"));
 	RegisteredFormulaIds.Add(FName(BehaviorNone));
 	RegisteredAttackPatternIds.Add(FName(BehaviorNone));
 	bDefaultRegistrationsReady = true;
@@ -655,9 +680,10 @@ void FReEchoCsvDataRegistry::EnsureDefaultRegistrations()
 
 void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 {
-	RegisterBehaviorId(TEXT("Character.SageBonusChoice"));
-	RegisterBehaviorId(TEXT("Character.PoetReactionGrowth"));
-	RegisterBehaviorId(TEXT("Character.BraveForge"));
+	RegisterBehaviorId(TEXT("Character.StaticStat"));
+	RegisterBehaviorId(TEXT("Character.PersistentGrowth"));
+	RegisterBehaviorId(TEXT("Character.EveryNth"));
+	RegisterBehaviorId(TEXT("Character.MissingHealthSteps"));
 	RegisterBehaviorId(TEXT("Card.StatModifier"));
 	RegisterBehaviorId(TEXT("Card.InstantRecovery"));
 	for (const FName BehaviorId : {

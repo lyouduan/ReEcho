@@ -1,6 +1,7 @@
 #include "Run/ReEchoCharacterPromotion.h"
 
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 
 namespace
 {
@@ -16,8 +17,13 @@ void ApplyStatDelta(FReEchoStatBlock& Target, const FReEchoStatBlock& From, cons
 	Target.CriticalEffect += To.CriticalEffect - From.CriticalEffect;
 	Target.EchoEfficiency += To.EchoEfficiency - From.EchoEfficiency;
 	Target.ReactionEfficiency += To.ReactionEfficiency - From.ReactionEfficiency;
-	Target.EverySecondAttackBonus = To.EverySecondAttackBonus;
-	Target.bRandomElementProjectiles = To.bRandomElementProjectiles;
+}
+
+FReEchoStatBlock ResolveEffectiveStats(const FReEchoCsvDataSnapshot& Snapshot, const FReEchoCsvCharacterRow& Character)
+{
+	FReEchoStatBlock Result = Character.BaseStats;
+	ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(Snapshot, Character.Id, Result);
+	return Result;
 }
 
 const FReEchoCsvCharacterRow* FindCharacterForRole(const FReEchoCsvDataSnapshot& Snapshot, const FName RoleId)
@@ -114,7 +120,9 @@ bool TryPromote(FReEchoBuildSnapshot& Build)
 	Build.RuleFlags.Add(TEXT("Role"), Role.ToString());
 	Build.Stats.RoleId = Role;
 	Build.CharacterId = TargetCharacter->Id;
-	ApplyStatDelta(Build.Stats, BaseCharacter->BaseStats, TargetCharacter->BaseStats);
+	ApplyStatDelta(Build.Stats,
+	               ResolveEffectiveStats(*Snapshot, *BaseCharacter),
+	               ResolveEffectiveStats(*Snapshot, *TargetCharacter));
 
 	Build.Stats.HpMax = FMath::Max(1.0f, Build.Stats.HpMax);
 	Build.Stats.PhysicalAttack = FMath::Max(0.0f, Build.Stats.PhysicalAttack);

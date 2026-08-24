@@ -84,7 +84,9 @@ public:
 	 * 槽位已满时挤出该槽位最早装备的旧件，旧件仍保留在 OwnedPartIds（回落背包）。
 	 */
 	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
-	FReEchoWeaponPartShopView GetWeaponPartShopView() const;
+	/** Equips an already-owned weapon without shop cost or reroll; compatible runes remain equipped. */
+	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
+	FReEchoWeaponPartShopView GetWeaponPartShopView();
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 	int32 GetTotalEncounterCount() const;
 
@@ -108,10 +110,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool DebugGrantCard(FName CardId);
 
-	/** 勇者每关结束后的三档锻炼选择。 */
-	TArray<FReEchoTraitCardOffer> GenerateForgeOffers();
-	bool ApplyForgeChoice(FName ForgeId);
-
 	FReEchoCardRuleSnapshot GetCardRules() const;
 	FReEchoCardEncounterTickResult AdvanceCardEncounter(float EncounterTimeSeconds);
 	void ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
@@ -129,7 +127,10 @@ public:
 	bool SetCardAnchorRecording(FGuid RecordingId);
 	void ClearCardAnchorRecording();
 
-	/** 消耗时间碎片购买一次性本轮商品；成功后写入背包并立即应用构筑效果。 */
+	/** Unified purchase transaction: returns a reasoned result and always emits one Before/Result/After audit. */
+	FReEchoShopPurchaseOutcome PurchaseShopItemDetailed(FName ItemId);
+
+	/** Backward-compatible bool facade. New UI/gameplay call sites should consume PurchaseShopItemDetailed. */
 	UFUNCTION(BlueprintCallable)
 	bool PurchaseShopItem(FName ItemId);
 
@@ -219,6 +220,9 @@ public:
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	int32 ResolveConfiguredFreeTraitTier() const;
+	void AdvanceToConfiguredTraitChoice();
+
 	UPROPERTY()
 	bool bAutomaticAttackMode = true;
 
@@ -258,6 +262,16 @@ private:
 	UPROPERTY()
 	TArray<FName> PendingTraitCardIds;
 
+	/** Stable weapon/rune page. Ownership changes mark offers sold but do not regenerate the remaining slots. */
+	UPROPERTY()
+	int32 WeaponPartShopOfferEncounterIndex = INDEX_NONE;
+
+	UPROPERTY()
+	int32 WeaponPartShopOfferRefreshSequence = INDEX_NONE;
+
+	UPROPERTY()
+	TArray<FName> WeaponPartShopOfferIds;
+
 	/** Randomized once per run and persisted so reopening a card choice cannot reroll it. */
 	UPROPERTY()
 	int32 TraitOfferSeed = 0;
@@ -275,20 +289,6 @@ private:
 
 	/** Drops selections that no longer resolve, de-duplicates, then truncates to the replay limit. */
 	void NormalizeSelectedReplayIds();
-
-	/**
-	 * 购买武器 / 武器符文后打印可读装的装备状态（使用 LogReEcho Warning，Shipping 包内可见）。
-	 * 仅由 PurchaseShopItem 在 bFoundSlot 且 Kind 为 Weapon / Part 时调用：
-	 * - 当前装备的武器
-	 * - 受影响的（或整把武器切换时的全部）槽位：装备中的符文、本次装备 /
-	 * 卸下的符文、对应槽位背包（已拥有但未装备的符文）
-	 */
-	void LogWeaponRunePurchaseState(const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot,
-	                                FName PurchasedItem,
-	                                const TCHAR* PurchaseKind,
-	                                const FReEchoBuildSnapshot& BeforeBuild,
-	                                const FReEchoBuildSnapshot& AfterBuild,
-	                                FName AffectedSlotTypeId);
 
 	int32 FindStoredEchoIndex(const FGuid& RecordingId) const;
 };

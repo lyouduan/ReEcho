@@ -46,6 +46,45 @@ FReEchoCardCatalog BuildCatalog(const TArray<FReEchoCardDefinition>& Cards)
 }
 } // namespace
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoOwnedCardTierOfferRulesTest,
+                                 "ReEcho.Cards.Offer.OwnedTierOneRepeatsHigherTiersAreExcluded",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoOwnedCardTierOfferRulesTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition TierOne =
+	    MakeCard(TEXT("TIER_ONE"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	const FReEchoCardDefinition TierTwoOwned =
+	    MakeCard(TEXT("TIER_TWO_OWNED"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 2.0f);
+	const FReEchoCardDefinition TierTwoUnowned = MakeCard(
+	    TEXT("TIER_TWO_UNOWNED"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 2.0f);
+	const FReEchoCardCatalog Catalog = BuildCatalog({TierOne, TierTwoOwned, TierTwoUnowned});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {TierOne.Id, TierTwoOwned.Id};
+
+	TestTrue(TEXT("An owned tier-one card remains offerable"), ReEchoCardRuntime::CanOffer(Catalog, State, TierOne));
+	TestFalse(TEXT("An owned tier-two card is no longer offerable"),
+	          ReEchoCardRuntime::CanOffer(Catalog, State, TierTwoOwned));
+	const TArray<FReEchoCardDefinition> TierOnePool =
+	    ReEchoCardRuntime::BuildOfferPool(Catalog, State, TEXT("Trait"), 1);
+	TestEqual(TEXT("The tier-one pool retains its owned repeatable card"), TierOnePool.Num(), 1);
+	TestEqual(TEXT("The repeatable tier-one card remains in the pool"), TierOnePool[0].Id, TierOne.Id);
+	const TArray<FReEchoCardDefinition> TierTwoPool =
+	    ReEchoCardRuntime::BuildOfferPool(Catalog, State, TEXT("Trait"), 2);
+	TestEqual(TEXT("The tier-two pool contains only the unowned card"), TierTwoPool.Num(), 1);
+	TestEqual(TEXT("The remaining tier-two offer is unowned"), TierTwoPool[0].Id, TierTwoUnowned.Id);
+
+	FReEchoCardGrantInput RepeatInput;
+	RepeatInput.CardState = State;
+	const FReEchoCardGrantResult RepeatGrant = ReEchoCardRuntime::TryGrantCard(Catalog, TierOne.Id, RepeatInput);
+	TestTrue(TEXT("An offered tier-one card can be granted again"), RepeatGrant.bSucceeded);
+	TestEqual(TEXT("A repeated tier-one grant adds another stack"),
+	          ReEchoCardRuntime::CountOwned(RepeatGrant.CardState, TierOne.Id),
+	          2);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardTierGrantTest,
                                  "ReEcho.Cards.Grant.TierIsAtomicAndDeterministic",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

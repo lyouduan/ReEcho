@@ -65,6 +65,7 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	{
 		RemoveTransientStatStack(Index);
 	}
+	AdditiveAttackModifiers.Reset();
 	BleedingStacks.Reset();
 	StunnedUntilWorldTime = 0.0f;
 	InvulnerableUntilWorldTime = 0.0f;
@@ -298,6 +299,45 @@ int32 UReEchoCombatantComponent::GetTransientStatStackCount(const FName SourceId
 		}
 	}
 	return Count;
+}
+
+void UReEchoCombatantComponent::SetAdditiveAttackModifier(const FName SourceId,
+                                                          const float PhysicalAttackBonus,
+                                                          const float ElementalAttackBonus)
+{
+	if (SourceId.IsNone())
+	{
+		return;
+	}
+	const FVector2D Previous = AdditiveAttackModifiers.FindRef(SourceId);
+	const FVector2D Requested(FMath::Max(0.0f, PhysicalAttackBonus), FMath::Max(0.0f, ElementalAttackBonus));
+	const FVector2D Delta = Requested - Previous;
+	if (Delta.IsNearlyZero())
+	{
+		return;
+	}
+	if (Requested.IsNearlyZero())
+	{
+		AdditiveAttackModifiers.Remove(SourceId);
+	}
+	else
+	{
+		AdditiveAttackModifiers.Add(SourceId, Requested);
+	}
+	if (BoundAbilitySystem)
+	{
+		const FGameplayAttribute Physical = UReEchoCombatAttributeSet::GetPhysicalAttackAttribute();
+		const FGameplayAttribute Elemental = UReEchoCombatAttributeSet::GetElementalAttackAttribute();
+		BoundAbilitySystem->SetNumericAttributeBase(
+		    Physical, FMath::Max(0.0f, BoundAbilitySystem->GetNumericAttributeBase(Physical) + Delta.X));
+		BoundAbilitySystem->SetNumericAttributeBase(
+		    Elemental, FMath::Max(0.0f, BoundAbilitySystem->GetNumericAttributeBase(Elemental) + Delta.Y));
+	}
+	else
+	{
+		Stats.PhysicalAttack = FMath::Max(0.0f, Stats.PhysicalAttack + Delta.X);
+		Stats.ElementalAttack = FMath::Max(0.0f, Stats.ElementalAttack + Delta.Y);
+	}
 }
 
 void UReEchoCombatantComponent::RemoveTransientStatStack(const int32 Index)

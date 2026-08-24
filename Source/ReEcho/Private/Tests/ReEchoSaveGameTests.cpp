@@ -19,6 +19,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	Source->TimeShards = 45;
 	Source->InventoryItems.Add(TEXT("SHOP_OLD_COIN"));
 	Source->OwnedPartIds.Add(TEXT("P_CORE_FLAME"));
+	Source->OwnedWeaponIds.Add(TEXT("W_J_08"));
 	Source->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_1_01"));
 	FReEchoRecording Recording;
 	Recording.Id = FGuid::NewGuid();
@@ -46,12 +47,13 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
 	TestTrue(TEXT("Compatible save snapshot restores"), Restored->RestoreSaveSnapshot(*Snapshot));
-	TestEqual(TEXT("Card-offer seed restores"),
-	          Restored->CreateSaveSnapshot()->TraitOfferSeed,
-	          Snapshot->TraitOfferSeed);
+	TestEqual(
+	    TEXT("Card-offer seed restores"), Restored->CreateSaveSnapshot()->TraitOfferSeed, Snapshot->TraitOfferSeed);
 	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
+	TestTrue(TEXT("Starting weapon ownership restores"), Restored->OwnedWeaponIds.Contains(TEXT("W_J_02")));
+	TestTrue(TEXT("Additional weapon ownership restores"), Restored->OwnedWeaponIds.Contains(TEXT("W_J_08")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
 	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_02")));
 	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 1);
@@ -67,6 +69,24 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Storage capacity restores"), RestoredStorage.StorageCapacity, 3);
 	TestFalse(TEXT("A finalized decision leaves no pending echo"), RestoredStorage.bHasPendingRecording);
 	TestTrue(TEXT("Rolling latest echo restores independently"), RestoredStorage.bHasLatestCompletedRecording);
+
+	Snapshot->SaveVersion = 12;
+	Snapshot->OwnedWeaponIds.Reset();
+	UGameInstance* LegacyWeaponGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* LegacyWeaponRestored = NewObject<UReEchoRunSubsystem>(LegacyWeaponGameInstance);
+	TestTrue(TEXT("A pre-v13 save migrates without a weapon ownership field"),
+	         LegacyWeaponRestored->RestoreSaveSnapshot(*Snapshot));
+	TestTrue(TEXT("A pre-v13 save derives ownership from its equipped weapon"),
+	         LegacyWeaponRestored->OwnedWeaponIds.Contains(LegacyWeaponRestored->CurrentBuild.WeaponId));
+	Snapshot->SaveVersion = UReEchoRunSaveGame::CurrentSaveVersion;
+
+	Snapshot->SavedPhase = EReEchoRunPhase::LegacyForgeChoice;
+	UGameInstance* LegacyForgeGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* LegacyForgeRestored = NewObject<UReEchoRunSubsystem>(LegacyForgeGameInstance);
+	TestTrue(TEXT("A legacy Forge phase save remains loadable"), LegacyForgeRestored->RestoreSaveSnapshot(*Snapshot));
+	TestEqual(TEXT("A legacy Forge phase migrates to regular card choice"),
+	          LegacyForgeRestored->Phase,
+	          EReEchoRunPhase::CardChoice);
 
 	FReEchoEncounterRuntimeState EncounterState;
 	EncounterState.bValid = true;

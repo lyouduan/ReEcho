@@ -27,7 +27,7 @@ struct FReEchoMinimapView
 	bool bValid = false;
 };
 
-/** 纯 Slate 画布：在 OnPaint 中矢量绘制小地图背景、回响轨迹折线、回响与玩家实时点。 */
+/** 透明 Slate 画布：在 OnPaint 中仅矢量绘制回响轨迹折线、回响与玩家实时点。 */
 class SReEchoMinimapCanvas : public SCompoundWidget
 {
 public:

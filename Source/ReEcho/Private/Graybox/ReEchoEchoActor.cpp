@@ -10,6 +10,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Kismet/GameplayStatics.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoBillboardDebug.h"
@@ -41,12 +42,14 @@ AReEchoEchoActor::AReEchoEchoActor()
 	SetRootComponent(Root);
 	PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
 	PresentationRoot->SetupAttachment(RootComponent);
+	PresentationRoot->bEditableWhenInherited = true;
 	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
 	FootRoot->SetupAttachment(PresentationRoot);
 	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
 	PresentationMotionRoot->SetupAttachment(FootRoot);
 	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
 	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
+	FlipbookRoot->bEditableWhenInherited = true;
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
 	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
@@ -64,6 +67,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GroundShadow->SetCastShadow(false);
 	GroundShadow->SetTranslucentSortPriority(-10);
+	GroundShadow->bEditableWhenInherited = true;
 	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
 	GroundShadow->SetRelativeLocation(FVector::ZeroVector);
 	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));
@@ -101,10 +105,16 @@ AReEchoEchoActor::AReEchoEchoActor()
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> EchoCatalogFinder(
 	    TEXT("/Game/ReEcho/DataAsset/Character/Catalogs/DA_EchoPresentationCatalog.DA_EchoPresentationCatalog"));
 	EchoPresentationCatalog = EchoCatalogFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> PlayerCatalogFinder(
+	    TEXT("/Game/ReEcho/DataAsset/Character/Catalogs/DA_CharacterPresentationCatalog."
+	         "DA_CharacterPresentationCatalog"));
+	PlayerPresentationCatalog = PlayerCatalogFinder.Object;
 	ConfigureEchoAppearance(TEXT("J_SPADE"));
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
 	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
+	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
 	AuthoredGroundRootLocation = GroundRoot->GetRelativeLocation();
 	AuthoredGroundShadowScale = GroundShadow->GetRelativeScale3D();
 
@@ -129,6 +139,10 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 		       *Recording.BuildSnapshot.WeaponDomainRevision,
 		       Snapshot.IsValid() ? *Snapshot->WeaponDomainRevision : TEXT("<none>"));
 		return false;
+	}
+	if (const AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)))
+	{
+		ApplyPlayerSpatialAuthoring(*Player);
 	}
 	ConfigureEchoAppearance(Recording.BuildSnapshot.CharacterId);
 	DamageEfficiency = Efficiency;
@@ -204,8 +218,28 @@ bool AReEchoEchoActor::ConfigureEchoAppearance(const FName CharacterId)
 
 void AReEchoEchoActor::RefreshPresentationProfile()
 {
-	ActivePresentationProfile =
+	UReEcho2DCharacterPresentationProfile* EchoProfile =
 	    EchoPresentationCatalog ? EchoPresentationCatalog->ResolveProfile(ConfiguredCharacterId) : nullptr;
+	UReEcho2DCharacterPresentationProfile* PlayerSpatialProfile = nullptr;
+	if (PlayerPresentationCatalog)
+	{
+		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+		const FReEchoCsvCharacterRow* Character =
+		    Snapshot.IsValid() ? Snapshot->FindCharacter(ConfiguredCharacterId) : nullptr;
+		PlayerSpatialProfile = Character ? PlayerPresentationCatalog->ResolveProfile(Character->AppearanceId) : nullptr;
+	}
+	ActiveSpatialProfile = PlayerSpatialProfile;
+
+	ComposedPresentationProfile = nullptr;
+	if (EchoProfile && PlayerSpatialProfile)
+	{
+		ComposedPresentationProfile = DuplicateObject<UReEcho2DCharacterPresentationProfile>(EchoProfile, this);
+		ComposedPresentationProfile->WorldHeight = PlayerSpatialProfile->WorldHeight;
+		ComposedPresentationProfile->bAutoAlignFootpoint = PlayerSpatialProfile->bAutoAlignFootpoint;
+		ComposedPresentationProfile->FootpointOffset = PlayerSpatialProfile->FootpointOffset;
+		ComposedPresentationProfile->WeaponAnchorRatio = PlayerSpatialProfile->WeaponAnchorRatio;
+	}
+	ActivePresentationProfile = ComposedPresentationProfile ? ComposedPresentationProfile.Get() : EchoProfile;
 	if (PresentationController)
 	{
 		PresentationController->Configure(
@@ -218,7 +252,93 @@ void AReEchoEchoActor::RefreshPresentationProfile()
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
 	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
 	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
+	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
 }
+
+void AReEchoEchoActor::ApplyPlayerSpatialAuthoring(const AReEchoPlayerPawn& Player)
+{
+	AReEchoPlayerPawn* PlayerDefaults = Player.GetClass()->GetDefaultObject<AReEchoPlayerPawn>();
+	if (!PlayerDefaults)
+	{
+		return;
+	}
+
+	auto CopyRelativeTransform = [](USceneComponent* Target, AReEchoPlayerPawn& SourceActor, const FName SourceName)
+	{
+		const USceneComponent* Source = Cast<USceneComponent>(SourceActor.GetDefaultSubobjectByName(SourceName));
+		if (Target && Source)
+		{
+			Target->SetRelativeTransform(Source->GetRelativeTransform());
+		}
+	};
+	// Motion, effects and ground nodes carry frame-local feedback at runtime. Seed those from the
+	// Blueprint CDO, then read only stable authored roots from the live Player instance.
+	CopyRelativeTransform(PresentationMotionRoot, *PlayerDefaults, TEXT("PresentationMotionRoot"));
+	CopyRelativeTransform(GroundRoot, *PlayerDefaults, TEXT("GroundRoot"));
+	CopyRelativeTransform(EffectsRoot, *PlayerDefaults, TEXT("EffectsRoot"));
+	CopyRelativeTransform(GroundShadow, *PlayerDefaults, TEXT("GroundShadow"));
+	AReEchoPlayerPawn& LivePlayer = const_cast<AReEchoPlayerPawn&>(Player);
+	CopyRelativeTransform(PresentationRoot, LivePlayer, TEXT("PresentationRoot"));
+	CopyRelativeTransform(FootRoot, LivePlayer, TEXT("FootRoot"));
+	CopyRelativeTransform(FlipbookRoot, LivePlayer, TEXT("FlipbookRoot"));
+	CopyRelativeTransform(AttackVfxRoot, LivePlayer, TEXT("AttackVfxRoot"));
+	CopyRelativeTransform(HurtVfxRoot, LivePlayer, TEXT("HurtVfxRoot"));
+	SetActorScale3D(Player.GetActorScale3D());
+
+	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
+	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
+	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
+	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
+	AuthoredGroundRootLocation = GroundRoot->GetRelativeLocation();
+	AuthoredGroundShadowScale = GroundShadow->GetRelativeScale3D();
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+void AReEchoEchoActor::ApplyPlayerSpatialAuthoringForTests(const AReEchoPlayerPawn& Player)
+{
+	ApplyPlayerSpatialAuthoring(Player);
+}
+
+void AReEchoEchoActor::RefreshSpatialPresentationForTests()
+{
+	UpdatePresentationState();
+}
+
+FReEchoEchoSpatialPresentationSnapshot AReEchoEchoActor::CaptureSpatialPresentationForTests() const
+{
+	FReEchoEchoSpatialPresentationSnapshot Snapshot;
+	Snapshot.ActorTransform = GetActorTransform();
+	Snapshot.PresentationRootTransform = PresentationRoot->GetRelativeTransform();
+	Snapshot.FootRootTransform = FootRoot->GetRelativeTransform();
+	Snapshot.MotionRootTransform = PresentationMotionRoot->GetRelativeTransform();
+	Snapshot.FlipbookRootTransform = FlipbookRoot->GetRelativeTransform();
+	Snapshot.EffectsRootTransform = EffectsRoot->GetRelativeTransform();
+	Snapshot.AttackVfxRootTransform = AttackVfxRoot->GetRelativeTransform();
+	Snapshot.HurtVfxRootTransform = HurtVfxRoot->GetRelativeTransform();
+	Snapshot.GroundRootTransform = GroundRoot->GetRelativeTransform();
+	Snapshot.GroundShadowTransform = GroundShadow->GetRelativeTransform();
+	Snapshot.RendererTransform = EchoAnimation->GetRelativeTransform();
+	const float ActorScale = FMath::Abs(GetActorScale3D().Z);
+	Snapshot.NormalizedCharacterHeight = ActiveSpatialProfile ? ActiveSpatialProfile->WorldHeight * ActorScale : 0.0f;
+	if (const UPaperFlipbook* Flipbook = EchoAnimation->GetFlipbook())
+	{
+		Snapshot.PresentedCharacterWidth =
+		    UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(Flipbook->GetRenderBounds(),
+		                                                                    EchoAnimation->GetRelativeTransform(),
+		                                                                    FlipbookRoot->GetRelativeTransform()) *
+		    ActorScale;
+	}
+	Snapshot.ShadowReferenceWidth = CalculateSpatialShadowWidth() * ActorScale;
+	return Snapshot;
+}
+
+const UReEcho2DCharacterPresentationProfile* AReEchoEchoActor::GetSpatialProfileForTests() const
+{
+	return ActiveSpatialProfile;
+}
+#endif
 
 void AReEchoEchoActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
@@ -353,6 +473,8 @@ void AReEchoEchoActor::UpdatePresentationState()
 	bHasPresentationLocation = true;
 	FlipbookRoot->SetRelativeLocation(BaseVisualLocation);
 	FlipbookRoot->SetRelativeScale3D(BaseVisualScale);
+	EffectsRoot->SetRelativeLocation(BaseEffectsLocation);
+	EffectsRoot->SetRelativeScale3D(BaseEffectsScale);
 	RefreshFootpointAlignment();
 	PresentationMotionRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset);
 	RefreshGroundShadowFromFlipbook();
@@ -390,8 +512,7 @@ void AReEchoEchoActor::RefreshGroundShadowFromFlipbook()
 	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
 	GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
 
-	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
-	    FlipbookBounds, EchoAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());
+	const float FlipbookWidth = CalculateSpatialShadowWidth();
 	const float ShadowNativeWidth = ShadowMesh->GetBounds().BoxExtent.Y * 2.0f;
 	if (FlipbookWidth > UE_SMALL_NUMBER && ShadowNativeWidth > UE_SMALL_NUMBER)
 	{
@@ -399,6 +520,54 @@ void AReEchoEchoActor::RefreshGroundShadowFromFlipbook()
 		ShadowScale.Y = FlipbookWidth / ShadowNativeWidth;
 		GroundShadow->SetRelativeScale3D(ShadowScale);
 	}
+}
+
+float AReEchoEchoActor::CalculateSpatialShadowWidth() const
+{
+	const UPaperFlipbook* CurrentFlipbook = EchoAnimation ? EchoAnimation->GetFlipbook() : nullptr;
+	if (!CurrentFlipbook || !FlipbookRoot)
+	{
+		return 0.0f;
+	}
+
+	const FName WeaponVisualSetId = Weapon ? Weapon->GetEquippedWeaponVisualKey() : NAME_None;
+	const FGameplayTag SemanticKeys[] = {ReEcho2DAnimationTags::Move,
+	                                     ReEcho2DAnimationTags::Attack_Basic,
+	                                     ReEcho2DAnimationTags::Attack_Charge,
+	                                     ReEcho2DAnimationTags::Hit,
+	                                     ReEcho2DAnimationTags::Death};
+	if (ActivePresentationProfile && ActiveSpatialProfile)
+	{
+		for (const FGameplayTag SemanticKey : SemanticKeys)
+		{
+			const FReEcho2DAnimationClip* EchoClip =
+			    ActivePresentationProfile->ResolveClip(WeaponVisualSetId, SemanticKey);
+			if (!EchoClip || EchoClip->Flipbook != CurrentFlipbook)
+			{
+				continue;
+			}
+			const FReEcho2DAnimationClip* SpatialClip =
+			    ActiveSpatialProfile->ResolveClip(WeaponVisualSetId, SemanticKey);
+			if (!SpatialClip || !SpatialClip->Flipbook)
+			{
+				break;
+			}
+			const FBoxSphereBounds SpatialBounds = SpatialClip->Flipbook->GetRenderBounds();
+			const float NativeHeight = SpatialBounds.BoxExtent.Z * 2.0f;
+			if (NativeHeight <= UE_SMALL_NUMBER)
+			{
+				break;
+			}
+			const float UniformScale = FMath::Max(ActiveSpatialProfile->WorldHeight, 1.0f) / NativeHeight;
+			const FTransform SpatialRendererTransform(FQuat::Identity, SpatialClip->LocalOffset, FVector(UniformScale));
+			return UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
+			    SpatialBounds, SpatialRendererTransform, FlipbookRoot->GetRelativeTransform());
+		}
+	}
+
+	return UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(CurrentFlipbook->GetRenderBounds(),
+	                                                                       EchoAnimation->GetRelativeTransform(),
+	                                                                       FlipbookRoot->GetRelativeTransform());
 }
 
 void AReEchoEchoActor::UpdateFacingSign(const FVector& AimDirection)

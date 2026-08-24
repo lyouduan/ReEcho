@@ -274,9 +274,5 @@ float FReEchoWeaponLogic::ComputeDamage(const FReEchoWeaponStepDefinition& Step,
 			bOutCritical = true;
 		}
 	}
-	if (Stats.RoleId == TEXT("Brave") && (SuccessfulAttackCount + 1) % 2 == 0)
-	{
-		Damage *= 1.0f + FMath::Max(0.0f, Stats.EverySecondAttackBonus);
-	}
 	return FMath::Max(0.0f, Damage);
 }

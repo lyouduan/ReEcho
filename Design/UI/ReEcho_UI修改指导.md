@@ -16,8 +16,8 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 
 | UI | WBP 资产 | C++ 原生父类 | 运行层 | 当前架构与用途 |
 |---|---|---|---|---|
-| 玩家 HUD | `WBP_ReEchoPlayerHud` | `UReEchoPlayerHudWidget` | `PlayerHud` | 玩家头像、生命条、生命文本；生命变化由事件驱动 |
-| 遭遇 HUD | `WBP_ReEchoEncounterHud` | `UReEchoEncounterHudWidget` | `GameplayHud` | 当前遭遇和倒计时；最后 5 秒警示色由 C++ 状态驱动 |
+| 玩家 HUD | `WBP_ReEchoPlayerHud` | `UReEchoPlayerHudWidget` | `PlayerHud` | 爱心、生命条/数值、时间碎片余额；生命变化由事件驱动，碎片只读 Run 权威 |
+| 遭遇 HUD | `WBP_ReEchoEncounterHud` | `UReEchoEncounterHudWidget` | `GameplayHud` | `第 N 关`、`MM:SS` 和真实小地图；最后 5 秒警示色由 C++ 状态驱动 |
 | 敌人血条 | `WBP_ReEchoEnemyHealthBar` | `UReEchoHealthBarWidget` | 世界空间 Widget | 敌人头顶血条；生命变化由事件驱动 |
 | 开始菜单 | `WBP_ReEchoStartMenu` | `UReEchoStartMenuWidget` | `Start` | 新游戏、继续、设置；继续按钮可用性由存档状态决定 |
 | 初始配装 | `WBP_ReEchoLoadoutSelection` | `UReEchoLoadoutSelectionWidget` | `Loadout` | 角色和武器动态容器、状态文本、确认按钮 |
@@ -70,7 +70,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 | WBP | 必须保留的正常路径控件名 |
 |---|---|
-| `WBP_ReEchoPlayerHud` | `PlayerPortrait`, `PlayerHealthProgress`, `PlayerHealthText` |
+| `WBP_ReEchoPlayerHud` | `PlayerPortrait`, `PlayerHealthProgress`, `PlayerHealthFill`, `PlayerHealthText`, `TimeShardText` |
 | `WBP_ReEchoEncounterHud` | `EncounterText`, `CountdownText` |
 | `WBP_ReEchoEnemyHealthBar` | `ProgressBar` |
 | `WBP_ReEchoStartMenu` | `StatusText`, `ContinueButton`, `NewGameButton`, `GameSettingsButton`, `QuitButton` |
@@ -103,6 +103,10 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 ## 5. 各页面的修改边界
 
 ### 5.1 玩家 HUD、遭遇 HUD、敌人血条
+
+Plan93 战斗 HUD 以 1920×1080 为作者设计面。`WBP_ReEchoPlayerHud` 保留旧头像/ProgressBar 绑定作为兼容入口，但正式构图折叠头像和旧 ProgressBar，由 `PlayerHealthFill` 接收真实生命比例、`TimeShardText` 显示 `UReEchoRunSubsystem::TimeShards` 的只读投影。`WBP_ReEchoEncounterHud` 继续复用唯一的 `UReEchoMinimapCanvasWidget`，只用交付回响框包裹它；Minimap Canvas 自身保持透明，不绘制内层竞技场边框，只保留轨迹和实时点。参考图底部技能栏已被产品明确废弃，WBP 与运行时纹理均不保留；不得据此伪造按钮、冷却或输入。
+
+Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`，运行时切图位于 `/Game/ReEcho/Textures/UI/CombatHud/`。整屏参考图不导入运行时；生命、碎片、关卡、倒计时和小地图状态仍由 C++ 提供，WBP 只拥有锚点、尺寸、层级和贴图。
 
 可以在 UMG 中修改：
 

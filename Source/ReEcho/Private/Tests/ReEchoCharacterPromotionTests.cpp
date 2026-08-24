@@ -1,6 +1,9 @@
 #include "Misc/AutomationTest.h"
 
 #include "Engine/GameInstance.h"
+#include "Data/ReEchoCsvDataRegistry.h"
+#include "Combat/ReEchoCombatantComponent.h"
+#include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoRunSubsystem.h"
 
@@ -26,19 +29,30 @@ bool FReEchoCharacterPromotionRoleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Physical majority promotes Hunter"), Hunter.Stats.RoleId, FName(TEXT("Hunter")));
 	TestEqual(TEXT("Hunter uses the diamond character art"), Hunter.CharacterId, FName(TEXT("J_DIAMOND")));
 	TestEqual(TEXT("Hunter promotion leaves twelve maximum health"), Hunter.Stats.HpMax, 12.0f);
+	TestEqual(TEXT("Hunter static ability grants twenty percent movement"), Hunter.Stats.MovementSpeed, 1.2f);
+	TestEqual(TEXT("Hunter static ability grants twenty critical-rate points"), Hunter.Stats.CriticalRate, 0.4f);
+	TestEqual(TEXT("Hunter static ability grants fifty critical-effect points"), Hunter.Stats.CriticalEffect, 1.0f);
 	TestTrue(TEXT("Promotion is applied only once"), !ReEchoCharacterPromotion::TryPromote(Hunter));
+	UReEchoRunSubsystem* HunterRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	HunterRun->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
+	TestEqual(
+	    TEXT("Hunter starts with configured movement ability once"), HunterRun->CurrentBuild.Stats.MovementSpeed, 1.2f);
+	TestEqual(TEXT("Hunter starts with configured critical-rate ability once"),
+	          HunterRun->CurrentBuild.Stats.CriticalRate,
+	          0.4f);
+	TestEqual(TEXT("Hunter starts with configured critical-effect ability once"),
+	          HunterRun->CurrentBuild.Stats.CriticalEffect,
+	          1.0f);
 
 	FReEchoBuildSnapshot Poet;
 	Poet.CardState.OwnedCardIds = {TEXT("G_1_04"), TEXT("G_1_04"), TEXT("G_1_06"), TEXT("G_1_01")};
 	ReEchoCharacterPromotion::TryPromote(Poet);
 	TestEqual(TEXT("Element majority promotes Poet"), Poet.Stats.RoleId, FName(TEXT("Poet")));
-	TestTrue(TEXT("Poet projectiles use random combat elements"), Poet.Stats.bRandomElementProjectiles);
 
 	FReEchoBuildSnapshot Brave;
 	Brave.CardState.OwnedCardIds = {TEXT("G_1_02"), TEXT("G_1_02"), TEXT("G_2_14"), TEXT("G_1_01")};
 	ReEchoCharacterPromotion::TryPromote(Brave);
 	TestEqual(TEXT("Survival majority promotes Brave"), Brave.Stats.RoleId, FName(TEXT("Brave")));
-	TestTrue(TEXT("Brave has a second-hit bonus"), Brave.Stats.EverySecondAttackBonus > 0.0f);
 
 	FReEchoBuildSnapshot Sage;
 	Sage.CardState.OwnedCardIds = {TEXT("G_1_01"), TEXT("G_1_08"), TEXT("G_1_07"), TEXT("G_1_05")};
@@ -64,6 +78,7 @@ bool FReEchoSageBonusCadenceTest::RunTest(const FString& Parameters)
 	RunSubsystem->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
 	RunSubsystem->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Sage");
 	RunSubsystem->CurrentBuild.EquipmentBaseRuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	RunSubsystem->EncounterIndex = 2;
 
 	auto ApplyAvailableCard = [this, RunSubsystem]()
 	{
@@ -96,29 +111,85 @@ bool FReEchoSageBonusCadenceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBraveForgeTest,
-                                 "ReEcho.Characters.BraveForge",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDataDrivenCharacterAbilitiesTest,
+                                 "ReEcho.Characters.DataDrivenAbilities",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FReEchoBraveForgeTest::RunTest(const FString& Parameters)
+bool FReEchoDataDrivenCharacterAbilitiesTest::RunTest(const FString& Parameters)
 {
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	TestTrue(TEXT("Character ability snapshot is published"), Snapshot.IsValid());
+	if (!Snapshot.IsValid())
+	{
+		return false;
+	}
+
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 	RunSubsystem->StartRun(TEXT("J_HEART"), TEXT("W_J_01"));
-	RunSubsystem->CurrentBuild.Stats.RoleId = TEXT("Brave");
-	RunSubsystem->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Brave");
 	RunSubsystem->BeginEncounter();
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 	TestEqual(
-	    TEXT("Brave enters forge choice after a cleared encounter"), RunSubsystem->Phase, EReEchoRunPhase::ForgeChoice);
-
-	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateForgeOffers();
-	TestEqual(TEXT("Forge presents three risk levels"), Offers.Num(), 3);
-	const float HealthBefore = RunSubsystem->CurrentBuild.Stats.HpMax;
-	TestTrue(TEXT("Pending extreme forge can be applied"), RunSubsystem->ApplyForgeChoice(TEXT("FORGE_EXTREME")));
+	    TEXT("Brave skips the unconfigured encounter-one card choice"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
+	RunSubsystem->BeginEncounter();
+	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 	TestEqual(
-	    TEXT("Extreme forge consumes six maximum health"), RunSubsystem->CurrentBuild.Stats.HpMax, HealthBefore - 6.0f);
-	TestEqual(TEXT("Forge continues into regular card choice"), RunSubsystem->Phase, EReEchoRunPhase::CardChoice);
+	    TEXT("Brave uses the configured encounter-two card choice"), RunSubsystem->Phase, EReEchoRunPhase::CardChoice);
+	TestTrue(TEXT("Forge cards are absent from production data"), Snapshot->FindCard(TEXT("FORGE_LIGHT")) == nullptr);
+	FReEchoCsvDataSnapshot ConfigurableSnapshot = *Snapshot;
+	if (FReEchoCsvCharacterAbilityRow* SageAbility =
+	        ConfigurableSnapshot.CharacterAbilities.Find(TEXT("SAGE_BONUS_CHOICE")))
+	{
+		SageAbility->Interval = 2.0f;
+	}
+	TestEqual(TEXT("Changing the ability interval changes cadence without a code constant"),
+	          ReEchoCharacterAbilityRuntime::ResolveExtraTraitChoices(ConfigurableSnapshot, TEXT("J_SPADE"), 2),
+	          1);
+
+	const FVector2D OneStep =
+	    ReEchoCharacterAbilityRuntime::ResolveCurrentMissingHealthAttackBonus(*Snapshot, TEXT("J_HEART"), 18.0f, 20.0f);
+	const FVector2D TwoSteps =
+	    ReEchoCharacterAbilityRuntime::ResolveCurrentMissingHealthAttackBonus(*Snapshot, TEXT("J_HEART"), 15.9f, 20.0f);
+	const FVector2D HealedBack =
+	    ReEchoCharacterAbilityRuntime::ResolveCurrentMissingHealthAttackBonus(*Snapshot, TEXT("J_HEART"), 18.0f, 20.0f);
+	const FVector2D FullHealth =
+	    ReEchoCharacterAbilityRuntime::ResolveCurrentMissingHealthAttackBonus(*Snapshot, TEXT("J_HEART"), 20.0f, 20.0f);
+	TestEqual(TEXT("Ten percent missing grants one physical point"), OneStep.X, 1.0);
+	TestEqual(TEXT("Ten percent missing grants one elemental point"), OneStep.Y, 1.0);
+	TestEqual(TEXT("Twenty percent missing grants two physical points"), TwoSteps.X, 2.0);
+	TestEqual(TEXT("Healing across a threshold rolls back to one stack"), HealedBack.X, 1.0);
+	TestTrue(TEXT("Full health clears Brave stacks"), FullHealth.IsNearlyZero());
+
+	UReEchoCombatantComponent* Combatant = NewObject<UReEchoCombatantComponent>();
+	FReEchoStatBlock BaseStats;
+	BaseStats.PhysicalAttack = 2.0f;
+	BaseStats.ElementalAttack = 3.0f;
+	Combatant->InitializeFromStats(BaseStats, true);
+	Combatant->SetAdditiveAttackModifier(TEXT("Character.MissingHealthSteps"), TwoSteps.X, TwoSteps.Y);
+	TestEqual(TEXT("Combat applies current physical stacks"), Combatant->Stats.PhysicalAttack, 4.0f);
+	Combatant->SetAdditiveAttackModifier(TEXT("Character.MissingHealthSteps"), HealedBack.X, HealedBack.Y);
+	TestEqual(TEXT("Combat replaces rather than accumulates stacks"), Combatant->Stats.PhysicalAttack, 3.0f);
+
+	UReEchoRunSubsystem* PoetRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	PoetRun->StartRun(TEXT("J_CLOVER"), TEXT("W_J_01"));
+	const float ReactionBefore = PoetRun->CurrentBuild.Stats.ReactionEfficiency;
+	PoetRun->BeginEncounter();
+	PoetRun->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("Poet gains ten reaction-efficiency points per completed encounter"),
+	          PoetRun->CurrentBuild.Stats.ReactionEfficiency,
+	          ReactionBefore + 0.1f);
+	PoetRun->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("A repeated completion callback does not grant Poet growth twice"),
+	          PoetRun->CurrentBuild.Stats.ReactionEfficiency,
+	          ReactionBefore + 0.1f);
+	UReEchoRunSubsystem* FailedPoetRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	FailedPoetRun->StartRun(TEXT("J_CLOVER"), TEXT("W_J_01"));
+	const float FailedReactionBefore = FailedPoetRun->CurrentBuild.Stats.ReactionEfficiency;
+	FailedPoetRun->BeginEncounter();
+	FailedPoetRun->CompleteEncounter(FReEchoRecording(), false, false);
+	TestEqual(TEXT("A failed encounter does not grant Poet growth"),
+	          FailedPoetRun->CurrentBuild.Stats.ReactionEfficiency,
+	          FailedReactionBefore);
 	return true;
 }
 

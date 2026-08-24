@@ -32,7 +32,7 @@ public:
 	FReEchoTraitCardSelected OnCardSelected;
 
 	/** 装载本轮候选项并重置逐张揭示动画。 */
-	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers, int32 InTimeShards, bool bInForgeChoice);
+	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers, int32 InTimeShards);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -110,6 +110,5 @@ private:
 	int32 CurrentTimeShards = 0;
 	float RevealElapsed = 0.0f;
 	int32 SelectedOfferIndex = INDEX_NONE;
-	bool bForgeChoice = false;
 	bool bRevealComplete = false;
 };

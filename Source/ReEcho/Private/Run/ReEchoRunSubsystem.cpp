@@ -4,17 +4,21 @@
 #include "Core/ReEchoBalanceSettings.h"
 #include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
+#include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "Cards/ReEchoCardRuntime.h"
 #include "Weapons/ReEchoWeaponRuntime.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
+#include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/ScopeLock.h"
 
 namespace
 {
 constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
-constexpr const TCHAR* ForgeOfferGroup = TEXT("Forge");
 const FName AnyWeaponTypeId = TEXT("Any");
 
 const FString RunSaveSlot = TEXT("ReEchoRun");
@@ -112,21 +116,25 @@ FReEchoShopOffer MakeWeaponPartOffer(const FReEchoCsvPartRow& Part)
 	return Offer;
 }
 
-FName MakeShopCardOfferId(const int32 RefreshSequence, const FName CardId)
+FName MakeShopCardOfferId(const int32 EncounterIndex, const int32 RefreshSequence, const FName CardId)
 {
-	return FName(*FString::Printf(TEXT("SHOP_CARD_%d_%s"), RefreshSequence, *CardId.ToString()));
+	return FName(*FString::Printf(TEXT("SHOP_CARD_E%d_R%d_%s"), EncounterIndex, RefreshSequence, *CardId.ToString()));
 }
 
-FReEchoShopOffer MakeBuildCardOffer(const FReEchoCardDefinition& Card, const int32 RefreshSequence)
+FReEchoShopOffer MakeOwnedBuildCardOffer(const FReEchoCardDefinition& Card)
 {
 	FReEchoShopOffer Offer;
-	Offer.ItemId = MakeShopCardOfferId(RefreshSequence, Card.Id);
+	Offer.ItemId = Card.Id;
 	Offer.DisplayName = FText::FromString(Card.DisplayName);
 	Offer.EffectText = FText::FromString(Card.Description);
 	Offer.Tier = FMath::Clamp(Card.Tier, 1, 3);
 	Offer.Price = Offer.Tier * 10;
 	Offer.Type = EReEchoShopOfferType::BuildCard;
 	Offer.ContentId = Card.Id;
+	Offer.IconTexturePath =
+	    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+	                    *Card.Id.ToString(),
+	                    *Card.Id.ToString());
 	return Offer;
 }
 
@@ -404,13 +412,6 @@ bool TryMutateAuthoritativeBuild(const FReEchoCsvDataSnapshot& Snapshot,
 	return ReEchoWeaponRuntime::TryEquipParts(Snapshot, BaseBuild, GetEquippedPartIds(Build), OutBuild, Error);
 }
 
-bool CurrentCharacterHasPassive(const FReEchoBuildSnapshot& Build, const FName PassiveBehaviorId)
-{
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
-	return Character && Character->PassiveBehaviorId == PassiveBehaviorId;
-}
-
 FReEchoStoredEchoSummary MakeStoredEchoSummary(const FReEchoRecording& Recording, const bool bSelected)
 {
 	FReEchoStoredEchoSummary Summary;
@@ -491,12 +492,30 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 		    Build.CardState.Runtime.RandomSequence < 0 || Build.CardState.Runtime.PreventedDamageCount < 0 ||
 		    Build.CardState.Runtime.HuntKillCount < 0 || Build.CardState.Runtime.ReactionCount < 0 ||
 		    Build.CardState.Runtime.EchoKillProgress < 0 || Build.CardState.Runtime.PlayerKillProgress < 0 ||
-		    Build.CardState.Runtime.FreeShopRefreshes < 0 ||
+		    Build.CardState.Runtime.FreeShopRefreshes < 0 || Build.CardState.Runtime.ShopRefreshSequence < 0 ||
+		    Build.CardState.Runtime.ShopCardOfferEncounterIndex < INDEX_NONE ||
+		    Build.CardState.Runtime.ShopCardOfferRefreshSequence < INDEX_NONE ||
+		    Build.CardState.Runtime.ShopCardOfferIds.Num() > ReEchoShopOfferCountPerGroup ||
 		    static_cast<uint8>(Build.CardState.Runtime.EconomyPenalty) >
 		        static_cast<uint8>(EReEchoCardEconomyPenalty::NoEnemyShardDrops) ||
 		    (Build.CardState.Runtime.bHasAnchorRecording && !Build.CardState.Runtime.AnchorRecordingId.IsValid()))
 		{
 			return false;
+		}
+		TSet<FName> UniqueShopCardOffers;
+		for (const FName CardId : Build.CardState.Runtime.ShopCardOfferIds)
+		{
+			if (CardId.IsNone())
+			{
+				continue;
+			}
+			const FReEchoCardDefinition* Card = Snapshot.CardCatalog->Find(CardId);
+			if (!Card || !Card->bEnabled || Card->OfferGroup != TraitOfferGroup ||
+			    UniqueShopCardOffers.Contains(CardId))
+			{
+				return false;
+			}
+			UniqueShopCardOffers.Add(CardId);
 		}
 		TSet<FName> UniqueCards;
 		for (const FName CardId : Build.CardState.OwnedCardIds)
@@ -627,6 +646,187 @@ bool TryNormalizeRestoredRecording(const FReEchoCsvDataSnapshot& Snapshot, FReEc
 	}
 	return TryNormalizeEquipmentBuild(Snapshot, Recording.BuildSnapshot, Recording.BuildSnapshot);
 }
+
+struct FReEchoShopPurchaseAuditState
+{
+	int32 TimeShards = 0;
+	FString EquippedWeapon;
+	TArray<FString> EquippedRunes;
+	TArray<FString> ActiveCards;
+	TArray<FString> WeaponBackpack;
+	TArray<FString> RuneBackpack;
+	TArray<FString> Inventory;
+};
+
+FString SanitizeShopPurchaseAuditText(FString Text)
+{
+	Text.ReplaceInline(TEXT("\r"), TEXT("\\r"));
+	Text.ReplaceInline(TEXT("\n"), TEXT("\\n"));
+	return Text;
+}
+
+void WriteShopPurchaseAuditLine(const FString& Line)
+{
+	static FCriticalSection AuditFileMutex;
+	const FScopeLock Lock(&AuditFileMutex);
+	const FString LogDirectory = FPaths::ProjectLogDir();
+	IFileManager& FileManager = IFileManager::Get();
+	FileManager.MakeDirectory(*LogDirectory, true);
+	const FString AuditLogPath = FPaths::Combine(LogDirectory, TEXT("ShopPurchaseAudit.log"));
+	const FString TimestampedLine =
+	    FString::Printf(TEXT("[%s] %s%s"), *FDateTime::UtcNow().ToIso8601(), *Line, LINE_TERMINATOR);
+	const bool bSaved = FFileHelper::SaveStringToFile(TimestampedLine,
+	                                                  *AuditLogPath,
+	                                                  FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,
+	                                                  &FileManager,
+	                                                  FILEWRITE_Append);
+	UE_LOG(LogReEcho, Warning, TEXT("%s"), *Line);
+	if (!bSaved)
+	{
+		UE_LOG(LogReEcho, Error, TEXT("[ShopPurchaseAudit] Could not append the audit file '%s'"), *AuditLogPath);
+	}
+}
+
+FString DescribeAuditEntry(const FName Id, const FString& DisplayName)
+{
+	const FString SafeId = SanitizeShopPurchaseAuditText(Id.ToString());
+	const FString SafeDisplayName = SanitizeShopPurchaseAuditText(DisplayName);
+	return SafeDisplayName.IsEmpty() || SafeDisplayName == SafeId
+	           ? SafeId
+	           : FString::Printf(TEXT("%s(%s)"), *SafeDisplayName, *SafeId);
+}
+
+const TCHAR* GetShopPurchaseResultName(const EReEchoShopPurchaseResult Result)
+{
+	switch (Result)
+	{
+		case EReEchoShopPurchaseResult::Succeeded:
+			return TEXT("Succeeded");
+		case EReEchoShopPurchaseResult::OfferNotFound:
+			return TEXT("OfferNotFound");
+		case EReEchoShopPurchaseResult::AlreadyOwned:
+			return TEXT("AlreadyOwned");
+		case EReEchoShopPurchaseResult::PurchaseDisabled:
+			return TEXT("PurchaseDisabled");
+		case EReEchoShopPurchaseResult::InsufficientCurrency:
+			return TEXT("InsufficientCurrency");
+		case EReEchoShopPurchaseResult::DataUnavailable:
+			return TEXT("DataUnavailable");
+		case EReEchoShopPurchaseResult::GrantRejected:
+			return TEXT("GrantRejected");
+		case EReEchoShopPurchaseResult::MutationRejected:
+			return TEXT("MutationRejected");
+		case EReEchoShopPurchaseResult::WeaponSelectionRejected:
+			return TEXT("WeaponSelectionRejected");
+		case EReEchoShopPurchaseResult::ReplayUnlockRejected:
+			return TEXT("ReplayUnlockRejected");
+		default:
+			return TEXT("Unknown");
+	}
+}
+
+FReEchoShopPurchaseAuditState CaptureShopPurchaseAuditState(const UReEchoRunSubsystem& RunSubsystem,
+                                                            const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot)
+{
+	FReEchoShopPurchaseAuditState State;
+	State.TimeShards = RunSubsystem.TimeShards;
+
+	const FName EquippedWeaponId = RunSubsystem.CurrentBuild.WeaponId;
+	const FReEchoCsvWeaponRow* EquippedWeapon = Snapshot.IsValid() ? Snapshot->FindWeapon(EquippedWeaponId) : nullptr;
+	State.EquippedWeapon =
+	    DescribeAuditEntry(EquippedWeaponId, EquippedWeapon ? EquippedWeapon->DisplayName : FString());
+
+	TSet<FName> EquippedPartIds;
+	for (const FReEchoEquippedPartSnapshot& EquippedPart : RunSubsystem.CurrentBuild.EquippedParts)
+	{
+		EquippedPartIds.Add(EquippedPart.PartId);
+		const FReEchoCsvPartRow* Part = Snapshot.IsValid() ? Snapshot->Parts.Find(EquippedPart.PartId) : nullptr;
+		const FReEchoCsvSlotTypeRow* Slot =
+		    Snapshot.IsValid() ? Snapshot->SlotTypes.Find(EquippedPart.SlotTypeId) : nullptr;
+		State.EquippedRunes.Add(
+		    FString::Printf(TEXT("%s:%s"),
+		                    *DescribeAuditEntry(EquippedPart.SlotTypeId, Slot ? Slot->DisplayName : FString()),
+		                    *DescribeAuditEntry(EquippedPart.PartId, Part ? Part->DisplayName : FString())));
+	}
+	State.EquippedRunes.Sort();
+
+	TMap<FName, int32> CardStackCounts;
+	for (const FName CardId : RunSubsystem.CurrentBuild.CardState.OwnedCardIds)
+	{
+		++CardStackCounts.FindOrAdd(CardId);
+	}
+	for (const TPair<FName, int32>& CardStack : CardStackCounts)
+	{
+		const FReEchoCardDefinition* Card = Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
+		                                        ? Snapshot->CardCatalog->Find(CardStack.Key)
+		                                        : nullptr;
+		State.ActiveCards.Add(FString::Printf(
+		    TEXT("%sx%d"), *DescribeAuditEntry(CardStack.Key, Card ? Card->DisplayName : FString()), CardStack.Value));
+	}
+	State.ActiveCards.Sort();
+
+	TSet<FName> OwnedWeaponIds = RunSubsystem.OwnedWeaponIds;
+	if (!EquippedWeaponId.IsNone())
+	{
+		OwnedWeaponIds.Add(EquippedWeaponId);
+	}
+	for (const FName WeaponId : OwnedWeaponIds)
+	{
+		const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindWeapon(WeaponId) : nullptr;
+		State.WeaponBackpack.Add(
+		    FString::Printf(TEXT("%s%s"),
+		                    *DescribeAuditEntry(WeaponId, Weapon ? Weapon->DisplayName : FString()),
+		                    WeaponId == EquippedWeaponId ? TEXT("[equipped]") : TEXT("")));
+	}
+	State.WeaponBackpack.Sort();
+
+	for (const FName PartId : RunSubsystem.OwnedPartIds)
+	{
+		if (EquippedPartIds.Contains(PartId))
+		{
+			continue;
+		}
+		const FReEchoCsvPartRow* Part = Snapshot.IsValid() ? Snapshot->Parts.Find(PartId) : nullptr;
+		State.RuneBackpack.Add(DescribeAuditEntry(PartId, Part ? Part->DisplayName : FString()));
+	}
+	State.RuneBackpack.Sort();
+
+	for (const FName InventoryItemId : RunSubsystem.InventoryItems)
+	{
+		FString DisplayName;
+		for (const FReEchoShopOffer& LegacyOffer : GetReEchoShopCatalog())
+		{
+			if (LegacyOffer.ItemId == InventoryItemId)
+			{
+				DisplayName = LegacyOffer.DisplayName.ToString();
+				break;
+			}
+		}
+		State.Inventory.Add(DescribeAuditEntry(InventoryItemId, DisplayName));
+	}
+	State.Inventory.Sort();
+	return State;
+}
+
+void LogShopPurchaseAuditState(const FString& TransactionId,
+                               const FName ItemId,
+                               const TCHAR* Phase,
+                               const FReEchoShopPurchaseAuditState& State)
+{
+	WriteShopPurchaseAuditLine(FString::Printf(
+	    TEXT("[ShopPurchaseAudit] tx=%s phase=%s item=%s shards=%d equippedWeapon=[%s] equippedRunes=[%s] "
+	         "activeCards=[%s] weaponBackpack=[%s] runeBackpack=[%s] inventory=[%s]"),
+	    *TransactionId,
+	    Phase,
+	    *ItemId.ToString(),
+	    State.TimeShards,
+	    *State.EquippedWeapon,
+	    *FString::Join(State.EquippedRunes, TEXT(", ")),
+	    *FString::Join(State.ActiveCards, TEXT(", ")),
+	    *FString::Join(State.WeaponBackpack, TEXT(", ")),
+	    *FString::Join(State.RuneBackpack, TEXT(", ")),
+	    *FString::Join(State.Inventory, TEXT(", "))));
+}
 }
 
 FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(const FReEchoCsvDataSnapshot* Snapshot,
@@ -675,6 +875,7 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	Result.Build.WeaponDomainRevision = Snapshot->WeaponDomainRevision;
 	Result.Build.CardState.DomainRevision = Snapshot->CardDomainRevision;
 	Result.Build.Stats = Character->BaseStats;
+	ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(*Snapshot, Character->Id, Result.Build.Stats);
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
 	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
 	Result.Build.EquipmentBaseStats = Result.Build.Stats;
@@ -723,6 +924,9 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	InventoryItems.Reset();
 	OwnedPartIds.Reset();
 	OwnedWeaponIds.Reset();
+	WeaponPartShopOfferEncounterIndex = INDEX_NONE;
+	WeaponPartShopOfferRefreshSequence = INDEX_NONE;
+	WeaponPartShopOfferIds.Reset();
 	bAutomaticAttackMode = true;
 	ResetEchoStorage();
 	PendingTraitCardIds.Reset();
@@ -740,6 +944,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	RequireConfiguredBuild(ResolveResult.Build, TEXT("Cannot start run"));
 	RunDataSnapshot = Snapshot;
 	CurrentBuild = ResolveResult.Build;
+	OwnedWeaponIds.Add(CurrentBuild.WeaponId);
 	SetPhase(EReEchoRunPhase::Planning);
 }
 
@@ -826,7 +1031,36 @@ bool UReEchoRunSubsystem::TryEquipPurchasedPart(const FName PartId, FString& Out
 	return TryEquipParts(DesiredPartIds, OutError);
 }
 
-FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
+bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& OutError)
+{
+	if (WeaponId.IsNone() || !OwnedWeaponIds.Contains(WeaponId))
+	{
+		OutError = FString::Printf(TEXT("Cannot equip weapon '%s': weapon is not owned"), *WeaponId.ToString());
+		return false;
+	}
+	if (CurrentBuild.WeaponId == WeaponId)
+	{
+		OutError.Reset();
+		return true;
+	}
+
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		OutError = TEXT("Cannot equip owned weapon: CSV snapshot is unavailable");
+		return false;
+	}
+	FReEchoBuildSnapshot Candidate;
+	if (!ReEchoWeaponRuntime::TrySelectWeapon(*Snapshot, CurrentBuild, WeaponId, Candidate, OutError))
+	{
+		return false;
+	}
+	CurrentBuild = MoveTemp(Candidate);
+	OutError.Reset();
+	return true;
+}
+
+FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 {
 	FReEchoWeaponPartShopView View;
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
@@ -838,6 +1072,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 	}
 	View.WeaponId = Weapon->Id;
 	View.WeaponDisplayName = FText::FromString(Weapon->DisplayName);
+	View.WeaponIconTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(Weapon->VisualKey);
 	View.EquippedParts = CurrentBuild.EquippedParts;
 
 	for (const TPair<FName, FReEchoCsvSlotProfileRow>& Pair : Snapshot->SlotProfiles)
@@ -879,8 +1114,32 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 	// Owned weapons (marked as 已获得 in shop).
 	for (const FName WeaponId : OwnedWeaponIds)
 	{
+		const FReEchoCsvWeaponRow* OwnedWeapon = Snapshot->FindEnabledWeapon(WeaponId);
+		if (!OwnedWeapon)
+		{
+			continue;
+		}
 		View.OwnedWeapons.Add(WeaponId);
+		FReEchoShopOffer OwnedOffer;
+		OwnedOffer.ItemId = OwnedWeapon->Id;
+		OwnedOffer.ContentId = OwnedWeapon->Id;
+		OwnedOffer.DisplayName = FText::FromString(OwnedWeapon->DisplayName);
+		OwnedOffer.EffectText = FText::Format(NSLOCTEXT("ReEcho", "OwnedWeaponEffect", "武器：{0}"),
+		                                      FText::FromString(OwnedWeapon->DisplayName));
+		OwnedOffer.Type = EReEchoShopOfferType::Weapon;
+		OwnedOffer.IconTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(OwnedWeapon->VisualKey);
+		View.OwnedWeaponOffers.Add(MoveTemp(OwnedOffer));
 	}
+	View.OwnedWeapons.Sort(
+	    [](const FName Left, const FName Right)
+	    {
+		    return Left.LexicalLess(Right);
+	    });
+	View.OwnedWeaponOffers.Sort(
+	    [](const FReEchoShopOffer& Left, const FReEchoShopOffer& Right)
+	    {
+		    return Left.ContentId.LexicalLess(Right.ContentId);
+	    });
 
 	// ===== Weapon/Part shop: 3 fixed slots (Plan67 Step2) =====
 	View.SlotOffers.SetNum(ReEchoShopOfferCountPerGroup);
@@ -941,8 +1200,10 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		}
 	}
 
-	const auto MakePartSlotOffer = [&](const FReEchoCsvPartRow& Part, FRandomStream& R) -> FReEchoWeaponSlotOffer
+	const int32 WeaponPartRefreshSequence = CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+	const auto MakePartSlotOffer = [&](const FReEchoCsvPartRow& Part) -> FReEchoWeaponSlotOffer
 	{
+		FRandomStream PriceRand(BuildShopOfferSeed(Part.Id, EncounterIndex, WeaponPartRefreshSequence));
 		FReEchoWeaponSlotOffer Offer;
 		Offer.Kind = EReEchoShopOfferKind::Part;
 		Offer.PartId = Part.Id;
@@ -951,12 +1212,12 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		Offer.SlotTypeId = Part.SlotTypeId;
 		Offer.DisplayName = FText::FromString(Part.DisplayName);
 		Offer.EffectText = FText::FromString(Part.Description);
-		Offer.Price = GetShopPriceInRange(*Snapshot, DerivePartPriceCategory(Part), Part.ShopPrice, R);
+		Offer.Price = GetShopPriceInRange(*Snapshot, DerivePartPriceCategory(Part), Part.ShopPrice, PriceRand);
 		return Offer;
 	};
-	const auto MakeWeaponSlotOffer = [&](const FReEchoCsvWeaponRow& CandidateWeapon,
-	                                     FRandomStream& R) -> FReEchoWeaponSlotOffer
+	const auto MakeWeaponSlotOffer = [&](const FReEchoCsvWeaponRow& CandidateWeapon) -> FReEchoWeaponSlotOffer
 	{
+		FRandomStream PriceRand(BuildShopOfferSeed(CandidateWeapon.Id, EncounterIndex, WeaponPartRefreshSequence));
 		FReEchoWeaponSlotOffer Offer;
 		Offer.Kind = EReEchoShopOfferKind::Weapon;
 		Offer.WeaponId = CandidateWeapon.Id;
@@ -966,7 +1227,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		Offer.DisplayName = FText::FromString(CandidateWeapon.DisplayName);
 		Offer.EffectText = FText::Format(NSLOCTEXT("ReEcho", "WeaponSlotOfferEffect", "武器：{0}"),
 		                                 FText::FromString(CandidateWeapon.DisplayName));
-		Offer.Price = GetShopPriceInRange(*Snapshot, TEXT("Weapon"), 10, R);
+		Offer.Price = GetShopPriceInRange(*Snapshot, TEXT("Weapon"), 10, PriceRand);
 		return Offer;
 	};
 	const auto PickPart = [&](const TArray<const FReEchoCsvPartRow*>& Arr, FRandomStream& R) -> const FReEchoCsvPartRow*
@@ -979,52 +1240,119 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		return Arr.Num() > 0 ? Arr[R.RandRange(0, Arr.Num() - 1)] : nullptr;
 	};
 
-	// Slot 0: universal rune (deterministic by seed).
-	FRandomStream Slot0Rand(
-	    BuildShopOfferSeed(View.WeaponId, EncounterIndex, CurrentBuild.CardState.Runtime.ShopRefreshSequence));
-	if (const FReEchoCsvPartRow* Chosen = PickPart(UniversalRuneCandidates, Slot0Rand))
+	const auto IsCachedWeaponPartOfferValid = [&](const FName OfferId)
 	{
-		View.SlotOffers[0] = MakePartSlotOffer(*Chosen, Slot0Rand);
+		if (OfferId.IsNone())
+		{
+			return true;
+		}
+		if (const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(OfferId))
+		{
+			return Part->bEnabled && Part->bShopEnabled;
+		}
+		if (const FReEchoCsvWeaponRow* CachedWeapon = Snapshot->FindEnabledWeapon(OfferId))
+		{
+			return CachedWeapon->bStartSelectable;
+		}
+		return false;
+	};
+	const bool bCachedPageShapeValid = WeaponPartShopOfferIds.Num() == ReEchoShopOfferCountPerGroup &&
+	                                   !WeaponPartShopOfferIds.ContainsByPredicate(
+	                                       [&](const FName OfferId)
+	                                       {
+		                                       return !IsCachedWeaponPartOfferValid(OfferId);
+	                                       });
+	const bool bNeedsNewWeaponPartPage = WeaponPartShopOfferEncounterIndex != EncounterIndex ||
+	                                     WeaponPartShopOfferRefreshSequence != WeaponPartRefreshSequence ||
+	                                     !bCachedPageShapeValid;
+	if (bNeedsNewWeaponPartPage)
+	{
+		WeaponPartShopOfferEncounterIndex = EncounterIndex;
+		WeaponPartShopOfferRefreshSequence = WeaponPartRefreshSequence;
+		WeaponPartShopOfferIds.Init(NAME_None, ReEchoShopOfferCountPerGroup);
+
+		// Slot 0: universal rune (deterministic by seed).
+		FRandomStream Slot0Rand(BuildShopOfferSeed(View.WeaponId, EncounterIndex, WeaponPartRefreshSequence));
+		if (const FReEchoCsvPartRow* Chosen = PickPart(UniversalRuneCandidates, Slot0Rand))
+		{
+			WeaponPartShopOfferIds[0] = Chosen->Id;
+		}
+
+		// Slots 1 & 2: weighted 70/15/15 with fallbacks. Remove each result so one page never duplicates an item.
+		FRandomStream SlotRand(BuildShopOfferSeed(TEXT("SHOP_SLOTS"), EncounterIndex, WeaponPartRefreshSequence));
+		for (int32 SlotIndex = 1; SlotIndex <= 2; ++SlotIndex)
+		{
+			const float Roll = SlotRand.GetFraction();
+			FName ChosenId = NAME_None;
+			if (Roll < 0.70f && CurrentWeaponRuneCandidates.Num() > 0)
+			{
+				ChosenId = PickPart(CurrentWeaponRuneCandidates, SlotRand)->Id;
+			}
+			else if (Roll < 0.85f && OtherWeaponCandidates.Num() > 0)
+			{
+				ChosenId = PickWeapon(OtherWeaponCandidates, SlotRand)->Id;
+			}
+			else if (OtherWeaponRuneCandidates.Num() > 0)
+			{
+				ChosenId = PickPart(OtherWeaponRuneCandidates, SlotRand)->Id;
+			}
+			else if (CurrentWeaponRuneCandidates.Num() > 0)
+			{
+				ChosenId = PickPart(CurrentWeaponRuneCandidates, SlotRand)->Id;
+			}
+			else if (OtherWeaponCandidates.Num() > 0)
+			{
+				ChosenId = PickWeapon(OtherWeaponCandidates, SlotRand)->Id;
+			}
+			WeaponPartShopOfferIds[SlotIndex] = ChosenId;
+			CurrentWeaponRuneCandidates.RemoveAll(
+			    [&](const FReEchoCsvPartRow* Candidate)
+			    {
+				    return Candidate && Candidate->Id == ChosenId;
+			    });
+			OtherWeaponRuneCandidates.RemoveAll(
+			    [&](const FReEchoCsvPartRow* Candidate)
+			    {
+				    return Candidate && Candidate->Id == ChosenId;
+			    });
+			OtherWeaponCandidates.RemoveAll(
+			    [&](const FReEchoCsvWeaponRow* Candidate)
+			    {
+				    return Candidate && Candidate->Id == ChosenId;
+			    });
+		}
 	}
 
-	// Slots 1 & 2: weighted 70/15/15 (current-weapon rune / other weapon / other-weapon rune), with fallbacks.
-	FRandomStream SlotRand(
-	    BuildShopOfferSeed(TEXT("SHOP_SLOTS"), EncounterIndex, CurrentBuild.CardState.Runtime.ShopRefreshSequence));
-	for (int32 SlotIndex = 1; SlotIndex <= 2; ++SlotIndex)
+	for (int32 SlotIndex = 0; SlotIndex < WeaponPartShopOfferIds.Num(); ++SlotIndex)
 	{
-		const float Roll = SlotRand.GetFraction();
-		FReEchoWeaponSlotOffer Offer;
-		if (Roll < 0.70f && CurrentWeaponRuneCandidates.Num() > 0)
+		const FName OfferId = WeaponPartShopOfferIds[SlotIndex];
+		if (const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(OfferId))
 		{
-			Offer = MakePartSlotOffer(*PickPart(CurrentWeaponRuneCandidates, SlotRand), SlotRand);
+			View.SlotOffers[SlotIndex] = MakePartSlotOffer(*Part);
 		}
-		else if (Roll < 0.85f && OtherWeaponCandidates.Num() > 0)
+		else if (const FReEchoCsvWeaponRow* CachedWeapon = Snapshot->FindEnabledWeapon(OfferId))
 		{
-			Offer = MakeWeaponSlotOffer(*PickWeapon(OtherWeaponCandidates, SlotRand), SlotRand);
+			View.SlotOffers[SlotIndex] = MakeWeaponSlotOffer(*CachedWeapon);
 		}
-		else if (OtherWeaponRuneCandidates.Num() > 0)
-		{
-			Offer = MakePartSlotOffer(*PickPart(OtherWeaponRuneCandidates, SlotRand), SlotRand);
-		}
-		else if (CurrentWeaponRuneCandidates.Num() > 0)
-		{
-			Offer = MakePartSlotOffer(*PickPart(CurrentWeaponRuneCandidates, SlotRand), SlotRand);
-		}
-		else if (OtherWeaponCandidates.Num() > 0)
-		{
-			Offer = MakeWeaponSlotOffer(*PickWeapon(OtherWeaponCandidates, SlotRand), SlotRand);
-		}
-		View.SlotOffers[SlotIndex] = Offer; // empty if no candidates
+	}
+
+	View.CardSlotOffers.SetNum(ReEchoShopOfferCountPerGroup);
+	for (int32 SlotIndex = 0; SlotIndex < View.CardSlotOffers.Num(); ++SlotIndex)
+	{
+		FReEchoCardSlotOffer& CardSlot = View.CardSlotOffers[SlotIndex];
+		CardSlot.Tier = SlotIndex + 1;
+		CardSlot.DisplayName = NSLOCTEXT("ReEcho", "ShopCardTierNotOffered", "未投放");
+		CardSlot.EffectText = NSLOCTEXT("ReEcho", "ShopCardTierNotOfferedDetail", "本关不投放该等级卡牌");
 	}
 
 	if (Snapshot->CardCatalog.IsValid())
 	{
-		const int32 RefreshSequence = CurrentBuild.CardState.Runtime.ShopRefreshSequence;
-		// ===== Build-card shop: one slot per drop-level tier (Plan67 Step2) =====
-		const int32 LevelEncounter = FMath::Clamp(EncounterIndex, 1, 6);
-		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(LevelEncounter))
+		FReEchoCardRuntimeState& CardRuntime = CurrentBuild.CardState.Runtime;
+		const int32 RefreshSequence = CardRuntime.ShopRefreshSequence;
+		// Build-card shop: fixed [Tier1, Tier2, Tier3] slots. ShopTiers only enables matching slots.
+		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex))
 		{
-			TArray<int32> CardTiers;
+			TSet<int32> ConfiguredCardTiers;
 			if (!DropLevel->ShopTiers.IsEmpty())
 			{
 				TArray<FString> TierTokens;
@@ -1032,38 +1360,110 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 				for (const FString& Tok : TierTokens)
 				{
 					const int32 Tier = FCString::Atoi(*Tok);
-					if (Tier > 0)
+					if (Tier >= 1 && Tier <= ReEchoShopOfferCountPerGroup)
 					{
-						CardTiers.Add(Tier);
+						ConfiguredCardTiers.Add(Tier);
 					}
 				}
 			}
-			FRandomStream CardRand(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
-			for (const int32 Tier : CardTiers)
+			const auto IsCachedCardPageValid = [&]()
 			{
-				TArray<FReEchoCardDefinition> Eligible;
-				for (const FReEchoCardDefinition& Card : Snapshot->CardCatalog->GetOfferable(TraitOfferGroup, Tier))
+				if (CardRuntime.ShopCardOfferIds.Num() != ReEchoShopOfferCountPerGroup)
 				{
-					if (ReEchoCardRuntime::CanOffer(*Snapshot->CardCatalog, CurrentBuild.CardState, Card))
+					return false;
+				}
+				for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
+				{
+					const int32 Tier = SlotIndex + 1;
+					const FName CardId = CardRuntime.ShopCardOfferIds[SlotIndex];
+					if (!ConfiguredCardTiers.Contains(Tier))
 					{
-						Eligible.Add(Card);
+						if (!CardId.IsNone())
+						{
+							return false;
+						}
+						continue;
+					}
+					if (CardId.IsNone())
+					{
+						continue;
+					}
+					const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId);
+					if (!Card || !Card->bEnabled || Card->OfferGroup != TraitOfferGroup || Card->Tier != Tier)
+					{
+						return false;
 					}
 				}
-				if (Eligible.Num() == 0)
+				return true;
+			};
+			const bool bNeedsNewCardPage = CardRuntime.ShopCardOfferEncounterIndex != EncounterIndex ||
+			                               CardRuntime.ShopCardOfferRefreshSequence != RefreshSequence ||
+			                               !IsCachedCardPageValid();
+			if (bNeedsNewCardPage)
+			{
+				CardRuntime.ShopCardOfferEncounterIndex = EncounterIndex;
+				CardRuntime.ShopCardOfferRefreshSequence = RefreshSequence;
+				CardRuntime.ShopCardOfferIds.Init(NAME_None, ReEchoShopOfferCountPerGroup);
+
+				for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
 				{
+					const int32 Tier = SlotIndex + 1;
+					if (!ConfiguredCardTiers.Contains(Tier))
+					{
+						continue;
+					}
+					TArray<FReEchoCardDefinition> Eligible = ReEchoCardRuntime::BuildOfferPool(
+					    *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, Tier);
+					if (Eligible.IsEmpty())
+					{
+						UE_LOG(LogReEcho,
+						       Warning,
+						       TEXT("Encounter %d shop tier %d has no eligible card; its fixed slot remains empty."),
+						       EncounterIndex,
+						       Tier);
+						continue;
+					}
+					const FName TierSeedKey(*FString::Printf(TEXT("SHOP_CARD_TIER_%d"), Tier));
+					FRandomStream CardRand(BuildShopOfferSeed(TierSeedKey, EncounterIndex, RefreshSequence));
+					ShuffleOffers(Eligible, CardRand);
+					CardRuntime.ShopCardOfferIds[SlotIndex] = Eligible[0].Id;
+				}
+			}
+
+			for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
+			{
+				FReEchoCardSlotOffer& CardOffer = View.CardSlotOffers[SlotIndex];
+				const int32 Tier = SlotIndex + 1;
+				const FName CardId = CardRuntime.ShopCardOfferIds[SlotIndex];
+				if (CardId.IsNone())
+				{
+					if (ConfiguredCardTiers.Contains(Tier))
+					{
+						CardOffer.DisplayName = NSLOCTEXT("ReEcho", "ShopCardTierSoldOut", "售罄");
+						CardOffer.EffectText = NSLOCTEXT("ReEcho", "ShopCardTierSoldOutDetail", "该等级暂无可购买卡牌");
+					}
 					continue;
 				}
-				const FReEchoCardDefinition& Chosen = Eligible[CardRand.RandRange(0, Eligible.Num() - 1)];
-				FReEchoCardSlotOffer CardOffer;
-				CardOffer.Tier = Tier;
-				CardOffer.CardId = Chosen.Id;
-				CardOffer.ItemId = MakeShopCardOfferId(RefreshSequence, Chosen.Id);
-				CardOffer.DisplayName = FText::FromString(Chosen.DisplayName);
-				CardOffer.EffectText = FText::FromString(Chosen.Description);
+				const FReEchoCardDefinition* Chosen = Snapshot->CardCatalog->Find(CardId);
+				if (!Chosen || Chosen->Tier != Tier)
+				{
+					UE_LOG(LogReEcho,
+					       Error,
+					       TEXT("Encounter %d cached shop card '%s' no longer matches fixed tier slot %d."),
+					       EncounterIndex,
+					       *CardId.ToString(),
+					       Tier);
+					continue;
+				}
+				FRandomStream PriceRand(BuildShopOfferSeed(Chosen->Id, EncounterIndex, RefreshSequence));
+				CardOffer.bAvailable = true;
+				CardOffer.CardId = Chosen->Id;
+				CardOffer.ItemId = MakeShopCardOfferId(EncounterIndex, RefreshSequence, Chosen->Id);
+				CardOffer.DisplayName = FText::FromString(Chosen->DisplayName);
+				CardOffer.EffectText = FText::FromString(Chosen->Description);
 				CardOffer.bFree = false;
-				CardOffer.Price =
-				    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, CardRand);
-				View.CardSlotOffers.Add(CardOffer);
+				CardOffer.Price = GetShopPriceInRange(
+				    *Snapshot, *FString::Printf(TEXT("Card_T%d"), Chosen->Tier), Chosen->Tier * 10, PriceRand);
 			}
 		}
 
@@ -1071,8 +1471,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		{
 			if (const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId))
 			{
-				FReEchoShopOffer OwnedCard = MakeBuildCardOffer(*Card, RefreshSequence);
-				OwnedCard.ItemId = CardId;
+				FReEchoShopOffer OwnedCard = MakeOwnedBuildCardOffer(*Card);
 				View.OwnedCards.Add(MoveTemp(OwnedCard));
 			}
 		}
@@ -1116,10 +1515,13 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		Offer.Price = Card.Price;
 		Offer.Type = EReEchoShopOfferType::BuildCard;
 		Offer.Tier = Card.Tier;
-		Offer.IconTexturePath =
-		    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
-		                    *Card.CardId.ToString(),
-		                    *Card.CardId.ToString());
+		if (Card.bAvailable)
+		{
+			Offer.IconTexturePath =
+			    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+			                    *Card.CardId.ToString(),
+			                    *Card.CardId.ToString());
+		}
 		View.Offers.Add(Offer);
 	}
 	return View;
@@ -1145,6 +1547,48 @@ int32 UReEchoRunSubsystem::GetTotalEncounterCount() const
 	return EnabledCount > 0 ? EnabledCount : GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
 }
 
+int32 UReEchoRunSubsystem::ResolveConfiguredFreeTraitTier() const
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot resolve post-encounter card drop for encounter %d: data snapshot is unavailable."),
+		       EncounterIndex);
+		return INDEX_NONE;
+	}
+
+	const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex);
+	if (!DropLevel)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot resolve post-encounter card drop: encounter %d has no shop_drop_levels row."),
+		       EncounterIndex);
+		return INDEX_NONE;
+	}
+	if (DropLevel->FreeTier == INDEX_NONE)
+	{
+		return INDEX_NONE;
+	}
+	if (DropLevel->FreeTier < 1 || DropLevel->FreeTier > 3)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot resolve post-encounter card drop: encounter %d has invalid FreeTier %d."),
+		       EncounterIndex,
+		       DropLevel->FreeTier);
+		return INDEX_NONE;
+	}
+	return DropLevel->FreeTier;
+}
+
+void UReEchoRunSubsystem::AdvanceToConfiguredTraitChoice()
+{
+	SetPhase(ResolveConfiguredFreeTraitTier() == INDEX_NONE ? EReEchoRunPhase::Planning : EReEchoRunPhase::CardChoice);
+}
+
 void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
@@ -1157,6 +1601,11 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
                                             const bool bPlayerSurvived,
                                             const bool bBossKilled)
 {
+	if (Phase == EReEchoRunPhase::Planning || Phase == EReEchoRunPhase::CardChoice || Phase == EReEchoRunPhase::Shop ||
+	    Phase == EReEchoRunPhase::Summary || Phase == EReEchoRunPhase::Failed)
+	{
+		return;
+	}
 	if (!bPlayerSurvived)
 	{
 		// A failed encounter never becomes storage eligible and never touches the rolling latest echo.
@@ -1193,22 +1642,20 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	{
 		CurrentBuild = CardEndBuild;
 	}
-	if (CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.PoetReactionGrowth")))
+	const TSharedPtr<const FReEchoCsvDataSnapshot> AbilitySnapshot = GetRunDataSnapshot();
+	if (AbilitySnapshot.IsValid())
 	{
-		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-		const FReEchoCsvCharacterRow* Character =
-		    Snapshot.IsValid() ? Snapshot->FindCharacter(CurrentBuild.CharacterId) : nullptr;
 		FReEchoBuildSnapshot Candidate;
-		if (Snapshot.IsValid() && TryMutateAuthoritativeBuild(
-		                              *Snapshot,
-		                              CurrentBuild,
-		                              [&](FReEchoBuildSnapshot& BaseBuild)
-		                              {
-			                              BaseBuild.Stats.ReactionEfficiency +=
-			                                  Character ? Character->PassiveValue : 0.05f;
-			                              return true;
-		                              },
-		                              Candidate))
+		if (TryMutateAuthoritativeBuild(
+		        *AbilitySnapshot,
+		        CurrentBuild,
+		        [&](FReEchoBuildSnapshot& BaseBuild)
+		        {
+			        ReEchoCharacterAbilityRuntime::ApplyEncounterCompletedEffects(
+			            *AbilitySnapshot, BaseBuild.CharacterId, BaseBuild.Stats);
+			        return true;
+		        },
+		        Candidate))
 		{
 			CurrentBuild = Candidate;
 		}
@@ -1218,23 +1665,48 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		SetPhase(bBossKilled ? EReEchoRunPhase::Summary : EReEchoRunPhase::Failed);
 		return;
 	}
-	SetPhase(CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.BraveForge")) ? EReEchoRunPhase::ForgeChoice
-	                                                                                : EReEchoRunPhase::CardChoice);
+	AdvanceToConfiguredTraitChoice();
 }
 
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
 {
 	PendingTraitCardIds.Reset();
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	const TArray<FReEchoCardDefinition> Catalog =
-	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
-	        ? ReEchoCardRuntime::BuildOfferPool(*Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup)
-	        : TArray<FReEchoCardDefinition>();
-	const int32 OfferCount = FMath::Clamp(RequestedCount, 0, Catalog.Num());
-	if (OfferCount == 0 || Phase != EReEchoRunPhase::CardChoice)
+	if (RequestedCount <= 0 || Phase != EReEchoRunPhase::CardChoice)
 	{
 		return {};
 	}
+
+	const int32 FreeTier = ResolveConfiguredFreeTraitTier();
+	if (FreeTier == INDEX_NONE)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("CardChoice phase has no configured free card tier for encounter %d; continuing to the shop."),
+		       EncounterIndex);
+		SetPhase(EReEchoRunPhase::Planning);
+		return {};
+	}
+
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const TArray<FReEchoCardDefinition> Catalog =
+	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
+	        ? ReEchoCardRuntime::BuildOfferPool(
+	              *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, FreeTier)
+	        : TArray<FReEchoCardDefinition>();
+	if (Catalog.Num() < RequestedCount)
+	{
+		UE_LOG(
+		    LogReEcho,
+		    Error,
+		    TEXT("Encounter %d FreeTier %d requires %d card offers but only %d are eligible; continuing to the shop."),
+		    EncounterIndex,
+		    FreeTier,
+		    RequestedCount,
+		    Catalog.Num());
+		SetPhase(EReEchoRunPhase::Planning);
+		return {};
+	}
+	const int32 OfferCount = RequestedCount;
 
 	FRandomStream Random(BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
 	TArray<FReEchoTraitCardOffer> Result;
@@ -1282,10 +1754,12 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 
-	const FName SageBonusChoiceFlag = TEXT("SageBonusChoice");
+	const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
 	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
-	const bool bSageBonusChoice = CurrentBuild.RuleFlags.Contains(SageBonusChoiceFlag);
-	bool bSageBonus = false;
+	const int32 ExistingBonusChoices =
+	    FMath::Max(0, FCString::Atoi(*CurrentBuild.RuleFlags.FindRef(BonusTraitChoicesRemainingFlag)));
+	const bool bApplyingBonusChoice = ExistingBonusChoices > 0;
+	bool bContinueBonusChoices = false;
 	int32 PendingTimeShards = TimeShards;
 	FReEchoBuildSnapshot PendingBuild;
 	if (!TryMutateAuthoritativeBuild(
@@ -1310,19 +1784,29 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        BaseBuild.CardState = Grant.CardState;
 		        PendingTimeShards = Grant.TimeShards;
 		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
-		        if (bSageBonusChoice)
+		        if (bApplyingBonusChoice)
 		        {
-			        BaseBuild.RuleFlags.Remove(SageBonusChoiceFlag);
+			        const int32 Remaining = ExistingBonusChoices - 1;
+			        bContinueBonusChoices = Remaining > 0;
+			        if (bContinueBonusChoices)
+			        {
+				        BaseBuild.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(Remaining));
+			        }
+			        else
+			        {
+				        BaseBuild.RuleFlags.Remove(BonusTraitChoicesRemainingFlag);
+			        }
 			        return true;
 		        }
 		        const int32 NormalTraitSelections =
 		            FCString::Atoi(*BaseBuild.RuleFlags.FindRef(NormalTraitSelectionsFlag)) + 1;
 		        BaseBuild.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
-		        bSageBonus =
-		            ReEchoCharacterPromotion::IsRole(BaseBuild, TEXT("Sage")) && NormalTraitSelections % 4 == 0;
-		        if (bSageBonus)
+		        const int32 NewBonusChoices = ReEchoCharacterAbilityRuntime::ResolveExtraTraitChoices(
+		            *Snapshot, BaseBuild.CharacterId, NormalTraitSelections);
+		        bContinueBonusChoices = NewBonusChoices > 0;
+		        if (bContinueBonusChoices)
 		        {
-			        BaseBuild.RuleFlags.Add(SageBonusChoiceFlag, TEXT("1"));
+			        BaseBuild.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(NewBonusChoices));
 		        }
 		        return true;
 	        },
@@ -1333,7 +1817,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	CurrentBuild = PendingBuild;
 	TimeShards = PendingTimeShards;
 	PendingTraitCardIds.Reset();
-	SetPhase(bSageBonus ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
+	SetPhase(bContinueBonusChoices ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
 	return true;
 }
 
@@ -1412,77 +1896,6 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
 	       *CardId.ToString(),
 	       CurrentBuild.CardState.OwnedCardIds.Num());
-	return true;
-}
-
-TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateForgeOffers()
-{
-	PendingTraitCardIds.Reset();
-	if (Phase != EReEchoRunPhase::ForgeChoice)
-	{
-		return {};
-	}
-
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	TArray<FReEchoTraitCardOffer> Offers;
-	const TArray<FReEchoCardDefinition> ForgeCards = Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
-	                                                     ? Snapshot->CardCatalog->GetOfferable(ForgeOfferGroup)
-	                                                     : TArray<FReEchoCardDefinition>();
-	for (const FReEchoCardDefinition& Card : ForgeCards)
-	{
-		Offers.Add(MakeTraitOffer(Card));
-	}
-	for (const FReEchoTraitCardOffer& Offer : Offers)
-	{
-		PendingTraitCardIds.Add(Offer.CardId);
-	}
-	return Offers;
-}
-
-bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
-{
-	if (Phase != EReEchoRunPhase::ForgeChoice || !PendingTraitCardIds.Contains(ForgeId))
-	{
-		return false;
-	}
-
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	const FReEchoCardDefinition* Card =
-	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() ? Snapshot->CardCatalog->Find(ForgeId) : nullptr;
-	FReEchoBuildSnapshot PendingBuild;
-	if (!Card || !Card->bEnabled || Card->OfferGroup != ForgeOfferGroup ||
-	    !TryMutateAuthoritativeBuild(
-	        *Snapshot,
-	        CurrentBuild,
-	        [&](FReEchoBuildSnapshot& BaseBuild)
-	        {
-		        FReEchoCardGrantInput Input;
-		        Input.Stats = BaseBuild.Stats;
-		        Input.CardState = BaseBuild.CardState;
-		        Input.TimeShards = TimeShards;
-		        Input.EncounterIndex = EncounterIndex;
-		        Input.RandomSeed =
-		            BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, BaseBuild.CardState.OwnedCardIds);
-		        Input.bRecordOwnership = false;
-		        const FReEchoCardGrantResult Grant =
-		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, ForgeId, Input);
-		        if (!Grant.bSucceeded)
-		        {
-			        return false;
-		        }
-		        BaseBuild.Stats = Grant.Stats;
-		        BaseBuild.CardState = Grant.CardState;
-		        BaseBuild.Stats.HpMax = FMath::Max(1.0f, BaseBuild.Stats.HpMax);
-		        return true;
-	        },
-	        PendingBuild))
-	{
-		return false;
-	}
-
-	CurrentBuild = PendingBuild;
-	PendingTraitCardIds.Reset();
-	SetPhase(EReEchoRunPhase::CardChoice);
 	return true;
 }
 
@@ -1686,164 +2099,35 @@ void UReEchoRunSubsystem::ClearCardAnchorRecording()
 	CurrentBuild.CardState.Runtime.AnchorRecordingId.Invalidate();
 }
 
-void UReEchoRunSubsystem::LogWeaponRunePurchaseState(const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot,
-                                                     FName PurchasedItem,
-                                                     const TCHAR* PurchaseKind,
-                                                     const FReEchoBuildSnapshot& BeforeBuild,
-                                                     const FReEchoBuildSnapshot& AfterBuild,
-                                                     FName AffectedSlotTypeId)
+FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const FName ItemId)
 {
-	if (!Snapshot)
-	{
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[WeaponRuneLog] purchase=%s kind=%s | <no snapshot>"),
-		       *PurchasedItem.ToString(),
-		       PurchaseKind);
-		return;
-	}
+	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoShopPurchaseAuditState BeforeState = CaptureShopPurchaseAuditState(*this, Snapshot);
+	LogShopPurchaseAuditState(TransactionId, ItemId, TEXT("BEFORE"), BeforeState);
 
-	const FReEchoCsvWeaponRow* Weapon = Snapshot->FindEnabledWeapon(AfterBuild.WeaponId);
-
-	// 1) 当前装备的武器
-	if (Weapon)
+	const auto FinishPurchase =
+	    [&](const EReEchoShopPurchaseResult Result, const FString& Detail, const int32 EffectivePrice = 0)
 	{
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[WeaponRuneLog] purchase=%s kind=%s | EquippedWeapon=%s (WeaponId=%s, WeaponTypeId=%s)"),
-		       *PurchasedItem.ToString(),
-		       PurchaseKind,
-		       *Weapon->DisplayName,
-		       *AfterBuild.WeaponId.ToString(),
-		       *Weapon->WeaponTypeId.ToString());
-	}
-	else
-	{
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[WeaponRuneLog] purchase=%s kind=%s | EquippedWeapon=<none> (WeaponId=%s)"),
-		       *PurchasedItem.ToString(),
-		       PurchaseKind,
-		       *AfterBuild.WeaponId.ToString());
-		return;
-	}
-
-	const auto PartName = [&](FName Pid) -> FString
-	{
-		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(Pid);
-		return Part ? Part->DisplayName : Pid.ToString();
+		FReEchoShopPurchaseOutcome Outcome;
+		Outcome.TransactionId = TransactionId;
+		Outcome.ItemId = ItemId;
+		Outcome.Result = Result;
+		Outcome.Detail = Detail;
+		Outcome.EffectivePrice = EffectivePrice;
+		WriteShopPurchaseAuditLine(FString::Printf(
+		    TEXT("[ShopPurchaseAudit] tx=%s phase=RESULT item=%s success=%d code=%s effectivePrice=%d detail=%s"),
+		    *TransactionId,
+		    *ItemId.ToString(),
+		    Outcome.IsSuccess(),
+		    GetShopPurchaseResultName(Result),
+		    EffectivePrice,
+		    *SanitizeShopPurchaseAuditText(Detail)));
+		LogShopPurchaseAuditState(
+		    TransactionId, ItemId, TEXT("AFTER"), CaptureShopPurchaseAuditState(*this, GetRunDataSnapshot()));
+		return Outcome;
 	};
 
-	// 2) 各槽位：装备中 / 本次装备 / 本次卸下 / 背包
-	for (const TPair<FName, FReEchoCsvSlotProfileRow>& ProfilePair : Snapshot->SlotProfiles)
-	{
-		const FReEchoCsvSlotProfileRow& Profile = ProfilePair.Value;
-		if (Profile.WeaponTypeId != Weapon->WeaponTypeId)
-		{
-			continue;
-		}
-		const FName SlotTypeId = Profile.SlotTypeId;
-		// 购买武器符文时只关注对应槽位；购买整把武器时打印全部槽位
-		if (AffectedSlotTypeId != NAME_None && SlotTypeId != AffectedSlotTypeId)
-		{
-			continue;
-		}
-
-		const int32 Capacity =
-		    ReEchoWeaponRuntime::GetEffectiveSlotCapacity(*Snapshot, AfterBuild, Weapon->WeaponTypeId, SlotTypeId);
-		const FReEchoCsvSlotTypeRow* SlotType = Snapshot->SlotTypes.Find(SlotTypeId);
-		const FString SlotName = SlotType ? SlotType->DisplayName : SlotTypeId.ToString();
-
-		TArray<FName> EquippedBefore;
-		TArray<FName> EquippedNow;
-		for (const FReEchoEquippedPartSnapshot& Eq : BeforeBuild.EquippedParts)
-		{
-			if (Eq.SlotTypeId == SlotTypeId)
-			{
-				EquippedBefore.Add(Eq.PartId);
-			}
-		}
-		for (const FReEchoEquippedPartSnapshot& Eq : AfterBuild.EquippedParts)
-		{
-			if (Eq.SlotTypeId == SlotTypeId)
-			{
-				EquippedNow.Add(Eq.PartId);
-			}
-		}
-
-		TArray<FString> EquippedNames;
-		TArray<FString> EquippedThisTime;
-		for (const FName& Pid : EquippedNow)
-		{
-			EquippedNames.Add(PartName(Pid));
-			if (!EquippedBefore.Contains(Pid))
-			{
-				EquippedThisTime.Add(PartName(Pid));
-			}
-		}
-		TArray<FString> UnequippedThisTime;
-		for (const FName& Pid : EquippedBefore)
-		{
-			if (!EquippedNow.Contains(Pid))
-			{
-				UnequippedThisTime.Add(PartName(Pid));
-			}
-		}
-
-		// 对应槽位的背包：已拥有、与该武器兼容、属于该槽位、但未装备
-		TArray<FString> BackpackNames;
-		for (const FName& OwnedId : OwnedPartIds)
-		{
-			const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(OwnedId);
-			if (!Part || !Part->bEnabled)
-			{
-				continue;
-			}
-			if (Part->SlotTypeId != SlotTypeId)
-			{
-				continue;
-			}
-			if (!IsPartCompatibleWithWeapon(*Snapshot, *Part, *Weapon))
-			{
-				continue;
-			}
-			if (EquippedNow.Contains(OwnedId))
-			{
-				continue;
-			}
-			BackpackNames.Add(Part->DisplayName);
-		}
-
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[WeaponRuneLog]   slot=%s capacity=%d | equipped[%d]=%s | unequipped=%s | backpack[%d]=%s"),
-		       *SlotName,
-		       Capacity,
-		       EquippedNow.Num(),
-		       *FString::Join(EquippedNames, TEXT(", ")),
-		       *FString::Join(UnequippedThisTime, TEXT(", ")),
-		       BackpackNames.Num(),
-		       *FString::Join(BackpackNames, TEXT(", ")));
-
-		if (EquippedThisTime.Num() > 0)
-		{
-			UE_LOG(LogReEcho,
-			       Warning,
-			       TEXT("[WeaponRuneLog]   EQUIP -> %s"),
-			       *FString::Join(EquippedThisTime, TEXT(", ")));
-		}
-		if (UnequippedThisTime.Num() > 0)
-		{
-			UE_LOG(LogReEcho,
-			       Warning,
-			       TEXT("[WeaponRuneLog]   UNEQUIP -> %s"),
-			       *FString::Join(UnequippedThisTime, TEXT(", ")));
-		}
-	}
-}
-
-bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
-{
 	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
 
 	// Locate offer across the new fixed slots + card slots (Plan67 Step2/3).
@@ -1864,7 +2148,7 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	{
 		for (const FReEchoCardSlotOffer& Candidate : ShopView.CardSlotOffers)
 		{
-			if (Candidate.ItemId == ItemId)
+			if (Candidate.bAvailable && !ItemId.IsNone() && Candidate.ItemId == ItemId)
 			{
 				CardSlotOffer = Candidate;
 				bFoundCard = true;
@@ -1892,7 +2176,8 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	}
 	if (!bFoundSlot && !bFoundCard && !bIsLegacy)
 	{
-		return false;
+		return FinishPurchase(EReEchoShopPurchaseResult::OfferNotFound,
+		                      TEXT("The requested item is not present on the current shop page"));
 	}
 
 	// Price + free handling.
@@ -1914,56 +2199,71 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 
 	if (InventoryItems.Contains(ItemId))
 	{
-		return false;
+		return FinishPurchase(EReEchoShopPurchaseResult::AlreadyOwned,
+		                      TEXT("The requested shop item was already purchased"),
+		                      EffectivePrice);
 	}
 	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part && OwnedPartIds.Contains(SlotOffer.PartId))
 	{
-		return false;
+		return FinishPurchase(
+		    EReEchoShopPurchaseResult::AlreadyOwned, TEXT("The requested rune is already owned"), EffectivePrice);
+	}
+	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Weapon && OwnedWeaponIds.Contains(SlotOffer.WeaponId))
+	{
+		return FinishPurchase(
+		    EReEchoShopPurchaseResult::AlreadyOwned, TEXT("The requested weapon is already owned"), EffectivePrice);
 	}
 	if (bFoundCard && !bIsFree && !CanPurchaseExtraShopCard())
 	{
-		return false;
+		return FinishPurchase(EReEchoShopPurchaseResult::PurchaseDisabled,
+		                      TEXT("The current card rules disable extra shop-card purchases"),
+		                      EffectivePrice);
 	}
-
-	UE_LOG(LogReEcho,
-	       Warning,
-	       TEXT("[ShopPurchase] enter item=%s slot=%d card=%d free=%d price=%d effective=%d shards=%d"),
-	       *ItemId.ToString(),
-	       bFoundSlot ? static_cast<int32>(SlotOffer.Kind) : -1,
-	       bFoundCard,
-	       bIsFree,
-	       RawPrice,
-	       EffectivePrice,
-	       TimeShards);
+	if (bFoundCard && CardSlotOffer.Tier != 1 &&
+	    ReEchoCardRuntime::HasCard(CurrentBuild.CardState, CardSlotOffer.CardId))
+	{
+		return FinishPurchase(EReEchoShopPurchaseResult::AlreadyOwned,
+		                      TEXT("Owned tier-2 and tier-3 cards cannot be purchased again"),
+		                      EffectivePrice);
+	}
 
 	if (TimeShards < EffectivePrice)
 	{
-		UE_LOG(LogReEcho,
-		       Warning,
-		       TEXT("[ShopDebug] abort insufficient item=%s timeShards=%d < effectivePrice=%d"),
-		       *ItemId.ToString(),
-		       TimeShards,
-		       EffectivePrice);
-		return false;
+		return FinishPurchase(
+		    EReEchoShopPurchaseResult::InsufficientCurrency,
+		    FString::Printf(TEXT("Time shards %d are below the effective price %d"), TimeShards, EffectivePrice),
+		    EffectivePrice);
 	}
 
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		return FinishPurchase(EReEchoShopPurchaseResult::DataUnavailable,
+		                      TEXT("The runtime CSV snapshot is unavailable"),
+		                      EffectivePrice);
+	}
+	if (bFoundCard && !Snapshot->CardCatalog.IsValid())
+	{
+		return FinishPurchase(EReEchoShopPurchaseResult::DataUnavailable,
+		                      TEXT("The runtime card catalog is unavailable"),
+		                      EffectivePrice);
+	}
+
 	const FReEchoBuildSnapshot OriginalBuild = CurrentBuild;
-	const int32 TimeShardsBeforePurchase = TimeShards;
+	const int32 OriginalTimeShards = TimeShards;
+	const TArray<FName> OriginalInventoryItems = InventoryItems;
+	const TArray<FName> OriginalOwnedPartIds = OwnedPartIds;
+	const TSet<FName> OriginalOwnedWeaponIds = OwnedWeaponIds;
 	int32 PendingTimeShards = TimeShards;
 	FReEchoBuildSnapshot PendingBuild;
-	if (!Snapshot.IsValid() ||
-	    !TryMutateAuthoritativeBuild(
+	EReEchoShopPurchaseResult MutationFailure = EReEchoShopPurchaseResult::MutationRejected;
+	FString MutationFailureDetail = TEXT("The authoritative build rejected the purchase mutation");
+	if (!TryMutateAuthoritativeBuild(
 	        *Snapshot,
 	        CurrentBuild,
 	        [&](FReEchoBuildSnapshot& BaseBuild)
 	        {
 		        if (bFoundCard)
 		        {
-			        if (!Snapshot->CardCatalog.IsValid())
-			        {
-				        return false;
-			        }
 			        FReEchoCardGrantInput Input;
 			        Input.Stats = BaseBuild.Stats;
 			        Input.CardState = BaseBuild.CardState;
@@ -1975,6 +2275,9 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardSlotOffer.CardId, Input);
 			        if (!Grant.bSucceeded)
 			        {
+				        MutationFailure = EReEchoShopPurchaseResult::GrantRejected;
+				        MutationFailureDetail =
+				            Grant.Error.IsEmpty() ? TEXT("The card grant was rejected") : Grant.Error;
 				        return false;
 			        }
 			        BaseBuild.Stats = Grant.Stats;
@@ -2020,7 +2323,21 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	        },
 	        PendingBuild))
 	{
-		return false;
+		return FinishPurchase(MutationFailure, MutationFailureDetail, EffectivePrice);
+	}
+	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Weapon)
+	{
+		FReEchoBuildSnapshot SelectedWeaponBuild;
+		FString SelectError;
+		if (!Snapshot.IsValid() || !ReEchoWeaponRuntime::TrySelectWeapon(
+		                               *Snapshot, PendingBuild, SlotOffer.WeaponId, SelectedWeaponBuild, SelectError))
+		{
+			return FinishPurchase(EReEchoShopPurchaseResult::WeaponSelectionRejected,
+			                      SelectError.IsEmpty() ? TEXT("The purchased weapon could not be selected")
+			                                            : SelectError,
+			                      EffectivePrice);
+		}
+		PendingBuild = MoveTemp(SelectedWeaponBuild);
 	}
 
 	// 原子扣费：以购买前余额 TimeShards 为基准，叠加卡牌 OnGrant 对碎片的净改变(GrantShardDelta)，
@@ -2028,42 +2345,15 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	// 再减售价导致 TimeShards 变负数。
 	const int32 GrantShardDelta = PendingTimeShards - TimeShards;
 	PendingTimeShards = FMath::Max(0, TimeShards - EffectivePrice + GrantShardDelta);
-	UE_LOG(LogReEcho,
-	       Warning,
-	       TEXT("[ShopDebug] before deduct item=%s effectivePrice=%d pendingTimeShards=%d timeShards=%d grantDelta=%d"),
-	       *ItemId.ToString(),
-	       EffectivePrice,
-	       PendingTimeShards,
-	       TimeShards,
-	       GrantShardDelta);
 	TimeShards = PendingTimeShards;
 	CurrentBuild = PendingBuild;
-	UE_LOG(LogReEcho, Warning, TEXT("[ShopDebug] after deduct item=%s timeShards=%d"), *ItemId.ToString(), TimeShards);
+	FString CompletionDetail = TEXT("Purchase committed");
 
 	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Weapon)
 	{
-		// Switch weapon (Plan67 Step3): change build weapon, retain compatible equipped parts only
-		// (mirrors Plan75 SelectWeaponById's "compatible core only" policy at the build level).
-		CurrentBuild.WeaponId = SlotOffer.WeaponId;
+		// PendingBuild already switched through WeaponRuntime so revisions, equipment base stats and compatible-rune
+		// retention share the same transaction used by backpack weapon selection.
 		OwnedWeaponIds.Add(SlotOffer.WeaponId);
-		if (Snapshot.IsValid())
-		{
-			if (const FReEchoCsvWeaponRow* NewWeapon = Snapshot->FindEnabledWeapon(SlotOffer.WeaponId))
-			{
-				TArray<FReEchoEquippedPartSnapshot> Compatible;
-				for (const FReEchoEquippedPartSnapshot& Eq : CurrentBuild.EquippedParts)
-				{
-					if (const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(Eq.PartId))
-					{
-						if (IsPartCompatibleWithWeapon(*Snapshot, *Part, *NewWeapon))
-						{
-							Compatible.Add(Eq);
-						}
-					}
-				}
-				CurrentBuild.EquippedParts = Compatible;
-			}
-		}
 	}
 	else if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part)
 	{
@@ -2073,7 +2363,11 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 			OwnedPartIds.Add(SlotOffer.PartId);
 		}
 		FString EquipError;
-		TryEquipPurchasedPart(SlotOffer.PartId, EquipError);
+		if (!TryEquipPurchasedPart(SlotOffer.PartId, EquipError))
+		{
+			CompletionDetail =
+			    FString::Printf(TEXT("Purchase committed; automatic rune equip was rejected: %s"), *EquipError);
+		}
 	}
 	else if (bFoundCard || bIsLegacy)
 	{
@@ -2086,29 +2380,24 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		const EReEchoEchoStorageResult LimitResult = SetSpecificReplayLimit(ReEchoEchoStorage::MaxSpecificReplayLimit);
 		if (LimitResult != EReEchoEchoStorageResult::Success)
 		{
-			TimeShards += EffectivePrice; // 设定失败则回滚扣费
-			InventoryItems.Remove(ItemId);
+			TimeShards = OriginalTimeShards;
 			CurrentBuild = OriginalBuild;
-			return false;
+			InventoryItems = OriginalInventoryItems;
+			OwnedPartIds = OriginalOwnedPartIds;
+			OwnedWeaponIds = OriginalOwnedWeaponIds;
+			return FinishPurchase(
+			    EReEchoShopPurchaseResult::ReplayUnlockRejected,
+			    TEXT("The replay-selection limit could not be unlocked; the purchase was rolled back"),
+			    EffectivePrice);
 		}
 	}
 
-	// 购买武器 / 武器符文后打印装备与背包状态（UE_LOG Warning，Shipping 包内可见）。
-	if (bFoundSlot)
-	{
-		if (SlotOffer.Kind == EReEchoShopOfferKind::Weapon)
-		{
-			LogWeaponRunePurchaseState(
-			    Snapshot, SlotOffer.WeaponId, TEXT("Weapon"), OriginalBuild, CurrentBuild, NAME_None);
-		}
-		else if (SlotOffer.Kind == EReEchoShopOfferKind::Part)
-		{
-			LogWeaponRunePurchaseState(
-			    Snapshot, SlotOffer.PartId, TEXT("WeaponPart"), OriginalBuild, CurrentBuild, SlotOffer.SlotTypeId);
-		}
-	}
+	return FinishPurchase(EReEchoShopPurchaseResult::Succeeded, CompletionDetail, EffectivePrice);
+}
 
-	return true;
+bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
+{
+	return PurchaseShopItemDetailed(ItemId).IsSuccess();
 }
 
 bool UReEchoRunSubsystem::GrantTimeShards(const int32 Amount)
@@ -2512,6 +2801,18 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	SaveGame->CurrentBuild.Cards.Reset();
 	SaveGame->InventoryItems = InventoryItems;
 	SaveGame->OwnedPartIds = OwnedPartIds;
+	for (const FName WeaponId : OwnedWeaponIds)
+	{
+		SaveGame->OwnedWeaponIds.Add(WeaponId);
+	}
+	SaveGame->OwnedWeaponIds.Sort(
+	    [](const FName Left, const FName Right)
+	    {
+		    return Left.LexicalLess(Right);
+	    });
+	SaveGame->WeaponPartShopOfferEncounterIndex = WeaponPartShopOfferEncounterIndex;
+	SaveGame->WeaponPartShopOfferRefreshSequence = WeaponPartShopOfferRefreshSequence;
+	SaveGame->WeaponPartShopOfferIds = WeaponPartShopOfferIds;
 	SaveGame->bAutomaticAttackMode = bAutomaticAttackMode;
 	// v5+ writes only the new echo storage state; RecordingHistory and AnchorId stay empty on purpose.
 	SaveGame->bHasPendingRecording = bHasPendingRecording;
@@ -2571,6 +2872,19 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	{
 		return false;
 	}
+	TSet<FName> NormalizedOwnedWeapons;
+	if (SaveGame.SaveVersion >= 13)
+	{
+		for (const FName WeaponId : SaveGame.OwnedWeaponIds)
+		{
+			if (Snapshot->FindEnabledWeapon(WeaponId))
+			{
+				NormalizedOwnedWeapons.Add(WeaponId);
+			}
+		}
+	}
+	// The equipped weapon is always owned. This also migrates v12 and older saves that had no weapon backpack field.
+	NormalizedOwnedWeapons.Add(NormalizedCurrentBuild.WeaponId);
 	FReEchoEchoStorageRestoreState RestoredStorage;
 	if (SaveGame.SaveVersion == 4)
 	{
@@ -2637,6 +2951,19 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
 	OwnedPartIds = MoveTemp(NormalizedOwnedParts);
+	OwnedWeaponIds = MoveTemp(NormalizedOwnedWeapons);
+	if (SaveGame.SaveVersion >= 14)
+	{
+		WeaponPartShopOfferEncounterIndex = SaveGame.WeaponPartShopOfferEncounterIndex;
+		WeaponPartShopOfferRefreshSequence = SaveGame.WeaponPartShopOfferRefreshSequence;
+		WeaponPartShopOfferIds = SaveGame.WeaponPartShopOfferIds;
+	}
+	else
+	{
+		WeaponPartShopOfferEncounterIndex = INDEX_NONE;
+		WeaponPartShopOfferRefreshSequence = INDEX_NONE;
+		WeaponPartShopOfferIds.Reset();
+	}
 	bAutomaticAttackMode = SaveGame.SaveVersion >= 6 ? SaveGame.bAutomaticAttackMode : true;
 	bHasPendingRecording = RestoredStorage.bHasPendingRecording;
 	PendingRecording = RestoredStorage.bHasPendingRecording ? RestoredStorage.PendingRecording : FReEchoRecording{};
@@ -2658,6 +2985,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	{
 		PendingEncounterResume = {};
 	}
-	SetPhase(SaveGame.SavedPhase);
+	SetPhase(SaveGame.SavedPhase == EReEchoRunPhase::LegacyForgeChoice ? EReEchoRunPhase::CardChoice
+	                                                                   : SaveGame.SavedPhase);
 	return true;
 }

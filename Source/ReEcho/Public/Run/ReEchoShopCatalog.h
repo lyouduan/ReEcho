@@ -17,6 +17,36 @@ enum class EReEchoShopOfferKind : uint8
 	Weapon
 };
 
+/** One authoritative result vocabulary for every shop purchase attempt. */
+enum class EReEchoShopPurchaseResult : uint8
+{
+	Succeeded,
+	OfferNotFound,
+	AlreadyOwned,
+	PurchaseDisabled,
+	InsufficientCurrency,
+	DataUnavailable,
+	GrantRejected,
+	MutationRejected,
+	WeaponSelectionRejected,
+	ReplayUnlockRejected
+};
+
+/** Structured result returned by the unified purchase transaction interface. */
+struct REECHO_API FReEchoShopPurchaseOutcome
+{
+	FString TransactionId;
+	FName ItemId;
+	EReEchoShopPurchaseResult Result = EReEchoShopPurchaseResult::OfferNotFound;
+	FString Detail;
+	int32 EffectivePrice = 0;
+
+	bool IsSuccess() const
+	{
+		return Result == EReEchoShopPurchaseResult::Succeeded;
+	}
+};
+
 inline constexpr int32 ReEchoShopRefreshPrice = 10;
 inline constexpr int32 ReEchoShopOfferCountPerGroup = 3;
 
@@ -30,29 +60,31 @@ struct REECHO_API FReEchoShopOffer
 	FName ContentId;
 	FName SlotTypeId;
 	int32 Tier = 0;
-	FString IconTexturePath;   // 武器 Offer 填对应配图资产路径(ResolveHeldTexturePath)，为空则回退默认卡片图标
+	FString IconTexturePath; // 武器 Offer 填对应配图资产路径(ResolveHeldTexturePath)，为空则回退默认卡片图标
 };
 
-// One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon / other-weapon rune).
+// One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon
+// / other-weapon rune).
 struct REECHO_API FReEchoWeaponSlotOffer
 {
 	EReEchoShopOfferKind Kind = EReEchoShopOfferKind::Part;
-	FName PartId;       // valid when Kind == Part
-	FName WeaponId;     // valid when Kind == Weapon
-	FName ItemId;       // purchase lookup key (== PartId or WeaponId)
-	FName ContentId;    // == PartId or WeaponId
+	FName PartId;    // valid when Kind == Part
+	FName WeaponId;  // valid when Kind == Weapon
+	FName ItemId;    // purchase lookup key (== PartId or WeaponId)
+	FName ContentId; // == PartId or WeaponId
 	FName SlotTypeId;
 	FText DisplayName;
 	FText EffectText;
 	int32 Price = 0;
 };
 
-// One build-card shop slot offer (one per drop-level tier).
+// One of the three fixed build-card shop slots. Array index 0/1/2 is always tier 1/2/3.
 struct REECHO_API FReEchoCardSlotOffer
 {
 	int32 Tier = 1;
+	bool bAvailable = false;
 	FName CardId;
-	FName ItemId;       // purchase lookup key
+	FName ItemId; // purchase lookup key
 	FText DisplayName;
 	FText EffectText;
 	int32 Price = 0;
@@ -71,12 +103,16 @@ struct REECHO_API FReEchoWeaponPartShopView
 {
 	FName WeaponId;
 	FText WeaponDisplayName;
-	TArray<FReEchoWeaponSlotOffer> SlotOffers;       // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon rune / other weapon / other-weapon rune)
-	TArray<FReEchoCardSlotOffer> CardSlotOffers;     // one per drop-level tier (free tier + shop tiers)
-	TArray<FReEchoShopOffer> Offers;                // backward-compat bridge: flatten of SlotOffers + CardSlotOffers (+ whole-weapon as Type==Weapon). TODO(Plan67 Step5): remove once WBP rearranged.
+	FString WeaponIconTexturePath;
+	TArray<FReEchoWeaponSlotOffer> SlotOffers;   // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
+	                                             // rune / other weapon / other-weapon rune)
+	TArray<FReEchoCardSlotOffer> CardSlotOffers; // always 3 fixed tier slots; unavailable slots carry no CardId/ItemId
+	TArray<FReEchoShopOffer> Offers; // backward-compat bridge: flatten of SlotOffers + CardSlotOffers (+ whole-weapon
+	                                 // as Type==Weapon). TODO(Plan67 Step5): remove once WBP rearranged.
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FName> OwnedWeapons;
+	TArray<FReEchoShopOffer> OwnedWeaponOffers;
 	TArray<FReEchoWeaponSlotShopView> Slots;
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 };

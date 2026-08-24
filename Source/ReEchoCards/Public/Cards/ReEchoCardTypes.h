@@ -84,6 +84,11 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> DistinctReactionIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 FreeShopRefreshes = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
+	/** Stable build-card offer page for the current encounter/refresh sequence: fixed [Tier1, Tier2, Tier3] ids. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopCardOfferEncounterIndex = INDEX_NONE;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopCardOfferRefreshSequence = INDEX_NONE;
+	/** NAME_None marks an unconfigured or exhausted tier slot. Legacy packed pages are rebuilt by Run. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> ShopCardOfferIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 BonusShardDropEncounterIndex = INDEX_NONE;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EReEchoCardEconomyPenalty EconomyPenalty = EReEchoCardEconomyPenalty::None;

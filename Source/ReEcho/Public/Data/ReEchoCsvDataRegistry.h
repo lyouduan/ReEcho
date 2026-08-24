@@ -74,9 +74,23 @@ struct REECHO_API FReEchoCsvCharacterRow
 	int32 PromotionPriority = 0;
 	FName DefaultWeaponId;
 	FName AppearanceId;
-	FName PassiveBehaviorId;
-	float PassiveValue = 0.0f;
 	FReEchoStatBlock BaseStats;
+};
+
+struct REECHO_API FReEchoCsvCharacterAbilityRow
+{
+	FName Id;
+	FName CharacterId;
+	int32 Order = 0;
+	FName Trigger;
+	FName EffectKind;
+	FName Target;
+	EReEchoCsvValueOp ValueOp = EReEchoCsvValueOp::Add;
+	float Value = 0.0f;
+	FName BehaviorId;
+	float Interval = 0.0f;
+	bool bEnabled = false;
+	FString DisabledReason;
 };
 
 struct REECHO_API FReEchoCsvCardEffectRow
@@ -530,6 +544,8 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoRuntimeSmokeRow> RuntimeSmokeRows;
 	TMap<FName, FReEchoCsvCharacterRow> Characters;
 	TMap<FName, FName> CharacterAliases;
+	TMap<FName, FReEchoCsvCharacterAbilityRow> CharacterAbilities;
+	TArray<FName> CharacterAbilityOrder;
 	TMap<FName, FReEchoCsvCardRow> Cards;
 	TArray<FName> CardOrder;
 	TSharedPtr<const FReEchoCardCatalog> CardCatalog;
@@ -570,6 +586,7 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;
 	const FReEchoCsvCharacterRow* FindCharacter(FName CharacterId) const;
+	TArray<FReEchoCsvCharacterAbilityRow> GetCharacterAbilities(FName CharacterId, FName Trigger) const;
 	const FReEchoCsvCardRow* FindCard(FName CardId) const;
 	TArray<FReEchoCsvCardRow> GetOfferableCards(FName OfferGroup) const;
 	const FReEchoCsvElementRow* FindElement(FName ElementId) const;

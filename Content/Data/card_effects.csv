@@ -44,12 +44,3 @@ G_3_19_DAMAGE,G_3_19,1,BeforeOutgoingHit,CardBehavior,Damage,Add,0.2,Card.ShardO
 G_3_20_BARRIER,G_3_20,1,BeforeIncomingHit,CardBehavior,Damage,Add,-1,Card.ShardIncomingBarrier,ShardCost,5
 G_3_21_DIVERSITY,G_3_21,1,OnReaction,CardBehavior,ReactionEfficiency,Add,0.05,Card.ReactionDiversity,DistinctCount,4
 G_3_22_SLOTS,G_3_22,1,OnCompileRules,CardBehavior,NonCoreSlotCapacity,Multiply,2,Card.DoubleNonCoreSlots,None,0
-FORGE_LIGHT_HP,FORGE_LIGHT,1,OnGrant,StatModifier,HpMax,Add,2,Card.StatModifier,None,0
-FORGE_LIGHT_PATK,FORGE_LIGHT,2,OnGrant,StatModifier,PhysicalAttack,Add,1,Card.StatModifier,None,0
-FORGE_LIGHT_EATK,FORGE_LIGHT,3,OnGrant,StatModifier,ElementalAttack,Add,1,Card.StatModifier,None,0
-FORGE_MEDIUM_HP,FORGE_MEDIUM,1,OnGrant,StatModifier,HpMax,Add,-2,Card.StatModifier,None,0
-FORGE_MEDIUM_PATK,FORGE_MEDIUM,2,OnGrant,StatModifier,PhysicalAttack,Add,2,Card.StatModifier,None,0
-FORGE_MEDIUM_EATK,FORGE_MEDIUM,3,OnGrant,StatModifier,ElementalAttack,Add,2,Card.StatModifier,None,0
-FORGE_EXTREME_HP,FORGE_EXTREME,1,OnGrant,StatModifier,HpMax,Add,-6,Card.StatModifier,None,0
-FORGE_EXTREME_PATK,FORGE_EXTREME,2,OnGrant,StatModifier,PhysicalAttack,Add,2,Card.StatModifier,None,0
-FORGE_EXTREME_EATK,FORGE_EXTREME,3,OnGrant,StatModifier,ElementalAttack,Add,2,Card.StatModifier,None,0
