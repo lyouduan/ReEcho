@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main` @ `f8e8a40bf8ce7974d24b7b296c51bdc4cb35344b`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan91-tiered-shop-card-slots`，分支 `plan/91-tiered-shop-card-slots`。
@@ -55,12 +55,12 @@
 
 ## 锁定验收
 
-- [ ] 每个商店页的 `CardSlotOffers` 精确为3项，索引0/1/2的 `Tier` 精确为1/2/3。
-- [ ] 第4关 `ShopTiers=2|3` 时1级槽为空，2级槽只出2级卡，3级槽只出3级卡；第1/5/8关三个槽均为空。
-- [ ] 对应等级合格牌池耗尽时仅该槽为空/售罄，其他槽不受影响且不跨级补位。
-- [ ] 1级重复、2/3级持有排除、页面刷新、购买稳定性和存读档行为有自动化证据。
-- [ ] 商店表现层固定构造三个卡牌位置；空槽不可点击、不可广播购买 ID，并能显示“未投放”或“售罄”。
-- [ ] C++ 格式化、聚焦自动化、Editor 构建、项目校验和 `git diff --check` 通过。
+- [x] 每个商店页的 `CardSlotOffers` 精确为3项，索引0/1/2的 `Tier` 精确为1/2/3。
+- [x] 第4关 `ShopTiers=2|3` 时1级槽为空，2级槽只出2级卡，3级槽只出3级卡；第1/5/8关三个槽均为空。
+- [x] 对应等级合格牌池耗尽时仅该槽为空/售罄，其他槽不受影响且不跨级补位。
+- [x] 1级重复、2/3级持有排除、页面刷新、购买稳定性和存读档行为有自动化证据。
+- [x] 商店表现层固定构造三个卡牌位置；空槽不可点击、不可广播购买 ID，并能显示“未投放”或“售罄”。
+- [x] C++ 格式化、聚焦自动化、Editor 构建、项目校验和 `git diff --check` 通过。
 - [ ] 用户在 PIE 确认第4关三个槽的等级/空槽表现以及第1关全空表现。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -98,11 +98,17 @@
 
 ### 变化
 
-- 待实现。
+- `FReEchoCardSlotOffer` 增加显式可用状态；Run 始终返回1/2/3级三个槽，逐级解析 `ShopTiers`，每个启用等级独立调用 Cards 资格池并确定性抽取一张。
+- 商店稳定页缓存固定为 `[Tier1, Tier2, Tier3]` 三个 CardId，`None` 表示未投放或耗尽；旧混合池缓存的数量/等级形状不匹配时自动重建，不提升 SaveVersion。
+- 扁平兼容报价与目标商店表现都保留三个位置；空槽隐藏卡图和价格、显示“未投放”或“售罄”、禁用按钮，并在请求边界拒绝 `None` ID。刷新不再旋转卡牌位置。
+- 商店矩阵自动化改为核对槽位等级身份、逐关启用、Tier2 耗尽不影响 Tier3、页面稳定购买和存读档。顺带修正既有随机测试：不再无条件选择可能清空全部货币的 `G_2_15` 后断言货币仍存在。
 
 ### 证据
 
-- 待执行。
+- 修改文件已使用仓库 `.clang-format` 规则格式化；增量 `scripts\ue\Build-Editor.cmd -Configuration Development` 通过。
+- `ReEcho.Shop` 8/8、`ReEcho.UI.Shop` 2/2、`ReEcho.Cards` 5/5、`ReEcho.Traits` 8/8、`ReEcho.Run` 14/14，全部通过。
+- `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 通过，97/97 actions 成功；精选 Editor 预构建源指纹 `5bbc9086d510`。
+- `python scripts/data/sync_xlsx_to_csv.py --check`、`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
@@ -114,4 +120,8 @@
 
 ### 架构文档审阅结果
 
-- 待实现后补齐。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：商店投放从合并牌池改为固定1/2/3级位置及逐级空槽契约。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md` 已更新：记录固定三位置缓存及 `None` 语义，并保持 Cards 统一资格权威。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md` 已更新：记录空槽展示/禁用和 UI 不解释跨级补位的边界。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：Runtime Module 拓扑、状态拥有者和依赖方向未变。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：稳定标识和代码阅读路由未变。

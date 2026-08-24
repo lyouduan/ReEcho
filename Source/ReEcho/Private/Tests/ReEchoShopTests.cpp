@@ -54,7 +54,18 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("A post-encounter trait can be selected"), RunSubsystem->ApplyTraitCard(Offers[0].CardId));
+	const FReEchoTraitCardOffer* NonCurrencyResetOffer = Offers.FindByPredicate(
+	    [](const FReEchoTraitCardOffer& Offer)
+	    {
+		    return Offer.CardId != TEXT("G_2_15");
+	    });
+	if (!TestNotNull(TEXT("The draw includes a trait that does not clear encounter reward currency"),
+	                 NonCurrencyResetOffer))
+	{
+		return false;
+	}
+	TestTrue(TEXT("A post-encounter trait can be selected"),
+	         RunSubsystem->ApplyTraitCard(NonCurrencyResetOffer->CardId));
 	TestEqual(TEXT("Completed draw enters planning before the shop"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
 	TestEqual(TEXT("Two encounter rewards provide shop currency"), RunSubsystem->TimeShards, 30);
 	TestTrue(TEXT("Post-draw currency can buy the entry-price item"),
@@ -219,22 +230,25 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		RunSubsystem->EncounterIndex = EncounterIndex;
 		const FReEchoWeaponPartShopView EncounterPage = RunSubsystem->GetWeaponPartShopView();
 		const TArray<int32>& ExpectedTiers = ExpectedShopTiers[EncounterIndex - 1];
-		const int32 ExpectedSlotCount = ExpectedTiers.IsEmpty() ? 0 : ReEchoShopOfferCountPerGroup;
-		TestEqual(
-		    *FString::Printf(TEXT("Encounter %d exposes zero or three configured shop card slots"), EncounterIndex),
-		    EncounterPage.CardSlotOffers.Num(),
-		    ExpectedSlotCount);
-		TSet<FName> EncounterCardIds;
-		for (const FReEchoCardSlotOffer& Offer : EncounterPage.CardSlotOffers)
+		TestEqual(*FString::Printf(TEXT("Encounter %d always exposes three fixed shop card slots"), EncounterIndex),
+		          EncounterPage.CardSlotOffers.Num(),
+		          ReEchoShopOfferCountPerGroup);
+		for (int32 SlotIndex = 0; SlotIndex < EncounterPage.CardSlotOffers.Num(); ++SlotIndex)
 		{
-			TestTrue(
-			    *FString::Printf(TEXT("Encounter %d shop card stays inside its configured tier pool"), EncounterIndex),
-			    ExpectedTiers.Contains(Offer.Tier));
-			EncounterCardIds.Add(Offer.CardId);
+			const FReEchoCardSlotOffer& Offer = EncounterPage.CardSlotOffers[SlotIndex];
+			const int32 ExpectedTier = SlotIndex + 1;
+			const bool bExpectedAvailable = ExpectedTiers.Contains(ExpectedTier);
+			TestEqual(*FString::Printf(TEXT("Encounter %d slot %d owns its fixed tier"), EncounterIndex, SlotIndex),
+			          Offer.Tier,
+			          ExpectedTier);
+			TestEqual(*FString::Printf(TEXT("Encounter %d tier %d follows ShopTiers"), EncounterIndex, ExpectedTier),
+			          Offer.bAvailable,
+			          bExpectedAvailable);
+			TestEqual(*FString::Printf(
+			              TEXT("Encounter %d tier %d availability matches its card id"), EncounterIndex, ExpectedTier),
+			          !Offer.CardId.IsNone(),
+			          bExpectedAvailable);
 		}
-		TestEqual(*FString::Printf(TEXT("Encounter %d shop group contains no duplicate cards"), EncounterIndex),
-		          EncounterCardIds.Num(),
-		          ExpectedSlotCount);
 	}
 
 	RunSubsystem->EncounterIndex = 2;
@@ -249,18 +263,18 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Append(TierOneCardIds);
 	++RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence;
 	const FReEchoWeaponPartShopView OwnedFilterPage = RunSubsystem->GetWeaponPartShopView();
-	if (!TestEqual(TEXT("A fully-owned tier-one shop pool still fills all three repeatable slots"),
+	if (!TestEqual(TEXT("A fully-owned tier-one shop pool keeps the three fixed tier slots"),
 	               OwnedFilterPage.CardSlotOffers.Num(),
 	               ReEchoShopOfferCountPerGroup))
 	{
 		return false;
 	}
-	for (const FReEchoCardSlotOffer& Offer : OwnedFilterPage.CardSlotOffers)
-	{
-		TestTrue(TEXT("Every tier-one shop offer may already be owned"), TierOneCardIds.Contains(Offer.CardId));
-		TestTrue(TEXT("Every tier-one shop offer is repeatable from owned state"),
-		         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(Offer.CardId));
-	}
+	TestTrue(TEXT("The tier-one slot remains available from fully-owned repeatable state"),
+	         OwnedFilterPage.CardSlotOffers[0].bAvailable);
+	TestTrue(TEXT("The tier-one slot may offer an already-owned card"),
+	         TierOneCardIds.Contains(OwnedFilterPage.CardSlotOffers[0].CardId));
+	TestFalse(TEXT("The unconfigured tier-two slot stays empty"), OwnedFilterPage.CardSlotOffers[1].bAvailable);
+	TestFalse(TEXT("The unconfigured tier-three slot stays empty"), OwnedFilterPage.CardSlotOffers[2].bAvailable);
 	const FReEchoCardSlotOffer RepeatedTierOneOffer = OwnedFilterPage.CardSlotOffers[0];
 	const int32 TierOneStackCountBefore =
 	    ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, RepeatedTierOneOffer.CardId);
@@ -271,7 +285,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          TierOneStackCountBefore + 1);
 	RunSubsystem->EncounterIndex = 3;
 	const FReEchoWeaponPartShopView NextEncounterTierOnePage = RunSubsystem->GetWeaponPartShopView();
-	if (!TestEqual(TEXT("The next encounter creates three fresh tier-one offer instances"),
+	if (!TestEqual(TEXT("The next encounter preserves all three fixed tier positions"),
 	               NextEncounterTierOnePage.CardSlotOffers.Num(),
 	               ReEchoShopOfferCountPerGroup))
 	{
@@ -285,10 +299,15 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	RunSubsystem->TimeShards = 400;
 
 	const FReEchoWeaponPartShopView FirstPage = RunSubsystem->GetWeaponPartShopView();
-	const TArray<FReEchoShopOffer> FirstCards = FirstPage.Offers.FilterByPredicate(
+	const TArray<FReEchoShopOffer> FirstCardSlots = FirstPage.Offers.FilterByPredicate(
 	    [](const FReEchoShopOffer& Offer)
 	    {
 		    return Offer.Type == EReEchoShopOfferType::BuildCard;
+	    });
+	const TArray<FReEchoShopOffer> FirstCards = FirstCardSlots.FilterByPredicate(
+	    [](const FReEchoShopOffer& Offer)
+	    {
+		    return !Offer.ItemId.IsNone();
 	    });
 	TestEqual(
 	    TEXT("First page has three fixed weapon/part slots"), FirstPage.SlotOffers.Num(), ReEchoShopOfferCountPerGroup);
@@ -296,9 +315,13 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(TEXT("Each fixed weapon/part slot contains an offer"), !Slot.ItemId.IsNone());
 	}
-	TestEqual(TEXT("Encounter four exposes three cards from the configured tier-2 and tier-3 pool"),
-	          FirstCards.Num(),
+	TestEqual(TEXT("Encounter four projects all three fixed card positions"),
+	          FirstCardSlots.Num(),
 	          ReEchoShopOfferCountPerGroup);
+	TestEqual(TEXT("Encounter four fills only the configured tier-two and tier-three positions"), FirstCards.Num(), 2);
+	TestTrue(TEXT("Encounter four tier-one position is empty"), FirstCardSlots[0].ItemId.IsNone());
+	TestEqual(TEXT("Encounter four second position contains a tier-two card"), FirstCardSlots[1].Tier, 2);
+	TestEqual(TEXT("Encounter four third position contains a tier-three card"), FirstCardSlots[2].Tier, 3);
 	for (const FReEchoShopOffer& Card : FirstCards)
 	{
 		TestTrue(TEXT("Card tier follows encounter-four configuration"), Card.Tier == 2 || Card.Tier == 3);
@@ -355,7 +378,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Refreshed page still has three fixed weapon/part slots"),
 	          RefreshedPage.SlotOffers.Num(),
 	          ReEchoShopOfferCountPerGroup);
-	TestEqual(TEXT("Refreshed page keeps three cards from the configured tier pool"),
+	TestEqual(TEXT("Refreshed page keeps three fixed card positions"),
 	          RefreshedPage.Offers
 	              .FilterByPredicate(
 	                  [](const FReEchoShopOffer& Offer)
@@ -364,6 +387,15 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	                  })
 	              .Num(),
 	          ReEchoShopOfferCountPerGroup);
+	TestEqual(TEXT("Refreshed page keeps exactly the two configured positions purchasable"),
+	          RefreshedPage.Offers
+	              .FilterByPredicate(
+	                  [](const FReEchoShopOffer& Offer)
+	                  {
+		                  return Offer.Type == EReEchoShopOfferType::BuildCard && !Offer.ItemId.IsNone();
+	                  })
+	              .Num(),
+	          2);
 
 	TestFalse(TEXT("Purchased card stays excluded after refresh regardless of stack policy"),
 	          RefreshedPage.Offers.ContainsByPredicate(
@@ -376,17 +408,15 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	UGameInstance* StablePageGameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* StablePageRun = NewObject<UReEchoRunSubsystem>(StablePageGameInstance);
 	StablePageRun->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
-	StablePageRun->EncounterIndex = 2;
+	StablePageRun->EncounterIndex = 4;
 	StablePageRun->TimeShards = 1000;
 	const FReEchoWeaponPartShopView StableInitialPage = StablePageRun->GetWeaponPartShopView();
 	const TArray<FReEchoShopOffer> StableInitialCards = StableInitialPage.Offers.FilterByPredicate(
 	    [](const FReEchoShopOffer& Offer)
 	    {
-		    return Offer.Type == EReEchoShopOfferType::BuildCard;
+		    return Offer.Type == EReEchoShopOfferType::BuildCard && !Offer.ItemId.IsNone();
 	    });
-	if (!TestEqual(TEXT("Tier-one reproduction page contains three purchasable cards"),
-	               StableInitialCards.Num(),
-	               ReEchoShopOfferCountPerGroup))
+	if (!TestEqual(TEXT("Tier-two/three page contains two purchasable fixed-tier cards"), StableInitialCards.Num(), 2))
 	{
 		return false;
 	}
@@ -433,6 +463,27 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(TEXT("Sequential purchase grants every card from the original page"),
 		         StablePageRun->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedOffer.ContentId));
+	}
+
+	UGameInstance* ExhaustedGameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* ExhaustedRun = NewObject<UReEchoRunSubsystem>(ExhaustedGameInstance);
+	ExhaustedRun->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
+	ExhaustedRun->EncounterIndex = 4;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> ExhaustedSnapshot = ExhaustedRun->GetRunDataSnapshot();
+	if (TestTrue(TEXT("Exhaustion test has a card catalog"),
+	             ExhaustedSnapshot.IsValid() && ExhaustedSnapshot->CardCatalog.IsValid()))
+	{
+		for (const FReEchoCardDefinition& TierTwoCard : ExhaustedSnapshot->CardCatalog->GetOfferable(TEXT("Trait"), 2))
+		{
+			ExhaustedRun->CurrentBuild.CardState.OwnedCardIds.Add(TierTwoCard.Id);
+		}
+		const FReEchoWeaponPartShopView ExhaustedPage = ExhaustedRun->GetWeaponPartShopView();
+		TestFalse(TEXT("An exhausted configured tier-two slot is unavailable"),
+		          ExhaustedPage.CardSlotOffers[1].bAvailable);
+		TestTrue(TEXT("Exhausting tier two does not consume the configured tier-three slot"),
+		         ExhaustedPage.CardSlotOffers[2].bAvailable);
+		TestEqual(TEXT("The exhausted tier-two slot keeps its tier identity"), ExhaustedPage.CardSlotOffers[1].Tier, 2);
+		TestEqual(TEXT("The tier-three slot never backfills tier two"), ExhaustedPage.CardSlotOffers[2].Tier, 3);
 	}
 	return true;
 }

@@ -954,7 +954,12 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	    UCanvasPanel::StaticClass(),
 	    *FString::Printf(TEXT("Target%sCard%d"), bWeaponPart ? TEXT("Part") : TEXT("Build"), OfferIndex));
 	CardSize->SetContent(Card);
-	Card->SetToolTip(BuildSlotTooltip(Offer));
+	const bool bEmptyBuildCardSlot =
+	    !bWeaponPart && Offer.Type == EReEchoShopOfferType::BuildCard && Offer.ItemId.IsNone();
+	if (!bEmptyBuildCardSlot)
+	{
+		Card->SetToolTip(BuildSlotTooltip(Offer));
+	}
 	auto AddImage = [&](const TCHAR* Name, UTexture2D* Texture, FVector2D Position, FVector2D Size)
 	{
 		UImage* Image = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
@@ -981,10 +986,11 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 			ResolvedIcon = LoadedWeaponIcon;
 		}
 	}
-	AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex),
-	         bIsPart ? ResolveWeaponPartIcon(Offer.ContentId) : ResolvedIcon,
-	         IconPosition,
-	         IconSize);
+	UImage* OfferIcon = AddImage(*FString::Printf(TEXT("TargetCardIcon%d_%d"), bWeaponPart, OfferIndex),
+	                             bIsPart ? ResolveWeaponPartIcon(Offer.ContentId) : ResolvedIcon,
+	                             IconPosition,
+	                             IconSize);
+	OfferIcon->SetVisibility(bEmptyBuildCardSlot ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	if (!bWeaponPart)
 	{
 		UImage* TierPatch = AddImage(*FString::Printf(TEXT("TargetTierPatch%d"), OfferIndex),
@@ -1018,8 +1024,10 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	                              *FString::Printf(TEXT("TargetOfferCost%d_%d"), bWeaponPart, OfferIndex),
 	                              17,
 	                              FLinearColor(0.04f, 0.04f, 0.04f));
-	Cost->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"),
-	                            FText::AsNumber(GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount))));
+	Cost->SetText(bEmptyBuildCardSlot
+	                  ? FText::FromString(TEXT("—"))
+	                  : FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"),
+	                                  FText::AsNumber(GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount))));
 	Cost->SetJustification(ETextJustify::Right);
 	UCanvasPanelSlot* CostSlot = Card->AddChildToCanvas(Cost);
 	CostSlot->SetPosition(FVector2D(112.0f, 145.0f));
@@ -1044,26 +1052,31 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	    UOverlay::StaticClass(), *FString::Printf(TEXT("TargetBuyOverlay%d_%d"), bWeaponPart, OfferIndex));
 	UImage* BuyArt = WidgetTree->ConstructWidget<UImage>(
 	    UImage::StaticClass(), *FString::Printf(TEXT("TargetBuyArt%d_%d"), bWeaponPart, OfferIndex));
-	BuyArt->SetBrushFromTexture(bShowPurchased ? WhiteTexture : ShopBuyTexture, true);
-	if (bOwnedPart || bPurchasedCard)
+	BuyArt->SetBrushFromTexture(bEmptyBuildCardSlot || bShowPurchased ? WhiteTexture : ShopBuyTexture, true);
+	if (bEmptyBuildCardSlot)
+	{
+		BuyArt->SetColorAndOpacity(FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
+	}
+	else if (bOwnedPart || bPurchasedCard)
 	{
 		BuyArt->SetColorAndOpacity(bPurchasedCard ? FLinearColor(0.55f, 0.55f, 0.55f, 1.0f)
 		                                          : FLinearColor(0.65f, 0.9f, 0.65f, 1.0f));
 	}
 	BuyArt->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ButtonOverlay->AddChildToOverlay(BuyArt);
-	if (bShowPurchased)
+	if (bEmptyBuildCardSlot || bShowPurchased)
 	{
 		UTextBlock* BuyText = CreateText(WidgetTree,
 		                                 *FString::Printf(TEXT("TargetBuyText%d_%d"), bWeaponPart, OfferIndex),
 		                                 18,
 		                                 FLinearColor(0.03f, 0.03f, 0.03f));
-		BuyText->SetText(bOwnedWeapon ? FText::FromString(TEXT("已获得"))
-		                              : (bPurchasedSlot ? FText::FromString(TEXT("已购"))
-		                                                : (bOwnedPart ? (IsPartEquipped(Offer.ContentId)
-		                                                                     ? FText::FromString(TEXT("已装备"))
-		                                                                     : FText::FromString(TEXT("已获得")))
-		                                                              : FText::FromString(TEXT("已获得")))));
+		BuyText->SetText(bEmptyBuildCardSlot ? Offer.DisplayName
+		                 : bOwnedWeapon      ? FText::FromString(TEXT("已获得"))
+		                                     : (bPurchasedSlot ? FText::FromString(TEXT("已购"))
+		                                                       : (bOwnedPart ? (IsPartEquipped(Offer.ContentId)
+		                                                                            ? FText::FromString(TEXT("已装备"))
+		                                                                            : FText::FromString(TEXT("已获得")))
+		                                                                     : FText::FromString(TEXT("已获得")))));
 		BuyText->SetJustification(ETextJustify::Center);
 		UOverlaySlot* TextSlot = ButtonOverlay->AddChildToOverlay(BuyText);
 		TextSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -1071,7 +1084,8 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	}
 	Buy->SetContent(ButtonOverlay);
 	const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
-	Buy->SetIsEnabled(!bShowPurchased && (bOwnedPart || (!bPurchasedCard && CurrentTimeShards >= EffectivePrice)) &&
+	Buy->SetIsEnabled(!bEmptyBuildCardSlot && !bShowPurchased &&
+	                  (bOwnedPart || (!bPurchasedCard && CurrentTimeShards >= EffectivePrice)) &&
 	                  (bWeaponPart || bCurrentExtraCardPurchaseAllowed));
 	if (bWeaponPart)
 	{
@@ -1758,18 +1772,19 @@ void UReEchoInventoryShopWidget::Refresh()
 	    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
 	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
-		const int32 CatalogIndex = (OfferIndex + CurrentShopRefreshSequence) % VisibleRunItemOffers.Num();
-		const FReEchoShopOffer& Offer = VisibleRunItemOffers[CatalogIndex];
+		const FReEchoShopOffer& Offer = VisibleRunItemOffers[OfferIndex];
 		const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
+		const bool bAvailable = !Offer.ItemId.IsNone();
 		const bool bOwned = CurrentOwnedItems.Contains(Offer.ItemId);
 		const bool bAffordable = CurrentTimeShards >= EffectivePrice;
-		OfferButtons[OfferIndex]->SetIsEnabled(!bOwned && bAffordable);
+		OfferButtons[OfferIndex]->SetIsEnabled(bAvailable && !bOwned && bAffordable);
 		OfferTexts[OfferIndex]->SetText(FText::Format(
 		    NSLOCTEXT("ReEcho", "ShopOfferFormat", "{0}\n{1}\n{2}"),
 		    Offer.DisplayName,
 		    Offer.EffectText,
-		    bOwned ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
-		           : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(EffectivePrice))));
+		    !bAvailable ? Offer.DisplayName
+		    : bOwned    ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
+		             : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(EffectivePrice))));
 	}
 	if (ShopRefreshButton && ShopRefreshText)
 	{
@@ -1862,7 +1877,7 @@ void UReEchoInventoryShopWidget::Refresh()
 
 void UReEchoInventoryShopWidget::RequestPurchase(const int32 OfferIndex)
 {
-	if (VisibleRunItemOffers.IsValidIndex(OfferIndex))
+	if (VisibleRunItemOffers.IsValidIndex(OfferIndex) && !VisibleRunItemOffers[OfferIndex].ItemId.IsNone())
 	{
 		OnPurchaseRequested.Broadcast(VisibleRunItemOffers[OfferIndex].ItemId);
 	}

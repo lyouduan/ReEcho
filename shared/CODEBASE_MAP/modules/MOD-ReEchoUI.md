@@ -76,4 +76,5 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - 静态检查：`python scripts/validate_project.py`、`git diff --check`。
 - Plan47 商店回归：折扣显示与实际扣款同舍入、免费刷新优先消费且无零价无限刷新、永久代价禁用状态可见；不修改 Plan45 WBP/纹理资产。
 - Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
+- Plan91 卡牌商店投影固定为1/2/3级三个位置；Widget 只消费 Run 提供的槽位 Tier/状态，空槽显示“未投放”或“售罄”、隐藏卡图和价格并禁用购买，不自行跨级选择或补卡。
 - 人工检查：按 UI 修改指导执行页面导航、焦点、DPI、可读性和交互验收。

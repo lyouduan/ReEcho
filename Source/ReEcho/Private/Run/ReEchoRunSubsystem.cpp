@@ -501,6 +501,10 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 		TSet<FName> UniqueShopCardOffers;
 		for (const FName CardId : Build.CardState.Runtime.ShopCardOfferIds)
 		{
+			if (CardId.IsNone())
+			{
+				continue;
+			}
 			const FReEchoCardDefinition* Card = Snapshot.CardCatalog->Find(CardId);
 			if (!Card || !Card->bEnabled || Card->OfferGroup != TraitOfferGroup ||
 			    UniqueShopCardOffers.Contains(CardId))
@@ -1029,14 +1033,23 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		View.SlotOffers[SlotIndex] = Offer; // empty if no candidates
 	}
 
+	View.CardSlotOffers.SetNum(ReEchoShopOfferCountPerGroup);
+	for (int32 SlotIndex = 0; SlotIndex < View.CardSlotOffers.Num(); ++SlotIndex)
+	{
+		FReEchoCardSlotOffer& CardSlot = View.CardSlotOffers[SlotIndex];
+		CardSlot.Tier = SlotIndex + 1;
+		CardSlot.DisplayName = NSLOCTEXT("ReEcho", "ShopCardTierNotOffered", "未投放");
+		CardSlot.EffectText = NSLOCTEXT("ReEcho", "ShopCardTierNotOfferedDetail", "本关不投放该等级卡牌");
+	}
+
 	if (Snapshot->CardCatalog.IsValid())
 	{
 		FReEchoCardRuntimeState& CardRuntime = CurrentBuild.CardState.Runtime;
 		const int32 RefreshSequence = CardRuntime.ShopRefreshSequence;
-		// Build-card shop: three fixed slots drawn from the union of the encounter's configured tiers.
+		// Build-card shop: fixed [Tier1, Tier2, Tier3] slots. ShopTiers only enables matching slots.
 		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex))
 		{
-			TArray<int32> CardTiers;
+			TSet<int32> ConfiguredCardTiers;
 			if (!DropLevel->ShopTiers.IsEmpty())
 			{
 				TArray<FString> TierTokens;
@@ -1044,71 +1057,103 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				for (const FString& Tok : TierTokens)
 				{
 					const int32 Tier = FCString::Atoi(*Tok);
-					if (Tier > 0)
+					if (Tier >= 1 && Tier <= ReEchoShopOfferCountPerGroup)
 					{
-						CardTiers.Add(Tier);
+						ConfiguredCardTiers.Add(Tier);
 					}
 				}
 			}
+			const auto IsCachedCardPageValid = [&]()
+			{
+				if (CardRuntime.ShopCardOfferIds.Num() != ReEchoShopOfferCountPerGroup)
+				{
+					return false;
+				}
+				for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
+				{
+					const int32 Tier = SlotIndex + 1;
+					const FName CardId = CardRuntime.ShopCardOfferIds[SlotIndex];
+					if (!ConfiguredCardTiers.Contains(Tier))
+					{
+						if (!CardId.IsNone())
+						{
+							return false;
+						}
+						continue;
+					}
+					if (CardId.IsNone())
+					{
+						continue;
+					}
+					const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId);
+					if (!Card || !Card->bEnabled || Card->OfferGroup != TraitOfferGroup || Card->Tier != Tier)
+					{
+						return false;
+					}
+				}
+				return true;
+			};
 			const bool bNeedsNewCardPage = CardRuntime.ShopCardOfferEncounterIndex != EncounterIndex ||
-			                               CardRuntime.ShopCardOfferRefreshSequence != RefreshSequence;
+			                               CardRuntime.ShopCardOfferRefreshSequence != RefreshSequence ||
+			                               !IsCachedCardPageValid();
 			if (bNeedsNewCardPage)
 			{
 				CardRuntime.ShopCardOfferEncounterIndex = EncounterIndex;
 				CardRuntime.ShopCardOfferRefreshSequence = RefreshSequence;
-				CardRuntime.ShopCardOfferIds.Reset();
+				CardRuntime.ShopCardOfferIds.Init(NAME_None, ReEchoShopOfferCountPerGroup);
 
-				TArray<FReEchoCardDefinition> Eligible;
-				TSet<FName> EligibleCardIds;
-				for (const int32 Tier : CardTiers)
+				for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
 				{
-					for (const FReEchoCardDefinition& Card : ReEchoCardRuntime::BuildOfferPool(
-					         *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, Tier))
+					const int32 Tier = SlotIndex + 1;
+					if (!ConfiguredCardTiers.Contains(Tier))
 					{
-						if (!EligibleCardIds.Contains(Card.Id))
-						{
-							EligibleCardIds.Add(Card.Id);
-							Eligible.Add(Card);
-						}
+						continue;
 					}
-				}
-
-				if (CardTiers.Num() > 0 && Eligible.Num() < ReEchoShopOfferCountPerGroup)
-				{
-					UE_LOG(
-					    LogReEcho,
-					    Error,
-					    TEXT("Encounter %d shop tiers require %d card slots but only %d unowned cards are eligible."),
-					    EncounterIndex,
-					    ReEchoShopOfferCountPerGroup,
-					    Eligible.Num());
-				}
-				else if (CardTiers.Num() > 0)
-				{
-					FRandomStream CardRand(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
+					TArray<FReEchoCardDefinition> Eligible = ReEchoCardRuntime::BuildOfferPool(
+					    *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, Tier);
+					if (Eligible.IsEmpty())
+					{
+						UE_LOG(LogReEcho,
+						       Warning,
+						       TEXT("Encounter %d shop tier %d has no eligible card; its fixed slot remains empty."),
+						       EncounterIndex,
+						       Tier);
+						continue;
+					}
+					const FName TierSeedKey(*FString::Printf(TEXT("SHOP_CARD_TIER_%d"), Tier));
+					FRandomStream CardRand(BuildShopOfferSeed(TierSeedKey, EncounterIndex, RefreshSequence));
 					ShuffleOffers(Eligible, CardRand);
-					for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
-					{
-						CardRuntime.ShopCardOfferIds.Add(Eligible[SlotIndex].Id);
-					}
+					CardRuntime.ShopCardOfferIds[SlotIndex] = Eligible[0].Id;
 				}
 			}
 
-			for (const FName CardId : CardRuntime.ShopCardOfferIds)
+			for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
 			{
+				FReEchoCardSlotOffer& CardOffer = View.CardSlotOffers[SlotIndex];
+				const int32 Tier = SlotIndex + 1;
+				const FName CardId = CardRuntime.ShopCardOfferIds[SlotIndex];
+				if (CardId.IsNone())
+				{
+					if (ConfiguredCardTiers.Contains(Tier))
+					{
+						CardOffer.DisplayName = NSLOCTEXT("ReEcho", "ShopCardTierSoldOut", "售罄");
+						CardOffer.EffectText = NSLOCTEXT("ReEcho", "ShopCardTierSoldOutDetail", "该等级暂无可购买卡牌");
+					}
+					continue;
+				}
 				const FReEchoCardDefinition* Chosen = Snapshot->CardCatalog->Find(CardId);
-				if (!Chosen || !CardTiers.Contains(Chosen->Tier))
+				if (!Chosen || Chosen->Tier != Tier)
 				{
 					UE_LOG(LogReEcho,
 					       Error,
-					       TEXT("Encounter %d cached shop card '%s' no longer belongs to the configured tier pool."),
+					       TEXT("Encounter %d cached shop card '%s' no longer matches fixed tier slot %d."),
 					       EncounterIndex,
-					       *CardId.ToString());
+					       *CardId.ToString(),
+					       Tier);
 					continue;
 				}
 				FRandomStream PriceRand(BuildShopOfferSeed(Chosen->Id, EncounterIndex, RefreshSequence));
-				FReEchoCardSlotOffer CardOffer;
-				CardOffer.Tier = Chosen->Tier;
+				CardOffer.bAvailable = true;
 				CardOffer.CardId = Chosen->Id;
 				CardOffer.ItemId = MakeShopCardOfferId(EncounterIndex, RefreshSequence, Chosen->Id);
 				CardOffer.DisplayName = FText::FromString(Chosen->DisplayName);
@@ -1116,7 +1161,6 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				CardOffer.bFree = false;
 				CardOffer.Price = GetShopPriceInRange(
 				    *Snapshot, *FString::Printf(TEXT("Card_T%d"), Chosen->Tier), Chosen->Tier * 10, PriceRand);
-				View.CardSlotOffers.Add(CardOffer);
 			}
 		}
 
@@ -1168,10 +1212,13 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		Offer.Price = Card.Price;
 		Offer.Type = EReEchoShopOfferType::BuildCard;
 		Offer.Tier = Card.Tier;
-		Offer.IconTexturePath =
-		    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
-		                    *Card.CardId.ToString(),
-		                    *Card.CardId.ToString());
+		if (Card.bAvailable)
+		{
+			Offer.IconTexturePath =
+			    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+			                    *Card.CardId.ToString(),
+			                    *Card.CardId.ToString());
+		}
 		View.Offers.Add(Offer);
 	}
 	return View;
@@ -1927,7 +1974,7 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 	{
 		for (const FReEchoCardSlotOffer& Candidate : ShopView.CardSlotOffers)
 		{
-			if (Candidate.ItemId == ItemId)
+			if (Candidate.bAvailable && !ItemId.IsNone() && Candidate.ItemId == ItemId)
 			{
 				CardSlotOffer = Candidate;
 				bFoundCard = true;

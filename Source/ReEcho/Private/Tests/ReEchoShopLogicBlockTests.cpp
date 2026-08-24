@@ -65,6 +65,13 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	RunItem.Type = EReEchoShopOfferType::BuildCard;
 	RunItem.ContentId = TEXT("TEST_BUILD_CARD");
 	RunItem.Tier = 1;
+	FReEchoShopOffer EmptyTierTwo;
+	EmptyTierTwo.DisplayName = FText::FromString(TEXT("未投放"));
+	EmptyTierTwo.EffectText = FText::FromString(TEXT("本关不投放该等级卡牌"));
+	EmptyTierTwo.Type = EReEchoShopOfferType::BuildCard;
+	EmptyTierTwo.Tier = 2;
+	FReEchoShopOffer EmptyTierThree = EmptyTierTwo;
+	EmptyTierThree.Tier = 3;
 
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_WEAPON_PART_ITEM");
@@ -78,7 +85,7 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	FReEchoWeaponPartShopView View;
 	View.WeaponId = TEXT("TEST_WEAPON");
 	View.WeaponDisplayName = FText::FromString(TEXT("Test weapon"));
-	View.Offers = {RunItem, WeaponPart};
+	View.Offers = {RunItem, EmptyTierTwo, EmptyTierThree, WeaponPart};
 	FReEchoWeaponSlotShopView Slot;
 	Slot.SlotTypeId = TEXT("Core");
 	Slot.DisplayName = FText::FromString(TEXT("Core"));
@@ -140,17 +147,27 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	    });
 	UReEchoIndexedButton* RunItemButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy0")));
+	UReEchoIndexedButton* EmptyTierTwoButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy1")));
+	UReEchoIndexedButton* EmptyTierThreeButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy2")));
 	UReEchoIndexedButton* WeaponPartButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
 	TestNotNull(TEXT("Run item button exists"), RunItemButton);
+	TestNotNull(TEXT("Empty tier-two slot button exists"), EmptyTierTwoButton);
+	TestNotNull(TEXT("Empty tier-three slot button exists"), EmptyTierThreeButton);
 	TestNotNull(TEXT("Weapon part button exists"), WeaponPartButton);
-	if (!RunItemButton || !WeaponPartButton)
+	if (!RunItemButton || !EmptyTierTwoButton || !EmptyTierThreeButton || !WeaponPartButton)
 	{
 		return false;
 	}
+	TestFalse(TEXT("Empty tier-two slot cannot be purchased"), EmptyTierTwoButton->GetIsEnabled());
+	TestFalse(TEXT("Empty tier-three slot cannot be purchased"), EmptyTierThreeButton->GetIsEnabled());
 	RunItemButton->OnClicked.Broadcast();
+	EmptyTierTwoButton->OnClicked.Broadcast();
+	EmptyTierThreeButton->OnClicked.Broadcast();
 	WeaponPartButton->OnClicked.Broadcast();
-	TestEqual(TEXT("Two independent purchase commands are emitted"), PurchaseRequests.Num(), 2);
+	TestEqual(TEXT("Only filled slots emit independent purchase commands"), PurchaseRequests.Num(), 2);
 	if (PurchaseRequests.Num() == 2)
 	{
 		TestEqual(TEXT("Run item click maps to the run item id"), PurchaseRequests[0], RunItem.ItemId);
