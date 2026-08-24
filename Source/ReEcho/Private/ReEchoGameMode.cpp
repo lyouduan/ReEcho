@@ -2790,25 +2790,15 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		return;
 	}
 
-	const FName PreviousWeaponId = RunSubsystem->CurrentBuild.WeaponId;
 	// 新购统一走结构化事务；成功、拒绝、购买前后状态都由同一接口审计。
 	const FReEchoShopPurchaseOutcome PurchaseOutcome = RunSubsystem->PurchaseShopItemDetailed(ItemId);
 	if (PurchaseOutcome.IsSuccess())
 	{
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
-		if (RunSubsystem->CurrentBuild.WeaponId != PreviousWeaponId)
-		{
-			// Whole-weapon purchase changes the compatible rune slots and weapon art. Rebuild the read-only projection;
-			// the stable page key/refresh sequence is unchanged, so unrelated offers do not reroll.
-			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
-			return;
-		}
-		InventoryShopWidget->SetTimeShards(RunSubsystem->TimeShards);
-		InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats);
-		InventoryShopWidget->MarkItemPurchased(ItemId);
-		// 购买即装备后，仅重绘符文装备槽以立即反映已装备结果；不重摇、不重绘投放槽，保持 Step1 的“已购不刷新”行为。
-		InventoryShopWidget->RefreshWeaponLoadoutAfterPurchase(RunSubsystem->CurrentBuild.EquippedParts);
+		// The authoritative page is stable for EncounterIndex + ShopRefreshSequence. Rebuilding the complete read-only
+		// projection updates ownership, backpack and equipped state without rerolling any remaining offer.
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 	}
 	else
 	{

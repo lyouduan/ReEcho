@@ -289,6 +289,20 @@ bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Every original weapon/rune offer remains purchasable after earlier purchases"),
 		         RunSubsystem->PurchaseShopItem(OriginalOffer.ItemId));
 		const FReEchoWeaponPartShopView PageAfterPurchase = RunSubsystem->GetWeaponPartShopView();
+		if (OriginalOffer.Kind == EReEchoShopOfferKind::Part)
+		{
+			TestTrue(TEXT("A purchased rune is immediately present in the refreshed owned-rune projection"),
+			         PageAfterPurchase.OwnedParts.ContainsByPredicate(
+			             [&](const FReEchoShopOffer& OwnedPart)
+			             {
+				             return OwnedPart.ContentId == OriginalOffer.PartId;
+			             }));
+		}
+		else
+		{
+			TestTrue(TEXT("A purchased weapon is immediately present in the refreshed owned-weapon projection"),
+			         PageAfterPurchase.OwnedWeapons.Contains(OriginalOffer.WeaponId));
+		}
 		for (int32 SlotIndex = 0; SlotIndex < InitialPage.SlotOffers.Num(); ++SlotIndex)
 		{
 			TestEqual(TEXT("Purchase preserves the other weapon/rune offer ids"),

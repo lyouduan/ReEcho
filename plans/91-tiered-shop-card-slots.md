@@ -147,6 +147,9 @@
 - 所有商店商品购买收口为 `PurchaseShopItemDetailed` 结构化事务，返回唯一交易 ID、成功/失败枚举、说明和实际价格；原 `PurchaseShopItem` 只调用该接口并返回 bool。GameMode 的购买按钮直接消费详细结果，不再在事务外重复执行符文购买即装备。
 - 统一审计器在每次尝试输出同一交易 ID 的 `BEFORE / RESULT / AFTER`：包含碎片、当前武器、按槽位列出的已装备符文、带叠层数的已生效卡牌、全部武器背包、未装备符文背包和普通 Inventory。每行同时追加到 UTF-8 `Saved/Logs/ShopPurchaseAudit.log`；Development 再镜像到 `LogReEcho`，Shipping 即使 `USE_LOGGING_IN_SHIPPING=0` 仍执行独立写盘。
 - 初次尝试打开 Shipping 全局 UE 日志时，安装版引擎分别因共享构建环境和日志类别 ABI 不一致拒绝构建；最终移除 Target 全局覆盖，改用上述窄审计出口。顺带修复随机商店测试在购买“繁荣契约”后才重算购买前折扣的错误断言，现于购买前锁定实际价格。
+- 用户日志确认法杖 `W_J_02` 在当前稳定页先成功购买并装备，后续重复点击均被 Run 以 `AlreadyOwned` 拒绝；问题仅在目标商店把“属于武器/符文区域”误当作“不是武器”，导致已拥有武器没有投影为已获得。现直接按 Offer 类型和 `OwnedWeapons` 判定，稳定槽仍不重摇，但按钮显示“已获得”并禁用。
+- 武器背包与符文背包迁移到响应式根画布的 `BackpackPopupLayer`（ZOrder 100），高于商店和回响表现层；弹层位置按点击控件的缓存几何换算到统一设计面并限制在画面内。符文背包移除错误的跨父级重复挂载，改用与武器背包一致的深色边框、显式滚动条、72px 图标、20px 标题和 17px 垂直居中名称行。
+- 购买审计确认“爆炸枪口”已进入 Run 的符文背包，而商店仍显示旧内容是 UI 只局部同步 `EquippedParts`、没有更新 `OwnedParts` 快照。购买成功后现统一重取完整商店只读投影，符文/武器/卡牌/货币和背包同步刷新；稳定页键仍是 `EncounterIndex + ShopRefreshSequence`，因此未购买报价的 ID 和价格不会重摇。已删除仅刷新装备符文的局部 UI 接口。
 
 ### 证据
 
@@ -159,10 +162,12 @@
 - 统一购买候选 `ReEcho.Shop` 10/10 通过；专用审计文件实际生成，抽样失败交易可用同一 tx 精确关联三阶段，且前后状态保持不变。
 - `ReEcho Win64 Shipping` Game Target 构建成功；Shipping 共享定义确认 `USE_LOGGING_IN_SHIPPING=0`，成品 `ReEcho-Win64-Shipping.exe` 仍包含 `ShopPurchaseAudit.log` 持久化出口字面量，证明写盘不依赖 `UE_LOG`。
 - 最终 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 96/96 actions 通过；精选 Editor 预构建源指纹 `0595d5ad4301`。`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 已拥有武器投影与双背包浮层候选完成增量 Editor 构建；`ReEcho.UI.Shop` 2/2、`ReEcho.Shop` 10/10 通过。UI 自动化新增“稳定页已拥有武器禁用并显示已获得”、两种背包同属根级 ZOrder 100 浮层，以及符文背包边框/滚动区/字号对齐断言。
+- 完整购买后投影刷新候选完成增量 Editor 构建；`ReEcho.Shop` 10/10、`ReEcho.UI.Shop` 2/2 通过。稳定页用例新增断言：每个符文/武器购买后立即出现在完整拥有投影中，同时同页三个报价的 ID 与价格保持不变。
 
 ### 剩余风险
 
-- 空槽、武器图裁切和武器背包的最终美术样式仍需用户在 PIE 判断；本 Plan 保证状态、交互和基础文字正确，未接入新美术资产。
+- 空槽、武器图裁切，以及两种背包在不同分辨率下的最终位置和视觉样式仍需用户在 PIE 判断；本 Plan 保证状态、交互、最高层级和基础文字对齐正确，未接入新美术资产。
 - 全量 `ReEcho.Weapons` 套件仍包含两个既有、非本 Plan 修改路径的失败：投射物攻击时符文快照断言，以及 `DomainRevisionRejectsChangedTablesAndPinsActiveRun` 依赖已不存在的硬编码 CSV 文本后崩溃；本 Plan 相关的装备快照聚焦用例通过。
 
 ### 人工验收结果/请求

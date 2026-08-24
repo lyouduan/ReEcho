@@ -241,12 +241,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	PartShopView.OwnedWeapons = {CurrentWeapon.ContentId, AlternateWeapon.ContentId};
 	PartShopView.OwnedWeaponOffers = {CurrentWeapon, AlternateWeapon};
 	PartShopView.Offers.Add(WeaponPart);
+	PartShopView.Offers.Add(CurrentWeapon);
 	FReEchoWeaponSlotShopView PartSlot;
 	PartSlot.SlotTypeId = TEXT("Core");
 	PartSlot.DisplayName = FText::FromString(TEXT("Core"));
 	PartSlot.Capacity = 1;
 	PartShopView.Slots.Add(PartSlot);
 	PartShopView.OwnedParts.Add(WeaponPart);
+	FReEchoShopOffer BackpackPart = WeaponPart;
+	BackpackPart.ItemId = TEXT("P_CORE_PRIMORDIAL");
+	BackpackPart.ContentId = BackpackPart.ItemId;
+	BackpackPart.DisplayName = FText::FromString(TEXT("Backpack rune"));
+	PartShopView.OwnedParts.Add(BackpackPart);
 	FReEchoEquippedPartSnapshot EquippedPart;
 	EquippedPart.PartId = WeaponPart.ContentId;
 	EquippedPart.SlotTypeId = WeaponPart.SlotTypeId;
@@ -301,6 +307,13 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Mapped weapon-part icon asset loads"), ExpectedPartIcon);
 	TestTrue(TEXT("Weapon-part offer uses its PartId icon instead of the attachment placeholder"),
 	         OfferPartIcon && OfferPartIcon->GetBrush().GetResourceObject() == ExpectedPartIcon);
+	UReEchoIndexedButton* OwnedWeaponBuy =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy1")));
+	UTextBlock* OwnedWeaponBuyText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TargetBuyText1_1")));
+	TestTrue(TEXT("An owned weapon retained on the stable page is projected as unavailable"),
+	         OwnedWeaponBuy && !OwnedWeaponBuy->GetIsEnabled());
+	TestTrue(TEXT("An owned weapon retained on the stable page is labelled as already obtained"),
+	         OwnedWeaponBuyText && OwnedWeaponBuyText->GetText().EqualTo(FText::FromString(TEXT("已获得"))));
 	TestTrue(TEXT("Legacy weapon-part block is hidden behind the target composition"),
 	         WeaponPartPanel && WeaponPartPanel->GetVisibility() == ESlateVisibility::Collapsed);
 	TestNotNull(TEXT("Authored shop receives the independent echo popup"), EchoPanelScale);
@@ -339,12 +352,19 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		EquippedWeaponButton->OnClicked.Broadcast();
 	}
 	UCanvasPanel* WeaponBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("WeaponBackpackPopupPanel")));
+	UCanvasPanel* BackpackPopupLayer = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("BackpackPopupLayer")));
 	UReEchoIndexedButton* CurrentWeaponButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItem0")));
 	UReEchoIndexedButton* AlternateWeaponButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItem1")));
 	TestTrue(TEXT("Clicking the weapon art opens the weapon backpack"),
 	         WeaponBackpack && WeaponBackpack->GetVisibility() == ESlateVisibility::Visible);
+	const UCanvasPanelSlot* BackpackLayerSlot =
+	    BackpackPopupLayer ? Cast<UCanvasPanelSlot>(BackpackPopupLayer->Slot) : nullptr;
+	TestTrue(TEXT("Weapon backpack is parented to the root-level popup layer"),
+	         WeaponBackpack && WeaponBackpack->GetParent() == BackpackPopupLayer);
+	TestTrue(TEXT("Backpack popup layer renders above the shop and echo presentation"),
+	         BackpackLayerSlot && BackpackLayerSlot->GetZOrder() == 100);
 	TestTrue(TEXT("Current weapon is listed and cannot be equipped twice"),
 	         CurrentWeaponButton && !CurrentWeaponButton->GetIsEnabled());
 	TestTrue(TEXT("Another owned weapon is selectable"),
@@ -376,7 +396,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		                                      : nullptr;
 		TestTrue(TEXT("Attachment tooltip includes its effect explanation"),
 		         TooltipEffect && TooltipEffect->GetText().EqualTo(WeaponPart.EffectText));
+		AttachmentHoverSlot->OnClicked.Broadcast();
 	}
+	UCanvasPanel* RuneBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("BackpackPopupPanel")));
+	UScrollBox* RuneBackpackScroll = Cast<UScrollBox>(Widget->GetWidgetFromName(TEXT("BackpackPopupScroll")));
+	UBorder* RuneBackpackSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackPopupSurface")));
+	UTextBlock* RuneBackpackTitle = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackPopupTitle")));
+	UTextBlock* RuneBackpackItemName = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackItemName0")));
+	TestTrue(TEXT("Rune backpack is parented to the same root-level popup layer"),
+	         RuneBackpack && RuneBackpack->GetParent() == BackpackPopupLayer);
+	TestTrue(TEXT("Rune backpack uses the same framed scroll layout as the weapon backpack"),
+	         RuneBackpackSurface && RuneBackpackScroll && RuneBackpackTitle && RuneBackpackItemName &&
+	             RuneBackpackTitle->GetFont().Size == 20 && RuneBackpackItemName->GetFont().Size == 17);
 	TestNull(TEXT("Hover detail does not add another fixed panel over the authored board"),
 	         Widget->GetWidgetFromName(TEXT("SlotDetailPanel")));
 	UImage* LoadoutStatsBoard = Cast<UImage>(Widget->GetWidgetFromName(TEXT("ArtLoadoutStats")));
