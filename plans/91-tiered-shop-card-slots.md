@@ -9,6 +9,7 @@
 - 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main` @ `f8e8a40bf8ce7974d24b7b296c51bdc4cb35344b`。
+- 最终集成基线：`origin/main` @ `513ec51b6d101979b6d2cf548dfc3403762b7966`（仅新增 Plan92 文档）。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan91-tiered-shop-card-slots`，分支 `plan/91-tiered-shop-card-slots`。
 - 依赖 / 阻塞：基于 Plan88 已发布的逐关 `ShopTiers`、稳定商店页和统一卡牌资格；不改变策划 XLSX/CSV 字段或逐关配置。
 - Writes:
@@ -102,6 +103,7 @@
 - 商店稳定页缓存固定为 `[Tier1, Tier2, Tier3]` 三个 CardId，`None` 表示未投放或耗尽；旧混合池缓存的数量/等级形状不匹配时自动重建，不提升 SaveVersion。
 - 扁平兼容报价与目标商店表现都保留三个位置；空槽隐藏卡图和价格、显示“未投放”或“售罄”、禁用按钮，并在请求边界拒绝 `None` ID。刷新不再旋转卡牌位置。
 - 商店矩阵自动化改为核对槽位等级身份、逐关启用、Tier2 耗尽不影响 Tier3、页面稳定购买和存读档。顺带修正既有随机测试：不再无条件选择可能清空全部货币的 `G_2_15` 后断言货币仍存在。
+- 发布门禁发现远端新增 `513ec51b` 的 Plan92 怪物时间碎片掉落计划。经用户确认组合适配后，Plan91 干净变基到该文档提交之上；传入提交没有产品源码、配置或二进制变化。
 
 ### 证据
 
@@ -109,6 +111,7 @@
 - `ReEcho.Shop` 8/8、`ReEcho.UI.Shop` 2/2、`ReEcho.Cards` 5/5、`ReEcho.Traits` 8/8、`ReEcho.Run` 14/14，全部通过。
 - `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 通过，97/97 actions 成功；精选 Editor 预构建源指纹 `5bbc9086d510`。
 - `python scripts/data/sync_xlsx_to_csv.py --check`、`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 变基到 `origin/main@513ec51b` 后重新执行 XLSX/CSV 同步检查、项目静态校验、精选 Editor 预构建校验与 `git diff --check`；全部通过且源码指纹仍为 `5bbc9086d510`。变基前恢复点为 `backup/plan91-before-plan92-rebase-20260824`。
 
 ### 剩余风险
 
