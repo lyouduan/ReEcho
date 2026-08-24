@@ -8,7 +8,6 @@ enum class EReEchoCombatVfxSemantic : uint8
 	RabbitProjectile,
 	PlayerHurt,
 	FoxCharging,
-	FoxDirection,
 	FoxDash,
 	PlayerMeleeSlash,
 	PlayerScytheSlash,

@@ -251,7 +251,6 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::RabbitProjectile,
 	    EReEchoCombatVfxSemantic::PlayerHurt,
 	    EReEchoCombatVfxSemantic::FoxCharging,
-	    EReEchoCombatVfxSemantic::FoxDirection,
 	    EReEchoCombatVfxSemantic::FoxDash,
 	    EReEchoCombatVfxSemantic::PlayerMeleeSlash,
 	    EReEchoCombatVfxSemantic::PlayerScytheSlash,
@@ -263,6 +262,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::EchoWaterAura,
 	    EReEchoCombatVfxSemantic::EchoGrassAura,
 	};
+	TestEqual(TEXT("Fox windup uses the authored charging system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxCharging),
+	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02.NS_Fox_Rush_02")));
+	TestEqual(TEXT("Fox committed dash uses the authored rush system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxDash),
+	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01.NS_Fox_Rush_01")));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
