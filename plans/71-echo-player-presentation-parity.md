@@ -6,9 +6,9 @@
 - Executor 负责人：独立程序 Executor（待 Plan 修订发布后启动）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`（原候选视觉验收发现空间表现不一致，按本次锁定范围返工）。
+- 任务状态：`Review`（空间表现返工候选已完成客观检查，等待 PIE 人工验收）。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@a475b44d`。
+- 本地规划 / 实现基线：`origin/main@85004addd96372c084a8aca2c4b89c4eeb5728b6`。
 - 本地实现方式：用户已确认采用一任务一 worktree；本次返工使用 `C:/Users/binnanliang/Documents/ReEcho-worktrees/echo-spatial-presentation`，分支 `codex/echo-spatial-presentation`。
 - 依赖 / 阻塞：四组 Echo Flipbook 已交付至 `/Game/ReEcho/Art/Animation2D/Echos`；玩家同 `CharacterId` 的空间表现作为本次唯一视觉基准，最终视觉一致性需要 PIE 人工验收。
 - Writes:
@@ -70,23 +70,23 @@
 
 ## 锁定验收
 
-- [ ] 四个 CharacterId 均解析到自己的 Echo Profile，Walk/Attack/Attack_Arrow 共 12 个 Flipbook 可加载。
-- [ ] Melee 与 Bow/Gun/Staff 分别选择 Attack 与 Attack_Arrow，攻击结束自动返回当前 Idle/Move。
-- [ ] Echo 移动、停止和左右瞄准只提交表现意图，不旋转或缩放玩法根 Actor。
-- [ ] Profile/Catalog 缺失时静态回退可见且 Echo 玩法仍可初始化。
-- [ ] 修改的 C++ 完成 `.clang-format`，Development 构建、聚焦自动化、`validate_project.py` 与 `git diff --check` 通过。
-- [ ] 最终发布候选完成 Development FullRebuild 并刷新精选预构建包。
+- [x] 四个 CharacterId 均解析到自己的 Echo Profile，Walk/Attack/Attack_Arrow 共 12 个 Flipbook 可加载。
+- [x] Melee 与 Bow/Gun/Staff 分别选择 Attack 与 Attack_Arrow，攻击结束自动返回当前 Idle/Move。
+- [x] Echo 移动、停止和左右瞄准只提交表现意图，不旋转或缩放玩法根 Actor。
+- [x] Profile/Catalog 缺失时静态回退可见且 Echo 玩法仍可初始化。
+- [x] 修改的 C++ 完成 `.clang-format`，Development 构建、聚焦自动化、`validate_project.py` 与 `git diff --check` 通过。
+- [x] 最终发布候选完成 Development FullRebuild 并刷新精选预构建包。
 - [ ] PIE 人工验收四角色尺寸、脚点、阴影、左右朝向、移动/停止及近远程攻击切换。
-- [ ] 对每个规范 `CharacterId`，Player/Echo 的角色显示包围盒尺寸、脚底基准与相对缩放一致；左右镜像后不新增位置漂移。
-- [ ] 相同角色与 `WeaponVisualKey` 下，Player/Echo 的武器 Actor Anchor、Held Visual 相对位置与最终显示尺寸一致，不存在 Echo 专用武器补偿。
-- [ ] Player/Echo 的 GroundRoot 中心、GroundShadow 最终宽高一致，并保持相同的脚底相对关系。
-- [ ] Player/Echo 的 AttackVfxRoot/HurtVfxRoot 相对 Transform 与继承缩放一致；相同测试特效的生成原点和最终尺寸一致。
-- [ ] 自动化使用可读的空间快照逐字段比较以上参数，容差具名且不以截图或人工目测替代；最终视觉质量仍由用户 PIE 确认。
-- [ ] 未提交不相关美术资产或精选预构建允许列表之外的生成产物。
+- [x] 对每个规范 `CharacterId`，Player/Echo 的角色显示包围盒尺寸、脚底基准与相对缩放一致；左右镜像后不新增位置漂移。
+- [x] 相同角色与 `WeaponVisualKey` 下，Player/Echo 的武器 Actor Anchor、Held Visual 相对位置与最终显示尺寸一致，不存在 Echo 专用武器补偿。
+- [x] Player/Echo 的 GroundRoot 中心、GroundShadow 最终宽高一致，并保持相同的脚底相对关系。
+- [x] Player/Echo 的 AttackVfxRoot/HurtVfxRoot 相对 Transform 与继承缩放一致；相同测试特效的生成原点和最终尺寸一致。
+- [x] 自动化使用可读的空间快照逐字段比较以上参数，容差具名且不以截图或人工目测替代；最终视觉质量仍由用户 PIE 确认。
+- [x] 未提交不相关美术资产或精选预构建允许列表之外的生成产物。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@a475b44d`；已审计 `55a15d15..a475b44d` 的 Plan87、商店 UI 与预构建更新，与 Player/Echo 空间表现源码没有直接路径冲突；`MOD-ReEcho.md` 与最终预构建包存在集成耦合，发布时必须基于最新远端重建。
+- 基线分支/提交：`origin/main@85004addd96372c084a8aca2c4b89c4eeb5728b6`；Planner 已审计并批准该最新远端基线，任务 worktree 从该提交创建；`MOD-ReEcho.md` 与最终预构建包存在集成耦合，发布时仍须重新审计最新远端。
 - 引擎/构建可用性：UE 5.8；构建与 Editor 命令前确认交互式 Editor 已关闭。
 - 现有聚焦测试结果：临时硬编码方案的四角色 Walk 映射测试通过，但不作为本 Plan 架构验收证据。
 - 共享契约 / 难合并资源风险：优先通过 C++ 公共空间契约消除漂移；若必须调整 Profile/Catalog `.uasset`，只能通过 Unreal Editor API 修改并在执行记录列出准确资产。Plan87 会修改 Player Host，实施与集成时需审计其实际落地差异。
@@ -124,19 +124,26 @@
 - Echo 自动索敌写入独立 `AttackAimDirection` 并驱动相机横向镜像；WeaponActor 读取该方向，玩法根 Actor 不再为表现或瞄准旋转。
 - 保留 Billboard 作为 Profile/Flipbook 缺失时的静态安全回退。
 - 2026-08-24 返工：用户明确“一致”仅指角色、武器、阴影、特效四类空间位置与大小，不涉及录像内容、动作时序或战斗权威。审计确认当前 Echo 独立 Profile 与 Host 基准仍可形成第二套空间参数，Plan 重新进入 `Ready`。
+- 返工候选保留 Echo Profile 的动画集与状态机，但按 CSV `CharacterId -> AppearanceId` 解析 Player Profile，并把 `WorldHeight`、自动脚点策略、`FootpointOffset` 与 `WeaponAnchorRatio` 组合进瞬态 Profile；武器因此继续消费统一布局入口而不增加 Echo 武器特判。
+- Echo 初始化从当前 Player Gameplay Blueprint CDO 复制表现树、VFX 根和阴影的作者相对 Transform，并同步 Player Actor 总体 Scale；随后缓存与 Player 同构的 Flipbook、Effects、Ground/Shadow 基准。每帧同时恢复 EffectsRoot 基准，避免 VFX 根因临时形变或未缓存状态漂移。
+- GroundShadow 的最终宽度不再读取 Echo 原图宽度；Echo 按当前动画语义和 WeaponVisualKey 找到 Player 空间 Profile 的对应 Flipbook，以 Player WorldHeight 归一化后的宽度作为阴影唯一参考。Echo 素材画布或横纵比变化因此不会让阴影形成第二套尺寸。
 
 ### 证据
 
 - `author_echo_presentation_profiles.py` 连续执行后日志确认 `[Plan71] Echo presentation profiles and isolated catalog verified`。
 - 隔离未发布 Sage 源码后的最终 Development FullRebuild 通过，95 个 action 完成并刷新预构建源码指纹 `9ddb7f5f3fa1`。
 - `ReEcho.Presentation.EchoAppearance.CharacterMappings` 发现 1 项并 `Success`；覆盖四 Catalog 映射、12 个 Flipbook 加载、近战 Attack、Bow Attack_Arrow、Actor 实际 Walk 与未知 ID 拒绝。
+- 返工聚焦自动化发现 2 项并全部 `Success`：`CharacterMappings` 证明 Echo 动画仍来自独立 Echo Profile，而 WorldHeight、脚点策略/偏移与武器 Anchor 来自 CSV AppearanceId 对应 Player Profile；`SpatialParity` 使用可读运行时快照逐字段比较 Player Gameplay Blueprint 与 Echo 的 Presentation/Foot/Motion/Flipbook、Effects/Attack/Hurt、Ground/Shadow Transform，并覆盖四角色归一化最终高度、post-bounds 阴影宽度，以及长剑 `W_J_01`/弓 `W_J_08` 的最终 Anchor 与可见组件 Transform。
+- `scripts/ue/Build-Editor.cmd -Configuration Development` 通过并刷新精选预构建包；修改的三个 C++ 文件已使用仓库 `.clang-format` 配置格式化。
+- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 完成 95 个 action，退出码 0；精选预构建包刷新为源码指纹 `3f0c47d3ac78`。
 
 ### 剩余风险
 
 - 自动化不能判断四角色在 SC02 中的最终视觉尺寸、脚点、阴影宽度和攻击动作观感，仍需 PIE 人工验收。
 - 人工 PIE 视觉验收仍未记录；按用户要求先发布 Review 候选，Plan 保持未关闭。
-- Echo 与 Player 使用不同像素尺寸的动画素材时，仅复制组件 Scale 不能保证最终包围盒一致；实现必须比较规范化后的渲染尺寸与脚底坐标。
+- Echo 与 Player 使用不同像素尺寸的动画素材时，现已通过 Player `WorldHeight` 归一化而非复制 Renderer Scale；最终包围盒与脚底屏幕观感仍保留给 PIE 验收。
 - Plan87 后续会写 Player Host；若其在本 Plan 实现前落地，必须重新审计并组合适配，不能覆盖角色能力事件路由。
+- 自动化已证明空间 Profile 的数据来源，但最终角色包围盒、GroundShadow 与 Attack/Hurt VFX 的屏幕观感仍需要 PIE 四角色人工验收；本候选未修改 Recording、Combat、Weapons 逻辑或动作/攻击时序。
 
 ### 人工验收结果/请求
 
@@ -145,6 +152,7 @@
 ### 架构文档审阅结果
 
 - `MOD-ReEcho.md`：已更新，记录 Echo 与 Player 同构表现链、独立 Catalog/Profile、WeaponVisualKey 路由和独立瞄准方向。
+- `MOD-ReEcho.md`：本次返工继续更新，记录 Echo 独立动画与 Player 空间 Profile 的运行时组合，以及 Player Gameplay Blueprint 作者 Transform 的单一空间基准。
 - `MOD-ReEchoPresentation.md`：已审阅、无需修改；本 Plan 只消费既有 Catalog/Profile/Controller 公共契约，没有修改 Presentation 模块接口或所有权。
 - `ARCHITECTURE.md`：已审阅、无需修改；Runtime Module 拓扑与 `ReEcho -> ReEchoPresentation` 单向依赖不变。
 - `README.md`：已审阅、无需修改；仍属于现有 `AREA-Presentation` 与 `AREA-Recording` 路由。

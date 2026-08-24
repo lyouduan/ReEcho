@@ -8,6 +8,7 @@
 #include "ReEchoEchoActor.generated.h"
 
 class AReEchoWeaponActor;
+class AReEchoPlayerPawn;
 class UBillboardComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DCharacterPresentationProfile;
@@ -24,6 +25,26 @@ class USceneComponent;
 class UStaticMeshComponent;
 class UTexture2D;
 struct FReEchoCsvDataSnapshot;
+
+#if WITH_DEV_AUTOMATION_TESTS
+struct FReEchoEchoSpatialPresentationSnapshot
+{
+	FTransform ActorTransform;
+	FTransform PresentationRootTransform;
+	FTransform FootRootTransform;
+	FTransform MotionRootTransform;
+	FTransform FlipbookRootTransform;
+	FTransform EffectsRootTransform;
+	FTransform AttackVfxRootTransform;
+	FTransform HurtVfxRootTransform;
+	FTransform GroundRootTransform;
+	FTransform GroundShadowTransform;
+	FTransform RendererTransform;
+	float NormalizedCharacterHeight = 0.0f;
+	float PresentedCharacterWidth = 0.0f;
+	float ShadowReferenceWidth = 0.0f;
+};
+#endif
 
 /** 回响分身：使用录制构筑中的锁定武器，按固定时间轴重放历史位置与技能。 */
 UCLASS()
@@ -76,6 +97,13 @@ public:
 	FString GetPinnedWeaponDomainRevision() const;
 	FName GetEquippedWeaponId() const;
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
+
+#if WITH_DEV_AUTOMATION_TESTS
+	void ApplyPlayerSpatialAuthoringForTests(const AReEchoPlayerPawn& Player);
+	void RefreshSpatialPresentationForTests();
+	FReEchoEchoSpatialPresentationSnapshot CaptureSpatialPresentationForTests() const;
+	const UReEcho2DCharacterPresentationProfile* GetSpatialProfileForTests() const;
+#endif
 
 	FVector GetAttackAimDirection() const
 	{
@@ -169,17 +197,27 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEcho2DPresentationCatalog> EchoPresentationCatalog;
 	UPROPERTY()
+	TObjectPtr<UReEcho2DPresentationCatalog> PlayerPresentationCatalog;
+	UPROPERTY(Transient)
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> ComposedPresentationProfile;
+	UPROPERTY()
 	TObjectPtr<UReEcho2DCharacterPresentationProfile> ActivePresentationProfile;
+	UPROPERTY()
+	TObjectPtr<UReEcho2DCharacterPresentationProfile> ActiveSpatialProfile;
 
 	void RefreshPresentationProfile();
+	void ApplyPlayerSpatialAuthoring(const AReEchoPlayerPawn& Player);
 	void UpdatePresentationState();
 	void RefreshFootpointAlignment();
 	void RefreshGroundShadowFromFlipbook();
+	float CalculateSpatialShadowWidth() const;
 	void UpdateFacingSign(const FVector& AimDirection);
 	FName ConfiguredCharacterId = NAME_None;
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
 	FVector AuthoredMotionLocation = FVector::ZeroVector;
+	FVector BaseEffectsLocation = FVector::ZeroVector;
+	FVector BaseEffectsScale = FVector::OneVector;
 	FVector CalculatedFootAlignmentOffset = FVector::ZeroVector;
 	FVector AuthoredGroundRootLocation = FVector::ZeroVector;
 	FVector AuthoredGroundShadowScale = FVector::OneVector;
