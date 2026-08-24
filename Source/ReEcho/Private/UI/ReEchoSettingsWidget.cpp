@@ -22,8 +22,41 @@
 #include "Components/PanelWidget.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "Engine/Texture2D.h"
 #include "GameFramework/GameUserSettings.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Kismet/GameplayStatics.h"
+
+namespace
+{
+void ApplySettingsTabTexture(UButton* Button, UTexture2D* Texture)
+{
+	if (!Button || !Texture)
+	{
+		return;
+	}
+
+	FButtonStyle Style = Button->GetStyle();
+	for (FSlateBrush* Brush : {&Style.Normal, &Style.Hovered, &Style.Pressed, &Style.Disabled})
+	{
+		Brush->SetResourceObject(Texture);
+		Brush->DrawAs = ESlateBrushDrawType::Image;
+		Brush->TintColor = FSlateColor(FLinearColor::White);
+	}
+	Button->SetStyle(Style);
+	Button->SetBackgroundColor(FLinearColor::White);
+}
+} // namespace
+
+UReEchoSettingsWidget::UReEchoSettingsWidget(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+{
+	static ConstructorHelpers::FObjectFinder<UTexture2D> LightTabFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/Settings/T_UI_Settings_TabLight"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DarkTabFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/Settings/T_UI_Settings_TabDark"));
+	SettingsTabLightTexture = LightTabFinder.Object;
+	SettingsTabDarkTexture = DarkTabFinder.Object;
+}
 
 TConstArrayView<EReEchoAudioBus> UReEchoSettingsWidget::GetCompactEffectsBuses()
 {
@@ -374,6 +407,7 @@ USlider* UReEchoSettingsWidget::AddSliderOverlay(const FName SliderName, const F
 {
 	if (USlider* ExistingSlider = Cast<USlider>(WidgetTree ? WidgetTree->FindWidget(SliderName) : nullptr))
 	{
+		ExistingSlider->SetIndentHandle(false);
 		return ExistingSlider;
 	}
 
@@ -389,6 +423,7 @@ USlider* UReEchoSettingsWidget::AddSliderOverlay(const FName SliderName, const F
 	{
 		Slider->SetWidgetStyle(MasterVolumeSlider->GetWidgetStyle());
 	}
+	Slider->SetIndentHandle(false);
 	UPanelSlot* NewSlot = Parent->AddChild(Slider);
 	if (const UCanvasPanelSlot* SourceCanvasSlot = Cast<UCanvasPanelSlot>(TrackWidget->Slot))
 	{
@@ -478,6 +513,12 @@ void UReEchoSettingsWidget::BuildInteractiveSettingsControls()
 			Slider->SetLocked(false);
 			if (UOverlaySlot* SliderSlot = Cast<UOverlaySlot>(Slider->Slot))
 			{
+				// The legacy invisible interaction sliders kept horizontal slot
+				// padding, shortening their travel range relative to the authored
+				// track/fill art. With a visible thumb this caused symmetric
+				// separation near 0% and 100%. The overlay itself already owns the
+				// exact track bounds, so the real Slider must fill it without padding.
+				SliderSlot->SetPadding(FMargin(0.0f));
 				SliderSlot->SetHorizontalAlignment(HAlign_Fill);
 				SliderSlot->SetVerticalAlignment(VAlign_Fill);
 			}
@@ -620,10 +661,18 @@ void UReEchoSettingsWidget::UpdateVolumeVisual(UImage* FillImage, UTextBlock* Pe
 	const float ClampedValue = FMath::Clamp(Value, 0.0f, 1.0f);
 	if (FillImage)
 	{
-		// The delivered fill art was authored at 65%; scale from that baseline so
-		// 0..100% maps to the complete visible track without replacing the asset.
+		// The delivered fill art is 802px wide with 65% of its source occupied by
+		// the dark fill. The real Slider indents its 50px thumb so it stays wholly
+		// inside the track. Use that same center range for the decorative fill:
+		// half-thumb at 0%, track-minus-half-thumb at 100%. This keeps the color
+		// boundary under the thumb center at every value without end protrusion.
+		constexpr float SourceFillRatio = 0.65f;
+		constexpr float TrackWidth = 802.0f;
+		constexpr float ThumbHalfWidth = 25.0f;
+		const float ThumbInsetRatio = ThumbHalfWidth / TrackWidth;
+		const float FillEndRatio = ThumbInsetRatio + ClampedValue * (1.0f - 2.0f * ThumbInsetRatio);
 		FillImage->SetRenderTransformPivot(FVector2D(0.0f, 0.5f));
-		FillImage->SetRenderScale(FVector2D(ClampedValue / 0.65f, 1.0f));
+		FillImage->SetRenderScale(FVector2D(FillEndRatio / SourceFillRatio, 1.0f));
 	}
 	if (PercentText)
 	{
@@ -645,15 +694,15 @@ void UReEchoSettingsWidget::PostUiEvent(const FName EventId) const
 
 void UReEchoSettingsWidget::RefreshCategory()
 {
-	if (!CategoryTitleText)
-	{
-		return;
-	}
-
 	// The delivered layout uses one persistent modal title. The active tab already
 	// communicates which category is open, so changing this heading caused the
 	// title to drift into the white panel and diverge from the reference artwork.
-	CategoryTitleText->SetText(FText::FromString(TEXT("游戏设置")));
+	// CategoryTitleText only exists in the no-Root C++ fallback; the authored WBP
+	// intentionally omits this legacy duplicate.
+	if (CategoryTitleText)
+	{
+		CategoryTitleText->SetText(FText::FromString(TEXT("游戏设置")));
+	}
 	if (GraphicsPanel)
 	{
 		GraphicsPanel->SetVisibility(SelectedCategory == 0 ? ESlateVisibility::SelfHitTestInvisible
@@ -696,15 +745,13 @@ void UReEchoSettingsWidget::RefreshCategory()
 		}
 	}
 
-	// Tab artwork is authored as a white active note. Tint inactive notes grey so
-	// the same button remains keyboard/gamepad accessible while matching the
-	// selected/inactive visual states from the delivery.
-	const FLinearColor SettingsSelectedColor = FLinearColor::White;
-	const FLinearColor SettingsNormalColor(0.72f, 0.72f, 0.72f, 1.0f);
+	// The selected tab uses the delivered light paper note while every inactive
+	// tab uses the delivered dark paper note. Only the brush resource changes;
+	// the authored WBP slots remain the layout and hit-test authority.
 	for (int32 CategoryIndex = 0; CategoryIndex < CategoryButtons.Num(); ++CategoryIndex)
 	{
-		CategoryButtons[CategoryIndex]->SetBackgroundColor(SelectedCategory == CategoryIndex ? SettingsSelectedColor
-		                                                                                     : SettingsNormalColor);
+		ApplySettingsTabTexture(CategoryButtons[CategoryIndex],
+		                        SelectedCategory == CategoryIndex ? SettingsTabLightTexture : SettingsTabDarkTexture);
 	}
 }
 
@@ -898,6 +945,10 @@ void UReEchoSettingsWidget::BindAudioControls()
 	{
 		if (Slider)
 		{
+			// UE 5.8's indented mode shortens the painted travel range by two
+			// complete thumb widths. The delivered bar art expects the normal
+			// range, where the thumb's outer edges touch 0% and 100%.
+			Slider->SetIndentHandle(false);
 			Slider->OnMouseCaptureEnd.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleSliderInteractionFinished);
 			Slider->OnControllerCaptureEnd.AddUniqueDynamic(this,
 			                                                &UReEchoSettingsWidget::HandleSliderInteractionFinished);

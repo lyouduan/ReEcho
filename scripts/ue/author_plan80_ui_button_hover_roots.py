@@ -16,8 +16,6 @@ ASSET_PATHS = (
 
 REQUIRED_VARIABLES = {
     "/Game/ReEcho/UI/WBP_ReEchoSettings": {
-        "DetailText": unreal.TextBlock,
-        "CategoryTitleText": unreal.TextBlock,
         "GraphicsSettingsButton": unreal.ReEchoIndexedButton,
         "AudioSettingsButton": unreal.ReEchoIndexedButton,
         "ControlsSettingsButton": unreal.ReEchoIndexedButton,

@@ -13,6 +13,7 @@ class USlider;
 class UCheckBox;
 class UComboBoxString;
 class UImage;
+class UTexture2D;
 class UReEchoAudioService;
 class UWidget;
 enum class EReEchoAudioBus : uint8;
@@ -27,6 +28,8 @@ class REECHO_API UReEchoSettingsWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UReEchoSettingsWidget(const FObjectInitializer& ObjectInitializer);
+
 	UPROPERTY(BlueprintAssignable)
 	FReEchoSettingsClosed OnClosed;
 
@@ -130,6 +133,13 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> SettingsCloseButton;
+
+	/** Paper-note art selected by runtime state; layout remains authored in WBP. */
+	UPROPERTY()
+	TObjectPtr<UTexture2D> SettingsTabLightTexture;
+
+	UPROPERTY()
+	TObjectPtr<UTexture2D> SettingsTabDarkTexture;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CategoryButtons;

@@ -75,7 +75,9 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 | `WBP_ReEchoEnemyHealthBar` | `ProgressBar` |
 | `WBP_ReEchoStartMenu` | `StatusText`, `ContinueButton`, `NewGameButton`, `GameSettingsButton`, `QuitButton` |
 | `WBP_ReEchoLoadoutSelection` | `StatusText`, `CharacterRow`, `WeaponRow`, `ConfirmButton` |
-| `WBP_ReEchoSettings` | `DetailText`, `CategoryTitleText`, `GraphicsSettingsButton`, `AudioSettingsButton`, `ControlsSettingsButton`, `RestoreDefaultsButton`, `ApplyAndReturnButton`, `AudioPanel`, `MasterVolumeSlider`, `MusicVolumeSlider`, `AmbienceVolumeSlider`, `CombatSfxVolumeSlider`, `UiSfxVolumeSlider`, `MasterMuteCheckBox`, `MusicMuteCheckBox`, `AmbienceMuteCheckBox`, `CombatSfxMuteCheckBox`, `UiSfxMuteCheckBox`, `DiagnosticToneCheckBox` |
+| `WBP_ReEchoSettings` | `GraphicsSettingsButton`, `AudioSettingsButton`, `ControlsSettingsButton`, `RestoreDefaultsButton`, `ApplyAndReturnButton`, `AudioPanel`, `GraphicsPanel`, `ControlsPanel`, `MasterVolumeSlider`, `MusicVolumeSlider`, `AmbienceVolumeSlider`, `CombatSfxVolumeSlider`, `UiSfxVolumeSlider`, `MasterMuteCheckBox`, `MusicMuteCheckBox`, `AmbienceMuteCheckBox`, `CombatSfxMuteCheckBox`, `UiSfxMuteCheckBox`, `DiagnosticToneCheckBox` |
+
+`WBP_ReEchoSettings` 的声音页可见布局以 `AudioDesignerCanvas` 为位置权威。`MasterVolumeVisualOverlay`、`MusicVolumeVisualOverlay`、`CombatVolumeVisualOverlay` 分别代表完整滑条逻辑根；移动它们会同时移动轨道、填充和真实把手。各 `*Label`、`*Percent`、`*MuteCheckBox` 及 `AudioOutputField` 都是该 Canvas 的直接子项，可在 Designer 中独立拖动。运行时生成的下拉交互层会复制 `AudioOutputField` 的 Canvas 位置和尺寸，不应在 C++ 中另写坐标。
 | `WBP_ReEchoRestart` | `TitleText`, `MessageText`, `ResumeButton`, `RestartButton`, `QuitButton`, `SettingsButton`, `QuitButtonText`；Plan45 暂停样板另提供可选 `RootPanel`, `PauseSettingsButton`, `ResumeButtonLabel`, `RestartButtonLabel`, `ArtPauseDimmer`, `ArtPauseResume`, `ArtPauseExitToMenu`, `ArtPauseExitGame`, `ArtPauseSaveAndExit`, `ArtPauseExitWithoutSave`, `ArtPauseBack`, `ArtPauseSettings` |
 | `WBP_ReEchoTraitCardChoice` | `TraitCardContainer`, `TraitCardSlot0`, `TraitCardSlot1`, `TraitCardSlot2`, `TitleText`, `SubtitleText`, `CurrencyText`, `NeedleWidget` |
 | `WBP_ReEchoInventoryShopScreen` | `BackgroundImage`, `InventoryPanel`, `ShopPanel`, `CurrencyText`, `InventoryText`, `CloseButton`, `OfferContainer` |
@@ -123,6 +125,8 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 `WBP_ReEchoSettings`、`WBP_ReEchoRestart`、`WBP_ReEchoTraitCardEntry`、`WBP_ReEchoInventoryShopScreen`、`WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` 和 `WBP_ReEchoStatsScreen` 已接入 Plan45 对应面板、卡框、立绘和 HUD 装饰。新增 Image 均不参与命中测试；原 `RootPanel`、`InventoryPanel`、`ShopPanel`、`OfferContainer`、按钮和文本绑定名称/类型保持不变。商店与装配室装饰必须继续放在各自原面板内部，使 `UReEchoInventoryShopWidget::Refresh()` 的显隐切换同时覆盖内容和美术层。
 
 `WBP_ReEchoSettings` 的 Graphics、Audio、Controls 是固定页面结构。固定的音频 Slider 和 Checkbox 必须由 WBP 正常路径静态提供，布局、间距、样式和焦点表现归 UMG；`UReEchoSettingsWidget` 只绑定控件、刷新状态并把预览/提交/撤销请求交给 `UReEchoAudioService`。只要 WBP 已有作者ing Root，C++ 就不得用 `BuildWidgetTree()` 覆盖整页；该路径只用于设计资产完全没有 Root 时的最低可用 fallback。运行时补充的 ComboBox/Slider 使用稳定名称查找并幂等复用，重复构造不得叠加交互层。所有绑定控件必须勾选 `Is Variable`，并严格使用第 4 节列出的名称和类型。
+
+设置页正式作者ing树不再保留早期迁移期的折叠兼容节点：旧 `CategoryTitleText` / `DetailText`、旧页签白底与重复标签、旧画面占位行、占位提示文字及按钮内重复文字均已删除。页面标题、页签文字、字段和按钮表现以当前 `Panel`、三个页签 Overlay、三个分类 Panel 及两个 Canvas 直属按钮为准；不要为兼容旧脚本重新创建这些废弃节点。C++ 中同名可选成员只服务无 Root 的最低可用 fallback。
 
 `WBP_ReEchoRestart` 是多状态页面。隐藏某个按钮或改文案前，必须检查六种显示场景：
 
