@@ -84,7 +84,7 @@ public:
 	 * 槽位已满时挤出该槽位最早装备的旧件，旧件仍保留在 OwnedPartIds（回落背包）。
 	 */
 	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
-	FReEchoWeaponPartShopView GetWeaponPartShopView() const;
+	FReEchoWeaponPartShopView GetWeaponPartShopView();
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 	int32 GetTotalEncounterCount() const;
 

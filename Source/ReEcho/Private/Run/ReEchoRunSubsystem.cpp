@@ -112,15 +112,15 @@ FReEchoShopOffer MakeWeaponPartOffer(const FReEchoCsvPartRow& Part)
 	return Offer;
 }
 
-FName MakeShopCardOfferId(const int32 RefreshSequence, const FName CardId)
+FName MakeShopCardOfferId(const int32 EncounterIndex, const int32 RefreshSequence, const FName CardId)
 {
-	return FName(*FString::Printf(TEXT("SHOP_CARD_%d_%s"), RefreshSequence, *CardId.ToString()));
+	return FName(*FString::Printf(TEXT("SHOP_CARD_E%d_R%d_%s"), EncounterIndex, RefreshSequence, *CardId.ToString()));
 }
 
-FReEchoShopOffer MakeBuildCardOffer(const FReEchoCardDefinition& Card, const int32 RefreshSequence)
+FReEchoShopOffer MakeOwnedBuildCardOffer(const FReEchoCardDefinition& Card)
 {
 	FReEchoShopOffer Offer;
-	Offer.ItemId = MakeShopCardOfferId(RefreshSequence, Card.Id);
+	Offer.ItemId = Card.Id;
 	Offer.DisplayName = FText::FromString(Card.DisplayName);
 	Offer.EffectText = FText::FromString(Card.Description);
 	Offer.Tier = FMath::Clamp(Card.Tier, 1, 3);
@@ -488,12 +488,26 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 		    Build.CardState.Runtime.RandomSequence < 0 || Build.CardState.Runtime.PreventedDamageCount < 0 ||
 		    Build.CardState.Runtime.HuntKillCount < 0 || Build.CardState.Runtime.ReactionCount < 0 ||
 		    Build.CardState.Runtime.EchoKillProgress < 0 || Build.CardState.Runtime.PlayerKillProgress < 0 ||
-		    Build.CardState.Runtime.FreeShopRefreshes < 0 ||
+		    Build.CardState.Runtime.FreeShopRefreshes < 0 || Build.CardState.Runtime.ShopRefreshSequence < 0 ||
+		    Build.CardState.Runtime.ShopCardOfferEncounterIndex < INDEX_NONE ||
+		    Build.CardState.Runtime.ShopCardOfferRefreshSequence < INDEX_NONE ||
+		    Build.CardState.Runtime.ShopCardOfferIds.Num() > ReEchoShopOfferCountPerGroup ||
 		    static_cast<uint8>(Build.CardState.Runtime.EconomyPenalty) >
 		        static_cast<uint8>(EReEchoCardEconomyPenalty::NoEnemyShardDrops) ||
 		    (Build.CardState.Runtime.bHasAnchorRecording && !Build.CardState.Runtime.AnchorRecordingId.IsValid()))
 		{
 			return false;
+		}
+		TSet<FName> UniqueShopCardOffers;
+		for (const FName CardId : Build.CardState.Runtime.ShopCardOfferIds)
+		{
+			const FReEchoCardDefinition* Card = Snapshot.CardCatalog->Find(CardId);
+			if (!Card || !Card->bEnabled || Card->OfferGroup != TraitOfferGroup ||
+			    UniqueShopCardOffers.Contains(CardId))
+			{
+				return false;
+			}
+			UniqueShopCardOffers.Add(CardId);
 		}
 		TSet<FName> UniqueCards;
 		for (const FName CardId : Build.CardState.OwnedCardIds)
@@ -824,7 +838,7 @@ bool UReEchoRunSubsystem::TryEquipPurchasedPart(const FName PartId, FString& Out
 	return TryEquipParts(DesiredPartIds, OutError);
 }
 
-FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
+FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 {
 	FReEchoWeaponPartShopView View;
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
@@ -1017,7 +1031,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 
 	if (Snapshot->CardCatalog.IsValid())
 	{
-		const int32 RefreshSequence = CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+		FReEchoCardRuntimeState& CardRuntime = CurrentBuild.CardState.Runtime;
+		const int32 RefreshSequence = CardRuntime.ShopRefreshSequence;
 		// Build-card shop: three fixed slots drawn from the union of the encounter's configured tiers.
 		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex))
 		{
@@ -1035,48 +1050,73 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 					}
 				}
 			}
-			TArray<FReEchoCardDefinition> Eligible;
-			TSet<FName> EligibleCardIds;
-			for (const int32 Tier : CardTiers)
+			const bool bNeedsNewCardPage = CardRuntime.ShopCardOfferEncounterIndex != EncounterIndex ||
+			                               CardRuntime.ShopCardOfferRefreshSequence != RefreshSequence;
+			if (bNeedsNewCardPage)
 			{
-				for (const FReEchoCardDefinition& Card : ReEchoCardRuntime::BuildOfferPool(
-				         *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, Tier))
+				CardRuntime.ShopCardOfferEncounterIndex = EncounterIndex;
+				CardRuntime.ShopCardOfferRefreshSequence = RefreshSequence;
+				CardRuntime.ShopCardOfferIds.Reset();
+
+				TArray<FReEchoCardDefinition> Eligible;
+				TSet<FName> EligibleCardIds;
+				for (const int32 Tier : CardTiers)
 				{
-					if (!EligibleCardIds.Contains(Card.Id))
+					for (const FReEchoCardDefinition& Card : ReEchoCardRuntime::BuildOfferPool(
+					         *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, Tier))
 					{
-						EligibleCardIds.Add(Card.Id);
-						Eligible.Add(Card);
+						if (!EligibleCardIds.Contains(Card.Id))
+						{
+							EligibleCardIds.Add(Card.Id);
+							Eligible.Add(Card);
+						}
+					}
+				}
+
+				if (CardTiers.Num() > 0 && Eligible.Num() < ReEchoShopOfferCountPerGroup)
+				{
+					UE_LOG(
+					    LogReEcho,
+					    Error,
+					    TEXT("Encounter %d shop tiers require %d card slots but only %d unowned cards are eligible."),
+					    EncounterIndex,
+					    ReEchoShopOfferCountPerGroup,
+					    Eligible.Num());
+				}
+				else if (CardTiers.Num() > 0)
+				{
+					FRandomStream CardRand(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
+					ShuffleOffers(Eligible, CardRand);
+					for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
+					{
+						CardRuntime.ShopCardOfferIds.Add(Eligible[SlotIndex].Id);
 					}
 				}
 			}
 
-			if (CardTiers.Num() > 0 && Eligible.Num() < ReEchoShopOfferCountPerGroup)
+			for (const FName CardId : CardRuntime.ShopCardOfferIds)
 			{
-				UE_LOG(LogReEcho,
-				       Error,
-				       TEXT("Encounter %d shop tiers require %d card slots but only %d unowned cards are eligible."),
-				       EncounterIndex,
-				       ReEchoShopOfferCountPerGroup,
-				       Eligible.Num());
-			}
-			else if (CardTiers.Num() > 0)
-			{
-				FRandomStream CardRand(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
-				ShuffleOffers(Eligible, CardRand);
-				for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
+				const FReEchoCardDefinition* Chosen = Snapshot->CardCatalog->Find(CardId);
+				if (!Chosen || !CardTiers.Contains(Chosen->Tier))
 				{
-					const FReEchoCardDefinition& Chosen = Eligible[SlotIndex];
-					FReEchoCardSlotOffer CardOffer;
-					CardOffer.Tier = Chosen.Tier;
-					CardOffer.CardId = Chosen.Id;
-					CardOffer.ItemId = MakeShopCardOfferId(RefreshSequence, Chosen.Id);
-					CardOffer.DisplayName = FText::FromString(Chosen.DisplayName);
-					CardOffer.EffectText = FText::FromString(Chosen.Description);
-					CardOffer.bFree = false;
-					CardOffer.Price = GetShopPriceInRange(
-					    *Snapshot, *FString::Printf(TEXT("Card_T%d"), Chosen.Tier), Chosen.Tier * 10, CardRand);
-					View.CardSlotOffers.Add(CardOffer);
+					UE_LOG(LogReEcho,
+					       Error,
+					       TEXT("Encounter %d cached shop card '%s' no longer belongs to the configured tier pool."),
+					       EncounterIndex,
+					       *CardId.ToString());
+					continue;
 				}
+				FRandomStream PriceRand(BuildShopOfferSeed(Chosen->Id, EncounterIndex, RefreshSequence));
+				FReEchoCardSlotOffer CardOffer;
+				CardOffer.Tier = Chosen->Tier;
+				CardOffer.CardId = Chosen->Id;
+				CardOffer.ItemId = MakeShopCardOfferId(EncounterIndex, RefreshSequence, Chosen->Id);
+				CardOffer.DisplayName = FText::FromString(Chosen->DisplayName);
+				CardOffer.EffectText = FText::FromString(Chosen->Description);
+				CardOffer.bFree = false;
+				CardOffer.Price = GetShopPriceInRange(
+				    *Snapshot, *FString::Printf(TEXT("Card_T%d"), Chosen->Tier), Chosen->Tier * 10, PriceRand);
+				View.CardSlotOffers.Add(CardOffer);
 			}
 		}
 
@@ -1084,8 +1124,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		{
 			if (const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId))
 			{
-				FReEchoShopOffer OwnedCard = MakeBuildCardOffer(*Card, RefreshSequence);
-				OwnedCard.ItemId = CardId;
+				FReEchoShopOffer OwnedCard = MakeOwnedBuildCardOffer(*Card);
 				View.OwnedCards.Add(MoveTemp(OwnedCard));
 			}
 		}
@@ -1944,6 +1983,11 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		return false;
 	}
 	if (bFoundCard && !bIsFree && !CanPurchaseExtraShopCard())
+	{
+		return false;
+	}
+	if (bFoundCard && CardSlotOffer.Tier != 1 &&
+	    ReEchoCardRuntime::HasCard(CurrentBuild.CardState, CardSlotOffer.CardId))
 	{
 		return false;
 	}

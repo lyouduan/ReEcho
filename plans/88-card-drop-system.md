@@ -10,7 +10,7 @@
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main` @ `b8836ed1d05847e1a340de9c89148dd802b16393`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan88-card-drop-system`，分支 `plan/88-card-drop-system`。
-- 依赖 / 阻塞：依赖 Plan47 的 `MOD-ReEchoCards` 目录/资格过滤，并与 Plan85 的商店所有权排除保持兼容。2026-08-24 用户进一步锁定：商店有投放时固定显示 3 个卡牌槽，三个槽均从当前行 `ShopTiers` 指定 Tier 的合并牌池抽取；免费与商店均不得出现任何已获得卡牌，不因 `StackPolicy=Stackable` 例外。该决定覆盖此前 Plan67“一配置 Tier 对应一槽”的旧解释。远端 Plan87 的未来 Forge 删除仍与本 Plan Run 热点耦合。
+- 依赖 / 阻塞：依赖 Plan47 的 `MOD-ReEchoCards` 目录/资格过滤，并与 Plan85 的商店所有权排除保持兼容。2026-08-24 用户锁定：商店有投放时固定显示 3 个卡牌槽，三个槽均从当前行 `ShopTiers` 指定 Tier 的合并牌池抽取；最新资格规则为1级卡可重复投放/叠加，2、3级卡及已获得武器、符文不得再次投放。该决定覆盖此前“所有已获得卡一律排除”及 Plan67“一配置 Tier 对应一槽”的旧解释。远端 Plan87 的未来 Forge 删除仍与本 Plan Run 热点耦合。
 - Writes:
   - `plans/88-card-drop-system.md`
   - `Source/ReEcho/Public/Run/ReEchoRunSubsystem.h`
@@ -23,6 +23,7 @@
   - `Source/ReEcho/Private/Tests/ReEchoCharacterPromotionTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoShopTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp`
+  - `Source/ReEchoCards/Public/Cards/ReEchoCardTypes.h`
   - `Source/ReEchoCards/Private/Cards/ReEchoCardRuntime.cpp`
   - `Source/ReEchoCards/Private/Tests/ReEchoCardRuntimeTests.cpp`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
@@ -43,7 +44,7 @@
   - `plans/85-shop-ownership.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
 - 影响模式：`SharedContract`。
-- 兼容承诺 / 下游操作：不增加存档字段或 SaveVersion；继续使用本局固定卡牌目录、现有 `OwnedCardIds`、`CanOffer` 和确定性种子。商店价格、购买和刷新入口保持不变；仅将卡牌区改为“有配置时固定 3 槽、牌池为 `ShopTiers` 合并集合”，并把“已获得即不可再投放”集中到 Cards 资格判断。WBP 继续消费现有扁平报价，不要求 UI 资产重做。
+- 兼容承诺 / 下游操作：继续使用本局固定卡牌目录、现有 `OwnedCardIds`、`CanOffer` 和确定性种子。为保证同一商店页购买后不暗中重摇，在已随 BuildSnapshot 保存的卡牌运行态中增加当前关次/刷新序号及 3 个报价 CardId；不提升 SaveVersion，旧存档缺失字段按默认空页在首次打开时生成。商店购买和刷新入口保持不变；卡牌区为“有配置时固定 3 槽、牌池为 `ShopTiers` 合并集合”，并把“1级可重复、2/3级已获得即不可再投放”集中到 Cards 资格判断。WBP 继续消费现有扁平报价，不要求 UI 资产重做。
 - 明确排除：不修改 39 张构筑卡的定义与效果，不调整卡牌数值，不重做商店 UI/资产，不修改武器/符文系统，不实现新的卡牌刷新机制，不修改策划源工作簿；如实现发现生产 XLSX/CSV 与本 Plan 锁定矩阵漂移，停止并回到策划真源审计，不静默覆表。
 
 ## 锁定目标
@@ -62,7 +63,7 @@
 | 8 | 0 组 | 0 槽 |
 
 - `FreeTier` 为空表示本关战后不进入普通卡牌选择，直接进入战后商店/回响处理；有值时只从该 Tier 的 `Trait` 可投放牌池生成 3 张且选择 1 张。
-- 免费与商店候选继续遵守 `MOD-ReEchoCards` 的 Enabled/Offerable、冲突和持有状态资格规则；任何已经存在于 `OwnedCardIds` 的卡均不可再次进入候选，即使其 `StackPolicy=Stackable`。不得在 Run 或 UI 复制该规则。
+- 免费与商店候选继续遵守 `MOD-ReEchoCards` 的 Enabled/Offerable、冲突和持有状态资格规则；1级卡即使已存在于 `OwnedCardIds` 仍可再次进入后续候选并叠加，2、3级卡一旦获得即不可再次进入候选。不得在 Run 或 UI 复制该规则。
 - 勇者的 `ForgeChoice` 是独立角色能力：先完成锻造；随后仅当当前关 `FreeTier` 有值时进入普通三选一，否则直接进入商店。
 - 贤者每第 4 次普通选择触发的额外选择沿用当前关 `FreeTier`，且“不投放”关不会凭空创建普通选择或累计次数。
 - 第 8 关 Boss 结算保持无免费选卡、无商店卡牌投放并进入胜利结算。
@@ -72,14 +73,14 @@
 ## 架构影响与设计决策
 
 - 受影响架构标识：`MOD-ReEcho`、`MOD-ReEchoCards`（直接修改）；`AREA-Data`、`AREA-Run`、`AREA-Cards`、`AREA-UI`（行为链受影响）。`MOD-ReEchoUI` 为稳定消费方，预期不改其源码/公共契约。
-- 对应模块文档：`MOD-ReEcho.md` 记录 Run 的固定三槽合并牌池；`MOD-ReEchoCards.md` 记录统一资格不再投放任何已获得卡；`MOD-ReEchoUI.md` 关闭前具名审阅。
+- 对应模块文档：`MOD-ReEcho.md` 记录 Run 的固定三槽合并牌池；`MOD-ReEchoCards.md` 记录1级重复、2/3级持有排除的统一资格；`MOD-ReEchoUI.md` 关闭前具名审阅。
 - 设计意图：让生产表已存在的 `FreeTier` 成为战后普通卡牌投放的唯一权威，并把“是否显示选卡、从哪个 Tier 抽取、选卡后进入哪里”集中在 Run 阶段策略中；GameMode 只按 Run phase 路由 UI，Cards 只负责牌池资格与授予。
 - 权威状态与依赖：`Design/Data/ReEchoData.xlsx` → `shop_drop_levels.csv` → `FReEchoCsvDataSnapshot::ShopDropLevels` 是关次投放配置链；Run 拥有阶段与本局事务；Cards 拥有资格/牌池/授予；GameMode/UI 不保存第二份关次矩阵。状态所有者不变，不增加跨 Runtime Module 依赖。
 - 决策记录：
   - 复用现有 `FReEchoCsvShopDropLevelRow { EncounterIndex, FreeTier, ShopTiers }`，不新建重复表或硬编码八关数组；当前数据同步 `--check` 已证明生产 XLSX 与 CSV 一致。
   - 免费投放数量由 `FreeTier` 的“空/有值”表达为 0/1 组，每组固定三选一；不为此把 Widget 改成任意数量候选。
   - 商店投放按用户 2026-08-24 的最新决定覆盖 Plan67 旧解释：`ShopTiers` 定义三个固定槽共同使用的合并牌池，而不是 Tier 数量或槽位数量；三个报价保持确定性且互不重复。
-  - “已获得不可再投放”属于 Cards 的统一资格契约，`CanOffer` 对所有 StackPolicy 拒绝已存在于 `OwnedCardIds` 的卡；Run 的免费与商店路径复用该入口。
+  - 持有状态资格属于 Cards 的统一契约：`CanOffer` 允许已拥有的1级卡再次投放并叠加，拒绝已拥有的2、3级卡；Run 的免费与商店路径复用该入口。
   - Run 提供单一的当前关免费投放解析/阶段推进入口，`CompleteEncounter` 与 `ApplyForgeChoice` 共用，避免勇者路径再次绕过 `FreeTier`。
   - 确定性仍基于现有 `TraitOfferSeed + EncounterIndex + OwnedCardIds`；只把 Tier 作为候选池过滤条件，不引入时间或 UI 状态随机源。
 - 相关文档同步范围：
@@ -92,7 +93,7 @@
   - `ARCHITECTURE.md`：已审阅；Runtime Module 拓扑、依赖方向和权威状态所有者未变，无需修改。
   - `README.md`：已审阅；未增加或移动架构标识、模块和阅读路由，无需修改。
   - `MOD-ReEcho.md`：已更新 `AREA-Data` 的投放配置发布边界、`AREA-Run` 的逐关阶段/Tier 契约及 1..8 关测试覆盖。
-  - `MOD-ReEchoCards.md`：已更新统一资格契约；任何已获得卡（包括 `Stackable`）均不再进入免费或商店投放池，显式非投放授予仍可使用叠层语义。
+  - `MOD-ReEchoCards.md`：已更新统一资格契约；1级卡可在免费或商店后续投放中重复并叠加，2、3级卡一旦获得即排除。
   - `MOD-ReEchoUI.md`：已审阅；免费选卡仍使用现有三候选 Widget，UI 只按 Run phase 被路由且不持有关次矩阵，无需修改。
 
 ## 锁定验收
@@ -102,7 +103,7 @@
 - [x] 第 7 关商店精确生成 3 个卡牌槽，三个槽均只来自 Tier 1 + Tier 3 合并牌池，不再错误复用第 6 关 Tier 1 + Tier 2。
 - [x] 勇者在第 1 关只完成锻造后进入商店，在有 `FreeTier` 的关次锻造后继续正确 Tier 的普通三选一。
 - [x] 贤者额外选择仍按每 4 次普通选择触发，额外候选与触发关的 `FreeTier` 一致。
-- [x] 免费与商店均不出现任何已获得卡，包括 `Stackable`；同一组内没有重复卡。
+- [x] 免费与商店后续投放允许已获得1级卡再次出现并叠加，排除所有已获得2、3级卡；同一组内没有重复 CardId。
 - [x] 商店购买构筑卡后不重摇报价，并在同一商店会话内立即把真实卡牌图标显示到右侧卡牌槽。
 - [x] 同一基线/种子/持有卡状态生成相同候选；非法或不足牌池不会回退全等级，也不会卡死战后流程。
 - [x] `scripts\data\sync_xlsx_to_csv.py --check`、聚焦自动化、完整 Editor 构建、`python scripts/validate_project.py`、`git diff --check` 通过。
@@ -124,7 +125,7 @@
 3. `GenerateTraitCardOffers` 按当前关 `FreeTier` 调用 Cards 的 Tier 过滤牌池，保留现有资格、叠层优先级与确定性随机；为候选不足提供明确失败结果/日志和可继续流程。
 4. GameMode 的战后 UI 路由按 Run phase 分发：需要卡牌时打开三选一，无普通投放时直接打开战后商店；选择完成后的现有商店衔接保持一致。
 5. 商店卡牌槽直接使用真实 `EncounterIndex` 查 `ShopDropLevels`，删除 `1..6` 钳制；有 `ShopTiers` 时合并全部指定 Tier 的可投放牌池并确定性抽取 3 张互不重复卡，空配置返回 0 槽。
-6. 在 Cards 统一资格入口排除任何已获得卡；扩充 Cards、Trait 与 Shop 测试，覆盖 Stackable、逐关矩阵、Tier 纯度、确定性、Brave/Sage、无投放跳转、缺表/空池和第 7 关回归。
+6. 在 Cards 统一资格入口实现1级可重复、2/3级持有排除；扩充 Cards、Trait 与 Shop 测试，覆盖叠加、逐关矩阵、Tier 纯度、确定性、Brave/Sage、无投放跳转、缺表/空池和第 7 关回归。
 7. 更新 `MOD-ReEcho.md`、`MOD-ReEchoCards.md`，并完成所有相关 `CODEBASE_MAP` 文档的关闭前具名审阅。
 
 ## 验证矩阵
@@ -152,8 +153,11 @@
 - 2026-08-24：Run 已以当前 `EncounterIndex` 的 `FreeTier` 推进普通选卡阶段并生成同 Tier 三选一；空值、缺行、非法 Tier 或候选不足时不跨 Tier 回退，安全进入战后商店。勇者锻造完成后复用同一入口，贤者额外选择继续沿用触发关 Tier。
 - 2026-08-24：GameMode 改为按 Run phase 路由选卡或直接进入战后商店/回响处理；商店按真实关次读取 `ShopTiers`，不再把第 7/8 关钳制到第 6 关。
 - 2026-08-24：新增免费投放 1..8 关矩阵、商店 1..8 关槽位/Tier 矩阵及 Brave/Sage 回归；同步把既有 CSV 效果测试从“调用公开抽牌接口索取全牌池”改为直接审计目录并通过调试授予验证效果，避免绕过新的关次投放契约。
-- 2026-08-24：按用户补充规则把商店投放修正为“有配置固定三槽”，三槽共同从本关 `ShopTiers` 合并牌池确定性抽取；Cards 统一资格入口改为排除所有已获得卡，因此免费与商店均不会再次投放 `Stackable`。商店矩阵测试新增三槽、Tier 合集、组内去重、持有及购买后排除回归。
+- 2026-08-24：按用户补充规则把商店投放修正为“有配置固定三槽”，三槽共同从本关 `ShopTiers` 合并牌池确定性抽取；最初统一排除所有已获得卡，随后按最新规则收敛为1级卡可重复叠加、2/3级卡持有后排除。商店矩阵测试覆盖三槽、Tier 合集、组内去重及购买后资格。
 - 2026-08-24：修复商店购买构筑卡后的即时表现：购买成功后 Widget 将该卡同步进当前 `OwnedCards` 快照并立即重绘右侧卡牌槽；卡牌槽加载真实卡牌图标，且不重摇当前商店报价。
+- 2026-08-24：定位“同页第一张可买、剩余卡点击失败”为 Run 每次购买前重新按已拥有状态生成报价、而 Widget 仍显示旧页造成的前后端页面漂移。当前商店卡牌页改为按 `EncounterIndex + ShopRefreshSequence` 固定保存 3 个 CardId，各卡价格由卡 ID 与同一页面键独立确定；购买只把该报价标记为已购，不改变同页其余卡，显式刷新或进入下一关才按统一资格生成新页。
+- 2026-08-24：按最新资格规则允许已拥有1级卡在后续免费/商店投放中再次出现并叠加；已拥有2、3级卡继续排除。同一商店页的同一1级报价仍只能购买一次，显式刷新后的新报价才可再次购买。
+- 2026-08-24：商店卡牌报价实例 ID 纳入 `EncounterIndex + ShopRefreshSequence + CardId`，避免同一1级卡跨关再次出现时被上一关的已购记录误判；武器配件术语统一更正为“符文”，底层 `parts.csv` / `OwnedPartIds` 等兼容字段暂不做破坏性改名。
 - 2026-08-24：最终 fetch 发现 `origin/main` 前进至 `12117711`，仅包含 Plan87 文档。当前没有物理文件冲突，但 Plan87 已锁定未来删除 Forge，和本 Plan 为当前 Brave Forge 保留的战后分流回归存在明确逻辑/时序耦合；本候选不自行吸收或推送，等待用户决定以 Plan88 先集成、Plan87 后适配，或做组合适配。
 
 ### 证据
@@ -172,6 +176,9 @@
 - 最终 `scripts\data\sync_xlsx_to_csv.py --check`、`python scripts/validate_project.py` 与 `git diff --check`：全部通过。
 - 即时卡牌槽修复聚焦回归：`ReEcho.UI.Shop` 2/2、`ReEcho.Shop` 8/8，全部通过；新增测试证明购买前卡牌槽为空，购买后立即获得 Tooltip 并加载对应真实卡牌图标。
 - 即时卡牌槽修复后的 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过，96/96 actions 成功；精选 Editor 预构建源指纹 `6aade6b79629`。随后 XLSX/CSV 检查、`validate_project.py`、预构建校验与 `git diff --check` 全部通过。
+- 最终1级重复规则与稳定商店页聚焦回归：`ReEcho.Cards` 5/5、`ReEcho.Traits` 8/8、`ReEcho.Shop` 8/8、`ReEcho.Characters` 3/3、`ReEcho.UI.Shop` 2/2，全部通过。新增覆盖已拥有1级卡免费再次选择、商店跨刷新/跨关再次购买并叠加、已拥有2/3级卡排除、同页三卡连续购买，以及稳定商店页存档恢复。
+- 最终 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过，96/96 actions 成功；精选 Editor 预构建源指纹 `a9ebb6465c29`。商店套件曾暴露旧断言把三个装备报价错误限定为三个符文；按既有“武器或符文”投放设计修正断言后 8/8 通过，未修改产品投放权重。
+- 最终 `scripts\data\sync_xlsx_to_csv.py --check`、`python scripts\validate_project.py`、`python scripts\ue\prebuilt_editor.py check` 与 `git diff --check`：全部通过；生产 XLSX/CSV 无漂移，精选 Editor 包与 `a9ebb6465c29` 源指纹匹配。
 
 ### 剩余风险
 
@@ -188,5 +195,5 @@
 
 - `ARCHITECTURE.md`、`README.md` 已审阅，无拓扑或阅读路由变化，无需修改。
 - `MOD-ReEcho.md` 已更新逐关免费投放与商店固定三槽/合并 Tier 牌池契约。
-- `MOD-ReEchoCards.md` 已更新所有已获得卡统一不可再次投放的资格契约。
+- `MOD-ReEchoCards.md` 已更新1级可重复、2/3级持有排除的统一投放资格契约。
 - `MOD-ReEchoUI.md` 已更新构筑卡购买后即时填充右侧卡牌槽、且不重摇报价的表现契约。

@@ -201,7 +201,9 @@ bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
 	{
 		return false;
 	}
-	if (HasCard(State, Card.Id))
+	// Tier-one cards are the repeatable growth pool. Owned tier-two/three cards are one-time acquisitions and
+	// must never return through either the free-draw or shop offer paths.
+	if (HasCard(State, Card.Id) && Card.Tier != 1)
 	{
 		return false;
 	}

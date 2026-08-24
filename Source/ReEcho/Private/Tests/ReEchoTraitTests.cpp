@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Cards/ReEchoCardCatalog.h"
+#include "Cards/ReEchoCardRuntime.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
 #include "Run/ReEchoRunSaveGame.h"
@@ -186,6 +187,46 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 	              {
 		              return Offer.CardId == SelectedCardId;
 	              }));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTierOneRepeatableFreeOfferTest,
+                                 "ReEcho.Traits.TierOneOwnedCardsRemainInFreePool",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTierOneRepeatableFreeOfferTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	const TArray<FName> TierOneCardIds = {TEXT("G_1_01"),
+	                                      TEXT("G_1_02"),
+	                                      TEXT("G_1_03"),
+	                                      TEXT("G_1_04"),
+	                                      TEXT("G_1_05"),
+	                                      TEXT("G_1_06"),
+	                                      TEXT("G_1_07"),
+	                                      TEXT("G_1_08")};
+	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Append(TierOneCardIds);
+	RunSubsystem->EncounterIndex = 4;
+	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
+
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
+	if (!TestEqual(TEXT("A fully-owned tier-one free pool still returns three repeatable cards"), Offers.Num(), 3))
+	{
+		return false;
+	}
+	for (const FReEchoTraitCardOffer& Offer : Offers)
+	{
+		TestTrue(TEXT("Every repeated free offer comes from the owned tier-one pool"),
+		         TierOneCardIds.Contains(Offer.CardId));
+	}
+	const FName SelectedCardId = Offers[0].CardId;
+	const int32 StackCountBefore = ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, SelectedCardId);
+	TestTrue(TEXT("An owned tier-one free offer can be selected again"), RunSubsystem->ApplyTraitCard(SelectedCardId));
+	TestEqual(TEXT("Repeated free selection adds one tier-one stack"),
+	          ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, SelectedCardId),
+	          StackCountBefore + 1);
 	return true;
 }
 

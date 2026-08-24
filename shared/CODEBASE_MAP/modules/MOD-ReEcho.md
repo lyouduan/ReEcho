@@ -238,6 +238,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器配件 OwnedPartIds、Time Shard、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 10；BuildSnapshot 内的 CardState 语义由 Cards 定义。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
+- 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 资格池生成三选一。数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店按真实关次读取 `ShopTiers`：空配置生成 0 槽，有配置则把全部指定 Tier 合并为共同牌池并确定性生成 3 个互不重复槽；同一 `EncounterIndex + ShopRefreshSequence` 的 CardId/价格保持稳定，购买只标记已购，显式刷新或进入下一关才重建页面。免费与商店均允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
 - 商店配件：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成兼容当前武器的报价；购买立即提交所有权但不改装备，只有 `TrySaveWeaponPartLoadout` 校验所有权、必需槽和容量后才原子提交 `EquippedParts`。
 - 禁止：返回可写内部容器、让 Widget 直接改字段、用数组索引充当持久 Echo 身份。

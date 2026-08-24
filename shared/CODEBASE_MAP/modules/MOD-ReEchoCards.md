@@ -17,7 +17,7 @@
 
 - 不可变 `FReEchoCardCatalog`、卡牌/效果定义和稳定行为白名单；
 - `FReEchoCardBuildState`、每场遭遇卡牌运行状态和确定性随机序列；
-- 已获得排除、冲突、层级和抽取池资格；任何 `OwnedCardIds` 中已有的卡均不可再次投放，即使定义为 `Stackable`，叠层只供显式授予等非投放入口使用；
+- 持有状态、冲突、层级和抽取池资格；1级卡可在后续免费/商店投放中重复并叠加，2、3级卡进入 `OwnedCardIds` 后不可再次投放；
 - 授予、属性变更、跨领域规则快照与类型化事件计算；
 - 不依赖世界的纯规则测试。
 
@@ -34,7 +34,7 @@
 |---|---|---|
 | 卡牌定义和效果 | `FReEchoCardCatalog` | 数据适配器编译后发布的只读目录 |
 | 已拥有卡牌、叠层、随机序号 | `FReEchoCardBuildState` | `FReEchoCardRuntime` 的纯命令/结果 |
-| 遭遇内阈值、免伤和追踪进度 | `FReEchoCardRuntimeState` | 遭遇生命周期命令 |
+| 遭遇内阈值、免伤、追踪进度与当前商店卡牌页键/ID | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次与刷新序号生成/消费稳定页面 |
 | 商店、Echo、元素和槽位派生规则 | `FReEchoCardRuleSnapshot` | 主模块及领域适配器只读消费 |
 
 主模块仍拥有整局流程和保存事务，但不得再次解释卡牌自由文本或维护第二份卡牌列表。卡牌运行时只返回候选变化；Combat、Weapons、Enemies 与世界宿主继续执行各自权威命令。
@@ -81,7 +81,7 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 ## 扩展
 
 - 新卡牌行为先增加类型化上下文/结果和注册 ID，再由主模块接到唯一领域权威入口。
-- 新抽取限制进入 Catalog/Runtime 的统一资格判断，不在 UI 或商店复制过滤规则；免费选择与商店共同调用该入口，因此“已获得不可再投放”必须在此保持一致。
+- 新抽取限制进入 Catalog/Runtime 的统一资格判断，不在 UI 或商店复制过滤规则；免费选择与商店共同调用该入口，因此“1级可重复、2/3级持有排除”必须在此保持一致。
 - 新跨领域效果返回声明式结果；Cards 不因此增加对 Weapons、Enemies、Audio 或 UI 的依赖。
 
 ## 验证

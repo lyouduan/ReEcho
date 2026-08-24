@@ -4,6 +4,7 @@
 #include "Engine/GameInstance.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Cards/ReEchoCardRuntime.h"
 #include "Cards/ReEchoCardTypes.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopPurchaseTest,
@@ -118,12 +119,13 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 
 	const FReEchoWeaponPartShopView InitialView = RunSubsystem->GetWeaponPartShopView();
 	TestEqual(TEXT("Bow shop exposes three data-driven slot groups"), InitialView.Slots.Num(), 3);
-	TestEqual(TEXT("Shop page exposes exactly three weapon-part offers"),
+	TestEqual(TEXT("Shop page exposes exactly three weapon/rune offers"),
 	          InitialView.Offers
 	              .FilterByPredicate(
 	                  [](const FReEchoShopOffer& Offer)
 	                  {
-		                  return Offer.Type == EReEchoShopOfferType::WeaponPart;
+		                  return Offer.Type == EReEchoShopOfferType::WeaponPart ||
+		                         Offer.Type == EReEchoShopOfferType::Weapon;
 	                  })
 	              .Num(),
 	          ReEchoShopOfferCountPerGroup);
@@ -236,19 +238,51 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	}
 
 	RunSubsystem->EncounterIndex = 2;
-	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_1_01"));
+	const TArray<FName> TierOneCardIds = {TEXT("G_1_01"),
+	                                      TEXT("G_1_02"),
+	                                      TEXT("G_1_03"),
+	                                      TEXT("G_1_04"),
+	                                      TEXT("G_1_05"),
+	                                      TEXT("G_1_06"),
+	                                      TEXT("G_1_07"),
+	                                      TEXT("G_1_08")};
+	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Append(TierOneCardIds);
+	++RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence;
 	const FReEchoWeaponPartShopView OwnedFilterPage = RunSubsystem->GetWeaponPartShopView();
-	TestEqual(TEXT("A tier-one shop group still fills all three slots after ownership filtering"),
-	          OwnedFilterPage.CardSlotOffers.Num(),
-	          ReEchoShopOfferCountPerGroup);
-	TestFalse(TEXT("An owned stackable card is excluded from shop offers"),
-	          OwnedFilterPage.CardSlotOffers.ContainsByPredicate(
-	              [](const FReEchoCardSlotOffer& Offer)
-	              {
-		              return Offer.CardId == TEXT("G_1_01");
-	              }));
+	if (!TestEqual(TEXT("A fully-owned tier-one shop pool still fills all three repeatable slots"),
+	               OwnedFilterPage.CardSlotOffers.Num(),
+	               ReEchoShopOfferCountPerGroup))
+	{
+		return false;
+	}
+	for (const FReEchoCardSlotOffer& Offer : OwnedFilterPage.CardSlotOffers)
+	{
+		TestTrue(TEXT("Every tier-one shop offer may already be owned"), TierOneCardIds.Contains(Offer.CardId));
+		TestTrue(TEXT("Every tier-one shop offer is repeatable from owned state"),
+		         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(Offer.CardId));
+	}
+	const FReEchoCardSlotOffer RepeatedTierOneOffer = OwnedFilterPage.CardSlotOffers[0];
+	const int32 TierOneStackCountBefore =
+	    ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, RepeatedTierOneOffer.CardId);
+	TestTrue(TEXT("An owned tier-one card can be purchased from a later shop page"),
+	         RunSubsystem->PurchaseShopItem(RepeatedTierOneOffer.ItemId));
+	TestEqual(TEXT("Repeated tier-one shop purchase adds one stack"),
+	          ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, RepeatedTierOneOffer.CardId),
+	          TierOneStackCountBefore + 1);
+	RunSubsystem->EncounterIndex = 3;
+	const FReEchoWeaponPartShopView NextEncounterTierOnePage = RunSubsystem->GetWeaponPartShopView();
+	if (!TestEqual(TEXT("The next encounter creates three fresh tier-one offer instances"),
+	               NextEncounterTierOnePage.CardSlotOffers.Num(),
+	               ReEchoShopOfferCountPerGroup))
+	{
+		return false;
+	}
+	const FReEchoCardSlotOffer NextEncounterTierOneOffer = NextEncounterTierOnePage.CardSlotOffers[0];
+	TestTrue(TEXT("An owned tier-one card can be purchased again in a later encounter"),
+	         RunSubsystem->PurchaseShopItem(NextEncounterTierOneOffer.ItemId));
 
 	RunSubsystem->EncounterIndex = 4;
+	RunSubsystem->TimeShards = 400;
 
 	const FReEchoWeaponPartShopView FirstPage = RunSubsystem->GetWeaponPartShopView();
 	const TArray<FReEchoShopOffer> FirstCards = FirstPage.Offers.FilterByPredicate(
@@ -297,13 +331,13 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	             {
 		             return Card.ContentId == PurchasedCard.ContentId;
 	             }));
-	TestFalse(TEXT("Purchased card is excluded when the shop view is generated again"),
-	          PurchasedPage.Offers.ContainsByPredicate(
-	              [&](const FReEchoShopOffer& Offer)
-	              {
-		              return Offer.Type == EReEchoShopOfferType::BuildCard &&
-		                     Offer.ContentId == PurchasedCard.ContentId;
-	              }));
+	TestTrue(TEXT("Purchased card remains on the stable current page as a sold offer"),
+	         PurchasedPage.Offers.ContainsByPredicate(
+	             [&](const FReEchoShopOffer& Offer)
+	             {
+		             return Offer.Type == EReEchoShopOfferType::BuildCard && Offer.ItemId == PurchasedCard.ItemId &&
+		                    Offer.ContentId == PurchasedCard.ContentId && Offer.Price == PurchasedCard.Price;
+	             }));
 	TestFalse(TEXT("Same card offer cannot be bought twice on one page"),
 	          RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
 
@@ -338,6 +372,68 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		              return Offer.Type == EReEchoShopOfferType::BuildCard &&
 		                     Offer.ContentId == PurchasedCard.ContentId;
 	              }));
+
+	UGameInstance* StablePageGameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* StablePageRun = NewObject<UReEchoRunSubsystem>(StablePageGameInstance);
+	StablePageRun->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
+	StablePageRun->EncounterIndex = 2;
+	StablePageRun->TimeShards = 1000;
+	const FReEchoWeaponPartShopView StableInitialPage = StablePageRun->GetWeaponPartShopView();
+	const TArray<FReEchoShopOffer> StableInitialCards = StableInitialPage.Offers.FilterByPredicate(
+	    [](const FReEchoShopOffer& Offer)
+	    {
+		    return Offer.Type == EReEchoShopOfferType::BuildCard;
+	    });
+	if (!TestEqual(TEXT("Tier-one reproduction page contains three purchasable cards"),
+	               StableInitialCards.Num(),
+	               ReEchoShopOfferCountPerGroup))
+	{
+		return false;
+	}
+	UReEchoRunSaveGame* StablePageSave = StablePageRun->CreateSaveSnapshot();
+	UGameInstance* RestoredPageGameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* RestoredPageRun = NewObject<UReEchoRunSubsystem>(RestoredPageGameInstance);
+	if (TestNotNull(TEXT("Stable card page can be captured in a save snapshot"), StablePageSave) &&
+	    TestTrue(TEXT("Stable card page restores into a fresh run subsystem"),
+	             RestoredPageRun->RestoreSaveSnapshot(*StablePageSave)))
+	{
+		const FReEchoWeaponPartShopView RestoredPage = RestoredPageRun->GetWeaponPartShopView();
+		for (const FReEchoShopOffer& ExpectedOffer : StableInitialCards)
+		{
+			TestTrue(TEXT("Save and restore preserves the current card ids and prices"),
+			         RestoredPage.Offers.ContainsByPredicate(
+			             [&](const FReEchoShopOffer& CurrentOffer)
+			             {
+				             return CurrentOffer.Type == EReEchoShopOfferType::BuildCard &&
+				                    CurrentOffer.ItemId == ExpectedOffer.ItemId &&
+				                    CurrentOffer.ContentId == ExpectedOffer.ContentId &&
+				                    CurrentOffer.Price == ExpectedOffer.Price;
+			             }));
+		}
+	}
+	for (const FReEchoShopOffer& OriginalOffer : StableInitialCards)
+	{
+		TestTrue(TEXT("Every remaining card on one page can be purchased sequentially"),
+		         StablePageRun->PurchaseShopItem(OriginalOffer.ItemId));
+		const FReEchoWeaponPartShopView StablePurchasedPage = StablePageRun->GetWeaponPartShopView();
+		for (const FReEchoShopOffer& ExpectedOffer : StableInitialCards)
+		{
+			TestTrue(TEXT("Purchasing one card preserves all three current-page card ids and prices"),
+			         StablePurchasedPage.Offers.ContainsByPredicate(
+			             [&](const FReEchoShopOffer& CurrentOffer)
+			             {
+				             return CurrentOffer.Type == EReEchoShopOfferType::BuildCard &&
+				                    CurrentOffer.ItemId == ExpectedOffer.ItemId &&
+				                    CurrentOffer.ContentId == ExpectedOffer.ContentId &&
+				                    CurrentOffer.Price == ExpectedOffer.Price;
+			             }));
+		}
+	}
+	for (const FReEchoShopOffer& PurchasedOffer : StableInitialCards)
+	{
+		TestTrue(TEXT("Sequential purchase grants every card from the original page"),
+		         StablePageRun->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedOffer.ContentId));
+	}
 	return true;
 }
 #endif
