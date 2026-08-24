@@ -45,6 +45,10 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
+		case EReEchoCombatVfxSemantic::EchoWaterAura:
+			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Water.NS_Echo_Water");
+		case EReEchoCombatVfxSemantic::EchoGrassAura:
+			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Grass.NS_Echo_Grass");
 		default:
 			return TEXT("");
 	}
@@ -97,7 +101,7 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 
 void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 {
-	for (uint8 SemanticValue = 0; SemanticValue <= static_cast<uint8>(EReEchoCombatVfxSemantic::EnemyHurt);
+	for (uint8 SemanticValue = 0; SemanticValue <= static_cast<uint8>(EReEchoCombatVfxSemantic::EchoGrassAura);
 	     ++SemanticValue)
 	{
 		OutPaths.Add(ResolvePath(static_cast<EReEchoCombatVfxSemantic>(SemanticValue)));

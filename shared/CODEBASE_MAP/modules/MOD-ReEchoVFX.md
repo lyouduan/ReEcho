@@ -15,7 +15,7 @@
 
 本入口把两类变化隔离开：Combat/Enemies/Weapons 发布资源中立的稳定语义；`UReEchoCombatVfxComponent` 集中选择资产并管理表现实例。程序可修改玩法而不散落资源路径，美术可替换同语义资产而不进入逻辑模块。
 
-`FReEchoCombatVfxCatalog::GatherPreloadAssetPaths` 同时枚举全部八个语义根和兔子代理纹理/材质。GameInstance 预加载器在菜单阶段异步持有这些 UObject；VFX Component 原同步加载仍是安全回退，加载失败只缺视觉并释放开始门控。
+`FReEchoCombatVfxCatalog::GatherPreloadAssetPaths` 枚举全部战斗语义根、Echo 卡牌水草 Aura 和兔子代理纹理/材质。GameInstance 预加载器在菜单阶段异步持有这些 UObject；VFX Component 原同步加载仍是安全回退，加载失败只缺视觉并释放开始门控。
 
 ## 职责与排除项
 
@@ -44,11 +44,12 @@
 | `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击 |
 | `FReEchoPresentationActionEvent` | EnemyHost 的 CombatPresentationCoordinator | Rabbit/Fox 的同一动作键与有序 Windup、Committed、Ended/Cancelled 驱动阶段表现 |
 | `FReEchoEnemyProjectileEvent` | EnemyHost 的逐球逻辑投射物 | 按 `(AttackIdentity, VolleyBallIndex)` 创建、移动和销毁唯一兔子子弹代理；位置直接采用事件快照 |
+| `FReEchoCardRuleSnapshot::bWaterEchoAura / bGrassEchoAura` | `MOD-ReEchoCards` / Run | Echo Host 幂等创建或清理角色背景层的 Water/Grass 持续 Aura；不参与 2 秒/4m 元素结算 |
 | Actor Death / EndPlay | Combat/UE 生命周期 | 清理所有跟随和非自动销毁实例 |
 
 VFX 唯一拥有的是 Niagara/Material Billboard 组件实例及其表现生命周期。逻辑投射物的 `AttackIdentity`、位置、方向、行进距离、碰撞和有效性仍由 Enemies/Host 拥有；VFX 中的 `(AttackIdentity, VolleyBallIndex) → MaterialBillboardComponent` 只是可丢弃的视觉索引。
 
-Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`。两个子节点都是 Blueprint 可编辑的表现挂点：攻击提交、前摇、方向提示和冲刺读取 `AttackVfxRoot`，最终受伤读取 `HurtVfxRoot`。美术可在具体 Gameplay Blueprint 中独立调整两者的相对位置、旋转和缩放，不必修改 C++。兔子子弹从 Spawned 起就直接使用逻辑投射物世界位置，离开发射者后继续由逻辑事件覆盖位置，绝不附着人物、叠加挂点偏移或反向修改命中。
+Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`。Echo 额外提供 `EchoAuraVfxRoot`：它依据当前 Flipbook 的稳定渲染 Bounds 中心定位，并让卡牌 Aura 使用角色当前透明排序的下一背景层。攻击提交、前摇、方向提示和冲刺读取 `AttackVfxRoot`，最终受伤读取 `HurtVfxRoot`；Aura 不复用这两个前景挂点。美术可在 Gameplay Blueprint 中独立调整挂点，但不能把 Aura 中心或层级改成玩法输入。兔子子弹从 Spawned 起就直接使用逻辑投射物世界位置，离开发射者后继续由逻辑事件覆盖位置，绝不附着人物、叠加挂点偏移或反向修改命中。
 
 ```text
 Weapons / EnemyLogic
@@ -76,6 +77,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | PlayerBowFlight / Impact | `/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01` / `NS_People_Bow_Boom` | 飞行 System 绑定权威投射物 Actor；保持资源内部 Renderer 与粒子模块不变，把交付 Niagara 的 authored local `+Y` 视觉轴在发射时按锁定攻击方向旋转一次；首次权威命中播放一次 Impact |
 | PlayerGunFlight / Impact | `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly` / `NS_People_Bullet_spark` | 飞行 System 绑定权威投射物 Actor；首次权威命中播放一次 Impact |
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
+| EchoWaterAura / EchoGrassAura | `/Game/VFX/Echo/Particle/NS_Echo_Water` / `NS_Echo_Grass` | `G_2_07/G_2_08` 规则开关驱动；附着 Echo 专用 Aura 挂点、角色视觉中心、角色 Priority `-1`，双卡并存、Death/EndPlay 清理 |
 
 `PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签；`Pattern.WhipCombo` 不得复用二者。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀使用 AttackCommitted Slot；弓/枪的 Travel Slot 附着逻辑载体，DamageApplied Slot 只在首次 `AppliedDamage > 0` 的权威结果播放。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭与法杖阶段槽默认未启用；缺图不得阻塞攻击。
 
@@ -110,7 +112,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 语义与资产目录 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` |
 | 阶段协调 | `Presentation/Combat/ReEchoCombatPresentationCoordinator.*` |
 | 事件订阅、生成和清理 | `Presentation/VFX/ReEchoCombatVfxComponent.*` |
-| 人物攻击/受击挂点 | `Player/ReEchoPlayerPawn.*`、`Graybox/ReEchoEnemyActor.*`、`Graybox/ReEchoEchoActor.*` 中的 `AttackVfxRoot` / `HurtVfxRoot` |
+| 人物攻击/受击/Aura 挂点 | `Player/ReEchoPlayerPawn.*`、`Graybox/ReEchoEnemyActor.*`、`Graybox/ReEchoEchoActor.*` 中的 `AttackVfxRoot` / `HurtVfxRoot`，以及 Echo 专用 `EchoAuraVfxRoot` |
 | 敌人阶段/投射物事件契约 | `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyEventsComponent.h` |
 | 敌人投射物装配 | `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*` |
 | 玩家/Echo/敌人 Host 装配 | 对应 `PlayerPawn` / `EchoActor` / `EnemyActor` 构造函数 |
@@ -134,7 +136,7 @@ Conduct 蔓延延迟是纯表现配置：`FReEchoAttackIdentity.WeaponId` 在正
 - 受击只消费 Combat 的最终 `AppliedDamage`，不能从重叠或预测命中提前播放。
 - 投射物表现绝不是位置真相；每颗球的 Moved 都直接覆盖对应 World Material Billboard 的 Transform，禁止在表现侧再次积分速度。补光晕只能更换同一代理的材质或叠加同位置表现层，不得恢复会自行运动的三球 Niagara。
 - 攻击与受击必须使用两个独立的 Blueprint 可编辑挂点；不得重新合并到一个通用位置，也不得在 VFX 组件里按角色 ID 写死偏移。
-- 所有角色战斗特效进入独立的全局前景排序带：`max(100, 宿主当前 UReEcho2DAnimationComponent::TranslucencySortPriority + 1)`。这既保证特效覆盖所属对象，也避免宿主之间动态脚点排序使某个对象的特效被其他角色遮住；不得为单个语义重新设置为背景层，挂点 Transform 也不得改变这一覆盖保证。
+- 所有角色攻击/受击战斗特效进入独立的全局前景排序带：`max(1000, 宿主当前 UReEcho2DAnimationComponent::TranslucencySortPriority + 1)`。Echo 卡牌 Water/Grass Aura 是唯一明确的角色背景状态层，动态使用所属角色 Priority `-1` 并保持视觉中心重合；不得把它误送入战斗前景带。挂点 Transform 和 Niagara 参数都不得改变玩法。
 - 循环/跟随效果必须在 Death、Ended 和 EndPlay 都可清理。
 - 资产朝向修正集中在适配器，禁止为了迁就特效轴修改玩法攻击方向。
 - 旋转 Niagara Component 只能可靠影响 Local Space 发射器；有方向语义的资产必须同时校验启用发射器的 Simulation Space，并验证实际粒子位置/速度确实服从组件坐标系。组件 Transform、逻辑投射物轨迹和屏幕方向都正确时，禁止继续修改玩法方向来补偿 System 内部粒子模块。

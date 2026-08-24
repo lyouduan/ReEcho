@@ -62,6 +62,9 @@ AReEchoEchoActor::AReEchoEchoActor()
 	HurtVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("HurtVfxRoot"));
 	HurtVfxRoot->SetupAttachment(EffectsRoot);
 	HurtVfxRoot->bEditableWhenInherited = true;
+	EchoAuraVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EchoAuraVfxRoot"));
+	EchoAuraVfxRoot->SetupAttachment(EffectsRoot);
+	EchoAuraVfxRoot->bEditableWhenInherited = true;
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(GroundRoot);
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -124,6 +127,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
 	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot);
+	CombatVfx->ConfigureEchoAuraRoot(EchoAuraVfxRoot);
 	CombatAudioAdapter->ConfigureRouting(EReEchoCombatAudioSource::Echo, FReEchoAudioEvents::EchoAttack, NAME_None);
 }
 
@@ -369,12 +373,22 @@ float AReEchoEchoActor::GetCurrentHealth() const
 void AReEchoEchoActor::ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats)
 {
 	bCanAttack = Rules.bEchoesCanAttack;
+	RefreshCardAuraPresentation(Rules);
 	if (Combatant && Rules.EchoHealthMultiplier > 1.0f)
 	{
 		FReEchoStatBlock Stats = Combatant->Stats;
 		Stats.HpMax = PlayerStats.HpMax * Rules.EchoHealthMultiplier;
 		Stats.HpPoint = Stats.HpMax;
 		Combatant->InitializeFromStats(Stats, true);
+	}
+}
+
+void AReEchoEchoActor::RefreshCardAuraPresentation(const FReEchoCardRuleSnapshot& Rules)
+{
+	if (CombatVfx)
+	{
+		const bool bAlive = IsCombatTargetAlive();
+		CombatVfx->SetEchoCardAuraState(bAlive && Rules.bWaterEchoAura, bAlive && Rules.bGrassEchoAura);
 	}
 }
 
@@ -478,6 +492,19 @@ void AReEchoEchoActor::UpdatePresentationState()
 	RefreshFootpointAlignment();
 	PresentationMotionRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset);
 	RefreshGroundShadowFromFlipbook();
+	RefreshEchoAuraCenter();
+}
+
+void AReEchoEchoActor::RefreshEchoAuraCenter()
+{
+	const UPaperFlipbook* Flipbook = EchoAnimation ? EchoAnimation->GetFlipbook() : nullptr;
+	if (!EffectsRoot || !EchoAuraVfxRoot || !EchoAnimation || !Flipbook)
+	{
+		return;
+	}
+	const FVector CenterWorld =
+	    EchoAnimation->GetComponentTransform().TransformPosition(Flipbook->GetRenderBounds().Origin);
+	EchoAuraVfxRoot->SetRelativeLocation(EffectsRoot->GetComponentTransform().InverseTransformPosition(CenterWorld));
 }
 
 void AReEchoEchoActor::RefreshFootpointAlignment()

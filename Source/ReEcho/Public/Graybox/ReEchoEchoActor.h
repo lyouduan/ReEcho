@@ -71,6 +71,7 @@ public:
 	const FReEchoStatBlock& GetCurrentStats() const;
 	float GetCurrentHealth() const;
 	void ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats);
+	void RefreshCardAuraPresentation(const FReEchoCardRuleSnapshot& Rules);
 	virtual bool IsCombatTargetAlive() const override;
 
 	virtual FVector GetCombatTargetLocation() const override
@@ -154,6 +155,11 @@ private:
 	          Category = "Character Scene|Effects",
 	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> HurtVfxRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Effects",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> EchoAuraVfxRoot;
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> GroundShadow;
@@ -210,6 +216,7 @@ private:
 	void UpdatePresentationState();
 	void RefreshFootpointAlignment();
 	void RefreshGroundShadowFromFlipbook();
+	void RefreshEchoAuraCenter();
 	float CalculateSpatialShadowWidth() const;
 	void UpdateFacingSign(const FVector& AimDirection);
 	FName ConfiguredCharacterId = NAME_None;

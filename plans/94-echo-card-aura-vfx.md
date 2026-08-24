@@ -5,8 +5,8 @@
 - Planner 负责人：当前对话程序 Planner。
 - Executor 负责人：独立程序 Executor（Plan 发布后启动）。
 - Plan 编写方（AI 侧）：`Codex planner-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 实现编写方（AI 侧）：`Codex executor-side AI`。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@8fc70e2a1bef431553f178a825d9695c0e53e7ab`。
 - 本地实现方式：用户已确认一任务一 worktree；Planner 使用 `C:\tmp\ReEcho-plan94-echo-card-aura`，Executor 必须从 Plan 发布后的最新 `origin/main` 创建本任务专属独立 worktree，不得在当前脏主工作区实现。
@@ -126,17 +126,25 @@
 
 - 2026-08-24：创建 Plan。锁定 `G_2_07/G_2_08` 驱动 Echo 身上 Water/Grass 常驻 Niagara；玩法 2 秒/400cm 元素结算不变。
 - 2026-08-24：根据用户补充，将“角色稳定视觉中心与 Aura 中心重合”和“角色始终渲染在 Aura 上层”升级为锁定目标与 `PendingBeforeClose` 人工验收；Aura 使用动态背景排序，不复用战斗 VFX 前景策略。
+- 2026-08-24：实现 Water/Grass 两个集中 VFX 语义和预加载根；`UReEchoCombatVfxComponent` 分别幂等拥有两个非自动销毁 Niagara，并在规则关闭、Death/EndPlay 统一清理。Echo 新增 `EchoAuraVfxRoot`，每帧把当前 Flipbook 稳定 Render Bounds 中心转换到 `EffectsRoot` 局部空间；Aura 排序动态使用当前动画 Priority `-1`。
+- 2026-08-24：`ConfigureCardRules` 在 Echo 初始化当帧同步一次，GameMode 的独立 `RefreshEchoCardAuraPresentation` 在遭遇更新中幂等兜底；原敌人遍历中的 2 秒/400cm 元素结算代码未修改。
+- 2026-08-24：从受保护主工作区只精确复制两个 System 与包内引用证明的保守递归依赖集合；未复制 `NewLevelSequence`、zip、源图或 `Content/VFX/Echo` 其他未引用候选。
 
 ### 证据
 
 - 规划审计确认生产 CSV 已把 `G_2_07/G_2_08` 编译为 `bWaterEchoAura/bGrassEchoAura`，GameMode 已用其执行每 2 秒、400cm 的 Water/Grass `ResolveElementHit`；缺口仅为 Echo 自身 Aura 表现。
 - 主工作区确认两个候选根位于 `Content/VFX/Echo/Particle/NS_Echo_Water.uasset` 与 `NS_Echo_Grass.uasset`，但当前未被 Git 跟踪；循环和递归依赖尚未由 Editor 验证，列为 Step 0 门禁。
 - `origin/main@8fc70e2a` 相对本地主工作区 `cd89afb9` 的传入范围仅为 Plan86 Settings UI、Settings 测试/源码、相关 WBP/纹理、脚本与精选预构建包；与本 Plan Cards/Echo/VFX 源码和两个未跟踪资产无直接路径重叠。用户在获知该范围后要求执行，本 Plan 采用最新远端基线，不修改或合并当前脏主工作区。
+- Development 增量构建通过；最终格式化候选执行 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`，99 actions 成功并刷新七模块精选预构建包，Build ID `55116800`、source fingerprint `c1e1c6cde71b`。
+- `python scripts/validate_project.py` 通过；`python scripts/ue/prebuilt_editor.py check` 通过；`git diff --check` 通过。
+- 新增自动化源码已编译，覆盖两个 Catalog 路径互异、Aura Priority=`Owner-1`、两个 System 加载/Local Space 和预加载存在性。`Run-Automation.cmd -Filter ReEcho.Presentation.VFX` 在进入测试前被本机 LinuxArm64/VisionOS SDK `MainVersion` 平台校验阻断，未声称测试通过。
+- UnrealEditor-Cmd 资产审计同样在进入 Python/资产加载前被上述平台校验阻断；保守包内引用审计确认两个 System 直接引用 `BaseVFX003_Inst12`、`BaseWaveVFX_Inst1` 与 `0813_01`，并继续解析对应材质、Material Function 和纹理依赖。复制后逐文件 SHA-256 与主工作区来源一致。
 
 ### 剩余风险
 
 - 两个 Niagara 是否无限循环、是否围绕组件原点居中、Renderer 是否服从组件 Priority、Fixed Bounds 是否足够以及准确依赖闭包均待 Executor 在 Editor 内确认。
 - 多 Echo 动态脚点排序下，单纯 `OwnerPriority - 1` 可能仍与其他角色的排序区间交错；Executor 必须用实际 PIE 证据验证，并在不改变“自身角色始终压住自身 Aura”的前提下集中调整排序带策略，不能使用单个固定常量补丁。
+- 由于本机跨平台 SDK 校验阻断，两个 System 的实际循环、Local Space、Renderer、Fixed Bounds 及聚焦自动化尚未在本候选运行；这些仍是 `PendingBeforeClose`，必须由可进入 Editor/PIE 的环境验证。Shipping 包未在本轮重建，因此 IoStore 收录也未验证。
 
 ### 人工验收结果/请求
 
@@ -144,4 +152,9 @@
 
 ### 架构文档审阅结果
 
-- 待 Executor/Planner 在最终候选逐项填写。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Echo Aura 挂点、规则同步与表现边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`：已更新两个语义、资产路径、中心/背景排序、生命周期与预加载职责。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md`：已审阅、无需修改；它已明确 `FReEchoCardRuleSnapshot` 由主模块及领域适配器只读消费，本实现没有改变 Cards 契约或依赖。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：已审阅、无需修改；实现只读取现有 Flipbook Bounds/排序，未改变 Presentation Runtime Module 公共契约。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`：已审阅、无需修改；元素附着与反应权威链未变化。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md`：已审阅、无需修改；没有新增模块、依赖拓扑或 AREA 路由。

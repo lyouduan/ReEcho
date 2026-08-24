@@ -2442,6 +2442,7 @@ void AReEchoGameMode::HandleFixedStep(float)
 	}
 	const FReEchoCardEncounterTickResult CardTick = RunSubsystem->AdvanceCardEncounter(Director->EncounterTime);
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
+	RefreshEchoCardAuraPresentation(Rules);
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
 		AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
@@ -2497,6 +2498,17 @@ void AReEchoGameMode::HandleFixedStep(float)
 		}
 		Echoes.Reset();
 		RefreshFogRevealSources();
+	}
+}
+
+void AReEchoGameMode::RefreshEchoCardAuraPresentation(const FReEchoCardRuleSnapshot& Rules)
+{
+	for (AReEchoEchoActor* Echo : Echoes)
+	{
+		if (Echo)
+		{
+			Echo->RefreshCardAuraPresentation(Rules);
+		}
 	}
 }
 

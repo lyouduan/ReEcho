@@ -56,6 +56,8 @@ public:
 	UReEchoCombatVfxComponent();
 	/** Pure layer policy shared by runtime and automation. */
 	static int32 ResolveCombatEffectSortPriority(int32 OwnerSortPriority);
+	/** Echo card auras are a dedicated background layer immediately below their owning character. */
+	static int32 ResolveEchoAuraSortPriority(int32 OwnerSortPriority);
 	/** Pure identity projection shared by runtime and automation. */
 	static FReEchoProjectileVisualKey ResolveProjectileVisualKey(const FReEchoEnemyProjectileEvent& Event);
 	/** Material sprites fill their quad, so the core diameter matches the authoritative collider exactly. */
@@ -73,8 +75,11 @@ public:
 	static float ResolveConductPropagationDelaySeconds(FName WeaponId);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
+	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
+	void SetEchoCardAuraState(bool bWaterEnabled, bool bGrassEnabled);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
+	int32 GetEchoAuraVisualCountForTests() const;
 	bool
 	TryGetProjectileVisualLocationForTests(int64 AttackSequence, int32 VolleyBallIndex, FVector& OutLocation) const;
 	void ScheduleConductLinksForTests(const FReEchoElementReactionResolvedEvent& Event, float DelaySeconds);
@@ -108,8 +113,11 @@ private:
 	                                 bool bAutoDestroy = true) const;
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
+	USceneComponent* ResolveEchoAuraVfxRoot() const;
 	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
+	int32 ResolveOwnerAuraSortPriority() const;
+	void RefreshEchoAuraSortPriorities();
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopProjectileVisual(UMaterialBillboardComponent* Visual) const;
 	void StopAllEffects();
@@ -165,6 +173,12 @@ private:
 	TObjectPtr<UNiagaraComponent> BurnStatusEffect;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> WaterEchoAuraEffect;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> GrassEchoAuraEffect;
+
+	UPROPERTY(Transient)
 	TMap<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>> ProjectileVisuals;
 
 	UPROPERTY(Transient)
@@ -172,6 +186,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> HurtVfxRoot;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> EchoAuraVfxRoot;
 
 	mutable TSet<uint8> MissingSystemWarnings;
 	mutable TSet<FString> MissingElementSystemWarnings;

@@ -191,6 +191,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Combat effects still render above an owner already beyond the foreground band"),
 	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(1500),
 	          1501);
+	TestEqual(TEXT("Echo card auras render immediately below their owning character"),
+	          UReEchoCombatVfxComponent::ResolveEchoAuraSortPriority(23),
+	          22);
+	TestNotEqual(TEXT("Water and Grass Echo auras use distinct systems"),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoWaterAura),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoGrassAura));
 	FReEchoEnemyProjectileEvent BallZero;
 	BallZero.Attack.Sequence = 17;
 	BallZero.VolleyBallIndex = 0;
@@ -243,6 +249,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerGunFlight,
 	    EReEchoCombatVfxSemantic::PlayerGunImpact,
 	    EReEchoCombatVfxSemantic::EnemyHurt,
+	    EReEchoCombatVfxSemantic::EchoWaterAura,
+	    EReEchoCombatVfxSemantic::EchoGrassAura,
 	};
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
@@ -255,7 +263,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		const bool bRequiresComponentSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
 		                                     Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
 		                                     Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight;
+		                                     Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		                                     Semantic == EReEchoCombatVfxSemantic::EchoWaterAura ||
+		                                     Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;

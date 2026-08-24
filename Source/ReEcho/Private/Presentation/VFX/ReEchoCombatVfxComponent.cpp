@@ -23,6 +23,7 @@ namespace ReEchoCombatVfx
 {
 constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 CombatEffectSortPriorityFloor = 1000;
+constexpr int32 EchoAuraSortOffset = -1;
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
 
 void LogLayerState(const AActor* Owner,
@@ -117,6 +118,11 @@ int32 UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(const int32 Own
 	                  OwnerSortPriority + ReEchoCombatVfx::CombatEffectSortOffset);
 }
 
+int32 UReEchoCombatVfxComponent::ResolveEchoAuraSortPriority(const int32 OwnerSortPriority)
+{
+	return OwnerSortPriority + ReEchoCombatVfx::EchoAuraSortOffset;
+}
+
 FReEchoProjectileVisualKey
 UReEchoCombatVfxComponent::ResolveProjectileVisualKey(const FReEchoEnemyProjectileEvent& Event)
 {
@@ -182,6 +188,11 @@ int32 UReEchoCombatVfxComponent::GetProjectileVisualCountForTests() const
 	return ProjectileVisuals.Num();
 }
 
+int32 UReEchoCombatVfxComponent::GetEchoAuraVisualCountForTests() const
+{
+	return (WaterEchoAuraEffect ? 1 : 0) + (GrassEchoAuraEffect ? 1 : 0);
+}
+
 bool UReEchoCombatVfxComponent::TryGetProjectileVisualLocationForTests(const int64 AttackSequence,
                                                                        const int32 VolleyBallIndex,
                                                                        FVector& OutLocation) const
@@ -205,6 +216,35 @@ void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAtta
 {
 	AttackVfxRoot = InAttackVfxRoot;
 	HurtVfxRoot = InHurtVfxRoot;
+}
+
+void UReEchoCombatVfxComponent::ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot)
+{
+	EchoAuraVfxRoot = InEchoAuraVfxRoot;
+}
+
+void UReEchoCombatVfxComponent::SetEchoCardAuraState(const bool bWaterEnabled, const bool bGrassEnabled)
+{
+	USceneComponent* AuraRoot = ResolveEchoAuraVfxRoot();
+	if (bWaterEnabled && !WaterEchoAuraEffect)
+	{
+		WaterEchoAuraEffect = SpawnAttached(
+		    static_cast<uint8>(EReEchoCombatVfxSemantic::EchoWaterAura), FVector::ForwardVector, AuraRoot, false);
+	}
+	else if (!bWaterEnabled)
+	{
+		StopEffect(WaterEchoAuraEffect);
+	}
+	if (bGrassEnabled && !GrassEchoAuraEffect)
+	{
+		GrassEchoAuraEffect = SpawnAttached(
+		    static_cast<uint8>(EReEchoCombatVfxSemantic::EchoGrassAura), FVector::ForwardVector, AuraRoot, false);
+	}
+	else if (!bGrassEnabled)
+	{
+		StopEffect(GrassEchoAuraEffect);
+	}
+	RefreshEchoAuraSortPriorities();
 }
 
 void UReEchoCombatVfxComponent::BeginPlay()
@@ -411,6 +451,12 @@ USceneComponent* UReEchoCombatVfxComponent::ResolveHurtVfxRoot() const
 	return HurtVfxRoot ? HurtVfxRoot.Get() : (Owner ? Owner->GetRootComponent() : nullptr);
 }
 
+USceneComponent* UReEchoCombatVfxComponent::ResolveEchoAuraVfxRoot() const
+{
+	AActor* Owner = GetOwner();
+	return EchoAuraVfxRoot ? EchoAuraVfxRoot.Get() : (Owner ? Owner->GetRootComponent() : nullptr);
+}
+
 int32 UReEchoCombatVfxComponent::ResolveOwnerSortPriority() const
 {
 	const AActor* Owner = GetOwner();
@@ -418,6 +464,27 @@ int32 UReEchoCombatVfxComponent::ResolveOwnerSortPriority() const
 	    Owner ? Owner->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
 	const int32 OwnerPriority = Animation ? Animation->TranslucencySortPriority : 0;
 	return ResolveCombatEffectSortPriority(OwnerPriority);
+}
+
+int32 UReEchoCombatVfxComponent::ResolveOwnerAuraSortPriority() const
+{
+	const AActor* Owner = GetOwner();
+	const UReEcho2DAnimationComponent* Animation =
+	    Owner ? Owner->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
+	return ResolveEchoAuraSortPriority(Animation ? Animation->TranslucencySortPriority : 0);
+}
+
+void UReEchoCombatVfxComponent::RefreshEchoAuraSortPriorities()
+{
+	const int32 Priority = ResolveOwnerAuraSortPriority();
+	if (WaterEchoAuraEffect)
+	{
+		WaterEchoAuraEffect->SetTranslucentSortPriority(Priority);
+	}
+	if (GrassEchoAuraEffect)
+	{
+		GrassEchoAuraEffect->SetTranslucentSortPriority(Priority);
+	}
 }
 
 void UReEchoCombatVfxComponent::StopEffect(TObjectPtr<UNiagaraComponent>& Effect)
@@ -445,6 +512,8 @@ void UReEchoCombatVfxComponent::StopAllEffects()
 	StopEffect(DashEffect);
 	StopEffect(ElementAttachmentEffect);
 	StopEffect(BurnStatusEffect);
+	StopEffect(WaterEchoAuraEffect);
+	StopEffect(GrassEchoAuraEffect);
 	ActiveAttachmentElement = EReEchoElement::None;
 	for (TPair<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>>& Pair : ProjectileVisuals)
 	{
