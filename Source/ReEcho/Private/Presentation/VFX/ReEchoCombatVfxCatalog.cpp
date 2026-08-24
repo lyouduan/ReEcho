@@ -27,6 +27,8 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return TEXT("/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		case EReEchoCombatVfxSemantic::FoxCharging:
 			return TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02.NS_Fox_Rush_02");
+		case EReEchoCombatVfxSemantic::FoxDirection:
+			return TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow.NS_Fox_Rush_arrow");
 		case EReEchoCombatVfxSemantic::FoxDash:
 			return TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01.NS_Fox_Rush_01");
 		case EReEchoCombatVfxSemantic::PlayerMeleeSlash:

@@ -243,6 +243,11 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FVector RotatedBowAuthoredAxis = BowFlightRotation.RotateVector(BowAuthoredForwardAxis).GetSafeNormal2D();
 	TestTrue(TEXT("Bow authored arrow axis points from the shooter toward the target"),
 	         RotatedBowAuthoredAxis.Equals(BowTargetDirection, KINDA_SMALL_NUMBER));
+	const FVector FoxDashDirection = FVector(0.0f, -1.0f, 0.0f);
+	const FRotator FoxDirectionRotation =
+	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::FoxDirection, FoxDashDirection);
+	TestTrue(TEXT("Fox windup arrow points along the locked dash direction"),
+	         FoxDirectionRotation.RotateVector(FVector::ForwardVector).Equals(FoxDashDirection, KINDA_SMALL_NUMBER));
 	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
 
@@ -251,6 +256,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::RabbitProjectile,
 	    EReEchoCombatVfxSemantic::PlayerHurt,
 	    EReEchoCombatVfxSemantic::FoxCharging,
+	    EReEchoCombatVfxSemantic::FoxDirection,
 	    EReEchoCombatVfxSemantic::FoxDash,
 	    EReEchoCombatVfxSemantic::PlayerMeleeSlash,
 	    EReEchoCombatVfxSemantic::PlayerScytheSlash,
@@ -265,6 +271,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Fox windup uses the authored charging system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxCharging),
 	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02.NS_Fox_Rush_02")));
+	TestEqual(TEXT("Fox windup direction uses the authored arrow system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxDirection),
+	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow.NS_Fox_Rush_arrow")));
 	TestEqual(TEXT("Fox committed dash uses the authored rush system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxDash),
 	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01.NS_Fox_Rush_01")));
@@ -280,6 +289,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		                                     Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
 		                                     Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
 		                                     Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		                                     Semantic == EReEchoCombatVfxSemantic::FoxDirection ||
+		                                     Semantic == EReEchoCombatVfxSemantic::FoxDash ||
 		                                     Semantic == EReEchoCombatVfxSemantic::EchoWaterAura ||
 		                                     Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		if (bRequiresComponentSpace)

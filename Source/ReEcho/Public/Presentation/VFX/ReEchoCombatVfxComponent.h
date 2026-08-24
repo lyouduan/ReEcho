@@ -163,6 +163,9 @@ private:
 	TObjectPtr<UNiagaraComponent> ChargingEffect;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> DirectionEffect;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> DashEffect;
 
 	UPROPERTY(Transient)

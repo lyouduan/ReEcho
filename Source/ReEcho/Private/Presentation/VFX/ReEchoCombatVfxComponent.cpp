@@ -584,6 +584,7 @@ void UReEchoCombatVfxComponent::StopProjectileVisual(UMaterialBillboardComponent
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
 	StopEffect(ChargingEffect);
+	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);
 	StopEffect(ElementAttachmentEffect);
 	StopEffect(BurnStatusEffect);
@@ -942,13 +943,22 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 	if (Event.Phase == EReEchoPresentationActionPhase::Windup)
 	{
 		StopEffect(ChargingEffect);
+		StopEffect(DirectionEffect);
 		const EReEchoCombatVfxSemantic ChargingSemantic =
 		    bRabbit ? EReEchoCombatVfxSemantic::RabbitCharging : EReEchoCombatVfxSemantic::FoxCharging;
 		ChargingEffect =
 		    SpawnAttached(static_cast<uint8>(ChargingSemantic), Event.LockedDirection, ResolveAttackVfxRoot(), false);
+		if (bFox)
+		{
+			DirectionEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection),
+			                                Event.LockedDirection,
+			                                ResolveAttackVfxRoot(),
+			                                false);
+		}
 		return;
 	}
 	StopEffect(ChargingEffect);
+	StopEffect(DirectionEffect);
 	if (Event.Phase == EReEchoPresentationActionPhase::Committed && bFox)
 	{
 		StopEffect(DashEffect);
