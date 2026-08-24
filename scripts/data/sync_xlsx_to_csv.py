@@ -34,6 +34,7 @@ TRANSACTION_FILE = ".reecho_csv_publish_transaction.json"
 TABLE_TO_CSV = {
     "tblCharacters": "characters.csv",
     "tblCharacterAliases": "character_aliases.csv",
+    "tblCharacterAbilities": "character_abilities.csv",
     "tblCards": "cards.csv",
     "tblCardEffects": "card_effects.csv",
     "tblElements": "elements.csv",
@@ -69,8 +70,9 @@ SYSTEM_SHEETS = ("_WorkbookMeta", "_ExportMap", "_SystemData")
 LOCKED_REFERENCE_SHEETS = ("属性S", "怪物体系M")
 
 AUTHORING_LIST_VALIDATION_COLUMNS = {
-    "tblCharacters": frozenset({"Enabled", "RoleId", "DefaultWeaponId", "PassiveBehaviorId", "RandomElementProjectiles"}),
+    "tblCharacters": frozenset({"Enabled", "RoleId", "DefaultWeaponId"}),
     "tblCharacterAliases": frozenset({"CanonicalCharacterId"}),
+    "tblCharacterAbilities": frozenset({"CharacterId", "Trigger", "EffectKind", "Target", "ValueOp", "BehaviorId", "Enabled"}),
     "tblCards": frozenset({"PromotionRoleId", "OfferGroup", "Enabled", "Offerable", "StackPolicy", "ConflictPolicy", "ReviewStatus"}),
     "tblCardEffects": frozenset({"CardId", "Trigger", "EffectKind", "Target", "ValueOp", "BehaviorId", "ParamName"}),
     "tblElements": frozenset({"Id", "SourceWorkbookId", "Role", "VisualKey", "Enabled"}),
@@ -109,6 +111,7 @@ AUTHORING_LIST_VALIDATION_COLUMNS = {
 REFERENCE_LIST_VALIDATION_FORMULAS = {
     ("tblCharacters", "DefaultWeaponId"): 'INDIRECT("tblWeapons[Id]")',
     ("tblCharacterAliases", "CanonicalCharacterId"): 'INDIRECT("tblCharacters[Id]")',
+    ("tblCharacterAbilities", "CharacterId"): 'INDIRECT("tblCharacters[Id]")',
     ("tblCardEffects", "CardId"): 'INDIRECT("tblCards[Id]")',
     ("tblReactions", "TriggerElementId"): 'INDIRECT("tblElements[Id]")',
     ("tblReactions", "AttachmentElementId"): 'INDIRECT("tblElements[Id]")',

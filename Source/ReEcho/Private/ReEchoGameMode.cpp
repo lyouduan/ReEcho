@@ -374,7 +374,7 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 
 	// Authoritative run build (matches shop semantics; survives save/load). Non-fatal if no run is active yet.
 	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem)
 	{
 		TArray<FName> Desired;
@@ -389,8 +389,10 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 			FString RunError;
 			if (!RunSubsystem->TryEquipParts(Desired, RunError))
 			{
-				PrintGMResult(FString::Printf(
-					TEXT("GMEquipRune: run build not updated (%s); still applying to live weapon"), *RunError), false);
+				PrintGMResult(
+				    FString::Printf(TEXT("GMEquipRune: run build not updated (%s); still applying to live weapon"),
+				                    *RunError),
+				    false);
 			}
 		}
 	}
@@ -428,13 +430,14 @@ void AReEchoGameMode::GMUnequipRune(const FName SlotTypeId)
 	}
 	if (SlotTypeId.IsNone())
 	{
-		PrintGMResult(TEXT("Usage: GMUnequipRune <SlotTypeId>  (e.g. Blade / Grip / Muzzle / GunAction / Arrowhead)"), false);
+		PrintGMResult(TEXT("Usage: GMUnequipRune <SlotTypeId>  (e.g. Blade / Grip / Muzzle / GunAction / Arrowhead)"),
+		              false);
 		return;
 	}
 
 	// Sync authoritative run build first (drop every equipped part in that slot).
 	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem)
 	{
 		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
@@ -1280,7 +1283,7 @@ void AReEchoGameMode::BeginSelectedRun()
 		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 	}
 	RestoreGameInput();
-	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice || RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice)
+	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
 	{
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
 	}
@@ -3304,9 +3307,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice
-	                                                 ? RunSubsystem->GenerateForgeOffers()
-	                                                 : RunSubsystem->GenerateTraitCardOffers(3);
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
 	if (Offers.Num() != 3)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Expected three trait card offers, received %d"), Offers.Num());
@@ -3325,8 +3326,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	SetMusicState(FReEchoAudioEvents::MusicShop);
 	StopAmbienceState();
 
-	TraitCardChoiceWidget->InitializeOffers(
-	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
+	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	SetPlayerMenuAbilityBlocked(true);
 }
@@ -3338,8 +3338,7 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	{
 		return;
 	}
-	const bool bForgeChoice = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice;
-	const bool bApplied = bForgeChoice ? RunSubsystem->ApplyForgeChoice(CardId) : RunSubsystem->ApplyTraitCard(CardId);
+	const bool bApplied = RunSubsystem->ApplyTraitCard(CardId);
 	if (!bApplied)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);

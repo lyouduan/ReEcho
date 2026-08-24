@@ -55,7 +55,7 @@
 
 - `FreeTier` 为空表示本关战后不进入普通卡牌选择，直接进入战后商店/回响处理；有值时只从该 Tier 的 `Trait` 可投放牌池生成 3 张且选择 1 张。
 - 免费候选继续遵守 `MOD-ReEchoCards` 的 Enabled/Offerable、唯一性、冲突和持有状态资格规则；不得在 Run 或 UI 复制卡牌规则。
-- 勇者的 `ForgeChoice` 是独立角色能力：先完成锻造；随后仅当当前关 `FreeTier` 有值时进入普通三选一，否则直接进入商店。
+- Plan87 已删除勇者 Forge；所有角色统一按当前关 `FreeTier` 决定进入普通三选一或直接进入商店。角色能力不得改变这条投放阶段路由。
 - 贤者每第 4 次普通选择触发的额外选择沿用当前关 `FreeTier`，且“不投放”关不会凭空创建普通选择或累计次数。
 - 第 8 关 Boss 结算保持无免费选卡、无商店卡牌投放并进入胜利结算。
 - 缺少关次行、Tier 非法或候选不足 3 张时不得回退到全等级牌池；数据校验应尽早报错，运行时记录明确错误并安全进入商店/后续结算，不能卡死流程。
@@ -71,7 +71,7 @@
   - 复用现有 `FReEchoCsvShopDropLevelRow { EncounterIndex, FreeTier, ShopTiers }`，不新建重复表或硬编码八关数组；当前数据同步 `--check` 已证明生产 XLSX 与 CSV 一致。
   - 免费投放数量由 `FreeTier` 的“空/有值”表达为 0/1 组，每组固定三选一；不为此把 Widget 改成任意数量候选。
   - 商店投放沿用 Plan67 的既有人工决定：`ShopTiers` 每个 Tier 对应一个购买槽；本 Plan 只修正逐关读取和全矩阵回归，不重新解释为弹窗三选一。
-  - Run 提供单一的当前关免费投放解析/阶段推进入口，`CompleteEncounter` 与 `ApplyForgeChoice` 共用，避免勇者路径再次绕过 `FreeTier`。
+  - Run 提供单一的当前关免费投放解析/阶段推进入口，由 `CompleteEncounter` 和普通卡牌选择完成路径共用，避免角色特例绕过 `FreeTier`。
   - 确定性仍基于现有 `TraitOfferSeed + EncounterIndex + OwnedCardIds`；只把 Tier 作为候选池过滤条件，不引入时间或 UI 状态随机源。
 - 相关文档同步范围：
   - `shared/CODEBASE_MAP/ARCHITECTURE.md`：关闭前审阅；预期无 Runtime Module 拓扑或依赖方向变化，无需修改。
@@ -91,7 +91,7 @@
 - [ ] 自动化逐行覆盖 1..8 关，证明免费投放组数/Tier 与商店槽数/Tier 精确匹配锁定矩阵。
 - [ ] 第 1 关结束不出现普通三选一，但仍进入战后商店和回响处理；第 2～7 关普通三选一的 3 张卡全部属于配置 Tier；第 8 关无普通选卡并正常结算。
 - [ ] 第 7 关商店精确生成 Tier 1 + Tier 3 两个卡牌槽，不再错误复用第 6 关 Tier 1 + Tier 2。
-- [ ] 勇者在第 1 关只完成锻造后进入商店，在有 `FreeTier` 的关次锻造后继续正确 Tier 的普通三选一。
+- [ ] 勇者与其他角色遵循相同关次矩阵：第 1 关直接进入商店，有 `FreeTier` 的关次进入正确 Tier 的普通三选一，且不会出现 Forge 页面。
 - [ ] 贤者额外选择仍按每 4 次普通选择触发，额外候选与触发关的 `FreeTier` 一致。
 - [ ] 同一基线/种子/持有卡状态生成相同候选；非法或不足牌池不会回退全等级，也不会卡死战后流程。
 - [ ] `scripts\data\sync_xlsx_to_csv.py --check`、聚焦自动化、完整 Editor 构建、`python scripts/validate_project.py`、`git diff --check` 通过。
@@ -109,11 +109,11 @@
 ## 实现提纲
 
 1. 在 Run 层增加当前关 `shop_drop_levels` 解析与免费投放策略的单一入口，返回“无普通投放”或有效 `FreeTier`；禁止默认全牌池回退。
-2. `CompleteEncounter` 与 `ApplyForgeChoice` 复用该策略推进到 `ForgeChoice` / `CardChoice` / `Planning`，保持 Brave 与 Sage 状态机语义。
+2. `CompleteEncounter` 与普通卡牌选择完成路径复用该策略推进到 `CardChoice` / `Planning`；保持 Sage 额外选择语义，不增加 Brave 特殊阶段。
 3. `GenerateTraitCardOffers` 按当前关 `FreeTier` 调用 Cards 的 Tier 过滤牌池，保留现有资格、叠层优先级与确定性随机；为候选不足提供明确失败结果/日志和可继续流程。
 4. GameMode 的战后 UI 路由按 Run phase 分发：需要卡牌时打开三选一，无普通投放时直接打开战后商店；选择完成后的现有商店衔接保持一致。
 5. 商店卡牌槽直接使用真实 `EncounterIndex` 查 `ShopDropLevels`，删除 `1..6` 钳制；无配置或空 `ShopTiers` 均返回 0 槽。
-6. 扩充 `ReEchoTraitTests.cpp` 与 `ReEchoShopTests.cpp`：逐关矩阵、Tier 纯度、确定性、Brave/Sage、无投放跳转、缺表/空池和第 7 关回归。
+6. 扩充 `ReEchoTraitTests.cpp` 与 `ReEchoShopTests.cpp`：逐关矩阵、Tier 纯度、确定性、Sage、全角色一致的无投放跳转、缺表/空池和第 7 关回归。
 7. 更新 `MOD-ReEcho.md`，并完成所有相关 `CODEBASE_MAP` 文档的关闭前具名审阅。
 
 ## 验证矩阵

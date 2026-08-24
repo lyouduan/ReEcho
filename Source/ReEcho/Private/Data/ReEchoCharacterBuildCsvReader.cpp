@@ -9,6 +9,7 @@ namespace
 {
 constexpr const TCHAR* CharactersTableId = TEXT("Characters");
 constexpr const TCHAR* CharacterAliasesTableId = TEXT("CharacterAliases");
+constexpr const TCHAR* CharacterAbilitiesTableId = TEXT("CharacterAbilities");
 constexpr const TCHAR* CardsTableId = TEXT("Cards");
 constexpr const TCHAR* CardEffectsTableId = TEXT("CardEffects");
 constexpr const TCHAR* BehaviorNone = TEXT("None");
@@ -114,8 +115,6 @@ bool ReadCharactersTable(const FString& DataDirectory,
 	                            TEXT("PromotionPriority"),
 	                            TEXT("DefaultWeaponId"),
 	                            TEXT("AppearanceId"),
-	                            TEXT("PassiveBehaviorId"),
-	                            TEXT("PassiveValue"),
 	                            TEXT("HpMax"),
 	                            TEXT("PhysicalAttack"),
 	                            TEXT("ElementalAttack"),
@@ -124,9 +123,7 @@ bool ReadCharactersTable(const FString& DataDirectory,
 	                            TEXT("CriticalRate"),
 	                            TEXT("CriticalEffect"),
 	                            TEXT("EchoEfficiency"),
-	                            TEXT("ReactionEfficiency"),
-	                            TEXT("EverySecondAttackBonus"),
-	                            TEXT("RandomElementProjectiles")},
+	                            TEXT("ReactionEfficiency")},
 	                           Issues);
 
 	TSet<FName> SeenIds;
@@ -143,8 +140,6 @@ bool ReadCharactersTable(const FString& DataDirectory,
 		ReEchoCsv::RequireInt(Table, Row, TEXT("PromotionPriority"), Character.PromotionPriority, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("DefaultWeaponId"), Character.DefaultWeaponId, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("AppearanceId"), Character.AppearanceId, Issues);
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("PassiveBehaviorId"), Character.PassiveBehaviorId, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("PassiveValue"), 0.0f, 100000.0f, Character.PassiveValue, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("HpMax"), 1.0f, 100000.0f, Character.BaseStats.HpMax, Issues);
 		Character.BaseStats.HpPoint = Character.BaseStats.HpMax;
 		ReEchoCsv::RequireFloat(
@@ -161,15 +156,6 @@ bool ReadCharactersTable(const FString& DataDirectory,
 		    Table, Row, TEXT("EchoEfficiency"), 0.0f, 100.0f, Character.BaseStats.EchoEfficiency, Issues);
 		ReEchoCsv::RequireFloat(
 		    Table, Row, TEXT("ReactionEfficiency"), 0.0f, 100.0f, Character.BaseStats.ReactionEfficiency, Issues);
-		ReEchoCsv::RequireFloat(Table,
-		                        Row,
-		                        TEXT("EverySecondAttackBonus"),
-		                        0.0f,
-		                        100.0f,
-		                        Character.BaseStats.EverySecondAttackBonus,
-		                        Issues);
-		ReEchoCsv::RequireBool(
-		    Table, Row, TEXT("RandomElementProjectiles"), Character.BaseStats.bRandomElementProjectiles, Issues);
 
 		if (Character.Id.IsNone())
 		{
@@ -189,14 +175,147 @@ bool ReadCharactersTable(const FString& DataDirectory,
 			ReEchoCsv::AddIssue(
 			    Issues, Table.File, Row.Line, TEXT("DisabledReason"), TEXT("Disabled source row requires a reason"));
 		}
-		if (!IsRegisteredOrNone(Character.PassiveBehaviorId))
-		{
-			ReEchoCsv::AddIssue(
-			    Issues, Table.File, Row.Line, TEXT("PassiveBehaviorId"), TEXT("Unknown registered C++ behavior id"));
-		}
 		SeenIds.Add(Character.Id);
 		Snapshot.Characters.Add(Character.Id, Character);
 	}
+	return Issues.Num() == 0;
+}
+
+bool IsValidCharacterAbilityDefinition(const FReEchoCsvCharacterAbilityRow& Ability)
+{
+	if (Ability.ValueOp != EReEchoCsvValueOp::Add)
+	{
+		return false;
+	}
+	if (Ability.BehaviorId == TEXT("Character.StaticStat"))
+	{
+		return Ability.Trigger == TEXT("OnBuildInitialized") && Ability.EffectKind == TEXT("StatModifier") &&
+		       (Ability.Target == TEXT("MovementSpeed") || Ability.Target == TEXT("CriticalRate") ||
+		        Ability.Target == TEXT("CriticalEffect")) &&
+		       FMath::IsNearlyZero(Ability.Interval);
+	}
+	if (Ability.BehaviorId == TEXT("Character.PersistentGrowth"))
+	{
+		return Ability.Trigger == TEXT("OnEncounterCompleted") && Ability.EffectKind == TEXT("StatModifier") &&
+		       Ability.Target == TEXT("ReactionEfficiency") && FMath::IsNearlyZero(Ability.Interval);
+	}
+	if (Ability.BehaviorId == TEXT("Character.EveryNth"))
+	{
+		return Ability.Trigger == TEXT("OnTraitChoiceApplied") && Ability.EffectKind == TEXT("ExtraCardChoice") &&
+		       Ability.Target == TEXT("TraitCardChoice") && Ability.Interval >= 1.0f &&
+		       FMath::IsNearlyEqual(Ability.Interval, FMath::RoundToFloat(Ability.Interval)) && Ability.Value > 0.0f &&
+		       FMath::IsNearlyEqual(Ability.Value, FMath::RoundToFloat(Ability.Value));
+	}
+	if (Ability.BehaviorId == TEXT("Character.MissingHealthSteps"))
+	{
+		return Ability.Trigger == TEXT("OnHealthChanged") && Ability.EffectKind == TEXT("StatModifier") &&
+		       (Ability.Target == TEXT("PhysicalAttack") || Ability.Target == TEXT("ElementalAttack")) &&
+		       Ability.Value >= 0.0f && Ability.Interval > 0.0f && Ability.Interval <= 1.0f;
+	}
+	return false;
+}
+
+bool ReadCharacterAbilitiesTable(const FString& DataDirectory,
+                                 const ReEchoCsv::FManifestEntry& Entry,
+                                 FReEchoCsvDataSnapshot& Snapshot,
+                                 TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("Id"),
+	                            TEXT("CharacterId"),
+	                            TEXT("Order"),
+	                            TEXT("Trigger"),
+	                            TEXT("EffectKind"),
+	                            TEXT("Target"),
+	                            TEXT("ValueOp"),
+	                            TEXT("Value"),
+	                            TEXT("BehaviorId"),
+	                            TEXT("Interval"),
+	                            TEXT("Enabled"),
+	                            TEXT("DisabledReason")},
+	                           Issues);
+	TSet<FName> SeenIds;
+	TSet<FString> SeenOrderKeys;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvCharacterAbilityRow Ability;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Ability.Id, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("CharacterId"), Ability.CharacterId, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("Order"), Ability.Order, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Trigger"), Ability.Trigger, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("EffectKind"), Ability.EffectKind, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("Target"), Ability.Target, Issues);
+		ReEchoCsv::RequireValueOp(Table, Row, TEXT("ValueOp"), Ability.ValueOp, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("Value"), -100000.0f, 100000.0f, Ability.Value, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), Ability.BehaviorId, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("Interval"), 0.0f, 100000.0f, Ability.Interval, Issues);
+		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), Ability.bEnabled, Issues);
+		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Ability.DisabledReason);
+		const FString OrderKey = FString::Printf(
+		    TEXT("%s|%s|%d"), *Ability.CharacterId.ToString(), *Ability.Trigger.ToString(), Ability.Order);
+		if (SeenIds.Contains(Ability.Id))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
+		}
+		if (SeenOrderKeys.Contains(OrderKey))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("Order"), TEXT("Duplicate CharacterId/Trigger/Order"));
+		}
+		if (!Snapshot.Characters.Contains(Ability.CharacterId))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("CharacterId"), TEXT("Unknown Characters.Id reference"));
+		}
+		if (!FReEchoCsvDataRegistry::IsBehaviorIdRegistered(Ability.BehaviorId))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("BehaviorId"), TEXT("Unknown registered C++ behavior id"));
+		}
+		if (!FReEchoCsvDataRegistry::IsEffectKindRegistered(Ability.EffectKind))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("EffectKind"), TEXT("Unknown registered C++ effect kind"));
+		}
+		if (!IsValidCharacterAbilityDefinition(Ability))
+		{
+			ReEchoCsv::AddIssue(Issues,
+			                    Table.File,
+			                    Row.Line,
+			                    TEXT("BehaviorId"),
+			                    TEXT("Unsupported character ability trigger/effect/target/value combination"));
+		}
+		if (!Ability.bEnabled && Ability.DisabledReason.IsEmpty())
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("DisabledReason"), TEXT("Disabled source row requires a reason"));
+		}
+		SeenIds.Add(Ability.Id);
+		SeenOrderKeys.Add(OrderKey);
+		Snapshot.CharacterAbilities.Add(Ability.Id, Ability);
+		Snapshot.CharacterAbilityOrder.Add(Ability.Id);
+	}
+	Snapshot.CharacterAbilityOrder.Sort(
+	    [&Snapshot](const FName LeftId, const FName RightId)
+	    {
+		    const FReEchoCsvCharacterAbilityRow& Left = Snapshot.CharacterAbilities.FindChecked(LeftId);
+		    const FReEchoCsvCharacterAbilityRow& Right = Snapshot.CharacterAbilities.FindChecked(RightId);
+		    if (Left.CharacterId != Right.CharacterId)
+		    {
+			    return Left.CharacterId.LexicalLess(Right.CharacterId);
+		    }
+		    if (Left.Trigger != Right.Trigger)
+		    {
+			    return Left.Trigger.LexicalLess(Right.Trigger);
+		    }
+		    return Left.Order == Right.Order ? Left.Id.LexicalLess(Right.Id) : Left.Order < Right.Order;
+	    });
 	return Issues.Num() == 0;
 }
 
@@ -436,6 +555,10 @@ bool ReadTables(const FString& DataDirectory,
 	if (Issues.Num() == 0)
 	{
 		ReadCharacterAliasesTable(DataDirectory, ManifestEntries[CharacterAliasesTableId], Snapshot, Issues);
+	}
+	if (Issues.Num() == 0)
+	{
+		ReadCharacterAbilitiesTable(DataDirectory, ManifestEntries[CharacterAbilitiesTableId], Snapshot, Issues);
 	}
 	if (Issues.Num() == 0)
 	{

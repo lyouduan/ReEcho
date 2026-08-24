@@ -89,6 +89,8 @@ public:
 	                              int32 MaxStacks);
 	bool RemoveOldestTransientStatModifier(FName SourceId);
 	int32 GetTransientStatStackCount(FName SourceId) const;
+	/** Host-agnostic runtime command: replace one source's additive attack modifier without cumulative drift. */
+	void SetAdditiveAttackModifier(FName SourceId, float PhysicalAttackBonus, float ElementalAttackBonus);
 	/** Card-agnostic host command: shorten an active immunity window without extending it. */
 	void ClampElementImmunityDuration(float CurrentTimeSeconds, float MaximumRemainingSeconds);
 	/** Save/continue migration entry; runtime attacks must go through HitResolver. */
@@ -157,6 +159,7 @@ private:
 
 	TArray<FBleedingStack> BleedingStacks;
 	TArray<FTransientStatStack> TransientStatStacks;
+	TMap<FName, FVector2D> AdditiveAttackModifiers;
 	float StunnedUntilWorldTime = 0.0f;
 	float InvulnerableUntilWorldTime = 0.0f;
 	FName HealthChangeReason = NAME_None;

@@ -139,8 +139,6 @@ struct REECHOCOMBAT_API FReEchoStatBlock
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EchoEfficiency = 0.5f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ReactionEfficiency = 1.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName RoleId = NAME_None;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bRandomElementProjectiles = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EverySecondAttackBonus = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ProjectileCount = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float WeaponSize = 1.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EchoCount = 1;

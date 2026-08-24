@@ -307,6 +307,8 @@ private:
 	void UpdateSequenceFrame();
 	void RefreshFootRoot();
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
+	UFUNCTION()
+	void HandleCharacterAbilityHealthChanged(float CurrentHealth, float MaximumHealth);
 
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;

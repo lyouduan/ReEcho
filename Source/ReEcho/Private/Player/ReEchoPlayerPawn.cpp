@@ -40,6 +40,7 @@
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "ReEchoGameMode.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "UObject/ConstructorHelpers.h"
@@ -295,6 +296,7 @@ void AReEchoPlayerPawn::BeginPlay()
 
 	AbilitySystem->InitAbilityActorInfo(this, this);
 	Combatant->BindToAbilitySystem(AbilitySystem);
+	Combatant->OnHealthChanged.AddUniqueDynamic(this, &AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged);
 	AbilitySystem->GetGameplayAttributeValueChangeDelegate(UReEchoCombatAttributeSet::GetMovementSpeedAttribute())
 	    .AddUObject(this, &AReEchoPlayerPawn::HandleMovementSpeedAttributeChanged);
 	GrantStartupAbilities();
@@ -1135,6 +1137,10 @@ void AReEchoPlayerPawn::RefreshGroundShadowFromFlipbook()
 
 void AReEchoPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (Combatant)
+	{
+		Combatant->OnHealthChanged.RemoveDynamic(this, &AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged);
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -1164,4 +1170,17 @@ void AReEchoPlayerPawn::HandleMovementSpeedAttributeChanged(const FOnAttributeCh
 	{
 		Movement->MaxSpeed = 420.0f * FMath::Max(0.1f, Data.NewValue);
 	}
+}
+
+void AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged(const float CurrentHealth, const float MaximumHealth)
+{
+	if (!Combatant)
+	{
+		return;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FVector2D Bonus = Snapshot.IsValid() ? ReEchoCharacterAbilityRuntime::ResolveCurrentMissingHealthAttackBonus(
+	                                                 *Snapshot, CurrentCharacterId, CurrentHealth, MaximumHealth)
+	                                           : FVector2D::ZeroVector;
+	Combatant->SetAdditiveAttackModifier(TEXT("Character.MissingHealthSteps"), Bonus.X, Bonus.Y);
 }

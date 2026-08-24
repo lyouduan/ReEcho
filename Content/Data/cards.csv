@@ -41,6 +41,3 @@ G_3_19,G_3_19,3,碎时锋芒,当你还持有时间碎片时，你每次造成伤
 G_3_20,G_3_20,3,碎时壁垒,当你还持有时间碎片时，你每次受到伤害前，都会消耗5时间碎片，让该次伤害-1，最低为0,Economy|Survival,Brave,Trait,false,false,Stackable,None,Disabled,已废弃-设计数值稿最新版移除-保留数据与Shard机制测试
 G_3_21,G_3_21,3,万象共鸣,每当你触发4个不同种类的元素反应后，你的元素反应效能永久+5%,Element,Poet,Trait,true,true,Stackable,None,Approved,
 G_3_22,G_3_22,3,复调机括,你的武器的每个槽位现在可以装备2个配件（除核心外）,Base,Sage,Trait,true,true,Unique,None,Approved,
-FORGE_LIGHT,Runtime.FORGE_LIGHT,0,轻度锻炼,生命 +2，物理与元素攻击 +1,Forge,Disabled,Forge,true,true,Stackable,None,Approved,
-FORGE_MEDIUM,Runtime.FORGE_MEDIUM,0,中度锻炼,生命 -2，物理与元素攻击 +2,Forge,Disabled,Forge,true,true,Stackable,None,Approved,
-FORGE_EXTREME,Runtime.FORGE_EXTREME,0,极限锻炼,生命 -6，物理与元素攻击 +2,Forge,Disabled,Forge,true,true,Stackable,None,Approved,

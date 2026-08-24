@@ -32,10 +32,11 @@
 - `csv_schema.csv`：给人阅读并供静态校验使用的列契约。
 - `runtime_smoke.csv`：最小运行时 smoke 表，用来证明 CSV 加载、打包和改值生效。
 - `runtime_smoke_effects.csv`：运行时 smoke 的一对多子表，用于验证类型化数值参数。
-- `characters.csv`：canonical 可玩/运行时角色 ID、展示名、基础属性、默认武器、外观 ID 和已注册被动行为 ID。
+- `characters.csv`：canonical 可玩/运行时角色 ID、展示名、基础属性、默认武器和外观 ID；不再混入角色能力逻辑参数。
 - `character_aliases.csv`：显式旧 ID / 工作簿 ID 映射，例如 `J_01` 映射到 `J_SPADE`。
-- `cards.csv`：canonical 卡牌和锻炼选项行，包括来源、标签、晋升角色桶、抽取组、评审状态和禁用原因。
-- `card_effects.csv`：启用卡牌和锻炼选项的有序效果子表，使用类型化目标、`EffectKind`、`ValueOp` 和已注册 `BehaviorId`。
+- `character_abilities.csv`：角色能力的一对多类型化配置，明确角色、触发点、目标、数值、间隔与已注册行为；描述文字不参与运行。
+- `cards.csv`：canonical 卡牌行，包括来源、标签、晋升角色桶、抽取组、评审状态和禁用原因；旧勇者 Forge 选项已删除。
+- `card_effects.csv`：启用卡牌的有序效果子表，使用类型化目标、`EffectKind`、`ValueOp` 和已注册 `BehaviorId`。
 - `elements.csv`：canonical 元素 ID、触发/附着角色、展示键、颜色和视觉键。
 - `statuses.csv`：元素反应需要的状态 ID、持续时间、叠加/刷新/互斥策略和已注册状态行为。
 - `reactions.csv`：六个 ordered 元素反应，使用触发/附着元素 ID、已注册反应行为、白名单 `FormulaId`、半径、状态引用和回响/暴击规则。
@@ -59,10 +60,11 @@
 |---|---|---|
 | `RuntimeSmoke` | `Content/Data/runtime_smoke.csv` | CSV 加载、打包和改值 smoke 表 |
 | `RuntimeSmokeEffects` | `Content/Data/runtime_smoke_effects.csv` | `RuntimeSmoke` 的效果子表 |
-| `Characters` | `Content/Data/characters.csv` | 角色基础属性、默认武器、外观和被动行为 |
+| `Characters` | `Content/Data/characters.csv` | 角色基础属性、默认武器和外观 |
 | `CharacterAliases` | `Content/Data/character_aliases.csv` | 旧 ID / 工作簿 ID 到 canonical 角色 ID 的显式映射 |
-| `Cards` | `Content/Data/cards.csv` | 卡牌、锻炼选项、抽取组、晋升角色桶和启用状态 |
-| `CardEffects` | `Content/Data/card_effects.csv` | 卡牌和锻炼选项的有序数值/行为效果 |
+| `CharacterAbilities` | `Content/Data/character_abilities.csv` | 角色能力触发、目标、数值和已注册行为 |
+| `Cards` | `Content/Data/cards.csv` | 卡牌抽取组、晋升角色桶和启用状态 |
+| `CardEffects` | `Content/Data/card_effects.csv` | 卡牌的有序数值/行为效果 |
 | `Elements` | `Content/Data/elements.csv` | 元素身份、触发/附着角色、展示键和颜色 |
 | `Statuses` | `Content/Data/statuses.csv` | 状态行为、持续时间、叠加/刷新/互斥策略 |
 | `Reactions` | `Content/Data/reactions.csv` | ordered 元素反应、白名单公式、参数、状态引用和回响/暴击规则 |

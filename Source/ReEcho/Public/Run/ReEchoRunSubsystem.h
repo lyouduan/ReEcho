@@ -108,10 +108,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool DebugGrantCard(FName CardId);
 
-	/** 勇者每关结束后的三档锻炼选择。 */
-	TArray<FReEchoTraitCardOffer> GenerateForgeOffers();
-	bool ApplyForgeChoice(FName ForgeId);
-
 	FReEchoCardRuleSnapshot GetCardRules() const;
 	FReEchoCardEncounterTickResult AdvanceCardEncounter(float EncounterTimeSeconds);
 	void ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
