@@ -6,11 +6,11 @@
 - Executor 负责人：独立程序 Executor（待 Plan 修订发布后启动）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Review`（空间表现返工候选已完成客观检查，等待 PIE 人工验收）。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`（空间表现返工、Echo Blueprint 与最新远程主线组合已完成并通过验收）。
+- 人工验收：`Passed`（2026-08-24，用户确认“没有问题”）。
 - 本地规划 / 实现基线：`origin/main@163b49e8d44fd15dc8468890f9d9bf51dd2a73a5`；空间/Rotation 本地候选已合并该 Blueprint 修订并继续实现。
 - 本地实现方式：用户已确认采用一任务一 worktree；本次返工使用 `C:/Users/binnanliang/Documents/ReEcho-worktrees/echo-spatial-presentation`，分支 `codex/echo-spatial-presentation`。
-- 依赖 / 阻塞：四组 Echo Flipbook 已交付至 `/Game/ReEcho/Art/Animation2D/Echos`；玩家同 `CharacterId` 的空间表现作为本次唯一视觉基准，最终视觉一致性需要 PIE 人工验收。
+- 依赖 / 阻塞：四组 Echo Flipbook 已交付至 `/Game/ReEcho/Art/Animation2D/Echos`；玩家同 `CharacterId` 的空间表现作为本次唯一视觉基准，PIE 视觉一致性已由用户验收通过。
 - Writes:
   - `plans/71-echo-player-presentation-parity.md`
   - `Source/ReEcho/Public/Graybox/ReEchoEchoActor.h`
@@ -82,7 +82,7 @@
 - [x] Profile/Catalog 缺失时静态回退可见且 Echo 玩法仍可初始化。
 - [x] 修改的 C++ 完成 `.clang-format`，Development 构建、聚焦自动化、`validate_project.py` 与 `git diff --check` 通过。
 - [x] 最终发布候选完成 Development FullRebuild 并刷新精选预构建包。
-- [ ] PIE 人工验收四角色尺寸、脚点、阴影、左右朝向、移动/停止及近远程攻击切换。
+- [x] PIE 人工验收四角色尺寸、脚点、阴影、左右朝向、移动/停止及近远程攻击切换。
 - [x] 对每个规范 `CharacterId`，Player/Echo 的角色显示包围盒尺寸、脚底基准与相对缩放一致；左右镜像后不新增位置漂移。
 - [x] 相同角色与 `WeaponVisualKey` 下，Player/Echo 的武器 Actor Anchor、Held Visual 相对位置与最终显示尺寸一致，不存在 Echo 专用武器补偿。
 - [x] Player/Echo 的 GroundRoot 中心、GroundShadow 最终宽高一致，并保持相同的脚底相对关系。
@@ -158,15 +158,15 @@
 
 ### 剩余风险
 
-- 自动化不能判断四角色在 SC02 中的最终视觉尺寸、脚点、阴影宽度和攻击动作观感，仍需 PIE 人工验收。
-- 人工 PIE 视觉验收仍未记录；按用户要求先发布 Review 候选，Plan 保持未关闭。
-- Echo 与 Player 使用不同像素尺寸的动画素材时，现已通过 Player `WorldHeight` 归一化而非复制 Renderer Scale；最终包围盒与脚底屏幕观感仍保留给 PIE 验收。
-- Plan87 后续会写 Player Host；若其在本 Plan 实现前落地，必须重新审计并组合适配，不能覆盖角色能力事件路由。
-- 自动化已证明空间 Profile 的数据来源，但最终角色包围盒、GroundShadow 与 Attack/Hurt VFX 的屏幕观感仍需要 PIE 四角色人工验收；本候选未修改 Recording、Combat、Weapons 逻辑或动作/攻击时序。
+- 自动化不能替代四角色在 SC02 中的最终视觉尺寸、脚点、阴影宽度和攻击动作观感判断；该项已由用户 PIE 验收通过。
+- 人工 PIE 视觉验收已于 2026-08-24 记录为 `Passed`，Plan 已关闭。
+- Echo 与 Player 使用不同像素尺寸的动画素材时，现已通过 Player `WorldHeight` 归一化而非复制 Renderer Scale；最终包围盒与脚底屏幕观感已由用户 PIE 确认。
+- Plan87 的 Player Host 与角色能力实现已组合进入最终候选，并在 FullRebuild 与 Echo 聚焦自动化中共同验证，未覆盖角色能力事件路由。
+- 自动化已证明空间 Profile 的数据来源，角色包围盒、GroundShadow 与 Attack/Hurt VFX 的屏幕观感已通过 PIE 四角色人工验收；本候选未修改 Recording、Combat、Weapons 逻辑或动作/攻击时序。
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：PIE 逐一检查 Heart/Spade/Clover/Diamond 的移动、停止、左右朝向，以及近战和 Staff/Bow/Gun 攻击切换。
+`Passed`（2026-08-24）：用户确认 Heart/Spade/Clover/Diamond 的空间表现与 Echo Blueprint 候选没有问题，同意发布远程 `main`。
 
 ### 架构文档审阅结果
 
