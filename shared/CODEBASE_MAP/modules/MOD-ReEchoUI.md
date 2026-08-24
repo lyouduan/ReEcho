@@ -7,7 +7,7 @@
 - Build 文件：无；当前构建规则仍位于 `Source/ReEcho/ReEcho.Build.cs`。
 - 主要目录：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`、`Content/ReEcho/UI/`、`Content/ReEcho/Textures/UI/`、`Content/SourceArt/UI/`。
 - UI 架构设计权威：[ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md)。
-- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70。
+- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93。
 
 ## 存在原因
 
@@ -26,6 +26,7 @@
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。
 - Player HUD 显式接收当前玩家的 Combatant 与 CombatEvents：`OnHurt` 仅触发瞬时受击红光，生命变化仅更新可配置的低血量底色。`UReEchoPlayerScreenFeedbackWidget` 独占合成、钳制、重触发和死亡清理等表现状态；`WBP_ReEchoPlayerScreenFeedback` 的 Class Defaults 是阈值、强度、曲线指数、呼吸和材质参数的 Editor 调参表面。HUD 硬引用并构造该 WBP Class，Widget 硬引用 `/Game/ReEcho/Materials/UI/M_UI_PlayerHurtVignette`，保证 cook 收集；材质缺失时使用不影响玩法的原生左右边缘 fallback。
+- Plan93 战斗常驻 HUD 以两个 WBP 为视觉权威：Player HUD 用 `PlayerHealthFill` 映射真实生命比例并显示 Run 的只读 TimeShards；Encounter HUD 显示 `第 N 关`、零补齐 `MM:SS`，并把现有真实 `UReEchoMinimapCanvasWidget` 包进交付回响框。Minimap Canvas 底板透明且不绘制内层竞技场边框，只保留轨迹和实时点。参考图底部技能栏已被产品废弃，不进入 WBP 或运行时纹理；Widget 不写 Run、不复制遭遇时钟，也不伪造技能状态。
 - 商店装配室的武器面板、时钟、3 个配件槽和 12 个卡牌槽以 `WBP_ReEchoInventoryShopScreen > Overlay_0 > DesignerLoadoutCanvas` 为位置权威；这些控件都是 Canvas 直接子项，可在 UMG Designer 中修改 Position/Size。`UReEchoInventoryShopWidget` 只向槽位填充纹理、置灰状态、Tooltip 和存储卡点击事件，不创建或重置其坐标；构筑卡购买成功后会把真实卡牌图标立即填入下一个卡牌槽，但不重摇当前商店报价。
 - 商店/背包页以 `1920×1080` 为作者设计面：`BackgroundImage` 保持直接铺满实际视口，其余根控件及运行时商店/回响弹层由 `ResponsiveContentScale > ResponsiveContentSize > ResponsiveContentCanvas` 统一 `ScaleToFit`。低分辨率按比例缩小完整页面，超宽屏只延展背景；运行时迁移必须保留原 Canvas Slot 的锚点、偏移、自动尺寸和 ZOrder。
 - `UReEchoInventoryShopWidget` 的无资产 fallback 展示实际折扣价、免费刷新余量、刷新禁用和额外卡牌组禁用状态；刷新只广播命令，Run 成功消费并保存后才更新页面和确定性报价顺序。
@@ -49,6 +50,7 @@
 | 接入 UI 美术源图 | `Content/SourceArt/UI/InteractionPlaceholder/README.md` | `Content/ReEcho/Textures/UI/InteractionPlaceholder/`、对应 WBP |
 | 修改页面行为或绑定 | 对应 `Source/ReEcho/Public/UI/*Widget.h` | 配对的 `Source/ReEcho/Private/UI/*Widget.cpp` |
 | 修改玩家受伤/低血量屏幕反馈 | `ReEchoPlayerHudWidget.*` | `WBP_ReEchoPlayerScreenFeedback`、`M_UI_PlayerHurtVignette`、两个 `scripts/ue/author_plan70_*` 作者ing脚本 |
+| 修改战斗常驻 HUD | `WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` | `ReEchoPlayerHudWidget.*`、`ReEchoEncounterHudWidget.*`、`Content/SourceArt/UI/CombatHud/Plan93/` |
 | 修改商店卡牌规则展示 | `ReEchoInventoryShopWidget.*` | `ReEchoGameMode::RefreshShopPresentation`、`UReEchoRunSubsystem` 商店命令 |
 | 修改页面创建、层级和实例 | `ReEchoUIManagerSubsystem.*` | `UI/Framework/ReEchoUIScreenTypes.h` |
 | 修改焦点、输入或暂停流程 | `UI/Framework/ReEchoUIFlowCoordinatorSubsystem.*` | `ReEchoGameMode` 类型化端点 |

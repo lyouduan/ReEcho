@@ -28,10 +28,15 @@ public:
 	                         UReEchoCombatEventsComponent* InCombatEvents,
 	                         UTexture2D* InPortraitTexture);
 
+	/** 更新本局实时持有的时间碎片数量。 */
+	void SetTimeShards(int32 InTimeShards);
+
 #if WITH_DEV_AUTOMATION_TESTS
 	bool IsBoundToCombatEventsForTests(const UReEchoCombatEventsComponent* InCombatEvents) const;
 
 	UClass* GetScreenFeedbackClassForTests() const;
+
+	int32 GetTimeShardsForTests() const;
 #endif
 
 protected:
@@ -59,7 +64,13 @@ private:
 	TObjectPtr<UProgressBar> PlayerHealthProgress;
 
 	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> PlayerHealthFill;
+
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> PlayerHealthText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> TimeShardText;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UReEchoPlayerScreenFeedbackWidget> PlayerScreenFeedback;
@@ -72,4 +83,6 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> PortraitTexture;
+
+	int32 CurrentTimeShards = 0;
 };

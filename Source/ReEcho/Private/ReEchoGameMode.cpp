@@ -3541,6 +3541,10 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 	}
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (PlayerHudWidget)
+	{
+		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
+	}
 	if (EncounterHudWidget)
 	{
 		EncounterHudWidget->SetEncounterStatus(

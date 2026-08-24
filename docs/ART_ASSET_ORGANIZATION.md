@@ -8,6 +8,8 @@
 - Plan45 UI 交付源包：`Content/SourceArt/UI/InteractionPlaceholder/`，其中 `Elements` 是候选切图、`References` 是效果参考、`Fonts/PendingLicense` 是未获授权的隔离字体。
 - Plan45 已消费的运行时 UI 纹理：`Content/ReEcho/Textures/UI/InteractionPlaceholder/`；只导入现有 WBP 实际引用的切图。目前按 `StartMenu`、`Settings`、`PauseAndCombat`、`ResultsAndRestart`、`TraitChoice`、`InventoryShop` 分页，未被 WBP 消费的按钮、参考图和字体仍只保留在 `SourceArt`。
 - `scripts/ue/import_ui_interaction_placeholders.py` 默认跳过已存在的运行时纹理，避免重复执行改写既有资产；只有明确传入 `-Plan45ReimportExisting` 才重导同名纹理。
+- Plan93 战斗 HUD 交付源包：`Content/SourceArt/UI/CombatHud/Plan93/`；`References/1-战斗场景.png` 只用于 1920×1080 构图对照。9 张 `Elements` 原图继续归档，其中废案 `技能栏.png` 标为 `RejectedElement` 且不导入，其余 8 张按 `_SourceManifest.csv` 的稳定 ASCII 名导入 `Content/ReEcho/Textures/UI/CombatHud/`。
+- `scripts/ue/import_plan93_combat_hud.py` 默认保留已存在纹理；仅显式传入 `-Plan93ReimportExisting` 时重导。参考图始终不进入运行时资产。
 
 ## 角色资产
 

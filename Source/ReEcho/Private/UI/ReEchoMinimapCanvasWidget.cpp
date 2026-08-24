@@ -56,42 +56,13 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 		return LayerId;
 	}
 
-	// 白色底刷，最终颜色由 InTint 决定。
+	// 白色实心刷仅用于轨迹点和玩家点；画布本身保持透明，
+	// 让 WBP 中的正式回响边框素材决定底板视觉。
 	FSlateBrush SolidBrush;
 	SolidBrush.TintColor = FSlateColor(FLinearColor::White);
 
-	// 背景
-	FSlateDrawElement::MakeBox(
-		OutDrawElements,
-		LayerId,
-		AllottedGeometry.ToPaintGeometry(FVector2f(Size.X, Size.Y), FSlateLayoutTransform(1.0f)),
-		&SolidBrush,
-		ESlateDrawEffect::None,
-		FLinearColor(0.04f, 0.05f, 0.08f, 0.65f));
-
 	if (View.bValid && View.ArenaHalfExtents.X > KINDA_SMALL_NUMBER && View.ArenaHalfExtents.Y > KINDA_SMALL_NUMBER)
 	{
-		// 竞技场边框
-		{
-			TArray<FVector2D> Border;
-			const FVector2D TL = ToLocal(View.ArenaCenter - View.ArenaHalfExtents, Size);
-			const FVector2D BR = ToLocal(View.ArenaCenter + View.ArenaHalfExtents, Size);
-			Border.Add(FVector2D(TL.X, TL.Y));
-			Border.Add(FVector2D(BR.X, TL.Y));
-			Border.Add(FVector2D(BR.X, BR.Y));
-			Border.Add(FVector2D(TL.X, BR.Y));
-			Border.Add(FVector2D(TL.X, TL.Y));
-			FSlateDrawElement::MakeLines(
-				OutDrawElements,
-				LayerId + 1,
-				AllottedGeometry.ToPaintGeometry(),
-				Border,
-				ESlateDrawEffect::None,
-				FLinearColor(0.3f, 0.4f, 0.6f, 0.8f),
-				true,
-				1.5f);
-		}
-
 		// 各回响轨迹折线 + 当前点
 		for (const FReEchoMinimapEchoEntry& Entry : View.Echoes)
 		{

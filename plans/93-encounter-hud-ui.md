@@ -10,7 +10,7 @@
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@86aca0ce5257728033179af9af844c10fec77bbf`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan93-encounter-hud-ui`，分支 `plan/93-encounter-hud-ui`；规划者与执行者合一。
-- 依赖 / 阻塞：用户已指定 `正式-UI视觉/正式-UI视觉/战斗场景/1-战斗场景.png` 为 1920×1080 视觉权威，并提供同目录 9 张切图。Plan92 正在修改 `ReEchoGameMode` 和 `TimeShards` 发放路径；本 Plan 可本地实现真实余额展示，但最终集成必须在 Plan92 发布后重新审计并组合适配，禁止覆盖其经济语义。
+- 依赖 / 阻塞：用户已指定 `正式-UI视觉/正式-UI视觉/战斗场景/1-战斗场景.png` 为 1920×1080 构图参考，并提供同目录 9 张切图；后续明确判定底部技能栏为废案，因此正式 HUD 仅消费其余 8 张。Plan92 正在修改 `ReEchoGameMode` 和 `TimeShards` 发放路径；本 Plan 可本地实现真实余额展示，但最终集成必须在 Plan92 发布后重新审计并组合适配，禁止覆盖其经济语义。
 - Writes:
   - `plans/93-encounter-hud-ui.md`
   - `Content/ReEcho/UI/WBP_ReEchoEncounterHud.uasset`
@@ -44,10 +44,10 @@
 
 1. 左上玩家状态改为两行：第一行 `爱心.png + 血条底板.png/血条.png + 当前生命/最大生命`，第二行 `时间碎片.png + 真实 TimeShards 数字`；旧圆形角色头像不再出现在正式构图中，但生命事件与受伤反馈保持。
 2. 顶部中央使用 `时间底板.png`，动态关卡标题显示为 `第 {EncounterIndex} 关`，倒计时改为零补齐 `MM:SS`；`时间指针.png` 与 `时间显示.png` 按参考图居中叠放，最后 5 秒仍由 C++ 变为警示色。
-3. 右上使用 `回响显示框.png` 包住现有 `UReEchoMinimapCanvasWidget`；矢量回响路径、玩家点和竞技场映射继续使用真实运行时视图，不用参考图中的绿色手绘轨迹替代。
-4. 底部使用 `技能栏.png` 作为命中测试不可见的装饰宿主；当前没有正式技能按钮/冷却契约，因此只交付参考图中的空深色栏，不伪造技能状态。
+3. 右上使用 `回响显示框.png` 包住现有 `UReEchoMinimapCanvasWidget`；Minimap Canvas 自身底板透明且不绘制浅蓝竞技场边框，只保留回响路径、玩家点和真实运行时映射，不用参考图中的绿色手绘轨迹替代。
+4. 用户已将参考图底部 `技能栏.png` 面板判定为废案；从 `WBP_ReEchoEncounterHud` 删除该节点，不导入/保留对应运行时 Texture2D，也不以空白容器替代。
 5. 所有元素以 1920×1080 为作者设计面，保留边缘安全区；1280×720、2560×1440 与 21:9 下按既有 DPI/锚点策略保持可见、不过度拉伸、不拦截战斗输入。
-6. 目标目录中的 `1-战斗场景.png` 只归档为 Reference；9 张独立切图归档为 Elements 并以稳定 ASCII 名导入 `/Game/ReEcho/Textures/UI/CombatHud`。原始中文交付名、像素尺寸和 SHA-256 进入可复现清单。
+6. 目标目录中的 `1-战斗场景.png` 只归档为 Reference；9 张独立切图继续归档，废案技能栏标为 `RejectedElement`，其余 8 张以稳定 ASCII 名导入 `/Game/ReEcho/Textures/UI/CombatHud`。原始中文交付名、像素尺寸和 SHA-256 进入可复现清单。
 
 ## 架构影响与设计决策
 
@@ -58,21 +58,21 @@
 - 决策记录：先发布 `Proposed` 骨架获取正式编号；用户随后提供完整参考和切图，本次扩张到 Player HUD 配套与真实 TimeShards 展示。两个 WBP 串行 authoring；效果图只对照，不整屏导入。Plan92 仍拥有掉落发放，Plan93 只读余额并在发布边界组合适配。
 - 相关文档同步范围：`shared/CODEBASE_MAP/ARCHITECTURE.md` 与 `shared/CODEBASE_MAP/README.md` 关闭前审阅；预期因拓扑和路由不变而无需修改。`MOD-ReEchoUI.md` 和 `Design/UI/ReEcho_UI修改指导.md` 按最终真实契约维护。
 - 关闭前逐项填写审阅结果：
-  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：待关闭前审阅。
-  - `shared/CODEBASE_MAP/README.md`：待关闭前审阅。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：待实现后维护或记录无需修改原因。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：待实现后维护或记录无需修改原因。
-  - `Design/UI/ReEcho_UI修改指导.md`：待实现后维护或记录无需修改原因。
+  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；模块、权威状态和依赖方向未变，无需修改。
+  - `shared/CODEBASE_MAP/README.md`：已审阅；不新增模块或阅读入口，无需修改。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已维护 Plan93 WBP/C++ 分工、TimeShards 只读投影与阅读路线。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已维护战斗常驻 HUD 跨域只读投影说明。
+  - `Design/UI/ReEcho_UI修改指导.md`：已维护 Player/Encounter HUD 清单、绑定名、正式资产路径与修改边界。
 
 ## 锁定验收
 
 - [x] 用户目标图、9 张切图、1920×1080 构图、素材映射与保留行为已在实现前补入本 Plan。
-- [ ] `WBP_ReEchoEncounterHud` 保持正确原生父类，显示顶部时间底板、`第 N 关`、`MM:SS`、指针、右上回响框/真实小地图和底部空技能栏。
-- [ ] `WBP_ReEchoPlayerHud` 保持正确原生父类，显示爱心、动态生命条/数值与真实时间碎片余额，不显示旧圆形角色头像。
+- [x] `WBP_ReEchoEncounterHud` 保持正确原生父类，显示顶部时间底板、`第 N 关`、`MM:SS`、指针和右上回响框/真实小地图；底部废案面板及其运行时纹理均不存在。
+- [x] `WBP_ReEchoPlayerHud` 保持正确原生父类，显示爱心、动态生命条/数值与真实时间碎片余额，不显示旧圆形角色头像。
 - [ ] HUD 不接管输入；生命事件、受伤反馈、时间碎片权威、关卡索引、倒计时、最后 5 秒警示、页面显隐与 travel 后重建语义无回归。
-- [ ] 两个目标 WBP Compile/Save 成功，`CompileAllBlueprints` 无错误、警告或加载失败。
-- [ ] 按最终变化面执行聚焦自动化、Editor 构建、项目校验和 `git diff --check`。
-- [ ] 用户在 1920×1080 PIE 对照目标图验收布局、可读性、生命/碎片、小地图、倒计时和技能栏；并检查 1280×720、2560×1440、21:9 无关键裁切。
+- [x] 两个目标 WBP Compile/Save 成功，`CompileAllBlueprints` 的 Blueprint 汇总为 0 errors、0 warnings、0 failed loads。
+- [x] 按当前本地候选变化面执行聚焦自动化、Development Editor 构建、项目校验和 `git diff --check`；最终组合后仍需 FullRebuild。
+- [ ] 用户在 1920×1080 PIE 对照目标图验收布局、可读性、生命/碎片、小地图和倒计时，并确认底部无废案面板；同时检查 1280×720、2560×1440、21:9 无关键裁切。
 - [ ] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -85,7 +85,7 @@
 
 ## 实现提纲
 
-1. 归档 Reference/Elements、生成哈希清单并导入 9 张稳定 ASCII UI Texture2D；核对 sRGB、透明通道、无 mipmap、UI 压缩和过滤。
+1. 归档 Reference/Elements、生成哈希清单并导入 8 张获准的稳定 ASCII UI Texture2D；核对 sRGB、透明通道、无 mipmap、UI 压缩和过滤。废案技能栏仅归档，不进入运行时。
 2. 审计两个 WBP 的当前控件树；用幂等 authoring 脚本按 1920×1080 构图重排 Player/Encounter HUD，保留绑定与小地图控件。
 3. 增加 `TimeShardText` 只读绑定、真实余额投影、`第 N 关` 与 `MM:SS` 格式；增加聚焦自动化，不改变 Run 写入或掉落规则。
 4. 逐资产 Compile/Save、`CompileAllBlueprints`、聚焦自动化和 Development 构建；获取运行截图并与目标图对照返工。
@@ -95,7 +95,7 @@
 
 | 层级 | 命令/检查 | 预期证据 |
 |---|---|---|
-| 源图/导入 | 清单 SHA-256、Texture2D 配置与资产加载审计 | 1 Reference + 9 Elements 可追溯，运行时只导入切图 |
+| 源图/导入 | 清单 SHA-256、Texture2D 配置与资产加载审计 | 1 Reference + 9 Elements 可追溯，废案技能栏只归档，其余 8 张进入运行时 |
 | WBP | 两个目标资产 Compile/Save；`CompileAllBlueprints` | Player/Encounter HUD 0 errors、0 warnings、0 failed loads |
 | UI 聚焦 | HUD 创建/travel reset、本页绑定/格式/余额检查 | 创建、生命/碎片/计时/小地图刷新与重建契约通过 |
 | C++ | 修改源码时执行 `.clang-format` 与 `scripts/ue/Build-Editor.cmd -Configuration Development` | UHT/UBT 成功并刷新匹配精选包 |
@@ -107,8 +107,15 @@
 
 ### 变化
 
-- 创建 Plan93 `Proposed` 骨架和独立 worktree；尚未修改目标 WBP 或运行时源码。
+- 创建 Plan93 `Proposed` 骨架和独立 worktree，随后按锁定规格进入本地实现。
 - 用户提供 1920×1080 最终战斗场景参考图和 9 张独立切图；Plan93 已锁定为 Encounter HUD 主改、Player HUD 配套，并进入 `InProgress`。
+- 已归档 1 张 Reference 与 9 张 Elements，生成尺寸/SHA-256/运行时名清单；废案技能栏标为 `RejectedElement`，其余 8 张通过 Editor 导入 `/Game/ReEcho/Textures/UI/CombatHud/`，Reference 未进入运行时。
+- 已通过幂等 UMG authoring 修改两个目标 WBP：Player HUD 使用爱心、图片生命填充和真实碎片文本并折叠旧头像；Encounter HUD 使用交付时钟/回响切图、保留真实小地图，并移除废案技能栏。
+- C++ 已增加图片生命比例、TimeShards 只读投影、`第 N 关` 与 `MM:SS` 格式，并新增 WBP 实例/绑定/真实小地图聚焦自动化。同步维护 UI 指导、美术目录说明和两个模块阅读入口。
+- 用户在运行截图中明确将底部技能栏面板判定为废案；本地候选改为从 Encounter WBP 删除 `ArtSkillBar`，清理其无引用运行时纹理，并在源清单保留 `RejectedElement` 追溯记录。
+- 用户随后要求小地图底板透明；已移除 `SReEchoMinimapCanvas::OnPaint` 的深蓝半透明背景绘制，保留外层回响框、竞技场边线、轨迹和玩家点。
+- 用户运行复核后指出残留浅蓝细框；已继续移除 Canvas 绘制的竞技场边线，最终只保留外层交付回响框、轨迹和实时点。
+- 用户在最终视觉复核中手动将 `EncounterText` 的 Y 位置由 `27` 调整为 `0`；该 WBP 改动已保留，并同步回幂等 authoring 脚本，避免后续重跑回退。
 
 ### 证据
 
@@ -118,11 +125,21 @@
 - 已读取 `MOD-ReEchoUI`、UI 修改指导、Encounter HUD 公共头与配对实现，并确认现有 WBP/C++ 边界。
 - 已核对交付切图尺寸：时间底板 1159×216、时间显示 161×45、时间指针 44×150、回响显示框 360×322、技能栏 1801×265、爱心 68×68、时间碎片 68×70、血条/底板各 232×29；新素材与 Plan45 占位素材哈希/尺寸不同。
 - 已检查全部本地 worktree、Git-common-dir Unreal 锁和 UnrealEditor 进程：两个目标 WBP 无其他未提交修改，当前没有锁或 Editor 进程。
+- 8 张获准 Texture2D 导入和两个 WBP 首次/原生模块重建后 Compile/Save 均成功；只读 Editor 审计确认 Player/Encounter WBP 分别继承 `UReEchoPlayerHudWidget` / `UReEchoEncounterHudWidget`，新节点均为 `Is Variable`，旧头像折叠，唯一真实 Minimap 保留，废案 `ArtSkillBar` 不存在，所有表现层均不接管输入。
+- Texture2D 审计确认 8 张运行时资源尺寸与清单一致，统一为 sRGB、Bilinear、NoMipmaps、EditorIcon 压缩和 UI LOD Group；WBP 引用全部指向 `/Game/ReEcho/Textures/UI/CombatHud/`，废案纹理不在运行时目录。
+- 废案清理经 Unreal Editor 完成：Encounter HUD 控件数由 10 降为 9，`ArtSkillBar` 节点移除；确认无资产引用后删除 `/Game/ReEcho/Textures/UI/CombatHud/T_UI_CombatHud_SkillBar`。原始 `技能栏.png` 仍以 `RejectedElement` 保存在 SourceArt，可按需恢复。
+- `scripts/ue/Build-Editor.cmd -Configuration Development` 已成功，UHT/UBT 编译新增 `ReEchoCombatHudTests.cpp` 和 HUD/GameMode 变化并刷新精选 Editor 包；随后 `python scripts/validate_project.py` 通过，`git diff --check` 通过。
+- 2026-08-24 再次 fetch 发现 `origin/main@8c805aeccff45e7a7ffb5a2982382cb4e36a4a5e` 新增 Plan89 VFX 前置修复。只读审计确认其业务源码/资产不碰 Plan93 HUD，只有最终精选 Editor 二进制需要在组合后重建；已请求用户在变基/发布前确认组合策略，当前未改写本地基线。
+- 对 Reference 与原始切图做 alpha/像素对照后，保留元素的 1920×1080 源图落点锁定并写入 WBP：爱心 `(30,24)`、碎片 `(31,85)`、生命/碎片底板 `(111,43)/(111,103)`、时钟 `(394,51)`、指针 `(952,87)`、时间显示 `(894,123)`、回响框 `(1560,23)`；最终只读 Slot 审计与这些坐标一致，底部废案面板不再生成。
+- 聚焦自动化 `ReEcho.UI.CombatHud.Formatting` 通过：实际加载两个 WBP，验证新增健康填充/碎片绑定、`第 N 关`、`MM:SS`、头像折叠、真实 Minimap 保留以及废案面板不存在。`CompileAllBlueprints` 完成，Blueprint 汇总为 0 errors、0 warnings、0 failed loads；命令启动期另有 6 条既有环境/Legacy 资产警告。
+- 小地图透明化及浅蓝竞技场边线移除后，Development Editor 增量构建通过；`ReEcho.UI.Minimap.Transform` 与 `ReEcho.UI.CombatHud.Formatting` 均为 Success，项目校验和 `git diff --check` 通过。
+- Plan92 已产生干净本地提交 `315390488243f2c66822d919fc27ae4bc8f8dbe3` 但尚未发布到远端。只读审计确认它在 GameMode 的改动集中于敌人死亡绑定，未触碰 Plan93 的 Tick HUD 投影；其 Run 事务继续唯一写入 TimeShards，Plan93 的只读展示语义兼容。仍须等待该提交正式进入远端后再组合并重建。
 
 ### 剩余风险
 
 - 两个 WBP 是二进制资源，后续必须在专属 worktree 串行编辑并逐批验证。
 - Plan92 的本地候选正在修改 `ReEchoGameMode.cpp` 与 TimeShards 事务；Plan93 不读取其未发布 worktree，最终发布前需等待或组合适配远端正式结果。
+- 额外 PlayerScreenFeedback/UIManager 生命周期回归尚未补跑；最终 FullRebuild、PIE 截图/DPI 与用户主观对照验收仍待完成。
 
 ### 人工验收结果/请求
 
@@ -130,4 +147,4 @@
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `ARCHITECTURE.md` 与 CODEBASE_MAP `README.md` 的拓扑/入口无需修改；`MOD-ReEchoUI.md`、`MOD-ReEcho.md` 与 UI 修改指导已按最终本地候选同步，ART 资产组织说明已补 Plan93 SourceArt/运行时导入边界。
