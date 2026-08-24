@@ -10,6 +10,7 @@ enum class EReEchoCombatVfxSemantic : uint8
 	FoxCharging,
 	FoxDirection,
 	FoxDash,
+	FoxImpact,
 	PlayerMeleeSlash,
 	PlayerScytheSlash,
 	PlayerBowFlight,

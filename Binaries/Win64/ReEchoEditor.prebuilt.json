@@ -1,13 +1,13 @@
 {
   "binaries": {
     "ReEchoEditor.target": "78ca660a835e2e1fecb130d7d0e1f4406266e85b9a8b8255e5dfd68d20b3c6fa",
-    "UnrealEditor-ReEcho.dll": "460cf2b75f73b3a2c0a01910f1885b94fb3fbbcd0cda3a471c800223c75baba4",
-    "UnrealEditor-ReEchoAudio.dll": "2fffcd35843b3d688ea7dfa7f9a11bdf3df108311fec82bba78aeb4053019aff",
-    "UnrealEditor-ReEchoCards.dll": "eca4ab9ea99712596f07ea2d06b658b99ba0719adfa4d5595ebe1b540e78c748",
-    "UnrealEditor-ReEchoCombat.dll": "1db7ec0b2c21c79ef1a6ffbb0e643c46ab62c95116f21238150f64b27442097c",
-    "UnrealEditor-ReEchoEnemies.dll": "1393e496b39ea3d275e5a5f0cf7406f60757c748b7ea8db8fa9bc119f1481a19",
-    "UnrealEditor-ReEchoPresentation.dll": "0825f49ed172d8a4cf0c8ac963be534460f31a80ee1948f8b65f6f6bfe2d7d58",
-    "UnrealEditor-ReEchoWeapons.dll": "1a61884a05e413f0fb660e02b7e9a0ec6fddeaeb90a700d3c4233b32c2895b5a",
+    "UnrealEditor-ReEcho.dll": "1f8f17e6758ba22597384bd7a67aafc31680f95cdb3e7f81045e946e409d704e",
+    "UnrealEditor-ReEchoAudio.dll": "d46806397ade9ae440fa43bbb8c999da817992273472fa1cecea7dae2783615c",
+    "UnrealEditor-ReEchoCards.dll": "ef3e8fc65ee904c5eb313d32e36e43925e1dde66aa6b61f4251d50da43dfe04c",
+    "UnrealEditor-ReEchoCombat.dll": "b1772247700119c2c7e1f61197115ec68d2ba82ab24fb26c8acf296d16e8315b",
+    "UnrealEditor-ReEchoEnemies.dll": "1ee9cceeadf3c1430e5d48aa9cc341b2cd32511257480e102c273537e4d81fa3",
+    "UnrealEditor-ReEchoPresentation.dll": "ac0add752af33e94c549305be3bec985996acc50802e506e80d1d3f1eee833a2",
+    "UnrealEditor-ReEchoWeapons.dll": "1c813ff01d9927abf6acdc15c71d7fe7b5ebff3443916e40822ee51b2a368208",
     "UnrealEditor.modules": "ba4535bd63b6eba65aec19614a2631d70f0de46fb7ae3b773c24dbce84bc73fb"
   },
   "configuration": "Development",
@@ -69,8 +69,8 @@
     "Source/ReEcho/Private/Presentation/Scene/ReEchoArenaCameraActor.cpp": "86b169ce4a55b4b31ed71baf10f3f5179e58364be1f7dca908648222a641e9f0",
     "Source/ReEcho/Private/Presentation/Scene/ReEchoArenaSceneActor.cpp": "de483e65a629cdab7f2c805e8edb775a527f141483f35c2872fc70cba76718ed",
     "Source/ReEcho/Private/Presentation/Scene/ReEchoArenaSceneProfile.cpp": "e30fcb33f3a881c97dce327d4b429c1c88ca8c91b1b5d47d2bd0b13ac9ef3aab",
-    "Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxCatalog.cpp": "2d3a6f19b009392a8fb9bf2173c42d85ed117b15d026cea7d7b432c12c693664",
-    "Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp": "4399db18810790645085a74442e4ec749351e9a0c59344e54d7ea8f6afddfc5a",
+    "Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxCatalog.cpp": "11cd2837c4fa1c45d323421670a386e3758fae6f51fb68dd7808ba4417198848",
+    "Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp": "486dde01d3a6ca86f2425898ff458815bfb8453da1fd51591e98db99c21b649d",
     "Source/ReEcho/Private/Presentation/VFX/ReEchoElementReactionVfxCatalog.cpp": "51620d2531e9a898b27d0bcdc6333229fbb201fc33b656c969f31e78048f0e1b",
     "Source/ReEcho/Private/Presentation/VFX/ReEchoVfxPreviewActor.cpp": "846e2a9c5971c66f0e6db8f925d52e710159c7f13de2b3098253ed8210828d7d",
     "Source/ReEcho/Private/Presentation/Weapon/ReEchoWeaponPresentationCatalog.cpp": "a584987107c6074e98cf915914da3886d12c770fe5050cfc940410dc5a2616b9",
@@ -91,7 +91,7 @@
     "Source/ReEcho/Private/Tests/ReEchoCharacterPromotionTests.cpp": "3fc6027f550c8a1fea1dd1589090083e57c241092f5bdeda151c7904cdfcbdce",
     "Source/ReEcho/Private/Tests/ReEchoCombatHudTests.cpp": "4108e6541ee983eb0889790c2751beb671414811eaf3ea87ec2db2bc81af9f2a",
     "Source/ReEcho/Private/Tests/ReEchoCombatPresentationTests.cpp": "17644314e73a424ea3d88251770481a9c217dfc2f113a1caddad2e47ac3ad831",
-    "Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp": "9359776434fa8175002431f756f16871a712ea5358620025c284946ee76c96ea",
+    "Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp": "146984a23639d1b10ed2a1e06c2ee5e1a5adbd3be95eb4459d7b3e7dbcb1a244",
     "Source/ReEcho/Private/Tests/ReEchoCsvDataRegistryTests.cpp": "d33d84aba16bcb84edf4831e8bd1106b9b3066d5e1e933f8950736244b2d0cc4",
     "Source/ReEcho/Private/Tests/ReEchoEchoAppearanceTests.cpp": "e7dd3d6ed04d7f86f70ae9080f6c9f8dba97568e590d32d64f05aa1812776256",
     "Source/ReEcho/Private/Tests/ReEchoEchoReplayRuntimeTests.cpp": "5e219cb7051af6275dbe006e01ae4320bca77d34c6d9e6af88532c5b1d56c087",
@@ -179,7 +179,7 @@
     "Source/ReEcho/Public/Presentation/Scene/ReEchoArenaCameraActor.h": "8336b97c01eef84782cbe5d4aedbb6e1e06fb5cff6f4bf3ab693a21d654fd109",
     "Source/ReEcho/Public/Presentation/Scene/ReEchoArenaSceneActor.h": "8225d8fe3871a2e4a8e8d04d97b795d45723fe759b3bb4cacb0a72dd74fb4029",
     "Source/ReEcho/Public/Presentation/Scene/ReEchoArenaSceneProfile.h": "20dcd7cbcf69557a8367a897cda754b8b9174033d8148abd96acd46e6e56470c",
-    "Source/ReEcho/Public/Presentation/VFX/ReEchoCombatVfxCatalog.h": "b5bc082984baa25f26a0f9f421c3052a779aebe1d491e423fff1a43c656f906b",
+    "Source/ReEcho/Public/Presentation/VFX/ReEchoCombatVfxCatalog.h": "59d59a697d9c53df9685abcb34bf5ee47a008eeb0afb1ddeb479e41d9b6126fe",
     "Source/ReEcho/Public/Presentation/VFX/ReEchoCombatVfxComponent.h": "461012db98452fe0bb3ef791664150ac6e928694221e39ef6214043bd5cef657",
     "Source/ReEcho/Public/Presentation/VFX/ReEchoElementReactionVfxCatalog.h": "aec22fbe98fc318ff9b1af9b9e7284e73c80a3faa073e977d40f6be91c86d045",
     "Source/ReEcho/Public/Presentation/VFX/ReEchoVfxPreviewActor.h": "17a342374669f7fe6e3d2bfe001c1138d48c41c152fc17f8d94a538631ab548a",
@@ -334,6 +334,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "9cead7961a144e2b480b57dded0c6eb94e0e1b122e20377219c27cb3ac08891a",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "08716e76f71723b6bfce4ffa3aa7bff7a14e57606a0c5bbc2405878868512d19",
+  "source_fingerprint": "a1e7cfbfb8a17b0ac93ab628103af71aa54248e0b3022b198439b05429750bdc",
   "target": "ReEchoEditor"
 }

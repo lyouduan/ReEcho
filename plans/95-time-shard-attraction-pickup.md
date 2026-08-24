@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@36ef1e415ca931e9914b2d0f8cb658e5ec332095`。
 - 本地实现方式：一任务一 worktree；发布本 Plan 后从最新 `origin/main` 创建 `ReEcho-plan95-time-shard-attraction`。
 - 依赖 / 阻塞：依赖 Plan92 的通用 `BP_TimeShardPickup`、`AReEchoTimeShardPickupActor`、玩家 `AReEchoPlayerPawn` 与 Run 的 `GrantTimeShards` 窄事务；依赖当前活动 `AReEchoArenaSceneActor` 的 GameplayPlane。
@@ -72,14 +72,14 @@
 
 ## 锁定验收
 
-- [ ] 第 1–8 关生成的时间碎片均贴到当前活动 Arena 地面，并能被玩家稳定摄取；第三关 Stage 切换后不再出现错误高度或无法拾取。
+- [x] 第 1–8 关生成的时间碎片均贴到当前活动 Arena 地面，并能被玩家稳定摄取；第三关 Stage 切换后不再出现错误高度或无法拾取。
 - [x] 修改 `BP_TimeShardPickup` 的 Sphere Radius 会直接改变摄取范围；代码不存在第二份生产范围参数。
 - [x] 玩家进入范围后碎片吸向玩家，速度始终高于玩家当前平面速度；玩家继续移动不会令吸附取消或永久追不上。
 - [x] 进入大范围不会立即加钱；碎片到达可调捕获半径时余额只增加一次，并继续播放现有上升淡出表现。
 - [x] 敌人基础掉落与武器符文碎片入口行为一致，掉落数值、寿命策略和 Run 存档语义无回归。
 - [x] 关卡结束会清除全部未入账时间碎片，下一小关、下一 Stage 和商店中均无残留；已经拾取入账的余额不受影响。
 - [x] 聚焦自动化、Development FullRebuild、项目校验、预构建检查与 `git diff --check` 通过。
-- [ ] 用户在 PIE 验收第三关以后、不同 Sphere Radius、静止/移动/高速移动下的摄取范围、追速和观感后，人工验收才可设为 `Passed`。
+- [x] 用户在 PIE 验收第三关以后、不同 Sphere Radius、静止/移动/高速移动下的摄取范围、追速和观感后，人工验收才可设为 `Passed`。
 - [x] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -121,6 +121,8 @@
 - 2026-08-24：原生 Sphere 默认半径由 48 cm 调为 300 cm，生产 `BP_TimeShardPickup` 继承值经资产自动化读取为 300 cm；实际权威始终是 Blueprint 继承组件的 Sphere Radius，可在组件详情覆盖。
 - 2026-08-24：GameMode 新增活动 Arena GameplayPlane 窄只读接口；Pickup 去掉 `TActorIterator` 首项选择，第三关 Stage 切换不再可能贴到待销毁旧 Arena 的地面高度。
 - 2026-08-25：用户锁定未拾取碎片不跨关。Plan95 回到 `InProgress`；GameMode 在 Encounter 结束入口集中销毁全部世界时间碎片，并在下一关入口与 `ClearCombatants` 做幂等兜底。
+- 2026-08-25：用户完成 PIE 验收并反馈“感觉没问题”；人工验收设为 `Passed`，任务关闭。
+- 2026-08-25：发布前将 `origin/main@c3342804` 合入候选。远端仅在精选预构建包与 Plan95 发生生成物冲突，源码和资产无同路径冲突、无逻辑冲突；在组合源码上重新生成全部精选预构建包。
 
 ### 证据
 
@@ -133,14 +135,16 @@
 - Development `-FullRebuild` 成功（96 actions）；精选预构建包 build id `55116800`、source `7f8ffc66856b`。`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
 - 本机未提供 `clang-format` 可执行文件；修改文件已由编译器和人工 diff 审阅，未声称执行了格式化工具。
 - 跨关清理补充后 `ReEcho.StageTransition` 3/3 通过；世界测试生成两个碎片，第一次清理精确销毁 2 个、第二次清理为 0，并证明保留敌人未被误删。最终 Development `-FullRebuild` 成功（95 actions），精选预构建包 source 刷新为 `08716e76f717`。
+- 最新远端整合候选 Development `-FullRebuild` 成功（96 actions）；精选预构建包 build id `55116800`、source `a1e7cfbfb8a1`。整合后 `ReEcho.Run.EnemyShardDrops`、`ReEcho.StageTransition`、`ReEcho.Weapons.Runes.DynamicHitHandlers` 均通过，`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 远端新增的 `ReEcho.Presentation.VFX.Catalog` 在整合候选与未合并的 `origin/main@c3342804` 上均以相同原因失败：武器 Niagara emitters `Fountain001`、`Fountain002` 未启用 local space。该问题为远端既有 VFX 门禁问题，与 Plan95 源码和资产无耦合，不阻断本任务关闭。
 
 ### 剩余风险
 
-- 自动化可锁定状态、速度和活动 Arena 契约，但摄取手感与视觉速度仍需用户 PIE 判断。
+- 远端既有 VFX Catalog 测试存在两个武器 Niagara emitter local-space 失败；应由对应 VFX 任务修复，不属于 Plan95 范围。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现完成后由用户验证第三关以后、不同 Sphere Radius 与高速移动追逐。
+- `Passed`：2026-08-25 用户完成 PIE 验收并反馈“感觉没问题”。
 
 ### 架构文档审阅结果
 
