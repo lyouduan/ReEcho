@@ -373,7 +373,6 @@ float AReEchoEchoActor::GetCurrentHealth() const
 void AReEchoEchoActor::ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats)
 {
 	bCanAttack = Rules.bEchoesCanAttack;
-	RefreshCardAuraPresentation(Rules);
 	if (Combatant && Rules.EchoHealthMultiplier > 1.0f)
 	{
 		FReEchoStatBlock Stats = Combatant->Stats;
@@ -383,12 +382,11 @@ void AReEchoEchoActor::ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, 
 	}
 }
 
-void AReEchoEchoActor::RefreshCardAuraPresentation(const FReEchoCardRuleSnapshot& Rules)
+void AReEchoEchoActor::PlayCardAuraPulse(const FReEchoCardRuleSnapshot& Rules)
 {
-	if (CombatVfx)
+	if (CombatVfx && IsCombatTargetAlive())
 	{
-		const bool bAlive = IsCombatTargetAlive();
-		CombatVfx->SetEchoCardAuraState(bAlive && Rules.bWaterEchoAura, bAlive && Rules.bGrassEchoAura);
+		CombatVfx->PlayEchoCardAuraPulse(Rules.bWaterEchoAura, Rules.bGrassEchoAura);
 	}
 }
 

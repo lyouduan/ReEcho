@@ -76,10 +76,9 @@ public:
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
-	void SetEchoCardAuraState(bool bWaterEnabled, bool bGrassEnabled);
+	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
-	int32 GetEchoAuraVisualCountForTests() const;
 	bool
 	TryGetProjectileVisualLocationForTests(int64 AttackSequence, int32 VolleyBallIndex, FVector& OutLocation) const;
 	void ScheduleConductLinksForTests(const FReEchoElementReactionResolvedEvent& Event, float DelaySeconds);
@@ -117,7 +116,6 @@ private:
 	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
 	int32 ResolveOwnerAuraSortPriority() const;
-	void RefreshEchoAuraSortPriorities();
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopProjectileVisual(UMaterialBillboardComponent* Visual) const;
 	void StopAllEffects();
@@ -171,12 +169,6 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> BurnStatusEffect;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UNiagaraComponent> WaterEchoAuraEffect;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UNiagaraComponent> GrassEchoAuraEffect;
 
 	UPROPERTY(Transient)
 	TMap<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>> ProjectileVisuals;

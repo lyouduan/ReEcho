@@ -2442,7 +2442,10 @@ void AReEchoGameMode::HandleFixedStep(float)
 	}
 	const FReEchoCardEncounterTickResult CardTick = RunSubsystem->AdvanceCardEncounter(Director->EncounterTime);
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
-	RefreshEchoCardAuraPresentation(Rules);
+	if (CardTick.EchoAuraPulseCount > 0)
+	{
+		PlayEchoCardAuraPulse(Rules);
+	}
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
 		AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
@@ -2501,13 +2504,13 @@ void AReEchoGameMode::HandleFixedStep(float)
 	}
 }
 
-void AReEchoGameMode::RefreshEchoCardAuraPresentation(const FReEchoCardRuleSnapshot& Rules)
+void AReEchoGameMode::PlayEchoCardAuraPulse(const FReEchoCardRuleSnapshot& Rules)
 {
 	for (AReEchoEchoActor* Echo : Echoes)
 	{
 		if (Echo)
 		{
-			Echo->RefreshCardAuraPresentation(Rules);
+			Echo->PlayCardAuraPulse(Rules);
 		}
 	}
 }

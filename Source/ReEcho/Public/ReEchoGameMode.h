@@ -357,7 +357,7 @@ private:
 	void ClearEchoes();
 	void ClearCombatants();
 	void RefreshFogRevealSources();
-	void RefreshEchoCardAuraPresentation(const FReEchoCardRuleSnapshot& Rules);
+	void PlayEchoCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
 	void ShowSettingsScreen(bool bReturnToStartMenu);

@@ -71,7 +71,7 @@ public:
 	const FReEchoStatBlock& GetCurrentStats() const;
 	float GetCurrentHealth() const;
 	void ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats);
-	void RefreshCardAuraPresentation(const FReEchoCardRuleSnapshot& Rules);
+	void PlayCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
 	virtual bool IsCombatTargetAlive() const override;
 
 	virtual FVector GetCombatTargetLocation() const override
