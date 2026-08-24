@@ -34,6 +34,17 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
 	TestFalse(TEXT("Vaporize remains a target-bound one-shot"),
 	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_W")));
+	const FName DebugReactionNames[] = {
+	    TEXT("Burn"), TEXT("Vaporize"), TEXT("Growth"), TEXT("Conduct"), TEXT("EnhanceGrass"), TEXT("EnhanceWater")};
+	for (const FName DebugReactionName : DebugReactionNames)
+	{
+		uint8 SemanticValue = 0;
+		TestTrue(FString::Printf(TEXT("GM reaction '%s' resolves directly to VFX"), *DebugReactionName.ToString()),
+		         UReEchoCombatVfxComponent::TryResolveDebugElementReactionSemantic(DebugReactionName, SemanticValue));
+	}
+	uint8 InvalidSemanticValue = 0;
+	TestFalse(TEXT("Unknown GM reaction does not spawn an unrelated VFX"),
+	          UReEchoCombatVfxComponent::TryResolveDebugElementReactionSemantic(TEXT("Unknown"), InvalidSemanticValue));
 	const FString PlayerHurt = FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerHurt);
 	const FString EnemyHurt = FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EnemyHurt);
 	TestTrue(TEXT("Player hurt uses the Rabbit-folder authority"), PlayerHurt.Contains(TEXT("/Monster/Rabbit/")));

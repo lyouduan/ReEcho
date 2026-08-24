@@ -38,6 +38,7 @@
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h"
 #include "Presentation/Loading/ReEchoRuntimeAssetPreloader.h"
+#include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
@@ -230,7 +231,7 @@ void AReEchoGameMode::GMHelp()
 	                   "<Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
-	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> [damage] | "
+	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
 	                   "GMShowEnemyRange <On|Off|Toggle>"));
 	PrintGMResult(TEXT("Reactions: Flame+Grass=Burn | Flame+Water=Vaporize | Lightning+Grass=Growth | "
@@ -261,15 +262,6 @@ AReEchoEnemyActor* AReEchoGameMode::FindNearestLivingEnemyForGM() const
 		}
 	}
 	return Nearest;
-}
-
-FReEchoAttackIdentity AReEchoGameMode::MakeGMElementAttack()
-{
-	FReEchoAttackIdentity Attack;
-	Attack.Source = Player;
-	Attack.Sequence = ++GMElementAttackSequence;
-	Attack.SourceFaction = EReEchoCombatFaction::PlayerSide;
-	return Attack;
 }
 
 void AReEchoGameMode::GMElement(const FString& Element)
@@ -326,72 +318,20 @@ void AReEchoGameMode::GMReaction(const FString& Reaction, const float Damage)
 		return;
 	}
 
-	EReEchoElement Attachment = EReEchoElement::None;
-	EReEchoElement Trigger = EReEchoElement::None;
-	bool bPrepareAllLivingEnemies = false;
-	if (Reaction.Equals(TEXT("Burn"), ESearchCase::IgnoreCase))
+	uint8 SemanticValue = 0;
+	if (!UReEchoCombatVfxComponent::TryResolveDebugElementReactionSemantic(FName(*Reaction), SemanticValue))
 	{
-		Attachment = EReEchoElement::Grass;
-		Trigger = EReEchoElement::Flame;
-	}
-	else if (Reaction.Equals(TEXT("Vaporize"), ESearchCase::IgnoreCase))
-	{
-		Attachment = EReEchoElement::Water;
-		Trigger = EReEchoElement::Flame;
-	}
-	else if (Reaction.Equals(TEXT("Growth"), ESearchCase::IgnoreCase))
-	{
-		Attachment = EReEchoElement::Grass;
-		Trigger = EReEchoElement::Lightning;
-	}
-	else if (Reaction.Equals(TEXT("Conduct"), ESearchCase::IgnoreCase))
-	{
-		Attachment = EReEchoElement::Water;
-		Trigger = EReEchoElement::Lightning;
-		bPrepareAllLivingEnemies = true;
-	}
-	else if (Reaction.Equals(TEXT("EnhanceGrass"), ESearchCase::IgnoreCase))
-	{
-		Attachment = EReEchoElement::Water;
-		Trigger = EReEchoElement::Grass;
-	}
-	else if (Reaction.Equals(TEXT("EnhanceWater"), ESearchCase::IgnoreCase))
-	{
-		Attachment = EReEchoElement::Grass;
-		Trigger = EReEchoElement::Water;
-	}
-	else
-	{
-		PrintGMResult(TEXT("Usage: GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> [damage]"),
-		              false);
+		PrintGMResult(TEXT("Usage: GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater>"), false);
 		return;
 	}
-
-	TArray<AReEchoEnemyActor*> PreparedTargets;
-	if (bPrepareAllLivingEnemies)
-	{
-		for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
-		{
-			if (AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(EnemyHost.Get()); Enemy && Enemy->IsAlive())
-			{
-				PreparedTargets.Add(Enemy);
-			}
-		}
-	}
-	else
-	{
-		PreparedTargets.Add(Target);
-	}
-
-	const FVector SourceLocation = Player ? Player->GetActorLocation() : Target->GetActorLocation();
-	for (AReEchoEnemyActor* PreparedTarget : PreparedTargets)
-	{
-		PreparedTarget->GetCombatantComponent()->ResetElementState();
-		PreparedTarget->ReceiveElementalDamage(0.0f, Attachment, SourceLocation, 1.0f, MakeGMElementAttack());
-	}
-	Target->ReceiveElementalDamage(FMath::Max(0.0f, Damage), Trigger, SourceLocation, 1.0f, MakeGMElementAttack());
-	PrintGMResult(FString::Printf(
-	    TEXT("Triggered %s on %s; prepared targets=%d."), *Reaction, *Target->GetName(), PreparedTargets.Num()));
+	UReEchoCombatVfxComponent* TargetVfx = Target->FindComponentByClass<UReEchoCombatVfxComponent>();
+	const bool bPlayed = TargetVfx && TargetVfx->PlayElementReactionForDebug(SemanticValue, Target);
+	PrintGMResult(bPlayed ? FString::Printf(TEXT("Previewed %s VFX directly on %s; combat state unchanged."),
+	                                        *Reaction,
+	                                        *Target->GetName())
+	                      : FString::Printf(TEXT("Failed to preview %s VFX on %s."), *Reaction, *Target->GetName()),
+	              bPlayed);
+	(void)Damage;
 }
 
 void AReEchoGameMode::GMEquipRune(const FName PartId)

@@ -63,6 +63,9 @@ public:
 	static float ResolveProjectileGlowDiameter(float CollisionRadiusCm);
 	/** Burn and Growth visuals follow authoritative status/attachment events instead of duplicating one-shots. */
 	static bool IsElementReactionStateDriven(FName ReactionId);
+	/** Resolves and directly previews one reaction VFX without mutating combat element state. */
+	static bool TryResolveDebugElementReactionSemantic(FName ReactionName, uint8& OutSemanticValue);
+	bool PlayElementReactionForDebug(uint8 SemanticValue, AActor* Target) const;
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -99,7 +102,7 @@ private:
 	void RefreshElementEffects(const FReEchoElementState& State);
 	void RefreshElementAttachment(EReEchoElement Element);
 	void RefreshBurnStatus(bool bBurnActive);
-	void SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
+	UNiagaraComponent* SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
 	void SpawnConductLink(const FReEchoElementReactionLink& Link) const;
 
 	UFUNCTION()

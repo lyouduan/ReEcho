@@ -145,4 +145,6 @@ VFX 资产（`/Game/VFX/...` 下的 `NS_*`/`M_*`/`MI_*`/`T_*`/`BP_*`，以及 `/
 # 元素反应 Niagara
 
 `FReEchoElementReactionVfxCatalog` 是 Grass/Water 附着及六类反应的唯一语义资产映射，敌人体型只使用生产 Definition 的稳定 `PresentationId`。`UReEchoCombatVfxComponent` 管理可丢弃的持续附着组件，并按 Combat 提供的权威目标及 Conduct 发现边播放瞬时反应；正式根进入首场预加载。旧 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 三件套已经整体删除，不再保留文字、环形或点光源表现双轨。
+
+Development `GMReaction` 只调用 `UReEchoCombatVfxComponent` 的直接预览入口：六种语义均在最近存活敌人的 HurtVfxRoot 播放并按调试预览时限停止，不准备元素附着、不调用伤害/反应解析器，也不发布权威 Combat 事件。该入口不得被正式玩法调用。
 Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。

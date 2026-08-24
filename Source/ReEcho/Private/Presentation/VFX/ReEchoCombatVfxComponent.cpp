@@ -20,6 +20,7 @@ namespace ReEchoCombatVfx
 {
 constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 CombatEffectSortPriorityFloor = 1000;
+constexpr float DebugElementReactionPreviewSeconds = 2.0f;
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
 
 void LogLayerState(const AActor* Owner,
@@ -137,6 +138,66 @@ float UReEchoCombatVfxComponent::ResolveProjectileGlowDiameter(const float Colli
 bool UReEchoCombatVfxComponent::IsElementReactionStateDriven(const FName ReactionId)
 {
 	return ReactionId == TEXT("Y_ER_F_G") || ReactionId == TEXT("Y_ER_L_G");
+}
+
+bool UReEchoCombatVfxComponent::TryResolveDebugElementReactionSemantic(const FName ReactionName,
+                                                                       uint8& OutSemanticValue)
+{
+	EReEchoElementReactionVfxSemantic Semantic;
+	if (ReactionName.IsEqual(TEXT("Burn"), ENameCase::IgnoreCase))
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::Burn;
+	}
+	else if (ReactionName.IsEqual(TEXT("Vaporize"), ENameCase::IgnoreCase))
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::Vaporize;
+	}
+	else if (ReactionName.IsEqual(TEXT("Growth"), ENameCase::IgnoreCase))
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::Growth;
+	}
+	else if (ReactionName.IsEqual(TEXT("Conduct"), ENameCase::IgnoreCase))
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::Conduct;
+	}
+	else if (ReactionName.IsEqual(TEXT("EnhanceGrass"), ENameCase::IgnoreCase))
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::EnhanceGrass;
+	}
+	else if (ReactionName.IsEqual(TEXT("EnhanceWater"), ENameCase::IgnoreCase))
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::EnhanceWater;
+	}
+	else
+	{
+		return false;
+	}
+	OutSemanticValue = static_cast<uint8>(Semantic);
+	return true;
+}
+
+bool UReEchoCombatVfxComponent::PlayElementReactionForDebug(const uint8 SemanticValue, AActor* Target) const
+{
+	UNiagaraComponent* Effect = SpawnElementReactionAt(SemanticValue, Target);
+	UWorld* World = GetWorld();
+	if (!Effect || !World)
+	{
+		return false;
+	}
+	TWeakObjectPtr<UNiagaraComponent> WeakEffect = Effect;
+	FTimerHandle StopTimer;
+	World->GetTimerManager().SetTimer(StopTimer,
+	                                  FTimerDelegate::CreateWeakLambda(this,
+	                                                                   [WeakEffect]()
+	                                                                   {
+		                                                                   if (WeakEffect.IsValid())
+		                                                                   {
+			                                                                   WeakEffect->Deactivate();
+		                                                                   }
+	                                                                   }),
+	                                  ReEchoCombatVfx::DebugElementReactionPreviewSeconds,
+	                                  false);
+	return true;
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -520,13 +581,13 @@ void UReEchoCombatVfxComponent::RefreshBurnStatus(const bool bBurnActive)
 	}
 }
 
-void UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8 SemanticValue, AActor* Target) const
+UNiagaraComponent* UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8 SemanticValue, AActor* Target) const
 {
 	UNiagaraSystem* System = ResolveElementSystem(SemanticValue, Target);
 	const IReEchoCombatTarget* CombatTarget = Target ? Cast<IReEchoCombatTarget>(Target) : nullptr;
 	if (!System || !Target || !CombatTarget || !CombatTarget->IsCombatTargetAlive())
 	{
-		return;
+		return nullptr;
 	}
 	UReEchoCombatVfxComponent* TargetVfx = Target->FindComponentByClass<UReEchoCombatVfxComponent>();
 	USceneComponent* AttachmentRoot = TargetVfx ? TargetVfx->ResolveHurtVfxRoot() : Target->GetRootComponent();
@@ -546,8 +607,10 @@ void UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8 SemanticValue
 		{
 			Effect->SetTranslucentSortPriority(TargetVfx ? TargetVfx->ResolveOwnerSortPriority()
 			                                             : ResolveOwnerSortPriority());
+			return Effect;
 		}
 	}
+	return nullptr;
 }
 
 void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLink& Link) const

@@ -81,7 +81,7 @@ public:
 	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */
 	UFUNCTION(Exec)
 	void GMElement(const FString& Element = TEXT("Flame"));
-	/** Prepares and triggers one authored reaction through the production resolver on the nearest living enemy. */
+	/** Directly previews one reaction VFX on the nearest living enemy without changing combat state. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
 	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id.
@@ -127,7 +127,6 @@ private:
 	bool EnsureGMCommandAvailable() const;
 	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	AReEchoEnemyActor* FindNearestLivingEnemyForGM() const;
-	FReEchoAttackIdentity MakeGMElementAttack();
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClass() const;
 	AReEchoEchoActor* SpawnEchoActor();
 	UPROPERTY()
@@ -153,7 +152,6 @@ private:
 	TObjectPtr<UReEcho2DPresentationCatalog> PresentationCatalog;
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyGameplayClassRegistry> EnemyGameplayClassRegistry;
-	int64 GMElementAttackSequence = 0;
 
 	/** Whether the GM enemy-health overlay is currently enabled (GMShowEnemyHealth). */
 	bool bShowEnemyHealthDebug = false;

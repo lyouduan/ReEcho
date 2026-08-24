@@ -212,28 +212,30 @@ GMElement Electricity
 GMElement None
 ```
 
-### `GMReaction [Reaction] [Damage]`
+### `GMReaction [Reaction]`
 
-在距离玩家最近的存活敌人上准备元素附着，再通过正式元素结算器触发指定反应。
+在距离玩家最近的存活敌人上直接预览指定元素反应特效。
 
 - 默认反应：`Burn`
-- 默认伤害：`10`
-- 负数伤害会被限制为 `0`
 - 使用前场上必须至少有一个存活敌人
+- 不写入或清除怪物的元素附着、燃烧、强化等战斗状态
+- 不造成伤害，也不发布正式元素反应结算事件
+- 特效直接绑定到目标怪物的受击表现根，并在约 2 秒后停止
+- 为兼容旧用法，第二个数值参数仍可输入，但会被忽略
 
-| Reaction | 预置附着 | 触发元素 | 说明 |
-|---|---|---|---|
-| `Burn` | Grass | Flame | 在最近敌人上触发燃烧 |
-| `Vaporize` | Water | Flame | 在最近敌人上触发蒸发 |
-| `Growth` | Grass | Lightning | 在最近敌人上触发生长 |
-| `Conduct` | Water | Lightning | 为全部存活敌人准备水附着，再从最近敌人触发传导 |
-| `EnhanceGrass` | Water | Grass | 在最近敌人上触发草强化 |
-| `EnhanceWater` | Grass | Water | 在最近敌人上触发水强化 |
+| Reaction | 预览表现 |
+|---|---|
+| `Burn` | 最近敌人的 Burn 特效 |
+| `Vaporize` | 最近敌人的 Vaporize 特效 |
+| `Growth` | 最近敌人的 Growth 特效 |
+| `Conduct` | 最近敌人的 Conduct 特效，不生成正式连锁目标关系 |
+| `EnhanceGrass` | 最近敌人的 EnhanceGrass 特效 |
+| `EnhanceWater` | 最近敌人的 EnhanceWater 特效 |
 
 ```text
-GMReaction Burn 20
-GMReaction Conduct 10
-GMReaction EnhanceWater 0
+GMReaction Burn
+GMReaction Conduct
+GMReaction EnhanceWater
 ```
 
 ## 卡牌与武器插件
