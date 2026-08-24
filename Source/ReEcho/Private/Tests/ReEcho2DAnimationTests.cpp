@@ -38,12 +38,13 @@ bool FReEcho2DFootpointAlignmentTest::RunTest(const FString& Parameters)
 	                              RootToMotion.TransformPosition(RendererToRoot.TransformPosition(LocalBottom));
 	TestTrue(TEXT("Mirrored, scaled and camera-tilted Flipbook bottom center meets authored footpoint"),
 	         AlignedBottom.Equals(FootpointOffset, KINDA_SMALL_NUMBER));
+	constexpr float DeathGroundSink = 20.0f;
 	const FVector PivotAlignment = UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(
-	    RendererToRoot, RootToMotion, AuthoredMotionLocation, FootpointOffset);
+	    RendererToRoot, RootToMotion, AuthoredMotionLocation, FootpointOffset, DeathGroundSink);
 	const FVector AlignedPivot = AuthoredMotionLocation + PivotAlignment +
 	                             RootToMotion.TransformPosition(RendererToRoot.TransformPosition(FVector::ZeroVector));
-	TestTrue(TEXT("Authored death pivot meets the same footpoint"),
-	         AlignedPivot.Equals(FootpointOffset, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Authored death pivot sinks below the fixed shadow footpoint"),
+	         AlignedPivot.Equals(FootpointOffset - FVector::UpVector * DeathGroundSink, KINDA_SMALL_NUMBER));
 	const float PresentationWidth =
 	    UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(Bounds, RendererToRoot, RootToMotion);
 	const FVector LocalLeft(Bounds.Origin.X - Bounds.BoxExtent.X, Bounds.Origin.Y, Bounds.Origin.Z);

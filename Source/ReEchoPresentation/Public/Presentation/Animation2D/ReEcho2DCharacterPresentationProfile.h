@@ -50,6 +50,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
 	FVector FootpointOffset = FVector::ZeroVector;
 
+	/** Visual-only downward inset used by custom-pivot terminal Death sprites. The ground shadow remains fixed. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint", meta = (ClampMin = "0.0"))
+	float DeathGroundSink = 0.0f;
+
 	/** Stable held-weapon anchor in actor space, normalized to WorldHeight. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	FVector WeaponAnchorRatio = FVector(-0.16f, 0.30f, 0.06f);

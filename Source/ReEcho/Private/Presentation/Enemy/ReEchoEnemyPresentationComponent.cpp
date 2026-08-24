@@ -310,14 +310,21 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 	FVector2D AuthoredDeathPivot;
 	const bool bUseAuthoredDeathPivot =
 	    CurrentSprite && CurrentSprite->GetPivotMode(AuthoredDeathPivot) == ESpritePivotMode::Custom;
+	if (bUseAuthoredDeathPivot)
+	{
+		GroundRoot->SetRelativeLocation(AuthoredGroundRootLocation);
+	}
 	const FVector LocalGroundAnchor = bUseAuthoredDeathPivot
 	                                      ? FVector::ZeroVector
 	                                      : FVector(FlipbookBounds.Origin.X,
 	                                                FlipbookBounds.Origin.Y,
 	                                                FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
 	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalGroundAnchor);
-	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
-	GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+	if (!bUseAuthoredDeathPivot)
+	{
+		const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
+		GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+	}
 
 	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
 	    FlipbookBounds, SequenceAnimation->GetRelativeTransform(), FlipbookRoot->GetRelativeTransform());
@@ -354,11 +361,12 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 	FVector2D AuthoredDeathPivot;
 	if (CurrentSprite && CurrentSprite->GetPivotMode(AuthoredDeathPivot) == ESpritePivotMode::Custom)
 	{
-		CalculatedFootAlignmentOffset =
-		    UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(SequenceAnimation->GetRelativeTransform(),
-		                                                               FlipbookRoot->GetRelativeTransform(),
-		                                                               AuthoredMotionLocation,
-		                                                               ProfileFootpointOffset);
+		CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(
+		    SequenceAnimation->GetRelativeTransform(),
+		    FlipbookRoot->GetRelativeTransform(),
+		    AuthoredMotionLocation,
+		    ProfileFootpointOffset,
+		    ActiveProfile ? ActiveProfile->DeathGroundSink : 0.0f);
 		return;
 	}
 	CalculatedFootAlignmentOffset =

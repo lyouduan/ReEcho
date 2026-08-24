@@ -200,11 +200,13 @@ FVector UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(const FBoxSphe
 FVector UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(const FTransform& RendererToFlipbookRoot,
                                                                    const FTransform& FlipbookRootToMotionRoot,
                                                                    const FVector& AuthoredMotionLocation,
-                                                                   const FVector& FootpointOffset)
+                                                                   const FVector& FootpointOffset,
+                                                                   const float GroundSink)
 {
 	const FVector PivotInFlipbookRoot = RendererToFlipbookRoot.TransformPosition(FVector::ZeroVector);
 	const FVector PivotInMotionRoot = FlipbookRootToMotionRoot.TransformPosition(PivotInFlipbookRoot);
-	return FootpointOffset - AuthoredMotionLocation - PivotInMotionRoot;
+	return FootpointOffset - FVector::UpVector * FMath::Max(0.0f, GroundSink) - AuthoredMotionLocation -
+	       PivotInMotionRoot;
 }
 
 float UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(const FBoxSphereBounds& FlipbookBounds,
