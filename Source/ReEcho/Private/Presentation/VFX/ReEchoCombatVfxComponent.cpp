@@ -875,9 +875,14 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	{
 		return;
 	}
-	const EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner())
-	                                              ? EReEchoCombatVfxSemantic::EnemyHurt
-	                                              : EReEchoCombatVfxSemantic::PlayerHurt;
+	EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner())
+	                                           ? EReEchoCombatVfxSemantic::EnemyHurt
+	                                           : EReEchoCombatVfxSemantic::PlayerHurt;
+	if (const AReEchoEnemyActor* SourceEnemy = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
+	    SourceEnemy && SourceEnemy->GetPresentationId() == TEXT("Enemy.Fox"))
+	{
+		Semantic = EReEchoCombatVfxSemantic::FoxImpact;
+	}
 	SpawnAttached(static_cast<uint8>(Semantic), FVector::ForwardVector, ResolveHurtVfxRoot());
 }
 

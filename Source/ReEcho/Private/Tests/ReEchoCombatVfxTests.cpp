@@ -258,6 +258,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::FoxCharging,
 	    EReEchoCombatVfxSemantic::FoxDirection,
 	    EReEchoCombatVfxSemantic::FoxDash,
+	    EReEchoCombatVfxSemantic::FoxImpact,
 	    EReEchoCombatVfxSemantic::PlayerMeleeSlash,
 	    EReEchoCombatVfxSemantic::PlayerScytheSlash,
 	    EReEchoCombatVfxSemantic::PlayerBowFlight,
@@ -270,13 +271,16 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	};
 	TestEqual(TEXT("Fox windup uses the authored charging system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxCharging),
-	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_02.NS_Fox_Rush_02")));
+	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Charging.NS_Fox_Rush_Charging")));
 	TestEqual(TEXT("Fox windup direction uses the authored arrow system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxDirection),
 	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow.NS_Fox_Rush_arrow")));
 	TestEqual(TEXT("Fox committed dash uses the authored rush system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxDash),
-	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_01.NS_Fox_Rush_01")));
+	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Trail.NS_Fox_Rush_Trail")));
+	TestEqual(TEXT("Fox applied hit uses the authored impact system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxImpact),
+	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked.NS_Fox_Rush_BeAttacked")));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
