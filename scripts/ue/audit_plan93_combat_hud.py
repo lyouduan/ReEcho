@@ -43,6 +43,10 @@ def slot_summary(slot):
     return " ".join(fields)
 
 
+def nearly_equal(actual, expected):
+    return abs(float(actual) - float(expected)) <= 0.01
+
+
 toolset = unreal.UMGToolSet.get_default_object()
 for asset_path, expected_parent_path in ASSET_PATHS.items():
     blueprint = unreal.load_asset(asset_path)
@@ -51,6 +55,43 @@ for asset_path, expected_parent_path in ASSET_PATHS.items():
     infos = toolset.call_method("GetWidgets", args=(blueprint,)).widgets
     if any(str(info.widget_name) == "ArtSkillBar" for info in infos):
         raise RuntimeError(f"Obsolete ArtSkillBar is still present in {asset_path}")
+    widgets = {
+        str(info.widget_name): info.widget for info in infos if info.widget is not None
+    }
+    if asset_path.endswith("WBP_ReEchoPlayerHud"):
+        for text_name in ("PlayerHealthText", "TimeShardText"):
+            text_widget = widgets.get(text_name)
+            if not isinstance(text_widget, unreal.TextBlock) or not nearly_equal(
+                text_widget.get_editor_property("font").size, 25.0
+            ):
+                raise RuntimeError(f"{text_name} must use the accepted 25px font")
+    elif asset_path.endswith("WBP_ReEchoEncounterHud"):
+        encounter_text = widgets.get("EncounterText")
+        encounter_slot = encounter_text.slot if encounter_text is not None else None
+        if not isinstance(encounter_slot, unreal.CanvasPanelSlot) or not nearly_equal(
+            encounter_slot.get_position().y, 0.0
+        ):
+            raise RuntimeError("EncounterText must keep the accepted Y=0 position")
+        map_canvas = widgets.get("CanvasPanel_0")
+        minimaps = [
+            widget
+            for widget in widgets.values()
+            if isinstance(widget, unreal.ReEchoMinimapCanvasWidget)
+        ]
+        if len(minimaps) != 1 or minimaps[0].get_parent() != map_canvas:
+            raise RuntimeError("Minimap must remain inside CanvasPanel_0")
+        minimap_slot = minimaps[0].slot
+        if not isinstance(minimap_slot, unreal.CanvasPanelSlot):
+            raise RuntimeError("Minimap must use the accepted CanvasPanel slot")
+        minimap_position = minimap_slot.get_position()
+        minimap_size = minimap_slot.get_size()
+        if not (
+            nearly_equal(minimap_position.x, 40.0)
+            and nearly_equal(minimap_position.y, 32.0)
+            and nearly_equal(minimap_size.x, 273.316162)
+            and nearly_equal(minimap_size.y, 254.796219)
+        ):
+            raise RuntimeError("Minimap placement differs from the accepted WBP layout")
     generated_class = blueprint.generated_class()
     expected_parent = unreal.load_class(None, expected_parent_path)
     if not generated_class or not expected_parent or not unreal.MathLibrary.class_is_child_of(

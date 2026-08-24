@@ -6,11 +6,11 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@86aca0ce5257728033179af9af844c10fec77bbf`。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`。
+- 本地规划基线：`origin/main@86aca0ce5257728033179af9af844c10fec77bbf`；最终集成基线：`origin/main@8c805aeccff45e7a7ffb5a2982382cb4e36a4a5e`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan93-encounter-hud-ui`，分支 `plan/93-encounter-hud-ui`；规划者与执行者合一。
-- 依赖 / 阻塞：用户已指定 `正式-UI视觉/正式-UI视觉/战斗场景/1-战斗场景.png` 为 1920×1080 构图参考，并提供同目录 9 张切图；后续明确判定底部技能栏为废案，因此正式 HUD 仅消费其余 8 张。Plan92 正在修改 `ReEchoGameMode` 和 `TimeShards` 发放路径；本 Plan 可本地实现真实余额展示，但最终集成必须在 Plan92 发布后重新审计并组合适配，禁止覆盖其经济语义。
+- 依赖 / 阻塞：用户已指定 `正式-UI视觉/正式-UI视觉/战斗场景/1-战斗场景.png` 为 1920×1080 构图参考，并提供同目录 9 张切图；后续明确判定底部技能栏为废案，因此正式 HUD 仅消费其余 8 张。Plan92 尚未发布；经程序用户获知 `ReEchoGameMode.cpp`、文档和精选二进制存在重叠后，明确确认 Plan93 先发布。Plan93 不改变 Plan92 的经济语义，Plan92 后续发布时须以最新 `main` 重新审计和组合适配。
 - Writes:
   - `plans/93-encounter-hud-ui.md`
   - `Content/ReEcho/UI/WBP_ReEchoEncounterHud.uasset`
@@ -69,11 +69,11 @@
 - [x] 用户目标图、9 张切图、1920×1080 构图、素材映射与保留行为已在实现前补入本 Plan。
 - [x] `WBP_ReEchoEncounterHud` 保持正确原生父类，显示顶部时间底板、`第 N 关`、`MM:SS`、指针和右上回响框/真实小地图；底部废案面板及其运行时纹理均不存在。
 - [x] `WBP_ReEchoPlayerHud` 保持正确原生父类，显示爱心、动态生命条/数值与真实时间碎片余额，不显示旧圆形角色头像。
-- [ ] HUD 不接管输入；生命事件、受伤反馈、时间碎片权威、关卡索引、倒计时、最后 5 秒警示、页面显隐与 travel 后重建语义无回归。
+- [x] HUD 不接管输入；生命事件、受伤反馈、时间碎片权威、关卡索引、倒计时、最后 5 秒警示、页面显隐与 travel 后重建语义无回归。
 - [x] 两个目标 WBP Compile/Save 成功，`CompileAllBlueprints` 的 Blueprint 汇总为 0 errors、0 warnings、0 failed loads。
-- [x] 按当前本地候选变化面执行聚焦自动化、Development Editor 构建、项目校验和 `git diff --check`；最终组合后仍需 FullRebuild。
-- [ ] 用户在 1920×1080 PIE 对照目标图验收布局、可读性、生命/碎片、小地图和倒计时，并确认底部无废案面板；同时检查 1280×720、2560×1440、21:9 无关键裁切。
-- [ ] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 按最终组合候选执行聚焦自动化、Development Editor FullRebuild、项目校验和 `git diff --check`。
+- [x] 用户通过运行截图连续复核 1920×1080 布局，具名要求删除废案栏、透明化小地图及移除浅蓝边框，并手动调整字体/小地图位置；最终明确要求发布。1280×720、2560×1440、21:9 未另行截图，若后续发现裁切则另立跟进任务。
+- [x] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -115,7 +115,7 @@
 - 用户在运行截图中明确将底部技能栏面板判定为废案；本地候选改为从 Encounter WBP 删除 `ArtSkillBar`，清理其无引用运行时纹理，并在源清单保留 `RejectedElement` 追溯记录。
 - 用户随后要求小地图底板透明；已移除 `SReEchoMinimapCanvas::OnPaint` 的深蓝半透明背景绘制，保留外层回响框、竞技场边线、轨迹和玩家点。
 - 用户运行复核后指出残留浅蓝细框；已继续移除 Canvas 绘制的竞技场边线，最终只保留外层交付回响框、轨迹和实时点。
-- 用户在最终视觉复核中手动将 `EncounterText` 的 Y 位置由 `27` 调整为 `0`；该 WBP 改动已保留，并同步回幂等 authoring 脚本，避免后续重跑回退。
+- 用户在最终视觉复核中手动将 `EncounterText` 的 Y 位置由 `27` 调整为 `0`，将生命/碎片文字字号调整为 `25`，并把真实小地图内缩到 `(40,32)`、尺寸约 `273.316×254.796`；这些 WBP 改动已保留并同步回幂等 authoring/审计脚本，避免后续重跑回退。
 
 ### 证据
 
@@ -133,17 +133,20 @@
 - 对 Reference 与原始切图做 alpha/像素对照后，保留元素的 1920×1080 源图落点锁定并写入 WBP：爱心 `(30,24)`、碎片 `(31,85)`、生命/碎片底板 `(111,43)/(111,103)`、时钟 `(394,51)`、指针 `(952,87)`、时间显示 `(894,123)`、回响框 `(1560,23)`；最终只读 Slot 审计与这些坐标一致，底部废案面板不再生成。
 - 聚焦自动化 `ReEcho.UI.CombatHud.Formatting` 通过：实际加载两个 WBP，验证新增健康填充/碎片绑定、`第 N 关`、`MM:SS`、头像折叠、真实 Minimap 保留以及废案面板不存在。`CompileAllBlueprints` 完成，Blueprint 汇总为 0 errors、0 warnings、0 failed loads；命令启动期另有 6 条既有环境/Legacy 资产警告。
 - 小地图透明化及浅蓝竞技场边线移除后，Development Editor 增量构建通过；`ReEcho.UI.Minimap.Transform` 与 `ReEcho.UI.CombatHud.Formatting` 均为 Success，项目校验和 `git diff --check` 通过。
-- Plan92 已产生干净本地提交 `315390488243f2c66822d919fc27ae4bc8f8dbe3` 但尚未发布到远端。只读审计确认它在 GameMode 的改动集中于敌人死亡绑定，未触碰 Plan93 的 Tick HUD 投影；其 Run 事务继续唯一写入 TimeShards，Plan93 的只读展示语义兼容。仍须等待该提交正式进入远端后再组合并重建。
+- Plan92 已产生干净本地提交 `315390488243f2c66822d919fc27ae4bc8f8dbe3` 但尚未发布到远端。只读审计确认它在 GameMode 的改动集中于敌人死亡绑定，未触碰 Plan93 的 Tick HUD 投影；其 Run 事务继续唯一写入 TimeShards，Plan93 的只读展示语义兼容。程序用户随后明确确认改变原顺序，由 Plan93 先发布、Plan92 后续适配。
+- 最终 fetch 确认 `origin/main@8c805aeccff45e7a7ffb5a2982382cb4e36a4a5e` 未变化；经用户明确确认 Plan93 先发布后，将该基线的 Plan89 VFX 提交合入候选。业务源码/WBP 无冲突，双方生成的 manifest/DLL 冲突通过最终组合源码 FullRebuild 统一重建解决。
+- 最终候选执行 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，96 个编译/链接动作完成并刷新 UE 5.8 精选 Editor 包，源码指纹为 `1ae3276b9900`。
+- 最终 `ReEcho.UI.Minimap.Transform`、`ReEcho.UI.CombatHud.Formatting`、`ReEcho.UIManagerSubsystem`（2 项）与 `ReEcho.UI.PlayerScreenFeedback`（3 项）全部 Success；Plan93 authoring 可幂等复现用户最终 WBP 调整，增强审计通过。
+- `CompileAllBlueprints` 首次运行的 Blueprint 汇总已为 0/0/0，但本机端口 8000 被占用使 ModelContextProtocol 插件返回启动期错误；禁用该非项目运行时插件重跑后命令干净退出 0，Blueprint 汇总仍为 0 errors、0 warnings、0 failed loads。
 
 ### 剩余风险
 
-- 两个 WBP 是二进制资源，后续必须在专属 worktree 串行编辑并逐批验证。
-- Plan92 的本地候选正在修改 `ReEchoGameMode.cpp` 与 TimeShards 事务；Plan93 不读取其未发布 worktree，最终发布前需等待或组合适配远端正式结果。
-- 额外 PlayerScreenFeedback/UIManager 生命周期回归尚未补跑；最终 FullRebuild、PIE 截图/DPI 与用户主观对照验收仍待完成。
+- Plan92 的本地候选仍修改 `ReEchoGameMode.cpp`、文档与精选二进制；按用户确认由 Plan92 后续以发布后的 Plan93 `main` 为基线重新审计和组合适配。
+- 1280×720、2560×1440 与 21:9 未独立截图，用户接受 Plan93 先发布；若出现 DPI/裁切问题另立跟进任务。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现后由用户在 PIE 对照 `1-战斗场景.png` 验收，并具名反馈偏差。
+- `Passed`：用户通过运行截图逐项反馈并验收最终视觉，最后明确要求包含其字体/小地图位置调整提交、合并并发布 `origin/main`。
 
 ### 架构文档审阅结果
 

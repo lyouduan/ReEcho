@@ -194,7 +194,7 @@ mark_variable(toolset, player, health_progress)
 health_progress.set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
 health_text = widgets["PlayerHealthText"]
 mark_variable(toolset, player, health_text)
-configure_text(health_text, 30)
+configure_text(health_text, 25)
 fill_panel_slot(health_text)
 
 portrait_size = widgets["PlayerPortraitSize"]
@@ -221,7 +221,7 @@ shard_text = ensure_widget(
     toolset, player, widgets, unreal.TextBlock, "TimeShardText", player_canvas
 )
 mark_variable(toolset, player, shard_text)
-configure_text(shard_text, 30)
+configure_text(shard_text, 25)
 set_canvas_layout(shard_text, 81.0, 72.0, 232.0, 44.0, z_order=6)
 
 if not toolset.call_method("CompileWidgetBlueprint", args=(player,)):
@@ -291,7 +291,22 @@ if len(minimap_widgets) != 1:
 minimap = minimap_widgets[0]
 mark_variable(toolset, encounter, minimap)
 minimap.set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
-fill_panel_slot(minimap, unreal.Margin(31.0, 30.0, 31.0, 29.0))
+widgets = widget_map(toolset, encounter)
+map_canvas = ensure_widget(
+    toolset, encounter, widgets, unreal.CanvasPanel, "CanvasPanel_0", map_overlay
+)
+map_canvas.set_editor_property(
+    "visibility", unreal.SlateVisibility.SELF_HIT_TEST_INVISIBLE
+)
+fill_panel_slot(map_canvas)
+if minimap.get_parent() != map_canvas:
+    moved = toolset.call_method(
+        "MoveWidget", args=(encounter, minimap, map_canvas, -1)
+    )
+    if moved.widget is None:
+        raise RuntimeError("Unable to move Minimap into CanvasPanel_0")
+    minimap = moved.widget
+set_canvas_layout(minimap, 40.0, 32.0, 273.316162, 254.796219)
 
 if not toolset.call_method("CompileWidgetBlueprint", args=(encounter,)):
     raise RuntimeError("WBP_ReEchoEncounterHud failed to compile")
