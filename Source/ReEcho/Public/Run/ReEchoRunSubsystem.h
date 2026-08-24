@@ -84,6 +84,8 @@ public:
 	 * 槽位已满时挤出该槽位最早装备的旧件，旧件仍保留在 OwnedPartIds（回落背包）。
 	 */
 	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
+	/** Equips an already-owned weapon without shop cost or reroll; compatible runes remain equipped. */
+	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
 	FReEchoWeaponPartShopView GetWeaponPartShopView();
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 	int32 GetTotalEncounterCount() const;
@@ -256,6 +258,16 @@ private:
 
 	UPROPERTY()
 	TArray<FName> PendingTraitCardIds;
+
+	/** Stable weapon/rune page. Ownership changes mark offers sold but do not regenerate the remaining slots. */
+	UPROPERTY()
+	int32 WeaponPartShopOfferEncounterIndex = INDEX_NONE;
+
+	UPROPERTY()
+	int32 WeaponPartShopOfferRefreshSequence = INDEX_NONE;
+
+	UPROPERTY()
+	TArray<FName> WeaponPartShopOfferIds;
 
 	/** Randomized once per run and persisted so reopening a card choice cannot reroll it. */
 	UPROPERTY()

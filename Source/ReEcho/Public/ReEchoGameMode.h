@@ -292,6 +292,7 @@ private:
 
 	UFUNCTION()
 	void HandleShopPurchaseRequested(FName ItemId);
+	void HandleShopWeaponEquipRequested(FName WeaponId);
 	void HandleShopRefreshRequested();
 	void RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, EReEchoInventoryShopMode Mode);
 

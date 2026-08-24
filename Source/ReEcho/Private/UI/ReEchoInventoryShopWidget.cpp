@@ -8,6 +8,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
@@ -912,6 +913,44 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 {
 	DesignerLoadoutCanvas = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("DesignerLoadoutCanvas")));
+	DesignerWeaponPanelWidget = Cast<UImage>(GetWidgetFromName(TEXT("DesignerWeaponPanel")));
+	DesignerEquippedWeaponButton = Cast<UButton>(GetWidgetFromName(TEXT("DesignerEquippedWeaponButton")));
+	DesignerEquippedWeaponArt = Cast<UImage>(GetWidgetFromName(TEXT("DesignerEquippedWeaponArt")));
+	if (DesignerLoadoutCanvas && DesignerWeaponPanelWidget && !DesignerEquippedWeaponButton)
+	{
+		DesignerEquippedWeaponButton =
+		    WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("DesignerEquippedWeaponButton"));
+		DesignerEquippedWeaponButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
+		UScaleBox* WeaponScale =
+		    WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), TEXT("DesignerEquippedWeaponScale"));
+		WeaponScale->SetStretch(EStretch::ScaleToFit);
+		WeaponScale->SetStretchDirection(EStretchDirection::Both);
+		DesignerEquippedWeaponArt =
+		    WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("DesignerEquippedWeaponArt"));
+		DesignerEquippedWeaponArt->SetVisibility(ESlateVisibility::HitTestInvisible);
+		WeaponScale->SetContent(DesignerEquippedWeaponArt);
+		DesignerEquippedWeaponButton->SetContent(WeaponScale);
+		if (UButtonSlot* WeaponContentSlot = Cast<UButtonSlot>(WeaponScale->Slot))
+		{
+			WeaponContentSlot->SetPadding(FMargin(0.0f));
+			WeaponContentSlot->SetHorizontalAlignment(HAlign_Fill);
+			WeaponContentSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+		UCanvasPanelSlot* WeaponButtonSlot = DesignerLoadoutCanvas->AddChildToCanvas(DesignerEquippedWeaponButton);
+		if (const UCanvasPanelSlot* WeaponPanelSlot = Cast<UCanvasPanelSlot>(DesignerWeaponPanelWidget->Slot))
+		{
+			WeaponButtonSlot->SetPosition(WeaponPanelSlot->GetPosition());
+			WeaponButtonSlot->SetSize(WeaponPanelSlot->GetSize());
+		}
+		WeaponButtonSlot->SetZOrder(9);
+	}
+	if (DesignerEquippedWeaponButton)
+	{
+		DesignerEquippedWeaponButton->OnClicked.RemoveDynamic(this,
+		                                                      &UReEchoInventoryShopWidget::HandleEquippedWeaponClicked);
+		DesignerEquippedWeaponButton->OnClicked.AddDynamic(this,
+		                                                   &UReEchoInventoryShopWidget::HandleEquippedWeaponClicked);
+	}
 	DesignerAttachmentSlotButtons.Reset();
 	DesignerAttachmentSlotArts.Reset();
 	for (int32 Index = 0; Index < 3; ++Index)
@@ -1292,6 +1331,37 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 	}
 }
 
+void UReEchoInventoryShopWidget::RebuildEquippedWeaponDisplay()
+{
+	if (!DesignerEquippedWeaponButton || !DesignerEquippedWeaponArt)
+	{
+		return;
+	}
+	const bool bHasWeapon = !CurrentPartShopView.WeaponId.IsNone();
+	DesignerEquippedWeaponButton->SetVisibility(bHasWeapon ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	DesignerEquippedWeaponButton->SetToolTip(nullptr);
+	if (!bHasWeapon)
+	{
+		return;
+	}
+
+	UTexture2D* WeaponTexture = nullptr;
+	if (!CurrentPartShopView.WeaponIconTexturePath.IsEmpty())
+	{
+		WeaponTexture = LoadObject<UTexture2D>(nullptr, *CurrentPartShopView.WeaponIconTexturePath);
+	}
+	DesignerEquippedWeaponArt->SetBrushFromTexture(WeaponTexture ? WeaponTexture : ShopCardIconTexture.Get(), true);
+	DesignerEquippedWeaponArt->SetColorAndOpacity(FLinearColor::White);
+	if (const FReEchoShopOffer* CurrentWeapon = CurrentPartShopView.OwnedWeaponOffers.FindByPredicate(
+	        [&](const FReEchoShopOffer& Candidate)
+	        {
+		        return Candidate.ContentId == CurrentPartShopView.WeaponId;
+	        }))
+	{
+		DesignerEquippedWeaponButton->SetToolTip(BuildSlotTooltip(*CurrentWeapon));
+	}
+}
+
 void UReEchoInventoryShopWidget::HandleAttachmentSlot0Clicked()
 {
 	HandleAttachmentSlotClicked(0);
@@ -1328,6 +1398,7 @@ const FReEchoShopOffer* UReEchoInventoryShopWidget::FindOwnedPartByContentId(con
 
 void UReEchoInventoryShopWidget::HandleAttachmentSlotClicked(const int32 SlotIndex)
 {
+	HideWeaponBackpackPopup();
 	const FName SlotTypeId = GetSlotTypeIdForIndex(SlotIndex);
 	if (SlotTypeId.IsNone())
 	{
@@ -1360,6 +1431,109 @@ void UReEchoInventoryShopWidget::HideBackpackPopup()
 	}
 	ActiveBackpackSlotIndex = INDEX_NONE;
 	CachedBackpackItemIds.Reset();
+}
+
+void UReEchoInventoryShopWidget::HandleEquippedWeaponClicked()
+{
+	HideBackpackPopup();
+	if (WeaponBackpackPopupPanel && WeaponBackpackPopupPanel->GetVisibility() == ESlateVisibility::Visible)
+	{
+		HideWeaponBackpackPopup();
+		return;
+	}
+	BuildWeaponBackpackPopup();
+}
+
+void UReEchoInventoryShopWidget::HideWeaponBackpackPopup()
+{
+	if (WeaponBackpackPopupPanel)
+	{
+		WeaponBackpackPopupPanel->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	CachedWeaponBackpackIds.Reset();
+}
+
+void UReEchoInventoryShopWidget::HandleWeaponBackpackItemClicked(const int32 ItemIndex)
+{
+	if (CachedWeaponBackpackIds.IsValidIndex(ItemIndex) &&
+	    CachedWeaponBackpackIds[ItemIndex] != CurrentPartShopView.WeaponId)
+	{
+		OnWeaponEquipRequested.Broadcast(CachedWeaponBackpackIds[ItemIndex]);
+	}
+}
+
+void UReEchoInventoryShopWidget::BuildWeaponBackpackPopup()
+{
+	if (!DesignerLoadoutCanvas || CurrentPartShopView.OwnedWeaponOffers.IsEmpty())
+	{
+		return;
+	}
+	if (!WeaponBackpackPopupPanel)
+	{
+		WeaponBackpackPopupPanel =
+		    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("WeaponBackpackPopupPanel"));
+		UCanvasPanelSlot* PopupSlot = DesignerLoadoutCanvas->AddChildToCanvas(WeaponBackpackPopupPanel);
+		PopupSlot->SetPosition(FVector2D(430.0f, 150.0f));
+		PopupSlot->SetSize(FVector2D(310.0f, 430.0f));
+		PopupSlot->SetZOrder(40);
+	}
+	WeaponBackpackPopupPanel->ClearChildren();
+	CachedWeaponBackpackIds.Reset();
+
+	UBorder* Surface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("WeaponBackpackSurface"));
+	Surface->SetBrushColor(FLinearColor(0.04f, 0.04f, 0.04f, 0.96f));
+	Surface->SetPadding(FMargin(14.0f));
+	UCanvasPanelSlot* SurfaceSlot = WeaponBackpackPopupPanel->AddChildToCanvas(Surface);
+	SurfaceSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	SurfaceSlot->SetOffsets(FMargin(0.0f));
+
+	UScrollBox* Scroll =
+	    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("WeaponBackpackScroll"));
+	Scroll->SetScrollBarVisibility(ESlateVisibility::Visible);
+	UVerticalBox* List =
+	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponBackpackList"));
+	Scroll->AddChild(List);
+	Surface->SetContent(Scroll);
+
+	UTextBlock* Title = CreateText(WidgetTree, TEXT("WeaponBackpackTitle"), 20, FLinearColor::White);
+	Title->SetText(NSLOCTEXT("ReEcho", "WeaponBackpackTitle", "武器背包"));
+	UVerticalBoxSlot* TitleSlot = List->AddChildToVerticalBox(Title);
+	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+
+	for (const FReEchoShopOffer& Weapon : CurrentPartShopView.OwnedWeaponOffers)
+	{
+		const int32 EntryIndex = CachedWeaponBackpackIds.Add(Weapon.ContentId);
+		UReEchoIndexedButton* Button = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("WeaponBackpackItem%d"), EntryIndex));
+		Button->SetEntryIndex(EntryIndex);
+		Button->SetIsEnabled(Weapon.ContentId != CurrentPartShopView.WeaponId);
+		Button->SetToolTip(BuildSlotTooltip(Weapon));
+		Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleWeaponBackpackItemClicked);
+
+		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
+		    UHorizontalBox::StaticClass(), *FString::Printf(TEXT("WeaponBackpackRow%d"), EntryIndex));
+		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
+		                                                   *FString::Printf(TEXT("WeaponBackpackIcon%d"), EntryIndex));
+		UTexture2D* Texture =
+		    Weapon.IconTexturePath.IsEmpty() ? nullptr : LoadObject<UTexture2D>(nullptr, *Weapon.IconTexturePath);
+		Icon->SetBrushFromTexture(Texture ? Texture : ShopCardIconTexture.Get(), false);
+		Icon->SetDesiredSizeOverride(FVector2D(72.0f, 72.0f));
+		UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(Icon);
+		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
+		IconSlot->SetVerticalAlignment(VAlign_Center);
+		UTextBlock* Label = CreateText(
+		    WidgetTree, *FString::Printf(TEXT("WeaponBackpackLabel%d"), EntryIndex), 17, FLinearColor::White);
+		Label->SetText(
+		    Weapon.ContentId == CurrentPartShopView.WeaponId
+		        ? FText::Format(NSLOCTEXT("ReEcho", "WeaponBackpackEquipped", "{0}（已装备）"), Weapon.DisplayName)
+		        : Weapon.DisplayName);
+		UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(Label);
+		LabelSlot->SetVerticalAlignment(VAlign_Center);
+		Button->SetContent(Row);
+		UVerticalBoxSlot* ButtonSlot = List->AddChildToVerticalBox(Button);
+		ButtonSlot->SetPadding(FMargin(0.0f, 3.0f));
+	}
+	WeaponBackpackPopupPanel->SetVisibility(ESlateVisibility::Visible);
 }
 
 void UReEchoInventoryShopWidget::HandleBackpackItemClicked(const int32 ItemIndex)
@@ -1719,6 +1893,7 @@ void UReEchoInventoryShopWidget::Refresh()
 	}
 
 	HideBackpackPopup();
+	HideWeaponBackpackPopup();
 
 	BuildOfferEntries();
 	BuildLoadoutEntries();
@@ -1867,6 +2042,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		RebuildTargetOfferRows();
 		RebuildOwnedCardSlots();
 		RebuildAttachmentHoverSlots();
+		RebuildEquippedWeaponDisplay();
 	}
 	if (DesignerLoadoutCanvas)
 	{

@@ -70,7 +70,9 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Two encounter rewards provide shop currency"), RunSubsystem->TimeShards, 30);
 	TestTrue(TEXT("Post-draw currency can buy the entry-price item"),
 	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
-	TestEqual(TEXT("Post-draw purchase deducts the available shards"), RunSubsystem->TimeShards, 15);
+	TestEqual(TEXT("Post-draw purchase deducts the effective price"),
+	          RunSubsystem->TimeShards,
+	          30 - RunSubsystem->GetDiscountedShopPrice(15));
 	return true;
 }
 
@@ -214,6 +216,142 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoStableWeaponPartPageTest,
+                                 "ReEcho.Shop.WeaponPartPageRemainsStableAfterSequentialPurchases",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_09"));
+	RunSubsystem->TimeShards = 10000;
+	const FReEchoWeaponPartShopView InitialPage = RunSubsystem->GetWeaponPartShopView();
+	if (!TestEqual(TEXT("Gun page exposes three stable weapon/rune slots"),
+	               InitialPage.SlotOffers.Num(),
+	               ReEchoShopOfferCountPerGroup))
+	{
+		return false;
+	}
+	TSet<FName> InitialIds;
+	for (const FReEchoWeaponSlotOffer& Offer : InitialPage.SlotOffers)
+	{
+		TestFalse(TEXT("Each gun-page offer has a purchase id"), Offer.ItemId.IsNone());
+		TestFalse(TEXT("One weapon/rune page never duplicates an item"), InitialIds.Contains(Offer.ItemId));
+		InitialIds.Add(Offer.ItemId);
+	}
+
+	UReEchoRunSaveGame* StablePageSave = RunSubsystem->CreateSaveSnapshot();
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* RestoredRun = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	if (TestNotNull(TEXT("Stable weapon/rune page is included in the save snapshot"), StablePageSave) &&
+	    TestTrue(TEXT("Stable weapon/rune page restores"), RestoredRun->RestoreSaveSnapshot(*StablePageSave)))
+	{
+		const FReEchoWeaponPartShopView RestoredPage = RestoredRun->GetWeaponPartShopView();
+		for (int32 SlotIndex = 0; SlotIndex < InitialPage.SlotOffers.Num(); ++SlotIndex)
+		{
+			TestEqual(TEXT("Save and restore preserves each weapon/rune offer id"),
+			          RestoredPage.SlotOffers[SlotIndex].ItemId,
+			          InitialPage.SlotOffers[SlotIndex].ItemId);
+			TestEqual(TEXT("Save and restore preserves each weapon/rune offer price"),
+			          RestoredPage.SlotOffers[SlotIndex].Price,
+			          InitialPage.SlotOffers[SlotIndex].Price);
+		}
+	}
+
+	for (const FReEchoWeaponSlotOffer& OriginalOffer : InitialPage.SlotOffers)
+	{
+		TestTrue(TEXT("Every original weapon/rune offer remains purchasable after earlier purchases"),
+		         RunSubsystem->PurchaseShopItem(OriginalOffer.ItemId));
+		const FReEchoWeaponPartShopView PageAfterPurchase = RunSubsystem->GetWeaponPartShopView();
+		for (int32 SlotIndex = 0; SlotIndex < InitialPage.SlotOffers.Num(); ++SlotIndex)
+		{
+			TestEqual(TEXT("Purchase preserves the other weapon/rune offer ids"),
+			          PageAfterPurchase.SlotOffers[SlotIndex].ItemId,
+			          InitialPage.SlotOffers[SlotIndex].ItemId);
+			TestEqual(TEXT("Purchase preserves the other weapon/rune offer prices"),
+			          PageAfterPurchase.SlotOffers[SlotIndex].Price,
+			          InitialPage.SlotOffers[SlotIndex].Price);
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoOwnedWeaponBackpackTest,
+                                 "ReEcho.Shop.OwnedWeaponBackpackSwitchesAtomically",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoOwnedWeaponBackpackTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_08"));
+	FString Error;
+	TestTrue(TEXT("Starting weapon enters the owned weapon backpack"),
+	         RunSubsystem->OwnedWeaponIds.Contains(TEXT("W_J_08")));
+	RunSubsystem->TimeShards = 10000;
+	FName PurchasedWeaponId = NAME_None;
+	for (int32 Attempt = 0; Attempt < 128 && PurchasedWeaponId.IsNone(); ++Attempt)
+	{
+		const FReEchoWeaponPartShopView Page = RunSubsystem->GetWeaponPartShopView();
+		if (const FReEchoWeaponSlotOffer* WeaponOffer = Page.SlotOffers.FindByPredicate(
+		        [](const FReEchoWeaponSlotOffer& Offer)
+		        {
+			        return Offer.Kind == EReEchoShopOfferKind::Weapon && !Offer.WeaponId.IsNone();
+		        }))
+		{
+			PurchasedWeaponId = WeaponOffer->WeaponId;
+			TestTrue(TEXT("A whole-weapon shop offer can be purchased"),
+			         RunSubsystem->PurchaseShopItem(PurchasedWeaponId));
+			break;
+		}
+		RunSubsystem->TryConsumeShopRefresh(1);
+	}
+	TestFalse(TEXT("The deterministic shop sequence eventually exposes a weapon"), PurchasedWeaponId.IsNone());
+	TestTrue(TEXT("Purchased weapon enters the owned weapon backpack"),
+	         !PurchasedWeaponId.IsNone() && RunSubsystem->OwnedWeaponIds.Contains(PurchasedWeaponId));
+	TestTrue(TEXT("Purchasing another weapon keeps the starting weapon owned"),
+	         RunSubsystem->OwnedWeaponIds.Contains(TEXT("W_J_08")));
+	TestTrue(TEXT("The starting weapon can be re-equipped after a weapon purchase"),
+	         RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_08"), Error));
+	RunSubsystem->OwnedWeaponIds.Add(TEXT("W_J_02"));
+
+	Error.Reset();
+	TestTrue(TEXT("Bow accepts a universal core and bow-specific arrowhead"),
+	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
+	TestTrue(TEXT("An owned alternate weapon can be equipped for free"),
+	         RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_02"), Error));
+	TestEqual(TEXT("Owned weapon selection updates the authoritative build"),
+	          RunSubsystem->CurrentBuild.WeaponId,
+	          FName(TEXT("W_J_02")));
+	TestTrue(TEXT("Compatible universal rune stays equipped after weapon switch"),
+	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	             [](const FReEchoEquippedPartSnapshot& Part)
+	             {
+		             return Part.PartId == TEXT("P_CORE_FLAME");
+	             }));
+	TestFalse(TEXT("Incompatible bow rune is unequipped after weapon switch"),
+	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	              [](const FReEchoEquippedPartSnapshot& Part)
+	              {
+		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD");
+	              }));
+
+	const FReEchoBuildSnapshot BeforeRejectedSwitch = RunSubsystem->CurrentBuild;
+	TestFalse(TEXT("Unowned weapon selection is rejected"), RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_03"), Error));
+	TestEqual(TEXT("Rejected weapon selection keeps the equipped weapon unchanged"),
+	          RunSubsystem->CurrentBuild.WeaponId,
+	          BeforeRejectedSwitch.WeaponId);
+	TestEqual(TEXT("Rejected weapon selection keeps the rune loadout unchanged"),
+	          RunSubsystem->CurrentBuild.EquippedParts.Num(),
+	          BeforeRejectedSwitch.EquippedParts.Num());
+
+	const FReEchoWeaponPartShopView View = RunSubsystem->GetWeaponPartShopView();
+	TestFalse(TEXT("Current weapon shop projection includes a display texture"), View.WeaponIconTexturePath.IsEmpty());
+	TestTrue(TEXT("Weapon backpack projection includes every acquired weapon"), View.OwnedWeaponOffers.Num() >= 2);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardAndPartShopPageTest,
                                  "ReEcho.Shop.PageUsesFixedPartSlotsAndConfiguredCardTiers",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -336,7 +474,16 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		         Card.Price >= MinPrice && Card.Price <= MaxPrice);
 	}
 
-	const FReEchoShopOffer PurchasedCard = FirstCards[0];
+	const FReEchoShopOffer* PurchasedCardCandidate = FirstCards.FindByPredicate(
+	    [](const FReEchoShopOffer& Offer)
+	    {
+		    return Offer.ContentId != TEXT("G_2_15");
+	    });
+	if (!TestNotNull(TEXT("Configured shop page includes a card that does not reset currency"), PurchasedCardCandidate))
+	{
+		return false;
+	}
+	const FReEchoShopOffer PurchasedCard = *PurchasedCardCandidate;
 	const int32 OwnedBefore = RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num();
 	const int32 ShardsBefore = RunSubsystem->TimeShards;
 	TestTrue(TEXT("Current card offer can be purchased"), RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
@@ -345,8 +492,9 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          OwnedBefore + 1);
 	TestTrue(TEXT("Granted card id is the offer content id"),
 	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedCard.ContentId));
-	TestEqual(
-	    TEXT("Card purchase deducts the tier price"), RunSubsystem->TimeShards, ShardsBefore - PurchasedCard.Price);
+	TestEqual(TEXT("Card purchase deducts the effective tier price"),
+	          RunSubsystem->TimeShards,
+	          ShardsBefore - RunSubsystem->GetDiscountedShopPrice(PurchasedCard.Price));
 	const FReEchoWeaponPartShopView PurchasedPage = RunSubsystem->GetWeaponPartShopView();
 	TestTrue(TEXT("Purchased card is projected into the right-side owned slots"),
 	         PurchasedPage.OwnedCards.ContainsByPredicate(

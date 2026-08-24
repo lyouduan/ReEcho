@@ -2683,6 +2683,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
+	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
@@ -2789,6 +2790,7 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		return;
 	}
 
+	const FName PreviousWeaponId = RunSubsystem->CurrentBuild.WeaponId;
 	// 新购：走完整购买流程（防重复/扣钱/入背包），购买即装备。
 	if (RunSubsystem->PurchaseShopItem(ItemId))
 	{
@@ -2807,6 +2809,13 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
+		if (RunSubsystem->CurrentBuild.WeaponId != PreviousWeaponId)
+		{
+			// Whole-weapon purchase changes the compatible rune slots and weapon art. Rebuild the read-only projection;
+			// the stable page key/refresh sequence is unchanged, so unrelated offers do not reroll.
+			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+			return;
+		}
 		InventoryShopWidget->SetTimeShards(RunSubsystem->TimeShards);
 		InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats);
 		InventoryShopWidget->MarkItemPurchased(ItemId);
@@ -2817,6 +2826,30 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 	}
+}
+
+void AReEchoGameMode::HandleShopWeaponEquipRequested(const FName WeaponId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	FString EquipError;
+	if (!RunSubsystem->TryEquipOwnedWeapon(WeaponId, EquipError))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Owned weapon '%s' could not be equipped: %s"),
+		       *WeaponId.ToString(),
+		       *EquipError);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	PostUiEvent(FReEchoAudioEvents::UiConfirm);
+	RunSubsystem->SaveRun();
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
 
 void AReEchoGameMode::HandleShopRefreshRequested()

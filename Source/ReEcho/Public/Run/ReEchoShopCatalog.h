@@ -73,6 +73,7 @@ struct REECHO_API FReEchoWeaponPartShopView
 {
 	FName WeaponId;
 	FText WeaponDisplayName;
+	FString WeaponIconTexturePath;
 	TArray<FReEchoWeaponSlotOffer> SlotOffers;   // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
 	                                             // rune / other weapon / other-weapon rune)
 	TArray<FReEchoCardSlotOffer> CardSlotOffers; // always 3 fixed tier slots; unavailable slots carry no CardId/ItemId
@@ -81,6 +82,7 @@ struct REECHO_API FReEchoWeaponPartShopView
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FName> OwnedWeapons;
+	TArray<FReEchoShopOffer> OwnedWeaponOffers;
 	TArray<FReEchoWeaponSlotShopView> Slots;
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 };

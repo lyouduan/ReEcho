@@ -24,6 +24,7 @@ class UReEchoRunSubsystem;
 
 DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
+DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponEquipRequested, FName);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoGuidCommandRequested, FGuid);
@@ -59,6 +60,7 @@ public:
 	FReEchoInventoryShopClosed OnClosed;
 
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
+	FReEchoWeaponEquipRequested OnWeaponEquipRequested;
 	FReEchoShopRefreshRequested OnRefreshRequested;
 
 	FReEchoEchoCommandRequested OnEchoStoreRequested;
@@ -129,6 +131,7 @@ private:
 	void RebuildTargetOfferRows();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
+	void RebuildEquippedWeaponDisplay();
 	void UpdateWeaponLoadoutText();
 	FName GetSlotTypeIdForIndex(int32 SlotIndex) const;
 	const FReEchoShopOffer* FindOwnedPartByContentId(FName ContentId) const;
@@ -143,6 +146,12 @@ private:
 	void HideBackpackPopup();
 	UFUNCTION()
 	void HandleBackpackItemClicked(int32 ItemIndex);
+	UFUNCTION()
+	void HandleEquippedWeaponClicked();
+	void BuildWeaponBackpackPopup();
+	void HideWeaponBackpackPopup();
+	UFUNCTION()
+	void HandleWeaponBackpackItemClicked(int32 ItemIndex);
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
@@ -308,6 +317,12 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> DesignerLoadoutCanvas;
 	UPROPERTY(Transient)
+	TObjectPtr<UImage> DesignerWeaponPanelWidget;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> DesignerEquippedWeaponButton;
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> DesignerEquippedWeaponArt;
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> TargetCurrencyText;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UButton>> DesignerAttachmentSlotButtons;
@@ -317,6 +332,9 @@ private:
 	TObjectPtr<UCanvasPanel> BackpackPopupPanel;
 	int32 ActiveBackpackSlotIndex = INDEX_NONE;
 	TArray<FName> CachedBackpackItemIds;
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> WeaponBackpackPopupPanel;
+	TArray<FName> CachedWeaponBackpackIds;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UButton>> DesignerCardSlotButtons;
 	UPROPERTY(Transient)

@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
@@ -16,6 +17,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoInventoryShopWidget.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopLogicBlocksTest,
                                  "ReEcho.UI.Shop.LogicBlocks",
@@ -223,6 +225,21 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	FReEchoWeaponPartShopView PartShopView;
 	PartShopView.WeaponId = TEXT("TEST_AUTHORED_WEAPON");
 	PartShopView.WeaponDisplayName = FText::FromString(TEXT("Authored weapon"));
+	PartShopView.WeaponIconTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Bow"));
+	FReEchoShopOffer CurrentWeapon;
+	CurrentWeapon.ItemId = TEXT("TEST_AUTHORED_WEAPON");
+	CurrentWeapon.ContentId = CurrentWeapon.ItemId;
+	CurrentWeapon.DisplayName = PartShopView.WeaponDisplayName;
+	CurrentWeapon.EffectText = FText::FromString(TEXT("Current weapon"));
+	CurrentWeapon.Type = EReEchoShopOfferType::Weapon;
+	CurrentWeapon.IconTexturePath = PartShopView.WeaponIconTexturePath;
+	FReEchoShopOffer AlternateWeapon = CurrentWeapon;
+	AlternateWeapon.ItemId = TEXT("TEST_ALTERNATE_WEAPON");
+	AlternateWeapon.ContentId = AlternateWeapon.ItemId;
+	AlternateWeapon.DisplayName = FText::FromString(TEXT("Alternate weapon"));
+	AlternateWeapon.EffectText = FText::FromString(TEXT("Alternate weapon effect"));
+	PartShopView.OwnedWeapons = {CurrentWeapon.ContentId, AlternateWeapon.ContentId};
+	PartShopView.OwnedWeaponOffers = {CurrentWeapon, AlternateWeapon};
 	PartShopView.Offers.Add(WeaponPart);
 	FReEchoWeaponSlotShopView PartSlot;
 	PartSlot.SlotTypeId = TEXT("Core");
@@ -294,6 +311,55 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UImage* DesignerWeaponPanel = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerWeaponPanel")));
 	TestNotNull(TEXT("Weapon panel is authored as a direct Canvas child"),
 	            DesignerWeaponPanel ? Cast<UCanvasPanelSlot>(DesignerWeaponPanel->Slot) : nullptr);
+	UButton* EquippedWeaponButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerEquippedWeaponButton")));
+	UImage* EquippedWeaponArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerEquippedWeaponArt")));
+	UTexture2D* ExpectedWeaponTexture = LoadObject<UTexture2D>(nullptr, *PartShopView.WeaponIconTexturePath);
+	TestNotNull(TEXT("Current weapon has a clickable overlay in the authored weapon panel"), EquippedWeaponButton);
+	TestTrue(TEXT("Current weapon overlay renders the equipped weapon texture"),
+	         EquippedWeaponArt && ExpectedWeaponTexture &&
+	             EquippedWeaponArt->GetBrush().GetResourceObject() == ExpectedWeaponTexture);
+	TestTrue(TEXT("Current weapon art uses the source texture dimensions instead of the default 32px brush"),
+	         EquippedWeaponArt && ExpectedWeaponTexture &&
+	             EquippedWeaponArt->GetBrush().ImageSize ==
+	                 FVector2D(ExpectedWeaponTexture->GetSizeX(), ExpectedWeaponTexture->GetSizeY()));
+	const UButtonSlot* EquippedWeaponContentSlot = EquippedWeaponButton && EquippedWeaponButton->GetContent()
+	                                                   ? Cast<UButtonSlot>(EquippedWeaponButton->GetContent()->Slot)
+	                                                   : nullptr;
+	TestTrue(TEXT("Current weapon art fills the authored weapon button"),
+	         EquippedWeaponContentSlot && EquippedWeaponContentSlot->GetHorizontalAlignment() == HAlign_Fill &&
+	             EquippedWeaponContentSlot->GetVerticalAlignment() == VAlign_Fill);
+	TArray<FName> WeaponEquipRequests;
+	Widget->OnWeaponEquipRequested.AddLambda(
+	    [&WeaponEquipRequests](const FName WeaponId)
+	    {
+		    WeaponEquipRequests.Add(WeaponId);
+	    });
+	if (EquippedWeaponButton)
+	{
+		EquippedWeaponButton->OnClicked.Broadcast();
+	}
+	UCanvasPanel* WeaponBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("WeaponBackpackPopupPanel")));
+	UReEchoIndexedButton* CurrentWeaponButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItem0")));
+	UReEchoIndexedButton* AlternateWeaponButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItem1")));
+	TestTrue(TEXT("Clicking the weapon art opens the weapon backpack"),
+	         WeaponBackpack && WeaponBackpack->GetVisibility() == ESlateVisibility::Visible);
+	TestTrue(TEXT("Current weapon is listed and cannot be equipped twice"),
+	         CurrentWeaponButton && !CurrentWeaponButton->GetIsEnabled());
+	TestTrue(TEXT("Another owned weapon is selectable"),
+	         AlternateWeaponButton && AlternateWeaponButton->GetIsEnabled());
+	if (AlternateWeaponButton)
+	{
+		AlternateWeaponButton->OnIndexedClicked.Broadcast(1);
+	}
+	TestEqual(TEXT("Weapon backpack emits one independent equip request"), WeaponEquipRequests.Num(), 1);
+	if (WeaponEquipRequests.Num() == 1)
+	{
+		TestEqual(TEXT("Weapon backpack request carries the selected owned weapon"),
+		          WeaponEquipRequests[0],
+		          AlternateWeapon.ContentId);
+	}
 	UButton* AttachmentHoverSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerAttachmentSlot0")));
 	TestNotNull(TEXT("Equipped attachment has a hover target below the weapon"), AttachmentHoverSlot);
 	TestTrue(TEXT("Attachment hover uses a custom cursor-following tooltip"),
