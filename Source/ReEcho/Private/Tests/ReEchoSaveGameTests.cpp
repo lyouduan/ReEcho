@@ -46,9 +46,8 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
 	TestTrue(TEXT("Compatible save snapshot restores"), Restored->RestoreSaveSnapshot(*Snapshot));
-	TestEqual(TEXT("Card-offer seed restores"),
-	          Restored->CreateSaveSnapshot()->TraitOfferSeed,
-	          Snapshot->TraitOfferSeed);
+	TestEqual(
+	    TEXT("Card-offer seed restores"), Restored->CreateSaveSnapshot()->TraitOfferSeed, Snapshot->TraitOfferSeed);
 	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
@@ -67,6 +66,14 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Storage capacity restores"), RestoredStorage.StorageCapacity, 3);
 	TestFalse(TEXT("A finalized decision leaves no pending echo"), RestoredStorage.bHasPendingRecording);
 	TestTrue(TEXT("Rolling latest echo restores independently"), RestoredStorage.bHasLatestCompletedRecording);
+
+	Snapshot->SavedPhase = EReEchoRunPhase::LegacyForgeChoice;
+	UGameInstance* LegacyForgeGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* LegacyForgeRestored = NewObject<UReEchoRunSubsystem>(LegacyForgeGameInstance);
+	TestTrue(TEXT("A legacy Forge phase save remains loadable"), LegacyForgeRestored->RestoreSaveSnapshot(*Snapshot));
+	TestEqual(TEXT("A legacy Forge phase migrates to regular card choice"),
+	          LegacyForgeRestored->Phase,
+	          EReEchoRunPhase::CardChoice);
 
 	FReEchoEncounterRuntimeState EncounterState;
 	EncounterState.bValid = true;

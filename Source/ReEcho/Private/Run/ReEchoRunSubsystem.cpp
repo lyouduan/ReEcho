@@ -4,6 +4,7 @@
 #include "Core/ReEchoBalanceSettings.h"
 #include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
+#include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "Cards/ReEchoCardRuntime.h"
@@ -14,7 +15,6 @@
 namespace
 {
 constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
-constexpr const TCHAR* ForgeOfferGroup = TEXT("Forge");
 const FName AnyWeaponTypeId = TEXT("Any");
 
 const FString RunSaveSlot = TEXT("ReEchoRun");
@@ -404,13 +404,6 @@ bool TryMutateAuthoritativeBuild(const FReEchoCsvDataSnapshot& Snapshot,
 	return ReEchoWeaponRuntime::TryEquipParts(Snapshot, BaseBuild, GetEquippedPartIds(Build), OutBuild, Error);
 }
 
-bool CurrentCharacterHasPassive(const FReEchoBuildSnapshot& Build, const FName PassiveBehaviorId)
-{
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	const FReEchoCsvCharacterRow* Character = Snapshot.IsValid() ? Snapshot->FindCharacter(Build.CharacterId) : nullptr;
-	return Character && Character->PassiveBehaviorId == PassiveBehaviorId;
-}
-
 FReEchoStoredEchoSummary MakeStoredEchoSummary(const FReEchoRecording& Recording, const bool bSelected)
 {
 	FReEchoStoredEchoSummary Summary;
@@ -675,6 +668,7 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	Result.Build.WeaponDomainRevision = Snapshot->WeaponDomainRevision;
 	Result.Build.CardState.DomainRevision = Snapshot->CardDomainRevision;
 	Result.Build.Stats = Character->BaseStats;
+	ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(*Snapshot, Character->Id, Result.Build.Stats);
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
 	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
 	Result.Build.EquipmentBaseStats = Result.Build.Stats;
@@ -1157,6 +1151,10 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
                                             const bool bPlayerSurvived,
                                             const bool bBossKilled)
 {
+	if (Phase == EReEchoRunPhase::CardChoice || Phase == EReEchoRunPhase::Summary || Phase == EReEchoRunPhase::Failed)
+	{
+		return;
+	}
 	if (!bPlayerSurvived)
 	{
 		// A failed encounter never becomes storage eligible and never touches the rolling latest echo.
@@ -1193,22 +1191,20 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	{
 		CurrentBuild = CardEndBuild;
 	}
-	if (CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.PoetReactionGrowth")))
+	const TSharedPtr<const FReEchoCsvDataSnapshot> AbilitySnapshot = GetRunDataSnapshot();
+	if (AbilitySnapshot.IsValid())
 	{
-		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-		const FReEchoCsvCharacterRow* Character =
-		    Snapshot.IsValid() ? Snapshot->FindCharacter(CurrentBuild.CharacterId) : nullptr;
 		FReEchoBuildSnapshot Candidate;
-		if (Snapshot.IsValid() && TryMutateAuthoritativeBuild(
-		                              *Snapshot,
-		                              CurrentBuild,
-		                              [&](FReEchoBuildSnapshot& BaseBuild)
-		                              {
-			                              BaseBuild.Stats.ReactionEfficiency +=
-			                                  Character ? Character->PassiveValue : 0.05f;
-			                              return true;
-		                              },
-		                              Candidate))
+		if (TryMutateAuthoritativeBuild(
+		        *AbilitySnapshot,
+		        CurrentBuild,
+		        [&](FReEchoBuildSnapshot& BaseBuild)
+		        {
+			        ReEchoCharacterAbilityRuntime::ApplyEncounterCompletedEffects(
+			            *AbilitySnapshot, BaseBuild.CharacterId, BaseBuild.Stats);
+			        return true;
+		        },
+		        Candidate))
 		{
 			CurrentBuild = Candidate;
 		}
@@ -1218,8 +1214,7 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		SetPhase(bBossKilled ? EReEchoRunPhase::Summary : EReEchoRunPhase::Failed);
 		return;
 	}
-	SetPhase(CurrentCharacterHasPassive(CurrentBuild, TEXT("Character.BraveForge")) ? EReEchoRunPhase::ForgeChoice
-	                                                                                : EReEchoRunPhase::CardChoice);
+	SetPhase(EReEchoRunPhase::CardChoice);
 }
 
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
@@ -1282,10 +1277,12 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 
-	const FName SageBonusChoiceFlag = TEXT("SageBonusChoice");
+	const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
 	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
-	const bool bSageBonusChoice = CurrentBuild.RuleFlags.Contains(SageBonusChoiceFlag);
-	bool bSageBonus = false;
+	const int32 ExistingBonusChoices =
+	    FMath::Max(0, FCString::Atoi(*CurrentBuild.RuleFlags.FindRef(BonusTraitChoicesRemainingFlag)));
+	const bool bApplyingBonusChoice = ExistingBonusChoices > 0;
+	bool bContinueBonusChoices = false;
 	int32 PendingTimeShards = TimeShards;
 	FReEchoBuildSnapshot PendingBuild;
 	if (!TryMutateAuthoritativeBuild(
@@ -1310,19 +1307,29 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        BaseBuild.CardState = Grant.CardState;
 		        PendingTimeShards = Grant.TimeShards;
 		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
-		        if (bSageBonusChoice)
+		        if (bApplyingBonusChoice)
 		        {
-			        BaseBuild.RuleFlags.Remove(SageBonusChoiceFlag);
+			        const int32 Remaining = ExistingBonusChoices - 1;
+			        bContinueBonusChoices = Remaining > 0;
+			        if (bContinueBonusChoices)
+			        {
+				        BaseBuild.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(Remaining));
+			        }
+			        else
+			        {
+				        BaseBuild.RuleFlags.Remove(BonusTraitChoicesRemainingFlag);
+			        }
 			        return true;
 		        }
 		        const int32 NormalTraitSelections =
 		            FCString::Atoi(*BaseBuild.RuleFlags.FindRef(NormalTraitSelectionsFlag)) + 1;
 		        BaseBuild.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
-		        bSageBonus =
-		            ReEchoCharacterPromotion::IsRole(BaseBuild, TEXT("Sage")) && NormalTraitSelections % 4 == 0;
-		        if (bSageBonus)
+		        const int32 NewBonusChoices = ReEchoCharacterAbilityRuntime::ResolveExtraTraitChoices(
+		            *Snapshot, BaseBuild.CharacterId, NormalTraitSelections);
+		        bContinueBonusChoices = NewBonusChoices > 0;
+		        if (bContinueBonusChoices)
 		        {
-			        BaseBuild.RuleFlags.Add(SageBonusChoiceFlag, TEXT("1"));
+			        BaseBuild.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(NewBonusChoices));
 		        }
 		        return true;
 	        },
@@ -1333,7 +1340,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	CurrentBuild = PendingBuild;
 	TimeShards = PendingTimeShards;
 	PendingTraitCardIds.Reset();
-	SetPhase(bSageBonus ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
+	SetPhase(bContinueBonusChoices ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
 	return true;
 }
 
@@ -1412,77 +1419,6 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
 	       *CardId.ToString(),
 	       CurrentBuild.CardState.OwnedCardIds.Num());
-	return true;
-}
-
-TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateForgeOffers()
-{
-	PendingTraitCardIds.Reset();
-	if (Phase != EReEchoRunPhase::ForgeChoice)
-	{
-		return {};
-	}
-
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	TArray<FReEchoTraitCardOffer> Offers;
-	const TArray<FReEchoCardDefinition> ForgeCards = Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
-	                                                     ? Snapshot->CardCatalog->GetOfferable(ForgeOfferGroup)
-	                                                     : TArray<FReEchoCardDefinition>();
-	for (const FReEchoCardDefinition& Card : ForgeCards)
-	{
-		Offers.Add(MakeTraitOffer(Card));
-	}
-	for (const FReEchoTraitCardOffer& Offer : Offers)
-	{
-		PendingTraitCardIds.Add(Offer.CardId);
-	}
-	return Offers;
-}
-
-bool UReEchoRunSubsystem::ApplyForgeChoice(const FName ForgeId)
-{
-	if (Phase != EReEchoRunPhase::ForgeChoice || !PendingTraitCardIds.Contains(ForgeId))
-	{
-		return false;
-	}
-
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	const FReEchoCardDefinition* Card =
-	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() ? Snapshot->CardCatalog->Find(ForgeId) : nullptr;
-	FReEchoBuildSnapshot PendingBuild;
-	if (!Card || !Card->bEnabled || Card->OfferGroup != ForgeOfferGroup ||
-	    !TryMutateAuthoritativeBuild(
-	        *Snapshot,
-	        CurrentBuild,
-	        [&](FReEchoBuildSnapshot& BaseBuild)
-	        {
-		        FReEchoCardGrantInput Input;
-		        Input.Stats = BaseBuild.Stats;
-		        Input.CardState = BaseBuild.CardState;
-		        Input.TimeShards = TimeShards;
-		        Input.EncounterIndex = EncounterIndex;
-		        Input.RandomSeed =
-		            BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, BaseBuild.CardState.OwnedCardIds);
-		        Input.bRecordOwnership = false;
-		        const FReEchoCardGrantResult Grant =
-		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, ForgeId, Input);
-		        if (!Grant.bSucceeded)
-		        {
-			        return false;
-		        }
-		        BaseBuild.Stats = Grant.Stats;
-		        BaseBuild.CardState = Grant.CardState;
-		        BaseBuild.Stats.HpMax = FMath::Max(1.0f, BaseBuild.Stats.HpMax);
-		        return true;
-	        },
-	        PendingBuild))
-	{
-		return false;
-	}
-
-	CurrentBuild = PendingBuild;
-	PendingTraitCardIds.Reset();
-	SetPhase(EReEchoRunPhase::CardChoice);
 	return true;
 }
 
@@ -2658,6 +2594,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	{
 		PendingEncounterResume = {};
 	}
-	SetPhase(SaveGame.SavedPhase);
+	SetPhase(SaveGame.SavedPhase == EReEchoRunPhase::LegacyForgeChoice ? EReEchoRunPhase::CardChoice
+	                                                                   : SaveGame.SavedPhase);
 	return true;
 }

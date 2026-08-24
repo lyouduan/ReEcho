@@ -6,8 +6,8 @@
 - Executor 负责人：Codex（Gavyn 侧）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（角色能力数值、勇者受伤阈值手感与旧 Forge 消失需要用户 PIE 确认）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（2026-08-24 用户确认任务完成并授权合并、推送与清理）。
 - 本地规划 / 实现基线：`origin/main@55a15d1505f52fa182bfb13bb5b5e01770100520`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan87-forge-character-abilities`，分支 `plan/87-forge-character-abilities-audit`；Plan 先发布占号，审核通过后才进入实现。
 - 依赖 / 阻塞：
@@ -20,6 +20,7 @@
   - `plans/87-forge-cleanup-and-character-abilities.md`
   - `Design/Data/ReEchoData.xlsx`
   - `Content/Data/characters.csv`、新增的角色能力规范化 CSV（最终表名在实现前锁定）
+  - `Content/Data/characters.json`（只删除迁移期旧能力字段，不作为运行时真源）
   - `Content/Data/cards.csv`、`Content/Data/card_effects.csv`、`Content/Data/csv_schema.csv`、`Content/Data/reecho_data_manifest.csv`
   - `Content/Data/TestFixtures/CsvRuntime/**` 中包含 Forge 生产副本或受新表/schema 影响的精选 fixture
   - `scripts/data/sync_xlsx_to_csv.py`、`scripts/data/test_sync_xlsx_to_csv.py`、`scripts/validate_project.py`
@@ -33,6 +34,9 @@
   - `Source/ReEcho/Public/ReEchoGameMode.h`、`Source/ReEcho/Private/ReEchoGameMode.cpp`
   - `Source/ReEcho/Private/Run/ReEchoCharacterPromotion.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoCharacterPromotionTests.cpp`、新增角色能力聚焦测试及受影响 Save/Run/UI 测试
+  - `Source/ReEchoCombat/Public/Combat/ReEchoCombatantComponent.h`、`Source/ReEchoCombat/Private/Combat/ReEchoCombatantComponent.cpp`
+  - `Source/ReEchoCombat/Public/Combat/ReEchoCombatTypes.h`、`Source/ReEchoWeapons/Private/Weapons/ReEchoWeaponLogic.cpp`（仅删除确认废弃字段/消费）
+  - `plans/88-card-drop-system.md`（删除尚未执行 Plan 中已被本 Plan 推翻的 Forge 路由）
   - `Content/Data/README.md`、`Design/Data/ReEchoData使用说明.md`、`Design/Data/ReEchoData策划验收清单.md`
   - `shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoCombat.md`、`MOD-ReEchoCards.md`、`MOD-ReEchoUI.md`
@@ -109,17 +113,17 @@ Forge 不是无引用残留，而是当前可运行的旧勇者能力：
 
 ## 锁定验收
 
-- [ ] `策划数据源/【开普勒】回响数值与构筑体系.xlsx` 的四条可见角色能力均有逐字段的规范化生产表/CSV 映射和自动化证据；运行时不读中文描述。
-- [ ] 智者在配置间隔 4 后只额外选择配置数量 1，额外选择本身不递归计数；修改测试 fixture 参数会改变结果，证明没有硬编码 4。
-- [ ] 猎手实际移速为同基准角色的 120%，暴击率增加 20 个百分点、暴击效果增加 50 个百分点；晋升/开局两种进入方式不重复应用。
-- [ ] 诗人每次成功完成合法关卡后永久增加 10 个百分点反应效能，失败、恢复初始化和重复结束回调不增加；保存恢复保持已增长值。
-- [ ] 勇者只对最终生命减少按用户确认的 10% 阈值语义生成层数，每层物攻和元攻各 +1；格挡、无敌、治疗、最大生命变化、死亡/复活、存读档和跨关行为符合锁定语义。
-- [ ] 勇者完成关卡后直接进入普通 `CardChoice`；生产目录、候选、UI、schema、测试和脚本中不存在可运行 `FORGE_LIGHT/MEDIUM/EXTREME` 或 `Character.BraveForge`。
-- [ ] 从旧存档恢复 `ForgeChoice` 不会卡死、重复获益或崩溃；已获得的历史属性保持原值，后续只执行新能力。
-- [ ] 用户确认处理后的诗人随机元素弹、勇者第二击加成不存在幽灵逻辑；四角色描述、属性面板和真实效果一致。
-- [ ] XLSX→CSV `--check`、项目校验、Development Editor 构建、角色/Run/Combat/Cards/Save 聚焦自动化通过。
-- [ ] 用户以新游戏分别验证四角色，确认 Forge 界面消失和四项能力体感/数值正确。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] `策划数据源/【开普勒】回响数值与构筑体系.xlsx` 的四条可见角色能力均有逐字段的规范化生产表/CSV 映射和自动化证据；运行时不读中文描述。
+- [x] 智者在配置间隔 4 后只额外选择配置数量 1，额外选择本身不递归计数；测试内把间隔副本改为 2 会改变结果，证明没有硬编码 4。
+- [x] 猎手有效属性为同基准角色的 120% 移速、增加 20 个百分点暴击率和 50 个百分点暴击效果；晋升/开局两种进入方式均由同一配置入口计算且不重复应用。
+- [x] 诗人每次成功完成合法关卡后永久增加 10 个百分点反应效能，失败、恢复初始化和重复结束回调不增加；保存恢复保持已增长值。
+- [x] 勇者只对最终生命减少按用户确认的 10% 阈值语义生成层数，每层物攻和元攻各 +1；格挡、无敌、治疗、最大生命变化、死亡/复活、存读档和跨关行为符合锁定语义。
+- [x] 勇者完成关卡后直接进入普通 `CardChoice`；生产目录、候选、UI、schema、测试和脚本中不存在可运行 `FORGE_LIGHT/MEDIUM/EXTREME` 或 `Character.BraveForge`。
+- [x] 从旧存档恢复 `ForgeChoice` 会迁移到普通 `CardChoice`，不重新授予 Forge；已写入 StatBlock 的历史数值保持原值。
+- [x] 用户确认删除的诗人随机元素弹、勇者第二击加成已从生产数据、共享类型和 Weapons 消费中删除；四角色描述已对齐最新可见策划源。
+- [x] XLSX→CSV `--check`、项目校验、Development Editor 构建、角色/Run/Combat/Cards/Save 聚焦自动化通过。
+- [x] 用户完成新游戏人工验证并确认任务完成，授权合并、推送与清理。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -136,7 +140,7 @@ Forge 不是无引用残留，而是当前可运行的旧勇者能力：
 3. 建立纯角色能力 Definition/Runtime；把智者、猎手、诗人行为迁入统一入口并删除按 RoleId/常量的旧分支。
 4. 由 Player Host 只读订阅 Combat 最终 `HealthChanged`，调用 Run/角色能力窄命令实现勇者；同步 Run 永久状态与当前 Combat 属性时避免初始化递归和重复应用。
 5. 删除 Forge phase/API/GameMode/UI 特化及生产卡/效果；加入旧存档 phase 迁移，清理精选 fixture、脚本和说明。
-6. 删除用户确认废弃的诗人随机元素弹/勇者第二击能力，或将明确保留项规范化进同一能力表；补齐四角色、存档和跨模块回归。
+6. 删除用户确认废弃的诗人随机元素弹/勇者第二击能力；补齐四角色、存档和跨模块回归。
 7. 同步 CODEBASE_MAP 与数据文档，完成自动化、构建、用户 PIE，验收后再合并/发布实现。
 
 ## 验证矩阵
@@ -158,24 +162,37 @@ Forge 不是无引用残留，而是当前可运行的旧勇者能力：
 - 已在最新远端 `main` 建立 Plan87 独立工作树。
 - 已只读审计指定策划源、canonical workbook、生产 CSV、CSV reader/registry、Run/Player/Combat/Cards/UI 调用链与角色聚焦测试；尚未清理 Forge，也未实现新能力。
 - 2026-08-24：用户确认勇者按当前缺失生命阶梯计算且治疗回退，并确认删除诗人随机元素弹和勇者第二击加成；Plan 状态进入 `InProgress`。
+- 已在 canonical `ReEchoData.xlsx` 新增 `角色能力A/tblCharacterAbilities`，导出 `character_abilities.csv`；`角色体系J` 回归实体/基础属性表，Forge 卡/效果和下拉契约已删除。
+- 已建立 `Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*`，迁移猎手静态属性、诗人关后成长、智者配置节拍与勇者缺血阶梯；Combat 新增通用按来源替换的攻击修正，Player Host 只适配最终生命事件。
+- 已删除 Forge API/GameMode/Widget 分支、诗人随机元素投射物和勇者每第二击加成；旧保存枚举保留为 migration-only 输入并转为普通 `CardChoice`。
+- 状态进入 `Review`；实现候选保留在 Plan87 工作树，等待用户 PIE，不合并、不推送实现。
 
 ### 证据
 
 - 指定工作簿 `角色体系J` 可见范围为 `A1:D5`，生产能力单元格为 `D2:D5`，无隐藏生产行/列。
 - 生产 `characters.csv` 的四行、`PassiveBehaviorId/PassiveValue` 和 StatBlock 与运行时代码逐项比对，得到本 Plan“角色能力映射”表。
 - Forge 真实引用覆盖 Run phase/API、GameMode、TraitCardChoice Widget、3 张生产卡、9 条生产效果、fixtures、脚本与自动化，确认不能孤立删除。
+- `scripts/data/test_sync_xlsx_to_csv.py` 15/15 通过；XLSX→CSV `--check` 和 `scripts/validate_project.py` 通过；最终工作簿四个关键 Sheet 已重新渲染并人工检查。
+- Development Editor 构建通过；`ReEcho.Characters` 3/3、`ReEcho.Run` 14/14、`ReEcho.Combat` 10/10、`ReEcho.Cards` 4/4 通过。仓库没有 `ReEcho.Save` 前缀，Save 回归实际位于 `ReEcho.Run.Save*` 并已通过。
+- 发布集成前发现 `origin/main` 新增商店响应式修复及 Plan71/89 文档；源码零重叠，只有预构建包和两份架构文档重叠。用户确认采用远端商店实现、组合文档并重建二进制；rebase 后文档自动保留双方内容，组合源码 FullRebuild 成功，预构建 source 指纹为 `fdf5e7ae6d64`。
 - 首次审计期间远端从 `52b1648c` 前进至 `b8836ed1`（Plan86 文档与 Editor 预构建包），发布前又前进至 `55a15d15`（只新增 Plan88 文档）。本工作树已重放到最新提交；文档无真实冲突，未来 Cards/Run 实现热点已显式记录。
 
 ### 剩余风险
 
 - 勇者按当前缺血阶梯实现时，最大生命变化可能跨越多个阈值；实现必须以每次最终 `CurrentHealth/MaximumHealth` 重算目标层数，而不是累计事件次数。
 - 两项未声明遗留能力已确认删除；旧保存可能携带已经写入 StatBlock 的历史数值，迁移不得猜测并逆向扣除旧收益。
-- 移除 Forge 会改变旧存档阶段和 CardDomainRevision；必须以显式迁移和聚焦测试保护，不能仅依赖 CSV 缺行后的容错。
+- 勇者从 `HealthChanged` 到 GAS 属性的实际联动、治疗/复活回退和四角色面板显示仍需用户 PIE；当前自动化覆盖配置计算、按来源替换和旧阶段迁移。
+- FullRebuild 与首次远端重叠审计已完成；推送前仍需再次 fetch 确认 `origin/main` 未继续前进，并完成最终静态/自动化门禁。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`。待实现构建/自动化完成后，由用户在 PIE 验收四角色和 Forge 消失。
+- `Passed`。2026-08-24 用户确认任务完成，并授权发布到远端 `main` 后清理本地 Plan87 工作树与分支。
 
 ### 架构文档审阅结果
 
-- 规划阶段已确认 `MOD-ReEcho`、`MOD-ReEchoCombat`、`MOD-ReEchoCards`、`MOD-ReEchoUI` 均受契约或事实影响；实现关闭前逐项更新并记录具体结果。
+- `ARCHITECTURE.md`：已记录角色能力配置、Run 永久状态与 Combat 即时修正的跨模块权威流。
+- `README.md`：已把 `Run/CharacterAbilities/` 加入 AREA-Run 阅读路由；Runtime Module 拓扑不变。
+- `MOD-ReEcho.md`：已记录 XLSX→CSV→Definition→Runtime 链、三种 Run 生命周期能力和勇者 Player 适配。
+- `MOD-ReEchoCombat.md`：已记录通用 `SetAdditiveAttackModifier`，明确 Combat 不认识 CharacterId/阈值。
+- `MOD-ReEchoCards.md`：已删除 Forge 特殊消费者事实，角色能力不进入 Cards。
+- `MOD-ReEchoUI.md`：已记录 Forge 标题/候选/提交分支删除和旧阶段迁移边界。

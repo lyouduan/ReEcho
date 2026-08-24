@@ -61,6 +61,8 @@ MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCom
 |---|---|---|
 | 本局阶段、构筑、背包、Echo 存储与保存 | `UReEchoRunSubsystem` | 发送窄命令、读取摘要，不直接改字段 |
 | 当前生命、属性、格挡、元素状态 | `MOD-ReEchoCombat` 的 Combatant/GAS/ElementRuntime | UI/表现读取 Snapshot 或订阅 CombatEvents |
+| 角色能力配置与跨遭遇永久进度 | `MOD-ReEcho/AREA-Data` 的 `CharacterAbilities` 快照与 `AREA-Run/CharacterAbilities` | Run 在类型化生命周期触发；不解释角色描述文本 |
+| 当前缺血角色能力的临时攻击修正 | `MOD-ReEchoCombat` 的 Combatant/GAS | Player Host 将最终 HealthChanged 适配为按来源替换的通用攻击修正；Combat 不认识角色 ID |
 | 自动/手动 held、目标与攻击请求 | `MOD-ReEchoCombat` 的 AttackController/Targeting | Pawn、菜单和 Run 只发送受控命令 |
 | 武器定义、攻击步骤、唯一节拍与逻辑载体 | `MOD-ReEchoWeapons` | Player/Echo 发请求；Weapons 只产生 Commit/HitIntent |
 | 怪物类型、行为阶段、攻击冷却、爆破引信、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 EnemyLogic | EnemyHost 显式提供 Sense、应用移动并把攻击候选交给 Combat；表现只读事件/快照 |
@@ -82,6 +84,7 @@ Design/Data/ReEchoData.xlsx + ReEchoEnemyData.xlsx + ReEchoEncounterData.xlsx + 
 ```
 
 - XLSX 是已迁移领域的策划编辑源；CSV 是可 diff、可打包的运行时源。
+- 角色基础行与角色能力子表分离：`tblCharacters → characters.csv`，`tblCharacterAbilities → character_abilities.csv`；能力逻辑只允许注册行为，旧 Forge 不属于生产契约。
 - Unreal 运行时不读取 XLSX，也不执行表格自由文本。
 - Behavior、Formula、Effect 与 AttackPattern 通过稳定 ID 映射到注册实现。
 - 已迁移领域的旧 JSON 仅用于迁移，不能成为第二事实来源。

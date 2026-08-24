@@ -17,7 +17,8 @@ enum class EReEchoRunPhase : uint8
 	Planning,
 	Encounter,
 	CardChoice,
-	ForgeChoice,
+	/** Serialized compatibility only. Runtime restores this legacy value as CardChoice. */
+	LegacyForgeChoice,
 	Shop,
 	Summary,
 	Failed

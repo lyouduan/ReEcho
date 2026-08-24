@@ -1317,7 +1317,7 @@ void AReEchoGameMode::BeginSelectedRun()
 		Player->ConfigureCharacter(RunSubsystem->CurrentBuild.CharacterId);
 	}
 	RestoreGameInput();
-	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice || RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice)
+	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
 	{
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
 	}
@@ -2512,11 +2512,6 @@ void AReEchoGameMode::TogglePauseMenu()
 		HandleStatsClosed();
 		return;
 	}
-	if (InventoryShopWidget)
-	{
-		HandleInventoryShopClosed();
-		return;
-	}
 	if (bRestartScreenIsTerminal)
 	{
 		return;
@@ -2533,6 +2528,17 @@ void AReEchoGameMode::TogglePauseMenu()
 		}
 		return;
 	}
+	if (InventoryShopWidget)
+	{
+		bPauseOpenedOverInventoryShop = true;
+		ShowRestartScreen(false);
+		if (!RestartWidget)
+		{
+			bPauseOpenedOverInventoryShop = false;
+		}
+		return;
+	}
+	bPauseOpenedOverInventoryShop = false;
 	ShowRestartScreen(false);
 }
 
@@ -2723,6 +2729,7 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 		    "ReEcho", "ResolveEchoBeforeClosing", "Store this echo or explicitly skip it before continuing."));
 		return;
 	}
+	bPauseOpenedOverInventoryShop = false;
 	PostUiEvent(FReEchoAudioEvents::UiCancel);
 	if (bPostTraitIntermission)
 	{
@@ -3055,6 +3062,8 @@ void AReEchoGameMode::HandleEchoSkipAndCloseRequested()
 
 void AReEchoGameMode::HandleResumeRequested()
 {
+	const bool bReturnToInventoryShop = bPauseOpenedOverInventoryShop && InventoryShopWidget;
+	bPauseOpenedOverInventoryShop = false;
 	bQuitConfirmationVisible = false;
 	bExitToMainMenuAfterConfirmation = false;
 	if (RestartWidget)
@@ -3067,6 +3076,21 @@ void AReEchoGameMode::HandleResumeRequested()
 		RestartWidget = nullptr;
 	}
 	bRestartScreenIsTerminal = false;
+	if (bReturnToInventoryShop)
+	{
+		UGameplayStatics::SetGamePaused(this, true);
+		SetPlayerMenuAbilityBlocked(true);
+		InventoryShopWidget->SetKeyboardFocus();
+		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, false);
+			}
+		}
+		return;
+	}
 	RestoreGameInput();
 	if (TraitCardChoiceWidget)
 	{
@@ -3317,9 +3341,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 		return;
 	}
 
-	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice
-	                                                 ? RunSubsystem->GenerateForgeOffers()
-	                                                 : RunSubsystem->GenerateTraitCardOffers(3);
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
 	if (Offers.Num() != 3)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Expected three trait card offers, received %d"), Offers.Num());
@@ -3338,8 +3360,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	SetMusicState(FReEchoAudioEvents::MusicShop);
 	StopAmbienceState();
 
-	TraitCardChoiceWidget->InitializeOffers(
-	    Offers, RunSubsystem->TimeShards, RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice);
+	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	SetPlayerMenuAbilityBlocked(true);
 }
@@ -3351,8 +3372,7 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	{
 		return;
 	}
-	const bool bForgeChoice = RunSubsystem->Phase == EReEchoRunPhase::ForgeChoice;
-	const bool bApplied = bForgeChoice ? RunSubsystem->ApplyForgeChoice(CardId) : RunSubsystem->ApplyTraitCard(CardId);
+	const bool bApplied = RunSubsystem->ApplyTraitCard(CardId);
 	if (!bApplied)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);

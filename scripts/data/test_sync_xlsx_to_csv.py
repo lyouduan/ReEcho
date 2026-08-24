@@ -144,6 +144,7 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         for owner in all_owners:
             by_sheet.setdefault(owner.sheet, []).append(owner.output_csv)
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblCharacters").title]), ["character_aliases.csv", "characters.csv"])
+        self.assertEqual(by_sheet[self.sheet_with_table(main_wb, "tblCharacterAbilities").title], ["character_abilities.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblCards").title]), ["card_effects.csv", "cards.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblWeapons").title]), ["attack_steps.csv", "weapon_types.csv", "weapons.csv"])
         self.assertEqual(sorted(by_sheet[self.sheet_with_table(main_wb, "tblParts").title]), ["part_effects.csv", "parts.csv", "slot_profiles.csv", "slot_types.csv"])
@@ -267,8 +268,8 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         generated = self.generated_bytes()
         old = self.valid_old_bytes(
             {
-                "weapon_types.csv": (b"Pattern.DaggerCombo", b"Pattern.DaggerDashOnly"),
-                "weapons.csv": (b"Moon Staff", b"Moon Staff Old"),
+                "weapon_types.csv": (b"Pattern.LongSwordCombo", b"Pattern.LongSwordDashOnly"),
+                "weapons.csv": (b"Pattern.StaffProjectile", b"Pattern.StaffProjectile.Old"),
                 "attack_steps.csv": (b"0.5,0.60,0.60", b"0.55,0.60,0.60"),
             }
         )
@@ -294,13 +295,13 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         self.assert_invalid_workbook(lambda wb: setattr(self.table_cell(wb, "tblCharacters", -1, "HpMax"), "value", "HpMaxBroken"), "Columns do not match")
         self.assert_invalid_workbook(lambda wb: setattr(self.table_cell(wb, "tblCharacters", 0, "HpMax"), "value", "not-a-number"), "finite number")
         self.assert_invalid_workbook(lambda wb: setattr(self.table_cell(wb, "tblCharacters", 0, "DefaultWeaponId"), "value", "W_UNKNOWN"), "DefaultWeaponId")
-        self.assert_invalid_workbook(lambda wb: setattr(self.table_cell(wb, "tblCharacters", 0, "PassiveBehaviorId"), "value", "Unknown.Handler"), "behavior id")
+        self.assert_invalid_workbook(lambda wb: setattr(self.table_cell(wb, "tblCharacterAbilities", 0, "BehaviorId"), "value", "Unknown.Handler"), "behavior id")
         self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblRuntimeSmoke")["D4"], "value", "=1+1"), "Formula cells are not allowed")
         self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblExportMap")["D2"], "value", "../characters.csv"), "plain manifest filename")
         self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblCharacters", 0, "RoleId", True), "must be unlocked for authoring")
         self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblRuntimeSmoke", 0, "Id", False), "must remain locked")
         self.assert_invalid_workbook(
-            lambda wb: self.remove_validations_for_cell(wb, "tblCharacters", 0, "PassiveBehaviorId"),
+            lambda wb: self.remove_validations_for_cell(wb, "tblCharacterAbilities", 0, "BehaviorId"),
             "must use an in-cell list validation",
         )
 

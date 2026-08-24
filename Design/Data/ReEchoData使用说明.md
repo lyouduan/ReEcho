@@ -37,6 +37,7 @@ python scripts\data\sync_xlsx_to_csv.py --check
 | Sheet | 可编辑生产 Table | 生成文件 |
 |---|---|---|
 | `角色体系J` | `tblCharacters`、`tblCharacterAliases` | `characters.csv`、`character_aliases.csv` |
+| `角色能力A` | `tblCharacterAbilities` | `character_abilities.csv` |
 | `构筑体系G` | `tblCards`、`tblCardEffects` | `cards.csv`、`card_effects.csv` |
 | `元素体系Y` | `tblElements`、`tblReactions` | `elements.csv`、`reactions.csv` |
 | `状态Z` | `tblStatuses` | `statuses.csv` |
@@ -85,6 +86,8 @@ python scripts\data\sync_xlsx_to_csv.py --check
 - 顺序：`Order`、`StepIndex`、`LoadoutOrder` 等字段决定运行时顺序，不要依赖 Excel 当前显示排序。
 - 数值操作：只使用允许的 `Add`、`Multiply`、`Override`。
 - 逻辑字段：`BehaviorId`、`EffectKind`、`FormulaId`、`AttackPatternId` 等只能选择项目已经注册的值。表格不能新增任意脚本、表达式或新逻辑。
+
+角色基础属性只在 `角色体系J` 修改；角色能力在 `角色能力A` 逐行配置。一个角色可以有多行能力效果，但每行必须明确生命周期 `Trigger`、类型化 `Target`、数值 `Value`、触发间隔 `Interval` 和已注册 `BehaviorId`。当前勇者能力按“当前缺失生命比例”实时计算：`Interval=0.1` 表示每缺失 10% 最大生命增加一层，治疗跨回阈值会减少层数，满血为零；它不累计历史受伤量。旧 Forge、诗人随机元素弹和勇者每第二击加成不是当前可配置能力。
 
 有限枚举、布尔、外键和已注册逻辑字段带有单元格下拉。表头上的箭头只是筛选，不代表该列是单选；点击数据单元格后出现的下拉才是字段选项。Excel/WPS 仍可能允许键盘输入，但不在列表中的值会以“停止”错误立即拒绝。若确实需要新增逻辑 ID，应先由程序完成注册并更新表格契约，不能绕过数据验证硬填。
 

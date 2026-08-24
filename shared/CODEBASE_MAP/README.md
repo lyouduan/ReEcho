@@ -45,7 +45,7 @@
 | `AREA-Weapons` | 武器定义、步骤与逻辑载体 | `Source/ReEchoWeapons/`；主模块 `Weapons/` 负责数据/表现适配 | [Weapons](modules/MOD-ReEchoWeapons.md#代码位置与阅读路线) |
 | `AREA-Enemies` | 怪物行为逻辑、Roster 与主模块接线 | `Source/ReEchoEnemies/`；主模块 EnemyHost 位于 `Graybox/`、只读表现位于 `Presentation/Enemy/` | [Enemies](modules/MOD-ReEchoEnemies.md#代码位置与阅读路线) |
 | `AREA-Encounter` | 遭遇固定步时钟、波次调度与确定性出生解析 | `Source/ReEcho/{Public,Private}/Encounter/` | [Encounter](modules/MOD-ReEcho.md#area-encounterencounter遭遇时钟) |
-| `AREA-Run` | 本局构筑、阶段与存档 | `Source/ReEcho/{Public,Private}/Run/` | [Run](modules/MOD-ReEcho.md#area-runrun本局状态与存档) |
+| `AREA-Run` | 本局构筑、阶段、角色能力与存档 | `Source/ReEcho/{Public,Private}/Run/`；角色能力入口在 `Run/CharacterAbilities/` | [Run](modules/MOD-ReEcho.md#area-runrun本局状态与存档) |
 | `AREA-Recording` | 玩家历史录制与 Echo 回放 | `Source/ReEcho/{Public,Private}/Recording/` | [Recording](modules/MOD-ReEcho.md#area-recordingrecording录制与回放) |
 | `AREA-Player` | 输入、移动、相机与玩家装配 | `Source/ReEcho/{Public,Private}/Player/` | [Player](modules/MOD-ReEcho.md#area-playerplayer玩家宿主) |
 | `AREA-Presentation` | 通用 2D 表现、世界适配与战斗 VFX | `Source/ReEchoPresentation/`；主模块 Host/VFX 适配位于 `Source/ReEcho/{Public,Private}/{Graybox,Presentation}/` | [Presentation](modules/MOD-ReEchoPresentation.md)；[战斗 VFX](modules/MOD-ReEchoVFX.md) |
