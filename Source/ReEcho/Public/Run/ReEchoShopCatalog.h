@@ -17,6 +17,36 @@ enum class EReEchoShopOfferKind : uint8
 	Weapon
 };
 
+/** One authoritative result vocabulary for every shop purchase attempt. */
+enum class EReEchoShopPurchaseResult : uint8
+{
+	Succeeded,
+	OfferNotFound,
+	AlreadyOwned,
+	PurchaseDisabled,
+	InsufficientCurrency,
+	DataUnavailable,
+	GrantRejected,
+	MutationRejected,
+	WeaponSelectionRejected,
+	ReplayUnlockRejected
+};
+
+/** Structured result returned by the unified purchase transaction interface. */
+struct REECHO_API FReEchoShopPurchaseOutcome
+{
+	FString TransactionId;
+	FName ItemId;
+	EReEchoShopPurchaseResult Result = EReEchoShopPurchaseResult::OfferNotFound;
+	FString Detail;
+	int32 EffectivePrice = 0;
+
+	bool IsSuccess() const
+	{
+		return Result == EReEchoShopPurchaseResult::Succeeded;
+	}
+};
+
 inline constexpr int32 ReEchoShopRefreshPrice = 10;
 inline constexpr int32 ReEchoShopOfferCountPerGroup = 3;
 

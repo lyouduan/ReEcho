@@ -18,8 +18,14 @@ bool FReEchoShopPurchaseTest::RunTest(const FString& Parameters)
 	RunSubsystem->TimeShards = 50;
 	const float InitialPhysicalAttack = RunSubsystem->CurrentBuild.Stats.PhysicalAttack;
 
-	TestTrue(TEXT("Known affordable item can be purchased"),
-	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
+	const FReEchoShopPurchaseOutcome SuccessfulPurchase =
+	    RunSubsystem->PurchaseShopItemDetailed(TEXT("SHOP_RUSTED_SCISSORS"));
+	TestTrue(TEXT("Known affordable item can be purchased"), SuccessfulPurchase.IsSuccess());
+	TestEqual(TEXT("Successful purchase has a structured result"),
+	          SuccessfulPurchase.Result,
+	          EReEchoShopPurchaseResult::Succeeded);
+	TestFalse(TEXT("Successful purchase has a transaction id"), SuccessfulPurchase.TransactionId.IsEmpty());
+	TestEqual(TEXT("Structured result reports the effective price"), SuccessfulPurchase.EffectivePrice, 15);
 	TestEqual(TEXT("Purchase deducts its exact price"), RunSubsystem->TimeShards, 35);
 	TestTrue(TEXT("Purchased item enters inventory"),
 	         RunSubsystem->InventoryItems.Contains(TEXT("SHOP_RUSTED_SCISSORS")));
@@ -27,10 +33,29 @@ bool FReEchoShopPurchaseTest::RunTest(const FString& Parameters)
 	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
 	          InitialPhysicalAttack + 2.0f);
 
-	TestFalse(TEXT("Owned item cannot be purchased twice"),
-	          RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
+	const FReEchoShopPurchaseOutcome DuplicatePurchase =
+	    RunSubsystem->PurchaseShopItemDetailed(TEXT("SHOP_RUSTED_SCISSORS"));
+	TestFalse(TEXT("Owned item cannot be purchased twice"), DuplicatePurchase.IsSuccess());
+	TestEqual(TEXT("Duplicate purchase reports ownership"),
+	          DuplicatePurchase.Result,
+	          EReEchoShopPurchaseResult::AlreadyOwned);
+	TestNotEqual(TEXT("Every attempt receives a distinct transaction id"),
+	             DuplicatePurchase.TransactionId,
+	             SuccessfulPurchase.TransactionId);
 	TestEqual(TEXT("Rejected duplicate does not deduct currency"), RunSubsystem->TimeShards, 35);
-	TestFalse(TEXT("Unknown item is rejected"), RunSubsystem->PurchaseShopItem(TEXT("SHOP_UNKNOWN")));
+	const FReEchoShopPurchaseOutcome UnknownPurchase = RunSubsystem->PurchaseShopItemDetailed(TEXT("SHOP_UNKNOWN"));
+	TestEqual(TEXT("Unknown item reports the missing offer"),
+	          UnknownPurchase.Result,
+	          EReEchoShopPurchaseResult::OfferNotFound);
+
+	UReEchoRunSubsystem* PoorRunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+	PoorRunSubsystem->TimeShards = 0;
+	const FReEchoShopPurchaseOutcome UnaffordablePurchase =
+	    PoorRunSubsystem->PurchaseShopItemDetailed(TEXT("SHOP_RUSTED_SCISSORS"));
+	TestEqual(TEXT("Unaffordable item reports insufficient currency"),
+	          UnaffordablePurchase.Result,
+	          EReEchoShopPurchaseResult::InsufficientCurrency);
+	TestEqual(TEXT("Rejected purchase leaves currency unchanged"), PoorRunSubsystem->TimeShards, 0);
 	return true;
 }
 
@@ -486,6 +511,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	const FReEchoShopOffer PurchasedCard = *PurchasedCardCandidate;
 	const int32 OwnedBefore = RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num();
 	const int32 ShardsBefore = RunSubsystem->TimeShards;
+	const int32 EffectivePriceBeforePurchase = RunSubsystem->GetDiscountedShopPrice(PurchasedCard.Price);
 	TestTrue(TEXT("Current card offer can be purchased"), RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
 	TestEqual(TEXT("Card purchase grants one owned-card slot"),
 	          RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num(),
@@ -494,7 +520,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedCard.ContentId));
 	TestEqual(TEXT("Card purchase deducts the effective tier price"),
 	          RunSubsystem->TimeShards,
-	          ShardsBefore - RunSubsystem->GetDiscountedShopPrice(PurchasedCard.Price));
+	          ShardsBefore - EffectivePriceBeforePurchase);
 	const FReEchoWeaponPartShopView PurchasedPage = RunSubsystem->GetWeaponPartShopView();
 	TestTrue(TEXT("Purchased card is projected into the right-side owned slots"),
 	         PurchasedPage.OwnedCards.ContainsByPredicate(

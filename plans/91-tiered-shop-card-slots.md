@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（程序实现与自动化已完成，等待 PIE 人工验收）。
+- 任务状态：`Review`（统一购买事务审计与 Shipping 写盘已完成，等待既有 PIE 人工验收）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main` @ `f8e8a40bf8ce7974d24b7b296c51bdc4cb35344b`。
 - 最终集成基线：`origin/main` @ `8c805aeccff45e7a7ffb5a2982382cb4e36a4a5e`（包含 Plan89 VFX 前置修复；已组合完整重建）。
@@ -56,6 +56,8 @@
 - 武器背包列出本轮已获得的全部有效武器并标记当前装备；选择其他已拥有武器时不扣碎片、不重摇商店，只原子切换当前武器并立即刷新武器图、符文槽和装备说明。
 - 初始武器与商店购买武器都进入拥有集合并随本轮存档恢复。切换武器复用 `ReEchoWeaponRuntime::TrySelectWeapon`：兼容符文保留，不兼容符文保持拥有但卸下回背包。
 - 武器/符文三个商品槽与卡牌槽一致，在同一 `EncounterIndex + ShopRefreshSequence` 下保持 ID 和价格稳定；购买前一个商品不能让后端重算并拒绝仍显示的后续商品。
+- 所有商店购买尝试统一进入一个结构化事务接口；每次尝试都有唯一交易 ID、明确成功/失败码，并按 `BEFORE → RESULT → AFTER` 输出购买前后货币、当前武器、已装备符文、已生效卡牌、武器背包、符文背包与普通背包。
+- 上述购买审计通过商店事务自己的单一持久化出口写入 `Saved/Logs/ShopPurchaseAudit.log`，不依赖 Shipping 中会被裁剪的 `UE_LOG`；Development 同时镜像到普通 UE 日志。日志只供 QA 定位，不作为面向玩家的 UI 反馈。
 
 ## 架构影响与设计决策
 
@@ -84,6 +86,9 @@
 - [x] 选择已拥有的其他武器不扣费、不刷新报价，切换成功后武器图/名称/符文槽同步更新；兼容符文保留，不兼容符文回背包。
 - [x] 未拥有、未知或禁用武器切换被拒绝且 `CurrentBuild` 不变；武器拥有集合存读档与旧存档迁移有自动化证据。
 - [x] 同一页三个武器/符文商品可按任意顺序依次购买，购买后其余槽的 ID/价格不变，存读档继续保持当前页面。
+- [x] 成功、重复购买、未知商品、余额不足等购买结果均由统一结构化接口返回，旧 bool 入口仅作为兼容外观。
+- [x] 每次购买尝试的同一交易 ID 都能关联 `BEFORE / RESULT / AFTER` 三条结构化日志，前后快照覆盖武器、符文、卡牌、三类背包与碎片。
+- [x] Windows Shipping Game Target 构建通过，且购买审计写盘路径不受 `NO_LOGGING` / `UE_LOG` 裁剪影响。
 - [x] C++ 格式化、聚焦自动化、Editor 构建、项目校验和 `git diff --check` 通过。
 - [ ] 用户在 PIE 确认第4关三个槽的等级/空槽表现以及第1关全空表现。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
@@ -105,6 +110,7 @@
 5. 更新逐关矩阵、资格耗尽、刷新、购买和存档自动化，并同步模块文档。
 6. 将初始/购买武器纳入可持久化拥有集合，为 Run 增加窄的已拥有武器切换事务，并让购买武器也复用同一 WeaponRuntime 切换规则。
 7. 在只读商店视图中投影当前武器图和已拥有武器详情；在 Designer 武器区域叠加可点击武器图，复用符文背包形态构造武器背包并通过独立装备委托刷新整个商店投影。
+8. 将所有商品购买收口为结构化事务结果和统一审计器；保留 bool 兼容入口，GameMode 直接消费详细结果，并用独立持久化日志出口覆盖 Shipping。
 
 ## 验证矩阵
 
@@ -138,6 +144,9 @@
 - 修复 Designer Blueprint 与 C++ 同名 `DesignerWeaponPanel` 属性导致的编译冲突；C++ 内部成员改名但保留蓝图控件名。加固既有随机商店测试，使货币断言避开 `G_2_15` 的购买即清零效果并按实际折后价验证。
 - 用户 PIE 复现同页第三个枪符文无法购买：界面保留旧报价，但 Run 每次购买都按已缩小资格池重算武器/符文页，导致显示 ID 与购买校验分叉。现将三个武器/符文 ContentId 与价格按关卡/刷新序号稳定缓存，单页不重复，SaveVersion 提升至14持久化页面；购买仅改变已购/装备状态。
 - 大武器图由默认 32px Brush 改为源纹理尺寸，透明按钮 Content Slot 强制填充 authored 武器面板，再由 ScaleBox 等比缩放。
+- 所有商店商品购买收口为 `PurchaseShopItemDetailed` 结构化事务，返回唯一交易 ID、成功/失败枚举、说明和实际价格；原 `PurchaseShopItem` 只调用该接口并返回 bool。GameMode 的购买按钮直接消费详细结果，不再在事务外重复执行符文购买即装备。
+- 统一审计器在每次尝试输出同一交易 ID 的 `BEFORE / RESULT / AFTER`：包含碎片、当前武器、按槽位列出的已装备符文、带叠层数的已生效卡牌、全部武器背包、未装备符文背包和普通 Inventory。每行同时追加到 UTF-8 `Saved/Logs/ShopPurchaseAudit.log`；Development 再镜像到 `LogReEcho`，Shipping 即使 `USE_LOGGING_IN_SHIPPING=0` 仍执行独立写盘。
+- 初次尝试打开 Shipping 全局 UE 日志时，安装版引擎分别因共享构建环境和日志类别 ABI 不一致拒绝构建；最终移除 Target 全局覆盖，改用上述窄审计出口。顺带修复随机商店测试在购买“繁荣契约”后才重算购买前折扣的错误断言，现于购买前锁定实际价格。
 
 ### 证据
 
@@ -147,6 +156,9 @@
 - 最终 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 通过，97/97 actions 成功；精选 Editor 预构建源指纹 `602db01c81bd`。
 - `python scripts/data/sync_xlsx_to_csv.py --check`、`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 - 变基到 `origin/main@8c805aec` 后重新执行 XLSX/CSV 同步检查、项目静态校验、精选 Editor 预构建校验与 `git diff --check`；全部通过。变基前恢复点为 `backup/plan91-before-plan92-rebase-20260824`。
+- 统一购买候选 `ReEcho.Shop` 10/10 通过；专用审计文件实际生成，抽样失败交易可用同一 tx 精确关联三阶段，且前后状态保持不变。
+- `ReEcho Win64 Shipping` Game Target 构建成功；Shipping 共享定义确认 `USE_LOGGING_IN_SHIPPING=0`，成品 `ReEcho-Win64-Shipping.exe` 仍包含 `ShopPurchaseAudit.log` 持久化出口字面量，证明写盘不依赖 `UE_LOG`。
+- 最终 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 96/96 actions 通过；精选 Editor 预构建源指纹 `0595d5ad4301`。`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 

@@ -2791,22 +2791,10 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	}
 
 	const FName PreviousWeaponId = RunSubsystem->CurrentBuild.WeaponId;
-	// 新购：走完整购买流程（防重复/扣钱/入背包），购买即装备。
-	if (RunSubsystem->PurchaseShopItem(ItemId))
+	// 新购统一走结构化事务；成功、拒绝、购买前后状态都由同一接口审计。
+	const FReEchoShopPurchaseOutcome PurchaseOutcome = RunSubsystem->PurchaseShopItemDetailed(ItemId);
+	if (PurchaseOutcome.IsSuccess())
 	{
-		// 购买即装备：武器配件报价的 ItemId 与 PartId 同名，购买后立即装入对应槽位。
-		if (RunSubsystem->OwnedPartIds.Contains(ItemId))
-		{
-			FString EquipError;
-			if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
-			{
-				UE_LOG(LogTemp,
-				       Warning,
-				       TEXT("[ReEchoShop] Purchased part '%s' could not be equipped: %s"),
-				       *ItemId.ToString(),
-				       *EquipError);
-			}
-		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
 		if (RunSubsystem->CurrentBuild.WeaponId != PreviousWeaponId)
@@ -2824,6 +2812,13 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	}
 	else
 	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Purchase request rejected tx=%s item=%s code=%d detail=%s"),
+		       *PurchaseOutcome.TransactionId,
+		       *ItemId.ToString(),
+		       static_cast<int32>(PurchaseOutcome.Result),
+		       *PurchaseOutcome.Detail);
 		PostUiEvent(FReEchoAudioEvents::UiError);
 	}
 }

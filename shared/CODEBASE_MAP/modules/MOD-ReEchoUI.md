@@ -80,4 +80,5 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
 - Plan91 卡牌商店投影固定为1/2/3级三个位置；Widget 只消费 Run 提供的槽位 Tier/状态，空槽显示“未投放”或“售罄”、隐藏卡图和价格并禁用购买，不自行跨级选择或补卡。
 - Plan91 武器背包扩展：Widget 不持有武器所有权，也不把换装伪装成购买；`OnWeaponEquipRequested` 交给 GameMode 调用 Run 事务。成功后整页重取只读投影，使当前武器图、武器名和兼容符文槽同时更新，但 `EncounterIndex + ShopRefreshSequence` 不变，因此报价不重摇。
+- 商店购买按钮由 GameMode 调用 Run 的 `PurchaseShopItemDetailed` 并消费结构化成功/失败结果；Widget 仍只发送稳定 ItemId，不自行判定扣费、所有权或失败原因，旧 bool 入口不再是 UI 命令端点。
 - 人工检查：按 UI 修改指导执行页面导航、焦点、DPI、可读性和交互验收。
