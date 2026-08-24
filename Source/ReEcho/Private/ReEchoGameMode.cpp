@@ -2264,6 +2264,16 @@ AReEchoTimeShardPickupActor* AReEchoGameMode::SpawnTimeShardPickup(const FVector
 	return Pickup;
 }
 
+bool AReEchoGameMode::TryGetActiveArenaGameplayPlaneZ(float& OutGameplayPlaneZ) const
+{
+	if (!IsValid(ArenaScene))
+	{
+		return false;
+	}
+	OutGameplayPlaneZ = ArenaScene->GetGameplayPlaneWorldZ();
+	return true;
+}
+
 void AReEchoGameMode::HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event)
 {
 	const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Event.Target);

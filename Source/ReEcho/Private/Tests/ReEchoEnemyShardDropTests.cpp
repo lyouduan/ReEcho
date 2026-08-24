@@ -4,6 +4,7 @@
 
 #include "Cards/ReEchoCardTypes.h"
 #include "Components/MaterialBillboardComponent.h"
+#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
@@ -78,12 +79,35 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 	}
 	const UStaticMeshComponent* PickupShadow = PickupDefaults ? PickupDefaults->GetGroundShadowComponent() : nullptr;
 	TestNotNull(TEXT("Pickup Blueprint exposes a ground shadow component"), PickupShadow);
+	const USphereComponent* AttractionRange =
+	    PickupDefaults ? PickupDefaults->GetAttractionRangeComponent() : nullptr;
+	TestNotNull(TEXT("Pickup Blueprint exposes its attraction range sphere"), AttractionRange);
+	TestTrue(TEXT("Pickup Blueprint has a practical attraction radius"),
+	         AttractionRange && AttractionRange->GetUnscaledSphereRadius() >= 200.0f);
 	TestTrue(TEXT("Pickup Blueprint keeps a positive editor-authored visual height"),
 	         PickupDefaults && PickupDefaults->GetVisualWorldHeightCm() > 0.0f);
 	TestTrue(TEXT("Pickup Blueprint keeps an editable landing animation"),
 	         PickupDefaults && PickupDefaults->GetLandingBounceDurationSeconds() > 0.0f);
 	TestTrue(TEXT("Pickup Blueprint keeps an editable collection animation"),
 	         PickupDefaults && PickupDefaults->GetCollectionRiseDurationSeconds() > 0.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTimeShardAttractionPolicyTest,
+	                             "ReEcho.Run.EnemyShardDrops.AttractionPolicy",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTimeShardAttractionPolicyTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Minimum speed protects attraction while the player is stationary"),
+	          AReEchoTimeShardPickupActor::ResolveAttractionSpeed(0.0f, 900.0f, 300.0f),
+	          900.0f);
+	TestEqual(TEXT("Attraction remains faster than a boosted player"),
+	          AReEchoTimeShardPickupActor::ResolveAttractionSpeed(1200.0f, 900.0f, 300.0f),
+	          1500.0f);
+	TestEqual(TEXT("Negative policy inputs are normalized without reversing the shard"),
+	          AReEchoTimeShardPickupActor::ResolveAttractionSpeed(-100.0f, -200.0f, -300.0f),
+	          0.0f);
 	return true;
 }
 

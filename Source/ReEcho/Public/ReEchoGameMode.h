@@ -120,6 +120,8 @@ public:
 	AReEchoTimeShardPickupActor* SpawnTimeShardPickup(const FVector& Location,
 	                                                  int32 Amount,
 	                                                  float LifetimeSeconds = 20.0f);
+	/** Returns the gameplay plane owned by the currently active Arena Scene. */
+	bool TryGetActiveArenaGameplayPlaneZ(float& OutGameplayPlaneZ) const;
 
 #if WITH_DEV_AUTOMATION_TESTS
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;

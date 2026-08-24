@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@36ef1e415ca931e9914b2d0f8cb658e5ec332095`。
 - 本地实现方式：一任务一 worktree；发布本 Plan 后从最新 `origin/main` 创建 `ReEcho-plan95-time-shard-attraction`。
@@ -71,13 +71,13 @@
 ## 锁定验收
 
 - [ ] 第 1–8 关生成的时间碎片均贴到当前活动 Arena 地面，并能被玩家稳定摄取；第三关 Stage 切换后不再出现错误高度或无法拾取。
-- [ ] 修改 `BP_TimeShardPickup` 的 Sphere Radius 会直接改变摄取范围；代码不存在第二份生产范围参数。
-- [ ] 玩家进入范围后碎片吸向玩家，速度始终高于玩家当前平面速度；玩家继续移动不会令吸附取消或永久追不上。
-- [ ] 进入大范围不会立即加钱；碎片到达可调捕获半径时余额只增加一次，并继续播放现有上升淡出表现。
-- [ ] 敌人基础掉落与武器符文碎片入口行为一致，掉落数值、寿命策略和 Run 存档语义无回归。
-- [ ] 聚焦自动化、Development FullRebuild、项目校验、预构建检查与 `git diff --check` 通过。
+- [x] 修改 `BP_TimeShardPickup` 的 Sphere Radius 会直接改变摄取范围；代码不存在第二份生产范围参数。
+- [x] 玩家进入范围后碎片吸向玩家，速度始终高于玩家当前平面速度；玩家继续移动不会令吸附取消或永久追不上。
+- [x] 进入大范围不会立即加钱；碎片到达可调捕获半径时余额只增加一次，并继续播放现有上升淡出表现。
+- [x] 敌人基础掉落与武器符文碎片入口行为一致，掉落数值、寿命策略和 Run 存档语义无回归。
+- [x] 聚焦自动化、Development FullRebuild、项目校验、预构建检查与 `git diff --check` 通过。
 - [ ] 用户在 PIE 验收第三关以后、不同 Sphere Radius、静止/移动/高速移动下的摄取范围、追速和观感后，人工验收才可设为 `Passed`。
-- [ ] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -113,12 +113,21 @@
 ### 变化
 
 - 2026-08-24：用户报告时间碎片尤其在第三关及以后无法正常拾取，并锁定改为 BP Sphere 范围摄取、进入范围后吸向玩家、吸附速度必须快于主角。
+- 2026-08-24：Plan95 已发布到 `origin/main@76366797`，并从该提交创建独立实现 worktree；任务进入 `InProgress`。
+- 2026-08-24：Pickup 生命周期改为“等待范围触发 → 锁定玩家沿活动地面吸附 → 进入捕获半径后一次性入账 → 上升淡出”。Overlap 和 Tick 距离兜底只启动吸附，不再在摄取范围边缘直接加钱。
+- 2026-08-24：原生 Sphere 默认半径由 48 cm 调为 300 cm，生产 `BP_TimeShardPickup` 继承值经资产自动化读取为 300 cm；实际权威始终是 Blueprint 继承组件的 Sphere Radius，可在组件详情覆盖。
+- 2026-08-24：GameMode 新增活动 Arena GameplayPlane 窄只读接口；Pickup 去掉 `TActorIterator` 首项选择，第三关 Stage 切换不再可能贴到待销毁旧 Arena 的地面高度。
 
 ### 证据
 
 - 规划审计确认现有 `Tick` 在 Sphere 半径内直接 `TryCollect`，没有吸附阶段；Overlap 同样直接入账。
 - 规划审计确认 `SnapToArenaGroundPlane()` 使用 `TActorIterator<AReEchoArenaSceneActor>` 的第一个结果，而 Stage 切换在新 Arena 成为权威后才延迟销毁旧 Arena，存在第三关起选择错误地面高度的生命周期风险。
 - 当前 `BP_TimeShardPickup` 已继承原生 Sphere Collision，可直接在 Blueprint 组件详情编辑半径；现有 C++ 48 cm 仅作为原生回退默认，实施后不得再以独立距离常量覆盖 BP 半径。
+- 零实现基线 `ReEcho.Run.EnemyShardDrops` 2/2 通过；现有测试只覆盖数额、资产和 Run 幂等，不覆盖活动 Arena 与吸附生命周期。
+- 新增 `ReEcho.Run.EnemyShardDrops.AttractionPolicy`，锁定静止玩家时至少 900 cm/s、高速玩家时始终为当前平面速度 + 300 cm/s，并验证负配置不会令碎片反向。
+- 最终 `ReEcho.Run.EnemyShardDrops` 3/3、完整 `ReEcho.Run` 17/17、`ReEcho.StageTransition` 3/3、`ReEcho.Weapons.Runes.DynamicHitHandlers` 1/1 通过。
+- Development `-FullRebuild` 成功（96 actions）；精选预构建包 build id `55116800`、source `7f8ffc66856b`。`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 本机未提供 `clang-format` 可执行文件；修改文件已由编译器和人工 diff 审阅，未声称执行了格式化工具。
 
 ### 剩余风险
 
@@ -130,4 +139,7 @@
 
 ### 架构文档审阅结果
 
-- 待最终候选逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅、无需修改；Runtime Module 拓扑和依赖方向不变。
+- `shared/CODEBASE_MAP/README.md`：已审阅、无需修改；未新增稳定模块或 AREA 路由。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 BP Sphere 范围权威、活动 Arena 地面查询、吸附追速/捕获与一次性入账生命周期。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：已审阅、无需修改；Enemy 仍只发布死亡事实，不拥有 Pickup、吸附或货币。

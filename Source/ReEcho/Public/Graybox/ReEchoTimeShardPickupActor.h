@@ -8,6 +8,7 @@ class UPrimitiveComponent;
 class UMaterialBillboardComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
+class AReEchoPlayerPawn;
 class USceneComponent;
 class USphereComponent;
 class UStaticMeshComponent;
@@ -44,6 +45,11 @@ public:
 		return GroundShadow;
 	}
 
+	USphereComponent* GetAttractionRangeComponent() const
+	{
+		return Collision;
+	}
+
 	float GetVisualWorldHeightCm() const
 	{
 		return VisualWorldHeightCm;
@@ -59,10 +65,32 @@ public:
 		return CollectionRiseDurationSeconds;
 	}
 
+	float GetAttractionCaptureRadiusCm() const
+	{
+		return AttractionCaptureRadiusCm;
+	}
+
+	float GetAttractionMinimumSpeedCmPerSecond() const
+	{
+		return AttractionMinimumSpeedCmPerSecond;
+	}
+
+	float GetAttractionSpeedAdvantageCmPerSecond() const
+	{
+		return AttractionSpeedAdvantageCmPerSecond;
+	}
+
+	static float ResolveAttractionSpeed(float PlayerPlanarSpeedCmPerSecond,
+	                                    float MinimumSpeedCmPerSecond,
+	                                    float SpeedAdvantageCmPerSecond);
+
 private:
 	void ApplyEditablePresentationSettings();
+	void BeginAttraction(AActor* Candidate);
 	void BeginCollectionPresentation();
 	void CacheAuthoredPresentationTransform();
+	bool TryResolveActiveArenaGroundPlane(float& OutGameplayPlaneZ) const;
+	void UpdateAttraction(float DeltaSeconds);
 	void UpdateCollectionPresentation(float DeltaSeconds);
 	void UpdateLandingPresentation(float DeltaSeconds);
 	void SnapToArenaGroundPlane();
@@ -78,7 +106,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
-	          Category = "Time Shard|Collision",
+	          Category = "Time Shard|Attraction Range",
 	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> Collision;
 
@@ -182,9 +210,30 @@ private:
 	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", UIMin = "0.0", Units = "cm"))
 	float CollectionRiseHeightCm = 90.0f;
 
+	/** Once the range sphere acquires the player, this minimum planar speed keeps the shard responsive. */
 	UPROPERTY(EditDefaultsOnly,
 	          BlueprintReadOnly,
-	          Category = "Time Shard|Collision",
+	          Category = "Time Shard|Attraction",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "1.0", UIMin = "1.0", Units = "cm/s"))
+	float AttractionMinimumSpeedCmPerSecond = 900.0f;
+
+	/** Added to the player's current planar speed every frame so the shard always closes the gap. */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Time Shard|Attraction",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "1.0", UIMin = "1.0", Units = "cm/s"))
+	float AttractionSpeedAdvantageCmPerSecond = 300.0f;
+
+	/** Currency is granted only after the homing shard reaches this distance from the player. */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Time Shard|Attraction",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "1.0", UIMin = "1.0", Units = "cm"))
+	float AttractionCaptureRadiusCm = 32.0f;
+
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Time Shard|Attraction Range",
 	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", UIMin = "0.0", Units = "cm"))
 	float CollectionHeightToleranceCm = 100.0f;
 
@@ -192,10 +241,12 @@ private:
 	TObjectPtr<UMaterialInstanceDynamic> RuntimePickupMaterial;
 
 	int32 Amount = 1;
+	bool bAttracting = false;
 	bool bCollected = false;
 	bool bPresentationTransformCached = false;
 	float LandingAnimationElapsedSeconds = 0.0f;
 	float CollectionAnimationElapsedSeconds = 0.0f;
 	FVector AuthoredVisualRootLocation = FVector::ZeroVector;
 	FVector CollectionStartVisualRootLocation = FVector::ZeroVector;
+	TWeakObjectPtr<AReEchoPlayerPawn> AttractionTarget;
 };

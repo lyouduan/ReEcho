@@ -1,6 +1,7 @@
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 
 #include "ReEcho.h"
+#include "ReEchoGameMode.h"
 #include "Components/MaterialBillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SphereComponent.h"
@@ -8,18 +9,16 @@
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
-#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/ReEchoPlayerPawn.h"
-#include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace ReEchoTimeShardPickup
 {
-constexpr float CollisionRadiusCm = 48.0f;
+constexpr float DefaultAttractionRadiusCm = 300.0f;
 } // namespace ReEchoTimeShardPickup
 
 AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
@@ -28,7 +27,7 @@ AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
 
 	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
-	Collision->InitSphereRadius(ReEchoTimeShardPickup::CollisionRadiusCm);
+	Collision->InitSphereRadius(ReEchoTimeShardPickup::DefaultAttractionRadiusCm);
 	Collision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Collision->SetCollisionObjectType(ECC_WorldDynamic);
 	Collision->SetCollisionResponseToAllChannels(ECR_Ignore);
@@ -96,6 +95,15 @@ void AReEchoTimeShardPickupActor::BeginPlay()
 	ApplyEditablePresentationSettings();
 	CacheAuthoredPresentationTransform();
 	UpdateLandingPresentation(0.0f);
+}
+
+float AReEchoTimeShardPickupActor::ResolveAttractionSpeed(const float PlayerPlanarSpeedCmPerSecond,
+	                                                       const float MinimumSpeedCmPerSecond,
+	                                                       const float SpeedAdvantageCmPerSecond)
+{
+	return FMath::Max(FMath::Max(0.0f, MinimumSpeedCmPerSecond),
+	                  FMath::Max(0.0f, PlayerPlanarSpeedCmPerSecond) +
+	                      FMath::Max(0.0f, SpeedAdvantageCmPerSecond));
 }
 
 void AReEchoTimeShardPickupActor::ApplyEditablePresentationSettings()
@@ -173,6 +181,61 @@ void AReEchoTimeShardPickupActor::BeginCollectionPresentation()
 	}
 }
 
+void AReEchoTimeShardPickupActor::BeginAttraction(AActor* Candidate)
+{
+	AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(Candidate);
+	if (bCollected || bAttracting || !Player)
+	{
+		return;
+	}
+	bAttracting = true;
+	AttractionTarget = Player;
+	UE_LOG(LogReEcho,
+	       Verbose,
+	       TEXT("[TimeShardPickup] attraction started actor=%s player=%s range=%.1f"),
+	       *GetName(),
+	       *Player->GetName(),
+	       Collision ? Collision->GetScaledSphereRadius() : 0.0f);
+}
+
+bool AReEchoTimeShardPickupActor::TryResolveActiveArenaGroundPlane(float& OutGameplayPlaneZ) const
+{
+	const AReEchoGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+	return GameMode && GameMode->TryGetActiveArenaGameplayPlaneZ(OutGameplayPlaneZ);
+}
+
+void AReEchoTimeShardPickupActor::UpdateAttraction(const float DeltaSeconds)
+{
+	AReEchoPlayerPawn* Player = AttractionTarget.Get();
+	if (!Player)
+	{
+		Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+		AttractionTarget = Player;
+	}
+	if (!Player)
+	{
+		return;
+	}
+
+	FVector CurrentLocation = GetActorLocation();
+	FVector TargetLocation = Player->GetActorLocation();
+	float GameplayPlaneZ = CurrentLocation.Z;
+	TryResolveActiveArenaGroundPlane(GameplayPlaneZ);
+	CurrentLocation.Z = GameplayPlaneZ;
+	TargetLocation.Z = GameplayPlaneZ;
+
+	const float AttractionSpeed = ResolveAttractionSpeed(Player->GetVelocity().Size2D(),
+	                                                      AttractionMinimumSpeedCmPerSecond,
+	                                                      AttractionSpeedAdvantageCmPerSecond);
+	const FVector NewLocation =
+	    FMath::VInterpConstantTo(CurrentLocation, TargetLocation, DeltaSeconds, AttractionSpeed);
+	SetActorLocation(NewLocation, false, nullptr, ETeleportType::None);
+	if (FVector::DistSquared2D(NewLocation, TargetLocation) <= FMath::Square(AttractionCaptureRadiusCm))
+	{
+		TryCollect(Player);
+	}
+}
+
 void AReEchoTimeShardPickupActor::UpdateCollectionPresentation(const float DeltaSeconds)
 {
 	if (!VisualRoot)
@@ -199,16 +262,16 @@ void AReEchoTimeShardPickupActor::UpdateCollectionPresentation(const float Delta
 
 void AReEchoTimeShardPickupActor::SnapToArenaGroundPlane()
 {
-	if (!bSnapToArenaGroundPlane || !GetWorld())
+	if (!bSnapToArenaGroundPlane)
 	{
 		return;
 	}
-	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
+	float GameplayPlaneZ = 0.0f;
+	if (TryResolveActiveArenaGroundPlane(GameplayPlaneZ))
 	{
 		FVector GroundLocation = GetActorLocation();
-		GroundLocation.Z = It->GetGameplayPlaneWorldZ();
+		GroundLocation.Z = GameplayPlaneZ;
 		SetActorLocation(GroundLocation, false, nullptr, ETeleportType::TeleportPhysics);
-		return;
 	}
 }
 
@@ -222,6 +285,12 @@ void AReEchoTimeShardPickupActor::Tick(const float DeltaSeconds)
 	}
 	UpdateLandingPresentation(DeltaSeconds);
 
+	if (bAttracting)
+	{
+		UpdateAttraction(DeltaSeconds);
+		return;
+	}
+
 	AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (!Player)
 	{
@@ -233,14 +302,16 @@ void AReEchoTimeShardPickupActor::Tick(const float DeltaSeconds)
 	if (Offset.SizeSquared2D() <= FMath::Square(CollectionRadiusCm) &&
 	    FMath::Abs(Offset.Z) <= CollectionHeightToleranceCm)
 	{
-		TryCollect(Player);
+		BeginAttraction(Player);
 	}
 }
 
 void AReEchoTimeShardPickupActor::InitializePickup(const int32 InAmount, const float LifetimeSeconds)
 {
 	Amount = FMath::Max(1, InAmount);
+	bAttracting = false;
 	bCollected = false;
+	AttractionTarget.Reset();
 	SetLifeSpan(FMath::Max(0.0f, LifetimeSeconds));
 }
 
@@ -251,7 +322,7 @@ void AReEchoTimeShardPickupActor::HandleBeginOverlap(UPrimitiveComponent* Overla
                                                      const bool bFromSweep,
                                                      const FHitResult& SweepResult)
 {
-	TryCollect(OtherActor);
+	BeginAttraction(OtherActor);
 }
 
 void AReEchoTimeShardPickupActor::TryCollect(AActor* Collector)
