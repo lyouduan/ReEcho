@@ -3,6 +3,8 @@
 
 #include "Engine/GameInstance.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Data/ReEchoCsvDataRegistry.h"
+#include "Cards/ReEchoCardTypes.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopPurchaseTest,
                                  "ReEcho.Shop.PurchaseUpdatesInventory",
@@ -157,6 +159,21 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	          RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, ShardsAfterDuplicate);
 
+	// Plan85 Step 3 regression: an owned rune must not be re-offered after a manual shop refresh.
+	RunSubsystem->TimeShards = 1000;
+	for (int32 RefreshIndex = 0; RefreshIndex < 8; ++RefreshIndex)
+	{
+		TestTrue(TEXT("Shop refresh succeeds during Step 3 rune regression"),
+		         RunSubsystem->TryConsumeShopRefresh(1));
+		const FReEchoWeaponPartShopView RefreshedPage = RunSubsystem->GetWeaponPartShopView();
+		TestFalse(TEXT("Owned rune is excluded from offers after refresh"),
+		          RefreshedPage.Offers.ContainsByPredicate([](const FReEchoShopOffer& Offer)
+		          {
+			          return Offer.Type == EReEchoShopOfferType::WeaponPart
+				          && Offer.ContentId == TEXT("P_CORE_FLAME");
+		          }));
+	}
+
 	// The public equip operation remains available for owned/backpack selection and idempotent re-commit.
 	TestTrue(TEXT("Core and arrowhead equip as one loadout"),
 	         RunSubsystem->TryEquipParts(
@@ -238,8 +255,26 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          ReEchoShopOfferCountPerGroup);
 	TestEqual(TEXT("Refreshed page keeps the two configured card tiers"),
 	          RefreshedPage.Offers.FilterByPredicate([](const FReEchoShopOffer& Offer)
-	                                                { return Offer.Type == EReEchoShopOfferType::BuildCard; }).Num(),
+	                                            { return Offer.Type == EReEchoShopOfferType::BuildCard; }).Num(),
 	          2);
+
+	// Plan85 Step 3 regression: a purchased Unique card must not be re-offered after refresh.
+	TSharedPtr<const FReEchoCsvDataSnapshot> CardSnapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (CardSnapshot.IsValid() && CardSnapshot->CardCatalog.IsValid())
+	{
+		if (const FReEchoCardDefinition* CardDef = CardSnapshot->CardCatalog->Find(PurchasedCard.ContentId))
+		{
+			if (CardDef->StackPolicy == TEXT("Unique"))
+			{
+				TestFalse(TEXT("Purchased unique card is excluded from offers after refresh"),
+				          RefreshedPage.Offers.ContainsByPredicate([&](const FReEchoShopOffer& Offer)
+				          {
+					          return Offer.Type == EReEchoShopOfferType::BuildCard
+						          && Offer.ContentId == PurchasedCard.ContentId;
+				          }));
+			}
+		}
+	}
 	return true;
 }
 #endif

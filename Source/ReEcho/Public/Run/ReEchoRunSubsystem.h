@@ -61,6 +61,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FName> OwnedPartIds;
 
+	/** Weapons purchased/obtained during this run. Marks shop offers as owned and excludes from re-rolls. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TSet<FName> OwnedWeaponIds;
+
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 

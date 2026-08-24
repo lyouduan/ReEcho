@@ -97,6 +97,14 @@ public:
 	/** 注入当前玩家属性块，用于 DesignerShopClock 悬停属性面板。 */
 	void SetPlayerStats(const FReEchoStatBlock& Stats);
 
+	/** 更新时间碎片显示（购买后扣费，不重摇报价）。 */
+	void SetTimeShards(int32 NewShards);
+	/** 按 ItemId 标记某报价槽位为已购（置灰、显示“已购”），不触发重摇。 */
+	void MarkItemPurchased(FName ItemId);
+
+	/** 购买即装备后，仅重绘符文装备槽（不重摇、不重绘投放槽）。LatestEquippedParts 为数据层最新装备快照。 */
+	void RefreshWeaponLoadoutAfterPurchase(const TArray<FReEchoEquippedPartSnapshot>& LatestEquippedParts);
+
 	EReEchoInventoryShopMode GetMode() const
 	{
 		return Mode;
@@ -118,6 +126,7 @@ private:
 	void RebuildTargetOfferRows();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
+	void UpdateWeaponLoadoutText();
 	FName GetSlotTypeIdForIndex(int32 SlotIndex) const;
 	const FReEchoShopOffer* FindOwnedPartByContentId(FName ContentId) const;
 	void HandleAttachmentSlotClicked(int32 SlotIndex);
@@ -355,6 +364,9 @@ private:
 	FReEchoWeaponPartShopView CurrentPartShopView;
 	TArray<FReEchoShopOffer> VisibleRunItemOffers;
 	TArray<FReEchoShopOffer> VisibleWeaponPartOffers;
+
+	/** 本轮商店会话中已购买的报价 ItemId 集合；购买后标记槽位为“已购”，打开/刷新时清除。 */
+	TSet<FName> PurchasedItemIds;
 
 	// echo state mirrors
 	UPROPERTY(Transient)

@@ -76,6 +76,7 @@ struct REECHO_API FReEchoWeaponPartShopView
 	TArray<FReEchoShopOffer> Offers;                // backward-compat bridge: flatten of SlotOffers + CardSlotOffers (+ whole-weapon as Type==Weapon). TODO(Plan67 Step5): remove once WBP rearranged.
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
+	TArray<FName> OwnedWeapons;
 	TArray<FReEchoWeaponSlotShopView> Slots;
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 };

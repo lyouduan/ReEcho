@@ -180,6 +180,7 @@ void UReEchoInventoryShopWidget::ShowInventory(const int32 TimeShards, const TAr
 {
 	Mode = EReEchoInventoryShopMode::Inventory;
 	bShowingShop = false;
+	PurchasedItemIds.Reset();
 	bEchoStoragePopupOpen = false;
 	CurrentTimeShards = TimeShards;
 	CurrentOwnedItems = OwnedItems;
@@ -212,6 +213,7 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards,
 {
 	Mode = EReEchoInventoryShopMode::ManualShop;
 	bShowingShop = true;
+	PurchasedItemIds.Reset();
 	bEchoStoragePopupOpen = false;
 	CurrentTimeShards = TimeShards;
 	CurrentShopDiscount = FMath::Clamp(ShopDiscount, 0.0f, 1.0f);
@@ -951,11 +953,14 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 		                                           return Owned.ContentId == Offer.ContentId;
 	                                           });
 	const bool bPurchasedCard = !bWeaponPart && CurrentOwnedItems.Contains(Offer.ItemId);
+	const bool bOwnedWeapon = !bWeaponPart && Offer.Type == EReEchoShopOfferType::Weapon && CurrentPartShopView.OwnedWeapons.Contains(Offer.ContentId);
+	const bool bPurchasedSlot = PurchasedItemIds.Contains(Offer.ItemId);
+	const bool bShowPurchased = bOwnedPart || bPurchasedCard || bPurchasedSlot || bOwnedWeapon;
 	UOverlay* ButtonOverlay = WidgetTree->ConstructWidget<UOverlay>(
 	    UOverlay::StaticClass(), *FString::Printf(TEXT("TargetBuyOverlay%d_%d"), bWeaponPart, OfferIndex));
 	UImage* BuyArt = WidgetTree->ConstructWidget<UImage>(
 	    UImage::StaticClass(), *FString::Printf(TEXT("TargetBuyArt%d_%d"), bWeaponPart, OfferIndex));
-	BuyArt->SetBrushFromTexture((bOwnedPart || bPurchasedCard) ? WhiteTexture : ShopBuyTexture, true);
+	BuyArt->SetBrushFromTexture(bShowPurchased ? WhiteTexture : ShopBuyTexture, true);
 	if (bOwnedPart || bPurchasedCard)
 	{
 		BuyArt->SetColorAndOpacity(bPurchasedCard ? FLinearColor(0.55f, 0.55f, 0.55f, 1.0f)
@@ -963,15 +968,17 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	}
 	BuyArt->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ButtonOverlay->AddChildToOverlay(BuyArt);
-	if (bOwnedPart || bPurchasedCard)
+	if (bShowPurchased)
 	{
 		UTextBlock* BuyText = CreateText(WidgetTree,
 		                                 *FString::Printf(TEXT("TargetBuyText%d_%d"), bWeaponPart, OfferIndex),
 		                                 18,
 		                                 FLinearColor(0.03f, 0.03f, 0.03f));
-		BuyText->SetText(bOwnedPart ? (IsPartEquipped(Offer.ContentId) ? FText::FromString(TEXT("已装备"))
-		                                                               : FText::FromString(TEXT("已拥有")))
-		                            : FText::FromString(TEXT("已购买")));
+		BuyText->SetText(bOwnedWeapon ? FText::FromString(TEXT("已获得"))
+		                            : (bPurchasedSlot ? FText::FromString(TEXT("已购"))
+		                                : (bOwnedPart ? (IsPartEquipped(Offer.ContentId) ? FText::FromString(TEXT("已装备"))
+		                                                                       : FText::FromString(TEXT("已获得")))
+		                                    : FText::FromString(TEXT("已获得")))));
 		BuyText->SetJustification(ETextJustify::Center);
 		UOverlaySlot* TextSlot = ButtonOverlay->AddChildToOverlay(BuyText);
 		TextSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -979,7 +986,8 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	}
 	Buy->SetContent(ButtonOverlay);
 	const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
-	Buy->SetIsEnabled((bOwnedPart || (!bPurchasedCard && CurrentTimeShards >= EffectivePrice)) &&
+	Buy->SetIsEnabled(!bShowPurchased &&
+	                  (bOwnedPart || (!bPurchasedCard && CurrentTimeShards >= EffectivePrice)) &&
 	                  (bWeaponPart || bCurrentExtraCardPurchaseAllowed));
 	if (bWeaponPart)
 	{
@@ -1089,21 +1097,29 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 
 void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 {
+	// 按固定槽位顺序（Slots 已排序：核心在最左）填充 UI 左中右槽位，避免随装备插入顺序变化。
 	TArray<const FReEchoShopOffer*> DisplayedAttachmentParts;
-	for (const FReEchoEquippedPartSnapshot& EquippedPart : CurrentPartShopView.EquippedParts)
+	DisplayedAttachmentParts.SetNumZeroed(DesignerAttachmentSlotButtons.Num());
+	for (int32 SlotIndex = 0; SlotIndex < CurrentPartShopView.Slots.Num() && SlotIndex < DesignerAttachmentSlotButtons.Num(); ++SlotIndex)
 	{
+		const FName SlotTypeId = CurrentPartShopView.Slots[SlotIndex].SlotTypeId;
+		const FReEchoEquippedPartSnapshot* Equipped = CurrentPartShopView.EquippedParts.FindByPredicate(
+		    [&](const FReEchoEquippedPartSnapshot& E) { return E.SlotTypeId == SlotTypeId; });
+		if (!Equipped)
+		{
+			continue;
+		}
 		const FReEchoShopOffer* Part = CurrentPartShopView.OwnedParts.FindByPredicate(
-		    [&](const FReEchoShopOffer& Candidate)
-		    {
-			    return Candidate.ContentId == EquippedPart.PartId;
-		    });
+		    [&](const FReEchoShopOffer& Candidate) { return Candidate.ContentId == Equipped->PartId; });
+		if (!Part)
+		{
+			// 刚购买即装备的符文尚未进入 OwnedParts 快照，回落到投放槽报价中取展示信息。
+			Part = VisibleWeaponPartOffers.FindByPredicate(
+			    [&](const FReEchoShopOffer& Candidate) { return Candidate.ContentId == Equipped->PartId; });
+		}
 		if (Part)
 		{
-			DisplayedAttachmentParts.Add(Part);
-			if (DisplayedAttachmentParts.Num() >= DesignerAttachmentSlotButtons.Num())
-			{
-				break;
-			}
+			DisplayedAttachmentParts[SlotIndex] = Part;
 		}
 	}
 
@@ -1112,7 +1128,7 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 	{
 		UButton* HoverButton = DesignerAttachmentSlotButtons[Index];
 		UImage* AttachmentArt = DesignerAttachmentSlotArts[Index];
-		const bool bHasPart = DisplayedAttachmentParts.IsValidIndex(Index);
+		const bool bHasPart = DisplayedAttachmentParts.IsValidIndex(Index) && DisplayedAttachmentParts[Index] != nullptr;
 		if (AttachmentArt)
 		{
 			AttachmentArt->SetBrushFromTexture(bHasPart
@@ -1174,15 +1190,7 @@ void UReEchoInventoryShopWidget::HandleAttachmentSlot2Clicked()
 
 FName UReEchoInventoryShopWidget::GetSlotTypeIdForIndex(int32 SlotIndex) const
 {
-	// 优先用已装备快照的槽位类型；空槽回落到该索引对应的槽位定义。
-	if (CurrentPartShopView.EquippedParts.IsValidIndex(SlotIndex))
-	{
-		const FName EquippedSlotTypeId = CurrentPartShopView.EquippedParts[SlotIndex].SlotTypeId;
-		if (!EquippedSlotTypeId.IsNone())
-		{
-			return EquippedSlotTypeId;
-		}
-	}
+	// UI 左中右槽位与 Slots 固定顺序一一对应（核心最左），点击打开背包时按同一映射取槽位类型，避免随装备插入顺序错位。
 	if (CurrentPartShopView.Slots.IsValidIndex(SlotIndex))
 	{
 		return CurrentPartShopView.Slots[SlotIndex].SlotTypeId;
@@ -1608,7 +1616,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		    NSLOCTEXT("ReEcho", "ShopOfferFormat", "{0}\n{1}\n{2}"),
 		    Offer.DisplayName,
 		    Offer.EffectText,
-		    bOwned ? NSLOCTEXT("ReEcho", "ShopOwned", "已拥有")
+		    bOwned ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
 		           : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(EffectivePrice))));
 	}
 	if (ShopRefreshButton && ShopRefreshText)
@@ -1633,32 +1641,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		WeaponPartOfferPanel->SetVisibility(bShowWeaponBlocks && !VisibleWeaponPartOffers.IsEmpty()
 		                                        ? ESlateVisibility::Visible
 		                                        : ESlateVisibility::Collapsed);
-		FString LoadoutDescription =
-		    FString::Printf(TEXT("装配室 · %s\n"), *CurrentPartShopView.WeaponDisplayName.ToString());
-		for (const FReEchoWeaponSlotShopView& SlotView : CurrentPartShopView.Slots)
-		{
-			TArray<FString> Names;
-			for (const FReEchoEquippedPartSnapshot& EquippedPart : CurrentPartShopView.EquippedParts)
-			{
-				const FReEchoShopOffer* OwnedPart = CurrentPartShopView.OwnedParts.FindByPredicate(
-				    [&](const FReEchoShopOffer& Owned)
-				    {
-					    return Owned.ContentId == EquippedPart.PartId && Owned.SlotTypeId == SlotView.SlotTypeId;
-				    });
-				if (OwnedPart)
-				{
-					Names.Add(OwnedPart->DisplayName.ToString());
-				}
-			}
-			LoadoutDescription += FString::Printf(TEXT("%s%s [%d/%d]：%s\n"),
-			                                      SlotView.bRequired ? TEXT("必需 ") : TEXT(""),
-			                                      *SlotView.DisplayName.ToString(),
-			                                      Names.Num(),
-			                                      SlotView.Capacity,
-			                                      Names.IsEmpty() ? TEXT("未装备") : *FString::Join(Names, TEXT("、")));
-		}
-		LoadoutDescription += TEXT("\n在“武器配件”区购买配件，购买后立即装备；槽位已满时最早的旧配件回落背包。");
-		WeaponLoadoutText->SetText(FText::FromString(LoadoutDescription));
+		UpdateWeaponLoadoutText();
 		for (int32 Index = 0; Index < VisibleWeaponPartOffers.Num(); ++Index)
 		{
 			const FReEchoShopOffer& PartOffer = VisibleWeaponPartOffers[Index];
@@ -1677,7 +1660,7 @@ void UReEchoInventoryShopWidget::Refresh()
 			                  PartOffer.DisplayName,
 			                  FText::FromName(PartOffer.SlotTypeId),
 			                  bEquipped ? NSLOCTEXT("ReEcho", "WeaponPartEquipped", "（已装备）")
-			                  : bOwned  ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已拥有）")
+			                  : bOwned  ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已获得）")
 			                            : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
                                                        FText::AsNumber(EffectivePrice))));
 		}
@@ -2155,6 +2138,104 @@ void UReEchoInventoryShopWidget::HandleConfirmReturnClicked()
 }
 
 // ============================ Public echo API (delegates to GameMode) ============================
+
+void UReEchoInventoryShopWidget::SetTimeShards(int32 NewShards)
+{
+	CurrentTimeShards = NewShards;
+}
+
+void UReEchoInventoryShopWidget::MarkItemPurchased(FName ItemId)
+{
+	PurchasedItemIds.Add(ItemId);
+	RebuildTargetOfferRows();
+	if (bShowingShop)
+	{
+		if (TargetCurrencyText)
+		{
+			TargetCurrencyText->SetText(FText::Format(
+				NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"), FText::AsNumber(CurrentTimeShards)));
+		}
+	}
+	else if (CurrencyText)
+	{
+		CurrencyText->SetText(FText::Format(
+			NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
+	}
+}
+
+void UReEchoInventoryShopWidget::RefreshWeaponLoadoutAfterPurchase(const TArray<FReEchoEquippedPartSnapshot>& LatestEquippedParts)
+{
+	if (!bShowingShop)
+	{
+		return;
+	}
+	// 仅同步数据层最新装备快照并重绘符文装备槽；保持当前 CurrentPartShopView 的 SlotOffers 不变，不重摇、不重绘投放槽。
+	CurrentPartShopView.EquippedParts = LatestEquippedParts;
+	RebuildAttachmentHoverSlots();
+	UpdateWeaponLoadoutText();
+
+	// 若背包弹窗正打开，同步刷新其内容：被新装备挤下、回落背包的符文需立即显示，无需重开槽位。
+	if (BackpackPopupPanel && ActiveBackpackSlotIndex != INDEX_NONE)
+	{
+		const FName SlotTypeId = GetSlotTypeIdForIndex(ActiveBackpackSlotIndex);
+		const bool bHasBackpack = CurrentPartShopView.OwnedParts.ContainsByPredicate(
+		    [&](const FReEchoShopOffer& Candidate)
+		    {
+			    return Candidate.SlotTypeId == SlotTypeId && !IsPartEquipped(Candidate.ContentId);
+		    });
+		if (bHasBackpack)
+		{
+			BuildBackpackPopup(ActiveBackpackSlotIndex);
+		}
+		else
+		{
+			HideBackpackPopup();
+		}
+	}
+}
+
+void UReEchoInventoryShopWidget::UpdateWeaponLoadoutText()
+{
+	if (!WeaponLoadoutText)
+	{
+		return;
+	}
+	FString LoadoutDescription =
+	    FString::Printf(TEXT("装配室 · %s\n"), *CurrentPartShopView.WeaponDisplayName.ToString());
+	for (const FReEchoWeaponSlotShopView& SlotView : CurrentPartShopView.Slots)
+	{
+		TArray<FString> Names;
+		for (const FReEchoEquippedPartSnapshot& EquippedPart : CurrentPartShopView.EquippedParts)
+		{
+			const FReEchoShopOffer* OwnedPart = CurrentPartShopView.OwnedParts.FindByPredicate(
+			    [&](const FReEchoShopOffer& Owned)
+			    {
+				    return Owned.ContentId == EquippedPart.PartId && Owned.SlotTypeId == SlotView.SlotTypeId;
+			    });
+			if (!OwnedPart)
+			{
+				// 刚购买即装备的符文尚未进入 OwnedParts 快照，回落到投放槽报价中取展示信息。
+				OwnedPart = VisibleWeaponPartOffers.FindByPredicate(
+				    [&](const FReEchoShopOffer& Owned)
+				    {
+					    return Owned.ContentId == EquippedPart.PartId && Owned.SlotTypeId == SlotView.SlotTypeId;
+				    });
+			}
+			if (OwnedPart)
+			{
+				Names.Add(OwnedPart->DisplayName.ToString());
+			}
+		}
+		LoadoutDescription += FString::Printf(TEXT("%s%s [%d/%d]：%s\n"),
+		                                      SlotView.bRequired ? TEXT("必需 ") : TEXT(""),
+		                                      *SlotView.DisplayName.ToString(),
+		                                      Names.Num(),
+		                                      SlotView.Capacity,
+		                                      Names.IsEmpty() ? TEXT("未装备") : *FString::Join(Names, TEXT("、")));
+	}
+	LoadoutDescription += TEXT("\n在“武器配件”区购买配件，购买后立即装备；槽位已满时最早的旧配件回落背包。");
+	WeaponLoadoutText->SetText(FText::FromString(LoadoutDescription));
+}
 
 void UReEchoInventoryShopWidget::ShowPostTraitIntermission(int32 TimeShards,
                                                            const TArray<FName>& OwnedItems,

@@ -2763,7 +2763,11 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
-		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+		InventoryShopWidget->SetTimeShards(RunSubsystem->TimeShards);
+		InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats);
+		InventoryShopWidget->MarkItemPurchased(ItemId);
+		// 购买即装备后，仅重绘符文装备槽以立即反映已装备结果；不重摇、不重绘投放槽，保持 Step1 的“已购不刷新”行为。
+		InventoryShopWidget->RefreshWeaponLoadoutAfterPurchase(RunSubsystem->CurrentBuild.EquippedParts);
 	}
 	else
 	{

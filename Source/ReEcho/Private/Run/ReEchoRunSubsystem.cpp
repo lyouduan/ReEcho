@@ -722,6 +722,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	TraitOfferSeed = MakeNewTraitOfferSeed();
 	InventoryItems.Reset();
 	OwnedPartIds.Reset();
+	OwnedWeaponIds.Reset();
 	bAutomaticAttackMode = true;
 	ResetEchoStorage();
 	PendingTraitCardIds.Reset();
@@ -875,6 +876,12 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 		}
 	}
 
+	// Owned weapons (marked as 已获得 in shop).
+	for (const FName WeaponId : OwnedWeaponIds)
+	{
+		View.OwnedWeapons.Add(WeaponId);
+	}
+
 	// ===== Weapon/Part shop: 3 fixed slots (Plan67 Step2) =====
 	View.SlotOffers.SetNum(ReEchoShopOfferCountPerGroup);
 
@@ -928,7 +935,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 	const TArray<FReEchoCsvWeaponRow> StartWeapons = Snapshot->GetStartSelectableWeapons();
 	for (const FReEchoCsvWeaponRow& CandidateWeapon : StartWeapons)
 	{
-		if (CandidateWeapon.Id != CurrentBuild.WeaponId)
+		if (CandidateWeapon.Id != CurrentBuild.WeaponId && !OwnedWeaponIds.Contains(CandidateWeapon.Id))
 		{
 			OtherWeaponCandidates.Add(&CandidateWeapon);
 		}
@@ -2038,6 +2045,7 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 		// Switch weapon (Plan67 Step3): change build weapon, retain compatible equipped parts only
 		// (mirrors Plan75 SelectWeaponById's "compatible core only" policy at the build level).
 		CurrentBuild.WeaponId = SlotOffer.WeaponId;
+		OwnedWeaponIds.Add(SlotOffer.WeaponId);
 		if (Snapshot.IsValid())
 		{
 			if (const FReEchoCsvWeaponRow* NewWeapon = Snapshot->FindEnabledWeapon(SlotOffer.WeaponId))
