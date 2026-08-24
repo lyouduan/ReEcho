@@ -201,7 +201,7 @@ bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
 	{
 		return false;
 	}
-	if (Card.StackPolicy == TEXT("Unique") && HasCard(State, Card.Id))
+	if (HasCard(State, Card.Id))
 	{
 		return false;
 	}

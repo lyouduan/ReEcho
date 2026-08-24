@@ -30,29 +30,30 @@ struct REECHO_API FReEchoShopOffer
 	FName ContentId;
 	FName SlotTypeId;
 	int32 Tier = 0;
-	FString IconTexturePath;   // 武器 Offer 填对应配图资产路径(ResolveHeldTexturePath)，为空则回退默认卡片图标
+	FString IconTexturePath; // 武器 Offer 填对应配图资产路径(ResolveHeldTexturePath)，为空则回退默认卡片图标
 };
 
-// One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon / other-weapon rune).
+// One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon
+// / other-weapon rune).
 struct REECHO_API FReEchoWeaponSlotOffer
 {
 	EReEchoShopOfferKind Kind = EReEchoShopOfferKind::Part;
-	FName PartId;       // valid when Kind == Part
-	FName WeaponId;     // valid when Kind == Weapon
-	FName ItemId;       // purchase lookup key (== PartId or WeaponId)
-	FName ContentId;    // == PartId or WeaponId
+	FName PartId;    // valid when Kind == Part
+	FName WeaponId;  // valid when Kind == Weapon
+	FName ItemId;    // purchase lookup key (== PartId or WeaponId)
+	FName ContentId; // == PartId or WeaponId
 	FName SlotTypeId;
 	FText DisplayName;
 	FText EffectText;
 	int32 Price = 0;
 };
 
-// One build-card shop slot offer (one per drop-level tier).
+// One of the three fixed build-card shop slots. Its card is drawn from the current encounter's configured tier pool.
 struct REECHO_API FReEchoCardSlotOffer
 {
 	int32 Tier = 1;
 	FName CardId;
-	FName ItemId;       // purchase lookup key
+	FName ItemId; // purchase lookup key
 	FText DisplayName;
 	FText EffectText;
 	int32 Price = 0;
@@ -71,9 +72,11 @@ struct REECHO_API FReEchoWeaponPartShopView
 {
 	FName WeaponId;
 	FText WeaponDisplayName;
-	TArray<FReEchoWeaponSlotOffer> SlotOffers;       // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon rune / other weapon / other-weapon rune)
-	TArray<FReEchoCardSlotOffer> CardSlotOffers;     // one per drop-level tier (free tier + shop tiers)
-	TArray<FReEchoShopOffer> Offers;                // backward-compat bridge: flatten of SlotOffers + CardSlotOffers (+ whole-weapon as Type==Weapon). TODO(Plan67 Step5): remove once WBP rearranged.
+	TArray<FReEchoWeaponSlotOffer> SlotOffers;   // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
+	                                             // rune / other weapon / other-weapon rune)
+	TArray<FReEchoCardSlotOffer> CardSlotOffers; // exactly 3 when ShopTiers is configured, otherwise empty
+	TArray<FReEchoShopOffer> Offers; // backward-compat bridge: flatten of SlotOffers + CardSlotOffers (+ whole-weapon
+	                                 // as Type==Weapon). TODO(Plan67 Step5): remove once WBP rearranged.
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FName> OwnedWeapons;

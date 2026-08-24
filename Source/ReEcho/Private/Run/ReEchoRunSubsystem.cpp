@@ -1014,7 +1014,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 	if (Snapshot->CardCatalog.IsValid())
 	{
 		const int32 RefreshSequence = CurrentBuild.CardState.Runtime.ShopRefreshSequence;
-		// ===== Build-card shop: one slot per drop-level tier (Plan67 Step2) =====
+		// Build-card shop: three fixed slots drawn from the union of the encounter's configured tiers.
 		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex))
 		{
 			TArray<int32> CardTiers;
@@ -1031,32 +1031,48 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 					}
 				}
 			}
-			FRandomStream CardRand(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
+			TArray<FReEchoCardDefinition> Eligible;
+			TSet<FName> EligibleCardIds;
 			for (const int32 Tier : CardTiers)
 			{
-				TArray<FReEchoCardDefinition> Eligible;
-				for (const FReEchoCardDefinition& Card : Snapshot->CardCatalog->GetOfferable(TraitOfferGroup, Tier))
+				for (const FReEchoCardDefinition& Card : ReEchoCardRuntime::BuildOfferPool(
+				         *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, Tier))
 				{
-					if (ReEchoCardRuntime::CanOffer(*Snapshot->CardCatalog, CurrentBuild.CardState, Card))
+					if (!EligibleCardIds.Contains(Card.Id))
 					{
+						EligibleCardIds.Add(Card.Id);
 						Eligible.Add(Card);
 					}
 				}
-				if (Eligible.Num() == 0)
+			}
+
+			if (CardTiers.Num() > 0 && Eligible.Num() < ReEchoShopOfferCountPerGroup)
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("Encounter %d shop tiers require %d card slots but only %d unowned cards are eligible."),
+				       EncounterIndex,
+				       ReEchoShopOfferCountPerGroup,
+				       Eligible.Num());
+			}
+			else if (CardTiers.Num() > 0)
+			{
+				FRandomStream CardRand(BuildShopOfferSeed(TEXT("SHOP_CARDS"), EncounterIndex, RefreshSequence));
+				ShuffleOffers(Eligible, CardRand);
+				for (int32 SlotIndex = 0; SlotIndex < ReEchoShopOfferCountPerGroup; ++SlotIndex)
 				{
-					continue;
+					const FReEchoCardDefinition& Chosen = Eligible[SlotIndex];
+					FReEchoCardSlotOffer CardOffer;
+					CardOffer.Tier = Chosen.Tier;
+					CardOffer.CardId = Chosen.Id;
+					CardOffer.ItemId = MakeShopCardOfferId(RefreshSequence, Chosen.Id);
+					CardOffer.DisplayName = FText::FromString(Chosen.DisplayName);
+					CardOffer.EffectText = FText::FromString(Chosen.Description);
+					CardOffer.bFree = false;
+					CardOffer.Price = GetShopPriceInRange(
+					    *Snapshot, *FString::Printf(TEXT("Card_T%d"), Chosen.Tier), Chosen.Tier * 10, CardRand);
+					View.CardSlotOffers.Add(CardOffer);
 				}
-				const FReEchoCardDefinition& Chosen = Eligible[CardRand.RandRange(0, Eligible.Num() - 1)];
-				FReEchoCardSlotOffer CardOffer;
-				CardOffer.Tier = Tier;
-				CardOffer.CardId = Chosen.Id;
-				CardOffer.ItemId = MakeShopCardOfferId(RefreshSequence, Chosen.Id);
-				CardOffer.DisplayName = FText::FromString(Chosen.DisplayName);
-				CardOffer.EffectText = FText::FromString(Chosen.Description);
-				CardOffer.bFree = false;
-				CardOffer.Price =
-				    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, CardRand);
-				View.CardSlotOffers.Add(CardOffer);
 			}
 		}
 

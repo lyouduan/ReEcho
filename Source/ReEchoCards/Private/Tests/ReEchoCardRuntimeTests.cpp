@@ -46,6 +46,27 @@ FReEchoCardCatalog BuildCatalog(const TArray<FReEchoCardDefinition>& Cards)
 }
 } // namespace
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoOwnedCardsAreNotOfferableTest,
+                                 "ReEcho.Cards.Offer.OwnedCardsAreExcluded",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoOwnedCardsAreNotOfferableTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition Stackable =
+	    MakeCard(TEXT("STACKABLE"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	const FReEchoCardDefinition Unowned =
+	    MakeCard(TEXT("UNOWNED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Stackable, Unowned});
+	FReEchoCardBuildState State;
+	State.OwnedCardIds.Add(Stackable.Id);
+
+	TestFalse(TEXT("An owned stackable card is not offerable"), ReEchoCardRuntime::CanOffer(Catalog, State, Stackable));
+	const TArray<FReEchoCardDefinition> Pool = ReEchoCardRuntime::BuildOfferPool(Catalog, State, TEXT("Trait"), 1);
+	TestEqual(TEXT("The offer pool contains only the unowned card"), Pool.Num(), 1);
+	TestEqual(TEXT("The remaining offer is the unowned card"), Pool[0].Id, Unowned.Id);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardTierGrantTest,
                                  "ReEcho.Cards.Grant.TierIsAtomicAndDeterministic",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

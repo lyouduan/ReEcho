@@ -217,21 +217,36 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		RunSubsystem->EncounterIndex = EncounterIndex;
 		const FReEchoWeaponPartShopView EncounterPage = RunSubsystem->GetWeaponPartShopView();
 		const TArray<int32>& ExpectedTiers = ExpectedShopTiers[EncounterIndex - 1];
-		TestEqual(*FString::Printf(TEXT("Encounter %d exposes the configured shop card slot count"), EncounterIndex),
-		          EncounterPage.CardSlotOffers.Num(),
-		          ExpectedTiers.Num());
-		for (int32 SlotIndex = 0; SlotIndex < ExpectedTiers.Num(); ++SlotIndex)
+		const int32 ExpectedSlotCount = ExpectedTiers.IsEmpty() ? 0 : ReEchoShopOfferCountPerGroup;
+		TestEqual(
+		    *FString::Printf(TEXT("Encounter %d exposes zero or three configured shop card slots"), EncounterIndex),
+		    EncounterPage.CardSlotOffers.Num(),
+		    ExpectedSlotCount);
+		TSet<FName> EncounterCardIds;
+		for (const FReEchoCardSlotOffer& Offer : EncounterPage.CardSlotOffers)
 		{
-			if (EncounterPage.CardSlotOffers.IsValidIndex(SlotIndex))
-			{
-				TestEqual(*FString::Printf(TEXT("Encounter %d shop card slot %d keeps its configured tier"),
-				                           EncounterIndex,
-				                           SlotIndex),
-				          EncounterPage.CardSlotOffers[SlotIndex].Tier,
-				          ExpectedTiers[SlotIndex]);
-			}
+			TestTrue(
+			    *FString::Printf(TEXT("Encounter %d shop card stays inside its configured tier pool"), EncounterIndex),
+			    ExpectedTiers.Contains(Offer.Tier));
+			EncounterCardIds.Add(Offer.CardId);
 		}
+		TestEqual(*FString::Printf(TEXT("Encounter %d shop group contains no duplicate cards"), EncounterIndex),
+		          EncounterCardIds.Num(),
+		          ExpectedSlotCount);
 	}
+
+	RunSubsystem->EncounterIndex = 2;
+	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_1_01"));
+	const FReEchoWeaponPartShopView OwnedFilterPage = RunSubsystem->GetWeaponPartShopView();
+	TestEqual(TEXT("A tier-one shop group still fills all three slots after ownership filtering"),
+	          OwnedFilterPage.CardSlotOffers.Num(),
+	          ReEchoShopOfferCountPerGroup);
+	TestFalse(TEXT("An owned stackable card is excluded from shop offers"),
+	          OwnedFilterPage.CardSlotOffers.ContainsByPredicate(
+	              [](const FReEchoCardSlotOffer& Offer)
+	              {
+		              return Offer.CardId == TEXT("G_1_01");
+	              }));
 
 	RunSubsystem->EncounterIndex = 4;
 
@@ -247,7 +262,9 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(TEXT("Each fixed weapon/part slot contains an offer"), !Slot.ItemId.IsNone());
 	}
-	TestEqual(TEXT("Encounter four exposes the configured tier-2 and tier-3 card slots"), FirstCards.Num(), 2);
+	TestEqual(TEXT("Encounter four exposes three cards from the configured tier-2 and tier-3 pool"),
+	          FirstCards.Num(),
+	          ReEchoShopOfferCountPerGroup);
 	for (const FReEchoShopOffer& Card : FirstCards)
 	{
 		TestTrue(TEXT("Card tier follows encounter-four configuration"), Card.Tier == 2 || Card.Tier == 3);
@@ -280,12 +297,13 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	             {
 		             return Card.ContentId == PurchasedCard.ContentId;
 	             }));
-	TestTrue(TEXT("Purchased card remains on the same page as a disabled offer"),
-	         PurchasedPage.Offers.ContainsByPredicate(
-	             [&](const FReEchoShopOffer& Offer)
-	             {
-		             return Offer.ItemId == PurchasedCard.ItemId;
-	             }));
+	TestFalse(TEXT("Purchased card is excluded when the shop view is generated again"),
+	          PurchasedPage.Offers.ContainsByPredicate(
+	              [&](const FReEchoShopOffer& Offer)
+	              {
+		              return Offer.Type == EReEchoShopOfferType::BuildCard &&
+		                     Offer.ContentId == PurchasedCard.ContentId;
+	              }));
 	TestFalse(TEXT("Same card offer cannot be bought twice on one page"),
 	          RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
 
@@ -303,7 +321,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Refreshed page still has three fixed weapon/part slots"),
 	          RefreshedPage.SlotOffers.Num(),
 	          ReEchoShopOfferCountPerGroup);
-	TestEqual(TEXT("Refreshed page keeps the two configured card tiers"),
+	TestEqual(TEXT("Refreshed page keeps three cards from the configured tier pool"),
 	          RefreshedPage.Offers
 	              .FilterByPredicate(
 	                  [](const FReEchoShopOffer& Offer)
@@ -311,26 +329,15 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		                  return Offer.Type == EReEchoShopOfferType::BuildCard;
 	                  })
 	              .Num(),
-	          2);
+	          ReEchoShopOfferCountPerGroup);
 
-	// Plan85 Step 3 regression: a purchased Unique card must not be re-offered after refresh.
-	TSharedPtr<const FReEchoCsvDataSnapshot> CardSnapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	if (CardSnapshot.IsValid() && CardSnapshot->CardCatalog.IsValid())
-	{
-		if (const FReEchoCardDefinition* CardDef = CardSnapshot->CardCatalog->Find(PurchasedCard.ContentId))
-		{
-			if (CardDef->StackPolicy == TEXT("Unique"))
-			{
-				TestFalse(TEXT("Purchased unique card is excluded from offers after refresh"),
-				          RefreshedPage.Offers.ContainsByPredicate(
-				              [&](const FReEchoShopOffer& Offer)
-				              {
-					              return Offer.Type == EReEchoShopOfferType::BuildCard &&
-					                     Offer.ContentId == PurchasedCard.ContentId;
-				              }));
-			}
-		}
-	}
+	TestFalse(TEXT("Purchased card stays excluded after refresh regardless of stack policy"),
+	          RefreshedPage.Offers.ContainsByPredicate(
+	              [&](const FReEchoShopOffer& Offer)
+	              {
+		              return Offer.Type == EReEchoShopOfferType::BuildCard &&
+		                     Offer.ContentId == PurchasedCard.ContentId;
+	              }));
 	return true;
 }
 #endif

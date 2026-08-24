@@ -180,7 +180,7 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
 	const TArray<FReEchoTraitCardOffer> SecondOffers = RunSubsystem->GenerateTraitCardOffers(3);
 	TestEqual(TEXT("The next draw returns three offers"), SecondOffers.Num(), 3);
-	TestFalse(TEXT("Unowned traits are preferred before repeating the selected card"),
+	TestFalse(TEXT("An owned trait is excluded from later free offers"),
 	          SecondOffers.ContainsByPredicate(
 	              [&](const FReEchoTraitCardOffer& Offer)
 	              {
