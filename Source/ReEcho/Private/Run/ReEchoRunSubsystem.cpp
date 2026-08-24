@@ -1251,7 +1251,8 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
                                             const bool bPlayerSurvived,
                                             const bool bBossKilled)
 {
-	if (Phase == EReEchoRunPhase::CardChoice || Phase == EReEchoRunPhase::Summary || Phase == EReEchoRunPhase::Failed)
+	if (Phase == EReEchoRunPhase::Planning || Phase == EReEchoRunPhase::CardChoice || Phase == EReEchoRunPhase::Shop ||
+	    Phase == EReEchoRunPhase::Summary || Phase == EReEchoRunPhase::Failed)
 	{
 		return;
 	}

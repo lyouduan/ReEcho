@@ -8,9 +8,9 @@
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main` @ `b8836ed1d05847e1a340de9c89148dd802b16393`。
+- 最终集成基线：`origin/main` @ `a4a72b98926b42ac929a58f8c7c9c91d07fd893b`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan88-card-drop-system`，分支 `plan/88-card-drop-system`。
-- 依赖 / 阻塞：依赖 Plan47 的 `MOD-ReEchoCards` 目录/资格过滤，并与 Plan85 的商店所有权排除保持兼容。2026-08-24 用户锁定：商店有投放时固定显示 3 个卡牌槽，三个槽均从当前行 `ShopTiers` 指定 Tier 的合并牌池抽取；最新资格规则为1级卡可重复投放/叠加，2、3级卡及已获得武器、符文不得再次投放。该决定覆盖此前“所有已获得卡一律排除”及 Plan67“一配置 Tier 对应一槽”的旧解释。远端 Plan87 的未来 Forge 删除仍与本 Plan Run 热点耦合。
+- 依赖 / 阻塞：依赖 Plan47 的 `MOD-ReEchoCards` 目录/资格过滤，并与 Plan85 的商店所有权排除保持兼容。2026-08-24 用户锁定：商店有投放时固定显示 3 个卡牌槽，三个槽均从当前行 `ShopTiers` 指定 Tier 的合并牌池抽取；最新资格规则为1级卡可重复投放/叠加，2、3级卡及已获得武器、符文不得再次投放。该决定覆盖此前“所有已获得卡一律排除”及 Plan67“一配置 Tier 对应一槽”的旧解释。Plan87 已进入最终基线；Forge 已删除，本 Plan 只保留普通卡牌投放路由。
 - Writes:
   - `plans/88-card-drop-system.md`
   - `Source/ReEcho/Public/Run/ReEchoRunSubsystem.h`
@@ -64,7 +64,7 @@
 
 - `FreeTier` 为空表示本关战后不进入普通卡牌选择，直接进入战后商店/回响处理；有值时只从该 Tier 的 `Trait` 可投放牌池生成 3 张且选择 1 张。
 - 免费与商店候选继续遵守 `MOD-ReEchoCards` 的 Enabled/Offerable、冲突和持有状态资格规则；1级卡即使已存在于 `OwnedCardIds` 仍可再次进入后续候选并叠加，2、3级卡一旦获得即不可再次进入候选。不得在 Run 或 UI 复制该规则。
-- 勇者的 `ForgeChoice` 是独立角色能力：先完成锻造；随后仅当当前关 `FreeTier` 有值时进入普通三选一，否则直接进入商店。
+- 所有角色遵循同一关次投放矩阵；勇者不再进入 Forge 阶段，有 `FreeTier` 时进入普通三选一，否则直接进入商店。
 - 贤者每第 4 次普通选择触发的额外选择沿用当前关 `FreeTier`，且“不投放”关不会凭空创建普通选择或累计次数。
 - 第 8 关 Boss 结算保持无免费选卡、无商店卡牌投放并进入胜利结算。
 - 缺少关次行、Tier 非法或候选不足 3 张时不得回退到全等级牌池；数据校验应尽早报错，运行时记录明确错误并安全进入商店/后续结算，不能卡死流程。
@@ -72,7 +72,7 @@
 
 ## 架构影响与设计决策
 
-- 受影响架构标识：`MOD-ReEcho`、`MOD-ReEchoCards`（直接修改）；`AREA-Data`、`AREA-Run`、`AREA-Cards`、`AREA-UI`（行为链受影响）。`MOD-ReEchoUI` 为稳定消费方，预期不改其源码/公共契约。
+- 受影响架构标识：`MOD-ReEcho`、`MOD-ReEchoCards`、`MOD-ReEchoUI`（直接修改）；`AREA-Data`、`AREA-Run`、`AREA-Cards`、`AREA-UI`（行为链受影响）。
 - 对应模块文档：`MOD-ReEcho.md` 记录 Run 的固定三槽合并牌池；`MOD-ReEchoCards.md` 记录1级重复、2/3级持有排除的统一资格；`MOD-ReEchoUI.md` 关闭前具名审阅。
 - 设计意图：让生产表已存在的 `FreeTier` 成为战后普通卡牌投放的唯一权威，并把“是否显示选卡、从哪个 Tier 抽取、选卡后进入哪里”集中在 Run 阶段策略中；GameMode 只按 Run phase 路由 UI，Cards 只负责牌池资格与授予。
 - 权威状态与依赖：`Design/Data/ReEchoData.xlsx` → `shop_drop_levels.csv` → `FReEchoCsvDataSnapshot::ShopDropLevels` 是关次投放配置链；Run 拥有阶段与本局事务；Cards 拥有资格/牌池/授予；GameMode/UI 不保存第二份关次矩阵。状态所有者不变，不增加跨 Runtime Module 依赖。
@@ -81,7 +81,7 @@
   - 免费投放数量由 `FreeTier` 的“空/有值”表达为 0/1 组，每组固定三选一；不为此把 Widget 改成任意数量候选。
   - 商店投放按用户 2026-08-24 的最新决定覆盖 Plan67 旧解释：`ShopTiers` 定义三个固定槽共同使用的合并牌池，而不是 Tier 数量或槽位数量；三个报价保持确定性且互不重复。
   - 持有状态资格属于 Cards 的统一契约：`CanOffer` 允许已拥有的1级卡再次投放并叠加，拒绝已拥有的2、3级卡；Run 的免费与商店路径复用该入口。
-  - Run 提供单一的当前关免费投放解析/阶段推进入口，`CompleteEncounter` 与 `ApplyForgeChoice` 共用，避免勇者路径再次绕过 `FreeTier`。
+  - Run 提供单一的当前关免费投放解析/阶段推进入口，由 `CompleteEncounter` 使用；旧 Forge 存档阶段仍按主分支契约迁移为普通 `CardChoice`。
   - 确定性仍基于现有 `TraitOfferSeed + EncounterIndex + OwnedCardIds`；只把 Tier 作为候选池过滤条件，不引入时间或 UI 状态随机源。
 - 相关文档同步范围：
   - `shared/CODEBASE_MAP/ARCHITECTURE.md`：关闭前审阅；预期无 Runtime Module 拓扑或依赖方向变化，无需修改。
@@ -101,7 +101,7 @@
 - [x] 自动化逐行覆盖 1..8 关，证明免费投放组数/Tier 与商店固定 0/3 槽及合并 Tier 牌池精确匹配锁定矩阵。
 - [x] 第 1 关结束不出现普通三选一，但仍进入战后商店和回响处理；第 2～7 关普通三选一的 3 张卡全部属于配置 Tier；第 8 关无普通选卡并正常结算。
 - [x] 第 7 关商店精确生成 3 个卡牌槽，三个槽均只来自 Tier 1 + Tier 3 合并牌池，不再错误复用第 6 关 Tier 1 + Tier 2。
-- [x] 勇者在第 1 关只完成锻造后进入商店，在有 `FreeTier` 的关次锻造后继续正确 Tier 的普通三选一。
+- [x] 勇者与其他角色遵循相同关次矩阵：第 1 关直接进入商店，有 `FreeTier` 的关次进入正确 Tier 的普通三选一，且不会出现 Forge 页面。
 - [x] 贤者额外选择仍按每 4 次普通选择触发，额外候选与触发关的 `FreeTier` 一致。
 - [x] 免费与商店后续投放允许已获得1级卡再次出现并叠加，排除所有已获得2、3级卡；同一组内没有重复 CardId。
 - [x] 商店购买构筑卡后不重摇报价，并在同一商店会话内立即把真实卡牌图标显示到右侧卡牌槽。
@@ -112,16 +112,16 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main` @ `b8836ed1d05847e1a340de9c89148dd802b16393`。远端 Plan86 已占用，用户明确说明 Plan87 也已由另一项本地任务占用，因此本任务使用 Plan88。
-- 引擎/构建可用性：尚未为本 Plan 启动 UE；`c8769ba1` 已对当前源码刷新精选 Editor 预构建包，使 Plan-only 静态发布候选具备重新校验条件。后续 C++ 实现仍必须在最终候选上执行完整构建。
-- 现有聚焦测试结果：`python scripts\data\sync_xlsx_to_csv.py --check` 通过，证明 `ReEchoData.xlsx` 导出与生产 CSV 字节一致；尚未运行 UE 自动化。
+- 基线分支/提交：最初实现基于 `b8836ed1`；发布前已按用户确认变基到 `origin/main` @ `a4a72b98`，吸收 Plan87 角色能力数据化/Forge 删除、商店暂停与响应式布局。
+- 引擎/构建可用性：变基前完整构建与聚焦回归已通过；变基后的最终候选必须重新执行完整构建与全部相关自动化，旧二进制证据不沿用。
+- 现有聚焦测试结果：变基前证据仅作历史记录；最终发布以本节后续追加的变基后结果为准。
 - 共享契约 / 难合并资源风险：本 Plan 将编辑近期商店/Run 高频文件，尤其 `ReEchoRunSubsystem.cpp`、`ReEchoGameMode.cpp`、`ReEchoShopTests.cpp`；发布前必须再次 fetch 并审计 Plan85 之后的新提交。工作簿与 CSV 当前无需写入，避免与策划表二进制变更产生无意义冲突。
 - 基线损坏时的停止条件：远端在 Plan-only 发布或实现集成前再次前进；策划源可见 `投放系统!A3:C10` 与生产 `shop_drop_levels.csv` 漂移；聚焦基线或预构建校验重新失败。命中任一条件时停止并重新审计，不静默合并或回退。
 
 ## 实现提纲
 
 1. 在 Run 层增加当前关 `shop_drop_levels` 解析与免费投放策略的单一入口，返回“无普通投放”或有效 `FreeTier`；禁止默认全牌池回退。
-2. `CompleteEncounter` 与 `ApplyForgeChoice` 复用该策略推进到 `ForgeChoice` / `CardChoice` / `Planning`，保持 Brave 与 Sage 状态机语义。
+2. `CompleteEncounter` 复用该策略推进到 `CardChoice` / `Planning`；不恢复已由 Plan87 删除的 Forge phase/API/UI。
 3. `GenerateTraitCardOffers` 按当前关 `FreeTier` 调用 Cards 的 Tier 过滤牌池，保留现有资格、叠层优先级与确定性随机；为候选不足提供明确失败结果/日志和可继续流程。
 4. GameMode 的战后 UI 路由按 Run phase 分发：需要卡牌时打开三选一，无普通投放时直接打开战后商店；选择完成后的现有商店衔接保持一致。
 5. 商店卡牌槽直接使用真实 `EncounterIndex` 查 `ShopDropLevels`，删除 `1..6` 钳制；有 `ShopTiers` 时合并全部指定 Tier 的可投放牌池并确定性抽取 3 张互不重复卡，空配置返回 0 槽。
@@ -150,15 +150,16 @@
 - 生产 `Design/Data/ReEchoData.xlsx` 的 `经济系统` 已包含相同 `EncounterIndex/FreeTier/ShopTiers` 数据，`Content/Data/shop_drop_levels.csv` 与之同步。
 - 现有运行时已读取并在商店消费 `ShopTiers`，但将关次钳制到 1..6，令第 7 关错误读取第 6 关；`FreeTier` 虽已解析进快照但没有任何运行时消费方。
 - 现有战后流程在非 Boss 的第 1～7 关一律 `GenerateTraitCardOffers(3)`，候选来自未限制 Tier 的完整 `Trait` 可投放池；没有区分大关/小关，也没有按表区分关次。
-- 2026-08-24：Run 已以当前 `EncounterIndex` 的 `FreeTier` 推进普通选卡阶段并生成同 Tier 三选一；空值、缺行、非法 Tier 或候选不足时不跨 Tier 回退，安全进入战后商店。勇者锻造完成后复用同一入口，贤者额外选择继续沿用触发关 Tier。
+- 2026-08-24：Run 已以当前 `EncounterIndex` 的 `FreeTier` 推进普通选卡阶段并生成同 Tier 三选一；空值、缺行、非法 Tier 或候选不足时不跨 Tier 回退，安全进入战后商店。所有角色共用该入口，贤者额外选择继续沿用触发关 Tier。
 - 2026-08-24：GameMode 改为按 Run phase 路由选卡或直接进入战后商店/回响处理；商店按真实关次读取 `ShopTiers`，不再把第 7/8 关钳制到第 6 关。
-- 2026-08-24：新增免费投放 1..8 关矩阵、商店 1..8 关槽位/Tier 矩阵及 Brave/Sage 回归；同步把既有 CSV 效果测试从“调用公开抽牌接口索取全牌池”改为直接审计目录并通过调试授予验证效果，避免绕过新的关次投放契约。
+- 2026-08-24：新增免费投放 1..8 关矩阵、商店 1..8 关槽位/Tier 矩阵及角色回归；同步把既有 CSV 效果测试从“调用公开抽牌接口索取全牌池”改为直接审计目录并通过调试授予验证效果，避免绕过新的关次投放契约。
 - 2026-08-24：按用户补充规则把商店投放修正为“有配置固定三槽”，三槽共同从本关 `ShopTiers` 合并牌池确定性抽取；最初统一排除所有已获得卡，随后按最新规则收敛为1级卡可重复叠加、2/3级卡持有后排除。商店矩阵测试覆盖三槽、Tier 合集、组内去重及购买后资格。
 - 2026-08-24：修复商店购买构筑卡后的即时表现：购买成功后 Widget 将该卡同步进当前 `OwnedCards` 快照并立即重绘右侧卡牌槽；卡牌槽加载真实卡牌图标，且不重摇当前商店报价。
 - 2026-08-24：定位“同页第一张可买、剩余卡点击失败”为 Run 每次购买前重新按已拥有状态生成报价、而 Widget 仍显示旧页造成的前后端页面漂移。当前商店卡牌页改为按 `EncounterIndex + ShopRefreshSequence` 固定保存 3 个 CardId，各卡价格由卡 ID 与同一页面键独立确定；购买只把该报价标记为已购，不改变同页其余卡，显式刷新或进入下一关才按统一资格生成新页。
 - 2026-08-24：按最新资格规则允许已拥有1级卡在后续免费/商店投放中再次出现并叠加；已拥有2、3级卡继续排除。同一商店页的同一1级报价仍只能购买一次，显式刷新后的新报价才可再次购买。
 - 2026-08-24：商店卡牌报价实例 ID 纳入 `EncounterIndex + ShopRefreshSequence + CardId`，避免同一1级卡跨关再次出现时被上一关的已购记录误判；武器配件术语统一更正为“符文”，底层 `parts.csv` / `OwnedPartIds` 等兼容字段暂不做破坏性改名。
-- 2026-08-24：最终 fetch 发现 `origin/main` 前进至 `12117711`，仅包含 Plan87 文档。当前没有物理文件冲突，但 Plan87 已锁定未来删除 Forge，和本 Plan 为当前 Brave Forge 保留的战后分流回归存在明确逻辑/时序耦合；本候选不自行吸收或推送，等待用户决定以 Plan88 先集成、Plan87 后适配，或做组合适配。
+- 2026-08-24：按用户确认将 Plan88 变基到 `origin/main@a4a72b98`。冲突以主分支为基线：保留角色能力数据化、Forge 删除、商店暂停与响应式布局，再叠加逐关投放、稳定三槽商店页、1级重复规则和购买后即时卡槽显示。
+- 2026-08-24：变基后角色回归发现两个组合问题：第 1 关按表进入 `Planning` 后重复结算回调会重复应用诗人增长；Plan87 的角色测试仍预期第 1 关进入普通选卡、且 Sage 测试未指定投放关次。Run 现对 `Planning/Shop` 等已结算阶段保持幂等，角色测试改为验证第 1 关跳过、第 2 关进入 Tier 2 普通选卡，并在第 2 关验证 Sage 节奏。
 
 ### 证据
 
@@ -179,13 +180,13 @@
 - 最终1级重复规则与稳定商店页聚焦回归：`ReEcho.Cards` 5/5、`ReEcho.Traits` 8/8、`ReEcho.Shop` 8/8、`ReEcho.Characters` 3/3、`ReEcho.UI.Shop` 2/2，全部通过。新增覆盖已拥有1级卡免费再次选择、商店跨刷新/跨关再次购买并叠加、已拥有2/3级卡排除、同页三卡连续购买，以及稳定商店页存档恢复。
 - 最终 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过，96/96 actions 成功；精选 Editor 预构建源指纹 `a9ebb6465c29`。商店套件曾暴露旧断言把三个装备报价错误限定为三个符文；按既有“武器或符文”投放设计修正断言后 8/8 通过，未修改产品投放权重。
 - 最终 `scripts\data\sync_xlsx_to_csv.py --check`、`python scripts\validate_project.py`、`python scripts\ue\prebuilt_editor.py check` 与 `git diff --check`：全部通过；生产 XLSX/CSV 无漂移，精选 Editor 包与 `a9ebb6465c29` 源指纹匹配。
+- 变基后的聚焦回归：`ReEcho.Cards` 5/5、`ReEcho.Traits` 8/8、`ReEcho.Shop` 8/8、修正后的 `ReEcho.Characters` 3/3、`ReEcho.UI.Shop` 2/2、`ReEcho.Run` 14/14，全部通过。
+- 变基后的 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过，96/96 actions 成功；精选 Editor 预构建源指纹 `502a05de5495`。随后 `scripts\data\sync_xlsx_to_csv.py --check`、`python scripts/validate_project.py`、`python scripts\ue\prebuilt_editor.py check` 与 `git diff --check` 全部通过。
 
 ### 剩余风险
 
-- Plan86 的设置/暂停 UI 后续若扩张到 `ReEchoGameMode.cpp`，实现集成时需要重新审计潜在同行编辑；其当前已发布 Writes 不包含该文件。
 - 自动化已覆盖候选不足和缺关次行的安全降级；最终仍需用户在 PIE 确认页面出现/跳过、回响决策和商店关闭后的实际交互衔接。
 - `ReEchoRunSubsystem.cpp`、`ReEchoGameMode.cpp` 与商店测试为近期高耦合路径；若发布前 `origin/main` 前进，需重新执行外部提交集成审计并使受影响证据失效。
-- 远端 Plan87 未来将删除 Forge phase/API/UI/数据；若两项并行实现，`ReEchoRunSubsystem.*`、`ReEchoGameMode.cpp`、`ReEchoCharacterPromotionTests.cpp` 和精选 Editor 二进制会发生物理冲突。建议集成顺序为 Plan88 先落地投放矩阵，再让 Plan87 基于它删除 Forge、保留普通选卡的 `FreeTier` 路由；若反序，Plan88 必须删去 Forge 分支后重新构建验证。
 
 ### 人工验收结果/请求
 

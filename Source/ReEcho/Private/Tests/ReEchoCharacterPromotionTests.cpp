@@ -78,6 +78,7 @@ bool FReEchoSageBonusCadenceTest::RunTest(const FString& Parameters)
 	RunSubsystem->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
 	RunSubsystem->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Sage");
 	RunSubsystem->CurrentBuild.EquipmentBaseRuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	RunSubsystem->EncounterIndex = 2;
 
 	auto ApplyAvailableCard = [this, RunSubsystem]()
 	{
@@ -128,7 +129,12 @@ bool FReEchoDataDrivenCharacterAbilitiesTest::RunTest(const FString& Parameters)
 	RunSubsystem->StartRun(TEXT("J_HEART"), TEXT("W_J_01"));
 	RunSubsystem->BeginEncounter();
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
-	TestEqual(TEXT("Brave proceeds directly to regular card choice"), RunSubsystem->Phase, EReEchoRunPhase::CardChoice);
+	TestEqual(
+	    TEXT("Brave skips the unconfigured encounter-one card choice"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
+	RunSubsystem->BeginEncounter();
+	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(
+	    TEXT("Brave uses the configured encounter-two card choice"), RunSubsystem->Phase, EReEchoRunPhase::CardChoice);
 	TestTrue(TEXT("Forge cards are absent from production data"), Snapshot->FindCard(TEXT("FORGE_LIGHT")) == nullptr);
 	FReEchoCsvDataSnapshot ConfigurableSnapshot = *Snapshot;
 	if (FReEchoCsvCharacterAbilityRow* SageAbility =
