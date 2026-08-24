@@ -178,6 +178,7 @@
 - 2026-08-24：首次 PIE 反馈“看起来没有掉落”。日志无资产加载错误；源码审查发现新 Billboard 漏掉项目现有表现组件统一使用的 `SetHiddenInGame(false)`，已补齐显式可见性，并增加 `[TimeShardDrop]` 生成与 `[TimeShardPickup]` 拾取结构化日志用于复测区分逻辑/视觉。
 - 2026-08-24：第二次 PIE 确认 Actor 与图片可见，但尺寸过小且没有任何拾取日志。视觉世界高度从 38 cm 调为 76 cm；拾取球半径调为 48 cm，并在保留 Overlap 的同时增加按玩家类型与 2D 距离判定的同事务兜底，消除碰撞 Profile 未产生 Overlap 时无法拾取的问题。
 - 2026-08-24：用户锁定碎片为低层地面物件；去掉 Billboard 的 28 cm 上移，将透明排序优先级从前景 `30` 调为地面层 `-20`，允许角色、怪物和所有战斗表现遮挡碎片。
+- 2026-08-24：用户 PIE 证明上一步未生效：碎片仍覆盖兔子子弹与怪物。引擎源码审计确认 `UBillboardComponent` 通过 `DrawSprite(..., SE_BLEND_Masked)` 进入不透明/Masked 通道，`TranslucencySortPriority` 对其无效。拾取表现改为 `UMaterialBillboardComponent + /Paper2D/TranslucentUnlitSpriteMaterial`，正式纹理通过 MID 的 `SpriteTexture` 参数注入；排序带改为 `-60`，处于 Arena Backdrop `-100` 与角色脚点下限 `-50` 之间，确保地图可见而所有角色、怪物与战斗表现可遮挡碎片。
 
 ### 证据
 
@@ -192,6 +193,7 @@
 - Billboard 可见性返修后再次 FullRebuild 成功，预构建指纹 `6f248868fce4`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
 - 两倍尺寸与近距离拾取兜底返修后 FullRebuild 成功，预构建指纹 `e5b378753774`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
 - 地面低图层返修后 FullRebuild 成功，预构建 build id `55116800`、source `5e154f05705c`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
+- Masked Billboard 根因返修后 FullRebuild 成功，预构建 build id `55116800`、source `42a3b71a29b2`；`ReEcho.Run.EnemyShardDrops` 2/2 通过，新增自动化锁定 Material Billboard 类型与 `-60` 地面排序带。
 - `ReEcho.Data` 的 6 项中 3 项失败，均可由未修改的任务基线数据复现：测试仍期待 39 张可抽卡（基线为 37）、Rabbit 二形态关闭（基线为开启）、60 条未命名禁用配件（基线为 0）；本 Plan 不越界改写这些断言。
 
 ### 剩余风险

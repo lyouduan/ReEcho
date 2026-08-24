@@ -5,8 +5,11 @@
 #include "ReEchoTimeShardPickupActor.generated.h"
 
 class UPrimitiveComponent;
-class UBillboardComponent;
+class UMaterialBillboardComponent;
+class UMaterialInstanceDynamic;
+class UMaterialInterface;
 class USphereComponent;
+class UTexture2D;
 
 /** Shared world pickup for configured enemy drops and weapon-rune shard rewards. */
 UCLASS()
@@ -17,6 +20,7 @@ class REECHO_API AReEchoTimeShardPickupActor : public AActor
 
 public:
 	AReEchoTimeShardPickupActor();
+	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** Lifetime <= 0 keeps the pickup until collection or explicit world cleanup. */
@@ -27,7 +31,7 @@ public:
 		return Amount;
 	}
 
-	UBillboardComponent* GetVisualComponent() const
+	UMaterialBillboardComponent* GetVisualComponent() const
 	{
 		return Visual;
 	}
@@ -47,7 +51,16 @@ private:
 	TObjectPtr<USphereComponent> Collision;
 
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBillboardComponent> Visual;
+	TObjectPtr<UMaterialBillboardComponent> Visual;
+
+	UPROPERTY()
+	TObjectPtr<UTexture2D> PickupTexture;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> PickupBaseMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> PickupMaterialInstance;
 
 	int32 Amount = 1;
 	bool bCollected = false;

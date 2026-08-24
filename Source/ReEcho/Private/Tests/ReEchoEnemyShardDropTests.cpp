@@ -3,9 +3,11 @@
 #include "Misc/AutomationTest.h"
 
 #include "Cards/ReEchoCardTypes.h"
+#include "Components/MaterialBillboardComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
+#include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "Run/ReEchoRunSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyShardDropDataTest,
@@ -58,6 +60,13 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Encounter five elite range ends at twenty"), Fifth->EliteMax, 20);
 	TestNotNull(TEXT("Reviewed pickup texture is available to the runtime"),
 	            LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard")));
+	const AReEchoTimeShardPickupActor* PickupDefaults = GetDefault<AReEchoTimeShardPickupActor>();
+	const UMaterialBillboardComponent* PickupVisual = PickupDefaults ? PickupDefaults->GetVisualComponent() : nullptr;
+	TestNotNull(TEXT("Pickup uses a translucent-capable material billboard"), PickupVisual);
+	if (PickupVisual)
+	{
+		TestEqual(TEXT("Pickup stays in the reviewed ground sort band"), PickupVisual->TranslucencySortPriority, -60);
+	}
 	return true;
 }
 

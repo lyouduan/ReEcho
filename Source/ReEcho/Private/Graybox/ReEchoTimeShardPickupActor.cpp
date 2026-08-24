@@ -1,11 +1,13 @@
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 
 #include "ReEcho.h"
-#include "Components/BillboardComponent.h"
+#include "Components/MaterialBillboardComponent.h"
 #include "Components/SphereComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
@@ -14,7 +16,8 @@ namespace ReEchoTimeShardPickup
 {
 constexpr float CollisionRadiusCm = 48.0f;
 constexpr float CollectionHeightToleranceCm = 100.0f;
-constexpr int32 TranslucentSortPriority = -20;
+// Arena backdrop is -100 and character footpoint sorting starts at -50. Keep pickups between both bands.
+constexpr int32 GroundPickupSortPriority = -60;
 constexpr float VisualWorldHeightCm = 76.0f;
 } // namespace ReEchoTimeShardPickup
 
@@ -32,26 +35,49 @@ AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
 	Collision->SetGenerateOverlapEvents(true);
 	Collision->OnComponentBeginOverlap.AddDynamic(this, &AReEchoTimeShardPickupActor::HandleBeginOverlap);
 
-	Visual = CreateDefaultSubobject<UBillboardComponent>(TEXT("TimeShardVisual"));
+	Visual = CreateDefaultSubobject<UMaterialBillboardComponent>(TEXT("TimeShardVisual"));
 	Visual->SetupAttachment(Collision);
 	Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Visual->SetCastShadow(false);
-	Visual->SetTranslucentSortPriority(ReEchoTimeShardPickup::TranslucentSortPriority);
+	Visual->SetTranslucentSortPriority(ReEchoTimeShardPickup::GroundPickupSortPriority);
 	Visual->SetRelativeLocation(FVector::ZeroVector);
 	Visual->SetHiddenInGame(false);
 	Visual->SetVisibility(true);
-	Visual->bIsScreenSizeScaled = false;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> TimeShardTexture(
 	    TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard"));
-	if (TimeShardTexture.Succeeded())
-	{
-		Visual->SetSprite(TimeShardTexture.Object);
-		Visual->SetRelativeScale3D(
-		    FVector(ReEchoTimeShardPickup::VisualWorldHeightCm /
-		            FMath::Max(1, TimeShardTexture.Object->GetSizeY())));
-	}
+	PickupTexture = TimeShardTexture.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TranslucentSpriteMaterial(
+	    TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	PickupBaseMaterial = TranslucentSpriteMaterial.Object;
 
 	SetLifeSpan(20.0f);
+}
+
+void AReEchoTimeShardPickupActor::BeginPlay()
+{
+	Super::BeginPlay();
+	if (!Visual || !PickupTexture || !PickupBaseMaterial)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("[TimeShardPickup] missing visual dependency actor=%s texture=%s material=%s"),
+		       *GetName(),
+		       *GetNameSafe(PickupTexture),
+		       *GetNameSafe(PickupBaseMaterial));
+		return;
+	}
+
+	PickupMaterialInstance = UMaterialInstanceDynamic::Create(PickupBaseMaterial, this);
+	PickupMaterialInstance->SetTextureParameterValue(TEXT("SpriteTexture"), PickupTexture);
+	const float VisualWorldWidthCm = ReEchoTimeShardPickup::VisualWorldHeightCm *
+	                                 static_cast<float>(PickupTexture->GetSizeX()) /
+	                                 FMath::Max(1, PickupTexture->GetSizeY());
+	Visual->AddElement(PickupMaterialInstance,
+	                   nullptr,
+	                   false,
+	                   VisualWorldWidthCm,
+	                   ReEchoTimeShardPickup::VisualWorldHeightCm,
+	                   nullptr);
 }
 
 void AReEchoTimeShardPickupActor::Tick(const float DeltaSeconds)
