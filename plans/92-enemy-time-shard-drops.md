@@ -187,6 +187,7 @@
 - 2026-08-24：用户 PIE 证明上一步未生效：碎片仍覆盖兔子子弹与怪物。引擎源码审计确认 `UBillboardComponent` 通过 `DrawSprite(..., SE_BLEND_Masked)` 进入不透明/Masked 通道，`TranslucencySortPriority` 对其无效。拾取表现改为 `UMaterialBillboardComponent + /Paper2D/TranslucentUnlitSpriteMaterial`，正式纹理通过 MID 的 `SpriteTexture` 参数注入；排序带改为 `-60`，处于 Arena Backdrop `-100` 与角色脚点下限 `-50` 之间，确保地图可见而所有角色、怪物与战斗表现可遮挡碎片。
 - 2026-08-24：用户否决 C++ 写死 `VisualWorldHeightCm`，并要求参考敌人提供可编辑组件与地面阴影。新增 `BP_TimeShardPickup`、专用透明材质实例和 `PresentationRoot -> {VisualRoot, GroundRoot -> GroundShadow}` 组件树；图标高度等表现参数移为 Blueprint Class Defaults，阴影 Transform/缩放/材质可直接选中组件调整。拾取 Actor 在 Arena 存在时统一贴合 GameplayPlane，GameMode 集中解析 Blueprint Class，武器符文不再另建一条生产生成路径。
 - 2026-08-24：按用户表现反馈增加两段可编辑动画。生成时 `VisualRoot` 从轻微离地高度做两次衰减弹跳，阴影保持贴地；拾取成功仍在接触瞬间入账和关闭碰撞，但延迟到图标快速上升、`Opacity` 连续降为 0 后销毁。新增专用 `M_TimeShardPickup` 主材质承载运行时透明参数，避免把淡出能力依赖在引擎 Paper2D 材质的隐式参数上。
+- 2026-08-24：用户 PIE 发现弹跳后的图标下半部被地面切掉。根因是专用透明主材质恢复了默认深度测试，而 Material Billboard 中心位于 GameplayPlane，地面深度会裁掉中心以下的像素；修正为主材质忽略深度测试，仍以 `GroundSortPriority=-60` 保持透明对象之间的地面层遮挡关系。
 
 ### 证据
 
@@ -204,6 +205,7 @@
 - Masked Billboard 根因返修后 FullRebuild 成功，预构建 build id `55116800`、source `42a3b71a29b2`；`ReEcho.Run.EnemyShardDrops` 2/2 通过，新增自动化锁定 Material Billboard 类型与 `-60` 地面排序带。
 - 编辑器可配置 Prefab 与阴影返修后 FullRebuild 成功，预构建 build id `55116800`、source `81ab6cbfa61b`；作者脚本首次创建 `MI_TimeShardPickup/BP_TimeShardPickup`、第二次无写入保留并验证父类。`ReEcho.Run.EnemyShardDrops` 2/2 与实际覆盖碎片符文生成的 `ReEcho.Weapons.Runes.DynamicHitHandlers` 1/1 通过，项目校验、预构建检查与 `git diff --check` 通过。
 - 弹跳/拾取上升淡出返修后，作者脚本创建 `M_TimeShardPickup` 并将既有 MI 迁到支持 `Opacity` 的专用主材质；脚本改为只在首次创建时构图，已存在时保留，规避 UE 5.8 对重载材质执行 `DeleteAllMaterialExpressions` 的引擎断言。最终 `.clang-format`、Development FullRebuild 成功，预构建 build id `55116800`、source `59d37681620c`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。视觉节奏仍由用户 PIE 验收。
+- 地面裁切返修的作者脚本以 `-DisablePlugin=ModelContextProtocol` 成功执行并二次加载既有主材质，`M_TimeShardPickup` 已保存 `Disable Depth Test=true`；首次重试曾因本机 MCP 的 8000 端口占用令 commandlet 返回失败，但脚本本体已成功，禁用该无关插件后的最终执行为 0 error。
 - 完整 `ReEcho.Weapons.Runes` 额外审计中，5 项有 3 项通过；`CatalogAndHandlerCoverage` 仍期待主干已禁用的第 47 个枪口符文（当前生产 46），`ProjectileSplitPierceExplosion` 的既有攻击时快照断言失败。本 Plan 未修改符文表、投射物快照或这两项断言；与本次生成路由直接相关的 `DynamicHitHandlers` 单独通过。
 - `ReEcho.Data` 的 6 项中 3 项失败，均可由未修改的任务基线数据复现：测试仍期待 39 张可抽卡（基线为 37）、Rabbit 二形态关闭（基线为开启）、60 条未命名禁用配件（基线为 0）；本 Plan 不越界改写这些断言。
 

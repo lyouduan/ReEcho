@@ -43,6 +43,7 @@ if master_material_created:
     )
 if not isinstance(master_material, unreal.Material):
     fail(f"failed to create {MASTER_MATERIAL_PATH}")
+master_material.set_editor_property("disable_depth_test", True)
 if master_material_created:
     master_material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     master_material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
@@ -71,8 +72,8 @@ if master_material_created:
     unreal.MaterialEditingLibrary.connect_material_property(
         opacity_multiply, "", unreal.MaterialProperty.MP_OPACITY
     )
-    unreal.MaterialEditingLibrary.recompile_material(master_material)
-    unreal.EditorAssetLibrary.save_loaded_asset(master_material, only_if_is_dirty=False)
+unreal.MaterialEditingLibrary.recompile_material(master_material)
+unreal.EditorAssetLibrary.save_loaded_asset(master_material, only_if_is_dirty=False)
 
 material_created = not unreal.EditorAssetLibrary.does_asset_exist(MATERIAL_PATH)
 material = None if material_created else unreal.EditorAssetLibrary.load_asset(MATERIAL_PATH)
