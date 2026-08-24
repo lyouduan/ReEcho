@@ -24,6 +24,7 @@ class UReEchoRunSubsystem;
 
 DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
+DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponEquipRequested, FName);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoGuidCommandRequested, FGuid);
@@ -59,6 +60,7 @@ public:
 	FReEchoInventoryShopClosed OnClosed;
 
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
+	FReEchoWeaponEquipRequested OnWeaponEquipRequested;
 	FReEchoShopRefreshRequested OnRefreshRequested;
 
 	FReEchoEchoCommandRequested OnEchoStoreRequested;
@@ -103,9 +105,6 @@ public:
 	/** 按 ItemId 标记某报价槽位为已购；构筑卡同步进入右侧卡牌槽，不触发重摇。 */
 	void MarkItemPurchased(FName ItemId);
 
-	/** 购买即装备后，仅重绘符文装备槽（不重摇、不重绘投放槽）。LatestEquippedParts 为数据层最新装备快照。 */
-	void RefreshWeaponLoadoutAfterPurchase(const TArray<FReEchoEquippedPartSnapshot>& LatestEquippedParts);
-
 	EReEchoInventoryShopMode GetMode() const
 	{
 		return Mode;
@@ -129,10 +128,15 @@ private:
 	void RebuildTargetOfferRows();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
+	void RebuildEquippedWeaponDisplay();
 	void UpdateWeaponLoadoutText();
 	FName GetSlotTypeIdForIndex(int32 SlotIndex) const;
 	const FReEchoShopOffer* FindOwnedPartByContentId(FName ContentId) const;
 	void HandleAttachmentSlotClicked(int32 SlotIndex);
+	UCanvasPanel* EnsureBackpackPopupLayer();
+	FVector2D ResolveBackpackPopupPosition(const UWidget* AnchorWidget,
+	                                       const FVector2D& PopupSize,
+	                                       const FVector2D& FallbackPosition) const;
 	UFUNCTION()
 	void HandleAttachmentSlot0Clicked();
 	UFUNCTION()
@@ -143,6 +147,12 @@ private:
 	void HideBackpackPopup();
 	UFUNCTION()
 	void HandleBackpackItemClicked(int32 ItemIndex);
+	UFUNCTION()
+	void HandleEquippedWeaponClicked();
+	void BuildWeaponBackpackPopup();
+	void HideWeaponBackpackPopup();
+	UFUNCTION()
+	void HandleWeaponBackpackItemClicked(int32 ItemIndex);
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
@@ -308,15 +318,26 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> DesignerLoadoutCanvas;
 	UPROPERTY(Transient)
+	TObjectPtr<UImage> DesignerWeaponPanelWidget;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> DesignerEquippedWeaponButton;
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> DesignerEquippedWeaponArt;
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> TargetCurrencyText;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UButton>> DesignerAttachmentSlotButtons;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerAttachmentSlotArts;
 	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> BackpackPopupLayer;
+	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> BackpackPopupPanel;
 	int32 ActiveBackpackSlotIndex = INDEX_NONE;
 	TArray<FName> CachedBackpackItemIds;
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> WeaponBackpackPopupPanel;
+	TArray<FName> CachedWeaponBackpackIds;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UButton>> DesignerCardSlotButtons;
 	UPROPERTY(Transient)

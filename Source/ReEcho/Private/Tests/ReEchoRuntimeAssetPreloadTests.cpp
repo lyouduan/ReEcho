@@ -4,6 +4,9 @@
 
 #include "Engine/GameInstance.h"
 #include "Presentation/Loading/ReEchoRuntimeAssetPreloader.h"
+#include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
+#include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuntimeAssetPreloadCatalogTest,
                                  "ReEcho.Presentation.RuntimeAssetPreload.Catalog",
@@ -12,8 +15,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuntimeAssetPreloadCatalogTest,
 bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 {
 	const TArray<FSoftObjectPath> AssetPaths = UReEchoRuntimeAssetPreloader::BuildDefaultAssetList();
+	TArray<FString> GatheredPaths;
+	FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(GatheredPaths);
+	FReEchoElementReactionVfxCatalog::GatherPreloadAssetPaths(GatheredPaths);
+	FReEchoWeaponVisualCatalog::GatherPreloadAssetPaths(GatheredPaths);
+	const TArray<FSoftObjectPath> ExpectedPaths = UReEchoRuntimeAssetPreloader::NormalizeAssetPaths(GatheredPaths);
 	TestEqual(
-	    TEXT("The preload catalog contains combat, element and weapon presentation assets"), AssetPaths.Num(), 32);
+	    TEXT("Default preload count matches the three authoritative catalogs"), AssetPaths.Num(), ExpectedPaths.Num());
+	for (int32 PathIndex = 0; PathIndex < FMath::Min(AssetPaths.Num(), ExpectedPaths.Num()); ++PathIndex)
+	{
+		TestTrue(FString::Printf(TEXT("Default preload path %d preserves authoritative catalog order"), PathIndex),
+		         AssetPaths[PathIndex] == ExpectedPaths[PathIndex]);
+	}
+	TestFalse(TEXT("The authoritative preload list is not empty"), AssetPaths.IsEmpty());
 	TSet<FSoftObjectPath> UniquePaths;
 	for (const FSoftObjectPath& AssetPath : AssetPaths)
 	{
@@ -33,8 +47,8 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Gun impact Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark.NS_People_Bullet_spark"))));
-	TestTrue(TEXT("Missing specialist art is still warmed before its synchronous fallback"),
-	         UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash"))));
+	TestFalse(TEXT("Missing Whip specialist art is not preloaded or borrowed"),
+	          UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash"))));
 	TestTrue(TEXT("Grass attachment Niagara is preloaded"),
 	         UniquePaths.Contains(
 	             FSoftObjectPath(TEXT("/Game/VFX/Element/Grass/Particle/NS_Element_Grass.NS_Element_Grass"))));

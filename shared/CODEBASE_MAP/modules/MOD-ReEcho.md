@@ -68,6 +68,7 @@
 - 本局只读摘要、保存文件、录制与 Echo Playback。
 - UI 屏幕命令、只读展示数据和表现事件。
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
+- 战斗常驻 HUD 的只读表现投影：Combatant 提供生命，Run 提供 TimeShards，Encounter Director 提供剩余时间，GameMode 只转发这些状态及小地图视图，不复制或回写权威。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 
 ### 稳定契约
@@ -236,12 +237,13 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 角色能力：`Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*` 是统一类型化入口。猎手静态能力在新 Run 与角色晋升时作用于有效 StatBlock；诗人在成功 Encounter 完成时永久增长；智者在普通选卡计数达到配置间隔时追加选择。旧 Forge 阶段只作为旧存档迁移输入，并确定性转为普通 `CardChoice`，不再生成、展示或授予 Forge。
 - 勇者缺血阶梯不写入 Run Save：Player Host 订阅 Combat 最终 `HealthChanged`，用当前/最大生命和能力表重算物攻/元攻加值，再通过 Combat 通用来源修正入口替换旧值。治疗、恢复和重生自然回退，不累计历史损血。
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
-- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器配件 OwnedPartIds、Time Shard、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 10；BuildSnapshot 内的 CardState 语义由 Cards 定义。
+- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 14；BuildSnapshot 内的 CardState 语义由 Cards 定义。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
-- 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 资格池生成三选一。数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店按真实关次读取 `ShopTiers`：空配置生成 0 槽，有配置则把全部指定 Tier 合并为共同牌池并确定性生成 3 个互不重复槽；同一 `EncounterIndex + ShopRefreshSequence` 的 CardId/价格保持稳定，购买只标记已购，显式刷新或进入下一关才重建页面。免费与商店均允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。
+- 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 资格池生成三选一。数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店始终投影 `[1级, 2级, 3级]` 三个固定位置，按真实关次读取 `ShopTiers` 逐级启用对应位置；每个启用位置只从 Cards 提供的同 Tier 资格池确定性抽取一张，未配置或候选耗尽时该位置为空/售罄，禁止跨级补位。同一 `EncounterIndex + ShopRefreshSequence` 的三个位置 CardId/价格保持稳定，购买只标记已购，显式刷新或进入下一关才重建页面。免费与商店均允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
-- 商店配件：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成兼容当前武器的报价；购买立即提交所有权但不改装备，只有 `TrySaveWeaponPartLoadout` 校验所有权、必需槽和容量后才原子提交 `EquippedParts`。
+- 商店武器/符文：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成报价；同一 `EncounterIndex + ShopRefreshSequence` 的三个武器/符文槽缓存稳定 ContentId 与确定性价格，购买只改变已购/已装备状态，不得用缩小后的资格池重算其余槽；显式刷新或下一关才生成新页。符文购买立即进入 `OwnedPartIds` 并装入对应槽，满槽时最早符文回背包。每次购买成功后 GameMode 都重取完整商店只读投影，使 `OwnedParts`、`EquippedParts`、武器、卡牌、货币和背包同步更新；稳定缓存保证该重取不会重摇未购买报价。初始武器和购买武器进入 `OwnedWeaponIds`；购买整把武器与背包换装都复用 `ReEchoWeaponRuntime::TrySelectWeapon`，只保留兼容符文，不兼容符文仍拥有但卸下。`TryEquipOwnedWeapon` 是不扣费、不刷新页面的窄事务，未知、禁用或未拥有武器不得改变构筑。SaveVersion 14 持久化武器背包与稳定武器/符文商店页；v12 及更早存档以当前装备武器迁移最小拥有集合，v13 存档保留武器背包并重建商店页。
+- 商店购买统一入口：`PurchaseShopItemDetailed` 是所有商品类型的权威购买事务，返回交易 ID、结果码、说明与实际价格；旧 `PurchaseShopItem` 只保留为 bool 兼容外观。每次尝试（包括未知商品、重复、禁购、余额不足和领域拒绝）都以同一交易 ID输出 `BEFORE / RESULT / AFTER`，快照包含碎片、当前武器、已装备符文、已生效卡牌、武器背包、符文背包和普通背包。统一审计出口直接追加 `Saved/Logs/ShopPurchaseAudit.log`，不依赖 Shipping 会裁剪的 `UE_LOG`；Development 另镜像到普通 UE 日志，玩家可见反馈仍由 UI 负责。
 - 禁止：返回可写内部容器、让 Widget 直接改字段、用数组索引充当持久 Echo 身份。
 - 测试：Save、Shop、Trait、EchoStorage、EchoReplayRuntime 和 Run parity 测试。
 
@@ -311,7 +313,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 输入：玩法只读摘要、用户选择和稳定 ID。
 - 输出：类型化命令，不直接写 Run/Combat/Weapon 内部状态。
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。
-- 商店/背包页保留全屏背景，并把固定 `1920×1080` 作者坐标的交互内容放入统一等比缩放设计面；WBP 控件和运行时弹层必须共享同一缩放坐标系，避免低分辨率裁切或点击区域错位。
+- 商店/背包页保留全屏背景，并把固定 `1920×1080` 作者坐标的交互内容放入统一等比缩放设计面；WBP 控件和运行时弹层必须共享同一缩放坐标系，避免低分辨率裁切或点击区域错位。武器背包和符文背包共用该设计面的根级高层浮层，不能继续嵌在装配室局部 Canvas 下被兄弟表现层遮挡。
 - 商店/背包页按 `P` 时由更高 Pause 层覆盖，商店保持打开；恢复后重新聚焦商店并保持暂停，不得复用商店关闭路径或触发战后推进。
 - 人工验收：布局、可读性、焦点、点击区域和视觉效果由用户验收，Executor 不做高 token 视觉遍历。
 

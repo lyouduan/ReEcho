@@ -7,7 +7,7 @@
 - Build 文件：无；当前构建规则仍位于 `Source/ReEcho/ReEcho.Build.cs`。
 - 主要目录：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`、`Content/ReEcho/UI/`、`Content/ReEcho/Textures/UI/`、`Content/SourceArt/UI/`。
 - UI 架构设计权威：[ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md)。
-- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70。
+- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93。
 
 ## 存在原因
 
@@ -26,7 +26,8 @@
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。
 - Player HUD 显式接收当前玩家的 Combatant 与 CombatEvents：`OnHurt` 仅触发瞬时受击红光，生命变化仅更新可配置的低血量底色。`UReEchoPlayerScreenFeedbackWidget` 独占合成、钳制、重触发和死亡清理等表现状态；`WBP_ReEchoPlayerScreenFeedback` 的 Class Defaults 是阈值、强度、曲线指数、呼吸和材质参数的 Editor 调参表面。HUD 硬引用并构造该 WBP Class，Widget 硬引用 `/Game/ReEcho/Materials/UI/M_UI_PlayerHurtVignette`，保证 cook 收集；材质缺失时使用不影响玩法的原生左右边缘 fallback。
-- 商店装配室的武器面板、时钟、3 个配件槽和 12 个卡牌槽以 `WBP_ReEchoInventoryShopScreen > Overlay_0 > DesignerLoadoutCanvas` 为位置权威；这些控件都是 Canvas 直接子项，可在 UMG Designer 中修改 Position/Size。`UReEchoInventoryShopWidget` 只向槽位填充纹理、置灰状态、Tooltip 和存储卡点击事件，不创建或重置其坐标；构筑卡购买成功后会把真实卡牌图标立即填入下一个卡牌槽，但不重摇当前商店报价。
+- Plan93 战斗常驻 HUD 以两个 WBP 为视觉权威：Player HUD 用 `PlayerHealthFill` 映射真实生命比例并显示 Run 的只读 TimeShards；Encounter HUD 显示 `第 N 关`、零补齐 `MM:SS`，并把现有真实 `UReEchoMinimapCanvasWidget` 包进交付回响框。Minimap Canvas 底板透明且不绘制内层竞技场边框，只保留轨迹和实时点。参考图底部技能栏已被产品废弃，不进入 WBP 或运行时纹理；Widget 不写 Run、不复制遭遇时钟，也不伪造技能状态。
+- 商店装配室的武器面板、时钟、3 个符文槽和 12 个卡牌槽以 `WBP_ReEchoInventoryShopScreen > Overlay_0 > DesignerLoadoutCanvas` 为位置权威；这些 authored 控件都是 Canvas 直接子项，可在 UMG Designer 中修改 Position/Size。`UReEchoInventoryShopWidget` 在武器面板的 authored 矩形上叠加当前武器图与透明点击入口，位置跟随面板而不是另立坐标；武器贴图 Brush 使用源纹理尺寸，按钮 Content Slot 填充 authored 矩形，再由 ScaleBox 等比放大，禁止退回默认 32px 中央小图。点击后用独立浮层列出 Run 投影的全部已拥有武器，当前项禁用，其他项只广播装备请求。武器与符文背包统一挂在响应式设计面的根级 `BackpackPopupLayer`，其 ZOrder 高于商店和回响弹层；符文背包复用武器背包的边框、滚动区、图标尺寸和文字行对齐。符文槽继续填充纹理、置灰状态与 Tooltip；构筑卡购买成功后把真实卡牌图标立即填入卡牌槽，但不重摇当前商店报价。
 - 商店/背包页以 `1920×1080` 为作者设计面：`BackgroundImage` 保持直接铺满实际视口，其余根控件及运行时商店/回响弹层由 `ResponsiveContentScale > ResponsiveContentSize > ResponsiveContentCanvas` 统一 `ScaleToFit`。低分辨率按比例缩小完整页面，超宽屏只延展背景；运行时迁移必须保留原 Canvas Slot 的锚点、偏移、自动尺寸和 ZOrder。
 - `UReEchoInventoryShopWidget` 的无资产 fallback 展示实际折扣价、免费刷新余量、刷新禁用和额外卡牌组禁用状态；刷新只广播命令，Run 成功消费并保存后才更新页面和确定性报价顺序。
 - 商店逻辑按稳定区块拆分：`ShopLogicScrollBox > ShopLogicPanel` 依次承载 `WeaponPartOfferPanel`（配件购买）、`RunItemOfferPanel`（普通商品）、`ShopControlPanel`（规则/刷新）和 `WeaponLoadoutPanel`（槽位草稿/保存）。现有 WBP 由 C++ 在根 Canvas 上提供有界、显式滚动条的商品视口，战后模式止于底部回响托盘上方；`EchoPanel` 使用独立缩放托盘与显式高 ZOrder。这些名称是后续 WBP 接入的逻辑契约，C++ 不依赖任何美术占位节点。
@@ -49,6 +50,7 @@
 | 接入 UI 美术源图 | `Content/SourceArt/UI/InteractionPlaceholder/README.md` | `Content/ReEcho/Textures/UI/InteractionPlaceholder/`、对应 WBP |
 | 修改页面行为或绑定 | 对应 `Source/ReEcho/Public/UI/*Widget.h` | 配对的 `Source/ReEcho/Private/UI/*Widget.cpp` |
 | 修改玩家受伤/低血量屏幕反馈 | `ReEchoPlayerHudWidget.*` | `WBP_ReEchoPlayerScreenFeedback`、`M_UI_PlayerHurtVignette`、两个 `scripts/ue/author_plan70_*` 作者ing脚本 |
+| 修改战斗常驻 HUD | `WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` | `ReEchoPlayerHudWidget.*`、`ReEchoEncounterHudWidget.*`、`Content/SourceArt/UI/CombatHud/Plan93/` |
 | 修改商店卡牌规则展示 | `ReEchoInventoryShopWidget.*` | `ReEchoGameMode::RefreshShopPresentation`、`UReEchoRunSubsystem` 商店命令 |
 | 修改页面创建、层级和实例 | `ReEchoUIManagerSubsystem.*` | `UI/Framework/ReEchoUIScreenTypes.h` |
 | 修改焦点、输入或暂停流程 | `UI/Framework/ReEchoUIFlowCoordinatorSubsystem.*` | `ReEchoGameMode` 类型化端点 |
@@ -76,4 +78,9 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - 静态检查：`python scripts/validate_project.py`、`git diff --check`。
 - Plan47 商店回归：折扣显示与实际扣款同舍入、免费刷新优先消费且无零价无限刷新、永久代价禁用状态可见；不修改 Plan45 WBP/纹理资产。
 - Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
+- Plan91 卡牌商店投影固定为1/2/3级三个位置；Widget 只消费 Run 提供的槽位 Tier/状态，空槽显示“未投放”或“售罄”、隐藏卡图和价格并禁用购买，不自行跨级选择或补卡。
+- Plan91 武器背包扩展：Widget 不持有武器所有权，也不把换装伪装成购买；`OnWeaponEquipRequested` 交给 GameMode 调用 Run 事务。成功后整页重取只读投影，使当前武器图、武器名和兼容符文槽同时更新，但 `EncounterIndex + ShopRefreshSequence` 不变，因此报价不重摇。
+- Plan91 稳定页中的已拥有武器仍保留原槽身份和价格，但 Widget 必须以 Run 的 `OwnedWeapons` 投影为“已获得”并禁用购买；不得依赖本次页面内的临时点击记录判断所有权。
+- Plan91 的任意商品购买成功后由 GameMode 重新注入完整商店只读投影，Widget 不再局部拼接 `EquippedParts`。这保证新购符文立即进入 `OwnedParts` 背包视图，同时依赖 Run 的稳定页缓存保持其余报价不变。
+- 商店购买按钮由 GameMode 调用 Run 的 `PurchaseShopItemDetailed` 并消费结构化成功/失败结果；Widget 仍只发送稳定 ItemId，不自行判定扣费、所有权或失败原因，旧 bool 入口不再是 UI 命令端点。
 - 人工检查：按 UI 修改指导执行页面导航、焦点、DPI、可读性和交互验收。

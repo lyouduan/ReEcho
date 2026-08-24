@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（设置页与暂停页的视觉比例、可读性、命中和页面往返需要用户逐轮 PIE 判断）。
 - 本地规划 / 实现基线：`origin/main@52b1648cbb40719115624bf449392a1e15cc1bec`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan86-settings-pause-ui`，分支 `plan/86-settings-pause-ui`；规划者与执行者合一。
@@ -102,21 +102,37 @@
 
 ### 变化
 
-- Plan86 已编号，建立独立 worktree；等待 Plan-only 发布后与用户从具名页面/状态开始逐轮完善。
+- Plan86 已编号并建立独立 worktree；第一批设置页返工采用用户交付的 `标签浅.png` / `标签深.png`，当前页显示浅色纸张标签，未选中页显示深色纸张标签。
+- 保持三个 WBP 页签 Overlay、标签文字与真实 Button 的布局/命中关系不变；C++ 只依据当前分类切换浅/深 Brush，不回写 Designer 坐标。
+- 三个页签 Overlay 中遗留的六个无资源白色装饰 `Image` 已折叠，避免其默认白 Brush 从纸张贴图透明边缘透出矩形框。
+- 用户交付的 `滑动条把手.png` 已作为真实 Slider 的 Thumb 样式接入；三条作者化音频滑条直接使用，动态亮度滑条从总音量滑条继承同一风格，拖动逻辑与 WBP 布局保持不变。
+- 滑条深色 Fill 与真实 Thumb 统一采用缩进后的把手中心区间：0%/100% 均保留半把手宽，任意百分比的颜色分界都落在把手中心，消除端点凸出与中段缝隙。
+- 清除三条作者化声音 Slider 遗留的 Overlay Slot 左右 Padding，使真实把手的运动轨道与底板/Fill 美术使用同一完整宽度；此前两端分离而中段接近的问题由该缩短运动区间导致。
+- 声音页三条轨道的 `HorizontalBoxSlot` 从会随整行拉伸的 `Fill` 改为按美术期望尺寸布局的 `Automatic`；其 Track/Fill 原始宽度与已验收的亮度条同为 802 px，消除声音条在约 23%–78% 外才逐渐分离的几何差异。
+- 依据 UE 5.8 `SSlider` 实际绘制规则关闭 `IndentHandle`：该选项会额外扣除两倍 Thumb 宽度，正是声音页两端无法贴合的剩余原因；关闭后 0%/100% 时把手外缘分别贴合底图两端，Fill 分界继续与把手中心一致。
+- 设置页底部两个真实按钮接入用户交付的 `设置按钮浅.png` / `设置按钮深.png`：恢复默认使用浅色纸张，应用使用深色纸张；保留 WBP 位置、文字层和原有点击行为。
+- 设置页底部按钮的布局权经资产审计确认在 `WBP_ReEchoSettings/SettingsLayoutCanvas`：`RestoreDefaultsButton` 与 `ApplyAndReturnButton` 均为直接 Canvas 子控件并拥有独立 `CanvasPanelSlot`，C++ 只绑定事件；自动化契约禁止后续把两者迁回运行时布局。
+- 清理设置页作者ing树中的折叠遗留内容：删除旧标题/说明文本、六张旧白底页签图、五行旧画面占位布局、重复页签/按钮文字及占位提示；保留仍被音频服务绑定的隐藏控制行。清理脚本在删除前后校验两个底部按钮的 Canvas 坐标与尺寸完全不变。
+- 声音页输出设备框由会随行拉伸的 `Fill` 改为 802×50 固定美术尺寸，与画面页四个下拉框一致；整体左移 39 px 并在右侧预留布局占位，使左右边界同时对齐三条音量轨道，真实 ComboBox 交互层继续完整覆盖框体。
+- 声音页可见控件从 `VerticalBox > HorizontalBox` 自动排版迁入 `AudioPanel > AudioDesignerCanvas`：三组标签、滑条逻辑根、百分比、静音按钮以及输出设备标签/下拉框均拥有独立 `CanvasPanelSlot`，可在 UMG Designer 中直接拖动和改尺寸；轨道/填充/把手仍封装在同一 Overlay 内避免内部漂移，C++ 只复制作者化槽位建立交互层。
 
 ### 证据
 
 - 编号前已 fetch；远端最大 Plan 编号为 85，新任务使用 86，基线为 `origin/main@52b1648cbb40719115624bf449392a1e15cc1bec`。
 - 已审计设置/暂停原生 Widget、现有聚焦测试、Plan81 与 `MOD-ReEchoUI`；本 Plan 不改变已发布的屏幕枚举、音频总线或退出端点。
+- `标签浅.png` / `标签深.png` 均确认是 208x68、32bpp ARGB；导入为 `T_UI_Settings_TabLight` / `T_UI_Settings_TabDark`，WBP 默认状态已 Compile/Save。
+- Development Editor 增量构建通过；`ReEcho.UI.SettingsInteraction` 找到 1 项并以 `Result={Success}` 完成，新增断言覆盖画面默认浅、声音/键位默认深及切换后的状态互换。
+- `CompileAllBlueprints`：0 errors、0 warnings、0 failed loads；`python scripts/validate_project.py` 与 `git diff --check` 通过。
+- 设置页清理前后通过 UMG ToolSet 全树审计：节点数由 136 降至 104，22 个废弃根及其 10 个子节点全部消失；资产 Compile/Save 成功，两个底部按钮的 Canvas Position/Size 前后完全一致。清理后 Development Editor 构建与 `ReEcho.UI.SettingsInteraction` 再次通过，测试同时断言全部旧节点不再存在。
 
 ### 剩余风险
 
 - 两个 WBP 是二进制资产，任何并行编辑都会形成难合并冲突；必须逐资产小批次推进。
-- 用户尚未提供本轮第一张目标图或具名偏差；Plan 先锁定职责和验收方法，不擅自决定最终美术比例。
+- 第一批标签素材为 208x68 ARGB，与旧 269x64 纯色占位图宽高比不同；先沿用 WBP 现有页签 Slot 做运行复测，若用户要求再仅在 Designer 调整尺寸/间距。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：等待用户指定先处理设置页还是暂停页，并提供当前截图/目标图或直接描述第一批差异。
+- `PendingBeforeClose`：当前批次等待用户复测设置页三个标签的浅/深状态、切换与命中。
 
 ### 架构文档审阅结果
 

@@ -75,6 +75,15 @@ void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCo
 	Refresh();
 }
 
+void UReEchoPlayerHudWidget::SetTimeShards(const int32 InTimeShards)
+{
+	CurrentTimeShards = FMath::Max(0, InTimeShards);
+	if (TimeShardText)
+	{
+		TimeShardText->SetText(FText::AsNumber(CurrentTimeShards));
+	}
+}
+
 void UReEchoPlayerHudWidget::NativeDestruct()
 {
 	BindCombatant(nullptr);
@@ -201,6 +210,7 @@ void UReEchoPlayerHudWidget::EnsureScreenFeedbackWidget()
 
 void UReEchoPlayerHudWidget::Refresh()
 {
+	SetTimeShards(CurrentTimeShards);
 	if (!Combatant.IsValid())
 	{
 		return;
@@ -244,15 +254,21 @@ void UReEchoPlayerHudWidget::HandleHealthChanged(const float CurrentHealth, cons
 		PlayerScreenFeedback->SetHealth(ClampedHealth, SafeMaximumHealth);
 	}
 
-	if (!PlayerHealthProgress || !PlayerHealthText)
+	const float HealthRatio = ClampedHealth / SafeMaximumHealth;
+	if (PlayerHealthProgress)
 	{
-		return;
+		PlayerHealthProgress->SetPercent(HealthRatio);
 	}
-
-	PlayerHealthProgress->SetPercent(ClampedHealth / SafeMaximumHealth);
-	PlayerHealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0}/{1}"),
-	                                        FText::AsNumber(FMath::CeilToInt(ClampedHealth)),
-	                                        FText::AsNumber(FMath::CeilToInt(SafeMaximumHealth))));
+	if (PlayerHealthFill)
+	{
+		PlayerHealthFill->SetRenderScale(FVector2D(HealthRatio, 1.0f));
+	}
+	if (PlayerHealthText)
+	{
+		PlayerHealthText->SetText(FText::Format(NSLOCTEXT("ReEcho", "PlayerHudHealth", "{0}/{1}"),
+		                                        FText::AsNumber(FMath::CeilToInt(ClampedHealth)),
+		                                        FText::AsNumber(FMath::CeilToInt(SafeMaximumHealth))));
+	}
 }
 
 void UReEchoPlayerHudWidget::HandlePlayerHurt(const FReEchoDamageEvent& Event)
@@ -275,5 +291,10 @@ bool UReEchoPlayerHudWidget::IsBoundToCombatEventsForTests(const UReEchoCombatEv
 UClass* UReEchoPlayerHudWidget::GetScreenFeedbackClassForTests() const
 {
 	return PlayerScreenFeedbackClass.Get();
+}
+
+int32 UReEchoPlayerHudWidget::GetTimeShardsForTests() const
+{
+	return CurrentTimeShards;
 }
 #endif

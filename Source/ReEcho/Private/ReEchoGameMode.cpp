@@ -2761,6 +2761,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
+	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
@@ -2867,34 +2868,51 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		return;
 	}
 
-	// 新购：走完整购买流程（防重复/扣钱/入背包），购买即装备。
-	if (RunSubsystem->PurchaseShopItem(ItemId))
+	// 新购统一走结构化事务；成功、拒绝、购买前后状态都由同一接口审计。
+	const FReEchoShopPurchaseOutcome PurchaseOutcome = RunSubsystem->PurchaseShopItemDetailed(ItemId);
+	if (PurchaseOutcome.IsSuccess())
 	{
-		// 购买即装备：武器配件报价的 ItemId 与 PartId 同名，购买后立即装入对应槽位。
-		if (RunSubsystem->OwnedPartIds.Contains(ItemId))
-		{
-			FString EquipError;
-			if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
-			{
-				UE_LOG(LogTemp,
-				       Warning,
-				       TEXT("[ReEchoShop] Purchased part '%s' could not be equipped: %s"),
-				       *ItemId.ToString(),
-				       *EquipError);
-			}
-		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
-		InventoryShopWidget->SetTimeShards(RunSubsystem->TimeShards);
-		InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats);
-		InventoryShopWidget->MarkItemPurchased(ItemId);
-		// 购买即装备后，仅重绘符文装备槽以立即反映已装备结果；不重摇、不重绘投放槽，保持 Step1 的“已购不刷新”行为。
-		InventoryShopWidget->RefreshWeaponLoadoutAfterPurchase(RunSubsystem->CurrentBuild.EquippedParts);
+		// The authoritative page is stable for EncounterIndex + ShopRefreshSequence. Rebuilding the complete read-only
+		// projection updates ownership, backpack and equipped state without rerolling any remaining offer.
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 	}
 	else
 	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Purchase request rejected tx=%s item=%s code=%d detail=%s"),
+		       *PurchaseOutcome.TransactionId,
+		       *ItemId.ToString(),
+		       static_cast<int32>(PurchaseOutcome.Result),
+		       *PurchaseOutcome.Detail);
 		PostUiEvent(FReEchoAudioEvents::UiError);
 	}
+}
+
+void AReEchoGameMode::HandleShopWeaponEquipRequested(const FName WeaponId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	FString EquipError;
+	if (!RunSubsystem->TryEquipOwnedWeapon(WeaponId, EquipError))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Owned weapon '%s' could not be equipped: %s"),
+		       *WeaponId.ToString(),
+		       *EquipError);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	PostUiEvent(FReEchoAudioEvents::UiConfirm);
+	RunSubsystem->SaveRun();
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
 
 void AReEchoGameMode::HandleShopRefreshRequested()
@@ -3619,6 +3637,10 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 	}
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (PlayerHudWidget)
+	{
+		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
+	}
 	if (EncounterHudWidget)
 	{
 		EncounterHudWidget->SetEncounterStatus(

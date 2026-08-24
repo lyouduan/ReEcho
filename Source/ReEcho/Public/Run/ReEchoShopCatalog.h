@@ -17,6 +17,36 @@ enum class EReEchoShopOfferKind : uint8
 	Weapon
 };
 
+/** One authoritative result vocabulary for every shop purchase attempt. */
+enum class EReEchoShopPurchaseResult : uint8
+{
+	Succeeded,
+	OfferNotFound,
+	AlreadyOwned,
+	PurchaseDisabled,
+	InsufficientCurrency,
+	DataUnavailable,
+	GrantRejected,
+	MutationRejected,
+	WeaponSelectionRejected,
+	ReplayUnlockRejected
+};
+
+/** Structured result returned by the unified purchase transaction interface. */
+struct REECHO_API FReEchoShopPurchaseOutcome
+{
+	FString TransactionId;
+	FName ItemId;
+	EReEchoShopPurchaseResult Result = EReEchoShopPurchaseResult::OfferNotFound;
+	FString Detail;
+	int32 EffectivePrice = 0;
+
+	bool IsSuccess() const
+	{
+		return Result == EReEchoShopPurchaseResult::Succeeded;
+	}
+};
+
 inline constexpr int32 ReEchoShopRefreshPrice = 10;
 inline constexpr int32 ReEchoShopOfferCountPerGroup = 3;
 
@@ -48,10 +78,11 @@ struct REECHO_API FReEchoWeaponSlotOffer
 	int32 Price = 0;
 };
 
-// One of the three fixed build-card shop slots. Its card is drawn from the current encounter's configured tier pool.
+// One of the three fixed build-card shop slots. Array index 0/1/2 is always tier 1/2/3.
 struct REECHO_API FReEchoCardSlotOffer
 {
 	int32 Tier = 1;
+	bool bAvailable = false;
 	FName CardId;
 	FName ItemId; // purchase lookup key
 	FText DisplayName;
@@ -72,14 +103,16 @@ struct REECHO_API FReEchoWeaponPartShopView
 {
 	FName WeaponId;
 	FText WeaponDisplayName;
+	FString WeaponIconTexturePath;
 	TArray<FReEchoWeaponSlotOffer> SlotOffers;   // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
 	                                             // rune / other weapon / other-weapon rune)
-	TArray<FReEchoCardSlotOffer> CardSlotOffers; // exactly 3 when ShopTiers is configured, otherwise empty
+	TArray<FReEchoCardSlotOffer> CardSlotOffers; // always 3 fixed tier slots; unavailable slots carry no CardId/ItemId
 	TArray<FReEchoShopOffer> Offers; // backward-compat bridge: flatten of SlotOffers + CardSlotOffers (+ whole-weapon
 	                                 // as Type==Weapon). TODO(Plan67 Step5): remove once WBP rearranged.
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FName> OwnedWeapons;
+	TArray<FReEchoShopOffer> OwnedWeaponOffers;
 	TArray<FReEchoWeaponSlotShopView> Slots;
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 };

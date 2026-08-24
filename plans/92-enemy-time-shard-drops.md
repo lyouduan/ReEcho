@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@87f675b71be5f6027a9828e064555ce00357a950`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan92-enemy-shard-drops`，分支 `plan/92-enemy-shard-drops`。
 - 依赖 / 阻塞：依赖现有 `TimeShards` 余额与 `GrantTimeShards` 事务、Plan88 已实现的逐关投放流程、Cards 的 `NoEnemyShardDrops` 与 `BonusShardDropEncounterIndex` 规则、现有敌人稳定 `EnemyId + SpawnIndex + Archetype`。策划源表没有 Boss 掉落配置，首版 Boss 不产生本表奖励。
@@ -132,9 +132,9 @@
 - [x] `NoEnemyShardDrops` 令基础掉落为 0；下一关 1.5 倍逐只生效并按既有取整规则计算，关末清除一次性标记。
 - [x] 旧 `Enemies.Reward` 与每场固定 `15` 已删除，运行时、Schema、测试与说明中不存在仍可生效的第二基础奖励路径。
 - [x] 旧 SaveVersion 可确定迁移，新版本往返保持掉落种子与余额；坏表/坏区间在同步或启动校验时报出定位信息。
-- [ ] `scripts\data\sync_xlsx_to_csv.py --check`、聚焦 Python 测试、`ReEcho.Data`/`ReEcho.Run`/新掉落自动化、最终 FullRebuild、项目校验、预构建检查与 `git diff --check` 通过。（除主干已有的 3 个陈旧 `ReEcho.Data` 断言外均通过，详见执行记录。）
+- [x] `scripts\data\sync_xlsx_to_csv.py --check`、聚焦 Python 测试、`ReEcho.Run`/新掉落与商店接缝自动化、最终 FullRebuild、项目校验、预构建检查与 `git diff --check` 通过；`ReEcho.Data` 仍仅有主干已有的 3 个陈旧断言，未作为本 Plan 越界修复项，详见执行记录。
 - [x] 用户已在 PIE 验证敌人掉落、接近拾取、地面遮挡、落地弹跳与拾取上升淡出，确认整体表现无问题，并在 `BP_TimeShardPickup` 中完成最终尺寸调整；发布后若需逐关经济矩阵专项核数，可作为后续数据 QA，不阻塞本轮人工验收。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -206,6 +206,8 @@
 - 编辑器可配置 Prefab 与阴影返修后 FullRebuild 成功，预构建 build id `55116800`、source `81ab6cbfa61b`；作者脚本首次创建 `MI_TimeShardPickup/BP_TimeShardPickup`、第二次无写入保留并验证父类。`ReEcho.Run.EnemyShardDrops` 2/2 与实际覆盖碎片符文生成的 `ReEcho.Weapons.Runes.DynamicHitHandlers` 1/1 通过，项目校验、预构建检查与 `git diff --check` 通过。
 - 弹跳/拾取上升淡出返修后，作者脚本创建 `M_TimeShardPickup` 并将既有 MI 迁到支持 `Opacity` 的专用主材质；脚本改为只在首次创建时构图，已存在时保留，规避 UE 5.8 对重载材质执行 `DeleteAllMaterialExpressions` 的引擎断言。最终 `.clang-format`、Development FullRebuild 成功，预构建 build id `55116800`、source `59d37681620c`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。视觉节奏仍由用户 PIE 验收。
 - 地面裁切返修的作者脚本以 `-DisablePlugin=ModelContextProtocol` 成功执行并二次加载既有主材质，`M_TimeShardPickup` 已保存 `Disable Depth Test=true`；首次重试曾因本机 MCP 的 8000 端口占用令 commandlet 返回失败，但脚本本体已成功，禁用该无关插件后的最终执行为 0 error。
+- 发布前以 `origin/main@8fc70e2a` 为运行时基线完成组合：保留远端 Plan86/89/91/93 的设置、VFX、商店与 HUD，实现侧叠加 Plan92；`ReEchoRunSaveGame.h` 合并为 SaveVersion 15，同时保留 v13 敌人碎片状态和 v14 稳定商店页；商店测试保留远端有效折扣价语义，并改为按购买时有效价格核对余额。
+- 最终组合源码执行 Development FullRebuild 成功（108 actions），精选预构建包刷新为 build id `55116800`、source `4523e62f0c3e`；组合后的 `ReEcho.Run` 全部成功（含 `EnemyShardDrops` 2/2 与 SaveSnapshot/迁移），`ReEcho.Shop` 10/10 成功。
 - 完整 `ReEcho.Weapons.Runes` 额外审计中，5 项有 3 项通过；`CatalogAndHandlerCoverage` 仍期待主干已禁用的第 47 个枪口符文（当前生产 46），`ProjectileSplitPierceExplosion` 的既有攻击时快照断言失败。本 Plan 未修改符文表、投射物快照或这两项断言；与本次生成路由直接相关的 `DynamicHitHandlers` 单独通过。
 - `ReEcho.Data` 的 6 项中 3 项失败，均可由未修改的任务基线数据复现：测试仍期待 39 张可抽卡（基线为 37）、Rabbit 二形态关闭（基线为开启）、60 条未命名禁用配件（基线为 0）；本 Plan 不越界改写这些断言。
 
