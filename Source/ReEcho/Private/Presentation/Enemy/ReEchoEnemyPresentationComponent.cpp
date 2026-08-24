@@ -298,17 +298,24 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 	}
 
 	FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
+	const UPaperSprite* CurrentSprite = nullptr;
 	if (bDeathVisualActive)
 	{
-		const UPaperSprite* CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
+		CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
 		if (CurrentSprite)
 		{
 			FlipbookBounds = CurrentSprite->GetRenderBounds();
 		}
 	}
-	const FVector LocalBottomCenter(
-	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
-	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
+	FVector2D AuthoredDeathPivot;
+	const bool bUseAuthoredDeathPivot =
+	    CurrentSprite && CurrentSprite->GetPivotMode(AuthoredDeathPivot) == ESpritePivotMode::Custom;
+	const FVector LocalGroundAnchor = bUseAuthoredDeathPivot
+	                                      ? FVector::ZeroVector
+	                                      : FVector(FlipbookBounds.Origin.X,
+	                                                FlipbookBounds.Origin.Y,
+	                                                FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
+	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalGroundAnchor);
 	const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
 	GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
 
@@ -334,20 +341,32 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 		return;
 	}
 	FBoxSphereBounds AlignmentBounds = Flipbook->GetRenderBounds();
+	const UPaperSprite* CurrentSprite = nullptr;
 	if (bDeathVisualActive)
 	{
-		const UPaperSprite* CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
+		CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
 		if (CurrentSprite)
 		{
 			AlignmentBounds = CurrentSprite->GetRenderBounds();
 		}
 	}
-	CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(
-	    AlignmentBounds,
-	    SequenceAnimation->GetRelativeTransform(),
-	    FlipbookRoot->GetRelativeTransform(),
-	    AuthoredMotionLocation,
-	    ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector);
+	const FVector ProfileFootpointOffset = ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector;
+	FVector2D AuthoredDeathPivot;
+	if (CurrentSprite && CurrentSprite->GetPivotMode(AuthoredDeathPivot) == ESpritePivotMode::Custom)
+	{
+		CalculatedFootAlignmentOffset =
+		    UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(SequenceAnimation->GetRelativeTransform(),
+		                                                               FlipbookRoot->GetRelativeTransform(),
+		                                                               AuthoredMotionLocation,
+		                                                               ProfileFootpointOffset);
+		return;
+	}
+	CalculatedFootAlignmentOffset =
+	    UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(AlignmentBounds,
+	                                                              SequenceAnimation->GetRelativeTransform(),
+	                                                              FlipbookRoot->GetRelativeTransform(),
+	                                                              AuthoredMotionLocation,
+	                                                              ProfileFootpointOffset);
 }
 
 void UReEchoEnemyPresentationComponent::UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot)

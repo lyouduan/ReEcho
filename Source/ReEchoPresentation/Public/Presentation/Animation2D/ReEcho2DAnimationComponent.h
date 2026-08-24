@@ -31,6 +31,10 @@ public:
 	                                            const FTransform& FlipbookRootToMotionRoot,
 	                                            const FVector& AuthoredMotionLocation,
 	                                            const FVector& FootpointOffset = FVector::ZeroVector);
+	static FVector CalculatePivotAlignmentOffset(const FTransform& RendererToFlipbookRoot,
+	                                             const FTransform& FlipbookRootToMotionRoot,
+	                                             const FVector& AuthoredMotionLocation,
+	                                             const FVector& FootpointOffset = FVector::ZeroVector);
 	static float CalculateFlipbookPresentationWidth(const FBoxSphereBounds& FlipbookBounds,
 	                                                const FTransform& RendererToFlipbookRoot,
 	                                                const FTransform& FlipbookRootToTarget);

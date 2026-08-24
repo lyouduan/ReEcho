@@ -197,17 +197,24 @@ FVector UReEcho2DAnimationComponent::CalculateFootAlignmentOffset(const FBoxSphe
 	return FootpointOffset - AuthoredMotionLocation - BottomInMotionRoot;
 }
 
-float UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
-    const FBoxSphereBounds& FlipbookBounds,
-    const FTransform& RendererToFlipbookRoot,
-    const FTransform& FlipbookRootToTarget)
+FVector UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(const FTransform& RendererToFlipbookRoot,
+                                                                   const FTransform& FlipbookRootToMotionRoot,
+                                                                   const FVector& AuthoredMotionLocation,
+                                                                   const FVector& FootpointOffset)
 {
-	const FVector LocalLeft(FlipbookBounds.Origin.X - FlipbookBounds.BoxExtent.X,
-	                        FlipbookBounds.Origin.Y,
-	                        FlipbookBounds.Origin.Z);
-	const FVector LocalRight(FlipbookBounds.Origin.X + FlipbookBounds.BoxExtent.X,
-	                         FlipbookBounds.Origin.Y,
-	                         FlipbookBounds.Origin.Z);
+	const FVector PivotInFlipbookRoot = RendererToFlipbookRoot.TransformPosition(FVector::ZeroVector);
+	const FVector PivotInMotionRoot = FlipbookRootToMotionRoot.TransformPosition(PivotInFlipbookRoot);
+	return FootpointOffset - AuthoredMotionLocation - PivotInMotionRoot;
+}
+
+float UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(const FBoxSphereBounds& FlipbookBounds,
+                                                                      const FTransform& RendererToFlipbookRoot,
+                                                                      const FTransform& FlipbookRootToTarget)
+{
+	const FVector LocalLeft(
+	    FlipbookBounds.Origin.X - FlipbookBounds.BoxExtent.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z);
+	const FVector LocalRight(
+	    FlipbookBounds.Origin.X + FlipbookBounds.BoxExtent.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z);
 	const FVector LeftInTarget =
 	    FlipbookRootToTarget.TransformPosition(RendererToFlipbookRoot.TransformPosition(LocalLeft));
 	const FVector RightInTarget =
@@ -366,4 +373,5 @@ void UReEcho2DAnimationComponent::DrawCurrentFrameCollisionDebug()
 	                0.75f);
 #endif
 }
+
 // ReEchoPresentation runtime implementation.

@@ -79,7 +79,7 @@
 - Profile/FSM：美术可配置语义动画集合和转换策略。
 - Controller：执行表现状态切换，持有显式动作占用；循环 Charge 只能由提交、结束或取消事件收束，不回写玩法。Host 判定死亡后可调用 `BeginTerminalDeath` 独占播放一次非循环 Death；进入后拒绝 Move、Attack、Hit、Transform 与动画集切换，完成回调只通知 Host 销毁表现宿主，不返回 Move，也不裁决玩法死亡。死亡会清理瞬时 VFX，但保留独立 GroundShadow；死亡阶段以当前 Sprite 帧的底边中心持续锁定同一 Profile 脚点，并据此更新阴影中心和宽度，而不是使用整个 Flipbook 的合并边界，使画面在固定世界位置向下塌落且直到销毁前保持地面接触感。
 - 主模块 Coordinator：不属于本 Runtime Module；把同一玩法动作阶段同时交给 Animation 与 VFX 轨，避免两个消费者建立彼此漂移的本地时钟。
-- AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退。
+- AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退；死亡 Sprite 可用自定义 Pivot 提供逐帧主体脚点，主模块敌人表现据此固定主体与 GroundShadow，未配置时继续使用当前帧 Bounds 底边中心。
 - FrameCollisionDriver：生成 Query/Debug 快照。
 
 ## 代码位置与阅读路线

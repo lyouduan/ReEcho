@@ -7,8 +7,20 @@ import unreal
 
 PROJECT_ROOT = Path(unreal.Paths.project_dir()).resolve()
 FRAME_SETS = (
-    ("Fox", "/Game/ReEcho/Art/Animation2D/Enemies/Fox", (3,)),
-    ("BadFox", "/Game/ReEcho/Art/Animation2D/Enemies/BadFox", (5, 7, 8)),
+    (
+        "Fox",
+        "/Game/ReEcho/Art/Animation2D/Enemies/Fox",
+        (3,),
+        ((160.5, 697.0), (301.5, 396.0), (268.5, 456.0), (245.5, 297.0),
+         (273.0, 280.0), (238.0, 270.0), (260.0, 307.0), (263.5, 299.0)),
+    ),
+    (
+        "BadFox",
+        "/Game/ReEcho/Art/Animation2D/Enemies/BadFox",
+        (5, 7, 8),
+        ((116.0, 562.0), (156.5, 513.0), (199.0, 464.0), (239.0, 346.0),
+         (182.0, 237.0), (235.5, 266.0), (224.5, 221.0), (217.0, 232.0)),
+    ),
 )
 FRAME_COUNT = 8
 
@@ -79,15 +91,26 @@ def verify_flipbook(asset_root, expected_sprites):
     unreal.EditorAssetLibrary.save_loaded_asset(flipbook, only_if_is_dirty=True)
 
 
-for enemy_name, asset_root, changed_frames in FRAME_SETS:
+def author_ground_pivot(sprite, pivot):
+    sprite.set_editor_property("pivot_mode", unreal.SpritePivotMode.CUSTOM)
+    sprite.set_editor_property("custom_pivot_point", unreal.Vector2D(*pivot))
+    if not unreal.ReEcho2DAnimationComponent.rebuild_sprite_asset(sprite):
+        raise RuntimeError(f"Failed to rebuild custom-pivot sprite: {sprite.get_path_name()}")
+    if not unreal.EditorAssetLibrary.save_loaded_asset(sprite, only_if_is_dirty=False):
+        raise RuntimeError(f"Failed to save custom-pivot sprite: {sprite.get_path_name()}")
+
+
+for enemy_name, asset_root, changed_frames, ground_pivots in FRAME_SETS:
     for frame_index in changed_frames:
         reimport_texture(enemy_name, asset_root, frame_index)
     sprites = [
         required(f"{asset_root}/Death/Textures/d{frame_index}_Sprite", unreal.PaperSprite)
         for frame_index in range(1, FRAME_COUNT + 1)
     ]
+    for sprite, pivot in zip(sprites, ground_pivots):
+        author_ground_pivot(sprite, pivot)
     verify_flipbook(asset_root, sprites)
     unreal.log(
         f"FOX_DEATH_REIMPORT_OK enemy={enemy_name} changed={list(changed_frames)} "
-        f"flipbook_frames={FRAME_COUNT}"
+        f"authored_ground_pivots={len(ground_pivots)} flipbook_frames={FRAME_COUNT}"
     )
