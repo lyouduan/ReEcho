@@ -66,6 +66,10 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<AReEchoEchoActor> EchoPrefab(
 	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay"));
 	EchoGameplayClass = EchoPrefab.Succeeded() ? EchoPrefab.Class.Get() : nullptr;
+	static ConstructorHelpers::FClassFinder<AReEchoTimeShardPickupActor> TimeShardPickupPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup"));
+	TimeShardPickupClass =
+	    TimeShardPickupPrefab.Succeeded() ? TimeShardPickupPrefab.Class.Get() : AReEchoTimeShardPickupActor::StaticClass();
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
@@ -2299,6 +2303,27 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 	}
 }
 
+AReEchoTimeShardPickupActor* AReEchoGameMode::SpawnTimeShardPickup(const FVector& Location,
+	                                                                const int32 Amount,
+	                                                                const float LifetimeSeconds)
+{
+	if (!GetWorld() || Amount <= 0)
+	{
+		return nullptr;
+	}
+	const TSubclassOf<AReEchoTimeShardPickupActor> PickupClass =
+	    TimeShardPickupClass
+	        ? TimeShardPickupClass
+	        : TSubclassOf<AReEchoTimeShardPickupActor>(AReEchoTimeShardPickupActor::StaticClass());
+	AReEchoTimeShardPickupActor* Pickup =
+	    GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(PickupClass, Location, FRotator::ZeroRotator);
+	if (Pickup)
+	{
+		Pickup->InitializePickup(Amount, LifetimeSeconds);
+	}
+	return Pickup;
+}
+
 void AReEchoGameMode::HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event)
 {
 	const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Event.Target);
@@ -2316,11 +2341,9 @@ void AReEchoGameMode::HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event)
 		return;
 	}
 
-	const FVector SpawnLocation = Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 8.0f);
-	if (AReEchoTimeShardPickupActor* Pickup =
-	        GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(SpawnLocation, FRotator::ZeroRotator))
+	if (AReEchoTimeShardPickupActor* Pickup = SpawnTimeShardPickup(Enemy->GetActorLocation(), DropAmount, 0.0f))
 	{
-		Pickup->InitializePickup(DropAmount, 0.0f);
+		const FVector SpawnLocation = Pickup->GetActorLocation();
 		UE_LOG(LogReEcho,
 		       Display,
 		       TEXT("[TimeShardDrop] spawned actor=%s enemy=%s spawn=%d amount=%d location=(%.1f,%.1f,%.1f)"),

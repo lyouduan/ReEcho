@@ -4,6 +4,7 @@
 
 #include "Cards/ReEchoCardTypes.h"
 #include "Components/MaterialBillboardComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
@@ -60,13 +61,22 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Encounter five elite range ends at twenty"), Fifth->EliteMax, 20);
 	TestNotNull(TEXT("Reviewed pickup texture is available to the runtime"),
 	            LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard")));
-	const AReEchoTimeShardPickupActor* PickupDefaults = GetDefault<AReEchoTimeShardPickupActor>();
+	UClass* PickupBlueprintClass = LoadClass<AReEchoTimeShardPickupActor>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup.BP_TimeShardPickup_C"));
+	TestNotNull(TEXT("Editor-authored pickup Blueprint is available"), PickupBlueprintClass);
+	const AReEchoTimeShardPickupActor* PickupDefaults =
+	    PickupBlueprintClass ? Cast<AReEchoTimeShardPickupActor>(PickupBlueprintClass->GetDefaultObject()) : nullptr;
 	const UMaterialBillboardComponent* PickupVisual = PickupDefaults ? PickupDefaults->GetVisualComponent() : nullptr;
 	TestNotNull(TEXT("Pickup uses a translucent-capable material billboard"), PickupVisual);
 	if (PickupVisual)
 	{
-		TestEqual(TEXT("Pickup stays in the reviewed ground sort band"), PickupVisual->TranslucencySortPriority, -60);
+		TestTrue(TEXT("Pickup Blueprint supplies a material billboard element"), !PickupVisual->Elements.IsEmpty());
 	}
+	const UStaticMeshComponent* PickupShadow = PickupDefaults ? PickupDefaults->GetGroundShadowComponent() : nullptr;
+	TestNotNull(TEXT("Pickup Blueprint exposes a ground shadow component"), PickupShadow);
+	TestTrue(TEXT("Pickup Blueprint keeps a positive editor-authored visual height"),
+	         PickupDefaults && PickupDefaults->GetVisualWorldHeightCm() > 0.0f);
 	return true;
 }
 

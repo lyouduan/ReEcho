@@ -40,7 +40,10 @@
   - `Source/ReEcho/Private/Graybox/ReEchoTimeShardPickupActor.cpp`
   - `Content/SourceArt/Pickups/TimeShard.png`
   - `Content/ReEcho/Textures/Pickups/T_TimeShard.uasset`
+  - `Content/ReEcho/Materials/Pickups/MI_TimeShardPickup.uasset`
+  - `Content/ReEcho/Gameplay/Pickups/BP_TimeShardPickup.uasset`
   - `scripts/ue/import_time_shard_pickup.py`
+  - `scripts/ue/author_time_shard_pickup_blueprint.py`
   - `docs/ART_ASSET_ORGANIZATION.md`
   - `Source/ReEcho/Private/Tests/ReEchoEnemyShardDropTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoSaveGameTests.cpp`
@@ -102,6 +105,7 @@
   5. 增加独立持久化的 `EnemyShardDropSeed`，新 Run 生成非零种子；旧存档从已有稳定 Run 数据加固定 salt 确定迁移并提升 SaveVersion。不得借用 UI/商店刷新序列或全局时间随机。
   6. 根据用户后续决策，将 `AReEchoTimeShardPickupActor` 从武器符文专用灰盒升级为通用时间碎片拾取物。敌人死亡与武器符文共用同一拾取/入账边界和正式纹理；GameMode 只负责在死亡位置生成实体，Run 不持有表现 Actor。
   7. 正式源图保存于 `Content/SourceArt/Pickups/TimeShard.png`，运行时纹理位于 `/Game/ReEcho/Textures/Pickups/T_TimeShard`。拾取物构造函数建立可 Cook 的硬引用，避免仅靠运行时字符串加载导致 Shipping 丢资产。
+  8. 时间碎片不把尺寸、阴影和局部 Transform 锁死在 C++：`BP_TimeShardPickup` 是美术作者权威，Class Defaults 暴露图标高度、地面排序、阴影开关与贴地开关，继承组件树暴露 `VisualRoot/GroundRoot/GroundShadow`。GameMode 是世界拾取物的集中生成边界，敌人死亡与武器符文均解析到该 Blueprint；原生类只在资产缺失或无 GameMode 的自动化世界中安全回退。
 - 相关文档同步范围：
   - `shared/CODEBASE_MAP/ARCHITECTURE.md`：关闭前审阅；预期不改变 Runtime Module 拓扑或依赖方向。
   - `shared/CODEBASE_MAP/README.md`：关闭前审阅；预期不新增稳定架构标识或阅读路由。
@@ -179,6 +183,7 @@
 - 2026-08-24：第二次 PIE 确认 Actor 与图片可见，但尺寸过小且没有任何拾取日志。视觉世界高度从 38 cm 调为 76 cm；拾取球半径调为 48 cm，并在保留 Overlap 的同时增加按玩家类型与 2D 距离判定的同事务兜底，消除碰撞 Profile 未产生 Overlap 时无法拾取的问题。
 - 2026-08-24：用户锁定碎片为低层地面物件；去掉 Billboard 的 28 cm 上移，将透明排序优先级从前景 `30` 调为地面层 `-20`，允许角色、怪物和所有战斗表现遮挡碎片。
 - 2026-08-24：用户 PIE 证明上一步未生效：碎片仍覆盖兔子子弹与怪物。引擎源码审计确认 `UBillboardComponent` 通过 `DrawSprite(..., SE_BLEND_Masked)` 进入不透明/Masked 通道，`TranslucencySortPriority` 对其无效。拾取表现改为 `UMaterialBillboardComponent + /Paper2D/TranslucentUnlitSpriteMaterial`，正式纹理通过 MID 的 `SpriteTexture` 参数注入；排序带改为 `-60`，处于 Arena Backdrop `-100` 与角色脚点下限 `-50` 之间，确保地图可见而所有角色、怪物与战斗表现可遮挡碎片。
+- 2026-08-24：用户否决 C++ 写死 `VisualWorldHeightCm`，并要求参考敌人提供可编辑组件与地面阴影。新增 `BP_TimeShardPickup`、专用透明材质实例和 `PresentationRoot -> {VisualRoot, GroundRoot -> GroundShadow}` 组件树；图标高度等表现参数移为 Blueprint Class Defaults，阴影 Transform/缩放/材质可直接选中组件调整。拾取 Actor 在 Arena 存在时统一贴合 GameplayPlane，GameMode 集中解析 Blueprint Class，武器符文不再另建一条生产生成路径。
 
 ### 证据
 
@@ -194,6 +199,8 @@
 - 两倍尺寸与近距离拾取兜底返修后 FullRebuild 成功，预构建指纹 `e5b378753774`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
 - 地面低图层返修后 FullRebuild 成功，预构建 build id `55116800`、source `5e154f05705c`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
 - Masked Billboard 根因返修后 FullRebuild 成功，预构建 build id `55116800`、source `42a3b71a29b2`；`ReEcho.Run.EnemyShardDrops` 2/2 通过，新增自动化锁定 Material Billboard 类型与 `-60` 地面排序带。
+- 编辑器可配置 Prefab 与阴影返修后 FullRebuild 成功，预构建 build id `55116800`、source `81ab6cbfa61b`；作者脚本首次创建 `MI_TimeShardPickup/BP_TimeShardPickup`、第二次无写入保留并验证父类。`ReEcho.Run.EnemyShardDrops` 2/2 与实际覆盖碎片符文生成的 `ReEcho.Weapons.Runes.DynamicHitHandlers` 1/1 通过，项目校验、预构建检查与 `git diff --check` 通过。
+- 完整 `ReEcho.Weapons.Runes` 额外审计中，5 项有 3 项通过；`CatalogAndHandlerCoverage` 仍期待主干已禁用的第 47 个枪口符文（当前生产 46），`ProjectileSplitPierceExplosion` 的既有攻击时快照断言失败。本 Plan 未修改符文表、投射物快照或这两项断言；与本次生成路由直接相关的 `DynamicHitHandlers` 单独通过。
 - `ReEcho.Data` 的 6 项中 3 项失败，均可由未修改的任务基线数据复现：测试仍期待 39 张可抽卡（基线为 37）、Rabbit 二形态关闭（基线为开启）、60 条未命名禁用配件（基线为 0）；本 Plan 不越界改写这些断言。
 
 ### 剩余风险

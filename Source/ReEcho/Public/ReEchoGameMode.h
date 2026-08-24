@@ -14,6 +14,7 @@ class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
+class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
 class UReEchoInventoryShopWidget;
 class UReEchoRunSubsystem;
@@ -115,6 +116,10 @@ public:
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
 	void NotifyEnemySpecialStarted(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
+	/** Central world-spawn boundary for all time-shard rewards. Uses the editor-authored pickup Blueprint when valid. */
+	AReEchoTimeShardPickupActor* SpawnTimeShardPickup(const FVector& Location,
+	                                                  int32 Amount,
+	                                                  float LifetimeSeconds = 20.0f);
 
 #if WITH_DEV_AUTOMATION_TESTS
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;
@@ -148,6 +153,8 @@ private:
 	TArray<TObjectPtr<AReEchoEchoActor>> Echoes;
 	UPROPERTY()
 	TSubclassOf<AReEchoEchoActor> EchoGameplayClass;
+	UPROPERTY(EditDefaultsOnly, Category = "World Pickups")
+	TSubclassOf<AReEchoTimeShardPickupActor> TimeShardPickupClass;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 	UPROPERTY()

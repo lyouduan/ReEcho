@@ -6,9 +6,10 @@
 
 class UPrimitiveComponent;
 class UMaterialBillboardComponent;
-class UMaterialInstanceDynamic;
 class UMaterialInterface;
+class USceneComponent;
 class USphereComponent;
+class UStaticMeshComponent;
 class UTexture2D;
 
 /** Shared world pickup for configured enemy drops and weapon-rune shard rewards. */
@@ -20,6 +21,7 @@ class REECHO_API AReEchoTimeShardPickupActor : public AActor
 
 public:
 	AReEchoTimeShardPickupActor();
+	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -36,7 +38,19 @@ public:
 		return Visual;
 	}
 
+	UStaticMeshComponent* GetGroundShadowComponent() const
+	{
+		return GroundShadow;
+	}
+
+	float GetVisualWorldHeightCm() const
+	{
+		return VisualWorldHeightCm;
+	}
+
 private:
+	void ApplyEditablePresentationSettings();
+	void SnapToArenaGroundPlane();
 	void TryCollect(AActor* Collector);
 
 	UFUNCTION()
@@ -47,20 +61,52 @@ private:
 	                        bool bFromSweep,
 	                        const FHitResult& SweepResult);
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Time Shard|Collision", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> Collision;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> PresentationRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> VisualRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> GroundRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMaterialBillboardComponent> Visual;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> GroundShadow;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UTexture2D> PickupTexture;
 
-	UPROPERTY()
-	TObjectPtr<UMaterialInterface> PickupBaseMaterial;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMaterialInterface> PickupMaterial;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> PickupMaterialInstance;
+	/** Editor-facing icon height. Width follows the reviewed texture aspect ratio. */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Time Shard|Presentation",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "1.0", UIMin = "1.0", Units = "cm"))
+	float VisualWorldHeightCm = 76.0f;
+
+	/** Keep this between the arena backdrop (-100) and character footpoint range (-50..50). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
+	int32 GroundSortPriority = -60;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Time Shard|Presentation", meta = (AllowPrivateAccess = "true"))
+	bool bShowGroundShadow = true;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Time Shard|Placement", meta = (AllowPrivateAccess = "true"))
+	bool bSnapToArenaGroundPlane = true;
+
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Time Shard|Collision",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", UIMin = "0.0", Units = "cm"))
+	float CollectionHeightToleranceCm = 100.0f;
 
 	int32 Amount = 1;
 	bool bCollected = false;

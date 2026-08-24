@@ -2,23 +2,23 @@
 
 #include "ReEcho.h"
 #include "Components/MaterialBillboardComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace ReEchoTimeShardPickup
 {
 constexpr float CollisionRadiusCm = 48.0f;
-constexpr float CollectionHeightToleranceCm = 100.0f;
-// Arena backdrop is -100 and character footpoint sorting starts at -50. Keep pickups between both bands.
-constexpr int32 GroundPickupSortPriority = -60;
-constexpr float VisualWorldHeightCm = 76.0f;
 } // namespace ReEchoTimeShardPickup
 
 AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
@@ -35,49 +35,99 @@ AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
 	Collision->SetGenerateOverlapEvents(true);
 	Collision->OnComponentBeginOverlap.AddDynamic(this, &AReEchoTimeShardPickupActor::HandleBeginOverlap);
 
+	PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
+	PresentationRoot->SetupAttachment(Collision);
+	PresentationRoot->bEditableWhenInherited = true;
+	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
+	VisualRoot->SetupAttachment(PresentationRoot);
+	VisualRoot->bEditableWhenInherited = true;
+	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
+	GroundRoot->SetupAttachment(PresentationRoot);
+	GroundRoot->bEditableWhenInherited = true;
+
 	Visual = CreateDefaultSubobject<UMaterialBillboardComponent>(TEXT("TimeShardVisual"));
-	Visual->SetupAttachment(Collision);
+	Visual->SetupAttachment(VisualRoot);
 	Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Visual->SetCastShadow(false);
-	Visual->SetTranslucentSortPriority(ReEchoTimeShardPickup::GroundPickupSortPriority);
 	Visual->SetRelativeLocation(FVector::ZeroVector);
 	Visual->SetHiddenInGame(false);
 	Visual->SetVisibility(true);
+	Visual->bEditableWhenInherited = true;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> TimeShardTexture(
 	    TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard"));
 	PickupTexture = TimeShardTexture.Object;
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TranslucentSpriteMaterial(
-	    TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
-	PickupBaseMaterial = TranslucentSpriteMaterial.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TimeShardMaterial(
+	    TEXT("/Game/ReEcho/Materials/Pickups/MI_TimeShardPickup.MI_TimeShardPickup"));
+	PickupMaterial = TimeShardMaterial.Object;
+
+	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
+	GroundShadow->SetupAttachment(GroundRoot);
+	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GroundShadow->SetCastShadow(false);
+	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
+	GroundShadow->SetRelativeLocation(FVector::ZeroVector);
+	GroundShadow->SetRelativeScale3D(FVector(0.48f, 0.24f, 1.0f));
+	GroundShadow->bEditableWhenInherited = true;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> GroundShadowMaterial(
+	    TEXT("/Game/ReEcho/Materials/M_GroundShadow_Procedural.M_GroundShadow_Procedural"));
+	GroundShadow->SetMaterial(0, GroundShadowMaterial.Object);
+
+	ApplyEditablePresentationSettings();
 
 	SetLifeSpan(20.0f);
+}
+
+void AReEchoTimeShardPickupActor::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	ApplyEditablePresentationSettings();
 }
 
 void AReEchoTimeShardPickupActor::BeginPlay()
 {
 	Super::BeginPlay();
-	if (!Visual || !PickupTexture || !PickupBaseMaterial)
+	SnapToArenaGroundPlane();
+	ApplyEditablePresentationSettings();
+}
+
+void AReEchoTimeShardPickupActor::ApplyEditablePresentationSettings()
+{
+	if (!Visual || !PickupTexture || !PickupMaterial)
 	{
-		UE_LOG(LogReEcho,
-		       Error,
-		       TEXT("[TimeShardPickup] missing visual dependency actor=%s texture=%s material=%s"),
-		       *GetName(),
-		       *GetNameSafe(PickupTexture),
-		       *GetNameSafe(PickupBaseMaterial));
 		return;
 	}
 
-	PickupMaterialInstance = UMaterialInstanceDynamic::Create(PickupBaseMaterial, this);
-	PickupMaterialInstance->SetTextureParameterValue(TEXT("SpriteTexture"), PickupTexture);
-	const float VisualWorldWidthCm = ReEchoTimeShardPickup::VisualWorldHeightCm *
-	                                 static_cast<float>(PickupTexture->GetSizeX()) /
-	                                 FMath::Max(1, PickupTexture->GetSizeY());
-	Visual->AddElement(PickupMaterialInstance,
-	                   nullptr,
-	                   false,
-	                   VisualWorldWidthCm,
-	                   ReEchoTimeShardPickup::VisualWorldHeightCm,
-	                   nullptr);
+	const float SafeHeight = FMath::Max(VisualWorldHeightCm, 1.0f);
+	const float VisualWorldWidthCm =
+	    SafeHeight * static_cast<float>(PickupTexture->GetSizeX()) / FMath::Max(1, PickupTexture->GetSizeY());
+	FMaterialSpriteElement Element;
+	Element.Material = PickupMaterial;
+	Element.bSizeIsInScreenSpace = false;
+	Element.BaseSizeX = VisualWorldWidthCm;
+	Element.BaseSizeY = SafeHeight;
+	Visual->SetElements({Element});
+	Visual->SetTranslucentSortPriority(GroundSortPriority);
+	if (GroundShadow)
+	{
+		GroundShadow->SetVisibility(bShowGroundShadow, true);
+		GroundShadow->SetHiddenInGame(!bShowGroundShadow);
+		GroundShadow->SetTranslucentSortPriority(GroundSortPriority - 1);
+	}
+}
+
+void AReEchoTimeShardPickupActor::SnapToArenaGroundPlane()
+{
+	if (!bSnapToArenaGroundPlane || !GetWorld())
+	{
+		return;
+	}
+	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
+	{
+		FVector GroundLocation = GetActorLocation();
+		GroundLocation.Z = It->GetGameplayPlaneWorldZ();
+		SetActorLocation(GroundLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		return;
+	}
 }
 
 void AReEchoTimeShardPickupActor::Tick(const float DeltaSeconds)
@@ -95,8 +145,9 @@ void AReEchoTimeShardPickupActor::Tick(const float DeltaSeconds)
 	}
 
 	const FVector Offset = Player->GetActorLocation() - GetActorLocation();
-	if (Offset.SizeSquared2D() <= FMath::Square(ReEchoTimeShardPickup::CollisionRadiusCm) &&
-	    FMath::Abs(Offset.Z) <= ReEchoTimeShardPickup::CollectionHeightToleranceCm)
+	const float CollectionRadiusCm = Collision ? Collision->GetScaledSphereRadius() : 0.0f;
+	if (Offset.SizeSquared2D() <= FMath::Square(CollectionRadiusCm) &&
+	    FMath::Abs(Offset.Z) <= CollectionHeightToleranceCm)
 	{
 		TryCollect(Player);
 	}
