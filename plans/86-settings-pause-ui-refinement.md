@@ -115,6 +115,10 @@
 - 清理设置页作者ing树中的折叠遗留内容：删除旧标题/说明文本、六张旧白底页签图、五行旧画面占位布局、重复页签/按钮文字及占位提示；保留仍被音频服务绑定的隐藏控制行。清理脚本在删除前后校验两个底部按钮的 Canvas 坐标与尺寸完全不变。
 - 声音页输出设备框由会随行拉伸的 `Fill` 改为 802×50 固定美术尺寸，与画面页四个下拉框一致；整体左移 39 px 并在右侧预留布局占位，使左右边界同时对齐三条音量轨道，真实 ComboBox 交互层继续完整覆盖框体。
 - 声音页可见控件从 `VerticalBox > HorizontalBox` 自动排版迁入 `AudioPanel > AudioDesignerCanvas`：三组标签、滑条逻辑根、百分比、静音按钮以及输出设备标签/下拉框均拥有独立 `CanvasPanelSlot`，可在 UMG Designer 中直接拖动和改尺寸；轨道/填充/把手仍封装在同一 Overlay 内避免内部漂移，C++ 只复制作者化槽位建立交互层。
+- 暂停页移除六张包含固定文字的旧占位按钮图，改为三张由 WBP 持有的通用正式按钮底图：首项使用 `暂停按钮浅.png`，后两项使用 `暂停按钮深.png`；中文文案继续由三个真实 Button 的 TextBlock 根据普通暂停/退出确认状态更新。
+- 普通暂停态默认在 Designer 中显示“继续游戏 / 退出至主菜单 / 退出游戏”与右上设置入口；确认态复用同三个按钮显示“保存并退出 / 不保存并退出 / 返回”，不新增也不显示大块确认底板。
+- 退出确认的存档点不再显示笼统的“当前进度”，由 GameMode 将 `UReEchoRunSubsystem::EncounterIndex` 传入暂停页并显示为“第 N 关”；修正确认态误折叠第二个真实 Button 的逻辑，使“不保存并退出”可见且可点击。
+- 删除 C++ 对 `RootPanel` 的运行时 `-72 px` 位移，把等效位置写入 WBP 的 Canvas 锚点；暂停组合的位置、正式底图、标签字体和设置入口均可在 `WBP_ReEchoRestart` 中直接审阅和调整。
 
 ### 证据
 
@@ -124,6 +128,8 @@
 - Development Editor 增量构建通过；`ReEcho.UI.SettingsInteraction` 找到 1 项并以 `Result={Success}` 完成，新增断言覆盖画面默认浅、声音/键位默认深及切换后的状态互换。
 - `CompileAllBlueprints`：0 errors、0 warnings、0 failed loads；`python scripts/validate_project.py` 与 `git diff --check` 通过。
 - 设置页清理前后通过 UMG ToolSet 全树审计：节点数由 136 降至 104，22 个废弃根及其 10 个子节点全部消失；资产 Compile/Save 成功，两个底部按钮的 Canvas Position/Size 前后完全一致。清理后 Development Editor 构建与 `ReEcho.UI.SettingsInteraction` 再次通过，测试同时断言全部旧节点不再存在。
+- `WBP_ReEchoRestart` 正式暂停视觉 Compile/Save 成功；树审计确认三个按钮 Overlay 均为“正式底图 Image 在前、动态 TextBlock 在后”，旧六图全部消失，`RootPanel` 使用作者化 `(0.5, 0.493)` 锚点且运行时 Transform 保持零位移。
+- 暂停改动的 Development Editor 构建通过，预构建包校验通过；`ReEcho.UI.RestartWidgetPresentation` 找到 1 项并以 `Result={Success}` 完成，覆盖普通暂停三按钮/设置入口、两种退出标题、确认态三文案与无额外底板约束。
 
 ### 剩余风险
 
@@ -132,7 +138,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：当前批次等待用户复测设置页三个标签的浅/深状态、切换与命中。
+- `PendingBeforeClose`：设置页阶段已由用户完成微调；当前等待用户在 PIE 复测普通暂停、退出到主菜单确认、退出游戏确认、设置页往返和鼠标命中。
 
 ### 架构文档审阅结果
 

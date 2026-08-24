@@ -3158,7 +3158,8 @@ void AReEchoGameMode::HandleQuitRequested()
 		bExitToMainMenuAfterConfirmation = false;
 		if (RestartWidget)
 		{
-			RestartWidget->SetQuitConfirmation(true, false);
+			const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+			RestartWidget->SetQuitConfirmation(true, false, RunSubsystem ? RunSubsystem->EncounterIndex : 0);
 		}
 		return;
 	}
@@ -3201,7 +3202,8 @@ void AReEchoGameMode::HandleExitToMainMenuRequested()
 	bExitToMainMenuAfterConfirmation = true;
 	if (RestartWidget)
 	{
-		RestartWidget->SetQuitConfirmation(true, true);
+		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		RestartWidget->SetQuitConfirmation(true, true, RunSubsystem ? RunSubsystem->EncounterIndex : 0);
 	}
 }
 

@@ -74,7 +74,9 @@ public:
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount);
 	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
-	void SetQuitConfirmation(bool bInQuitConfirmation, bool bInExitToMainMenu = false);
+	void SetQuitConfirmation(bool bInQuitConfirmation,
+	                         bool bInExitToMainMenu = false,
+	                         int32 InEncounterIndex = 0);
 	void ShowSaveFailure();
 	void SetAutomaticAttackMode(bool bAutomatic);
 
@@ -148,12 +150,9 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryTitle;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtDefeatTitle;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseDimmer;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseResume;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseExitToMenu;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseExitGame;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSaveAndExit;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseExitWithoutSave;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseBack;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPausePrimaryButton;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSecondaryButton;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseTertiaryButton;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSettings;
 
 	UPROPERTY(Transient)
@@ -163,6 +162,7 @@ private:
 	EReEchoQuitPromptState QuitPromptState = EReEchoQuitPromptState::None;
 	int32 VictoryTimeShards = 0;
 	int32 VictoryTraitCount = 0;
+	int32 PauseEncounterIndex = 0;
 	bool bAutomaticAttackMode = true;
 	bool bExitToMainMenu = false;
 };
