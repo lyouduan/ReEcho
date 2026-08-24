@@ -100,7 +100,7 @@ public:
 
 	/** 更新时间碎片显示（购买后扣费，不重摇报价）。 */
 	void SetTimeShards(int32 NewShards);
-	/** 按 ItemId 标记某报价槽位为已购（置灰、显示“已购”），不触发重摇。 */
+	/** 按 ItemId 标记某报价槽位为已购；构筑卡同步进入右侧卡牌槽，不触发重摇。 */
 	void MarkItemPurchased(FName ItemId);
 
 	/** 购买即装备后，仅重绘符文装备槽（不重摇、不重绘投放槽）。LatestEquippedParts 为数据层最新装备快照。 */

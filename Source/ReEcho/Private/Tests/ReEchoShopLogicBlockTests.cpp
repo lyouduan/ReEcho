@@ -224,7 +224,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	StorageCard.EffectText = FText::FromString(TEXT("开启回响存储"));
 	StorageCard.Type = EReEchoShopOfferType::BuildCard;
 	StorageCard.Tier = 3;
+	StorageCard.IconTexturePath = TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_3_02.T_UI_CardIcon_G_3_02");
 	PartShopView.OwnedCards.Add(StorageCard);
+	FReEchoShopOffer PurchasedCard;
+	PurchasedCard.ItemId = TEXT("SHOP_CARD_0_G_1_01");
+	PurchasedCard.ContentId = TEXT("G_1_01");
+	PurchasedCard.DisplayName = FText::FromString(TEXT("生命强化"));
+	PurchasedCard.EffectText = FText::FromString(TEXT("提高最大生命"));
+	PurchasedCard.Type = EReEchoShopOfferType::BuildCard;
+	PurchasedCard.Tier = 1;
+	PurchasedCard.IconTexturePath =
+	    TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_1_01.T_UI_CardIcon_G_1_01");
+	PartShopView.Offers.Add(PurchasedCard);
 	Widget->SetWeaponPartShopView(PartShopView);
 	UImage* DesignerClock = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerShopClock")));
 	UCanvasPanelSlot* DesignerClockSlot = DesignerClock ? Cast<UCanvasPanelSlot>(DesignerClock->Slot) : nullptr;
@@ -308,6 +319,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Clicking the G_3_02 slot opens echo storage"),
 	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible && EchoPanelScale &&
 	             EchoPanelScale->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
+	UButton* PurchasedCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardSlot1")));
+	TestNotNull(TEXT("The next authored card slot exists"), PurchasedCardSlot);
+	TestNull(TEXT("An unowned card is absent from the loadout before purchase"),
+	         PurchasedCardSlot ? PurchasedCardSlot->GetToolTip() : nullptr);
+	Widget->MarkItemPurchased(PurchasedCard.ItemId);
+	TestNotNull(TEXT("A purchased build card appears in the loadout immediately"),
+	            PurchasedCardSlot ? Cast<USizeBox>(PurchasedCardSlot->GetToolTip()) : nullptr);
+	UImage* PurchasedCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt1")));
+	UTexture2D* ExpectedPurchasedCardIcon = LoadObject<UTexture2D>(nullptr, *PurchasedCard.IconTexturePath);
+	TestNotNull(TEXT("The purchased card icon asset loads"), ExpectedPurchasedCardIcon);
+	TestTrue(TEXT("The purchased card slot shows the purchased card icon"),
+	         PurchasedCardArt && PurchasedCardArt->GetBrush().GetResourceObject() == ExpectedPurchasedCardIcon);
 	if (ShopScrollBox)
 	{
 		TestEqual(TEXT("Legacy shop scroll host does not intercept target buttons"),

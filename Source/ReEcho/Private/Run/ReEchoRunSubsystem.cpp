@@ -127,6 +127,10 @@ FReEchoShopOffer MakeBuildCardOffer(const FReEchoCardDefinition& Card, const int
 	Offer.Price = Offer.Tier * 10;
 	Offer.Type = EReEchoShopOfferType::BuildCard;
 	Offer.ContentId = Card.Id;
+	Offer.IconTexturePath =
+	    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_%s.T_UI_CardIcon_%s"),
+	                    *Card.Id.ToString(),
+	                    *Card.Id.ToString());
 	return Offer;
 }
 
