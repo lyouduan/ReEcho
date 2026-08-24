@@ -43,13 +43,14 @@ python scripts\data\sync_xlsx_to_csv.py --check
 | `状态Z` | `tblStatuses` | `statuses.csv` |
 | `武器体系W` | `tblWeaponTypes`、`tblWeapons`、`tblAttackSteps` | `weapon_types.csv`、`weapons.csv`、`attack_steps.csv` |
 | `武器插槽C` | `tblSlotTypes`、`tblSlotProfiles`、`tblParts`、`tblPartEffects` | `slot_types.csv`、`slot_profiles.csv`、`parts.csv`、`part_effects.csv` |
+| `经济系统` | `tblShopPriceRanges`、`tblShopDropLevels`、`tblEnemyShardDrops` | `shop_price_ranges.csv`、`shop_drop_levels.csv`、`enemy_shard_drops.csv` |
 
 这些 Table 的数据行可以直接编辑，也可以在 Table 内新增或删除整行。表头、Sheet 顶部说明、系统契约和 Table 外区域被锁定是正常现象。
 
 以下区域不生成当前生产 CSV：
 
 - `属性S`：属性字典和说明。
-- `怪物体系M`、`经济系统`：尚未纳入当前生成范围。
+- `怪物体系M`：仅作锁定参考，不生成当前生产 CSV；怪物生产数据位于独立 `ReEchoEnemyData.xlsx`。
 - `_WorkbookMeta`、`_ExportMap`、`_SystemData`：系统 Sheet，策划不要修改。
 - 历史 `武器体系（废案）` Sheet 已从 canonical 工作簿移除；运行时和 CSV 生成从不读取它。
 
@@ -84,6 +85,7 @@ python scripts\data\sync_xlsx_to_csv.py --check
 - 禁用行：将 `Enabled` 设为 `false`，并填写 `DisabledReason`。
 - 外键：角色默认武器、子效果父 ID、元素和状态引用必须引用已存在且允许使用的稳定 ID。
 - 顺序：`Order`、`StepIndex`、`LoadoutOrder` 等字段决定运行时顺序，不要依赖 Excel 当前显示排序。
+- 敌人碎片区间：`Min/Max` 是包含两端的整数区间；`EliteMin/EliteMax` 必须同时填写或同时留空，留空表示该场精英不生成基础碎片拾取物。表中数值是单只敌人死亡时生成的拾取物携带量，玩家拾取后才进入余额。
 - 数值操作：只使用允许的 `Add`、`Multiply`、`Override`。
 - 逻辑字段：`BehaviorId`、`EffectKind`、`FormulaId`、`AttackPatternId` 等只能选择项目已经注册的值。表格不能新增任意脚本、表达式或新逻辑。
 

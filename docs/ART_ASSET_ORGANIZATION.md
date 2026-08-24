@@ -4,6 +4,8 @@
 
 - `Content/SourceArt/`：保存 PNG 等源图和参考图，不放可运行的 `.uasset`。
 - `Content/ReEcho/Textures/`：保存 Unreal 导入后的运行时纹理资产。
+- `Content/SourceArt/Pickups/`：保存世界拾取物的审核源图；运行时纹理导入到 `Content/ReEcho/Textures/Pickups/`。
+- 时间碎片的可编辑运行时 Prefab 为 `Content/ReEcho/Gameplay/Pickups/BP_TimeShardPickup`，透明主材质/实例为 `Content/ReEcho/Materials/Pickups/M_TimeShardPickup` 与 `MI_TimeShardPickup`。美术在 Blueprint Class Defaults 调整图标高度、地面排序、阴影开关，以及 `Animation|Landing` 下的弹跳高度/时长/次数和 `Animation|Collection` 下的上升高度/时长；在继承组件树调整 `VisualRoot/GroundRoot/GroundShadow` 的 Transform、缩放和阴影材质。运行时只移动图标根，地面阴影不参与弹跳并在拾取时隐藏；不得回到 C++ 修改视觉常量。
 - `Content/ReEcho/Art/Animation2D/`：保存运行时 Texture2D、PaperSprite、Flipbook 与动画表现资产。
 - Plan45 UI 交付源包：`Content/SourceArt/UI/InteractionPlaceholder/`，其中 `Elements` 是候选切图、`References` 是效果参考、`Fonts/PendingLicense` 是未获授权的隔离字体。
 - Plan45 已消费的运行时 UI 纹理：`Content/ReEcho/Textures/UI/InteractionPlaceholder/`；只导入现有 WBP 实际引用的切图。目前按 `StartMenu`、`Settings`、`PauseAndCombat`、`ResultsAndRestart`、`TraitChoice`、`InventoryShop` 分页，未被 WBP 消费的按钮、参考图和字体仍只保留在 `SourceArt`。

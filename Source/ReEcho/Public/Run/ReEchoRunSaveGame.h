@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v14 persists the stable weapon/rune shop page independently from ownership changes. */
-	static constexpr int32 CurrentSaveVersion = 14;
+	/** v15 combines deterministic enemy-shard rewards with the stable weapon/rune shop page. */
+	static constexpr int32 CurrentSaveVersion = 15;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -34,6 +34,14 @@ public:
 	/** Added in v12. Makes each run's card offers random while keeping save/load reproducible. */
 	UPROPERTY(SaveGame)
 	int32 TraitOfferSeed = 0;
+
+	/** Added in v13. Independent seed for per-enemy time-shard ranges. */
+	UPROPERTY(SaveGame)
+	int32 EnemyShardDropSeed = 0;
+
+	/** Added in v13. Packed EncounterIndex/SpawnIndex deaths already processed for base rewards. */
+	UPROPERTY(SaveGame)
+	TArray<int64> RewardedEnemyShardDropKeys;
 
 	UPROPERTY(SaveGame)
 	FReEchoBuildSnapshot CurrentBuild;

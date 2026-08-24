@@ -25,6 +25,7 @@
 #include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "UI/ReEchoMinimapCanvasWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -65,6 +66,10 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<AReEchoEchoActor> EchoPrefab(
 	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay"));
 	EchoGameplayClass = EchoPrefab.Succeeded() ? EchoPrefab.Class.Get() : nullptr;
+	static ConstructorHelpers::FClassFinder<AReEchoTimeShardPickupActor> TimeShardPickupPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup"));
+	TimeShardPickupClass =
+	    TimeShardPickupPrefab.Succeeded() ? TimeShardPickupPrefab.Class.Get() : AReEchoTimeShardPickupActor::StaticClass();
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
@@ -1987,10 +1992,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		Enemy->RestoreRuntimeState(EnemyState);
 		Enemy->SetEnemyId(EnemyId);
 		Enemy->SetEnemyRoster(EnemyRoster);
-		if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
-		{
-			Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
-		}
+		ConfigureEnemyRuntimeBindings(Enemy);
 	}
 	Director->ResumeEncounter(SavedState.EncounterTime);
 }
@@ -2281,11 +2283,87 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	}
 	Enemy->SetEnemyRoster(EnemyRoster);
 	Enemy->SetEnemyId(EnemyId);
+	ConfigureEnemyRuntimeBindings(Enemy);
+	return true;
+}
+
+void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
+{
+	if (!Enemy)
+	{
+		return;
+	}
 	if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
 	{
 		Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
 	}
-	return true;
+	if (UReEchoCombatEventsComponent* CombatEvents = Enemy->GetCombatEventsComponent())
+	{
+		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleEnemyDeathShardDrop);
+	}
+}
+
+AReEchoTimeShardPickupActor* AReEchoGameMode::SpawnTimeShardPickup(const FVector& Location,
+	                                                                const int32 Amount,
+	                                                                const float LifetimeSeconds)
+{
+	if (!GetWorld() || Amount <= 0)
+	{
+		return nullptr;
+	}
+	const TSubclassOf<AReEchoTimeShardPickupActor> PickupClass =
+	    TimeShardPickupClass
+	        ? TimeShardPickupClass
+	        : TSubclassOf<AReEchoTimeShardPickupActor>(AReEchoTimeShardPickupActor::StaticClass());
+	AReEchoTimeShardPickupActor* Pickup =
+	    GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(PickupClass, Location, FRotator::ZeroRotator);
+	if (Pickup)
+	{
+		Pickup->InitializePickup(Amount, LifetimeSeconds);
+	}
+	return Pickup;
+}
+
+void AReEchoGameMode::HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event)
+{
+	const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Event.Target);
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (!Enemy || !RunSubsystem || !GetWorld())
+	{
+		return;
+	}
+
+	const int32 DropAmount =
+	    RunSubsystem->ResolveEnemyDeathTimeShardDrop(Enemy->GetEnemyId(), Enemy->GetSpawnIndex());
+	if (DropAmount <= 0)
+	{
+		return;
+	}
+
+	if (AReEchoTimeShardPickupActor* Pickup = SpawnTimeShardPickup(Enemy->GetActorLocation(), DropAmount, 0.0f))
+	{
+		const FVector SpawnLocation = Pickup->GetActorLocation();
+		UE_LOG(LogReEcho,
+		       Display,
+		       TEXT("[TimeShardDrop] spawned actor=%s enemy=%s spawn=%d amount=%d location=(%.1f,%.1f,%.1f)"),
+		       *Pickup->GetName(),
+		       *Enemy->GetEnemyId().ToString(),
+		       Enemy->GetSpawnIndex(),
+		       DropAmount,
+		       SpawnLocation.X,
+		       SpawnLocation.Y,
+		       SpawnLocation.Z);
+	}
+	else
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("[TimeShardDrop] spawn failed enemy=%s spawn=%d amount=%d"),
+		       *Enemy->GetEnemyId().ToString(),
+		       Enemy->GetSpawnIndex(),
+		       DropAmount);
+	}
 }
 
 int32 AReEchoGameMode::GetTotalEncounterCount() const

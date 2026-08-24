@@ -271,6 +271,63 @@ int32 MigrateLegacyTraitOfferSeed(const UReEchoRunSaveGame& SaveGame)
 	return Seed != 0 ? static_cast<int32>(Seed) : 1;
 }
 
+int32 MakeNewEnemyShardDropSeed()
+{
+	const int32 Seed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()));
+	return Seed != 0 ? Seed : 1;
+}
+
+int32 MigrateLegacyEnemyShardDropSeed(const UReEchoRunSaveGame& SaveGame)
+{
+	uint32 Seed = HashCombine(GetTypeHash(SaveGame.TraitOfferSeed), GetTypeHash(SaveGame.EncounterIndex));
+	Seed = HashCombine(Seed, 0x53485244u); // "SHRD": stable migration salt.
+	return Seed != 0 ? static_cast<int32>(Seed) : 1;
+}
+
+bool ResolveEnemyShardDropRange(const FReEchoCsvEnemyShardDropRow& Row,
+                                const FName Archetype,
+                                int32& OutMin,
+                                int32& OutMax)
+{
+	if (Archetype == TEXT("Boss"))
+	{
+		return false;
+	}
+	if (Archetype == TEXT("Ranged"))
+	{
+		OutMin = Row.RangedMin;
+		OutMax = Row.RangedMax;
+		return true;
+	}
+	if (Archetype == TEXT("Elite"))
+	{
+		OutMin = Row.EliteMin;
+		OutMax = Row.EliteMax;
+		return OutMin != INDEX_NONE && OutMax != INDEX_NONE;
+	}
+	OutMin = Row.MeleeMin;
+	OutMax = Row.MeleeMax;
+	return true;
+}
+
+int32 BuildEnemyShardDropRollSeed(const int32 RunSeed,
+                                  const int32 EncounterIndex,
+                                  const int32 SpawnIndex,
+                                  const FName Archetype)
+{
+	uint32 Seed = HashCombine(GetTypeHash(RunSeed), GetTypeHash(EncounterIndex));
+	Seed = HashCombine(Seed, GetTypeHash(SpawnIndex));
+	Seed = HashCombine(Seed, GetTypeHash(Archetype.ToString()));
+	return static_cast<int32>(Seed);
+}
+
+int64 BuildEnemyShardDropKey(const int32 EncounterIndex, const int32 SpawnIndex)
+{
+	const uint64 Packed =
+	    (static_cast<uint64>(static_cast<uint32>(EncounterIndex)) << 32) | static_cast<uint32>(SpawnIndex);
+	return static_cast<int64>(Packed);
+}
+
 float ApplyValueOperation(const float CurrentValue, const EReEchoCsvValueOp ValueOp, const float Value)
 {
 	switch (ValueOp)
@@ -921,6 +978,8 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	EncounterIndex = 0;
 	TimeShards = 0;
 	TraitOfferSeed = MakeNewTraitOfferSeed();
+	EnemyShardDropSeed = MakeNewEnemyShardDropSeed();
+	RewardedEnemyShardDropKeys.Reset();
 	InventoryItems.Reset();
 	OwnedPartIds.Reset();
 	OwnedWeaponIds.Reset();
@@ -1613,13 +1672,6 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		return;
 	}
 	StagePendingRecording(Recording);
-	const FReEchoCardRuleSnapshot CardRules = GetCardRules();
-	if (!CardRules.bDisableEnemyShardDrops)
-	{
-		const float RewardMultiplier =
-		    CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex == EncounterIndex ? 1.5f : 1.0f;
-		TimeShards += FMath::RoundToInt(15.0f * RewardMultiplier);
-	}
 	if (CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex == EncounterIndex)
 	{
 		CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex = INDEX_NONE;
@@ -2412,6 +2464,45 @@ bool UReEchoRunSubsystem::GrantTimeShards(const int32 Amount)
 	return true;
 }
 
+int32 UReEchoRunSubsystem::ResolveEnemyDeathTimeShardDrop(const FName EnemyId, const int32 SpawnIndex)
+{
+	if (EncounterIndex <= 0 || SpawnIndex <= 0)
+	{
+		return 0;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoCsvEnemyRow* Enemy = Snapshot.IsValid() ? Snapshot->FindEnabledEnemy(EnemyId) : nullptr;
+	const FReEchoCsvEnemyShardDropRow* Drop =
+	    Snapshot.IsValid() ? Snapshot->FindEnemyShardDrop(EncounterIndex) : nullptr;
+	if (!Enemy || !Drop)
+	{
+		return 0;
+	}
+	int32 Minimum = 0;
+	int32 Maximum = 0;
+	if (!ResolveEnemyShardDropRange(*Drop, Enemy->Archetype, Minimum, Maximum))
+	{
+		return 0;
+	}
+	const int64 RewardKey = BuildEnemyShardDropKey(EncounterIndex, SpawnIndex);
+	if (RewardedEnemyShardDropKeys.Contains(RewardKey))
+	{
+		return 0;
+	}
+	RewardedEnemyShardDropKeys.Add(RewardKey);
+	if (GetCardRules().bDisableEnemyShardDrops)
+	{
+		return 0;
+	}
+	FRandomStream Random(BuildEnemyShardDropRollSeed(EnemyShardDropSeed, EncounterIndex, SpawnIndex, Enemy->Archetype));
+	int32 Reward = Random.RandRange(Minimum, Maximum);
+	if (CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex == EncounterIndex)
+	{
+		Reward = FMath::RoundToInt(static_cast<float>(Reward) * 1.5f);
+	}
+	return Reward;
+}
+
 void UReEchoRunSubsystem::ResetEchoStorage()
 {
 	bHasPendingRecording = false;
@@ -2797,6 +2888,9 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	}
 	SaveGame->TimeShards = TimeShards;
 	SaveGame->TraitOfferSeed = TraitOfferSeed;
+	SaveGame->EnemyShardDropSeed = EnemyShardDropSeed;
+	SaveGame->RewardedEnemyShardDropKeys = RewardedEnemyShardDropKeys.Array();
+	SaveGame->RewardedEnemyShardDropKeys.Sort();
 	SaveGame->CurrentBuild = CurrentBuild;
 	SaveGame->CurrentBuild.Cards.Reset();
 	SaveGame->InventoryItems = InventoryItems;
@@ -2947,6 +3041,17 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	TimeShards = FMath::Max(0, SaveGame.TimeShards);
 	TraitOfferSeed = SaveGame.SaveVersion >= 12 && SaveGame.TraitOfferSeed != 0 ? SaveGame.TraitOfferSeed
 	                                                                            : MigrateLegacyTraitOfferSeed(SaveGame);
+	EnemyShardDropSeed = SaveGame.SaveVersion >= 13 && SaveGame.EnemyShardDropSeed != 0
+	                         ? SaveGame.EnemyShardDropSeed
+	                         : MigrateLegacyEnemyShardDropSeed(SaveGame);
+	RewardedEnemyShardDropKeys.Reset();
+	if (SaveGame.SaveVersion >= 13)
+	{
+		for (const int64 RewardKey : SaveGame.RewardedEnemyShardDropKeys)
+		{
+			RewardedEnemyShardDropKeys.Add(RewardKey);
+		}
+	}
 	CurrentBuild = NormalizedCurrentBuild;
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;

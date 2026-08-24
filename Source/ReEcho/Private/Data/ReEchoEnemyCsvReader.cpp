@@ -10,6 +10,7 @@ constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
 constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
 constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
 constexpr const TCHAR* EnemyCombatStatsTableId = TEXT("EnemyCombatStats");
+constexpr const TCHAR* EnemyShardDropsTableId = TEXT("EnemyShardDrops");
 
 bool ReadTable(const FString& DataDirectory,
                const ReEchoCsv::FManifestEntry& Entry,
@@ -54,7 +55,6 @@ bool ReadEnemies(const FString& DataDirectory,
 	                            TEXT("TriggerRadiusCm"),
 	                            TEXT("DamageRadiusCm"),
 	                            TEXT("FuseSeconds"),
-	                            TEXT("Reward"),
 	                            TEXT("Boss"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
@@ -107,7 +107,6 @@ bool ReadEnemies(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("TriggerRadiusCm"), 0.0f, 100000.0f, Row.TriggerRadiusCm, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("DamageRadiusCm"), 0.0f, 100000.0f, Row.DamageRadiusCm, Issues);
 		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("FuseSeconds"), 0.0f, 3600.0f, Row.FuseSeconds, Issues);
-		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("Reward"), Row.Reward, Issues);
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Boss"), Row.bBoss, Issues);
 		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);
@@ -176,6 +175,97 @@ bool ReadEnemies(const FString& DataDirectory,
 		SeenIds.Add(Row.Id);
 		Snapshot.EnemyOrder.Add(Row.Id);
 		Snapshot.Enemies.Add(Row.Id, MoveTemp(Row));
+	}
+	return Issues.Num() == 0;
+}
+
+bool ReadOptionalRewardBound(const ReEchoCsv::FTable& Table,
+                             const ReEchoCsv::FRow& CsvRow,
+                             const TCHAR* Field,
+                             int32& OutValue,
+                             TArray<FReEchoCsvIssue>& Issues)
+{
+	FString Text;
+	if (!ReEchoCsv::ReadOptionalCell(CsvRow, Field, Text) || Text.IsEmpty())
+	{
+		OutValue = INDEX_NONE;
+		return true;
+	}
+	return ReEchoCsv::RequireInt(Table, CsvRow, Field, OutValue, Issues);
+}
+
+bool ReadEnemyShardDrops(const FString& DataDirectory,
+                         const ReEchoCsv::FManifestEntry& Entry,
+                         FReEchoCsvDataSnapshot& Snapshot,
+                         TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	if (!ReadTable(DataDirectory, Entry, Table, Issues))
+	{
+		return false;
+	}
+	ReEchoCsv::HasExactColumns(Table,
+	                           {TEXT("EncounterIndex"),
+	                            TEXT("MeleeMin"),
+	                            TEXT("MeleeMax"),
+	                            TEXT("RangedMin"),
+	                            TEXT("RangedMax"),
+	                            TEXT("EliteMin"),
+	                            TEXT("EliteMax"),
+	                            TEXT("SourceSheet"),
+	                            TEXT("SourceRow"),
+	                            TEXT("Notes")},
+	                           Issues);
+
+	for (const ReEchoCsv::FRow& CsvRow : Table.Rows)
+	{
+		FReEchoCsvEnemyShardDropRow Row;
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("EncounterIndex"), Row.EncounterIndex, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("MeleeMin"), Row.MeleeMin, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("MeleeMax"), Row.MeleeMax, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("RangedMin"), Row.RangedMin, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("RangedMax"), Row.RangedMax, Issues);
+		ReadOptionalRewardBound(Table, CsvRow, TEXT("EliteMin"), Row.EliteMin, Issues);
+		ReadOptionalRewardBound(Table, CsvRow, TEXT("EliteMax"), Row.EliteMax, Issues);
+		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
+		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);
+		ReEchoCsv::ReadOptionalCell(CsvRow, TEXT("Notes"), Row.Notes);
+
+		if (Row.EncounterIndex < 1 || Row.EncounterIndex > 8)
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, CsvRow.Line, TEXT("EncounterIndex"), TEXT("Expected 1..8"));
+		}
+		if (Snapshot.EnemyShardDrops.Contains(Row.EncounterIndex))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, CsvRow.Line, TEXT("EncounterIndex"), TEXT("Duplicate index"));
+		}
+		const bool bEliteMinMissing = Row.EliteMin == INDEX_NONE;
+		const bool bEliteMaxMissing = Row.EliteMax == INDEX_NONE;
+		if (Row.MeleeMin < 0 || Row.MeleeMax < Row.MeleeMin || Row.RangedMin < 0 || Row.RangedMax < Row.RangedMin)
+		{
+			ReEchoCsv::AddIssue(Issues,
+			                    Table.File,
+			                    CsvRow.Line,
+			                    TEXT("MeleeMin"),
+			                    TEXT("Reward ranges must be non-negative and ordered"));
+		}
+		if (bEliteMinMissing != bEliteMaxMissing ||
+		    (!bEliteMinMissing && (Row.EliteMin < 0 || Row.EliteMax < Row.EliteMin)))
+		{
+			ReEchoCsv::AddIssue(Issues,
+			                    Table.File,
+			                    CsvRow.Line,
+			                    TEXT("EliteMin"),
+			                    TEXT("Elite reward must be a complete ordered pair or both cells blank"));
+		}
+		Snapshot.EnemyShardDrops.Add(Row.EncounterIndex, MoveTemp(Row));
+	}
+	for (int32 EncounterIndex = 1; EncounterIndex <= 8; ++EncounterIndex)
+	{
+		if (!Snapshot.EnemyShardDrops.Contains(EncounterIndex))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, 1, TEXT("EncounterIndex"), TEXT("Missing required encounter row"));
+		}
 	}
 	return Issues.Num() == 0;
 }
@@ -587,6 +677,10 @@ bool ReadTables(const FString& DataDirectory,
 		return false;
 	}
 	if (!ReadBossPhases(DataDirectory, ManifestEntries[BossPhasesTableId], Snapshot, Issues))
+	{
+		return false;
+	}
+	if (!ReadEnemyShardDrops(DataDirectory, ManifestEntries[EnemyShardDropsTableId], Snapshot, Issues))
 	{
 		return false;
 	}

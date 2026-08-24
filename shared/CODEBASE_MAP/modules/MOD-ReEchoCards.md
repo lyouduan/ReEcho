@@ -68,6 +68,8 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 
 运行时只执行已注册 `BehaviorId`，`Description` 仅供展示。随机授予以本局种子和 `RandomSequence` 为唯一序列，存读档后必须得到相同结果。
 
+敌人基础碎片数值不属于 Cards。Cards 只通过 `FReEchoCardRuleSnapshot::bDisableEnemyShardDrops` 和 `BonusShardDropEncounterIndex` 声明禁掉落/下一场逐只 1.5 倍修正；`UReEchoRunSubsystem::ResolveEnemyDeathTimeShardDrop` 是唯一规则消费端，只返回世界拾取物应携带的数额，不直接写余额。关末只清理一次性标记，不再固定发放货币。
+
 ## 代码位置与阅读路线
 
 | 目的 | 代码 |

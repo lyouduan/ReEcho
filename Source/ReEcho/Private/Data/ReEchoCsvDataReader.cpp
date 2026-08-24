@@ -435,7 +435,7 @@ bool ReadManifest(const FString& DataDirectory,
 		{
 			ExpectedPrimaryKey = TEXT("PriceCategory");
 		}
-		else if (Entry.TableId == TEXT("shop_drop_levels"))
+		else if (Entry.TableId == TEXT("shop_drop_levels") || Entry.TableId == TEXT("EnemyShardDrops"))
 		{
 			ExpectedPrimaryKey = TEXT("EncounterIndex");
 		}

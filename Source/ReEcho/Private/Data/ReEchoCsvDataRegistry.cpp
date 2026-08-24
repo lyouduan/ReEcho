@@ -40,6 +40,7 @@ constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
 constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
 constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
 constexpr const TCHAR* EnemyCombatStatsTableId = TEXT("EnemyCombatStats");
+constexpr const TCHAR* EnemyShardDropsTableId = TEXT("EnemyShardDrops");
 constexpr const TCHAR* StagesTableId = TEXT("Stages");
 constexpr const TCHAR* EncountersTableId = TEXT("Encounters");
 constexpr const TCHAR* EncounterWavesTableId = TEXT("EncounterWaves");
@@ -198,20 +199,35 @@ TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDa
 
 TArray<FString> GetRequiredTableIds()
 {
-	return {RuntimeSmokeTableId,       RuntimeSmokeEffectsTableId,
-	        CharactersTableId,         CharacterAliasesTableId,
-	        CharacterAbilitiesTableId, CardsTableId,
-	        CardEffectsTableId,        ElementsTableId,
-	        StatusesTableId,           ReactionsTableId,
-	        WeaponTypesTableId,        WeaponsTableId,
-	        AttackStepsTableId,        SlotTypesTableId,
-	        SlotProfilesTableId,       PartsTableId,
-	        PartEffectsTableId,        ShopPriceRangesTableId,
-	        ShopDropLevelsTableId,     EnemiesTableId,
-	        EnemyAbilitiesTableId,     BossPhasesTableId,
-	        EnemyCombatStatsTableId,   StagesTableId,
-	        EncountersTableId,         EncounterWavesTableId,
-	        SpawnProfilesTableId,      SpawnPolicyTableId,
+	return {RuntimeSmokeTableId,
+	        RuntimeSmokeEffectsTableId,
+	        CharactersTableId,
+	        CharacterAliasesTableId,
+	        CharacterAbilitiesTableId,
+	        CardsTableId,
+	        CardEffectsTableId,
+	        ElementsTableId,
+	        StatusesTableId,
+	        ReactionsTableId,
+	        WeaponTypesTableId,
+	        WeaponsTableId,
+	        AttackStepsTableId,
+	        SlotTypesTableId,
+	        SlotProfilesTableId,
+	        PartsTableId,
+	        PartEffectsTableId,
+	        ShopPriceRangesTableId,
+	        ShopDropLevelsTableId,
+	        EnemiesTableId,
+	        EnemyAbilitiesTableId,
+	        BossPhasesTableId,
+	        EnemyCombatStatsTableId,
+	        EnemyShardDropsTableId,
+	        StagesTableId,
+	        EncountersTableId,
+	        EncounterWavesTableId,
+	        SpawnProfilesTableId,
+	        SpawnPolicyTableId,
 	        AttributesTableId};
 }
 
@@ -562,6 +578,11 @@ const FReEchoCsvEnemyRow* FReEchoCsvDataSnapshot::FindEnabledEnemy(const FName E
 {
 	const FReEchoCsvEnemyRow* Enemy = FindEnemy(EnemyId);
 	return Enemy && Enemy->bEnabled ? Enemy : nullptr;
+}
+
+const FReEchoCsvEnemyShardDropRow* FReEchoCsvDataSnapshot::FindEnemyShardDrop(const int32 InEncounterIndex) const
+{
+	return EnemyShardDrops.Find(InEncounterIndex);
 }
 
 const FReEchoCsvEnemyCombatStatRow* FReEchoCsvDataSnapshot::FindEnemyCombatStat(const FName EnemyId,

@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（设置页与暂停页的视觉比例、可读性、命中和页面往返需要用户逐轮 PIE 判断）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（用户完成设置页与暂停页逐轮 PIE/Designer 检查，并明确要求发布合并及清理工作分支）。
 - 本地规划 / 实现基线：`origin/main@52b1648cbb40719115624bf449392a1e15cc1bec`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan86-settings-pause-ui`，分支 `plan/86-settings-pause-ui`；规划者与执行者合一。
 - 依赖 / 阻塞：沿用 Plan34/45 已发布的音频设置、画面设置、暂停六态与退出流程；Plan81 的完整键位重绑定仍是独立 Proposed 范围，本 Plan 不静默接管其输入映射/持久化决策。用户将按页面提供目标图、运行截图或 UE Designer 调整结果，双方逐页验收。
@@ -61,15 +61,15 @@
 
 ## 锁定验收
 
-- [ ] 设置页三个页签能正确切换；当前页、未选中页、字段文字与底板对齐，白底白字/错层/命中遮挡等问题全部按用户反馈关闭。
-- [ ] 画面页的下拉框与亮度滑条、声音页的三条真实音量滑条及输出设备下拉框可操作；恢复默认、应用、关闭及返回路径语义保持正确。
-- [ ] 暂停页普通状态显示继续游戏、退出至主菜单、退出游戏和设置入口；两个退出确认状态分别显示正确标题与保存/不保存/返回操作，无额外大底板。
-- [ ] 两页需要手调的主要布局在 WBP Designer 中可编辑，页面刷新/状态切换不会由 C++ 回写固定坐标；装饰层不拦截输入。
-- [ ] `WBP_ReEchoSettings`、`WBP_ReEchoRestart` Compile/Save 成功，`CompileAllBlueprints` 为 0 errors、0 warnings、0 failed loads。
-- [ ] `ReEcho.UI.SettingsInteraction` 与 `ReEcho.UI.RestartWidgetPresentation` 聚焦自动化通过；源码变化时 Development Editor 构建通过。
-- [ ] `python scripts/validate_project.py` 与 `git diff --check` 通过；发布候选满足 `GIT_RULES.md` 的最终构建/精选预构建包门禁。
-- [ ] 用户在 PIE 对设置页、普通暂停、两种退出确认、设置页往返、鼠标命中和至少 1920×1080 布局报告 `Passed` 或给出具名返工项。
-- [ ] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 设置页三个页签能正确切换；当前页、未选中页、字段文字与底板对齐，白底白字/错层/命中遮挡等问题全部按用户反馈关闭。
+- [x] 画面页的下拉框与亮度滑条、声音页的三条真实音量滑条及输出设备下拉框可操作；恢复默认、应用、关闭及返回路径语义保持正确。
+- [x] 暂停页普通状态显示继续游戏、退出至主菜单、退出游戏和设置入口；两个退出确认状态分别显示正确标题与保存/不保存/返回操作，无额外大底板。
+- [x] 两页需要手调的主要布局在 WBP Designer 中可编辑，页面刷新/状态切换不会由 C++ 回写固定坐标；装饰层不拦截输入。
+- [x] `WBP_ReEchoSettings`、`WBP_ReEchoRestart` Compile/Save 成功，`CompileAllBlueprints` 为 0 errors、0 warnings、0 failed loads。
+- [x] `ReEcho.UI.SettingsInteraction` 与 `ReEcho.UI.RestartWidgetPresentation` 聚焦自动化通过；源码变化时 Development Editor 构建通过。
+- [x] `python scripts/validate_project.py` 与 `git diff --check` 通过；发布候选满足 `GIT_RULES.md` 的最终构建/精选预构建包门禁。
+- [x] 用户在 PIE 对设置页、普通暂停、两种退出确认、设置页往返、鼠标命中和至少 1920×1080 布局报告 `Passed` 或给出具名返工项。
+- [x] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -130,16 +130,23 @@
 - 设置页清理前后通过 UMG ToolSet 全树审计：节点数由 136 降至 104，22 个废弃根及其 10 个子节点全部消失；资产 Compile/Save 成功，两个底部按钮的 Canvas Position/Size 前后完全一致。清理后 Development Editor 构建与 `ReEcho.UI.SettingsInteraction` 再次通过，测试同时断言全部旧节点不再存在。
 - `WBP_ReEchoRestart` 正式暂停视觉 Compile/Save 成功；树审计确认三个按钮 Overlay 均为“正式底图 Image 在前、动态 TextBlock 在后”，旧六图全部消失，`RootPanel` 使用作者化 `(0.5, 0.493)` 锚点且运行时 Transform 保持零位移。
 - 暂停改动的 Development Editor 构建通过，预构建包校验通过；`ReEcho.UI.RestartWidgetPresentation` 找到 1 项并以 `Result={Success}` 完成，覆盖普通暂停三按钮/设置入口、两种退出标题、确认态三文案与无额外底板约束。
+- 发布前已将 `origin/main@e27cc174` 合入 Plan86；`ReEchoGameMode.cpp` 同时保留远端时间碎片掉落逻辑与本 Plan 的当前关卡退出提示，精选二进制由最终完整重建重新生成。
+- 最终集成候选执行 `scripts/ue/Build-Editor.ps1 -FullRebuild`，106/106 actions 成功；`CompileAllBlueprints` 再次得到 0 errors、0 warnings、0 failed loads。
+- 最终集成候选的 `ReEcho.UI.SettingsInteraction` 与 `ReEcho.UI.RestartWidgetPresentation` 均找到 1 项并以 `Result={Success}` 完成；`python scripts/validate_project.py` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
-- 两个 WBP 是二进制资产，任何并行编辑都会形成难合并冲突；必须逐资产小批次推进。
-- 第一批标签素材为 208x68 ARGB，与旧 269x64 纯色占位图宽高比不同；先沿用 WBP 现有页签 Slot 做运行复测，若用户要求再仅在 Designer 调整尺寸/间距。
+- 两个 WBP 仍是二进制资产；后续视觉迭代继续保持一任务一资产锁，并从最新主分支建立 worktree。
+- Plan81 的完整键位重绑定仍是独立范围；本 Plan 只保留键位页签/占位表现，没有扩张输入映射与持久化契约。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：设置页阶段已由用户完成微调；当前等待用户在 PIE 复测普通暂停、退出到主菜单确认、退出游戏确认、设置页往返和鼠标命中。
+- `Passed`：用户完成设置页与暂停页微调及运行检查，确认无问题并明确要求推送、合并远端主分支及清理当前工作分支。
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；未新增模块、依赖方向或跨模块所有权，无正文变更。
+- `shared/CODEBASE_MAP/README.md`：已审阅；未新增稳定架构标识或路由入口，无正文变更。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已审阅；现有正文已准确覆盖两页 WBP 作者ing权、C++ 状态/事件职责、暂停六态与聚焦测试路线，无需制造重复 diff。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已审阅合入的远端变化；Plan86 未改变该模块职责边界，无额外正文变更。
+- `Design/UI/ReEcho_UI修改指导.md`：已同步最终可手调 Canvas、设置页废弃节点清理、滑条/下拉框契约及暂停页三按钮六态说明。

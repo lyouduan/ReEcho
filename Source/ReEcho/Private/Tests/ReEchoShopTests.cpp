@@ -69,9 +69,17 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
 	RunSubsystem->BeginEncounter();
+	for (int32 SpawnIndex = 1; SpawnIndex <= 6; ++SpawnIndex)
+	{
+		RunSubsystem->GrantTimeShards(RunSubsystem->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), SpawnIndex));
+	}
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 	TestEqual(TEXT("Encounter one has no free card group"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
 	RunSubsystem->BeginEncounter();
+	for (int32 SpawnIndex = 1; SpawnIndex <= 6; ++SpawnIndex)
+	{
+		RunSubsystem->GrantTimeShards(RunSubsystem->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), SpawnIndex));
+	}
 	RunSubsystem->CompleteEncounter(FReEchoRecording(), true, false);
 
 	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
@@ -92,12 +100,14 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("A post-encounter trait can be selected"),
 	         RunSubsystem->ApplyTraitCard(NonCurrencyResetOffer->CardId));
 	TestEqual(TEXT("Completed draw enters planning before the shop"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
-	TestEqual(TEXT("Two encounter rewards provide shop currency"), RunSubsystem->TimeShards, 30);
+	const int32 ShardsBeforePurchase = RunSubsystem->TimeShards;
+	TestTrue(TEXT("Per-enemy rewards provide shop currency"), ShardsBeforePurchase >= 24 && ShardsBeforePurchase <= 36);
+	const int32 ExpectedPrice = RunSubsystem->GetDiscountedShopPrice(15);
 	TestTrue(TEXT("Post-draw currency can buy the entry-price item"),
 	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
-	TestEqual(TEXT("Post-draw purchase deducts the effective price"),
+	TestEqual(TEXT("Post-draw purchase deducts the current effective price"),
 	          RunSubsystem->TimeShards,
-	          30 - RunSubsystem->GetDiscountedShopPrice(15));
+	          ShardsBeforePurchase - ExpectedPrice);
 	return true;
 }
 

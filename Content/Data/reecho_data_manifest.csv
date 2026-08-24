@@ -22,6 +22,7 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,Stages,stages.csv,Id
 1,Attributes,attributes.csv,Id
 1,EnemyCombatStats,enemy_combat_stats.csv,Id
+1,EnemyShardDrops,enemy_shard_drops.csv,EncounterIndex
 1,Encounters,encounters.csv,Id
 1,EncounterWaves,encounter_waves.csv,Id
 1,SpawnProfiles,spawn_profiles.csv,Id

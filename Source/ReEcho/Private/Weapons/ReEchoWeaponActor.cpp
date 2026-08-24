@@ -1,6 +1,7 @@
 #include "Weapons/ReEchoWeaponActor.h"
 
 #include "ReEcho.h"
+#include "ReEchoGameMode.h"
 #include "Camera/PlayerCameraManager.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
@@ -959,6 +960,12 @@ void AReEchoWeaponActor::SpawnTimeShardPickup(const FVector& Location, const int
 	{
 		return;
 	}
+	if (AReEchoGameMode* GameMode = GetWorld()->GetAuthGameMode<AReEchoGameMode>())
+	{
+		GameMode->SpawnTimeShardPickup(Location, Amount);
+		return;
+	}
+	// Headless component tests intentionally have no GameMode; preserve the native fallback there.
 	if (AReEchoTimeShardPickupActor* Pickup =
 	        GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(Location, FRotator::ZeroRotator))
 	{
