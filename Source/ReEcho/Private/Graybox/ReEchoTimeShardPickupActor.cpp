@@ -10,6 +10,7 @@
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
@@ -87,7 +88,14 @@ void AReEchoTimeShardPickupActor::BeginPlay()
 {
 	Super::BeginPlay();
 	SnapToArenaGroundPlane();
+	RuntimePickupMaterial = PickupMaterial ? UMaterialInstanceDynamic::Create(PickupMaterial, this) : nullptr;
+	if (RuntimePickupMaterial)
+	{
+		RuntimePickupMaterial->SetScalarParameterValue(TEXT("Opacity"), 1.0f);
+	}
 	ApplyEditablePresentationSettings();
+	CacheAuthoredPresentationTransform();
+	UpdateLandingPresentation(0.0f);
 }
 
 void AReEchoTimeShardPickupActor::ApplyEditablePresentationSettings()
@@ -101,7 +109,7 @@ void AReEchoTimeShardPickupActor::ApplyEditablePresentationSettings()
 	const float VisualWorldWidthCm =
 	    SafeHeight * static_cast<float>(PickupTexture->GetSizeX()) / FMath::Max(1, PickupTexture->GetSizeY());
 	FMaterialSpriteElement Element;
-	Element.Material = PickupMaterial;
+	Element.Material = RuntimePickupMaterial ? RuntimePickupMaterial.Get() : PickupMaterial.Get();
 	Element.bSizeIsInScreenSpace = false;
 	Element.BaseSizeX = VisualWorldWidthCm;
 	Element.BaseSizeY = SafeHeight;
@@ -112,6 +120,80 @@ void AReEchoTimeShardPickupActor::ApplyEditablePresentationSettings()
 		GroundShadow->SetVisibility(bShowGroundShadow, true);
 		GroundShadow->SetHiddenInGame(!bShowGroundShadow);
 		GroundShadow->SetTranslucentSortPriority(GroundSortPriority - 1);
+	}
+}
+
+void AReEchoTimeShardPickupActor::CacheAuthoredPresentationTransform()
+{
+	if (!VisualRoot)
+	{
+		return;
+	}
+	AuthoredVisualRootLocation = VisualRoot->GetRelativeLocation();
+	bPresentationTransformCached = true;
+}
+
+void AReEchoTimeShardPickupActor::UpdateLandingPresentation(const float DeltaSeconds)
+{
+	if (!bPresentationTransformCached || !VisualRoot)
+	{
+		return;
+	}
+
+	const float SafeDuration = FMath::Max(LandingBounceDurationSeconds, UE_SMALL_NUMBER);
+	LandingAnimationElapsedSeconds = FMath::Min(LandingAnimationElapsedSeconds + DeltaSeconds, SafeDuration);
+	const float Progress = LandingBounceDurationSeconds > 0.0f
+	                           ? FMath::Clamp(LandingAnimationElapsedSeconds / SafeDuration, 0.0f, 1.0f)
+	                           : 1.0f;
+	const float Oscillations = static_cast<float>(FMath::Max(0, LandingBounceCount)) + 0.5f;
+	const float HeightAlpha = (1.0f - Progress) * FMath::Abs(FMath::Cos(Progress * PI * Oscillations));
+	VisualRoot->SetRelativeLocation(AuthoredVisualRootLocation +
+	                                FVector(0.0f, 0.0f, LandingBounceHeightCm * HeightAlpha));
+}
+
+void AReEchoTimeShardPickupActor::BeginCollectionPresentation()
+{
+	if (!VisualRoot)
+	{
+		Destroy();
+		return;
+	}
+
+	SetLifeSpan(0.0f);
+	CollectionAnimationElapsedSeconds = 0.0f;
+	CollectionStartVisualRootLocation = VisualRoot->GetRelativeLocation();
+	if (GroundShadow)
+	{
+		GroundShadow->SetVisibility(false, true);
+		GroundShadow->SetHiddenInGame(true);
+	}
+	if (RuntimePickupMaterial)
+	{
+		RuntimePickupMaterial->SetScalarParameterValue(TEXT("Opacity"), 1.0f);
+	}
+}
+
+void AReEchoTimeShardPickupActor::UpdateCollectionPresentation(const float DeltaSeconds)
+{
+	if (!VisualRoot)
+	{
+		Destroy();
+		return;
+	}
+
+	const float SafeDuration = FMath::Max(CollectionRiseDurationSeconds, UE_SMALL_NUMBER);
+	CollectionAnimationElapsedSeconds = FMath::Min(CollectionAnimationElapsedSeconds + DeltaSeconds, SafeDuration);
+	const float Progress = FMath::Clamp(CollectionAnimationElapsedSeconds / SafeDuration, 0.0f, 1.0f);
+	const float RiseAlpha = 1.0f - FMath::Pow(1.0f - Progress, 3.0f);
+	VisualRoot->SetRelativeLocation(CollectionStartVisualRootLocation +
+	                                FVector(0.0f, 0.0f, CollectionRiseHeightCm * RiseAlpha));
+	if (RuntimePickupMaterial)
+	{
+		RuntimePickupMaterial->SetScalarParameterValue(TEXT("Opacity"), 1.0f - FMath::SmoothStep(0.0f, 1.0f, Progress));
+	}
+	if (Progress >= 1.0f)
+	{
+		Destroy();
 	}
 }
 
@@ -135,8 +217,10 @@ void AReEchoTimeShardPickupActor::Tick(const float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (bCollected)
 	{
+		UpdateCollectionPresentation(DeltaSeconds);
 		return;
 	}
+	UpdateLandingPresentation(DeltaSeconds);
 
 	AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (!Player)
@@ -190,6 +274,6 @@ void AReEchoTimeShardPickupActor::TryCollect(AActor* Collector)
 		bCollected = true;
 		Collision->SetGenerateOverlapEvents(false);
 		Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Destroy();
+		BeginCollectionPresentation();
 	}
 }

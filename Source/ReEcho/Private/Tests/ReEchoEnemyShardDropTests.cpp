@@ -9,6 +9,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
 #include "Graybox/ReEchoTimeShardPickupActor.h"
+#include "Materials/MaterialInterface.h"
 #include "Run/ReEchoRunSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyShardDropDataTest,
@@ -61,9 +62,11 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Encounter five elite range ends at twenty"), Fifth->EliteMax, 20);
 	TestNotNull(TEXT("Reviewed pickup texture is available to the runtime"),
 	            LoadObject<UTexture2D>(nullptr, TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard")));
+	TestNotNull(TEXT("Fade-capable pickup master material is available to the runtime"),
+	            LoadObject<UMaterialInterface>(
+	                nullptr, TEXT("/Game/ReEcho/Materials/Pickups/M_TimeShardPickup.M_TimeShardPickup")));
 	UClass* PickupBlueprintClass = LoadClass<AReEchoTimeShardPickupActor>(
-	    nullptr,
-	    TEXT("/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup.BP_TimeShardPickup_C"));
+	    nullptr, TEXT("/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup.BP_TimeShardPickup_C"));
 	TestNotNull(TEXT("Editor-authored pickup Blueprint is available"), PickupBlueprintClass);
 	const AReEchoTimeShardPickupActor* PickupDefaults =
 	    PickupBlueprintClass ? Cast<AReEchoTimeShardPickupActor>(PickupBlueprintClass->GetDefaultObject()) : nullptr;
@@ -77,6 +80,10 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Pickup Blueprint exposes a ground shadow component"), PickupShadow);
 	TestTrue(TEXT("Pickup Blueprint keeps a positive editor-authored visual height"),
 	         PickupDefaults && PickupDefaults->GetVisualWorldHeightCm() > 0.0f);
+	TestTrue(TEXT("Pickup Blueprint keeps an editable landing animation"),
+	         PickupDefaults && PickupDefaults->GetLandingBounceDurationSeconds() > 0.0f);
+	TestTrue(TEXT("Pickup Blueprint keeps an editable collection animation"),
+	         PickupDefaults && PickupDefaults->GetCollectionRiseDurationSeconds() > 0.0f);
 	return true;
 }
 
@@ -94,27 +101,29 @@ bool FReEchoEnemyShardDropRuntimeTest::RunTest(const FString& Parameters)
 
 	const int32 MeleeReward = Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 1);
 	TestTrue(TEXT("Melee reward uses encounter-one 2..3 range"), MeleeReward >= 2 && MeleeReward <= 3);
-	TestEqual(
-	    TEXT("Duplicate death notification grants nothing"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 1), 0);
+	TestEqual(TEXT("Duplicate death notification grants nothing"),
+	          Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 1),
+	          0);
 	const int32 RangedReward = Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_RABBIT"), 2);
 	TestTrue(TEXT("Ranged reward uses encounter-one 4..6 range"), RangedReward >= 4 && RangedReward <= 6);
 	TestEqual(TEXT("Encounter one has no elite reward"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_FOX"), 3), 0);
-	TestEqual(
-	    TEXT("Bosses never use the regular enemy reward table"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_SHEEP"), 4), 0);
+	TestEqual(TEXT("Bosses never use the regular enemy reward table"),
+	          Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_SHEEP"), 4),
+	          0);
 
 	Run->CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex = Run->EncounterIndex;
 	const int32 BonusReward = Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 5);
 	TestTrue(TEXT("One-shot bonus multiplies and rounds each enemy reward"), BonusReward >= 3 && BonusReward <= 5);
 	Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoEnemyShardDrops;
-	TestEqual(
-	    TEXT("No-drop penalty suppresses the enemy reward"), Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 6), 0);
+	TestEqual(TEXT("No-drop penalty suppresses the enemy reward"),
+	          Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 6),
+	          0);
 	Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::None;
 	TestEqual(TEXT("Suppressed deaths remain idempotent after the penalty changes"),
 	          Run->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 6),
 	          0);
-	TestEqual(TEXT("Resolving enemy deaths never changes the balance before collection"),
-	          Run->TimeShards,
-	          InitialBalance);
+	TestEqual(
+	    TEXT("Resolving enemy deaths never changes the balance before collection"), Run->TimeShards, InitialBalance);
 	return true;
 }
 
