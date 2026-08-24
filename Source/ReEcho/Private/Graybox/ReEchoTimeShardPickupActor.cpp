@@ -14,6 +14,7 @@ namespace ReEchoTimeShardPickup
 {
 constexpr float CollisionRadiusCm = 48.0f;
 constexpr float CollectionHeightToleranceCm = 100.0f;
+constexpr int32 TranslucentSortPriority = -20;
 constexpr float VisualWorldHeightCm = 76.0f;
 } // namespace ReEchoTimeShardPickup
 
@@ -35,8 +36,8 @@ AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
 	Visual->SetupAttachment(Collision);
 	Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Visual->SetCastShadow(false);
-	Visual->SetTranslucentSortPriority(30);
-	Visual->SetRelativeLocation(FVector(0.0f, 0.0f, 28.0f));
+	Visual->SetTranslucentSortPriority(ReEchoTimeShardPickup::TranslucentSortPriority);
+	Visual->SetRelativeLocation(FVector::ZeroVector);
 	Visual->SetHiddenInGame(false);
 	Visual->SetVisibility(true);
 	Visual->bIsScreenSizeScaled = false;
