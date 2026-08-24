@@ -3328,7 +3328,15 @@ void AReEchoGameMode::ProceedToPostEncounterUI()
 	else if (RunSubsystem->EncounterIndex < RunSubsystem->GetTotalEncounterCount())
 	{
 		PrepareEncounterIntermission();
-		ShowTraitCardChoice();
+		if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+		{
+			ShowTraitCardChoice();
+		}
+		else
+		{
+			bContinueRunAfterShop = true;
+			ShowPostTraitShop();
+		}
 	}
 }
 
@@ -3345,7 +3353,15 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	if (Offers.Num() != 3)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Expected three trait card offers, received %d"), Offers.Num());
-		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		if (RunSubsystem->Phase == EReEchoRunPhase::Planning)
+		{
+			bContinueRunAfterShop = true;
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		}
 		return;
 	}
 

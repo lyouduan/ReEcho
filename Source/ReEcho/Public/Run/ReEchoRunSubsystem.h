@@ -215,6 +215,9 @@ public:
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	int32 ResolveConfiguredFreeTraitTier() const;
+	void AdvanceToConfiguredTraitChoice();
+
 	UPROPERTY()
 	bool bAutomaticAttackMode = true;
 

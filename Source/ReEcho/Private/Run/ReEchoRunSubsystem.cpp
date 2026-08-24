@@ -1015,8 +1015,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView() const
 	{
 		const int32 RefreshSequence = CurrentBuild.CardState.Runtime.ShopRefreshSequence;
 		// ===== Build-card shop: one slot per drop-level tier (Plan67 Step2) =====
-		const int32 LevelEncounter = FMath::Clamp(EncounterIndex, 1, 6);
-		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(LevelEncounter))
+		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex))
 		{
 			TArray<int32> CardTiers;
 			if (!DropLevel->ShopTiers.IsEmpty())
@@ -1139,6 +1138,48 @@ int32 UReEchoRunSubsystem::GetTotalEncounterCount() const
 	return EnabledCount > 0 ? EnabledCount : GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount();
 }
 
+int32 UReEchoRunSubsystem::ResolveConfiguredFreeTraitTier() const
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid())
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot resolve post-encounter card drop for encounter %d: data snapshot is unavailable."),
+		       EncounterIndex);
+		return INDEX_NONE;
+	}
+
+	const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex);
+	if (!DropLevel)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot resolve post-encounter card drop: encounter %d has no shop_drop_levels row."),
+		       EncounterIndex);
+		return INDEX_NONE;
+	}
+	if (DropLevel->FreeTier == INDEX_NONE)
+	{
+		return INDEX_NONE;
+	}
+	if (DropLevel->FreeTier < 1 || DropLevel->FreeTier > 3)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot resolve post-encounter card drop: encounter %d has invalid FreeTier %d."),
+		       EncounterIndex,
+		       DropLevel->FreeTier);
+		return INDEX_NONE;
+	}
+	return DropLevel->FreeTier;
+}
+
+void UReEchoRunSubsystem::AdvanceToConfiguredTraitChoice()
+{
+	SetPhase(ResolveConfiguredFreeTraitTier() == INDEX_NONE ? EReEchoRunPhase::Planning : EReEchoRunPhase::CardChoice);
+}
+
 void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
@@ -1214,22 +1255,48 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		SetPhase(bBossKilled ? EReEchoRunPhase::Summary : EReEchoRunPhase::Failed);
 		return;
 	}
-	SetPhase(EReEchoRunPhase::CardChoice);
+	AdvanceToConfiguredTraitChoice();
 }
 
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
 {
 	PendingTraitCardIds.Reset();
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
-	const TArray<FReEchoCardDefinition> Catalog =
-	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
-	        ? ReEchoCardRuntime::BuildOfferPool(*Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup)
-	        : TArray<FReEchoCardDefinition>();
-	const int32 OfferCount = FMath::Clamp(RequestedCount, 0, Catalog.Num());
-	if (OfferCount == 0 || Phase != EReEchoRunPhase::CardChoice)
+	if (RequestedCount <= 0 || Phase != EReEchoRunPhase::CardChoice)
 	{
 		return {};
 	}
+
+	const int32 FreeTier = ResolveConfiguredFreeTraitTier();
+	if (FreeTier == INDEX_NONE)
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("CardChoice phase has no configured free card tier for encounter %d; continuing to the shop."),
+		       EncounterIndex);
+		SetPhase(EReEchoRunPhase::Planning);
+		return {};
+	}
+
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const TArray<FReEchoCardDefinition> Catalog =
+	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
+	        ? ReEchoCardRuntime::BuildOfferPool(
+	              *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, FreeTier)
+	        : TArray<FReEchoCardDefinition>();
+	if (Catalog.Num() < RequestedCount)
+	{
+		UE_LOG(
+		    LogReEcho,
+		    Error,
+		    TEXT("Encounter %d FreeTier %d requires %d card offers but only %d are eligible; continuing to the shop."),
+		    EncounterIndex,
+		    FreeTier,
+		    RequestedCount,
+		    Catalog.Num());
+		SetPhase(EReEchoRunPhase::Planning);
+		return {};
+	}
+	const int32 OfferCount = RequestedCount;
 
 	FRandomStream Random(BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
 	TArray<FReEchoTraitCardOffer> Result;
