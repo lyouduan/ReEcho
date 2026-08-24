@@ -261,23 +261,26 @@ void AReEchoEchoActor::ApplyPlayerSpatialAuthoring(const AReEchoPlayerPawn& Play
 		return;
 	}
 
-	auto CopyRelativeTransform = [PlayerDefaults](USceneComponent* Target, const FName SourceName)
+	auto CopyRelativeTransform = [](USceneComponent* Target, AReEchoPlayerPawn& SourceActor, const FName SourceName)
 	{
-		const USceneComponent* Source = Cast<USceneComponent>(PlayerDefaults->GetDefaultSubobjectByName(SourceName));
+		const USceneComponent* Source = Cast<USceneComponent>(SourceActor.GetDefaultSubobjectByName(SourceName));
 		if (Target && Source)
 		{
 			Target->SetRelativeTransform(Source->GetRelativeTransform());
 		}
 	};
-	CopyRelativeTransform(PresentationRoot, TEXT("PresentationRoot"));
-	CopyRelativeTransform(FootRoot, TEXT("FootRoot"));
-	CopyRelativeTransform(PresentationMotionRoot, TEXT("PresentationMotionRoot"));
-	CopyRelativeTransform(FlipbookRoot, TEXT("FlipbookRoot"));
-	CopyRelativeTransform(GroundRoot, TEXT("GroundRoot"));
-	CopyRelativeTransform(EffectsRoot, TEXT("EffectsRoot"));
-	CopyRelativeTransform(AttackVfxRoot, TEXT("AttackVfxRoot"));
-	CopyRelativeTransform(HurtVfxRoot, TEXT("HurtVfxRoot"));
-	CopyRelativeTransform(GroundShadow, TEXT("GroundShadow"));
+	// Motion, effects and ground nodes carry frame-local feedback at runtime. Seed those from the
+	// Blueprint CDO, then read only stable authored roots from the live Player instance.
+	CopyRelativeTransform(PresentationMotionRoot, *PlayerDefaults, TEXT("PresentationMotionRoot"));
+	CopyRelativeTransform(GroundRoot, *PlayerDefaults, TEXT("GroundRoot"));
+	CopyRelativeTransform(EffectsRoot, *PlayerDefaults, TEXT("EffectsRoot"));
+	CopyRelativeTransform(GroundShadow, *PlayerDefaults, TEXT("GroundShadow"));
+	AReEchoPlayerPawn& LivePlayer = const_cast<AReEchoPlayerPawn&>(Player);
+	CopyRelativeTransform(PresentationRoot, LivePlayer, TEXT("PresentationRoot"));
+	CopyRelativeTransform(FootRoot, LivePlayer, TEXT("FootRoot"));
+	CopyRelativeTransform(FlipbookRoot, LivePlayer, TEXT("FlipbookRoot"));
+	CopyRelativeTransform(AttackVfxRoot, LivePlayer, TEXT("AttackVfxRoot"));
+	CopyRelativeTransform(HurtVfxRoot, LivePlayer, TEXT("HurtVfxRoot"));
 	SetActorScale3D(Player.GetActorScale3D());
 
 	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();

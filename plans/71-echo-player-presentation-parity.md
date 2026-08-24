@@ -127,6 +127,7 @@
 - 返工候选保留 Echo Profile 的动画集与状态机，但按 CSV `CharacterId -> AppearanceId` 解析 Player Profile，并把 `WorldHeight`、自动脚点策略、`FootpointOffset` 与 `WeaponAnchorRatio` 组合进瞬态 Profile；武器因此继续消费统一布局入口而不增加 Echo 武器特判。
 - Echo 初始化从当前 Player Gameplay Blueprint CDO 复制表现树、VFX 根和阴影的作者相对 Transform，并同步 Player Actor 总体 Scale；随后缓存与 Player 同构的 Flipbook、Effects、Ground/Shadow 基准。每帧同时恢复 EffectsRoot 基准，避免 VFX 根因临时形变或未缓存状态漂移。
 - GroundShadow 的最终宽度不再读取 Echo 原图宽度；Echo 按当前动画语义和 WeaponVisualKey 找到 Player 空间 Profile 的对应 Flipbook，以 Player WorldHeight 归一化后的宽度作为阴影唯一参考。Echo 素材画布或横纵比变化因此不会让阴影形成第二套尺寸。
+- PIE 反馈澄清差异来自 `FlipbookRoot` 组件 Rotation，而非左右朝向。返工后稳定作者根改为读取 live Player 实例，确保 Gameplay Blueprint 实例上的 FlipbookRoot 相对 Rotation/Transform 原样复制；PresentationMotionRoot、EffectsRoot、GroundRoot 与 GroundShadow 仍读取 Player Class CDO 的作者基准，避免把当前帧脚点、受击形变或动态阴影误当配置。
 
 ### 证据
 
@@ -134,8 +135,9 @@
 - 隔离未发布 Sage 源码后的最终 Development FullRebuild 通过，95 个 action 完成并刷新预构建源码指纹 `9ddb7f5f3fa1`。
 - `ReEcho.Presentation.EchoAppearance.CharacterMappings` 发现 1 项并 `Success`；覆盖四 Catalog 映射、12 个 Flipbook 加载、近战 Attack、Bow Attack_Arrow、Actor 实际 Walk 与未知 ID 拒绝。
 - 返工聚焦自动化发现 2 项并全部 `Success`：`CharacterMappings` 证明 Echo 动画仍来自独立 Echo Profile，而 WorldHeight、脚点策略/偏移与武器 Anchor 来自 CSV AppearanceId 对应 Player Profile；`SpatialParity` 使用可读运行时快照逐字段比较 Player Gameplay Blueprint 与 Echo 的 Presentation/Foot/Motion/Flipbook、Effects/Attack/Hurt、Ground/Shadow Transform，并覆盖四角色归一化最终高度、post-bounds 阴影宽度，以及长剑 `W_J_01`/弓 `W_J_08` 的最终 Anchor 与可见组件 Transform。
+- `SpatialParity` 额外在 live Player 实例写入非默认 FlipbookRoot Rotation `(Pitch=13,Yaw=27,Roll=-9)`，证明 Echo 精确复制该相对 Rotation；随后切换左右 FacingSign，FlipbookRoot Rotation 与位置保持不变，只有 Renderer 镜像 Scale 符号变化。
 - `scripts/ue/Build-Editor.cmd -Configuration Development` 通过并刷新精选预构建包；修改的三个 C++ 文件已使用仓库 `.clang-format` 配置格式化。
-- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 完成 95 个 action，退出码 0；精选预构建包刷新为源码指纹 `3f0c47d3ac78`。
+- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 完成 95 个 action，退出码 0；精选预构建包刷新为源码指纹 `ebf8431cbc8d`。
 
 ### 剩余风险
 

@@ -198,8 +198,22 @@ bool FReEchoEchoSpatialParityTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	AReEchoPlayerPawn* PlayerInstance = NewObject<AReEchoPlayerPawn>(GetTransientPackage(), PlayerGameplayClass);
+	if (!TestNotNull(TEXT("Player Gameplay Blueprint instance creates"), PlayerInstance))
+	{
+		return false;
+	}
+	PlayerInstance->SetActorScale3D(PlayerDefaults->GetActorScale3D());
+	USceneComponent* PlayerFlipbookRoot =
+	    Cast<USceneComponent>(PlayerInstance->GetDefaultSubobjectByName(TEXT("FlipbookRoot")));
+	if (!TestNotNull(TEXT("Live Player FlipbookRoot exists"), PlayerFlipbookRoot))
+	{
+		return false;
+	}
+	const FRotator LiveAuthoredFlipbookRotation(13.0f, 27.0f, -9.0f);
+	PlayerFlipbookRoot->SetRelativeRotation(LiveAuthoredFlipbookRotation);
 	AReEchoEchoActor* Echo = NewObject<AReEchoEchoActor>(GetTransientPackage());
-	Echo->ApplyPlayerSpatialAuthoringForTests(*PlayerDefaults);
+	Echo->ApplyPlayerSpatialAuthoringForTests(*PlayerInstance);
 	TestTrue(TEXT("Echo configures Spade"), Echo->ConfigureEchoAppearance(TEXT("J_SPADE")));
 	const FReEchoEchoSpatialPresentationSnapshot AuthoredEchoSpatial = Echo->CaptureSpatialPresentationForTests();
 	Echo->RefreshSpatialPresentationForTests();
@@ -220,7 +234,8 @@ bool FReEchoEchoSpatialParityTest::RunTest(const FString& Parameters)
 	TestAuthoredTransform(TEXT("FootRoot"), EchoSpatial.FootRootTransform, TEXT("FootRoot"));
 	TestAuthoredTransform(
 	    TEXT("PresentationMotionRoot"), AuthoredEchoSpatial.MotionRootTransform, TEXT("PresentationMotionRoot"));
-	TestAuthoredTransform(TEXT("FlipbookRoot"), EchoSpatial.FlipbookRootTransform, TEXT("FlipbookRoot"));
+	TestTrue(TEXT("Echo copies the live Player FlipbookRoot relative transform"),
+	         TransformsMatch(EchoSpatial.FlipbookRootTransform, PlayerFlipbookRoot->GetRelativeTransform()));
 	TestAuthoredTransform(TEXT("EffectsRoot"), EchoSpatial.EffectsRootTransform, TEXT("EffectsRoot"));
 	TestAuthoredTransform(TEXT("AttackVfxRoot"), EchoSpatial.AttackVfxRootTransform, TEXT("AttackVfxRoot"));
 	TestAuthoredTransform(TEXT("HurtVfxRoot"), EchoSpatial.HurtVfxRootTransform, TEXT("HurtVfxRoot"));
@@ -313,6 +328,11 @@ bool FReEchoEchoSpatialParityTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Left/right mirror preserves final presentation width"),
 	         FMath::IsNearlyEqual(
 	             RightFacing.PresentedCharacterWidth, LeftFacing.PresentedCharacterWidth, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Left/right facing does not alter the authored FlipbookRoot rotation"),
+	         RightFacing.FlipbookRootTransform.GetRotation().Equals(LeftFacing.FlipbookRootTransform.GetRotation(),
+	                                                                KINDA_SMALL_NUMBER) &&
+	             RightFacing.FlipbookRootTransform.GetRotation().Equals(LiveAuthoredFlipbookRotation.Quaternion(),
+	                                                                    KINDA_SMALL_NUMBER));
 
 	FSpatialParityWorldFixture Fixture;
 	AReEchoPlayerPawn* PlayerOwner = Fixture.World->SpawnActor<AReEchoPlayerPawn>();
