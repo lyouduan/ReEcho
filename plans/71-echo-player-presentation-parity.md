@@ -8,7 +8,7 @@
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 任务状态：`Ready`（原候选视觉验收发现空间表现不一致，按本次锁定范围返工）。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@a475b44d`。
+- 本地规划 / 实现基线：`origin/main@176f8991429d046d4072e24f507695ee31728833`；空间/Rotation 本地候选位于 `codex/echo-spatial-presentation@3e2bd3ac`，待本修订发布后重放并继续实现。
 - 本地实现方式：用户已确认采用一任务一 worktree；本次返工使用 `C:/Users/binnanliang/Documents/ReEcho-worktrees/echo-spatial-presentation`，分支 `codex/echo-spatial-presentation`。
 - 依赖 / 阻塞：四组 Echo Flipbook 已交付至 `/Game/ReEcho/Art/Animation2D/Echos`；玩家同 `CharacterId` 的空间表现作为本次唯一视觉基准，最终视觉一致性需要 PIE 人工验收。
 - Writes:
@@ -17,6 +17,8 @@
   - `Source/ReEcho/Private/Graybox/ReEchoEchoActor.cpp`
   - `Source/ReEcho/Public/Player/ReEchoPlayerPawn.h`
   - `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`
+  - `Source/ReEcho/Public/ReEchoGameMode.h`
+  - `Source/ReEcho/Private/ReEchoGameMode.cpp`
   - `Source/ReEchoPresentation/Public/Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h`（仅在现有字段无法表达公共空间配置时扩展）
   - `Source/ReEchoPresentation/Private/Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.cpp`（仅配对实现需要时）
   - `Source/ReEcho/Private/Weapons/ReEchoWeaponActor.cpp`（只读取 Echo 独立瞄准方向）
@@ -26,7 +28,9 @@
   - `Content/ReEcho/Animation2D/DA_Echo_J_CLOVER.uasset`
   - `Content/ReEcho/Animation2D/DA_Echo_J_DIAMOND.uasset`
   - `Content/ReEcho/Animation2D/DA_EchoPresentationCatalog.uasset`（若现有 Catalog 无法保持 Player/Echo 域隔离）
+  - `Content/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay.uasset`
   - `scripts/ue/author_echo_presentation_profiles.py`
+  - `scripts/ue/author_echo_gameplay_prefab.py`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`（若公共 Profile/API 发生变化）
   - `Binaries/Win64/` 下 `GIT_RULES.md` 允许的最终预构建包文件
@@ -49,6 +53,7 @@
 4. EchoActor 只提交移动、攻击和朝向等表现意图，不保存 Flipbook Map、攻击动画倒计时或按 AttackPattern 字符串选择资源。
 5. 表现失败不改变 Recording、Weapons、Combat 和 Echo 生命周期。
 6. 同一 `CharacterId` 下，Echo 与玩家使用同一空间表现权威：角色位置/尺寸/缩放、武器持有位置/缩放、阴影位置/尺寸、攻击与受击特效根位置/缩放必须一致；Echo 独立 Profile 只允许提供动画素材和回响材质差异。
+7. 提供父类为 `AReEchoEchoActor` 的 `BP_EchoGameplay` 作为 Echo 可编辑表现宿主；新遭遇和存档恢复均通过该 Blueprint Class 生成，资产缺失时安全回退原生类。
 
 ## 架构影响与设计决策
 
@@ -65,6 +70,7 @@
   6. 武器最终布局仍由“角色公共 Weapon Anchor + 武器 Profile 自身 HeldOffset/尺寸”组合，不能在 EchoActor 增加武器 ID 特判。
   7. 阴影继续由渲染 Bounds 推导时，Player 与 Echo 必须调用同一计算契约并使用相同作者ing基准；若 Echo 素材原始像素尺寸不同，则先规范化角色显示尺寸，再计算阴影，避免阴影反向成为第二尺寸来源。
   8. Combat VFX 继续挂接语义化 Attack/Hurt 根；本 Plan 只统一根的相对 Transform 和继承缩放，不改变 Niagara 资产、伤害事件或生命周期。
+  9. `BP_EchoGameplay` 只开放既有组件树的作者 Transform、排序和可见表现，不新增玩法状态或第二套空间计算。GameMode 构造期以硬类引用保证 Cook 收录，并由统一解析/生成入口服务新游戏与恢复流程；Blueprint 不可加载时回退 `AReEchoEchoActor::StaticClass()`，不得阻止遭遇开始。
 - 相关文档同步范围：审阅 `ARCHITECTURE.md` 与 `README.md`，预计模块拓扑和 AREA 路由不变；更新 `MOD-ReEcho.md`；审阅 `MOD-ReEchoPresentation.md`。
 - 关闭前逐项填写审阅结果：在执行记录中记录上述文档已更新或无需修改的理由。
 
@@ -83,13 +89,17 @@
 - [ ] Player/Echo 的 AttackVfxRoot/HurtVfxRoot 相对 Transform 与继承缩放一致；相同测试特效的生成原点和最终尺寸一致。
 - [ ] 自动化使用可读的空间快照逐字段比较以上参数，容差具名且不以截图或人工目测替代；最终视觉质量仍由用户 PIE 确认。
 - [ ] 未提交不相关美术资产或精选预构建允许列表之外的生成产物。
+- [ ] `BP_EchoGameplay` 可在 Blueprint Editor 中直接编辑 Presentation、Flipbook、GroundShadow、AttackVfxRoot 与 HurtVfxRoot，父类准确且编译、保存、重载无错误。
+- [ ] 新遭遇和存档恢复的 Echo 均由 `BP_EchoGameplay_C` 生成；资产缺失降级测试证明原生类仍可生成，不改变录制、武器、战斗或恢复语义。
+- [ ] Blueprint 作者ing脚本幂等执行两次；第二次保留已有美术手调 Transform，不把 Player 当前实例或 Echo 运行时状态烘焙进资产。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@a475b44d`；已审计 `55a15d15..a475b44d` 的 Plan87、商店 UI 与预构建更新，与 Player/Echo 空间表现源码没有直接路径冲突；`MOD-ReEcho.md` 与最终预构建包存在集成耦合，发布时必须基于最新远端重建。
+- 基线分支/提交：`origin/main@176f8991429d046d4072e24f507695ee31728833`；其新增 Plan89 明确以 Plan71 拥有 Player/Echo 空间根、Plan89 只消费该契约，二者无源码冲突。空间/Rotation 本地候选 `3e2bd3ac` 在实施 Blueprint 前先重放本 Plan 修订。
 - 引擎/构建可用性：UE 5.8；构建与 Editor 命令前确认交互式 Editor 已关闭。
 - 现有聚焦测试结果：临时硬编码方案的四角色 Walk 映射测试通过，但不作为本 Plan 架构验收证据。
 - 共享契约 / 难合并资源风险：优先通过 C++ 公共空间契约消除漂移；若必须调整 Profile/Catalog `.uasset`，只能通过 Unreal Editor API 修改并在执行记录列出准确资产。Plan87 会修改 Player Host，实施与集成时需审计其实际落地差异。
+- Echo Blueprint 是新增二进制资产，只能通过 Unreal Editor API 创建、编译、保存和重载；实现前确认 Editor 已关闭并使用同克隆 Unreal 锁。Plan89 只消费 Plan71 的空间根契约，不拥有 `BP_EchoGameplay` 的根 Transform。
 - 基线损坏时的停止条件：远端再次前进、同路径 Echo 资产/Profile 外部变化、Editor API 无法创建有效 Profile 或基础构建失败时停止审计。
 
 ## 实现提纲
@@ -101,6 +111,8 @@
 5. 完成构建、自动化和静态检查后交付 PIE 人工验收。
 6. 本次返工先提取 Player/Echo 可比较的空间快照，确认四类差异的真实来源；再建立公共空间应用路径，禁止以 Echo 专用常量逐项对齐截图。
 7. 为角色、武器、阴影、Attack/Hurt VFX 根增加逐字段一致性测试，覆盖四个 CharacterId、至少一个近战与一个远程 WeaponVisualKey，以及左右朝向。
+8. 通过幂等 Editor 脚本创建 `BP_EchoGameplay`，父类为 `AReEchoEchoActor`；首次创建只初始化缺失资产，后续执行不得覆盖已有组件 Transform。
+9. GameMode 统一缓存/解析 Echo Gameplay Class，并让新遭遇与恢复流程共享同一生成帮助函数；增加 Blueprint 类、Cook 硬引用、两处流程和原生 fallback 的聚焦测试。
 
 ## 验证矩阵
 
@@ -124,6 +136,7 @@
 - Echo 自动索敌写入独立 `AttackAimDirection` 并驱动相机横向镜像；WeaponActor 读取该方向，玩法根 Actor 不再为表现或瞄准旋转。
 - 保留 Billboard 作为 Profile/Flipbook 缺失时的静态安全回退。
 - 2026-08-24 返工：用户明确“一致”仅指角色、武器、阴影、特效四类空间位置与大小，不涉及录像内容、动作时序或战斗权威。审计确认当前 Echo 独立 Profile 与 Host 基准仍可形成第二套空间参数，Plan 重新进入 `Ready`。
+- 2026-08-24 用户要求为 Echo 提供对应 Blueprint。Plan 增补 `BP_EchoGameplay` 可编辑宿主及 GameMode 统一类解析/生成入口；该 BP 只承载表现作者ing，不改变 Echo 玩法权威。
 
 ### 证据
 
