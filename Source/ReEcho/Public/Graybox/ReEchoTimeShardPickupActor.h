@@ -17,6 +17,7 @@ class REECHO_API AReEchoTimeShardPickupActor : public AActor
 
 public:
 	AReEchoTimeShardPickupActor();
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** Lifetime <= 0 keeps the pickup until collection or explicit world cleanup. */
 	void InitializePickup(int32 InAmount, float LifetimeSeconds = 20.0f);
@@ -32,6 +33,8 @@ public:
 	}
 
 private:
+	void TryCollect(AActor* Collector);
+
 	UFUNCTION()
 	void HandleBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 	                        AActor* OtherActor,

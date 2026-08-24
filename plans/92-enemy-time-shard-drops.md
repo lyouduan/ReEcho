@@ -176,6 +176,7 @@
 - 2026-08-24：`ResolveEnemyDeathTimeShardDrop` 只解析并消费一次死亡键，不再写余额；GameMode 在死亡位置生成不会自动过期的通用拾取物，玩家 Overlap 后才由 `GrantTimeShards` 入账。武器符文保留原有 20 秒默认生命周期。
 - 2026-08-24：审核源图复制到 `Content/SourceArt/Pickups/TimeShard.png`，并由可复现 Editor Python 脚本导入 `/Game/ReEcho/Textures/Pickups/T_TimeShard`；拾取 Actor 通过构造函数硬引用建立 Cook 可达性。
 - 2026-08-24：首次 PIE 反馈“看起来没有掉落”。日志无资产加载错误；源码审查发现新 Billboard 漏掉项目现有表现组件统一使用的 `SetHiddenInGame(false)`，已补齐显式可见性，并增加 `[TimeShardDrop]` 生成与 `[TimeShardPickup]` 拾取结构化日志用于复测区分逻辑/视觉。
+- 2026-08-24：第二次 PIE 确认 Actor 与图片可见，但尺寸过小且没有任何拾取日志。视觉世界高度从 38 cm 调为 76 cm；拾取球半径调为 48 cm，并在保留 Overlap 的同时增加按玩家类型与 2D 距离判定的同事务兜底，消除碰撞 Profile 未产生 Overlap 时无法拾取的问题。
 
 ### 证据
 
@@ -188,6 +189,7 @@
 - `ReEcho.Shop.PostDrawCurrencyCanPurchase` 初次暴露既存硬编码原价断言（抽到折扣卡时实际 12 而非 15）；测试改为核对当前有效价后 1/1 通过，未修改玩法价格。
 - 本轮 Development FullRebuild 成功；精选预构建包已按组合源码刷新。
 - Billboard 可见性返修后再次 FullRebuild 成功，预构建指纹 `6f248868fce4`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
+- 两倍尺寸与近距离拾取兜底返修后 FullRebuild 成功，预构建指纹 `e5b378753774`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
 - `ReEcho.Data` 的 6 项中 3 项失败，均可由未修改的任务基线数据复现：测试仍期待 39 张可抽卡（基线为 37）、Rabbit 二形态关闭（基线为开启）、60 条未命名禁用配件（基线为 0）；本 Plan 不越界改写这些断言。
 
 ### 剩余风险
