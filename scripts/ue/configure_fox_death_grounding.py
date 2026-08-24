@@ -4,7 +4,7 @@ import unreal
 
 
 PROFILE_PATH = "/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_Fox"
-DEATH_GROUND_SINK = 20.0
+DEATH_GROUND_SINK = 0.0
 
 profile = unreal.EditorAssetLibrary.load_asset(PROFILE_PATH)
 if not isinstance(profile, unreal.ReEcho2DCharacterPresentationProfile):
