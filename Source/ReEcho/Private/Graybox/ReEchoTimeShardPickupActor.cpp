@@ -1,5 +1,6 @@
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 
+#include "ReEcho.h"
 #include "Components/BillboardComponent.h"
 #include "Components/SphereComponent.h"
 #include "Engine/GameInstance.h"
@@ -28,6 +29,8 @@ AReEchoTimeShardPickupActor::AReEchoTimeShardPickupActor()
 	Visual->SetCastShadow(false);
 	Visual->SetTranslucentSortPriority(30);
 	Visual->SetRelativeLocation(FVector(0.0f, 0.0f, 28.0f));
+	Visual->SetHiddenInGame(false);
+	Visual->SetVisibility(true);
 	Visual->bIsScreenSizeScaled = false;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> TimeShardTexture(
 	    TEXT("/Game/ReEcho/Textures/Pickups/T_TimeShard.T_TimeShard"));
@@ -65,6 +68,12 @@ void AReEchoTimeShardPickupActor::HandleBeginOverlap(UPrimitiveComponent* Overla
 	UReEchoRunSubsystem* RunSubsystem = GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem && RunSubsystem->GrantTimeShards(Amount))
 	{
+		UE_LOG(LogReEcho,
+		       Display,
+		       TEXT("[TimeShardPickup] collected actor=%s amount=%d balance=%d"),
+		       *GetName(),
+		       Amount,
+		       RunSubsystem->TimeShards);
 		bCollected = true;
 		Collision->SetGenerateOverlapEvents(false);
 		Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);

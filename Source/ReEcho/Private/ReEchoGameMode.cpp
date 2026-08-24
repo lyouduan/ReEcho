@@ -2321,6 +2321,25 @@ void AReEchoGameMode::HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event)
 	        GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(SpawnLocation, FRotator::ZeroRotator))
 	{
 		Pickup->InitializePickup(DropAmount, 0.0f);
+		UE_LOG(LogReEcho,
+		       Display,
+		       TEXT("[TimeShardDrop] spawned actor=%s enemy=%s spawn=%d amount=%d location=(%.1f,%.1f,%.1f)"),
+		       *Pickup->GetName(),
+		       *Enemy->GetEnemyId().ToString(),
+		       Enemy->GetSpawnIndex(),
+		       DropAmount,
+		       SpawnLocation.X,
+		       SpawnLocation.Y,
+		       SpawnLocation.Z);
+	}
+	else
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("[TimeShardDrop] spawn failed enemy=%s spawn=%d amount=%d"),
+		       *Enemy->GetEnemyId().ToString(),
+		       Enemy->GetSpawnIndex(),
+		       DropAmount);
 	}
 }
 

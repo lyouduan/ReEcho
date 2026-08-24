@@ -175,6 +175,7 @@
 - 2026-08-24：用户将交互目标改为“敌人死亡生成时间碎片，拾取后才入账”，并指定正式源图 `正式-UI视觉/战斗场景/时间碎片.png`；Plan92 重新进入实现，替换此前“死亡直接入账”的设计决策。
 - 2026-08-24：`ResolveEnemyDeathTimeShardDrop` 只解析并消费一次死亡键，不再写余额；GameMode 在死亡位置生成不会自动过期的通用拾取物，玩家 Overlap 后才由 `GrantTimeShards` 入账。武器符文保留原有 20 秒默认生命周期。
 - 2026-08-24：审核源图复制到 `Content/SourceArt/Pickups/TimeShard.png`，并由可复现 Editor Python 脚本导入 `/Game/ReEcho/Textures/Pickups/T_TimeShard`；拾取 Actor 通过构造函数硬引用建立 Cook 可达性。
+- 2026-08-24：首次 PIE 反馈“看起来没有掉落”。日志无资产加载错误；源码审查发现新 Billboard 漏掉项目现有表现组件统一使用的 `SetHiddenInGame(false)`，已补齐显式可见性，并增加 `[TimeShardDrop]` 生成与 `[TimeShardPickup]` 拾取结构化日志用于复测区分逻辑/视觉。
 
 ### 证据
 
@@ -186,6 +187,7 @@
 - 本轮改造后 `ReEcho.Run`：16/16 通过；`ReEcho.Run.EnemyShardDrops`：2/2 通过；资产加载断言随 DataContract 通过。
 - `ReEcho.Shop.PostDrawCurrencyCanPurchase` 初次暴露既存硬编码原价断言（抽到折扣卡时实际 12 而非 15）；测试改为核对当前有效价后 1/1 通过，未修改玩法价格。
 - 本轮 Development FullRebuild 成功；精选预构建包已按组合源码刷新。
+- Billboard 可见性返修后再次 FullRebuild 成功，预构建指纹 `6f248868fce4`；`ReEcho.Run.EnemyShardDrops` 2/2、项目校验、预构建检查与 `git diff --check` 通过。
 - `ReEcho.Data` 的 6 项中 3 项失败，均可由未修改的任务基线数据复现：测试仍期待 39 张可抽卡（基线为 37）、Rabbit 二形态关闭（基线为开启）、60 条未命名禁用配件（基线为 0）；本 Plan 不越界改写这些断言。
 
 ### 剩余风险
