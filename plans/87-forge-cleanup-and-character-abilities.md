@@ -3,18 +3,18 @@
 ## 协调
 
 - Planner 负责人：Codex（Gavyn 侧）。
-- Executor 负责人：待用户审核后分配。
+- Executor 负责人：Codex（Gavyn 侧）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Proposed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（角色能力数值、勇者受伤阈值手感与旧 Forge 消失需要用户 PIE 确认）。
 - 本地规划 / 实现基线：`origin/main@55a15d1505f52fa182bfb13bb5b5e01770100520`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan87-forge-character-abilities`，分支 `plan/87-forge-character-abilities-audit`；Plan 先发布占号，审核通过后才进入实现。
 - 依赖 / 阻塞：
   - 需求输入是仓库内 `策划数据源/【开普勒】回响数值与构筑体系.xlsx` 的可见 `角色体系J!D2:D5`；隐藏行/列按项目规则视为不存在。本次审计时该 Sheet 无隐藏生产行/列。
   - 生产编辑与导出真源仍是 `Design/Data/ReEchoData.xlsx`，运行时只读 `Content/Data/*.csv`；策划数据源工作簿只作需求对照，不直接成为运行时输入。
-  - 勇者能力的层数语义尚需用户审核确认：按“当前缺失生命的 10% 阶梯、治疗会回退”还是“累计损失、获得后永久保留”。未确认前不得实现。
-  - 需用户确认是否一并删除最新可见能力列未声明的诗人“随机元素弹”和勇者“每第二击 +50%”遗留能力；本 Plan 默认建议删除，以可见策划源为准。
+  - 用户已确认勇者采用“当前缺失生命的 10% 阶梯、治疗会回退、满血归零”，不采用累计永久损血层数。
+  - 用户已确认删除最新可见能力列未声明的诗人“随机元素弹”和勇者“每第二击 +50%”遗留能力，以可见策划源为准。
   - Plan88 卡牌掉落系统已先发布 Plan-only 文档；它与本 Plan 的未来实现共享 Cards/Run 热点。两项任一开始实现前都必须以届时最新 `origin/main` 复核 Writes 和契约，不能用规划时基线覆盖另一方的新逻辑。
 - Writes:
   - `plans/87-forge-cleanup-and-character-abilities.md`
@@ -101,9 +101,9 @@ Forge 不是无引用残留，而是当前可运行的旧勇者能力：
   - Forge 数据从生产 workbook/CSV 删除而不是仅 `Enabled=false`，因为最新可见角色能力已经替换该机制；历史 Plan 保留审计事实，不回写。
   - 普通卡牌 Widget 可继续复用，但删除 `bForgeChoice`、Forge 标题和 Forge 提交分支；UI 不执行角色能力。
   - 保存兼容采用确定性迁移，不恢复 Forge：旧 `ForgeChoice` → `CardChoice`，丢弃仅与旧 Forge 候选相关的瞬时选择；已应用到 StatBlock 的历史数值不逆向猜测或扣除。
-- 待用户审核决策：
-  1. **推荐**勇者使用“当前缺失生命阶梯”：`floor((MaxHealth-CurrentHealth)/(MaxHealth*10%))`，治疗会回退层数，复活/满血归零；该模型无重复受伤刷永久属性的问题。备选是“累计最终伤害永久换层”，需新增可保存累计余数，并明确治疗后再次掉血是否可重复获益。
-  2. **推荐**删除诗人随机元素弹和勇者每第二击 +50%，因为它们不在最新可见能力列；若要保留，必须由用户明确声明为该列之外的额外能力，并补入规范化表与说明。
+- 用户审核决策（2026-08-24，已锁定）：
+  1. 勇者使用“当前缺失生命阶梯”：`floor((MaxHealth-CurrentHealth)/(MaxHealth*10%))`，治疗跨回阈值时回退层数，满血/复活归零；不保存累计损血余数，不允许通过反复治疗刷永久属性。
+  2. 删除诗人随机元素弹和勇者每第二击 +50%，因为它们不在最新可见能力列；不保留隐藏兼容分支。
 - 相关文档同步范围：`ARCHITECTURE.md` 审阅并记录角色能力跨 Run/Combat 的状态流；`README.md` 增加/更新角色能力路由；四份相关模块文档更新权威、入口、数据和测试；数据使用说明与验收清单增加角色能力配表、同步和 PIE 方法。
 - 关闭前逐项填写具名架构文档审阅结果。
 
@@ -131,7 +131,7 @@ Forge 不是无引用残留，而是当前可运行的旧勇者能力：
 
 ## 实现提纲
 
-1. 用户审核现状反馈并确认勇者层数语义、两项未列出遗留能力；仅随后把 Plan 状态改为 `Ready/InProgress`。
+1. 已完成用户审核并锁定勇者层数语义、两项未列出遗留能力；Plan 进入实现。
 2. 在 canonical `ReEchoData.xlsx` 建立规范化角色能力/效果 Table，更新 ExportMap、schema、manifest、生成器和负例；生成 CSV 并证明与可见策划源逐项一致。
 3. 建立纯角色能力 Definition/Runtime；把智者、猎手、诗人行为迁入统一入口并删除按 RoleId/常量的旧分支。
 4. 由 Player Host 只读订阅 Combat 最终 `HealthChanged`，调用 Run/角色能力窄命令实现勇者；同步 Run 永久状态与当前 Combat 属性时避免初始化递归和重复应用。
@@ -157,6 +157,7 @@ Forge 不是无引用残留，而是当前可运行的旧勇者能力：
 
 - 已在最新远端 `main` 建立 Plan87 独立工作树。
 - 已只读审计指定策划源、canonical workbook、生产 CSV、CSV reader/registry、Run/Player/Combat/Cards/UI 调用链与角色聚焦测试；尚未清理 Forge，也未实现新能力。
+- 2026-08-24：用户确认勇者按当前缺失生命阶梯计算且治疗回退，并确认删除诗人随机元素弹和勇者第二击加成；Plan 状态进入 `InProgress`。
 
 ### 证据
 
@@ -167,13 +168,13 @@ Forge 不是无引用残留，而是当前可运行的旧勇者能力：
 
 ### 剩余风险
 
-- 勇者血量阈值的“永久获得/随缺血变化”会决定保存结构、跨关与治疗语义，必须由用户确认。
-- 可见角色能力列与生产表还存在两个未声明遗留行为；若不明确去留，最终仍会出现文字与实际玩法不一致。
+- 勇者按当前缺血阶梯实现时，最大生命变化可能跨越多个阈值；实现必须以每次最终 `CurrentHealth/MaximumHealth` 重算目标层数，而不是累计事件次数。
+- 两项未声明遗留能力已确认删除；旧保存可能携带已经写入 StatBlock 的历史数值，迁移不得猜测并逆向扣除旧收益。
 - 移除 Forge 会改变旧存档阶段和 CardDomainRevision；必须以显式迁移和聚焦测试保护，不能仅依赖 CSV 缺行后的容错。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`。实现前等待用户审核本 Plan，并确认两项“待用户审核决策”。
+- `PendingBeforeClose`。待实现构建/自动化完成后，由用户在 PIE 验收四角色和 Forge 消失。
 
 ### 架构文档审阅结果
 
