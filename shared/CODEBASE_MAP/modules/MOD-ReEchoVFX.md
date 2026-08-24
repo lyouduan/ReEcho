@@ -70,7 +70,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | RabbitProjectile | 核心球 `/Game/VFX/Monster/Rabbit/MI/BaseVFX003_Inst12`；柔光适配材质 `/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow` | 从正式单球材质与原 `Glo_c002` 纹理创建三个 World Material Billboard；适配材质显式提供红色 Additive/Unlit/Emissive，不依赖 Niagara 粒子参数；核心直径精确等于事件碰撞直径，光晕直径为核心的 `1.5` 倍但不参与碰撞；位置逐帧覆盖为对应逻辑球位置，Ended/清场销毁 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Charging` | 附着狐狸攻击挂点、前景，Windup 开始 |
-| FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow` | 附着狐狸攻击挂点、前景；Windup 与 Charging 同时开始，并按锁定冲撞方向旋转，提交/结束/取消时清理 |
+| FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow` | 两个启用发射器均为 Local Space；附着狐狸攻击挂点、前景，Windup 与 Charging 同时开始，并按锁定冲撞方向旋转，提交/结束/取消时清理 |
 | FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Trail` | 附着狐狸攻击挂点、前景；提交时停止 Charging/Direction 并开始，动作结束/取消时清理 |
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
 | PlayerMeleeSlash | `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01` | 近战提交位置和攻击方向，前景单次播放 |
@@ -120,7 +120,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 映射与资产加载自动化 | `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp` |
 | 首场资源清单与驻留 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` → `Presentation/Loading/ReEchoRuntimeAssetPreloader.*`；测试为 `ReEchoRuntimeAssetPreloadTests.cpp` |
 | 玩家武器攻击表现路由 | `Presentation/VFX/ReEchoCombatVfxCatalog.*`、`Graybox/ReEchoProjectileActor.*`；鞭旧平面入口仍为 `Weapons/ReEchoWeaponActor.*` / `ReEchoSwordArcActor.*` |
-| 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py` |
+| 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py`；狐狸方向箭头 Local Space 修复脚本为 `scripts/ue/fix_fox_direction_local_space.py` |
 | 测试专用预览 Harness | `Presentation/VFX/ReEchoVfxPreviewActor.*`、`ReEchoVfxPreviewTests.cpp`；测试地图 author/verify 位于 `scripts/ue/author_vfx_test_scene.py` 与 `verify_vfx_test_scene.py` |
 
 ## 测试场景边界
