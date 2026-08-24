@@ -13,6 +13,7 @@
 #include "Presentation/Animation2D/ReEcho2DAnimationTags.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
+#include "ReEchoGameMode.h"
 #include "UObject/UObjectIterator.h"
 #include "Weapons/ReEchoWeaponActor.h"
 
@@ -361,6 +362,43 @@ bool FReEchoEchoSpatialParityTest::RunTest(const FString& Parameters)
 		         PlayerVisual && EchoVisual &&
 		             TransformsMatch(PlayerVisual->GetRelativeTransform(), EchoVisual->GetRelativeTransform()));
 	}
+
+	UClass* EchoGameplayClass = LoadClass<AReEchoEchoActor>(
+	    nullptr, TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay.BP_EchoGameplay_C"));
+	TestTrue(TEXT("Echo Gameplay Blueprint has the native Echo parent"),
+	         EchoGameplayClass && EchoGameplayClass->IsChildOf(AReEchoEchoActor::StaticClass()));
+	AReEchoEchoActor* EchoGameplayDefaults =
+	    EchoGameplayClass ? Cast<AReEchoEchoActor>(EchoGameplayClass->GetDefaultObject()) : nullptr;
+	const FName EditableComponentNames[] = {TEXT("PresentationRoot"),
+	                                        TEXT("FlipbookRoot"),
+	                                        TEXT("GroundShadow"),
+	                                        TEXT("AttackVfxRoot"),
+	                                        TEXT("HurtVfxRoot")};
+	for (const FName ComponentName : EditableComponentNames)
+	{
+		const USceneComponent* Component =
+		    EchoGameplayDefaults ? FindSceneComponent(*EchoGameplayDefaults, ComponentName) : nullptr;
+		TestTrue(*FString::Printf(TEXT("Echo Blueprint exposes editable inherited %s"), *ComponentName.ToString()),
+		         Component && Component->bEditableWhenInherited);
+	}
+
+	AReEchoGameMode* GameMode = Fixture.World->SpawnActor<AReEchoGameMode>();
+	TestEqual(TEXT("GameMode resolves the cooked Echo Gameplay Blueprint class"),
+	          GameMode ? GameMode->ResolveEchoClassForTests().Get() : nullptr,
+	          EchoGameplayClass);
+	AReEchoEchoActor* BlueprintEcho = GameMode ? GameMode->SpawnEchoActorForTests() : nullptr;
+	TestTrue(TEXT("Unified Echo spawn entry creates the Gameplay Blueprint class"),
+	         BlueprintEcho && BlueprintEcho->GetClass() == EchoGameplayClass);
+	if (GameMode)
+	{
+		GameMode->SetEchoGameplayClassForTests(nullptr);
+	}
+	TestEqual(TEXT("Missing Echo Blueprint class resolves the native fallback"),
+	          GameMode ? GameMode->ResolveEchoClassForTests().Get() : nullptr,
+	          AReEchoEchoActor::StaticClass());
+	AReEchoEchoActor* NativeEcho = GameMode ? GameMode->SpawnEchoActorForTests() : nullptr;
+	TestTrue(TEXT("Unified Echo spawn fallback creates the native class"),
+	         NativeEcho && NativeEcho->GetClass() == AReEchoEchoActor::StaticClass());
 	return true;
 }
 

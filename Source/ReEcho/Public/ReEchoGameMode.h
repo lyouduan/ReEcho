@@ -84,10 +84,12 @@ public:
 	/** Prepares and triggers one authored reaction through the production resolver on the nearest living enemy. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
-	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id. */
+	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id.
+	 */
 	UFUNCTION(Exec)
 	void GMEquipRune(FName PartId);
-	/** Removes every equipped rune in the given slot from the player's weapon (debug). SlotTypeId matches parts.csv SlotTypeId. */
+	/** Removes every equipped rune in the given slot from the player's weapon (debug). SlotTypeId matches parts.csv
+	 * SlotTypeId. */
 	UFUNCTION(Exec)
 	void GMUnequipRune(FName SlotTypeId);
 	/** Toggles a debug overlay that floats each living enemy's remaining HP above its head. */
@@ -113,6 +115,12 @@ public:
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
 	void NotifyEnemySpecialStarted(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
 
+#if WITH_DEV_AUTOMATION_TESTS
+	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;
+	AReEchoEchoActor* SpawnEchoActorForTests();
+	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
+#endif
+
 private:
 	/** Lets the next-frame World Timer run while retaining menu input and ability blocking. */
 	void ResumeWorldForMenuTransition();
@@ -120,6 +128,8 @@ private:
 	void PrintGMResult(const FString& Message, bool bSuccess = true) const;
 	AReEchoEnemyActor* FindNearestLivingEnemyForGM() const;
 	FReEchoAttackIdentity MakeGMElementAttack();
+	TSubclassOf<AReEchoEchoActor> ResolveEchoClass() const;
+	AReEchoEchoActor* SpawnEchoActor();
 	UPROPERTY()
 	TObjectPtr<AReEchoEncounterDirector> Director;
 	UPROPERTY()
@@ -135,6 +145,8 @@ private:
 	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
 	UPROPERTY()
 	TArray<TObjectPtr<AReEchoEchoActor>> Echoes;
+	UPROPERTY()
+	TSubclassOf<AReEchoEchoActor> EchoGameplayClass;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 	UPROPERTY()

@@ -62,6 +62,9 @@ AReEchoGameMode::AReEchoGameMode()
 	static ConstructorHelpers::FClassFinder<AReEchoPlayerPawn> PlayerPrefab(
 	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay"));
 	DefaultPawnClass = PlayerPrefab.Succeeded() ? PlayerPrefab.Class.Get() : AReEchoPlayerPawn::StaticClass();
+	static ConstructorHelpers::FClassFinder<AReEchoEchoActor> EchoPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay"));
+	EchoGameplayClass = EchoPrefab.Succeeded() ? EchoPrefab.Class.Get() : nullptr;
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
@@ -78,6 +81,37 @@ AReEchoGameMode::AReEchoGameMode()
 	    TEXT("/Game/ReEcho/Materials/M_ArenaBackground.M_ArenaBackground"));
 	ArenaBackgroundMaterial = ArenaMaterialFinder.Object;
 }
+
+TSubclassOf<AReEchoEchoActor> AReEchoGameMode::ResolveEchoClass() const
+{
+	if (EchoGameplayClass)
+	{
+		return EchoGameplayClass;
+	}
+	return TSubclassOf<AReEchoEchoActor>(AReEchoEchoActor::StaticClass());
+}
+
+AReEchoEchoActor* AReEchoGameMode::SpawnEchoActor()
+{
+	return GetWorld() ? GetWorld()->SpawnActor<AReEchoEchoActor>(ResolveEchoClass()) : nullptr;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+TSubclassOf<AReEchoEchoActor> AReEchoGameMode::ResolveEchoClassForTests() const
+{
+	return ResolveEchoClass();
+}
+
+AReEchoEchoActor* AReEchoGameMode::SpawnEchoActorForTests()
+{
+	return SpawnEchoActor();
+}
+
+void AReEchoGameMode::SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass)
+{
+	EchoGameplayClass = InClass;
+}
+#endif
 
 TSubclassOf<AReEchoEnemyActor> AReEchoGameMode::ResolveEnemyClass(const FName PresentationId) const
 {
@@ -374,7 +408,7 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 
 	// Authoritative run build (matches shop semantics; survives save/load). Non-fatal if no run is active yet.
 	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem)
 	{
 		TArray<FName> Desired;
@@ -389,8 +423,10 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 			FString RunError;
 			if (!RunSubsystem->TryEquipParts(Desired, RunError))
 			{
-				PrintGMResult(FString::Printf(
-					TEXT("GMEquipRune: run build not updated (%s); still applying to live weapon"), *RunError), false);
+				PrintGMResult(
+				    FString::Printf(TEXT("GMEquipRune: run build not updated (%s); still applying to live weapon"),
+				                    *RunError),
+				    false);
 			}
 		}
 	}
@@ -428,13 +464,14 @@ void AReEchoGameMode::GMUnequipRune(const FName SlotTypeId)
 	}
 	if (SlotTypeId.IsNone())
 	{
-		PrintGMResult(TEXT("Usage: GMUnequipRune <SlotTypeId>  (e.g. Blade / Grip / Muzzle / GunAction / Arrowhead)"), false);
+		PrintGMResult(TEXT("Usage: GMUnequipRune <SlotTypeId>  (e.g. Blade / Grip / Muzzle / GunAction / Arrowhead)"),
+		              false);
 		return;
 	}
 
 	// Sync authoritative run build first (drop every equipped part in that slot).
 	UReEchoRunSubsystem* RunSubsystem =
-		GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 	if (RunSubsystem)
 	{
 		const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
@@ -1732,7 +1769,7 @@ void AReEchoGameMode::BeginNextEncounter()
 	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
 	for (const FReEchoRecording& Recording : Recordings)
 	{
-		AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
+		AReEchoEchoActor* Echo = SpawnEchoActor();
 		if (Echo && Echo->InitializeEcho(
 		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
@@ -1889,7 +1926,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
 		for (const FReEchoRecording& Recording : Recordings)
 		{
-			AReEchoEchoActor* Echo = GetWorld()->SpawnActor<AReEchoEchoActor>();
+			AReEchoEchoActor* Echo = SpawnEchoActor();
 			if (Echo)
 			{
 				if (Echo->InitializeEcho(

@@ -42,12 +42,14 @@ AReEchoEchoActor::AReEchoEchoActor()
 	SetRootComponent(Root);
 	PresentationRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationRoot"));
 	PresentationRoot->SetupAttachment(RootComponent);
+	PresentationRoot->bEditableWhenInherited = true;
 	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
 	FootRoot->SetupAttachment(PresentationRoot);
 	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
 	PresentationMotionRoot->SetupAttachment(FootRoot);
 	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
 	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
+	FlipbookRoot->bEditableWhenInherited = true;
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
 	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
@@ -65,6 +67,7 @@ AReEchoEchoActor::AReEchoEchoActor()
 	GroundShadow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GroundShadow->SetCastShadow(false);
 	GroundShadow->SetTranslucentSortPriority(-10);
+	GroundShadow->bEditableWhenInherited = true;
 	GroundShadow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
 	GroundShadow->SetRelativeLocation(FVector::ZeroVector);
 	GroundShadow->SetRelativeScale3D(FVector(0.512f, 0.5376f, 1.0f));

@@ -30,7 +30,7 @@
   - `Content/ReEcho/Animation2D/DA_EchoPresentationCatalog.uasset`（若现有 Catalog 无法保持 Player/Echo 域隔离）
   - `Content/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay.uasset`
   - `scripts/ue/author_echo_presentation_profiles.py`
-  - `scripts/ue/author_echo_gameplay_prefab.py`
+  - `scripts/ue/author_echo_gameplay_blueprint.py`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`（若公共 Profile/API 发生变化）
   - `Binaries/Win64/` 下 `GIT_RULES.md` 允许的最终预构建包文件
@@ -89,9 +89,9 @@
 - [x] Player/Echo 的 AttackVfxRoot/HurtVfxRoot 相对 Transform 与继承缩放一致；相同测试特效的生成原点和最终尺寸一致。
 - [x] 自动化使用可读的空间快照逐字段比较以上参数，容差具名且不以截图或人工目测替代；最终视觉质量仍由用户 PIE 确认。
 - [x] 未提交不相关美术资产或精选预构建允许列表之外的生成产物。
-- [ ] `BP_EchoGameplay` 可在 Blueprint Editor 中直接编辑 Presentation、Flipbook、GroundShadow、AttackVfxRoot 与 HurtVfxRoot，父类准确且编译、保存、重载无错误。
-- [ ] 新遭遇和存档恢复的 Echo 均由 `BP_EchoGameplay_C` 生成；资产缺失降级测试证明原生类仍可生成，不改变录制、武器、战斗或恢复语义。
-- [ ] Blueprint 作者ing脚本幂等执行两次；第二次保留已有美术手调 Transform，不把 Player 当前实例或 Echo 运行时状态烘焙进资产。
+- [x] `BP_EchoGameplay` 可在 Blueprint Editor 中直接编辑 Presentation、Flipbook、GroundShadow、AttackVfxRoot 与 HurtVfxRoot，父类准确且编译、保存、重载无错误。
+- [x] 新遭遇和存档恢复的 Echo 均由 `BP_EchoGameplay_C` 生成；资产缺失降级测试证明原生类仍可生成，不改变录制、武器、战斗或恢复语义。
+- [x] Blueprint 作者ing脚本幂等执行两次；第二次保留已有美术手调 Transform，不把 Player 当前实例或 Echo 运行时状态烘焙进资产。
 
 ## Step 0 门禁
 
@@ -141,6 +141,8 @@
 - GroundShadow 的最终宽度不再读取 Echo 原图宽度；Echo 按当前动画语义和 WeaponVisualKey 找到 Player 空间 Profile 的对应 Flipbook，以 Player WorldHeight 归一化后的宽度作为阴影唯一参考。Echo 素材画布或横纵比变化因此不会让阴影形成第二套尺寸。
 - PIE 反馈澄清差异来自 `FlipbookRoot` 组件 Rotation，而非左右朝向。返工后稳定作者根改为读取 live Player 实例，确保 Gameplay Blueprint 实例上的 FlipbookRoot 相对 Rotation/Transform 原样复制；PresentationMotionRoot、EffectsRoot、GroundRoot 与 GroundShadow 仍读取 Player Class CDO 的作者基准，避免把当前帧脚点、受击形变或动态阴影误当配置。
 - 2026-08-24 用户要求为 Echo 提供对应 Blueprint。Plan 增补 `BP_EchoGameplay` 可编辑宿主及 GameMode 统一类解析/生成入口；该 BP 只承载表现作者ing，不改变 Echo 玩法权威。
+- 新增 `BP_EchoGameplay`，父类为 `AReEchoEchoActor`；原生 Host 将 PresentationRoot、FlipbookRoot、GroundShadow、AttackVfxRoot 与 HurtVfxRoot 标记为可在继承 Blueprint 中编辑。GameMode 构造期硬引用该 Class，并把新遭遇与存档恢复两处生成收敛到同一个 `SpawnEchoActor()`；Class 缺失时统一回退 native EchoActor。
+- `author_echo_gameplay_blueprint.py` 只在资产缺失时创建、编译和保存；已有资产只验证父类与重载结果，不保存或改写组件 Transform。
 
 ### 证据
 
@@ -149,8 +151,10 @@
 - `ReEcho.Presentation.EchoAppearance.CharacterMappings` 发现 1 项并 `Success`；覆盖四 Catalog 映射、12 个 Flipbook 加载、近战 Attack、Bow Attack_Arrow、Actor 实际 Walk 与未知 ID 拒绝。
 - 返工聚焦自动化发现 2 项并全部 `Success`：`CharacterMappings` 证明 Echo 动画仍来自独立 Echo Profile，而 WorldHeight、脚点策略/偏移与武器 Anchor 来自 CSV AppearanceId 对应 Player Profile；`SpatialParity` 使用可读运行时快照逐字段比较 Player Gameplay Blueprint 与 Echo 的 Presentation/Foot/Motion/Flipbook、Effects/Attack/Hurt、Ground/Shadow Transform，并覆盖四角色归一化最终高度、post-bounds 阴影宽度，以及长剑 `W_J_01`/弓 `W_J_08` 的最终 Anchor 与可见组件 Transform。
 - `SpatialParity` 额外在 live Player 实例写入非默认 FlipbookRoot Rotation `(Pitch=13,Yaw=27,Roll=-9)`，证明 Echo 精确复制该相对 Rotation；随后切换左右 FacingSign，FlipbookRoot Rotation 与位置保持不变，只有 Renderer 镜像 Scale 符号变化。
+- `BP_EchoGameplay` Editor 脚本首次运行记录 `created and verified`，第二次运行记录 `preserved and verified`；第二次运行前后资产 SHA-256 均为 `E1B25F5A3FD2FF73D99DA0B99C8ACC3FA72801CAD8896F2933A0F812A0313B05`，证明已有作者内容未被覆盖。
+- `SpatialParity` 验证 Blueprint GeneratedClass 的原生父类、五个继承组件的可编辑契约、统一生成入口实际生成 `BP_EchoGameplay_C`，以及注入空 Class 后回退并生成原生 `AReEchoEchoActor`。
 - `scripts/ue/Build-Editor.cmd -Configuration Development` 通过并刷新精选预构建包；修改的三个 C++ 文件已使用仓库 `.clang-format` 配置格式化。
-- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 完成 95 个 action，退出码 0；精选预构建包刷新为源码指纹 `ebf8431cbc8d`。
+- Blueprint 扩展后的最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 完成 96 个 action，退出码 0；精选预构建包刷新为源码指纹 `a236035e2ff9`。
 
 ### 剩余风险
 
