@@ -6,10 +6,10 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（统一购买事务审计与 Shipping 写盘已完成，等待既有 PIE 人工验收）。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`（固定三级卡牌槽、稳定武器/符文页、完整背包与统一购买刷新均已完成并获用户发布确认）。
+- 人工验收：`Passed`（2026-08-24，用户确认当前表现没有问题并授权推送远端主分支）。
 - 本地规划 / 实现基线：`origin/main` @ `f8e8a40bf8ce7974d24b7b296c51bdc4cb35344b`。
-- 最终集成基线：`origin/main` @ `8c805aeccff45e7a7ffb5a2982382cb4e36a4a5e`（包含 Plan89 VFX 前置修复；已组合完整重建）。
+- 最终集成基线：`origin/main` @ `eb75adc35f0dc1ef4995a2552ac5df7a31153f72`（包含 Plan93 战斗 HUD；Plan91 三次程序提交已变基组合）。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan91-tiered-shop-card-slots`，分支 `plan/91-tiered-shop-card-slots`。
 - 依赖 / 阻塞：基于 Plan88 已发布的逐关 `ShopTiers`、稳定商店页和统一卡牌资格；不改变策划 XLSX/CSV 字段或逐关配置。
 - Writes:
