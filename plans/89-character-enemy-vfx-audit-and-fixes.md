@@ -3,11 +3,11 @@
 ## 协调
 
 - Planner 负责人：当前 ReEcho 程序侧 Planner。
-- Executor 负责人：待 Plan 发布后分配独立 Executor。
+- Executor 负责人：当前 ReEcho 程序侧 Executor。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 实现编写方（AI 侧）：`Codex executor-side AI`。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`PendingFollowUp`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）；本次只发布 Plan90 前置最小 slice，Plan89 全量审计未关闭。
 - 本地规划 / 实现基线：`origin/main@85004addd96372c084a8aca2c4b89c4eeb5728b6`。
 - 本地实现方式（可选，仅作交接说明）：`codex/plan89-vfx-audit-fixes` 独立 worktree；主工作区现有未提交 VFX/纹理导入只作对照，不覆盖、不清理、不整体复制。
 - 依赖 / 阻塞：依赖当前 `CombatEvents`、`CombatPresentationCoordinator`、Enemy projectile events、Weapon Presentation DA 与 Element reaction 事件契约；依赖 Plan71 统一 Player/Echo 的 `AttackVfxRoot` / `HurtVfxRoot` 相对 Transform 和继承缩放，Plan89 只消费该空间契约；视觉关闭依赖程序用户在 PIE 中逐项验收。
@@ -124,6 +124,7 @@
 ### 变化
 
 - 2026-08-24：创建 Plan。范围锁定为全部运行时可达的人物/回响/怪物 VFX，而非整个备用素材库；主工作区现有未提交 VFX/纹理只作隔离候选来源。
+- 2026-08-24：用户要求先恢复 Plan90 的生产 VFX 基线并保留已验收 Bow 方向，批准把 Plan89 拆为 prerequisite slice。本发布单元包含 Gun `DamageApplied` authored slot、具名 Bow Niagara 替换、Bow local `+Y` 轴适配及对应测试/文档；首次门禁发现当前主线 RuntimeAssetPreload 测试仍硬编码旧总数并要求缺失 Whip 预热后，用户追加批准仅纳入权威 Gather 一致性与 Whip `TestFalse` 的纯测试修正。Fire/Water body variant 支持矩阵、错误 fallback 诊断、Element preload 和全部 Runtime 实现仍延后，不进入本次主线。
 
 ### 证据
 
@@ -131,16 +132,25 @@
 - 2026-08-24：推送前远端新增 `85004add`，仅修改 Plan71，但将 Player/Echo 的 `AttackVfxRoot` / `HurtVfxRoot` 空间一致性锁定为其职责。审计无 Git 路径冲突、存在逻辑耦合；用户确认把 Plan89 重放到该基线，并以“Plan71 拥有空间根、Plan89 消费空间契约并拥有 Niagara/生命周期”的方式组合适配。
 - 2026-08-24：静态路线确认运行时入口至少覆盖 `FReEchoCombatVfxCatalog`、`FReEchoElementReactionVfxCatalog`、`UReEchoCombatVfxComponent`、`AReEchoProjectileActor`、Weapon Presentation DA、Player/Echo/Enemy 的 `AttackVfxRoot` / `HurtVfxRoot` 和 RuntimeAssetPreloader。
 - 2026-08-24：Plan-only 候选通过 `python scripts/validate_project.py` 与 `git diff --check`；证据级别为 static verified only，尚未声称 UHT/UBT、自动化或 PIE 通过。
+- 2026-08-24：最小 slice 重放到 `origin/main@f8e8a40b`。Gun Profile 只把 `DamageApplied` 配置为 `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark`；Bow 资产 SHA-256 为 `8F6CC57C4913F9267CC92D64465A664C3330B5A2F2CD856FE0BF11D7DB058D07`，Catalog 只对 `PlayerBowFlight` 返回 authored local `+Y`。没有采用完整候选中的 Element Catalog、CombatVfxComponent 或 RuntimeAssetPreload 变化。
+- 2026-08-24：最新主线最小 slice 的首轮 `Build-Editor.cmd -Configuration Development -FullRebuild` 成功（95 actions），精选包 source fingerprint `3a1b54ceeb95`；VFX Catalog 与 Combat Presentation 聚焦自动化通过。RuntimeAssetPreload Catalog 暴露当前主线的两个过期测试契约并失败：权威清单为 37 项但测试仍硬编码 32（`ReEchoRuntimeAssetPreloadTests.cpp:17`），测试仍要求缺失 Whip 特效预热（`:36`）；Completion 通过。用户随后批准纳入该纯测试修正；不改变 Runtime 预热实现或 Element Catalog。
+- 2026-08-24：加入获批纯测试修正后的最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 成功（96 actions），精选包 source fingerprint `d535129d7e8c`。同一最终 DLL 上 VFX Catalog、Combat Presentation Capabilities/Lifecycle、RuntimeAssetPreload Catalog/Completion 与 Arena Scene Contract 全部通过；Gun Impact 具名非空路径、Bow local `+Y` 独立轴/任意方向及预热权威 Gather 一致性均受测试锁定。
+- 2026-08-24：提交前 final fetch 发现远端前进到 `99bbfe53`，其中 `7d503793` 刷新同一精选预构建包。用户确认组合适配后，将最小 slice 的 7 个语义文件重放到 `origin/main@99bbfe53`；旧 manifest/DLL 未重放，必须由该最终组合重新 FullRebuild。Plan91/92、商店层级卡槽和 `MOD-ReEcho` 变化保持原样，Plan90 文件及所有排除的 Element/CombatVfxComponent Runtime 路径未进入候选。
+- 2026-08-24：`origin/main@99bbfe53` 最终组合 `Build-Editor.cmd -Configuration Development -FullRebuild` 成功（96 actions），精选包 source fingerprint `10426a3c8f12`；同一 DLL 上 VFX Catalog、Combat Presentation Capabilities/Lifecycle、RuntimeAssetPreload Catalog/Completion 与 Arena Scene Contract 全部通过。
 
 ### 剩余风险
 
 - 主工作区包含来源/完成度未确认的大量二进制资产，不能文本合并或整体采用；任何需要的资产必须逐项经 Editor 与 PIE 验证。
 - 自动化可证明结构、映射和部分运行时状态，不能替代特效视觉质量验收。
+- Gun Impact authored slot 已通过资产回读和自动化，但真实命中时的尺寸、位置、层级与观感仍为 `PendingFollowUp`；不得声称其视觉已验收。
+- Fire/Water body variant 支持矩阵及其 Missing/fallback/preload 修复已从本次发布单元排除，仍保留在本地恢复候选中等待后续验收和集成。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：等待最终候选生成后提供逐项 PIE 验收表。
+- `Passed`：Bow 左右/斜向方向；用户确认 local `+Y` 候选“箭头没有问题”。
+- `PendingFollowUp`：Gun Impact 真实命中视觉，以及 Plan89 原全量人物/怪物/元素 VFX 矩阵。用户明确要求先发布 prerequisite slice 恢复 Plan90；Plan89 保持 `Review`，不关闭。
 
 ### 架构文档审阅结果
 
-- 待实现与 Planner 关闭评审时逐项填写。
+- `MOD-ReEchoVFX.md`：已维护 Bow authored local `+Y` 方向契约；本 slice 不改变生命周期或 Element 支持矩阵。
+- `MOD-ReEcho.md`、`MOD-ReEchoPresentation.md`、`MOD-ReEchoCombat.md`、`MOD-ReEchoEnemies.md`、`MOD-ReEchoWeapons.md`、`ARCHITECTURE.md`、`README.md`：已审阅；本 slice 只修正既有 Profile 资产槽与 VFX 适配轴，不改变模块拓扑、Host/Projectile/Gameplay 权威或稳定路由，无需修改。

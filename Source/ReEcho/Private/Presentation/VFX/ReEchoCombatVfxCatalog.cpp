@@ -112,6 +112,11 @@ void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 
 FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)
 {
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight)
+	{
+		// Side-on PIE confirmation identifies the delivered arrowhead's authored visual axis as local +Y.
+		return FVector::RightVector;
+	}
 	if (Semantic == EReEchoCombatVfxSemantic::RabbitProjectile)
 	{
 		// Runtime particle readback shows the three authored launch angles are approximately 0, 32.5 and 65

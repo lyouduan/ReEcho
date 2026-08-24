@@ -87,14 +87,17 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Rabbit three-ball authored center points at the locked player"),
 	         RotatedThreeBallCenterAxis.Equals(LockedPlayerDirection, KINDA_SMALL_NUMBER));
 	const FVector BowTargetDirection = FVector(-0.8f, 0.6f, 0.0f).GetSafeNormal();
+	const FVector BowAuthoredForwardAxis =
+	    FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic::PlayerBowFlight);
+	TestTrue(TEXT("Bow delivered Niagara arrowhead is authored along local positive Y"),
+	         BowAuthoredForwardAxis.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
 	const FRotator BowFlightRotation =
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::PlayerBowFlight, BowTargetDirection);
-	const FVector RotatedBowAuthoredAxis = BowFlightRotation
-	                                           .RotateVector(FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(
-	                                               EReEchoCombatVfxSemantic::PlayerBowFlight))
-	                                           .GetSafeNormal2D();
+	const FVector RotatedBowAuthoredAxis = BowFlightRotation.RotateVector(BowAuthoredForwardAxis).GetSafeNormal2D();
 	TestTrue(TEXT("Bow authored arrow axis points from the shooter toward the target"),
 	         RotatedBowAuthoredAxis.Equals(BowTargetDirection, KINDA_SMALL_NUMBER));
+	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
 
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
 	    EReEchoCombatVfxSemantic::RabbitCharging,
