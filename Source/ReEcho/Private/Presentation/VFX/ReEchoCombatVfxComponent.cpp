@@ -959,6 +959,30 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 			                                Event.LockedDirection,
 			                                ResolveAttackVfxRoot(),
 			                                false);
+			UNiagaraSystem* DirectionSystem = ResolveSystem(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection));
+			FString EmitterSpaces;
+			if (DirectionSystem)
+			{
+				for (const FNiagaraEmitterHandle& EmitterHandle : DirectionSystem->GetEmitterHandles())
+				{
+					const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+					EmitterSpaces += FString::Printf(TEXT("%s:%s "),
+					                                 *EmitterHandle.GetName().ToString(),
+					                                 EmitterData && EmitterData->bLocalSpace ? TEXT("Local") : TEXT("World"));
+				}
+			}
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[FoxDirectionVfx] Direction=%s Effect=%s Active=%d Visible=%d Location=%s Rotation=%s "
+			            "Root=%s Emitters=[%s]"),
+			       *Event.LockedDirection.ToCompactString(),
+			       *GetNameSafe(DirectionEffect),
+			       DirectionEffect && DirectionEffect->IsActive(),
+			       DirectionEffect && DirectionEffect->IsVisible(),
+			       DirectionEffect ? *DirectionEffect->GetComponentLocation().ToCompactString() : TEXT("<none>"),
+			       DirectionEffect ? *DirectionEffect->GetComponentRotation().ToCompactString() : TEXT("<none>"),
+			       *GetNameSafe(ResolveAttackVfxRoot()),
+			       *EmitterSpaces);
 		}
 		return;
 	}
