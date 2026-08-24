@@ -118,6 +118,15 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 首场资源清单与驻留 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` → `Presentation/Loading/ReEchoRuntimeAssetPreloader.*`；测试为 `ReEchoRuntimeAssetPreloadTests.cpp` |
 | 玩家武器攻击表现路由 | `Presentation/VFX/ReEchoCombatVfxCatalog.*`、`Graybox/ReEchoProjectileActor.*`；鞭旧平面入口仍为 `Weapons/ReEchoWeaponActor.*` / `ReEchoSwordArcActor.*` |
 | 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py` |
+| 测试专用预览 Harness | `Presentation/VFX/ReEchoVfxPreviewActor.*`、`ReEchoVfxPreviewTests.cpp`；测试地图 author/verify 位于 `scripts/ue/author_vfx_test_scene.py` 与 `verify_vfx_test_scene.py` |
+
+## 测试场景边界
+
+`AReEchoVfxPreviewActor` 是 `/Game/ReEcho/Testing/VFX` 专用的 Editor-only 可丢弃宿主。Production 模式直接读取 Combat/Element Catalog 或 Weapon Presentation Profile，缺失槽显示 `Missing`；Sandbox Transform 只修改预览 Niagara Component。多目标 Conduct 的 Production 路径仅在 PIE 建立真实 Enemy/Combatant，通过 `ReEchoElementReaction::ApplyHitToWorld` 进入正式 resolver，并捕获正式 `FReEchoElementReactionResolvedEvent`；敌人既有 `UReEchoCombatVfxComponent` 消费权威 `ReactionLinks`。黄色 Authored Links 只属于 `NOT APPLIED` Visual Calibration，绝不进入 Production。青色范围圆/方向箭头读取正式 Event 半径和 Link，并随目标移动重绘。测试地图仍不能替代 `Level00` 的真实时序验收。
+
+PIE 测试默认只初始化为 Ready；测试专用 Slate Overlay 与 Space 主动 Release，每次重建瞬时目标后重新运行 resolver，避免旧 VFX/状态无界叠加。Overlay 同时提供 Restart、Reset Targets、Clear、Reset Camera。测试相机复制正式倾斜正交默认参数到瞬时 `AReEchoArenaCameraActor`，WASD/QE/滚轮只修改测试 Rig 的 Camera Pan/Rotation/OrthoWidth，不写生产配置。
+
+Conduct 蔓延延迟是纯表现配置：`FReEchoAttackIdentity.WeaponId` 在正式武器 Commit 时快照，VFX adapter 经 CSV Weapon VisualKey 解析 `UReEchoWeaponPresentationProfile.ConductLinkPropagationDelaySeconds`。resolver/伤害/完整 ReactionLinks 立即完成；adapter 保留 BFS Link 顺序，以 `index * delay` 调度。新 Event、解绑和 EndPlay 取消旧 timer batch；延迟触发时以 weak actors 重新读取当前 CombatTargetLocation，死亡/失效目标跳过。正式 Electricity 的两个 emitter 都是 World Space；端点的精确 Niagara Position 类型由资产自动化锁定。组件以世界原点和 identity rotation、`autoActivate=false` 生成，先用 LWC-safe `SetVariablePosition` 填当前世界坐标，再激活。长度与方向只由这两个端点决定，禁止叠加组件平移、旋转、Vec3 写入或未声明参数。delay=0 保持原同时播放。
 
 ## 不变量与常见错误
 

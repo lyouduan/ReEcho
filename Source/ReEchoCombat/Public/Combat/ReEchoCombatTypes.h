@@ -32,6 +32,11 @@ struct REECHOCOMBAT_API FReEchoAttackIdentity
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoCombatFaction SourceFaction = EReEchoCombatFaction::Unaligned;
 
+	/** Stable gameplay weapon identity snapshotted at commit; presentation may resolve its VisualKey without guessing.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName WeaponId = NAME_None;
+
 	bool IsValid() const
 	{
 		return !Source.IsExplicitlyNull() && Sequence != 0;

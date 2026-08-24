@@ -292,6 +292,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 比例边界：Profile `WorldHeight` 只负责同一外观各 Flipbook 序列之间的基础归一化；Gameplay Blueprint 的 `CharacterScale` 负责碰撞、角色、阴影、特效及全部挂点的最终整体比例。局部 `FlipbookRoot`、`GroundRoot`、`EffectsRoot` 只作分层位置/朝向微调，不得再用局部 Scale 调整角色整体尺寸。场景整体比例由 Arena Blueprint 的 `MapRoot` 独立拥有，相机不继承 MapRoot。
 - 环境融合：每个 Gameplay Blueprint 的 `FlipbookRenderer.CharacterTint` 是角色/怪物与地图、植物卡片匹配色调的轻量入口；只影响 Paper2D 颜色，不改变源纹理、动画、碰撞或玩法状态。
 - Editor 构图预览：`ReEcho2DEditorPreviewActor` 是 EditorOnly 的单一 ChildActor 宿主，直接实例化真实 Gameplay Blueprint 类；目标类不变时不重建 ChildActor，避免 Construction 累积重复实例。ChildActor 标记为 Visualization Component，并在 BeginPlay 显式销毁，保证不会把碰撞、AI 或表现带入 PIE/Cook。
+- VFX 测试构图：`ReEchoVfxPreviewActor` 与 `/Game/ReEcho/Testing/VFX/L_VFXAuthoring` 只读组合生产 Catalog/Profile；Editor 模式提供单特效和 `NOT APPLIED` 多目标校准。Conduct Production 仅在 PIE 临时生成真实 Enemy/Combatant，并走正式元素命中/事件/VFX 链路；退出 PIE 清理宿主。测试地图不属于默认地图或生产引用链。
 - Gameplay Blueprint 编辑器：玩家 Blueprint 与七个敌人 Blueprint 必须维持同一继承组件契约，并可使用挂在 `PresentationMotionRoot` 下的 `ArtAuthoringRoot` 作为美术扩展入口；完整编辑器中仍可选择继承的 Collision、FlipbookRoot、GroundShadow 与 EffectsRoot。
 - 角色/存档边界：生产角色只有 `J_SPADE/J_DIAMOND/J_CLOVER/J_HEART`。SaveVersion 11 把旧版本 CurrentBuild、所有 Echo Recording 和局中 ActiveRecording 内的 `J_CAT/J01` 迁移为 `J_SPADE`；新存档只写规范 ID。
 - Boss 表现边界：`Enemy.TimeGuard` 使用普通敌人相同的 Catalog/Profile/Gameplay Blueprint/FSM 路径；不存在 `Boss2D` 静态贴图特例。专属动画未交付时仅由 `DA_Enemy_TimeGuard` 显式复用 Goat 动画。

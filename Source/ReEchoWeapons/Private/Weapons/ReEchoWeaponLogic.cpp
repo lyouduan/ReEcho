@@ -202,6 +202,7 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	Attack.Source = Source;
 	Attack.Sequence = ++LastAttackSequence;
 	Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(Source);
+	Attack.WeaponId = Definition.WeaponId;
 	if (bRequireReadiness)
 	{
 		ReadinessRemainingSeconds = FMath::Max(0.01f, GetAttackInterval(Stats));

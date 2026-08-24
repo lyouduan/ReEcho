@@ -94,5 +94,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX") FReEchoWeaponVfxSlot DamageApplied;
 	/** Existing committed slash semantics are explicit instead of being mislabeled as target damage. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX") FReEchoWeaponVfxSlot AttackCommitted;
+	/** Visual-only BFS link cadence. Damage and ReactionLinks resolve immediately before this delay is consumed. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX|Conduct", meta = (ClampMin = "0.0"))
+	float ConductLinkPropagationDelaySeconds = 0.0f;
 	UFUNCTION(BlueprintPure, Category = "Validation") bool IsSlotValid(const FReEchoWeaponVfxSlot& Slot) const;
 };

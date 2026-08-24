@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatTarget.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Components/MaterialBillboardComponent.h"
 #include "Engine/Texture2D.h"
@@ -13,8 +14,10 @@
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
+#include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "ReEcho.h"
 #include "TimerManager.h"
+#include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 namespace ReEchoCombatVfx
 {
@@ -139,6 +142,40 @@ bool UReEchoCombatVfxComponent::IsElementReactionStateDriven(const FName Reactio
 	return ReactionId == TEXT("Y_ER_F_G") || ReactionId == TEXT("Y_ER_L_G");
 }
 
+float UReEchoCombatVfxComponent::ResolveConductLinkScheduledTime(const int32 LinkIndex, const float DelaySeconds)
+{
+	return FMath::Max(0, LinkIndex) * FMath::Max(0.0f, DelaySeconds);
+}
+
+void UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(const FVector& StartWorld,
+                                                                 const FVector& EndWorld,
+                                                                 FVector& OutStartParameter,
+                                                                 FVector& OutEndParameter)
+{
+	OutStartParameter = StartWorld;
+	OutEndParameter = EndWorld;
+}
+
+float UReEchoCombatVfxComponent::ResolveConductPropagationDelaySeconds(const FName WeaponId)
+{
+	if (WeaponId.IsNone())
+	{
+		return 0.0f;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindWeapon(WeaponId) : nullptr;
+	const UReEchoWeaponPresentationProfile* Profile =
+	    Weapon ? FReEchoWeaponVisualCatalog::ResolveProfile(Weapon->VisualKey) : nullptr;
+	if (!Profile)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("Conduct presentation delay defaults to 0: WeaponId '%s' has no resolvable presentation profile"),
+		       *WeaponId.ToString());
+	}
+	return Profile ? FMath::Max(0.0f, Profile->ConductLinkPropagationDelaySeconds) : 0.0f;
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 int32 UReEchoCombatVfxComponent::GetProjectileVisualCountForTests() const
 {
@@ -180,6 +217,7 @@ void UReEchoCombatVfxComponent::BeginPlay()
 
 void UReEchoCombatVfxComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	CancelConductPropagation();
 	BindEventSources(nullptr, nullptr);
 	StopAllEffects();
 	Super::EndPlay(EndPlayReason);
@@ -188,6 +226,7 @@ void UReEchoCombatVfxComponent::EndPlay(const EEndPlayReason::Type EndPlayReason
 void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* InCombatEvents,
                                                  UReEchoEnemyEventsComponent* InEnemyEvents)
 {
+	CancelConductPropagation();
 	if (CombatEvents)
 	{
 		CombatEvents->OnAttackCommitted.RemoveAll(this);
@@ -569,27 +608,111 @@ void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLin
 	}
 	const FVector Start = SourceCombatTarget->GetCombatTargetLocation();
 	const FVector End = TargetCombatTarget->GetCombatTargetLocation();
+	FVector StartParameter = FVector::ZeroVector;
+	FVector EndParameter = FVector::ZeroVector;
+	ResolveConductLinkWorldEndpoints(Start, End, StartParameter, EndParameter);
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(),
 	                                                                           System,
-	                                                                           Start,
-	                                                                           (End - Start).Rotation(),
+	                                                                           FVector::ZeroVector,
+	                                                                           FRotator::ZeroRotator,
 	                                                                           FVector::OneVector,
 	                                                                           true,
 	                                                                           false,
 	                                                                           ENCPoolMethod::None,
-	                                                                           true);
+	                                                                           false);
 	if (!Effect)
 	{
 		return;
 	}
-	Effect->SetVariableVec3(TEXT("User.StartPosition"), Start);
-	Effect->SetVariableVec3(TEXT("User.EndPosition"), End);
+	Effect->SetVariablePosition(TEXT("User.StartPosition"), StartParameter);
+	Effect->SetVariablePosition(TEXT("User.EndPosition"), EndParameter);
+	UE_LOG(LogReEcho,
+	       VeryVerbose,
+	       TEXT("Conduct Source=%s Actor=%s Combat=%s Target=%s Actor=%s Combat=%s Start=%s End=%s Niagara=%s"),
+	       *GetNameSafe(SourceTarget),
+	       *SourceTarget->GetActorLocation().ToCompactString(),
+	       *Start.ToCompactString(),
+	       *GetNameSafe(TargetTarget),
+	       *TargetTarget->GetActorLocation().ToCompactString(),
+	       *End.ToCompactString(),
+	       *StartParameter.ToCompactString(),
+	       *EndParameter.ToCompactString(),
+	       *Effect->GetComponentTransform().ToHumanReadableString());
 	if (const UReEchoCombatVfxComponent* TargetVfx = TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>())
 	{
 		Effect->SetTranslucentSortPriority(TargetVfx->ResolveOwnerSortPriority());
 	}
 	Effect->Activate(true);
 }
+
+void UReEchoCombatVfxComponent::CancelConductPropagation()
+{
+	++ConductBatchSerial;
+	if (UWorld* World = GetWorld())
+	{
+		for (FTimerHandle& Handle : ConductPropagationTimers)
+		{
+			World->GetTimerManager().ClearTimer(Handle);
+		}
+	}
+	ConductPropagationTimers.Reset();
+}
+
+void UReEchoCombatVfxComponent::ScheduleConductLinks(const FReEchoElementReactionResolvedEvent& Event)
+{
+	const float DelaySeconds = ResolveConductPropagationDelaySeconds(Event.Attack.WeaponId);
+	ScheduleConductLinksWithDelay(Event, DelaySeconds);
+}
+
+void UReEchoCombatVfxComponent::ScheduleConductLinksWithDelay(const FReEchoElementReactionResolvedEvent& Event,
+                                                              const float DelaySeconds)
+{
+	CancelConductPropagation();
+	const uint64 BatchSerial = ConductBatchSerial;
+	for (int32 Index = 0; Index < Event.ReactionLinks.Num(); ++Index)
+	{
+		const FReEchoElementReactionLink& Link = Event.ReactionLinks[Index];
+		const float ScheduledTime = ResolveConductLinkScheduledTime(Index, DelaySeconds);
+		if (ScheduledTime <= 0.0f)
+		{
+			SpawnConductLink(Link);
+			continue;
+		}
+		if (!GetWorld())
+		{
+			continue;
+		}
+		const TWeakObjectPtr<UReEchoCombatVfxComponent> WeakThis(this);
+		const TWeakObjectPtr<AActor> WeakSource(Link.SourceTarget);
+		const TWeakObjectPtr<AActor> WeakTarget(Link.TargetTarget);
+		FTimerHandle& Handle = ConductPropagationTimers.AddDefaulted_GetRef();
+		GetWorld()->GetTimerManager().SetTimer(Handle,
+		                                       FTimerDelegate::CreateLambda(
+		                                           [WeakThis, WeakSource, WeakTarget, BatchSerial]()
+		                                           {
+			                                           UReEchoCombatVfxComponent* Component = WeakThis.Get();
+			                                           if (!Component || Component->ConductBatchSerial != BatchSerial ||
+			                                               !WeakSource.IsValid() || !WeakTarget.IsValid())
+			                                           {
+				                                           return;
+			                                           }
+			                                           FReEchoElementReactionLink DelayedLink;
+			                                           DelayedLink.SourceTarget = WeakSource.Get();
+			                                           DelayedLink.TargetTarget = WeakTarget.Get();
+			                                           Component->SpawnConductLink(DelayedLink);
+		                                           }),
+		                                       ScheduledTime,
+		                                       false);
+	}
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+void UReEchoCombatVfxComponent::ScheduleConductLinksForTests(const FReEchoElementReactionResolvedEvent& Event,
+                                                             const float DelaySeconds)
+{
+	ScheduleConductLinksWithDelay(Event, DelaySeconds);
+}
+#endif
 
 void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 {
@@ -639,10 +762,7 @@ void UReEchoCombatVfxComponent::HandleElementReactionResolved(const FReEchoEleme
 	}
 	if (Event.ReactionId == TEXT("Y_ER_L_W"))
 	{
-		for (const FReEchoElementReactionLink& Link : Event.ReactionLinks)
-		{
-			SpawnConductLink(Link);
-		}
+		ScheduleConductLinks(Event);
 		return;
 	}
 	if (Event.ReactionId == TEXT("Y_ER_F_W"))
