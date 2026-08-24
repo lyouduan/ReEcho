@@ -27,6 +27,9 @@
 
 namespace
 {
+constexpr float ShopDesignWidth = 1920.0f;
+constexpr float ShopDesignHeight = 1080.0f;
+
 UTextBlock* CreateText(UWidgetTree* WidgetTree, const FName Name, const int32 Size, const FLinearColor Color)
 {
 	UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
@@ -156,6 +159,7 @@ TSharedRef<SWidget> UReEchoInventoryShopWidget::RebuildWidget()
 	{
 		BuildWidgetTree();
 	}
+	EnsureResponsiveLayout();
 	return Super::RebuildWidget();
 }
 
@@ -284,6 +288,85 @@ void UReEchoInventoryShopWidget::BuildWidgetTree()
 	OfferContainer = ShopPanel;
 }
 
+void UReEchoInventoryShopWidget::EnsureResponsiveLayout()
+{
+	if (!WidgetTree || ResponsiveContentCanvas)
+	{
+		return;
+	}
+
+	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!RootCanvas)
+	{
+		return;
+	}
+
+	struct FRootChildLayout
+	{
+		UWidget* Widget = nullptr;
+		FAnchorData Layout;
+		int32 ZOrder = 0;
+		bool bAutoSize = false;
+	};
+
+	UWidget* Background = GetWidgetFromName(TEXT("BackgroundImage"));
+	TArray<FRootChildLayout> ContentChildren;
+	for (int32 ChildIndex = 0; ChildIndex < RootCanvas->GetChildrenCount(); ++ChildIndex)
+	{
+		UWidget* Child = RootCanvas->GetChildAt(ChildIndex);
+		if (!Child || Child == Background)
+		{
+			continue;
+		}
+		const UCanvasPanelSlot* ChildSlot = Cast<UCanvasPanelSlot>(Child->Slot);
+		if (!ChildSlot)
+		{
+			continue;
+		}
+		ContentChildren.Add({Child, ChildSlot->GetLayout(), ChildSlot->GetZOrder(), ChildSlot->GetAutoSize()});
+	}
+
+	ResponsiveContentScale =
+	    WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), TEXT("ResponsiveContentScale"));
+	ResponsiveContentScale->SetStretch(EStretch::ScaleToFit);
+	ResponsiveContentScale->SetStretchDirection(EStretchDirection::Both);
+	ResponsiveContentScale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	USizeBox* ResponsiveContentSize =
+	    WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ResponsiveContentSize"));
+	ResponsiveContentSize->SetWidthOverride(ShopDesignWidth);
+	ResponsiveContentSize->SetHeightOverride(ShopDesignHeight);
+	ResponsiveContentScale->SetContent(ResponsiveContentSize);
+
+	ResponsiveContentCanvas =
+	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ResponsiveContentCanvas"));
+	ResponsiveContentCanvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	ResponsiveContentSize->SetContent(ResponsiveContentCanvas);
+
+	for (const FRootChildLayout& ChildLayout : ContentChildren)
+	{
+		RootCanvas->RemoveChild(ChildLayout.Widget);
+		UCanvasPanelSlot* NewSlot = ResponsiveContentCanvas->AddChildToCanvas(ChildLayout.Widget);
+		NewSlot->SetLayout(ChildLayout.Layout);
+		NewSlot->SetZOrder(ChildLayout.ZOrder);
+		NewSlot->SetAutoSize(ChildLayout.bAutoSize);
+	}
+
+	UCanvasPanelSlot* ScaleSlot = RootCanvas->AddChildToCanvas(ResponsiveContentScale);
+	ScaleSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	ScaleSlot->SetOffsets(FMargin(0.0f));
+	ScaleSlot->SetZOrder(1);
+}
+
+UCanvasPanel* UReEchoInventoryShopWidget::GetLayoutCanvas() const
+{
+	if (ResponsiveContentCanvas)
+	{
+		return ResponsiveContentCanvas.Get();
+	}
+	return WidgetTree ? Cast<UCanvasPanel>(WidgetTree->RootWidget) : nullptr;
+}
+
 void UReEchoInventoryShopWidget::BuildShopLogicHost()
 {
 	if (!WidgetTree || !OfferContainer)
@@ -300,7 +383,7 @@ void UReEchoInventoryShopWidget::BuildShopLogicHost()
 		// grow off-screen. Give the authored shop an independently bounded canvas viewport instead.
 		if (OfferContainer != ShopPanel)
 		{
-			if (UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget))
+			if (UCanvasPanel* RootCanvas = GetLayoutCanvas())
 			{
 				UCanvasPanelSlot* ScrollCanvasSlot = RootCanvas->AddChildToCanvas(ShopLogicScrollBox);
 				ScrollCanvasSlot->SetOffsets(FMargin(0.0f));
@@ -476,7 +559,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	{
 		return;
 	}
-	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	UCanvasPanel* RootCanvas = GetLayoutCanvas();
 	if (!RootCanvas)
 	{
 		return;
@@ -746,7 +829,7 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	{
 		return;
 	}
-	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	UCanvasPanel* RootCanvas = GetLayoutCanvas();
 	if (!RootCanvas)
 	{
 		return;

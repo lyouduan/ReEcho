@@ -119,3 +119,15 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
   - `Source/ReEcho/Private/UI/ReEchoDamageNumberActor.cpp`：改为 `FString::Printf(TEXT("%d"), DisplayDamage)`，只显示数值。
   - 该生成路径仅被敌人受伤数字使用（`ReEchoEnemyActor.cpp`、`ReEchoEnemyPresentationComponent.cpp` 调用），不影响玩家受伤表现。
 - **验证 / Verification**：Development 增量构建通过；编辑器实测攻击怪物时伤害数字不再带负号。
+
+### #14 — Shipping 商店在笔记本分辨率下显示不完整
+
+- **现象 / Symptom**：同一 Shipping 包在 1920×1080 台式机上可完整显示商店，但在 1366×768 等笔记本分辨率下，商店下半部分和右侧装配室被视口裁切。
+- **根因 / Root cause**：`WBP_ReEchoInventoryShopScreen` 的商店、装配室和关闭按钮按 `1920×1080` 固定设计坐标保存，内容最下沿约为 `Y=961`；根 Canvas 只把背景图锚定到视口，没有对固定坐标内容做整体等比缩放。低于设计分辨率时，Canvas 仍按实际视口排版，超出的固定像素内容被裁掉。
+- **改动 / Changes**：
+  - `UReEchoInventoryShopWidget` 保留 `BackgroundImage` 直接铺满实际视口；其余 WBP 根控件与运行时商店/回响弹层统一迁入固定 `1920×1080` 的 `ResponsiveContentCanvas`。
+  - 使用全屏 `ResponsiveContentScale` 按 `ScaleToFit`、`Both` 等比缩放设计面；16:9 笔记本缩小整页，超宽屏由背景延展并保持内容比例与点击坐标一致。
+  - 原 WBP Canvas Slot 的锚点、偏移、自动尺寸和 ZOrder 在迁移后原样保留；不改商品、购买、装配、回响或关闭语义。
+  - `ReEcho.UI.Shop.LogicBlocks` 与 `ReEcho.UI.Shop.AuthoredLayoutHosts` 增加响应式宿主、设计尺寸、背景分层和控件归属断言。
+- **影响面 / Impact**：`MOD-ReEcho` / `AREA-UI`，仅商店/背包共用页面布局；无 Schema、存档、玩法或资产内容变化。
+- **验证 / Verification**：`ReEcho.UI.Shop.AuthoredLayoutHosts`、`ReEcho.UI.Shop.LogicBlocks` 自动化通过；Development Editor `-FullRebuild`、`validate_project.py`、`git diff --check` 通过；Win64 Shipping 完整 Build/Cook/Stage/Pak/Archive 成功，补齐项目规定的 31 张运行时 CSV 后，以 `1366×768` 窗口启动并稳定运行 12 秒。最终仍需在问题笔记本上进入商店做人工视觉与点击验收。

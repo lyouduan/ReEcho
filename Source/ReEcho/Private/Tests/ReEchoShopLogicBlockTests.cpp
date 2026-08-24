@@ -31,6 +31,31 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Shop widget initializes its widget tree"), Widget->Initialize());
 	Widget->TakeWidget();
+	UScaleBox* ResponsiveScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("ResponsiveContentScale")));
+	USizeBox* ResponsiveSize = Cast<USizeBox>(Widget->GetWidgetFromName(TEXT("ResponsiveContentSize")));
+	UCanvasPanel* ResponsiveCanvas = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("ResponsiveContentCanvas")));
+	TestNotNull(TEXT("Shop owns a responsive design-surface scale box"), ResponsiveScale);
+	TestNotNull(TEXT("Shop owns a fixed design-size host"), ResponsiveSize);
+	TestNotNull(TEXT("Shop owns a responsive content canvas"), ResponsiveCanvas);
+	if (ResponsiveScale)
+	{
+		TestEqual(
+		    TEXT("Shop design surface preserves aspect ratio"), ResponsiveScale->GetStretch(), EStretch::ScaleToFit);
+		TestEqual(TEXT("Shop design surface scales up and down"),
+		          ResponsiveScale->GetStretchDirection(),
+		          EStretchDirection::Both);
+		const UCanvasPanelSlot* ScaleSlot = Cast<UCanvasPanelSlot>(ResponsiveScale->Slot);
+		TestTrue(TEXT("Responsive design surface fills the viewport"),
+		         ScaleSlot && ScaleSlot->GetAnchors().Minimum == FVector2D::ZeroVector &&
+		             ScaleSlot->GetAnchors().Maximum == FVector2D(1.0f, 1.0f));
+	}
+	if (ResponsiveSize)
+	{
+		TestEqual(TEXT("Shop design width remains 1920"), ResponsiveSize->GetWidthOverride(), 1920.0f);
+		TestEqual(TEXT("Shop design height remains 1080"), ResponsiveSize->GetHeightOverride(), 1080.0f);
+	}
+	TestTrue(TEXT("Fallback shop controls live on the scaled design surface"),
+	         ResponsiveCanvas && Widget->GetWidgetFromName(TEXT("CloseButton"))->GetParent() == ResponsiveCanvas);
 
 	FReEchoShopOffer RunItem;
 	RunItem.ItemId = TEXT("TEST_RUN_ITEM");
@@ -159,6 +184,17 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Authored inventory/shop widget initializes"), Widget->Initialize());
 	Widget->TakeWidget();
+	UScaleBox* ResponsiveScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("ResponsiveContentScale")));
+	UCanvasPanel* ResponsiveCanvas = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("ResponsiveContentCanvas")));
+	UImage* BackgroundImage = Cast<UImage>(Widget->GetWidgetFromName(TEXT("BackgroundImage")));
+	TestNotNull(TEXT("Authored shop uses the responsive design surface"), ResponsiveScale);
+	TestNotNull(TEXT("Authored shop exposes the responsive content canvas"), ResponsiveCanvas);
+	TestTrue(TEXT("Full-screen background remains outside the aspect-preserving surface"),
+	         BackgroundImage && BackgroundImage->GetParent() != ResponsiveCanvas);
+	TestTrue(TEXT("Authored shop controls move together on the responsive surface"),
+	         ResponsiveCanvas && Widget->GetWidgetFromName(TEXT("ShopPanel"))->GetParent() == ResponsiveCanvas &&
+	             Widget->GetWidgetFromName(TEXT("Overlay_0"))->GetParent() == ResponsiveCanvas &&
+	             Widget->GetWidgetFromName(TEXT("CloseButton"))->GetParent() == ResponsiveCanvas);
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_AUTHORED_WEAPON_PART_ITEM");
 	WeaponPart.ContentId = TEXT("P_CORE_TIDE");

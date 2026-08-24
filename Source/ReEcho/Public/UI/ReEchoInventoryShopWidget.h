@@ -15,6 +15,7 @@ class UImage;
 class UReEchoIndexedButton;
 class UScaleBox;
 class UScrollBox;
+class USizeBox;
 class UTextBlock;
 class UTexture2D;
 class UVerticalBox;
@@ -116,6 +117,8 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void EnsureResponsiveLayout();
+	UCanvasPanel* GetLayoutCanvas() const;
 	void BuildShopLogicHost();
 	void OrderShopLogicBlocks();
 	void UpdateShopLogicViewportBounds();
@@ -290,6 +293,11 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> WeaponPartOfferTexts;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UScaleBox> ResponsiveContentScale;
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> ResponsiveContentCanvas;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> ShopPresentationLayer;
