@@ -111,6 +111,11 @@ public:
 		return EnemyEvents;
 	}
 
+	UReEchoCombatEventsComponent* GetCombatEventsComponent() const
+	{
+		return CombatEvents;
+	}
+
 	bool IsAlive() const;
 	void ApplyCardStun(float DurationSeconds);
 	void SetCardMovementMultiplier(float Multiplier);

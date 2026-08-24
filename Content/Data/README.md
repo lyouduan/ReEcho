@@ -46,6 +46,7 @@
 - `slot_types.csv` / `slot_profiles.csv`：配件槽类型和各武器类型允许槽位。
 - `parts.csv` / `part_effects.csv`：78 条武器插槽源行审计和启用配件的一对多 typed effects。
 - `enemies.csv`：兼容敌人及开普勒史莱姆、兔子、狐狸、Boss 的稳定定义。
+- `enemy_shard_drops.csv`：第 1–8 场近战、远程、精英怪死亡时的时间碎片闭区间；空精英区间表示该场不产出。
 - `enemy_abilities.csv`：普通怪类型化技能、Boss 四个主动技能与元素清洗被动。
 - `boss_phases.csv`：Boss 确定性阶段与临时战斗倍率。
 - `stages.csv` / `encounters.csv` / `encounter_waves.csv`：四个逻辑阶段、八场遭遇与逐场显式波次。
@@ -78,6 +79,7 @@
 | `Enemies` | `Content/Data/enemies.csv` | 稳定 EnemyId、基础属性、行为 Profile 与表现键 |
 | `EnemyAbilities` | `Content/Data/enemy_abilities.csv` | Boss 主动/被动技能、确定性顺序与空间参数 |
 | `BossPhases` | `Content/Data/boss_phases.csv` | Boss 时间阶段、Echo 策略与临时强化倍率 |
+| `EnemyShardDrops` | `Content/Data/enemy_shard_drops.csv` | 逐场敌人类别时间碎片掉落区间 |
 | `Stages` | `Content/Data/stages.csv` | 逻辑阶段、遭遇范围和跨场清理策略 |
 | `Encounters` | `Content/Data/encounters.csv` | 八场结束条件、双锚比例、并发和单位上限 |
 | `EncounterWaves` | `Content/Data/encounter_waves.csv` | 0/10/20 秒波次及 Boss 生成 |

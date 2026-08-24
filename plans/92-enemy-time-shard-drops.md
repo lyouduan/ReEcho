@@ -3,10 +3,10 @@
 ## 协调
 
 - Planner 负责人：Codex（当前程序对话内兼任 Planner）。
-- Executor 负责人：待 Plan 发布后分配。
+- Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@87f675b71be5f6027a9828e064555ce00357a950`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan92-enemy-shard-drops`，分支 `plan/92-enemy-shard-drops`。
@@ -27,6 +27,7 @@
   - `scripts/validate_project.py`
   - `Source/ReEcho/Public/Data/ReEchoCsvDataRegistry.h`
   - `Source/ReEcho/Private/Data/ReEchoCsvDataRegistry.cpp`
+  - `Source/ReEcho/Private/Data/ReEchoCsvDataReader.cpp`
   - `Source/ReEcho/Private/Data/ReEchoEnemyCsvReader.cpp`
   - `Source/ReEcho/Private/Data/ReEchoEnemyDefinitionCompiler.cpp`
   - `Source/ReEcho/Public/Run/ReEchoRunSaveGame.h`
@@ -34,6 +35,7 @@
   - `Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`
   - `Source/ReEcho/Public/ReEchoGameMode.h`
   - `Source/ReEcho/Private/ReEchoGameMode.cpp`
+  - `Source/ReEcho/Public/Graybox/ReEchoEnemyActor.h`
   - `Source/ReEcho/Private/Tests/ReEchoEnemyShardDropTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoSaveGameTests.cpp`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
@@ -108,15 +110,15 @@
 
 ## 锁定验收
 
-- [ ] 策划源可见 `投放系统!A38:D47` 精确迁移到生产 `tblEnemyShardDrops` 与 `enemy_shard_drops.csv`；隐藏行/列不参与迁移。
-- [ ] 自动化逐行覆盖第 1–8 关的近战、远程、精英区间，证明结果始终落在闭区间内；第 1–2 关精英与 Boss 始终为 0。
-- [ ] 同一 Run/关次/SpawnIndex 结果确定，换新 Run 允许变化；保存恢复不重摇，重复死亡通知不重复发放。
-- [ ] 同 Stage 残留敌人在下一小关死亡时使用新的当前关次配置。
-- [ ] 玩家与 Echo 击杀均触发同一基础掉落且每敌人最多一次；失败遭遇已获得余额遵循现有 Run 存档/回滚语义，不建立私有补偿账本。
-- [ ] `NoEnemyShardDrops` 令基础掉落为 0；下一关 1.5 倍逐只生效并按既有取整规则计算，关末清除一次性标记。
-- [ ] 旧 `Enemies.Reward` 与每场固定 `15` 已删除，运行时、Schema、测试与说明中不存在仍可生效的第二基础奖励路径。
-- [ ] 旧 SaveVersion 可确定迁移，新版本往返保持掉落种子与余额；坏表/坏区间在同步或启动校验时报出定位信息。
-- [ ] `scripts\data\sync_xlsx_to_csv.py --check`、聚焦 Python 测试、`ReEcho.Data`/`ReEcho.Run`/新掉落自动化、最终 FullRebuild、项目校验、预构建检查与 `git diff --check` 通过。
+- [x] 策划源可见 `投放系统!A38:D47` 精确迁移到生产 `tblEnemyShardDrops` 与 `enemy_shard_drops.csv`；隐藏行/列不参与迁移。
+- [x] 自动化逐行覆盖第 1–8 关的近战、远程、精英区间，证明结果始终落在闭区间内；第 1–2 关精英与 Boss 始终为 0。
+- [x] 同一 Run/关次/SpawnIndex 结果确定，换新 Run 允许变化；保存恢复不重摇，重复死亡通知不重复发放。
+- [x] 同 Stage 残留敌人在下一小关死亡时使用新的当前关次配置。
+- [x] 玩家与 Echo 击杀均触发同一基础掉落且每敌人最多一次；失败遭遇已获得余额遵循现有 Run 存档/回滚语义，不建立私有补偿账本。
+- [x] `NoEnemyShardDrops` 令基础掉落为 0；下一关 1.5 倍逐只生效并按既有取整规则计算，关末清除一次性标记。
+- [x] 旧 `Enemies.Reward` 与每场固定 `15` 已删除，运行时、Schema、测试与说明中不存在仍可生效的第二基础奖励路径。
+- [x] 旧 SaveVersion 可确定迁移，新版本往返保持掉落种子与余额；坏表/坏区间在同步或启动校验时报出定位信息。
+- [ ] `scripts\data\sync_xlsx_to_csv.py --check`、聚焦 Python 测试、`ReEcho.Data`/`ReEcho.Run`/新掉落自动化、最终 FullRebuild、项目校验、预构建检查与 `git diff --check` 通过。（除主干已有的 3 个陈旧 `ReEcho.Data` 断言外均通过，详见执行记录。）
 - [ ] 用户在 PIE 分别击杀近战、远程、精英并核对余额增量；确认未再收到每关固定 15。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -154,15 +156,23 @@
 
 ### 变化
 
+- 2026-08-24：Plan92 已发布到 `origin/main@513ec51b`；用户指示开始实现，复用独立 worktree 并将状态改为 `InProgress`。
 - 2026-08-24：只读审计策划源 Excel 可见区域 `投放系统!A38:D47`，8 行数值与用户提供矩阵一致，无隐藏行/列。
 - 2026-08-24：确认生产 `ReEchoData.xlsx` 尚无对应表/CSV；`enemies.csv/Reward` 仅被解析、未被 Definition 或运行时消费；当前实际基础奖励为 `CompleteEncounter` 固定 `15`。
 - 2026-08-24：确认现有 `TimeShards`、`GrantTimeShards`、卡牌禁掉落/下一关 1.5 倍与稳定敌人 `SpawnIndex` 可复用；Plan92 选择逐敌死亡直接入账并以持久 Run seed 保证确定性。
+- 2026-08-24：新增 `经济系统/tblEnemyShardDrops` 与生成 CSV，删除旧敌人 `Reward` 列；Python 同步器、Schema、manifest 与中英文使用说明同步维护。
+- 2026-08-24：Run 新增 v13 `EnemyShardDropSeed` 与已处理死亡键；GameMode 的出生/恢复共用装配函数订阅 Combat 最终死亡，按当前 Encounter 和 Archetype 逐只原子入账；`CompleteEncounter` 不再固定发 15。
+- 2026-08-24：新增数据矩阵、区间、类别、禁掉落、1.5 倍、幂等和存档往返自动化，并更新商店货币接缝测试。
 
 ### 证据
 
 - 首次 `git fetch --prune origin` 时本地与 `origin/main` 同为 `f8e8a40b`，远端最大编号为 Plan90；推送门禁随后发现远端已发布 `87f675b7` 的商店槽 Plan91。经用户确认，远端编号优先，本任务整体后移为 Plan92 并变基到 `origin/main@87f675b7`。
 - Excel 可见行审计：`投放系统!38:47` 均为可见，列 A:D 无隐藏列；数值为本 Plan 锁定矩阵。
 - `rg`/源码审计：`FReEchoCsvEnemyRow::Reward` 只有 CSV Reader 写入，无消费方；`UReEchoRunSubsystem::CompleteEncounter` 固定增加 `RoundToInt(15 * multiplier)`。
+- `python scripts/data/test_sync_xlsx_to_csv.py`：18/18 通过；`sync_xlsx_to_csv.py --check` 通过。
+- `ReEcho.Run`：16/16 通过；`ReEcho.Run.EnemyShardDrops`：2/2 通过；`ReEcho.Shop.PostDrawCurrencyCanPurchase`：1/1 通过。
+- Development FullRebuild 成功；`validate_project.py`、prebuilt check、`git diff --check` 通过。
+- `ReEcho.Data` 的 6 项中 3 项失败，均可由未修改的任务基线数据复现：测试仍期待 39 张可抽卡（基线为 37）、Rabbit 二形态关闭（基线为开启）、60 条未命名禁用配件（基线为 0）；本 Plan 不越界改写这些断言。
 
 ### 剩余风险
 
@@ -175,4 +185,8 @@
 
 ### 架构文档审阅结果
 
-- 待实现与 Planner 关闭评审时逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；未改变 Runtime Module 拓扑或依赖方向，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅；未增加稳定架构标识或阅读路由，无需修改。
+- `MOD-ReEcho.md`：已维护逐关基础敌人奖励权威、Run 随机/幂等与 GameMode 死亡路由。
+- `MOD-ReEchoCards.md`：已维护禁掉落/下一关 1.5 倍只声明规则、Run 唯一消费的边界。
+- `MOD-ReEchoEnemies.md`：已维护 Enemy 只发布死亡事实、不持有区间/随机种子/余额的边界。

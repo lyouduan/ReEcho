@@ -218,6 +218,29 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             self.assertIn("non-Bomber fields must use explicit zero", result.stdout)
             self.assertRegex(result.stdout, r"Enemies:tblEnemies:row \d+:column TriggerRadiusCm")
 
+    def test_enemy_shard_drop_contract_rejects_half_or_inverted_ranges(self) -> None:
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblEnemyShardDrops", 0, "EliteMin"), "value", 10),
+            "EliteMin and EliteMax must both be blank or both configured",
+        )
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblEnemyShardDrops", 2, "MeleeMin"), "value", 4),
+            "minimum cannot exceed maximum",
+        )
+
+    def test_enemy_shard_drop_contract_rejects_duplicate_encounter_rows(self) -> None:
+        self.assert_invalid_workbook(
+            lambda wb: setattr(self.table_cell(wb, "tblEnemyShardDrops", 1, "EncounterIndex"), "value", 1),
+            "duplicate EncounterIndex",
+        )
+
+    def test_legacy_enemy_reward_column_is_removed(self) -> None:
+        workbook = load_workbook(ENEMY_CANONICAL)
+        sheet, table = sync.workbook_tables(workbook)["tblEnemies"]
+        min_col, min_row, max_col, _ = range_boundaries(table.ref)
+        headers = [sheet.cell(min_row, column).value for column in range(min_col, max_col + 1)]
+        self.assertNotIn("Reward", headers)
+
     def test_encounter_anchor_ratio_failure_reports_location(self) -> None:
         with tempfile.TemporaryDirectory(prefix="reecho_encounter_fixture_") as temp:
             fixture = Path(temp) / "encounter.xlsx"

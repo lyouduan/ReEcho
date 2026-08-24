@@ -1987,10 +1987,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		Enemy->RestoreRuntimeState(EnemyState);
 		Enemy->SetEnemyId(EnemyId);
 		Enemy->SetEnemyRoster(EnemyRoster);
-		if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
-		{
-			Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
-		}
+		ConfigureEnemyRuntimeBindings(Enemy);
 	}
 	Director->ResumeEncounter(SavedState.EncounterTime);
 }
@@ -2281,11 +2278,35 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	}
 	Enemy->SetEnemyRoster(EnemyRoster);
 	Enemy->SetEnemyId(EnemyId);
+	ConfigureEnemyRuntimeBindings(Enemy);
+	return true;
+}
+
+void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
+{
+	if (!Enemy)
+	{
+		return;
+	}
 	if (UReEchoEnemyEventsComponent* Events = Enemy->GetEnemyEventsComponent())
 	{
 		Events->OnBossIntent.AddUniqueDynamic(this, &AReEchoGameMode::HandleBossIntent);
 	}
-	return true;
+	if (UReEchoCombatEventsComponent* CombatEvents = Enemy->GetCombatEventsComponent())
+	{
+		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleEnemyDeathReward);
+	}
+}
+
+void AReEchoGameMode::HandleEnemyDeathReward(const FReEchoDamageEvent& Event)
+{
+	const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Event.Target);
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (Enemy && RunSubsystem)
+	{
+		RunSubsystem->GrantEnemyDeathTimeShards(Enemy->GetEnemyId(), Enemy->GetSpawnIndex());
+	}
 }
 
 int32 AReEchoGameMode::GetTotalEncounterCount() const

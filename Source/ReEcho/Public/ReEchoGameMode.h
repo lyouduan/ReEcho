@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Combat/ReEchoCombatTypes.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Encounter/ReEchoEncounterRuntime.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
@@ -332,6 +333,9 @@ private:
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
 	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
+	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
+	UFUNCTION()
+	void HandleEnemyDeathReward(const FReEchoDamageEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);

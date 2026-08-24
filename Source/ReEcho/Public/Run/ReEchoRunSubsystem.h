@@ -132,6 +132,9 @@ public:
 	/** Adds collected world-drop currency without exposing a writable currency field to the pickup actor. */
 	bool GrantTimeShards(int32 Amount);
 
+	/** Resolves and grants one configured enemy-death reward; duplicate spawn notifications grant zero. */
+	int32 GrantEnemyDeathTimeShards(FName EnemyId, int32 SpawnIndex);
+
 	// --- Echo storage commands (Plan30) -------------------------------------------------
 	// Every command is narrow and transactional: on a non-Success result nothing is mutated.
 
@@ -260,6 +263,14 @@ private:
 	/** Randomized once per run and persisted so reopening a card choice cannot reroll it. */
 	UPROPERTY()
 	int32 TraitOfferSeed = 0;
+
+	/** Independent per-run seed for deterministic enemy shard ranges. */
+	UPROPERTY()
+	int32 EnemyShardDropSeed = 0;
+
+	/** Packed EncounterIndex/SpawnIndex identities already processed by the reward transaction. */
+	UPROPERTY()
+	TSet<int64> RewardedEnemyShardDropKeys;
 
 	UPROPERTY()
 	FReEchoEncounterRuntimeState PendingEncounterResume;

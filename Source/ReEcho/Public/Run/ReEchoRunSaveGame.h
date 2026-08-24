@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v12 persists the per-run trait-card offer seed. */
-	static constexpr int32 CurrentSaveVersion = 12;
+	/** v13 persists deterministic enemy-death shard rewards and their idempotence keys. */
+	static constexpr int32 CurrentSaveVersion = 13;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -34,6 +34,14 @@ public:
 	/** Added in v12. Makes each run's card offers random while keeping save/load reproducible. */
 	UPROPERTY(SaveGame)
 	int32 TraitOfferSeed = 0;
+
+	/** Added in v13. Independent seed for per-enemy time-shard ranges. */
+	UPROPERTY(SaveGame)
+	int32 EnemyShardDropSeed = 0;
+
+	/** Added in v13. Packed EncounterIndex/SpawnIndex deaths already processed for base rewards. */
+	UPROPERTY(SaveGame)
+	TArray<int64> RewardedEnemyShardDropKeys;
 
 	UPROPERTY(SaveGame)
 	FReEchoBuildSnapshot CurrentBuild;

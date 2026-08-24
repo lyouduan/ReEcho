@@ -36,10 +36,15 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	          Source->SetSelectedReplayIds({Recording.Id}),
 	          EReEchoEchoStorageResult::Success);
 	Source->BeginEncounter();
+	const int32 EnemyReward = Source->GrantEnemyDeathTimeShards(TEXT("M_Grunt"), 17);
+	TestTrue(TEXT("A death reward is available for save roundtrip"), EnemyReward >= 2 && EnemyReward <= 3);
 
 	UReEchoRunSaveGame* Snapshot = Source->CreateSaveSnapshot();
 	TestNotNull(TEXT("A save snapshot is created"), Snapshot);
 	TestTrue(TEXT("A save snapshot persists a non-zero card-offer seed"), Snapshot->TraitOfferSeed != 0);
+	TestTrue(TEXT("A save snapshot persists a non-zero enemy-reward seed"), Snapshot->EnemyShardDropSeed != 0);
+	TestEqual(
+	    TEXT("A save snapshot persists processed enemy reward keys"), Snapshot->RewardedEnemyShardDropKeys.Num(), 1);
 	TestEqual(TEXT("Mid-encounter save resumes before that encounter"), Snapshot->EncounterIndex, 0);
 	TestEqual(TEXT("Mid-encounter phase normalizes to planning"), Snapshot->SavedPhase, EReEchoRunPhase::Planning);
 
@@ -48,7 +53,10 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Compatible save snapshot restores"), Restored->RestoreSaveSnapshot(*Snapshot));
 	TestEqual(
 	    TEXT("Card-offer seed restores"), Restored->CreateSaveSnapshot()->TraitOfferSeed, Snapshot->TraitOfferSeed);
-	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45);
+	const UReEchoRunSaveGame* RestoredSnapshot = Restored->CreateSaveSnapshot();
+	TestEqual(TEXT("Enemy-reward seed restores"), RestoredSnapshot->EnemyShardDropSeed, Snapshot->EnemyShardDropSeed);
+	TestEqual(TEXT("Processed enemy reward keys restore"), RestoredSnapshot->RewardedEnemyShardDropKeys.Num(), 1);
+	TestEqual(TEXT("Time Shards restore"), Restored->TimeShards, 45 + EnemyReward);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));

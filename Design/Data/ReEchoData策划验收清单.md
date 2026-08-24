@@ -71,13 +71,14 @@ python scripts\validate_project.py
 
 至少检查以下项目：
 
-1. 六个生产 Sheet 都从左侧开始显示生产 Table，没有并排保留旧说明表；说明文字位于主实体 Table 的 `Description` 列。
+1. 生产 Sheet 都从左侧开始显示生产 Table；`经济系统/tblEnemyShardDrops` 可编辑第 1–8 场近战、远程和精英闭区间。
 2. 生产 Table 数据行可以编辑；表头、顶部说明、Table 外区域和系统 Sheet 不可随意修改。
 3. `Enabled`、`RoleId`、`BehaviorId`、`FormulaId`、`AttackPatternId`、父表 ID 等受限字段能看到单元格下拉。
 4. 在一个受限字段中键入 `INVALID_TEST_VALUE`，Excel/WPS 应立即以“停止”错误拒绝；随后取消输入，不要保存非法值。
 5. 修改一个普通数值并保存成功；建议记录“Sheet、Table、稳定 ID、字段、原值、测试值”。
 6. 在 Table 内新增一行和删除该测试行，确认新行仍属于同一个 Table，表头和顶部说明没有被移动或解锁。
 7. 不修改 Sheet 名、Table 名、表头、顶部说明或系统 Sheet。
+8. 将 `EliteMin` 或 `EliteMax` 单独留空、或把任一 `Min` 填得大于 `Max`，同步命令应拒绝并定位到对应 Table 行列；验收后恢复正确值。
 
 如果 WPS 没有显示下拉或没有阻止非法值，需要记录 WPS 版本、字段位置和现象；这属于兼容性问题，不能直接判定通过。
 
