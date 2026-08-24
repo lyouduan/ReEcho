@@ -164,6 +164,7 @@
 - 最终 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 96/96 actions 通过；精选 Editor 预构建源指纹 `0595d5ad4301`。`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 - 已拥有武器投影与双背包浮层候选完成增量 Editor 构建；`ReEcho.UI.Shop` 2/2、`ReEcho.Shop` 10/10 通过。UI 自动化新增“稳定页已拥有武器禁用并显示已获得”、两种背包同属根级 ZOrder 100 浮层，以及符文背包边框/滚动区/字号对齐断言。
 - 完整购买后投影刷新候选完成增量 Editor 构建；`ReEcho.Shop` 10/10、`ReEcho.UI.Shop` 2/2 通过。稳定页用例新增断言：每个符文/武器购买后立即出现在完整拥有投影中，同时同页三个报价的 ID 与价格保持不变。
+- 发布候选已变基到 `origin/main@eb75adc3` 并保留 Plan93 HUD 与 Plan91 商店双方契约；最终 UE 5.8 Development FullRebuild 93/93 通过，精选包源码指纹 `53a360a5850c`。组合候选 `ReEcho.Shop` 10/10、`ReEcho.UI.Shop` 2/2、`ReEcho.UI.CombatHud` 1/1 全部通过。
 
 ### 剩余风险
 
