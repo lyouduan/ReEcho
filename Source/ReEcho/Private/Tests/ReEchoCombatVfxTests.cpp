@@ -268,7 +268,24 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,
 	    EReEchoCombatVfxSemantic::EchoGrassAura,
+	    EReEchoCombatVfxSemantic::GoatSkill02Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill02Bullet,
+	    EReEchoCombatVfxSemantic::GoatSkill02Impact,
+	    EReEchoCombatVfxSemantic::GoatSkill03Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill03Alarming,
+	    EReEchoCombatVfxSemantic::GoatSkill03Impact,
+	    EReEchoCombatVfxSemantic::GoatSkill04Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill04Lighting,
 	};
+	TestEqual(TEXT("Sheep projectile flight uses the authored Skill02 bullet"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
+	          FString(TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill02_Bullet.NS_Goat_Skill02_Bullet")));
+	TestEqual(TEXT("Sheep blink telegraph uses the authored Skill03 alarming system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
+	          FString(TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill03_Alarming.NS_Goat_Skill03_Alarming")));
+	TestEqual(TEXT("Sheep beam active window uses the authored Skill04 lighting system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::GoatSkill04Lighting),
+	          FString(TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill04_Lighting.NS_Goat_Skill04_Lighting")));
 	TestEqual(TEXT("Fox windup uses the authored charging system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxCharging),
 	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Charging.NS_Fox_Rush_Charging")));

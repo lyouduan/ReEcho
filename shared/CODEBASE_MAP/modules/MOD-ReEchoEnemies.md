@@ -72,6 +72,8 @@
 
 Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、`M_RABBIT`、`M_FOX`，Boss 为 `M_SHEEP`。`M_SHEEP` 第一阶段最大生命 1300；第一次致命伤由 Combatant 的窄委托交给 EnemyLogic 转为 `HealthDepleted` Phase2 过渡，Host 发布变身事件，完成后按 Phase2 定义把最大生命与当前生命统一设为 650；第二次致命伤沿正常 Combat 死亡路径。未进入仇恨范围的普通怪执行可保存的确定性 IdleWander，一旦进入战斗后不恢复游走；Host 只注入 `bInCombat`、`HateRangeCm` 和当前生命比率，Logic 不读取 GameMode 或 Combatant。
 
+Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
+
 ## 依赖方向
 
 ```text

@@ -73,6 +73,9 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow` | 两个启用发射器均为 Local Space；附着狐狸攻击挂点、前景，Windup 与 Charging 同时开始，并按锁定冲撞方向旋转，提交/结束/取消时清理 |
 | FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Trail` | 附着狐狸攻击挂点、前景；提交时停止 Charging/Direction 并开始，动作结束/取消时清理 |
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
+| GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 羊 Boss 两种投射技能共用；前摇附着 Boss，Bullet 逐球投影逻辑弹道，实际 `AppliedDamage > 0` 时在角色 Hurt 挂点播放命中 |
+| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | 闪身下砸前摇附着 Boss，预警固定在锁定落点，提交时清理；实际伤害后播放命中 |
+| GoatSkill04 | `NS_Goat_Skill04_Charging` / `Lighting` | 祷告光束前摇附着 Boss，攻击窗口按锁定方向播放 Lighting，AbilityEnded/Death/清场清理 |
 | PlayerMeleeSlash | `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01` | 近战提交位置和攻击方向，前景单次播放 |
 | PlayerScytheSlash | `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01` | 镰刀提交位置和攻击方向，前景单次播放 |
 | PlayerBowFlight / Impact | `/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01` / `NS_People_Bow_Boom` | 飞行 System 绑定权威投射物 Actor；保持资源内部 Renderer 与粒子模块不变，把交付 Niagara 的 authored local `+Y` 视觉轴在发射时按锁定攻击方向旋转一次；首次权威命中播放一次 Impact |
@@ -121,6 +124,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 首场资源清单与驻留 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` → `Presentation/Loading/ReEchoRuntimeAssetPreloader.*`；测试为 `ReEchoRuntimeAssetPreloadTests.cpp` |
 | 玩家武器攻击表现路由 | `Presentation/VFX/ReEchoCombatVfxCatalog.*`、`Graybox/ReEchoProjectileActor.*`；鞭旧平面入口仍为 `Weapons/ReEchoWeaponActor.*` / `ReEchoSwordArcActor.*` |
 | 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py`；狐狸方向箭头 Local Space 修复脚本为 `scripts/ue/fix_fox_direction_local_space.py` |
+| Goat Boss 资产审计 | `scripts/ue/audit_goat_boss_vfx.py`；若 Editor 被跨平台 SDK 校验阻断，以包内 `/Game/` 引用递归闭包作为保守投递证据，并明确保留 Editor/PIE 验收 |
 | 测试专用预览 Harness | `Presentation/VFX/ReEchoVfxPreviewActor.*`、`ReEchoVfxPreviewTests.cpp`；测试地图 author/verify 位于 `scripts/ue/author_vfx_test_scene.py` 与 `verify_vfx_test_scene.py` |
 
 ## 测试场景边界

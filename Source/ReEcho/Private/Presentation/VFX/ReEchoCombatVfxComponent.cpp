@@ -367,6 +367,7 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	if (EnemyEvents)
 	{
 		EnemyEvents->OnProjectile.RemoveAll(this);
+		EnemyEvents->OnBossIntent.RemoveAll(this);
 	}
 	if (CombatPresentationCoordinator)
 	{
@@ -388,6 +389,7 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	if (EnemyEvents)
 	{
 		EnemyEvents->OnProjectile.AddDynamic(this, &UReEchoCombatVfxComponent::HandleProjectile);
+		EnemyEvents->OnBossIntent.AddDynamic(this, &UReEchoCombatVfxComponent::HandleBossIntent);
 	}
 	if (CombatPresentationCoordinator)
 	{
@@ -581,6 +583,63 @@ void UReEchoCombatVfxComponent::StopProjectileVisual(UMaterialBillboardComponent
 	}
 }
 
+void UReEchoCombatVfxComponent::StopNiagaraEffect(UNiagaraComponent* Effect) const
+{
+	if (Effect)
+	{
+		Effect->Deactivate();
+		Effect->DestroyComponent();
+	}
+}
+
+void UReEchoCombatVfxComponent::StopBossActionEffects()
+{
+	StopEffect(BossChargingEffect);
+	StopEffect(BossTelegraphEffect);
+	StopEffect(BossActiveEffect);
+}
+
+void UReEchoCombatVfxComponent::RememberBossAbility(const int64 AttackSequence, const FName AbilityId)
+{
+	if (AttackSequence <= 0 || AbilityId.IsNone())
+	{
+		return;
+	}
+	BossAbilityByAttackSequence.Add(AttackSequence, AbilityId);
+	constexpr int32 MaximumRememberedBossAttacks = 16;
+	if (BossAbilityByAttackSequence.Num() <= MaximumRememberedBossAttacks)
+	{
+		return;
+	}
+	int64 OldestSequence = TNumericLimits<int64>::Max();
+	for (const TPair<int64, FName>& Pair : BossAbilityByAttackSequence)
+	{
+		OldestSequence = FMath::Min(OldestSequence, Pair.Key);
+	}
+	BossAbilityByAttackSequence.Remove(OldestSequence);
+}
+
+bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackSequence,
+	                                                         uint8& OutSemanticValue) const
+{
+	const FName* AbilityId = BossAbilityByAttackSequence.Find(AttackSequence);
+	if (!AbilityId)
+	{
+		return false;
+	}
+	if (*AbilityId == TEXT("M_SHEEP_StationaryVolley") || *AbilityId == TEXT("M_SHEEP_MovingSpread"))
+	{
+		OutSemanticValue = static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Impact);
+		return true;
+	}
+	if (*AbilityId == TEXT("M_SHEEP_BlinkSlam"))
+	{
+		OutSemanticValue = static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact);
+		return true;
+	}
+	return false;
+}
+
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
 	StopEffect(ChargingEffect);
@@ -594,6 +653,13 @@ void UReEchoCombatVfxComponent::StopAllEffects()
 		StopProjectileVisual(Pair.Value);
 	}
 	ProjectileVisuals.Reset();
+	for (TPair<FReEchoProjectileVisualKey, TObjectPtr<UNiagaraComponent>>& Pair : BossProjectileEffects)
+	{
+		StopNiagaraEffect(Pair.Value);
+	}
+	BossProjectileEffects.Reset();
+	StopBossActionEffects();
+	BossAbilityByAttackSequence.Reset();
 }
 
 FName UReEchoCombatVfxComponent::ResolveElementVfxTargetId(AActor* Target) const
@@ -883,6 +949,20 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	{
 		Semantic = EReEchoCombatVfxSemantic::FoxImpact;
 	}
+	else if (const AReEchoEnemyActor* SourceBoss = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
+	         SourceBoss && SourceBoss->GetPresentationId() == TEXT("Enemy.TimeGuard"))
+	{
+		if (const UReEchoCombatVfxComponent* SourceVfx =
+		        SourceBoss->FindComponentByClass<UReEchoCombatVfxComponent>())
+		{
+			uint8 BossImpactSemantic = 0;
+			if (SourceVfx->TryResolveBossImpactSemantic(Event.Attack.Sequence, BossImpactSemantic))
+			{
+				SpawnAttached(BossImpactSemantic, FVector::ForwardVector, ResolveHurtVfxRoot());
+				return;
+			}
+		}
+	}
 	SpawnAttached(static_cast<uint8>(Semantic), FVector::ForwardVector, ResolveHurtVfxRoot());
 }
 
@@ -979,13 +1059,100 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 	}
 }
 
+void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
+{
+	const bool bSkill02 = Intent.AbilityId == TEXT("M_SHEEP_StationaryVolley") ||
+	                      Intent.AbilityId == TEXT("M_SHEEP_MovingSpread");
+	const bool bSkill03 = Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam");
+	const bool bSkill04 = Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam");
+	if (!bSkill02 && !bSkill03 && !bSkill04)
+	{
+		return;
+	}
+	RememberBossAbility(Intent.Attack.Sequence, Intent.AbilityId);
+	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
+	{
+		StopBossActionEffects();
+		const EReEchoCombatVfxSemantic ChargingSemantic =
+		    bSkill02 ? EReEchoCombatVfxSemantic::GoatSkill02Charging
+		             : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
+		                        : EReEchoCombatVfxSemantic::GoatSkill04Charging;
+		BossChargingEffect = SpawnAttached(
+		    static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ResolveAttackVfxRoot(), false);
+		if (bSkill03)
+		{
+			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
+			                                       Intent.LockedTargetLocation,
+			                                       Intent.LockedDirection,
+			                                       false);
+		}
+		return;
+	}
+	if (Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
+	{
+		StopEffect(BossChargingEffect);
+		StopEffect(BossTelegraphEffect);
+		if (bSkill04)
+		{
+			StopEffect(BossActiveEffect);
+			BossActiveEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting),
+			                                 Intent.LockedDirection,
+			                                 ResolveAttackVfxRoot(),
+			                                 false);
+		}
+		return;
+	}
+	if (Intent.Type == EReEchoBossIntentType::AbilityEnded)
+	{
+		StopBossActionEffects();
+	}
+}
+
 void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEvent& Event)
 {
-	if (Event.AbilityId != TEXT("M_RABBIT_RangedBurst") || Event.Attack.Sequence <= 0 || Event.VolleyBallIndex < 0)
+	const bool bRabbitProjectile = Event.AbilityId == TEXT("M_RABBIT_RangedBurst");
+	const bool bSheepProjectile = Event.AbilityId == TEXT("M_SHEEP_Projectile");
+	if ((!bRabbitProjectile && !bSheepProjectile) || Event.Attack.Sequence <= 0 || Event.VolleyBallIndex < 0)
 	{
 		return;
 	}
 	const FReEchoProjectileVisualKey Key = ResolveProjectileVisualKey(Event);
+	if (bSheepProjectile)
+	{
+		if (Event.Type == EReEchoEnemyProjectileEventType::Spawned)
+		{
+			if (TObjectPtr<UNiagaraComponent>* Existing = BossProjectileEffects.Find(Key))
+			{
+				StopNiagaraEffect(*Existing);
+				BossProjectileEffects.Remove(Key);
+			}
+			if (UNiagaraComponent* Effect =
+			        SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
+			                   Event.Location,
+			                   Event.Direction,
+			                   false))
+			{
+				BossProjectileEffects.Add(Key, Effect);
+			}
+			return;
+		}
+		if (TObjectPtr<UNiagaraComponent>* Effect = BossProjectileEffects.Find(Key))
+		{
+			if (*Effect && Event.Type == EReEchoEnemyProjectileEventType::Moved)
+			{
+				(*Effect)->SetWorldLocationAndRotation(
+				    Event.Location,
+				    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill02Bullet,
+				                                                  Event.Direction));
+			}
+			else if (Event.Type == EReEchoEnemyProjectileEventType::Ended)
+			{
+				StopNiagaraEffect(*Effect);
+				BossProjectileEffects.Remove(Key);
+			}
+		}
+		return;
+	}
 	if (Event.Type == EReEchoEnemyProjectileEventType::Spawned)
 	{
 		if (TObjectPtr<UMaterialBillboardComponent>* Existing = ProjectileVisuals.Find(Key))

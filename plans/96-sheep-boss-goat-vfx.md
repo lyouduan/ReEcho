@@ -132,17 +132,24 @@
 - 2026-08-24：用户要求按当前羊 Boss 设定装配 `/Game/VFX/Monster/Goat/Particle` 特效，并明确当前已修改的 `DA_Enemy_TimeGuard` 必须纳入 Plan 96。
 - 2026-08-24：规划盘点识别八个具名正式根；锁定 Skill02=投射技能、Skill03=闪身下砸、Skill04=祷告光束，Skill01 因无具名资源保持不变。
 - 2026-08-24：用户明确 Boss 技能击中角色时必须造成相应伤害；Plan 将配表扣血与最终命中特效一致性列为硬验收，同时保持 Combat 而非 Niagara 为唯一伤害权威。
+- 2026-08-24：实现 Goat Skill02/03/04 的集中语义、Boss Intent 生命周期、逐球逻辑投射物 Niagara、锁点预警、锁向光束和按 AttackIdentity 对齐的最终命中特效；Boss 投射物事件补充稳定的 `M_SHEEP_Projectile` 表现标识。
+- 2026-08-24：代码审计发现二阶段 `PhysicalAttackMultiplier/AttackSpeedMultiplier` 仅被编译但未用于 Boss 技能提交；补为 Phase2 提交伤害乘物理倍率、冷却除攻速倍率。一阶段继续直接采用能力表值，空间判定和最终扣血仍由 Host/Combat 权威链执行。
 
 ### 证据
 
 - 当前生产数据为 `M_SHEEP`，但沿用 `BehaviorProfileId=Boss.TimeGuard`、`PresentationId=Enemy.TimeGuard`；自动化直接加载 `/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_TimeGuard`。
 - 既有事件已提供 Boss Telegraph/AttackWindow/AbilityEnded、锁点/锁向/AttackIdentity，以及敌方投射物 Spawned/Moved/Ended；Combat Hurt 提供最终 AppliedDamage，具备表现只读接入基础。
 - 主工作区确认 `DA_Enemy_TimeGuard.uasset` 已修改，Goat 八个具名 Niagara 根和大部分依赖尚未跟踪；因此资产复制与精确依赖审计是 Step 0 硬门禁。
+- 用户 DA 与八个根复制后 SHA-256 均与主工作区来源一致；包内 `/Game/` 引用递归审计只复制缺失或哈希不同的 50 个依赖文件，未纳入 `01.uasset`。
+- 第一次 FullRebuild 在 98 个动作的 `ReEchoCombatVfxComponent.cpp` 编译处发现 C4456 局部变量遮蔽；只重命名第二个局部变量后，第二次 FullRebuild 98/98 成功，Build ID `55116800`，当时源码指纹 `df2b0548348a`。随后补充 Phase2-only 防护，最终候选需再次 FullRebuild。
+- 最终候选 FullRebuild 98/98 成功并刷新七模块精选预构建包，Build ID `55116800`、source fingerprint `7459ba735e47`；`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
+- `Run-Automation.cmd -Filter ReEcho.Enemies.Logic` 在测试发现前被 LinuxArm64/VisionOS SDK `MainVersion` 校验阻断；命令虽返回 0，但没有任何测试执行证据，因此明确记为未运行，不声称通过。VFX/资产 Editor 审计受同一环境门阻塞。
 
 ### 剩余风险
 
 - 资源名称给出预期语义，但实际 Niagara 朝向、空间、循环、中心、大小和 Renderer 层级必须由 Editor/PIE 验证，不能仅凭文件名确认。
 - Plan95 与本 Plan 可能并行刷新相同预构建包；实现进入 main 前必须以最新远端候选重建，不能语义合并二进制。
+- UnrealEditor-Cmd 和 GUI NoCompile 均在执行 Python 前被本机 LinuxArm64/VisionOS SDK `MainVersion` 校验阻断，Niagara Editor 加载/编译、Simulation Space、Bounds 和 Renderer 尚未验证；当前依赖证据来自保守包内引用闭包，不冒充 Editor 审计通过。
 
 ### 人工验收结果/请求
 

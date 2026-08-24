@@ -51,6 +51,22 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Water.NS_Echo_Water");
 		case EReEchoCombatVfxSemantic::EchoGrassAura:
 			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Grass.NS_Echo_Grass");
+		case EReEchoCombatVfxSemantic::GoatSkill02Charging:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill02_Charging.NS_Goat_Skill02_Charging");
+		case EReEchoCombatVfxSemantic::GoatSkill02Bullet:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill02_Bullet.NS_Goat_Skill02_Bullet");
+		case EReEchoCombatVfxSemantic::GoatSkill02Impact:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill02_BeAttacked.NS_Goat_Skill02_BeAttacked");
+		case EReEchoCombatVfxSemantic::GoatSkill03Charging:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill03_Charging.NS_Goat_Skill03_Charging");
+		case EReEchoCombatVfxSemantic::GoatSkill03Alarming:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill03_Alarming.NS_Goat_Skill03_Alarming");
+		case EReEchoCombatVfxSemantic::GoatSkill03Impact:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill03_BeAttacked.NS_Goat_Skill03_BeAttacked");
+		case EReEchoCombatVfxSemantic::GoatSkill04Charging:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill04_Charging.NS_Goat_Skill04_Charging");
+		case EReEchoCombatVfxSemantic::GoatSkill04Lighting:
+			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill04_Lighting.NS_Goat_Skill04_Lighting");
 		default:
 			return TEXT("");
 	}
@@ -103,7 +119,7 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 
 void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 {
-	for (uint8 SemanticValue = 0; SemanticValue <= static_cast<uint8>(EReEchoCombatVfxSemantic::EchoGrassAura);
+	for (uint8 SemanticValue = 0; SemanticValue <= static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting);
 	     ++SemanticValue)
 	{
 		OutPaths.Add(ResolvePath(static_cast<EReEchoCombatVfxSemantic>(SemanticValue)));

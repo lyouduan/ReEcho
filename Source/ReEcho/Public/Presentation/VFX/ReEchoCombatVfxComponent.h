@@ -80,6 +80,8 @@ public:
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
 	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
+	/** Resolves the impact semantic recorded for one Boss attack without inferring from damage values. */
+	bool TryResolveBossImpactSemantic(int64 AttackSequence, uint8& OutSemanticValue) const;
 	/** Editor repair seam for attached Niagara systems that must follow their owning presentation root. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool SetNiagaraSystemEmittersLocalSpace(UNiagaraSystem* System);
@@ -124,7 +126,10 @@ private:
 	int32 ResolveOwnerAuraSortPriority() const;
 	void StopEffect(TObjectPtr<UNiagaraComponent>& Effect);
 	void StopProjectileVisual(UMaterialBillboardComponent* Visual) const;
+	void StopNiagaraEffect(UNiagaraComponent* Effect) const;
 	void StopAllEffects();
+	void StopBossActionEffects();
+	void RememberBossAbility(int64 AttackSequence, FName AbilityId);
 	FName ResolveElementVfxTargetId(AActor* Target) const;
 	UNiagaraSystem* ResolveElementSystem(uint8 SemanticValue, AActor* Target) const;
 	void RefreshElementEffects(const FReEchoElementState& State);
@@ -150,6 +155,8 @@ private:
 	void HandlePresentationAction(const FReEchoPresentationActionEvent& Event);
 	UFUNCTION()
 	void HandleProjectile(const FReEchoEnemyProjectileEvent& Event);
+	UFUNCTION()
+	void HandleBossIntent(const FReEchoBossIntent& Intent);
 
 	UPROPERTY()
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
@@ -178,6 +185,20 @@ private:
 
 	UPROPERTY(Transient)
 	TMap<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>> ProjectileVisuals;
+
+	UPROPERTY(Transient)
+	TMap<FReEchoProjectileVisualKey, TObjectPtr<UNiagaraComponent>> BossProjectileEffects;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> BossChargingEffect;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> BossTelegraphEffect;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> BossActiveEffect;
+
+	TMap<int64, FName> BossAbilityByAttackSequence;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> AttackVfxRoot;

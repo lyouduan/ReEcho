@@ -19,7 +19,15 @@ enum class EReEchoCombatVfxSemantic : uint8
 	PlayerGunImpact,
 	EnemyHurt,
 	EchoWaterAura,
-	EchoGrassAura
+	EchoGrassAura,
+	GoatSkill02Charging,
+	GoatSkill02Bullet,
+	GoatSkill02Impact,
+	GoatSkill03Charging,
+	GoatSkill03Alarming,
+	GoatSkill03Impact,
+	GoatSkill04Charging,
+	GoatSkill04Lighting
 };
 
 /** Centralized semantic-to-asset mapping. Gameplay code never stores Niagara paths. */

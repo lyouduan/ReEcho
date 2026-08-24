@@ -78,6 +78,9 @@ private:
 	int32 FindBossAbilityIndex(FName AbilityId) const;
 	float GetBossAbilityCooldown(FName AbilityId) const;
 	void SetBossAbilityCooldown(FName AbilityId, float RemainingSeconds);
+	const FReEchoBossPhaseDefinition* GetCurrentBossPhaseDefinition() const;
+	float ResolveCurrentBossPhysicalDamage(float BaseDamage) const;
+	float ResolveCurrentBossCooldown(float BaseCooldownSeconds) const;
 	void ApplyBossHitReaction(float FixedDeltaSeconds, FReEchoEnemyActionIntent& InOutIntent);
 	void ApplyStandardMovement(const FReEchoEnemySenseSnapshot& Sense,
 	                           float DeltaSeconds,

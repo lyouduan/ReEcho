@@ -1277,7 +1277,9 @@ void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEvent
 	FReEchoEnemyProjectileEvent Event;
 	Event.Type = Type;
 	Event.Attack = Projectile.Attack;
-	Event.AbilityId = EnemyId == TEXT("M_RABBIT") ? FName(TEXT("M_RABBIT_RangedBurst")) : NAME_None;
+	Event.AbilityId = EnemyId == TEXT("M_RABBIT")
+	                      ? FName(TEXT("M_RABBIT_RangedBurst"))
+	                      : EnemyId == TEXT("M_SHEEP") ? FName(TEXT("M_SHEEP_Projectile")) : NAME_None;
 	Event.Location = Projectile.Snapshot.Location;
 	Event.Direction = Projectile.Snapshot.Direction;
 	Event.VolleyBallIndex = Projectile.VolleyBallIndex;

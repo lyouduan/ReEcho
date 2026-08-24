@@ -802,6 +802,7 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
                                                    FReEchoEnemyActionIntent& InOutIntent)
 {
 	const EReEchoBossAbilityKind AbilityKind = ResolveBossAbilityKind(Ability.BehaviorId);
+	const float ResolvedDamage = ResolveCurrentBossPhysicalDamage(Ability.Damage);
 	FReEchoBossIntent BossIntent;
 	BossIntent.Type = EReEchoBossIntentType::AttackWindowStarted;
 	BossIntent.AbilityKind = AbilityKind;
@@ -817,7 +818,7 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	BossIntent.LockedTargetLocation = State.BossLockedTargetLocation;
 	BossIntent.LockedDirection = State.BossLockedDirection;
 	BossIntent.TeleportDestination = State.BossLockedTeleportDestination;
-	BossIntent.RawDamage = Ability.Damage;
+	BossIntent.RawDamage = ResolvedDamage;
 	BossIntent.RadiusCm = Ability.RadiusCm;
 	BossIntent.WidthCm = Ability.WidthCm;
 	BossIntent.LengthCm = Ability.LengthCm;
@@ -833,7 +834,7 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 
 	InOutIntent.Attack = BossIntent.Attack;
 	InOutIntent.Target = Sense.Target;
-	InOutIntent.RawDamage = Ability.Damage;
+	InOutIntent.RawDamage = ResolvedDamage;
 	InOutIntent.DamageRadiusCm = Ability.RadiusCm;
 	InOutIntent.SourceLocation = BossIntent.Origin;
 	InOutIntent.HitLocation = State.BossLockedTargetLocation;
@@ -842,10 +843,36 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	InOutIntent.bAttackCommitted = true;
 	InOutIntent.bCanDamageTarget = BossIntent.bCanDamageTarget;
 
-	SetBossAbilityCooldown(Ability.Id, Ability.CooldownSeconds);
+	SetBossAbilityCooldown(Ability.Id, ResolveCurrentBossCooldown(Ability.CooldownSeconds));
 	State.bBossCurrentAbilityCommitted = true;
 	AppendBossIntent(MoveTemp(BossIntent), InOutIntent);
 	PublishAction(InOutIntent);
+}
+
+const FReEchoBossPhaseDefinition* UReEchoEnemyLogicComponent::GetCurrentBossPhaseDefinition() const
+{
+	if (State.CurrentPhaseIndex < 2)
+	{
+		return nullptr;
+	}
+	return Definition.BossPhases.FindByPredicate(
+	    [this](const FReEchoBossPhaseDefinition& Phase)
+	    {
+		    return Phase.bEnabled && Phase.PhaseIndex == State.CurrentPhaseIndex;
+	    });
+}
+
+float UReEchoEnemyLogicComponent::ResolveCurrentBossPhysicalDamage(const float BaseDamage) const
+{
+	const FReEchoBossPhaseDefinition* Phase = GetCurrentBossPhaseDefinition();
+	return FMath::Max(0.0f, BaseDamage) * (Phase ? FMath::Max(0.0f, Phase->PhysicalAttackMultiplier) : 1.0f);
+}
+
+float UReEchoEnemyLogicComponent::ResolveCurrentBossCooldown(const float BaseCooldownSeconds) const
+{
+	const FReEchoBossPhaseDefinition* Phase = GetCurrentBossPhaseDefinition();
+	const float AttackSpeedMultiplier = Phase ? FMath::Max(KINDA_SMALL_NUMBER, Phase->AttackSpeedMultiplier) : 1.0f;
+	return FMath::Max(0.0f, BaseCooldownSeconds) / AttackSpeedMultiplier;
 }
 
 void UReEchoEnemyLogicComponent::EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability,
