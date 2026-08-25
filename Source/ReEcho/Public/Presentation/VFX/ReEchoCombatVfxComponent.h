@@ -84,11 +84,9 @@ public:
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
 	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
-	/** Retains the current scythe convention: local X follows attack direction while local Z faces the camera. */
+	/** Authored melee convention: local X follows attack direction while the rendered local-XY plane's Z faces camera. */
 	static FRotator ResolveCameraPlaneDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Sword replacement mesh convention: local X follows attack direction while its local Y surface faces camera. */
-	static FRotator ResolveSwordCameraFacingRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Keeps the composed sword direction/DA correction but flips a culled local-Y back face around its attack axis. */
+	/** Keeps the composed sword direction/DA correction but flips a culled local-Z back face around its attack axis. */
 	static FRotator EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation, const FVector& CameraFacingNormal);
 	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);

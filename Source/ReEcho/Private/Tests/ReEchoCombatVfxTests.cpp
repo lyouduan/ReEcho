@@ -119,13 +119,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		TestTrue(
 		    TEXT("Scythe-style VFX rotates in the camera-facing plane toward the committed enemy"),
 		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
-		const FRotator SwordDirectionRotation =
-		    UReEchoCombatVfxComponent::ResolveSwordCameraFacingRotation(SlashDirection, CameraFacingNormal);
-		TestTrue(TEXT("Sword slash rotates toward the committed enemy"),
-		         SwordDirectionRotation.RotateVector(FVector::ForwardVector)
-		             .Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
-		TestTrue(TEXT("Sword slash presents its authored local Y surface normal to the camera"),
-		         SwordDirectionRotation.RotateVector(FVector::RightVector)
+		const FRotator SwordDirectionRotation = DirectionRotation;
+		TestTrue(TEXT("Sword slash presents its authored local Z surface normal to the camera"),
+		         SwordDirectionRotation.RotateVector(FVector::UpVector)
 		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
 		const FRotator ComposedSwordRotation = UReEchoCombatVfxComponent::ComposeAttachedRotation(
 		    SwordDirectionRotation, SwordPlacement.LocalRotation);
@@ -133,7 +129,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		const FRotator FrontFacingSwordRotation = UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(
 		    ComposedSwordRotation, CameraFacingNormal);
 		TestTrue(TEXT("Sword DA correction cannot leave the rendered surface back-facing"),
-		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::RightVector),
+		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::UpVector),
 		                             CameraFacingNormal.GetSafeNormal()) >= 0.0f);
 		TestTrue(TEXT("Sword front-face correction preserves its composed attack axis"),
 		         FrontFacingSwordRotation.RotateVector(FVector::ForwardVector)

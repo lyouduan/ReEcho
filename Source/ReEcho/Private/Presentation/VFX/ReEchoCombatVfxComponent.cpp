@@ -592,23 +592,12 @@ FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FV
 	return FRotationMatrix::MakeFromZX(Normal, PlaneDirection).Rotator();
 }
 
-FRotator UReEchoCombatVfxComponent::ResolveSwordCameraFacingRotation(const FVector& Direction,
-                                                                     const FVector& CameraFacingNormal)
-{
-	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
-	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
-	PlaneDirection = PlaneDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
-	// The replacement sword-slash mesh lies in local XZ, so local Y is its surface normal. Scythe retains the
-	// existing local-Z camera-plane convention because its authored Niagara renderer uses a different basis.
-	return FRotationMatrix::MakeFromYX(Normal, PlaneDirection).Rotator();
-}
-
 FRotator UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation,
                                                                 const FVector& CameraFacingNormal)
 {
 	const FVector CameraNormal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 	const FQuat ComposedQuat = ComposedRotation.Quaternion();
-	const FVector SurfaceNormal = ComposedQuat.RotateVector(FVector::RightVector);
+	const FVector SurfaceNormal = ComposedQuat.RotateVector(FVector::UpVector);
 	if (FVector::DotProduct(SurfaceNormal, CameraNormal) >= 0.0f)
 	{
 		return ComposedRotation;
@@ -674,7 +663,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	{
 		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
 		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
-		DirectionRotation = ResolveSwordCameraFacingRotation(Direction, SwordCameraFacingNormal);
+		DirectionRotation = ResolveCameraPlaneDirectionRotation(Direction, SwordCameraFacingNormal);
 	}
 	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
 	{
