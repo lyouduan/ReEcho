@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "Misc/App.h"
 #include "Misc/AutomationTest.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
@@ -450,8 +451,8 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		          ReEchoRabbitProjectilePattern::BallCount - 1);
 	}
 
-	const int32 SwordCutCount = Rabbit->DestroyRabbitProjectilesInMeleeArc(
-	    FVector::ZeroVector, FVector::ForwardVector, 700.0f, 180.0f);
+	const int32 SwordCutCount =
+	    Rabbit->DestroyRabbitProjectilesInMeleeArc(FVector::ZeroVector, FVector::ForwardVector, 700.0f, 180.0f);
 	TestEqual(TEXT("Longsword's forward 180-degree sector removes the two remaining rabbit balls"),
 	          SwordCutCount,
 	          ReEchoRabbitProjectilePattern::BallCount - 1);
@@ -580,6 +581,24 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 		AddError(CompileError);
 		return false;
 	}
+	const FReEchoEnemyAbilityDefinition* StationaryVolley = SheepDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_SHEEP_StationaryVolley");
+	    });
+	if (!TestNotNull(TEXT("Production sheep keeps the stationary-volley ability"), StationaryVolley))
+	{
+		return false;
+	}
+	const FReEchoEnemyAbilityDefinition* MovingSpread = SheepDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_SHEEP_MovingSpread");
+	    });
+	if (!TestNotNull(TEXT("Production sheep keeps the moving-spread ability"), MovingSpread))
+	{
+		return false;
+	}
 
 	AReEchoPlayerPawn* Player =
 	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
@@ -621,7 +640,7 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	Sense.bTargetExists = true;
 	Sense.bTargetAlive = true;
 	Sheep->AdvanceBehaviorForTests(Sense, 0.01f);
-	Sheep->AdvanceBehaviorForTests(Sense, 0.6f);
+	Sheep->AdvanceBehaviorForTests(Sense, StationaryVolley->WindupSeconds + 0.1f);
 
 	const FReEchoEnemyRuntimeState SpawnedState = Sheep->CaptureRuntimeState();
 	if (!TestEqual(TEXT("Stationary volley creates four authoritative sheep projectiles"),
@@ -632,8 +651,12 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	}
 	for (const FReEchoEnemyProjectileRuntimeState& Ball : SpawnedState.BossProjectiles)
 	{
-		TestEqual(TEXT("Sheep projectile uses ability MaxRangeCm"), Ball.Definition.MaxRangeCm, 1200.0f);
-		TestEqual(TEXT("Sheep volley divides the configured radius per ball"), Ball.CollisionRadiusCm, 13.75f);
+		TestEqual(
+		    TEXT("Sheep projectile uses ability MaxRangeCm"), Ball.Definition.MaxRangeCm, StationaryVolley->MaxRangeCm);
+		TestEqual(TEXT("Sheep volley divides the configured radius per ball"),
+		          Ball.CollisionRadiusCm,
+		          ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(StationaryVolley->RadiusCm,
+		                                                                    StationaryVolley->ProjectileCount));
 	}
 	TestTrue(TEXT("Sheep projectile presentation height differs from the shorter player collision center"),
 	         !FMath::IsNearlyEqual(SpawnedState.BossProjectiles[0].Snapshot.Location.Z,
@@ -649,7 +672,8 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	                                 })
 	                             .Num();
 	TestEqual(TEXT("Stationary volley initially publishes only its first projectile"), SpawnCount, 1);
-	if (UReEchoCombatVfxComponent* Vfx = Sheep->FindComponentByClass<UReEchoCombatVfxComponent>())
+	if (UReEchoCombatVfxComponent* Vfx = Sheep->FindComponentByClass<UReEchoCombatVfxComponent>();
+	    Vfx && FApp::CanEverRender())
 	{
 		TestEqual(TEXT("Only the first sequential Goat Skill02 Bullet is visible immediately"),
 		          Vfx->GetBossProjectileEffectCountForTests(),
@@ -666,15 +690,14 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	                                      })
 	                                  .Num();
 	TestEqual(TEXT("Stationary volley publishes all four projectiles over its firing window"), TotalSpawnCount, 4);
-	TestEqual(TEXT("Four configured five-damage projectiles reduce player health by twenty"),
+	TestEqual(TEXT("Stationary volley applies the configured damage for every projectile"),
 	          Player->Combatant->CurrentHealth,
-	          80.0f);
+	          100.0f - StationaryVolley->Damage * StationaryVolley->ProjectileCount);
 
 	Player->Combatant->RestoreCurrentHealth(100.0f);
 	TestTrue(TEXT("Moving spread can be queued while the previous ability recovers"),
 	         Sheep->GetEnemyLogicComponent()->DebugQueueBossAbility(TEXT("M_SHEEP_MovingSpread")));
-	Sheep->AdvanceBehaviorForTests(Sense, 0.6f);
-	Sheep->AdvanceBehaviorForTests(Sense, 0.6f);
+	Sheep->AdvanceBehaviorForTests(Sense, StationaryVolley->RecoverySeconds + MovingSpread->WindupSeconds + 0.2f);
 	const FReEchoEnemyRuntimeState MovingSpreadState = Sheep->CaptureRuntimeState();
 	TestEqual(
 	    TEXT("Moving spread creates three authoritative projectiles"), MovingSpreadState.BossProjectiles.Num(), 3);
@@ -692,9 +715,9 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	          3);
 	Sheep->AdvanceEnemyProjectilesForTests(1.0f);
 	Sheep->AdvanceEnemyProjectilesForTests(0.5f);
-	TestEqual(TEXT("Moving spread center projectile applies its configured five damage"),
+	TestEqual(TEXT("Moving spread center projectile applies its configured damage"),
 	          Player->Combatant->CurrentHealth,
-	          95.0f);
+	          100.0f - MovingSpread->Damage);
 	return true;
 }
 

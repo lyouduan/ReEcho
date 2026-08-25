@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`；需要用户在 PIE 中确认兔子会交替使用移动散射与站定连发，且站定连发可辨识为连续四发。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Accepted`；用户已在 PIE 中确认兔子会交替使用移动散射与站定连发，且站定连发可辨识为连续四发。
 - 本地规划 / 实现基线：`origin/main@30138a3df16227727315dad7dca6ce2121dd830a`。
 - 本地实现方式：计划发布后创建 `plan/112-rabbit-dual-ability-runtime` 独立 worktree。
 - 依赖 / 阻塞：依赖现有 `enemy_abilities.csv` 中 `M_RABBIT_MovingVolley`（`SequenceOrder=1`）和 `M_RABBIT_RangedBurst`（`SequenceOrder=2`）均为启用状态；实现前不修改策划平衡值。
@@ -67,7 +67,7 @@
 - [x] 移动散射一次生成三条对称轨迹；站定连发第一发立即生成，随后三发在 `ActiveSeconds` 内按稳定索引依次生成，四发不在同帧重叠。
 - [x] 两种技能分别遵守 `bMovementDuringCast=true/false`，每球碰撞与伤害继续消费表中能力值。
 - [x] Enemies Logic/Host 聚焦自动化、项目校验、格式、Development FullRebuild、精选预构建包和 `git diff --check` 通过。
-- [ ] 用户完成 PIE 人工验收后才关闭；未提交精选允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 用户完成 PIE 人工验收后才关闭；未提交精选允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -103,6 +103,7 @@
 - 2026-08-25：实现中确认跨帧连发需要扩充主模块 `FReEchoEnemyProjectileRuntimeState` 的可保存延迟/发布状态；已将 `Source/ReEcho/Public/Core/ReEchoTypes.h` 与 `MOD-ReEcho.md` 纳入 Writes，不改变 SaveVersion 或 CSV Schema。
 - 2026-08-25：EnemyLogic 建立普通特殊能力稳定轮转表，技能开始时推进可保存游标，活动阶段统一按 `SpecialAbilityId` 解析；Host 对零散射直线多球按 `ActiveSeconds` 建立已提交延迟球，并以正序发布逐球事件。
 - 2026-08-25：把主线 Rabbit Host 测试中遗留的半径 `50`、速度 `432` 写死期望改为从生产 Definition 计算；不修改当前权威配表值。
+- 2026-08-25：关闭时快进至 `origin/main@6f326522`；后续羊 Boss 提交新增的 Host 测试仍写死旧前摇、半径和伤害值，造成权威 CSV 更新后假失败。已改为从生产 Definition 读取，并仅在可渲染环境断言 Niagara 实例；未改动兔子或羊 Boss 运行时逻辑。
 
 ### 证据
 
@@ -112,6 +113,7 @@
 - `.clang-format`：Visual Studio LLVM x64 `clang-format` 按仓库 `.clang-format` 完成，修改文件通过 `git diff --check`。
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`：包括新增 `RangedAbilityRotation` 在内全部 `Success`。
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Host`：`AttackPipeline`、`CompositionAndSave`、`CrowdCollision`、扩充后的 `RabbitProjectilePipeline` 全部 `Success`。
+- 最新主线组合回归：`ReEcho.Enemies.Logic` 全部通过；`ReEcho.Enemies.Host` 5/5 通过，包含 `RabbitProjectilePipeline` 与新增 `SheepProjectilePipeline`。
 - `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：UHT/UBT `Succeeded`，98/98 actions 完成；精选包 source fingerprint=`1dba11951f6d`。
 - `python scripts/validate_project.py` 与 `python scripts/ue/prebuilt_editor.py check`：通过，7 个模块的 UE 5.8 Editor 包与最终源码指纹一致。
 
@@ -122,7 +124,8 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：等待实现后用户在 PIE 验收两种技能的可辨识性和节奏。
+- 2026-08-25 `Accepted`：用户完成 PIE 手工验收并反馈“无误”，确认移动散射、站定四连发及其轮换行为符合预期。
+- 关闭前已审计 `origin/main@6f326522`：Plan112 实现提交 `280e78db` 仍在主线历史中；后续羊 Boss 与武器 VFX 提交未删除兔子轮换、四连发逻辑或其聚焦测试。
 
 ### 架构文档审阅结果
 
