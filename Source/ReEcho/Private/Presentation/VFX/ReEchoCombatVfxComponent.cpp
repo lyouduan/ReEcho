@@ -592,17 +592,28 @@ FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FV
 	return FRotationMatrix::MakeFromZX(Normal, PlaneDirection).Rotator();
 }
 
+FRotator UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(const FVector& Direction,
+                                                                       const FVector& CameraFacingNormal)
+{
+	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
+	PlaneDirection = PlaneDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	// The delivered 0811_01 Niagara mesh is authored in its local YZ plane: local X is the surface normal and
+	// local Y is the in-plane attack axis. The DA Roll correction therefore rotates the slash inside the view plane.
+	return FRotationMatrix::MakeFromXY(Normal, PlaneDirection).Rotator();
+}
+
 FRotator UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation,
                                                                 const FVector& CameraFacingNormal)
 {
 	const FVector CameraNormal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 	const FQuat ComposedQuat = ComposedRotation.Quaternion();
-	const FVector SurfaceNormal = ComposedQuat.RotateVector(FVector::UpVector);
+	const FVector SurfaceNormal = ComposedQuat.RotateVector(FVector::ForwardVector);
 	if (FVector::DotProduct(SurfaceNormal, CameraNormal) >= 0.0f)
 	{
 		return ComposedRotation;
 	}
-	const FVector AttackAxis = ComposedQuat.RotateVector(FVector::ForwardVector).GetSafeNormal();
+	const FVector AttackAxis = ComposedQuat.RotateVector(FVector::RightVector).GetSafeNormal();
 	return (FQuat(AttackAxis, PI) * ComposedQuat).Rotator();
 }
 
@@ -663,7 +674,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	{
 		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
 		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
-		DirectionRotation = ResolveCameraPlaneDirectionRotation(Direction, SwordCameraFacingNormal);
+		DirectionRotation = ResolveSwordMeshDirectionRotation(Direction, SwordCameraFacingNormal);
 	}
 	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
 	{
