@@ -256,8 +256,9 @@ void UReEchoTraitCardChoiceWidget::RestoreChoiceFailure(const int32 InTimeShards
 
 void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 {
-	if (!WidgetTree ||
-	    (WidgetTree->RootWidget && TraitCardContainer && TitleText && SubtitleText && CurrencyText && NeedleWidget))
+	// An authored WBP root is the presentation authority even when optional fallback-only
+	// widgets are deliberately absent. Never replace designer layout just to recreate them.
+	if (!WidgetTree || WidgetTree->RootWidget)
 	{
 		return;
 	}
@@ -367,12 +368,9 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 	CardDescriptions.Reset();
 
 	const TArray<FAnchors> CardAnchors = {FAnchors(0.26f, 0.62f), FAnchors(0.50f, 0.59f), FAnchors(0.74f, 0.62f)};
-	const TArray<FLinearColor> CardColors = {FLinearColor(0.30f, 0.20f, 0.11f, 0.98f),
-	                                         FLinearColor(0.13f, 0.27f, 0.26f, 0.98f),
-	                                         FLinearColor(0.22f, 0.16f, 0.31f, 0.98f)};
-	const TArray<FText> CardKickers = {NSLOCTEXT("ReEcho", "TraitCandidateOne", "候选 I"),
-	                                   NSLOCTEXT("ReEcho", "TraitCandidateTwo", "候选 II"),
-	                                   NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
+	const TArray<FText> FallbackCardKickers = {NSLOCTEXT("ReEcho", "TraitCandidateOne", "候选 I"),
+	                                           NSLOCTEXT("ReEcho", "TraitCandidateTwo", "候选 II"),
+	                                           NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
 	for (int32 CardIndex = 0; CardIndex < 3; ++CardIndex)
 	{
 		USizeBox* CardSize = bUseDesignerCardSlots ? DesignerCardSlots[CardIndex] : nullptr;
@@ -402,7 +400,7 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 		UReEchoIndexedButton* CardButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
 		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TraitCardButton%d"), CardIndex));
 		CardButton->SetEntryIndex(CardIndex);
-		CardButton->SetBackgroundColor(CardColors[CardIndex]);
+		CardButton->SetBackgroundColor(FLinearColor::Transparent);
 		CardButton->SetIsEnabled(false);
 		CardSize->SetContent(CardButton);
 		CardButtons.Add(CardButton);
@@ -413,7 +411,7 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 
 		UTextBlock* CardKicker = CreateCenteredText(
 		    WidgetTree, *FString::Printf(TEXT("TraitCardKicker%d"), CardIndex), 18, FLinearColor(0.48f, 0.90f, 0.88f));
-		CardKicker->SetText(CardKickers[CardIndex]);
+		CardKicker->SetText(FallbackCardKickers[CardIndex]);
 		UVerticalBoxSlot* KickerSlot = CardContent->AddChildToVerticalBox(CardKicker);
 		KickerSlot->SetHorizontalAlignment(HAlign_Fill);
 		KickerSlot->SetPadding(FMargin(18.0f, 26.0f, 18.0f, 18.0f));
@@ -516,12 +514,6 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			CardDescriptions[CardIndex]->SetText(Offers[CardIndex].Description);
 		}
 	}
-	const TArray<FLinearColor> CardColors = {FLinearColor(0.30f, 0.20f, 0.11f, 0.98f),
-	                                         FLinearColor(0.13f, 0.27f, 0.26f, 0.98f),
-	                                         FLinearColor(0.22f, 0.16f, 0.31f, 0.98f)};
-	const TArray<FText> CardKickers = {NSLOCTEXT("ReEcho", "TraitCandidateOne", "候选 I"),
-	                                   NSLOCTEXT("ReEcho", "TraitCandidateTwo", "候选 II"),
-	                                   NSLOCTEXT("ReEcho", "TraitCandidateThree", "候选 III")};
 	for (int32 CardIndex = 0; CardIndex < CardEntries.Num(); ++CardIndex)
 	{
 		const bool bHasOffer = Offers.IsValidIndex(CardIndex);
@@ -545,20 +537,8 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 					                                "InventoryShop/T_UI_Shop_CardIcon.T_UI_Shop_CardIcon"));
 				}
 			}
-			const FText SelectHint =
-			    bShopMode && ShopOffers.IsValidIndex(CardIndex)
-			        ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoicePriceHint", "◆ {0} · 点击选择"),
-			                        FText::AsNumber(ShopOffers[CardIndex].Price))
-			        : FText::GetEmpty();
-			CardEntries[CardIndex]->Configure(CardIndex,
-			                                  CardKickers[CardIndex],
-			                                  Offer.DisplayName,
-			                                  Offer.Description,
-			                                  Offer.Tags,
-			                                  CardColors[CardIndex],
-			                                  Offer.CardArt,
-			                                  Offer.CardIcon,
-			                                  SelectHint);
+			CardEntries[CardIndex]->Configure(
+			    CardIndex, Offer.DisplayName, Offer.Description, Offer.CardArt, Offer.CardIcon);
 		}
 	}
 	for (int32 CardIndex = 0; CardIndex < CardRefreshButtons.Num(); ++CardIndex)

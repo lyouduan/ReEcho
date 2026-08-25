@@ -24,8 +24,8 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 | 配装条目 | `WBP_ReEchoLoadoutEntry` | `UReEchoLoadoutEntryWidget` | 父页面内部 | 角色/武器共用的动态条目；UMG 控制头像和按钮尺寸 |
 | 设置 | `WBP_ReEchoSettings` | `UReEchoSettingsWidget` | `Settings` | 图形、声音、控制分类和返回操作 |
 | 暂停/死亡/胜利 | `WBP_ReEchoRestart` | `UReEchoRestartWidget` | `Pause` | 同一页面按明确模式显示暂停、死亡、胜利和退出确认状态 |
-| 抽卡页面 | `WBP_ReEchoTraitCardChoice` | `UReEchoTraitCardChoiceWidget` | `BuildChoice` | 三个卡槽、标题、货币和揭示动画 |
-| 抽卡条目 | `WBP_ReEchoTraitCardEntry` | `UReEchoTraitCardEntryWidget` | 抽卡页面内部 | 单张卡的按钮、标题、描述和选择提示 |
+| 抽卡页面 | `WBP_ReEchoTraitCardChoice` | `UReEchoTraitCardChoiceWidget` | `BuildChoice` | 三个卡槽、标题、确认按钮和揭示动画 |
+| 抽卡条目 | `WBP_ReEchoTraitCardEntry` | `UReEchoTraitCardEntryWidget` | 抽卡页面内部 | 单张卡的按钮、插图、标题、描述和图标 |
 | 背包/商城 | `WBP_ReEchoInventoryShopScreen` | `UReEchoInventoryShopWidget` | `Screen` | 背包与商城共用页面；报价按钮由目录动态生成 |
 | 属性页面 | `WBP_ReEchoStatsScreen` | `UReEchoStatsWidget` | `Screen` | 玩家和回响的两列属性展示 |
 | 天气 | 无独立 WBP | `UReEchoWeatherWidget` | `Weather` | 明确保留的 C++ `NativePaint` 混合绘制面，负责雨和迷雾 |
@@ -79,7 +79,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 `WBP_ReEchoSettings` 的声音页可见布局以 `AudioDesignerCanvas` 为位置权威。`MasterVolumeVisualOverlay`、`MusicVolumeVisualOverlay`、`CombatVolumeVisualOverlay` 分别代表完整滑条逻辑根；移动它们会同时移动轨道、填充和真实把手。各 `*Label`、`*Percent`、`*MuteCheckBox` 及 `AudioOutputField` 都是该 Canvas 的直接子项，可在 Designer 中独立拖动。运行时生成的下拉交互层会复制 `AudioOutputField` 的 Canvas 位置和尺寸，不应在 C++ 中另写坐标。
 | `WBP_ReEchoRestart` | `TitleText`, `MessageText`, `ResumeButton`, `RestartButton`, `QuitButton`, `SettingsButton`, `QuitButtonText`；Plan45 暂停样板另提供可选 `RootPanel`, `PauseSettingsButton`, `ResumeButtonLabel`, `RestartButtonLabel`, `ArtPauseDimmer`, `ArtPauseResume`, `ArtPauseExitToMenu`, `ArtPauseExitGame`, `ArtPauseSaveAndExit`, `ArtPauseExitWithoutSave`, `ArtPauseBack`, `ArtPauseSettings` |
-| `WBP_ReEchoTraitCardChoice` | `TraitCardContainer`, `TraitCardSlot0`, `TraitCardSlot1`, `TraitCardSlot2`, `TitleText`, `SubtitleText`, `CurrencyText`, `NeedleWidget` |
+| `WBP_ReEchoTraitCardChoice` | `TraitCardContainer`, `TraitCardSlot0`, `TraitCardSlot1`, `TraitCardSlot2`, `TitleText`, `ConfirmButton`, `ConfirmButtonLabel` |
 | `WBP_ReEchoInventoryShopScreen` | `BackgroundImage`, `InventoryPanel`, `ShopPanel`, `CurrencyText`, `InventoryText`, `CloseButton`, `OfferContainer` |
 | `WBP_ReEchoStatsScreen` | `BackgroundImage`, `PlayerStatsText`, `EchoStatsText`, `CloseButton` |
 
@@ -90,7 +90,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 | WBP | 必需控件名 |
 |---|---|
 | `WBP_ReEchoLoadoutEntry` | `SelectButton`, `PortraitImage`, `NameText` |
-| `WBP_ReEchoTraitCardEntry` | `SelectButton`, `KickerText`, `NameText`, `DescriptionText`, `SelectHintText` |
+| `WBP_ReEchoTraitCardEntry` | `SelectButton`, `NameText`, `DescriptionText`；可选图片绑定为 `ArtImage`, `IconImage` |
 
 `SelectButton` 必须是 `UReEchoIndexedButton`，不能替换成普通 `UButton`。它把动态数组索引送回父页面，再由 C++ 解析为稳定的 CharacterId、WeaponId 或 CardId。
 
@@ -160,9 +160,10 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 ### 5.4 Trait 抽卡
 
 - 卡片尺寸由 `WBP_ReEchoTraitCardChoice` 中的 `TraitCardSlot0..2` 决定，不由 C++ 正常路径设置。
-- 单卡内部的标题、说明、提示、Padding 和按钮 Style 修改 `WBP_ReEchoTraitCardEntry`。
+- 三个 `TraitCardSlot` 内的 `DesignerTraitCardSample0..2` 仅用于 Designer 所见即所得预览；进局后 C++ 会以真实条目替换，不参与玩法数据。
+- 单卡使用 `WBP_ReEchoTraitCardEntry > CardRootScaleBox > CardRootSizeBox`：ScaleBox 负责在外部卡槽中等比缩放，SizeBox 固定为卡牌底图原始 `420×593` 设计面，避免底图变形，也避免 Canvas 尺寸随文字包围盒变化。内部的位置权威位于 `SelectButton > Overlay_0 > CardDesignerCanvas`；`NameText`、`DescriptionText` 与 `IconImage` 都是该 Canvas 的直接子项，可在 Designer 画布中直接拖动或修改 Canvas Slot 的 Position/Size。不要修改或删除 ScaleBox，亦不要修改 SizeBox 的 Width/Height Override；默认文本与图片是设计期样例，进局后 `Configure` 只覆盖内容，不覆盖位置。若单独打开 Entry 时 Designer 仍显示横向全屏预览，请将右上角预览模式从 `Fill Screen` 改为 `Desired`，它不代表运行时卡牌比例。
+- 选择页的 `TitleText` 与 `ConfirmButtonLabel` 都是 `WBP_ReEchoTraitCardChoice > RootPanel` 的 Canvas 直接子项，可独立拖动。`ConfirmButtonLabel` 为 `HitTestInvisible`，不会阻挡按钮；需要移动整个确认交互时，应同时移动 `ConfirmButton` 与 `ConfirmButtonLabel`。
 - 三个 Slot 必须全部存在，并保持可容纳动态创建的 Entry Widget。
-- `NeedleWidget` 的位置和视觉可由 UMG 调整，但揭示时序和是否可选择由 C++ 控制。
 - 不要把 CardId 写进蓝图文本或按钮 Tag；选择仍由父 Widget 的索引到稳定 ID 映射完成。
 - 不要在卡片按钮事件中自行移除父页面或打开商城。抽卡结算、下一帧关闭、商城创建和暂停恢复由 GameMode 管理。
 

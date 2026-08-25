@@ -23,14 +23,10 @@ public:
 	FReEchoTraitCardEntrySelected OnEntrySelected;
 
 	void Configure(int32 InEntryIndex,
-	               const FText& Kicker,
 	               const FText& DisplayName,
 	               const FText& Description,
-	               const TArray<FName>& Tags,
-	               const FLinearColor& CardColor,
 	               UTexture2D* CardArt = nullptr,
-	               UTexture2D* CardIcon = nullptr,
-	               const FText& SelectHint = FText());
+	               UTexture2D* CardIcon = nullptr);
 	void SetSelectionEnabled(bool bEnabled);
 	void SetSelectedVisual(bool bSelected, bool bHasSelection);
 	void FocusSelection();
@@ -45,10 +41,6 @@ private:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UReEchoIndexedButton> SelectButton;
 
-	/** Placeholder frame tinted with the runtime card palette so offers retain their existing identity. */
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UImage> ArtCardFrame;
-
 	/** Card art (main visual). Optional; hidden when no source texture is provided (Plan 69). */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> ArtImage;
@@ -58,22 +50,10 @@ private:
 	TObjectPtr<UImage> IconImage;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UTextBlock> KickerText;
-
-	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> NameText;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> DescriptionText;
-
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UTextBlock> PrimaryTagText;
-
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UTextBlock> SecondaryTagText;
-
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UTextBlock> SelectHintText;
 
 	int32 EntryIndex = INDEX_NONE;
 };
