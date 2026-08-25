@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatTarget.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Components/MaterialBillboardComponent.h"
@@ -11,7 +12,10 @@
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraFunctionLibrary.h"
+#include "NiagaraMeshRendererProperties.h"
 #include "NiagaraSystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "Math/RotationMatrix.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
@@ -146,7 +150,7 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemEmittersLocalSpace(UNiagaraSyste
 
 UReEchoCombatVfxComponent::UReEchoCombatVfxComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 int32 UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(const int32 OwnerSortPriority)
@@ -352,6 +356,26 @@ void UReEchoCombatVfxComponent::EndPlay(const EEndPlayReason::Type EndPlayReason
 	Super::EndPlay(EndPlayReason);
 }
 
+void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
+	                                           const ELevelTick TickType,
+	                                           FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	for (int32 Index = ReverseMeleePlaybacks.Num() - 1; Index >= 0; --Index)
+	{
+		FReverseMeleePlayback& Playback = ReverseMeleePlaybacks[Index];
+		UNiagaraComponent* Effect = Playback.Effect.Get();
+		Playback.RemainingSeconds = FMath::Max(0.0f, Playback.RemainingSeconds - DeltaTime);
+		if (!Effect || Playback.RemainingSeconds <= 0.0f)
+		{
+			StopNiagaraEffect(Effect);
+			ReverseMeleePlaybacks.RemoveAtSwap(Index);
+			continue;
+		}
+		Effect->SetDesiredAge(Playback.RemainingSeconds);
+	}
+}
+
 void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* InCombatEvents,
                                                  UReEchoEnemyEventsComponent* InEnemyEvents)
 {
@@ -525,10 +549,68 @@ FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredSc
 	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
 }
 
+bool UReEchoCombatVfxComponent::ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	bool bHasEnabledEmitter = false;
+	bool bHasMeshRenderer = false;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		if (!EmitterData)
+		{
+			return false;
+		}
+		bHasEnabledEmitter = true;
+		if (UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase())
+		{
+			EmitterBase->Modify();
+		}
+		EmitterData->bLocalSpace = true;
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			if (UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(Renderer))
+			{
+				MeshRenderer->Modify();
+				MeshRenderer->FacingMode = ENiagaraMeshFacingMode::Default;
+				bHasMeshRenderer = true;
+			}
+		}
+	}
+	System->MarkPackageDirty();
+	return bHasEnabledEmitter && bHasMeshRenderer;
+#else
+	return false;
+#endif
+}
+
 FRotator UReEchoCombatVfxComponent::ComposeAttachedRotation(const FRotator& DirectionRotation,
                                                             const FRotator& LocalRotation)
 {
 	return (DirectionRotation.Quaternion() * LocalRotation.Quaternion()).Rotator();
+}
+
+FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FVector& Direction,
+	                                                                     const FVector& CameraFacingNormal)
+{
+	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
+	PlaneDirection = PlaneDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	return FRotationMatrix::MakeFromZX(Normal, PlaneDirection).Rotator();
+}
+
+float UReEchoCombatVfxComponent::ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight)
+{
+	return FVector::DotProduct(AttackDirection, CameraRight) < 0.0f ? 1.0f : -1.0f;
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
@@ -578,12 +660,26 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		return nullptr;
 	}
 	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
-	const FRotator RelativeRotation = ComposeAttachedRotation(
-	    FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction), Placement.LocalRotation);
+	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+	    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	{
+		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
+		DirectionRotation = ResolveCameraPlaneDirectionRotation(Direction, CameraFacingNormal);
+	}
+	const FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
 	const FVector RelativeScale = ResolveAttachedScale(
 	    Placement.Scale,
 	    AttachmentRoot->GetComponentTransform().GetScale3D(),
 	    Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
+	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+	const FVector CameraRight = Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y)
+	                                   : FVector::RightVector;
+	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
+	                                ? ResolveMeleePlayDirection(Direction, CameraRight)
+	                                : 1.0f;
+	const bool bReverseMelee = PlayDirection < 0.0f;
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
 	    System,
 	    AttachmentRoot,
@@ -592,9 +688,9 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	    RelativeRotation,
 	    RelativeScale,
 	    EAttachLocation::KeepRelativeOffset,
-	    bAutoDestroy,
+	    bAutoDestroy && !bReverseMelee,
 	    ENCPoolMethod::None,
-	    true);
+	    false);
 	if (Effect)
 	{
 		if (Placement.bUseWorldDirectionRotation)
@@ -604,7 +700,18 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 			Effect->SetAbsolute(false, true, false);
 			Effect->SetWorldRotation(RelativeRotation);
 		}
+		if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		{
+			Effect->SetVariableFloat(TEXT("User.PlayDirection"), PlayDirection);
+			if (bReverseMelee)
+			{
+				Effect->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
+				Effect->SetDesiredAge(Placement.PlaybackDurationSeconds);
+				ReverseMeleePlaybacks.Add({Effect, Placement.PlaybackDurationSeconds});
+			}
+		}
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+		Effect->Activate(true);
 		ReEchoCombatVfx::LogLayerStateNowAndDelayed(GetWorld(),
 		                                            GetOwner(),
 		                                            AttachmentRoot,
@@ -727,6 +834,11 @@ bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackS
 
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
+	for (FReverseMeleePlayback& Playback : ReverseMeleePlaybacks)
+	{
+		StopNiagaraEffect(Playback.Effect.Get());
+	}
+	ReverseMeleePlaybacks.Reset();
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);

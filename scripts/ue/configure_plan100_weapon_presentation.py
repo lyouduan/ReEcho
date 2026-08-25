@@ -44,7 +44,18 @@ for key in VISUAL_KEYS:
     preserve_current_length_as_absolute(weapon_profile)
     if key == "CrescentBlade":
         configure_sword_slash(weapon_profile)
+    if key == "Bow":
+        weapon_profile.set_editor_property(
+            "held_mirror_rule", unreal.ReEchoHeldWeaponMirrorRule.WHEN_FACING_LEFT
+        )
+    if key == "Gun":
+        weapon_profile.set_editor_property(
+            "held_mirror_rule", unreal.ReEchoHeldWeaponMirrorRule.WHEN_FACING_RIGHT
+        )
     if not unreal.EditorAssetLibrary.save_loaded_asset(weapon_profile, only_if_is_dirty=False):
         raise RuntimeError(f"Could not save weapon profile for {key}")
 
-unreal.log("PLAN100_WEAPON_PRESENTATION_RESULT profiles=6 sword_z=60 sword_roll=-45")
+unreal.log(
+    "PLAN100_WEAPON_PRESENTATION_RESULT profiles=6 sword_z=60 sword_roll=-45 "
+    "bow_mirror=left gun_mirror=right"
+)

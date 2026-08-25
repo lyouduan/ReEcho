@@ -128,12 +128,31 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	    CreateWeaponBillboard(TEXT("ScytheSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Scythe")));
 	WhipSprite =
 	    CreateWeaponBillboard(TEXT("WhipSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Whip")));
-	BowSprite =
-	    CreateWeaponBillboard(TEXT("BowSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Bow")));
-	GunSprite =
-	    CreateWeaponBillboard(TEXT("GunSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Gun")));
 
 	// Billboard 会在渲染阶段覆盖组件旋转；使用透明 Plane 才能稳定显示武器自身的 360 度旋转。
+	UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
+	    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	auto CreateWeaponPlane = [this, PlaneMesh, SpriteMaterial](const TCHAR* Name, const FString& TexturePath)
+	{
+		UStaticMeshComponent* Plane = CreateDefaultSubobject<UStaticMeshComponent>(Name);
+		Plane->SetupAttachment(Root);
+		Plane->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Plane->SetCastShadow(false);
+		Plane->SetTranslucentSortPriority(6);
+		Plane->SetHiddenInGame(false);
+		Plane->SetStaticMesh(PlaneMesh);
+		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, *TexturePath); SpriteMaterial && Texture)
+		{
+			UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(SpriteMaterial, this);
+			MaterialInstance->SetTextureParameterValue(TEXT("SpriteTexture"), Texture);
+			Plane->SetMaterial(0, MaterialInstance);
+		}
+		return Plane;
+	};
+	BowSprite = CreateWeaponPlane(TEXT("BowSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Bow")));
+	GunSprite = CreateWeaponPlane(TEXT("GunSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Gun")));
+
 	SwordSprite = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordSprite"));
 	SwordSprite->SetupAttachment(Root);
 	SwordSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -142,12 +161,7 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	SwordSprite->SetRelativeLocation(ReEchoWeaponVisual::SwordLocation);
 	SwordSprite->SetRelativeRotation(ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians));
 	SwordSprite->SetHiddenInGame(false);
-	if (UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
-	{
-		SwordSprite->SetStaticMesh(PlaneMesh);
-	}
-	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
-	    nullptr, TEXT("/Paper2D/TranslucentUnlitSpriteMaterial.TranslucentUnlitSpriteMaterial"));
+	SwordSprite->SetStaticMesh(PlaneMesh);
 	const FString WeaponTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("CrescentBlade"));
 	UTexture2D* WeaponTexture = LoadObject<UTexture2D>(nullptr, *WeaponTexturePath);
 	if (SpriteMaterial && WeaponTexture)
@@ -424,7 +438,8 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 			Event.AttackStepId = LastCommittedAttackStepId;
 			Event.StepIndex = LastCommittedAttackStepIndex;
 			Event.Origin = WeaponOwner->GetActorLocation();
-			Event.Direction = ResolveOwnerAimDirection();
+			const FVector ToCommittedTarget = Event.Target ? Event.Target->GetActorLocation() - Event.Origin : FVector::ZeroVector;
+			Event.Direction = ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
 			Events->PublishAttackCommitted(Event);
 		}
 	}
@@ -1283,8 +1298,8 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 	const float CharacterWorldHeight = CharacterReferenceHeight * OwnerScale;
 	const FVector AnchorRatio =
 	    CharacterProfile ? CharacterProfile->WeaponAnchorRatio : ReEchoWeaponVisual::DefaultWeaponAnchorRatio;
-	WeaponActorRestLocation = AnchorRatio * CharacterReferenceHeight;
-	SetActorRelativeLocation(WeaponActorRestLocation);
+	WeaponHandAnchorLocation = AnchorRatio * CharacterReferenceHeight;
+	SetActorRelativeLocation(ResolveMirroredHandAnchor());
 
 	UTexture2D* Texture = WeaponProfile->HeldTexture.LoadSynchronous();
 	if (!Texture && VisualKey == TEXT("Whip"))
@@ -1301,14 +1316,6 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 	{
 		Billboard = ScytheSprite;
 	}
-	else if (VisualKey == TEXT("Bow"))
-	{
-		Billboard = BowSprite;
-	}
-	else if (VisualKey == TEXT("Gun"))
-	{
-		Billboard = GunSprite;
-	}
 
 	const FVector VisualOffset = WeaponProfile->HeldOffsetRatio * CharacterWorldHeight;
 	if (Billboard && Texture)
@@ -1323,13 +1330,27 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 		Billboard->SetRelativeScale3D(FVector(UniformScale));
 	}
 
+	UStaticMeshComponent* RangedPlane = VisualKey == TEXT("Bow") ? BowSprite.Get()
+	                                        : VisualKey == TEXT("Gun") ? GunSprite.Get() : nullptr;
+	if (RangedPlane && Texture)
+	{
+		const FVector2D Dimensions =
+		    ReEchoWeaponVisual::ResolveHeldDimensions(*Texture, *WeaponProfile, CharacterWorldHeight);
+		RangedPlane->SetRelativeLocation(VisualOffset);
+		RangedPlane->SetRelativeRotation(WeaponProfile->HeldRotationOffset.Quaternion() *
+		                                  ReEchoWeaponVisual::GetSwordRotation());
+		RangedPlane->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
+		ApplyHeldPlaneMirror(RangedPlane, WeaponProfile->HeldMirrorRule);
+	}
+
 	if (SwordSprite && (VisualKey == TEXT("CrescentBlade") || VisualKey == TEXT("Whip")) && Texture)
 	{
 		const FVector2D Dimensions =
 		    ReEchoWeaponVisual::ResolveHeldDimensions(*Texture, *WeaponProfile, CharacterWorldHeight);
 		SwordSpriteRestLocation = VisualOffset;
-		SwordSpriteRestRotation = WeaponProfile->HeldRotationOffset.Quaternion() *
-		                          ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians);
+		SwordPlanarAngleOffsetRadians = FMath::DegreesToRadians(WeaponProfile->HeldPlanarAngleOffsetDegrees);
+		SwordAuthoredRotation = WeaponProfile->HeldRotationOffset.Quaternion();
+		SwordSpriteRestRotation = ResolveMirroredSwordRestRotation();
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 		SwordSprite->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
@@ -1514,6 +1535,18 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	WeaponLogic.Tick(DeltaSeconds);
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	SetActorRelativeLocation(ResolveMirroredHandAnchor());
+	SwordSpriteRestRotation = ResolveMirroredSwordRestRotation();
+	if (const UReEchoWeaponPresentationProfile* Profile =
+	        FReEchoWeaponVisualCatalog::ResolveProfile(GetEquippedWeaponVisualKey()))
+	{
+		if (UStaticMeshComponent* Plane = GetEquippedWeaponVisualKey() == TEXT("Bow") ? BowSprite.Get()
+		                                   : GetEquippedWeaponVisualKey() == TEXT("Gun") ? GunSprite.Get()
+		                                                                                   : nullptr)
+		{
+			ApplyHeldPlaneMirror(Plane, Profile->HeldMirrorRule);
+		}
+	}
 	for (int32 Index = TimedRangeStacks.Num() - 1; Index >= 0; --Index)
 	{
 		if (WorldTime >= TimedRangeStacks[Index].ExpiresAt)
@@ -1551,7 +1584,7 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	if (SwordAnimationTime <= 0.0f || !bUsesSwordVisual)
 	{
 		SwordAnimationTime = 0.0f;
-		SetActorRelativeLocation(WeaponActorRestLocation);
+		SetActorRelativeRotation(FQuat::Identity);
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 		return;
@@ -1559,9 +1592,65 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	SwordAnimationTime = FMath::Max(0.0f, SwordAnimationTime - DeltaSeconds);
 	const float Progress = 1.0f - SwordAnimationTime / SwordAnimationDuration;
 	const float Angle = Progress * 2.0f * PI * SwordSwingDirection;
-	const FVector OrbitLocation = FQuat(FVector::UpVector, Angle).RotateVector(WeaponActorRestLocation);
-	SetActorRelativeLocation(OrbitLocation);
+	// The WeaponActor root is the character hand anchor. Rotate the child presentation around that fixed pivot.
+	SetActorRelativeRotation(FQuat(ReEchoWeaponVisual::CameraFacingNormal, Angle));
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
-	SwordSprite->SetRelativeRotation(
-	    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians + Angle));
+	SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
+}
+
+float AReEchoWeaponActor::ResolveOwnerVisualFacingSign() const
+{
+	if (const AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(GetOwner()))
+	{
+		return Player->GetVisualFacingSign();
+	}
+	if (const AReEchoEchoActor* Echo = Cast<AReEchoEchoActor>(GetOwner()))
+	{
+		return Echo->GetVisualFacingSign();
+	}
+	return 1.0f;
+}
+
+FVector AReEchoWeaponActor::ResolveMirroredHandAnchor() const
+{
+	if (ResolveOwnerVisualFacingSign() >= 0.0f)
+	{
+		return WeaponHandAnchorLocation;
+	}
+	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+	FVector CameraRight = Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y)
+	                             : FVector::RightVector;
+	CameraRight.Z = 0.0f;
+	CameraRight = CameraRight.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	const float RightFacingHorizontalOffset = FVector::DotProduct(WeaponHandAnchorLocation, CameraRight);
+	const FVector MirroredAnchor =
+	    WeaponHandAnchorLocation - 2.0f * RightFacingHorizontalOffset * CameraRight;
+	// The two symmetric hand anchors define the character's presentation width. Left-facing sword art needs one
+	// additional full character width beyond the mirrored hand so its reversed authored body does not overlap the host.
+	const float CharacterPresentationWidth = 2.0f * FMath::Abs(RightFacingHorizontalOffset);
+	return MirroredAnchor - CharacterPresentationWidth * CameraRight;
+}
+
+FQuat AReEchoWeaponActor::ResolveMirroredSwordRestRotation() const
+{
+	const float RightFacingAngle = ReEchoWeaponVisual::SwordRestAngleRadians + SwordPlanarAngleOffsetRadians;
+	// The delivered sword texture's visible blade axis is opposite its mathematical local axis. Mirror the authored
+	// camera-plane angle itself so the approved right-side upper-right pose becomes its symmetric upper-left pose.
+	const float FacingAngle = ResolveOwnerVisualFacingSign() >= 0.0f ? RightFacingAngle : -RightFacingAngle;
+	return SwordAuthoredRotation * ReEchoWeaponVisual::GetSwordRotation(FacingAngle);
+}
+
+void AReEchoWeaponActor::ApplyHeldPlaneMirror(UStaticMeshComponent* Plane,
+	                                           const EReEchoHeldWeaponMirrorRule MirrorRule) const
+{
+	if (!Plane)
+	{
+		return;
+	}
+	const bool bFacesLeft = ResolveOwnerVisualFacingSign() < 0.0f;
+	const bool bMirror = MirrorRule == EReEchoHeldWeaponMirrorRule::WhenFacingLeft && bFacesLeft ||
+	                     MirrorRule == EReEchoHeldWeaponMirrorRule::WhenFacingRight && !bFacesLeft;
+	FVector Scale = Plane->GetRelativeScale3D();
+	Scale.X = FMath::Abs(Scale.X) * (bMirror ? -1.0f : 1.0f);
+	Plane->SetRelativeScale3D(Scale);
 }

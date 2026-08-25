@@ -88,6 +88,10 @@ public:
 	                                    bool bPreserveWorldSize);
 	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
+	/** Aligns a camera-facing effect's local X axis to a world attack direction projected into the camera plane. */
+	static FRotator ResolveCameraPlaneDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
+	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
+	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
@@ -97,6 +101,9 @@ public:
 	/** Editor repair seam for attached Niagara systems that must follow their owning presentation root. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool SetNiagaraSystemEmittersLocalSpace(UNiagaraSystem* System);
+	/** Editor repair seam for melee mesh systems whose camera-facing renderer overrides component rotation. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
 	bool
@@ -117,6 +124,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
 	void BindEventSources(UReEchoCombatEventsComponent* InCombatEvents, UReEchoEnemyEventsComponent* InEnemyEvents);
@@ -229,5 +237,11 @@ private:
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;
 	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;
 	TArray<FTimerHandle> ConductPropagationTimers;
+	struct FReverseMeleePlayback
+	{
+		TWeakObjectPtr<UNiagaraComponent> Effect;
+		float RemainingSeconds = 0.0f;
+	};
+	mutable TArray<FReverseMeleePlayback> ReverseMeleePlaybacks;
 	uint64 ConductBatchSerial = 0;
 };

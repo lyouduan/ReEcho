@@ -43,6 +43,7 @@ struct FReEchoVfxPlacement
 	FVector Scale = FVector::OneVector;
 	EReEchoVfxScalePolicy ScalePolicy = EReEchoVfxScalePolicy::InheritAttachment;
 	bool bUseWorldDirectionRotation = false;
+	float PlaybackDurationSeconds = 0.6f;
 };
 
 /** Centralized semantic-to-asset mapping. Gameplay code never stores Niagara paths. */

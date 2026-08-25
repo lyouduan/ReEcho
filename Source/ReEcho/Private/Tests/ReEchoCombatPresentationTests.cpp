@@ -88,9 +88,18 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Whip"))->HeldTexture.IsNull());
 	TestFalse(TEXT("Bow has held visual"),
 	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->HeldTexture.IsNull());
+	TestEqual(TEXT("Bow mirrors only while facing left"),
+	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->HeldMirrorRule,
+	          EReEchoHeldWeaponMirrorRule::WhenFacingLeft);
+	TestEqual(TEXT("Gun mirrors only while facing right"),
+	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"))->HeldMirrorRule,
+	          EReEchoHeldWeaponMirrorRule::WhenFacingRight);
 	TestTrue(TEXT("Longsword owns full-spin weapon motion"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->MotionMode ==
 	             EReEchoWeaponMotionMode::FullSpin);
+	TestEqual(TEXT("Longsword points along the approved upper-right screen direction"),
+	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->HeldPlanarAngleOffsetDegrees,
+	          90.0f);
 	TestTrue(TEXT("Sword uses committed attack VFX"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->AttackCommitted.IsConfigured());
 	const UReEchoWeaponPresentationProfile* SwordProfile =

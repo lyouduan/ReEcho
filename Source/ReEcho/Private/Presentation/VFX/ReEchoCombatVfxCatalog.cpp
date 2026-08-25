@@ -227,6 +227,7 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		Placement.ScalePolicy = Slot->bPreserveWorldSize ? EReEchoVfxScalePolicy::PreserveWorldSize
 		                                                   : EReEchoVfxScalePolicy::InheritAttachment;
 		Placement.bUseWorldDirectionRotation = true;
+		Placement.PlaybackDurationSeconds = FMath::Max(Slot->PlaybackDurationSeconds, 0.01f);
 		return Placement;
 	}
 	if (Semantic == EReEchoCombatVfxSemantic::GoatSkill02Charging ||

@@ -7,6 +7,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
+#include "NiagaraMeshRendererProperties.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraVariant.h"
@@ -93,20 +94,29 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
 	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"), SwordPlacement.LocalRotation.ContainsNaN());
+	TestTrue(TEXT("Sword slash corrects the replacement asset's reversed authored axis"),
+	         FMath::IsNearlyEqual(FMath::Abs(SwordPlacement.LocalRotation.Yaw), 180.0f, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Sword slash cancels different host scales"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(
 	             SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
 	             .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
 	const FVector SlashDirections[] = {FVector::ForwardVector, FVector::BackwardVector, FVector(0.6f, 0.8f, 0.0f)};
+	const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
+	TestEqual(TEXT("Left-side sword slash plays forward"),
+	          UReEchoCombatVfxComponent::ResolveMeleePlayDirection(-FVector::RightVector, FVector::RightVector),
+	          1.0f);
+	TestEqual(TEXT("Right-side sword slash plays in reverse"),
+	          UReEchoCombatVfxComponent::ResolveMeleePlayDirection(FVector::RightVector, FVector::RightVector),
+	          -1.0f);
 	for (const FVector& SlashDirection : SlashDirections)
 	{
-		const FRotator DirectionRotation =
-		    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::PlayerMeleeSlash, SlashDirection);
-		const FRotator ComposedRotation =
-		    UReEchoCombatVfxComponent::ComposeAttachedRotation(DirectionRotation, SwordPlacement.LocalRotation);
-		TestTrue(TEXT("Sword slash local tilt follows the committed attack direction"),
-		         ComposedRotation.RotateVector(FVector::ForwardVector).GetSafeNormal2D().Equals(
-		             SlashDirection.GetSafeNormal2D(), KINDA_SMALL_NUMBER));
+		const FRotator DirectionRotation = UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(
+		    SlashDirection, CameraFacingNormal);
+		const FVector ExpectedPlaneDirection =
+		    (SlashDirection - FVector::DotProduct(SlashDirection, CameraFacingNormal) * CameraFacingNormal).GetSafeNormal();
+		TestTrue(TEXT("Sword slash rotates in the camera-facing plane toward the committed enemy"),
+		         DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection,
+		                                                                       KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
@@ -362,6 +372,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;
+			int32 SwordMeshRendererCount = 0;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (!EmitterHandle.GetIsEnabled())
@@ -383,6 +394,20 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 						}
 					}
 				}
+				if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && EmitterData)
+				{
+					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+					{
+						if (const UNiagaraMeshRendererProperties* Mesh =
+						        Cast<UNiagaraMeshRendererProperties>(Renderer))
+						{
+							++SwordMeshRendererCount;
+							TestEqual(TEXT("Sword mesh renderer preserves component-space direction"),
+							          Mesh->FacingMode,
+							          ENiagaraMeshFacingMode::Default);
+						}
+					}
+				}
 				TestTrue(FString::Printf(TEXT("Weapon VFX emitter '%s' uses local space"),
 				                         *EmitterHandle.GetName().ToString()),
 				         EmitterData && EmitterData->bLocalSpace);
@@ -390,6 +415,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight)
 			{
 				TestEqual(TEXT("Bow flight keeps its three authored sprite layers"), BowSpriteRendererCount, 3);
+			}
+			if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+			{
+				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
 			}
 		}
 	}
