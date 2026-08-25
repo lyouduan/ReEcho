@@ -1,6 +1,7 @@
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 
 #include "Core/ReEchoRabbitProjectilePattern.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
@@ -19,6 +20,14 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 		case EReEchoCombatVfxSemantic::PlayerScytheSlash:
 			VisualKey = TEXT("Scythe");
 			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerLongSwordImpact:
+			VisualKey = TEXT("CrescentBlade");
+			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerScytheImpact:
+			VisualKey = TEXT("Scythe");
+			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
 			break;
 		case EReEchoCombatVfxSemantic::PlayerBowFlight:
 			VisualKey = TEXT("Bow");
@@ -77,6 +86,10 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return ResolveWeaponSlot(TEXT("CrescentBlade"), &UReEchoWeaponPresentationProfile::AttackCommitted);
 		case EReEchoCombatVfxSemantic::PlayerScytheSlash:
 			return ResolveWeaponSlot(TEXT("Scythe"), &UReEchoWeaponPresentationProfile::AttackCommitted);
+		case EReEchoCombatVfxSemantic::PlayerLongSwordImpact:
+			return ResolveWeaponSlot(TEXT("CrescentBlade"), &UReEchoWeaponPresentationProfile::DamageApplied);
+		case EReEchoCombatVfxSemantic::PlayerScytheImpact:
+			return ResolveWeaponSlot(TEXT("Scythe"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerBowFlight:
 			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::Travel);
 		case EReEchoCombatVfxSemantic::PlayerBowImpact:
@@ -152,6 +165,28 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 	if (AttackPatternId == TEXT("Pattern.ScytheSweep"))
 	{
 		OutSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlash;
+		return true;
+	}
+	return false;
+}
+
+bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId,
+                                                          EReEchoCombatVfxSemantic& OutSemantic)
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(WeaponId) : nullptr;
+	if (!Weapon)
+	{
+		return false;
+	}
+	if (Weapon->VisualKey == TEXT("CrescentBlade"))
+	{
+		OutSemantic = EReEchoCombatVfxSemantic::PlayerLongSwordImpact;
+		return true;
+	}
+	if (Weapon->VisualKey == TEXT("Scythe"))
+	{
+		OutSemantic = EReEchoCombatVfxSemantic::PlayerScytheImpact;
 		return true;
 	}
 	return false;

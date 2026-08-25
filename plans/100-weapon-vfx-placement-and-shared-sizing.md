@@ -64,6 +64,7 @@
 - [ ] 兔子球与玩家的扫掠碰撞成功结算一次伤害后立即发布 `Ended` 并从逻辑数组移除，视觉代理同步消失。
 - [ ] 仅 `Pattern.LongSwordCombo` 在既有提交范围和 180°弧内移除兔子球；弧外球与其他武器不受影响。
 - [ ] 手动触发的主动攻击成功 Commit 后与普通攻击共用 `AttackCommitted` 事件出口并释放对应特效；镰刀召回不重复发布。
+- [ ] 长剑与镰刀造成 `AppliedDamage > 0` 的权威命中后，分别消费自身 Weapon Profile 的 `DamageApplied` Slot，在最终命中世界位置播放打击特效；零伤害不播放，致死正伤害仍播放。
 - [ ] 手动与自动攻击输入互斥：模式切换先释放旧来源，非当前模式入口被拒绝，迟到的旧来源 Release 不会中止新来源。
 - [ ] 配置脚本可重复运行，只修改本 Plan 锁定字段，不重置艺术已调整的其他 Profile 字段。
 - [ ] 聚焦自动化、C++ 格式化、Development FullRebuild、`validate_project.py`、预构建一致性和 `git diff --check` 通过。
@@ -107,6 +108,7 @@
 - 用户明确要求不合并远端新增 9 个提交并继续在本 Plan 执行；候选仍基于当前 Plan100 分支。兔子球命中玩家后立即发布 `Ended` 并从 EnemyHost 逻辑数组移除，对应 VFX 代理同步结束。
 - `Pattern.LongSwordCombo` 在既有近战提交中复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询所有兔子 Host 的逻辑球；弧内球由 Host 权威结束。其他攻击模式和非兔子投射物不进入该路径。
 - 普通攻击与主动攻击的成功 Commit 统一由 `PublishAttackCommittedEvent` 组装并发布表现事件；此前缺事件的手动主动攻击现在会释放对应武器特效，镰刀召回仍不产生第二次 Commit/特效。
+- `UReEchoCombatVfxComponent` 现在同时消费来源侧 `OnHit`：通过实时武器定义的 `WeaponVisualKey` 将长剑/镰刀映射到各自 `DamageApplied` Slot，并在最终 `WorldLocation` 按来源到命中点方向应用 DA 的完整 Transform。配置脚本为两把近战武器写入可独立替换的命中特效；`AppliedDamage <= 0` 不播放，致死正伤害不再因目标侧 Hurt 生命周期而遗漏。
 - `UReEchoAttackControllerComponent` 成为共享 GAS 普攻输入的唯一来源所有者：模式切换统一释放旧 held；手动/自动入口在接管前清理异常旧来源；任一来源的迟到 Release 只释放自身，不能误停另一来源。Pawn 移除重复的模式切换后二次释放分支。
 - 发布前按用户确认合入 `origin/main@e34f8f5f`：远程商店、Boss/敌人数值、角色变形与 Combat 属性修复全部保留；Pawn、WeaponActor 与模块文档自动组合，无文本冲突。预构建包不做二进制语义合并，统一由最终集成源码 FullRebuild 重生。用户确认将 `BP_ArenaScene_SC01.uasset` 纳入候选，`WBP_ReEchoEncounterHud.uasset` 继续排除。
 
@@ -123,6 +125,8 @@
 - `ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 聚焦自动化找到 1 项并通过：首次主动镰刀 Commit 发布一次 `Pattern.ScytheSweep`，召回不重复发布。`validate_project.py`、预构建一致性与 `git diff --check` 同步通过。
 - 手动/自动互斥候选 Development FullRebuild 通过：`96/96` actions，预构建 source fingerprint `17225d9af900`；`ReEcho.AttackMode.InputSource` 找到 1 项并通过，覆盖自动模式拒绝物理输入、手动模式拒绝自动入口，以及切换模式释放旧 held。`validate_project.py`、预构建一致性与 `git diff --check` 通过。
 - 最终远程集成候选 Development FullRebuild 通过：`109/109` actions，预构建 source fingerprint `29b4632d124d`。`ReEcho.AttackMode.InputSource`、`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 各找到 1 项并通过；兔子测试改为按远程最新能力数据的权威半径/速度动态布置扫掠样本，Rune 测试跳过策划已禁用的陨星与投掷召回效果，避免对禁用内容解引用空 Weapon。最终 `validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- 长剑/镰刀 DamageApplied 修复候选 Development FullRebuild 通过：`97/97` actions，预构建 source fingerprint `6d18f16f3218`。`ReEcho.Presentation.VFX.Catalog` 找到 1 项并通过，覆盖两把近战武器语义解析、非近战拒绝和新增 Niagara 加载；`validate_project.py`、预构建一致性与 `git diff --check` 通过。首次沙箱验证仅因无法在 worktree `Content` 下创建临时 XLSX 包目录失败，授权后原命令通过。
+- 合入远程羊 Boss 与兔子双技能候选后，长剑/镰刀 DamageApplied 与远程 Boss VFX 语义合并保留：Development FullRebuild `94/94` actions 通过，预构建 source fingerprint `3171fa1f2314`。`ReEcho.Presentation.VFX.Catalog` 找到 1 项、`ReEcho.Enemies.Boss` 找到 8 项、`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers`、`ReEcho.AttackMode.InputSource` 各找到 1 项，全部通过。
 - 推送前第二次远端审计发现并按用户确认合入 `origin/main@65ed602b`（出生预警修复与 Plan112 兔子双技能）；无源码冲突，`MOD-ReEcho.md` 自动组合，预构建包再次由组合源码重生。最终 Development FullRebuild `97/97` actions，source fingerprint `5a839ae36077`；上述三个聚焦测试、项目校验、预构建一致性与 `git diff --check` 再次通过。
 - `validate_project.py` 的非 XLSX 检查完成，但总结果受 worktree `Content/reecho_xlsx_package_*` 创建权限拒绝阻塞；本 Plan 未修改 XLSX/CSV。
 - 全量 `ReEcho.Weapons` 暴露既有非本任务失败：生产 rune 数预期 47/实际 46、`P_GUN_RAPID_MUZZLE` 已禁用，以及 WeaponRuntime 临时 CSV 断言；精确受影响测试已独立通过。

@@ -178,6 +178,8 @@ private:
 	UFUNCTION()
 	void HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event);
 	UFUNCTION()
+	void HandleHit(const FReEchoDamageEvent& Event);
+	UFUNCTION()
 	void HandleHurt(const FReEchoDamageEvent& Event);
 	UFUNCTION()
 	void HandleDeath(const FReEchoDamageEvent& Event);

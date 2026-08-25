@@ -498,6 +498,7 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	if (CombatEvents)
 	{
 		CombatEvents->OnAttackCommitted.RemoveAll(this);
+		CombatEvents->OnHit.RemoveAll(this);
 		CombatEvents->OnHurt.RemoveAll(this);
 		CombatEvents->OnDeath.RemoveAll(this);
 		CombatEvents->OnElementStateChanged.RemoveAll(this);
@@ -519,6 +520,7 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	if (CombatEvents)
 	{
 		CombatEvents->OnAttackCommitted.AddDynamic(this, &UReEchoCombatVfxComponent::HandleAttackCommitted);
+		CombatEvents->OnHit.AddDynamic(this, &UReEchoCombatVfxComponent::HandleHit);
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoCombatVfxComponent::HandleHurt);
 		CombatEvents->OnDeath.AddDynamic(this, &UReEchoCombatVfxComponent::HandleDeath);
 		CombatEvents->OnElementStateChanged.AddDynamic(this, &UReEchoCombatVfxComponent::HandleElementStateChanged);
@@ -617,12 +619,16 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	{
 		return nullptr;
 	}
+	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
+	const FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+	const FQuat WorldRotation = DirectionRotation.Quaternion() * Placement.LocalRotation.Quaternion();
+	const FVector WorldLocation = Location + DirectionRotation.RotateVector(Placement.LocalOffset);
 	UNiagaraComponent* Effect =
 	    UNiagaraFunctionLibrary::SpawnSystemAtLocation(World,
 	                                                   System,
-	                                                   Location,
-	                                                   FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction),
-	                                                   FVector::OneVector,
+	                                                   WorldLocation,
+	                                                   WorldRotation.Rotator(),
+	                                                   Placement.Scale,
 	                                                   bAutoDestroy,
 	                                                   true,
 	                                                   ENCPoolMethod::None,
@@ -1317,6 +1323,21 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 		return;
 	}
 	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveAttackVfxRoot());
+}
+
+void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)
+{
+	if (Event.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+	EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::PlayerLongSwordImpact;
+	if (!FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(Event.Attack.WeaponId, Semantic))
+	{
+		return;
+	}
+	const FVector ImpactDirection = Event.WorldLocation - Event.SourceWorldLocation;
+	SpawnWorld(static_cast<uint8>(Semantic), Event.WorldLocation, ImpactDirection);
 }
 
 void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)

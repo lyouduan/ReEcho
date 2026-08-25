@@ -11,6 +11,7 @@
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraVariant.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
@@ -24,6 +25,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
 
 bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 {
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	TestNotEqual(
 	    TEXT("Ordered Enhance reactions use distinct entered-element Niagara"),
 	    FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::EnhanceGrass)),
@@ -264,6 +266,19 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
 	TestTrue(TEXT("Scythe uses its dedicated melee Niagara"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
+	EReEchoCombatVfxSemantic DamageSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
+	TestTrue(TEXT("Long sword successful hit resolves its DamageApplied semantic"),
+	         FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_01"), DamageSemantic));
+	TestEqual(TEXT("Long sword hit uses its dedicated impact semantic"),
+	          DamageSemantic,
+	          EReEchoCombatVfxSemantic::PlayerLongSwordImpact);
+	TestTrue(TEXT("Scythe successful hit resolves its DamageApplied semantic"),
+	         FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_04"), DamageSemantic));
+	TestEqual(TEXT("Scythe hit uses its dedicated impact semantic"),
+	          DamageSemantic,
+	          EReEchoCombatVfxSemantic::PlayerScytheImpact);
+	TestFalse(TEXT("Non-melee weapon cannot enter the melee hit VFX path"),
+	          FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_08"), DamageSemantic));
 	TestTrue(TEXT("Bow no longer resolves a legacy projectile texture"),
 	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Bow")).IsEmpty());
 	TestTrue(TEXT("Gun no longer resolves a legacy projectile texture"),
@@ -330,7 +345,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerHurt,          EReEchoCombatVfxSemantic::FoxCharging,
 	    EReEchoCombatVfxSemantic::FoxDirection,        EReEchoCombatVfxSemantic::FoxDash,
 	    EReEchoCombatVfxSemantic::FoxImpact,           EReEchoCombatVfxSemantic::PlayerMeleeSlash,
-	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerBowFlight,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
+	    EReEchoCombatVfxSemantic::PlayerScytheImpact,  EReEchoCombatVfxSemantic::PlayerBowFlight,
 	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
 	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,       EReEchoCombatVfxSemantic::EchoGrassAura,
