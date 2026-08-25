@@ -94,6 +94,50 @@ FString DescribeAttackSteps(const TArray<FReEchoCsvAttackStepRow>& AttackSteps)
 	return Steps.IsEmpty() ? TEXT("None") : FString::Join(Steps, TEXT("|"));
 }
 } // namespace ReEchoSwordDamageTrace
+
+namespace ReEchoRangedCritTrace
+{
+const FName BowWeaponId = TEXT("W_J_08");
+const FName GunWeaponId = TEXT("W_J_09");
+
+bool IsCriticalRuneBehavior(const FName BehaviorId)
+{
+	return BehaviorId == TEXT("Part.ProjectilePierceOnCritical") || BehaviorId == TEXT("Part.ApplyBleedOnCritical");
+}
+
+bool HasCriticalRune(const TArray<FReEchoWeaponRuneEffectSpec>& Effects)
+{
+	return Effects.ContainsByPredicate(
+	    [](const FReEchoWeaponRuneEffectSpec& Effect)
+	    {
+		    return IsCriticalRuneBehavior(Effect.BehaviorId);
+	    });
+}
+
+bool ShouldTrace(const FName WeaponId, const TArray<FReEchoWeaponRuneEffectSpec>& Effects)
+{
+	return (WeaponId == BowWeaponId || WeaponId == GunWeaponId) && HasCriticalRune(Effects);
+}
+
+FString DescribeEffects(const TArray<FReEchoWeaponRuneEffectSpec>& Effects)
+{
+	TArray<FString> Descriptions;
+	for (const FReEchoWeaponRuneEffectSpec& Effect : Effects)
+	{
+		if (IsCriticalRuneBehavior(Effect.BehaviorId))
+		{
+			Descriptions.Add(FString::Printf(TEXT("%s:%s(trigger=%s,value=%.3f,param=%.3f,duration=%.3f)"),
+			                                 *Effect.PartId.ToString(),
+			                                 *Effect.BehaviorId.ToString(),
+			                                 *Effect.Trigger.ToString(),
+			                                 Effect.Value,
+			                                 Effect.ParamValue,
+			                                 Effect.DurationSeconds));
+		}
+	}
+	return Descriptions.IsEmpty() ? TEXT("None") : FString::Join(Descriptions, TEXT("|"));
+}
+} // namespace ReEchoRangedCritTrace
 #endif
 
 AReEchoWeaponActor::AReEchoWeaponActor()
@@ -441,6 +485,31 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 	LastCommittedAttackStepId = LastAttackCommit.AttackStepId;
 	LastCommittedAttackStepIndex = LastAttackCommit.StepIndex;
 #if !UE_BUILD_SHIPPING
+	if (ReEchoRangedCritTrace::ShouldTrace(LastAttackCommit.WeaponId, EffectiveDefinition.RuneEffects))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[RangedCritTrace] Commit owner=%s weapon=%s sequence=%lld parts=%s effects=%s role=%s "
+		            "physical=%.3f elemental=%.3f critRate=%.3f critEffect=%.3f step=%s[%d] element=%d "
+		            "critical=%d rawDamage=%.3f projectiles=%d range=%.3f"),
+		       *GetNameSafe(GetOwner()),
+		       *LastAttackCommit.WeaponId.ToString(),
+		       static_cast<long long>(LastAttackCommit.Attack.Sequence),
+		       *ReEchoSwordDamageTrace::DescribeEquippedParts(EquippedRunes),
+		       *ReEchoRangedCritTrace::DescribeEffects(EffectiveDefinition.RuneEffects),
+		       *Combatant->Stats.RoleId.ToString(),
+		       Combatant->Stats.PhysicalAttack,
+		       Combatant->Stats.ElementalAttack,
+		       Combatant->Stats.CriticalRate,
+		       Combatant->Stats.CriticalEffect,
+		       *LastAttackCommit.AttackStepId.ToString(),
+		       LastAttackCommit.StepIndex,
+		       static_cast<int32>(LastAttackCommit.Element),
+		       LastAttackCommit.bCritical ? 1 : 0,
+		       LastAttackCommit.RawDamage,
+		       LastAttackCommit.ProjectileCount,
+		       LastAttackCommit.RangeCm);
+	}
 	if (LastAttackCommit.WeaponId == ReEchoSwordDamageTrace::LongSwordWeaponId)
 	{
 		UE_LOG(LogReEcho,
@@ -500,7 +569,8 @@ void AReEchoWeaponActor::PublishAttackCommittedEvent(const FReEchoWeaponAttackCo
 	Event.Origin = WeaponOwner->GetActorLocation();
 	const FVector ToCommittedTarget =
 	    Event.Target ? Event.Target->GetActorLocation() - Event.Origin : FVector::ZeroVector;
-	Event.Direction = ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
+	Event.Direction =
+	    ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
 	Events->PublishAttackCommitted(Event);
 }
 
@@ -705,6 +775,29 @@ bool AReEchoWeaponActor::RebuildEffectiveDefinition()
 		       BuildSnapshot.Stats.ElementalAttack,
 		       BuildSnapshot.EquipmentBaseStats.AttackSpeed,
 		       BuildSnapshot.Stats.AttackSpeed,
+		       EffectiveDefinition.Weapon.DamageCoefficient,
+		       *BuildSnapshot.RuleFlags.FindRef(ReEchoSwordDamageTrace::DamageCoefficientRule),
+		       *EffectiveDefinition.DamageChannelId.ToString(),
+		       *ReEchoSwordDamageTrace::DescribeAttackSteps(EffectiveDefinition.AttackSteps));
+	}
+	else if (ReEchoRangedCritTrace::ShouldTrace(EquippedWeaponId, EffectiveDefinition.RuneEffects))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[RangedCritTrace] Definition owner=%s weapon=%s parts=%s effects=%s role=%s "
+		            "equipmentBasePhysical=%.3f buildPhysical=%.3f equipmentBaseElemental=%.3f buildElemental=%.3f "
+		            "critRate=%.3f critEffect=%.3f coefficient=%.3f ruleCoefficient=%s channel=%s steps=%s"),
+		       *GetNameSafe(GetOwner()),
+		       *EquippedWeaponId.ToString(),
+		       *ReEchoSwordDamageTrace::DescribeEquippedParts(EquippedRunes),
+		       *ReEchoRangedCritTrace::DescribeEffects(EffectiveDefinition.RuneEffects),
+		       *BuildSnapshot.Stats.RoleId.ToString(),
+		       BuildSnapshot.EquipmentBaseStats.PhysicalAttack,
+		       BuildSnapshot.Stats.PhysicalAttack,
+		       BuildSnapshot.EquipmentBaseStats.ElementalAttack,
+		       BuildSnapshot.Stats.ElementalAttack,
+		       BuildSnapshot.Stats.CriticalRate,
+		       BuildSnapshot.Stats.CriticalEffect,
 		       EffectiveDefinition.Weapon.DamageCoefficient,
 		       *BuildSnapshot.RuleFlags.FindRef(ReEchoSwordDamageTrace::DamageCoefficientRule),
 		       *EffectiveDefinition.DamageChannelId.ToString(),
@@ -1202,6 +1295,26 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 	                             {
 		                             return Effect.BehaviorId == TEXT("Part.ProjectilePierceOnCritical");
 	                             });
+#if !UE_BUILD_SHIPPING
+	const bool bTraceRangedCrit =
+	    Context.IsValid() && ReEchoRangedCritTrace::ShouldTrace(Commit.WeaponId, Context->Effects);
+	if (bTraceRangedCrit)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[RangedCritTrace] Fire owner=%s weapon=%s sequence=%lld directions=%d rawDamage=%.3f "
+		            "critical=%d pierceOnCritical=%d source=%d reactionEfficiency=%.3f"),
+		       *GetNameSafe(WeaponOwner),
+		       *Commit.WeaponId.ToString(),
+		       static_cast<long long>(Commit.Attack.Sequence),
+		       Directions.Num(),
+		       Commit.RawDamage,
+		       Commit.bCritical ? 1 : 0,
+		       bPierceOnCritical ? 1 : 0,
+		       static_cast<int32>(Context->DamageSource),
+		       Context->ReactionEfficiency);
+	}
+#endif
 	for (const FVector& Direction : Directions)
 	{
 		const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
@@ -1209,6 +1322,18 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, Direction.Rotation());
 		if (!Projectile)
 		{
+#if !UE_BUILD_SHIPPING
+			if (bTraceRangedCrit)
+			{
+				UE_LOG(LogReEcho,
+				       Warning,
+				       TEXT("[RangedCritTrace] ProjectileSpawnFailed owner=%s weapon=%s sequence=%lld location=%s"),
+				       *GetNameSafe(WeaponOwner),
+				       *Commit.WeaponId.ToString(),
+				       static_cast<long long>(Commit.Attack.Sequence),
+				       *SpawnLocation.ToCompactString());
+			}
+#endif
 			continue;
 		}
 		Projectile->SetOwner(WeaponOwner);
@@ -1229,6 +1354,22 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		                                 this,
 		                                 Context,
 		                                 true);
+#if !UE_BUILD_SHIPPING
+		if (bTraceRangedCrit)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[RangedCritTrace] ProjectileSpawned owner=%s projectile=%s weapon=%s sequence=%lld "
+			            "location=%s direction=%s pendingKill=%d"),
+			       *GetNameSafe(WeaponOwner),
+			       *GetNameSafe(Projectile),
+			       *Commit.WeaponId.ToString(),
+			       static_cast<long long>(Commit.Attack.Sequence),
+			       *SpawnLocation.ToCompactString(),
+			       *Direction.ToCompactString(),
+			       Projectile->IsActorBeingDestroyed() ? 1 : 0);
+		}
+#endif
 		bSpawnedAny = true;
 	}
 	return bSpawnedAny;
@@ -1239,6 +1380,29 @@ void AReEchoWeaponActor::HandleProjectileResolved(const TSharedPtr<FReEchoWeapon
                                                   const FReEchoHitResolved& Result,
                                                   const bool bAllowSplit)
 {
+#if !UE_BUILD_SHIPPING
+	if (Context.IsValid() && ReEchoRangedCritTrace::ShouldTrace(Context->Commit.WeaponId, Context->Effects))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[RangedCritTrace] ProjectileResolved owner=%s weapon=%s sequence=%lld projectile=%s target=%s "
+		            "commitRaw=%.3f commitCritical=%d resolvedRaw=%.3f applied=%.3f resultCritical=%d blocked=%d "
+		            "killed=%d allowSplit=%d"),
+		       *GetNameSafe(GetOwner()),
+		       *Context->Commit.WeaponId.ToString(),
+		       static_cast<long long>(Context->Commit.Attack.Sequence),
+		       *Snapshot.ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       *GetNameSafe(Result.Target),
+		       Context->Commit.RawDamage,
+		       Context->Commit.bCritical ? 1 : 0,
+		       Result.RawDamage,
+		       Result.AppliedDamage,
+		       Result.bCritical ? 1 : 0,
+		       Result.bBlocked ? 1 : 0,
+		       Result.bKilled ? 1 : 0,
+		       bAllowSplit ? 1 : 0);
+	}
+#endif
 	if (!Context.IsValid())
 	{
 		return;
@@ -1495,8 +1659,7 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	{
 		for (TActorIterator<AReEchoEnemyActor> EnemyIt(GetWorld()); EnemyIt; ++EnemyIt)
 		{
-			EnemyIt->DestroyRabbitProjectilesInMeleeArc(
-			    OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees);
+			EnemyIt->DestroyRabbitProjectilesInMeleeArc(OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees);
 		}
 	}
 	ProcessAttackResolved(Context);

@@ -4,6 +4,18 @@
 #include "Combat/ReEchoHitResolver.h"
 #include "EngineUtils.h"
 
+#if !UE_BUILD_SHIPPING
+DEFINE_LOG_CATEGORY_STATIC(LogReEchoRangedCritProjectileTrace, Log, All);
+
+namespace
+{
+bool IsRangedWeaponTrace(const FReEchoAttackIdentity& Attack)
+{
+	return Attack.WeaponId == TEXT("W_J_08") || Attack.WeaponId == TEXT("W_J_09");
+}
+} // namespace
+#endif
+
 UReEchoProjectileLogicComponent::UReEchoProjectileLogicComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -27,6 +39,26 @@ bool UReEchoProjectileLogicComponent::InitializeProjectile(const FReEchoLogicalP
 	bActive = true;
 	SetComponentTickEnabled(true);
 	OnProjectileUpdated.Broadcast(GetSnapshot());
+#if !UE_BUILD_SHIPPING
+	if (IsRangedWeaponTrace(Spec.HitIntent.Attack))
+	{
+		UE_LOG(LogReEchoRangedCritProjectileTrace,
+		       Warning,
+		       TEXT("[RangedCritTrace] ProjectileInit actor=%s source=%s weapon=%s sequence=%lld rawDamage=%.3f "
+		            "critical=%d pierceOnCritical=%d speed=%.3f radius=%.3f range=%.3f explosion=%.3f"),
+		       *GetNameSafe(Owner),
+		       *GetNameSafe(Spec.HitIntent.Attack.Source.Get()),
+		       *Spec.HitIntent.Attack.WeaponId.ToString(),
+		       static_cast<long long>(Spec.HitIntent.Attack.Sequence),
+		       Spec.HitIntent.RawDamage,
+		       Spec.HitIntent.bCritical ? 1 : 0,
+		       Spec.bPierceOnCritical ? 1 : 0,
+		       Spec.SpeedCmPerSecond,
+		       Spec.CarrierRadiusCm,
+		       Spec.MaximumRangeCm,
+		       Spec.ExplosionRadiusCm);
+	}
+#endif
 	return true;
 }
 
@@ -84,6 +116,26 @@ void UReEchoProjectileLogicComponent::Advance(const float DeltaTime)
 		}
 		if (Target->IntersectsCombatPath(PreviousLocation, NewLocation, Spec.CarrierRadiusCm))
 		{
+#if !UE_BUILD_SHIPPING
+			if (IsRangedWeaponTrace(Spec.HitIntent.Attack))
+			{
+				UE_LOG(
+				    LogReEchoRangedCritProjectileTrace,
+				    Warning,
+				    TEXT(
+				        "[RangedCritTrace] ProjectileContact actor=%s weapon=%s sequence=%lld target=%s rawDamage=%.3f "
+				        "critical=%d travelled=%.3f pathStart=%s pathEnd=%s"),
+				    *GetNameSafe(Owner),
+				    *Spec.HitIntent.Attack.WeaponId.ToString(),
+				    static_cast<long long>(Spec.HitIntent.Attack.Sequence),
+				    *GetNameSafe(Candidate),
+				    Spec.HitIntent.RawDamage,
+				    Spec.HitIntent.bCritical ? 1 : 0,
+				    TravelledCm,
+				    *PreviousLocation.ToCompactString(),
+				    *NewLocation.ToCompactString());
+			}
+#endif
 			const FReEchoHitResolved DirectResult = ApplyAtLocation(Target->GetCombatTargetLocation(), Candidate);
 			if (!Spec.bPierceOnCritical || !DirectResult.bCritical || DirectResult.AppliedDamage <= 0.0f)
 			{
@@ -106,7 +158,30 @@ FReEchoHitResolved UReEchoProjectileLogicComponent::ResolveIntent(AActor* Target
 	FReEchoHitIntent Intent = Spec.HitIntent;
 	Intent.Target = Target;
 	Intent.HitLocation = HitLocation;
-	return ReEchoHitResolver::ResolveHit(Intent);
+	const FReEchoHitResolved Result = ReEchoHitResolver::ResolveHit(Intent);
+#if !UE_BUILD_SHIPPING
+	if (IsRangedWeaponTrace(Intent.Attack))
+	{
+		UE_LOG(LogReEchoRangedCritProjectileTrace,
+		       Warning,
+		       TEXT("[RangedCritTrace] ProjectileResolve actor=%s weapon=%s sequence=%lld source=%s target=%s "
+		            "intentRaw=%.3f intentCritical=%d resolvedRaw=%.3f applied=%.3f resultCritical=%d blocked=%d "
+		            "killed=%d"),
+		       *GetNameSafe(GetOwner()),
+		       *Intent.Attack.WeaponId.ToString(),
+		       static_cast<long long>(Intent.Attack.Sequence),
+		       *GetNameSafe(Intent.Attack.Source.Get()),
+		       *GetNameSafe(Target),
+		       Intent.RawDamage,
+		       Intent.bCritical ? 1 : 0,
+		       Result.RawDamage,
+		       Result.AppliedDamage,
+		       Result.bCritical ? 1 : 0,
+		       Result.bBlocked ? 1 : 0,
+		       Result.bKilled ? 1 : 0);
+	}
+#endif
+	return Result;
 }
 
 FReEchoHitResolved UReEchoProjectileLogicComponent::ApplyAtLocation(const FVector& ImpactLocation, AActor* DirectTarget)
