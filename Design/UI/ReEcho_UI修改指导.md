@@ -94,6 +94,8 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 `SelectButton` 必须是 `UReEchoIndexedButton`，不能替换成普通 `UButton`。它把动态数组索引送回父页面，再由 C++ 解析为稳定的 CharacterId、WeaponId 或 CardId。
 
+`WBP_ReEchoTraitCardChoice` 初次打开时仍播放页面指针和全部候选的逐张揭示。免费/付费三选一的单槽刷新成功后，只将被替换槽位的卡牌置为透明并重播它的揭示；其他卡牌和指针不重置。刷新失败不播放揭示。
+
 ### 4.3 商店逻辑块的后续 WBP 接口
 
 动态商品内容统一位于 `ShopLogicScrollBox > ShopLogicPanel`；WBP 未提供有界宿主时，C++ 将滚动区挂到根 Canvas 的固定视口并显式显示滚动条，战后模式的视口下沿必须停在回响存储托盘上方。区块顺序固定为武器配件、普通商品、规则/刷新、槽位草稿。WBP 可按同名 `BindWidgetOptional` 提供这两个宿主、`RunItemOfferPanel`、`ShopControlPanel`、`WeaponPartOfferPanel`、`WeaponLoadoutPanel`，以及 `ShopRefreshButton`、`ShopRefreshText`、`ShopRuleText`、`WeaponLoadoutText`、`SaveLoadoutButton`。这些控件只负责容器和表现，不得改变购买、刷新、草稿或保存的事件语义。

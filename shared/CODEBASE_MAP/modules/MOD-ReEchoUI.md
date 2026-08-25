@@ -78,7 +78,7 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - 静态检查：`python scripts/validate_project.py`、`git diff --check`。
 - Plan47 商店回归：折扣显示与实际扣款同舍入、免费刷新优先消费且无零价无限刷新、永久代价禁用状态可见；不修改 Plan45 WBP/纹理资产。
 - Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
-- Plan97 卡牌商店投影固定为1/2/3级三个卡组入口；入口只显示等级和“未投放/选择/已购/售罄”，不显示具体卡牌 icon 或价格。可用入口发布 Tier 命令，由 GameMode 在 ZOrder 98 的 `BuildChoice` 层打开复用的卡牌选择页，高于 ZOrder 95 的商店 `Screen` 层并低于 ZOrder 100 的 Pause 层；页内最多三张同级候选各自显示有效价格，并提供“返回商店”。商店付费与战后免费三选一都在每张实际候选下方显示独立刷新按钮、该槽剩余次数和价格，并通过统一 `OnCardSlotRefreshRequested(SlotIndex)` 发送稳定槽位；GameMode 按当前页面调用对应 Run 原子命令后重注入同一层，Widget 不自行抽牌或扣费。购买/刷新失败恢复原选择，取消不改 Run，付费购买成功后关闭选择层、重新聚焦仍暂停的商店并刷新只读投影。
+- Plan97 卡牌商店投影固定为1/2/3级三个卡组入口；入口只显示等级和“未投放/选择/已购/售罄”，不显示具体卡牌 icon 或价格。可用入口发布 Tier 命令，由 GameMode 在 ZOrder 98 的 `BuildChoice` 层打开复用的卡牌选择页，高于 ZOrder 95 的商店 `Screen` 层并低于 ZOrder 100 的 Pause 层；页内最多三张同级候选各自显示有效价格，并提供“返回商店”。商店付费与战后免费三选一都在每张实际候选下方显示独立刷新按钮、该槽剩余次数和价格，并通过统一 `OnCardSlotRefreshRequested(SlotIndex)` 发送稳定槽位；GameMode 按当前页面调用对应 Run 原子命令后重注入同一层，Widget 不自行抽牌或扣费。成功逐槽刷新只将该稳定槽位映射到当前可见卡牌并重播它的揭示，另外两张卡与页面指针保持已揭示状态。购买/刷新失败恢复原选择，取消不改 Run，付费购买成功后关闭选择层、重新聚焦仍暂停的商店并刷新只读投影。
 - Plan91 武器背包扩展：Widget 不持有武器所有权，也不把换装伪装成购买；`OnWeaponEquipRequested` 交给 GameMode 调用 Run 事务。成功后整页重取只读投影，使当前武器图、武器名和兼容符文槽同时更新，但独立的武器/符文与卡牌刷新序列都不变，因此报价不重摇。
 - Plan91 稳定页中的已拥有武器仍保留原槽身份和价格，但 Widget 必须以 Run 的 `OwnedWeapons` 投影为“已获得”并禁用购买；不得依赖本次页面内的临时点击记录判断所有权。
 - Plan91 的任意商品购买成功后由 GameMode 重新注入完整商店只读投影，Widget 不再局部拼接 `EquippedParts`。这保证新购符文立即进入 `OwnedParts` 背包视图，同时依赖 Run 的稳定页缓存保持其余报价不变。

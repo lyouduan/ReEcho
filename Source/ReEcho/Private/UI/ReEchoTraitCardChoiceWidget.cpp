@@ -102,25 +102,47 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	RevealElapsed += InDeltaTime;
+	AdvanceRevealAnimation(InDeltaTime);
+}
 
-	if (NeedleWidget)
+void UReEchoTraitCardChoiceWidget::AdvanceRevealAnimation(const float DeltaSeconds)
+{
+	if (bRevealComplete)
+	{
+		return;
+	}
+	RevealElapsed += FMath::Max(0.0f, DeltaSeconds);
+
+	if (RevealingCardIndex == INDEX_NONE && NeedleWidget)
 	{
 		const float SpinProgress = FMath::Clamp(RevealElapsed / NeedleSpinDuration, 0.0f, 1.0f);
 		const float DeceleratedProgress = 1.0f - FMath::Pow(1.0f - SpinProgress, 3.0f);
 		NeedleWidget->SetRenderTransformAngle(1440.0f * DeceleratedProgress + 25.0f);
 	}
 
-	bool bAllCardsRevealed = true;
-	for (int32 CardIndex = 0; CardIndex < CardPanels.Num(); ++CardIndex)
+	bool bAllCardsRevealed = false;
+	if (RevealingCardIndex != INDEX_NONE && CardPanels.IsValidIndex(RevealingCardIndex))
 	{
-		const float RevealStart = FirstCardRevealTime + CardIndex * CardRevealInterval;
-		const float Progress = FMath::Clamp((RevealElapsed - RevealStart) / CardRevealDuration, 0.0f, 1.0f);
+		const float Progress = FMath::Clamp(RevealElapsed / CardRevealDuration, 0.0f, 1.0f);
 		const float EasedProgress = EaseOutBack(Progress);
-		CardPanels[CardIndex]->SetRenderOpacity(Progress);
-		CardPanels[CardIndex]->SetRenderScale(FVector2D(FMath::Lerp(0.72f, 1.0f, EasedProgress)));
-		CardPanels[CardIndex]->SetRenderTranslation(FVector2D(0.0f, FMath::Lerp(95.0f, 0.0f, EasedProgress)));
-		bAllCardsRevealed &= Progress >= 1.0f;
+		CardPanels[RevealingCardIndex]->SetRenderOpacity(Progress);
+		CardPanels[RevealingCardIndex]->SetRenderScale(FVector2D(FMath::Lerp(0.72f, 1.0f, EasedProgress)));
+		CardPanels[RevealingCardIndex]->SetRenderTranslation(FVector2D(0.0f, FMath::Lerp(95.0f, 0.0f, EasedProgress)));
+		bAllCardsRevealed = Progress >= 1.0f;
+	}
+	else
+	{
+		bAllCardsRevealed = true;
+		for (int32 CardIndex = 0; CardIndex < CardPanels.Num(); ++CardIndex)
+		{
+			const float RevealStart = FirstCardRevealTime + CardIndex * CardRevealInterval;
+			const float Progress = FMath::Clamp((RevealElapsed - RevealStart) / CardRevealDuration, 0.0f, 1.0f);
+			const float EasedProgress = EaseOutBack(Progress);
+			CardPanels[CardIndex]->SetRenderOpacity(Progress);
+			CardPanels[CardIndex]->SetRenderScale(FVector2D(FMath::Lerp(0.72f, 1.0f, EasedProgress)));
+			CardPanels[CardIndex]->SetRenderTranslation(FVector2D(0.0f, FMath::Lerp(95.0f, 0.0f, EasedProgress)));
+			bAllCardsRevealed &= Progress >= 1.0f;
+		}
 	}
 
 	if (bAllCardsRevealed && !bRevealComplete)
@@ -153,8 +175,16 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 	}
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+void UReEchoTraitCardChoiceWidget::AdvanceRevealAnimationForTesting(const float DeltaSeconds)
+{
+	AdvanceRevealAnimation(DeltaSeconds);
+}
+#endif
+
 void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers,
-                                                    const int32 InTimeShards)
+                                                    const int32 InTimeShards,
+                                                    const int32 RefreshedSlotIndex)
 {
 	bShopMode = false;
 	ShopTier = 0;
@@ -166,12 +196,20 @@ void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCar
 		ShopCancelButton->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	RefreshOffers();
-	ResetRevealAnimation();
+	if (RefreshedSlotIndex == INDEX_NONE)
+	{
+		ResetRevealAnimation();
+	}
+	else
+	{
+		ResetRevealAnimationForSlot(RefreshedSlotIndex);
+	}
 }
 
 void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers,
                                                         const int32 InTimeShards,
-                                                        const int32 Tier)
+                                                        const int32 Tier,
+                                                        const int32 RefreshedSlotIndex)
 {
 	bShopMode = true;
 	ShopTier = Tier;
@@ -198,7 +236,14 @@ void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShop
 		ShopCancelButton->SetVisibility(ESlateVisibility::Visible);
 	}
 	RefreshOffers();
-	ResetRevealAnimation();
+	if (RefreshedSlotIndex == INDEX_NONE)
+	{
+		ResetRevealAnimation();
+	}
+	else
+	{
+		ResetRevealAnimationForSlot(RefreshedSlotIndex);
+	}
 }
 
 void UReEchoTraitCardChoiceWidget::RestoreChoiceFailure(const int32 InTimeShards)
@@ -559,6 +604,7 @@ void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 	RevealElapsed = 0.0f;
 	bRevealComplete = false;
 	SelectedOfferIndex = INDEX_NONE;
+	RevealingCardIndex = INDEX_NONE;
 	for (int32 CardIndex = 0; CardIndex < CardPanels.Num(); ++CardIndex)
 	{
 		CardPanels[CardIndex]->SetRenderOpacity(0.0f);
@@ -572,6 +618,43 @@ void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 		{
 			CardEntries[CardIndex]->SetSelectionEnabled(false);
 		}
+	}
+	RefreshSelectionVisuals();
+}
+
+void UReEchoTraitCardChoiceWidget::ResetRevealAnimationForSlot(const int32 SlotIndex)
+{
+	const int32 CardIndex = Offers.IndexOfByPredicate(
+	    [SlotIndex](const FReEchoTraitCardOffer& Offer)
+	    {
+		    return Offer.SlotIndex == SlotIndex;
+	    });
+	SelectedOfferIndex = INDEX_NONE;
+	if (!CardPanels.IsValidIndex(CardIndex))
+	{
+		RevealingCardIndex = INDEX_NONE;
+		bRevealComplete = true;
+		RefreshOffers();
+		return;
+	}
+
+	RevealElapsed = 0.0f;
+	bRevealComplete = false;
+	RevealingCardIndex = CardIndex;
+	CardPanels[CardIndex]->SetRenderOpacity(0.0f);
+	CardPanels[CardIndex]->SetRenderScale(FVector2D(0.72f));
+	CardPanels[CardIndex]->SetRenderTranslation(FVector2D(0.0f, 95.0f));
+	for (UButton* CardButton : CardButtons)
+	{
+		CardButton->SetIsEnabled(false);
+	}
+	for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+	{
+		CardEntry->SetSelectionEnabled(false);
+	}
+	for (UReEchoIndexedButton* RefreshButton : CardRefreshButtons)
+	{
+		RefreshButton->SetIsEnabled(false);
 	}
 	RefreshSelectionVisuals();
 }

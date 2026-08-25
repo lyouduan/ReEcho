@@ -270,6 +270,43 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 		TestTrue(TEXT("Each paid choice displays its own effective price"),
 		         PriceHint && PriceHint->GetText().ToString().Contains(TEXT("35")));
 	}
+	FReEchoShopCardChoiceOffer Third = First;
+	Third.CardId = TEXT("G_2_03");
+	Third.ItemId = TEXT("SHOP_CARD_TEST_3");
+	Third.DisplayName = FText::FromString(TEXT("候选三"));
+	Third.SlotIndex = 2;
+	Widget->InitializeShopOffers({First, Second, Third}, 40, 2);
+	Widget->AdvanceRevealAnimationForTesting(10.0f);
+	TestTrue(TEXT("The initial pack reveal finishes all three cards"),
+	         FirstCard && SecondCard && ThirdCard && FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(SecondCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+
+	FReEchoShopCardChoiceOffer RefreshedSecond = Second;
+	RefreshedSecond.CardId = TEXT("G_2_04");
+	RefreshedSecond.ItemId = TEXT("SHOP_CARD_TEST_2_REFRESHED");
+	RefreshedSecond.DisplayName = FText::FromString(TEXT("刷新候选二"));
+	Widget->InitializeShopOffers({First, RefreshedSecond, Third}, 35, 2, Second.SlotIndex);
+	TestTrue(TEXT("A successful slot refresh hides only the replaced card"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(SecondCard->GetRenderOpacity(), 0.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+	TestTrue(TEXT("Unchanged cards keep their completed reveal transforms"),
+	         FirstCard->GetRenderTransform().Scale.Equals(FVector2D(1.0f)) &&
+	             FirstCard->GetRenderTransform().Translation.IsNearlyZero() &&
+	             ThirdCard->GetRenderTransform().Scale.Equals(FVector2D(1.0f)) &&
+	             ThirdCard->GetRenderTransform().Translation.IsNearlyZero());
+	Widget->AdvanceRevealAnimationForTesting(0.17f);
+	TestTrue(TEXT("Only the replaced card advances through the slot reveal"),
+	         SecondCard->GetRenderOpacity() > 0.0f && SecondCard->GetRenderOpacity() < 1.0f &&
+	             FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+	Widget->AdvanceRevealAnimationForTesting(1.0f);
+	TestTrue(TEXT("The refreshed card finishes visible without replaying its neighbors"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(SecondCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+
 	FReEchoTraitCardOffer FreeChoice;
 	FreeChoice.CardId = TEXT("G_2_03");
 	FreeChoice.DisplayName = FText::FromString(TEXT("免费候选"));
@@ -287,6 +324,16 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	             FirstRefreshText->GetText().ToString().Contains(TEXT("5")));
 	TestTrue(TEXT("Free choice keeps the shop-only cancel action hidden"),
 	         CancelButton && CancelButton->GetVisibility() == ESlateVisibility::Collapsed);
+	Widget->AdvanceRevealAnimationForTesting(10.0f);
+	FReEchoTraitCardOffer RefreshedFreeChoice = FreeChoice;
+	RefreshedFreeChoice.CardId = TEXT("G_2_04");
+	RefreshedFreeChoice.DisplayName = FText::FromString(TEXT("刷新免费候选"));
+	Widget->InitializeOffers({RefreshedFreeChoice}, 15, FreeChoice.SlotIndex);
+	TestTrue(TEXT("Post-encounter free refresh uses the same isolated slot reveal"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 0.0f));
+	Widget->AdvanceRevealAnimationForTesting(1.0f);
+	TestTrue(TEXT("Post-encounter refreshed card becomes visible again"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f));
 	return true;
 }
 
