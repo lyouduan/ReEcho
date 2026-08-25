@@ -229,7 +229,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 首读：`ReEchoEncounterDirector.*`、`ReEchoEncounterRuntime.*`、`ReEchoEncounterCsvReader.*`。
 - 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只做纯确定性计算；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
 - 输入：开始、恢复、暂停、World Tick、不可变 Stage/Encounter/Wave/Spawn 数据、玩家运动样本和录制路径样本。
-- 输出：固定步事件、剩余时间、完成委托、预警/提交事件、确定性出生位置和 `FReEchoStageTransitionDecision`。预警先解析并保存最终怪物 Actor 中心位置：XY 来自确定性解算，Z 为当前玩法平面加该敌人的碰撞半高；提交必须原样复用同一位置，禁止表现预警与生成提交各自重算。非法 Stage/Encounter 引用必须失败关闭。
+- 输出：固定步事件、剩余时间、完成委托、预警/提交事件、确定性出生位置和 `FReEchoStageTransitionDecision`。预警先按存活单位与其他待提交批次预留 `ActiveUnitLimit` 容量，只为真正获准提交的位置显示；每个预警位置都是出生承诺。其最终怪物 Actor 中心位置的 XY 来自确定性解算，Z 为当前玩法平面加该敌人的碰撞半高；提交必须原样、完整复用预留位置，不得二次按单位上限裁剪，也禁止表现预警与生成提交各自重算。非法 Stage/Encounter 引用必须失败关闭。
 - 生产波次结构：`Encounter.1` 至 `Encounter.8` 都按 `WaveIndex=1/2/3` 在 `0/10/20` 秒通过同一通用 WaveScheduler 触发；`Encounter.8` 只有 Wave.1 携带 `BossEnemyId=M_SHEEP`，Wave.2/3 是不含 Boss 的增援波。Boss 不计入该关 `ActiveUnitLimit`，关卡仍以 `BossOrPlayerDeath` 结束；禁止在后两波重复配置或生成 Boss。
 - 出生参数：SpawnResolver/Host 保留准确 `EncounterIndex`，使同一 EnemyId 在编译 Definition 时选择 `enemy_combat_stats` 的对应场次覆盖；不得把波次序号或数组下标误作 EncounterIndex。
 - 连续性：同 Stage 保留存活 Enemy Host 的对象身份、EnemyId、SpawnIndex、Transform、生命和持久逻辑状态，并保留玩家位置；局间显式冻结 Host、取消旧攻击阶段和逻辑投射物，不消耗玩法冷却。跨 Stage 清理旧 Roster，并用 Arena Scene 的中心与玩法平面解析入口。玩家生命/属性在下一 Encounter 初始化时的既有语义不由此契约改变。

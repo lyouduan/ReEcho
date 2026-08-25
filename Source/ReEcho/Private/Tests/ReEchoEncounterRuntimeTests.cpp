@@ -35,6 +35,29 @@ bool FReEchoEncounterWaveSchedulerTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSpawnWarningCapacityReservationTest,
+                                 "ReEcho.Encounter.SpawnWarningCapacityReservation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoSpawnWarningCapacityReservationTest::RunTest(const FString& Parameters)
+{
+	const int32 ActiveUnitLimit = 18;
+	const int32 LivingCount = 10;
+	const int32 FirstReservation = ReEchoSpawnCapacity::CalculateReservationCount(ActiveUnitLimit, LivingCount, 0, 5);
+	const int32 SecondReservation =
+	    ReEchoSpawnCapacity::CalculateReservationCount(ActiveUnitLimit, LivingCount, FirstReservation, 5);
+	const int32 ThirdReservation = ReEchoSpawnCapacity::CalculateReservationCount(
+	    ActiveUnitLimit, LivingCount, FirstReservation + SecondReservation, 2);
+
+	TestEqual(TEXT("First warned role reserves all available requested units"), FirstReservation, 5);
+	TestEqual(TEXT("Second warned role reserves only the remaining unit capacity"), SecondReservation, 3);
+	TestEqual(TEXT("No warning is emitted after earlier batches reserve the unit limit"), ThirdReservation, 0);
+	TestEqual(TEXT("Negative requested counts cannot create reservations"),
+	          ReEchoSpawnCapacity::CalculateReservationCount(ActiveUnitLimit, LivingCount, 0, -1),
+	          0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSpawnResolverTest,
                                  "ReEcho.Encounter.DeterministicSpawnResolver",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

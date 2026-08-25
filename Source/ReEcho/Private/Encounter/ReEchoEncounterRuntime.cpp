@@ -102,6 +102,16 @@ bool ReEchoStageTransition::Resolve(const FReEchoCsvDataSnapshot& Snapshot,
 	return true;
 }
 
+int32 ReEchoSpawnCapacity::CalculateReservationCount(const int32 ActiveUnitLimit,
+                                                     const int32 LivingCount,
+                                                     const int32 ReservedCount,
+                                                     const int32 RequestedCount)
+{
+	const int32 AvailableCount =
+	    FMath::Max(0, ActiveUnitLimit - FMath::Max(0, LivingCount) - FMath::Max(0, ReservedCount));
+	return FMath::Clamp(RequestedCount, 0, AvailableCount);
+}
+
 bool FReEchoEncounterWaveScheduler::Configure(const FReEchoCsvDataSnapshot& Snapshot,
                                               const FName EncounterId,
                                               FString& OutError)

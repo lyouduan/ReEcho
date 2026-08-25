@@ -160,3 +160,14 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **改动 / Changes**：Profile 新增会进入 Cook 的 `bUseAuthoredDeathPivot`；狐狸 Profile 显式开启。敌人死亡表现只读取该运行时策略，不再调用 PaperSprite 编辑器 API；未开启的 Profile 继续使用当前帧 Bounds 底边中心。自动化锁定生产狐狸 Profile 必须开启该策略。
 - **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；狐狸 Profile 配置脚本通过 UE 命令行幂等执行并记录 `authored_pivot=True`；新增 `ReEcho.Presentation.Animation2D.CookedDeathPivotPolicy` 聚焦自动化通过；Development Editor `-FullRebuild` 通过并刷新预构建包；Win64 Shipping clean build、cook、pak、archive、33 张运行时 CSV 投递及 10 秒启动烟测通过；`validate_project.py` 与 `git diff --check` 通过。既有 `ReEcho.Presentation.Animation2D.AssetProfiles` 仍被无关的 TimeGuard Phase2 资产断言阻塞，本次新增狐狸断言未报错。
 - **状态 / Status**：Review。本地技术候选已完成，等待用户验证狐狸与 BadFox 死亡动画脚点；未经用户认可不提交、不推送。
+
+### #18 — 出生预警消失后没有生成怪物
+
+- **现象 / Symptom**：部分红色出生预警球正常显示并消失，但对应位置没有生成怪物。
+- **根因 / Root cause**：GameMode 在预警阶段为完整配表批次显示红球，却到提交阶段才按 `ActiveUnitLimit` 裁剪。同一波多个角色批次先后提交时，较早批次占满上限，后续批次已显示的预警位置会被裁掉。现有运行日志已记录 `Ranged truncated 5->0` 等直接证据。
+- **目标 / Acceptance**：每个可见出生预警都必须在同一锁定位置提交一个怪物；单位上限只能阻止预警位置被创建，不能在红球显示后取消该位置。不改变配表数量、单位上限、波次时序、位置解算或 Stage 连续性。
+- **实现范围 / Writes**：`ReEchoEncounterRuntime.*`、`ReEchoGameMode.cpp`、`ReEchoEncounterRuntimeTests.cpp`、本文档及 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`。
+- **改动 / Changes**：预警阶段按存活单位和全部待提交批次统一预留容量，只解析并显示实际获准的红球；提交阶段完整消费预留位置，不再二次裁剪。生产敌人生成显式使用 `AlwaysSpawn`，确保确定性解算后的承诺位置不会被 Actor 默认碰撞策略静默拒绝；失败仍输出具名错误日志。
+- **影响面 / Impact**：`MOD-ReEcho` / `AREA-Encounter`；只收紧预警与出生提交的一致性，无 Schema、存档格式、配表、敌人 AI、伤害或表现资产变化。`MOD-ReEchoEnemies` 与 `MOD-ReEchoPresentation` 已审阅，无所有权或契约变化，无需修改。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；组合 `origin/main@e34f8f5f` 后 Development Editor `-FullRebuild` 94/94 通过并刷新 7 个预构建模块；`ReEcho.Encounter` 自动化 4/4 通过，其中新增 `SpawnWarningCapacityReservation` 锁定跨角色批次预留；`validate_project.py`、预构建一致性和 `git diff --check` 通过。曾额外生成 Shipping 候选并通过 Build/Cook/Stage/Pak/Archive 与 10 秒烟测；后续仅在用户明确要求时打包。用户已手测确认红球与怪物提交一致。
+- **状态 / Status**：Closed。用户已完成手测验收并授权合并发布。

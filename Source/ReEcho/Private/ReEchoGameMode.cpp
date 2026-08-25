@@ -2065,18 +2065,19 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 		if (Event.Type == EReEchoScheduledSpawnEventType::Warning)
 		{
 			PrepareScheduledSpawnBatch(Event);
-			UE_LOG(LogTemp,
-			       Display,
-			       TEXT("[EncounterSpawn] warning wave=%s role=%s count=%d spawn=%.2f"),
-			       *Event.WaveId.ToString(),
-			       *Event.EnemyRole.ToString(),
-			       Event.Count,
-			       Event.SpawnSeconds);
 			const FReEchoPendingSpawnBatchState* Pending = PendingSpawnBatches.FindByPredicate(
 			    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
 			    {
 				    return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
 			    });
+			UE_LOG(LogTemp,
+			       Display,
+			       TEXT("[EncounterSpawn] warning wave=%s role=%s requested=%d reserved=%d spawn=%.2f"),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Event.Count,
+			       Pending ? Pending->Locations.Num() : 0,
+			       Event.SpawnSeconds);
 			if (Pending && GetWorld())
 			{
 				const float DisplaySeconds = FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds);
@@ -2119,12 +2120,38 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 	}
 	const float GameplayPlaneWorldZ = ArenaScene ? ArenaScene->GetGameplayPlaneWorldZ() : 0.0f;
 	const float SpawnCenterWorldZ = GameplayPlaneWorldZ + Enemy->CollisionHalfHeightCm;
+	int32 LivingCount = 0;
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		LivingCount +=
+		    Entry.bAlive && (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
+		        ? 1
+		        : 0;
+	}
+	int32 ReservedCount = 0;
+	for (const FReEchoPendingSpawnBatchState& ExistingBatch : PendingSpawnBatches)
+	{
+		ReservedCount += ExistingBatch.Locations.Num();
+	}
+	const int32 ReservationCount = ReEchoSpawnCapacity::CalculateReservationCount(
+	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count);
+	if (ReservationCount < Event.Count)
+	{
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[EncounterSpawn] warning wave=%s role=%s reserved %d->%d by active unit limit %d."),
+		       *Event.WaveId.ToString(),
+		       *Event.EnemyRole.ToString(),
+		       Event.Count,
+		       ReservationCount,
+		       Encounter->ActiveUnitLimit);
+	}
 
 	FReEchoPendingSpawnBatchState Pending;
 	Pending.WaveId = Event.WaveId;
 	Pending.EnemyRole = Event.EnemyRole;
 	Pending.EnemyId = Event.EnemyId;
-	for (int32 Index = 0; Index < Event.Count; ++Index)
+	for (int32 Index = 0; Index < ReservationCount; ++Index)
 	{
 		FReEchoSpawnResolveRequest Request;
 		Request.PlayerAnchor = Player->GetActorLocation() + Player->GetVelocity() * Policy->AnchorLeadSeconds;
@@ -2201,30 +2228,18 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 	}
 	const FReEchoPendingSpawnBatchState Pending = PendingSpawnBatches[PendingIndex];
 
-	int32 LivingCount = 0;
-	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	for (int32 Index = 0; Index < Pending.Locations.Num(); ++Index)
 	{
-		LivingCount +=
-		    Entry.bAlive && (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
-		        ? 1
-		        : 0;
-	}
-	const int32 AllowedCount = FMath::Clamp(Encounter->ActiveUnitLimit - LivingCount, 0, Pending.Locations.Num());
-	if (AllowedCount < Pending.Locations.Num())
-	{
-		UE_LOG(LogTemp,
-		       Warning,
-		       TEXT("[EncounterSpawn] wave=%s role=%s truncated %d->%d by active unit limit %d."),
-		       *Event.WaveId.ToString(),
-		       *Event.EnemyRole.ToString(),
-		       Pending.Locations.Num(),
-		       AllowedCount,
-		       Encounter->ActiveUnitLimit);
-	}
-
-	for (int32 Index = 0; Index < AllowedCount; ++Index)
-	{
-		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex);
+		if (!SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex))
+		{
+			UE_LOG(LogTemp,
+			       Error,
+			       TEXT("[EncounterSpawn] committed warning failed wave=%s role=%s index=%d enemy=%s."),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Index,
+			       *Pending.EnemyId.ToString());
+		}
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
@@ -2243,8 +2258,10 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 		return false;
 	}
 	const int32 NextSpawnIndex = EnemySpawnIndex + 1;
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
-	    ResolveEnemyClass(Definition.PresentationId), SpawnLocation, FRotator::ZeroRotator);
+	    ResolveEnemyClass(Definition.PresentationId), SpawnLocation, FRotator::ZeroRotator, SpawnParameters);
 	if (Enemy)
 	{
 		Enemy->SetPresentationCatalog(PresentationCatalog);

@@ -123,6 +123,7 @@
 - `ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 聚焦自动化找到 1 项并通过：首次主动镰刀 Commit 发布一次 `Pattern.ScytheSweep`，召回不重复发布。`validate_project.py`、预构建一致性与 `git diff --check` 同步通过。
 - 手动/自动互斥候选 Development FullRebuild 通过：`96/96` actions，预构建 source fingerprint `17225d9af900`；`ReEcho.AttackMode.InputSource` 找到 1 项并通过，覆盖自动模式拒绝物理输入、手动模式拒绝自动入口，以及切换模式释放旧 held。`validate_project.py`、预构建一致性与 `git diff --check` 通过。
 - 最终远程集成候选 Development FullRebuild 通过：`109/109` actions，预构建 source fingerprint `29b4632d124d`。`ReEcho.AttackMode.InputSource`、`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 各找到 1 项并通过；兔子测试改为按远程最新能力数据的权威半径/速度动态布置扫掠样本，Rune 测试跳过策划已禁用的陨星与投掷召回效果，避免对禁用内容解引用空 Weapon。最终 `validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- 推送前第二次远端审计发现并按用户确认合入 `origin/main@65ed602b`（出生预警修复与 Plan112 兔子双技能）；无源码冲突，`MOD-ReEcho.md` 自动组合，预构建包再次由组合源码重生。最终 Development FullRebuild `97/97` actions，source fingerprint `5a839ae36077`；上述三个聚焦测试、项目校验、预构建一致性与 `git diff --check` 再次通过。
 - `validate_project.py` 的非 XLSX 检查完成，但总结果受 worktree `Content/reecho_xlsx_package_*` 创建权限拒绝阻塞；本 Plan 未修改 XLSX/CSV。
 - 全量 `ReEcho.Weapons` 暴露既有非本任务失败：生产 rune 数预期 47/实际 46、`P_GUN_RAPID_MUZZLE` 已禁用，以及 WeaponRuntime 临时 CSV 断言；精确受影响测试已独立通过。
 
