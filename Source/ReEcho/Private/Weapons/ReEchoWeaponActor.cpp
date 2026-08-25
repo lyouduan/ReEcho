@@ -1376,7 +1376,8 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	}
 	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
 	const FVector AimDirection = ResolveOwnerAimDirection();
-	// 旋转攻击以角色为圆心覆盖完整一周；敌人受伤逻辑会从圆心向外施加击退。
+	// Gameplay geometry comes from the committed step: longsword uses its forward 180-degree arc, while scythe
+	// uses the authored 360-degree sweep. Presentation motion below never changes this resolved hit authority.
 	for (AActor* Target : ReEchoWeaponGeometry::FindMeleeTargets(
 	         *GetWorld(), Commit.Attack, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
 	{
@@ -1392,8 +1393,7 @@ void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 	SwordSwingDirection *= -1.0f;
 	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(WeaponVisualKey);
 	SwordAnimationDuration = Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.01f) : 0.18f;
-	SwordAnimationTime =
-	    Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin ? SwordAnimationDuration : 0.0f;
+	SwordAnimationTime = WeaponVisualKey == TEXT("Scythe") ? SwordAnimationDuration : 0.0f;
 }
 
 void AReEchoWeaponActor::BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
@@ -1556,8 +1556,8 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
 	const UReEchoWeaponPresentationProfile* Profile =
 	    Definition ? FReEchoWeaponVisualCatalog::ResolveProfile(Definition->VisualKey) : nullptr;
-	const bool bUsesSwordVisual = Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin;
-	if (SwordAnimationTime <= 0.0f || !bUsesSwordVisual)
+	const bool bUsesFullSpinMotion = Profile && Definition && Definition->VisualKey == TEXT("Scythe");
+	if (SwordAnimationTime <= 0.0f || !bUsesFullSpinMotion)
 	{
 		SwordAnimationTime = 0.0f;
 		SetActorRelativeRotation(FQuat::Identity);

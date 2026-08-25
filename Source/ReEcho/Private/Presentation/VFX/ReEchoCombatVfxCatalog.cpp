@@ -159,19 +159,17 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 
 float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSemantic Semantic)
 {
-	FName VisualKey = NAME_None;
 	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
 	{
-		VisualKey = TEXT("CrescentBlade");
+		// Longsword is a forward 180-degree slash and releases its VFX at commit time.
+		return 0.0f;
 	}
-	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
 	{
-		VisualKey = TEXT("Scythe");
+		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Scythe"));
+		return Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.0f) : 0.0f;
 	}
-	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(VisualKey);
-	return Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin
-	           ? FMath::Max(Profile->MotionDurationSeconds, 0.0f)
-	           : 0.0f;
+	return 0.0f;
 }
 
 void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)

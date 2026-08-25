@@ -605,6 +605,17 @@ FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FV
 	return FRotationMatrix::MakeFromZX(Normal, PlaneDirection).Rotator();
 }
 
+FRotator UReEchoCombatVfxComponent::ResolveSwordCameraFacingRotation(const FVector& Direction,
+                                                                     const FVector& CameraFacingNormal)
+{
+	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
+	PlaneDirection = PlaneDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	// The replacement sword-slash mesh lies in local XZ, so local Y is its surface normal. Scythe retains the
+	// existing local-Z camera-plane convention because its authored Niagara renderer uses a different basis.
+	return FRotationMatrix::MakeFromYX(Normal, PlaneDirection).Rotator();
+}
+
 float UReEchoCombatVfxComponent::ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight)
 {
 	return FVector::DotProduct(AttackDirection, CameraRight) < 0.0f ? 1.0f : -1.0f;
@@ -657,8 +668,13 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	}
 	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
 	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
-	    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	{
+		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
+		DirectionRotation = ResolveSwordCameraFacingRotation(Direction, CameraFacingNormal);
+	}
+	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
 	{
 		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
 		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;

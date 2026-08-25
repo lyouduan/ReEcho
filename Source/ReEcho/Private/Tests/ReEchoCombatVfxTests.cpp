@@ -85,8 +85,11 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FReEchoVfxPlacement SwordPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
 	TestTrue(TEXT("Sword slash uses the committed world attack direction"), SwordPlacement.bUseWorldDirectionRotation);
-	TestTrue(TEXT("Sword slash waits for the authored full-spin motion"),
-	         FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerMeleeSlash) > 0.0f);
+	TestEqual(TEXT("Forward longsword slash releases its VFX immediately"),
+	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerMeleeSlash),
+	          0.0f);
+	TestTrue(TEXT("Scythe slash waits for its full-spin motion"),
+	         FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlash) > 0.0f);
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
 	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"),
@@ -114,8 +117,16 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		    (SlashDirection - FVector::DotProduct(SlashDirection, CameraFacingNormal) * CameraFacingNormal)
 		        .GetSafeNormal();
 		TestTrue(
-		    TEXT("Sword slash rotates in the camera-facing plane toward the committed enemy"),
+		    TEXT("Scythe-style VFX rotates in the camera-facing plane toward the committed enemy"),
 		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		const FRotator SwordDirectionRotation =
+		    UReEchoCombatVfxComponent::ResolveSwordCameraFacingRotation(SlashDirection, CameraFacingNormal);
+		TestTrue(TEXT("Sword slash rotates toward the committed enemy"),
+		         SwordDirectionRotation.RotateVector(FVector::ForwardVector)
+		             .Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Sword slash presents its authored local Y surface normal to the camera"),
+		         SwordDirectionRotation.RotateVector(FVector::RightVector)
+		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(

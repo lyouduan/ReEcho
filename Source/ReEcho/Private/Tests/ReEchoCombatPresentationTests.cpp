@@ -93,9 +93,6 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Gun mirrors only while facing right"),
 	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"))->HeldMirrorRule,
 	          EReEchoHeldWeaponMirrorRule::WhenFacingRight);
-	TestTrue(TEXT("Longsword owns full-spin weapon motion"),
-	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->MotionMode ==
-	             EReEchoWeaponMotionMode::FullSpin);
 	TestEqual(TEXT("Longsword points along the approved upper-right screen direction"),
 	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->HeldPlanarAngleOffsetDegrees,
 	          90.0f);

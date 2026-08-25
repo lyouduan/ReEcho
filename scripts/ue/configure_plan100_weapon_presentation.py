@@ -44,6 +44,9 @@ for key in VISUAL_KEYS:
     preserve_current_length_as_absolute(weapon_profile)
     if key == "CrescentBlade":
         configure_sword_slash(weapon_profile)
+        weapon_profile.set_editor_property("motion_mode", unreal.ReEchoWeaponMotionMode.NONE)
+    if key == "Scythe":
+        weapon_profile.set_editor_property("motion_mode", unreal.ReEchoWeaponMotionMode.FULL_SPIN)
     if key == "Bow":
         weapon_profile.set_editor_property(
             "held_mirror_rule", unreal.ReEchoHeldWeaponMirrorRule.WHEN_FACING_LEFT
@@ -57,5 +60,5 @@ for key in VISUAL_KEYS:
 
 unreal.log(
     "PLAN100_WEAPON_PRESENTATION_RESULT profiles=4 sword_z=60 sword_roll=-45 "
-    "bow_mirror=left gun_mirror=right"
+    "sword_motion=none scythe_motion=full_spin bow_mirror=left gun_mirror=right"
 )
