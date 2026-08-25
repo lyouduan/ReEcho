@@ -61,6 +61,7 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	Request.EchoAnchorRatio = 1.0f;
 	Request.ArenaHalfX = 3000.0f;
 	Request.ArenaHalfY = 3000.0f;
+	Request.SpawnCenterWorldZ = 215.0f;
 	Request.Seed = 481337;
 	Request.Sequence = 3;
 	Request.bHasEchoAnchor = true;
@@ -73,6 +74,7 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Second solve succeeds"),
 	         FReEchoSpawnResolver::Resolve(*Profile, *Policy, Request, Second, SecondError));
 	TestEqual(TEXT("Stable seed produces the same location"), First.Location, Second.Location);
+	TestEqual(TEXT("Resolved location preserves the requested final actor center height"), First.Location.Z, 215.0);
 	TestTrue(TEXT("Ratio one chooses the available echo anchor"), First.bUsedEchoAnchor);
 	TestTrue(TEXT("Player exclusion distance is honored"),
 	         FVector::Dist2D(First.Location, Request.PlayerAnchor) >= Policy->MinPlayerDistanceCm);

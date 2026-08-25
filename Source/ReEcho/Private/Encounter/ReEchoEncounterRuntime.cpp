@@ -206,7 +206,7 @@ bool FReEchoSpawnResolver::Resolve(const FReEchoCsvSpawnProfileRow& Profile,
 		FVector Candidate = Anchor + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
 		Candidate.X = FMath::Clamp(Candidate.X, -Request.ArenaHalfX, Request.ArenaHalfX);
 		Candidate.Y = FMath::Clamp(Candidate.Y, -Request.ArenaHalfY, Request.ArenaHalfY);
-		Candidate.Z = 50.0f;
+		Candidate.Z = Request.SpawnCenterWorldZ;
 
 		if (Distance2D(Candidate, Request.PlayerAnchor) < Policy.MinPlayerDistanceCm ||
 		    (Request.bHasEchoAnchor && Distance2D(Candidate, Request.EchoAnchor) < Policy.MinEchoDistanceCm))
@@ -234,7 +234,7 @@ bool FReEchoSpawnResolver::Resolve(const FReEchoCsvSpawnProfileRow& Profile,
 	FVector Fallback = Anchor + FVector(Profile.MaxAnchorDistanceCm, 0.0f, 0.0f);
 	Fallback.X = FMath::Clamp(Fallback.X, -Request.ArenaHalfX, Request.ArenaHalfX);
 	Fallback.Y = FMath::Clamp(Fallback.Y, -Request.ArenaHalfY, Request.ArenaHalfY);
-	Fallback.Z = 50.0f;
+	Fallback.Z = Request.SpawnCenterWorldZ;
 	if (Distance2D(Fallback, Request.PlayerAnchor) < Policy.MinPlayerDistanceCm)
 	{
 		OutError = TEXT("No deterministic spawn candidate satisfies the minimum player distance.");

@@ -2114,11 +2114,14 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 	const FReEchoCsvSpawnPolicyRow* Policy = Snapshot.IsValid() ? Snapshot->FindEnabledSpawnPolicy() : nullptr;
 	const FReEchoCsvSpawnProfileRow* Profile =
 	    Snapshot.IsValid() ? Snapshot->FindSpawnProfileByRole(Event.EnemyRole) : nullptr;
-	if (!Snapshot.IsValid() || !Encounter || !Policy || !Profile || !Player)
+	const FReEchoCsvEnemyRow* Enemy = Snapshot.IsValid() ? Snapshot->FindEnemy(Event.EnemyId) : nullptr;
+	if (!Snapshot.IsValid() || !Encounter || !Policy || !Profile || !Enemy || !Player)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[EncounterSpawn] warning rejected because runtime data is unavailable."));
 		return;
 	}
+	const float GameplayPlaneWorldZ = ArenaScene ? ArenaScene->GetGameplayPlaneWorldZ() : 0.0f;
+	const float SpawnCenterWorldZ = GameplayPlaneWorldZ + Enemy->CollisionHalfHeightCm;
 
 	FReEchoPendingSpawnBatchState Pending;
 	Pending.WaveId = Event.WaveId;
@@ -2139,6 +2142,7 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 		Request.EchoAnchorRatio = Encounter->EchoAnchorRatio;
 		Request.ArenaHalfX = FMath::Max(100.0f, ArenaSceneWorldHeight * 0.5f);
 		Request.ArenaHalfY = FMath::Max(100.0f, ArenaSceneWorldWidth * 0.5f);
+		Request.SpawnCenterWorldZ = SpawnCenterWorldZ;
 		Request.Seed = 1337 + Encounter->EncounterIndex * 7919;
 		Request.Sequence = EncounterSpawnSequence++;
 		Request.ExistingLocations = EncounterSpawnLocations;

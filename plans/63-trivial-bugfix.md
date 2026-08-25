@@ -146,4 +146,7 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **根因 / Root cause**：`FReEchoSpawnResolver` 将所有候选点的 `Z` 固定为 `50`，预警球直接使用该缓存点；怪物生成后 `AReEchoEnemyActor::AlignToGameplayPlane` 又按玩法平面与各自 `CollisionHalfHeightCm` 重算 Actor 中心高度。当前生产怪物半高并不统一（史莱姆 `90`、兔子 `85`、狐狸 `130`），斜视角投影下预警球中心与最终 Actor/动画脚点产生明显屏幕空间错位。
 - **目标 / Acceptance**：预警与生成提交必须消费同一个最终世界位置事实；怪物生成完成后的 Actor 中心位置应与其对应预警位置一致，动画脚点仍贴合玩法平面，不改变现有 XY 解算、距离环、间距、波次时序或策划表数值。
 - **实现范围 / Writes**：`Source/ReEcho/Private/ReEchoGameMode.cpp`、聚焦测试、本文档，以及 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；审阅 `MOD-ReEchoEnemies` 与 `MOD-ReEchoPresentation`，若其所有权/契约未变化则只在本条记录“无需修改”。
-- **状态 / Status**：InProgress。先将预警批次缓存点规范化为对应敌人最终碰撞中心高度，并锁定“预警点等于生成后 Actor 中心”的回归；随后执行 C++ 格式化、聚焦自动化、完整 Editor 构建、项目校验与人工 PIE 视觉验收。
+- **改动 / Changes**：`FReEchoSpawnResolveRequest` 新增显式 `SpawnCenterWorldZ`；SpawnResolver 的正常候选和确定性回退都保留该高度，不再写死 `Z=50`。GameMode 在准备预警批次时从当前 Arena 玩法平面与 `Enemies.CollisionHalfHeightCm` 计算最终 Actor 中心高度，随后预警和生成提交原样复用同一缓存位置。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；`ReEcho.Encounter.DeterministicSpawnResolver` 自动化通过，锁定确定性位置与最终中心高度；Development Editor `-FullRebuild` 通过并刷新预构建包；`validate_project.py` 与 `git diff --check` 通过。第一次完整构建曾因测试期望值误用 `float` 与 UE 5.8 `FVector::Z` 的 `double` 重载冲突而失败，改为 `double` 后重新完整构建通过。
+- **文档审阅 / Documentation review**：`MOD-ReEcho` 已补充“预警/提交共享最终 Actor 中心位置”契约；`MOD-ReEchoEnemies` 已审阅、无需修改，因为 EnemyLogic 和 Host 变换所有权未变化；`MOD-ReEchoPresentation` 已审阅、无需修改，因为动画、脚点与表现输入未变化。
+- **状态 / Status**：Review。技术门禁已通过；仍需用户在 PIE 中观察史莱姆、兔子和狐狸的预警球与出生动画是否重合，作为视觉验收。

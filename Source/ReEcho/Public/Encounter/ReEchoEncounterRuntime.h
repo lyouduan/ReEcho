@@ -73,6 +73,7 @@ struct REECHO_API FReEchoSpawnResolveRequest
 	float EchoAnchorRatio = 0.0f;
 	float ArenaHalfX = 0.0f;
 	float ArenaHalfY = 0.0f;
+	float SpawnCenterWorldZ = 0.0f;
 	int32 Seed = 0;
 	int32 Sequence = 0;
 	bool bHasEchoAnchor = false;
