@@ -9,7 +9,7 @@ import unreal
 
 
 ASSET_DIR = "/Game/ReEcho/Fonts/DamageNumbers"
-ASSET_NAME = "M_DamageNumberTextTranslucent"
+ASSET_NAME = "M_DamageNumberTextOpacity"
 ASSET_PATH = f"{ASSET_DIR}/{ASSET_NAME}"
 ENGINE_MATERIAL_PATH = "/Engine/EngineMaterials/DefaultTextMaterialTranslucent"
 
@@ -68,23 +68,20 @@ def ensure_material():
         if default_opacity is None or vertex_color is None:
             fail("Duplicated engine material is missing its opacity or vertex color graph")
 
-        vertex_alpha = expression(
-            material, unreal.MaterialExpressionComponentMask, 160, 260
-        )
-        vertex_alpha.set_editor_property("r", False)
-        vertex_alpha.set_editor_property("g", False)
-        vertex_alpha.set_editor_property("b", False)
-        vertex_alpha.set_editor_property("a", True)
         faded_opacity = expression(
             material, unreal.MaterialExpressionMultiply, 420, 80
         )
 
-        connect(vertex_color, "", vertex_alpha, "")
         connect(default_opacity, "", faded_opacity, "A")
-        connect(vertex_alpha, "", faded_opacity, "B")
+        # Select A at the VertexColor node. Passing the full output through a
+        # ComponentMask fails SM5 compilation because the existing Base Color
+        # consumer narrows that shared expression to float3.
+        connect(vertex_color, "A", faded_opacity, "B")
         connect_property(faded_opacity, "", unreal.MaterialProperty.MP_OPACITY)
 
-    unreal.MaterialEditingLibrary.recompile_material(material)
+    compile_errors = unreal.MaterialEditingLibrary.recompile_material(material)
+    if compile_errors:
+        fail("Material compile failed: " + " | ".join(compile_errors))
     unreal.EditorAssetLibrary.save_loaded_asset(material, only_if_is_dirty=False)
     return material
 
