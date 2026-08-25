@@ -133,6 +133,9 @@ public:
 		return PortraitTexture;
 	}
 
+	/** Presentation-owned icon for the current character on the combat minimap. */
+	UTexture2D* GetMinimapIconTexture() const;
+
 	/** 当前明确的 2D 表现状态：静止 Idle、移动 Walk、攻击 Attack。 */
 	/** Synchronize the spawned weapon actor with a restored build without recording a new switch event. */
 	void RestoreEquippedWeapon(FName WeaponId);

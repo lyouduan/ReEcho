@@ -18,7 +18,6 @@ TEXTURE_NAMES = (
     "T_UI_CombatHud_EchoFrame",
     "T_UI_CombatHud_ClockFrame",
     "T_UI_CombatHud_TimeShardIcon",
-    "T_UI_CombatHud_TimeReadout",
     "T_UI_CombatHud_ClockNeedle",
     "T_UI_CombatHud_HealthFill",
     "T_UI_CombatHud_HealthFrame",
@@ -66,12 +65,23 @@ for asset_path, expected_parent_path in ASSET_PATHS.items():
             ):
                 raise RuntimeError(f"{text_name} must use the accepted 25px font")
     elif asset_path.endswith("WBP_ReEchoEncounterHud"):
+        if widgets.get("ArtTimeReadout") is not None:
+            raise RuntimeError("Obsolete ArtTimeReadout is still present")
         encounter_text = widgets.get("EncounterText")
         encounter_slot = encounter_text.slot if encounter_text is not None else None
         if not isinstance(encounter_slot, unreal.CanvasPanelSlot) or not nearly_equal(
             encounter_slot.get_position().y, 0.0
         ):
             raise RuntimeError("EncounterText must keep the accepted Y=0 position")
+        needle = widgets.get("ArtClockNeedle")
+        if not isinstance(needle, unreal.Image):
+            raise RuntimeError("ArtClockNeedle must remain an Image binding")
+        needle_pivot = needle.get_editor_property("render_transform_pivot")
+        if not (
+            nearly_equal(needle_pivot.x, 0.5)
+            and nearly_equal(needle_pivot.y, 0.12)
+        ):
+            raise RuntimeError("ArtClockNeedle pivot must stay on the authored top axle")
         map_canvas = widgets.get("CanvasPanel_0")
         minimaps = [
             widget
@@ -142,6 +152,10 @@ for texture_name in TEXTURE_NAMES:
         f"lod_group={texture.get_editor_property('lod_group')}"
     )
 
-obsolete_skill_bar = f"{TEXTURE_ROOT}/T_UI_CombatHud_SkillBar"
-if unreal.EditorAssetLibrary.does_asset_exist(obsolete_skill_bar):
-    raise RuntimeError(f"Obsolete runtime texture still exists: {obsolete_skill_bar}")
+for obsolete_texture_name in (
+    "T_UI_CombatHud_SkillBar",
+    "T_UI_CombatHud_TimeReadout",
+):
+    obsolete_texture = f"{TEXTURE_ROOT}/{obsolete_texture_name}"
+    if unreal.EditorAssetLibrary.does_asset_exist(obsolete_texture):
+        raise RuntimeError(f"Obsolete runtime texture still exists: {obsolete_texture}")

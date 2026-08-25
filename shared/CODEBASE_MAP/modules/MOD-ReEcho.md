@@ -68,7 +68,7 @@
 - 本局只读摘要、保存文件、录制与 Echo Playback。
 - UI 屏幕命令、只读展示数据和表现事件。
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
-- 战斗常驻 HUD 的只读表现投影：Combatant 提供生命，Run 提供 TimeShards，Encounter Director 提供剩余时间，GameMode 只转发这些状态及小地图视图，不复制或回写权威。
+- 战斗常驻 HUD 的只读表现投影：Combatant 提供生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 
 ### 稳定契约

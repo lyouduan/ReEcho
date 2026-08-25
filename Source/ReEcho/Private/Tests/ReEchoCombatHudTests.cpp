@@ -4,6 +4,7 @@
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
+#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoMinimapCanvasWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
@@ -25,6 +26,24 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Countdown clamps negative values"),
 	          UReEchoEncounterHudWidget::FormatCountdown(-1.0f).ToString(),
 	          FString(TEXT("00:00")));
+	TestEqual(TEXT("Countdown needle starts on the right"),
+	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(60.0f, 60.0f),
+	          -90.0f);
+	TestEqual(TEXT("Countdown needle points down at half time"),
+	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(30.0f, 60.0f),
+	          0.0f);
+	TestEqual(TEXT("Countdown needle finishes on the left"),
+	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 60.0f),
+	          90.0f);
+	TestEqual(TEXT("Countdown needle clamps remaining time above duration"),
+	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(90.0f, 60.0f),
+	          -90.0f);
+	TestEqual(TEXT("Countdown needle safely handles an invalid duration before completion"),
+	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(10.0f, 0.0f),
+	          -90.0f);
+	TestEqual(TEXT("Countdown needle safely handles an invalid duration at completion"),
+	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 0.0f),
+	          90.0f);
 
 	UReEchoPlayerHudWidget* PlayerHud = NewObject<UReEchoPlayerHudWidget>();
 	PlayerHud->SetTimeShards(12);
@@ -74,11 +93,15 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	    NewObject<UReEchoEncounterHudWidget>(GetTransientPackage(), EncounterHudClass);
 	TestTrue(TEXT("Authored Encounter HUD initializes"), AuthoredEncounterHud->Initialize());
 	AuthoredEncounterHud->TakeWidget();
-	AuthoredEncounterHud->SetEncounterStatus(3, 6, 59.1f);
+	AuthoredEncounterHud->SetEncounterStatus(3, 6, 59.1f, 60.0f);
 	UTextBlock* EncounterText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("EncounterText")));
 	UTextBlock* CountdownText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("CountdownText")));
+	UImage* ClockNeedle = Cast<UImage>(AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtClockNeedle")));
 	TestNotNull(TEXT("Encounter HUD keeps the encounter label binding"), EncounterText);
 	TestNotNull(TEXT("Encounter HUD keeps the countdown binding"), CountdownText);
+	TestNotNull(TEXT("Encounter HUD keeps the animated clock needle binding"), ClockNeedle);
+	TestNull(TEXT("Rejected countdown background is absent"),
+	         AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtTimeReadout")));
 	if (EncounterText && CountdownText)
 	{
 		TestEqual(
@@ -95,6 +118,29 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Encounter HUD retains the real minimap widget"), bHasRealMinimap);
 	TestNull(TEXT("Rejected bottom panel is absent from the Encounter HUD"),
 	         AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtSkillBar")));
+
+	const TCHAR* CharacterProfiles[] = {
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_HEART.DA_Character_J_HEART"),
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_SPADE.DA_Character_J_SPADE"),
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_CLOVER.DA_Character_J_CLOVER"),
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Character_J_DIAMOND.DA_Character_J_DIAMOND"),
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Echo_J_HEART.DA_Echo_J_HEART"),
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Echo_J_SPADE.DA_Echo_J_SPADE"),
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Echo_J_CLOVER.DA_Echo_J_CLOVER"),
+	    TEXT("/Game/ReEcho/DataAsset/Character/Profiles/DA_Echo_J_DIAMOND.DA_Echo_J_DIAMOND"),
+	};
+	for (const TCHAR* ProfilePath : CharacterProfiles)
+	{
+		const UReEcho2DCharacterPresentationProfile* Profile =
+		    LoadObject<UReEcho2DCharacterPresentationProfile>(nullptr, ProfilePath);
+		const FString ProfileLoadsWhat = FString::Printf(TEXT("Minimap profile loads: %s"), ProfilePath);
+		TestNotNull(*ProfileLoadsWhat, Profile);
+		if (Profile)
+		{
+			const FString ProfileOwnsIconWhat = FString::Printf(TEXT("Minimap profile owns an icon: %s"), ProfilePath);
+			TestNotNull(*ProfileOwnsIconWhat, Profile->MinimapIcon.Get());
+		}
+	}
 	return true;
 }
 

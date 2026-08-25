@@ -5,7 +5,7 @@
 - Planner / Executor：Codex（按用户要求合并）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`。
 - 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main@6b3262fa574d9ea684cad1c0ce8d6c8c96f25fc6`。
 - 本地实现方式：`plan/101-separated-shop-card-refresh`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan101-separated-refresh`。
@@ -109,11 +109,12 @@
 - 2026-08-25：策划临时明确“三张分别分配”是三选一页面每张卡下方各有一个刷新按钮，每个卡位一次；只替换所点卡位，刷新结果排除当前页面卡牌、被替换卡牌和全部已获得卡牌，无替换候选时禁用且不消费。
 - 2026-08-25：远端发布 `plans/100-weapon-vfx-placement-and-shared-sizing.md` 占用 Plan100。用户确认吸收 `df419ebc` 并将本任务顺延为 Plan101；当前只存在 Plan 文档编号冲突，无商店代码冲突。
 - 2026-08-25：用户追加过关后免费投放也使用逐卡槽刷新；复用同一 `1 次 / 5 碎片` 数据规则和 Widget 命令，免费页候选与用量提升为 SaveVersion 18 的 Run 状态。
+- 2026-08-25：在用户确认发布后吸收 `origin/main@4c2f3530` 的 Plan102 战斗 HUD/小地图与 Plan63 Shipping 修复；共享 `ReEchoGameMode.cpp` 自动组合，预构建二进制由最终整合源码重新生成，无未解决冲突。
 
 ### 证据
 
 - Spreadsheet 可见视图复核并迁移 `投放系统!A27:C30`：生产 `经济系统!tblShopRefreshRules` 与 `Content/Data/shop_refresh_rules.csv` 均为卡位 `1/5`、武器符文 `2/5`；`python scripts/data/sync_xlsx_to_csv.py --check` 通过。
-- Development Editor 构建通过；`python scripts/ue/prebuilt_editor.py update` 刷新 Win64 预构建包，源码指纹 `4189b66fe88a`。
+- 最终整合候选的 Development Editor FullRebuild 通过；Win64 预构建包由构建脚本刷新，源码指纹 `40e3668a045b`。
 - `ReEcho.Shop` 全部通过，含 `RefreshesWeaponRunesAndCardSlotsIndependently`、武器/符文购买与背包回归。
 - `ReEcho.UI.Shop` 全部通过，含主商店剩余次数/价格文本、三张卡各自刷新按钮和缺失候选隐藏。
 - `ReEcho.Traits` 全部通过，含 `FreeChoiceSlotsRefreshIndependently`、免费页同级替换、严格所有权排除、失败原子性和 SaveVersion 18 恢复。
@@ -122,8 +123,7 @@
 
 ### 剩余风险
 
-- 生产 XLSX 为二进制共享文件；发布前仍须重新 fetch 并审计远端是否变化。
-- 刷新按钮已按现有三选一卡牌锚点置于各卡下方；最终尺寸和资产化排版等待用户 PIE 目视验收。
+- 无阻断性剩余风险；生产 XLSX 已随候选同步校验，刷新按钮布局与交互已由用户完成 PIE 目视验收。
 
 ### 人工验收结果/请求
 

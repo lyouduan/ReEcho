@@ -1,13 +1,16 @@
 #include "UI/ReEchoMinimapCanvasWidget.h"
 
+#include "Engine/Texture2D.h"
 #include "Rendering/DrawElements.h"
 #include "SlateCore.h"
 #include "Widgets/SCompoundWidget.h"
 
 namespace
 {
-	/** 小地图固定像素尺寸。 */
-	constexpr float MinimapCanvasSize = 220.0f;
+/** 小地图固定像素尺寸。 */
+constexpr float MinimapCanvasSize = 220.0f;
+constexpr float EchoIconSize = 30.0f;
+constexpr float PlayerIconSize = 34.0f;
 }
 
 void SReEchoMinimapCanvas::Construct(const FArguments& InArgs)
@@ -28,9 +31,9 @@ FVector2D SReEchoMinimapCanvas::ToLocal(const FVector2D& WorldXY, const FVector2
 }
 
 FVector2D SReEchoMinimapCanvas::TransformWorldToMinimap(const FVector2D& WorldXY,
-                                                       const FVector2D& Center,
-                                                       const FVector2D& HalfExtents,
-                                                       const FVector2D& CanvasSize)
+                                                        const FVector2D& Center,
+                                                        const FVector2D& HalfExtents,
+                                                        const FVector2D& CanvasSize)
 {
 	// 以竞技场中心为中点，归一化到 [0,1]。
 	const FVector2D Min = Center - HalfExtents;
@@ -56,10 +59,41 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 		return LayerId;
 	}
 
-	// 白色实心刷仅用于轨迹点和玩家点；画布本身保持透明，
+	// 白色实心刷只用于图标缺失时的安全降级点；画布本身保持透明，
 	// 让 WBP 中的正式回响边框素材决定底板视觉。
 	FSlateBrush SolidBrush;
 	SolidBrush.TintColor = FSlateColor(FLinearColor::White);
+	auto DrawMarker = [&](const FVector2D& Center,
+	                      const float MarkerSize,
+	                      UTexture2D* Icon,
+	                      const FLinearColor& FallbackColor,
+	                      const int32 MarkerLayer)
+	{
+		const FVector2f DrawSize(MarkerSize, MarkerSize);
+		const FVector2f DrawPosition(static_cast<float>(Center.X - MarkerSize * 0.5f),
+		                             static_cast<float>(Center.Y - MarkerSize * 0.5f));
+		if (IsValid(Icon))
+		{
+			FSlateBrush IconBrush;
+			IconBrush.SetResourceObject(Icon);
+			IconBrush.ImageSize = DrawSize;
+			FSlateDrawElement::MakeBox(
+			    OutDrawElements,
+			    MarkerLayer,
+			    AllottedGeometry.ToPaintGeometry(DrawSize, FSlateLayoutTransform(1.0f, DrawPosition)),
+			    &IconBrush,
+			    ESlateDrawEffect::None,
+			    FLinearColor::White);
+			return;
+		}
+		FSlateDrawElement::MakeBox(
+		    OutDrawElements,
+		    MarkerLayer,
+		    AllottedGeometry.ToPaintGeometry(DrawSize, FSlateLayoutTransform(1.0f, DrawPosition)),
+		    &SolidBrush,
+		    ESlateDrawEffect::None,
+		    FallbackColor);
+	};
 
 	if (View.bValid && View.ArenaHalfExtents.X > KINDA_SMALL_NUMBER && View.ArenaHalfExtents.Y > KINDA_SMALL_NUMBER)
 	{
@@ -74,35 +108,22 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 			}
 			if (Points.Num() >= 2)
 			{
-				FSlateDrawElement::MakeLines(
-					OutDrawElements,
-					LayerId + 2,
-					AllottedGeometry.ToPaintGeometry(),
-					Points,
-					ESlateDrawEffect::None,
-					Entry.Color,
-					true,
-					2.0f);
+				FSlateDrawElement::MakeLines(OutDrawElements,
+				                             LayerId + 2,
+				                             AllottedGeometry.ToPaintGeometry(),
+				                             Points,
+				                             ESlateDrawEffect::None,
+				                             Entry.Color,
+				                             true,
+				                             2.0f);
 			}
 			const FVector2D EchoPos = ToLocal(Entry.CurrentLocation, Size);
-			FSlateDrawElement::MakeBox(
-				OutDrawElements,
-				LayerId + 3,
-				AllottedGeometry.ToPaintGeometry(FVector2f(8.0f, 8.0f), FSlateLayoutTransform(1.0f, FVector2f(static_cast<float>(EchoPos.X - 4.0), static_cast<float>(EchoPos.Y - 4.0)))),
-				&SolidBrush,
-				ESlateDrawEffect::None,
-				Entry.Color);
+			DrawMarker(EchoPos, EchoIconSize, Entry.Icon, Entry.Color, LayerId + 3);
 		}
 
-		// 玩家当前点（高亮绿）
+		// 玩家当前图标；图标缺失时保留原高亮绿点作为安全降级。
 		const FVector2D PlayerPos = ToLocal(View.PlayerLocation, Size);
-		FSlateDrawElement::MakeBox(
-			OutDrawElements,
-			LayerId + 4,
-			AllottedGeometry.ToPaintGeometry(FVector2f(12.0f, 12.0f), FSlateLayoutTransform(1.0f, FVector2f(static_cast<float>(PlayerPos.X - 6.0), static_cast<float>(PlayerPos.Y - 6.0)))),
-			&SolidBrush,
-			ESlateDrawEffect::None,
-			FLinearColor(0.2f, 1.0f, 0.4f, 1.0f));
+		DrawMarker(PlayerPos, PlayerIconSize, View.PlayerIcon, FLinearColor(0.2f, 1.0f, 0.4f, 1.0f), LayerId + 4);
 	}
 
 	return LayerId + 5;
