@@ -55,7 +55,7 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 
 ### 命令与输入
 
-- Pawn/流程通过 `UReEchoAttackControllerComponent` 发送自动/手动模式、Begin/End manual、运行门控和统一 Release 请求；不直接写 GAS spec 的 `InputPressed`。
+- Pawn/流程通过 `UReEchoAttackControllerComponent` 发送自动/手动模式、Begin/End manual、运行门控和统一 Release 请求；不直接写 GAS spec 的 `InputPressed`。手动与自动来源互斥持有同一个 GAS 普攻输入：切换模式先释放旧来源，非当前模式入口被拒绝，迟到的旧来源 Release 不得释放新来源。
 - `IReEchoAttackControllerHost` / `IReEchoAttackHost` 是主模块宿主与 Combat 的窄桥，Combat 不 include 具体 Pawn 或 WeaponActor。
 - Weapons、敌人接触攻击或合法环境来源提交完整 `FReEchoHitIntent`；Intent 只描述候选，不宣称最终伤害或死亡。
 - 来源宿主可在 Resolver 内通过 `ModifyOutgoingHit` 对候选执行一次类型化规则变换；元素内部伤害必须携带 `bSourceRulesApplied`，防止同一 Hit 重复扣资源或增伤。

@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序 Executor；Plan 发布后在独立实现 worktree 执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（长剑斩弹与兔子投射物命中生命周期候选已实现，等待 PIE 验收）。
+- 任务状态：`Review`（手动/自动攻击输入源互斥候选已实现并通过自动化，等待 PIE 验收）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@6b3262fa574d9ea684cad1c0ce8d6c8c96f25fc6`。
 - 本地实现方式：规划分支 `codex/plan100-weapon-vfx-placement-plan`；发布本 Plan 后从最新 `origin/main` 创建一任务一 worktree 的 Executor 分支。
@@ -22,6 +22,9 @@
   - `Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp`
   - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`
   - `Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`
+  - `Source/ReEcho/Private/Player/ReEchoPlayerPawn.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoAttackModeTests.cpp`
+  - `Source/ReEchoCombat/Private/Combat/ReEchoAttackControllerComponent.cpp`
   - `Source/ReEchoCombat/Public/Combat/ReEchoCombatContracts.h`
   - `scripts/ue/configure_plan100_weapon_presentation.py`
   - `Content/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_*.uasset`
@@ -61,6 +64,7 @@
 - [ ] 兔子球与玩家的扫掠碰撞成功结算一次伤害后立即发布 `Ended` 并从逻辑数组移除，视觉代理同步消失。
 - [ ] 仅 `Pattern.LongSwordCombo` 在既有提交范围和 180°弧内移除兔子球；弧外球与其他武器不受影响。
 - [ ] 手动触发的主动攻击成功 Commit 后与普通攻击共用 `AttackCommitted` 事件出口并释放对应特效；镰刀召回不重复发布。
+- [ ] 手动与自动攻击输入互斥：模式切换先释放旧来源，非当前模式入口被拒绝，迟到的旧来源 Release 不会中止新来源。
 - [ ] 配置脚本可重复运行，只修改本 Plan 锁定字段，不重置艺术已调整的其他 Profile 字段。
 - [ ] 聚焦自动化、C++ 格式化、Development FullRebuild、`validate_project.py`、预构建一致性和 `git diff --check` 通过。
 - [ ] 用户在 PIE 对比 Player/Echo 同武器大小，并确认长剑刀光离地、完整显示、方向和攻击同步观感；未验收前保持 `PendingBeforeClose`。
@@ -103,6 +107,7 @@
 - 用户明确要求不合并远端新增 9 个提交并继续在本 Plan 执行；候选仍基于当前 Plan100 分支。兔子球命中玩家后立即发布 `Ended` 并从 EnemyHost 逻辑数组移除，对应 VFX 代理同步结束。
 - `Pattern.LongSwordCombo` 在既有近战提交中复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询所有兔子 Host 的逻辑球；弧内球由 Host 权威结束。其他攻击模式和非兔子投射物不进入该路径。
 - 普通攻击与主动攻击的成功 Commit 统一由 `PublishAttackCommittedEvent` 组装并发布表现事件；此前缺事件的手动主动攻击现在会释放对应武器特效，镰刀召回仍不产生第二次 Commit/特效。
+- `UReEchoAttackControllerComponent` 成为共享 GAS 普攻输入的唯一来源所有者：模式切换统一释放旧 held；手动/自动入口在接管前清理异常旧来源；任一来源的迟到 Release 只释放自身，不能误停另一来源。Pawn 移除重复的模式切换后二次释放分支。
 
 ### 证据
 
@@ -115,6 +120,7 @@
 - 扩展候选 `validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
 - 手动主动攻击特效候选 Development FullRebuild 通过：`96/96` actions，预构建 source fingerprint `f7953bfef1ba`。首次构建因测试 getter 误置于 `PublishHurt` 函数体内产生 C2270/C2601，移动到组件测试区后重建通过；运行时事件实现本身未出现编译错误。
 - `ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 聚焦自动化找到 1 项并通过：首次主动镰刀 Commit 发布一次 `Pattern.ScytheSweep`，召回不重复发布。`validate_project.py`、预构建一致性与 `git diff --check` 同步通过。
+- 手动/自动互斥候选 Development FullRebuild 通过：`96/96` actions，预构建 source fingerprint `17225d9af900`；`ReEcho.AttackMode.InputSource` 找到 1 项并通过，覆盖自动模式拒绝物理输入、手动模式拒绝自动入口，以及切换模式释放旧 held。`validate_project.py`、预构建一致性与 `git diff --check` 通过。
 - `validate_project.py` 的非 XLSX 检查完成，但总结果受 worktree `Content/reecho_xlsx_package_*` 创建权限拒绝阻塞；本 Plan 未修改 XLSX/CSV。
 - 全量 `ReEcho.Weapons` 暴露既有非本任务失败：生产 rune 数预期 47/实际 46、`P_GUN_RAPID_MUZZLE` 已禁用，以及 WeaponRuntime 临时 CSV 断言；精确受影响测试已独立通过。
 

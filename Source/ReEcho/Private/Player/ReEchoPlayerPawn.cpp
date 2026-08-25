@@ -746,20 +746,8 @@ void AReEchoPlayerPawn::SetAutoAttackMode(const bool bAuto)
 		return;
 	}
 	AttackController->SetAttackMode(bAuto ? EReEchoAttackMode::Automatic : EReEchoAttackMode::Manual);
-	if (bAuto)
-	{
-		// 切换到自动模式：物理（手动）held 输入不再权威，必须释放它，
-		// 这样自动循环才能干净地独占共享的 GAS basic-attack 输入。
-		if (AttackController->IsManualHeld())
-		{
-			AttackController->ReleaseAttackRequests();
-		}
-	}
-	else
-	{
-		// 切换到手动模式：释放模拟的自动 held 输入。
-		ReleaseAutoAttackInput();
-	}
+	// SetAttackMode is the single transition authority: it releases whichever
+	// source owned the shared GAS input before publishing the new mode.
 }
 
 void AReEchoPlayerPawn::PressAutoAttackInput()
