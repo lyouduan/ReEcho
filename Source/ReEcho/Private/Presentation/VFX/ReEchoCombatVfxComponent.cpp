@@ -525,6 +525,12 @@ FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredSc
 	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
 }
 
+FRotator UReEchoCombatVfxComponent::ComposeAttachedRotation(const FRotator& DirectionRotation,
+                                                            const FRotator& LocalRotation)
+{
+	return (DirectionRotation.Quaternion() * LocalRotation.Quaternion()).Rotator();
+}
+
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
 {
 	UNiagaraSystem* System = ResolveSystem(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting));
@@ -572,8 +578,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		return nullptr;
 	}
 	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
-	FRotator RelativeRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
-	RelativeRotation += Placement.LocalRotation;
+	const FRotator RelativeRotation = ComposeAttachedRotation(
+	    FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction), Placement.LocalRotation);
 	const FVector RelativeScale = ResolveAttachedScale(
 	    Placement.Scale,
 	    AttachmentRoot->GetComponentTransform().GetScale3D(),

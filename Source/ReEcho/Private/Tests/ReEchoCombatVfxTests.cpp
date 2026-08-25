@@ -89,12 +89,22 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Sword slash tilt comes from its weapon profile"),
-	         FMath::IsNearlyEqual(SwordPlacement.LocalRotation.Roll, -45.0f, KINDA_SMALL_NUMBER));
+	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"), SwordPlacement.LocalRotation.ContainsNaN());
 	TestTrue(TEXT("Sword slash cancels different host scales"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(
 	             SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
 	             .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
+	const FVector SlashDirections[] = {FVector::ForwardVector, FVector::BackwardVector, FVector(0.6f, 0.8f, 0.0f)};
+	for (const FVector& SlashDirection : SlashDirections)
+	{
+		const FRotator DirectionRotation =
+		    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::PlayerMeleeSlash, SlashDirection);
+		const FRotator ComposedRotation =
+		    UReEchoCombatVfxComponent::ComposeAttachedRotation(DirectionRotation, SwordPlacement.LocalRotation);
+		TestTrue(TEXT("Sword slash local tilt follows the committed attack direction"),
+		         ComposedRotation.RotateVector(FVector::ForwardVector).GetSafeNormal2D().Equals(
+		             SlashDirection.GetSafeNormal2D(), KINDA_SMALL_NUMBER));
+	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
 	    StartWorld, MovedEndWorld, StartParameter, EndParameter);

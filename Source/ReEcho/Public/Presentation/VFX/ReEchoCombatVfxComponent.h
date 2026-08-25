@@ -86,6 +86,8 @@ public:
 	static FVector ResolveAttachedScale(const FVector& DesiredScale,
 	                                    const FVector& AttachmentWorldScale,
 	                                    bool bPreserveWorldSize);
+	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
+	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
