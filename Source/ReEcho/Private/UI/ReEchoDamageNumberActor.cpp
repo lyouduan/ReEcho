@@ -14,7 +14,7 @@ const TCHAR* AReEchoDamageNumberActor::GetDamageNumberFontPath()
 
 const TCHAR* AReEchoDamageNumberActor::GetDamageNumberMaterialPath()
 {
-	return TEXT("/Game/ReEcho/Fonts/DamageNumbers/M_DamageNumberText.M_DamageNumberText");
+	return TEXT("/Game/ReEcho/Fonts/DamageNumbers/M_DamageNumberTextFade.M_DamageNumberTextFade");
 }
 
 float AReEchoDamageNumberActor::CalculateOpacity(const float ElapsedSeconds, const float DurationSeconds)

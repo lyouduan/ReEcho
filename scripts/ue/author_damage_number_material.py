@@ -10,8 +10,9 @@ import unreal
 
 
 ASSET_DIR = "/Game/ReEcho/Fonts/DamageNumbers"
-ASSET_NAME = "M_DamageNumberText"
+ASSET_NAME = "M_DamageNumberTextFade"
 ASSET_PATH = f"{ASSET_DIR}/{ASSET_NAME}"
+FONT_PATH = f"{ASSET_DIR}/F_DamageNumber_MFYuYue_Font"
 
 
 def fail(message):
@@ -22,6 +23,23 @@ def expression(material, expression_class, x, y):
     return unreal.MaterialEditingLibrary.create_material_expression(
         material, expression_class, x, y
     )
+
+
+def connect(source, source_output, destination, destination_input):
+    if not unreal.MaterialEditingLibrary.connect_material_expressions(
+        source, source_output, destination, destination_input
+    ):
+        fail(
+            f"Unable to connect {source.get_name()}:{source_output} to "
+            f"{destination.get_name()}:{destination_input}"
+        )
+
+
+def connect_property(source, source_output, material_property):
+    if not unreal.MaterialEditingLibrary.connect_material_property(
+        source, source_output, material_property
+    ):
+        fail(f"Unable to connect {source.get_name()} to {material_property}")
 
 
 def ensure_material():
@@ -48,38 +66,46 @@ def ensure_material():
     if created:
         unreal.MaterialEditingLibrary.delete_all_material_expressions(material)
 
+        font = unreal.EditorAssetLibrary.load_asset(FONT_PATH)
+        if not isinstance(font, unreal.Font):
+            fail(f"Missing offline damage-number font: {FONT_PATH}")
         font_sample = expression(
-            material, unreal.MaterialExpressionFontSampleParameter, -620, -80
+            material, unreal.MaterialExpressionFontSampleParameter, -820, -120
         )
         font_sample.set_editor_property("parameter_name", "Font")
+        font_sample.set_editor_property("font", font)
+        font_sample.set_editor_property("font_texture_page", 0)
         vertex_color = expression(
-            material, unreal.MaterialExpressionVertexColor, -620, 180
-        )
-        tinted_font = expression(
-            material, unreal.MaterialExpressionMultiply, -320, -80
-        )
-        faded_mask = expression(
-            material, unreal.MaterialExpressionMultiply, -320, 180
+            material, unreal.MaterialExpressionVertexColor, -820, 220
         )
 
-        unreal.MaterialEditingLibrary.connect_material_expressions(
-            font_sample, "RGB", tinted_font, "A"
+        # FontSample and VertexColor expose anonymous masked outputs in UE 5.8.
+        # Connect their full output to explicit masks instead of guessing pin names.
+        font_mask = expression(
+            material, unreal.MaterialExpressionComponentMask, -560, -120
         )
-        unreal.MaterialEditingLibrary.connect_material_expressions(
-            vertex_color, "RGB", tinted_font, "B"
+        font_mask.set_editor_property("r", True)
+        vertex_rgb = expression(
+            material, unreal.MaterialExpressionComponentMask, -560, 120
         )
-        unreal.MaterialEditingLibrary.connect_material_expressions(
-            font_sample, "A", faded_mask, "A"
+        vertex_rgb.set_editor_property("r", True)
+        vertex_rgb.set_editor_property("g", True)
+        vertex_rgb.set_editor_property("b", True)
+        vertex_alpha = expression(
+            material, unreal.MaterialExpressionComponentMask, -560, 320
         )
-        unreal.MaterialEditingLibrary.connect_material_expressions(
-            vertex_color, "A", faded_mask, "B"
+        vertex_alpha.set_editor_property("a", True)
+        faded_mask = expression(
+            material, unreal.MaterialExpressionMultiply, -260, 80
         )
-        unreal.MaterialEditingLibrary.connect_material_property(
-            tinted_font, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR
-        )
-        unreal.MaterialEditingLibrary.connect_material_property(
-            faded_mask, "", unreal.MaterialProperty.MP_OPACITY
-        )
+
+        connect(font_sample, "", font_mask, "")
+        connect(vertex_color, "", vertex_rgb, "")
+        connect(vertex_color, "", vertex_alpha, "")
+        connect(font_mask, "", faded_mask, "A")
+        connect(vertex_alpha, "", faded_mask, "B")
+        connect_property(vertex_rgb, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+        connect_property(faded_mask, "", unreal.MaterialProperty.MP_OPACITY)
 
     unreal.MaterialEditingLibrary.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material, only_if_is_dirty=False)
