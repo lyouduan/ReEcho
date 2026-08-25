@@ -361,6 +361,11 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			continue;
 		}
+		if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		{
+			TestFalse(TEXT("Replacement sword asset selects the explicit missing-parameter reverse fallback"),
+			          UReEchoCombatVfxComponent::HasMeleePlayDirectionParameter(System));
+		}
 		const bool bRequiresComponentSpace =
 		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||

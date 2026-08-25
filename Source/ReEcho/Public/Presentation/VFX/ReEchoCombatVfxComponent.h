@@ -92,6 +92,8 @@ public:
 	static FRotator EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation, const FVector& CameraFacingNormal);
 	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
+	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
+	static bool HasMeleePlayDirectionParameter(const UNiagaraSystem* System);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
@@ -236,7 +238,15 @@ private:
 	mutable bool bMissingRabbitProjectileTextureWarned = false;
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;
 	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;
+	mutable bool bMissingMeleePlayDirectionWarned = false;
 	TArray<FTimerHandle> ConductPropagationTimers;
+
+	struct FReverseMeleePlayback
+	{
+		TWeakObjectPtr<UNiagaraComponent> Effect;
+		float RemainingSeconds = 0.0f;
+	};
+	mutable TArray<FReverseMeleePlayback> ReverseMeleePlaybacks;
 
 	uint64 ConductBatchSerial = 0;
 };
