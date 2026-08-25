@@ -65,6 +65,36 @@ FVector2D ResolveHeldDimensions(const UTexture2D& Texture,
 }
 }
 
+#if !UE_BUILD_SHIPPING
+namespace ReEchoSwordDamageTrace
+{
+const FName LongSwordWeaponId = TEXT("W_J_01");
+const FName DamageCoefficientRule = TEXT("Weapon.DamageCoefficient");
+
+FString DescribeEquippedParts(const TArray<FReEchoEquippedPartSnapshot>& EquippedParts)
+{
+	TArray<FString> PartIds;
+	PartIds.Reserve(EquippedParts.Num());
+	for (const FReEchoEquippedPartSnapshot& Part : EquippedParts)
+	{
+		PartIds.Add(FString::Printf(TEXT("%s:%s"), *Part.SlotTypeId.ToString(), *Part.PartId.ToString()));
+	}
+	return PartIds.IsEmpty() ? TEXT("None") : FString::Join(PartIds, TEXT("|"));
+}
+
+FString DescribeAttackSteps(const TArray<FReEchoCsvAttackStepRow>& AttackSteps)
+{
+	TArray<FString> Steps;
+	Steps.Reserve(AttackSteps.Num());
+	for (const FReEchoCsvAttackStepRow& Step : AttackSteps)
+	{
+		Steps.Add(FString::Printf(TEXT("%s[%d]=%.3f"), *Step.Id.ToString(), Step.StepIndex, Step.DamageCoefficient));
+	}
+	return Steps.IsEmpty() ? TEXT("None") : FString::Join(Steps, TEXT("|"));
+}
+} // namespace ReEchoSwordDamageTrace
+#endif
+
 AReEchoWeaponActor::AReEchoWeaponActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -395,6 +425,26 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 	}
 	LastCommittedAttackStepId = LastAttackCommit.AttackStepId;
 	LastCommittedAttackStepIndex = LastAttackCommit.StepIndex;
+#if !UE_BUILD_SHIPPING
+	if (LastAttackCommit.WeaponId == ReEchoSwordDamageTrace::LongSwordWeaponId)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[SwordDamageTrace] Commit owner=%s parts=%s role=%s physical=%.3f elemental=%.3f attackSpeed=%.3f "
+		            "step=%s[%d] element=%d critical=%d rawDamage=%.3f"),
+		       *GetNameSafe(GetOwner()),
+		       *ReEchoSwordDamageTrace::DescribeEquippedParts(EquippedRunes),
+		       *Combatant->Stats.RoleId.ToString(),
+		       Combatant->Stats.PhysicalAttack,
+		       Combatant->Stats.ElementalAttack,
+		       Combatant->Stats.AttackSpeed,
+		       *LastAttackCommit.AttackStepId.ToString(),
+		       LastAttackCommit.StepIndex,
+		       static_cast<int32>(LastAttackCommit.Element),
+		       LastAttackCommit.bCritical ? 1 : 0,
+		       LastAttackCommit.RawDamage);
+	}
+#endif
 	if (!ExecuteAttack(Combatant, LastAttackCommit))
 	{
 		WeaponLogic.RollbackLastCommit();
@@ -611,6 +661,29 @@ bool AReEchoWeaponActor::RebuildEffectiveDefinition()
 	{
 		UE_LOG(LogReEcho, Error, TEXT("Cannot build effective weapon definition: %s"), *Error);
 	}
+#if !UE_BUILD_SHIPPING
+	else if (EquippedWeaponId == ReEchoSwordDamageTrace::LongSwordWeaponId)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[SwordDamageTrace] Definition owner=%s parts=%s role=%s equipmentBasePhysical=%.3f "
+		            "buildPhysical=%.3f equipmentBaseElemental=%.3f buildElemental=%.3f equipmentBaseAttackSpeed=%.3f "
+		            "buildAttackSpeed=%.3f weaponCoefficient=%.3f ruleCoefficient=%s damageChannel=%s steps=%s"),
+		       *GetNameSafe(GetOwner()),
+		       *ReEchoSwordDamageTrace::DescribeEquippedParts(EquippedRunes),
+		       *BuildSnapshot.Stats.RoleId.ToString(),
+		       BuildSnapshot.EquipmentBaseStats.PhysicalAttack,
+		       BuildSnapshot.Stats.PhysicalAttack,
+		       BuildSnapshot.EquipmentBaseStats.ElementalAttack,
+		       BuildSnapshot.Stats.ElementalAttack,
+		       BuildSnapshot.EquipmentBaseStats.AttackSpeed,
+		       BuildSnapshot.Stats.AttackSpeed,
+		       EffectiveDefinition.Weapon.DamageCoefficient,
+		       *BuildSnapshot.RuleFlags.FindRef(ReEchoSwordDamageTrace::DamageCoefficientRule),
+		       *EffectiveDefinition.DamageChannelId.ToString(),
+		       *ReEchoSwordDamageTrace::DescribeAttackSteps(EffectiveDefinition.AttackSteps));
+	}
+#endif
 	return bHasEffectiveDefinition;
 }
 
@@ -1019,7 +1092,32 @@ FReEchoHitResolved AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
 	Intent.bCritical = Commit.bCritical;
 	Intent.SourceLocation = DamageSource;
 	Intent.HitLocation = Target.GetActorLocation();
+	const float TargetHealthBefore = TargetCombatant->GetSnapshot().CurrentHealth;
 	const FReEchoHitResolved Result = ReEchoHitResolver::ResolveHit(Intent);
+#if !UE_BUILD_SHIPPING
+	if (Commit.WeaponId == ReEchoSwordDamageTrace::LongSwordWeaponId)
+	{
+		UE_LOG(
+		    LogReEcho,
+		    Warning,
+		    TEXT(
+		        "[SwordDamageTrace] Hit owner=%s target=%s step=%s[%d] commitRaw=%.3f localMultiplier=%.3f "
+		        "intentRaw=%.3f resolvedRaw=%.3f applied=%.3f healthBefore=%.3f healthAfter=%.3f blocked=%d killed=%d"),
+		    *GetNameSafe(GetOwner()),
+		    *GetNameSafe(&Target),
+		    *Commit.AttackStepId.ToString(),
+		    Commit.StepIndex,
+		    Commit.RawDamage,
+		    ResolvedDamageMultiplier,
+		    Intent.RawDamage,
+		    Result.RawDamage,
+		    Result.AppliedDamage,
+		    TargetHealthBefore,
+		    TargetCombatant->GetSnapshot().CurrentHealth,
+		    Result.bBlocked ? 1 : 0,
+		    Result.bKilled ? 1 : 0);
+	}
+#endif
 	if (Result.bKilled && Combatant && WeaponLogic.GetOnKillHealPercent() > 0.0f)
 	{
 		Combatant->ApplyHealing(Combatant->Stats.HpMax * WeaponLogic.GetOnKillHealPercent());

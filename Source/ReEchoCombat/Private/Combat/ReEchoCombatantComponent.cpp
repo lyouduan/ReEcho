@@ -60,6 +60,10 @@ UAbilitySystemComponent* UReEchoCombatantComponent::GetBoundAbilitySystem() cons
 void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InStats, const bool bFillHealth)
 {
 	const float PreviousHealth = CurrentHealth;
+	// GAS owns only the attributes mirrored by UReEchoCombatAttributeSet. Preserve the complete authored stat block
+	// first so semantic/runtime fields such as RoleId, CriticalRate, CriticalEffect and ReactionEfficiency survive the
+	// subsequent attribute synchronization.
+	Stats = InStats;
 	bDeathBroadcast = false;
 	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
 	{

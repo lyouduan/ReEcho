@@ -113,6 +113,37 @@ bool FReEchoDebugInvulnerabilityTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGasCombatantSemanticStatsTest,
+                                 "ReEcho.GAS.CombatantPreservesSemanticStats",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGasCombatantSemanticStatsTest::RunTest(const FString& Parameters)
+{
+	FReEchoGasFixture Fixture;
+	FReEchoStatBlock Stats;
+	Stats.PhysicalAttack = 17.0f;
+	Stats.RoleId = TEXT("Hunter");
+	Stats.CriticalRate = 0.75f;
+	Stats.CriticalEffect = 1.25f;
+	Stats.ReactionEfficiency = 1.5f;
+	Stats.ProjectileCount = 3;
+	Stats.WeaponSize = 2.0f;
+	Fixture.Combatant->InitializeFromStats(Stats, true);
+
+	TestEqual(TEXT("GAS-backed combatant keeps synchronized physical attack"),
+	          Fixture.Combatant->Stats.PhysicalAttack,
+	          17.0f);
+	TestEqual(
+	    TEXT("GAS-backed combatant preserves role identity"), Fixture.Combatant->Stats.RoleId, FName(TEXT("Hunter")));
+	TestEqual(TEXT("GAS-backed combatant preserves critical rate"), Fixture.Combatant->Stats.CriticalRate, 0.75f);
+	TestEqual(TEXT("GAS-backed combatant preserves critical effect"), Fixture.Combatant->Stats.CriticalEffect, 1.25f);
+	TestEqual(
+	    TEXT("GAS-backed combatant preserves reaction efficiency"), Fixture.Combatant->Stats.ReactionEfficiency, 1.5f);
+	TestEqual(TEXT("GAS-backed combatant preserves projectile count"), Fixture.Combatant->Stats.ProjectileCount, 3);
+	TestEqual(TEXT("GAS-backed combatant preserves weapon size"), Fixture.Combatant->Stats.WeaponSize, 2.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGasDeathAndTagsTest,
                                  "ReEcho.GAS.DeathAndAbilityTags",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
