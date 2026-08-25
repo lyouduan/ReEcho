@@ -11,10 +11,12 @@
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraVariant.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Presentation/VFX/ReEchoVfxPreviewActor.h"
+#include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
@@ -23,6 +25,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
 
 bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 {
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	TestNotEqual(
 	    TEXT("Ordered Enhance reactions use distinct entered-element Niagara"),
 	    FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::EnhanceGrass)),
@@ -65,13 +68,19 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         EndParameter.Equals(EndWorld, KINDA_SMALL_NUMBER));
 	FVector BeamStart = FVector::ZeroVector;
 	FVector BeamEnd = FVector::ZeroVector;
-	const FVector BeamOrigin(300.0f, -120.0f, 40.0f);
+	const FVector BeamWarningCenter(300.0f, -120.0f, 40.0f);
 	const FVector BeamDirection(0.6f, 0.8f, 0.0f);
-	UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(BeamOrigin, BeamDirection, 750.0f, BeamStart, BeamEnd);
-	TestTrue(TEXT("Boss beam starts at the authoritative attack origin"),
-	         BeamStart.Equals(BeamOrigin, KINDA_SMALL_NUMBER));
+	UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
+	    BeamWarningCenter, BeamDirection, 750.0f, BeamStart, BeamEnd);
+	TestTrue(TEXT("Boss beam starts at the authoritative warning center"),
+	         BeamStart.Equals(BeamWarningCenter, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
-	         BeamEnd.Equals(BeamOrigin + BeamDirection * 750.0f, KINDA_SMALL_NUMBER));
+	         BeamEnd.Equals(BeamWarningCenter + BeamDirection * 750.0f, KINDA_SMALL_NUMBER));
+	const FVector BlinkWarningCenter(640.0f, -275.0f, 50.0f);
+	const FVector BossLanding = AReEchoEnemyActor::ResolveBossLandingLocation(BlinkWarningCenter, 183.6f);
+	TestTrue(TEXT("Blink Slam landing shares the warning center in arena XY"),
+	         FVector::DistSquared2D(BossLanding, BlinkWarningCenter) <= KINDA_SMALL_NUMBER);
+	TestEqual(TEXT("Blink Slam landing preserves the Boss gameplay height"), BossLanding.Z, 183.6);
 	const FReEchoVfxPlacement GoatChargingPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::GoatSkill02Charging);
 	TestTrue(TEXT("Goat body charging preserves authored world size"),
@@ -257,6 +266,19 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
 	TestTrue(TEXT("Scythe uses its dedicated melee Niagara"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
+	EReEchoCombatVfxSemantic DamageSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
+	TestTrue(TEXT("Long sword successful hit resolves its DamageApplied semantic"),
+	         FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_01"), DamageSemantic));
+	TestEqual(TEXT("Long sword hit uses its dedicated impact semantic"),
+	          DamageSemantic,
+	          EReEchoCombatVfxSemantic::PlayerLongSwordImpact);
+	TestTrue(TEXT("Scythe successful hit resolves its DamageApplied semantic"),
+	         FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_04"), DamageSemantic));
+	TestEqual(TEXT("Scythe hit uses its dedicated impact semantic"),
+	          DamageSemantic,
+	          EReEchoCombatVfxSemantic::PlayerScytheImpact);
+	TestFalse(TEXT("Non-melee weapon cannot enter the melee hit VFX path"),
+	          FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_08"), DamageSemantic));
 	TestTrue(TEXT("Bow no longer resolves a legacy projectile texture"),
 	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Bow")).IsEmpty());
 	TestTrue(TEXT("Gun no longer resolves a legacy projectile texture"),
@@ -323,7 +345,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerHurt,          EReEchoCombatVfxSemantic::FoxCharging,
 	    EReEchoCombatVfxSemantic::FoxDirection,        EReEchoCombatVfxSemantic::FoxDash,
 	    EReEchoCombatVfxSemantic::FoxImpact,           EReEchoCombatVfxSemantic::PlayerMeleeSlash,
-	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerBowFlight,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
+	    EReEchoCombatVfxSemantic::PlayerScytheImpact,  EReEchoCombatVfxSemantic::PlayerBowFlight,
 	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
 	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,       EReEchoCombatVfxSemantic::EchoGrassAura,
@@ -431,6 +454,66 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			{
 				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
 			}
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::GoatSkill03Alarming ||
+		    Semantic == EReEchoCombatVfxSemantic::GoatSkill03Impact)
+		{
+			int32 GroundSpriteRendererCount = 0;
+			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+			{
+				const FVersionedNiagaraEmitterData* EmitterData =
+				    EmitterHandle.GetIsEnabled() ? EmitterHandle.GetEmitterData() : nullptr;
+				if (!EmitterData)
+				{
+					continue;
+				}
+				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+				{
+					const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+					if (!Sprite)
+					{
+						continue;
+					}
+					++GroundSpriteRendererCount;
+					TestEqual(TEXT("Goat ground effect uses a custom world-up facing vector"),
+					          Sprite->FacingMode,
+					          ENiagaraSpriteFacingMode::CustomFacingVector);
+				}
+			}
+			TestTrue(TEXT("Goat ground effect contains at least one ground-facing sprite renderer"),
+			         GroundSpriteRendererCount > 0);
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::GoatSkill04Lighting)
+		{
+			int32 BeamMeshRendererCount = 0;
+			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+			{
+				const FVersionedNiagaraEmitterData* EmitterData =
+				    EmitterHandle.GetIsEnabled() ? EmitterHandle.GetEmitterData() : nullptr;
+				if (!EmitterData)
+				{
+					continue;
+				}
+				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+				{
+					const UNiagaraMeshRendererProperties* Mesh = Cast<UNiagaraMeshRendererProperties>(Renderer);
+					if (!Mesh)
+					{
+						continue;
+					}
+					++BeamMeshRendererCount;
+					TestEqual(TEXT("Goat beam mesh faces the camera plane"),
+					          Mesh->FacingMode,
+					          ENiagaraMeshFacingMode::CameraPlane);
+					TestTrue(TEXT("Goat beam mesh locks its camera-facing rotation"), Mesh->bLockedAxisEnable);
+					TestTrue(TEXT("Goat beam mesh remains upright around world Z"),
+					         Mesh->LockedAxis.Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
+					TestEqual(TEXT("Goat beam mesh lock is evaluated in world space"),
+					          Mesh->LockedAxisSpace,
+					          ENiagaraMeshLockedAxisSpace::World);
+				}
+			}
+			TestTrue(TEXT("Goat beam contains at least one camera-facing mesh renderer"), BeamMeshRendererCount > 0);
 		}
 	}
 	const TCHAR* FireSystems[] = {

@@ -156,6 +156,7 @@
 - 2026-08-25：用户要求增加 GM 指令让 Boss 使用对应技能。契约锁定 `GMBossSkill` 只排队真实 Ability，不绕过正式 Boss 状态机；Skill02 的两个配表 Ability 用 `Skill02`（StationaryVolley）和 `Skill02Moving`（MovingSpread）显式区分。
 - 2026-08-25：用户要求修改 `GMGod` 为显示伤害但不扣血。契约锁定只改变非 Shipping 的 debug gate：返回已计算伤害供 Hurt/伤害数字消费，跳过生命与死亡写入；正式限时无敌保持零伤害。
 - 2026-08-25：Plan109 经当前程序用户批准更新 Boss 数值；本 Plan 的伤害验收改为读取权威 `enemy_abilities.csv`，当前 Skill02/03/04 为 `4/24/16`、二阶段为 `6/36/24`。`WindupEnd`、`GMBossSkill`、Combat 命中和全部 VFX 映射保持不变。
+- 2026-08-25：远端并行踩踏恢复后，以用户指定 `origin/main@aa9d77ea` 新建隔离分支重放；禁止合并或整体 cherry-pick `b8f5968e`。本轮只逐提交提取羊 Boss 代码/测试/文档和七个具名 Goat Niagara 根，配表沿用恢复主线的 Plan109 行值，不替换 XLSX/CSV，也不带入旧预构建包、Plan63/100/112、规则、会话日志或 `validate_project.py` 差异。
 
 ### 证据
 
@@ -166,6 +167,8 @@
 - 第一次 FullRebuild 在 98 个动作的 `ReEchoCombatVfxComponent.cpp` 编译处发现 C4456 局部变量遮蔽；只重命名第二个局部变量后，第二次 FullRebuild 98/98 成功，Build ID `55116800`，当时源码指纹 `df2b0548348a`。随后补充 Phase2-only 防护，最终候选需再次 FullRebuild。
 - 最终候选 FullRebuild 98/98 成功并刷新七模块精选预构建包，Build ID `55116800`、source fingerprint `7459ba735e47`；`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
 - `Run-Automation.cmd -Filter ReEcho.Enemies.Logic` 在测试发现前被 LinuxArm64/VisionOS SDK `MainVersion` 校验阻断；命令虽返回 0，但没有任何测试执行证据，因此明确记为未运行，不声称通过。VFX/资产 Editor 审计受同一环境门阻塞。
+- 2026-08-25：恢复候选 rebase 到任务期间更新的 `origin/main@d91527e0`，仅预构建包发生预期冲突；保留新主线生成物后在最终组合源码上重新 FullRebuild 94/94 成功，Build ID `55116800`、source fingerprint `c2729aa3aeed`。Plan63 出生修复、Plan100 武器表现、Plan112 兔子双技能、规则、配表和 `validate_project.py` 均无本任务差异。
+- 羊 Boss Logic、SheepProjectilePipeline、Presentation.VFX 与 GMGod 聚焦自动化均已发起，但仍在测试发现前被 LinuxArm64/VisionOS `MainVersion` 校验阻断；退出码不作为通过证据。Goat 作者化脚本同样未进入 Python；候选使用逐路径恢复的旧羊任务最终 Niagara 根，并由编译通过的资产结构自动化等待环境恢复后执行。
 - 2026-08-25 组合适配 `origin/main@07b7b3ed` 后，最终源码完成 FullRebuild 96/96，Build ID `55116800`、source fingerprint `91558a68beac`；Plan95 与 Plan96 重叠的精选预构建包由该最终组合源码统一刷新。
 - `Run-Automation.cmd -Filter ReEcho.Presentation.VFX` 再次在测试发现前被 LinuxArm64/VisionOS SDK `MainVersion` 阻断并返回 1；新增纯函数测试已通过 UHT/UBT 编译，但没有运行时自动化通过证据。
 - 二阶段状态修正后的最终 FullRebuild 96/96 通过，Build ID `55116800`、source fingerprint `d60209bd33bc`；`ReEcho.Enemies.Logic.Phase2` 聚焦自动化仍在测试发现前被同一 LinuxArm64/VisionOS `MainVersion` 校验阻断，命令返回 0 但没有执行测试，不作为通过证据。

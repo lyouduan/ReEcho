@@ -98,7 +98,17 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
                                                   const EReEchoDamageSource DamageSource)
 {
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (!IsAlive() || Damage <= 0.f || bDebugInvulnerable || IsTimedInvulnerable(WorldTime))
+	if (!IsAlive() || Damage <= 0.f)
+	{
+		return 0.f;
+	}
+	if (bDebugInvulnerable)
+	{
+		// GMGod preserves the resolved damage value for Hurt/VFX/damage-number consumers, but deliberately skips
+		// every health, block and death mutation below.
+		return Damage;
+	}
+	if (IsTimedInvulnerable(WorldTime))
 	{
 		return 0.f;
 	}

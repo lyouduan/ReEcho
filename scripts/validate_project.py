@@ -1927,6 +1927,14 @@ def validate_workflow() -> None:
         "[DESIGNER]",
         "[ARTIST]",
         "[SECRETARY]",
+        "## origin/main 单发布者锁",
+        "`main-publish-lock` 是程序路线和项目秘书发布 `origin/main` 时唯一允许的远端协调分支",
+        "--force-with-lease=refs/heads/main-publish-lock:",
+        "获锁后必须重新 fetch `origin/main`",
+        "最终候选必须是抢锁时提交的后代",
+        "使用普通非强制 push 发布 main",
+        "网络超时或结果不明时先查询远端",
+        "不得仅按超时自动破锁",
         "程序路线每次推送 `origin/main` 前",
         "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
@@ -1978,8 +1986,9 @@ def validate_workflow() -> None:
         "物理/Git 冲突",
         "逻辑冲突",
         "耦合",
-        "即使 Git 可以快进",
-        "推送前立即再次 fetch",
+        "Git 可以快进或干净合并不代表没有逻辑冲突",
+        "真实逻辑冲突",
+        "main-publish-lock",
     )
     missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
     if missing_audit_markers:
@@ -2047,17 +2056,17 @@ def validate_workflow() -> None:
     remote_branch_boundary_markers = {
         "PROJECT_RULES.md": (
             "`origin/main` 是唯一权威发布分支",
-            "程序路线与项目秘书默认仍只推送 `origin/main`",
+            "程序路线与项目秘书除 `GIT_RULES.md` 定义的临时 `main-publish-lock` 外仍只推送 `origin/main`",
             "`designer/<task>`",
             "`artist/<task>`",
             "协作分支不是发布面",
         ),
         "DESIGNER_RULES.md": ("`designer/<task>`", "不得直接推送或发布 `main`"),
         "ARTIST_RULES.md": ("`artist/<task>`", "不得直接推送或发布 `main`"),
-        "PLANNER_RULES.md": ("`origin/main` 是唯一允许的远端分支", "Plan 编号冲突"),
+        "PLANNER_RULES.md": ("`origin/main` 是唯一权威发布分支", "`main-publish-lock`", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不自行推送任务分支"),
-        "SECRETARY_RULES.md": ("默认禁止创建或推送 `origin/main` 之外的远端分支", "默认只将本地 `main` 非强制推送至 `origin/main`"),
-        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`designer/<task>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
+        "SECRETARY_RULES.md": ("临时 `main-publish-lock`", "普通非强制 push 发布 `origin/main`"),
+        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`designer/<task>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
     }
     remote_branch_boundary_texts = {
         "PROJECT_RULES.md": project_rules,

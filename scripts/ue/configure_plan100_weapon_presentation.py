@@ -4,6 +4,7 @@ import unreal
 PROFILE_ROOT = "/Game/ReEcho/DataAsset/Weapon/Profiles"
 VISUAL_KEYS = ("CrescentBlade", "Scythe", "Bow", "Gun")
 CANONICAL_CHARACTER_HEIGHT_CM = 224.0
+MELEE_IMPACT_SYSTEM = "/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01"
 
 
 def load_profile(visual_key):
@@ -39,6 +40,20 @@ def configure_sword_slash(profile):
     profile.set_editor_property("attack_committed", slot)
 
 
+def configure_melee_impact(profile):
+    system = unreal.EditorAssetLibrary.load_asset(MELEE_IMPACT_SYSTEM)
+    if not isinstance(system, unreal.NiagaraSystem):
+        raise RuntimeError(f"Missing melee impact Niagara: {MELEE_IMPACT_SYSTEM}")
+    slot = profile.get_editor_property("damage_applied")
+    slot.set_editor_property("enabled", True)
+    slot.set_editor_property("system", system)
+    slot.set_editor_property(
+        "spawn_mode", unreal.ReEchoWeaponVfxSpawnMode.SPAWN_AT_WORLD_LOCATION
+    )
+    slot.set_editor_property("stop_when_phase_ends", False)
+    profile.set_editor_property("damage_applied", slot)
+
+
 for key in VISUAL_KEYS:
     weapon_profile = load_profile(key)
     preserve_current_length_as_absolute(weapon_profile)
@@ -47,6 +62,8 @@ for key in VISUAL_KEYS:
         weapon_profile.set_editor_property("motion_mode", unreal.ReEchoWeaponMotionMode.NONE)
     if key == "Scythe":
         weapon_profile.set_editor_property("motion_mode", unreal.ReEchoWeaponMotionMode.FULL_SPIN)
+    if key in ("CrescentBlade", "Scythe"):
+        configure_melee_impact(weapon_profile)
     if key == "Bow":
         weapon_profile.set_editor_property(
             "held_mirror_rule", unreal.ReEchoHeldWeaponMirrorRule.WHEN_FACING_LEFT

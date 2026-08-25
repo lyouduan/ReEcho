@@ -84,6 +84,8 @@ public:
 	                         USceneComponent* InFootRoot,
 	                         USceneComponent* InFlipbookRoot,
 	                         USceneComponent* InEffectsRoot,
+	                         USceneComponent* InBossWeaponRoot,
+	                         UBillboardComponent* InBossWeaponSprite,
 	                         UBillboardComponent* InCharacterSprite,
 	                         UReEcho2DAnimationComponent* InSequenceAnimation,
 	                         UReEcho2DPresentationController* InPresentationController,
@@ -127,6 +129,8 @@ private:
 	void UpdateCameraFacing(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateHitReaction(const FReEchoEnemyPresentationSnapshot& Snapshot);
 	void UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
+	void ConfigureBossWeapon(FName PresentationId);
+	void UpdateBossWeaponMotion(float DeltaSeconds);
 
 	UPROPERTY()
 	TObjectPtr<AActor> Host;
@@ -148,6 +152,10 @@ private:
 	TObjectPtr<USceneComponent> FlipbookRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> EffectsRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> BossWeaponRoot;
+	UPROPERTY()
+	TObjectPtr<UBillboardComponent> BossWeaponSprite;
 	UPROPERTY()
 	TObjectPtr<UBillboardComponent> CharacterSprite;
 	UPROPERTY()
@@ -179,6 +187,9 @@ private:
 	float AttackVisualRemaining = 0.0f;
 	float LastFuseRemaining = 0.0f;
 	float LastFuseDuration = 0.0f;
+	float BossWeaponSwingRemaining = 0.0f;
+	float BossWeaponSwingDuration = 0.0f;
+	FRotator BossWeaponRestRotation = FRotator::ZeroRotator;
 	bool bHitVisualActive = false;
 	bool bDeathVisualActive = false;
 };

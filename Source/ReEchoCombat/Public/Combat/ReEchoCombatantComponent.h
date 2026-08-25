@@ -66,7 +66,7 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	bool IsAlive() const;
-	/** Development-only final-damage gate used by player GM testing. */
+	/** Development-only GM gate: reports resolved damage to presentation while preserving health. */
 	void SetDebugInvulnerable(bool bEnabled);
 	bool IsDebugInvulnerable() const;
 

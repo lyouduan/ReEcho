@@ -236,6 +236,7 @@ void AReEchoGameMode::GMHelp()
 	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
 	                   "<Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss | "
+	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
@@ -579,7 +580,8 @@ void AReEchoGameMode::GMGod(const FString& Mode)
 	}
 
 	Player->Combatant->SetDebugInvulnerable(bEnable);
-	PrintGMResult(FString::Printf(TEXT("Player invulnerability=%s."), bEnable ? TEXT("On") : TEXT("Off")));
+	PrintGMResult(FString::Printf(TEXT("Player God mode=%s (damage numbers remain visible; HP is preserved)."),
+	                              bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMAddShards(const int32 Amount)
@@ -780,6 +782,69 @@ void AReEchoGameMode::GMGotoBoss()
 	                  ? FString::Printf(TEXT("Started Boss encounter %d."), BossEncounterIndex)
 	                  : FString::Printf(TEXT("Failed to start Boss encounter %d."), BossEncounterIndex),
 	              bStartedBossEncounter);
+}
+
+void AReEchoGameMode::GMBossSkill(const FString& Skill)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+
+	FName AbilityId = NAME_None;
+	if (Skill.Equals(TEXT("Skill01"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("1")))
+	{
+		AbilityId = TEXT("M_SHEEP_MeleeSweep");
+	}
+	else if (Skill.Equals(TEXT("Skill02"), ESearchCase::IgnoreCase) ||
+	         Skill.Equals(TEXT("Skill02Stationary"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("2")))
+	{
+		AbilityId = TEXT("M_SHEEP_StationaryVolley");
+	}
+	else if (Skill.Equals(TEXT("Skill02Moving"), ESearchCase::IgnoreCase) ||
+	         Skill.Equals(TEXT("2M"), ESearchCase::IgnoreCase))
+	{
+		AbilityId = TEXT("M_SHEEP_MovingSpread");
+	}
+	else if (Skill.Equals(TEXT("Skill03"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("3")))
+	{
+		AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	}
+	else if (Skill.Equals(TEXT("Skill04"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("4")))
+	{
+		AbilityId = TEXT("M_SHEEP_PrayerBeam");
+	}
+	else
+	{
+		PrintGMResult(TEXT("Usage: GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04>"), false);
+		return;
+	}
+
+	AReEchoEnemyActor* Boss = nullptr;
+	if (EnemyRoster)
+	{
+		for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+		{
+			AReEchoEnemyActor* Candidate = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+			if (Candidate && Candidate->IsAlive() && Candidate->GetEnemyId() == TEXT("M_SHEEP"))
+			{
+				Boss = Candidate;
+				break;
+			}
+		}
+	}
+	if (!Boss || !Boss->GetEnemyLogicComponent())
+	{
+		PrintGMResult(TEXT("GMBossSkill requires a living M_SHEEP Boss."), false);
+		return;
+	}
+
+	const bool bQueued = Boss->GetEnemyLogicComponent()->DebugQueueBossAbility(AbilityId);
+	PrintGMResult(bQueued ? FString::Printf(TEXT("Queued Boss ability %s through the normal skill state machine."),
+	                                        *AbilityId.ToString())
+	                      : FString::Printf(TEXT("Boss ability %s is unavailable in the active definition."),
+	                                        *AbilityId.ToString()),
+	              bQueued);
 }
 
 void AReEchoGameMode::GMGrantCard(const FName CardId)

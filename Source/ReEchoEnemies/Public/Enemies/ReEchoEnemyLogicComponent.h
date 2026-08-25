@@ -35,6 +35,8 @@ public:
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
+	/** Development command: queues one configured Boss ability for the next normal ability start. */
+	bool DebugQueueBossAbility(FName AbilityId);
 
 	bool IsInitialized() const
 	{
@@ -76,7 +78,7 @@ private:
 	                       FReEchoEnemyActionIntent& InOutIntent);
 	void EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability, FReEchoEnemyActionIntent& InOutIntent);
 	void AppendBossIntent(FReEchoBossIntent&& BossIntent, FReEchoEnemyActionIntent& InOutIntent);
-	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense) const;
+	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense);
 	int32 FindBossAbilityIndex(FName AbilityId) const;
 	float GetBossAbilityCooldown(FName AbilityId) const;
 	void SetBossAbilityCooldown(FName AbilityId, float RemainingSeconds);
@@ -111,5 +113,6 @@ private:
 	TArray<int32> BossActiveAbilityIndices;
 	TArray<int32> BossPhaseIndices;
 	int32 BossCleanseAbilityIndex = INDEX_NONE;
+	FName DebugQueuedBossAbilityId = NAME_None;
 	bool bInitialized = false;
 };

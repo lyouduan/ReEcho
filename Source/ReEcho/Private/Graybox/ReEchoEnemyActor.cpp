@@ -118,6 +118,17 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	HurtVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("HurtVfxRoot"));
 	HurtVfxRoot->SetupAttachment(EffectsRoot);
 	HurtVfxRoot->bEditableWhenInherited = true;
+	BossWeaponRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BossWeaponRoot"));
+	BossWeaponRoot->SetupAttachment(EffectsRoot);
+	BossWeaponRoot->bEditableWhenInherited = true;
+	BossWeaponSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("BossWeaponSprite"));
+	BossWeaponSprite->SetupAttachment(BossWeaponRoot);
+	BossWeaponSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	BossWeaponSprite->SetCastShadow(false);
+	BossWeaponSprite->SetHiddenInGame(true);
+	BossWeaponSprite->SetVisibility(false);
+	BossWeaponSprite->SetTranslucentSortPriority(7);
+	BossWeaponSprite->bIsScreenSizeScaled = false;
 
 	GroundShadow = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundShadow"));
 	GroundShadow->SetupAttachment(GroundRoot);
@@ -146,7 +157,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
-	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot);
+	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot, BossWeaponRoot);
 	EnemyLogic = CreateDefaultSubobject<UReEchoEnemyLogicComponent>(TEXT("EnemyLogic"));
 	EnemyEvents = CreateDefaultSubobject<UReEchoEnemyEventsComponent>(TEXT("EnemyEvents"));
 	CombatPresentationCoordinator =
@@ -157,6 +168,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	                                       FootRoot,
 	                                       FlipbookRoot,
 	                                       EffectsRoot,
+	                                       BossWeaponRoot,
+	                                       BossWeaponSprite,
 	                                       CharacterSprite,
 	                                       SequenceAnimation,
 	                                       PresentationController,
@@ -194,6 +207,8 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
 	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
+	AttachIfNeeded(BossWeaponRoot, EffectsRoot);
+	AttachIfNeeded(BossWeaponSprite, BossWeaponRoot);
 	AttachIfNeeded(GroundShadow, GroundRoot);
 	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
 }
@@ -679,17 +694,25 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Moved, Projectile);
 		}
 		bool bHitTarget = false;
-		if (!Projectile.bCollisionConsumed && AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive() &&
-		    Target->IntersectsCombatPath(
-		        AdvanceResult.PreviousLocation, AdvanceResult.NewLocation, Projectile.CollisionRadiusCm))
+		if (!Projectile.bCollisionConsumed && AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive())
 		{
-			FReEchoBossIntent HitIntent;
-			HitIntent.Attack = Projectile.Attack;
-			HitIntent.Origin = AdvanceResult.PreviousLocation;
-			HitIntent.RawDamage = Projectile.Damage;
-			ApplyBossHit(HitIntent, TargetActor, Target->GetCombatTargetLocation());
-			bHitTarget = true;
-			Projectile.bCollisionConsumed = true;
+			// Arena combat is authored on XY. Presentation projectiles retain their source height, but actors with
+			// different collision half-heights must still share the same authoritative combat plane.
+			const FVector TargetLocation = Target->GetCombatTargetLocation();
+			FVector CollisionPathStart = AdvanceResult.PreviousLocation;
+			FVector CollisionPathEnd = AdvanceResult.NewLocation;
+			CollisionPathStart.Z = TargetLocation.Z;
+			CollisionPathEnd.Z = TargetLocation.Z;
+			if (Target->IntersectsCombatPath(CollisionPathStart, CollisionPathEnd, Projectile.CollisionRadiusCm))
+			{
+				FReEchoBossIntent HitIntent;
+				HitIntent.Attack = Projectile.Attack;
+				HitIntent.Origin = AdvanceResult.PreviousLocation;
+				HitIntent.RawDamage = Projectile.Damage;
+				ApplyBossHit(HitIntent, TargetActor, TargetLocation);
+				bHitTarget = true;
+				Projectile.bCollisionConsumed = true;
+			}
 		}
 		if (bHitTarget || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
@@ -1032,32 +1055,16 @@ void AReEchoEnemyActor::AdvanceEnemyProjectilesForTests(const float DeltaSeconds
 
 FVector AReEchoEnemyActor::ResolveBossTeleportDestination(const FVector& TargetLocation)
 {
-	float TeleportOffsetCm = 0.0f;
-	if (EnemyLogic)
-	{
-		for (const FReEchoEnemyAbilityDefinition& Ability : EnemyLogic->GetDefinition().Abilities)
-		{
-			if (Ability.BehaviorId == TEXT("Boss.BlinkSlam") && Ability.bEnabled)
-			{
-				TeleportOffsetCm = Ability.TeleportOffsetCm;
-				break;
-			}
-		}
-	}
-	if (TeleportOffsetCm <= 0.0f || !GetWorld())
-	{
-		return FVector::ZeroVector;
-	}
+	// Blink Slam lands at the exact authored warning center. Overlap with the locked target is intentional because
+	// the circular AOE, ground impact and Boss landing all share this single authoritative point.
+	return ResolveBossLandingLocation(TargetLocation, GetActorLocation().Z);
+}
 
-	FVector AwayFromTarget = (GetActorLocation() - TargetLocation).GetSafeNormal2D();
-	if (AwayFromTarget.IsNearlyZero())
-	{
-		AwayFromTarget = -ResolveFacingDirection();
-	}
-	FVector Candidate = TargetLocation + AwayFromTarget * TeleportOffsetCm;
-	Candidate.Z = GetActorLocation().Z;
-	FRotator IdentityRotation = FRotator::ZeroRotator;
-	return GetWorld()->FindTeleportSpot(this, Candidate, IdentityRotation) ? Candidate : FVector::ZeroVector;
+FVector AReEchoEnemyActor::ResolveBossLandingLocation(const FVector& LockedTargetLocation, const float BossWorldZ)
+{
+	FVector Destination = LockedTargetLocation;
+	Destination.Z = BossWorldZ;
+	return Destination;
 }
 
 FVector AReEchoEnemyActor::ResolveFacingDirection() const
@@ -1157,6 +1164,12 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 			const FReEchoEnemyAbilityDefinition* VolleyAbility = FindAbility(Intent.AbilityId);
 			const int32 VolleyCount = VolleyAbility ? FMath::Max(1, VolleyAbility->ProjectileCount) : 1;
 			const float VolleySpreadDegrees = VolleyAbility ? VolleyAbility->SpreadAngleDegrees : 0.0f;
+			const bool bSequentialVolley = VolleyAbility && !VolleyAbility->bMovementDuringCast && VolleyCount > 1;
+			const float VolleyIntervalSeconds = bSequentialVolley
+			                                        ? (Intent.RecoverySeconds > KINDA_SMALL_NUMBER
+			                                               ? Intent.RecoverySeconds / static_cast<float>(VolleyCount)
+			                                               : 0.1f)
+			                                        : 0.0f;
 			for (int32 BallIndex = 0; BallIndex < VolleyCount; ++BallIndex)
 			{
 				FReEchoEnemyProjectileRuntimeState Projectile;
@@ -1164,14 +1177,21 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 				Projectile.Definition.Direction = ReEchoRabbitProjectilePattern::ResolveVolleyDirection(
 				    Intent.LockedDirection.GetSafeNormal2D(), VolleySpreadDegrees, BallIndex, VolleyCount);
 				Projectile.Definition.SpeedCmPerSecond = Intent.ProjectileSpeedCmPerSecond;
-				Projectile.Definition.MaxRangeCm = Intent.LengthCm;
+				Projectile.Definition.MaxRangeCm = VolleyAbility ? VolleyAbility->MaxRangeCm : Intent.LengthCm;
 				Projectile.Attack = Intent.Attack;
 				Projectile.Damage = Intent.RawDamage;
-				Projectile.CollisionRadiusCm = FMath::Max(10.0f, Intent.WidthCm * 0.5f);
+				Projectile.CollisionRadiusCm =
+				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Intent.RadiusCm, VolleyCount);
 				Projectile.VolleyBallIndex = BallIndex;
+				Projectile.SpawnDelayRemainingSeconds = VolleyIntervalSeconds * static_cast<float>(BallIndex);
+				Projectile.bSpawnEventPublished = Projectile.SpawnDelayRemainingSeconds <= KINDA_SMALL_NUMBER;
 				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
 				{
 					BossProjectiles.Add(MoveTemp(Projectile));
+					if (BossProjectiles.Last().bSpawnEventPublished)
+					{
+						PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+					}
 				}
 			}
 			break;
