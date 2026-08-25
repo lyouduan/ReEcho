@@ -108,8 +108,7 @@ bool IsAllowedWeaponEffectTarget(const FName Target)
 	    TEXT("DamageChannel"),
 	    TEXT("AttackSpeed"),
 	    TEXT("AttackIntervalSeconds"),
-	    TEXT("PhysicalCoefficient"),
-	    TEXT("ElementalCoefficient"),
+	    TEXT("DamageCoefficient"),
 	    TEXT("AttackPattern"),
 	    TEXT("OnKill"),
 	    // Weapon-parameter StatModifier targets. Each one is landed by
@@ -240,8 +239,7 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.LoadoutOrder);
 		                  AppendCanonicalField(Canonical, Row.AttackPatternId);
 		                  AppendCanonicalField(Canonical, Row.AttackIntervalSeconds);
-		                  AppendCanonicalField(Canonical, Row.PhysicalCoefficient);
-		                  AppendCanonicalField(Canonical, Row.ElementalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.DamageCoefficient);
 		                  AppendCanonicalField(Canonical, Row.RangeCm);
 		                  AppendCanonicalField(Canonical, Row.ArcDegrees);
 		                  AppendCanonicalField(Canonical, Row.ProjectileCount);
@@ -263,8 +261,7 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.AttackPatternId);
 		                  AppendCanonicalField(Canonical, Row.StepIndex);
 		                  AppendCanonicalField(Canonical, Row.DurationSeconds);
-		                  AppendCanonicalField(Canonical, Row.PhysicalCoefficient);
-		                  AppendCanonicalField(Canonical, Row.ElementalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.DamageCoefficient);
 		                  AppendCanonicalField(Canonical, Row.RangeCm);
 		                  AppendCanonicalField(Canonical, Row.ArcDegrees);
 		                  AppendCanonicalField(Canonical, Row.ProjectileCount);
@@ -573,8 +570,7 @@ bool ReadWeaponsTable(const FString& DataDirectory,
 	                            TEXT("LoadoutOrder"),
 	                            TEXT("AttackPatternId"),
 	                            TEXT("AttackIntervalSeconds"),
-	                            TEXT("PhysicalCoefficient"),
-	                            TEXT("ElementalCoefficient"),
+	                            TEXT("DamageCoefficient"),
 	                            TEXT("RangeCm"),
 	                            TEXT("ArcDegrees"),
 	                            TEXT("ProjectileCount"),
@@ -603,10 +599,7 @@ bool ReadWeaponsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("AttackPatternId"), Weapon.AttackPatternId, Issues);
 		ReEchoCsv::RequireFloat(
 		    Table, Row, TEXT("AttackIntervalSeconds"), 0.01f, 60.0f, Weapon.AttackIntervalSeconds, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("PhysicalCoefficient"), 0.0f, 100.0f, Weapon.PhysicalCoefficient, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("ElementalCoefficient"), 0.0f, 100.0f, Weapon.ElementalCoefficient, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("DamageCoefficient"), 0.0f, 100.0f, Weapon.DamageCoefficient, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("RangeCm"), 0.0f, 100000.0f, Weapon.RangeCm, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("ArcDegrees"), 0.0f, 360.0f, Weapon.ArcDegrees, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("ProjectileCount"), Weapon.ProjectileCount, Issues);
@@ -689,8 +682,7 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 	                            TEXT("AttackPatternId"),
 	                            TEXT("StepIndex"),
 	                            TEXT("DurationSeconds"),
-	                            TEXT("PhysicalCoefficient"),
-	                            TEXT("ElementalCoefficient"),
+	                            TEXT("DamageCoefficient"),
 	                            TEXT("RangeCm"),
 	                            TEXT("ArcDegrees"),
 	                            TEXT("ProjectileCount"),
@@ -718,10 +710,7 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("AttackPatternId"), Step.AttackPatternId, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("StepIndex"), Step.StepIndex, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("DurationSeconds"), 0.0f, 60.0f, Step.DurationSeconds, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("PhysicalCoefficient"), 0.0f, 100.0f, Step.PhysicalCoefficient, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("ElementalCoefficient"), 0.0f, 100.0f, Step.ElementalCoefficient, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("DamageCoefficient"), 0.0f, 100.0f, Step.DamageCoefficient, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("RangeCm"), 0.0f, 100000.0f, Step.RangeCm, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("ArcDegrees"), 0.0f, 360.0f, Step.ArcDegrees, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("ProjectileCount"), Step.ProjectileCount, Issues);

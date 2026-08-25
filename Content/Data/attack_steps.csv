@@ -1,6 +1,6 @@
-Id,AttackPatternId,StepIndex,DurationSeconds,PhysicalCoefficient,ElementalCoefficient,RangeCm,ArcDegrees,ProjectileCount,ConcentrationDegrees,ExplosionRadiusCm,MovementCm,Invulnerable,BehaviorId,FormulaId,ConditionId,Enabled,SourceSheet,SourceRow,DisabledReason,OuterRingStartFraction,OuterRingBonusMultiplier
-AS_LONGSWORD_1,Pattern.LongSwordCombo,1,0.8,1.00,1.00,250,180,0,0,0,0,false,Weapon.AttackStep,Weapon.PhysicalOrElementalCoefficient,None,true,武器体系W,3,,0,0
-AS_LONGSWORD_2,Pattern.LongSwordCombo,2,0.8,1.00,1.00,250,180,0,0,0,0,false,Weapon.AttackStep,Weapon.PhysicalOrElementalCoefficient,None,true,武器体系W,3,,0,0
-AS_SCYTHE_1,Pattern.ScytheSweep,1,0.5,0.60,0.60,150,360,0,0,0,0,false,Weapon.AttackStep,Weapon.PhysicalOrElementalCoefficient,None,true,武器体系W,4,,0.5,0.4
-AS_BOW_1,Pattern.BowShot,1,1.0,1.00,1.00,1000,0,1,0,0,0,false,Weapon.AttackStep,Weapon.PhysicalOrElementalCoefficient,None,true,武器体系W,6,,0,0
-AS_GUN_1,Pattern.GunShot,1,0.3,0.20,0.20,1500,0,1,0,0,0,false,Weapon.AttackStep,Weapon.PhysicalOrElementalCoefficient,None,true,武器体系W,7,,0,0
+Id,AttackPatternId,StepIndex,DurationSeconds,DamageCoefficient,RangeCm,ArcDegrees,ProjectileCount,ConcentrationDegrees,ExplosionRadiusCm,MovementCm,Invulnerable,BehaviorId,FormulaId,ConditionId,Enabled,SourceSheet,SourceRow,DisabledReason,OuterRingStartFraction,OuterRingBonusMultiplier
+AS_LONGSWORD_1,Pattern.LongSwordCombo,1,0.8,1.00,250,180,0,0,0,0,false,Weapon.AttackStep,Weapon.DamageCoefficient,None,true,武器体系W,3,,0,0
+AS_LONGSWORD_2,Pattern.LongSwordCombo,2,0.8,1.00,250,180,0,0,0,0,false,Weapon.AttackStep,Weapon.DamageCoefficient,None,true,武器体系W,3,,0,0
+AS_SCYTHE_1,Pattern.ScytheSweep,1,0.5,0.60,150,360,0,0,0,0,false,Weapon.AttackStep,Weapon.DamageCoefficient,None,true,武器体系W,4,,0.5,0.4
+AS_BOW_1,Pattern.BowShot,1,1.0,1.00,1000,0,1,0,0,0,false,Weapon.AttackStep,Weapon.DamageCoefficient,None,true,武器体系W,6,,0,0
+AS_GUN_1,Pattern.GunShot,1,0.3,0.20,1500,0,1,0,0,0,false,Weapon.AttackStep,Weapon.DamageCoefficient,None,true,武器体系W,7,,0,0

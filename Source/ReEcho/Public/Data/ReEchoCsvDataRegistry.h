@@ -166,8 +166,7 @@ struct REECHO_API FReEchoCsvAttackStepRow
 	FName AttackPatternId;
 	int32 StepIndex = 0;
 	float DurationSeconds = 0.0f;
-	float PhysicalCoefficient = 0.0f;
-	float ElementalCoefficient = 0.0f;
+	float DamageCoefficient = 0.0f;
 	float RangeCm = 0.0f;
 	float ArcDegrees = 0.0f;
 	int32 ProjectileCount = 0;
@@ -217,8 +216,7 @@ struct REECHO_API FReEchoCsvWeaponRow
 	int32 LoadoutOrder = 0;
 	FName AttackPatternId;
 	float AttackIntervalSeconds = 0.0f;
-	float PhysicalCoefficient = 0.0f;
-	float ElementalCoefficient = 0.0f;
+	float DamageCoefficient = 0.0f;
 	float RangeCm = 0.0f;
 	float ArcDegrees = 0.0f;
 	int32 ProjectileCount = 0;

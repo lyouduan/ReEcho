@@ -11,8 +11,7 @@ const FName NoneId = TEXT("None");
 const FName DamageChannelRule = TEXT("Weapon.DamageChannel");
 const FName AttackPatternRule = TEXT("Weapon.AttackPatternId");
 const FName AttackIntervalRule = TEXT("Weapon.AttackIntervalSeconds");
-const FName PhysicalCoefficientRule = TEXT("Weapon.PhysicalCoefficient");
-const FName ElementalCoefficientRule = TEXT("Weapon.ElementalCoefficient");
+const FName DamageCoefficientRule = TEXT("Weapon.DamageCoefficient");
 const FName OnKillHealRule = TEXT("Weapon.OnKillHealPercent");
 const FName WeaponRangeRule = TEXT("Weapon.RangeCm");
 const FName WeaponArcRule = TEXT("Weapon.ArcDegrees");
@@ -132,24 +131,13 @@ bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
 		return true;
 	}
 
-	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("PhysicalCoefficient"))
+	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("DamageCoefficient"))
 	{
-		float Current = Weapon.PhysicalCoefficient;
-		ReadRuleFloat(Build, PhysicalCoefficientRule, Current, Current);
+		float Current = Weapon.DamageCoefficient;
+		ReadRuleFloat(Build, DamageCoefficientRule, Current, Current);
 		WriteRuleFloat(
 		    Build,
-		    PhysicalCoefficientRule,
-		    FMath::Max(0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value)));
-		return true;
-	}
-
-	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("ElementalCoefficient"))
-	{
-		float Current = Weapon.ElementalCoefficient;
-		ReadRuleFloat(Build, ElementalCoefficientRule, Current, Current);
-		WriteRuleFloat(
-		    Build,
-		    ElementalCoefficientRule,
+		    DamageCoefficientRule,
 		    FMath::Max(0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value)));
 		return true;
 	}
@@ -256,16 +244,10 @@ void ApplyPartEffectToAttackSteps(const FReEchoCsvPartEffectRow& Effect, TArray<
 	}
 	for (FReEchoCsvAttackStepRow& Step : AttackSteps)
 	{
-		if (Effect.Target == TEXT("PhysicalCoefficient"))
+		if (Effect.Target == TEXT("DamageCoefficient"))
 		{
-			Step.PhysicalCoefficient = FMath::Max(
-			    0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Step.PhysicalCoefficient, Effect.ValueOp, Effect.Value));
-		}
-		else if (Effect.Target == TEXT("ElementalCoefficient"))
-		{
-			Step.ElementalCoefficient = FMath::Max(
-			    0.0f,
-			    ReEchoWeaponRuntime::ApplyValueOperation(Step.ElementalCoefficient, Effect.ValueOp, Effect.Value));
+			Step.DamageCoefficient = FMath::Max(
+			    0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Step.DamageCoefficient, Effect.ValueOp, Effect.Value));
 		}
 		else if (Effect.Target == TEXT("AttackRange"))
 		{
@@ -587,14 +569,8 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 	              AttackIntervalRule,
 	              OutDefinition.Weapon.AttackIntervalSeconds,
 	              OutDefinition.Weapon.AttackIntervalSeconds);
-	ReadRuleFloat(Build,
-	              PhysicalCoefficientRule,
-	              OutDefinition.Weapon.PhysicalCoefficient,
-	              OutDefinition.Weapon.PhysicalCoefficient);
-	ReadRuleFloat(Build,
-	              ElementalCoefficientRule,
-	              OutDefinition.Weapon.ElementalCoefficient,
-	              OutDefinition.Weapon.ElementalCoefficient);
+	ReadRuleFloat(
+	    Build, DamageCoefficientRule, OutDefinition.Weapon.DamageCoefficient, OutDefinition.Weapon.DamageCoefficient);
 	ReadRuleFloat(Build, WeaponRangeRule, OutDefinition.Weapon.RangeCm, OutDefinition.Weapon.RangeCm);
 	ReadRuleFloat(Build, WeaponArcRule, OutDefinition.Weapon.ArcDegrees, OutDefinition.Weapon.ArcDegrees);
 	{
@@ -638,9 +614,7 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 
 	if (OutDefinition.DamageChannelId.IsNone())
 	{
-		OutDefinition.bUsesCyclingElement =
-		    OutDefinition.Weapon.AttackPatternId == TEXT("Pattern.ElementalProjectile") ||
-		    (OutDefinition.Weapon.ElementalCoefficient > 0.0f && OutDefinition.Weapon.PhysicalCoefficient <= 0.0f);
+		OutDefinition.bUsesCyclingElement = OutDefinition.Weapon.AttackPatternId == TEXT("Pattern.ElementalProjectile");
 		OutDefinition.DamageChannelId = OutDefinition.bUsesCyclingElement ? TEXT("CycleElement") : TEXT("Physical");
 	}
 	OutDefinition.bUsesDeterministicRandomElement = OutDefinition.DamageChannelId == TEXT("RandomElement");
@@ -675,8 +649,7 @@ FReEchoWeaponDefinition ReEchoWeaponRuntime::CompileLogicDefinition(const FReEch
 	Result.AttackPatternId = Definition.Weapon.AttackPatternId;
 	Result.DamageChannelId = Definition.DamageChannelId;
 	Result.AttackIntervalSeconds = Definition.Weapon.AttackIntervalSeconds;
-	Result.PhysicalCoefficient = Definition.Weapon.PhysicalCoefficient;
-	Result.ElementalCoefficient = Definition.Weapon.ElementalCoefficient;
+	Result.DamageCoefficient = Definition.Weapon.DamageCoefficient;
 	Result.RangeCm = Definition.Weapon.RangeCm;
 	Result.ArcDegrees = Definition.Weapon.ArcDegrees;
 	Result.ProjectileCount = Definition.Weapon.ProjectileCount;
@@ -692,8 +665,7 @@ FReEchoWeaponDefinition ReEchoWeaponRuntime::CompileLogicDefinition(const FReEch
 		Step.StepId = CsvStep.Id;
 		Step.StepIndex = CsvStep.StepIndex;
 		Step.DurationSeconds = CsvStep.DurationSeconds;
-		Step.PhysicalCoefficient = CsvStep.PhysicalCoefficient;
-		Step.ElementalCoefficient = CsvStep.ElementalCoefficient;
+		Step.DamageCoefficient = CsvStep.DamageCoefficient;
 		Step.RangeCm = CsvStep.RangeCm;
 		Step.ArcDegrees = CsvStep.ArcDegrees;
 		Step.ProjectileCount = CsvStep.ProjectileCount;

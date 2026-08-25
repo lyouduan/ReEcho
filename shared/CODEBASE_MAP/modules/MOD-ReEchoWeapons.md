@@ -89,6 +89,8 @@ XLSX → CSV → ReEcho Data Reader
 
 CSV Row 和资源 key 不能进入逻辑模块，避免数据加载器或表现层成为第二个规则解释器。
 
+武器 Definition 和每个 AttackStep 只暴露一个有效倍率 `DamageCoefficient`。`FReEchoWeaponLogic` 先由 `DamageChannelId` 解析伤害类型：物理通道使用 `PhysicalAttack × DamageCoefficient`，任一元素通道（含确定性随机元素）使用 `ElementalAttack × DamageCoefficient`。不得恢复物理/元素双倍率，也不得用两者最大值做兼容选择；宝石只负责属性来源和伤害类型。
+
 ### 唯一普通攻击节拍
 
 ```text

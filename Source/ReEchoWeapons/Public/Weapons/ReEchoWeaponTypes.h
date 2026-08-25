@@ -21,8 +21,7 @@ struct REECHOWEAPONS_API FReEchoWeaponStepDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName StepId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 StepIndex = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DurationSeconds = 0.0f;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float PhysicalCoefficient = 0.0f;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ElementalCoefficient = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DamageCoefficient = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RangeCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ArcDegrees = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 ProjectileCount = 0;
@@ -46,8 +45,7 @@ struct REECHOWEAPONS_API FReEchoWeaponDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName AttackPatternId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName DamageChannelId = TEXT("Physical");
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AttackIntervalSeconds = 0.55f;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float PhysicalCoefficient = 0.0f;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ElementalCoefficient = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DamageCoefficient = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RangeCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ArcDegrees = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 ProjectileCount = 0;

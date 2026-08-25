@@ -48,6 +48,7 @@
 4. 镰刀基础攻击继续使用数据给出的 360 度、150 cm、0.6 系数，并实现描述中已明确的外圈规则：距离攻击中心超过有效半径 50% 的目标额外获得 40% 伤害倍率。比例和倍率由生产 XLSX/CSV 提供，不在 C++ 复制平衡常量。
 5. 镰刀开局卡片、商店武器图和手持表现继续使用正式 `Scythe` Presentation Profile/纹理；镰刀符文图标只消费现有已导入资源，不新增主观美术内容，缺少正式 PartId 命名时记录美术交接而不阻塞逻辑。
 6. 读取旧存档/录制恢复定义时，`W_J_02`、`W_J_07` 或其他缺失/禁用武器 ID 明确判定不兼容；不得迁移、回退或复用为保留武器。
+7. 武器与攻击段统一使用单一有效伤害倍率 `DamageCoefficient`。原初之晶选择 `PhysicalAttack`，元素宝石和棱镜之晶选择 `ElementalAttack`；宝石不再提供或选择第二套倍率。
 
 ## 架构影响与设计决策
 
@@ -73,6 +74,7 @@
 - [x] 猎手/诗人/勇者/智者默认武器分别为弓/弓/镰刀/长剑，描述一致。
 - [x] 含 `W_J_02` 或 `W_J_07` 的旧存档/恢复快照明确失败，Plan101 的当前 Save v18 商店/刷新恢复继续通过。
 - [x] 法杖/鞭子专用 C++、运行时注册、商店候选、测试要求和零引用内容资产已清理；通用 Projectile/Melee 行为未回归。
+- [x] 双倍率字段和 `FMath::Max(ElementalCoefficient, PhysicalCoefficient)` 兼容逻辑已删除；四把保留武器搭配原初、元素、棱镜宝石的 12 组伤害回归已覆盖。
 - [x] XLSX 同步、聚焦自动化、Shipping Cook/烟测、最终 Development FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
 - [ ] 用户完成 PIE/Shipping 人工验收后才关闭并发布实现；未提交精选允许列表外 UE 生成物或机器本地路径。
 
@@ -91,6 +93,7 @@
 3. 让 Loadout/Shop/Save/Recording 只消费四武器集合，并为退役 ID 增加明确不兼容错误与回归测试。
 4. 用 Unreal 资产注册表审计法杖/鞭子 Profile/纹理/载体引用，只删除零引用内容；核验镰刀 Profile、纹理、VFX 和开局 UI 加载。
 5. 更新聚焦测试、校验器、模块文档和执行记录，完成自动化、Shipping、FullRebuild、静态门禁后交付用户测试。
+6. 将武器/攻击段 Schema 收敛为 `DamageCoefficient`，由核心宝石的 `DamageChannel` 单独选择属性来源，并建立四武器乘三类宝石的伤害矩阵。
 
 ## 验证矩阵
 
@@ -115,13 +118,15 @@
 - 2026-08-25：从 `origin/main@eba660bb` 完成最终适配，审计 Plan103 实现和 Plan105 计划；物理重叠集中于校验器、模块文档和预构建包，无未解决逻辑冲突。
 - 2026-08-25：生产表收敛为镰刀、长剑、弓、枪；删除法杖/鞭子生产关系与零引用资产，保留与生产法杖无关的智者 `MoonStaff` 辅助表现。
 - 2026-08-25：镰刀外圈参数进入 XLSX/CSV、不可变武器提交与统一命中路径；旧存档和录制中的退役 WeaponId 明确拒绝。
+- 2026-08-25：补充统一伤害倍率契约；XLSX、CSV、Reader、Definition 和符文效果目标改为 `DamageCoefficient`，删除双倍率兼容选择，新增四武器乘原初/元素/棱镜宝石的 12 组回归。
 
 ### 证据
 
 - `python scripts/data/test_sync_xlsx_to_csv.py`：18 项通过；`python scripts/data/sync_xlsx_to_csv.py --check`、`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 - `ReEcho.Weapons`、`ReEcho.Run`、`ReEcho.Shop`、`ReEcho.UI` 自动化通过；四武器数据、镰刀外圈边界、退役 ID 拒绝和商店/UI 回归均有自动化证据。
+- 统一倍率补充完成 `ReEcho.Weapons` 17 项全组回归；`ReEcho.Weapons.Gems.DamageCoefficientMatrix` 覆盖四把保留武器分别搭配原初、火焰和棱镜核心的 12 组属性来源、伤害类型与倍率结果。
 - `Build-Editor.cmd -Configuration Development -FullRebuild` 完成 117 个动作；吸收最新主线并打包后再次执行增量 Development 编译，目标为最新状态。
-- Shipping 候选完成干净 BuildCookRun，Cook 为 0 错误、4 条主线既有警告，34 个运行时 CSV 已暂存，10 秒启动烟测通过；本地候选目录名为 `ReEcho-Plan104-Shipping-Candidate-Latest`，不进入版本库。
+- 统一倍率补充完成最终 Development FullRebuild 99 个动作；Shipping 候选完成干净 BuildCookRun，Cook 为 0 错误、4 条主线既有警告，34 个运行时 CSV 已暂存，10 秒启动烟测通过；本地候选目录名为 `ReEcho-Plan104-DamageCoefficient-Shipping-Candidate`，不进入版本库。
 
 ### 剩余风险
 

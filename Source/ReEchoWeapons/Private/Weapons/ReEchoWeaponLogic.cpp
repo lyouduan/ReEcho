@@ -258,13 +258,10 @@ float FReEchoWeaponLogic::ComputeDamage(const FReEchoWeaponStepDefinition& Step,
                                         const EReEchoElement Element,
                                         bool& bOutCritical)
 {
-	const float PhysicalCoefficient =
-	    Step.PhysicalCoefficient > 0.0f ? Step.PhysicalCoefficient : Definition.PhysicalCoefficient;
-	const float ElementalCoefficient =
-	    Step.ElementalCoefficient > 0.0f ? Step.ElementalCoefficient : Definition.ElementalCoefficient;
-	float Damage = Element == EReEchoElement::None
-	                   ? Stats.PhysicalAttack * PhysicalCoefficient
-	                   : Stats.ElementalAttack * FMath::Max(ElementalCoefficient, PhysicalCoefficient);
+	const float DamageCoefficient =
+	    Step.DamageCoefficient > 0.0f ? Step.DamageCoefficient : Definition.DamageCoefficient;
+	float Damage = Element == EReEchoElement::None ? Stats.PhysicalAttack * DamageCoefficient
+	                                               : Stats.ElementalAttack * DamageCoefficient;
 
 	bOutCritical = false;
 	if (Stats.RoleId == TEXT("Hunter"))

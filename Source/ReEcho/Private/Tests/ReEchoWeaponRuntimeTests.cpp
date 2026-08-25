@@ -23,6 +23,7 @@
 #include "Player/ReEchoPlayerPawn.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Weapons/ReEchoWeaponActor.h"
+#include "Weapons/ReEchoWeaponLogic.h"
 
 namespace
 {
@@ -480,6 +481,94 @@ bool FReEchoWeaponEquipmentCombatRuntimeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponGemDamageCoefficientMatrixTest,
+                                 "ReEcho.Weapons.Gems.DamageCoefficientMatrix",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponGemDamageCoefficientMatrixTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!TestTrue(TEXT("Damage matrix loads the production snapshot"), Snapshot.IsValid()))
+	{
+		return false;
+	}
+
+	struct FWeaponCase
+	{
+		FName WeaponId;
+		float DamageCoefficient;
+	};
+
+	const TArray<FWeaponCase> WeaponCases = {
+	    {TEXT("W_J_01"), 1.0f}, {TEXT("W_J_04"), 0.6f}, {TEXT("W_J_08"), 1.0f}, {TEXT("W_J_09"), 0.2f}};
+
+	struct FCoreCase
+	{
+		FName PartId;
+		EReEchoElement ExpectedElement;
+		bool bUsesElementalAttack;
+	};
+
+	const TArray<FCoreCase> CoreCases = {{TEXT("P_CORE_PRIMORDIAL"), EReEchoElement::None, false},
+	                                     {TEXT("P_CORE_FLAME"), EReEchoElement::Flame, true},
+	                                     {TEXT("P_CORE_PRISM"), EReEchoElement::None, true}};
+
+	FReEchoWeaponWorldFixture Fixture;
+	UReEchoCombatantComponent* Combatant = nullptr;
+	AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
+	for (const FWeaponCase& WeaponCase : WeaponCases)
+	{
+		for (const FCoreCase& CoreCase : CoreCases)
+		{
+			FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, WeaponCase.WeaponId);
+			SetBuildStats(Build, Combatant->Stats);
+			FString Error;
+			const FString CaseLabel =
+			    FString::Printf(TEXT("%s + %s"), *WeaponCase.WeaponId.ToString(), *CoreCase.PartId.ToString());
+			if (!TestTrue(*FString::Printf(TEXT("%s equips"), *CaseLabel),
+			              ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Build, {CoreCase.PartId}, Build, Error)))
+			{
+				AddError(FString::Printf(TEXT("%s: %s"), *CaseLabel, *Error));
+				continue;
+			}
+			FReEchoEffectiveWeaponDefinition Effective;
+			if (!TestTrue(*FString::Printf(TEXT("%s compiles"), *CaseLabel),
+			              ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*Snapshot, Build, Effective, Error)))
+			{
+				AddError(FString::Printf(TEXT("%s: %s"), *CaseLabel, *Error));
+				continue;
+			}
+			FReEchoWeaponLogic Logic;
+			TestTrue(*FString::Printf(TEXT("%s initializes logic"), *CaseLabel),
+			         Logic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(Effective)));
+			FReEchoWeaponAttackCommit Commit;
+			if (!TestTrue(*FString::Printf(TEXT("%s commits"), *CaseLabel),
+			              Logic.TryCommitBasicAttack(Owner, Combatant->Stats, Commit)))
+			{
+				continue;
+			}
+
+			if (CoreCase.PartId == TEXT("P_CORE_PRISM"))
+			{
+				TestTrue(*FString::Printf(TEXT("%s resolves a deterministic element"), *CaseLabel),
+				         Commit.Element != EReEchoElement::None);
+			}
+			else
+			{
+				TestEqual(*FString::Printf(TEXT("%s selects the expected damage type"), *CaseLabel),
+				          Commit.Element,
+				          CoreCase.ExpectedElement);
+			}
+			const float Attack =
+			    CoreCase.bUsesElementalAttack ? Combatant->Stats.ElementalAttack : Combatant->Stats.PhysicalAttack;
+			TestTrue(*FString::Printf(TEXT("%s uses one effective coefficient"), *CaseLabel),
+			         FMath::IsNearlyEqual(Commit.RawDamage, Attack * WeaponCase.DamageCoefficient, 0.001f));
+		}
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponLockAndPersistenceTest,
                                  "ReEcho.Weapons.RunLockAndEquipmentSnapshotParity",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -557,9 +646,9 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	Weapon->InitializeWeapon(&ActorBuild, Run->GetRunDataSnapshot());
 
 	const FString ModifiedDir = AssembleModifiedCsvDirectory(TEXT("weapons.csv"),
-	                                                         TEXT("Pattern.BowShot,1.00,1.00,1.00,1000,0,1,0,0,"
+	                                                         TEXT("Pattern.BowShot,1.00,1.00,1000,0,1,0,0,"
 	                                                              "1,true,RuntimeCompatibility,8,"),
-	                                                         TEXT("Pattern.BowShot,1.01,1.00,1.00,1000,0,1,0,0,"
+	                                                         TEXT("Pattern.BowShot,1.01,1.00,1000,0,1,0,0,"
 	                                                              "1,true,RuntimeCompatibility,8,"));
 	const FReEchoCsvLoadResult PublishResult = FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(ModifiedDir);
 	if (!TestTrue(TEXT("Modified CSV publishes"), PublishResult.bSuccess))
@@ -839,10 +928,8 @@ bool FReEchoWeaponRuneStaticStepCompilationTest::RunTest(const FString& Paramete
 	{
 		TestTrue(TEXT("Charged gun implements -500% cadence as speed x 1/6"),
 		         FMath::IsNearlyEqual(ChargedBuild.Stats.AttackSpeed, ChargedBase.Stats.AttackSpeed / 6.0f, 0.001f));
-		TestTrue(TEXT("Charged gun applies +180% physical damage to the authored step"),
-		         FMath::IsNearlyEqual(Charged.AttackSteps[0].PhysicalCoefficient, 0.56f, 0.001f));
-		TestTrue(TEXT("Charged gun applies +180% elemental damage to the authored step"),
-		         FMath::IsNearlyEqual(Charged.AttackSteps[0].ElementalCoefficient, 0.56f, 0.001f));
+		TestTrue(TEXT("Charged gun applies +180% damage to the authored step"),
+		         FMath::IsNearlyEqual(Charged.AttackSteps[0].DamageCoefficient, 0.56f, 0.001f));
 	}
 	return true;
 }

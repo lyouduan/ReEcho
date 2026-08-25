@@ -125,7 +125,7 @@ REGISTERED_FORMULA_IDS = {
     "Element.AttachInRadius",
     "Element.ChainElementAttack",
     "Element.EnhanceNextReaction",
-    "Weapon.PhysicalOrElementalCoefficient",
+    "Weapon.DamageCoefficient",
 }
 REGISTERED_ATTACK_PATTERN_IDS = {
     "None",
@@ -213,8 +213,7 @@ WEAPON_EFFECT_TARGETS = {
     "DamageChannel",
     "AttackSpeed",
     "AttackIntervalSeconds",
-    "PhysicalCoefficient",
-    "ElementalCoefficient",
+    "DamageCoefficient",
     "AttackPattern",
     "OnKill",
     # Weapon-parameter StatModifier targets. Each one is landed by
@@ -414,8 +413,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "LoadoutOrder": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "AttackPatternId": CsvColumnSpec("AttackPatternId"),
         "AttackIntervalSeconds": CsvColumnSpec("Float", min_value=0.01, max_value=60.0),
-        "PhysicalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
-        "ElementalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "DamageCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "RangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "ArcDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
         "ProjectileCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
@@ -432,8 +430,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "AttackPatternId": CsvColumnSpec("AttackPatternId"),
         "StepIndex": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "DurationSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=60.0),
-        "PhysicalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
-        "ElementalCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
+        "DamageCoefficient": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
         "RangeCm": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "ArcDegrees": CsvColumnSpec("Float", min_value=0.0, max_value=360.0),
         "ProjectileCount": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),

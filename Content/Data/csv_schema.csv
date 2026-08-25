@@ -137,8 +137,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Weapons,LoadoutOrder,Int,true,0,1000000,,,Stable start UI order for StartSelectable rows.
 1,Weapons,AttackPatternId,AttackPatternId,true,,,,,Registered attack pattern id for this concrete weapon.
 1,Weapons,AttackIntervalSeconds,Float,true,0.01,60,,,Attack cooldown base in seconds.
-1,Weapons,PhysicalCoefficient,Float,true,0,100,,,Physical attack coefficient.
-1,Weapons,ElementalCoefficient,Float,true,0,100,,,Elemental attack coefficient.
+1,Weapons,DamageCoefficient,Float,true,0,100,,,Effective damage coefficient; the equipped gem selects the attack stat source.
 1,Weapons,RangeCm,Float,true,0,100000,,,Runtime range in Unreal centimeters.
 1,Weapons,ArcDegrees,Float,true,0,360,,,Runtime melee arc.
 1,Weapons,ProjectileCount,Int,true,0,1000000,,,Runtime projectile count.
@@ -153,8 +152,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,AttackSteps,AttackPatternId,AttackPatternId,true,,,,,Registered attack pattern id.
 1,AttackSteps,StepIndex,Int,true,0,1000000,,,Ordered step index within the pattern.
 1,AttackSteps,DurationSeconds,Float,true,0,60,,,Step duration in seconds.
-1,AttackSteps,PhysicalCoefficient,Float,true,0,100,,,Physical coefficient for this step.
-1,AttackSteps,ElementalCoefficient,Float,true,0,100,,,Elemental coefficient for this step.
+1,AttackSteps,DamageCoefficient,Float,true,0,100,,,Effective damage coefficient for this step.
 1,AttackSteps,RangeCm,Float,true,0,100000,,,Step range in Unreal centimeters.
 1,AttackSteps,ArcDegrees,Float,true,0,360,,,Step melee arc.
 1,AttackSteps,ProjectileCount,Int,true,0,1000000,,,Step projectile count.
@@ -163,7 +161,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,AttackSteps,MovementCm,Float,true,0,100000,,,Step movement distance.
 1,AttackSteps,Invulnerable,Bool,true,,,,true|false,Whether the step grants invulnerability.
 1,AttackSteps,BehaviorId,BehaviorId,true,,,,Weapon.AttackStep|Weapon.DashStrike,Registered step behavior.
-1,AttackSteps,FormulaId,FormulaId,true,,,,Weapon.PhysicalOrElementalCoefficient,Registered step formula.
+1,AttackSteps,FormulaId,FormulaId,true,,,,Weapon.DamageCoefficient,Registered step formula.
 1,AttackSteps,ConditionId,StableId,true,,,,None,Optional step condition id.
 1,AttackSteps,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,AttackSteps,SourceSheet,Text,true,,,,,Workbook source sheet.
@@ -207,7 +205,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,PartEffects,Order,Int,true,0,1000000,,,Effect order within part.
 1,PartEffects,Trigger,StableId,true,,,,OnEquip|OnKill,Effect trigger.
 1,PartEffects,EffectKind,EffectKind,true,,,,WeaponDamageChannel|StatModifier|AttackPatternReplacement|UniqueBehavior,Registered effect kind.
-1,PartEffects,Target,StableId,true,,,,DamageChannel|AttackSpeed|AttackIntervalSeconds|PhysicalCoefficient|ElementalCoefficient|AttackPattern|OnKill,Typed effect target.
+1,PartEffects,Target,StableId,true,,,,DamageChannel|AttackSpeed|AttackIntervalSeconds|DamageCoefficient|AttackPattern|OnKill,Typed effect target.
 1,PartEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
 1,PartEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
 1,PartEffects,BehaviorId,BehaviorId,true,,,,Part.CoreDamageChannel|Part.StatModifier|Part.AttackPatternReplacement|Part.OnKillHealPercent,Registered behavior id.
