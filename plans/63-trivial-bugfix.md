@@ -171,3 +171,13 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **影响面 / Impact**：`MOD-ReEcho` / `AREA-Encounter`；只收紧预警与出生提交的一致性，无 Schema、存档格式、配表、敌人 AI、伤害或表现资产变化。`MOD-ReEchoEnemies` 与 `MOD-ReEchoPresentation` 已审阅，无所有权或契约变化，无需修改。
 - **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；组合 `origin/main@e34f8f5f` 后 Development Editor `-FullRebuild` 94/94 通过并刷新 7 个预构建模块；`ReEcho.Encounter` 自动化 4/4 通过，其中新增 `SpawnWarningCapacityReservation` 锁定跨角色批次预留；`validate_project.py`、预构建一致性和 `git diff --check` 通过。曾额外生成 Shipping 候选并通过 Build/Cook/Stage/Pak/Archive 与 10 秒烟测；后续仅在用户明确要求时打包。用户已手测确认红球与怪物提交一致。
 - **状态 / Status**：Closed。用户已完成手测验收并授权合并发布。
+
+### #19 — Boss 不再固定在场景上方出生
+
+- **现象 / Symptom**：策划反馈 Boss 每局固定刷新在场景上方，缺少与玩家/回响位置关联的变化。
+- **根因 / Root cause**：`AReEchoGameMode::SpawnScheduledBatch` 对 `EnemyRole=Boss` 单独使用硬编码 `FVector(800,0,50)` 并提前返回，完全绕过 `SpawnProfiles`、双锚 SpawnResolver、最终碰撞中心高度和预警位置承诺链。
+- **目标 / Acceptance**：Boss 使用与普通怪相同的表驱动 Warning/Commit、双锚位置解析和位置承诺；`EncounterWaves.BossEnemyId` 继续拥有 Boss 身份，Boss 不计入单位上限时不得挤占普通增援容量；删除固定世界坐标，不改变 Boss AI、技能、数值、阶段或关卡结束规则。
+- **实现范围 / Writes**：`ReEchoEncounterRuntime.*`、`ReEchoGameMode.cpp`、`ReEchoEncounterRuntimeTests.cpp`、Encounter 权威工作簿与 `spawn_profiles.csv`、Schema/项目校验、本文档及 `MOD-ReEcho`。现有 `ReEcho-plan63` 工作树含未提交 UI/素材修改且严重落后 main，本条按用户指令在独立 `ReEcho-plan63-boss-spawn-location-final` / `plan/63-boss-spawn-location-final` 实施，不触碰原工作树。
+- **改动 / Changes**：新增 `Spawn.Boss`（`M_SHEEP`、700–950 距离环、220 间距）；WaveScheduler 为 Boss 生成同一位置事实的 Warning/Commit；GameMode 取消 Boss 特例并通过 SpawnResolver 预留、提交。`BossCountsTowardUnitLimit=false` 时 Boss 仍获得自身位置，但不进入普通怪容量计算。
+- **验证 / Verification**：工作簿由 artifact-tool 编辑并完成六个工作表的前后渲染、目标表检查和公式错误扫描；最终文件保留原工作表保护、解锁数据行、表范围及扩展后的数据验证。C++ 聚焦测试锁定 Boss 事件、动态距离环、旧固定坐标消失和单位上限豁免。Development Editor `-FullRebuild` 97/97 通过并刷新 7 个预构建模块（源码指纹 `b768fa629799`）；`ReEcho.Encounter` 自动化 4/4 通过；XLSX/CSV 同步测试 18/18、生产数据同步检查、`validate_project.py`、预构建一致性与 `git diff --check` 均通过。本条未宣称 PIE 人工视觉验收。
+- **状态 / Status**：Closed。按用户指令完成技术验收并提交发布。

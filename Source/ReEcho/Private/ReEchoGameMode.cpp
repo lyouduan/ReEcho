@@ -2094,12 +2094,11 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 
 void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event)
 {
-	if (Event.EnemyRole == TEXT("Boss") || PendingSpawnBatches.ContainsByPredicate(
-	                                           [&Event](const FReEchoPendingSpawnBatchState& Candidate)
-	                                           {
-		                                           return Candidate.WaveId == Event.WaveId &&
-		                                                  Candidate.EnemyRole == Event.EnemyRole;
-	                                           }))
+	if (PendingSpawnBatches.ContainsByPredicate(
+	        [&Event](const FReEchoPendingSpawnBatchState& Candidate)
+	        {
+		        return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
+	        }))
 	{
 		return;
 	}
@@ -2131,10 +2130,16 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 	int32 ReservedCount = 0;
 	for (const FReEchoPendingSpawnBatchState& ExistingBatch : PendingSpawnBatches)
 	{
+		if (!Encounter->bBossCountsTowardUnitLimit && ExistingBatch.EnemyRole == TEXT("Boss"))
+		{
+			continue;
+		}
 		ReservedCount += ExistingBatch.Locations.Num();
 	}
+	const bool bCountsTowardUnitLimit =
+	    Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
 	const int32 ReservationCount = ReEchoSpawnCapacity::CalculateReservationCount(
-	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count);
+	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count, bCountsTowardUnitLimit);
 	if (ReservationCount < Event.Count)
 	{
 		UE_LOG(LogTemp,
@@ -2210,11 +2215,6 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		return;
 	}
 
-	if (Event.EnemyRole == TEXT("Boss"))
-	{
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), RunSubsystem->EncounterIndex);
-		return;
-	}
 	PrepareScheduledSpawnBatch(Event);
 	const int32 PendingIndex = PendingSpawnBatches.IndexOfByPredicate(
 	    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
