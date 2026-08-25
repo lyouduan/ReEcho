@@ -361,19 +361,6 @@ void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
                                               FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	for (int32 Index = ReverseMeleePlaybacks.Num() - 1; Index >= 0; --Index)
-	{
-		FReverseMeleePlayback& Playback = ReverseMeleePlaybacks[Index];
-		UNiagaraComponent* Effect = Playback.Effect.Get();
-		Playback.RemainingSeconds = FMath::Max(0.0f, Playback.RemainingSeconds - DeltaTime);
-		if (!Effect || Playback.RemainingSeconds <= 0.0f)
-		{
-			StopNiagaraEffect(Effect);
-			ReverseMeleePlaybacks.RemoveAtSwap(Index);
-			continue;
-		}
-		Effect->SetDesiredAge(Playback.RemainingSeconds);
-	}
 }
 
 void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* InCombatEvents,
@@ -691,7 +678,6 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
 	                                ? ResolveMeleePlayDirection(Direction, CameraRight)
 	                                : 1.0f;
-	const bool bReverseMelee = PlayDirection < 0.0f;
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(System,
 	                                                                         AttachmentRoot,
 	                                                                         NAME_None,
@@ -699,7 +685,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                                                         RelativeRotation,
 	                                                                         RelativeScale,
 	                                                                         EAttachLocation::KeepRelativeOffset,
-	                                                                         bAutoDestroy && !bReverseMelee,
+	                                                                         bAutoDestroy,
 	                                                                         ENCPoolMethod::None,
 	                                                                         false);
 	if (Effect)
@@ -713,13 +699,9 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		}
 		if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
 		{
+			// The single Niagara asset owns forward/reverse playback through this user parameter. Do not also drive
+			// DesiredAge: jumping a one-shot system to its empty end frame makes right-side slashes fully invisible.
 			Effect->SetVariableFloat(TEXT("User.PlayDirection"), PlayDirection);
-			if (bReverseMelee)
-			{
-				Effect->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
-				Effect->SetDesiredAge(Placement.PlaybackDurationSeconds);
-				ReverseMeleePlaybacks.Add({Effect, Placement.PlaybackDurationSeconds});
-			}
 		}
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 		Effect->Activate(true);
@@ -840,11 +822,6 @@ bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackS
 
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
-	for (FReverseMeleePlayback& Playback : ReverseMeleePlaybacks)
-	{
-		StopNiagaraEffect(Playback.Effect.Get());
-	}
-	ReverseMeleePlaybacks.Reset();
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);

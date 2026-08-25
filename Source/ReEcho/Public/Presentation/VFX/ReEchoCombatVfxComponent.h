@@ -236,12 +236,5 @@ private:
 	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;
 	TArray<FTimerHandle> ConductPropagationTimers;
 
-	struct FReverseMeleePlayback
-	{
-		TWeakObjectPtr<UNiagaraComponent> Effect;
-		float RemainingSeconds = 0.0f;
-	};
-
-	mutable TArray<FReverseMeleePlayback> ReverseMeleePlaybacks;
 	uint64 ConductBatchSerial = 0;
 };
