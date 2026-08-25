@@ -75,6 +75,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
+- SaveVersion 19 随 CardState 保存类型化的卡牌实际结果；v18 及更早版本只重建旧字段能严格证明的代价和未结算追踪，不伪造已丢失的历史增益。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -160,6 +161,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 代码：`Source/ReEcho/Public/Data/`、`Source/ReEcho/Private/Data/`。
 - 首读：`ReEchoCsvDataRegistry.*`、`ReEchoWeaponCsvReader.*`、`ReEchoCharacterBuildCsvReader.cpp` 和角色/卡牌/元素 Reader。
 - 数据链：主策划、怪物、Encounter、音频四个独立 canonical 工作簿 → 统一 `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`；二进制工作簿保持独立所有权。已迁移玩法 JSON 已物理删除并由项目校验禁止回归，历史审阅只使用 Git。
+- 符文投放资格以 `ReEchoData.xlsx/武器插槽C/tblParts` 的 `Enabled + ImplementationStatus + ShopEnabled + ShopPrice` 联合字段为权威，效果资格以同 Sheet 的 `tblPartEffects.Enabled` 为权威；禁用符文必须同时关闭父记录、商店资格并将价格归零，同时禁用其全部效果，不能只在 UI 隐藏。
 - 角色能力链：`ReEchoData.xlsx/角色能力A/tblCharacterAbilities` → `character_abilities.csv` → `FReEchoCsvDataSnapshot::CharacterAbilities` → `Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*`。`characters.csv` 只保存角色实体和基础 StatBlock；描述文字与旧 JSON 不参与能力分派。
 - 商店刷新链：`ReEchoData.xlsx/经济系统/tblShopRefreshRules` → `shop_refresh_rules.csv` → `FReEchoCsvDataSnapshot::ShopRefreshRules[Default]` → Run 的武器/符文页刷新与卡组逐槽刷新事务。刷新次数和价格只以该表为权威，UI 仅消费 Run 投影。
 - 怪物编译：`ReEchoEnemyData.xlsx` 发布 `enemies`、`enemy_abilities`、`boss_phases`、`enemy_combat_stats`；Definition 编译以 `EnemyId + EncounterIndex` 读取不可变快照，按场次覆盖 MaxHealth、ContactDamage、AttackInterval，再把相对移速乘数以 `BaseMoveSpeed=210` 归一为运行时 cm/s。运行时不得回读 XLSX，也不得在 Host 复制成长或仇恨默认值。

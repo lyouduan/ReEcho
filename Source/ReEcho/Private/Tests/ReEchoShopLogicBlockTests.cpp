@@ -533,6 +533,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	StorageCard.ContentId = FName(ReEchoEchoStorage::StorageUnlockCardId);
 	StorageCard.DisplayName = FText::FromString(TEXT("时空锚点"));
 	StorageCard.EffectText = FText::FromString(TEXT("开启回响存储"));
+	StorageCard.OutcomeText = FText::FromString(TEXT("实际效果测试"));
 	StorageCard.Type = EReEchoShopOfferType::BuildCard;
 	StorageCard.Tier = 3;
 	StorageCard.IconTexturePath = TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_3_02.T_UI_CardIcon_G_3_02");
@@ -654,10 +655,13 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UButton* AttachmentHoverSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerAttachmentSlot0")));
 	TestNotNull(TEXT("Equipped attachment has a hover target below the weapon"), AttachmentHoverSlot);
 	TestTrue(TEXT("Attachment hover uses a custom cursor-following tooltip"),
-	         AttachmentHoverSlot && Cast<USizeBox>(AttachmentHoverSlot->GetToolTip()) != nullptr);
+	         AttachmentHoverSlot && Cast<UVerticalBox>(AttachmentHoverSlot->GetToolTip()) != nullptr);
 	if (AttachmentHoverSlot)
 	{
-		const USizeBox* TooltipSize = Cast<USizeBox>(AttachmentHoverSlot->GetToolTip());
+		const UVerticalBox* TooltipStack = Cast<UVerticalBox>(AttachmentHoverSlot->GetToolTip());
+		const USizeBox* TooltipSize = TooltipStack && TooltipStack->GetChildrenCount() == 1
+		                                  ? Cast<USizeBox>(TooltipStack->GetChildAt(0))
+		                                  : nullptr;
 		const UBorder* TooltipFrame = TooltipSize ? Cast<UBorder>(TooltipSize->GetContent()) : nullptr;
 		const UBorder* TooltipSurface = TooltipFrame ? Cast<UBorder>(TooltipFrame->GetContent()) : nullptr;
 		const UVerticalBox* TooltipContent =
@@ -689,8 +693,23 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("G_3_02 owns a clickable card slot"), StorageCardSlot);
 	if (StorageCardSlot)
 	{
-		TestNotNull(TEXT("Owned card hover uses the same custom cursor-following tooltip"),
-		            Cast<USizeBox>(StorageCardSlot->GetToolTip()));
+		const UVerticalBox* CardTooltipStack = Cast<UVerticalBox>(StorageCardSlot->GetToolTip());
+		TestNotNull(TEXT("Owned card hover uses the same custom cursor-following tooltip"), CardTooltipStack);
+		TestEqual(TEXT("Owned card with a resolved result has two tooltip panels"),
+		          CardTooltipStack ? CardTooltipStack->GetChildrenCount() : 0,
+		          2);
+		const USizeBox* OutcomeSize = CardTooltipStack && CardTooltipStack->GetChildrenCount() > 1
+		                                  ? Cast<USizeBox>(CardTooltipStack->GetChildAt(1))
+		                                  : nullptr;
+		const UBorder* OutcomeFrame = OutcomeSize ? Cast<UBorder>(OutcomeSize->GetContent()) : nullptr;
+		const UBorder* OutcomeSurface = OutcomeFrame ? Cast<UBorder>(OutcomeFrame->GetContent()) : nullptr;
+		const UVerticalBox* OutcomeContent =
+		    OutcomeSurface ? Cast<UVerticalBox>(OutcomeSurface->GetContent()) : nullptr;
+		const UTextBlock* OutcomeBody = OutcomeContent && OutcomeContent->GetChildrenCount() > 1
+		                                    ? Cast<UTextBlock>(OutcomeContent->GetChildAt(1))
+		                                    : nullptr;
+		TestTrue(TEXT("Resolved-result panel displays the projected outcome text"),
+		         OutcomeBody && OutcomeBody->GetText().EqualTo(StorageCard.OutcomeText));
 		UImage* CardImage = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt0")));
 		const UCanvasPanelSlot* DesignerCardSlot = Cast<UCanvasPanelSlot>(StorageCardSlot->Slot);
 		TestNotNull(TEXT("Owned card slot is directly editable on the designer canvas"), DesignerCardSlot);
@@ -709,8 +728,12 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNull(TEXT("An unowned card is absent from the loadout before purchase"),
 	         PurchasedCardSlot ? PurchasedCardSlot->GetToolTip() : nullptr);
 	Widget->MarkItemPurchased(PurchasedCard.ItemId);
-	TestNotNull(TEXT("A purchased build card appears in the loadout immediately"),
-	            PurchasedCardSlot ? Cast<USizeBox>(PurchasedCardSlot->GetToolTip()) : nullptr);
+	const UVerticalBox* PurchasedCardTooltip =
+	    PurchasedCardSlot ? Cast<UVerticalBox>(PurchasedCardSlot->GetToolTip()) : nullptr;
+	TestNotNull(TEXT("A purchased build card appears in the loadout immediately"), PurchasedCardTooltip);
+	TestEqual(TEXT("A card without a resolved result retains one tooltip panel"),
+	          PurchasedCardTooltip ? PurchasedCardTooltip->GetChildrenCount() : 0,
+	          1);
 	UImage* PurchasedCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt1")));
 	UTexture2D* ExpectedPurchasedCardIcon = LoadObject<UTexture2D>(nullptr, *PurchasedCard.IconTexturePath);
 	TestNotNull(TEXT("The purchased card icon asset loads"), ExpectedPurchasedCardIcon);

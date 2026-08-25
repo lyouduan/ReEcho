@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v18 persists refreshed post-encounter card choices and their independent slot budgets. */
-	static constexpr int32 CurrentSaveVersion = 18;
+	/** v19 persists typed resolved-card outcomes used by owned-card presentation. */
+	static constexpr int32 CurrentSaveVersion = 19;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;

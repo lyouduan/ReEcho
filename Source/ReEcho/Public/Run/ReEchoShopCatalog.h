@@ -60,6 +60,8 @@ struct REECHO_API FReEchoShopOffer
 	FName SlotTypeId;
 	int32 Tier = 0;
 	FString IconTexturePath; // 武器 Offer 填对应配图资产路径(ResolveHeldTexturePath)，为空则回退默认卡片图标
+	/** Optional resolved runtime result for an owned card. Empty offers retain the legacy single-panel tooltip. */
+	FText OutcomeText;
 };
 
 // One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon

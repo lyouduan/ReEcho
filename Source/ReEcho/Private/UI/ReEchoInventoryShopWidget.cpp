@@ -1935,29 +1935,46 @@ UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId
 
 UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Offer)
 {
-	USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
-	TooltipSize->SetWidthOverride(280.0f);
-	UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-	TooltipFrame->SetBrushColor(FLinearColor::White);
-	TooltipFrame->SetPadding(FMargin(3.0f));
-	UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-	TooltipSurface->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f));
-	TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
-	UVerticalBox* TooltipContent = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
-	UTextBlock* TooltipTitle = CreateText(WidgetTree, NAME_None, 19, FLinearColor::White);
-	TooltipTitle->SetText(Offer.DisplayName);
-	TooltipTitle->SetJustification(ETextJustify::Center);
-	TooltipTitle->SetAutoWrapText(false);
-	UVerticalBoxSlot* TitleSlot = TooltipContent->AddChildToVerticalBox(TooltipTitle);
-	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
-	UTextBlock* TooltipEffect = CreateText(WidgetTree, NAME_None, 16, FLinearColor::White);
-	TooltipEffect->SetText(Offer.EffectText);
-	TooltipEffect->SetJustification(ETextJustify::Center);
-	TooltipContent->AddChildToVerticalBox(TooltipEffect);
-	TooltipSurface->SetContent(TooltipContent);
-	TooltipFrame->SetContent(TooltipSurface);
-	TooltipSize->SetContent(TooltipFrame);
-	return TooltipSize;
+	UVerticalBox* TooltipStack = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
+	auto AddTooltipPanel = [&](const FText& Title, const FText& Body, const bool bOutcome)
+	{
+		USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
+		TooltipSize->SetWidthOverride(280.0f);
+		UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
+		TooltipFrame->SetBrushColor(bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f, 1.0f) : FLinearColor::White);
+		TooltipFrame->SetPadding(FMargin(3.0f));
+		UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
+		TooltipSurface->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f));
+		TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
+		UVerticalBox* TooltipContent =
+		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
+		UTextBlock* TooltipTitle = CreateText(WidgetTree,
+		                                      NAME_None,
+		                                      bOutcome ? 17 : 19,
+		                                      bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f) : FLinearColor::White);
+		TooltipTitle->SetText(Title);
+		TooltipTitle->SetJustification(ETextJustify::Center);
+		TooltipTitle->SetAutoWrapText(false);
+		UVerticalBoxSlot* TitleSlot = TooltipContent->AddChildToVerticalBox(TooltipTitle);
+		TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+		UTextBlock* TooltipEffect = CreateText(WidgetTree, NAME_None, 16, FLinearColor::White);
+		TooltipEffect->SetText(Body);
+		TooltipEffect->SetJustification(ETextJustify::Center);
+		TooltipEffect->SetAutoWrapText(true);
+		TooltipContent->AddChildToVerticalBox(TooltipEffect);
+		TooltipSurface->SetContent(TooltipContent);
+		TooltipFrame->SetContent(TooltipSurface);
+		TooltipSize->SetContent(TooltipFrame);
+		UVerticalBoxSlot* PanelSlot = TooltipStack->AddChildToVerticalBox(TooltipSize);
+		PanelSlot->SetPadding(bOutcome ? FMargin(0.0f, 3.0f, 0.0f, 0.0f) : FMargin(0.0f));
+	};
+
+	AddTooltipPanel(Offer.DisplayName, Offer.EffectText, false);
+	if (!Offer.OutcomeText.IsEmpty())
+	{
+		AddTooltipPanel(NSLOCTEXT("ReEcho", "ResolvedCardOutcomeTitle", "实际效果"), Offer.OutcomeText, true);
+	}
+	return TooltipStack;
 }
 
 void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)

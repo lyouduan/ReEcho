@@ -109,6 +109,14 @@ bool FReEchoCardTierGrantTest::RunTest(const FString&)
 	TestEqual(TEXT("The same seed selects the same tier card"), First.GrantedCardIds, Second.GrantedCardIds);
 	TestTrue(TEXT("Both grants become owned"),
 	         First.CardState.OwnedCardIds.Contains(TEXT("G_1_08")) && First.CardState.OwnedCardIds.Num() == 2);
+	const FReEchoCardOutcomeState* GrantedCardsOutcome = First.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	    [](const FReEchoCardOutcomeState& Outcome)
+	    {
+		    return Outcome.CardId == TEXT("G_1_08") && Outcome.Kind == EReEchoCardOutcomeKind::GrantedCards;
+	    });
+	TestTrue(TEXT("Tier grant records the exact granted card for presentation"),
+	         GrantedCardsOutcome && GrantedCardsOutcome->RelatedCardIds.Num() == 1 &&
+	             GrantedCardsOutcome->RelatedCardIds[0] == First.GrantedCardIds[1]);
 	return true;
 }
 
@@ -200,8 +208,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardEconomyRuleTest,
 bool FReEchoCardEconomyRuleTest::RunTest(const FString&)
 {
 	TArray<FReEchoCardDefinition> Cards;
-	Cards.Add(
-	    MakeCard(TEXT("G_2_16"), 2, TEXT("Card.ShopContract"), TEXT("OnCompileRules"), TEXT("ShopDiscount"), 0.2f));
+	FReEchoCardDefinition ShopContract =
+	    MakeCard(TEXT("G_2_16"), 2, TEXT("Card.ShopContract"), TEXT("OnCompileRules"), TEXT("ShopDiscount"), 0.2f);
+	FReEchoCardEffectDefinition PurchaseGrowth = ShopContract.Effects[0];
+	PurchaseGrowth.Id = TEXT("G_2_16_PURCHASE");
+	PurchaseGrowth.Order = 2;
+	PurchaseGrowth.Trigger = TEXT("OnPurchase");
+	PurchaseGrowth.Target = TEXT("HpMaxAndPoint");
+	PurchaseGrowth.Value = 2.0f;
+	ShopContract.Effects.Add(PurchaseGrowth);
+	Cards.Add(ShopContract);
 	Cards.Add(MakeCard(TEXT("G_3_16"),
 	                   3,
 	                   TEXT("Card.EndKillRefresh"),
@@ -220,6 +236,26 @@ bool FReEchoCardEconomyRuleTest::RunTest(const FString&)
 	TestEqual(TEXT("Shop discount compiles"), Rules.ShopDiscount, 0.2f);
 	const FReEchoCardEventResult End = ReEchoCardRuntime::EndEncounter(Catalog, State, FReEchoStatBlock{}, 1, 0);
 	TestEqual(TEXT("29 kills grant floor(29/10) refreshes"), End.CardState.Runtime.FreeShopRefreshes, 2);
+	const FReEchoCardOutcomeState* RefreshOutcome = End.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	    [](const FReEchoCardOutcomeState& Outcome)
+	    {
+		    return Outcome.CardId == TEXT("G_3_16") && Outcome.Kind == EReEchoCardOutcomeKind::FreeShopRefreshes;
+	    });
+	TestTrue(TEXT("Encounter-end refreshes record their exact cumulative result"),
+	         RefreshOutcome && FMath::IsNearlyEqual(RefreshOutcome->PrimaryValue, 2.0f));
+	FReEchoStatBlock PurchaseStats;
+	PurchaseStats.HpMax = 10.0f;
+	PurchaseStats.HpPoint = 5.0f;
+	const FReEchoCardEventResult Purchase = ReEchoCardRuntime::OnPurchase(Catalog, End.CardState, PurchaseStats);
+	const FReEchoCardOutcomeState* PurchaseOutcome = Purchase.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	    [](const FReEchoCardOutcomeState& Outcome)
+	    {
+		    return Outcome.CardId == TEXT("G_2_16") && Outcome.Kind == EReEchoCardOutcomeKind::CumulativeStatGain;
+	    });
+	TestEqual(TEXT("Shop contract still applies permanent max-health growth"), Purchase.Stats.HpMax, 12.0f);
+	TestTrue(TEXT("Shop contract records the exact cumulative permanent growth"),
+	         PurchaseOutcome && PurchaseOutcome->PrimaryTarget == TEXT("HpMaxAndPoint") &&
+	             FMath::IsNearlyEqual(PurchaseOutcome->PrimaryValue, 2.0f));
 	return true;
 }
 

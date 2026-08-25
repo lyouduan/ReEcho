@@ -121,12 +121,146 @@ FName MakeShopCardOfferId(const int32 EncounterIndex, const int32 RefreshSequenc
 	return FName(*FString::Printf(TEXT("SHOP_CARD_E%d_R%d_%s"), EncounterIndex, RefreshSequence, *CardId.ToString()));
 }
 
-FReEchoShopOffer MakeOwnedBuildCardOffer(const FReEchoCardDefinition& Card)
+FString FormatOutcomeValue(const FName Target, const float Value)
+{
+	if (Target == TEXT("ReactionEfficiency") || Target == TEXT("EchoEfficiency"))
+	{
+		return FString::Printf(TEXT("%+.0f%%"), Value * 100.0f);
+	}
+	return FMath::IsNearlyEqual(Value, FMath::RoundToFloat(Value))
+	           ? FString::Printf(TEXT("%+d"), FMath::RoundToInt(Value))
+	           : FString::Printf(TEXT("%+.1f"), Value);
+}
+
+FString GetOutcomeTargetLabel(const FName Target)
+{
+	if (Target == TEXT("PhysicalAttack"))
+	{
+		return TEXT("物理攻击力");
+	}
+	if (Target == TEXT("ElementalAttack"))
+	{
+		return TEXT("元素攻击力");
+	}
+	if (Target == TEXT("HpMax"))
+	{
+		return TEXT("生命上限");
+	}
+	if (Target == TEXT("HpMaxAndPoint"))
+	{
+		return TEXT("生命值与生命上限");
+	}
+	if (Target == TEXT("ReactionEfficiency"))
+	{
+		return TEXT("元素反应效能");
+	}
+	if (Target == TEXT("EchoEfficiency"))
+	{
+		return TEXT("回响效能");
+	}
+	if (Target == TEXT("FreeShopRefresh"))
+	{
+		return TEXT("免费商店刷新");
+	}
+	return Target.ToString();
+}
+
+FText BuildCardOutcomeText(const FReEchoCardDefinition& Card,
+                           const FReEchoCardBuildState& State,
+                           const FReEchoCardCatalog& Catalog)
+{
+	TArray<FString> Lines;
+	for (const FReEchoCardOutcomeState& Outcome : State.Runtime.ResolvedOutcomes)
+	{
+		if (Outcome.CardId != Card.Id)
+		{
+			continue;
+		}
+		switch (Outcome.Kind)
+		{
+			case EReEchoCardOutcomeKind::PendingEncounter:
+			{
+				const int32 Progress =
+				    Outcome.PrimaryTarget == TEXT("PhysicalAttack")
+				        ? State.Runtime.HuntKillCount
+				        : (Outcome.PrimaryTarget == TEXT("ElementalAttack") ? State.Runtime.ReactionCount : 0);
+				Lines.Add(FString::Printf(TEXT("等待第%d关结算（当前进度：%d）"), Outcome.EncounterIndex, Progress));
+				break;
+			}
+			case EReEchoCardOutcomeKind::StatTrade:
+				Lines.Add(FString::Printf(TEXT("%s %+.0f%%，%s %+.0f%%"),
+				                          *GetOutcomeTargetLabel(Outcome.PrimaryTarget),
+				                          Outcome.PrimaryValue * 100.0f,
+				                          *GetOutcomeTargetLabel(Outcome.SecondaryTarget),
+				                          Outcome.SecondaryValue * 100.0f));
+				break;
+			case EReEchoCardOutcomeKind::GrantedCards:
+			{
+				TArray<FString> Names;
+				for (const FName RelatedCardId : Outcome.RelatedCardIds)
+				{
+					if (const FReEchoCardDefinition* Related = Catalog.Find(RelatedCardId))
+					{
+						Names.Add(Related->DisplayName);
+					}
+				}
+				if (!Names.IsEmpty())
+				{
+					Lines.Add(FString::Printf(TEXT("实际获得：%s"), *FString::Join(Names, TEXT("、"))));
+				}
+				break;
+			}
+			case EReEchoCardOutcomeKind::StatGain:
+				Lines.Add(FString::Printf(TEXT("实际结算：%s %s"),
+				                          *GetOutcomeTargetLabel(Outcome.PrimaryTarget),
+				                          *FormatOutcomeValue(Outcome.PrimaryTarget, Outcome.PrimaryValue)));
+				break;
+			case EReEchoCardOutcomeKind::EconomyPenalty:
+				switch (Outcome.EconomyPenalty)
+				{
+					case EReEchoCardEconomyPenalty::NoShopRefresh:
+						Lines.Add(TEXT("实际代价：不能再刷新商店"));
+						break;
+					case EReEchoCardEconomyPenalty::NoExtraCardPurchase:
+						Lines.Add(TEXT("实际代价：不能再购买额外卡牌组"));
+						break;
+					case EReEchoCardEconomyPenalty::NoEnemyShardDrops:
+						Lines.Add(TEXT("实际代价：敌方单位不再掉落时间碎片"));
+						break;
+					default:
+						break;
+				}
+				break;
+			case EReEchoCardOutcomeKind::FreeShopRefreshes:
+				Lines.Add(FString::Printf(TEXT("累计获得免费商店刷新：%d次"), FMath::RoundToInt(Outcome.PrimaryValue)));
+				break;
+			case EReEchoCardOutcomeKind::CumulativeStatGain:
+				Lines.Add(FString::Printf(TEXT("累计获得：%s %s"),
+				                          *GetOutcomeTargetLabel(Outcome.PrimaryTarget),
+				                          *FormatOutcomeValue(Outcome.PrimaryTarget, Outcome.PrimaryValue)));
+				if (!Outcome.SecondaryTarget.IsNone())
+				{
+					Lines.Add(FString::Printf(TEXT("累计获得：%s %s"),
+					                          *GetOutcomeTargetLabel(Outcome.SecondaryTarget),
+					                          *FormatOutcomeValue(Outcome.SecondaryTarget, Outcome.SecondaryValue)));
+				}
+				break;
+			default:
+				break;
+		}
+	}
+	return Lines.IsEmpty() ? FText::GetEmpty() : FText::FromString(FString::Join(Lines, TEXT("\n")));
+}
+
+FReEchoShopOffer MakeOwnedBuildCardOffer(const FReEchoCardDefinition& Card,
+                                         const FReEchoCardBuildState& State,
+                                         const FReEchoCardCatalog& Catalog)
 {
 	FReEchoShopOffer Offer;
 	Offer.ItemId = Card.Id;
 	Offer.DisplayName = FText::FromString(Card.DisplayName);
 	Offer.EffectText = FText::FromString(Card.Description);
+	Offer.OutcomeText = BuildCardOutcomeText(Card, State, Catalog);
 	Offer.Tier = FMath::Clamp(Card.Tier, 1, 3);
 	Offer.Price = Offer.Tier * 10;
 	Offer.Type = EReEchoShopOfferType::BuildCard;
@@ -567,6 +701,35 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 				Pack.SlotRefreshUses.Init(0, Pack.CandidateCardIds.Num());
 			}
 		}
+		if (SaveVersion < 19)
+		{
+			Build.CardState.Runtime.ResolvedOutcomes.Reset();
+			auto AddPendingOutcome = [&](const FName CardId, const FName Target, const int32 EncounterIndex)
+			{
+				if (!Build.CardState.OwnedCardIds.Contains(CardId) || EncounterIndex == INDEX_NONE)
+				{
+					return;
+				}
+				FReEchoCardOutcomeState& Outcome = Build.CardState.Runtime.ResolvedOutcomes.AddDefaulted_GetRef();
+				Outcome.CardId = CardId;
+				Outcome.Kind = EReEchoCardOutcomeKind::PendingEncounter;
+				Outcome.PrimaryTarget = Target;
+				Outcome.EncounterIndex = EncounterIndex;
+			};
+			AddPendingOutcome(
+			    TEXT("G_2_05"), TEXT("PhysicalAttack"), Build.CardState.Runtime.HuntTrackingEncounterIndex);
+			AddPendingOutcome(
+			    TEXT("G_2_06"), TEXT("ElementalAttack"), Build.CardState.Runtime.ReactionTrackingEncounterIndex);
+			if (Build.CardState.OwnedCardIds.Contains(TEXT("G_3_17")) &&
+			    Build.CardState.Runtime.EconomyPenalty != EReEchoCardEconomyPenalty::None)
+			{
+				FReEchoCardOutcomeState& Outcome = Build.CardState.Runtime.ResolvedOutcomes.AddDefaulted_GetRef();
+				Outcome.CardId = TEXT("G_3_17");
+				Outcome.Kind = EReEchoCardOutcomeKind::EconomyPenalty;
+				Outcome.EconomyPenalty = Build.CardState.Runtime.EconomyPenalty;
+				Outcome.ResolutionCount = 1;
+			}
+		}
 		if (!Build.Cards.IsEmpty() || Build.CardState.DomainRevision != Snapshot.CardDomainRevision ||
 		    Build.CardState.Runtime.RandomSequence < 0 || Build.CardState.Runtime.PreventedDamageCount < 0 ||
 		    Build.CardState.Runtime.HuntKillCount < 0 || Build.CardState.Runtime.ReactionCount < 0 ||
@@ -619,6 +782,36 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 				return false;
 			}
 			UniqueCards.Add(CardId);
+		}
+		TSet<FString> UniqueOutcomes;
+		for (const FReEchoCardOutcomeState& Outcome : Build.CardState.Runtime.ResolvedOutcomes)
+		{
+			const FString OutcomeKey = FString::Printf(TEXT("%s|%d|%s|%s"),
+			                                           *Outcome.CardId.ToString(),
+			                                           static_cast<int32>(Outcome.Kind),
+			                                           *Outcome.PrimaryTarget.ToString(),
+			                                           *Outcome.SecondaryTarget.ToString());
+			if (!Build.CardState.OwnedCardIds.Contains(Outcome.CardId) ||
+			    Outcome.Kind == EReEchoCardOutcomeKind::None ||
+			    static_cast<uint8>(Outcome.Kind) > static_cast<uint8>(EReEchoCardOutcomeKind::CumulativeStatGain) ||
+			    Outcome.ResolutionCount < 0 || Outcome.EncounterIndex < INDEX_NONE ||
+			    (Outcome.Kind == EReEchoCardOutcomeKind::PendingEncounter && Outcome.EncounterIndex == INDEX_NONE) ||
+			    (Outcome.Kind == EReEchoCardOutcomeKind::EconomyPenalty &&
+			     Outcome.EconomyPenalty == EReEchoCardEconomyPenalty::None) ||
+			    static_cast<uint8>(Outcome.EconomyPenalty) >
+			        static_cast<uint8>(EReEchoCardEconomyPenalty::NoEnemyShardDrops) ||
+			    UniqueOutcomes.Contains(OutcomeKey))
+			{
+				return false;
+			}
+			for (const FName RelatedCardId : Outcome.RelatedCardIds)
+			{
+				if (!Snapshot.CardCatalog->Find(RelatedCardId))
+				{
+					return false;
+				}
+			}
+			UniqueOutcomes.Add(OutcomeKey);
 		}
 		return true;
 	}
@@ -1657,7 +1850,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		{
 			if (const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId))
 			{
-				FReEchoShopOffer OwnedCard = MakeOwnedBuildCardOffer(*Card);
+				FReEchoShopOffer OwnedCard =
+				    MakeOwnedBuildCardOffer(*Card, CurrentBuild.CardState, *Snapshot->CardCatalog);
 				View.OwnedCards.Add(MoveTemp(OwnedCard));
 			}
 		}

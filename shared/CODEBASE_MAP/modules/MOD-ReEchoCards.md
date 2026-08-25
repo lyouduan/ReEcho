@@ -35,6 +35,7 @@
 | 卡牌定义和效果 | `FReEchoCardCatalog` | 数据适配器编译后发布的只读目录 |
 | 已拥有卡牌、叠层、随机序号 | `FReEchoCardBuildState` | `FReEchoCardRuntime` 的纯命令/结果 |
 | 遭遇内阈值、免伤、追踪进度与当前商店卡组页 | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次生成固定 `[Tier1, Tier2, Tier3]` 卡组状态，每组保存最多三个候选 ID、逐槽刷新用量和本页已购标记 |
+| 已解析的卡牌实际结果 | `FReEchoCardRuntimeState::ResolvedOutcomes` | Cards 在原子玩法事务中写入类型化随机、待结算或累计结果；Run 只读投影 |
 | 商店、Echo、元素和槽位派生规则 | `FReEchoCardRuleSnapshot` | 主模块及领域适配器只读消费 |
 
 主模块仍拥有整局流程和保存事务，但不得再次解释卡牌自由文本或维护第二份卡牌列表。卡牌运行时只返回候选变化；Combat、Weapons、Enemies 与世界宿主继续执行各自权威命令。
@@ -43,6 +44,7 @@
 
 - 输入是不可变目录、构筑状态副本、确定性种子和类型化生命周期上下文。
 - 输出是新的构筑/遭遇状态、属性与货币候选变化，以及领域无关的规则快照。
+- 稳定随机结果、跨关延迟结算和永久累计收益同时写入 `ResolvedOutcomes`；它不记录每击、每脉冲等瞬时日志。
 - 所有命令均以稳定卡牌 ID 和 `BehaviorId` 分派；描述文本不进入规则判断。
 - 授予失败不修改输入；层级赠卡、随机权衡和资源变更属于同一原子结果。
 
