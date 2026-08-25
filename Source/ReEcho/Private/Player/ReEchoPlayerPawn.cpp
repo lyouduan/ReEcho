@@ -172,12 +172,13 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 		       *GetNameSafe(this),
 		       *CharacterId.ToString());
 	}
+	ResetTransientPresentationMotion();
 	RefreshPresentationProfile();
-	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
-	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
-	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
-	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
-	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
+	if (bPresentationBaselineCaptured)
+	{
+		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+		RefreshGroundShadowFromFlipbook();
+	}
 	UE_LOG(LogTemp,
 	       Display,
 	       TEXT("[PlayerSource] Configured Actor=%s Character=%s Flipbook=%s"),
@@ -271,11 +272,7 @@ void AReEchoPlayerPawn::BeginPlay()
 			AnimationComponent->Deactivate();
 		}
 	}
-	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
-	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
-	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
-	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
-	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
+	CaptureAuthoredPresentationBaseline();
 
 	ConfigureMouseInput();
 
@@ -1056,6 +1053,38 @@ void AReEchoPlayerPawn::UpdateSpriteAnimation(const float DeltaSeconds)
 	RefreshGroundShadowFromFlipbook();
 }
 
+void AReEchoPlayerPawn::CaptureAuthoredPresentationBaseline()
+{
+	if (bPresentationBaselineCaptured)
+	{
+		return;
+	}
+	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
+	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
+	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
+	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
+	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
+	bPresentationBaselineCaptured = true;
+}
+
+void AReEchoPlayerPawn::ResetTransientPresentationMotion()
+{
+	AttackVisualRemaining = 0.0f;
+	AttackVisualDuration = 0.0f;
+	AttackVisualStrength = 0.0f;
+	HitVisualRemaining = 0.0f;
+	if (!bPresentationBaselineCaptured)
+	{
+		return;
+	}
+	FlipbookRoot->SetRelativeLocation(BaseVisualLocation);
+	FlipbookRoot->SetRelativeScale3D(BaseVisualScale);
+	EffectsRoot->SetRelativeLocation(BaseEffectsLocation);
+	EffectsRoot->SetRelativeScale3D(BaseEffectsScale);
+	CalculatedFootAlignmentOffset = FVector::ZeroVector;
+	PresentationMotionRoot->SetRelativeLocation(AuthoredMotionLocation);
+}
+
 void AReEchoPlayerPawn::RefreshPresentationProfile()
 {
 	UReEcho2DCharacterPresentationProfile* Profile = nullptr;
@@ -1076,11 +1105,6 @@ void AReEchoPlayerPawn::RefreshPresentationProfile()
 	{
 		Weapon->ConfigureHeldPresentation(ActivePresentationProfile);
 	}
-	BaseVisualLocation = FlipbookRoot->GetRelativeLocation();
-	BaseVisualScale = FlipbookRoot->GetRelativeScale3D();
-	AuthoredMotionLocation = PresentationMotionRoot->GetRelativeLocation();
-	BaseEffectsLocation = EffectsRoot->GetRelativeLocation();
-	BaseEffectsScale = EffectsRoot->GetRelativeScale3D();
 }
 
 void AReEchoPlayerPawn::ApplyPresentationMotion(const FVector& Offset, const FVector& Scale)
