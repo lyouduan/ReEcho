@@ -42,6 +42,7 @@ struct FReEchoVfxPlacement
 	FRotator LocalRotation = FRotator::ZeroRotator;
 	FVector Scale = FVector::OneVector;
 	EReEchoVfxScalePolicy ScalePolicy = EReEchoVfxScalePolicy::InheritAttachment;
+	bool bUseWorldDirectionRotation = false;
 };
 
 /** Centralized semantic-to-asset mapping. Gameplay code never stores Niagara paths. */

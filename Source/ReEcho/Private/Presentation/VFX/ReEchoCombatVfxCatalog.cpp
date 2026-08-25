@@ -209,6 +209,7 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		Placement.Scale = Slot->Offset.GetScale3D();
 		Placement.ScalePolicy = Slot->bPreserveWorldSize ? EReEchoVfxScalePolicy::PreserveWorldSize
 		                                                   : EReEchoVfxScalePolicy::InheritAttachment;
+		Placement.bUseWorldDirectionRotation = true;
 		return Placement;
 	}
 	if (Semantic == EReEchoCombatVfxSemantic::GoatSkill02Charging ||

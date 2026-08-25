@@ -597,6 +597,13 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	    true);
 	if (Effect)
 	{
+		if (Placement.bUseWorldDirectionRotation)
+		{
+			// Match projectile presentation: the attack direction is a world-space fact. The DA correction remains
+			// local to the effect, while the attachment root continues to own position and lifetime only.
+			Effect->SetAbsolute(false, true, false);
+			Effect->SetWorldRotation(RelativeRotation);
+		}
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 		ReEchoCombatVfx::LogLayerStateNowAndDelayed(GetWorld(),
 		                                            GetOwner(),
