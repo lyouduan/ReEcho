@@ -127,6 +127,17 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Sword slash presents its authored local Y surface normal to the camera"),
 		         SwordDirectionRotation.RotateVector(FVector::RightVector)
 		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
+		const FRotator ComposedSwordRotation = UReEchoCombatVfxComponent::ComposeAttachedRotation(
+		    SwordDirectionRotation, SwordPlacement.LocalRotation);
+		const FVector ComposedAttackAxis = ComposedSwordRotation.RotateVector(FVector::ForwardVector);
+		const FRotator FrontFacingSwordRotation = UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(
+		    ComposedSwordRotation, CameraFacingNormal);
+		TestTrue(TEXT("Sword DA correction cannot leave the rendered surface back-facing"),
+		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::RightVector),
+		                             CameraFacingNormal.GetSafeNormal()) >= 0.0f);
+		TestTrue(TEXT("Sword front-face correction preserves its composed attack axis"),
+		         FrontFacingSwordRotation.RotateVector(FVector::ForwardVector)
+		             .Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(

@@ -88,6 +88,8 @@ public:
 	static FRotator ResolveCameraPlaneDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
 	/** Sword replacement mesh convention: local X follows attack direction while its local Y surface faces camera. */
 	static FRotator ResolveSwordCameraFacingRotation(const FVector& Direction, const FVector& CameraFacingNormal);
+	/** Keeps the composed sword direction/DA correction but flips a culled local-Y back face around its attack axis. */
+	static FRotator EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation, const FVector& CameraFacingNormal);
 	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */

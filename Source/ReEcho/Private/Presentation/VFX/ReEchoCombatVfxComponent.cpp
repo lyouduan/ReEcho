@@ -603,6 +603,20 @@ FRotator UReEchoCombatVfxComponent::ResolveSwordCameraFacingRotation(const FVect
 	return FRotationMatrix::MakeFromYX(Normal, PlaneDirection).Rotator();
 }
 
+FRotator UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation,
+                                                                const FVector& CameraFacingNormal)
+{
+	const FVector CameraNormal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	const FQuat ComposedQuat = ComposedRotation.Quaternion();
+	const FVector SurfaceNormal = ComposedQuat.RotateVector(FVector::RightVector);
+	if (FVector::DotProduct(SurfaceNormal, CameraNormal) >= 0.0f)
+	{
+		return ComposedRotation;
+	}
+	const FVector AttackAxis = ComposedQuat.RotateVector(FVector::ForwardVector).GetSafeNormal();
+	return (FQuat(AttackAxis, PI) * ComposedQuat).Rotator();
+}
+
 float UReEchoCombatVfxComponent::ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight)
 {
 	return FVector::DotProduct(AttackDirection, CameraRight) < 0.0f ? 1.0f : -1.0f;
@@ -655,11 +669,12 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	}
 	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
 	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+	FVector SwordCameraFacingNormal = FVector::UpVector;
 	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
 	{
 		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
-		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
-		DirectionRotation = ResolveSwordCameraFacingRotation(Direction, CameraFacingNormal);
+		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
+		DirectionRotation = ResolveSwordCameraFacingRotation(Direction, SwordCameraFacingNormal);
 	}
 	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
 	{
@@ -667,7 +682,11 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
 		DirectionRotation = ResolveCameraPlaneDirectionRotation(Direction, CameraFacingNormal);
 	}
-	const FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
+	FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	{
+		RelativeRotation = EnsureSwordFrontFacesCamera(RelativeRotation, SwordCameraFacingNormal);
+	}
 	const FVector RelativeScale =
 	    ResolveAttachedScale(Placement.Scale,
 	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
