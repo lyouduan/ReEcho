@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@55c4b4e427a16819c41bf562c0e3d853a6695b92`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan102-combat-hud-timer-minimap-icons`，分支 `plan/102-combat-hud-timer-minimap-icons`。
@@ -15,6 +15,7 @@
   - `plans/102-combat-hud-timer-minimap-icons.md`
   - `Content/ReEcho/UI/WBP_ReEchoEncounterHud.uasset`
   - `Content/SourceArt/UI/CombatHud/Plan102/**`
+  - `Content/SourceArt/UI/CombatHud/Plan93/{README.md,_SourceManifest.csv}`（同步废弃倒计时黑底的可追溯状态）
   - `Content/ReEcho/Textures/UI/CombatHud/Minimap/**`
   - `Content/ReEcho/Textures/UI/CombatHud/T_UI_CombatHud_TimeReadout.uasset`（删除废弃运行时纹理）
   - `Content/ReEcho/DataAsset/Character/Profiles/DA_Character_J_{HEART,SPADE,CLOVER,DIAMOND}.uasset`
@@ -63,23 +64,23 @@
 - 决策记录：未采用“Minimap 内硬编码 8 个路径”，避免 UI 建立第二份角色身份真源；未采用固定 30 秒计算，避免覆盖表驱动 Encounter Duration。指针源图默认向下，因此用 `-90..+90°` 表示用户所述从右到左 `0..180°`，并把 Render Pivot 设在源图顶部圆轴心。
 - 相关文档同步范围：`MOD-ReEcho.md` 维护遭遇时钟/小地图只读投影；`MOD-ReEchoUI.md` 与 UI 修改指导维护指针和图标契约；`MOD-ReEchoPresentation.md` 维护 Profile UI 图标职责。关闭前审阅 `CODEBASE_MAP/ARCHITECTURE.md` 和 `README.md`，预期因模块拓扑和路由不变而无需正文修改。
 - 关闭前逐项填写审阅结果：
-  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：待审阅。
-  - `shared/CODEBASE_MAP/README.md`：待审阅。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：待维护。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：待维护。
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：待维护。
-  - `Design/UI/ReEcho_UI修改指导.md`：待维护。
+  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；Runtime Module 拓扑、依赖方向和权威状态流未变，无需修改。
+  - `shared/CODEBASE_MAP/README.md`：已审阅；现有 `AREA-UI` / `AREA-Presentation` 路由仍正确，无需修改。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已维护 Encounter 总时长与 Profile 小地图图标的只读 HUD 投影。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已维护黑底删除、指针旋转、透明小地图与 Profile 图标契约。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：已维护 `MinimapIcon` 职责、Cook 引用与缺图降级边界。
+  - `Design/UI/ReEcho_UI修改指导.md`：已维护 Plan93/102 战斗 HUD 当前构图与 SourceArt 路由。
 
 ## 锁定验收
 
-- [ ] 当前 WBP 中 `ArtTimeReadout` 不存在，倒计时文字后无黑色半透明底块，废弃运行时纹理不在 Content 中。
-- [ ] 指针按 `Remaining / Duration` 连续计算：满时位于右侧、半时竖直向下、0 时位于左侧；暂停时权威时间不推进，因此指针不推进。
-- [ ] 四个 `CharacterId` 的 Player/Echo Profile 分别绑定正确的 8 张头像；小地图玩家和每个 Echo 使用各自 Profile 图标替代方点，轨迹线继续显示。
-- [ ] 图标缺失、无效 Arena 或非法 Duration 安全降级；不改变 Encounter、Recording、Combat、Run 或输入语义。
-- [ ] WBP Compile/Save、`CompileAllBlueprints`、Texture/Profile/Widget 资产审计与聚焦自动化通过。
-- [ ] 修改源码按 `.clang-format` 格式化，最终组合候选通过 Development `-FullRebuild`、项目校验和 `git diff --check`。
+- [x] 当前 WBP 中 `ArtTimeReadout` 不存在，倒计时文字后无黑色半透明底块，废弃运行时纹理不在 Content 中。
+- [x] 指针按 `Remaining / Duration` 连续计算：满时位于右侧、半时竖直向下、0 时位于左侧；暂停时权威时间不推进，因此指针不推进。
+- [x] 四个 `CharacterId` 的 Player/Echo Profile 分别绑定正确的 8 张头像；小地图玩家和每个 Echo 使用各自 Profile 图标替代方点，轨迹线继续显示。
+- [x] 图标缺失、无效 Arena 或非法 Duration 安全降级；不改变 Encounter、Recording、Combat、Run 或输入语义。
+- [x] WBP Compile/Save、`CompileAllBlueprints`、Texture/Profile/Widget 资产审计与聚焦自动化通过。
+- [x] 修改源码按 `.clang-format` 格式化，最终组合候选通过 Development `-FullRebuild`、项目校验和 `git diff --check`。
 - [ ] 用户在 1920×1080 运行画面确认底块、指针方向/进度、Player/Echo 图标大小和可读性。
-- [ ] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -113,7 +114,11 @@
 
 ### 变化
 
-- 创建 Plan102 与独立 worktree；实现尚未开始。
+- 将 8 张透明 Player/Echo 头像归档到 Plan102 SourceArt，生成稳定语义映射、字节数与 SHA-256 清单，导入 8 个 UI Texture2D 并绑定四组 Character/Echo Presentation Profile。
+- Presentation Profile 新增 Cook 可见 `MinimapIcon`；Player/Echo Actor 只读提供活动 Profile 图标，GameMode 将其与玩家/Echo 位置投影到透明 Slate 小地图。图标以 34/30 px 居中绘制，缺图时保留旧色点，Echo 轨迹折线不变。
+- Encounter Director 暴露当前表驱动总时长，Encounter HUD 按剩余/总时长计算 `-90..+90°` Render Angle；WBP 把指针 Pivot 设在顶部轴心，移除 `ArtTimeReadout` 及其废弃运行时纹理。
+- 同步 Plan93 导入/authoring/审计脚本与 SourceArt 清单，确保重建当前 HUD 时不会把黑底或底部废案面板恢复。
+- 更新 UI、主模块、Presentation 与美术资产文档；全局模块拓扑和索引路由未变。
 
 ### 证据
 
@@ -122,16 +127,24 @@
 - 已直接审计当前 `WBP_ReEchoEncounterHud`：`CountdownText`、`ArtClockNeedle` 与 `ArtTimeReadout` 均存在；`ArtTimeReadout` 是倒计时后的独立半透明底图，Needle 当前无运行时旋转绑定。
 - 已读取 Encounter HUD、Minimap、Encounter Director、GameMode HUD 投影、Player/Echo Actor、Presentation Profile、聚焦测试与三个相关模块文档；确认总时长来自表驱动 Director，现有小地图只绘制方点。
 - 已视觉核对 8 张外部 PNG：`01/02/03/04` 分别为 Clover/Spade/Heart/Diamond 的 Echo 暗色金眼头像；`05/06/07/08` 分别为 Diamond/Spade/Clover/Heart 的 Player 正常头像。
+- `import_plan102_minimap_icons.py` 导入并绑定 8 个 Profile；`audit_plan102_combat_hud.py` 最终退出 0，核对 8 张源图哈希/尺寸、Texture UI 设置、精确 Profile 绑定、`has_readout=False` 和 Needle Pivot `(0.5, 0.12)`。
+- Plan93 authoring 复跑后结构审计退出 0：Player HUD 18 个、Encounter HUD 9 个 Widget，`ArtSkillBar` / `ArtTimeReadout` 与两个废弃运行时纹理均不存在。authoring 每次 Compile/Save 可重写 WBP 编译元数据，幂等性以结构审计而非二进制字节哈希证明。
+- `CompileAllBlueprints` 完成，0 errors、0 warnings、0 failed loads；存在 6 条基线启动/旧资产 warning，无 Blueprint Compile warning。
+- `ReEcho.UI.CombatHud.Formatting` 与 `ReEcho.UI.Minimap.Transform` 聚焦自动化均找到 1 个测试并以 `Result={Success}` 完成；前者覆盖满/半/零/越界/非法时长角度、WBP 绑定与 8 个 Profile 图标非空。
+- Visual Studio LLVM `clang-format 19.1.5` 已格式化 12 个改动 C++ 文件；最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 完成 101 个 action，`Result: Succeeded`，刷新 7 个允许的 Editor 预构建模块，source fingerprint `2eef0e06b428`。
+- `python scripts/validate_project.py` 和 `git diff --check` 最终通过；独占 Unreal 锁已释放，无遗留 Editor 进程。最终 fetch 确认 `origin/main@889e26cb` 仍是 Plan102 空计划提交，无新基线需组合。
 
 ### 剩余风险
 
 - 指针 Pivot 和图标显示尺寸仍需在 1920×1080 PIE 中由用户主观验收；自动化只能证明角度、绑定和资产契约。
-- Plan63/Plan101 等本地候选尚未进入远端；实现发布前若 `main` 前进，必须重新审计源码、DataAsset 与精选二进制组合。
+- Plan63/Plan101 等本地候选尚未进入远端；用户视觉验收后、实现发布前若 `main` 前进，必须重新审计源码、DataAsset 与精选二进制组合，并重跑最终验证。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：等待实现后的运行画面验收。
+- `PendingBeforeClose`：请在 1920×1080 PIE 检查满时/半时/最后 5 秒/归零的指针方向，并检查 0/1/多 Echo 时 Player/Echo 头像大小、可辨性和轨迹遮挡情况。
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅，本候选未新增模块、反转依赖或改变状态权威，不修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅，修改仍由现有 `AREA-UI`、`AREA-Encounter`、`AREA-Player`与 `AREA-Presentation` 索引正确路由，不修改。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoUI.md`、`MOD-ReEchoPresentation.md` 与 `Design/UI/ReEcho_UI修改指导.md`：均已同步当前候选的只读时钟/小地图图标契约。

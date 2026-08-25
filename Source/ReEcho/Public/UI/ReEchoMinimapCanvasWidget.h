@@ -5,6 +5,8 @@
 #include "Widgets/SCompoundWidget.h"
 #include "ReEchoMinimapCanvasWidget.generated.h"
 
+class UTexture2D;
+
 /**
  * 单条回响轨迹在小地图上的绘制数据。
  * 轨迹点已是世界 XY 平面坐标，由 GameMode 从录制数据转换后填入，
@@ -15,6 +17,7 @@ struct FReEchoMinimapEchoEntry
 	FVector2D CurrentLocation = FVector2D::ZeroVector;
 	TArray<FVector2D> PathPoints;
 	FLinearColor Color = FLinearColor::White;
+	UTexture2D* Icon = nullptr;
 };
 
 /** 小地图一帧的完整视图，由 GameMode::BuildMinimapView 填充。 */
@@ -23,21 +26,27 @@ struct FReEchoMinimapView
 	FVector2D ArenaCenter = FVector2D::ZeroVector;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
 	FVector2D PlayerLocation = FVector2D::ZeroVector;
+	UTexture2D* PlayerIcon = nullptr;
 	TArray<FReEchoMinimapEchoEntry> Echoes;
 	bool bValid = false;
 };
 
-/** 透明 Slate 画布：在 OnPaint 中仅矢量绘制回响轨迹折线、回响与玩家实时点。 */
+/** 透明 Slate 画布：在 OnPaint 中绘制回响轨迹折线及 Player/Echo 实时图标。 */
 class SReEchoMinimapCanvas : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SReEchoMinimapCanvas) {}
+	SLATE_BEGIN_ARGS(SReEchoMinimapCanvas)
+	{
+	}
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
 	/** 设置本帧要绘制的数据视图。 */
-	void SetView(const FReEchoMinimapView& InView) { View = InView; }
+	void SetView(const FReEchoMinimapView& InView)
+	{
+		View = InView;
+	}
 
 	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
 
@@ -71,6 +80,7 @@ private:
  * 由 UReEchoEncounterHudWidget::SetMinimapView 每帧转发 GameMode 的 FReEchoMinimapView。
  */
 UCLASS()
+
 class REECHO_API UReEchoMinimapCanvasWidget : public UWidget
 {
 	GENERATED_BODY()

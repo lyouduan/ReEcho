@@ -1403,10 +1403,7 @@ void AReEchoGameMode::ClearTimeShardPickups()
 	const int32 ClearedCount = ClearTimeShardPickupsInWorld(GetWorld());
 	if (ClearedCount > 0)
 	{
-		UE_LOG(LogReEcho,
-		       Display,
-		       TEXT("[TimeShardPickup] cleared %d encounter-scoped pickup(s)"),
-		       ClearedCount);
+		UE_LOG(LogReEcho, Display, TEXT("[TimeShardPickup] cleared %d encounter-scoped pickup(s)"), ClearedCount);
 	}
 }
 
@@ -3507,8 +3504,11 @@ void AReEchoGameMode::HandleEncounterEnded()
 	UReEchoRunSubsystem* RunSubsystemForHud = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (EncounterHudWidget)
 	{
-		EncounterHudWidget->SetEncounterStatus(
-		    RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0, GetTotalEncounterCount(), 0.0f);
+		EncounterHudWidget->SetEncounterStatus(RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0,
+		                                       GetTotalEncounterCount(),
+		                                       0.0f,
+		                                       Director ? Director->GetEncounterDuration()
+		                                                : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
 	}
 	// [EncounterEnded] 选卡/结算入口：记录此刻真实剩余时间，与上面的 [EncounterTimer][END] 对照。
 	UE_LOG(LogReEcho,
@@ -3687,6 +3687,7 @@ void AReEchoGameMode::BuildMinimapView(FReEchoMinimapView& OutView) const
 	OutView.ArenaHalfExtents = Player->GetArenaHalfExtents2D();
 	const FVector PlayerLocation = Player->GetActorLocation();
 	OutView.PlayerLocation = FVector2D(PlayerLocation.X, PlayerLocation.Y);
+	OutView.PlayerIcon = Player->GetMinimapIconTexture();
 
 	static const FLinearColor Palette[] = {FLinearColor::Red,
 	                                       FLinearColor::Green,
@@ -3705,6 +3706,7 @@ void AReEchoGameMode::BuildMinimapView(FReEchoMinimapView& OutView) const
 		Entry.CurrentLocation = FVector2D(EchoLocation.X, EchoLocation.Y);
 		Entry.PathPoints = Echo->GetRecordedPath();
 		Entry.Color = Palette[OutView.Echoes.Num() % 6];
+		Entry.Icon = Echo->GetMinimapIconTexture();
 		OutView.Echoes.Add(Entry);
 	}
 	OutView.bValid = true;
@@ -3785,7 +3787,9 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	}
 	if (EncounterHudWidget)
 	{
-		EncounterHudWidget->SetEncounterStatus(
-		    RunSubsystem ? RunSubsystem->EncounterIndex : 0, GetTotalEncounterCount(), Director->GetRemainingTime());
+		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,
+		                                       GetTotalEncounterCount(),
+		                                       Director->GetRemainingTime(),
+		                                       Director->GetEncounterDuration());
 	}
 }

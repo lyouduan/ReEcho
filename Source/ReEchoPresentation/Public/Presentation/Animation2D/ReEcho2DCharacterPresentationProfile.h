@@ -9,6 +9,7 @@
 #include "ReEcho2DCharacterPresentationProfile.generated.h"
 
 class UReEcho2DAnimationStateMachineAsset;
+class UTexture2D;
 
 /** Animation clips selected by the equipped weapon's stable VisualKey. */
 USTRUCT(BlueprintType)
@@ -37,6 +38,10 @@ class REECHOPRESENTATION_API UReEcho2DCharacterPresentationProfile : public UPri
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
 	FName AppearanceId;
+
+	/** Cook-visible icon used when this exact Player/Echo appearance is projected onto the combat minimap. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UTexture2D> MinimapIcon;
 
 	/** 同一外观全部序列统一归一化到该世界高度，避免源图画布尺寸影响比例。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scale", meta = (ClampMin = "1.0"))

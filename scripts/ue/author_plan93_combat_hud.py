@@ -12,6 +12,7 @@ PLAYER_HUD = "/Game/ReEcho/UI/WBP_ReEchoPlayerHud"
 ENCOUNTER_HUD = "/Game/ReEcho/UI/WBP_ReEchoEncounterHud"
 TEXTURE_ROOT = "/Game/ReEcho/Textures/UI/CombatHud"
 OBSOLETE_SKILL_BAR_TEXTURE = f"{TEXTURE_ROOT}/T_UI_CombatHud_SkillBar"
+OBSOLETE_TIME_READOUT_TEXTURE = f"{TEXTURE_ROOT}/T_UI_CombatHud_TimeReadout"
 
 
 def load_required(path):
@@ -137,7 +138,6 @@ textures = {
     "shard_icon": load_required(f"{TEXTURE_ROOT}/T_UI_CombatHud_TimeShardIcon"),
     "clock_frame": load_required(f"{TEXTURE_ROOT}/T_UI_CombatHud_ClockFrame"),
     "clock_needle": load_required(f"{TEXTURE_ROOT}/T_UI_CombatHud_ClockNeedle"),
-    "time_readout": load_required(f"{TEXTURE_ROOT}/T_UI_CombatHud_TimeReadout"),
     "echo_frame": load_required(f"{TEXTURE_ROOT}/T_UI_CombatHud_EchoFrame"),
 }
 
@@ -241,6 +241,12 @@ if obsolete_skill_bar is not None and not toolset.call_method(
 ):
     raise RuntimeError("Unable to remove obsolete ArtSkillBar from Encounter HUD")
 
+obsolete_time_readout = widgets.get("ArtTimeReadout")
+if obsolete_time_readout is not None and not toolset.call_method(
+    "RemoveWidget", args=(encounter, obsolete_time_readout)
+):
+    raise RuntimeError("Unable to remove obsolete ArtTimeReadout from Encounter HUD")
+
 clock_frame = widgets["ArtClockFrame"]
 mark_variable(toolset, encounter, clock_frame)
 set_image(clock_frame, textures["clock_frame"])
@@ -258,15 +264,8 @@ set_canvas_layout(
 needle = widgets["ArtClockNeedle"]
 mark_variable(toolset, encounter, needle)
 set_image(needle, textures["clock_needle"])
+needle.set_editor_property("render_transform_pivot", unreal.Vector2D(0.5, 0.12))
 set_canvas_layout(needle, 14.0, 87.0, 44.0, 150.0, 0.5, 0.0, 0.5, 0.0, 6)
-
-widgets = widget_map(toolset, encounter)
-readout = ensure_widget(
-    toolset, encounter, widgets, unreal.Image, "ArtTimeReadout", root
-)
-mark_variable(toolset, encounter, readout)
-set_image(readout, textures["time_readout"])
-set_canvas_layout(readout, 14.5, 123.0, 161.0, 45.0, 0.5, 0.0, 0.5, 0.0, 7)
 
 countdown = widgets["CountdownText"]
 mark_variable(toolset, encounter, countdown)
@@ -313,16 +312,22 @@ if not toolset.call_method("CompileWidgetBlueprint", args=(encounter,)):
 if not unreal.EditorAssetLibrary.save_loaded_asset(encounter, only_if_is_dirty=False):
     raise RuntimeError("WBP_ReEchoEncounterHud failed to save")
 
-if unreal.EditorAssetLibrary.does_asset_exist(OBSOLETE_SKILL_BAR_TEXTURE):
+for obsolete_texture in (
+    OBSOLETE_SKILL_BAR_TEXTURE,
+    OBSOLETE_TIME_READOUT_TEXTURE,
+):
+    if not unreal.EditorAssetLibrary.does_asset_exist(obsolete_texture):
+        continue
     referencers = unreal.EditorAssetLibrary.find_package_referencers_for_asset(
-        OBSOLETE_SKILL_BAR_TEXTURE, load_assets_to_confirm=True
+        obsolete_texture, load_assets_to_confirm=True
     )
     if referencers:
         raise RuntimeError(
-            f"Obsolete skill-bar texture is still referenced: {referencers}"
+            f"Obsolete combat-HUD texture is still referenced: "
+            f"{obsolete_texture} <- {referencers}"
         )
-    if not unreal.EditorAssetLibrary.delete_asset(OBSOLETE_SKILL_BAR_TEXTURE):
-        raise RuntimeError("Unable to delete obsolete combat-HUD skill-bar texture")
+    if not unreal.EditorAssetLibrary.delete_asset(obsolete_texture):
+        raise RuntimeError(f"Unable to delete obsolete texture: {obsolete_texture}")
 
 unreal.log(
     f"[Plan93Author] configured PlayerHud widgets={len(widget_map(toolset, player))} "

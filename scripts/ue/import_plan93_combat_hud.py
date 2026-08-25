@@ -26,7 +26,6 @@ IMPORTS = {
     "回响显示框.png": "T_UI_CombatHud_EchoFrame",
     "时间底板.png": "T_UI_CombatHud_ClockFrame",
     "时间碎片.png": "T_UI_CombatHud_TimeShardIcon",
-    "时间显示.png": "T_UI_CombatHud_TimeReadout",
     "时间指针.png": "T_UI_CombatHud_ClockNeedle",
     "血条.png": "T_UI_CombatHud_HealthFill",
     "血条底板.png": "T_UI_CombatHud_HealthFrame",
