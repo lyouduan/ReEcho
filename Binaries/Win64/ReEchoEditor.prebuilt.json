@@ -1,7 +1,7 @@
 {
   "binaries": {
     "ReEchoEditor.target": "78ca660a835e2e1fecb130d7d0e1f4406266e85b9a8b8255e5dfd68d20b3c6fa",
-    "UnrealEditor-ReEcho.dll": "e78183454414aa68c82cd1d381ac7230224a81c019b947cac6c14a05b6e2b311",
+    "UnrealEditor-ReEcho.dll": "9006aebc46063da37e32651d139cbad1454de9d30a168d4b1606f8ccb77fe940",
     "UnrealEditor-ReEchoAudio.dll": "fdbeadbb7a5e8b0d591d99fbf17454fc972124785bb39f91527445f4c780162e",
     "UnrealEditor-ReEchoCards.dll": "c74f2fa868d834a2de6233e4dbc117891ca02ab878b5122dcfbd234572f3b387",
     "UnrealEditor-ReEchoCombat.dll": "142098c4aeeb3ee43d62a0a32586218548efd35fe21ef4af01e810be54689c17",
@@ -125,7 +125,7 @@
     "Source/ReEcho/Private/UI/Framework/ReEchoUIInteractionAudit.cpp": "a7379859804394d0fa370f58c9b4c7a88332020e871483d423faf8e3df6e77fd",
     "Source/ReEcho/Private/UI/ReEchoAboutWidget.cpp": "34aee19d3d89bbc4cf3d649c940a2950ecc8acefda19b284812513d4e46d30ea",
     "Source/ReEcho/Private/UI/ReEchoAttackModeWidget.cpp": "9a133350ca4e502efcf0407303c9412fa093cceae8a83622e03283f29c0b840b",
-    "Source/ReEcho/Private/UI/ReEchoDamageNumberActor.cpp": "8f358fa346e5b645c2f33b15973b664f3ee3eeb56de2459beab0b10e7e0b74ad",
+    "Source/ReEcho/Private/UI/ReEchoDamageNumberActor.cpp": "0f534f33a9f1bb5a7e4a4767fba7387e41fef933998c5decc2eead53978d6a98",
     "Source/ReEcho/Private/UI/ReEchoEchoManagementWidget.cpp": "3eba60165f8974a88011c312385b33a2333bc293d596c42be27fcc8fdacc7567",
     "Source/ReEcho/Private/UI/ReEchoEncounterHudWidget.cpp": "c292342384660255ad35e15bf58f57b1c26a4fbed95a1073c72ce32408d7c854",
     "Source/ReEcho/Private/UI/ReEchoHealthBarWidget.cpp": "21e0f339422054df69617b727518c79c27294166ec6fc2f637ae3d7b31ca8fee",
@@ -335,6 +335,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "7be13da1a601aa1669acdcb2f00c61e3f5ea6e5154c7148c167a9d2db1b343fa",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "97f84a4ca560e3749df05117256e87ba155708456e3f031ed6ad37f9df076136",
+  "source_fingerprint": "f35e555483940a65b7d1d23c5e21607800d040cb0ead317f7d1dca3a8b9aaad0",
   "target": "ReEchoEditor"
 }
