@@ -785,11 +785,9 @@ bool FReEchoWeaponRuneCatalogCoverageTest::RunTest(const FString& Parameters)
 	    {TEXT("P_SCYTHE_MOVESTACK_GRIP"), TEXT("W_J_04")},
 	    {TEXT("P_SCYTHE_GROUPINVULN_GRIP"), TEXT("W_J_04")},
 	    {TEXT("P_SCYTHE_ATTACKSTACK_GRIP"), TEXT("W_J_04")},
-	    {TEXT("P_SCYTHE_THROWRECALL_GRIP"), TEXT("W_J_04")},
 	    {TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"), TEXT("W_J_01")},
 	    {TEXT("P_LONGSWORD_HITSHARD_SWORDBLADE"), TEXT("W_J_01")},
 	    {TEXT("P_LONGSWORD_CRITBLEED_SWORDBLADE"), TEXT("W_J_01")},
-	    {TEXT("P_LONGSWORD_METEOR_SWORDBLADE"), TEXT("W_J_01")},
 	    {TEXT("P_LONGSWORD_MOVESTACK_GRIP"), TEXT("W_J_01")},
 	    {TEXT("P_LONGSWORD_ATTACKSTACK_GRIP"), TEXT("W_J_01")},
 	    {TEXT("P_LONGSWORD_STUN_GRIP"), TEXT("W_J_01")},
@@ -801,7 +799,7 @@ bool FReEchoWeaponRuneCatalogCoverageTest::RunTest(const FString& Parameters)
 	    {TEXT("P_GUN_HITSHARD_GUNACTION"), TEXT("W_J_09")},
 	    {TEXT("P_GUN_ATTACKSTACK_GUNACTION"), TEXT("W_J_09")},
 	};
-	TestEqual(TEXT("Four-weapon roster contains exactly 31 completed Plan76 runes"), NewRuneWeapons.Num(), 31);
+	TestEqual(TEXT("Four-weapon roster contains exactly 29 enabled completed Plan76 runes"), NewRuneWeapons.Num(), 29);
 
 	int32 ActiveVisibleRuneCount = 0;
 	for (const TPair<FName, FReEchoCsvPartRow>& Pair : Snapshot->Parts)
@@ -812,7 +810,7 @@ bool FReEchoWeaponRuneCatalogCoverageTest::RunTest(const FString& Parameters)
 			++ActiveVisibleRuneCount;
 		}
 	}
-	TestEqual(TEXT("Four-weapon roster contains 46 visible production runes"), ActiveVisibleRuneCount, 46);
+	TestEqual(TEXT("Four-weapon roster contains 44 visible production runes"), ActiveVisibleRuneCount, 44);
 
 	for (const TPair<FName, FName>& RuneWeapon : NewRuneWeapons)
 	{
@@ -928,8 +926,100 @@ bool FReEchoWeaponRuneStaticStepCompilationTest::RunTest(const FString& Paramete
 	{
 		TestTrue(TEXT("Charged gun implements -500% cadence as speed x 1/6"),
 		         FMath::IsNearlyEqual(ChargedBuild.Stats.AttackSpeed, ChargedBase.Stats.AttackSpeed / 6.0f, 0.001f));
-		TestTrue(TEXT("Charged gun applies +180% damage to the authored step"),
-		         FMath::IsNearlyEqual(Charged.AttackSteps[0].DamageCoefficient, 0.56f, 0.001f));
+		TestTrue(TEXT("Charged gun adds +180% to its 20% weapon coefficient"),
+		         FMath::IsNearlyEqual(Charged.Weapon.DamageCoefficient, 2.0f, 0.001f));
+		TestTrue(TEXT("Charged gun adds +180% to its 20% authored step"),
+		         FMath::IsNearlyEqual(Charged.AttackSteps[0].DamageCoefficient, 2.0f, 0.001f));
+
+		FReEchoWeaponWorldFixture Fixture;
+		UReEchoCombatantComponent* Combatant = nullptr;
+		AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
+		FReEchoWeaponLogic PhysicalLogic;
+		TestTrue(TEXT("Charged physical gun initializes"),
+		         PhysicalLogic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(Charged)));
+		FReEchoWeaponAttackCommit PhysicalCommit;
+		TestTrue(TEXT("Charged physical gun commits"),
+		         PhysicalLogic.TryCommitBasicAttack(Owner, Combatant->Stats, PhysicalCommit));
+		TestEqual(TEXT("Charged physical gun deals 200% PhysicalAttack"), PhysicalCommit.Element, EReEchoElement::None);
+		TestTrue(TEXT("Charged physical gun submits exact 200% damage"),
+		         FMath::IsNearlyEqual(PhysicalCommit.RawDamage, Combatant->Stats.PhysicalAttack * 2.0f, 0.001f));
+
+		FReEchoBuildSnapshot ElementBuild;
+		FString Error;
+		TestTrue(
+		    TEXT("Charged gun equips with flame core"),
+		    ReEchoWeaponRuntime::TryEquipParts(
+		        *Snapshot, ChargedBase, {TEXT("P_CORE_FLAME"), TEXT("P_GUN_CHARGED_MUZZLE")}, ElementBuild, Error));
+		FReEchoEffectiveWeaponDefinition ElementCharged;
+		if (TestTrue(
+		        TEXT("Charged elemental gun compiles"),
+		        ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*Snapshot, ElementBuild, ElementCharged, Error)))
+		{
+			FReEchoWeaponLogic ElementLogic;
+			TestTrue(TEXT("Charged elemental gun initializes"),
+			         ElementLogic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(ElementCharged)));
+			FReEchoWeaponAttackCommit ElementCommit;
+			TestTrue(TEXT("Charged elemental gun commits"),
+			         ElementLogic.TryCommitBasicAttack(Owner, Combatant->Stats, ElementCommit));
+			TestEqual(TEXT("Charged elemental gun uses flame channel"), ElementCommit.Element, EReEchoElement::Flame);
+			TestTrue(TEXT("Charged elemental gun submits exact 200% damage"),
+			         FMath::IsNearlyEqual(ElementCommit.RawDamage, Combatant->Stats.ElementalAttack * 2.0f, 0.001f));
+		}
+	}
+
+	struct FDamageModifierCase
+	{
+		FName WeaponId;
+		FName PartId;
+		float Delta;
+		float ExpectedWeaponCoefficient;
+		float ExpectedStepCoefficient;
+	};
+
+	const TArray<FDamageModifierCase> DamageModifierCases = {
+	    {TEXT("W_J_08"), TEXT("P_BOW_HASTE_BOWSTRING"), -0.4f, 0.6f, 0.6f},
+	    {TEXT("W_J_08"), TEXT("P_BOW_HEAVY_BOWSTRING"), 0.5f, 1.5f, 1.5f},
+	    {TEXT("W_J_01"), TEXT("P_LONGSWORD_HEAVY_GRIP"), 0.5f, 1.7f, 1.5f},
+	    {TEXT("W_J_09"), TEXT("P_GUN_CHARGED_MUZZLE"), 1.8f, 2.0f, 2.0f},
+	};
+	for (const FDamageModifierCase& DamageCase : DamageModifierCases)
+	{
+		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(DamageCase.PartId);
+		if (!TestNotNull(*FString::Printf(TEXT("%s exists"), *DamageCase.PartId.ToString()), Part))
+		{
+			continue;
+		}
+		const FReEchoCsvPartEffectRow* DamageEffect = Part->Effects.FindByPredicate(
+		    [](const FReEchoCsvPartEffectRow& Effect)
+		    {
+			    return Effect.Target == TEXT("DamageCoefficient");
+		    });
+		if (!TestNotNull(*FString::Printf(TEXT("%s has a damage coefficient effect"), *DamageCase.PartId.ToString()),
+		                 DamageEffect))
+		{
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("%s uses additive coefficient data"), *DamageCase.PartId.ToString()),
+		          DamageEffect->ValueOp,
+		          EReEchoCsvValueOp::Add);
+		TestTrue(*FString::Printf(TEXT("%s stores the signed percentage delta"), *DamageCase.PartId.ToString()),
+		         FMath::IsNearlyEqual(DamageEffect->Value, DamageCase.Delta, 0.001f));
+
+		FReEchoBuildSnapshot DamageBuild;
+		FReEchoEffectiveWeaponDefinition DamageDefinition;
+		if (!CompilePart(DamageCase.WeaponId, DamageCase.PartId, DamageBuild, DamageDefinition))
+		{
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("%s adds to the weapon coefficient"), *DamageCase.PartId.ToString()),
+		         FMath::IsNearlyEqual(
+		             DamageDefinition.Weapon.DamageCoefficient, DamageCase.ExpectedWeaponCoefficient, 0.001f));
+		for (const FReEchoCsvAttackStepRow& Step : DamageDefinition.AttackSteps)
+		{
+			TestTrue(
+			    *FString::Printf(TEXT("%s adds to attack step %s"), *DamageCase.PartId.ToString(), *Step.Id.ToString()),
+			    FMath::IsNearlyEqual(Step.DamageCoefficient, DamageCase.ExpectedStepCoefficient, 0.001f));
+		}
 	}
 	return true;
 }
@@ -1204,23 +1294,6 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	TestTrue(TEXT("Four-target group hit grants the configured half-second invulnerability"),
 	         SourceCombatant->IsTimedInvulnerable(Fixture.World->GetTimeSeconds() + 0.49f));
 
-	AReEchoEnemyActor* MeteorCenter = Fixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 200, 1000.0f);
-	AReEchoEnemyActor* MeteorNeighbor = Fixture.SpawnEnemy(FVector(100.0f, 100.0f, 0.0f), 201, 1000.0f);
-	AReEchoWeaponActor* MeteorWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_METEOR_SWORDBLADE"));
-	auto MeteorContext = MeteorWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant);
-	MeteorContext->EffectiveHitTargets.Add(MeteorCenter);
-	for (int32 Index = 0; Index < 6; ++Index)
-	{
-		MeteorContext->EffectiveHitTargets.Add(GroupTargets[Index]);
-	}
-	const float MeteorCenterBefore = WeaponEnemyHealth(MeteorCenter);
-	const float MeteorNeighborBefore = WeaponEnemyHealth(MeteorNeighbor);
-	MeteorWeapon->ProcessRuneAttackForTests(MeteorContext);
-	TestTrue(TEXT("Seven-target threshold drops a non-recursive meteor on the nearest hit target"),
-	         WeaponEnemyHealth(MeteorCenter) < MeteorCenterBefore);
-	TestTrue(TEXT("Meteor uses the configured 1.5m explosion radius"),
-	         WeaponEnemyHealth(MeteorNeighbor) < MeteorNeighborBefore);
-
 	AReEchoEnemyActor* InnerTarget = Fixture.SpawnEnemy(FVector(40.0f, 0.0f, 0.0f), 202, 1000.0f);
 	AReEchoEnemyActor* OuterTarget = Fixture.SpawnEnemy(FVector(160.0f, 0.0f, 0.0f), 203, 1000.0f);
 	AReEchoWeaponActor* OuterWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_OUTERRING_ROTARYBLADE"));
@@ -1232,22 +1305,6 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	    *OuterTarget, OuterCommit, FVector::ZeroVector, SourceCombatant, OuterContext);
 	TestTrue(TEXT("Inner half keeps base damage"), FMath::IsNearlyEqual(InnerResult.AppliedDamage, 10.0f));
 	TestTrue(TEXT("Outer half receives exactly +40% damage"), FMath::IsNearlyEqual(OuterResult.AppliedDamage, 14.0f));
-
-	AReEchoEnemyActor* ThrowTarget = Fixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 204, 1000.0f);
-	AReEchoWeaponActor* ThrowWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_THROWRECALL_GRIP"));
-	const float ThrowBefore = WeaponEnemyHealth(ThrowTarget);
-	TestTrue(TEXT("First active input starts the data-authored scythe throw"),
-	         ThrowWeapon->TryActiveAttack(SourceCombatant));
-	TestTrue(TEXT("Scythe remains in a thrown state"), ThrowWeapon->IsScytheThrownForTests());
-	ThrowWeapon->AdvanceScytheThrowForTests(0.6f);
-	const float AfterTravel = WeaponEnemyHealth(ThrowTarget);
-	TestTrue(TEXT("Travel contact applies the configured 60% attack damage"), AfterTravel < ThrowBefore);
-	ThrowWeapon->AdvanceScytheThrowForTests(1.0f);
-	TestTrue(TEXT("Stationary scythe ticks at inherited attack speed for configured 20% damage"),
-	         WeaponEnemyHealth(ThrowTarget) < AfterTravel);
-	TestTrue(TEXT("Second active input recalls without creating another attack"),
-	         ThrowWeapon->TryActiveAttack(SourceCombatant));
-	TestFalse(TEXT("Recall clears the thrown state"), ThrowWeapon->IsScytheThrownForTests());
 	return true;
 }
 

@@ -1347,6 +1347,11 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     for row in part_effects:
         if row["Target"] not in WEAPON_EFFECT_TARGETS:
             fail(f"{rel(entries['PartEffects'])}:{row['__line__']}: unsupported weapon effect target {row['Target']!r}")
+        if row["Target"] == "DamageCoefficient" and row["ValueOp"] != "Add":
+            fail(
+                f"{rel(entries['PartEffects'])}:{row['__line__']}:ValueOp: "
+                "DamageCoefficient effects must use ValueOp Add"
+            )
         allowed_behaviors = PART_EFFECT_BEHAVIOR_PAIRS.get(row["EffectKind"])
         if not allowed_behaviors or row["BehaviorId"] not in allowed_behaviors:
             fail(

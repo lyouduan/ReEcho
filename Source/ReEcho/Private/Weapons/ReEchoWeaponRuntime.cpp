@@ -11,7 +11,7 @@ const FName NoneId = TEXT("None");
 const FName DamageChannelRule = TEXT("Weapon.DamageChannel");
 const FName AttackPatternRule = TEXT("Weapon.AttackPatternId");
 const FName AttackIntervalRule = TEXT("Weapon.AttackIntervalSeconds");
-const FName DamageCoefficientRule = TEXT("Weapon.DamageCoefficient");
+const FName DamageCoefficientModifierRule = TEXT("Weapon.DamageCoefficientModifier");
 const FName OnKillHealRule = TEXT("Weapon.OnKillHealPercent");
 const FName WeaponRangeRule = TEXT("Weapon.RangeCm");
 const FName WeaponArcRule = TEXT("Weapon.ArcDegrees");
@@ -133,12 +133,13 @@ bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
 
 	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("DamageCoefficient"))
 	{
-		float Current = Weapon.DamageCoefficient;
-		ReadRuleFloat(Build, DamageCoefficientRule, Current, Current);
-		WriteRuleFloat(
-		    Build,
-		    DamageCoefficientRule,
-		    FMath::Max(0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value)));
+		if (Effect.ValueOp != EReEchoCsvValueOp::Add)
+		{
+			return false;
+		}
+		float CurrentModifier = 0.0f;
+		ReadRuleFloat(Build, DamageCoefficientModifierRule, 0.0f, CurrentModifier);
+		WriteRuleFloat(Build, DamageCoefficientModifierRule, CurrentModifier + Effect.Value);
 		return true;
 	}
 
@@ -244,12 +245,7 @@ void ApplyPartEffectToAttackSteps(const FReEchoCsvPartEffectRow& Effect, TArray<
 	}
 	for (FReEchoCsvAttackStepRow& Step : AttackSteps)
 	{
-		if (Effect.Target == TEXT("DamageCoefficient"))
-		{
-			Step.DamageCoefficient = FMath::Max(
-			    0.0f, ReEchoWeaponRuntime::ApplyValueOperation(Step.DamageCoefficient, Effect.ValueOp, Effect.Value));
-		}
-		else if (Effect.Target == TEXT("AttackRange"))
+		if (Effect.Target == TEXT("AttackRange"))
 		{
 			Step.RangeCm =
 			    FMath::Max(1.0f, ReEchoWeaponRuntime::ApplyValueOperation(Step.RangeCm, Effect.ValueOp, Effect.Value));
@@ -569,8 +565,10 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 	              AttackIntervalRule,
 	              OutDefinition.Weapon.AttackIntervalSeconds,
 	              OutDefinition.Weapon.AttackIntervalSeconds);
-	ReadRuleFloat(
-	    Build, DamageCoefficientRule, OutDefinition.Weapon.DamageCoefficient, OutDefinition.Weapon.DamageCoefficient);
+	float DamageCoefficientModifier = 0.0f;
+	ReadRuleFloat(Build, DamageCoefficientModifierRule, 0.0f, DamageCoefficientModifier);
+	OutDefinition.Weapon.DamageCoefficient =
+	    FMath::Max(0.0f, OutDefinition.Weapon.DamageCoefficient + DamageCoefficientModifier);
 	ReadRuleFloat(Build, WeaponRangeRule, OutDefinition.Weapon.RangeCm, OutDefinition.Weapon.RangeCm);
 	ReadRuleFloat(Build, WeaponArcRule, OutDefinition.Weapon.ArcDegrees, OutDefinition.Weapon.ArcDegrees);
 	{
@@ -637,6 +635,10 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 		{
 			ApplyPartEffectToAttackSteps(Effect, OutDefinition.AttackSteps);
 		}
+	}
+	for (FReEchoCsvAttackStepRow& Step : OutDefinition.AttackSteps)
+	{
+		Step.DamageCoefficient = FMath::Max(0.0f, Step.DamageCoefficient + DamageCoefficientModifier);
 	}
 	OutError.Reset();
 	return true;

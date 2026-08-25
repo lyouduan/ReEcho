@@ -115,6 +115,26 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         headers = [sheet.cell(min_row, column).value for column in range(min_col, max_col + 1)]
         return sheet.cell(min_row + 1 + row_index, min_col + headers.index(column_name))
 
+    def set_first_matching_table_cell(
+        self,
+        wb,
+        table_name: str,
+        match_column: str,
+        match_value: str,
+        column_name: str,
+        value,
+    ) -> None:
+        sheet, table = sync.workbook_tables(wb)[table_name]
+        min_col, min_row, max_col, max_row = range_boundaries(table.ref)
+        headers = [sheet.cell(min_row, column).value for column in range(min_col, max_col + 1)]
+        match_col = min_col + headers.index(match_column)
+        target_col = min_col + headers.index(column_name)
+        for row in range(min_row + 1, max_row + 1):
+            if sheet.cell(row, match_col).value == match_value:
+                sheet.cell(row, target_col).value = value
+                return
+        self.fail(f"{table_name} has no {match_column}={match_value!r} row")
+
     def set_cell_locked(self, wb, table_name: str, row_index: int, column_name: str, locked: bool) -> None:
         cell = self.table_cell(wb, table_name, row_index, column_name)
         protection = copy(cell.protection)
@@ -323,6 +343,12 @@ class SyncXlsxToCsvTests(unittest.TestCase):
         self.assert_invalid_workbook(lambda wb: setattr(self.sheet_with_table(wb, "tblExportMap")["D2"], "value", "../characters.csv"), "plain manifest filename")
         self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblCharacters", 0, "RoleId", True), "must be unlocked for authoring")
         self.assert_invalid_workbook(lambda wb: self.set_cell_locked(wb, "tblRuntimeSmoke", 0, "Id", False), "must remain locked")
+        self.assert_invalid_workbook(
+            lambda wb: self.set_first_matching_table_cell(
+                wb, "tblPartEffects", "Target", "DamageCoefficient", "ValueOp", "Multiply"
+            ),
+            "DamageCoefficient effects must use ValueOp Add",
+        )
         self.assert_invalid_workbook(
             lambda wb: self.remove_validations_for_cell(wb, "tblCharacterAbilities", 0, "BehaviorId"),
             "must use an in-cell list validation",
