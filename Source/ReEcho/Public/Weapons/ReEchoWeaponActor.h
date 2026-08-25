@@ -10,6 +10,7 @@
 
 class UReEchoCombatantComponent;
 class UReEcho2DCharacterPresentationProfile;
+class UReEchoWeaponPresentationProfile;
 class UBillboardComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -66,6 +67,9 @@ public:
 
 	float GetAttackCooldownRemaining() const;
 #if WITH_DEV_AUTOMATION_TESTS
+	static float ResolveHeldWorldLengthForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                           float CharacterReferenceHeight,
+	                                           float OwnerScale);
 	float GetStepLockRemaining() const
 	{
 		return WeaponLogic.GetSnapshot().BehaviorRemainingSeconds;

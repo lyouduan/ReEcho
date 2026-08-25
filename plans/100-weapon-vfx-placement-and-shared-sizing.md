@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序 Executor；Plan 发布后在独立实现 worktree 执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@6b3262fa574d9ea684cad1c0ce8d6c8c96f25fc6`。
 - 本地实现方式：规划分支 `codex/plan100-weapon-vfx-placement-plan`；发布本 Plan 后从最新 `origin/main` 创建一任务一 worktree 的 Executor 分支。
@@ -89,20 +89,30 @@
 
 ### 变化
 
-待 Executor 填写。
+- `FReEchoWeaponVfxSlot` 新增 `bPreserveWorldSize`，武器语义的 `ResolvePlacement` 现在消费对应 Slot 的完整 `Offset` Transform 与世界尺寸策略；非武器语义路径保持原契约。
+- 六个生产 Weapon Profile 已通过 Editor API 固化绝对世界长度；长剑 `AttackCommitted` 配置为 `Z=60 UU`、`Roll=-45°` 并保持世界尺寸。配置脚本只修改锁定字段，可重复执行。
+- 自动化直接比较不同宿主缩放下的六把武器解析长度，Player/Echo 使用同一 Profile 时结果一致；同步更新三份受影响模块文档。
 
 ### 证据
 
-待 Executor 填写。
+- Development FullRebuild 通过：`99/99` actions，预构建 source fingerprint `af03798737dd`。
+- `ReEcho.Presentation.VFX.Catalog` 与 `ReEcho.Presentation.Combat.Capabilities` 精确自动化通过；覆盖长剑 DA 位姿/世界尺寸以及六武器 Player/Echo 不同宿主缩放下的相同世界长度。
+- Editor 配置结果：`PLAN100_WEAPON_PRESENTATION_RESULT profiles=6 sword_z=60 sword_roll=-45`；六个资产 Data Validation 通过。
+- `prebuilt_editor.py check` 与 `git diff --check` 通过。
+- `validate_project.py` 的非 XLSX 检查完成，但总结果受 worktree `Content/reecho_xlsx_package_*` 创建权限拒绝阻塞；本 Plan 未修改 XLSX/CSV。
+- 全量 `ReEcho.Weapons` 暴露既有非本任务失败：生产 rune 数预期 47/实际 46、`P_GUN_RAPID_MUZZLE` 已禁用，以及 WeaponRuntime 临时 CSV 断言；精确受影响测试已独立通过。
 
 ### 剩余风险
 
-视觉效果仍需要用户 PIE 验收；自动化只能验证 Transform 与世界尺寸计算契约。
+视觉效果仍需要用户 PIE 验收；自动化只能验证 Transform 与世界尺寸计算契约。当前环境缺少 clang-format 可执行文件，FullRebuild 已验证编译格式但未取得独立 clang-format 工具证据。全量 Weapons 与项目校验的既有环境/数据失败见上节。
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`。
+`PendingBeforeClose`：请在 PIE 对比 Player/Echo 同一武器大小，并观察长剑斩击是否完整离地、方向与攻击同步无回归。
 
 ### 架构文档审阅结果
 
-待 Planner 关闭前逐项填写。
+- `MOD-ReEcho.md` 已更新：记录生产武器绝对长度及 Player/Echo 宿主缩放不再二次影响尺寸。
+- `MOD-ReEchoVFX.md` 已更新：记录武器 Slot Transform/世界尺寸策略是唯一位姿真相。
+- `MOD-ReEchoWeapons.md` 已更新：记录主模块 DA 的绝对长度和完整 VFX Slot 表现契约。
+- `MOD-ReEchoPresentation.md`、`ARCHITECTURE.md`、`CODEBASE_MAP/README.md` 已审阅、无需修改：本实现未改变模块拓扑、Presentation 模块公共类型或索引路由。

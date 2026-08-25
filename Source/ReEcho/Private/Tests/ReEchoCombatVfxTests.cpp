@@ -85,6 +85,16 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(
 	             FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
 	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement SwordPlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
+	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
+	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Sword slash tilt comes from its weapon profile"),
+	         FMath::IsNearlyEqual(SwordPlacement.LocalRotation.Roll, -45.0f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Sword slash cancels different host scales"),
+	         UReEchoCombatVfxComponent::ResolveAttachedScale(
+	             SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
+	             .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
 	    StartWorld, MovedEndWorld, StartParameter, EndParameter);

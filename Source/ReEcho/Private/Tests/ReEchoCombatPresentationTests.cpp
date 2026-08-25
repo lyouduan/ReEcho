@@ -4,6 +4,7 @@
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
+#include "Weapons/ReEchoWeaponActor.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatPresentationLifecycleTest,
@@ -73,6 +74,10 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Profile identity matches lookup"), Profile->WeaponVisualKey, Key);
 			TestTrue(TEXT("Held weapon ratio remains positive"), Profile->HeldLengthRatio > 0.0f);
 			TestTrue(TEXT("Absolute held length override remains positive"), Profile->HeldLengthOverrideCm > 0.0f);
+			TestTrue(TEXT("Production weapon size is absolute"), Profile->bOverrideHeldLength);
+			const float PlayerLength = AReEchoWeaponActor::ResolveHeldWorldLengthForTests(*Profile, 224.0f, 1.0f);
+			const float EchoLength = AReEchoWeaponActor::ResolveHeldWorldLengthForTests(*Profile, 224.0f, 0.75f);
+			TestEqual(TEXT("Player and Echo host scales resolve the same weapon length"), PlayerLength, EchoLength);
 		}
 	}
 	const UReEcho2DCharacterPresentationProfile* DefaultCharacterProfile =
@@ -88,6 +93,10 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	             EReEchoWeaponMotionMode::FullSpin);
 	TestTrue(TEXT("Sword uses committed attack VFX"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->AttackCommitted.IsConfigured());
+	const UReEchoWeaponPresentationProfile* SwordProfile =
+	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"));
+	TestTrue(TEXT("Sword slash preserves its configured world size"),
+	         SwordProfile->AttackCommitted.bPreserveWorldSize);
 	TestTrue(TEXT("Bow uses travel VFX"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->Travel.IsConfigured());
 	return true;

@@ -47,6 +47,9 @@ struct REECHO_API FReEchoWeaponVfxSlot
 	FName AttachPoint = NAME_None;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	FTransform Offset = FTransform::Identity;
+	/** Cancel attachment-root scale while retaining Offset.Scale as the authored world-size multiplier. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
+	bool bPreserveWorldSize = false;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	int32 SortPriorityOffset = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))

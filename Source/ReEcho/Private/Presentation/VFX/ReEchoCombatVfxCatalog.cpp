@@ -4,6 +4,46 @@
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
+namespace
+{
+const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Semantic)
+{
+	FName VisualKey = NAME_None;
+	const FReEchoWeaponVfxSlot UReEchoWeaponPresentationProfile::* SlotMember = nullptr;
+	switch (Semantic)
+	{
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlash:
+			VisualKey = TEXT("CrescentBlade");
+			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerScytheSlash:
+			VisualKey = TEXT("Scythe");
+			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerBowFlight:
+			VisualKey = TEXT("Bow");
+			SlotMember = &UReEchoWeaponPresentationProfile::Travel;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerBowImpact:
+			VisualKey = TEXT("Bow");
+			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerGunFlight:
+			VisualKey = TEXT("Gun");
+			SlotMember = &UReEchoWeaponPresentationProfile::Travel;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerGunImpact:
+			VisualKey = TEXT("Gun");
+			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			break;
+		default:
+			return nullptr;
+	}
+	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(VisualKey);
+	return Profile && SlotMember ? &(Profile->*SlotMember) : nullptr;
+}
+}
+
 FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Semantic)
 {
 	auto ResolveWeaponSlot =
@@ -162,6 +202,15 @@ FRotator FReEchoCombatVfxCatalog::ResolveRotation(const EReEchoCombatVfxSemantic
 FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoCombatVfxSemantic Semantic)
 {
 	FReEchoVfxPlacement Placement;
+	if (const FReEchoWeaponVfxSlot* Slot = ::ResolveWeaponSlot(Semantic))
+	{
+		Placement.LocalOffset = Slot->Offset.GetTranslation();
+		Placement.LocalRotation = Slot->Offset.GetRotation().Rotator();
+		Placement.Scale = Slot->Offset.GetScale3D();
+		Placement.ScalePolicy = Slot->bPreserveWorldSize ? EReEchoVfxScalePolicy::PreserveWorldSize
+		                                                   : EReEchoVfxScalePolicy::InheritAttachment;
+		return Placement;
+	}
 	if (Semantic == EReEchoCombatVfxSemantic::GoatSkill02Charging ||
 	    Semantic == EReEchoCombatVfxSemantic::GoatSkill03Charging ||
 	    Semantic == EReEchoCombatVfxSemantic::GoatSkill04Charging)

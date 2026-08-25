@@ -119,7 +119,7 @@ Commit
 
 Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec::bPierceOnCritical` 控制。逻辑投射物永久保存本弹的 `HitTargets`：直击暴击且造成正伤害时继续飞行，否则到期；同一目标最多结算一次。爆炸仍在每次有效接触点独立查询范围目标，因此穿透与爆炸组合不会把视觉碰撞或主模块回调变成第二个命中权威。分裂选目标和子弹生成属于主模块适配，但子弹继续复用此 Spec/HitIntent，且用显式标志禁止递归分裂。
 
-六武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
+六武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、绝对世界长度、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。每个 VFX Slot 的完整 `Offset` Transform 与世界尺寸策略也是该武器的表现真相。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
 
 ### 持有者瞄准适配
 

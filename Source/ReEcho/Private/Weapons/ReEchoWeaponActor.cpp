@@ -1335,6 +1335,16 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 	}
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+float AReEchoWeaponActor::ResolveHeldWorldLengthForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+                                                        const float CharacterReferenceHeight,
+                                                        const float OwnerScale)
+{
+	return ReEchoWeaponVisual::ResolveHeldLength(
+	    WeaponProfile, FMath::Max(CharacterReferenceHeight, 1.0f) * FMath::Max(FMath::Abs(OwnerScale), 0.01f));
+}
+#endif
+
 bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
                                     UReEchoCombatantComponent* Combatant,
                                     const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
