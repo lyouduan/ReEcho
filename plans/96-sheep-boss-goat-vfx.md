@@ -56,7 +56,7 @@
 1. Boss 始终使用 Plan104 当前 `MoonStaff` 契约显示法杖贴图；`M_SHEEP_MeleeSweep` 按既有 Skill01 近战机制挥舞法杖，并在挥舞阶段复用 `NS_Goat_Skill02_BeAttacked` 作为挥击表现。该复用不表示 Boss 自身受击，也不改变 Skill01 圆形命中与伤害。
 2. `M_SHEEP_StationaryVolley` 与 `M_SHEEP_MovingSpread` 共用 Skill02 表现：`NS_Goat_Skill02_Charging` 挂在法杖上蓄力；提交后分别按权威能力配置生成站定四连弹或移动三向散射，每个逻辑弹丸生成独立 `NS_Goat_Skill02_Bullet` 并逐帧跟随 `(AttackIdentity, VolleyBallIndex)` 的权威位置；只有实际造成伤害时在受击角色挂一次 `NS_Goat_Skill02_BeAttacked`。
 3. `M_SHEEP_BlinkSlam` 使用 Skill03：Boss 播放 `NS_Goat_Skill03_Charging`，同时在已锁定角色当时的世界落点播放 `NS_Goat_Skill03_Alarming`；提交/瞬移时在该落点播放 `NS_Goat_Skill03_BeAttacked`，并清理蓄力和预警。伤害仍只来自既有锁定落点圆形命中。
-4. `M_SHEEP_PrayerBeam` 使用 Skill04：Boss 播放 `NS_Goat_Skill04_Charging`，同时在已锁定角色当时的 `LockedTargetLocation` 播放一次 `NS_Goat_Skill03_Alarming`；落点爆发阶段在同一锁定世界位置再次播放/重启 `NS_Goat_Skill03_Alarming`；结束蓄力进入攻击窗口时，以锁定方向播放 `NS_Goat_Skill04_Lighting`。预警不追踪角色、不新增落点伤害，光束方向、长度、起点和生命周期继续来自 Boss Intent；AbilityEnded、Death、EndPlay、遭遇清理时停止。
+4. `M_SHEEP_PrayerBeam` 使用 Skill04，并保留配表 `LockTiming=WindupEnd`：Boss 开始播放 `NS_Goat_Skill04_Charging` 时，第一道 `NS_Goat_Skill03_Alarming` 取角色当时位置的只读视觉快照；蓄力结束后玩法才正式锁定位置/方向，第二道 Alarming 重启到权威 `LockedTargetLocation`，同时以权威 `LockedDirection` 播放 `NS_Goat_Skill04_Lighting`。两次预警均不追踪角色、不新增落点伤害，第一道快照不参与玩法锁定；光束长度、起点和生命周期继续来自 Boss Intent；AbilityEnded、Death、EndPlay、遭遇清理时停止。
 5. 保留当前主工作区用户修改后的 `DA_Enemy_TimeGuard` 精确内容并纳入 Plan 96 候选；继续由 `Enemy.TimeGuard -> DA_Enemy_TimeGuard` 解析，不覆盖其中已有动画、尺寸、锚点或二阶段配置。
 6. 八个正式 Niagara 根及准确递归依赖进入 Git、预加载和 Shipping cook；实例层级、Local/World Space、朝向轴、Bounds 与 AutoDestroy 由 Editor 审计后按资源真实语义配置。
 7. Boss 技能真实命中角色时必须继续经 `FReEchoHitIntent -> ReEchoCombat` 造成配表伤害，不能出现“只播放 BeAttacked/Lighting、角色不掉血”。一阶段 Skill02 每弹 5、Skill03 30、Skill04 20；二阶段由现有阶段倍率统一变为 7.5/45/30。Niagara 碰撞和粒子范围不参与伤害裁决。
@@ -89,7 +89,7 @@
 - [ ] Boss 在一/二阶段均显示 `MoonStaff`，Skill01 挥舞法杖并复用一次 Skill02 BeAttacked 挥击表现；法杖挂点、朝向、缩放和翻面跟随 Boss，且不改变近战判定。
 - [ ] Skill02 两种投射技能均在法杖上按真实前摇播放 Charging；4 连弹/3 向散射分别生成 4/3 个 Bullet，位置与逻辑弹道一致，命中或结束后无残留；只有真实伤害在受击角色生成 BeAttacked。
 - [ ] Skill03 Charging 与锁定落点 Alarming 同时出现，预警不追踪玩家；提交时清理，真实命中生成一次 BeAttacked。
-- [ ] Skill04 Charging 开始时在锁定角色当时的位置播放第一次 Skill03 Alarming，落点爆发阶段在同一固定位置重启第二次 Alarming；结束蓄力后 Lighting 从 Boss 朝锁定方向表现，并在 AbilityEnded/Death/清场时可靠停止。两次预警均不追踪角色，也不产生额外伤害。
+- [ ] Skill04 Charging 开始时在角色当时位置的只读视觉快照播放第一次 Skill03 Alarming；`WindupEnd` 权威锁定后，在 `LockedTargetLocation` 重启第二次 Alarming并从 Boss 朝 `LockedDirection` 播放 Lighting。第一道快照不改变锁定/伤害，两次预警均不追踪角色、不产生额外伤害，Lighting 在 AbilityEnded/Death/清场时可靠停止。
 - [ ] Skill02 每个实际命中的逻辑弹丸、Skill03 下砸范围命中、Skill04 光束范围命中均通过 Combat 对角色扣除准确配表生命；未命中、已躲开或无敌时不扣血。命中特效与最终 `AppliedDamage > 0` 一致，不存在有特效无伤害或无命中却扣血。
 - [ ] Skill01 只按已确认契约复用 Skill02 BeAttacked 作为挥击表现，不触发 Skill02 Charging/Bullet/命中语义；二阶段继续复用相同技能映射并由现有数值倍率驱动，不重复或漏播阶段事件。
 - [ ] `DA_Enemy_TimeGuard` 与规划时用户修改版本字节一致，并继续被 `Enemy.TimeGuard` Catalog 正确解析；现有动画/锚点/缩放/阶段内容不丢失。
@@ -144,6 +144,7 @@
 - 2026-08-25：二阶段运行时审计确认致命伤拦截先进入 `Transforming`，但同一命中的后续 Hurt 又通过 `NotifyHurt` 将 Phase 覆盖成 `HitReaction`，导致转换计时永不完成且 `bPhase2Triggered` 阻止重试。修复锁定 Transforming、转换期间统一免伤，并为缺少 `Transform.Phase2` Clip 的 DA 延迟到完成事件再切换 Phase2 基础动画。
 - 2026-08-25：用户补充最终表现映射：Boss 使用 Plan104 新 `MoonStaff` 契约；Skill01 挥杖复用 Skill02 BeAttacked；Skill02 Charging 改挂法杖；Skill03 保持蓄力、锁点预警和落点下砸；Skill04 蓄力与锁定点爆发两次均复用 Skill03 Alarming，锁定点取角色被锁定时的 `LockedTargetLocation`，不追踪且不新增伤害，随后播放 Lighting。
 - 2026-08-25：静态审计发现 Boss Skill02 创建逻辑投射物后未发布 `Spawned`，而 VFX 只在该事件创建 Bullet；同时命中清理把所有带 `VolleyBallIndex` 的弹误作 Rabbit 持续弹，羊弹可能命中后继续到最大射程。两项均纳入本轮修复与回归。
+- 2026-08-25：用户确认 Skill04 按配表处理，不把 `WindupEnd` 改为 `WindupStart`。第一道 Alarming 因此只是蓄力开始时目标当前位置的视觉快照；第二道才消费蓄力结束后的权威锁点/锁向并与 Lighting 同步。
 
 ### 证据
 
