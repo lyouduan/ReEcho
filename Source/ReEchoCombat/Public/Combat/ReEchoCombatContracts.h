@@ -33,6 +33,9 @@ struct REECHOCOMBAT_API FReEchoDamageEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AppliedDamage = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
+	/** Stable reaction behavior that produced this damage; presentation may style it without re-running reaction rules.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
 	/** This damage reduced an alive target to zero health. Consumers must suppress ordinary Hurt presentation. */

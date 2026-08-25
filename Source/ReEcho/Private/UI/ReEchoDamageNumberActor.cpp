@@ -2,8 +2,29 @@
 
 #include "Camera/PlayerCameraManager.h"
 #include "Components/TextRenderComponent.h"
+#include "Engine/Font.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
+#include "UObject/ConstructorHelpers.h"
+
+const TCHAR* AReEchoDamageNumberActor::GetDamageNumberFontPath()
+{
+	return TEXT("/Game/ReEcho/Fonts/DamageNumbers/F_DamageNumber_MFYuYue_Font.F_DamageNumber_MFYuYue_Font");
+}
+
+const TCHAR* AReEchoDamageNumberActor::GetDamageNumberMaterialPath()
+{
+	return TEXT("/Engine/EngineMaterials/DefaultTextMaterialTranslucent.DefaultTextMaterialTranslucent");
+}
+
+float AReEchoDamageNumberActor::CalculateOpacity(const float ElapsedSeconds, const float DurationSeconds)
+{
+	if (DurationSeconds <= 0.0f)
+	{
+		return 0.0f;
+	}
+	return 1.0f - FMath::Clamp(ElapsedSeconds / DurationSeconds, 0.0f, 1.0f);
+}
 
 AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 {
@@ -19,19 +40,22 @@ AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 	Text->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Text->SetCastShadow(false);
 	Text->SetTranslucentSortPriority(20);
-	if (UMaterialInterface* UnlitTextMaterial = LoadObject<UMaterialInterface>(
-			nullptr,
-			TEXT("/Engine/EngineMaterials/UnlitText.UnlitText")))
+	static ConstructorHelpers::FObjectFinder<UFont> DamageNumberFont(GetDamageNumberFontPath());
+	if (DamageNumberFont.Succeeded())
 	{
-		Text->SetTextMaterial(UnlitTextMaterial);
+		Text->SetFont(DamageNumberFont.Object);
+	}
+	if (UMaterialInterface* TranslucentTextMaterial =
+	        LoadObject<UMaterialInterface>(nullptr, GetDamageNumberMaterialPath()))
+	{
+		Text->SetTextMaterial(TranslucentTextMaterial);
 	}
 }
 
-void AReEchoDamageNumberActor::SpawnDamageNumber(
-	UWorld* World,
-	const FVector& WorldLocation,
-	const float Damage,
-	const FLinearColor& Color)
+void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
+                                                 const FVector& WorldLocation,
+                                                 const float Damage,
+                                                 const FLinearColor& Color)
 {
 	if (!World || Damage <= 0.0f)
 	{
@@ -39,18 +63,14 @@ void AReEchoDamageNumberActor::SpawnDamageNumber(
 	}
 
 	AReEchoDamageNumberActor* DamageNumber =
-		World->SpawnActor<AReEchoDamageNumberActor>(
-			WorldLocation + FVector(0.0f, 0.0f, 95.0f),
-			FRotator::ZeroRotator);
+	    World->SpawnActor<AReEchoDamageNumberActor>(WorldLocation + FVector(0.0f, 0.0f, 95.0f), FRotator::ZeroRotator);
 	if (DamageNumber)
 	{
 		DamageNumber->InitializeDamage(Damage, Color);
 	}
 }
 
-void AReEchoDamageNumberActor::InitializeDamage(
-	const float Damage,
-	const FLinearColor& Color)
+void AReEchoDamageNumberActor::InitializeDamage(const float Damage, const FLinearColor& Color)
 {
 	InitialColor = Color;
 	const int32 DisplayDamage = FMath::Max(1, FMath::RoundToInt(Damage));
@@ -65,16 +85,15 @@ void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
 	ElapsedTime += DeltaSeconds;
 	AddActorWorldOffset(FVector(0.0f, 0.0f, 70.0f * DeltaSeconds));
 
-	if (APlayerCameraManager* Camera =
-			UGameplayStatics::GetPlayerCameraManager(this, 0))
+	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
 	{
 		// 正交相机的所有视线互相平行；统一使用相机前向，避免屏幕边缘文字产生透视式倾斜。
 		SetActorRotation((-Camera->GetCameraRotation().Vector()).Rotation());
 	}
 
-	const float Alpha = 1.0f - FMath::Clamp(ElapsedTime / DisplayDuration, 0.0f, 1.0f);
+	const float Alpha = CalculateOpacity(ElapsedTime, DisplayDuration);
 	FLinearColor FadedColor = InitialColor;
-	FadedColor.A = Alpha;
+	FadedColor.A = InitialColor.A * Alpha;
 	Text->SetTextRenderColor(FadedColor.ToFColor(false));
 	SetActorScale3D(FVector(FMath::Lerp(1.15f, 0.85f, 1.0f - Alpha)));
 

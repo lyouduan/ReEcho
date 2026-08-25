@@ -21,6 +21,13 @@ public:
 	/** 创建并初始化一次伤害数字表现。 */
 	static void SpawnDamageNumber(UWorld* World, const FVector& WorldLocation, float Damage, const FLinearColor& Color);
 
+	/** 伤害数字专用运行时字体资产路径，供构造与自动化验证共享。 */
+	static const TCHAR* GetDamageNumberFontPath();
+	/** 支持顶点 Alpha 的半透明 TextRender 材质。 */
+	static const TCHAR* GetDamageNumberMaterialPath();
+	/** 上漂生命周期内的线性透明度，超出生命周期后为零。 */
+	static float CalculateOpacity(float ElapsedSeconds, float DurationSeconds);
+
 private:
 	void InitializeDamage(float Damage, const FLinearColor& Color);
 

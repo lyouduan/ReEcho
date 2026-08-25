@@ -1,5 +1,6 @@
 #include "Combat/ReEchoElementReaction.h"
 
+#include "Combat/ReEchoCombatContracts.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Graybox/ReEchoEnemyActor.h"
 
@@ -26,6 +27,11 @@ FLinearColor ParseColorHex(const FString& ColorHex)
 	}
 	return FLinearColor::FromSRGBColor(
 	    FColor(ParseHexPair(ColorHex, 1), ParseHexPair(ColorHex, 3), ParseHexPair(ColorHex, 5)));
+}
+
+FLinearColor FromReferenceSrgb(const uint8 Red, const uint8 Green, const uint8 Blue)
+{
+	return FLinearColor::FromSRGBColor(FColor(Red, Green, Blue));
 }
 } // namespace
 
@@ -71,6 +77,31 @@ FLinearColor GetElementColor(const EReEchoElement Element)
 {
 	const FReEchoCsvElementRow* Row = FindElementRow(Element);
 	return Row ? ParseColorHex(Row->ColorHex) : FLinearColor::White;
+}
+
+FLinearColor GetDamageNumberColor(const FReEchoDamageEvent& Event)
+{
+	if (Event.ReactionBehaviorId == TEXT("Reaction.Vaporize"))
+	{
+		return FromReferenceSrgb(165, 203, 243);
+	}
+	if (Event.ReactionBehaviorId == TEXT("Reaction.Conduct"))
+	{
+		return FromReferenceSrgb(235, 192, 44);
+	}
+	if (Event.ReactionBehaviorId == TEXT("Reaction.Burn"))
+	{
+		return FromReferenceSrgb(232, 106, 18);
+	}
+	if (Event.ReactionBehaviorId == TEXT("Reaction.Growth"))
+	{
+		return FromReferenceSrgb(146, 192, 57);
+	}
+	if (Event.ReactionBehaviorId == TEXT("Reaction.Enhance"))
+	{
+		return FromReferenceSrgb(241, 184, 76);
+	}
+	return Event.Element == EReEchoElement::None ? FLinearColor::White : GetElementColor(Event.Element);
 }
 
 FName GetElementId(const EReEchoElement Element)

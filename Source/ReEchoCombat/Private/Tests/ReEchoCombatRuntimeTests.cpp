@@ -64,6 +64,7 @@ bool FReEchoElementCleanseCommandTest::RunTest(const FString& Parameters)
 	State.bBurnActive = true;
 	State.BurnTickDamage = 7.0f;
 	State.BurnNextTickTimeSeconds = 11.0f;
+	State.BurnReactionBehaviorId = TEXT("Reaction.Burn");
 	State.BurnSourceLocation = FVector(10.0f, 20.0f, 0.0f);
 	State.bEnhancedNextReaction = true;
 	State.EnhancementMultiplier = 2.0f;
@@ -82,6 +83,7 @@ bool FReEchoElementCleanseCommandTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Burn is inactive"), State.bBurnActive);
 	TestFalse(TEXT("Burn status is removed"), State.ActiveStatusUntilSeconds.Contains(TEXT("Z_Burn")));
 	TestEqual(TEXT("Burn damage payload is cleared"), State.BurnTickDamage, 0.0f);
+	TestTrue(TEXT("Burn reaction provenance is cleared"), State.BurnReactionBehaviorId.IsNone());
 	TestEqual(TEXT("Burn schedule payload is cleared"), State.BurnNextTickTimeSeconds, 0.0f);
 	TestTrue(TEXT("Burn source payload is cleared"), State.BurnSourceLocation.IsNearlyZero());
 	TestEqual(TEXT("Deterministic immunity uses caller time"), State.ImmunityUntil, 11.0f);

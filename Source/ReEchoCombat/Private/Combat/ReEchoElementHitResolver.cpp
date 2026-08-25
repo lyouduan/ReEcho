@@ -43,7 +43,7 @@ void PublishElementStateChanged(UReEchoCombatantComponent& Combatant)
 }
 
 void PublishElementReactionResolved(UReEchoCombatantComponent& Combatant,
-	                                 const FReEchoElementReactionResolvedEvent& Event)
+                                    const FReEchoElementReactionResolvedEvent& Event)
 {
 	if (AActor* Owner = Combatant.GetOwner())
 	{
@@ -69,8 +69,11 @@ void AddAffected(FReEchoElementExecutionResult& Result, AActor& Target)
 	Result.AffectedTargets.AddUnique(&Target);
 }
 
-FReEchoHitResolved
-ApplyDamage(AActor& Target, const float Damage, const EReEchoElement Element, const FReEchoElementHitContext& Context)
+FReEchoHitResolved ApplyDamage(AActor& Target,
+                               const float Damage,
+                               const EReEchoElement Element,
+                               const FReEchoElementHitContext& Context,
+                               const FName ReactionBehaviorId = NAME_None)
 {
 	FReEchoHitIntent Intent;
 	Intent.Attack = Context.Attack;
@@ -78,12 +81,18 @@ ApplyDamage(AActor& Target, const float Damage, const EReEchoElement Element, co
 	Intent.RawDamage = Damage;
 	Intent.DamageSource = EReEchoDamageSource::Reaction;
 	Intent.Element = Element;
+	Intent.ReactionBehaviorId = ReactionBehaviorId;
 	Intent.ReactionEfficiency = Context.ReactionEfficiency;
 	Intent.bCritical = Context.bCritical;
 	Intent.bSourceRulesApplied = Context.bSourceRulesApplied;
 	Intent.SourceLocation = Context.SourceLocation;
 	Intent.HitLocation = Target.GetActorLocation();
 	return ReEchoHitResolver::ResolvePhysicalHit(Intent);
+}
+
+FName ResolveDamageNumberReactionBehavior(const FReEchoElementHitResult& Result)
+{
+	return Result.bAppliedEnhancement ? FName(TEXT("Reaction.Enhance")) : Result.ReactionBehaviorId;
 }
 
 void ApplyStatus(FReEchoElementState& State,
@@ -158,6 +167,7 @@ void ClearBurn(FReEchoElementState& State, const bool bRemoveStatus)
 	State.bBurnActive = false;
 	State.BurnTickDamage = 0.0f;
 	State.BurnNextTickTimeSeconds = 0.0f;
+	State.BurnReactionBehaviorId = NAME_None;
 	State.BurnSourceLocation = FVector::ZeroVector;
 	State.BurnAttack = {};
 	if (bRemoveStatus)
@@ -197,7 +207,7 @@ int32 ReEchoHitResolver::TickElementStatuses(AActor& Target, const float Current
 		FReEchoElementHitContext Context;
 		Context.Attack = State.BurnAttack;
 		Context.SourceLocation = State.BurnSourceLocation;
-		ApplyDamage(Target, State.BurnTickDamage, EReEchoElement::Flame, Context);
+		ApplyDamage(Target, State.BurnTickDamage, EReEchoElement::Flame, Context, State.BurnReactionBehaviorId);
 		State.BurnNextTickTimeSeconds += BurnTickIntervalSeconds;
 		++AppliedTicks;
 	}
@@ -230,6 +240,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 	Result.RawDamage = Candidate.RawDamage;
 	Result.DamageSource = Candidate.DamageSource;
 	Result.Element = Candidate.Element;
+	Result.ReactionBehaviorId = Candidate.ReactionBehaviorId;
 	Result.bCritical = Candidate.bCritical;
 	Result.HitLocation = Candidate.HitLocation;
 	IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate.Target);
@@ -326,6 +337,7 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			{
 				PrimaryState.BurnTickDamage = TickDamage;
 				PrimaryState.BurnNextTickTimeSeconds = CurrentTime + BurnTickIntervalSeconds;
+				PrimaryState.BurnReactionBehaviorId = ResolveDamageNumberReactionBehavior(Execution.Primary);
 				PrimaryState.BurnSourceLocation = Context.SourceLocation;
 				PrimaryState.BurnAttack = Context.Attack;
 			}
@@ -349,7 +361,10 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 		const float ElementalAttack = FMath::Max(0.0f, Context.SourceElementalAttack);
 		const float Damage = ElementalAttack * ElementalAttack * Reaction->DamageIncrease *
 		                     FMath::Max(0.0f, Context.ReactionEfficiency) * FinalMultiplier * EchoMultiplier;
-		Execution.ImmediateDamageApplied += ApplyDamage(Target, Damage, IncomingElement, Context).AppliedDamage;
+		Execution.ImmediateDamageApplied +=
+		    ApplyDamage(
+		        Target, Damage, IncomingElement, Context, ResolveDamageNumberReactionBehavior(Execution.Primary))
+		        .AppliedDamage;
 		ApplyElementalImmunity(PrimaryState, *Rules, CurrentTime);
 		AddAffected(Execution, Target);
 	}
@@ -405,7 +420,10 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			}
 			FReEchoElementState& State = FReEchoElementResolverAccess::Edit(*Combatant);
 			State.Attached = EReEchoElement::None;
-			Execution.ImmediateDamageApplied += ApplyDamage(*Current, Damage, IncomingElement, Context).AppliedDamage;
+			Execution.ImmediateDamageApplied +=
+			    ApplyDamage(
+			        *Current, Damage, IncomingElement, Context, ResolveDamageNumberReactionBehavior(Execution.Primary))
+			        .AppliedDamage;
 			ApplyElementalImmunity(State, *Rules, CurrentTime);
 			AddAffected(Execution, *Current);
 			if (Current != &Target)
