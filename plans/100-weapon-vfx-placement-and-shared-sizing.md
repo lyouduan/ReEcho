@@ -1,0 +1,108 @@
+# Plan 100 - 程序 - 武器特效位姿与玩家回响统一尺寸
+
+## 协调
+
+- Planner 负责人：Codex（程序 Planner）。
+- Executor 负责人：Codex（程序 Executor；Plan 发布后在独立实现 worktree 执行）。
+- Plan 编写方（AI 侧）：`Gavyn-side AI`。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。
+- 任务状态：`Ready`。
+- 人工验收：`PendingBeforeClose`。
+- 本地规划 / 实现基线：`origin/main@6b3262fa574d9ea684cad1c0ce8d6c8c96f25fc6`。
+- 本地实现方式：规划分支 `codex/plan100-weapon-vfx-placement-plan`；发布本 Plan 后从最新 `origin/main` 创建一任务一 worktree 的 Executor 分支。
+- 依赖 / 阻塞：复用 Plan78 的 Weapon Presentation DA 与 Plan81 的角色相对武器装配；长剑地面穿模候选值为 `AttackCommitted.Offset` 的 `Z=60 UU`、`Roll=-45°`，不合入旧候选分支上的语义硬编码。
+- Writes:
+  - `plans/100-weapon-vfx-placement-and-shared-sizing.md`
+  - `Source/ReEcho/{Public,Private}/Presentation/Weapon/ReEchoWeaponPresentationProfile.*`
+  - `Source/ReEcho/{Public,Private}/Presentation/VFX/ReEchoCombatVfxCatalog.*`
+  - `Source/ReEcho/{Public,Private}/Presentation/VFX/ReEchoCombatVfxComponent.*`
+  - `Source/ReEcho/{Public,Private}/Weapons/ReEchoWeaponActor.*`
+  - `Source/ReEcho/Private/Tests/ReEchoCombatPresentationTests.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp`
+  - `scripts/ue/configure_plan100_weapon_presentation.py`
+  - `Content/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_*.uasset`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md`
+  - `Binaries/Win64/` 下 `shared/GIT_RULES.md` 允许的最终预构建包文件
+- Stable Reads: `weapons.csv` 的 WeaponId/VisualKey/AttackPatternId；角色/Echo Presentation Profile 的 `WorldHeight`、`WeaponAnchorRatio`；现有 Niagara 资源与攻击事件时序；Plan96 山羊 VFX 候选 worktree。
+- 影响模式：`SharedContract`。完善既有武器表现 DA 到运行时 VFX 位姿的消费契约，并把手持武器尺寸真相收敛至武器 Profile；不改变玩法模块权威。
+- 兼容承诺 / 下游操作：旧 DA 的单位 Transform、关闭绝对长度覆盖时保持现状；配置缺失只跳过表现；同一 WeaponVisualKey 在 Player/Echo 上使用相同绝对世界长度与特效世界尺寸；武器挂点仍由角色 Profile 决定。
+- 明确排除：伤害、攻击范围、碰撞、攻击方向、攻击/动画节拍、投射物逻辑、武器数值平衡、Niagara 内部发射器编辑、非武器 VFX、Plan96 山羊特效修改。
+
+## 锁定目标
+
+让每把武器都能在现有 Weapon Presentation DA 的各 VFX Slot 中直接配置 Niagara 的相对位置、旋转和大小，运行时真实消费该配置。首个落地配置将长剑刀光抬高并倾斜，使刀光完整显示且不穿入地面。同时将六把武器的手持视觉尺寸改为武器 DA 拥有的绝对世界长度，使同一武器在玩家与回响上大小一致；角色 Profile 仍只控制挂点位置。
+
+## 架构影响与设计决策
+
+- 受影响架构标识：`MOD-ReEcho`、`MOD-ReEchoVFX`、`MOD-ReEchoWeapons`、`AREA-Presentation`、`AREA-Weapons`。
+- 对应模块文档：维护 `MOD-ReEcho.md`、`MOD-ReEchoVFX.md`、`MOD-ReEchoWeapons.md`，均已加入 `Writes`。
+- 设计意图：`FReEchoWeaponVfxSlot::Offset` 已是完整 `FTransform`，继续作为单一 DA 配置入口；VFX Catalog 负责把武器语义解析成 Slot/Placement，VFX Component 只执行统一的附着与世界尺寸补偿。武器 Profile 的 `HeldLengthOverrideCm` 作为同一 WeaponVisualKey 的尺寸真相，WeaponActor 不再让宿主 Actor Scale 二次改变最终世界长度。
+- 权威状态与依赖：只调整表现数据及适配器；Combat 事件继续拥有时机，Weapon Definition 继续拥有玩法，Niagara 不拥有伤害/命中/冷却。
+- 决策记录：不新增重复的 Offset/Scale 字段；不把长剑修正写死在 `PlayerMeleeSlash` 枚举分支；不按当前动画帧 Bounds 重算；通过现有绝对长度覆盖统一 Player/Echo，保留角色 `WeaponAnchorRatio` 以允许各角色握持位置不同。
+- 相关文档同步范围：审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md`、`README.md`、`MOD-ReEchoPresentation.md`；若模块拓扑与 Presentation 公共字段没有变化，在执行记录注明无需修改。维护上述三个直接受影响模块文档。
+- 关闭前逐项填写审阅结果：在执行记录中补齐实际实现与文档审阅结论。
+
+## 锁定验收
+
+- [ ] Weapon Profile 的 `Charge/Travel/DamageApplied/AttackCommitted.Offset` 中平移、旋转、缩放均由运行时消费；单位 Transform 保持旧表现。
+- [ ] 长剑 `AttackCommitted` 使用 DA 配置 `Location.Z=60 UU`、`Rotation.Roll=-45°`，Catalog/Component 不存在长剑专属位姿硬编码。
+- [ ] VFX Slot 可选择保持世界尺寸；开启后 Player/Echo 的父级缩放不会二次放大或缩小 Niagara，DA Scale 仍作为艺术缩放生效。
+- [ ] 六个生产 Weapon Profile 启用正数 `HeldLengthOverrideCm`；同一 WeaponVisualKey 在 Player 与 Echo 上计算出的最终世界长度一致，纹理宽高比和尺寸主轴仍生效。
+- [ ] Player/Echo 可以有不同角色挂点，但武器尺寸不读取宿主 Actor Scale 作为第二份尺寸真相。
+- [ ] 不改变攻击事件时机、方向、伤害、碰撞、范围、投射物和动画节拍。
+- [ ] 配置脚本可重复运行，只修改本 Plan 锁定字段，不重置艺术已调整的其他 Profile 字段。
+- [ ] 聚焦自动化、C++ 格式化、Development FullRebuild、`validate_project.py`、预构建一致性和 `git diff --check` 通过。
+- [ ] 用户在 PIE 对比 Player/Echo 同武器大小，并确认长剑刀光离地、完整显示、方向和攻击同步观感；未验收前保持 `PendingBeforeClose`。
+- [ ] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
+
+## Step 0 门禁
+
+- 基线分支/提交：`origin/main@6b3262fa574d9ea684cad1c0ce8d6c8c96f25fc6`；已审计该次外部 Plan63 仅涉及怪物出生预警，无 Weapon/VFX 路径直接重叠。
+- 引擎/构建可用性：实施前确认 Editor 已关闭；DA 只能由 Unreal Editor API 加载、修改和保存，禁止文本编辑 `.uasset`。
+- 现有聚焦测试结果：旧长剑候选分支已证明 `Z=60、Roll=-45°` 可编译且相关静态检查通过，但其语义硬编码不得直接合入；本 Plan 必须重新在最新基线完整验证。
+- 共享契约 / 难合并资源风险：六个 Weapon Profile 是二进制独占资源；执行前记录哈希并复查主工作区未存在这些资产的用户改动。若出现重叠，停止并请求人工选择。
+- 基线损坏时的停止条件：远端再次前进、Editor 占用资产、DA 字段无法由 Editor API 稳定保存、或修改将跨入玩法语义时，停止并报告准确证据。
+
+## 实现提纲
+
+1. 为武器 VFX Slot 补充明确的世界尺寸策略默认值，并让 VFX Catalog 同时解析资源与 Slot Placement；保持非武器语义现有 Placement 路径。
+2. 统一 `SpawnAttached` 对配置的平移、旋转、缩放和父级缩放补偿的组合顺序；增加 Slot 缺失/单位 Transform/世界尺寸测试。
+3. 通过幂等 Editor Python 将长剑刀光写入 `AttackCommitted.Offset`，并为六个生产武器 Profile 固化当前认可的绝对长度；只更新锁定字段。
+4. 收敛 WeaponActor 的尺寸换算，保证 Player/Echo 同 Weapon Profile 得到同一世界长度，同时保留挂点、纹理宽高比、主轴与旋转配置。
+5. 更新聚焦测试、模块文档和执行记录，完成格式化、自动化、FullRebuild、静态/预构建检查，再提交 PIE 候选供人工验收。
+
+## 验证矩阵
+
+| 层级 | 命令/检查 | 预期证据 |
+|---|---|---|
+| DA/解析 | Weapon Presentation 聚焦自动化 + 配置脚本复跑 | 六个 Profile 唯一解析；锁定字段准确；复跑无额外变化 |
+| VFX | `ReEcho.Presentation.VFX` 聚焦自动化 | Slot Transform 全量消费；长剑值来自 DA；父级不同缩放时世界尺寸一致 |
+| 武器 | `ReEcho.Weapons` / Weapon Presentation 聚焦自动化 | Player/Echo 同武器最终世界长度一致；旧单位配置兼容 |
+| C++ | clang-format + `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` | UHT/UBT 成功并刷新允许的预构建包 |
+| 静态 | `python scripts/validate_project.py`、`scripts/ue/prebuilt_editor.py check`、`git diff --check` | 项目、源码、预构建包一致 |
+| 人工 | Editor 中检查 DA；PIE 对比 Player/Echo 与长剑斩击 | 刀光不穿地且完整；同武器大小一致；挂点、朝向、同步无回归 |
+
+## 执行记录
+
+### 变化
+
+待 Executor 填写。
+
+### 证据
+
+待 Executor 填写。
+
+### 剩余风险
+
+视觉效果仍需要用户 PIE 验收；自动化只能验证 Transform 与世界尺寸计算契约。
+
+### 人工验收结果/请求
+
+`PendingBeforeClose`。
+
+### 架构文档审阅结果
+
+待 Planner 关闭前逐项填写。
