@@ -304,6 +304,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 		return Result;
 	}
 	const bool bWasAlive = Combatant->IsAlive();
+	const float TargetHealthBefore = Combatant->GetSnapshot().CurrentHealth;
 	FReEchoElementHitContext Context;
 	Context.SourceLocation = Candidate.SourceLocation;
 	Context.Attack = Candidate.Attack;
@@ -331,12 +332,14 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 		UE_LOG(LogReEchoRangedCritElementTrace,
 		       Warning,
 		       TEXT("[RangedCritTrace] ElementResolverApplied weapon=%s sequence=%lld target=%s rawDamage=%.3f "
-		            "applied=%.3f critical=%d element=%d blocked=%d killed=%d"),
+		            "applied=%.3f healthBefore=%.3f healthAfter=%.3f critical=%d element=%d blocked=%d killed=%d"),
 		       *Candidate.Attack.WeaponId.ToString(),
 		       static_cast<long long>(Candidate.Attack.Sequence),
 		       *GetNameSafe(Candidate.Target),
 		       Candidate.RawDamage,
 		       Result.AppliedDamage,
+		       TargetHealthBefore,
+		       Combatant->GetSnapshot().CurrentHealth,
 		       Result.bCritical ? 1 : 0,
 		       static_cast<int32>(Result.Element),
 		       Result.bBlocked ? 1 : 0,

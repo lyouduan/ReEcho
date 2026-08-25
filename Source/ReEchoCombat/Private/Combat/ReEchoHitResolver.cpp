@@ -112,6 +112,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 
 	Result.RawDamage = FMath::Max(0.0f, Target->ModifyIncomingRawDamage(Candidate));
 	const bool bWasAlive = TargetCombatant->IsAlive();
+	const float TargetHealthBefore = TargetCombatant->GetSnapshot().CurrentHealth;
 	Result.AppliedDamage = FReEchoHitResolverAccess::ApplyFinalDamage(
 	    *TargetCombatant, Result.RawDamage, Candidate.Attack, Candidate.DamageSource);
 	Result.bBlocked = Result.AppliedDamage <= 0.0f;
@@ -122,13 +123,16 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 		UE_LOG(LogReEchoRangedCritResolverTrace,
 		       Warning,
 		       TEXT("[RangedCritTrace] ResolverApplied weapon=%s sequence=%lld target=%s sourceAdjustedRaw=%.3f "
-		            "incomingAdjustedRaw=%.3f applied=%.3f critical=%d blocked=%d killed=%d"),
+		            "incomingAdjustedRaw=%.3f applied=%.3f healthBefore=%.3f healthAfter=%.3f critical=%d "
+		            "blocked=%d killed=%d"),
 		       *Candidate.Attack.WeaponId.ToString(),
 		       static_cast<long long>(Candidate.Attack.Sequence),
 		       *GetNameSafe(Candidate.Target),
 		       Candidate.RawDamage,
 		       Result.RawDamage,
 		       Result.AppliedDamage,
+		       TargetHealthBefore,
+		       TargetCombatant->GetSnapshot().CurrentHealth,
 		       Result.bCritical ? 1 : 0,
 		       Result.bBlocked ? 1 : 0,
 		       Result.bKilled ? 1 : 0);
