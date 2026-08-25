@@ -158,3 +158,17 @@ FRotator FReEchoCombatVfxCatalog::ResolveRotation(const EReEchoCombatVfxSemantic
 	Rotation.Yaw -= AuthoredYaw;
 	return Rotation;
 }
+
+FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoCombatVfxSemantic Semantic)
+{
+	FReEchoVfxPlacement Placement;
+	if (Semantic == EReEchoCombatVfxSemantic::GoatSkill02Charging ||
+	    Semantic == EReEchoCombatVfxSemantic::GoatSkill03Charging ||
+	    Semantic == EReEchoCombatVfxSemantic::GoatSkill04Charging)
+	{
+		// These systems describe a world-sized body charge. Their anchor follows the Boss, but its authored size
+		// must not be multiplied a second time by DA/Actor presentation scale.
+		Placement.ScalePolicy = EReEchoVfxScalePolicy::PreserveWorldSize;
+	}
+	return Placement;
+}

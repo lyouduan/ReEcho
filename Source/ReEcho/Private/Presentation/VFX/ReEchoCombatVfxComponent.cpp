@@ -508,10 +508,21 @@ void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(const FVector& Ori
 	OutEnd = Origin + Direction * FMath::Max(0.0f, LengthCm);
 }
 
-FVector UReEchoCombatVfxComponent::ResolveImpactWorldLocation(const FReEchoDamageEvent& Event,
-	                                                           const FVector& FallbackLocation)
+FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredScale,
+	                                                     const FVector& AttachmentWorldScale,
+	                                                     const bool bPreserveWorldSize)
 {
-	return Event.WorldLocation.IsNearlyZero() ? FallbackLocation : Event.WorldLocation;
+	if (!bPreserveWorldSize)
+	{
+		return DesiredScale;
+	}
+	auto SafeDivide = [](const float Value, const float Divisor)
+	{
+		return FMath::Abs(Divisor) > UE_SMALL_NUMBER ? Value / Divisor : Value;
+	};
+	return FVector(SafeDivide(DesiredScale.X, AttachmentWorldScale.X),
+	               SafeDivide(DesiredScale.Y, AttachmentWorldScale.Y),
+	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
@@ -554,18 +565,26 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
                                                             USceneComponent* AttachmentRoot,
                                                             const bool bAutoDestroy) const
 {
+	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
 	if (!System || !AttachmentRoot)
 	{
 		return nullptr;
 	}
+	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
+	FRotator RelativeRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+	RelativeRotation += Placement.LocalRotation;
+	const FVector RelativeScale = ResolveAttachedScale(
+	    Placement.Scale,
+	    AttachmentRoot->GetComponentTransform().GetScale3D(),
+	    Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
 	    System,
 	    AttachmentRoot,
 	    NAME_None,
-	    FVector::ZeroVector,
-	    FReEchoCombatVfxCatalog::ResolveRotation(static_cast<EReEchoCombatVfxSemantic>(SemanticValue), Direction),
-	    FVector::OneVector,
+	    Placement.LocalOffset,
+	    RelativeRotation,
+	    RelativeScale,
 	    EAttachLocation::KeepRelativeOffset,
 	    bAutoDestroy,
 	    ENCPoolMethod::None,
@@ -577,7 +596,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		                                            GetOwner(),
 		                                            AttachmentRoot,
 		                                            Effect,
-		                                            static_cast<EReEchoCombatVfxSemantic>(SemanticValue),
+		                                            Semantic,
 		                                            TEXT("Attached"));
 	}
 	return Effect;
@@ -1011,9 +1030,7 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 			uint8 BossImpactSemantic = 0;
 			if (SourceVfx->TryResolveBossImpactSemantic(Event.Attack.Sequence, BossImpactSemantic))
 			{
-				const FVector FallbackLocation = ResolveHurtVfxRoot() ? ResolveHurtVfxRoot()->GetComponentLocation()
-				                                                        : GetOwner()->GetActorLocation();
-				const FVector ImpactLocation = ResolveImpactWorldLocation(Event, FallbackLocation);
+				const FVector ImpactLocation = Event.WorldLocation;
 				const FVector ImpactDirection = ImpactLocation - Event.SourceWorldLocation;
 				SpawnWorld(BossImpactSemantic, ImpactLocation, ImpactDirection);
 				return;

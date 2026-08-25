@@ -73,16 +73,18 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         BeamStart.Equals(BeamOrigin, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
 	         BeamEnd.Equals(BeamOrigin + BeamDirection * 750.0f, KINDA_SMALL_NUMBER));
-	FReEchoDamageEvent ImpactEvent;
-	ImpactEvent.WorldLocation = FVector(840.0f, 220.0f, 15.0f);
-	TestTrue(TEXT("Boss impact preserves the Combat final hit location"),
-	         UReEchoCombatVfxComponent::ResolveImpactWorldLocation(ImpactEvent, FVector(1.0f))
-	             .Equals(ImpactEvent.WorldLocation, KINDA_SMALL_NUMBER));
-	ImpactEvent.WorldLocation = FVector::ZeroVector;
-	const FVector HurtAnchorFallback(25.0f, 35.0f, 45.0f);
-	TestTrue(TEXT("Missing impact coordinates fall back to the target presentation anchor"),
-	         UReEchoCombatVfxComponent::ResolveImpactWorldLocation(ImpactEvent, HurtAnchorFallback)
-	             .Equals(HurtAnchorFallback, KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement GoatChargingPlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::GoatSkill02Charging);
+	TestTrue(TEXT("Goat body charging preserves authored world size"),
+	         GoatChargingPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
+	TestTrue(TEXT("Preserved world-size VFX cancels inherited uniform owner scale"),
+	         UReEchoCombatVfxComponent::ResolveAttachedScale(
+	             FVector::OneVector, FVector(2.0f), true)
+	             .Equals(FVector(0.5f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Ordinary attached VFX retains its configured relative scale"),
+	         UReEchoCombatVfxComponent::ResolveAttachedScale(
+	             FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
+	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
 	    StartWorld, MovedEndWorld, StartParameter, EndParameter);

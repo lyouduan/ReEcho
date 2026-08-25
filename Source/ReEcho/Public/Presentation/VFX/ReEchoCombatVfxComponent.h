@@ -82,8 +82,10 @@ public:
 	                                          float LengthCm,
 	                                          FVector& OutStart,
 	                                          FVector& OutEnd);
-	/** Exact Combat hit locations are authoritative; target anchors are only a missing-location fallback. */
-	static FVector ResolveImpactWorldLocation(const FReEchoDamageEvent& Event, const FVector& FallbackLocation);
+	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
+	static FVector ResolveAttachedScale(const FVector& DesiredScale,
+	                                    const FVector& AttachmentWorldScale,
+	                                    bool bPreserveWorldSize);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);

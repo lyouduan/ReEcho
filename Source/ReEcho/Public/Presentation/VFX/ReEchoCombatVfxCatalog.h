@@ -30,6 +30,20 @@ enum class EReEchoCombatVfxSemantic : uint8
 	GoatSkill04Lighting
 };
 
+enum class EReEchoVfxScalePolicy : uint8
+{
+	InheritAttachment,
+	PreserveWorldSize
+};
+
+struct FReEchoVfxPlacement
+{
+	FVector LocalOffset = FVector::ZeroVector;
+	FRotator LocalRotation = FRotator::ZeroRotator;
+	FVector Scale = FVector::OneVector;
+	EReEchoVfxScalePolicy ScalePolicy = EReEchoVfxScalePolicy::InheritAttachment;
+};
+
 /** Centralized semantic-to-asset mapping. Gameplay code never stores Niagara paths. */
 struct REECHO_API FReEchoCombatVfxCatalog
 {
@@ -50,4 +64,6 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static FVector ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic Semantic);
 	/** Rotates the semantic asset's authored center axis onto the gameplay direction. */
 	static FRotator ResolveRotation(EReEchoCombatVfxSemantic Semantic, const FVector& Direction);
+	/** Resource-authored correction and owner-scale policy for attached semantic effects. */
+	static FReEchoVfxPlacement ResolvePlacement(EReEchoCombatVfxSemantic Semantic);
 };

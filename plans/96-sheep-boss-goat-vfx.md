@@ -145,12 +145,15 @@
 - 第一次 FullRebuild 在 98 个动作的 `ReEchoCombatVfxComponent.cpp` 编译处发现 C4456 局部变量遮蔽；只重命名第二个局部变量后，第二次 FullRebuild 98/98 成功，Build ID `55116800`，当时源码指纹 `df2b0548348a`。随后补充 Phase2-only 防护，最终候选需再次 FullRebuild。
 - 最终候选 FullRebuild 98/98 成功并刷新七模块精选预构建包，Build ID `55116800`、source fingerprint `7459ba735e47`；`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
 - `Run-Automation.cmd -Filter ReEcho.Enemies.Logic` 在测试发现前被 LinuxArm64/VisionOS SDK `MainVersion` 校验阻断；命令虽返回 0，但没有任何测试执行证据，因此明确记为未运行，不声称通过。VFX/资产 Editor 审计受同一环境门阻塞。
+- 2026-08-25 组合适配 `origin/main@07b7b3ed` 后，最终源码完成 FullRebuild 96/96，Build ID `55116800`、source fingerprint `91558a68beac`；Plan95 与 Plan96 重叠的精选预构建包由该最终组合源码统一刷新。
+- `Run-Automation.cmd -Filter ReEcho.Presentation.VFX` 再次在测试发现前被 LinuxArm64/VisionOS SDK `MainVersion` 阻断并返回 1；新增纯函数测试已通过 UHT/UBT 编译，但没有运行时自动化通过证据。
 
 ### 剩余风险
 
 - 资源名称给出预期语义，但实际 Niagara 朝向、空间、循环、中心、大小和 Renderer 层级必须由 Editor/PIE 验证，不能仅凭文件名确认。
 - Plan95 与本 Plan 可能并行刷新相同预构建包；实现进入 main 前必须以最新远端候选重建，不能语义合并二进制。
 - UnrealEditor-Cmd 和 GUI NoCompile 均在执行 Python 前被本机 LinuxArm64/VisionOS SDK `MainVersion` 校验阻断，Niagara Editor 加载/编译、Simulation Space、Bounds 和 Renderer 尚未验证；当前依赖证据来自保守包内引用闭包，不冒充 Editor 审计通过。
+- `NS_Goat_Skill04_Lighting` 的二进制字符串审计没有发现可确认的 `User.StartPosition/EndPosition` 契约。运行时已经在激活前写入世界起止点、长度和宽度，但必须在 Editor 中确认或补接同名 Niagara User 参数，视觉长度才可验收。
 
 ### 人工验收结果/请求
 
