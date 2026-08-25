@@ -35,7 +35,8 @@ namespace ReEchoSpawnCapacity
 REECHO_API int32 CalculateReservationCount(int32 ActiveUnitLimit,
                                            int32 LivingCount,
                                            int32 ReservedCount,
-                                           int32 RequestedCount);
+                                           int32 RequestedCount,
+                                           bool bCountsTowardUnitLimit = true);
 }
 
 /** One typed, deterministic role batch emitted by the encounter clock. */

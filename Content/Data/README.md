@@ -84,7 +84,7 @@
 | `Stages` | `Content/Data/stages.csv` | 逻辑阶段、遭遇范围和跨场清理策略 |
 | `Encounters` | `Content/Data/encounters.csv` | 八场结束条件、双锚比例、并发和单位上限 |
 | `EncounterWaves` | `Content/Data/encounter_waves.csv` | 0/10/20 秒波次及 Boss 生成 |
-| `SpawnProfiles` | `Content/Data/spawn_profiles.csv` | 类型敌人 ID、距离环、间距和预警 |
+| `SpawnProfiles` | `Content/Data/spawn_profiles.csv` | 普通怪、Boss 的类型 ID、距离环、间距和预警 |
 | `SpawnPolicy` | `Content/Data/spawn_policy.csv` | 玩家/回响安全距离、预测和边界策略 |
 
 自动化 fixture 目录：`Content/Data/TestFixtures/CsvRuntime/`

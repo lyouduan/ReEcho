@@ -58,7 +58,9 @@ private:
 	FReEchoEnemyActionIntent AdvanceIdleWander(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
-	const FReEchoEnemyAbilityDefinition* GetSpecialAbility() const;
+	bool BuildSpecialRuntime();
+	const FReEchoEnemyAbilityDefinition* GetNextSpecialAbility() const;
+	const FReEchoEnemyAbilityDefinition* FindSpecialAbility(FName AbilityId) const;
 	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
 	                          float FixedDeltaSeconds,
 	                          FReEchoEnemyActionIntent& InOutIntent);
@@ -105,6 +107,7 @@ private:
 
 	FReEchoEnemyDefinition Definition;
 	FReEchoEnemyLogicSnapshot State;
+	TArray<int32> SpecialActiveAbilityIndices;
 	TArray<int32> BossActiveAbilityIndices;
 	TArray<int32> BossPhaseIndices;
 	int32 BossCleanseAbilityIndex = INDEX_NONE;

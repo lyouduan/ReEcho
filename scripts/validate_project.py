@@ -1663,7 +1663,7 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     validate_boss_encounter_waves(waves_by_encounter["Encounter.8"], entries["EncounterWaves"])
 
     enabled_profiles = {row["EnemyRole"]: row for row in profiles if row["Enabled"] == "true"}
-    expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement"}
+    expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement", "Boss"}
     if set(enabled_profiles) != expected_roles:
         fail(f"{rel(entries['SpawnProfiles'])}: enabled roles must be {sorted(expected_roles)}")
     for role, row in enabled_profiles.items():
@@ -1675,6 +1675,9 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         expected_spacing = "UseEnemyRole" if role == "BossReinforcement" else "Explicit"
         if row["SpacingPolicy"] != expected_spacing:
             fail(f"{rel(entries['SpawnProfiles'])}:{line}:SpacingPolicy: expected {expected_spacing} for {role}")
+    if enabled_profiles["Boss"]["EnemyId"] != "M_SHEEP":
+        row = enabled_profiles["Boss"]
+        fail(f"{rel(entries['SpawnProfiles'])}:{row['__line__']}:EnemyId: Boss profile must spawn M_SHEEP")
 
     enabled_policies = [row for row in policies if row["Enabled"] == "true"]
     if len(enabled_policies) != 1 or enabled_policies[0]["Id"] != "SpawnPolicy.Default":

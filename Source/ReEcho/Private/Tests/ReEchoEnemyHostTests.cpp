@@ -251,6 +251,21 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		AddError(CompileError);
 		return false;
 	}
+	const FReEchoEnemyAbilityDefinition* MovingVolley = RabbitDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_RABBIT_MovingVolley");
+	    });
+	if (!TestNotNull(TEXT("Production rabbit keeps the moving-volley ability"), MovingVolley))
+	{
+		return false;
+	}
+	const int32 MovingVolleyCount = FMath::Max(1, MovingVolley->ProjectileCount);
+	const float MovingBallRadius =
+	    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(MovingVolley->RadiusCm, MovingVolleyCount);
+	const float MovingProjectileSpeed = MovingVolley->ProjectileSpeedCmPerSecond > 0.0f
+	                                        ? MovingVolley->ProjectileSpeedCmPerSecond
+	                                        : MovingVolley->MaxRangeCm / MovingVolley->CooldownSeconds;
 
 	AReEchoPlayerPawn* Player =
 	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
@@ -299,25 +314,24 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const float AuthoritativeBallRadius = SpawnedState.BossProjectiles[0].CollisionRadiusCm;
-	const float AuthoritativeBallSpeed = SpawnedState.BossProjectiles[0].Definition.SpeedCmPerSecond;
 	for (int32 BallIndex = 0; BallIndex < SpawnedState.BossProjectiles.Num(); ++BallIndex)
 	{
 		const FReEchoEnemyProjectileRuntimeState& Ball = SpawnedState.BossProjectiles[BallIndex];
 		TestEqual(TEXT("Rabbit ball keeps the authored damage"), Ball.Damage, 1.0f);
-		TestEqual(TEXT("Every rabbit ball uses the same data-driven collider radius"),
+		TestEqual(TEXT("Rabbit volley radius is divided into one collider per ball"),
 		          Ball.CollisionRadiusCm,
-		          AuthoritativeBallRadius);
+		          MovingBallRadius);
 		TestEqual(TEXT("Rabbit ball stores its stable volley index"), Ball.VolleyBallIndex, BallIndex);
 		TestEqual(TEXT("Every rabbit ball uses the same resolved data-driven speed"),
 		          Ball.Definition.SpeedCmPerSecond,
-		          AuthoritativeBallSpeed);
+		          MovingProjectileSpeed);
 		TestTrue(TEXT("Resolved rabbit ball speed is positive"), Ball.Definition.SpeedCmPerSecond > 0.0f);
 		TestTrue(TEXT("Rabbit ball starts active"), Ball.Snapshot.bActive);
 		TestFalse(TEXT("Rabbit ball starts without a consumed collision"), Ball.bCollisionConsumed);
 		TestTrue(TEXT("Rabbit ball uses the authoritative fan direction"),
 		         Ball.Definition.Direction.Equals(
-		             ReEchoRabbitProjectilePattern::ResolveVolleyDirection(FVector::ForwardVector, 40.0f, BallIndex, 3),
+		             ReEchoRabbitProjectilePattern::ResolveVolleyDirection(
+		                 FVector::ForwardVector, MovingVolley->SpreadAngleDegrees, BallIndex, MovingVolleyCount),
 		             0.001f));
 	}
 	const TArray<FReEchoEnemyProjectileEvent>& SpawnEvents =
@@ -337,7 +351,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		}
 		TestEqual(TEXT("Each presentation event carries the authoritative collider radius"),
 		          Event.CollisionRadiusCm,
-		          AuthoritativeBallRadius);
+		          MovingBallRadius);
 	}
 	TestEqual(TEXT("Host publishes one presentation spawn per authoritative ball"),
 	          SpawnEventCount,
@@ -472,6 +486,74 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		TestEqual(
 		    TEXT("Ended volley leaves no projectile visual proxies"), RabbitVfx->GetProjectileVisualCountForTests(), 0);
 	}
+
+	FReEchoEnemyLogicSnapshot StationaryWindup = Rabbit->GetEnemyLogicComponent()->GetSnapshot();
+	StationaryWindup.Phase = EReEchoEnemyBehaviorPhase::Attacking;
+	StationaryWindup.AttackCooldownRemainingSeconds = 0.0f;
+	StationaryWindup.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Windup;
+	StationaryWindup.SpecialAbilityId = TEXT("M_RABBIT_RangedBurst");
+	StationaryWindup.SpecialActionRemainingSeconds = 0.0f;
+	StationaryWindup.SpecialLockedTargetLocation = FVector(600.0f, 0.0f, ProjectileGameplayZ);
+	StationaryWindup.SpecialLockedDirection = FVector::ForwardVector;
+	Rabbit->GetEnemyLogicComponent()->RestoreSnapshot(StationaryWindup);
+	Sense.TargetLocation = FVector(600.0f, 0.0f, ProjectileGameplayZ);
+	Player->SetActorLocation(FVector(0.0f, 1000.0f, ProjectileGameplayZ));
+	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
+	const FReEchoEnemyActionIntent StationaryCommit = Rabbit->AdvanceBehaviorForTests(Sense, 0.0f);
+	TestTrue(TEXT("Stationary rabbit burst commits from its restored active ability"),
+	         StationaryCommit.bAttackCommitted);
+
+	const FReEchoEnemyRuntimeState StationaryStart = Rabbit->CaptureRuntimeState();
+	if (!TestEqual(
+	        TEXT("Stationary burst queues all four authoritative balls"), StationaryStart.BossProjectiles.Num(), 4))
+	{
+		return false;
+	}
+	int32 PublishedAtCommit = 0;
+	for (const FReEchoEnemyProjectileRuntimeState& Ball : StationaryStart.BossProjectiles)
+	{
+		PublishedAtCommit += Ball.bSpawnEventPublished ? 1 : 0;
+		TestTrue(TEXT("Stationary burst balls share one locked direction"),
+		         Ball.Definition.Direction.Equals(FVector::ForwardVector, KINDA_SMALL_NUMBER));
+	}
+	TestEqual(TEXT("Only the first stationary shot enters the world at commit"), PublishedAtCommit, 1);
+
+	Rabbit->AdvanceEnemyProjectilesForTests(0.04f);
+	const FReEchoEnemyRuntimeState MidBurst = Rabbit->CaptureRuntimeState();
+	int32 PublishedAfterFirstInterval = 0;
+	for (const FReEchoEnemyProjectileRuntimeState& Ball : MidBurst.BossProjectiles)
+	{
+		PublishedAfterFirstInterval += Ball.bSpawnEventPublished ? 1 : 0;
+	}
+	TestEqual(TEXT("One interval later exactly two stationary shots have spawned"), PublishedAfterFirstInterval, 2);
+	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
+	Rabbit->RestoreRuntimeState(MidBurst);
+	int32 RestoredSpawnEvents = 0;
+	for (const FReEchoEnemyProjectileEvent& Event :
+	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())
+	{
+		RestoredSpawnEvents += Event.Type == EReEchoEnemyProjectileEventType::Spawned ? 1 : 0;
+	}
+	TestEqual(TEXT("Restore republishes only shots that had already entered the world"), RestoredSpawnEvents, 2);
+
+	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
+	Rabbit->AdvanceEnemyProjectilesForTests(0.03f);
+	int32 ThirdShotEvents = 0;
+	for (const FReEchoEnemyProjectileEvent& Event :
+	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())
+	{
+		ThirdShotEvents += Event.Type == EReEchoEnemyProjectileEventType::Spawned ? 1 : 0;
+	}
+	TestEqual(TEXT("The third stationary shot spawns after its remaining delay"), ThirdShotEvents, 1);
+	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
+	Rabbit->AdvanceEnemyProjectilesForTests(0.04f);
+	int32 FourthShotEvents = 0;
+	for (const FReEchoEnemyProjectileEvent& Event :
+	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())
+	{
+		FourthShotEvents += Event.Type == EReEchoEnemyProjectileEventType::Spawned ? 1 : 0;
+	}
+	TestEqual(TEXT("The fourth stationary shot spawns last instead of overlapping at commit"), FourthShotEvents, 1);
 	return true;
 }
 
