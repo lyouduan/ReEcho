@@ -17,13 +17,40 @@ const TCHAR* AReEchoDamageNumberActor::GetDamageNumberMaterialPath()
 	return TEXT("/Game/ReEcho/Fonts/DamageNumbers/M_DamageNumberTextOpacity.M_DamageNumberTextOpacity");
 }
 
+const TCHAR* AReEchoDamageNumberActor::GetDamageNumberBlueprintClassPath()
+{
+	return TEXT("/Game/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber.BP_ReEchoDamageNumber_C");
+}
+
 float AReEchoDamageNumberActor::CalculateOpacity(const float ElapsedSeconds, const float DurationSeconds)
+{
+	return CalculateOpacityProfile(ElapsedSeconds, DurationSeconds, 0.0f, 1.0f);
+}
+
+float AReEchoDamageNumberActor::CalculateOpacityProfile(const float ElapsedSeconds,
+                                                        const float DurationSeconds,
+                                                        const float FadeStartTimeSeconds,
+                                                        const float FadeCurveExponent)
 {
 	if (DurationSeconds <= 0.0f)
 	{
 		return 0.0f;
 	}
-	return 1.0f - FMath::Clamp(ElapsedSeconds / DurationSeconds, 0.0f, 1.0f);
+
+	const float ClampedFadeStart = FMath::Clamp(FadeStartTimeSeconds, 0.0f, DurationSeconds);
+	if (ElapsedSeconds <= ClampedFadeStart)
+	{
+		return 1.0f;
+	}
+
+	const float FadeDuration = DurationSeconds - ClampedFadeStart;
+	if (FadeDuration <= UE_SMALL_NUMBER)
+	{
+		return ElapsedSeconds < DurationSeconds ? 1.0f : 0.0f;
+	}
+
+	const float FadeProgress = FMath::Clamp((ElapsedSeconds - ClampedFadeStart) / FadeDuration, 0.0f, 1.0f);
+	return 1.0f - FMath::Pow(FadeProgress, FMath::Max(0.05f, FadeCurveExponent));
 }
 
 AReEchoDamageNumberActor::AReEchoDamageNumberActor()
@@ -62,8 +89,15 @@ void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
 		return;
 	}
 
-	AReEchoDamageNumberActor* DamageNumber =
-	    World->SpawnActor<AReEchoDamageNumberActor>(WorldLocation + FVector(0.0f, 0.0f, 95.0f), FRotator::ZeroRotator);
+	UClass* DamageNumberClass =
+	    LoadClass<AReEchoDamageNumberActor>(nullptr, GetDamageNumberBlueprintClassPath());
+	if (!DamageNumberClass)
+	{
+		DamageNumberClass = StaticClass();
+	}
+
+	AReEchoDamageNumberActor* DamageNumber = World->SpawnActor<AReEchoDamageNumberActor>(
+	    DamageNumberClass, WorldLocation + FVector(0.0f, 0.0f, 95.0f), FRotator::ZeroRotator);
 	if (DamageNumber)
 	{
 		DamageNumber->InitializeDamage(Damage, Color);
@@ -83,7 +117,7 @@ void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	ElapsedTime += DeltaSeconds;
-	AddActorWorldOffset(FVector(0.0f, 0.0f, 70.0f * DeltaSeconds));
+	AddActorWorldOffset(FVector(0.0f, 0.0f, FloatSpeed * DeltaSeconds));
 
 	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
 	{
@@ -91,11 +125,12 @@ void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
 		SetActorRotation((-Camera->GetCameraRotation().Vector()).Rotation());
 	}
 
-	const float Alpha = CalculateOpacity(ElapsedTime, DisplayDuration);
+	const float Alpha = CalculateOpacityProfile(ElapsedTime, DisplayDuration, FadeStartTime, FadeCurveExponent);
 	FLinearColor FadedColor = InitialColor;
 	FadedColor.A = InitialColor.A * Alpha;
 	Text->SetTextRenderColor(FadedColor.ToFColor(false));
-	SetActorScale3D(FVector(FMath::Lerp(1.15f, 0.85f, 1.0f - Alpha)));
+	const float LifeProgress = DisplayDuration > 0.0f ? FMath::Clamp(ElapsedTime / DisplayDuration, 0.0f, 1.0f) : 1.0f;
+	SetActorScale3D(FVector(FMath::Lerp(StartScale, EndScale, LifeProgress)));
 
 	if (ElapsedTime >= DisplayDuration)
 	{

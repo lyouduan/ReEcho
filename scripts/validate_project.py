@@ -2273,6 +2273,7 @@ def validate_build_dependencies() -> None:
     for runtime_ui_directory in (
         "/Game/ReEcho/Textures/UI/Cards",
         "/Game/ReEcho/Textures/UI/WeaponParts/Icons",
+        "/Game/ReEcho/UI/CombatHud",
     ):
         if f'+DirectoriesToAlwaysCook=(Path="{runtime_ui_directory}")' not in default_game:
             fail(

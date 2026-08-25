@@ -35,6 +35,15 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Damage number safely hides for an invalid lifetime"),
 	          AReEchoDamageNumberActor::CalculateOpacity(0.0f, 0.0f),
 	          0.0f);
+	TestEqual(TEXT("Damage number remains opaque before its authored fade start"),
+	          AReEchoDamageNumberActor::CalculateOpacityProfile(0.2f, 1.0f, 0.4f, 1.0f),
+	          1.0f);
+	TestEqual(TEXT("Damage number honors an authored linear fade start"),
+	          AReEchoDamageNumberActor::CalculateOpacityProfile(0.7f, 1.0f, 0.4f, 1.0f),
+	          0.5f);
+	TestEqual(TEXT("Damage number honors an authored fade exponent"),
+	          AReEchoDamageNumberActor::CalculateOpacityProfile(0.5f, 1.0f, 0.0f, 2.0f),
+	          0.75f);
 	UMaterialInterface* DamageNumberMaterial =
 	    LoadObject<UMaterialInterface>(nullptr, AReEchoDamageNumberActor::GetDamageNumberMaterialPath());
 	TestNotNull(TEXT("Damage-number translucent material loads"), DamageNumberMaterial);
@@ -70,6 +79,14 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 		          DamageNumberFont->FontCacheType,
 		          EFontCacheType::Offline);
 		TestTrue(TEXT("Damage-number font contains a baked glyph texture"), !DamageNumberFont->Textures.IsEmpty());
+	}
+	UClass* DamageNumberBlueprintClass =
+	    LoadClass<AReEchoDamageNumberActor>(nullptr, AReEchoDamageNumberActor::GetDamageNumberBlueprintClassPath());
+	TestNotNull(TEXT("Damage-number animation settings Blueprint loads"), DamageNumberBlueprintClass);
+	if (DamageNumberBlueprintClass)
+	{
+		TestTrue(TEXT("Damage-number Blueprint derives from the native actor"),
+		         DamageNumberBlueprintClass->IsChildOf(AReEchoDamageNumberActor::StaticClass()));
 	}
 
 	TestEqual(TEXT("Encounter label follows the visual spec"),
