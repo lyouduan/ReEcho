@@ -217,7 +217,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；`SetEncounterSimulationSuspended` 在同 Stage 局间冻结原 Host，并在进入下一 Encounter 前恢复。Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
 - Plan68 接线：GameMode 用当前 `EncounterIndex` 编译每个出生 Enemy Definition；Host 注入表驱动 `HateRangeCm`、当前生命比率和特殊行动许可。`M_SHEEP` 的第一次致命伤由 Combat 窄委托转为 Phase2 变身事件，完成后把生命上限和当前生命切到 650；普通怪未战斗时的 IdleWander 仍由 EnemyLogic 独占状态。
 - 群体移动：EnemyLogic 的追踪/攻击意图保持权威；主模块 `FReEchoEnemyCrowdSteering` 在 Host 应用 Transform 前，根据 SpawnIndex 稳定攻击槽位、Roster 邻居 Separation、切向绕行和短时受阻恢复修正普通追踪位移。普通敌人之间互相加入 MoveIgnore，避免 Pawn Sweep 形成静止队列；玩家、场景与 Boss 仍保持硬碰撞，击退和特殊动作不进入普通 Crowd 修正。
-- 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素和 Boss 在途投射物；EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
+- 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素，以及通用敌方已生成/已提交待生成投射物；待生成直线连发球保存剩余延迟和 Spawned 发布状态，旧存档条目默认视为已生成。EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
 - 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
 - 测试：`ReEcho.Enemies.*`、`ReEcho.StageTransition.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
 

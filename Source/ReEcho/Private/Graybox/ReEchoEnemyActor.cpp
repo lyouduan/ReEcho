@@ -479,8 +479,13 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 		if (FReEchoEnemyProjectileLogic::RestoreSnapshot(
 		        SavedProjectile.Definition, SavedProjectile.Snapshot, RestoredProjectile.Snapshot))
 		{
+			RestoredProjectile.SpawnDelayRemainingSeconds =
+			    FMath::Max(0.0f, RestoredProjectile.SpawnDelayRemainingSeconds);
 			BossProjectiles.Add(MoveTemp(RestoredProjectile));
-			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+			if (BossProjectiles.Last().bSpawnEventPublished)
+			{
+				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+			}
 		}
 	}
 }
@@ -508,7 +513,10 @@ void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
 		}
 		for (const FReEchoEnemyProjectileRuntimeState& Projectile : BossProjectiles)
 		{
-			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+			if (Projectile.bSpawnEventPublished)
+			{
+				PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+			}
 		}
 		BossProjectiles.Reset();
 	}
@@ -642,11 +650,30 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 		}
 	}
 	IReEchoCombatTarget* Target = TargetActor ? Cast<IReEchoCombatTarget>(TargetActor) : nullptr;
-	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
+	for (int32 ProjectileIndex = 0; ProjectileIndex < BossProjectiles.Num();)
 	{
 		FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
+		float ProjectileDeltaSeconds = FMath::Max(0.0f, DeltaSeconds);
+		if (!Projectile.bSpawnEventPublished)
+		{
+			Projectile.SpawnDelayRemainingSeconds -= ProjectileDeltaSeconds;
+			if (Projectile.SpawnDelayRemainingSeconds > 0.0f)
+			{
+				++ProjectileIndex;
+				continue;
+			}
+			ProjectileDeltaSeconds = FMath::Max(0.0f, -Projectile.SpawnDelayRemainingSeconds);
+			Projectile.SpawnDelayRemainingSeconds = 0.0f;
+			Projectile.bSpawnEventPublished = true;
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, Projectile);
+		}
+		if (ProjectileDeltaSeconds <= 0.0f)
+		{
+			++ProjectileIndex;
+			continue;
+		}
 		const FReEchoEnemyProjectileAdvanceResult AdvanceResult =
-		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, DeltaSeconds, Projectile.Snapshot);
+		    FReEchoEnemyProjectileLogic::Advance(Projectile.Definition, ProjectileDeltaSeconds, Projectile.Snapshot);
 		if (AdvanceResult.bMoved)
 		{
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Moved, Projectile);
@@ -667,8 +694,10 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 		if (bHitTarget || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
-			BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
+			BossProjectiles.RemoveAt(ProjectileIndex, 1, EAllowShrinking::No);
+			continue;
 		}
+		++ProjectileIndex;
 	}
 }
 
@@ -1182,6 +1211,10 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 			    Ability->CooldownSeconds > KINDA_SMALL_NUMBER ? Ability->MaxRangeCm / Ability->CooldownSeconds : 0.0f;
 			const int32 VolleyCount = FMath::Max(1, Ability->ProjectileCount);
 			const float VolleySpreadDegrees = Ability->SpreadAngleDegrees;
+			const bool bSequentialStraightVolley =
+			    VolleyCount > 1 && FMath::IsNearlyZero(VolleySpreadDegrees) && Ability->ActiveSeconds > 0.0f;
+			const float ShotIntervalSeconds =
+			    bSequentialStraightVolley ? Ability->ActiveSeconds / static_cast<float>(VolleyCount - 1) : 0.0f;
 			for (int32 BallIndex = 0; BallIndex < VolleyCount; ++BallIndex)
 			{
 				FReEchoEnemyProjectileRuntimeState Projectile;
@@ -1197,10 +1230,15 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 				Projectile.CollisionRadiusCm =
 				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm, VolleyCount);
 				Projectile.VolleyBallIndex = BallIndex;
+				Projectile.SpawnDelayRemainingSeconds = ShotIntervalSeconds * BallIndex;
+				Projectile.bSpawnEventPublished = !bSequentialStraightVolley || BallIndex == 0;
 				if (FReEchoEnemyProjectileLogic::Initialize(Projectile.Definition, Projectile.Snapshot))
 				{
 					BossProjectiles.Add(MoveTemp(Projectile));
-					PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+					if (BossProjectiles.Last().bSpawnEventPublished)
+					{
+						PublishProjectileEvent(EReEchoEnemyProjectileEventType::Spawned, BossProjectiles.Last());
+					}
 				}
 			}
 		}
@@ -1305,9 +1343,9 @@ void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEvent
 	FReEchoEnemyProjectileEvent Event;
 	Event.Type = Type;
 	Event.Attack = Projectile.Attack;
-	Event.AbilityId = EnemyId == TEXT("M_RABBIT")
-	                      ? FName(TEXT("M_RABBIT_RangedBurst"))
-	                      : EnemyId == TEXT("M_SHEEP") ? FName(TEXT("M_SHEEP_Projectile")) : NAME_None;
+	Event.AbilityId = EnemyId == TEXT("M_RABBIT")  ? FName(TEXT("M_RABBIT_RangedBurst"))
+	                  : EnemyId == TEXT("M_SHEEP") ? FName(TEXT("M_SHEEP_Projectile"))
+	                                               : NAME_None;
 	Event.Location = Projectile.Snapshot.Location;
 	Event.Direction = Projectile.Snapshot.Direction;
 	Event.VolleyBallIndex = Projectile.VolleyBallIndex;

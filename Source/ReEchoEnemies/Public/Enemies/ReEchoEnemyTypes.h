@@ -651,6 +651,10 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector SpecialLockedDirection = FVector::ForwardVector;
 
+	/** Index of the next enabled non-Boss special ability in deterministic SequenceOrder. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 SpecialNextSequenceIndex = 0;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoBossActionPhase BossActionPhase = EReEchoBossActionPhase::None;
 
