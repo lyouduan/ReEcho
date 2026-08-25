@@ -24,6 +24,7 @@ class UReEchoRunSubsystem;
 
 DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
+DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopCardPackRequested, int32);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponEquipRequested, FName);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
@@ -60,6 +61,7 @@ public:
 	FReEchoInventoryShopClosed OnClosed;
 
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
+	FReEchoShopCardPackRequested OnCardPackRequested;
 	FReEchoWeaponEquipRequested OnWeaponEquipRequested;
 	FReEchoShopRefreshRequested OnRefreshRequested;
 
@@ -159,6 +161,7 @@ private:
 	bool HasEchoStorageCard() const;
 	void
 	AddTargetOfferCard(class UHorizontalBox* Row, const FReEchoShopOffer& Offer, int32 OfferIndex, bool bWeaponPart);
+	void AddTargetCardPack(class UHorizontalBox* Row, const FReEchoShopCardPackOffer& Pack, int32 PackIndex);
 	void Refresh();
 	void RequestPurchase(int32 OfferIndex);
 	bool IsPartEquipped(FName PartId) const;
@@ -168,6 +171,8 @@ private:
 
 	UFUNCTION()
 	void HandleOfferClicked(int32 OfferIndex);
+	UFUNCTION()
+	void HandleCardPackClicked(int32 PackIndex);
 
 	UFUNCTION()
 	void HandleRefreshClicked();
@@ -282,6 +287,10 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> OfferTexts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoIndexedButton>> CardPackButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> CardPackTexts;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ShopRefreshButton;

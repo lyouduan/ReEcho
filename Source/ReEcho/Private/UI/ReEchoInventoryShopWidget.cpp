@@ -24,6 +24,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UI/ReEchoIndexedButton.h"
+#include "UI/Framework/ReEchoUIInteractionAudit.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 
 namespace
@@ -472,7 +473,8 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 			VisibleRunItemOffers.Add(Offer);
 		}
 	}
-	if (VisibleRunItemOffers.IsEmpty() && CurrentPartShopView.Offers.IsEmpty())
+	if (VisibleRunItemOffers.IsEmpty() && CurrentPartShopView.Offers.IsEmpty() &&
+	    CurrentPartShopView.CardPackOffers.IsEmpty())
 	{
 		VisibleRunItemOffers = GetReEchoShopCatalog();
 	}
@@ -482,8 +484,40 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("RunItemOfferPanel"));
 		ShopLogicPanel->AddChildToVerticalBox(RunItemOfferPanel);
 		UTextBlock* Title = CreateText(WidgetTree, TEXT("RunItemOfferTitle"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
-		Title->SetText(NSLOCTEXT("ReEcho", "RunItemOfferTitle", "商品"));
+		Title->SetText(NSLOCTEXT("ReEcho", "RunItemOfferTitle", "卡牌组"));
 		RunItemOfferPanel->AddChildToVerticalBox(Title);
+	}
+	if (CardPackButtons.Num() != CurrentPartShopView.CardPackOffers.Num())
+	{
+		for (UReEchoIndexedButton* Button : CardPackButtons)
+		{
+			if (Button)
+			{
+				Button->RemoveFromParent();
+			}
+		}
+		CardPackButtons.Reset();
+		CardPackTexts.Reset();
+	}
+	for (int32 PackIndex = 0; PackIndex < CurrentPartShopView.CardPackOffers.Num(); ++PackIndex)
+	{
+		if (CardPackButtons.IsValidIndex(PackIndex))
+		{
+			continue;
+		}
+		UReEchoIndexedButton* PackButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("ShopCardPack%d"), PackIndex));
+		PackButton->SetEntryIndex(PackIndex);
+		PackButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleCardPackClicked);
+		PackButton->SetBackgroundColor(FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
+		UVerticalBoxSlot* PackSlot = RunItemOfferPanel->AddChildToVerticalBox(PackButton);
+		PackSlot->SetPadding(FMargin(8.0f, 6.0f));
+		UTextBlock* PackText = CreateText(
+		    WidgetTree, *FString::Printf(TEXT("ShopCardPackText%d"), PackIndex), 20, FLinearColor(0.9f, 0.82f, 0.66f));
+		PackText->SetJustification(ETextJustify::Center);
+		PackButton->SetContent(PackText);
+		CardPackButtons.Add(PackButton);
+		CardPackTexts.Add(PackText);
 	}
 
 	if (OfferButtons.Num() != VisibleRunItemOffers.Num())
@@ -1142,6 +1176,73 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	BuySlot->SetSize(FVector2D(156.0f, 44.0f));
 }
 
+void UReEchoInventoryShopWidget::AddTargetCardPack(UHorizontalBox* Row,
+                                                   const FReEchoShopCardPackOffer& Pack,
+                                                   const int32 PackIndex)
+{
+	if (!Row)
+	{
+		return;
+	}
+	USizeBox* CardSize = WidgetTree->ConstructWidget<USizeBox>(
+	    USizeBox::StaticClass(), *FString::Printf(TEXT("TargetCardPackSize%d"), PackIndex));
+	CardSize->SetWidthOverride(200.0f);
+	CardSize->SetHeightOverride(292.0f);
+	UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(CardSize);
+	RowSlot->SetPadding(FMargin(4.0f, 0.0f, 25.0f, 0.0f));
+
+	UCanvasPanel* Card = WidgetTree->ConstructWidget<UCanvasPanel>(
+	    UCanvasPanel::StaticClass(), *FString::Printf(TEXT("TargetCardPack%d"), PackIndex));
+	CardSize->SetContent(Card);
+	UImage* Base = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
+	                                                   *FString::Printf(TEXT("TargetCardPackBase%d"), PackIndex));
+	Base->SetBrushFromTexture(ShopItemCardTexture, true);
+	Base->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* BaseSlot = Card->AddChildToCanvas(Base);
+	BaseSlot->SetPosition(FVector2D::ZeroVector);
+	BaseSlot->SetSize(FVector2D(200.0f, 292.0f));
+
+	// Intentionally no card icon: this is a tier pack entrance. A future authored pack image can occupy this area.
+	UTextBlock* TierText = CreateText(
+	    WidgetTree, *FString::Printf(TEXT("TargetCardPackTier%d"), PackIndex), 34, FLinearColor(0.08f, 0.08f, 0.08f));
+	TierText->SetText(Pack.DisplayName);
+	TierText->SetJustification(ETextJustify::Center);
+	UCanvasPanelSlot* TierSlot = Card->AddChildToCanvas(TierText);
+	TierSlot->SetPosition(FVector2D(20.0f, 66.0f));
+	TierSlot->SetSize(FVector2D(160.0f, 58.0f));
+
+	UTextBlock* RemainingText = CreateText(WidgetTree,
+	                                       *FString::Printf(TEXT("TargetCardPackRemaining%d"), PackIndex),
+	                                       17,
+	                                       FLinearColor(0.12f, 0.12f, 0.12f));
+	RemainingText->SetText(Pack.Status == EReEchoShopCardPackStatus::Available
+	                           ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackRemaining", "剩余候选 {0}"),
+	                                           FText::AsNumber(Pack.Choices.Num()))
+	                           : Pack.StatusText);
+	RemainingText->SetJustification(ETextJustify::Center);
+	UCanvasPanelSlot* RemainingSlot = Card->AddChildToCanvas(RemainingText);
+	RemainingSlot->SetPosition(FVector2D(14.0f, 160.0f));
+	RemainingSlot->SetSize(FVector2D(172.0f, 44.0f));
+
+	UReEchoIndexedButton* Button = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+	    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TargetCardPackButton%d"), PackIndex));
+	Button->SetEntryIndex(PackIndex);
+	Button->SetBackgroundColor(Pack.IsAvailable() ? FLinearColor(0.95f, 0.78f, 0.34f, 1.0f)
+	                                              : FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
+	Button->SetIsEnabled(Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed);
+	Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleCardPackClicked);
+	UTextBlock* ButtonText = CreateText(WidgetTree,
+	                                    *FString::Printf(TEXT("TargetCardPackButtonText%d"), PackIndex),
+	                                    18,
+	                                    FLinearColor(0.03f, 0.03f, 0.03f));
+	ButtonText->SetText(Pack.IsAvailable() ? NSLOCTEXT("ReEcho", "ShopCardPackChoose", "选择") : Pack.StatusText);
+	ButtonText->SetJustification(ETextJustify::Center);
+	Button->SetContent(ButtonText);
+	UCanvasPanelSlot* ButtonSlot = Card->AddChildToCanvas(Button);
+	ButtonSlot->SetPosition(FVector2D(22.0f, 242.0f));
+	ButtonSlot->SetSize(FVector2D(156.0f, 44.0f));
+}
+
 void UReEchoInventoryShopWidget::RebuildTargetOfferRows()
 {
 	if (!TargetPartOfferRow || !TargetCardOfferRow)
@@ -1154,9 +1255,9 @@ void UReEchoInventoryShopWidget::RebuildTargetOfferRows()
 	{
 		AddTargetOfferCard(TargetPartOfferRow, VisibleWeaponPartOffers[Index], Index, true);
 	}
-	for (int32 Index = 0; Index < VisibleRunItemOffers.Num(); ++Index)
+	for (int32 Index = 0; Index < CurrentPartShopView.CardPackOffers.Num(); ++Index)
 	{
-		AddTargetOfferCard(TargetCardOfferRow, VisibleRunItemOffers[Index], Index, false);
+		AddTargetCardPack(TargetCardOfferRow, CurrentPartShopView.CardPackOffers[Index], Index);
 	}
 }
 
@@ -1975,6 +2076,17 @@ void UReEchoInventoryShopWidget::Refresh()
 			return;
 		}
 	}
+	for (int32 PackIndex = 0; PackIndex < CurrentPartShopView.CardPackOffers.Num(); ++PackIndex)
+	{
+		if (!CardPackButtons.IsValidIndex(PackIndex) || !CardPackTexts.IsValidIndex(PackIndex))
+		{
+			continue;
+		}
+		const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[PackIndex];
+		CardPackButtons[PackIndex]->SetIsEnabled(Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed);
+		CardPackTexts[PackIndex]->SetText(FText::Format(
+		    NSLOCTEXT("ReEcho", "ShopCardPackLogicFormat", "{0}卡组\n{1}"), Pack.DisplayName, Pack.StatusText));
+	}
 
 	InventoryPanel->SetVisibility(bShowingShop ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	ShopPanel->SetVisibility(bShowingShop ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
@@ -2133,6 +2245,39 @@ void UReEchoInventoryShopWidget::HandleCloseClicked()
 void UReEchoInventoryShopWidget::HandleOfferClicked(const int32 OfferIndex)
 {
 	RequestPurchase(OfferIndex);
+}
+
+void UReEchoInventoryShopWidget::HandleCardPackClicked(const int32 PackIndex)
+{
+	if (!CurrentPartShopView.CardPackOffers.IsValidIndex(PackIndex))
+	{
+		ReEchoUIInteractionAudit::Write(
+		    TEXT("CARD_PACK_BUTTON_REJECTED"),
+		    FString::Printf(TEXT("screen=InventoryShop packIndex=%d reason=InvalidIndex packCount=%d"),
+		                    PackIndex,
+		                    CurrentPartShopView.CardPackOffers.Num()));
+		return;
+	}
+	const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[PackIndex];
+	ReEchoUIInteractionAudit::Write(
+	    TEXT("CARD_PACK_BUTTON_COMMAND"),
+	    FString::Printf(TEXT("screen=InventoryShop packIndex=%d tier=%d status=%d candidates=%d extraAllowed=%d"),
+	                    PackIndex,
+	                    Pack.Tier,
+	                    static_cast<int32>(Pack.Status),
+	                    Pack.Choices.Num(),
+	                    bCurrentExtraCardPurchaseAllowed ? 1 : 0));
+	if (Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed)
+	{
+		OnCardPackRequested.Broadcast(Pack.Tier);
+		return;
+	}
+	ReEchoUIInteractionAudit::Write(
+	    TEXT("CARD_PACK_BUTTON_REJECTED"),
+	    FString::Printf(TEXT("screen=InventoryShop packIndex=%d tier=%d reason=%s"),
+	                    PackIndex,
+	                    Pack.Tier,
+	                    Pack.IsAvailable() ? TEXT("ExtraCardPurchaseDisabled") : TEXT("PackUnavailable")));
 }
 
 void UReEchoInventoryShopWidget::HandleRefreshClicked()

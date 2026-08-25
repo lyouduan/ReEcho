@@ -14,23 +14,22 @@ void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,
                                             const FText& Kicker,
                                             const FText& DisplayName,
                                             const FText& Description,
-	                                        const TArray<FName>& Tags,
+                                            const TArray<FName>& Tags,
                                             const FLinearColor& CardColor,
                                             UTexture2D* CardArt,
-                                            UTexture2D* CardIcon)
+                                            UTexture2D* CardIcon,
+                                            const FText& SelectHint)
 {
 	EntryIndex = InEntryIndex;
 	if (ArtImage)
 	{
 		ArtImage->SetBrushFromTexture(CardArt);
-		ArtImage->SetVisibility(CardArt ? ESlateVisibility::SelfHitTestInvisible
-		                                : ESlateVisibility::Collapsed);
+		ArtImage->SetVisibility(CardArt ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
 	}
 	if (IconImage)
 	{
 		IconImage->SetBrushFromTexture(CardIcon);
-		IconImage->SetVisibility(CardIcon ? ESlateVisibility::SelfHitTestInvisible
-		                                  : ESlateVisibility::Collapsed);
+		IconImage->SetVisibility(CardIcon ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
 	}
 	SelectButton->SetEntryIndex(EntryIndex);
 	SelectButton->SetBackgroundColor(FLinearColor::White);
@@ -64,9 +63,10 @@ void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,
 		}
 		SecondaryTagText->SetText(FText::FromString(SecondaryTags));
 		SecondaryTagText->SetVisibility(Tags.IsValidIndex(1) ? ESlateVisibility::HitTestInvisible
-		                                                       : ESlateVisibility::Collapsed);
+		                                                     : ESlateVisibility::Collapsed);
 	}
-	SelectHintText->SetText(NSLOCTEXT("ReEcho", "TraitCardSelectHint", "点击选择 · 确认后不可撤回"));
+	SelectHintText->SetText(
+	    SelectHint.IsEmpty() ? NSLOCTEXT("ReEcho", "TraitCardSelectHint", "点击选择 · 确认后不可撤回") : SelectHint);
 }
 
 void UReEchoTraitCardEntryWidget::SetSelectedVisual(const bool bSelected, const bool bHasSelection)

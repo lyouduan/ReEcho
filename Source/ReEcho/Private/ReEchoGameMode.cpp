@@ -55,6 +55,7 @@
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
+#include "UI/Framework/ReEchoUIInteractionAudit.h"
 #include "UI/ReEchoUIManagerSubsystem.h"
 #include "UI/ReEchoWeatherWidget.h"
 #include "UObject/ConstructorHelpers.h"
@@ -69,8 +70,8 @@ AReEchoGameMode::AReEchoGameMode()
 	EchoGameplayClass = EchoPrefab.Succeeded() ? EchoPrefab.Class.Get() : nullptr;
 	static ConstructorHelpers::FClassFinder<AReEchoTimeShardPickupActor> TimeShardPickupPrefab(
 	    TEXT("/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup"));
-	TimeShardPickupClass =
-	    TimeShardPickupPrefab.Succeeded() ? TimeShardPickupPrefab.Class.Get() : AReEchoTimeShardPickupActor::StaticClass();
+	TimeShardPickupClass = TimeShardPickupPrefab.Succeeded() ? TimeShardPickupPrefab.Class.Get()
+	                                                         : AReEchoTimeShardPickupActor::StaticClass();
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
@@ -2282,18 +2283,16 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 	}
 }
 
-AReEchoTimeShardPickupActor* AReEchoGameMode::SpawnTimeShardPickup(const FVector& Location,
-	                                                                const int32 Amount,
-	                                                                const float LifetimeSeconds)
+AReEchoTimeShardPickupActor*
+AReEchoGameMode::SpawnTimeShardPickup(const FVector& Location, const int32 Amount, const float LifetimeSeconds)
 {
 	if (!GetWorld() || Amount <= 0)
 	{
 		return nullptr;
 	}
 	const TSubclassOf<AReEchoTimeShardPickupActor> PickupClass =
-	    TimeShardPickupClass
-	        ? TimeShardPickupClass
-	        : TSubclassOf<AReEchoTimeShardPickupActor>(AReEchoTimeShardPickupActor::StaticClass());
+	    TimeShardPickupClass ? TimeShardPickupClass
+	                         : TSubclassOf<AReEchoTimeShardPickupActor>(AReEchoTimeShardPickupActor::StaticClass());
 	AReEchoTimeShardPickupActor* Pickup =
 	    GetWorld()->SpawnActor<AReEchoTimeShardPickupActor>(PickupClass, Location, FRotator::ZeroRotator);
 	if (Pickup)
@@ -2323,8 +2322,7 @@ void AReEchoGameMode::HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event)
 		return;
 	}
 
-	const int32 DropAmount =
-	    RunSubsystem->ResolveEnemyDeathTimeShardDrop(Enemy->GetEnemyId(), Enemy->GetSpawnIndex());
+	const int32 DropAmount = RunSubsystem->ResolveEnemyDeathTimeShardDrop(Enemy->GetEnemyId(), Enemy->GetSpawnIndex());
 	if (DropAmount <= 0)
 	{
 		return;
@@ -2765,6 +2763,7 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 
 	InventoryShopWidget->OnClosed.AddUObject(this, &AReEchoGameMode::HandleInventoryShopClosed);
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
+	InventoryShopWidget->OnCardPackRequested.AddUObject(this, &AReEchoGameMode::HandleShopCardPackRequested);
 	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
@@ -2813,6 +2812,7 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 		return;
 	}
 	bPauseOpenedOverInventoryShop = false;
+	CloseShopCardChoice(false);
 	PostUiEvent(FReEchoAudioEvents::UiCancel);
 	if (bPostTraitIntermission)
 	{
@@ -2893,6 +2893,137 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		       *PurchaseOutcome.Detail);
 		PostUiEvent(FReEchoAudioEvents::UiError);
 	}
+}
+
+void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	ReEchoUIInteractionAudit::Write(TEXT("CARD_PACK_OPEN_REQUEST"),
+	                                FString::Printf(TEXT("tier=%d run=%d player=%d shop=%d existingTraitChoice=%d"),
+	                                                Tier,
+	                                                RunSubsystem ? 1 : 0,
+	                                                PlayerController ? 1 : 0,
+	                                                InventoryShopWidget ? 1 : 0,
+	                                                TraitCardChoiceWidget ? 1 : 0));
+	if (!RunSubsystem || !PlayerController || !InventoryShopWidget || TraitCardChoiceWidget)
+	{
+		ReEchoUIInteractionAudit::Write(TEXT("CARD_PACK_OPEN_REJECTED"),
+		                                FString::Printf(TEXT("tier=%d reason=InvalidRuntimeState"), Tier));
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+
+	const FReEchoWeaponPartShopView ShopView = RunSubsystem->GetWeaponPartShopView();
+	const FReEchoShopCardPackOffer* Pack = ShopView.CardPackOffers.FindByPredicate(
+	    [Tier](const FReEchoShopCardPackOffer& Candidate)
+	    {
+		    return Candidate.Tier == Tier;
+	    });
+	if (!Pack || !Pack->IsAvailable())
+	{
+		ReEchoUIInteractionAudit::Write(TEXT("CARD_PACK_OPEN_REJECTED"),
+		                                FString::Printf(TEXT("tier=%d reason=%s status=%d candidates=%d"),
+		                                                Tier,
+		                                                Pack ? TEXT("PackUnavailable") : TEXT("PackMissing"),
+		                                                Pack ? static_cast<int32>(Pack->Status) : INDEX_NONE,
+		                                                Pack ? Pack->Choices.Num() : 0));
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+		return;
+	}
+
+	TArray<FReEchoShopCardChoiceOffer> EffectiveChoices = Pack->Choices;
+	for (FReEchoShopCardChoiceOffer& Choice : EffectiveChoices)
+	{
+		Choice.Price = RunSubsystem->GetDiscountedShopPrice(Choice.Price);
+	}
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
+	TraitCardChoiceWidget = UIFlow ? Cast<UReEchoTraitCardChoiceWidget>(
+	                                     UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::TraitChoice, true, true))
+	                               : nullptr;
+	if (!TraitCardChoiceWidget)
+	{
+		ReEchoUIInteractionAudit::Write(TEXT("CARD_PACK_OPEN_REJECTED"),
+		                                FString::Printf(TEXT("tier=%d reason=TraitChoiceScreenCreationFailed"), Tier));
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	ActiveShopCardPackTier = Tier;
+	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, Tier);
+	TraitCardChoiceWidget->OnShopCardSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardSelected);
+	TraitCardChoiceWidget->OnShopChoiceCancelled.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoiceCancelled);
+	SetPlayerMenuAbilityBlocked(true);
+	TArray<FString> CandidateIds;
+	for (const FReEchoShopCardChoiceOffer& Choice : EffectiveChoices)
+	{
+		CandidateIds.Add(Choice.CardId.ToString());
+	}
+	ReEchoUIInteractionAudit::Write(TEXT("CARD_PACK_OPENED"),
+	                                FString::Printf(TEXT("tier=%d widget=%s candidates=%d ids=[%s]"),
+	                                                Tier,
+	                                                *TraitCardChoiceWidget->GetName(),
+	                                                EffectiveChoices.Num(),
+	                                                *FString::Join(CandidateIds, TEXT(","))));
+}
+
+void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget || !TraitCardChoiceWidget || ActiveShopCardPackTier <= 0)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+
+	const FReEchoShopPurchaseOutcome Outcome = RunSubsystem->PurchaseShopItemDetailed(ItemId);
+	if (!Outcome.IsSuccess())
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Card-pack purchase rejected tx=%s item=%s tier=%d code=%d detail=%s"),
+		       *Outcome.TransactionId,
+		       *ItemId.ToString(),
+		       ActiveShopCardPackTier,
+		       static_cast<int32>(Outcome.Result),
+		       *Outcome.Detail);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		TraitCardChoiceWidget->RestoreShopPurchaseFailure(RunSubsystem->TimeShards);
+		return;
+	}
+
+	PostUiEvent(FReEchoAudioEvents::UiPurchase);
+	RunSubsystem->SaveRun();
+	CloseShopCardChoice(true);
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
+void AReEchoGameMode::HandleShopCardChoiceCancelled()
+{
+	PostUiEvent(FReEchoAudioEvents::UiCancel);
+	CloseShopCardChoice(true);
+}
+
+void AReEchoGameMode::CloseShopCardChoice(const bool bRestoreShopFocus)
+{
+	if (!TraitCardChoiceWidget || ActiveShopCardPackTier <= 0)
+	{
+		return;
+	}
+	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+	{
+		UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
+		if (bRestoreShopFocus && InventoryShopWidget)
+		{
+			if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+			{
+				UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, true);
+			}
+		}
+	}
+	TraitCardChoiceWidget = nullptr;
+	ActiveShopCardPackTier = 0;
 }
 
 void AReEchoGameMode::HandleShopWeaponEquipRequested(const FName WeaponId)

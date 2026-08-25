@@ -34,7 +34,7 @@
 |---|---|---|
 | 卡牌定义和效果 | `FReEchoCardCatalog` | 数据适配器编译后发布的只读目录 |
 | 已拥有卡牌、叠层、随机序号 | `FReEchoCardBuildState` | `FReEchoCardRuntime` 的纯命令/结果 |
-| 遭遇内阈值、免伤、追踪进度与当前商店卡牌页键/ID | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次与刷新序号生成/消费固定 `[Tier1, Tier2, Tier3]` 页面，`None` 表示未投放/耗尽 |
+| 遭遇内阈值、免伤、追踪进度与当前商店卡组页 | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次与刷新序号生成固定 `[Tier1, Tier2, Tier3]` 卡组状态，每组保存最多三个候选 ID 和本页已购标记 |
 | 商店、Echo、元素和槽位派生规则 | `FReEchoCardRuleSnapshot` | 主模块及领域适配器只读消费 |
 
 主模块仍拥有整局流程和保存事务，但不得再次解释卡牌自由文本或维护第二份卡牌列表。卡牌运行时只返回候选变化；Combat、Weapons、Enemies 与世界宿主继续执行各自权威命令。
@@ -83,7 +83,7 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 ## 扩展
 
 - 新卡牌行为先增加类型化上下文/结果和注册 ID，再由主模块接到唯一领域权威入口。
-- 新抽取限制进入 Catalog/Runtime 的统一资格判断，不在 UI 或商店复制过滤规则；免费选择与商店三个固定等级槽共同调用该入口，因此“1级可重复、2/3级持有排除”必须在此保持一致。Run 只决定逐级槽位启用和稳定页面，不复制持有资格。
+- 新抽取限制进入 Catalog/Runtime 的统一资格判断，不在 UI 或商店复制过滤规则；免费选择与商店三个固定等级卡组共同调用该入口，因此“1级可重复、2/3级持有排除”必须在此保持一致。Run 只决定逐级卡组启用、稳定候选页和购买状态，不复制持有资格。
 - 新跨领域效果返回声明式结果；Cards 不因此增加对 Weapons、Enemies、Audio 或 UI 的依赖。
 
 ## 验证

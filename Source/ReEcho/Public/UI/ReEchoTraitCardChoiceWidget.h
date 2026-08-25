@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Core/ReEchoTypes.h"
+#include "Run/ReEchoShopCatalog.h"
 #include "ReEchoTraitCardChoiceWidget.generated.h"
 
 class SWidget;
@@ -17,6 +18,8 @@ class UTexture2D;
 class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoTraitCardSelected, FName, CardId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoShopCardChoiceSelected, FName, ItemId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoShopCardChoiceCancelled);
 
 /** 展示三选一特质/锻造卡，并在揭示完成后接受一次选择。 */
 UCLASS()
@@ -30,9 +33,17 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FReEchoTraitCardSelected OnCardSelected;
+	UPROPERTY(BlueprintAssignable)
+	FReEchoShopCardChoiceSelected OnShopCardSelected;
+	UPROPERTY(BlueprintAssignable)
+	FReEchoShopCardChoiceCancelled OnShopChoiceCancelled;
 
 	/** 装载本轮候选项并重置逐张揭示动画。 */
 	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers, int32 InTimeShards);
+	/** Reuses the reveal/selection layout for a paid, same-tier shop-card pack. Prices are effective prices. */
+	void InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers, int32 InTimeShards, int32 Tier);
+	/** Re-enables the exact same shop choices after a rejected transaction. */
+	void RestoreShopPurchaseFailure(int32 InTimeShards);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -42,6 +53,7 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void EnsureShopCancelButton();
 	void BuildCardEntries();
 	void RefreshOffers();
 	void RefreshSelectionVisuals();
@@ -52,12 +64,15 @@ private:
 	static FString ResolveCardIconTexturePath(FName CardId);
 	void ResetRevealAnimation();
 	void SelectOffer(int32 OfferIndex);
+	bool CanSelectOffer(int32 OfferIndex) const;
 
 	UFUNCTION()
 	void HandleCardClicked(int32 OfferIndex);
 
 	UFUNCTION()
 	void HandleConfirmClicked();
+	UFUNCTION()
+	void HandleShopCancelClicked();
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> TraitCardContainer;
@@ -105,10 +120,15 @@ private:
 	/** Final-effect flow: selecting a card previews it; this button commits the choice. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConfirmButton;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> ShopCancelButton;
 
 	TArray<FReEchoTraitCardOffer> Offers;
+	TArray<FReEchoShopCardChoiceOffer> ShopOffers;
 	int32 CurrentTimeShards = 0;
+	int32 ShopTier = 0;
 	float RevealElapsed = 0.0f;
 	int32 SelectedOfferIndex = INDEX_NONE;
 	bool bRevealComplete = false;
+	bool bShopMode = false;
 };

@@ -18,7 +18,8 @@ bool FReEchoUIManagerSubsystemResetOnTravelTest::RunTest(const FString& Paramete
 {
 	// Minimal world + player controller so CreateWidget can resolve an owner viewport context.
 	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
-	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("ReEchoUIManagerResetTravelWorld"), GetTransientPackage());
+	UWorld* World =
+	    UWorld::CreateWorld(EWorldType::Game, false, TEXT("ReEchoUIManagerResetTravelWorld"), GetTransientPackage());
 	WorldContext.SetCurrentWorld(World);
 	if (!TestNotNull(TEXT("Test world is created"), World))
 	{
@@ -88,9 +89,18 @@ bool FReEchoPauseOverlayLayerPolicyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Pause uses the dedicated pause layer"),
 	          UReEchoUIManagerSubsystem::GetScreenLayer(EReEchoUIScreen::Restart),
 	          EReEchoUILayer::Pause);
+	TestEqual(TEXT("Trait choice uses the build-choice layer"),
+	          UReEchoUIManagerSubsystem::GetScreenLayer(EReEchoUIScreen::TraitChoice),
+	          EReEchoUILayer::BuildChoice);
+	TestTrue(TEXT("Trait/card-pack choice renders above inventory/shop"),
+	         UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::BuildChoice) >
+	             UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::Screen));
 	TestTrue(TEXT("Pause renders above inventory/shop"),
 	         UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::Pause) >
 	             UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::Screen));
+	TestTrue(TEXT("Pause still renders above trait/card-pack choice"),
+	         UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::Pause) >
+	             UReEchoUIManagerSubsystem::GetLayerZOrder(EReEchoUILayer::BuildChoice));
 	return true;
 }
 

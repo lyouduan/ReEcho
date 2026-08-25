@@ -213,6 +213,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
+	int32 ActiveShopCardPackTier = 0;
 	bool bEncounterTransitioning = false;
 	/** #9 倒计时归零到弹出选卡之间的短暂停顿定时器（让"0"可见）。 */
 	FTimerHandle EncounterEndSettleTimerHandle;
@@ -302,6 +303,12 @@ private:
 
 	UFUNCTION()
 	void HandleShopPurchaseRequested(FName ItemId);
+	void HandleShopCardPackRequested(int32 Tier);
+	UFUNCTION()
+	void HandleShopCardSelected(FName ItemId);
+	UFUNCTION()
+	void HandleShopCardChoiceCancelled();
+	void CloseShopCardChoice(bool bRestoreShopFocus);
 	void HandleShopWeaponEquipRequested(FName WeaponId);
 	void HandleShopRefreshRequested();
 	void RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, EReEchoInventoryShopMode Mode);

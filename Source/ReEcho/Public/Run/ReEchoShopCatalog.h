@@ -78,17 +78,39 @@ struct REECHO_API FReEchoWeaponSlotOffer
 	int32 Price = 0;
 };
 
-// One of the three fixed build-card shop slots. Array index 0/1/2 is always tier 1/2/3.
-struct REECHO_API FReEchoCardSlotOffer
+enum class EReEchoShopCardPackStatus : uint8
 {
-	int32 Tier = 1;
-	bool bAvailable = false;
+	NotOffered,
+	Available,
+	Purchased,
+	SoldOut
+};
+
+/** One independently priced card inside a fixed-tier shop pack. */
+struct REECHO_API FReEchoShopCardChoiceOffer
+{
 	FName CardId;
 	FName ItemId; // purchase lookup key
 	FText DisplayName;
 	FText EffectText;
+	TArray<FName> Tags;
+	int32 Tier = 1;
 	int32 Price = 0;
-	bool bFree = false;
+};
+
+/** One of the three fixed card-pack entrances. Array index 0/1/2 is always tier 1/2/3. */
+struct REECHO_API FReEchoShopCardPackOffer
+{
+	int32 Tier = 1;
+	EReEchoShopCardPackStatus Status = EReEchoShopCardPackStatus::NotOffered;
+	FText DisplayName;
+	FText StatusText;
+	TArray<FReEchoShopCardChoiceOffer> Choices;
+
+	bool IsAvailable() const
+	{
+		return Status == EReEchoShopCardPackStatus::Available && !Choices.IsEmpty();
+	}
 };
 
 struct REECHO_API FReEchoWeaponSlotShopView
@@ -104,11 +126,10 @@ struct REECHO_API FReEchoWeaponPartShopView
 	FName WeaponId;
 	FText WeaponDisplayName;
 	FString WeaponIconTexturePath;
-	TArray<FReEchoWeaponSlotOffer> SlotOffers;   // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
-	                                             // rune / other weapon / other-weapon rune)
-	TArray<FReEchoCardSlotOffer> CardSlotOffers; // always 3 fixed tier slots; unavailable slots carry no CardId/ItemId
-	TArray<FReEchoShopOffer> Offers; // backward-compat bridge: flatten of SlotOffers + CardSlotOffers (+ whole-weapon
-	                                 // as Type==Weapon). TODO(Plan67 Step5): remove once WBP rearranged.
+	TArray<FReEchoWeaponSlotOffer> SlotOffers; // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
+	                                           // rune / other weapon / other-weapon rune)
+	TArray<FReEchoShopCardPackOffer> CardPackOffers; // always 3 fixed tier packs; candidates are opened on demand
+	TArray<FReEchoShopOffer> Offers;                 // backward-compat bridge for weapon/rune offers only
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FName> OwnedWeapons;

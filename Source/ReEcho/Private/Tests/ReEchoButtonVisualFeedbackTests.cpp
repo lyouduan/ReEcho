@@ -1,4 +1,6 @@
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #include "Components/Button.h"
 #include "Components/Image.h"
@@ -20,7 +22,7 @@ bool FReEchoButtonVisualFeedbackTest::RunTest(const FString& Parameters)
 	VisualRoot->SetRenderTransformPivot(FVector2D(0.2f, 0.3f));
 
 	UReEchoButtonVisualFeedback* Feedback = NewObject<UReEchoButtonVisualFeedback>(Button);
-	Feedback->Bind(Button, VisualRoot);
+	Feedback->Bind(Button, VisualRoot, TEXT("TestScreen"), TEXT("TestWidget"));
 	Button->OnHovered.Broadcast();
 
 	TestTrue(TEXT("Hover multiplies the authored X scale"),
@@ -32,6 +34,15 @@ bool FReEchoButtonVisualFeedbackTest::RunTest(const FString& Parameters)
 	Button->OnUnhovered.Broadcast();
 	TestEqual(TEXT("Unhover restores authored scale"), VisualRoot->GetRenderTransform().Scale, FVector2D(0.8f, 0.9f));
 	TestEqual(TEXT("Unhover restores authored pivot"), VisualRoot->GetRenderTransformPivot(), FVector2D(0.2f, 0.3f));
+
+	Button->OnClicked.Broadcast();
+	FString AuditContents;
+	const FString AuditPath = FPaths::Combine(FPaths::ProjectLogDir(), TEXT("UIInteractionAudit.log"));
+	TestTrue(TEXT("Button click audit file is readable"), FFileHelper::LoadFileToString(AuditContents, *AuditPath));
+	TestTrue(TEXT("Button click audit records the screen context"), AuditContents.Contains(TEXT("screen=TestScreen")));
+	TestTrue(TEXT("Button click audit records the widget context"), AuditContents.Contains(TEXT("widget=TestWidget")));
+	TestTrue(TEXT("Button click audit records the button name"),
+	         AuditContents.Contains(FString::Printf(TEXT("button=%s"), *Button->GetName())));
 	return true;
 }
 

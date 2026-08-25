@@ -17,6 +17,8 @@
 #include "Misc/AutomationTest.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoInventoryShopWidget.h"
+#include "UI/ReEchoTraitCardChoiceWidget.h"
+#include "UI/ReEchoTraitCardEntryWidget.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopLogicBlocksTest,
@@ -59,21 +61,25 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Fallback shop controls live on the scaled design surface"),
 	         ResponsiveCanvas && Widget->GetWidgetFromName(TEXT("CloseButton"))->GetParent() == ResponsiveCanvas);
 
-	FReEchoShopOffer RunItem;
-	RunItem.ItemId = TEXT("TEST_RUN_ITEM");
-	RunItem.DisplayName = FText::FromString(TEXT("Run item"));
-	RunItem.EffectText = FText::FromString(TEXT("Run effect"));
-	RunItem.Price = 10;
-	RunItem.Type = EReEchoShopOfferType::BuildCard;
-	RunItem.ContentId = TEXT("TEST_BUILD_CARD");
-	RunItem.Tier = 1;
-	FReEchoShopOffer EmptyTierTwo;
-	EmptyTierTwo.DisplayName = FText::FromString(TEXT("未投放"));
-	EmptyTierTwo.EffectText = FText::FromString(TEXT("本关不投放该等级卡牌"));
-	EmptyTierTwo.Type = EReEchoShopOfferType::BuildCard;
-	EmptyTierTwo.Tier = 2;
-	FReEchoShopOffer EmptyTierThree = EmptyTierTwo;
-	EmptyTierThree.Tier = 3;
+	FReEchoShopCardPackOffer TierOnePack;
+	TierOnePack.Tier = 1;
+	TierOnePack.DisplayName = FText::FromString(TEXT("一级"));
+	TierOnePack.Status = EReEchoShopCardPackStatus::Available;
+	TierOnePack.StatusText = FText::FromString(TEXT("选择"));
+	FReEchoShopCardChoiceOffer TierOneChoice;
+	TierOneChoice.CardId = TEXT("TEST_BUILD_CARD");
+	TierOneChoice.ItemId = TEXT("TEST_CARD_CHOICE");
+	TierOneChoice.Tier = 1;
+	TierOneChoice.Price = 10;
+	TierOnePack.Choices.Add(TierOneChoice);
+	FReEchoShopCardPackOffer TierTwoPack;
+	TierTwoPack.Tier = 2;
+	TierTwoPack.DisplayName = FText::FromString(TEXT("二级"));
+	TierTwoPack.Status = EReEchoShopCardPackStatus::NotOffered;
+	TierTwoPack.StatusText = FText::FromString(TEXT("未投放"));
+	FReEchoShopCardPackOffer TierThreePack = TierTwoPack;
+	TierThreePack.Tier = 3;
+	TierThreePack.DisplayName = FText::FromString(TEXT("三级"));
 
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_WEAPON_PART_ITEM");
@@ -87,7 +93,8 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	FReEchoWeaponPartShopView View;
 	View.WeaponId = TEXT("TEST_WEAPON");
 	View.WeaponDisplayName = FText::FromString(TEXT("Test weapon"));
-	View.Offers = {RunItem, EmptyTierTwo, EmptyTierThree, WeaponPart};
+	View.Offers = {WeaponPart};
+	View.CardPackOffers = {TierOnePack, TierTwoPack, TierThreePack};
 	FReEchoWeaponSlotShopView Slot;
 	Slot.SlotTypeId = TEXT("Core");
 	Slot.DisplayName = FText::FromString(TEXT("Core"));
@@ -147,15 +154,21 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	    {
 		    PurchaseRequests.Add(ItemId);
 	    });
+	TArray<int32> CardPackRequests;
+	Widget->OnCardPackRequested.AddLambda(
+	    [&CardPackRequests](const int32 Tier)
+	    {
+		    CardPackRequests.Add(Tier);
+	    });
 	UReEchoIndexedButton* RunItemButton =
-	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy0")));
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetCardPackButton0")));
 	UReEchoIndexedButton* EmptyTierTwoButton =
-	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy1")));
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetCardPackButton1")));
 	UReEchoIndexedButton* EmptyTierThreeButton =
-	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetBuildBuy2")));
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetCardPackButton2")));
 	UReEchoIndexedButton* WeaponPartButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
-	TestNotNull(TEXT("Run item button exists"), RunItemButton);
+	TestNotNull(TEXT("Tier-one pack button exists"), RunItemButton);
 	TestNotNull(TEXT("Empty tier-two slot button exists"), EmptyTierTwoButton);
 	TestNotNull(TEXT("Empty tier-three slot button exists"), EmptyTierThreeButton);
 	TestNotNull(TEXT("Weapon part button exists"), WeaponPartButton);
@@ -169,15 +182,72 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	EmptyTierTwoButton->OnClicked.Broadcast();
 	EmptyTierThreeButton->OnClicked.Broadcast();
 	WeaponPartButton->OnClicked.Broadcast();
-	TestEqual(TEXT("Only filled slots emit independent purchase commands"), PurchaseRequests.Num(), 2);
-	if (PurchaseRequests.Num() == 2)
+	TestEqual(TEXT("Only the weapon/rune slot emits a direct purchase command"), PurchaseRequests.Num(), 1);
+	TestEqual(TEXT("Only the available card pack emits an open-pack command"), CardPackRequests.Num(), 1);
+	if (CardPackRequests.Num() == 1)
 	{
-		TestEqual(TEXT("Run item click maps to the run item id"), PurchaseRequests[0], RunItem.ItemId);
-		TestEqual(TEXT("Weapon part click maps to the weapon part id"), PurchaseRequests[1], WeaponPart.ItemId);
+		TestEqual(TEXT("Pack click maps to its fixed tier"), CardPackRequests[0], 1);
 	}
+	if (PurchaseRequests.Num() == 1)
+	{
+		TestEqual(TEXT("Weapon part click maps to the weapon part id"), PurchaseRequests[0], WeaponPart.ItemId);
+	}
+	TestNull(TEXT("Tier pack entrance deliberately has no concrete card icon"),
+	         Widget->GetWidgetFromName(TEXT("TargetCardPackIcon0")));
 
 	// Plan 67 removed the draft/save-loadout flow (purchase equals equip). An owned
 	// part is no longer edited into a draft nor saved via a loadout button.
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopCardPackChoicePresentationTest,
+                                 "ReEcho.UI.Shop.CardPackChoicePresentation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameters)
+{
+	UReEchoTraitCardChoiceWidget* Widget = NewObject<UReEchoTraitCardChoiceWidget>(GetTransientPackage());
+	if (!TestNotNull(TEXT("Card-pack choice widget can be created"), Widget))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Card-pack choice widget initializes"), Widget->Initialize());
+	Widget->TakeWidget();
+	FReEchoShopCardChoiceOffer First;
+	First.CardId = TEXT("G_2_01");
+	First.ItemId = TEXT("SHOP_CARD_TEST_1");
+	First.DisplayName = FText::FromString(TEXT("候选一"));
+	First.EffectText = FText::FromString(TEXT("效果一"));
+	First.Tier = 2;
+	First.Price = 35;
+	FReEchoShopCardChoiceOffer Second = First;
+	Second.CardId = TEXT("G_2_02");
+	Second.ItemId = TEXT("SHOP_CARD_TEST_2");
+	Second.DisplayName = FText::FromString(TEXT("候选二"));
+	Second.Price = 47;
+	Widget->InitializeShopOffers({First, Second}, 40, 2);
+
+	UButton* CancelButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopCardChoiceCancelButton")));
+	UTextBlock* Title = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TraitDrawTitle")));
+	USizeBox* FirstCard = Cast<USizeBox>(Widget->GetWidgetFromName(TEXT("TraitCardSize0")));
+	USizeBox* SecondCard = Cast<USizeBox>(Widget->GetWidgetFromName(TEXT("TraitCardSize1")));
+	USizeBox* ThirdCard = Cast<USizeBox>(Widget->GetWidgetFromName(TEXT("TraitCardSize2")));
+	TestTrue(TEXT("Paid pack mode exposes a visible return-to-shop button"),
+	         CancelButton && CancelButton->GetVisibility() == ESlateVisibility::Visible);
+	TestTrue(TEXT("Paid pack title identifies the selected tier"),
+	         Title && Title->GetText().ToString().Contains(TEXT("二级")));
+	TestTrue(TEXT("The two actual candidates are visible"),
+	         FirstCard && SecondCard && FirstCard->GetVisibility() == ESlateVisibility::Visible &&
+	             SecondCard->GetVisibility() == ESlateVisibility::Visible);
+	TestTrue(TEXT("A missing third candidate stays collapsed rather than being backfilled"),
+	         ThirdCard && ThirdCard->GetVisibility() == ESlateVisibility::Collapsed);
+	if (UReEchoTraitCardEntryWidget* FirstEntry =
+	        Cast<UReEchoTraitCardEntryWidget>(Widget->GetWidgetFromName(TEXT("TraitCardEntry0"))))
+	{
+		const UTextBlock* PriceHint = Cast<UTextBlock>(FirstEntry->GetWidgetFromName(TEXT("SelectHintText")));
+		TestTrue(TEXT("Each paid choice displays its own effective price"),
+		         PriceHint && PriceHint->GetText().ToString().Contains(TEXT("35")));
+	}
 	return true;
 }
 

@@ -13,6 +13,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoTraitCardEntrySelected, int32
 
 /** Designer-owned presentation for one runtime Trait offer. */
 UCLASS()
+
 class REECHO_API UReEchoTraitCardEntryWidget : public UUserWidget
 {
 	GENERATED_BODY()
@@ -28,7 +29,8 @@ public:
 	               const TArray<FName>& Tags,
 	               const FLinearColor& CardColor,
 	               UTexture2D* CardArt = nullptr,
-	               UTexture2D* CardIcon = nullptr);
+	               UTexture2D* CardIcon = nullptr,
+	               const FText& SelectHint = FText());
 	void SetSelectionEnabled(bool bEnabled);
 	void SetSelectedVisual(bool bSelected, bool bHasSelection);
 	void FocusSelection();

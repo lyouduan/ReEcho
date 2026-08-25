@@ -70,6 +70,7 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	SetIsFocusable(true);
 	SetVisibility(ESlateVisibility::Visible);
 	BuildWidgetTree();
+	EnsureShopCancelButton();
 	BuildCardEntries();
 
 	for (UReEchoIndexedButton* CardButton : CardButtons)
@@ -83,6 +84,10 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	if (ConfirmButton)
 	{
 		ConfirmButton->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleConfirmClicked);
+	}
+	if (ShopCancelButton)
+	{
+		ShopCancelButton->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleShopCancelClicked);
 	}
 
 	RefreshOffers();
@@ -118,11 +123,13 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 		bRevealComplete = true;
 		for (UButton* CardButton : CardButtons)
 		{
-			CardButton->SetIsEnabled(true);
+			const int32 CardIndex = CardButtons.IndexOfByKey(CardButton);
+			CardButton->SetIsEnabled(CanSelectOffer(CardIndex));
 		}
 		for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
 		{
-			CardEntry->SetSelectionEnabled(true);
+			const int32 CardIndex = CardEntries.IndexOfByKey(CardEntry);
+			CardEntry->SetSelectionEnabled(CanSelectOffer(CardIndex));
 		}
 		if (!CardEntries.IsEmpty())
 		{
@@ -138,8 +145,55 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers,
                                                     const int32 InTimeShards)
 {
+	bShopMode = false;
+	ShopTier = 0;
+	ShopOffers.Reset();
 	Offers = InOffers;
 	CurrentTimeShards = InTimeShards;
+	if (ShopCancelButton)
+	{
+		ShopCancelButton->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	RefreshOffers();
+}
+
+void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers,
+                                                        const int32 InTimeShards,
+                                                        const int32 Tier)
+{
+	bShopMode = true;
+	ShopTier = Tier;
+	ShopOffers = InOffers;
+	CurrentTimeShards = InTimeShards;
+	Offers.Reset();
+	for (const FReEchoShopCardChoiceOffer& Choice : ShopOffers)
+	{
+		FReEchoTraitCardOffer Offer;
+		Offer.CardId = Choice.CardId;
+		Offer.Tier = Choice.Tier;
+		Offer.DisplayName = Choice.DisplayName;
+		Offer.Description = Choice.EffectText;
+		Offer.Tags = Choice.Tags;
+		Offers.Add(MoveTemp(Offer));
+	}
+	EnsureShopCancelButton();
+	if (ShopCancelButton)
+	{
+		ShopCancelButton->SetVisibility(ESlateVisibility::Visible);
+	}
+	RefreshOffers();
+	ResetRevealAnimation();
+}
+
+void UReEchoTraitCardChoiceWidget::RestoreShopPurchaseFailure(const int32 InTimeShards)
+{
+	if (!bShopMode)
+	{
+		return;
+	}
+	CurrentTimeShards = InTimeShards;
+	SelectedOfferIndex = INDEX_NONE;
+	bRevealComplete = true;
 	RefreshOffers();
 }
 
@@ -196,6 +250,32 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 
 	TraitCardContainer = RootCanvas;
 	RefreshOffers();
+}
+
+void UReEchoTraitCardChoiceWidget::EnsureShopCancelButton()
+{
+	if (!WidgetTree || ShopCancelButton)
+	{
+		return;
+	}
+	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!RootCanvas)
+	{
+		return;
+	}
+	ShopCancelButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopCardChoiceCancelButton"));
+	ShopCancelButton->SetBackgroundColor(FLinearColor(0.08f, 0.09f, 0.11f, 0.94f));
+	UTextBlock* Label =
+	    CreateCenteredText(WidgetTree, TEXT("ShopCardChoiceCancelText"), 20, FLinearColor(0.92f, 0.82f, 0.62f));
+	Label->SetText(NSLOCTEXT("ReEcho", "ShopCardChoiceCancel", "返回商店"));
+	ShopCancelButton->SetContent(Label);
+	ShopCancelButton->SetVisibility(ESlateVisibility::Collapsed);
+	UCanvasPanelSlot* CancelSlot = RootCanvas->AddChildToCanvas(ShopCancelButton);
+	CancelSlot->SetAnchors(FAnchors(0.82f, 0.075f));
+	CancelSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+	CancelSlot->SetSize(FVector2D(180.0f, 54.0f));
+	CancelSlot->SetZOrder(20);
+	ShopCancelButton->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleShopCancelClicked);
 }
 
 void UReEchoTraitCardChoiceWidget::BuildCardEntries()
@@ -320,12 +400,18 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 {
 	if (TitleText)
 	{
-		TitleText->SetText(NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择1张构筑卡牌"));
+		TitleText->SetText(bShopMode ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoiceTitle", "选择1张{0}构筑卡牌"),
+		                                             FText::FromString(ShopTier == 1   ? TEXT("一级")
+		                                                               : ShopTier == 2 ? TEXT("二级")
+		                                                                               : TEXT("三级")))
+		                             : NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择1张构筑卡牌"));
 	}
 	if (SubtitleText)
 	{
 		SubtitleText->SetText(
-		    NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具"));
+		    bShopMode
+		        ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "每张卡牌分别计价，购买后本卡组标记为已购")
+		        : NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具"));
 	}
 	if (CurrencyText)
 	{
@@ -336,7 +422,7 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 	{
 		const bool bHasOffer = Offers.IsValidIndex(CardIndex);
 		CardPanels[CardIndex]->SetVisibility(bHasOffer ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-		CardButtons[CardIndex]->SetIsEnabled(bHasOffer && bRevealComplete);
+		CardButtons[CardIndex]->SetIsEnabled(bHasOffer && bRevealComplete && CanSelectOffer(CardIndex));
 		if (bHasOffer)
 		{
 			CardNames[CardIndex]->SetText(Offers[CardIndex].DisplayName);
@@ -353,7 +439,7 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 	{
 		const bool bHasOffer = Offers.IsValidIndex(CardIndex);
 		CardPanels[CardIndex]->SetVisibility(bHasOffer ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-		CardEntries[CardIndex]->SetSelectionEnabled(bHasOffer && bRevealComplete);
+		CardEntries[CardIndex]->SetSelectionEnabled(bHasOffer && bRevealComplete && CanSelectOffer(CardIndex));
 		if (bHasOffer)
 		{
 			FReEchoTraitCardOffer& Offer = Offers[CardIndex];
@@ -372,6 +458,11 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 					                                "InventoryShop/T_UI_Shop_CardIcon.T_UI_Shop_CardIcon"));
 				}
 			}
+			const FText SelectHint =
+			    bShopMode && ShopOffers.IsValidIndex(CardIndex)
+			        ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoicePriceHint", "◆ {0} · 点击选择"),
+			                        FText::AsNumber(ShopOffers[CardIndex].Price))
+			        : FText::GetEmpty();
 			CardEntries[CardIndex]->Configure(CardIndex,
 			                                  CardKickers[CardIndex],
 			                                  Offer.DisplayName,
@@ -379,7 +470,8 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			                                  Offer.Tags,
 			                                  CardColors[CardIndex],
 			                                  Offer.CardArt,
-			                                  Offer.CardIcon);
+			                                  Offer.CardIcon,
+			                                  SelectHint);
 		}
 	}
 	RefreshSelectionVisuals();
@@ -398,7 +490,7 @@ void UReEchoTraitCardChoiceWidget::RefreshSelectionVisuals()
 	}
 	if (ConfirmButton)
 	{
-		ConfirmButton->SetIsEnabled(bRevealComplete && bHasSelection);
+		ConfirmButton->SetIsEnabled(bRevealComplete && bHasSelection && CanSelectOffer(SelectedOfferIndex));
 		ConfirmButton->SetRenderOpacity(bHasSelection ? 1.0f : 0.48f);
 	}
 }
@@ -427,7 +519,7 @@ void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 
 void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
 {
-	if (bRevealComplete && Offers.IsValidIndex(OfferIndex))
+	if (bRevealComplete && Offers.IsValidIndex(OfferIndex) && CanSelectOffer(OfferIndex))
 	{
 		bRevealComplete = false;
 		for (UButton* CardButton : CardButtons)
@@ -438,8 +530,21 @@ void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
 		{
 			CardEntry->SetSelectionEnabled(false);
 		}
-		OnCardSelected.Broadcast(Offers[OfferIndex].CardId);
+		if (bShopMode && ShopOffers.IsValidIndex(OfferIndex))
+		{
+			OnShopCardSelected.Broadcast(ShopOffers[OfferIndex].ItemId);
+		}
+		else
+		{
+			OnCardSelected.Broadcast(Offers[OfferIndex].CardId);
+		}
 	}
+}
+
+bool UReEchoTraitCardChoiceWidget::CanSelectOffer(const int32 OfferIndex) const
+{
+	return Offers.IsValidIndex(OfferIndex) &&
+	       (!bShopMode || (ShopOffers.IsValidIndex(OfferIndex) && ShopOffers[OfferIndex].Price <= CurrentTimeShards));
 }
 
 void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)
@@ -465,6 +570,14 @@ void UReEchoTraitCardChoiceWidget::HandleConfirmClicked()
 	SelectOffer(SelectedOfferIndex);
 }
 
+void UReEchoTraitCardChoiceWidget::HandleShopCancelClicked()
+{
+	if (bShopMode)
+	{
+		OnShopChoiceCancelled.Broadcast();
+	}
+}
+
 FReply UReEchoTraitCardChoiceWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
 	if (InKeyEvent.GetKey() == EKeys::P)
@@ -473,6 +586,11 @@ FReply UReEchoTraitCardChoiceWidget::NativeOnKeyDown(const FGeometry& InGeometry
 		{
 			GameMode->TogglePauseMenu();
 		}
+		return FReply::Handled();
+	}
+	if (bShopMode && InKeyEvent.GetKey() == EKeys::Escape)
+	{
+		HandleShopCancelClicked();
 		return FReply::Handled();
 	}
 	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);

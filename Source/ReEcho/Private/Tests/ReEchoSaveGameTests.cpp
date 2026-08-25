@@ -222,6 +222,45 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV15ShopCardPageMigrationTest,
+                                 "ReEcho.Run.SaveV15ShopCardPageMigratesToTierPacks",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoV15ShopCardPageMigrationTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Source->EncounterIndex = 4;
+	const FReEchoWeaponPartShopView CurrentPage = Source->GetWeaponPartShopView();
+	if (!TestTrue(TEXT("Migration fixture has a tier-two candidate"),
+	              CurrentPage.CardPackOffers.IsValidIndex(1) && !CurrentPage.CardPackOffers[1].Choices.IsEmpty()))
+	{
+		return false;
+	}
+	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
+	LegacySave->SaveVersion = 15;
+	LegacySave->CurrentBuild.CardState.Runtime.ShopCardOfferIds = {CurrentPage.CardPackOffers[1].Choices[0].CardId};
+	LegacySave->CurrentBuild.CardState.Runtime.ShopCardPackStates.Reset();
+
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	TestTrue(TEXT("v15 direct-card shop page remains loadable"), Restored->RestoreSaveSnapshot(*LegacySave));
+	const FReEchoWeaponPartShopView MigratedPage = Restored->GetWeaponPartShopView();
+	TestEqual(TEXT("The legacy direct-card page rebuilds as three fixed packs"),
+	          MigratedPage.CardPackOffers.Num(),
+	          ReEchoShopOfferCountPerGroup);
+	TestTrue(TEXT("The migrated tier-two pack offers a same-tier choice set"),
+	         MigratedPage.CardPackOffers[1].Choices.ContainsByPredicate(
+	             [](const FReEchoShopCardChoiceOffer& Choice)
+	             {
+		             return Choice.Tier == 2;
+	             }));
+	TestTrue(TEXT("The legacy one-card cache is discarded"),
+	         Restored->CurrentBuild.CardState.Runtime.ShopCardOfferIds.IsEmpty());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV10CharacterIdentityMigrationTest,
                                  "ReEcho.Run.SaveV10CharacterIdentityMigratesAcrossSnapshots",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -13,6 +13,7 @@
 #include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/ReEchoWeatherWidget.h"
+#include "UI/Framework/ReEchoUIInteractionAudit.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -21,7 +22,7 @@ namespace
 constexpr int32 WeatherZOrder = 5;
 constexpr int32 GameplayHudZOrder = 10;
 constexpr int32 PlayerHudZOrder = 12;
-constexpr int32 BuildChoiceZOrder = 90;
+constexpr int32 BuildChoiceZOrder = 98;
 constexpr int32 ScreenZOrder = 95;
 constexpr int32 PauseZOrder = 100;
 constexpr int32 StartZOrder = 200;
@@ -41,8 +42,7 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection"));
 	static ConstructorHelpers::FClassFinder<UReEchoSettingsWidget> SettingsClass(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoSettings"));
-	static ConstructorHelpers::FClassFinder<UUserWidget> AboutClass(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoAbout"));
+	static ConstructorHelpers::FClassFinder<UUserWidget> AboutClass(TEXT("/Game/ReEcho/UI/WBP_ReEchoAbout"));
 	static ConstructorHelpers::FClassFinder<UReEchoRestartWidget> RestartClass(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoRestart"));
 	static ConstructorHelpers::FClassFinder<UReEchoTraitCardChoiceWidget> TraitClass(
@@ -54,7 +54,8 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 
 	ScreenClasses.Add(EReEchoUIScreen::Weather, UReEchoWeatherWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::EncounterHud,
-	                  EncounterHudClass.Class ? EncounterHudClass.Class.Get() : UReEchoEncounterHudWidget::StaticClass());
+	                  EncounterHudClass.Class ? EncounterHudClass.Class.Get()
+	                                          : UReEchoEncounterHudWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::PlayerHud,
 	                  PlayerHudClass.Class ? PlayerHudClass.Class.Get() : UReEchoPlayerHudWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::StartMenu,
@@ -70,7 +71,8 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	ScreenClasses.Add(EReEchoUIScreen::TraitChoice,
 	                  TraitClass.Class ? TraitClass.Class.Get() : UReEchoTraitCardChoiceWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::InventoryShop,
-	                  InventoryShopClass.Class ? InventoryShopClass.Class.Get() : UReEchoInventoryShopWidget::StaticClass());
+	                  InventoryShopClass.Class ? InventoryShopClass.Class.Get()
+	                                           : UReEchoInventoryShopWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::Stats,
 	                  StatsClass.Class ? StatsClass.Class.Get() : UReEchoStatsWidget::StaticClass());
 }
@@ -79,10 +81,20 @@ UUserWidget* UReEchoUIManagerSubsystem::CreateScreen(APlayerController* PlayerCo
 {
 	if (!PlayerController)
 	{
+		ReEchoUIInteractionAudit::Write(TEXT("SCREEN_OPEN_FAILED"),
+		                                FString::Printf(TEXT("screen=%s reason=MissingPlayerController"),
+		                                                *ReEchoUIInteractionAudit::ScreenName(Screen)));
 		return nullptr;
 	}
 	if (UUserWidget* ExistingScreen = GetScreen(Screen))
 	{
+		const EReEchoUILayer Layer = GetScreenLayer(Screen);
+		ReEchoUIInteractionAudit::Write(TEXT("SCREEN_OPEN_REUSED"),
+		                                FString::Printf(TEXT("screen=%s widget=%s layer=%s zorder=%d"),
+		                                                *ReEchoUIInteractionAudit::ScreenName(Screen),
+		                                                *ExistingScreen->GetName(),
+		                                                *ReEchoUIInteractionAudit::LayerName(Layer),
+		                                                GetLayerZOrder(Layer)));
 		return ExistingScreen;
 	}
 
@@ -91,11 +103,23 @@ UUserWidget* UReEchoUIManagerSubsystem::CreateScreen(APlayerController* PlayerCo
 	if (!Widget)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Unable to create registered UI screen %d."), static_cast<int32>(Screen));
+		ReEchoUIInteractionAudit::Write(TEXT("SCREEN_OPEN_FAILED"),
+		                                FString::Printf(TEXT("screen=%s reason=ClassOrCreateWidgetFailed class=%s"),
+		                                                *ReEchoUIInteractionAudit::ScreenName(Screen),
+		                                                ScreenClass ? *ScreenClass->GetName() : TEXT("None")));
 		return nullptr;
 	}
 
+	const EReEchoUILayer Layer = GetScreenLayer(Screen);
 	ActiveScreens.Add(Screen, Widget);
-	AddToLayer(Widget, GetScreenLayer(Screen));
+	AddToLayer(Widget, Layer);
+	ReEchoUIInteractionAudit::Write(TEXT("SCREEN_OPEN_CREATED"),
+	                                FString::Printf(TEXT("screen=%s widget=%s class=%s layer=%s zorder=%d"),
+	                                                *ReEchoUIInteractionAudit::ScreenName(Screen),
+	                                                *Widget->GetName(),
+	                                                *Widget->GetClass()->GetName(),
+	                                                *ReEchoUIInteractionAudit::LayerName(Layer),
+	                                                GetLayerZOrder(Layer)));
 	return Widget;
 }
 
@@ -114,13 +138,20 @@ void UReEchoUIManagerSubsystem::CloseScreen(const EReEchoUIScreen Screen)
 {
 	if (TObjectPtr<UUserWidget>* Widget = ActiveScreens.Find(Screen))
 	{
+		const FString WidgetName = IsValid(Widget->Get()) ? Widget->Get()->GetName() : TEXT("Invalid");
 		if (IsValid(Widget->Get()))
 		{
 			Widget->Get()->RemoveFromParent();
 			ManagedWidgets.Remove(Widget->Get());
 		}
 		ActiveScreens.Remove(Screen);
+		ReEchoUIInteractionAudit::Write(
+		    TEXT("SCREEN_CLOSED"),
+		    FString::Printf(TEXT("screen=%s widget=%s"), *ReEchoUIInteractionAudit::ScreenName(Screen), *WidgetName));
+		return;
 	}
+	ReEchoUIInteractionAudit::Write(TEXT("SCREEN_CLOSE_MISSING"),
+	                                FString::Printf(TEXT("screen=%s"), *ReEchoUIInteractionAudit::ScreenName(Screen)));
 }
 
 void UReEchoUIManagerSubsystem::AddToLayer(UUserWidget* Widget, const EReEchoUILayer Layer)
@@ -193,6 +224,7 @@ void UReEchoUIManagerSubsystem::Deinitialize()
 
 void UReEchoUIManagerSubsystem::ResetScreens()
 {
+	ReEchoUIInteractionAudit::Write(TEXT("SCREEN_RESET_ALL"), FString::Printf(TEXT("count=%d"), ActiveScreens.Num()));
 	for (UUserWidget* Widget : ManagedWidgets)
 	{
 		if (Widget)

@@ -61,6 +61,20 @@ struct REECHOCARDS_API FReEchoCardDefinition
 /** Serializable state owned by the Cards domain. Time-bearing fields are remaining durations at save boundaries. */
 USTRUCT(BlueprintType)
 
+struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
+{
+	GENERATED_BODY()
+
+	/** Fixed tier identity. Runtime arrays use [Tier1, Tier2, Tier3]. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Tier = 0;
+	/** Stable candidates for the current encounter + full-shop refresh sequence. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> CandidateCardIds;
+	/** A successful purchase consumes this pack for the current page. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPurchased = false;
+};
+
+USTRUCT(BlueprintType)
+
 struct REECHOCARDS_API FReEchoCardRuntimeState
 {
 	GENERATED_BODY()
@@ -84,10 +98,12 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> DistinctReactionIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 FreeShopRefreshes = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
-	/** Stable build-card offer page for the current encounter/refresh sequence: fixed [Tier1, Tier2, Tier3] ids. */
+	/** Stable build-card pack page for the current encounter/refresh sequence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopCardOfferEncounterIndex = INDEX_NONE;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopCardOfferRefreshSequence = INDEX_NONE;
-	/** NAME_None marks an unconfigured or exhausted tier slot. Legacy packed pages are rebuilt by Run. */
+	/** Fixed [Tier1, Tier2, Tier3] pack states. An unconfigured/exhausted pack has no candidates. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FReEchoShopCardPackRuntimeState> ShopCardPackStates;
+	/** SaveVersion <= 15 compatibility only. New runtime pages never populate this single-card cache. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> ShopCardOfferIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 BonusShardDropEncounterIndex = INDEX_NONE;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

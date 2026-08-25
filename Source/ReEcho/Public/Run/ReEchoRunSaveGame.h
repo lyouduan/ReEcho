@@ -14,7 +14,7 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 
 public:
 	/** v15 combines deterministic enemy-shard rewards with the stable weapon/rune shop page. */
-	static constexpr int32 CurrentSaveVersion = 15;
+	static constexpr int32 CurrentSaveVersion = 16;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;

@@ -31,8 +31,8 @@ public:
 	static UWidget* ResolveButtonVisualRoot(UButton* Button);
 
 private:
-	void BindAudioFeedback(UUserWidget* Widget);
-	void BindButtonVisualFeedback(UButton* Button);
+	void BindAudioFeedback(UUserWidget* Widget, EReEchoUIScreen Screen);
+	void BindButtonVisualFeedback(UButton* Button, EReEchoUIScreen Screen, const FString& WidgetName);
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoButtonVisualFeedback>> ButtonVisualFeedbackBindings;
