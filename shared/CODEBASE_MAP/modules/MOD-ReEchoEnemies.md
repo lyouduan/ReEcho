@@ -158,9 +158,9 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 
 ## 验证与测试
 
-### 当前远程伤害安全状态（2026-08-18）
+### 当前远程伤害权威（2026-08-25）
 
-敌方远程能力仍由 EnemyLogic 正常产生意图、由 Host 转换并交给 Combat。兔子三球表现与连续碰撞接入后，`M_RABBIT_RangedBurst` 恢复权威伤害 `10`；Boss 的 `M_TimeGuard_Projectile`、`M_TimeGuard_BlinkSlam`、`M_TimeGuard_PrayerBeam` 仍因预警/表现尚未验收而临时保持 `Damage=0`。不要在 Logic、Host 或 Combat 增加第二份禁伤开关；后续只应恢复工作簿并重新发布 CSV。近战、突进和接触伤害不受影响。
+敌方远程能力仍由 EnemyLogic 正常产生意图、由 Host 转换并交给 Combat；数值只消费 `ReEchoEnemyData.xlsx → enemy_abilities.csv`，不得在 Logic、Host、Combat 或 VFX 复制伤害常量或增加第二份禁伤开关。Plan109 当前两条兔子能力每球伤害均为 `1`；羊 Boss Skill02/03/04 一阶段分别为 `4/24/16`，二阶段继续由 `BossPhases.PhysicalAttackMultiplier=1.5` 得到 `6/36/24`。这些当前值是配表审计事实而非模块常量，后续平衡只更新工作簿并重新发布 CSV；空间判定和最终扣血边界不变。
 
 - `ReEcho.Enemies.Logic.LegacyDefinitions`：四类怪物现有数值等价。
 - `ReEcho.Enemies.Logic.ContactCadence`：移动与同帧攻击意图可共存，冷却按现有语义推进。

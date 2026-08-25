@@ -53,9 +53,9 @@
   - `Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`
   - `Source/ReEcho/{Public,Private}/Presentation/Combat/ReEchoCombatPresentation*`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
-- 影响模式：`SharedContract`（新增 Boss 行为事件到 Niagara 的只读投影、投射物视觉实例和最终命中特效；不改变 Boss AI、技能数值、Combat 命中或阶段权威）。
-- 兼容承诺 / 下游操作：`M_SHEEP`、`Boss.TimeGuard`、`Enemy.TimeGuard`、技能顺序、锁点/锁向、伤害、冷却、二阶段 1300→650 和保存语义保持不变；Boss 复用 Plan104 当前 `MoonStaff` Profile/贴图契约，不恢复已删除的 `Staff` Profile；VFX 加载失败只能缺视觉，不得阻塞或延迟技能提交与伤害。
-- 明确排除：不新增或调整 Boss 技能数值；不启用当前未配置的 `Boss.ElementCleanse`；不新增 `NS_Goat_Skill04_Alarming`，Skill04 的两次预警均复用现有 `NS_Goat_Skill03_Alarming`；不让 Niagara 粒子、碰撞、完成回调或固定延迟决定命中、投射物位置或技能结束；不整体提交 Goat/公共素材目录；不在 Unreal Editor 外修改 `.uasset`。
+- 影响模式：`SharedContract`（新增 Boss 行为事件到 Niagara 的只读投影、投射物视觉实例和最终命中特效；不改变 Boss AI、Combat 命中或阶段权威。平衡数值由权威配表拥有，并可由后续已批准数值 Plan 独立调整）。
+- 兼容承诺 / 下游操作：`M_SHEEP`、`Boss.TimeGuard`、`Enemy.TimeGuard`、技能顺序、锁点/锁向、二阶段 `1.5` 倍率和保存语义保持不变；伤害、前后摇、范围与冷却继续消费 `enemy_abilities.csv`，Plan109 已在不改变本 Plan 表现语义的前提下更新当前配表；Boss 复用 Plan104 当前 `MoonStaff` Profile/贴图契约，不恢复已删除的 `Staff` Profile；VFX 加载失败只能缺视觉，不得阻塞或延迟技能提交与伤害。
+- 明确排除：Plan96 不独立拥有或复制 Boss 平衡常量；不启用当前未配置的 `Boss.ElementCleanse`；不新增 `NS_Goat_Skill04_Alarming`，Skill04 的两次预警均复用现有 `NS_Goat_Skill03_Alarming`；不让 Niagara 粒子、碰撞、完成回调或固定延迟决定命中、投射物位置或技能结束；不整体提交 Goat/公共素材目录；不在 Unreal Editor 外修改 `.uasset`。
 
 ## 锁定目标
 
@@ -65,7 +65,7 @@
 4. `M_SHEEP_PrayerBeam` 使用 Skill04，并保留配表 `LockTiming=WindupEnd`：Boss 开始播放 `NS_Goat_Skill04_Charging` 时，第一道 `NS_Goat_Skill03_Alarming` 取角色当时位置的只读视觉快照；蓄力结束后玩法才正式锁定位置/方向，第二道 Alarming 重启到权威 `LockedTargetLocation`，同时以权威 `LockedDirection` 播放 `NS_Goat_Skill04_Lighting`。两次预警均不追踪角色、不新增落点伤害，第一道快照不参与玩法锁定；光束长度、起点和生命周期继续来自 Boss Intent；AbilityEnded、Death、EndPlay、遭遇清理时停止。
 5. 保留当前主工作区用户修改后的 `DA_Enemy_TimeGuard` 精确内容并纳入 Plan 96 候选；继续由 `Enemy.TimeGuard -> DA_Enemy_TimeGuard` 解析，不覆盖其中已有动画、尺寸、锚点或二阶段配置。
 6. 八个正式 Niagara 根及准确递归依赖进入 Git、预加载和 Shipping cook；实例层级、Local/World Space、朝向轴、Bounds 与 AutoDestroy 由 Editor 审计后按资源真实语义配置。
-7. Boss 技能真实命中角色时必须继续经 `FReEchoHitIntent -> ReEchoCombat` 造成配表伤害，不能出现“只播放 BeAttacked/Lighting、角色不掉血”。一阶段 Skill02 每弹 5、Skill03 30、Skill04 20；二阶段由现有阶段倍率统一变为 7.5/45/30。Niagara 碰撞和粒子范围不参与伤害裁决。
+7. Boss 技能真实命中角色时必须继续经 `FReEchoHitIntent -> ReEchoCombat` 造成权威 `enemy_abilities.csv` 配表伤害，不能出现“只播放 BeAttacked/Lighting、角色不掉血”。Plan109 当前一阶段 Skill02 每弹 4、Skill03 24、Skill04 16；二阶段由现有 `1.5` 倍率统一变为 6/36/24。后续平衡调整只改权威配表与对应数值 Plan，不改本 Plan 的 VFX/命中语义。Niagara 碰撞和粒子范围不参与伤害裁决。
 8. 新增 `GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04>`：寻找当前存活 `M_SHEEP`，将对应正式 Ability 排到下一次可开始的 Boss 行动；`Skill02` 固定指向站定四连弹，`Skill02Moving` 指向移动三向散射。指令不取消当前已提交技能、不直接生成伤害/VFX，并继续走 Telegraph、锁点、AttackWindow、Recovery 与 AbilityEnded。
 9. `GMGod` 开启时继续返回已计算伤害并驱动 Hurt/伤害数字，但不修改玩家生命、不触发死亡；正式限时无敌仍返回零伤害，不改变生产规则。
 
@@ -155,6 +155,7 @@
 - 2026-08-25：用户确认 Skill04 按配表处理，不把 `WindupEnd` 改为 `WindupStart`。第一道 Alarming 因此只是蓄力开始时目标当前位置的视觉快照；第二道才消费蓄力结束后的权威锁点/锁向并与 Lighting 同步。
 - 2026-08-25：用户要求增加 GM 指令让 Boss 使用对应技能。契约锁定 `GMBossSkill` 只排队真实 Ability，不绕过正式 Boss 状态机；Skill02 的两个配表 Ability 用 `Skill02`（StationaryVolley）和 `Skill02Moving`（MovingSpread）显式区分。
 - 2026-08-25：用户要求修改 `GMGod` 为显示伤害但不扣血。契约锁定只改变非 Shipping 的 debug gate：返回已计算伤害供 Hurt/伤害数字消费，跳过生命与死亡写入；正式限时无敌保持零伤害。
+- 2026-08-25：Plan109 经当前程序用户批准更新 Boss 数值；本 Plan 的伤害验收改为读取权威 `enemy_abilities.csv`，当前 Skill02/03/04 为 `4/24/16`、二阶段为 `6/36/24`。`WindupEnd`、`GMBossSkill`、Combat 命中和全部 VFX 映射保持不变。
 
 ### 证据
 

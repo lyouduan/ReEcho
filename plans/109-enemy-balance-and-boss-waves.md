@@ -6,9 +6,9 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`；策划已提供数值清单并报告 Encounter.1 可进入，最终仍需用户/策划在准确集成候选验收 Encounter.8 三波与整体难度。
-- 本地规划 / 实现基线：`origin/main@dc46a89a80bc67c738952374ae971cde5b69ddd3`。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`；程序用户在本任务独立工作树完成手测并反馈“手测无误”，批准推送、合并 `main` 与清理工作树。
+- 本地规划 / 实现基线：`origin/main@be229333b39fbfb28fb9716c69edcd522708a9a1`；实现前已审计并组合适配后续 Plan96 GM 技能契约与 Plan108 商店预付费提交。
 - 本地实现方式：`plan/109-balance-tuning-handoff`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan109-balance-tuning`。
 - 依赖 / 阻塞：依赖 Plan96 的羊 Boss 行为/VFX 继续保持 `WindupEnd` 锁定、Combat 命中和二阶段倍率权威；本 Plan 经当前程序用户确认，以策划新数值覆盖 Plan96 写死的旧伤害期望，但不改变其表现与命中语义。
 - Writes:
@@ -21,6 +21,7 @@
   - `scripts/validate_project.py`
   - `scripts/data/` 下本 Plan 新增或修改的 Encounter.8 三波聚焦测试
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`（清理已过期的兔子/Boss 临时零伤害说明，保持配表权威）
   - 最终 FullRebuild 刷新的 `Binaries/Win64/` 精选预构建包
 - Stable Reads:
   - `scripts/data/sync_xlsx_to_csv.py`
@@ -57,23 +58,23 @@
 - 关闭前逐项填写审阅结果：
   - `ARCHITECTURE.md`：待审阅拓扑与依赖方向；
   - `README.md`：待审阅 AREA 路由；
-  - `MOD-ReEcho.md`：待同步 Encounter.8 三波结构与数据校验事实；
-  - `MOD-ReEchoEnemies.md`：待审阅 Enemy/Boss 数值消费边界；
-  - `MOD-ReEchoVFX.md`：待审阅 Plan96 配表伤害与表现解耦边界。
+  - `MOD-ReEcho.md`：已同步 Encounter.8 三波结构、唯一 Boss 与结束条件；
+  - `MOD-ReEchoEnemies.md`：已确认数值仍由主模块编译的 CSV 注入，并修正 2026-08-18 遗留的兔子 `10` / Boss `0` 陈旧描述；
+  - `MOD-ReEchoVFX.md`：已确认 VFX 只读消费事件、当前兔子伤害 `1` 说明与配表一致，无需修改；
 
 ## 锁定验收
 
-- [ ] 三份 XLSX 保持原格式、保护、表结构和最新非本任务内容；目标表可见值与策划交接逐项一致，六份生成 CSV 与工作簿字节一致。
-- [ ] 敌人基准/成长/技能、ActiveUnitLimit、全部波次数量、Encounter.8 三波和碎片掉落区间与交接清单一致；狐狸基准与成长满足策划给出的向上取整结果。
-- [ ] Encounter.8 校验接受唯一合法三波并拒绝缺波、错时刻、错索引、非首波 Boss 或重复 Boss；错误包含文件/行/字段上下文。
-- [ ] 运行时调度静态审计和聚焦证据证明 Wave.2/3 会进入通用警告/提交事件，Boss 仅生成一次；不引入 C++ Boss 特例。
-- [ ] Plan96 保留最新 `WindupEnd` 与 VFX 语义，伤害期望对齐新配表及二阶段倍率，不再继续锁死旧值。
-- [ ] `sync_xlsx_to_csv.py --check`、聚焦 Python 测试、`validate_project.py`、最终 `-FullRebuild`、预构建检查和 `git diff --check` 通过。
-- [ ] 用户/策划在准确最终候选中验收 Encounter.8 三波、Boss 不重复及整体数值体验；未提交允许列表外 UE 生成物或机器本地文件。
+- [x] 三份 XLSX 保持原格式、保护、表结构和最新非本任务内容；目标表可见值与策划交接逐项一致，六份生成 CSV 与工作簿字节一致。
+- [x] 敌人基准/成长/技能、ActiveUnitLimit、全部波次数量、Encounter.8 三波和碎片掉落区间与交接清单一致；狐狸基准与成长满足策划给出的向上取整结果。
+- [x] Encounter.8 校验接受唯一合法三波并拒绝缺波、错时刻、错索引、非首波 Boss 或重复 Boss；错误包含文件/行/字段上下文。
+- [x] 运行时调度静态审计和聚焦证据证明 Wave.2/3 会进入通用警告/提交事件，Boss 仅生成一次；不引入 C++ Boss 特例。
+- [x] Plan96 保留最新 `WindupEnd` 与 VFX 语义，伤害期望对齐新配表及二阶段倍率，不再继续锁死旧值。
+- [x] `sync_xlsx_to_csv.py --check`、聚焦 Python 测试、`validate_project.py`、最终 `-FullRebuild`、预构建检查和 `git diff --check` 通过。
+- [x] 用户/策划在准确最终候选中验收 Encounter.8 三波、Boss 不重复及整体数值体验；未提交允许列表外 UE 生成物或机器本地文件。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@dc46a89a80bc67c738952374ae971cde5b69ddd3`；已吸收 Plan96 最新光束锁定时机和 Plan105 工作簿符文调整。
+- 基线分支/提交：`origin/main@be229333b39fbfb28fb9716c69edcd522708a9a1`；已吸收 Plan96 最新光束锁定时机、`GMBossSkill` 调试契约、Plan105 工作簿符文调整和 Plan108 商店预付费实现。
 - 引擎/构建可用性：UE 5.8 可用；最终程序发布仍需用户关闭 Editor、取得 Git common-dir Unreal 锁并执行 `Development -FullRebuild`。
 - 现有聚焦测试结果：策划报告旧候选 CSV 可加载且 Encounter.1 可进入，但该证据来自 `7972288` 派生基线，不作为本 Plan 最终证据；当前主线校验会按预期拒绝 Boss 三波。
 - 共享契约 / 难合并资源风险：`ReEchoData.xlsx`、Plan96、`MOD-ReEcho.md` 和精选预构建包均刚被并行任务修改；本 Plan 已选择组合适配，发布前再次 fetch，任何新增同行编辑都重新审计。
@@ -109,16 +110,25 @@
 
 ### 证据
 
-- 待实现。
+- artifact-tool 从 Git 哈希确认的最新三份工作簿导入并完成目标表与全工作表渲染，三份文件公式错误扫描均为 0。由于当前导出器会丢失 Excel 工作表保护，最终文件以原 XLSX 容器为基准，仅移植 artifact-tool 已验证的目标单元格；只读结构审计确认所有原工作表保护、隐藏状态、可编辑样式与表不变，`tblEncounterWaves=A3:L27`，验证范围为 `B4:B27` / `I4:I27`，新增两行继承原数据行样式与解锁状态。
+- `sync_xlsx_to_csv.py` 首次按预期被旧单波校验拦截；适配后发布成功，Git 审计确认只改变 `enemies / enemy_combat_stats / enemy_abilities / encounters / encounter_waves / enemy_shard_drops` 六份 CSV。`--check` 通过。
+- `test_validate_encounter_contract.py` 6/6 通过，覆盖合法三波、缺/多波、错索引、错时刻、首波 Boss 错误和后续重复 Boss；既有 `test_sync_xlsx_to_csv.py` 18/18 通过；`validate_project.py` 与 `git diff --check` 通过。
+- 静态审计 `FReEchoEncounterWaveScheduler::Configure`：逐行对全部 Wave 调用 Melee/Ranged/Elite 的 `AddRoleEvents`，并只在该行 `BossEnemyId` 非空时追加单个 Boss Commit。因此 Wave.2/3 会走通用调度，且当前配表只在 Wave.1 生成一次 Boss，无需 C++ 变更。
+- 在用户关闭 Editor 且取得 Git common-dir Unreal 锁后，`scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 完成 94/94 动作并返回 `Result: Succeeded`；精选 Editor 包刷新为 7 个模块，Engine Build ID `55116800`，源码指纹 `a25c16cb5f27`。
+- 发布前 `git fetch origin --prune` 确认任务基线与 `origin/main@be229333` 一致，无新增远端提交或共享文件重叠。
 
 ### 剩余风险
 
-- `PendingBeforeClose`：最终组合候选尚未进行 Encounter.8 人工验收。
+- 无已知阻塞风险；后续纯体验型数值迭代继续由新的策划交接与独立 Plan 驱动。
 
 ### 人工验收结果/请求
 
-- 待最终候选。
+- `Passed`：2026-08-25，用户在 `ReEcho-plan109-balance-tuning` 候选手测后反馈“手测无误”，并明确要求推送、合并 `main`、清理本地工作分支和文件夹。
 
 ### 架构文档审阅结果
 
-- 待实现关闭前填写。
+- `ARCHITECTURE.md`：现有 `0/10/20` Encounter Catalog、WaveScheduler 所有权与 Boss 胜负完成流程继续准确，无拓扑变化。
+- `README.md`：`AREA-Data` / `AREA-Encounter` 路由仍准确，无索引变化。
+- `MOD-ReEcho.md`：已补充 Encounter.1~8 三波、Encounter.8 唯一 Boss 和 `BossOrPlayerDeath` 事实。
+- `MOD-ReEchoEnemies.md`：依赖方向不变；已清理已过期的兔子 10 / Boss 0 临时伤害说明，改为配表权威及当前值。
+- `MOD-ReEchoVFX.md`：表现只读、兔子当前伤害 1 与投射物位置权威说明仍准确，无需修改。
