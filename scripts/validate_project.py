@@ -1919,6 +1919,7 @@ def validate_workflow() -> None:
         fail("PROJECT_RULES.md must point to SECRETARY_RULES.md without redefining secretary duty")
     git_rule_markers = (
         "提交身份和发布完整性规则的唯一权威",
+        "推送到任何远端引用",
         "[PROGRAMMER]",
         "[DESIGNER]",
         "[ARTIST]",
@@ -2040,24 +2041,34 @@ def validate_workflow() -> None:
     missing_compact_prompt_markers = [marker for marker in compact_prompt_markers if marker not in planner_rules]
     if missing_compact_prompt_markers:
         fail(f"Planner rules lack the neutral Plan-driven prompt contract: {', '.join(missing_compact_prompt_markers)}")
-    main_only_markers = {
-        "PROJECT_RULES.md": ("`origin/main` 是唯一允许的远端分支", "不推送任何远端引用"),
+    remote_branch_boundary_markers = {
+        "PROJECT_RULES.md": (
+            "`origin/main` 是唯一权威发布分支",
+            "程序路线与项目秘书默认仍只推送 `origin/main`",
+            "`designer/<task>`",
+            "`artist/<task>`",
+            "协作分支不是发布面",
+        ),
+        "DESIGNER_RULES.md": ("`designer/<task>`", "不得直接推送或发布 `main`"),
+        "ARTIST_RULES.md": ("`artist/<task>`", "不得直接推送或发布 `main`"),
         "PLANNER_RULES.md": ("`origin/main` 是唯一允许的远端分支", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不自行推送任务分支"),
         "SECRETARY_RULES.md": ("默认禁止创建或推送 `origin/main` 之外的远端分支", "默认只将本地 `main` 非强制推送至 `origin/main`"),
-        "WORKFLOW.md": ("远端仓库只有一个分支：`main`", "编号 Plan 在实现开始前发布到 `main`"),
+        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`designer/<task>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
     }
-    main_only_texts = {
+    remote_branch_boundary_texts = {
         "PROJECT_RULES.md": project_rules,
+        "DESIGNER_RULES.md": designer_rules,
+        "ARTIST_RULES.md": artist_rules,
         "PLANNER_RULES.md": planner_rules,
         "EXECUTOR_RULES.md": executor_rules,
         "SECRETARY_RULES.md": secretary_rules,
         "WORKFLOW.md": workflow_text,
     }
-    for name, markers in main_only_markers.items():
-        missing = [marker for marker in markers if marker not in main_only_texts[name]]
+    for name, markers in remote_branch_boundary_markers.items():
+        missing = [marker for marker in markers if marker not in remote_branch_boundary_texts[name]]
         if missing:
-            fail(f"{name} lacks main-only remote workflow markers: {', '.join(missing)}")
+            fail(f"{name} lacks role-aware remote branch boundary markers: {', '.join(missing)}")
     live_remote_side_ref_files = {
         "AGENTS.md": agents,
         "PROJECT_RULES.md": project_rules,

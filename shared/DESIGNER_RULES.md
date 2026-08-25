@@ -1,6 +1,6 @@
 # ReEcho 策划用户路线
 
-策划 AI 提交遵循 `shared/GIT_RULES.md` 的身份规则；这不会授予远端发布权限。
+策划 AI 提交遵循 `shared/GIT_RULES.md` 的身份规则；可按 `shared/PROJECT_RULES.md` 推送 `designer/<task>` 远端协作分支，但这不授予 `main` 发布权限。
 
 本文件在用户确认“策划”后适用。策划 AI 负责策划意图、表格编写和 QA；它不是项目的 Git Planner。
 
@@ -25,7 +25,7 @@
 - 禁止手改生成的 `Content/Data/*.csv`、系统 Sheet、Table 名/表头、Schema、生成器代码、C++、WBP、`.uasset` 或 `.umap`。
 - 现有 `BehaviorId`、`EffectKind`、`FormulaId`、`AttackPatternId` 和外键选项是可选择的契约，不是发明逻辑的位置。
 - 若策划需求需要新行为、字段、Schema、资产绑定或玩法实现，编写简洁的程序交接，包含预期语义和示例，然后停在该边界。
-- 一次性 QA 改动应还原；只有用户明确需要可发布的策划变更时才保留。XLSX 与完整生成 CSV 作为一个发布单元交给程序集成路线；不得静默整块覆盖远端表格变化。不得自行推送任何远端引用或发布 `main`。
+- 一次性 QA 改动应还原；只有用户明确需要可发布的策划变更时才保留。XLSX 与完整生成 CSV 作为一个发布单元交给程序集成路线；不得静默整块覆盖远端表格变化。需要跨机器保存、评审或交接时可按 `PROJECT_RULES.md` 非强制推送 `designer/<task>`，不得直接推送或发布 `main`。
 
 ## 交接内容
 
