@@ -55,6 +55,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
 	FVector FootpointOffset = FVector::ZeroVector;
 
+	/** 终结死亡动画使用逐帧 Sprite 原点作为已制作脚点；该运行时标记会进入 Cook。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
+	bool bUseAuthoredDeathPivot = false;
+
 	/** Visual-only downward inset used by custom-pivot terminal Death sprites. The ground shadow remains fixed. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint", meta = (ClampMin = "0.0"))
 	float DeathGroundSink = 0.0f;

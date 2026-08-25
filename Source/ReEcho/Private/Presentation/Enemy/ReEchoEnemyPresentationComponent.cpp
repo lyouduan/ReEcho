@@ -307,9 +307,7 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 			FlipbookBounds = CurrentSprite->GetRenderBounds();
 		}
 	}
-	FVector2D AuthoredDeathPivot;
-	const bool bUseAuthoredDeathPivot =
-	    CurrentSprite && CurrentSprite->GetPivotMode(AuthoredDeathPivot) == ESpritePivotMode::Custom;
+	const bool bUseAuthoredDeathPivot = CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot;
 	if (bUseAuthoredDeathPivot)
 	{
 		GroundRoot->SetRelativeLocation(AuthoredGroundRootLocation);
@@ -358,8 +356,7 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 		}
 	}
 	const FVector ProfileFootpointOffset = ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector;
-	FVector2D AuthoredDeathPivot;
-	if (CurrentSprite && CurrentSprite->GetPivotMode(AuthoredDeathPivot) == ESpritePivotMode::Custom)
+	if (CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot)
 	{
 		CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(
 		    SequenceAnimation->GetRelativeTransform(),
