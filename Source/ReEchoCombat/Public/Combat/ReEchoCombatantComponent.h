@@ -150,9 +150,8 @@ private:
 	{
 		FName SourceId = NAME_None;
 		float ExpiresAt = 0.0f;
-		float AttackSpeedMultiplier = 1.0f;
+		float AttackSpeedDelta = 0.0f;
 		float MovementSpeedMultiplier = 1.0f;
-		float FallbackAttackSpeedDelta = 0.0f;
 		float FallbackMovementSpeedDelta = 0.0f;
 		FActiveGameplayEffectHandle GameplayEffectHandle;
 	};

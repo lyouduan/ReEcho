@@ -42,6 +42,7 @@ struct REECHO_API FReEchoEffectiveWeaponDefinition
 	FReEchoCsvWeaponRow Weapon;
 	TArray<FReEchoCsvAttackStepRow> AttackSteps;
 	FName DamageChannelId = TEXT("Physical");
+	float AttackSpeedModifier = 0.0f;
 	bool bUsesCyclingElement = false;
 	bool bUsesDeterministicRandomElement = false;
 	float OnKillHealPercent = 0.0f;

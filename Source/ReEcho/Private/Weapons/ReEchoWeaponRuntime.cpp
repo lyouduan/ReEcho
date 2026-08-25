@@ -11,6 +11,7 @@ const FName NoneId = TEXT("None");
 const FName DamageChannelRule = TEXT("Weapon.DamageChannel");
 const FName AttackPatternRule = TEXT("Weapon.AttackPatternId");
 const FName AttackIntervalRule = TEXT("Weapon.AttackIntervalSeconds");
+const FName AttackSpeedModifierRule = TEXT("Weapon.AttackSpeedModifier");
 const FName DamageCoefficientRule = TEXT("Weapon.DamageCoefficient");
 const FName OnKillHealRule = TEXT("Weapon.OnKillHealPercent");
 const FName WeaponRangeRule = TEXT("Weapon.RangeCm");
@@ -115,8 +116,11 @@ bool ApplyPartEffect(const FReEchoCsvWeaponRow& Weapon,
 
 	if (Effect.EffectKind == TEXT("StatModifier") && Effect.Target == TEXT("AttackSpeed"))
 	{
-		Build.Stats.AttackSpeed = FMath::Max(
-		    0.1f, ReEchoWeaponRuntime::ApplyValueOperation(Build.Stats.AttackSpeed, Effect.ValueOp, Effect.Value));
+		float Current = 0.0f;
+		ReadRuleFloat(Build, AttackSpeedModifierRule, Current, Current);
+		WriteRuleFloat(Build,
+		               AttackSpeedModifierRule,
+		               ReEchoWeaponRuntime::ApplyValueOperation(Current, Effect.ValueOp, Effect.Value));
 		return true;
 	}
 
@@ -569,6 +573,7 @@ bool ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(const FReEchoCsvDataSna
 	              AttackIntervalRule,
 	              OutDefinition.Weapon.AttackIntervalSeconds,
 	              OutDefinition.Weapon.AttackIntervalSeconds);
+	ReadRuleFloat(Build, AttackSpeedModifierRule, 0.0f, OutDefinition.AttackSpeedModifier);
 	ReadRuleFloat(
 	    Build, DamageCoefficientRule, OutDefinition.Weapon.DamageCoefficient, OutDefinition.Weapon.DamageCoefficient);
 	ReadRuleFloat(Build, WeaponRangeRule, OutDefinition.Weapon.RangeCm, OutDefinition.Weapon.RangeCm);
@@ -649,6 +654,7 @@ FReEchoWeaponDefinition ReEchoWeaponRuntime::CompileLogicDefinition(const FReEch
 	Result.AttackPatternId = Definition.Weapon.AttackPatternId;
 	Result.DamageChannelId = Definition.DamageChannelId;
 	Result.AttackIntervalSeconds = Definition.Weapon.AttackIntervalSeconds;
+	Result.AttackSpeedModifier = Definition.AttackSpeedModifier;
 	Result.DamageCoefficient = Definition.Weapon.DamageCoefficient;
 	Result.RangeCm = Definition.Weapon.RangeCm;
 	Result.ArcDegrees = Definition.Weapon.ArcDegrees;

@@ -94,7 +94,7 @@ UReEchoTransientStatEffect::UReEchoTransientStatEffect()
 	DurationPolicy = EGameplayEffectDurationType::Infinite;
 	AddSetByCallerModifier(*this,
 	                       UReEchoCombatAttributeSet::GetAttackSpeedAttribute(),
-	                       EGameplayModOp::Multiplicitive,
+	                       EGameplayModOp::Additive,
 	                       ReEchoGameplayTags::Data_AttackSpeed);
 	AddSetByCallerModifier(*this,
 	                       UReEchoCombatAttributeSet::GetMovementSpeedAttribute(),
@@ -205,16 +205,16 @@ float ReEchoGameplayEffects::ApplyHealing(UAbilitySystemComponent* Source,
 	return FMath::Max(0.0f, Attributes->GetHealth() - PreviousHealth);
 }
 
-FActiveGameplayEffectHandle ReEchoGameplayEffects::ApplyTransientStatMultiplier(UAbilitySystemComponent& Target,
-                                                                                const float AttackSpeedMultiplier,
-                                                                                const float MovementSpeedMultiplier)
+FActiveGameplayEffectHandle ReEchoGameplayEffects::ApplyTransientStatModifiers(UAbilitySystemComponent& Target,
+                                                                               const float AttackSpeedDelta,
+                                                                               const float MovementSpeedMultiplier)
 {
 	FGameplayEffectSpecHandle Spec = MakeSpec(Target, UReEchoTransientStatEffect::StaticClass());
 	if (!Spec.IsValid())
 	{
 		return {};
 	}
-	Spec.Data->SetSetByCallerMagnitude(ReEchoGameplayTags::Data_AttackSpeed, FMath::Max(0.01f, AttackSpeedMultiplier));
+	Spec.Data->SetSetByCallerMagnitude(ReEchoGameplayTags::Data_AttackSpeed, AttackSpeedDelta);
 	Spec.Data->SetSetByCallerMagnitude(ReEchoGameplayTags::Data_MovementSpeed,
 	                                   FMath::Max(0.01f, MovementSpeedMultiplier));
 	return Target.ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());

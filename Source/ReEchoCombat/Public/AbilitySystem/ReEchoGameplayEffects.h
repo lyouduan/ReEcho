@@ -67,7 +67,7 @@ REECHOCOMBAT_API bool
 ApplyInitialization(UAbilitySystemComponent& Target, const FReEchoStatBlock& Stats, bool bFillHealth = true);
 REECHOCOMBAT_API float ApplyDamage(UAbilitySystemComponent* Source, UAbilitySystemComponent& Target, float Damage);
 REECHOCOMBAT_API float ApplyHealing(UAbilitySystemComponent* Source, UAbilitySystemComponent& Target, float Healing);
-REECHOCOMBAT_API FActiveGameplayEffectHandle ApplyTransientStatMultiplier(UAbilitySystemComponent& Target,
-                                                                          float AttackSpeedMultiplier,
-                                                                          float MovementSpeedMultiplier);
+REECHOCOMBAT_API FActiveGameplayEffectHandle ApplyTransientStatModifiers(UAbilitySystemComponent& Target,
+                                                                         float AttackSpeedDelta,
+                                                                         float MovementSpeedMultiplier);
 }

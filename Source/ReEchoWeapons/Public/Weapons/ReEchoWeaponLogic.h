@@ -19,6 +19,7 @@ public:
 	const FReEchoWeaponDefinition& GetDefinition() const;
 	const FReEchoWeaponStepDefinition* GetNextStep() const;
 	float GetAttackInterval(const FReEchoStatBlock& Stats) const;
+	float GetScaledAttackDuration(float InitialDurationSeconds, const FReEchoStatBlock& Stats) const;
 	float GetCurrentRangeCm() const;
 	float GetOnKillHealPercent() const;
 	EReEchoElement PeekNextElement() const;

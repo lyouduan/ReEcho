@@ -166,6 +166,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：CSV Schema 校验、稳定 ID 引用、运行时快照发布和领域修订值。
 - 武器装载顺序：`weapons.csv` 的 `InputSlot` 与 `LoadoutOrder` 支持 `1..6`；允许删除武器后保留稳定顺序空档，但可选武器的顺序值必须唯一且必须绑定非 `None` 输入槽。删除武器族时必须同时更新权威 XLSX/CSV 与 Reader 的精确部件审计计数，启动校验不得继续要求已删除武器的来源行或效果种类；未配置的可选效果种类不构成数据错误，但已配置行仍须通过 Schema/Behavior 校验。
 - 武器伤害数据：`weapons.csv` 与 `attack_steps.csv` 只发布 `DamageCoefficient`；核心宝石通过 `part_effects.csv` 的 `DamageChannel` 选择物理、指定元素或确定性随机元素。原初之晶选择物攻，其他元素宝石与棱镜之晶选择元攻；数据层不得恢复物理/元素双倍率字段。
+- 武器攻速数据：`part_effects.csv` 的静态 `AttackSpeed` 只使用 `Add` 和与描述一致的有符号比例（例如 `+60%=0.6`、`-500%=-5`）。主模块把多个装备修正累计为一个类型化值交给 Weapons，不修改角色基础 `Stats.AttackSpeed`，也不把倒数乘数当作策划百分点。
 - 扩展：先改 XLSX/Schema/生成器，再扩 Reader 与验证；Behavior/Formula 等逻辑字段必须映射到注册实现。
 - 禁止：运行时读取 XLSX、执行描述文本、把解析失败静默替换为默认逻辑、保存第二份平衡常量，或在 `Content/Data` 恢复已迁移玩法 JSON。
 
@@ -195,6 +196,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 伤害倍率适配：静态符文修改只写入同一个 `Weapon.DamageCoefficient` 并同步到实际 AttackStep；宝石只写 `Weapon.DamageChannel`，不参与倍率兼容选择。最终属性来源和公式由 `MOD-ReEchoWeapons` 权威执行。
 - 武器符文装载（Plan75）：每把武器 3 槽（1 核心 Core + 2 武器专属命名槽，如弓=弓弦+箭头），符文语义即 `parts.csv` 配件。`AReEchoWeaponActor` 持有局内活权威 `EquippedRunes`（`TArray<FReEchoEquippedPartSnapshot>`）并提供 `EquipRune`/`UnequipRune`；装配/卸下复用 `ReEchoWeaponRuntime::TryEquipParts` 的统一校验与 Effect 编译，并触发 `RebuildEffectiveDefinition`，使"装了符文的武器"对外是半径统一的有效武器（"一体"）。持久真值仍为 `BuildSnapshot.EquippedParts`，`EquippedRunes` 每次变动后镜像之，存档/回放由 `BuildSnapshot` 重建。符文行为数据驱动（特殊行为走 `BehaviorId`），不继承子类；装配/Effect 不进入 `ReEchoWeapons` 逻辑模块。
 - 武器符文执行（Plan76）：47 个可见生产符文全部由 `part_effects` 编译。静态修改会同时作用于武器 Definition 和实际 AttackStep，避免步骤值覆盖符文；19 种动态 `Part.*` 行为编译为每次 Commit 快照化的 `FReEchoWeaponRuneEffectSpec`，由 `AReEchoWeaponActor` 在 Combat 最终 `FReEchoHitResolved` 后执行命中、暴击、击杀、群攻阈值、临时叠层、陨星、外圈、分裂和镰刀投掷。碎片符文与基础敌人掉落共用 `AReEchoTimeShardPickupActor` 的正式纹理和拾取后入账边界，Echo 结果不产出经济收益。描述文字不参与分派。
+- 攻速适配（Plan106）：静态攻速符文不再改 `BuildSnapshot.Stats`，而是累积进有效武器 Definition 的有符号修正；`AReEchoWeaponActor` 的基础攻击、步骤锁与镰刀驻留攻击都消费 `ReEchoWeapons` 的统一时长函数。运行时每击/每次攻击层只向 Combat 发送精确百分点，主模块不自行换算倒数或乘数。
 - 攻击表现路由（Plan76/104）：长剑与镰刀的稳定 AttackPattern 由 Combat VFX Catalog 分别映射专用一次性 Niagara，不再生成旧平面刀光；弓与枪的飞行 Niagara 附着到 `AReEchoProjectileActor`，首次权威 `OnProjectileImpacted` 播放各自命中特效，表现不积分位移、不决定命中。四者不再读取 `SlashCrescent/ScytheSweep/BowProjectile/GunProjectile`；鞭和正式法杖表现已退役，`MoonStaff/StaffLightWave` 仅保留为贤者动画辅助。任何表现缺失都不得影响逻辑 Commit、飞行和伤害。
 - 武器表现 Profile（Plan77）：`FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析本体资源、武器动作模式和专属攻击 VFX 能力；Profile 不包含角色动画或玩法规则。Player/Echo 可启用 Weapon Track，普通怪物强制无武器，Boss 只有显式配置武器表现 ID 时才允许启用。
 - 武器表现资源由 `/Game/ReEcho/DataAsset/Weapon` 下的一武器一 `UReEchoWeaponPresentationProfile` 配置，并由 `DA_WeaponPresentationCatalog` 按 VisualKey 唯一解析；预加载器只聚合已启用的 Soft Reference。Profile 提供 Charge、Travel、DamageApplied 三个可选阶段槽，并保留明确的 AttackCommitted 槽承载长剑/镰刀现有提交斩击。

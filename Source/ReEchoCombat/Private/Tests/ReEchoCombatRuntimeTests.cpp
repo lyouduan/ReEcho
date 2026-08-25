@@ -1,5 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "AbilitySystem/ReEchoCombatAttributeSet.h"
+#include "AbilitySystem/ReEchoGameplayEffects.h"
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatTarget.h"
@@ -176,7 +178,7 @@ bool FReEchoRuneTimedStatusRuntimeTest::RunTest(const FString& Parameters)
 	FReEchoStatBlock Stats;
 	Stats.HpMax = 100.0f;
 	Stats.HpPoint = 100.0f;
-	Stats.AttackSpeed = 1.0f;
+	Stats.AttackSpeed = 1.25f;
 	Stats.MovementSpeed = 100.0f;
 	Combatant->InitializeFromStats(Stats, true);
 
@@ -216,19 +218,36 @@ bool FReEchoRuneTimedStatusRuntimeTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Bleeding status clears after the final independent stack expires"),
 	          Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Bleeding")));
 
-	Combatant->AddTransientStatModifier(TEXT("Rune.Attack"), 0.01f, 0.0f, 5.0f, 30);
-	Combatant->AddTransientStatModifier(TEXT("Rune.Attack"), 0.01f, 0.0f, 5.0f, 30);
+	Combatant->AddTransientStatModifier(TEXT("Rune.Attack"), 0.01f, 0.1f, 5.0f, 30);
+	Combatant->AddTransientStatModifier(TEXT("Rune.Attack"), 0.01f, 0.1f, 5.0f, 30);
 	TestEqual(TEXT("Transient rune stat stacks are tracked independently"),
 	          Combatant->GetTransientStatStackCount(TEXT("Rune.Attack")),
 	          2);
-	TestTrue(TEXT("Transient percentage layers add against the unmodified base instead of compounding"),
-	         FMath::IsNearlyEqual(Combatant->Stats.AttackSpeed, 1.02f, 0.0001f));
+	TestTrue(TEXT("Transient attack-speed layers add percentage points instead of multiplying the base"),
+	         FMath::IsNearlyEqual(Combatant->Stats.AttackSpeed, 1.27f, 0.0001f));
+	TestTrue(TEXT("Movement-speed layers keep their existing unmodified-base percentage behavior"),
+	         FMath::IsNearlyEqual(Combatant->Stats.MovementSpeed, 120.0f, 0.0001f));
+	const UReEchoTransientStatEffect* TransientEffect = GetDefault<UReEchoTransientStatEffect>();
+	const FGameplayModifierInfo* AttackSpeedModifier = TransientEffect->Modifiers.FindByPredicate(
+	    [](const FGameplayModifierInfo& Modifier)
+	    {
+		    return Modifier.Attribute == UReEchoCombatAttributeSet::GetAttackSpeedAttribute();
+	    });
+	TestNotNull(TEXT("Transient GameplayEffect contains the attack-speed modifier"), AttackSpeedModifier);
+	if (AttackSpeedModifier)
+	{
+		TestEqual(TEXT("GAS attack-speed layers use additive percentage points"),
+		          AttackSpeedModifier->ModifierOp,
+		          EGameplayModOp::Additive);
+	}
 	Combatant->AdvanceTimedRuneEffectsForTests(5.0f);
 	TestEqual(TEXT("All independently expired transient stacks are removed"),
 	          Combatant->GetTransientStatStackCount(TEXT("Rune.Attack")),
 	          0);
-	TestTrue(TEXT("Removing transient stacks restores the base stat"),
-	         FMath::IsNearlyEqual(Combatant->Stats.AttackSpeed, 1.0f, 0.0001f));
+	TestTrue(TEXT("Removing transient stacks restores the base attack speed"),
+	         FMath::IsNearlyEqual(Combatant->Stats.AttackSpeed, 1.25f, 0.0001f));
+	TestTrue(TEXT("Removing transient stacks restores the base movement speed"),
+	         FMath::IsNearlyEqual(Combatant->Stats.MovementSpeed, 100.0f, 0.0001f));
 	return true;
 }
 

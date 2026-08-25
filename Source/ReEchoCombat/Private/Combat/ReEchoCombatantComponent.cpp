@@ -240,28 +240,27 @@ void UReEchoCombatantComponent::AddTransientStatModifier(const FName SourceId,
 	FTransientStatStack& Stack = TransientStatStacks.AddDefaulted_GetRef();
 	Stack.SourceId = SourceId;
 	Stack.ExpiresAt = (GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f) + DurationSeconds;
-	Stack.AttackSpeedMultiplier = FMath::Max(0.01f, 1.0f + AttackSpeedBonusFraction);
+	Stack.AttackSpeedDelta = AttackSpeedBonusFraction;
 	Stack.MovementSpeedMultiplier = FMath::Max(0.01f, 1.0f + MovementSpeedBonusFraction);
-	float FallbackBaseAttackSpeed = Stats.AttackSpeed;
 	float FallbackBaseMovementSpeed = Stats.MovementSpeed;
 	for (const FTransientStatStack& Existing : TransientStatStacks)
 	{
 		if (&Existing != &Stack)
 		{
-			FallbackBaseAttackSpeed -= Existing.FallbackAttackSpeedDelta;
 			FallbackBaseMovementSpeed -= Existing.FallbackMovementSpeedDelta;
 		}
 	}
-	Stack.FallbackAttackSpeedDelta = FallbackBaseAttackSpeed * (Stack.AttackSpeedMultiplier - 1.0f);
 	Stack.FallbackMovementSpeedDelta = FallbackBaseMovementSpeed * (Stack.MovementSpeedMultiplier - 1.0f);
 	if (BoundAbilitySystem)
 	{
-		Stack.GameplayEffectHandle = ReEchoGameplayEffects::ApplyTransientStatMultiplier(
-		    *BoundAbilitySystem, Stack.AttackSpeedMultiplier, Stack.MovementSpeedMultiplier);
+		Stack.GameplayEffectHandle = ReEchoGameplayEffects::ApplyTransientStatModifiers(
+		    *BoundAbilitySystem, Stack.AttackSpeedDelta, Stack.MovementSpeedMultiplier);
 	}
 	else
 	{
-		Stats.AttackSpeed += Stack.FallbackAttackSpeedDelta;
+		const float PreviousAttackSpeed = Stats.AttackSpeed;
+		Stats.AttackSpeed = FMath::Max(0.1f, Stats.AttackSpeed + Stack.AttackSpeedDelta);
+		Stack.AttackSpeedDelta = Stats.AttackSpeed - PreviousAttackSpeed;
 		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
 	}
 	RefreshTickState();
@@ -353,7 +352,7 @@ void UReEchoCombatantComponent::RemoveTransientStatStack(const int32 Index)
 	}
 	else if (!BoundAbilitySystem)
 	{
-		Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
+		Stats.AttackSpeed -= Stack.AttackSpeedDelta;
 		Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
 	}
 	TransientStatStacks.RemoveAt(Index);

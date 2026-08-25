@@ -743,15 +743,15 @@ bool FReEchoWeaponStepLockScalesWithAttackSpeedTest::RunTest(const FString& Para
 	AActor* FastOwner = FastFixture.SpawnWeaponOwner(FVector::ZeroVector, FastCombatant);
 	FReEchoBuildSnapshot FastBuild = MakeBuild(*Snapshot, TEXT("W_J_01"));
 	SetBuildStats(FastBuild, FastCombatant->Stats);
-	FastCombatant->Stats.AttackSpeed = 2.5f;
+	FastCombatant->Stats.AttackSpeed = 1.6f;
 	AReEchoWeaponActor* FastWeapon = FastFixture.World->SpawnActor<AReEchoWeaponActor>();
 	FastWeapon->SetOwner(FastOwner);
 	FastWeapon->InitializeWeapon(&FastBuild, Snapshot);
 	TestTrue(TEXT("fast attack executes"), FastWeapon->ExecuteBasicAttack(FastCombatant));
 	const float FastLock = FastWeapon->GetStepLockRemaining();
 
-	TestTrue(TEXT("step lock scales inversely with attack speed"),
-	         FMath::IsNearlyEqual(SlowLock, FastLock * 2.5f, 0.01f));
+	TestTrue(TEXT("+60% attack speed scales the step lock to 40% duration"),
+	         FMath::IsNearlyEqual(FastLock, SlowLock * 0.4f, 0.01f));
 	return true;
 }
 
@@ -894,6 +894,68 @@ bool FReEchoWeaponRuneStaticStepCompilationTest::RunTest(const FString& Paramete
 		return true;
 	};
 
+	struct FExpectedAttackSpeedRune
+	{
+		FName WeaponId;
+		FName PartId;
+		float Modifier = 0.0f;
+	};
+
+	const TArray<FExpectedAttackSpeedRune> ExpectedAttackSpeedRunes = {
+	    {TEXT("W_J_08"), TEXT("P_BOW_HASTE_BOWSTRING"), 0.6f},
+	    {TEXT("W_J_08"), TEXT("P_BOW_HEAVY_BOWSTRING"), -0.3f},
+	    {TEXT("W_J_04"), TEXT("P_SCYTHE_HASTE_ROTARYBLADE"), 0.4f},
+	    {TEXT("W_J_01"), TEXT("P_LONGSWORD_SLOWWIDE_SWORDBLADE"), -0.2f},
+	    {TEXT("W_J_01"), TEXT("P_LONGSWORD_HASTE_GRIP"), 0.2f},
+	    {TEXT("W_J_01"), TEXT("P_LONGSWORD_HEAVY_GRIP"), -0.3f},
+	    {TEXT("W_J_04"), TEXT("P_SCYTHE_GROUPINVULN_GRIP"), -0.5f},
+	    {TEXT("W_J_09"), TEXT("P_GUN_CHARGED_MUZZLE"), -5.0f},
+	};
+	for (const FExpectedAttackSpeedRune& Expected : ExpectedAttackSpeedRunes)
+	{
+		FReEchoBuildSnapshot SpeedBuild;
+		FReEchoEffectiveWeaponDefinition SpeedDefinition;
+		if (CompilePart(Expected.WeaponId, Expected.PartId, SpeedBuild, SpeedDefinition))
+		{
+			TestTrue(
+			    *FString::Printf(TEXT("%s compiles its signed attack-speed percentage"), *Expected.PartId.ToString()),
+			    FMath::IsNearlyEqual(SpeedDefinition.AttackSpeedModifier, Expected.Modifier, 0.001f));
+			TestTrue(*FString::Printf(TEXT("%s does not mutate the character attack-speed stat"),
+			                          *Expected.PartId.ToString()),
+			         FMath::IsNearlyEqual(SpeedBuild.Stats.AttackSpeed, 1.0f, 0.001f));
+		}
+	}
+	auto CompileLongswordSpeedPair =
+	    [this, &Snapshot](const TArray<FName>& PartIds, FReEchoEffectiveWeaponDefinition& OutDefinition)
+	{
+		FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_01"));
+		Build.CardState.OwnedCardIds.Add(TEXT("G_3_22"));
+		FString Error;
+		if (!TestTrue(TEXT("Double-slot card equips both longsword attack-speed grips"),
+		              ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Build, PartIds, Build, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		if (!TestTrue(TEXT("Combined longsword attack-speed grips compile"),
+		              ReEchoWeaponRuntime::BuildEffectiveWeaponDefinition(*Snapshot, Build, OutDefinition, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		return true;
+	};
+	FReEchoEffectiveWeaponDefinition HasteThenHeavy;
+	FReEchoEffectiveWeaponDefinition HeavyThenHaste;
+	if (CompileLongswordSpeedPair({TEXT("P_LONGSWORD_HASTE_GRIP"), TEXT("P_LONGSWORD_HEAVY_GRIP")}, HasteThenHeavy) &&
+	    CompileLongswordSpeedPair({TEXT("P_LONGSWORD_HEAVY_GRIP"), TEXT("P_LONGSWORD_HASTE_GRIP")}, HeavyThenHaste))
+	{
+		TestTrue(TEXT("+20% and -30% attack speed add to -10%"),
+		         FMath::IsNearlyEqual(HasteThenHeavy.AttackSpeedModifier, -0.1f, 0.001f));
+		TestTrue(TEXT("Static attack-speed addition is independent of equipment order"),
+		         FMath::IsNearlyEqual(HasteThenHeavy.AttackSpeedModifier, HeavyThenHaste.AttackSpeedModifier, 0.001f));
+	}
+
 	FReEchoBuildSnapshot LongSwordBuild;
 	FReEchoEffectiveWeaponDefinition LongSword;
 	if (CompilePart(TEXT("W_J_01"), TEXT("P_LONGSWORD_NARROWWIDE_SWORDBLADE"), LongSwordBuild, LongSword))
@@ -926,8 +988,13 @@ bool FReEchoWeaponRuneStaticStepCompilationTest::RunTest(const FString& Paramete
 	const FReEchoBuildSnapshot ChargedBase = MakeBuild(*Snapshot, TEXT("W_J_09"));
 	if (CompilePart(TEXT("W_J_09"), TEXT("P_GUN_CHARGED_MUZZLE"), ChargedBuild, Charged))
 	{
-		TestTrue(TEXT("Charged gun implements -500% cadence as speed x 1/6"),
-		         FMath::IsNearlyEqual(ChargedBuild.Stats.AttackSpeed, ChargedBase.Stats.AttackSpeed / 6.0f, 0.001f));
+		FReEchoWeaponLogic ChargedLogic;
+		TestTrue(TEXT("Charged gun logic initializes"),
+		         ChargedLogic.Initialize(ReEchoWeaponRuntime::CompileLogicDefinition(Charged)));
+		TestTrue(TEXT("Charged gun implements -500% as 0.3 seconds x 6"),
+		         FMath::IsNearlyEqual(ChargedLogic.GetAttackInterval(ChargedBuild.Stats), 1.8f, 0.001f));
+		TestTrue(TEXT("Charged gun leaves character attack speed unchanged"),
+		         FMath::IsNearlyEqual(ChargedBuild.Stats.AttackSpeed, ChargedBase.Stats.AttackSpeed, 0.001f));
 		TestTrue(TEXT("Charged gun applies +180% damage to the authored step"),
 		         FMath::IsNearlyEqual(Charged.AttackSteps[0].DamageCoefficient, 0.56f, 0.001f));
 	}
@@ -1242,8 +1309,12 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	ThrowWeapon->AdvanceScytheThrowForTests(0.6f);
 	const float AfterTravel = WeaponEnemyHealth(ThrowTarget);
 	TestTrue(TEXT("Travel contact applies the configured 60% attack damage"), AfterTravel < ThrowBefore);
-	ThrowWeapon->AdvanceScytheThrowForTests(1.0f);
-	TestTrue(TEXT("Stationary scythe ticks at inherited attack speed for configured 20% damage"),
+	SourceCombatant->Stats.AttackSpeed = 1.6f;
+	ThrowWeapon->AdvanceScytheThrowForTests(0.39f);
+	TestTrue(TEXT("+60% attack speed does not tick the stationary scythe before 0.4 seconds"),
+	         FMath::IsNearlyEqual(WeaponEnemyHealth(ThrowTarget), AfterTravel));
+	ThrowWeapon->AdvanceScytheThrowForTests(0.01f);
+	TestTrue(TEXT("Stationary scythe consumes the shared +60% duration formula"),
 	         WeaponEnemyHealth(ThrowTarget) < AfterTravel);
 	TestTrue(TEXT("Second active input recalls without creating another attack"),
 	         ThrowWeapon->TryActiveAttack(SourceCombatant));

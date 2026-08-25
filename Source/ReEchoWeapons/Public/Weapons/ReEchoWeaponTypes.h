@@ -45,6 +45,8 @@ struct REECHOWEAPONS_API FReEchoWeaponDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName AttackPatternId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName DamageChannelId = TEXT("Physical");
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AttackIntervalSeconds = 0.55f;
+	/** Signed equipment modifier: +0.6 means +60% attack speed, -0.3 means -30%. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AttackSpeedModifier = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DamageCoefficient = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RangeCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ArcDegrees = 0.0f;

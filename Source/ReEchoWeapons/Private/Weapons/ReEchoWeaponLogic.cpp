@@ -158,7 +158,20 @@ const FReEchoWeaponStepDefinition* FReEchoWeaponLogic::GetNextStep() const
 
 float FReEchoWeaponLogic::GetAttackInterval(const FReEchoStatBlock& Stats) const
 {
-	return Definition.AttackIntervalSeconds / FMath::Max(0.1f, Stats.AttackSpeed);
+	return GetScaledAttackDuration(Definition.AttackIntervalSeconds, Stats);
+}
+
+float FReEchoWeaponLogic::GetScaledAttackDuration(const float InitialDurationSeconds,
+                                                  const FReEchoStatBlock& Stats) const
+{
+	const float SafeInitialDuration = FMath::Max(0.0f, InitialDurationSeconds);
+	if (SafeInitialDuration <= 0.0f)
+	{
+		return 0.0f;
+	}
+	const float RuntimeAttackSpeedModifier = Stats.AttackSpeed - 1.0f;
+	const float DurationScale = FMath::Max(0.0f, 1.0f - Definition.AttackSpeedModifier - RuntimeAttackSpeedModifier);
+	return FMath::Max(0.01f, SafeInitialDuration * DurationScale);
 }
 
 float FReEchoWeaponLogic::GetCurrentRangeCm() const
@@ -205,10 +218,10 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	Attack.WeaponId = Definition.WeaponId;
 	if (bRequireReadiness)
 	{
-		ReadinessRemainingSeconds = FMath::Max(0.01f, GetAttackInterval(Stats));
+		ReadinessRemainingSeconds = GetAttackInterval(Stats);
 	}
-	const float ScaledDuration = Step->DurationSeconds / FMath::Max(0.1f, Stats.AttackSpeed);
-	BehaviorRemainingSeconds = FMath::Max(0.0f, ScaledDuration);
+	const float ScaledDuration = GetScaledAttackDuration(Step->DurationSeconds, Stats);
+	BehaviorRemainingSeconds = ScaledDuration;
 	if (Step->bInvulnerable)
 	{
 		InvulnerableRemainingSeconds = FMath::Max(InvulnerableRemainingSeconds, ScaledDuration);

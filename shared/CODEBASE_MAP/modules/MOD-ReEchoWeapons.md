@@ -19,7 +19,7 @@
 
 - `FReEchoWeaponDefinition` / Step Definition 等不可变运行时输入；
 - `FReEchoWeaponLogic` 的 readiness、步骤游标、攻击序号、暴击/元素游标和提交/回滚；
-- 唯一普通攻击频率 `AttackIntervalSeconds / AttackSpeed`；
+- 唯一武器攻速换算：有符号修正率 `r` 统一得到 `初始时长 × (1-r)`，并在计时入口保留 `0.01s` 下限；
 - 近战范围/弧形与投射方向等资源无关几何；
 - `UReEchoProjectileLogicComponent` 的位置、速度、半径、穿透/爆炸、寿命、已命中集合和 Snapshot；
 - 完整 `FReEchoAttackIdentity` 与 `FReEchoHitIntent` 的传递。
@@ -91,6 +91,8 @@ CSV Row 和资源 key 不能进入逻辑模块，避免数据加载器或表现�
 
 武器 Definition 和每个 AttackStep 只暴露一个有效倍率 `DamageCoefficient`。`FReEchoWeaponLogic` 先由 `DamageChannelId` 解析伤害类型：物理通道使用 `PhysicalAttack × DamageCoefficient`，任一元素通道（含确定性随机元素）使用 `ElementalAttack × DamageCoefficient`。不得恢复物理/元素双倍率，也不得用两者最大值做兼容选择；宝石只负责属性来源和伤害类型。
 
+装备符文的 `AttackSpeed` 以有符号百分点编译进 `FReEchoWeaponDefinition::AttackSpeedModifier`：`+60%` 为 `+0.6`，`-30%` 为 `-0.3`，`-500%` 为 `-5.0`。角色/临时层仍以 `FReEchoStatBlock::AttackSpeed=1.0` 为中性值，WeaponLogic 只取其相对中性值的差量，与装备修正相加一次后换算最终时长；这样极限减速不需要把 Combat 属性写成负数。
+
 ### 唯一普通攻击节拍
 
 ```text
@@ -102,7 +104,7 @@ BasicAttack Ability/Host 请求 TryCommit
        → 载体创建/执行失败：回滚 readiness 与游标，不复用 CommitId
 ```
 
-频率只使用策划武器体系的 `weapons.AttackIntervalSeconds / AttackSpeed`。`attack_steps.DurationSeconds` 只表示行为/表现窗口，不得拒绝下一次 Commit；GAS 也不得再持有基础攻击第二道 cooldown。
+频率只使用 `AttackIntervalSeconds × (1-r)`，其中 `r = Definition.AttackSpeedModifier + (Stats.AttackSpeed-1)`。攻击间隔、`attack_steps.DurationSeconds` 的行为/无敌窗口以及主模块镰刀驻留命中间隔都调用同一时长换算；步骤窗口仍不得拒绝下一次 Commit，GAS 也不得再持有基础攻击第二道 cooldown。最终计时小于等于零时统一钳到 `0.01s`，不得在各调用点复制另一套上限规则。
 
 ### 命中载体
 
@@ -148,11 +150,11 @@ Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec:
 - 新 OnHit/OnKill 效果：Weapons 在 Intent/Commit 中携带稳定 effect/behavior ID，Combat 在最终结果后执行合法规则；不要在 Actor 回调直接改目标。
 - 新武器表现：只改主模块 WeaponActor/Presentation 适配，不修改 readiness 或逻辑位置。
 - 武器持有能力：Player/Echo 可启用 Weapon Track；普通怪物永远无武器；Boss 只有显式非空 WeaponPresentationId 才允许启用，不得从 EnemyKind 或攻击模式推断。
-- 新攻速来源：汇总进 `FReEchoStatBlock::AttackSpeed`，仍由同一 WeaponLogic 计算间隔。
+- 新装备攻速来源：在主模块编译为有符号 `AttackSpeedModifier`；新角色/临时来源以相对中性值的百分点进入 `FReEchoStatBlock::AttackSpeed`，最终都只由 WeaponLogic 换算时长。
 
 ## 验证与测试
 
-- 纯规则：Definition 校验、单一 cadence、步骤顺序、AttackSpeed 缩放、Commit/rollback。
+- 纯规则：Definition 校验、单一 cadence、步骤顺序、`0.3 × (1-r)` 的加速/减速/极端减速、步骤时长同公式、Commit/rollback。
 - 几何/载体：近战弧、弹数/散射、穿透/爆炸、命中去重、过期和 Snapshot。
 - 接缝：held Ability 遇到临时未就绪不会退出；自动/手动均能连续至少两次成功 Commit。
 - 生命周期：发射后 Source 销毁，延迟命中仍安全结算且不访问失效来源。

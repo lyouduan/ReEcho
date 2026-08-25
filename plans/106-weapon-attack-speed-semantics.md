@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`NotRequired`；精确数值、叠层和运行时节奏由自动化覆盖，若最终 PIE 手感需要观察则仅作为非阻塞补充。
 - 本地规划 / 实现基线：`origin/main@f98ffeee776fb1317d253d6493eb7a13559cd5d8`。
 - 本地实现方式：`plan/106-weapon-attack-speed-semantics`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan106-attack-speed`。
@@ -60,13 +60,13 @@
 
 ## 锁定验收
 
-- [ ] 以基础攻击时长 `0.3s` 验证：`+60%` 为 `0.12s`、`-30%` 为 `0.39s`、`-500%` 为 `1.8s`；中性值保持 `0.3s`。
-- [ ] 所有启用的静态攻速符文逐行对照策划描述，以加法百分点进入有效武器定义；多符文组合不因顺序不同产生不同结果。
-- [ ] 攻击间隔、步骤锁定/无敌时长和镰刀驻留命中间隔采用同一倍率，并有加速、减速和极端减速自动化证据。
-- [ ] 运行时每击/每次攻击攻速层按百分点线性叠加，叠在任一静态符文上仍准确；单层和多层到期后完整恢复且移动速度行为不回归。
-- [ ] 统一伤害倍率提交前后的 `DamageCoefficient` 数据、实现和回归断言无本任务差异。
-- [ ] XLSX 同步检查、聚焦 Weapons/Combat 自动化、最终 Development FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 以基础攻击时长 `0.3s` 验证：`+60%` 为 `0.12s`、`-30%` 为 `0.39s`、`-500%` 为 `1.8s`；中性值保持 `0.3s`。
+- [x] 所有启用的静态攻速符文逐行对照策划描述，以加法百分点进入有效武器定义；多符文组合不因顺序不同产生不同结果。
+- [x] 攻击间隔、步骤锁定/无敌时长和镰刀驻留命中间隔采用同一倍率，并有加速、减速和极端减速自动化证据。
+- [x] 运行时每击/每次攻击攻速层按百分点线性叠加，叠在任一静态符文上仍准确；单层和多层到期后完整恢复且移动速度行为不回归。
+- [x] 统一伤害倍率提交前后的 `DamageCoefficient` 数据、实现和回归断言无本任务差异。
+- [x] XLSX 同步检查、聚焦 Weapons/Combat 自动化、最终 Development FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -102,15 +102,22 @@
 
 - 2026-08-25：用户确认本次仅处理攻击速度，伤害倍率等待其他 AI 的提交；随后确认 Plan104 已推送远端并授权继续。
 - 2026-08-25：从含统一伤害倍率提交的 `origin/main@f98ffeee` 建立独立工作树。静态审计确认旧实现按速度乘数做除法，无法同时满足 `+60% → ×0.4`、`-30% → ×1.3` 与修正率加法叠层。
+- 2026-08-25：将工作簿中 8 个启用静态攻速效果及 1 个禁用保留行改为有符号 `Add` 比例；生成 CSV 仅变化对应 `AttackSpeed` 行，所有 `DamageCoefficient` 行保持基线字节。
+- 2026-08-25：装备编译新增独立 `AttackSpeedModifier`，WeaponLogic 集中换算攻击间隔和步骤时长，镰刀驻留间隔复用同一入口；Combat 临时攻速层改为加法百分点，移动速度仍用原乘法语义。
+- 2026-08-25：发布前发现 `origin/main` 已前进到 `061083d5`（角色重开变形修复及其预构建刷新）；候选已变基到该提交，源码无冲突，并在组合源码上重新全量构建、测试和刷新预构建包。
 
 ### 证据
 
-- 规划期源码与生产 CSV 审计完成；尚未产生实现验证证据。
+- `python scripts/data/test_sync_xlsx_to_csv.py`：18 项通过；`sync_xlsx_to_csv.py --check` 通过，工作簿保护、生成字节和 14 个工作表渲染审阅通过。
+- `ReEcho.Weapons`：18/18 通过，覆盖四个公式例值、全部启用静态攻速符文、双槽顺序无关、步骤锁、镰刀驻留节奏，并继续通过主线 `DamageCoefficientMatrix`。
+- `ReEcho.Combat`：10/10 通过；非中性基础攻速上两个 `+1%` 层得到 `1.27`，到期恢复 `1.25`，GAS Modifier 为 Additive，移动速度层保持原行为。
+- Development Editor 增量编译通过；变基后的最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 完成 94 个动作并刷新精选预构建包。
+- `validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
-- 总正攻速达到 `+100%` 时数学公式给出零时长，运行时必须明确保留现有 `0.01s` 安全下限；当前生产数值低于该边界，但叠层可触达。
-- 静态装备修正与 Combat 临时层位于不同模块，必须通过组合测试证明只相加一次，并覆盖 GAS 与无 GAS fallback 两条路径。
+- 总正攻速达到 `+100%` 时数学公式给出零时长；实现已统一钳到 `0.01s` 并有纯逻辑回归。更高数值的实际手感仍属于未来平衡调整，不改变本契约。
+- Unreal 启动时仍打印非 Win64 平台缺少 SDK 的环境提示，但 Win64 有效，聚焦自动化均以退出码 0 完成；该提示与本候选无关。
 
 ### 人工验收结果/请求
 
@@ -118,4 +125,8 @@
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `ARCHITECTURE.md`：已审阅；模块拓扑、依赖方向与权威状态所有者未变化，无需修改。
+- `README.md`：已审阅；Runtime Module 与 AREA 路由未变化，无需修改。
+- `MOD-ReEcho.md`：已同步 XLSX/CSV 有符号攻速数据与主模块装备/Actor 适配边界。
+- `MOD-ReEchoWeapons.md`：已同步 `初始时长 × (1-r)`、Definition 修正和统一时长消费者。
+- `MOD-ReEchoCombat.md`：已同步临时攻速加法层、GAS/fallback 回收和移动速度兼容语义。

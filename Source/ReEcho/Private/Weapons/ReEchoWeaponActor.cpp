@@ -1442,7 +1442,7 @@ void AReEchoWeaponActor::AdvanceScytheThrow(const float DeltaSeconds)
 	else
 	{
 		ScytheTickAccumulator += DeltaSeconds;
-		const float Interval = 1.0f / FMath::Max(0.1f, SourceCombatant->Stats.AttackSpeed);
+		const float Interval = WeaponLogic.GetScaledAttackDuration(1.0f, SourceCombatant->Stats);
 		while (ScytheTickAccumulator >= Interval)
 		{
 			ScytheTickAccumulator -= Interval;
