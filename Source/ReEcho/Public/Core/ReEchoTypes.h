@@ -173,7 +173,7 @@ struct REECHO_API FReEchoRecording
 	FVector EvaluatePosition(float Time) const;
 };
 
-/** Serializable Host state for one in-flight Boss projectile. */
+/** Serializable Host state for one in-flight or committed-but-delayed enemy projectile. */
 USTRUCT()
 
 struct REECHO_API FReEchoEnemyProjectileRuntimeState
@@ -195,11 +195,19 @@ struct REECHO_API FReEchoEnemyProjectileRuntimeState
 	UPROPERTY()
 	float CollisionRadiusCm = 20.0f;
 
-	/** Rabbit volley lane [0,2]; INDEX_NONE keeps legacy/Boss single-projectile semantics. */
+	/** Stable zero-based ball index inside one enemy volley; INDEX_NONE keeps legacy single-projectile semantics. */
 	UPROPERTY()
 	int32 VolleyBallIndex = INDEX_NONE;
 
-	/** A rabbit ball keeps flying visually after its one authoritative collision is consumed. */
+	/** Remaining delay before this committed ball enters the world and publishes Spawned. */
+	UPROPERTY()
+	float SpawnDelayRemainingSeconds = 0.0f;
+
+	/** Defaults true so saves created before delayed volleys restore existing in-flight projectiles unchanged. */
+	UPROPERTY()
+	bool bSpawnEventPublished = true;
+
+	/** A volley ball keeps flying visually after its one authoritative collision is consumed. */
 	UPROPERTY()
 	bool bCollisionConsumed = false;
 };

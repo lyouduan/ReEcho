@@ -735,4 +735,89 @@ bool FReEchoEnemyFatalWoundPhaseTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyRangedAbilityRotationTest,
+                                 "ReEcho.Enemies.Logic.RangedAbilityRotation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyRangedAbilityRotationTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Ranged;
+	Ranged.Archetype = EReEchoEnemyArchetype::Ranged;
+	Ranged.MaxHealth = 20.0f;
+	Ranged.MoveSpeedCmPerSecond = 165.0f;
+	Ranged.MovementStopDistanceCm = 650.0f;
+
+	FReEchoEnemyAbilityDefinition StationaryBurst;
+	StationaryBurst.Id = TEXT("StationaryBurst");
+	StationaryBurst.BehaviorId = TEXT("Enemy.RangedBurst");
+	StationaryBurst.SequenceOrder = 2;
+	StationaryBurst.bEnabled = true;
+	StationaryBurst.Damage = 22.0f;
+	StationaryBurst.WindupSeconds = 0.1f;
+	StationaryBurst.ActiveSeconds = 0.2f;
+	StationaryBurst.RecoverySeconds = 0.1f;
+	StationaryBurst.MaxRangeCm = 1000.0f;
+	StationaryBurst.RadiusCm = 150.0f;
+	StationaryBurst.ProjectileCount = 4;
+	StationaryBurst.bMovementDuringCast = false;
+	Ranged.Abilities.Add(StationaryBurst);
+
+	FReEchoEnemyAbilityDefinition MovingSpread = StationaryBurst;
+	MovingSpread.Id = TEXT("MovingSpread");
+	MovingSpread.SequenceOrder = 1;
+	MovingSpread.Damage = 11.0f;
+	MovingSpread.ProjectileCount = 3;
+	MovingSpread.SpreadAngleDegrees = 40.0f;
+	MovingSpread.bMovementDuringCast = true;
+	Ranged.Abilities.Add(MovingSpread);
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.SelfLocation = FVector::ZeroVector;
+	Sense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.bSpecialActionPermitted = true;
+
+	UReEchoEnemyLogicComponent* SourceLogic = NewObject<UReEchoEnemyLogicComponent>();
+	if (!TestTrue(TEXT("Two-ability ranged definition initializes"), SourceLogic->Initialize(Ranged, 1)))
+	{
+		return false;
+	}
+	SourceLogic->Advance(Sense, 0.01f);
+	const FReEchoEnemyLogicSnapshot MovingWindup = SourceLogic->GetSnapshot();
+	TestEqual(TEXT("SequenceOrder selects moving spread first"), MovingWindup.SpecialAbilityId, MovingSpread.Id);
+	TestEqual(TEXT("Starting the first ability advances the saved rotation cursor"),
+	          MovingWindup.SpecialNextSequenceIndex,
+	          1);
+
+	UReEchoEnemyLogicComponent* RestoredLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Restore target initializes with the same definition"), RestoredLogic->Initialize(Ranged, 1));
+	RestoredLogic->RestoreSnapshot(MovingWindup);
+	Sense.TargetLocation = FVector(520.0f, 30.0f, 0.0f);
+	const FReEchoEnemyActionIntent MovingCommit = RestoredLogic->Advance(Sense, 0.11f);
+	TestTrue(TEXT("Restored moving spread commits"), MovingCommit.bAttackCommitted);
+	TestEqual(
+	    TEXT("Commit resolves the active ability instead of the array's first entry"), MovingCommit.RawDamage, 11.0f);
+	const FReEchoEnemyActionIntent MovingRecovery = RestoredLogic->Advance(Sense, 0.1f);
+	TestTrue(TEXT("Moving spread keeps moving during recovery"), MovingRecovery.bHasMovement);
+	RestoredLogic->Advance(Sense, 0.21f);
+
+	RestoredLogic->Advance(Sense, 0.01f);
+	TestEqual(TEXT("Second action rotates to stationary burst"),
+	          RestoredLogic->GetSnapshot().SpecialAbilityId,
+	          StationaryBurst.Id);
+	const FReEchoEnemyActionIntent StationaryCommit = RestoredLogic->Advance(Sense, 0.11f);
+	TestTrue(TEXT("Stationary burst commits"), StationaryCommit.bAttackCommitted);
+	TestEqual(TEXT("Stationary burst uses its own authored damage"), StationaryCommit.RawDamage, 22.0f);
+	const FReEchoEnemyActionIntent StationaryRecovery = RestoredLogic->Advance(Sense, 0.1f);
+	TestFalse(TEXT("Stationary burst does not move during recovery"), StationaryRecovery.bHasMovement);
+	RestoredLogic->Advance(Sense, 0.21f);
+
+	RestoredLogic->Advance(Sense, 0.01f);
+	TestEqual(TEXT("Third action wraps back to moving spread"),
+	          RestoredLogic->GetSnapshot().SpecialAbilityId,
+	          MovingSpread.Id);
+	return true;
+}
+
 #endif
