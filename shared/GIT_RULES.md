@@ -30,6 +30,42 @@ AI 创建的正式提交，其标题与正文必须是合法 UTF-8，且不得�
 - 标题是硬约束重点：标题中不得出现任何无法在终端正确显示的中文字符；合并提交、rebase、cherry-pick 生成的描述同样适用。
 - 提交前应通过 `git log --oneline -1` 复核标题可在终端正确显示；若发现乱码，必须在推送前 reword 修正，不得带乱码标题进入 `origin/main`。
 
+## origin/main 单发布者锁
+
+`main-publish-lock` 是程序路线和项目秘书发布 `origin/main` 时唯一允许的远端协调分支，也是 main 发布锁的唯一权威状态。它不是内容发布面、任务分支或长期备份；策划/美术协作分支不使用此锁。所有 Plan-only、规则、文档、代码、数据、资产和集成候选进入 main 前都必须遵循本节；禁止强推 main。
+
+1. 抢锁前必须形成身份合规、范围明确的本地正式提交并保持工作区干净；先 fetch `origin/main`，再检查远端 `refs/heads/main-publish-lock`。
+2. 锁分支不存在时，只能用下列空 expected value 的准确 lease 原子创建，并以当前正式候选作为锁分支初始提交：
+
+   ```powershell
+   git push --force-with-lease=refs/heads/main-publish-lock: origin HEAD:refs/heads/main-publish-lock
+   ```
+
+   push 失败或远端锁提交号不等于本地 `HEAD` 时均视为未获锁，必须停止发布；不得改用普通 push、强推或删除现有未合入锁来抢占。
+3. 锁分支已存在时，先 fetch 该引用并检查祖先关系。若锁提交尚未进入 `origin/main`，它代表其他发布者的进行中/中断候选，任何其他 AI 不得 merge、更新、删除该锁或推送 main；报告持有提交、作者和与 main 的差异。若锁提交已是 main 的祖先，代表发布完成但清理中断，程序集成职责或秘书可在核验后用准确 lease 删除该已合入锁，再重新抢锁。
+4. 获锁后必须重新 fetch `origin/main`，把准确最新 main **merge** 到当前工作分支。不得在持锁期间 rebase 或重写已发布到锁分支的候选历史。清晰、范围不变的物理冲突可按已批准契约处理；遇到真实逻辑冲突、产品取舍、不可逆覆盖或范围扩张时保留锁、先报告并等待人决定。
+5. 获锁后的 merge、冲突解决或远端基线变化会使此前受影响的构建、测试和静态证据失效；必须对最终组合候选重新提交并执行适用门禁。
+6. 最终候选必须是抢锁时提交的后代，并以普通非强制 push 快进更新锁分支：
+
+   ```powershell
+   git push origin HEAD:refs/heads/main-publish-lock
+   ```
+
+7. 更新锁分支后再次 fetch `origin/main`，确认 `origin/main` 是本地 `HEAD` 的祖先，并确认远端锁仍准确指向本地 `HEAD`。任一检查失败都不得发布；保留锁，重新合并最新 main、提交并重跑失效门禁。
+8. 仅在上述检查通过后，使用普通非强制 push 发布 main：
+
+   ```powershell
+   git push origin HEAD:refs/heads/main
+   ```
+
+9. 发布后 fetch 并确认远端 main 与候选提交号完全一致。只有 main 已发布成功且远端锁仍指向同一候选时，才能用该准确提交号作为 lease 删除锁；网络超时或结果不明时先查询远端，不得盲目重推或解锁：
+
+   ```powershell
+   git push --force-with-lease=refs/heads/main-publish-lock:<CandidateCommit> origin :refs/heads/main-publish-lock
+   ```
+
+锁分支存在即阻止其他 AI 开始 main 发布。锁持有者中断时不得仅按超时自动破锁：未合入候选由程序集成职责或秘书审计后续传、保留或在准确风险确认后解除；已合入候选按第 3 项机械清理。锁分支的准确 lease 创建/清理是远端引用限制的具名默认例外，但不授权任何其他强推、远端分支或历史覆盖。
+
 ## 程序发布构建门禁
 
 本门禁适用于程序路线的每一次 `origin/main` 推送，包括 Plan、Markdown、规则、源码、内容或混合候选。Planner-Executor 模式选择本身不能豁免；跳过构建或远端协作检查的具名步骤必须按 `shared/PROJECT_RULES.md` 提醒风险、建议问程序并取得准确人工确认。
