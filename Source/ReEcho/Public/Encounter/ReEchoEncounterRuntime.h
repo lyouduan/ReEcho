@@ -29,6 +29,15 @@ REECHO_API bool Resolve(const FReEchoCsvDataSnapshot& Snapshot,
                         FString& OutError);
 }
 
+namespace ReEchoSpawnCapacity
+{
+/** Reserves only the unit-limit capacity that a warning can promise to its later commit. */
+REECHO_API int32 CalculateReservationCount(int32 ActiveUnitLimit,
+                                           int32 LivingCount,
+                                           int32 ReservedCount,
+                                           int32 RequestedCount);
+}
+
 /** One typed, deterministic role batch emitted by the encounter clock. */
 struct REECHO_API FReEchoScheduledSpawnEvent
 {
