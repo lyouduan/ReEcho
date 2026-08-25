@@ -139,3 +139,11 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **改动 / Changes**：商店打开时按 `P` 改为在更高的 Pause 层打开 `WBP_ReEchoRestart`，不关闭商店、不触发结算推进或回响存储门禁；再次按 `P`/点击继续时关闭 Pause，并恢复商店焦点、菜单能力阻挡和暂停状态。显式记录“Pause 从商店打开”的返回目标，避免普通战斗暂停受影响。
 - **影响面 / Impact**：`MOD-ReEcho` / `AREA-UI`，仅暂停与商店页面切换；无商品、存档、战斗、Schema 或资产变化。
 - **验证 / Verification**：Development Editor 增量构建与 `-FullRebuild` 通过；`ReEcho.UIManagerSubsystem.PauseOverInventoryShop`、`ReEcho.UIManagerSubsystem.ResetOnTravel` 自动化通过；`validate_project.py`、`git diff --check` 通过。商店内按 `P` 打开 Pause、再次按 `P`/点击继续返回商店仍需人工验收。
+
+### #16 — 怪物实际出生位置与预警位置不一致
+
+- **现象 / Symptom**：策划反馈怪物出现时，动画显示位置与此前预警位置不重合，导致玩家依据预警判断的位置与实际出生位置不符。
+- **根因 / Root cause**：`FReEchoSpawnResolver` 将所有候选点的 `Z` 固定为 `50`，预警球直接使用该缓存点；怪物生成后 `AReEchoEnemyActor::AlignToGameplayPlane` 又按玩法平面与各自 `CollisionHalfHeightCm` 重算 Actor 中心高度。当前生产怪物半高并不统一（史莱姆 `90`、兔子 `85`、狐狸 `130`），斜视角投影下预警球中心与最终 Actor/动画脚点产生明显屏幕空间错位。
+- **目标 / Acceptance**：预警与生成提交必须消费同一个最终世界位置事实；怪物生成完成后的 Actor 中心位置应与其对应预警位置一致，动画脚点仍贴合玩法平面，不改变现有 XY 解算、距离环、间距、波次时序或策划表数值。
+- **实现范围 / Writes**：`Source/ReEcho/Private/ReEchoGameMode.cpp`、聚焦测试、本文档，以及 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；审阅 `MOD-ReEchoEnemies` 与 `MOD-ReEchoPresentation`，若其所有权/契约未变化则只在本条记录“无需修改”。
+- **状态 / Status**：InProgress。先将预警批次缓存点规范化为对应敌人最终碰撞中心高度，并锁定“预警点等于生成后 Actor 中心”的回归；随后执行 C++ 格式化、聚焦自动化、完整 Editor 构建、项目校验与人工 PIE 视觉验收。
