@@ -19,6 +19,7 @@ class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoTraitCardSelected, FName, CardId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoShopCardChoiceSelected, FName, ItemId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoCardSlotRefreshRequested, int32, SlotIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoShopCardChoiceCancelled);
 
 /** 展示三选一特质/锻造卡，并在揭示完成后接受一次选择。 */
@@ -36,14 +37,16 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoShopCardChoiceSelected OnShopCardSelected;
 	UPROPERTY(BlueprintAssignable)
+	FReEchoCardSlotRefreshRequested OnCardSlotRefreshRequested;
+	UPROPERTY(BlueprintAssignable)
 	FReEchoShopCardChoiceCancelled OnShopChoiceCancelled;
 
 	/** 装载本轮候选项并重置逐张揭示动画。 */
 	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers, int32 InTimeShards);
 	/** Reuses the reveal/selection layout for a paid, same-tier shop-card pack. Prices are effective prices. */
 	void InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers, int32 InTimeShards, int32 Tier);
-	/** Re-enables the exact same shop choices after a rejected transaction. */
-	void RestoreShopPurchaseFailure(int32 InTimeShards);
+	/** Re-enables the exact same choices after a rejected purchase or refresh transaction. */
+	void RestoreChoiceFailure(int32 InTimeShards);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -68,6 +71,8 @@ private:
 
 	UFUNCTION()
 	void HandleCardClicked(int32 OfferIndex);
+	UFUNCTION()
+	void HandleCardRefreshClicked(int32 OfferIndex);
 
 	UFUNCTION()
 	void HandleConfirmClicked();
@@ -89,6 +94,12 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CardButtons;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoIndexedButton>> CardRefreshButtons;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> CardRefreshTexts;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoTraitCardEntryWidget>> CardEntries;

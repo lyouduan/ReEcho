@@ -220,6 +220,7 @@ bool FReEchoTierOneRepeatableFreeOfferTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(TEXT("Every repeated free offer comes from the owned tier-one pool"),
 		         TierOneCardIds.Contains(Offer.CardId));
+		TestFalse(TEXT("Refresh never offers an already obtained tier-one card"), Offer.bCanRefresh);
 	}
 	const FName SelectedCardId = Offers[0].CardId;
 	const int32 StackCountBefore = ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, SelectedCardId);
@@ -227,6 +228,99 @@ bool FReEchoTierOneRepeatableFreeOfferTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Repeated free selection adds one tier-one stack"),
 	          ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, SelectedCardId),
 	          StackCountBefore + 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFreeTraitSlotRefreshTest,
+                                 "ReEcho.Traits.FreeChoiceSlotsRefreshIndependently",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFreeTraitSlotRefreshTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Run->EncounterIndex = 2;
+	Run->Phase = EReEchoRunPhase::CardChoice;
+	Run->TimeShards = 100;
+	const TArray<FReEchoTraitCardOffer> InitialOffers = Run->GenerateTraitCardOffers(3);
+	if (!TestEqual(TEXT("The configured free draw exposes three cards"), InitialOffers.Num(), 3))
+	{
+		return false;
+	}
+	const FReEchoTraitCardOffer* Refreshable = InitialOffers.FindByPredicate(
+	    [](const FReEchoTraitCardOffer& Offer)
+	    {
+		    return Offer.bCanRefresh;
+	    });
+	if (!TestNotNull(TEXT("A free-draw card slot exposes its independent refresh"), Refreshable))
+	{
+		return false;
+	}
+	TMap<int32, FName> InitialIds;
+	for (const FReEchoTraitCardOffer& Offer : InitialOffers)
+	{
+		InitialIds.Add(Offer.SlotIndex, Offer.CardId);
+	}
+	const int32 RefreshedSlot = Refreshable->SlotIndex;
+	const int32 BeforeRefreshShards = Run->TimeShards;
+	FString Error;
+	TestTrue(TEXT("One free-draw slot refreshes"), Run->TryRefreshTraitCardSlot(RefreshedSlot, Error));
+	const TArray<FReEchoTraitCardOffer> RefreshedOffers = Run->GenerateTraitCardOffers(3);
+	TestEqual(TEXT("Free-draw refresh deducts the configured five shards"),
+	          Run->TimeShards,
+	          BeforeRefreshShards - Refreshable->RefreshCost);
+	for (const FReEchoTraitCardOffer& Offer : RefreshedOffers)
+	{
+		if (Offer.SlotIndex == RefreshedSlot)
+		{
+			TestNotEqual(
+			    TEXT("The selected free-draw slot receives a replacement"), Offer.CardId, InitialIds[Offer.SlotIndex]);
+			TestEqual(TEXT("The free-draw replacement remains the configured tier"),
+			          Offer.Tier,
+			          InitialOffers[RefreshedSlot].Tier);
+			TestEqual(TEXT("The refreshed free-draw slot has no remaining use"), Offer.RemainingRefreshes, 0);
+		}
+		else
+		{
+			TestEqual(TEXT("Free-draw sibling slots remain unchanged"), Offer.CardId, InitialIds[Offer.SlotIndex]);
+		}
+	}
+	const int32 BeforeRepeatShards = Run->TimeShards;
+	TestFalse(TEXT("The same free-draw slot cannot refresh twice"), Run->TryRefreshTraitCardSlot(RefreshedSlot, Error));
+	TestEqual(TEXT("Rejected free-draw repeat keeps currency"), Run->TimeShards, BeforeRepeatShards);
+
+	const FReEchoTraitCardOffer* Unused = RefreshedOffers.FindByPredicate(
+	    [](const FReEchoTraitCardOffer& Offer)
+	    {
+		    return Offer.RemainingRefreshes > 0;
+	    });
+	if (TestNotNull(TEXT("A sibling free-draw slot remains unused"), Unused))
+	{
+		Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoShopRefresh;
+		TestFalse(TEXT("NoShopRefresh blocks free-draw card refreshes"),
+		          Run->TryRefreshTraitCardSlot(Unused->SlotIndex, Error));
+		Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::None;
+	}
+
+	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	if (TestNotNull(TEXT("The refreshed free-draw page can be saved"), Save) &&
+	    TestTrue(TEXT("The refreshed free-draw page can be restored"), Restored->RestoreSaveSnapshot(*Save)))
+	{
+		const TArray<FReEchoTraitCardOffer> RestoredOffers = Restored->GenerateTraitCardOffers(3);
+		TestEqual(TEXT("Save/load preserves all three free-draw choices"), RestoredOffers.Num(), 3);
+		for (int32 SlotIndex = 0; SlotIndex < RestoredOffers.Num(); ++SlotIndex)
+		{
+			TestEqual(TEXT("Save/load preserves the free-draw replacement ids"),
+			          RestoredOffers[SlotIndex].CardId,
+			          RefreshedOffers[SlotIndex].CardId);
+			TestEqual(TEXT("Save/load preserves each free-draw refresh budget"),
+			          RestoredOffers[SlotIndex].RemainingRefreshes,
+			          RefreshedOffers[SlotIndex].RemainingRefreshes);
+		}
+	}
 	return true;
 }
 

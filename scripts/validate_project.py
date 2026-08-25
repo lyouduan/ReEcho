@@ -719,6 +719,13 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "FreeTier": CsvColumnSpec("Int", required=False, min_value=1.0, max_value=3.0),
         "ShopTiers": CsvColumnSpec("StableIdList", required=False),
     },
+    "shop_refresh_rules": {
+        "RuleId": CsvColumnSpec("StableId"),
+        "CardSlotRefreshLimit": CsvColumnSpec("Int", min_value=0.0, max_value=100.0),
+        "WeaponRuneRefreshLimit": CsvColumnSpec("Int", min_value=0.0, max_value=100.0),
+        "CardSlotRefreshCost": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "WeaponRuneRefreshCost": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+    },
 }
 
 
@@ -947,6 +954,9 @@ def validate_csv_package(data_dir: Path) -> None:
     references["Attributes"] = validate_table(entries["Attributes"], "Attributes", references)
     references["shop_price_ranges"] = validate_table(entries["shop_price_ranges"], "shop_price_ranges", references)
     references["shop_drop_levels"] = validate_table(entries["shop_drop_levels"], "shop_drop_levels", references)
+    references["shop_refresh_rules"] = validate_table(
+        entries["shop_refresh_rules"], "shop_refresh_rules", references
+    )
     validate_audio_events_domain(entries)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)

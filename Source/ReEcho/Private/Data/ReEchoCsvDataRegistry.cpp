@@ -36,6 +36,7 @@ constexpr const TCHAR* PartsTableId = TEXT("Parts");
 constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
 constexpr const TCHAR* ShopPriceRangesTableId = TEXT("shop_price_ranges");
 constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
+constexpr const TCHAR* ShopRefreshRulesTableId = TEXT("shop_refresh_rules");
 constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
 constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
 constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
@@ -218,6 +219,7 @@ TArray<FString> GetRequiredTableIds()
 	        PartEffectsTableId,
 	        ShopPriceRangesTableId,
 	        ShopDropLevelsTableId,
+	        ShopRefreshRulesTableId,
 	        EnemiesTableId,
 	        EnemyAbilitiesTableId,
 	        BossPhasesTableId,

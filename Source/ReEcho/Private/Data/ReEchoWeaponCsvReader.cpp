@@ -16,6 +16,7 @@ constexpr const TCHAR* PartsTableId = TEXT("Parts");
 constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
 constexpr const TCHAR* ShopPriceRangesTableId = TEXT("shop_price_ranges");
 constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
+constexpr const TCHAR* ShopRefreshRulesTableId = TEXT("shop_refresh_rules");
 constexpr const TCHAR* NoneId = TEXT("None");
 constexpr int32 MaxStartSelectableLoadoutOrder = static_cast<int32>(EReEchoInputSlot::Slot6);
 constexpr int32 ExpectedPartSourceRows = 70;
@@ -365,6 +366,28 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.SourceSheet);
 		                  AppendCanonicalField(Canonical, Row.SourceRow);
 		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+	                  });
+
+	TArray<FName> ShopRefreshRuleIds;
+	Snapshot.ShopRefreshRules.GetKeys(ShopRefreshRuleIds);
+	ShopRefreshRuleIds.Sort(
+	    [](const FName& Left, const FName& Right)
+	    {
+		    return Left.ToString() < Right.ToString();
+	    });
+	AppendOrderedRows(Canonical,
+	                  TEXT("shop_refresh_rules"),
+	                  ShopRefreshRuleIds,
+	                  Snapshot.ShopRefreshRules,
+	                  [&](const FReEchoCsvShopRefreshRuleRow& Row)
+	                  {
+		                  AppendCanonicalField(Canonical, Row.RuleId);
+		                  AppendCanonicalField(Canonical, Row.CardSlotRefreshLimit);
+		                  AppendCanonicalField(Canonical, Row.WeaponRuneRefreshLimit);
+		                  AppendCanonicalField(Canonical, Row.CardSlotRefreshCost);
+		                  AppendCanonicalField(Canonical, Row.WeaponRuneRefreshCost);
+		                  AppendCanonicalField(Canonical, Row.SourceSheet);
+		                  AppendCanonicalField(Canonical, Row.SourceRow);
 	                  });
 
 	TArray<FName> PartIds;
@@ -959,6 +982,56 @@ bool ReadShopDropLevelsTable(const FString& DataDirectory,
 	return Issues.Num() == 0;
 }
 
+bool ReadShopRefreshRulesTable(const FString& DataDirectory,
+                               const ReEchoCsv::FManifestEntry& Entry,
+                               FReEchoCsvDataSnapshot& Snapshot,
+                               TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+	const TArray<FString> ExpectedColumns = {TEXT("RuleId"),
+	                                         TEXT("CardSlotRefreshLimit"),
+	                                         TEXT("WeaponRuneRefreshLimit"),
+	                                         TEXT("CardSlotRefreshCost"),
+	                                         TEXT("WeaponRuneRefreshCost")};
+	if (!ReEchoCsv::HasExactColumns(Table, ExpectedColumns, Issues))
+	{
+		return false;
+	}
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvShopRefreshRuleRow Rule;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("RuleId"), Rule.RuleId, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("CardSlotRefreshLimit"), Rule.CardSlotRefreshLimit, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("WeaponRuneRefreshLimit"), Rule.WeaponRuneRefreshLimit, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("CardSlotRefreshCost"), Rule.CardSlotRefreshCost, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("WeaponRuneRefreshCost"), Rule.WeaponRuneRefreshCost, Issues);
+		Rule.SourceSheet = Entry.FileName;
+		Rule.SourceRow = Row.Line;
+		if (Snapshot.ShopRefreshRules.Contains(Rule.RuleId))
+		{
+			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("RuleId"), TEXT("Duplicate shop refresh rule"));
+		}
+		if (Rule.CardSlotRefreshLimit < 0 || Rule.WeaponRuneRefreshLimit < 0 || Rule.CardSlotRefreshCost < 0 ||
+		    Rule.WeaponRuneRefreshCost < 0)
+		{
+			ReEchoCsv::AddIssue(
+			    Issues, Table.File, Row.Line, TEXT("RuleId"), TEXT("Refresh limits and costs must be non-negative"));
+		}
+		Snapshot.ShopRefreshRules.Add(Rule.RuleId, Rule);
+	}
+	if (Table.Rows.Num() != 1 || !Snapshot.ShopRefreshRules.Contains(TEXT("Default")))
+	{
+		ReEchoCsv::AddIssue(
+		    Issues, Table.File, 1, TEXT("RuleId"), TEXT("shop_refresh_rules must contain exactly one Default row"));
+	}
+	return Issues.Num() == 0;
+}
+
 bool ReadPartsTable(const FString& DataDirectory,
                     const ReEchoCsv::FManifestEntry& Entry,
                     FReEchoCsvDataSnapshot& Snapshot,
@@ -1331,6 +1404,10 @@ bool ReadTables(const FString& DataDirectory,
 	if (Issues.Num() == 0)
 	{
 		ReadShopDropLevelsTable(DataDirectory, ManifestEntries[ShopDropLevelsTableId], Snapshot, Issues);
+	}
+	if (Issues.Num() == 0)
+	{
+		ReadShopRefreshRulesTable(DataDirectory, ManifestEntries[ShopRefreshRulesTableId], Snapshot, Issues);
 	}
 	if (Issues.Num() == 0)
 	{

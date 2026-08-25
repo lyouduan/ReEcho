@@ -317,6 +317,17 @@ struct REECHO_API FReEchoCsvShopDropLevelRow
 	FString DisabledReason;
 };
 
+struct REECHO_API FReEchoCsvShopRefreshRuleRow
+{
+	FName RuleId;
+	int32 CardSlotRefreshLimit = 0;
+	int32 WeaponRuneRefreshLimit = 0;
+	int32 CardSlotRefreshCost = 0;
+	int32 WeaponRuneRefreshCost = 0;
+	FString SourceSheet;
+	int32 SourceRow = 0;
+};
+
 struct REECHO_API FReEchoCsvCardRow
 {
 	FName Id;
@@ -595,8 +606,9 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvAttributeRow> Attributes;
 	TArray<FName> AttributeOrder;
 
-	TMap<FName, FReEchoCsvShopPriceRangeRow> ShopPriceRanges; // keyed by PriceCategory
-	TMap<int32, FReEchoCsvShopDropLevelRow> ShopDropLevels;   // keyed by EncounterIndex (clamped to run length)
+	TMap<FName, FReEchoCsvShopPriceRangeRow> ShopPriceRanges;   // keyed by PriceCategory
+	TMap<int32, FReEchoCsvShopDropLevelRow> ShopDropLevels;     // keyed by EncounterIndex (clamped to run length)
+	TMap<FName, FReEchoCsvShopRefreshRuleRow> ShopRefreshRules; // keyed by RuleId; production uses Default
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;

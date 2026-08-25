@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v15 combines deterministic enemy-shard rewards with the stable weapon/rune shop page. */
-	static constexpr int32 CurrentSaveVersion = 16;
+	/** v18 persists refreshed post-encounter card choices and their independent slot budgets. */
+	static constexpr int32 CurrentSaveVersion = 18;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -34,6 +34,16 @@ public:
 	/** Added in v12. Makes each run's card offers random while keeping save/load reproducible. */
 	UPROPERTY(SaveGame)
 	int32 TraitOfferSeed = 0;
+
+	/** Added in v18. Stable post-encounter/free three-choice page and per-slot refresh state. */
+	UPROPERTY(SaveGame)
+	int32 PendingTraitCardOfferEncounterIndex = INDEX_NONE;
+
+	UPROPERTY(SaveGame)
+	TArray<FName> PendingTraitCardIds;
+
+	UPROPERTY(SaveGame)
+	TArray<int32> PendingTraitCardRefreshUses;
 
 	/** Added in v13. Independent seed for per-enemy time-shard ranges. */
 	UPROPERTY(SaveGame)
@@ -67,6 +77,17 @@ public:
 	/** Fixed three content ids; NAME_None represents an empty slot. */
 	UPROPERTY(SaveGame)
 	TArray<FName> WeaponPartShopOfferIds;
+
+	/** Added in v17. Desired deterministic weapon/rune page sequence, independent from card packs. */
+	UPROPERTY(SaveGame)
+	int32 WeaponRuneRefreshSequence = 0;
+
+	/** Added in v17. Per-encounter refresh budget state. */
+	UPROPERTY(SaveGame)
+	int32 WeaponRuneRefreshEncounterIndex = INDEX_NONE;
+
+	UPROPERTY(SaveGame)
+	int32 WeaponRuneRefreshesUsed = 0;
 
 	/** Added in v6. Older saves deterministically migrate to automatic attack. */
 	UPROPERTY(SaveGame)

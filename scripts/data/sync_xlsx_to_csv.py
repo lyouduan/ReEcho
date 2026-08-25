@@ -62,6 +62,7 @@ TABLE_TO_CSV = {
     "tblAttributes": "attributes.csv",
     "tblShopPriceRanges": "shop_price_ranges.csv",
     "tblShopDropLevels": "shop_drop_levels.csv",
+    "tblShopRefreshRules": "shop_refresh_rules.csv",
     "tblEnemyShardDrops": "enemy_shard_drops.csv",
 }
 

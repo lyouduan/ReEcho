@@ -117,10 +117,10 @@ public:
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
 	bool CanStartEnemySpecial(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
 	void NotifyEnemySpecialStarted(FName EnemyId, int32 SpawnIndex, float WorldTimeSeconds);
-	/** Central world-spawn boundary for all time-shard rewards. Uses the editor-authored pickup Blueprint when valid. */
-	AReEchoTimeShardPickupActor* SpawnTimeShardPickup(const FVector& Location,
-	                                                  int32 Amount,
-	                                                  float LifetimeSeconds = 20.0f);
+	/** Central world-spawn boundary for all time-shard rewards. Uses the editor-authored pickup Blueprint when valid.
+	 */
+	AReEchoTimeShardPickupActor*
+	SpawnTimeShardPickup(const FVector& Location, int32 Amount, float LifetimeSeconds = 20.0f);
 	/** Returns the gameplay plane owned by the currently active Arena Scene. */
 	bool TryGetActiveArenaGameplayPlaneZ(float& OutGameplayPlaneZ) const;
 
@@ -288,6 +288,8 @@ private:
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
+	UFUNCTION()
+	void HandleTraitCardRefreshRequested(int32 SlotIndex);
 	void CreateArena();
 	void UpdateWeatherScene(int32 EncounterIndex);
 	UReEchoAudioService* GetAudioService() const;
@@ -306,6 +308,8 @@ private:
 	void HandleShopCardPackRequested(int32 Tier);
 	UFUNCTION()
 	void HandleShopCardSelected(FName ItemId);
+	UFUNCTION()
+	void HandleShopCardRefreshRequested(int32 SlotIndex);
 	UFUNCTION()
 	void HandleShopCardChoiceCancelled();
 	void CloseShopCardChoice(bool bRestoreShopFocus);
