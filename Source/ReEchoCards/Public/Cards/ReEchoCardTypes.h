@@ -109,7 +109,11 @@ struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> CandidateCardIds;
 	/** Per-slot refresh uses. Shape always matches CandidateCardIds; each slot owns its own configured limit. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<int32> SlotRefreshUses;
-	/** A successful purchase consumes this pack for the current page. */
+	/** Stable undiscounted price paid when entering this pack. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 BasePrice = 0;
+	/** Payment is committed before the choice screen opens and survives leaving the screen. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPaymentCommitted = false;
+	/** A successful card claim consumes this pack for the current page. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPurchased = false;
 };
 

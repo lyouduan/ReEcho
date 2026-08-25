@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v19 persists typed resolved-card outcomes used by owned-card presentation. */
-	static constexpr int32 CurrentSaveVersion = 19;
+	/** v20 persists prepaid shop-card pack price and pending-choice state. */
+	static constexpr int32 CurrentSaveVersion = 20;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;

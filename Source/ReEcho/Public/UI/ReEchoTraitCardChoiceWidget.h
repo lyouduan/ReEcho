@@ -45,7 +45,7 @@ public:
 	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers,
 	                      int32 InTimeShards,
 	                      int32 RefreshedSlotIndex = INDEX_NONE);
-	/** Reuses the reveal/selection layout for a paid, same-tier shop-card pack. Prices are effective prices. */
+	/** Reuses the reveal/selection layout to claim from an already-paid, same-tier shop-card pack. */
 	void InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers,
 	                          int32 InTimeShards,
 	                          int32 Tier,

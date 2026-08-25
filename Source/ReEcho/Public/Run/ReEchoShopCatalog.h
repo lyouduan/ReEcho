@@ -83,11 +83,12 @@ enum class EReEchoShopCardPackStatus : uint8
 {
 	NotOffered,
 	Available,
+	PaidPendingChoice,
 	Purchased,
 	SoldOut
 };
 
-/** One independently priced card inside a fixed-tier shop pack. */
+/** One claimable card inside a prepaid fixed-tier shop pack. */
 struct REECHO_API FReEchoShopCardChoiceOffer
 {
 	FName CardId;
@@ -107,15 +108,24 @@ struct REECHO_API FReEchoShopCardChoiceOffer
 /** One of the three fixed card-pack entrances. Array index 0/1/2 is always tier 1/2/3. */
 struct REECHO_API FReEchoShopCardPackOffer
 {
+	FName ItemId;
 	int32 Tier = 1;
 	EReEchoShopCardPackStatus Status = EReEchoShopCardPackStatus::NotOffered;
 	FText DisplayName;
 	FText StatusText;
+	int32 Price = 0;
 	TArray<FReEchoShopCardChoiceOffer> Choices;
 
 	bool IsAvailable() const
 	{
 		return Status == EReEchoShopCardPackStatus::Available && !Choices.IsEmpty();
+	}
+
+	bool CanOpenChoices() const
+	{
+		return (Status == EReEchoShopCardPackStatus::Available ||
+		        Status == EReEchoShopCardPackStatus::PaidPendingChoice) &&
+		       !Choices.IsEmpty();
 	}
 };
 

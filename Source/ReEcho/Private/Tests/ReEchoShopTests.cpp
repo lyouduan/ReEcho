@@ -146,6 +146,34 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Per-encounter weapon/rune refresh limit prevents an infinite refresh"),
 	          RunSubsystem->TryConsumeShopRefresh(0));
 
+	RunSubsystem->EncounterIndex = 2;
+	RunSubsystem->TimeShards = 100;
+	const FReEchoWeaponPartShopView CardPackPage = RunSubsystem->GetWeaponPartShopView();
+	if (!TestTrue(TEXT("Purchase-trigger fixture exposes a tier-one pack"),
+	              CardPackPage.CardPackOffers[0].IsAvailable()))
+	{
+		return false;
+	}
+	const FName PaidChoiceId = CardPackPage.CardPackOffers[0].Choices[0].ItemId;
+	TestTrue(TEXT("Card-pack payment succeeds"), RunSubsystem->PurchaseShopCardPackDetailed(1).IsSuccess());
+	const FReEchoCardOutcomeState* OutcomeAfterPayment =
+	    RunSubsystem->CurrentBuild.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	        [](const FReEchoCardOutcomeState& Outcome)
+	        {
+		        return Outcome.CardId == TEXT("G_2_16") && Outcome.Kind == EReEchoCardOutcomeKind::CumulativeStatGain;
+	        });
+	const float PurchaseGrowthAfterPayment = OutcomeAfterPayment ? OutcomeAfterPayment->PrimaryValue : 0.0f;
+	TestTrue(TEXT("Prepaying a card pack fires the owned OnPurchase card"), PurchaseGrowthAfterPayment >= 4.0f);
+	TestTrue(TEXT("The paid card can be claimed"), RunSubsystem->ClaimPaidShopCardChoice(PaidChoiceId).IsSuccess());
+	const FReEchoCardOutcomeState* OutcomeAfterClaim =
+	    RunSubsystem->CurrentBuild.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	        [](const FReEchoCardOutcomeState& Outcome)
+	        {
+		        return Outcome.CardId == TEXT("G_2_16") && Outcome.Kind == EReEchoCardOutcomeKind::CumulativeStatGain;
+	        });
+	TestTrue(TEXT("Final card claim does not fire OnPurchase a second time"),
+	         OutcomeAfterClaim && FMath::IsNearlyEqual(OutcomeAfterClaim->PrimaryValue, PurchaseGrowthAfterPayment));
+
 	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
 	RunSubsystem->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoShopRefresh;
 	TestFalse(TEXT("Permanent no-refresh penalty blocks even a free refresh"), RunSubsystem->TryConsumeShopRefresh(10));
@@ -154,6 +182,14 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	          1);
 	RunSubsystem->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoExtraCardPurchase;
 	TestFalse(TEXT("Permanent extra-card penalty closes the purchase gate"), RunSubsystem->CanPurchaseExtraShopCard());
+	RunSubsystem->EncounterIndex = 3;
+	RunSubsystem->TimeShards = 100;
+	const int32 ShardsBeforeBlockedPack = RunSubsystem->TimeShards;
+	TestEqual(TEXT("NoExtraCardPurchase rejects card-pack payment with a structured result"),
+	          RunSubsystem->PurchaseShopCardPackDetailed(1).Result,
+	          EReEchoShopPurchaseResult::PurchaseDisabled);
+	TestEqual(
+	    TEXT("A rejected card-pack payment preserves currency"), RunSubsystem->TimeShards, ShardsBeforeBlockedPack);
 	return true;
 }
 
@@ -461,16 +497,17 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 			{
 				TestTrue(TEXT("An offered pack exposes between one and three choices"),
 				         Pack.Choices.Num() >= 1 && Pack.Choices.Num() <= ReEchoShopOfferCountPerGroup);
+				const int32 MinPrice = Pack.Tier == 1 ? 30 : Pack.Tier == 2 ? 100 : 150;
+				const int32 MaxPrice = Pack.Tier == 1 ? 50 : Pack.Tier == 2 ? 120 : 200;
+				TestTrue(TEXT("Each pack carries one configured tier price"),
+				         Pack.Price >= MinPrice && Pack.Price <= MaxPrice);
 				TSet<FName> UniqueChoices;
 				for (const FReEchoShopCardChoiceOffer& Choice : Pack.Choices)
 				{
 					TestEqual(TEXT("Every pack choice matches the fixed pack tier"), Choice.Tier, ExpectedTier);
 					TestFalse(TEXT("One pack never repeats a card"), UniqueChoices.Contains(Choice.CardId));
 					UniqueChoices.Add(Choice.CardId);
-					const int32 MinPrice = Choice.Tier == 1 ? 30 : Choice.Tier == 2 ? 100 : 150;
-					const int32 MaxPrice = Choice.Tier == 1 ? 50 : Choice.Tier == 2 ? 120 : 200;
-					TestTrue(TEXT("Each choice carries its own configured price"),
-					         Choice.Price >= MinPrice && Choice.Price <= MaxPrice);
+					TestEqual(TEXT("Prepaid choices never carry an individual price"), Choice.Price, 0);
 				}
 			}
 		}
@@ -516,8 +553,9 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	const FReEchoShopCardChoiceOffer RepeatedTierOneOffer = OwnedFilterPage.CardPackOffers[0].Choices[0];
 	const int32 TierOneStackCountBefore =
 	    ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, RepeatedTierOneOffer.CardId);
-	TestTrue(TEXT("An owned tier-one card can be purchased from its pack"),
-	         RunSubsystem->PurchaseShopItem(RepeatedTierOneOffer.ItemId));
+	TestTrue(TEXT("An owned tier-one pack can be prepaid"), RunSubsystem->PurchaseShopCardPackDetailed(1).IsSuccess());
+	TestTrue(TEXT("An owned tier-one card can be claimed from its paid pack"),
+	         RunSubsystem->ClaimPaidShopCardChoice(RepeatedTierOneOffer.ItemId).IsSuccess());
 	TestEqual(TEXT("Repeated tier-one shop purchase adds one stack"),
 	          ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, RepeatedTierOneOffer.CardId),
 	          TierOneStackCountBefore + 1);
@@ -527,8 +565,9 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          EReEchoShopCardPackStatus::Purchased);
 	if (OwnedFilterPage.CardPackOffers[0].Choices.Num() > 1)
 	{
-		TestFalse(TEXT("A second choice from the same pack is rejected"),
-		          RunSubsystem->PurchaseShopItem(OwnedFilterPage.CardPackOffers[0].Choices[1].ItemId));
+		TestFalse(
+		    TEXT("A second choice from the same pack is rejected"),
+		    RunSubsystem->ClaimPaidShopCardChoice(OwnedFilterPage.CardPackOffers[0].Choices[1].ItemId).IsSuccess());
 	}
 
 	RunSubsystem->EncounterIndex = 4;
@@ -561,14 +600,32 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	const FReEchoShopCardChoiceOffer PurchasedCard = *PurchasedCardCandidate;
 	const int32 OwnedBefore = RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num();
 	const int32 ShardsBefore = RunSubsystem->TimeShards;
-	const int32 EffectivePriceBeforePurchase = RunSubsystem->GetDiscountedShopPrice(PurchasedCard.Price);
-	TestTrue(TEXT("Current card offer can be purchased"), RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
+	TestFalse(TEXT("A candidate ItemId cannot bypass card-pack payment"),
+	          RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
+	TestEqual(TEXT("A rejected direct candidate purchase preserves currency"), RunSubsystem->TimeShards, ShardsBefore);
+	const int32 EffectivePriceBeforePurchase =
+	    RunSubsystem->GetDiscountedShopPrice(FirstPage.CardPackOffers[PurchasedCard.Tier - 1].Price);
+	TestTrue(TEXT("Current card pack can be prepaid"),
+	         RunSubsystem->PurchaseShopCardPackDetailed(PurchasedCard.Tier).IsSuccess());
+	const FReEchoWeaponPartShopView PaidPage = RunSubsystem->GetWeaponPartShopView();
+	TestEqual(TEXT("Payment leaves the pack pending a choice"),
+	          PaidPage.CardPackOffers[PurchasedCard.Tier - 1].Status,
+	          EReEchoShopCardPackStatus::PaidPendingChoice);
+	TestEqual(
+	    TEXT("Payment does not grant a card"), RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num(), OwnedBefore);
+	TestEqual(TEXT("Pack payment deducts the effective tier price"),
+	          RunSubsystem->TimeShards,
+	          ShardsBefore - EffectivePriceBeforePurchase);
+	TestFalse(TEXT("A paid pending pack cannot be charged twice"),
+	          RunSubsystem->PurchaseShopCardPackDetailed(PurchasedCard.Tier).IsSuccess());
+	TestTrue(TEXT("A paid candidate can be claimed"),
+	         RunSubsystem->ClaimPaidShopCardChoice(PurchasedCard.ItemId).IsSuccess());
 	TestEqual(TEXT("Card purchase grants one owned-card slot"),
 	          RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num(),
 	          OwnedBefore + 1);
 	TestTrue(TEXT("Granted card id is the selected choice id"),
 	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedCard.CardId));
-	TestEqual(TEXT("Card purchase deducts the effective tier price"),
+	TestEqual(TEXT("Card claim does not charge again"),
 	          RunSubsystem->TimeShards,
 	          ShardsBefore - EffectivePriceBeforePurchase);
 	const FReEchoWeaponPartShopView PurchasedPage = RunSubsystem->GetWeaponPartShopView();
@@ -590,8 +647,8 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	              {
 		              return Choice.ItemId == PurchasedCard.ItemId || Choice.CardId == PurchasedCard.CardId;
 	              }));
-	TestFalse(TEXT("Same card offer cannot be bought twice on one page"),
-	          RunSubsystem->PurchaseShopItem(PurchasedCard.ItemId));
+	TestFalse(TEXT("Same card offer cannot be claimed twice on one page"),
+	          RunSubsystem->ClaimPaidShopCardChoice(PurchasedCard.ItemId).IsSuccess());
 	const int32 OtherPackIndex = PurchasedCard.Tier == 2 ? 2 : 1;
 	TestTrue(TEXT("Purchasing one pack leaves the other configured pack available"),
 	         PurchasedPage.CardPackOffers[OtherPackIndex].IsAvailable());
@@ -666,9 +723,11 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("One choice can be purchased before saving"),
-	         StablePageRun->PurchaseShopItem(StableTierTwoChoice->ItemId));
+	TestTrue(TEXT("One pack can be prepaid before saving"), StablePageRun->PurchaseShopCardPackDetailed(2).IsSuccess());
 	const FReEchoWeaponPartShopView StablePurchasedPage = StablePageRun->GetWeaponPartShopView();
+	TestEqual(TEXT("The save fixture remains pending before save"),
+	          StablePurchasedPage.CardPackOffers[1].Status,
+	          EReEchoShopCardPackStatus::PaidPendingChoice);
 	UReEchoRunSaveGame* StablePageSave = StablePageRun->CreateSaveSnapshot();
 	UGameInstance* RestoredPageGameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RestoredPageRun = NewObject<UReEchoRunSubsystem>(RestoredPageGameInstance);
@@ -682,6 +741,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 			const FReEchoShopCardPackOffer& ExpectedPack = StablePurchasedPage.CardPackOffers[PackIndex];
 			const FReEchoShopCardPackOffer& ActualPack = RestoredPage.CardPackOffers[PackIndex];
 			TestEqual(TEXT("Save and restore preserves each pack status"), ActualPack.Status, ExpectedPack.Status);
+			TestEqual(TEXT("Save and restore preserves each pack price"), ActualPack.Price, ExpectedPack.Price);
 			TestEqual(TEXT("Save and restore preserves each pack candidate count"),
 			          ActualPack.Choices.Num(),
 			          ExpectedPack.Choices.Num());
@@ -695,10 +755,14 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 				          ExpectedPack.Choices[ChoiceIndex].Price);
 			}
 		}
+		TestTrue(TEXT("A restored paid pack can finish its card claim without another payment"),
+		         RestoredPageRun->ClaimPaidShopCardChoice(StableTierTwoChoice->ItemId).IsSuccess());
 	}
 	const FReEchoShopCardChoiceOffer StableTierThreeChoice = StablePurchasedPage.CardPackOffers[2].Choices[0];
-	TestTrue(TEXT("A different tier pack remains independently purchasable"),
-	         StablePageRun->PurchaseShopItem(StableTierThreeChoice.ItemId));
+	TestTrue(TEXT("A different tier pack remains independently payable"),
+	         StablePageRun->PurchaseShopCardPackDetailed(3).IsSuccess());
+	TestTrue(TEXT("The independently paid pack can be claimed"),
+	         StablePageRun->ClaimPaidShopCardChoice(StableTierThreeChoice.ItemId).IsSuccess());
 
 	UGameInstance* FailureGameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* FailureRun = NewObject<UReEchoRunSubsystem>(FailureGameInstance);
@@ -706,8 +770,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	FailureRun->EncounterIndex = 4;
 	FailureRun->TimeShards = 0;
 	const FReEchoWeaponPartShopView BeforeFailurePage = FailureRun->GetWeaponPartShopView();
-	const FReEchoShopCardChoiceOffer FailureChoice = BeforeFailurePage.CardPackOffers[1].Choices[0];
-	const FReEchoShopPurchaseOutcome FailureOutcome = FailureRun->PurchaseShopItemDetailed(FailureChoice.ItemId);
+	const FReEchoShopPurchaseOutcome FailureOutcome = FailureRun->PurchaseShopCardPackDetailed(2);
 	TestEqual(TEXT("Insufficient currency returns a structured failure"),
 	          FailureOutcome.Result,
 	          EReEchoShopPurchaseResult::InsufficientCurrency);
@@ -724,6 +787,23 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		          AfterFailurePage.CardPackOffers[1].Choices[ChoiceIndex].ItemId,
 		          BeforeFailurePage.CardPackOffers[1].Choices[ChoiceIndex].ItemId);
 	}
+	FailureRun->TimeShards = 1000;
+	TestTrue(TEXT("Grant-failure fixture can commit its pack payment"),
+	         FailureRun->PurchaseShopCardPackDetailed(2).IsSuccess());
+	const FReEchoShopCardChoiceOffer PaidFailureChoice =
+	    FailureRun->GetWeaponPartShopView().CardPackOffers[1].Choices[0];
+	const int32 PaidFailureShards = FailureRun->TimeShards;
+	FailureRun->CurrentBuild.CardState.OwnedCardIds.Add(PaidFailureChoice.CardId);
+	TestEqual(TEXT("An invalid paid claim is rejected without another charge"),
+	          FailureRun->ClaimPaidShopCardChoice(PaidFailureChoice.ItemId).Result,
+	          EReEchoShopPurchaseResult::OfferNotFound);
+	TestEqual(
+	    TEXT("A failed paid claim preserves the post-payment balance"), FailureRun->TimeShards, PaidFailureShards);
+	TestEqual(TEXT("A failed paid claim preserves the pending pack state"),
+	          FailureRun->CurrentBuild.CardState.Runtime.ShopCardPackStates[1].bPaymentCommitted,
+	          true);
+	TestFalse(TEXT("A failed paid claim does not consume the pack"),
+	          FailureRun->CurrentBuild.CardState.Runtime.ShopCardPackStates[1].bPurchased);
 
 	UGameInstance* PartialGameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* PartialRun = NewObject<UReEchoRunSubsystem>(PartialGameInstance);
@@ -800,6 +880,11 @@ bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
 	                      {
 		                      return Choice.bCanRefresh;
 	                      })))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("Card-slot refresh begins only after pack payment"),
+	              Run->PurchaseShopCardPackDetailed(2).IsSuccess()))
 	{
 		return false;
 	}
@@ -927,10 +1012,15 @@ bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* ExhaustedRun = NewObject<UReEchoRunSubsystem>(ExhaustedGameInstance);
 	ExhaustedRun->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
 	ExhaustedRun->EncounterIndex = 4;
-	ExhaustedRun->TimeShards = 100;
+	ExhaustedRun->TimeShards = 1000;
 	const FReEchoWeaponPartShopView ExhaustedInitialPage = ExhaustedRun->GetWeaponPartShopView();
 	if (!TestTrue(TEXT("No-replacement fixture exposes tier two"),
 	              ExhaustedInitialPage.CardPackOffers[1].IsAvailable()))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("No-replacement fixture prepays its card pack"),
+	              ExhaustedRun->PurchaseShopCardPackDetailed(2).IsSuccess()))
 	{
 		return false;
 	}

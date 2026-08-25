@@ -2915,13 +2915,13 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 		return;
 	}
 
-	const FReEchoWeaponPartShopView ShopView = RunSubsystem->GetWeaponPartShopView();
+	FReEchoWeaponPartShopView ShopView = RunSubsystem->GetWeaponPartShopView();
 	const FReEchoShopCardPackOffer* Pack = ShopView.CardPackOffers.FindByPredicate(
 	    [Tier](const FReEchoShopCardPackOffer& Candidate)
 	    {
 		    return Candidate.Tier == Tier;
 	    });
-	if (!Pack || !Pack->IsAvailable())
+	if (!Pack || !Pack->CanOpenChoices())
 	{
 		ReEchoUIInteractionAudit::Write(TEXT("CARD_PACK_OPEN_REJECTED"),
 		                                FString::Printf(TEXT("tier=%d reason=%s status=%d candidates=%d"),
@@ -2933,12 +2933,39 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 		return;
 	}
+	if (Pack->Status == EReEchoShopCardPackStatus::Available)
+	{
+		const FReEchoShopPurchaseOutcome Payment = RunSubsystem->PurchaseShopCardPackDetailed(Tier);
+		if (!Payment.IsSuccess())
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[ReEchoShop] Card-pack payment rejected tx=%s tier=%d code=%d detail=%s"),
+			       *Payment.TransactionId,
+			       Tier,
+			       static_cast<int32>(Payment.Result),
+			       *Payment.Detail);
+			PostUiEvent(FReEchoAudioEvents::UiError);
+			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+			return;
+		}
+		PostUiEvent(FReEchoAudioEvents::UiPurchase);
+		RunSubsystem->SaveRun();
+		ShopView = RunSubsystem->GetWeaponPartShopView();
+		Pack = ShopView.CardPackOffers.FindByPredicate(
+		    [Tier](const FReEchoShopCardPackOffer& Candidate)
+		    {
+			    return Candidate.Tier == Tier;
+		    });
+		if (!Pack || Pack->Status != EReEchoShopCardPackStatus::PaidPendingChoice)
+		{
+			PostUiEvent(FReEchoAudioEvents::UiError);
+			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+			return;
+		}
+	}
 
 	TArray<FReEchoShopCardChoiceOffer> EffectiveChoices = Pack->Choices;
-	for (FReEchoShopCardChoiceOffer& Choice : EffectiveChoices)
-	{
-		Choice.Price = RunSubsystem->GetDiscountedShopPrice(Choice.Price);
-	}
 	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	TraitCardChoiceWidget = UIFlow ? Cast<UReEchoTraitCardChoiceWidget>(
 	                                     UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::TraitChoice, true, true))
@@ -2979,7 +3006,7 @@ void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
 		return;
 	}
 
-	const FReEchoShopPurchaseOutcome Outcome = RunSubsystem->PurchaseShopItemDetailed(ItemId);
+	const FReEchoShopPurchaseOutcome Outcome = RunSubsystem->ClaimPaidShopCardChoice(ItemId);
 	if (!Outcome.IsSuccess())
 	{
 		UE_LOG(LogReEcho,
@@ -3040,7 +3067,7 @@ void AReEchoGameMode::HandleShopCardRefreshRequested(const int32 SlotIndex)
 	    {
 		    return Candidate.Tier == ActiveShopCardPackTier;
 	    });
-	if (!Pack || !Pack->IsAvailable())
+	if (!Pack || Pack->Status != EReEchoShopCardPackStatus::PaidPendingChoice)
 	{
 		ReEchoUIInteractionAudit::Write(TEXT("SHOP_CARD_SLOT_REFRESH_REJECTED"),
 		                                FString::Printf(TEXT("tier=%d slot=%d reason=PackUnavailableAfterRefresh"),
@@ -3052,10 +3079,6 @@ void AReEchoGameMode::HandleShopCardRefreshRequested(const int32 SlotIndex)
 		return;
 	}
 	TArray<FReEchoShopCardChoiceOffer> EffectiveChoices = Pack->Choices;
-	for (FReEchoShopCardChoiceOffer& Choice : EffectiveChoices)
-	{
-		Choice.Price = RunSubsystem->GetDiscountedShopPrice(Choice.Price);
-	}
 	RunSubsystem->SaveRun();
 	TraitCardChoiceWidget->InitializeShopOffers(
 	    EffectiveChoices, RunSubsystem->TimeShards, ActiveShopCardPackTier, SlotIndex);

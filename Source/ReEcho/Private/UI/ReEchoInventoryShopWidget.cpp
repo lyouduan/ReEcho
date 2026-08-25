@@ -1231,15 +1231,22 @@ void UReEchoInventoryShopWidget::AddTargetCardPack(UHorizontalBox* Row,
 	UReEchoIndexedButton* Button = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
 	    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TargetCardPackButton%d"), PackIndex));
 	Button->SetEntryIndex(PackIndex);
-	Button->SetBackgroundColor(Pack.IsAvailable() ? FLinearColor(0.95f, 0.78f, 0.34f, 1.0f)
-	                                              : FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
-	Button->SetIsEnabled(Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed);
+	const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+	const int32 EffectivePrice = GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
+	const bool bCanPurchase =
+	    Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed && CurrentTimeShards >= EffectivePrice;
+	Button->SetBackgroundColor((bCanPurchase || bPendingChoice) ? FLinearColor(0.95f, 0.78f, 0.34f, 1.0f)
+	                                                            : FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
+	Button->SetIsEnabled(bCanPurchase || bPendingChoice);
 	Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleCardPackClicked);
 	UTextBlock* ButtonText = CreateText(WidgetTree,
 	                                    *FString::Printf(TEXT("TargetCardPackButtonText%d"), PackIndex),
 	                                    18,
 	                                    FLinearColor(0.03f, 0.03f, 0.03f));
-	ButtonText->SetText(Pack.IsAvailable() ? NSLOCTEXT("ReEcho", "ShopCardPackChoose", "选择") : Pack.StatusText);
+	ButtonText->SetText(Pack.IsAvailable() ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"),
+	                                                       FText::AsNumber(EffectivePrice))
+	                    : bPendingChoice   ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
+	                                       : Pack.StatusText);
 	ButtonText->SetJustification(ETextJustify::Center);
 	Button->SetContent(ButtonText);
 	UCanvasPanelSlot* ButtonSlot = Card->AddChildToCanvas(Button);
@@ -2104,9 +2111,18 @@ void UReEchoInventoryShopWidget::Refresh()
 			continue;
 		}
 		const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[PackIndex];
-		CardPackButtons[PackIndex]->SetIsEnabled(Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed);
+		const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+		const int32 EffectivePrice = GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
+		const bool bCanPurchase =
+		    Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed && CurrentTimeShards >= EffectivePrice;
+		CardPackButtons[PackIndex]->SetIsEnabled(bCanPurchase || bPendingChoice);
+		const FText ActionText =
+		    Pack.IsAvailable()
+		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"), FText::AsNumber(EffectivePrice))
+		    : bPendingChoice ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
+		                     : Pack.StatusText;
 		CardPackTexts[PackIndex]->SetText(FText::Format(
-		    NSLOCTEXT("ReEcho", "ShopCardPackLogicFormat", "{0}卡组\n{1}"), Pack.DisplayName, Pack.StatusText));
+		    NSLOCTEXT("ReEcho", "ShopCardPackLogicFormat", "{0}卡组\n{1}"), Pack.DisplayName, ActionText));
 	}
 
 	InventoryPanel->SetVisibility(bShowingShop ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
@@ -2295,7 +2311,10 @@ void UReEchoInventoryShopWidget::HandleCardPackClicked(const int32 PackIndex)
 	                    static_cast<int32>(Pack.Status),
 	                    Pack.Choices.Num(),
 	                    bCurrentExtraCardPurchaseAllowed ? 1 : 0));
-	if (Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed)
+	const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+	const bool bCanPurchase = Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed &&
+	                          CurrentTimeShards >= GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
+	if (bCanPurchase || bPendingChoice)
 	{
 		OnCardPackRequested.Broadcast(Pack.Tier);
 		return;
@@ -2305,7 +2324,7 @@ void UReEchoInventoryShopWidget::HandleCardPackClicked(const int32 PackIndex)
 	    FString::Printf(TEXT("screen=InventoryShop packIndex=%d tier=%d reason=%s"),
 	                    PackIndex,
 	                    Pack.Tier,
-	                    Pack.IsAvailable() ? TEXT("ExtraCardPurchaseDisabled") : TEXT("PackUnavailable")));
+	                    Pack.IsAvailable() ? TEXT("PackPurchaseBlocked") : TEXT("PackUnavailable")));
 }
 
 void UReEchoInventoryShopWidget::HandleRefreshClicked()

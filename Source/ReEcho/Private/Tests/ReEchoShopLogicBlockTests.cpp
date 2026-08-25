@@ -68,12 +68,13 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	TierOnePack.Tier = 1;
 	TierOnePack.DisplayName = FText::FromString(TEXT("一级"));
 	TierOnePack.Status = EReEchoShopCardPackStatus::Available;
-	TierOnePack.StatusText = FText::FromString(TEXT("选择"));
+	TierOnePack.StatusText = FText::FromString(TEXT("可购买"));
+	TierOnePack.Price = 40;
 	FReEchoShopCardChoiceOffer TierOneChoice;
 	TierOneChoice.CardId = TEXT("TEST_BUILD_CARD");
 	TierOneChoice.ItemId = TEXT("TEST_CARD_CHOICE");
 	TierOneChoice.Tier = 1;
-	TierOneChoice.Price = 10;
+	TierOneChoice.Price = 0;
 	TierOnePack.Choices.Add(TierOneChoice);
 	FReEchoShopCardPackOffer TierTwoPack;
 	TierTwoPack.Tier = 2;
@@ -198,6 +199,18 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(TEXT("Pack click maps to its fixed tier"), CardPackRequests[0], 1);
 	}
+	TierOnePack.Status = EReEchoShopCardPackStatus::PaidPendingChoice;
+	TierOnePack.StatusText = FText::FromString(TEXT("待选卡"));
+	View.CardPackOffers[0] = TierOnePack;
+	Widget->SetWeaponPartShopView(View);
+	Widget->ShowShop(0, {}, 0.0f, 0, true, false);
+	UReEchoIndexedButton* ContinueButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetCardPackButton0")));
+	UTextBlock* ContinueText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TargetCardPackButtonText0")));
+	TestTrue(TEXT("A paid pending pack remains enterable without funds or purchase permission"),
+	         ContinueButton && ContinueButton->GetIsEnabled());
+	TestTrue(TEXT("A paid pending pack exposes an explicit continue action"),
+	         ContinueText && ContinueText->GetText().ToString().Contains(TEXT("继续")));
 	if (PurchaseRequests.Num() == 1)
 	{
 		TestEqual(TEXT("Weapon part click maps to the weapon part id"), PurchaseRequests[0], WeaponPart.ItemId);
@@ -229,7 +242,7 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	First.DisplayName = FText::FromString(TEXT("候选一"));
 	First.EffectText = FText::FromString(TEXT("效果一"));
 	First.Tier = 2;
-	First.Price = 35;
+	First.Price = 0;
 	First.SlotIndex = 0;
 	First.RemainingRefreshes = 1;
 	First.RefreshCost = 5;
@@ -238,7 +251,7 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	Second.CardId = TEXT("G_2_02");
 	Second.ItemId = TEXT("SHOP_CARD_TEST_2");
 	Second.DisplayName = FText::FromString(TEXT("候选二"));
-	Second.Price = 47;
+	Second.Price = 0;
 	Second.SlotIndex = 1;
 	Widget->InitializeShopOffers({First, Second}, 40, 2);
 
@@ -379,10 +392,8 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 	TestTrue(TEXT("Designer card entry uses the imported 420x593 art size"),
 	         CardRootSizeBox && CardRootSizeBox->GetParent() == CardRootScaleBox &&
 	             CardRootSizeBox->IsWidthOverride() && CardRootSizeBox->IsHeightOverride() &&
-	             CardRootSizeBox->GetWidthOverride() == 420.0f &&
-	             CardRootSizeBox->GetHeightOverride() == 593.0f);
-	const UScaleBoxSlot* CardDesignSurfaceSlot =
-	    CardRootSizeBox ? Cast<UScaleBoxSlot>(CardRootSizeBox->Slot) : nullptr;
+	             CardRootSizeBox->GetWidthOverride() == 420.0f && CardRootSizeBox->GetHeightOverride() == 593.0f);
+	const UScaleBoxSlot* CardDesignSurfaceSlot = CardRootSizeBox ? Cast<UScaleBoxSlot>(CardRootSizeBox->Slot) : nullptr;
 	TestTrue(TEXT("Card design surface remains centered instead of stretching in the ScaleBox"),
 	         CardDesignSurfaceSlot && CardDesignSurfaceSlot->GetHorizontalAlignment() == HAlign_Center &&
 	             CardDesignSurfaceSlot->GetVerticalAlignment() == VAlign_Center);

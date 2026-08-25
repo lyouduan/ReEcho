@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`，需要用户确认商店卡组购买键、扣费反馈、继续选择入口和返回/读档后的可用性。
 - 本地规划 / 实现基线：`origin/main@dc46a89a80bc67c738952374ae971cde5b69ddd3`。
 - 本地实现方式：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan108-shop-card-pack-prepay`；分支 `plan/108-shop-card-pack-prepay`。
@@ -59,22 +59,22 @@
 - 决策记录：不复用候选 `ItemId` 作为付款凭据，而为等级卡组建立稳定购买 ID/窄命令；不在 UI 以“余额减少”推断已付款；不把付款与最终选择强绑成一个无法跨返回/存档恢复的长事务。武器/符文“成功购买后立即 SaveRun”作为付款保存时点参考，但卡组额外持久化 `PaidPendingChoice`，因为卡牌授予被延后。
 - 相关文档同步范围：关闭前必审 `shared/CODEBASE_MAP/ARCHITECTURE.md`、`README.md`、`modules/MOD-ReEcho.md`、`MOD-ReEchoCards.md`、`MOD-ReEchoUI.md`；模块拓扑和索引预计不变，若审阅确认不变则只在执行记录注明。
 - 关闭前逐项填写审阅结果：
-  - `ARCHITECTURE.md`：待审阅依赖拓扑与跨模块不变量；
-  - `README.md`：待审阅 AREA 路由；
-  - `MOD-ReEcho.md`：待同步 Run/Save/Shop 的两阶段事务；
-  - `MOD-ReEchoCards.md`：待同步卡组待选付款状态与最终授予边界；
-  - `MOD-ReEchoUI.md`：待同步卡组购买键、继续选择和候选无价展示契约。
+  - `ARCHITECTURE.md`：已审阅；模块依赖方向与拓扑未改变，无需修改；
+  - `README.md`：已审阅；AREA 路由未改变，无需修改；
+  - `MOD-ReEcho.md`：已同步 Run/Save/Shop 的两阶段事务、SaveVersion 20 与审计入口；
+  - `MOD-ReEchoCards.md`：已同步卡组稳定价格、待选付款状态与最终授予边界；
+  - `MOD-ReEchoUI.md`：已同步卡组购买键、继续选择和候选无价展示契约。
 
 ## 锁定验收
 
-- [ ] 开放卡组入口显示单一卡组价格和购买键；点击后直接扣费并进入同级最多三选一，候选卡不再分别计价。
-- [ ] 每个卡组基础价在配置区间内确定性生成，折扣、余额不足和 `NoExtraCardPurchase` 门禁准确；失败不改变余额、卡组状态或购买事件结果。
-- [ ] 付款成功立即触发一次且仅一次 `OnPurchase`、保存并进入 `PaidPendingChoice`；返回后显示“继续选择”，重新进入不收费、不重摇。
-- [ ] 待选状态、基础价、候选和逐槽刷新用量经 SaveVersion 20 保存/恢复；v19 及更早迁移不伪造已付款状态，旧已购卡组保持完成。
-- [ ] 最终选择成功只授予卡牌并转为 `Purchased`，不二次扣费或触发购买；授予失败保留已付款待选状态并可重试。
-- [ ] 卡组付款前已拥有的 `G_2_16` 本次触发，作为本次选择获得的 `G_2_16` 不追溯；本次选择获得 `G_3_17` 后只阻止后续卡组。
-- [ ] 逐槽刷新仍为每槽 1 次、每次 5 碎片，返回/读档不重置；免费过关选卡和武器/符文购买/刷新不回归。
-- [ ] Shop、Trait、Save、Cards/UI 聚焦自动化、Development Editor 构建、项目校验与 `git diff --check` 通过；最终发布候选 FullRebuild 与预构建检查通过。
+- [x] 开放卡组入口显示单一卡组价格和购买键；点击后直接扣费并进入同级最多三选一，候选卡不再分别计价。
+- [x] 每个卡组基础价在配置区间内确定性生成，折扣、余额不足和 `NoExtraCardPurchase` 门禁准确；失败不改变余额、卡组状态或购买事件结果。
+- [x] 付款成功立即触发一次且仅一次 `OnPurchase`、保存并进入 `PaidPendingChoice`；返回后显示“继续选择”，重新进入不收费、不重摇。
+- [x] 待选状态、基础价、候选和逐槽刷新用量经 SaveVersion 20 保存/恢复；v19 及更早迁移不伪造已付款状态，旧已购卡组保持完成。
+- [x] 最终选择成功只授予卡牌并转为 `Purchased`，不二次扣费或触发购买；授予失败保留已付款待选状态并可重试。
+- [x] 卡组付款前已拥有的 `G_2_16` 本次触发，作为本次选择获得的 `G_2_16` 不追溯；本次选择获得 `G_3_17` 后只阻止后续卡组。
+- [x] 逐槽刷新仍为每槽 1 次、每次 5 碎片，返回/读档不重置；免费过关选卡和武器/符文购买/刷新不回归。
+- [x] Shop、Trait、Save、Cards/UI 聚焦自动化、Development Editor 构建、项目校验与 `git diff --check` 通过；最终发布候选 FullRebuild 与预构建检查通过。
 - [ ] 用户在 PIE 验收购买键、即时扣费、返回/继续、读档恢复、刷新和最终选卡可用性。
 - [ ] 未提交精选 `GIT_RULES.md` 允许列表外的 UE 生成物或机器本地路径。
 
@@ -111,6 +111,7 @@
 
 ### 变化
 
+- 2026-08-25：Plan108 以 Plan-only 提交 `dc9bd8b8` 发布并核验位于 `origin/main`，专属 worktree 开始实现。
 - 2026-08-25：用户确认卡组从“选中候选时付费”改为“入口购买键先付费再进入”；卡组使用现有等级价格区间的单一稳定价格，不弹二次确认。
 - 2026-08-25：用户确认付款后可返回且不退款，入口可免费继续选择；付款后保存/恢复参考武器符文的即时保存时点，但增加可持久化待选阶段；逐槽刷新保持 `1 次 / 5 碎片`。
 - 2026-08-25：用户确认 `OnPurchase` 在卡组付款时触发，最终领取不再触发；付款后授予失败保留已付款待选状态。
@@ -120,12 +121,17 @@
 
 - 规划期源码审计确认当前 `FReEchoShopCardChoiceOffer` 为逐卡价格，`PurchaseShopItemDetailed` 在候选领取时扣费、授予、触发 `OnPurchase` 并把卡组设为 `bPurchased`；GameMode 成功后 `SaveRun`。
 - `shop_price_ranges.csv` 当前为 `Card_T1=30..50`、`Card_T2=100..120`、`Card_T3=150..200`；`shop_refresh_rules.csv` 当前卡槽刷新为 `1 次 / 5 碎片`。
+- 实现将卡组拆为 `PurchaseShopCardPackDetailed(Tier)` 与 `ClaimPaidShopCardChoice(ItemId)`；候选 ItemId 经旧统一购买接口返回 `OfferNotFound`，不能绕过付款。入口与 fallback 都投影“购买 · 折扣价 / 继续选择 / 已购”。
+- SaveVersion 20 持久化 `BasePrice` 与 `bPaymentCommitted`；v19 已购状态迁移为付款已提交，价格按保留的页面身份确定性惰性恢复。
+- 2026-08-25 聚焦自动化通过：`ReEcho.Shop` 11 项、`ReEcho.UI.Shop` 3 项、`ReEcho.Run.Save` 5 项、`ReEcho.Cards` 5 项、`ReEcho.Traits` 10 项，全部 `Result={Success}` / `EXIT CODE: 0`。
+- Development Editor 增量构建与发布级 `Build-Editor.cmd -Configuration Development -FullRebuild` 均通过；精选预构建校验为 `modules=7 build_id=55116800 source=a25c16cb5f27`。`.clang-format`、`python scripts/validate_project.py` 与 `git diff --check` 通过。
+- 发布前 fetch 发现 `origin/main` 前进到 `ef944a58`；仅新增/修改 Plan109 与 Plan96 文档，不与 Plan108 写集重叠。候选已快进重放到该基线后重新完成 FullRebuild 和聚焦验证。
 
 ### 剩余风险
 
 - 两阶段事务新增一个跨页面/存档生命周期状态；必须覆盖重复点击、付款后返回、读档、候选授予失败和旧存档迁移，避免重复扣费或免费领取。
-- Plan105 刚修改相同卡牌状态与 Tooltip 投影；实施和集成时必须保留结果摘要字段与 SaveVersion 19 迁移。
-- Plan106/107 后续进入 main 会使共享工作簿、模块文档和预构建包证据失效；最终发布前重新审计并 FullRebuild。
+- 人工 PIE 尚未确认视觉反馈、返回/继续与真实磁盘读档路径；程序候选保持 `Review`，由用户验收后关闭。
+- Plan106/107 后续进入 main 仍可能使共享工作簿与预构建包证据失效；合入时需要重新审计。
 
 ### 人工验收结果/请求
 
@@ -133,4 +139,5 @@
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 与 `README.md` 的依赖拓扑/AREA 路由不变；无需改动。
+- `MOD-ReEcho.md`、`MOD-ReEchoCards.md`、`MOD-ReEchoUI.md` 已同步两阶段事务、持久状态和 UI 命令边界。

@@ -34,7 +34,7 @@
 |---|---|---|
 | 卡牌定义和效果 | `FReEchoCardCatalog` | 数据适配器编译后发布的只读目录 |
 | 已拥有卡牌、叠层、随机序号 | `FReEchoCardBuildState` | `FReEchoCardRuntime` 的纯命令/结果 |
-| 遭遇内阈值、免伤、追踪进度与当前商店卡组页 | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次生成固定 `[Tier1, Tier2, Tier3]` 卡组状态，每组保存最多三个候选 ID、逐槽刷新用量和本页已购标记 |
+| 遭遇内阈值、免伤、追踪进度与当前商店卡组页 | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次生成固定 `[Tier1, Tier2, Tier3]` 卡组状态，每组保存最多三个候选 ID、逐槽刷新用量、稳定基础价、付款已提交与最终领取标记 |
 | 已解析的卡牌实际结果 | `FReEchoCardRuntimeState::ResolvedOutcomes` | Cards 在原子玩法事务中写入类型化随机、待结算或累计结果；Run 只读投影 |
 | 商店、Echo、元素和槽位派生规则 | `FReEchoCardRuleSnapshot` | 主模块及领域适配器只读消费 |
 

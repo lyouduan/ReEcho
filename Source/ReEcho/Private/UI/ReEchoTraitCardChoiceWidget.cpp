@@ -495,7 +495,7 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 	{
 		SubtitleText->SetText(
 		    bShopMode
-		        ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "每张卡牌分别计价，购买后本卡组标记为已购")
+		        ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "卡牌组已付款；选择1张卡牌完成领取")
 		        : NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具"));
 	}
 	if (CurrencyText)
@@ -665,8 +665,7 @@ void UReEchoTraitCardChoiceWidget::SelectOffer(const int32 OfferIndex)
 
 bool UReEchoTraitCardChoiceWidget::CanSelectOffer(const int32 OfferIndex) const
 {
-	return Offers.IsValidIndex(OfferIndex) &&
-	       (!bShopMode || (ShopOffers.IsValidIndex(OfferIndex) && ShopOffers[OfferIndex].Price <= CurrentTimeShards));
+	return Offers.IsValidIndex(OfferIndex) && (!bShopMode || ShopOffers.IsValidIndex(OfferIndex));
 }
 
 void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)

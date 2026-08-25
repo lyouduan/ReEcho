@@ -121,6 +121,11 @@ FName MakeShopCardOfferId(const int32 EncounterIndex, const int32 RefreshSequenc
 	return FName(*FString::Printf(TEXT("SHOP_CARD_E%d_R%d_%s"), EncounterIndex, RefreshSequence, *CardId.ToString()));
 }
 
+FName MakeShopCardPackOfferId(const int32 EncounterIndex, const int32 RefreshSequence, const int32 Tier)
+{
+	return FName(*FString::Printf(TEXT("SHOP_CARD_PACK_E%d_R%d_T%d"), EncounterIndex, RefreshSequence, Tier));
+}
+
 FString FormatOutcomeValue(const FName Target, const float Value)
 {
 	if (Target == TEXT("ReactionEfficiency") || Target == TEXT("EchoEfficiency"))
@@ -730,6 +735,14 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 				Outcome.ResolutionCount = 1;
 			}
 		}
+		if (SaveVersion < 20)
+		{
+			for (FReEchoShopCardPackRuntimeState& Pack : Build.CardState.Runtime.ShopCardPackStates)
+			{
+				Pack.bPaymentCommitted = Pack.bPurchased;
+				Pack.BasePrice = 0; // Lazily derived from the preserved page identity when next projected.
+			}
+		}
 		if (!Build.Cards.IsEmpty() || Build.CardState.DomainRevision != Snapshot.CardDomainRevision ||
 		    Build.CardState.Runtime.RandomSequence < 0 || Build.CardState.Runtime.PreventedDamageCount < 0 ||
 		    Build.CardState.Runtime.HuntKillCount < 0 || Build.CardState.Runtime.ReactionCount < 0 ||
@@ -756,7 +769,8 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 			        {
 				        return Uses < 0;
 			        }) ||
-			    (Pack.bPurchased && Pack.CandidateCardIds.IsEmpty()))
+			    Pack.BasePrice < 0 || (Pack.bPurchased && !Pack.bPaymentCommitted) ||
+			    ((Pack.bPaymentCommitted || Pack.bPurchased) && Pack.CandidateCardIds.IsEmpty()))
 			{
 				return false;
 			}
@@ -1694,19 +1708,20 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					        [](const int32 Uses)
 					        {
 						        return Uses < 0;
-					        }))
+					        }) ||
+					    Pack.BasePrice < 0 || (Pack.bPurchased && !Pack.bPaymentCommitted))
 					{
 						return false;
 					}
 					if (!ConfiguredCardTiers.Contains(Tier))
 					{
-						if (!Pack.CandidateCardIds.IsEmpty() || Pack.bPurchased)
+						if (!Pack.CandidateCardIds.IsEmpty() || Pack.bPaymentCommitted || Pack.bPurchased)
 						{
 							return false;
 						}
 						continue;
 					}
-					if (Pack.bPurchased && Pack.CandidateCardIds.IsEmpty())
+					if ((Pack.bPaymentCommitted || Pack.bPurchased) && Pack.CandidateCardIds.IsEmpty())
 					{
 						return false;
 					}
@@ -1741,6 +1756,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					Pack.Tier = Tier;
 					Pack.CandidateCardIds.Reset();
 					Pack.SlotRefreshUses.Reset();
+					Pack.BasePrice = 0;
+					Pack.bPaymentCommitted = false;
 					Pack.bPurchased = false;
 					if (!ConfiguredCardTiers.Contains(Tier))
 					{
@@ -1766,6 +1783,10 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 						Pack.CandidateCardIds.Add(Eligible[CandidateIndex].Id);
 						Pack.SlotRefreshUses.Add(0);
 					}
+					const FName PriceSeedKey(*FString::Printf(TEXT("SHOP_CARD_PACK_TIER_%d"), Tier));
+					FRandomStream PriceRand(BuildShopOfferSeed(PriceSeedKey, EncounterIndex, RefreshSequence));
+					Pack.BasePrice =
+					    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, PriceRand);
 				}
 			}
 
@@ -1773,7 +1794,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 			{
 				FReEchoShopCardPackOffer& CardPack = View.CardPackOffers[PackIndex];
 				const int32 Tier = PackIndex + 1;
-				const FReEchoShopCardPackRuntimeState& Pack = CardRuntime.ShopCardPackStates[PackIndex];
+				FReEchoShopCardPackRuntimeState& Pack = CardRuntime.ShopCardPackStates[PackIndex];
+				CardPack.ItemId = MakeShopCardPackOfferId(EncounterIndex, RefreshSequence, Tier);
 				if (!ConfiguredCardTiers.Contains(Tier))
 				{
 					continue;
@@ -1784,10 +1806,20 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackSoldOut", "售罄");
 					continue;
 				}
-				CardPack.Status =
-				    Pack.bPurchased ? EReEchoShopCardPackStatus::Purchased : EReEchoShopCardPackStatus::Available;
-				CardPack.StatusText = Pack.bPurchased ? NSLOCTEXT("ReEcho", "ShopCardPackPurchased", "已购")
-				                                      : NSLOCTEXT("ReEcho", "ShopCardPackAvailable", "选择");
+				if (Pack.BasePrice <= 0)
+				{
+					const FName PriceSeedKey(*FString::Printf(TEXT("SHOP_CARD_PACK_TIER_%d"), Tier));
+					FRandomStream PriceRand(BuildShopOfferSeed(PriceSeedKey, EncounterIndex, RefreshSequence));
+					Pack.BasePrice =
+					    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, PriceRand);
+				}
+				CardPack.Price = Pack.BasePrice;
+				CardPack.Status = Pack.bPurchased          ? EReEchoShopCardPackStatus::Purchased
+				                  : Pack.bPaymentCommitted ? EReEchoShopCardPackStatus::PaidPendingChoice
+				                                           : EReEchoShopCardPackStatus::Available;
+				CardPack.StatusText = Pack.bPurchased          ? NSLOCTEXT("ReEcho", "ShopCardPackPurchased", "已购")
+				                      : Pack.bPaymentCommitted ? NSLOCTEXT("ReEcho", "ShopCardPackPending", "待选卡")
+				                                               : NSLOCTEXT("ReEcho", "ShopCardPackAvailable", "可购买");
 				for (int32 CandidateIndex = 0; CandidateIndex < Pack.CandidateCardIds.Num(); ++CandidateIndex)
 				{
 					const FName CardId = Pack.CandidateCardIds[CandidateIndex];
@@ -1805,7 +1837,6 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					}
 					const int32 SlotRefreshSequence =
 					    Pack.SlotRefreshUses.IsValidIndex(CandidateIndex) ? Pack.SlotRefreshUses[CandidateIndex] : 0;
-					FRandomStream PriceRand(BuildShopOfferSeed(Chosen->Id, EncounterIndex, SlotRefreshSequence));
 					FReEchoShopCardChoiceOffer Choice;
 					Choice.CardId = Chosen->Id;
 					Choice.ItemId = MakeShopCardOfferId(EncounterIndex, RefreshSequence, Chosen->Id);
@@ -1815,8 +1846,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					Choice.Tier = Tier;
 					Choice.SlotIndex = CandidateIndex;
 					Choice.SlotRefreshSequence = SlotRefreshSequence;
-					Choice.Price =
-					    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, PriceRand);
+					Choice.Price = 0;
 					if (RefreshRule)
 					{
 						Choice.RemainingRefreshes =
@@ -1838,7 +1868,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					}
 					CardPack.Choices.Add(MoveTemp(Choice));
 				}
-				if (!Pack.bPurchased && CardPack.Choices.IsEmpty())
+				if (!Pack.bPaymentCommitted && !Pack.bPurchased && CardPack.Choices.IsEmpty())
 				{
 					CardPack.Status = EReEchoShopCardPackStatus::SoldOut;
 					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackSoldOut", "售罄");
@@ -2602,8 +2632,8 @@ bool UReEchoRunSubsystem::TryRefreshShopCardSlot(const int32 Tier, const int32 S
 		return false;
 	}
 	FReEchoShopCardPackRuntimeState& Pack = CurrentBuild.CardState.Runtime.ShopCardPackStates[PackIndex];
-	if (Pack.Tier != Tier || Pack.bPurchased || !Pack.CandidateCardIds.IsValidIndex(SlotIndex) ||
-	    !Pack.SlotRefreshUses.IsValidIndex(SlotIndex))
+	if (Pack.Tier != Tier || !Pack.bPaymentCommitted || Pack.bPurchased ||
+	    !Pack.CandidateCardIds.IsValidIndex(SlotIndex) || !Pack.SlotRefreshUses.IsValidIndex(SlotIndex))
 	{
 		OutError = TEXT("The requested card slot is no longer available");
 		return false;
@@ -2692,6 +2722,210 @@ void UReEchoRunSubsystem::ClearCardAnchorRecording()
 	CurrentBuild.CardState.Runtime.AnchorRecordingId.Invalidate();
 }
 
+FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(const int32 Tier)
+{
+	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
+	const FReEchoShopCardPackOffer* Offer = ShopView.CardPackOffers.FindByPredicate(
+	    [Tier](const FReEchoShopCardPackOffer& Candidate)
+	    {
+		    return Candidate.Tier == Tier;
+	    });
+	const FName AuditItemId = Offer ? Offer->ItemId : FName(*FString::Printf(TEXT("SHOP_CARD_PACK_T%d"), Tier));
+	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	LogShopPurchaseAuditState(
+	    TransactionId, AuditItemId, TEXT("BEFORE"), CaptureShopPurchaseAuditState(*this, Snapshot));
+	const auto Finish = [&](const EReEchoShopPurchaseResult Result, const FString& Detail, const int32 Price = 0)
+	{
+		FReEchoShopPurchaseOutcome Outcome;
+		Outcome.TransactionId = TransactionId;
+		Outcome.ItemId = AuditItemId;
+		Outcome.Result = Result;
+		Outcome.Detail = Detail;
+		Outcome.EffectivePrice = Price;
+		WriteShopPurchaseAuditLine(FString::Printf(
+		    TEXT("[ShopPurchaseAudit] tx=%s phase=RESULT item=%s success=%d code=%s effectivePrice=%d detail=%s"),
+		    *TransactionId,
+		    *AuditItemId.ToString(),
+		    Outcome.IsSuccess(),
+		    GetShopPurchaseResultName(Result),
+		    Price,
+		    *SanitizeShopPurchaseAuditText(Detail)));
+		LogShopPurchaseAuditState(
+		    TransactionId, AuditItemId, TEXT("AFTER"), CaptureShopPurchaseAuditState(*this, GetRunDataSnapshot()));
+		return Outcome;
+	};
+	if (!Offer || !Offer->IsAvailable())
+	{
+		return Finish(EReEchoShopPurchaseResult::OfferNotFound,
+		              TEXT("The requested card pack is not available for payment"));
+	}
+	const int32 EffectivePrice = GetDiscountedShopPrice(Offer->Price);
+	if (!CanPurchaseExtraShopCard())
+	{
+		return Finish(EReEchoShopPurchaseResult::PurchaseDisabled,
+		              TEXT("The current card rules disable extra shop-card purchases"),
+		              EffectivePrice);
+	}
+	if (TimeShards < EffectivePrice)
+	{
+		return Finish(
+		    EReEchoShopPurchaseResult::InsufficientCurrency,
+		    FString::Printf(TEXT("Time shards %d are below the effective pack price %d"), TimeShards, EffectivePrice),
+		    EffectivePrice);
+	}
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return Finish(
+		    EReEchoShopPurchaseResult::DataUnavailable, TEXT("The runtime card data is unavailable"), EffectivePrice);
+	}
+
+	FReEchoBuildSnapshot PendingBuild;
+	FString MutationDetail = TEXT("The authoritative build rejected the card-pack payment");
+	if (!TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& Build)
+	        {
+		        const int32 PackIndex = Tier - 1;
+		        if (!Build.CardState.Runtime.ShopCardPackStates.IsValidIndex(PackIndex))
+		        {
+			        return false;
+		        }
+		        FReEchoShopCardPackRuntimeState& Pack = Build.CardState.Runtime.ShopCardPackStates[PackIndex];
+		        if (Pack.Tier != Tier || Pack.bPaymentCommitted || Pack.bPurchased || Pack.CandidateCardIds.IsEmpty())
+		        {
+			        MutationDetail = TEXT("The card pack payment state changed before commit");
+			        return false;
+		        }
+		        Pack.bPaymentCommitted = true;
+		        const FReEchoCardEventResult Event =
+		            ReEchoCardRuntime::OnPurchase(*Snapshot->CardCatalog, Build.CardState, Build.Stats);
+		        Build.CardState = Event.CardState;
+		        Build.Stats = Event.Stats;
+		        return true;
+	        },
+	        PendingBuild))
+	{
+		return Finish(EReEchoShopPurchaseResult::MutationRejected, MutationDetail, EffectivePrice);
+	}
+	CurrentBuild = MoveTemp(PendingBuild);
+	TimeShards -= EffectivePrice;
+	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Card-pack payment committed"), EffectivePrice);
+}
+
+FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FName ItemId)
+{
+	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	LogShopPurchaseAuditState(TransactionId, ItemId, TEXT("BEFORE"), CaptureShopPurchaseAuditState(*this, Snapshot));
+	const auto Finish = [&](const EReEchoShopPurchaseResult Result, const FString& Detail)
+	{
+		FReEchoShopPurchaseOutcome Outcome;
+		Outcome.TransactionId = TransactionId;
+		Outcome.ItemId = ItemId;
+		Outcome.Result = Result;
+		Outcome.Detail = Detail;
+		WriteShopPurchaseAuditLine(FString::Printf(
+		    TEXT("[ShopPurchaseAudit] tx=%s phase=RESULT item=%s success=%d code=%s effectivePrice=0 detail=%s"),
+		    *TransactionId,
+		    *ItemId.ToString(),
+		    Outcome.IsSuccess(),
+		    GetShopPurchaseResultName(Result),
+		    *SanitizeShopPurchaseAuditText(Detail)));
+		LogShopPurchaseAuditState(
+		    TransactionId, ItemId, TEXT("AFTER"), CaptureShopPurchaseAuditState(*this, GetRunDataSnapshot()));
+		return Outcome;
+	};
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return Finish(EReEchoShopPurchaseResult::DataUnavailable, TEXT("The runtime card data is unavailable"));
+	}
+	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
+	FReEchoShopCardChoiceOffer Choice;
+	int32 PackIndex = INDEX_NONE;
+	for (int32 Index = 0; Index < ShopView.CardPackOffers.Num() && PackIndex == INDEX_NONE; ++Index)
+	{
+		const FReEchoShopCardPackOffer& Pack = ShopView.CardPackOffers[Index];
+		if (Pack.Status != EReEchoShopCardPackStatus::PaidPendingChoice)
+		{
+			continue;
+		}
+		if (const FReEchoShopCardChoiceOffer* Found = Pack.Choices.FindByPredicate(
+		        [ItemId](const FReEchoShopCardChoiceOffer& Candidate)
+		        {
+			        return Candidate.ItemId == ItemId;
+		        }))
+		{
+			Choice = *Found;
+			PackIndex = Index;
+		}
+	}
+	if (PackIndex == INDEX_NONE)
+	{
+		return Finish(EReEchoShopPurchaseResult::OfferNotFound,
+		              TEXT("The requested card is not claimable from a paid pack"));
+	}
+	if (Choice.Tier != 1 && ReEchoCardRuntime::HasCard(CurrentBuild.CardState, Choice.CardId))
+	{
+		return Finish(EReEchoShopPurchaseResult::AlreadyOwned,
+		              TEXT("Owned tier-2 and tier-3 cards cannot be claimed again"));
+	}
+
+	int32 PendingTimeShards = TimeShards;
+	FReEchoBuildSnapshot PendingBuild;
+	EReEchoShopPurchaseResult Failure = EReEchoShopPurchaseResult::MutationRejected;
+	FString FailureDetail = TEXT("The authoritative build rejected the card claim");
+	if (!TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& Build)
+	        {
+		        if (!Build.CardState.Runtime.ShopCardPackStates.IsValidIndex(PackIndex))
+		        {
+			        return false;
+		        }
+		        FReEchoShopCardPackRuntimeState& Pack = Build.CardState.Runtime.ShopCardPackStates[PackIndex];
+		        if (!Pack.bPaymentCommitted || Pack.bPurchased || !Pack.CandidateCardIds.Contains(Choice.CardId))
+		        {
+			        FailureDetail = TEXT("The paid card-pack state changed before claim commit");
+			        return false;
+		        }
+		        FReEchoCardGrantInput Input;
+		        Input.Stats = Build.Stats;
+		        Input.CardState = Build.CardState;
+		        Input.TimeShards = PendingTimeShards;
+		        Input.EncounterIndex = EncounterIndex;
+		        Input.RandomSeed = BuildShopOfferSeed(Choice.CardId, EncounterIndex, Choice.SlotRefreshSequence);
+		        const FReEchoCardGrantResult Grant =
+		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, Choice.CardId, Input);
+		        if (!Grant.bSucceeded)
+		        {
+			        Failure = EReEchoShopPurchaseResult::GrantRejected;
+			        FailureDetail = Grant.Error.IsEmpty() ? TEXT("The card grant was rejected") : Grant.Error;
+			        return false;
+		        }
+		        Build.Stats = Grant.Stats;
+		        Build.CardState = Grant.CardState;
+		        if (!Build.CardState.Runtime.ShopCardPackStates.IsValidIndex(PackIndex))
+		        {
+			        FailureDetail = TEXT("The card grant did not preserve the paid shop pack");
+			        return false;
+		        }
+		        Build.CardState.Runtime.ShopCardPackStates[PackIndex].bPurchased = true;
+		        PendingTimeShards = Grant.TimeShards;
+		        return true;
+	        },
+	        PendingBuild))
+	{
+		return Finish(Failure, FailureDetail);
+	}
+	CurrentBuild = MoveTemp(PendingBuild);
+	TimeShards = FMath::Max(0, PendingTimeShards);
+	InventoryItems.AddUnique(ItemId);
+	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Paid card choice claimed"));
+}
+
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const FName ItemId)
 {
 	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
@@ -2723,7 +2957,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 
 	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
 
-	// Locate the offer across the fixed weapon/rune slots and an available fixed-tier card pack.
+	// Card packs use their dedicated payment and claim commands; this lookup is weapon/rune and legacy only.
 	FReEchoWeaponSlotOffer SlotOffer;
 	bool bFoundSlot = false;
 	for (const FReEchoWeaponSlotOffer& Candidate : ShopView.SlotOffers)
@@ -2735,36 +2969,11 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 			break;
 		}
 	}
-	FReEchoShopCardChoiceOffer CardChoiceOffer;
-	int32 FoundCardPackIndex = INDEX_NONE;
-	bool bFoundCard = false;
-	if (!bFoundSlot)
-	{
-		for (int32 PackIndex = 0; PackIndex < ShopView.CardPackOffers.Num() && !bFoundCard; ++PackIndex)
-		{
-			const FReEchoShopCardPackOffer& Pack = ShopView.CardPackOffers[PackIndex];
-			if (!Pack.IsAvailable())
-			{
-				continue;
-			}
-			for (const FReEchoShopCardChoiceOffer& Candidate : Pack.Choices)
-			{
-				if (!ItemId.IsNone() && Candidate.ItemId == ItemId)
-				{
-					CardChoiceOffer = Candidate;
-					FoundCardPackIndex = PackIndex;
-					bFoundCard = true;
-					break;
-				}
-			}
-		}
-	}
-
 	// Legacy rune-item catalog (SHOP_RUSTED_SCISSORS etc.) kept for backward compatibility.
 	EReEchoShopOfferType LegacyType = EReEchoShopOfferType::RunItem;
 	int32 LegacyPrice = 0;
 	bool bIsLegacy = false;
-	if (!bFoundSlot && !bFoundCard)
+	if (!bFoundSlot)
 	{
 		for (const FReEchoShopOffer& Legacy : GetReEchoShopCatalog())
 		{
@@ -2777,7 +2986,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 			}
 		}
 	}
-	if (!bFoundSlot && !bFoundCard && !bIsLegacy)
+	if (!bFoundSlot && !bIsLegacy)
 	{
 		return FinishPurchase(EReEchoShopPurchaseResult::OfferNotFound,
 		                      TEXT("The requested item is not present on the current shop page"));
@@ -2788,10 +2997,6 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	if (bFoundSlot)
 	{
 		RawPrice = SlotOffer.Price;
-	}
-	else if (bFoundCard)
-	{
-		RawPrice = CardChoiceOffer.Price;
 	}
 	else if (bIsLegacy)
 	{
@@ -2815,20 +3020,6 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		return FinishPurchase(
 		    EReEchoShopPurchaseResult::AlreadyOwned, TEXT("The requested weapon is already owned"), EffectivePrice);
 	}
-	if (bFoundCard && !CanPurchaseExtraShopCard())
-	{
-		return FinishPurchase(EReEchoShopPurchaseResult::PurchaseDisabled,
-		                      TEXT("The current card rules disable extra shop-card purchases"),
-		                      EffectivePrice);
-	}
-	if (bFoundCard && CardChoiceOffer.Tier != 1 &&
-	    ReEchoCardRuntime::HasCard(CurrentBuild.CardState, CardChoiceOffer.CardId))
-	{
-		return FinishPurchase(EReEchoShopPurchaseResult::AlreadyOwned,
-		                      TEXT("Owned tier-2 and tier-3 cards cannot be purchased again"),
-		                      EffectivePrice);
-	}
-
 	if (TimeShards < EffectivePrice)
 	{
 		return FinishPurchase(
@@ -2843,71 +3034,19 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		                      TEXT("The runtime CSV snapshot is unavailable"),
 		                      EffectivePrice);
 	}
-	if (bFoundCard && !Snapshot->CardCatalog.IsValid())
-	{
-		return FinishPurchase(EReEchoShopPurchaseResult::DataUnavailable,
-		                      TEXT("The runtime card catalog is unavailable"),
-		                      EffectivePrice);
-	}
-
 	const FReEchoBuildSnapshot OriginalBuild = CurrentBuild;
 	const int32 OriginalTimeShards = TimeShards;
 	const TArray<FName> OriginalInventoryItems = InventoryItems;
 	const TArray<FName> OriginalOwnedPartIds = OwnedPartIds;
 	const TSet<FName> OriginalOwnedWeaponIds = OwnedWeaponIds;
-	int32 PendingTimeShards = TimeShards;
 	FReEchoBuildSnapshot PendingBuild;
-	EReEchoShopPurchaseResult MutationFailure = EReEchoShopPurchaseResult::MutationRejected;
 	FString MutationFailureDetail = TEXT("The authoritative build rejected the purchase mutation");
 	if (!TryMutateAuthoritativeBuild(
 	        *Snapshot,
 	        CurrentBuild,
 	        [&](FReEchoBuildSnapshot& BaseBuild)
 	        {
-		        if (bFoundCard)
-		        {
-			        if (!BaseBuild.CardState.Runtime.ShopCardPackStates.IsValidIndex(FoundCardPackIndex) ||
-			            BaseBuild.CardState.Runtime.ShopCardPackStates[FoundCardPackIndex].bPurchased ||
-			            !BaseBuild.CardState.Runtime.ShopCardPackStates[FoundCardPackIndex].CandidateCardIds.Contains(
-			                CardChoiceOffer.CardId))
-			        {
-				        MutationFailureDetail = TEXT("The selected card pack is no longer available");
-				        return false;
-			        }
-			        FReEchoCardGrantInput Input;
-			        Input.Stats = BaseBuild.Stats;
-			        Input.CardState = BaseBuild.CardState;
-			        Input.TimeShards = PendingTimeShards;
-			        Input.EncounterIndex = EncounterIndex;
-			        Input.RandomSeed =
-			            BuildShopOfferSeed(CardChoiceOffer.CardId, EncounterIndex, CardChoiceOffer.SlotRefreshSequence);
-			        const FReEchoCardGrantResult Grant =
-			            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardChoiceOffer.CardId, Input);
-			        if (!Grant.bSucceeded)
-			        {
-				        MutationFailure = EReEchoShopPurchaseResult::GrantRejected;
-				        MutationFailureDetail =
-				            Grant.Error.IsEmpty() ? TEXT("The card grant was rejected") : Grant.Error;
-				        return false;
-			        }
-			        BaseBuild.Stats = Grant.Stats;
-			        BaseBuild.CardState = Grant.CardState;
-			        if (!BaseBuild.CardState.Runtime.ShopCardPackStates.IsValidIndex(FoundCardPackIndex))
-			        {
-				        MutationFailureDetail = TEXT("The card grant did not preserve the selected shop pack");
-				        return false;
-			        }
-			        BaseBuild.CardState.Runtime.ShopCardPackStates[FoundCardPackIndex].bPurchased = true;
-			        PendingTimeShards = Grant.TimeShards;
-			        UE_LOG(LogReEcho,
-			               Warning,
-			               TEXT("[ShopDebug] BuildCard grant item=%s inTimeShards=%d outTimeShards=%d bSucceeded=%d"),
-			               *CardChoiceOffer.CardId.ToString(),
-			               Input.TimeShards,
-			               Grant.TimeShards,
-			               Grant.bSucceeded);
-		        }
-		        else if (bIsLegacy && LegacyType == EReEchoShopOfferType::RunItem)
+		        if (bIsLegacy && LegacyType == EReEchoShopOfferType::RunItem)
 		        {
 			        // Legacy rune-item stat modifiers.
 			        if (ItemId == TEXT("SHOP_RUSTED_SCISSORS"))
@@ -2939,7 +3078,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	        },
 	        PendingBuild))
 	{
-		return FinishPurchase(MutationFailure, MutationFailureDetail, EffectivePrice);
+		return FinishPurchase(EReEchoShopPurchaseResult::MutationRejected, MutationFailureDetail, EffectivePrice);
 	}
 	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Weapon)
 	{
@@ -2956,12 +3095,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		PendingBuild = MoveTemp(SelectedWeaponBuild);
 	}
 
-	// 原子扣费：以购买前余额 TimeShards 为基准，叠加卡牌 OnGrant 对碎片的净改变(GrantShardDelta)，
-	// 结果夹紧到 >=0。防止如 G_2_15(时砂豪赌，OnGrant 清零碎片)在 grant 后余额被覆盖为 0，
-	// 再减售价导致 TimeShards 变负数。
-	const int32 GrantShardDelta = PendingTimeShards - TimeShards;
-	PendingTimeShards = FMath::Max(0, TimeShards - EffectivePrice + GrantShardDelta);
-	TimeShards = PendingTimeShards;
+	TimeShards -= EffectivePrice;
 	CurrentBuild = PendingBuild;
 	FString CompletionDetail = TEXT("Purchase committed");
 
@@ -2985,7 +3119,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 			    FString::Printf(TEXT("Purchase committed; automatic rune equip was rejected: %s"), *EquipError);
 		}
 	}
-	else if (bFoundCard || bIsLegacy)
+	else if (bIsLegacy)
 	{
 		InventoryItems.Add(ItemId);
 	}
