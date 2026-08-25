@@ -15,7 +15,6 @@
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Presentation/VFX/ReEchoVfxPreviewActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
-#include "Graybox/ReEchoSwordArcActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
                                  "ReEcho.Presentation.VFX.Catalog",
@@ -67,8 +66,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	FVector BeamEnd = FVector::ZeroVector;
 	const FVector BeamOrigin(300.0f, -120.0f, 40.0f);
 	const FVector BeamDirection(0.6f, 0.8f, 0.0f);
-	UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
-	    BeamOrigin, BeamDirection, 750.0f, BeamStart, BeamEnd);
+	UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(BeamOrigin, BeamDirection, 750.0f, BeamStart, BeamEnd);
 	TestTrue(TEXT("Boss beam starts at the authoritative attack origin"),
 	         BeamStart.Equals(BeamOrigin, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
@@ -78,12 +76,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Goat body charging preserves authored world size"),
 	         GoatChargingPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
 	TestTrue(TEXT("Preserved world-size VFX cancels inherited uniform owner scale"),
-	         UReEchoCombatVfxComponent::ResolveAttachedScale(
-	             FVector::OneVector, FVector(2.0f), true)
+	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector::OneVector, FVector(2.0f), true)
 	             .Equals(FVector(0.5f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Ordinary attached VFX retains its configured relative scale"),
-	         UReEchoCombatVfxComponent::ResolveAttachedScale(
-	             FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
+	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
 	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
@@ -206,18 +202,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
 	TestTrue(TEXT("Scythe uses its dedicated melee Niagara"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
-	TestFalse(TEXT("Whip does not reuse the longsword Niagara"),
-	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.WhipCombo")));
-	TestFalse(TEXT("Staff projectile is not melee"),
-	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.StaffProjectile")));
-	TestTrue(TEXT("Whip safely omits its unavailable legacy attack texture"),
-	         AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("Whip")).IsEmpty());
 	TestTrue(TEXT("Bow no longer resolves a legacy projectile texture"),
 	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Bow")).IsEmpty());
 	TestTrue(TEXT("Gun no longer resolves a legacy projectile texture"),
 	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Gun")).IsEmpty());
-	TestTrue(TEXT("Canonical staff projectile reuses the existing light-wave art contract"),
-	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Staff")).Contains(TEXT("StaffLightWave")));
+	TestTrue(TEXT("Sage MoonStaff helper keeps the existing light-wave art contract"),
+	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("MoonStaff")).Contains(TEXT("StaffLightWave")));
 	TestEqual(TEXT("Combat effects use the global foreground band above ordinary actors"),
 	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(23),
 	          1000);
@@ -274,30 +264,18 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
 
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
-	    EReEchoCombatVfxSemantic::RabbitCharging,
-	    EReEchoCombatVfxSemantic::RabbitProjectile,
-	    EReEchoCombatVfxSemantic::PlayerHurt,
-	    EReEchoCombatVfxSemantic::FoxCharging,
-	    EReEchoCombatVfxSemantic::FoxDirection,
-	    EReEchoCombatVfxSemantic::FoxDash,
-	    EReEchoCombatVfxSemantic::FoxImpact,
-	    EReEchoCombatVfxSemantic::PlayerMeleeSlash,
-	    EReEchoCombatVfxSemantic::PlayerScytheSlash,
-	    EReEchoCombatVfxSemantic::PlayerBowFlight,
-	    EReEchoCombatVfxSemantic::PlayerBowImpact,
-	    EReEchoCombatVfxSemantic::PlayerGunFlight,
-	    EReEchoCombatVfxSemantic::PlayerGunImpact,
-	    EReEchoCombatVfxSemantic::EnemyHurt,
-	    EReEchoCombatVfxSemantic::EchoWaterAura,
-	    EReEchoCombatVfxSemantic::EchoGrassAura,
-	    EReEchoCombatVfxSemantic::GoatSkill02Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill02Bullet,
-	    EReEchoCombatVfxSemantic::GoatSkill02Impact,
-	    EReEchoCombatVfxSemantic::GoatSkill03Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill03Alarming,
-	    EReEchoCombatVfxSemantic::GoatSkill03Impact,
-	    EReEchoCombatVfxSemantic::GoatSkill04Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill04Lighting,
+	    EReEchoCombatVfxSemantic::RabbitCharging,      EReEchoCombatVfxSemantic::RabbitProjectile,
+	    EReEchoCombatVfxSemantic::PlayerHurt,          EReEchoCombatVfxSemantic::FoxCharging,
+	    EReEchoCombatVfxSemantic::FoxDirection,        EReEchoCombatVfxSemantic::FoxDash,
+	    EReEchoCombatVfxSemantic::FoxImpact,           EReEchoCombatVfxSemantic::PlayerMeleeSlash,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerBowFlight,
+	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
+	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::EnemyHurt,
+	    EReEchoCombatVfxSemantic::EchoWaterAura,       EReEchoCombatVfxSemantic::EchoGrassAura,
+	    EReEchoCombatVfxSemantic::GoatSkill02Charging, EReEchoCombatVfxSemantic::GoatSkill02Bullet,
+	    EReEchoCombatVfxSemantic::GoatSkill02Impact,   EReEchoCombatVfxSemantic::GoatSkill03Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill03Alarming, EReEchoCombatVfxSemantic::GoatSkill03Impact,
+	    EReEchoCombatVfxSemantic::GoatSkill04Charging, EReEchoCombatVfxSemantic::GoatSkill04Lighting,
 	};
 	TestEqual(TEXT("Sheep projectile flight uses the authored Skill02 bullet"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
@@ -328,14 +306,13 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			continue;
 		}
-		const bool bRequiresComponentSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
-		                                     Semantic == EReEchoCombatVfxSemantic::FoxDirection ||
-		                                     Semantic == EReEchoCombatVfxSemantic::FoxDash ||
-		                                     Semantic == EReEchoCombatVfxSemantic::EchoWaterAura ||
-		                                     Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
+		const bool bRequiresComponentSpace =
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::FoxDirection || Semantic == EReEchoCombatVfxSemantic::FoxDash ||
+		    Semantic == EReEchoCombatVfxSemantic::EchoWaterAura || Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;

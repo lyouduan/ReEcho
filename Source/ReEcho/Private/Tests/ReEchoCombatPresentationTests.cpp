@@ -62,8 +62,7 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	    TEXT("Player equipped weapon enables weapon track"),
 	    UReEchoCombatPresentationCoordinator::IsWeaponTrackEnabled(EReEchoPresentationHostKind::Player, TEXT("Bow")));
 
-	static const FName Keys[] = {
-	    TEXT("CrescentBlade"), TEXT("Scythe"), TEXT("Whip"), TEXT("Bow"), TEXT("Gun"), TEXT("Staff")};
+	static const FName Keys[] = {TEXT("CrescentBlade"), TEXT("Scythe"), TEXT("Bow"), TEXT("Gun")};
 	for (const FName Key : Keys)
 	{
 		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(Key);
@@ -79,8 +78,8 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	    GetDefault<UReEcho2DCharacterPresentationProfile>();
 	TestTrue(TEXT("Character profile exposes a normalized weapon anchor"),
 	         !DefaultCharacterProfile->WeaponAnchorRatio.ContainsNaN());
-	TestTrue(TEXT("Missing legacy Whip hand art remains an explicit empty optional field"),
-	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Whip"))->HeldTexture.IsNull());
+	TestNotNull(TEXT("Sage MoonStaff animation helper retains its presentation profile"),
+	            FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("MoonStaff")));
 	TestFalse(TEXT("Bow has held visual"),
 	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->HeldTexture.IsNull());
 	TestTrue(TEXT("Longsword owns full-spin weapon motion"),

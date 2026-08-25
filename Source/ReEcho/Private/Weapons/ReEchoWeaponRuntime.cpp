@@ -700,6 +700,8 @@ FReEchoWeaponDefinition ReEchoWeaponRuntime::CompileLogicDefinition(const FReEch
 		Step.SpreadDegrees = CsvStep.ConcentrationDegrees;
 		Step.ExplosionRadiusCm = CsvStep.ExplosionRadiusCm;
 		Step.MovementCm = CsvStep.MovementCm;
+		Step.OuterRingStartFraction = CsvStep.OuterRingStartFraction;
+		Step.OuterRingBonusMultiplier = CsvStep.OuterRingBonusMultiplier;
 		Step.bInvulnerable = CsvStep.bInvulnerable;
 		if (Definition.Weapon.AttackPatternId == TEXT("Pattern.MoonStaffWave"))
 		{
@@ -708,8 +710,7 @@ FReEchoWeaponDefinition ReEchoWeaponRuntime::CompileLogicDefinition(const FReEch
 		else if (FMath::Max(Definition.Weapon.ProjectileCount, CsvStep.ProjectileCount) > 0 ||
 		         Definition.Weapon.AttackPatternId == TEXT("Pattern.ElementalProjectile") ||
 		         Definition.Weapon.AttackPatternId == TEXT("Pattern.BowShot") ||
-		         Definition.Weapon.AttackPatternId == TEXT("Pattern.GunShot") ||
-		         Definition.Weapon.AttackPatternId == TEXT("Pattern.StaffProjectile"))
+		         Definition.Weapon.AttackPatternId == TEXT("Pattern.GunShot"))
 		{
 			Step.Carrier = EReEchoWeaponAttackCarrier::Projectile;
 		}

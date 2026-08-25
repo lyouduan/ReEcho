@@ -79,8 +79,7 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 	}
 	const UStaticMeshComponent* PickupShadow = PickupDefaults ? PickupDefaults->GetGroundShadowComponent() : nullptr;
 	TestNotNull(TEXT("Pickup Blueprint exposes a ground shadow component"), PickupShadow);
-	const USphereComponent* AttractionRange =
-	    PickupDefaults ? PickupDefaults->GetAttractionRangeComponent() : nullptr;
+	const USphereComponent* AttractionRange = PickupDefaults ? PickupDefaults->GetAttractionRangeComponent() : nullptr;
 	TestNotNull(TEXT("Pickup Blueprint exposes its attraction range sphere"), AttractionRange);
 	TestTrue(TEXT("Pickup Blueprint has a practical attraction radius"),
 	         AttractionRange && AttractionRange->GetUnscaledSphereRadius() >= 200.0f);
@@ -94,8 +93,8 @@ bool FReEchoEnemyShardDropDataTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTimeShardAttractionPolicyTest,
-	                             "ReEcho.Run.EnemyShardDrops.AttractionPolicy",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Run.EnemyShardDrops.AttractionPolicy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoTimeShardAttractionPolicyTest::RunTest(const FString& Parameters)
 {
@@ -119,7 +118,7 @@ bool FReEchoEnemyShardDropRuntimeTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	Run->BeginEncounter();
 	const int32 InitialBalance = Run->TimeShards;
 

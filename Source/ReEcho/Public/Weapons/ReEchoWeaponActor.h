@@ -160,7 +160,6 @@ private:
 	void RefreshVisualState();
 	void RefreshHeldPresentation();
 	void StartMeleeAnimation(FName WeaponVisualKey);
-	void SpawnMeleeArc(FName WeaponVisualKey);
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;
@@ -172,8 +171,6 @@ private:
 	TObjectPtr<UTextRenderComponent> ElementIndicator;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBillboardComponent> ScytheSprite;
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBillboardComponent> WhipSprite;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBillboardComponent> BowSprite;
 	UPROPERTY(VisibleAnywhere)

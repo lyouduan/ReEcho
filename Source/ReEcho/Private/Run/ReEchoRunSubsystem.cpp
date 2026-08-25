@@ -508,6 +508,14 @@ bool ContainsRecordingId(const TArray<FReEchoRecording>& Recordings, const FGuid
 
 bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Snapshot, FReEchoBuildSnapshot& Build)
 {
+	if (!Snapshot.FindEnabledWeapon(Build.WeaponId))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("Save/recording restore rejected because weapon %s is missing or retired."),
+		       *Build.WeaponId.ToString());
+		return false;
+	}
 	const FName CanonicalCharacterId = Snapshot.ResolveCharacterId(Build.CharacterId);
 	if (!Snapshot.FindCharacter(CanonicalCharacterId))
 	{
@@ -3339,10 +3347,15 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	{
 		for (const FName WeaponId : SaveGame.OwnedWeaponIds)
 		{
-			if (Snapshot->FindEnabledWeapon(WeaponId))
+			if (!Snapshot->FindEnabledWeapon(WeaponId))
 			{
-				NormalizedOwnedWeapons.Add(WeaponId);
+				UE_LOG(LogTemp,
+				       Warning,
+				       TEXT("Save restore rejected because owned weapon %s is missing or retired."),
+				       *WeaponId.ToString());
+				return false;
 			}
+			NormalizedOwnedWeapons.Add(WeaponId);
 		}
 	}
 	// The equipped weapon is always owned. This also migrates v12 and older saves that had no weapon backpack field.

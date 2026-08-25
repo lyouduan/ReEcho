@@ -71,33 +71,3 @@ P_GUN_LIFESTEAL_GUNACTION,P_GUN_LIFESTEAL_GUNACTION,Gun,GunAction,命中吸血�
 P_GUN_HITSHARD_GUNACTION,P_GUN_HITSHARD_GUNACTION,Gun,GunAction,命中碎片枪机,效果：每命中5名敌方单位，掉落1时间碎片,Rare,GunAction|UniqueBehavior|TimeShard,true,Approved,Implemented,,武器插槽C,55,true,45
 P_GUN_ATTACKSTACK_GUNACTION,P_GUN_ATTACKSTACK_GUNACTION,Gun,GunAction,连射攻速枪机,效果：每次攻击，获得1%攻击速度，持续5s。这个效果最多叠加30层,Rare,GunAction|UniqueBehavior|AttackSpeed,true,Approved,Implemented,,武器插槽C,56,true,45
 AUDIT_WEAPON_SLOTS_C_57,P_AUDIT_C_57,Gun,GunAction,连射移速枪机,效果：每次攻击，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Disabled placeholder; part effect not yet implemented.,武器插槽C,57,false,0
-AUDIT_WEAPON_SLOTS_C_58,P_AUDIT_C_58,Staff,StaffBody,命中吸血杖体,效果：每次攻击，每命中一名敌方单位，回复自身1%最大生命值,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,58,false,0
-P_STAFF_DUALSPREAD_STAFFBODY,P_STAFF_DUALSPREAD_STAFFBODY,Staff,StaffBody,双发散射杖体,效果：弹道固定为2，武器集中性固定为60°,Rare,StaffBody|Numeric,false,Approved,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,59,false,0
-AUDIT_WEAPON_SLOTS_C_60,P_AUDIT_C_60,Staff,StaffBody,命中移速杖体,效果：每次攻击，每命中一名敌方单位，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,60,false,0
-AUDIT_WEAPON_SLOTS_C_61,P_AUDIT_C_61,Staff,StaffBody,命中攻速杖体,效果：每次攻击，每命中一名敌方单位，获得1%攻击速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,61,false,0
-AUDIT_WEAPON_SLOTS_C_62,P_AUDIT_C_62,Staff,StaffBody,群攻爆炸成长杖体,效果：每次攻击同时命中4名敌人后，爆炸范围+2%，持续5s。这个效果可以叠加。,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,62,false,0
-AUDIT_WEAPON_SLOTS_C_63,P_AUDIT_C_63,Staff,StaffBody,近战副手杖体,"效果：你现在点击右键，可以挥动法杖进行近战攻击
-
-近战武器攻击角度：120°
-
-攻击范围：2m
-
-攻击时长：0.8s
-
-伤害倍率：120% 物攻/元攻",None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,63,false,0
-P_STAFF_WIDEWEAK_STAFFCRYSTAL,P_STAFF_WIDEWEAK_STAFFCRYSTAL,Staff,StaffCrystal,大范围减伤杖晶,效果：伤害倍率-30%，爆炸范围+50%,Common,StaffCrystal|Numeric,false,Approved,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,64,false,0
-P_STAFF_NARROWSTRONG_STAFFCRYSTAL,P_STAFF_NARROWSTRONG_STAFFCRYSTAL,Staff,StaffCrystal,高伤小范围杖晶,效果：伤害倍率+70%，爆炸范围-50%,Common,StaffCrystal|Numeric,false,Approved,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,65,false,0
-AUDIT_WEAPON_SLOTS_C_66,P_AUDIT_C_66,Staff,StaffCrystal,命中碎片杖晶,效果：每命中5名敌方单位，掉落1时间碎片,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,66,false,0
-P_STAFF_SLOWWIDE_STAFFCRYSTAL,P_STAFF_SLOWWIDE_STAFFCRYSTAL,Staff,StaffCrystal,减攻速大范围杖晶,效果：攻击速度-30%，爆炸范围+50%,Common,StaffCrystal|Numeric,false,Approved,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,67,false,0
-AUDIT_WEAPON_SLOTS_C_68,P_AUDIT_C_68,Staff,StaffCrystal,中心晕眩杖晶,效果：爆炸范围中心1m的敌人被【眩晕】，持续1s,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,68,false,0
-AUDIT_WEAPON_SLOTS_C_69,P_AUDIT_C_69,Staff,StaffCrystal,单体高伤杖晶,效果：炮弹不会爆炸。伤害倍率+70%,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,69,false,0
-AUDIT_WEAPON_SLOTS_C_70,P_AUDIT_C_70,Whip,WhipBody,暴击流血鞭体,效果：命中敌人且暴击后，敌人获得【流血】，持续3秒，可以叠加,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,70,false,0
-AUDIT_WEAPON_SLOTS_C_71,P_AUDIT_C_71,Whip,WhipBody,慢攻重击鞭体,效果：攻击速度-30%，伤害倍率+40%（第二段+80%）,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,71,false,0
-AUDIT_WEAPON_SLOTS_C_72,P_AUDIT_C_72,Whip,WhipBody,去击退重击鞭体,效果：第一段攻击不再附带【击退】效果，伤害倍率+40%（第二段+80%）,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,72,false,0
-P_WHIP_HASTE_WHIPBODY,P_WHIP_HASTE_WHIPBODY,Whip,WhipBody,攻速鞭体,效果：攻击速度+20%,Common,WhipBody|Numeric,false,Approved,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,73,false,0
-P_WHIP_KILLHEAL_WHIPBODY,P_WHIP_KILLHEAL_WHIPBODY,Whip,WhipBody,击杀吸血鞭体,效果：每击杀一名敌方单位，回复5%最大生命值,Rare,WhipBody|UniqueBehavior,false,Approved,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,74,false,0
-AUDIT_WEAPON_SLOTS_C_75,P_AUDIT_C_75,Whip,Grip,第一段横扫握柄,效果：只触发第一段攻击，并且第一段攻击外圈敌人也会受到额外伤害,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,75,false,0
-AUDIT_WEAPON_SLOTS_C_76,P_AUDIT_C_76,Whip,Grip,第二段刺击握柄,效果：只触发第二段攻击，第二段攻击角度为60°,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,76,false,0
-AUDIT_WEAPON_SLOTS_C_77,P_AUDIT_C_77,Whip,Grip,鞭术命中移速握柄,效果：每次攻击，每命中一名敌方单位，获得1%移动速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,77,false,0
-AUDIT_WEAPON_SLOTS_C_78,P_AUDIT_C_78,Whip,Grip,鞭术命中攻速握柄,效果：每次攻击，每命中一名敌方单位，获得1%攻击速度，持续5s。这个效果最多叠加30层,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,78,false,0
-AUDIT_WEAPON_SLOTS_C_79,P_AUDIT_C_79,Whip,Grip,群攻延伸握柄,效果：每次攻击同时命中4名敌人后，攻击范围+2%，持续5s。这个效果可以叠加。,None,None,false,Unimplemented,Disabled,Retired: staff/whip weapon runes disabled on request,武器插槽C,79,false,0

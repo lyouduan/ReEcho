@@ -29,6 +29,8 @@ struct REECHOWEAPONS_API FReEchoWeaponStepDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float SpreadDegrees = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ExplosionRadiusCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float MovementCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float OuterRingStartFraction = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float OuterRingBonusMultiplier = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bInvulnerable = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoWeaponAttackCarrier Carrier = EReEchoWeaponAttackCarrier::Melee;
@@ -78,6 +80,8 @@ struct REECHOWEAPONS_API FReEchoWeaponAttackCommit
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float SpreadDegrees = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ExplosionRadiusCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float MovementCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float OuterRingStartFraction = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float OuterRingBonusMultiplier = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float BehaviorDurationSeconds = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bInvulnerable = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;

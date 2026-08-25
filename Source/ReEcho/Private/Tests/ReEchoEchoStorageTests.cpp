@@ -15,7 +15,7 @@ UReEchoRunSubsystem* CreateStartedRun(UGameInstance* GameInstance)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	return Run;
 }
 
@@ -510,7 +510,7 @@ bool FReEchoEchoStorageRecordingPayloadTest::RunTest(const FString& Parameters)
 	UReEchoRecorderComponent* Recorder = NewObject<UReEchoRecorderComponent>(GetTransientPackage());
 	FReEchoBuildSnapshot InitialBuild;
 	InitialBuild.CharacterId = TEXT("J_SPADE");
-	InitialBuild.WeaponId = TEXT("W_J_02");
+	InitialBuild.WeaponId = TEXT("W_J_01");
 	Recorder->BeginRecording(1, TEXT("TestArena"), 4242, InitialBuild);
 	Recorder->AdvanceRecording(0.05f, FVector(10.0f, 0.0f, 0.0f));
 	Recorder->AdvanceRecording(0.10f, FVector(20.0f, 0.0f, 0.0f));

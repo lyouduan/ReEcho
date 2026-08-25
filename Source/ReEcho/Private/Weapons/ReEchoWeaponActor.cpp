@@ -22,7 +22,6 @@
 #include "Graybox/ReEchoStaffLightWaveActor.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
-#include "Graybox/ReEchoSwordArcActor.h"
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -99,7 +98,7 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	StaffSprite->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
 	StaffSprite->SetHiddenInGame(false);
 	StaffSprite->bIsScreenSizeScaled = false;
-	const FString StaffTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Staff"));
+	const FString StaffTexturePath = FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("MoonStaff"));
 	if (UTexture2D* StaffTexture = LoadObject<UTexture2D>(nullptr, *StaffTexturePath))
 	{
 		StaffSprite->SetSprite(StaffTexture);
@@ -126,8 +125,6 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	};
 	ScytheSprite =
 	    CreateWeaponBillboard(TEXT("ScytheSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Scythe")));
-	WhipSprite =
-	    CreateWeaponBillboard(TEXT("WhipSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Whip")));
 	BowSprite =
 	    CreateWeaponBillboard(TEXT("BowSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Bow")));
 	GunSprite =
@@ -990,7 +987,17 @@ FReEchoHitResolved AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
 	FReEchoHitIntent Intent;
 	Intent.Attack = Commit.Attack;
 	Intent.Target = &Target;
-	float RuneDamageMultiplier = DamageMultiplier;
+	const FVector TargetLocation = CombatTarget->GetCombatTargetLocation();
+	const float DistanceToTarget = FVector::Dist2D(DamageSource, TargetLocation);
+	float ResolvedDamageMultiplier = DamageMultiplier;
+	if (Commit.RangeCm > 0.0f && Commit.OuterRingStartFraction > 0.0f && Commit.OuterRingBonusMultiplier > 0.0f)
+	{
+		const float StartFraction = FMath::Clamp(Commit.OuterRingStartFraction, 0.0f, 1.0f);
+		if (DistanceToTarget >= Commit.RangeCm * StartFraction)
+		{
+			ResolvedDamageMultiplier *= 1.0f + Commit.OuterRingBonusMultiplier;
+		}
+	}
 	if (Context.IsValid())
 	{
 		for (const FReEchoWeaponRuneEffectSpec& Effect : Context->Effects)
@@ -998,15 +1005,14 @@ FReEchoHitResolved AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
 			if (Effect.BehaviorId == TEXT("Part.OuterRingDamage") && Commit.RangeCm > 0.0f)
 			{
 				const float OuterFraction = FMath::Clamp(Effect.ParamValue, 0.0f, 1.0f);
-				const float Distance = FVector::Dist2D(DamageSource, Target.GetActorLocation());
-				if (Distance >= Commit.RangeCm * (1.0f - OuterFraction))
+				if (DistanceToTarget >= Commit.RangeCm * (1.0f - OuterFraction))
 				{
-					RuneDamageMultiplier *= 1.0f + Effect.Value;
+					ResolvedDamageMultiplier *= 1.0f + Effect.Value;
 				}
 			}
 		}
 	}
-	Intent.RawDamage = Commit.RawDamage * RuneDamageMultiplier;
+	Intent.RawDamage = Commit.RawDamage * ResolvedDamageMultiplier;
 	Intent.DamageSource = ResolveOwnerDamageSource();
 	Intent.Element = Commit.Element;
 	Intent.ReactionEfficiency = Combatant ? Combatant->Stats.ReactionEfficiency : 1.0f;
@@ -1224,12 +1230,10 @@ void AReEchoWeaponActor::RefreshVisualState()
 {
 	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
 	const FName VisualKey = Definition ? Definition->VisualKey : NAME_None;
-	const bool bShowSword = VisualKey == TEXT("CrescentBlade") || VisualKey == TEXT("Whip");
+	const bool bShowSword = VisualKey == TEXT("CrescentBlade");
 	const bool bShowElement = VisualKey == TEXT("ElementalOrb");
-	const bool bShowStaff = VisualKey == TEXT("MoonStaff") || VisualKey == TEXT("Staff");
+	const bool bShowStaff = VisualKey == TEXT("MoonStaff");
 	const bool bShowScythe = VisualKey == TEXT("Scythe");
-	// Whip asset pending production; rendered as longsword placeholder, so its billboard stays hidden.
-	const bool bShowWhip = false;
 	const bool bShowBow = VisualKey == TEXT("Bow");
 	const bool bShowGun = VisualKey == TEXT("Gun");
 	if (StaffSprite)
@@ -1249,11 +1253,6 @@ void AReEchoWeaponActor::RefreshVisualState()
 	{
 		ScytheSprite->SetVisibility(bShowScythe);
 		ScytheSprite->SetHiddenInGame(!bShowScythe);
-	}
-	if (WhipSprite)
-	{
-		WhipSprite->SetVisibility(bShowWhip);
-		WhipSprite->SetHiddenInGame(!bShowWhip);
 	}
 	if (BowSprite)
 	{
@@ -1286,13 +1285,9 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 	SetActorRelativeLocation(AnchorRatio * CharacterReferenceHeight);
 
 	UTexture2D* Texture = WeaponProfile->HeldTexture.LoadSynchronous();
-	if (!Texture && VisualKey == TEXT("Whip"))
-	{
-		Texture = WeaponProfile->LegacyAttackTexture.LoadSynchronous();
-	}
 
 	UBillboardComponent* Billboard = nullptr;
-	if (VisualKey == TEXT("MoonStaff") || VisualKey == TEXT("Staff"))
+	if (VisualKey == TEXT("MoonStaff"))
 	{
 		Billboard = StaffSprite;
 	}
@@ -1322,7 +1317,7 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 		Billboard->SetRelativeScale3D(FVector(UniformScale));
 	}
 
-	if (SwordSprite && (VisualKey == TEXT("CrescentBlade") || VisualKey == TEXT("Whip")) && Texture)
+	if (SwordSprite && VisualKey == TEXT("CrescentBlade") && Texture)
 	{
 		const FVector2D Dimensions =
 		    ReEchoWeaponVisual::ResolveHeldDimensions(*Texture, *WeaponProfile, CharacterWorldHeight);
@@ -1363,28 +1358,6 @@ void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(WeaponVisualKey);
 	SwordAnimationTime =
 	    Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin ? SwordAnimationDuration : 0.0f;
-	// Longsword and scythe attack presentation is owned by the combat Niagara event adapter.
-	// Whip remains on its legacy placeholder until dedicated Niagara art is delivered.
-	if (Profile && !Profile->LegacyAttackTexture.IsNull() && WeaponVisualKey == TEXT("Whip"))
-	{
-		SpawnMeleeArc(WeaponVisualKey);
-	}
-}
-
-void AReEchoWeaponActor::SpawnMeleeArc(const FName WeaponVisualKey)
-{
-	AActor* WeaponOwner = GetOwner();
-	if (!WeaponOwner)
-	{
-		return;
-	}
-	const FVector ArcLocation = WeaponOwner->GetActorLocation() + FVector(-12.0f, 0.0f, 42.0f);
-	if (AReEchoSwordArcActor* SwordArc =
-	        GetWorld()->SpawnActor<AReEchoSwordArcActor>(ArcLocation, ResolveOwnerAimDirection().Rotation()))
-	{
-		SwordArc->SetOwner(WeaponOwner);
-		SwordArc->InitializeArc(SwordSwingDirection, WeaponVisualKey);
-	}
 }
 
 void AReEchoWeaponActor::BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)

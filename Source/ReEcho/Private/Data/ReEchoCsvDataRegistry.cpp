@@ -809,10 +809,8 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterFormulaId(TEXT("Weapon.PhysicalOrElementalCoefficient"));
 	RegisterAttackPatternId(TEXT("Pattern.LongSwordCombo"));
 	RegisterAttackPatternId(TEXT("Pattern.ScytheSweep"));
-	RegisterAttackPatternId(TEXT("Pattern.WhipCombo"));
 	RegisterAttackPatternId(TEXT("Pattern.BowShot"));
 	RegisterAttackPatternId(TEXT("Pattern.GunShot"));
-	RegisterAttackPatternId(TEXT("Pattern.StaffProjectile"));
 	RegisterAttackPatternId(TEXT("Pattern.MoonStaffWave"));
 	RegisterAttackPatternId(TEXT("Pattern.ElementalProjectile"));
 }

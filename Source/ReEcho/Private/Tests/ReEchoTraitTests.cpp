@@ -18,7 +18,7 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 	{
 		UGameInstance* GameInstance = NewObject<UGameInstance>();
 		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 		RunSubsystem->EncounterIndex = 2;
 		RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
 		return RunSubsystem;
@@ -89,7 +89,7 @@ bool FReEchoTraitDropMatrixTest::RunTest(const FString& Parameters)
 	{
 		UGameInstance* GameInstance = NewObject<UGameInstance>();
 		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 		RunSubsystem->EncounterIndex = EncounterIndex;
 		RunSubsystem->Phase = EReEchoRunPhase::Encounter;
 		RunSubsystem->CompleteEncounter(FReEchoRecording(), true, EncounterIndex == ExpectedFreeTiers.Num());
@@ -132,7 +132,7 @@ bool FReEchoTraitDropFailureFallbackTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 
 	RunSubsystem->EncounterIndex = 2;
 	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
@@ -162,7 +162,7 @@ bool FReEchoTraitOfferApplicationTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	RunSubsystem->EncounterIndex = 2;
 	RunSubsystem->Phase = EReEchoRunPhase::CardChoice;
 	const TArray<FReEchoTraitCardOffer> FirstOffers = RunSubsystem->GenerateTraitCardOffers(3);
@@ -198,7 +198,7 @@ bool FReEchoTierOneRepeatableFreeOfferTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	const TArray<FName> TierOneCardIds = {TEXT("G_1_01"),
 	                                      TEXT("G_1_02"),
 	                                      TEXT("G_1_03"),
@@ -239,7 +239,7 @@ bool FReEchoFreeTraitSlotRefreshTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	Run->EncounterIndex = 2;
 	Run->Phase = EReEchoRunPhase::CardChoice;
 	Run->TimeShards = 100;

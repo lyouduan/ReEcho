@@ -231,6 +231,8 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	OutCommit.ExplosionRadiusCm =
 	    Step->ExplosionRadiusCm > 0.0f ? Step->ExplosionRadiusCm : Definition.ExplosionRadiusCm;
 	OutCommit.MovementCm = Step->MovementCm;
+	OutCommit.OuterRingStartFraction = Step->OuterRingStartFraction;
+	OutCommit.OuterRingBonusMultiplier = Step->OuterRingBonusMultiplier;
 	OutCommit.BehaviorDurationSeconds = ScaledDuration;
 	OutCommit.bInvulnerable = Step->bInvulnerable;
 	OutCommit.bCritical = bCritical;

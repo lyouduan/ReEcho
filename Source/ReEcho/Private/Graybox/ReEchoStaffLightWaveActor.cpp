@@ -32,7 +32,7 @@ AReEchoStaffLightWaveActor::AReEchoStaffLightWaveActor()
 		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this);
 		Material->SetTextureParameterValue(
 		    TEXT("SpriteTexture"),
-		    LoadObject<UTexture2D>(nullptr, *FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(TEXT("Staff"))));
+		    LoadObject<UTexture2D>(nullptr, *FReEchoWeaponVisualCatalog::ResolveAttackTexturePath(TEXT("MoonStaff"))));
 		WaveVisual->SetMaterial(0, Material);
 	}
 }

@@ -182,6 +182,8 @@ struct REECHO_API FReEchoCsvAttackStepRow
 	FString SourceSheet;
 	int32 SourceRow = 0;
 	FString DisabledReason;
+	float OuterRingStartFraction = 0.0f;
+	float OuterRingBonusMultiplier = 0.0f;
 };
 
 struct REECHO_API FReEchoCsvWeaponTypeRow

@@ -19,7 +19,7 @@ constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
 constexpr const TCHAR* ShopRefreshRulesTableId = TEXT("shop_refresh_rules");
 constexpr const TCHAR* NoneId = TEXT("None");
 constexpr int32 MaxStartSelectableLoadoutOrder = static_cast<int32>(EReEchoInputSlot::Slot6);
-constexpr int32 ExpectedPartSourceRows = 70;
+constexpr int32 ExpectedPartSourceRows = 48;
 
 TArray<FName> ParseNameList(const FString& Text)
 {
@@ -279,6 +279,8 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.SourceSheet);
 		                  AppendCanonicalField(Canonical, Row.SourceRow);
 		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+		                  AppendCanonicalField(Canonical, Row.OuterRingStartFraction);
+		                  AppendCanonicalField(Canonical, Row.OuterRingBonusMultiplier);
 	                  });
 
 	TArray<FName> SlotTypeIds;
@@ -702,7 +704,9 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 	                            TEXT("Enabled"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
-	                            TEXT("DisabledReason")},
+	                            TEXT("DisabledReason"),
+	                            TEXT("OuterRingStartFraction"),
+	                            TEXT("OuterRingBonusMultiplier")},
 	                           Issues);
 
 	TSet<FName> SeenIds;
@@ -733,6 +737,10 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireCell(Table, Row, TEXT("SourceSheet"), Step.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("SourceRow"), Step.SourceRow, Issues);
 		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Step.DisabledReason);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("OuterRingStartFraction"), 0.0f, 1.0f, Step.OuterRingStartFraction, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("OuterRingBonusMultiplier"), 0.0f, 100.0f, Step.OuterRingBonusMultiplier, Issues);
 
 		if (SeenIds.Contains(Step.Id))
 		{
@@ -1166,7 +1174,7 @@ bool ReadPartsTable(const FString& DataDirectory,
 	if (Table.Rows.Num() != ExpectedPartSourceRows)
 	{
 		ReEchoCsv::AddIssue(
-		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Weapon slot audit must contain 70 source rows"));
+		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Four-weapon slot audit must contain 48 source rows"));
 	}
 	// The named/unnamed split is no longer pinned to 10/60: weapon part families are implemented
 	// incrementally, so naming + enabling rows is expected progress. The real invariant kept here is
@@ -1347,8 +1355,7 @@ void ValidateCrossDomain(FReEchoCsvDataSnapshot& Snapshot, TArray<FReEchoCsvIssu
 		                    TEXT("StartSelectable"),
 		                    TEXT("At least one weapon must be StartSelectable"));
 	}
-	const TArray<FName> ExpectedLoadout = {
-	    TEXT("W_J_02"), TEXT("W_J_01"), TEXT("W_J_07"), TEXT("W_J_08"), TEXT("W_J_09")};
+	const TArray<FName> ExpectedLoadout = {TEXT("W_J_04"), TEXT("W_J_01"), TEXT("W_J_08"), TEXT("W_J_09")};
 	for (int32 Index = 0; Index < StartSelectable.Num() && Index < ExpectedLoadout.Num(); ++Index)
 	{
 		if (StartSelectable[Index].Id != ExpectedLoadout[Index])
@@ -1359,10 +1366,10 @@ void ValidateCrossDomain(FReEchoCsvDataSnapshot& Snapshot, TArray<FReEchoCsvIssu
 	}
 	const FReEchoCsvWeaponRow* Slot1 = Snapshot.FindWeaponByInputSlot(EReEchoInputSlot::Slot1);
 	const FReEchoCsvWeaponRow* Slot2 = Snapshot.FindWeaponByInputSlot(EReEchoInputSlot::Slot2);
-	if (!Slot1 || Slot1->Id != TEXT("W_J_02") || !Slot2 || Slot2->Id != TEXT("W_J_01"))
+	if (!Slot1 || Slot1->Id != TEXT("W_J_04") || !Slot2 || Slot2->Id != TEXT("W_J_01"))
 	{
 		ReEchoCsv::AddIssue(
-		    Issues, TEXT("weapons.csv"), 1, TEXT("InputSlot"), TEXT("Legacy W_J_02/W_J_01 input mapping changed"));
+		    Issues, TEXT("weapons.csv"), 1, TEXT("InputSlot"), TEXT("Required W_J_04/W_J_01 input mapping changed"));
 	}
 }
 }

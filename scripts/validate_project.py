@@ -131,10 +131,8 @@ REGISTERED_ATTACK_PATTERN_IDS = {
     "None",
     "Pattern.LongSwordCombo",
     "Pattern.ScytheSweep",
-    "Pattern.WhipCombo",
     "Pattern.BowShot",
     "Pattern.GunShot",
-    "Pattern.StaffProjectile",
     "Pattern.MoonStaffWave",
     "Pattern.ElementalProjectile",
 }
@@ -208,7 +206,8 @@ REACTION_BEHAVIOR_FORMULA_PAIRS = {
     "Reaction.Conduct": "Element.ChainElementAttack",
     "Reaction.Enhance": "Element.EnhanceNextReaction",
 }
-WEAPON_TYPE_IDS = {"LongSword", "Scythe", "Whip", "Bow", "Gun", "Staff"}
+WEAPON_TYPE_IDS = {"LongSword", "Scythe", "Bow", "Gun"}
+WEAPON_TYPE_ALLOWED_VALUES = "LongSword|Scythe|Bow|Gun"
 INPUT_SLOTS = {"None", "1", "2", "3", "4", "5", "6"}
 WEAPON_EFFECT_TARGETS = {
     "DamageChannel",
@@ -449,6 +448,8 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "SourceSheet": CsvColumnSpec("Text"),
         "SourceRow": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "DisabledReason": CsvColumnSpec("Text", required=False),
+        "OuterRingStartFraction": CsvColumnSpec("Float", min_value=0.0, max_value=1.0),
+        "OuterRingBonusMultiplier": CsvColumnSpec("Float", min_value=0.0, max_value=100.0),
     },
     "SlotTypes": {
         "Id": CsvColumnSpec("StableId"),
@@ -829,6 +830,11 @@ def validate_csv_schema() -> None:
             fail(f"{rel(schema_path)}:{line}: unsupported schema version {row['SchemaVersion']}")
         if row["Required"] not in {"true", "false"}:
             fail(f"{rel(schema_path)}:{line}: Required must be true or false")
+    weapon_type_id_rows = [
+        row for row in rows if row["TableId"] == "WeaponTypes" and row["ColumnName"] == "Id"
+    ]
+    if len(weapon_type_id_rows) != 1 or weapon_type_id_rows[0]["AllowedValues"] != WEAPON_TYPE_ALLOWED_VALUES:
+        fail(f"{rel(schema_path)}: WeaponTypes.Id allowed values must be {WEAPON_TYPE_ALLOWED_VALUES}")
     for table_id, specs in CSV_TABLES.items():
         for column in specs:
             if (table_id, column) not in declared:
@@ -1223,40 +1229,41 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
             fail(f"{rel(entries['WeaponTypes'])}:{row['__line__']}: disabled weapon type requires DisabledReason")
 
     enabled_weapons = {row["Id"]: row for row in weapons if row["Enabled"] == "true"}
-    required_weapons = {"W_J_01", "W_J_02", "W_J_04"}
-    if required_weapons - set(enabled_weapons):
-        fail(f"{rel(entries['Weapons'])}: current required weapons must remain enabled")
+    required_weapons = {"W_J_01", "W_J_04", "W_J_08", "W_J_09"}
+    if set(enabled_weapons) != required_weapons or len(weapons) != len(required_weapons):
+        fail(f"{rel(entries['Weapons'])}: production roster must be exactly the four retained weapons")
     start_selectable = sorted(
         [row for row in weapons if row["Enabled"] == "true" and row["StartSelectable"] == "true"],
         key=lambda row: int(row["LoadoutOrder"]),
     )
-    if [row["Id"] for row in start_selectable] != ["W_J_02", "W_J_01", "W_J_07", "W_J_08", "W_J_09"]:
-        fail(f"{rel(entries['Weapons'])}: legacy start weapon order changed")
+    if [row["Id"] for row in start_selectable] != ["W_J_04", "W_J_01", "W_J_08", "W_J_09"]:
+        fail(f"{rel(entries['Weapons'])}: start weapon order must be Scythe, LongSword, Bow, Gun")
     input_map = {row["InputSlot"]: row["Id"] for row in weapons if row["InputSlot"] != "None" and row["Enabled"] == "true"}
-    if input_map != {"1": "W_J_02", "2": "W_J_01", "3": "W_J_08", "4": "W_J_07", "5": "W_J_09"}:
-        fail(f"{rel(entries['Weapons'])}: legacy input slot mapping changed: {input_map}")
+    if input_map != {"1": "W_J_04", "2": "W_J_01", "3": "W_J_08", "5": "W_J_09"}:
+        fail(f"{rel(entries['Weapons'])}: required four-weapon input slot mapping changed: {input_map}")
     if enabled_weapons["W_J_04"]["WeaponTypeId"] != "Scythe" or enabled_weapons["W_J_04"]["AttackPatternId"] != "Pattern.ScytheSweep":
         fail(f"{rel(entries['Weapons'])}: W_J_04 must use the Scythe pattern")
-    staff_projectile_weapons = [
-        row
-        for row in enabled_weapons.values()
-        if row["AttackPatternId"] == "Pattern.StaffProjectile" and float(row["ExplosionRadiusCm"]) > 0
-    ]
-    if not staff_projectile_weapons:
-        fail(f"{rel(entries['Weapons'])}: enabled StaffProjectile weapon with ExplosionRadiusCm is required")
     for row in weapons:
         if row["InputSlot"] not in INPUT_SLOTS:
-            fail(f"{rel(entries['Weapons'])}:{row['__line__']}: InputSlot must be None, 1, 2 or 3")
+            fail(f"{rel(entries['Weapons'])}:{row['__line__']}: unsupported InputSlot {row['InputSlot']!r}")
         if row["Enabled"] == "false" and not row["DisabledReason"]:
             fail(f"{rel(entries['Weapons'])}:{row['__line__']}: disabled weapon requires DisabledReason")
 
     characters = load_csv(entries["Characters"])
+    expected_character_weapons = {
+        "J_DIAMOND": "W_J_08",
+        "J_CLOVER": "W_J_08",
+        "J_HEART": "W_J_04",
+        "J_SPADE": "W_J_01",
+    }
     for row in characters:
         if row["Enabled"] == "true" and row["DefaultWeaponId"] not in enabled_weapons:
             fail(
                 f"{rel(entries['Characters'])}:{row['__line__']}: DefaultWeaponId "
                 f"{row['DefaultWeaponId']!r} does not reference an enabled weapon"
             )
+        if row["Enabled"] == "true" and expected_character_weapons.get(row["Id"]) != row["DefaultWeaponId"]:
+            fail(f"{rel(entries['Characters'])}:{row['__line__']}: unexpected four-weapon character mapping")
 
     seen_steps: set[tuple[str, str]] = set()
     patterns_with_steps: set[str] = set()
@@ -1269,11 +1276,21 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
             patterns_with_steps.add(row["AttackPatternId"])
         elif not row["DisabledReason"]:
             fail(f"{rel(entries['AttackSteps'])}:{row['__line__']}: disabled attack step requires DisabledReason")
+        outer_start = float(row["OuterRingStartFraction"])
+        outer_bonus = float(row["OuterRingBonusMultiplier"])
+        if row["Id"] == "AS_SCYTHE_1":
+            if outer_start != 0.5 or outer_bonus != 0.4:
+                fail(f"{rel(entries['AttackSteps'])}:{row['__line__']}: scythe outer ring must be 0.5/+0.4")
+        elif outer_start != 0.0 or outer_bonus != 0.0:
+            fail(f"{rel(entries['AttackSteps'])}:{row['__line__']}: only the scythe base step may define an outer ring")
     missing_patterns = {row["AttackPatternId"] for row in weapons if row["Enabled"] == "true"} - patterns_with_steps
     if missing_patterns:
         fail(f"{rel(entries['AttackSteps'])}: enabled weapons missing attack steps: {sorted(missing_patterns)}")
 
     slot_type_ids = {row["Id"] for row in slot_types}
+    retired_slot_types = {"StaffBody", "StaffCrystal", "WhipBody"}
+    if slot_type_ids & retired_slot_types:
+        fail(f"{rel(entries['SlotTypes'])}: retired staff/whip slot types remain")
     for row in slot_profiles:
         if row["WeaponTypeId"] != "Any" and row["WeaponTypeId"] not in WEAPON_TYPE_IDS:
             fail(f"{rel(entries['SlotProfiles'])}:{row['__line__']}: unknown WeaponTypeId {row['WeaponTypeId']!r}")
@@ -1282,8 +1299,8 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         if row["Enabled"] == "false" and not row["DisabledReason"]:
             fail(f"{rel(entries['SlotProfiles'])}:{row['__line__']}: disabled slot profile requires DisabledReason")
 
-    if len(parts) != 70:
-        fail(f"{rel(entries['Parts'])}: weapon slot audit must contain 70 source rows")
+    if len(parts) != 48:
+        fail(f"{rel(entries['Parts'])}: four-weapon slot audit must contain 48 source rows")
     named_rows = [row for row in parts if row["DisplayName"]]
     # The named/unnamed split is no longer pinned to 10/60: weapon part families are being
     # implemented incrementally, so naming + enabling rows is expected progress. The real
@@ -2521,7 +2538,7 @@ def main() -> int:
         "UnknownFormulaId": "FormulaId",
         "DuplicateReactionPair": "duplicate ordered pair",
         "UnsupportedCanCrit": "CanCrit",
-        "DuplicateWeaponInputSlot": "legacy input slot mapping",
+        "DuplicateWeaponInputSlot": "four-weapon input slot mapping",
         "InvalidWeaponPartEffectBehaviorPair": "EffectKind/BehaviorId",
     }.items():
         expect_fixture_failure(name, token)

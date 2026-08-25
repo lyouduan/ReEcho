@@ -115,15 +115,15 @@ Commit
 
 可见 Projectile/Wave Actor 不是飞行真相源；即使没有美术资源，逻辑载体也必须完成移动、命中和过期。
 
-主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。当前 canonical Staff 仍是 `Pattern.StaffProjectile → Projectile`；复用 `StaffLightWave` 只表示视觉资源复用，不得切回旧 `Pattern.MoonStaffWave` 行为。
+主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。生产武器清单固定为长剑、镰刀、弓和枪；`MoonStaff` 与 `StaffLightWave` 只服务贤者独立动画辅助，不是可选、可装备或可入商店的生产武器。
 
 Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec::bPierceOnCritical` 控制。逻辑投射物永久保存本弹的 `HitTargets`：直击暴击且造成正伤害时继续飞行，否则到期；同一目标最多结算一次。爆炸仍在每次有效接触点独立查询范围目标，因此穿透与爆炸组合不会把视觉碰撞或主模块回调变成第二个命中权威。分裂选目标和子弹生成属于主模块适配，但子弹继续复用此 Spec/HitIntent，且用显式标志禁止递归分裂。
 
-六武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
+四把生产武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。Catalog 另保留一个 `MoonStaff` 非生产辅助 Profile，不能进入武器定义、开局选择、商店或存档身份。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
 
 ### 持有者瞄准适配
 
-`AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，Echo 宿主读取 `AReEchoEchoActor::AttackAimDirection`，两者都无需旋转根 Actor；其他宿主才回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile、Wave 与 SwordArc 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。
+`AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，Echo 宿主读取 `AReEchoEchoActor::AttackAimDirection`，两者都无需旋转根 Actor；其他宿主才回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile 与 MoonStaff 辅助 Wave 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。
 
 ## 代码位置与阅读路线
 

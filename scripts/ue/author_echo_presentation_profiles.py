@@ -12,7 +12,7 @@ CHARACTERS = {
     "J_CLOVER": ("Clover", "walk"),
     "J_DIAMOND": ("Diamond", "Walk"),
 }
-RANGED_VISUAL_SETS = ("Staff", "Bow", "Gun")
+RANGED_VISUAL_SETS = ("MoonStaff", "Bow", "Gun")
 
 
 def load_required(path, expected_type):

@@ -213,8 +213,41 @@ bool FReEchoWeaponMeleeStepRuntimeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoScytheOuterRingRuntimeTest,
+                                 "ReEcho.Weapons.ScytheBaseOuterRingUsesAuthoredThresholdAndBonus",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoScytheOuterRingRuntimeTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	FReEchoWeaponWorldFixture Fixture;
+	UReEchoCombatantComponent* Combatant = nullptr;
+	AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
+	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_04"));
+	SetBuildStats(Build, Combatant->Stats);
+	AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
+	Weapon->SetOwner(Owner);
+	Weapon->InitializeWeapon(&Build, Snapshot);
+
+	AReEchoEnemyActor* Inner = Fixture.SpawnEnemy(FVector(74.0f, 0.0f, 0.0f), 40, 1000.0f);
+	AReEchoEnemyActor* Boundary = Fixture.SpawnEnemy(FVector(75.0f, 0.0f, 0.0f), 41, 1000.0f);
+	AReEchoEnemyActor* Outer = Fixture.SpawnEnemy(FVector(140.0f, 0.0f, 0.0f), 42, 1000.0f);
+	TestTrue(TEXT("Scythe sweep executes"), Weapon->ExecuteBasicAttack(Combatant));
+
+	const float InnerDamage = 1000.0f - WeaponEnemyHealth(Inner);
+	const float BoundaryDamage = 1000.0f - WeaponEnemyHealth(Boundary);
+	const float OuterDamage = 1000.0f - WeaponEnemyHealth(Outer);
+	TestTrue(TEXT("Scythe deals positive base damage in the inner ring"), InnerDamage > 0.0f);
+	TestTrue(TEXT("The authored 50 percent boundary receives the 40 percent bonus"),
+	         FMath::IsNearlyEqual(BoundaryDamage, InnerDamage * 1.4f, 0.01f));
+	TestTrue(TEXT("Multiple outer-ring targets receive the same authored bonus"),
+	         FMath::IsNearlyEqual(OuterDamage, InnerDamage * 1.4f, 0.01f));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponProjectileRuntimeTest,
-                                 "ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndExplosion",
+                                 "ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
@@ -225,7 +258,7 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	FReEchoWeaponWorldFixture SingleFixture;
 	UReEchoCombatantComponent* SingleCombatant = nullptr;
 	AActor* SingleOwner = SingleFixture.SpawnWeaponOwner(FVector::ZeroVector, SingleCombatant);
-	FReEchoBuildSnapshot SingleBuild = MakeBuild(*Snapshot, TEXT("W_J_02"));
+	FReEchoBuildSnapshot SingleBuild = MakeBuild(*Snapshot, TEXT("W_J_08"));
 	SetBuildStats(SingleBuild, SingleCombatant->Stats);
 	AReEchoWeaponActor* SingleWeapon = SingleFixture.World->SpawnActor<AReEchoWeaponActor>();
 	SingleWeapon->SetOwner(SingleOwner);
@@ -236,7 +269,7 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	FReEchoWeaponWorldFixture SpreadFixture;
 	UReEchoCombatantComponent* Combatant = nullptr;
 	AActor* Owner = SpreadFixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
-	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_02"));
+	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_08"));
 	SetBuildStats(Build, Combatant->Stats);
 	AReEchoWeaponActor* Weapon = SpreadFixture.World->SpawnActor<AReEchoWeaponActor>();
 	Weapon->SetOwner(Owner);
@@ -244,12 +277,11 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	AReEchoEnemyActor* Primary = SpreadFixture.SpawnEnemy(FVector(1000.0f, 0.0f, 0.0f), 4, 100.0f);
 	AReEchoEnemyActor* Splash = SpreadFixture.SpawnEnemy(FVector(1000.0f, 120.0f, 0.0f), 5, 100.0f);
 	TestTrue(TEXT("Spread projectile attack executes"), Weapon->ExecuteBasicAttack(Combatant));
-	TestEqual(TEXT("Canonical staff projectile count comes from weapon definition"),
-	          CountProjectiles(SpreadFixture.World),
-	          1);
+	TestEqual(
+	    TEXT("Canonical bow projectile count comes from weapon definition"), CountProjectiles(SpreadFixture.World), 1);
 	for (TActorIterator<AReEchoProjectileActor> It(SpreadFixture.World); It; ++It)
 	{
-		TestEqual(TEXT("Projectile carries explosion radius"), It->GetExplosionRadiusCm(), 200.0f);
+		TestEqual(TEXT("Canonical bow has no base explosion radius"), It->GetExplosionRadiusCm(), 0.0f);
 	}
 	const TArray<FVector> SyntheticSpread =
 	    ReEchoWeaponRuntime::BuildProjectileDirections(FVector::ForwardVector, 3, 30.0f);
@@ -259,12 +291,12 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	             !FMath::IsNearlyEqual(SyntheticSpread[0].Rotation().Yaw, SyntheticSpread[2].Rotation().Yaw, 0.1f));
 	TickProjectiles(SpreadFixture.World, 1.10f);
 	TestTrue(TEXT("Primary target takes projectile damage"), WeaponEnemyHealth(Primary) < 100.0f);
-	TestTrue(TEXT("Explosion radius damages nearby target"), WeaponEnemyHealth(Splash) < 100.0f);
+	TestEqual(TEXT("Non-explosive bow projectile leaves nearby target untouched"), WeaponEnemyHealth(Splash), 100.0f);
 
 	FReEchoWeaponWorldFixture LifetimeFixture;
 	UReEchoCombatantComponent* LifetimeCombatant = nullptr;
 	AActor* LifetimeOwner = LifetimeFixture.SpawnWeaponOwner(FVector::ZeroVector, LifetimeCombatant);
-	FReEchoBuildSnapshot LifetimeBuild = MakeBuild(*Snapshot, TEXT("W_J_02"));
+	FReEchoBuildSnapshot LifetimeBuild = MakeBuild(*Snapshot, TEXT("W_J_08"));
 	SetBuildStats(LifetimeBuild, LifetimeCombatant->Stats);
 	AReEchoWeaponActor* LifetimeWeapon = LifetimeFixture.World->SpawnActor<AReEchoWeaponActor>();
 	LifetimeWeapon->SetOwner(LifetimeOwner);
@@ -308,7 +340,7 @@ bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_02"));
+	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_08"));
 	SetBuildStats(Build, Combatant->Stats);
 	AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
 	Weapon->SetOwner(Player);
@@ -385,7 +417,7 @@ bool FReEchoWeaponEchoFriendlyFireTest::RunTest(const FString& Parameters)
 	AReEchoPlayerPawn* ProjectilePlayer =
 	    ProjectileFixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(100.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
 	AReEchoEnemyActor* ProjectileEnemy = ProjectileFixture.SpawnEnemy(FVector(180.0f, 0.0f, 0.0f), 31, 100.0f);
-	AReEchoEchoActor* ProjectileEcho = InitializeEcho(ProjectileFixture, TEXT("W_J_02"));
+	AReEchoEchoActor* ProjectileEcho = InitializeEcho(ProjectileFixture, TEXT("W_J_08"));
 	if (!TestNotNull(TEXT("Projectile player spawns"), ProjectilePlayer) ||
 	    !TestNotNull(TEXT("Projectile echo initializes"), ProjectileEcho))
 	{
@@ -511,7 +543,7 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	const TSharedPtr<const FReEchoCsvDataSnapshot> OldSnapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
-	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Run->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_08"));
 	const FString OldRevision = Run->CurrentBuild.WeaponDomainRevision;
 	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
 
@@ -524,14 +556,11 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	Weapon->SetOwner(Owner);
 	Weapon->InitializeWeapon(&ActorBuild, Run->GetRunDataSnapshot());
 
-	const FString ModifiedDir =
-	    AssembleModifiedCsvDirectory(TEXT("weapons.csv"),
-	                                 TEXT("W_J_01,LongSword,Crescent Blade,"
-	                                      "CrescentBlade,2,true,2,Pattern.LongSwordCombo,0.28,1.20,0,180,100,"
-	                                      "0,0,0,1,true,RuntimeCompatibility,2,"),
-	                                 TEXT("W_J_01,LongSword,Crescent Blade,"
-	                                      "CrescentBlade,2,true,2,Pattern.LongSwordCombo,0.29,1.20,0,180,100,"
-	                                      "0,0,0,1,true,RuntimeCompatibility,2,"));
+	const FString ModifiedDir = AssembleModifiedCsvDirectory(TEXT("weapons.csv"),
+	                                                         TEXT("Pattern.BowShot,1.00,1.00,1.00,1000,0,1,0,0,"
+	                                                              "1,true,RuntimeCompatibility,8,"),
+	                                                         TEXT("Pattern.BowShot,1.01,1.00,1.00,1000,0,1,0,0,"
+	                                                              "1,true,RuntimeCompatibility,8,"));
 	const FReEchoCsvLoadResult PublishResult = FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(ModifiedDir);
 	if (!TestTrue(TEXT("Modified CSV publishes"), PublishResult.bSuccess))
 	{
@@ -676,7 +705,6 @@ bool FReEchoWeaponRuneCatalogCoverageTest::RunTest(const FString& Parameters)
 	    {TEXT("P_LONGSWORD_ATTACKSTACK_GRIP"), TEXT("W_J_01")},
 	    {TEXT("P_LONGSWORD_STUN_GRIP"), TEXT("W_J_01")},
 	    {TEXT("P_GUN_CHARGED_MUZZLE"), TEXT("W_J_09")},
-	    {TEXT("P_GUN_RAPID_MUZZLE"), TEXT("W_J_09")},
 	    {TEXT("P_GUN_EXPLOSIVE_MUZZLE"), TEXT("W_J_09")},
 	    {TEXT("P_GUN_PIERCING_MUZZLE"), TEXT("W_J_09")},
 	    {TEXT("P_GUN_BLEED_MUZZLE"), TEXT("W_J_09")},
@@ -684,7 +712,7 @@ bool FReEchoWeaponRuneCatalogCoverageTest::RunTest(const FString& Parameters)
 	    {TEXT("P_GUN_HITSHARD_GUNACTION"), TEXT("W_J_09")},
 	    {TEXT("P_GUN_ATTACKSTACK_GUNACTION"), TEXT("W_J_09")},
 	};
-	TestEqual(TEXT("Plan76 contains exactly 32 newly completed runes"), NewRuneWeapons.Num(), 32);
+	TestEqual(TEXT("Four-weapon roster contains exactly 31 completed Plan76 runes"), NewRuneWeapons.Num(), 31);
 
 	int32 ActiveVisibleRuneCount = 0;
 	for (const TPair<FName, FReEchoCsvPartRow>& Pair : Snapshot->Parts)
@@ -695,7 +723,7 @@ bool FReEchoWeaponRuneCatalogCoverageTest::RunTest(const FString& Parameters)
 			++ActiveVisibleRuneCount;
 		}
 	}
-	TestEqual(TEXT("Visible production rune scope remains 47"), ActiveVisibleRuneCount, 47);
+	TestEqual(TEXT("Four-weapon roster contains 46 visible production runes"), ActiveVisibleRuneCount, 46);
 
 	for (const TPair<FName, FName>& RuneWeapon : NewRuneWeapons)
 	{
@@ -1256,24 +1284,25 @@ bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Paramete
 	AActor* DelayedOwner = DelayedFixture.SpawnWeaponOwner(FVector::ZeroVector, DelayedCombatant);
 	FReEchoBuildSnapshot DelayedBuild = MakeBuild(*Snapshot, TEXT("W_J_08"));
 	SetBuildStats(DelayedBuild, DelayedCombatant->Stats);
-	TestTrue(TEXT("Delayed critical-bleed rune equips"),
+	TestTrue(TEXT("Delayed critical-pierce rune equips"),
 	         ReEchoWeaponRuntime::TryEquipParts(
-	             *Snapshot, DelayedBuild, {TEXT("P_BOW_CRITBLEED_ARROWHEAD")}, DelayedBuild, Error));
+	             *Snapshot, DelayedBuild, {TEXT("P_BOW_PIERCING_ARROWHEAD")}, DelayedBuild, Error));
 	DelayedCombatant->InitializeFromStats(DelayedBuild.Stats, true);
 	DelayedCombatant->Stats.RoleId = TEXT("Hunter");
 	DelayedCombatant->Stats.CriticalRate = 1.0f;
 	AReEchoWeaponActor* DelayedWeapon = DelayedFixture.World->SpawnActor<AReEchoWeaponActor>();
 	DelayedWeapon->SetOwner(DelayedOwner);
 	DelayedWeapon->InitializeWeapon(&DelayedBuild, Snapshot);
-	AReEchoEnemyActor* DelayedTarget = DelayedFixture.SpawnEnemy(FVector(450.0f, 0.0f, 0.0f), 330, 1000.0f);
+	DelayedFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 330, 1000.0f);
+	AReEchoEnemyActor* DelayedTarget = DelayedFixture.SpawnEnemy(FVector(450.0f, 0.0f, 0.0f), 331, 1000.0f);
 	TestTrue(TEXT("Delayed rune projectile attack executes"), DelayedWeapon->ExecuteBasicAttack(DelayedCombatant));
 	FReEchoBuildSnapshot PlainBow = MakeBuild(*Snapshot, TEXT("W_J_08"));
 	SetBuildStats(PlainBow, DelayedCombatant->Stats);
 	DelayedWeapon->InitializeWeapon(&PlainBow, Snapshot);
-	TickProjectiles(DelayedFixture.World, 0.6f);
+	TickProjectiles(DelayedFixture.World, 0.3f);
+	TickProjectiles(DelayedFixture.World, 0.3f);
 	TestTrue(TEXT("Projectile retains its attack-time rune snapshot after the weapon is rebuilt"),
-	         DelayedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
-	             TEXT("Z_Bleeding")));
+	         WeaponEnemyHealth(DelayedTarget) < 1000.0f);
 	return true;
 }
 

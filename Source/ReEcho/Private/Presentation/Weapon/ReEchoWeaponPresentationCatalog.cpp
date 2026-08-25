@@ -4,8 +4,7 @@
 
 UReEchoWeaponPresentationProfile* UReEchoWeaponPresentationCatalog::ResolveProfile(const FName WeaponVisualKey) const
 {
-	const FName CanonicalKey = WeaponVisualKey == TEXT("MoonStaff") ? FName(TEXT("Staff")) : WeaponVisualKey;
-	const TSoftObjectPtr<UReEchoWeaponPresentationProfile>* Entry = Profiles.Find(CanonicalKey);
+	const TSoftObjectPtr<UReEchoWeaponPresentationProfile>* Entry = Profiles.Find(WeaponVisualKey);
 	return Entry ? Entry->LoadSynchronous() : nullptr;
 }
 

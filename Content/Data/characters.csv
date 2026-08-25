@@ -1,5 +1,5 @@
 Id,SourceWorkbookId,DisplayName,Description,Enabled,DisabledReason,RoleId,PromotionPriority,DefaultWeaponId,AppearanceId,HpMax,PhysicalAttack,ElementalAttack,AttackSpeed,MovementSpeed,CriticalRate,CriticalEffect,EchoEfficiency,ReactionEfficiency
-J_DIAMOND,J_02,猎手,角色基础属性：生命值12，物理攻击力8，元素攻击力2，基础武器羽翼弓。角色能力：移动速度+20%，暴击率+20%，暴击效果+50%。,true,,Hunter,1,W_J_02,J_DIAMOND,12,8,2,1,1,0.2,0.5,0.5,1
-J_CLOVER,J_03,诗人,角色基础属性：生命值8，物理攻击力2，元素攻击力10，基础武器羽翼弓。角色能力：每次成功完成一关后，元素反应效能永久+10%。,true,,Poet,2,W_J_02,J_CLOVER,8,2,10,1,1,0.2,0.5,0.5,1
+J_DIAMOND,J_02,猎手,角色基础属性：生命值12，物理攻击力8，元素攻击力2，基础武器羽翼弓。角色能力：移动速度+20%，暴击率+20%，暴击效果+50%。,true,,Hunter,1,W_J_08,J_DIAMOND,12,8,2,1,1,0.2,0.5,0.5,1
+J_CLOVER,J_03,诗人,角色基础属性：生命值8，物理攻击力2，元素攻击力10，基础武器羽翼弓。角色能力：每次成功完成一关后，元素反应效能永久+10%。,true,,Poet,2,W_J_08,J_CLOVER,8,2,10,1,1,0.2,0.5,0.5,1
 J_HEART,J_04,勇者,角色基础属性：生命值20，物理攻击力2，元素攻击力2，基础武器镐形镰刀。角色能力：当前每缺失10%最大生命，物理攻击力和元素攻击力各+1；治疗跨回阈值时层数回退。,true,,Brave,3,W_J_04,J_HEART,20,2,2,1,1,0.2,0.5,0.5,1
-J_SPADE,J_01,智者,角色基础属性：生命值15，物理攻击力5，元素攻击力5，基础武器手杖。角色能力：每第4次获得卡牌组时，额外选择1张卡牌。,true,,Sage,4,W_J_01,J_SPADE,15,5,5,1,1,0.2,0.5,0.5,1
+J_SPADE,J_01,智者,角色基础属性：生命值15，物理攻击力5，元素攻击力5，基础武器长剑。角色能力：每第4次获得卡牌组时，额外选择1张卡牌。,true,,Sage,4,W_J_01,J_SPADE,15,5,5,1,1,0.2,0.5,0.5,1

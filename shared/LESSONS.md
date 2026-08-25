@@ -395,7 +395,7 @@ UE 5.8 的 Billboard 场景代理使用 GetMaximumAxisScale() 计算精灵尺寸
 
 **来源：ReEcho Plan 24**
 
-不要用一个字段同时表示武器类型、具体运行时武器、快捷键槽和部件槽。`WeaponTypeId` 是家族/模式轴（`Dagger`、`LongSword`、`Scythe` 等）；`WeaponId` 是稳定的存档/录制/运行时身份（`W_J_02`、`W_J_01`、`W_J_03`、`W_J_04`）；`InputSlot` 仅是旧快捷键 1/2/3 映射；`SlotTypeId` 是装备部件插槽（`Core`、`Grip`、`Blade` 等）。存档/录制快照应保存稳定 `WeaponId` 和数据版本；当前 CSV 定义缺失、禁用或版本不兼容时，恢复必须明确失败。工作簿中未命名的部件行是审计行，不是面向未来的 ID：保持禁用，并使用 `PartId=None`、`SourceSheet` 和 `SourceRow`。
+不要用一个字段同时表示武器类型、具体运行时武器、快捷键槽和部件槽。`WeaponTypeId` 是家族/模式轴（`LongSword`、`Scythe`、`Bow`、`Gun`）；`WeaponId` 是稳定的存档/录制/运行时身份（`W_J_01`、`W_J_04`、`W_J_08`、`W_J_09`）；`InputSlot` 只是快捷键映射；`SlotTypeId` 是装备部件插槽（`Core`、`Blade`、`Bowstring` 等）。存档/录制快照应保存稳定 `WeaponId` 和数据版本；当前 CSV 定义缺失、禁用或版本不兼容时，恢复必须明确失败。退役 ID 不得复用或静默映射，否则旧快照会被错误解释为另一把武器。工作簿中未命名的部件行是审计行，不是面向未来的 ID：保持禁用，并使用 `PartId=None`、`SourceSheet` 和 `SourceRow`。
 
 ---
 ### GAME-33. 为进行中的局固定数据领域快照 [UE]

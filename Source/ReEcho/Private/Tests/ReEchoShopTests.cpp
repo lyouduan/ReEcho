@@ -67,7 +67,7 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	RunSubsystem->BeginEncounter();
 	for (int32 SpawnIndex = 1; SpawnIndex <= 6; ++SpawnIndex)
 	{
@@ -119,7 +119,7 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_2_16"));
 	RunSubsystem->TimeShards = 50;
 	const float InitialHpMax = RunSubsystem->CurrentBuild.Stats.HpMax;
@@ -389,16 +389,16 @@ bool FReEchoOwnedWeaponBackpackTest::RunTest(const FString& Parameters)
 	         RunSubsystem->OwnedWeaponIds.Contains(TEXT("W_J_08")));
 	TestTrue(TEXT("The starting weapon can be re-equipped after a weapon purchase"),
 	         RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_08"), Error));
-	RunSubsystem->OwnedWeaponIds.Add(TEXT("W_J_02"));
+	RunSubsystem->OwnedWeaponIds.Add(TEXT("W_J_01"));
 
 	Error.Reset();
 	TestTrue(TEXT("Bow accepts a universal core and bow-specific arrowhead"),
 	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
 	TestTrue(TEXT("An owned alternate weapon can be equipped for free"),
-	         RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_02"), Error));
+	         RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_01"), Error));
 	TestEqual(TEXT("Owned weapon selection updates the authoritative build"),
 	          RunSubsystem->CurrentBuild.WeaponId,
-	          FName(TEXT("W_J_02")));
+	          FName(TEXT("W_J_01")));
 	TestTrue(TEXT("Compatible universal rune stays equipped after weapon switch"),
 	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
 	             [](const FReEchoEquippedPartSnapshot& Part)
