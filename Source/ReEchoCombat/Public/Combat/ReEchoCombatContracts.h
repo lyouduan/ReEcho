@@ -153,6 +153,10 @@ public:
 
 	void PublishAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 	{
+#if WITH_DEV_AUTOMATION_TESTS
+		++AttackCommittedPublishCountForTests;
+		LastAttackCommittedEventForTests = Event;
+#endif
 		OnAttackCommitted.Broadcast(Event);
 	}
 
@@ -203,6 +207,16 @@ public:
 	}
 
 #if WITH_DEV_AUTOMATION_TESTS
+	int32 GetAttackCommittedPublishCountForTests() const
+	{
+		return AttackCommittedPublishCountForTests;
+	}
+
+	const FReEchoAttackCommittedEvent& GetLastAttackCommittedEventForTests() const
+	{
+		return LastAttackCommittedEventForTests;
+	}
+
 	int32 GetElementStatePublishCountForTests() const
 	{
 		return ElementStatePublishCountForTests;
@@ -229,10 +243,12 @@ public:
 	}
 
 private:
+	int32 AttackCommittedPublishCountForTests = 0;
 	int32 ElementStatePublishCountForTests = 0;
 	int32 ElementReactionPublishCountForTests = 0;
 	int32 HurtPublishCountForTests = 0;
 	FReEchoDamageEvent LastHurtEventForTests;
+	FReEchoAttackCommittedEvent LastAttackCommittedEventForTests;
 	FReEchoElementReactionResolvedEvent LastElementReactionEventForTests;
 #endif
 };

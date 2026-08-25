@@ -141,6 +141,7 @@ private:
 	bool SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	                UReEchoCombatantComponent* Combatant,
 	                const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
+	void PublishAttackCommittedEvent(const FReEchoWeaponAttackCommit& Commit) const;
 	TSharedPtr<FReEchoWeaponRuneAttackContext> BuildRuneAttackContext(const FReEchoWeaponAttackCommit& Commit,
 	                                                                  UReEchoCombatantComponent* Combatant) const;
 	void ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,

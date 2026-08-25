@@ -22,12 +22,14 @@
   - `Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp`
   - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`
   - `Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`
+  - `Source/ReEchoCombat/Public/Combat/ReEchoCombatContracts.h`
   - `scripts/ue/configure_plan100_weapon_presentation.py`
   - `Content/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_*.uasset`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`
   - `Binaries/Win64/` 下 `shared/GIT_RULES.md` 允许的最终预构建包文件
 - Stable Reads: `weapons.csv` 的 WeaponId/VisualKey/AttackPatternId；角色/Echo Presentation Profile 的 `WorldHeight`、`WeaponAnchorRatio`；现有 Niagara 资源与攻击事件时序；Plan96 山羊 VFX 候选 worktree。
 - 影响模式：`SharedContract`。除既有武器表现契约外，长剑攻击提交可消费兔子宿主持有的敌方投射物逻辑状态；兔子球命中玩家后立即结束逻辑与视觉生命周期。
@@ -58,6 +60,7 @@
 - [ ] 不改变攻击事件时机、方向、伤害数值、长剑范围或动画节拍；投射物变化仅限本次兔子球结束条件与长剑斩弹。
 - [ ] 兔子球与玩家的扫掠碰撞成功结算一次伤害后立即发布 `Ended` 并从逻辑数组移除，视觉代理同步消失。
 - [ ] 仅 `Pattern.LongSwordCombo` 在既有提交范围和 180°弧内移除兔子球；弧外球与其他武器不受影响。
+- [ ] 手动触发的主动攻击成功 Commit 后与普通攻击共用 `AttackCommitted` 事件出口并释放对应特效；镰刀召回不重复发布。
 - [ ] 配置脚本可重复运行，只修改本 Plan 锁定字段，不重置艺术已调整的其他 Profile 字段。
 - [ ] 聚焦自动化、C++ 格式化、Development FullRebuild、`validate_project.py`、预构建一致性和 `git diff --check` 通过。
 - [ ] 用户在 PIE 对比 Player/Echo 同武器大小，并确认长剑刀光离地、完整显示、方向和攻击同步观感；未验收前保持 `PendingBeforeClose`。
@@ -99,6 +102,7 @@
 - 自动化直接比较不同宿主缩放下的六把武器解析长度，Player/Echo 使用同一 Profile 时结果一致；同步更新三份受影响模块文档。
 - 用户明确要求不合并远端新增 9 个提交并继续在本 Plan 执行；候选仍基于当前 Plan100 分支。兔子球命中玩家后立即发布 `Ended` 并从 EnemyHost 逻辑数组移除，对应 VFX 代理同步结束。
 - `Pattern.LongSwordCombo` 在既有近战提交中复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询所有兔子 Host 的逻辑球；弧内球由 Host 权威结束。其他攻击模式和非兔子投射物不进入该路径。
+- 普通攻击与主动攻击的成功 Commit 统一由 `PublishAttackCommittedEvent` 组装并发布表现事件；此前缺事件的手动主动攻击现在会释放对应武器特效，镰刀召回仍不产生第二次 Commit/特效。
 
 ### 证据
 
@@ -109,6 +113,8 @@
 - 扩展候选 Development FullRebuild 通过：`99/99` actions，预构建 source fingerprint `4047a64998fb`。
 - `ReEcho.Enemies.Host.RabbitProjectilePipeline` 聚焦自动化找到 1 项并通过；覆盖命中玩家后逻辑/视觉立即结束，以及 180°扇区移除剩余兔子球。启动日志仍包含 LinuxArm64/VisionOS `MainVersion` 警告，但本次 Win64 测试实际执行并返回 `Success`。
 - 扩展候选 `validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 手动主动攻击特效候选 Development FullRebuild 通过：`96/96` actions，预构建 source fingerprint `f7953bfef1ba`。首次构建因测试 getter 误置于 `PublishHurt` 函数体内产生 C2270/C2601，移动到组件测试区后重建通过；运行时事件实现本身未出现编译错误。
+- `ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 聚焦自动化找到 1 项并通过：首次主动镰刀 Commit 发布一次 `Pattern.ScytheSweep`，召回不重复发布。`validate_project.py`、预构建一致性与 `git diff --check` 同步通过。
 - `validate_project.py` 的非 XLSX 检查完成，但总结果受 worktree `Content/reecho_xlsx_package_*` 创建权限拒绝阻塞；本 Plan 未修改 XLSX/CSV。
 - 全量 `ReEcho.Weapons` 暴露既有非本任务失败：生产 rune 数预期 47/实际 46、`P_GUN_RAPID_MUZZLE` 已禁用，以及 WeaponRuntime 临时 CSV 断言；精确受影响测试已独立通过。
 
@@ -128,4 +134,5 @@
 - `MOD-ReEchoVFX.md` 已更新：记录武器 Slot Transform/世界尺寸策略是唯一位姿真相。
 - `MOD-ReEchoWeapons.md` 已更新：记录主模块 DA 的绝对长度和完整 VFX Slot 表现契约。
 - `MOD-ReEchoWeapons.md` 已补充长剑复用提交几何斩断兔子逻辑球的边界；`MOD-ReEchoEnemies.md` 已更新兔子球命中即结束和 EnemyHost 移除权威。
+- `MOD-ReEchoCombat.md` 已审阅并补充所有成功的普通/主动 Commit 共用 `AttackCommitted` 表现出口；测试计数器仅在 Development 自动化宏内存在，不改变运行时事件 ABI。
 - `MOD-ReEchoPresentation.md`、`ARCHITECTURE.md`、`CODEBASE_MAP/README.md` 已审阅、无需修改：本实现未改变模块拓扑、Presentation 模块公共类型或索引路由。

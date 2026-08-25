@@ -3,6 +3,7 @@
 #include "Weapons/ReEchoWeaponRuntime.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Components/SceneComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
@@ -95,6 +96,9 @@ struct FReEchoWeaponWorldFixture
 		Stats.AttackSpeed = 1.0f;
 		Stats.ReactionEfficiency = 1.0f;
 		OutCombatant->InitializeFromStats(Stats, true);
+		UReEchoCombatEventsComponent* Events = NewObject<UReEchoCombatEventsComponent>(Owner, TEXT("WeaponOwnerEvents"));
+		Owner->AddInstanceComponent(Events);
+		Events->RegisterComponent();
 		return Owner;
 	}
 };
@@ -1235,9 +1239,21 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 
 	AReEchoEnemyActor* ThrowTarget = Fixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 204, 1000.0f);
 	AReEchoWeaponActor* ThrowWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_THROWRECALL_GRIP"));
+	UReEchoCombatEventsComponent* ThrowEvents =
+	    ThrowWeapon->GetOwner()->FindComponentByClass<UReEchoCombatEventsComponent>();
+	if (!TestNotNull(TEXT("Active weapon owner has combat presentation events"), ThrowEvents))
+	{
+		return false;
+	}
 	const float ThrowBefore = WeaponEnemyHealth(ThrowTarget);
 	TestTrue(TEXT("First active input starts the data-authored scythe throw"),
 	         ThrowWeapon->TryActiveAttack(SourceCombatant));
+	TestEqual(TEXT("Manually triggered active attack publishes one presentation commit"),
+	          ThrowEvents->GetAttackCommittedPublishCountForTests(),
+	          1);
+	TestEqual(TEXT("Published active event keeps the committed scythe attack pattern"),
+	          ThrowEvents->GetLastAttackCommittedEventForTests().AttackPatternId,
+	          FName(TEXT("Pattern.ScytheSweep")));
 	TestTrue(TEXT("Scythe remains in a thrown state"), ThrowWeapon->IsScytheThrownForTests());
 	ThrowWeapon->AdvanceScytheThrowForTests(0.6f);
 	const float AfterTravel = WeaponEnemyHealth(ThrowTarget);
@@ -1247,6 +1263,9 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	         WeaponEnemyHealth(ThrowTarget) < AfterTravel);
 	TestTrue(TEXT("Second active input recalls without creating another attack"),
 	         ThrowWeapon->TryActiveAttack(SourceCombatant));
+	TestEqual(TEXT("Recall does not publish a duplicate attack presentation event"),
+	          ThrowEvents->GetAttackCommittedPublishCountForTests(),
+	          1);
 	TestFalse(TEXT("Recall clears the thrown state"), ThrowWeapon->IsScytheThrownForTests());
 	return true;
 }

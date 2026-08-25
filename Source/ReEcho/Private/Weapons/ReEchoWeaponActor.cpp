@@ -420,30 +420,38 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 	WeaponLogic.ConfirmLastCommit();
 	ProcessOnAttackRuneEffects(LastRuneAttackContext);
 	UpdateElementIndicator();
-	if (AActor* WeaponOwner = GetOwner())
-	{
-		if (UReEchoCombatEventsComponent* Events = WeaponOwner->FindComponentByClass<UReEchoCombatEventsComponent>())
-		{
-			FReEchoAttackCommittedEvent Event;
-			Event.Attack = LastAttackCommit.Attack;
-			if (const UReEchoAttackControllerComponent* Controller =
-			        WeaponOwner->FindComponentByClass<UReEchoAttackControllerComponent>())
-			{
-				Event.Target = Controller->GetSnapshot().CurrentTarget;
-			}
-			Event.WeaponId = GetEquippedWeaponId();
-			Event.AttackPatternId = GetAttackPatternId();
-			Event.AttackStepId = LastCommittedAttackStepId;
-			Event.StepIndex = LastCommittedAttackStepIndex;
-			Event.Origin = WeaponOwner->GetActorLocation();
-			const FVector ToCommittedTarget =
-			    Event.Target ? Event.Target->GetActorLocation() - Event.Origin : FVector::ZeroVector;
-			Event.Direction =
-			    ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
-			Events->PublishAttackCommitted(Event);
-		}
-	}
+	PublishAttackCommittedEvent(LastAttackCommit);
 	return true;
+}
+
+void AReEchoWeaponActor::PublishAttackCommittedEvent(const FReEchoWeaponAttackCommit& Commit) const
+{
+	AActor* WeaponOwner = GetOwner();
+	if (!WeaponOwner)
+	{
+		return;
+	}
+	UReEchoCombatEventsComponent* Events = WeaponOwner->FindComponentByClass<UReEchoCombatEventsComponent>();
+	if (!Events)
+	{
+		return;
+	}
+	FReEchoAttackCommittedEvent Event;
+	Event.Attack = Commit.Attack;
+	if (const UReEchoAttackControllerComponent* Controller =
+	        WeaponOwner->FindComponentByClass<UReEchoAttackControllerComponent>())
+	{
+		Event.Target = Controller->GetSnapshot().CurrentTarget;
+	}
+	Event.WeaponId = Commit.WeaponId;
+	Event.AttackPatternId = Commit.AttackPatternId;
+	Event.AttackStepId = Commit.AttackStepId;
+	Event.StepIndex = Commit.StepIndex;
+	Event.Origin = WeaponOwner->GetActorLocation();
+	const FVector ToCommittedTarget =
+	    Event.Target ? Event.Target->GetActorLocation() - Event.Origin : FVector::ZeroVector;
+	Event.Direction = ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
+	Events->PublishAttackCommitted(Event);
 }
 
 bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
@@ -472,6 +480,7 @@ bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
 	WeaponLogic.ConfirmLastCommit();
 	ProcessOnAttackRuneEffects(LastRuneAttackContext);
 	UpdateElementIndicator();
+	PublishAttackCommittedEvent(LastAttackCommit);
 	return true;
 }
 
