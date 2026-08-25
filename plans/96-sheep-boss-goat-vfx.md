@@ -25,6 +25,8 @@
   - 上述 Niagara 根实际引用的 `Content/VFX/Monster/Goat/{MI,Mesh,Tex}/**`、公共 `Content/{00_Textures,01_Textures,Mat,VFX}/**` 中经 Unreal Asset Registry 审计确认的准确递归依赖；禁止目录级整体纳入
   - `Source/ReEcho/{Public,Private}/Presentation/VFX/ReEchoCombatVfxCatalog.*`
   - `Source/ReEcho/{Public,Private}/Presentation/VFX/ReEchoCombatVfxComponent.*`
+  - `Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*`（Boss `MoonStaff` 持有与技能阶段挥舞的最窄表现接线）
+  - `Source/ReEcho/{Public,Private}/Presentation/Weapon/ReEchoWeaponPresentationCatalog.*`（优先 Stable Read；仅当现有 `MoonStaff` 公共表现契约不足时修改）
   - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`（仅当现有公开敌方投射物事件不足以定位 Boss 投射物表现时）
   - `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoRuntimeAssetPreloadTests.cpp`
@@ -36,6 +38,9 @@
   - `Binaries/Win64/` 下 `GIT_RULES.md` 允许的最终精选预构建包
 - Stable Reads:
   - `Design/Data/ReEchoEnemyData.xlsx`、`Content/Data/{enemies,enemy_abilities,boss_phases}.csv`
+  - `Content/ReEcho/DataAsset/Weapon/Catalogs/DA_WeaponPresentationCatalog.uasset`
+  - `Content/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_MoonStaff.uasset`（禁止复制为 Boss 专用 Profile）
+  - `Content/ReEcho/Textures/Effects/MoonStaff.uasset`
   - `plans/44-boss-gameplay-and-enemy-xlsx-tables.md`
   - `plans/68-reecho-enemy-align-authoritative.md`
   - `Source/ReEchoEnemies/{Public,Private}/Enemies/ReEchoEnemy{Types,LogicComponent,EventsComponent}.*`
@@ -43,15 +48,15 @@
   - `Source/ReEcho/{Public,Private}/Presentation/Combat/ReEchoCombatPresentation*`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
 - 影响模式：`SharedContract`（新增 Boss 行为事件到 Niagara 的只读投影、投射物视觉实例和最终命中特效；不改变 Boss AI、技能数值、Combat 命中或阶段权威）。
-- 兼容承诺 / 下游操作：`M_SHEEP`、`Boss.TimeGuard`、`Enemy.TimeGuard`、技能顺序、锁点/锁向、伤害、冷却、二阶段 1300→650 和保存语义保持不变；VFX 加载失败只能缺视觉，不得阻塞或延迟技能提交与伤害。
-- 明确排除：不新增或调整 Boss 技能数值；不启用当前未配置的 `Boss.ElementCleanse`；不为 Skill01 臆造资源；不让 Niagara 粒子、碰撞、完成回调或固定延迟决定命中、投射物位置或技能结束；不整体提交 Goat/公共素材目录；不在 Unreal Editor 外修改 `.uasset`。
+- 兼容承诺 / 下游操作：`M_SHEEP`、`Boss.TimeGuard`、`Enemy.TimeGuard`、技能顺序、锁点/锁向、伤害、冷却、二阶段 1300→650 和保存语义保持不变；Boss 复用 Plan104 当前 `MoonStaff` Profile/贴图契约，不恢复已删除的 `Staff` Profile；VFX 加载失败只能缺视觉，不得阻塞或延迟技能提交与伤害。
+- 明确排除：不新增或调整 Boss 技能数值；不启用当前未配置的 `Boss.ElementCleanse`；不新增 `NS_Goat_Skill04_Alarming`，Skill04 的两次预警均复用现有 `NS_Goat_Skill03_Alarming`；不让 Niagara 粒子、碰撞、完成回调或固定延迟决定命中、投射物位置或技能结束；不整体提交 Goat/公共素材目录；不在 Unreal Editor 外修改 `.uasset`。
 
 ## 锁定目标
 
-1. `M_SHEEP_StationaryVolley` 与 `M_SHEEP_MovingSpread` 共用 Skill02 表现：前摇在 Boss 身上播放 `Charging`；每个逻辑弹丸生成独立 `Bullet` 并逐帧跟随 `(AttackIdentity, VolleyBallIndex)` 的权威位置；只有实际造成伤害时在受击目标播放一次 `BeAttacked`。
-2. `M_SHEEP_BlinkSlam` 使用 Skill03：前摇在 Boss 身上播放 `Charging`，同时在已锁定落点播放 `Alarming`；提交/瞬移后清理前摇和预警，实际造成伤害时在命中位置播放一次 `BeAttacked`。
-3. `M_SHEEP_PrayerBeam` 使用 Skill04：前摇在 Boss 身上播放 `Charging`；攻击窗口以锁定方向播放 `Lighting`，方向、长度起点和生命周期来自 Boss Intent；AbilityEnded、Death、EndPlay、遭遇清理时停止。
-4. Boss 普通近战挥击保持现有攻击动画与伤害链；当前 Goat/Particle 没有 Skill01 正式 Niagara，不使用 `01.uasset` 或其他未命名候选猜测映射。
+1. Boss 始终使用 Plan104 当前 `MoonStaff` 契约显示法杖贴图；`M_SHEEP_MeleeSweep` 按既有 Skill01 近战机制挥舞法杖，并在挥舞阶段复用 `NS_Goat_Skill02_BeAttacked` 作为挥击表现。该复用不表示 Boss 自身受击，也不改变 Skill01 圆形命中与伤害。
+2. `M_SHEEP_StationaryVolley` 与 `M_SHEEP_MovingSpread` 共用 Skill02 表现：`NS_Goat_Skill02_Charging` 挂在法杖上蓄力；提交后分别按权威能力配置生成站定四连弹或移动三向散射，每个逻辑弹丸生成独立 `NS_Goat_Skill02_Bullet` 并逐帧跟随 `(AttackIdentity, VolleyBallIndex)` 的权威位置；只有实际造成伤害时在受击角色挂一次 `NS_Goat_Skill02_BeAttacked`。
+3. `M_SHEEP_BlinkSlam` 使用 Skill03：Boss 播放 `NS_Goat_Skill03_Charging`，同时在已锁定角色当时的世界落点播放 `NS_Goat_Skill03_Alarming`；提交/瞬移时在该落点播放 `NS_Goat_Skill03_BeAttacked`，并清理蓄力和预警。伤害仍只来自既有锁定落点圆形命中。
+4. `M_SHEEP_PrayerBeam` 使用 Skill04：Boss 播放 `NS_Goat_Skill04_Charging`，同时在已锁定角色当时的 `LockedTargetLocation` 播放一次 `NS_Goat_Skill03_Alarming`；落点爆发阶段在同一锁定世界位置再次播放/重启 `NS_Goat_Skill03_Alarming`；结束蓄力进入攻击窗口时，以锁定方向播放 `NS_Goat_Skill04_Lighting`。预警不追踪角色、不新增落点伤害，光束方向、长度、起点和生命周期继续来自 Boss Intent；AbilityEnded、Death、EndPlay、遭遇清理时停止。
 5. 保留当前主工作区用户修改后的 `DA_Enemy_TimeGuard` 精确内容并纳入 Plan 96 候选；继续由 `Enemy.TimeGuard -> DA_Enemy_TimeGuard` 解析，不覆盖其中已有动画、尺寸、锚点或二阶段配置。
 6. 八个正式 Niagara 根及准确递归依赖进入 Git、预加载和 Shipping cook；实例层级、Local/World Space、朝向轴、Bounds 与 AutoDestroy 由 Editor 审计后按资源真实语义配置。
 7. Boss 技能真实命中角色时必须继续经 `FReEchoHitIntent -> ReEchoCombat` 造成配表伤害，不能出现“只播放 BeAttacked/Lighting、角色不掉血”。一阶段 Skill02 每弹 5、Skill03 30、Skill04 20；二阶段由现有阶段倍率统一变为 7.5/45/30。Niagara 碰撞和粒子范围不参与伤害裁决。
@@ -81,11 +86,12 @@
 
 ## 锁定验收
 
-- [ ] Skill02 两种投射技能均按真实前摇播放 Charging；4 连弹/3 向散射分别生成 4/3 个 Bullet，位置与逻辑弹道一致，结束后无残留；只有真实伤害生成 BeAttacked。
+- [ ] Boss 在一/二阶段均显示 `MoonStaff`，Skill01 挥舞法杖并复用一次 Skill02 BeAttacked 挥击表现；法杖挂点、朝向、缩放和翻面跟随 Boss，且不改变近战判定。
+- [ ] Skill02 两种投射技能均在法杖上按真实前摇播放 Charging；4 连弹/3 向散射分别生成 4/3 个 Bullet，位置与逻辑弹道一致，命中或结束后无残留；只有真实伤害在受击角色生成 BeAttacked。
 - [ ] Skill03 Charging 与锁定落点 Alarming 同时出现，预警不追踪玩家；提交时清理，真实命中生成一次 BeAttacked。
-- [ ] Skill04 Charging、Lighting 顺序正确；Lighting 从 Boss 朝锁定方向表现，并在 AbilityEnded/Death/清场时可靠停止。
+- [ ] Skill04 Charging 开始时在锁定角色当时的位置播放第一次 Skill03 Alarming，落点爆发阶段在同一固定位置重启第二次 Alarming；结束蓄力后 Lighting 从 Boss 朝锁定方向表现，并在 AbilityEnded/Death/清场时可靠停止。两次预警均不追踪角色，也不产生额外伤害。
 - [ ] Skill02 每个实际命中的逻辑弹丸、Skill03 下砸范围命中、Skill04 光束范围命中均通过 Combat 对角色扣除准确配表生命；未命中、已躲开或无敌时不扣血。命中特效与最终 `AppliedDamage > 0` 一致，不存在有特效无伤害或无命中却扣血。
-- [ ] Skill01 不错误播放其他技能资源；二阶段继续复用相同技能映射并由现有数值倍率驱动，不重复或漏播阶段事件。
+- [ ] Skill01 只按已确认契约复用 Skill02 BeAttacked 作为挥击表现，不触发 Skill02 Charging/Bullet/命中语义；二阶段继续复用相同技能映射并由现有数值倍率驱动，不重复或漏播阶段事件。
 - [ ] `DA_Enemy_TimeGuard` 与规划时用户修改版本字节一致，并继续被 `Enemy.TimeGuard` Catalog 正确解析；现有动画/锚点/缩放/阶段内容不丢失。
 - [ ] 八个 Niagara 通过 Editor 加载与编译检查，Simulation Space、朝向轴、Bounds、Renderer 排序、AutoDestroy/持续生命周期符合对应挂载方式；缺失资产不影响玩法。
 - [ ] 八个根及准确依赖被 Git 跟踪、进入预加载和最新 Shipping IoStore；未夹带 `01.uasset`、zip、源图或无关 Goat/公共资产。
@@ -136,6 +142,8 @@
 - 2026-08-24：代码审计发现二阶段 `PhysicalAttackMultiplier/AttackSpeedMultiplier` 仅被编译但未用于 Boss 技能提交；补为 Phase2 提交伤害乘物理倍率、冷却除攻速倍率。一阶段继续直接采用能力表值，空间判定和最终扣血仍由 Host/Combat 权威链执行。
 - 2026-08-25：Planner 评审退回 `InProgress`：Skill02/03 命中特效错误附着通用 Hurt 根、Skill04 未消费世界长度、附着特效缺少资源级空间契约。本轮先把命中改为 Combat 最终世界坐标，并让 Skill04 在激活前写入世界起止点、长度和宽度；通用语义挂点迁移继续作为关闭前架构修正项。
 - 2026-08-25：二阶段运行时审计确认致命伤拦截先进入 `Transforming`，但同一命中的后续 Hurt 又通过 `NotifyHurt` 将 Phase 覆盖成 `HitReaction`，导致转换计时永不完成且 `bPhase2Triggered` 阻止重试。修复锁定 Transforming、转换期间统一免伤，并为缺少 `Transform.Phase2` Clip 的 DA 延迟到完成事件再切换 Phase2 基础动画。
+- 2026-08-25：用户补充最终表现映射：Boss 使用 Plan104 新 `MoonStaff` 契约；Skill01 挥杖复用 Skill02 BeAttacked；Skill02 Charging 改挂法杖；Skill03 保持蓄力、锁点预警和落点下砸；Skill04 蓄力与锁定点爆发两次均复用 Skill03 Alarming，锁定点取角色被锁定时的 `LockedTargetLocation`，不追踪且不新增伤害，随后播放 Lighting。
+- 2026-08-25：静态审计发现 Boss Skill02 创建逻辑投射物后未发布 `Spawned`，而 VFX 只在该事件创建 Bullet；同时命中清理把所有带 `VolleyBallIndex` 的弹误作 Rabbit 持续弹，羊弹可能命中后继续到最大射程。两项均纳入本轮修复与回归。
 
 ### 证据
 
