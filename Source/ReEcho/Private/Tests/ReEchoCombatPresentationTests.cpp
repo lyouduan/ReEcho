@@ -83,6 +83,8 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	    GetDefault<UReEcho2DCharacterPresentationProfile>();
 	TestTrue(TEXT("Character profile exposes a normalized weapon anchor"),
 	         !DefaultCharacterProfile->WeaponAnchorRatio.ContainsNaN());
+	TestNotNull(TEXT("Sage MoonStaff animation helper retains its presentation profile"),
+	            FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("MoonStaff")));
 	TestFalse(TEXT("Bow has held visual"),
 	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->HeldTexture.IsNull());
 	TestEqual(TEXT("Bow mirrors only while facing left"),

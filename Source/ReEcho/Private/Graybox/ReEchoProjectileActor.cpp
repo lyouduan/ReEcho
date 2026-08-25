@@ -209,8 +209,7 @@ void AReEchoProjectileActor::SpawnWeaponImpactNiagara(const FVector& Location, c
 
 FString AReEchoProjectileActor::ResolveWeaponTexturePath(const FName WeaponVisualKey)
 {
-	if (WeaponVisualKey != TEXT("Bow") && WeaponVisualKey != TEXT("Gun") && WeaponVisualKey != TEXT("Staff") &&
-	    WeaponVisualKey != TEXT("MoonStaff"))
+	if (WeaponVisualKey != TEXT("Bow") && WeaponVisualKey != TEXT("Gun") && WeaponVisualKey != TEXT("MoonStaff"))
 	{
 		return FString();
 	}
@@ -253,7 +252,7 @@ void AReEchoProjectileActor::ConfigureWeaponVisual(const FName InWeaponVisualKey
 	{
 		Shape->SetRelativeScale3D(FVector(0.14f));
 	}
-	else if (InWeaponVisualKey == TEXT("Staff") || InWeaponVisualKey == TEXT("MoonStaff"))
+	else if (InWeaponVisualKey == TEXT("MoonStaff"))
 	{
 		Shape->SetRelativeScale3D(FVector(0.34f, 0.18f, 0.34f));
 	}

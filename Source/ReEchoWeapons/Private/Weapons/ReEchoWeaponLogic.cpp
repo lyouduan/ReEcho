@@ -231,6 +231,8 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	OutCommit.ExplosionRadiusCm =
 	    Step->ExplosionRadiusCm > 0.0f ? Step->ExplosionRadiusCm : Definition.ExplosionRadiusCm;
 	OutCommit.MovementCm = Step->MovementCm;
+	OutCommit.OuterRingStartFraction = Step->OuterRingStartFraction;
+	OutCommit.OuterRingBonusMultiplier = Step->OuterRingBonusMultiplier;
 	OutCommit.BehaviorDurationSeconds = ScaledDuration;
 	OutCommit.bInvulnerable = Step->bInvulnerable;
 	OutCommit.bCritical = bCritical;
@@ -256,13 +258,10 @@ float FReEchoWeaponLogic::ComputeDamage(const FReEchoWeaponStepDefinition& Step,
                                         const EReEchoElement Element,
                                         bool& bOutCritical)
 {
-	const float PhysicalCoefficient =
-	    Step.PhysicalCoefficient > 0.0f ? Step.PhysicalCoefficient : Definition.PhysicalCoefficient;
-	const float ElementalCoefficient =
-	    Step.ElementalCoefficient > 0.0f ? Step.ElementalCoefficient : Definition.ElementalCoefficient;
-	float Damage = Element == EReEchoElement::None
-	                   ? Stats.PhysicalAttack * PhysicalCoefficient
-	                   : Stats.ElementalAttack * FMath::Max(ElementalCoefficient, PhysicalCoefficient);
+	const float DamageCoefficient =
+	    Step.DamageCoefficient > 0.0f ? Step.DamageCoefficient : Definition.DamageCoefficient;
+	float Damage = Element == EReEchoElement::None ? Stats.PhysicalAttack * DamageCoefficient
+	                                               : Stats.ElementalAttack * DamageCoefficient;
 
 	bOutCritical = false;
 	if (Stats.RoleId == TEXT("Hunter"))

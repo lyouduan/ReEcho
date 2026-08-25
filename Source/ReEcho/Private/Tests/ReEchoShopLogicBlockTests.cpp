@@ -7,10 +7,13 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/ScaleBox.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
+#include "Components/SizeBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Engine/Texture2D.h"
@@ -253,6 +256,8 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	             SecondCard->GetVisibility() == ESlateVisibility::Visible);
 	TestTrue(TEXT("A missing third candidate stays collapsed rather than being backfilled"),
 	         ThirdCard && ThirdCard->GetVisibility() == ESlateVisibility::Collapsed);
+	TestNotNull(TEXT("The first paid candidate uses the authored card entry presentation"),
+	            Widget->GetWidgetFromName(TEXT("TraitCardEntry0")));
 	UButton* FirstRefresh = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopCardRefreshButton0")));
 	UTextBlock* FirstRefreshText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("ShopCardRefreshText0")));
 	UButton* ThirdRefresh = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopCardRefreshButton2")));
@@ -263,13 +268,43 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	             FirstRefreshText->GetText().ToString().Contains(TEXT("5")));
 	TestTrue(TEXT("A missing candidate also hides its refresh button"),
 	         ThirdRefresh && ThirdRefresh->GetVisibility() == ESlateVisibility::Collapsed);
-	if (UReEchoTraitCardEntryWidget* FirstEntry =
-	        Cast<UReEchoTraitCardEntryWidget>(Widget->GetWidgetFromName(TEXT("TraitCardEntry0"))))
-	{
-		const UTextBlock* PriceHint = Cast<UTextBlock>(FirstEntry->GetWidgetFromName(TEXT("SelectHintText")));
-		TestTrue(TEXT("Each paid choice displays its own effective price"),
-		         PriceHint && PriceHint->GetText().ToString().Contains(TEXT("35")));
-	}
+	FReEchoShopCardChoiceOffer Third = First;
+	Third.CardId = TEXT("G_2_03");
+	Third.ItemId = TEXT("SHOP_CARD_TEST_3");
+	Third.DisplayName = FText::FromString(TEXT("候选三"));
+	Third.SlotIndex = 2;
+	Widget->InitializeShopOffers({First, Second, Third}, 40, 2);
+	Widget->AdvanceRevealAnimationForTesting(10.0f);
+	TestTrue(TEXT("The initial pack reveal finishes all three cards"),
+	         FirstCard && SecondCard && ThirdCard && FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(SecondCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+
+	FReEchoShopCardChoiceOffer RefreshedSecond = Second;
+	RefreshedSecond.CardId = TEXT("G_2_04");
+	RefreshedSecond.ItemId = TEXT("SHOP_CARD_TEST_2_REFRESHED");
+	RefreshedSecond.DisplayName = FText::FromString(TEXT("刷新候选二"));
+	Widget->InitializeShopOffers({First, RefreshedSecond, Third}, 35, 2, Second.SlotIndex);
+	TestTrue(TEXT("A successful slot refresh hides only the replaced card"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(SecondCard->GetRenderOpacity(), 0.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+	TestTrue(TEXT("Unchanged cards keep their completed reveal transforms"),
+	         FirstCard->GetRenderTransform().Scale.Equals(FVector2D(1.0f)) &&
+	             FirstCard->GetRenderTransform().Translation.IsNearlyZero() &&
+	             ThirdCard->GetRenderTransform().Scale.Equals(FVector2D(1.0f)) &&
+	             ThirdCard->GetRenderTransform().Translation.IsNearlyZero());
+	Widget->AdvanceRevealAnimationForTesting(0.17f);
+	TestTrue(TEXT("Only the replaced card advances through the slot reveal"),
+	         SecondCard->GetRenderOpacity() > 0.0f && SecondCard->GetRenderOpacity() < 1.0f &&
+	             FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+	Widget->AdvanceRevealAnimationForTesting(1.0f);
+	TestTrue(TEXT("The refreshed card finishes visible without replaying its neighbors"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(SecondCard->GetRenderOpacity(), 1.0f) &&
+	             FMath::IsNearlyEqual(ThirdCard->GetRenderOpacity(), 1.0f));
+
 	FReEchoTraitCardOffer FreeChoice;
 	FreeChoice.CardId = TEXT("G_2_03");
 	FreeChoice.DisplayName = FText::FromString(TEXT("免费候选"));
@@ -287,6 +322,133 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	             FirstRefreshText->GetText().ToString().Contains(TEXT("5")));
 	TestTrue(TEXT("Free choice keeps the shop-only cancel action hidden"),
 	         CancelButton && CancelButton->GetVisibility() == ESlateVisibility::Collapsed);
+	Widget->AdvanceRevealAnimationForTesting(10.0f);
+	FReEchoTraitCardOffer RefreshedFreeChoice = FreeChoice;
+	RefreshedFreeChoice.CardId = TEXT("G_2_04");
+	RefreshedFreeChoice.DisplayName = FText::FromString(TEXT("刷新免费候选"));
+	Widget->InitializeOffers({RefreshedFreeChoice}, 15, FreeChoice.SlotIndex);
+	TestTrue(TEXT("Post-encounter free refresh uses the same isolated slot reveal"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 0.0f));
+	Widget->AdvanceRevealAnimationForTesting(1.0f);
+	TestTrue(TEXT("Post-encounter refreshed card becomes visible again"),
+	         FMath::IsNearlyEqual(FirstCard->GetRenderOpacity(), 1.0f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTraitCardAuthoredPresentationTest,
+                                 "ReEcho.UI.TraitCard.AuthoredPresentation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters)
+{
+	UClass* EntryWidgetClass = LoadClass<UReEchoTraitCardEntryWidget>(
+	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardEntry.WBP_ReEchoTraitCardEntry_C"));
+	if (!TestNotNull(TEXT("Authored Trait Card entry class loads"), EntryWidgetClass))
+	{
+		return false;
+	}
+	UReEchoTraitCardEntryWidget* Entry =
+	    NewObject<UReEchoTraitCardEntryWidget>(GetTransientPackage(), EntryWidgetClass);
+	if (!TestTrue(TEXT("Authored Trait Card entry initializes"), Entry && Entry->Initialize()))
+	{
+		return false;
+	}
+	Entry->TakeWidget();
+	for (const FName ObsoleteWidgetName : {FName(TEXT("ArtCardFrame")),
+	                                       FName(TEXT("ArtCardImage")),
+	                                       FName(TEXT("ArtTagPrimary")),
+	                                       FName(TEXT("ArtTagSecondary")),
+	                                       FName(TEXT("PrimaryTagText")),
+	                                       FName(TEXT("SecondaryTagText")),
+	                                       FName(TEXT("CardContent")),
+	                                       FName(TEXT("KickerText")),
+	                                       FName(TEXT("SelectHintText"))})
+	{
+		TestNull(*FString::Printf(TEXT("Obsolete Trait Card widget %s is absent"), *ObsoleteWidgetName.ToString()),
+		         Entry->GetWidgetFromName(ObsoleteWidgetName));
+	}
+	TestNotNull(TEXT("Production card art binding remains present"), Entry->GetWidgetFromName(TEXT("ArtImage")));
+	const UScaleBox* CardRootScaleBox = Cast<UScaleBox>(Entry->GetWidgetFromName(TEXT("CardRootScaleBox")));
+	const USizeBox* CardRootSizeBox = Cast<USizeBox>(Entry->GetWidgetFromName(TEXT("CardRootSizeBox")));
+	const UButton* EntrySelectButton = Cast<UButton>(Entry->GetWidgetFromName(TEXT("SelectButton")));
+	const UOverlay* EntryOverlay = Cast<UOverlay>(Entry->GetWidgetFromName(TEXT("Overlay_0")));
+	TestTrue(TEXT("Designer card entry preserves the imported card aspect ratio"),
+	         CardRootScaleBox && CardRootScaleBox->GetParent() == nullptr &&
+	             CardRootScaleBox->GetStretch() == EStretch::ScaleToFit &&
+	             CardRootScaleBox->GetStretchDirection() == EStretchDirection::Both);
+	TestTrue(TEXT("Designer card entry uses the imported 420x593 art size"),
+	         CardRootSizeBox && CardRootSizeBox->GetParent() == CardRootScaleBox &&
+	             CardRootSizeBox->IsWidthOverride() && CardRootSizeBox->IsHeightOverride() &&
+	             CardRootSizeBox->GetWidthOverride() == 420.0f &&
+	             CardRootSizeBox->GetHeightOverride() == 593.0f);
+	const UScaleBoxSlot* CardDesignSurfaceSlot =
+	    CardRootSizeBox ? Cast<UScaleBoxSlot>(CardRootSizeBox->Slot) : nullptr;
+	TestTrue(TEXT("Card design surface remains centered instead of stretching in the ScaleBox"),
+	         CardDesignSurfaceSlot && CardDesignSurfaceSlot->GetHorizontalAlignment() == HAlign_Center &&
+	             CardDesignSurfaceSlot->GetVerticalAlignment() == VAlign_Center);
+	TestTrue(TEXT("Card selection button fills the fixed root"),
+	         EntrySelectButton && EntrySelectButton->GetParent() == CardRootSizeBox &&
+	             Cast<USizeBoxSlot>(EntrySelectButton->Slot));
+	const UButtonSlot* EntryOverlaySlot = EntryOverlay ? Cast<UButtonSlot>(EntryOverlay->Slot) : nullptr;
+	TestTrue(TEXT("Card presentation overlay fills the fixed selection button"),
+	         EntryOverlaySlot && EntryOverlaySlot->GetHorizontalAlignment() == HAlign_Fill &&
+	             EntryOverlaySlot->GetVerticalAlignment() == VAlign_Fill);
+	const UTextBlock* SampleName = Cast<UTextBlock>(Entry->GetWidgetFromName(TEXT("NameText")));
+	const UTextBlock* SampleDescription = Cast<UTextBlock>(Entry->GetWidgetFromName(TEXT("DescriptionText")));
+	TestTrue(TEXT("Designer card entry has representative sample copy"),
+	         SampleName && !SampleName->GetText().IsEmpty() && SampleDescription &&
+	             !SampleDescription->GetText().IsEmpty());
+	TestTrue(TEXT("Designer card name is freely draggable on the card canvas"),
+	         SampleName && SampleName->GetParent() &&
+	             SampleName->GetParent()->GetName() == TEXT("CardDesignerCanvas") &&
+	             Cast<UCanvasPanelSlot>(SampleName->Slot));
+	TestTrue(TEXT("Designer card description is freely draggable on the card canvas"),
+	         SampleDescription && SampleDescription->GetParent() &&
+	             SampleDescription->GetParent()->GetName() == TEXT("CardDesignerCanvas") &&
+	             Cast<UCanvasPanelSlot>(SampleDescription->Slot));
+
+	UClass* ChoiceWidgetClass = LoadClass<UReEchoTraitCardChoiceWidget>(
+	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardChoice.WBP_ReEchoTraitCardChoice_C"));
+	if (!TestNotNull(TEXT("Authored Trait Card choice class loads"), ChoiceWidgetClass))
+	{
+		return false;
+	}
+	UReEchoTraitCardChoiceWidget* Choice =
+	    NewObject<UReEchoTraitCardChoiceWidget>(GetTransientPackage(), ChoiceWidgetClass);
+	if (!TestTrue(TEXT("Authored Trait Card choice initializes"), Choice && Choice->Initialize()))
+	{
+		return false;
+	}
+	for (int32 SlotIndex = 0; SlotIndex < 3; ++SlotIndex)
+	{
+		TestNotNull(*FString::Printf(TEXT("Designer slot %d contains a sample card"), SlotIndex),
+		            Choice->GetWidgetFromName(*FString::Printf(TEXT("DesignerTraitCardSample%d"), SlotIndex)));
+	}
+	Choice->TakeWidget();
+	for (const FName ObsoleteWidgetName :
+	     {FName(TEXT("SubtitleText")), FName(TEXT("CurrencyText")), FName(TEXT("NeedleWidget"))})
+	{
+		TestNull(*FString::Printf(TEXT("Obsolete choice widget %s is absent"), *ObsoleteWidgetName.ToString()),
+		         Choice->GetWidgetFromName(ObsoleteWidgetName));
+	}
+	const UButton* Confirm = Cast<UButton>(Choice->GetWidgetFromName(TEXT("ConfirmButton")));
+	const UTextBlock* ConfirmLabel = Cast<UTextBlock>(Choice->GetWidgetFromName(TEXT("ConfirmButtonLabel")));
+	const UTextBlock* ChoiceTitle = Cast<UTextBlock>(Choice->GetWidgetFromName(TEXT("TitleText")));
+	const UTexture2D* ExpectedButtonTexture =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/"
+	                                "T_UI_Pause_ButtonLight.T_UI_Pause_ButtonLight"));
+	TestTrue(TEXT("Confirm button uses the delivered light pause-button art for normal and disabled states"),
+	         Confirm && ExpectedButtonTexture &&
+	             Confirm->GetStyle().Normal.GetResourceObject() == ExpectedButtonTexture &&
+	             Confirm->GetStyle().Disabled.GetResourceObject() == ExpectedButtonTexture);
+	TestTrue(TEXT("Confirm label remains the visible interaction copy"),
+	         ConfirmLabel && ConfirmLabel->GetText().ToString() == TEXT("确定"));
+	TestTrue(TEXT("Choice title is freely draggable on the root canvas"),
+	         ChoiceTitle && Cast<UCanvasPanelSlot>(ChoiceTitle->Slot));
+	TestTrue(TEXT("Confirm label is independent from the button and freely draggable"),
+	         ConfirmLabel && ConfirmLabel->GetParent() && ConfirmLabel->GetParent()->GetName() == TEXT("RootPanel") &&
+	             Cast<UCanvasPanelSlot>(ConfirmLabel->Slot));
 	return true;
 }
 

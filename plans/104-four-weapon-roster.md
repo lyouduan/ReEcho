@@ -6,16 +6,17 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`，需要用户在 PIE/Shipping 验收四武器开局选择和镰刀基础攻击。
-- 本地规划 / 实现基线：`origin/main@7c409c81af85255689ff404c38e232b36c0d660c`。
+- 本地规划基线：`origin/main@7c409c81af85255689ff404c38e232b36c0d660c`；最终实现适配基线：`origin/main@eba660bbd9de10aa7d592d0a6280cfed8abff332`。
 - 本地实现方式：`plan/104-four-weapon-roster`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan104-four-weapon-roster`。
-- 依赖 / 阻塞：组合适配已关闭 Plan101；并行 Plan103 将删除迁移期旧 JSON，本 Plan 不读取或维护这些 JSON，最终集成前审计其实际提交。
+- 依赖 / 阻塞：已组合适配关闭的 Plan101 与已进入主线的 Plan103；Plan105 仅发布计划，不与本实现产生逻辑冲突。当前仅等待用户人工验收。
 - Writes:
   - `plans/104-four-weapon-roster.md`
   - `Design/Data/ReEchoData.xlsx`
   - 由工作簿生成的 `Content/Data/{weapon_types,weapons,attack_steps,slot_types,slot_profiles,parts,part_effects,characters,csv_schema,reecho_data_manifest}.csv` 中实际变化文件
   - `scripts/data/sync_xlsx_to_csv.py`、`scripts/validate_project.py` 及聚焦数据测试
+  - `scripts/ue/author_echo_presentation_profiles.py`、`scripts/ue/migrate_plan78_dataassets.py`、`scripts/ue/migrate_plan104_four_weapon_assets.py`
   - `Source/ReEcho/{Public,Private}/Data/` 中武器 CSV 契约与读取/校验
   - `Source/ReEcho/{Public,Private}/Weapons/` 中世界执行、镰刀基础规则和法杖/鞭子适配清理
   - `Source/ReEcho/{Public,Private}/Graybox/` 中法杖/鞭子专用载体清理和共享载体收敛
@@ -28,6 +29,7 @@
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`
+  - `shared/LESSONS.md`
   - 最终 FullRebuild 刷新的 `Binaries/Win64/` 精选预构建包
 - Stable Reads:
   - `plans/101-separated-shop-card-pack-refresh.md`
@@ -46,6 +48,7 @@
 4. 镰刀基础攻击继续使用数据给出的 360 度、150 cm、0.6 系数，并实现描述中已明确的外圈规则：距离攻击中心超过有效半径 50% 的目标额外获得 40% 伤害倍率。比例和倍率由生产 XLSX/CSV 提供，不在 C++ 复制平衡常量。
 5. 镰刀开局卡片、商店武器图和手持表现继续使用正式 `Scythe` Presentation Profile/纹理；镰刀符文图标只消费现有已导入资源，不新增主观美术内容，缺少正式 PartId 命名时记录美术交接而不阻塞逻辑。
 6. 读取旧存档/录制恢复定义时，`W_J_02`、`W_J_07` 或其他缺失/禁用武器 ID 明确判定不兼容；不得迁移、回退或复用为保留武器。
+7. 武器与攻击段统一使用单一有效伤害倍率 `DamageCoefficient`。原初之晶选择 `PhysicalAttack`，元素宝石和棱镜之晶选择 `ElementalAttack`；宝石不再提供或选择第二套倍率。
 
 ## 架构影响与设计决策
 
@@ -56,30 +59,31 @@
 - 决策记录：不复用 `W_J_02/W_J_07`，避免旧存档语义漂移；镰刀使用被法杖释放的 Slot1，保留长剑/弓/枪现有输入以减少无关兼容变化；镰刀外圈参数进入数据 Schema，避免按 `Pattern.ScytheSweep` 硬编码数值；退役资源仅在 Unreal referencer 审计为零后删除。
 - 相关文档同步范围：必审 `ARCHITECTURE.md`、`README.md`、`MOD-ReEcho.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoUI.md`、`MOD-ReEchoVFX.md`；拓扑/索引无变化时只在执行记录写明无需修改原因。
 - 关闭前逐项填写审阅结果：
-  - `ARCHITECTURE.md`：待审阅模块拓扑与数据链是否变化；
-  - `README.md`：待审阅 AREA 路由是否变化；
-  - `MOD-ReEcho.md`：待同步四武器数据、商店、存档和表现适配事实；
-  - `MOD-ReEchoWeapons.md`：待同步四武器定义和镰刀外圈契约；
-  - `MOD-ReEchoUI.md`：待同步四武器选择与图标投影；
-  - `MOD-ReEchoVFX.md`：待移除法杖/鞭子阶段性表现说明。
+  - `ARCHITECTURE.md`：已审阅；模块拓扑和权威数据链未变化，无需修改；
+  - `README.md`：已审阅；AREA 路由未变化，无需修改；
+  - `MOD-ReEcho.md`：已同步四武器数据、商店、存档和表现适配事实；
+  - `MOD-ReEchoWeapons.md`：已同步四武器定义和镰刀外圈契约；
+  - `MOD-ReEchoUI.md`：已审阅；现有 UI 投影边界已覆盖四武器选择，无需修改；
+  - `MOD-ReEchoVFX.md`：已同步四武器表现与独立 `MoonStaff` 辅助表现边界。
 
 ## 锁定验收
 
-- [ ] XLSX 可见生产表、生成 CSV、运行时快照、开局选择和商店只暴露四把保留武器，法杖/鞭子稳定 ID 不被复用。
+- [x] XLSX 可见生产表、生成 CSV、运行时快照、开局选择和商店只暴露四把保留武器，法杖/鞭子稳定 ID 不被复用。
 - [ ] 镰刀可在开局界面选择，进入游戏后显示正确图标/手持资源并能完成基础攻击。
-- [ ] 镰刀内圈使用基础伤害，外圈在同一权威命中流程中应用数据定义的额外 40% 倍率；边界与多目标有自动化证据。
-- [ ] 猎手/诗人/勇者/智者默认武器分别为弓/弓/镰刀/长剑，描述一致。
-- [ ] 含 `W_J_02` 或 `W_J_07` 的旧存档/恢复快照明确失败，Plan101 的当前 Save v18 商店/刷新恢复继续通过。
-- [ ] 法杖/鞭子专用 C++、运行时注册、商店候选、测试要求和零引用内容资产已清理；通用 Projectile/Melee 行为未回归。
-- [ ] XLSX 同步、聚焦自动化、Shipping Cook/烟测、最终 Development FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 镰刀内圈使用基础伤害，外圈在同一权威命中流程中应用数据定义的额外 40% 倍率；边界与多目标有自动化证据。
+- [x] 猎手/诗人/勇者/智者默认武器分别为弓/弓/镰刀/长剑，描述一致。
+- [x] 含 `W_J_02` 或 `W_J_07` 的旧存档/恢复快照明确失败，Plan101 的当前 Save v18 商店/刷新恢复继续通过。
+- [x] 法杖/鞭子专用 C++、运行时注册、商店候选、测试要求和零引用内容资产已清理；通用 Projectile/Melee 行为未回归。
+- [x] 双倍率字段和 `FMath::Max(ElementalCoefficient, PhysicalCoefficient)` 兼容逻辑已删除；四把保留武器搭配原初、元素、棱镜宝石的 12 组伤害回归已覆盖。
+- [x] XLSX 同步、聚焦自动化、Shipping Cook/烟测、最终 Development FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
 - [ ] 用户完成 PIE/Shipping 人工验收后才关闭并发布实现；未提交精选允许列表外 UE 生成物或机器本地路径。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@7c409c81`；包含已关闭 Plan101 和已发布 Plan103 文档。用户已确认组合适配并授权开始。
+- 基线分支/提交：规划从 `origin/main@7c409c81` 开始；实现完成后已吸收并适配最新 `origin/main@eba660bb`。用户已确认组合适配并授权开始。
 - 引擎/构建可用性：UE 5.8 与标准构建/打包脚本可用；独占命令前检查交互式 Editor 和 Git common-dir 锁。
 - 现有聚焦测试结果：基线 `python scripts/validate_project.py` 通过，但它仍主动要求五把开局武器和法杖爆炸武器，属于本 Plan 要替换的旧契约。
-- 共享契约 / 难合并资源风险：`ReEchoData.xlsx` 是二进制共享源；Plan103 将修改 `validate_project.py`、`MOD-ReEcho.md` 和最终预构建包。推送实现前必须吸收并审计其实际结果，重新生成 XLSX/CSV 和全部二进制证据。
+- 共享契约 / 难合并资源风险：`ReEchoData.xlsx` 是二进制共享源；已吸收 Plan103 对 `validate_project.py`、`MOD-ReEcho.md` 和预构建包的修改，确认物理重叠均已重新生成或合并，旧 JSON 已按 Plan103 从主线移除。
 - 基线损坏时的停止条件：若保留四武器之一的当前通用攻击、Plan101 商店刷新或 Save v18 基线测试失败，先区分已有问题，不通过削弱断言掩盖。
 
 ## 实现提纲
@@ -89,6 +93,7 @@
 3. 让 Loadout/Shop/Save/Recording 只消费四武器集合，并为退役 ID 增加明确不兼容错误与回归测试。
 4. 用 Unreal 资产注册表审计法杖/鞭子 Profile/纹理/载体引用，只删除零引用内容；核验镰刀 Profile、纹理、VFX 和开局 UI 加载。
 5. 更新聚焦测试、校验器、模块文档和执行记录，完成自动化、Shipping、FullRebuild、静态门禁后交付用户测试。
+6. 将武器/攻击段 Schema 收敛为 `DamageCoefficient`，由核心宝石的 `DamageChannel` 单独选择属性来源，并建立四武器乘三类宝石的伤害矩阵。
 
 ## 验证矩阵
 
@@ -110,14 +115,24 @@
 - 2026-08-25：用户确认只保留长剑、镰刀、弓、枪；旧存档引用法杖/鞭子时明确不兼容，并要求镰刀进入开局选择。
 - 2026-08-25：审计发现当前生产表仍启用法杖/鞭子；镰刀已有通用扫击、Profile、纹理、VFX、CSV 和符文，但基础外圈额外伤害尚未实现。
 - 2026-08-25：用户两次确认组合适配新到达的 Plan101 实现与 Plan103 文档，本任务由拟定 Plan103 顺延为 Plan104。
+- 2026-08-25：从 `origin/main@eba660bb` 完成最终适配，审计 Plan103 实现和 Plan105 计划；物理重叠集中于校验器、模块文档和预构建包，无未解决逻辑冲突。
+- 2026-08-25：生产表收敛为镰刀、长剑、弓、枪；删除法杖/鞭子生产关系与零引用资产，保留与生产法杖无关的智者 `MoonStaff` 辅助表现。
+- 2026-08-25：镰刀外圈参数进入 XLSX/CSV、不可变武器提交与统一命中路径；旧存档和录制中的退役 WeaponId 明确拒绝。
+- 2026-08-25：补充统一伤害倍率契约；XLSX、CSV、Reader、Definition 和符文效果目标改为 `DamageCoefficient`，删除双倍率兼容选择，新增四武器乘原初/元素/棱镜宝石的 12 组回归。
 
 ### 证据
 
-- 规划基线 `validate_project.py` 通过；该结果只证明当前六类型/五开局武器旧契约内部一致，不是四武器验收证据。
+- `python scripts/data/test_sync_xlsx_to_csv.py`：18 项通过；`python scripts/data/sync_xlsx_to_csv.py --check`、`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
+- `ReEcho.Weapons`、`ReEcho.Run`、`ReEcho.Shop`、`ReEcho.UI` 自动化通过；四武器数据、镰刀外圈边界、退役 ID 拒绝和商店/UI 回归均有自动化证据。
+- 统一倍率补充完成 `ReEcho.Weapons` 17 项全组回归；`ReEcho.Weapons.Gems.DamageCoefficientMatrix` 覆盖四把保留武器分别搭配原初、火焰和棱镜核心的 12 组属性来源、伤害类型与倍率结果。
+- `Build-Editor.cmd -Configuration Development -FullRebuild` 完成 117 个动作；吸收最新主线并打包后再次执行增量 Development 编译，目标为最新状态。
+- 统一倍率补充完成最终 Development FullRebuild 99 个动作；Shipping 候选完成干净 BuildCookRun，Cook 为 0 错误、4 条主线既有警告，34 个运行时 CSV 已暂存，10 秒启动烟测通过；本地候选目录名为 `ReEcho-Plan104-DamageCoefficient-Shipping-Candidate`，不进入版本库。
 
 ### 剩余风险
 
-- Plan103 实现尚未进入远端；它与本 Plan 共享校验器、模块文档和最终预构建包，发布实现前必须重新审计并组合。
+- `ReEcho.Data` 中与本 Plan 直接相关的四武器测试通过，但整组仍受主线既有断言影响：Rabbit 双形态表现断言与当前数据不一致、Trait 池预期 39 而实际 37。
+- 补充运行的 `ReEcho.Presentation` 中，本 Plan 的武器能力、生命周期和 RuntimeAssetPreload 测试通过；整组仍受主线既有问题影响：TimeGuard Phase2 不可用，以及 Bow Niagara 两个 emitter 未启用 Local Space。
+- 上述遗留问题不在 Plan104 Writes 和四武器范围内，未通过削弱断言掩盖；发布门禁前应由对应任务处理。当前实现只剩用户人工验收。
 
 ### 人工验收结果/请求
 
@@ -125,4 +140,7 @@
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `ARCHITECTURE.md`：拓扑和 XLSX→CSV→Definition→Weapons/Combat 权威链未变化，无需修改。
+- `README.md`：模块与 AREA 路由未变化，无需修改。
+- `MOD-ReEcho.md`、`MOD-ReEchoWeapons.md`、`MOD-ReEchoVFX.md`：已同步四武器生产集合、镰刀外圈契约、退役 ID 不兼容与 `MoonStaff` 辅助表现边界。
+- `MOD-ReEchoUI.md`：已审阅，既有 UI 从启用数据投影的边界仍准确，无需修改。

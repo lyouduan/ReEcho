@@ -132,11 +132,6 @@ FString CharacterTexturePath(const FName AppearanceId)
 
 FString WeaponTexturePath(const FName VisualKey)
 {
-	if (VisualKey == TEXT("Whip"))
-	{
-		// Whip texture asset not yet produced; reuse longsword icon as placeholder.
-		return TEXT("/Game/ReEcho/Textures/Effects/CrescentWeapon.CrescentWeapon");
-	}
 	if (VisualKey == TEXT("MoonStaff"))
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff");
@@ -153,10 +148,6 @@ FString WeaponTexturePath(const FName VisualKey)
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/Scythe.Scythe");
 	}
-	if (VisualKey == TEXT("Whip"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/Whip.Whip");
-	}
 	if (VisualKey == TEXT("Bow"))
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/Bow.Bow");
@@ -164,10 +155,6 @@ FString WeaponTexturePath(const FName VisualKey)
 	if (VisualKey == TEXT("Gun"))
 	{
 		return TEXT("/Game/ReEcho/Textures/Effects/Gun.Gun");
-	}
-	if (VisualKey == TEXT("Staff"))
-	{
-		return TEXT("/Game/ReEcho/Textures/Effects/MoonStaff.MoonStaff");
 	}
 	return FString();
 }
@@ -389,13 +376,13 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 		}
 		else
 		{
-			CharacterButtons.Add(AddImageOptionButton(WidgetTree,
-			                                            CharacterRow,
-			                                            *FString::Printf(TEXT("CharacterButton%d"), OptionIndex),
-			                                            CharacterLabels.FindRef(CharacterId),
-			                                            CharacterTexturePath(
-			                                                Snapshot->FindCharacter(CharacterId)->AppearanceId),
-			                                            OptionIndex));
+			CharacterButtons.Add(
+			    AddImageOptionButton(WidgetTree,
+			                         CharacterRow,
+			                         *FString::Printf(TEXT("CharacterButton%d"), OptionIndex),
+			                         CharacterLabels.FindRef(CharacterId),
+			                         CharacterTexturePath(Snapshot->FindCharacter(CharacterId)->AppearanceId),
+			                         OptionIndex));
 		}
 	}
 	for (int32 OptionIndex = 0; OptionIndex < WeaponOptionIds.Num(); ++OptionIndex)
@@ -414,11 +401,11 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 		else
 		{
 			WeaponButtons.Add(AddImageOptionButton(WidgetTree,
-			                                         WeaponRow,
-			                                         *FString::Printf(TEXT("WeaponButton%d"), OptionIndex),
-			                                         WeaponLabels.FindRef(WeaponId),
-			                                         WeaponTexturePath(Snapshot->FindWeapon(WeaponId)->VisualKey),
-			                                         OptionIndex));
+			                                       WeaponRow,
+			                                       *FString::Printf(TEXT("WeaponButton%d"), OptionIndex),
+			                                       WeaponLabels.FindRef(WeaponId),
+			                                       WeaponTexturePath(Snapshot->FindWeapon(WeaponId)->VisualKey),
+			                                       OptionIndex));
 		}
 	}
 }
@@ -439,12 +426,12 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	for (int32 OptionIndex = 0; OptionIndex < CharacterEntries.Num(); ++OptionIndex)
 	{
 		CharacterEntries[OptionIndex]->SetSelected(CharacterOptionIds.IsValidIndex(OptionIndex) &&
-		                                                SelectedCharacterId == CharacterOptionIds[OptionIndex]);
+		                                           SelectedCharacterId == CharacterOptionIds[OptionIndex]);
 	}
 	for (int32 OptionIndex = 0; OptionIndex < WeaponEntries.Num(); ++OptionIndex)
 	{
 		WeaponEntries[OptionIndex]->SetSelected(WeaponOptionIds.IsValidIndex(OptionIndex) &&
-		                                             SelectedWeaponId == WeaponOptionIds[OptionIndex]);
+		                                        SelectedWeaponId == WeaponOptionIds[OptionIndex]);
 	}
 	if (StatusText)
 	{

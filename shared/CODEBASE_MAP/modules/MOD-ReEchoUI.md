@@ -7,7 +7,7 @@
 - Build 文件：无；当前构建规则仍位于 `Source/ReEcho/ReEcho.Build.cs`。
 - 主要目录：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`、`Content/ReEcho/UI/`、`Content/ReEcho/Textures/UI/`、`Content/SourceArt/UI/`。
 - UI 架构设计权威：[ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md)。
-- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan102。
+- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102。
 
 ## 存在原因
 
@@ -34,6 +34,7 @@
 - 同一商店页展示数据驱动的武器槽组、兼容配件报价和装配草稿；未拥有配件点击后发送购买命令，已拥有配件点击后只编辑草稿，“保存配置”才发送完整 PartId 集合给 Run。关闭页面不提交草稿，已成功购买的配件所有权仍保留。
 - UI 只消费只读摘要或事件并发送受控命令，不直接写 Run、Combat、Weapons、Enemies 或存档权威状态。
 - 战后角色能力不建立专用 UI 分支：旧 Forge 标题、候选和提交命令已删除；旧存档的 Forge 阶段由 Run 迁移到普通卡牌选择，Widget 只显示正式卡牌候选。
+- 构筑三选一卡面只保留正式卡牌插图、名称、说明、图标和选择交互；旧标签条、候选/选择提示、标签文字及纯色/运行时染色占位卡底已从 `WBP_ReEchoTraitCardEntry` 和 C++ 注入契约中删除。`WBP_ReEchoTraitCardEntry` 的默认正文/图片是 Designer 样例，根 `CardRootScaleBox` 等比缩放内部与正式底图一致的 `420×593` `CardRootSizeBox` 设计面；`WBP_ReEchoTraitCardChoice` 三个槽位内各放一个仅供所见即所得预览的样例实例，运行时以真实条目替换并写入数据，不改变槽位几何。Entry 的 `NameText` / `DescriptionText` 位于 `CardDesignerCanvas`，Choice 的 `TitleText` / `ConfirmButtonLabel` 位于根 Canvas，均可在 Designer 中独立拖动；运行时只写内容。底部 `ConfirmButton` 的按钮美术由 Choice WBP 的 Button Style 直接引用 `T_UI_Pause_ButtonLight`，独立标签为 `HitTestInvisible`，C++ 只管理选择索引、启用状态与确认委托；无 WBP fallback 的卡牌按钮底色保持透明。
 - 关闭、返回、事务拒绝、购买成功与卡牌选择成功的专用声音由命令结果宿主发布；按钮基础反馈不代替事务结果，也不得让音频失败改变 UI 行为。
 
 完整页面清单、WBP/C++ 分工、绑定控件名称、动态条目规则和人工验收要求，统一以 [ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md) 为准；本文件不复制第二份控件契约。
@@ -75,10 +76,11 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - 按钮根悬停回归：`scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.ButtonVisualFeedback`；全部交互 WBP 的缩放幅度、裁切和页面流程仍需 PIE 人工验收。
 - 玩家屏幕反馈回归：`scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.PlayerScreenFeedback`；视觉曲线、超宽屏、暂停层级和死亡切换仍需 PIE 人工验收。
 - WBP 变更：在 Unreal Editor 中 Compile/Save，并运行 `CompileAllBlueprints`。
+- Plan99 构筑卡牌表现回归：`scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.TraitCard`；验证正式卡图绑定保留、六个废弃标签/占位节点不存在、全部正式文字为可拖动 Canvas 子项、确认按钮使用浅色暂停按钮纹理且文案为“确定”。
 - 静态检查：`python scripts/validate_project.py`、`git diff --check`。
 - Plan47 商店回归：折扣显示与实际扣款同舍入、免费刷新优先消费且无零价无限刷新、永久代价禁用状态可见；不修改 Plan45 WBP/纹理资产。
 - Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
-- Plan97 卡牌商店投影固定为1/2/3级三个卡组入口；入口只显示等级和“未投放/选择/已购/售罄”，不显示具体卡牌 icon 或价格。可用入口发布 Tier 命令，由 GameMode 在 ZOrder 98 的 `BuildChoice` 层打开复用的卡牌选择页，高于 ZOrder 95 的商店 `Screen` 层并低于 ZOrder 100 的 Pause 层；页内最多三张同级候选各自显示有效价格，并提供“返回商店”。商店付费与战后免费三选一都在每张实际候选下方显示独立刷新按钮、该槽剩余次数和价格，并通过统一 `OnCardSlotRefreshRequested(SlotIndex)` 发送稳定槽位；GameMode 按当前页面调用对应 Run 原子命令后重注入同一层，Widget 不自行抽牌或扣费。购买/刷新失败恢复原选择，取消不改 Run，付费购买成功后关闭选择层、重新聚焦仍暂停的商店并刷新只读投影。
+- Plan97 卡牌商店投影固定为1/2/3级三个卡组入口；入口只显示等级和“未投放/选择/已购/售罄”，不显示具体卡牌 icon 或价格。可用入口发布 Tier 命令，由 GameMode 在 ZOrder 98 的 `BuildChoice` 层打开复用的卡牌选择页，高于 ZOrder 95 的商店 `Screen` 层并低于 ZOrder 100 的 Pause 层；页内最多三张同级候选各自显示有效价格，并提供“返回商店”。商店付费与战后免费三选一都在每张实际候选下方显示独立刷新按钮、该槽剩余次数和价格，并通过统一 `OnCardSlotRefreshRequested(SlotIndex)` 发送稳定槽位；GameMode 按当前页面调用对应 Run 原子命令后重注入同一层，Widget 不自行抽牌或扣费。成功逐槽刷新只将该稳定槽位映射到当前可见卡牌并重播它的揭示，另外两张卡与页面指针保持已揭示状态。购买/刷新失败恢复原选择，取消不改 Run，付费购买成功后关闭选择层、重新聚焦仍暂停的商店并刷新只读投影。
 - Plan91 武器背包扩展：Widget 不持有武器所有权，也不把换装伪装成购买；`OnWeaponEquipRequested` 交给 GameMode 调用 Run 事务。成功后整页重取只读投影，使当前武器图、武器名和兼容符文槽同时更新，但独立的武器/符文与卡牌刷新序列都不变，因此报价不重摇。
 - Plan91 稳定页中的已拥有武器仍保留原槽身份和价格，但 Widget 必须以 Run 的 `OwnedWeapons` 投影为“已获得”并禁用购买；不得依赖本次页面内的临时点击记录判断所有权。
 - Plan91 的任意商品购买成功后由 GameMode 重新注入完整商店只读投影，Widget 不再局部拼接 `EquippedParts`。这保证新购符文立即进入 `OwnedParts` 背包视图，同时依赖 Run 的稳定页缓存保持其余报价不变。

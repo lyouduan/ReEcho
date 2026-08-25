@@ -41,12 +41,20 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoShopCardChoiceCancelled OnShopChoiceCancelled;
 
-	/** 装载本轮候选项并重置逐张揭示动画。 */
-	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers, int32 InTimeShards);
+	/** 装载本轮候选项。默认重置全部揭示；刷新成功时只重播指定稳定槽位。 */
+	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers,
+	                      int32 InTimeShards,
+	                      int32 RefreshedSlotIndex = INDEX_NONE);
 	/** Reuses the reveal/selection layout for a paid, same-tier shop-card pack. Prices are effective prices. */
-	void InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers, int32 InTimeShards, int32 Tier);
+	void InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers,
+	                          int32 InTimeShards,
+	                          int32 Tier,
+	                          int32 RefreshedSlotIndex = INDEX_NONE);
 	/** Re-enables the exact same choices after a rejected purchase or refresh transaction. */
 	void RestoreChoiceFailure(int32 InTimeShards);
+#if WITH_DEV_AUTOMATION_TESTS
+	void AdvanceRevealAnimationForTesting(float DeltaSeconds);
+#endif
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -65,7 +73,9 @@ private:
 	    resolve a per-card texture path from the CardId, falling back to a generic icon when absent. */
 	static FString ResolveCardArtTexturePath(int32 Tier);
 	static FString ResolveCardIconTexturePath(FName CardId);
+	void AdvanceRevealAnimation(float DeltaSeconds);
 	void ResetRevealAnimation();
+	void ResetRevealAnimationForSlot(int32 SlotIndex);
 	void SelectOffer(int32 OfferIndex);
 	bool CanSelectOffer(int32 OfferIndex) const;
 
@@ -140,6 +150,7 @@ private:
 	int32 ShopTier = 0;
 	float RevealElapsed = 0.0f;
 	int32 SelectedOfferIndex = INDEX_NONE;
+	int32 RevealingCardIndex = INDEX_NONE;
 	bool bRevealComplete = false;
 	bool bShopMode = false;
 };

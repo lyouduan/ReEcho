@@ -47,8 +47,9 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Gun impact Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark.NS_People_Bullet_spark"))));
-	TestFalse(TEXT("Missing Whip specialist art is not preloaded or borrowed"),
-	          UniquePaths.Contains(FSoftObjectPath(TEXT("/Game/ReEcho/Textures/Effects/WhipLash.WhipLash"))));
+	TestFalse(TEXT("Retired Whip presentation profile is not preloaded"),
+	          UniquePaths.Contains(FSoftObjectPath(TEXT(
+	              "/Game/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_Whip.DA_WeaponPresentation_Whip"))));
 	TestTrue(TEXT("Grass attachment Niagara is preloaded"),
 	         UniquePaths.Contains(
 	             FSoftObjectPath(TEXT("/Game/VFX/Element/Grass/Particle/NS_Element_Grass.NS_Element_Grass"))));

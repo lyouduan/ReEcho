@@ -14,11 +14,11 @@ bool FReEchoWeaponLogicCadenceTest::RunTest(const FString& Parameters)
 	Definition.WeaponId = TEXT("TestWeapon");
 	Definition.AttackPatternId = TEXT("TestPattern");
 	Definition.AttackIntervalSeconds = 0.28f;
-	Definition.PhysicalCoefficient = 1.0f;
+	Definition.DamageCoefficient = 1.0f;
 	FReEchoWeaponStepDefinition Step;
 	Step.StepId = TEXT("Step1");
 	Step.DurationSeconds = 0.80f;
-	Step.PhysicalCoefficient = 1.0f;
+	Step.DamageCoefficient = 1.0f;
 	Definition.AttackSteps.Add(Step);
 
 	FReEchoWeaponLogic Logic;

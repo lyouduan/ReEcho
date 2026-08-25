@@ -16,7 +16,6 @@
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Presentation/VFX/ReEchoVfxPreviewActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
-#include "Graybox/ReEchoSwordArcActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
                                  "ReEcho.Presentation.VFX.Catalog",
@@ -239,18 +238,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
 	TestTrue(TEXT("Scythe uses its dedicated melee Niagara"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
-	TestFalse(TEXT("Whip does not reuse the longsword Niagara"),
-	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.WhipCombo")));
-	TestFalse(TEXT("Staff projectile is not melee"),
-	          FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.StaffProjectile")));
-	TestTrue(TEXT("Whip safely omits its unavailable legacy attack texture"),
-	         AReEchoSwordArcActor::ResolveWeaponTexturePath(TEXT("Whip")).IsEmpty());
 	TestTrue(TEXT("Bow no longer resolves a legacy projectile texture"),
 	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Bow")).IsEmpty());
 	TestTrue(TEXT("Gun no longer resolves a legacy projectile texture"),
 	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Gun")).IsEmpty());
-	TestTrue(TEXT("Canonical staff projectile reuses the existing light-wave art contract"),
-	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("Staff")).Contains(TEXT("StaffLightWave")));
+	TestTrue(TEXT("Sage MoonStaff helper keeps the existing light-wave art contract"),
+	         AReEchoProjectileActor::ResolveWeaponTexturePath(TEXT("MoonStaff")).Contains(TEXT("StaffLightWave")));
 	TestEqual(TEXT("Combat effects use the global foreground band above ordinary actors"),
 	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(23),
 	          1000);

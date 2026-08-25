@@ -5,7 +5,7 @@
 class UReEchoWeaponPresentationCatalog;
 class UReEchoWeaponPresentationProfile;
 
-/** Centralized profiles for the six data-authored weapon presentation families. */
+/** Centralized profiles for the four production weapons plus non-roster presentation helpers. */
 struct REECHO_API FReEchoWeaponVisualCatalog
 {
 	static UReEchoWeaponPresentationCatalog* ResolveCatalog();

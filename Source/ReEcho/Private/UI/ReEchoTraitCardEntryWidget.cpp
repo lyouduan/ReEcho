@@ -11,14 +11,10 @@ void UReEchoTraitCardEntryWidget::NativeConstruct()
 }
 
 void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,
-                                            const FText& Kicker,
                                             const FText& DisplayName,
                                             const FText& Description,
-                                            const TArray<FName>& Tags,
-                                            const FLinearColor& CardColor,
                                             UTexture2D* CardArt,
-                                            UTexture2D* CardIcon,
-                                            const FText& SelectHint)
+                                            UTexture2D* CardIcon)
 {
 	EntryIndex = InEntryIndex;
 	if (ArtImage)
@@ -32,41 +28,9 @@ void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,
 		IconImage->SetVisibility(CardIcon ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
 	}
 	SelectButton->SetEntryIndex(EntryIndex);
-	SelectButton->SetBackgroundColor(FLinearColor::White);
-	if (ArtCardFrame)
-	{
-		// The supplied card frame is a white/grey layout placeholder. Preserve the
-		// established runtime card palette instead of presenting every offer as white.
-		FLinearColor FrameTint = FLinearColor::LerpUsingHSV(FLinearColor::White, CardColor, 0.38f);
-		FrameTint.A = 1.0f;
-		ArtCardFrame->SetColorAndOpacity(FrameTint);
-	}
-	KickerText->SetText(Kicker);
+	SelectButton->SetBackgroundColor(FLinearColor::Transparent);
 	NameText->SetText(DisplayName);
 	DescriptionText->SetText(Description);
-	if (PrimaryTagText)
-	{
-		PrimaryTagText->SetText(Tags.IsValidIndex(0) ? FText::FromName(Tags[0]) : FText::GetEmpty());
-		PrimaryTagText->SetVisibility(Tags.IsValidIndex(0) ? ESlateVisibility::HitTestInvisible
-		                                                   : ESlateVisibility::Collapsed);
-	}
-	if (SecondaryTagText)
-	{
-		FString SecondaryTags;
-		for (int32 TagIndex = 1; TagIndex < Tags.Num(); ++TagIndex)
-		{
-			if (!SecondaryTags.IsEmpty())
-			{
-				SecondaryTags += TEXT(" / ");
-			}
-			SecondaryTags += Tags[TagIndex].ToString();
-		}
-		SecondaryTagText->SetText(FText::FromString(SecondaryTags));
-		SecondaryTagText->SetVisibility(Tags.IsValidIndex(1) ? ESlateVisibility::HitTestInvisible
-		                                                     : ESlateVisibility::Collapsed);
-	}
-	SelectHintText->SetText(
-	    SelectHint.IsEmpty() ? NSLOCTEXT("ReEcho", "TraitCardSelectHint", "点击选择 · 确认后不可撤回") : SelectHint);
 }
 
 void UReEchoTraitCardEntryWidget::SetSelectedVisual(const bool bSelected, const bool bHasSelection)

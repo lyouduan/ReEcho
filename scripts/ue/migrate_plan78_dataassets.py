@@ -47,10 +47,6 @@ WEAPONS = {
         "held": "/Game/ReEcho/Textures/Effects/Scythe",
         "attack": "/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01",
     },
-    "Whip": {
-        "held": "/Game/ReEcho/Textures/Effects/Whip",
-        "legacy": "/Game/ReEcho/Textures/Effects/WhipLash",
-    },
     "Bow": {
         "held": "/Game/ReEcho/Textures/Effects/Bow",
         "travel": "/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01",
@@ -61,7 +57,7 @@ WEAPONS = {
         "travel": "/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly",
         "damage": "/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark",
     },
-    "Staff": {
+    "MoonStaff": {
         "held": "/Game/ReEcho/Textures/Effects/MoonStaff",
         "legacy": "/Game/ReEcho/Textures/Effects/StaffLightWave",
     },

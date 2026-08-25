@@ -83,7 +83,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
 | EchoWaterAura / EchoGrassAura | `/Game/VFX/Echo/Particle/NS_Echo_Water` / `NS_Echo_Grass` | `G_2_07/G_2_08` 共享 Cards 权威 2 秒脉冲；一次性附着 Echo 专用 Aura 挂点、角色视觉中心、角色 Priority `-1`，双卡同脉冲并发、自动结束 |
 
-`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签；`Pattern.WhipCombo` 不得复用二者。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀使用 AttackCommitted Slot；弓/枪的 Travel Slot 附着逻辑载体，DamageApplied Slot 只在首次 `AppliedDamage > 0` 的权威结果播放。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭与法杖阶段槽默认未启用；缺图不得阻塞攻击。
+`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀使用 AttackCommitted Slot；弓/枪的 Travel Slot 附着逻辑载体，DamageApplied Slot 只在首次 `AppliedDamage > 0` 的权威结果播放。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
 
 禁止用 `NS_Rabbit_BeAttacked_01` 这个短名查找资产；玩家和怪物受击是两个不同 Package。
 
@@ -122,7 +122,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 玩家/Echo/敌人 Host 装配 | 对应 `PlayerPawn` / `EchoActor` / `EnemyActor` 构造函数 |
 | 映射与资产加载自动化 | `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp` |
 | 首场资源清单与驻留 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` → `Presentation/Loading/ReEchoRuntimeAssetPreloader.*`；测试为 `ReEchoRuntimeAssetPreloadTests.cpp` |
-| 玩家武器攻击表现路由 | `Presentation/VFX/ReEchoCombatVfxCatalog.*`、`Graybox/ReEchoProjectileActor.*`；鞭旧平面入口仍为 `Weapons/ReEchoWeaponActor.*` / `ReEchoSwordArcActor.*` |
+| 玩家武器攻击表现路由 | `Presentation/VFX/ReEchoCombatVfxCatalog.*`、`Graybox/ReEchoProjectileActor.*`、`Weapons/ReEchoWeaponActor.*`；正式清单仅含长剑、镰刀、弓和枪，MoonStaff Wave 是非生产动画辅助 |
 | 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py`；狐狸方向箭头 Local Space 修复脚本为 `scripts/ue/fix_fox_direction_local_space.py` |
 | Goat Boss 资产审计 | `scripts/ue/audit_goat_boss_vfx.py`；若 Editor 被跨平台 SDK 校验阻断，以包内 `/Game/` 引用递归闭包作为保守投递证据，并明确保留 Editor/PIE 验收 |
 | 测试专用预览 Harness | `Presentation/VFX/ReEchoVfxPreviewActor.*`、`ReEchoVfxPreviewTests.cpp`；测试地图 author/verify 位于 `scripts/ue/author_vfx_test_scene.py` 与 `verify_vfx_test_scene.py` |

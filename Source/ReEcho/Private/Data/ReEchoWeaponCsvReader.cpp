@@ -19,7 +19,7 @@ constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
 constexpr const TCHAR* ShopRefreshRulesTableId = TEXT("shop_refresh_rules");
 constexpr const TCHAR* NoneId = TEXT("None");
 constexpr int32 MaxStartSelectableLoadoutOrder = static_cast<int32>(EReEchoInputSlot::Slot6);
-constexpr int32 ExpectedPartSourceRows = 70;
+constexpr int32 ExpectedPartSourceRows = 48;
 
 TArray<FName> ParseNameList(const FString& Text)
 {
@@ -108,8 +108,7 @@ bool IsAllowedWeaponEffectTarget(const FName Target)
 	    TEXT("DamageChannel"),
 	    TEXT("AttackSpeed"),
 	    TEXT("AttackIntervalSeconds"),
-	    TEXT("PhysicalCoefficient"),
-	    TEXT("ElementalCoefficient"),
+	    TEXT("DamageCoefficient"),
 	    TEXT("AttackPattern"),
 	    TEXT("OnKill"),
 	    // Weapon-parameter StatModifier targets. Each one is landed by
@@ -240,8 +239,7 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.LoadoutOrder);
 		                  AppendCanonicalField(Canonical, Row.AttackPatternId);
 		                  AppendCanonicalField(Canonical, Row.AttackIntervalSeconds);
-		                  AppendCanonicalField(Canonical, Row.PhysicalCoefficient);
-		                  AppendCanonicalField(Canonical, Row.ElementalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.DamageCoefficient);
 		                  AppendCanonicalField(Canonical, Row.RangeCm);
 		                  AppendCanonicalField(Canonical, Row.ArcDegrees);
 		                  AppendCanonicalField(Canonical, Row.ProjectileCount);
@@ -263,8 +261,7 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.AttackPatternId);
 		                  AppendCanonicalField(Canonical, Row.StepIndex);
 		                  AppendCanonicalField(Canonical, Row.DurationSeconds);
-		                  AppendCanonicalField(Canonical, Row.PhysicalCoefficient);
-		                  AppendCanonicalField(Canonical, Row.ElementalCoefficient);
+		                  AppendCanonicalField(Canonical, Row.DamageCoefficient);
 		                  AppendCanonicalField(Canonical, Row.RangeCm);
 		                  AppendCanonicalField(Canonical, Row.ArcDegrees);
 		                  AppendCanonicalField(Canonical, Row.ProjectileCount);
@@ -279,6 +276,8 @@ FString ComputeWeaponDomainRevision(const FReEchoCsvDataSnapshot& Snapshot)
 		                  AppendCanonicalField(Canonical, Row.SourceSheet);
 		                  AppendCanonicalField(Canonical, Row.SourceRow);
 		                  AppendCanonicalField(Canonical, Row.DisabledReason);
+		                  AppendCanonicalField(Canonical, Row.OuterRingStartFraction);
+		                  AppendCanonicalField(Canonical, Row.OuterRingBonusMultiplier);
 	                  });
 
 	TArray<FName> SlotTypeIds;
@@ -571,8 +570,7 @@ bool ReadWeaponsTable(const FString& DataDirectory,
 	                            TEXT("LoadoutOrder"),
 	                            TEXT("AttackPatternId"),
 	                            TEXT("AttackIntervalSeconds"),
-	                            TEXT("PhysicalCoefficient"),
-	                            TEXT("ElementalCoefficient"),
+	                            TEXT("DamageCoefficient"),
 	                            TEXT("RangeCm"),
 	                            TEXT("ArcDegrees"),
 	                            TEXT("ProjectileCount"),
@@ -601,10 +599,7 @@ bool ReadWeaponsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("AttackPatternId"), Weapon.AttackPatternId, Issues);
 		ReEchoCsv::RequireFloat(
 		    Table, Row, TEXT("AttackIntervalSeconds"), 0.01f, 60.0f, Weapon.AttackIntervalSeconds, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("PhysicalCoefficient"), 0.0f, 100.0f, Weapon.PhysicalCoefficient, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("ElementalCoefficient"), 0.0f, 100.0f, Weapon.ElementalCoefficient, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("DamageCoefficient"), 0.0f, 100.0f, Weapon.DamageCoefficient, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("RangeCm"), 0.0f, 100000.0f, Weapon.RangeCm, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("ArcDegrees"), 0.0f, 360.0f, Weapon.ArcDegrees, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("ProjectileCount"), Weapon.ProjectileCount, Issues);
@@ -687,8 +682,7 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 	                            TEXT("AttackPatternId"),
 	                            TEXT("StepIndex"),
 	                            TEXT("DurationSeconds"),
-	                            TEXT("PhysicalCoefficient"),
-	                            TEXT("ElementalCoefficient"),
+	                            TEXT("DamageCoefficient"),
 	                            TEXT("RangeCm"),
 	                            TEXT("ArcDegrees"),
 	                            TEXT("ProjectileCount"),
@@ -702,7 +696,9 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 	                            TEXT("Enabled"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
-	                            TEXT("DisabledReason")},
+	                            TEXT("DisabledReason"),
+	                            TEXT("OuterRingStartFraction"),
+	                            TEXT("OuterRingBonusMultiplier")},
 	                           Issues);
 
 	TSet<FName> SeenIds;
@@ -714,10 +710,7 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("AttackPatternId"), Step.AttackPatternId, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("StepIndex"), Step.StepIndex, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("DurationSeconds"), 0.0f, 60.0f, Step.DurationSeconds, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("PhysicalCoefficient"), 0.0f, 100.0f, Step.PhysicalCoefficient, Issues);
-		ReEchoCsv::RequireFloat(
-		    Table, Row, TEXT("ElementalCoefficient"), 0.0f, 100.0f, Step.ElementalCoefficient, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("DamageCoefficient"), 0.0f, 100.0f, Step.DamageCoefficient, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("RangeCm"), 0.0f, 100000.0f, Step.RangeCm, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("ArcDegrees"), 0.0f, 360.0f, Step.ArcDegrees, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("ProjectileCount"), Step.ProjectileCount, Issues);
@@ -733,6 +726,10 @@ bool ReadAttackStepsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireCell(Table, Row, TEXT("SourceSheet"), Step.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, Row, TEXT("SourceRow"), Step.SourceRow, Issues);
 		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Step.DisabledReason);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("OuterRingStartFraction"), 0.0f, 1.0f, Step.OuterRingStartFraction, Issues);
+		ReEchoCsv::RequireFloat(
+		    Table, Row, TEXT("OuterRingBonusMultiplier"), 0.0f, 100.0f, Step.OuterRingBonusMultiplier, Issues);
 
 		if (SeenIds.Contains(Step.Id))
 		{
@@ -1166,7 +1163,7 @@ bool ReadPartsTable(const FString& DataDirectory,
 	if (Table.Rows.Num() != ExpectedPartSourceRows)
 	{
 		ReEchoCsv::AddIssue(
-		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Weapon slot audit must contain 70 source rows"));
+		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Four-weapon slot audit must contain 48 source rows"));
 	}
 	// The named/unnamed split is no longer pinned to 10/60: weapon part families are implemented
 	// incrementally, so naming + enabling rows is expected progress. The real invariant kept here is
@@ -1347,8 +1344,7 @@ void ValidateCrossDomain(FReEchoCsvDataSnapshot& Snapshot, TArray<FReEchoCsvIssu
 		                    TEXT("StartSelectable"),
 		                    TEXT("At least one weapon must be StartSelectable"));
 	}
-	const TArray<FName> ExpectedLoadout = {
-	    TEXT("W_J_02"), TEXT("W_J_01"), TEXT("W_J_07"), TEXT("W_J_08"), TEXT("W_J_09")};
+	const TArray<FName> ExpectedLoadout = {TEXT("W_J_04"), TEXT("W_J_01"), TEXT("W_J_08"), TEXT("W_J_09")};
 	for (int32 Index = 0; Index < StartSelectable.Num() && Index < ExpectedLoadout.Num(); ++Index)
 	{
 		if (StartSelectable[Index].Id != ExpectedLoadout[Index])
@@ -1359,10 +1355,10 @@ void ValidateCrossDomain(FReEchoCsvDataSnapshot& Snapshot, TArray<FReEchoCsvIssu
 	}
 	const FReEchoCsvWeaponRow* Slot1 = Snapshot.FindWeaponByInputSlot(EReEchoInputSlot::Slot1);
 	const FReEchoCsvWeaponRow* Slot2 = Snapshot.FindWeaponByInputSlot(EReEchoInputSlot::Slot2);
-	if (!Slot1 || Slot1->Id != TEXT("W_J_02") || !Slot2 || Slot2->Id != TEXT("W_J_01"))
+	if (!Slot1 || Slot1->Id != TEXT("W_J_04") || !Slot2 || Slot2->Id != TEXT("W_J_01"))
 	{
 		ReEchoCsv::AddIssue(
-		    Issues, TEXT("weapons.csv"), 1, TEXT("InputSlot"), TEXT("Legacy W_J_02/W_J_01 input mapping changed"));
+		    Issues, TEXT("weapons.csv"), 1, TEXT("InputSlot"), TEXT("Required W_J_04/W_J_01 input mapping changed"));
 	}
 }
 }

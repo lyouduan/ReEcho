@@ -15,7 +15,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
-	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	Source->TimeShards = 45;
 	Source->InventoryItems.Add(TEXT("SHOP_OLD_COIN"));
 	Source->OwnedPartIds.Add(TEXT("P_CORE_FLAME"));
@@ -61,10 +61,10 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Time Shards restore without an uncollected drop"), Restored->TimeShards, 45);
 	TestTrue(TEXT("Inventory restores"), Restored->InventoryItems.Contains(TEXT("SHOP_OLD_COIN")));
 	TestTrue(TEXT("Weapon-part ownership restores separately"), Restored->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
-	TestTrue(TEXT("Starting weapon ownership restores"), Restored->OwnedWeaponIds.Contains(TEXT("W_J_02")));
+	TestTrue(TEXT("Starting weapon ownership restores"), Restored->OwnedWeaponIds.Contains(TEXT("W_J_01")));
 	TestTrue(TEXT("Additional weapon ownership restores"), Restored->OwnedWeaponIds.Contains(TEXT("W_J_08")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
-	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_02")));
+	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_01")));
 	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 1);
 	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
 	TestEqual(TEXT("Legacy facade resolves one echo from the new state"), RestoredRecordings.Num(), 1);
@@ -78,6 +78,27 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Storage capacity restores"), RestoredStorage.StorageCapacity, 3);
 	TestFalse(TEXT("A finalized decision leaves no pending echo"), RestoredStorage.bHasPendingRecording);
 	TestTrue(TEXT("Rolling latest echo restores independently"), RestoredStorage.bHasLatestCompletedRecording);
+
+	UReEchoRunSaveGame* RetiredCurrentWeapon = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
+	RetiredCurrentWeapon->CurrentBuild.WeaponId = TEXT("W_J_02");
+	UGameInstance* RetiredCurrentGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RetiredCurrentRun = NewObject<UReEchoRunSubsystem>(RetiredCurrentGameInstance);
+	TestFalse(TEXT("A save equipped with retired W_J_02 is explicitly incompatible"),
+	          RetiredCurrentRun->RestoreSaveSnapshot(*RetiredCurrentWeapon));
+
+	UReEchoRunSaveGame* RetiredOwnedWeapon = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
+	RetiredOwnedWeapon->OwnedWeaponIds.Add(TEXT("W_J_07"));
+	UGameInstance* RetiredOwnedGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RetiredOwnedRun = NewObject<UReEchoRunSubsystem>(RetiredOwnedGameInstance);
+	TestFalse(TEXT("A save owning retired W_J_07 is explicitly incompatible"),
+	          RetiredOwnedRun->RestoreSaveSnapshot(*RetiredOwnedWeapon));
+
+	UReEchoRunSaveGame* RetiredRecordingWeapon = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
+	RetiredRecordingWeapon->StoredEchoes[0].BuildSnapshot.WeaponId = TEXT("W_J_02");
+	UGameInstance* RetiredRecordingGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RetiredRecordingRun = NewObject<UReEchoRunSubsystem>(RetiredRecordingGameInstance);
+	TestFalse(TEXT("A stored recording using retired W_J_02 is explicitly incompatible"),
+	          RetiredRecordingRun->RestoreSaveSnapshot(*RetiredRecordingWeapon));
 
 	Snapshot->SaveVersion = 12;
 	Snapshot->OwnedWeaponIds.Reset();
@@ -230,7 +251,7 @@ bool FReEchoV15ShopCardPageMigrationTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
-	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	Source->EncounterIndex = 4;
 	const FReEchoWeaponPartShopView CurrentPage = Source->GetWeaponPartShopView();
 	if (!TestTrue(TEXT("Migration fixture has a tier-two candidate"),
@@ -315,7 +336,7 @@ bool FReEchoV8CardMigrationTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
-	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_02"));
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
 	LegacySave->SaveVersion = 8;
 	LegacySave->CurrentBuild.CardState = {};

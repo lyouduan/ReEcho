@@ -3057,7 +3057,8 @@ void AReEchoGameMode::HandleShopCardRefreshRequested(const int32 SlotIndex)
 		Choice.Price = RunSubsystem->GetDiscountedShopPrice(Choice.Price);
 	}
 	RunSubsystem->SaveRun();
-	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, ActiveShopCardPackTier);
+	TraitCardChoiceWidget->InitializeShopOffers(
+	    EffectiveChoices, RunSubsystem->TimeShards, ActiveShopCardPackTier, SlotIndex);
 	ReEchoUIInteractionAudit::Write(TEXT("SHOP_CARD_SLOT_REFRESH_SUCCEEDED"),
 	                                FString::Printf(TEXT("tier=%d slot=%d candidates=%d shards=%d"),
 	                                                ActiveShopCardPackTier,
@@ -3735,7 +3736,7 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 		return;
 	}
 	RunSubsystem->SaveRun();
-	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
+	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards, SlotIndex);
 	ReEchoUIInteractionAudit::Write(TEXT("FREE_CARD_SLOT_REFRESH_SUCCEEDED"),
 	                                FString::Printf(TEXT("encounter=%d slot=%d candidates=%d shards=%d"),
 	                                                RunSubsystem->EncounterIndex,

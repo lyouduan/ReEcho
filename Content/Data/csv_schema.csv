@@ -112,10 +112,10 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Reactions,ClearsAttachment,Bool,true,,,,true|false,Whether the reaction consumes current attachment.
 1,Reactions,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,Reactions,DisabledReason,Text,false,,,,,Required when Enabled is false.
-1,WeaponTypes,Id,StableId,true,,,,LongSword|Scythe|Whip|Bow|Gun|Staff,Stable weapon type id.
+1,WeaponTypes,Id,StableId,true,,,,LongSword|Scythe|Bow|Gun,Stable weapon type id.
 1,WeaponTypes,DisplayName,Text,true,,,,,Designer-visible type name.
 1,WeaponTypes,Description,Text,true,,,,,Designer-visible weapon type rules and source description.
-1,WeaponTypes,BaseAttackPatternId,AttackPatternId,true,,,,Pattern.LongSwordCombo|Pattern.ScytheSweep|Pattern.WhipCombo|Pattern.BowShot|Pattern.GunShot|Pattern.StaffProjectile,Registered base attack pattern id.
+1,WeaponTypes,BaseAttackPatternId,AttackPatternId,true,,,,Pattern.LongSwordCombo|Pattern.ScytheSweep|Pattern.BowShot|Pattern.GunShot,Registered base attack pattern id.
 1,WeaponTypes,SlotProfileId,StableId,true,,,,,Slot profile family id.
 1,WeaponTypes,BaseIntervalSeconds,Float,true,0,60,,,Base attack interval in seconds.
 1,WeaponTypes,BaseRangeCm,Float,true,0,100000,,,Base attack range in Unreal centimeters.
@@ -131,14 +131,13 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,Weapons,Id,StableId,true,,,,,Stable runtime WeaponId.
 1,Weapons,WeaponTypeId,ForeignKey,true,,,WeaponTypes,,References WeaponTypes.Id.
 1,Weapons,DisplayName,Text,true,,,,,Designer-visible weapon name.
-1,Weapons,VisualKey,StableId,true,,,,MoonStaff|CrescentBlade|ElementalOrb,Visual presentation key.
-1,Weapons,InputSlot,StableId,true,,,,None|1|2|3,Current hotkey slot; not a WeaponId or part SlotTypeId.
+1,Weapons,VisualKey,StableId,true,,,,Scythe|CrescentBlade|Bow|Gun,Visual presentation key.
+1,Weapons,InputSlot,StableId,true,,,,1|2|3|5,Current hotkey slot; not a WeaponId or part SlotTypeId.
 1,Weapons,StartSelectable,Bool,true,,,,true|false,Whether the initial UI offers this weapon.
 1,Weapons,LoadoutOrder,Int,true,0,1000000,,,Stable start UI order for StartSelectable rows.
 1,Weapons,AttackPatternId,AttackPatternId,true,,,,,Registered attack pattern id for this concrete weapon.
 1,Weapons,AttackIntervalSeconds,Float,true,0.01,60,,,Attack cooldown base in seconds.
-1,Weapons,PhysicalCoefficient,Float,true,0,100,,,Physical attack coefficient.
-1,Weapons,ElementalCoefficient,Float,true,0,100,,,Elemental attack coefficient.
+1,Weapons,DamageCoefficient,Float,true,0,100,,,Effective damage coefficient; the equipped gem selects the attack stat source.
 1,Weapons,RangeCm,Float,true,0,100000,,,Runtime range in Unreal centimeters.
 1,Weapons,ArcDegrees,Float,true,0,360,,,Runtime melee arc.
 1,Weapons,ProjectileCount,Int,true,0,1000000,,,Runtime projectile count.
@@ -153,8 +152,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,AttackSteps,AttackPatternId,AttackPatternId,true,,,,,Registered attack pattern id.
 1,AttackSteps,StepIndex,Int,true,0,1000000,,,Ordered step index within the pattern.
 1,AttackSteps,DurationSeconds,Float,true,0,60,,,Step duration in seconds.
-1,AttackSteps,PhysicalCoefficient,Float,true,0,100,,,Physical coefficient for this step.
-1,AttackSteps,ElementalCoefficient,Float,true,0,100,,,Elemental coefficient for this step.
+1,AttackSteps,DamageCoefficient,Float,true,0,100,,,Effective damage coefficient for this step.
 1,AttackSteps,RangeCm,Float,true,0,100000,,,Step range in Unreal centimeters.
 1,AttackSteps,ArcDegrees,Float,true,0,360,,,Step melee arc.
 1,AttackSteps,ProjectileCount,Int,true,0,1000000,,,Step projectile count.
@@ -163,12 +161,14 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,AttackSteps,MovementCm,Float,true,0,100000,,,Step movement distance.
 1,AttackSteps,Invulnerable,Bool,true,,,,true|false,Whether the step grants invulnerability.
 1,AttackSteps,BehaviorId,BehaviorId,true,,,,Weapon.AttackStep|Weapon.DashStrike,Registered step behavior.
-1,AttackSteps,FormulaId,FormulaId,true,,,,Weapon.PhysicalOrElementalCoefficient,Registered step formula.
+1,AttackSteps,FormulaId,FormulaId,true,,,,Weapon.DamageCoefficient,Registered step formula.
 1,AttackSteps,ConditionId,StableId,true,,,,None,Optional step condition id.
 1,AttackSteps,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,AttackSteps,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,AttackSteps,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,AttackSteps,DisabledReason,Text,false,,,,,Required when Enabled is false.
+1,AttackSteps,OuterRingStartFraction,Float,true,0,1,,,Normalized radius where the base outer-ring bonus starts; zero disables it.
+1,AttackSteps,OuterRingBonusMultiplier,Float,true,0,100,,,Additional base damage multiplier applied in the outer ring; zero disables it.
 1,SlotTypes,Id,StableId,true,,,,,Part slot type id.
 1,SlotTypes,DisplayName,Text,true,,,,,Designer-visible slot type name.
 1,SlotTypes,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
@@ -176,7 +176,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,SlotTypes,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,SlotTypes,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,SlotProfiles,Id,StableId,true,,,,,Stable slot profile row id.
-1,SlotProfiles,WeaponTypeId,StableId,true,,,,Any|LongSword|Scythe|Whip|Bow|Gun|Staff,Weapon type allowed for this slot row.
+1,SlotProfiles,WeaponTypeId,StableId,true,,,,Any|LongSword|Scythe|Bow|Gun,Weapon type allowed for this slot row.
 1,SlotProfiles,SlotTypeId,ForeignKey,true,,,SlotTypes,,References SlotTypes.Id.
 1,SlotProfiles,SlotCount,Int,true,0,1000000,,,Number of slots of this type.
 1,SlotProfiles,Required,Bool,true,,,,true|false,Whether this slot is required.
@@ -186,7 +186,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,SlotProfiles,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Parts,Id,StableId,true,,,,,Stable audit row id; enabled rows use this as PartId.
 1,Parts,PartId,StableId,true,,,,None,Stable runtime PartId or None for unnamed audit-only source rows.
-1,Parts,WeaponTypeId,StableId,true,,,,Any|LongSword|Scythe|Whip|Bow|Gun|Staff,Allowed weapon type.
+1,Parts,WeaponTypeId,StableId,true,,,,Any|LongSword|Scythe|Bow|Gun,Allowed weapon type.
 1,Parts,SlotTypeId,ForeignKey,true,,,SlotTypes,,References SlotTypes.Id.
 1,Parts,DisplayName,Text,false,,,,,Designer-visible part name; blank unnamed rows remain disabled.
 1,Parts,Description,Text,false,,,,,Designer-visible effect description.
@@ -205,7 +205,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,PartEffects,Order,Int,true,0,1000000,,,Effect order within part.
 1,PartEffects,Trigger,StableId,true,,,,OnEquip|OnKill,Effect trigger.
 1,PartEffects,EffectKind,EffectKind,true,,,,WeaponDamageChannel|StatModifier|AttackPatternReplacement|UniqueBehavior,Registered effect kind.
-1,PartEffects,Target,StableId,true,,,,DamageChannel|AttackSpeed|AttackIntervalSeconds|PhysicalCoefficient|ElementalCoefficient|AttackPattern|OnKill,Typed effect target.
+1,PartEffects,Target,StableId,true,,,,DamageChannel|AttackSpeed|AttackIntervalSeconds|DamageCoefficient|AttackPattern|OnKill,Typed effect target.
 1,PartEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
 1,PartEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
 1,PartEffects,BehaviorId,BehaviorId,true,,,,Part.CoreDamageChannel|Part.StatModifier|Part.AttackPatternReplacement|Part.OnKillHealPercent,Registered behavior id.
