@@ -199,7 +199,7 @@ struct REECHO_API FReEchoEnemyProjectileRuntimeState
 	UPROPERTY()
 	int32 VolleyBallIndex = INDEX_NONE;
 
-	/** A rabbit ball keeps flying visually after its one authoritative collision is consumed. */
+	/** Guards the authoritative collision sample until a hit removes the projectile. */
 	UPROPERTY()
 	bool bCollisionConsumed = false;
 };

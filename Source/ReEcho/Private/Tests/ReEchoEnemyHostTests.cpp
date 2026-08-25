@@ -421,29 +421,38 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	             CenterBeforeHit->Snapshot.Location, CenterNextLocation, CenterBeforeHit->CollisionRadiusCm));
 	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
 	TestEqual(TEXT("Center ball applies exactly one damage"), Player->Combatant->CurrentHealth, 99.0f);
-	TestEqual(TEXT("A hit ball keeps flying while its logic-driven visual is alive"),
+	TestEqual(TEXT("A rabbit ball is removed immediately after hitting the player"),
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
-	          ReEchoRabbitProjectilePattern::BallCount);
+	          ReEchoRabbitProjectilePattern::BallCount - 1);
+	if (RabbitVfx)
+	{
+		TestEqual(TEXT("The hit rabbit ball's visual proxy ends with its logic"),
+		          RabbitVfx->GetProjectileVisualCountForTests(),
+		          ReEchoRabbitProjectilePattern::BallCount - 1);
+	}
 
-	const FVector UpperDirection =
-	    ReEchoRabbitProjectilePattern::ResolveVolleyDirection(FVector::ForwardVector, 40.0f, 2, 3);
-	Player->SetActorLocation(UpperDirection * 560.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
-	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
-	TestEqual(TEXT("Upper fan ball independently applies exactly one damage"), Player->Combatant->CurrentHealth, 98.0f);
-
-	const FVector LowerDirection =
-	    ReEchoRabbitProjectilePattern::ResolveVolleyDirection(FVector::ForwardVector, 40.0f, 0, 3);
-	Player->SetActorLocation(LowerDirection * 645.0f + FVector(0.0f, 0.0f, ProjectileGameplayZ));
-	Rabbit->AdvanceEnemyProjectilesForTests(0.2f);
-	TestEqual(TEXT("Lower fan ball independently applies exactly one damage"), Player->Combatant->CurrentHealth, 97.0f);
+	const int32 SwordCutCount = Rabbit->DestroyRabbitProjectilesInMeleeArc(
+	    FVector::ZeroVector, FVector::ForwardVector, 700.0f, 180.0f);
+	TestEqual(TEXT("Longsword's forward 180-degree sector removes the two remaining rabbit balls"),
+	          SwordCutCount,
+	          ReEchoRabbitProjectilePattern::BallCount - 1);
+	TestEqual(TEXT("Sword-cut rabbit balls leave no authoritative projectile state"),
+	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
+	          0);
+	if (RabbitVfx)
+	{
+		TestEqual(TEXT("Sword-cut rabbit balls publish Ended and remove their visual proxies"),
+		          RabbitVfx->GetProjectileVisualCountForTests(),
+		          0);
+	}
 
 	Rabbit->AdvanceEnemyProjectilesForTests(0.1f);
-	TestEqual(TEXT("Consumed balls cannot damage the player twice"), Player->Combatant->CurrentHealth, 97.0f);
+	TestEqual(TEXT("Removed balls cannot damage the player twice"), Player->Combatant->CurrentHealth, 99.0f);
 	Rabbit->AdvanceEnemyProjectilesForTests(1.0f);
 	TestEqual(TEXT("All balls end after their authored maximum range"),
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          0);
-	TestEqual(TEXT("Volley expiry cannot add damage"), Player->Combatant->CurrentHealth, 97.0f);
+	TestEqual(TEXT("Ended volley cannot add damage"), Player->Combatant->CurrentHealth, 99.0f);
 	int32 EndEventCount = 0;
 	for (const FReEchoEnemyProjectileEvent& Event :
 	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())

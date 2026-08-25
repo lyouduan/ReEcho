@@ -36,6 +36,7 @@
 #include "Presentation/Scene/ReEcho2DSceneLightingComponent.h"
 #include "ReEchoAudioEvents.h"
 #include "UI/ReEchoDamageNumberActor.h"
+#include "Weapons/ReEchoWeaponGeometry.h"
 
 namespace ReEchoEnemyHost
 {
@@ -663,13 +664,34 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 			bHitTarget = true;
 			Projectile.bCollisionConsumed = true;
 		}
-		const bool bRabbitVolleyBall = Projectile.VolleyBallIndex != INDEX_NONE;
-		if ((bHitTarget && !bRabbitVolleyBall) || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
+		if (bHitTarget || AdvanceResult.bExpiredByRange || !Projectile.Snapshot.bActive)
 		{
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
 			BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
 		}
 	}
+}
+
+int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeArc(const FVector& Origin,
+	                                                         const FVector& Forward,
+	                                                         const float RangeCm,
+	                                                         const float ArcDegrees)
+{
+	int32 RemovedCount = 0;
+	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
+	{
+		const FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
+		if (Projectile.VolleyBallIndex == INDEX_NONE ||
+		    !ReEchoWeaponGeometry::IsInsideMeleeArc(
+		        Origin, Forward, Projectile.Snapshot.Location, RangeCm + Projectile.CollisionRadiusCm, ArcDegrees))
+		{
+			continue;
+		}
+		PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+		BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
+		++RemovedCount;
+	}
+	return RemovedCount;
 }
 
 void AReEchoEnemyActor::Tick(const float DeltaSeconds)

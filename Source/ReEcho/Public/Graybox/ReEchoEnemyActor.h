@@ -173,6 +173,12 @@ public:
 		return ResolveFacingDirection();
 	}
 
+	/** Ends active rabbit volley balls intersecting the supplied melee sector and returns the number removed. */
+	int32 DestroyRabbitProjectilesInMeleeArc(const FVector& Origin,
+	                                         const FVector& Forward,
+	                                         float RangeCm,
+	                                         float ArcDegrees);
+
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);

@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序 Executor；Plan 发布后在独立实现 worktree 执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Review`（长剑斩弹与兔子投射物命中生命周期候选已实现，等待 PIE 验收）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@6b3262fa574d9ea684cad1c0ce8d6c8c96f25fc6`。
 - 本地实现方式：规划分支 `codex/plan100-weapon-vfx-placement-plan`；发布本 Plan 后从最新 `origin/main` 创建一任务一 worktree 的 Executor 分支。
@@ -20,16 +20,19 @@
   - `Source/ReEcho/Private/Tests/ReEchoCombatPresentationTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp`
+  - `Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`
+  - `Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`
   - `scripts/ue/configure_plan100_weapon_presentation.py`
   - `Content/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_*.uasset`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`
   - `Binaries/Win64/` 下 `shared/GIT_RULES.md` 允许的最终预构建包文件
 - Stable Reads: `weapons.csv` 的 WeaponId/VisualKey/AttackPatternId；角色/Echo Presentation Profile 的 `WorldHeight`、`WeaponAnchorRatio`；现有 Niagara 资源与攻击事件时序；Plan96 山羊 VFX 候选 worktree。
-- 影响模式：`SharedContract`。完善既有武器表现 DA 到运行时 VFX 位姿的消费契约，并把手持武器尺寸真相收敛至武器 Profile；不改变玩法模块权威。
+- 影响模式：`SharedContract`。除既有武器表现契约外，长剑攻击提交可消费兔子宿主持有的敌方投射物逻辑状态；兔子球命中玩家后立即结束逻辑与视觉生命周期。
 - 兼容承诺 / 下游操作：旧 DA 的单位 Transform、关闭绝对长度覆盖时保持现状；配置缺失只跳过表现；同一 WeaponVisualKey 在 Player/Echo 上使用相同绝对世界长度与特效世界尺寸；武器挂点仍由角色 Profile 决定。
-- 明确排除：伤害、攻击范围、碰撞、攻击方向、攻击/动画节拍、投射物逻辑、武器数值平衡、Niagara 内部发射器编辑、非武器 VFX、Plan96 山羊特效修改。
+- 明确排除：伤害数值、长剑既有 180°攻击范围、攻击方向、攻击/动画节拍、其他武器斩弹、非兔子敌方投射物、武器数值平衡、Niagara 内部发射器编辑、非武器 VFX、Plan96 山羊特效修改。
 
 ## 锁定目标
 
@@ -52,7 +55,9 @@
 - [ ] VFX Slot 可选择保持世界尺寸；开启后 Player/Echo 的父级缩放不会二次放大或缩小 Niagara，DA Scale 仍作为艺术缩放生效。
 - [ ] 六个生产 Weapon Profile 启用正数 `HeldLengthOverrideCm`；同一 WeaponVisualKey 在 Player 与 Echo 上计算出的最终世界长度一致，纹理宽高比和尺寸主轴仍生效。
 - [ ] Player/Echo 可以有不同角色挂点，但武器尺寸不读取宿主 Actor Scale 作为第二份尺寸真相。
-- [ ] 不改变攻击事件时机、方向、伤害、碰撞、范围、投射物和动画节拍。
+- [ ] 不改变攻击事件时机、方向、伤害数值、长剑范围或动画节拍；投射物变化仅限本次兔子球结束条件与长剑斩弹。
+- [ ] 兔子球与玩家的扫掠碰撞成功结算一次伤害后立即发布 `Ended` 并从逻辑数组移除，视觉代理同步消失。
+- [ ] 仅 `Pattern.LongSwordCombo` 在既有提交范围和 180°弧内移除兔子球；弧外球与其他武器不受影响。
 - [ ] 配置脚本可重复运行，只修改本 Plan 锁定字段，不重置艺术已调整的其他 Profile 字段。
 - [ ] 聚焦自动化、C++ 格式化、Development FullRebuild、`validate_project.py`、预构建一致性和 `git diff --check` 通过。
 - [ ] 用户在 PIE 对比 Player/Echo 同武器大小，并确认长剑刀光离地、完整显示、方向和攻击同步观感；未验收前保持 `PendingBeforeClose`。
@@ -92,6 +97,8 @@
 - `FReEchoWeaponVfxSlot` 新增 `bPreserveWorldSize`，武器语义的 `ResolvePlacement` 现在消费对应 Slot 的完整 `Offset` Transform 与世界尺寸策略；非武器语义路径保持原契约。
 - 六个生产 Weapon Profile 已通过 Editor API 固化绝对世界长度；长剑 `AttackCommitted` 配置为 `Z=60 UU`、`Roll=-45°` 并保持世界尺寸。配置脚本只修改锁定字段，可重复执行。
 - 自动化直接比较不同宿主缩放下的六把武器解析长度，Player/Echo 使用同一 Profile 时结果一致；同步更新三份受影响模块文档。
+- 用户明确要求不合并远端新增 9 个提交并继续在本 Plan 执行；候选仍基于当前 Plan100 分支。兔子球命中玩家后立即发布 `Ended` 并从 EnemyHost 逻辑数组移除，对应 VFX 代理同步结束。
+- `Pattern.LongSwordCombo` 在既有近战提交中复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询所有兔子 Host 的逻辑球；弧内球由 Host 权威结束。其他攻击模式和非兔子投射物不进入该路径。
 
 ### 证据
 
@@ -99,12 +106,17 @@
 - `ReEcho.Presentation.VFX.Catalog` 与 `ReEcho.Presentation.Combat.Capabilities` 精确自动化通过；覆盖长剑 DA 位姿/世界尺寸以及六武器 Player/Echo 不同宿主缩放下的相同世界长度。
 - Editor 配置结果：`PLAN100_WEAPON_PRESENTATION_RESULT profiles=6 sword_z=60 sword_roll=-45`；六个资产 Data Validation 通过。
 - `prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 扩展候选 Development FullRebuild 通过：`99/99` actions，预构建 source fingerprint `4047a64998fb`。
+- `ReEcho.Enemies.Host.RabbitProjectilePipeline` 聚焦自动化找到 1 项并通过；覆盖命中玩家后逻辑/视觉立即结束，以及 180°扇区移除剩余兔子球。启动日志仍包含 LinuxArm64/VisionOS `MainVersion` 警告，但本次 Win64 测试实际执行并返回 `Success`。
+- 扩展候选 `validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
 - `validate_project.py` 的非 XLSX 检查完成，但总结果受 worktree `Content/reecho_xlsx_package_*` 创建权限拒绝阻塞；本 Plan 未修改 XLSX/CSV。
 - 全量 `ReEcho.Weapons` 暴露既有非本任务失败：生产 rune 数预期 47/实际 46、`P_GUN_RAPID_MUZZLE` 已禁用，以及 WeaponRuntime 临时 CSV 断言；精确受影响测试已独立通过。
 
 ### 剩余风险
 
 视觉效果仍需要用户 PIE 验收；自动化只能验证 Transform 与世界尺寸计算契约。当前环境缺少 clang-format 可执行文件，FullRebuild 已验证编译格式但未取得独立 clang-format 工具证据。全量 Weapons 与项目校验的既有环境/数据失败见上节。
+
+斩弹手感仍需 PIE：确认长剑正面 180°内球消失、背后球不受影响、兔子球命中角色后不残留。按用户选择未合并 `origin/main` 的 9 个外部提交，发布前必须重新审计并集成。
 
 ### 人工验收结果/请求
 
@@ -115,4 +127,5 @@
 - `MOD-ReEcho.md` 已更新：记录生产武器绝对长度及 Player/Echo 宿主缩放不再二次影响尺寸。
 - `MOD-ReEchoVFX.md` 已更新：记录武器 Slot Transform/世界尺寸策略是唯一位姿真相。
 - `MOD-ReEchoWeapons.md` 已更新：记录主模块 DA 的绝对长度和完整 VFX Slot 表现契约。
+- `MOD-ReEchoWeapons.md` 已补充长剑复用提交几何斩断兔子逻辑球的边界；`MOD-ReEchoEnemies.md` 已更新兔子球命中即结束和 EnemyHost 移除权威。
 - `MOD-ReEchoPresentation.md`、`ARCHITECTURE.md`、`CODEBASE_MAP/README.md` 已审阅、无需修改：本实现未改变模块拓扑、Presentation 模块公共类型或索引路由。

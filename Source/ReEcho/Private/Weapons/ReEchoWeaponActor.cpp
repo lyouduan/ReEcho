@@ -21,6 +21,7 @@
 #include "Math/RotationMatrix.h"
 #include "Graybox/ReEchoStaffLightWaveActor.h"
 #include "Graybox/ReEchoEchoActor.h"
+#include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "Kismet/GameplayStatics.h"
@@ -1382,6 +1383,14 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	         *GetWorld(), Commit.Attack, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
 	{
 		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant, Context);
+	}
+	if (Commit.AttackPatternId == TEXT("Pattern.LongSwordCombo"))
+	{
+		for (TActorIterator<AReEchoEnemyActor> EnemyIt(GetWorld()); EnemyIt; ++EnemyIt)
+		{
+			EnemyIt->DestroyRabbitProjectilesInMeleeArc(
+			    OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees);
+		}
 	}
 	ProcessAttackResolved(Context);
 	StartMeleeAnimation(GetEquippedWeaponVisualKey());
