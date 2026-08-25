@@ -1403,10 +1403,7 @@ void AReEchoGameMode::ClearTimeShardPickups()
 	const int32 ClearedCount = ClearTimeShardPickupsInWorld(GetWorld());
 	if (ClearedCount > 0)
 	{
-		UE_LOG(LogReEcho,
-		       Display,
-		       TEXT("[TimeShardPickup] cleared %d encounter-scoped pickup(s)"),
-		       ClearedCount);
+		UE_LOG(LogReEcho, Display, TEXT("[TimeShardPickup] cleared %d encounter-scoped pickup(s)"), ClearedCount);
 	}
 }
 
@@ -2956,6 +2953,8 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 	ActiveShopCardPackTier = Tier;
 	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, Tier);
 	TraitCardChoiceWidget->OnShopCardSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardSelected);
+	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
+	                                                             &AReEchoGameMode::HandleShopCardRefreshRequested);
 	TraitCardChoiceWidget->OnShopChoiceCancelled.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoiceCancelled);
 	SetPlayerMenuAbilityBlocked(true);
 	TArray<FString> CandidateIds;
@@ -2992,7 +2991,7 @@ void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
 		       static_cast<int32>(Outcome.Result),
 		       *Outcome.Detail);
 		PostUiEvent(FReEchoAudioEvents::UiError);
-		TraitCardChoiceWidget->RestoreShopPurchaseFailure(RunSubsystem->TimeShards);
+		TraitCardChoiceWidget->RestoreChoiceFailure(RunSubsystem->TimeShards);
 		return;
 	}
 
@@ -3000,6 +2999,72 @@ void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
 	RunSubsystem->SaveRun();
 	CloseShopCardChoice(true);
 	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
+void AReEchoGameMode::HandleShopCardRefreshRequested(const int32 SlotIndex)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	ReEchoUIInteractionAudit::Write(TEXT("SHOP_CARD_SLOT_REFRESH_REQUEST"),
+	                                FString::Printf(TEXT("tier=%d slot=%d run=%d shop=%d choice=%d"),
+	                                                ActiveShopCardPackTier,
+	                                                SlotIndex,
+	                                                RunSubsystem ? 1 : 0,
+	                                                InventoryShopWidget ? 1 : 0,
+	                                                TraitCardChoiceWidget ? 1 : 0));
+	if (!RunSubsystem || !InventoryShopWidget || !TraitCardChoiceWidget || ActiveShopCardPackTier <= 0)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+
+	FString RefreshError;
+	if (!RunSubsystem->TryRefreshShopCardSlot(ActiveShopCardPackTier, SlotIndex, RefreshError))
+	{
+		ReEchoUIInteractionAudit::Write(
+		    TEXT("SHOP_CARD_SLOT_REFRESH_REJECTED"),
+		    FString::Printf(TEXT("tier=%d slot=%d reason=%s"), ActiveShopCardPackTier, SlotIndex, *RefreshError));
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Card slot refresh rejected tier=%d slot=%d reason=%s"),
+		       ActiveShopCardPackTier,
+		       SlotIndex,
+		       *RefreshError);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		TraitCardChoiceWidget->RestoreChoiceFailure(RunSubsystem->TimeShards);
+		return;
+	}
+
+	const FReEchoWeaponPartShopView ShopView = RunSubsystem->GetWeaponPartShopView();
+	const FReEchoShopCardPackOffer* Pack = ShopView.CardPackOffers.FindByPredicate(
+	    [&](const FReEchoShopCardPackOffer& Candidate)
+	    {
+		    return Candidate.Tier == ActiveShopCardPackTier;
+	    });
+	if (!Pack || !Pack->IsAvailable())
+	{
+		ReEchoUIInteractionAudit::Write(TEXT("SHOP_CARD_SLOT_REFRESH_REJECTED"),
+		                                FString::Printf(TEXT("tier=%d slot=%d reason=PackUnavailableAfterRefresh"),
+		                                                ActiveShopCardPackTier,
+		                                                SlotIndex));
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		CloseShopCardChoice(true);
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+		return;
+	}
+	TArray<FReEchoShopCardChoiceOffer> EffectiveChoices = Pack->Choices;
+	for (FReEchoShopCardChoiceOffer& Choice : EffectiveChoices)
+	{
+		Choice.Price = RunSubsystem->GetDiscountedShopPrice(Choice.Price);
+	}
+	RunSubsystem->SaveRun();
+	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, ActiveShopCardPackTier);
+	ReEchoUIInteractionAudit::Write(TEXT("SHOP_CARD_SLOT_REFRESH_SUCCEEDED"),
+	                                FString::Printf(TEXT("tier=%d slot=%d candidates=%d shards=%d"),
+	                                                ActiveShopCardPackTier,
+	                                                SlotIndex,
+	                                                EffectiveChoices.Num(),
+	                                                RunSubsystem->TimeShards));
+	PostUiEvent(FReEchoAudioEvents::UiPurchase);
 }
 
 void AReEchoGameMode::HandleShopCardChoiceCancelled()
@@ -3057,8 +3122,10 @@ void AReEchoGameMode::HandleShopWeaponEquipRequested(const FName WeaponId)
 void AReEchoGameMode::HandleShopRefreshRequested()
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget || !RunSubsystem->TryConsumeShopRefresh(ReEchoShopRefreshPrice))
+	FString RefreshError;
+	if (!RunSubsystem || !InventoryShopWidget || !RunSubsystem->TryRefreshWeaponRuneShop(RefreshError))
 	{
+		UE_LOG(LogReEcho, Warning, TEXT("[ReEchoShop] Weapon/rune refresh rejected: %s"), *RefreshError);
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}
@@ -3507,8 +3574,11 @@ void AReEchoGameMode::HandleEncounterEnded()
 	UReEchoRunSubsystem* RunSubsystemForHud = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (EncounterHudWidget)
 	{
-		EncounterHudWidget->SetEncounterStatus(
-		    RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0, GetTotalEncounterCount(), 0.0f);
+		EncounterHudWidget->SetEncounterStatus(RunSubsystemForHud ? RunSubsystemForHud->EncounterIndex : 0,
+		                                       GetTotalEncounterCount(),
+		                                       0.0f,
+		                                       Director ? Director->GetEncounterDuration()
+		                                                : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
 	}
 	// [EncounterEnded] 选卡/结算入口：记录此刻真实剩余时间，与上面的 [EncounterTimer][END] 对照。
 	UE_LOG(LogReEcho,
@@ -3616,7 +3686,63 @@ void AReEchoGameMode::ShowTraitCardChoice()
 
 	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
+	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
+	                                                             &AReEchoGameMode::HandleTraitCardRefreshRequested);
 	SetPlayerMenuAbilityBlocked(true);
+}
+
+void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	ReEchoUIInteractionAudit::Write(TEXT("FREE_CARD_SLOT_REFRESH_REQUEST"),
+	                                FString::Printf(TEXT("encounter=%d slot=%d run=%d choice=%d"),
+	                                                RunSubsystem ? RunSubsystem->EncounterIndex : INDEX_NONE,
+	                                                SlotIndex,
+	                                                RunSubsystem ? 1 : 0,
+	                                                TraitCardChoiceWidget ? 1 : 0));
+	if (!RunSubsystem || !TraitCardChoiceWidget)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+
+	FString RefreshError;
+	if (!RunSubsystem->TryRefreshTraitCardSlot(SlotIndex, RefreshError))
+	{
+		ReEchoUIInteractionAudit::Write(
+		    TEXT("FREE_CARD_SLOT_REFRESH_REJECTED"),
+		    FString::Printf(
+		        TEXT("encounter=%d slot=%d reason=%s"), RunSubsystem->EncounterIndex, SlotIndex, *RefreshError));
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoFreeCard] Slot refresh rejected encounter=%d slot=%d reason=%s"),
+		       RunSubsystem->EncounterIndex,
+		       SlotIndex,
+		       *RefreshError);
+		TraitCardChoiceWidget->RestoreChoiceFailure(RunSubsystem->TimeShards);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+
+	const TArray<FReEchoTraitCardOffer> Offers = RunSubsystem->GenerateTraitCardOffers(3);
+	if (Offers.Num() != 3)
+	{
+		ReEchoUIInteractionAudit::Write(TEXT("FREE_CARD_SLOT_REFRESH_REJECTED"),
+		                                FString::Printf(TEXT("encounter=%d slot=%d reason=ProjectionFailed"),
+		                                                RunSubsystem->EncounterIndex,
+		                                                SlotIndex));
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	RunSubsystem->SaveRun();
+	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
+	ReEchoUIInteractionAudit::Write(TEXT("FREE_CARD_SLOT_REFRESH_SUCCEEDED"),
+	                                FString::Printf(TEXT("encounter=%d slot=%d candidates=%d shards=%d"),
+	                                                RunSubsystem->EncounterIndex,
+	                                                SlotIndex,
+	                                                Offers.Num(),
+	                                                RunSubsystem->TimeShards));
+	PostUiEvent(FReEchoAudioEvents::UiPurchase);
 }
 
 void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
@@ -3687,6 +3813,7 @@ void AReEchoGameMode::BuildMinimapView(FReEchoMinimapView& OutView) const
 	OutView.ArenaHalfExtents = Player->GetArenaHalfExtents2D();
 	const FVector PlayerLocation = Player->GetActorLocation();
 	OutView.PlayerLocation = FVector2D(PlayerLocation.X, PlayerLocation.Y);
+	OutView.PlayerIcon = Player->GetMinimapIconTexture();
 
 	static const FLinearColor Palette[] = {FLinearColor::Red,
 	                                       FLinearColor::Green,
@@ -3705,6 +3832,7 @@ void AReEchoGameMode::BuildMinimapView(FReEchoMinimapView& OutView) const
 		Entry.CurrentLocation = FVector2D(EchoLocation.X, EchoLocation.Y);
 		Entry.PathPoints = Echo->GetRecordedPath();
 		Entry.Color = Palette[OutView.Echoes.Num() % 6];
+		Entry.Icon = Echo->GetMinimapIconTexture();
 		OutView.Echoes.Add(Entry);
 	}
 	OutView.bValid = true;
@@ -3785,7 +3913,9 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	}
 	if (EncounterHudWidget)
 	{
-		EncounterHudWidget->SetEncounterStatus(
-		    RunSubsystem ? RunSubsystem->EncounterIndex : 0, GetTotalEncounterCount(), Director->GetRemainingTime());
+		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,
+		                                       GetTotalEncounterCount(),
+		                                       Director->GetRemainingTime(),
+		                                       Director->GetEncounterDuration());
 	}
 }

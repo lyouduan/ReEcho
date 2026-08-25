@@ -105,6 +105,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool ApplyTraitCard(FName CardId);
 
+	/** Replaces one post-encounter/free card choice in-place using the shared card-slot refresh rule. */
+	bool TryRefreshTraitCardSlot(int32 SlotIndex, FString& OutError);
+
 	/** 调试用：将指定卡牌直接加入当前构筑（忽略阶段/候选限制），用于复现与验证卡牌效果（如静默刻度 G_2_17）。仅由 GM
 	 * 命令调用，Shipping 构建不暴露。 */
 	UFUNCTION(BlueprintCallable)
@@ -122,6 +125,11 @@ public:
 	void NotifyCardEchoDefeated();
 	bool ConsumeCardEchoRemovalRequest();
 	int32 GetDiscountedShopPrice(int32 BasePrice) const;
+	/** Refreshes only the three weapon/rune offers, using the configured per-encounter budget and price. */
+	bool TryRefreshWeaponRuneShop(FString& OutError);
+	/** Replaces one visible card in-place. The slot has its own refresh budget and remains the same tier. */
+	bool TryRefreshShopCardSlot(int32 Tier, int32 SlotIndex, FString& OutError);
+	/** Legacy C++ facade retained for old callers; PaidRefreshPrice is ignored in favor of CSV authority. */
 	bool TryConsumeShopRefresh(int32 PaidRefreshPrice);
 	bool CanPurchaseExtraShopCard() const;
 	bool SetCardAnchorRecording(FGuid RecordingId);
@@ -265,6 +273,12 @@ private:
 	UPROPERTY()
 	TArray<FName> PendingTraitCardIds;
 
+	UPROPERTY()
+	TArray<int32> PendingTraitCardRefreshUses;
+
+	UPROPERTY()
+	int32 PendingTraitCardOfferEncounterIndex = INDEX_NONE;
+
 	/** Stable weapon/rune page. Ownership changes mark offers sold but do not regenerate the remaining slots. */
 	UPROPERTY()
 	int32 WeaponPartShopOfferEncounterIndex = INDEX_NONE;
@@ -274,6 +288,16 @@ private:
 
 	UPROPERTY()
 	TArray<FName> WeaponPartShopOfferIds;
+
+	/** Current desired weapon/rune offer page; separate from the cached page key above. */
+	UPROPERTY()
+	int32 WeaponRuneRefreshSequence = 0;
+
+	UPROPERTY()
+	int32 WeaponRuneRefreshEncounterIndex = INDEX_NONE;
+
+	UPROPERTY()
+	int32 WeaponRuneRefreshesUsed = 0;
 
 	/** Randomized once per run and persisted so reopening a card choice cannot reroll it. */
 	UPROPERTY()

@@ -77,15 +77,11 @@ public:
 	                                             FVector& OutEndParameter);
 	static float ResolveConductPropagationDelaySeconds(FName WeaponId);
 	/** Converts the locked Boss beam contract into immutable world-space endpoints. */
-	static void ResolveBossBeamWorldEndpoints(const FVector& Origin,
-	                                          const FVector& LockedDirection,
-	                                          float LengthCm,
-	                                          FVector& OutStart,
-	                                          FVector& OutEnd);
+	static void ResolveBossBeamWorldEndpoints(
+	    const FVector& Origin, const FVector& LockedDirection, float LengthCm, FVector& OutStart, FVector& OutEnd);
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
-	static FVector ResolveAttachedScale(const FVector& DesiredScale,
-	                                    const FVector& AttachmentWorldScale,
-	                                    bool bPreserveWorldSize);
+	static FVector
+	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
 	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
 	/** Aligns a camera-facing effect's local X axis to a world attack direction projected into the camera plane. */
@@ -124,7 +120,8 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void
+	TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
 	void BindEventSources(UReEchoCombatEventsComponent* InCombatEvents, UReEchoEnemyEventsComponent* InEnemyEvents);
@@ -237,11 +234,13 @@ private:
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;
 	mutable bool bMissingRabbitProjectileGlowMaterialWarned = false;
 	TArray<FTimerHandle> ConductPropagationTimers;
+
 	struct FReverseMeleePlayback
 	{
 		TWeakObjectPtr<UNiagaraComponent> Effect;
 		float RemainingSeconds = 0.0f;
 	};
+
 	mutable TArray<FReverseMeleePlayback> ReverseMeleePlaybacks;
 	uint64 ConductBatchSerial = 0;
 };

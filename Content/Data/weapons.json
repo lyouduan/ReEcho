@@ -1,6 +1,0 @@
-[
- {"id":"W_J_01","type":"Melee","interval":0.80,"range":180,"physicalCoefficient":1.20,"arcDegrees":100},
- {"id":"W_J_02","type":"Ranged","interval":0.45,"range":260,"physicalCoefficient":0.55,"concentration":0.80},
- {"id":"W_J_03","type":"Ranged","interval":0.70,"range":240,"elementalCoefficient":0.75,"elements":["Flame","Lightning"]},
- {"id":"W_J_04","type":"Melee","interval":0.32,"range":65,"physicalCoefficient":0.38,"fourthHitElementalCoefficient":0.25}
-]

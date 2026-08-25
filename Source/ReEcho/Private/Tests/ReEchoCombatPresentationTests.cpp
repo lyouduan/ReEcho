@@ -63,8 +63,7 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	    TEXT("Player equipped weapon enables weapon track"),
 	    UReEchoCombatPresentationCoordinator::IsWeaponTrackEnabled(EReEchoPresentationHostKind::Player, TEXT("Bow")));
 
-	static const FName Keys[] = {
-	    TEXT("CrescentBlade"), TEXT("Scythe"), TEXT("Whip"), TEXT("Bow"), TEXT("Gun"), TEXT("Staff")};
+	static const FName Keys[] = {TEXT("CrescentBlade"), TEXT("Scythe"), TEXT("Bow"), TEXT("Gun")};
 	for (const FName Key : Keys)
 	{
 		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(Key);
@@ -84,8 +83,6 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	    GetDefault<UReEcho2DCharacterPresentationProfile>();
 	TestTrue(TEXT("Character profile exposes a normalized weapon anchor"),
 	         !DefaultCharacterProfile->WeaponAnchorRatio.ContainsNaN());
-	TestTrue(TEXT("Missing legacy Whip hand art remains an explicit empty optional field"),
-	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Whip"))->HeldTexture.IsNull());
 	TestFalse(TEXT("Bow has held visual"),
 	          FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->HeldTexture.IsNull());
 	TestEqual(TEXT("Bow mirrors only while facing left"),
@@ -104,8 +101,7 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"))->AttackCommitted.IsConfigured());
 	const UReEchoWeaponPresentationProfile* SwordProfile =
 	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"));
-	TestTrue(TEXT("Sword slash preserves its configured world size"),
-	         SwordProfile->AttackCommitted.bPreserveWorldSize);
+	TestTrue(TEXT("Sword slash preserves its configured world size"), SwordProfile->AttackCommitted.bPreserveWorldSize);
 	TestTrue(TEXT("Bow uses travel VFX"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->Travel.IsConfigured());
 	return true;

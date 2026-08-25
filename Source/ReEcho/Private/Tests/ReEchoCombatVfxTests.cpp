@@ -68,8 +68,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	FVector BeamEnd = FVector::ZeroVector;
 	const FVector BeamOrigin(300.0f, -120.0f, 40.0f);
 	const FVector BeamDirection(0.6f, 0.8f, 0.0f);
-	UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
-	    BeamOrigin, BeamDirection, 750.0f, BeamStart, BeamEnd);
+	UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(BeamOrigin, BeamDirection, 750.0f, BeamStart, BeamEnd);
 	TestTrue(TEXT("Boss beam starts at the authoritative attack origin"),
 	         BeamStart.Equals(BeamOrigin, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
@@ -79,12 +78,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Goat body charging preserves authored world size"),
 	         GoatChargingPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
 	TestTrue(TEXT("Preserved world-size VFX cancels inherited uniform owner scale"),
-	         UReEchoCombatVfxComponent::ResolveAttachedScale(
-	             FVector::OneVector, FVector(2.0f), true)
+	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector::OneVector, FVector(2.0f), true)
 	             .Equals(FVector(0.5f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Ordinary attached VFX retains its configured relative scale"),
-	         UReEchoCombatVfxComponent::ResolveAttachedScale(
-	             FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
+	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
 	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));
 	const FReEchoVfxPlacement SwordPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
@@ -93,13 +90,15 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerMeleeSlash) > 0.0f);
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
-	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"), SwordPlacement.LocalRotation.ContainsNaN());
+	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"),
+	          SwordPlacement.LocalRotation.ContainsNaN());
 	TestTrue(TEXT("Sword slash corrects the replacement asset's reversed authored axis"),
 	         FMath::IsNearlyEqual(FMath::Abs(SwordPlacement.LocalRotation.Yaw), 180.0f, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Sword slash cancels different host scales"),
-	         UReEchoCombatVfxComponent::ResolveAttachedScale(
-	             SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
-	             .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
+	TestTrue(
+	    TEXT("Sword slash cancels different host scales"),
+	    UReEchoCombatVfxComponent::ResolveAttachedScale(
+	        SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
+	        .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
 	const FVector SlashDirections[] = {FVector::ForwardVector, FVector::BackwardVector, FVector(0.6f, 0.8f, 0.0f)};
 	const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
 	TestEqual(TEXT("Left-side sword slash plays forward"),
@@ -110,13 +109,14 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	          -1.0f);
 	for (const FVector& SlashDirection : SlashDirections)
 	{
-		const FRotator DirectionRotation = UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(
-		    SlashDirection, CameraFacingNormal);
+		const FRotator DirectionRotation =
+		    UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(SlashDirection, CameraFacingNormal);
 		const FVector ExpectedPlaneDirection =
-		    (SlashDirection - FVector::DotProduct(SlashDirection, CameraFacingNormal) * CameraFacingNormal).GetSafeNormal();
-		TestTrue(TEXT("Sword slash rotates in the camera-facing plane toward the committed enemy"),
-		         DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection,
-		                                                                       KINDA_SMALL_NUMBER));
+		    (SlashDirection - FVector::DotProduct(SlashDirection, CameraFacingNormal) * CameraFacingNormal)
+		        .GetSafeNormal();
+		TestTrue(
+		    TEXT("Sword slash rotates in the camera-facing plane toward the committed enemy"),
+		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
@@ -307,30 +307,18 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
 
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
-	    EReEchoCombatVfxSemantic::RabbitCharging,
-	    EReEchoCombatVfxSemantic::RabbitProjectile,
-	    EReEchoCombatVfxSemantic::PlayerHurt,
-	    EReEchoCombatVfxSemantic::FoxCharging,
-	    EReEchoCombatVfxSemantic::FoxDirection,
-	    EReEchoCombatVfxSemantic::FoxDash,
-	    EReEchoCombatVfxSemantic::FoxImpact,
-	    EReEchoCombatVfxSemantic::PlayerMeleeSlash,
-	    EReEchoCombatVfxSemantic::PlayerScytheSlash,
-	    EReEchoCombatVfxSemantic::PlayerBowFlight,
-	    EReEchoCombatVfxSemantic::PlayerBowImpact,
-	    EReEchoCombatVfxSemantic::PlayerGunFlight,
-	    EReEchoCombatVfxSemantic::PlayerGunImpact,
-	    EReEchoCombatVfxSemantic::EnemyHurt,
-	    EReEchoCombatVfxSemantic::EchoWaterAura,
-	    EReEchoCombatVfxSemantic::EchoGrassAura,
-	    EReEchoCombatVfxSemantic::GoatSkill02Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill02Bullet,
-	    EReEchoCombatVfxSemantic::GoatSkill02Impact,
-	    EReEchoCombatVfxSemantic::GoatSkill03Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill03Alarming,
-	    EReEchoCombatVfxSemantic::GoatSkill03Impact,
-	    EReEchoCombatVfxSemantic::GoatSkill04Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill04Lighting,
+	    EReEchoCombatVfxSemantic::RabbitCharging,      EReEchoCombatVfxSemantic::RabbitProjectile,
+	    EReEchoCombatVfxSemantic::PlayerHurt,          EReEchoCombatVfxSemantic::FoxCharging,
+	    EReEchoCombatVfxSemantic::FoxDirection,        EReEchoCombatVfxSemantic::FoxDash,
+	    EReEchoCombatVfxSemantic::FoxImpact,           EReEchoCombatVfxSemantic::PlayerMeleeSlash,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerBowFlight,
+	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
+	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::EnemyHurt,
+	    EReEchoCombatVfxSemantic::EchoWaterAura,       EReEchoCombatVfxSemantic::EchoGrassAura,
+	    EReEchoCombatVfxSemantic::GoatSkill02Charging, EReEchoCombatVfxSemantic::GoatSkill02Bullet,
+	    EReEchoCombatVfxSemantic::GoatSkill02Impact,   EReEchoCombatVfxSemantic::GoatSkill03Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill03Alarming, EReEchoCombatVfxSemantic::GoatSkill03Impact,
+	    EReEchoCombatVfxSemantic::GoatSkill04Charging, EReEchoCombatVfxSemantic::GoatSkill04Lighting,
 	};
 	TestEqual(TEXT("Sheep projectile flight uses the authored Skill02 bullet"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
@@ -361,14 +349,17 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			continue;
 		}
-		const bool bRequiresComponentSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
-		                                     Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
-		                                     Semantic == EReEchoCombatVfxSemantic::FoxDirection ||
-		                                     Semantic == EReEchoCombatVfxSemantic::FoxDash ||
-		                                     Semantic == EReEchoCombatVfxSemantic::EchoWaterAura ||
-		                                     Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
+		const bool bRequiresComponentSpace =
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::FoxDirection || Semantic == EReEchoCombatVfxSemantic::FoxDash ||
+		    Semantic == EReEchoCombatVfxSemantic::EchoWaterAura || Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
+		const bool bRequiresWeaponLocalSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight;
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;
@@ -398,8 +389,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				{
 					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 					{
-						if (const UNiagaraMeshRendererProperties* Mesh =
-						        Cast<UNiagaraMeshRendererProperties>(Renderer))
+						if (const UNiagaraMeshRendererProperties* Mesh = Cast<UNiagaraMeshRendererProperties>(Renderer))
 						{
 							++SwordMeshRendererCount;
 							TestEqual(TEXT("Sword mesh renderer preserves component-space direction"),
@@ -408,9 +398,13 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 						}
 					}
 				}
-				TestTrue(FString::Printf(TEXT("Weapon VFX emitter '%s' uses local space"),
-				                         *EmitterHandle.GetName().ToString()),
-				         EmitterData && EmitterData->bLocalSpace);
+				if (bRequiresWeaponLocalSpace)
+				{
+					TestTrue(FString::Printf(TEXT("Weapon VFX '%s' emitter '%s' uses local space"),
+					                         *System->GetPathName(),
+					                         *EmitterHandle.GetName().ToString()),
+					         EmitterData && EmitterData->bLocalSpace);
+				}
 			}
 			if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight)
 			{

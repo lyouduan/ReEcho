@@ -134,13 +134,16 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	          InitialHpMax + 2.0f);
 
 	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
-	const int32 InitialRefreshSequence = RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+	const FReEchoWeaponPartShopView InitialRefreshView = RunSubsystem->GetWeaponPartShopView();
 	TestTrue(TEXT("Free refresh is consumed before currency"), RunSubsystem->TryConsumeShopRefresh(0));
 	TestEqual(TEXT("Free refresh leaves currency unchanged"), RunSubsystem->TimeShards, 38);
-	TestEqual(TEXT("Free refresh advances the deterministic shop page"),
-	          RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence,
-	          InitialRefreshSequence + 1);
-	TestFalse(TEXT("Zero-price refresh cannot become an infinite paid refresh"),
+	TestEqual(TEXT("Free refresh consumes one weapon/rune refresh use"),
+	          RunSubsystem->GetWeaponPartShopView().WeaponRuneRefreshesRemaining,
+	          InitialRefreshView.WeaponRuneRefreshesRemaining - 1);
+	TestTrue(TEXT("A second weapon/rune refresh uses the configured paid cost"),
+	         RunSubsystem->TryConsumeShopRefresh(0));
+	TestEqual(TEXT("Paid weapon/rune refresh deducts five configured shards"), RunSubsystem->TimeShards, 33);
+	TestFalse(TEXT("Per-encounter weapon/rune refresh limit prevents an infinite refresh"),
 	          RunSubsystem->TryConsumeShopRefresh(0));
 
 	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
@@ -185,20 +188,28 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	          RunSubsystem->TryEquipParts({NAME_None}, Error));
 	TestFalse(TEXT("Unknown part id is rejected by the equip path"),
 	          RunSubsystem->TryEquipParts({TEXT("P_UNKNOWN_PART")}, Error));
+	int32 SearchEncounterIndex = 1;
 	auto FindAndBuy = [&](const FName PartId)
 	{
-		for (int32 Attempt = 0; Attempt < 64; ++Attempt)
+		for (int32 EncounterAttempt = 0; EncounterAttempt < 32; ++EncounterAttempt)
 		{
-			const FReEchoWeaponPartShopView Page = RunSubsystem->GetWeaponPartShopView();
-			if (Page.Offers.ContainsByPredicate(
-			        [&](const FReEchoShopOffer& Offer)
-			        {
-				        return Offer.Type == EReEchoShopOfferType::WeaponPart && Offer.ContentId == PartId;
-			        }))
+			RunSubsystem->EncounterIndex = SearchEncounterIndex++;
+			for (int32 PageIndex = 0; PageIndex <= 2; ++PageIndex)
 			{
-				return RunSubsystem->PurchaseShopItem(PartId);
+				const FReEchoWeaponPartShopView Page = RunSubsystem->GetWeaponPartShopView();
+				if (Page.Offers.ContainsByPredicate(
+				        [&](const FReEchoShopOffer& Offer)
+				        {
+					        return Offer.Type == EReEchoShopOfferType::WeaponPart && Offer.ContentId == PartId;
+				        }))
+				{
+					return RunSubsystem->PurchaseShopItem(PartId);
+				}
+				if (PageIndex < 2 && !RunSubsystem->TryRefreshWeaponRuneShop(Error))
+				{
+					break;
+				}
 			}
-			RunSubsystem->TryConsumeShopRefresh(1);
 		}
 		return false;
 	};
@@ -227,17 +238,25 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 
 	// Plan85 Step 3 regression: an owned rune must not be re-offered after a manual shop refresh.
 	RunSubsystem->TimeShards = 1000;
-	for (int32 RefreshIndex = 0; RefreshIndex < 8; ++RefreshIndex)
+	for (int32 EncounterOffset = 0; EncounterOffset < 4; ++EncounterOffset)
 	{
-		TestTrue(TEXT("Shop refresh succeeds during Step 3 rune regression"), RunSubsystem->TryConsumeShopRefresh(1));
-		const FReEchoWeaponPartShopView RefreshedPage = RunSubsystem->GetWeaponPartShopView();
-		TestFalse(TEXT("Owned rune is excluded from offers after refresh"),
-		          RefreshedPage.Offers.ContainsByPredicate(
-		              [](const FReEchoShopOffer& Offer)
-		              {
-			              return Offer.Type == EReEchoShopOfferType::WeaponPart &&
-			                     Offer.ContentId == TEXT("P_CORE_FLAME");
-		              }));
+		RunSubsystem->EncounterIndex = 100 + EncounterOffset;
+		for (int32 PageIndex = 0; PageIndex <= 2; ++PageIndex)
+		{
+			const FReEchoWeaponPartShopView Page = RunSubsystem->GetWeaponPartShopView();
+			TestFalse(TEXT("Owned rune is excluded from every weapon/rune page"),
+			          Page.Offers.ContainsByPredicate(
+			              [](const FReEchoShopOffer& Offer)
+			              {
+				              return Offer.Type == EReEchoShopOfferType::WeaponPart &&
+				                     Offer.ContentId == TEXT("P_CORE_FLAME");
+			              }));
+			if (PageIndex < 2)
+			{
+				TestTrue(TEXT("Each encounter permits both configured weapon/rune refreshes"),
+				         RunSubsystem->TryRefreshWeaponRuneShop(Error));
+			}
+		}
 	}
 
 	// The public equip operation remains available for owned/backpack selection and idempotent re-commit.
@@ -340,21 +359,28 @@ bool FReEchoOwnedWeaponBackpackTest::RunTest(const FString& Parameters)
 	         RunSubsystem->OwnedWeaponIds.Contains(TEXT("W_J_08")));
 	RunSubsystem->TimeShards = 10000;
 	FName PurchasedWeaponId = NAME_None;
-	for (int32 Attempt = 0; Attempt < 128 && PurchasedWeaponId.IsNone(); ++Attempt)
+	for (int32 EncounterAttempt = 0; EncounterAttempt < 64 && PurchasedWeaponId.IsNone(); ++EncounterAttempt)
 	{
-		const FReEchoWeaponPartShopView Page = RunSubsystem->GetWeaponPartShopView();
-		if (const FReEchoWeaponSlotOffer* WeaponOffer = Page.SlotOffers.FindByPredicate(
-		        [](const FReEchoWeaponSlotOffer& Offer)
-		        {
-			        return Offer.Kind == EReEchoShopOfferKind::Weapon && !Offer.WeaponId.IsNone();
-		        }))
+		RunSubsystem->EncounterIndex = EncounterAttempt + 1;
+		for (int32 PageIndex = 0; PageIndex <= 2 && PurchasedWeaponId.IsNone(); ++PageIndex)
 		{
-			PurchasedWeaponId = WeaponOffer->WeaponId;
-			TestTrue(TEXT("A whole-weapon shop offer can be purchased"),
-			         RunSubsystem->PurchaseShopItem(PurchasedWeaponId));
-			break;
+			const FReEchoWeaponPartShopView Page = RunSubsystem->GetWeaponPartShopView();
+			if (const FReEchoWeaponSlotOffer* WeaponOffer = Page.SlotOffers.FindByPredicate(
+			        [](const FReEchoWeaponSlotOffer& Offer)
+			        {
+				        return Offer.Kind == EReEchoShopOfferKind::Weapon && !Offer.WeaponId.IsNone();
+			        }))
+			{
+				PurchasedWeaponId = WeaponOffer->WeaponId;
+				TestTrue(TEXT("A whole-weapon shop offer can be purchased"),
+				         RunSubsystem->PurchaseShopItem(PurchasedWeaponId));
+				break;
+			}
+			if (PageIndex < 2 && !RunSubsystem->TryRefreshWeaponRuneShop(Error))
+			{
+				break;
+			}
 		}
-		RunSubsystem->TryConsumeShopRefresh(1);
 	}
 	TestFalse(TEXT("The deterministic shop sequence eventually exposes a weapon"), PurchasedWeaponId.IsNone());
 	TestTrue(TEXT("Purchased weapon enters the owned weapon backpack"),
@@ -468,7 +494,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		TierOneCardIds.Add(Card.Id);
 	}
 	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Append(TierOneCardIds);
-	++RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+	RunSubsystem->EncounterIndex = 3;
 	const FReEchoWeaponPartShopView OwnedFilterPage = RunSubsystem->GetWeaponPartShopView();
 	if (!TestEqual(TEXT("A fully-owned tier-one pool keeps the three fixed packs"),
 	               OwnedFilterPage.CardPackOffers.Num(),
@@ -570,16 +596,12 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Purchasing one pack leaves the other configured pack available"),
 	         PurchasedPage.CardPackOffers[OtherPackIndex].IsAvailable());
 
-	const int32 SequenceBefore = RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence;
 	const int32 BeforeRefreshShards = RunSubsystem->TimeShards;
+	const int32 RefreshCost = PurchasedPage.WeaponRuneRefreshCost;
 	TestTrue(TEXT("Paid refresh succeeds after free refreshes are exhausted"),
-	         RunSubsystem->TryConsumeShopRefresh(ReEchoShopRefreshPrice));
-	TestEqual(TEXT("Joint refresh advances one shared sequence"),
-	          RunSubsystem->CurrentBuild.CardState.Runtime.ShopRefreshSequence,
-	          SequenceBefore + 1);
-	TestEqual(TEXT("Paid refresh deducts the configured price"),
-	          RunSubsystem->TimeShards,
-	          BeforeRefreshShards - ReEchoShopRefreshPrice);
+	         RunSubsystem->TryConsumeShopRefresh(RefreshCost));
+	TestEqual(
+	    TEXT("Paid refresh deducts the configured price"), RunSubsystem->TimeShards, BeforeRefreshShards - RefreshCost);
 	const FReEchoWeaponPartShopView RefreshedPage = RunSubsystem->GetWeaponPartShopView();
 	TestEqual(TEXT("Refreshed page still has three fixed weapon/part slots"),
 	          RefreshedPage.SlotOffers.Num(),
@@ -587,9 +609,9 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Refreshed page keeps three fixed card packs"),
 	          RefreshedPage.CardPackOffers.Num(),
 	          ReEchoShopOfferCountPerGroup);
-	TestTrue(TEXT("Full refresh clears purchased state on every offered pack"),
-	         RefreshedPage.CardPackOffers[1].Status != EReEchoShopCardPackStatus::Purchased &&
-	             RefreshedPage.CardPackOffers[2].Status != EReEchoShopCardPackStatus::Purchased);
+	TestEqual(TEXT("Weapon/rune refresh preserves the purchased card-pack state"),
+	          RefreshedPage.CardPackOffers[PurchasedCard.Tier - 1].Status,
+	          EReEchoShopCardPackStatus::Purchased);
 	TestFalse(TEXT("A non-tier-one purchased card stays excluded after refresh"),
 	          RefreshedPage.CardPackOffers[PurchasedCard.Tier - 1].Choices.ContainsByPredicate(
 	              [&](const FReEchoShopCardChoiceOffer& Choice)
@@ -725,7 +747,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		          TwoRemainingPage.CardPackOffers[1].Choices.Num(),
 		          2);
 		PartialRun->CurrentBuild.CardState.OwnedCardIds.Add(TwoRemainingPage.CardPackOffers[1].Choices[0].CardId);
-		++PartialRun->CurrentBuild.CardState.Runtime.ShopRefreshSequence;
+		PartialRun->EncounterIndex = 6;
 		const FReEchoWeaponPartShopView OneRemainingPage = PartialRun->GetWeaponPartShopView();
 		TestEqual(TEXT("A tier with one eligible card exposes one choice without cross-tier fill"),
 		          OneRemainingPage.CardPackOffers[1].Choices.Num(),
@@ -756,6 +778,185 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("The exhausted tier-two pack keeps its tier identity"), ExhaustedPage.CardPackOffers[1].Tier, 2);
 		TestEqual(TEXT("The tier-three pack never backfills tier two"), ExhaustedPage.CardPackOffers[2].Tier, 3);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSeparatedShopRefreshTest,
+                                 "ReEcho.Shop.RefreshesWeaponRunesAndCardSlotsIndependently",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
+	Run->EncounterIndex = 4;
+	Run->TimeShards = 1000;
+	const FReEchoWeaponPartShopView InitialPage = Run->GetWeaponPartShopView();
+	if (!TestTrue(TEXT("Tier-two card pack exposes a refreshable slot"),
+	              InitialPage.CardPackOffers[1].IsAvailable() &&
+	                  InitialPage.CardPackOffers[1].Choices.ContainsByPredicate(
+	                      [](const FReEchoShopCardChoiceOffer& Choice)
+	                      {
+		                      return Choice.bCanRefresh;
+	                      })))
+	{
+		return false;
+	}
+	const FReEchoShopCardChoiceOffer InitialChoice = *InitialPage.CardPackOffers[1].Choices.FindByPredicate(
+	    [](const FReEchoShopCardChoiceOffer& Choice)
+	    {
+		    return Choice.bCanRefresh;
+	    });
+	TMap<int32, FName> InitialCardsBySlot;
+	for (const FReEchoShopCardChoiceOffer& Choice : InitialPage.CardPackOffers[1].Choices)
+	{
+		InitialCardsBySlot.Add(Choice.SlotIndex, Choice.CardId);
+	}
+	const int32 BeforeCardRefreshShards = Run->TimeShards;
+	FString RefreshError;
+	TestTrue(TEXT("One card slot can refresh independently"),
+	         Run->TryRefreshShopCardSlot(2, InitialChoice.SlotIndex, RefreshError));
+	const FReEchoWeaponPartShopView CardRefreshedPage = Run->GetWeaponPartShopView();
+	const FReEchoShopCardChoiceOffer* RefreshedChoice = CardRefreshedPage.CardPackOffers[1].Choices.FindByPredicate(
+	    [&](const FReEchoShopCardChoiceOffer& Choice)
+	    {
+		    return Choice.SlotIndex == InitialChoice.SlotIndex;
+	    });
+	if (!TestNotNull(TEXT("The refreshed slot remains visible"), RefreshedChoice))
+	{
+		return false;
+	}
+	TestNotEqual(TEXT("Only the requested slot receives a replacement"), RefreshedChoice->CardId, InitialChoice.CardId);
+	TestEqual(TEXT("The replacement remains in the same tier"), RefreshedChoice->Tier, 2);
+	TestEqual(TEXT("The slot's single refresh is consumed"), RefreshedChoice->RemainingRefreshes, 0);
+	TestEqual(TEXT("Card-slot refresh deducts the configured five shards"),
+	          Run->TimeShards,
+	          BeforeCardRefreshShards - InitialChoice.RefreshCost);
+	for (const FReEchoShopCardChoiceOffer& Choice : CardRefreshedPage.CardPackOffers[1].Choices)
+	{
+		if (Choice.SlotIndex != InitialChoice.SlotIndex)
+		{
+			TestEqual(TEXT("Sibling card slots remain unchanged"), Choice.CardId, InitialCardsBySlot[Choice.SlotIndex]);
+		}
+	}
+	const int32 BeforeRejectedRepeatShards = Run->TimeShards;
+	TestFalse(TEXT("The same card slot cannot refresh twice"),
+	          Run->TryRefreshShopCardSlot(2, InitialChoice.SlotIndex, RefreshError));
+	TestEqual(TEXT("Rejected repeated card refresh keeps currency"), Run->TimeShards, BeforeRejectedRepeatShards);
+	const FReEchoShopCardChoiceOffer* IndependentChoice = CardRefreshedPage.CardPackOffers[1].Choices.FindByPredicate(
+	    [&](const FReEchoShopCardChoiceOffer& Choice)
+	    {
+		    return Choice.SlotIndex != InitialChoice.SlotIndex && Choice.bCanRefresh;
+	    });
+	if (TestNotNull(TEXT("A sibling card slot keeps its independent refresh opportunity"), IndependentChoice))
+	{
+		const FName FirstReplacementId = RefreshedChoice->CardId;
+		TestTrue(TEXT("A sibling card slot can spend its own refresh"),
+		         Run->TryRefreshShopCardSlot(2, IndependentChoice->SlotIndex, RefreshError));
+		const FReEchoWeaponPartShopView TwoSlotsRefreshedPage = Run->GetWeaponPartShopView();
+		const FReEchoShopCardChoiceOffer* StableFirstReplacement =
+		    TwoSlotsRefreshedPage.CardPackOffers[1].Choices.FindByPredicate(
+		        [&](const FReEchoShopCardChoiceOffer& Choice)
+		        {
+			        return Choice.SlotIndex == InitialChoice.SlotIndex;
+		        });
+		TestTrue(TEXT("Refreshing a sibling preserves the first replacement"),
+		         StableFirstReplacement && StableFirstReplacement->CardId == FirstReplacementId);
+	}
+	const FReEchoWeaponPartShopView BeforeBlockedCardRefresh = Run->GetWeaponPartShopView();
+	const FReEchoShopCardChoiceOffer* UnusedChoice = BeforeBlockedCardRefresh.CardPackOffers[1].Choices.FindByPredicate(
+	    [](const FReEchoShopCardChoiceOffer& Choice)
+	    {
+		    return Choice.RemainingRefreshes > 0;
+	    });
+	if (TestNotNull(TEXT("One unused card slot remains for the no-refresh rule regression"), UnusedChoice))
+	{
+		const int32 BeforeBlockedShards = Run->TimeShards;
+		Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::NoShopRefresh;
+		TestFalse(TEXT("NoShopRefresh blocks card-slot refreshes as well as weapon/rune refreshes"),
+		          Run->TryRefreshShopCardSlot(2, UnusedChoice->SlotIndex, RefreshError));
+		TestEqual(TEXT("NoShopRefresh keeps card-refresh currency atomic"), Run->TimeShards, BeforeBlockedShards);
+		Run->CurrentBuild.CardState.Runtime.EconomyPenalty = EReEchoCardEconomyPenalty::None;
+	}
+
+	const TArray<FReEchoShopCardPackRuntimeState> CardPacksBeforeWeaponRefresh =
+	    Run->CurrentBuild.CardState.Runtime.ShopCardPackStates;
+	const int32 BeforeWeaponRefreshShards = Run->TimeShards;
+	TestTrue(TEXT("First weapon/rune refresh succeeds"), Run->TryRefreshWeaponRuneShop(RefreshError));
+	TestEqual(TEXT("Weapon/rune refresh deducts its configured price"),
+	          Run->TimeShards,
+	          BeforeWeaponRefreshShards - InitialPage.WeaponRuneRefreshCost);
+	TestTrue(TEXT("Weapon/rune refresh leaves all card-pack candidates intact"),
+	         Run->CurrentBuild.CardState.Runtime.ShopCardPackStates[1].CandidateCardIds ==
+	             CardPacksBeforeWeaponRefresh[1].CandidateCardIds);
+	TestTrue(TEXT("Weapon/rune refresh leaves per-card-slot usage intact"),
+	         Run->CurrentBuild.CardState.Runtime.ShopCardPackStates[1].SlotRefreshUses ==
+	             CardPacksBeforeWeaponRefresh[1].SlotRefreshUses);
+	TestTrue(TEXT("Second weapon/rune refresh succeeds"), Run->TryRefreshWeaponRuneShop(RefreshError));
+	const int32 BeforeExhaustedWeaponRefreshShards = Run->TimeShards;
+	TestFalse(TEXT("Third weapon/rune refresh is blocked by the per-encounter limit"),
+	          Run->TryRefreshWeaponRuneShop(RefreshError));
+	TestEqual(TEXT("Rejected exhausted weapon/rune refresh keeps currency"),
+	          Run->TimeShards,
+	          BeforeExhaustedWeaponRefreshShards);
+	UReEchoRunSaveGame* RefreshSave = Run->CreateSaveSnapshot();
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* RestoredRun = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	if (TestNotNull(TEXT("Separated refresh state can be saved"), RefreshSave) &&
+	    TestTrue(TEXT("Separated refresh state can be restored"), RestoredRun->RestoreSaveSnapshot(*RefreshSave)))
+	{
+		const FReEchoWeaponPartShopView RestoredPage = RestoredRun->GetWeaponPartShopView();
+		TestEqual(
+		    TEXT("Save/load preserves the exhausted weapon/rune budget"), RestoredPage.WeaponRuneRefreshesRemaining, 0);
+		const FReEchoShopCardChoiceOffer* RestoredCard = RestoredPage.CardPackOffers[1].Choices.FindByPredicate(
+		    [&](const FReEchoShopCardChoiceOffer& Choice)
+		    {
+			    return Choice.SlotIndex == InitialChoice.SlotIndex;
+		    });
+		if (TestNotNull(TEXT("Save/load preserves the refreshed card slot"), RestoredCard))
+		{
+			TestEqual(
+			    TEXT("Save/load preserves the card slot's exhausted budget"), RestoredCard->RemainingRefreshes, 0);
+			TestEqual(
+			    TEXT("Save/load preserves the card replacement id"), RestoredCard->CardId, RefreshedChoice->CardId);
+		}
+	}
+
+	UGameInstance* ExhaustedGameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* ExhaustedRun = NewObject<UReEchoRunSubsystem>(ExhaustedGameInstance);
+	ExhaustedRun->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
+	ExhaustedRun->EncounterIndex = 4;
+	ExhaustedRun->TimeShards = 100;
+	const FReEchoWeaponPartShopView ExhaustedInitialPage = ExhaustedRun->GetWeaponPartShopView();
+	if (!TestTrue(TEXT("No-replacement fixture exposes tier two"),
+	              ExhaustedInitialPage.CardPackOffers[1].IsAvailable()))
+	{
+		return false;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = ExhaustedRun->GetRunDataSnapshot();
+	for (const FReEchoCardDefinition& Card : Snapshot->CardCatalog->GetOfferable(TEXT("Trait"), 2))
+	{
+		if (!ExhaustedInitialPage.CardPackOffers[1].Choices.ContainsByPredicate(
+		        [&](const FReEchoShopCardChoiceOffer& Choice)
+		        {
+			        return Choice.CardId == Card.Id;
+		        }))
+		{
+			ExhaustedRun->CurrentBuild.CardState.OwnedCardIds.Add(Card.Id);
+		}
+	}
+	const FReEchoShopCardChoiceOffer NoReplacementChoice =
+	    ExhaustedRun->GetWeaponPartShopView().CardPackOffers[1].Choices[0];
+	const int32 BeforeNoReplacementShards = ExhaustedRun->TimeShards;
+	TestFalse(TEXT("A card slot with no legal unowned replacement is disabled transactionally"),
+	          ExhaustedRun->TryRefreshShopCardSlot(2, NoReplacementChoice.SlotIndex, RefreshError));
+	TestEqual(
+	    TEXT("No-replacement failure does not deduct shards"), ExhaustedRun->TimeShards, BeforeNoReplacementShards);
+	TestEqual(TEXT("No-replacement failure does not consume the slot use"),
+	          ExhaustedRun->CurrentBuild.CardState.Runtime.ShopCardPackStates[1]
+	              .SlotRefreshUses[NoReplacementChoice.SlotIndex],
+	          0);
 	return true;
 }
 #endif

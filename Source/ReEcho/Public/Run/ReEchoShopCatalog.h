@@ -47,7 +47,6 @@ struct REECHO_API FReEchoShopPurchaseOutcome
 	}
 };
 
-inline constexpr int32 ReEchoShopRefreshPrice = 10;
 inline constexpr int32 ReEchoShopOfferCountPerGroup = 3;
 
 struct REECHO_API FReEchoShopOffer
@@ -96,6 +95,11 @@ struct REECHO_API FReEchoShopCardChoiceOffer
 	TArray<FName> Tags;
 	int32 Tier = 1;
 	int32 Price = 0;
+	int32 SlotIndex = INDEX_NONE;
+	int32 SlotRefreshSequence = 0;
+	int32 RemainingRefreshes = 0;
+	int32 RefreshCost = 0;
+	bool bCanRefresh = false;
 };
 
 /** One of the three fixed card-pack entrances. Array index 0/1/2 is always tier 1/2/3. */
@@ -136,6 +140,9 @@ struct REECHO_API FReEchoWeaponPartShopView
 	TArray<FReEchoShopOffer> OwnedWeaponOffers;
 	TArray<FReEchoWeaponSlotShopView> Slots;
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
+	int32 WeaponRuneRefreshesRemaining = 0;
+	int32 WeaponRuneRefreshCost = 0;
+	bool bWeaponRuneRefreshAllowed = false;
 };
 
 inline const TArray<FReEchoShopOffer>& GetReEchoShopCatalog()

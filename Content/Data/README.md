@@ -12,6 +12,7 @@
 - Install locked XLSX dependency: `python -m pip install -r scripts/data/requirements.txt`.
 - Runtime code still reads only UTF-8 CSV in `Content/Data`; XLSX, Excel, COM and Office are never runtime dependencies.
 - Do not hand-edit generated production CSV as a second truth. Change the workbook machine Tables, run the generator, and commit the resulting CSV diff.
+- 已迁移玩法领域不再保留 `characters.json`、`cards.json`、`weapons.json`、`elements.json`、`reactions.json`、`statuses.json`、`encounters.json`、`global_balance.json` 或 `enemies.json`。这些旧快照只从 Git 历史审阅；项目校验会拒绝它们返回本目录。
 
 ## CSV 契约 v1
 

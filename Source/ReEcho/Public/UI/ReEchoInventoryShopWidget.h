@@ -335,6 +335,8 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> TargetCurrencyText;
 	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> TargetRefreshLimitText;
+	UPROPERTY(Transient)
 	TArray<TObjectPtr<UButton>> DesignerAttachmentSlotButtons;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerAttachmentSlotArts;

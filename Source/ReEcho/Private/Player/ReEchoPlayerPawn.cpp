@@ -187,6 +187,11 @@ bool AReEchoPlayerPawn::ConfigureCharacter(const FName CharacterId)
 	return true;
 }
 
+UTexture2D* AReEchoPlayerPawn::GetMinimapIconTexture() const
+{
+	return ActivePresentationProfile ? ActivePresentationProfile->MinimapIcon.Get() : nullptr;
+}
+
 void AReEchoPlayerPawn::ConfigureArenaBounds(const float HalfExtentX, const float HalfExtentY)
 {
 	ConfigureArenaBounds(FVector2D::ZeroVector, FVector2D(HalfExtentX, HalfExtentY));

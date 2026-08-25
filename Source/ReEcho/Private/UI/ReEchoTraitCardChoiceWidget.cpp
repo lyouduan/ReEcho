@@ -14,6 +14,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoTraitCardEntryWidget.h"
+#include "UI/Framework/ReEchoUIInteractionAudit.h"
 #include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "ReEchoGameMode.h"
@@ -81,6 +82,10 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	{
 		CardEntry->OnEntrySelected.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
 	}
+	for (UReEchoIndexedButton* RefreshButton : CardRefreshButtons)
+	{
+		RefreshButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardRefreshClicked);
+	}
 	if (ConfirmButton)
 	{
 		ConfirmButton->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleConfirmClicked);
@@ -131,6 +136,12 @@ void UReEchoTraitCardChoiceWidget::NativeTick(const FGeometry& MyGeometry, const
 			const int32 CardIndex = CardEntries.IndexOfByKey(CardEntry);
 			CardEntry->SetSelectionEnabled(CanSelectOffer(CardIndex));
 		}
+		for (int32 CardIndex = 0; CardIndex < CardRefreshButtons.Num(); ++CardIndex)
+		{
+			const bool bCanRefresh = Offers.IsValidIndex(CardIndex) && Offers[CardIndex].bCanRefresh &&
+			                         Offers[CardIndex].RefreshCost <= CurrentTimeShards;
+			CardRefreshButtons[CardIndex]->SetIsEnabled(bCanRefresh);
+		}
 		if (!CardEntries.IsEmpty())
 		{
 			CardEntries[0]->FocusSelection();
@@ -155,6 +166,7 @@ void UReEchoTraitCardChoiceWidget::InitializeOffers(const TArray<FReEchoTraitCar
 		ShopCancelButton->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	RefreshOffers();
+	ResetRevealAnimation();
 }
 
 void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShopCardChoiceOffer>& InOffers,
@@ -174,6 +186,10 @@ void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShop
 		Offer.DisplayName = Choice.DisplayName;
 		Offer.Description = Choice.EffectText;
 		Offer.Tags = Choice.Tags;
+		Offer.SlotIndex = Choice.SlotIndex;
+		Offer.RemainingRefreshes = Choice.RemainingRefreshes;
+		Offer.RefreshCost = Choice.RefreshCost;
+		Offer.bCanRefresh = Choice.bCanRefresh;
 		Offers.Add(MoveTemp(Offer));
 	}
 	EnsureShopCancelButton();
@@ -185,12 +201,8 @@ void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShop
 	ResetRevealAnimation();
 }
 
-void UReEchoTraitCardChoiceWidget::RestoreShopPurchaseFailure(const int32 InTimeShards)
+void UReEchoTraitCardChoiceWidget::RestoreChoiceFailure(const int32 InTimeShards)
 {
-	if (!bShopMode)
-	{
-		return;
-	}
 	CurrentTimeShards = InTimeShards;
 	SelectedOfferIndex = INDEX_NONE;
 	bRevealComplete = true;
@@ -294,7 +306,16 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 			TraitCardContainer->RemoveChild(CardPanel);
 		}
 	}
+	for (UReEchoIndexedButton* RefreshButton : CardRefreshButtons)
+	{
+		if (RefreshButton && RefreshButton->GetParent() == TraitCardContainer)
+		{
+			TraitCardContainer->RemoveChild(RefreshButton);
+		}
+	}
 	CardButtons.Reset();
+	CardRefreshButtons.Reset();
+	CardRefreshTexts.Reset();
 	CardEntries.Reset();
 	CardPanels.Reset();
 	CardNames.Reset();
@@ -376,6 +397,27 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 		UVerticalBoxSlot* SelectHintSlot = CardContent->AddChildToVerticalBox(SelectHint);
 		SelectHintSlot->SetHorizontalAlignment(HAlign_Fill);
 		SelectHintSlot->SetPadding(FMargin(18.0f, 16.0f, 18.0f, 20.0f));
+	}
+	for (int32 CardIndex = 0; CardIndex < 3; ++CardIndex)
+	{
+		UReEchoIndexedButton* RefreshButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("ShopCardRefreshButton%d"), CardIndex));
+		RefreshButton->SetEntryIndex(CardIndex);
+		RefreshButton->SetBackgroundColor(FLinearColor(0.18f, 0.35f, 0.30f, 0.96f));
+		UTextBlock* RefreshText = CreateCenteredText(WidgetTree,
+		                                             *FString::Printf(TEXT("ShopCardRefreshText%d"), CardIndex),
+		                                             17,
+		                                             FLinearColor(0.96f, 0.90f, 0.70f));
+		RefreshButton->SetContent(RefreshText);
+		RefreshButton->SetVisibility(ESlateVisibility::Collapsed);
+		UCanvasPanelSlot* RefreshSlot = TraitCardContainer->AddChildToCanvas(RefreshButton);
+		RefreshSlot->SetAnchors(CardAnchors[CardIndex]);
+		RefreshSlot->SetAlignment(FVector2D(0.5f, -3.65f));
+		RefreshSlot->SetSize(FVector2D(210.0f, 48.0f));
+		RefreshSlot->SetZOrder(30 + CardIndex);
+		RefreshButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardRefreshClicked);
+		CardRefreshButtons.Add(RefreshButton);
+		CardRefreshTexts.Add(RefreshText);
 	}
 	RefreshOffers();
 }
@@ -474,6 +516,23 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			                                  SelectHint);
 		}
 	}
+	for (int32 CardIndex = 0; CardIndex < CardRefreshButtons.Num(); ++CardIndex)
+	{
+		const bool bHasRefreshableOffer = Offers.IsValidIndex(CardIndex) && Offers[CardIndex].SlotIndex != INDEX_NONE;
+		CardRefreshButtons[CardIndex]->SetVisibility(bHasRefreshableOffer ? ESlateVisibility::Visible
+		                                                                  : ESlateVisibility::Collapsed);
+		if (!bHasRefreshableOffer)
+		{
+			continue;
+		}
+		const FReEchoTraitCardOffer& Offer = Offers[CardIndex];
+		CardRefreshTexts[CardIndex]->SetText(
+		    FText::Format(NSLOCTEXT("ReEcho", "ShopCardSlotRefresh", "刷新（剩余 {0}） · {1}"),
+		                  FText::AsNumber(Offer.RemainingRefreshes),
+		                  FText::AsNumber(Offer.RefreshCost)));
+		CardRefreshButtons[CardIndex]->SetIsEnabled(bRevealComplete && Offer.bCanRefresh &&
+		                                            Offer.RefreshCost <= CurrentTimeShards);
+	}
 	RefreshSelectionVisuals();
 }
 
@@ -563,6 +622,34 @@ void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)
 
 	SelectedOfferIndex = OfferIndex;
 	RefreshSelectionVisuals();
+}
+
+void UReEchoTraitCardChoiceWidget::HandleCardRefreshClicked(const int32 OfferIndex)
+{
+	if (!bRevealComplete || !Offers.IsValidIndex(OfferIndex))
+	{
+		return;
+	}
+	const FReEchoTraitCardOffer& Offer = Offers[OfferIndex];
+	ReEchoUIInteractionAudit::Write(
+	    bShopMode ? TEXT("SHOP_CARD_SLOT_REFRESH_BUTTON") : TEXT("FREE_CARD_SLOT_REFRESH_BUTTON"),
+	    FString::Printf(TEXT("tier=%d visibleIndex=%d slot=%d card=%s remaining=%d cost=%d canRefresh=%d shards=%d"),
+	                    Offer.Tier,
+	                    OfferIndex,
+	                    Offer.SlotIndex,
+	                    *Offer.CardId.ToString(),
+	                    Offer.RemainingRefreshes,
+	                    Offer.RefreshCost,
+	                    Offer.bCanRefresh ? 1 : 0,
+	                    CurrentTimeShards));
+	if (Offer.bCanRefresh && Offer.RefreshCost <= CurrentTimeShards)
+	{
+		for (UReEchoIndexedButton* RefreshButton : CardRefreshButtons)
+		{
+			RefreshButton->SetIsEnabled(false);
+		}
+		OnCardSlotRefreshRequested.Broadcast(Offer.SlotIndex);
+	}
 }
 
 void UReEchoTraitCardChoiceWidget::HandleConfirmClicked()

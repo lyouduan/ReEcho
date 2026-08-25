@@ -87,7 +87,7 @@ Design/Data/ReEchoData.xlsx + ReEchoEnemyData.xlsx + ReEchoEncounterData.xlsx + 
 - 角色基础行与角色能力子表分离：`tblCharacters → characters.csv`，`tblCharacterAbilities → character_abilities.csv`；能力逻辑只允许注册行为，旧 Forge 不属于生产契约。
 - Unreal 运行时不读取 XLSX，也不执行表格自由文本。
 - Behavior、Formula、Effect 与 AttackPattern 通过稳定 ID 映射到注册实现。
-- 已迁移领域的旧 JSON 仅用于迁移，不能成为第二事实来源。
+- 已迁移领域的旧玩法 JSON 已从 `Content/Data` 删除并由校验器禁止回归；历史快照只从 Git 读取，不能成为第二事实来源。
 
 ## 跨模块不变量
 

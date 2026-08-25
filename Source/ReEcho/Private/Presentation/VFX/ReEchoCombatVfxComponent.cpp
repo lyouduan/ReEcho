@@ -357,8 +357,8 @@ void UReEchoCombatVfxComponent::EndPlay(const EEndPlayReason::Type EndPlayReason
 }
 
 void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
-	                                           const ELevelTick TickType,
-	                                           FActorComponentTickFunction* ThisTickFunction)
+                                              const ELevelTick TickType,
+                                              FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	for (int32 Index = ReverseMeleePlaybacks.Num() - 1; Index >= 0; --Index)
@@ -520,21 +520,18 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	return Effect;
 }
 
-void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(const FVector& Origin,
-	                                                           const FVector& LockedDirection,
-	                                                           const float LengthCm,
-	                                                           FVector& OutStart,
-	                                                           FVector& OutEnd)
+void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
+    const FVector& Origin, const FVector& LockedDirection, const float LengthCm, FVector& OutStart, FVector& OutEnd)
 {
-	const FVector Direction = LockedDirection.IsNearlyZero() ? FVector::ForwardVector
-	                                                        : LockedDirection.GetSafeNormal2D();
+	const FVector Direction =
+	    LockedDirection.IsNearlyZero() ? FVector::ForwardVector : LockedDirection.GetSafeNormal2D();
 	OutStart = Origin;
 	OutEnd = Origin + Direction * FMath::Max(0.0f, LengthCm);
 }
 
 FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredScale,
-	                                                     const FVector& AttachmentWorldScale,
-	                                                     const bool bPreserveWorldSize)
+                                                        const FVector& AttachmentWorldScale,
+                                                        const bool bPreserveWorldSize)
 {
 	if (!bPreserveWorldSize)
 	{
@@ -600,7 +597,7 @@ FRotator UReEchoCombatVfxComponent::ComposeAttachedRotation(const FRotator& Dire
 }
 
 FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FVector& Direction,
-	                                                                     const FVector& CameraFacingNormal)
+                                                                        const FVector& CameraFacingNormal)
 {
 	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
@@ -628,8 +625,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	    World,
 	    System,
 	    Start,
-	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting,
-	                                             Intent.LockedDirection),
+	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting, Intent.LockedDirection),
 	    FVector::OneVector,
 	    false,
 	    false,
@@ -669,28 +665,27 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		DirectionRotation = ResolveCameraPlaneDirectionRotation(Direction, CameraFacingNormal);
 	}
 	const FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
-	const FVector RelativeScale = ResolveAttachedScale(
-	    Placement.Scale,
-	    AttachmentRoot->GetComponentTransform().GetScale3D(),
-	    Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
+	const FVector RelativeScale =
+	    ResolveAttachedScale(Placement.Scale,
+	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
+	                         Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
 	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
-	const FVector CameraRight = Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y)
-	                                   : FVector::RightVector;
+	const FVector CameraRight =
+	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
 	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
 	                                ? ResolveMeleePlayDirection(Direction, CameraRight)
 	                                : 1.0f;
 	const bool bReverseMelee = PlayDirection < 0.0f;
-	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
-	    System,
-	    AttachmentRoot,
-	    NAME_None,
-	    Placement.LocalOffset,
-	    RelativeRotation,
-	    RelativeScale,
-	    EAttachLocation::KeepRelativeOffset,
-	    bAutoDestroy && !bReverseMelee,
-	    ENCPoolMethod::None,
-	    false);
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(System,
+	                                                                         AttachmentRoot,
+	                                                                         NAME_None,
+	                                                                         Placement.LocalOffset,
+	                                                                         RelativeRotation,
+	                                                                         RelativeScale,
+	                                                                         EAttachLocation::KeepRelativeOffset,
+	                                                                         bAutoDestroy && !bReverseMelee,
+	                                                                         ENCPoolMethod::None,
+	                                                                         false);
 	if (Effect)
 	{
 		if (Placement.bUseWorldDirectionRotation)
@@ -712,12 +707,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		}
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 		Effect->Activate(true);
-		ReEchoCombatVfx::LogLayerStateNowAndDelayed(GetWorld(),
-		                                            GetOwner(),
-		                                            AttachmentRoot,
-		                                            Effect,
-		                                            Semantic,
-		                                            TEXT("Attached"));
+		ReEchoCombatVfx::LogLayerStateNowAndDelayed(
+		    GetWorld(), GetOwner(), AttachmentRoot, Effect, Semantic, TEXT("Attached"));
 	}
 	return Effect;
 }
@@ -811,8 +802,7 @@ void UReEchoCombatVfxComponent::RememberBossAbility(const int64 AttackSequence, 
 	BossAbilityByAttackSequence.Remove(OldestSequence);
 }
 
-bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackSequence,
-	                                                         uint8& OutSemanticValue) const
+bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackSequence, uint8& OutSemanticValue) const
 {
 	const FName* AbilityId = BossAbilityByAttackSequence.Find(AttackSequence);
 	if (!AbilityId)
@@ -1157,9 +1147,8 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	{
 		return;
 	}
-	EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner())
-	                                           ? EReEchoCombatVfxSemantic::EnemyHurt
-	                                           : EReEchoCombatVfxSemantic::PlayerHurt;
+	EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner()) ? EReEchoCombatVfxSemantic::EnemyHurt
+	                                                                        : EReEchoCombatVfxSemantic::PlayerHurt;
 	if (const AReEchoEnemyActor* SourceEnemy = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
 	    SourceEnemy && SourceEnemy->GetPresentationId() == TEXT("Enemy.Fox"))
 	{
@@ -1168,8 +1157,7 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	else if (const AReEchoEnemyActor* SourceBoss = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
 	         SourceBoss && SourceBoss->GetPresentationId() == TEXT("Enemy.TimeGuard"))
 	{
-		if (const UReEchoCombatVfxComponent* SourceVfx =
-		        SourceBoss->FindComponentByClass<UReEchoCombatVfxComponent>())
+		if (const UReEchoCombatVfxComponent* SourceVfx = SourceBoss->FindComponentByClass<UReEchoCombatVfxComponent>())
 		{
 			uint8 BossImpactSemantic = 0;
 			if (SourceVfx->TryResolveBossImpactSemantic(Event.Attack.Sequence, BossImpactSemantic))
@@ -1279,8 +1267,8 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 
 void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
-	const bool bSkill02 = Intent.AbilityId == TEXT("M_SHEEP_StationaryVolley") ||
-	                      Intent.AbilityId == TEXT("M_SHEEP_MovingSpread");
+	const bool bSkill02 =
+	    Intent.AbilityId == TEXT("M_SHEEP_StationaryVolley") || Intent.AbilityId == TEXT("M_SHEEP_MovingSpread");
 	const bool bSkill03 = Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam");
 	const bool bSkill04 = Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam");
 	if (!bSkill02 && !bSkill03 && !bSkill04)
@@ -1291,18 +1279,17 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
 	{
 		StopBossActionEffects();
-		const EReEchoCombatVfxSemantic ChargingSemantic =
-		    bSkill02 ? EReEchoCombatVfxSemantic::GoatSkill02Charging
-		             : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
-		                        : EReEchoCombatVfxSemantic::GoatSkill04Charging;
-		BossChargingEffect = SpawnAttached(
-		    static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ResolveAttackVfxRoot(), false);
+		const EReEchoCombatVfxSemantic ChargingSemantic = bSkill02   ? EReEchoCombatVfxSemantic::GoatSkill02Charging
+		                                                  : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
+		                                                             : EReEchoCombatVfxSemantic::GoatSkill04Charging;
+		BossChargingEffect =
+		    SpawnAttached(static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ResolveAttackVfxRoot(), false);
 		if (bSkill03)
 		{
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                       Intent.LockedTargetLocation,
-			                                       Intent.LockedDirection,
-			                                       false);
+			                                 Intent.LockedTargetLocation,
+			                                 Intent.LockedDirection,
+			                                 false);
 		}
 		return;
 	}
@@ -1341,11 +1328,10 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 				StopNiagaraEffect(*Existing);
 				BossProjectileEffects.Remove(Key);
 			}
-			if (UNiagaraComponent* Effect =
-			        SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
-			                   Event.Location,
-			                   Event.Direction,
-			                   false))
+			if (UNiagaraComponent* Effect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
+			                                           Event.Location,
+			                                           Event.Direction,
+			                                           false))
 			{
 				BossProjectileEffects.Add(Key, Effect);
 			}
@@ -1358,7 +1344,7 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 				(*Effect)->SetWorldLocationAndRotation(
 				    Event.Location,
 				    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill02Bullet,
-				                                                  Event.Direction));
+				                                             Event.Direction));
 			}
 			else if (Event.Type == EReEchoEnemyProjectileEventType::Ended)
 			{

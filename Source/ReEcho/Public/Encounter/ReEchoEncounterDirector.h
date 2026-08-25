@@ -49,6 +49,14 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	float GetRemainingTime() const;
+
+	/** Return the authoritative table-driven duration configured for this encounter. */
+	UFUNCTION(BlueprintPure)
+
+	float GetEncounterDuration() const
+	{
+		return EncounterDurationSeconds;
+	}
 #if WITH_DEV_AUTOMATION_TESTS
 	void AdvanceForTesting(float DeltaSeconds)
 	{

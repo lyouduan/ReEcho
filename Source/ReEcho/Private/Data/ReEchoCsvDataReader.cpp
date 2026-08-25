@@ -439,6 +439,10 @@ bool ReadManifest(const FString& DataDirectory,
 		{
 			ExpectedPrimaryKey = TEXT("EncounterIndex");
 		}
+		else if (Entry.TableId == TEXT("shop_refresh_rules"))
+		{
+			ExpectedPrimaryKey = TEXT("RuleId");
+		}
 		if (RequiredTables.Contains(Entry.TableId) && Entry.PrimaryKey != ExpectedPrimaryKey)
 		{
 			AddIssue(Issues,

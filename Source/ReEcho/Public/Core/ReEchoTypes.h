@@ -96,6 +96,19 @@ struct REECHO_API FReEchoTraitCardOffer
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 Tier = 0;
 
+	/** Visible slot identity and refresh projection for post-encounter/free card choices. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 SlotIndex = INDEX_NONE;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 RemainingRefreshes = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 RefreshCost = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bCanRefresh = false;
+
 	/** Optional card presentation textures resolved at runtime by the choice widget (Plan 69).
 	    Empty when source art is absent; never a hard dependency, so missing art degrades gracefully. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)

@@ -719,6 +719,13 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "FreeTier": CsvColumnSpec("Int", required=False, min_value=1.0, max_value=3.0),
         "ShopTiers": CsvColumnSpec("StableIdList", required=False),
     },
+    "shop_refresh_rules": {
+        "RuleId": CsvColumnSpec("StableId"),
+        "CardSlotRefreshLimit": CsvColumnSpec("Int", min_value=0.0, max_value=100.0),
+        "WeaponRuneRefreshLimit": CsvColumnSpec("Int", min_value=0.0, max_value=100.0),
+        "CardSlotRefreshCost": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+        "WeaponRuneRefreshCost": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
+    },
 }
 
 
@@ -947,6 +954,9 @@ def validate_csv_package(data_dir: Path) -> None:
     references["Attributes"] = validate_table(entries["Attributes"], "Attributes", references)
     references["shop_price_ranges"] = validate_table(entries["shop_price_ranges"], "shop_price_ranges", references)
     references["shop_drop_levels"] = validate_table(entries["shop_drop_levels"], "shop_drop_levels", references)
+    references["shop_refresh_rules"] = validate_table(
+        entries["shop_refresh_rules"], "shop_refresh_rules", references
+    )
     validate_audio_events_domain(entries)
     validate_character_build_domain(data_dir, entries)
     validate_element_reaction_domain(data_dir, entries)
@@ -1647,8 +1657,8 @@ def expect_fixture_failure(name: str, token: str) -> None:
         fail(f"{rel(fixture)}: expected fixture to fail with {token}")
 
 
-def validate_legacy_json() -> tuple[int, int, int]:
-    required = {
+def validate_no_legacy_data_json() -> None:
+    retired = {
         "global_balance.json",
         "characters.json",
         "weapons.json",
@@ -1657,38 +1667,14 @@ def validate_legacy_json() -> tuple[int, int, int]:
         "elements.json",
         "reactions.json",
         "statuses.json",
+        "enemies.json",
     }
-    missing = sorted(name for name in required if not (DATA / name).is_file())
-    if missing:
-        fail(f"missing legacy JSON files: {', '.join(missing)}")
-    if (DATA / "enemies.json").exists():
-        fail("Content/Data/enemies.json must not return after enemy data migrated to CSV")
-
-    documents = {path.name: load_json(path) for path in DATA.glob("*.json")}
-    balance = documents["global_balance.json"]
-    expected = {"encounterDuration": 30.0, "fixedStepHz": 60.0, "recordingHz": 20.0}
-    for key, value in expected.items():
-        if balance.get(key) != value:
-            fail(f"global_balance.{key} must be {value}, got {balance.get(key)!r}")
-
-    for filename in ("characters.json", "weapons.json", "cards.json", "elements.json", "reactions.json", "statuses.json"):
-        rows = documents[filename]
-        ids = [row.get("id") for row in rows]
-        if None in ids or len(ids) != len(set(ids)):
-            fail(f"{filename} has a missing or duplicate id")
-
-    cards = documents["cards.json"]
-    effective_cards = [card for card in cards if not card.get("reserved", False)]
-    reserved = {card["id"] for card in cards if card.get("reserved", False)}
-    if len(effective_cards) != 27 or reserved != {"G_2_08", "G_2_09"}:
-        fail(f"expected 27 effective cards and reserved G_2_08/G_2_09; got {len(effective_cards)} and {sorted(reserved)}")
-
-    if len(documents["characters.json"]) != 4 or len(documents["weapons.json"]) != 4:
-        fail("the demo baseline requires exactly four characters and four weapons")
-    encounters = documents["encounters.json"]
-    if [row.get("index") for row in encounters] != list(range(1, 7)):
-        fail("encounters must be indexed consecutively from 1 through 6")
-    return len(documents), len(effective_cards), len(encounters)
+    present = sorted(name for name in retired if (DATA / name).exists())
+    if present:
+        fail(
+            "retired Content/Data JSON must not return after XLSX/CSV migration: "
+            + ", ".join(present)
+        )
 
 
 def validate_workflow() -> None:
@@ -2071,7 +2057,7 @@ def validate_workflow() -> None:
         "## 跨模块不变量",
         "## 当前候选状态",
         "Design/Data/ReEchoData.xlsx",
-        "旧 JSON 仅用于迁移",
+        "旧玩法 JSON 已从 `Content/Data` 删除",
     )
     missing_architecture_markers = [marker for marker in architecture_markers if marker not in architecture_text]
     if missing_architecture_markers:
@@ -2506,7 +2492,7 @@ def validate_xlsx_authoring_sync() -> None:
 
 
 def main() -> int:
-    json_count, effective_cards, encounter_count = validate_legacy_json()
+    validate_no_legacy_data_json()
     validate_csv_schema()
     validate_csv_package(DATA)
     with tempfile.TemporaryDirectory(prefix="reecho_csv_valid_alt_") as temp:
@@ -2545,7 +2531,7 @@ def main() -> int:
     validate_xlsx_authoring_sync()
     validate_workflow()
 
-    print(f"[PASS] legacy migration-only JSON files={json_count} effective_cards={effective_cards} encounters={encounter_count}")
+    print("[PASS] retired Content/Data gameplay JSON files are absent; production authority remains XLSX/CSV")
     print("[PASS] CSV schema, production character/build/element/weapon tables, fixtures, IDs, references, behavior/effect/formula/attack-pattern allowlists, UTF-8 and staging deps")
     print("[PASS] XLSX authoring workbook check matches generated production CSV bytes")
     print("[PASS] workflow memory, token guards, and Unreal project descriptor present")

@@ -150,3 +150,13 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；`ReEcho.Encounter.DeterministicSpawnResolver` 自动化通过，锁定确定性位置与最终中心高度；Development Editor `-FullRebuild` 通过并刷新预构建包；`validate_project.py` 与 `git diff --check` 通过。第一次完整构建曾因测试期望值误用 `float` 与 UE 5.8 `FVector::Z` 的 `double` 重载冲突而失败，改为 `double` 后重新完整构建通过。
 - **文档审阅 / Documentation review**：`MOD-ReEcho` 已补充“预警/提交共享最终 Actor 中心位置”契约；`MOD-ReEchoEnemies` 已审阅、无需修改，因为 EnemyLogic 和 Host 变换所有权未变化；`MOD-ReEchoPresentation` 已审阅、无需修改，因为动画、脚点与表现输入未变化。
 - **状态 / Status**：Review。技术门禁已通过；仍需用户在 PIE 中观察史莱姆、兔子和狐狸的预警球与出生动画是否重合，作为视觉验收。
+
+### #17 — 狐狸死亡脚点代码导致 Shipping 无法编译
+
+- **现象 / Symptom**：最新 `origin/main` 执行 Win64 Shipping clean build 时，`ReEchoEnemyPresentationComponent.cpp` 两处调用 `UPaperSprite::GetPivotMode`，UBT 报 `C2039: GetPivotMode 不是 UPaperSprite 的成员`，项目无法进入 Cook 与归档。
+- **根因 / Root cause**：狐狸死亡落地修复通过 PaperSprite 的 `PivotMode == Custom` 选择逐帧作者脚点；但 `PivotMode`、`CustomPivotPoint` 与 `GetPivotMode` 都位于 Paper2D 的 `WITH_EDITORONLY_DATA` / `WITH_EDITOR` 区域，Shipping 会裁掉该 API。运行时代码错误依赖了编辑器专用资产元数据。
+- **目标 / Acceptance**：Shipping 与 Editor 均从可 Cook 的项目资产契约选择狐狸死亡脚点；不得仅用条件编译跳过 Shipping 表现逻辑。Win64 Shipping 必须完成 clean build、cook、pak、archive 和启动烟测，狐狸与 BadFox 的死亡动画仍使用已制作的逐帧脚点。
+- **实现范围 / Writes**：`UReEcho2DCharacterPresentationProfile`、敌人表现组件、狐狸 Profile 配置脚本与资产、聚焦自动化、`MOD-ReEchoPresentation` 和本文档；不改变玩法死亡、碰撞、数值或其他敌人 Profile。
+- **改动 / Changes**：Profile 新增会进入 Cook 的 `bUseAuthoredDeathPivot`；狐狸 Profile 显式开启。敌人死亡表现只读取该运行时策略，不再调用 PaperSprite 编辑器 API；未开启的 Profile 继续使用当前帧 Bounds 底边中心。自动化锁定生产狐狸 Profile 必须开启该策略。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；狐狸 Profile 配置脚本通过 UE 命令行幂等执行并记录 `authored_pivot=True`；新增 `ReEcho.Presentation.Animation2D.CookedDeathPivotPolicy` 聚焦自动化通过；Development Editor `-FullRebuild` 通过并刷新预构建包；Win64 Shipping clean build、cook、pak、archive、33 张运行时 CSV 投递及 10 秒启动烟测通过；`validate_project.py` 与 `git diff --check` 通过。既有 `ReEcho.Presentation.Animation2D.AssetProfiles` 仍被无关的 TimeGuard Phase2 资产断言阻塞，本次新增狐狸断言未报错。
+- **状态 / Status**：Review。本地技术候选已完成，等待用户验证狐狸与 BadFox 死亡动画脚点；未经用户认可不提交、不推送。

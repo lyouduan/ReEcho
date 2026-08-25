@@ -6,7 +6,7 @@
 - Runtime Module：`ReEchoPresentation`。
 - Build 文件：`Source/ReEchoPresentation/ReEchoPresentation.Build.cs`。
 - 主要目录：`Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/`。
-- 相关 Plan：Plan40、Plan50、Plan74。
+- 相关 Plan：Plan40、Plan50、Plan74、Plan102。
 
 ## 存在原因
 
@@ -20,6 +20,7 @@
 - 语义动画状态、Clip/Profile、状态机和播放控制。
 - Flipbook 尺寸、朝向、锚点及安全隐藏。
 - 角色稳定 `WorldHeight` 及归一化手持武器挂点；只描述外观空间，不引用具体武器。
+- Character/Echo Profile 拥有 Cook 可见的小地图头像绑定；只描述对应外观，不处理小地图坐标或玩法身份。
 - 逐帧碰撞快照与调试显示。
 
 ### 不负责
@@ -43,12 +44,13 @@
 ### 输出
 
 - 当前 Flipbook 可见表现。
+- 当前 Player/Echo Profile 对应的只读小地图头像。
 - 不参与玩法裁决的逐帧碰撞快照和调试图形。
 
 ### 稳定公共类型/API
 
 - `UReEcho2DPresentationCatalog`
-- `UReEcho2DCharacterPresentationProfile`（`DeathGroundSink` 可为自定义死亡脚点配置仅影响表现的下沉距离）
+- `UReEcho2DCharacterPresentationProfile`（`MinimapIcon` 是该精确 Player/Echo 外观的 Cook 可见 UI 图标；可 Cook 的 `bUseAuthoredDeathPivot` 显式选择逐帧死亡脚点，`DeathGroundSink` 配置仅影响表现的下沉距离）
 - `UReEcho2DPresentationController`
 - `UReEcho2DAnimationComponent`
 - `UReEcho2DFrameCollisionDriver`
@@ -73,13 +75,15 @@
 
 `UReEcho2DCharacterPresentationProfile::WeaponAnchorRatio` 以稳定 `WorldHeight` 为单位描述角色手部挂点。主模块可以消费该只读空间契约装配武器，但本模块不解析 Weapon Profile，也不按当前 Flipbook 帧 Bounds 改写挂点。
 
+`UReEcho2DCharacterPresentationProfile::MinimapIcon` 由 Character/Echo 分域 Profile 分别绑定。主模块只读取活动 Profile 并投影给 HUD；Presentation 模块不依赖 Widget、GameMode、Arena 坐标或 Recording。硬引用保证配置图标进入 cook，缺失图标由 UI 表现层安全降级。
+
 ## 内部组成
 
 - Catalog：稳定 ID 到 Profile。
 - Profile/FSM：美术可配置语义动画集合和转换策略。
 - Controller：执行表现状态切换，持有显式动作占用；循环 Charge 只能由提交、结束或取消事件收束，不回写玩法。Host 判定死亡后可调用 `BeginTerminalDeath` 独占播放一次非循环 Death；进入后拒绝 Move、Attack、Hit、Transform 与动画集切换，完成回调只通知 Host 销毁表现宿主，不返回 Move，也不裁决玩法死亡。死亡会清理瞬时 VFX，但保留独立 GroundShadow；死亡阶段以当前 Sprite 帧的底边中心持续锁定同一 Profile 脚点，并据此更新阴影中心和宽度，而不是使用整个 Flipbook 的合并边界，使画面在固定世界位置向下塌落且直到销毁前保持地面接触感。
 - 主模块 Coordinator：不属于本 Runtime Module；把同一玩法动作阶段同时交给 Animation 与 VFX 轨，避免两个消费者建立彼此漂移的本地时钟。
-- AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退；死亡 Sprite 可用自定义 Pivot 提供逐帧主体脚点，主模块敌人表现据此固定 GroundShadow，并按 Profile 的 `DeathGroundSink` 让主体继续向下贴入阴影；未配置时继续使用当前帧 Bounds 底边中心。
+- AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退；死亡 Sprite 可用自定义 Pivot 提供逐帧主体脚点，Profile 以会进入 Cook 的 `bUseAuthoredDeathPivot` 显式声明该策略，主模块敌人表现据此固定 GroundShadow，并按 `DeathGroundSink` 让主体继续向下贴入阴影；未配置时继续使用当前帧 Bounds 底边中心。运行时不得读取 PaperSprite 的 `PivotMode` 或 `CustomPivotPoint`，因为二者属于编辑器专用数据。
 - FrameCollisionDriver：生成 Query/Debug 快照。
 
 ## 代码位置与阅读路线
@@ -93,11 +97,11 @@
 
 ## 扩展方式
 
-新增外观时在 `DataAsset/Character/Profiles` 或 `DataAsset/Enemy/Profiles` 创建 Profile 并注册到对应域 Catalog；共享 FSM 位于 `DataAsset/Common/Animation2D`。新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。当前生产敌人的 Death 映射保持角色族一致：Grunt/Shield/Bomber/Slime 共用 Slime Death，Rabbit/Fox 使用各自 Death，GoatPriest/TimeGuard 共用 Goat Death；均为非循环、可重启动作。敌人 Gameplay Blueprint 映射只在 `DataAsset/Enemy/Catalogs` 的 Registry 中扩展。
+新增 Player/Echo 外观时在 `DataAsset/Character/Profiles` 创建并分别注册到对应域 Catalog，同时设置与该域外观一致的 `MinimapIcon`；敌人 Profile 仍位于 `DataAsset/Enemy/Profiles`。共享 FSM 位于 `DataAsset/Common/Animation2D`。新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。当前生产敌人的 Death 映射保持角色族一致：Grunt/Shield/Bomber/Slime 共用 Slime Death，Rabbit/Fox 使用各自 Death，GoatPriest/TimeGuard 共用 Goat Death；均为非循环、可重启动作。敌人 Gameplay Blueprint 映射只在 `DataAsset/Enemy/Catalogs` 的 Registry 中扩展。
 
 ## 验证与测试
 
-`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、Move 完成归宿、Death 终结独占/一次完成与缺失资源 no-op；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan82_animation_assets.py` 只读审计全部生产玩家、Echo、怪物 Profile 与源贴图导入链。脚点、比例、朝向、Death 实际播放完成与首帧闪烁仍由人工在 PIE 验收。
+`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、Move 完成归宿、Death 终结独占/一次完成与缺失资源 no-op；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan82_animation_assets.py` 只读审计全部生产玩家、Echo、怪物 Profile 与源贴图导入链，`scripts/ue/audit_plan102_combat_hud.py` 审计四个 Player/Echo Profile 的八张小地图头像绑定。脚点、比例、朝向、Death 实际播放完成、首帧闪烁和小地图图标可读性仍由人工在 PIE 验收。
 
 ## 不变量与常见错误
 

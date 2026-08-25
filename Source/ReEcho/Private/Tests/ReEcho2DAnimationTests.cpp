@@ -58,6 +58,20 @@ bool FReEcho2DFootpointAlignmentTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCookedDeathPivotPolicyTest,
+                                 "ReEcho.Presentation.Animation2D.CookedDeathPivotPolicy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCookedDeathPivotPolicyTest::RunTest(const FString& Parameters)
+{
+	const UReEcho2DCharacterPresentationProfile* FoxProfile = LoadObject<UReEcho2DCharacterPresentationProfile>(
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Profiles/DA_Enemy_Fox.DA_Enemy_Fox"));
+	TestNotNull(TEXT("Fox presentation profile is loadable"), FoxProfile);
+	TestTrue(TEXT("Fox profile opts into cooked authored Death pivots"),
+	         FoxProfile && FoxProfile->bUseAuthoredDeathPivot);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
                                  "ReEcho.Presentation.Animation2D.AssetProfiles",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -367,6 +381,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	                   SlimeDeathFlipbook);
 	TestEnemyDeathClip(TEXT("Rabbit owns Rabbit Death"), AuthoredRabbit, RabbitDeathFlipbook);
 	TestEnemyDeathClip(TEXT("Fox owns Fox Death"), AuthoredFox, FoxDeathFlipbook);
+	TestTrue(TEXT("Fox profile opts into cooked authored Death pivots"),
+	         AuthoredFox && AuthoredFox->bUseAuthoredDeathPivot);
 	TestEnemyDeathClip(TEXT("Goat Priest owns Goat Death"), AuthoredGoat, GoatDeathFlipbook);
 	TestEnemyDeathClip(TEXT("TimeGuard owns Goat Death"), AuthoredTimeGuard, GoatDeathFlipbook);
 	TestTrue(TEXT("TimeGuard does not claim unavailable Phase2 animation clips"),

@@ -225,7 +225,7 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		Placement.LocalRotation = Slot->Offset.GetRotation().Rotator();
 		Placement.Scale = Slot->Offset.GetScale3D();
 		Placement.ScalePolicy = Slot->bPreserveWorldSize ? EReEchoVfxScalePolicy::PreserveWorldSize
-		                                                   : EReEchoVfxScalePolicy::InheritAttachment;
+		                                                 : EReEchoVfxScalePolicy::InheritAttachment;
 		Placement.bUseWorldDirectionRotation = true;
 		Placement.PlaybackDurationSeconds = FMath::Max(Slot->PlaybackDurationSeconds, 0.01f);
 		return Placement;

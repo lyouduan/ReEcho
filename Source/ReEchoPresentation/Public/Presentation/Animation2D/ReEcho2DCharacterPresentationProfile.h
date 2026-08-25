@@ -9,6 +9,7 @@
 #include "ReEcho2DCharacterPresentationProfile.generated.h"
 
 class UReEcho2DAnimationStateMachineAsset;
+class UTexture2D;
 
 /** Animation clips selected by the equipped weapon's stable VisualKey. */
 USTRUCT(BlueprintType)
@@ -38,6 +39,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
 	FName AppearanceId;
 
+	/** Cook-visible icon used when this exact Player/Echo appearance is projected onto the combat minimap. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UTexture2D> MinimapIcon;
+
 	/** 同一外观全部序列统一归一化到该世界高度，避免源图画布尺寸影响比例。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scale", meta = (ClampMin = "1.0"))
 	float WorldHeight = 100.0f;
@@ -49,6 +54,10 @@ public:
 	/** Art-authored correction in FootRoot space, applied after automatic bounds alignment. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
 	FVector FootpointOffset = FVector::ZeroVector;
+
+	/** 终结死亡动画使用逐帧 Sprite 原点作为已制作脚点；该运行时标记会进入 Cook。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint")
+	bool bUseAuthoredDeathPivot = false;
 
 	/** Visual-only downward inset used by custom-pivot terminal Death sprites. The ground shadow remains fixed. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint", meta = (ClampMin = "0.0"))

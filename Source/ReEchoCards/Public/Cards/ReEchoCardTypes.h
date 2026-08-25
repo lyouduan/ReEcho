@@ -67,8 +67,10 @@ struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
 
 	/** Fixed tier identity. Runtime arrays use [Tier1, Tier2, Tier3]. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Tier = 0;
-	/** Stable candidates for the current encounter + full-shop refresh sequence. */
+	/** Stable candidates for the current encounter. Each array index is one independently refreshable visible slot. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> CandidateCardIds;
+	/** Per-slot refresh uses. Shape always matches CandidateCardIds; each slot owns its own configured limit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<int32> SlotRefreshUses;
 	/** A successful purchase consumes this pack for the current page. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPurchased = false;
 };
@@ -97,8 +99,9 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EncounterKillCount = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> DistinctReactionIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 FreeShopRefreshes = 0;
+	/** SaveVersion <= 16 compatibility only. Weapon/rune and card refreshes no longer share this sequence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
-	/** Stable build-card pack page for the current encounter/refresh sequence. */
+	/** Stable build-card pack page for the current encounter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopCardOfferEncounterIndex = INDEX_NONE;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopCardOfferRefreshSequence = INDEX_NONE;
 	/** Fixed [Tier1, Tier2, Tier3] pack states. An unconfigured/exhausted pack has no candidates. */

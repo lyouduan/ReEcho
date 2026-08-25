@@ -54,7 +54,11 @@ class REECHO_API AReEchoEchoActor : public AActor, public IReEchoCombatTarget, p
 	GENERATED_BODY()
 
 public:
-	float GetVisualFacingSign() const { return VisualFacingSign; }
+	float GetVisualFacingSign() const
+	{
+		return VisualFacingSign;
+	}
+
 	AReEchoEchoActor();
 
 	virtual void Tick(float DeltaSeconds) override;
@@ -68,6 +72,8 @@ public:
 	void AdvanceEcho(float EncounterTime);
 	/** 根据录制角色 ID 选择对应的回响形态。 */
 	bool ConfigureEchoAppearance(FName CharacterId);
+	/** Presentation-owned icon for this Echo appearance on the combat minimap. */
+	UTexture2D* GetMinimapIconTexture() const;
 	/** 返回效率修正后的当前回响战斗属性。 */
 	const FReEchoStatBlock& GetCurrentStats() const;
 	float GetCurrentHealth() const;

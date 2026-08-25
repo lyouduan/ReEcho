@@ -6,6 +6,7 @@
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -45,11 +46,13 @@ void UReEchoEncounterHudWidget::NativeConstruct()
 
 void UReEchoEncounterHudWidget::SetEncounterStatus(const int32 EncounterIndex,
                                                    const int32 TotalEncounters,
-                                                   const float RemainingSeconds)
+                                                   const float RemainingSeconds,
+                                                   const float DurationSeconds)
 {
 	CurrentEncounterIndex = EncounterIndex;
 	EncounterCount = FMath::Max(1, TotalEncounters);
-	RemainingTime = FMath::Max(0.0f, RemainingSeconds);
+	RemainingTime = FMath::IsFinite(RemainingSeconds) ? FMath::Max(0.0f, RemainingSeconds) : 0.0f;
+	EncounterDuration = FMath::IsFinite(DurationSeconds) ? FMath::Max(0.0f, DurationSeconds) : 0.0f;
 	RefreshText();
 }
 
@@ -73,6 +76,20 @@ FText UReEchoEncounterHudWidget::FormatCountdown(const float RemainingSeconds)
 	const int32 Minutes = DisplaySeconds / 60;
 	const int32 Seconds = DisplaySeconds % 60;
 	return FText::FromString(FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds));
+}
+
+float UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(const float RemainingSeconds,
+                                                               const float DurationSeconds)
+{
+	constexpr float RightAngle = -90.0f;
+	constexpr float LeftAngle = 90.0f;
+	const float SafeRemainingSeconds = FMath::IsFinite(RemainingSeconds) ? RemainingSeconds : 0.0f;
+	if (!FMath::IsFinite(DurationSeconds) || DurationSeconds <= UE_SMALL_NUMBER)
+	{
+		return SafeRemainingSeconds <= 0.0f ? LeftAngle : RightAngle;
+	}
+	const float ElapsedRatio = 1.0f - FMath::Clamp(SafeRemainingSeconds / DurationSeconds, 0.0f, 1.0f);
+	return FMath::Lerp(RightAngle, LeftAngle, ElapsedRatio);
 }
 
 void UReEchoEncounterHudWidget::BuildWidgetTree()
@@ -135,5 +152,9 @@ void UReEchoEncounterHudWidget::RefreshText()
 		CountdownText->SetText(FormatCountdown(RemainingTime));
 		CountdownText->SetColorAndOpacity(
 		    FSlateColor(DisplaySeconds <= 5 ? FLinearColor(1.0f, 0.2f, 0.12f, 1.0f) : FLinearColor::White));
+	}
+	if (ArtClockNeedle)
+	{
+		ArtClockNeedle->SetRenderTransformAngle(CalculateCountdownNeedleAngle(RemainingTime, EncounterDuration));
 	}
 }

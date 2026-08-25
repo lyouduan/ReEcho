@@ -95,6 +95,9 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	View.WeaponDisplayName = FText::FromString(TEXT("Test weapon"));
 	View.Offers = {WeaponPart};
 	View.CardPackOffers = {TierOnePack, TierTwoPack, TierThreePack};
+	View.WeaponRuneRefreshesRemaining = 2;
+	View.WeaponRuneRefreshCost = 5;
+	View.bWeaponRuneRefreshAllowed = true;
 	FReEchoWeaponSlotShopView Slot;
 	Slot.SlotTypeId = TEXT("Core");
 	Slot.DisplayName = FText::FromString(TEXT("Core"));
@@ -103,6 +106,10 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 
 	Widget->SetWeaponPartShopView(View);
 	Widget->ShowShop(100, {});
+	const UTextBlock* RefreshLimitText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TargetRefreshLimitText")));
+	TestTrue(TEXT("Main shop shows the weapon/rune refresh budget and configured cost"),
+	         RefreshLimitText && RefreshLimitText->GetText().ToString().Contains(TEXT("2")) &&
+	             RefreshLimitText->GetText().ToString().Contains(TEXT("5")));
 
 	TestNotNull(TEXT("Run item offers have an independent block"),
 	            Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("RunItemOfferPanel"))));
@@ -220,11 +227,16 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	First.EffectText = FText::FromString(TEXT("效果一"));
 	First.Tier = 2;
 	First.Price = 35;
+	First.SlotIndex = 0;
+	First.RemainingRefreshes = 1;
+	First.RefreshCost = 5;
+	First.bCanRefresh = true;
 	FReEchoShopCardChoiceOffer Second = First;
 	Second.CardId = TEXT("G_2_02");
 	Second.ItemId = TEXT("SHOP_CARD_TEST_2");
 	Second.DisplayName = FText::FromString(TEXT("候选二"));
 	Second.Price = 47;
+	Second.SlotIndex = 1;
 	Widget->InitializeShopOffers({First, Second}, 40, 2);
 
 	UButton* CancelButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopCardChoiceCancelButton")));
@@ -241,6 +253,16 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	             SecondCard->GetVisibility() == ESlateVisibility::Visible);
 	TestTrue(TEXT("A missing third candidate stays collapsed rather than being backfilled"),
 	         ThirdCard && ThirdCard->GetVisibility() == ESlateVisibility::Collapsed);
+	UButton* FirstRefresh = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopCardRefreshButton0")));
+	UTextBlock* FirstRefreshText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("ShopCardRefreshText0")));
+	UButton* ThirdRefresh = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopCardRefreshButton2")));
+	TestTrue(TEXT("Each actual paid card exposes its own refresh button"),
+	         FirstRefresh && FirstRefresh->GetVisibility() == ESlateVisibility::Visible);
+	TestTrue(TEXT("Card refresh button displays its independent remaining use and price"),
+	         FirstRefreshText && FirstRefreshText->GetText().ToString().Contains(TEXT("1")) &&
+	             FirstRefreshText->GetText().ToString().Contains(TEXT("5")));
+	TestTrue(TEXT("A missing candidate also hides its refresh button"),
+	         ThirdRefresh && ThirdRefresh->GetVisibility() == ESlateVisibility::Collapsed);
 	if (UReEchoTraitCardEntryWidget* FirstEntry =
 	        Cast<UReEchoTraitCardEntryWidget>(Widget->GetWidgetFromName(TEXT("TraitCardEntry0"))))
 	{
@@ -248,6 +270,23 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 		TestTrue(TEXT("Each paid choice displays its own effective price"),
 		         PriceHint && PriceHint->GetText().ToString().Contains(TEXT("35")));
 	}
+	FReEchoTraitCardOffer FreeChoice;
+	FreeChoice.CardId = TEXT("G_2_03");
+	FreeChoice.DisplayName = FText::FromString(TEXT("免费候选"));
+	FreeChoice.Description = FText::FromString(TEXT("免费投放效果"));
+	FreeChoice.Tier = 2;
+	FreeChoice.SlotIndex = 0;
+	FreeChoice.RemainingRefreshes = 1;
+	FreeChoice.RefreshCost = 5;
+	FreeChoice.bCanRefresh = true;
+	Widget->InitializeOffers({FreeChoice}, 20);
+	TestTrue(TEXT("Post-encounter free choice also exposes its per-card refresh button"),
+	         FirstRefresh && FirstRefresh->GetVisibility() == ESlateVisibility::Visible);
+	TestTrue(TEXT("Free-choice refresh uses the same remaining-count and cost projection"),
+	         FirstRefreshText && FirstRefreshText->GetText().ToString().Contains(TEXT("1")) &&
+	             FirstRefreshText->GetText().ToString().Contains(TEXT("5")));
+	TestTrue(TEXT("Free choice keeps the shop-only cancel action hidden"),
+	         CancelButton && CancelButton->GetVisibility() == ESlateVisibility::Collapsed);
 	return true;
 }
 

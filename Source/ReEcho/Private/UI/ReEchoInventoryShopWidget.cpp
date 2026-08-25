@@ -913,6 +913,10 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 	    AddLabel(TEXT("TargetShopCurrency"), TEXT(""), FVector2D(415.0f, 106.0f), FVector2D(230.0f, 32.0f), 19);
 	TargetCurrencyText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	TargetCurrencyText->SetJustification(ETextJustify::Center);
+	TargetRefreshLimitText =
+	    AddLabel(TEXT("TargetRefreshLimitText"), TEXT(""), FVector2D(670.0f, 145.0f), FVector2D(200.0f, 30.0f), 16);
+	TargetRefreshLimitText->SetColorAndOpacity(FSlateColor(FLinearColor(0.20f, 0.20f, 0.20f, 1.0f)));
+	TargetRefreshLimitText->SetJustification(ETextJustify::Center);
 	UTextBlock* CurrencyDiamond =
 	    AddLabel(TEXT("TargetShopCurrencyDiamond"), TEXT("◆"), FVector2D(402.0f, 104.0f), FVector2D(42.0f, 34.0f), 25);
 	CurrencyDiamond->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.82f, 0.0f, 1.0f)));
@@ -2141,10 +2145,18 @@ void UReEchoInventoryShopWidget::Refresh()
 	}
 	if (ShopRefreshButton && ShopRefreshText)
 	{
-		const bool bCanRefresh =
-		    bCurrentShopRefreshAllowed && (CurrentFreeShopRefreshes > 0 || CurrentTimeShards >= ReEchoShopRefreshPrice);
+		const bool bCanRefresh = bCurrentShopRefreshAllowed && CurrentPartShopView.bWeaponRuneRefreshAllowed;
 		ShopRefreshButton->SetIsEnabled(bCanRefresh);
-		ShopRefreshText->SetText(NSLOCTEXT("ReEcho", "ShopRefreshShort", "刷新"));
+		ShopRefreshText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshCounted", "刷新（剩余 {0}） · {1}"),
+		                                       FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining),
+		                                       FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
+	}
+	if (TargetRefreshLimitText)
+	{
+		TargetRefreshLimitText->SetText(
+		    FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshCounted", "武器/符文刷新：剩余 {0} · {1} 碎片"),
+		                  FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining),
+		                  FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
 	}
 	if (ShopRuleText)
 	{
@@ -2197,9 +2209,8 @@ void UReEchoInventoryShopWidget::Refresh()
 		CurrencyText->SetVisibility(ESlateVisibility::Collapsed);
 		if (ShopRefreshButton)
 		{
-			ShopRefreshButton->SetIsEnabled(
-			    bCurrentShopRefreshAllowed &&
-			    (CurrentFreeShopRefreshes > 0 || CurrentTimeShards >= ReEchoShopRefreshPrice));
+			ShopRefreshButton->SetIsEnabled(bCurrentShopRefreshAllowed &&
+			                                CurrentPartShopView.bWeaponRuneRefreshAllowed);
 		}
 		if (RunItemOfferPanel)
 		{
@@ -2282,6 +2293,13 @@ void UReEchoInventoryShopWidget::HandleCardPackClicked(const int32 PackIndex)
 
 void UReEchoInventoryShopWidget::HandleRefreshClicked()
 {
+	ReEchoUIInteractionAudit::Write(
+	    TEXT("WEAPON_RUNE_REFRESH_BUTTON"),
+	    FString::Printf(TEXT("screen=InventoryShop remaining=%d cost=%d enabled=%d shards=%d"),
+	                    CurrentPartShopView.WeaponRuneRefreshesRemaining,
+	                    CurrentPartShopView.WeaponRuneRefreshCost,
+	                    CurrentPartShopView.bWeaponRuneRefreshAllowed ? 1 : 0,
+	                    CurrentTimeShards));
 	OnRefreshRequested.Broadcast();
 }
 

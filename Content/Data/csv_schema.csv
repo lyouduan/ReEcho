@@ -402,3 +402,8 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,shop_drop_levels,EncounterIndex,Int,true,1,,,,Encounter order 1-based
 1,shop_drop_levels,FreeTier,Int,false,1,3,,,Free post-battle drop tier; empty=none
 1,shop_drop_levels,ShopTiers,StableIdList,false,,,,,Shop card-tier drop list pipe-separated e.g. 2|3; empty=none
+1,shop_refresh_rules,RuleId,StableId,true,,,,,Singleton shop refresh rule id
+1,shop_refresh_rules,CardSlotRefreshLimit,Int,true,0,100,,,Per-visible-card-slot refresh limit for each shop card pack
+1,shop_refresh_rules,WeaponRuneRefreshLimit,Int,true,0,100,,,Weapon/rune page refresh limit per shop encounter
+1,shop_refresh_rules,CardSlotRefreshCost,Int,true,0,1000000,,,Time-shard cost for one card-slot refresh
+1,shop_refresh_rules,WeaponRuneRefreshCost,Int,true,0,1000000,,,Time-shard cost for one weapon/rune page refresh

@@ -438,8 +438,10 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 			Event.AttackStepId = LastCommittedAttackStepId;
 			Event.StepIndex = LastCommittedAttackStepIndex;
 			Event.Origin = WeaponOwner->GetActorLocation();
-			const FVector ToCommittedTarget = Event.Target ? Event.Target->GetActorLocation() - Event.Origin : FVector::ZeroVector;
-			Event.Direction = ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
+			const FVector ToCommittedTarget =
+			    Event.Target ? Event.Target->GetActorLocation() - Event.Origin : FVector::ZeroVector;
+			Event.Direction =
+			    ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
 			Events->PublishAttackCommitted(Event);
 		}
 	}
@@ -1330,15 +1332,16 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 		Billboard->SetRelativeScale3D(FVector(UniformScale));
 	}
 
-	UStaticMeshComponent* RangedPlane = VisualKey == TEXT("Bow") ? BowSprite.Get()
-	                                        : VisualKey == TEXT("Gun") ? GunSprite.Get() : nullptr;
+	UStaticMeshComponent* RangedPlane = VisualKey == TEXT("Bow")   ? BowSprite.Get()
+	                                    : VisualKey == TEXT("Gun") ? GunSprite.Get()
+	                                                               : nullptr;
 	if (RangedPlane && Texture)
 	{
 		const FVector2D Dimensions =
 		    ReEchoWeaponVisual::ResolveHeldDimensions(*Texture, *WeaponProfile, CharacterWorldHeight);
 		RangedPlane->SetRelativeLocation(VisualOffset);
 		RangedPlane->SetRelativeRotation(WeaponProfile->HeldRotationOffset.Quaternion() *
-		                                  ReEchoWeaponVisual::GetSwordRotation());
+		                                 ReEchoWeaponVisual::GetSwordRotation());
 		RangedPlane->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
 		ApplyHeldPlaneMirror(RangedPlane, WeaponProfile->HeldMirrorRule);
 	}
@@ -1359,8 +1362,8 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 
 #if WITH_DEV_AUTOMATION_TESTS
 float AReEchoWeaponActor::ResolveHeldWorldLengthForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
-                                                        const float CharacterReferenceHeight,
-                                                        const float OwnerScale)
+                                                         const float CharacterReferenceHeight,
+                                                         const float OwnerScale)
 {
 	return ReEchoWeaponVisual::ResolveHeldLength(
 	    WeaponProfile, FMath::Max(CharacterReferenceHeight, 1.0f) * FMath::Max(FMath::Abs(OwnerScale), 0.01f));
@@ -1540,9 +1543,9 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	if (const UReEchoWeaponPresentationProfile* Profile =
 	        FReEchoWeaponVisualCatalog::ResolveProfile(GetEquippedWeaponVisualKey()))
 	{
-		if (UStaticMeshComponent* Plane = GetEquippedWeaponVisualKey() == TEXT("Bow") ? BowSprite.Get()
-		                                   : GetEquippedWeaponVisualKey() == TEXT("Gun") ? GunSprite.Get()
-		                                                                                   : nullptr)
+		if (UStaticMeshComponent* Plane = GetEquippedWeaponVisualKey() == TEXT("Bow")   ? BowSprite.Get()
+		                                  : GetEquippedWeaponVisualKey() == TEXT("Gun") ? GunSprite.Get()
+		                                                                                : nullptr)
 		{
 			ApplyHeldPlaneMirror(Plane, Profile->HeldMirrorRule);
 		}
@@ -1618,13 +1621,12 @@ FVector AReEchoWeaponActor::ResolveMirroredHandAnchor() const
 		return WeaponHandAnchorLocation;
 	}
 	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
-	FVector CameraRight = Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y)
-	                             : FVector::RightVector;
+	FVector CameraRight =
+	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
 	CameraRight.Z = 0.0f;
 	CameraRight = CameraRight.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
 	const float RightFacingHorizontalOffset = FVector::DotProduct(WeaponHandAnchorLocation, CameraRight);
-	const FVector MirroredAnchor =
-	    WeaponHandAnchorLocation - 2.0f * RightFacingHorizontalOffset * CameraRight;
+	const FVector MirroredAnchor = WeaponHandAnchorLocation - 2.0f * RightFacingHorizontalOffset * CameraRight;
 	// The two symmetric hand anchors define the character's presentation width. Left-facing sword art needs one
 	// additional full character width beyond the mirrored hand so its reversed authored body does not overlap the host.
 	const float CharacterPresentationWidth = 2.0f * FMath::Abs(RightFacingHorizontalOffset);
@@ -1641,7 +1643,7 @@ FQuat AReEchoWeaponActor::ResolveMirroredSwordRestRotation() const
 }
 
 void AReEchoWeaponActor::ApplyHeldPlaneMirror(UStaticMeshComponent* Plane,
-	                                           const EReEchoHeldWeaponMirrorRule MirrorRule) const
+                                              const EReEchoHeldWeaponMirrorRule MirrorRule) const
 {
 	if (!Plane)
 	{

@@ -220,6 +220,11 @@ bool AReEchoEchoActor::ConfigureEchoAppearance(const FName CharacterId)
 	return true;
 }
 
+UTexture2D* AReEchoEchoActor::GetMinimapIconTexture() const
+{
+	return ActivePresentationProfile ? ActivePresentationProfile->MinimapIcon.Get() : nullptr;
+}
+
 void AReEchoEchoActor::RefreshPresentationProfile()
 {
 	UReEcho2DCharacterPresentationProfile* EchoProfile =

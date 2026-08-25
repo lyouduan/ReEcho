@@ -2,7 +2,7 @@ import unreal
 
 
 PROFILE_ROOT = "/Game/ReEcho/DataAsset/Weapon/Profiles"
-VISUAL_KEYS = ("CrescentBlade", "Scythe", "Whip", "Bow", "Gun", "Staff")
+VISUAL_KEYS = ("CrescentBlade", "Scythe", "Bow", "Gun")
 CANONICAL_CHARACTER_HEIGHT_CM = 224.0
 
 
@@ -56,6 +56,6 @@ for key in VISUAL_KEYS:
         raise RuntimeError(f"Could not save weapon profile for {key}")
 
 unreal.log(
-    "PLAN100_WEAPON_PRESENTATION_RESULT profiles=6 sword_z=60 sword_roll=-45 "
+    "PLAN100_WEAPON_PRESENTATION_RESULT profiles=4 sword_z=60 sword_roll=-45 "
     "bow_mirror=left gun_mirror=right"
 )
