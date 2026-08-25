@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`NotRequired`。
 - 本地规划 / 实现基线：`origin/main@32e2ce0d2ea80e64d94b3e1692e8961f57dff437`。
 - 本地实现方式：Plan 单独发布后，从最新 `origin/main` 创建独立 `plan/103-remove-legacy-data-json` worktree。
@@ -52,12 +52,12 @@
 
 ## 锁定验收
 
-- [ ] 8 个迁移期 JSON 已从工作树删除，`enemies.json` 继续不存在，Git 历史可恢复旧内容。
-- [ ] 运行时、Build.cs、配置和数据同步脚本不存在对上述 JSON 的读取或打包引用。
-- [ ] `validate_project.py` 不再解析/统计旧内容，并明确拒绝 9 个已迁移具名 JSON 回归。
-- [ ] 权威 XLSX/CSV 字节同步检查与现有 CSV schema/fixture 校验继续通过。
-- [ ] 最终 Development FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
-- [ ] 未提交精选允许列表外 UE 生成物、机器本地路径或无关 Plan98/99–102 修改。
+- [x] 8 个迁移期 JSON 已从工作树删除，`enemies.json` 继续不存在，Git 历史可恢复旧内容。
+- [x] 运行时、Build.cs、配置和数据同步脚本不存在对上述 JSON 的读取或打包引用。
+- [x] `validate_project.py` 不再解析/统计旧内容，并明确拒绝 9 个已迁移具名 JSON 回归。
+- [x] 权威 XLSX/CSV 字节同步检查与现有 CSV schema/fixture 校验继续通过。
+- [x] 最终 Development FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 未提交精选允许列表外 UE 生成物、机器本地路径或无关 Plan98/99–102 修改。
 
 ## Step 0 门禁
 
@@ -89,14 +89,22 @@
 ### 变化
 
 - 2026-08-25：用户确认清理 8 个迁移期 JSON。只读审计确认生产运行时没有读取；旧文件仅由 `validate_project.py` 强制解析，并在输出中把旧 6 场快照误呈现为统计。
+- 2026-08-25：Plan-only 提交 `7c409c81` 已发布到 `origin/main`；远端无外部提交或耦合冲突，从该基线创建独立 Plan103 worktree 开始实现。
+- 2026-08-25：删除 8 个遗留 JSON；校验器从旧内容断言改为禁止 9 个已迁移具名玩法 JSON 回归，并同步数据目录、项目规则与 Codebase Map。
+- 2026-08-25：发布前 fetch 发现远端新增 Plan104 文档，首次取得用户确认后准备 rebase；执行时远端又新增表现资产与预构建包提交，产生 manifest/7 DLL 真实冲突。按更新后的用户确认保留全部远端 `.uasset` 与 Plan104，临时采用远端二进制完成 rebase，再在组合候选上重新 FullRebuild 生成唯一最终预构建包。
 
 ### 证据
 
 - 当前生产 `encounters.csv` 为 8 场，旧 `encounters.json` 为 6 场；运行时 `GetTotalEncounterCount()` 读取启用 CSV 行，默认配置也是 8。
+- 全仓当前代码/配置/脚本引用审计只剩校验器的禁止名单和 `Content/Data/README.md` 的禁止说明；`Content/Data` 下不再有玩法 JSON。
+- `sync_xlsx_to_csv.py --check`、`validate_project.py`、预构建包检查和 `git diff --check` 均通过；校验输出已改为生产 XLSX/CSV 权威，不再打印旧卡牌/关次统计。
+- 临时目录回归测试放入 `encounters.json` 后得到预期 `ValidationError`。首次测试脚手架因动态导入未注册 `sys.modules` 自身报错，修正脚手架后重跑通过，与项目实现无关。
+- UE 5.8 `Development -FullRebuild` 成功，精选预构建包刷新为 7 模块、`build_id=55116800`、`source=40e3668a045b`。
+- 最终组合基线为 `origin/main@2e4465c7`，包含远端玩家/敌人表现资产和 Plan104；rebase 后再次 FullRebuild、XLSX 同步、项目校验、预构建检查与文本门禁全部通过。
 
 ### 剩余风险
 
-- 删除是 Git 可恢复操作；主要风险是外部私人脚本仍可能引用旧路径，但仓库内没有该依赖，且旧数据本身早已不是权威。
+- 删除是 Git 可恢复操作；仓库外私人脚本若仍引用旧路径需要自行迁移到 CSV，但仓库内运行时、打包和同步链没有该依赖。
 
 ### 人工验收结果/请求
 
@@ -104,4 +112,8 @@
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `shared/PROJECT_RULES.md` 已更新：迁移期玩法 JSON 已删除并禁止回归，历史审阅改用 Git。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已更新：全局 XLSX→CSV 流水线不再保留旧 JSON 分支。
+- `Content/Data/README.md` 已更新：列出 9 个禁止返回的具名 JSON 和 Git 历史审阅方式。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：AREA-Data 数据链和禁用项与物理清理一致。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：Runtime Module/AREA 标识和路由没有变化。

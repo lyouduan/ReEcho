@@ -159,14 +159,14 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 - 代码：`Source/ReEcho/Public/Data/`、`Source/ReEcho/Private/Data/`。
 - 首读：`ReEchoCsvDataRegistry.*`、`ReEchoWeaponCsvReader.*`、`ReEchoCharacterBuildCsvReader.cpp` 和角色/卡牌/元素 Reader。
-- 数据链：主策划、怪物、Encounter、音频四个独立 canonical 工作簿 → 统一 `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`；二进制工作簿保持独立所有权。
+- 数据链：主策划、怪物、Encounter、音频四个独立 canonical 工作簿 → 统一 `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`；二进制工作簿保持独立所有权。已迁移玩法 JSON 已物理删除并由项目校验禁止回归，历史审阅只使用 Git。
 - 角色能力链：`ReEchoData.xlsx/角色能力A/tblCharacterAbilities` → `character_abilities.csv` → `FReEchoCsvDataSnapshot::CharacterAbilities` → `Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*`。`characters.csv` 只保存角色实体和基础 StatBlock；描述文字与旧 JSON 不参与能力分派。
 - 商店刷新链：`ReEchoData.xlsx/经济系统/tblShopRefreshRules` → `shop_refresh_rules.csv` → `FReEchoCsvDataSnapshot::ShopRefreshRules[Default]` → Run 的武器/符文页刷新与卡组逐槽刷新事务。刷新次数和价格只以该表为权威，UI 仅消费 Run 投影。
 - 怪物编译：`ReEchoEnemyData.xlsx` 发布 `enemies`、`enemy_abilities`、`boss_phases`、`enemy_combat_stats`；Definition 编译以 `EnemyId + EncounterIndex` 读取不可变快照，按场次覆盖 MaxHealth、ContactDamage、AttackInterval，再把相对移速乘数以 `BaseMoveSpeed=210` 归一为运行时 cm/s。运行时不得回读 XLSX，也不得在 Host 复制成长或仇恨默认值。
 - 权威：CSV Schema 校验、稳定 ID 引用、运行时快照发布和领域修订值。
 - 武器装载顺序：`weapons.csv` 的 `InputSlot` 与 `LoadoutOrder` 支持 `1..6`；允许删除武器后保留稳定顺序空档，但可选武器的顺序值必须唯一且必须绑定非 `None` 输入槽。删除武器族时必须同时更新权威 XLSX/CSV 与 Reader 的精确部件审计计数，启动校验不得继续要求已删除武器的来源行或效果种类；未配置的可选效果种类不构成数据错误，但已配置行仍须通过 Schema/Behavior 校验。
 - 扩展：先改 XLSX/Schema/生成器，再扩 Reader 与验证；Behavior/Formula 等逻辑字段必须映射到注册实现。
-- 禁止：运行时读取 XLSX、执行描述文本、把解析失败静默替换为默认逻辑、保存第二份平衡常量。
+- 禁止：运行时读取 XLSX、执行描述文本、把解析失败静默替换为默认逻辑、保存第二份平衡常量，或在 `Content/Data` 恢复已迁移玩法 JSON。
 
 ### `AREA-Cards`：卡牌构筑适配
 

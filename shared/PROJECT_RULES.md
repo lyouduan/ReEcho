@@ -33,7 +33,7 @@
 
 - 引擎：Unreal Engine 5.8 安装版/发行版，优先 Windows 桌面。不得使用独立源码检出构建或打开本项目。
 - 项目描述符：`ReEcho.uproject`；运行时模块：`Source/ReEcho`。
-- `Design/Data/ReEchoData.xlsx` 是已迁移生产表的权威策划可编辑来源。`Content/Data/` 下生成的 CSV 是可 diff、可打包的运行时来源。已迁移领域中的旧 JSON 仅用于迁移。
+- `Design/Data/ReEchoData.xlsx` 是已迁移生产表的权威策划可编辑来源。`Content/Data/` 下生成的 CSV 是可 diff、可打包的运行时来源。已迁移的角色、卡牌、武器、元素、反应、状态、Encounter、全局平衡和敌人旧 JSON 已删除并禁止回归；历史审阅使用 Git，不在生产数据目录保留第二份快照。
 - 不得手改生成的生产 CSV 形成第二事实来源，也不得在 JSON、C++、DeveloperSettings、Actor 或 Widget 中复制已迁移平衡常量。
 - 读取 `.xlsx`（尤其是策划真源 `Design/Data/ReEchoData.xlsx`）时，必须按 Excel 实际可见视图过滤：被隐藏的行或列（即 `ws.row_dimensions[r].hidden` / `ws.column_dimensions[c].hidden` 为 `True`）视为不存在，读取逻辑须显式跳过；`openpyxl` 的 `iter_rows()` 默认返回含隐藏行在内的所有行，不得仅凭其返回内容判定某行/列"可见"，必须以隐藏标记与 Excel 可见视图为准。同步脚本 `scripts/data/sync_xlsx_to_csv.py` 及任何 xlsx 解析工具均须落实此过滤，避免把策划已隐藏（如废案/未启用）的数据误读为有效内容。
 - 保留确定性语义：模拟 60 Hz、录制 20 Hz、遭遇时长 30 秒；暂停时录制和回放都不推进。

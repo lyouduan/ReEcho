@@ -1,6 +1,0 @@
-[
- {"id":"J_SPADE","role":"Sage","hpPoint":15,"pAtk":5,"eAtk":5,"weaponId":"W_J_01"},
- {"id":"J_DIAMOND","role":"Hunter","hpPoint":12,"pAtk":8,"eAtk":2,"weaponId":"W_J_02","critRateBonus":0.20,"critEffectBonus":0.50},
- {"id":"J_CLOVER","role":"Poet","hpPoint":8,"pAtk":2,"eAtk":10,"weaponId":"W_J_03"},
- {"id":"J_HEART","role":"Brave","hpPoint":20,"pAtk":2,"eAtk":2,"weaponId":"W_J_04"}
-]
