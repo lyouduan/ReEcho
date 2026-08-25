@@ -74,6 +74,8 @@ Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、
 
 Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
 
+羊 Boss 的站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害。BlinkSlam 的落点与预警共享 XY，PrayerBeam 的伤害与光束均从锁定预警中心开始。
+
 血条耗尽转换由 Combat 致命伤拦截启动；同一命中随后发布的 Hurt 不得把 `Transforming` 覆盖为 `HitReaction`。转换期间 Host 的入伤修正统一返回零，避免临时保活的 1 HP 被多段攻击击杀；完成事件再应用 Phase2 最大生命与回满策略，之后第二次致命伤恢复正常死亡。
 
 ## 依赖方向
@@ -154,6 +156,7 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - 新感知条件：在 `FReEchoEnemySenseSnapshot` 增加稳定值字段，由 Host 采样；不要让 Logic 查询 GameMode、PlayerController 或世界 Actor。
 - 新攻击类型：EnemyLogic 只产生动作身份和候选参数，Host 转为 `FReEchoHitIntent`，最终裁决仍只进 Combat Resolver。
 - 新表现反馈：订阅 EnemyEvents/CombatEvents 或读取聚合 PresentationSnapshot；详细 Niagara 接法见 [`MOD-ReEchoVFX.md`](MOD-ReEchoVFX.md)，不向 Logic 添加动画完成回调。
+- Boss GM 调试：`DebugQueueBossAbility` 只保存一个不可持久化的待触发 AbilityId；下一个合法固定步仍通过正式 Telegraph、锁点、提交、恢复和结束链执行，不直接生成伤害或表现。
 - 新保存字段：仅保存权威状态，并提供版本化迁移；不要把派生 UI/表现状态或 Combat 生命复制进 LogicSnapshot。
 
 ## 验证与测试

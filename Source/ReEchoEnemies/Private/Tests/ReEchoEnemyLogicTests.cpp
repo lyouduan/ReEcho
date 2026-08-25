@@ -354,6 +354,47 @@ bool FReEchoBossRotationAndSkipTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossDebugQueuedAbilityTest,
+                                 "ReEcho.Enemies.Boss.DebugQueuedAbilityUsesNormalStateMachine",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossDebugQueuedAbilityTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Boss initializes"), Logic->Initialize(MakeBossTestDefinition(), 14));
+	TestFalse(TEXT("Unknown ability cannot be queued"), Logic->DebugQueueBossAbility(TEXT("A_Unknown")));
+	TestTrue(TEXT("Configured beam can be queued"), Logic->DebugQueueBossAbility(TEXT("A_Beam")));
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent Telegraph = Logic->Advance(Sense, 1.0f / 60.0f);
+	const FReEchoBossIntent* BeamTelegraph =
+	    FindBossIntent(Telegraph, EReEchoBossIntentType::TelegraphStarted, FName(TEXT("A_Beam")));
+	TestNotNull(TEXT("Queued ability starts through the normal telegraph intent"), BeamTelegraph);
+	TestEqual(
+	    TEXT("Queued ability allocates the normal attack identity"), Logic->GetSnapshot().AttackSequence, int64(1));
+	TestEqual(TEXT("Queued ability enters normal windup"),
+	          Logic->GetSnapshot().BossActionPhase,
+	          EReEchoBossActionPhase::Windup);
+
+	const FReEchoEnemyActionIntent Committed = Logic->Advance(Sense, 0.05f);
+	const FReEchoBossIntent* BeamAttack =
+	    FindBossIntent(Committed, EReEchoBossIntentType::AttackWindowStarted, FName(TEXT("A_Beam")));
+	TestNotNull(TEXT("Queued beam reaches its attack window"), BeamAttack);
+	if (BeamAttack)
+	{
+		TestEqual(TEXT("Prayer beam damage starts at the locked warning center"),
+		          BeamAttack->Origin,
+		          BeamAttack->LockedTargetLocation);
+		TestEqual(TEXT("A target at the warning center has zero beam-plane offset"),
+		          FVector::DistSquared2D(Sense.TargetLocation, BeamAttack->Origin),
+		          0.0);
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossLockAndIdentityTest,
                                  "ReEcho.Enemies.Boss.LockPointAndAttackIdentity",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

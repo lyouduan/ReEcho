@@ -16,7 +16,7 @@
 |---|---|
 | 帮助与状态 | `GMHelp`、`GMStatus` |
 | 玩家与资源 | `GMHeal`、`GMGod`、`GMAddShards`、`GMSetShards` |
-| 关卡与敌人 | `GMEndEncounter`、`GMKillAll`、`GMSpawnFox`、`GMGotoBoss`、`GMShowEnemyHealth`、`GMShowEnemyRange` |
+| 关卡与敌人 | `GMEndEncounter`、`GMKillAll`、`GMSpawnFox`、`GMGotoBoss`、`GMBossSkill`、`GMShowEnemyHealth`、`GMShowEnemyRange` |
 | 场景 | `GMWeather` |
 | 元素 | `GMElement`、`GMReaction` |
 | 构筑 | `GMGrantCard`、`GMEquipRune`、`GMUnequipRune` |
@@ -61,12 +61,13 @@ GMHeal 30
 
 ### `GMGod [On|Off|Toggle]`
 
-控制玩家的最终伤害免疫。
+控制玩家的调试 God 模式。开启后仍显示正常结算的伤害数字和命中反馈，但玩家生命不会下降，也不会因此死亡。
 
 - 默认参数：`Toggle`
 - `On` 或 `1`：开启
 - `Off` 或 `0`：关闭
 - `Toggle`：切换当前状态
+- 不影响正式限时无敌规则；关闭后立即恢复正常扣血。
 
 ```text
 GMGod On
@@ -145,6 +146,26 @@ GMSpawnFox 600
 ```text
 GMGotoBoss
 ```
+
+### `GMBossSkill`
+
+让当前存活的 `M_SHEEP` 在当前技能结束后，通过正式 Boss 状态机使用指定技能。该命令不直接播放特效或造成伤害，也不会取消已经开始的技能。
+
+```text
+GMBossSkill Skill01
+GMBossSkill Skill02
+GMBossSkill Skill02Moving
+GMBossSkill Skill03
+GMBossSkill Skill04
+```
+
+- `Skill01`：近战挥杖。
+- `Skill02`：站定四连弹；也可写 `Skill02Stationary`。
+- `Skill02Moving`：移动三向散射。
+- `Skill03`：闪现下砸。
+- `Skill04`：蓄力光束。
+- 数字别名：`1`、`2`、`2M`、`3`、`4`。
+- 必须已有存活羊 Boss；可先运行 `GMGotoBoss`。
 
 ### `GMShowEnemyHealth [On|Off|Toggle]`
 

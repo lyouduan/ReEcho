@@ -557,4 +557,145 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostSheepProjectileTest,
+                                 "ReEcho.Enemies.Host.SheepProjectilePipeline",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyHostWorldFixture Fixture;
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+	FReEchoEnemyDefinition SheepDefinition;
+	FString CompileError;
+	if (!TestTrue(TEXT("Sheep definition compiles"),
+	              ReEchoEnemyDefinitionCompiler::Compile(
+	                  *LoadResult.Snapshot, TEXT("M_SHEEP"), SheepDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+
+	AReEchoPlayerPawn* Player =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoEnemyActor* Sheep = Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+	if (!TestNotNull(TEXT("Sheep host spawns"), Sheep) || !TestNotNull(TEXT("Target player spawns"), Player))
+	{
+		return false;
+	}
+	if (!Player->HasActorBegunPlay())
+	{
+		Player->DispatchBeginPlay();
+	}
+	FReEchoStatBlock PlayerStats;
+	PlayerStats.HpMax = 100.0f;
+	PlayerStats.HpPoint = 100.0f;
+	Player->Combatant->InitializeFromStats(PlayerStats, true);
+	APlayerController* PlayerController = Fixture.World->SpawnActor<APlayerController>();
+	if (!TestNotNull(TEXT("Player controller spawns"), PlayerController))
+	{
+		return false;
+	}
+	PlayerController->Possess(Player);
+	Sheep->SetEnemyId(TEXT("M_SHEEP"));
+	if (!TestTrue(TEXT("Sheep accepts production definition"), Sheep->ConfigureFromDefinition(SheepDefinition, 15)))
+	{
+		return false;
+	}
+	if (!Sheep->HasActorBegunPlay())
+	{
+		Sheep->DispatchBeginPlay();
+	}
+	TestTrue(TEXT("Stationary volley can be queued"),
+	         Sheep->GetEnemyLogicComponent()->DebugQueueBossAbility(TEXT("M_SHEEP_StationaryVolley")));
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.Target = Player;
+	Sense.SelfLocation = Sheep->GetActorLocation();
+	Sense.TargetLocation = Player->GetActorLocation();
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sheep->AdvanceBehaviorForTests(Sense, 0.01f);
+	Sheep->AdvanceBehaviorForTests(Sense, 0.6f);
+
+	const FReEchoEnemyRuntimeState SpawnedState = Sheep->CaptureRuntimeState();
+	if (!TestEqual(TEXT("Stationary volley creates four authoritative sheep projectiles"),
+	               SpawnedState.BossProjectiles.Num(),
+	               4))
+	{
+		return false;
+	}
+	for (const FReEchoEnemyProjectileRuntimeState& Ball : SpawnedState.BossProjectiles)
+	{
+		TestEqual(TEXT("Sheep projectile uses ability MaxRangeCm"), Ball.Definition.MaxRangeCm, 1200.0f);
+		TestEqual(TEXT("Sheep volley divides the configured radius per ball"), Ball.CollisionRadiusCm, 13.75f);
+	}
+	TestTrue(TEXT("Sheep projectile presentation height differs from the shorter player collision center"),
+	         !FMath::IsNearlyEqual(SpawnedState.BossProjectiles[0].Snapshot.Location.Z,
+	                               Player->GetCombatTargetLocation().Z));
+	const TArray<FReEchoEnemyProjectileEvent>& Events =
+	    Sheep->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests();
+	const int32 SpawnCount = Events
+	                             .FilterByPredicate(
+	                                 [](const FReEchoEnemyProjectileEvent& Event)
+	                                 {
+		                                 return Event.Type == EReEchoEnemyProjectileEventType::Spawned &&
+		                                        Event.AbilityId == TEXT("M_SHEEP_Projectile");
+	                                 })
+	                             .Num();
+	TestEqual(TEXT("Stationary volley initially publishes only its first projectile"), SpawnCount, 1);
+	if (UReEchoCombatVfxComponent* Vfx = Sheep->FindComponentByClass<UReEchoCombatVfxComponent>())
+	{
+		TestEqual(TEXT("Only the first sequential Goat Skill02 Bullet is visible immediately"),
+		          Vfx->GetBossProjectileEffectCountForTests(),
+		          1);
+	}
+	Sheep->AdvanceEnemyProjectilesForTests(1.0f);
+	Sheep->AdvanceEnemyProjectilesForTests(0.5f);
+	const int32 TotalSpawnCount = Events
+	                                  .FilterByPredicate(
+	                                      [](const FReEchoEnemyProjectileEvent& Event)
+	                                      {
+		                                      return Event.Type == EReEchoEnemyProjectileEventType::Spawned &&
+		                                             Event.AbilityId == TEXT("M_SHEEP_Projectile");
+	                                      })
+	                                  .Num();
+	TestEqual(TEXT("Stationary volley publishes all four projectiles over its firing window"), TotalSpawnCount, 4);
+	TestEqual(TEXT("Four configured five-damage projectiles reduce player health by twenty"),
+	          Player->Combatant->CurrentHealth,
+	          80.0f);
+
+	Player->Combatant->RestoreCurrentHealth(100.0f);
+	TestTrue(TEXT("Moving spread can be queued while the previous ability recovers"),
+	         Sheep->GetEnemyLogicComponent()->DebugQueueBossAbility(TEXT("M_SHEEP_MovingSpread")));
+	Sheep->AdvanceBehaviorForTests(Sense, 0.6f);
+	Sheep->AdvanceBehaviorForTests(Sense, 0.6f);
+	const FReEchoEnemyRuntimeState MovingSpreadState = Sheep->CaptureRuntimeState();
+	TestEqual(
+	    TEXT("Moving spread creates three authoritative projectiles"), MovingSpreadState.BossProjectiles.Num(), 3);
+	const int32 SpawnCountBeforeMoving = TotalSpawnCount;
+	const int32 SpawnCountAfterMoving = Events
+	                                        .FilterByPredicate(
+	                                            [](const FReEchoEnemyProjectileEvent& Event)
+	                                            {
+		                                            return Event.Type == EReEchoEnemyProjectileEventType::Spawned &&
+		                                                   Event.AbilityId == TEXT("M_SHEEP_Projectile");
+	                                            })
+	                                        .Num();
+	TestEqual(TEXT("Moving spread publishes all three directions immediately"),
+	          SpawnCountAfterMoving - SpawnCountBeforeMoving,
+	          3);
+	Sheep->AdvanceEnemyProjectilesForTests(1.0f);
+	Sheep->AdvanceEnemyProjectilesForTests(0.5f);
+	TestEqual(TEXT("Moving spread center projectile applies its configured five damage"),
+	          Player->Combatant->CurrentHealth,
+	          95.0f);
+	return true;
+}
+
 #endif

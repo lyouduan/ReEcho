@@ -159,6 +159,7 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	BossActiveAbilityIndices.Reset();
 	BossPhaseIndices.Reset();
 	BossCleanseAbilityIndex = INDEX_NONE;
+	DebugQueuedBossAbilityId = NAME_None;
 	if (InDefinition.MaxHealth <= 0.0f || InDefinition.MoveSpeedCmPerSecond < 0.0f ||
 	    InDefinition.CollisionRadiusCm <= 0.0f || InDefinition.CollisionHalfHeightCm <= 0.0f ||
 	    InDefinition.ContactDamage < 0.0f || InDefinition.AttackIntervalSeconds < 0.0f ||
@@ -838,8 +839,10 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	BossIntent.Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
 	BossIntent.Attack.Sequence = State.BossCurrentAttackSequence;
 	BossIntent.Target = Sense.Target;
-	BossIntent.Origin =
-	    AbilityKind == EReEchoBossAbilityKind::BlinkSlam ? State.BossLockedTeleportDestination : Sense.SelfLocation;
+	BossIntent.Origin = AbilityKind == EReEchoBossAbilityKind::BlinkSlam
+	                        ? State.BossLockedTeleportDestination
+	                        : AbilityKind == EReEchoBossAbilityKind::PrayerBeam ? State.BossLockedTargetLocation
+	                                                                           : Sense.SelfLocation;
 	BossIntent.LockedTargetLocation = State.BossLockedTargetLocation;
 	BossIntent.LockedDirection = State.BossLockedDirection;
 	BossIntent.TeleportDestination = State.BossLockedTeleportDestination;
@@ -937,11 +940,30 @@ void UReEchoEnemyLogicComponent::AppendBossIntent(FReEchoBossIntent&& BossIntent
 	InOutIntent.BossIntents.Add(MoveTemp(BossIntent));
 }
 
-int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense) const
+int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense)
 {
 	if (!Sense.bTargetExists || !Sense.bTargetAlive || BossActiveAbilityIndices.IsEmpty())
 	{
 		return INDEX_NONE;
+	}
+	if (!DebugQueuedBossAbilityId.IsNone())
+	{
+		const int32 QueuedAbilityIndex = FindBossAbilityIndex(DebugQueuedBossAbilityId);
+		if (!BossActiveAbilityIndices.Contains(QueuedAbilityIndex))
+		{
+			DebugQueuedBossAbilityId = NAME_None;
+		}
+		else if (ResolveBossAbilityKind(Definition.Abilities[QueuedAbilityIndex].BehaviorId) ==
+		             EReEchoBossAbilityKind::BlinkSlam &&
+		         !Sense.bHasTeleportDestination)
+		{
+			return INDEX_NONE;
+		}
+		else
+		{
+			DebugQueuedBossAbilityId = NAME_None;
+			return QueuedAbilityIndex;
+		}
 	}
 	const float Distance = FVector::Dist2D(Sense.SelfLocation, Sense.TargetLocation);
 	for (int32 Offset = 0; Offset < BossActiveAbilityIndices.Num(); ++Offset)
@@ -962,6 +984,21 @@ int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnaps
 		return AbilityIndex;
 	}
 	return INDEX_NONE;
+}
+
+bool UReEchoEnemyLogicComponent::DebugQueueBossAbility(const FName AbilityId)
+{
+	if (!bInitialized || Definition.Archetype != EReEchoEnemyArchetype::Boss)
+	{
+		return false;
+	}
+	const int32 AbilityIndex = FindBossAbilityIndex(AbilityId);
+	if (!BossActiveAbilityIndices.Contains(AbilityIndex))
+	{
+		return false;
+	}
+	DebugQueuedBossAbilityId = AbilityId;
+	return true;
 }
 
 int32 UReEchoEnemyLogicComponent::FindBossAbilityIndex(const FName AbilityId) const
@@ -1291,10 +1328,12 @@ void UReEchoEnemyLogicComponent::ResetEncounterTransientState()
 	State.bBossHasLockedTarget = false;
 	State.bBossHasLockedTeleportDestination = false;
 	State.bBossCurrentAbilityCommitted = false;
+	DebugQueuedBossAbilityId = NAME_None;
 }
 
 void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot)
 {
+	DebugQueuedBossAbilityId = NAME_None;
 	if (!bInitialized || InSnapshot.Archetype != Definition.Archetype)
 	{
 		return;

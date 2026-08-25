@@ -95,7 +95,9 @@ public:
 	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
 	static bool HasMeleePlayDirectionParameter(const UNiagaraSystem* System);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
-	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
+	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
+	                              USceneComponent* InHurtVfxRoot,
+	                              USceneComponent* InBossWeaponVfxRoot = nullptr);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
 	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
 	/** Resolves the impact semantic recorded for one Boss attack without inferring from damage values. */
@@ -103,11 +105,18 @@ public:
 	/** Editor repair seam for attached Niagara systems that must follow their owning presentation root. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool SetNiagaraSystemEmittersLocalSpace(UNiagaraSystem* System);
+	/** Editor authoring seam for ground telegraphs whose sprite planes must use the owner's world-up axis. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetNiagaraSystemSpriteFacingOwnerUp(UNiagaraSystem* System);
+	/** Editor authoring seam for planar beam meshes that must remain camera-readable from every attack direction. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetNiagaraSystemMeshFacingCameraPlane(UNiagaraSystem* System);
 	/** Editor repair seam for melee mesh systems whose camera-facing renderer overrides component rotation. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
+	int32 GetBossProjectileEffectCountForTests() const;
 	bool
 	TryGetProjectileVisualLocationForTests(int64 AttackSequence, int32 VolleyBallIndex, FVector& OutLocation) const;
 	void ScheduleConductLinksForTests(const FReEchoElementReactionResolvedEvent& Event, float DelaySeconds);
@@ -142,6 +151,7 @@ private:
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
 	                                 bool bAutoDestroy = true) const;
+	USceneComponent* ResolveBossWeaponVfxRoot() const;
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
 	USceneComponent* ResolveEchoAuraVfxRoot() const;
@@ -229,6 +239,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> HurtVfxRoot;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> BossWeaponVfxRoot;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> EchoAuraVfxRoot;

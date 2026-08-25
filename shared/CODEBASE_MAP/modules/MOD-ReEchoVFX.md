@@ -73,9 +73,10 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow` | 两个启用发射器均为 Local Space；附着狐狸攻击挂点、前景，Windup 与 Charging 同时开始，并按锁定冲撞方向旋转，提交/结束/取消时清理 |
 | FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Trail` | 附着狐狸攻击挂点、前景；提交时停止 Charging/Direction 并开始，动作结束/取消时清理 |
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
-| GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 羊 Boss 两种投射技能共用；前摇附着 Boss，Bullet 逐球投影逻辑弹道，实际 `AppliedDamage > 0` 时在角色 Hurt 挂点播放命中 |
-| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | 闪身下砸前摇附着 Boss，预警固定在锁定落点，提交时清理；实际伤害后播放命中 |
-| GoatSkill04 | `NS_Goat_Skill04_Charging` / `Lighting` | 祷告光束前摇附着 Boss，攻击窗口按锁定方向播放 Lighting，AbilityEnded/Death/清场清理 |
+| GoatSkill01 | `MoonStaff` + `NS_Goat_Skill02_BeAttacked` | 羊 Boss 从 Plan104 的 `DA_WeaponPresentation_MoonStaff` 读取持有贴图、尺寸和偏移；近战攻击窗口驱动法杖挥舞，并在法杖世界位置复用 Skill02 BeAttacked，玩法圆形命中不变 |
+| GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 两种投射技能共用；Charging 挂在 MoonStaff 根，Bullet 使用 Local Space。StationaryVolley 在 Recovery 窗口内逐颗发布四次 Spawned，MovingSpread 同帧发布三向 Spawned；每颗投影权威弹道、命中后经 Combat 结算单弹配表伤害并发布 Ended，实际 `AppliedDamage > 0` 时在角色世界命中坐标播放命中 |
+| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | Charging 附着 Boss；预警固定在锁定角色落点并使用显式世界向上法线，Boss 落在预警 XY 中心；BeAttacked 作为同尺寸地裂贴地播放，实际伤害仍由 Combat 裁决 |
+| GoatSkill04 | `NS_Goat_Skill04_Charging` / `NS_Goat_Skill03_Alarming` / `Lighting` | Charging 开始时显示目标快照预警，权威锁定后重启到 LockedTargetLocation；Lighting 从预警中心释放并使用 CameraPlane mesh facing，伤害起点同一锁点；AbilityEnded/Death/清场清理 |
 | PlayerMeleeSlash | `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01` | 近战提交位置和攻击方向，前景单次播放 |
 | PlayerScytheSlash | `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01` | 镰刀提交位置和攻击方向，前景单次播放 |
 | PlayerBowFlight / Impact | `/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01` / `NS_People_Bow_Boom` | 飞行 System 绑定权威投射物 Actor；保持资源内部 Renderer 与粒子模块不变，把交付 Niagara 的 authored local `+Y` 视觉轴在发射时按锁定攻击方向旋转一次；首次权威命中播放一次 Impact |
