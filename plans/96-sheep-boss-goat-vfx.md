@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Codex planner-side AI`。
 - 实现编写方（AI 侧）：`Codex executor-side AI`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划基线：本地 `main@7249045e`，由 `origin/main@76366797` 与本地狐狸 VFX 候选合并而成；本 Plan 发布后从最新 `origin/main` 创建专属 worktree。
 - 本地实现方式：一任务一 worktree；不得在当前含大量美术导入内容的主工作区直接实现。
@@ -134,6 +134,7 @@
 - 2026-08-24：用户明确 Boss 技能击中角色时必须造成相应伤害；Plan 将配表扣血与最终命中特效一致性列为硬验收，同时保持 Combat 而非 Niagara 为唯一伤害权威。
 - 2026-08-24：实现 Goat Skill02/03/04 的集中语义、Boss Intent 生命周期、逐球逻辑投射物 Niagara、锁点预警、锁向光束和按 AttackIdentity 对齐的最终命中特效；Boss 投射物事件补充稳定的 `M_SHEEP_Projectile` 表现标识。
 - 2026-08-24：代码审计发现二阶段 `PhysicalAttackMultiplier/AttackSpeedMultiplier` 仅被编译但未用于 Boss 技能提交；补为 Phase2 提交伤害乘物理倍率、冷却除攻速倍率。一阶段继续直接采用能力表值，空间判定和最终扣血仍由 Host/Combat 权威链执行。
+- 2026-08-25：Planner 评审退回 `InProgress`：Skill02/03 命中特效错误附着通用 Hurt 根、Skill04 未消费世界长度、附着特效缺少资源级空间契约。本轮先把命中改为 Combat 最终世界坐标，并让 Skill04 在激活前写入世界起止点、长度和宽度；通用语义挂点迁移继续作为关闭前架构修正项。
 
 ### 证据
 

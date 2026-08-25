@@ -496,6 +496,59 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	return Effect;
 }
 
+void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(const FVector& Origin,
+	                                                           const FVector& LockedDirection,
+	                                                           const float LengthCm,
+	                                                           FVector& OutStart,
+	                                                           FVector& OutEnd)
+{
+	const FVector Direction = LockedDirection.IsNearlyZero() ? FVector::ForwardVector
+	                                                        : LockedDirection.GetSafeNormal2D();
+	OutStart = Origin;
+	OutEnd = Origin + Direction * FMath::Max(0.0f, LengthCm);
+}
+
+FVector UReEchoCombatVfxComponent::ResolveImpactWorldLocation(const FReEchoDamageEvent& Event,
+	                                                           const FVector& FallbackLocation)
+{
+	return Event.WorldLocation.IsNearlyZero() ? FallbackLocation : Event.WorldLocation;
+}
+
+UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
+{
+	UNiagaraSystem* System = ResolveSystem(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting));
+	UWorld* World = GetWorld();
+	if (!System || !World)
+	{
+		return nullptr;
+	}
+	FVector Start = FVector::ZeroVector;
+	FVector End = FVector::ZeroVector;
+	ResolveBossBeamWorldEndpoints(Intent.Origin, Intent.LockedDirection, Intent.LengthCm, Start, End);
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+	    World,
+	    System,
+	    Start,
+	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting,
+	                                             Intent.LockedDirection),
+	    FVector::OneVector,
+	    false,
+	    false,
+	    ENCPoolMethod::None,
+	    true);
+	if (!Effect)
+	{
+		return nullptr;
+	}
+	Effect->SetVariablePosition(TEXT("User.StartPosition"), Start);
+	Effect->SetVariablePosition(TEXT("User.EndPosition"), End);
+	Effect->SetVariableFloat(TEXT("User.BeamLength"), FVector::Dist(Start, End));
+	Effect->SetVariableFloat(TEXT("User.BeamWidth"), FMath::Max(0.0f, Intent.WidthCm));
+	Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+	Effect->Activate(true);
+	return Effect;
+}
+
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 SemanticValue,
                                                             const FVector& Direction,
                                                             USceneComponent* AttachmentRoot,
@@ -958,7 +1011,11 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 			uint8 BossImpactSemantic = 0;
 			if (SourceVfx->TryResolveBossImpactSemantic(Event.Attack.Sequence, BossImpactSemantic))
 			{
-				SpawnAttached(BossImpactSemantic, FVector::ForwardVector, ResolveHurtVfxRoot());
+				const FVector FallbackLocation = ResolveHurtVfxRoot() ? ResolveHurtVfxRoot()->GetComponentLocation()
+				                                                        : GetOwner()->GetActorLocation();
+				const FVector ImpactLocation = ResolveImpactWorldLocation(Event, FallbackLocation);
+				const FVector ImpactDirection = ImpactLocation - Event.SourceWorldLocation;
+				SpawnWorld(BossImpactSemantic, ImpactLocation, ImpactDirection);
 				return;
 			}
 		}
@@ -1095,10 +1152,7 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		if (bSkill04)
 		{
 			StopEffect(BossActiveEffect);
-			BossActiveEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting),
-			                                 Intent.LockedDirection,
-			                                 ResolveAttackVfxRoot(),
-			                                 false);
+			BossActiveEffect = SpawnBossBeam(Intent);
 		}
 		return;
 	}

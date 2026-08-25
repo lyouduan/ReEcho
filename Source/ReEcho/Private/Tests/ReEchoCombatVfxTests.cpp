@@ -63,6 +63,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         StartParameter.Equals(StartWorld, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("World-space Conduct preserves oblique direction and distance"),
 	         EndParameter.Equals(EndWorld, KINDA_SMALL_NUMBER));
+	FVector BeamStart = FVector::ZeroVector;
+	FVector BeamEnd = FVector::ZeroVector;
+	const FVector BeamOrigin(300.0f, -120.0f, 40.0f);
+	const FVector BeamDirection(0.6f, 0.8f, 0.0f);
+	UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
+	    BeamOrigin, BeamDirection, 750.0f, BeamStart, BeamEnd);
+	TestTrue(TEXT("Boss beam starts at the authoritative attack origin"),
+	         BeamStart.Equals(BeamOrigin, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
+	         BeamEnd.Equals(BeamOrigin + BeamDirection * 750.0f, KINDA_SMALL_NUMBER));
+	FReEchoDamageEvent ImpactEvent;
+	ImpactEvent.WorldLocation = FVector(840.0f, 220.0f, 15.0f);
+	TestTrue(TEXT("Boss impact preserves the Combat final hit location"),
+	         UReEchoCombatVfxComponent::ResolveImpactWorldLocation(ImpactEvent, FVector(1.0f))
+	             .Equals(ImpactEvent.WorldLocation, KINDA_SMALL_NUMBER));
+	ImpactEvent.WorldLocation = FVector::ZeroVector;
+	const FVector HurtAnchorFallback(25.0f, 35.0f, 45.0f);
+	TestTrue(TEXT("Missing impact coordinates fall back to the target presentation anchor"),
+	         UReEchoCombatVfxComponent::ResolveImpactWorldLocation(ImpactEvent, HurtAnchorFallback)
+	             .Equals(HurtAnchorFallback, KINDA_SMALL_NUMBER));
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
 	    StartWorld, MovedEndWorld, StartParameter, EndParameter);

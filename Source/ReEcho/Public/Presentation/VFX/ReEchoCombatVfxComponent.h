@@ -76,6 +76,14 @@ public:
 	                                             FVector& OutStartParameter,
 	                                             FVector& OutEndParameter);
 	static float ResolveConductPropagationDelaySeconds(FName WeaponId);
+	/** Converts the locked Boss beam contract into immutable world-space endpoints. */
+	static void ResolveBossBeamWorldEndpoints(const FVector& Origin,
+	                                          const FVector& LockedDirection,
+	                                          float LengthCm,
+	                                          FVector& OutStart,
+	                                          FVector& OutEnd);
+	/** Exact Combat hit locations are authoritative; target anchors are only a missing-location fallback. */
+	static FVector ResolveImpactWorldLocation(const FReEchoDamageEvent& Event, const FVector& FallbackLocation);
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot, USceneComponent* InHurtVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
@@ -114,6 +122,7 @@ private:
 	TArray<UMaterialInterface*> ResolveRabbitProjectileGlowMaterials() const;
 	UNiagaraComponent*
 	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
+	UNiagaraComponent* SpawnBossBeam(const FReEchoBossIntent& Intent) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
