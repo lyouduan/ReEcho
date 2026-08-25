@@ -44,7 +44,7 @@ P_SCYTHE_THROWRECALL_GRIP,P_SCYTHE_THROWRECALL_GRIP,Scythe,Grip,投掷召回链,
 
 在到达终点后，每秒对周围敌方单位造成 20%/物攻/元攻伤害。
 
-攻击范围属性继承，持续伤害频率受攻速影响",Rare,Grip|UniqueBehavior|ActiveAttack,true,Approved,Implemented,,武器插槽C,35,true,45
+攻击范围属性继承，持续伤害频率受攻速影响",Rare,Grip|UniqueBehavior|ActiveAttack,false,Approved,Disabled,策划确认禁用,武器插槽C,35,false,0
 P_LONGSWORD_NARROWWIDE_SWORDBLADE,P_LONGSWORD_NARROWWIDE_SWORDBLADE,LongSword,SwordBlade,窄角广域剑刃,效果：攻击角度降为120°；攻击范围+30%,Common,SwordBlade|Numeric,true,Approved,Implemented,,武器插槽C,36,true,30
 P_LONGSWORD_SLOWWIDE_SWORDBLADE,P_LONGSWORD_SLOWWIDE_SWORDBLADE,LongSword,SwordBlade,减攻速广域剑刃,效果：攻击速度-20%，攻击范围+30%,Common,SwordBlade|Numeric,true,Approved,Implemented,,武器插槽C,37,true,30
 P_LONGSWORD_GROUPGROWTH_SWORDBLADE,P_LONGSWORD_GROUPGROWTH_SWORDBLADE,LongSword,SwordBlade,群攻成长剑刃,效果：每次攻击同时命中4名敌人后，攻击范围+2%，持续5s。这个效果可以叠加。,Rare,SwordBlade|UniqueBehavior|AttackRange,true,Approved,Implemented,,武器插槽C,38,true,45
@@ -55,7 +55,7 @@ P_LONGSWORD_METEOR_SWORDBLADE,P_LONGSWORD_METEOR_SWORDBLADE,LongSword,SwordBlade
 
 爆炸范围：1.5m
 
-伤害倍率继承",Rare,SwordBlade|UniqueBehavior|Meteor,true,Approved,Implemented,,武器插槽C,42,true,45
+伤害倍率继承",Rare,SwordBlade|UniqueBehavior|Meteor,false,Approved,Disabled,策划确认禁用,武器插槽C,42,false,0
 P_LONGSWORD_HASTE_GRIP,P_LONGSWORD_HASTE_GRIP,LongSword,Grip,攻速剑柄,效果：攻击速度+20%,Common,Grip|Numeric,true,Approved,Implemented,,武器插槽C,43,true,30
 P_LONGSWORD_MOVESTACK_GRIP,P_LONGSWORD_MOVESTACK_GRIP,LongSword,Grip,命中移速剑柄,效果：每次攻击，每命中一名敌方单位，获得1%移动速度，持续5s。这个效果最多叠加30层,Rare,Grip|UniqueBehavior|MoveSpeed,true,Approved,Implemented,,武器插槽C,44,true,45
 P_LONGSWORD_ATTACKSTACK_GRIP,P_LONGSWORD_ATTACKSTACK_GRIP,LongSword,Grip,命中攻速剑柄,效果：每次攻击，每命中一名敌方单位，获得1%攻击速度，持续5s。这个效果最多叠加30层,Rare,Grip|UniqueBehavior|AttackSpeed,true,Approved,Implemented,,武器插槽C,45,true,45

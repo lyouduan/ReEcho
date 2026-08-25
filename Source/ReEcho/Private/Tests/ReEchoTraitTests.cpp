@@ -486,4 +486,148 @@ bool FReEchoCardEffectsApplyAtomicallyTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoResolvedCardOutcomeProjectionTest,
+                                 "ReEcho.Traits.ResolvedOutcomesPersistAndProject",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoResolvedCardOutcomeProjectionTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+
+	auto FindOwnedCard = [](const FReEchoWeaponPartShopView& View, const FName CardId)
+	{
+		return View.OwnedCards.FindByPredicate(
+		    [&](const FReEchoShopOffer& Offer)
+		    {
+			    return Offer.ContentId == CardId;
+		    });
+	};
+
+	TestTrue(TEXT("Harvest penalty card grants for outcome projection"), Run->DebugGrantCard(TEXT("G_3_17")));
+	const EReEchoCardEconomyPenalty Penalty = Run->CurrentBuild.CardState.Runtime.EconomyPenalty;
+	const FReEchoWeaponPartShopView HarvestView = Run->GetWeaponPartShopView();
+	const FReEchoShopOffer* Harvest = FindOwnedCard(HarvestView, TEXT("G_3_17"));
+	if (!TestNotNull(TEXT("Harvest is present in the owned-card projection"), Harvest))
+	{
+		return false;
+	}
+	const FString HarvestOutcome = Harvest->OutcomeText.ToString();
+	TestFalse(TEXT("Harvest exposes a non-empty resolved penalty"), HarvestOutcome.IsEmpty());
+	if (Penalty == EReEchoCardEconomyPenalty::NoShopRefresh)
+	{
+		TestTrue(TEXT("Harvest text matches the no-refresh rule"), HarvestOutcome.Contains(TEXT("不能再刷新商店")));
+	}
+	else if (Penalty == EReEchoCardEconomyPenalty::NoExtraCardPurchase)
+	{
+		TestTrue(TEXT("Harvest text matches the no-extra-card rule"),
+		         HarvestOutcome.Contains(TEXT("不能再购买额外卡牌组")));
+	}
+	else
+	{
+		TestTrue(TEXT("Harvest text matches the no-enemy-shard rule"),
+		         HarvestOutcome.Contains(TEXT("不再掉落时间碎片")));
+	}
+
+	TestTrue(TEXT("Random stat trade grants for generic outcome projection"), Run->DebugGrantCard(TEXT("G_2_04")));
+	const FReEchoWeaponPartShopView StatTradeView = Run->GetWeaponPartShopView();
+	const FReEchoShopOffer* StatTrade = FindOwnedCard(StatTradeView, TEXT("G_2_04"));
+	if (TestNotNull(TEXT("Random stat trade is present in the owned-card projection"), StatTrade))
+	{
+		const FString StatTradeOutcome = StatTrade->OutcomeText.ToString();
+		TestTrue(TEXT("Random stat trade names physical attack"), StatTradeOutcome.Contains(TEXT("物理攻击力")));
+		TestTrue(TEXT("Random stat trade names elemental attack"), StatTradeOutcome.Contains(TEXT("元素攻击力")));
+		TestTrue(TEXT("Random stat trade exposes the resolved positive roll"), StatTradeOutcome.Contains(TEXT("+60%")));
+		TestTrue(TEXT("Random stat trade exposes the resolved negative roll"), StatTradeOutcome.Contains(TEXT("-30%")));
+	}
+
+	TestTrue(TEXT("Hunt tracker grants for pending outcome projection"), Run->DebugGrantCard(TEXT("G_2_05")));
+	const FReEchoWeaponPartShopView PendingHuntView = Run->GetWeaponPartShopView();
+	const FReEchoShopOffer* PendingHunt = FindOwnedCard(PendingHuntView, TEXT("G_2_05"));
+	if (!TestNotNull(TEXT("Hunt tracker is projected while pending"), PendingHunt))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Hunt tracker shows its pending encounter"),
+	         PendingHunt->OutcomeText.ToString().Contains(TEXT("等待")));
+	Run->BeginEncounter();
+	const float PhysicalBefore = Run->CurrentBuild.Stats.PhysicalAttack;
+	for (int32 KillIndex = 0; KillIndex < 7; ++KillIndex)
+	{
+		Run->NotifyCardKill(false);
+	}
+	Run->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("Hunt tracker still applies its authored permanent gain"),
+	          Run->CurrentBuild.Stats.PhysicalAttack,
+	          PhysicalBefore + 1.0f);
+	const FReEchoWeaponPartShopView SettledHuntView = Run->GetWeaponPartShopView();
+	const FReEchoShopOffer* SettledHunt = FindOwnedCard(SettledHuntView, TEXT("G_2_05"));
+	if (TestNotNull(TEXT("Settled hunt remains projected"), SettledHunt))
+	{
+		TestTrue(TEXT("Settled hunt exposes the actual physical gain"),
+		         SettledHunt->OutcomeText.ToString().Contains(TEXT("物理攻击力 +1")));
+	}
+
+	TestTrue(TEXT("Reaction tracker grants for pending outcome projection"), Run->DebugGrantCard(TEXT("G_2_06")));
+	Run->BeginEncounter();
+	const float ElementalBefore = Run->CurrentBuild.Stats.ElementalAttack;
+	for (int32 ReactionIndex = 0; ReactionIndex < 9; ++ReactionIndex)
+	{
+		Run->NotifyCardReaction(*FString::Printf(TEXT("REACTION_%d"), ReactionIndex), true);
+	}
+	Run->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("Reaction tracker still applies its authored permanent gain"),
+	          Run->CurrentBuild.Stats.ElementalAttack,
+	          ElementalBefore + 2.0f);
+	const FReEchoWeaponPartShopView SettledReactionView = Run->GetWeaponPartShopView();
+	const FReEchoShopOffer* SettledReaction = FindOwnedCard(SettledReactionView, TEXT("G_2_06"));
+	if (TestNotNull(TEXT("Settled reaction tracker remains projected"), SettledReaction))
+	{
+		TestTrue(TEXT("Settled reaction tracker exposes the actual elemental gain"),
+		         SettledReaction->OutcomeText.ToString().Contains(TEXT("元素攻击力 +2")));
+	}
+
+	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	if (TestNotNull(TEXT("Resolved outcomes can be saved"), Save) &&
+	    TestTrue(TEXT("Resolved outcomes restore with SaveVersion 19"), Restored->RestoreSaveSnapshot(*Save)))
+	{
+		const FReEchoWeaponPartShopView RestoredView = Restored->GetWeaponPartShopView();
+		const FReEchoShopOffer* RestoredHarvest = FindOwnedCard(RestoredView, TEXT("G_3_17"));
+		const FReEchoShopOffer* RestoredHunt = FindOwnedCard(RestoredView, TEXT("G_2_05"));
+		const FReEchoShopOffer* RestoredReaction = FindOwnedCard(RestoredView, TEXT("G_2_06"));
+		TestTrue(TEXT("Harvest outcome survives save/load"),
+		         RestoredHarvest && RestoredHarvest->OutcomeText.ToString() == HarvestOutcome);
+		TestTrue(TEXT("Hunt outcome survives save/load"),
+		         RestoredHunt && RestoredHunt->OutcomeText.ToString().Contains(TEXT("物理攻击力 +1")));
+		TestTrue(TEXT("Reaction outcome survives save/load"),
+		         RestoredReaction && RestoredReaction->OutcomeText.ToString().Contains(TEXT("元素攻击力 +2")));
+	}
+
+	UReEchoRunSaveGame* LegacySave = Run->CreateSaveSnapshot();
+	UGameInstance* LegacyGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* LegacyRestored = NewObject<UReEchoRunSubsystem>(LegacyGameInstance);
+	if (TestNotNull(TEXT("Legacy outcome migration has a source snapshot"), LegacySave))
+	{
+		LegacySave->SaveVersion = 18;
+		LegacySave->CurrentBuild.CardState.Runtime.ResolvedOutcomes.Reset();
+		if (TestTrue(TEXT("SaveVersion 18 outcome state migrates"), LegacyRestored->RestoreSaveSnapshot(*LegacySave)))
+		{
+			const FReEchoWeaponPartShopView LegacyView = LegacyRestored->GetWeaponPartShopView();
+			const FReEchoShopOffer* LegacyHarvest = FindOwnedCard(LegacyView, TEXT("G_3_17"));
+			const FReEchoShopOffer* LegacyHunt = FindOwnedCard(LegacyView, TEXT("G_2_05"));
+			const FReEchoShopOffer* LegacyReaction = FindOwnedCard(LegacyView, TEXT("G_2_06"));
+			TestTrue(TEXT("Legacy migration reconstructs the provable harvest penalty"),
+			         LegacyHarvest && !LegacyHarvest->OutcomeText.IsEmpty());
+			TestTrue(TEXT("Legacy migration does not invent a completed hunt result"),
+			         LegacyHunt && LegacyHunt->OutcomeText.IsEmpty());
+			TestTrue(TEXT("Legacy migration does not invent a completed reaction result"),
+			         LegacyReaction && LegacyReaction->OutcomeText.IsEmpty());
+		}
+	}
+	return true;
+}
+
 #endif

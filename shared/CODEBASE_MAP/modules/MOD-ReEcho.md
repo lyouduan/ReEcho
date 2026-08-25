@@ -70,11 +70,13 @@
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
 - 战斗常驻 HUD 的只读表现投影：Combatant 提供生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
+- Development 编辑器启动时由 `FReEchoModule` 注册第二个只读日志输出设备，把普通 `UE_LOG` 同步写入 `Saved/Logs/ReEcho-session-<本地开始时间>-pid<进程号>.log`；`ReEcho.log` 仍是当前会话入口，独立会话文件不覆盖、不参与玩法状态，也不进入 Shipping。
 
 ### 稳定契约
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
+- SaveVersion 19 随 CardState 保存类型化的卡牌实际结果；v18 及更早版本只重建旧字段能严格证明的代价和未结算追踪，不伪造已丢失的历史增益。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -160,6 +162,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 代码：`Source/ReEcho/Public/Data/`、`Source/ReEcho/Private/Data/`。
 - 首读：`ReEchoCsvDataRegistry.*`、`ReEchoWeaponCsvReader.*`、`ReEchoCharacterBuildCsvReader.cpp` 和角色/卡牌/元素 Reader。
 - 数据链：主策划、怪物、Encounter、音频四个独立 canonical 工作簿 → 统一 `scripts/data/sync_xlsx_to_csv.py` → `Content/Data/*.csv`；二进制工作簿保持独立所有权。已迁移玩法 JSON 已物理删除并由项目校验禁止回归，历史审阅只使用 Git。
+- 符文投放资格以 `ReEchoData.xlsx/武器插槽C/tblParts` 的 `Enabled + ImplementationStatus + ShopEnabled + ShopPrice` 联合字段为权威，效果资格以同 Sheet 的 `tblPartEffects.Enabled` 为权威；禁用符文必须同时关闭父记录、商店资格并将价格归零，同时禁用其全部效果，不能只在 UI 隐藏。
 - 角色能力链：`ReEchoData.xlsx/角色能力A/tblCharacterAbilities` → `character_abilities.csv` → `FReEchoCsvDataSnapshot::CharacterAbilities` → `Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*`。`characters.csv` 只保存角色实体和基础 StatBlock；描述文字与旧 JSON 不参与能力分派。
 - 商店刷新链：`ReEchoData.xlsx/经济系统/tblShopRefreshRules` → `shop_refresh_rules.csv` → `FReEchoCsvDataSnapshot::ShopRefreshRules[Default]` → Run 的武器/符文页刷新与卡组逐槽刷新事务。刷新次数和价格只以该表为权威，UI 仅消费 Run 投影。
 - 怪物编译：`ReEchoEnemyData.xlsx` 发布 `enemies`、`enemy_abilities`、`boss_phases`、`enemy_combat_stats`；Definition 编译以 `EnemyId + EncounterIndex` 读取不可变快照，按场次覆盖 MaxHealth、ContactDamage、AttackInterval，再把相对移速乘数以 `BaseMoveSpeed=210` 归一为运行时 cm/s。运行时不得回读 XLSX，也不得在 Host 复制成长或仇恨默认值。
@@ -227,6 +230,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只做纯确定性计算；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
 - 输入：开始、恢复、暂停、World Tick、不可变 Stage/Encounter/Wave/Spawn 数据、玩家运动样本和录制路径样本。
 - 输出：固定步事件、剩余时间、完成委托、预警/提交事件、确定性出生位置和 `FReEchoStageTransitionDecision`。预警先解析并保存最终怪物 Actor 中心位置：XY 来自确定性解算，Z 为当前玩法平面加该敌人的碰撞半高；提交必须原样复用同一位置，禁止表现预警与生成提交各自重算。非法 Stage/Encounter 引用必须失败关闭。
+- 生产波次结构：`Encounter.1` 至 `Encounter.8` 都按 `WaveIndex=1/2/3` 在 `0/10/20` 秒通过同一通用 WaveScheduler 触发；`Encounter.8` 只有 Wave.1 携带 `BossEnemyId=M_SHEEP`，Wave.2/3 是不含 Boss 的增援波。Boss 不计入该关 `ActiveUnitLimit`，关卡仍以 `BossOrPlayerDeath` 结束；禁止在后两波重复配置或生成 Boss。
 - 出生参数：SpawnResolver/Host 保留准确 `EncounterIndex`，使同一 EnemyId 在编译 Definition 时选择 `enemy_combat_stats` 的对应场次覆盖；不得把波次序号或数组下标误作 EncounterIndex。
 - 连续性：同 Stage 保留存活 Enemy Host 的对象身份、EnemyId、SpawnIndex、Transform、生命和持久逻辑状态，并保留玩家位置；局间显式冻结 Host、取消旧攻击阶段和逻辑投射物，不消耗玩法冷却。跨 Stage 清理旧 Roster，并用 Arena Scene 的中心与玩法平面解析入口。玩家生命/属性在下一 Encounter 初始化时的既有语义不由此契约改变。
 - 测试：`Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp` 的 `ReEcho.StageTransition.*` 覆盖生产矩阵、非法边界与原 Host 局间连续性。
@@ -240,13 +244,13 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 角色能力：`Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*` 是统一类型化入口。猎手静态能力在新 Run 与角色晋升时作用于有效 StatBlock；诗人在成功 Encounter 完成时永久增长；智者在普通选卡计数达到配置间隔时追加选择。旧 Forge 阶段只作为旧存档迁移输入，并确定性转为普通 `CardChoice`，不再生成、展示或授予 Forge。
 - 勇者缺血阶梯不写入 Run Save：Player Host 订阅 Combat 最终 `HealthChanged`，用当前/最大生命和能力表重算物攻/元攻加值，再通过 Combat 通用来源修正入口替换旧值。治疗、恢复和重生自然回退，不累计历史损血。
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
-- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 16；BuildSnapshot 内的 CardState 语义由 Cards 定义。
+- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 20；BuildSnapshot 内的 CardState 语义由 Cards 定义。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
-- 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 资格池生成三选一。数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店始终投影 `[1级卡组, 2级卡组, 3级卡组]` 三个固定入口，按真实关次读取 `ShopTiers` 逐级启用；每个启用卡组从同 Tier 资格池确定性缓存最多三张候选，入口本身不携带具体卡牌 icon 或总价。点击后进入付费三选一，每张候选独立计价；成功购买一张才把该卡组置为“已购”，取消、余额不足或领域拒绝保持同一候选和未购状态。候选不足只显示实际 1/2 张，零张售罄，禁止跨级补位。初始投放页按 `EncounterIndex` 稳定；若页面生成后经其他效果新获得二、三级候选，则投影即时剔除该卡但不补抽、不重摇。免费和付费三选一的每个实际候选槽都独立拥有 `shop_refresh_rules` 配置的刷新次数和价格；免费选卡本身不收费，只有刷新扣款。成功刷新只原位替换所点槽位，并只重播该槽位的卡牌揭示动画；其他候选保持可见且不重播页面指针。替换保持同级并排除当前候选、被替换项和全部已获得卡牌（刷新时 1 级也不可重复）；无合法替代、余额不足、次数耗尽或禁刷新均原子失败。商店主刷新不得重建卡组或清除已购状态。初次免费与商店投放仍允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。SaveVersion 17 持久化三个商店卡组候选、已购状态与逐槽刷新用量；SaveVersion 18 额外持久化当前免费投放页及逐槽用量，读档不能重摇或重置机会；v16 自动补齐商店零用量，v15 及更早的单卡页缓存显式丢弃并确定性重建。
+- 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 资格池生成三选一。数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店始终投影 `[1级卡组, 2级卡组, 3级卡组]` 三个固定入口，按真实关次读取 `ShopTiers` 逐级启用；每个启用卡组从同 Tier 资格池确定性缓存最多三张候选和一个同 Tier 基础价。入口底部购买键展示折扣后的卡组总价；付款事务一次扣费、对付款前已拥有卡牌触发一次 `OnPurchase`，立即保存并转为 `PaidPendingChoice` 后才进入三选一。返回商店不退款，入口变为“继续选择”，重进不收费、不重摇；最终领取只执行 `TryGrantCard`，成功才转 `Purchased`，不再次扣费或触发 `OnPurchase`。领取失败保留已付款状态、余额、候选和刷新用量以便重试。候选不足只显示实际 1/2 张，零张售罄，禁止跨级补位。初始投放页按 `EncounterIndex` 稳定；若页面生成后经其他效果新获得二、三级候选，则投影即时剔除该卡但不补抽、不重摇。免费和已付款三选一的每个实际候选槽都独立拥有 `shop_refresh_rules` 配置的刷新次数和价格；免费选卡及已付候选领取本身不收费，只有刷新扣款。成功刷新只原位替换所点槽位，并只重播该槽位的卡牌揭示动画；其他候选保持可见且不重播页面指针。替换保持同级并排除当前候选、被替换项和全部已获得卡牌（刷新时 1 级也不可重复）；无合法替代、余额不足、次数耗尽或禁刷新均原子失败。商店主刷新不得重建卡组或清除付款/已购状态。初次免费与商店投放仍允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。SaveVersion 20 新增卡组基础价与付款待选状态；v19 已购卡组迁移为已付款并按原页面身份惰性恢复稳定价格。SaveVersion 18 持久化当前免费投放页及逐槽用量，v17 持久化商店卡组和刷新用量；v16 自动补齐商店零用量，v15 及更早的单卡页缓存显式丢弃并确定性重建。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
 - 商店武器/符文：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成报价；三个槽以独立的 `WeaponRuneRefreshSequence` 缓存稳定 ContentId 与确定性价格，购买只改变已购/已装备状态，不得用缩小后的资格池重算其余槽。主刷新每个商店关次受 `shop_refresh_rules` 限制并显示剩余次数，只推进武器/符文页；卡牌 `FreeShopRefresh` 可优先抵扣价格但仍占用关次上限，`NoShopRefresh` 阻断两类刷新。下一关重置该预算，SaveVersion 17 持久化当前关次、序列和已用次数，读档不得重置。符文购买立即进入 `OwnedPartIds` 并装入对应槽，满槽时最早符文回背包。每次购买成功后 GameMode 都重取完整商店只读投影，使 `OwnedParts`、`EquippedParts`、武器、卡牌、货币和背包同步更新；稳定缓存保证该重取不会重摇未购买报价。初始武器和购买武器进入 `OwnedWeaponIds`；购买整把武器与背包换装都复用 `ReEchoWeaponRuntime::TrySelectWeapon`，只保留兼容符文，不兼容符文仍拥有但卸下。`TryEquipOwnedWeapon` 是不扣费、不刷新页面的窄事务，未知、禁用或未拥有武器不得改变构筑。SaveVersion 14 起持久化武器背包与稳定武器/符文商店页；v12 及更早存档以当前装备武器迁移最小拥有集合，v13 存档保留武器背包并重建商店页。
-- 商店购买统一入口：`PurchaseShopItemDetailed` 是所有商品类型的权威购买事务，返回交易 ID、结果码、说明与实际价格；旧 `PurchaseShopItem` 只保留为 bool 兼容外观。每次尝试（包括未知商品、重复、禁购、余额不足和领域拒绝）都以同一交易 ID输出 `BEFORE / RESULT / AFTER`，快照包含碎片、当前武器、已装备符文、已生效卡牌、武器背包、符文背包和普通背包。统一审计出口直接追加 `Saved/Logs/ShopPurchaseAudit.log`，不依赖 Shipping 会裁剪的 `UE_LOG`；Development 另镜像到普通 UE 日志，玩家可见反馈仍由 UI 负责。
+- 商店购买事务：武器、符文和兼容旧商品继续由 `PurchaseShopItemDetailed` 处理；卡组改由 `PurchaseShopCardPackDetailed(Tier)` 付款、`ClaimPaidShopCardChoice(ItemId)` 领取，候选 ItemId 不能绕过付款直接购买。三个接口都返回交易 ID、结果码、说明与实际价格，并以同一交易 ID 输出 `BEFORE / RESULT / AFTER`；快照包含碎片、当前武器、已装备符文、已生效卡牌、武器背包、符文背包和普通背包。统一审计出口直接追加 `Saved/Logs/ShopPurchaseAudit.log`，不依赖 Shipping 会裁剪的 `UE_LOG`；Development 另镜像到普通 UE 日志，玩家可见反馈仍由 UI 负责。
 - 禁止：返回可写内部容器、让 Widget 直接改字段、用数组索引充当持久 Echo 身份。
 - 测试：Save、Shop、Trait、EchoStorage、EchoReplayRuntime 和 Run parity 测试。
 

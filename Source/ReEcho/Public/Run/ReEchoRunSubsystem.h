@@ -137,6 +137,10 @@ public:
 
 	/** Unified purchase transaction: returns a reasoned result and always emits one Before/Result/After audit. */
 	FReEchoShopPurchaseOutcome PurchaseShopItemDetailed(FName ItemId);
+	/** Commits one fixed-tier card-pack payment and fires purchase-triggered cards exactly once. */
+	FReEchoShopPurchaseOutcome PurchaseShopCardPackDetailed(int32 Tier);
+	/** Claims one candidate from an already-paid pack without charging or firing purchase-triggered cards. */
+	FReEchoShopPurchaseOutcome ClaimPaidShopCardChoice(FName ItemId);
 
 	/** Backward-compatible bool facade. New UI/gameplay call sites should consume PurchaseShopItemDetailed. */
 	UFUNCTION(BlueprintCallable)

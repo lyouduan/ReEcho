@@ -282,6 +282,54 @@ bool FReEchoV15ShopCardPageMigrationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV19ShopCardPackPaymentMigrationTest,
+                                 "ReEcho.Run.SaveV19ShopCardPackMigratesToPrepaidState",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoV19ShopCardPackPaymentMigrationTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	Source->EncounterIndex = 4;
+	Source->TimeShards = 1000;
+	const FReEchoWeaponPartShopView Page = Source->GetWeaponPartShopView();
+	if (!TestTrue(TEXT("v19 migration fixture has a tier-two candidate"),
+	              Page.CardPackOffers.IsValidIndex(1) && !Page.CardPackOffers[1].Choices.IsEmpty()))
+	{
+		return false;
+	}
+	const FName ChoiceId = Page.CardPackOffers[1].Choices[0].ItemId;
+	if (!TestTrue(TEXT("Migration fixture pays and claims its legacy pack"),
+	              Source->PurchaseShopCardPackDetailed(2).IsSuccess() &&
+	                  Source->ClaimPaidShopCardChoice(ChoiceId).IsSuccess()))
+	{
+		return false;
+	}
+	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
+	LegacySave->SaveVersion = 19;
+	for (FReEchoShopCardPackRuntimeState& Pack : LegacySave->CurrentBuild.CardState.Runtime.ShopCardPackStates)
+	{
+		Pack.BasePrice = 0;
+		Pack.bPaymentCommitted = false;
+	}
+
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	if (!TestTrue(TEXT("v19 card-pack state restores"), Restored->RestoreSaveSnapshot(*LegacySave)))
+	{
+		return false;
+	}
+	const FReEchoWeaponPartShopView MigratedPage = Restored->GetWeaponPartShopView();
+	TestEqual(TEXT("A legacy purchased pack remains purchased"),
+	          MigratedPage.CardPackOffers[1].Status,
+	          EReEchoShopCardPackStatus::Purchased);
+	TestTrue(TEXT("A legacy purchased pack migrates to committed payment"),
+	         Restored->CurrentBuild.CardState.Runtime.ShopCardPackStates[1].bPaymentCommitted);
+	TestTrue(TEXT("A migrated pack lazily receives one stable tier price"), MigratedPage.CardPackOffers[1].Price > 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV10CharacterIdentityMigrationTest,
                                  "ReEcho.Run.SaveV10CharacterIdentityMigratesAcrossSnapshots",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -39,13 +39,13 @@ PE_SCYTHE_MOVESTACK_GRIP_1,P_SCYTHE_MOVESTACK_GRIP,1,OnHit,UniqueBehavior,Runtim
 PE_SCYTHE_GROUPINVULN_GRIP_1,P_SCYTHE_GROUPINVULN_GRIP,1,OnEquip,StatModifier,AttackSpeed,Multiply,0.5,Part.StatModifier,None,None,None,0,0,0,Unique,true,,武器插槽C,33
 PE_SCYTHE_GROUPINVULN_GRIP_2,P_SCYTHE_GROUPINVULN_GRIP,2,OnAttackResolved,UniqueBehavior,RuntimeBehavior,Override,1,Part.InvulnerableOnGroupHit,None,None,GroupThreshold,4,0.5,0,Unique,true,,武器插槽C,33
 PE_SCYTHE_ATTACKSTACK_GRIP_1,P_SCYTHE_ATTACKSTACK_GRIP,1,OnHit,UniqueBehavior,RuntimeBehavior,Add,0.01,Part.AttackSpeedPerHit,None,None,MaxStacks,30,5,0,IndependentTimed,true,,武器插槽C,34
-PE_SCYTHE_THROWRECALL_GRIP_1,P_SCYTHE_THROWRECALL_GRIP,1,OnActiveAttack,UniqueBehavior,RuntimeBehavior,Multiply,0.6,Part.ScytheThrowRecall,None,None,MaxRangeCm,500,0,0,Unique,true,,武器插槽C,35
-PE_SCYTHE_THROWRECALL_GRIP_2,P_SCYTHE_THROWRECALL_GRIP,2,OnActiveAttack,UniqueBehavior,RuntimeBehavior,Multiply,0.2,Part.ScytheThrowRecall,None,None,StationaryDamageMultiplier,0.2,0,0,Unique,true,,武器插槽C,35
+PE_SCYTHE_THROWRECALL_GRIP_1,P_SCYTHE_THROWRECALL_GRIP,1,OnActiveAttack,UniqueBehavior,RuntimeBehavior,Multiply,0.6,Part.ScytheThrowRecall,None,None,MaxRangeCm,500,0,0,Unique,false,策划确认禁用,武器插槽C,35
+PE_SCYTHE_THROWRECALL_GRIP_2,P_SCYTHE_THROWRECALL_GRIP,2,OnActiveAttack,UniqueBehavior,RuntimeBehavior,Multiply,0.2,Part.ScytheThrowRecall,None,None,StationaryDamageMultiplier,0.2,0,0,Unique,false,策划确认禁用,武器插槽C,35
 PE_LONGSWORD_GROUPGROWTH_SWORDBLADE_1,P_LONGSWORD_GROUPGROWTH_SWORDBLADE,1,OnAttackResolved,UniqueBehavior,RuntimeBehavior,Add,0.02,Part.RangeOnGroupHit,None,None,GroupThreshold,4,5,0,IndependentTimed,true,,武器插槽C,38
 PE_LONGSWORD_HITSHARD_SWORDBLADE_1,P_LONGSWORD_HITSHARD_SWORDBLADE,1,OnHit,UniqueBehavior,RuntimeBehavior,Add,1,Part.DropShardEveryHits,None,None,HitThreshold,5,0,0,Stackable,true,,武器插槽C,40
 PE_LONGSWORD_CRITBLEED_SWORDBLADE_1,P_LONGSWORD_CRITBLEED_SWORDBLADE,1,OnCriticalHit,UniqueBehavior,RuntimeBehavior,Add,0.005,Part.ApplyBleedOnCritical,None,None,None,0,3,0,Stackable,true,,武器插槽C,41
-PE_LONGSWORD_METEOR_SWORDBLADE_1,P_LONGSWORD_METEOR_SWORDBLADE,1,OnAttackResolved,UniqueBehavior,RuntimeBehavior,Multiply,1,Part.MeteorOnGroupHit,None,None,GroupThreshold,7,0,0,Unique,true,,武器插槽C,42
-PE_LONGSWORD_METEOR_SWORDBLADE_2,P_LONGSWORD_METEOR_SWORDBLADE,2,OnAttackResolved,UniqueBehavior,RuntimeBehavior,Override,1,Part.MeteorOnGroupHit,None,None,ExplosionRadiusCm,150,0,0,Unique,true,,武器插槽C,42
+PE_LONGSWORD_METEOR_SWORDBLADE_1,P_LONGSWORD_METEOR_SWORDBLADE,1,OnAttackResolved,UniqueBehavior,RuntimeBehavior,Multiply,1,Part.MeteorOnGroupHit,None,None,GroupThreshold,7,0,0,Unique,false,策划确认禁用,武器插槽C,42
+PE_LONGSWORD_METEOR_SWORDBLADE_2,P_LONGSWORD_METEOR_SWORDBLADE,2,OnAttackResolved,UniqueBehavior,RuntimeBehavior,Override,1,Part.MeteorOnGroupHit,None,None,ExplosionRadiusCm,150,0,0,Unique,false,策划确认禁用,武器插槽C,42
 PE_LONGSWORD_MOVESTACK_GRIP_1,P_LONGSWORD_MOVESTACK_GRIP,1,OnHit,UniqueBehavior,RuntimeBehavior,Add,0.01,Part.MoveSpeedPerHit,None,None,MaxStacks,30,5,0,IndependentTimed,true,,武器插槽C,44
 PE_LONGSWORD_ATTACKSTACK_GRIP_1,P_LONGSWORD_ATTACKSTACK_GRIP,1,OnHit,UniqueBehavior,RuntimeBehavior,Add,0.01,Part.AttackSpeedPerHit,None,None,MaxStacks,30,5,0,IndependentTimed,true,,武器插槽C,45
 PE_LONGSWORD_STUN_GRIP_1,P_LONGSWORD_STUN_GRIP,1,OnHit,UniqueBehavior,RuntimeBehavior,Add,0.2,Part.StunOnHit,None,None,Chance,0.2,1,0,NoStack,true,,武器插槽C,46

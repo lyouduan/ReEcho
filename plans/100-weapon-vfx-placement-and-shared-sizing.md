@@ -108,6 +108,7 @@
 - `Pattern.LongSwordCombo` 在既有近战提交中复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询所有兔子 Host 的逻辑球；弧内球由 Host 权威结束。其他攻击模式和非兔子投射物不进入该路径。
 - 普通攻击与主动攻击的成功 Commit 统一由 `PublishAttackCommittedEvent` 组装并发布表现事件；此前缺事件的手动主动攻击现在会释放对应武器特效，镰刀召回仍不产生第二次 Commit/特效。
 - `UReEchoAttackControllerComponent` 成为共享 GAS 普攻输入的唯一来源所有者：模式切换统一释放旧 held；手动/自动入口在接管前清理异常旧来源；任一来源的迟到 Release 只释放自身，不能误停另一来源。Pawn 移除重复的模式切换后二次释放分支。
+- 发布前按用户确认合入 `origin/main@e34f8f5f`：远程商店、Boss/敌人数值、角色变形与 Combat 属性修复全部保留；Pawn、WeaponActor 与模块文档自动组合，无文本冲突。预构建包不做二进制语义合并，统一由最终集成源码 FullRebuild 重生。用户确认将 `BP_ArenaScene_SC01.uasset` 纳入候选，`WBP_ReEchoEncounterHud.uasset` 继续排除。
 
 ### 证据
 
@@ -121,6 +122,7 @@
 - 手动主动攻击特效候选 Development FullRebuild 通过：`96/96` actions，预构建 source fingerprint `f7953bfef1ba`。首次构建因测试 getter 误置于 `PublishHurt` 函数体内产生 C2270/C2601，移动到组件测试区后重建通过；运行时事件实现本身未出现编译错误。
 - `ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 聚焦自动化找到 1 项并通过：首次主动镰刀 Commit 发布一次 `Pattern.ScytheSweep`，召回不重复发布。`validate_project.py`、预构建一致性与 `git diff --check` 同步通过。
 - 手动/自动互斥候选 Development FullRebuild 通过：`96/96` actions，预构建 source fingerprint `17225d9af900`；`ReEcho.AttackMode.InputSource` 找到 1 项并通过，覆盖自动模式拒绝物理输入、手动模式拒绝自动入口，以及切换模式释放旧 held。`validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- 最终远程集成候选 Development FullRebuild 通过：`109/109` actions，预构建 source fingerprint `29b4632d124d`。`ReEcho.AttackMode.InputSource`、`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Weapons.Runes.GroupOuterAndScytheHandlers` 各找到 1 项并通过；兔子测试改为按远程最新能力数据的权威半径/速度动态布置扫掠样本，Rune 测试跳过策划已禁用的陨星与投掷召回效果，避免对禁用内容解引用空 Weapon。最终 `validate_project.py`、预构建一致性与 `git diff --check` 通过。
 - `validate_project.py` 的非 XLSX 检查完成，但总结果受 worktree `Content/reecho_xlsx_package_*` 创建权限拒绝阻塞；本 Plan 未修改 XLSX/CSV。
 - 全量 `ReEcho.Weapons` 暴露既有非本任务失败：生产 rune 数预期 47/实际 46、`P_GUN_RAPID_MUZZLE` 已禁用，以及 WeaponRuntime 临时 CSV 断言；精确受影响测试已独立通过。
 

@@ -68,12 +68,13 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	TierOnePack.Tier = 1;
 	TierOnePack.DisplayName = FText::FromString(TEXT("一级"));
 	TierOnePack.Status = EReEchoShopCardPackStatus::Available;
-	TierOnePack.StatusText = FText::FromString(TEXT("选择"));
+	TierOnePack.StatusText = FText::FromString(TEXT("可购买"));
+	TierOnePack.Price = 40;
 	FReEchoShopCardChoiceOffer TierOneChoice;
 	TierOneChoice.CardId = TEXT("TEST_BUILD_CARD");
 	TierOneChoice.ItemId = TEXT("TEST_CARD_CHOICE");
 	TierOneChoice.Tier = 1;
-	TierOneChoice.Price = 10;
+	TierOneChoice.Price = 0;
 	TierOnePack.Choices.Add(TierOneChoice);
 	FReEchoShopCardPackOffer TierTwoPack;
 	TierTwoPack.Tier = 2;
@@ -198,6 +199,18 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(TEXT("Pack click maps to its fixed tier"), CardPackRequests[0], 1);
 	}
+	TierOnePack.Status = EReEchoShopCardPackStatus::PaidPendingChoice;
+	TierOnePack.StatusText = FText::FromString(TEXT("待选卡"));
+	View.CardPackOffers[0] = TierOnePack;
+	Widget->SetWeaponPartShopView(View);
+	Widget->ShowShop(0, {}, 0.0f, 0, true, false);
+	UReEchoIndexedButton* ContinueButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetCardPackButton0")));
+	UTextBlock* ContinueText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TargetCardPackButtonText0")));
+	TestTrue(TEXT("A paid pending pack remains enterable without funds or purchase permission"),
+	         ContinueButton && ContinueButton->GetIsEnabled());
+	TestTrue(TEXT("A paid pending pack exposes an explicit continue action"),
+	         ContinueText && ContinueText->GetText().ToString().Contains(TEXT("继续")));
 	if (PurchaseRequests.Num() == 1)
 	{
 		TestEqual(TEXT("Weapon part click maps to the weapon part id"), PurchaseRequests[0], WeaponPart.ItemId);
@@ -229,7 +242,7 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	First.DisplayName = FText::FromString(TEXT("候选一"));
 	First.EffectText = FText::FromString(TEXT("效果一"));
 	First.Tier = 2;
-	First.Price = 35;
+	First.Price = 0;
 	First.SlotIndex = 0;
 	First.RemainingRefreshes = 1;
 	First.RefreshCost = 5;
@@ -238,7 +251,7 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	Second.CardId = TEXT("G_2_02");
 	Second.ItemId = TEXT("SHOP_CARD_TEST_2");
 	Second.DisplayName = FText::FromString(TEXT("候选二"));
-	Second.Price = 47;
+	Second.Price = 0;
 	Second.SlotIndex = 1;
 	Widget->InitializeShopOffers({First, Second}, 40, 2);
 
@@ -379,10 +392,8 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 	TestTrue(TEXT("Designer card entry uses the imported 420x593 art size"),
 	         CardRootSizeBox && CardRootSizeBox->GetParent() == CardRootScaleBox &&
 	             CardRootSizeBox->IsWidthOverride() && CardRootSizeBox->IsHeightOverride() &&
-	             CardRootSizeBox->GetWidthOverride() == 420.0f &&
-	             CardRootSizeBox->GetHeightOverride() == 593.0f);
-	const UScaleBoxSlot* CardDesignSurfaceSlot =
-	    CardRootSizeBox ? Cast<UScaleBoxSlot>(CardRootSizeBox->Slot) : nullptr;
+	             CardRootSizeBox->GetWidthOverride() == 420.0f && CardRootSizeBox->GetHeightOverride() == 593.0f);
+	const UScaleBoxSlot* CardDesignSurfaceSlot = CardRootSizeBox ? Cast<UScaleBoxSlot>(CardRootSizeBox->Slot) : nullptr;
 	TestTrue(TEXT("Card design surface remains centered instead of stretching in the ScaleBox"),
 	         CardDesignSurfaceSlot && CardDesignSurfaceSlot->GetHorizontalAlignment() == HAlign_Center &&
 	             CardDesignSurfaceSlot->GetVerticalAlignment() == VAlign_Center);
@@ -533,6 +544,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	StorageCard.ContentId = FName(ReEchoEchoStorage::StorageUnlockCardId);
 	StorageCard.DisplayName = FText::FromString(TEXT("时空锚点"));
 	StorageCard.EffectText = FText::FromString(TEXT("开启回响存储"));
+	StorageCard.OutcomeText = FText::FromString(TEXT("实际效果测试"));
 	StorageCard.Type = EReEchoShopOfferType::BuildCard;
 	StorageCard.Tier = 3;
 	StorageCard.IconTexturePath = TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_3_02.T_UI_CardIcon_G_3_02");
@@ -654,10 +666,13 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UButton* AttachmentHoverSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerAttachmentSlot0")));
 	TestNotNull(TEXT("Equipped attachment has a hover target below the weapon"), AttachmentHoverSlot);
 	TestTrue(TEXT("Attachment hover uses a custom cursor-following tooltip"),
-	         AttachmentHoverSlot && Cast<USizeBox>(AttachmentHoverSlot->GetToolTip()) != nullptr);
+	         AttachmentHoverSlot && Cast<UVerticalBox>(AttachmentHoverSlot->GetToolTip()) != nullptr);
 	if (AttachmentHoverSlot)
 	{
-		const USizeBox* TooltipSize = Cast<USizeBox>(AttachmentHoverSlot->GetToolTip());
+		const UVerticalBox* TooltipStack = Cast<UVerticalBox>(AttachmentHoverSlot->GetToolTip());
+		const USizeBox* TooltipSize = TooltipStack && TooltipStack->GetChildrenCount() == 1
+		                                  ? Cast<USizeBox>(TooltipStack->GetChildAt(0))
+		                                  : nullptr;
 		const UBorder* TooltipFrame = TooltipSize ? Cast<UBorder>(TooltipSize->GetContent()) : nullptr;
 		const UBorder* TooltipSurface = TooltipFrame ? Cast<UBorder>(TooltipFrame->GetContent()) : nullptr;
 		const UVerticalBox* TooltipContent =
@@ -689,8 +704,23 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("G_3_02 owns a clickable card slot"), StorageCardSlot);
 	if (StorageCardSlot)
 	{
-		TestNotNull(TEXT("Owned card hover uses the same custom cursor-following tooltip"),
-		            Cast<USizeBox>(StorageCardSlot->GetToolTip()));
+		const UVerticalBox* CardTooltipStack = Cast<UVerticalBox>(StorageCardSlot->GetToolTip());
+		TestNotNull(TEXT("Owned card hover uses the same custom cursor-following tooltip"), CardTooltipStack);
+		TestEqual(TEXT("Owned card with a resolved result has two tooltip panels"),
+		          CardTooltipStack ? CardTooltipStack->GetChildrenCount() : 0,
+		          2);
+		const USizeBox* OutcomeSize = CardTooltipStack && CardTooltipStack->GetChildrenCount() > 1
+		                                  ? Cast<USizeBox>(CardTooltipStack->GetChildAt(1))
+		                                  : nullptr;
+		const UBorder* OutcomeFrame = OutcomeSize ? Cast<UBorder>(OutcomeSize->GetContent()) : nullptr;
+		const UBorder* OutcomeSurface = OutcomeFrame ? Cast<UBorder>(OutcomeFrame->GetContent()) : nullptr;
+		const UVerticalBox* OutcomeContent =
+		    OutcomeSurface ? Cast<UVerticalBox>(OutcomeSurface->GetContent()) : nullptr;
+		const UTextBlock* OutcomeBody = OutcomeContent && OutcomeContent->GetChildrenCount() > 1
+		                                    ? Cast<UTextBlock>(OutcomeContent->GetChildAt(1))
+		                                    : nullptr;
+		TestTrue(TEXT("Resolved-result panel displays the projected outcome text"),
+		         OutcomeBody && OutcomeBody->GetText().EqualTo(StorageCard.OutcomeText));
 		UImage* CardImage = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt0")));
 		const UCanvasPanelSlot* DesignerCardSlot = Cast<UCanvasPanelSlot>(StorageCardSlot->Slot);
 		TestNotNull(TEXT("Owned card slot is directly editable on the designer canvas"), DesignerCardSlot);
@@ -709,8 +739,12 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNull(TEXT("An unowned card is absent from the loadout before purchase"),
 	         PurchasedCardSlot ? PurchasedCardSlot->GetToolTip() : nullptr);
 	Widget->MarkItemPurchased(PurchasedCard.ItemId);
-	TestNotNull(TEXT("A purchased build card appears in the loadout immediately"),
-	            PurchasedCardSlot ? Cast<USizeBox>(PurchasedCardSlot->GetToolTip()) : nullptr);
+	const UVerticalBox* PurchasedCardTooltip =
+	    PurchasedCardSlot ? Cast<UVerticalBox>(PurchasedCardSlot->GetToolTip()) : nullptr;
+	TestNotNull(TEXT("A purchased build card appears in the loadout immediately"), PurchasedCardTooltip);
+	TestEqual(TEXT("A card without a resolved result retains one tooltip panel"),
+	          PurchasedCardTooltip ? PurchasedCardTooltip->GetChildrenCount() : 0,
+	          1);
 	UImage* PurchasedCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt1")));
 	UTexture2D* ExpectedPurchasedCardIcon = LoadObject<UTexture2D>(nullptr, *PurchasedCard.IconTexturePath);
 	TestNotNull(TEXT("The purchased card icon asset loads"), ExpectedPurchasedCardIcon);

@@ -1231,15 +1231,22 @@ void UReEchoInventoryShopWidget::AddTargetCardPack(UHorizontalBox* Row,
 	UReEchoIndexedButton* Button = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
 	    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TargetCardPackButton%d"), PackIndex));
 	Button->SetEntryIndex(PackIndex);
-	Button->SetBackgroundColor(Pack.IsAvailable() ? FLinearColor(0.95f, 0.78f, 0.34f, 1.0f)
-	                                              : FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
-	Button->SetIsEnabled(Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed);
+	const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+	const int32 EffectivePrice = GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
+	const bool bCanPurchase =
+	    Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed && CurrentTimeShards >= EffectivePrice;
+	Button->SetBackgroundColor((bCanPurchase || bPendingChoice) ? FLinearColor(0.95f, 0.78f, 0.34f, 1.0f)
+	                                                            : FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
+	Button->SetIsEnabled(bCanPurchase || bPendingChoice);
 	Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleCardPackClicked);
 	UTextBlock* ButtonText = CreateText(WidgetTree,
 	                                    *FString::Printf(TEXT("TargetCardPackButtonText%d"), PackIndex),
 	                                    18,
 	                                    FLinearColor(0.03f, 0.03f, 0.03f));
-	ButtonText->SetText(Pack.IsAvailable() ? NSLOCTEXT("ReEcho", "ShopCardPackChoose", "选择") : Pack.StatusText);
+	ButtonText->SetText(Pack.IsAvailable() ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"),
+	                                                       FText::AsNumber(EffectivePrice))
+	                    : bPendingChoice   ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
+	                                       : Pack.StatusText);
 	ButtonText->SetJustification(ETextJustify::Center);
 	Button->SetContent(ButtonText);
 	UCanvasPanelSlot* ButtonSlot = Card->AddChildToCanvas(Button);
@@ -1935,29 +1942,46 @@ UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId
 
 UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Offer)
 {
-	USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
-	TooltipSize->SetWidthOverride(280.0f);
-	UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-	TooltipFrame->SetBrushColor(FLinearColor::White);
-	TooltipFrame->SetPadding(FMargin(3.0f));
-	UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-	TooltipSurface->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f));
-	TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
-	UVerticalBox* TooltipContent = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
-	UTextBlock* TooltipTitle = CreateText(WidgetTree, NAME_None, 19, FLinearColor::White);
-	TooltipTitle->SetText(Offer.DisplayName);
-	TooltipTitle->SetJustification(ETextJustify::Center);
-	TooltipTitle->SetAutoWrapText(false);
-	UVerticalBoxSlot* TitleSlot = TooltipContent->AddChildToVerticalBox(TooltipTitle);
-	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
-	UTextBlock* TooltipEffect = CreateText(WidgetTree, NAME_None, 16, FLinearColor::White);
-	TooltipEffect->SetText(Offer.EffectText);
-	TooltipEffect->SetJustification(ETextJustify::Center);
-	TooltipContent->AddChildToVerticalBox(TooltipEffect);
-	TooltipSurface->SetContent(TooltipContent);
-	TooltipFrame->SetContent(TooltipSurface);
-	TooltipSize->SetContent(TooltipFrame);
-	return TooltipSize;
+	UVerticalBox* TooltipStack = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
+	auto AddTooltipPanel = [&](const FText& Title, const FText& Body, const bool bOutcome)
+	{
+		USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
+		TooltipSize->SetWidthOverride(280.0f);
+		UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
+		TooltipFrame->SetBrushColor(bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f, 1.0f) : FLinearColor::White);
+		TooltipFrame->SetPadding(FMargin(3.0f));
+		UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
+		TooltipSurface->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f));
+		TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
+		UVerticalBox* TooltipContent =
+		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
+		UTextBlock* TooltipTitle = CreateText(WidgetTree,
+		                                      NAME_None,
+		                                      bOutcome ? 17 : 19,
+		                                      bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f) : FLinearColor::White);
+		TooltipTitle->SetText(Title);
+		TooltipTitle->SetJustification(ETextJustify::Center);
+		TooltipTitle->SetAutoWrapText(false);
+		UVerticalBoxSlot* TitleSlot = TooltipContent->AddChildToVerticalBox(TooltipTitle);
+		TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+		UTextBlock* TooltipEffect = CreateText(WidgetTree, NAME_None, 16, FLinearColor::White);
+		TooltipEffect->SetText(Body);
+		TooltipEffect->SetJustification(ETextJustify::Center);
+		TooltipEffect->SetAutoWrapText(true);
+		TooltipContent->AddChildToVerticalBox(TooltipEffect);
+		TooltipSurface->SetContent(TooltipContent);
+		TooltipFrame->SetContent(TooltipSurface);
+		TooltipSize->SetContent(TooltipFrame);
+		UVerticalBoxSlot* PanelSlot = TooltipStack->AddChildToVerticalBox(TooltipSize);
+		PanelSlot->SetPadding(bOutcome ? FMargin(0.0f, 3.0f, 0.0f, 0.0f) : FMargin(0.0f));
+	};
+
+	AddTooltipPanel(Offer.DisplayName, Offer.EffectText, false);
+	if (!Offer.OutcomeText.IsEmpty())
+	{
+		AddTooltipPanel(NSLOCTEXT("ReEcho", "ResolvedCardOutcomeTitle", "实际效果"), Offer.OutcomeText, true);
+	}
+	return TooltipStack;
 }
 
 void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)
@@ -2087,9 +2111,18 @@ void UReEchoInventoryShopWidget::Refresh()
 			continue;
 		}
 		const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[PackIndex];
-		CardPackButtons[PackIndex]->SetIsEnabled(Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed);
+		const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+		const int32 EffectivePrice = GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
+		const bool bCanPurchase =
+		    Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed && CurrentTimeShards >= EffectivePrice;
+		CardPackButtons[PackIndex]->SetIsEnabled(bCanPurchase || bPendingChoice);
+		const FText ActionText =
+		    Pack.IsAvailable()
+		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"), FText::AsNumber(EffectivePrice))
+		    : bPendingChoice ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
+		                     : Pack.StatusText;
 		CardPackTexts[PackIndex]->SetText(FText::Format(
-		    NSLOCTEXT("ReEcho", "ShopCardPackLogicFormat", "{0}卡组\n{1}"), Pack.DisplayName, Pack.StatusText));
+		    NSLOCTEXT("ReEcho", "ShopCardPackLogicFormat", "{0}卡组\n{1}"), Pack.DisplayName, ActionText));
 	}
 
 	InventoryPanel->SetVisibility(bShowingShop ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
@@ -2278,7 +2311,10 @@ void UReEchoInventoryShopWidget::HandleCardPackClicked(const int32 PackIndex)
 	                    static_cast<int32>(Pack.Status),
 	                    Pack.Choices.Num(),
 	                    bCurrentExtraCardPurchaseAllowed ? 1 : 0));
-	if (Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed)
+	const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+	const bool bCanPurchase = Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed &&
+	                          CurrentTimeShards >= GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
+	if (bCanPurchase || bPendingChoice)
 	{
 		OnCardPackRequested.Broadcast(Pack.Tier);
 		return;
@@ -2288,7 +2324,7 @@ void UReEchoInventoryShopWidget::HandleCardPackClicked(const int32 PackIndex)
 	    FString::Printf(TEXT("screen=InventoryShop packIndex=%d tier=%d reason=%s"),
 	                    PackIndex,
 	                    Pack.Tier,
-	                    Pack.IsAvailable() ? TEXT("ExtraCardPurchaseDisabled") : TEXT("PackUnavailable")));
+	                    Pack.IsAvailable() ? TEXT("PackPurchaseBlocked") : TEXT("PackUnavailable")));
 }
 
 void UReEchoInventoryShopWidget::HandleRefreshClicked()

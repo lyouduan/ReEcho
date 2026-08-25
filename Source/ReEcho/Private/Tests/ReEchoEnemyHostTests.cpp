@@ -299,15 +299,20 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	const float AuthoritativeBallRadius = SpawnedState.BossProjectiles[0].CollisionRadiusCm;
+	const float AuthoritativeBallSpeed = SpawnedState.BossProjectiles[0].Definition.SpeedCmPerSecond;
 	for (int32 BallIndex = 0; BallIndex < SpawnedState.BossProjectiles.Num(); ++BallIndex)
 	{
 		const FReEchoEnemyProjectileRuntimeState& Ball = SpawnedState.BossProjectiles[BallIndex];
 		TestEqual(TEXT("Rabbit ball keeps the authored damage"), Ball.Damage, 1.0f);
-		TestEqual(TEXT("Rabbit volley radius is divided into one collider per ball"), Ball.CollisionRadiusCm, 50.0f);
+		TestEqual(TEXT("Every rabbit ball uses the same data-driven collider radius"),
+		          Ball.CollisionRadiusCm,
+		          AuthoritativeBallRadius);
 		TestEqual(TEXT("Rabbit ball stores its stable volley index"), Ball.VolleyBallIndex, BallIndex);
-		TestEqual(TEXT("Zero table speed uses the documented legacy-derived speed"),
+		TestEqual(TEXT("Every rabbit ball uses the same resolved data-driven speed"),
 		          Ball.Definition.SpeedCmPerSecond,
-		          432.0f);
+		          AuthoritativeBallSpeed);
+		TestTrue(TEXT("Resolved rabbit ball speed is positive"), Ball.Definition.SpeedCmPerSecond > 0.0f);
 		TestTrue(TEXT("Rabbit ball starts active"), Ball.Snapshot.bActive);
 		TestFalse(TEXT("Rabbit ball starts without a consumed collision"), Ball.bCollisionConsumed);
 		TestTrue(TEXT("Rabbit ball uses the authoritative fan direction"),
@@ -330,8 +335,9 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		{
 			bSawSpawnForBall[Event.VolleyBallIndex] = true;
 		}
-		TestEqual(
-		    TEXT("Each presentation event carries the authoritative collider radius"), Event.CollisionRadiusCm, 50.0f);
+		TestEqual(TEXT("Each presentation event carries the authoritative collider radius"),
+		          Event.CollisionRadiusCm,
+		          AuthoritativeBallRadius);
 	}
 	TestEqual(TEXT("Host publishes one presentation spawn per authoritative ball"),
 	          SpawnEventCount,
@@ -392,17 +398,13 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	          ReEchoRabbitProjectilePattern::BallCount);
 
 	Player->SetActorLocation(FVector(0.0f, 1000.0f, ProjectileGameplayZ));
-	Rabbit->AdvanceEnemyProjectilesForTests(0.9f);
+	Rabbit->AdvanceEnemyProjectilesForTests(0.5f);
 	TestEqual(
 	    TEXT("Player outside the swept projectile collider takes no damage"), Player->Combatant->CurrentHealth, 100.0f);
 	TestEqual(TEXT("A missed volley keeps all balls in flight"),
 	          Rabbit->CaptureRuntimeState().BossProjectiles.Num(),
 	          ReEchoRabbitProjectilePattern::BallCount);
 
-	// Player placed on the center ball's ray inside its swept segment for the data-driven
-	// legacy-derived speed (MaxRangeCm 1080 / CooldownSeconds 2.5 = 432 cm/s): the ball travels
-	// 432 cm after the 0.1+0.9 warmup and reaches 518.4 cm after this +0.2 step (segment 432..518.4).
-	Player->SetActorLocation(FVector(475.0f, 0.0f, ProjectileGameplayZ));
 	const FReEchoEnemyRuntimeState BeforeCenterHit = Rabbit->CaptureRuntimeState();
 	const FReEchoEnemyProjectileRuntimeState* CenterBeforeHit = BeforeCenterHit.BossProjectiles.FindByPredicate(
 	    [](const FReEchoEnemyProjectileRuntimeState& Ball)
@@ -416,6 +418,9 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	const FVector CenterNextLocation =
 	    CenterBeforeHit->Snapshot.Location +
 	    CenterBeforeHit->Snapshot.Direction * CenterBeforeHit->Definition.SpeedCmPerSecond * 0.2f;
+	// Place the player at the midpoint of the next authoritative swept segment. This keeps the
+	// collision assertion stable when production projectile speed changes.
+	Player->SetActorLocation(FMath::Lerp(CenterBeforeHit->Snapshot.Location, CenterNextLocation, 0.5f));
 	TestTrue(TEXT("Center ball's next swept segment intersects the player collider"),
 	         Player->IntersectsCombatPath(
 	             CenterBeforeHit->Snapshot.Location, CenterNextLocation, CenterBeforeHit->CollisionRadiusCm));

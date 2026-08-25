@@ -1542,6 +1542,43 @@ def validate_enemy_shard_drop_domain(entries: dict[str, Path]) -> None:
             fail(f"{rel(entries['EnemyShardDrops'])}:{line}:EliteMin: minimum cannot exceed maximum")
 
 
+def validate_boss_encounter_waves(boss_waves: list[dict[str, str]], encounter_waves_path: Path) -> None:
+    """Validate Encounter.8's deterministic three-wave, single-Boss contract."""
+    expected = [(1, 0.0), (2, 10.0), (3, 20.0)]
+    if len(boss_waves) != len(expected):
+        fail(
+            f"{rel(encounter_waves_path)}: encounter 8 requires exactly three waves "
+            "with WaveIndex 1/2/3 at 0/10/20 seconds"
+        )
+
+    for row, (expected_index, expected_trigger) in zip(boss_waves, expected, strict=True):
+        line = row["__line__"]
+        actual_index = int(row["WaveIndex"])
+        if actual_index != expected_index:
+            fail(
+                f"{rel(encounter_waves_path)}:{line}:WaveIndex: encounter 8 expected "
+                f"{expected_index}, got {actual_index}"
+            )
+        actual_trigger = float(row["TriggerSeconds"])
+        if actual_trigger != expected_trigger:
+            fail(
+                f"{rel(encounter_waves_path)}:{line}:TriggerSeconds: encounter 8 WaveIndex "
+                f"{expected_index} expected {expected_trigger:g}, got {actual_trigger:g}"
+            )
+        boss_enemy_id = row["BossEnemyId"]
+        if expected_index == 1:
+            if boss_enemy_id != "M_SHEEP":
+                fail(
+                    f"{rel(encounter_waves_path)}:{line}:BossEnemyId: encounter 8 WaveIndex 1 "
+                    "must preserve stable boss id M_SHEEP"
+                )
+        elif boss_enemy_id:
+            fail(
+                f"{rel(encounter_waves_path)}:{line}:BossEnemyId: encounter 8 WaveIndex "
+                f"{expected_index} is reinforcement-only and must not spawn a boss"
+            )
+
+
 def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     stages = load_csv(entries["Stages"])
     encounters = load_csv(entries["Encounters"])
@@ -1623,11 +1660,7 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
             line = encounter_waves[0]["__line__"]
             fail(f"{rel(entries['EncounterWaves'])}:{line}:EliteCount: encounters 1 and 2 cannot spawn elites")
 
-    boss_waves = waves_by_encounter["Encounter.8"]
-    if len(boss_waves) != 1 or int(boss_waves[0]["WaveIndex"]) != 1 or float(boss_waves[0]["TriggerSeconds"]) != 0.0:
-        fail(f"{rel(entries['EncounterWaves'])}: encounter 8 requires one boss wave at zero seconds")
-    if boss_waves[0]["BossEnemyId"] != "M_SHEEP":
-        fail(f"{rel(entries['EncounterWaves'])}:{boss_waves[0]['__line__']}:BossEnemyId: must preserve stable boss id M_SHEEP")
+    validate_boss_encounter_waves(waves_by_encounter["Encounter.8"], entries["EncounterWaves"])
 
     enabled_profiles = {row["EnemyRole"]: row for row in profiles if row["Enabled"] == "true"}
     expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement"}

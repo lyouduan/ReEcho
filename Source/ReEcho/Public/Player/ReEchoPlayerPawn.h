@@ -306,6 +306,8 @@ private:
 	void AbilityInputReleased(const FGameplayTag& InputTag);
 	void StartAttackVisual(float Duration, float Strength);
 	void UpdateSpriteAnimation(float DeltaSeconds);
+	void CaptureAuthoredPresentationBaseline();
+	void ResetTransientPresentationMotion();
 	void RefreshPresentationProfile();
 	void RefreshWeaponPresentationSet();
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
@@ -332,12 +334,14 @@ private:
 	bool bMouseInputConfigured = false;
 	FVector2D ArenaCenter = FVector2D::ZeroVector;
 	FVector2D ArenaHalfExtents = FVector2D::ZeroVector;
+	/** Blueprint-authored component baselines captured once at BeginPlay; runtime motion must never overwrite them. */
 	FVector BaseVisualLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
 	FVector AuthoredMotionLocation = FVector::ZeroVector;
 	FVector CalculatedFootAlignmentOffset = FVector::ZeroVector;
 	FVector BaseEffectsLocation = FVector::ZeroVector;
 	FVector BaseEffectsScale = FVector::OneVector;
+	bool bPresentationBaselineCaptured = false;
 	FVector AuthoredGroundRootLocation = FVector::ZeroVector;
 	FVector AuthoredGroundShadowScale = FVector::OneVector;
 	float VisualTime = 0.0f;

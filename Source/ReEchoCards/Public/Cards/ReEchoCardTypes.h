@@ -21,6 +21,44 @@ enum class EReEchoCardEconomyPenalty : uint8
 	NoEnemyShardDrops
 };
 
+/** Stable, serializable kinds of resolved card results. UI text is projected outside the Cards module. */
+UENUM(BlueprintType)
+enum class EReEchoCardOutcomeKind : uint8
+{
+	None,
+	PendingEncounter,
+	StatTrade,
+	GrantedCards,
+	StatGain,
+	EconomyPenalty,
+	FreeShopRefreshes,
+	CumulativeStatGain
+};
+
+USTRUCT(BlueprintType)
+
+struct REECHOCARDS_API FReEchoCardOutcomeState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName CardId = NAME_None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) EReEchoCardOutcomeKind Kind = EReEchoCardOutcomeKind::None;
+	/** Stable stat/effect target such as PhysicalAttack, ElementalAttack or HpMaxAndPoint. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName PrimaryTarget = NAME_None;
+	/** Latest or cumulative resolved value, according to Kind. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float PrimaryValue = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName SecondaryTarget = NAME_None;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float SecondaryValue = 0.0f;
+	/** Number of resolved contributing events for cumulative outcomes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ResolutionCount = 0;
+	/** Target encounter while PendingEncounter; INDEX_NONE after settlement. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EncounterIndex = INDEX_NONE;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EReEchoCardEconomyPenalty EconomyPenalty = EReEchoCardEconomyPenalty::None;
+	/** Actual granted card IDs for deterministic display through the immutable catalog. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> RelatedCardIds;
+};
+
 USTRUCT(BlueprintType)
 
 struct REECHOCARDS_API FReEchoCardEffectDefinition
@@ -71,7 +109,11 @@ struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> CandidateCardIds;
 	/** Per-slot refresh uses. Shape always matches CandidateCardIds; each slot owns its own configured limit. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<int32> SlotRefreshUses;
-	/** A successful purchase consumes this pack for the current page. */
+	/** Stable undiscounted price paid when entering this pack. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 BasePrice = 0;
+	/** Payment is committed before the choice screen opens and survives leaving the screen. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPaymentCommitted = false;
+	/** A successful card claim consumes this pack for the current page. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPurchased = false;
 };
 
@@ -113,6 +155,8 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	EReEchoCardEconomyPenalty EconomyPenalty = EReEchoCardEconomyPenalty::None;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasAnchorRecording = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) FGuid AnchorRecordingId;
+	/** Stable resolved outcomes used by read-only owned-card presentation and saved with the run. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FReEchoCardOutcomeState> ResolvedOutcomes;
 };
 
 /** Card ownership and runtime state embedded by Run/Recording; this is the only writable card truth. */
