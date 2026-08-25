@@ -31,6 +31,9 @@
   - `Source/ReEcho/{Public,Private}/ReEchoGameMode.*`（仅增加 Development GM 指令入口，不进入 Shipping 玩法）
   - `Source/ReEchoEnemies/{Public,Private}/Enemies/ReEchoEnemyLogicComponent.*`（仅增加排队指定 Boss Ability 的调试命令；仍由正常固定步状态机提交）
   - `Source/ReEchoEnemies/Private/Tests/ReEchoEnemyLogicTests.cpp`
+  - `Source/ReEchoCombat/{Public,Private}/Combat/ReEchoCombatantComponent.*`（仅调整非 Shipping 的 GMGod 调试伤害回报；正式无敌不变）
+  - `Source/ReEchoCombat/Private/Tests/ReEchoCombatRuntimeTests.cpp`
+  - `docs/GM_COMMANDS.md`
   - `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoRuntimeAssetPreloadTests.cpp`
   - `Source/ReEcho/Private/Tests/**` 中本 Plan 新增的 Boss VFX 生命周期聚焦测试
@@ -64,6 +67,7 @@
 6. 八个正式 Niagara 根及准确递归依赖进入 Git、预加载和 Shipping cook；实例层级、Local/World Space、朝向轴、Bounds 与 AutoDestroy 由 Editor 审计后按资源真实语义配置。
 7. Boss 技能真实命中角色时必须继续经 `FReEchoHitIntent -> ReEchoCombat` 造成配表伤害，不能出现“只播放 BeAttacked/Lighting、角色不掉血”。一阶段 Skill02 每弹 5、Skill03 30、Skill04 20；二阶段由现有阶段倍率统一变为 7.5/45/30。Niagara 碰撞和粒子范围不参与伤害裁决。
 8. 新增 `GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04>`：寻找当前存活 `M_SHEEP`，将对应正式 Ability 排到下一次可开始的 Boss 行动；`Skill02` 固定指向站定四连弹，`Skill02Moving` 指向移动三向散射。指令不取消当前已提交技能、不直接生成伤害/VFX，并继续走 Telegraph、锁点、AttackWindow、Recovery 与 AbilityEnded。
+9. `GMGod` 开启时继续返回已计算伤害并驱动 Hurt/伤害数字，但不修改玩家生命、不触发死亡；正式限时无敌仍返回零伤害，不改变生产规则。
 
 ## 架构影响与设计决策
 
@@ -150,6 +154,7 @@
 - 2026-08-25：静态审计发现 Boss Skill02 创建逻辑投射物后未发布 `Spawned`，而 VFX 只在该事件创建 Bullet；同时命中清理把所有带 `VolleyBallIndex` 的弹误作 Rabbit 持续弹，羊弹可能命中后继续到最大射程。两项均纳入本轮修复与回归。
 - 2026-08-25：用户确认 Skill04 按配表处理，不把 `WindupEnd` 改为 `WindupStart`。第一道 Alarming 因此只是蓄力开始时目标当前位置的视觉快照；第二道才消费蓄力结束后的权威锁点/锁向并与 Lighting 同步。
 - 2026-08-25：用户要求增加 GM 指令让 Boss 使用对应技能。契约锁定 `GMBossSkill` 只排队真实 Ability，不绕过正式 Boss 状态机；Skill02 的两个配表 Ability 用 `Skill02`（StationaryVolley）和 `Skill02Moving`（MovingSpread）显式区分。
+- 2026-08-25：用户要求修改 `GMGod` 为显示伤害但不扣血。契约锁定只改变非 Shipping 的 debug gate：返回已计算伤害供 Hurt/伤害数字消费，跳过生命与死亡写入；正式限时无敌保持零伤害。
 
 ### 证据
 
