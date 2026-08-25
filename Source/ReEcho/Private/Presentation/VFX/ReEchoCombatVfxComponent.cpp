@@ -1122,10 +1122,12 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 	const float DelaySeconds = FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(Semantic);
 	if (UWorld* World = GetWorld(); World && DelaySeconds > 0.0f)
 	{
-		World->GetTimerManager().ClearTimer(PendingMeleeSlashTimer);
 		const TWeakObjectPtr<UReEchoCombatVfxComponent> WeakThis(this);
+		// Each committed attack owns its delayed slash. Reusing and clearing one handle starves the effect whenever
+		// the attack interval is shorter than the authored weapon-spin delay.
+		FTimerHandle MeleeSlashTimer;
 		World->GetTimerManager().SetTimer(
-		    PendingMeleeSlashTimer,
+		    MeleeSlashTimer,
 		    [WeakThis, Semantic, LockedDirection = Event.Direction]()
 		    {
 			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
