@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Passed`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@55c4b4e427a16819c41bf562c0e3d853a6695b92`。
 - 本地实现方式：一任务一 worktree，`C:/Users/gavynqiu/Documents/miniGame/ReEcho-plan102-combat-hud-timer-minimap-icons`，分支 `plan/102-combat-hud-timer-minimap-icons`。
 - 依赖 / 阻塞：继承 Plan93 已验收的 `WBP_ReEchoEncounterHud` 构图、真实小地图投影与透明底板；用户提供 `C:/Users/gavynqiu/Documents/miniGame/拆分_无出血线_512x512/拆分_无出血线_512x512` 下 8 张透明头像作为四个正式角色的 Player/Echo 小地图图标。Plan63 本地未提交候选正在同一 Presentation Profile 头文件追加死亡脚点字段，Plan101 本地候选正在修改 `ReEchoGameMode` 商店段；本 Plan 使用独立 worktree，发布前按实际 `main` 组合适配，不覆盖其语义。
@@ -79,7 +79,7 @@
 - [x] 图标缺失、无效 Arena 或非法 Duration 安全降级；不改变 Encounter、Recording、Combat、Run 或输入语义。
 - [x] WBP Compile/Save、`CompileAllBlueprints`、Texture/Profile/Widget 资产审计与聚焦自动化通过。
 - [x] 修改源码按 `.clang-format` 格式化，最终组合候选通过 Development `-FullRebuild`、项目校验和 `git diff --check`。
-- [ ] 用户在 1920×1080 运行画面确认底块、指针方向/进度、Player/Echo 图标大小和可读性。
+- [x] 用户在 1920×1080 运行画面确认底块、指针方向/进度、Player/Echo 图标大小和可读性。
 - [x] 未提交精选 `GIT_RULES.md` 允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -141,7 +141,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请在 1920×1080 PIE 检查满时/半时/最后 5 秒/归零的指针方向，并检查 0/1/多 Echo 时 Player/Echo 头像大小、可辨性和轨迹遮挡情况。
+- `Passed`：用户在运行画面验收后确认“看起来没什么问题”，并授权将候选推送/合并到远端 `main` 后清理本地任务 worktree 与工作分支。
 
 ### 架构文档审阅结果
 
