@@ -74,6 +74,8 @@ Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、
 
 Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
 
+血条耗尽转换由 Combat 致命伤拦截启动；同一命中随后发布的 Hurt 不得把 `Transforming` 覆盖为 `HitReaction`。转换期间 Host 的入伤修正统一返回零，避免临时保活的 1 HP 被多段攻击击杀；完成事件再应用 Phase2 最大生命与回满策略，之后第二次致命伤恢复正常死亡。
+
 ## 依赖方向
 
 ```text

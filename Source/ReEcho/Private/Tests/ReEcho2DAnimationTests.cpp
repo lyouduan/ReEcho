@@ -589,6 +589,20 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&
 	             ControlledRenderer->GetFlipbook() == WalkFlipbook);
 
+	FReEcho2DCompositeAnimationSet& CliplessPhase2Set = PresentationProfile->AnimationSets.AddDefaulted_GetRef();
+	CliplessPhase2Set.WeaponVisualSetId = TEXT("Phase2WithoutTransform");
+	FReEcho2DAnimationClip CliplessPhase2Move = StaffMoveClip;
+	CliplessPhase2Move.Flipbook = StaffAttackFlipbook;
+	CliplessPhase2Set.Clips.Add(ReEcho2DAnimationTags::Move, CliplessPhase2Move);
+	TestFalse(TEXT("A target set without Transform reports that no transition clip played"),
+	          Controller->BeginAnimationSetTransition(TEXT("Phase2WithoutTransform"),
+	                                                  ReEcho2DAnimationTags::Transform_Phase2));
+	TestTrue(TEXT("Missing Transform keeps the previous form visible during gameplay transition time"),
+	         ControlledRenderer->GetFlipbook() == WalkFlipbook);
+	Controller->CompleteAnimationSetTransition(TEXT("Phase2WithoutTransform"));
+	TestTrue(TEXT("Completing a clipless transition switches to the target form base animation"),
+	         ControlledRenderer->GetFlipbook() == StaffAttackFlipbook);
+
 	UReEcho2DFrameCollisionTrack* CollisionTrack = NewObject<UReEcho2DFrameCollisionTrack>();
 	CollisionTrack->SourceFlipbook = WalkFlipbook;
 	CollisionTrack->SourceRevision = TEXT("test-walk-revision");

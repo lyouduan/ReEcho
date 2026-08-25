@@ -62,6 +62,7 @@ void UReEcho2DPresentationController::Configure(UReEcho2DAnimationComponent* InA
 	AnimationRenderer = InAnimationRenderer;
 	Profile = InProfile;
 	WeaponVisualSetId = InWeaponVisualSetId;
+	PendingAnimationSetId = NAME_None;
 	if (CollisionDriver)
 	{
 		CollisionDriver->BindRenderer(AnimationRenderer);
@@ -92,6 +93,7 @@ void UReEcho2DPresentationController::ClearProfile()
 {
 	Profile = nullptr;
 	WeaponVisualSetId = NAME_None;
+	PendingAnimationSetId = NAME_None;
 	ActiveSemanticKey = FGameplayTag();
 	ActiveStateTag = FGameplayTag();
 	bActionActive = false;
@@ -113,6 +115,7 @@ void UReEcho2DPresentationController::SetWeaponVisualSetId(const FName InWeaponV
 		return;
 	}
 	WeaponVisualSetId = InWeaponVisualSetId;
+	PendingAnimationSetId = NAME_None;
 	if (!bActionActive)
 	{
 		ApplyBaseState(true);
@@ -124,6 +127,15 @@ bool UReEcho2DPresentationController::BeginAnimationSetTransition(const FName In
 {
 	if (bTerminalDeathActive)
 	{
+		return false;
+	}
+	PendingAnimationSetId = InAnimationSetId;
+	const FReEcho2DAnimationClip* TransitionClip =
+	    Profile ? Profile->ResolveClip(InAnimationSetId, TransitionSemanticKey) : nullptr;
+	if (!TransitionClip || !TransitionClip->Flipbook)
+	{
+		// A target form may intentionally ship without a dedicated transform clip. Keep the current form visible
+		// until gameplay completes the transition instead of switching the target set early and returning failure.
 		return false;
 	}
 	if (CollisionDriver && ActiveAttackInstanceId >= 0)
@@ -152,7 +164,8 @@ void UReEcho2DPresentationController::CompleteAnimationSetTransition(const FName
 	bActionActive = false;
 	bWaitingForOneShot = false;
 	ActiveStateTag = FGameplayTag();
-	WeaponVisualSetId = InAnimationSetId;
+	WeaponVisualSetId = PendingAnimationSetId.IsNone() ? InAnimationSetId : PendingAnimationSetId;
+	PendingAnimationSetId = NAME_None;
 	ApplyBaseState(true);
 }
 

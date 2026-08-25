@@ -1113,6 +1113,13 @@ void UReEchoEnemyLogicComponent::NotifyReceivedAttack(const FReEchoDamageEvent& 
 	{
 		return;
 	}
+	// A fatal hit starts the phase transition inside Combat's fatal-damage interception, then the same resolved hit
+	// is published as Hurt. That trailing Hurt must not replace Transforming with HitReaction or the transition timer
+	// can never complete.
+	if (State.Phase == EReEchoEnemyBehaviorPhase::Transforming)
+	{
+		return;
+	}
 
 	const bool bCountsForPhase = Event.DamageSource != EReEchoDamageSource::Enemy;
 	if (Definition.Phase2.bEnabled && !State.bPhase2Triggered && bCountsForPhase)

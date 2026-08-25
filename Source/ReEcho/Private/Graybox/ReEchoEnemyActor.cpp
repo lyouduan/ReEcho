@@ -590,6 +590,12 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 
 float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
+	if (EnemyLogic && EnemyLogic->GetSnapshot().Phase == EReEchoEnemyBehaviorPhase::Transforming)
+	{
+		// The first depleted health bar is held at one survivable point until phase completion refills the authored
+		// second-phase maximum. The logic phase is the durable gate, so pause/save restore cannot expose that point.
+		return 0.0f;
+	}
 	if (!EnemyLogic || !EnemyLogic->GetDefinition().bUsesDirectionalShield)
 	{
 		return Intent.RawDamage;

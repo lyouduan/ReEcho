@@ -135,6 +135,7 @@
 - 2026-08-24：实现 Goat Skill02/03/04 的集中语义、Boss Intent 生命周期、逐球逻辑投射物 Niagara、锁点预警、锁向光束和按 AttackIdentity 对齐的最终命中特效；Boss 投射物事件补充稳定的 `M_SHEEP_Projectile` 表现标识。
 - 2026-08-24：代码审计发现二阶段 `PhysicalAttackMultiplier/AttackSpeedMultiplier` 仅被编译但未用于 Boss 技能提交；补为 Phase2 提交伤害乘物理倍率、冷却除攻速倍率。一阶段继续直接采用能力表值，空间判定和最终扣血仍由 Host/Combat 权威链执行。
 - 2026-08-25：Planner 评审退回 `InProgress`：Skill02/03 命中特效错误附着通用 Hurt 根、Skill04 未消费世界长度、附着特效缺少资源级空间契约。本轮先把命中改为 Combat 最终世界坐标，并让 Skill04 在激活前写入世界起止点、长度和宽度；通用语义挂点迁移继续作为关闭前架构修正项。
+- 2026-08-25：二阶段运行时审计确认致命伤拦截先进入 `Transforming`，但同一命中的后续 Hurt 又通过 `NotifyHurt` 将 Phase 覆盖成 `HitReaction`，导致转换计时永不完成且 `bPhase2Triggered` 阻止重试。修复锁定 Transforming、转换期间统一免伤，并为缺少 `Transform.Phase2` Clip 的 DA 延迟到完成事件再切换 Phase2 基础动画。
 
 ### 证据
 
@@ -147,6 +148,7 @@
 - `Run-Automation.cmd -Filter ReEcho.Enemies.Logic` 在测试发现前被 LinuxArm64/VisionOS SDK `MainVersion` 校验阻断；命令虽返回 0，但没有任何测试执行证据，因此明确记为未运行，不声称通过。VFX/资产 Editor 审计受同一环境门阻塞。
 - 2026-08-25 组合适配 `origin/main@07b7b3ed` 后，最终源码完成 FullRebuild 96/96，Build ID `55116800`、source fingerprint `91558a68beac`；Plan95 与 Plan96 重叠的精选预构建包由该最终组合源码统一刷新。
 - `Run-Automation.cmd -Filter ReEcho.Presentation.VFX` 再次在测试发现前被 LinuxArm64/VisionOS SDK `MainVersion` 阻断并返回 1；新增纯函数测试已通过 UHT/UBT 编译，但没有运行时自动化通过证据。
+- 二阶段状态修正后的最终 FullRebuild 96/96 通过，Build ID `55116800`、source fingerprint `d60209bd33bc`；`ReEcho.Enemies.Logic.Phase2` 聚焦自动化仍在测试发现前被同一 LinuxArm64/VisionOS `MainVersion` 校验阻断，命令返回 0 但没有执行测试，不作为通过证据。
 
 ### 剩余风险
 

@@ -720,6 +720,17 @@ bool FReEchoEnemyFatalWoundPhaseTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Fatal wound reports the health-depleted reason"),
 	          Started.PhaseTriggerReason,
 	          EReEchoEnemyPhaseTriggerReason::HealthDepleted);
+	FReEchoDamageEvent TrailingFatalHurt;
+	TrailingFatalHurt.Target = Logic->GetOwner();
+	TrailingFatalHurt.AppliedDamage = 100.0f;
+	Logic->NotifyReceivedAttack(TrailingFatalHurt);
+	TestEqual(TEXT("The trailing Hurt event cannot replace the active transformation"),
+	          Logic->GetSnapshot().Phase,
+	          EReEchoEnemyBehaviorPhase::Transforming);
+	FReEchoEnemySenseSnapshot NoTarget;
+	const FReEchoEnemyActionIntent Completed = Logic->Advance(NoTarget, 1.0f);
+	TestTrue(TEXT("Transformation still completes after the lethal Hurt event"), Completed.bPhaseTransitionCompleted);
+	TestEqual(TEXT("Completed fatal-wound transition enters phase two"), Logic->GetSnapshot().CurrentPhaseIndex, 2);
 	TestFalse(TEXT("Fatal wound transition cannot start twice"), Logic->TryTriggerPhase2OnFatalWound(Started));
 	return true;
 }

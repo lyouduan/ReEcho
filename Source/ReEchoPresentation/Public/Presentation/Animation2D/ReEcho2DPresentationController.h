@@ -82,6 +82,7 @@ private:
 	TObjectPtr<UReEcho2DFrameCollisionDriver> CollisionDriver;
 
 	FName WeaponVisualSetId;
+	FName PendingAnimationSetId;
 	FGameplayTag ActiveSemanticKey;
 	FGameplayTag ActiveStateTag;
 	bool bMoving = false;
