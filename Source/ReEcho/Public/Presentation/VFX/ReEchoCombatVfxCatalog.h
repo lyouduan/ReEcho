@@ -61,6 +61,8 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
 	/** Resolves the dedicated one-shot Niagara semantic for a supported melee attack pattern. */
 	static bool ResolveMeleeAttackSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Visual-only delay used to release a melee slash after its weapon completes the authored motion. */
+	static float ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic Semantic);
 	/** Returns the measured authored center axis for a semantic asset. */
 	static FVector ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic Semantic);
 	/** Rotates the semantic asset's authored center axis onto the gameplay direction. */

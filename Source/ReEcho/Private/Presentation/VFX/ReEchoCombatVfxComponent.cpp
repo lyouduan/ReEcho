@@ -1017,6 +1017,25 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 	{
 		return;
 	}
+	const float DelaySeconds = FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(Semantic);
+	if (UWorld* World = GetWorld(); World && DelaySeconds > 0.0f)
+	{
+		World->GetTimerManager().ClearTimer(PendingMeleeSlashTimer);
+		const TWeakObjectPtr<UReEchoCombatVfxComponent> WeakThis(this);
+		World->GetTimerManager().SetTimer(
+		    PendingMeleeSlashTimer,
+		    [WeakThis, Semantic, LockedDirection = Event.Direction]()
+		    {
+			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
+			    {
+				    Component->SpawnAttached(
+				        static_cast<uint8>(Semantic), LockedDirection, Component->ResolveAttackVfxRoot());
+			    }
+		    },
+		    DelaySeconds,
+		    false);
+		return;
+	}
 	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveAttackVfxRoot());
 }
 

@@ -157,6 +157,23 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 	return false;
 }
 
+float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSemantic Semantic)
+{
+	FName VisualKey = NAME_None;
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	{
+		VisualKey = TEXT("CrescentBlade");
+	}
+	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	{
+		VisualKey = TEXT("Scythe");
+	}
+	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(VisualKey);
+	return Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin
+	           ? FMath::Max(Profile->MotionDurationSeconds, 0.0f)
+	           : 0.0f;
+}
+
 void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 {
 	for (uint8 SemanticValue = 0; SemanticValue <= static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting);

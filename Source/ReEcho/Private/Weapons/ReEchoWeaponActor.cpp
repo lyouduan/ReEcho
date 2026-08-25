@@ -1283,7 +1283,8 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 	const float CharacterWorldHeight = CharacterReferenceHeight * OwnerScale;
 	const FVector AnchorRatio =
 	    CharacterProfile ? CharacterProfile->WeaponAnchorRatio : ReEchoWeaponVisual::DefaultWeaponAnchorRatio;
-	SetActorRelativeLocation(AnchorRatio * CharacterReferenceHeight);
+	WeaponActorRestLocation = AnchorRatio * CharacterReferenceHeight;
+	SetActorRelativeLocation(WeaponActorRestLocation);
 
 	UTexture2D* Texture = WeaponProfile->HeldTexture.LoadSynchronous();
 	if (!Texture && VisualKey == TEXT("Whip"))
@@ -1371,6 +1372,7 @@ void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 {
 	SwordSwingDirection *= -1.0f;
 	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(WeaponVisualKey);
+	SwordAnimationDuration = Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.01f) : 0.18f;
 	SwordAnimationTime =
 	    Profile && Profile->MotionMode == EReEchoWeaponMotionMode::FullSpin ? SwordAnimationDuration : 0.0f;
 	// Longsword and scythe attack presentation is owned by the combat Niagara event adapter.
@@ -1549,6 +1551,7 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	if (SwordAnimationTime <= 0.0f || !bUsesSwordVisual)
 	{
 		SwordAnimationTime = 0.0f;
+		SetActorRelativeLocation(WeaponActorRestLocation);
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 		return;
@@ -1556,7 +1559,8 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	SwordAnimationTime = FMath::Max(0.0f, SwordAnimationTime - DeltaSeconds);
 	const float Progress = 1.0f - SwordAnimationTime / SwordAnimationDuration;
 	const float Angle = Progress * 2.0f * PI * SwordSwingDirection;
-	// 武器位置固定在手部挂点，只旋转贴图自身，不再绕角色公转。
+	const FVector OrbitLocation = FQuat(FVector::UpVector, Angle).RotateVector(WeaponActorRestLocation);
+	SetActorRelativeLocation(OrbitLocation);
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 	SwordSprite->SetRelativeRotation(
 	    ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians + Angle));

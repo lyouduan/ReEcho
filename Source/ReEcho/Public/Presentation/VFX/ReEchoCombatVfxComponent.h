@@ -176,6 +176,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyEventsComponent> EnemyEvents;
+	FTimerHandle PendingMeleeSlashTimer;
 	UPROPERTY()
 	TObjectPtr<UReEchoCombatPresentationCoordinator> CombatPresentationCoordinator;
 

@@ -88,6 +88,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FReEchoVfxPlacement SwordPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
 	TestTrue(TEXT("Sword slash uses the committed world attack direction"), SwordPlacement.bUseWorldDirectionRotation);
+	TestTrue(TEXT("Sword slash waits for the authored full-spin motion"),
+	         FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerMeleeSlash) > 0.0f);
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
 	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"), SwordPlacement.LocalRotation.ContainsNaN());

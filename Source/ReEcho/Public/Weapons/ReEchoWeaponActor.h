@@ -225,6 +225,7 @@ private:
 	float SwordAnimationDuration = 0.18f;
 	float SwordSwingDirection = -1.0f;
 	FVector SwordSpriteRestLocation = FVector(8.0f, 0.0f, 0.0f);
+	FVector WeaponActorRestLocation = FVector::ZeroVector;
 	FQuat SwordSpriteRestRotation = FQuat::Identity;
 	TWeakObjectPtr<const UReEcho2DCharacterPresentationProfile> HeldCharacterProfile;
 };
