@@ -8,7 +8,7 @@ import unreal
 
 
 CATALOG = Path(unreal.Paths.project_content_dir()).resolve() / "Data" / "audio_events.csv"
-EXPECTED_ROWS = 31
+EXPECTED_ROWS = 42
 ASSET_ROOT = "/Game/ReEcho/Audio/"
 
 
@@ -20,32 +20,35 @@ def main() -> None:
     if len(rows) != EXPECTED_ROWS:
         errors.append(f"expected {EXPECTED_ROWS} rows, found {len(rows)}")
 
-    seen_ids: set[str] = set()
+    seen_keys: set[tuple[str, str]] = set()
     for row in rows:
         event_id = row["EventId"]
+        variant_id = row["VariantId"]
+        key = (event_id, variant_id)
         asset_path = row["AssetPath"]
-        if event_id in seen_ids:
-            errors.append(f"{event_id}: duplicate EventId")
-        seen_ids.add(event_id)
+        label = f"{event_id}/{variant_id}" if variant_id else event_id
+        if key in seen_keys:
+            errors.append(f"{label}: duplicate EventId/VariantId")
+        seen_keys.add(key)
         if not asset_path.startswith(ASSET_ROOT):
-            errors.append(f"{event_id}: AssetPath is outside {ASSET_ROOT}: {asset_path!r}")
+            errors.append(f"{label}: AssetPath is outside {ASSET_ROOT}: {asset_path!r}")
             continue
 
         asset = unreal.EditorAssetLibrary.load_asset(asset_path)
         if not isinstance(asset, unreal.SoundWave):
-            errors.append(f"{event_id}: does not resolve to SoundWave: {asset_path}")
+            errors.append(f"{label}: does not resolve to SoundWave: {asset_path}")
             continue
 
         expected_looping = row["EventType"] == "Loop"
         actual_looping = bool(asset.get_editor_property("looping"))
         if actual_looping != expected_looping:
             errors.append(
-                f"{event_id}: looping={actual_looping}, expected {expected_looping}"
+                f"{label}: looping={actual_looping}, expected {expected_looping}"
             )
 
         channels = int(asset.get_editor_property("num_channels"))
         if row["Spatial3D"] == "true" and channels != 1:
-            errors.append(f"{event_id}: spatial SoundWave must be mono, found {channels} channels")
+            errors.append(f"{label}: spatial SoundWave must be mono, found {channels} channels")
 
     if errors:
         raise RuntimeError("Plan46 audio asset validation failed:\n" + "\n".join(errors))

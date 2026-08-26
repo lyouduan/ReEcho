@@ -94,10 +94,10 @@ MOD-ReEcho ──→ MOD-ReEchoAudio
 
 ### 音频语义装配
 
-- `AReEchoGameMode` 从已经确认的菜单、遭遇、Boss、商店、天气、死亡、胜利、镜头切换和死亡重开生命周期发布状态或事件；`UReEchoRunSubsystem` 不保存第二份音乐状态。
+- `AReEchoGameMode` 从已经确认的菜单、遭遇、Boss、商店、天气、死亡、胜利、镜头切换和死亡重开生命周期发布状态或事件；普通遭遇把权威 `StageId` 作为 `Music.Encounter` 变体，`UReEchoRunSubsystem` 不保存第二份音乐状态。
 - 基础敌人经济奖励以 `ReEchoData.xlsx/经济系统/tblEnemyShardDrops` 导出的 `enemy_shard_drops.csv` 为唯一数值权威。GameMode 在统一敌人装配点订阅最终死亡事实，只把稳定 `EnemyId/SpawnIndex` 路由给 Run；Run 按死亡时的当前 Encounter、Archetype、持久化 Run seed 和卡牌经济规则解析一次掉落数额并持久化已处理键。GameMode 是通用时间碎片世界实体的集中生成与关末清理边界，敌人死亡和武器符文均生成 `/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup`，仅无 GameMode 的自动化世界回退原生类；Encounter 结束时所有尚未入账或仍在吸附的世界碎片立即销毁，不跨小关、Stage、商店或存档。Prefab 的继承 Sphere Collision 是唯一摄取范围权威，可在 Blueprint 组件详情直接调整；玩家进入范围后，Pickup 按“最小追速”与“玩家当前平面速度 + 可调优势”的较大值沿当前活动 Arena GameplayPlane 吸向玩家，到达捕获半径才通过 `GrantTimeShards` 一次性入账。活动地面只由 GameMode 当前 `ArenaScene` 的窄查询提供，禁止遍历世界猜测 Stage 切换期的 Arena。Prefab 暴露 `PresentationRoot -> {VisualRoot, GroundRoot -> GroundShadow}`，Class Defaults 拥有图标高度、材质、地面排序、贴地开关、吸附/捕获、落地弹跳与拾取上升参数，组件拥有局部 Transform/阴影缩放与材质。拾取图标使用真正参与透明排序的 `UMaterialBillboardComponent` 和支持 `Opacity` 的专用透明材质；材质忽略地面深度以免贴地中心以下被地面裁切，角色/怪物/战斗表现的遮挡仍由 Backdrop 与角色脚点之间的透明排序带决定。落地动画只移动 `VisualRoot`；捕获时先完成一次性入账与碰撞关闭，再隐藏地面阴影并让图标上升淡出。禁止改回忽略 `TranslucencySortPriority` 的 Masked `UBillboardComponent`，也禁止让表现动画延迟或重复货币事务、在调用点复制视觉常量。Enemy、Combat、攻击载体和表现均不直接写货币。
 - `UReEchoUIFlowCoordinatorSubsystem` 为注册屏幕的按钮统一绑定 hover/基础 confirm，并通过无玩法状态的 `UReEchoButtonVisualFeedback` 缩放按钮完整视觉根；单按钮 Overlay 即使其 Button 自带 Content 仍优先作为完整根。Settings/Restart 的作者ing WBP Root 是正常表现权威，原生整页构建只在没有 Root 时降级；GameMode 仅在真实关闭、拒绝、购买和卡牌选择结果上追加专用 UI 事件。
-- `UReEchoCombatAudioAdapterComponent` 消费 Combat 最终事件；Enemy/Boss Host 把已提交 Intent 翻译为其专用攻击事件，Enemy Archetype 决定 Enemy/Boss 路由，Echo Host 发布自身生命周期。
+- `UReEchoCombatAudioAdapterComponent` 消费 Combat 最终事件；玩家攻击提交把稳定 `WeaponId` 作为 `Combat.Attack` 变体，最终命中把 `FReEchoDamageEvent.Element` 转换为稳定 ElementId 作为 `Combat.Hit` 变体。Enemy/Boss Host 把已提交 Intent 翻译为其专用攻击事件，Enemy Archetype 决定 Enemy/Boss 路由，Echo Host 发布自身生命周期。
 - 所有调用点只传 `FReEchoAudioEvents` 稳定 ID、位置、粗粒度来源和可选 VariantId，不加载 SoundWave，也不读取音频结果改变玩法。
 
 ## 运行时流程
