@@ -82,4 +82,9 @@ IsInsideMeleeArc(const FVector& Origin, const FVector& Forward, const FVector& T
 REECHO_API TArray<FVector>
 BuildProjectileDirections(const FVector& Forward, int32 ProjectileCount, float SpreadDegrees);
 REECHO_API EReEchoElement ElementFromDamageChannel(FName DamageChannelId, int32 AttackSequence);
+/** Resolves an independently seeded element for one projectile while preserving deterministic replay. */
+REECHO_API EReEchoElement ResolveProjectileElement(bool bUsesDeterministicRandomElement,
+                                                   EReEchoElement AttackElement,
+                                                   int64 AttackSequence,
+                                                   int32 ProjectileIndex);
 } // namespace ReEchoWeaponRuntime

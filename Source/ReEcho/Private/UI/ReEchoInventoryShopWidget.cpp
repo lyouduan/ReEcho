@@ -2159,8 +2159,8 @@ void UReEchoInventoryShopWidget::Refresh()
 	}
 	InventoryText->SetText(FText::FromString(InventoryDescription));
 
-	CurrencyText->SetText(
-	    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
+	CurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"),
+	                                    FText::AsNumber(GetDisplayedTimeShardBalance())));
 	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
 		const FReEchoShopOffer& Offer = VisibleRunItemOffers[OfferIndex];
@@ -2181,22 +2181,31 @@ void UReEchoInventoryShopWidget::Refresh()
 	{
 		const bool bCanRefresh = bCurrentShopRefreshAllowed && CurrentPartShopView.bWeaponRuneRefreshAllowed;
 		ShopRefreshButton->SetIsEnabled(bCanRefresh);
-		const FText Remaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
-		                            ? NSLOCTEXT("ReEcho", "ShopRefreshUnlimited", "∞")
-		                            : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
-		ShopRefreshText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshCounted", "刷新（剩余 {0}） · {1}"),
-		                                       Remaining,
-		                                       FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
+		const FText PaidRemaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
+		                                ? NSLOCTEXT("ReEcho", "ShopRefreshUnlimited", "∞")
+		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
+		ShopRefreshText->SetText(
+		    CurrentFreeShopRefreshes > 0
+		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshWithFree", "刷新（免费 {0} / 付费 {1}）"),
+		                        FText::AsNumber(CurrentFreeShopRefreshes),
+		                        PaidRemaining)
+		        : FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshCounted", "刷新（剩余 {0}） · {1}"),
+		                        PaidRemaining,
+		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
 	}
 	if (TargetRefreshLimitText)
 	{
-		const FText Remaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
-		                            ? NSLOCTEXT("ReEcho", "TargetRefreshUnlimited", "∞")
-		                            : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
+		const FText PaidRemaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
+		                                ? NSLOCTEXT("ReEcho", "TargetRefreshUnlimited", "∞")
+		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
 		TargetRefreshLimitText->SetText(
-		    FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshCounted", "武器/符文刷新：剩余 {0} · {1} 碎片"),
-		                  Remaining,
-		                  FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
+		    CurrentFreeShopRefreshes > 0
+		        ? FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshWithFree", "武器/符文刷新：免费 {0} / 付费 {1}"),
+		                        FText::AsNumber(CurrentFreeShopRefreshes),
+		                        PaidRemaining)
+		        : FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshCounted", "武器/符文刷新：剩余 {0} · {1} 碎片"),
+		                        PaidRemaining,
+		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
 	}
 	if (ShopRuleText)
 	{
@@ -2245,7 +2254,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		if (TargetCurrencyText)
 		{
 			TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
-			                                          FText::AsNumber(CurrentTimeShards)));
+			                                          FText::AsNumber(GetDisplayedTimeShardBalance())));
 		}
 		CurrencyText->SetVisibility(ESlateVisibility::Collapsed);
 		if (ShopRefreshButton)
@@ -2759,6 +2768,16 @@ void UReEchoInventoryShopWidget::HandleConfirmReturnClicked()
 void UReEchoInventoryShopWidget::SetTimeShards(int32 NewShards)
 {
 	CurrentTimeShards = NewShards;
+	if (TargetCurrencyText)
+	{
+		TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
+		                                          FText::AsNumber(GetDisplayedTimeShardBalance())));
+	}
+	if (CurrencyText)
+	{
+		CurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"),
+		                                    FText::AsNumber(GetDisplayedTimeShardBalance())));
+	}
 }
 
 void UReEchoInventoryShopWidget::MarkItemPurchased(FName ItemId)
@@ -2788,14 +2807,19 @@ void UReEchoInventoryShopWidget::MarkItemPurchased(FName ItemId)
 		if (TargetCurrencyText)
 		{
 			TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
-			                                          FText::AsNumber(CurrentTimeShards)));
+			                                          FText::AsNumber(GetDisplayedTimeShardBalance())));
 		}
 	}
 	else if (CurrencyText)
 	{
-		CurrencyText->SetText(
-		    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(CurrentTimeShards)));
+		CurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"),
+		                                    FText::AsNumber(GetDisplayedTimeShardBalance())));
 	}
+}
+
+int32 UReEchoInventoryShopWidget::GetDisplayedTimeShardBalance() const
+{
+	return bShowingShop ? CurrentTimeShards - FMath::Max(0, CurrentPartShopView.TimeShardDebt) : CurrentTimeShards;
 }
 
 void UReEchoInventoryShopWidget::UpdateWeaponLoadoutText()

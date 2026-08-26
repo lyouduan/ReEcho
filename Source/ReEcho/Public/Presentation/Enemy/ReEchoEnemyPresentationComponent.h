@@ -90,6 +90,7 @@ public:
 	                         USceneComponent* InEffectsRoot,
 	                         USceneComponent* InBossWeaponRoot,
 	                         USceneComponent* InBossWeaponFacingRoot,
+	                         USceneComponent* InBossWeaponTipRoot,
 	                         UBillboardComponent* InBossWeaponSprite,
 	                         UBillboardComponent* InCharacterSprite,
 	                         UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -102,6 +103,12 @@ public:
 	                      UReEchoCombatEventsComponent* InCombatEvents);
 	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
 	void ConfigureAppearance(FName PresentationId);
+	/** Try the optional Born presentation without affecting the committed gameplay spawn. */
+	bool TryPlayBorn();
+	/** Read-only presentation state used by the Host to delay only the start of Phase2. */
+	bool IsBornPlaying() const;
+	/** Saved enemies are already committed; discard only a configuration-started Born and return to the base state. */
+	void CancelBornForRuntimeRestore();
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
 	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
 	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
@@ -109,8 +116,11 @@ public:
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	/** Skill03 keeps gameplay at the locked impact point while its presentation descends into that point. */
 	static FVector ResolveBlinkSlamVisualOffset(float RemainingSeconds, float DurationSeconds, float StartHeightCm);
+	/** MoonStaff billboard pivot is centered, so its stable local tip is half the authored world length upward. */
+	static FVector ResolveBossWeaponTipOffset(float HeldLengthCm);
 #if WITH_DEV_AUTOMATION_TESTS
 	void ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event);
+	void CompleteActiveAnimationForTests();
 #endif
 
 	UBillboardComponent* GetCharacterSprite() const
@@ -178,6 +188,8 @@ private:
 	TObjectPtr<USceneComponent> BossWeaponRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> BossWeaponFacingRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> BossWeaponTipRoot;
 	UPROPERTY()
 	TObjectPtr<UBillboardComponent> BossWeaponSprite;
 	UPROPERTY()

@@ -10,6 +10,7 @@
 #include "Combat/ReEchoCombatTarget.h"
 #include "Combat/ReEchoElementReaction.h"
 #include "Combat/ReEchoHitResolver.h"
+#include "Diagnostics/ReEchoBuildTrace.h"
 #include "Components/BillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -581,8 +582,23 @@ void AReEchoWeaponActor::PublishAttackCommittedEvent(const FReEchoWeaponAttackCo
 	AActor* WeaponOwner = GetOwner();
 	if (!WeaponOwner)
 	{
+		ReEchoBuildTrace::LogAttackCommit(
+		    nullptr, nullptr, FVector::ZeroVector, FVector::ZeroVector, BuildSnapshot, Commit);
 		return;
 	}
+	AActor* CommittedTarget = nullptr;
+	if (const UReEchoAttackControllerComponent* Controller =
+	        WeaponOwner->FindComponentByClass<UReEchoAttackControllerComponent>())
+	{
+		CommittedTarget = Controller->GetSnapshot().CurrentTarget;
+	}
+	const FVector Origin = WeaponOwner->GetActorLocation();
+	const FVector ToCommittedTarget =
+	    CommittedTarget ? CommittedTarget->GetActorLocation() - Origin : FVector::ZeroVector;
+	const FVector Direction =
+	    ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
+	ReEchoBuildTrace::LogAttackCommit(WeaponOwner, CommittedTarget, Origin, Direction, BuildSnapshot, Commit);
+
 	UReEchoCombatEventsComponent* Events = WeaponOwner->FindComponentByClass<UReEchoCombatEventsComponent>();
 	if (!Events)
 	{
@@ -590,20 +606,13 @@ void AReEchoWeaponActor::PublishAttackCommittedEvent(const FReEchoWeaponAttackCo
 	}
 	FReEchoAttackCommittedEvent Event;
 	Event.Attack = Commit.Attack;
-	if (const UReEchoAttackControllerComponent* Controller =
-	        WeaponOwner->FindComponentByClass<UReEchoAttackControllerComponent>())
-	{
-		Event.Target = Controller->GetSnapshot().CurrentTarget;
-	}
+	Event.Target = CommittedTarget;
 	Event.WeaponId = Commit.WeaponId;
 	Event.AttackPatternId = Commit.AttackPatternId;
 	Event.AttackStepId = Commit.AttackStepId;
 	Event.StepIndex = Commit.StepIndex;
-	Event.Origin = WeaponOwner->GetActorLocation();
-	const FVector ToCommittedTarget =
-	    Event.Target ? Event.Target->GetActorLocation() - Event.Origin : FVector::ZeroVector;
-	Event.Direction =
-	    ToCommittedTarget.IsNearlyZero() ? ResolveOwnerAimDirection() : ToCommittedTarget.GetSafeNormal2D();
+	Event.Origin = Origin;
+	Event.Direction = Direction;
 	Events->PublishAttackCommitted(Event);
 }
 
@@ -1355,8 +1364,14 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		       Context->ReactionEfficiency);
 	}
 #endif
-	for (const FVector& Direction : Directions)
+	for (int32 ProjectileIndex = 0; ProjectileIndex < Directions.Num(); ++ProjectileIndex)
 	{
+		const FVector& Direction = Directions[ProjectileIndex];
+		const EReEchoElement ProjectileElement =
+		    ReEchoWeaponRuntime::ResolveProjectileElement(EffectiveDefinition.bUsesDeterministicRandomElement,
+		                                                  Commit.Element,
+		                                                  Commit.Attack.Sequence,
+		                                                  ProjectileIndex);
 		const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
 		AReEchoProjectileActor* Projectile =
 		    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, Direction.Rotation());
@@ -1380,8 +1395,8 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		Projectile->InitializeProjectile(Direction,
 		                                 Commit.RawDamage,
 		                                 OwnerLocation,
-		                                 ReEchoElementReaction::GetElementColor(Commit.Element),
-		                                 Commit.Element,
+		                                 ReEchoElementReaction::GetElementColor(ProjectileElement),
+		                                 ProjectileElement,
 		                                 Context.IsValid() ? Context->ReactionEfficiency
 		                                                   : Combatant->Stats.ReactionEfficiency,
 		                                 Commit.ExplosionRadiusCm,

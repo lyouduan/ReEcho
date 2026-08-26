@@ -30,6 +30,7 @@ FGameplayTag UReEcho2DPresentationCatalog::ResolveSemanticTag(const FName TagNam
 {
 	const FGameplayTag Candidates[] = {
 	    ReEcho2DAnimationTags::Move,
+	    ReEcho2DAnimationTags::Born,
 	    ReEcho2DAnimationTags::Attack_Basic,
 	    ReEcho2DAnimationTags::Attack_Charge,
 	    ReEcho2DAnimationTags::Transform_Phase2,

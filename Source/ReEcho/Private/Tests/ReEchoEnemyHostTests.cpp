@@ -17,6 +17,7 @@
 #include "Misc/App.h"
 #include "Misc/AutomationTest.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 
 namespace
@@ -1022,6 +1023,16 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	const FReEchoEnemyAbilityDefinition* PrayerBeam = SheepDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_SHEEP_PrayerBeam");
+	    });
+	if (!TestNotNull(TEXT("Production sheep keeps the prayer-beam ability"), PrayerBeam))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Prayer beam uses a three-second visual and damage window"), PrayerBeam->ActiveSeconds, 3.0f);
 
 	AReEchoPlayerPawn* Player =
 	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
@@ -1167,6 +1178,137 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Blink slam applies damage once its descent completes"), Player->Combatant->CurrentHealth, 88.0f);
 	Sheep->AdvancePendingBossBlinkSlamForTests(1.0f);
 	TestEqual(TEXT("Blink slam delayed impact is consumed exactly once"), Player->Combatant->CurrentHealth, 88.0f);
+
+	Player->Combatant->RestoreCurrentHealth(100.0f);
+	Player->SetActorLocation(FVector(600.0f, 200.0f, 0.0f));
+	FReEchoBossIntent PrayerBeamIntent;
+	PrayerBeamIntent.Type = EReEchoBossIntentType::AttackWindowStarted;
+	PrayerBeamIntent.AbilityId = TEXT("M_SHEEP_PrayerBeam");
+	PrayerBeamIntent.Attack.Sequence = 9002;
+	PrayerBeamIntent.Attack.Source = Sheep;
+	PrayerBeamIntent.Target = Player;
+	PrayerBeamIntent.AttackShape = EReEchoBossAttackShape::Beam;
+	PrayerBeamIntent.LockedTargetLocation = FVector::ZeroVector;
+	PrayerBeamIntent.LockedDirection = FVector::ForwardVector;
+	PrayerBeamIntent.RawDamage = PrayerBeam->Damage;
+	PrayerBeamIntent.ActiveSeconds = PrayerBeam->ActiveSeconds;
+	PrayerBeamIntent.LengthCm = PrayerBeam->LengthCm;
+	PrayerBeamIntent.WidthCm = PrayerBeam->WidthCm;
+	PrayerBeamIntent.bCanDamageTarget = true;
+	Sheep->ApplyBossIntentForTests(PrayerBeamIntent);
+	TestEqual(TEXT("Prayer beam does not hit a target outside its locked column at startup"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f);
+	Player->SetActorLocation(FVector(600.0f, 0.0f, 0.0f));
+	Sheep->AdvancePendingBossPrayerBeamForTests(1.5f);
+	TestEqual(TEXT("Prayer beam hits a target entering during its three-second window"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f - PrayerBeam->Damage);
+	Sheep->AdvancePendingBossPrayerBeamForTests(1.0f);
+	TestEqual(TEXT("Prayer beam damages each target at most once per cast"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f - PrayerBeam->Damage);
+	Player->SetActorLocation(FVector(600.0f, 200.0f, 0.0f));
+	Sheep->AdvancePendingBossPrayerBeamForTests(0.5f);
+	Player->SetActorLocation(FVector(600.0f, 0.0f, 0.0f));
+	Sheep->AdvancePendingBossPrayerBeamForTests(1.0f);
+	TestEqual(TEXT("Prayer beam cannot hit after its three-second window ends"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f - PrayerBeam->Damage);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostPhase2BornPermitContractTest,
+                                 "ReEcho.Enemies.Host.Phase2BornPermitContract",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostPhase2BornPermitContractTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemySenseSnapshot Sense;
+	TestTrue(TEXT("Missing or failed Born playback leaves the typed Phase2 permit open by default"),
+	         Sense.bPhase2TransitionPermitted);
+	Sense.bPhase2TransitionPermitted = false;
+	TestFalse(TEXT("Host can close only the typed Phase2-start permit while Born is active"),
+	          Sense.bPhase2TransitionPermitted);
+	TestTrue(TEXT("Missing or failed Born leaves the typed attack permit open by default"), Sense.bAttackPermitted);
+	Sense.bAttackPermitted = false;
+	TestFalse(TEXT("Host can close the typed attack permit only while successful Born is active"),
+	          Sense.bAttackPermitted);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostBornGameplayGateTest,
+                                 "ReEcho.Enemies.Host.BornGameplayGate",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostBornGameplayGateTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyHostWorldFixture Fixture;
+	UReEcho2DPresentationCatalog* Catalog = LoadObject<UReEcho2DPresentationCatalog>(
+	    nullptr, TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
+	if (!TestNotNull(TEXT("Born gameplay gate loads the production enemy catalog"), Catalog))
+	{
+		return false;
+	}
+	AReEchoEnemyActor* Rabbit = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	if (!TestNotNull(TEXT("Born gameplay gate spawns an enemy Host"), Rabbit))
+	{
+		return false;
+	}
+	Rabbit->SetPresentationCatalog(Catalog);
+	FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
+	Definition.PresentationId = TEXT("Enemy.Rabbit");
+	TestTrue(TEXT("Authored Born configures successfully"), Rabbit->ConfigureFromDefinition(Definition, 14));
+	TestTrue(TEXT("Successful Born activates the Host gameplay gate"), Rabbit->IsBornGameplayGateActiveForTests());
+	TestFalse(TEXT("Born gameplay gate disables incoming damage"), Rabbit->CanBeDamaged());
+	FReEchoHitIntent Hit;
+	Hit.RawDamage = 10.0f;
+	TestEqual(TEXT("Born gameplay gate rejects raw damage before Combat"), Rabbit->ModifyIncomingRawDamage(Hit), 0.0f);
+	const FVector GatedLocation = Rabbit->GetActorLocation();
+	FReEchoBossIntent BlinkIntent;
+	BlinkIntent.Type = EReEchoBossIntentType::AttackWindowStarted;
+	BlinkIntent.AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	BlinkIntent.Target = Rabbit;
+	BlinkIntent.bRequestTeleport = true;
+	BlinkIntent.TeleportDestination = FVector(700.0f, 300.0f, 0.0f);
+	Rabbit->ApplyBossIntentForTests(BlinkIntent);
+	TestTrue(TEXT("Host Born gate defensively suppresses Boss teleport/attack windows"),
+	         Rabbit->GetActorLocation().Equals(GatedLocation));
+	Fixture.World->Tick(LEVELTICK_All, 0.1f);
+	TestTrue(TEXT("Born gameplay gate keeps the Host world position fixed"),
+	         Rabbit->GetActorLocation().Equals(GatedLocation));
+	const FReEchoEnemyRuntimeState SavedRabbit = Rabbit->CaptureRuntimeState();
+	AReEchoEnemyActor* RestoredRabbit = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	RestoredRabbit->SetPresentationCatalog(Catalog);
+	TestTrue(TEXT("Restore regression configures the saved enemy definition"),
+	         RestoredRabbit->ConfigureFromDefinition(Definition, 14));
+	TestTrue(TEXT("Restore regression setup starts Born before snapshot restore"),
+	         RestoredRabbit->IsBornGameplayGateActiveForTests());
+	RestoredRabbit->RestoreRuntimeState(SavedRabbit);
+	TestFalse(TEXT("Runtime restore cancels the configuration-started Born gate"),
+	          RestoredRabbit->IsBornGameplayGateActiveForTests());
+	TestFalse(TEXT("Runtime restore returns presentation to the normal base state"),
+	          RestoredRabbit->IsBornPresentationActiveForTests());
+	TestTrue(TEXT("Runtime restore leaves a living saved enemy damageable"), RestoredRabbit->CanBeDamaged());
+	TestEqual(TEXT("Runtime restore does not leave false Born invulnerability"),
+	          RestoredRabbit->ModifyIncomingRawDamage(Hit),
+	          10.0f);
+	Rabbit->CompleteBornGameplayGateForTests();
+	TestFalse(TEXT("Natural Born completion releases the Host gameplay gate"),
+	          Rabbit->IsBornGameplayGateActiveForTests());
+	TestTrue(TEXT("Natural Born completion restores the prior damage state"), Rabbit->CanBeDamaged());
+	Rabbit->ApplyBossIntentForTests(BlinkIntent);
+	TestTrue(TEXT("Host accepts the next eligible Boss attack window after Born completes"),
+	         Rabbit->GetActorLocation().Equals(BlinkIntent.TeleportDestination));
+
+	AReEchoEnemyActor* MissingBorn = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	MissingBorn->SetPresentationCatalog(Catalog);
+	Definition.PresentationId = TEXT("Enemy.UnknownBornProfile");
+	TestTrue(TEXT("Missing Born profile does not block gameplay configuration"),
+	         MissingBorn->ConfigureFromDefinition(Definition, 15));
+	TestFalse(TEXT("Missing Born never activates the Host gameplay gate"),
+	          MissingBorn->IsBornGameplayGateActiveForTests());
+	TestTrue(TEXT("Missing Born remains damageable"), MissingBorn->CanBeDamaged());
 	return true;
 }
 

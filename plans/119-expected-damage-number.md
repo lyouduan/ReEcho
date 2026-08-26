@@ -6,11 +6,11 @@
 - Executor 负责人：Codex（Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`（行政合并，不作为独立实现任务继续）。
+- 人工验收：`NotApplicableMergedIntoPlan118`；实际验收统一记录在 Plan118。
 - 本地规划 / 实现基线：`origin/main@568381e6389979fadd66f557e79d7737ff0e3bc5`。
 - 本地实现方式：`feat/expected-damage-number`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan119-expected-damage-number`。
-- 依赖 / 阻塞：复用现有 `FReEchoDamageEvent::RawDamage/AppliedDamage`，不依赖未发布的 Plan118 实现。
+- 依赖 / 阻塞：用户要求与小地图笔触合并为同一个 Plan；本 Plan 的全部目标、Writes、验收和实现已转入 Plan118，禁止再从本 Plan 单独发布实现。
 - Writes:
   - `plans/119-expected-damage-number.md`
   - `Source/ReEcho/{Public,Private}/Combat/ReEchoElementReaction.*`
@@ -29,6 +29,8 @@
 - 明确排除：不修改玩家受击反馈、怪物/玩家生命、过量伤害结算、伤害公式、元素反应、Boss 对玩家的跳字或保存格式。
 
 ## 锁定目标
+
+> 2026-08-26 合并说明：用户明确要求“合并成同一个 plan”。以下历史目标已完整并入 Plan118《战斗 HUD 墨水轨迹与理论伤害跳字》；本文件只保留编号与决策追溯，不再拥有独立候选或人工验收。
 
 敌人受击时，世界空间伤害跳字显示本次原本应造成的最终伤害，而不是被目标剩余生命钳制后的实际扣血量。例如怪物剩余 `7` 点生命、本次经过攻击方与目标方规则后的伤害为 `20`，生命仍只扣 `7` 并死亡，但跳字显示 `20`。
 
@@ -77,7 +79,7 @@
 
 ### 变化
 
-- 待实现。
+- 行政范围已并入 Plan118；实现、验证、人工验收和最终发布统一由 Plan118 候选承担，本 Plan 不再产生独立实现提交。
 
 ### 证据
 
@@ -89,8 +91,8 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`。
+- `NotApplicableMergedIntoPlan118`：请在 Plan118 的统一人工验收中确认。
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- 统一记录在 Plan118。

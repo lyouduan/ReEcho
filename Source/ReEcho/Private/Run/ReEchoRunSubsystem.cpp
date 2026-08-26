@@ -2,6 +2,7 @@
 
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Diagnostics/ReEchoBuildTrace.h"
 #include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
@@ -1364,6 +1365,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	CurrentBuild = ResolveResult.Build;
 	OwnedWeaponIds.Add(CurrentBuild.WeaponId);
 	SetPhase(EReEchoRunPhase::Planning);
+	ReEchoBuildTrace::LogSnapshot(TEXT("RunStarted"), EncounterIndex, Phase, CurrentBuild);
 }
 
 bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& OutError)
@@ -1381,6 +1383,7 @@ bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& O
 		return false;
 	}
 	CurrentBuild = Candidate;
+	ReEchoBuildTrace::LogSnapshot(TEXT("RunesEquipped"), EncounterIndex, Phase, CurrentBuild);
 	return true;
 }
 
@@ -1475,12 +1478,15 @@ bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& Out
 	}
 	CurrentBuild = MoveTemp(Candidate);
 	OutError.Reset();
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("WeaponEquipped"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("weapon=%s"), *WeaponId.ToString()));
 	return true;
 }
 
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 {
 	FReEchoWeaponPartShopView View;
+	View.TimeShardDebt = FMath::Max(0, CurrentBuild.CardState.Runtime.TimeShardDebt);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoCsvWeaponRow* Weapon =
 	    Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(CurrentBuild.WeaponId) : nullptr;
@@ -1502,10 +1508,10 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		View.WeaponRuneRefreshesRemaining =
 		    FMath::Max(0, RefreshRule->WeaponRuneRefreshLimit - WeaponRuneRefreshesUsed);
 		View.WeaponRuneRefreshCost = RefreshRule->WeaponRuneRefreshCost;
-		View.bWeaponRuneRefreshAllowed =
-		    !GetCardRules().bDisableShopRefresh &&
-		    (View.bWeaponRuneRefreshUnlimited || View.WeaponRuneRefreshesRemaining > 0) &&
-		    (CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0 || CanPayShopCost(View.WeaponRuneRefreshCost));
+		const bool bHasFreeRefresh = CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0;
+		const bool bCanUsePaidRefresh = (View.bWeaponRuneRefreshUnlimited || View.WeaponRuneRefreshesRemaining > 0) &&
+		                                CanPayShopCost(View.WeaponRuneRefreshCost);
+		View.bWeaponRuneRefreshAllowed = !GetCardRules().bDisableShopRefresh && (bHasFreeRefresh || bCanUsePaidRefresh);
 	}
 	View.WeaponId = Weapon->Id;
 	View.WeaponDisplayName = FText::FromString(Weapon->DisplayName);
@@ -2120,6 +2126,7 @@ void UReEchoRunSubsystem::BeginEncounter()
 	CurrentBuild.CardState = ReEchoCardRuntime::BeginEncounter(CurrentBuild.CardState, EncounterIndex);
 	bPendingCardEchoRemoval = false;
 	SetPhase(EReEchoRunPhase::Encounter);
+	ReEchoBuildTrace::LogSnapshot(TEXT("EncounterStarted"), EncounterIndex, Phase, CurrentBuild);
 }
 
 void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
@@ -2525,6 +2532,8 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	PendingTraitCardRefreshUses.Reset();
 	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
 	SetPhase(bContinueBonusChoices ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("FreeCardGranted"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("card=%s"), *CardId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
@@ -2621,6 +2630,8 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
 	       *CardId.ToString(),
 	       CurrentBuild.CardState.OwnedCardIds.Num());
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("DebugCardGranted"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("card=%s"), *CardId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
@@ -2973,28 +2984,29 @@ bool UReEchoRunSubsystem::TryRefreshWeaponRuneShop(FString& OutError)
 		OutError = TEXT("The current card rules disable shop refreshes");
 		return false;
 	}
-	if (!CurrentBuild.CardState.Runtime.bUnlimitedWeaponRuneRefresh &&
-	    WeaponRuneRefreshesUsed >= RefreshRule->WeaponRuneRefreshLimit)
-	{
-		OutError = TEXT("The weapon/rune refresh budget is exhausted for this shop encounter");
-		return false;
-	}
-	if (CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0)
+	const bool bUsesFreeRefresh = CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0;
+	if (bUsesFreeRefresh)
 	{
 		--CurrentBuild.CardState.Runtime.FreeShopRefreshes;
 	}
-	else if (!CanPayShopCost(RefreshRule->WeaponRuneRefreshCost))
-	{
-		OutError = FString::Printf(TEXT("Time shards %d are below the weapon/rune refresh cost %d"),
-		                           TimeShards,
-		                           RefreshRule->WeaponRuneRefreshCost);
-		return false;
-	}
 	else
 	{
+		if (!CurrentBuild.CardState.Runtime.bUnlimitedWeaponRuneRefresh &&
+		    WeaponRuneRefreshesUsed >= RefreshRule->WeaponRuneRefreshLimit)
+		{
+			OutError = TEXT("The weapon/rune refresh budget is exhausted for this shop encounter");
+			return false;
+		}
+		if (!CanPayShopCost(RefreshRule->WeaponRuneRefreshCost))
+		{
+			OutError = FString::Printf(TEXT("Time shards %d are below the weapon/rune refresh cost %d"),
+			                           TimeShards,
+			                           RefreshRule->WeaponRuneRefreshCost);
+			return false;
+		}
 		CommitShopCost(RefreshRule->WeaponRuneRefreshCost);
+		++WeaponRuneRefreshesUsed;
 	}
-	++WeaponRuneRefreshesUsed;
 	++WeaponRuneRefreshSequence;
 	OutError.Reset();
 	return true;
@@ -3203,6 +3215,11 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 	}
 	CurrentBuild = MoveTemp(PendingBuild);
 	CommitShopCost(EffectivePrice);
+	ReEchoBuildTrace::LogSnapshot(TEXT("ShopCardPackPaid"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("tier=%d"), Tier));
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Card-pack payment committed"), EffectivePrice);
 }
 
@@ -3329,6 +3346,13 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	}
 	ReevaluateCoreCollectionCard();
 	InventoryItems.AddUnique(ItemId);
+	ReEchoBuildTrace::LogSnapshot(TEXT("PaidCardGranted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("card=%s item=%s"),
+	                                              *Choice.CardId.ToString(),
+	                                              *ItemId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Paid card choice claimed"));
 }
@@ -3550,6 +3574,11 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	}
 
 	ReevaluateCoreCollectionCard();
+	ReEchoBuildTrace::LogSnapshot(TEXT("ShopPurchaseCommitted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("item=%s"), *ItemId.ToString()));
 	return FinishPurchase(EReEchoShopPurchaseResult::Succeeded, CompletionDetail, EffectivePrice);
 }
 
@@ -3589,6 +3618,11 @@ bool UReEchoRunSubsystem::GrantTimeShards(const int32 Amount)
 bool UReEchoRunSubsystem::CanPayShopCost(const int32 Cost) const
 {
 	return Cost <= 0 || TimeShards >= Cost || GetCardRules().bUnlimitedShopCredit;
+}
+
+int32 UReEchoRunSubsystem::GetDisplayedTimeShardBalance() const
+{
+	return TimeShards - FMath::Max(0, CurrentBuild.CardState.Runtime.TimeShardDebt);
 }
 
 void UReEchoRunSubsystem::CommitShopCost(const int32 Cost)
@@ -4361,5 +4395,6 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	ReevaluateCoreCollectionCard();
 	SetPhase(SaveGame.SavedPhase == EReEchoRunPhase::LegacyForgeChoice ? EReEchoRunPhase::CardChoice
 	                                                                   : SaveGame.SavedPhase);
+	ReEchoBuildTrace::LogSnapshot(TEXT("RunRestored"), EncounterIndex, Phase, CurrentBuild);
 	return true;
 }

@@ -61,6 +61,8 @@ FString ReEchoUIInteractionAudit::ScreenName(const EReEchoUIScreen Screen)
 			return TEXT("About");
 		case EReEchoUIScreen::Restart:
 			return TEXT("Restart");
+		case EReEchoUIScreen::EncounterTransition:
+			return TEXT("EncounterTransition");
 		case EReEchoUIScreen::TraitChoice:
 			return TEXT("TraitChoice");
 		case EReEchoUIScreen::InventoryShop:
@@ -84,6 +86,8 @@ FString ReEchoUIInteractionAudit::LayerName(const EReEchoUILayer Layer)
 			return TEXT("PlayerHud");
 		case EReEchoUILayer::BuildChoice:
 			return TEXT("BuildChoice");
+		case EReEchoUILayer::Transition:
+			return TEXT("Transition");
 		case EReEchoUILayer::Screen:
 			return TEXT("Screen");
 		case EReEchoUILayer::Pause:

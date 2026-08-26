@@ -77,7 +77,7 @@ Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、
 
 Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
 
-羊 Boss 的站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害，Skill02 的 Ability `RadiusCm` 不触发一次性 AOE。BlinkSlam 的落点、预警和圆形伤害判定统一以 Intent 锁定中心为权威，圆半径直接使用 Ability `RadiusCm`，不再回读闪现后的 Actor 位置；AttackWindow 先把 gameplay Host 闪现到锁定落点，Presentation 根节点再从上方向落点缓入 0.5 秒，完成后才在同一锁定中心一次性生成地裂并结算伤害，不生成移动拖尾。MeleeSweep 以羊的 `BossWeaponRoot` 世界位置为圆心、锁定朝向为中轴、Ability `LengthCm` 为半径覆盖前方 180° 半圆，伤害与挥杖特效共享挂点；PrayerBeam 在 WindupStart 快照一次预警中心，后续预警、伤害与光束均复用该中心并沿世界 +X 向上延伸，不再于蓄力结束回读角色位置。Development 的 `GMBossDamageRange` 只读绘制这些同源几何，不参与命中裁决。
+羊 Boss 的所有蓄力 Niagara 均挂接 `BossWeaponTipRoot`；该节点在 `BossWeaponFacingRoot` 局部 +Z 方向偏移 MoonStaff 最终世界长度的一半，落在中心 Pivot 法杖贴图的顶部，并继承 `BossWeaponRoot` 的基础挂点/挥舞旋转和 MoonStaff DA 最终左右偏移；该顶部挂点缺失时才回退通用 `AttackVfxRoot`。站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害，Skill02 的 Ability `RadiusCm` 不触发一次性 AOE。BlinkSlam 的落点、预警和圆形伤害判定统一以 Intent 锁定中心为权威，圆半径直接使用 Ability `RadiusCm`，不再回读闪现后的 Actor 位置；AttackWindow 先把 gameplay Host 闪现到锁定落点，Presentation 根节点再从上方向落点缓入 0.5 秒，完成后才结算伤害并生成地裂，地裂保留锁定落点 XY、只对齐蓄力开始时目标 `GroundRoot` 的世界 Z，不生成移动拖尾。MeleeSweep 以羊的 `BossWeaponRoot` 世界位置为圆心、锁定朝向为中轴、Ability `LengthCm` 为半径覆盖前方 180° 半圆，伤害与挥杖特效共享挂点；PrayerBeam 在 WindupStart 保留技能 `LockedTargetLocation` 的 XY，只快照目标阴影使用的 `GroundRoot` 世界 Z 作为高度（缺失时依次回退 `FootRoot`、Arena `GameplayPlaneWorldZ` 和原锁定 Z），后续预警与光束复用该不可变组合位置，光束沿世界 +X 向上延伸，不在蓄力结束回读角色实时位置；其 `ActiveSeconds` 同时定义光束、落点预警和伤害检测窗口（当前为 3 秒），窗口内持续检测进入光束的目标，但每次释放最多结算一次伤害。Development 的 `GMBossDamageRange` 只读绘制这些同源几何，不参与命中裁决。
 
 血条耗尽转换由 Combat 致命伤拦截启动；同一命中随后发布的 Hurt 不得把 `Transforming` 覆盖为 `HitReaction`。转换期间 Host 的入伤修正统一返回零，避免临时保活的 1 HP 被多段攻击击杀；完成事件再应用 Phase2 最大生命与回满策略，之后第二次致命伤恢复正常死亡。
 
@@ -194,5 +194,8 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - Bomber Fuse 到期只提交一次；等待 Host/Combat 销毁的间隙不能再次爆炸。
 - 事件表示已发生结果，订阅回调没有玩法否决权；表现缺失、资源加载失败和动画结束都不能改变行为。
 - Snapshot 是只读副本，不是命令；外部不得修改副本后假定 Logic 状态已变化。
+- `FReEchoEnemySenseSnapshot::bPhase2TransitionPermitted` 是 Host 注入的单步许可：为 false 时 Logic 仅跳过新 Phase2 Transform 的启动判定，不停止普通 AI、移动、攻击、碰撞或受伤；许可恢复后的首个合格逻辑步重新评估攻击次数、距离与血量条件，已开始的 Transform 不受影响。
+- `FReEchoEnemySenseSnapshot::bMovementPermitted` 是 Host 注入的单步许可：为 false 时 Logic 仍推进普通 AI、目标与冷却，但输出的普通移动、特殊冲刺和 Boss 传送请求均被清零；恢复后的首个逻辑步重新允许移动。
+- `FReEchoEnemySenseSnapshot::bAttackPermitted` 是 Host 注入的单步许可：为 false 时 Logic 不开始或提交普通攻击、特殊技和 Boss 攻击窗口，但继续采样目标并推进既有冷却、引信、Boss encounter 等计时；已到提交边界的动作保持待提交，许可恢复后的首个合格逻辑步提交。Host 同时在世界副作用边界拒绝 Gate 内的攻击窗口、传送、投射物和伤害。
 - Encounter 局间重置只允许清理具名瞬时字段；不得重建 Logic、重置普通攻击冷却/序号或用快照重生 Host 冒充同 Stage 连续性。
 - 不引入 `ReEchoEnemies -> ReEchoWeapons`：敌人攻击节拍由 EnemyLogic 拥有，玩家武器节拍由 Weapons 拥有。

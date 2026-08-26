@@ -3,6 +3,7 @@
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/PlayerController.h"
 #include "UI/ReEchoEncounterHudWidget.h"
+#include "UI/ReEchoEncounterTransitionWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
@@ -23,6 +24,7 @@ constexpr int32 WeatherZOrder = 5;
 constexpr int32 GameplayHudZOrder = 10;
 constexpr int32 PlayerHudZOrder = 12;
 constexpr int32 BuildChoiceZOrder = 98;
+constexpr int32 TransitionZOrder = 10000;
 constexpr int32 ScreenZOrder = 95;
 constexpr int32 PauseZOrder = 100;
 constexpr int32 StartZOrder = 200;
@@ -68,6 +70,7 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	                  AboutClass.Class ? AboutClass.Class.Get() : UReEchoAboutWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::Restart,
 	                  RestartClass.Class ? RestartClass.Class.Get() : UReEchoRestartWidget::StaticClass());
+	ScreenClasses.Add(EReEchoUIScreen::EncounterTransition, UReEchoEncounterTransitionWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::TraitChoice,
 	                  TraitClass.Class ? TraitClass.Class.Get() : UReEchoTraitCardChoiceWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::InventoryShop,
@@ -254,6 +257,8 @@ EReEchoUILayer UReEchoUIManagerSubsystem::GetScreenLayer(const EReEchoUIScreen S
 			return EReEchoUILayer::PlayerHud;
 		case EReEchoUIScreen::TraitChoice:
 			return EReEchoUILayer::BuildChoice;
+		case EReEchoUIScreen::EncounterTransition:
+			return EReEchoUILayer::Transition;
 		case EReEchoUIScreen::InventoryShop:
 		case EReEchoUIScreen::Stats:
 			return EReEchoUILayer::Screen;
@@ -289,6 +294,8 @@ int32 UReEchoUIManagerSubsystem::GetLayerZOrder(const EReEchoUILayer Layer)
 			return PlayerHudZOrder;
 		case EReEchoUILayer::BuildChoice:
 			return BuildChoiceZOrder;
+		case EReEchoUILayer::Transition:
+			return TransitionZOrder;
 		case EReEchoUILayer::Screen:
 			return ScreenZOrder;
 		case EReEchoUILayer::Pause:

@@ -137,14 +137,38 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	const FReEchoWeaponPartShopView InitialRefreshView = RunSubsystem->GetWeaponPartShopView();
 	TestTrue(TEXT("Free refresh is consumed before currency"), RunSubsystem->TryConsumeShopRefresh(0));
 	TestEqual(TEXT("Free refresh leaves currency unchanged"), RunSubsystem->TimeShards, 38);
-	TestEqual(TEXT("Free refresh consumes one weapon/rune refresh use"),
+	TestEqual(TEXT("Free refresh preserves the paid weapon/rune refresh budget"),
 	          RunSubsystem->GetWeaponPartShopView().WeaponRuneRefreshesRemaining,
-	          InitialRefreshView.WeaponRuneRefreshesRemaining - 1);
-	TestTrue(TEXT("A second weapon/rune refresh uses the configured paid cost"),
+	          InitialRefreshView.WeaponRuneRefreshesRemaining);
+	TestTrue(TEXT("The first paid weapon/rune refresh uses the configured cost"),
 	         RunSubsystem->TryConsumeShopRefresh(0));
 	TestEqual(TEXT("Paid weapon/rune refresh deducts five configured shards"), RunSubsystem->TimeShards, 33);
+	TestTrue(TEXT("The second paid weapon/rune refresh remains available after a free refresh"),
+	         RunSubsystem->TryConsumeShopRefresh(0));
+	TestEqual(TEXT("The second paid refresh deducts the configured cost"), RunSubsystem->TimeShards, 28);
 	TestFalse(TEXT("Per-encounter weapon/rune refresh limit prevents an infinite refresh"),
 	          RunSubsystem->TryConsumeShopRefresh(0));
+
+	UReEchoRunSubsystem* ResetTaskRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	ResetTaskRun->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	TestTrue(TEXT("Reset Task grants through the authoritative run transaction"),
+	         ResetTaskRun->DebugGrantCard(TEXT("G_2_22")));
+	TestEqual(TEXT("Reset Task grants five free shop refreshes"),
+	          ResetTaskRun->CurrentBuild.CardState.Runtime.FreeShopRefreshes,
+	          5);
+	const int32 PaidRefreshesBeforeResetTaskCredits =
+	    ResetTaskRun->GetWeaponPartShopView().WeaponRuneRefreshesRemaining;
+	for (int32 RefreshIndex = 0; RefreshIndex < 5; ++RefreshIndex)
+	{
+		TestTrue(*FString::Printf(TEXT("Reset Task free refresh %d is usable"), RefreshIndex + 1),
+		         ResetTaskRun->TryConsumeShopRefresh(0));
+	}
+	TestEqual(TEXT("Reset Task consumes all five free refreshes"),
+	          ResetTaskRun->CurrentBuild.CardState.Runtime.FreeShopRefreshes,
+	          0);
+	TestEqual(TEXT("Reset Task free refreshes do not consume the paid per-encounter budget"),
+	          ResetTaskRun->GetWeaponPartShopView().WeaponRuneRefreshesRemaining,
+	          PaidRefreshesBeforeResetTaskCredits);
 
 	RunSubsystem->EncounterIndex = 2;
 	RunSubsystem->TimeShards = 100;
@@ -1122,6 +1146,27 @@ bool FReEchoCurseBankAndWeaponMasterTest::RunTest(const FString&)
 	TestEqual(TEXT("Completing again with the same weapon grants nothing"),
 	          MasterRun->CurrentBuild.Stats.PhysicalAttack,
 	          InitialStats.PhysicalAttack + 5.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCurseBankDisplayBalanceTest,
+                                 "ReEcho.Shop.CurseBankDisplayBalance",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCurseBankDisplayBalanceTest::RunTest(const FString&)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	Run->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_2_19"));
+	Run->TimeShards = 0;
+	if (!TestTrue(TEXT("Curse bank fixture can buy on credit"), Run->PurchaseShopItem(TEXT("SHOP_OLD_COIN"))))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Debt remains stored separately from cash"), Run->TimeShards, 0);
+	TestEqual(
+	    TEXT("Curse bank exposes debt as a negative presentation balance"), Run->GetDisplayedTimeShardBalance(), -25);
 	return true;
 }
 

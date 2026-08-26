@@ -91,6 +91,8 @@ public:
 	/** Equips an already-owned weapon without shop cost or reroll; compatible runes remain equipped. */
 	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
 	FReEchoWeaponPartShopView GetWeaponPartShopView();
+	/** Cash minus Curse Bank debt; presentation-only and never used for purchase authority. */
+	int32 GetDisplayedTimeShardBalance() const;
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
 	int32 GetTotalEncounterCount() const;
 

@@ -154,6 +154,7 @@
     "GlobalConfigurationData",
     "GoogleCloudMessaging",
     "GooglePAD",
+    "HAPMedia",
     "HairStrands",
     "HttpInsights",
     "IKRig",
@@ -4316,6 +4317,14 @@
     },
     {
       "Path": "$(EngineDir)/Plugins/Media/AvfMedia/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/HAPMedia/Binaries/Win64/UnrealEditor-HAPMedia.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/HAPMedia/Binaries/Win64/UnrealEditor.modules",
       "Type": "RequiredResource"
     },
     {
@@ -30132,6 +30141,10 @@
       "Type": "UFS"
     },
     {
+      "Path": "$(EngineDir)/Plugins/Media/HAPMedia/HAPMedia.uplugin",
+      "Type": "UFS"
+    },
+    {
       "Path": "$(EngineDir)/Plugins/Media/ImgMedia/ImgMedia.uplugin",
       "Type": "UFS"
     },
@@ -30573,6 +30586,10 @@
     },
     {
       "Path": "$(ProjectDir)/Content/Data/weapons.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
       "Type": "NonUFS"
     },
     {

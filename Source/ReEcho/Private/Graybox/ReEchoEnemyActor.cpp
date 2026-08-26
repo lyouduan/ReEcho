@@ -123,6 +123,8 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	BossWeaponRoot->bEditableWhenInherited = true;
 	BossWeaponFacingRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BossWeaponFacingRoot"));
 	BossWeaponFacingRoot->SetupAttachment(BossWeaponRoot);
+	BossWeaponTipRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BossWeaponTipRoot"));
+	BossWeaponTipRoot->SetupAttachment(BossWeaponFacingRoot);
 	BossWeaponSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("BossWeaponSprite"));
 	BossWeaponSprite->SetupAttachment(BossWeaponFacingRoot);
 	BossWeaponSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -159,7 +161,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	CombatEvents = CreateDefaultSubobject<UReEchoCombatEventsComponent>(TEXT("CombatEvents"));
 	CombatAudioAdapter = CreateDefaultSubobject<UReEchoCombatAudioAdapterComponent>(TEXT("CombatAudioAdapter"));
 	CombatVfx = CreateDefaultSubobject<UReEchoCombatVfxComponent>(TEXT("CombatVfx"));
-	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot, BossWeaponRoot);
+	CombatVfx->ConfigureAttachmentRoots(AttackVfxRoot, HurtVfxRoot, BossWeaponTipRoot);
 	EnemyLogic = CreateDefaultSubobject<UReEchoEnemyLogicComponent>(TEXT("EnemyLogic"));
 	EnemyEvents = CreateDefaultSubobject<UReEchoEnemyEventsComponent>(TEXT("EnemyEvents"));
 	CombatPresentationCoordinator =
@@ -172,6 +174,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	                                       EffectsRoot,
 	                                       BossWeaponRoot,
 	                                       BossWeaponFacingRoot,
+	                                       BossWeaponTipRoot,
 	                                       BossWeaponSprite,
 	                                       CharacterSprite,
 	                                       SequenceAnimation,
@@ -212,6 +215,7 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
 	AttachIfNeeded(BossWeaponRoot, EffectsRoot);
 	AttachIfNeeded(BossWeaponFacingRoot, BossWeaponRoot);
+	AttachIfNeeded(BossWeaponTipRoot, BossWeaponFacingRoot);
 	AttachIfNeeded(BossWeaponSprite, BossWeaponFacingRoot);
 	AttachIfNeeded(GroundShadow, GroundRoot);
 	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
@@ -290,6 +294,7 @@ void AReEchoEnemyActor::SetPresentationCatalog(UReEcho2DPresentationCatalog* InP
 bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& Definition, const int32 SpawnIndex)
 {
 	BindComposedComponents();
+	EndBornGameplayGate();
 	bDeathSequenceStarted = false;
 	bWasStunnedLastTick = false;
 	SetLifeSpan(0.0f);
@@ -318,6 +323,12 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	AlignToGameplayPlane();
 	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.PresentationId);
+	if (EnemyPresentation->TryPlayBorn())
+	{
+		bCanBeDamagedBeforeBornGate = CanBeDamaged();
+		bBornGameplayGateActive = true;
+		SetCanBeDamaged(false);
+	}
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
 	Combatant->SetCursedImmune(bBoss);
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
@@ -334,7 +345,8 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
 		RefreshCrowdCollisionIgnores();
 	}
-	if (!IsAlive() || !CanBeDamaged() || !GetActorEnableCollision() || !Collision->IsCollisionEnabled())
+	if (!IsAlive() || (!CanBeDamaged() && !bBornGameplayGateActive) || !GetActorEnableCollision() ||
+	    !Collision->IsCollisionEnabled())
 	{
 		return false;
 	}
@@ -355,6 +367,12 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		    // Arm only while still in phase one and alive; once transformed, normal death rules apply.
 		    const FReEchoEnemyLogicSnapshot& Snapshot = EnemyLogic->GetSnapshot();
 		    if (Snapshot.bPhase2Triggered || Snapshot.CurrentPhaseIndex >= 2 || !Snapshot.bAlive)
+		    {
+			    return false;
+		    }
+		    // A lethal wound must remain lethal while Born owns presentation. This prevents Transform from starting
+		    // without delaying damage/death or making presentation completion authoritative over gameplay.
+		    if (bBornGameplayGateActive)
 		    {
 			    return false;
 		    }
@@ -456,9 +474,15 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 	{
 		Configure(SavedKind, SavedState.SpawnIndex);
 	}
+	if (EnemyPresentation)
+	{
+		EnemyPresentation->CancelBornForRuntimeRestore();
+	}
+	EndBornGameplayGate();
 	SetActorLocation(SavedState.Transform.GetLocation(), false, nullptr, ETeleportType::TeleportPhysics);
 	SetActorScale3D(SavedState.Transform.GetScale3D());
 	Combatant->RestoreCurrentHealth(SavedState.CurrentHealth);
+	SetCanBeDamaged(Combatant->IsAlive());
 
 	FReEchoElementState RestoredElementState = SavedState.ElementState;
 	const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -627,6 +651,10 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 
 float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
+	if (bBornGameplayGateActive)
+	{
+		return 0.0f;
+	}
 	const FReEchoEnemyLogicSnapshot Snapshot = EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
 	float AdjustedRawDamage = Intent.RawDamage;
 	float FacingDot = 0.0f;
@@ -652,17 +680,17 @@ float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent)
 #if !UE_BUILD_SHIPPING
 	if (Intent.RawDamage > 0.0f)
 	{
-		const EReEchoEnemyPhase2TriggerMode TriggerMode =
-		    EnemyLogic ? EnemyLogic->GetDefinition().Phase2.TriggerMode
-		               : EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
-		const FString PhaseName = EnemyLogic
-		                              ? StaticEnum<EReEchoEnemyBehaviorPhase>()->GetNameStringByValue(
-		                                    static_cast<int64>(Snapshot.Phase))
-		                              : TEXT("NoLogic");
-		const FString TriggerModeName = EnemyLogic
-		                                    ? StaticEnum<EReEchoEnemyPhase2TriggerMode>()->GetNameStringByValue(
-		                                          static_cast<int64>(TriggerMode))
-		                                    : TEXT("NoLogic");
+		const EReEchoEnemyPhase2TriggerMode TriggerMode = EnemyLogic
+		                                                      ? EnemyLogic->GetDefinition().Phase2.TriggerMode
+		                                                      : EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
+		const FString PhaseName =
+		    EnemyLogic
+		        ? StaticEnum<EReEchoEnemyBehaviorPhase>()->GetNameStringByValue(static_cast<int64>(Snapshot.Phase))
+		        : TEXT("NoLogic");
+		const FString TriggerModeName =
+		    EnemyLogic
+		        ? StaticEnum<EReEchoEnemyPhase2TriggerMode>()->GetNameStringByValue(static_cast<int64>(TriggerMode))
+		        : TEXT("NoLogic");
 		const FString TriggerReasonName = EnemyLogic
 		                                      ? StaticEnum<EReEchoEnemyPhaseTriggerReason>()->GetNameStringByValue(
 		                                            static_cast<int64>(Snapshot.PhaseTriggerReason))
@@ -821,6 +849,24 @@ int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeArc(const FVector& Origi
 	return RemovedCount;
 }
 
+void AReEchoEnemyActor::RefreshBornGameplayGate()
+{
+	if (bBornGameplayGateActive && (!EnemyPresentation || !EnemyPresentation->IsBornPlaying()))
+	{
+		EndBornGameplayGate();
+	}
+}
+
+void AReEchoEnemyActor::EndBornGameplayGate()
+{
+	if (!bBornGameplayGateActive)
+	{
+		return;
+	}
+	bBornGameplayGateActive = false;
+	SetCanBeDamaged(bCanBeDamagedBeforeBornGate);
+}
+
 void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -828,8 +874,10 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	{
 		return;
 	}
+	RefreshBornGameplayGate();
 	AdvanceEnemyProjectiles(DeltaSeconds);
 	AdvancePendingBossBlinkSlam(DeltaSeconds);
+	AdvancePendingBossPrayerBeam(DeltaSeconds);
 	if (bDeathSequenceStarted)
 	{
 		EnemyPresentation->Advance(BuildPresentationSnapshot(false, false), DeltaSeconds);
@@ -901,6 +949,9 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
 		Sense.bSpecialActionPermitted =
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		Sense.bPhase2TransitionPermitted = !bBornGameplayGateActive;
+		Sense.bMovementPermitted = !bBornGameplayGateActive;
+		Sense.bAttackPermitted = !bBornGameplayGateActive;
 		// WS4 (Plan 68): sample current health ratio so the logic layer can drive a blood-depleted phase transition
 		// without reaching into the combat component itself. Full/unknown defaults keep legacy enemies inert.
 		if (Combatant && Combatant->Stats.HpMax > 0.0f)
@@ -1161,6 +1212,20 @@ void AReEchoEnemyActor::UpdateStunState(const bool bStunned)
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+bool AReEchoEnemyActor::IsBornPresentationActiveForTests() const
+{
+	return EnemyPresentation && EnemyPresentation->IsBornPlaying();
+}
+
+void AReEchoEnemyActor::CompleteBornGameplayGateForTests()
+{
+	if (EnemyPresentation)
+	{
+		EnemyPresentation->CompleteActiveAnimationForTests();
+	}
+	RefreshBornGameplayGate();
+}
+
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense,
                                                                     const float DeltaSeconds)
 {
@@ -1180,6 +1245,11 @@ void AReEchoEnemyActor::ApplyBossIntentForTests(const FReEchoBossIntent& Intent)
 void AReEchoEnemyActor::AdvancePendingBossBlinkSlamForTests(const float DeltaSeconds)
 {
 	AdvancePendingBossBlinkSlam(DeltaSeconds);
+}
+
+void AReEchoEnemyActor::AdvancePendingBossPrayerBeamForTests(const float DeltaSeconds)
+{
+	AdvancePendingBossPrayerBeam(DeltaSeconds);
 }
 
 void AReEchoEnemyActor::UpdateStunStateForTests(const bool bStunned)
@@ -1431,6 +1501,10 @@ void AReEchoEnemyActor::ApplySpecialDashHit(const FReEchoEnemyActionIntent& Inte
 
 void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 {
+	if (bBornGameplayGateActive && Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
+	{
+		return;
+	}
 	if (Intent.Type == EReEchoBossIntentType::ElementCleanse)
 	{
 		FReEchoElementCleanseCommand Command;
@@ -1461,6 +1535,17 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 		bBossBlinkSlamPending = true;
 		return;
 	}
+	if (Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam"))
+	{
+		CombatAudioAdapter->PostConfiguredAttack(Intent.Origin, Intent.AbilityId);
+		DrawBossDamageRangeDebug(Intent);
+		PendingBossPrayerBeamIntent = Intent;
+		PendingBossPrayerBeamRemainingSeconds = FMath::Max(0.0f, Intent.ActiveSeconds);
+		bBossPrayerBeamPending = PendingBossPrayerBeamRemainingSeconds > 0.0f;
+		bBossPrayerBeamDamageConsumed = false;
+		TryApplyPendingBossPrayerBeamHit();
+		return;
+	}
 	ApplyBossAttackWindow(Intent);
 }
 
@@ -1471,7 +1556,7 @@ void AReEchoEnemyActor::AdvancePendingBossBlinkSlam(const float DeltaSeconds)
 		return;
 	}
 	PendingBossBlinkSlamRemainingSeconds = FMath::Max(0.0f, PendingBossBlinkSlamRemainingSeconds - DeltaSeconds);
-	if (PendingBossBlinkSlamRemainingSeconds > 0.0f)
+	if (PendingBossBlinkSlamRemainingSeconds > 0.0f || bBornGameplayGateActive)
 	{
 		return;
 	}
@@ -1483,6 +1568,46 @@ void AReEchoEnemyActor::AdvancePendingBossBlinkSlam(const float DeltaSeconds)
 		EnemyEvents->PublishBossIntent(ImpactIntent);
 	}
 	ApplyBossAttackWindow(PendingBossBlinkSlamIntent);
+}
+
+void AReEchoEnemyActor::AdvancePendingBossPrayerBeam(const float DeltaSeconds)
+{
+	if (!bBossPrayerBeamPending)
+	{
+		return;
+	}
+	PendingBossPrayerBeamRemainingSeconds = FMath::Max(0.0f, PendingBossPrayerBeamRemainingSeconds - DeltaSeconds);
+	if (PendingBossPrayerBeamRemainingSeconds <= 0.0f)
+	{
+		bBossPrayerBeamPending = false;
+		return;
+	}
+	if (bBornGameplayGateActive)
+	{
+		return;
+	}
+	TryApplyPendingBossPrayerBeamHit();
+}
+
+void AReEchoEnemyActor::TryApplyPendingBossPrayerBeamHit()
+{
+	if (bBossPrayerBeamDamageConsumed || !PendingBossPrayerBeamIntent.bCanDamageTarget)
+	{
+		return;
+	}
+	AActor* Target = PendingBossPrayerBeamIntent.Target.Get();
+	IReEchoCombatTarget* CombatTarget = Target ? Cast<IReEchoCombatTarget>(Target) : nullptr;
+	if (!CombatTarget || !CombatTarget->IsCombatTargetAlive())
+	{
+		return;
+	}
+	const FVector TargetLocation = CombatTarget->GetCombatTargetLocation();
+	if (!IntersectsBossDamageShape(PendingBossPrayerBeamIntent, TargetLocation))
+	{
+		return;
+	}
+	bBossPrayerBeamDamageConsumed = true;
+	ApplyBossHit(PendingBossPrayerBeamIntent, Target, TargetLocation);
 }
 
 void AReEchoEnemyActor::ApplyBossAttackWindow(const FReEchoBossIntent& Intent)
@@ -1572,7 +1697,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		}
 		return;
 	}
-	if (!Intent.bAttackCommitted)
+	if (!Intent.bAttackCommitted || bBornGameplayGateActive)
 	{
 		return;
 	}
@@ -1772,6 +1897,8 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 	bDeathSequenceStarted = true;
 	bBossBlinkSlamPending = false;
 	PendingBossBlinkSlamRemainingSeconds = 0.0f;
+	bBossPrayerBeamPending = false;
+	PendingBossPrayerBeamRemainingSeconds = 0.0f;
 	if (EnemyLogic)
 	{
 		EnemyLogic->NotifyDeath();

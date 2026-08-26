@@ -16,6 +16,22 @@ constexpr float IdleWanderSpeedFraction = 0.35f;
 constexpr float IdleWanderPeriodSeconds = 3.0f;
 constexpr float IdleWanderDirectionJitter = 0.78539816339744831f; // +/-45 degrees
 
+FReEchoEnemyActionIntent ApplyMovementPermit(const FReEchoEnemySenseSnapshot& Sense, FReEchoEnemyActionIntent Intent)
+{
+	if (!Sense.bMovementPermitted)
+	{
+		Intent.MovementDelta = FVector::ZeroVector;
+		Intent.bHasMovement = false;
+		Intent.bSpecialDashMovement = false;
+		for (FReEchoBossIntent& BossIntent : Intent.BossIntents)
+		{
+			BossIntent.bRequestTeleport = false;
+			BossIntent.TeleportDestination = FVector::ZeroVector;
+		}
+	}
+	return Intent;
+}
+
 /**
  * Deterministic wander heading. Uses only WorldTime + SpawnIndex so the same sample produces the same
  * movement across runs, saves, and replay (no FMath::Rand —录像/回放 must stay bit-identical).
@@ -401,7 +417,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	const float SafeDeltaSeconds = FMath::Max(0.0f, DeltaSeconds);
 	if (State.Phase == EReEchoEnemyBehaviorPhase::Transforming)
 	{
-		return AdvancePhaseTransition(SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvancePhaseTransition(SafeDeltaSeconds));
 	}
 	if (TryBeginPhaseTransition(Sense, Intent))
 	{
@@ -409,15 +425,15 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
-		return AdvanceBoss(Sense, SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvanceBoss(Sense, SafeDeltaSeconds));
 	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Ranged || Definition.Archetype == EReEchoEnemyArchetype::Elite)
 	{
-		return AdvanceSpecial(Sense, SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvanceSpecial(Sense, SafeDeltaSeconds));
 	}
 	if (State.HitReactionRemainingSeconds > 0.0f)
 	{
-		return AdvanceHitReaction(SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvanceHitReaction(SafeDeltaSeconds));
 	}
 
 	const bool bHasLiveTarget = Sense.bTargetExists && Sense.bTargetAlive;
@@ -427,7 +443,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	{
 		if (!State.bHasEngaged)
 		{
-			return AdvanceIdleWander(Sense, SafeDeltaSeconds);
+			return ApplyMovementPermit(Sense, AdvanceIdleWander(Sense, SafeDeltaSeconds));
 		}
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 		return Intent;
@@ -469,21 +485,22 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 			State.Phase = EReEchoEnemyBehaviorPhase::Fuse;
 			State.FuseRemainingSeconds = FMath::Max(0.0f, State.FuseRemainingSeconds - SafeDeltaSeconds);
 			PublishFuse(false);
-			if (State.FuseRemainingSeconds <= 0.0f)
+			if (State.FuseRemainingSeconds <= 0.0f && Sense.bAttackPermitted)
 			{
 				CommitAttack(
 				    Sense, Distance <= Definition.BomberDamageRadiusCm && !Sense.bTargetInvulnerable, true, Intent);
-				return Intent;
+				return ApplyMovementPermit(Sense, MoveTemp(Intent));
 			}
 		}
-		return Intent;
+		return ApplyMovementPermit(Sense, MoveTemp(Intent));
 	}
 
-	if (Distance <= Definition.ContactRangeCm && State.AttackCooldownRemainingSeconds <= 0.0f)
+	if (Sense.bAttackPermitted && Distance <= Definition.ContactRangeCm &&
+	    State.AttackCooldownRemainingSeconds <= 0.0f)
 	{
 		CommitAttack(Sense, !Sense.bTargetInvulnerable, false, Intent);
 	}
-	return Intent;
+	return ApplyMovementPermit(Sense, MoveTemp(Intent));
 }
 
 const FReEchoEnemyAbilityDefinition* UReEchoEnemyLogicComponent::GetNextSpecialAbility() const
@@ -581,7 +598,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 
 	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None)
 	{
-		if (Sense.bSpecialActionPermitted && State.AttackCooldownRemainingSeconds <= 0.0f &&
+		if (Sense.bAttackPermitted && Sense.bSpecialActionPermitted && State.AttackCooldownRemainingSeconds <= 0.0f &&
 		    Distance >= Ability->MinRangeCm && Distance <= Ability->MaxRangeCm)
 		{
 			State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Windup;
@@ -622,6 +639,10 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 	}
 	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
 	{
+		if (!Sense.bAttackPermitted)
+		{
+			return Intent;
+		}
 		if (Definition.Archetype == EReEchoEnemyArchetype::Ranged)
 		{
 			const bool bCanDamage = FVector::DistSquared2D(Sense.TargetLocation, State.SpecialLockedTargetLocation) <=
@@ -742,7 +763,7 @@ void UReEchoEnemyLogicComponent::AdvanceBossFixedStep(const FReEchoEnemySenseSna
 	}
 
 	bool bAbilityOccupiedStep = State.BossActionPhase != EReEchoBossActionPhase::None;
-	if (!bAbilityOccupiedStep && !bHadHitReaction)
+	if (!bAbilityOccupiedStep && !bHadHitReaction && Sense.bAttackPermitted)
 	{
 		const int32 AbilityIndex = SelectBossAbility(Sense);
 		if (AbilityIndex != INDEX_NONE)
@@ -844,6 +865,10 @@ void UReEchoEnemyLogicComponent::AdvanceBossAbility(const FReEchoEnemySenseSnaps
 	switch (State.BossActionPhase)
 	{
 		case EReEchoBossActionPhase::Windup:
+			if (!Sense.bAttackPermitted)
+			{
+				return;
+			}
 			if (Ability.LockTiming == EReEchoBossLockTiming::WindupEnded)
 			{
 				LockBossTarget(Sense);
@@ -1310,7 +1335,7 @@ bool UReEchoEnemyLogicComponent::IsHealthAtOrBelowPhase2Threshold(float CurrentH
 bool UReEchoEnemyLogicComponent::TryBeginPhaseTransition(const FReEchoEnemySenseSnapshot& Sense,
                                                          FReEchoEnemyActionIntent& InOutIntent)
 {
-	if (!Definition.Phase2.bEnabled || State.bPhase2Triggered)
+	if (!Sense.bPhase2TransitionPermitted || !Definition.Phase2.bEnabled || State.bPhase2Triggered)
 	{
 		return false;
 	}
