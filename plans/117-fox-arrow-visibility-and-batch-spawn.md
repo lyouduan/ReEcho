@@ -8,7 +8,7 @@
 - 实现编写方（AI 侧）：`Codex`。
 - 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：启动批准为 `origin/main@591a248328528072ff7614689bdeb2b0da612090`；最终合入仅补充本 Plan Writes 的 `origin/main@8db43ef1f1c6a59f1421453533413fe359067e63` 后重跑门禁。
+- 本地规划 / 实现基线：启动批准为 `origin/main@591a248328528072ff7614689bdeb2b0da612090`；最终发布组合基于 `origin/main@9c28276764735b4e38aff04f2932664866a223e3`，组合候选为 `289a4cc8fe5b4f09ae5714f2c0c89e0cf23b4a3f`。
 - 本地实现方式：一任务一 worktree；Planner 与 Executor 分离。
 - 依赖 / 阻塞：依赖 Plan113 已发布的 Fox Windup/Active/Recovery 事件和 `NS_Fox_Rush_arrow` Fixed Bounds 修复。
 - Writes:
@@ -110,6 +110,7 @@
 - 最终本地候选以 9-action Development 增量构建成功，精选包刷新为 Build ID `55116800`、源码指纹 `5a0c80e79d3b`；按用户要求未执行发布级 FullRebuild。`-RenderOffscreen` 下 `ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-173607-pid22216.log`）：真实 `PlayerCameraManager` 使用 `Pitch=-60/Yaw=25` 的倾斜 CameraCache，四个 `LockedDirection` 的组件 override 分别为 `-118.300°/-21.991°/61.700°/-58.312°`，逐项等于 renderer shader 的相机屏幕基期望值；生产 M_FOX 仍读回 `GameplayPlane/AttackVfxRoot/Charging Z=725`、`Actor/OwnerRoot/Direction/两 emitter 粒子 Z=855`。`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-173733-pid46092.log`）；只读资产审计通过（`ReEcho-session-20260826-173833-pid46908.log`，`FOX_DASH_AUDIT_OK roots=3 dependencies=12 native_contract=ReEcho.Presentation.VFX.Catalog`）。`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过；Charging/Trail blob 分别为 `085f24ba12bbe27f3db4fb135750fe2628bbf60e`、`3ea66280d5447d26f5e5e229e858b40d971b56b7`，与 `0b339df4` 完全一致。
 - Pivot 修复通过持有同克隆 Unreal 锁的受支持 Editor seam 保存 Direction 资产；`ReEcho-session-20260826-180634-pid33664.log` 精确读回 `Kuang=(0,0.429841895)`、`Kuang002=(0,0.435223500)` 且二者 `PivotOffsetBinding` 均无有效 source。源码契约测试按上述两张纹理各自的 alpha bounds 中心重算目标值，避免把两层强制成同一 pivot。
 - 当前 pivot 候选以 9-action Development 增量构建成功，精选包刷新为 Build ID `55116800`、源码指纹 `5172a3d61e2b`；未执行发布级 FullRebuild。`-RenderOffscreen` 下 `ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-180850-pid18508.log`），Catalog 与真实 Runtime 同时读回上述两个独立 pivot，四方向 RotationDegrees、OwnerRoot 中心、Local Z=0 与 Charging 地面挂点契约均保持通过。`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-180943-pid41960.log`）；只读资产审计通过（`ReEcho-session-20260826-181026-pid44928.log`，`FOX_DASH_AUDIT_OK roots=3 dependencies=12 native_contract=ReEcho.Presentation.VFX.Catalog`）。`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。Direction 当前 blob 为 `f8fd6f50015596d89f5c4520bbc53b4be0854ceb`；Charging/Trail blob 仍分别为 `085f24ba12bbe27f3db4fb135750fe2628bbf60e`、`3ea66280d5447d26f5e5e229e858b40d971b56b7`，与 `0b339df4` 完全一致；本次 Source/Config/Content/scripts diff 不含 Trail 行为修改。
+- 发布组合阶段合入 `origin/main@9c28276764735b4e38aff04f2932664866a223e3` 后，`scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 以 94 actions 通过并刷新 7 个模块的精选包，Build ID `55116800`、源码指纹 `7982e3654260`。最终组合二进制下 `-RenderOffscreen` 的 `ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-192649-pid8444.log`），`ReEcho.GameMode.GMSpawnFox` 1/1 通过（`ReEcho-session-20260826-193031-pid9616.log`），`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-193256-pid33480.log`）；最终只读资产审计通过（`ReEcho-session-20260826-193729-pid33584.log`，`FOX_DASH_AUDIT_OK roots=3 dependencies=12 native_contract=ReEcho.Presentation.VFX.Catalog`）。Direction blob 保持 `f8fd6f50015596d89f5c4520bbc53b4be0854ceb`，Charging/Trail blob 保持 `085f24ba12bbe27f3db4fb135750fe2628bbf60e` / `3ea66280d5447d26f5e5e229e858b40d971b56b7`。
 
 ### 剩余风险
 
@@ -122,5 +123,5 @@
 
 ### 架构文档审阅结果
 
-- 已更新 `docs/GM_COMMANDS.md`、`MOD-ReEcho.md` 的 GM 命令表面和 `MOD-ReEchoVFX.md` 的 Direction 运行时 Bounds/自动化契约。
-- 已审阅根 `README.md`、`shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md` 与 `MOD-ReEchoEnemies.md`；Runtime Module 拓扑、索引和 Enemies 公共事件契约未改变，无需更新。
+- 已更新 `docs/GM_COMMANDS.md`、`MOD-ReEcho.md` 的 GM 命令表面和 `MOD-ReEchoVFX.md` 的 Direction 运行时 Bounds、FaceCamera 旋转、分层 pivot 与自动化契约。
+- 最终组合已审阅根 `README.md`、`shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md` 与 `MOD-ReEchoEnemies.md`；Runtime Module 拓扑、索引和 Enemies 公共事件契约未改变，无需更新，`MOD-ReEchoVFX.md` 已随实现更新。
