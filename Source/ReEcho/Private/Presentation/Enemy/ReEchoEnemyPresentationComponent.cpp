@@ -158,6 +158,11 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName Presenta
 	ConfigureBossWeapon(PresentationId);
 }
 
+bool UReEchoEnemyPresentationComponent::TryPlayBorn()
+{
+	return PresentationController && PresentationController->PlayAction(ReEcho2DAnimationTags::Born);
+}
+
 void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName PresentationId)
 {
 	const bool bTimeGuard = PresentationId == TEXT("Enemy.TimeGuard");

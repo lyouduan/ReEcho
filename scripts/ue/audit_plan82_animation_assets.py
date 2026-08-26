@@ -17,6 +17,7 @@ PROFILE_ROOTS = (
 )
 EXPECTED_STATES = (
     "Animation.Move",
+    "Animation.Born",
     "Animation.Attack.Charge",
     "Animation.Attack.Basic",
     "Animation.Hit",

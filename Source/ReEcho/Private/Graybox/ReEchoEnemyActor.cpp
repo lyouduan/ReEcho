@@ -318,6 +318,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	AlignToGameplayPlane();
 	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.PresentationId);
+	EnemyPresentation->TryPlayBorn();
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
 	Combatant->SetCursedImmune(bBoss);
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,

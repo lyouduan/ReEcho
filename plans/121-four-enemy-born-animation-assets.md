@@ -3,15 +3,15 @@
 ## 协调
 
 - Planner 负责人：当前程序 Planner。
-- Executor 负责人：待分配独立 Executor。
+- Executor 负责人：当前独立 Executor。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`。
+- 实现编写方（AI 侧）：`Codex`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@31da9d08`（Plan 121 初版基线为 `1544d988`；公共语义扩展发布前已审计并前移）。
 - 本地实现方式（可选，仅作交接说明）：按当前对话确认使用本任务专属 worktree；不得在主工作区直接实现。
 - 依赖 / 阻塞：源序列位于 `F:/MiniGame/兔子出生/`、`F:/MiniGame/史莱姆出生/`、`F:/MiniGame/好羊出生序列/`、`F:/MiniGame/好狐狸出生序列/`；执行机必须可读取这些目录并可独占运行 Unreal Editor/Commandlet。Plan114 已修改主模块音频接线、`MOD-ReEcho.md` 与精选预构建包；本 Plan 实现需从最新 main 组合适配并重建，不得恢复旧文档或二进制。
-- Writes: `Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/ReEcho2DAnimationTags.{h,cpp}`、`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.{h,cpp}`、`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`、`Source/ReEcho/Private/Tests/ReEcho2DAnimationTests.cpp`、`Content/ReEcho/DataAsset/Common/Animation2D/SM2D_DefaultCharacter.uasset`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Born/**`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Flipbooks/*Born*.uasset`、`Content/ReEcho/DataAsset/Enemy/Profiles/{DA_Enemy_RabbitDoll,DA_Enemy_Slime,DA_Enemy_GoatPriest,DA_Enemy_Fox}.uasset`、`shared/CODEBASE_MAP/modules/{MOD-ReEchoPresentation,MOD-ReEcho}.md`、本 Plan 执行记录。
+- Writes: `Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/ReEcho2DAnimationTags.{h,cpp}`、`Source/ReEchoPresentation/Private/Presentation/Animation2D/ReEcho2DPresentationCatalog.cpp`、`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.{h,cpp}`、`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`、`Source/ReEcho/Private/Tests/ReEcho2DAnimationTests.cpp`、`Content/ReEcho/DataAsset/Common/Animation2D/SM2D_DefaultCharacter.uasset`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Born/**`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Flipbooks/*Born*.uasset`、`Content/ReEcho/DataAsset/Enemy/Profiles/{DA_Enemy_RabbitDoll,DA_Enemy_Slime,DA_Enemy_GoatPriest,DA_Enemy_Fox}.uasset`、`scripts/ue/audit_plan82_animation_assets.py`、`shared/CODEBASE_MAP/modules/{MOD-ReEchoPresentation,MOD-ReEcho}.md`、本 Plan 执行记录。
 - Stable Reads: `plans/82-animation2d-asset-cleanup.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/**`、四种怪物现有动画目录与 Profile、`scripts/ue/audit_plan82_animation_assets.py`、相邻导入/修复脚本。
 - 影响模式：`Exclusive`。
 - 兼容承诺 / 下游操作：新增 `Animation.Born` 为可选、非玩法裁决的公共表现语义；配置成功的怪物在生成装配完成后尝试播放，缺少 Clip 或播放失败必须安全 no-op，不得回滚、延迟或阻止出生提交。不改变出生位置、预警、生成提交、AI、碰撞、伤害、死亡或存档。保留源 PNG，不覆盖四种怪物的其他动画与 DA 字段。
@@ -77,15 +77,23 @@
 
 ### 变化
 
-- 待 Executor 填写。
+- 注册原生 `Animation.Born` 并补入编辑器语义解析；共享 FSM 新增优先级 20、完成回到 Move 的非终结 Born 状态。
+- Enemy Host 在 Definition/Profile 装配后调用 `TryPlayBorn`，忽略播放结果，不改变已经提交的玩法状态。
+- Rabbit 旧 Born 资产经 Unreal 规范到 `Born/{Textures,Sprites}`；Slime/Goat/Fox 新增同结构资产。四组 4 FPS 非循环 Flipbook 与四个生产 Profile 的默认 Born Clip 已绑定。
+- 最小必要偏差：更新后的初始 Writes 漏列 `ReEcho2DPresentationCatalog.cpp`；Planner 已确认将 Born 加入既有候选数组属于已授权公共语义目标且不新增 API。本执行记录及 Writes 已补记。
 
 ### 证据
 
-- Planner 已确认四组源序列可读取，帧数为 6/5/5/5；尚未导入或修改 UE 内容资产。
+- 四组源序列可读取且为 32 位 ARGB PNG，帧数为 6/5/5/5。
+- 独立 Unreal 重载审计：`enemies=4 textures=21 sprites=21 flipbooks=4 profiles=4 issues=0`；四组均为 4 FPS、自然帧序、非循环绑定，FSM Born 完成归宿为 Move。
+- 增量 Editor Build 两轮通过（首次 97 actions；语义解析补齐后 4 actions）。最终 FullRebuild 97 actions 通过，刷新 7 个精选模块，源码指纹 `6b0f55f586aa`。
+- `ReEcho.Presentation.Animation2D` 实际执行 4 个测试：FootpointAlignment、CookedDeathPivotPolicy、StunPause 通过；AssetProfiles 的 Born 播放、完成回 Move、缺失 no-op 与 Death 抢占断言未报错，但被既有 TimeGuard Phase2 空能力断言（第 484 行）单独阻塞。
+- Plan82 全库审计未报告 Born/FSM/Profile 问题，但被本 Plan 明确排除的 BadRabbit 20 张既有未导入源图阻塞；Plan121 独立重载审计提供本任务资产链通过证据。
+- `python scripts/validate_project.py` 通过；`python scripts/ue/prebuilt_editor.py check` 通过（7 模块，Build ID `55116800`，源码指纹 `6b0f55f586aa`）；`git diff --check` 通过。
 
 ### 剩余风险
 
-- 主体脚点与最终视觉节奏必须通过 PIE 人工验收确认；公共语义扩展需要最终 FullRebuild 与聚焦自动化证明未破坏既有状态优先级。
+- 主体脚点、首帧闪烁、最终视觉节奏与回到 Move 的实际观感仍需用户 PIE 人工验收。
 
 ### 人工验收结果/请求
 
@@ -93,6 +101,7 @@
 
 ### 架构文档审阅结果
 
-- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：需更新 Born 原生语义、FSM 完成归宿与测试边界。
-- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：需更新 Enemy Host 在 Definition/Profile 装配后发出 Born 表现请求且不参与玩法裁决。
-- `shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md`：关闭前由 Planner 复审。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：已更新 Born 原生语义、FSM 完成归宿与测试边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Enemy Host 在 Definition/Profile 装配后发出 Born 表现请求且不参与玩法裁决；保留 Plan114 音频装配内容。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅、无需修改；模块拓扑和依赖方向不变。
+- `shared/CODEBASE_MAP/README.md`：已审阅、无需修改；稳定模块标识和路由不变。

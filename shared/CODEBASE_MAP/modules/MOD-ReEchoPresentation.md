@@ -38,7 +38,7 @@
 ### 输入
 
 - 稳定 `FName PresentationId`。
-- Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。除 Move 基础循环外均为可选能力；Profile 缺少语义时表现层保持当前有效画面并返回未播放，不借用其他语义。动画集转换缺少 `Transform.Phase2` 时，Controller 保留旧形态直到玩法完成事件，再原子切换目标动画集的基础循环，不能提前显示目标形态或把表现失败反馈成玩法失败。
+- Move、Born、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。除 Move 基础循环外均为可选能力；Profile 缺少语义时表现层保持当前有效画面并返回未播放，不借用其他语义。Born 是可抢占的非循环瞬时表现，完成后回到 Move；Death 仍为最高优先级终结独占。动画集转换缺少 `Transform.Phase2` 时，Controller 保留旧形态直到玩法完成事件，再原子切换目标动画集的基础循环，不能提前显示目标形态或把表现失败反馈成玩法失败。
 - 朝向和武器视觉集合 ID。
 
 ### 输出
@@ -103,7 +103,7 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 
 ## 验证与测试
 
-`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、Move 完成归宿、Death 终结独占/一次完成与缺失资源 no-op；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan82_animation_assets.py` 只读审计全部生产玩家、Echo、怪物 Profile 与源贴图导入链，`scripts/ue/audit_plan102_combat_hud.py` 审计四个 Player/Echo Profile 的八张小地图头像绑定。脚点、比例、朝向、Death 实际播放完成、首帧闪烁和小地图图标可读性仍由人工在 PIE 验收。
+`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、Born 播放/完成归宿/缺失 no-op、状态抢占、循环 Charge 取消、Transform 锁定、Move 完成归宿、Death 终结独占/一次完成与缺失资源 no-op；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan82_animation_assets.py` 只读审计全部生产玩家、Echo、怪物 Profile、共享 Born 状态与源贴图导入链，`scripts/ue/audit_plan102_combat_hud.py` 审计四个 Player/Echo Profile 的八张小地图头像绑定。脚点、比例、朝向、Born/Death 实际播放完成、首帧闪烁和小地图图标可读性仍由人工在 PIE 验收。
 
 ## 不变量与常见错误
 

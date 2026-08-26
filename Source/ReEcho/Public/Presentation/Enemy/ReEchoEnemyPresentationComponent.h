@@ -102,6 +102,8 @@ public:
 	                      UReEchoCombatEventsComponent* InCombatEvents);
 	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
 	void ConfigureAppearance(FName PresentationId);
+	/** Try the optional Born presentation without affecting the committed gameplay spawn. */
+	bool TryPlayBorn();
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
 	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
 	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
