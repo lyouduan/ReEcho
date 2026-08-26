@@ -20,6 +20,6 @@ Encounter.6.Wave.3,Encounter.6,3,20,22,9,7,,true,企微怪物表,6,企微《怪�
 Encounter.7.Wave.1,Encounter.7,1,0,20,11,7,,true,企微怪物表,7,企微《怪物》投放成长表
 Encounter.7.Wave.2,Encounter.7,2,10,15,9,8,,true,企微怪物表,7,企微《怪物》投放成长表
 Encounter.7.Wave.3,Encounter.7,3,20,20,13,8,,true,企微怪物表,7,企微《怪物》投放成长表
-Encounter.8.Wave.1,Encounter.8,1,0,16,8,5,M_SHEEP,true,企微怪物表,8,Boss在0秒刷新；16近战/8远程/5精英援军
-Encounter.8.Wave.2,Encounter.8,2,10,10,9,7,,true,企微怪物表,8,Boss关增援波
-Encounter.8.Wave.3,Encounter.8,3,20,18,11,7,,true,企微怪物表,8,Boss关增援波
+Encounter.8.Wave.1,Encounter.8,1,0,10,6,4,M_SHEEP,true,企微怪物表,8,Boss在0秒刷新；10近战/6远程/4精英援军（对齐第一关战斗1）
+Encounter.8.Wave.2,Encounter.8,2,10,7,6,5,,true,企微怪物表,8,Boss关增援波
+Encounter.8.Wave.3,Encounter.8,3,20,10,6,4,,true,企微怪物表,8,Boss关增援波
