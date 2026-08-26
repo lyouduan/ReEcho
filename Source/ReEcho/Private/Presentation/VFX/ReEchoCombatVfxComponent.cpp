@@ -34,7 +34,28 @@ constexpr int32 CombatEffectSortPriorityFloor = 1000;
 constexpr float DebugElementReactionPreviewSeconds = 2.0f;
 constexpr int32 EchoAuraSortOffset = -1;
 const FBox FoxDirectionRuntimeBounds(FVector(-500.0f, -500.0f, -650.0f), FVector(500.0f, 500.0f, 350.0f));
+const FName FoxDirectionSpriteRotationParameter(TEXT("User.DirectionSpriteRotationDegrees"));
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
+
+float ResolveFoxDirectionSpriteRotationDegrees(const FVector& LockedDirection,
+                                               const FVector& ViewRight,
+                                               const FVector& ViewUp)
+{
+	if (LockedDirection.IsNearlyZero())
+	{
+		return 0.0f;
+	}
+	const FVector SafeViewRight = ViewRight.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	const FVector SafeViewUp = ViewUp.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	const FVector SafeDirection = LockedDirection.GetSafeNormal();
+	const float ScreenRight = FVector::DotProduct(SafeDirection, SafeViewRight);
+	// Niagara FaceCamera uses -ResolvedViewUp as its unaligned sprite Up basis. The renderer binding is
+	// documented in degrees and its vertex factory converts degrees to radians immediately before sincos.
+	const float ScreenUp = FVector::DotProduct(SafeDirection, -SafeViewUp);
+	return FMath::IsNearlyZero(ScreenRight) && FMath::IsNearlyZero(ScreenUp)
+	           ? 0.0f
+	           : FMath::RadiansToDegrees(FMath::Atan2(ScreenUp, ScreenRight));
+}
 
 void LogLayerState(const AActor* Owner,
                    const USceneComponent* AttachmentRoot,
@@ -734,6 +755,188 @@ bool UReEchoCombatVfxComponent::ConfigureMeleeNiagaraComponentFacing(UNiagaraSys
 #endif
 }
 
+bool UReEchoCombatVfxComponent::BindNiagaraSpriteRotationToDirectionParameter(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	const FNiagaraVariable RotationParameter(FNiagaraTypeDefinition::GetFloatDef(),
+	                                         ReEchoCombatVfx::FoxDirectionSpriteRotationParameter);
+	System->GetExposedParameters().SetParameterValue(0.0f, RotationParameter, true);
+	int32 ModifiedSpriteRendererCount = 0;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			return false;
+		}
+		EmitterBase->Modify();
+		const FVersionedNiagaraEmitterBase VersionedEmitter = EmitterHandle.GetInstance().ToBase();
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			Sprite->Modify();
+			Sprite->SpriteRotationBinding.SetValue(
+			    ReEchoCombatVfx::FoxDirectionSpriteRotationParameter, VersionedEmitter, Sprite->SourceMode);
+			if (!Sprite->SpriteRotationBinding.DoesBindingExistOnSource() ||
+			    Sprite->SpriteRotationBinding.GetParamMapBindableVariable() != RotationParameter)
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("[VFX] %s is not a valid SpriteRotation source for emitter '%s'"),
+				       *ReEchoCombatVfx::FoxDirectionSpriteRotationParameter.ToString(),
+				       *EmitterHandle.GetName().ToString());
+				return false;
+			}
+			Sprite->PostEditChange();
+			++ModifiedSpriteRendererCount;
+		}
+	}
+	if (ModifiedSpriteRendererCount > 0)
+	{
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return ModifiedSpriteRendererCount > 0;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::AuditFoxDirectionSpritePivots(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	int32 EnabledSpriteRendererCount = 0;
+	for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		if (!EmitterData)
+		{
+			return false;
+		}
+		for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			const FNiagaraVariable PivotBindingVariable = Sprite->PivotOffsetBinding.GetParamMapBindableVariable();
+			UE_LOG(LogReEcho,
+			       Display,
+			       TEXT("PLAN117_FOX_DIRECTION_PIVOT emitter=%s pivot=(%.9f,%.9f) binding_exists=%d binding=%s"),
+			       *EmitterHandle.GetName().ToString(),
+			       Sprite->PivotInUVSpace.X,
+			       Sprite->PivotInUVSpace.Y,
+			       Sprite->PivotOffsetBinding.DoesBindingExistOnSource() ? 1 : 0,
+			       *PivotBindingVariable.GetName().ToString());
+			++EnabledSpriteRendererCount;
+		}
+	}
+	return EnabledSpriteRendererCount == 2;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::SetFoxDirectionSpritePivots(UNiagaraSystem* System,
+                                                            const FVector2D KuangPivotInUvSpace,
+                                                            const FVector2D Kuang002PivotInUvSpace)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	int32 ModifiedSpriteRendererCount = 0;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		const FName EmitterName = EmitterHandle.GetName();
+		const FVector2D* TargetPivot = nullptr;
+		if (EmitterName == TEXT("Kuang"))
+		{
+			TargetPivot = &KuangPivotInUvSpace;
+		}
+		else if (EmitterName == TEXT("Kuang002"))
+		{
+			TargetPivot = &Kuang002PivotInUvSpace;
+		}
+		else
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			return false;
+		}
+		EmitterBase->Modify();
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			if (Sprite->PivotOffsetBinding.DoesBindingExistOnSource())
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("[VFX] Fox Direction emitter '%s' has an authored PivotOffset binding; refusing to "
+				            "overwrite it"),
+				       *EmitterName.ToString());
+				return false;
+			}
+			Sprite->Modify();
+			Sprite->PivotInUVSpace = *TargetPivot;
+			Sprite->PostEditChange();
+			UE_LOG(LogReEcho,
+			       Display,
+			       TEXT("PLAN117_FOX_DIRECTION_PIVOT_AUTHORED emitter=%s pivot=(%.9f,%.9f)"),
+			       *EmitterName.ToString(),
+			       TargetPivot->X,
+			       TargetPivot->Y);
+			++ModifiedSpriteRendererCount;
+		}
+	}
+	if (ModifiedSpriteRendererCount == 2)
+	{
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return ModifiedSpriteRendererCount == 2;
+#else
+	return false;
+#endif
+}
+
 FRotator UReEchoCombatVfxComponent::ComposeAttachedRotation(const FRotator& DirectionRotation,
                                                             const FRotator& LocalRotation)
 {
@@ -897,6 +1100,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
 	const FVector CameraRight =
 	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
+	const FVector CameraUp =
+	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Z) : FVector::ForwardVector;
 	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
 	                                ? ResolveMeleePlayDirection(Direction, CameraRight)
 	                                : 1.0f;
@@ -917,10 +1122,16 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	{
 		if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
 		{
-			// The authored system fixed bounds are only +/-100, while its live camera-facing sprites are centered
-			// at local Z=-150 and grow as large as 800x600. Their 500 cm half-diagonal may rotate onto any camera
+			// The authored system fixed bounds are only +/-100, while its live camera-facing sprites grow as large
+			// as 800x600 from the local origin. Their 500 cm half-diagonal may rotate onto any camera
 			// plane axis, so override only this runtime instance without mutating the shared Niagara asset.
 			Effect->SetSystemFixedBounds(ReEchoCombatVfx::FoxDirectionRuntimeBounds);
+			// FaceCamera + Automatic/Unaligned sprites ignore component rotation when orienting the image. The
+			// delivered texture points along sprite screen-right at zero degrees (PIE authority), so rotate that
+			// basis into the locked attack direction explicitly before activation.
+			Effect->SetVariableFloat(
+			    ReEchoCombatVfx::FoxDirectionSpriteRotationParameter,
+			    ReEchoCombatVfx::ResolveFoxDirectionSpriteRotationDegrees(Direction, CameraRight, CameraUp));
 		}
 		if (Placement.bUseWorldDirectionRotation)
 		{
@@ -1506,9 +1717,10 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 		    SpawnAttached(static_cast<uint8>(ChargingSemantic), Event.LockedDirection, ResolveAttackVfxRoot(), false);
 		if (bFox)
 		{
+			AActor* Owner = GetOwner();
 			DirectionEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection),
 			                                Event.LockedDirection,
-			                                ResolveAttackVfxRoot(),
+			                                Owner ? Owner->GetRootComponent() : nullptr,
 			                                false);
 		}
 		return;

@@ -386,6 +386,21 @@ bool FReEchoAudioStateTest::RunTest(const FString& Parameters)
 	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
 	          FReEchoAudioEvents::MusicMenu);
 	TestEqual(TEXT("successful retry stops previous loop once"), H.Backend->StopLoopCount, 2);
+
+	FReEchoAudioEventDefinition StageVariant = Enc;
+	StageVariant.VariantId = TEXT("Stage.1");
+	H.AddDef(StageVariant);
+	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter, StageVariant.VariantId);
+	TestEqual(TEXT("variant state becomes current"),
+	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
+	          FReEchoAudioEvents::MusicEncounter);
+	TestEqual(TEXT("variant id becomes current"),
+	          H.Engine->GetCurrentStateVariant(EReEchoAudioChannel::Music),
+	          StageVariant.VariantId);
+	TestEqual(TEXT("variant reaches backend command"), H.Backend->LastLoopCommand.VariantId, StageVariant.VariantId);
+	const int32 StartCountAfterVariant = H.Backend->StartLoopCount;
+	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter, StageVariant.VariantId);
+	TestEqual(TEXT("same state and variant remain idempotent"), H.Backend->StartLoopCount, StartCountAfterVariant);
 	return true;
 }
 
@@ -493,17 +508,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCatalogAtomicLoadTest,
 
 bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 {
-	const FString Header = TEXT("EventId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,"
+	const FString Header = TEXT("EventId,VariantId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,"
 	                            "CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax\n");
 	const FString ValidPath =
 	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogValid"), TEXT(".csv"));
 	const FString InvalidPath =
 	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogInvalid"), TEXT(".csv"));
 	FFileHelper::SaveStringToFile(
-	    Header + TEXT("\"Combat.Attack\",,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+	    Header + TEXT("\"Combat.Attack\",,,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
 	    *ValidPath);
 	FFileHelper::SaveStringToFile(
-	    Header + TEXT("Combat.Attack,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+	    Header + TEXT("Combat.Attack,,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
 	    *InvalidPath);
 
 	FReEchoAudioCatalog Catalog;
@@ -516,6 +531,17 @@ bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("failed reload preserves previous catalog"), Catalog.Num(), 1);
 	TestNotNull(TEXT("previous definition remains available"),
 	            Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack));
+	FReEchoAudioEventDefinition Variant;
+	Variant.EventId = FReEchoAudioEvents::CombatAttack;
+	Variant.VariantId = TEXT("W_J_01");
+	Catalog.AddDefinition(Variant);
+	const FReEchoAudioEventDefinition* Exact = Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack, TEXT("W_J_01"));
+	TestNotNull(TEXT("exact event variant resolves"), Exact);
+	TestEqual(TEXT("exact event variant is returned"), Exact ? Exact->VariantId : NAME_None, FName(TEXT("W_J_01")));
+	const FReEchoAudioEventDefinition* Fallback =
+	    Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack, TEXT("UnknownWeapon"));
+	TestNotNull(TEXT("unknown variant falls back to base event"), Fallback);
+	TestTrue(TEXT("fallback has no variant id"), Fallback && Fallback->VariantId.IsNone());
 
 	IFileManager::Get().Delete(*ValidPath);
 	IFileManager::Get().Delete(*InvalidPath);

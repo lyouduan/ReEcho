@@ -99,10 +99,15 @@ public:
 	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
 	static bool HasMeleePlayDirectionParameter(const UNiagaraSystem* System);
 #if WITH_DEV_AUTOMATION_TESTS
-	/** Exposes the live Fox windup arrow solely for runtime lifecycle and renderer automation. */
+	/** Exposes live Fox windup effects solely for runtime placement, lifecycle and renderer automation. */
 	UNiagaraComponent* GetDirectionEffectForTests() const
 	{
 		return DirectionEffect;
+	}
+
+	UNiagaraComponent* GetChargingEffectForTests() const
+	{
+		return ChargingEffect;
 	}
 #endif
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
@@ -125,6 +130,17 @@ public:
 	/** Editor repair seam for melee mesh systems whose camera-facing renderer overrides component rotation. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System);
+	/** Editor repair seam for FaceCamera arrows whose image rotation must come from one explicit user parameter. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool BindNiagaraSpriteRotationToDirectionParameter(UNiagaraSystem* System);
+	/** Editor audit seam for the Fox Direction sprite pivots and optional pivot bindings. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool AuditFoxDirectionSpritePivots(UNiagaraSystem* System);
+	/** Editor authoring seam for per-layer Fox Direction pivots derived from source-texture alpha bounds. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetFoxDirectionSpritePivots(UNiagaraSystem* System,
+	                                        FVector2D KuangPivotInUvSpace,
+	                                        FVector2D Kuang002PivotInUvSpace);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
 	int32 GetBossProjectileEffectCountForTests() const;
