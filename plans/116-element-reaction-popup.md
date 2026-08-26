@@ -75,7 +75,7 @@
 - [x] 持续时间、世界高度/尺寸、上浮高度与渐隐曲线至少可从 `BP_ReEchoElementReactionPopup` Class Defaults 调整。
 - [x] 缺失 Blueprint、材质或单张纹理时不影响反应结算；可使用原生类 fallback 或跳过并输出明确告警。
 - [x] 伤害数字现状审计有代码证据：当前显示 `AppliedDamage`，致死 overkill 被钳制到受击前剩余生命；本 Plan 不改变该语义。
-- [ ] C++/资产聚焦自动化、UE 5.8 Editor 构建、静态校验和最终 `-FullRebuild` 发布门禁通过。
+- [x] C++/资产聚焦自动化、UE 5.8 Editor 构建、静态校验和最终 `-FullRebuild` 发布门禁通过。
 - [x] 用户在 `Level00` 手测五类反应字的映射、尺寸、遮挡、上浮速度和渐隐观感并确认通过。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -130,6 +130,8 @@
 - 用户已在 `Level00` 手测并反馈“感觉没什么问题”，人工验收通过；其在 `BP_ReEchoElementReactionPopup` 保存的调参修改作为候选资产一并保留。
 - 已新增 `Design/UI/ReEcho_元素反应字调参指南.md`，说明策划入口、九项 Class Defaults、渐隐指数的准确曲线语义、建议范围、常用组合、验收清单和禁止修改边界，并由 UI 总指导建立索引。
 - 发布前抓取到 `origin/main@0b339df4`，新增玩家受伤碰撞/兔子参数、狐狸冲刺运行时碰撞、Plan117 狐狸箭头可见性与批量生成。与本任务的文本路径交集只有精选预构建包及 `MOD-ReEcho.md`：前者先采用传入主线版本并由最终 FullRebuild 统一重建，后者保留主线狐狸/兔子说明并合并本任务反应字表现边界。Combat 反应事件、Enemy Presentation Component 和本任务资产路径均无传入修改，未发现逻辑或运行时耦合冲突。
+- `origin/main@0b339df4` 合入后的最终 `Development Editor -FullRebuild` 94/94 动作通过，UBT `Result: Succeeded`，精选预构建源码指纹刷新为 `b5beec384a1c`。
+- 最终组合候选再次通过 `ReEcho.UI.CombatHud.Formatting` 1/1 与 `ReEcho.Combat.ElementReaction*` 4/4；无 Automation Error/Fatal。
 
 ### 剩余风险
 
