@@ -1885,6 +1885,7 @@ void AReEchoGameMode::BeginNextEncounter()
 	}
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
+	bBossSuccessfullySpawnedThisEncounter = false;
 	bBossPostEchoPhaseTriggered = false;
 	RunSubsystem->BeginEncounter();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
@@ -2036,6 +2037,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	ClearCombatants();
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
+	bBossSuccessfullySpawnedThisEncounter = false;
 	bBossPostEchoPhaseTriggered = SavedState.bBossPostEchoPhaseTriggered;
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* Encounter =
@@ -2156,6 +2158,10 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		Enemy->SetEnemyId(EnemyId);
 		Enemy->SetEnemyRoster(EnemyRoster);
 		ConfigureEnemyRuntimeBindings(Enemy);
+		if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
+		{
+			bBossSuccessfullySpawnedThisEncounter = true;
+		}
 	}
 	Director->ResumeEncounter(SavedState.EncounterTime);
 }
@@ -2462,6 +2468,14 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		       SuccessCount,
 		       EnemyRoster ? EnemyRoster->GetEntries().Num() : -1,
 		       Director ? Director->EncounterTime : -1.0f);
+		if (SuccessCount == 0)
+		{
+			UE_LOG(LogReEcho,
+			       Error,
+			       TEXT("[BossVictoryTrace][BossCommitFailed] encounter=%d wave=%s; victory remains suppressed."),
+			       RunSubsystem->EncounterIndex,
+			       *Pending.WaveId.ToString());
+		}
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
@@ -2504,6 +2518,10 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	Enemy->SetEnemyRoster(EnemyRoster);
 	Enemy->SetEnemyId(EnemyId);
 	ConfigureEnemyRuntimeBindings(Enemy);
+	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
+	{
+		bBossSuccessfullySpawnedThisEncounter = true;
+	}
 	const UBoxComponent* RootCollision = Cast<UBoxComponent>(Enemy->GetRootComponent());
 	UE_LOG(LogTemp,
 	       Display,
@@ -2623,6 +2641,11 @@ bool AReEchoGameMode::IsBossEncounter() const
 	const FReEchoCsvEncounterRow* Encounter =
 	    Snapshot.IsValid() && RunSubsystem ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
 	return Encounter && Encounter->EndCondition == TEXT("BossOrPlayerDeath");
+}
+
+bool AReEchoGameMode::ShouldCompleteBossEncounter(const bool bBossSuccessfullySpawned, const int32 LivingBossCount)
+{
+	return bBossSuccessfullySpawned && LivingBossCount <= 0;
 }
 
 void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition)
@@ -4179,7 +4202,6 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	}
 	if (!bEncounterTransitioning && IsBossEncounter())
 	{
-		bool bEncounterDefeated = true;
 		int32 BossEntryCount = 0;
 		int32 LivingBossCount = 0;
 		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
@@ -4189,13 +4211,8 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 				++BossEntryCount;
 				LivingBossCount += Entry.bAlive ? 1 : 0;
 			}
-			if (Entry.Archetype == EReEchoEnemyArchetype::Boss && Entry.bAlive)
-			{
-				bEncounterDefeated = false;
-				break;
-			}
 		}
-		if (bEncounterDefeated)
+		if (ShouldCompleteBossEncounter(bBossSuccessfullySpawnedThisEncounter, LivingBossCount))
 		{
 			int32 PendingBossBatchCount = 0;
 			int32 PendingBossLocationCount = 0;
@@ -4210,12 +4227,13 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 			const UReEchoRunSubsystem* TraceRunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 			UE_LOG(LogReEcho,
 			       Error,
-			       TEXT("[BossVictoryTrace][VictoryCandidate] encounter=%d encounterTime=%.3f roster=%d "
+			       TEXT("[BossVictoryTrace][VictoryCandidate] encounter=%d encounterTime=%.3f roster=%d bossSpawned=%s "
 			            "bossEntries=%d livingBosses=%d pendingBossBatches=%d pendingBossLocations=%d "
 			            "scheduler=%d/%d clearedBefore=%s"),
 			       TraceRunSubsystem ? TraceRunSubsystem->EncounterIndex : -1,
 			       Director ? Director->EncounterTime : -1.0f,
 			       EnemyRoster ? EnemyRoster->GetEntries().Num() : -1,
+			       bBossSuccessfullySpawnedThisEncounter ? TEXT("true") : TEXT("false"),
 			       BossEntryCount,
 			       LivingBossCount,
 			       PendingBossBatchCount,

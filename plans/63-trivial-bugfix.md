@@ -213,6 +213,8 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 ### #23 — `GMGotoBoss` 进入第八关后立即获胜
 
 - **现象 / Symptom**：在正常遭遇中执行 `GMGotoBoss`，界面进入第八关后未与羊 Boss 战斗即直接显示胜利。
-- **诊断假设 / Diagnostic hypothesis**：Plan115 将零秒首波的 Commit 延后到完整 `WarningLeadSeconds`；第八关的 Boss 因此先进入预警 Pending，而既有 Boss 胜利门在同一窗口看到名册中没有存活 Boss，可能将“尚未生成”误判为“已被击败”。
-- **本轮改动 / Diagnostic changes**：仅在 `ReEchoGameMode.cpp` 增加 `[BossVictoryTrace]` 诊断链，记录 `GMGotoBoss` 前后状态、Boss Warning/Commit、生成成功数、Roster/Pending/Scheduler 以及胜利候选门的全部条件；不修改任何出生、战斗或结算行为。
-- **状态 / Status**：InProgress。等待用户 PIE 复现并回传 `Saved/Logs/ReEcho.log` 中的 `[BossVictoryTrace]` 证据后实施最小修复；未获用户认可不推送。
+- **根因 / Root cause**：Plan115 将零秒首波的 Commit 延后到完整 `WarningLeadSeconds`；第八关 Boss 因此先进入预警 Pending。实测日志证明 `GMGotoBoss` 后 Boss 的 Commit 时间为 `0.9s`，但旧胜利门在 `0.0s` 仅因 Roster 中暂无存活 Boss 就结束遭遇，将“尚未生成”误判为“已被击败”，导致后续 Commit 永远无法执行。
+- **改动 / Changes**：GameMode 新增遭遇内权威状态 `bBossSuccessfullySpawnedThisEncounter`，仅当 Boss Host 完整生成并配置成功后置真；新遭遇清零，读档时从成功恢复的 Boss 重建。Boss 胜利门现在要求“本关 Boss 曾成功生成且当前无存活 Boss”；预警 Pending 或生成失败均不判胜。保留 `[BossVictoryTrace]` 供本轮人工验证。
+- **验收 / Acceptance**：`GMGotoBoss` 进入第八关后先显示 Boss 出生预警，Boss 成功生成后关卡继续；只有击杀已成功生成的 Boss 才显示胜利。Boss 生成失败时输出错误但不显示胜利。
+- **验证 / Verification**：Development Editor 增量构建成功并刷新 7 个精选预构建模块（源码指纹 `f9013d790317`）；新增 `ReEcho.GameMode.BossVictoryRequiresSuccessfulSpawn` 自动化通过，覆盖未生成/生成失败不获胜、存活 Boss 不获胜、成功生成后死亡才获胜；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- **状态 / Status**：Review。技术门禁已通过，等待用户 PIE 验收；未获用户认可不推送。

@@ -230,6 +230,7 @@ private:
 	/** #9 倒计时归零到弹出选卡之间的短暂停顿定时器（让"0"可见）。 */
 	FTimerHandle EncounterEndSettleTimerHandle;
 	bool bEncounterClearedByDefeat = false;
+	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
 	float ArenaSceneWorldHeight = 0.0f;
 	float ArenaSceneWorldWidth = 0.0f;
@@ -378,12 +379,14 @@ private:
 	                                                bool bHasArena);
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
+	friend class FReEchoGameModeBossVictoryGateTest;
 #endif
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
+	static bool ShouldCompleteBossEncounter(bool bBossSuccessfullySpawned, int32 LivingBossCount);
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);
