@@ -216,5 +216,5 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **根因 / Root cause**：Plan115 将零秒首波的 Commit 延后到完整 `WarningLeadSeconds`；第八关 Boss 因此先进入预警 Pending。实测日志证明 `GMGotoBoss` 后 Boss 的 Commit 时间为 `0.9s`，但旧胜利门在 `0.0s` 仅因 Roster 中暂无存活 Boss 就结束遭遇，将“尚未生成”误判为“已被击败”，导致后续 Commit 永远无法执行。
 - **改动 / Changes**：GameMode 新增遭遇内权威状态 `bBossSuccessfullySpawnedThisEncounter`，仅当 Boss Host 完整生成并配置成功后置真；新遭遇清零，读档时从成功恢复的 Boss 重建。Boss 胜利门现在要求“本关 Boss 曾成功生成且当前无存活 Boss”；预警 Pending 或生成失败均不判胜。保留 `[BossVictoryTrace]` 供本轮人工验证。
 - **验收 / Acceptance**：`GMGotoBoss` 进入第八关后先显示 Boss 出生预警，Boss 成功生成后关卡继续；只有击杀已成功生成的 Boss 才显示胜利。Boss 生成失败时输出错误但不显示胜利。
-- **验证 / Verification**：Development Editor 增量构建成功并刷新 7 个精选预构建模块（源码指纹 `f9013d790317`）；新增 `ReEcho.GameMode.BossVictoryRequiresSuccessfulSpawn` 自动化通过，覆盖未生成/生成失败不获胜、存活 Boss 不获胜、成功生成后死亡才获胜；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
-- **状态 / Status**：Review。技术门禁已通过，等待用户 PIE 验收；未获用户认可不推送。
+- **验证 / Verification**：取得 `main-publish-lock` 后合入 `origin/main@8017c6d4`，传入的卡牌与敌人伤害诊断改动和本修复无文本逻辑冲突；7 个精选预构建模块由最终组合源码执行 Development Editor `-FullRebuild` 94/94 成功重生（源码指纹 `230b07c834f2`）。最终组合上的 `ReEcho.GameMode` 2/2、`ReEcho.Encounter` 4/4、`ReEcho.Run.FinalBossRequiresKill` 1/1 自动化通过；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- **状态 / Status**：Closed。用户已明确授权推送并合入远端主分支。
