@@ -791,8 +791,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	    World,
 	    System,
 	    Start,
-	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting,
-	                                             FVector::ForwardVector),
+	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting, FVector::ForwardVector),
 	    FVector::OneVector,
 	    false,
 	    false,
@@ -1494,6 +1493,13 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		return;
 	}
 	RememberBossAbility(Intent.Attack.Sequence, Intent.AbilityId);
+	if (bSkill03 && Intent.Type == EReEchoBossIntentType::ImpactResolved)
+	{
+		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact),
+		           Intent.LockedTargetLocation,
+		           Intent.LockedDirection);
+		return;
+	}
 	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
 	{
 		StopBossActionEffects();
@@ -1529,12 +1535,6 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 				           WeaponRoot->GetComponentLocation(),
 				           Intent.LockedDirection);
 			}
-		}
-		if (bSkill03)
-		{
-			SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact),
-			           Intent.LockedTargetLocation,
-			           Intent.LockedDirection);
 		}
 		if (bSkill04)
 		{

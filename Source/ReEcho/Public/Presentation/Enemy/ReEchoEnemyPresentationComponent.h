@@ -106,6 +106,8 @@ public:
 	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
 	void SetStunPaused(bool bPaused);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
+	/** Skill03 keeps gameplay at the locked impact point while its presentation descends into that point. */
+	static FVector ResolveBlinkSlamVisualOffset(float RemainingSeconds, float DurationSeconds, float StartHeightCm);
 #if WITH_DEV_AUTOMATION_TESTS
 	void ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event);
 #endif
@@ -142,6 +144,7 @@ private:
 	void UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	void ConfigureBossWeapon(FName PresentationId);
 	void UpdateBossWeaponMotion(float DeltaSeconds);
+	void UpdateBossBlinkSlamMotion(float DeltaSeconds);
 
 	UPROPERTY()
 	TObjectPtr<AActor> Host;
@@ -200,6 +203,9 @@ private:
 	float LastFuseDuration = 0.0f;
 	float BossWeaponSwingRemaining = 0.0f;
 	float BossWeaponSwingDuration = 0.0f;
+	float BossBlinkSlamRemaining = 0.0f;
+	float BossBlinkSlamDuration = 0.0f;
+	float BossBlinkSlamStartHeightCm = 0.0f;
 	FRotator BossWeaponRestRotation = FRotator::ZeroRotator;
 	bool bHitVisualActive = false;
 	bool bDeathVisualActive = false;

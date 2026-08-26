@@ -86,9 +86,11 @@ public:
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
 	/** Generic camera-plane convention: local X follows direction and local Z faces camera. */
 	static FRotator ResolveCameraPlaneDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Delivered 0811_01 sword mesh: local X is its surface normal and local Y follows the projected attack direction. */
+	/** Delivered 0811_01 sword mesh: local X is its surface normal and local Y follows the projected attack direction.
+	 */
 	static FRotator ResolveSwordMeshDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Keeps the composed sword direction/DA correction but flips a culled local-X back face around its local-Y attack axis. */
+	/** Keeps the composed sword direction/DA correction but flips a culled local-X back face around its local-Y attack
+	 * axis. */
 	static FRotator EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation, const FVector& CameraFacingNormal);
 	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
@@ -268,6 +270,7 @@ private:
 		TWeakObjectPtr<UNiagaraComponent> Effect;
 		float RemainingSeconds = 0.0f;
 	};
+
 	mutable TArray<FReverseMeleePlayback> ReverseMeleePlaybacks;
 
 	uint64 ConductBatchSerial = 0;

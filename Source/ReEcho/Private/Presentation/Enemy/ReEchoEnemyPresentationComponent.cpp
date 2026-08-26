@@ -30,6 +30,8 @@
 namespace ReEchoEnemyVisual
 {
 constexpr float HitReactionDuration = 0.22f;
+constexpr float BlinkSlamDuration = 0.5f;
+constexpr float BlinkSlamStartHeightCm = 300.0f;
 constexpr TCHAR MoonStaffProfilePath[] =
     TEXT("/Game/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_MoonStaff.DA_WeaponPresentation_MoonStaff");
 }
@@ -318,6 +320,31 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		bHitVisualActive = false;
 	}
 	UpdateSpriteAnimation(Snapshot, SafeDelta);
+	UpdateBossBlinkSlamMotion(SafeDelta);
+}
+
+FVector UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(const float RemainingSeconds,
+                                                                        const float DurationSeconds,
+                                                                        const float StartHeightCm)
+{
+	if (DurationSeconds <= KINDA_SMALL_NUMBER || RemainingSeconds <= 0.0f || StartHeightCm <= 0.0f)
+	{
+		return FVector::ZeroVector;
+	}
+	const float RemainingRatio = FMath::Clamp(RemainingSeconds / DurationSeconds, 0.0f, 1.0f);
+	return FVector::UpVector * StartHeightCm * FMath::Square(RemainingRatio);
+}
+
+void UReEchoEnemyPresentationComponent::UpdateBossBlinkSlamMotion(const float DeltaSeconds)
+{
+	if (BossBlinkSlamRemaining <= 0.0f)
+	{
+		return;
+	}
+	BossBlinkSlamRemaining = FMath::Max(0.0f, BossBlinkSlamRemaining - DeltaSeconds);
+	ApplyPresentationMotion(
+	    ResolveBlinkSlamVisualOffset(BossBlinkSlamRemaining, BossBlinkSlamDuration, BossBlinkSlamStartHeightCm),
+	    FVector::OneVector);
 }
 
 void UReEchoEnemyPresentationComponent::UpdateBossWeaponMotion(const float DeltaSeconds)
@@ -510,6 +537,15 @@ void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemy
 
 void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
+	if (Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam") && Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
+	{
+		BossBlinkSlamDuration = ReEchoEnemyVisual::BlinkSlamDuration;
+		BossBlinkSlamRemaining = BossBlinkSlamDuration;
+		BossBlinkSlamStartHeightCm = ReEchoEnemyVisual::BlinkSlamStartHeightCm;
+		ApplyPresentationMotion(
+		    ResolveBlinkSlamVisualOffset(BossBlinkSlamRemaining, BossBlinkSlamDuration, BossBlinkSlamStartHeightCm),
+		    FVector::OneVector);
+	}
 	if (Intent.AbilityId == TEXT("M_SHEEP_MeleeSweep") && Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
 	{
 		BossWeaponSwingDuration = FMath::Max(Intent.ActiveSeconds, 0.22f);
@@ -519,6 +555,11 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 	{
 		BossWeaponSwingRemaining = 0.0f;
 		BossWeaponRoot->SetRelativeRotation(BossWeaponRestRotation);
+	}
+	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam"))
+	{
+		BossBlinkSlamRemaining = 0.0f;
+		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 	}
 	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && bStunPaused)
 	{
@@ -568,8 +609,7 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
-void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(
-    const FReEchoPresentationActionEvent& Event)
+void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event)
 {
 	HandlePresentationAction(Event);
 }

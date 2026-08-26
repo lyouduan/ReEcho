@@ -166,8 +166,8 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostStunRetargetTest,
-	                             "ReEcho.Enemies.Host.StunRetarget",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Enemies.Host.StunRetarget",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
 {
@@ -181,9 +181,9 @@ bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
 
 	FReEchoEnemyDefinition FoxDefinition;
 	FString CompileError;
-	if (!TestTrue(TEXT("Fox definition compiles for stun retarget"),
-	              ReEchoEnemyDefinitionCompiler::Compile(
-	                  *LoadResult.Snapshot, TEXT("M_FOX"), FoxDefinition, CompileError)))
+	if (!TestTrue(
+	        TEXT("Fox definition compiles for stun retarget"),
+	        ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_FOX"), FoxDefinition, CompileError)))
 	{
 		AddError(CompileError);
 		return false;
@@ -242,9 +242,7 @@ bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
 	          EReEchoEnemySpecialActionPhase::None);
 	TestTrue(TEXT("Entering stun clears the old target location"),
 	         DuringStun.SpecialLockedTargetLocation.IsNearlyZero());
-	TestEqual(TEXT("Entering stun preserves the existing cooldown"),
-	          DuringStun.AttackCooldownRemainingSeconds,
-	          0.75f);
+	TestEqual(TEXT("Entering stun preserves the existing cooldown"), DuringStun.AttackCooldownRemainingSeconds, 0.75f);
 	const TArray<FReEchoEnemySpecialActionEvent>& CancellationEvents =
 	    Fox->GetEnemyEventsComponent()->GetPublishedSpecialActionEventsForTests();
 	TestEqual(TEXT("Entering stun publishes one cancellation"), CancellationEvents.Num(), 1);
@@ -260,8 +258,7 @@ bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
 	          1);
 
 	Fox->UpdateStunStateForTests(false);
-	const FReEchoEnemyActionIntent FirstRecoveredStep =
-	    Fox->AdvanceBehaviorForTests(MakeSense(CurrentTarget), 0.01f);
+	const FReEchoEnemyActionIntent FirstRecoveredStep = Fox->AdvanceBehaviorForTests(MakeSense(CurrentTarget), 0.01f);
 	TestTrue(TEXT("The first recovered step faces the current target"),
 	         FirstRecoveredStep.bHasFacing &&
 	             FirstRecoveredStep.FacingDirection.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
@@ -1144,6 +1141,32 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Moving spread center projectile applies its configured damage"),
 	          Player->Combatant->CurrentHealth,
 	          100.0f - MovingSpread->Damage);
+
+	Player->Combatant->RestoreCurrentHealth(100.0f);
+	FReEchoBossIntent BlinkSlam;
+	BlinkSlam.Type = EReEchoBossIntentType::AttackWindowStarted;
+	BlinkSlam.AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	BlinkSlam.Attack.Sequence = 9001;
+	BlinkSlam.Attack.Source = Sheep;
+	BlinkSlam.Target = Player;
+	BlinkSlam.AttackShape = EReEchoBossAttackShape::Circle;
+	BlinkSlam.Origin = Player->GetActorLocation();
+	BlinkSlam.LockedTargetLocation = Player->GetActorLocation();
+	BlinkSlam.TeleportDestination = Player->GetActorLocation();
+	BlinkSlam.RawDamage = 12.0f;
+	BlinkSlam.RadiusCm = 180.0f;
+	BlinkSlam.bCanDamageTarget = true;
+	BlinkSlam.bRequestTeleport = true;
+	Sheep->ApplyBossIntentForTests(BlinkSlam);
+	TestEqual(TEXT("Blink slam does not damage at the start of its descent"), Player->Combatant->CurrentHealth, 100.0f);
+	Sheep->AdvancePendingBossBlinkSlamForTests(0.49f);
+	TestEqual(TEXT("Blink slam remains non-damaging before the 0.5 second landing"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f);
+	Sheep->AdvancePendingBossBlinkSlamForTests(0.01f);
+	TestEqual(TEXT("Blink slam applies damage once its descent completes"), Player->Combatant->CurrentHealth, 88.0f);
+	Sheep->AdvancePendingBossBlinkSlamForTests(1.0f);
+	TestEqual(TEXT("Blink slam delayed impact is consumed exactly once"), Player->Combatant->CurrentHealth, 88.0f);
 	return true;
 }
 

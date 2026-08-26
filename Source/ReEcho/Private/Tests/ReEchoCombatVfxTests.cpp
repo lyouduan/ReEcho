@@ -23,6 +23,7 @@
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
+#include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
 #include "Presentation/VFX/ReEchoVfxPreviewActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
@@ -55,6 +56,25 @@ struct FReEchoCombatVfxWorldFixture
 		}
 	}
 };
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossBlinkSlamPresentationTest,
+                                 "ReEcho.Presentation.VFX.BossBlinkSlamPresentation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
+{
+	const FVector StartOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.5f, 0.5f, 300.0f);
+	const FVector HalfwayOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.25f, 0.5f, 300.0f);
+	const FVector LandedOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.0f, 0.5f, 300.0f);
+
+	TestTrue(TEXT("Blink slam starts 300 cm above the locked landing point"),
+	         StartOffset.Equals(FVector(0.0f, 0.0f, 300.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Blink slam accelerates downward during its 0.5 second presentation"),
+	         HalfwayOffset.Equals(FVector(0.0f, 0.0f, 75.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Blink slam presentation finishes exactly at the gameplay landing point"),
+	         LandedOffset.IsNearlyZero());
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFoxDirectionRuntimeTest,

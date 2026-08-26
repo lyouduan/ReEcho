@@ -114,6 +114,7 @@ enum class EReEchoBossIntentType : uint8
 {
 	TelegraphStarted,
 	AttackWindowStarted,
+	ImpactResolved,
 	AbilityEnded,
 	ElementCleanse,
 	EncounterPhase

@@ -764,6 +764,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		return;
 	}
 	AdvanceEnemyProjectiles(DeltaSeconds);
+	AdvancePendingBossBlinkSlam(DeltaSeconds);
 	if (bDeathSequenceStarted)
 	{
 		EnemyPresentation->Advance(BuildPresentationSnapshot(false, false), DeltaSeconds);
@@ -1106,6 +1107,16 @@ void AReEchoEnemyActor::AdvanceEnemyProjectilesForTests(const float DeltaSeconds
 	AdvanceEnemyProjectiles(DeltaSeconds);
 }
 
+void AReEchoEnemyActor::ApplyBossIntentForTests(const FReEchoBossIntent& Intent)
+{
+	ApplyBossIntent(Intent);
+}
+
+void AReEchoEnemyActor::AdvancePendingBossBlinkSlamForTests(const float DeltaSeconds)
+{
+	AdvancePendingBossBlinkSlam(DeltaSeconds);
+}
+
 void AReEchoEnemyActor::UpdateStunStateForTests(const bool bStunned)
 {
 	UpdateStunState(bStunned);
@@ -1140,8 +1151,7 @@ bool AReEchoEnemyActor::IntersectsBossDamageShape(const FReEchoBossIntent& Inten
 		const FVector ToTarget = TargetLocation - Intent.LockedTargetLocation;
 		const float ForwardDistance = FVector::DotProduct(ToTarget, FVector::ForwardVector);
 		const float SideDistance = FMath::Abs(FVector::DotProduct(ToTarget, FVector::RightVector));
-		return ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm &&
-		       SideDistance <= Intent.WidthCm * 0.5f;
+		return ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm && SideDistance <= Intent.WidthCm * 0.5f;
 	}
 	switch (Intent.AttackShape)
 	{
@@ -1205,23 +1215,31 @@ void AReEchoEnemyActor::DrawBossDamageRangeDebug(const FReEchoBossIntent& Intent
 		FVector PreviousPoint = Intent.Origin;
 		for (int32 SegmentIndex = 0; SegmentIndex <= SegmentCount; ++SegmentIndex)
 		{
-			const float Yaw = CenterYaw - 90.0f + 180.0f * static_cast<float>(SegmentIndex) /
-			                                             static_cast<float>(SegmentCount);
+			const float Yaw =
+			    CenterYaw - 90.0f + 180.0f * static_cast<float>(SegmentIndex) / static_cast<float>(SegmentCount);
 			const FVector Point = Intent.Origin + FRotator(0.0f, Yaw, 0.0f).Vector() * Intent.LengthCm;
-			DrawDebugLine(GetWorld(), SegmentIndex == 0 ? Intent.Origin : PreviousPoint, Point,
-			              FColor::Cyan, false, Duration, 0, 5.0f);
+			DrawDebugLine(GetWorld(),
+			              SegmentIndex == 0 ? Intent.Origin : PreviousPoint,
+			              Point,
+			              FColor::Cyan,
+			              false,
+			              Duration,
+			              0,
+			              5.0f);
 			PreviousPoint = Point;
 		}
 		DrawDebugLine(GetWorld(), PreviousPoint, Intent.Origin, FColor::Cyan, false, Duration, 0, 5.0f);
 		DrawDebugString(GetWorld(),
 		                Intent.Origin + Direction * Intent.LengthCm * 0.5f + FVector(0.0f, 0.0f, 30.0f),
-		                FString::Printf(TEXT("%s FRONT 180 R=%.0fcm"),
-		                                *Intent.AbilityId.ToString(), Intent.LengthCm),
-		                nullptr, FColor::Cyan, Duration, false, 1.0f);
+		                FString::Printf(TEXT("%s FRONT 180 R=%.0fcm"), *Intent.AbilityId.ToString(), Intent.LengthCm),
+		                nullptr,
+		                FColor::Cyan,
+		                Duration,
+		                false,
+		                1.0f);
 		return;
 	}
-	if (Intent.AttackShape != EReEchoBossAttackShape::Rectangle &&
-	    Intent.AttackShape != EReEchoBossAttackShape::Beam)
+	if (Intent.AttackShape != EReEchoBossAttackShape::Rectangle && Intent.AttackShape != EReEchoBossAttackShape::Beam)
 	{
 		return;
 	}
@@ -1238,21 +1256,20 @@ void AReEchoEnemyActor::DrawBossDamageRangeDebug(const FReEchoBossIntent& Intent
 	DrawDebugLine(GetWorld(), StartLeft, EndLeft, FColor::Cyan, false, Duration, 0, 5.0f);
 	DrawDebugLine(GetWorld(), StartRight, EndRight, FColor::Cyan, false, Duration, 0, 5.0f);
 	DrawDebugLine(GetWorld(), EndLeft, EndRight, FColor::Cyan, false, Duration, 0, 5.0f);
-	DrawDebugString(GetWorld(),
-	                ShapeOrigin + Direction * Intent.LengthCm * 0.5f + FVector(0.0f, 0.0f, 30.0f),
-	                FString::Printf(
-	                    TEXT("%s L=%.0f W=%.0fcm"), *Intent.AbilityId.ToString(), Intent.LengthCm, Intent.WidthCm),
-	                nullptr,
-	                FColor::Cyan,
-	                Duration,
-	                false,
-	                1.0f);
+	DrawDebugString(
+	    GetWorld(),
+	    ShapeOrigin + Direction * Intent.LengthCm * 0.5f + FVector(0.0f, 0.0f, 30.0f),
+	    FString::Printf(TEXT("%s L=%.0f W=%.0fcm"), *Intent.AbilityId.ToString(), Intent.LengthCm, Intent.WidthCm),
+	    nullptr,
+	    FColor::Cyan,
+	    Duration,
+	    false,
+	    1.0f);
 #endif
 }
 
-void AReEchoEnemyActor::DrawBossProjectileDamageRangeDebug(
-	const FReEchoEnemyProjectileRuntimeState& Projectile,
-	const FVector& PreviousLocation) const
+void AReEchoEnemyActor::DrawBossProjectileDamageRangeDebug(const FReEchoEnemyProjectileRuntimeState& Projectile,
+                                                           const FVector& PreviousLocation) const
 {
 #if !UE_BUILD_SHIPPING
 	const AReEchoGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
@@ -1361,6 +1378,50 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 	{
 		return;
 	}
+	if (Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam"))
+	{
+		AActor* Target = Intent.Target.Get();
+		const IReEchoCombatTarget* CombatTarget = Target ? Cast<IReEchoCombatTarget>(Target) : nullptr;
+		if (!CombatTarget || !CombatTarget->IsCombatTargetAlive())
+		{
+			return;
+		}
+		if (Intent.bRequestTeleport && !Intent.TeleportDestination.IsNearlyZero())
+		{
+			SetActorLocation(Intent.TeleportDestination, false, nullptr, ETeleportType::TeleportPhysics);
+		}
+		PendingBossBlinkSlamIntent = Intent;
+		PendingBossBlinkSlamIntent.bRequestTeleport = false;
+		PendingBossBlinkSlamRemainingSeconds = 0.5f;
+		bBossBlinkSlamPending = true;
+		return;
+	}
+	ApplyBossAttackWindow(Intent);
+}
+
+void AReEchoEnemyActor::AdvancePendingBossBlinkSlam(const float DeltaSeconds)
+{
+	if (!bBossBlinkSlamPending)
+	{
+		return;
+	}
+	PendingBossBlinkSlamRemainingSeconds = FMath::Max(0.0f, PendingBossBlinkSlamRemainingSeconds - DeltaSeconds);
+	if (PendingBossBlinkSlamRemainingSeconds > 0.0f)
+	{
+		return;
+	}
+	bBossBlinkSlamPending = false;
+	if (EnemyEvents)
+	{
+		FReEchoBossIntent ImpactIntent = PendingBossBlinkSlamIntent;
+		ImpactIntent.Type = EReEchoBossIntentType::ImpactResolved;
+		EnemyEvents->PublishBossIntent(ImpactIntent);
+	}
+	ApplyBossAttackWindow(PendingBossBlinkSlamIntent);
+}
+
+void AReEchoEnemyActor::ApplyBossAttackWindow(const FReEchoBossIntent& Intent)
+{
 	CombatAudioAdapter->PostConfiguredAttack(Intent.Origin, Intent.AbilityId);
 
 	AActor* Target = Intent.Target.Get();
@@ -1614,7 +1675,7 @@ void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEvent
 }
 
 FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving,
-	                                                                            const bool bStunned) const
+                                                                              const bool bStunned) const
 {
 	FReEchoEnemyPresentationSnapshot Result;
 	const FReEchoEnemyLogicSnapshot LogicSnapshot = EnemyLogic->GetSnapshot();
@@ -1644,6 +1705,8 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 		return;
 	}
 	bDeathSequenceStarted = true;
+	bBossBlinkSlamPending = false;
+	PendingBossBlinkSlamRemainingSeconds = 0.0f;
 	if (EnemyLogic)
 	{
 		EnemyLogic->NotifyDeath();
