@@ -64,6 +64,12 @@ FVector2D ResolveHeldDimensions(const UTexture2D& Texture,
 	}
 	return FVector2D(HeldLength * TextureWidth / TextureHeight, HeldLength);
 }
+
+int32 ResolveConfiguredMaxStacks(const float ConfiguredMaxStacks)
+{
+	const int32 RoundedMaxStacks = FMath::RoundToInt(ConfiguredMaxStacks);
+	return RoundedMaxStacks > 0 ? RoundedMaxStacks : TNumericLimits<int32>::Max();
+}
 }
 
 #if !UE_BUILD_SHIPPING
@@ -938,7 +944,7 @@ void AReEchoWeaponActor::ProcessOnAttackRuneEffects(const TSharedPtr<FReEchoWeap
 		{
 			continue;
 		}
-		const int32 MaxStacks = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+		const int32 MaxStacks = ReEchoWeaponVisual::ResolveConfiguredMaxStacks(Effect.ParamValue);
 		if (Effect.BehaviorId == TEXT("Part.AttackMoveSpeedOnAttack"))
 		{
 			SourceCombatant->AddTransientStatModifier(
@@ -948,6 +954,11 @@ void AReEchoWeaponActor::ProcessOnAttackRuneEffects(const TSharedPtr<FReEchoWeap
 		{
 			SourceCombatant->AddTransientStatModifier(
 			    Effect.PartId, Effect.Value, 0.0f, Effect.DurationSeconds, MaxStacks);
+		}
+		else if (Effect.BehaviorId == TEXT("Part.MoveSpeedOnAttack"))
+		{
+			SourceCombatant->AddTransientStatModifier(
+			    Effect.PartId, 0.0f, Effect.Value, Effect.DurationSeconds, MaxStacks);
 		}
 	}
 }
@@ -1031,19 +1042,21 @@ void AReEchoWeaponActor::ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAt
 		}
 		else if (Effect.BehaviorId == TEXT("Part.MoveSpeedPerHit") && SourceCombatant)
 		{
-			SourceCombatant->AddTransientStatModifier(Effect.PartId,
-			                                          0.0f,
-			                                          Effect.Value,
-			                                          Effect.DurationSeconds,
-			                                          FMath::Max(1, FMath::RoundToInt(Effect.ParamValue)));
+			SourceCombatant->AddTransientStatModifier(
+			    Effect.PartId,
+			    0.0f,
+			    Effect.Value,
+			    Effect.DurationSeconds,
+			    ReEchoWeaponVisual::ResolveConfiguredMaxStacks(Effect.ParamValue));
 		}
 		else if (Effect.BehaviorId == TEXT("Part.AttackSpeedPerHit") && SourceCombatant)
 		{
-			SourceCombatant->AddTransientStatModifier(Effect.PartId,
-			                                          Effect.Value,
-			                                          0.0f,
-			                                          Effect.DurationSeconds,
-			                                          FMath::Max(1, FMath::RoundToInt(Effect.ParamValue)));
+			SourceCombatant->AddTransientStatModifier(
+			    Effect.PartId,
+			    Effect.Value,
+			    0.0f,
+			    Effect.DurationSeconds,
+			    ReEchoWeaponVisual::ResolveConfiguredMaxStacks(Effect.ParamValue));
 		}
 		else if (Effect.BehaviorId == TEXT("Part.DropShardEveryHits") &&
 		         Result.DamageSource == EReEchoDamageSource::Player)
@@ -1065,7 +1078,7 @@ void AReEchoWeaponActor::ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAt
 		else if (Result.bKilled && Effect.BehaviorId == TEXT("Part.MoveSpeedOnKill") && SourceCombatant)
 		{
 			const int32 MaxStacks = Effect.ParamName == TEXT("MaxStacks")
-			                            ? FMath::Max(1, FMath::RoundToInt(Effect.ParamValue))
+			                            ? ReEchoWeaponVisual::ResolveConfiguredMaxStacks(Effect.ParamValue)
 			                            : TNumericLimits<int32>::Max();
 			SourceCombatant->AddTransientStatModifier(
 			    Effect.PartId, 0.0f, Effect.Value, Effect.DurationSeconds, MaxStacks);

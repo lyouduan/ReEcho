@@ -1561,6 +1561,7 @@ void AReEchoGameMode::CreateArena()
 
 void AReEchoGameMode::ClearCombatants()
 {
+	ConnectionLineSideByPair.Reset();
 	ClearTimeShardPickups();
 	ClearEnemyRoster();
 	ClearEchoes();
@@ -1845,6 +1846,7 @@ void AReEchoGameMode::RefreshFogRevealSources()
 
 void AReEchoGameMode::BeginNextEncounter()
 {
+	ConnectionLineSideByPair.Reset();
 	ClearTimeShardPickups();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || RunSubsystem->EncounterIndex >= RunSubsystem->GetTotalEncounterCount())
@@ -2002,7 +2004,7 @@ FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() con
 		}
 	}
 	Result.PlayerTransform = Player->GetActorTransform();
-	Result.PlayerHealth = Player->Combatant->CurrentHealth;
+	Result.PlayerHealth = Player->Combatant->GetEffectiveCurrentHealth();
 	Result.PlayerStats = Player->Combatant->Stats;
 	Result.PlayerVelocity = Player->GetVelocity();
 	Result.ActiveRecording = Player->Recorder->GetRecording();
@@ -2079,6 +2081,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	Player->RestoreEquippedWeapon(RunSubsystem->CurrentBuild.WeaponId);
 	Player->SetAutoAttackMode(RunSubsystem->IsAutomaticAttackMode());
 	Player->Combatant->InitializeFromStats(SavedState.PlayerStats, true);
+	Player->Combatant->SetOverhealCapacityFraction(RunSubsystem->GetCardRules().bOverhealCapacity ? 0.3f : 0.0f);
 	Player->Combatant->RestoreCurrentHealth(SavedState.PlayerHealth);
 	Player->Movement->MaxSpeed = 420.0f * SavedState.PlayerStats.MovementSpeed;
 	Player->Movement->Velocity = SavedState.PlayerVelocity;
@@ -2551,6 +2554,55 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 	if (UReEchoCombatEventsComponent* CombatEvents = Enemy->GetCombatEventsComponent())
 	{
 		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleEnemyDeathShardDrop);
+		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this,
+		                                                         &AReEchoGameMode::HandleCardElementReactionResolved);
+	}
+}
+
+void AReEchoGameMode::HandleCardElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event)
+{
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	const bool bPlayerOrEchoSource = Cast<AReEchoPlayerPawn>(Event.Attack.Source.Get()) != nullptr ||
+	                                 Cast<AReEchoEchoActor>(Event.Attack.Source.Get()) != nullptr;
+	if (!RunSubsystem || !bPlayerOrEchoSource)
+	{
+		return;
+	}
+	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
+	if (Rules.bConductDamageGrowth && Event.ReactionBehaviorId == TEXT("Reaction.Conduct"))
+	{
+		TArray<int32> AffectedSpawnIndices;
+		for (const AActor* Target : Event.AffectedTargets)
+		{
+			if (const AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(Target))
+			{
+				AffectedSpawnIndices.Add(Enemy->GetSpawnIndex());
+			}
+		}
+		RunSubsystem->NotifyCardReactionAffectedTargets(Event.ReactionId, AffectedSpawnIndices);
+	}
+	if (!Rules.bVaporizeWaterSplash || Event.ReactionBehaviorId != TEXT("Reaction.Vaporize") || !Event.PrimaryTarget ||
+	    bHandlingVaporizeWaterSplash)
+	{
+		return;
+	}
+	TGuardValue<bool> Guard(bHandlingVaporizeWaterSplash, true);
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+		if (!Enemy || Enemy == Event.PrimaryTarget ||
+		    FVector::DistSquared2D(Enemy->GetActorLocation(), Event.PrimaryTarget->GetActorLocation()) >
+		        FMath::Square(300.0f))
+		{
+			continue;
+		}
+		FReEchoElementHitContext Context;
+		Context.Attack = Event.Attack;
+		Context.SourceLocation = Event.PrimaryTarget->GetActorLocation();
+		Context.ReactionEfficiency = RunSubsystem->CurrentBuild.Stats.ReactionEfficiency;
+		Context.SourceElementalAttack = 0.0f;
+		ReEchoHitResolver::ResolveElementHit(*Enemy, EReEchoElement::Water, 0.0f, Context);
 	}
 }
 
@@ -2705,9 +2757,46 @@ void AReEchoGameMode::HandleFixedStep(float)
 	}
 	const FReEchoCardEncounterTickResult CardTick = RunSubsystem->AdvanceCardEncounter(Director->EncounterTime);
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
+	Player->Combatant->SetOverhealCapacityFraction(Rules.bOverhealCapacity ? 0.3f : 0.0f);
 	if (CardTick.EchoAuraPulseCount > 0)
 	{
 		PlayEchoCardAuraPulse(Rules);
+	}
+	if (CardTick.EchoHeadCursePulseCount > 0)
+	{
+		TArray<AReEchoEnemyActor*> LivingEnemies;
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+		{
+			if (AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr)
+			{
+				LivingEnemies.Add(Enemy);
+			}
+		}
+		AReEchoEchoActor* SourceEcho = nullptr;
+		for (AReEchoEchoActor* Echo : Echoes)
+		{
+			if (Echo && Echo->IsCombatTargetAlive())
+			{
+				SourceEcho = Echo;
+				break;
+			}
+		}
+		if (SourceEcho && !LivingEnemies.IsEmpty())
+		{
+			for (int32 PulseOffset = 0; PulseOffset < CardTick.EchoHeadCursePulseCount; ++PulseOffset)
+			{
+				FRandomStream Random(HashCombine(RunSubsystem->EncounterIndex,
+				                                 CardTick.CardState.Runtime.LastEchoHeadCursePulseIndex - PulseOffset));
+				AReEchoEnemyActor* Target = LivingEnemies[Random.RandRange(0, LivingEnemies.Num() - 1)];
+				FReEchoTimedStatusCommand Curse;
+				Curse.StatusId = TEXT("Z_Cursed");
+				Curse.CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+				Curse.DurationSeconds = 10.0f;
+				Curse.Attack.Source = SourceEcho;
+				Curse.Attack.Sequence = CardTick.CardState.Runtime.LastEchoHeadCursePulseIndex - PulseOffset;
+				Target->GetCombatantComponent()->ApplyTimedStatus(Curse);
+			}
+		}
 	}
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
@@ -2716,9 +2805,69 @@ void AReEchoGameMode::HandleFixedStep(float)
 		{
 			continue;
 		}
+		if (Rules.bConnectionLineDamage && Player->IsCombatTargetAlive())
+		{
+			for (AReEchoEchoActor* Echo : Echoes)
+			{
+				if (!Echo || !Echo->IsCombatTargetAlive())
+				{
+					continue;
+				}
+				const FVector2D Start(Player->GetActorLocation());
+				const FVector2D End(Echo->GetActorLocation());
+				const FVector2D EnemyPoint(Enemy->GetActorLocation());
+				const FVector2D Segment = End - Start;
+				const float LengthSquared = Segment.SizeSquared();
+				if (LengthSquared <= KINDA_SMALL_NUMBER)
+				{
+					continue;
+				}
+				const float Projection = FVector2D::DotProduct(EnemyPoint - Start, Segment) / LengthSquared;
+				const float Cross = Segment.X * (EnemyPoint.Y - Start.Y) - Segment.Y * (EnemyPoint.X - Start.X);
+				const int8 CurrentSide = Cross > 1.0f ? 1 : (Cross < -1.0f ? -1 : 0);
+				const uint64 PairKey = (static_cast<uint64>(static_cast<uint32>(Echo->GetUniqueID())) << 32) |
+				                       static_cast<uint32>(Enemy->GetUniqueID());
+				int8& PreviousSide = ConnectionLineSideByPair.FindOrAdd(PairKey);
+				if (CurrentSide != 0 && PreviousSide != 0 && CurrentSide != PreviousSide && Projection >= 0.0f &&
+				    Projection <= 1.0f)
+				{
+					FReEchoHitIntent ConnectionHit;
+					ConnectionHit.Attack.Source = Player;
+					ConnectionHit.Attack.Sequence = HashCombine(Echo->GetUniqueID(), Enemy->GetUniqueID());
+					ConnectionHit.Target = Enemy;
+					ConnectionHit.RawDamage = 0.5f * (RunSubsystem->CurrentBuild.Stats.PhysicalAttack +
+					                                  RunSubsystem->CurrentBuild.Stats.ElementalAttack);
+					ConnectionHit.DamageSource = EReEchoDamageSource::Path;
+					ConnectionHit.SourceLocation = Player->GetActorLocation();
+					ConnectionHit.HitLocation = Enemy->GetActorLocation();
+					ReEchoHitResolver::ResolvePhysicalHit(ConnectionHit);
+				}
+				if (CurrentSide != 0)
+				{
+					PreviousSide = CurrentSide;
+				}
+			}
+		}
 		for (const float StunDuration : CardTick.EnemyStunDurations)
 		{
 			Enemy->ApplyCardStun(StunDuration);
+		}
+		if (Rules.bEchoBody)
+		{
+			for (AReEchoEchoActor* Echo : Echoes)
+			{
+				if (!Echo || !Echo->IsCombatTargetAlive())
+				{
+					continue;
+				}
+				const float RadiusCm = Rules.bEchoTrinityComplete ? 400.0f : 100.0f;
+				if (FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) <=
+				    FMath::Square(RadiusCm))
+				{
+					Enemy->ApplyCardStun(Rules.bEchoTrinityComplete ? 0.2f : 2.0f);
+					break;
+				}
+			}
 		}
 		if (Rules.EnemyElementImmunitySeconds >= 0.0f)
 		{
@@ -3898,7 +4047,18 @@ void AReEchoGameMode::HandleEncounterEnded()
 	const bool bPlayerSurvived = Player->Combatant->IsAlive();
 	const bool bBossKilled = bPlayerSurvived && bEncounterClearedByDefeat &&
 	                         RunSubsystem->EncounterIndex == RunSubsystem->GetTotalEncounterCount();
-	RunSubsystem->CompleteEncounter(Recording, bPlayerSurvived, bBossKilled);
+	RunSubsystem->CompleteEncounter(
+	    Recording, bPlayerSurvived, bBossKilled, Player->Combatant ? Player->Combatant->CurrentHealth : -1.0f);
+	if (bPlayerSurvived && Player->Combatant && RunSubsystem->CurrentBuild.CardState.Runtime.bCurseBankDefaulted)
+	{
+		FReEchoTimedStatusCommand Curse;
+		Curse.StatusId = TEXT("Z_Cursed");
+		Curse.CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+		Curse.DurationSeconds = 3600.0f;
+		Curse.Attack.Source = Player;
+		Curse.DamageSource = EReEchoDamageSource::Player;
+		Player->Combatant->ApplyTimedStatus(Curse);
+	}
 	if (RunSubsystem->Phase == EReEchoRunPhase::Summary || RunSubsystem->Phase == EReEchoRunPhase::Failed)
 	{
 		RunSubsystem->DeleteSavedRun();
