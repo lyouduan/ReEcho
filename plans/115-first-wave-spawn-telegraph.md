@@ -11,7 +11,7 @@
 - 本地规划 / 实现基线：`origin/main@9c146b5db5b8b836901a0fa6e6b0e067ef985a26`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan115`，本地分支 `plan/115-first-wave-spawn-telegraph`；Plan-only 发布后在同一工作树继续实现。
 - 依赖 / 阻塞：依赖现有 Encounter WaveScheduler 的 Warning/Commit 两阶段事件、SpawnProfile 的 `WarningLeadSeconds`、GameMode 的 PendingSpawnBatch 与出生预警表现。无外部阻塞。
-- Writes: 本 Plan；`Source/ReEcho/Private/Encounter/ReEchoEncounterRuntime.cpp`；必要时配对头文件；`Source/ReEcho/Private/ReEchoGameMode.cpp`；`Source/ReEcho/Private/Tests/ReEchoEncounterRuntimeTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`。
+- Writes: 本 Plan；`Source/ReEcho/Private/Encounter/ReEchoEncounterRuntime.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp`；`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`；`Source/ReEcho/Private/Tests/ReEchoEncounterRuntimeTests.cpp`、`ReEchoEnemyHostTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoEnemies.md`。
 - Stable Reads: `Content/Data/encounter_waves.csv` 的波次触发时间；`Content/Data/spawn_profiles.csv` 的 `WarningLeadSeconds`；角色选择与 `BeginNextEncounter` 既有流程；Enemy Host/Logic/Presentation 现有装配契约。
 - 影响模式：`SharedContract`，因为调整 Encounter Scheduler 对零秒首波的 Warning/Commit 时序，但不改变敌人逻辑、表现或伤害权威。
 - 兼容承诺 / 下游操作：非零波次继续在配置的 `TriggerSeconds` 生成；其预警仍提前 `WarningLeadSeconds`。存档恢复继续持久化 Scheduler 游标与已准备出生批次，不生成第二套计时状态。
@@ -77,6 +77,7 @@
 
 - 2026-08-26：完成只读定位。生产第一波 `TriggerSeconds=0`，Melee/Ranged/Elite/Boss 的 `WarningLeadSeconds` 为 0.8–1.0 秒；Scheduler 将 Warning 钳到 0 后仍把 Commit 放在 0，`ProcessScheduledSpawnEvents(0)` 因而同帧处理两者。
 - 2026-08-26：Scheduler 集中派生实际 Commit 时间；零秒首波 Warning 保持在 0 秒，Commit 延后到完整 `WarningLeadSeconds`。GameMode 仍只在 Warning 准备位置，并把出生框改为明确红色；Enemy Host 仍只由 Commit 创建。
+- 2026-08-26：人工预验收发现红球可能先于 Enemy Host 的可受击状态结束。审计确认 Host 配置未显式覆盖 Blueprint 关闭碰撞/不可受击默认值；将 `ConfigureFromDefinition` 收口为原子激活后置条件，并让球框覆盖 Commit 后一个固定步，保证“球框消失时 Host 已可受击”。
 
 ### 证据
 
@@ -84,6 +85,8 @@
 - GameMode 已有 PendingSpawnBatch 两阶段链；修复无需提前生成或隐藏 Enemy Host。
 - `scripts/ue/Build-Editor.cmd -Configuration Development` 成功，UHT/UBT `Result: Succeeded`，刷新 7 个精选 Editor 模块。
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Encounter`：`BossContinuesAfterStandardDuration`、`DeterministicSpawnResolver`、`SpawnWarningCapacityReservation`、`TableDrivenWaveScheduler` 全部 `Result={Success}`。
+- 可受击边界返修后再次执行 Editor Development 构建，UBT `Result: Succeeded`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Host` 的 5 项 Host 测试全部 `Result={Success}`，新增场景确认 Commit 会从不可受击/无碰撞默认值恢复并立刻接受伤害；`ReEcho.Encounter` 4 项再次全部成功。
+- `python scripts/validate_project.py` 与 `git diff --check` 均通过。
 
 ### 剩余风险
 
@@ -98,6 +101,6 @@
 ### 架构文档审阅结果
 
 - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：明确 Warning 锁点、Commit 创建 Host，以及零秒首波完整等待配置 lead。
-- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md` 已审阅、无需修改：Enemy Host/Logic 仍只在 GameMode Commit 后存在，Enemies 公共契约未变。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md` 已更新：记录 `ConfigureFromDefinition` 成功返回即为存活、碰撞启用且可受击的原子激活边界。
 - `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑、依赖方向和既有 Warning/Spawn Intent 流程未变。
 - `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：AREA-Encounter 的文件路由未变。

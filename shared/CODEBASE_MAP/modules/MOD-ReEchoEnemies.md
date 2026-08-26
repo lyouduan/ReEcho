@@ -50,6 +50,8 @@
 
 ## 输入、输出与公共契约
 
+- Enemy Host 的 `ConfigureFromDefinition` 是出生 Commit 的原子激活边界：成功返回时 Combatant 必须存活，Actor 与根玩法碰撞必须启用且可受击。出生预警期间不创建 Host；表现资源加载或 Blueprint 默认值不得延长不可受击阶段。
+
 ### 输入
 
 - `FReEchoEnemyDefinition`：资源无关的不可变行为定义，携带稳定但资源无关的 `PresentationId`。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值和兼容 ID，生产定义由主模块从 CSV 编译后注入。

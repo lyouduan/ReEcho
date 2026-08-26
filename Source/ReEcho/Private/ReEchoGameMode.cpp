@@ -2145,7 +2145,10 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 			       Event.SpawnSeconds);
 			if (Pending && GetWorld())
 			{
-				const float DisplaySeconds = FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds);
+				const float FixedStepGraceSeconds =
+				    1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
+				const float DisplaySeconds =
+				    FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds) + FixedStepGraceSeconds;
 				for (const FVector& Location : Pending->Locations)
 				{
 					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Red, false, DisplaySeconds, 0, 5.0f);
@@ -2347,6 +2350,18 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	Enemy->SetEnemyRoster(EnemyRoster);
 	Enemy->SetEnemyId(EnemyId);
 	ConfigureEnemyRuntimeBindings(Enemy);
+	const UBoxComponent* RootCollision = Cast<UBoxComponent>(Enemy->GetRootComponent());
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[EncounterSpawn] active enemy=%s spawnIndex=%d encounter=%.3f alive=%s damageable=%s "
+	            "actorCollision=%s rootCollision=%s"),
+	       *EnemyId.ToString(),
+	       NextSpawnIndex,
+	       Director ? Director->EncounterTime : -1.0f,
+	       Enemy->IsCombatTargetAlive() ? TEXT("true") : TEXT("false"),
+	       Enemy->CanBeDamaged() ? TEXT("true") : TEXT("false"),
+	       Enemy->GetActorEnableCollision() ? TEXT("true") : TEXT("false"),
+	       RootCollision && RootCollision->IsCollisionEnabled() ? TEXT("true") : TEXT("false"));
 	return true;
 }
 

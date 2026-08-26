@@ -301,6 +301,12 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	FReEchoStatBlock Stats;
 	Stats.HpMax = Definition.MaxHealth;
 	Combatant->InitializeFromStats(Stats, true);
+	// ConfigureFromDefinition is the Encounter Commit boundary for a newly spawned Host. Blueprint defaults or a
+	// previous preview state must not leave a visible enemy untargetable after its warning has ended.
+	SetCanBeDamaged(true);
+	SetActorEnableCollision(true);
+	Collision->SetCollisionProfileName(TEXT("Pawn"));
+	Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Collision->SetBoxExtent(
 	    FVector(Definition.CollisionRadiusCm, Definition.CollisionRadiusCm, Definition.CollisionHalfHeightCm));
 	Collision->ClearMoveIgnoreActors();
@@ -321,6 +327,10 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	{
 		check(EnemyRoster->RegisterEnemy(this, EnemyLogic));
 		RefreshCrowdCollisionIgnores();
+	}
+	if (!IsAlive() || !CanBeDamaged() || !GetActorEnableCollision() || !Collision->IsCollisionEnabled())
+	{
+		return false;
 	}
 	// WS4 (Plan 68): arm the blood-depleted second-phase transition. When a lethal hit lands and this boss is
 	// configured for a HealthThreshold phase change it has not yet used, convert the kill into a phase transition

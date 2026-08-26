@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
+#include "Components/PrimitiveComponent.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -75,6 +76,26 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	UPrimitiveComponent* RootCollision = Cast<UPrimitiveComponent>(Source->GetRootComponent());
+	TestNotNull(TEXT("Enemy host has one root gameplay collision"), RootCollision);
+	if (!RootCollision)
+	{
+		return false;
+	}
+	Source->SetCanBeDamaged(false);
+	Source->SetActorEnableCollision(false);
+	RootCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Source->Configure(EReEchoEnemyKind::Bomber, 12);
+	TestTrue(TEXT("Commit configuration restores damage acceptance"), Source->CanBeDamaged());
+	TestTrue(TEXT("Commit configuration restores actor collision"), Source->GetActorEnableCollision());
+	TestTrue(TEXT("Commit configuration restores root query collision"), RootCollision->IsCollisionEnabled());
+	const float HealthBeforeImmediateHit = Source->GetCombatantComponent()->CurrentHealth;
+	TestEqual(TEXT("A committed enemy immediately accepts damage"),
+	          Source->GetCombatantComponent()->ApplyFinalDamageForTests(1.0f),
+	          1.0f);
+	TestEqual(TEXT("Immediate post-commit damage changes health"),
+	          Source->GetCombatantComponent()->CurrentHealth,
+	          HealthBeforeImmediateHit - 1.0f);
 	Source->SetEnemyRoster(Roster);
 	TestEqual(TEXT("Host registers into the single roster"), Roster->GetLivingEnemyCount(), 1);
 	TestEqual(TEXT("Legacy host kind is projected from EnemyLogic"), Source->GetKind(), EReEchoEnemyKind::Bomber);
