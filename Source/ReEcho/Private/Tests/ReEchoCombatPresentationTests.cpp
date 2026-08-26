@@ -128,6 +128,9 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	         UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests(
 	             -1.0f, AuthoredBossRightOffset, AuthoredBossLeftOffset)
 	             .Equals(AuthoredBossLeftOffset, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Boss charging anchor resolves to the top of the centered MoonStaff sprite"),
+	         UReEchoEnemyPresentationComponent::ResolveBossWeaponTipOffset(240.0f).Equals(FVector(0.0f, 0.0f, 120.0f),
+	                                                                                      KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Longsword triple swing starts at upper sixty degrees"),
 	         FMath::IsNearlyEqual(
 	             AReEchoWeaponActor::ResolveTripleSwingAngleForTests(0.0f, 1.0f), PI / 3.0f, KINDA_SMALL_NUMBER));

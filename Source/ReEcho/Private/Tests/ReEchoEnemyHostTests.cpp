@@ -1022,6 +1022,16 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	const FReEchoEnemyAbilityDefinition* PrayerBeam = SheepDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_SHEEP_PrayerBeam");
+	    });
+	if (!TestNotNull(TEXT("Production sheep keeps the prayer-beam ability"), PrayerBeam))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Prayer beam uses a three-second visual and damage window"), PrayerBeam->ActiveSeconds, 3.0f);
 
 	AReEchoPlayerPawn* Player =
 	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
@@ -1167,6 +1177,43 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Blink slam applies damage once its descent completes"), Player->Combatant->CurrentHealth, 88.0f);
 	Sheep->AdvancePendingBossBlinkSlamForTests(1.0f);
 	TestEqual(TEXT("Blink slam delayed impact is consumed exactly once"), Player->Combatant->CurrentHealth, 88.0f);
+
+	Player->Combatant->RestoreCurrentHealth(100.0f);
+	Player->SetActorLocation(FVector(600.0f, 200.0f, 0.0f));
+	FReEchoBossIntent PrayerBeamIntent;
+	PrayerBeamIntent.Type = EReEchoBossIntentType::AttackWindowStarted;
+	PrayerBeamIntent.AbilityId = TEXT("M_SHEEP_PrayerBeam");
+	PrayerBeamIntent.Attack.Sequence = 9002;
+	PrayerBeamIntent.Attack.Source = Sheep;
+	PrayerBeamIntent.Target = Player;
+	PrayerBeamIntent.AttackShape = EReEchoBossAttackShape::Beam;
+	PrayerBeamIntent.LockedTargetLocation = FVector::ZeroVector;
+	PrayerBeamIntent.LockedDirection = FVector::ForwardVector;
+	PrayerBeamIntent.RawDamage = PrayerBeam->Damage;
+	PrayerBeamIntent.ActiveSeconds = PrayerBeam->ActiveSeconds;
+	PrayerBeamIntent.LengthCm = PrayerBeam->LengthCm;
+	PrayerBeamIntent.WidthCm = PrayerBeam->WidthCm;
+	PrayerBeamIntent.bCanDamageTarget = true;
+	Sheep->ApplyBossIntentForTests(PrayerBeamIntent);
+	TestEqual(TEXT("Prayer beam does not hit a target outside its locked column at startup"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f);
+	Player->SetActorLocation(FVector(600.0f, 0.0f, 0.0f));
+	Sheep->AdvancePendingBossPrayerBeamForTests(1.5f);
+	TestEqual(TEXT("Prayer beam hits a target entering during its three-second window"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f - PrayerBeam->Damage);
+	Sheep->AdvancePendingBossPrayerBeamForTests(1.0f);
+	TestEqual(TEXT("Prayer beam damages each target at most once per cast"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f - PrayerBeam->Damage);
+	Player->SetActorLocation(FVector(600.0f, 200.0f, 0.0f));
+	Sheep->AdvancePendingBossPrayerBeamForTests(0.5f);
+	Player->SetActorLocation(FVector(600.0f, 0.0f, 0.0f));
+	Sheep->AdvancePendingBossPrayerBeamForTests(1.0f);
+	TestEqual(TEXT("Prayer beam cannot hit after its three-second window ends"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f - PrayerBeam->Damage);
 	return true;
 }
 

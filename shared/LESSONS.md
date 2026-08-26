@@ -20,7 +20,7 @@
 | 流程 / 工具 / Skill | `META` | [§META](#meta) | 20 |
 | 规划者专属 | `PLAN` | [§PLAN](#plan) | 3 |
 | Bug 修复 | `FIX` | [§FIX](#fix) | 9 |
-| 通用调试 | `DEBUG` | [§DEBUG](#debug) | 13 |
+| 通用调试 | `DEBUG` | [§DEBUG](#debug) | 16 |
 
 ---
 
@@ -1309,6 +1309,16 @@ FFileHelper::SaveStringToFile(Line, *Path,
 ### DEBUG-14. 可复现问题需要按运行会话保留独立 UE 日志 [UE]
 
 `Saved/Logs/ReEcho.log` 是当前进程的默认入口，重新启动会触发 UE 的 backup 轮转，但 backup 文件名不是上一会话的严格本地开始时间，策划也容易误发错误文件。Development 启动时额外注册 `FOutputDeviceFile`，把日志镜像到 `ReEcho-session-<本地开始时间>-pid<进程号>.log`；文件名唯一且不追加/覆盖。模块关闭时先刷新、再从 `GLog` 移除并关闭设备，避免悬空输出目标。Shipping 不创建该诊断副本。
+
+### DEBUG-15. 先区分“未接触”和“接触后零伤害” [UE]
+
+**来源**：ReEcho Plan122 对 `ReEcho-Run-Brave-Gun-ExplosiveMuzzle-20260826.log` 的旧会话复盘。
+
+投射物看起来“穿怪且无伤害”时，不要只搜 `ResolverApplied applied=0`。先用同一 `source + weapon + sequence` 分三段核对：`ProjectileInit`、`ProjectileContact`、`ResolverApplied`。若 Contact 存在但 Applied 为零，才查阵营、去重和伤害门；若弹丸以 `hitTargets=0` 到达射程结束，则错误发生在锁敌、方向或命中几何。该旧日志的玩家 Contact 全部得到正伤害，真正异常是枪弹 `Z=213.12` 高于史莱姆/兔子碰撞盒顶面，却仍能进入更高的狐狸碰撞盒。2.5D 项目必须把玩法平面与三维表现高度分别记录，不能根据屏幕重叠推断已经发生玩法接触。
+
+### DEBUG-16. 构筑型问题同时记录状态快照和攻击关联 [UE]
+
+卡牌/符文导致的偶现问题需要两类日志：构筑改变或遭遇边界输出完整、排序确定的 BuildSnapshot 与指纹；每次成功攻击 Commit 只输出 `source + target + origin + direction + weapon + sequence + fingerprint`。Resolver 继续保持轻量，借既有攻击身份回查对应构筑，既能还原路径，也避免每颗投射物重复整套卡牌列表。
 ### DEBUG-UE. 背景尺寸不能充当镜头跟随范围
 
 远景平面世界尺寸与玩法镜头边界属于不同坐标语义。将 8400/2 直接作为 CameraFollowLimit 会让镜头越过仅 ±1100 的场地边界。镜头范围应使用独立安全值，并让纯远景绑定相机保持固定相对距离。

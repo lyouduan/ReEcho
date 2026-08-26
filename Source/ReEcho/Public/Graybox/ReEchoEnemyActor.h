@@ -196,6 +196,7 @@ public:
 	void AdvanceEnemyProjectilesForTests(float DeltaSeconds);
 	void ApplyBossIntentForTests(const FReEchoBossIntent& Intent);
 	void AdvancePendingBossBlinkSlamForTests(float DeltaSeconds);
+	void AdvancePendingBossPrayerBeamForTests(float DeltaSeconds);
 	void UpdateStunStateForTests(bool bStunned);
 #endif
 
@@ -217,6 +218,8 @@ private:
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
 	void ApplyBossAttackWindow(const FReEchoBossIntent& Intent);
 	void AdvancePendingBossBlinkSlam(float DeltaSeconds);
+	void AdvancePendingBossPrayerBeam(float DeltaSeconds);
+	void TryApplyPendingBossPrayerBeamHit();
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void DrawBossDamageRangeDebug(const struct FReEchoBossIntent& Intent) const;
@@ -303,6 +306,11 @@ private:
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Weapon",
 	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> BossWeaponTipRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Weapon",
+	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBillboardComponent> BossWeaponSprite;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
@@ -351,6 +359,10 @@ private:
 	FReEchoBossIntent PendingBossBlinkSlamIntent;
 	float PendingBossBlinkSlamRemainingSeconds = 0.0f;
 	bool bBossBlinkSlamPending = false;
+	FReEchoBossIntent PendingBossPrayerBeamIntent;
+	float PendingBossPrayerBeamRemainingSeconds = 0.0f;
+	bool bBossPrayerBeamPending = false;
+	bool bBossPrayerBeamDamageConsumed = false;
 
 	bool bVisualPlacementApplied = false;
 	bool bAudioSpawnPosted = false;
