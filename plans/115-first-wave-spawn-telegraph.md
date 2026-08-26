@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side Executor（同一 AI 执行）。
 - Plan 编写方（AI 侧）：Gavyn-side AI（Codex）。
 - 实现编写方（AI 侧）：Gavyn-side AI（Codex）。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@9c146b5db5b8b836901a0fa6e6b0e067ef985a26`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan115`，本地分支 `plan/115-first-wave-spawn-telegraph`；Plan-only 发布后在同一工作树继续实现。
@@ -37,10 +37,10 @@
 ## 锁定验收
 
 - [ ] 角色确认后，首波每个预留出生位置先出现可见红色球框，球框显示期间不存在对应 Enemy Host、Roster 条目、碰撞、AI 或伤害。
-- [ ] 首波各角色类型在各自 `WarningLeadSeconds` 到期后才生成；零秒调用只返回 Warning，不同时返回 Commit。
-- [ ] 10 秒、20 秒等后续波次仍在原 `TriggerSeconds` Commit，并在此前按配置提前 Warning。
-- [ ] 首波预警位置与最终怪物生成位置一致，容量预留、确定性顺序、保存/恢复游标不退化。
-- [ ] 聚焦 Scheduler 自动化覆盖零秒首波与普通后续波次；Editor 构建及适用 Encounter 自动化通过。
+- [x] 首波各角色类型在各自 `WarningLeadSeconds` 到期后才生成；零秒调用只返回 Warning，不同时返回 Commit。
+- [x] 10 秒、20 秒等后续波次仍在原 `TriggerSeconds` Commit，并在此前按配置提前 Warning。
+- [x] 首波预警位置与最终怪物生成位置一致，容量预留、确定性顺序、保存/恢复游标不退化。
+- [x] 聚焦 Scheduler 自动化覆盖零秒首波与普通后续波次；Editor 构建及适用 Encounter 自动化通过。
 - [ ] 用户在 PIE 确认“角色入场 → 红色球框 → 怪物出生”的可读时序。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -76,16 +76,20 @@
 ### 变化
 
 - 2026-08-26：完成只读定位。生产第一波 `TriggerSeconds=0`，Melee/Ranged/Elite/Boss 的 `WarningLeadSeconds` 为 0.8–1.0 秒；Scheduler 将 Warning 钳到 0 后仍把 Commit 放在 0，`ProcessScheduledSpawnEvents(0)` 因而同帧处理两者。
+- 2026-08-26：Scheduler 集中派生实际 Commit 时间；零秒首波 Warning 保持在 0 秒，Commit 延后到完整 `WarningLeadSeconds`。GameMode 仍只在 Warning 准备位置，并把出生框改为明确红色；Enemy Host 仍只由 Commit 创建。
 
 ### 证据
 
 - `FReEchoEncounterWaveSchedulerTest` 当前断言“Warning sorts before commit at the same time”，与用户期望直接相反。
 - GameMode 已有 PendingSpawnBatch 两阶段链；修复无需提前生成或隐藏 Enemy Host。
+- `scripts/ue/Build-Editor.cmd -Configuration Development` 成功，UHT/UBT `Result: Succeeded`，刷新 7 个精选 Editor 模块。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Encounter`：`BossContinuesAfterStandardDuration`、`DeterministicSpawnResolver`、`SpawnWarningCapacityReservation`、`TableDrivenWaveScheduler` 全部 `Result={Success}`。
 
 ### 剩余风险
 
 - 当前出生框由 GameMode 调试绘制接口表现；本 Plan 只保证现有球框的时序与可见寿命，不扩张为新的美术资产系统。
 - 若用户认为首波延迟不应计入遭遇倒计时，需要另行决定 Encounter 时钟何时开始；本 Plan 暂定角色入场即开始计时，怪物在 0.8–1.0 秒后生成。
+- 实现完成后远端 main 新增玩家碰撞/兔子连发提交，且另一发布者持有狐狸冲刺候选锁；最终发布必须获锁后合入最新 main、重跑 FullRebuild 和受影响证据。
 
 ### 人工验收结果/请求
 
@@ -93,4 +97,7 @@
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：明确 Warning 锁点、Commit 创建 Host，以及零秒首波完整等待配置 lead。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md` 已审阅、无需修改：Enemy Host/Logic 仍只在 GameMode Commit 后存在，Enemies 公共契约未变。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑、依赖方向和既有 Warning/Spawn Intent 流程未变。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：AREA-Encounter 的文件路由未变。

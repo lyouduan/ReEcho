@@ -2148,7 +2148,7 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 				const float DisplaySeconds = FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds);
 				for (const FVector& Location : Pending->Locations)
 				{
-					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Orange, false, DisplaySeconds, 0, 5.0f);
+					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Red, false, DisplaySeconds, 0, 5.0f);
 				}
 			}
 			continue;

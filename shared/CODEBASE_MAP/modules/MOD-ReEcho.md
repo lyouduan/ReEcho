@@ -46,7 +46,7 @@
 | 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
-| Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
+| Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建 Enemy Host；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
 | 当前 Arena 场景与 SceneId 注册 | `AReEchoArenaSceneActor` 注册表；Stage CSV `SceneId` 为选择权威 | World/Stage | GameMode 在初始、恢复和跨 Stage 入口先应用场景；同 Stage 不重建，失败阻止 Encounter 开始 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
@@ -114,7 +114,7 @@ DefaultEngine.ini
       → BeginNextEncounter / ResumeSavedEncounter
           → 按 Stage CSV SceneId 从 Arena Blueprint 注册表解析 SC01-SC04；只在 SceneId 变化时原位替换 Arena，并重绑 Player/Camera/Bounds
           → 玩家、Recorder、可用 Echo、EnemyHost + Roster
-          → 60 Hz 固定步遭遇 → 0/10/20 秒 WaveScheduler
+          → 60 Hz 固定步遭遇 → 0/10/20 秒 WaveScheduler（零秒首波先预警并等待配置 lead，后续波次仍提前预警、按 TriggerSeconds 生成）
           → 普通战按 30 秒完成；ReEchoStageTransition 统一解析下一场策略；Boss 按胜负
           → 完成录制与 RunSubsystem::CompleteEncounter
           → 局间停止玩家并冻结保留 Enemy Host，清理旧 Echo/瞬时攻击
