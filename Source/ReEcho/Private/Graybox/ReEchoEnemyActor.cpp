@@ -1248,7 +1248,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 				Projectile.Attack = Intent.Attack;
 				Projectile.Damage = Intent.RawDamage;
 				Projectile.CollisionRadiusCm =
-				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm, VolleyCount);
+				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm);
 				Projectile.VolleyBallIndex = BallIndex;
 				Projectile.SpawnDelayRemainingSeconds = ShotIntervalSeconds * BallIndex;
 				Projectile.bSpawnEventPublished = !bSequentialStraightVolley || BallIndex == 0;

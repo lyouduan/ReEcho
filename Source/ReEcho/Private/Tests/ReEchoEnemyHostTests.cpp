@@ -261,9 +261,20 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	const FReEchoEnemyAbilityDefinition* StationaryVolley = RabbitDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_RABBIT_RangedBurst");
+	    });
+	if (!TestNotNull(TEXT("Production rabbit keeps the stationary-volley ability"), StationaryVolley))
+	{
+		return false;
+	}
 	const int32 MovingVolleyCount = FMath::Max(1, MovingVolley->ProjectileCount);
-	const float MovingBallRadius =
-	    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(MovingVolley->RadiusCm, MovingVolleyCount);
+	const float FixedRabbitBallRadius =
+	    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(MovingVolley->RadiusCm);
+	const float StationaryShotInterval =
+	    StationaryVolley->ActiveSeconds / static_cast<float>(FMath::Max(1, StationaryVolley->ProjectileCount - 1));
 	const float MovingProjectileSpeed = MovingVolley->ProjectileSpeedCmPerSecond > 0.0f
 	                                        ? MovingVolley->ProjectileSpeedCmPerSecond
 	                                        : MovingVolley->MaxRangeCm / MovingVolley->CooldownSeconds;
@@ -321,7 +332,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Rabbit ball keeps the authored damage"), Ball.Damage, 1.0f);
 		TestEqual(TEXT("Rabbit volley radius is divided into one collider per ball"),
 		          Ball.CollisionRadiusCm,
-		          MovingBallRadius);
+		          FixedRabbitBallRadius);
 		TestEqual(TEXT("Rabbit ball stores its stable volley index"), Ball.VolleyBallIndex, BallIndex);
 		TestEqual(TEXT("Every rabbit ball uses the same resolved data-driven speed"),
 		          Ball.Definition.SpeedCmPerSecond,
@@ -352,7 +363,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		}
 		TestEqual(TEXT("Each presentation event carries the authoritative collider radius"),
 		          Event.CollisionRadiusCm,
-		          MovingBallRadius);
+		          FixedRabbitBallRadius);
 	}
 	TestEqual(TEXT("Host publishes one presentation spawn per authoritative ball"),
 	          SpawnEventCount,
@@ -514,12 +525,15 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	for (const FReEchoEnemyProjectileRuntimeState& Ball : StationaryStart.BossProjectiles)
 	{
 		PublishedAtCommit += Ball.bSpawnEventPublished ? 1 : 0;
+		TestEqual(TEXT("Stationary and moving rabbit shots keep the same fixed collision radius"),
+		          Ball.CollisionRadiusCm,
+		          FixedRabbitBallRadius);
 		TestTrue(TEXT("Stationary burst balls share one locked direction"),
 		         Ball.Definition.Direction.Equals(FVector::ForwardVector, KINDA_SMALL_NUMBER));
 	}
 	TestEqual(TEXT("Only the first stationary shot enters the world at commit"), PublishedAtCommit, 1);
 
-	Rabbit->AdvanceEnemyProjectilesForTests(0.04f);
+	Rabbit->AdvanceEnemyProjectilesForTests(StationaryShotInterval + 0.001f);
 	const FReEchoEnemyRuntimeState MidBurst = Rabbit->CaptureRuntimeState();
 	int32 PublishedAfterFirstInterval = 0;
 	for (const FReEchoEnemyProjectileRuntimeState& Ball : MidBurst.BossProjectiles)
@@ -538,7 +552,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Restore republishes only shots that had already entered the world"), RestoredSpawnEvents, 2);
 
 	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
-	Rabbit->AdvanceEnemyProjectilesForTests(0.03f);
+	Rabbit->AdvanceEnemyProjectilesForTests(StationaryShotInterval);
 	int32 ThirdShotEvents = 0;
 	for (const FReEchoEnemyProjectileEvent& Event :
 	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())
@@ -547,7 +561,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("The third stationary shot spawns after its remaining delay"), ThirdShotEvents, 1);
 	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
-	Rabbit->AdvanceEnemyProjectilesForTests(0.04f);
+	Rabbit->AdvanceEnemyProjectilesForTests(StationaryShotInterval);
 	int32 FourthShotEvents = 0;
 	for (const FReEchoEnemyProjectileEvent& Event :
 	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())

@@ -212,7 +212,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 **设计意图：** `MOD-ReEchoEnemies` 独占怪物行为状态；主模块只提供世界感知、Transform/Collision 应用、Combat 转发和资源表现，避免逻辑与美术继续争用同一份实现。
 
 - 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
-- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把每条敌方逻辑投射物的连续路径与世界目标碰撞盒相交结果转为一次 Combat `HitIntent`；兔子一次 Commit 展开三条扇形轨迹，每条最多结算一次，伤害与整组碰撞尺寸仍来自注入的 Ability Definition。Combat Death 后 Host 立即关闭 Logic/碰撞和新行为，保留已发射逻辑投射物推进；死亡阶段只继续轻量表现推进，使 GroundShadow 可跟随 Death 当前帧；Death Clip 独占播放一次并在实际完成时销毁 Host，缺失 Death 时下一安全帧销毁，实际时长加短宽限只作为防卡死 watchdog。
+- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把每条敌方逻辑投射物的连续路径与世界目标碰撞盒相交结果转为一次 Combat `HitIntent`；兔子移动散射一次 Commit 展开三条扇形轨迹，站定连发则按 `ActiveSeconds` 依次发布四条同向轨迹，每条最多结算一次。两种兔子技能的单球碰撞半径固定沿用原移动三球基准 `RadiusCm / 3`，不因发数改变。Combat Death 后 Host 立即关闭 Logic/碰撞和新行为，保留已发射逻辑投射物推进；死亡阶段只继续轻量表现推进，使 GroundShadow 可跟随 Death 当前帧；Death Clip 独占播放一次并在实际完成时销毁 Host，缺失 Death 时下一安全帧销毁，实际时长加短宽限只作为防卡死 watchdog。
 - 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class，血条、动画、命中特效、元素光环与死亡残留不反向控制玩法。
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；`SetEncounterSimulationSuspended` 在同 Stage 局间冻结原 Host，并在进入下一 Encounter 前恢复。Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
 - Plan68 接线：GameMode 用当前 `EncounterIndex` 编译每个出生 Enemy Definition；Host 注入表驱动 `HateRangeCm`、当前生命比率和特殊行动许可。`M_SHEEP` 的第一次致命伤由 Combat 窄委托转为 Phase2 变身事件，完成后把生命上限和当前生命切到 650；普通怪未战斗时的 IdleWander 仍由 EnemyLogic 独占状态。
@@ -272,7 +272,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 代码：`Source/ReEcho/Public/Player/`、`Source/ReEcho/Private/Player/`。
 - 首读：`ReEchoPlayerPawn.*`。
 - 输入：WASD、攻击、暂停/模式命令和世界边界。
-- 输出：移动、相机/朝向表现、攻击请求和只读玩家状态。
+- 输出：移动、相机/朝向表现、攻击请求和只读玩家状态；真实扣血的 Hurt 事件会让根 Box 在 1 秒内忽略 `Pawn` 移动碰撞，重复受伤顺延窗口但不提供伤害无敌，结束后恢复 Blueprint 作者碰撞响应。
 - 扩展：新输入先确定命令所有者；菜单、死亡与模式切换必须统一释放 held 请求。
 - 禁止：在 Pawn 再建一套攻击间隔、生命或 Run phase。
 
@@ -285,7 +285,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：只拥有表现实例与表现生命周期；逻辑生命、伤害、攻击节奏和录制不归这里。
 - 输入：Combat/Weapon/Recording 结果、只读快照、`AppearanceId`、武器视觉 Key 和稳定视觉 ID。
 - 输出：Sprite/Mesh/材质、动画、VFX、世界文本和镜头反馈。
-- 战斗 VFX：详细设计见 [`MOD-ReEchoVFX.md`](MOD-ReEchoVFX.md)。`UReEchoCombatVfxComponent` 装配在 Player、Echo 与 Enemy Host，只读订阅 Combat/Enemy 类型化事件；三类 Host 的 `EffectsRoot` 下分别暴露 Blueprint 可编辑的 `AttackVfxRoot` / `HurtVfxRoot`，Echo 另有按 Flipbook 稳定视觉 Bounds 居中并处于角色下一排序层的 `EchoAuraVfxRoot`。Run/GameMode 只在 Cards 的同一权威 `EchoAuraPulseCount` 到达时播放一次水草 Aura，不新增视觉计时器，2 秒/4m 元素玩法链不变；`FReEchoCombatVfxCatalog` 是语义到完整 Niagara/材质/纹理路径的唯一映射。兔子三颗可见子弹以 `(AttackIdentity, VolleyBallIndex)` 一一跟随 EnemyHost 逐球快照，并组合原核心球与红色柔光材质；表现不拥有轨迹、碰撞、伤害或存档。
+- 战斗 VFX：详细设计见 [`MOD-ReEchoVFX.md`](MOD-ReEchoVFX.md)。`UReEchoCombatVfxComponent` 装配在 Player、Echo 与 Enemy Host，只读订阅 Combat/Enemy 类型化事件；三类 Host 的 `EffectsRoot` 下分别暴露 Blueprint 可编辑的 `AttackVfxRoot` / `HurtVfxRoot`，Echo 另有按 Flipbook 稳定视觉 Bounds 居中并处于角色下一排序层的 `EchoAuraVfxRoot`。Run/GameMode 只在 Cards 的同一权威 `EchoAuraPulseCount` 到达时播放一次水草 Aura，不新增视觉计时器，2 秒/4m 元素玩法链不变；`FReEchoCombatVfxCatalog` 是语义到完整 Niagara/材质/纹理路径的唯一映射。兔子每颗可见子弹以 `(AttackIdentity, VolleyBallIndex)` 一一跟随 EnemyHost 逐球快照，并按事件碰撞半径绘制相同尺寸的核心球与红色柔光材质；表现不拥有轨迹、碰撞、伤害或存档。
 - 战斗表现协调（Plan77）：Enemy Host 上的 `UReEchoCombatPresentationCoordinator` 将特殊动作归一为由来源、序列和 AbilityId 标识的有序阶段。动画与 VFX 不再各自订阅并解释原始 SpecialAction，而是共同消费同一 Windup/Committed/Ended/Cancelled 广播；Coordinator 只拥有去重和可丢弃的表现生命周期。战斗主体 DA 从 Plan78 起统一位于 `/Game/ReEcho/DataAsset/{Character,Enemy,Weapon,Common}`，角色、怪物和武器 Catalog 不再混放。
 - 比例契约：人物 `100 UU`；Grunt/史莱姆 `80 UU`；Rabbit `140 UU`；Fox `200 UU`；Goat/Boss `220 UU`。Animation2D Profile 拥有外观目标高度；Gameplay Blueprint 独立拥有可编辑 Box Collision 的尺寸和变换，运行时代码不得按外观高度覆盖碰撞；同一 Profile 的不同语义序列必须同尺寸。
 - Arena Scene：`Presentation/Scene/ReEchoArenaSceneActor.*` 是 `/Game/Level00` 中 Editor authored 的场景契约，独立拥有可替换 `MapMaterial`、相机安全边界、玩家活动边界和敌人出生边界；不再持有或采样地图 AO。`UReEchoArenaSceneProfile` 只拥有地图材质、Ground 调色和插片白名单/密度/固定种子/中央安全区等表现默认值；Actor 的 `SceneProfile` 在 Construction 中建立地图 MID 并应用 `GroundTint/GroundBrightness/GroundSaturation/GroundContrast`，但 Profile 不拥有玩法边界、碰撞、遭遇或关卡流程。`ArenaCamera` 独立直属 `SceneRoot`，直接拥有可编辑的位置、旋转、正交宽度和宽高比，不继承地图 Transform。默认中心锁定模式在地图安全区内让相机地面焦点严格跟随玩家脚点，边缘/角落仍以地图 Clamp 为先。`MapRoot` 是地图、碰撞和玩法范围的 Editor 平移/缩放节点；Backdrop、Floor 和四墙是其直接子节点，`OnConstruction()` 会修复旧关卡实例遗留的 Attachment。`PlantRoot` 位于 `GroundDetailRoot` 下，Level00 中烘焙的植物卡片可单独选择、移动、缩放、替换材质或删除；Plan52 工具使用 Profile 固定种子并只清理带 `ReEchoGeneratedDecoration_Plan52` 标签的卡片。GameMode、相机 Clamp、脚点排序与视差读取 MapRoot 世界中心，玩家/出生/相机范围消费其 XY Scale。`GameplayPlaneZ` 是 MapRoot 局部脚底平面，统一转换为世界高度；玩家和怪物 Actor 中心始终为该高度加各自 Box 半高，GroundRoot/阴影因此贴合相同平面。`ReEcho2DSceneLightingComponent` 只维护脚点透明排序，不修改角色明暗。Backdrop 与 Collision 各有独立 Auto Layout 开关；关闭后 Construction 保留关卡实例中直接编辑的组件 Transform。GameMode 只验证唯一实例并消费边界；相机按组件当前倾斜正交视锥投影到同一玩法平面的实际 footprint 跟随/钳制，不在运行时生成备用场地或覆盖 Editor 相机参数。
