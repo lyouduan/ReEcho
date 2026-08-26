@@ -236,6 +236,7 @@ void AReEchoGameMode::GMHelp()
 	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
 	                   "<Clear|Rain|Fog> | "
 	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss | "
+	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
@@ -579,7 +580,8 @@ void AReEchoGameMode::GMGod(const FString& Mode)
 	}
 
 	Player->Combatant->SetDebugInvulnerable(bEnable);
-	PrintGMResult(FString::Printf(TEXT("Player invulnerability=%s."), bEnable ? TEXT("On") : TEXT("Off")));
+	PrintGMResult(FString::Printf(TEXT("Player God mode=%s (damage numbers remain visible; HP is preserved)."),
+	                              bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMAddShards(const int32 Amount)
@@ -780,6 +782,69 @@ void AReEchoGameMode::GMGotoBoss()
 	                  ? FString::Printf(TEXT("Started Boss encounter %d."), BossEncounterIndex)
 	                  : FString::Printf(TEXT("Failed to start Boss encounter %d."), BossEncounterIndex),
 	              bStartedBossEncounter);
+}
+
+void AReEchoGameMode::GMBossSkill(const FString& Skill)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+
+	FName AbilityId = NAME_None;
+	if (Skill.Equals(TEXT("Skill01"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("1")))
+	{
+		AbilityId = TEXT("M_SHEEP_MeleeSweep");
+	}
+	else if (Skill.Equals(TEXT("Skill02"), ESearchCase::IgnoreCase) ||
+	         Skill.Equals(TEXT("Skill02Stationary"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("2")))
+	{
+		AbilityId = TEXT("M_SHEEP_StationaryVolley");
+	}
+	else if (Skill.Equals(TEXT("Skill02Moving"), ESearchCase::IgnoreCase) ||
+	         Skill.Equals(TEXT("2M"), ESearchCase::IgnoreCase))
+	{
+		AbilityId = TEXT("M_SHEEP_MovingSpread");
+	}
+	else if (Skill.Equals(TEXT("Skill03"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("3")))
+	{
+		AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	}
+	else if (Skill.Equals(TEXT("Skill04"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("4")))
+	{
+		AbilityId = TEXT("M_SHEEP_PrayerBeam");
+	}
+	else
+	{
+		PrintGMResult(TEXT("Usage: GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04>"), false);
+		return;
+	}
+
+	AReEchoEnemyActor* Boss = nullptr;
+	if (EnemyRoster)
+	{
+		for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+		{
+			AReEchoEnemyActor* Candidate = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+			if (Candidate && Candidate->IsAlive() && Candidate->GetEnemyId() == TEXT("M_SHEEP"))
+			{
+				Boss = Candidate;
+				break;
+			}
+		}
+	}
+	if (!Boss || !Boss->GetEnemyLogicComponent())
+	{
+		PrintGMResult(TEXT("GMBossSkill requires a living M_SHEEP Boss."), false);
+		return;
+	}
+
+	const bool bQueued = Boss->GetEnemyLogicComponent()->DebugQueueBossAbility(AbilityId);
+	PrintGMResult(bQueued ? FString::Printf(TEXT("Queued Boss ability %s through the normal skill state machine."),
+	                                        *AbilityId.ToString())
+	                      : FString::Printf(TEXT("Boss ability %s is unavailable in the active definition."),
+	                                        *AbilityId.ToString()),
+	              bQueued);
 }
 
 void AReEchoGameMode::GMGrantCard(const FName CardId)
@@ -2065,18 +2130,19 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 		if (Event.Type == EReEchoScheduledSpawnEventType::Warning)
 		{
 			PrepareScheduledSpawnBatch(Event);
-			UE_LOG(LogTemp,
-			       Display,
-			       TEXT("[EncounterSpawn] warning wave=%s role=%s count=%d spawn=%.2f"),
-			       *Event.WaveId.ToString(),
-			       *Event.EnemyRole.ToString(),
-			       Event.Count,
-			       Event.SpawnSeconds);
 			const FReEchoPendingSpawnBatchState* Pending = PendingSpawnBatches.FindByPredicate(
 			    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
 			    {
 				    return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
 			    });
+			UE_LOG(LogTemp,
+			       Display,
+			       TEXT("[EncounterSpawn] warning wave=%s role=%s requested=%d reserved=%d spawn=%.2f"),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Event.Count,
+			       Pending ? Pending->Locations.Num() : 0,
+			       Event.SpawnSeconds);
 			if (Pending && GetWorld())
 			{
 				const float DisplaySeconds = FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds);
@@ -2093,12 +2159,11 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 
 void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event)
 {
-	if (Event.EnemyRole == TEXT("Boss") || PendingSpawnBatches.ContainsByPredicate(
-	                                           [&Event](const FReEchoPendingSpawnBatchState& Candidate)
-	                                           {
-		                                           return Candidate.WaveId == Event.WaveId &&
-		                                                  Candidate.EnemyRole == Event.EnemyRole;
-	                                           }))
+	if (PendingSpawnBatches.ContainsByPredicate(
+	        [&Event](const FReEchoPendingSpawnBatchState& Candidate)
+	        {
+		        return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
+	        }))
 	{
 		return;
 	}
@@ -2119,12 +2184,44 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 	}
 	const float GameplayPlaneWorldZ = ArenaScene ? ArenaScene->GetGameplayPlaneWorldZ() : 0.0f;
 	const float SpawnCenterWorldZ = GameplayPlaneWorldZ + Enemy->CollisionHalfHeightCm;
+	int32 LivingCount = 0;
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		LivingCount +=
+		    Entry.bAlive && (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
+		        ? 1
+		        : 0;
+	}
+	int32 ReservedCount = 0;
+	for (const FReEchoPendingSpawnBatchState& ExistingBatch : PendingSpawnBatches)
+	{
+		if (!Encounter->bBossCountsTowardUnitLimit && ExistingBatch.EnemyRole == TEXT("Boss"))
+		{
+			continue;
+		}
+		ReservedCount += ExistingBatch.Locations.Num();
+	}
+	const bool bCountsTowardUnitLimit =
+	    Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
+	const int32 ReservationCount = ReEchoSpawnCapacity::CalculateReservationCount(
+	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count, bCountsTowardUnitLimit);
+	if (ReservationCount < Event.Count)
+	{
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[EncounterSpawn] warning wave=%s role=%s reserved %d->%d by active unit limit %d."),
+		       *Event.WaveId.ToString(),
+		       *Event.EnemyRole.ToString(),
+		       Event.Count,
+		       ReservationCount,
+		       Encounter->ActiveUnitLimit);
+	}
 
 	FReEchoPendingSpawnBatchState Pending;
 	Pending.WaveId = Event.WaveId;
 	Pending.EnemyRole = Event.EnemyRole;
 	Pending.EnemyId = Event.EnemyId;
-	for (int32 Index = 0; Index < Event.Count; ++Index)
+	for (int32 Index = 0; Index < ReservationCount; ++Index)
 	{
 		FReEchoSpawnResolveRequest Request;
 		Request.PlayerAnchor = Player->GetActorLocation() + Player->GetVelocity() * Policy->AnchorLeadSeconds;
@@ -2183,11 +2280,6 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		return;
 	}
 
-	if (Event.EnemyRole == TEXT("Boss"))
-	{
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), RunSubsystem->EncounterIndex);
-		return;
-	}
 	PrepareScheduledSpawnBatch(Event);
 	const int32 PendingIndex = PendingSpawnBatches.IndexOfByPredicate(
 	    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
@@ -2201,30 +2293,18 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 	}
 	const FReEchoPendingSpawnBatchState Pending = PendingSpawnBatches[PendingIndex];
 
-	int32 LivingCount = 0;
-	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	for (int32 Index = 0; Index < Pending.Locations.Num(); ++Index)
 	{
-		LivingCount +=
-		    Entry.bAlive && (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
-		        ? 1
-		        : 0;
-	}
-	const int32 AllowedCount = FMath::Clamp(Encounter->ActiveUnitLimit - LivingCount, 0, Pending.Locations.Num());
-	if (AllowedCount < Pending.Locations.Num())
-	{
-		UE_LOG(LogTemp,
-		       Warning,
-		       TEXT("[EncounterSpawn] wave=%s role=%s truncated %d->%d by active unit limit %d."),
-		       *Event.WaveId.ToString(),
-		       *Event.EnemyRole.ToString(),
-		       Pending.Locations.Num(),
-		       AllowedCount,
-		       Encounter->ActiveUnitLimit);
-	}
-
-	for (int32 Index = 0; Index < AllowedCount; ++Index)
-	{
-		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex);
+		if (!SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex))
+		{
+			UE_LOG(LogTemp,
+			       Error,
+			       TEXT("[EncounterSpawn] committed warning failed wave=%s role=%s index=%d enemy=%s."),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Index,
+			       *Pending.EnemyId.ToString());
+		}
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
@@ -2243,8 +2323,10 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 		return false;
 	}
 	const int32 NextSpawnIndex = EnemySpawnIndex + 1;
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
-	    ResolveEnemyClass(Definition.PresentationId), SpawnLocation, FRotator::ZeroRotator);
+	    ResolveEnemyClass(Definition.PresentationId), SpawnLocation, FRotator::ZeroRotator, SpawnParameters);
 	if (Enemy)
 	{
 		Enemy->SetPresentationCatalog(PresentationCatalog);

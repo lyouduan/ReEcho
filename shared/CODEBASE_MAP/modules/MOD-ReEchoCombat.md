@@ -47,7 +47,9 @@
 
 Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为可写真相。
 
-`UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。Development 的 `SetDebugInvulnerable` 仅在最终伤害入口返回零，不改写 ASC 属性、不消费格挡，并在 Shipping 固定关闭。
+`UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。Development 的 `SetDebugInvulnerable` 让最终伤害入口返回已计算伤害供 Hurt/VFX/伤害数字消费，但跳过 ASC、生命、格挡和死亡写入；Shipping 固定关闭。正式限时无敌仍返回零伤害。
+
+`FReEchoStatBlock` 还包含 `RoleId`、暴击率/暴击效果、反应效率、投射物数量和武器尺寸等没有映射到 AttributeSet 的语义字段。`InitializeFromStats` 必须先保存完整 StatBlock，再用 ASC 同步其中的 GAS 属性；禁止用一次属性同步把这些非 GAS 字段重置为默认值。武器提交、角色能力和快照都从 Combatant 读取同一份完整语义，不能分别从 Build 与 AttributeSet 推断角色身份。
 
 `SetAdditiveAttackModifier(SourceId, Physical, Elemental)` 是通用、按来源替换的临时攻击修正入口：同一来源的新值覆盖旧值而非累加历史差值，最终写回 AttributeSet/兼容 StatBlock。Combat 不读取 CharacterId、能力表或缺血阈值；当前勇者能力由主模块 Player Host 在最终 `HealthChanged` 后计算，再发送这一窄命令。
 
@@ -55,7 +57,7 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 
 ### 命令与输入
 
-- Pawn/流程通过 `UReEchoAttackControllerComponent` 发送自动/手动模式、Begin/End manual、运行门控和统一 Release 请求；不直接写 GAS spec 的 `InputPressed`。
+- Pawn/流程通过 `UReEchoAttackControllerComponent` 发送自动/手动模式、Begin/End manual、运行门控和统一 Release 请求；不直接写 GAS spec 的 `InputPressed`。手动与自动来源互斥持有同一个 GAS 普攻输入：切换模式先释放旧来源，非当前模式入口被拒绝，迟到的旧来源 Release 不得释放新来源。
 - `IReEchoAttackControllerHost` / `IReEchoAttackHost` 是主模块宿主与 Combat 的窄桥，Combat 不 include 具体 Pawn 或 WeaponActor。
 - Weapons、敌人接触攻击或合法环境来源提交完整 `FReEchoHitIntent`；Intent 只描述候选，不宣称最终伤害或死亡。
 - 来源宿主可在 Resolver 内通过 `ModifyOutgoingHit` 对候选执行一次类型化规则变换；元素内部伤害必须携带 `bSourceRulesApplied`，防止同一 Hit 重复扣资源或增伤。
@@ -64,7 +66,7 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 ### 结果、事件与快照
 
 - `FReEchoHitResolved` 是最终裁决结果；只有 Resolver 能决定实际伤害、格挡与死亡。对应的 `FReEchoDamageEvent::bFatal` 明确标记本次 Hurt 已把存活目标降至零血，表现消费者仍可显示伤害数字，但必须抑制普通受击动画与受击 VFX。反应内部伤害同时携带资源中立的 `ReactionBehaviorId`；Burn 跨 Tick/存档保留该来源，强化被下一次伤害反应消费时发布 `Reaction.Enhance`，表现只据此选色而不得重算元素规则。
-- `UReEchoCombatEventsComponent` 发布 AttackCommitted、Hit、Hurt、HealthChanged、ElementStateChanged、Kill、Death。
+- `UReEchoCombatEventsComponent` 发布 AttackCommitted、Hit、Hurt、HealthChanged、ElementStateChanged、Kill、Death。WeaponActor 的普通攻击与主动攻击只要成功 Confirm，都必须走同一 `AttackCommitted` 出口；输入来源是自动、手动或 Echo 不得改变表现事件契约，未产生新 Commit 的镰刀召回不重复发布。
 - `FReEchoCombatantSnapshot` 和 `FReEchoAttackSnapshot` 是调用瞬间的只读副本，不持久化，也不能被 UI 当成可写缓存。
 - 事件 Payload 只包含稳定 ID、值、弱/受控对象句柄和世界信息，不携带 Widget、Sound、Animation、Texture 或 Material。
 

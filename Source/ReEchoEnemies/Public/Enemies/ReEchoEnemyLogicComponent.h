@@ -35,6 +35,8 @@ public:
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
+	/** Development command: queues one configured Boss ability for the next normal ability start. */
+	bool DebugQueueBossAbility(FName AbilityId);
 
 	bool IsInitialized() const
 	{
@@ -58,7 +60,9 @@ private:
 	FReEchoEnemyActionIntent AdvanceIdleWander(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
-	const FReEchoEnemyAbilityDefinition* GetSpecialAbility() const;
+	bool BuildSpecialRuntime();
+	const FReEchoEnemyAbilityDefinition* GetNextSpecialAbility() const;
+	const FReEchoEnemyAbilityDefinition* FindSpecialAbility(FName AbilityId) const;
 	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
 	                          float FixedDeltaSeconds,
 	                          FReEchoEnemyActionIntent& InOutIntent);
@@ -74,7 +78,7 @@ private:
 	                       FReEchoEnemyActionIntent& InOutIntent);
 	void EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability, FReEchoEnemyActionIntent& InOutIntent);
 	void AppendBossIntent(FReEchoBossIntent&& BossIntent, FReEchoEnemyActionIntent& InOutIntent);
-	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense) const;
+	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense);
 	int32 FindBossAbilityIndex(FName AbilityId) const;
 	float GetBossAbilityCooldown(FName AbilityId) const;
 	void SetBossAbilityCooldown(FName AbilityId, float RemainingSeconds);
@@ -105,8 +109,10 @@ private:
 
 	FReEchoEnemyDefinition Definition;
 	FReEchoEnemyLogicSnapshot State;
+	TArray<int32> SpecialActiveAbilityIndices;
 	TArray<int32> BossActiveAbilityIndices;
 	TArray<int32> BossPhaseIndices;
 	int32 BossCleanseAbilityIndex = INDEX_NONE;
+	FName DebugQueuedBossAbilityId = NAME_None;
 	bool bInitialized = false;
 };

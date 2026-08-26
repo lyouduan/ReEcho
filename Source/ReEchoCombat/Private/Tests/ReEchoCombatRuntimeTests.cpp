@@ -45,6 +45,31 @@ bool FReEchoCombatantSnapshotTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatantDebugGodVisibleDamageTest,
+                                 "ReEcho.Combat.Combatant.DebugGodReportsDamageWithoutHealthLoss",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCombatantDebugGodVisibleDamageTest::RunTest(const FString& Parameters)
+{
+	UReEchoCombatantComponent* Combatant = NewObject<UReEchoCombatantComponent>();
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Combatant->InitializeFromStats(Stats, true);
+	Combatant->SetDebugInvulnerable(true);
+
+	TestEqual(TEXT("GMGod reports the resolved damage for presentation"),
+	          Combatant->ApplyFinalDamageForTests(130.0f),
+	          130.0f);
+	TestEqual(TEXT("GMGod leaves health unchanged after a lethal-sized hit"), Combatant->CurrentHealth, 100.0f);
+	TestTrue(TEXT("GMGod cannot trigger death"), Combatant->IsAlive());
+
+	Combatant->SetDebugInvulnerable(false);
+	TestEqual(
+	    TEXT("Disabling GMGod restores normal applied damage"), Combatant->ApplyFinalDamageForTests(30.0f), 30.0f);
+	TestEqual(TEXT("Normal damage reduces health again"), Combatant->CurrentHealth, 70.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoElementCleanseCommandTest,
                                  "ReEcho.Combat.ElementCleanseCommand",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

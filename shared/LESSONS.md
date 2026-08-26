@@ -1195,6 +1195,14 @@ open "/Users/honghong/CodeWorkshop/SundayDrive/SundayDrive.uproject"
 
 **教训**：节拍、动作锁、无敌帧和冷却若共同限制同一攻击频率，必须共享同一缩放来源；只缩放其中一道闸门会在高攻速区间产生反直觉退化。
 
+### FIX-10. GAS 属性同步不能覆盖未映射的战斗语义字段 [UE]
+
+**来源**：剑柄替换后的伤害诊断。武器定义构建时 `RoleId=Brave`，但 Combatant 绑定 ASC 后只从 AttributeSet 回填数值字段，攻击提交时 `RoleId=None`；同类问题还会丢失暴击率、暴击效果、反应效率、投射物数量和武器尺寸等未映射字段。
+
+**修复**：`InitializeFromStats` 先保存完整 `FReEchoStatBlock`，再让 GAS 初始化并只覆盖 AttributeSet 权威的字段；增加 GAS-backed Combatant 自动化，固定验证非 GAS 语义不丢失。
+
+**教训**：一个聚合数据结构同时含“GAS 属性”和“非 GAS 语义”时，同步函数只能更新自己拥有的字段。不能先清空聚合对象再从不完整的外部存储重建，否则调用链前后会看到不同角色身份和规则参数。
+
 ---
 
 ## §DEBUG — 通用调试
@@ -1297,6 +1305,10 @@ FFileHelper::SaveStringToFile(Line, *Path,
 **来源**：OutLaw 2026-06-23，队友实报 — `Packages/manifest.json` 里把 MCP 包写成 `"com.coplaydev.unity-mcp": "file:/Users/honghong/unity-mcp/MCPForUnity"`（本机绝对路径）提交进 git → **别的队友 clone 后机器上没这个路径** → Unity 开工程弹 `Package Manager Error: package.json cannot be found`。机器专属路径**绝不能进共享仓**。
 - **修**：换成**钉死 commit 的 git URL**：`"https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#<commit>"`（从 `git -C ~/unity-mcp remote -v` 拿上游、`rev-parse HEAD` 拿 commit）。任何机器都能从 GitHub 解析、锁定同一版本不漂移。同步**删 `packages-lock.json` 里该包的旧 `source:"local"` 块**让 Unity 重解析（git 依赖的 lock 格式带 hash，别手写）。
 - 适用任何本地包/工具：MCP 这类**只有部分人用的开发工具**也照此（git URL 让所有机器可解析，纯编辑器工具不影响 build；游戏代码不引用它）。
+
+### DEBUG-14. 可复现问题需要按运行会话保留独立 UE 日志 [UE]
+
+`Saved/Logs/ReEcho.log` 是当前进程的默认入口，重新启动会触发 UE 的 backup 轮转，但 backup 文件名不是上一会话的严格本地开始时间，策划也容易误发错误文件。Development 启动时额外注册 `FOutputDeviceFile`，把日志镜像到 `ReEcho-session-<本地开始时间>-pid<进程号>.log`；文件名唯一且不追加/覆盖。模块关闭时先刷新、再从 `GLog` 移除并关闭设备，避免悬空输出目标。Shipping 不创建该诊断副本。
 ### DEBUG-UE. 背景尺寸不能充当镜头跟随范围
 
 远景平面世界尺寸与玩法镜头边界属于不同坐标语义。将 8400/2 直接作为 CameraFollowLimit 会让镜头越过仅 ±1100 的场地边界。镜头范围应使用独立安全值，并让纯远景绑定相机保持固定相对距离。

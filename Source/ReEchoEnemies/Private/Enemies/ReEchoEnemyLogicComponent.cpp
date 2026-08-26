@@ -155,9 +155,11 @@ UReEchoEnemyLogicComponent::UReEchoEnemyLogicComponent()
 bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefinition, const int32 InSpawnIndex)
 {
 	bInitialized = false;
+	SpecialActiveAbilityIndices.Reset();
 	BossActiveAbilityIndices.Reset();
 	BossPhaseIndices.Reset();
 	BossCleanseAbilityIndex = INDEX_NONE;
+	DebugQueuedBossAbilityId = NAME_None;
 	if (InDefinition.MaxHealth <= 0.0f || InDefinition.MoveSpeedCmPerSecond < 0.0f ||
 	    InDefinition.CollisionRadiusCm <= 0.0f || InDefinition.CollisionHalfHeightCm <= 0.0f ||
 	    InDefinition.ContactDamage < 0.0f || InDefinition.AttackIntervalSeconds < 0.0f ||
@@ -191,15 +193,15 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	State.SpawnIndex = InSpawnIndex;
 	State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 	State.bAlive = true;
-	if (Definition.Archetype == EReEchoEnemyArchetype::Boss && !BuildBossRuntime())
+	if ((Definition.Archetype == EReEchoEnemyArchetype::Ranged ||
+	     Definition.Archetype == EReEchoEnemyArchetype::Elite) &&
+	    !BuildSpecialRuntime())
 	{
 		Definition = {};
 		State = {};
 		return false;
 	}
-	if ((Definition.Archetype == EReEchoEnemyArchetype::Ranged ||
-	     Definition.Archetype == EReEchoEnemyArchetype::Elite) &&
-	    !GetSpecialAbility())
+	if (Definition.Archetype == EReEchoEnemyArchetype::Boss && !BuildBossRuntime())
 	{
 		Definition = {};
 		State = {};
@@ -207,6 +209,31 @@ bool UReEchoEnemyLogicComponent::Initialize(const FReEchoEnemyDefinition& InDefi
 	}
 	bInitialized = true;
 	return true;
+}
+
+bool UReEchoEnemyLogicComponent::BuildSpecialRuntime()
+{
+	SpecialActiveAbilityIndices.Reset();
+	const FName RequiredBehavior = Definition.Archetype == EReEchoEnemyArchetype::Ranged
+	                                   ? FName(TEXT("Enemy.RangedBurst"))
+	                                   : FName(TEXT("Enemy.EliteDash"));
+	for (int32 AbilityIndex = 0; AbilityIndex < Definition.Abilities.Num(); ++AbilityIndex)
+	{
+		const FReEchoEnemyAbilityDefinition& Ability = Definition.Abilities[AbilityIndex];
+		if (Ability.bEnabled && Ability.BehaviorId == RequiredBehavior && !Ability.Id.IsNone())
+		{
+			SpecialActiveAbilityIndices.Add(AbilityIndex);
+		}
+	}
+	SpecialActiveAbilityIndices.Sort(
+	    [this](const int32 LeftIndex, const int32 RightIndex)
+	    {
+		    const FReEchoEnemyAbilityDefinition& Left = Definition.Abilities[LeftIndex];
+		    const FReEchoEnemyAbilityDefinition& Right = Definition.Abilities[RightIndex];
+		    return Left.SequenceOrder == Right.SequenceOrder ? Left.Id.LexicalLess(Right.Id)
+		                                                     : Left.SequenceOrder < Right.SequenceOrder;
+	    });
+	return !SpecialActiveAbilityIndices.IsEmpty();
 }
 
 bool UReEchoEnemyLogicComponent::BuildBossRuntime()
@@ -459,27 +486,33 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	return Intent;
 }
 
-const FReEchoEnemyAbilityDefinition* UReEchoEnemyLogicComponent::GetSpecialAbility() const
+const FReEchoEnemyAbilityDefinition* UReEchoEnemyLogicComponent::GetNextSpecialAbility() const
 {
-	for (const FReEchoEnemyAbilityDefinition& Ability : Definition.Abilities)
+	if (SpecialActiveAbilityIndices.IsEmpty())
 	{
-		const bool bRangedMatch =
-		    Definition.Archetype == EReEchoEnemyArchetype::Ranged && Ability.BehaviorId == TEXT("Enemy.RangedBurst");
-		const bool bEliteMatch =
-		    Definition.Archetype == EReEchoEnemyArchetype::Elite && Ability.BehaviorId == TEXT("Enemy.EliteDash");
-		if (Ability.bEnabled && (bRangedMatch || bEliteMatch))
-		{
-			return &Ability;
-		}
+		return nullptr;
 	}
-	return nullptr;
+	const int32 SequenceIndex = FMath::Clamp(State.SpecialNextSequenceIndex, 0, SpecialActiveAbilityIndices.Num() - 1);
+	return &Definition.Abilities[SpecialActiveAbilityIndices[SequenceIndex]];
+}
+
+const FReEchoEnemyAbilityDefinition* UReEchoEnemyLogicComponent::FindSpecialAbility(const FName AbilityId) const
+{
+	const int32* AbilityIndex = SpecialActiveAbilityIndices.FindByPredicate(
+	    [this, AbilityId](const int32 CandidateIndex)
+	    {
+		    return Definition.Abilities[CandidateIndex].Id == AbilityId;
+	    });
+	return AbilityIndex ? &Definition.Abilities[*AbilityIndex] : nullptr;
 }
 
 FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense,
                                                                     const float DeltaSeconds)
 {
 	FReEchoEnemyActionIntent Intent;
-	const FReEchoEnemyAbilityDefinition* Ability = GetSpecialAbility();
+	const FReEchoEnemyAbilityDefinition* Ability = State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None
+	                                                   ? GetNextSpecialAbility()
+	                                                   : FindSpecialAbility(State.SpecialAbilityId);
 	if (!Ability || !Sense.bTargetExists || !Sense.bTargetAlive)
 	{
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
@@ -508,6 +541,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 			State.SpecialActionRemainingSeconds = Ability->WindupSeconds;
 			State.SpecialLockedTargetLocation = Sense.TargetLocation;
 			State.SpecialLockedDirection = Direction.IsNearlyZero() ? State.FacingDirection : Direction;
+			State.SpecialNextSequenceIndex = (State.SpecialNextSequenceIndex + 1) % SpecialActiveAbilityIndices.Num();
 			State.Phase = EReEchoEnemyBehaviorPhase::Attacking;
 			return Intent;
 		}
@@ -527,15 +561,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 		// During the recovery of a move-while-casting ability, keep pursuing the target instead of freezing.
 		if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery)
 		{
-			const FReEchoEnemyAbilityDefinition* SpecialAbility = nullptr;
-			for (const FReEchoEnemyAbilityDefinition& Candidate : Definition.Abilities)
-			{
-				if (Candidate.Id == State.SpecialAbilityId)
-				{
-					SpecialAbility = &Candidate;
-					break;
-				}
-			}
+			const FReEchoEnemyAbilityDefinition* SpecialAbility = FindSpecialAbility(State.SpecialAbilityId);
 			if (SpecialAbility && SpecialAbility->bMovementDuringCast)
 			{
 				const FVector TowardTarget = (Sense.TargetLocation - Sense.SelfLocation).GetSafeNormal2D();
@@ -813,8 +839,10 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	BossIntent.Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
 	BossIntent.Attack.Sequence = State.BossCurrentAttackSequence;
 	BossIntent.Target = Sense.Target;
-	BossIntent.Origin =
-	    AbilityKind == EReEchoBossAbilityKind::BlinkSlam ? State.BossLockedTeleportDestination : Sense.SelfLocation;
+	BossIntent.Origin = AbilityKind == EReEchoBossAbilityKind::BlinkSlam
+	                        ? State.BossLockedTeleportDestination
+	                        : AbilityKind == EReEchoBossAbilityKind::PrayerBeam ? State.BossLockedTargetLocation
+	                                                                           : Sense.SelfLocation;
 	BossIntent.LockedTargetLocation = State.BossLockedTargetLocation;
 	BossIntent.LockedDirection = State.BossLockedDirection;
 	BossIntent.TeleportDestination = State.BossLockedTeleportDestination;
@@ -912,11 +940,30 @@ void UReEchoEnemyLogicComponent::AppendBossIntent(FReEchoBossIntent&& BossIntent
 	InOutIntent.BossIntents.Add(MoveTemp(BossIntent));
 }
 
-int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense) const
+int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense)
 {
 	if (!Sense.bTargetExists || !Sense.bTargetAlive || BossActiveAbilityIndices.IsEmpty())
 	{
 		return INDEX_NONE;
+	}
+	if (!DebugQueuedBossAbilityId.IsNone())
+	{
+		const int32 QueuedAbilityIndex = FindBossAbilityIndex(DebugQueuedBossAbilityId);
+		if (!BossActiveAbilityIndices.Contains(QueuedAbilityIndex))
+		{
+			DebugQueuedBossAbilityId = NAME_None;
+		}
+		else if (ResolveBossAbilityKind(Definition.Abilities[QueuedAbilityIndex].BehaviorId) ==
+		             EReEchoBossAbilityKind::BlinkSlam &&
+		         !Sense.bHasTeleportDestination)
+		{
+			return INDEX_NONE;
+		}
+		else
+		{
+			DebugQueuedBossAbilityId = NAME_None;
+			return QueuedAbilityIndex;
+		}
 	}
 	const float Distance = FVector::Dist2D(Sense.SelfLocation, Sense.TargetLocation);
 	for (int32 Offset = 0; Offset < BossActiveAbilityIndices.Num(); ++Offset)
@@ -937,6 +984,21 @@ int32 UReEchoEnemyLogicComponent::SelectBossAbility(const FReEchoEnemySenseSnaps
 		return AbilityIndex;
 	}
 	return INDEX_NONE;
+}
+
+bool UReEchoEnemyLogicComponent::DebugQueueBossAbility(const FName AbilityId)
+{
+	if (!bInitialized || Definition.Archetype != EReEchoEnemyArchetype::Boss)
+	{
+		return false;
+	}
+	const int32 AbilityIndex = FindBossAbilityIndex(AbilityId);
+	if (!BossActiveAbilityIndices.Contains(AbilityIndex))
+	{
+		return false;
+	}
+	DebugQueuedBossAbilityId = AbilityId;
+	return true;
 }
 
 int32 UReEchoEnemyLogicComponent::FindBossAbilityIndex(const FName AbilityId) const
@@ -1266,10 +1328,12 @@ void UReEchoEnemyLogicComponent::ResetEncounterTransientState()
 	State.bBossHasLockedTarget = false;
 	State.bBossHasLockedTeleportDestination = false;
 	State.bBossCurrentAbilityCommitted = false;
+	DebugQueuedBossAbilityId = NAME_None;
 }
 
 void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot)
 {
+	DebugQueuedBossAbilityId = NAME_None;
 	if (!bInitialized || InSnapshot.Archetype != Definition.Archetype)
 	{
 		return;
@@ -1282,6 +1346,22 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 	State.CurrentPhaseIndex = FMath::Clamp(State.CurrentPhaseIndex, 1, 2);
 	State.ReceivedDamageCount = FMath::Max(0, State.ReceivedDamageCount);
 	State.PhaseTransitionRemainingSeconds = FMath::Max(0.0f, State.PhaseTransitionRemainingSeconds);
+	State.SpecialNextSequenceIndex =
+	    SpecialActiveAbilityIndices.IsEmpty()
+	        ? 0
+	        : FMath::Clamp(State.SpecialNextSequenceIndex, 0, SpecialActiveAbilityIndices.Num() - 1);
+	State.SpecialActionRemainingSeconds = FMath::Max(0.0f, State.SpecialActionRemainingSeconds);
+	State.SpecialLockedDirection = State.SpecialLockedDirection.GetSafeNormal2D();
+	if (State.SpecialLockedDirection.IsNearlyZero())
+	{
+		State.SpecialLockedDirection = FVector::ForwardVector;
+	}
+	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None || !FindSpecialAbility(State.SpecialAbilityId))
+	{
+		State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
+		State.SpecialAbilityId = NAME_None;
+		State.SpecialActionRemainingSeconds = 0.0f;
+	}
 	if (!Definition.Phase2.bEnabled)
 	{
 		State.CurrentPhaseIndex = 1;

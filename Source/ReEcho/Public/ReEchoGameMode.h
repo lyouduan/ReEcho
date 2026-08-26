@@ -79,6 +79,9 @@ public:
 	void GMSpawnFox(float Distance = 350.0f);
 	UFUNCTION(Exec)
 	void GMGotoBoss();
+	/** Queues one production sheep Boss ability through its normal Telegraph/Attack/Recovery state machine. */
+	UFUNCTION(Exec)
+	void GMBossSkill(const FString& Skill = TEXT("Skill01"));
 	UFUNCTION(Exec)
 	void GMGrantCard(FName CardId);
 	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */

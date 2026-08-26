@@ -60,6 +60,10 @@ UAbilitySystemComponent* UReEchoCombatantComponent::GetBoundAbilitySystem() cons
 void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InStats, const bool bFillHealth)
 {
 	const float PreviousHealth = CurrentHealth;
+	// GAS owns only the attributes mirrored by UReEchoCombatAttributeSet. Preserve the complete authored stat block
+	// first so semantic/runtime fields such as RoleId, CriticalRate, CriticalEffect and ReactionEfficiency survive the
+	// subsequent attribute synchronization.
+	Stats = InStats;
 	bDeathBroadcast = false;
 	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
 	{
@@ -94,7 +98,17 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
                                                   const EReEchoDamageSource DamageSource)
 {
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (!IsAlive() || Damage <= 0.f || bDebugInvulnerable || IsTimedInvulnerable(WorldTime))
+	if (!IsAlive() || Damage <= 0.f)
+	{
+		return 0.f;
+	}
+	if (bDebugInvulnerable)
+	{
+		// GMGod preserves the resolved damage value for Hurt/VFX/damage-number consumers, but deliberately skips
+		// every health, block and death mutation below.
+		return Damage;
+	}
+	if (IsTimedInvulnerable(WorldTime))
 	{
 		return 0.f;
 	}

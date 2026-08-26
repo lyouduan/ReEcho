@@ -186,6 +186,13 @@ bool FReEchoAttackModeInputSourceTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("physical input is ignored in automatic mode"), Pawn->IsManualAttackInputHeld());
 	Pawn->SetAutoAttackMode(false);
 	TestFalse(TEXT("typed mode command enters manual mode"), Pawn->IsAutoAttackMode());
+	Pawn->ManualBasicAttack();
+	TestTrue(TEXT("manual mode accepts only the physical input source"), Pawn->IsManualAttackInputHeld());
+	TestFalse(TEXT("manual mode does not hold the automatic input source"), Pawn->IsAutoAttackInputHeld());
+	Pawn->PressAutoAttackInput();
+	TestTrue(TEXT("automatic request cannot replace the manual owner in manual mode"),
+	         Pawn->IsManualAttackInputHeld());
+	TestFalse(TEXT("automatic request remains rejected in manual mode"), Pawn->IsAutoAttackInputHeld());
 	Pawn->SetAutoAttackMode(true);
 	TestTrue(TEXT("typed mode command returns to automatic mode"), Pawn->IsAutoAttackMode());
 	TestFalse(TEXT("mode changes release all held sources"), Pawn->IsManualAttackInputHeld());

@@ -70,6 +70,7 @@
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
 - 战斗常驻 HUD 的只读表现投影：Combatant 提供生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
+- Development 编辑器启动时由 `FReEchoModule` 注册第二个只读日志输出设备，把普通 `UE_LOG` 同步写入 `Saved/Logs/ReEcho-session-<本地开始时间>-pid<进程号>.log`；`ReEcho.log` 仍是当前会话入口，独立会话文件不覆盖、不参与玩法状态，也不进入 Shipping。
 
 ### 稳定契约
 
@@ -200,7 +201,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 攻击表现路由（Plan76/104）：长剑与镰刀的稳定 AttackPattern 由 Combat VFX Catalog 分别映射专用一次性 Niagara，不再生成旧平面刀光；弓与枪的飞行 Niagara 附着到 `AReEchoProjectileActor`，首次权威 `OnProjectileImpacted` 播放各自命中特效，表现不积分位移、不决定命中。四者不再读取 `SlashCrescent/ScytheSweep/BowProjectile/GunProjectile`；鞭和正式法杖表现已退役，`MoonStaff/StaffLightWave` 仅保留为贤者动画辅助。任何表现缺失都不得影响逻辑 Commit、飞行和伤害。
 - 武器表现 Profile（Plan77）：`FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析本体资源、武器动作模式和专属攻击 VFX 能力；Profile 不包含角色动画或玩法规则。Player/Echo 可启用 Weapon Track，普通怪物强制无武器，Boss 只有显式配置武器表现 ID 时才允许启用。
 - 武器表现资源由 `/Game/ReEcho/DataAsset/Weapon` 下的一武器一 `UReEchoWeaponPresentationProfile` 配置，并由 `DA_WeaponPresentationCatalog` 按 VisualKey 唯一解析；预加载器只聚合已启用的 Soft Reference。Profile 提供 Charge、Travel、DamageApplied 三个可选阶段槽，并保留明确的 AttackCommitted 槽承载长剑/镰刀现有提交斩击。
-- 手持武器装配（Plan81）：角色 Animation2D Profile 以 `WeaponAnchorRatio × WorldHeight` 提供稳定挂点，Weapon Presentation Profile 以 `HeldLengthRatio`、尺寸主轴、相对偏移、旋转及稀有绝对覆盖描述武器自身。`AReEchoWeaponActor` 按角色 `WorldHeight × CharacterScale` 计算最终武器长度；Player/Echo 只在初始化、武器选择或 Profile 刷新时调用统一布局入口，不读取当前动画帧 Bounds，也不把受击临时形变传给武器。
+- 手持武器装配（Plan81/Plan100）：角色 Animation2D Profile 以 `WeaponAnchorRatio × WorldHeight` 提供稳定挂点，Weapon Presentation Profile 以尺寸主轴、相对偏移、旋转及 `HeldLengthOverrideCm` 描述武器自身。六个生产 Profile 使用绝对世界长度，因此同一 WeaponVisualKey 在 Player/Echo 上不再被宿主 Actor Scale 二次改变；Player/Echo 只在初始化、武器选择或 Profile 刷新时调用统一布局入口，不读取当前动画帧 Bounds，也不把受击临时形变传给武器。
 - Echo 空间表现（Plan71 返工）：Echo Catalog/Profile 只提供独立回响动画与材质差异；运行时按 Recording `CharacterId` 查询 CSV `AppearanceId`，把 Player Profile 的 `WorldHeight`、脚点策略与 `WeaponAnchorRatio` 组合进瞬态 Echo Profile。Echo 初始化从 live Player 读取稳定的 Presentation/Foot/Flipbook/AttackVfx/HurtVfx 作者 Transform 和 Actor Scale，确保 Gameplay Blueprint 实例上的 FlipbookRoot Rotation 被准确继承；会随当前帧变化的 Motion/Effects/Ground/Shadow 则从该 Player Class CDO 读取安全作者基准，避免复制受击形变、脚点对齐或动态阴影。缓存后的 Effects 与阴影基准使角色尺寸、手持武器、阴影及战斗 VFX 根不再依赖 Echo 专用空间常量。复制只影响表现树与 Actor 总体缩放，不改变 Playback、Combat 或攻击时序；开发自动化可通过只在 `WITH_DEV_AUTOMATION_TESTS` 下存在的空间快照读取最终 Transform、归一化高度和 Bounds 宽度，不形成 Shipping 公共状态。
 - Echo Gameplay Blueprint：`/Game/ReEcho/Gameplay/CharacterPrefabs/BP_EchoGameplay` 是 `AReEchoEchoActor` 的薄表现子类，允许美术编辑继承的 PresentationRoot、FlipbookRoot、GroundShadow、AttackVfxRoot、HurtVfxRoot 与 EchoAuraVfxRoot。GameMode 构造期以硬类引用保证 Cook 收录，新遭遇与存档恢复只调用统一 `SpawnEchoActor()`；资产不可加载时回退原生 Class。幂等作者脚本只创建缺失资产，已有 Blueprint 永不重写作者 Transform。
 - 边界：Actor 可以创建表现和转发 Commit/HitIntent，但不能拥有第二个攻击频率门或自行扣血。
@@ -216,7 +217,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；`SetEncounterSimulationSuspended` 在同 Stage 局间冻结原 Host，并在进入下一 Encounter 前恢复。Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
 - Plan68 接线：GameMode 用当前 `EncounterIndex` 编译每个出生 Enemy Definition；Host 注入表驱动 `HateRangeCm`、当前生命比率和特殊行动许可。`M_SHEEP` 的第一次致命伤由 Combat 窄委托转为 Phase2 变身事件，完成后把生命上限和当前生命切到 650；普通怪未战斗时的 IdleWander 仍由 EnemyLogic 独占状态。
 - 群体移动：EnemyLogic 的追踪/攻击意图保持权威；主模块 `FReEchoEnemyCrowdSteering` 在 Host 应用 Transform 前，根据 SpawnIndex 稳定攻击槽位、Roster 邻居 Separation、切向绕行和短时受阻恢复修正普通追踪位移。普通敌人之间互相加入 MoveIgnore，避免 Pawn Sweep 形成静止队列；玩家、场景与 Boss 仍保持硬碰撞，击退和特殊动作不进入普通 Crowd 修正。
-- 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素和 Boss 在途投射物；EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
+- 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素，以及通用敌方已生成/已提交待生成投射物；待生成直线连发球保存剩余延迟和 Spawned 发布状态，旧存档条目默认视为已生成。EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
 - 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
 - 测试：`ReEcho.Enemies.*`、`ReEcho.StageTransition.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
 
@@ -228,8 +229,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 首读：`ReEchoEncounterDirector.*`、`ReEchoEncounterRuntime.*`、`ReEchoEncounterCsvReader.*`。
 - 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只做纯确定性计算；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
 - 输入：开始、恢复、暂停、World Tick、不可变 Stage/Encounter/Wave/Spawn 数据、玩家运动样本和录制路径样本。
-- 输出：固定步事件、剩余时间、完成委托、预警/提交事件、确定性出生位置和 `FReEchoStageTransitionDecision`。预警先解析并保存最终怪物 Actor 中心位置：XY 来自确定性解算，Z 为当前玩法平面加该敌人的碰撞半高；提交必须原样复用同一位置，禁止表现预警与生成提交各自重算。非法 Stage/Encounter 引用必须失败关闭。
-- 生产波次结构：`Encounter.1` 至 `Encounter.8` 都按 `WaveIndex=1/2/3` 在 `0/10/20` 秒通过同一通用 WaveScheduler 触发；`Encounter.8` 只有 Wave.1 携带 `BossEnemyId=M_SHEEP`，Wave.2/3 是不含 Boss 的增援波。Boss 不计入该关 `ActiveUnitLimit`，关卡仍以 `BossOrPlayerDeath` 结束；禁止在后两波重复配置或生成 Boss。
+- 输出：固定步事件、剩余时间、完成委托、预警/提交事件、确定性出生位置和 `FReEchoStageTransitionDecision`。预警先按存活单位与其他待提交批次预留 `ActiveUnitLimit` 容量，只为真正获准提交的位置显示；每个预警位置都是出生承诺。普通怪与 Boss 的最终 Actor 中心位置 XY 都来自各自 `SpawnProfiles` 和统一 SpawnResolver，Z 为当前玩法平面加该敌人的碰撞半高；提交必须原样、完整复用预留位置，不得二次按单位上限裁剪，也禁止表现预警与生成提交各自重算。非法 Stage/Encounter 引用必须失败关闭。
+- 生产波次结构：`Encounter.1` 至 `Encounter.8` 都按 `WaveIndex=1/2/3` 在 `0/10/20` 秒通过同一通用 WaveScheduler 触发；`Encounter.8` 只有 Wave.1 携带 `BossEnemyId=M_SHEEP`，Wave.2/3 是不含 Boss 的增援波。Boss 通过 `Spawn.Boss` 的双锚距离环解析出生位置，不再使用 GameMode 固定世界坐标；Boss 不计入该关 `ActiveUnitLimit`，其预留位置也不挤占普通增援容量。关卡仍以 `BossOrPlayerDeath` 结束，禁止在后两波重复配置或生成 Boss。
 - 出生参数：SpawnResolver/Host 保留准确 `EncounterIndex`，使同一 EnemyId 在编译 Definition 时选择 `enemy_combat_stats` 的对应场次覆盖；不得把波次序号或数组下标误作 EncounterIndex。
 - 连续性：同 Stage 保留存活 Enemy Host 的对象身份、EnemyId、SpawnIndex、Transform、生命和持久逻辑状态，并保留玩家位置；局间显式冻结 Host、取消旧攻击阶段和逻辑投射物，不消耗玩法冷却。跨 Stage 清理旧 Roster，并用 Arena Scene 的中心与玩法平面解析入口。玩家生命/属性在下一 Encounter 初始化时的既有语义不由此契约改变。
 - 测试：`Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp` 的 `ReEcho.StageTransition.*` 覆盖生产矩阵、非法边界与原 Host 局间连续性。

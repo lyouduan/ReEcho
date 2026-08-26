@@ -73,17 +73,19 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow` | 两个启用发射器均为 Local Space；附着狐狸攻击挂点、前景，Windup 与 Charging 同时开始，并按锁定冲撞方向旋转，提交/结束/取消时清理 |
 | FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Trail` | 附着狐狸攻击挂点、前景；提交时停止 Charging/Direction 并开始，动作结束/取消时清理 |
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
-| GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 羊 Boss 两种投射技能共用；前摇附着 Boss，Bullet 逐球投影逻辑弹道，实际 `AppliedDamage > 0` 时在角色 Hurt 挂点播放命中 |
-| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | 闪身下砸前摇附着 Boss，预警固定在锁定落点，提交时清理；实际伤害后播放命中 |
-| GoatSkill04 | `NS_Goat_Skill04_Charging` / `Lighting` | 祷告光束前摇附着 Boss，攻击窗口按锁定方向播放 Lighting，AbilityEnded/Death/清场清理 |
+| GoatSkill01 | `MoonStaff` + `NS_Goat_Skill02_BeAttacked` | 羊 Boss 从 Plan104 的 `DA_WeaponPresentation_MoonStaff` 读取持有贴图、尺寸和偏移；近战攻击窗口驱动法杖挥舞，并在法杖世界位置复用 Skill02 BeAttacked，玩法圆形命中不变 |
+| GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 两种投射技能共用；Charging 挂在 MoonStaff 根，Bullet 使用 Local Space。StationaryVolley 在 Recovery 窗口内逐颗发布四次 Spawned，MovingSpread 同帧发布三向 Spawned；每颗投影权威弹道、命中后经 Combat 结算单弹配表伤害并发布 Ended，实际 `AppliedDamage > 0` 时在角色世界命中坐标播放命中 |
+| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | Charging 附着 Boss；预警固定在锁定角色落点并使用显式世界向上法线，Boss 落在预警 XY 中心；BeAttacked 作为同尺寸地裂贴地播放，实际伤害仍由 Combat 裁决 |
+| GoatSkill04 | `NS_Goat_Skill04_Charging` / `NS_Goat_Skill03_Alarming` / `Lighting` | Charging 开始时显示目标快照预警，权威锁定后重启到 LockedTargetLocation；Lighting 从预警中心释放并使用 CameraPlane mesh facing，伤害起点同一锁点；AbilityEnded/Death/清场清理 |
 | PlayerMeleeSlash | `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01` | 近战提交位置和攻击方向，前景单次播放 |
 | PlayerScytheSlash | `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01` | 镰刀提交位置和攻击方向，前景单次播放 |
+| PlayerLongSwordImpact / PlayerScytheImpact | 对应 Weapon Presentation DA 的 `DamageApplied` Slot | 来源侧最终 `OnHit` 且 `AppliedDamage > 0` 时，在命中世界位置按攻击方向播放；两把武器可独立换资源 |
 | PlayerBowFlight / Impact | `/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01` / `NS_People_Bow_Boom` | 飞行 System 绑定权威投射物 Actor；保持资源内部 Renderer 与粒子模块不变，把交付 Niagara 的 authored local `+Y` 视觉轴在发射时按锁定攻击方向旋转一次；首次权威命中播放一次 Impact |
 | PlayerGunFlight / Impact | `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly` / `NS_People_Bullet_spark` | 飞行 System 绑定权威投射物 Actor；首次权威命中播放一次 Impact |
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
 | EchoWaterAura / EchoGrassAura | `/Game/VFX/Echo/Particle/NS_Echo_Water` / `NS_Echo_Grass` | `G_2_07/G_2_08` 共享 Cards 权威 2 秒脉冲；一次性附着 Echo 专用 Aura 挂点、角色视觉中心、角色 Priority `-1`，双卡同脉冲并发、自动结束 |
 
-`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀使用 AttackCommitted Slot；弓/枪的 Travel Slot 附着逻辑载体，DamageApplied Slot 只在首次 `AppliedDamage > 0` 的权威结果播放。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
+`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀的 AttackCommitted Slot 播放斩击轨迹，DamageApplied Slot 消费来源侧最终 `OnHit` 并在 `AppliedDamage > 0` 时播放命中；弓/枪的 Travel Slot 附着逻辑载体，DamageApplied Slot 只在首次正伤害权威结果播放。近战命中特效包含致死正伤害，不依赖目标是否还能播放 Hurt。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
 
 禁止用 `NS_Rabbit_BeAttacked_01` 这个短名查找资产；玩家和怪物受击是两个不同 Package。
 
@@ -164,5 +166,6 @@ VFX 资产（`/Game/VFX/...` 下的 `NS_*`/`M_*`/`MI_*`/`T_*`/`BP_*`，以及 `/
 
 Development `GMReaction` 只调用 `UReEchoCombatVfxComponent` 的直接预览入口：六种语义均在最近存活敌人的 HurtVfxRoot 播放并按调试预览时限停止，不准备元素附着、不调用伤害/反应解析器，也不发布权威 Combat 事件。该入口不得被正式玩法调用。
 
-附着 Niagara 不再隐含固定的零偏移/单位缩放契约：`FReEchoCombatVfxCatalog::ResolvePlacement` 按语义提供资源局部修正和缩放策略。世界尺寸型身体特效可抵消角色/DA 的累计缩放；地面预警、逻辑投射物、精确命中和定向光束仍使用玩法事件给出的世界空间事实，不经角色附着根换算。
+附着 Niagara 不再隐含固定的零偏移/单位缩放契约：`FReEchoCombatVfxCatalog::ResolvePlacement` 按语义提供资源局部修正和缩放策略。武器语义直接消费对应 Weapon Presentation Slot 的 `Offset` 完整 Transform 与 `bPreserveWorldSize`；例如长剑 `AttackCommitted` 的离地高度、倾角和大小只在武器 DA 配置，不得在语义分支硬编码。运行时先按 Commit 锁定方向对齐特效，再以四元数组合 DA 的局部旋转修正，禁止直接相加欧拉角导致换向后倾角留在旧世界轴。武器方向与弓箭一致，生成后将 Niagara Component 旋转切为绝对世界旋转并显式写入 Commit 方向，父级 AttackVfxRoot 只继续拥有位置和生命周期。世界尺寸型身体/武器特效可抵消角色/DA 的累计缩放，同时保留 DA Scale 作为艺术倍率；地面预警、逻辑投射物、精确命中和定向光束仍使用玩法事件给出的世界空间事实，不经角色附着根换算。
+FullSpin 近战的伤害仍在 Combat Commit 当帧结算；刀光只在 Weapon Profile 的 `MotionDurationSeconds` 结束后按该次 Commit 已锁定方向播放，使武器先完成一周环绕再释放刀光。新 Commit 会替换尚未释放的旧表现计时，不改变攻击冷却或命中权威。
 Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。

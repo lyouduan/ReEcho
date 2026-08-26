@@ -32,6 +32,54 @@ bool FReEchoEncounterWaveSchedulerTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Both wave two role warnings fire at 9.2 seconds"), Warning.Num(), 2);
 	const TArray<FReEchoScheduledSpawnEvent> Commit = Scheduler.AdvanceTo(10.0f);
 	TestEqual(TEXT("Both wave two role commits fire at 10 seconds"), Commit.Num(), 2);
+
+	TestTrue(TEXT("Boss encounter schedule compiles"), Scheduler.Configure(*Load.Snapshot, TEXT("Encounter.8"), Error));
+	TestEqual(TEXT("Boss encounter adds a warning and commit for the configured boss"), Scheduler.GetEventCount(), 20);
+	const TArray<FReEchoScheduledSpawnEvent> BossStart = Scheduler.AdvanceTo(0.0f);
+	TestEqual(TEXT("Boss wave one emits four warned role batches and four commits"), BossStart.Num(), 8);
+	const FReEchoScheduledSpawnEvent* BossWarning = BossStart.FindByPredicate(
+	    [](const FReEchoScheduledSpawnEvent& Event)
+	    {
+		    return Event.EnemyRole == TEXT("Boss") && Event.Type == EReEchoScheduledSpawnEventType::Warning;
+	    });
+	const FReEchoScheduledSpawnEvent* BossCommit = BossStart.FindByPredicate(
+	    [](const FReEchoScheduledSpawnEvent& Event)
+	    {
+		    return Event.EnemyRole == TEXT("Boss") && Event.Type == EReEchoScheduledSpawnEventType::Commit;
+	    });
+	TestNotNull(TEXT("Boss warning uses the shared spawn pipeline"), BossWarning);
+	TestNotNull(TEXT("Boss commit uses the shared spawn pipeline"), BossCommit);
+	if (BossWarning && BossCommit)
+	{
+		TestEqual(TEXT("Boss warning keeps the wave-owned enemy id"), BossWarning->EnemyId, FName(TEXT("M_SHEEP")));
+		TestEqual(TEXT("Boss commit keeps the wave-owned enemy id"), BossCommit->EnemyId, FName(TEXT("M_SHEEP")));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSpawnWarningCapacityReservationTest,
+                                 "ReEcho.Encounter.SpawnWarningCapacityReservation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoSpawnWarningCapacityReservationTest::RunTest(const FString& Parameters)
+{
+	const int32 ActiveUnitLimit = 18;
+	const int32 LivingCount = 10;
+	const int32 FirstReservation = ReEchoSpawnCapacity::CalculateReservationCount(ActiveUnitLimit, LivingCount, 0, 5);
+	const int32 SecondReservation =
+	    ReEchoSpawnCapacity::CalculateReservationCount(ActiveUnitLimit, LivingCount, FirstReservation, 5);
+	const int32 ThirdReservation = ReEchoSpawnCapacity::CalculateReservationCount(
+	    ActiveUnitLimit, LivingCount, FirstReservation + SecondReservation, 2);
+
+	TestEqual(TEXT("First warned role reserves all available requested units"), FirstReservation, 5);
+	TestEqual(TEXT("Second warned role reserves only the remaining unit capacity"), SecondReservation, 3);
+	TestEqual(TEXT("No warning is emitted after earlier batches reserve the unit limit"), ThirdReservation, 0);
+	TestEqual(TEXT("An exempt Boss still receives its promised spawn reservation"),
+	          ReEchoSpawnCapacity::CalculateReservationCount(ActiveUnitLimit, ActiveUnitLimit, 0, 1, false),
+	          1);
+	TestEqual(TEXT("Negative requested counts cannot create reservations"),
+	          ReEchoSpawnCapacity::CalculateReservationCount(ActiveUnitLimit, LivingCount, 0, -1),
+	          0);
 	return true;
 }
 
@@ -80,6 +128,24 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	         FVector::Dist2D(First.Location, Request.PlayerAnchor) >= Policy->MinPlayerDistanceCm);
 	TestTrue(TEXT("Echo exclusion distance is honored"),
 	         FVector::Dist2D(First.Location, Request.EchoAnchor) >= Policy->MinEchoDistanceCm);
+
+	const FReEchoCsvSpawnProfileRow* BossProfile = Load.Snapshot->FindSpawnProfileByRole(TEXT("Boss"));
+	if (!TestNotNull(TEXT("Boss has a dedicated spawn profile"), BossProfile))
+	{
+		return false;
+	}
+	Request.EchoAnchorRatio = 0.0f;
+	Request.SpawnCenterWorldZ = 220.0f;
+	Request.Sequence = 9;
+	FReEchoResolvedSpawn BossSpawn;
+	FString BossError;
+	TestTrue(TEXT("Boss spawn resolves through the shared deterministic solver"),
+	         FReEchoSpawnResolver::Resolve(*BossProfile, *Policy, Request, BossSpawn, BossError));
+	TestTrue(TEXT("Boss spawn stays inside its configured player distance ring"),
+	         FVector::Dist2D(BossSpawn.Location, Request.PlayerAnchor) >= BossProfile->MinAnchorDistanceCm &&
+	             FVector::Dist2D(BossSpawn.Location, Request.PlayerAnchor) <= BossProfile->MaxAnchorDistanceCm);
+	TestFalse(TEXT("Boss spawn no longer uses the former fixed world coordinate"),
+	          BossSpawn.Location.Equals(FVector(800.0f, 0.0f, 50.0f)));
 	return true;
 }
 

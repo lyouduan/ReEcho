@@ -64,6 +64,11 @@ class REECHO_API AReEchoPlayerPawn : public APawn,
 	GENERATED_BODY()
 
 public:
+	float GetVisualFacingSign() const
+	{
+		return VisualFacingSign;
+	}
+
 	AReEchoPlayerPawn();
 	virtual void OnConstruction(const FTransform& Transform) override;
 

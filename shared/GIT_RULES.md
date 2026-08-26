@@ -6,7 +6,7 @@
 
 ## AI 正式提交身份
 
-进入远端 main 的每个 AI 正式提交，其标题必须以且仅以一个标签开头；标签需匹配创建该正式提交所使用的专业路线或明确指派的仓库职责：
+推送到任何远端引用或准备进入远端 main 的每个 AI 正式提交，其标题必须以且仅以一个标签开头；标签需匹配创建该正式提交所使用的专业路线或明确指派的仓库职责：
 
 | 提交创建者 | 标题必需前缀 |
 |---|---|
@@ -18,9 +18,9 @@
 - 任何角色不得使用其他角色的标签。项目秘书仅对 `SECRETARY_RULES.md` 范围内的协调/控制面提交使用其标签，不得用它标记专业实现。
 - 程序 Planner 的集成或合并提交使用 `[PROGRAMMER]`，因为 Planner/Executor 是程序路线内的仓库职责，不是独立专业身份。
 - 混合范围不是组合标签的理由；应先按专业边界拆分提交。
-- AI 创建准备进入远端的正式提交前，仓库级 `user.name` 必须同时包含当前已确认的 GitHub 人类账号和执行该提交的 AI 身份，例如 `JosephLE910 + Codex`；`user.email` 必须使用该账号已验证或 GitHub noreply 地址。人类账号未知或未经用户确认时，必须在正式提交前停止并询问，不能只写 AI 名称。
+- AI 创建准备推送到远端或进入 main 的正式提交前，仓库级 `user.name` 必须同时包含当前已确认的 GitHub 人类账号和执行该提交的 AI 身份，例如 `JosephLE910 + Codex`；`user.email` 必须使用该账号已验证或 GitHub noreply 地址。人类账号未知或未经用户确认时，必须在正式提交前停止并询问，不能只写 AI 名称。
 - Author 配置不替代标题职业标签；两者必须同时满足。提交说明可附加人类账号，但不能用说明代替正确的 Author 字段。
-- 本地 WIP 提交的名称、粒度和临时身份可由每个成员自由组织；发布前必须通过 squash、reword、重新提交或精选 cherry-pick，形成满足本节的人类账号 + AI 身份和单一专业标签的正式候选。不得仅为给已经发布的历史提交补标签而重写远端历史。
+- 本地 WIP 提交的名称、粒度和临时身份可由每个成员自由组织；推送远端协作分支或发布 main 前必须通过 squash、reword、重新提交或精选 cherry-pick，形成满足本节的人类账号 + AI 身份和单一专业标签的正式候选。不得仅为给已经发布的历史提交补标签而重写远端历史。
 
 ## 提交文本编码
 
@@ -29,6 +29,49 @@ AI 创建的正式提交，其标题与正文必须是合法 UTF-8，且不得�
 - 从 `.xlsx` / GBK / GB2312 等来源摘取的中文文本（如策划表名、字段名、决策摘要）写入提交标题或正文前，必须先转码为 UTF-8 并人工核对无乱码，严禁把编码错误的字节串直接塞入标题。
 - 标题是硬约束重点：标题中不得出现任何无法在终端正确显示的中文字符；合并提交、rebase、cherry-pick 生成的描述同样适用。
 - 提交前应通过 `git log --oneline -1` 复核标题可在终端正确显示；若发现乱码，必须在推送前 reword 修正，不得带乱码标题进入 `origin/main`。
+
+## origin/main 单发布者锁
+
+`main-publish-lock` 是程序路线和项目秘书发布 `origin/main` 时唯一允许的远端协调分支，也是 main 发布锁的唯一权威状态。它不是内容发布面、任务分支或长期备份；策划/美术协作分支不使用此锁。除下述“编号 Plan 单独发布例外”外，规则、文档、代码、数据、资产和集成候选进入 main 前都必须遵循本节；禁止强推 main。
+
+### 编号 Plan 单独发布例外
+
+发布编号 Plan 不需要获取、检查或等待 `main-publish-lock`。该例外仅适用于候选只新增或修改一个或多个 `plans/<id>-*.md` 编号 Plan，且不包含 `plans/TEMPLATE.md`、规则、实现、生成物或其他无关 WIP；即使远端锁已存在，合规的 Plan-only 候选也可继续发布。Plan 发布者不得创建、更新或删除锁分支。
+
+Plan-only 发布前必须 fetch 最新 `origin/main`，完成 Plan 编号、外部变化和文件范围审计，并让候选基于准确远端主线；只允许使用普通非强制 push 发布 `origin/main`。推送被拒或远端在推送前后发生变化时，不得强推或覆盖，必须重新 fetch，按 `PLANNER_RULES.md` 处理编号占用与传入变化，重建候选并重跑失效的静态验证。发布后必须核验远端 main 已包含准确 Plan 提交。除本例外外，任何 main 发布仍执行下方完整锁流程。
+
+1. 抢锁前必须形成身份合规、范围明确的本地正式提交并保持工作区干净；先 fetch `origin/main`，再检查远端 `refs/heads/main-publish-lock`。
+2. 锁分支不存在时，只能用下列空 expected value 的准确 lease 原子创建，并以当前正式候选作为锁分支初始提交：
+
+   ```powershell
+   git push --force-with-lease=refs/heads/main-publish-lock: origin HEAD:refs/heads/main-publish-lock
+   ```
+
+   push 失败或远端锁提交号不等于本地 `HEAD` 时均视为未获锁，必须停止发布；不得改用普通 push、强推或删除现有未合入锁来抢占。
+   未获锁时只允许 fetch、`ls-remote`、log、diff 和祖先检查等只读审计；不得将 `origin/main`、本地 `main`、其他 main 跟踪分支或其提交副本以 merge、rebase、cherry-pick、reset 等方式接入当前待发布候选，也不得先更新本地 main 后绕行合并或提前执行最终发布构建。普通开发可继续本地工作，但必须等实际获锁后才开始本轮 main 发布集成。
+3. 锁分支已存在时，先 fetch 该引用并检查祖先关系。若锁提交尚未进入 `origin/main`，它代表其他发布者的进行中/中断候选，任何其他 AI 不得 merge、更新、删除该锁或推送 main；报告持有提交、作者和与 main 的差异。若锁提交已是 main 的祖先，代表发布完成但清理中断，程序集成职责或秘书可在核验后用准确 lease 删除该已合入锁，再重新抢锁。
+4. 获锁后必须重新 fetch `origin/main`，把准确最新 main **merge** 到当前工作分支。不得在持锁期间 rebase 或重写已发布到锁分支的候选历史。清晰、范围不变的物理冲突可按已批准契约处理；遇到真实逻辑冲突、产品取舍、不可逆覆盖或范围扩张时保留锁、先报告并等待人决定。
+5. 获锁后的 merge、冲突解决或远端基线变化会使此前受影响的构建、测试和静态证据失效；必须对最终组合候选重新提交并执行适用门禁。
+6. 最终候选必须是抢锁时提交的后代，并以普通非强制 push 快进更新锁分支：
+
+   ```powershell
+   git push origin HEAD:refs/heads/main-publish-lock
+   ```
+
+7. 更新锁分支后再次 fetch `origin/main`，确认 `origin/main` 是本地 `HEAD` 的祖先，并确认远端锁仍准确指向本地 `HEAD`。任一检查失败都不得发布；保留锁，重新合并最新 main、提交并重跑失效门禁。
+8. 仅在上述检查通过后，使用普通非强制 push 发布 main：
+
+   ```powershell
+   git push origin HEAD:refs/heads/main
+   ```
+
+9. 发布后 fetch 并确认远端 main 与候选提交号完全一致。只有 main 已发布成功且远端锁仍指向同一候选时，才能用该准确提交号作为 lease 删除锁；网络超时或结果不明时先查询远端，不得盲目重推或解锁：
+
+   ```powershell
+   git push --force-with-lease=refs/heads/main-publish-lock:<CandidateCommit> origin :refs/heads/main-publish-lock
+   ```
+
+锁分支存在即阻止其他 AI 开始 main 发布。锁持有者中断时不得仅按超时自动破锁：未合入候选由程序集成职责或秘书审计后续传、保留或在准确风险确认后解除；已合入候选按第 3 项机械清理。锁分支的准确 lease 创建/清理是远端引用限制的具名默认例外，但不授权任何其他强推、远端分支或历史覆盖。
 
 ## 程序发布构建门禁
 
