@@ -142,8 +142,14 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemEmittersLocalSpace(UNiagaraSyste
 		}
 		EmitterData->bLocalSpace = true;
 	}
+	// The attached Direction arrow can be culled before its first dynamic-bounds update. Its authored
+	// fixed box is already non-degenerate, so the named Editor repair also opts the System into that box.
+	if (bHasEnabledEmitter && System->GetFixedBounds().IsValid)
+	{
+		System->bFixedBounds = true;
+	}
 	System->MarkPackageDirty();
-	return bHasEnabledEmitter;
+	return bHasEnabledEmitter && System->bFixedBounds != 0;
 #else
 	return false;
 #endif
@@ -421,8 +427,8 @@ bool UReEchoCombatVfxComponent::TryGetProjectileVisualLocationForTests(const int
 #endif
 
 void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
-	                                                     USceneComponent* InHurtVfxRoot,
-	                                                     USceneComponent* InBossWeaponVfxRoot)
+                                                         USceneComponent* InHurtVfxRoot,
+                                                         USceneComponent* InBossWeaponVfxRoot)
 {
 	AttackVfxRoot = InAttackVfxRoot;
 	HurtVfxRoot = InHurtVfxRoot;
@@ -623,16 +629,15 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	const FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
 	const FQuat WorldRotation = DirectionRotation.Quaternion() * Placement.LocalRotation.Quaternion();
 	const FVector WorldLocation = Location + DirectionRotation.RotateVector(Placement.LocalOffset);
-	UNiagaraComponent* Effect =
-	    UNiagaraFunctionLibrary::SpawnSystemAtLocation(World,
-	                                                   System,
-	                                                   WorldLocation,
-	                                                   WorldRotation.Rotator(),
-	                                                   Placement.Scale,
-	                                                   bAutoDestroy,
-	                                                   true,
-	                                                   ENCPoolMethod::None,
-	                                                   true);
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World,
+	                                                                           System,
+	                                                                           WorldLocation,
+	                                                                           WorldRotation.Rotator(),
+	                                                                           Placement.Scale,
+	                                                                           bAutoDestroy,
+	                                                                           true,
+	                                                                           ENCPoolMethod::None,
+	                                                                           true);
 	if (Effect)
 	{
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
@@ -727,7 +732,7 @@ FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FV
 }
 
 FRotator UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(const FVector& Direction,
-                                                                       const FVector& CameraFacingNormal)
+                                                                      const FVector& CameraFacingNormal)
 {
 	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
@@ -765,7 +770,10 @@ bool UReEchoCombatVfxComponent::HasMeleePlayDirectionParameter(const UNiagaraSys
 	TArray<FNiagaraVariable> UserParameters;
 	System->GetExposedParameters().GetParameters(UserParameters);
 	return UserParameters.ContainsByPredicate(
-	    [](const FNiagaraVariable& Variable) { return Variable.GetName() == TEXT("PlayDirection"); });
+	    [](const FNiagaraVariable& Variable)
+	    {
+		    return Variable.GetName() == TEXT("PlayDirection");
+	    });
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
@@ -845,16 +853,17 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                : 1.0f;
 	const bool bReverseMelee = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && PlayDirection < 0.0f;
 	const bool bHasPlayDirectionParameter = HasMeleePlayDirectionParameter(System);
-	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(System,
-	                                                                         AttachmentRoot,
-	                                                                         NAME_None,
-	                                                                         Placement.LocalOffset,
-	                                                                         RelativeRotation,
-	                                                                         RelativeScale,
-	                                                                         EAttachLocation::KeepRelativeOffset,
-	                                                                         bAutoDestroy && !(bReverseMelee && !bHasPlayDirectionParameter),
-	                                                                         ENCPoolMethod::None,
-	                                                                         false);
+	UNiagaraComponent* Effect =
+	    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
+	                                                 AttachmentRoot,
+	                                                 NAME_None,
+	                                                 Placement.LocalOffset,
+	                                                 RelativeRotation,
+	                                                 RelativeScale,
+	                                                 EAttachLocation::KeepRelativeOffset,
+	                                                 bAutoDestroy && !(bReverseMelee && !bHasPlayDirectionParameter),
+	                                                 ENCPoolMethod::None,
+	                                                 false);
 	if (Effect)
 	{
 		if (Placement.bUseWorldDirectionRotation)
@@ -1457,7 +1466,8 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 		                           ResolveAttackVfxRoot(),
 		                           false);
 	}
-	else if (Event.Phase == EReEchoPresentationActionPhase::Ended ||
+	else if (Event.Phase == EReEchoPresentationActionPhase::Recovery ||
+	         Event.Phase == EReEchoPresentationActionPhase::Ended ||
 	         Event.Phase == EReEchoPresentationActionPhase::Cancelled)
 	{
 		StopEffect(DashEffect);

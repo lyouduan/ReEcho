@@ -8,6 +8,7 @@
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraMeshRendererProperties.h"
+#include "NiagaraRendererProperties.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraVariant.h"
@@ -128,22 +129,22 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		TestTrue(
 		    TEXT("Scythe-style VFX rotates in the camera-facing plane toward the committed enemy"),
 		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
-		const FRotator SwordDirectionRotation = UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(
-		    SlashDirection, CameraFacingNormal);
+		const FRotator SwordDirectionRotation =
+		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection, CameraFacingNormal);
 		TestTrue(TEXT("Sword slash presents its authored local X surface normal to the camera"),
 		         SwordDirectionRotation.RotateVector(FVector::ForwardVector)
 		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
-		const FRotator ComposedSwordRotation = UReEchoCombatVfxComponent::ComposeAttachedRotation(
-		    SwordDirectionRotation, SwordPlacement.LocalRotation);
+		const FRotator ComposedSwordRotation =
+		    UReEchoCombatVfxComponent::ComposeAttachedRotation(SwordDirectionRotation, SwordPlacement.LocalRotation);
 		const FVector ComposedAttackAxis = ComposedSwordRotation.RotateVector(FVector::RightVector);
-		const FRotator FrontFacingSwordRotation = UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(
-		    ComposedSwordRotation, CameraFacingNormal);
+		const FRotator FrontFacingSwordRotation =
+		    UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(ComposedSwordRotation, CameraFacingNormal);
 		TestTrue(TEXT("Sword DA correction cannot leave the rendered surface back-facing"),
 		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::ForwardVector),
 		                             CameraFacingNormal.GetSafeNormal()) >= 0.0f);
-		TestTrue(TEXT("Sword front-face correction preserves its composed attack axis"),
-		         FrontFacingSwordRotation.RotateVector(FVector::RightVector)
-		             .Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
+		TestTrue(
+		    TEXT("Sword front-face correction preserves its composed attack axis"),
+		    FrontFacingSwordRotation.RotateVector(FVector::RightVector).Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
@@ -337,6 +338,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::FoxDirection, FoxDashDirection);
 	TestTrue(TEXT("Fox windup arrow points along the locked dash direction"),
 	         FoxDirectionRotation.RotateVector(FVector::ForwardVector).Equals(FoxDashDirection, KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement FoxDirectionPlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::FoxDirection);
+	TestTrue(TEXT("Fox windup arrow keeps a visible non-degenerate component scale"),
+	         FoxDirectionPlacement.Scale.GetAbsMin() > KINDA_SMALL_NUMBER);
+	TestTrue(TEXT("Fox windup arrow uses the combat foreground sort band"),
+	         UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(0) >= 1000);
 	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
 
@@ -404,6 +411,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			int32 BowSpriteRendererCount = 0;
 			int32 SwordMeshRendererCount = 0;
+			int32 FoxDirectionEnabledEmitterCount = 0;
+			int32 FoxDirectionEnabledRendererCount = 0;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (!EmitterHandle.GetIsEnabled())
@@ -411,6 +420,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					continue;
 				}
 				const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+				if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+				{
+					++FoxDirectionEnabledEmitterCount;
+					TestTrue(FString::Printf(TEXT("Fox direction emitter '%s' exposes compiled data"),
+					                         *EmitterHandle.GetName().ToString()),
+					         EmitterData != nullptr);
+					if (EmitterData)
+					{
+						TestTrue(FString::Printf(TEXT("Fox direction emitter '%s' follows component-space rotation"),
+						                         *EmitterHandle.GetName().ToString()),
+						         EmitterData->bLocalSpace);
+						for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+						{
+							if (Renderer && Renderer->GetIsEnabled())
+							{
+								++FoxDirectionEnabledRendererCount;
+							}
+						}
+					}
+				}
 				if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight && EmitterData)
 				{
 					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
@@ -453,6 +482,18 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
 			{
 				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
+			}
+			if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+			{
+				TestTrue(TEXT("Fox direction contains at least one enabled emitter"),
+				         FoxDirectionEnabledEmitterCount > 0);
+				TestTrue(TEXT("Fox direction contains at least one enabled renderer"),
+				         FoxDirectionEnabledRendererCount > 0);
+				const FBox FixedBounds = System->GetFixedBounds();
+				TestTrue(TEXT("Fox direction opts into fixed bounds for deterministic camera culling"),
+				         System->bFixedBounds != 0);
+				TestTrue(TEXT("Fox direction fixed bounds are valid and non-degenerate"),
+				         FixedBounds.IsValid != 0 && FixedBounds.GetSize().GetAbsMin() > KINDA_SMALL_NUMBER);
 			}
 		}
 		if (Semantic == EReEchoCombatVfxSemantic::GoatSkill03Alarming ||

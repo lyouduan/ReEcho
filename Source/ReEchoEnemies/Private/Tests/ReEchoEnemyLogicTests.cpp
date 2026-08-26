@@ -631,11 +631,12 @@ bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
 	Dash.bEnabled = true;
 	Dash.Damage = 18.0f;
 	Dash.WindupSeconds = 0.8f;
+	Dash.ActiveSeconds = 0.15f;
 	Dash.RecoverySeconds = 0.9f;
 	Dash.CooldownSeconds = 4.0f;
-	Dash.MaxRangeCm = 450.0f;
+	Dash.MaxRangeCm = 650.0f;
 	Dash.WidthCm = 140.0f;
-	Dash.LengthCm = 450.0f;
+	Dash.LengthCm = 650.0f;
 	Elite.Abilities.Add(Dash);
 	UReEchoEnemyLogicComponent* EliteLogic = NewObject<UReEchoEnemyLogicComponent>();
 	TestTrue(TEXT("Elite definition initializes"), EliteLogic->Initialize(Elite, 2));
@@ -649,9 +650,69 @@ bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
 	EliteLogic->Advance(Sense, 0.01f);
 	const FReEchoEnemyActionIntent DashCommit = EliteLogic->Advance(Sense, 0.81f);
 	TestTrue(TEXT("Elite dash commits after table warning"), DashCommit.bAttackCommitted);
-	TestTrue(TEXT("Elite dash moves along the locked line"), DashCommit.bHasMovement);
-	TestEqual(TEXT("Elite dash length comes from table ability"), DashCommit.MovementDelta.Size2D(), 450.0);
+	TestFalse(TEXT("Elite dash commit does not move the complete authored distance"), DashCommit.bHasMovement);
 	TestEqual(TEXT("Elite dash uses table damage"), DashCommit.RawDamage, 18.0f);
+	TestEqual(TEXT("Elite dash enters an explicit Active phase"),
+	          EliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Active);
+	TestEqual(TEXT("Elite dash stores the complete authored distance budget"),
+	          EliteLogic->GetSnapshot().SpecialDashRemainingDistanceCm,
+	          650.0f);
+	TestEqual(
+	    TEXT("Elite dash stores one committed identity"), EliteLogic->GetSnapshot().SpecialAttack.Sequence, int64(1));
+
+	const FReEchoEnemyActionIntent FirstDashStep = EliteLogic->Advance(Sense, 0.05f);
+	TestTrue(TEXT("Elite dash Active produces movement"), FirstDashStep.bSpecialDashMovement);
+	TestTrue(TEXT("Elite dash first step is smaller than its complete distance"),
+	         FirstDashStep.MovementDelta.Size2D() < Dash.LengthCm);
+	TestTrue(TEXT("Elite dash first third integrates from ActiveSeconds"),
+	         FMath::IsNearlyEqual(FirstDashStep.MovementDelta.Size2D(), 650.0f / 3.0f, 0.01f));
+	TestEqual(TEXT("Every dash step keeps the committed identity"),
+	          FirstDashStep.Attack.Sequence,
+	          DashCommit.Attack.Sequence);
+	EliteLogic->ResolveSpecialDashStep(false, true);
+	const FReEchoEnemyLogicSnapshot ActiveSave = EliteLogic->GetSnapshot();
+	TestTrue(TEXT("First path contact consumes the one-shot damage gate"), ActiveSave.bSpecialDamageConsumed);
+	TestTrue(TEXT("Active save keeps remaining distance"),
+	         FMath::IsNearlyEqual(ActiveSave.SpecialDashRemainingDistanceCm, 650.0f * 2.0f / 3.0f, 0.01f));
+
+	UReEchoEnemyLogicComponent* RestoredEliteLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Elite restore target initializes"), RestoredEliteLogic->Initialize(Elite, 2));
+	RestoredEliteLogic->RestoreSnapshot(ActiveSave);
+	TestEqual(TEXT("Active restore keeps the committed identity sequence"),
+	          RestoredEliteLogic->GetSnapshot().SpecialAttack.Sequence,
+	          DashCommit.Attack.Sequence);
+	TestTrue(TEXT("Active restore preserves the consumed damage gate"),
+	         RestoredEliteLogic->GetSnapshot().bSpecialDamageConsumed);
+	const FReEchoEnemyActionIntent SecondDashStep = RestoredEliteLogic->Advance(Sense, 0.05f);
+	const FReEchoEnemyActionIntent FinalDashStep = RestoredEliteLogic->Advance(Sense, 0.05f);
+	TestTrue(TEXT("Partitioned dash attempts the exact authored distance"),
+	         FMath::IsNearlyEqual(FirstDashStep.MovementDelta.Size2D() + SecondDashStep.MovementDelta.Size2D() +
+	                                  FinalDashStep.MovementDelta.Size2D(),
+	                              650.0f,
+	                              0.01f));
+	TestFalse(TEXT("Consumed path contact cannot request damage again"), SecondDashStep.bCanDamageTarget);
+	TestEqual(TEXT("Completed Active enters Recovery without including ActiveSeconds"),
+	          RestoredEliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Recovery);
+	TestEqual(TEXT("Recovery uses only the authored recovery time"),
+	          RestoredEliteLogic->GetSnapshot().SpecialActionRemainingSeconds,
+	          Dash.RecoverySeconds);
+
+	FReEchoEnemyLogicSnapshot LegacyUnsafeActive = ActiveSave;
+	LegacyUnsafeActive.SpecialAttack = {};
+	LegacyUnsafeActive.SpecialDashRemainingDistanceCm = 0.0f;
+	LegacyUnsafeActive.bSpecialDamageConsumed = false;
+	UReEchoEnemyLogicComponent* LegacyRestore = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Legacy-safe restore target initializes"), LegacyRestore->Initialize(Elite, 2));
+	LegacyRestore->RestoreSnapshot(LegacyUnsafeActive);
+	TestEqual(TEXT("Missing new Active fields recover without extra movement"),
+	          LegacyRestore->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Recovery);
+	TestTrue(TEXT("Missing new Active fields cannot repeat damage"),
+	         LegacyRestore->GetSnapshot().bSpecialDamageConsumed);
+	TestFalse(TEXT("Missing new Active fields emit no dash movement"),
+	          LegacyRestore->Advance(Sense, 0.01f).bHasMovement);
 	return true;
 }
 

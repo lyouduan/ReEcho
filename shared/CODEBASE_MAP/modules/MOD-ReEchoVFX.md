@@ -42,7 +42,7 @@
 |---|---|---|
 | `FReEchoAttackCommittedEvent` | `MOD-ReEchoCombat` / Weapons 提交链 | 近战 Pattern 播放一次刀光 |
 | `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击 |
-| `FReEchoPresentationActionEvent` | EnemyHost 的 CombatPresentationCoordinator | Rabbit/Fox 的同一动作键与有序 Windup、Committed、Ended/Cancelled 驱动阶段表现 |
+| `FReEchoPresentationActionEvent` | EnemyHost 的 CombatPresentationCoordinator | Rabbit/Fox 的同一动作键与有序 Windup、Committed、Recovery、Ended/Cancelled 驱动阶段表现 |
 | `FReEchoEnemyProjectileEvent` | EnemyHost 的逐球逻辑投射物 | 按 `(AttackIdentity, VolleyBallIndex)` 创建、移动和销毁唯一兔子子弹代理；位置直接采用事件快照 |
 | `FReEchoCardEncounterTickResult::EchoAuraPulseCount` + 水草规则 | `MOD-ReEchoCards` / Run | 每次权威 2 秒脉冲在存活 Echo 的角色背景层播放一次 Water/Grass Aura；不另建计时器、不参与 4m 元素结算 |
 | Actor Death / EndPlay | Combat/UE 生命周期 | 清理所有跟随和非自动销毁实例 |
@@ -70,8 +70,8 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | RabbitProjectile | 核心球 `/Game/VFX/Monster/Rabbit/MI/BaseVFX003_Inst12`；柔光适配材质 `/Game/ReEcho/Materials/VFX/M_RabbitProjectileGlow` | 从正式单球材质与原 `Glo_c002` 纹理创建三个 World Material Billboard；适配材质显式提供红色 Additive/Unlit/Emissive，不依赖 Niagara 粒子参数；核心直径精确等于事件碰撞直径，光晕直径为核心的 `1.5` 倍但不参与碰撞；位置逐帧覆盖为对应逻辑球位置，Ended/清场销毁 |
 | PlayerHurt | `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_BeAttacked_01` | 玩家实际受伤时世界位置单次播放 |
 | FoxCharging | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Charging` | 附着狐狸攻击挂点、前景，Windup 开始 |
-| FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow` | 两个启用发射器均为 Local Space；附着狐狸攻击挂点、前景，Windup 与 Charging 同时开始，并按锁定冲撞方向旋转，提交/结束/取消时清理 |
-| FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Trail` | 附着狐狸攻击挂点、前景；提交时停止 Charging/Direction 并开始，动作结束/取消时清理 |
+| FoxDirection | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_arrow` | 启用发射器必须为 Local Space 且至少有一个启用 Renderer，并具备非退化 Bounds；附着狐狸攻击挂点、非退化尺寸和战斗前景排序，Windup 与 Charging 同时开始，并按锁定冲撞方向旋转，提交/结束/取消时清理 |
+| FoxDash | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_Trail` | 附着狐狸攻击挂点、前景；Committed 进入分帧 Active 时停止 Charging/Direction 并开始，RecoveryStarted（含完成/撞墙）、Ended/Cancelled/Death/EndPlay 时清理 |
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
 | GoatSkill01 | `MoonStaff` + `NS_Goat_Skill02_BeAttacked` | 羊 Boss 从 Plan104 的 `DA_WeaponPresentation_MoonStaff` 读取持有贴图、尺寸和偏移；近战攻击窗口驱动法杖挥舞，并在法杖世界位置复用 Skill02 BeAttacked，玩法圆形命中不变 |
 | GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 两种投射技能共用；Charging 挂在 MoonStaff 根，Bullet 使用 Local Space。StationaryVolley 在 Recovery 窗口内逐颗发布四次 Spawned，MovingSpread 同帧发布三向 Spawned；每颗投影权威弹道、命中后经 Combat 结算单弹配表伤害并发布 Ended，实际 `AppliedDamage > 0` 时在角色世界命中坐标播放命中 |
@@ -125,7 +125,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | 映射与资产加载自动化 | `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp` |
 | 首场资源清单与驻留 | `Presentation/VFX/ReEchoCombatVfxCatalog.*` → `Presentation/Loading/ReEchoRuntimeAssetPreloader.*`；测试为 `ReEchoRuntimeAssetPreloadTests.cpp` |
 | 玩家武器攻击表现路由 | `Presentation/VFX/ReEchoCombatVfxCatalog.*`、`Graybox/ReEchoProjectileActor.*`、`Weapons/ReEchoWeaponActor.*`；正式清单仅含长剑、镰刀、弓和枪，MoonStaff Wave 是非生产动画辅助 |
-| 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py`；狐狸方向箭头 Local Space 修复脚本为 `scripts/ue/fix_fox_direction_local_space.py` |
+| 导入器与聚焦测试 | `scripts/art/import_combat_vfx.py`、`scripts/art/test_import_combat_vfx.py`；狐狸冲刺只读审计为 `scripts/ue/audit_fox_dash_vfx.py`，方向箭头 Local Space 修复脚本为 `scripts/ue/fix_fox_direction_local_space.py` |
 | Goat Boss 资产审计 | `scripts/ue/audit_goat_boss_vfx.py`；若 Editor 被跨平台 SDK 校验阻断，以包内 `/Game/` 引用递归闭包作为保守投递证据，并明确保留 Editor/PIE 验收 |
 | 测试专用预览 Harness | `Presentation/VFX/ReEchoVfxPreviewActor.*`、`ReEchoVfxPreviewTests.cpp`；测试地图 author/verify 位于 `scripts/ue/author_vfx_test_scene.py` 与 `verify_vfx_test_scene.py` |
 

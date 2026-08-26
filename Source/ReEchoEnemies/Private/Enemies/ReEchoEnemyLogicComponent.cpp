@@ -513,13 +513,61 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 	const FReEchoEnemyAbilityDefinition* Ability = State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None
 	                                                   ? GetNextSpecialAbility()
 	                                                   : FindSpecialAbility(State.SpecialAbilityId);
-	if (!Ability || !Sense.bTargetExists || !Sense.bTargetAlive)
+	if (!Ability)
 	{
+		ClearSpecialAction();
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 		return Intent;
 	}
 
 	State.AttackCooldownRemainingSeconds = FMath::Max(0.0f, State.AttackCooldownRemainingSeconds - DeltaSeconds);
+	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Active)
+	{
+		State.Phase = EReEchoEnemyBehaviorPhase::Attacking;
+		State.FacingDirection = State.SpecialLockedDirection;
+		Intent.FacingDirection = State.SpecialLockedDirection;
+		Intent.bHasFacing = !Intent.FacingDirection.IsNearlyZero();
+		Intent.Attack = State.SpecialAttack;
+		Intent.Target = Sense.Target;
+		Intent.RawDamage = Ability->Damage;
+		Intent.DamageRadiusCm = FMath::Max(0.0f, Ability->WidthCm * 0.5f);
+		Intent.SourceLocation = Sense.SelfLocation;
+		Intent.HitLocation = Sense.TargetLocation;
+		Intent.bCanDamageTarget =
+		    !State.bSpecialDamageConsumed && Sense.bTargetExists && Sense.bTargetAlive && !Sense.bTargetInvulnerable;
+		Intent.bSpecialDashMovement = true;
+
+		const float StepSeconds = FMath::Min(DeltaSeconds, State.SpecialActionRemainingSeconds);
+		float StepDistanceCm = 0.0f;
+		if (StepSeconds > 0.0f && Ability->ActiveSeconds > KINDA_SMALL_NUMBER)
+		{
+			StepDistanceCm = Ability->LengthCm * StepSeconds / Ability->ActiveSeconds;
+			if (StepSeconds + KINDA_SMALL_NUMBER >= State.SpecialActionRemainingSeconds)
+			{
+				StepDistanceCm = State.SpecialDashRemainingDistanceCm;
+			}
+			StepDistanceCm = FMath::Min(FMath::Max(0.0f, StepDistanceCm), State.SpecialDashRemainingDistanceCm);
+		}
+		Intent.MovementDelta = State.SpecialLockedDirection * StepDistanceCm;
+		Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
+		State.SpecialActionRemainingSeconds = FMath::Max(0.0f, State.SpecialActionRemainingSeconds - StepSeconds);
+		State.SpecialDashRemainingDistanceCm = FMath::Max(0.0f, State.SpecialDashRemainingDistanceCm - StepDistanceCm);
+		if (State.SpecialActionRemainingSeconds <= KINDA_SMALL_NUMBER ||
+		    State.SpecialDashRemainingDistanceCm <= KINDA_SMALL_NUMBER)
+		{
+			BeginSpecialRecovery(*Ability);
+		}
+		return Intent;
+	}
+
+	if ((!Sense.bTargetExists || !Sense.bTargetAlive) &&
+	    State.SpecialActionPhase != EReEchoEnemySpecialActionPhase::Recovery)
+	{
+		ClearSpecialAction();
+		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+		return Intent;
+	}
+
 	FVector ToTargetVec = Sense.TargetLocation - Sense.SelfLocation;
 	ToTargetVec.Z = 0.0f;
 	const float Distance = ToTargetVec.Size();
@@ -574,37 +622,97 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 	}
 	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
 	{
-		bool bCanDamage = false;
 		if (Definition.Archetype == EReEchoEnemyArchetype::Ranged)
 		{
-			bCanDamage = FVector::DistSquared2D(Sense.TargetLocation, State.SpecialLockedTargetLocation) <=
-			             FMath::Square(Ability->RadiusCm);
+			const bool bCanDamage = FVector::DistSquared2D(Sense.TargetLocation, State.SpecialLockedTargetLocation) <=
+			                        FMath::Square(Ability->RadiusCm);
+			CommitAttack(Sense, bCanDamage && !Sense.bTargetInvulnerable, false, Intent);
+			Intent.RawDamage = Ability->Damage;
+			Intent.HitLocation = State.SpecialLockedTargetLocation;
+			State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Recovery;
+			State.SpecialActionRemainingSeconds = Ability->ActiveSeconds + Ability->RecoverySeconds;
 		}
 		else
 		{
-			const FVector Right =
-			    FVector::CrossProduct(FVector::UpVector, State.SpecialLockedDirection).GetSafeNormal2D();
-			const FVector Offset = Sense.TargetLocation - Sense.SelfLocation;
-			const float Forward = FVector::DotProduct(Offset, State.SpecialLockedDirection);
-			const float Side = FMath::Abs(FVector::DotProduct(Offset, Right));
-			bCanDamage = Forward >= 0.0f && Forward <= Ability->LengthCm && Side <= Ability->WidthCm * 0.5f;
-			Intent.MovementDelta = State.SpecialLockedDirection * Ability->LengthCm;
-			Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
+			CommitAttack(Sense, false, false, Intent);
+			Intent.RawDamage = Ability->Damage;
+			State.SpecialAttack = Intent.Attack;
+			State.SpecialDashRemainingDistanceCm = FMath::Max(0.0f, Ability->LengthCm);
+			State.bSpecialDamageConsumed = false;
+			State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Active;
+			State.SpecialActionRemainingSeconds = FMath::Max(0.0f, Ability->ActiveSeconds);
+			if (State.SpecialActionRemainingSeconds <= KINDA_SMALL_NUMBER ||
+			    State.SpecialDashRemainingDistanceCm <= KINDA_SMALL_NUMBER)
+			{
+				BeginSpecialRecovery(*Ability);
+			}
 		}
-		CommitAttack(Sense, bCanDamage && !Sense.bTargetInvulnerable, false, Intent);
-		Intent.RawDamage = Ability->Damage;
-		Intent.HitLocation = Definition.Archetype == EReEchoEnemyArchetype::Ranged ? State.SpecialLockedTargetLocation
-		                                                                           : Sense.TargetLocation;
-		State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Recovery;
-		State.SpecialActionRemainingSeconds = Ability->ActiveSeconds + Ability->RecoverySeconds;
 		State.AttackCooldownRemainingSeconds = Ability->CooldownSeconds;
 		return Intent;
 	}
 
-	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
-	State.SpecialAbilityId = NAME_None;
+	ClearSpecialAction();
 	State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 	return Intent;
+}
+
+void UReEchoEnemyLogicComponent::BeginSpecialRecovery(const FReEchoEnemyAbilityDefinition& Ability)
+{
+	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Recovery;
+	State.SpecialActionRemainingSeconds = FMath::Max(0.0f, Ability.RecoverySeconds);
+	State.SpecialDashRemainingDistanceCm = 0.0f;
+}
+
+void UReEchoEnemyLogicComponent::ClearSpecialAction()
+{
+	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
+	State.SpecialAbilityId = NAME_None;
+	State.SpecialActionRemainingSeconds = 0.0f;
+	State.SpecialLockedTargetLocation = FVector::ZeroVector;
+	State.SpecialLockedDirection = State.FacingDirection.GetSafeNormal2D();
+	State.SpecialDashRemainingDistanceCm = 0.0f;
+	State.SpecialAttack = {};
+	State.bSpecialDamageConsumed = false;
+}
+
+void UReEchoEnemyLogicComponent::CancelSpecialAction()
+{
+	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None)
+	{
+		return;
+	}
+	if (EnemyEvents)
+	{
+		FReEchoEnemySpecialActionEvent Event;
+		Event.AbilityId = State.SpecialAbilityId;
+		Event.Type = EReEchoEnemySpecialActionEventType::ActionCancelled;
+		Event.Attack = State.SpecialAttack;
+		Event.Origin = GetOwner() ? GetOwner()->GetActorLocation() : FVector::ZeroVector;
+		Event.LockedDirection = State.SpecialLockedDirection;
+		Event.LockedTargetLocation = State.SpecialLockedTargetLocation;
+		EnemyEvents->PublishSpecialAction(Event);
+	}
+	ClearSpecialAction();
+}
+
+void UReEchoEnemyLogicComponent::ResolveSpecialDashStep(const bool bMovementBlocked, const bool bDamageContactConsumed)
+{
+	if (!bInitialized || Definition.Archetype != EReEchoEnemyArchetype::Elite)
+	{
+		return;
+	}
+	State.bSpecialDamageConsumed = State.bSpecialDamageConsumed || bDamageContactConsumed;
+	if (bMovementBlocked && State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Active)
+	{
+		if (const FReEchoEnemyAbilityDefinition* Ability = FindSpecialAbility(State.SpecialAbilityId))
+		{
+			BeginSpecialRecovery(*Ability);
+		}
+		else
+		{
+			ClearSpecialAction();
+		}
+	}
 }
 
 FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense,
@@ -839,10 +947,9 @@ void UReEchoEnemyLogicComponent::CommitBossAbility(const FReEchoEnemySenseSnapsh
 	BossIntent.Attack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
 	BossIntent.Attack.Sequence = State.BossCurrentAttackSequence;
 	BossIntent.Target = Sense.Target;
-	BossIntent.Origin = AbilityKind == EReEchoBossAbilityKind::BlinkSlam
-	                        ? State.BossLockedTeleportDestination
-	                        : AbilityKind == EReEchoBossAbilityKind::PrayerBeam ? State.BossLockedTargetLocation
-	                                                                           : Sense.SelfLocation;
+	BossIntent.Origin = AbilityKind == EReEchoBossAbilityKind::BlinkSlam    ? State.BossLockedTeleportDestination
+	                    : AbilityKind == EReEchoBossAbilityKind::PrayerBeam ? State.BossLockedTargetLocation
+	                                                                        : Sense.SelfLocation;
 	BossIntent.LockedTargetLocation = State.BossLockedTargetLocation;
 	BossIntent.LockedDirection = State.BossLockedDirection;
 	BossIntent.TeleportDestination = State.BossLockedTeleportDestination;
@@ -1158,6 +1265,7 @@ void UReEchoEnemyLogicComponent::NotifyHurt(const float AppliedDamage,
 	{
 		return;
 	}
+	CancelSpecialAction();
 
 	FVector KnockbackDirection = (SelfLocation - SourceLocation).GetSafeNormal2D();
 	if (KnockbackDirection.IsNearlyZero())
@@ -1265,9 +1373,7 @@ void UReEchoEnemyLogicComponent::CancelUncommittedActionsForPhaseTransition()
 {
 	State.HitReactionRemainingSeconds = 0.0f;
 	State.KnockbackVelocity = FVector::ZeroVector;
-	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
-	State.SpecialAbilityId = NAME_None;
-	State.SpecialActionRemainingSeconds = 0.0f;
+	CancelSpecialAction();
 	if (!State.bBossCurrentAbilityCommitted)
 	{
 		State.BossActionPhase = EReEchoBossActionPhase::None;
@@ -1290,6 +1396,7 @@ void UReEchoEnemyLogicComponent::NotifyDeath()
 	State.FuseRemainingSeconds = 0.0f;
 	State.HitReactionRemainingSeconds = 0.0f;
 	State.KnockbackVelocity = FVector::ZeroVector;
+	CancelSpecialAction();
 	State.BossActionPhase = EReEchoBossActionPhase::None;
 	State.BossCurrentAbilityId = NAME_None;
 	State.BossCurrentAttackSequence = 0;
@@ -1312,11 +1419,7 @@ void UReEchoEnemyLogicComponent::ResetEncounterTransientState()
 	State.HitReactionRemainingSeconds = 0.0f;
 	State.KnockbackVelocity = FVector::ZeroVector;
 	State.bFuseActive = false;
-	State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
-	State.SpecialAbilityId = NAME_None;
-	State.SpecialActionRemainingSeconds = 0.0f;
-	State.SpecialLockedTargetLocation = FVector::ZeroVector;
-	State.SpecialLockedDirection = State.FacingDirection.GetSafeNormal2D();
+	CancelSpecialAction();
 	State.BossActionPhase = EReEchoBossActionPhase::None;
 	State.BossCurrentAbilityId = NAME_None;
 	State.BossCurrentAttackSequence = 0;
@@ -1358,9 +1461,43 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 	}
 	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None || !FindSpecialAbility(State.SpecialAbilityId))
 	{
-		State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::None;
-		State.SpecialAbilityId = NAME_None;
-		State.SpecialActionRemainingSeconds = 0.0f;
+		ClearSpecialAction();
+	}
+	else if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Active)
+	{
+		const FReEchoEnemyAbilityDefinition* Ability = FindSpecialAbility(State.SpecialAbilityId);
+		State.SpecialActionRemainingSeconds =
+		    FMath::Min(State.SpecialActionRemainingSeconds, Ability ? FMath::Max(0.0f, Ability->ActiveSeconds) : 0.0f);
+		State.SpecialDashRemainingDistanceCm = FMath::Min(FMath::Max(0.0f, State.SpecialDashRemainingDistanceCm),
+		                                                  Ability ? FMath::Max(0.0f, Ability->LengthCm) : 0.0f);
+		State.SpecialAttack.Sequence = FMath::Clamp<int64>(State.SpecialAttack.Sequence, 0, State.AttackSequence);
+		if (State.SpecialAttack.Sequence > 0)
+		{
+			State.SpecialAttack.Source = GetOwner();
+			State.SpecialAttack.SourceFaction = ReEchoCombatRelations::ResolveActorFaction(GetOwner());
+		}
+		const bool bSafeActiveRestore = Ability && Definition.Archetype == EReEchoEnemyArchetype::Elite &&
+		                                State.SpecialActionRemainingSeconds > KINDA_SMALL_NUMBER &&
+		                                State.SpecialDashRemainingDistanceCm > KINDA_SMALL_NUMBER &&
+		                                State.SpecialAttack.Sequence > 0;
+		if (!bSafeActiveRestore)
+		{
+			State.bSpecialDamageConsumed = true;
+			if (Ability)
+			{
+				BeginSpecialRecovery(*Ability);
+			}
+			else
+			{
+				ClearSpecialAction();
+			}
+		}
+	}
+	else
+	{
+		State.SpecialDashRemainingDistanceCm = 0.0f;
+		State.SpecialAttack = {};
+		State.bSpecialDamageConsumed = false;
 	}
 	if (!Definition.Phase2.bEnabled)
 	{

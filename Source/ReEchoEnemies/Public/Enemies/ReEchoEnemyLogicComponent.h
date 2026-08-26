@@ -32,6 +32,8 @@ public:
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
 	void ResetEncounterTransientState();
 	void RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot);
+	/** Host feedback after applying one Active Elite dash step through swept world movement. */
+	void ResolveSpecialDashStep(bool bMovementBlocked, bool bDamageContactConsumed);
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
@@ -63,6 +65,9 @@ private:
 	bool BuildSpecialRuntime();
 	const FReEchoEnemyAbilityDefinition* GetNextSpecialAbility() const;
 	const FReEchoEnemyAbilityDefinition* FindSpecialAbility(FName AbilityId) const;
+	void BeginSpecialRecovery(const FReEchoEnemyAbilityDefinition& Ability);
+	void ClearSpecialAction();
+	void CancelSpecialAction();
 	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
 	                          float FixedDeltaSeconds,
 	                          FReEchoEnemyActionIntent& InOutIntent);
