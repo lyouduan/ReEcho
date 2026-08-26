@@ -10,6 +10,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
@@ -281,6 +282,9 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	Weapon->InitializeWeapon(&Build, Snapshot);
 	AReEchoEnemyActor* Primary = SpreadFixture.SpawnEnemy(FVector(1000.0f, 0.0f, 0.0f), 4, 100.0f);
 	AReEchoEnemyActor* Splash = SpreadFixture.SpawnEnemy(FVector(1000.0f, 120.0f, 0.0f), 5, 100.0f);
+	FReEchoEnemyLogicSnapshot TransformingState = Primary->GetEnemyLogicComponent()->GetSnapshot();
+	TransformingState.Phase = EReEchoEnemyBehaviorPhase::Transforming;
+	Primary->GetEnemyLogicComponent()->RestoreSnapshot(TransformingState);
 	TestTrue(TEXT("Spread projectile attack executes"), Weapon->ExecuteBasicAttack(Combatant));
 	TestEqual(
 	    TEXT("Canonical bow projectile count comes from weapon definition"), CountProjectiles(SpreadFixture.World), 1);
@@ -295,7 +299,8 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	         SyntheticSpread.Num() == 3 &&
 	             !FMath::IsNearlyEqual(SyntheticSpread[0].Rotation().Yaw, SyntheticSpread[2].Rotation().Yaw, 0.1f));
 	TickProjectiles(SpreadFixture.World, 1.10f);
-	TestTrue(TEXT("Primary target takes projectile damage"), WeaponEnemyHealth(Primary) < 100.0f);
+	TestTrue(TEXT("Projectile damages an ordinary enemy during presentation-only transformation"),
+	         WeaponEnemyHealth(Primary) < 100.0f);
 	TestEqual(TEXT("Non-explosive bow projectile leaves nearby target untouched"), WeaponEnemyHealth(Splash), 100.0f);
 
 	FReEchoWeaponWorldFixture LifetimeFixture;

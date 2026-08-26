@@ -11,7 +11,7 @@
 - 本地规划 / 实现基线：`origin/main@9c146b5db5b8b836901a0fa6e6b0e067ef985a26`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan115`，本地分支 `plan/115-first-wave-spawn-telegraph`；Plan-only 发布后在同一工作树继续实现。
 - 依赖 / 阻塞：依赖现有 Encounter WaveScheduler 的 Warning/Commit 两阶段事件、SpawnProfile 的 `WarningLeadSeconds`、GameMode 的 PendingSpawnBatch 与出生预警表现。无外部阻塞。
-- Writes: 本 Plan；`Source/ReEcho/Private/Encounter/ReEchoEncounterRuntime.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp`；`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`；`Source/ReEcho/Private/Tests/ReEchoEncounterRuntimeTests.cpp`、`ReEchoEnemyHostTests.cpp`；`Source/ReEchoWeapons/Private/Weapons/ReEchoProjectileLogicComponent.cpp` 及配对头文件（仅诊断追踪）；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoEnemies.md`。
+- Writes: 本 Plan；`Source/ReEcho/Private/Encounter/ReEchoEncounterRuntime.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp`；`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`；`Source/ReEcho/Private/Tests/ReEchoEncounterRuntimeTests.cpp`、`ReEchoEnemyHostTests.cpp`、`ReEchoWeaponRuntimeTests.cpp`；`Source/ReEchoWeapons/Private/Weapons/ReEchoProjectileLogicComponent.cpp` 及配对头文件（仅诊断追踪）；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoEnemies.md`。
 - Stable Reads: `Content/Data/encounter_waves.csv` 的波次触发时间；`Content/Data/spawn_profiles.csv` 的 `WarningLeadSeconds`；角色选择与 `BeginNextEncounter` 既有流程；Enemy Host/Logic/Presentation 现有装配契约。
 - 影响模式：`SharedContract`，因为调整 Encounter Scheduler 对零秒首波的 Warning/Commit 时序，但不改变敌人逻辑、表现或伤害权威。
 - 兼容承诺 / 下游操作：非零波次继续在配置的 `TriggerSeconds` 生成；其预警仍提前 `WarningLeadSeconds`。存档恢复继续持久化 Scheduler 游标与已准备出生批次，不生成第二套计时状态。
@@ -80,6 +80,7 @@
 - 2026-08-26：人工预验收发现红球可能先于 Enemy Host 的可受击状态结束。审计确认 Host 配置未显式覆盖 Blueprint 关闭碰撞/不可受击默认值；将 `ConfigureFromDefinition` 收口为原子激活后置条件，并让球框覆盖 Commit 后一个固定步，保证“球框消失时 Host 已可受击”。
 - 2026-08-26：再次人工复现为前两颗玩家子弹未结算、第三颗才造成伤害；加入 `[SpawnDamageTrace]` 诊断链，使用 projectile GUID 与 `Source#AttackSequence` 串联生成、靠近候选、几何接触、Resolver 结果和结束摘要，并用同一 WorldSeconds 对齐 `[EncounterSpawn] active`。本步只采证，不提前改变伤害判定。
 - 2026-08-26：日志证明首两颗子弹均已命中存活、碰撞正常的 `M_SLIME`，但 `ModifyIncomingRawDamage` 因普通怪正处于距离触发的纯表现 Phase2 变身而把 1.6 入伤改为 0；第三颗到达时 1 秒变身结束，3.2 正常结算。将免伤条件收窄到 `HealthThreshold` 血条耗尽型 Boss，普通怪 `AttackCountOrRange` 变身继续正常受伤。
+- 2026-08-26：复核策划附件 `ReEcho-Gun-TripleSpread-DamageLoss-20260826.txt`。旧运行日志中的 W_J_09、三发散射、棱镜与 Echo 放大现象均停在相同的目标入伤修正；`ProjectileContact`、来源规则和阵营过滤已通过，零伤目标为正在普通 Phase2 转换的 `M_SLIME/M_RABBIT`。补充真实投射物穿过 Resolver 命中 `Transforming` 普通怪的端到端回归，避免只验证直接接口。
 
 ### 证据
 
@@ -91,6 +92,7 @@
 - `python scripts/validate_project.py` 与 `git diff --check` 均通过。
 - 诊断追踪加入后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 为 `Result={Success}`，`git diff --check` 通过。
 - 普通怪变身免伤修正后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Enemies.Host` 的 5 项测试全部 `Result={Success}`，其中 `CompositionAndSave` 新增普通怪 `Transforming` 入伤不归零的断言；`git diff --check` 通过。
+- 策划枪械报告回归补齐后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 以真实 Projectile→HitResolver 链命中 `Transforming` 普通怪并为 `Result={Success}`；`git diff --check` 通过。
 
 ### 剩余风险
 
