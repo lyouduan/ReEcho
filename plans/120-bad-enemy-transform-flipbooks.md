@@ -6,8 +6,8 @@
 - Executor 负责人：当前程序侧 Executor（Plan 发布后执行）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`。
+- 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main` @ `fb67ce38dc37e1efde8943eab0f67af90ec49fbe`。
 - 本地实现方式（可选，仅作交接说明）：任务专属 worktree `C:\tmp\ReEcho-plan120-bad-enemy-transform`，分支 `codex/plan120-bad-enemy-transform`。
 - 依赖 / 阻塞：源帧来自用户指定的 `F:\MiniGame\兔子变形序列帧`、`F:\MiniGame\史莱姆变形`、`F:\MiniGame\狐狸变形关键帧`；运行 Unreal 导入前必须确认本克隆没有其他进程持有 Editor 锁。
@@ -58,7 +58,7 @@
 - [x] `BadFox/Transform` 恰有 4 个按序 Texture2D 与 4 个 PaperSprite，`Flipbooks/Transform` 恰有 4 个顺序一致的 Key Frame，且 Profile Clip 不循环。
 - [x] `DA_Enemy_RabbitDoll`、`DA_Enemy_Slime`、`DA_Enemy_Fox` 的 `Phase2` 动画集均把 `Transform.Phase2` 映射到各自 `Transform` Flipbook，且导入脚本只改该 Clip。
 - [x] Unreal 加载/只读审计、`python scripts/validate_project.py`、`git diff --check` 与最终 `-FullRebuild`/预构建包门禁通过。
-- [ ] 用户在 PIE 中确认三段变形动画的帧序、速度、透明边缘、比例、朝向和脚点可接受。
+- [x] 用户在 PIE 中确认三段变形动画的帧序、速度、透明边缘、比例、朝向和脚点可接受。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -112,7 +112,7 @@
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：待用户完成三个 Bad 怪物变形动画 PIE 验收。
+`Passed`：用户于 2026-08-26 确认三个 Bad 怪物变形动画“没问题”，同意关闭并推送。
 
 ### 架构文档审阅结果
 
