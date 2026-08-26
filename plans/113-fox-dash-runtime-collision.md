@@ -15,12 +15,14 @@
   - `plans/113-fox-dash-runtime-collision.md`
   - `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyTypes.h`
   - `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyLogicComponent.h`
+  - `Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyEventsComponent.h`
   - `Source/ReEchoEnemies/Private/Enemies/ReEchoEnemyLogicComponent.cpp`
   - `Source/ReEchoEnemies/Private/Tests/ReEchoEnemyLogicTests.cpp`
   - `Source/ReEcho/Public/Graybox/ReEchoEnemyActor.h`
   - `Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoEnemyHostTests.cpp`
   - `Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp`（仅在事件生命周期接线需要修正时）
+  - `Source/ReEcho/Private/Presentation/Combat/ReEchoCombatPresentationCoordinator.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoCombatPresentationTests.cpp`（仅在阶段事件契约需要补测时）
   - `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`（仅在 Fox Direction/Trail 生命周期需要补测时）
   - `scripts/ue/audit_fox_dash_vfx.py`（新增只读资产/组件契约审计）
@@ -60,7 +62,7 @@
   1. 使用 `ActiveSeconds` 分帧积分 `LengthCm`，而非固定视觉 Delay 或插值 Actor Transform；这样暂停、固定步、保存恢复和碰撞都消费同一权威时钟。
   2. 保留 swept movement 的“遇阻即停”，不为了表现完整强制穿透或把余量瞬移到终点。
   3. 伤害以实际 sweep 接触为准，并以一次性门控防止多帧重入；废弃当前前摇结束时按长方形预测目标是否受伤的提前结算。
-  4. `Committed` 表示进入 Active/冲刺开始，`Ended` 仍在 Recovery 完成后发布；Trail 因此覆盖 Active 与既有动作生命周期，但实际停止时机必须至少在 Active 终止、Cancelled、Death 和 EndPlay 安全收束。若视觉需要只覆盖 Active，使用新增资源中立阶段事实，不用 Niagara 完成回调反向驱动逻辑。
+  4. `Committed` 表示进入 Active/冲刺开始，新增资源中立的 `RecoveryStarted` 表达 Active 已终止并立即停止 Trail，`Ended` 仍在 Recovery 完成后发布；受击、阶段转换、Encounter reset 等未完成动作使用新增 `ActionCancelled`，由 Coordinator 映射到现有 Presentation `Cancelled`。不得用 Niagara 完成回调反向驱动逻辑。
   5. Direction 与 Charging 同一 Windup 事件已证明会同时请求生成；用户实机只见 Charging，因此把剩余根因限定为箭头 Niagara 自身或其组件适配的 Renderer/Bounds/尺寸/排序/空间配置。修复必须通过 Editor/API 和只读审计证明，不允许修改玩法锁向来补偿资产。
 - 相关文档同步范围：`CODEBASE_MAP/ARCHITECTURE.md` 关闭前审阅依赖拓扑；`CODEBASE_MAP/README.md` 审阅稳定标识/路线；更新上述三个模块文档的冲刺状态、世界接触与 VFX 生命周期事实。
 - 关闭前逐项填写审阅结果：
@@ -93,7 +95,7 @@
 1. 把普通特殊行动从 `None -> Windup -> Recovery` 扩为可表达狐狸 `Active` 的确定性状态；Windup 到期只提交 AttackIdentity 并初始化剩余时间/距离，随后每步产出不超过剩余预算的 movement intent。
 2. Host 保留 `AddActorWorldOffset(..., sweep=true)`，记录实际起止与 HitResult；仅当 Active dash 的 swept path/阻挡 Actor 命中合法目标且一次伤害门未消费时，构造同 AttackIdentity 的 HitIntent，并通过窄命令回写已消费状态或终止原因。
 3. 明确 Active 完成、世界阻挡、目标接触、取消、受击、死亡、Encounter reset 和恢复的状态转移；Recovery 不再包含 Active 秒数。
-4. 让 CombatPresentation/VFX 使用权威阶段覆盖 Direction/Trail 的开始和清理；优先复用现有 `Committed/Ended/Cancelled`，只有无法表达 Active 终止时才最窄扩展资源中立事件。
+4. 扩展 Enemy special event 为 `RecoveryStarted/ActionCancelled`，让 CombatPresentationCoordinator 分别映射为资源中立的 Recovery/Cancelled，并让 VFX 按权威阶段覆盖 Direction/Trail 的开始和清理。
 5. 新增只读 Direction Niagara 审计，记录启用 Emitter 的 Local Space、Renderer 数量/启用状态、Bounds、材质/网格依赖和运行时组件 Transform/排序；证据指向资产配置时，仅用幂等 Editor 脚本修复 `NS_Fox_Rush_arrow` 并保存该具名资产。
 6. 更新 Logic、Host、CombatPresentation/VFX 聚焦测试与三个模块文档；不用代码方向补偿掩盖 Niagara 资产问题。
 
@@ -117,6 +119,7 @@
 - 2026-08-26：Planner 静态复现根因：狐狸 Windup 到期同帧写入完整 `LengthCm`，`ActiveSeconds` 被并入 Recovery，导致 Host 一次 sweep 后视觉呈现闪现；当前伤害在移动前按长方形预测，而不是由冲撞路径接触触发。
 - 2026-08-26：用户明确要求修复，并增加冲撞过程伤害；Plan 锁定分帧 Active、swept path 首次接触一次伤害和 Direction/Trail 生命周期。
 - 2026-08-26：用户补充当前 PIE 中狐狸方向箭头完全不显示；Plan 将具名 Direction Niagara 审计与经 Editor/API 的最窄资产适配纳入 Writes 和锁定验收。
+- 2026-08-26：Executor 证明现有 Windup/Committed/Ended 事件无法表达 Active 结束或未完成动作取消；Planner 批准最窄增加 `RecoveryStarted/ActionCancelled` 并补入 EnemyEvents/Coordinator Writes，不改变技能或伤害语义。
 
 ### 证据
 
