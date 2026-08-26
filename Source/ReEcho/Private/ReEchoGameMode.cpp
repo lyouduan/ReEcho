@@ -2353,10 +2353,11 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	const UBoxComponent* RootCollision = Cast<UBoxComponent>(Enemy->GetRootComponent());
 	UE_LOG(LogTemp,
 	       Display,
-	       TEXT("[EncounterSpawn] active enemy=%s spawnIndex=%d encounter=%.3f alive=%s damageable=%s "
+	       TEXT("[EncounterSpawn] active enemy=%s spawnIndex=%d world=%.3f encounter=%.3f alive=%s damageable=%s "
 	            "actorCollision=%s rootCollision=%s"),
 	       *EnemyId.ToString(),
 	       NextSpawnIndex,
+	       GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f,
 	       Director ? Director->EncounterTime : -1.0f,
 	       Enemy->IsCombatTargetAlive() ? TEXT("true") : TEXT("false"),
 	       Enemy->CanBeDamaged() ? TEXT("true") : TEXT("false"),
