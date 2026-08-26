@@ -128,6 +128,9 @@ public:
 	/** Editor repair seam for melee mesh systems whose camera-facing renderer overrides component rotation. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System);
+	/** Editor repair seam for FaceCamera arrows whose image rotation must come from one explicit user parameter. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool BindNiagaraSpriteRotationToDirectionParameter(UNiagaraSystem* System);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
 	int32 GetBossProjectileEffectCountForTests() const;

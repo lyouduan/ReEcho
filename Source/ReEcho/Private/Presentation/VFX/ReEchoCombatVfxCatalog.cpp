@@ -224,12 +224,6 @@ void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 
 FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)
 {
-	if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
-	{
-		// Authoritative PIE observation shows that FaceCamera billboard handedness maps the delivered
-		// image-right arrowhead to component-local -Y, not +Y as a texture-only inspection suggested.
-		return -FVector::RightVector;
-	}
 	if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight)
 	{
 		// Side-on PIE confirmation identifies the delivered arrowhead's authored visual axis as local +Y.

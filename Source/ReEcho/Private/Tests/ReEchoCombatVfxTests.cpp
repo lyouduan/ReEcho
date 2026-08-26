@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Components/SceneComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Engine/Texture2D.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -29,6 +30,8 @@
 #include "Presentation/VFX/ReEchoVfxPreviewActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace
 {
@@ -67,6 +70,29 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFoxDirectionRuntimeTest,
 bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 {
 	FReEchoCombatVfxWorldFixture Fixture;
+	APlayerController* PlayerController = Fixture.World->SpawnActor<APlayerController>();
+	if (!TestNotNull(TEXT("Runtime direction fixture creates a real PlayerController"), PlayerController))
+	{
+		return false;
+	}
+	PlayerController->SetControlRotation(FRotator(-60.0f, 25.0f, 0.0f));
+	if (!PlayerController->PlayerCameraManager)
+	{
+		PlayerController->SpawnPlayerCameraManager();
+	}
+	APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(Fixture.World, 0);
+	if (!TestNotNull(TEXT("Runtime direction fixture resolves its PlayerCameraManager"), Camera))
+	{
+		return false;
+	}
+	FMinimalViewInfo CameraView;
+	CameraView.Rotation = FRotator(-60.0f, 25.0f, 0.0f);
+	Camera->SetCameraCachePOV(CameraView);
+	TestTrue(TEXT("PlayerCameraManager consumes the non-horizontal view target"),
+	         FMath::Abs(Camera->GetCameraRotation().Pitch) > KINDA_SMALL_NUMBER);
+	const FRotationMatrix ViewRotation(Camera->GetCameraRotation());
+	const FVector ViewRight = ViewRotation.GetUnitAxis(EAxis::Y);
+	const FVector ViewUp = ViewRotation.GetUnitAxis(EAxis::Z);
 	const FReEchoCsvLoadResult LoadResult =
 	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
 	if (!TestTrue(TEXT("Production enemy CSV loads for Fox Direction"), LoadResult.bSuccess))
@@ -118,8 +144,43 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	FReEchoEnemySpecialActionEvent Windup;
 	Windup.AbilityId = TEXT("M_FOX_Dash");
 	Windup.Type = EReEchoEnemySpecialActionEventType::WindupStarted;
-	Windup.LockedDirection = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
-	Fox->GetEnemyEventsComponent()->PublishSpecialAction(Windup);
+	const FVector LockedDirections[] = {FVector::ForwardVector,
+	                                    FVector::RightVector,
+	                                    -FVector::ForwardVector,
+	                                    FVector(0.6f, 0.8f, 0.0f).GetSafeNormal()};
+	for (int32 DirectionIndex = 0; DirectionIndex < UE_ARRAY_COUNT(LockedDirections); ++DirectionIndex)
+	{
+		const FVector& LockedDirection = LockedDirections[DirectionIndex];
+		Windup.LockedDirection = LockedDirection;
+		Coordinator->ConsumeSpecialActionForTests(Windup);
+		UNiagaraComponent* RuntimeDirection = Vfx->GetDirectionEffectForTests();
+		if (!TestNotNull(TEXT("Each locked direction creates a live Direction component"), RuntimeDirection))
+		{
+			return false;
+		}
+		bool bHasRotationOverride = false;
+		const float ActualDegrees =
+		    RuntimeDirection->GetVariableFloat(TEXT("User.DirectionSpriteRotationDegrees"), bHasRotationOverride);
+		const float ExpectedDegrees = FMath::RadiansToDegrees(FMath::Atan2(
+		    FVector::DotProduct(LockedDirection, -ViewUp), FVector::DotProduct(LockedDirection, ViewRight)));
+		AddInfo(FString::Printf(TEXT("Fox Direction screen rotation locked=%s viewRight=%s viewUp=%s "
+		                             "actualDegrees=%.3f expectedDegrees=%.3f"),
+		                        *LockedDirection.ToString(),
+		                        *ViewRight.ToString(),
+		                        *ViewUp.ToString(),
+		                        ActualDegrees,
+		                        ExpectedDegrees));
+		TestTrue(TEXT("Fox Direction writes the exact SpriteRotation override before activation"),
+		         bHasRotationOverride);
+		TestTrue(TEXT("Fox Direction screen rotation follows the actual PlayerCameraManager basis"),
+		         FMath::IsNearlyEqual(ActualDegrees, ExpectedDegrees, KINDA_SMALL_NUMBER));
+		if (DirectionIndex + 1 < UE_ARRAY_COUNT(LockedDirections))
+		{
+			FReEchoEnemySpecialActionEvent Cancelled = Windup;
+			Cancelled.Type = EReEchoEnemySpecialActionEventType::ActionCancelled;
+			Coordinator->ConsumeSpecialActionForTests(Cancelled);
+		}
+	}
 	UNiagaraComponent* Direction = Vfx->GetDirectionEffectForTests();
 	UNiagaraComponent* Charging = Vfx->GetChargingEffectForTests();
 	if (!TestNotNull(TEXT("Fox Windup creates a live Direction component"), Direction) ||
@@ -150,19 +211,6 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	          Fox->GetActorLocation());
 	TestEqual(
 	    TEXT("Fox Direction placement remains zero-offset"), Direction->GetRelativeLocation(), FVector::ZeroVector);
-	const FVector FoxAuthoredVisualForward =
-	    FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic::FoxDirection);
-	const FVector FoxRuntimeVisualForward =
-	    Direction->GetComponentQuat().RotateVector(FoxAuthoredVisualForward).GetSafeNormal2D();
-	AddInfo(FString::Printf(TEXT("Fox Direction visual axis authored=%s world=%s locked=%s componentRotation=%s"),
-	                        *FoxAuthoredVisualForward.ToString(),
-	                        *FoxRuntimeVisualForward.ToString(),
-	                        *Windup.LockedDirection.ToString(),
-	                        *Direction->GetComponentRotation().ToString()));
-	TestTrue(TEXT("Fox Direction authored visual axis is local negative Y"),
-	         FoxAuthoredVisualForward.Equals(-FVector::RightVector, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Fox Direction runtime visual axis follows the Windup locked direction"),
-	         FoxRuntimeVisualForward.Equals(Windup.LockedDirection, KINDA_SMALL_NUMBER));
 	TestEqual(TEXT("Fox Charging remains attached to AttackVfxRoot"), Charging->GetAttachParent(), AttackVfxRoot);
 	TestEqual(TEXT("Fox Charging component stays on the gameplay plane"),
 	          Charging->GetComponentLocation().Z,
@@ -276,6 +324,9 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 			else if (const UNiagaraSpriteRendererProperties* SpriteRenderer =
 			             Cast<UNiagaraSpriteRendererProperties>(Renderer))
 			{
+				TestEqual(TEXT("Fox Direction SpriteRotation binds the exact exposed user parameter"),
+				          SpriteRenderer->SpriteRotationBinding.GetParamMapBindableVariable().GetName(),
+				          FName(TEXT("User.DirectionSpriteRotationDegrees")));
 				AddInfo(FString::Printf(TEXT("Fox Direction sprite renderer: facing=%d alignment=%d source=%d "
 				                             "cameraCull=%d min=%.1f max=%.1f visibility=%u"),
 				                        static_cast<int32>(SpriteRenderer->FacingMode),
@@ -611,16 +662,6 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FVector RotatedBowAuthoredAxis = BowFlightRotation.RotateVector(BowAuthoredForwardAxis).GetSafeNormal2D();
 	TestTrue(TEXT("Bow authored arrow axis points from the shooter toward the target"),
 	         RotatedBowAuthoredAxis.Equals(BowTargetDirection, KINDA_SMALL_NUMBER));
-	const FVector FoxDashDirection = FVector(0.0f, -1.0f, 0.0f);
-	const FVector FoxAuthoredForwardAxis =
-	    FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic::FoxDirection);
-	TestTrue(TEXT("Fox delivered Niagara arrowhead is authored along local negative Y"),
-	         FoxAuthoredForwardAxis.Equals(-FVector::RightVector, KINDA_SMALL_NUMBER));
-	const FRotator FoxDirectionRotation =
-	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::FoxDirection, FoxDashDirection);
-	const FVector RotatedFoxAuthoredAxis = FoxDirectionRotation.RotateVector(FoxAuthoredForwardAxis).GetSafeNormal2D();
-	TestTrue(TEXT("Fox authored visual arrow axis points along the locked dash direction"),
-	         RotatedFoxAuthoredAxis.Equals(FoxDashDirection, KINDA_SMALL_NUMBER));
 	const FReEchoVfxPlacement FoxDirectionPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::FoxDirection);
 	TestTrue(TEXT("Fox windup arrow keeps a visible non-degenerate component scale"),
@@ -696,6 +737,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			int32 SwordMeshRendererCount = 0;
 			int32 FoxDirectionEnabledEmitterCount = 0;
 			int32 FoxDirectionEnabledRendererCount = 0;
+			int32 FoxDirectionEnabledSpriteRendererCount = 0;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (!EmitterHandle.GetIsEnabled())
@@ -719,6 +761,16 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 							if (Renderer && Renderer->GetIsEnabled())
 							{
 								++FoxDirectionEnabledRendererCount;
+								if (const UNiagaraSpriteRendererProperties* Sprite =
+								        Cast<UNiagaraSpriteRendererProperties>(Renderer))
+								{
+									++FoxDirectionEnabledSpriteRendererCount;
+									TestTrue(TEXT("Fox Direction SpriteRotation binding exists on its source"),
+									         Sprite->SpriteRotationBinding.DoesBindingExistOnSource());
+									TestEqual(TEXT("Fox Direction enabled sprites share one exact rotation parameter"),
+									          Sprite->SpriteRotationBinding.GetParamMapBindableVariable().GetName(),
+									          FName(TEXT("User.DirectionSpriteRotationDegrees")));
+								}
 							}
 						}
 					}
@@ -772,6 +824,18 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				         FoxDirectionEnabledEmitterCount > 0);
 				TestTrue(TEXT("Fox direction contains at least one enabled renderer"),
 				         FoxDirectionEnabledRendererCount > 0);
+				TestEqual(TEXT("Fox direction binds both enabled Sprite renderers"),
+				          FoxDirectionEnabledSpriteRendererCount,
+				          2);
+				TArray<FNiagaraVariable> FoxDirectionUserParameters;
+				System->GetExposedParameters().GetUserParameters(FoxDirectionUserParameters);
+				const FNiagaraVariable* RotationParameter = FoxDirectionUserParameters.FindByPredicate(
+				    [](const FNiagaraVariable& Variable)
+				    {
+					    return Variable.GetName() == TEXT("DirectionSpriteRotationDegrees");
+				    });
+				TestTrue(TEXT("Fox direction exposes exact float User.DirectionSpriteRotationDegrees"),
+				         RotationParameter && RotationParameter->GetType() == FNiagaraTypeDefinition::GetFloatDef());
 				const FBox FixedBounds = System->GetFixedBounds();
 				TestTrue(TEXT("Fox direction opts into fixed bounds for deterministic camera culling"),
 				         System->bFixedBounds != 0);
