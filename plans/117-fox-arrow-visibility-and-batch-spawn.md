@@ -91,6 +91,9 @@
 - 合入最终 `origin/main@8db43ef1` 后，Development FullRebuild 以 94 actions 成功并刷新 7 个模块的精选包，Build ID `55116800`、源码指纹 `e60d2f9ea633`。
 - 单一正式候选的最终二进制下 `ReEcho.Presentation.VFX` 3/3、`ReEcho.GameMode.GMSpawnFox` 1/1、`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过；日志分别为 `ReEcho-session-20260826-123757-pid29740.log`、`ReEcho-session-20260826-123825-pid43244.log`、`ReEcho-session-20260826-123846-pid46296.log`。
 - 最终只读资产审计输出 `FOX_DASH_AUDIT_OK roots=3 dependencies=12`；`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 第三次仅供本地 PIE 的候选以 9-action Development 增量构建成功并刷新精选包，Build ID `55116800`、源码指纹 `8b9d0299bae7`；按用户要求未执行发布级 FullRebuild。
+- 同一增量二进制下 `ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-152855-pid19912.log`）。生产 `M_FOX` 运行读回为 `GameplayPlane/AttackVfxRoot/Charging Z=725`，`Actor/OwnerRoot/Direction component Z=855`，Direction attach parent 精确为 Owner RootComponent 且 relative location 为零；粒子只作观察，两个实例均为 `local Z=-150 → world Z=705`，未据此改变组件起点契约。
+- 第三次候选下 `ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-152950-pid30608.log`）；相对 `0b339df4` 的 Source/Config/Content/scripts patch 不含 `FoxDash`、`Trail` 或 `NS_Fox_Rush_Trail` token，Catalog、Charging/Trail 资产、狐狸 BP/Profile 与只读审计脚本均无差异。
 
 ### 剩余风险
 
