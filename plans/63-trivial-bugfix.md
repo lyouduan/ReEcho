@@ -208,3 +208,4 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；Development Editor 增量构建通过并刷新 7 个预构建模块（源码指纹 `e649ef829fec`）；`ReEcho.Enemies.Host` 自动化 5/5 通过，其中 `RabbitProjectilePipeline` 锁定移动/站定两种技能单球半径相等，`SheepProjectilePipeline` 同时回归羊 Boss 路径；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
 - **文档审阅 / Documentation review**：`MOD-ReEcho` 与 `MOD-ReEchoEnemies` 已更新兔子双技能轨迹、固定单发半径和 EnemyHost 所有权；`MOD-ReEchoVFX` 已更新逐球事件数量与固定视觉尺寸契约；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑、依赖方向和稳定路由标识未变化。
 - **状态 / Status**：Closed。用户已确认两种兔子技能的单发尺寸一致并授权发布。
+- **发布集成 / Release integration**：取得 `main-publish-lock` 后合入 `origin/main@a5d26991`；传入的伤害数字、元素反应来源、狐狸冲撞和首波预警与本候选无源码/数据逻辑冲突，只有精选预构建包发生预期二进制冲突并由最终组合源码完整重生。Development Editor `-FullRebuild` 100/100 通过，精选包源码指纹 `aae735c39d73`；最终组合上的 `ReEcho.Player.HurtCollisionIgnore` 1/1、`ReEcho.Enemies.Host` 5/5、XLSX 同步测试 18/18、生产数据一致性、项目校验、预构建一致性和 `git diff --check` 全部通过。

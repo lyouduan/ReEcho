@@ -20,7 +20,7 @@
 4. 将锁定目标/验收与实现建议分开。实现者可以优化细节，但不得暗中修改目标、验收或公共契约。
 5. 从 `plans/TEMPLATE.md` 记录负责人、AI 侧来源、生命周期、人工验收、基线、依赖、Writes/Reads、影响模式、兼容承诺和排除项。Writes/Reads/影响模式是影响面说明，不是远端写锁。
 6. 程序 Plan 在发布前必须完成“架构影响与设计决策”：列出受影响 `MOD-*` / `AREA-*`、对应模块文档、设计意图、权威状态/契约/依赖影响和 `CODEBASE_MAP` 同步范围。每个被修改或受公共契约影响的 Runtime Module 文档都必须加入 `Writes`；新增模块计划创建 `modules/MOD-<Name>.md`。缺失时不得设为 `Ready`。
-7. 一旦分配正式编号，立即将编号 Plan 单独发布到 `origin/main`；不得夹带实现或无关 WIP。发布 Plan 不需要任何 Exchange、广播分支或所有权行。
+7. 一旦分配正式编号，立即将编号 Plan 单独发布到 `origin/main`；不得夹带实现或无关 WIP。按 `GIT_RULES.md` 的“编号 Plan 单独发布例外”执行，不获取、检查或等待 `main-publish-lock`，也不创建、更新或删除该锁分支；发布 Plan 不需要任何 Exchange、广播分支或所有权行。
 8. Fetch 并核验 `origin/main` 包含准确 Plan 后才开始实质实现。若推送被拒或其他已发布 Plan 占用编号，再次 fetch，将尚未发布的冲突 Plan 及其后续本地 Plan 整体移到远端新最大值后的首个连续区间，更新文件名、标题、依赖和仍有效的实时引用后重试。
 9. 小型、边界清晰的修复、只读审计或用户明确豁免的任务可以不建 Plan；不得把跨模块、公共契约或成组功能伪装成轻量任务。
 
@@ -42,7 +42,7 @@
 5. 评估 Plan 编号冲突。远端编号优先；尚未发布的本地 Plan 有序后移，不重写已发布历史。
 6. 报告传入范围、物理/Git 冲突、逻辑冲突、耦合和编号变化。清晰、范围不变且符合已批准契约的快进、merge 和物理冲突处理可直接集成；真实逻辑冲突、产品取舍、不可逆覆盖或范围扩张时，提供 `remote`、`local`、`combined adaptation`、`defer/split` 选项、权衡和建议并等待用户选择。
 7. 检查意外删除/恢复并重跑受影响验证；只有需要人类选择的部分在确认后集成。
-8. main 发布按 `GIT_RULES.md` 取得 `main-publish-lock`；获锁后再次 fetch，若 main 又前进则重新审计、合入并重跑失效门禁。
+8. 除 `GIT_RULES.md` 定义的 Plan-only 无锁发布外，main 发布须取得 `main-publish-lock`；获锁后再次 fetch，若 main 又前进则重新审计、合入并重跑失效门禁。
 
 ## Executor 提示模板
 
@@ -69,13 +69,13 @@ Plan 是任务规格；启动提示只是中立路由外壳。不得赋予新身
 
 ## 远端 main 发布
 
-`origin/main` 是唯一权威发布分支；`main-publish-lock` 是 `GIT_RULES.md` 定义的唯一临时发布协调分支。编号 Plan 在大任务执行前发布；实现是否使用本地分支由成员自行决定。
+`origin/main` 是唯一权威发布分支；`main-publish-lock` 是 `GIT_RULES.md` 定义的唯一临时发布协调分支，编号 Plan 单独发布按该文件的无锁例外执行。编号 Plan 在大任务执行前发布；实现是否使用本地分支由成员自行决定。
 
 - 鼓励小批量、较频繁地推送 main，缩短队友等待和差异窗口。
-- Plan-only 发布和已完成的权威规则/工作流发布在静态验证及外部审计通过后可直接进行；不得夹带实现或无关 WIP。
+- Plan-only 发布在静态验证及外部审计通过后按 `GIT_RULES.md` 无锁直推；已完成的权威规则/工作流发布仍走 main 发布锁。两者都不得夹带实现或无关 WIP。
 - 程序路线每次推送 `origin/main` 都必须在准确最终候选上通过 `shared/GIT_RULES.md` 的 `-FullRebuild` 与精选预构建包门禁，包括仅文档/规则的程序推送。
 - 正式提交进入远端前必须按 `GIT_RULES.md` 使用当前人类账号 + AI 身份和且仅一个专业标签。本地 WIP 历史可在发布前 squash/reword/重新提交为合规候选。
-- 每次 main 发布都按 `GIT_RULES.md` 原子抢占 `main-publish-lock`，获锁后合入最新 main、重跑失效门禁，以普通非强制 push 发布并在远端核验成功后释放锁。
+- 除严格 Plan-only 发布外，main 发布都按 `GIT_RULES.md` 原子抢占 `main-publish-lock`，获锁后合入最新 main、重跑失效门禁，以普通非强制 push 发布并在远端核验成功后释放锁。
 - 除该临时发布锁和 `PROJECT_RULES.md` 明确允许的策划/美术协作分支外，不创建、推送或保留其他远端引用；main 永不强推。
 
 ## 共享记忆关闭

@@ -1,10 +1,16 @@
 #include "Misc/AutomationTest.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Combat/ReEchoCombatContracts.h"
+#include "Combat/ReEchoElementReaction.h"
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
+#include "Engine/Font.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInterface.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "UI/ReEchoDamageNumberActor.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoMinimapCanvasWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
@@ -17,6 +23,51 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatHudFormattingTest,
 
 bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 {
+	UMaterialInterface* DamageNumberMaterial =
+	    LoadObject<UMaterialInterface>(nullptr, AReEchoDamageNumberActor::GetDamageNumberMaterialPath());
+	TestNotNull(TEXT("Damage-number translucent material loads"), DamageNumberMaterial);
+	if (DamageNumberMaterial)
+	{
+		TestEqual(TEXT("Damage-number material supports translucent distance-field glyphs"),
+		          DamageNumberMaterial->GetBlendMode(),
+		          EBlendMode::BLEND_Translucent);
+	}
+
+	auto TestReactionDamageColor = [this](const TCHAR* What, const FName ReactionBehaviorId, const FColor Expected)
+	{
+		FReEchoDamageEvent Event;
+		Event.ReactionBehaviorId = ReactionBehaviorId;
+		TestEqual(What, ReEchoElementReaction::GetDamageNumberColor(Event).ToFColor(true), Expected);
+	};
+	TestReactionDamageColor(
+	    TEXT("Vaporize damage numbers use reference light blue"), TEXT("Reaction.Vaporize"), FColor(165, 203, 243));
+	TestReactionDamageColor(
+	    TEXT("Conduct damage numbers use reference yellow"), TEXT("Reaction.Conduct"), FColor(235, 192, 44));
+	TestReactionDamageColor(
+	    TEXT("Burn damage numbers use reference orange"), TEXT("Reaction.Burn"), FColor(232, 106, 18));
+	TestReactionDamageColor(
+	    TEXT("Growth damage numbers use reference green"), TEXT("Reaction.Growth"), FColor(146, 192, 57));
+	TestReactionDamageColor(
+	    TEXT("Enhanced damage numbers use reference gold"), TEXT("Reaction.Enhance"), FColor(241, 184, 76));
+
+	UFont* DamageNumberFont = LoadObject<UFont>(nullptr, AReEchoDamageNumberActor::GetDamageNumberFontPath());
+	TestNotNull(TEXT("Damage-number actor owns the approved non-commercial runtime font"), DamageNumberFont);
+	if (DamageNumberFont)
+	{
+		TestEqual(TEXT("Damage-number font uses TextRender-compatible offline caching"),
+		          DamageNumberFont->FontCacheType,
+		          EFontCacheType::Offline);
+		TestTrue(TEXT("Damage-number font contains a baked glyph texture"), !DamageNumberFont->Textures.IsEmpty());
+	}
+	UClass* DamageNumberBlueprintClass =
+	    LoadClass<AReEchoDamageNumberActor>(nullptr, AReEchoDamageNumberActor::GetDamageNumberBlueprintClassPath());
+	TestNotNull(TEXT("Damage-number animation settings Blueprint loads"), DamageNumberBlueprintClass);
+	if (DamageNumberBlueprintClass)
+	{
+		TestTrue(TEXT("Damage-number Blueprint derives from the native actor"),
+		         DamageNumberBlueprintClass->IsChildOf(AReEchoDamageNumberActor::StaticClass()));
+	}
+
 	TestEqual(TEXT("Encounter label follows the visual spec"),
 	          UReEchoEncounterHudWidget::FormatEncounterLabel(3).ToString(),
 	          FString(TEXT("第 3 关")));
@@ -70,6 +121,10 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Time-shard binding renders the live balance"),
 		          TimeShardText->GetText().ToString(),
 		          FString(TEXT("27")));
+		AuthoredPlayerHud->SetTimeShards(22);
+		TestEqual(TEXT("Time-shard binding refreshes while an overlay pauses normal gameplay ticks"),
+		          TimeShardText->GetText().ToString(),
+		          FString(TEXT("22")));
 	}
 	TestNotNull(TEXT("Player HUD exposes the image health fill"),
 	            Cast<UImage>(AuthoredPlayerHud->GetWidgetFromName(TEXT("PlayerHealthFill"))));

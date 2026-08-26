@@ -521,8 +521,8 @@ UReEchoCombatantComponent::ExecuteElementCleanse(const FReEchoElementCleanseComm
 	const bool bHadBurnState =
 	    ElementState.bBurnActive || ElementState.ActiveStatusUntilSeconds.Contains(BurnStatusId) ||
 	    ElementState.BurnTickDamage != 0.0f || ElementState.BurnNextTickTimeSeconds != 0.0f ||
-	    ElementState.BurnSourceLocation != FVector::ZeroVector || !ElementState.BurnAttack.Source.IsExplicitlyNull() ||
-	    ElementState.BurnAttack.Sequence != 0;
+	    !ElementState.BurnReactionBehaviorId.IsNone() || ElementState.BurnSourceLocation != FVector::ZeroVector ||
+	    !ElementState.BurnAttack.Source.IsExplicitlyNull() || ElementState.BurnAttack.Sequence != 0;
 	Result.bClearedAttachment = ElementState.Attached != EReEchoElement::None;
 	Result.bClearedBurn = bHadBurnState;
 
@@ -530,6 +530,7 @@ UReEchoCombatantComponent::ExecuteElementCleanse(const FReEchoElementCleanseComm
 	ElementState.bBurnActive = false;
 	ElementState.BurnTickDamage = 0.0f;
 	ElementState.BurnNextTickTimeSeconds = 0.0f;
+	ElementState.BurnReactionBehaviorId = NAME_None;
 	ElementState.BurnSourceLocation = FVector::ZeroVector;
 	ElementState.BurnAttack = {};
 	ElementState.ActiveStatusUntilSeconds.Remove(BurnStatusId);

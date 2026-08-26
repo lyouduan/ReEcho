@@ -3842,6 +3842,7 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 	}
 	RunSubsystem->SaveRun();
 	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards, SlotIndex);
+	RefreshPlayerHudTimeShards(RunSubsystem);
 	ReEchoUIInteractionAudit::Write(TEXT("FREE_CARD_SLOT_REFRESH_SUCCEEDED"),
 	                                FString::Printf(TEXT("encounter=%d slot=%d candidates=%d shards=%d"),
 	                                                RunSubsystem->EncounterIndex,
@@ -3976,6 +3977,14 @@ void AReEchoGameMode::RestoreGameInput()
 	}
 }
 
+void AReEchoGameMode::RefreshPlayerHudTimeShards(const UReEchoRunSubsystem* RunSubsystem)
+{
+	if (PlayerHudWidget)
+	{
+		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
+	}
+}
+
 void AReEchoGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -4013,10 +4022,7 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 	}
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (PlayerHudWidget)
-	{
-		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
-	}
+	RefreshPlayerHudTimeShards(RunSubsystem);
 	if (EncounterHudWidget)
 	{
 		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,

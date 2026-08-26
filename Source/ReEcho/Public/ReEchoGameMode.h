@@ -387,6 +387,8 @@ private:
 	void HandleRuntimeAssetPreloadComplete();
 	void BeginSelectedRun();
 	void SetGameplayPresentationVisible(bool bVisible);
+	/** Immediately projects the authoritative Run balance to the persistent Player HUD, including paused menus. */
+	void RefreshPlayerHudTimeShards(const UReEchoRunSubsystem* RunSubsystem);
 	void RestoreGameInput();
 	void SetPlayerMenuAbilityBlocked(bool bBlocked);
 

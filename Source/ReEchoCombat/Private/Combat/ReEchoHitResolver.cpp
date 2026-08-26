@@ -77,6 +77,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	Result.Target = Candidate.Target;
 	Result.DamageSource = Candidate.DamageSource;
 	Result.Element = Candidate.Element;
+	Result.ReactionBehaviorId = Candidate.ReactionBehaviorId;
 	Result.bCritical = Candidate.bCritical;
 	Result.HitLocation = Candidate.HitLocation;
 
@@ -146,6 +147,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	Event.AppliedDamage = Result.AppliedDamage;
 	Event.DamageSource = Result.DamageSource;
 	Event.Element = Result.Element;
+	Event.ReactionBehaviorId = Result.ReactionBehaviorId;
 	Event.bCritical = Result.bCritical;
 	Event.bBlocked = Result.bBlocked;
 	Event.bFatal = Result.bKilled;

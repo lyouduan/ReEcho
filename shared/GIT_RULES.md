@@ -32,7 +32,13 @@ AI 创建的正式提交，其标题与正文必须是合法 UTF-8，且不得�
 
 ## origin/main 单发布者锁
 
-`main-publish-lock` 是程序路线和项目秘书发布 `origin/main` 时唯一允许的远端协调分支，也是 main 发布锁的唯一权威状态。它不是内容发布面、任务分支或长期备份；策划/美术协作分支不使用此锁。所有 Plan-only、规则、文档、代码、数据、资产和集成候选进入 main 前都必须遵循本节；禁止强推 main。
+`main-publish-lock` 是程序路线和项目秘书发布 `origin/main` 时唯一允许的远端协调分支，也是 main 发布锁的唯一权威状态。它不是内容发布面、任务分支或长期备份；策划/美术协作分支不使用此锁。除下述“编号 Plan 单独发布例外”外，规则、文档、代码、数据、资产和集成候选进入 main 前都必须遵循本节；禁止强推 main。
+
+### 编号 Plan 单独发布例外
+
+发布编号 Plan 不需要获取、检查或等待 `main-publish-lock`。该例外仅适用于候选只新增或修改一个或多个 `plans/<id>-*.md` 编号 Plan，且不包含 `plans/TEMPLATE.md`、规则、实现、生成物或其他无关 WIP；即使远端锁已存在，合规的 Plan-only 候选也可继续发布。Plan 发布者不得创建、更新或删除锁分支。
+
+Plan-only 发布前必须 fetch 最新 `origin/main`，完成 Plan 编号、外部变化和文件范围审计，并让候选基于准确远端主线；只允许使用普通非强制 push 发布 `origin/main`。推送被拒或远端在推送前后发生变化时，不得强推或覆盖，必须重新 fetch，按 `PLANNER_RULES.md` 处理编号占用与传入变化，重建候选并重跑失效的静态验证。发布后必须核验远端 main 已包含准确 Plan 提交。除本例外外，任何 main 发布仍执行下方完整锁流程。
 
 1. 抢锁前必须形成身份合规、范围明确的本地正式提交并保持工作区干净；先 fetch `origin/main`，再检查远端 `refs/heads/main-publish-lock`。
 2. 锁分支不存在时，只能用下列空 expected value 的准确 lease 原子创建，并以当前正式候选作为锁分支初始提交：
