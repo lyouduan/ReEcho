@@ -405,6 +405,10 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSpecialActionPermitted = true;
 
+	/** Host-owned presentation gate. False delays only the start of a new Phase2 transition. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bPhase2TransitionPermitted = true;
+
 	/** Collision-safe blink destination explicitly solved by the world host for this sample. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector TeleportDestination = FVector::ZeroVector;

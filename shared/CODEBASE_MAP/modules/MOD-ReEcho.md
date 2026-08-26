@@ -377,6 +377,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 自动攻击不进入 Recording；Echo 在当前世界重新选目标与命中。
 - 保存失败不得退出；购买/装备/选择失败不得产生部分状态。
 - 表现资源和完成回调不能控制确定性逻辑。
+- Enemy Host 在 Profile 装配后尝试 Born，并把 Presentation 的只读 Born 活跃状态转换为 Enemy Sense 的 Phase2 启动许可；该许可不参与出生提交或普通行为。致命伤发生于 Born 时不截获为 Transform，使 Combat 正常死亡并由 Death 表现立即抢占。
 - 不从旧 JSON、描述文本、Widget 缓存或 Actor 表现字段恢复第二份事实来源。
 
 ## 运行时 CSV 松散文件与 Shipping 打包契约

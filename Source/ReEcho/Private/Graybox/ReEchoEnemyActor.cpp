@@ -359,6 +359,12 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		    {
 			    return false;
 		    }
+		    // A lethal wound must remain lethal while Born owns presentation. This prevents Transform from starting
+		    // without delaying damage/death or making presentation completion authoritative over gameplay.
+		    if (EnemyPresentation && EnemyPresentation->IsBornPlaying())
+		    {
+			    return false;
+		    }
 		    FReEchoEnemyActionIntent PhaseIntent;
 		    if (!EnemyLogic->TryTriggerPhase2OnFatalWound(PhaseIntent))
 		    {
@@ -902,6 +908,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		AReEchoGameMode* ReEchoGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
 		Sense.bSpecialActionPermitted =
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
+		Sense.bPhase2TransitionPermitted = !EnemyPresentation->IsBornPlaying();
 		// WS4 (Plan 68): sample current health ratio so the logic layer can drive a blood-depleted phase transition
 		// without reaching into the combat component itself. Full/unknown defaults keep legacy enemies inert.
 		if (Combatant && Combatant->Stats.HpMax > 0.0f)

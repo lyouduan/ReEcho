@@ -1310,7 +1310,7 @@ bool UReEchoEnemyLogicComponent::IsHealthAtOrBelowPhase2Threshold(float CurrentH
 bool UReEchoEnemyLogicComponent::TryBeginPhaseTransition(const FReEchoEnemySenseSnapshot& Sense,
                                                          FReEchoEnemyActionIntent& InOutIntent)
 {
-	if (!Definition.Phase2.bEnabled || State.bPhase2Triggered)
+	if (!Sense.bPhase2TransitionPermitted || !Definition.Phase2.bEnabled || State.bPhase2Triggered)
 	{
 		return false;
 	}

@@ -751,6 +751,63 @@ bool FReEchoEnemyPhaseRangeAggroPolicyTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyPhaseBornPermitTest,
+                                 "ReEcho.Enemies.Logic.Phase2.BornPermit",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyPhaseBornPermitTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
+	Definition.Phase2.Id = TEXT("Phase2");
+	Definition.Phase2.RequiredAttackCount = 1;
+	Definition.Phase2.TriggerRangeCm = 200.0f;
+	Definition.Phase2.TransformSeconds = 0.5f;
+	Definition.Phase2.bEnabled = true;
+
+	UReEchoEnemyLogicComponent* AttackLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Attack-count permit definition initializes"), AttackLogic->Initialize(Definition, 10));
+	FReEchoDamageEvent Hurt;
+	Hurt.DamageSource = EReEchoDamageSource::Player;
+	Hurt.AppliedDamage = 1.0f;
+	AttackLogic->NotifyReceivedAttack(Hurt);
+	FReEchoEnemySenseSnapshot Gated;
+	Gated.bPhase2TransitionPermitted = false;
+	TestFalse(TEXT("Born gate delays an already-satisfied attack-count transition"),
+	          AttackLogic->Advance(Gated, 0.0f).bPhaseTransitionStarted);
+	Gated.bPhase2TransitionPermitted = true;
+	TestTrue(TEXT("Attack-count transition starts on the first permitted step"),
+	         AttackLogic->Advance(Gated, 0.0f).bPhaseTransitionStarted);
+
+	UReEchoEnemyLogicComponent* RangeLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Range permit definition initializes"), RangeLogic->Initialize(Definition, 11));
+	Gated.bTargetExists = true;
+	Gated.bTargetAlive = true;
+	Gated.bTargetCanAttractAggro = true;
+	Gated.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	Gated.bPhase2TransitionPermitted = false;
+	TestFalse(TEXT("Born gate delays an already-satisfied range transition"),
+	          RangeLogic->Advance(Gated, 0.0f).bPhaseTransitionStarted);
+	Gated.bPhase2TransitionPermitted = true;
+	TestTrue(TEXT("Range transition starts on the first permitted step"),
+	         RangeLogic->Advance(Gated, 0.0f).bPhaseTransitionStarted);
+
+	Definition.Phase2.TriggerMode = EReEchoEnemyPhase2TriggerMode::HealthThreshold;
+	Definition.Phase2.HealthThresholdRatio = 0.5f;
+	Definition.Phase2.RequiredAttackCount = 0;
+	Definition.Phase2.TriggerRangeCm = 0.0f;
+	UReEchoEnemyLogicComponent* HealthLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Health permit definition initializes"), HealthLogic->Initialize(Definition, 12));
+	FReEchoEnemySenseSnapshot HealthSense;
+	HealthSense.CurrentHealthRatio = 0.25f;
+	HealthSense.bPhase2TransitionPermitted = false;
+	TestFalse(TEXT("Born gate delays an already-satisfied health transition"),
+	          HealthLogic->Advance(HealthSense, 0.0f).bPhaseTransitionStarted);
+	HealthSense.bPhase2TransitionPermitted = true;
+	TestTrue(TEXT("Health transition starts on the first permitted step"),
+	         HealthLogic->Advance(HealthSense, 0.0f).bPhaseTransitionStarted);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyPhaseAttackCountTest,
                                  "ReEcho.Enemies.Logic.Phase2.AttackCountAndSnapshot",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

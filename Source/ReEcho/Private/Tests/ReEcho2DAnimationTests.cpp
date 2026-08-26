@@ -612,6 +612,21 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	PresentationProfile->StateMachine = StateMachine;
 	UReEcho2DAnimationComponent* ControlledRenderer = NewObject<UReEcho2DAnimationComponent>();
 	UReEcho2DPresentationController* Controller = NewObject<UReEcho2DPresentationController>();
+	UReEchoEnemyPresentationComponent* EnemyPresentation = NewObject<UReEchoEnemyPresentationComponent>();
+	EnemyPresentation->ConfigureComponents(nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       ControlledRenderer,
+	                                       Controller,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr);
 	ControlledRenderer->SetFlipbook(WalkFlipbook);
 	Controller->Configure(ControlledRenderer, nullptr, NAME_None);
 	TestTrue(TEXT("Missing Profile retains the Gameplay Blueprint fallback Flipbook"),
@@ -633,12 +648,13 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         ControlledRenderer->IsAnimationActive() && ControlledRenderer->GetFlipbook() == WalkFlipbook);
 	TestTrue(TEXT("Authored Born begins as a non-looping optional action"),
 	         Controller->PlayAction(ReEcho2DAnimationTags::Born) && !ControlledRenderer->IsLooping() &&
-	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Born);
+	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Born &&
+	             EnemyPresentation->IsBornPlaying());
 	ControlledRenderer->Stop();
 	Controller->UpdatePlaybackCompletion();
 	TestTrue(TEXT("Completed Born returns to the Move base state"),
 	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&
-	             ControlledRenderer->GetFlipbook() == WalkFlipbook);
+	             ControlledRenderer->GetFlipbook() == WalkFlipbook && !EnemyPresentation->IsBornPlaying());
 	PresentationProfile->AnimationSets[0].Clips.Remove(ReEcho2DAnimationTags::Born);
 	TestFalse(TEXT("Missing Born clip is a safe no-op"), Controller->PlayAction(ReEcho2DAnimationTags::Born));
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Born, AuthoredClip);
@@ -665,13 +681,15 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 
 	int32 DeathCompletionCount = 0;
 	float ExpectedDeathDuration = 0.0f;
+	TestTrue(TEXT("Born can be active immediately before terminal Death"),
+	         Controller->PlayAction(ReEcho2DAnimationTags::Born) && EnemyPresentation->IsBornPlaying());
 	TestTrue(TEXT("Terminal Death resolves the authored clip"),
-	         Controller->BeginTerminalDeath(FSimpleDelegate::CreateLambda(
-	                                            [&DeathCompletionCount]()
-	                                            {
-		                                            ++DeathCompletionCount;
-	                                            }),
-	                                        ExpectedDeathDuration));
+	         EnemyPresentation->BeginTerminalDeath(FSimpleDelegate::CreateLambda(
+	                                                   [&DeathCompletionCount]()
+	                                                   {
+		                                                   ++DeathCompletionCount;
+	                                                   }),
+	                                               ExpectedDeathDuration));
 	TestTrue(TEXT("Terminal Death is forced to one-shot playback"),
 	         ExpectedDeathDuration > 0.0f && !ControlledRenderer->IsLooping() &&
 	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Death);

@@ -1170,4 +1170,19 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostPhase2BornPermitContractTest,
+                                 "ReEcho.Enemies.Host.Phase2BornPermitContract",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostPhase2BornPermitContractTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemySenseSnapshot Sense;
+	TestTrue(TEXT("Missing or failed Born playback leaves the typed Phase2 permit open by default"),
+	         Sense.bPhase2TransitionPermitted);
+	Sense.bPhase2TransitionPermitted = false;
+	TestFalse(TEXT("Host can close only the typed Phase2-start permit while Born is active"),
+	          Sense.bPhase2TransitionPermitted);
+	return true;
+}
+
 #endif

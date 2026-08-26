@@ -52,6 +52,11 @@ void UReEchoEnemyPresentationComponent::SetPresentationCatalog(UReEcho2DPresenta
 	PresentationCatalog = InPresentationCatalog;
 }
 
+bool UReEchoEnemyPresentationComponent::IsBornPlaying() const
+{
+	return PresentationController && PresentationController->GetActiveSemanticKey() == ReEcho2DAnimationTags::Born;
+}
+
 void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InPresentationRoot,
                                                             USceneComponent* InVisualEffectRoot,
                                                             USceneComponent* InFootRoot,
@@ -460,7 +465,7 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 
 	FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
 	const UPaperSprite* CurrentSprite = nullptr;
-	if (bDeathVisualActive)
+	if (bDeathVisualActive || IsBornPlaying())
 	{
 		CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
 		if (CurrentSprite)
@@ -468,7 +473,8 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 			FlipbookBounds = CurrentSprite->GetRenderBounds();
 		}
 	}
-	const bool bUseAuthoredDeathPivot = CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot;
+	const bool bUseAuthoredDeathPivot =
+	    bDeathVisualActive && CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot;
 	if (bUseAuthoredDeathPivot)
 	{
 		GroundRoot->SetRelativeLocation(AuthoredGroundRootLocation);
@@ -508,7 +514,7 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 	}
 	FBoxSphereBounds AlignmentBounds = Flipbook->GetRenderBounds();
 	const UPaperSprite* CurrentSprite = nullptr;
-	if (bDeathVisualActive)
+	if (bDeathVisualActive || IsBornPlaying())
 	{
 		CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
 		if (CurrentSprite)
@@ -517,7 +523,7 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 		}
 	}
 	const FVector ProfileFootpointOffset = ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector;
-	if (CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot)
+	if (bDeathVisualActive && CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot)
 	{
 		CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(
 		    SequenceAnimation->GetRelativeTransform(),

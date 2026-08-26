@@ -104,6 +104,8 @@ public:
 	void ConfigureAppearance(FName PresentationId);
 	/** Try the optional Born presentation without affecting the committed gameplay spawn. */
 	bool TryPlayBorn();
+	/** Read-only presentation state used by the Host to delay only the start of Phase2. */
+	bool IsBornPlaying() const;
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
 	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
 	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
