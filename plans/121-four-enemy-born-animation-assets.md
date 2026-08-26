@@ -107,10 +107,12 @@
 - 阻塞审查修正：共享 FSM 的 Born 从 priority 20 提升为 90，并保持 `lock_until_playback_complete=true`、`terminal=false`、自然完成回 Move；Attack(40)、Hit(60)、Transform(80) 均不可抢占，只有 terminal Death(100) 可抢占。Unreal 保存后回读完整状态表与上述值一致。
 - Animation2D 确定性测试新增 Attack/Hit/Transform 拒绝、拒绝后 `IsBornPlaying()` 仍为真、自然完成解除门禁及 Death 抢占断言；聚焦运行未报告这些断言错误，仍仅有既有 TimeGuard Phase2 空能力断言。Plan82/121 Unreal 资产审计未报告 Born/FSM 问题，仍只被明确排除的 BadRabbit 20 张既有未导入 PNG 阻塞。
 - 阻塞审查修正后的最终 FullRebuild 95/95 成功；预构建包刷新为 7 模块、Build ID `55116800`、源码指纹 `96c87a0105f2`。
-- Born Gameplay Gate 修订执行：仅 `TryPlayBorn()` 成功时 Host 保存原 `CanBeDamaged` 并关闭伤害；Gate 内 Host 原始伤害入口返回 0，Sense 同时关闭移动与 Phase2 许可，缺失/失败 Born 不进入 Gate。Presentation 自然完成后 Host 恢复原伤害状态；普通 AI、目标、冷却与攻击继续推进，Logic 仅清除普通移动、特殊冲刺与 Boss 传送输出。
-- `ReEcho.Enemies.Logic` 全部通过，新增 `BornMovementPermit` 证明 Gate 内零位移但仍提交攻击、解除后首步恢复移动；`ReEcho.Enemies.Host` 全部通过，新增 `BornGameplayGate` 覆盖成功才 Gate、伤害为零、位置不变、完成恢复与缺失 no-op。`ReEcho.Combat` 运行仅 `ElementReactionWorld` 的既有 Conduct 来源/链伤害断言失败，Vaporize 等伤害路径通过，未报告 Born Gate 新断言。
+- Born Gameplay Gate 修订执行：仅 `TryPlayBorn()` 成功时 Host 保存原 `CanBeDamaged` 并关闭伤害；Gate 内 Host 原始伤害入口返回 0，Sense 同时关闭移动、攻击与 Phase2 许可，缺失/失败 Born 不进入 Gate。Presentation 自然完成后 Host 恢复原伤害状态；普通 AI、目标与既有冷却/计时继续推进，Logic 抑制普通攻击、特殊技及 Boss 攻击提交，Host 在世界副作用边界再次拒绝攻击窗口、传送、投射物和伤害。
+- `BornMovementPermit` 扩展为攻击门禁回归：Gate 内普通攻击不消费序号、特殊技不进入 Windup、Boss 不产生 AttackWindow，Boss encounter 计时继续；解除后的首个合格步骤分别恢复提交。`BornGameplayGate` 同时覆盖 Host 侧 Boss 传送抑制与完成后恢复；既有成功才 Gate、伤害为零、位置不变、恢复边界和缺失 no-op 保持不变。
 - 与最新 Plan117/122 组合后的最终 FullRebuild 98/98 成功；预构建包为 7 模块、Build ID `55116800`、源码指纹 `2e008f409f1b`。
 - 恢复边界审查修正：`RestoreRuntimeState` 在配置后同步取消可能启动的 Born、解除 Host Gate，并按恢复后的存活状态设置 `CanBeDamaged`；存档敌人不重播 Born、不获得瞬时无敌或移动门禁，新生成路径不变。Host 回归覆盖“配置先启动 Gate → 恢复快照 → Born/Gate 均关闭且活体可伤害”。
+- 攻击门禁审查修正：Host 在成功 Born Gate 内向 `FReEchoEnemySenseSnapshot::bAttackPermitted` 注入 false；Logic 不开始或提交普通攻击、兔子/狐狸特殊技和 Boss 攻击窗口，但继续推进目标采样、普通攻击冷却、Bomber Fuse、Boss cooldown/encounter 等既有计时。Host 在实际世界副作用边界再次拒绝 Gate 内攻击窗口，并阻止 Boss 传送、投射物生成与伤害；自然完成后的首个合格逻辑步恢复，缺失/失败 Born 与运行时恢复仍保持 ungated。
+- 攻击门禁最终验证：FullRebuild 96/96 成功并刷新 7 模块预构建包（Build ID `55116800`，源码指纹 `babf2d833441`）；`ReEcho.Enemies.Logic` 与 `ReEcho.Enemies.Host` 全部通过，包含普通/特殊/Boss 抑制、Boss encounter 计时继续、Host 传送抑制及完成后恢复；`prebuilt_editor.py check`、`validate_project.py`、`git diff --check` 通过。首次 validate 在沙箱临时目录权限处失败，扩展权限原命令重跑通过，非项目内容失败。
 - 恢复边界修正后的 `ReEcho.Enemies.Host` 全部通过；最终 FullRebuild 97/97 成功，预构建包为 7 模块、Build ID `55116800`、源码指纹 `cc80f41fe521`。
 
 ### 剩余风险

@@ -485,7 +485,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 			State.Phase = EReEchoEnemyBehaviorPhase::Fuse;
 			State.FuseRemainingSeconds = FMath::Max(0.0f, State.FuseRemainingSeconds - SafeDeltaSeconds);
 			PublishFuse(false);
-			if (State.FuseRemainingSeconds <= 0.0f)
+			if (State.FuseRemainingSeconds <= 0.0f && Sense.bAttackPermitted)
 			{
 				CommitAttack(
 				    Sense, Distance <= Definition.BomberDamageRadiusCm && !Sense.bTargetInvulnerable, true, Intent);
@@ -495,7 +495,8 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 		return ApplyMovementPermit(Sense, MoveTemp(Intent));
 	}
 
-	if (Distance <= Definition.ContactRangeCm && State.AttackCooldownRemainingSeconds <= 0.0f)
+	if (Sense.bAttackPermitted && Distance <= Definition.ContactRangeCm &&
+	    State.AttackCooldownRemainingSeconds <= 0.0f)
 	{
 		CommitAttack(Sense, !Sense.bTargetInvulnerable, false, Intent);
 	}
@@ -597,7 +598,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 
 	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None)
 	{
-		if (Sense.bSpecialActionPermitted && State.AttackCooldownRemainingSeconds <= 0.0f &&
+		if (Sense.bAttackPermitted && Sense.bSpecialActionPermitted && State.AttackCooldownRemainingSeconds <= 0.0f &&
 		    Distance >= Ability->MinRangeCm && Distance <= Ability->MaxRangeCm)
 		{
 			State.SpecialActionPhase = EReEchoEnemySpecialActionPhase::Windup;
@@ -638,6 +639,10 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceSpecial(const FReEch
 	}
 	if (State.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Windup)
 	{
+		if (!Sense.bAttackPermitted)
+		{
+			return Intent;
+		}
 		if (Definition.Archetype == EReEchoEnemyArchetype::Ranged)
 		{
 			const bool bCanDamage = FVector::DistSquared2D(Sense.TargetLocation, State.SpecialLockedTargetLocation) <=
@@ -758,7 +763,7 @@ void UReEchoEnemyLogicComponent::AdvanceBossFixedStep(const FReEchoEnemySenseSna
 	}
 
 	bool bAbilityOccupiedStep = State.BossActionPhase != EReEchoBossActionPhase::None;
-	if (!bAbilityOccupiedStep && !bHadHitReaction)
+	if (!bAbilityOccupiedStep && !bHadHitReaction && Sense.bAttackPermitted)
 	{
 		const int32 AbilityIndex = SelectBossAbility(Sense);
 		if (AbilityIndex != INDEX_NONE)
@@ -860,6 +865,10 @@ void UReEchoEnemyLogicComponent::AdvanceBossAbility(const FReEchoEnemySenseSnaps
 	switch (State.BossActionPhase)
 	{
 		case EReEchoBossActionPhase::Windup:
+			if (!Sense.bAttackPermitted)
+			{
+				return;
+			}
 			if (Ability.LockTiming == EReEchoBossLockTiming::WindupEnded)
 			{
 				LockBossTarget(Sense);

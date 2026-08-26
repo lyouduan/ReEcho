@@ -951,6 +951,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		    !ReEchoGameMode || ReEchoGameMode->CanStartEnemySpecial(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
 		Sense.bPhase2TransitionPermitted = !bBornGameplayGateActive;
 		Sense.bMovementPermitted = !bBornGameplayGateActive;
+		Sense.bAttackPermitted = !bBornGameplayGateActive;
 		// WS4 (Plan 68): sample current health ratio so the logic layer can drive a blood-depleted phase transition
 		// without reaching into the combat component itself. Full/unknown defaults keep legacy enemies inert.
 		if (Combatant && Combatant->Stats.HpMax > 0.0f)
@@ -1500,6 +1501,10 @@ void AReEchoEnemyActor::ApplySpecialDashHit(const FReEchoEnemyActionIntent& Inte
 
 void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 {
+	if (bBornGameplayGateActive && Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
+	{
+		return;
+	}
 	if (Intent.Type == EReEchoBossIntentType::ElementCleanse)
 	{
 		FReEchoElementCleanseCommand Command;
@@ -1551,7 +1556,7 @@ void AReEchoEnemyActor::AdvancePendingBossBlinkSlam(const float DeltaSeconds)
 		return;
 	}
 	PendingBossBlinkSlamRemainingSeconds = FMath::Max(0.0f, PendingBossBlinkSlamRemainingSeconds - DeltaSeconds);
-	if (PendingBossBlinkSlamRemainingSeconds > 0.0f)
+	if (PendingBossBlinkSlamRemainingSeconds > 0.0f || bBornGameplayGateActive)
 	{
 		return;
 	}
@@ -1575,6 +1580,10 @@ void AReEchoEnemyActor::AdvancePendingBossPrayerBeam(const float DeltaSeconds)
 	if (PendingBossPrayerBeamRemainingSeconds <= 0.0f)
 	{
 		bBossPrayerBeamPending = false;
+		return;
+	}
+	if (bBornGameplayGateActive)
+	{
 		return;
 	}
 	TryApplyPendingBossPrayerBeamHit();
@@ -1688,7 +1697,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 		}
 		return;
 	}
-	if (!Intent.bAttackCommitted)
+	if (!Intent.bAttackCommitted || bBornGameplayGateActive)
 	{
 		return;
 	}

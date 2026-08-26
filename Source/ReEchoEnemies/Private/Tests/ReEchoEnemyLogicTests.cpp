@@ -822,6 +822,7 @@ bool FReEchoEnemyBornMovementPermitTest::RunTest(const FString& Parameters)
 	Sense.bTargetAlive = true;
 	Sense.bTargetCanAttractAggro = true;
 	Sense.bMovementPermitted = false;
+	Sense.bAttackPermitted = false;
 	Sense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
 	const FReEchoEnemyActionIntent GatedMove = Logic->Advance(Sense, 0.25f);
 	TestFalse(TEXT("Born gate suppresses ordinary movement intent"), GatedMove.bHasMovement);
@@ -830,11 +831,70 @@ bool FReEchoEnemyBornMovementPermitTest::RunTest(const FString& Parameters)
 
 	Sense.TargetLocation = FVector(10.0f, 0.0f, 0.0f);
 	const FReEchoEnemyActionIntent GatedAttack = Logic->Advance(Sense, 0.25f);
-	TestTrue(TEXT("Born gate does not pause ordinary attack decisions"), GatedAttack.bAttackCommitted);
+	TestFalse(TEXT("Born gate suppresses ordinary attack commits"), GatedAttack.bAttackCommitted);
+	TestEqual(TEXT("Suppressed ordinary attack does not consume its sequence"),
+	          Logic->GetSnapshot().AttackSequence,
+	          int64(0));
+	Sense.bAttackPermitted = true;
+	const FReEchoEnemyActionIntent ReleasedAttack = Logic->Advance(Sense, 0.0f);
+	TestTrue(TEXT("Ordinary attack resumes on the first permitted step"), ReleasedAttack.bAttackCommitted);
 	Sense.bMovementPermitted = true;
 	Sense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
 	const FReEchoEnemyActionIntent ReleasedMove = Logic->Advance(Sense, Definition.AttackIntervalSeconds + 0.01f);
 	TestTrue(TEXT("Movement resumes on the first permitted step"), ReleasedMove.bHasMovement);
+
+	FReEchoEnemyDefinition Ranged;
+	Ranged.Archetype = EReEchoEnemyArchetype::Ranged;
+	Ranged.MaxHealth = 20.0f;
+	Ranged.MoveSpeedCmPerSecond = 165.0f;
+	Ranged.MovementStopDistanceCm = 650.0f;
+	FReEchoEnemyAbilityDefinition Burst;
+	Burst.Id = TEXT("BornGateBurst");
+	Burst.BehaviorId = TEXT("Enemy.RangedBurst");
+	Burst.bEnabled = true;
+	Burst.Damage = 10.0f;
+	Burst.WindupSeconds = 0.05f;
+	Burst.CooldownSeconds = 2.0f;
+	Burst.MaxRangeCm = 1000.0f;
+	Burst.RadiusCm = 150.0f;
+	Ranged.Abilities.Add(Burst);
+	UReEchoEnemyLogicComponent* RangedLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Born attack permit ranged definition initializes"), RangedLogic->Initialize(Ranged, 14));
+	FReEchoEnemySenseSnapshot AttackSense;
+	AttackSense.bTargetExists = true;
+	AttackSense.bTargetAlive = true;
+	AttackSense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
+	AttackSense.bAttackPermitted = false;
+	TestFalse(TEXT("Born gate emits no ranged special commit"), RangedLogic->Advance(AttackSense, 1.0f).bAttackCommitted);
+	TestEqual(TEXT("Born gate prevents a ranged windup while normal time advances"),
+	          RangedLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::None);
+	AttackSense.bAttackPermitted = true;
+	RangedLogic->Advance(AttackSense, 0.0f);
+	TestTrue(TEXT("Ranged special commits after the first eligible post-Born windup step"),
+	         RangedLogic->Advance(AttackSense, 0.06f).bAttackCommitted);
+
+	UReEchoEnemyLogicComponent* BossLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Born attack permit Boss definition initializes"), BossLogic->Initialize(MakeBossTestDefinition(), 15));
+	AttackSense.bAttackPermitted = false;
+	AttackSense.bHasTeleportDestination = true;
+	AttackSense.TeleportDestination = FVector(100.0f, 100.0f, 0.0f);
+	const FReEchoEnemyActionIntent GatedBoss = BossLogic->Advance(AttackSense, 0.25f);
+	TestFalse(TEXT("Born gate emits no Boss attack commit"), GatedBoss.bAttackCommitted);
+	TestEqual(TEXT("Born gate emits no Boss attack window"),
+	          CountBossIntents(GatedBoss, EReEchoBossIntentType::AttackWindowStarted),
+	          0);
+	TestEqual(TEXT("Born gate prevents Boss ability windup"),
+	          BossLogic->GetSnapshot().BossActionPhase,
+	          EReEchoBossActionPhase::None);
+	TestTrue(TEXT("Boss encounter timer continues during Born"),
+	         BossLogic->GetSnapshot().BossEncounterElapsedSeconds > 0.0f);
+	AttackSense.bAttackPermitted = true;
+	BossLogic->Advance(AttackSense, 0.02f);
+	const FReEchoEnemyActionIntent ReleasedBoss = BossLogic->Advance(AttackSense, 0.06f);
+	TestTrue(TEXT("Boss attack commits after the first eligible post-Born windup"), ReleasedBoss.bAttackCommitted);
+	TestNotNull(TEXT("Post-Born Boss attack exposes its attack window"),
+	            FindBossIntent(ReleasedBoss, EReEchoBossIntentType::AttackWindowStarted));
 	return true;
 }
 

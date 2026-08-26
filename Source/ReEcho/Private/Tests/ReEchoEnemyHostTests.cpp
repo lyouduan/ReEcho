@@ -1230,6 +1230,10 @@ bool FReEchoEnemyHostPhase2BornPermitContractTest::RunTest(const FString& Parame
 	Sense.bPhase2TransitionPermitted = false;
 	TestFalse(TEXT("Host can close only the typed Phase2-start permit while Born is active"),
 	          Sense.bPhase2TransitionPermitted);
+	TestTrue(TEXT("Missing or failed Born leaves the typed attack permit open by default"), Sense.bAttackPermitted);
+	Sense.bAttackPermitted = false;
+	TestFalse(TEXT("Host can close the typed attack permit only while successful Born is active"),
+	          Sense.bAttackPermitted);
 	return true;
 }
 
@@ -1261,6 +1265,15 @@ bool FReEchoEnemyHostBornGameplayGateTest::RunTest(const FString& Parameters)
 	Hit.RawDamage = 10.0f;
 	TestEqual(TEXT("Born gameplay gate rejects raw damage before Combat"), Rabbit->ModifyIncomingRawDamage(Hit), 0.0f);
 	const FVector GatedLocation = Rabbit->GetActorLocation();
+	FReEchoBossIntent BlinkIntent;
+	BlinkIntent.Type = EReEchoBossIntentType::AttackWindowStarted;
+	BlinkIntent.AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	BlinkIntent.Target = Rabbit;
+	BlinkIntent.bRequestTeleport = true;
+	BlinkIntent.TeleportDestination = FVector(700.0f, 300.0f, 0.0f);
+	Rabbit->ApplyBossIntentForTests(BlinkIntent);
+	TestTrue(TEXT("Host Born gate defensively suppresses Boss teleport/attack windows"),
+	         Rabbit->GetActorLocation().Equals(GatedLocation));
 	Fixture.World->Tick(LEVELTICK_All, 0.1f);
 	TestTrue(TEXT("Born gameplay gate keeps the Host world position fixed"),
 	         Rabbit->GetActorLocation().Equals(GatedLocation));
@@ -1284,6 +1297,9 @@ bool FReEchoEnemyHostBornGameplayGateTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Natural Born completion releases the Host gameplay gate"),
 	          Rabbit->IsBornGameplayGateActiveForTests());
 	TestTrue(TEXT("Natural Born completion restores the prior damage state"), Rabbit->CanBeDamaged());
+	Rabbit->ApplyBossIntentForTests(BlinkIntent);
+	TestTrue(TEXT("Host accepts the next eligible Boss attack window after Born completes"),
+	         Rabbit->GetActorLocation().Equals(BlinkIntent.TeleportDestination));
 
 	AReEchoEnemyActor* MissingBorn = Fixture.World->SpawnActor<AReEchoEnemyActor>();
 	MissingBorn->SetPresentationCatalog(Catalog);

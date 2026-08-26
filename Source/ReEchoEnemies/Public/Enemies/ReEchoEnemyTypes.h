@@ -413,6 +413,10 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bMovementPermitted = true;
 
+	/** Host-owned attack gate. False delays new attack commits while target sampling and timers continue. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bAttackPermitted = true;
+
 	/** Collision-safe blink destination explicitly solved by the world host for this sample. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector TeleportDestination = FVector::ZeroVector;
