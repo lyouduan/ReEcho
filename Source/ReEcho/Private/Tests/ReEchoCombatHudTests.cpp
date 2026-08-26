@@ -3,6 +3,8 @@
 #include "Blueprint/WidgetTree.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoElementReaction.h"
+#include "Components/Border.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -25,6 +27,24 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatHudFormattingTest,
 
 bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 {
+	UTexture2D* MinimapInkTip =
+	    LoadObject<UTexture2D>(nullptr, UReEchoMinimapCanvasWidget::GetInkBrushTipTexturePath());
+	UTexture2D* MinimapInkGrain = LoadObject<UTexture2D>(nullptr, UReEchoMinimapCanvasWidget::GetInkGrainTexturePath());
+	UMaterialInterface* MinimapInkMaterial =
+	    LoadObject<UMaterialInterface>(nullptr, UReEchoMinimapCanvasWidget::GetInkTrailMaterialPath());
+	TestNotNull(TEXT("Minimap ink brush-tip texture loads"), MinimapInkTip);
+	TestNotNull(TEXT("Minimap ink grain texture loads"), MinimapInkGrain);
+	TestNotNull(TEXT("Minimap ink UI material loads"), MinimapInkMaterial);
+	if (MinimapInkMaterial)
+	{
+		TestEqual(TEXT("Minimap ink material is translucent"),
+		          MinimapInkMaterial->GetBlendMode(),
+		          EBlendMode::BLEND_Translucent);
+		TestEqual(TEXT("Minimap ink material uses the UI domain"),
+		          static_cast<EMaterialDomain>(MinimapInkMaterial->GetMaterial()->MaterialDomain),
+		          EMaterialDomain::MD_UI);
+	}
+
 	const TPair<FName, FString> ReactionPopupTextures[] = {
 	    {TEXT("Reaction.Burn"), TEXT("T_UI_Reaction_Burn")},
 	    {TEXT("Reaction.Vaporize"), TEXT("T_UI_Reaction_Vaporize")},
@@ -102,6 +122,19 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestReactionDamageColor(
 	    TEXT("Enhanced damage numbers use reference gold"), TEXT("Reaction.Enhance"), FColor(241, 184, 76));
 
+	FReEchoDamageEvent OrdinaryDamageEvent;
+	OrdinaryDamageEvent.RawDamage = 7.0f;
+	OrdinaryDamageEvent.AppliedDamage = 7.0f;
+	TestEqual(TEXT("Ordinary damage numbers preserve the resolved damage"),
+	          ReEchoElementReaction::GetDamageNumberValue(OrdinaryDamageEvent),
+	          7.0f);
+	FReEchoDamageEvent OverkillDamageEvent;
+	OverkillDamageEvent.RawDamage = 20.0f;
+	OverkillDamageEvent.AppliedDamage = 7.0f;
+	TestEqual(TEXT("Overkill damage numbers show pre-health-clamp damage"),
+	          ReEchoElementReaction::GetDamageNumberValue(OverkillDamageEvent),
+	          20.0f);
+
 	UFont* DamageNumberFont = LoadObject<UFont>(nullptr, AReEchoDamageNumberActor::GetDamageNumberFontPath());
 	TestNotNull(TEXT("Damage-number actor owns the approved non-commercial runtime font"), DamageNumberFont);
 	if (DamageNumberFont)
@@ -129,24 +162,33 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Countdown clamps negative values"),
 	          UReEchoEncounterHudWidget::FormatCountdown(-1.0f).ToString(),
 	          FString(TEXT("00:00")));
-	TestEqual(TEXT("Countdown needle starts on the right"),
+	TestEqual(TEXT("Countdown needle starts on the left"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(60.0f, 60.0f),
-	          -90.0f);
+	          90.0f);
 	TestEqual(TEXT("Countdown needle points down at half time"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(30.0f, 60.0f),
 	          0.0f);
-	TestEqual(TEXT("Countdown needle finishes on the left"),
+	TestEqual(TEXT("Countdown needle finishes on the right"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 60.0f),
-	          90.0f);
+	          -90.0f);
 	TestEqual(TEXT("Countdown needle clamps remaining time above duration"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(90.0f, 60.0f),
-	          -90.0f);
+	          90.0f);
 	TestEqual(TEXT("Countdown needle safely handles an invalid duration before completion"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(10.0f, 0.0f),
-	          -90.0f);
+	          90.0f);
 	TestEqual(TEXT("Countdown needle safely handles an invalid duration at completion"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 0.0f),
-	          90.0f);
+	          -90.0f);
+	TestEqual(TEXT("Boss health ratio uses authoritative current and maximum health"),
+	          UReEchoEncounterHudWidget::CalculateBossHealthRatio(650.0f, 1300.0f),
+	          0.5f);
+	TestEqual(TEXT("Boss health ratio clamps over-heal"),
+	          UReEchoEncounterHudWidget::CalculateBossHealthRatio(1400.0f, 1300.0f),
+	          1.0f);
+	TestEqual(TEXT("Boss health ratio safely handles an invalid maximum"),
+	          UReEchoEncounterHudWidget::CalculateBossHealthRatio(650.0f, 0.0f),
+	          0.0f);
 
 	UReEchoPlayerHudWidget* PlayerHud = NewObject<UReEchoPlayerHudWidget>();
 	PlayerHud->SetTimeShards(12);
@@ -180,6 +222,8 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	}
 	TestNotNull(TEXT("Player HUD exposes the image health fill"),
 	            Cast<UImage>(AuthoredPlayerHud->GetWidgetFromName(TEXT("PlayerHealthFill"))));
+	UImage* PlayerHealthFrame = Cast<UImage>(AuthoredPlayerHud->GetWidgetFromName(TEXT("ArtHealthFrame")));
+	TestNotNull(TEXT("Player HUD exposes the authored health frame"), PlayerHealthFrame);
 	USizeBox* PortraitSize = Cast<USizeBox>(AuthoredPlayerHud->GetWidgetFromName(TEXT("PlayerPortraitSize")));
 	TestNotNull(TEXT("Legacy portrait host is retained for compatibility"), PortraitSize);
 	if (PortraitSize)
@@ -204,9 +248,40 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	UTextBlock* EncounterText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("EncounterText")));
 	UTextBlock* CountdownText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("CountdownText")));
 	UImage* ClockNeedle = Cast<UImage>(AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtClockNeedle")));
+	UImage* ClockFrame = Cast<UImage>(AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtClockFrame")));
+	UWidget* BossHealthPanel = AuthoredEncounterHud->GetWidgetFromName(TEXT("BossHealthPanel"));
+	UWidget* BossHealthFill = AuthoredEncounterHud->GetWidgetFromName(TEXT("BossHealthFill"));
+	UImage* BossHealthFrame = Cast<UImage>(AuthoredEncounterHud->GetWidgetFromName(TEXT("BossHealthFrame")));
 	TestNotNull(TEXT("Encounter HUD keeps the encounter label binding"), EncounterText);
 	TestNotNull(TEXT("Encounter HUD keeps the countdown binding"), CountdownText);
 	TestNotNull(TEXT("Encounter HUD keeps the animated clock needle binding"), ClockNeedle);
+	TestNotNull(TEXT("Encounter HUD keeps the time frame binding"), ClockFrame);
+	TestNotNull(TEXT("Encounter HUD exposes the Boss health panel"), BossHealthPanel);
+	TestNotNull(TEXT("Encounter HUD exposes the Boss health fill"), BossHealthFill);
+	TestNotNull(TEXT("Encounter HUD exposes the Boss health frame"), BossHealthFrame);
+	if (PlayerHealthFrame && BossHealthFrame)
+	{
+		TestTrue(TEXT("Boss health frame reuses the Player health-frame texture"),
+		         BossHealthFrame->GetBrush().GetResourceObject() == PlayerHealthFrame->GetBrush().GetResourceObject());
+		const FLinearColor BossFrameTint = BossHealthFrame->GetColorAndOpacity();
+		TestTrue(TEXT("Boss health frame uses a purple tint"),
+		         BossFrameTint.B > BossFrameTint.R && BossFrameTint.R > BossFrameTint.G);
+	}
+	if (const UBorder* BossFillBorder = Cast<UBorder>(BossHealthFill))
+	{
+		const FLinearColor BossFillColor = BossFillBorder->GetBrushColor();
+		TestTrue(TEXT("Boss health fill uses a dark purple color"),
+		         BossFillColor.B > BossFillColor.R && BossFillColor.R > BossFillColor.G);
+	}
+	const UCanvasPanelSlot* BossFillSlot = BossHealthFill ? Cast<UCanvasPanelSlot>(BossHealthFill->Slot) : nullptr;
+	const UCanvasPanelSlot* BossFrameSlot = BossHealthFrame ? Cast<UCanvasPanelSlot>(BossHealthFrame->Slot) : nullptr;
+	TestNotNull(TEXT("Boss health fill has an authored Canvas slot"), BossFillSlot);
+	TestNotNull(TEXT("Boss health frame has an authored Canvas slot"), BossFrameSlot);
+	if (BossFillSlot && BossFrameSlot)
+	{
+		TestTrue(TEXT("Boss health fill draws above the opaque frame interior"),
+		         BossFillSlot->GetZOrder() > BossFrameSlot->GetZOrder());
+	}
 	TestNull(TEXT("Rejected countdown background is absent"),
 	         AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtTimeReadout")));
 	if (EncounterText && CountdownText)
@@ -214,6 +289,36 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 		TestEqual(
 		    TEXT("Authored encounter label refreshes"), EncounterText->GetText().ToString(), FString(TEXT("第 3 关")));
 		TestEqual(TEXT("Authored countdown refreshes"), CountdownText->GetText().ToString(), FString(TEXT("01:00")));
+	}
+	if (ClockFrame && ClockNeedle && CountdownText && BossHealthPanel && BossHealthFill)
+	{
+		TestEqual(TEXT("Normal encounter shows the time frame"),
+		          ClockFrame->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Normal encounter shows the countdown"),
+		          CountdownText->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Normal encounter shows the clock needle"),
+		          ClockNeedle->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Normal encounter hides the Boss health panel"),
+		          BossHealthPanel->GetVisibility(),
+		          ESlateVisibility::Collapsed);
+
+		AuthoredEncounterHud->SetEncounterStatus(8, 8, 40.0f, 60.0f, true, 650.0f, 1300.0f);
+		TestEqual(TEXT("Boss encounter keeps the decorative clock frame"),
+		          ClockFrame->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(
+		    TEXT("Boss encounter hides the countdown"), CountdownText->GetVisibility(), ESlateVisibility::Collapsed);
+		TestEqual(
+		    TEXT("Boss encounter hides the clock needle"), ClockNeedle->GetVisibility(), ESlateVisibility::Collapsed);
+		TestEqual(TEXT("Boss encounter shows the Boss health panel"),
+		          BossHealthPanel->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Boss health fill follows the authoritative ratio"),
+		          BossHealthFill->GetRenderTransform().Scale.X,
+		          0.5);
 	}
 	TArray<UWidget*> EncounterWidgets;
 	AuthoredEncounterHud->WidgetTree->GetAllWidgets(EncounterWidgets);

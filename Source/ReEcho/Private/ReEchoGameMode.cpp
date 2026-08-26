@@ -4038,7 +4038,8 @@ void AReEchoGameMode::HandleEncounterEnded()
 		                                       GetTotalEncounterCount(),
 		                                       0.0f,
 		                                       Director ? Director->GetEncounterDuration()
-		                                                : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
+		                                                : GetDefault<UReEchoBalanceSettings>()->EncounterDuration,
+		                                       IsBossEncounter());
 	}
 	// [EncounterEnded] 选卡/结算入口：记录此刻真实剩余时间，与上面的 [EncounterTimer][END] 对照。
 	UE_LOG(LogReEcho,
@@ -4427,9 +4428,34 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	RefreshPlayerHudTimeShards(RunSubsystem);
 	if (EncounterHudWidget)
 	{
+		const bool bCurrentEncounterIsBoss = IsBossEncounter();
+		float BossCurrentHealth = 0.0f;
+		float BossMaximumHealth = 0.0f;
+		if (bCurrentEncounterIsBoss)
+		{
+			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+			{
+				if (Entry.Archetype != EReEchoEnemyArchetype::Boss || !Entry.bAlive)
+				{
+					continue;
+				}
+				if (const AReEchoEnemyActor* Boss = Cast<AReEchoEnemyActor>(Entry.Host.Get()))
+				{
+					if (const UReEchoCombatantComponent* BossCombatant = Boss->GetCombatantComponent())
+					{
+						BossCurrentHealth = BossCombatant->CurrentHealth;
+						BossMaximumHealth = BossCombatant->Stats.HpMax;
+					}
+				}
+				break;
+			}
+		}
 		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,
 		                                       GetTotalEncounterCount(),
 		                                       Director->GetRemainingTime(),
-		                                       Director->GetEncounterDuration());
+		                                       Director->GetEncounterDuration(),
+		                                       bCurrentEncounterIsBoss,
+		                                       BossCurrentHealth,
+		                                       BossMaximumHealth);
 	}
 }

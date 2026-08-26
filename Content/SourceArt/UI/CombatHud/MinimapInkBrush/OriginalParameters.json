@@ -1,0 +1,63 @@
+{
+  "brushName": "经典墨水笔 @  梵灵兮设计",
+  "sourceFormat": "Procreate .brush / NSKeyedArchiver",
+  "tip": {
+    "sourceSize": [1024, 1024],
+    "shapeInverted": true,
+    "shapeAngle": 0.0,
+    "shapeRotation": 1.0,
+    "shapeAzimuth": true,
+    "oriented": false,
+    "shapeRandomise": false,
+    "shapeFlipXJitter": false,
+    "shapeFlipYJitter": false,
+    "shapeRoundness": 1.0,
+    "jitterShapeRoundness": 0.0
+  },
+  "stroke": {
+    "plotSpacing": 0.004487102385610342,
+    "plotSpacingPercent": 0.4487102385610342,
+    "plotSpacingJitter": 0.0,
+    "plotJitter": 0.0025664183776825666,
+    "plotJitterPercent": 0.25664183776825666,
+    "plotJitterLongitudinal": 0.0025664183776825666
+  },
+  "dynamics": {
+    "dynamicsJitterSize": 0.0,
+    "dynamicsPressureSize": 1.0,
+    "dynamicsJitterOpacity": 0.16330644488334656,
+    "dynamicsJitterOpacityPercent": 16.330644488334656,
+    "dynamicsPressureOpacity": 0.0,
+    "dynamicsSpeedOpacity": 1.0,
+    "dynamicsTiltSize": 0.24346981942653656,
+    "shapeScatter": 0.18145161867141724,
+    "shapeScatterPercent": 18.145161867141724,
+    "shapeCount": 0.0,
+    "shapeCountJitter": 0.0
+  },
+  "opacityAndSize": {
+    "minOpacity": 0.0,
+    "maxOpacity": 1.0,
+    "paintOpacity": 0.9810879826545715,
+    "minSize": 0.0,
+    "maxSize": 0.4079609811306,
+    "paintSize": 0.07648696005344391
+  },
+  "texture": {
+    "sourceSize": [900, 900],
+    "textureScale": 3.967806816101074,
+    "textureScalePercent": 396.7806816101074,
+    "grainDepth": 1.0,
+    "grainDepthMinimum": 0.0,
+    "grainDepthJitter": 0.0,
+    "textureMovement": 1.0,
+    "textureRotation": 0.0,
+    "textureInverted": false,
+    "textureOffsetJitter": true,
+    "textureOrientation": 2,
+    "grainOrientation": 2,
+    "grainBlendMode": 1,
+    "textureBrightness": 0.0,
+    "textureContrast": 0.0
+  }
+}
