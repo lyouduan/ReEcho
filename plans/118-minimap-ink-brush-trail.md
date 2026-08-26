@@ -16,6 +16,8 @@
   - `Source/ReEcho/{Public,Private}/UI/ReEchoMinimapCanvasWidget.*`
   - `Source/ReEcho/Private/Tests/ReEchoMinimapTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoCombatHudTests.cpp`
+  - `Source/ReEcho/{Public,Private}/UI/ReEchoEncounterHudWidget.*`
+  - `Source/ReEcho/Private/ReEchoGameMode.cpp`
   - `Source/ReEcho/{Public,Private}/Combat/ReEchoElementReaction.*`
   - `Source/ReEcho/Private/Presentation/Enemy/ReEchoEnemyPresentationComponent.cpp`
   - `Content/SourceArt/UI/CombatHud/MinimapInkBrush/`
@@ -23,13 +25,13 @@
   - `Content/ReEcho/Materials/UI/M_UI_MinimapInkTrail.uasset`
   - `scripts/ue/import_minimap_ink_brush_assets.py`
   - `scripts/ue/author_minimap_ink_trail_material.py`
+  - `scripts/ue/author_plan118_boss_hud.py`
+  - `Content/ReEcho/UI/WBP_ReEchoEncounterHud.uasset`
   - `Design/UI/ReEcho_UI修改指导.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
   - 精选 Win64 Editor 预构建包及 manifest（仅最终发布门禁刷新）。
 - Stable Reads:
-  - `Source/ReEcho/{Public,Private}/UI/ReEchoEncounterHudWidget.*`
-  - `Content/ReEcho/UI/WBP_ReEchoEncounterHud.uasset`
   - `Config/DefaultGame.ini`
   - `Source/ReEchoCombat/{Public,Private}/Combat/ReEchoCombat{Contracts,Types,antComponent}.*`
   - `Source/ReEchoCombat/Private/Combat/ReEcho{HitResolver,ElementHitResolver}.cpp`
@@ -45,6 +47,8 @@
 UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Photoshop 笔刷：笔尖跟随路径方向，并按交付参数提供约 `18%` 的角度变化和 `16%` 的不透明度变化；Grain 由 UI 材质在每个笔尖内调制 Alpha。盖印必须跨路径段保持等距、同一轨迹在相同数据下每帧稳定，且具备单条轨迹最大盖印数，避免长录制路径导致 Slate 绘制无界增长。
 
 同一 Plan 同时收口敌人受击跳字数值：有效伤害仍以 `AppliedDamage>0` 为生成门禁，但显示目标规则修正后、剩余生命钳制前的 `RawDamage`。例如怪物剩余 `7` 血、本次最终伤害 `20`，生命只扣 `7` 并死亡，跳字显示 `20`。该变化只属于 Enemy Presentation，不新增或重解释 Combat 字段。
+
+顶部 Encounter HUD 同步修正两项表现：普通关卡倒计时指针从右经上半圆逆时针转到左；Boss 关隐藏时间底板、倒计时文字和指针，在相同顶部中心区域显示复用玩家血条底板造型的暗紫色 Boss 实际生命条。Boss 生命只读现有 EnemyRoster 中存活 Boss Actor 的 Combatant，不新增生命权威；`第 N 关` 文字与小地图继续显示。
 
 ## 架构影响与设计决策
 
@@ -77,8 +81,11 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - [x] 512px 笔尖、Grain 和 UI 材质均可加载并被 Cook 依赖追踪；完整 Photoshop 交付包已归档且不把 `.abr` 当运行时资产。
 - [x] 敌人伤害事件 `RawDamage=20`、`AppliedDamage=7` 时跳字显示 `20`，生命仍只扣 `7`；普通 `7/7` 显示保持 `7`。
 - [x] 跳字仍仅在 `AppliedDamage>0` 时生成；颜色、字体、取整、缩放动画与生命周期不变，Combat Schema、生命和死亡规则未修改。
+- [x] 普通关卡指针从右经上半圆逆时针转到左，满/半/零时分别为 `-90/-180/-270` 度。
+- [x] Boss 关隐藏 `ArtClockFrame`、`CountdownText` 与 `ArtClockNeedle`，在同一区域显示复用玩家血条底板造型的暗紫色 Boss 生命条；生命比例来自存活 Boss Combatant，关卡文字和小地图不受影响。
 - [ ] `ReEcho.UI.Minimap`、`ReEcho.UI.CombatHud`、UE 5.8 Editor 构建、静态校验及最终 `-FullRebuild` 发布门禁通过。
-- [ ] 用户在 `Level00` 手测轨迹连续性、粗细、颗粒感、颜色、转角、同屏多 Echo 密度和头像遮挡，并确认通过。
+- [x] 用户在 `Level00` 手测小地图笔触并明确反馈“笔触没问题了”。
+- [ ] 用户手测普通关指针逆时针方向，以及 Boss 关隐藏时间、暗紫血条位置/颜色与实际生命同步。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -96,6 +103,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 3. 保留材质缺失的旧 `MakeLines` fallback；增加采样等距、确定性、零长度/上限和资产加载自动化。
 4. 更新 UI/主模块文档与 Plan 执行记录，完成格式、构建、聚焦自动化、静态校验和人工验收。
 5. 让 Enemy Hurt 跳字通过纯表现函数选择 `RawDamage`，增加普通与过量伤害自动化，不改变 `AppliedDamage` 结算及其他消费者。
+6. 修正倒计时角度映射；扩展 Encounter HUD 的 Boss 只读生命投影，并以幂等 WBP 脚本创建暗紫色 Boss 血条及普通/Boss 可见性切换。
 
 ## 验证矩阵
 
@@ -106,11 +114,11 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 | C++ 格式 | 对修改 `.h/.cpp` 运行仓库 `.clang-format`；`git diff --check` | 无格式/空白错误 |
 | 构建 | `scripts/ue/Build-Editor.cmd -Configuration Development` | UHT/UBT 退出码 0 |
 | Minimap 聚焦 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.Minimap` | 坐标投影、等距采样、确定性、退化段和上限通过 |
-| HUD 回归 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.CombatHud` | 材质/纹理加载及现有 HUD 契约通过 |
+| HUD 回归 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.CombatHud` | 材质/纹理加载、逆时针满/半/零角度、普通/Boss 可见性与生命比例通过 |
 | 跳字语义 | 同一 `ReEcho.UI.CombatHud` 自动化 | 普通 `7/7 → 7`；过量 `20/7 → 20` |
 | 静态 | `python scripts/validate_project.py`、`git diff --check` | 项目、资产依赖、UTF-8 不变量通过 |
 | 最终发布 | `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` | 最终组合候选精选 Editor 包与源码指纹刷新并通过 |
-| 人工 | `Level00` 观察单/多 Echo 小地图轨迹，并以低血怪物承受高额伤害 | 笔触连续稳定、颗粒可读；过量跳字显示理论伤害且生命/死亡正常 |
+| 人工 | `Level00` 观察单/多 Echo 小地图轨迹、普通关指针、Boss 顶部血条，并以低血怪物承受高额伤害 | 笔触连续稳定、普通关指针逆时针；Boss 无计时且暗紫生命条随实际生命变化；过量跳字显示理论伤害且生命/死亡正常 |
 
 ## 执行记录
 
@@ -120,6 +128,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - 已将 Minimap 轨迹生产路径改为确定性、有界的笔尖盖印；保留旧 `MakeLines` 作为材质缺失 fallback，并提供 WBP 实例级笔触参数。
 - 已把原 Plan119 的理论伤害跳字范围并入本 Plan：Enemy Hurt 显示选择 `RawDamage`，保留 `AppliedDamage>0` 生成门禁及所有结算语义。
 - 已把六项轨迹调色板暴露到 `ReEchoMinimapCanvasWidget` Blueprint Details，并增加覆盖/缺项回退纯函数测试。
+- 已把普通关指针改为从右经上半圆逆时针转到左；Boss 关改为隐藏时间三件套，并在原中心区域显示复用玩家血条底板纹理的暗紫 Boss 实际生命条。GameMode 只读 EnemyRoster/Boss Combatant 后投影到 HUD，不新增生命权威。
 
 ### 证据
 
@@ -133,6 +142,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - Plan119 范围合入本 Plan 后，统一候选的 Development Editor 构建通过；`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与 `ReEcho.UI.CombatHud.Formatting` 全部 `Result={Success}`，后者覆盖普通 `7/7 → 7` 与过量 `20/7 → 20`。静态校验与 `git diff --check` 再次通过。
 - Blueprint 六项轨迹调色板加入后再次通过 Development Editor 构建、`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与静态校验；自动化覆盖索引命中时覆盖颜色、索引缺失时保留运行时回退颜色。
 - 人工截图暴露 UI Material 的 Slate Vertex Color RGB 在该绘制路径中实际读成黑色；已改为每个 Echo/调色板项创建独立动态材质实例并写入显式 `TrailColor` 向量参数，Slate Tint 只保留透明度。材质脚本复跑 `status=preserved` 且自检到 `TrailColor`，随后 Development Editor 构建、`ReEcho.UI.Minimap` 两项测试及 `ReEcho.UI.CombatHud.Formatting` 均通过。
+- Boss HUD 首轮构建只发现自动化中 `double` Scale 与 `float` 期望的 `TestEqual` 重载歧义；显式统一为 `double` 后 Development Editor 构建成功。`author_plan118_boss_hud.py` 幂等创建并保存 464×58 Boss 面板；`ReEcho.UI.CombatHud.Formatting` 验证逆时针角度、普通/Boss 显隐、0.5 生命比例、复用玩家框纹理与暗紫色，`ReEcho.UI.Minimap` 两项回归均为 `Result={Success}`。
 
 ### 剩余风险
 

@@ -577,8 +577,9 @@ void AReEchoGameMode::GMBossDamageRange(const FString& Mode)
 		return;
 	}
 	bShowBossDamageRangeDebug = bEnable;
-	PrintGMResult(FString::Printf(TEXT("Boss skill damage-range debug=%s (red=Skill02 projectile, green=Skill03 AOE, cyan=beam/rectangle)."),
-	                              bEnable ? TEXT("On") : TEXT("Off")));
+	PrintGMResult(FString::Printf(
+	    TEXT("Boss skill damage-range debug=%s (red=Skill02 projectile, green=Skill03 AOE, cyan=beam/rectangle)."),
+	    bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMGod(const FString& Mode)
@@ -2285,8 +2286,7 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 		}
 		ReservedCount += ExistingBatch.Locations.Num();
 	}
-	const bool bCountsTowardUnitLimit =
-	    Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
+	const bool bCountsTowardUnitLimit = Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
 	const int32 ReservationCount = ReEchoSpawnCapacity::CalculateReservationCount(
 	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count, bCountsTowardUnitLimit);
 	if (ReservationCount < Event.Count)
@@ -3768,7 +3768,8 @@ void AReEchoGameMode::HandleEncounterEnded()
 		                                       GetTotalEncounterCount(),
 		                                       0.0f,
 		                                       Director ? Director->GetEncounterDuration()
-		                                                : GetDefault<UReEchoBalanceSettings>()->EncounterDuration);
+		                                                : GetDefault<UReEchoBalanceSettings>()->EncounterDuration,
+		                                       IsBossEncounter());
 	}
 	// [EncounterEnded] 选卡/结算入口：记录此刻真实剩余时间，与上面的 [EncounterTimer][END] 对照。
 	UE_LOG(LogReEcho,
@@ -4109,9 +4110,34 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	RefreshPlayerHudTimeShards(RunSubsystem);
 	if (EncounterHudWidget)
 	{
+		const bool bCurrentEncounterIsBoss = IsBossEncounter();
+		float BossCurrentHealth = 0.0f;
+		float BossMaximumHealth = 0.0f;
+		if (bCurrentEncounterIsBoss)
+		{
+			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+			{
+				if (Entry.Archetype != EReEchoEnemyArchetype::Boss || !Entry.bAlive)
+				{
+					continue;
+				}
+				if (const AReEchoEnemyActor* Boss = Cast<AReEchoEnemyActor>(Entry.Host.Get()))
+				{
+					if (const UReEchoCombatantComponent* BossCombatant = Boss->GetCombatantComponent())
+					{
+						BossCurrentHealth = BossCombatant->CurrentHealth;
+						BossMaximumHealth = BossCombatant->Stats.HpMax;
+					}
+				}
+				break;
+			}
+		}
 		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,
 		                                       GetTotalEncounterCount(),
 		                                       Director->GetRemainingTime(),
-		                                       Director->GetEncounterDuration());
+		                                       Director->GetEncounterDuration(),
+		                                       bCurrentEncounterIsBoss,
+		                                       BossCurrentHealth,
+		                                       BossMaximumHealth);
 	}
 }

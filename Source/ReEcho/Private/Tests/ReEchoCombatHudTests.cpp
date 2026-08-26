@@ -3,6 +3,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoElementReaction.h"
+#include "Components/Border.h"
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -163,12 +164,12 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Countdown needle starts on the right"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(60.0f, 60.0f),
 	          -90.0f);
-	TestEqual(TEXT("Countdown needle points down at half time"),
+	TestEqual(TEXT("Countdown needle points up at half time"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(30.0f, 60.0f),
-	          0.0f);
+	          -180.0f);
 	TestEqual(TEXT("Countdown needle finishes on the left"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 60.0f),
-	          90.0f);
+	          -270.0f);
 	TestEqual(TEXT("Countdown needle clamps remaining time above duration"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(90.0f, 60.0f),
 	          -90.0f);
@@ -177,7 +178,16 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	          -90.0f);
 	TestEqual(TEXT("Countdown needle safely handles an invalid duration at completion"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 0.0f),
-	          90.0f);
+	          -270.0f);
+	TestEqual(TEXT("Boss health ratio uses authoritative current and maximum health"),
+	          UReEchoEncounterHudWidget::CalculateBossHealthRatio(650.0f, 1300.0f),
+	          0.5f);
+	TestEqual(TEXT("Boss health ratio clamps over-heal"),
+	          UReEchoEncounterHudWidget::CalculateBossHealthRatio(1400.0f, 1300.0f),
+	          1.0f);
+	TestEqual(TEXT("Boss health ratio safely handles an invalid maximum"),
+	          UReEchoEncounterHudWidget::CalculateBossHealthRatio(650.0f, 0.0f),
+	          0.0f);
 
 	UReEchoPlayerHudWidget* PlayerHud = NewObject<UReEchoPlayerHudWidget>();
 	PlayerHud->SetTimeShards(12);
@@ -211,6 +221,8 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	}
 	TestNotNull(TEXT("Player HUD exposes the image health fill"),
 	            Cast<UImage>(AuthoredPlayerHud->GetWidgetFromName(TEXT("PlayerHealthFill"))));
+	UImage* PlayerHealthFrame = Cast<UImage>(AuthoredPlayerHud->GetWidgetFromName(TEXT("ArtHealthFrame")));
+	TestNotNull(TEXT("Player HUD exposes the authored health frame"), PlayerHealthFrame);
 	USizeBox* PortraitSize = Cast<USizeBox>(AuthoredPlayerHud->GetWidgetFromName(TEXT("PlayerPortraitSize")));
 	TestNotNull(TEXT("Legacy portrait host is retained for compatibility"), PortraitSize);
 	if (PortraitSize)
@@ -235,9 +247,31 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	UTextBlock* EncounterText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("EncounterText")));
 	UTextBlock* CountdownText = Cast<UTextBlock>(AuthoredEncounterHud->GetWidgetFromName(TEXT("CountdownText")));
 	UImage* ClockNeedle = Cast<UImage>(AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtClockNeedle")));
+	UImage* ClockFrame = Cast<UImage>(AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtClockFrame")));
+	UWidget* BossHealthPanel = AuthoredEncounterHud->GetWidgetFromName(TEXT("BossHealthPanel"));
+	UWidget* BossHealthFill = AuthoredEncounterHud->GetWidgetFromName(TEXT("BossHealthFill"));
+	UImage* BossHealthFrame = Cast<UImage>(AuthoredEncounterHud->GetWidgetFromName(TEXT("BossHealthFrame")));
 	TestNotNull(TEXT("Encounter HUD keeps the encounter label binding"), EncounterText);
 	TestNotNull(TEXT("Encounter HUD keeps the countdown binding"), CountdownText);
 	TestNotNull(TEXT("Encounter HUD keeps the animated clock needle binding"), ClockNeedle);
+	TestNotNull(TEXT("Encounter HUD keeps the time frame binding"), ClockFrame);
+	TestNotNull(TEXT("Encounter HUD exposes the Boss health panel"), BossHealthPanel);
+	TestNotNull(TEXT("Encounter HUD exposes the Boss health fill"), BossHealthFill);
+	TestNotNull(TEXT("Encounter HUD exposes the Boss health frame"), BossHealthFrame);
+	if (PlayerHealthFrame && BossHealthFrame)
+	{
+		TestTrue(TEXT("Boss health frame reuses the Player health-frame texture"),
+		         BossHealthFrame->GetBrush().GetResourceObject() == PlayerHealthFrame->GetBrush().GetResourceObject());
+		const FLinearColor BossFrameTint = BossHealthFrame->GetColorAndOpacity();
+		TestTrue(TEXT("Boss health frame uses a purple tint"),
+		         BossFrameTint.B > BossFrameTint.R && BossFrameTint.R > BossFrameTint.G);
+	}
+	if (const UBorder* BossFillBorder = Cast<UBorder>(BossHealthFill))
+	{
+		const FLinearColor BossFillColor = BossFillBorder->GetBrushColor();
+		TestTrue(TEXT("Boss health fill uses a dark purple color"),
+		         BossFillColor.B > BossFillColor.R && BossFillColor.R > BossFillColor.G);
+	}
 	TestNull(TEXT("Rejected countdown background is absent"),
 	         AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtTimeReadout")));
 	if (EncounterText && CountdownText)
@@ -245,6 +279,35 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 		TestEqual(
 		    TEXT("Authored encounter label refreshes"), EncounterText->GetText().ToString(), FString(TEXT("第 3 关")));
 		TestEqual(TEXT("Authored countdown refreshes"), CountdownText->GetText().ToString(), FString(TEXT("01:00")));
+	}
+	if (ClockFrame && ClockNeedle && CountdownText && BossHealthPanel && BossHealthFill)
+	{
+		TestEqual(TEXT("Normal encounter shows the time frame"),
+		          ClockFrame->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Normal encounter shows the countdown"),
+		          CountdownText->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Normal encounter shows the clock needle"),
+		          ClockNeedle->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Normal encounter hides the Boss health panel"),
+		          BossHealthPanel->GetVisibility(),
+		          ESlateVisibility::Collapsed);
+
+		AuthoredEncounterHud->SetEncounterStatus(8, 8, 40.0f, 60.0f, true, 650.0f, 1300.0f);
+		TestEqual(
+		    TEXT("Boss encounter hides the time frame"), ClockFrame->GetVisibility(), ESlateVisibility::Collapsed);
+		TestEqual(
+		    TEXT("Boss encounter hides the countdown"), CountdownText->GetVisibility(), ESlateVisibility::Collapsed);
+		TestEqual(
+		    TEXT("Boss encounter hides the clock needle"), ClockNeedle->GetVisibility(), ESlateVisibility::Collapsed);
+		TestEqual(TEXT("Boss encounter shows the Boss health panel"),
+		          BossHealthPanel->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(TEXT("Boss health fill follows the authoritative ratio"),
+		          BossHealthFill->GetRenderTransform().Scale.X,
+		          0.5);
 	}
 	TArray<UWidget*> EncounterWidgets;
 	AuthoredEncounterHud->WidgetTree->GetAllWidgets(EncounterWidgets);
