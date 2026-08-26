@@ -1,4 +1,4 @@
-# Plan 121 - 程序 - 构筑路径与伤害关联日志
+# Plan 122 - 程序 - 构筑路径与伤害关联日志
 
 ## 协调
 
@@ -9,10 +9,10 @@
 - 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`NotRequired`；格式、覆盖点、稳定摘要和伤害关联可由自动化及日志证据验证，策划后续提供真实 session log 属于使用阶段而非关闭门禁。
 - 本地规划 / 实现基线：`origin/main@fb67ce38`。
-- 本地实现方式（可选，仅作交接说明）：Plan 单独发布后，从准确远端主线建立 `plan/121-build-path-diagnostics` 独立 worktree。
+- 本地实现方式（可选，仅作交接说明）：Plan 单独发布后，从准确远端主线建立 `plan/122-build-path-diagnostics` 独立 worktree。
 - 依赖 / 阻塞：复用 Development 会话日志 `ReEcho-session-<本地开始时间>-pid*.log`、现有 `ShopPurchaseAudit`、`FReEchoBuildSnapshot`、`FReEchoAttackIdentity` 的 Source/Weapon/Sequence 关联；不依赖 Plan106/107 候选。
 - Writes:
-  - `plans/121-build-path-diagnostics.md`
+  - `plans/122-build-path-diagnostics.md`
   - `Source/ReEcho/Public/Diagnostics/ReEchoBuildTrace.h`
   - `Source/ReEcho/Private/Diagnostics/ReEchoBuildTrace.cpp`
   - `Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`
