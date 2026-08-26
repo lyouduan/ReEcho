@@ -1,0 +1,138 @@
+# Plan 127 - 程序 - 商店免费定价与免费卡牌公平投放
+
+## 协调
+
+- Planner 负责人：Codex（当前程序对话内兼任 Planner 与 Executor）。
+- Executor 负责人：Codex。
+- Plan 编写方（AI 侧）：`Gavyn-side AI`。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。
+- 任务状态：`Ready`。
+- 人工验收：`PendingBeforeClose`。
+- 本地规划 / 实现基线：`origin/main@53f8c256b9901c70684866650315cd706c2a0072`。
+- 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan127-free-shop-random-offers`，分支 `plan/127-free-shop-random-offers`。
+- 依赖 / 阻塞：延续 Plan88 的逐关 `FreeTier`、1级可重复/2—3级持有排除、同一三选一无重复与候选页存档稳定契约；延续 Plan111 的 `G_2_21`【喂，打劫！】“当前战后商店内容物免费”状态。无产品阻塞。
+- Writes:
+  - `plans/127-free-shop-pricing-and-fair-free-card-offers.md`
+  - `Source/ReEcho/Public/Run/ReEchoShopCatalog.h`
+  - `Source/ReEcho/Public/Run/ReEchoRunSubsystem.h`
+  - `Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`
+  - `Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoShopTests.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoTraitTests.cpp`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
+- Stable Reads:
+  - `Content/Data/cards.csv` 的 `G_2_21`
+  - `Content/Data/card_effects.csv` 的 `G_2_21_FREE_SHOP`
+  - `Content/Data/shop_drop_levels.csv`
+  - `Content/Data/shop_refresh_rules.csv`
+  - `Source/ReEchoCards/Public/Cards/ReEchoCardRuntime.h`
+  - `Source/ReEchoCards/Private/Cards/ReEchoCardRuntime.cpp`
+  - `Source/ReEchoCards/Public/Cards/ReEchoCardTypes.h`
+  - `plans/88-card-drop-system.md`
+  - `plans/111-kepler-visible-card-rune-update.md`
+- 影响模式：`SharedContract`。
+- 兼容承诺 / 下游操作：不改变稳定 Card/Weapon/Rune ID、CSV Schema、卡牌 Tier/冲突/持有资格、商店刷新费用或次数；继续保存 `TraitOfferSeed`、当前免费三选一候选、展示历史和逐槽刷新次数，不提升 SaveVersion。旧存档恢复后保持已展示报价，不因本修复重新抽取。
+- 明确排除：不修改策划工作簿或生成 CSV，不调整卡牌/武器/符文价格与数值，不让【喂，打劫！】免除刷新按钮本身的刷新费用，不更改商店卡组投放规则，不允许已拥有2/3级卡重新出现，不把关闭界面、重复查询或读档当成免费重抽机会。
+
+## 锁定目标
+
+1. 【喂，打劫！】绑定当前战后商店时，所有可购买内容物的实际价格均为 `0`：武器、符文、旧兼容商品以及一级/二级/三级卡牌组都必须在余额不足原价时仍可点击并成功购买；显式刷新后出现的新武器/符文内容物仍为零价。UI 显示、按钮可用性、购买审计和后端提交必须使用同一份 Run 权威实际价格，不能由 Widget 另按原价与折扣计算。
+2. 战斗结束免费三选一的初始三张卡，改为从当前关 `FreeTier` 的完整合法候选池中等权、无放回抽取。删除现有“按已拥有叠层数分桶并优先最低叠层”的人为偏置；合法的已拥有1级卡与未拥有1级卡具有相同的单卡入选概率，已拥有2/3级卡仍由 Cards 资格层排除。
+3. “公平随机”采用每局独立种子驱动的确定性伪随机流：新开局之间应产生不同序列；同一局、同一关、同一构筑状态与同一随机状态应可复现。首次生成后的三张候选继续保存，重复打开界面和存读档不得重摇；只有已存在的显式逐槽刷新事务可以替换对应槽位。
+4. 同组三张卡不能出现重复 CardId；候选不足、配置非法和牌池为空时继续沿用现有安全降级，不跨 Tier 补牌，也不改变战后流程路由。
+
+## 架构影响与设计决策
+
+- 受影响架构标识：`MOD-ReEcho`（直接修改），`MOD-ReEchoCards`（抽取资格与抽样边界契约受影响），`AREA-Run`、`AREA-Cards`、`AREA-UI`、`AREA-Tests`。
+- 对应模块文档：维护 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoCards.md` 与 `MOD-ReEchoUI.md`，均已加入 `Writes`。
+- 设计意图：让 Run 成为商店实际价格与购买资格的唯一投影源，让 Widget 只展示和发命令；让 Cards 继续只决定合法候选池，Run 只对该池做无权重、无放回抽样。由此消除前后端定价分叉和隐藏叠层权重，同时保留可保存、可复现的事务随机性。
+- 权威状态与依赖：`UReEchoRunSubsystem` 继续拥有 `FreeShopEncounterIndex`、货币、商店事务、`TraitOfferSeed` 与已生成候选页；`ReEchoCardRuntime::BuildOfferPool` 继续拥有 Enabled/Tier/关次/冲突/持有资格；UI 不新增权威状态。模块依赖方向不变，不增加 Runtime Module。
+- 决策记录：
+  - 已定位【喂，打劫！】后端 `GetDiscountedShopPrice` 会正确返回 `0`，但 Widget 的 `GetEffectiveShopPrice` 未接收免费商店状态，并在请求发出前按原价禁用按钮。实现应发布类型化的实际价格/可购买投影，购买提交仍由后端重新验证，不能只在 UI 特判 CardId。
+  - 已定位免费投放使用每局 GUID 派生的 `TraitOfferSeed`，新局并非固定同一组；玩家感知的“假随机”来自 `GenerateTraitCardOffers` 先按 `CountOwned` 分桶、强制优先最低叠层，再仅在桶内洗牌。删除该分桶，不删除每局种子和候选缓存。
+  - “等权”按 CardId 计，每个合法 CardId 一张票；不按卡牌阵营、效果、当前叠层、目录顺序或历史未出现次数加权。抽样为洗牌后取前三张，等价实现可以优化，但必须满足相同验收。
+  - 免费选择的逐槽刷新继续从同 Tier 剩余合法候选中选择，并排除当前组已展示历史与所有已获得卡牌；本 Plan 只消除初始三选一的叠层分桶偏置，不放宽刷新资格。
+  - 【喂，打劫！】描述中的“包括刷新出的内容”解释为显式刷新后生成的新商品仍零价；刷新动作本身继续消费 `shop_refresh_rules.csv` 配置的次数/碎片。
+- 相关文档同步范围：
+  - `shared/CODEBASE_MAP/ARCHITECTURE.md`：关闭前审阅；预期无模块拓扑、状态所有者或依赖方向变化。
+  - `shared/CODEBASE_MAP/README.md`：关闭前审阅；预期无架构标识或阅读路线变化。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：更新 Run 的商店实际价格投影与免费卡牌等权抽样契约。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md`：明确 Cards 提供合法候选池，Run 负责初始免费三选一的等权无放回抽样。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：更新商店 Widget 只消费权威实际价格/可购买状态、不得重算定价的约束。
+- 关闭前逐项填写审阅结果：
+  - `ARCHITECTURE.md`：待审阅。
+  - `README.md`：待审阅。
+  - `MOD-ReEcho.md`：待更新。
+  - `MOD-ReEchoCards.md`：待更新。
+  - `MOD-ReEchoUI.md`：待更新。
+
+## 锁定验收
+
+- [ ] 在现有碎片为 `0`、商品原价大于 `0` 且【喂，打劫！】绑定当前商店时，武器、符文与三个卡牌组中所有实际存在且未拥有的报价均显示免费、按钮可用，并由详细购买接口以 `EffectivePrice=0` 成功提交；余额与债务均不增加。
+- [ ] 显式刷新武器/符文页后，新出现商品仍免费；进入下一关后免费商店状态按现有生命周期清除，后续商店恢复正常价格和余额门禁。
+- [ ] UI 不再用原价/折扣自行决定购买资格；自动化覆盖逻辑块与目标表现层的武器/符文、兼容商品和卡牌组入口，证明显示、按钮和后端结果一致。
+- [ ] 免费三选一初始候选从完整合法池等权无放回抽取；测试构造“已拥有1级卡 + 至少3张未拥有1级卡”的候选池，证明已拥有1级卡不会再被最低叠层分桶系统性排除。
+- [ ] 同一随机状态生成顺序可复现且同组三张不重复；不同新局种子能产生多于一种候选签名；存读档、重复打开界面保持原候选及逐槽刷新历史。
+- [ ] 逐关 `FreeTier`、1级重复、2/3级持有排除、候选不足安全降级、免费逐槽刷新与商店卡组投放既有回归全部通过。
+- [ ] `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`、聚焦自动化、`python scripts/validate_project.py` 与 `git diff --check` 通过。
+- [ ] 人工 PIE 验收低余额下【喂，打劫！】购买和多次新局免费三选一的玩家可见结果。
+- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+
+## Step 0 门禁
+
+- 基线分支/提交：`origin/main@53f8c256b9901c70684866650315cd706c2a0072`；相对上一已验证程序候选仅新增 Plan126 文档，不修改本任务运行时代码。
+- 引擎/构建可用性：上一程序候选已在 UE 5.8 Development `-FullRebuild` 成功并刷新精选 Editor 包；本 Plan 实现后的最终组合必须重新执行完整构建，不能复用旧证据。
+- 现有聚焦测试结果：上一程序候选的棱镜多弹、重启任务刷新与诅咒银行显示聚焦自动化通过；本 Plan 的 Shop/Trait 基线与新增用例在实现阶段重新执行。
+- 共享契约 / 难合并资源风险：`ReEchoRunSubsystem.cpp`、`ReEchoInventoryShopWidget.cpp`、Shop/Trait 测试和精选 DLL 为高频路径；Plan126 仅新增武器特效挂点计划，无物理或逻辑重叠。发布前仍须重新 fetch、审计最新 main 并按发布锁规则组合。
+- 基线损坏时的停止条件：远端修改商店/卡牌随机路径形成真实产品冲突；策划更改【喂，打劫！】免费范围、Tier持有资格或随机权重；现有存档候选页不能兼容恢复。遇到这些情况先报告并等待取舍，不静默改变锁定目标。
+
+## 实现提纲
+
+1. 为 Run 的武器/符文、兼容商品与卡牌组只读报价补充统一的实际价格/可购买投影；投影复用 `GetDiscountedShopPrice`，详细购买接口仍在提交时二次验证。
+2. 改造 InventoryShop Widget 的所有购买入口、价格文本与点击前门禁，只消费 Run 投影；删除会遗漏 `FreeShopEncounterIndex` 的本地定价判断。
+3. 将免费三选一初始候选从“按叠层分桶后抽取”改为完整合法池的等权无放回抽样，保留 `TraitOfferSeed`、候选缓存、展示历史、逐槽刷新和 SaveGame 恢复契约。
+4. 增加 Shop/ShopLogicBlock 自动化，覆盖零余额零价购买、刷新后仍免费、下一关恢复定价、卡牌组与武器/符文按钮/后端一致。
+5. 增加 Trait 自动化，覆盖完整池公平抽样、同组三张去重、同状态复现、新局多样性、存读档稳定及既有资格/刷新回归。
+6. 更新相关模块文档，执行格式化、聚焦自动化、完整构建、项目校验和差异卫生检查；请求用户完成 PIE 人工验收。
+
+## 验证矩阵
+
+| 层级 | 命令/检查 | 预期证据 |
+|---|---|---|
+| 卡牌与数据静态 | `scripts/data/sync_xlsx_to_csv.py --check` | 本 Plan 未改策划数据，生产 XLSX/CSV 无漂移 |
+| 格式 | 对修改的 `.h/.cpp` 运行仓库 `.clang-format` | 目标文件格式一致，无无关语义噪声 |
+| Shop 自动化 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.Shop`、`-Filter ReEcho.UI.Shop` | 免费定价、按钮资格、后端提交、生命周期与既有商店回归通过 |
+| Trait 自动化 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.Traits`、`-Filter ReEcho.Cards.Offer` | 等权无放回抽样、Tier/持有资格、刷新和存读档稳定通过 |
+| C++ 发布构建 | `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` | UHT/UBT 成功并刷新与最终候选匹配的精选 Editor 包 |
+| 静态 | `python scripts/validate_project.py` | 项目、数据、存档/预构建不变量通过 |
+| 差异卫生 | `git diff --check` | 无空白、冲突标记或非法路径问题 |
+| 人工 PIE | 低余额【喂，打劫！】商店；多次新局免费三选一 | 商品显示免费且可购；免费候选无固定最低叠层偏置，页面重开不重摇 |
+
+## 执行记录
+
+### 变化
+
+- 2026-08-27：完成只读定位并创建 Plan127。确认【喂，打劫！】后端实际价已为零，但 UI 自行按原价/折扣禁用余额不足的购买按钮。
+- 2026-08-27：确认免费三选一已有每局独立且可保存的随机种子；“假随机”来自初始候选按持有叠层分桶并强制优先最低叠层，而不是所有新局共用固定种子。
+- 2026-08-27：fetch 发现远端仅新增 `plans/126-programmer-weapon-vfx-final-anchor.md`，无源码、数据、编号或逻辑冲突；Plan127 基于最新远端主线建立独立 worktree。
+
+### 证据
+
+- 只读源码审计：`GetDiscountedShopPrice` 在 `FreeShopEncounterIndex == EncounterIndex` 时返回 `0`；`ReEchoInventoryShopWidget.cpp` 多处仍通过本地 `GetEffectiveShopPrice` 与 `CurrentTimeShards >= EffectivePrice` 提前拦截。
+- 只读源码审计：`GenerateTraitCardOffers` 使用 `BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, OwnedCardIds)`，但随后按 `CountOwned == StackLevel` 建桶并逐桶填满三张；`StartRun` 使用新 GUID 派生 `TraitOfferSeed`，SaveGame 保存并恢复该种子与当前候选页。
+
+### 剩余风险
+
+- 若 UI 蓝图另有独立的购买按钮门禁，执行时需通过 Widget 树与交互自动化一并审计，不能只修原生逻辑块。
+- 公平随机的玩家感受需要多局人工观察；自动化只锁定“无隐藏叠层优先级、等权无放回与事务可复现”，不承诺短样本内肉眼均匀。
+
+### 人工验收结果/请求
+
+- 待实现后请求用户在 PIE 验收。
+
+### 架构文档审阅结果
+
+- 待实现完成后逐项填写。
