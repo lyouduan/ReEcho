@@ -112,6 +112,8 @@
 - 与最新 Plan117/122 组合后的最终 FullRebuild 98/98 成功；预构建包为 7 模块、Build ID `55116800`、源码指纹 `2e008f409f1b`。
 - 恢复边界审查修正：`RestoreRuntimeState` 在配置后同步取消可能启动的 Born、解除 Host Gate，并按恢复后的存活状态设置 `CanBeDamaged`；存档敌人不重播 Born、不获得瞬时无敌或移动门禁，新生成路径不变。Host 回归覆盖“配置先启动 Gate → 恢复快照 → Born/Gate 均关闭且活体可伤害”。
 - 攻击门禁审查修正：Host 在成功 Born Gate 内向 `FReEchoEnemySenseSnapshot::bAttackPermitted` 注入 false；Logic 不开始或提交普通攻击、兔子/狐狸特殊技和 Boss 攻击窗口，但继续推进目标采样、普通攻击冷却、Bomber Fuse、Boss cooldown/encounter 等既有计时。Host 在实际世界副作用边界再次拒绝 Gate 内攻击窗口，并阻止 Boss 传送、投射物生成与伤害；自然完成后的首个合格逻辑步恢复，缺失/失败 Born 与运行时恢复仍保持 ungated。
+- 时长修订执行：通过 Unreal Python 只修改并保存四个生产 Born Flipbook 的 `FramesPerSecond`；独立 Commandlet 重载审计结果为 `Rabbit:6@12=0.500s|Slime:5@10=0.500s|Goat:5@10=0.500s|Fox:5@10=0.500s profiles=4 non_looping=4 issues=0`，同时逐项核对自然 Sprite 顺序和生产 Profile 的 `Animation.Born` 引用。`audit_plan82_animation_assets.py` 增加 `REECHO_PLAN121_ONLY=1` 聚焦模式；默认全库模式仍准确报告本 Plan 排除的 BadRabbit 20 张既有未导入源图。
+- 时长修订最终门禁：FullRebuild 94/94 成功并刷新 7 模块预构建包（Build ID `55116800`，源码指纹 `babf2d833441`）；`prebuilt_editor.py check`、`validate_project.py` 与 `git diff --check` 通过。
 - 攻击门禁最终验证：FullRebuild 96/96 成功并刷新 7 模块预构建包（Build ID `55116800`，源码指纹 `babf2d833441`）；`ReEcho.Enemies.Logic` 与 `ReEcho.Enemies.Host` 全部通过，包含普通/特殊/Boss 抑制、Boss encounter 计时继续、Host 传送抑制及完成后恢复；`prebuilt_editor.py check`、`validate_project.py`、`git diff --check` 通过。首次 validate 在沙箱临时目录权限处失败，扩展权限原命令重跑通过，非项目内容失败。
 - 恢复边界修正后的 `ReEcho.Enemies.Host` 全部通过；最终 FullRebuild 97/97 成功，预构建包为 7 模块、Build ID `55116800`、源码指纹 `cc80f41fe521`。
 
