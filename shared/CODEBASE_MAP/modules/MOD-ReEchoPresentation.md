@@ -38,7 +38,7 @@
 ### 输入
 
 - 稳定 `FName PresentationId`。
-- Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。除 Move 基础循环外均为可选能力；Profile 缺少语义时表现层保持当前有效画面并返回未播放，不借用其他语义。动画集转换缺少 `Transform.Phase2` 时，Controller 保留旧形态直到玩法完成事件，再原子切换目标动画集的基础循环，不能提前显示目标形态或把表现失败反馈成玩法失败。
+- Move、Born、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。除 Move 基础循环外均为可选能力；Profile 缺少语义时表现层保持当前有效画面并返回未播放，不借用其他语义。Born 是锁至完成、仅 Death 可抢占的非循环瞬时表现，完成后回到 Move；Death 仍为最高优先级终结独占。动画集转换缺少 `Transform.Phase2` 时，Controller 保留旧形态直到玩法完成事件，再原子切换目标动画集的基础循环，不能提前显示目标形态或把表现失败反馈成玩法失败。
 - 朝向和武器视觉集合 ID。
 
 ### 输出
@@ -85,7 +85,7 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 - Profile/FSM：美术可配置语义动画集合和转换策略。
 - Controller：执行表现状态切换，持有显式动作占用；循环 Charge 只能由提交、结束或取消事件收束，不回写玩法。Enemy Host 会先按只读眩晕事实冻结 AnimationComponent，再取消玩法动作；暂停期间收到的结束或取消事件立即清理其他表现轨，但动画状态切换延迟到解除眩晕的同一帧，保证当前帧不跳回 Move、一次性动作不被误判完成且旧攻击不会在醒来后续播。死亡仍解除暂停并独占播放。Host 判定死亡后可调用 `BeginTerminalDeath` 独占播放一次非循环 Death；进入后拒绝 Move、Attack、Hit、Transform 与动画集切换，完成回调只通知 Host 销毁表现宿主，不返回 Move，也不裁决玩法死亡。死亡会清理瞬时 VFX，但保留独立 GroundShadow；死亡阶段以当前 Sprite 帧的底边中心持续锁定同一 Profile 脚点，并据此更新阴影中心和宽度，而不是使用整个 Flipbook 的合并边界，使画面在固定世界位置向下塌落且直到销毁前保持地面接触感。
 - 主模块 Coordinator：不属于本 Runtime Module；把同一玩法动作阶段同时交给 Animation 与 VFX 轨，避免两个消费者建立彼此漂移的本地时钟。
-- AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退；死亡 Sprite 可用自定义 Pivot 提供逐帧主体脚点，Profile 以会进入 Cook 的 `bUseAuthoredDeathPivot` 显式声明该策略，主模块敌人表现据此固定 GroundShadow，并按 `DeathGroundSink` 让主体继续向下贴入阴影；未配置时继续使用当前帧 Bounds 底边中心。运行时不得读取 PaperSprite 的 `PivotMode` 或 `CustomPivotPoint`，因为二者属于编辑器专用数据。
+- AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退；Enemy Presentation 只读暴露 Born 是否仍活跃，Born 以 priority 90 锁定至自然完成，Attack/Hit/Transform 均不得抢占，只有 terminal Death（priority 100）可抢占。Born 期间以当前 Sprite Bounds 逐帧计算脚底和 GroundShadow；Host 把这一只读状态转换为伤害、移动、攻击与 Phase2 门禁，Presentation 不直接裁决玩法。死亡 Sprite 可用自定义 Pivot 提供逐帧主体脚点，Profile 以会进入 Cook 的 `bUseAuthoredDeathPivot` 显式声明该策略，主模块敌人表现据此固定 GroundShadow，并按 `DeathGroundSink` 让主体继续向下贴入阴影；未配置时继续使用当前帧 Bounds 底边中心。Death authored pivot 仍是专用路径。运行时不得读取 PaperSprite 的 `PivotMode` 或 `CustomPivotPoint`，因为二者属于编辑器专用数据。
 - FrameCollisionDriver：生成 Query/Debug 快照。
 
 ## 代码位置与阅读路线
@@ -103,7 +103,7 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 
 ## 验证与测试
 
-`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、状态抢占、循环 Charge 取消、Transform 锁定、Move 完成归宿、Death 终结独占/一次完成与缺失资源 no-op；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan82_animation_assets.py` 只读审计全部生产玩家、Echo、怪物 Profile 与源贴图导入链，`scripts/ue/audit_plan102_combat_hud.py` 审计四个 Player/Echo Profile 的八张小地图头像绑定。脚点、比例、朝向、Death 实际播放完成、首帧闪烁和小地图图标可读性仍由人工在 PIE 验收。
+`ReEcho.Presentation.Animation2D` 覆盖生产 Profile、Born 播放/完成归宿/缺失 no-op、状态抢占、循环 Charge 取消、Transform 锁定、Move 完成归宿、Death 终结独占/一次完成与缺失资源 no-op；`ReEcho.Presentation.Combat` 覆盖动作阶段去重、收束和武器轨能力策略；`scripts/ue/audit_plan82_animation_assets.py` 只读审计全部生产玩家、Echo、怪物 Profile、共享 Born 状态与源贴图导入链，`scripts/ue/audit_plan102_combat_hud.py` 审计四个 Player/Echo Profile 的八张小地图头像绑定。脚点、比例、朝向、Born/Death 实际播放完成、首帧闪烁和小地图图标可读性仍由人工在 PIE 验收。
 
 ## 不变量与常见错误
 

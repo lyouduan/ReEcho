@@ -46,8 +46,8 @@
 | 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
-| Encounter 结算表现状态 | `AReEchoGameMode` | 单场结束到局间 UI | 只投影 Director 剩余时间；普通计时关卡在 03 时启动全屏效果与流式序列，00 时才冻结战斗并允许完成/失败幂等进入现有抽卡或商店页 |
-| Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建并原子激活可受击 Enemy Host；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
+| Encounter 结算表现状态 | `AReEchoGameMode` | 单场结束到局间 UI | 只投影 Director 剩余时间；普通计时关卡在 03→01 时只启动全屏后处理，权威 00 时冻结战斗并从第 0 帧播放透明序列，末帧后幂等进入现有抽卡或商店页 |
+| Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建 Enemy Host；Host 完成 Definition/Profile 装配后只尝试一次可选 Born，成功播放时进入临时不可伤害/不可移动/不可攻击 Gate，缺失或失败不进入 Gate，碰撞、AI 计时和目标不暂停；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
 | 当前 Arena 场景与 SceneId 注册 | `AReEchoArenaSceneActor` 注册表；Stage CSV `SceneId` 为选择权威 | World/Stage | GameMode 在初始、恢复和跨 Stage 入口先应用场景；同 Stage 不重建，失败阻止 Encounter 开始 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
@@ -69,9 +69,10 @@
 - 本局只读摘要、保存文件、录制与 Echo Playback。
 - UI 屏幕命令、只读展示数据和表现事件。
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
-- 战斗常驻 HUD 的只读表现投影：Combatant 提供生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。
+- 战斗常驻 HUD 的只读表现投影：Player Combatant 提供玩家生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，EnemyRoster 中存活 Boss Actor 的 Combatant 提供 Boss 当前/最大生命，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。普通关指针按剩余时间从左经下半圆逆时针转到右；Boss 关保留钟背板，由血条替换倒计时文字和指针。小地图 Slate 层把投影后的 Echo 折线确定性重采样为有界的经典墨水笔盖印，材质、Grain 和作者参数只影响表现，不改变 Recording 路径或 Echo 回放。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 - Development 编辑器启动时由 `FReEchoModule` 注册第二个只读日志输出设备，把普通 `UE_LOG` 同步写入 `Saved/Logs/ReEcho-session-<本地开始时间>-pid<进程号>.log`；`ReEcho.log` 仍是当前会话入口，独立会话文件不覆盖、不参与玩法状态，也不进入 Shipping。
+- 构筑路径诊断由主模块 `Diagnostics/ReEchoBuildTrace.*` 集中拥有。`UReEchoRunSubsystem` 只在开局、读档、遭遇开始以及卡牌、武器、符文或商店事务已经权威提交后输出 `[BuildSnapshotTrace]`，内容含角色、武器、符文槽、卡牌叠层、有效属性、关键卡牌运行态、规则、数据 revision 和确定性指纹；失败事务不输出提交后快照。`AReEchoWeaponActor` 在成功 Confirm 的统一提交出口输出轻量 `[BuildCommitTrace]`，以 `source + weapon + sequence` 关联 Resolver 日志并携带同一构筑指纹，不在 Projectile/Resolver 各层重复完整构筑。该诊断只读、不消耗随机数、不写 SaveGame，Shipping 不输出；指纹不得用作玩法判断、存档身份或去重键。
 
 ### 稳定契约
 
@@ -379,6 +380,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 自动攻击不进入 Recording；Echo 在当前世界重新选目标与命中。
 - 保存失败不得退出；购买/装备/选择失败不得产生部分状态。
 - 表现资源和完成回调不能控制确定性逻辑。
+- Enemy Host 在 Profile 装配后尝试 Born；仅播放成功才持有 Gameplay Gate、暂存并关闭 `CanBeDamaged`，自然完成后恢复原状态。Gate 同时向 Enemy Sense 注入关闭的移动、攻击与 Phase2 启动许可；普通攻击、特殊技及 Boss 攻击窗口/传送/投射物/伤害均不得提交，但不暂停出生提交、碰撞、普通 AI 感知、目标或既有冷却/计时，完成后的首个合格逻辑步恢复。缺失/失败 Born 不获得门禁。
+- `RestoreRuntimeState` 恢复的是已提交敌人：即使恢复流程先执行配置，也必须同步取消该配置启动的 Born 表现与 Gameplay Gate，活着的恢复敌人立即回到基础表现并可受伤，不重播出生动画。
 - 不从旧 JSON、描述文本、Widget 缓存或 Actor 表现字段恢复第二份事实来源。
 
 ## 运行时 CSV 松散文件与 Shipping 打包契约

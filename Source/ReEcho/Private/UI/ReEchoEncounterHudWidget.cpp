@@ -7,6 +7,8 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -47,12 +49,18 @@ void UReEchoEncounterHudWidget::NativeConstruct()
 void UReEchoEncounterHudWidget::SetEncounterStatus(const int32 EncounterIndex,
                                                    const int32 TotalEncounters,
                                                    const float RemainingSeconds,
-                                                   const float DurationSeconds)
+                                                   const float DurationSeconds,
+                                                   const bool bInBossEncounter,
+                                                   const float BossCurrentHealth,
+                                                   const float BossMaximumHealth)
 {
 	CurrentEncounterIndex = EncounterIndex;
 	EncounterCount = FMath::Max(1, TotalEncounters);
 	RemainingTime = FMath::IsFinite(RemainingSeconds) ? FMath::Max(0.0f, RemainingSeconds) : 0.0f;
 	EncounterDuration = FMath::IsFinite(DurationSeconds) ? FMath::Max(0.0f, DurationSeconds) : 0.0f;
+	bBossEncounter = bInBossEncounter;
+	CurrentBossHealth = FMath::IsFinite(BossCurrentHealth) ? FMath::Max(0.0f, BossCurrentHealth) : 0.0f;
+	MaximumBossHealth = FMath::IsFinite(BossMaximumHealth) ? FMath::Max(0.0f, BossMaximumHealth) : 0.0f;
 	RefreshText();
 }
 
@@ -81,15 +89,24 @@ FText UReEchoEncounterHudWidget::FormatCountdown(const float RemainingSeconds)
 float UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(const float RemainingSeconds,
                                                                const float DurationSeconds)
 {
-	constexpr float RightAngle = -90.0f;
 	constexpr float LeftAngle = 90.0f;
+	constexpr float RightAngle = -90.0f;
 	const float SafeRemainingSeconds = FMath::IsFinite(RemainingSeconds) ? RemainingSeconds : 0.0f;
 	if (!FMath::IsFinite(DurationSeconds) || DurationSeconds <= UE_SMALL_NUMBER)
 	{
-		return SafeRemainingSeconds <= 0.0f ? LeftAngle : RightAngle;
+		return SafeRemainingSeconds <= 0.0f ? RightAngle : LeftAngle;
 	}
 	const float ElapsedRatio = 1.0f - FMath::Clamp(SafeRemainingSeconds / DurationSeconds, 0.0f, 1.0f);
-	return FMath::Lerp(RightAngle, LeftAngle, ElapsedRatio);
+	return FMath::Lerp(LeftAngle, RightAngle, ElapsedRatio);
+}
+
+float UReEchoEncounterHudWidget::CalculateBossHealthRatio(const float CurrentHealth, const float MaximumHealth)
+{
+	if (!FMath::IsFinite(CurrentHealth) || !FMath::IsFinite(MaximumHealth) || MaximumHealth <= UE_SMALL_NUMBER)
+	{
+		return 0.0f;
+	}
+	return FMath::Clamp(CurrentHealth / MaximumHealth, 0.0f, 1.0f);
 }
 
 void UReEchoEncounterHudWidget::BuildWidgetTree()
@@ -137,17 +154,41 @@ void UReEchoEncounterHudWidget::BuildWidgetTree()
 	CountdownSlot->SetHorizontalAlignment(HAlign_Right);
 	CountdownSlot->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 0.0f));
 
+	UOverlay* NativeBossHealthPanel =
+	    WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("BossHealthPanel"));
+	NativeBossHealthPanel->SetVisibility(ESlateVisibility::Collapsed);
+	Content->AddChildToVerticalBox(NativeBossHealthPanel);
+	BossHealthPanel = NativeBossHealthPanel;
+	UBorder* NativeBossHealthBackground =
+	    WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("BossHealthBackground"));
+	NativeBossHealthBackground->SetBrushColor(FLinearColor(0.07f, 0.025f, 0.10f, 1.0f));
+	NativeBossHealthPanel->AddChildToOverlay(NativeBossHealthBackground);
+	UBorder* NativeBossHealthFill =
+	    WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("BossHealthFill"));
+	NativeBossHealthFill->SetBrushColor(FLinearColor(0.26f, 0.07f, 0.38f, 1.0f));
+	NativeBossHealthFill->SetRenderTransformPivot(FVector2D(0.0f, 0.5f));
+	UOverlaySlot* NativeBossFillSlot = NativeBossHealthPanel->AddChildToOverlay(NativeBossHealthFill);
+	NativeBossFillSlot->SetPadding(FMargin(4.0f));
+	BossHealthFill = NativeBossHealthFill;
+
 	RefreshText();
 }
 
 void UReEchoEncounterHudWidget::RefreshText()
 {
+	const ESlateVisibility TimeVisibility =
+	    bBossEncounter ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible;
+	if (ArtClockFrame)
+	{
+		ArtClockFrame->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
 	if (EncounterText)
 	{
 		EncounterText->SetText(FormatEncounterLabel(CurrentEncounterIndex));
 	}
 	if (CountdownText)
 	{
+		CountdownText->SetVisibility(TimeVisibility);
 		const int32 DisplaySeconds = FMath::CeilToInt(RemainingTime);
 		CountdownText->SetText(FormatCountdown(RemainingTime));
 		CountdownText->SetColorAndOpacity(
@@ -155,6 +196,16 @@ void UReEchoEncounterHudWidget::RefreshText()
 	}
 	if (ArtClockNeedle)
 	{
+		ArtClockNeedle->SetVisibility(TimeVisibility);
 		ArtClockNeedle->SetRenderTransformAngle(CalculateCountdownNeedleAngle(RemainingTime, EncounterDuration));
+	}
+	if (BossHealthPanel)
+	{
+		BossHealthPanel->SetVisibility(bBossEncounter ? ESlateVisibility::HitTestInvisible
+		                                              : ESlateVisibility::Collapsed);
+	}
+	if (BossHealthFill)
+	{
+		BossHealthFill->SetRenderScale(FVector2D(CalculateBossHealthRatio(CurrentBossHealth, MaximumBossHealth), 1.0f));
 	}
 }

@@ -104,6 +104,11 @@ FLinearColor GetDamageNumberColor(const FReEchoDamageEvent& Event)
 	return Event.Element == EReEchoElement::None ? FLinearColor::White : GetElementColor(Event.Element);
 }
 
+float GetDamageNumberValue(const FReEchoDamageEvent& Event)
+{
+	return FMath::Max(0.0f, Event.RawDamage);
+}
+
 FName GetElementId(const EReEchoElement Element)
 {
 	switch (Element)

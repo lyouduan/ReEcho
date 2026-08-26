@@ -2,6 +2,7 @@
 
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Diagnostics/ReEchoBuildTrace.h"
 #include "ReEcho.h"
 #include "Run/ReEchoCharacterPromotion.h"
 #include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
@@ -1364,6 +1365,7 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	CurrentBuild = ResolveResult.Build;
 	OwnedWeaponIds.Add(CurrentBuild.WeaponId);
 	SetPhase(EReEchoRunPhase::Planning);
+	ReEchoBuildTrace::LogSnapshot(TEXT("RunStarted"), EncounterIndex, Phase, CurrentBuild);
 }
 
 bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& OutError)
@@ -1381,6 +1383,7 @@ bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& O
 		return false;
 	}
 	CurrentBuild = Candidate;
+	ReEchoBuildTrace::LogSnapshot(TEXT("RunesEquipped"), EncounterIndex, Phase, CurrentBuild);
 	return true;
 }
 
@@ -1475,6 +1478,8 @@ bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& Out
 	}
 	CurrentBuild = MoveTemp(Candidate);
 	OutError.Reset();
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("WeaponEquipped"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("weapon=%s"), *WeaponId.ToString()));
 	return true;
 }
 
@@ -2120,6 +2125,7 @@ void UReEchoRunSubsystem::BeginEncounter()
 	CurrentBuild.CardState = ReEchoCardRuntime::BeginEncounter(CurrentBuild.CardState, EncounterIndex);
 	bPendingCardEchoRemoval = false;
 	SetPhase(EReEchoRunPhase::Encounter);
+	ReEchoBuildTrace::LogSnapshot(TEXT("EncounterStarted"), EncounterIndex, Phase, CurrentBuild);
 }
 
 void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
@@ -2525,6 +2531,8 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	PendingTraitCardRefreshUses.Reset();
 	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
 	SetPhase(bContinueBonusChoices ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("FreeCardGranted"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("card=%s"), *CardId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
@@ -2621,6 +2629,8 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
 	       *CardId.ToString(),
 	       CurrentBuild.CardState.OwnedCardIds.Num());
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("DebugCardGranted"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("card=%s"), *CardId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
@@ -3203,6 +3213,11 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 	}
 	CurrentBuild = MoveTemp(PendingBuild);
 	CommitShopCost(EffectivePrice);
+	ReEchoBuildTrace::LogSnapshot(TEXT("ShopCardPackPaid"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("tier=%d"), Tier));
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Card-pack payment committed"), EffectivePrice);
 }
 
@@ -3329,6 +3344,13 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	}
 	ReevaluateCoreCollectionCard();
 	InventoryItems.AddUnique(ItemId);
+	ReEchoBuildTrace::LogSnapshot(TEXT("PaidCardGranted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("card=%s item=%s"),
+	                                              *Choice.CardId.ToString(),
+	                                              *ItemId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Paid card choice claimed"));
 }
@@ -3550,6 +3572,11 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	}
 
 	ReevaluateCoreCollectionCard();
+	ReEchoBuildTrace::LogSnapshot(TEXT("ShopPurchaseCommitted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("item=%s"), *ItemId.ToString()));
 	return FinishPurchase(EReEchoShopPurchaseResult::Succeeded, CompletionDetail, EffectivePrice);
 }
 
@@ -4361,5 +4388,6 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	ReevaluateCoreCollectionCard();
 	SetPhase(SaveGame.SavedPhase == EReEchoRunPhase::LegacyForgeChoice ? EReEchoRunPhase::CardChoice
 	                                                                   : SaveGame.SavedPhase);
+	ReEchoBuildTrace::LogSnapshot(TEXT("RunRestored"), EncounterIndex, Phase, CurrentBuild);
 	return true;
 }

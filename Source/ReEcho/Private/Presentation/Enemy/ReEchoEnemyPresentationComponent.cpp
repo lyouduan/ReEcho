@@ -52,6 +52,11 @@ void UReEchoEnemyPresentationComponent::SetPresentationCatalog(UReEcho2DPresenta
 	PresentationCatalog = InPresentationCatalog;
 }
 
+bool UReEchoEnemyPresentationComponent::IsBornPlaying() const
+{
+	return PresentationController && PresentationController->GetActiveSemanticKey() == ReEcho2DAnimationTags::Born;
+}
+
 void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InPresentationRoot,
                                                             USceneComponent* InVisualEffectRoot,
                                                             USceneComponent* InFootRoot,
@@ -59,6 +64,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
                                                             USceneComponent* InEffectsRoot,
                                                             USceneComponent* InBossWeaponRoot,
                                                             USceneComponent* InBossWeaponFacingRoot,
+                                                            USceneComponent* InBossWeaponTipRoot,
                                                             UBillboardComponent* InBossWeaponSprite,
                                                             UBillboardComponent* InCharacterSprite,
                                                             UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -74,6 +80,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	EffectsRoot = InEffectsRoot;
 	BossWeaponRoot = InBossWeaponRoot;
 	BossWeaponFacingRoot = InBossWeaponFacingRoot;
+	BossWeaponTipRoot = InBossWeaponTipRoot;
 	BossWeaponSprite = InBossWeaponSprite;
 	CharacterSprite = InCharacterSprite;
 	SequenceAnimation = InSequenceAnimation;
@@ -158,10 +165,28 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName Presenta
 	ConfigureBossWeapon(PresentationId);
 }
 
+bool UReEchoEnemyPresentationComponent::TryPlayBorn()
+{
+	return PresentationController && PresentationController->PlayAction(ReEcho2DAnimationTags::Born);
+}
+
+void UReEchoEnemyPresentationComponent::CancelBornForRuntimeRestore()
+{
+	if (!IsBornPlaying())
+	{
+		return;
+	}
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->Stop();
+	}
+	PresentationController->UpdatePlaybackCompletion();
+}
+
 void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName PresentationId)
 {
 	const bool bTimeGuard = PresentationId == TEXT("Enemy.TimeGuard");
-	if (!BossWeaponRoot || !BossWeaponFacingRoot || !BossWeaponSprite)
+	if (!BossWeaponRoot || !BossWeaponFacingRoot || !BossWeaponTipRoot || !BossWeaponSprite)
 	{
 		return;
 	}
@@ -196,6 +221,12 @@ void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName Presenta
 	BossWeaponSprite->SetTranslucentSortPriority(7);
 	BossWeaponSprite->SetRelativeTransform(FTransform::Identity);
 	BossWeaponSprite->SetRelativeScale3D(FVector(HeldLength / TextureAxisLength));
+	BossWeaponTipRoot->SetRelativeLocation(ResolveBossWeaponTipOffset(HeldLength));
+}
+
+FVector UReEchoEnemyPresentationComponent::ResolveBossWeaponTipOffset(const float HeldLengthCm)
+{
+	return FVector::UpVector * FMath::Max(0.0f, HeldLengthCm) * 0.5f;
 }
 
 void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
@@ -455,7 +486,7 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 
 	FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
 	const UPaperSprite* CurrentSprite = nullptr;
-	if (bDeathVisualActive)
+	if (bDeathVisualActive || IsBornPlaying())
 	{
 		CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
 		if (CurrentSprite)
@@ -463,7 +494,8 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 			FlipbookBounds = CurrentSprite->GetRenderBounds();
 		}
 	}
-	const bool bUseAuthoredDeathPivot = CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot;
+	const bool bUseAuthoredDeathPivot =
+	    bDeathVisualActive && CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot;
 	if (bUseAuthoredDeathPivot)
 	{
 		GroundRoot->SetRelativeLocation(AuthoredGroundRootLocation);
@@ -503,7 +535,7 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 	}
 	FBoxSphereBounds AlignmentBounds = Flipbook->GetRenderBounds();
 	const UPaperSprite* CurrentSprite = nullptr;
-	if (bDeathVisualActive)
+	if (bDeathVisualActive || IsBornPlaying())
 	{
 		CurrentSprite = Flipbook->GetSpriteAtTime(SequenceAnimation->GetPlaybackPosition(), true);
 		if (CurrentSprite)
@@ -512,7 +544,7 @@ void UReEchoEnemyPresentationComponent::RefreshFootpointAlignment()
 		}
 	}
 	const FVector ProfileFootpointOffset = ActiveProfile ? ActiveProfile->FootpointOffset : FVector::ZeroVector;
-	if (CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot)
+	if (bDeathVisualActive && CurrentSprite && ActiveProfile && ActiveProfile->bUseAuthoredDeathPivot)
 	{
 		CalculatedFootAlignmentOffset = UReEcho2DAnimationComponent::CalculatePivotAlignmentOffset(
 		    SequenceAnimation->GetRelativeTransform(),
@@ -640,6 +672,18 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+void UReEchoEnemyPresentationComponent::CompleteActiveAnimationForTests()
+{
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->Stop();
+	}
+	if (PresentationController)
+	{
+		PresentationController->UpdatePlaybackCompletion();
+	}
+}
+
 void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event)
 {
 	HandlePresentationAction(Event);
@@ -676,8 +720,10 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 		return;
 	}
 	const FLinearColor Color = ReEchoElementReaction::GetDamageNumberColor(Event);
-	AReEchoDamageNumberActor::SpawnDamageNumber(
-	    Host ? Host->GetWorld() : nullptr, Event.WorldLocation, Event.AppliedDamage, Color);
+	AReEchoDamageNumberActor::SpawnDamageNumber(Host ? Host->GetWorld() : nullptr,
+	                                            Event.WorldLocation,
+	                                            ReEchoElementReaction::GetDamageNumberValue(Event),
+	                                            Color);
 	if (Event.bFatal || bDeathVisualActive)
 	{
 		return;

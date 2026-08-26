@@ -79,6 +79,8 @@ public:
 	/** Converts the locked Boss beam contract into immutable world-space endpoints. */
 	static void ResolveBossBeamWorldEndpoints(
 	    const FVector& Origin, const FVector& LockedDirection, float LengthCm, FVector& OutStart, FVector& OutEnd);
+	/** Projects the locked warning center onto the Arena gameplay plane without changing its authoritative XY. */
+	static FVector ResolveBossBeamGroundOrigin(const FVector& LockedWarningCenter, float GameplayPlaneWorldZ);
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
 	static FVector
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
@@ -97,10 +99,15 @@ public:
 	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
 	static bool HasMeleePlayDirectionParameter(const UNiagaraSystem* System);
 #if WITH_DEV_AUTOMATION_TESTS
-	/** Exposes the live Fox windup arrow solely for runtime lifecycle and renderer automation. */
+	/** Exposes live Fox windup effects solely for runtime placement, lifecycle and renderer automation. */
 	UNiagaraComponent* GetDirectionEffectForTests() const
 	{
 		return DirectionEffect;
+	}
+
+	UNiagaraComponent* GetChargingEffectForTests() const
+	{
+		return ChargingEffect;
 	}
 #endif
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
@@ -123,6 +130,17 @@ public:
 	/** Editor repair seam for melee mesh systems whose camera-facing renderer overrides component rotation. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System);
+	/** Editor repair seam for FaceCamera arrows whose image rotation must come from one explicit user parameter. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool BindNiagaraSpriteRotationToDirectionParameter(UNiagaraSystem* System);
+	/** Editor audit seam for the Fox Direction sprite pivots and optional pivot bindings. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool AuditFoxDirectionSpritePivots(UNiagaraSystem* System);
+	/** Editor authoring seam for per-layer Fox Direction pivots derived from source-texture alpha bounds. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetFoxDirectionSpritePivots(UNiagaraSystem* System,
+	                                        FVector2D KuangPivotInUvSpace,
+	                                        FVector2D Kuang002PivotInUvSpace);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
 	int32 GetBossProjectileEffectCountForTests() const;
@@ -155,7 +173,7 @@ private:
 	TArray<UMaterialInterface*> ResolveRabbitProjectileGlowMaterials() const;
 	UNiagaraComponent*
 	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
-	UNiagaraComponent* SpawnBossBeam(const FReEchoBossIntent& Intent) const;
+	UNiagaraComponent* SpawnBossBeam(const FReEchoBossIntent& Intent, const FVector& GroundOrigin) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
@@ -164,6 +182,7 @@ private:
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
 	USceneComponent* ResolveEchoAuraVfxRoot() const;
+	FVector ResolveBossTargetGroundLocation(const FReEchoBossIntent& Intent) const;
 	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
 	int32 ResolveOwnerAuraSortPriority() const;
@@ -242,8 +261,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> BossActiveEffect;
+	float BossActiveEffectRemainingSeconds = 0.0f;
 
 	TMap<int64, FName> BossAbilityByAttackSequence;
+	TMap<int64, FVector> BossGroundLocationByAttackSequence;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> AttackVfxRoot;

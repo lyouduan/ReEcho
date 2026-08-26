@@ -23,6 +23,7 @@
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "ReEcho.h"
+#include "ReEchoGameMode.h"
 #include "TimerManager.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
@@ -33,7 +34,28 @@ constexpr int32 CombatEffectSortPriorityFloor = 1000;
 constexpr float DebugElementReactionPreviewSeconds = 2.0f;
 constexpr int32 EchoAuraSortOffset = -1;
 const FBox FoxDirectionRuntimeBounds(FVector(-500.0f, -500.0f, -650.0f), FVector(500.0f, 500.0f, 350.0f));
+const FName FoxDirectionSpriteRotationParameter(TEXT("User.DirectionSpriteRotationDegrees"));
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
+
+float ResolveFoxDirectionSpriteRotationDegrees(const FVector& LockedDirection,
+                                               const FVector& ViewRight,
+                                               const FVector& ViewUp)
+{
+	if (LockedDirection.IsNearlyZero())
+	{
+		return 0.0f;
+	}
+	const FVector SafeViewRight = ViewRight.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	const FVector SafeViewUp = ViewUp.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	const FVector SafeDirection = LockedDirection.GetSafeNormal();
+	const float ScreenRight = FVector::DotProduct(SafeDirection, SafeViewRight);
+	// Niagara FaceCamera uses -ResolvedViewUp as its unaligned sprite Up basis. The renderer binding is
+	// documented in degrees and its vertex factory converts degrees to radians immediately before sincos.
+	const float ScreenUp = FVector::DotProduct(SafeDirection, -SafeViewUp);
+	return FMath::IsNearlyZero(ScreenRight) && FMath::IsNearlyZero(ScreenUp)
+	           ? 0.0f
+	           : FMath::RadiansToDegrees(FMath::Atan2(ScreenUp, ScreenRight));
+}
 
 void LogLayerState(const AActor* Owner,
                    const USceneComponent* AttachmentRoot,
@@ -485,6 +507,15 @@ void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
                                               FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (BossActiveEffectRemainingSeconds > 0.0f)
+	{
+		BossActiveEffectRemainingSeconds = FMath::Max(0.0f, BossActiveEffectRemainingSeconds - DeltaTime);
+		if (BossActiveEffectRemainingSeconds <= 0.0f)
+		{
+			StopEffect(BossTelegraphEffect);
+			StopEffect(BossActiveEffect);
+		}
+	}
 	for (int32 Index = ReverseMeleePlaybacks.Num() - 1; Index >= 0; --Index)
 	{
 		FReverseMeleePlayback& Playback = ReverseMeleePlaybacks[Index];
@@ -657,6 +688,14 @@ void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
 	OutEnd = Origin + FVector::ForwardVector * FMath::Max(0.0f, LengthCm);
 }
 
+FVector UReEchoCombatVfxComponent::ResolveBossBeamGroundOrigin(const FVector& LockedWarningCenter,
+                                                               const float GameplayPlaneWorldZ)
+{
+	FVector GroundOrigin = LockedWarningCenter;
+	GroundOrigin.Z = GameplayPlaneWorldZ;
+	return GroundOrigin;
+}
+
 FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredScale,
                                                         const FVector& AttachmentWorldScale,
                                                         const bool bPreserveWorldSize)
@@ -713,6 +752,188 @@ bool UReEchoCombatVfxComponent::ConfigureMeleeNiagaraComponentFacing(UNiagaraSys
 	}
 	System->MarkPackageDirty();
 	return bHasEnabledEmitter && bHasMeshRenderer;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::BindNiagaraSpriteRotationToDirectionParameter(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	const FNiagaraVariable RotationParameter(FNiagaraTypeDefinition::GetFloatDef(),
+	                                         ReEchoCombatVfx::FoxDirectionSpriteRotationParameter);
+	System->GetExposedParameters().SetParameterValue(0.0f, RotationParameter, true);
+	int32 ModifiedSpriteRendererCount = 0;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			return false;
+		}
+		EmitterBase->Modify();
+		const FVersionedNiagaraEmitterBase VersionedEmitter = EmitterHandle.GetInstance().ToBase();
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			Sprite->Modify();
+			Sprite->SpriteRotationBinding.SetValue(
+			    ReEchoCombatVfx::FoxDirectionSpriteRotationParameter, VersionedEmitter, Sprite->SourceMode);
+			if (!Sprite->SpriteRotationBinding.DoesBindingExistOnSource() ||
+			    Sprite->SpriteRotationBinding.GetParamMapBindableVariable() != RotationParameter)
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("[VFX] %s is not a valid SpriteRotation source for emitter '%s'"),
+				       *ReEchoCombatVfx::FoxDirectionSpriteRotationParameter.ToString(),
+				       *EmitterHandle.GetName().ToString());
+				return false;
+			}
+			Sprite->PostEditChange();
+			++ModifiedSpriteRendererCount;
+		}
+	}
+	if (ModifiedSpriteRendererCount > 0)
+	{
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return ModifiedSpriteRendererCount > 0;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::AuditFoxDirectionSpritePivots(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	int32 EnabledSpriteRendererCount = 0;
+	for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		if (!EmitterData)
+		{
+			return false;
+		}
+		for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			const FNiagaraVariable PivotBindingVariable = Sprite->PivotOffsetBinding.GetParamMapBindableVariable();
+			UE_LOG(LogReEcho,
+			       Display,
+			       TEXT("PLAN117_FOX_DIRECTION_PIVOT emitter=%s pivot=(%.9f,%.9f) binding_exists=%d binding=%s"),
+			       *EmitterHandle.GetName().ToString(),
+			       Sprite->PivotInUVSpace.X,
+			       Sprite->PivotInUVSpace.Y,
+			       Sprite->PivotOffsetBinding.DoesBindingExistOnSource() ? 1 : 0,
+			       *PivotBindingVariable.GetName().ToString());
+			++EnabledSpriteRendererCount;
+		}
+	}
+	return EnabledSpriteRendererCount == 2;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::SetFoxDirectionSpritePivots(UNiagaraSystem* System,
+                                                            const FVector2D KuangPivotInUvSpace,
+                                                            const FVector2D Kuang002PivotInUvSpace)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	int32 ModifiedSpriteRendererCount = 0;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		const FName EmitterName = EmitterHandle.GetName();
+		const FVector2D* TargetPivot = nullptr;
+		if (EmitterName == TEXT("Kuang"))
+		{
+			TargetPivot = &KuangPivotInUvSpace;
+		}
+		else if (EmitterName == TEXT("Kuang002"))
+		{
+			TargetPivot = &Kuang002PivotInUvSpace;
+		}
+		else
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			return false;
+		}
+		EmitterBase->Modify();
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			if (Sprite->PivotOffsetBinding.DoesBindingExistOnSource())
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("[VFX] Fox Direction emitter '%s' has an authored PivotOffset binding; refusing to "
+				            "overwrite it"),
+				       *EmitterName.ToString());
+				return false;
+			}
+			Sprite->Modify();
+			Sprite->PivotInUVSpace = *TargetPivot;
+			Sprite->PostEditChange();
+			UE_LOG(LogReEcho,
+			       Display,
+			       TEXT("PLAN117_FOX_DIRECTION_PIVOT_AUTHORED emitter=%s pivot=(%.9f,%.9f)"),
+			       *EmitterName.ToString(),
+			       TargetPivot->X,
+			       TargetPivot->Y);
+			++ModifiedSpriteRendererCount;
+		}
+	}
+	if (ModifiedSpriteRendererCount == 2)
+	{
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return ModifiedSpriteRendererCount == 2;
 #else
 	return false;
 #endif
@@ -778,7 +999,8 @@ bool UReEchoCombatVfxComponent::HasMeleePlayDirectionParameter(const UNiagaraSys
 	    });
 }
 
-UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
+UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent,
+                                                            const FVector& GroundOrigin) const
 {
 	UNiagaraSystem* System = ResolveSystem(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting));
 	UWorld* World = GetWorld();
@@ -788,7 +1010,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	}
 	FVector Start = FVector::ZeroVector;
 	FVector End = FVector::ZeroVector;
-	ResolveBossBeamWorldEndpoints(Intent.LockedTargetLocation, Intent.LockedDirection, Intent.LengthCm, Start, End);
+	ResolveBossBeamWorldEndpoints(GroundOrigin, Intent.LockedDirection, Intent.LengthCm, Start, End);
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 	    World,
 	    System,
@@ -810,6 +1032,36 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 	Effect->Activate(true);
 	return Effect;
+}
+
+FVector UReEchoCombatVfxComponent::ResolveBossTargetGroundLocation(const FReEchoBossIntent& Intent) const
+{
+	if (const AActor* Target = Intent.Target.Get())
+	{
+		TArray<USceneComponent*> SceneComponents;
+		Target->GetComponents(SceneComponents);
+		for (const FName PreferredGroundRoot : {FName(TEXT("GroundRoot")), FName(TEXT("FootRoot"))})
+		{
+			for (const USceneComponent* Component : SceneComponents)
+			{
+				if (Component && Component->GetFName() == PreferredGroundRoot)
+				{
+					return ResolveBossBeamGroundOrigin(Intent.LockedTargetLocation,
+					                                   Component->GetComponentLocation().Z);
+				}
+			}
+		}
+	}
+	FVector GroundLocation = Intent.LockedTargetLocation;
+	if (const AReEchoGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr)
+	{
+		float GameplayPlaneWorldZ = GroundLocation.Z;
+		if (GameMode->TryGetActiveArenaGameplayPlaneZ(GameplayPlaneWorldZ))
+		{
+			GroundLocation = ResolveBossBeamGroundOrigin(GroundLocation, GameplayPlaneWorldZ);
+		}
+	}
+	return GroundLocation;
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 SemanticValue,
@@ -850,6 +1102,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
 	const FVector CameraRight =
 	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
+	const FVector CameraUp =
+	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Z) : FVector::ForwardVector;
 	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
 	                                ? ResolveMeleePlayDirection(Direction, CameraRight)
 	                                : 1.0f;
@@ -870,10 +1124,16 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	{
 		if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
 		{
-			// The authored system fixed bounds are only +/-100, while its live camera-facing sprites are centered
-			// at local Z=-150 and grow as large as 800x600. Their 500 cm half-diagonal may rotate onto any camera
+			// The authored system fixed bounds are only +/-100, while its live camera-facing sprites grow as large
+			// as 800x600 from the local origin. Their 500 cm half-diagonal may rotate onto any camera
 			// plane axis, so override only this runtime instance without mutating the shared Niagara asset.
 			Effect->SetSystemFixedBounds(ReEchoCombatVfx::FoxDirectionRuntimeBounds);
+			// FaceCamera + Automatic/Unaligned sprites ignore component rotation when orienting the image. The
+			// delivered texture points along sprite screen-right at zero degrees (PIE authority), so rotate that
+			// basis into the locked attack direction explicitly before activation.
+			Effect->SetVariableFloat(
+			    ReEchoCombatVfx::FoxDirectionSpriteRotationParameter,
+			    ReEchoCombatVfx::ResolveFoxDirectionSpriteRotationDegrees(Direction, CameraRight, CameraUp));
 		}
 		if (Placement.bUseWorldDirectionRotation)
 		{
@@ -985,6 +1245,7 @@ void UReEchoCombatVfxComponent::StopBossActionEffects()
 	StopEffect(BossChargingEffect);
 	StopEffect(BossTelegraphEffect);
 	StopEffect(BossActiveEffect);
+	BossActiveEffectRemainingSeconds = 0.0f;
 }
 
 void UReEchoCombatVfxComponent::RememberBossAbility(const int64 AttackSequence, const FName AbilityId)
@@ -1458,9 +1719,10 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 		    SpawnAttached(static_cast<uint8>(ChargingSemantic), Event.LockedDirection, ResolveAttackVfxRoot(), false);
 		if (bFox)
 		{
+			AActor* Owner = GetOwner();
 			DirectionEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection),
 			                                Event.LockedDirection,
-			                                ResolveAttackVfxRoot(),
+			                                Owner ? Owner->GetRootComponent() : nullptr,
 			                                false);
 		}
 		return;
@@ -1497,9 +1759,11 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	RememberBossAbility(Intent.Attack.Sequence, Intent.AbilityId);
 	if (bSkill03 && Intent.Type == EReEchoBossIntentType::ImpactResolved)
 	{
-		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact),
-		           Intent.LockedTargetLocation,
-		           Intent.LockedDirection);
+		const FVector* LockedGroundLocation = BossGroundLocationByAttackSequence.Find(Intent.Attack.Sequence);
+		const FVector ImpactLocation =
+		    LockedGroundLocation ? *LockedGroundLocation : ResolveBossTargetGroundLocation(Intent);
+		SpawnWorld(
+		    static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact), ImpactLocation, Intent.LockedDirection);
 		return;
 	}
 	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
@@ -1512,14 +1776,15 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		const EReEchoCombatVfxSemantic ChargingSemantic = bSkill02   ? EReEchoCombatVfxSemantic::GoatSkill02Charging
 		                                                  : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
 		                                                             : EReEchoCombatVfxSemantic::GoatSkill04Charging;
-		BossChargingEffect = SpawnAttached(static_cast<uint8>(ChargingSemantic),
-		                                   Intent.LockedDirection,
-		                                   bSkill02 ? ResolveBossWeaponVfxRoot() : ResolveAttackVfxRoot(),
-		                                   false);
+		BossChargingEffect = SpawnAttached(
+		    static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ResolveBossWeaponVfxRoot(), false);
 		if (bSkill03 || bSkill04)
 		{
+			const FVector GroundEffectLocation = ResolveBossTargetGroundLocation(Intent);
+			BossGroundLocationByAttackSequence.Add(Intent.Attack.Sequence, GroundEffectLocation);
+			const FVector TelegraphLocation = bSkill04 ? GroundEffectLocation : Intent.LockedTargetLocation;
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                 Intent.LockedTargetLocation,
+			                                 TelegraphLocation,
 			                                 Intent.LockedDirection,
 			                                 false);
 		}
@@ -1540,18 +1805,23 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		}
 		if (bSkill04)
 		{
+			const FVector* LockedGroundLocation = BossGroundLocationByAttackSequence.Find(Intent.Attack.Sequence);
+			const FVector GroundLocation =
+			    LockedGroundLocation ? *LockedGroundLocation : ResolveBossTargetGroundLocation(Intent);
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                 Intent.LockedTargetLocation,
+			                                 GroundLocation,
 			                                 Intent.LockedDirection,
 			                                 false);
 			StopEffect(BossActiveEffect);
-			BossActiveEffect = SpawnBossBeam(Intent);
+			BossActiveEffect = SpawnBossBeam(Intent, GroundLocation);
+			BossActiveEffectRemainingSeconds = BossActiveEffect ? FMath::Max(0.0f, Intent.ActiveSeconds) : 0.0f;
 		}
 		return;
 	}
 	if (Intent.Type == EReEchoBossIntentType::AbilityEnded)
 	{
 		StopBossActionEffects();
+		BossGroundLocationByAttackSequence.Remove(Intent.Attack.Sequence);
 	}
 }
 
