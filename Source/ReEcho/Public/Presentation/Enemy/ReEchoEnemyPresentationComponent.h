@@ -103,7 +103,12 @@ public:
 	void ConfigureAppearance(FName PresentationId);
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
 	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
+	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
+	void SetStunPaused(bool bPaused);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
+#if WITH_DEV_AUTOMATION_TESTS
+	void ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event);
+#endif
 
 	UBillboardComponent* GetCharacterSprite() const
 	{
@@ -198,4 +203,6 @@ private:
 	FRotator BossWeaponRestRotation = FRotator::ZeroRotator;
 	bool bHitVisualActive = false;
 	bool bDeathVisualActive = false;
+	bool bStunPaused = false;
+	bool bCancelAttackWhenStunClears = false;
 };

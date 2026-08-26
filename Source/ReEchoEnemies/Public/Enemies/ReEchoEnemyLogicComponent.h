@@ -29,6 +29,8 @@ public:
 	// WS4 (Plan 68): attempts to convert a just-lethal hit into a blood-depleted second-phase transition. Returns
 	// true when the owner is a HealthThreshold boss that has not yet transformed (the caller defers real death).
 	bool TryTriggerPhase2OnFatalWound(FReEchoEnemyActionIntent& OutIntent);
+	/** Cancels the current target-locked attack when stun begins, preserving cooldowns, fuse and hit reaction. */
+	void CancelActiveActionsForStun();
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
 	void ResetEncounterTransientState();
 	void RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot);
