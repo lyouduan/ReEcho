@@ -8,9 +8,9 @@
 - 实现编写方（AI 侧）：`Unassigned`。
 - 任务状态：`Ready`。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@1544d98831c7015eb199e3f19725ea16fd54b326`。
+- 本地规划 / 实现基线：`origin/main@31da9d08`（Plan 121 初版基线为 `1544d988`；公共语义扩展发布前已审计并前移）。
 - 本地实现方式（可选，仅作交接说明）：按当前对话确认使用本任务专属 worktree；不得在主工作区直接实现。
-- 依赖 / 阻塞：源序列位于 `F:/MiniGame/兔子出生/`、`F:/MiniGame/史莱姆出生/`、`F:/MiniGame/好羊出生序列/`、`F:/MiniGame/好狐狸出生序列/`；执行机必须可读取这些目录并可独占运行 Unreal Editor/Commandlet。
+- 依赖 / 阻塞：源序列位于 `F:/MiniGame/兔子出生/`、`F:/MiniGame/史莱姆出生/`、`F:/MiniGame/好羊出生序列/`、`F:/MiniGame/好狐狸出生序列/`；执行机必须可读取这些目录并可独占运行 Unreal Editor/Commandlet。Plan114 已修改主模块音频接线、`MOD-ReEcho.md` 与精选预构建包；本 Plan 实现需从最新 main 组合适配并重建，不得恢复旧文档或二进制。
 - Writes: `Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/ReEcho2DAnimationTags.{h,cpp}`、`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.{h,cpp}`、`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`、`Source/ReEcho/Private/Tests/ReEcho2DAnimationTests.cpp`、`Content/ReEcho/DataAsset/Common/Animation2D/SM2D_DefaultCharacter.uasset`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Born/**`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Flipbooks/*Born*.uasset`、`Content/ReEcho/DataAsset/Enemy/Profiles/{DA_Enemy_RabbitDoll,DA_Enemy_Slime,DA_Enemy_GoatPriest,DA_Enemy_Fox}.uasset`、`shared/CODEBASE_MAP/modules/{MOD-ReEchoPresentation,MOD-ReEcho}.md`、本 Plan 执行记录。
 - Stable Reads: `plans/82-animation2d-asset-cleanup.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/**`、四种怪物现有动画目录与 Profile、`scripts/ue/audit_plan82_animation_assets.py`、相邻导入/修复脚本。
 - 影响模式：`Exclusive`。
@@ -45,7 +45,7 @@
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@1544d98831c7015eb199e3f19725ea16fd54b326`。
+- 基线分支/提交：`origin/main@31da9d08`；外部传入 Plan114 音频实现与 Plan122 已审计，未触碰 AnimationTags、EnemyActor、目标 Profile/Born 目录，`MOD-ReEcho.md` 和最终预构建包存在组合耦合但无产品冲突。
 - 引擎/构建可用性：执行前检查 Git-common-dir Unreal 锁与 `UnrealEditor` 进程；任何需要关闭 Editor 的命令先请用户保存并关闭。
 - 现有聚焦测试结果：Executor 的 UE 回读证明当前基线未注册 `Animation.Born`、四个生产 Profile 均无 Born Clip；Rabbit 旧 Born 为 4 FPS、6 帧、Center Pivot、PPU 1、Translucent。该事实触发原 Plan 停止条件，用户已确认扩展。
 - 共享契约 / 难合并资源风险：四个 Profile 与 Paper2D `.uasset` 为二进制独占写面；发布前必须对远端同路径变化做物理及逻辑审计，禁止静默覆盖。
