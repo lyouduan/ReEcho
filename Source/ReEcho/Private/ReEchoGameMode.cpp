@@ -860,9 +860,39 @@ void AReEchoGameMode::GMGotoBoss()
 		return;
 	}
 
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[BossVictoryTrace][GMGotoBoss] before jump currentEncounter=%d bossEncounter=%d roster=%d "
+	            "encounterTime=%.3f"),
+	       RunSubsystem->EncounterIndex,
+	       BossEncounterIndex,
+	       EnemyRoster ? EnemyRoster->GetEntries().Num() : -1,
+	       Director ? Director->EncounterTime : -1.0f);
 	RunSubsystem->EncounterIndex = BossEncounterIndex - 1;
 	BeginNextEncounter();
 	const bool bStartedBossEncounter = RunSubsystem->EncounterIndex == BossEncounterIndex && IsBossEncounter();
+	int32 PendingBossBatchCount = 0;
+	int32 PendingBossLocationCount = 0;
+	for (const FReEchoPendingSpawnBatchState& Pending : PendingSpawnBatches)
+	{
+		if (Pending.EnemyRole == TEXT("Boss"))
+		{
+			++PendingBossBatchCount;
+			PendingBossLocationCount += Pending.Locations.Num();
+		}
+	}
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[BossVictoryTrace][GMGotoBoss] after jump encounter=%d isBossEncounter=%s roster=%d "
+	            "pendingBossBatches=%d pendingBossLocations=%d scheduler=%d/%d encounterTime=%.3f"),
+	       RunSubsystem->EncounterIndex,
+	       bStartedBossEncounter ? TEXT("true") : TEXT("false"),
+	       EnemyRoster ? EnemyRoster->GetEntries().Num() : -1,
+	       PendingBossBatchCount,
+	       PendingBossLocationCount,
+	       EncounterWaveScheduler.GetNextEventIndex(),
+	       EncounterWaveScheduler.GetEventCount(),
+	       Director ? Director->EncounterTime : -1.0f);
 	PrintGMResult(bStartedBossEncounter
 	                  ? FString::Printf(TEXT("Started Boss encounter %d."), BossEncounterIndex)
 	                  : FString::Printf(TEXT("Failed to start Boss encounter %d."), BossEncounterIndex),
@@ -2218,6 +2248,21 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 {
 	for (const FReEchoScheduledSpawnEvent& Event : EncounterWaveScheduler.AdvanceTo(EncounterSeconds))
 	{
+		if (Event.EnemyRole == TEXT("Boss"))
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[BossVictoryTrace][SpawnEvent] type=%s wave=%s enemy=%s processTime=%.3f "
+			            "eventTime=%.3f spawnTime=%.3f scheduler=%d/%d"),
+			       Event.Type == EReEchoScheduledSpawnEventType::Warning ? TEXT("Warning") : TEXT("Commit"),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyId.ToString(),
+			       EncounterSeconds,
+			       Event.EventSeconds,
+			       Event.SpawnSeconds,
+			       EncounterWaveScheduler.GetNextEventIndex(),
+			       EncounterWaveScheduler.GetEventCount());
+		}
 		if (Event.Type == EReEchoScheduledSpawnEventType::Warning)
 		{
 			PrepareScheduledSpawnBatch(Event);
@@ -2386,9 +2431,14 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 	}
 	const FReEchoPendingSpawnBatchState Pending = PendingSpawnBatches[PendingIndex];
 
+	int32 SuccessCount = 0;
 	for (int32 Index = 0; Index < Pending.Locations.Num(); ++Index)
 	{
-		if (!SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex))
+		if (SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex))
+		{
+			++SuccessCount;
+		}
+		else
 		{
 			UE_LOG(LogTemp,
 			       Error,
@@ -2398,6 +2448,20 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 			       Index,
 			       *Pending.EnemyId.ToString());
 		}
+	}
+	if (Pending.EnemyRole == TEXT("Boss"))
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[BossVictoryTrace][BossCommit] encounter=%d wave=%s enemy=%s requested=%d success=%d "
+		            "rosterAfter=%d encounterTime=%.3f"),
+		       RunSubsystem->EncounterIndex,
+		       *Pending.WaveId.ToString(),
+		       *Pending.EnemyId.ToString(),
+		       Pending.Locations.Num(),
+		       SuccessCount,
+		       EnemyRoster ? EnemyRoster->GetEntries().Num() : -1,
+		       Director ? Director->EncounterTime : -1.0f);
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
@@ -4116,8 +4180,15 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 	if (!bEncounterTransitioning && IsBossEncounter())
 	{
 		bool bEncounterDefeated = true;
+		int32 BossEntryCount = 0;
+		int32 LivingBossCount = 0;
 		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 		{
+			if (Entry.Archetype == EReEchoEnemyArchetype::Boss)
+			{
+				++BossEntryCount;
+				LivingBossCount += Entry.bAlive ? 1 : 0;
+			}
 			if (Entry.Archetype == EReEchoEnemyArchetype::Boss && Entry.bAlive)
 			{
 				bEncounterDefeated = false;
@@ -4126,6 +4197,32 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 		if (bEncounterDefeated)
 		{
+			int32 PendingBossBatchCount = 0;
+			int32 PendingBossLocationCount = 0;
+			for (const FReEchoPendingSpawnBatchState& Pending : PendingSpawnBatches)
+			{
+				if (Pending.EnemyRole == TEXT("Boss"))
+				{
+					++PendingBossBatchCount;
+					PendingBossLocationCount += Pending.Locations.Num();
+				}
+			}
+			const UReEchoRunSubsystem* TraceRunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+			UE_LOG(LogReEcho,
+			       Error,
+			       TEXT("[BossVictoryTrace][VictoryCandidate] encounter=%d encounterTime=%.3f roster=%d "
+			            "bossEntries=%d livingBosses=%d pendingBossBatches=%d pendingBossLocations=%d "
+			            "scheduler=%d/%d clearedBefore=%s"),
+			       TraceRunSubsystem ? TraceRunSubsystem->EncounterIndex : -1,
+			       Director ? Director->EncounterTime : -1.0f,
+			       EnemyRoster ? EnemyRoster->GetEntries().Num() : -1,
+			       BossEntryCount,
+			       LivingBossCount,
+			       PendingBossBatchCount,
+			       PendingBossLocationCount,
+			       EncounterWaveScheduler.GetNextEventIndex(),
+			       EncounterWaveScheduler.GetEventCount(),
+			       bEncounterClearedByDefeat ? TEXT("true") : TEXT("false"));
 			// [EncounterTimer] Boss 被提前击败：真实计时尚未到 0 即结束，剩余 > 0 属预期。
 			UE_LOG(LogReEcho,
 			       Warning,

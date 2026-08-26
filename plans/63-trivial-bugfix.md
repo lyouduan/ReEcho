@@ -209,3 +209,10 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **文档审阅 / Documentation review**：`MOD-ReEcho` 与 `MOD-ReEchoEnemies` 已更新兔子双技能轨迹、固定单发半径和 EnemyHost 所有权；`MOD-ReEchoVFX` 已更新逐球事件数量与固定视觉尺寸契约；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑、依赖方向和稳定路由标识未变化。
 - **状态 / Status**：Closed。用户已确认两种兔子技能的单发尺寸一致并授权发布。
 - **发布集成 / Release integration**：取得 `main-publish-lock` 后合入 `origin/main@402b6d22`；传入的伤害数字、元素反应来源、狐狸冲撞、首波预警和 Plan116 与本候选无源码/数据逻辑冲突，只有精选预构建包发生预期二进制冲突并由最终组合源码完整重生。Development Editor `-FullRebuild` 100/100 通过，精选包源码指纹 `aae735c39d73`；最终组合上的 `ReEcho.Player.HurtCollisionIgnore` 1/1、`ReEcho.Enemies.Host` 5/5、XLSX 同步测试 18/18、生产数据一致性、项目校验、预构建一致性和 `git diff --check` 全部通过。
+
+### #23 — `GMGotoBoss` 进入第八关后立即获胜
+
+- **现象 / Symptom**：在正常遭遇中执行 `GMGotoBoss`，界面进入第八关后未与羊 Boss 战斗即直接显示胜利。
+- **诊断假设 / Diagnostic hypothesis**：Plan115 将零秒首波的 Commit 延后到完整 `WarningLeadSeconds`；第八关的 Boss 因此先进入预警 Pending，而既有 Boss 胜利门在同一窗口看到名册中没有存活 Boss，可能将“尚未生成”误判为“已被击败”。
+- **本轮改动 / Diagnostic changes**：仅在 `ReEchoGameMode.cpp` 增加 `[BossVictoryTrace]` 诊断链，记录 `GMGotoBoss` 前后状态、Boss Warning/Commit、生成成功数、Roster/Pending/Scheduler 以及胜利候选门的全部条件；不修改任何出生、战斗或结算行为。
+- **状态 / Status**：InProgress。等待用户 PIE 复现并回传 `Saved/Logs/ReEcho.log` 中的 `[BossVictoryTrace]` 证据后实施最小修复；未获用户认可不推送。
