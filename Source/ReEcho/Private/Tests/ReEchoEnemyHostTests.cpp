@@ -96,6 +96,14 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Immediate post-commit damage changes health"),
 	          Source->GetCombatantComponent()->CurrentHealth,
 	          HealthBeforeImmediateHit - 1.0f);
+	FReEchoEnemyLogicSnapshot PresentationTransform = Source->GetEnemyLogicComponent()->GetSnapshot();
+	PresentationTransform.Phase = EReEchoEnemyBehaviorPhase::Transforming;
+	Source->GetEnemyLogicComponent()->RestoreSnapshot(PresentationTransform);
+	FReEchoHitIntent TransformingHit;
+	TransformingHit.RawDamage = 2.0f;
+	TestEqual(TEXT("Ordinary presentation-only transformation accepts incoming damage"),
+	          Source->ModifyIncomingRawDamage(TransformingHit),
+	          2.0f);
 	Source->SetEnemyRoster(Roster);
 	TestEqual(TEXT("Host registers into the single roster"), Roster->GetLivingEnemyCount(), 1);
 	TestEqual(TEXT("Legacy host kind is projected from EnemyLogic"), Source->GetKind(), EReEchoEnemyKind::Bomber);

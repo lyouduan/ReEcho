@@ -624,10 +624,11 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 
 float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
-	if (EnemyLogic && EnemyLogic->GetSnapshot().Phase == EReEchoEnemyBehaviorPhase::Transforming)
+	if (EnemyLogic && EnemyLogic->GetSnapshot().Phase == EReEchoEnemyBehaviorPhase::Transforming &&
+	    EnemyLogic->GetDefinition().Phase2.TriggerMode == EReEchoEnemyPhase2TriggerMode::HealthThreshold)
 	{
-		// The first depleted health bar is held at one survivable point until phase completion refills the authored
-		// second-phase maximum. The logic phase is the durable gate, so pause/save restore cannot expose that point.
+		// A blood-depleted Boss is held at one survivable point until phase completion refills the authored second
+		// health bar. Ordinary AttackCountOrRange transitions are presentation-only and continue accepting damage.
 		return 0.0f;
 	}
 	if (!EnemyLogic || !EnemyLogic->GetDefinition().bUsesDirectionalShield)
