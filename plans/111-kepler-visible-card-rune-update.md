@@ -230,6 +230,7 @@
 - 2026-08-26：按用户“冲突完全采用新表”的最终口径重新同步最新外部工作簿。角色以`角色体系J`、武器以`武器体系W`、导电以`元素体系Y`、卡牌以`构筑体系G`为权威；旧表和旧代码中的冲突数值全部被覆盖，并回写构筑Sheet中的角色摘要以消除新表内部冲突。
 - 2026-08-26：完成最新表对应运行时更新：角色初始属性及贤者每5组/猎人暴伤+30%，长剑/镰刀/枪攻速、倍率与范围，导电200cm，以及`时距共鸣`每200cm增加4%的阶梯伤害。SaveVersion升至22，并为免费三选一及各商店Tier卡组保存“本组已展示历史”，逐槽刷新不会重新刷出本组此前展示过的卡。
 - 2026-08-26：将用户提供的“连接，连接！”图导入SourceArt与UE纹理`T_UI_CardIcon_G_2_30`；源图与导入源SHA256一致，临时UE工程验证纹理可加载且尺寸为512×512。
+- 2026-08-26：发布前审计并合入`origin/main@fbfa8cc9`。传入范围包含Plan112-119、战斗/Boss修复、伤害数字与元素反应表现；物理冲突集中在Run卡牌授予、Cards结果结构、Combatant生命接口、模块文档和精选二进制。组合保留远端的`HealthAdjustment`/血肉铸锋实时回满、GMGod伤害表现与完整StatBlock同步，同时保留Plan111的符文清空事务、超额生命和卡组展示历史；精选二进制不二选一，统一在最终组合上FullRebuild。
 
 ### 证据
 
@@ -245,6 +246,7 @@
 - `Run-Automation.cmd -Filter ReEcho.Weapons.Runes` 与无编译直启均在测试发现前被本机 UE 5.8 `ValidatePlatforms -AllPlatforms` 的 LinuxArm64/VisionOS `SDK.json MainVersion` 环境门禁阻断；新增断言已被 UHT/UBT 编译，但本轮不冒充运行通过。
 - 最新策划源与生产工作簿已通过artifact-tool全公式错误扫描（0项）和关键Sheet渲染目检；生产Sheet保护已恢复。`sync_xlsx_to_csv.py --check`、18项同步器Python测试、`validate_project.py`和`git diff --check`通过。
 - UE 5.8 Development Editor构建通过并刷新精选预构建包（BuildId `55116800`，source fingerprint `ffe624ad0d10`）。绕开本机跨平台SDK发现门禁后，聚焦自动化实际运行通过：时距共鸣阶梯、商店卡组刷新历史、免费三选一刷新历史、全部角色、元素反应及存档连续性、武器攻击步骤和宝石伤害矩阵。
+- 最终组合候选UE 5.8 Development FullRebuild 94/94通过，精选包BuildId `55116800`、source fingerprint `0671f740aa10`；XLSX/CSV同步、18项同步器Python测试、项目校验、预构建包校验和`git diff --check`通过。聚焦自动化实际运行通过：`ReEcho.GAS.HealthAdjustmentPreservesTransientState`、`ReEcho.Combat.OverhealCapacity`、`ReEcho.Cards.Grant.BloodForgingFillsHealth`、`ReEcho.Cards.Runtime.ProximityAndAlternatingSources`、`ReEcho.Shop.RefreshesWeaponRunesAndCardSlotsIndependently`、`ReEcho.Traits.FreeChoiceSlotsRefreshIndependently`、`ReEcho.Weapons.Gems.DamageCoefficientMatrix`。
 
 ### 剩余风险
 
