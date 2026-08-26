@@ -46,6 +46,7 @@
 | 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
+| Encounter 结算表现状态 | `AReEchoGameMode` | 单场结束到局间 UI | 只投影 Director 剩余时间；普通计时关卡在 03 时启动全屏效果与流式序列，00 时才冻结战斗并允许完成/失败幂等进入现有抽卡或商店页 |
 | Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建并原子激活可受击 Enemy Host；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
 | 当前 Arena 场景与 SceneId 注册 | `AReEchoArenaSceneActor` 注册表；Stage CSV `SceneId` 为选择权威 | World/Stage | GameMode 在初始、恢复和跨 Stage 入口先应用场景；同 Stage 不重建，失败阻止 Encounter 开始 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
@@ -234,6 +235,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 生产波次结构：`Encounter.1` 至 `Encounter.8` 都按 `WaveIndex=1/2/3` 在 `0/10/20` 秒通过同一通用 WaveScheduler 触发；`Encounter.8` 只有 Wave.1 携带 `BossEnemyId=M_SHEEP`，Wave.2/3 是不含 Boss 的增援波。Boss 通过 `Spawn.Boss` 的双锚距离环解析出生位置，不再使用 GameMode 固定世界坐标；Boss 不计入该关 `ActiveUnitLimit`，其预留位置也不挤占普通增援容量。关卡仍以 `BossOrPlayerDeath` 结束，禁止在后两波重复配置或生成 Boss。
 - 出生参数：SpawnResolver/Host 保留准确 `EncounterIndex`，使同一 EnemyId 在编译 Definition 时选择 `enemy_combat_stats` 的对应场次覆盖；不得把波次序号或数组下标误作 EncounterIndex。
 - 连续性：同 Stage 保留存活 Enemy Host 的对象身份、EnemyId、SpawnIndex、Transform、生命和持久逻辑状态，并保留玩家位置；局间显式冻结 Host、取消旧攻击阶段和逻辑投射物，不消耗玩法冷却。跨 Stage 清理旧 Roster，并用 Arena Scene 的中心与玩法平面解析入口。玩家生命/属性在下一 Encounter 初始化时的既有语义不由此契约改变。
+- 结算表现：每个普通限时 Encounter 在 Director 剩余时间进入 3 秒阈值、HUD 显示 03 时只投影全屏后处理强度，战斗继续；权威倒计时到 0 后 GameMode 立即冻结局间状态，再让 `UReEchoEncounterTransitionWidget` 从第 0 帧播放 40 FPS H.264 MP4。媒体到达末帧后才进入 Run 指定的 TraitChoice 或 Shop；失败走同一幂等后局终点。Boss、死亡和非计时结束保持原流程。`GMTransition3` 通过 Director 权威时钟提供完整预览。
 - 测试：`Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp` 的 `ReEcho.StageTransition.*` 覆盖生产矩阵、非法边界与原 Host 局间连续性。
 - 禁止：持有构筑、货币、存档或 Widget 状态。
 

@@ -296,6 +296,7 @@ int32 UReEchoCombatVfxComponent::GetProjectileVisualCountForTests() const
 {
 	return ProjectileVisuals.Num();
 }
+#endif
 
 bool UReEchoCombatVfxComponent::SetNiagaraSystemSpriteFacingOwnerUp(UNiagaraSystem* System)
 {
@@ -404,6 +405,7 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemMeshFacingCameraPlane(UNiagaraSy
 #endif
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
 int32 UReEchoCombatVfxComponent::GetBossProjectileEffectCountForTests() const
 {
 	return BossProjectileEffects.Num();

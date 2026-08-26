@@ -16,9 +16,11 @@ class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
 class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
+class UReEchoEncounterTransitionWidget;
 class UReEchoInventoryShopWidget;
 class UReEchoRunSubsystem;
 enum class EReEchoInventoryShopMode : uint8;
+enum class EReEchoRunPhase : uint8;
 class UReEchoLoadoutSelectionWidget;
 class UReEchoPlayerHudWidget;
 class UReEchoRestartWidget;
@@ -73,6 +75,9 @@ public:
 	void GMWeather(const FString& Scene = TEXT("Clear"));
 	UFUNCTION(Exec)
 	void GMEndEncounter();
+	/** Advances the active ordinary encounter to three seconds remaining so its transition can be previewed. */
+	UFUNCTION(Exec)
+	void GMTransition3();
 	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
@@ -209,6 +214,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
 	UPROPERTY()
+	TObjectPtr<UReEchoEncounterTransitionWidget> EncounterTransitionWidget;
+	UPROPERTY()
 	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
 
 	UPROPERTY()
@@ -227,8 +234,19 @@ private:
 	TObjectPtr<UReEchoTraitCardChoiceWidget> TraitCardChoiceWidget;
 	int32 ActiveShopCardPackTier = 0;
 	bool bEncounterTransitioning = false;
-	/** #9 倒计时归零到弹出选卡之间的短暂停顿定时器（让"0"可见）。 */
 	FTimerHandle EncounterEndSettleTimerHandle;
+	enum class EEncounterTransitionPresentationState : uint8
+	{
+		None,
+		CountdownPostProcess,
+		PlayingSequence,
+		FadingToCardChoice,
+		Completed
+	};
+	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
+	    EEncounterTransitionPresentationState::None;
+	float EncounterSequenceElapsedSeconds = 0.0f;
+	bool bEncounterIntermissionPreparedForTransition = false;
 	bool bEncounterClearedByDefeat = false;
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
@@ -251,6 +269,11 @@ private:
 	/** #9 倒计时显示到 0 后，再收起 HUD 并弹出选卡/结算界面的延时回调。 */
 	UFUNCTION()
 	void ProceedToPostEncounterUI();
+	void UpdateEncounterTransitionPresentation(float DeltaSeconds);
+	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
+	bool BeginEncounterEndSequence();
+	void CompleteEncounterEndSequence(bool bFadeToCards);
+	void ResetEncounterTransitionPresentation();
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
@@ -383,7 +406,13 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
 	friend class FReEchoGameModeBossVictoryGateTest;
+	friend class FReEchoEncounterTransitionPolicyTest;
 #endif
+	static bool ShouldStartEncounterTransition(float RemainingTime, bool bBossEncounter, bool bTransitioning);
+	static bool ShouldCompleteEncounterTransition(bool bTransitioning,
+	                                              bool bMediaFailed,
+	                                              bool bMediaFinished,
+	                                              float ElapsedSeconds);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);

@@ -22,6 +22,8 @@ public class ReEcho : ModuleRules
 			"ReEchoPresentation",
             "ReEchoWeapons",
             "Paper2D",
+			"MediaAssets",
+			"ImgMedia",
             "UMG",
             "Slate",
             "SlateCore"
@@ -48,6 +50,7 @@ public class ReEcho : ModuleRules
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/enemy_abilities.csv", StagedFileType.NonUFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/boss_phases.csv", StagedFileType.NonUFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/audio_events.csv", StagedFileType.NonUFS);
+		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov", StagedFileType.NonUFS);
 
         // One-way dependency: gameplay -> ReEchoAudio audio runtime module.
         // ReEchoAudio must never depend back on ReEcho (see Plan33).

@@ -10,6 +10,7 @@
 
 class UAbilitySystemComponent;
 class UBoxComponent;
+class UBillboardComponent;
 class UReEcho2DAnimationComponent;
 class UReEcho2DFrameCollisionDriver;
 class UReEcho2DPresentationController;

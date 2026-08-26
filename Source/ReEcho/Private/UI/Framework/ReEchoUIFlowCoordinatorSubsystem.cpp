@@ -20,7 +20,7 @@ UUserWidget* UReEchoUIFlowCoordinatorSubsystem::OpenScreen(APlayerController* Pl
 	UUserWidget* Widget = UIManager ? UIManager->CreateScreen(PlayerController, Screen) : nullptr;
 	BindAudioFeedback(Widget, Screen);
 	if (Widget && Screen != EReEchoUIScreen::Weather && Screen != EReEchoUIScreen::EncounterHud &&
-	    Screen != EReEchoUIScreen::PlayerHud)
+	    Screen != EReEchoUIScreen::PlayerHud && Screen != EReEchoUIScreen::EncounterTransition)
 	{
 		UIManager->ConfigureMenuInput(PlayerController, Widget, bUIOnly);
 		if (bPauseWorld)

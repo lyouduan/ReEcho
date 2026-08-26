@@ -25,6 +25,7 @@
 - 商店/背包页允许 `WBP_ReEchoRestart` 以更高 Pause 层覆盖：按 `P` 不关闭商店，不触发战后推进或回响存储门禁；关闭 Pause 后必须重新聚焦商店并继续保持世界暂停与菜单能力阻挡。
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。
+- `UReEchoEncounterTransitionWidget` 是 ZOrder 10000 的非交互视口最上层 Screen：普通计时关卡在 HUD 显示 03→01 时只消费 GameMode 投影的规范化强度绘制屏幕空间叠色；权威时间到 00 后才通过 FileMediaSource/MediaTexture/UI Material 从第 0 帧播放 `Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov`（Hap Alpha、RGBA、121 帧、40 FPS）。视频非循环并保留原 PNG Alpha，以 Fill 等比居中裁切；到达末帧后覆盖层 0.4 秒淡出，露出 TraitChoice 或 Shop。Widget 只报告媒体完成/失败，不生成卡牌、不推进 Run、不拥有 Encounter 时间。
 - Player HUD 显式接收当前玩家的 Combatant 与 CombatEvents：`OnHurt` 仅触发瞬时受击红光，生命变化仅更新可配置的低血量底色。`UReEchoPlayerScreenFeedbackWidget` 独占合成、钳制、重触发和死亡清理等表现状态；`WBP_ReEchoPlayerScreenFeedback` 的 Class Defaults 是阈值、强度、曲线指数、呼吸和材质参数的 Editor 调参表面。HUD 硬引用并构造该 WBP Class，Widget 硬引用 `/Game/ReEcho/Materials/UI/M_UI_PlayerHurtVignette`，保证 cook 收集；材质缺失时使用不影响玩法的原生左右边缘 fallback。
 - Plan93/102 战斗常驻 HUD 以两个 WBP 为视觉权威：Player HUD 用 `PlayerHealthFill` 映射真实生命比例并显示 Run 的只读 TimeShards；免费选卡暂停期的单槽刷新扣费成功后，GameMode 立即更新该 HUD 投影，不依赖暂停中不运行的普通 Tick；Encounter HUD 显示 `第 N 关`、零补齐 `MM:SS`，并把现有真实 `UReEchoMinimapCanvasWidget` 包进交付回响框。倒计时不保留 `ArtTimeReadout` 黑色半透明底块；`ArtClockNeedle` 的 WBP Pivot 位于源图顶部轴心，C++ 按 Encounter Director 剩余/总时长把它从右经下半圆转到左。Minimap Canvas 底板透明且不绘制内层竞技场边框，保留轨迹，并用 Player/Echo Presentation Profile 的对应头像绘制实时位置；缺图时才降级为旧色点。参考图底部技能栏已被产品废弃，不进入 WBP 或运行时纹理；Widget 不写 Run、不复制遭遇时钟，也不伪造技能状态。
 - 世界空间伤害跳字由 `AReEchoDamageNumberActor` 硬引用 `/Game/ReEcho/Fonts/DamageNumbers/F_DamageNumber_MFYuYue_Font`，保证 Cook 收集；对应 OTF 与授权说明归档在 `Content/SourceArt/UI/CombatHud/DamageNumbers/`，只允许用于非商用伤害数字，不得当作全局 UI 字体复用。Enemy Presentation 只读 `FReEchoDamageEvent::ReactionBehaviorId` 选择反应色：Vaporize `#A5CBF3`、Conduct `#EBC02C`、Burn `#E86A12`、Growth `#92C039`、Enhance `#F1B84C`；无反应标识时回退到既有元素色/物理白色，不重新推导反应。运行时统一生成 `/Game/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber`；其 `Damage Number|Animation` Class Defaults 是持续时间、上漂速度和起止缩放的美术调参入口，缺失时才回退原生 Actor 默认值。跳字生命周期内保持不透明，只通过缩放表现变化，到期直接销毁。Actor 继续使用专用 `M_DamageNumberTextOpacity` 保留 UE 默认文字材质的距离场字形重建；`scripts/ue/author_damage_number_material.py` 可幂等重建该材质并以真实 SM5 编译错误为失败，`scripts/ue/author_damage_number_blueprint.py` 负责创建并验证调参蓝图。该动态加载蓝图目录必须由 Packaging AlwaysCook 收集。
@@ -55,6 +56,7 @@
 | 修改页面行为或绑定 | 对应 `Source/ReEcho/Public/UI/*Widget.h` | 配对的 `Source/ReEcho/Private/UI/*Widget.cpp` |
 | 修改玩家受伤/低血量屏幕反馈 | `ReEchoPlayerHudWidget.*` | `WBP_ReEchoPlayerScreenFeedback`、`M_UI_PlayerHurtVignette`、两个 `scripts/ue/author_plan70_*` 作者ing脚本 |
 | 修改战斗常驻 HUD | `WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` | `ReEchoPlayerHudWidget.*`、`ReEchoEncounterHudWidget.*`、`ReEchoMinimapCanvasWidget.*`、`Content/SourceArt/UI/CombatHud/Plan{93,102}/` |
+| 修改关末倒计时/序列过渡 | `ReEchoEncounterTransitionWidget.*` | `ReEchoGameMode` 结算状态、`Content/Movies/EncounterTransition/EncounterTransition.mp4`、MediaAssets |
 | 修改商店卡牌规则展示 | `ReEchoInventoryShopWidget.*` | `ReEchoGameMode::RefreshShopPresentation`、`UReEchoRunSubsystem` 商店命令 |
 | 修改页面创建、层级和实例 | `ReEchoUIManagerSubsystem.*` | `UI/Framework/ReEchoUIScreenTypes.h` |
 | 修改焦点、输入或暂停流程 | `UI/Framework/ReEchoUIFlowCoordinatorSubsystem.*` | `ReEchoGameMode` 类型化端点 |
