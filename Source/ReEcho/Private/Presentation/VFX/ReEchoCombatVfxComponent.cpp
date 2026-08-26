@@ -23,6 +23,7 @@
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "ReEcho.h"
+#include "ReEchoGameMode.h"
 #include "TimerManager.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
@@ -483,6 +484,15 @@ void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
                                               FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (BossActiveEffectRemainingSeconds > 0.0f)
+	{
+		BossActiveEffectRemainingSeconds = FMath::Max(0.0f, BossActiveEffectRemainingSeconds - DeltaTime);
+		if (BossActiveEffectRemainingSeconds <= 0.0f)
+		{
+			StopEffect(BossTelegraphEffect);
+			StopEffect(BossActiveEffect);
+		}
+	}
 	for (int32 Index = ReverseMeleePlaybacks.Num() - 1; Index >= 0; --Index)
 	{
 		FReverseMeleePlayback& Playback = ReverseMeleePlaybacks[Index];
@@ -655,6 +665,14 @@ void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
 	OutEnd = Origin + FVector::ForwardVector * FMath::Max(0.0f, LengthCm);
 }
 
+FVector UReEchoCombatVfxComponent::ResolveBossBeamGroundOrigin(const FVector& LockedWarningCenter,
+                                                               const float GameplayPlaneWorldZ)
+{
+	FVector GroundOrigin = LockedWarningCenter;
+	GroundOrigin.Z = GameplayPlaneWorldZ;
+	return GroundOrigin;
+}
+
 FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredScale,
                                                         const FVector& AttachmentWorldScale,
                                                         const bool bPreserveWorldSize)
@@ -776,7 +794,8 @@ bool UReEchoCombatVfxComponent::HasMeleePlayDirectionParameter(const UNiagaraSys
 	    });
 }
 
-UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
+UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent,
+                                                            const FVector& GroundOrigin) const
 {
 	UNiagaraSystem* System = ResolveSystem(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting));
 	UWorld* World = GetWorld();
@@ -786,7 +805,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	}
 	FVector Start = FVector::ZeroVector;
 	FVector End = FVector::ZeroVector;
-	ResolveBossBeamWorldEndpoints(Intent.LockedTargetLocation, Intent.LockedDirection, Intent.LengthCm, Start, End);
+	ResolveBossBeamWorldEndpoints(GroundOrigin, Intent.LockedDirection, Intent.LengthCm, Start, End);
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 	    World,
 	    System,
@@ -808,6 +827,36 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 	Effect->Activate(true);
 	return Effect;
+}
+
+FVector UReEchoCombatVfxComponent::ResolveBossTargetGroundLocation(const FReEchoBossIntent& Intent) const
+{
+	if (const AActor* Target = Intent.Target.Get())
+	{
+		TArray<USceneComponent*> SceneComponents;
+		Target->GetComponents(SceneComponents);
+		for (const FName PreferredGroundRoot : {FName(TEXT("GroundRoot")), FName(TEXT("FootRoot"))})
+		{
+			for (const USceneComponent* Component : SceneComponents)
+			{
+				if (Component && Component->GetFName() == PreferredGroundRoot)
+				{
+					return ResolveBossBeamGroundOrigin(Intent.LockedTargetLocation,
+					                                   Component->GetComponentLocation().Z);
+				}
+			}
+		}
+	}
+	FVector GroundLocation = Intent.LockedTargetLocation;
+	if (const AReEchoGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr)
+	{
+		float GameplayPlaneWorldZ = GroundLocation.Z;
+		if (GameMode->TryGetActiveArenaGameplayPlaneZ(GameplayPlaneWorldZ))
+		{
+			GroundLocation = ResolveBossBeamGroundOrigin(GroundLocation, GameplayPlaneWorldZ);
+		}
+	}
+	return GroundLocation;
 }
 
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 SemanticValue,
@@ -983,6 +1032,7 @@ void UReEchoCombatVfxComponent::StopBossActionEffects()
 	StopEffect(BossChargingEffect);
 	StopEffect(BossTelegraphEffect);
 	StopEffect(BossActiveEffect);
+	BossActiveEffectRemainingSeconds = 0.0f;
 }
 
 void UReEchoCombatVfxComponent::RememberBossAbility(const int64 AttackSequence, const FName AbilityId)
@@ -1495,9 +1545,11 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	RememberBossAbility(Intent.Attack.Sequence, Intent.AbilityId);
 	if (bSkill03 && Intent.Type == EReEchoBossIntentType::ImpactResolved)
 	{
-		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact),
-		           Intent.LockedTargetLocation,
-		           Intent.LockedDirection);
+		const FVector* LockedGroundLocation = BossGroundLocationByAttackSequence.Find(Intent.Attack.Sequence);
+		const FVector ImpactLocation =
+		    LockedGroundLocation ? *LockedGroundLocation : ResolveBossTargetGroundLocation(Intent);
+		SpawnWorld(
+		    static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact), ImpactLocation, Intent.LockedDirection);
 		return;
 	}
 	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
@@ -1510,14 +1562,15 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		const EReEchoCombatVfxSemantic ChargingSemantic = bSkill02   ? EReEchoCombatVfxSemantic::GoatSkill02Charging
 		                                                  : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
 		                                                             : EReEchoCombatVfxSemantic::GoatSkill04Charging;
-		BossChargingEffect = SpawnAttached(static_cast<uint8>(ChargingSemantic),
-		                                   Intent.LockedDirection,
-		                                   bSkill02 ? ResolveBossWeaponVfxRoot() : ResolveAttackVfxRoot(),
-		                                   false);
+		BossChargingEffect = SpawnAttached(
+		    static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ResolveBossWeaponVfxRoot(), false);
 		if (bSkill03 || bSkill04)
 		{
+			const FVector GroundEffectLocation = ResolveBossTargetGroundLocation(Intent);
+			BossGroundLocationByAttackSequence.Add(Intent.Attack.Sequence, GroundEffectLocation);
+			const FVector TelegraphLocation = bSkill04 ? GroundEffectLocation : Intent.LockedTargetLocation;
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                 Intent.LockedTargetLocation,
+			                                 TelegraphLocation,
 			                                 Intent.LockedDirection,
 			                                 false);
 		}
@@ -1538,18 +1591,23 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		}
 		if (bSkill04)
 		{
+			const FVector* LockedGroundLocation = BossGroundLocationByAttackSequence.Find(Intent.Attack.Sequence);
+			const FVector GroundLocation =
+			    LockedGroundLocation ? *LockedGroundLocation : ResolveBossTargetGroundLocation(Intent);
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                 Intent.LockedTargetLocation,
+			                                 GroundLocation,
 			                                 Intent.LockedDirection,
 			                                 false);
 			StopEffect(BossActiveEffect);
-			BossActiveEffect = SpawnBossBeam(Intent);
+			BossActiveEffect = SpawnBossBeam(Intent, GroundLocation);
+			BossActiveEffectRemainingSeconds = BossActiveEffect ? FMath::Max(0.0f, Intent.ActiveSeconds) : 0.0f;
 		}
 		return;
 	}
 	if (Intent.Type == EReEchoBossIntentType::AbilityEnded)
 	{
 		StopBossActionEffects();
+		BossGroundLocationByAttackSequence.Remove(Intent.Attack.Sequence);
 	}
 }
 

@@ -79,6 +79,8 @@ public:
 	/** Converts the locked Boss beam contract into immutable world-space endpoints. */
 	static void ResolveBossBeamWorldEndpoints(
 	    const FVector& Origin, const FVector& LockedDirection, float LengthCm, FVector& OutStart, FVector& OutEnd);
+	/** Projects the locked warning center onto the Arena gameplay plane without changing its authoritative XY. */
+	static FVector ResolveBossBeamGroundOrigin(const FVector& LockedWarningCenter, float GameplayPlaneWorldZ);
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
 	static FVector
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
@@ -155,7 +157,7 @@ private:
 	TArray<UMaterialInterface*> ResolveRabbitProjectileGlowMaterials() const;
 	UNiagaraComponent*
 	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
-	UNiagaraComponent* SpawnBossBeam(const FReEchoBossIntent& Intent) const;
+	UNiagaraComponent* SpawnBossBeam(const FReEchoBossIntent& Intent, const FVector& GroundOrigin) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
@@ -164,6 +166,7 @@ private:
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
 	USceneComponent* ResolveEchoAuraVfxRoot() const;
+	FVector ResolveBossTargetGroundLocation(const FReEchoBossIntent& Intent) const;
 	/** Every character combat effect uses the global foreground band and remains above its owning presentation. */
 	int32 ResolveOwnerSortPriority() const;
 	int32 ResolveOwnerAuraSortPriority() const;
@@ -242,8 +245,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> BossActiveEffect;
+	float BossActiveEffectRemainingSeconds = 0.0f;
 
 	TMap<int64, FName> BossAbilityByAttackSequence;
+	TMap<int64, FVector> BossGroundLocationByAttackSequence;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> AttackVfxRoot;

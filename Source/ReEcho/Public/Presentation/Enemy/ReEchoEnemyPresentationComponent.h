@@ -90,6 +90,7 @@ public:
 	                         USceneComponent* InEffectsRoot,
 	                         USceneComponent* InBossWeaponRoot,
 	                         USceneComponent* InBossWeaponFacingRoot,
+	                         USceneComponent* InBossWeaponTipRoot,
 	                         UBillboardComponent* InBossWeaponSprite,
 	                         UBillboardComponent* InCharacterSprite,
 	                         UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -109,6 +110,8 @@ public:
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	/** Skill03 keeps gameplay at the locked impact point while its presentation descends into that point. */
 	static FVector ResolveBlinkSlamVisualOffset(float RemainingSeconds, float DurationSeconds, float StartHeightCm);
+	/** MoonStaff billboard pivot is centered, so its stable local tip is half the authored world length upward. */
+	static FVector ResolveBossWeaponTipOffset(float HeldLengthCm);
 #if WITH_DEV_AUTOMATION_TESTS
 	void ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event);
 #endif
@@ -178,6 +181,8 @@ private:
 	TObjectPtr<USceneComponent> BossWeaponRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> BossWeaponFacingRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> BossWeaponTipRoot;
 	UPROPERTY()
 	TObjectPtr<UBillboardComponent> BossWeaponSprite;
 	UPROPERTY()

@@ -59,6 +59,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
                                                             USceneComponent* InEffectsRoot,
                                                             USceneComponent* InBossWeaponRoot,
                                                             USceneComponent* InBossWeaponFacingRoot,
+                                                            USceneComponent* InBossWeaponTipRoot,
                                                             UBillboardComponent* InBossWeaponSprite,
                                                             UBillboardComponent* InCharacterSprite,
                                                             UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -74,6 +75,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	EffectsRoot = InEffectsRoot;
 	BossWeaponRoot = InBossWeaponRoot;
 	BossWeaponFacingRoot = InBossWeaponFacingRoot;
+	BossWeaponTipRoot = InBossWeaponTipRoot;
 	BossWeaponSprite = InBossWeaponSprite;
 	CharacterSprite = InCharacterSprite;
 	SequenceAnimation = InSequenceAnimation;
@@ -161,7 +163,7 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName Presenta
 void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName PresentationId)
 {
 	const bool bTimeGuard = PresentationId == TEXT("Enemy.TimeGuard");
-	if (!BossWeaponRoot || !BossWeaponFacingRoot || !BossWeaponSprite)
+	if (!BossWeaponRoot || !BossWeaponFacingRoot || !BossWeaponTipRoot || !BossWeaponSprite)
 	{
 		return;
 	}
@@ -196,6 +198,12 @@ void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName Presenta
 	BossWeaponSprite->SetTranslucentSortPriority(7);
 	BossWeaponSprite->SetRelativeTransform(FTransform::Identity);
 	BossWeaponSprite->SetRelativeScale3D(FVector(HeldLength / TextureAxisLength));
+	BossWeaponTipRoot->SetRelativeLocation(ResolveBossWeaponTipOffset(HeldLength));
+}
+
+FVector UReEchoEnemyPresentationComponent::ResolveBossWeaponTipOffset(const float HeldLengthCm)
+{
+	return FVector::UpVector * FMath::Max(0.0f, HeldLengthCm) * 0.5f;
 }
 
 void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)

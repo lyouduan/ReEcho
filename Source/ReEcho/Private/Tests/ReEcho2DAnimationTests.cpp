@@ -119,6 +119,7 @@ bool FReEcho2DAnimationStunPauseTest::RunTest(const FString& Parameters)
 	                                       nullptr,
 	                                       nullptr,
 	                                       nullptr,
+	                                       nullptr,
 	                                       Renderer,
 	                                       Controller,
 	                                       nullptr,
