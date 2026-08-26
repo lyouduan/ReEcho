@@ -81,6 +81,7 @@
 - `FoxDirection` 继续沿用原 Niagara 资产和 Windup 事件链，仅对新建的 Direction 组件实例覆盖局部 Fixed Bounds 为 `X/Y=[-500,500]、Z=[-650,350]`；未修改 `.uasset`、Profile、Blueprint 或玩法事件。
 - 新增 `ReEcho.Presentation.VFX.FoxDirectionRuntime`，通过真实 EnemyEvents → Combat Presentation → CombatVfx 链检查组件、系统实例、粒子、Renderer/材质、运行时 Bounds 和 Committed 清理。
 - 第三次本地人工返工按“箭头起始点以狐狸中心为准”收敛：FoxDirection 单独附着生产狐狸 Owner RootComponent，placement 保持零偏移，使组件原点精确等于 Actor/碰撞中心；不再从 Niagara 粒子内部位置猜测并添加 `+150/+300 cm` 补偿。Charging、FoxDash Trail、其 placement/lifecycle/资产保持 `0b339df4` 原样。
+- 用户进一步确认修改资产内部布局后，通过受支持的 Niagara Rapid Iteration API 将 `Kuang`、`Kuang002` 的 `InitializeParticle.Position Offset` 从 `(0,0,-150)` 精确改为 `(0,0,0)` 并由 Editor 保存 `NS_Fox_Rush_arrow`；`InitializeParticle.Position` 自身原本已是零。Direction 组件继续零偏移附着 Owner RootComponent，Charging 与 FoxDash Trail 不变。
 - `GMSpawnFox` 扩展为 `<count> [distance]`，数量钳制 `1..16`、距离钳制 `150..1000 cm`，按朝 Arena 中心的确定性 140 度弧线分散并逐只复用生产 `SpawnConfiguredEnemy("M_FOX")`；无参数与旧单个大距离参数兼容。
 - 帮助文本、`docs/GM_COMMANDS.md`、GameMode/VFX 模块文档和聚焦 GM 自动化同步更新。
 
@@ -94,6 +95,10 @@
 - 第三次仅供本地 PIE 的候选以 9-action Development 增量构建成功并刷新精选包，Build ID `55116800`、源码指纹 `8b9d0299bae7`；按用户要求未执行发布级 FullRebuild。
 - 同一增量二进制下 `ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-152855-pid19912.log`）。生产 `M_FOX` 运行读回为 `GameplayPlane/AttackVfxRoot/Charging Z=725`，`Actor/OwnerRoot/Direction component Z=855`，Direction attach parent 精确为 Owner RootComponent 且 relative location 为零；粒子只作观察，两个实例均为 `local Z=-150 → world Z=705`，未据此改变组件起点契约。
 - 第三次候选下 `ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-152950-pid30608.log`）；相对 `0b339df4` 的 Source/Config/Content/scripts patch 不含 `FoxDash`、`Trail` 或 `NS_Fox_Rush_Trail` token，Catalog、Charging/Trail 资产、狐狸 BP/Profile 与只读审计脚本均无差异。
+- 本次资产内部布局修复由 Editor API 完成：`ReEcho-session-20260826-160349-pid21900.log` 记录 `Kuang`、`Kuang002` 的 `InitializeParticle.Position Offset` 均由 `(0,0,-150)` 改为 `(0,0,0)` 并保存；独立正式读回 `ReEcho-session-20260826-161018-pid45492.log` 同时确认两个 emitter 的 `Position` 与 `Position Offset` 全部为零且资产可加载。
+- 移除临时 authoring seam 后，最终本地候选以 11-action Development 增量构建成功，精选包刷新为 Build ID `55116800`、源码指纹 `2b865291b92a`；未执行发布级 FullRebuild。
+- 最终增量二进制下 `ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-161332-pid24648.log`）：生产 `M_FOX` 仍为 `GameplayPlane/AttackVfxRoot/Charging Z=725`、`Actor/OwnerRoot/Direction component Z=855`，两个 emitter 各有 1 个粒子且均为 `local Z=0 → world Z=855`。`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-161427-pid33264.log`）。
+- `validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过；相对 `0b339df4` 的 Source/Config/Content/scripts patch 仍无 `FoxDash`、`Trail` 或 `NS_Fox_Rush_Trail` token，Charging/Trail 资产与狐狸生产数据无差异。本地候选未推送，仍等待 PIE 视觉验收。
 
 ### 剩余风险
 

@@ -178,6 +178,7 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	int32 TotalParticles = 0;
+	int32 PositionCheckedParticles = 0;
 	for (const FNiagaraEmitterInstanceRef& Emitter : SystemInstance->GetEmitters())
 	{
 		TotalParticles += Emitter->GetNumParticles();
@@ -194,6 +195,10 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 			                        *LocalParticlePosition.ToString(),
 			                        *WorldParticlePosition.ToString(),
 			                        *Direction->GetComponentLocation().ToString()));
+			TestEqual(TEXT("Fox Direction authored particle Local Z is zero"), LocalParticlePosition.Z, 0.0);
+			TestTrue(TEXT("Fox Direction particle starts at the Owner Root component origin"),
+			         WorldParticlePosition.Equals(Direction->GetComponentLocation(), KINDA_SMALL_NUMBER));
+			++PositionCheckedParticles;
 		}
 		AddInfo(FString::Printf(TEXT("Fox Direction emitter '%s': sim=%d state=%d particles=%d bounds=%s"),
 		                        *Emitter->GetEmitterHandle().GetUniqueInstanceName(),
@@ -271,6 +276,7 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 		}
 	}
 	TestTrue(TEXT("Fox Direction runtime simulation produces particles"), TotalParticles > 0);
+	TestTrue(TEXT("Fox Direction runtime test reads back authored particle positions"), PositionCheckedParticles > 0);
 
 	FReEchoEnemySpecialActionEvent Committed = Windup;
 	Committed.Type = EReEchoEnemySpecialActionEventType::ActionCommitted;
