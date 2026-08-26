@@ -34,6 +34,13 @@ EXPECTED_SHA256 = {
     "Design/Audio/Source/Formal/Variants/MusicEncounter/Stage_1.mp3": "e44508de4be1bfc786ed597afdb00dd510d5067b979ae07d1c62dbec4e5a70e4",
     "Design/Audio/Source/Formal/Variants/MusicEncounter/Stage_2.mp3": "65930d4240bc8ecec8a92609b81fddd26f595c64702fcf158b0e39c5b5c5d3bb",
     "Design/Audio/Source/Formal/Variants/MusicEncounter/Stage_3.mp3": "343d3efedd5c4547b71f6347028d3c8375d55e8aa920f4454e2c7e2e121da4c7",
+    "Design/Audio/Source/Formal/Variants/CombatReaction/Vaporize.wav": "1bdcae18d5b3dfc427825475ea004de26c86341197a3e58d972c6ae391113403",
+    "Design/Audio/Source/Formal/Variants/CombatReaction/Growth.mp3": "3238c130722f5283217ad995afe15df1751a79d6dfb58c5a673f0cec6cfc7577",
+    "Design/Audio/Source/Formal/Variants/CombatReaction/Conduct.mp3": "bd1ec8a4d162c05f887b8712c5efc9ee597e1f2694660d38352ea284244b96fa",
+    "Design/Audio/Source/Formal/Variants/CombatReaction/Enhance.mp3": "3cd21144e1e22d23fdd195bdb9ec11c862d85d3565ec97e770b790ca71301eae",
+    "Design/Audio/Source/Formal/Flow/Item_Pickup.wav": "99c0d76d045fc8632027cc488dc5688c7f813ae59e2af8e87a56478d4aa56e47",
+    "Design/Audio/Source/Formal/UI/UI_CardReveal.wav": "337704a5f34480edbfab4a23c251a41d860d2e997dcceabc7aff289b5fb55a33",
+    "Design/Audio/Source/Formal/UI/UI_RuneEquip.wav": "7fa98d17b43e40a5e0c71a41452276e816361aabe2ed24363d4e49da73d24705",
 }
 
 
@@ -48,8 +55,8 @@ def main() -> None:
         if actual != expected:
             errors.append(f"hash mismatch: {relative_path}: expected {expected}, found {actual}")
     if errors:
-        raise SystemExit("Plan114 formal audio source validation failed:\n" + "\n".join(errors))
-    print(f"[PASS] Plan114 formal audio sources verified: {len(EXPECTED_SHA256)} files")
+        raise SystemExit("Formal audio source validation failed:\n" + "\n".join(errors))
+    print(f"[PASS] Formal audio sources verified: {len(EXPECTED_SHA256)} files")
 
 
 if __name__ == "__main__":

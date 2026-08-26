@@ -29,13 +29,18 @@ model, account, or third-party license claim; it records the user delivery and i
 
 ## Deterministic baseline one-shots
 
-- Events: all 23 current `OneShot` rows (UI, Combat, Enemy, Boss, Echo, `CameraMove`, `Revive`).
+- Events: the 15 retained generated fallback rows (UI, Combat, Enemy, Boss, `CameraMove`, `Revive`).
 - Generator: `scripts/audio/generate_event_sfx.py`.
 - Output: `Design/Audio/Generated/**/*.wav`.
 - Signal contract: 48 kHz, mono, PCM16, fixed recipes and per-EventId deterministic seeds.
 - License/origin: generated mathematically by repository code; no recording or third-party media is sampled.
 - Intended use: replaceable technical/playable baseline. User listening approval is required before Plan46 closes.
 - Reproduction: run `python scripts/audio/generate_event_sfx.py`; verify with `--check`.
+
+Plan123 retires the generated assets for `Combat.Block`, `Combat.Kill`, `Enemy.Attack`,
+`Boss.Spawn`, `Boss.Attack`, `Echo.Spawn`, `Echo.Attack`, and `Echo.End`. Their catalog
+rows remain as stable semantic contracts with empty `AssetPath` values, so posting them
+is a safe silent no-op until the planning table supplies replacements.
 
 ## User-provided formal replacements (Plan114)
 
@@ -89,3 +94,28 @@ MP3 one-shots are decoded by UE 5.8 through `scripts/audio/export_formal_audio_w
 mono PCM16 WAVs under `Design/Audio/Derived/**`; runtime SoundWaves import only those derived
 files. `validate_formal_audio_sources.py` verifies all 25 user-delivered source hashes, while
 `prepare_formal_audio.py --check` verifies each derived file byte-for-byte.
+
+## Remaining formal one-shots (Plan123)
+
+The same 2026-08-26 user handoff supplies the remaining table-authorized short sounds.
+Plan123 adds stable routes for them and deliberately does not import unrelated `New*`
+music candidates from the delivery folder.
+
+| EventId / VariantId | Project source | User-provided file | SHA-256 |
+|---|---|---|---|
+| `Combat.Reaction / Reaction.Vaporize` | `Design/Audio/Source/Formal/Variants/CombatReaction/Vaporize.wav` | `汽化.wav` | `1bdcae18d5b3dfc427825475ea004de26c86341197a3e58d972c6ae391113403` |
+| `Combat.Reaction / Reaction.Growth` | `Design/Audio/Source/Formal/Variants/CombatReaction/Growth.mp3` | `植物法术生长_1_V2.mp3` | `3238c130722f5283217ad995afe15df1751a79d6dfb58c5a673f0cec6cfc7577` |
+| `Combat.Reaction / Reaction.Conduct` | `Design/Audio/Source/Formal/Variants/CombatReaction/Conduct.mp3` | `雷元素-电光一闪.mp3` | `bd1ec8a4d162c05f887b8712c5efc9ee597e1f2694660d38352ea284244b96fa` |
+| `Combat.Reaction / Reaction.Enhance` | `Design/Audio/Source/Formal/Variants/CombatReaction/Enhance.mp3` | `植物法术生长_1_V1.mp3` | `3cd21144e1e22d23fdd195bdb9ec11c862d85d3565ec97e770b790ca71301eae` |
+| `Item.Pickup` | `Design/Audio/Source/Formal/Flow/Item_Pickup.wav` | `道具拾取.wav` | `99c0d76d045fc8632027cc488dc5688c7f813ae59e2af8e87a56478d4aa56e47` |
+| `UI.CardReveal` | `Design/Audio/Source/Formal/UI/UI_CardReveal.wav` | `卡牌出现.wav` | `337704a5f34480edbfab4a23c251a41d860d2e997dcceabc7aff289b5fb55a33` |
+| `UI.Equip`, `UI.Unequip` | `Design/Audio/Source/Formal/UI/UI_RuneEquip.wav` | `卸下符文.wav` | `7fa98d17b43e40a5e0c71a41452276e816361aabe2ed24363d4e49da73d24705` |
+
+`Combat.Reaction / Reaction.Burn` reuses the formal Flame hit SoundWave, and
+`Flow.Victory` reuses the formal `Boss.Death` victory SoundWave. Reuse is explicit in
+the catalog rather than duplicating source files. UE decodes the three MP3 reaction
+sources, then `prepare_formal_audio.py` deterministically downmixes all new spatial
+reaction and pickup sources to tracked mono PCM16 WAVs before final SoundWave import.
+The same script removes 1.25 seconds of low-level lead-in from Vaporize and 0.65 seconds
+from the shared Equip/Unequip source (preserving stereo for UI), while keeping the
+original delivered files unchanged for provenance and reproducibility.

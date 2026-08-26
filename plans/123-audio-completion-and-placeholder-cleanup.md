@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side Executor（同一 AI 分阶段执行）。
 - Plan 编写方（AI 侧）：Gavyn-side AI（Codex）。
 - 实现编写方（AI 侧）：Gavyn-side AI（Codex）。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`InProgress`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@f6877c53f5b9f3c9d05328fbf94815b9464c9b7c`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan123-audio-completion-cleanup`，本地分支 `plan/123-audio-completion-cleanup`；Plan-only 发布后在同一工作树继续实现，不推送任务分支。
@@ -99,6 +99,9 @@
 
 - 2026-08-26：完成只读需求盘点。用户确认以“项目音频事件清单”页维持 Plan114 已有冲突映射；确认普通胜利与 Boss.Death 分路；确认精确清理八个表外程序化占位事件。
 - 2026-08-26：确认反应结算已有稳定 `ReactionBehaviorId`，拾取、装备、卡牌揭示和 Encounter 结束均存在不改变玩法权威的语义接入点；法杖仍无生产 `WeaponId`，排除在本 Plan 外。
+- 2026-08-26：Plan-only 已发布并核验为 `origin/main@a703ab0e506feda2f1d1cc41f342ef191768db6c`；实现工作树进入 `InProgress`。
+- 2026-08-26：新增 6 个稳定 EventId、5 个反应变体与生产语义路由；接收并哈希验证 7 个新源文件，Burn/普通胜利复用既有正式资产；权威 XLSX 扩展为 52 行，其中 44 行绑定资产、8 行为锁定显式静默。
+- 2026-08-26：删除八个精确 Generated 源 WAV，并从生成器、导入和资产验证预期中移除；对应 `.uasset` 等待取得 Unreal 锁后由 Editor 脚本删除，不在 Editor 外修改。
 
 ### 证据
 
@@ -106,6 +109,7 @@
 - Plan120 在规划确认后进入 `origin/main`；只触及怪物 Transform Flipbook、纹理、敌人 Profile 与专用脚本，没有音频路径、目录 Schema 或本 Plan 触发入口的物理/逻辑冲突。
 - 工作簿三张 Sheet 均无隐藏行列；“音频配置说明”与“项目音频事件清单”的冲突映射已由用户明确取舍，不再作为实施歧义。
 - 当前八个清理目标在表中明确标记为未列出的 Generated 占位；目录 AssetPath 可选且现有音频基础自动化已覆盖已定义空资源的安全 no-op。
+- 正式源哈希验证通过 32/32，保留 Generated 回归通过 15/15；权威工作簿保护、数据区解锁和四个完整列验证已通过严格同步前置校验。CSV 正式发布暂由 C++ 变更导致的精选 Editor 指纹过期门禁阻止，必须在 UE 可独占后先重建，不能绕过门禁。
 
 ### 剩余风险
 

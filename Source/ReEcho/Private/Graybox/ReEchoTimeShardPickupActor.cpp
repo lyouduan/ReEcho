@@ -2,6 +2,9 @@
 
 #include "ReEcho.h"
 #include "ReEchoGameMode.h"
+#include "ReEchoAudioEvents.h"
+#include "ReEchoAudioService.h"
+#include "ReEchoAudioTypes.h"
 #include "Components/MaterialBillboardComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SphereComponent.h"
@@ -345,6 +348,14 @@ void AReEchoTimeShardPickupActor::TryCollect(AActor* Collector)
 		bCollected = true;
 		Collision->SetGenerateOverlapEvents(false);
 		Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (UReEchoAudioService* AudioService = GameInstance->GetSubsystem<UReEchoAudioService>())
+		{
+			FReEchoAudioEventRequest Request;
+			Request.EventId = FReEchoAudioEvents::ItemPickup;
+			Request.WorldLocation = GetActorLocation();
+			Request.SourceCategory = EReEchoAudioSourceCategory::Environment;
+			AudioService->PostEvent(this, Request);
+		}
 		BeginCollectionPresentation();
 	}
 }

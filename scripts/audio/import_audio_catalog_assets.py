@@ -103,6 +103,73 @@ VARIANT_MUSIC = {
     "Music.Encounter/Stage.3": ("Source/Formal/Variants/MusicEncounter/Stage_3.mp3", "/Game/ReEcho/Audio/Variants/MusicEncounter", "Music_Encounter_Stage_3"),
 }
 
+PLAN123_DECODE_INPUTS = {
+    "Combat.Reaction/Reaction.Growth": (
+        "Design/Audio/Source/Formal/Variants/CombatReaction/Growth.mp3",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Growth",
+    ),
+    "Combat.Reaction/Reaction.Conduct": (
+        "Design/Audio/Source/Formal/Variants/CombatReaction/Conduct.mp3",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Conduct",
+    ),
+    "Combat.Reaction/Reaction.Enhance": (
+        "Design/Audio/Source/Formal/Variants/CombatReaction/Enhance.mp3",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Enhance",
+    ),
+}
+
+PLAN123_ONE_SHOTS = {
+    "Combat.Reaction/Reaction.Vaporize": (
+        "Design/Audio/Derived/Variants/CombatReaction/Vaporize.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Vaporize",
+    ),
+    "Combat.Reaction/Reaction.Growth": (
+        "Design/Audio/Derived/Variants/CombatReaction/Growth.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Growth",
+    ),
+    "Combat.Reaction/Reaction.Conduct": (
+        "Design/Audio/Derived/Variants/CombatReaction/Conduct.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Conduct",
+    ),
+    "Combat.Reaction/Reaction.Enhance": (
+        "Design/Audio/Derived/Variants/CombatReaction/Enhance.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Enhance",
+    ),
+    "Item.Pickup": (
+        "Design/Audio/Derived/Flow/Item_Pickup.wav",
+        "/Game/ReEcho/Audio/Flow",
+        "Item_Pickup",
+    ),
+    "UI.CardReveal": (
+        "Design/Audio/Source/Formal/UI/UI_CardReveal.wav",
+        "/Game/ReEcho/Audio/UI",
+        "UI_CardReveal",
+    ),
+    "UI.Equip/UI.Unequip": (
+        "Design/Audio/Derived/UI/UI_RuneEquip.wav",
+        "/Game/ReEcho/Audio/UI",
+        "UI_RuneEquip",
+    ),
+}
+
+PLAN123_REMOVED_ASSETS = (
+    "/Game/ReEcho/Audio/Combat/Combat_Block.Combat_Block",
+    "/Game/ReEcho/Audio/Combat/Combat_Kill.Combat_Kill",
+    "/Game/ReEcho/Audio/Enemy/Enemy_Attack.Enemy_Attack",
+    "/Game/ReEcho/Audio/Boss/Boss_Spawn.Boss_Spawn",
+    "/Game/ReEcho/Audio/Boss/Boss_Attack.Boss_Attack",
+    "/Game/ReEcho/Audio/Echo/Echo_Spawn.Echo_Spawn",
+    "/Game/ReEcho/Audio/Echo/Echo_Attack.Echo_Attack",
+    "/Game/ReEcho/Audio/Echo/Echo_End.Echo_End",
+)
+
 
 def import_asset(source: Path, destination_path: str, destination_name: str, looping: bool) -> str:
     if not source.is_file():
@@ -130,9 +197,26 @@ command_line = unreal.SystemLibrary.get_command_line()
 direct_only = "-Plan114DirectOnly" in command_line
 decode_only = "-Plan114DecodeOnly" in command_line
 variants_only = "-Plan114VariantsOnly" in command_line
+plan123_decode_only = "-Plan123DecodeOnly" in command_line
+plan123_only = "-Plan123Only" in command_line
 imported_count = 0
 
-if decode_only:
+if plan123_decode_only:
+    for relative_source, destination_path, destination_name in PLAN123_DECODE_INPUTS.values():
+        import_asset(ROOT / relative_source, destination_path, destination_name, False)
+        imported_count += 1
+elif plan123_only:
+    for relative_source, destination_path, destination_name in PLAN123_ONE_SHOTS.values():
+        import_asset(ROOT / relative_source, destination_path, destination_name, False)
+        imported_count += 1
+    for asset_path in PLAN123_REMOVED_ASSETS:
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+            if not unreal.EditorAssetLibrary.delete_asset(asset_path):
+                raise RuntimeError(f"Failed to delete retired placeholder SoundWave: {asset_path}")
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+            raise RuntimeError(f"Retired placeholder SoundWave still exists: {asset_path}")
+        unreal.log(f"Plan123 retired placeholder deleted: {asset_path}")
+elif decode_only:
     for relative_source, destination_path, destination_name in VARIANT_DECODE_INPUTS.values():
         import_asset(ROOT / "Design" / "Audio" / relative_source, destination_path, destination_name, False)
         imported_count += 1
@@ -168,5 +252,6 @@ else:
 
 unreal.log(
     f"Imported/configured {imported_count} catalog assets "
-    f"direct_only={direct_only} decode_only={decode_only} variants_only={variants_only}"
+    f"direct_only={direct_only} decode_only={decode_only} variants_only={variants_only} "
+    f"plan123_decode_only={plan123_decode_only} plan123_only={plan123_only}"
 )

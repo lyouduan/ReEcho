@@ -1036,7 +1036,9 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
         "Music.Menu", "Music.Encounter", "Music.Boss", "Music.Shop", "Music.Death", "Music.Victory",
         "Ambience.Arena", "Ambience.Rain",
         "UI.Hover", "UI.Confirm", "UI.Cancel", "UI.Error", "UI.Purchase", "UI.CardSelect",
+        "UI.CardReveal", "UI.Equip", "UI.Unequip",
         "Combat.Attack", "Combat.Hit", "Combat.Block", "Combat.Hurt", "Combat.Kill", "Combat.Death",
+        "Combat.Reaction", "Item.Pickup", "Flow.Victory",
         "Enemy.Spawn", "Enemy.Attack", "Enemy.Death", "Boss.Spawn", "Boss.Attack", "Boss.Death",
         "Echo.Spawn", "Echo.Attack", "Echo.End", "CameraMove", "Revive",
     }
@@ -1051,6 +1053,9 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
         "Music.Encounter": {"", "Stage.1", "Stage.2", "Stage.3"},
         "Combat.Attack": {"", "W_J_01", "W_J_04", "W_J_08", "W_J_09"},
         "Combat.Hit": {"", "Flame", "Lightning", "Grass", "Water"},
+        "Combat.Reaction": {
+            "Reaction.Burn", "Reaction.Vaporize", "Reaction.Growth", "Reaction.Conduct", "Reaction.Enhance",
+        },
     }
     for row in rows:
         line = row["__line__"]

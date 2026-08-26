@@ -562,12 +562,18 @@ bool FReEchoAudioModuleLoadTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Music.Menu constant valid"), FReEchoAudioEvents::MusicMenu.IsNone());
 	TestFalse(TEXT("Ambience.Arena constant valid"), FReEchoAudioEvents::AmbienceArena.IsNone());
 	TestFalse(TEXT("UI.Confirm constant valid"), FReEchoAudioEvents::UiConfirm.IsNone());
+	TestFalse(TEXT("UI.CardReveal constant valid"), FReEchoAudioEvents::UiCardReveal.IsNone());
+	TestFalse(TEXT("UI.Equip constant valid"), FReEchoAudioEvents::UiEquip.IsNone());
+	TestFalse(TEXT("UI.Unequip constant valid"), FReEchoAudioEvents::UiUnequip.IsNone());
 	TestFalse(TEXT("Combat.Attack constant valid"), FReEchoAudioEvents::CombatAttack.IsNone());
+	TestFalse(TEXT("Combat.Reaction constant valid"), FReEchoAudioEvents::CombatReaction.IsNone());
 	TestFalse(TEXT("Enemy.Spawn constant valid"), FReEchoAudioEvents::EnemySpawn.IsNone());
 	TestFalse(TEXT("Boss.Death constant valid"), FReEchoAudioEvents::BossDeath.IsNone());
 	TestFalse(TEXT("Echo.End constant valid"), FReEchoAudioEvents::EchoEnd.IsNone());
 	TestFalse(TEXT("CameraMove constant valid"), FReEchoAudioEvents::CameraMove.IsNone());
 	TestFalse(TEXT("Revive constant valid"), FReEchoAudioEvents::Revive.IsNone());
+	TestFalse(TEXT("Item.Pickup constant valid"), FReEchoAudioEvents::ItemPickup.IsNone());
+	TestFalse(TEXT("Flow.Victory constant valid"), FReEchoAudioEvents::FlowVictory.IsNone());
 	return true;
 }
 
