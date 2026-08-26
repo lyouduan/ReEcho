@@ -169,9 +169,6 @@ bool FReEchoEchoAppearanceMappingTest::RunTest(const FString& Parameters)
 			TestTrue(
 			    TEXT("Echo uses player footpoint offset"),
 			    ComposedProfile->FootpointOffset.Equals(PlayerSpatialProfile->FootpointOffset, KINDA_SMALL_NUMBER));
-			TestTrue(
-			    TEXT("Echo uses player weapon anchor"),
-			    ComposedProfile->WeaponAnchorRatio.Equals(PlayerSpatialProfile->WeaponAnchorRatio, KINDA_SMALL_NUMBER));
 		}
 	}
 	TestFalse(TEXT("Unknown character id is rejected"), Echo->ConfigureEchoAppearance(TEXT("J_UNKNOWN")));

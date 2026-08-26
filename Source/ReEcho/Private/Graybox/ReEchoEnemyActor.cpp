@@ -121,8 +121,10 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	BossWeaponRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BossWeaponRoot"));
 	BossWeaponRoot->SetupAttachment(EffectsRoot);
 	BossWeaponRoot->bEditableWhenInherited = true;
+	BossWeaponFacingRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BossWeaponFacingRoot"));
+	BossWeaponFacingRoot->SetupAttachment(BossWeaponRoot);
 	BossWeaponSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("BossWeaponSprite"));
-	BossWeaponSprite->SetupAttachment(BossWeaponRoot);
+	BossWeaponSprite->SetupAttachment(BossWeaponFacingRoot);
 	BossWeaponSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BossWeaponSprite->SetCastShadow(false);
 	BossWeaponSprite->SetHiddenInGame(true);
@@ -169,6 +171,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	                                       FlipbookRoot,
 	                                       EffectsRoot,
 	                                       BossWeaponRoot,
+	                                       BossWeaponFacingRoot,
 	                                       BossWeaponSprite,
 	                                       CharacterSprite,
 	                                       SequenceAnimation,
@@ -208,7 +211,8 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
 	AttachIfNeeded(BossWeaponRoot, EffectsRoot);
-	AttachIfNeeded(BossWeaponSprite, BossWeaponRoot);
+	AttachIfNeeded(BossWeaponFacingRoot, BossWeaponRoot);
+	AttachIfNeeded(BossWeaponSprite, BossWeaponFacingRoot);
 	AttachIfNeeded(GroundShadow, GroundRoot);
 	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
 }
@@ -725,9 +729,9 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 }
 
 int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeArc(const FVector& Origin,
-	                                                         const FVector& Forward,
-	                                                         const float RangeCm,
-	                                                         const float ArcDegrees)
+                                                            const FVector& Forward,
+                                                            const float RangeCm,
+                                                            const float ArcDegrees)
 {
 	int32 RemovedCount = 0;
 	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)

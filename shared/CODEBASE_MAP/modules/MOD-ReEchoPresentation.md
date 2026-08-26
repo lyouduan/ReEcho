@@ -73,7 +73,7 @@
 
 敌人 Gameplay Blueprint Class 由主模块 `UReEchoEnemyGameplayClassRegistry` 单独解析，不存入表现 Catalog。
 
-`UReEcho2DCharacterPresentationProfile::WeaponAnchorRatio` 以稳定 `WorldHeight` 为单位描述角色手部挂点。主模块可以消费该只读空间契约装配武器，但本模块不解析 Weapon Profile，也不按当前 Flipbook 帧 Bounds 改写挂点。
+`UReEcho2DCharacterPresentationProfile::WorldHeight` 提供共享武器布局归一化所需的稳定角色高度；人物 Profile 不拥有左右手挂点。主模块从唯一 Weapon Presentation Catalog 读取通用左右挂点，本模块不解析 Weapon Profile，也不从当前 Flipbook Bounds 或人物宽度推算挂点。
 
 `UReEcho2DCharacterPresentationProfile::MinimapIcon` 由 Character/Echo 分域 Profile 分别绑定。主模块只读取活动 Profile 并投影给 HUD；Presentation 模块不依赖 Widget、GameMode、Arena 坐标或 Recording。硬引用保证配置图标进入 cook，缺失图标由 UI 表现层安全降级。
 

@@ -172,14 +172,13 @@ public:
 	{
 		return ResolveFacingDirection();
 	}
+
 	/** Blink Slam preserves the Boss gameplay height while sharing the warning center in arena XY. */
 	static FVector ResolveBossLandingLocation(const FVector& LockedTargetLocation, float BossWorldZ);
 
 	/** Ends active rabbit volley balls intersecting the supplied melee sector and returns the number removed. */
-	int32 DestroyRabbitProjectilesInMeleeArc(const FVector& Origin,
-	                                         const FVector& Forward,
-	                                         float RangeCm,
-	                                         float ArcDegrees);
+	int32
+	DestroyRabbitProjectilesInMeleeArc(const FVector& Origin, const FVector& Forward, float RangeCm, float ArcDegrees);
 
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
@@ -277,6 +276,11 @@ private:
 	          Category = "Character Scene|Weapon",
 	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> BossWeaponRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Weapon",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> BossWeaponFacingRoot;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Weapon",

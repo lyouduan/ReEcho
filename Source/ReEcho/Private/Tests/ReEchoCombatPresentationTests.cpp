@@ -1,8 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
-#include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
+#include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
+#include "Presentation/Weapon/ReEchoWeaponPresentationCatalog.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
@@ -79,10 +80,55 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Player and Echo host scales resolve the same weapon length"), PlayerLength, EchoLength);
 		}
 	}
-	const UReEcho2DCharacterPresentationProfile* DefaultCharacterProfile =
-	    GetDefault<UReEcho2DCharacterPresentationProfile>();
-	TestTrue(TEXT("Character profile exposes a normalized weapon anchor"),
-	         !DefaultCharacterProfile->WeaponAnchorRatio.ContainsNaN());
+	const UReEchoWeaponPresentationCatalog* WeaponCatalog = FReEchoWeaponVisualCatalog::ResolveCatalog();
+	TestNotNull(TEXT("Weapon catalog owns the shared held layout"), WeaponCatalog);
+	if (WeaponCatalog)
+	{
+		TestTrue(TEXT("Shared right hand anchor is valid"), !WeaponCatalog->RightHandAnchorRatio.ContainsNaN());
+		TestTrue(TEXT("Shared left hand anchor is valid"), !WeaponCatalog->LeftHandAnchorRatio.ContainsNaN());
+		TestFalse(TEXT("Shared left and right hand anchors are independently authored"),
+		          WeaponCatalog->LeftHandAnchorRatio.Equals(WeaponCatalog->RightHandAnchorRatio, KINDA_SMALL_NUMBER));
+	}
+	const FVector CameraRight = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
+	const FVector AuthoredHeldOffset(12.0f, 7.0f, 3.0f);
+	const FVector RightFacingOffset =
+	    AReEchoWeaponActor::ResolveFacingHeldOffsetForTests(AuthoredHeldOffset, 1.0f, CameraRight);
+	const FVector LeftFacingOffset =
+	    AReEchoWeaponActor::ResolveFacingHeldOffsetForTests(AuthoredHeldOffset, -1.0f, CameraRight);
+	TestTrue(TEXT("Right-facing weapon keeps the authored hand-relative offset"),
+	         RightFacingOffset.Equals(AuthoredHeldOffset, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Left-facing weapon mirrors the horizontal hand-relative offset"),
+	         FMath::IsNearlyEqual(FVector::DotProduct(LeftFacingOffset, CameraRight),
+	                              -FVector::DotProduct(RightFacingOffset, CameraRight),
+	                              KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Facing mirror preserves the offset component outside the camera horizontal axis"),
+	         (LeftFacingOffset - FVector::DotProduct(LeftFacingOffset, CameraRight) * CameraRight)
+	             .Equals(RightFacingOffset - FVector::DotProduct(RightFacingOffset, CameraRight) * CameraRight,
+	                     KINDA_SMALL_NUMBER));
+	const FVector AuthoredBossRightOffset(1.0f, 20.0f, 3.0f);
+	const FVector AuthoredBossLeftOffset(-2.0f, -18.0f, 4.0f);
+	TestTrue(TEXT("Boss weapon selects the Staff DA right-facing offset"),
+	         UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests(
+	             1.0f, AuthoredBossRightOffset, AuthoredBossLeftOffset)
+	             .Equals(AuthoredBossRightOffset, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Boss weapon selects the independently authored Staff DA left-facing offset"),
+	         UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests(
+	             -1.0f, AuthoredBossRightOffset, AuthoredBossLeftOffset)
+	             .Equals(AuthoredBossLeftOffset, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Longsword triple swing starts at upper sixty degrees"),
+	         FMath::IsNearlyEqual(
+	             AReEchoWeaponActor::ResolveTripleSwingAngleForTests(0.0f, 1.0f), PI / 3.0f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Longsword first pass reaches lower sixty degrees"),
+	         FMath::IsNearlyEqual(AReEchoWeaponActor::ResolveTripleSwingAngleForTests(1.0f / 3.0f, 1.0f),
+	                              -PI / 3.0f,
+	                              KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Longsword second pass returns to upper sixty degrees"),
+	         FMath::IsNearlyEqual(AReEchoWeaponActor::ResolveTripleSwingAngleForTests(2.0f / 3.0f, 1.0f),
+	                              PI / 3.0f,
+	                              KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Longsword third pass ends at lower sixty degrees"),
+	         FMath::IsNearlyEqual(
+	             AReEchoWeaponActor::ResolveTripleSwingAngleForTests(1.0f, 1.0f), -PI / 3.0f, KINDA_SMALL_NUMBER));
 	TestNotNull(TEXT("Sage MoonStaff animation helper retains its presentation profile"),
 	            FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("MoonStaff")));
 	TestFalse(TEXT("Bow has held visual"),

@@ -246,7 +246,6 @@ void AReEchoEchoActor::RefreshPresentationProfile()
 		ComposedPresentationProfile->WorldHeight = PlayerSpatialProfile->WorldHeight;
 		ComposedPresentationProfile->bAutoAlignFootpoint = PlayerSpatialProfile->bAutoAlignFootpoint;
 		ComposedPresentationProfile->FootpointOffset = PlayerSpatialProfile->FootpointOffset;
-		ComposedPresentationProfile->WeaponAnchorRatio = PlayerSpatialProfile->WeaponAnchorRatio;
 	}
 	ActivePresentationProfile = ComposedPresentationProfile ? ComposedPresentationProfile.Get() : EchoProfile;
 	if (PresentationController)

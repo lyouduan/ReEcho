@@ -27,6 +27,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Presentation/Animation2D/ReEcho2DCharacterPresentationProfile.h"
+#include "Presentation/Weapon/ReEchoWeaponPresentationCatalog.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "Weapons/ReEchoWeaponGeometry.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
@@ -36,8 +37,11 @@ namespace ReEchoWeaponVisual
 const FVector StaffLocation(-16.0f, 30.0f, 6.0f);
 const FVector SwordLocation(8.0f, 0.0f, 0.0f);
 constexpr float SwordRestAngleRadians = -PI / 4.0f;
+constexpr float TripleSwingAmplitudeRadians = PI / 3.0f;
+constexpr float TripleSwingHalfCycles = 3.0f;
 const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
 const FVector DefaultWeaponAnchorRatio(-0.16f, 0.30f, 0.06f);
+const FVector DefaultLeftWeaponAnchorRatio(-0.16f, -0.30f, 0.06f);
 
 FQuat GetSwordRotation(const float SpinRadians = 0.0f)
 {
@@ -63,6 +67,29 @@ FVector2D ResolveHeldDimensions(const UTexture2D& Texture,
 		return FVector2D(HeldLength, HeldLength * TextureHeight / TextureWidth);
 	}
 	return FVector2D(HeldLength * TextureWidth / TextureHeight, HeldLength);
+}
+
+FVector ResolveFacingPointAroundCenter(const FVector& Point,
+                                       const FVector& CharacterCenter,
+                                       const float FacingSign,
+                                       FVector CameraRight)
+{
+	if (FacingSign >= 0.0f)
+	{
+		return Point;
+	}
+	CameraRight.Z = 0.0f;
+	CameraRight = CameraRight.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	const FVector CenterToPoint = Point - CharacterCenter;
+	const float HorizontalDistance = FVector::DotProduct(CenterToPoint, CameraRight);
+	return Point - 2.0f * HorizontalDistance * CameraRight;
+}
+
+float ResolveTripleSwingAngle(const float Progress, const float DirectionSign)
+{
+	const float NormalizedProgress = FMath::Clamp(Progress, 0.0f, 1.0f);
+	const float Direction = DirectionSign < 0.0f ? -1.0f : 1.0f;
+	return TripleSwingAmplitudeRadians * FMath::Cos(NormalizedProgress * TripleSwingHalfCycles * PI) * Direction;
 }
 }
 
@@ -1569,10 +1596,16 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 	const float CharacterReferenceHeight = CharacterProfile ? FMath::Max(CharacterProfile->WorldHeight, 1.0f) : 100.0f;
 	const float OwnerScale = GetOwner() ? FMath::Max(FMath::Abs(GetOwner()->GetActorScale3D().Z), 0.01f) : 1.0f;
 	const float CharacterWorldHeight = CharacterReferenceHeight * OwnerScale;
-	const FVector AnchorRatio =
-	    CharacterProfile ? CharacterProfile->WeaponAnchorRatio : ReEchoWeaponVisual::DefaultWeaponAnchorRatio;
-	WeaponHandAnchorLocation = AnchorRatio * CharacterReferenceHeight;
-	SetActorRelativeLocation(ResolveMirroredHandAnchor());
+	const UReEchoWeaponPresentationCatalog* WeaponCatalog = FReEchoWeaponVisualCatalog::ResolveCatalog();
+	const FVector RightAnchorRatio =
+	    WeaponCatalog ? WeaponCatalog->RightHandAnchorRatio : ReEchoWeaponVisual::DefaultWeaponAnchorRatio;
+	const FVector LeftAnchorRatio =
+	    WeaponCatalog ? WeaponCatalog->LeftHandAnchorRatio : ReEchoWeaponVisual::DefaultLeftWeaponAnchorRatio;
+	RightWeaponHandAnchorLocation = RightAnchorRatio * CharacterReferenceHeight;
+	LeftWeaponHandAnchorLocation = LeftAnchorRatio * CharacterReferenceHeight;
+	WeaponHandAnchorLocation =
+	    ResolveOwnerVisualFacingSign() < 0.0f ? LeftWeaponHandAnchorLocation : RightWeaponHandAnchorLocation;
+	SetActorRelativeLocation(WeaponHandAnchorLocation);
 
 	UTexture2D* Texture = WeaponProfile->HeldTexture.LoadSynchronous();
 
@@ -1586,7 +1619,8 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 		Billboard = ScytheSprite;
 	}
 
-	const FVector VisualOffset = WeaponProfile->HeldOffsetRatio * CharacterWorldHeight;
+	HeldVisualOffset = WeaponProfile->HeldOffsetRatio * CharacterWorldHeight;
+	const FVector VisualOffset = ResolveMirroredHeldVisualOffset();
 	if (Billboard && Texture)
 	{
 		const float TextureAxisLength = WeaponProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width
@@ -1635,6 +1669,19 @@ float AReEchoWeaponActor::ResolveHeldWorldLengthForTests(const UReEchoWeaponPres
 	return ReEchoWeaponVisual::ResolveHeldLength(
 	    WeaponProfile, FMath::Max(CharacterReferenceHeight, 1.0f) * FMath::Max(FMath::Abs(OwnerScale), 0.01f));
 }
+
+FVector AReEchoWeaponActor::ResolveFacingHeldOffsetForTests(const FVector& HeldOffset,
+                                                            const float FacingSign,
+                                                            const FVector& CameraRight)
+{
+	return ReEchoWeaponVisual::ResolveFacingPointAroundCenter(HeldOffset, FVector::ZeroVector, FacingSign, CameraRight);
+}
+
+float AReEchoWeaponActor::ResolveTripleSwingAngleForTests(const float Progress, const float DirectionSign)
+{
+	return ReEchoWeaponVisual::ResolveTripleSwingAngle(Progress, DirectionSign);
+}
+
 #endif
 
 bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
@@ -1672,7 +1719,8 @@ void AReEchoWeaponActor::StartMeleeAnimation(const FName WeaponVisualKey)
 	SwordSwingDirection *= -1.0f;
 	const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(WeaponVisualKey);
 	SwordAnimationDuration = Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.01f) : 0.18f;
-	SwordAnimationTime = WeaponVisualKey == TEXT("Scythe") ? SwordAnimationDuration : 0.0f;
+	SwordAnimationTime =
+	    Profile && Profile->MotionMode != EReEchoWeaponMotionMode::None ? SwordAnimationDuration : 0.0f;
 }
 
 void AReEchoWeaponActor::BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
@@ -1706,7 +1754,7 @@ void AReEchoWeaponActor::RecallScythe()
 	if (ScytheSprite)
 	{
 		ScytheSprite->SetAbsolute(false, true, false);
-		ScytheSprite->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
+		ScytheSprite->SetRelativeLocation(ResolveMirroredHeldVisualOffset());
 	}
 }
 
@@ -1790,15 +1838,28 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	WeaponLogic.Tick(DeltaSeconds);
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	SetActorRelativeLocation(ResolveMirroredHandAnchor());
+	WeaponHandAnchorLocation =
+	    ResolveOwnerVisualFacingSign() < 0.0f ? LeftWeaponHandAnchorLocation : RightWeaponHandAnchorLocation;
+	SetActorRelativeLocation(WeaponHandAnchorLocation);
 	SwordSpriteRestRotation = ResolveMirroredSwordRestRotation();
 	if (const UReEchoWeaponPresentationProfile* Profile =
 	        FReEchoWeaponVisualCatalog::ResolveProfile(GetEquippedWeaponVisualKey()))
 	{
+		const FName VisualKey = GetEquippedWeaponVisualKey();
+		const FVector VisualOffset = ResolveMirroredHeldVisualOffset();
+		if (VisualKey == TEXT("CrescentBlade"))
+		{
+			SwordSpriteRestLocation = VisualOffset;
+		}
+		else if (VisualKey == TEXT("Scythe") && ScytheSprite && !bScytheThrown)
+		{
+			ScytheSprite->SetRelativeLocation(VisualOffset);
+		}
 		if (UStaticMeshComponent* Plane = GetEquippedWeaponVisualKey() == TEXT("Bow")   ? BowSprite.Get()
 		                                  : GetEquippedWeaponVisualKey() == TEXT("Gun") ? GunSprite.Get()
 		                                                                                : nullptr)
 		{
+			Plane->SetRelativeLocation(VisualOffset);
 			ApplyHeldPlaneMirror(Plane, Profile->HeldMirrorRule);
 		}
 	}
@@ -1835,8 +1896,8 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	const FReEchoCsvWeaponRow* Definition = FindEquippedDefinition();
 	const UReEchoWeaponPresentationProfile* Profile =
 	    Definition ? FReEchoWeaponVisualCatalog::ResolveProfile(Definition->VisualKey) : nullptr;
-	const bool bUsesFullSpinMotion = Profile && Definition && Definition->VisualKey == TEXT("Scythe");
-	if (SwordAnimationTime <= 0.0f || !bUsesFullSpinMotion)
+	const EReEchoWeaponMotionMode MotionMode = Profile ? Profile->MotionMode : EReEchoWeaponMotionMode::None;
+	if (SwordAnimationTime <= 0.0f || MotionMode == EReEchoWeaponMotionMode::None)
 	{
 		SwordAnimationTime = 0.0f;
 		SetActorRelativeRotation(FQuat::Identity);
@@ -1846,7 +1907,9 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	}
 	SwordAnimationTime = FMath::Max(0.0f, SwordAnimationTime - DeltaSeconds);
 	const float Progress = 1.0f - SwordAnimationTime / SwordAnimationDuration;
-	const float Angle = Progress * 2.0f * PI * SwordSwingDirection;
+	const float Angle = MotionMode == EReEchoWeaponMotionMode::FullSpin
+	                        ? Progress * 2.0f * PI * SwordSwingDirection
+	                        : ReEchoWeaponVisual::ResolveTripleSwingAngle(Progress, SwordSwingDirection);
 	// The WeaponActor root is the character hand anchor. Rotate the child presentation around that fixed pivot.
 	SetActorRelativeRotation(FQuat(ReEchoWeaponVisual::CameraFacingNormal, Angle));
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
@@ -1866,23 +1929,14 @@ float AReEchoWeaponActor::ResolveOwnerVisualFacingSign() const
 	return 1.0f;
 }
 
-FVector AReEchoWeaponActor::ResolveMirroredHandAnchor() const
+FVector AReEchoWeaponActor::ResolveMirroredHeldVisualOffset() const
 {
-	if (ResolveOwnerVisualFacingSign() >= 0.0f)
-	{
-		return WeaponHandAnchorLocation;
-	}
 	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
-	FVector CameraRight =
+	const FVector CameraRight =
 	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
-	CameraRight.Z = 0.0f;
-	CameraRight = CameraRight.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
-	const float RightFacingHorizontalOffset = FVector::DotProduct(WeaponHandAnchorLocation, CameraRight);
-	const FVector MirroredAnchor = WeaponHandAnchorLocation - 2.0f * RightFacingHorizontalOffset * CameraRight;
-	// The two symmetric hand anchors define the character's presentation width. Left-facing sword art needs one
-	// additional full character width beyond the mirrored hand so its reversed authored body does not overlap the host.
-	const float CharacterPresentationWidth = 2.0f * FMath::Abs(RightFacingHorizontalOffset);
-	return MirroredAnchor - CharacterPresentationWidth * CameraRight;
+	// HeldVisualOffset is a vector from the hand pivot, so its mirror center is the hand-local origin.
+	return ReEchoWeaponVisual::ResolveFacingPointAroundCenter(
+	    HeldVisualOffset, FVector::ZeroVector, ResolveOwnerVisualFacingSign(), CameraRight);
 }
 
 FQuat AReEchoWeaponActor::ResolveMirroredSwordRestRotation() const
