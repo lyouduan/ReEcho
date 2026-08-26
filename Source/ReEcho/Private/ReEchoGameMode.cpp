@@ -46,6 +46,7 @@
 #include "Run/ReEchoRunSubsystem.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoEncounterHudWidget.h"
+#include "UI/ReEchoEncounterTransitionWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
@@ -246,7 +247,7 @@ void AReEchoGameMode::GMHelp()
 	                   "GMGod [On|Off|Toggle] | "
 	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
 	                   "<Clear|Rain|Fog> | "
-	                   "GMEndEncounter | GMKillAll | GMSpawnFox <count> [distance] | GMGotoBoss | "
+	                   "GMEndEncounter | GMTransition3 | GMKillAll | GMSpawnFox <count> [distance] | GMGotoBoss | "
 	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
@@ -727,6 +728,43 @@ void AReEchoGameMode::GMEndEncounter()
 	    FString::Printf(TEXT("Ended encounter %d with %.1f seconds remaining; normal completion flow started."),
 	                    EncounterIndex,
 	                    RemainingTime));
+}
+
+void AReEchoGameMode::GMTransition3()
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !Director || !Player || !Player->Combatant)
+	{
+		PrintGMResult(TEXT("The active encounter is not initialized."), false);
+		return;
+	}
+	if (RunSubsystem->Phase != EReEchoRunPhase::Encounter || bAwaitingStartChoice || bEncounterTransitioning ||
+	    !Player->Combatant->IsAlive())
+	{
+		PrintGMResult(TEXT("GMTransition3 requires a living player in an active encounter."), false);
+		return;
+	}
+	if (IsBossEncounter())
+	{
+		PrintGMResult(TEXT("GMTransition3 is only available for ordinary timed encounters."), false);
+		return;
+	}
+
+	const float TargetRemainingTime = FMath::Min(3.0f, Director->GetEncounterDuration());
+	Director->ResumeEncounter(Director->GetEncounterDuration() - TargetRemainingTime);
+	UE_LOG(LogReEcho,
+	       Display,
+	       TEXT("[EncounterTransition] GMTransition3 remaining=%.3f encounter=%d"),
+	       Director->GetRemainingTime(),
+	       RunSubsystem->EncounterIndex);
+	PrintGMResult(FString::Printf(TEXT("Encounter %d advanced to %.1f seconds remaining."),
+	                              RunSubsystem->EncounterIndex,
+	                              Director->GetRemainingTime()));
 }
 
 void AReEchoGameMode::GMKillAll()
@@ -1430,6 +1468,7 @@ void AReEchoGameMode::HandleRuntimeAssetPreloadComplete()
 
 void AReEchoGameMode::BeginSelectedRun()
 {
+	ResetEncounterTransitionPresentation();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem)
 	{
@@ -1857,6 +1896,7 @@ void AReEchoGameMode::RefreshFogRevealSources()
 
 void AReEchoGameMode::BeginNextEncounter()
 {
+	ResetEncounterTransitionPresentation();
 	ConnectionLineSideByPair.Reset();
 	ClearTimeShardPickups();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
@@ -2948,6 +2988,7 @@ void AReEchoGameMode::HandlePlayerSkill(FVector Position, FName SkillId)
 
 void AReEchoGameMode::HandlePlayerDeath()
 {
+	ResetEncounterTransitionPresentation();
 	if (Director)
 	{
 		Director->EndEncounter();
@@ -4082,12 +4123,183 @@ void AReEchoGameMode::HandleEncounterEnded()
 	}
 	if (!bPlayerSurvived)
 	{
+		ResetEncounterTransitionPresentation();
 		// 死亡：保留 HUD 可见（显示"剩余 0 秒"+"关卡 X/Y"），不收起。
 		return;
 	}
+	const bool bShouldPlayOrdinaryTransition = !IsBossEncounter();
+	if (bShouldPlayOrdinaryTransition)
+	{
+		PrepareEncounterIntermission();
+		bEncounterIntermissionPreparedForTransition = true;
+		if (!BeginEncounterEndSequence())
+		{
+			CompleteEncounterEndSequence(false);
+		}
+		else
+		{
+			UE_LOG(LogReEcho,
+			       Display,
+			       TEXT("[EncounterTransition] authoritative zero reached; sequence started from frame zero."));
+		}
+		return;
+	}
+	ResetEncounterTransitionPresentation();
+
 	const float EncounterEndSettleSeconds = 0.5f;
 	FTimerDelegate SettleDelegate = FTimerDelegate::CreateUObject(this, &AReEchoGameMode::ProceedToPostEncounterUI);
 	GetWorldTimerManager().SetTimer(EncounterEndSettleTimerHandle, SettleDelegate, EncounterEndSettleSeconds, false);
+}
+
+bool AReEchoGameMode::ShouldStartEncounterTransition(const float RemainingTime,
+                                                     const bool bBossEncounter,
+                                                     const bool bTransitioning)
+{
+	return RemainingTime > 0.0f && RemainingTime <= 3.0f && !bBossEncounter && !bTransitioning;
+}
+
+bool AReEchoGameMode::ShouldCompleteEncounterTransition(const bool bTransitioning,
+                                                        const bool bMediaFailed,
+                                                        const bool bMediaFinished,
+                                                        const float ElapsedSeconds)
+{
+	(void)ElapsedSeconds;
+	return bTransitioning && (bMediaFailed || bMediaFinished);
+}
+
+UReEchoEncounterTransitionWidget* AReEchoGameMode::EnsureEncounterTransitionWidget()
+{
+	if (EncounterTransitionWidget)
+	{
+		return EncounterTransitionWidget;
+	}
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>() : nullptr;
+	EncounterTransitionWidget = UIFlow && PlayerController
+	                                ? Cast<UReEchoEncounterTransitionWidget>(UIFlow->OpenScreen(
+	                                      PlayerController, EReEchoUIScreen::EncounterTransition, false, false))
+	                                : nullptr;
+	return EncounterTransitionWidget;
+}
+
+bool AReEchoGameMode::BeginEncounterEndSequence()
+{
+	UReEchoEncounterTransitionWidget* TransitionWidget = EnsureEncounterTransitionWidget();
+	if (!TransitionWidget || !TransitionWidget->StartSequence())
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Encounter transition sequence could not start; falling back to cards."));
+		return false;
+	}
+	EncounterSequenceElapsedSeconds = 0.0f;
+	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingSequence;
+	UE_LOG(LogReEcho,
+	       Display,
+	       TEXT("[EncounterTransition] sequence requested at remaining=%.3f"),
+	       Director ? Director->GetRemainingTime() : -1.0f);
+	return true;
+}
+
+void AReEchoGameMode::CompleteEncounterEndSequence(const bool bFadeToCards)
+{
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::FadingToCardChoice ||
+	    EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Completed)
+	{
+		return;
+	}
+	ProceedToPostEncounterUI();
+	if (bFadeToCards && EncounterTransitionWidget)
+	{
+		EncounterTransitionWidget->BeginSequenceFadeOut(0.4f);
+		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::FadingToCardChoice;
+	}
+	else
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
+		}
+		EncounterTransitionWidget = nullptr;
+		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
+	}
+}
+
+void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSeconds)
+{
+	if (!Director)
+	{
+		return;
+	}
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::PlayingSequence)
+	{
+		EncounterSequenceElapsedSeconds += DeltaSeconds;
+		if (EncounterTransitionWidget)
+		{
+			EncounterTransitionWidget->SetCountdownIntensity(
+			    UReEchoEncounterTransitionWidget::CalculateCountdownIntensity(Director->GetRemainingTime()));
+		}
+		const bool bFailed = !EncounterTransitionWidget || EncounterTransitionWidget->HasSequenceFailed();
+		const bool bFinished = EncounterTransitionWidget && EncounterTransitionWidget->IsSequenceFinished();
+		if (ShouldCompleteEncounterTransition(
+		        bEncounterTransitioning, bFailed, bFinished, EncounterSequenceElapsedSeconds))
+		{
+			CompleteEncounterEndSequence(!bFailed);
+		}
+		return;
+	}
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::FadingToCardChoice)
+	{
+		return;
+	}
+	if (bEncounterTransitioning)
+	{
+		return;
+	}
+
+	const float RemainingTime = Director->GetRemainingTime();
+	if (ShouldStartEncounterTransition(RemainingTime, IsBossEncounter(), bEncounterTransitioning))
+	{
+		if (UReEchoEncounterTransitionWidget* TransitionWidget = EnsureEncounterTransitionWidget())
+		{
+			const float Intensity = UReEchoEncounterTransitionWidget::CalculateCountdownIntensity(RemainingTime);
+			TransitionWidget->SetCountdownIntensity(Intensity);
+			EncounterTransitionPresentationState = EEncounterTransitionPresentationState::CountdownPostProcess;
+		}
+	}
+	else if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::CountdownPostProcess &&
+	         RemainingTime > 0.0f && RemainingTime <= 3.0f)
+	{
+		if (EncounterTransitionWidget)
+		{
+			EncounterTransitionWidget->SetCountdownIntensity(
+			    UReEchoEncounterTransitionWidget::CalculateCountdownIntensity(RemainingTime));
+		}
+	}
+	else if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::CountdownPostProcess)
+	{
+		ResetEncounterTransitionPresentation();
+	}
+}
+
+void AReEchoGameMode::ResetEncounterTransitionPresentation()
+{
+	if (EncounterTransitionWidget)
+	{
+		EncounterTransitionWidget->ResetPresentation();
+	}
+	if (GetGameInstance())
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
+		}
+	}
+	EncounterTransitionWidget = nullptr;
+	EncounterSequenceElapsedSeconds = 0.0f;
+	bEncounterIntermissionPreparedForTransition = false;
+	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::None;
 }
 
 void AReEchoGameMode::ProceedToPostEncounterUI()
@@ -4107,7 +4319,11 @@ void AReEchoGameMode::ProceedToPostEncounterUI()
 	}
 	else if (RunSubsystem->EncounterIndex < RunSubsystem->GetTotalEncounterCount())
 	{
-		PrepareEncounterIntermission();
+		if (!bEncounterIntermissionPreparedForTransition)
+		{
+			PrepareEncounterIntermission();
+		}
+		bEncounterIntermissionPreparedForTransition = false;
 		if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
 		{
 			ShowTraitCardChoice();
@@ -4458,4 +4674,5 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		                                       BossCurrentHealth,
 		                                       BossMaximumHealth);
 	}
+	UpdateEncounterTransitionPresentation(DeltaSeconds);
 }

@@ -3,10 +3,10 @@
 ## 协调
 
 - Planner 负责人：当前程序 Planner。
-- Executor 负责人：待分配独立 Executor。
+- Executor 负责人：当前独立 Executor。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`。
+- 实现编写方（AI 侧）：`Codex`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@7af87dc0`（Plan 121 初版基线为 `1544d988`；后续公共语义与 Born gameplay gate 修订均在发布前审计远端并前移）。
 - 本地实现方式（可选，仅作交接说明）：按当前对话确认使用本任务专属 worktree；不得在主工作区直接实现。
@@ -27,14 +27,14 @@
 - 对应模块文档：`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`MOD-ReEchoEnemies.md` 与 `MOD-ReEcho.md` 必须加入 Writes，记录 Born 完成门禁、逐帧脚点及 Host/Logic 边界。
 - 设计意图：保持“Profile 决定具体表现、Host 拥有 Actor 可伤害状态、EnemyLogic 决定行为/Phase2”的边界；Presentation 只提供 Born 是否成功启动/仍活跃，Host 据此持有明确 Born Gameplay Gate，并把移动/Phase2 类型化许可交给 EnemyLogic，不延迟出生提交或暂停普通 AI 计时。
 - 权威状态与依赖：Presentation 模块独占 Born 播放状态与逐帧脚点；ReEcho Host 独占 Born Gameplay Gate 与 `CanBeDamaged` 切换，并写入类型化移动/Phase2许可；ReEchoEnemies 继续独占移动意图、Phase2 判定与状态推进。不存在 Presentation → Enemies 反向依赖，模块依赖方向不变。
-- 决策记录：`兔子/史莱姆/好羊/好狐狸` 映射为 `Rabbit/Slime/Goat/Fox`，不是 `Bad*` 目录；兔子 6 帧，其余各 5 帧；已通过 Unreal 回读证明 Rabbit 现有 Born 惯例为 4 FPS、Center Pivot、PPU 1、Translucent，四组统一沿用。2026-08-26 用户在获知 C++/公共契约/FullRebuild 风险后明确确认扩展 Plan，拒绝仅交付未绑定资产的降级方案。
+- 决策记录：`兔子/史莱姆/好羊/好狐狸` 映射为 `Rabbit/Slime/Goat/Fox`，不是 `Bad*` 目录；兔子 6 帧，其余各 5 帧。2026-08-26 用户要求四种 Born 总时长统一为精确 `0.5s`，因此 Rabbit 使用 12 FPS，Slime/Goat/Fox 使用 10 FPS；Center Pivot、PPU 1、Translucent 与非循环属性保持不变。
 - 相关文档同步范围：更新 `MOD-ReEchoPresentation.md`、`MOD-ReEchoEnemies.md` 与 `MOD-ReEcho.md`；`ARCHITECTURE.md` 和 `README.md` 关闭前审阅，预计无需修改，因为拓扑和稳定路由不变。
 - 关闭前逐项填写审阅结果：待 Executor/Planner 根据最终候选补充。
 
 ## 锁定验收
 
 - [ ] `Rabbit/Slime/Goat/Fox` 各自存在 `Born` 目录，源 PNG 对应的 Texture 与 Sprite 数量分别为 6/5/5/5，命名稳定且帧序正确。
-- [ ] 四个非循环 Born Flipbook 位于各自 `Flipbooks` 目录，逐帧引用对应 Sprite，不跨怪物借用资源。
+- [ ] 四个非循环 Born Flipbook 位于各自 `Flipbooks` 目录，逐帧引用对应 Sprite，不跨怪物借用资源；Rabbit 6 帧/12 FPS、Slime/Goat/Fox 5 帧/10 FPS，资产回读的总时长均为 `0.5s`。
 - [ ] 四个生产 Enemy Profile 的 `Animation.Born` Clip 分别引用本怪物 Born Flipbook；资产保存后重新加载仍保持引用，缺失资源不会影响玩法生成。
 - [ ] `Animation.Born` 以原生 GameplayTag 注册并存在于共享 FSM；它是锁至完成、仅 Death 可抢占的非循环瞬时表现，完成后回到 Move，Death 保持最高优先级/终结独占。
 - [ ] 新怪物完成 `ConfigureFromDefinition` 的 Profile 装配后尝试一次 Born；缺少 Born 的 Profile 安全 no-op，生成成功、碰撞、普通 AI/Encounter 提交不依赖播放结果；可伤害和移动只在 Born 成功启动时受 Gate 控制。
@@ -62,7 +62,7 @@
 3. Born 活跃时，Enemy Presentation 的脚点与 GroundShadow 宽度/中心使用当前 Sprite Bounds；Death authored pivot 保持既有专用路径，其他语义继续使用 Flipbook 聚合 Bounds。
 4. 在专属 Executor worktree 回读四个 Profile、现有 Rabbit/Slime Born 资产、同类 Flipbook 的循环/帧率/材质/像素密度与导入设置；冻结准确替换和新增清单。
 5. 通过 Unreal Editor Python/仓库脚本复制源 PNG 并导入 Texture，按项目 Paper2D 惯例创建逐帧 Sprite；不得在 Editor 外生成或手改 `.uasset`。
-6. 在四个怪物的 `Flipbooks` 目录创建 4 FPS 非循环 Born Flipbook，按自然数字顺序装帧；只修改四个生产 Profile 的 Born Clip 绑定，保存重载并回读其余字段。
+6. 在四个怪物的 `Flipbooks` 目录创建总时长 `0.5s` 的非循环 Born Flipbook，按自然数字顺序装帧；Rabbit 设为 12 FPS，Slime/Goat/Fox 设为 10 FPS。只修改四个生产 Profile 的 Born Clip 绑定，保存重载并回读其余字段。
 7. 更新三份模块文档和执行记录，运行验证矩阵并交由 Planner 审查源码/二进制范围；PIE 人工验收通过前保持 `Review`。
 
 ## 验证矩阵
@@ -85,15 +85,41 @@
 
 ### 变化
 
-- 待 Executor 填写。
+- 注册原生 `Animation.Born` 并补入编辑器语义解析；共享 FSM 新增优先级 20、完成回到 Move 的非终结 Born 状态。
+- Enemy Host 在 Definition/Profile 装配后调用 `TryPlayBorn`，忽略播放结果，不改变已经提交的玩法状态。
+- Rabbit 旧 Born 资产经 Unreal 规范到 `Born/{Textures,Sprites}`；Slime/Goat/Fox 新增同结构资产。四组非循环 Flipbook 与四个生产 Profile 的默认 Born Clip 已绑定；待本修订把总时长统一为 `0.5s`。
+- 最小必要偏差：更新后的初始 Writes 漏列 `ReEcho2DPresentationCatalog.cpp`；Planner 已确认将 Born 加入既有候选数组属于已授权公共语义目标且不新增 API。本执行记录及 Writes 已补记。
 
 ### 证据
 
-- Planner 已确认四组源序列可读取，帧数为 6/5/5/5；尚未导入或修改 UE 内容资产。
+- 四组源序列可读取且为 32 位 ARGB PNG，帧数为 6/5/5/5。
+- 独立 Unreal 重载审计（时长修订前）：`enemies=4 textures=21 sprites=21 flipbooks=4 profiles=4 issues=0`；四组自然帧序、非循环绑定，FSM Born 完成归宿为 Move。时长修订后需重新回读四组均为 `0.5s`。
+- 增量 Editor Build 两轮通过（首次 97 actions；语义解析补齐后 4 actions）。最终 FullRebuild 97 actions 通过，刷新 7 个精选模块，源码指纹 `6b0f55f586aa`。
+- `ReEcho.Presentation.Animation2D` 实际执行 4 个测试：FootpointAlignment、CookedDeathPivotPolicy、StunPause 通过；AssetProfiles 的 Born 播放、完成回 Move、缺失 no-op 与 Death 抢占断言未报错，但被既有 TimeGuard Phase2 空能力断言（第 484 行）单独阻塞。
+- Plan82 全库审计未报告 Born/FSM/Profile 问题，但被本 Plan 明确排除的 BadRabbit 20 张既有未导入源图阻塞；Plan121 独立重载审计提供本任务资产链通过证据。
+- `python scripts/validate_project.py` 通过；`python scripts/ue/prebuilt_editor.py check` 通过（7 模块，Build ID `55116800`，源码指纹 `6b0f55f586aa`）；`git diff --check` 通过。
+- Planner 集成前远端前进到 Plan120：Fox/Rabbit/Slime 三个 Profile 与其 Phase2 Transform 发生二进制同文件重叠。集成候选先保留最新 main 的 Transform 版本，再通过 Unreal 只追加 Born；独立二次重载审计 `profiles=3 born=3 transform=3 issues=0`，并逐项确认其他 Move/Attack/Hit/Death Clip 仍存在。该组合使 Executor 旧 FullRebuild/资产证据失效，以下最终证据以 Planner 集成候选重跑结果为准。
+- Planner 最终组合候选 FullRebuild 94/94 成功；`prebuilt_editor.py check` 通过（7 模块，Build ID `55116800`，源码指纹 `6b0f55f586aa`），`validate_project.py` 与 `git diff --check` 通过。聚焦 Animation2D 自动化在组合候选实际运行 4 项，结果仍为 3 项通过、AssetProfiles 仅受既有 TimeGuard Phase2 空能力断言阻塞，Born 新增断言未失败。
+- 完成门禁修订执行：Presentation 增加只读 `IsBornPlaying()`；Host 将其转换为 `FReEchoEnemySenseSnapshot::bPhase2TransitionPermitted`，EnemyLogic 仅在许可关闭时跳过新 Phase2 启动。Born 活跃时的致命伤不再被截获为 Transform，Combat 正常进入 Death，普通 AI/碰撞/受伤路径未增加门禁。
+- Born 活跃期间脚点与 GroundShadow 改用当前 Sprite Bounds；`bUseAuthoredDeathPivot` 的判断继续显式要求 Death 活跃，普通语义仍使用 Flipbook 聚合 Bounds。
+- 修订后聚焦自动化：`ReEcho.Enemies.Logic` 全部通过，新增 `Phase2.BornPermit` 覆盖攻击次数、距离、血量三类条件的延迟与放行；`ReEcho.Enemies.Host` 全部通过，新增 typed permit 默认开放契约；`ReEcho.Presentation.Animation2D` 的 FootpointAlignment、CookedDeathPivotPolicy、StunPause 通过，AssetProfiles 仍仅被既有 TimeGuard Phase2 空能力断言（第 484 行）阻塞，Born 活跃状态、完成解除与 Death 抢占新增断言未报错。
+- 修订候选最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 94/94 成功；预构建包检查通过（7 模块，Build ID `55116800`，源码指纹 `24e91536e9f6`）；`validate_project.py` 与 `git diff --check` 通过。
+- 阻塞审查修正：共享 FSM 的 Born 从 priority 20 提升为 90，并保持 `lock_until_playback_complete=true`、`terminal=false`、自然完成回 Move；Attack(40)、Hit(60)、Transform(80) 均不可抢占，只有 terminal Death(100) 可抢占。Unreal 保存后回读完整状态表与上述值一致。
+- Animation2D 确定性测试新增 Attack/Hit/Transform 拒绝、拒绝后 `IsBornPlaying()` 仍为真、自然完成解除门禁及 Death 抢占断言；聚焦运行未报告这些断言错误，仍仅有既有 TimeGuard Phase2 空能力断言。Plan82/121 Unreal 资产审计未报告 Born/FSM 问题，仍只被明确排除的 BadRabbit 20 张既有未导入 PNG 阻塞。
+- 阻塞审查修正后的最终 FullRebuild 95/95 成功；预构建包刷新为 7 模块、Build ID `55116800`、源码指纹 `96c87a0105f2`。
+- Born Gameplay Gate 修订执行：仅 `TryPlayBorn()` 成功时 Host 保存原 `CanBeDamaged` 并关闭伤害；Gate 内 Host 原始伤害入口返回 0，Sense 同时关闭移动、攻击与 Phase2 许可，缺失/失败 Born 不进入 Gate。Presentation 自然完成后 Host 恢复原伤害状态；普通 AI、目标与既有冷却/计时继续推进，Logic 抑制普通攻击、特殊技及 Boss 攻击提交，Host 在世界副作用边界再次拒绝攻击窗口、传送、投射物和伤害。
+- `BornMovementPermit` 扩展为攻击门禁回归：Gate 内普通攻击不消费序号、特殊技不进入 Windup、Boss 不产生 AttackWindow，Boss encounter 计时继续；解除后的首个合格步骤分别恢复提交。`BornGameplayGate` 同时覆盖 Host 侧 Boss 传送抑制与完成后恢复；既有成功才 Gate、伤害为零、位置不变、恢复边界和缺失 no-op 保持不变。
+- 与最新 Plan117/122 组合后的最终 FullRebuild 98/98 成功；预构建包为 7 模块、Build ID `55116800`、源码指纹 `2e008f409f1b`。
+- 恢复边界审查修正：`RestoreRuntimeState` 在配置后同步取消可能启动的 Born、解除 Host Gate，并按恢复后的存活状态设置 `CanBeDamaged`；存档敌人不重播 Born、不获得瞬时无敌或移动门禁，新生成路径不变。Host 回归覆盖“配置先启动 Gate → 恢复快照 → Born/Gate 均关闭且活体可伤害”。
+- 攻击门禁审查修正：Host 在成功 Born Gate 内向 `FReEchoEnemySenseSnapshot::bAttackPermitted` 注入 false；Logic 不开始或提交普通攻击、兔子/狐狸特殊技和 Boss 攻击窗口，但继续推进目标采样、普通攻击冷却、Bomber Fuse、Boss cooldown/encounter 等既有计时。Host 在实际世界副作用边界再次拒绝 Gate 内攻击窗口，并阻止 Boss 传送、投射物生成与伤害；自然完成后的首个合格逻辑步恢复，缺失/失败 Born 与运行时恢复仍保持 ungated。
+- 时长修订执行：通过 Unreal Python 只修改并保存四个生产 Born Flipbook 的 `FramesPerSecond`；独立 Commandlet 重载审计结果为 `Rabbit:6@12=0.500s|Slime:5@10=0.500s|Goat:5@10=0.500s|Fox:5@10=0.500s profiles=4 non_looping=4 issues=0`，同时逐项核对自然 Sprite 顺序和生产 Profile 的 `Animation.Born` 引用。`audit_plan82_animation_assets.py` 增加 `REECHO_PLAN121_ONLY=1` 聚焦模式；默认全库模式仍准确报告本 Plan 排除的 BadRabbit 20 张既有未导入源图。
+- 时长修订最终门禁：FullRebuild 94/94 成功并刷新 7 模块预构建包（Build ID `55116800`，源码指纹 `babf2d833441`）；`prebuilt_editor.py check`、`validate_project.py` 与 `git diff --check` 通过。
+- 攻击门禁最终验证：FullRebuild 96/96 成功并刷新 7 模块预构建包（Build ID `55116800`，源码指纹 `babf2d833441`）；`ReEcho.Enemies.Logic` 与 `ReEcho.Enemies.Host` 全部通过，包含普通/特殊/Boss 抑制、Boss encounter 计时继续、Host 传送抑制及完成后恢复；`prebuilt_editor.py check`、`validate_project.py`、`git diff --check` 通过。首次 validate 在沙箱临时目录权限处失败，扩展权限原命令重跑通过，非项目内容失败。
+- 恢复边界修正后的 `ReEcho.Enemies.Host` 全部通过；最终 FullRebuild 97/97 成功，预构建包为 7 模块、Build ID `55116800`、源码指纹 `cc80f41fe521`。
 
 ### 剩余风险
 
-- 主体脚点与最终视觉节奏必须通过 PIE 人工验收确认；公共语义扩展需要最终 FullRebuild 与聚焦自动化证明未破坏既有状态优先级。
+- 主体脚点、首帧闪烁、最终视觉节奏与回到 Move 的实际观感仍需用户 PIE 人工验收。
 
 ### 人工验收结果/请求
 
@@ -101,6 +127,7 @@
 
 ### 架构文档审阅结果
 
-- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：需更新 Born 原生语义、FSM 完成归宿与测试边界。
-- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：需更新 Enemy Host 在 Definition/Profile 装配后发出 Born 表现请求且不参与玩法裁决。
-- `shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md`：关闭前由 Planner 复审。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：已更新 Born 原生语义、FSM 完成归宿与测试边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Enemy Host 在 Definition/Profile 装配后发出 Born 表现请求且不参与玩法裁决；保留 Plan114 音频装配内容。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅、无需修改；模块拓扑和依赖方向不变。
+- `shared/CODEBASE_MAP/README.md`：已审阅、无需修改；稳定模块标识和路由不变。

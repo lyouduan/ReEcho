@@ -53,6 +53,15 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ImgMedia",
+			"Enabled": true
+		},
+		{
+			"Name": "HAPMedia",
+			"Enabled": true,
+			"PlatformAllowList": ["Win64"]
+		},
+		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
 			"TargetAllowList": ["Editor"]

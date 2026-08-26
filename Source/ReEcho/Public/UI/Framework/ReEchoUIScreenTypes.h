@@ -15,6 +15,7 @@ enum class EReEchoUIScreen : uint8
 	Settings,
 	About,
 	Restart,
+	EncounterTransition,
 	TraitChoice,
 	InventoryShop,
 	Stats
@@ -28,6 +29,7 @@ enum class EReEchoUILayer : uint8
 	GameplayHud,
 	PlayerHud,
 	BuildChoice,
+	Transition,
 	Screen,
 	Pause,
 	Start,

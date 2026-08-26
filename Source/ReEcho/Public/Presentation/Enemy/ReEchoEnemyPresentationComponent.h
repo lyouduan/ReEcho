@@ -103,6 +103,12 @@ public:
 	                      UReEchoCombatEventsComponent* InCombatEvents);
 	void SetPresentationCatalog(UReEcho2DPresentationCatalog* InPresentationCatalog);
 	void ConfigureAppearance(FName PresentationId);
+	/** Try the optional Born presentation without affecting the committed gameplay spawn. */
+	bool TryPlayBorn();
+	/** Read-only presentation state used by the Host to delay only the start of Phase2. */
+	bool IsBornPlaying() const;
+	/** Saved enemies are already committed; discard only a configuration-started Born and return to the base state. */
+	void CancelBornForRuntimeRestore();
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
 	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
 	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
@@ -114,6 +120,7 @@ public:
 	static FVector ResolveBossWeaponTipOffset(float HeldLengthCm);
 #if WITH_DEV_AUTOMATION_TESTS
 	void ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event);
+	void CompleteActiveAnimationForTests();
 #endif
 
 	UBillboardComponent* GetCharacterSprite() const
