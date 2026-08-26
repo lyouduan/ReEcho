@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Components/SceneComponent.h"
 #include "Engine/Texture2D.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -8,6 +9,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
+#include "NiagaraDataSetAccessor.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterInstance.h"
 #include "NiagaraEmitterHandle.h"
@@ -19,6 +21,7 @@
 #include "NiagaraSystemInstanceController.h"
 #include "NiagaraVariant.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
@@ -64,6 +67,23 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFoxDirectionRuntimeTest,
 bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 {
 	FReEchoCombatVfxWorldFixture Fixture;
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads for Fox Direction"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+	FReEchoEnemyDefinition FoxDefinition;
+	FString CompileError;
+	if (!TestTrue(
+	        TEXT("Production M_FOX definition compiles for Direction"),
+	        ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_FOX"), FoxDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+	constexpr double GameplayPlaneWorldZ = 725.0;
 	AReEchoEnemyActor* Fox = Fixture.World->SpawnActor<AReEchoEnemyActor>();
 	if (!TestNotNull(TEXT("Fox presentation host spawns"), Fox))
 	{
@@ -73,11 +93,22 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	{
 		Fox->DispatchBeginPlay();
 	}
+	Fox->ConfigureGameplayPlane(GameplayPlaneWorldZ);
+	Fox->SetEnemyId(TEXT("M_FOX"));
+	if (!TestTrue(TEXT("Fox presentation host accepts the production M_FOX definition"),
+	              Fox->ConfigureFromDefinition(FoxDefinition, 117)))
+	{
+		return false;
+	}
+	USceneComponent* OwnerRoot = Fox->GetRootComponent();
+	USceneComponent* AttackVfxRoot = Cast<USceneComponent>(Fox->GetDefaultSubobjectByName(TEXT("AttackVfxRoot")));
 	UReEchoCombatPresentationCoordinator* Coordinator =
 	    Fox->FindComponentByClass<UReEchoCombatPresentationCoordinator>();
 	UReEchoCombatVfxComponent* Vfx = Fox->FindComponentByClass<UReEchoCombatVfxComponent>();
 	if (!TestNotNull(TEXT("Fox presentation coordinator exists"), Coordinator) ||
-	    !TestNotNull(TEXT("Fox VFX adapter exists"), Vfx))
+	    !TestNotNull(TEXT("Fox VFX adapter exists"), Vfx) ||
+	    !TestNotNull(TEXT("Production Fox Owner RootComponent exists"), OwnerRoot) ||
+	    !TestNotNull(TEXT("Production Fox AttackVfxRoot exists"), AttackVfxRoot))
 	{
 		return false;
 	}
@@ -90,10 +121,40 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	Windup.LockedDirection = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
 	Fox->GetEnemyEventsComponent()->PublishSpecialAction(Windup);
 	UNiagaraComponent* Direction = Vfx->GetDirectionEffectForTests();
-	if (!TestNotNull(TEXT("Fox Windup creates a live Direction component"), Direction))
+	UNiagaraComponent* Charging = Vfx->GetChargingEffectForTests();
+	if (!TestNotNull(TEXT("Fox Windup creates a live Direction component"), Direction) ||
+	    !TestNotNull(TEXT("Fox Windup keeps its live Charging component"), Charging))
 	{
 		return false;
 	}
+	AddInfo(FString::Printf(TEXT("Production Fox center placement: planeZ=%.3f actorZ=%.3f ownerRootZ=%.3f "
+	                             "attackRootZ=%.3f directionComponentZ=%.3f chargingComponentZ=%.3f"),
+	                        GameplayPlaneWorldZ,
+	                        Fox->GetActorLocation().Z,
+	                        OwnerRoot->GetComponentLocation().Z,
+	                        AttackVfxRoot->GetComponentLocation().Z,
+	                        Direction->GetComponentLocation().Z,
+	                        Charging->GetComponentLocation().Z));
+	TestEqual(TEXT("Production M_FOX collision half-height is 130 cm"), FoxDefinition.CollisionHalfHeightCm, 130.0f);
+	TestEqual(TEXT("Production Fox center is 855 cm"), Fox->GetActorLocation().Z, 855.0);
+	TestEqual(TEXT("Production Fox Owner RootComponent follows the Actor center"),
+	          OwnerRoot->GetComponentLocation().Z,
+	          Fox->GetActorLocation().Z);
+	TestEqual(TEXT("Production Fox AttackVfxRoot stays on the gameplay plane"),
+	          AttackVfxRoot->GetComponentLocation().Z,
+	          GameplayPlaneWorldZ);
+	TestEqual(
+	    TEXT("Fox Direction attaches directly to the Owner RootComponent"), Direction->GetAttachParent(), OwnerRoot);
+	TestEqual(TEXT("Fox Direction component origin equals the Actor center"),
+	          Direction->GetComponentLocation(),
+	          Fox->GetActorLocation());
+	TestEqual(
+	    TEXT("Fox Direction placement remains zero-offset"), Direction->GetRelativeLocation(), FVector::ZeroVector);
+	TestEqual(TEXT("Fox Charging remains attached to AttackVfxRoot"), Charging->GetAttachParent(), AttackVfxRoot);
+	TestEqual(TEXT("Fox Charging component stays on the gameplay plane"),
+	          Charging->GetComponentLocation().Z,
+	          GameplayPlaneWorldZ);
+	TestEqual(TEXT("Fox Charging placement remains zero-offset"), Charging->GetRelativeLocation(), FVector::ZeroVector);
 	TestTrue(TEXT("Fox Direction component is registered"), Direction->IsRegistered());
 	TestTrue(TEXT("Fox Direction component is visible"), Direction->IsVisible());
 	TestTrue(TEXT("Fox Direction component is active"), Direction->IsActive());
@@ -120,6 +181,20 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	for (const FNiagaraEmitterInstanceRef& Emitter : SystemInstance->GetEmitters())
 	{
 		TotalParticles += Emitter->GetNumParticles();
+		const FNiagaraDataSet& ParticleData = Emitter->GetParticleData();
+		const FNiagaraDataSetAccessor<FNiagaraPosition> PositionAccessor(ParticleData, TEXT("Position"));
+		const FNiagaraDataSetReaderFloat<FNiagaraPosition> PositionReader = PositionAccessor.GetReader(ParticleData);
+		for (int32 ParticleIndex = 0; ParticleIndex < Emitter->GetNumParticles() && PositionReader.IsValid();
+		     ++ParticleIndex)
+		{
+			const FVector LocalParticlePosition(PositionReader.Get(ParticleIndex));
+			const FVector WorldParticlePosition =
+			    Direction->GetComponentTransform().TransformPosition(LocalParticlePosition);
+			AddInfo(FString::Printf(TEXT("Fox Direction particle observation local=%s world=%s componentOrigin=%s"),
+			                        *LocalParticlePosition.ToString(),
+			                        *WorldParticlePosition.ToString(),
+			                        *Direction->GetComponentLocation().ToString()));
+		}
 		AddInfo(FString::Printf(TEXT("Fox Direction emitter '%s': sim=%d state=%d particles=%d bounds=%s"),
 		                        *Emitter->GetEmitterHandle().GetUniqueInstanceName(),
 		                        static_cast<int32>(Emitter->GetSimTarget()),

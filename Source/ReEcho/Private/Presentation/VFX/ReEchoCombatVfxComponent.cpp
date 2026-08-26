@@ -1457,9 +1457,10 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 		    SpawnAttached(static_cast<uint8>(ChargingSemantic), Event.LockedDirection, ResolveAttackVfxRoot(), false);
 		if (bFox)
 		{
+			AActor* Owner = GetOwner();
 			DirectionEffect = SpawnAttached(static_cast<uint8>(EReEchoCombatVfxSemantic::FoxDirection),
 			                                Event.LockedDirection,
-			                                ResolveAttackVfxRoot(),
+			                                Owner ? Owner->GetRootComponent() : nullptr,
 			                                false);
 		}
 		return;

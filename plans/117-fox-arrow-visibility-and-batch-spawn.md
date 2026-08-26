@@ -80,6 +80,7 @@
 
 - `FoxDirection` 继续沿用原 Niagara 资产和 Windup 事件链，仅对新建的 Direction 组件实例覆盖局部 Fixed Bounds 为 `X/Y=[-500,500]、Z=[-650,350]`；未修改 `.uasset`、Profile、Blueprint 或玩法事件。
 - 新增 `ReEcho.Presentation.VFX.FoxDirectionRuntime`，通过真实 EnemyEvents → Combat Presentation → CombatVfx 链检查组件、系统实例、粒子、Renderer/材质、运行时 Bounds 和 Committed 清理。
+- 第三次本地人工返工按“箭头起始点以狐狸中心为准”收敛：FoxDirection 单独附着生产狐狸 Owner RootComponent，placement 保持零偏移，使组件原点精确等于 Actor/碰撞中心；不再从 Niagara 粒子内部位置猜测并添加 `+150/+300 cm` 补偿。Charging、FoxDash Trail、其 placement/lifecycle/资产保持 `0b339df4` 原样。
 - `GMSpawnFox` 扩展为 `<count> [distance]`，数量钳制 `1..16`、距离钳制 `150..1000 cm`，按朝 Arena 中心的确定性 140 度弧线分散并逐只复用生产 `SpawnConfiguredEnemy("M_FOX")`；无参数与旧单个大距离参数兼容。
 - 帮助文本、`docs/GM_COMMANDS.md`、GameMode/VFX 模块文档和聚焦 GM 自动化同步更新。
 
