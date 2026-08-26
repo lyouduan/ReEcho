@@ -250,7 +250,6 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
                                                 const float DeltaSeconds)
 {
 	const float SafeDelta = FMath::Max(0.0f, DeltaSeconds);
-	VisualTime += SafeDelta;
 	if (Host && CharacterSprite && SequenceAnimation && !SequenceAnimation->IsAnimationActive())
 	{
 		ReEchoBillboardDebug::DrawBounds(
@@ -262,9 +261,12 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		    Host, Collision, Snapshot.Archetype == EReEchoEnemyArchetype::Boss ? FColor::Orange : FColor::Cyan);
 	}
 	UpdateCameraFacing(Snapshot);
-	UpdateBossWeaponMotion(SafeDelta);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetPlaybackPaused(false);
+		}
 		RefreshFootpointAlignment();
 		if (VisualEffectRoot)
 		{
@@ -273,6 +275,16 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		RefreshGroundShadowFromFlipbook();
 		return;
 	}
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetPlaybackPaused(Snapshot.bStunned);
+	}
+	if (Snapshot.bStunned)
+	{
+		return;
+	}
+	VisualTime += SafeDelta;
+	UpdateBossWeaponMotion(SafeDelta);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::HitReaction)
 	{
 		UpdateHitReaction(Snapshot);

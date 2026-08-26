@@ -64,6 +64,10 @@ struct REECHO_API FReEchoEnemyPresentationSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bMoving = false;
+
+	/** Gameplay-owned action disable sampled by the Host; presentation only pauses/resumes the current frame. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bStunned = false;
 };
 
 /**

@@ -753,7 +753,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	AdvanceEnemyProjectiles(DeltaSeconds);
 	if (bDeathSequenceStarted)
 	{
-		EnemyPresentation->Advance(BuildPresentationSnapshot(false), DeltaSeconds);
+		EnemyPresentation->Advance(BuildPresentationSnapshot(false, false), DeltaSeconds);
 		return;
 	}
 	if (IsAlive())
@@ -763,7 +763,9 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 
 	FReEchoEnemyActionIntent Intent;
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (IsAlive() && WorldTime >= CardStunnedUntilWorldTime && (!Combatant || !Combatant->IsActionDisabled(WorldTime)))
+	const bool bStunned =
+	    IsAlive() && (WorldTime < CardStunnedUntilWorldTime || (Combatant && Combatant->IsActionDisabled(WorldTime)));
+	if (IsAlive() && !bStunned)
 	{
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
@@ -834,7 +836,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 			ReEchoGameMode->NotifyEnemySpecialStarted(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
 		}
 	}
-	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement), DeltaSeconds);
+	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement, bStunned), DeltaSeconds);
 
 #if !UE_BUILD_SHIPPING
 	// GM debug overlay (GMShowEnemyHealth): float remaining HP above the enemy's head when enabled.
@@ -1437,7 +1439,8 @@ void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEvent
 	EnemyEvents->PublishProjectile(Event);
 }
 
-FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving) const
+FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving,
+	                                                                            const bool bStunned) const
 {
 	FReEchoEnemyPresentationSnapshot Result;
 	const FReEchoEnemyLogicSnapshot LogicSnapshot = EnemyLogic->GetSnapshot();
@@ -1456,6 +1459,7 @@ FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(co
 	Result.HitReactionDurationSeconds = Definition.HitReactionDurationSeconds;
 	Result.AttachedElement = GetAttachedElement();
 	Result.bMoving = bMoving;
+	Result.bStunned = bStunned;
 	return Result;
 }
 
