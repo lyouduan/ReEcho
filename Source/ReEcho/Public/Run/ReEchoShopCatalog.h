@@ -154,6 +154,7 @@ struct REECHO_API FReEchoWeaponPartShopView
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 	int32 WeaponRuneRefreshesRemaining = 0;
 	int32 WeaponRuneRefreshCost = 0;
+	int32 TimeShardDebt = 0;
 	bool bWeaponRuneRefreshAllowed = false;
 	bool bWeaponRuneRefreshUnlimited = false;
 	bool bUnlimitedShopCredit = false;

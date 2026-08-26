@@ -494,6 +494,39 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponGemDamageCoefficientMatrixTest,
                                  "ReEcho.Weapons.Gems.DamageCoefficientMatrix",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoPrismMultishotElementTest,
+                                 "ReEcho.Weapons.Gems.PrismMultishotUsesPerProjectileElements",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoPrismMultishotElementTest::RunTest(const FString& Parameters)
+{
+	bool bObservedDifferentElementsWithinOneAttack = false;
+	for (int64 AttackSequence = 1; AttackSequence <= 32; ++AttackSequence)
+	{
+		const EReEchoElement First =
+		    ReEchoWeaponRuntime::ResolveProjectileElement(true, EReEchoElement::Water, AttackSequence, 0);
+		for (int32 ProjectileIndex = 0; ProjectileIndex < 3; ++ProjectileIndex)
+		{
+			const EReEchoElement Element = ReEchoWeaponRuntime::ResolveProjectileElement(
+			    true, EReEchoElement::Water, AttackSequence, ProjectileIndex);
+			TestTrue(TEXT("Prism projectile resolves to one of the four production elements"),
+			         Element == EReEchoElement::Water || Element == EReEchoElement::Flame ||
+			             Element == EReEchoElement::Lightning || Element == EReEchoElement::Grass);
+			TestEqual(TEXT("Prism projectile element is deterministic for replay"),
+			          ReEchoWeaponRuntime::ResolveProjectileElement(
+			              true, EReEchoElement::None, AttackSequence, ProjectileIndex),
+			          Element);
+			bObservedDifferentElementsWithinOneAttack |= Element != First;
+		}
+	}
+	TestTrue(TEXT("Multishot projectiles no longer share one attack-level prism element"),
+	         bObservedDifferentElementsWithinOneAttack);
+	TestEqual(TEXT("Non-prism projectiles keep the attack element"),
+	          ReEchoWeaponRuntime::ResolveProjectileElement(false, EReEchoElement::Flame, 1, 2),
+	          EReEchoElement::Flame);
+	return true;
+}
+
 bool FReEchoWeaponGemDamageCoefficientMatrixTest::RunTest(const FString& Parameters)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();

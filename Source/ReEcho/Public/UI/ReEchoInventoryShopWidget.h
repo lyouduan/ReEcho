@@ -132,6 +132,7 @@ private:
 	void RebuildAttachmentHoverSlots();
 	void RebuildEquippedWeaponDisplay();
 	void UpdateWeaponLoadoutText();
+	int32 GetDisplayedTimeShardBalance() const;
 	FName GetSlotTypeIdForIndex(int32 SlotIndex) const;
 	const FReEchoShopOffer* FindOwnedPartByContentId(FName ContentId) const;
 	void HandleAttachmentSlotClicked(int32 SlotIndex);

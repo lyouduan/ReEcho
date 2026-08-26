@@ -1364,8 +1364,14 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		       Context->ReactionEfficiency);
 	}
 #endif
-	for (const FVector& Direction : Directions)
+	for (int32 ProjectileIndex = 0; ProjectileIndex < Directions.Num(); ++ProjectileIndex)
 	{
+		const FVector& Direction = Directions[ProjectileIndex];
+		const EReEchoElement ProjectileElement =
+		    ReEchoWeaponRuntime::ResolveProjectileElement(EffectiveDefinition.bUsesDeterministicRandomElement,
+		                                                  Commit.Element,
+		                                                  Commit.Attack.Sequence,
+		                                                  ProjectileIndex);
 		const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
 		AReEchoProjectileActor* Projectile =
 		    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, Direction.Rotation());
@@ -1389,8 +1395,8 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		Projectile->InitializeProjectile(Direction,
 		                                 Commit.RawDamage,
 		                                 OwnerLocation,
-		                                 ReEchoElementReaction::GetElementColor(Commit.Element),
-		                                 Commit.Element,
+		                                 ReEchoElementReaction::GetElementColor(ProjectileElement),
+		                                 ProjectileElement,
 		                                 Context.IsValid() ? Context->ReactionEfficiency
 		                                                   : Combatant->Stats.ReactionEfficiency,
 		                                 Commit.ExplosionRadiusCm,

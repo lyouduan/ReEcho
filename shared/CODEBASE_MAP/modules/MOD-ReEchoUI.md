@@ -33,7 +33,7 @@
 - 商店装配室的武器面板、时钟、3 个符文槽和 12 个卡牌槽以 `WBP_ReEchoInventoryShopScreen > Overlay_0 > DesignerLoadoutCanvas` 为位置权威；这些 authored 控件都是 Canvas 直接子项，可在 UMG Designer 中修改 Position/Size。`UReEchoInventoryShopWidget` 在武器面板的 authored 矩形上叠加当前武器图与透明点击入口，位置跟随面板而不是另立坐标；武器贴图 Brush 使用源纹理尺寸，按钮 Content Slot 填充 authored 矩形，再由 ScaleBox 等比放大，禁止退回默认 32px 中央小图。点击后用独立浮层列出 Run 投影的全部已拥有武器，当前项禁用，其他项只广播装备请求。武器与符文背包统一挂在响应式设计面的根级 `BackpackPopupLayer`，其 ZOrder 高于商店和回响弹层；符文背包复用武器背包的边框、滚动区、图标尺寸和文字行对齐。符文槽继续填充纹理、置灰状态与 Tooltip；构筑卡购买成功后把真实卡牌图标立即填入卡牌槽，但不重摇当前商店卡组候选。
 - 已拥有卡牌的 Tooltip 保留原“名称 + 策划描述”面板；当 Run 投影的 `OutcomeText` 非空时，同一 Tooltip 根在其正下方再生成独立描边的“实际效果”面板。UI 不按卡牌 ID、中文描述或当前属性反推玩法结果，空结果不生成第二面板。
 - 商店/背包页以 `1920×1080` 为作者设计面：`BackgroundImage` 保持直接铺满实际视口，其余根控件及运行时商店/回响弹层由 `ResponsiveContentScale > ResponsiveContentSize > ResponsiveContentCanvas` 统一 `ScaleToFit`。低分辨率按比例缩小完整页面，超宽屏只延展背景；运行时迁移必须保留原 Canvas Slot 的锚点、偏移、自动尺寸和 ZOrder。
-- `UReEchoInventoryShopWidget` 的无资产 fallback 展示实际折扣价、武器/符文剩余刷新次数、刷新禁用和额外卡牌组禁用状态；主刷新只广播武器/符文刷新命令，Run 成功消费并保存后才更新这三个报价槽，卡组候选和已购状态保持不变。
+- `UReEchoInventoryShopWidget` 的无资产 fallback 展示实际折扣价、武器/符文免费与付费剩余刷新次数、刷新禁用和额外卡牌组禁用状态；免费次数优先消费且不占用每关付费次数。主刷新只广播武器/符文刷新命令，Run 成功消费并保存后才更新这三个报价槽，卡组候选和已购状态保持不变。诅咒银行仍由 Run 分开保存非负现金与正债务，商店和玩家 HUD 只读展示二者净值，因此赊账后显示负数但购买判断不读取该展示值。
 - 商店逻辑按稳定区块拆分：`ShopLogicScrollBox > ShopLogicPanel` 依次承载 `WeaponPartOfferPanel`（配件购买）、`RunItemOfferPanel`（普通商品）、`ShopControlPanel`（规则/刷新）和 `WeaponLoadoutPanel`（槽位草稿/保存）。现有 WBP 由 C++ 在根 Canvas 上提供有界、显式滚动条的商品视口，战后模式止于底部回响托盘上方；`EchoPanel` 使用独立缩放托盘与显式高 ZOrder。这些名称是后续 WBP 接入的逻辑契约，C++ 不依赖任何美术占位节点。
 - 同一商店页展示数据驱动的武器槽组、兼容配件报价和装配草稿；未拥有配件点击后发送购买命令，已拥有配件点击后只编辑草稿，“保存配置”才发送完整 PartId 集合给 Run。关闭页面不提交草稿，已成功购买的配件所有权仍保留。
 - UI 只消费只读摘要或事件并发送受控命令，不直接写 Run、Combat、Weapons、Enemies 或存档权威状态。

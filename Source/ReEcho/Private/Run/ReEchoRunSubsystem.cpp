@@ -1486,6 +1486,7 @@ bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& Out
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 {
 	FReEchoWeaponPartShopView View;
+	View.TimeShardDebt = FMath::Max(0, CurrentBuild.CardState.Runtime.TimeShardDebt);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoCsvWeaponRow* Weapon =
 	    Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(CurrentBuild.WeaponId) : nullptr;
@@ -1507,10 +1508,10 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		View.WeaponRuneRefreshesRemaining =
 		    FMath::Max(0, RefreshRule->WeaponRuneRefreshLimit - WeaponRuneRefreshesUsed);
 		View.WeaponRuneRefreshCost = RefreshRule->WeaponRuneRefreshCost;
-		View.bWeaponRuneRefreshAllowed =
-		    !GetCardRules().bDisableShopRefresh &&
-		    (View.bWeaponRuneRefreshUnlimited || View.WeaponRuneRefreshesRemaining > 0) &&
-		    (CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0 || CanPayShopCost(View.WeaponRuneRefreshCost));
+		const bool bHasFreeRefresh = CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0;
+		const bool bCanUsePaidRefresh = (View.bWeaponRuneRefreshUnlimited || View.WeaponRuneRefreshesRemaining > 0) &&
+		                                CanPayShopCost(View.WeaponRuneRefreshCost);
+		View.bWeaponRuneRefreshAllowed = !GetCardRules().bDisableShopRefresh && (bHasFreeRefresh || bCanUsePaidRefresh);
 	}
 	View.WeaponId = Weapon->Id;
 	View.WeaponDisplayName = FText::FromString(Weapon->DisplayName);
@@ -2983,28 +2984,29 @@ bool UReEchoRunSubsystem::TryRefreshWeaponRuneShop(FString& OutError)
 		OutError = TEXT("The current card rules disable shop refreshes");
 		return false;
 	}
-	if (!CurrentBuild.CardState.Runtime.bUnlimitedWeaponRuneRefresh &&
-	    WeaponRuneRefreshesUsed >= RefreshRule->WeaponRuneRefreshLimit)
-	{
-		OutError = TEXT("The weapon/rune refresh budget is exhausted for this shop encounter");
-		return false;
-	}
-	if (CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0)
+	const bool bUsesFreeRefresh = CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0;
+	if (bUsesFreeRefresh)
 	{
 		--CurrentBuild.CardState.Runtime.FreeShopRefreshes;
 	}
-	else if (!CanPayShopCost(RefreshRule->WeaponRuneRefreshCost))
-	{
-		OutError = FString::Printf(TEXT("Time shards %d are below the weapon/rune refresh cost %d"),
-		                           TimeShards,
-		                           RefreshRule->WeaponRuneRefreshCost);
-		return false;
-	}
 	else
 	{
+		if (!CurrentBuild.CardState.Runtime.bUnlimitedWeaponRuneRefresh &&
+		    WeaponRuneRefreshesUsed >= RefreshRule->WeaponRuneRefreshLimit)
+		{
+			OutError = TEXT("The weapon/rune refresh budget is exhausted for this shop encounter");
+			return false;
+		}
+		if (!CanPayShopCost(RefreshRule->WeaponRuneRefreshCost))
+		{
+			OutError = FString::Printf(TEXT("Time shards %d are below the weapon/rune refresh cost %d"),
+			                           TimeShards,
+			                           RefreshRule->WeaponRuneRefreshCost);
+			return false;
+		}
 		CommitShopCost(RefreshRule->WeaponRuneRefreshCost);
+		++WeaponRuneRefreshesUsed;
 	}
-	++WeaponRuneRefreshesUsed;
 	++WeaponRuneRefreshSequence;
 	OutError.Reset();
 	return true;
@@ -3616,6 +3618,11 @@ bool UReEchoRunSubsystem::GrantTimeShards(const int32 Amount)
 bool UReEchoRunSubsystem::CanPayShopCost(const int32 Cost) const
 {
 	return Cost <= 0 || TimeShards >= Cost || GetCardRules().bUnlimitedShopCredit;
+}
+
+int32 UReEchoRunSubsystem::GetDisplayedTimeShardBalance() const
+{
+	return TimeShards - FMath::Max(0, CurrentBuild.CardState.Runtime.TimeShardDebt);
 }
 
 void UReEchoRunSubsystem::CommitShopCost(const int32 Cost)

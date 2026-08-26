@@ -91,6 +91,8 @@ CSV Row 和资源 key 不能进入逻辑模块，避免数据加载器或表现�
 
 武器 Definition 和每个 AttackStep 只暴露一个有效倍率 `DamageCoefficient`。`FReEchoWeaponLogic` 先由 `DamageChannelId` 解析伤害类型：物理通道使用 `PhysicalAttack × DamageCoefficient`，任一元素通道（含确定性随机元素）使用 `ElementalAttack × DamageCoefficient`。不得恢复物理/元素双倍率，也不得用两者最大值做兼容选择；宝石只负责属性来源和伤害类型。
 
+`RandomElement` 仍按攻击身份保持确定性，但投射物载体会再以 `Attack.Sequence + ProjectileIndex` 为每颗弹丸独立取样。棱镜与三发散射/多重箭组合时，同一攻击内的各弹不再复制 Commit 的单一元素；相同攻击身份和弹丸槽号在玩家与 Echo 回放中仍得到相同结果。非随机元素通道继续直接使用 Commit 元素。
+
 ### 唯一普通攻击节拍
 
 ```text

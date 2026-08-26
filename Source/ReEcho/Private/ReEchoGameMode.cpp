@@ -4356,7 +4356,7 @@ void AReEchoGameMode::RefreshPlayerHudTimeShards(const UReEchoRunSubsystem* RunS
 {
 	if (PlayerHudWidget)
 	{
-		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
+		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->GetDisplayedTimeShardBalance() : 0);
 	}
 }
 
