@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@a5d269911fe359646c6ac75e7228e52314edf683`。
 - 本地实现方式（可选，仅作交接说明）：`feat/element-reaction-popup`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan116-element-reaction-popup`。
@@ -133,6 +133,7 @@
 - `origin/main@0b339df4` 合入后的最终 `Development Editor -FullRebuild` 94/94 动作通过，UBT `Result: Succeeded`，精选预构建源码指纹刷新为 `b5beec384a1c`。
 - 最终组合候选再次通过 `ReEcho.UI.CombatHud.Formatting` 1/1 与 `ReEcho.Combat.ElementReaction*` 4/4；无 Automation Error/Fatal。
 - 以正式候选 `c9eb4900` 使用空 expected-value lease 原子取得 `main-publish-lock`；锁内重新 fetch 后 `origin/main` 仍为 `0b339df4` 且已是候选祖先。锁内再次执行 `Development Editor -FullRebuild`，94/94 动作通过、`Result: Succeeded`、源码指纹保持 `b5beec384a1c`；随后静态校验再次通过。
+- 锁内最终候选 `b377239ced286df21621a6c0fa92c334049984a8` 已普通快进发布到 `origin/main`；发布后确认远端 main 与候选完全一致，并用准确 commit lease 删除 `main-publish-lock`。
 
 ### 剩余风险
 
