@@ -10,14 +10,14 @@ Every repository rule's risky-operation prohibition or exception is governed by 
 
 ## First-contact professional-role gate
 
-Before reading beyond this file or changing repository state, a newly connected AI must establish the user's role in this project.
+Before reading beyond this file or changing repository state, a newly connected AI must establish the user's role and every work-mode choice applicable to that role in one prompt.
 
-- If the user has not explicitly stated it in the current conversation, ask: **“你在本项目中的角色是程序、策划还是美术？”** Then stop and wait for the answer.
-- Do not infer the role from the request, filenames, branch, prompt author or prior work by a different AI.
-- If the user's current message explicitly states the role, that is the answer; do not ask redundantly.
-- The answer lasts for the current conversation until the user changes it. If the user has multiple roles, ask which one governs the current task before crossing role boundaries.
-- After the user answers `程序`, ask: **“是否采用规划者-执行者模式？”** Then stop and wait for the answer before routing programmer work. An explicit statement that the user already chose a mode answers this question; do not ask it again. The choice lasts only for the current conversation and must never be inferred from account names, Git history or another conversation.
-- After that answer is known, ask: **“是否采用一任务一 worktree（每个任务一个独立文件夹）？”** Then stop and wait before programmer work. This workspace choice is independent of Planner-Executor mode: even one AI doing the whole task must use a separate worktree when the answer is yes. An explicit workspace choice in the current conversation answers the question; otherwise never infer it from the selected mode, current folder or Git history.
+- If the user has not explicitly supplied every applicable answer in the current conversation, ask once: **“请一次性确认：你在本项目中的角色是程序、策划还是美术？若为程序，请同时回答：是否采用规划者-执行者模式？是否采用一任务一 worktree（每个任务一个独立文件夹）？”** Then stop and wait for the answer.
+- `策划` and `美术` only need the professional-role answer. `程序` must provide all three answers before programmer work begins; Planner-Executor and workspace mode are independent choices and neither implies the other.
+- After that answer is known, keep the workspace choice independent of Planner-Executor mode; both programmer choices must already have been requested together in the same prompt rather than through sequential questions.
+- If the user already supplied some applicable answers, accept them and ask only for all missing applicable answers together in one follow-up; do not repeat answered questions.
+- Do not infer the role or either work-mode choice from the request, filenames, branch, current folder, prompt author, account name, Git history, another conversation or prior work by a different AI.
+- All answers last for the current conversation until the user changes them. If the user has multiple roles, ask which one governs the current task before crossing role boundaries.
 
 Route after confirmation:
 
