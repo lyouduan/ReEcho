@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@7b63217ccb32a04f022d2870e65c51e6fb547ea8`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan128-secondary-card-icons`，分支 `plan/128-secondary-card-icons`。
@@ -28,11 +28,11 @@
   - 外部交付目录 `C:\Users\gavynqiu\Downloads\二级卡牌新增\二级卡牌新增\`。
 - 影响模式：`Isolated`。
 - 兼容承诺 / 下游操作：不改变卡牌稳定 ID、名称、Tier、启用/投放资格、抽取/刷新事务、存档或 UI 布局；只补充现有动态路径会解析到的 Texture2D。二级卡仍按 CardId 加载独立 icon，未覆盖的其他 Tier 继续使用既有通用 fallback。
-- 明确排除：不启用 `G_2_18 数字挑战` 或 `G_2_19 诅咒银行`，不修改任何卡牌效果/数值/文案，不为三级卡制作或生成新图，不使用 AI 重绘用户交付图，不修改 WBP 布局。
+- 明确排除：不修改任何卡牌启用/投放状态、效果、数值或文案，不为三级卡制作或生成新图，不使用 AI 重绘用户交付图，不修改 WBP 布局。
 
 ## 锁定目标
 
-将用户交付目录中的 19 张 `512×512` 二级卡牌图标按卡牌名称唯一映射到 `G_2_18`—`G_2_36`，以 `T_UI_CardIcon_{CardId}` 规范归档 SourceArt 并导入运行时 Texture2D。现有可投放二级卡中 16 张通用占位图全部替换为对应独立图；`G_2_30 连接，连接！` 使用本次交付覆盖既有版本；目前禁用的 `G_2_18/G_2_19` 只预置图标资产，不改变其数据状态。
+将用户交付目录中的 19 张 `512×512` 二级卡牌图标按卡牌名称唯一映射到 `G_2_18`—`G_2_36`，以 `T_UI_CardIcon_{CardId}` 规范归档 SourceArt 并导入运行时 Texture2D。现有可投放二级卡中 18 张通用占位图全部替换为对应独立图；`G_2_30 连接，连接！` 使用本次交付覆盖既有版本。导入后所有 32 张可投放二级卡都具有独立 icon。
 
 ## 架构影响与设计决策
 
@@ -43,7 +43,7 @@
 - 决策记录：
   - 19 个交付文件按前缀顺序和中文名称均能唯一映射：`01/02 → G_2_18/G_2_19`，`03..19 → G_2_20..G_2_36`；`喂，打劫`、`就要那个`、`连接，连接` 与数据名只差末尾 `！`，卡序与其余名称共同消除歧义。
   - 所有文件均为 `512×512` PNG；18 张为 32-bit ARGB，`连接，连接` 为 24-bit RGB。保持用户原始像素与 Alpha，不做重采样、补透明或颜色处理。
-  - 交付中的 `数字挑战/诅咒银行` 当前未启用，但名称与稳定 ID 已存在；一并归档和导入只建立表现资源，不改变可见性或投放状态。
+  - 权威 CSV 的多行描述必须用标准 CSV 解析器读取；`G_2_18 数字挑战` 与 `G_2_19 诅咒银行` 实际均已启用且可投放。早期 PowerShell 逐行管道审计把多行字段拆坏，UE 导入脚本的标准 CSV 解析及时阻止了错误假设进入最终证据。
   - 运行时已有 `G_2_30` 资产，本次明确 `replace_existing=True`；其余 18 张新增。导入脚本必须校验准确对象路径和 Texture2D 可加载，避免静默继续 fallback。
 - 相关文档同步范围：
   - `shared/CODEBASE_MAP/ARCHITECTURE.md`：关闭前审阅；预期模块拓扑和依赖不变。
@@ -58,13 +58,13 @@
 
 ## 锁定验收
 
-- [ ] 19 个交付 PNG 均以准确 CardId 命名归档，SHA-256 可追溯，尺寸保持 `512×512`，没有图像重绘或重采样。
-- [ ] `G_2_18`—`G_2_36` 共 19 个运行时 Texture2D 均可由 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{CardId}` 加载；`G_2_30` 确认已被本批交付覆盖。
-- [ ] 当前 16 张可投放、原本缺独立 icon 的二级新增卡不再进入 `T_UI_Shop_CardIcon` fallback；所有可投放二级卡均有独立 icon。
-- [ ] `G_2_18/G_2_19` 仍保持禁用且不可投放；卡牌 CSV、稳定 ID、效果、商店/免费三选一与逐槽刷新行为没有变化。
+- [x] 19 个交付 PNG 均以准确 CardId 命名归档，SHA-256 可追溯，尺寸保持 `512×512`，没有图像重绘或重采样。
+- [x] `G_2_18`—`G_2_36` 共 19 个运行时 Texture2D 均可由 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{CardId}` 加载；`G_2_30` 确认已被本批交付覆盖。
+- [x] 当前 18 张可投放、原本缺独立 icon 的二级新增卡不再进入 `T_UI_Shop_CardIcon` fallback；所有 32 张可投放二级卡均有独立 icon。
+- [x] 卡牌 CSV、稳定 ID、启用/投放状态、效果、商店/免费三选一与逐槽刷新行为没有变化。
 - [ ] 纹理导入/加载检查、`ReEcho.UI.TraitCard` 回归、项目静态校验及最终 `-FullRebuild` 发布门禁通过。
 - [ ] 用户在三选一界面确认新二级卡图标对应正确、清晰度和裁切可接受。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -78,7 +78,7 @@
 
 1. 固化 19 项文件名—CardId—显示名映射及源哈希，把 PNG 机械复制为规范 SourceArt 名称。
 2. 新增基于 `unreal.Paths.project_dir()` 的幂等导入脚本，覆盖 `G_2_30` 并导入其余 Texture2D，逐项验证对象路径和可加载性。
-3. 运行卡牌资产覆盖审计与 `ReEcho.UI.TraitCard`，确认全部可投放二级卡命中独立 icon，禁用卡状态及玩法数据不变。
+3. 运行卡牌资产覆盖审计与 `ReEcho.UI.TraitCard`，确认全部可投放二级卡命中独立 icon，卡牌启用/投放状态及玩法数据不变。
 4. 更新 UI 资产文档、Plan 执行记录，完成最终构建、静态检查和人工验收。
 
 ## 验证矩阵
@@ -97,11 +97,15 @@
 
 ### 变化
 
-- 待实施。
+- 已将用户交付的 19 张 PNG 按 `G_2_18`—`G_2_36` 规范名称原字节归档到 SourceArt；`G_2_30` 旧源图由本批新交付覆盖，其余 18 张为新增。
+- 已新增项目路径无关的幂等 UE 导入脚本，逐项校验 CSV 名称/Tier/启用投放状态、对象路径、Texture2D 尺寸以及全部可投放二级卡的独立图标覆盖。
 
 ### 证据
 
-- Step 0 只读核对：交付目录含 19 张 `512×512` PNG；19 个中文名称均能唯一映射到 `cards.csv` 的 `G_2_18`—`G_2_36`。当前可投放二级卡缺独立 icon 的 16 张全部位于该批；`G_2_30` 已有旧 icon；`G_2_18/G_2_19` 当前禁用。
+- Step 0 只读核对：交付目录含 19 张 `512×512` PNG；19 个中文名称均能唯一映射到 `cards.csv` 的 `G_2_18`—`G_2_36`。更正含多行描述的 CSV 解析后，确认当前可投放二级卡缺独立 icon 的 18 张全部位于该批，`G_2_30` 已有旧 icon，本批 19 张均对应启用且可投放卡牌。
+- SourceArt 归档后逐项比较外部交付与仓库文件 SHA-256，结果 `SOURCE_BYTE_MATCH=19/19`；18 张保持 `Format32bppArgb`，`G_2_30` 保持交付原始 `Format24bppRgb`，全部为 `512×512`。
+- UE 5.8 幂等导入复跑成功，日志为 `[Plan128][CardIconImport] imported=19 active_tier_two_with_icons=32`；脚本逐项验证对象路径、Texture2D 类型和 `512×512` 尺寸，并确认全部 Enabled+Offerable Tier2 卡都命中独立资源。
+- `ReEcho.UI.TraitCard.AuthoredPresentation` 为 `Result={Success}`；`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。最终发布前仍需在准确最终集成候选上执行 `-FullRebuild`。
 
 ### 剩余风险
 
@@ -113,4 +117,7 @@
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅、无需修改；只增加现有 UI 纹理资产，不改变 Runtime Module 拓扑、状态所有者或依赖方向。
+- `shared/CODEBASE_MAP/README.md`：已审阅、无需修改；稳定标识和阅读路线不变。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已更新二级卡独立图标覆盖、AlwaysCook 与其他 Tier fallback 边界。
+- `Design/UI/ReEcho_UI修改指导.md`：已更新卡牌 icon SourceArt、运行时路径、Plan128 导入方式及不得按中文名称新增分支的约束。

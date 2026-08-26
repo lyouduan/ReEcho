@@ -8,12 +8,12 @@
 - 已暂存：`Content/SourceArt/UI/Cards/Art/T_UI_CardTier1.png|2.png|3.png`。
 
 ## 卡牌 icon（IconImage，角落小图标）
-- 来源：《【开普勒】回响数值与构筑体系.xlsx》`构筑体系G` 表 `小icon` 列（内嵌于 `xl/drawings/media/`）。
+- 来源：既有图标来自《【开普勒】回响数值与构筑体系.xlsx》`构筑体系G` 表 `小icon` 列（内嵌于 `xl/drawings/media/`）；`G_2_18`—`G_2_36` 使用用户交付的 `Downloads/二级卡牌新增/二级卡牌新增/` 19 张独立 PNG。
 - 匹配方式：**按卡名称**（文档 `名称` 列 ↔ `cards.csv` DisplayName）。原因：设计表与游戏数据 **Id 与名称双重漂移**，不能按 Id 直接对应；同名精确匹配可靠。
 - 抽取脚本：`scripts/plan69_extract_card_icons.py`（可复现；需本机存在该 xlsx）。
 - 命名：`T_UI_CardIcon_{GAME_CARD_ID}.png` → 运行时 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{GAME_CARD_ID}`。
-- 覆盖：**35/42** 张精确名称匹配；**3 张 FORGE**（Tier 0）与 **4 张文档缺图**（`G_2_07 潮汐回响`、`G_2_08 森林回响`、`G_3_19 碎时锋芒`、`G_3_20 碎时壁垒`）走通用回退 `T_UI_Shop_CardIcon`。
-- 已暂存：`Content/SourceArt/UI/Cards/Icon/T_UI_CardIcon_*.png`（35 个）。
+- Plan128 后全部启用且可投放的二级卡均拥有独立图标；未交付独立图标的其他 Tier 继续走通用回退 `T_UI_Shop_CardIcon`。
+- `G_2_18`—`G_2_36` 的导入与覆盖使用 `scripts/ue/import_plan128_secondary_card_icons.py`，脚本会同时校验卡牌名称/Tier、启用/投放状态、512×512 Texture2D 和所有可投放二级卡的独立图标覆盖。
 
 ## 通用回退
 - icon 缺失 → `/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_CardIcon`。
