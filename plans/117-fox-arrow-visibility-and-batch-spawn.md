@@ -18,6 +18,7 @@
   - `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`
   - 适用的 GameMode/GM 自动化测试
   - `scripts/ue/audit_fox_dash_vfx.py`（仅补充只读审计）
+  - `docs/GM_COMMANDS.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`
   - `plans/117-fox-arrow-visibility-and-batch-spawn.md`
@@ -38,7 +39,7 @@
 - 设计意图：VFX Component 继续只消费权威 Windup 事件并拥有组件生命周期；GM 命令复用 `SpawnConfiguredEnemy`，不得另建测试狐狸类或绕过生产 Definition/Host/Roster。
 - 权威状态与依赖：不新增玩法状态；锁定方向由 EnemyLogic/Presentation 事件提供，GameMode 只负责开发期批量调用生产生成入口。
 - 决策记录：资产路径正确与静态 Bounds 通过不等于运行时可见；必须检查实际 Niagara 组件激活、粒子实例/材质、组件 Transform、相机平面朝向与生命周期，按第一处失败修复。批量位置采用围绕玩家/朝场地中心的确定性分布并钳制到 Arena，避免 X 只重叠在同一点。
-- 相关文档同步范围：审阅 `ARCHITECTURE.md`、`README.md`、`MOD-ReEchoEnemies.md`；预计拓扑、索引和 Enemies 公共契约不变。更新 `MOD-ReEcho.md`、`MOD-ReEchoVFX.md`。
+- 相关文档同步范围：审阅 `ARCHITECTURE.md`、`README.md`、`MOD-ReEchoEnemies.md`；预计拓扑、索引和 Enemies 公共契约不变。更新 `docs/GM_COMMANDS.md`、`MOD-ReEcho.md`、`MOD-ReEchoVFX.md`。
 
 ## 锁定验收
 
