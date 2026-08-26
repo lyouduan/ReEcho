@@ -6,4 +6,4 @@ M_SHEEP_BlinkSlam,M_SHEEP,Boss.BlinkSlam,4,true,24,0.9,0.35,0.5,5,0,1000,180,0,0
 M_SHEEP_PrayerBeam,M_SHEEP,Boss.PrayerBeam,5,true,16,2,0.15,1,13,0,2000,0,160,1200,0,0,LockedDirection,WindupEnd,0,0,怪物配置表,8,祷告光束；16伤/次；二阶段24伤；蓄力2s；WindupEnd锁定,1,0,false
 M_RABBIT_MovingVolley,M_RABBIT,Enemy.RangedBurst,1,true,1,0.45,0.1,0,1.6,0,1080,100,0,0,0,0,LockedDirection,WindupStart,0,0,全怪物技能表,121,移动散射(3发),3,40,true
 M_FOX_Dash,M_FOX,Enemy.EliteDash,1,true,2,0.6,0.15,0.9,2.5,0,650,0,140,650,0,0,LockedDirection,WindupStart,0,0,怪物配置表,6,预警0.6s；长6.5m宽1.4m；2伤；冷却2.5s,1,0,false
-M_RABBIT_RangedBurst,M_RABBIT,Enemy.RangedBurst,2,true,1,0.45,0.1,0.35,1.4,0,1000,100,0,0,0,0,LockedLocation,WindupStart,0,0,怪物配置表,5,锁定落点；半径1m；预警0.45s/收招0.35s；冷却1.4s,4,0,false
+M_RABBIT_RangedBurst,M_RABBIT,Enemy.RangedBurst,2,true,1,0.45,0.3,0.35,1.4,0,1000,100,0,0,0,0,LockedLocation,WindupStart,0,0,怪物配置表,5,锁定落点；半径1m；预警0.45s/收招0.35s；冷却1.4s,4,0,false
