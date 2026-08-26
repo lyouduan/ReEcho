@@ -45,11 +45,23 @@ if unreal.EditorAssetLibrary.does_asset_exist(LEGACY_FSM):
 initial = tag_name(fsm.get_editor_property("initial_state_tag"))
 if initial != "Animation.Move":
     issues.append(f"FSM initial state is {initial}, expected Animation.Move")
-states = [tag_name(state.get_editor_property("semantic_key")) for state in fsm.get_editor_property("states")]
+state_definitions = list(fsm.get_editor_property("states"))
+states = [tag_name(state.get_editor_property("semantic_key")) for state in state_definitions]
 if tuple(states) != EXPECTED_STATES:
     issues.append(f"FSM states mismatch: {states}")
 if "Animation.Idle" in states:
     issues.append("FSM still contains Animation.Idle")
+born_states = [state for state in state_definitions if tag_name(state.get_editor_property("semantic_key")) == "Animation.Born"]
+if len(born_states) != 1:
+    issues.append(f"FSM Born state count is {len(born_states)}, expected 1")
+else:
+    born_state = born_states[0]
+    if born_state.get_editor_property("interrupt_priority") != 90:
+        issues.append("FSM Born interrupt priority is not 90")
+    if not born_state.get_editor_property("lock_until_playback_complete"):
+        issues.append("FSM Born must lock until playback completes")
+    if born_state.get_editor_property("terminal"):
+        issues.append("FSM Born must remain non-terminal")
 
 profile_count = 0
 for root in PROFILE_ROOTS:

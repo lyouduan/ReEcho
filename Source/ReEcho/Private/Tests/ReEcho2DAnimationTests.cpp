@@ -585,6 +585,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	// Match the authored Spade policy for controller behavior: Move base loop and MoonStaff attack.
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Move, StaffMoveClip);
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Born, AuthoredClip);
+	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Transform_Phase2, AuthoredClip);
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Death, AuthoredClip);
 	PresentationProfile->AnimationSets[1].Clips.Add(ReEcho2DAnimationTags::Attack_Basic, AuthoredClip);
 	FReEcho2DAnimationClip ChargeClip = StaffMoveClip;
@@ -603,7 +604,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		State.bTerminal = bTerminal;
 	};
 	AddState(ReEcho2DAnimationTags::Move, 10, false, false);
-	AddState(ReEcho2DAnimationTags::Born, 20, true, false);
+	AddState(ReEcho2DAnimationTags::Born, 90, true, false);
 	AddState(ReEcho2DAnimationTags::Attack_Charge, 30, true, false);
 	AddState(ReEcho2DAnimationTags::Attack_Basic, 40, true, false);
 	AddState(ReEcho2DAnimationTags::Hit, 60, true, false);
@@ -650,11 +651,17 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         Controller->PlayAction(ReEcho2DAnimationTags::Born) && !ControlledRenderer->IsLooping() &&
 	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Born &&
 	             EnemyPresentation->IsBornPlaying());
+	TestFalse(TEXT("Attack cannot interrupt Born"), Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic));
+	TestFalse(TEXT("Hit cannot interrupt Born"), Controller->PlayAction(ReEcho2DAnimationTags::Hit));
+	TestFalse(TEXT("Phase2 Transform cannot interrupt Born"),
+	          Controller->PlayAction(ReEcho2DAnimationTags::Transform_Phase2));
+	TestTrue(TEXT("Phase2 permit remains closed after rejected interruptions"), EnemyPresentation->IsBornPlaying());
 	ControlledRenderer->Stop();
 	Controller->UpdatePlaybackCompletion();
 	TestTrue(TEXT("Completed Born returns to the Move base state"),
 	         Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move &&
 	             ControlledRenderer->GetFlipbook() == WalkFlipbook && !EnemyPresentation->IsBornPlaying());
+	PresentationProfile->AnimationSets[0].Clips.Remove(ReEcho2DAnimationTags::Transform_Phase2);
 	PresentationProfile->AnimationSets[0].Clips.Remove(ReEcho2DAnimationTags::Born);
 	TestFalse(TEXT("Missing Born clip is a safe no-op"), Controller->PlayAction(ReEcho2DAnimationTags::Born));
 	PresentationProfile->AnimationSets[0].Clips.Add(ReEcho2DAnimationTags::Born, AuthoredClip);
@@ -692,7 +699,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	                                               ExpectedDeathDuration));
 	TestTrue(TEXT("Terminal Death is forced to one-shot playback"),
 	         ExpectedDeathDuration > 0.0f && !ControlledRenderer->IsLooping() &&
-	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Death);
+	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Death &&
+	             !EnemyPresentation->IsBornPlaying());
 	TestFalse(TEXT("Terminal Death rejects Born"), Controller->PlayAction(ReEcho2DAnimationTags::Born));
 	TestFalse(TEXT("Terminal Death rejects every later action"), Controller->PlayAction(ReEcho2DAnimationTags::Hit));
 	Controller->CompleteAnimationSetTransition(TEXT("Phase2"));

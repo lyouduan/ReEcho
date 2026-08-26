@@ -101,6 +101,9 @@
 - Born 活跃期间脚点与 GroundShadow 改用当前 Sprite Bounds；`bUseAuthoredDeathPivot` 的判断继续显式要求 Death 活跃，普通语义仍使用 Flipbook 聚合 Bounds。
 - 修订后聚焦自动化：`ReEcho.Enemies.Logic` 全部通过，新增 `Phase2.BornPermit` 覆盖攻击次数、距离、血量三类条件的延迟与放行；`ReEcho.Enemies.Host` 全部通过，新增 typed permit 默认开放契约；`ReEcho.Presentation.Animation2D` 的 FootpointAlignment、CookedDeathPivotPolicy、StunPause 通过，AssetProfiles 仍仅被既有 TimeGuard Phase2 空能力断言（第 484 行）阻塞，Born 活跃状态、完成解除与 Death 抢占新增断言未报错。
 - 修订候选最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 94/94 成功；预构建包检查通过（7 模块，Build ID `55116800`，源码指纹 `24e91536e9f6`）；`validate_project.py` 与 `git diff --check` 通过。
+- 阻塞审查修正：共享 FSM 的 Born 从 priority 20 提升为 90，并保持 `lock_until_playback_complete=true`、`terminal=false`、自然完成回 Move；Attack(40)、Hit(60)、Transform(80) 均不可抢占，只有 terminal Death(100) 可抢占。Unreal 保存后回读完整状态表与上述值一致。
+- Animation2D 确定性测试新增 Attack/Hit/Transform 拒绝、拒绝后 `IsBornPlaying()` 仍为真、自然完成解除门禁及 Death 抢占断言；聚焦运行未报告这些断言错误，仍仅有既有 TimeGuard Phase2 空能力断言。Plan82/121 Unreal 资产审计未报告 Born/FSM 问题，仍只被明确排除的 BadRabbit 20 张既有未导入 PNG 阻塞。
+- 阻塞审查修正后的最终 FullRebuild 95/95 成功；预构建包刷新为 7 模块、Build ID `55116800`、源码指纹 `96c87a0105f2`。
 
 ### 剩余风险
 
