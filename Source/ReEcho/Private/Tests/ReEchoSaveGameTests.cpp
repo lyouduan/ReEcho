@@ -370,9 +370,90 @@ bool FReEchoV10CharacterIdentityMigrationTest::RunTest(const FString& Parameters
 	         Restored->RestoreSaveSnapshot(*LegacySave));
 	TestEqual(
 	    TEXT("Current build migrates J_CAT to J_SPADE"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
-	TestEqual(TEXT("Base character rule flag migrates to J_SPADE"),
-	          Restored->CurrentBuild.RuleFlags.FindRef(TEXT("BaseCharacterId")),
-	          FString(TEXT("J_SPADE")));
+	TestFalse(TEXT("Legacy base-character flag is consumed during migration"),
+	          Restored->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV22PromotionRemovalMigrationTest,
+                                 "ReEcho.Run.SaveV22PromotionRemovalMigration",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	Source->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
+	const FReEchoStatBlock OriginalStats = Source->CurrentBuild.Stats;
+	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
+	LegacySave->SaveVersion = 22;
+	LegacySave->CurrentBuild.CharacterId = TEXT("J_HEART");
+	LegacySave->CurrentBuild.RuleFlags.Add(TEXT("BaseCharacterId"), TEXT("J_DIAMOND"));
+	LegacySave->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	LegacySave->CurrentBuild.RuleFlags.Add(TEXT("Role"), TEXT("Brave"));
+	LegacySave->CurrentBuild.EquipmentBaseRuleFlags = LegacySave->CurrentBuild.RuleFlags;
+	LegacySave->CurrentBuild.Stats.HpMax = 20.0f;
+	LegacySave->CurrentBuild.Stats.ElementalAttack = 5.0f;
+	LegacySave->CurrentBuild.Stats.MovementSpeed = 1.0f;
+	LegacySave->CurrentBuild.Stats.CriticalRate = 0.2f;
+	LegacySave->CurrentBuild.Stats.CriticalEffect = 0.5f;
+	LegacySave->CurrentBuild.Stats.RoleId = TEXT("Brave");
+	LegacySave->CurrentBuild.EquipmentBaseStats = LegacySave->CurrentBuild.Stats;
+
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	TestTrue(TEXT("v22 promoted save restores"), Restored->RestoreSaveSnapshot(*LegacySave));
+	TestEqual(TEXT("Migration restores the selected Hunter identity"),
+	          Restored->CurrentBuild.CharacterId,
+	          FName(TEXT("J_DIAMOND")));
+	TestEqual(TEXT("Migration restores the selected Hunter role"),
+	          Restored->CurrentBuild.Stats.RoleId,
+	          FName(TEXT("Hunter")));
+	TestEqual(TEXT("Migration reverses promoted maximum health"),
+	          Restored->CurrentBuild.Stats.HpMax,
+	          OriginalStats.HpMax);
+	TestEqual(TEXT("Migration reverses promoted elemental attack"),
+	          Restored->CurrentBuild.Stats.ElementalAttack,
+	          OriginalStats.ElementalAttack);
+	TestEqual(TEXT("Migration restores the Hunter movement ability"),
+	          Restored->CurrentBuild.Stats.MovementSpeed,
+	          OriginalStats.MovementSpeed);
+	TestEqual(TEXT("Migration restores the Hunter critical-rate ability"),
+	          Restored->CurrentBuild.Stats.CriticalRate,
+	          OriginalStats.CriticalRate);
+	TestFalse(TEXT("Migration consumes BaseCharacterId"),
+	          Restored->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
+	TestFalse(TEXT("Migration consumes Promoted"), Restored->CurrentBuild.RuleFlags.Contains(TEXT("Promoted")));
+	TestFalse(TEXT("Migration consumes Role"), Restored->CurrentBuild.RuleFlags.Contains(TEXT("Role")));
+
+	UReEchoRunSaveGame* RoundTripSave = Restored->CreateSaveSnapshot();
+	UGameInstance* RoundTripGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RoundTrip = NewObject<UReEchoRunSubsystem>(RoundTripGameInstance);
+	TestTrue(TEXT("Migrated save round-trips"), RoundTrip->RestoreSaveSnapshot(*RoundTripSave));
+	TestEqual(TEXT("Round-trip keeps the selected character"),
+	          RoundTrip->CurrentBuild.CharacterId,
+	          FName(TEXT("J_DIAMOND")));
+
+	UReEchoRunSaveGame* MissingOriginalSave = Source->CreateSaveSnapshot();
+	MissingOriginalSave->SaveVersion = 22;
+	MissingOriginalSave->CurrentBuild.CharacterId = TEXT("J_HEART");
+	MissingOriginalSave->CurrentBuild.RuleFlags.Add(TEXT("BaseCharacterId"), TEXT("RETIRED_CHARACTER"));
+	MissingOriginalSave->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	MissingOriginalSave->CurrentBuild.Stats.RoleId = TEXT("Hunter");
+	MissingOriginalSave->CurrentBuild.EquipmentBaseRuleFlags = MissingOriginalSave->CurrentBuild.RuleFlags;
+	MissingOriginalSave->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Hunter");
+	UGameInstance* FallbackGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Fallback = NewObject<UReEchoRunSubsystem>(FallbackGameInstance);
+	TestTrue(TEXT("v22 save without a reliable original character restores"),
+	         Fallback->RestoreSaveSnapshot(*MissingOriginalSave));
+	TestEqual(TEXT("Missing original id keeps the current character instead of guessing"),
+	          Fallback->CurrentBuild.CharacterId,
+	          FName(TEXT("J_HEART")));
+	TestEqual(TEXT("Missing original id normalizes role from the kept character"),
+	          Fallback->CurrentBuild.Stats.RoleId,
+	          FName(TEXT("Brave")));
+	TestFalse(TEXT("Fallback migration also consumes legacy flags"),
+	          Fallback->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
 	return true;
 }
 

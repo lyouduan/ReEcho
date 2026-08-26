@@ -4,7 +4,6 @@
 #include "Core/ReEchoBalanceSettings.h"
 #include "Diagnostics/ReEchoBuildTrace.h"
 #include "ReEcho.h"
-#include "Run/ReEchoCharacterPromotion.h"
 #include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
@@ -736,21 +735,64 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 		return false;
 	}
 
-	if (FString* BaseCharacterId = Build.RuleFlags.Find(TEXT("BaseCharacterId")))
+
+	auto ResolveEffectiveCharacterStats = [&Snapshot](const FReEchoCsvCharacterRow& Character)
 	{
-		const FName CanonicalBaseCharacterId = Snapshot.ResolveCharacterId(FName(**BaseCharacterId));
-		if (!Snapshot.FindCharacter(CanonicalBaseCharacterId))
+		FReEchoStatBlock Result = Character.BaseStats;
+		ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(Snapshot, Character.Id, Result);
+		return Result;
+	};
+	auto ApplyCharacterDelta = [](FReEchoStatBlock& Target,
+	                              const FReEchoStatBlock& From,
+	                              const FReEchoStatBlock& To)
+	{
+		Target.HpMax += To.HpMax - From.HpMax;
+		Target.HpPoint = FMath::Min(Target.HpPoint, Target.HpMax);
+		Target.PhysicalAttack += To.PhysicalAttack - From.PhysicalAttack;
+		Target.ElementalAttack += To.ElementalAttack - From.ElementalAttack;
+		Target.AttackSpeed += To.AttackSpeed - From.AttackSpeed;
+		Target.MovementSpeed += To.MovementSpeed - From.MovementSpeed;
+		Target.CriticalRate += To.CriticalRate - From.CriticalRate;
+		Target.CriticalEffect += To.CriticalEffect - From.CriticalEffect;
+		Target.EchoEfficiency += To.EchoEfficiency - From.EchoEfficiency;
+		Target.ReactionEfficiency += To.ReactionEfficiency - From.ReactionEfficiency;
+	};
+
+	// Plan125 retires the old four-card promotion system. BaseCharacterId was written on every run and
+	// identifies the player's original selection when an older save already changed CharacterId.
+	FString LegacyBaseCharacterId = Build.RuleFlags.FindRef(TEXT("BaseCharacterId"));
+	if (LegacyBaseCharacterId.IsEmpty())
+	{
+		LegacyBaseCharacterId = Build.EquipmentBaseRuleFlags.FindRef(TEXT("BaseCharacterId"));
+	}
+	const FName CanonicalBaseCharacterId =
+	    LegacyBaseCharacterId.IsEmpty() ? NAME_None : Snapshot.ResolveCharacterId(FName(*LegacyBaseCharacterId));
+	const FReEchoCsvCharacterRow* CurrentCharacter = Snapshot.FindCharacter(Build.CharacterId);
+	const FReEchoCsvCharacterRow* OriginalCharacter = Snapshot.FindCharacter(CanonicalBaseCharacterId);
+	if (CurrentCharacter && OriginalCharacter && CurrentCharacter->Id != OriginalCharacter->Id)
+	{
+		const FReEchoStatBlock CurrentCharacterStats = ResolveEffectiveCharacterStats(*CurrentCharacter);
+		const FReEchoStatBlock OriginalCharacterStats = ResolveEffectiveCharacterStats(*OriginalCharacter);
+		ApplyCharacterDelta(Build.Stats, CurrentCharacterStats, OriginalCharacterStats);
+		if (Build.bHasEquipmentBase)
 		{
-			return false;
+			ApplyCharacterDelta(Build.EquipmentBaseStats, CurrentCharacterStats, OriginalCharacterStats);
 		}
-		if (SaveVersion < 11)
+		Build.CharacterId = OriginalCharacter->Id;
+		CurrentCharacter = OriginalCharacter;
+	}
+	if (CurrentCharacter)
+	{
+		Build.Stats.RoleId = CurrentCharacter->RoleId == TEXT("None") ? NAME_None : CurrentCharacter->RoleId;
+		if (Build.bHasEquipmentBase)
 		{
-			*BaseCharacterId = CanonicalBaseCharacterId.ToString();
+			Build.EquipmentBaseStats.RoleId = Build.Stats.RoleId;
 		}
-		else if (CanonicalBaseCharacterId.ToString() != *BaseCharacterId)
-		{
-			return false;
-		}
+	}
+	for (const FName LegacyFlag : {FName(TEXT("BaseCharacterId")), FName(TEXT("Promoted")), FName(TEXT("Role"))})
+	{
+		Build.RuleFlags.Remove(LegacyFlag);
+		Build.EquipmentBaseRuleFlags.Remove(LegacyFlag);
 	}
 
 	if (!Snapshot.CardCatalog.IsValid())
@@ -1309,7 +1351,6 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	Result.Build.Stats = Character->BaseStats;
 	ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(*Snapshot, Character->Id, Result.Build.Stats);
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
-	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
 	Result.Build.EquipmentBaseStats = Result.Build.Stats;
 	Result.Build.EquipmentBaseRuleFlags = Result.Build.RuleFlags;
 	Result.Build.bHasEquipmentBase = true;
@@ -2545,7 +2586,6 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        {
 			        BaseBuild.EquippedParts.Reset();
 		        }
-		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
 		        if (bApplyingBonusChoice)
 		        {
 			        const int32 Remaining = ExistingBonusChoices - 1;
@@ -2656,10 +2696,10 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 		        {
 			        BaseBuild.EquippedParts.Reset();
 		        }
-		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
 		        UE_LOG(LogReEcho,
 		               Warning,
-		               TEXT("[DebugGrantCard] after promote: Cards=%d"),
+		               TEXT("[DebugGrantCard] identity preserved: Character=%s Cards=%d"),
+		               *BaseBuild.CharacterId.ToString(),
 		               BaseBuild.CardState.OwnedCardIds.Num());
 		        return true;
 	        },

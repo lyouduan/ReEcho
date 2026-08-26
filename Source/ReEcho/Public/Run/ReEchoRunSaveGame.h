@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v22 persists per-card-group offer history so refreshed cards cannot reappear in the same group. */
-	static constexpr int32 CurrentSaveVersion = 22;
+	/** v23 removes legacy card-driven character promotion and normalizes old promotion flags. */
+	static constexpr int32 CurrentSaveVersion = 23;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;

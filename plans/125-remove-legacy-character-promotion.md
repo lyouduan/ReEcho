@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn / Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@ac9bb58dafdc8129e4bcaf5e65fb1d87caa9e422`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `ReEcho-plan125-remove-promotion`，分支 `plan/125-remove-legacy-character-promotion`。
@@ -16,7 +16,7 @@
   - `Source/ReEcho/Public/Data/ReEchoCsvDataRegistry.h`、`Source/ReEcho/Private/Data/ReEchoCharacterBuildCsvReader.cpp`、`Source/ReEcho/Private/Data/ReEchoCsvDataRegistry.cpp`；
   - `Source/ReEcho/Private/UI/ReEchoLoadoutSelectionWidget.cpp`；
   - `Source/ReEchoCards/Public/Cards/ReEchoCardTypes.h`；
-  - `Source/ReEcho/Private/Tests/ReEchoCharacterPromotionTests.cpp`、受影响 Save/Run/Data/Card/UI 聚焦测试；
+  - `Source/ReEcho/Private/Tests/ReEchoCharacterAbilityTests.cpp`（由旧晋升测试重命名）、受影响 Save/Run/Data/Card/UI 聚焦测试；
   - `Design/Data/ReEchoData.xlsx`、`Content/Data/cards.csv`、`Content/Data/characters.csv`、`Content/Data/csv_schema.csv`、受影响 CSV fixture；
   - `scripts/data/sync_xlsx_to_csv.py`、`scripts/validate_project.py` 及受影响数据同步测试；
   - `plans/125-remove-legacy-character-promotion.md`；
@@ -56,12 +56,12 @@
 ## 锁定验收
 
 - [ ] 新 Run 选择任一角色后，连续获得至少 8 张不同职业分类卡牌并跨越 Stage，`CharacterId`、外观和固定角色能力始终不变。
-- [ ] 正常授卡、付费卡组领取和 `DebugGrantCard` 都不调用或间接重建晋升规则；代码库不再存在 `TryPromote`/`EvaluateRole` 生产入口。
-- [ ] `cards.csv`/Card 类型不再含 `PromotionRoleId`；角色排序使用 `SelectionOrder` 或等价的非晋升字段；XLSX、CSV、Schema、生成器、fixture 与静态校验一致。
-- [ ] 旧晋升存档迁移恢复可靠的原始角色，移除遗留 RuleFlags，正确修正当前/装备基线属性；无可靠原始 ID 时采用锁定回退且往返稳定。
-- [ ] 角色固定能力、卡牌授予、装载选择、保存恢复聚焦自动化通过；Development Editor FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 正常授卡、付费卡组领取和 `DebugGrantCard` 都不调用或间接重建晋升规则；代码库不再存在 `TryPromote`/`EvaluateRole` 生产入口。
+- [x] `cards.csv`/Card 类型不再含 `PromotionRoleId`；角色排序使用 `SelectionOrder` 或等价的非晋升字段；XLSX、CSV、Schema、生成器、fixture 与静态校验一致。
+- [x] 旧晋升存档迁移恢复可靠的原始角色，移除遗留 RuleFlags，正确修正当前/装备基线属性；无可靠原始 ID 时采用锁定回退且往返稳定。
+- [x] 角色固定能力、卡牌授予、装载选择、保存恢复聚焦自动化通过；Development Editor FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
 - [ ] 用户 PIE 验收：复现原路径，在第 4 张及后续卡牌、跨第 5→6 场时角色不再突然变化。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -97,15 +97,21 @@
 
 - 2026-08-26：从策划源工作簿只读核验 9 个 Sheet；“晋升/转职/四张/4张/角色替换/Promotion/Promoted”全工作簿 0 命中。`角色体系J!A1:E5` 只定义四名角色的固定能力，`构筑体系G` 明确角色卡在选角后直接获得且不进入卡牌组，确认旧四卡晋升不是当前策划规则。
 - 2026-08-26：代码审计定位旧机制：`TryPromote` 在普通与调试授卡后触发，达到 4 张卡即按 `PromotionRoleId` 改写 `Build.CharacterId`/`RoleId` 和属性；现有日志证明 `J_DIAMOND` 在 Encounter 5 选卡后于 Encounter 6 被改成 `J_HEART`。
+- 2026-08-26：删除 `ReEchoCharacterPromotion.*` 及正常/调试授卡调用；新 Run 不再写旧晋升 RuleFlags。SaveVersion 升至 23，v22 及更早数据在有可靠 `BaseCharacterId` 时恢复原角色并逆向修正角色差额，缺失可靠原始 ID 时保留当前角色并归一化 Role，两个路径均消费遗留标志。
+- 2026-08-26：生产 XLSX 的 `PromotionPriority` 改为纯 UI 语义 `SelectionOrder`，从 `tblCards` 删除 `PromotionRoleId`；同步更新 CSV、Schema、Reader、Catalog、fixture、校验器和装载 UI。工作簿原有保护、下拉验证和 Table 样式已保留。
+- 2026-08-26：旧 `ReEchoCharacterPromotionTests.cpp` 重命名为 `ReEchoCharacterAbilityTests.cpp`，把“四卡晋升”断言替换为混合八张卡下角色身份稳定，同时保留智者、猎手、诗人、勇者能力回归。
 
 ### 证据
 
 - 策划源表只读核验：`角色体系J!A1:E5`、`构筑体系G!A1:H12`、`投放系统!A1:D48`；晋升相关关键词 0 命中。
 - Plan122 已发布至 `origin/main@ac9bb58d`，后续实施可用 `[BuildSnapshotTrace]` 比较授卡前后 `CharacterId` 与构筑指纹。
+- `python scripts/data/sync_xlsx_to_csv.py --check` 通过；同步工具 18/18 单元测试通过；artifact_tool 最终渲染核验 `tblCharacters A3:S7`、`tblCards A3:M68`，公式错误 0。
+- Development 增量构建通过；`ReEcho.Characters` 3/3、`ReEcho.Run.Save` 6/6 自动化通过，其中包含身份稳定、四角色能力、可靠/缺失原始 ID 的旧晋升存档迁移与往返。
+- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，精选 7 模块预构建包刷新为 `source=662cf04d78a9`；随后 XLSX 漂移、项目静态校验、预构建核验和 `git diff --check` 均通过。本机未发现 `clang-format` 可执行文件，未伪造格式化证据；编译和 diff 审阅无格式阻塞。
 
 ### 剩余风险
 
-- 旧晋升存档可能已经把角色差额混入当前属性，需要基于保存的 `BaseCharacterId` 和当前角色做可逆迁移；缺失原始 ID 的异常旧档只能保守保留当前身份，不能无证据猜测玩家最初选择。
+- 自动化已覆盖授予八张混合卡后身份稳定和旧档迁移，但跨第 5→6 场的角色形象、当前存档与角色固定能力组合仍需用户 PIE 按原复现路径验收。
 
 ### 人工验收结果/请求
 
@@ -113,4 +119,8 @@
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；Runtime Module、依赖拓扑和跨模块数据流未变化，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅；`MOD-ReEcho`、`MOD-ReEchoCards`、`AREA-Run/Data/UI` 路由和代码根未变化，无需修改。
+- `MOD-ReEcho.md`：已更新整局固定角色身份、SaveVersion 23 迁移和角色能力边界。
+- `MOD-ReEchoCards.md`：已更新卡牌不携带职业计分、不改写角色身份的不变量。
+- `MOD-ReEchoUI.md`：已更新装载选择只消费 `SelectionOrder` 并只发送初始角色/武器选择的契约。

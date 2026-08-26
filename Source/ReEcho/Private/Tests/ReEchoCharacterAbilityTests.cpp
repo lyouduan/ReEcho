@@ -4,64 +4,47 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
-#include "Run/ReEchoCharacterPromotion.h"
 #include "Run/ReEchoRunSubsystem.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCharacterPromotionRoleTest,
-                                 "ReEcho.Characters.PromotionRoles",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCharacterIdentityStabilityTest,
+                                 "ReEcho.Characters.IdentityStability",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FReEchoCharacterPromotionRoleTest::RunTest(const FString& Parameters)
+bool FReEchoCharacterIdentityStabilityTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
-	TestEqual(TEXT("A new run starts with fifteen maximum health"), RunSubsystem->CurrentBuild.Stats.HpMax, 15.0f);
-
-	FReEchoBuildSnapshot Hunter;
-	Hunter.Stats.HpMax = 15.0f;
-	Hunter.Stats.PhysicalAttack = 5.0f;
-	Hunter.Stats.ElementalAttack = 5.0f;
-	Hunter.CardState.OwnedCardIds = {TEXT("G_1_03"), TEXT("G_1_03"), TEXT("G_1_05"), TEXT("G_1_02")};
-	TestTrue(TEXT("Four cards promote the initial character"), ReEchoCharacterPromotion::TryPromote(Hunter));
-	TestEqual(TEXT("Physical majority promotes Hunter"), Hunter.Stats.RoleId, FName(TEXT("Hunter")));
-	TestEqual(TEXT("Hunter uses the diamond character art"), Hunter.CharacterId, FName(TEXT("J_DIAMOND")));
-	TestEqual(TEXT("Hunter promotion leaves twelve maximum health"), Hunter.Stats.HpMax, 12.0f);
-	TestEqual(TEXT("Hunter static ability grants twenty percent movement"), Hunter.Stats.MovementSpeed, 1.2f);
-	TestEqual(TEXT("Hunter static ability grants twenty critical-rate points"), Hunter.Stats.CriticalRate, 0.4f);
-	TestEqual(TEXT("Hunter static ability grants thirty critical-effect points"), Hunter.Stats.CriticalEffect, 0.8f);
-	TestTrue(TEXT("Promotion is applied only once"), !ReEchoCharacterPromotion::TryPromote(Hunter));
-	UReEchoRunSubsystem* HunterRun = NewObject<UReEchoRunSubsystem>(GameInstance);
-	HunterRun->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
-	TestEqual(
-	    TEXT("Hunter starts with configured movement ability once"), HunterRun->CurrentBuild.Stats.MovementSpeed, 1.2f);
-	TestEqual(TEXT("Hunter starts with configured critical-rate ability once"),
-	          HunterRun->CurrentBuild.Stats.CriticalRate,
-	          0.4f);
-	TestEqual(TEXT("Hunter starts with configured critical-effect ability once"),
-	          HunterRun->CurrentBuild.Stats.CriticalEffect,
-	          0.8f);
-
-	FReEchoBuildSnapshot Poet;
-	Poet.CardState.OwnedCardIds = {TEXT("G_1_04"), TEXT("G_1_04"), TEXT("G_1_06"), TEXT("G_1_01")};
-	ReEchoCharacterPromotion::TryPromote(Poet);
-	TestEqual(TEXT("Element majority promotes Poet"), Poet.Stats.RoleId, FName(TEXT("Poet")));
-
-	FReEchoBuildSnapshot Brave;
-	Brave.CardState.OwnedCardIds = {TEXT("G_1_02"), TEXT("G_1_02"), TEXT("G_2_14"), TEXT("G_1_01")};
-	ReEchoCharacterPromotion::TryPromote(Brave);
-	TestEqual(TEXT("Survival majority promotes Brave"), Brave.Stats.RoleId, FName(TEXT("Brave")));
-
-	FReEchoBuildSnapshot Sage;
-	Sage.CardState.OwnedCardIds = {TEXT("G_1_01"), TEXT("G_1_08"), TEXT("G_1_07"), TEXT("G_1_05")};
-	ReEchoCharacterPromotion::TryPromote(Sage);
-	TestEqual(TEXT("Utility majority promotes Sage"), Sage.Stats.RoleId, FName(TEXT("Sage")));
-
-	TestEqual(TEXT("Tie priority chooses physical first"),
-	          ReEchoCharacterPromotion::EvaluateRole({TEXT("G_1_03"), TEXT("G_1_04"), TEXT("G_1_02"), TEXT("G_1_01")}),
-	          FName(TEXT("Hunter")));
+	RunSubsystem->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
+	const FName SelectedCharacter = RunSubsystem->CurrentBuild.CharacterId;
+	const FName SelectedRole = RunSubsystem->CurrentBuild.Stats.RoleId;
+	const float HunterMovement = RunSubsystem->CurrentBuild.Stats.MovementSpeed;
+	const float HunterCriticalRate = RunSubsystem->CurrentBuild.Stats.CriticalRate;
+	const float HunterCriticalEffect = RunSubsystem->CurrentBuild.Stats.CriticalEffect;
+	const TArray<FName> MixedRoleCards = {TEXT("G_1_01"), TEXT("G_1_02"), TEXT("G_1_03"), TEXT("G_1_04"),
+	                                      TEXT("G_1_05"), TEXT("G_1_06"), TEXT("G_1_07"), TEXT("G_1_03")};
+	for (const FName CardId : MixedRoleCards)
+	{
+		TestTrue(*FString::Printf(TEXT("Debug grant succeeds for %s"), *CardId.ToString()),
+		         RunSubsystem->DebugGrantCard(CardId));
+		TestEqual(TEXT("Card grants preserve the selected character"),
+		          RunSubsystem->CurrentBuild.CharacterId,
+		          SelectedCharacter);
+		TestEqual(TEXT("Card grants preserve the selected role"), RunSubsystem->CurrentBuild.Stats.RoleId, SelectedRole);
+	}
+	TestEqual(TEXT("Hunter keeps configured movement ability plus the authored speed card"),
+	          RunSubsystem->CurrentBuild.Stats.MovementSpeed,
+	          HunterMovement + 0.1f);
+	TestEqual(TEXT("Hunter keeps configured critical-rate ability"),
+	          RunSubsystem->CurrentBuild.Stats.CriticalRate,
+	          HunterCriticalRate + 0.25f);
+	TestEqual(TEXT("Hunter keeps configured critical-effect ability plus the authored card"),
+	          RunSubsystem->CurrentBuild.Stats.CriticalEffect,
+	          HunterCriticalEffect + 0.25f);
+	TestFalse(TEXT("New runs do not write BaseCharacterId"),
+	          RunSubsystem->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
+	TestFalse(TEXT("New runs do not write Promoted"), RunSubsystem->CurrentBuild.RuleFlags.Contains(TEXT("Promoted")));
 	return true;
 }
 
@@ -74,10 +57,6 @@ bool FReEchoSageBonusCadenceTest::RunTest(const FString& Parameters)
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 	RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
-	RunSubsystem->CurrentBuild.Stats.RoleId = TEXT("Sage");
-	RunSubsystem->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
-	RunSubsystem->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Sage");
-	RunSubsystem->CurrentBuild.EquipmentBaseRuleFlags.Add(TEXT("Promoted"), TEXT("1"));
 	RunSubsystem->EncounterIndex = 2;
 
 	auto ApplyAvailableCard = [this, RunSubsystem]()
