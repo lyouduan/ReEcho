@@ -6,12 +6,18 @@
 
 #if !UE_BUILD_SHIPPING
 DEFINE_LOG_CATEGORY_STATIC(LogReEchoRangedCritResolverTrace, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogReEchoEnemyDamageTrace, Log, All);
 
 namespace
 {
 bool IsRangedWeaponTrace(const FReEchoAttackIdentity& Attack)
 {
 	return Attack.WeaponId == TEXT("W_J_08") || Attack.WeaponId == TEXT("W_J_09");
+}
+
+bool IsEnemyDamageTrace(const AActor* Target)
+{
+	return Target && ReEchoCombatRelations::ResolveActorFaction(Target) == EReEchoCombatFaction::EnemySide;
 }
 } // namespace
 #endif
@@ -33,6 +39,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	FReEchoHitIntent Candidate = Intent;
 #if !UE_BUILD_SHIPPING
 	const bool bTraceRangedWeapon = IsRangedWeaponTrace(Candidate.Attack);
+	const bool bTraceEnemyDamage = IsEnemyDamageTrace(Candidate.Target);
 	if (bTraceRangedWeapon)
 	{
 		UE_LOG(LogReEchoRangedCritResolverTrace,
@@ -91,6 +98,28 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	{
 		Result.bBlocked = true;
 #if !UE_BUILD_SHIPPING
+		if (bTraceEnemyDamage)
+		{
+			UE_LOG(LogReEchoEnemyDamageTrace,
+			       Warning,
+			       TEXT("[EnemyDamageTrace] ResolverRejected source=%s weapon=%s sequence=%lld target=%s "
+			            "damageSource=%d sourceFaction=%d raw=%.3f hasTarget=%d combatTarget=%d combatant=%d "
+			            "alive=%d positiveRaw=%d canDamage=%d allowSameFaction=%d"),
+			       *GetNameSafe(Candidate.Attack.Source.Get()),
+			       *Candidate.Attack.WeaponId.ToString(),
+			       static_cast<long long>(Candidate.Attack.Sequence),
+			       *GetNameSafe(Candidate.Target),
+			       static_cast<int32>(Candidate.DamageSource),
+			       static_cast<int32>(Candidate.Attack.SourceFaction),
+			       Candidate.RawDamage,
+			       Candidate.Target ? 1 : 0,
+			       Target ? 1 : 0,
+			       TargetCombatant ? 1 : 0,
+			       bTargetAlive ? 1 : 0,
+			       Candidate.RawDamage > 0.0f ? 1 : 0,
+			       bCanDamage ? 1 : 0,
+			       Candidate.bAllowSameFactionDamage ? 1 : 0);
+		}
 		if (bTraceRangedWeapon)
 		{
 			UE_LOG(LogReEchoRangedCritResolverTrace,
@@ -119,6 +148,27 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	Result.bBlocked = Result.AppliedDamage <= 0.0f;
 	Result.bKilled = bWasAlive && !TargetCombatant->IsAlive();
 #if !UE_BUILD_SHIPPING
+	if (bTraceEnemyDamage)
+	{
+		UE_LOG(LogReEchoEnemyDamageTrace,
+		       Warning,
+		       TEXT("[EnemyDamageTrace] ResolverApplied source=%s weapon=%s sequence=%lld target=%s damageSource=%d "
+		            "sourceAdjustedRaw=%.3f incomingAdjustedRaw=%.3f applied=%.3f healthBefore=%.3f "
+		            "healthAfter=%.3f critical=%d blocked=%d killed=%d"),
+		       *GetNameSafe(Candidate.Attack.Source.Get()),
+		       *Candidate.Attack.WeaponId.ToString(),
+		       static_cast<long long>(Candidate.Attack.Sequence),
+		       *GetNameSafe(Candidate.Target),
+		       static_cast<int32>(Candidate.DamageSource),
+		       Candidate.RawDamage,
+		       Result.RawDamage,
+		       Result.AppliedDamage,
+		       TargetHealthBefore,
+		       TargetCombatant->GetSnapshot().CurrentHealth,
+		       Result.bCritical ? 1 : 0,
+		       Result.bBlocked ? 1 : 0,
+		       Result.bKilled ? 1 : 0);
+	}
 	if (bTraceRangedWeapon)
 	{
 		UE_LOG(LogReEchoRangedCritResolverTrace,
