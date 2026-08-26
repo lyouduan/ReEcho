@@ -91,6 +91,7 @@
 - Plan82 全库审计未报告 Born/FSM/Profile 问题，但被本 Plan 明确排除的 BadRabbit 20 张既有未导入源图阻塞；Plan121 独立重载审计提供本任务资产链通过证据。
 - `python scripts/validate_project.py` 通过；`python scripts/ue/prebuilt_editor.py check` 通过（7 模块，Build ID `55116800`，源码指纹 `6b0f55f586aa`）；`git diff --check` 通过。
 - Planner 集成前远端前进到 Plan120：Fox/Rabbit/Slime 三个 Profile 与其 Phase2 Transform 发生二进制同文件重叠。集成候选先保留最新 main 的 Transform 版本，再通过 Unreal 只追加 Born；独立二次重载审计 `profiles=3 born=3 transform=3 issues=0`，并逐项确认其他 Move/Attack/Hit/Death Clip 仍存在。该组合使 Executor 旧 FullRebuild/资产证据失效，以下最终证据以 Planner 集成候选重跑结果为准。
+- Planner 最终组合候选 FullRebuild 94/94 成功；`prebuilt_editor.py check` 通过（7 模块，Build ID `55116800`，源码指纹 `6b0f55f586aa`），`validate_project.py` 与 `git diff --check` 通过。聚焦 Animation2D 自动化在组合候选实际运行 4 项，结果仍为 3 项通过、AssetProfiles 仅受既有 TimeGuard Phase2 空能力断言阻塞，Born 新增断言未失败。
 
 ### 剩余风险
 
