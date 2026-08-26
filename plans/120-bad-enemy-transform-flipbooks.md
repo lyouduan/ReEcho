@@ -6,7 +6,7 @@
 - Executor 负责人：当前程序侧 Executor（Plan 发布后执行）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main` @ `fb67ce38dc37e1efde8943eab0f67af90ec49fbe`。
 - 本地实现方式（可选，仅作交接说明）：任务专属 worktree `C:\tmp\ReEcho-plan120-bad-enemy-transform`，分支 `codex/plan120-bad-enemy-transform`。
@@ -53,13 +53,13 @@
 
 ## 锁定验收
 
-- [ ] `BadRabbit/Transform` 恰有 7 个按序 Texture2D 与 7 个 PaperSprite，`Flipbooks/Transform` 恰有 7 个顺序一致的 Key Frame，且不循环。
-- [ ] `BadSlime/Transform` 恰有 5 个按序 Texture2D 与 5 个 PaperSprite，`Flipbooks/Transform` 恰有 5 个顺序一致的 Key Frame，且不循环。
-- [ ] `BadFox/Transform` 恰有 4 个按序 Texture2D 与 4 个 PaperSprite，`Flipbooks/Transform` 恰有 4 个顺序一致的 Key Frame，且不循环。
-- [ ] `DA_Enemy_RabbitDoll`、`DA_Enemy_Slime`、`DA_Enemy_Fox` 的活动动画集均把 `Transform.Phase2` 映射到各自 `Transform` Flipbook，且原有其他 Clip 映射不变。
-- [ ] Unreal 加载/只读审计、`python scripts/validate_project.py`、`git diff --check` 与最终 `-FullRebuild`/预构建包门禁通过。
+- [x] `BadRabbit/Transform` 恰有 7 个按序 Texture2D 与 7 个 PaperSprite，`Flipbooks/Transform` 恰有 7 个顺序一致的 Key Frame，且 Profile Clip 不循环。
+- [x] `BadSlime/Transform` 恰有 5 个按序 Texture2D 与 5 个 PaperSprite，`Flipbooks/Transform` 恰有 5 个顺序一致的 Key Frame，且 Profile Clip 不循环。
+- [x] `BadFox/Transform` 恰有 4 个按序 Texture2D 与 4 个 PaperSprite，`Flipbooks/Transform` 恰有 4 个顺序一致的 Key Frame，且 Profile Clip 不循环。
+- [x] `DA_Enemy_RabbitDoll`、`DA_Enemy_Slime`、`DA_Enemy_Fox` 的 `Phase2` 动画集均把 `Transform.Phase2` 映射到各自 `Transform` Flipbook，且导入脚本只改该 Clip。
+- [x] Unreal 加载/只读审计、`python scripts/validate_project.py`、`git diff --check` 与最终 `-FullRebuild`/预构建包门禁通过。
 - [ ] 用户在 PIE 中确认三段变形动画的帧序、速度、透明边缘、比例、朝向和脚点可接受。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -92,11 +92,19 @@
 
 ### 变化
 
-待 Executor 填写。
+- 用户确认按各怪物源帧数量设置 FPS：BadRabbit 7 FPS、BadSlime 5 FPS、BadFox 4 FPS；每段 Transform 均约 1 秒。
+- 只读 UE 基线探针确认三个 Profile 均有且仅有一个 `Phase2` AnimationSet；BadRabbit/BadSlime 的 Transform 当前使用暗形态 Move 临时回退，BadFox 尚无 Transform Clip。本实现仅替换/新增该 `Phase2` Clip，不触碰默认形态或其他语义。
+- 新增可重跑导入脚本，将 16 张源 PNG 复制为稳定 `Transform_XX.png`，通过 Unreal API 创建/更新 16 个 Texture2D、16 个中心 Pivot PaperSprite 和 3 个 Transform PaperFlipbook，并绑定三个目标 Profile。
+- 新增只读审计脚本，独立加载已保存资产并验证数量、顺序、Sprite SourceTexture、1 px/uu、FPS、FrameRun 与 `Phase2` Clip 的非循环/重启策略。
 
 ### 证据
 
-待 Executor 填写。
+- 输入静态：兔子 7 帧、史莱姆 5 帧、狐狸 4 帧；全部 PNG 可由 System.Drawing 读取，均为 `Format32bppArgb`。
+- UE 只读基线：`PLAN120_BASELINE_RESULT profiles=3 read_only=true`。
+- UE 导入：`PLAN120_IMPORT_RESULT`，BadRabbit/BadSlime/BadFox 分别生成 7/5/4 帧并保存三个 Profile。
+- 全新 UE 进程后验：`PLAN120_AUDIT_RESULT assets_ok=true profiles_ok=true audited=[('BadRabbit', 7, 2), ('BadSlime', 5, 2), ('BadFox', 4, 2)]`。
+- 项目静态：`python scripts/validate_project.py` 通过；`git diff --check` 通过。
+- 最终构建：`scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 94/94 成功；`prebuilt_editor.py check` 通过，`modules=7 build_id=55116800 source=9050699833cd`。
 
 ### 剩余风险
 
@@ -108,4 +116,6 @@
 
 ### 架构文档审阅结果
 
-待 Planner 关闭前逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：未改变模块拓扑、依赖或跨模块不变量。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：未新增或移动稳定架构标识/代码路线。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md` 已审阅、无需修改：继续消费既有 Profile、`Transform.Phase2` 与 PaperFlipbook 契约，只补资产实例和映射。
