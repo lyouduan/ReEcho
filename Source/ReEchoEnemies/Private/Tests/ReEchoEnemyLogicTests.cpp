@@ -379,18 +379,22 @@ bool FReEchoBossDebugQueuedAbilityTest::RunTest(const FString& Parameters)
 	          Logic->GetSnapshot().BossActionPhase,
 	          EReEchoBossActionPhase::Windup);
 
+	const FVector TelegraphCenter = BeamTelegraph ? BeamTelegraph->LockedTargetLocation : Sense.TargetLocation;
+	Sense.TargetLocation = FVector(700.0f, 300.0f, 0.0f);
 	const FReEchoEnemyActionIntent Committed = Logic->Advance(Sense, 0.05f);
 	const FReEchoBossIntent* BeamAttack =
 	    FindBossIntent(Committed, EReEchoBossIntentType::AttackWindowStarted, FName(TEXT("A_Beam")));
 	TestNotNull(TEXT("Queued beam reaches its attack window"), BeamAttack);
 	if (BeamAttack)
 	{
-		TestEqual(TEXT("Prayer beam damage starts at the locked warning center"),
+		TestEqual(TEXT("Prayer beam keeps the original telegraph center when the target moves during windup"),
 		          BeamAttack->Origin,
-		          BeamAttack->LockedTargetLocation);
-		TestEqual(TEXT("A target at the warning center has zero beam-plane offset"),
-		          FVector::DistSquared2D(Sense.TargetLocation, BeamAttack->Origin),
-		          0.0);
+		          TelegraphCenter);
+		TestEqual(TEXT("Prayer beam intent preserves the same locked warning center"),
+		          BeamAttack->LockedTargetLocation,
+		          TelegraphCenter);
+		TestTrue(TEXT("The moved target no longer changes the committed beam center"),
+		         FVector::DistSquared2D(Sense.TargetLocation, BeamAttack->LockedTargetLocation) > 1.0f);
 	}
 	return true;
 }

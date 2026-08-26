@@ -648,12 +648,11 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 }
 
 void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
-    const FVector& Origin, const FVector& LockedDirection, const float LengthCm, FVector& OutStart, FVector& OutEnd)
+    const FVector& Origin, const FVector&, const float LengthCm, FVector& OutStart, FVector& OutEnd)
 {
-	const FVector Direction =
-	    LockedDirection.IsNearlyZero() ? FVector::ForwardVector : LockedDirection.GetSafeNormal2D();
 	OutStart = Origin;
-	OutEnd = Origin + Direction * FMath::Max(0.0f, LengthCm);
+	// Skill04 is authored as an upward world-space column rooted at its locked warning center.
+	OutEnd = Origin + FVector::ForwardVector * FMath::Max(0.0f, LengthCm);
 }
 
 FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredScale,
@@ -792,7 +791,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	    World,
 	    System,
 	    Start,
-	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting, Intent.LockedDirection),
+	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting,
+	                                             FVector::ForwardVector),
 	    FVector::OneVector,
 	    false,
 	    false,
@@ -1510,15 +1510,8 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		                                   false);
 		if (bSkill03 || bSkill04)
 		{
-			FVector TelegraphLocation = Intent.LockedTargetLocation;
-			if (bSkill04)
-			{
-				AActor* Target = Intent.Target.Get();
-				const IReEchoCombatTarget* CombatTarget = Target ? Cast<IReEchoCombatTarget>(Target) : nullptr;
-				TelegraphLocation = CombatTarget ? CombatTarget->GetCombatTargetLocation() : TelegraphLocation;
-			}
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                 TelegraphLocation,
+			                                 Intent.LockedTargetLocation,
 			                                 Intent.LockedDirection,
 			                                 false);
 		}

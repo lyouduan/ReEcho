@@ -104,6 +104,9 @@ public:
 	/** Toggles a debug overlay that draws each living enemy's damage range (contact + ranged max). */
 	UFUNCTION(Exec)
 	void GMShowEnemyRange(const FString& Mode = TEXT("Toggle"));
+	/** Toggles the authoritative sheep Boss skill damage geometry at each attack window and projectile step. */
+	UFUNCTION(Exec)
+	void GMBossDamageRange(const FString& Mode = TEXT("Toggle"));
 
 	/** True while the GM enemy-health overlay is enabled. */
 	bool IsEnemyHealthDebugEnabled() const
@@ -115,6 +118,11 @@ public:
 	bool IsEnemyRangeDebugEnabled() const
 	{
 		return bShowEnemyRangeDebug;
+	}
+
+	bool IsBossDamageRangeDebugEnabled() const
+	{
+		return bShowBossDamageRangeDebug;
 	}
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
@@ -172,6 +180,7 @@ private:
 	bool bShowEnemyHealthDebug = false;
 	/** Whether the GM enemy-range overlay is currently enabled (GMShowEnemyRange). */
 	bool bShowEnemyRangeDebug = false;
+	bool bShowBossDamageRangeDebug = false;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()

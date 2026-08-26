@@ -74,7 +74,7 @@ Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、
 
 Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
 
-羊 Boss 的站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害。BlinkSlam 的落点与预警共享 XY，PrayerBeam 的伤害与光束均从锁定预警中心开始。
+羊 Boss 的站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害，Skill02 的 Ability `RadiusCm` 不触发一次性 AOE。BlinkSlam 的落点、预警和圆形伤害判定统一以 Intent 锁定中心为权威，圆半径直接使用 Ability `RadiusCm`，不再回读闪现后的 Actor 位置；MeleeSweep 以羊的 `BossWeaponRoot` 世界位置为圆心、锁定朝向为中轴、Ability `LengthCm` 为半径覆盖前方 180° 半圆，伤害与挥杖特效共享挂点；PrayerBeam 在 WindupStart 快照一次预警中心，后续预警、伤害与光束均复用该中心并沿世界 +X 向上延伸，不再于蓄力结束回读角色位置。Development 的 `GMBossDamageRange` 只读绘制这些同源几何，不参与命中裁决。
 
 血条耗尽转换由 Combat 致命伤拦截启动；同一命中随后发布的 Hurt 不得把 `Transforming` 覆盖为 `HitReaction`。转换期间 Host 的入伤修正统一返回零，避免临时保活的 1 HP 被多段攻击击杀；完成事件再应用 Phase2 最大生命与回满策略，之后第二次致命伤恢复正常死亡。
 

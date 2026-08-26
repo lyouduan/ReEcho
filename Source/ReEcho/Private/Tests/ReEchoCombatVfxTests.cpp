@@ -259,8 +259,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    BeamWarningCenter, BeamDirection, 750.0f, BeamStart, BeamEnd);
 	TestTrue(TEXT("Boss beam starts at the authoritative warning center"),
 	         BeamStart.Equals(BeamWarningCenter, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
-	         BeamEnd.Equals(BeamWarningCenter + BeamDirection * 750.0f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Boss beam endpoint extends upward from the warning center"),
+	         BeamEnd.Equals(BeamWarningCenter + FVector::ForwardVector * 750.0f, KINDA_SMALL_NUMBER));
 	const FVector BlinkWarningCenter(640.0f, -275.0f, 50.0f);
 	const FVector BossLanding = AReEchoEnemyActor::ResolveBossLandingLocation(BlinkWarningCenter, 183.6f);
 	TestTrue(TEXT("Blink Slam landing shares the warning center in arena XY"),
