@@ -51,7 +51,9 @@ enum class EReEchoEnemySpecialActionEventType : uint8
 {
 	WindupStarted,
 	ActionCommitted,
-	ActionEnded
+	ActionEnded,
+	RecoveryStarted,
+	ActionCancelled
 };
 
 /** Presentation-neutral transition emitted when a non-Boss special action changes phase. */

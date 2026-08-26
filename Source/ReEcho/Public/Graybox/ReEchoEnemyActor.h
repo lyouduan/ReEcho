@@ -172,14 +172,13 @@ public:
 	{
 		return ResolveFacingDirection();
 	}
+
 	/** Blink Slam preserves the Boss gameplay height while sharing the warning center in arena XY. */
 	static FVector ResolveBossLandingLocation(const FVector& LockedTargetLocation, float BossWorldZ);
 
 	/** Ends active rabbit volley balls intersecting the supplied melee sector and returns the number removed. */
-	int32 DestroyRabbitProjectilesInMeleeArc(const FVector& Origin,
-	                                         const FVector& Forward,
-	                                         float RangeCm,
-	                                         float ArcDegrees);
+	int32
+	DestroyRabbitProjectilesInMeleeArc(const FVector& Origin, const FVector& Forward, float RangeCm, float ArcDegrees);
 
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
@@ -206,6 +205,7 @@ private:
 	void ClearCrowdCollisionIgnores();
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
+	void ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void AdvanceEnemyProjectiles(float DeltaSeconds);
 	void PublishSpecialActionTransition(const FReEchoEnemyLogicSnapshot& PreviousSnapshot,
 	                                    const FReEchoEnemyActionIntent& Intent);

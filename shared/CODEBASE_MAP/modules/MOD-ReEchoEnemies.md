@@ -42,7 +42,7 @@
 | Archetype、Phase、SpawnIndex、攻击冷却、Fuse、受击剩余时间、击退速度、朝向、攻击序号 | `UReEchoEnemyLogicComponent` | `GetSnapshot()`；Host 不复制可写计时器 |
 | 怪物不可变行为参数 | `FReEchoEnemyDefinition` | Host 初始化时按值注入；运行中不回读资源/配置对象 |
 | 目标与世界位置样本 | EnemyHost 每步构造的 `FReEchoEnemySenseSnapshot` | Logic 只消费当步值，不自行搜索 PlayerController/GameMode |
-| Actor Transform、Collision、实际 swept movement | 主模块 EnemyHost | 应用 `FReEchoEnemyActionIntent`，不能把结果回写成第二套 AI 状态 |
+| Actor Transform、Collision、实际 swept movement | 主模块 EnemyHost | 应用 `FReEchoEnemyActionIntent`；普通移动不回写，Elite Active 冲撞只通过 `ResolveSpecialDashStep` 回报遇阻与首次接触门控 |
 | 生命、元素、伤害、格挡、击杀与死亡 | `MOD-ReEchoCombat` | CombatEvents 与 CombatantSnapshot；Enemies 不直接扣血 |
 | 当前动画、Sprite、VFX、血条与伤害数字 | 主模块 Presentation | 订阅事件、读取聚合快照；不控制 Logic |
 
@@ -55,20 +55,20 @@
 - `FReEchoEnemyDefinition`：资源无关的不可变行为定义，携带稳定但资源无关的 `PresentationId`。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值和兼容 ID，生产定义由主模块从 CSV 编译后注入。
 - `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态，以及 Encounter 注入的 `bSpecialActionPermitted`。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
 - `BindEventSources(EnemyEvents, CombatEvents)`：由 Host 显式注入两个事件源。Logic 订阅 Combat Hurt/Death，不发现兄弟组件。
-- `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。
+- `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。狐狸 Active 冲撞另由 Host 调用 `ResolveSpecialDashStep`，只反馈实际 Sweep 是否遇阻与本次路径是否已消费首次接触，不传世界对象或伤害结果。
 - `ResetEncounterTransientState`：同 Stage 局间边界的窄命令。取消尚未提交的 Fuse/特殊行动/Boss 行动、受击位移和瞬时计时，但保留 Actor 身份、生命、普通攻击冷却、攻击序号及其他持久逻辑；Enemy Host 负责在调用后冻结自己的 World Tick 和逻辑投射物。
 
 ### 输出
 
 - `FReEchoEnemyActionIntent`：单步朝向、移动距离、普通攻击候选和 `BossIntents`。Boss Intent 表达前摇、判定窗口、清洗和 EncounterPhase，仍不是最终命中结果。
-- `FReEchoEnemyLogicSnapshot`：只读行为副本；除通用状态外保存普通特殊技能的下一轮转索引与当前活动 AbilityId，以及 Boss 当前招式、阶段剩余时间、轮转索引、锁点、清洗/阶段门控与固定步累计，支持中途恢复。
+- `FReEchoEnemyLogicSnapshot`：只读行为副本；除通用状态外保存普通特殊技能的下一轮转索引与当前活动 AbilityId。Elite 冲撞还保存 Active 剩余时间、剩余距离、同一次 `AttackIdentity` 与首次接触是否已消费；Boss 保存当前招式、阶段剩余时间、轮转索引、锁点、清洗/阶段门控与固定步累计，支持中途恢复。
 - `FReEchoEnemyProjectileLogic`：资源无关的直线弹道 Advance/Snapshot；Host 只负责世界目标碰撞和 Combat 命中转发。
-- `UReEchoEnemyEventsComponent`：除提交/Fuse 外，发布 `FReEchoEnemySpecialActionEvent`（WindupStarted、ActionCommitted、ActionEnded）与 `FReEchoEnemyProjectileEvent`（Spawned、Moved、Ended）。事件只描述已经发生的行为状态和空间上下文，不携带表现资源。
+- `UReEchoEnemyEventsComponent`：除提交/Fuse 外，发布 `FReEchoEnemySpecialActionEvent`（WindupStarted、ActionCommitted、RecoveryStarted、ActionEnded、ActionCancelled）与 `FReEchoEnemyProjectileEvent`（Spawned、Moved、Ended）。事件只描述已经发生的行为状态和空间上下文，不携带表现资源。
 - `UReEchoEnemyRosterComponent`：保存 Host/Logic 弱引用，以 SpawnIndex 稳定排序；存活状态即时读取 LogicSnapshot，不复制第二份 alive 标志。
 
-普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown。兔子/狐狸只有获得 Encounter 的全局许可才可开始前摇，已开始的动作不被撤销；同一普通怪的多个启用特殊能力按 `SequenceOrder + AbilityId` 稳定排序并确定性循环，前摇、提交、恢复和快照恢复全程按 `SpecialAbilityId` 绑定同一能力。兔子因此依次执行移动散射与站定连发；兔子锁点后按半径判断，狐狸锁向后按长度/宽度突进，正面防御沿用 Definition 的明确能力标志。全局窗口与并发令牌不保存在单个 EnemyLogic。Bomber 引信不可取消且只提交一次。
+普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown。兔子/狐狸只有获得 Encounter 的全局许可才可开始前摇，已开始的动作不被撤销；同一普通怪的多个启用特殊能力按 `SequenceOrder + AbilityId` 稳定排序并确定性循环，前摇、提交、恢复和快照恢复全程按 `SpecialAbilityId` 绑定同一能力。兔子因此依次执行移动散射与站定连发；兔子锁点后按半径判断。狐狸在 Windup 结束时提交一次身份，随后在 `ActiveSeconds` 内沿锁向分步积分 `LengthCm`；每步最多消费剩余距离，完成或 Host 回报世界阻挡后进入只含 `RecoverySeconds` 的 Recovery。首次路径接触门在无敌零伤害时也消费，保证同次冲撞不重试；正面防御沿用 Definition 的明确能力标志。全局窗口与并发令牌不保存在单个 EnemyLogic。Bomber 引信不可取消且只提交一次。
 
-远程敌人提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 按能力表的 `ProjectileCount` 与 `SpreadAngleDegrees` 展开确定性直线投射物；单发沿锁定方向，有散射角的多发以中心方向对称齐射。`ProjectileCount>1`、零散射角且 `ActiveSeconds>0` 的直线多发在该 Active 窗口内等间隔进入世界：第一发随提交生成，其余已提交球保存剩余延迟并依次发布 Spawned，避免同帧同位置重叠。Host 使用每条已生成球的移动线段与“按单球半径扩张后的目标碰撞盒”做连续扫掠，每球向 Combat 提交至多一次命中；兔子球命中玩家后立即发布 `Ended` 并从逻辑数组移除，视觉代理随事件结束。长剑还可用其提交时的 180°近战扇区结束弧内兔子球；EnemyHost 仍是移除权威，Niagara 不参与斩弹裁决。能力 `RadiusCm` 是整组碰撞预算，单球半径为 `RadiusCm / ProjectileCount`；不得从敌人本体碰撞尺寸推导，也不得让 Niagara 粒子参与裁决。各逻辑轨迹分别发布 Spawned/Moved/Ended，事件携带共享 AttackIdentity、稳定 `VolleyBallIndex`、逻辑位置/方向和只读碰撞半径；Presentation 必须以 `(AttackIdentity, VolleyBallIndex)` 一一投影。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载已生成和已提交待生成的通用敌方逻辑投射物；旧存档默认把已有条目视为已生成，重命名需要独立存档迁移。显式正数表内投射物速度优先，兼容数据才按 `MaxRangeCm / CooldownSeconds` 推导。
+远程敌人提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 按能力表的 `ProjectileCount` 与 `SpreadAngleDegrees` 展开确定性直线投射物；单发沿锁定方向，有散射角的多发以中心方向对称齐射。`ProjectileCount>1`、零散射角且 `ActiveSeconds>0` 的直线多发在该 Active 窗口内等间隔进入世界：第一发随提交生成，其余已提交球保存剩余延迟并依次发布 Spawned，避免同帧同位置重叠。Host 使用每条已生成球的移动线段与“按单球半径扩张后的目标碰撞盒”做连续扫掠，每球向 Combat 提交至多一次命中；兔子球命中玩家后立即发布 `Ended` 并从逻辑数组移除，视觉代理随事件结束。长剑还可用其提交时的 180°近战扇区结束弧内兔子球；EnemyHost 仍是移除权威，Niagara 不参与斩弹裁决。兔子能力的单球半径固定为 `RadiusCm / 3`（沿用原移动三球散射的作者基准），不因站定四连发的 `ProjectileCount` 改变；羊 Boss 等通用齐射仍把 `RadiusCm` 作为整组碰撞预算并按实际发数平分。单球半径不得从敌人本体碰撞尺寸推导，也不得让 Niagara 粒子参与裁决。各逻辑轨迹分别发布 Spawned/Moved/Ended，事件携带共享 AttackIdentity、稳定 `VolleyBallIndex`、逻辑位置/方向和只读碰撞半径；Presentation 必须以 `(AttackIdentity, VolleyBallIndex)` 一一投影。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载已生成和已提交待生成的通用敌方逻辑投射物；旧存档默认把已有条目视为已生成，重命名需要独立存档迁移。显式正数表内投射物速度优先，兼容数据才按 `MaxRangeCm / CooldownSeconds` 推导。
 
 Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、`M_RABBIT`、`M_FOX`，Boss 为 `M_SHEEP`。`M_SHEEP` 第一阶段最大生命 1300；第一次致命伤由 Combatant 的窄委托交给 EnemyLogic 转为 `HealthDepleted` Phase2 过渡，Host 发布变身事件，完成后按 Phase2 定义把最大生命与当前生命统一设为 650；第二次致命伤沿正常 Combat 死亡路径。未进入仇恨范围的普通怪执行可保存的确定性 IdleWander，一旦进入战斗后不恢复游走；Host 只注入 `bInCombat`、`HateRangeCm` 和当前生命比率，Logic 不读取 GameMode 或 Combatant。
 
@@ -99,8 +99,9 @@ Encounter / GameMode 提供世界上下文
   → EnemyHost 构造 EnemySenseSnapshot（包含只读许可）
   → EnemyLogic::Advance(Sense, Delta)
   → EnemyActionIntent
-      → Host 应用 Capsule swept movement
-      → Host 将攻击候选转换为 Combat HitIntent
+      → Host 应用 Box swept movement
+      → Host 将攻击候选或狐狸 Active 实际路径首次接触转换为 Combat HitIntent
+      → Host 用窄命令回报狐狸遇阻/接触门
       → Combat ResolveHit 并更新唯一生命/元素状态
   → EnemyEvents / CombatEvents
       → Presentation 与 Audio 各自只读消费
@@ -171,7 +172,7 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - `ReEcho.Enemies.Logic.BomberFuse`：Fuse 不可取消、范围语义正确且只自毁一次。
 - `ReEcho.Enemies.Logic.HurtAndSnapshot`：击退、快照恢复与死亡门控。
 - `ReEcho.Enemies.Logic.Roster`：去重注册、稳定顺序、无复制存活查询与清理。
-- `ReEcho.Enemies.Logic.RangedAndEliteBehaviors`：兔子锁点可躲避、狐狸锁向突进与表驱动伤害/时序。
+- `ReEcho.Enemies.Logic.RangedAndEliteBehaviors`：兔子锁点可躲避；狐狸在 0.15 秒 Active 内分步积分 650 cm、复用一次 AttackIdentity，并安全保存/恢复一次接触门。
 - `ReEcho.Enemies.Logic.RangedAbilityRotation`：普通远程多能力按 SequenceOrder 循环、活动 AbilityId 跨快照绑定，以及两种施法移动门。
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
 - `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。

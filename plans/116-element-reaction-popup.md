@@ -129,6 +129,7 @@
 - `ReEcho.Combat.ElementReaction*` 4/4 通过：`ElementReactionBurnRefresh`、`ElementReactions`、`ElementReactionSaveContinuity`、`ElementReactionWorld`，既有权威反应结算未回归。
 - 用户已在 `Level00` 手测并反馈“感觉没什么问题”，人工验收通过；其在 `BP_ReEchoElementReactionPopup` 保存的调参修改作为候选资产一并保留。
 - 已新增 `Design/UI/ReEcho_元素反应字调参指南.md`，说明策划入口、九项 Class Defaults、渐隐指数的准确曲线语义、建议范围、常用组合、验收清单和禁止修改边界，并由 UI 总指导建立索引。
+- 发布前抓取到 `origin/main@0b339df4`，新增玩家受伤碰撞/兔子参数、狐狸冲刺运行时碰撞、Plan117 狐狸箭头可见性与批量生成。与本任务的文本路径交集只有精选预构建包及 `MOD-ReEcho.md`：前者先采用传入主线版本并由最终 FullRebuild 统一重建，后者保留主线狐狸/兔子说明并合并本任务反应字表现边界。Combat 反应事件、Enemy Presentation Component 和本任务资产路径均无传入修改，未发现逻辑或运行时耦合冲突。
 
 ### 剩余风险
 

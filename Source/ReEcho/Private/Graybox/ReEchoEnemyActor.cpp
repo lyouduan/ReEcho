@@ -519,12 +519,9 @@ void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
 		{
 			Combatant->ResetElementState();
 		}
-		const FReEchoEnemyLogicSnapshot PreviousSnapshot =
-		    EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
 		if (EnemyLogic)
 		{
 			EnemyLogic->ResetEncounterTransientState();
-			PublishSpecialActionTransition(PreviousSnapshot, FReEchoEnemyActionIntent{});
 		}
 		for (const FReEchoEnemyProjectileRuntimeState& Projectile : BossProjectiles)
 		{
@@ -725,9 +722,9 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 }
 
 int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeArc(const FVector& Origin,
-	                                                         const FVector& Forward,
-	                                                         const float RangeCm,
-	                                                         const float ArcDegrees)
+                                                            const FVector& Forward,
+                                                            const float RangeCm,
+                                                            const float ArcDegrees)
 {
 	int32 RemovedCount = 0;
 	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
@@ -930,6 +927,37 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySe
 		const FVector PreviousLocation = GetActorLocation();
 		FHitResult Hit;
 		AddActorWorldOffset(Intent.MovementDelta, true, &Hit);
+		if (Intent.bSpecialDashMovement)
+		{
+			AActor* TargetActor = Intent.Target.Get();
+			IReEchoCombatTarget* Target = TargetActor ? Cast<IReEchoCombatTarget>(TargetActor) : nullptr;
+			bool bDamageContactConsumed = false;
+			if (Target && Target->IsCombatTargetAlive() && EnemyLogic &&
+			    !EnemyLogic->GetSnapshot().bSpecialDamageConsumed)
+			{
+				const FVector TargetLocation = Target->GetCombatTargetLocation();
+				FVector CollisionPathStart = PreviousLocation;
+				FVector CollisionPathEnd = GetActorLocation();
+				CollisionPathStart.Z = TargetLocation.Z;
+				CollisionPathEnd.Z = TargetLocation.Z;
+				const bool bHitTargetActor = Hit.GetActor() == TargetActor;
+				const bool bPathContact =
+				    bHitTargetActor ||
+				    Target->IntersectsCombatPath(CollisionPathStart, CollisionPathEnd, Intent.DamageRadiusCm);
+				if (bPathContact)
+				{
+					bDamageContactConsumed = true;
+					if (Intent.bCanDamageTarget)
+					{
+						ApplySpecialDashHit(Intent, TargetActor, TargetLocation);
+					}
+				}
+			}
+			if (EnemyLogic)
+			{
+				EnemyLogic->ResolveSpecialDashStep(Hit.bBlockingHit, bDamageContactConsumed);
+			}
+		}
 		const float ExpectedDistance = Intent.MovementDelta.Size2D();
 		const float ActualDistance = FVector::Dist2D(PreviousLocation, GetActorLocation());
 		CrowdBlockedSeconds = ExpectedDistance > KINDA_SMALL_NUMBER && ActualDistance < ExpectedDistance * 0.2f
@@ -1112,6 +1140,33 @@ void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent, AActor* Ta
 	}
 }
 
+void AReEchoEnemyActor::ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent,
+                                            AActor* Target,
+                                            const FVector& HitLocation)
+{
+	if (!Target || Intent.RawDamage <= 0.0f || !Intent.Attack.IsValid())
+	{
+		return;
+	}
+	FReEchoHitIntent HitIntent;
+	HitIntent.Attack = Intent.Attack;
+	HitIntent.Target = Target;
+	HitIntent.RawDamage = Intent.RawDamage;
+	HitIntent.DamageSource = EReEchoDamageSource::Enemy;
+	HitIntent.SourceLocation = Intent.SourceLocation;
+	HitIntent.HitLocation = HitLocation;
+	const FReEchoHitResolved Resolved = ReEchoHitResolver::ResolvePhysicalHit(HitIntent);
+	if (Resolved.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+	if (AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Target))
+	{
+		ReEchoPlayer->PlayHitVisual();
+	}
+	AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), HitLocation, Resolved.AppliedDamage, FLinearColor::White);
+}
+
 void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 {
 	if (Intent.Type == EReEchoBossIntentType::ElementCleanse)
@@ -1248,7 +1303,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 				Projectile.Attack = Intent.Attack;
 				Projectile.Damage = Intent.RawDamage;
 				Projectile.CollisionRadiusCm =
-				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm, VolleyCount);
+				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm);
 				Projectile.VolleyBallIndex = BallIndex;
 				Projectile.SpawnDelayRemainingSeconds = ShotIntervalSeconds * BallIndex;
 				Projectile.bSpawnEventPublished = !bSequentialStraightVolley || BallIndex == 0;
@@ -1325,7 +1380,9 @@ void AReEchoEnemyActor::PublishSpecialActionTransition(const FReEchoEnemyLogicSn
 	FReEchoEnemySpecialActionEvent Event;
 	Event.AbilityId = CurrentSnapshot.SpecialAbilityId.IsNone() ? PreviousSnapshot.SpecialAbilityId
 	                                                            : CurrentSnapshot.SpecialAbilityId;
-	Event.Attack = Intent.Attack;
+	Event.Attack = Intent.Attack.IsValid()                   ? Intent.Attack
+	               : CurrentSnapshot.SpecialAttack.IsValid() ? CurrentSnapshot.SpecialAttack
+	                                                         : PreviousSnapshot.SpecialAttack;
 	Event.Origin = GetActorLocation();
 	Event.LockedDirection = CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None
 	                            ? PreviousSnapshot.SpecialLockedDirection
@@ -1338,9 +1395,16 @@ void AReEchoEnemyActor::PublishSpecialActionTransition(const FReEchoEnemyLogicSn
 	{
 		Event.Type = EReEchoEnemySpecialActionEventType::WindupStarted;
 	}
-	else if (Intent.bAttackCommitted && CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery)
+	else if (Intent.bAttackCommitted &&
+	         (CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Active ||
+	          CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery))
 	{
 		Event.Type = EReEchoEnemySpecialActionEventType::ActionCommitted;
+	}
+	else if (PreviousSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Active &&
+	         CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery)
+	{
+		Event.Type = EReEchoEnemySpecialActionEventType::RecoveryStarted;
 	}
 	else if (CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None)
 	{

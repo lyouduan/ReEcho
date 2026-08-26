@@ -76,7 +76,7 @@ public:
 	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
-	void GMSpawnFox(float Distance = 350.0f);
+	void GMSpawnFox(float CountOrDistance = 1.0f, float Distance = -1.0f);
 	UFUNCTION(Exec)
 	void GMGotoBoss();
 	/** Queues one production sheep Boss ability through its normal Telegraph/Attack/Recovery state machine. */
@@ -357,6 +357,18 @@ private:
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
 	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
+	static void ResolveGMSpawnFoxRequest(
+	    float CountOrDistance, float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance);
+	static TArray<FVector> BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
+	                                                const FVector2D& ArenaCenter,
+	                                                const FVector2D& ArenaHalfExtents,
+	                                                float GameplayPlaneWorldZ,
+	                                                int32 Count,
+	                                                float Distance,
+	                                                bool bHasArena);
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FReEchoGameModeFoxSpawnTest;
+#endif
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);

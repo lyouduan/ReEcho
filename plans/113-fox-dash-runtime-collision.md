@@ -5,8 +5,8 @@
 - Planner 负责人：当前程序侧 Planner。
 - Executor 负责人：独立 Executor，Plan 发布后分配。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 实现编写方（AI 侧）：`Codex Executor /root/plan113_executor`。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@644a8d5f900a5a0c707b32906636eee19b1d0c8a`；Executor 必须在 Plan 发布后从最新 `origin/main` 建立新的专属 worktree。
 - 本地实现方式（可选，仅作交接说明）：规划 worktree `C:\tmp\ReEcho-plan113-fox-dash-runtime`；实现不得复用规划、审计或既有 `fox-rush-vfx` worktree。
@@ -74,13 +74,13 @@
 
 ## 锁定验收
 
-- [ ] 自动化证明狐狸在 `ActiveSeconds=0.15` 内经过多个固定步完成冲刺；首步不等于完整 `LengthCm`，无阻挡累计尝试距离为 `650 cm`，方向保持 Windup 锁向。
-- [ ] Host 世界测试证明实际 swept path 接触玩家时准确造成一次当前配表伤害 `2`，后续 Active 步不重复；路径外、躲开、无敌、死亡或先撞世界阻挡时不造成伤害。
-- [ ] 伤害只经 Combat resolver，Fox Impact 只在最终 `AppliedDamage > 0` 时出现；Niagara 缺失不会影响移动或扣血。
-- [ ] 保存/恢复 Active 冲刺不重置全程、不重复伤害、不瞬移到终点；旧默认快照安全恢复。
+- [x] 自动化证明狐狸在 `ActiveSeconds=0.15` 内经过多个固定步完成冲刺；首步不等于完整 `LengthCm`，无阻挡累计尝试距离为 `650 cm`，方向保持 Windup 锁向。
+- [x] Host 世界测试证明实际 swept path 接触玩家时准确造成一次当前配表伤害 `2`，后续 Active 步不重复；路径外、躲开、无敌、死亡或先撞世界阻挡时不造成伤害。
+- [x] 伤害只经 Combat resolver，Fox Impact 只在最终 `AppliedDamage > 0` 时出现；Niagara 缺失不会影响移动或扣血。
+- [x] 保存/恢复 Active 冲刺不重置全程、不重复伤害、不瞬移到终点；旧默认快照安全恢复。
 - [ ] Direction 在 Windup 可见并按锁向旋转；资产审计证明全部启用 Emitter、至少一个有效 Renderer、非退化 Bounds、可见尺寸与前景排序契约。Trail 在可见冲刺过程中跟随，Active/Cancelled/Death/EndPlay/重开无残留。用户在 PIE 验收左右、上下和斜向冲刺、命中/未命中、撞墙、死亡/重开。
-- [ ] `.clang-format`、聚焦自动化、最终 `-FullRebuild`、`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
-- [ ] 只纳入 Plan Writes、具名 Direction Niagara 适配和 FullRebuild 声明的准确精选预构建产物；不修改生产 XLSX/CSV、狐狸动画/Profile/Gameplay Blueprint 或其他 VFX `.uasset`。
+- [x] `.clang-format`、聚焦自动化、最终 `-FullRebuild`、`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
+- [x] 只纳入 Plan Writes、具名 Direction Niagara 适配和 FullRebuild 声明的准确精选预构建产物；不修改生产 XLSX/CSV、狐狸动画/Profile/Gameplay Blueprint 或其他 VFX `.uasset`。
 
 ## Step 0 门禁
 
@@ -120,14 +120,27 @@
 - 2026-08-26：用户明确要求修复，并增加冲撞过程伤害；Plan 锁定分帧 Active、swept path 首次接触一次伤害和 Direction/Trail 生命周期。
 - 2026-08-26：用户补充当前 PIE 中狐狸方向箭头完全不显示；Plan 将具名 Direction Niagara 审计与经 Editor/API 的最窄资产适配纳入 Writes 和锁定验收。
 - 2026-08-26：Executor 证明现有 Windup/Committed/Ended 事件无法表达 Active 结束或未完成动作取消；Planner 批准最窄增加 `RecoveryStarted/ActionCancelled` 并补入 EnemyEvents/Coordinator Writes，不改变技能或伤害语义。
+- 2026-08-26：Executor 将 Elite 特殊行动扩为可保存的分帧 Active：Windup 只提交身份，Active 按表内时长/距离分步产出位移，Host 实际 Sweep 后回报遇阻与首次路径接触，Recovery 不再吞并 Active 时长。
+- 2026-08-26：狐狸冲撞的首次路径接触改经同一 `AttackIdentity -> FReEchoHitIntent -> ReEchoHitResolver` 结算；无敌接触消费一次门，躲开、死亡目标和先撞墙不提交伤害，未引入 Niagara/动画命中权威。
+- 2026-08-26：Coordinator 将资源中立 `RecoveryStarted/ActionCancelled` 映射到表现 Recovery/Cancelled；Fox Trail 在 Active 完成或撞墙进入 Recovery 时立即停止，Death/EndPlay 仍由既有统一清理兜底。
+- 2026-08-26：新增只读 `audit_fox_dash_vfx.py` 和 C++ 资产契约断言，覆盖 Direction 启用 Emitter/Renderer、Local Space、Bounds、组件尺寸、锁向旋转与前景排序；审计只证明 Fixed Bounds 未启用后，才用既有具名幂等脚本修复并保存 `NS_Fox_Rush_arrow.uasset`。
 
 ### 证据
 
-- 待 Executor 填写。
+- 源码/测试候选位于专属 worktree `C:\tmp\ReEcho-plan113-fox-dash-runtime-exec`；初始实现基线为 `origin/main@de5ac05d20300f66a76bd6299befdcb4a6110500`，交接前已 rebase 到最新 `origin/main@402b6d2235f7ac9e34b53690d237778325bf0a93`。其中最终验证建立在 `a5d26991` 的最新代码/资产树上；后续 `402b6d22` 只新增不相交的 Plan116，不改变该证据。只修改 Plan Writes，未触碰 `DA_Enemy_Fox.uasset`、生产 XLSX/CSV 或其他未具名资产。
+- Logic 自动化已改为锁定 `ActiveSeconds=0.15`、650 cm 三步积分、同一 AttackIdentity、接触门与 Active 快照/旧快照安全恢复；Host 新增 `ReEcho.Enemies.Host.FoxDashCollision`，覆盖一次实际伤害、躲开、无敌接触、世界阻挡与无补偿传送。
+- Presentation 自动化覆盖 `RecoveryStarted -> Recovery` 与 `ActionCancelled -> Cancelled`；VFX Catalog 自动化新增 Direction 原生 Niagara 可见性契约。
+- 实现初期 Unreal Editor PID 10984 仍运行，Executor 只完成源码/静态候选且未触碰资产；Editor 关闭后才进入仓库独占锁内的构建、自动化、审计和具名资产修复。
+- 适配最新主线后，Executor 审阅其 Combat 变化：新增 `ReactionBehaviorId` 只提供资源中立反应来源；狐狸普通物理冲撞保持 `NAME_None`，仍由同一 resolver 结算，Damage Number 仍只在 `AppliedDamage > 0` 后由 Host 生成，不产生零伤害或重复数字。
+- Executor 在 Git common-dir Unreal 锁下对最终组合候选完成 Development `-FullRebuild`：94 actions，UHT/UBT `Result: Succeeded`；精选包更新为 `build_id=55116800 source=399940bb9314`，随后 `prebuilt_editor.py check` 通过。
+- 最终主线组合上，`ReEcho.Enemies.Logic` 12 项全部成功；`ReEcho.Enemies.Host` 6 项全部成功，其中新增 `FoxDashCollision` 成功；`ReEcho.Presentation.Combat` 2 项和 `ReEcho.Presentation.VFX.Catalog` 1 项全部成功。
+- VFX Catalog 首次只失败 `NS_Fox_Rush_arrow` 未启用 Fixed Bounds；其启用 Emitter、Local Space、启用 Renderer、200×200×200 非退化 Bounds、组件 Scale、锁向旋转和前景排序均已通过。Executor 随后扩展现有具名幂等脚本，只为该 Direction System 启用既有 Fixed Bounds 并保存；复跑 `ReEcho.Presentation.VFX.Catalog` 成功。
+- `audit_fox_dash_vfx.py` 最终输出 `FOX_DASH_AUDIT_OK roots=3 dependencies=12`，并记录 Direction Bounds 为 `(-100,-100,-100)..(100,100,100)`；Emitter/Renderer/组件契约由同次通过的原生 C++ VFX 自动化锁定。
+- `python scripts/validate_project.py` 最终通过（CSV/XLSX 同步与项目边界均通过）；Python 审计/修复脚本语法检查、`git diff --check` 与 Plan Writes 范围审计通过。
 
 ### 剩余风险
 
-- Direction Niagara 的最终屏幕可见性仍需用户 PIE 验收；结构审计与 Editor 适配不能替代主观大小、位置和可读性判断。
+- Direction 结构契约现已自动化通过，但倾斜正交相机中的最终屏幕尺寸、相对角色位置和快速多方向可读性仍必须由用户 PIE 判定；若仍需艺术尺寸调整，应作为新的具名 Editor 证据处理，不得改玩法锁向或扩大到狐狸 Profile。
 
 ### 人工验收结果/请求
 
@@ -135,4 +148,8 @@
 
 ### 架构文档审阅结果
 
-- 待 Executor 与 Planner 关闭前填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；依赖仍为 `ReEcho EnemyHost -> ReEchoEnemies/ReEchoCombat/Presentation`，资源无关阶段事件和 Host 窄反馈未改变拓扑，不更新。
+- `shared/CODEBASE_MAP/README.md`：已审阅；稳定模块/区域标识和阅读路线未改变，不更新。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md`：已更新分帧 Active、快照字段、首次接触门与 Host 窄反馈契约。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 EnemyHost 实际 Sweep 路径一次伤害、撞墙与旧快照安全恢复边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`：已更新 Direction 可见性审计和 Fox Trail Recovery/Cancelled/Death/EndPlay 生命周期。

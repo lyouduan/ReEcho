@@ -103,9 +103,17 @@ void UReEchoCombatPresentationCoordinator::HandleSpecialAction(const FReEchoEnem
 	{
 		NextPhase = EReEchoPresentationActionPhase::Committed;
 	}
+	else if (Event.Type == EReEchoEnemySpecialActionEventType::RecoveryStarted)
+	{
+		NextPhase = EReEchoPresentationActionPhase::Recovery;
+	}
 	else if (Event.Type == EReEchoEnemySpecialActionEventType::ActionEnded)
 	{
 		NextPhase = EReEchoPresentationActionPhase::Ended;
+	}
+	else if (Event.Type == EReEchoEnemySpecialActionEventType::ActionCancelled)
+	{
+		NextPhase = EReEchoPresentationActionPhase::Cancelled;
 	}
 
 	const bool bSameAction = bHasActiveAction && ActiveAction.Key.AbilityId == Event.AbilityId;
@@ -139,7 +147,7 @@ void UReEchoCombatPresentationCoordinator::HandleSpecialAction(const FReEchoEnem
 	++PublishedPhaseCountForTests;
 #endif
 	OnActionPhase.Broadcast(ActiveAction);
-	if (NextPhase == EReEchoPresentationActionPhase::Ended)
+	if (NextPhase == EReEchoPresentationActionPhase::Ended || NextPhase == EReEchoPresentationActionPhase::Cancelled)
 	{
 		bHasActiveAction = false;
 	}

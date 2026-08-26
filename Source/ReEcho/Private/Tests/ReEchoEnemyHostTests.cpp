@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
+#include "Components/BoxComponent.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -229,6 +230,225 @@ bool FReEchoEnemyHostAttackPipelineTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostFoxDashCollisionTest,
+                                 "ReEcho.Enemies.Host.FoxDashCollision",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostFoxDashCollisionTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads for Fox dash"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+	FReEchoEnemyDefinition FoxDefinition;
+	FString CompileError;
+	if (!TestTrue(
+	        TEXT("Fox definition compiles"),
+	        ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_FOX"), FoxDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+	const FReEchoEnemyAbilityDefinition* Dash = FoxDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_FOX_Dash");
+	    });
+	if (!TestNotNull(TEXT("Production Fox keeps its dash ability"), Dash))
+	{
+		return false;
+	}
+
+	auto InitializePlayer = [](AReEchoPlayerPawn* Player)
+	{
+		if (!Player->HasActorBegunPlay())
+		{
+			Player->DispatchBeginPlay();
+		}
+		Player->SetAutoAttackMode(false);
+		FReEchoStatBlock PlayerStats;
+		PlayerStats.HpMax = 100.0f;
+		PlayerStats.HpPoint = 100.0f;
+		Player->Combatant->InitializeFromStats(PlayerStats, true);
+	};
+	auto MakeSense = [](AReEchoEnemyActor* Fox, AReEchoPlayerPawn* Player, const bool bInvulnerable)
+	{
+		FReEchoEnemySenseSnapshot Sense;
+		Sense.Target = Player;
+		Sense.SelfLocation = Fox->GetActorLocation();
+		Sense.TargetLocation = Player->GetActorLocation();
+		Sense.bTargetExists = true;
+		Sense.bTargetAlive = Player->IsCombatTargetAlive();
+		Sense.bTargetInvulnerable = bInvulnerable;
+		Sense.bSpecialActionPermitted = true;
+		return Sense;
+	};
+
+	{
+		FReEchoEnemyHostWorldFixture Fixture;
+		AReEchoPlayerPawn* Player =
+		    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(300.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+		AReEchoEnemyActor* Fox =
+		    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+		if (!TestNotNull(TEXT("Fox dash target spawns"), Player) || !TestNotNull(TEXT("Fox host spawns"), Fox))
+		{
+			return false;
+		}
+		InitializePlayer(Player);
+		Fox->SetEnemyId(TEXT("M_FOX"));
+		TestTrue(TEXT("Fox accepts the production definition"), Fox->ConfigureFromDefinition(FoxDefinition, 20));
+		Fox->SetActorLocation(FVector::ZeroVector);
+		Player->SetActorLocation(FVector(300.0f, 0.0f, 0.0f));
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), 0.01f);
+		const FReEchoEnemyActionIntent Commit =
+		    Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), Dash->WindupSeconds + 0.01f);
+		TestTrue(TEXT("Fox Host receives the dash commit"), Commit.bAttackCommitted);
+		TestFalse(TEXT("Dash commit does not teleport the Fox"), Commit.bHasMovement);
+
+		int32 ActiveMovementSteps = 0;
+		float LargestStepCm = 0.0f;
+		for (int32 StepIndex = 0; StepIndex < 20; ++StepIndex)
+		{
+			const FReEchoEnemyActionIntent Step =
+			    Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), 1.0f / 60.0f);
+			if (Step.bSpecialDashMovement && Step.bHasMovement)
+			{
+				++ActiveMovementSteps;
+				LargestStepCm = FMath::Max(LargestStepCm, Step.MovementDelta.Size2D());
+			}
+			if (Fox->GetEnemyLogicComponent()->GetSnapshot().SpecialActionPhase ==
+			    EReEchoEnemySpecialActionPhase::Recovery)
+			{
+				break;
+			}
+		}
+		TestTrue(TEXT("Fox visibly advances across more than one Active step"), ActiveMovementSteps > 1);
+		TestTrue(TEXT("No Active step contains the complete dash distance"), LargestStepCm < Dash->LengthCm);
+		TestEqual(TEXT("First swept contact applies production Fox damage exactly once"),
+		          Player->Combatant->CurrentHealth,
+		          100.0f - Dash->Damage);
+		TestTrue(TEXT("First swept contact consumes the saved one-shot gate"),
+		         Fox->GetEnemyLogicComponent()->GetSnapshot().bSpecialDamageConsumed);
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), Dash->RecoverySeconds * 0.5f);
+		TestEqual(
+		    TEXT("Recovery cannot repeat Fox dash damage"), Player->Combatant->CurrentHealth, 100.0f - Dash->Damage);
+	}
+
+	{
+		FReEchoEnemyHostWorldFixture Fixture;
+		AReEchoPlayerPawn* Player =
+		    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(300.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+		AReEchoEnemyActor* Fox =
+		    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+		if (!Player || !Fox)
+		{
+			return false;
+		}
+		InitializePlayer(Player);
+		Fox->SetEnemyId(TEXT("M_FOX"));
+		Fox->ConfigureFromDefinition(FoxDefinition, 21);
+		Fox->SetActorLocation(FVector::ZeroVector);
+		Player->SetActorLocation(FVector(300.0f, 0.0f, 0.0f));
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), 0.01f);
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), Dash->WindupSeconds + 0.01f);
+		Player->SetActorLocation(FVector(300.0f, 400.0f, 0.0f));
+		float AttemptedDistanceCm = 0.0f;
+		for (int32 StepIndex = 0; StepIndex < 20; ++StepIndex)
+		{
+			const FReEchoEnemyActionIntent Step =
+			    Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), 1.0f / 60.0f);
+			AttemptedDistanceCm += Step.MovementDelta.Size2D();
+			if (Fox->GetEnemyLogicComponent()->GetSnapshot().SpecialActionPhase ==
+			    EReEchoEnemySpecialActionPhase::Recovery)
+			{
+				break;
+			}
+		}
+		TestTrue(TEXT("A dodged target takes no path damage"),
+		         FMath::IsNearlyEqual(Player->Combatant->CurrentHealth, 100.0f));
+		TestTrue(TEXT("An unobstructed dash attempts the exact authored distance"),
+		         FMath::IsNearlyEqual(AttemptedDistanceCm, Dash->LengthCm, 0.01f));
+	}
+
+	{
+		FReEchoEnemyHostWorldFixture Fixture;
+		AReEchoPlayerPawn* Player =
+		    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(300.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+		AReEchoEnemyActor* Fox =
+		    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+		if (!Player || !Fox)
+		{
+			return false;
+		}
+		InitializePlayer(Player);
+		Fox->SetEnemyId(TEXT("M_FOX"));
+		Fox->ConfigureFromDefinition(FoxDefinition, 22);
+		Fox->SetActorLocation(FVector::ZeroVector);
+		Player->SetActorLocation(FVector(300.0f, 0.0f, 0.0f));
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), 0.01f);
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), Dash->WindupSeconds + 0.01f);
+		for (int32 StepIndex = 0; StepIndex < 20; ++StepIndex)
+		{
+			Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, true), 1.0f / 60.0f);
+			if (Fox->GetEnemyLogicComponent()->GetSnapshot().SpecialActionPhase ==
+			    EReEchoEnemySpecialActionPhase::Recovery)
+			{
+				break;
+			}
+		}
+		TestTrue(TEXT("Invulnerable target takes no Fox dash damage"),
+		         FMath::IsNearlyEqual(Player->Combatant->CurrentHealth, 100.0f));
+		TestTrue(TEXT("Invulnerable contact still consumes the one-shot gate"),
+		         Fox->GetEnemyLogicComponent()->GetSnapshot().bSpecialDamageConsumed);
+	}
+
+	{
+		FReEchoEnemyHostWorldFixture Fixture;
+		AReEchoPlayerPawn* Player =
+		    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+		AReEchoEnemyActor* Fox =
+		    Fixture.World->SpawnActor<AReEchoEnemyActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+		AActor* Wall = Fixture.World->SpawnActor<AActor>(FVector(180.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+		if (!Player || !Fox || !Wall)
+		{
+			return false;
+		}
+		InitializePlayer(Player);
+		UBoxComponent* WallCollision = NewObject<UBoxComponent>(Wall, TEXT("FoxDashWall"));
+		Wall->SetRootComponent(WallCollision);
+		WallCollision->SetBoxExtent(FVector(20.0f, 200.0f, 200.0f));
+		WallCollision->SetCollisionProfileName(TEXT("BlockAll"));
+		WallCollision->RegisterComponent();
+		Wall->SetActorLocation(FVector(180.0f, 0.0f, 0.0f));
+		Fox->SetEnemyId(TEXT("M_FOX"));
+		Fox->ConfigureFromDefinition(FoxDefinition, 23);
+		Fox->SetActorLocation(FVector::ZeroVector);
+		Player->SetActorLocation(FVector(600.0f, 0.0f, 0.0f));
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), 0.01f);
+		Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), Dash->WindupSeconds + 0.01f);
+		for (int32 StepIndex = 0; StepIndex < 20; ++StepIndex)
+		{
+			Fox->AdvanceBehaviorForTests(MakeSense(Fox, Player, false), 1.0f / 60.0f);
+			if (Fox->GetEnemyLogicComponent()->GetSnapshot().SpecialActionPhase ==
+			    EReEchoEnemySpecialActionPhase::Recovery)
+			{
+				break;
+			}
+		}
+		TestEqual(TEXT("World blocker ends the dash in Recovery"),
+		          Fox->GetEnemyLogicComponent()->GetSnapshot().SpecialActionPhase,
+		          EReEchoEnemySpecialActionPhase::Recovery);
+		TestTrue(TEXT("World blocker before the target prevents damage"),
+		         FMath::IsNearlyEqual(Player->Combatant->CurrentHealth, 100.0f));
+		TestTrue(TEXT("Blocked dash does not compensate by teleporting to the authored endpoint"),
+		         Fox->GetActorLocation().X < Dash->LengthCm);
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostRabbitProjectileTest,
                                  "ReEcho.Enemies.Host.RabbitProjectilePipeline",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -261,9 +481,20 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	const FReEchoEnemyAbilityDefinition* StationaryVolley = RabbitDefinition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("M_RABBIT_RangedBurst");
+	    });
+	if (!TestNotNull(TEXT("Production rabbit keeps the stationary-volley ability"), StationaryVolley))
+	{
+		return false;
+	}
 	const int32 MovingVolleyCount = FMath::Max(1, MovingVolley->ProjectileCount);
-	const float MovingBallRadius =
-	    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(MovingVolley->RadiusCm, MovingVolleyCount);
+	const float FixedRabbitBallRadius =
+	    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(MovingVolley->RadiusCm);
+	const float StationaryShotInterval =
+	    StationaryVolley->ActiveSeconds / static_cast<float>(FMath::Max(1, StationaryVolley->ProjectileCount - 1));
 	const float MovingProjectileSpeed = MovingVolley->ProjectileSpeedCmPerSecond > 0.0f
 	                                        ? MovingVolley->ProjectileSpeedCmPerSecond
 	                                        : MovingVolley->MaxRangeCm / MovingVolley->CooldownSeconds;
@@ -321,7 +552,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Rabbit ball keeps the authored damage"), Ball.Damage, 1.0f);
 		TestEqual(TEXT("Rabbit volley radius is divided into one collider per ball"),
 		          Ball.CollisionRadiusCm,
-		          MovingBallRadius);
+		          FixedRabbitBallRadius);
 		TestEqual(TEXT("Rabbit ball stores its stable volley index"), Ball.VolleyBallIndex, BallIndex);
 		TestEqual(TEXT("Every rabbit ball uses the same resolved data-driven speed"),
 		          Ball.Definition.SpeedCmPerSecond,
@@ -352,7 +583,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 		}
 		TestEqual(TEXT("Each presentation event carries the authoritative collider radius"),
 		          Event.CollisionRadiusCm,
-		          MovingBallRadius);
+		          FixedRabbitBallRadius);
 	}
 	TestEqual(TEXT("Host publishes one presentation spawn per authoritative ball"),
 	          SpawnEventCount,
@@ -514,12 +745,15 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	for (const FReEchoEnemyProjectileRuntimeState& Ball : StationaryStart.BossProjectiles)
 	{
 		PublishedAtCommit += Ball.bSpawnEventPublished ? 1 : 0;
+		TestEqual(TEXT("Stationary and moving rabbit shots keep the same fixed collision radius"),
+		          Ball.CollisionRadiusCm,
+		          FixedRabbitBallRadius);
 		TestTrue(TEXT("Stationary burst balls share one locked direction"),
 		         Ball.Definition.Direction.Equals(FVector::ForwardVector, KINDA_SMALL_NUMBER));
 	}
 	TestEqual(TEXT("Only the first stationary shot enters the world at commit"), PublishedAtCommit, 1);
 
-	Rabbit->AdvanceEnemyProjectilesForTests(0.04f);
+	Rabbit->AdvanceEnemyProjectilesForTests(StationaryShotInterval + 0.001f);
 	const FReEchoEnemyRuntimeState MidBurst = Rabbit->CaptureRuntimeState();
 	int32 PublishedAfterFirstInterval = 0;
 	for (const FReEchoEnemyProjectileRuntimeState& Ball : MidBurst.BossProjectiles)
@@ -538,7 +772,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Restore republishes only shots that had already entered the world"), RestoredSpawnEvents, 2);
 
 	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
-	Rabbit->AdvanceEnemyProjectilesForTests(0.03f);
+	Rabbit->AdvanceEnemyProjectilesForTests(StationaryShotInterval);
 	int32 ThirdShotEvents = 0;
 	for (const FReEchoEnemyProjectileEvent& Event :
 	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())
@@ -547,7 +781,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("The third stationary shot spawns after its remaining delay"), ThirdShotEvents, 1);
 	Rabbit->GetEnemyEventsComponent()->ClearPublishedProjectileEventsForTests();
-	Rabbit->AdvanceEnemyProjectilesForTests(0.04f);
+	Rabbit->AdvanceEnemyProjectilesForTests(StationaryShotInterval);
 	int32 FourthShotEvents = 0;
 	for (const FReEchoEnemyProjectileEvent& Event :
 	     Rabbit->GetEnemyEventsComponent()->GetPublishedProjectileEventsForTests())

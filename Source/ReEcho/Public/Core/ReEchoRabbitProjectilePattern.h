@@ -38,6 +38,8 @@ inline FVector ResolveVolleyDirection(const FVector& CenterDirection,
 
 inline float ResolveBallCollisionRadius(const float VolleyRadiusCm)
 {
+	// Rabbit projectile size is authored against the original three-shot moving volley.
+	// Keep that per-ball size stable when another rabbit ability fires a different count.
 	return FMath::Max(10.0f, VolleyRadiusCm / static_cast<float>(BallCount));
 }
 

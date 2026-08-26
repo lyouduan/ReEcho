@@ -35,13 +35,26 @@ bool FReEchoCombatPresentationLifecycleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Commit advances the same action"),
 	          Coordinator->GetActivePhaseForTests(),
 	          EReEchoPresentationActionPhase::Committed);
+	FReEchoEnemySpecialActionEvent Recovery = Windup;
+	Recovery.Type = EReEchoEnemySpecialActionEventType::RecoveryStarted;
+	Coordinator->ConsumeSpecialActionForTests(Recovery);
+	TestEqual(TEXT("Active completion advances the same action into Recovery"),
+	          Coordinator->GetActivePhaseForTests(),
+	          EReEchoPresentationActionPhase::Recovery);
 
 	FReEchoEnemySpecialActionEvent End = Windup;
 	End.Type = EReEchoEnemySpecialActionEventType::ActionEnded;
 	Coordinator->ConsumeSpecialActionForTests(End);
 	Coordinator->ConsumeSpecialActionForTests(End);
 	TestFalse(TEXT("End releases active action"), Coordinator->HasActiveActionForTests());
-	TestEqual(TEXT("Duplicate end is ignored"), Coordinator->GetPublishedPhaseCountForTests(), 4);
+	TestEqual(TEXT("Duplicate end is ignored"), Coordinator->GetPublishedPhaseCountForTests(), 5);
+
+	Coordinator->ConsumeSpecialActionForTests(Windup);
+	FReEchoEnemySpecialActionEvent Cancel = Windup;
+	Cancel.Type = EReEchoEnemySpecialActionEventType::ActionCancelled;
+	Coordinator->ConsumeSpecialActionForTests(Cancel);
+	TestFalse(TEXT("Cancelled special action releases lifecycle ownership"), Coordinator->HasActiveActionForTests());
+	TestEqual(TEXT("Cancellation publishes one terminal phase"), Coordinator->GetPublishedPhaseCountForTests(), 7);
 	return true;
 }
 
