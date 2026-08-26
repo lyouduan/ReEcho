@@ -6,9 +6,9 @@
 - Executor 负责人：Codex（Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@f8c5b6c64207efb4f4a5ce4cc6e3197585b266ac`。
+- 任务状态：`Closed`。
+- 人工验收：`Accepted`（用户完成 HUD 手测并明确要求推送合并主分支）。
+- 本地规划 / 实现基线：初始 `origin/main@f8c5b6c64207efb4f4a5ce4cc6e3197585b266ac`；发布集成基线 `origin/main@bac84edf9d6dd270ec51fd8a837512798e463e9e`。
 - 本地实现方式（可选，仅作交接说明）：`feat/minimap-ink-brush-trail`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan118-minimap-ink-brush`。
 - 依赖 / 阻塞：依赖 Plan102 已发布的小地图坐标投影、回响路径视图与头像绘制；运行 UE Editor/命令前遵守同克隆 Unreal 锁。
 - Writes:
@@ -83,10 +83,10 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - [x] 跳字仍仅在 `AppliedDamage>0` 时生成；颜色、字体、取整、缩放动画与生命周期不变，Combat Schema、生命和死亡规则未修改。
 - [x] 普通关卡指针从左经下半圆逆时针转到右，满/半/零时分别为 `90/0/-90` 度。
 - [x] Boss 关保留 `ArtClockFrame`，隐藏 `CountdownText` 与 `ArtClockNeedle`，在同一区域显示复用玩家血条底板造型的暗紫色 Boss 生命条；暗紫 Fill 位于不透明底板上层并按存活 Boss Combatant 的生命比例缩放，关卡文字和小地图不受影响。
-- [ ] `ReEcho.UI.Minimap`、`ReEcho.UI.CombatHud`、UE 5.8 Editor 构建、静态校验及最终 `-FullRebuild` 发布门禁通过。
+- [x] `ReEcho.UI.Minimap`、`ReEcho.UI.CombatHud`、UE 5.8 Editor 构建、静态校验及最终 `-FullRebuild` 发布门禁通过。
 - [x] 用户在 `Level00` 手测小地图笔触并明确反馈“笔触没问题了”。
-- [ ] 用户手测普通关指针逆时针方向，以及 Boss 关隐藏时间、暗紫血条位置/颜色与实际生命同步。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 用户手测普通关指针方向及 Boss HUD 后给出截图返修，最终候选修正为左→下→右、保留钟背板且暗紫 Fill 位于底板上层；随后明确要求推送合并主分支。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -144,6 +144,10 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - 人工截图暴露 UI Material 的 Slate Vertex Color RGB 在该绘制路径中实际读成黑色；已改为每个 Echo/调色板项创建独立动态材质实例并写入显式 `TrailColor` 向量参数，Slate Tint 只保留透明度。材质脚本复跑 `status=preserved` 且自检到 `TrailColor`，随后 Development Editor 构建、`ReEcho.UI.Minimap` 两项测试及 `ReEcho.UI.CombatHud.Formatting` 均通过。
 - Boss HUD 首轮构建只发现自动化中 `double` Scale 与 `float` 期望的 `TestEqual` 重载歧义；显式统一为 `double` 后 Development Editor 构建成功。`author_plan118_boss_hud.py` 幂等创建并保存 464×58 Boss 面板；`ReEcho.UI.CombatHud.Formatting` 验证逆时针角度、普通/Boss 显隐、0.5 生命比例、复用玩家框纹理与暗紫色，`ReEcho.UI.Minimap` 两项回归均为 `Result={Success}`。
 - 用户截图复核后将准确方向收口为左 `90°` → 下 `0°` → 右 `-90°`，并保留 Boss 战 `ArtClockFrame`。截图同时暴露血条底板 PNG 内部为不透明黑色、会遮挡下层 Fill；WBP 已把暗紫 `BossHealthFill` 从 ZOrder 0 移到 2（高于 ZOrder 1 的底板）。重新 author、Development 构建、`ReEcho.UI.CombatHud.Formatting` 与 `ReEcho.UI.Minimap` 均通过；HUD 自动化新增 Fill 高于底板和 Boss 背板保持可见断言。
+- 发布前 fetch 发现 `origin/main` 从 `081a8689` 前进到 `bac84edf`，包含 Plan120–125、正式音频、怪物出生/变形、Boss 时序/获胜门禁、狐狸箭头和构筑诊断。重叠仅位于精选预构建包、`ReEchoEnemyPresentationComponent.cpp`、`ReEchoGameMode.cpp` 与 `MOD-ReEcho.md`：精选包先采用远端版本并等待最终 FullRebuild；文本自动组合后逐段确认远端 Boss 成功生成/获胜门禁与本地 Boss HUD 生命投影并存，远端怪物变形表现与本地 `RawDamage` 跳字并存，无 Plan 编号或产品语义冲突。合并提交为 `69876c59`。
+- 在发布集成基线 `bac84edf` 上执行 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功（UBT `Result: Succeeded`），精选 Editor 包刷新为 `build_id=55116800`、`source=470bd6b08c8c`；`python scripts/ue/prebuilt_editor.py check` 验证通过。
+- 最终组合的 `ReEcho.UI.CombatHud.Formatting`、`ReEcho.UI.Minimap.InkTrailSampling` 与 `ReEcho.UI.Minimap.Transform` 均为 `Result={Success}`；`python scripts/validate_project.py`、`git diff --check` 通过。
+- 额外审计运行 `ReEcho.Combat.ElementReaction` 时，基础反应、燃烧刷新和存档连续性通过，但最新主线既有的 `ElementReactionWorld` 导电链断言失败。候选相对发布基线在该执行路径仅增加 `GetDamageNumberValue(Event)` 纯表现选择和 Enemy Presentation 调用，不修改导电计算、GAS 扣血或该测试；该非 Plan118 门禁失败未扩张为本次 UI 发布修复。
 
 ### 剩余风险
 
@@ -153,7 +157,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：小地图笔触已获用户确认；仍由用户在同一 Plan118 工程复验普通关指针方向、Boss 钟背板/血条缩放，并以低血怪物确认过量伤害跳字。
+- `Accepted`：用户完成小地图笔触与 HUD 手测、通过截图提出并确认返修目标，最终明确授权发布；客观伤害跳字与生命结算继续由自动化覆盖。
 
 ### 架构文档审阅结果
 
