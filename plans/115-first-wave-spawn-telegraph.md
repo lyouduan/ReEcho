@@ -93,12 +93,14 @@
 - 诊断追踪加入后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 为 `Result={Success}`，`git diff --check` 通过。
 - 普通怪变身免伤修正后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Enemies.Host` 的 5 项测试全部 `Result={Success}`，其中 `CompositionAndSave` 新增普通怪 `Transforming` 入伤不归零的断言；`git diff --check` 通过。
 - 策划枪械报告回归补齐后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 以真实 Projectile→HitResolver 链命中 `Transforming` 普通怪并为 `Result={Success}`；`git diff --check` 通过。
+- 发布集成采用 `origin/main@d0da16a8` 为权威基线，保留远端羊 Boss 范围、狐狸行为、眩晕解除重索敌及血肉铸锋生命同步；Plan115 只叠加出生时序、Host 原子激活边界、普通怪变身期可受伤和对应诊断/回归。组合提交 `cc37e063` 后在 `main-publish-lock` 内重新 FullRebuild，UBT `Result: Succeeded`，精选 7 模块预构建校验通过。
+- 锁内聚焦自动化再次通过：`ReEcho.Encounter` 4/4、`ReEcho.Enemies.Host` 8/8、`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 1/1，均为 `Result={Success}`；`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
 - 当前出生框由 GameMode 调试绘制接口表现；本 Plan 只保证现有球框的时序与可见寿命，不扩张为新的美术资产系统。
 - 若用户认为首波延迟不应计入遭遇倒计时，需要另行决定 Encounter 时钟何时开始；本 Plan 暂定角色入场即开始计时，怪物在 0.8–1.0 秒后生成。
-- 实现完成后远端 main 新增玩家碰撞/兔子连发提交，且另一发布者持有狐狸冲刺候选锁；最终发布必须获锁后合入最新 main、重跑 FullRebuild 和受影响证据。
+- 最终候选已在远端单发布者锁内适配截至 `d0da16a8` 的主线；发布前仍须重新 fetch，并在 Plan-only 例外使 main 前进时再次合入和重跑受影响门禁。
 
 ### 人工验收结果/请求
 
