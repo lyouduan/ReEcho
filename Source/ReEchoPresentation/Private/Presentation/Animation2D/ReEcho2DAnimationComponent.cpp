@@ -87,9 +87,13 @@ bool UReEcho2DAnimationComponent::PlayClip(const FReEcho2DAnimationClip& Clip, c
 	ApplyCharacterTint();
 	ApplyDisplayScale();
 	ApplyCollisionPolicy();
-	if (bRestart || Clip.bRestartOnRequest || bClipChanged || bPolicyChanged || !IsPlaying())
+	if (bRestart || Clip.bRestartOnRequest || bClipChanged || bPolicyChanged || (!IsPlaying() && !bPlaybackPaused))
 	{
 		PlayFromStart();
+	}
+	if (bPlaybackPaused)
+	{
+		Stop();
 	}
 	return true;
 }
@@ -131,7 +135,7 @@ bool UReEcho2DAnimationComponent::SetAnimationState(const EReEcho2DAnimationStat
 	}
 	UPaperFlipbook* ResolvedFlipbook = ActiveProfile.Resolve(NewState);
 	if (!bRestart && ActiveState == NewState && GetFlipbook() == ResolvedFlipbook && IsLooping() == bShouldLoop &&
-	    IsPlaying())
+	    (IsPlaying() || bPlaybackPaused))
 	{
 		return true;
 	}
@@ -153,8 +157,30 @@ void UReEcho2DAnimationComponent::DeactivateAnimation()
 	SetComponentTickEnabled(false);
 	SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	bAnimationActive = false;
+	bPlaybackPaused = false;
 	ActiveClip = FReEcho2DAnimationClip();
 	ActiveState = EReEcho2DAnimationState::Default;
+}
+
+void UReEcho2DAnimationComponent::SetPlaybackPaused(const bool bPaused)
+{
+	if (bPlaybackPaused == bPaused)
+	{
+		return;
+	}
+	bPlaybackPaused = bPaused;
+	if (!bAnimationActive || !GetFlipbook())
+	{
+		return;
+	}
+	if (bPlaybackPaused)
+	{
+		Stop();
+	}
+	else
+	{
+		Play();
+	}
 }
 
 void UReEcho2DAnimationComponent::SetFacingSign(const float InFacingSign)

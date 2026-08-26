@@ -86,14 +86,23 @@ public:
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
 	/** Generic camera-plane convention: local X follows direction and local Z faces camera. */
 	static FRotator ResolveCameraPlaneDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Delivered 0811_01 sword mesh: local X is its surface normal and local Y follows the projected attack direction. */
+	/** Delivered 0811_01 sword mesh: local X is its surface normal and local Y follows the projected attack direction.
+	 */
 	static FRotator ResolveSwordMeshDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Keeps the composed sword direction/DA correction but flips a culled local-X back face around its local-Y attack axis. */
+	/** Keeps the composed sword direction/DA correction but flips a culled local-X back face around its local-Y attack
+	 * axis. */
 	static FRotator EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation, const FVector& CameraFacingNormal);
 	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
 	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
 	static bool HasMeleePlayDirectionParameter(const UNiagaraSystem* System);
+#if WITH_DEV_AUTOMATION_TESTS
+	/** Exposes the live Fox windup arrow solely for runtime lifecycle and renderer automation. */
+	UNiagaraComponent* GetDirectionEffectForTests() const
+	{
+		return DirectionEffect;
+	}
+#endif
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
 	                              USceneComponent* InHurtVfxRoot,
@@ -261,6 +270,7 @@ private:
 		TWeakObjectPtr<UNiagaraComponent> Effect;
 		float RemainingSeconds = 0.0f;
 	};
+
 	mutable TArray<FReverseMeleePlayback> ReverseMeleePlaybacks;
 
 	uint64 ConductBatchSerial = 0;

@@ -6,6 +6,7 @@
 #include "Combat/ReEchoHitResolver.h"
 
 class AReEchoEnemyActor;
+struct FReEchoDamageEvent;
 
 /** Pure, deterministic elemental attachment and reaction rules shared by player and echo attacks. */
 namespace ReEchoElementReaction
@@ -23,6 +24,8 @@ REECHO_API FReEchoElementExecutionResult ApplyHitToWorld(AReEchoEnemyActor& Targ
                                                          const FReEchoElementHitContext& Context);
 REECHO_API int32 TickElementStatuses(AReEchoEnemyActor& Target, float CurrentTimeSeconds);
 REECHO_API FLinearColor GetElementColor(EReEchoElement Element);
+/** Maps authoritative reaction provenance to the approved damage-number palette. */
+REECHO_API FLinearColor GetDamageNumberColor(const FReEchoDamageEvent& Event);
 REECHO_API FString GetElementLabel(EReEchoElement Element);
 REECHO_API FName GetElementId(EReEchoElement Element);
 }

@@ -299,6 +299,7 @@ void AReEchoPlayerPawn::BeginPlay()
 	AbilitySystem->InitAbilityActorInfo(this, this);
 	Combatant->BindToAbilitySystem(AbilitySystem);
 	Combatant->OnHealthChanged.AddUniqueDynamic(this, &AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged);
+	CombatEvents->OnHurt.AddUniqueDynamic(this, &AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore);
 	AbilitySystem->GetGameplayAttributeValueChangeDelegate(UReEchoCombatAttributeSet::GetMovementSpeedAttribute())
 	    .AddUObject(this, &AReEchoPlayerPawn::HandleMovementSpeedAttributeChanged);
 	GrantStartupAbilities();
@@ -339,6 +340,7 @@ void AReEchoPlayerPawn::MoveRight(float Value)
 void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	AdvancePawnCollisionIgnore(DeltaSeconds);
 	ConstrainToArenaBounds();
 	ConfigureMouseInput();
 
@@ -541,12 +543,16 @@ void AReEchoPlayerPawn::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
 	if (Run)
 	{
 		float EchoDistanceCm = 0.0f;
+		float NearestEchoDistanceCm = TNumericLimits<float>::Max();
+		bool bHasLivingEcho = false;
 		for (TActorIterator<AReEchoEchoActor> It(GetWorld()); It; ++It)
 		{
 			if (It->IsCombatTargetAlive())
 			{
-				EchoDistanceCm =
-				    FMath::Max(EchoDistanceCm, FVector::Dist2D(GetActorLocation(), It->GetActorLocation()));
+				const float DistanceCm = FVector::Dist2D(GetActorLocation(), It->GetActorLocation());
+				EchoDistanceCm = FMath::Max(EchoDistanceCm, DistanceCm);
+				NearestEchoDistanceCm = FMath::Min(NearestEchoDistanceCm, DistanceCm);
+				bHasLivingEcho = true;
 			}
 		}
 		const UReEchoCombatantComponent* TargetCombatant =
@@ -554,6 +560,8 @@ void AReEchoPlayerPawn::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
 		Run->ModifyCardOutgoingHit(Intent,
 		                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
 		                           EchoDistanceCm,
+		                           bHasLivingEcho ? NearestEchoDistanceCm : 0.0f,
+		                           bHasLivingEcho,
 		                           TargetCombatant &&
 		                               TargetCombatant->GetElementState().Attached != EReEchoElement::None);
 	}
@@ -598,14 +606,52 @@ void AReEchoPlayerPawn::NotifyReactionResolved(const FName ReactionId) const
 	}
 }
 
-void AReEchoPlayerPawn::NotifyKillResolved() const
+float AReEchoPlayerPawn::GetReactionDamageMultiplier(const FName ReactionId) const
+{
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	return Run ? Run->GetCardReactionDamageMultiplier(ReactionId) : 1.0f;
+}
+
+bool AReEchoPlayerPawn::HasInfiniteStackingBurn() const
+{
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	return Run && Run->GetCardRules().bInfiniteStackingBurn;
+}
+
+void AReEchoPlayerPawn::NotifyKillResolved(const FName TargetDefinitionId) const
 {
 	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
 	{
-		Run->NotifyCardKill(false);
+		Run->NotifyCardKill(false, TargetDefinitionId);
 		if (Combatant)
 		{
 			Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
+		}
+	}
+}
+
+void AReEchoPlayerPawn::NotifyHitResolved(const FReEchoHitResolved& Result) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardDamageResolved(Result.RawDamage, Result.AppliedDamage, false);
+		if (Combatant && Healing > 0.0f)
+		{
+			Combatant->ApplyHealing(Healing);
+		}
+	}
+}
+
+void AReEchoPlayerPawn::NotifyNegativeStatusApplied(const FName StatusId) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardNegativeStatusApplied(StatusId, false);
+		if (Combatant && Healing > 0.0f)
+		{
+			Combatant->ApplyHealing(Healing);
 		}
 	}
 }
@@ -1154,6 +1200,11 @@ void AReEchoPlayerPawn::RefreshGroundShadowFromFlipbook()
 
 void AReEchoPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	RestorePawnCollisionAfterHurt();
+	if (CombatEvents)
+	{
+		CombatEvents->OnHurt.RemoveDynamic(this, &AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore);
+	}
 	if (Combatant)
 	{
 		Combatant->OnHealthChanged.RemoveDynamic(this, &AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged);
@@ -1200,4 +1251,57 @@ void AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged(const float CurrentH
 	                                                 *Snapshot, CurrentCharacterId, CurrentHealth, MaximumHealth)
 	                                           : FVector2D::ZeroVector;
 	Combatant->SetAdditiveAttackModifier(TEXT("Character.MissingHealthSteps"), Bonus.X, Bonus.Y);
+}
+
+void AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore(const FReEchoDamageEvent& Event)
+{
+	if (Event.Target != this)
+	{
+		return;
+	}
+	if (Event.bFatal)
+	{
+		RestorePawnCollisionAfterHurt();
+		return;
+	}
+	if (!Collision || Event.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+
+	if (!bIgnoringPawnCollisionAfterHurt)
+	{
+		PawnCollisionResponseBeforeHurt = Collision->GetCollisionResponseToChannel(ECC_Pawn);
+		bIgnoringPawnCollisionAfterHurt = true;
+		Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	}
+	HurtCollisionIgnoreRemainingSeconds = HurtCollisionIgnoreDurationSeconds;
+}
+
+void AReEchoPlayerPawn::AdvancePawnCollisionIgnore(const float DeltaSeconds)
+{
+	if (!bIgnoringPawnCollisionAfterHurt)
+	{
+		return;
+	}
+	HurtCollisionIgnoreRemainingSeconds =
+	    FMath::Max(0.0f, HurtCollisionIgnoreRemainingSeconds - FMath::Max(0.0f, DeltaSeconds));
+	if (HurtCollisionIgnoreRemainingSeconds <= KINDA_SMALL_NUMBER)
+	{
+		RestorePawnCollisionAfterHurt();
+	}
+}
+
+void AReEchoPlayerPawn::RestorePawnCollisionAfterHurt()
+{
+	if (!bIgnoringPawnCollisionAfterHurt)
+	{
+		return;
+	}
+	if (Collision)
+	{
+		Collision->SetCollisionResponseToChannel(ECC_Pawn, PawnCollisionResponseBeforeHurt);
+	}
+	HurtCollisionIgnoreRemainingSeconds = 0.0f;
+	bIgnoringPawnCollisionAfterHurt = false;
 }

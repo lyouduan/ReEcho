@@ -30,6 +30,7 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 | 属性页面 | `WBP_ReEchoStatsScreen` | `UReEchoStatsWidget` | `Screen` | 玩家和回响的两列属性展示 |
 | 天气 | 无独立 WBP | `UReEchoWeatherWidget` | `Weather` | 明确保留的 C++ `NativePaint` 混合绘制面，负责雨和迷雾 |
 | 伤害数字 | 无独立 WBP | `AReEchoDamageNumberActor` | 世界空间 | 使用 `UTextRenderComponent` 的世界空间反馈，不是菜单 UMG |
+| 元素反应字 | `BP_ReEchoElementReactionPopup` | `AReEchoElementReactionPopupActor` | 世界空间 | 每次权威反应在主目标上方显示一次对应透明图片；参数见 [元素反应字调参指南](ReEcho_元素反应字调参指南.md) |
 
 所有 WBP 位于：`Content/ReEcho/UI/`。
 
@@ -106,7 +107,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 ### 5.1 玩家 HUD、遭遇 HUD、敌人血条
 
-Plan93/102 战斗 HUD 以 1920×1080 为作者设计面。`WBP_ReEchoPlayerHud` 保留旧头像/ProgressBar 绑定作为兼容入口，但正式构图折叠头像和旧 ProgressBar，由 `PlayerHealthFill` 接收真实生命比例、`TimeShardText` 显示 `UReEchoRunSubsystem::TimeShards` 的只读投影。`WBP_ReEchoEncounterHud` 不保留倒计时文字后的 `ArtTimeReadout` 黑色半透明底块；`ArtClockNeedle` 的 Render Pivot 固定在源图顶部轴心，C++ 按权威剩余/总时长从右经下半圆连续转到左。Encounter HUD 继续复用唯一的 `UReEchoMinimapCanvasWidget`，只用交付回响框包裹它；Minimap Canvas 自身保持透明，不绘制内层竞技场边框，保留 Echo 轨迹，并用当前 Player/Echo Presentation Profile 的对应头像替代实时方点。参考图底部技能栏已被产品明确废弃，WBP 与运行时纹理均不保留；不得据此伪造按钮、冷却或输入。
+Plan93/102 战斗 HUD 以 1920×1080 为作者设计面。`WBP_ReEchoPlayerHud` 保留旧头像/ProgressBar 绑定作为兼容入口，但正式构图折叠头像和旧 ProgressBar，由 `PlayerHealthFill` 接收真实生命比例、`TimeShardText` 显示 `UReEchoRunSubsystem::TimeShards` 的只读投影。免费选卡页在暂停世界时刷新成功，GameMode 必须将扣费后余额立即重投影到 `TimeShardText`，不得等待普通 Tick。`WBP_ReEchoEncounterHud` 不保留倒计时文字后的 `ArtTimeReadout` 黑色半透明底块；`ArtClockNeedle` 的 Render Pivot 固定在源图顶部轴心，C++ 按权威剩余/总时长从右经下半圆连续转到左。Encounter HUD 继续复用唯一的 `UReEchoMinimapCanvasWidget`，只用交付回响框包裹它；Minimap Canvas 自身保持透明，不绘制内层竞技场边框，保留 Echo 轨迹，并用当前 Player/Echo Presentation Profile 的对应头像替代实时方点。参考图底部技能栏已被产品明确废弃，WBP 与运行时纹理均不保留；不得据此伪造按钮、冷却或输入。
 
 Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Plan102 的八张 Player/Echo 透明头像与语义清单归档在 `Content/SourceArt/UI/CombatHud/Plan102/`。运行时 HUD 切图位于 `/Game/ReEcho/Textures/UI/CombatHud/`，小地图头像位于其 `Minimap/` 子目录并由 Character/Echo Profile 硬引用。整屏参考图不导入运行时；生命、碎片、关卡、倒计时和小地图状态仍由 C++ 提供，WBP 只拥有锚点、尺寸、层级和贴图。
 
@@ -190,6 +191,9 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 
 - Weather 使用 `NativeTick` 更新雨滴状态，并在 `NativePaint` 绘制雨和迷雾。这是 Plan 29 明确允许的混合 Paint Surface。
 - Damage Number 是世界空间 TextRender Actor，跟随世界位置和生命周期。
+- Damage Number 仅使用 `/Game/ReEcho/Fonts/DamageNumbers/F_DamageNumber_MFYuYue_Font`；源文件归档在 `Content/SourceArt/UI/CombatHud/DamageNumbers/`，授权边界为非商用，不得扩散到其他 UI 或商业交付。
+- 反应伤害颜色按权威 `ReactionBehaviorId` 映射：蒸发 `#A5CBF3`、导电 `#EBC02C`、灼烧 `#E86A12`、生长 `#92C039`、强化 `#F1B84C`。强化被下一次伤害反应消费时，该次跳字使用强化金色；无反应来源时继续回退到元素色或物理白色。
+- 跳字使用支持顶点 Alpha 的半透明 TextRender 材质；在 `0.9s` 上漂生命周期内从完全不透明连续淡出到完全透明，随后销毁。颜色 Alpha 必须乘入淡出曲线，不能用不透明材质或固定 Alpha 覆盖。
 
 若要把它们迁移成 UMG，必须先评估世界/屏幕空间转换、对象池、绘制性能、输入穿透和分层，不能只创建一个空 WBP 替换。
 

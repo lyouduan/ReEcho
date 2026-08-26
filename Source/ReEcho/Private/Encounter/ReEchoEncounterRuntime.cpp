@@ -29,13 +29,16 @@ void AddRoleEvents(const FReEchoCsvDataSnapshot& Snapshot,
 	Warning.EnemyRole = EnemyRole;
 	Warning.EnemyId = EnemyIdOverride.IsNone() ? Profile->EnemyId : EnemyIdOverride;
 	Warning.Count = Count;
-	Warning.EventSeconds = FMath::Max(0.0f, Wave.TriggerSeconds - Profile->WarningLeadSeconds);
-	Warning.SpawnSeconds = Wave.TriggerSeconds;
+	const float WarningLeadSeconds = FMath::Max(0.0f, Profile->WarningLeadSeconds);
+	Warning.EventSeconds = FMath::Max(0.0f, Wave.TriggerSeconds - WarningLeadSeconds);
+	// A zero-second wave has no negative encounter time in which to show its warning. Keep the warning at
+	// encounter start and move only the commit far enough forward to preserve the configured lead time.
+	Warning.SpawnSeconds = FMath::Max(Wave.TriggerSeconds, Warning.EventSeconds + WarningLeadSeconds);
 	OutEvents.Add(Warning);
 
 	FReEchoScheduledSpawnEvent Commit = Warning;
 	Commit.Type = EReEchoScheduledSpawnEventType::Commit;
-	Commit.EventSeconds = Wave.TriggerSeconds;
+	Commit.EventSeconds = Warning.SpawnSeconds;
 	OutEvents.Add(Commit);
 }
 

@@ -24,9 +24,19 @@ bool FReEchoEncounterWaveSchedulerTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Encounter 1 schedule compiles"), Scheduler.Configure(*Load.Snapshot, TEXT("Encounter.1"), Error));
 	TestEqual(TEXT("Three melee and ranged waves create warning and commit events"), Scheduler.GetEventCount(), 12);
 	const TArray<FReEchoScheduledSpawnEvent> AtStart = Scheduler.AdvanceTo(0.0f);
-	TestEqual(TEXT("Wave one warnings and commits are deterministic at encounter start"), AtStart.Num(), 4);
-	TestEqual(
-	    TEXT("Warning sorts before commit at the same time"), AtStart[0].Type, EReEchoScheduledSpawnEventType::Warning);
+	TestEqual(TEXT("Wave one emits only its two role warnings at encounter start"), AtStart.Num(), 2);
+	for (const FReEchoScheduledSpawnEvent& Event : AtStart)
+	{
+		TestEqual(TEXT("Wave one encounter-start event is a warning"), Event.Type, EReEchoScheduledSpawnEventType::Warning);
+		TestEqual(TEXT("Wave one warning preserves its full configured lead"), Event.SpawnSeconds, 0.8f);
+	}
+	TestEqual(TEXT("Wave one does not commit before its warning lead expires"), Scheduler.AdvanceTo(0.79f).Num(), 0);
+	const TArray<FReEchoScheduledSpawnEvent> FirstCommit = Scheduler.AdvanceTo(0.8f);
+	TestEqual(TEXT("Both wave one role commits fire after the warning lead"), FirstCommit.Num(), 2);
+	for (const FReEchoScheduledSpawnEvent& Event : FirstCommit)
+	{
+		TestEqual(TEXT("Wave one delayed event is a commit"), Event.Type, EReEchoScheduledSpawnEventType::Commit);
+	}
 	TestEqual(TEXT("No wave two event before its warning lead"), Scheduler.AdvanceTo(9.19f).Num(), 0);
 	const TArray<FReEchoScheduledSpawnEvent> Warning = Scheduler.AdvanceTo(9.2f);
 	TestEqual(TEXT("Both wave two role warnings fire at 9.2 seconds"), Warning.Num(), 2);
@@ -36,19 +46,27 @@ bool FReEchoEncounterWaveSchedulerTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Boss encounter schedule compiles"), Scheduler.Configure(*Load.Snapshot, TEXT("Encounter.8"), Error));
 	TestEqual(TEXT("Boss encounter adds a warning and commit for the configured boss"), Scheduler.GetEventCount(), 20);
 	const TArray<FReEchoScheduledSpawnEvent> BossStart = Scheduler.AdvanceTo(0.0f);
-	TestEqual(TEXT("Boss wave one emits four warned role batches and four commits"), BossStart.Num(), 8);
+	TestEqual(TEXT("Boss wave one emits four warned role batches without early commits"), BossStart.Num(), 4);
 	const FReEchoScheduledSpawnEvent* BossWarning = BossStart.FindByPredicate(
 	    [](const FReEchoScheduledSpawnEvent& Event)
 	    {
 		    return Event.EnemyRole == TEXT("Boss") && Event.Type == EReEchoScheduledSpawnEventType::Warning;
 	    });
-	const FReEchoScheduledSpawnEvent* BossCommit = BossStart.FindByPredicate(
+	const FReEchoScheduledSpawnEvent* EarlyBossCommit = BossStart.FindByPredicate(
 	    [](const FReEchoScheduledSpawnEvent& Event)
 	    {
 		    return Event.EnemyRole == TEXT("Boss") && Event.Type == EReEchoScheduledSpawnEventType::Commit;
 	    });
 	TestNotNull(TEXT("Boss warning uses the shared spawn pipeline"), BossWarning);
-	TestNotNull(TEXT("Boss commit uses the shared spawn pipeline"), BossCommit);
+	TestNull(TEXT("Boss is not committed in the same frame as its warning"), EarlyBossCommit);
+	TestEqual(TEXT("Melee and ranged first-wave commits respect their 0.8 second lead"), Scheduler.AdvanceTo(0.8f).Num(), 2);
+	const TArray<FReEchoScheduledSpawnEvent> BossLeadExpiry = Scheduler.AdvanceTo(0.9f);
+	const FReEchoScheduledSpawnEvent* BossCommit = BossLeadExpiry.FindByPredicate(
+	    [](const FReEchoScheduledSpawnEvent& Event)
+	    {
+		    return Event.EnemyRole == TEXT("Boss") && Event.Type == EReEchoScheduledSpawnEventType::Commit;
+	    });
+	TestNotNull(TEXT("Boss commits through the shared spawn pipeline after its warning lead"), BossCommit);
 	if (BossWarning && BossCommit)
 	{
 		TestEqual(TEXT("Boss warning keeps the wave-owned enemy id"), BossWarning->EnemyId, FName(TEXT("M_SHEEP")));

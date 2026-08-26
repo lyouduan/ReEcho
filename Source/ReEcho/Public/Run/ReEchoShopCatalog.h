@@ -155,6 +155,8 @@ struct REECHO_API FReEchoWeaponPartShopView
 	int32 WeaponRuneRefreshesRemaining = 0;
 	int32 WeaponRuneRefreshCost = 0;
 	bool bWeaponRuneRefreshAllowed = false;
+	bool bWeaponRuneRefreshUnlimited = false;
+	bool bUnlimitedShopCredit = false;
 };
 
 inline const TArray<FReEchoShopOffer>& GetReEchoShopCatalog()

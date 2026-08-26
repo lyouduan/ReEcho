@@ -17,7 +17,7 @@
 
 - 不可变 `FReEchoCardCatalog`、卡牌/效果定义和稳定行为白名单；
 - `FReEchoCardBuildState`、每场遭遇卡牌运行状态和确定性随机序列；
-- 持有状态、冲突、层级和抽取池资格；初次免费/商店投放允许 1 级卡重复并叠加，2、3 级卡进入 `OwnedCardIds` 后不可再次投放；免费与商店卡槽刷新由 Run 在同级资格池上额外排除所有已获得卡牌（包括 1 级）；
+- 持有状态、冲突、层级和抽取池资格；初次免费/商店投放允许 1 级卡重复并叠加，2、3 级卡进入 `OwnedCardIds` 后不可再次投放；免费与商店卡槽刷新由 Run 在同级资格池上额外排除所有已获得卡牌（包括 1 级）以及当前这一组三选一曾展示过的卡；
 - 授予、属性变更、跨领域规则快照与类型化事件计算；
 - 不依赖世界的纯规则测试。
 
@@ -34,7 +34,7 @@
 |---|---|---|
 | 卡牌定义和效果 | `FReEchoCardCatalog` | 数据适配器编译后发布的只读目录 |
 | 已拥有卡牌、叠层、随机序号 | `FReEchoCardBuildState` | `FReEchoCardRuntime` 的纯命令/结果 |
-| 遭遇内阈值、免伤、追踪进度与当前商店卡组页 | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次生成固定 `[Tier1, Tier2, Tier3]` 卡组状态，每组保存最多三个候选 ID、逐槽刷新用量、稳定基础价、付款已提交与最终领取标记 |
+| 遭遇内阈值、免伤、追踪进度、债务/武器历史/Echo套装进度与当前商店卡组页 | `FReEchoCardRuntimeState` | 遭遇生命周期命令；Run 按关次生成固定 `[Tier1, Tier2, Tier3]` 卡组状态，每组保存最多三个候选 ID、逐槽刷新用量、稳定基础价、付款已提交与最终领取标记 |
 | 已解析的卡牌实际结果 | `FReEchoCardRuntimeState::ResolvedOutcomes` | Cards 在原子玩法事务中写入类型化随机、待结算或累计结果；Run 只读投影 |
 | 商店、Echo、元素和槽位派生规则 | `FReEchoCardRuleSnapshot` | 主模块及领域适配器只读消费 |
 
@@ -44,6 +44,8 @@
 
 - 输入是不可变目录、构筑状态副本、确定性种子和类型化生命周期上下文。
 - 输出是新的构筑/遭遇状态、属性与货币候选变化，以及领域无关的规则快照。
+- 需要同步实时生命的授予结果通过 `EReEchoHealthAdjustment` 返回类型化意图；例如“血肉铸锋”返回
+  `FillToMax`。Cards 只计算意图，不直接写 Actor、ASC 或 UI。
 - 稳定随机结果、跨关延迟结算和永久累计收益同时写入 `ResolvedOutcomes`；它不记录每击、每脉冲等瞬时日志。
 - 所有命令均以稳定卡牌 ID 和 `BehaviorId` 分派；描述文本不进入规则判断。
 - 授予失败不修改输入；层级赠卡、随机权衡和资源变更属于同一原子结果。
@@ -64,7 +66,7 @@ ReEchoCards ─/─→ ReEcho / ReEchoWeapons / ReEchoEnemies / ReEchoAudio / UI
 ReEchoData.xlsx → cards.csv + card_effects.csv
   → ReEcho 数据适配器校验并编译 FReEchoCardCatalog
   → Run 以本局固定目录生成候选并提交授予
-  → Cards 原子返回 BuildState / StatBlock / TimeShards / RuleSnapshot
+  → Cards 原子返回 BuildState / StatBlock / TimeShards / RuleSnapshot / HealthAdjustment
   → 主模块把结果交给 Combat、Weapons、Enemies、Echo、Shop 和 UI
 ```
 
@@ -85,8 +87,9 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 ## 扩展
 
 - 新卡牌行为先增加类型化上下文/结果和注册 ID，再由主模块接到唯一领域权威入口。
-- 新抽取限制进入 Catalog/Runtime 的统一资格判断，不在 UI 复制过滤规则；免费选择与商店初次生成共同调用该入口，因此“1级可重复、2/3级持有排除”保持一致。免费与付费逐槽刷新属于更严格的 Run 事务：复用同级资格池后排除全部 `OwnedCardIds` 与当前候选，并只写回一个槽位及其用量；Cards 不拥有货币、价格或刷新按钮。
+- 新抽取限制进入 Catalog/Runtime 的统一资格判断，不在 UI 复制过滤规则；免费选择与商店初次生成共同调用该入口，因此“1级可重复、2/3级持有排除”保持一致。免费与付费逐槽刷新属于更严格的 Run 事务：复用同级资格池后排除全部 `OwnedCardIds`、当前候选与本组已展示历史，并只写回一个槽位及其用量；Cards 不拥有货币、价格、展示历史或刷新按钮。
 - 新跨领域效果返回声明式结果；Cards 不因此增加对 Weapons、Enemies、Audio 或 UI 的依赖。
+- Plan111 的64张启用卡固定为 Tier `8/32/24`。空间线、Echo三件套、反应受影响目标、溢出生命和商店赊账均由主模块/Combat消费类型化规则；Cards只计算规则快照、确定性进度与可保存结果。
 
 ## 验证
 

@@ -47,7 +47,12 @@
 
 Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为可写真相。
 
-`UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。Development 的 `SetDebugInvulnerable` 让最终伤害入口返回已计算伤害供 Hurt/VFX/伤害数字消费，但跳过 ASC、生命、格挡和死亡写入；Shipping 固定关闭。正式限时无敌仍返回零伤害。
+`UReEchoCombatAttributeSet` 是 GAS 层的基础属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写基础属性源。Plan111 的超额生命是 Combatant 持有的受控临时缓冲（最高由规则注入为最大生命30%），治疗先补基础生命再填充缓冲，最终伤害先消耗缓冲再进入GAS生命；它不复制基础属性。Development 的 `SetDebugInvulnerable` 让最终伤害入口返回已计算伤害供 Hurt/VFX/伤害数字消费，但跳过超额生命、ASC生命、格挡和死亡写入；Shipping 固定关闭。正式限时无敌仍返回零伤害。
+
+永久最大生命变化及其当前生命语义通过 `ApplyHealthAdjustment(NewMaximumHealth, Adjustment)` 这一窄命令进入
+Combatant。它更新 GAS 基础属性（无 ASC 时更新兼容状态），在批量写入期间抑制中间态，提交后统一发布
+`OnHealthChanged` 与 `HealthChanged`；不会调用 `InitializeFromStats`，因此不会清除流血、眩晕、元素或临时属性层。
+UI 和属性面板只订阅最终通知或读取快照，不得在回调中反向写生命。
 
 `FReEchoStatBlock` 还包含 `RoleId`、暴击率/暴击效果、反应效率、投射物数量和武器尺寸等没有映射到 AttributeSet 的语义字段。`InitializeFromStats` 必须先保存完整 StatBlock，再用 ASC 同步其中的 GAS 属性；禁止用一次属性同步把这些非 GAS 字段重置为默认值。武器提交、角色能力和快照都从 Combatant 读取同一份完整语义，不能分别从 Build 与 AttributeSet 推断角色身份。
 
@@ -65,7 +70,7 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 
 ### 结果、事件与快照
 
-- `FReEchoHitResolved` 是最终裁决结果；只有 Resolver 能决定实际伤害、格挡与死亡。对应的 `FReEchoDamageEvent::bFatal` 明确标记本次 Hurt 已把存活目标降至零血，表现消费者仍可显示伤害数字，但必须抑制普通受击动画与受击 VFX。
+- `FReEchoHitResolved` 是最终裁决结果；只有 Resolver 能决定实际伤害、格挡与死亡。对应的 `FReEchoDamageEvent::bFatal` 明确标记本次 Hurt 已把存活目标降至零血，表现消费者仍可显示伤害数字，但必须抑制普通受击动画与受击 VFX。反应内部伤害同时携带资源中立的 `ReactionBehaviorId`；Burn 跨 Tick/存档保留该来源，强化被下一次伤害反应消费时发布 `Reaction.Enhance`，表现只据此选色而不得重算元素规则。
 - `UReEchoCombatEventsComponent` 发布 AttackCommitted、Hit、Hurt、HealthChanged、ElementStateChanged、Kill、Death。WeaponActor 的普通攻击与主动攻击只要成功 Confirm，都必须走同一 `AttackCommitted` 出口；输入来源是自动、手动或 Echo 不得改变表现事件契约，未产生新 Commit 的镰刀召回不重复发布。
 - `FReEchoCombatantSnapshot` 和 `FReEchoAttackSnapshot` 是调用瞬间的只读副本，不持久化，也不能被 UI 当成可写缓存。
 - 事件 Payload 只包含稳定 ID、值、弱/受控对象句柄和世界信息，不携带 Widget、Sound、Animation、Texture 或 Material。

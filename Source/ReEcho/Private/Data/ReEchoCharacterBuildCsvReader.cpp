@@ -51,6 +51,7 @@ bool IsAllowedCardEffectTarget(const FName Target)
 	    TEXT("ReactionEfficiency"),
 	    TEXT("Tier"),
 	    TEXT("PhysicalOrElemental"),
+	    TEXT("ReactionOrCritical"),
 	    TEXT("Water"),
 	    TEXT("Grass"),
 	    TEXT("Damage"),
@@ -70,6 +71,14 @@ bool IsAllowedCardEffectTarget(const FName Target)
 	    TEXT("MinimumGuaranteedTier"),
 	    TEXT("FreeShopRefresh"),
 	    TEXT("NonCoreSlotCapacity"),
+	    TEXT("ShopPrice"),
+	    TEXT("WeaponRunes"),
+	    TEXT("WeaponRuneShop"),
+	    TEXT("CoreCollection"),
+	    TEXT("Status"),
+	    TEXT("ShopCredit"),
+	    TEXT("ConnectionLine"),
+	    TEXT("WeaponHistory"),
 	};
 	return AllowedTargets.Contains(Target);
 }

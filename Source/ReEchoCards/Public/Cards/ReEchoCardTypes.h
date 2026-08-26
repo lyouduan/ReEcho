@@ -32,7 +32,12 @@ enum class EReEchoCardOutcomeKind : uint8
 	StatGain,
 	EconomyPenalty,
 	FreeShopRefreshes,
-	CumulativeStatGain
+	CumulativeStatGain,
+	RunReset,
+	FreeShopVisit,
+	UnlimitedRefresh,
+	Debt,
+	WeaponMaster
 };
 
 USTRUCT(BlueprintType)
@@ -107,6 +112,8 @@ struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Tier = 0;
 	/** Stable candidates for the current encounter. Each array index is one independently refreshable visible slot. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> CandidateCardIds;
+	/** Every card displayed by this tier pack, including candidates replaced by a slot refresh. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> OfferHistoryCardIds;
 	/** Per-slot refresh uses. Shape always matches CandidateCardIds; each slot owns its own configured limit. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<int32> SlotRefreshUses;
 	/** Stable undiscounted price paid when entering this pack. */
@@ -131,6 +138,7 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bTenSecondStunFired = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bTwentySecondStunFired = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 LastEchoAuraPulseIndex = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 LastEchoHeadCursePulseIndex = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ReactionHealCooldownRemaining = 0.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 HuntTrackingEncounterIndex = INDEX_NONE;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 HuntKillCount = 0;
@@ -139,8 +147,34 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EchoKillProgress = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PlayerKillProgress = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EncounterKillCount = 0;
+	/** Run-wide player-only kill history keyed by stable enemy definition id. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FName, int32> PlayerKillCountByEnemyId;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> DistinctReactionIds;
+	/** First reaction recorded by 回归基本功; None means the next resolved reaction becomes the record. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName RecordedReactionId = NAME_None;
+	/** Outstanding principal plus encounter interest for 诅咒银行. Incoming shards repay this before cash balance. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TimeShardDebt = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bCurseBankDefaulted = false;
+	/** Weapons that have completed at least one encounter while 武器大师 is owned. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> MasteredWeaponIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 FreeShopRefreshes = 0;
+	/** This encounter's shop goods cost zero. INDEX_NONE means no free shop visit is active. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 FreeShopEncounterIndex = INDEX_NONE;
+	/** Weapon/rune refresh-count limit is suspended until the next committed shop purchase. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bUnlimitedWeaponRuneRefresh = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bDragonSoulCompleted = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bNumericChallengeCompleted = false;
+	/** Final applied damage resolved during the active encounter, split by stable source domain. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EncounterPlayerDamage = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EncounterEchoDamage = 0.0f;
+	/** Self-race bonus selected from the previous completed encounter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float PlayerDamageMultiplier = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EchoDamageMultiplier = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ConductAffectedCount = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<int32> ConductAffectedSpawnIndices;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ConductPlayerDamageMultiplier = 1.0f;
+	/** Exact additive EchoEfficiency already materialized by the three-piece Echo set. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EchoTrinityEfficiencyGranted = 0.0f;
 	/** SaveVersion <= 16 compatibility only. Weapon/rune and card refreshes no longer share this sequence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
 	/** Stable build-card pack page for the current encounter. */
@@ -190,7 +224,21 @@ struct REECHOCARDS_API FReEchoCardRuleSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bElementDamageCanCrit = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 CriticalRollCount = 1;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ElementAttachedCriticalEffectBonus = 0.0f;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DistanceDamageBonusPerMeter = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DistanceDamageBonusPerStep = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float DistanceDamageStepCm = 100.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ProximityDamageBonus = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bUnlimitedShopCredit = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bAlternatingPlayerEchoDamage = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bConnectionLineDamage = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bWeaponMaster = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEchoHead = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEchoBody = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEchoLegs = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEchoTrinityComplete = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bInfiniteStackingBurn = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bVaporizeWaterSplash = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bConductDamageGrowth = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bOverhealCapacity = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCriticalOverridesElement = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bDoubleNonCoreSlotCapacity = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bDisableShopRefresh = false;
@@ -224,6 +272,9 @@ struct REECHOCARDS_API FReEchoCardGrantResult
 	FReEchoCardBuildState CardState;
 	int32 TimeShards = 0;
 	TArray<FName> GrantedCardIds;
+	/** Run-owned rune inventory/equipment must be cleared atomically after this card transaction commits. */
+	bool bClearWeaponRunes = false;
+	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
 };
 
 USTRUCT()
@@ -235,6 +286,7 @@ struct REECHOCARDS_API FReEchoCardEncounterTickResult
 	FReEchoCardBuildState CardState;
 	TArray<float> EnemyStunDurations;
 	int32 EchoAuraPulseCount = 0;
+	int32 EchoHeadCursePulseCount = 0;
 };
 
 USTRUCT()
@@ -247,9 +299,15 @@ struct REECHOCARDS_API FReEchoCardOutgoingHitInput
 	float CriticalRate = 0.0f;
 	float CriticalEffect = 0.0f;
 	float DistanceCm = 0.0f;
+	float NearestEchoDistanceCm = 0.0f;
+	bool bHasLivingEcho = false;
+	bool bPreviousPlayerEchoSourceKnown = false;
+	EReEchoDamageSource PreviousPlayerEchoSource = EReEchoDamageSource::Player;
 	bool bCritical = false;
 	bool bTargetHasElement = false;
+	EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
 	EReEchoElement Element = EReEchoElement::None;
+	FName TargetDefinitionId = NAME_None;
 	int32 TimeShards = 0;
 	int32 RandomSeed = 0;
 };
@@ -264,6 +322,7 @@ struct REECHOCARDS_API FReEchoCardOutgoingHitResult
 	float RawDamage = 0.0f;
 	bool bCritical = false;
 	EReEchoElement Element = EReEchoElement::None;
+	TArray<FName> PreDamageStatusIds;
 	int32 TimeShards = 0;
 };
 
@@ -289,5 +348,6 @@ struct REECHOCARDS_API FReEchoCardEventResult
 	FReEchoCardBuildState CardState;
 	FReEchoStatBlock Stats;
 	float Healing = 0.0f;
+	int32 TimeShardsGranted = 0;
 	int32 FreeShopRefreshesGranted = 0;
 };

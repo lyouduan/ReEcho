@@ -207,7 +207,56 @@ void ApplyRuleEffect(FReEchoCardRuleSnapshot& Rules, const FReEchoCardEffectDefi
 	}
 	else if (Effect.BehaviorId == TEXT("Card.DistanceDamage"))
 	{
-		Rules.DistanceDamageBonusPerMeter += StackedValue;
+		Rules.DistanceDamageBonusPerStep += StackedValue;
+		Rules.DistanceDamageStepCm = FMath::Max(1.0f, Effect.ParamValue);
+	}
+	else if (Effect.BehaviorId == TEXT("Card.ProximityDamage"))
+	{
+		Rules.ProximityDamageBonus += StackedValue;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.CurseBank"))
+	{
+		Rules.bUnlimitedShopCredit = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.AlternatingSources"))
+	{
+		Rules.bAlternatingPlayerEchoDamage = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.ConnectionLine"))
+	{
+		Rules.bConnectionLineDamage = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.WeaponMaster"))
+	{
+		Rules.bWeaponMaster = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.EchoTrinityHead"))
+	{
+		Rules.bEchoHead = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.EchoTrinityBody"))
+	{
+		Rules.bEchoBody = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.EchoTrinityLegs"))
+	{
+		Rules.bEchoLegs = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.InfiniteStackingBurn"))
+	{
+		Rules.bInfiniteStackingBurn = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.VaporizeWaterSplash"))
+	{
+		Rules.bVaporizeWaterSplash = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.ConductDamageGrowth"))
+	{
+		Rules.bConductDamageGrowth = true;
+	}
+	else if (Effect.BehaviorId == TEXT("Card.OverhealCapacity"))
+	{
+		Rules.bOverhealCapacity = true;
 	}
 	else if (Effect.BehaviorId == TEXT("Card.CriticalElement"))
 	{
@@ -284,7 +333,8 @@ bool ReEchoCardRuntime::HasCard(const FReEchoCardBuildState& State, const FName 
 
 bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
                                  const FReEchoCardBuildState& State,
-                                 const FReEchoCardDefinition& Card)
+                                 const FReEchoCardDefinition& Card,
+                                 const int32 EncounterIndex)
 {
 	if (!Card.bEnabled || !Card.bOfferable)
 	{
@@ -301,18 +351,52 @@ bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
 	{
 		return false;
 	}
+	bool bHasEncounterRestriction = false;
+	bool bEncounterAllowed = false;
+	for (const FName Tag : Card.Tags)
+	{
+		const FString TagText = Tag.ToString();
+		if (!TagText.StartsWith(TEXT("OfferEncounter")))
+		{
+			continue;
+		}
+		bHasEncounterRestriction = true;
+		bEncounterAllowed |= EncounterIndex == FCString::Atoi(*TagText.RightChop(14));
+	}
+	if (bHasEncounterRestriction && EncounterIndex != INDEX_NONE && !bEncounterAllowed)
+	{
+		return false;
+	}
+	for (const FName OwnedCardId : State.OwnedCardIds)
+	{
+		const FReEchoCardDefinition* OwnedCard = Catalog.Find(OwnedCardId);
+		if (!OwnedCard)
+		{
+			continue;
+		}
+		if (Card.ConflictPolicy != NAME_None && Card.ConflictPolicy != TEXT("None") &&
+		    Card.ConflictPolicy == OwnedCard->ConflictPolicy)
+		{
+			return false;
+		}
+		if (Card.Id == TEXT("G_3_03") && HasTag(*OwnedCard, TEXT("Echo")))
+		{
+			return false;
+		}
+	}
 	return true;
 }
 
 TArray<FReEchoCardDefinition> ReEchoCardRuntime::BuildOfferPool(const FReEchoCardCatalog& Catalog,
                                                                 const FReEchoCardBuildState& State,
                                                                 const FName OfferGroup,
-                                                                const int32 Tier)
+                                                                const int32 Tier,
+                                                                const int32 EncounterIndex)
 {
 	TArray<FReEchoCardDefinition> Result;
 	for (const FReEchoCardDefinition& Card : Catalog.GetOfferable(OfferGroup, Tier))
 	{
-		if (CanOffer(Catalog, State, Card))
+		if (CanOffer(Catalog, State, Card, EncounterIndex))
 		{
 			Result.Add(Card);
 		}
@@ -342,6 +426,7 @@ FReEchoCardRuleSnapshot ReEchoCardRuntime::CompileRules(const FReEchoCardCatalog
 	Rules.bDisableShopRefresh = State.Runtime.EconomyPenalty == EReEchoCardEconomyPenalty::NoShopRefresh;
 	Rules.bDisableExtraCardPurchase = State.Runtime.EconomyPenalty == EReEchoCardEconomyPenalty::NoExtraCardPurchase;
 	Rules.bDisableEnemyShardDrops = State.Runtime.EconomyPenalty == EReEchoCardEconomyPenalty::NoEnemyShardDrops;
+	Rules.bEchoTrinityComplete = Rules.bEchoHead && Rules.bEchoBody && Rules.bEchoLegs;
 	return Rules;
 }
 
@@ -368,7 +453,8 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 	GrantSingle = [&](const FName RequestedCardId, const bool bRecordOwnership)
 	{
 		const FReEchoCardDefinition* Card = Catalog.Find(RequestedCardId);
-		if (!Card || !Card->bEnabled || (bRecordOwnership && !CanOffer(Catalog, Result.CardState, *Card)) ||
+		if (!Card || !Card->bEnabled ||
+		    (bRecordOwnership && !CanOffer(Catalog, Result.CardState, *Card, Input.EncounterIndex)) ||
 		    GrantedThisTransaction.Contains(RequestedCardId))
 		{
 			Result.Error = FString::Printf(TEXT("Card cannot be granted: %s"), *RequestedCardId.ToString());
@@ -413,11 +499,63 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				++Outcome.ResolutionCount;
 				Outcome.EncounterIndex = INDEX_NONE;
 			}
+			else if (Effect.BehaviorId == TEXT("Card.RandomRateTrade"))
+			{
+				FRandomStream Random(
+				    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+				const bool bReactionWins = Random.RandRange(0, 1) == 0;
+				float& Winner = bReactionWins ? Result.Stats.ReactionEfficiency : Result.Stats.CriticalEffect;
+				float& Loser = bReactionWins ? Result.Stats.CriticalEffect : Result.Stats.ReactionEfficiency;
+				Winner *= Effect.Value;
+				Loser *= Effect.ParamValue;
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::StatTrade);
+				Outcome.PrimaryTarget = bReactionWins ? TEXT("ReactionEfficiency") : TEXT("CriticalEffect");
+				Outcome.PrimaryValue = Effect.Value - 1.0f;
+				Outcome.SecondaryTarget = bReactionWins ? TEXT("CriticalEffect") : TEXT("ReactionEfficiency");
+				Outcome.SecondaryValue = Effect.ParamValue - 1.0f;
+				++Outcome.ResolutionCount;
+				Outcome.EncounterIndex = INDEX_NONE;
+			}
+			else if (Effect.BehaviorId == TEXT("Card.ResetRunes"))
+			{
+				Result.bClearWeaponRunes = true;
+				Result.TimeShards = FMath::Max(0, Result.TimeShards + FMath::RoundToInt(Effect.Value));
+				const int32 GrantedRefreshes = FMath::Max(0, FMath::RoundToInt(Effect.ParamValue));
+				Result.CardState.Runtime.FreeShopRefreshes += GrantedRefreshes;
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RunReset);
+				Outcome.PrimaryTarget = TEXT("TimeShards");
+				Outcome.PrimaryValue = Effect.Value;
+				Outcome.SecondaryTarget = TEXT("FreeShopRefresh");
+				Outcome.SecondaryValue = GrantedRefreshes;
+				Outcome.ResolutionCount = 1;
+			}
+			else if (Effect.BehaviorId == TEXT("Card.FreeShopVisit"))
+			{
+				Result.CardState.Runtime.FreeShopEncounterIndex = Input.EncounterIndex;
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::FreeShopVisit);
+				Outcome.PrimaryTarget = TEXT("ShopPrice");
+				Outcome.PrimaryValue = 0.0f;
+				Outcome.EncounterIndex = Input.EncounterIndex;
+				Outcome.ResolutionCount = 1;
+			}
+			else if (Effect.BehaviorId == TEXT("Card.UnlimitedShopRefresh"))
+			{
+				Result.CardState.Runtime.bUnlimitedWeaponRuneRefresh = true;
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::UnlimitedRefresh);
+				Outcome.PrimaryTarget = TEXT("WeaponRuneShop");
+				Outcome.PrimaryValue = 1.0f;
+				Outcome.ResolutionCount = 1;
+			}
 			else if (Effect.BehaviorId == TEXT("Card.BloodForging"))
 			{
 				const float GrantedHp = Result.Stats.PhysicalAttack + Result.Stats.ElementalAttack;
 				Result.Stats.HpMax += GrantedHp;
 				Result.Stats.HpPoint = Result.Stats.HpMax;
+				Result.HealthAdjustment = EReEchoHealthAdjustment::FillToMax;
 				AccumulateOutcome(Result.CardState.Runtime, Card->Id, TEXT("HpMax"), GrantedHp);
 			}
 			else if (Effect.BehaviorId == TEXT("Card.NextShardDrop"))
@@ -479,7 +617,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					                               ? INDEX_NONE
 					                               : FMath::RoundToInt(Effect.Value);
 					TArray<FReEchoCardDefinition> Pool =
-					    BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), RequiredTier);
+					    BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), RequiredTier, Input.EncounterIndex);
 					Pool.RemoveAll(
 					    [&](const FReEchoCardDefinition& Candidate)
 					    {
@@ -517,6 +655,15 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		Result.Error = Error;
 		return Result;
 	}
+	const FReEchoCardRuleSnapshot GrantedRules = CompileRules(Catalog, Result.CardState);
+	const float DesiredEchoEfficiency =
+	    GrantedRules.bEchoLegs ? (GrantedRules.bEchoTrinityComplete ? 1.0f : 0.3f) : 0.0f;
+	const float EchoEfficiencyDelta = DesiredEchoEfficiency - Result.CardState.Runtime.EchoTrinityEfficiencyGranted;
+	if (!FMath::IsNearlyZero(EchoEfficiencyDelta))
+	{
+		Result.Stats.EchoEfficiency += EchoEfficiencyDelta;
+		Result.CardState.Runtime.EchoTrinityEfficiencyGranted = DesiredEchoEfficiency;
+	}
 	Result.bSucceeded = true;
 	return Result;
 }
@@ -531,8 +678,18 @@ FReEchoCardBuildState ReEchoCardRuntime::BeginEncounter(const FReEchoCardBuildSt
 	Result.Runtime.bTenSecondStunFired = false;
 	Result.Runtime.bTwentySecondStunFired = false;
 	Result.Runtime.LastEchoAuraPulseIndex = 0;
+	Result.Runtime.LastEchoHeadCursePulseIndex = 0;
 	Result.Runtime.ReactionHealCooldownRemaining = 0.0f;
 	Result.Runtime.EncounterKillCount = 0;
+	Result.Runtime.EncounterPlayerDamage = 0.0f;
+	Result.Runtime.EncounterEchoDamage = 0.0f;
+	Result.Runtime.ConductAffectedCount = 0;
+	Result.Runtime.ConductAffectedSpawnIndices.Reset();
+	Result.Runtime.ConductPlayerDamageMultiplier = 1.0f;
+	if (Result.Runtime.FreeShopEncounterIndex != INDEX_NONE && Result.Runtime.FreeShopEncounterIndex < EncounterIndex)
+	{
+		Result.Runtime.FreeShopEncounterIndex = INDEX_NONE;
+	}
 	return Result;
 }
 
@@ -547,6 +704,17 @@ FReEchoCardEncounterTickResult ReEchoCardRuntime::AdvanceEncounter(const FReEcho
 	Result.CardState.Runtime.LastEncounterTimeSeconds = ClampedTime;
 	Result.CardState.Runtime.ReactionHealCooldownRemaining =
 	    FMath::Max(0.0f, Result.CardState.Runtime.ReactionHealCooldownRemaining - Delta);
+	const FReEchoCardRuleSnapshot TickRules = CompileRules(Catalog, State);
+	if (TickRules.bEchoHead)
+	{
+		const float Interval = TickRules.bEchoTrinityComplete ? 0.5f : 3.0f;
+		const int32 PulseIndex = FMath::FloorToInt(ClampedTime / Interval);
+		if (PulseIndex > Result.CardState.Runtime.LastEchoHeadCursePulseIndex)
+		{
+			Result.EchoHeadCursePulseCount = PulseIndex - Result.CardState.Runtime.LastEchoHeadCursePulseIndex;
+			Result.CardState.Runtime.LastEchoHeadCursePulseIndex = PulseIndex;
+		}
+	}
 	ForEachOwnedEffect(
 	    Catalog,
 	    State,
@@ -589,6 +757,15 @@ FReEchoCardOutgoingHitResult ReEchoCardRuntime::ModifyOutgoingHit(const FReEchoC
 	Result.bCritical = Input.bCritical;
 	Result.Element = Input.Element;
 	Result.TimeShards = FMath::Max(0, Input.TimeShards);
+	if (Input.DamageSource == EReEchoDamageSource::Echo)
+	{
+		Result.RawDamage *= FMath::Max(0.0f, Result.CardState.Runtime.EchoDamageMultiplier);
+	}
+	else if (Input.DamageSource == EReEchoDamageSource::Player)
+	{
+		Result.RawDamage *= FMath::Max(0.0f, Result.CardState.Runtime.PlayerDamageMultiplier);
+		Result.RawDamage *= FMath::Max(0.0f, Result.CardState.Runtime.ConductPlayerDamageMultiplier);
+	}
 	const FReEchoCardRuleSnapshot Rules = CompileRules(Catalog, State);
 
 	const bool bWasCritical = Result.bCritical;
@@ -612,7 +789,21 @@ FReEchoCardOutgoingHitResult ReEchoCardRuntime::ModifyOutgoingHit(const FReEchoC
 	        ? PreCriticalDamage *
 	              (1.0f + CriticalEffect + (Input.bTargetHasElement ? Rules.ElementAttachedCriticalEffectBonus : 0.0f))
 	        : PreCriticalDamage;
-	Result.RawDamage *= 1.0f + Rules.DistanceDamageBonusPerMeter * FMath::Max(0.0f, Input.DistanceCm / 100.0f);
+	const float DistanceDamageSteps =
+	    FMath::FloorToFloat(FMath::Max(0.0f, Input.DistanceCm) / FMath::Max(1.0f, Rules.DistanceDamageStepCm));
+	Result.RawDamage *= 1.0f + Rules.DistanceDamageBonusPerStep * DistanceDamageSteps;
+	if (Input.bHasLivingEcho && Rules.ProximityDamageBonus > 0.0f &&
+	    (Input.DamageSource == EReEchoDamageSource::Player || Input.DamageSource == EReEchoDamageSource::Echo))
+	{
+		const float DistanceAlpha = 1.0f - FMath::Clamp(Input.NearestEchoDistanceCm / 3000.0f, 0.0f, 1.0f);
+		Result.RawDamage *= 1.0f + Rules.ProximityDamageBonus * DistanceAlpha;
+	}
+	if (Rules.bAlternatingPlayerEchoDamage &&
+	    (Input.DamageSource == EReEchoDamageSource::Player || Input.DamageSource == EReEchoDamageSource::Echo) &&
+	    Input.bPreviousPlayerEchoSourceKnown && Input.PreviousPlayerEchoSource != Input.DamageSource)
+	{
+		Result.RawDamage *= 2.0f;
+	}
 	if (Result.bCritical && Rules.bCriticalOverridesElement)
 	{
 		FRandomStream Random(
@@ -627,6 +818,16 @@ FReEchoCardOutgoingHitResult ReEchoCardRuntime::ModifyOutgoingHit(const FReEchoC
 	    TEXT("BeforeOutgoingHit"),
 	    [&](const FReEchoCardDefinition&, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
 	    {
+		    if (Effect.BehaviorId == TEXT("Card.TargetKillCurse"))
+		    {
+			    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+			    if (Input.TargetDefinitionId == Effect.ParamName &&
+			        Result.CardState.Runtime.PlayerKillCountByEnemyId.FindRef(Effect.ParamName) >= Threshold)
+			    {
+				    Result.PreDamageStatusIds.AddUnique(TEXT("Z_Cursed"));
+			    }
+			    return;
+		    }
 		    if (Effect.BehaviorId != TEXT("Card.ShardOutgoingDamage"))
 		    {
 			    return;
@@ -702,10 +903,20 @@ FReEchoCardEventResult ReEchoCardRuntime::OnReaction(const FReEchoCardCatalog& C
 		    {
 			    return;
 		    }
-		    if (Effect.BehaviorId == TEXT("Card.ReactionHeal") &&
-		        Result.CardState.Runtime.ReactionHealCooldownRemaining <= 0.0f)
+		    if (Effect.BehaviorId == TEXT("Card.RecordReaction") &&
+		        Result.CardState.Runtime.RecordedReactionId.IsNone() && !ReactionId.IsNone())
 		    {
-			    Result.Healing += Effect.Value * StackCount;
+			    Result.CardState.Runtime.RecordedReactionId = ReactionId;
+			    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("RecordedReaction"), 1.0f);
+			    FReEchoCardOutcomeState& Outcome =
+			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
+			    Outcome.SecondaryTarget = ReactionId;
+			    Outcome.SecondaryValue = 1.0f;
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.ReactionHeal") &&
+		             Result.CardState.Runtime.ReactionHealCooldownRemaining <= 0.0f)
+		    {
+			    Result.Healing += Result.Stats.HpMax * Effect.Value * StackCount;
 			    Result.CardState.Runtime.ReactionHealCooldownRemaining = Effect.ParamValue;
 		    }
 		    else if (Effect.BehaviorId == TEXT("Card.ReactionDiversity") && !ReactionId.IsNone())
@@ -728,10 +939,37 @@ FReEchoCardEventResult ReEchoCardRuntime::OnReaction(const FReEchoCardCatalog& C
 	return Result;
 }
 
+float ReEchoCardRuntime::GetReactionDamageMultiplier(const FReEchoCardCatalog& Catalog,
+                                                     const FReEchoCardBuildState& State,
+                                                     const FName ReactionId)
+{
+	if (ReactionId.IsNone() || State.Runtime.RecordedReactionId.IsNone())
+	{
+		return 1.0f;
+	}
+	float Multiplier = 1.0f;
+	ForEachOwnedEffect(
+	    Catalog,
+	    State,
+	    TEXT("OnReaction"),
+	    [&](const FReEchoCardDefinition&, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+	    {
+		    if (Effect.BehaviorId != TEXT("Card.RecordReaction"))
+		    {
+			    return;
+		    }
+		    Multiplier = ReactionId == State.Runtime.RecordedReactionId
+		                     ? 1.0f + FMath::Max(0.0f, Effect.Value) * StackCount
+		                     : FMath::Max(0.0f, 1.0f - FMath::Max(0.0f, Effect.ParamValue) * StackCount);
+	    });
+	return Multiplier;
+}
+
 FReEchoCardEventResult ReEchoCardRuntime::OnKillResolved(const FReEchoCardCatalog& Catalog,
                                                          const FReEchoCardBuildState& State,
                                                          const FReEchoStatBlock& Stats,
-                                                         const bool bKilledByEcho)
+                                                         const bool bKilledByEcho,
+                                                         const FName TargetDefinitionId)
 {
 	FReEchoCardEventResult Result;
 	Result.CardState = State;
@@ -741,12 +979,29 @@ FReEchoCardEventResult ReEchoCardRuntime::OnKillResolved(const FReEchoCardCatalo
 	{
 		++Result.CardState.Runtime.HuntKillCount;
 	}
+	if (!bKilledByEcho && !TargetDefinitionId.IsNone())
+	{
+		++Result.CardState.Runtime.PlayerKillCountByEnemyId.FindOrAdd(TargetDefinitionId);
+	}
 	ForEachOwnedEffect(
 	    Catalog,
 	    State,
 	    TEXT("OnHitResolved"),
 	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
 	    {
+		    if (Effect.BehaviorId == TEXT("Card.TargetKillCurse") && !bKilledByEcho &&
+		        Effect.ParamName == TargetDefinitionId)
+		    {
+			    const int32 KillCount = Result.CardState.Runtime.PlayerKillCountByEnemyId.FindRef(TargetDefinitionId);
+			    FReEchoCardOutcomeState& Outcome =
+			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
+			    Outcome.PrimaryTarget = TargetDefinitionId;
+			    Outcome.PrimaryValue = KillCount;
+			    Outcome.SecondaryTarget = TEXT("KillThreshold");
+			    Outcome.SecondaryValue = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+			    Outcome.ResolutionCount = KillCount;
+			    return;
+		    }
 		    if (Effect.BehaviorId != TEXT("Card.SoulResonance"))
 		    {
 			    return;
@@ -809,6 +1064,13 @@ FReEchoCardEventResult ReEchoCardRuntime::OnPurchase(const FReEchoCardCatalog& C
 			    Result.Stats.HpPoint = FMath::Min(Result.Stats.HpMax, Result.Stats.HpPoint + Effect.Value * StackCount);
 			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, TEXT("HpMaxAndPoint"), Effect.Value * StackCount);
 		    }
+		    else if (Effect.BehaviorId == TEXT("Card.UnlimitedShopRefresh"))
+		    {
+			    Result.CardState.Runtime.bUnlimitedWeaponRuneRefresh = false;
+			    FReEchoCardOutcomeState& Outcome =
+			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::UnlimitedRefresh);
+			    Outcome.PrimaryValue = 0.0f;
+		    }
 	    });
 	return Result;
 }
@@ -831,6 +1093,121 @@ FReEchoCardEventResult ReEchoCardRuntime::OnEchoKilled(const FReEchoCardCatalog&
 			    Result.Stats.HpMax += Effect.Value * StackCount;
 			    Result.Stats.HpPoint = FMath::Min(Result.Stats.HpMax, Result.Stats.HpPoint + Effect.Value * StackCount);
 			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, TEXT("HpMaxAndPoint"), Effect.Value * StackCount);
+		    }
+	    });
+	return Result;
+}
+
+FReEchoCardEventResult ReEchoCardRuntime::OnCoreInventoryChanged(const FReEchoCardCatalog& Catalog,
+                                                                 const FReEchoCardBuildState& State,
+                                                                 const FReEchoStatBlock& Stats,
+                                                                 const int32 DistinctOwnedCoreCount)
+{
+	FReEchoCardEventResult Result;
+	Result.CardState = State;
+	Result.Stats = Stats;
+	if (Result.CardState.Runtime.bDragonSoulCompleted || DistinctOwnedCoreCount < 6)
+	{
+		return Result;
+	}
+	ForEachOwnedEffect(
+	    Catalog,
+	    State,
+	    TEXT("OnInventoryChanged"),
+	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+	    {
+		    if (Effect.BehaviorId != TEXT("Card.CollectCores") || Result.CardState.Runtime.bDragonSoulCompleted)
+		    {
+			    return;
+		    }
+		    const float Granted = Effect.Value * FMath::Max(1, StackCount);
+		    Result.Stats.CriticalRate += Granted;
+		    Result.Stats.CriticalEffect += Granted;
+		    Result.Stats.ReactionEfficiency += Granted;
+		    Result.CardState.Runtime.bDragonSoulCompleted = true;
+		    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("CoreCollection"), Granted);
+	    });
+	ForEachOwnedEffect(
+	    Catalog,
+	    State,
+	    TEXT("OnHitResolved"),
+	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+	    {
+		    if (Effect.BehaviorId != TEXT("Card.NumericChallenge") || Effect.ParamName != TEXT("KillThreshold") ||
+		        Result.CardState.Runtime.bNumericChallengeCompleted)
+		    {
+			    return;
+		    }
+		    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+		    if (Result.CardState.Runtime.EncounterKillCount >= Threshold)
+		    {
+			    const int32 Granted = FMath::Max(0, FMath::RoundToInt(Effect.Value)) * FMath::Max(1, StackCount);
+			    Result.TimeShardsGranted += Granted;
+			    Result.CardState.Runtime.bNumericChallengeCompleted = true;
+			    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("TimeShards"), Granted);
+		    }
+	    });
+	return Result;
+}
+
+FReEchoCardEventResult ReEchoCardRuntime::OnDamageResolved(const FReEchoCardCatalog& Catalog,
+                                                           const FReEchoCardBuildState& State,
+                                                           const FReEchoStatBlock& Stats,
+                                                           const float RawDamage,
+                                                           const float AppliedDamage,
+                                                           const bool bDealtByEcho)
+{
+	FReEchoCardEventResult Result;
+	Result.CardState = State;
+	Result.Stats = Stats;
+	const float Applied = FMath::Max(0.0f, AppliedDamage);
+	if (bDealtByEcho)
+	{
+		Result.CardState.Runtime.EncounterEchoDamage += Applied;
+	}
+	else
+	{
+		Result.CardState.Runtime.EncounterPlayerDamage += Applied;
+	}
+	if (bDealtByEcho || Applied <= 0.0f)
+	{
+		return Result;
+	}
+	const float OverkillDamage = FMath::Max(0.0f, RawDamage - AppliedDamage);
+	ForEachOwnedEffect(
+	    Catalog,
+	    State,
+	    TEXT("OnDamageResolved"),
+	    [&](const FReEchoCardDefinition&, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+	    {
+		    if (Effect.BehaviorId == TEXT("Card.OverkillHeal"))
+		    {
+			    Result.Healing += OverkillDamage * FMath::Max(0.0f, Effect.Value) * FMath::Max(1, StackCount);
+		    }
+	    });
+	return Result;
+}
+
+FReEchoCardEventResult ReEchoCardRuntime::OnNegativeStatusApplied(const FReEchoCardCatalog& Catalog,
+                                                                  const FReEchoCardBuildState& State,
+                                                                  const FReEchoStatBlock& Stats,
+                                                                  const FName StatusId,
+                                                                  const bool bAppliedByEcho)
+{
+	(void)StatusId;
+	(void)bAppliedByEcho;
+	FReEchoCardEventResult Result;
+	Result.CardState = State;
+	Result.Stats = Stats;
+	ForEachOwnedEffect(
+	    Catalog,
+	    State,
+	    TEXT("OnStatusApplied"),
+	    [&](const FReEchoCardDefinition&, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+	    {
+		    if (Effect.BehaviorId == TEXT("Card.NegativeStatusHeal"))
+		    {
+			    Result.Healing += FMath::Max(0.0f, Effect.Value) * FMath::Max(1, StackCount);
 		    }
 	    });
 	return Result;
@@ -863,6 +1240,35 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			    Outcome.PrimaryTarget = TEXT("FreeShopRefresh");
 			    Outcome.PrimaryValue += Granted;
 			    ++Outcome.ResolutionCount;
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.NumericChallenge") &&
+		             !Result.CardState.Runtime.bNumericChallengeCompleted)
+		    {
+			    const bool bCompleted =
+			        (Effect.ParamName == TEXT("MinimumHp") && Result.Stats.HpPoint >= Effect.ParamValue) ||
+			        (Effect.ParamName == TEXT("MaximumHp") && Result.Stats.HpPoint <= Effect.ParamValue);
+			    if (bCompleted)
+			    {
+				    const int32 Granted = FMath::Max(0, FMath::RoundToInt(Effect.Value)) * FMath::Max(1, StackCount);
+				    Result.TimeShardsGranted += Granted;
+				    Result.CardState.Runtime.bNumericChallengeCompleted = true;
+				    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("TimeShards"), Granted);
+			    }
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.SelfRace"))
+		    {
+			    Result.CardState.Runtime.PlayerDamageMultiplier = 1.0f;
+			    Result.CardState.Runtime.EchoDamageMultiplier = 1.0f;
+			    if (Result.CardState.Runtime.EncounterPlayerDamage > Result.CardState.Runtime.EncounterEchoDamage)
+			    {
+				    Result.CardState.Runtime.EchoDamageMultiplier += Effect.Value * FMath::Max(1, StackCount);
+				    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("EchoDamage"), Effect.Value);
+			    }
+			    else if (Result.CardState.Runtime.EncounterEchoDamage > Result.CardState.Runtime.EncounterPlayerDamage)
+			    {
+				    Result.CardState.Runtime.PlayerDamageMultiplier += Effect.Value * FMath::Max(1, StackCount);
+				    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("PlayerDamage"), Effect.Value);
+			    }
 		    }
 	    });
 	if (Result.CardState.Runtime.HuntTrackingEncounterIndex == EncounterIndex)

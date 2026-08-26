@@ -64,6 +64,10 @@ struct REECHO_API FReEchoEnemyPresentationSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bMoving = false;
+
+	/** Gameplay-owned action disable sampled by the Host; presentation only pauses/resumes the current frame. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bStunned = false;
 };
 
 /**
@@ -85,6 +89,7 @@ public:
 	                         USceneComponent* InFlipbookRoot,
 	                         USceneComponent* InEffectsRoot,
 	                         USceneComponent* InBossWeaponRoot,
+	                         USceneComponent* InBossWeaponFacingRoot,
 	                         UBillboardComponent* InBossWeaponSprite,
 	                         UBillboardComponent* InCharacterSprite,
 	                         UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -99,12 +104,25 @@ public:
 	void ConfigureAppearance(FName PresentationId);
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
 	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
+	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
+	void SetStunPaused(bool bPaused);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
+	/** Skill03 keeps gameplay at the locked impact point while its presentation descends into that point. */
+	static FVector ResolveBlinkSlamVisualOffset(float RemainingSeconds, float DurationSeconds, float StartHeightCm);
+#if WITH_DEV_AUTOMATION_TESTS
+	void ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event);
+#endif
 
 	UBillboardComponent* GetCharacterSprite() const
 	{
 		return CharacterSprite;
 	}
+
+#if WITH_DEV_AUTOMATION_TESTS
+	static FVector ResolveBossWeaponFacingOffsetForTests(float FacingSign,
+	                                                     const FVector& RightFacingOffset,
+	                                                     const FVector& LeftFacingOffset);
+#endif
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -120,6 +138,8 @@ private:
 	void HandleFuseChanged(const FReEchoEnemyFuseEvent& Event);
 	UFUNCTION()
 	void HandleCombatHurt(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 
 	void ApplyVisual(FName PresentationId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
@@ -131,6 +151,8 @@ private:
 	void UpdateSpriteAnimation(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	void ConfigureBossWeapon(FName PresentationId);
 	void UpdateBossWeaponMotion(float DeltaSeconds);
+	void UpdateBossBlinkSlamMotion(float DeltaSeconds);
+	void RefreshBossWeaponFacingOffset(float FacingSign);
 
 	UPROPERTY()
 	TObjectPtr<AActor> Host;
@@ -154,6 +176,8 @@ private:
 	TObjectPtr<USceneComponent> EffectsRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> BossWeaponRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> BossWeaponFacingRoot;
 	UPROPERTY()
 	TObjectPtr<UBillboardComponent> BossWeaponSprite;
 	UPROPERTY()
@@ -189,7 +213,14 @@ private:
 	float LastFuseDuration = 0.0f;
 	float BossWeaponSwingRemaining = 0.0f;
 	float BossWeaponSwingDuration = 0.0f;
+	float BossBlinkSlamRemaining = 0.0f;
+	float BossBlinkSlamDuration = 0.0f;
+	float BossBlinkSlamStartHeightCm = 0.0f;
 	FRotator BossWeaponRestRotation = FRotator::ZeroRotator;
+	FVector BossWeaponRightFacingOffset = FVector::ZeroVector;
+	FVector BossWeaponLeftFacingOffset = FVector::ZeroVector;
 	bool bHitVisualActive = false;
 	bool bDeathVisualActive = false;
+	bool bStunPaused = false;
+	bool bCancelAttackWhenStunClears = false;
 };

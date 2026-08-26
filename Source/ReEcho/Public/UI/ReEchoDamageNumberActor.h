@@ -21,6 +21,13 @@ public:
 	/** 创建并初始化一次伤害数字表现。 */
 	static void SpawnDamageNumber(UWorld* World, const FVector& WorldLocation, float Damage, const FLinearColor& Color);
 
+	/** 伤害数字专用运行时字体资产路径，供构造与自动化验证共享。 */
+	static const TCHAR* GetDamageNumberFontPath();
+	/** 支持顶点 Alpha 的半透明 TextRender 材质。 */
+	static const TCHAR* GetDamageNumberMaterialPath();
+	/** 美术可编辑的伤害跳字 Blueprint Class 路径。 */
+	static const TCHAR* GetDamageNumberBlueprintClassPath();
+
 private:
 	void InitializeDamage(float Damage, const FLinearColor& Color);
 
@@ -28,6 +35,30 @@ private:
 	TObjectPtr<UTextRenderComponent> Text;
 
 	float ElapsedTime = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Damage Number|Animation",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.05", Units = "s"))
 	float DisplayDuration = 0.9f;
+
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Damage Number|Animation",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", Units = "cm/s"))
+	float FloatSpeed = 70.0f;
+
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Damage Number|Animation",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.01"))
+	float StartScale = 1.15f;
+
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Damage Number|Animation",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.01"))
+	float EndScale = 0.85f;
+
 	FLinearColor InitialColor = FLinearColor::White;
 };
