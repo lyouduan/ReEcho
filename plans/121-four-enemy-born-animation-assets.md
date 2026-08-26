@@ -14,12 +14,12 @@
 - Writes: `Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/ReEcho2DAnimationTags.{h,cpp}`、`Source/ReEchoPresentation/Private/Presentation/Animation2D/ReEcho2DPresentationCatalog.cpp`、`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.{h,cpp}`、`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.{h,cpp}`、`Source/ReEcho/Private/Tests/{ReEcho2DAnimationTests,ReEchoEnemyHostTests}.cpp`、`Source/ReEchoEnemies/Public/Enemies/ReEchoEnemyTypes.h`、`Source/ReEchoEnemies/Private/Enemies/ReEchoEnemyLogicComponent.cpp`、`Source/ReEchoEnemies/Private/Tests/ReEchoEnemyLogicTests.cpp`、`Content/ReEcho/DataAsset/Common/Animation2D/SM2D_DefaultCharacter.uasset`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Born/**`、`Content/ReEcho/Art/Animation2D/Enemies/{Rabbit,Slime,Goat,Fox}/Flipbooks/*Born*.uasset`、`Content/ReEcho/DataAsset/Enemy/Profiles/{DA_Enemy_RabbitDoll,DA_Enemy_Slime,DA_Enemy_GoatPriest,DA_Enemy_Fox}.uasset`、`scripts/ue/audit_plan82_animation_assets.py`、`shared/CODEBASE_MAP/modules/{MOD-ReEchoPresentation,MOD-ReEcho,MOD-ReEchoEnemies}.md`、本 Plan 执行记录。
 - Stable Reads: `plans/82-animation2d-asset-cleanup.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/**`、四种怪物现有动画目录与 Profile、`scripts/ue/audit_plan82_animation_assets.py`、相邻导入/修复脚本。
 - 影响模式：`Exclusive`。
-- 兼容承诺 / 下游操作：新增 `Animation.Born` 为可选公共表现语义；仅当 Born 成功启动时进入 Born Gameplay Gate。Gate 期间怪物 `CanBeDamaged=false`、不接受任何伤害且 EnemyLogic 不产生位移，也不得启动 Phase2 Transform；Born 缺失/播放失败不进入 Gate，自然完成后原子恢复可伤害、移动与 Phase2 许可。出生提交、碰撞、目标选择、普通 AI 计时、攻击判定、位置、预警和存档保持既有语义；Gate 期间不因伤害触发 Death。保留源 PNG，不覆盖四种怪物的其他动画与 DA 字段。
+- 兼容承诺 / 下游操作：新增 `Animation.Born` 为可选公共表现语义；仅当 Born 成功启动时进入 Born Gameplay Gate。Gate 期间怪物 `CanBeDamaged=false`、不接受任何伤害且 EnemyLogic 不产生位移、不得提交普通攻击/特殊技/Boss 攻击，也不得启动 Phase2 Transform；Born 缺失/播放失败不进入 Gate，自然完成后原子恢复可伤害、移动、攻击与 Phase2 许可。出生提交、碰撞、目标选择、普通 AI 感知和计时、位置、预警和存档保持既有语义；Gate 期间不因伤害触发 Death。保留源 PNG，不覆盖四种怪物的其他动画与 DA 字段。
 - 明确排除：`BadRabbit/BadSlime/BadGoat/BadFox`、出生预警 VFX、数值表、地图、音频、玩家/Echo 的 Born 绑定及其他角色资产；不让动画完成回调控制怪物可伤害、碰撞、AI 激活或任何玩法状态。
 
 ## 锁定目标
 
-把用户提供的四组顺序 PNG 按自然数字顺序导入为 Paper2D Texture/Sprite，并分别组装为兔子、史莱姆、好羊、好狐狸的非循环 Born Flipbook。新增原生 `Animation.Born` 公共表现语义和共享状态机状态；每种怪物的帧资产位于其 `Born` 目录，生成的 Born Flipbook 位于该怪物现有 `Flipbooks` 目录，对应 Enemy Presentation Profile 的 Born Clip 明确引用该 Flipbook。生产怪物完成 Definition/Profile 装配并成功开始 Born 后进入无敌且不可移动的 Born Gameplay Gate；Born 完整结束后才恢复受伤与移动并允许 EnemyLogic 触发 Phase2 Transform。Born 播放期间每帧以当前 Sprite 底边中心对齐既有 GroundShadow 脚点，避免序列帧尺寸变化造成悬空或下沉。
+把用户提供的四组顺序 PNG 按自然数字顺序导入为 Paper2D Texture/Sprite，并分别组装为兔子、史莱姆、好羊、好狐狸的非循环 Born Flipbook。新增原生 `Animation.Born` 公共表现语义和共享状态机状态；每种怪物的帧资产位于其 `Born` 目录，生成的 Born Flipbook 位于该怪物现有 `Flipbooks` 目录，对应 Enemy Presentation Profile 的 Born Clip 明确引用该 Flipbook。生产怪物完成 Definition/Profile 装配并成功开始 Born 后进入无敌、不可移动且不可攻击的 Born Gameplay Gate；Born 完整结束后才恢复受伤、移动与攻击，并允许 EnemyLogic 触发 Phase2 Transform。Born 播放期间每帧以当前 Sprite 底边中心对齐既有 GroundShadow 脚点，避免序列帧尺寸变化造成悬空或下沉。
 
 ## 架构影响与设计决策
 
@@ -40,7 +40,7 @@
 - [ ] 新怪物完成 `ConfigureFromDefinition` 的 Profile 装配后尝试一次 Born；缺少 Born 的 Profile 安全 no-op，生成成功、碰撞、普通 AI/Encounter 提交不依赖播放结果；可伤害和移动只在 Born 成功启动时受 Gate 控制。
 - [ ] Born 正常播放期间，即便已满足攻击次数、距离或血量等 Phase2 条件，也不得启动 Transform；Born 完整结束后的下一次合格逻辑步才可启动。Born 缺失或播放失败不制造永久门禁，Death 仍可立即抢占。
 - [ ] 只有成功启动 Born 的怪物在动画期间 `CanBeDamaged=false`，任何伤害不扣血、不积累 Phase2 攻击次数、不触发受击/Death；Born 完成后恢复原本可伤害状态。缺失或失败 Born 不获得无敌。
-- [ ] Born Gameplay Gate 期间 EnemyLogic 不产生位移，Host 世界位置保持不变；动画完成后的下一逻辑步恢复移动。攻击/目标选择/冷却计时不因本 Plan 暗中暂停。
+- [ ] Born Gameplay Gate 期间 EnemyLogic 不产生位移且不提交普通攻击、特殊技或 Boss 攻击，Host 世界位置保持不变且不会对目标造成攻击伤害；动画完成后的下一合格逻辑步恢复移动和攻击。目标选择、感知与既有冷却/计时继续推进，不因本 Plan 暗中暂停。
 - [ ] Born 每帧使用当前 Sprite Bounds 计算主体底边与阴影位置；帧尺寸变化时底部持续贴合 GroundShadow，普通 Move/Attack 与既有 Death authored-pivot 逻辑不变。
 - [ ] 不修改 `Bad*`、其他动画、出生预警/生成提交时序、Schema、表格或无关 DA 字段；C++ 差异仅限 Writes 中的 Born 语义/脚点、Enemy Host 许可注入和 EnemyLogic Phase2 门禁。
 - [ ] `audit_plan82_animation_assets.py`（必要时以只读扩展检查覆盖新 Born）、`python scripts/validate_project.py`、资产加载检查和 `git diff --check` 通过。
@@ -58,7 +58,7 @@
 ## 实现提纲
 
 1. 注册原生 `Animation.Born`，在共享 FSM 增加优先级 90、锁至完成、仅低于终结 Death 的 Born 状态并定义完成回到 Move；增加 Controller 单元测试覆盖 Attack/Hit/Transform 不可抢占、自然完成归宿、缺失 Clip no-op 与 Death 抢占。
-2. 在 Enemy Presentation Host Adapter 暴露一次性 Born 请求和只读播放状态，并在 `ConfigureFromDefinition` 完成 Profile 装配后调用；只有播放成功才激活 Host Born Gameplay Gate 并关闭 `CanBeDamaged`。Host 在 Gate 结束时原子恢复可伤害，并把移动/Phase2 类型化许可注入 EnemyLogic；不得用 Gate 控制出生提交、碰撞、目标选择、普通 AI 计时或攻击判定。
+2. 在 Enemy Presentation Host Adapter 暴露一次性 Born 请求和只读播放状态，并在 `ConfigureFromDefinition` 完成 Profile 装配后调用；只有播放成功才激活 Host Born Gameplay Gate 并关闭 `CanBeDamaged`。Host 在 Gate 结束时原子恢复可伤害，并把移动/攻击/Phase2 类型化许可注入 EnemyLogic；Gate 期间不得提交普通攻击、特殊技或 Boss 攻击，但不得用 Gate 控制出生提交、碰撞、目标选择、普通 AI 感知或既有计时推进。
 3. Born 活跃时，Enemy Presentation 的脚点与 GroundShadow 宽度/中心使用当前 Sprite Bounds；Death authored pivot 保持既有专用路径，其他语义继续使用 Flipbook 聚合 Bounds。
 4. 在专属 Executor worktree 回读四个 Profile、现有 Rabbit/Slime Born 资产、同类 Flipbook 的循环/帧率/材质/像素密度与导入设置；冻结准确替换和新增清单。
 5. 通过 Unreal Editor Python/仓库脚本复制源 PNG 并导入 Texture，按项目 Paper2D 惯例创建逐帧 Sprite；不得在 Editor 外生成或手改 `.uasset`。
@@ -74,7 +74,7 @@
 | 聚焦审计 | `python scripts/ue/audit_plan82_animation_assets.py`（必要时使用 Plan 内新增只读审计） | 四个生产 Profile 与源贴图导入链通过 |
 | C++ 自动化 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.Presentation.Animation2D` | Born tag/状态、完成归宿、缺失 Clip no-op、Death 抢占与既有表现测试通过 |
 | Phase2 门禁 | 聚焦 EnemyLogic/Host 自动化 | Born 活跃时三类 Phase2 条件均不启动，完成后启动；缺失/失败不锁死，Death 可抢占 |
-| 无敌/移动 | 聚焦 EnemyLogic/Host/Combat 自动化 | Born 成功才进入无敌；Gate 内伤害为零且无 Hurt/Death/计数，移动意图为零；完成后恢复，缺失/失败不锁死 |
+| 无敌/移动/攻击 | 聚焦 EnemyLogic/Host/Combat 自动化 | Born 成功才进入无敌；Gate 内伤害为零且无 Hurt/Death/计数，移动意图为零，普通攻击/特殊技/Boss 攻击均无提交与伤害；感知和计时仍推进；完成后恢复，缺失/失败不锁死 |
 | 脚点 | 聚焦 Animation2D/Enemy Presentation 自动化与 UE 资产回读 | Born 逐帧底边对齐阴影，普通动画与 Death authored pivot 回归通过 |
 | 完整构建 | `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` | UHT/UBT 成功并刷新匹配最终源码的精选预构建包 |
 | 项目静态 | `python scripts/validate_project.py` | 项目/资产规则通过 |
