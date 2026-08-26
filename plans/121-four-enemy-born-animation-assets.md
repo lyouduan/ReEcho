@@ -27,14 +27,14 @@
 - 对应模块文档：`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`、`MOD-ReEchoEnemies.md` 与 `MOD-ReEcho.md` 必须加入 Writes，记录 Born 完成门禁、逐帧脚点及 Host/Logic 边界。
 - 设计意图：保持“Profile 决定具体表现、Host 拥有 Actor 可伤害状态、EnemyLogic 决定行为/Phase2”的边界；Presentation 只提供 Born 是否成功启动/仍活跃，Host 据此持有明确 Born Gameplay Gate，并把移动/Phase2 类型化许可交给 EnemyLogic，不延迟出生提交或暂停普通 AI 计时。
 - 权威状态与依赖：Presentation 模块独占 Born 播放状态与逐帧脚点；ReEcho Host 独占 Born Gameplay Gate 与 `CanBeDamaged` 切换，并写入类型化移动/Phase2许可；ReEchoEnemies 继续独占移动意图、Phase2 判定与状态推进。不存在 Presentation → Enemies 反向依赖，模块依赖方向不变。
-- 决策记录：`兔子/史莱姆/好羊/好狐狸` 映射为 `Rabbit/Slime/Goat/Fox`，不是 `Bad*` 目录；兔子 6 帧，其余各 5 帧；已通过 Unreal 回读证明 Rabbit 现有 Born 惯例为 4 FPS、Center Pivot、PPU 1、Translucent，四组统一沿用。2026-08-26 用户在获知 C++/公共契约/FullRebuild 风险后明确确认扩展 Plan，拒绝仅交付未绑定资产的降级方案。
+- 决策记录：`兔子/史莱姆/好羊/好狐狸` 映射为 `Rabbit/Slime/Goat/Fox`，不是 `Bad*` 目录；兔子 6 帧，其余各 5 帧。2026-08-26 用户要求四种 Born 总时长统一为精确 `0.5s`，因此 Rabbit 使用 12 FPS，Slime/Goat/Fox 使用 10 FPS；Center Pivot、PPU 1、Translucent 与非循环属性保持不变。
 - 相关文档同步范围：更新 `MOD-ReEchoPresentation.md`、`MOD-ReEchoEnemies.md` 与 `MOD-ReEcho.md`；`ARCHITECTURE.md` 和 `README.md` 关闭前审阅，预计无需修改，因为拓扑和稳定路由不变。
 - 关闭前逐项填写审阅结果：待 Executor/Planner 根据最终候选补充。
 
 ## 锁定验收
 
 - [ ] `Rabbit/Slime/Goat/Fox` 各自存在 `Born` 目录，源 PNG 对应的 Texture 与 Sprite 数量分别为 6/5/5/5，命名稳定且帧序正确。
-- [ ] 四个非循环 Born Flipbook 位于各自 `Flipbooks` 目录，逐帧引用对应 Sprite，不跨怪物借用资源。
+- [ ] 四个非循环 Born Flipbook 位于各自 `Flipbooks` 目录，逐帧引用对应 Sprite，不跨怪物借用资源；Rabbit 6 帧/12 FPS、Slime/Goat/Fox 5 帧/10 FPS，资产回读的总时长均为 `0.5s`。
 - [ ] 四个生产 Enemy Profile 的 `Animation.Born` Clip 分别引用本怪物 Born Flipbook；资产保存后重新加载仍保持引用，缺失资源不会影响玩法生成。
 - [ ] `Animation.Born` 以原生 GameplayTag 注册并存在于共享 FSM；它是锁至完成、仅 Death 可抢占的非循环瞬时表现，完成后回到 Move，Death 保持最高优先级/终结独占。
 - [ ] 新怪物完成 `ConfigureFromDefinition` 的 Profile 装配后尝试一次 Born；缺少 Born 的 Profile 安全 no-op，生成成功、碰撞、普通 AI/Encounter 提交不依赖播放结果；可伤害和移动只在 Born 成功启动时受 Gate 控制。
@@ -62,7 +62,7 @@
 3. Born 活跃时，Enemy Presentation 的脚点与 GroundShadow 宽度/中心使用当前 Sprite Bounds；Death authored pivot 保持既有专用路径，其他语义继续使用 Flipbook 聚合 Bounds。
 4. 在专属 Executor worktree 回读四个 Profile、现有 Rabbit/Slime Born 资产、同类 Flipbook 的循环/帧率/材质/像素密度与导入设置；冻结准确替换和新增清单。
 5. 通过 Unreal Editor Python/仓库脚本复制源 PNG 并导入 Texture，按项目 Paper2D 惯例创建逐帧 Sprite；不得在 Editor 外生成或手改 `.uasset`。
-6. 在四个怪物的 `Flipbooks` 目录创建 4 FPS 非循环 Born Flipbook，按自然数字顺序装帧；只修改四个生产 Profile 的 Born Clip 绑定，保存重载并回读其余字段。
+6. 在四个怪物的 `Flipbooks` 目录创建总时长 `0.5s` 的非循环 Born Flipbook，按自然数字顺序装帧；Rabbit 设为 12 FPS，Slime/Goat/Fox 设为 10 FPS。只修改四个生产 Profile 的 Born Clip 绑定，保存重载并回读其余字段。
 7. 更新三份模块文档和执行记录，运行验证矩阵并交由 Planner 审查源码/二进制范围；PIE 人工验收通过前保持 `Review`。
 
 ## 验证矩阵
@@ -87,13 +87,13 @@
 
 - 注册原生 `Animation.Born` 并补入编辑器语义解析；共享 FSM 新增优先级 20、完成回到 Move 的非终结 Born 状态。
 - Enemy Host 在 Definition/Profile 装配后调用 `TryPlayBorn`，忽略播放结果，不改变已经提交的玩法状态。
-- Rabbit 旧 Born 资产经 Unreal 规范到 `Born/{Textures,Sprites}`；Slime/Goat/Fox 新增同结构资产。四组 4 FPS 非循环 Flipbook 与四个生产 Profile 的默认 Born Clip 已绑定。
+- Rabbit 旧 Born 资产经 Unreal 规范到 `Born/{Textures,Sprites}`；Slime/Goat/Fox 新增同结构资产。四组非循环 Flipbook 与四个生产 Profile 的默认 Born Clip 已绑定；待本修订把总时长统一为 `0.5s`。
 - 最小必要偏差：更新后的初始 Writes 漏列 `ReEcho2DPresentationCatalog.cpp`；Planner 已确认将 Born 加入既有候选数组属于已授权公共语义目标且不新增 API。本执行记录及 Writes 已补记。
 
 ### 证据
 
 - 四组源序列可读取且为 32 位 ARGB PNG，帧数为 6/5/5/5。
-- 独立 Unreal 重载审计：`enemies=4 textures=21 sprites=21 flipbooks=4 profiles=4 issues=0`；四组均为 4 FPS、自然帧序、非循环绑定，FSM Born 完成归宿为 Move。
+- 独立 Unreal 重载审计（时长修订前）：`enemies=4 textures=21 sprites=21 flipbooks=4 profiles=4 issues=0`；四组自然帧序、非循环绑定，FSM Born 完成归宿为 Move。时长修订后需重新回读四组均为 `0.5s`。
 - 增量 Editor Build 两轮通过（首次 97 actions；语义解析补齐后 4 actions）。最终 FullRebuild 97 actions 通过，刷新 7 个精选模块，源码指纹 `6b0f55f586aa`。
 - `ReEcho.Presentation.Animation2D` 实际执行 4 个测试：FootpointAlignment、CookedDeathPivotPolicy、StunPause 通过；AssetProfiles 的 Born 播放、完成回 Move、缺失 no-op 与 Death 抢占断言未报错，但被既有 TimeGuard Phase2 空能力断言（第 484 行）单独阻塞。
 - Plan82 全库审计未报告 Born/FSM/Profile 问题，但被本 Plan 明确排除的 BadRabbit 20 张既有未导入源图阻塞；Plan121 独立重载审计提供本任务资产链通过证据。
