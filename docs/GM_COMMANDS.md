@@ -122,18 +122,21 @@ GMEndEncounter
 GMKillAll
 ```
 
-### `GMSpawnFox [Distance]`
+### `GMSpawnFox <Count> [Distance]`
 
-通过生产敌人配置生成一只 `M_FOX`。
+通过生产敌人配置生成一批 `M_FOX`，并逐只报告成功/失败数。
 
+- 默认数量：`1`，安全上限：`16`。
 - 默认距离：`350` cm。
 - 输入距离限制在 `150` 到 `1000` cm。
-- 生成方向为玩家朝竞技场中心的方向。
-- 最终位置会限制在敌人生成边界内。
+- 生成位置沿玩家朝竞技场中心的确定性弧线分散，最终限制在敌人生成边界内。
+- 无参数仍生成一只；单个 `1..16` 参数按新数量语法解释，单个大于 `16` 的参数按旧距离语法兼容并生成一只。
+- 每只狐狸都复用生产 `M_FOX` Definition、EnemyHost 和 Roster，不建立测试专用怪物。
 - 要求当前玩家存活。
 
 ```text
 GMSpawnFox
+GMSpawnFox 5 350
 GMSpawnFox 600
 ```
 
