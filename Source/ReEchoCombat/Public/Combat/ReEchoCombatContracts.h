@@ -33,6 +33,9 @@ struct REECHOCOMBAT_API FReEchoDamageEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AppliedDamage = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
+	/** Stable reaction behavior that produced this damage; presentation may style it without re-running reaction rules.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
 	/** This damage reduced an alive target to zero health. Consumers must suppress ordinary Hurt presentation. */
@@ -153,6 +156,10 @@ public:
 
 	void PublishAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 	{
+#if WITH_DEV_AUTOMATION_TESTS
+		++AttackCommittedPublishCountForTests;
+		LastAttackCommittedEventForTests = Event;
+#endif
 		OnAttackCommitted.Broadcast(Event);
 	}
 
@@ -203,6 +210,16 @@ public:
 	}
 
 #if WITH_DEV_AUTOMATION_TESTS
+	int32 GetAttackCommittedPublishCountForTests() const
+	{
+		return AttackCommittedPublishCountForTests;
+	}
+
+	const FReEchoAttackCommittedEvent& GetLastAttackCommittedEventForTests() const
+	{
+		return LastAttackCommittedEventForTests;
+	}
+
 	int32 GetElementStatePublishCountForTests() const
 	{
 		return ElementStatePublishCountForTests;
@@ -229,10 +246,12 @@ public:
 	}
 
 private:
+	int32 AttackCommittedPublishCountForTests = 0;
 	int32 ElementStatePublishCountForTests = 0;
 	int32 ElementReactionPublishCountForTests = 0;
 	int32 HurtPublishCountForTests = 0;
 	FReEchoDamageEvent LastHurtEventForTests;
+	FReEchoAttackCommittedEvent LastAttackCommittedEventForTests;
 	FReEchoElementReactionResolvedEvent LastElementReactionEventForTests;
 #endif
 };

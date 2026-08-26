@@ -54,6 +54,11 @@ class REECHO_API AReEchoEchoActor : public AActor, public IReEchoCombatTarget, p
 	GENERATED_BODY()
 
 public:
+	float GetVisualFacingSign() const
+	{
+		return VisualFacingSign;
+	}
+
 	AReEchoEchoActor();
 
 	virtual void Tick(float DeltaSeconds) override;

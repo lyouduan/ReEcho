@@ -274,6 +274,7 @@ struct REECHOCARDS_API FReEchoCardGrantResult
 	TArray<FName> GrantedCardIds;
 	/** Run-owned rune inventory/equipment must be cleared atomically after this card transaction commits. */
 	bool bClearWeaponRunes = false;
+	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
 };
 
 USTRUCT()

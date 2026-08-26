@@ -7,7 +7,8 @@ void AddRoleEvents(const FReEchoCsvDataSnapshot& Snapshot,
                    const FName EnemyRole,
                    const int32 Count,
                    TArray<FReEchoScheduledSpawnEvent>& OutEvents,
-                   FString& OutError)
+                   FString& OutError,
+                   const FName EnemyIdOverride = NAME_None)
 {
 	if (Count <= 0)
 	{
@@ -26,15 +27,18 @@ void AddRoleEvents(const FReEchoCsvDataSnapshot& Snapshot,
 	Warning.Type = EReEchoScheduledSpawnEventType::Warning;
 	Warning.WaveId = Wave.Id;
 	Warning.EnemyRole = EnemyRole;
-	Warning.EnemyId = Profile->EnemyId;
+	Warning.EnemyId = EnemyIdOverride.IsNone() ? Profile->EnemyId : EnemyIdOverride;
 	Warning.Count = Count;
-	Warning.EventSeconds = FMath::Max(0.0f, Wave.TriggerSeconds - Profile->WarningLeadSeconds);
-	Warning.SpawnSeconds = Wave.TriggerSeconds;
+	const float WarningLeadSeconds = FMath::Max(0.0f, Profile->WarningLeadSeconds);
+	Warning.EventSeconds = FMath::Max(0.0f, Wave.TriggerSeconds - WarningLeadSeconds);
+	// A zero-second wave has no negative encounter time in which to show its warning. Keep the warning at
+	// encounter start and move only the commit far enough forward to preserve the configured lead time.
+	Warning.SpawnSeconds = FMath::Max(Wave.TriggerSeconds, Warning.EventSeconds + WarningLeadSeconds);
 	OutEvents.Add(Warning);
 
 	FReEchoScheduledSpawnEvent Commit = Warning;
 	Commit.Type = EReEchoScheduledSpawnEventType::Commit;
-	Commit.EventSeconds = Wave.TriggerSeconds;
+	Commit.EventSeconds = Warning.SpawnSeconds;
 	OutEvents.Add(Commit);
 }
 
@@ -102,6 +106,21 @@ bool ReEchoStageTransition::Resolve(const FReEchoCsvDataSnapshot& Snapshot,
 	return true;
 }
 
+int32 ReEchoSpawnCapacity::CalculateReservationCount(const int32 ActiveUnitLimit,
+                                                     const int32 LivingCount,
+                                                     const int32 ReservedCount,
+                                                     const int32 RequestedCount,
+                                                     const bool bCountsTowardUnitLimit)
+{
+	if (!bCountsTowardUnitLimit)
+	{
+		return FMath::Max(0, RequestedCount);
+	}
+	const int32 AvailableCount =
+	    FMath::Max(0, ActiveUnitLimit - FMath::Max(0, LivingCount) - FMath::Max(0, ReservedCount));
+	return FMath::Clamp(RequestedCount, 0, AvailableCount);
+}
+
 bool FReEchoEncounterWaveScheduler::Configure(const FReEchoCsvDataSnapshot& Snapshot,
                                               const FName EncounterId,
                                               FString& OutError)
@@ -126,15 +145,12 @@ bool FReEchoEncounterWaveScheduler::Configure(const FReEchoCsvDataSnapshot& Snap
 		}
 		if (!Wave.BossEnemyId.IsNone())
 		{
-			FReEchoScheduledSpawnEvent Boss;
-			Boss.Type = EReEchoScheduledSpawnEventType::Commit;
-			Boss.WaveId = Wave.Id;
-			Boss.EnemyRole = TEXT("Boss");
-			Boss.EnemyId = Wave.BossEnemyId;
-			Boss.Count = 1;
-			Boss.EventSeconds = Wave.TriggerSeconds;
-			Boss.SpawnSeconds = Wave.TriggerSeconds;
-			Events.Add(Boss);
+			AddRoleEvents(Snapshot, Wave, TEXT("Boss"), 1, Events, OutError, Wave.BossEnemyId);
+			if (!OutError.IsEmpty())
+			{
+				Reset();
+				return false;
+			}
 		}
 	}
 	Events.Sort(

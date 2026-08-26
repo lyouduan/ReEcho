@@ -2452,6 +2452,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	bool bContinueBonusChoices = false;
 	int32 PendingTimeShards = TimeShards;
 	bool bPendingClearWeaponRunes = false;
+	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
 	FReEchoBuildSnapshot PendingBuild;
 	if (!TryMutateAuthoritativeBuild(
 	        *Snapshot,
@@ -2473,6 +2474,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        }
 		        BaseBuild.Stats = Grant.Stats;
 		        BaseBuild.CardState = Grant.CardState;
+		        PendingHealthAdjustment = Grant.HealthAdjustment;
 		        PendingTimeShards = Grant.TimeShards;
 		        bPendingClearWeaponRunes |= Grant.bClearWeaponRunes;
 		        if (Grant.bClearWeaponRunes)
@@ -2523,6 +2525,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	PendingTraitCardRefreshUses.Reset();
 	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
 	SetPhase(bContinueBonusChoices ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
+	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
 
@@ -2554,6 +2557,7 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 		return false;
 	}
 
+	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
 	FReEchoBuildSnapshot PendingBuild;
 	int32 PendingTimeShards = TimeShards;
 	bool bPendingClearWeaponRunes = false;
@@ -2586,6 +2590,7 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 		        BaseBuild.Stats = Grant.Stats;
 		        BaseBuild.CardState = Grant.CardState;
 		        PendingTimeShards = Grant.TimeShards;
+		        PendingHealthAdjustment = Grant.HealthAdjustment;
 		        bPendingClearWeaponRunes |= Grant.bClearWeaponRunes;
 		        if (Grant.bClearWeaponRunes)
 		        {
@@ -2616,6 +2621,7 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
 	       *CardId.ToString(),
 	       CurrentBuild.CardState.OwnedCardIds.Num());
+	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
 
@@ -3260,6 +3266,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 
 	int32 PendingTimeShards = TimeShards;
 	bool bPendingClearWeaponRunes = false;
+	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
 	FReEchoBuildSnapshot PendingBuild;
 	EReEchoShopPurchaseResult Failure = EReEchoShopPurchaseResult::MutationRejected;
 	FString FailureDetail = TEXT("The authoritative build rejected the card claim");
@@ -3294,6 +3301,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 		        }
 		        Build.Stats = Grant.Stats;
 		        Build.CardState = Grant.CardState;
+		        PendingHealthAdjustment = Grant.HealthAdjustment;
 		        bPendingClearWeaponRunes |= Grant.bClearWeaponRunes;
 		        if (Grant.bClearWeaponRunes)
 		        {
@@ -3321,6 +3329,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	}
 	ReevaluateCoreCollectionCard();
 	InventoryItems.AddUnique(ItemId);
+	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Paid card choice claimed"));
 }
 
@@ -4330,8 +4339,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 			const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId);
 			const int32 Uses = SaveGame.PendingTraitCardRefreshUses[SlotIndex];
 			if (!Card || Card->Tier != FreeTier || SeenIds.Contains(CardId) || !SeenHistoryIds.Contains(CardId) ||
-			    Uses < 0 || !RefreshRule ||
-			    Uses > RefreshRule->CardSlotRefreshLimit)
+			    Uses < 0 || !RefreshRule || Uses > RefreshRule->CardSlotRefreshLimit)
 			{
 				return false;
 			}

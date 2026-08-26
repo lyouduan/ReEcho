@@ -23,7 +23,8 @@ void UReEcho2DPresentationController::TickComponent(const float DeltaTime,
 
 void UReEcho2DPresentationController::UpdatePlaybackCompletion()
 {
-	if (bWaitingForOneShot && AnimationRenderer && !AnimationRenderer->IsPlaying())
+	if (bWaitingForOneShot && AnimationRenderer && !AnimationRenderer->IsPlaybackPaused() &&
+	    !AnimationRenderer->IsPlaying())
 	{
 		bActionActive = false;
 		bWaitingForOneShot = false;

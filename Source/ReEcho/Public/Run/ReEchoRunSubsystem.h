@@ -9,6 +9,7 @@
 class UReEchoRunSaveGame;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardGrantCommitted, const FReEchoStatBlock&, EReEchoHealthAdjustment);
 
 struct FReEchoCsvDataSnapshot;
 struct FReEchoCsvCardRow;
@@ -41,6 +42,9 @@ class REECHO_API UReEchoRunSubsystem : public UGameInstanceSubsystem
 public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoRunPhaseChanged OnPhaseChanged;
+
+	/** Read-only post-commit notification. Subscribers may project the build but cannot mutate the transaction. */
+	FReEchoCardGrantCommitted OnCardGrantCommitted;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoRunPhase Phase = EReEchoRunPhase::CharacterSelect;

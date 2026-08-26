@@ -10,7 +10,10 @@
 
 class UReEchoCombatantComponent;
 class UReEcho2DCharacterPresentationProfile;
+class UReEchoWeaponPresentationProfile;
 class UBillboardComponent;
+class UTexture2D;
+enum class EReEchoHeldWeaponMirrorRule : uint8;
 class USceneComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
@@ -66,6 +69,10 @@ public:
 
 	float GetAttackCooldownRemaining() const;
 #if WITH_DEV_AUTOMATION_TESTS
+	static float ResolveHeldWorldLengthForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                            float CharacterReferenceHeight,
+	                                            float OwnerScale);
+
 	float GetStepLockRemaining() const
 	{
 		return WeaponLogic.GetSnapshot().BehaviorRemainingSeconds;
@@ -134,6 +141,7 @@ private:
 	bool SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	                UReEchoCombatantComponent* Combatant,
 	                const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
+	void PublishAttackCommittedEvent(const FReEchoWeaponAttackCommit& Commit) const;
 	TSharedPtr<FReEchoWeaponRuneAttackContext> BuildRuneAttackContext(const FReEchoWeaponAttackCommit& Commit,
 	                                                                  UReEchoCombatantComponent* Combatant) const;
 	void ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
@@ -152,6 +160,10 @@ private:
 	void BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
 	void RecallScythe();
 	void AdvanceScytheThrow(float DeltaSeconds);
+	float ResolveOwnerVisualFacingSign() const;
+	FVector ResolveMirroredHandAnchor() const;
+	FQuat ResolveMirroredSwordRestRotation() const;
+	void ApplyHeldPlaneMirror(UStaticMeshComponent* Plane, EReEchoHeldWeaponMirrorRule MirrorRule) const;
 	/** Resolve the owner's gameplay aim without requiring the owner root actor to rotate for presentation. */
 	FVector ResolveOwnerAimDirection() const;
 	EReEchoDamageSource ResolveOwnerDamageSource() const;
@@ -172,9 +184,9 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UBillboardComponent> ScytheSprite;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBillboardComponent> BowSprite;
+	TObjectPtr<UStaticMeshComponent> BowSprite;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBillboardComponent> GunSprite;
+	TObjectPtr<UStaticMeshComponent> GunSprite;
 
 	TMap<FName, FReEchoCsvWeaponRow> Definitions;
 	TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot;
@@ -218,6 +230,9 @@ private:
 	float SwordAnimationDuration = 0.18f;
 	float SwordSwingDirection = -1.0f;
 	FVector SwordSpriteRestLocation = FVector(8.0f, 0.0f, 0.0f);
+	FVector WeaponHandAnchorLocation = FVector::ZeroVector;
 	FQuat SwordSpriteRestRotation = FQuat::Identity;
+	FQuat SwordAuthoredRotation = FQuat::Identity;
+	float SwordPlanarAngleOffsetRadians = 0.0f;
 	TWeakObjectPtr<const UReEcho2DCharacterPresentationProfile> HeldCharacterProfile;
 };

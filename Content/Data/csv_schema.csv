@@ -334,7 +334,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,EncounterWaves,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,EncounterWaves,Notes,Text,false,,,,,Designer notes.
 1,SpawnProfiles,Id,StableId,true,,,,,Stable spawn profile id.
-1,SpawnProfiles,EnemyRole,StableId,true,,,,Melee|Ranged|Elite|BossReinforcement,Typed spawn role.
+1,SpawnProfiles,EnemyRole,StableId,true,,,,Melee|Ranged|Elite|BossReinforcement|Boss,Typed spawn role.
 1,SpawnProfiles,EnemyId,ForeignKey,true,,,Enemies,,Stable enemy definition spawned for this role.
 1,SpawnProfiles,MinAnchorDistanceCm,Float,true,0,100000,,,Minimum distance from the selected anchor.
 1,SpawnProfiles,MaxAnchorDistanceCm,Float,true,0,100000,,,Maximum distance from the selected anchor.

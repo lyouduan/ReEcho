@@ -160,3 +160,52 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **改动 / Changes**：Profile 新增会进入 Cook 的 `bUseAuthoredDeathPivot`；狐狸 Profile 显式开启。敌人死亡表现只读取该运行时策略，不再调用 PaperSprite 编辑器 API；未开启的 Profile 继续使用当前帧 Bounds 底边中心。自动化锁定生产狐狸 Profile 必须开启该策略。
 - **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；狐狸 Profile 配置脚本通过 UE 命令行幂等执行并记录 `authored_pivot=True`；新增 `ReEcho.Presentation.Animation2D.CookedDeathPivotPolicy` 聚焦自动化通过；Development Editor `-FullRebuild` 通过并刷新预构建包；Win64 Shipping clean build、cook、pak、archive、33 张运行时 CSV 投递及 10 秒启动烟测通过；`validate_project.py` 与 `git diff --check` 通过。既有 `ReEcho.Presentation.Animation2D.AssetProfiles` 仍被无关的 TimeGuard Phase2 资产断言阻塞，本次新增狐狸断言未报错。
 - **状态 / Status**：Review。本地技术候选已完成，等待用户验证狐狸与 BadFox 死亡动画脚点；未经用户认可不提交、不推送。
+
+### #18 — 出生预警消失后没有生成怪物
+
+- **现象 / Symptom**：部分红色出生预警球正常显示并消失，但对应位置没有生成怪物。
+- **根因 / Root cause**：GameMode 在预警阶段为完整配表批次显示红球，却到提交阶段才按 `ActiveUnitLimit` 裁剪。同一波多个角色批次先后提交时，较早批次占满上限，后续批次已显示的预警位置会被裁掉。现有运行日志已记录 `Ranged truncated 5->0` 等直接证据。
+- **目标 / Acceptance**：每个可见出生预警都必须在同一锁定位置提交一个怪物；单位上限只能阻止预警位置被创建，不能在红球显示后取消该位置。不改变配表数量、单位上限、波次时序、位置解算或 Stage 连续性。
+- **实现范围 / Writes**：`ReEchoEncounterRuntime.*`、`ReEchoGameMode.cpp`、`ReEchoEncounterRuntimeTests.cpp`、本文档及 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`。
+- **改动 / Changes**：预警阶段按存活单位和全部待提交批次统一预留容量，只解析并显示实际获准的红球；提交阶段完整消费预留位置，不再二次裁剪。生产敌人生成显式使用 `AlwaysSpawn`，确保确定性解算后的承诺位置不会被 Actor 默认碰撞策略静默拒绝；失败仍输出具名错误日志。
+- **影响面 / Impact**：`MOD-ReEcho` / `AREA-Encounter`；只收紧预警与出生提交的一致性，无 Schema、存档格式、配表、敌人 AI、伤害或表现资产变化。`MOD-ReEchoEnemies` 与 `MOD-ReEchoPresentation` 已审阅，无所有权或契约变化，无需修改。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；组合 `origin/main@e34f8f5f` 后 Development Editor `-FullRebuild` 94/94 通过并刷新 7 个预构建模块；`ReEcho.Encounter` 自动化 4/4 通过，其中新增 `SpawnWarningCapacityReservation` 锁定跨角色批次预留；`validate_project.py`、预构建一致性和 `git diff --check` 通过。曾额外生成 Shipping 候选并通过 Build/Cook/Stage/Pak/Archive 与 10 秒烟测；后续仅在用户明确要求时打包。用户已手测确认红球与怪物提交一致。
+- **状态 / Status**：Closed。用户已完成手测验收并授权合并发布。
+
+### #19 — Boss 不再固定在场景上方出生
+
+- **现象 / Symptom**：策划反馈 Boss 每局固定刷新在场景上方，缺少与玩家/回响位置关联的变化。
+- **根因 / Root cause**：`AReEchoGameMode::SpawnScheduledBatch` 对 `EnemyRole=Boss` 单独使用硬编码 `FVector(800,0,50)` 并提前返回，完全绕过 `SpawnProfiles`、双锚 SpawnResolver、最终碰撞中心高度和预警位置承诺链。
+- **目标 / Acceptance**：Boss 使用与普通怪相同的表驱动 Warning/Commit、双锚位置解析和位置承诺；`EncounterWaves.BossEnemyId` 继续拥有 Boss 身份，Boss 不计入单位上限时不得挤占普通增援容量；删除固定世界坐标，不改变 Boss AI、技能、数值、阶段或关卡结束规则。
+- **实现范围 / Writes**：`ReEchoEncounterRuntime.*`、`ReEchoGameMode.cpp`、`ReEchoEncounterRuntimeTests.cpp`、Encounter 权威工作簿与 `spawn_profiles.csv`、Schema/项目校验、本文档及 `MOD-ReEcho`。现有 `ReEcho-plan63` 工作树含未提交 UI/素材修改且严重落后 main，本条按用户指令在独立 `ReEcho-plan63-boss-spawn-location-final` / `plan/63-boss-spawn-location-final` 实施，不触碰原工作树。
+- **改动 / Changes**：新增 `Spawn.Boss`（`M_SHEEP`、700–950 距离环、220 间距）；WaveScheduler 为 Boss 生成同一位置事实的 Warning/Commit；GameMode 取消 Boss 特例并通过 SpawnResolver 预留、提交。`BossCountsTowardUnitLimit=false` 时 Boss 仍获得自身位置，但不进入普通怪容量计算。
+- **验证 / Verification**：工作簿由 artifact-tool 编辑并完成六个工作表的前后渲染、目标表检查和公式错误扫描；最终文件保留原工作表保护、解锁数据行、表范围及扩展后的数据验证。C++ 聚焦测试锁定 Boss 事件、动态距离环、旧固定坐标消失和单位上限豁免。Development Editor `-FullRebuild` 97/97 通过并刷新 7 个预构建模块（源码指纹 `b768fa629799`）；`ReEcho.Encounter` 自动化 4/4 通过；XLSX/CSV 同步测试 18/18、生产数据同步检查、`validate_project.py`、预构建一致性与 `git diff --check` 均通过。本条未宣称 PIE 人工视觉验收。
+- **状态 / Status**：Closed。按用户指令完成技术验收并提交发布。
+
+### #20 — 玩家受伤后短暂忽略敌人碰撞挤压
+
+- **现象 / Symptom**：玩家被敌人包围时，受伤后仍持续被多个 Pawn 碰撞体阻挡，难以从包围中移动脱身，可能被挤压连续击杀。
+- **目标 / Acceptance**：每次真实扣血后，玩家根碰撞在 1 秒内忽略 `Pawn` 移动碰撞；重复受伤从最新一次重新计时。该窗口只改变物理挤压，不提供伤害无敌，不影响场景墙体或敌人伤害判定；致死时立即恢复碰撞。
+- **实现范围 / Writes**：`ReEchoPlayerPawn.*`、`ReEchoPlayerCollisionTests.cpp`、本文档及 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`。影响 `MOD-ReEcho / AREA-Player`；`MOD-ReEchoCombat` 只提供既有 Hurt 事实，已审阅、无需修改；`MOD-ReEchoEnemies` 的 AI/伤害/碰撞所有权不变，已审阅、无需修改。
+- **改动 / Changes**：Player Pawn 订阅自身类型化 `OnHurt`；首次真实扣血时保存 Blueprint 作者的 `ECC_Pawn` 响应并切换为 `Ignore`，在 Pawn Tick 中推进可重触发的一秒剩余时间。Blocked/零伤害不触发，致死和 EndPlay 立即清理窗口并恢复响应；暂停时窗口与玩法时间一起停止推进。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；Development Editor 构建 96/96 通过并刷新 7 个预构建模块（源码指纹 `177f9e0297fd`）；`ReEcho.Player.HurtCollisionIgnore` 自动化 1/1 通过，锁定窗口内仍可继续扣血、重复受伤顺延计时及一秒后恢复作者响应；`validate_project.py`、预构建一致性与 `git diff --check` 通过。用户授权按当前完整候选发布。
+- **文档审阅 / Documentation review**：`MOD-ReEcho` 已更新玩家 Hurt 后短时 Pawn 碰撞忽略契约；`MOD-ReEchoCombat` 已审阅、无需修改，因为 Hurt 事实与伤害结算所有权不变；`MOD-ReEchoEnemies` 已审阅、无需为本项修改，因为敌人 AI、命中和碰撞所有权不变；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑和路由标识未变化。
+- **状态 / Status**：Closed。用户授权将本工作树完整候选发布并清理。
+
+### #21 — 兔子站定连发相邻弹距调整为约 70cm
+
+- **需求 / Need**：兔子站定直线连发的相邻子弹飞行间距调整为约 `70cm`。
+- **换算 / Calculation**：`M_RABBIT_RangedBurst` 当前为 4 发；未填写固定弹速，因此运行时按 `MaxRangeCm / CooldownSeconds = 1000 / 1.4 = 714.2857cm/s` 推导。连发间隔由 `ActiveSeconds / (ProjectileCount - 1)` 决定，故 `ActiveSeconds = 70 / 714.2857 × 3 = 0.294s`。
+- **改动 / Changes**：权威工作簿 `Design/Data/ReEchoEnemyData.xlsx` 的 `EnemyAbilities!H11`（`M_RABBIT_RangedBurst.ActiveSeconds`）由 `0.1` 改为 `0.294`，并同步生成 `Content/Data/enemy_abilities.csv`；未改移动散射技能或其他敌人能力。
+- **验证 / Verification**：工作簿目标单元格、样式与公式错误扫描通过，五个工作表渲染复核通过；保留原工作表保护、数据验证及其余 XLSX 包内容；XLSX/CSV 同步及项目静态校验通过。用户已在 PIE 确认当前约 `70cm` 相邻弹距符合预期；`Design/Data/ReEchoEnemyData使用说明.md` 已补充策划填表公式、当前示例及常见误填提醒。
+- **状态 / Status**：Closed。用户已完成手感验收并授权发布。
+
+### #22 — 兔子站定连发与移动散射使用相同单发尺寸
+
+- **现象 / Symptom**：兔子移动散射为 3 发、站定连发为 4 发；两者 `RadiusCm` 都是 `100`，旧逻辑却按各自 `ProjectileCount` 平分半径，导致散射单发半径为 `33.33cm`、连发仅 `25cm`，且表现直径跟随碰撞半径，连发视觉和判定都小约 25%。
+- **目标 / Acceptance**：兔子每颗子弹尺寸固定，不随同一技能一次发射的数量改变；以现有移动散射为基准，站定连发同样使用 `33.33cm` 碰撞半径和约 `66.67cm` 视觉直径。不改变羊 Boss 的投射物分配规则。
+- **改动 / Changes**：兔子 Ranged 投射物统一按原始 3 发移动散射基准解析单发半径，不再按当前技能发数重新平分；羊 Boss 仍保留显式按发数解析的既有路径。聚焦测试新增移动/站定两种兔子技能半径相等断言，并将站定连发时序断言改为读取配表间隔。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；Development Editor 增量构建通过并刷新 7 个预构建模块（源码指纹 `e649ef829fec`）；`ReEcho.Enemies.Host` 自动化 5/5 通过，其中 `RabbitProjectilePipeline` 锁定移动/站定两种技能单球半径相等，`SheepProjectilePipeline` 同时回归羊 Boss 路径；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- **文档审阅 / Documentation review**：`MOD-ReEcho` 与 `MOD-ReEchoEnemies` 已更新兔子双技能轨迹、固定单发半径和 EnemyHost 所有权；`MOD-ReEchoVFX` 已更新逐球事件数量与固定视觉尺寸契约；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑、依赖方向和稳定路由标识未变化。
+- **状态 / Status**：Closed。用户已确认两种兔子技能的单发尺寸一致并授权发布。
+- **发布集成 / Release integration**：取得 `main-publish-lock` 后合入 `origin/main@402b6d22`；传入的伤害数字、元素反应来源、狐狸冲撞、首波预警和 Plan116 与本候选无源码/数据逻辑冲突，只有精选预构建包发生预期二进制冲突并由最终组合源码完整重生。Development Editor `-FullRebuild` 100/100 通过，精选包源码指纹 `aae735c39d73`；最终组合上的 `ReEcho.Player.HurtCollisionIgnore` 1/1、`ReEcho.Enemies.Host` 5/5、XLSX 同步测试 18/18、生产数据一致性、项目校验、预构建一致性和 `git diff --check` 全部通过。

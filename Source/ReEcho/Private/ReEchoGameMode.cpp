@@ -235,11 +235,13 @@ void AReEchoGameMode::GMHelp()
 	                   "GMGod [On|Off|Toggle] | "
 	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
 	                   "<Clear|Rain|Fog> | "
-	                   "GMEndEncounter | GMKillAll | GMSpawnFox [distance] | GMGotoBoss | "
+	                   "GMEndEncounter | GMKillAll | GMSpawnFox <count> [distance] | GMGotoBoss | "
+	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
-	                   "GMShowEnemyRange <On|Off|Toggle>"));
+	                   "GMShowEnemyRange <On|Off|Toggle> | "
+	                   "GMBossDamageRange <On|Off|Toggle>"));
 	PrintGMResult(TEXT("Reactions: Flame+Grass=Burn | Flame+Water=Vaporize | Lightning+Grass=Growth | "
 	                   "Lightning+Water=Conduct | Grass+Water=EnhanceGrass | Water+Grass=EnhanceWater"));
 }
@@ -554,6 +556,32 @@ void AReEchoGameMode::GMShowEnemyRange(const FString& Mode)
 	                              bEnable ? TEXT("On") : TEXT("Off")));
 }
 
+void AReEchoGameMode::GMBossDamageRange(const FString& Mode)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	bool bEnable = !bShowBossDamageRangeDebug;
+	if (Mode.Equals(TEXT("On"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("1")))
+	{
+		bEnable = true;
+	}
+	else if (Mode.Equals(TEXT("Off"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("0")))
+	{
+		bEnable = false;
+	}
+	else if (!Mode.Equals(TEXT("Toggle"), ESearchCase::IgnoreCase))
+	{
+		PrintGMResult(TEXT("Usage: GMBossDamageRange <On|Off|Toggle>"), false);
+		return;
+	}
+	bShowBossDamageRangeDebug = bEnable;
+	PrintGMResult(FString::Printf(
+	    TEXT("Boss skill damage-range debug=%s (red=Skill02 projectile, green=Skill03 AOE, cyan=beam/rectangle)."),
+	    bEnable ? TEXT("On") : TEXT("Off")));
+}
+
 void AReEchoGameMode::GMGod(const FString& Mode)
 {
 	if (!EnsureGMCommandAvailable() || !Player || !Player->Combatant)
@@ -579,7 +607,8 @@ void AReEchoGameMode::GMGod(const FString& Mode)
 	}
 
 	Player->Combatant->SetDebugInvulnerable(bEnable);
-	PrintGMResult(FString::Printf(TEXT("Player invulnerability=%s."), bEnable ? TEXT("On") : TEXT("Off")));
+	PrintGMResult(FString::Printf(TEXT("Player God mode=%s (damage numbers remain visible; HP is preserved)."),
+	                              bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMAddShards(const int32 Amount)
@@ -714,36 +743,94 @@ void AReEchoGameMode::GMKillAll()
 	    FString::Printf(TEXT("Killed %d enemies; normal encounter completion will run next tick."), KilledCount));
 }
 
-void AReEchoGameMode::GMSpawnFox(const float Distance)
+void AReEchoGameMode::ResolveGMSpawnFoxRequest(
+    const float CountOrDistance, const float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance)
+{
+	constexpr int32 MaximumCount = 16;
+	constexpr float DefaultDistance = 350.0f;
+	constexpr float MinimumDistance = 150.0f;
+	constexpr float MaximumDistance = 1000.0f;
+	bOutLegacyDistance = Distance < 0.0f && CountOrDistance > static_cast<float>(MaximumCount);
+	OutCount = bOutLegacyDistance ? 1 : FMath::Clamp(FMath::RoundToInt(CountOrDistance), 1, MaximumCount);
+	const float RequestedDistance =
+	    Distance >= 0.0f ? Distance : (bOutLegacyDistance ? CountOrDistance : DefaultDistance);
+	OutDistance = FMath::Clamp(RequestedDistance, MinimumDistance, MaximumDistance);
+}
+
+TArray<FVector> AReEchoGameMode::BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
+                                                          const FVector2D& ArenaCenter,
+                                                          const FVector2D& ArenaHalfExtents,
+                                                          const float GameplayPlaneWorldZ,
+                                                          const int32 Count,
+                                                          const float Distance,
+                                                          const bool bHasArena)
+{
+	TArray<FVector> Locations;
+	Locations.Reserve(Count);
+	FVector2D InwardDirection =
+	    bHasArena ? ArenaCenter - FVector2D(PlayerLocation.X, PlayerLocation.Y) : FVector2D(1.0f, 0.0f);
+	if (InwardDirection.IsNearlyZero())
+	{
+		InwardDirection = FVector2D(1.0f, 0.0f);
+	}
+	InwardDirection.Normalize();
+	constexpr float ArcHalfAngleDegrees = 70.0f;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float Alpha = Count > 1 ? static_cast<float>(Index) / static_cast<float>(Count - 1) : 0.5f;
+		const float AngleDegrees = FMath::Lerp(-ArcHalfAngleDegrees, ArcHalfAngleDegrees, Alpha);
+		const FVector2D RadialDirection = InwardDirection.GetRotated(AngleDegrees);
+		FVector Location(PlayerLocation.X + RadialDirection.X * Distance,
+		                 PlayerLocation.Y + RadialDirection.Y * Distance,
+		                 bHasArena ? GameplayPlaneWorldZ : PlayerLocation.Z);
+		if (bHasArena)
+		{
+			Location.X =
+			    FMath::Clamp(Location.X, ArenaCenter.X - ArenaHalfExtents.X, ArenaCenter.X + ArenaHalfExtents.X);
+			Location.Y =
+			    FMath::Clamp(Location.Y, ArenaCenter.Y - ArenaHalfExtents.Y, ArenaCenter.Y + ArenaHalfExtents.Y);
+		}
+		Locations.Add(Location);
+	}
+	return Locations;
+}
+
+void AReEchoGameMode::GMSpawnFox(const float CountOrDistance, const float Distance)
 {
 	if (!EnsureGMCommandAvailable() || !Player || !Player->Combatant || !Player->Combatant->IsAlive())
 	{
 		PrintGMResult(TEXT("GMSpawnFox requires a living player."), false);
 		return;
 	}
-	const float SafeDistance = FMath::Clamp(Distance, 150.0f, 1000.0f);
+	int32 SafeCount = 1;
+	float SafeDistance = 350.0f;
+	bool bLegacyDistance = false;
+	ResolveGMSpawnFoxRequest(CountOrDistance, Distance, SafeCount, SafeDistance, bLegacyDistance);
 	const FVector PlayerLocation = Player->GetActorLocation();
-	FVector SpawnLocation = PlayerLocation + FVector(SafeDistance, 0.0f, 0.0f);
-	if (ArenaScene)
+	const bool bHasArena = ArenaScene != nullptr;
+	const FVector2D ArenaCenter = bHasArena ? ArenaScene->GetArenaCenter() : FVector2D::ZeroVector;
+	const FVector2D ArenaHalfExtents = bHasArena ? ArenaScene->GetEnemySpawnHalfExtents() : FVector2D::ZeroVector;
+	const float GameplayPlaneWorldZ = bHasArena ? ArenaScene->GetGameplayPlaneWorldZ() : PlayerLocation.Z;
+	const TArray<FVector> SpawnLocations = BuildGMSpawnFoxLocations(
+	    PlayerLocation, ArenaCenter, ArenaHalfExtents, GameplayPlaneWorldZ, SafeCount, SafeDistance, bHasArena);
+	int32 SuccessCount = 0;
+	for (const FVector& SpawnLocation : SpawnLocations)
 	{
-		const FVector2D ArenaCenter = ArenaScene->GetArenaCenter();
-		FVector2D TowardCenter = ArenaCenter - FVector2D(PlayerLocation.X, PlayerLocation.Y);
-		if (TowardCenter.IsNearlyZero())
+		if (SpawnConfiguredEnemy(TEXT("M_FOX"), SpawnLocation))
 		{
-			TowardCenter = FVector2D(1.0f, 0.0f);
+			++SuccessCount;
 		}
-		const FVector2D Desired =
-		    FVector2D(PlayerLocation.X, PlayerLocation.Y) + TowardCenter.GetSafeNormal() * SafeDistance;
-		const FVector2D HalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
-		SpawnLocation.X = FMath::Clamp(Desired.X, ArenaCenter.X - HalfExtents.X, ArenaCenter.X + HalfExtents.X);
-		SpawnLocation.Y = FMath::Clamp(Desired.Y, ArenaCenter.Y - HalfExtents.Y, ArenaCenter.Y + HalfExtents.Y);
-		SpawnLocation.Z = ArenaScene->GetGameplayPlaneWorldZ();
 	}
-	const bool bSpawned = SpawnConfiguredEnemy(TEXT("M_FOX"), SpawnLocation);
-	PrintGMResult(bSpawned ? FString::Printf(TEXT("Spawned M_FOX %.0f cm from the player."),
-	                                         FVector::Dist2D(PlayerLocation, SpawnLocation))
-	                       : TEXT("Failed to spawn M_FOX from the production enemy definition."),
-	              bSpawned);
+	const int32 FailureCount = SpawnLocations.Num() - SuccessCount;
+	PrintGMResult(FString::Printf(TEXT("GMSpawnFox%s requested %.0f, used count=%d distance=%.0f cm: "
+	                                   "%d succeeded, %d failed."),
+	                              bLegacyDistance ? TEXT(" legacy-distance") : TEXT(""),
+	                              CountOrDistance,
+	                              SafeCount,
+	                              SafeDistance,
+	                              SuccessCount,
+	                              FailureCount),
+	              FailureCount == 0);
 }
 
 void AReEchoGameMode::GMGotoBoss()
@@ -780,6 +867,69 @@ void AReEchoGameMode::GMGotoBoss()
 	                  ? FString::Printf(TEXT("Started Boss encounter %d."), BossEncounterIndex)
 	                  : FString::Printf(TEXT("Failed to start Boss encounter %d."), BossEncounterIndex),
 	              bStartedBossEncounter);
+}
+
+void AReEchoGameMode::GMBossSkill(const FString& Skill)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+
+	FName AbilityId = NAME_None;
+	if (Skill.Equals(TEXT("Skill01"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("1")))
+	{
+		AbilityId = TEXT("M_SHEEP_MeleeSweep");
+	}
+	else if (Skill.Equals(TEXT("Skill02"), ESearchCase::IgnoreCase) ||
+	         Skill.Equals(TEXT("Skill02Stationary"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("2")))
+	{
+		AbilityId = TEXT("M_SHEEP_StationaryVolley");
+	}
+	else if (Skill.Equals(TEXT("Skill02Moving"), ESearchCase::IgnoreCase) ||
+	         Skill.Equals(TEXT("2M"), ESearchCase::IgnoreCase))
+	{
+		AbilityId = TEXT("M_SHEEP_MovingSpread");
+	}
+	else if (Skill.Equals(TEXT("Skill03"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("3")))
+	{
+		AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	}
+	else if (Skill.Equals(TEXT("Skill04"), ESearchCase::IgnoreCase) || Skill.Equals(TEXT("4")))
+	{
+		AbilityId = TEXT("M_SHEEP_PrayerBeam");
+	}
+	else
+	{
+		PrintGMResult(TEXT("Usage: GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04>"), false);
+		return;
+	}
+
+	AReEchoEnemyActor* Boss = nullptr;
+	if (EnemyRoster)
+	{
+		for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+		{
+			AReEchoEnemyActor* Candidate = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+			if (Candidate && Candidate->IsAlive() && Candidate->GetEnemyId() == TEXT("M_SHEEP"))
+			{
+				Boss = Candidate;
+				break;
+			}
+		}
+	}
+	if (!Boss || !Boss->GetEnemyLogicComponent())
+	{
+		PrintGMResult(TEXT("GMBossSkill requires a living M_SHEEP Boss."), false);
+		return;
+	}
+
+	const bool bQueued = Boss->GetEnemyLogicComponent()->DebugQueueBossAbility(AbilityId);
+	PrintGMResult(bQueued ? FString::Printf(TEXT("Queued Boss ability %s through the normal skill state machine."),
+	                                        *AbilityId.ToString())
+	                      : FString::Printf(TEXT("Boss ability %s is unavailable in the active definition."),
+	                                        *AbilityId.ToString()),
+	              bQueued);
 }
 
 void AReEchoGameMode::GMGrantCard(const FName CardId)
@@ -820,6 +970,12 @@ void AReEchoGameMode::StartPlay()
 		Preloader->RequestPreload(FSimpleDelegate());
 	}
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+	if (UReEchoRunSubsystem* RunSubsystem =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		RunSubsystem->OnCardGrantCommitted.RemoveAll(this);
+		RunSubsystem->OnCardGrantCommitted.AddUObject(this, &AReEchoGameMode::HandleCardGrantCommitted);
+	}
 	int32 ArenaSceneCount = 0;
 	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
 	{
@@ -2068,24 +2224,28 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 		if (Event.Type == EReEchoScheduledSpawnEventType::Warning)
 		{
 			PrepareScheduledSpawnBatch(Event);
-			UE_LOG(LogTemp,
-			       Display,
-			       TEXT("[EncounterSpawn] warning wave=%s role=%s count=%d spawn=%.2f"),
-			       *Event.WaveId.ToString(),
-			       *Event.EnemyRole.ToString(),
-			       Event.Count,
-			       Event.SpawnSeconds);
 			const FReEchoPendingSpawnBatchState* Pending = PendingSpawnBatches.FindByPredicate(
 			    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
 			    {
 				    return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
 			    });
+			UE_LOG(LogTemp,
+			       Display,
+			       TEXT("[EncounterSpawn] warning wave=%s role=%s requested=%d reserved=%d spawn=%.2f"),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Event.Count,
+			       Pending ? Pending->Locations.Num() : 0,
+			       Event.SpawnSeconds);
 			if (Pending && GetWorld())
 			{
-				const float DisplaySeconds = FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds);
+				const float FixedStepGraceSeconds =
+				    1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
+				const float DisplaySeconds =
+				    FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds) + FixedStepGraceSeconds;
 				for (const FVector& Location : Pending->Locations)
 				{
-					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Orange, false, DisplaySeconds, 0, 5.0f);
+					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Red, false, DisplaySeconds, 0, 5.0f);
 				}
 			}
 			continue;
@@ -2096,12 +2256,11 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 
 void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event)
 {
-	if (Event.EnemyRole == TEXT("Boss") || PendingSpawnBatches.ContainsByPredicate(
-	                                           [&Event](const FReEchoPendingSpawnBatchState& Candidate)
-	                                           {
-		                                           return Candidate.WaveId == Event.WaveId &&
-		                                                  Candidate.EnemyRole == Event.EnemyRole;
-	                                           }))
+	if (PendingSpawnBatches.ContainsByPredicate(
+	        [&Event](const FReEchoPendingSpawnBatchState& Candidate)
+	        {
+		        return Candidate.WaveId == Event.WaveId && Candidate.EnemyRole == Event.EnemyRole;
+	        }))
 	{
 		return;
 	}
@@ -2122,12 +2281,43 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 	}
 	const float GameplayPlaneWorldZ = ArenaScene ? ArenaScene->GetGameplayPlaneWorldZ() : 0.0f;
 	const float SpawnCenterWorldZ = GameplayPlaneWorldZ + Enemy->CollisionHalfHeightCm;
+	int32 LivingCount = 0;
+	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	{
+		LivingCount +=
+		    Entry.bAlive && (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
+		        ? 1
+		        : 0;
+	}
+	int32 ReservedCount = 0;
+	for (const FReEchoPendingSpawnBatchState& ExistingBatch : PendingSpawnBatches)
+	{
+		if (!Encounter->bBossCountsTowardUnitLimit && ExistingBatch.EnemyRole == TEXT("Boss"))
+		{
+			continue;
+		}
+		ReservedCount += ExistingBatch.Locations.Num();
+	}
+	const bool bCountsTowardUnitLimit = Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
+	const int32 ReservationCount = ReEchoSpawnCapacity::CalculateReservationCount(
+	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count, bCountsTowardUnitLimit);
+	if (ReservationCount < Event.Count)
+	{
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[EncounterSpawn] warning wave=%s role=%s reserved %d->%d by active unit limit %d."),
+		       *Event.WaveId.ToString(),
+		       *Event.EnemyRole.ToString(),
+		       Event.Count,
+		       ReservationCount,
+		       Encounter->ActiveUnitLimit);
+	}
 
 	FReEchoPendingSpawnBatchState Pending;
 	Pending.WaveId = Event.WaveId;
 	Pending.EnemyRole = Event.EnemyRole;
 	Pending.EnemyId = Event.EnemyId;
-	for (int32 Index = 0; Index < Event.Count; ++Index)
+	for (int32 Index = 0; Index < ReservationCount; ++Index)
 	{
 		FReEchoSpawnResolveRequest Request;
 		Request.PlayerAnchor = Player->GetActorLocation() + Player->GetVelocity() * Policy->AnchorLeadSeconds;
@@ -2186,11 +2376,6 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		return;
 	}
 
-	if (Event.EnemyRole == TEXT("Boss"))
-	{
-		SpawnConfiguredEnemy(Event.EnemyId, FVector(800.0f, 0.0f, 50.0f), RunSubsystem->EncounterIndex);
-		return;
-	}
 	PrepareScheduledSpawnBatch(Event);
 	const int32 PendingIndex = PendingSpawnBatches.IndexOfByPredicate(
 	    [&Event](const FReEchoPendingSpawnBatchState& Candidate)
@@ -2204,30 +2389,18 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 	}
 	const FReEchoPendingSpawnBatchState Pending = PendingSpawnBatches[PendingIndex];
 
-	int32 LivingCount = 0;
-	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+	for (int32 Index = 0; Index < Pending.Locations.Num(); ++Index)
 	{
-		LivingCount +=
-		    Entry.bAlive && (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
-		        ? 1
-		        : 0;
-	}
-	const int32 AllowedCount = FMath::Clamp(Encounter->ActiveUnitLimit - LivingCount, 0, Pending.Locations.Num());
-	if (AllowedCount < Pending.Locations.Num())
-	{
-		UE_LOG(LogTemp,
-		       Warning,
-		       TEXT("[EncounterSpawn] wave=%s role=%s truncated %d->%d by active unit limit %d."),
-		       *Event.WaveId.ToString(),
-		       *Event.EnemyRole.ToString(),
-		       Pending.Locations.Num(),
-		       AllowedCount,
-		       Encounter->ActiveUnitLimit);
-	}
-
-	for (int32 Index = 0; Index < AllowedCount; ++Index)
-	{
-		SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex);
+		if (!SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex))
+		{
+			UE_LOG(LogTemp,
+			       Error,
+			       TEXT("[EncounterSpawn] committed warning failed wave=%s role=%s index=%d enemy=%s."),
+			       *Event.WaveId.ToString(),
+			       *Event.EnemyRole.ToString(),
+			       Index,
+			       *Pending.EnemyId.ToString());
+		}
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
@@ -2246,8 +2419,10 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 		return false;
 	}
 	const int32 NextSpawnIndex = EnemySpawnIndex + 1;
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
-	    ResolveEnemyClass(Definition.PresentationId), SpawnLocation, FRotator::ZeroRotator);
+	    ResolveEnemyClass(Definition.PresentationId), SpawnLocation, FRotator::ZeroRotator, SpawnParameters);
 	if (Enemy)
 	{
 		Enemy->SetPresentationCatalog(PresentationCatalog);
@@ -2268,6 +2443,19 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	Enemy->SetEnemyRoster(EnemyRoster);
 	Enemy->SetEnemyId(EnemyId);
 	ConfigureEnemyRuntimeBindings(Enemy);
+	const UBoxComponent* RootCollision = Cast<UBoxComponent>(Enemy->GetRootComponent());
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[EncounterSpawn] active enemy=%s spawnIndex=%d world=%.3f encounter=%.3f alive=%s damageable=%s "
+	            "actorCollision=%s rootCollision=%s"),
+	       *EnemyId.ToString(),
+	       NextSpawnIndex,
+	       GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f,
+	       Director ? Director->EncounterTime : -1.0f,
+	       Enemy->IsCombatTargetAlive() ? TEXT("true") : TEXT("false"),
+	       Enemy->CanBeDamaged() ? TEXT("true") : TEXT("false"),
+	       Enemy->GetActorEnableCollision() ? TEXT("true") : TEXT("false"),
+	       RootCollision && RootCollision->IsCollisionEnabled() ? TEXT("true") : TEXT("false"));
 	return true;
 }
 
@@ -3920,6 +4108,7 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 	}
 	RunSubsystem->SaveRun();
 	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards, SlotIndex);
+	RefreshPlayerHudTimeShards(RunSubsystem);
 	ReEchoUIInteractionAudit::Write(TEXT("FREE_CARD_SLOT_REFRESH_SUCCEEDED"),
 	                                FString::Printf(TEXT("encounter=%d slot=%d candidates=%d shards=%d"),
 	                                                RunSubsystem->EncounterIndex,
@@ -3964,6 +4153,15 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	{
 		bContinueRunAfterShop = true;
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+	}
+}
+
+void AReEchoGameMode::HandleCardGrantCommitted(const FReEchoStatBlock& Stats,
+                                               const EReEchoHealthAdjustment HealthAdjustment)
+{
+	if (HealthAdjustment != EReEchoHealthAdjustment::None && Player && Player->Combatant)
+	{
+		Player->Combatant->ApplyHealthAdjustment(Stats.HpMax, HealthAdjustment);
 	}
 }
 
@@ -4054,6 +4252,14 @@ void AReEchoGameMode::RestoreGameInput()
 	}
 }
 
+void AReEchoGameMode::RefreshPlayerHudTimeShards(const UReEchoRunSubsystem* RunSubsystem)
+{
+	if (PlayerHudWidget)
+	{
+		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
+	}
+}
+
 void AReEchoGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -4091,10 +4297,7 @@ void AReEchoGameMode::Tick(float DeltaSeconds)
 		}
 	}
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (PlayerHudWidget)
-	{
-		PlayerHudWidget->SetTimeShards(RunSubsystem ? RunSubsystem->TimeShards : 0);
-	}
+	RefreshPlayerHudTimeShards(RunSubsystem);
 	if (EncounterHudWidget)
 	{
 		EncounterHudWidget->SetEncounterStatus(RunSubsystem ? RunSubsystem->EncounterIndex : 0,

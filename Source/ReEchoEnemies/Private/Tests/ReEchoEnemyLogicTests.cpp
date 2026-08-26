@@ -354,6 +354,51 @@ bool FReEchoBossRotationAndSkipTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossDebugQueuedAbilityTest,
+                                 "ReEcho.Enemies.Boss.DebugQueuedAbilityUsesNormalStateMachine",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossDebugQueuedAbilityTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Boss initializes"), Logic->Initialize(MakeBossTestDefinition(), 14));
+	TestFalse(TEXT("Unknown ability cannot be queued"), Logic->DebugQueueBossAbility(TEXT("A_Unknown")));
+	TestTrue(TEXT("Configured beam can be queued"), Logic->DebugQueueBossAbility(TEXT("A_Beam")));
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent Telegraph = Logic->Advance(Sense, 1.0f / 60.0f);
+	const FReEchoBossIntent* BeamTelegraph =
+	    FindBossIntent(Telegraph, EReEchoBossIntentType::TelegraphStarted, FName(TEXT("A_Beam")));
+	TestNotNull(TEXT("Queued ability starts through the normal telegraph intent"), BeamTelegraph);
+	TestEqual(
+	    TEXT("Queued ability allocates the normal attack identity"), Logic->GetSnapshot().AttackSequence, int64(1));
+	TestEqual(TEXT("Queued ability enters normal windup"),
+	          Logic->GetSnapshot().BossActionPhase,
+	          EReEchoBossActionPhase::Windup);
+
+	const FVector TelegraphCenter = BeamTelegraph ? BeamTelegraph->LockedTargetLocation : Sense.TargetLocation;
+	Sense.TargetLocation = FVector(700.0f, 300.0f, 0.0f);
+	const FReEchoEnemyActionIntent Committed = Logic->Advance(Sense, 0.05f);
+	const FReEchoBossIntent* BeamAttack =
+	    FindBossIntent(Committed, EReEchoBossIntentType::AttackWindowStarted, FName(TEXT("A_Beam")));
+	TestNotNull(TEXT("Queued beam reaches its attack window"), BeamAttack);
+	if (BeamAttack)
+	{
+		TestEqual(TEXT("Prayer beam keeps the original telegraph center when the target moves during windup"),
+		          BeamAttack->Origin,
+		          TelegraphCenter);
+		TestEqual(TEXT("Prayer beam intent preserves the same locked warning center"),
+		          BeamAttack->LockedTargetLocation,
+		          TelegraphCenter);
+		TestTrue(TEXT("The moved target no longer changes the committed beam center"),
+		         FVector::DistSquared2D(Sense.TargetLocation, BeamAttack->LockedTargetLocation) > 1.0f);
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossLockAndIdentityTest,
                                  "ReEcho.Enemies.Boss.LockPointAndAttackIdentity",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -590,11 +635,12 @@ bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
 	Dash.bEnabled = true;
 	Dash.Damage = 18.0f;
 	Dash.WindupSeconds = 0.8f;
+	Dash.ActiveSeconds = 0.15f;
 	Dash.RecoverySeconds = 0.9f;
 	Dash.CooldownSeconds = 4.0f;
-	Dash.MaxRangeCm = 450.0f;
+	Dash.MaxRangeCm = 650.0f;
 	Dash.WidthCm = 140.0f;
-	Dash.LengthCm = 450.0f;
+	Dash.LengthCm = 650.0f;
 	Elite.Abilities.Add(Dash);
 	UReEchoEnemyLogicComponent* EliteLogic = NewObject<UReEchoEnemyLogicComponent>();
 	TestTrue(TEXT("Elite definition initializes"), EliteLogic->Initialize(Elite, 2));
@@ -608,9 +654,69 @@ bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
 	EliteLogic->Advance(Sense, 0.01f);
 	const FReEchoEnemyActionIntent DashCommit = EliteLogic->Advance(Sense, 0.81f);
 	TestTrue(TEXT("Elite dash commits after table warning"), DashCommit.bAttackCommitted);
-	TestTrue(TEXT("Elite dash moves along the locked line"), DashCommit.bHasMovement);
-	TestEqual(TEXT("Elite dash length comes from table ability"), DashCommit.MovementDelta.Size2D(), 450.0);
+	TestFalse(TEXT("Elite dash commit does not move the complete authored distance"), DashCommit.bHasMovement);
 	TestEqual(TEXT("Elite dash uses table damage"), DashCommit.RawDamage, 18.0f);
+	TestEqual(TEXT("Elite dash enters an explicit Active phase"),
+	          EliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Active);
+	TestEqual(TEXT("Elite dash stores the complete authored distance budget"),
+	          EliteLogic->GetSnapshot().SpecialDashRemainingDistanceCm,
+	          650.0f);
+	TestEqual(
+	    TEXT("Elite dash stores one committed identity"), EliteLogic->GetSnapshot().SpecialAttack.Sequence, int64(1));
+
+	const FReEchoEnemyActionIntent FirstDashStep = EliteLogic->Advance(Sense, 0.05f);
+	TestTrue(TEXT("Elite dash Active produces movement"), FirstDashStep.bSpecialDashMovement);
+	TestTrue(TEXT("Elite dash first step is smaller than its complete distance"),
+	         FirstDashStep.MovementDelta.Size2D() < Dash.LengthCm);
+	TestTrue(TEXT("Elite dash first third integrates from ActiveSeconds"),
+	         FMath::IsNearlyEqual(FirstDashStep.MovementDelta.Size2D(), 650.0f / 3.0f, 0.01f));
+	TestEqual(TEXT("Every dash step keeps the committed identity"),
+	          FirstDashStep.Attack.Sequence,
+	          DashCommit.Attack.Sequence);
+	EliteLogic->ResolveSpecialDashStep(false, true);
+	const FReEchoEnemyLogicSnapshot ActiveSave = EliteLogic->GetSnapshot();
+	TestTrue(TEXT("First path contact consumes the one-shot damage gate"), ActiveSave.bSpecialDamageConsumed);
+	TestTrue(TEXT("Active save keeps remaining distance"),
+	         FMath::IsNearlyEqual(ActiveSave.SpecialDashRemainingDistanceCm, 650.0f * 2.0f / 3.0f, 0.01f));
+
+	UReEchoEnemyLogicComponent* RestoredEliteLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Elite restore target initializes"), RestoredEliteLogic->Initialize(Elite, 2));
+	RestoredEliteLogic->RestoreSnapshot(ActiveSave);
+	TestEqual(TEXT("Active restore keeps the committed identity sequence"),
+	          RestoredEliteLogic->GetSnapshot().SpecialAttack.Sequence,
+	          DashCommit.Attack.Sequence);
+	TestTrue(TEXT("Active restore preserves the consumed damage gate"),
+	         RestoredEliteLogic->GetSnapshot().bSpecialDamageConsumed);
+	const FReEchoEnemyActionIntent SecondDashStep = RestoredEliteLogic->Advance(Sense, 0.05f);
+	const FReEchoEnemyActionIntent FinalDashStep = RestoredEliteLogic->Advance(Sense, 0.05f);
+	TestTrue(TEXT("Partitioned dash attempts the exact authored distance"),
+	         FMath::IsNearlyEqual(FirstDashStep.MovementDelta.Size2D() + SecondDashStep.MovementDelta.Size2D() +
+	                                  FinalDashStep.MovementDelta.Size2D(),
+	                              650.0f,
+	                              0.01f));
+	TestFalse(TEXT("Consumed path contact cannot request damage again"), SecondDashStep.bCanDamageTarget);
+	TestEqual(TEXT("Completed Active enters Recovery without including ActiveSeconds"),
+	          RestoredEliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Recovery);
+	TestEqual(TEXT("Recovery uses only the authored recovery time"),
+	          RestoredEliteLogic->GetSnapshot().SpecialActionRemainingSeconds,
+	          Dash.RecoverySeconds);
+
+	FReEchoEnemyLogicSnapshot LegacyUnsafeActive = ActiveSave;
+	LegacyUnsafeActive.SpecialAttack = {};
+	LegacyUnsafeActive.SpecialDashRemainingDistanceCm = 0.0f;
+	LegacyUnsafeActive.bSpecialDamageConsumed = false;
+	UReEchoEnemyLogicComponent* LegacyRestore = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Legacy-safe restore target initializes"), LegacyRestore->Initialize(Elite, 2));
+	LegacyRestore->RestoreSnapshot(LegacyUnsafeActive);
+	TestEqual(TEXT("Missing new Active fields recover without extra movement"),
+	          LegacyRestore->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Recovery);
+	TestTrue(TEXT("Missing new Active fields cannot repeat damage"),
+	         LegacyRestore->GetSnapshot().bSpecialDamageConsumed);
+	TestFalse(TEXT("Missing new Active fields emit no dash movement"),
+	          LegacyRestore->Advance(Sense, 0.01f).bHasMovement);
 	return true;
 }
 
@@ -732,6 +838,91 @@ bool FReEchoEnemyFatalWoundPhaseTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Transformation still completes after the lethal Hurt event"), Completed.bPhaseTransitionCompleted);
 	TestEqual(TEXT("Completed fatal-wound transition enters phase two"), Logic->GetSnapshot().CurrentPhaseIndex, 2);
 	TestFalse(TEXT("Fatal wound transition cannot start twice"), Logic->TryTriggerPhase2OnFatalWound(Started));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyRangedAbilityRotationTest,
+                                 "ReEcho.Enemies.Logic.RangedAbilityRotation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyRangedAbilityRotationTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Ranged;
+	Ranged.Archetype = EReEchoEnemyArchetype::Ranged;
+	Ranged.MaxHealth = 20.0f;
+	Ranged.MoveSpeedCmPerSecond = 165.0f;
+	Ranged.MovementStopDistanceCm = 650.0f;
+
+	FReEchoEnemyAbilityDefinition StationaryBurst;
+	StationaryBurst.Id = TEXT("StationaryBurst");
+	StationaryBurst.BehaviorId = TEXT("Enemy.RangedBurst");
+	StationaryBurst.SequenceOrder = 2;
+	StationaryBurst.bEnabled = true;
+	StationaryBurst.Damage = 22.0f;
+	StationaryBurst.WindupSeconds = 0.1f;
+	StationaryBurst.ActiveSeconds = 0.2f;
+	StationaryBurst.RecoverySeconds = 0.1f;
+	StationaryBurst.MaxRangeCm = 1000.0f;
+	StationaryBurst.RadiusCm = 150.0f;
+	StationaryBurst.ProjectileCount = 4;
+	StationaryBurst.bMovementDuringCast = false;
+	Ranged.Abilities.Add(StationaryBurst);
+
+	FReEchoEnemyAbilityDefinition MovingSpread = StationaryBurst;
+	MovingSpread.Id = TEXT("MovingSpread");
+	MovingSpread.SequenceOrder = 1;
+	MovingSpread.Damage = 11.0f;
+	MovingSpread.ProjectileCount = 3;
+	MovingSpread.SpreadAngleDegrees = 40.0f;
+	MovingSpread.bMovementDuringCast = true;
+	Ranged.Abilities.Add(MovingSpread);
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.SelfLocation = FVector::ZeroVector;
+	Sense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.bSpecialActionPermitted = true;
+
+	UReEchoEnemyLogicComponent* SourceLogic = NewObject<UReEchoEnemyLogicComponent>();
+	if (!TestTrue(TEXT("Two-ability ranged definition initializes"), SourceLogic->Initialize(Ranged, 1)))
+	{
+		return false;
+	}
+	SourceLogic->Advance(Sense, 0.01f);
+	const FReEchoEnemyLogicSnapshot MovingWindup = SourceLogic->GetSnapshot();
+	TestEqual(TEXT("SequenceOrder selects moving spread first"), MovingWindup.SpecialAbilityId, MovingSpread.Id);
+	TestEqual(TEXT("Starting the first ability advances the saved rotation cursor"),
+	          MovingWindup.SpecialNextSequenceIndex,
+	          1);
+
+	UReEchoEnemyLogicComponent* RestoredLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Restore target initializes with the same definition"), RestoredLogic->Initialize(Ranged, 1));
+	RestoredLogic->RestoreSnapshot(MovingWindup);
+	Sense.TargetLocation = FVector(520.0f, 30.0f, 0.0f);
+	const FReEchoEnemyActionIntent MovingCommit = RestoredLogic->Advance(Sense, 0.11f);
+	TestTrue(TEXT("Restored moving spread commits"), MovingCommit.bAttackCommitted);
+	TestEqual(
+	    TEXT("Commit resolves the active ability instead of the array's first entry"), MovingCommit.RawDamage, 11.0f);
+	const FReEchoEnemyActionIntent MovingRecovery = RestoredLogic->Advance(Sense, 0.1f);
+	TestTrue(TEXT("Moving spread keeps moving during recovery"), MovingRecovery.bHasMovement);
+	RestoredLogic->Advance(Sense, 0.21f);
+
+	RestoredLogic->Advance(Sense, 0.01f);
+	TestEqual(TEXT("Second action rotates to stationary burst"),
+	          RestoredLogic->GetSnapshot().SpecialAbilityId,
+	          StationaryBurst.Id);
+	const FReEchoEnemyActionIntent StationaryCommit = RestoredLogic->Advance(Sense, 0.11f);
+	TestTrue(TEXT("Stationary burst commits"), StationaryCommit.bAttackCommitted);
+	TestEqual(TEXT("Stationary burst uses its own authored damage"), StationaryCommit.RawDamage, 22.0f);
+	const FReEchoEnemyActionIntent StationaryRecovery = RestoredLogic->Advance(Sense, 0.1f);
+	TestFalse(TEXT("Stationary burst does not move during recovery"), StationaryRecovery.bHasMovement);
+	RestoredLogic->Advance(Sense, 0.21f);
+
+	RestoredLogic->Advance(Sense, 0.01f);
+	TestEqual(TEXT("Third action wraps back to moving spread"),
+	          RestoredLogic->GetSnapshot().SpecialAbilityId,
+	          MovingSpread.Id);
 	return true;
 }
 

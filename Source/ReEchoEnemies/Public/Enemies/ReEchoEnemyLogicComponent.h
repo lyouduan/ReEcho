@@ -29,12 +29,18 @@ public:
 	// WS4 (Plan 68): attempts to convert a just-lethal hit into a blood-depleted second-phase transition. Returns
 	// true when the owner is a HealthThreshold boss that has not yet transformed (the caller defers real death).
 	bool TryTriggerPhase2OnFatalWound(FReEchoEnemyActionIntent& OutIntent);
+	/** Cancels the current target-locked attack when stun begins, preserving cooldowns, fuse and hit reaction. */
+	void CancelActiveActionsForStun();
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
 	void ResetEncounterTransientState();
 	void RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot);
+	/** Host feedback after applying one Active Elite dash step through swept world movement. */
+	void ResolveSpecialDashStep(bool bMovementBlocked, bool bDamageContactConsumed);
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
+	/** Development command: queues one configured Boss ability for the next normal ability start. */
+	bool DebugQueueBossAbility(FName AbilityId);
 
 	bool IsInitialized() const
 	{
@@ -58,7 +64,12 @@ private:
 	FReEchoEnemyActionIntent AdvanceIdleWander(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceBoss(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	FReEchoEnemyActionIntent AdvanceSpecial(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
-	const FReEchoEnemyAbilityDefinition* GetSpecialAbility() const;
+	bool BuildSpecialRuntime();
+	const FReEchoEnemyAbilityDefinition* GetNextSpecialAbility() const;
+	const FReEchoEnemyAbilityDefinition* FindSpecialAbility(FName AbilityId) const;
+	void BeginSpecialRecovery(const FReEchoEnemyAbilityDefinition& Ability);
+	void ClearSpecialAction();
+	void CancelSpecialAction();
 	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
 	                          float FixedDeltaSeconds,
 	                          FReEchoEnemyActionIntent& InOutIntent);
@@ -74,7 +85,7 @@ private:
 	                       FReEchoEnemyActionIntent& InOutIntent);
 	void EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability, FReEchoEnemyActionIntent& InOutIntent);
 	void AppendBossIntent(FReEchoBossIntent&& BossIntent, FReEchoEnemyActionIntent& InOutIntent);
-	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense) const;
+	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense);
 	int32 FindBossAbilityIndex(FName AbilityId) const;
 	float GetBossAbilityCooldown(FName AbilityId) const;
 	void SetBossAbilityCooldown(FName AbilityId, float RemainingSeconds);
@@ -105,8 +116,10 @@ private:
 
 	FReEchoEnemyDefinition Definition;
 	FReEchoEnemyLogicSnapshot State;
+	TArray<int32> SpecialActiveAbilityIndices;
 	TArray<int32> BossActiveAbilityIndices;
 	TArray<int32> BossPhaseIndices;
 	int32 BossCleanseAbilityIndex = INDEX_NONE;
+	FName DebugQueuedBossAbilityId = NAME_None;
 	bool bInitialized = false;
 };

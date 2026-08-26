@@ -75,6 +75,9 @@ public:
 		return CurrentHealth + Overhealth;
 	}
 
+	/** Atomically applies a permanent maximum-health change and its typed current-health adjustment. */
+	UFUNCTION(BlueprintCallable)
+	bool ApplyHealthAdjustment(float NewMaximumHealth, EReEchoHealthAdjustment Adjustment);
 	/** Restore serialized health without producing damage/heal feedback or consuming block. */
 	void RestoreCurrentHealth(float SavedHealth);
 
@@ -90,7 +93,7 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	bool IsAlive() const;
-	/** Development-only final-damage gate used by player GM testing. */
+	/** Development-only GM gate: reports resolved damage to presentation while preserving health. */
 	void SetDebugInvulnerable(bool bEnabled);
 	bool IsDebugInvulnerable() const;
 
@@ -165,6 +168,7 @@ private:
 	bool bCursedImmune = false;
 	bool bHasLastPlayerEchoDamageSource = false;
 	EReEchoDamageSource LastPlayerEchoDamageSource = EReEchoDamageSource::Player;
+	bool bDeferHealthNotifications = false;
 	FReEchoElementState ElementState;
 
 	struct FBleedingStack

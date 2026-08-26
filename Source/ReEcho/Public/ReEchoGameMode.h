@@ -76,9 +76,12 @@ public:
 	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
-	void GMSpawnFox(float Distance = 350.0f);
+	void GMSpawnFox(float CountOrDistance = 1.0f, float Distance = -1.0f);
 	UFUNCTION(Exec)
 	void GMGotoBoss();
+	/** Queues one production sheep Boss ability through its normal Telegraph/Attack/Recovery state machine. */
+	UFUNCTION(Exec)
+	void GMBossSkill(const FString& Skill = TEXT("Skill01"));
 	UFUNCTION(Exec)
 	void GMGrantCard(FName CardId);
 	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */
@@ -101,6 +104,9 @@ public:
 	/** Toggles a debug overlay that draws each living enemy's damage range (contact + ranged max). */
 	UFUNCTION(Exec)
 	void GMShowEnemyRange(const FString& Mode = TEXT("Toggle"));
+	/** Toggles the authoritative sheep Boss skill damage geometry at each attack window and projectile step. */
+	UFUNCTION(Exec)
+	void GMBossDamageRange(const FString& Mode = TEXT("Toggle"));
 
 	/** True while the GM enemy-health overlay is enabled. */
 	bool IsEnemyHealthDebugEnabled() const
@@ -112,6 +118,11 @@ public:
 	bool IsEnemyRangeDebugEnabled() const
 	{
 		return bShowEnemyRangeDebug;
+	}
+
+	bool IsBossDamageRangeDebugEnabled() const
+	{
+		return bShowBossDamageRangeDebug;
 	}
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
@@ -169,6 +180,7 @@ private:
 	bool bShowEnemyHealthDebug = false;
 	/** Whether the GM enemy-range overlay is currently enabled (GMShowEnemyRange). */
 	bool bShowEnemyRangeDebug = false;
+	bool bShowBossDamageRangeDebug = false;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()
@@ -291,6 +303,7 @@ private:
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
+	void HandleCardGrantCommitted(const FReEchoStatBlock& Stats, EReEchoHealthAdjustment HealthAdjustment);
 	UFUNCTION()
 	void HandleTraitCardRefreshRequested(int32 SlotIndex);
 	void CreateArena();
@@ -357,6 +370,18 @@ private:
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
 	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
+	static void ResolveGMSpawnFoxRequest(
+	    float CountOrDistance, float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance);
+	static TArray<FVector> BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
+	                                                const FVector2D& ArenaCenter,
+	                                                const FVector2D& ArenaHalfExtents,
+	                                                float GameplayPlaneWorldZ,
+	                                                int32 Count,
+	                                                float Distance,
+	                                                bool bHasArena);
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FReEchoGameModeFoxSpawnTest;
+#endif
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
@@ -389,6 +414,8 @@ private:
 	void HandleRuntimeAssetPreloadComplete();
 	void BeginSelectedRun();
 	void SetGameplayPresentationVisible(bool bVisible);
+	/** Immediately projects the authoritative Run balance to the persistent Player HUD, including paused menus. */
+	void RefreshPlayerHudTimeShards(const UReEchoRunSubsystem* RunSubsystem);
 	void RestoreGameInput();
 	void SetPlayerMenuAbilityBlocked(bool bBlocked);
 

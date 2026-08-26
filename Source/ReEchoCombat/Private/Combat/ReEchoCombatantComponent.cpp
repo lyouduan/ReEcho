@@ -62,6 +62,8 @@ UAbilitySystemComponent* UReEchoCombatantComponent::GetBoundAbilitySystem() cons
 void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InStats, const bool bFillHealth)
 {
 	const float PreviousHealth = CurrentHealth;
+	// GAS mirrors only a subset of the authored stat block. Preserve semantic fields before synchronizing attributes.
+	Stats = InStats;
 	if (bFillHealth)
 	{
 		Overhealth = 0.0f;
@@ -102,7 +104,17 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
                                                   const EReEchoDamageSource DamageSource)
 {
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (!IsAlive() || Damage <= 0.f || bDebugInvulnerable || IsTimedInvulnerable(WorldTime))
+	if (!IsAlive() || Damage <= 0.f)
+	{
+		return 0.f;
+	}
+	if (bDebugInvulnerable)
+	{
+		// GMGod preserves the resolved damage value for Hurt/VFX/damage-number consumers, but deliberately skips
+		// every health, block and death mutation below.
+		return Damage;
+	}
+	if (IsTimedInvulnerable(WorldTime))
 	{
 		return 0.f;
 	}
@@ -475,6 +487,61 @@ void UReEchoCombatantComponent::SetOverhealCapacityFraction(const float Fraction
 	}
 }
 
+bool UReEchoCombatantComponent::ApplyHealthAdjustment(const float NewMaximumHealth,
+                                                      const EReEchoHealthAdjustment Adjustment)
+{
+	if (Adjustment == EReEchoHealthAdjustment::None)
+	{
+		return false;
+	}
+
+	const float PreviousEffectiveHealth = GetEffectiveCurrentHealth();
+	const float ClampedMaximumHealth = FMath::Max(1.0f, NewMaximumHealth);
+	const float AdjustedHealth = Adjustment == EReEchoHealthAdjustment::FillToMax
+	                                 ? ClampedMaximumHealth
+	                                 : FMath::Min(CurrentHealth, ClampedMaximumHealth);
+	HealthChangeReason = TEXT("Build");
+	HealthChangeAttack = {};
+	HealthChangeDamageSource = EReEchoDamageSource::Player;
+
+	if (BoundAbilitySystem)
+	{
+		// Attribute delegates are synchronous. Defer their intermediate broadcasts so observers see the maximum and
+		// current health as one committed state instead of two partially applied states.
+		bDeferHealthNotifications = true;
+		BoundAbilitySystem->SetNumericAttributeBase(UReEchoCombatAttributeSet::GetMaxHealthAttribute(),
+		                                            ClampedMaximumHealth);
+		BoundAbilitySystem->SetNumericAttributeBase(UReEchoCombatAttributeSet::GetHealthAttribute(), AdjustedHealth);
+		bDeferHealthNotifications = false;
+
+		const UReEchoCombatAttributeSet* Attributes = BoundAbilitySystem->GetSet<UReEchoCombatAttributeSet>();
+		if (!Attributes)
+		{
+			HealthChangeReason = NAME_None;
+			return false;
+		}
+		Stats.HpMax = Attributes->GetMaxHealth();
+		CurrentHealth = Attributes->GetHealth();
+	}
+	else
+	{
+		Stats.HpMax = ClampedMaximumHealth;
+		CurrentHealth = AdjustedHealth;
+	}
+
+	Overhealth = FMath::Min(Overhealth, Stats.HpMax * OverhealCapacityFraction);
+	Stats.HpPoint = CurrentHealth;
+	bDeathBroadcast = CurrentHealth <= 0.0f;
+	if (BoundAbilitySystem && CurrentHealth > 0.0f)
+	{
+		BoundAbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Dead);
+	}
+	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
+	PublishHealthChange(PreviousEffectiveHealth);
+	HealthChangeReason = NAME_None;
+	return true;
+}
+
 void UReEchoCombatantComponent::ClampElementImmunityDuration(const float CurrentTimeSeconds,
                                                              const float MaximumRemainingSeconds)
 {
@@ -597,8 +664,8 @@ UReEchoCombatantComponent::ExecuteElementCleanse(const FReEchoElementCleanseComm
 	const bool bHadBurnState =
 	    ElementState.bBurnActive || ElementState.ActiveStatusUntilSeconds.Contains(BurnStatusId) ||
 	    ElementState.BurnTickDamage != 0.0f || ElementState.BurnNextTickTimeSeconds != 0.0f ||
-	    ElementState.BurnSourceLocation != FVector::ZeroVector || !ElementState.BurnAttack.Source.IsExplicitlyNull() ||
-	    ElementState.BurnAttack.Sequence != 0;
+	    !ElementState.BurnReactionBehaviorId.IsNone() || ElementState.BurnSourceLocation != FVector::ZeroVector ||
+	    !ElementState.BurnAttack.Source.IsExplicitlyNull() || ElementState.BurnAttack.Sequence != 0;
 	Result.bClearedAttachment = ElementState.Attached != EReEchoElement::None;
 	Result.bClearedBurn = bHadBurnState;
 
@@ -606,6 +673,7 @@ UReEchoCombatantComponent::ExecuteElementCleanse(const FReEchoElementCleanseComm
 	ElementState.bBurnActive = false;
 	ElementState.BurnTickDamage = 0.0f;
 	ElementState.BurnNextTickTimeSeconds = 0.0f;
+	ElementState.BurnReactionBehaviorId = NAME_None;
 	ElementState.BurnSourceLocation = FVector::ZeroVector;
 	ElementState.BurnAttack = {};
 	ElementState.ActiveStatusUntilSeconds.Remove(BurnStatusId);
@@ -764,6 +832,10 @@ void UReEchoCombatantComponent::SyncFromAbilitySystem()
 void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData& Data)
 {
 	CurrentHealth = Data.NewValue;
+	if (bDeferHealthNotifications)
+	{
+		return;
+	}
 	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(Data.OldValue);
 	if (Data.OldValue > 0.0f && Data.NewValue <= 0.0f && !bDeathBroadcast)
@@ -785,6 +857,10 @@ void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData
 void UReEchoCombatantComponent::HandleMaxHealthChanged(const FOnAttributeChangeData& Data)
 {
 	Stats.HpMax = Data.NewValue;
+	if (bDeferHealthNotifications)
+	{
+		return;
+	}
 	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 }
 

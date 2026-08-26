@@ -44,6 +44,8 @@
 
 - 输入是不可变目录、构筑状态副本、确定性种子和类型化生命周期上下文。
 - 输出是新的构筑/遭遇状态、属性与货币候选变化，以及领域无关的规则快照。
+- 需要同步实时生命的授予结果通过 `EReEchoHealthAdjustment` 返回类型化意图；例如“血肉铸锋”返回
+  `FillToMax`。Cards 只计算意图，不直接写 Actor、ASC 或 UI。
 - 稳定随机结果、跨关延迟结算和永久累计收益同时写入 `ResolvedOutcomes`；它不记录每击、每脉冲等瞬时日志。
 - 所有命令均以稳定卡牌 ID 和 `BehaviorId` 分派；描述文本不进入规则判断。
 - 授予失败不修改输入；层级赠卡、随机权衡和资源变更属于同一原子结果。
@@ -64,7 +66,7 @@ ReEchoCards ─/─→ ReEcho / ReEchoWeapons / ReEchoEnemies / ReEchoAudio / UI
 ReEchoData.xlsx → cards.csv + card_effects.csv
   → ReEcho 数据适配器校验并编译 FReEchoCardCatalog
   → Run 以本局固定目录生成候选并提交授予
-  → Cards 原子返回 BuildState / StatBlock / TimeShards / RuleSnapshot
+  → Cards 原子返回 BuildState / StatBlock / TimeShards / RuleSnapshot / HealthAdjustment
   → 主模块把结果交给 Combat、Weapons、Enemies、Echo、Shop 和 UI
 ```
 

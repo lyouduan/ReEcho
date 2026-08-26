@@ -1717,7 +1717,7 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
     validate_boss_encounter_waves(waves_by_encounter["Encounter.8"], entries["EncounterWaves"])
 
     enabled_profiles = {row["EnemyRole"]: row for row in profiles if row["Enabled"] == "true"}
-    expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement"}
+    expected_roles = {"Melee", "Ranged", "Elite", "BossReinforcement", "Boss"}
     if set(enabled_profiles) != expected_roles:
         fail(f"{rel(entries['SpawnProfiles'])}: enabled roles must be {sorted(expected_roles)}")
     for role, row in enabled_profiles.items():
@@ -1729,6 +1729,9 @@ def validate_encounter_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         expected_spacing = "UseEnemyRole" if role == "BossReinforcement" else "Explicit"
         if row["SpacingPolicy"] != expected_spacing:
             fail(f"{rel(entries['SpawnProfiles'])}:{line}:SpacingPolicy: expected {expected_spacing} for {role}")
+    if enabled_profiles["Boss"]["EnemyId"] != "M_SHEEP":
+        row = enabled_profiles["Boss"]
+        fail(f"{rel(entries['SpawnProfiles'])}:{row['__line__']}:EnemyId: Boss profile must spawn M_SHEEP")
 
     enabled_policies = [row for row in policies if row["Enabled"] == "true"]
     if len(enabled_policies) != 1 or enabled_policies[0]["Id"] != "SpawnPolicy.Default":
@@ -1973,10 +1976,27 @@ def validate_workflow() -> None:
         fail("PROJECT_RULES.md must point to SECRETARY_RULES.md without redefining secretary duty")
     git_rule_markers = (
         "提交身份和发布完整性规则的唯一权威",
+        "推送到任何远端引用",
         "[PROGRAMMER]",
         "[DESIGNER]",
         "[ARTIST]",
         "[SECRETARY]",
+        "## origin/main 单发布者锁",
+        "`main-publish-lock` 是程序路线和项目秘书发布 `origin/main` 时唯一允许的远端协调分支",
+        "## 编号 Plan 单独发布例外",
+        "发布编号 Plan 不需要获取、检查或等待 `main-publish-lock`",
+        "即使远端锁已存在",
+        "Plan 发布者不得创建、更新或删除锁分支",
+        "只允许使用普通非强制 push 发布 `origin/main`",
+        "--force-with-lease=refs/heads/main-publish-lock:",
+        "未获锁时只允许 fetch",
+        "不得先更新本地 main 后绕行合并",
+        "必须等实际获锁后才开始本轮 main 发布集成",
+        "获锁后必须重新 fetch `origin/main`",
+        "最终候选必须是抢锁时提交的后代",
+        "使用普通非强制 push 发布 main",
+        "网络超时或结果不明时先查询远端",
+        "不得仅按超时自动破锁",
         "程序路线每次推送 `origin/main` 前",
         "Build-Editor.cmd -Configuration Development -FullRebuild",
         "ReEchoEditor.prebuilt.json",
@@ -2028,8 +2048,9 @@ def validate_workflow() -> None:
         "物理/Git 冲突",
         "逻辑冲突",
         "耦合",
-        "即使 Git 可以快进",
-        "推送前立即再次 fetch",
+        "Git 可以快进或干净合并不代表没有逻辑冲突",
+        "真实逻辑冲突",
+        "main-publish-lock",
     )
     missing_audit_markers = [marker for marker in integration_audit_markers if marker not in planner_rules]
     if missing_audit_markers:
@@ -2040,6 +2061,8 @@ def validate_workflow() -> None:
         "分配 Plan 编号前",
         "识别最大 Plan 编号",
         "立即将编号 Plan 单独发布到 `origin/main`",
+        "按 `GIT_RULES.md` 的“编号 Plan 单独发布例外”执行",
+        "不获取、检查或等待 `main-publish-lock`",
         "才开始实质实现",
         "若推送被拒或其他已发布 Plan 占用编号",
         "不需要任何 Exchange",
@@ -2094,24 +2117,34 @@ def validate_workflow() -> None:
     missing_compact_prompt_markers = [marker for marker in compact_prompt_markers if marker not in planner_rules]
     if missing_compact_prompt_markers:
         fail(f"Planner rules lack the neutral Plan-driven prompt contract: {', '.join(missing_compact_prompt_markers)}")
-    main_only_markers = {
-        "PROJECT_RULES.md": ("`origin/main` 是唯一允许的远端分支", "不推送任何远端引用"),
-        "PLANNER_RULES.md": ("`origin/main` 是唯一允许的远端分支", "Plan 编号冲突"),
+    remote_branch_boundary_markers = {
+        "PROJECT_RULES.md": (
+            "`origin/main` 是唯一权威发布分支",
+            "程序路线与项目秘书除 `GIT_RULES.md` 定义的临时 `main-publish-lock` 外仍只推送 `origin/main`",
+            "`designer/<task>`",
+            "`artist/<task>`",
+            "协作分支不是发布面",
+        ),
+        "DESIGNER_RULES.md": ("`designer/<task>`", "不得直接推送或发布 `main`"),
+        "ARTIST_RULES.md": ("`artist/<task>`", "不得直接推送或发布 `main`"),
+        "PLANNER_RULES.md": ("`origin/main` 是唯一权威发布分支", "`main-publish-lock`", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不自行推送任务分支"),
-        "SECRETARY_RULES.md": ("默认禁止创建或推送 `origin/main` 之外的远端分支", "默认只将本地 `main` 非强制推送至 `origin/main`"),
-        "WORKFLOW.md": ("远端仓库只有一个分支：`main`", "编号 Plan 在实现开始前发布到 `main`"),
+        "SECRETARY_RULES.md": ("临时 `main-publish-lock`", "普通非强制 push 发布 `origin/main`"),
+        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`designer/<task>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
     }
-    main_only_texts = {
+    remote_branch_boundary_texts = {
         "PROJECT_RULES.md": project_rules,
+        "DESIGNER_RULES.md": designer_rules,
+        "ARTIST_RULES.md": artist_rules,
         "PLANNER_RULES.md": planner_rules,
         "EXECUTOR_RULES.md": executor_rules,
         "SECRETARY_RULES.md": secretary_rules,
         "WORKFLOW.md": workflow_text,
     }
-    for name, markers in main_only_markers.items():
-        missing = [marker for marker in markers if marker not in main_only_texts[name]]
+    for name, markers in remote_branch_boundary_markers.items():
+        missing = [marker for marker in markers if marker not in remote_branch_boundary_texts[name]]
         if missing:
-            fail(f"{name} lacks main-only remote workflow markers: {', '.join(missing)}")
+            fail(f"{name} lacks role-aware remote branch boundary markers: {', '.join(missing)}")
     live_remote_side_ref_files = {
         "AGENTS.md": agents,
         "PROJECT_RULES.md": project_rules,
@@ -2327,6 +2360,7 @@ def validate_build_dependencies() -> None:
     for runtime_ui_directory in (
         "/Game/ReEcho/Textures/UI/Cards",
         "/Game/ReEcho/Textures/UI/WeaponParts/Icons",
+        "/Game/ReEcho/UI/CombatHud",
     ):
         if f'+DirectoriesToAlwaysCook=(Path="{runtime_ui_directory}")' not in default_game:
             fail(

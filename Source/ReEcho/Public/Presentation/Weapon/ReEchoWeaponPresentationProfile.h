@@ -22,6 +22,14 @@ enum class EReEchoHeldWeaponSizeAxis : uint8
 };
 
 UENUM(BlueprintType)
+enum class EReEchoHeldWeaponMirrorRule : uint8
+{
+	Never,
+	WhenFacingLeft,
+	WhenFacingRight
+};
+
+UENUM(BlueprintType)
 enum class EReEchoWeaponVfxSpawnMode : uint8
 {
 	AttachToAttackRoot,
@@ -47,10 +55,16 @@ struct REECHO_API FReEchoWeaponVfxSlot
 	FName AttachPoint = NAME_None;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	FTransform Offset = FTransform::Identity;
+	/** Cancel attachment-root scale while retaining Offset.Scale as the authored world-size multiplier. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
+	bool bPreserveWorldSize = false;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	int32 SortPriorityOffset = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	bool bStopWhenPhaseEnds = true;
+	/** One-shot duration used when presentation reverses this Niagara through Desired Age. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled", ClampMin = "0.01"))
+	float PlaybackDurationSeconds = 0.6f;
 
 	bool IsConfigured() const
 	{
@@ -78,6 +92,12 @@ public:
 	FVector HeldOffsetRatio = FVector::ZeroVector;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
 	FRotator HeldRotationOffset = FRotator::ZeroRotator;
+	/** Additional rotation around the camera-facing weapon plane; positive values turn counter-clockwise on screen. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
+	float HeldPlanarAngleOffsetDegrees = 0.0f;
+	/** Horizontal UV mirror rule for camera-facing held weapon billboards. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
+	EReEchoHeldWeaponMirrorRule HeldMirrorRule = EReEchoHeldWeaponMirrorRule::Never;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
 	bool bOverrideHeldLength = false;
 	UPROPERTY(EditAnywhere,

@@ -78,6 +78,14 @@ enum class EReEchoDamageSource : uint8
 	Enemy
 };
 
+/** A typed request for reconciling current health after an authoritative maximum-health change. */
+UENUM(BlueprintType)
+enum class EReEchoHealthAdjustment : uint8
+{
+	None,
+	FillToMax
+};
+
 /** A weapon-generated candidate hit. It contains no presentation resource and no final result. */
 USTRUCT(BlueprintType)
 
@@ -90,6 +98,8 @@ struct REECHOCOMBAT_API FReEchoHitIntent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RawDamage = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
+	/** Resource-free reaction provenance used by presentation; NAME_None for ordinary hits. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ReactionEfficiency = 1.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
 	/** Internal adjudication guard: source-side rule providers already transformed this intent. */
@@ -115,6 +125,7 @@ struct REECHOCOMBAT_API FReEchoHitResolved
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float AppliedDamage = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoDamageSource DamageSource = EReEchoDamageSource::Player;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bKilled = false;
@@ -170,6 +181,7 @@ struct REECHOCOMBAT_API FReEchoElementState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bBurnActive = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float BurnTickDamage = 0.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float BurnNextTickTimeSeconds = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName BurnReactionBehaviorId = NAME_None;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector BurnSourceLocation = FVector::ZeroVector;
 	UPROPERTY()
 	FReEchoAttackIdentity BurnAttack;

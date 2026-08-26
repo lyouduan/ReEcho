@@ -369,6 +369,29 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Physical attack add comes from card_effects.csv"),
 	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
 	          PhysicalBefore + 4.0f);
+
+	EReEchoHealthAdjustment CommittedHealthAdjustment = EReEchoHealthAdjustment::None;
+	FReEchoStatBlock CommittedStats;
+	RunSubsystem->OnCardGrantCommitted.AddLambda(
+	    [&CommittedHealthAdjustment, &CommittedStats](const FReEchoStatBlock& Stats,
+	                                                  const EReEchoHealthAdjustment HealthAdjustment)
+	    {
+		    CommittedStats = Stats;
+		    CommittedHealthAdjustment = HealthAdjustment;
+	    });
+	const float MaximumHealthBeforeForging = RunSubsystem->CurrentBuild.Stats.HpMax;
+	const float ExpectedForgedMaximum = MaximumHealthBeforeForging + RunSubsystem->CurrentBuild.Stats.PhysicalAttack +
+	                                    RunSubsystem->CurrentBuild.Stats.ElementalAttack;
+	TestTrue(TEXT("Blood Forging can be granted through the authoritative Run transaction"),
+	         RunSubsystem->DebugGrantCard(TEXT("G_3_14")));
+	TestEqual(TEXT("Run publishes Blood Forging's typed health adjustment after commit"),
+	          CommittedHealthAdjustment,
+	          EReEchoHealthAdjustment::FillToMax);
+	TestEqual(
+	    TEXT("The committed event contains the final maximum health"), CommittedStats.HpMax, ExpectedForgedMaximum);
+	TestEqual(TEXT("The committed build health is full"),
+	          RunSubsystem->CurrentBuild.Stats.HpPoint,
+	          RunSubsystem->CurrentBuild.Stats.HpMax);
 	return true;
 }
 

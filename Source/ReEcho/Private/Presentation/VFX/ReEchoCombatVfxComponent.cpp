@@ -2,6 +2,7 @@
 
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatTarget.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Components/MaterialBillboardComponent.h"
@@ -11,7 +12,11 @@
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraFunctionLibrary.h"
+#include "NiagaraMeshRendererProperties.h"
+#include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "Math/RotationMatrix.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
@@ -27,6 +32,7 @@ constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 CombatEffectSortPriorityFloor = 1000;
 constexpr float DebugElementReactionPreviewSeconds = 2.0f;
 constexpr int32 EchoAuraSortOffset = -1;
+const FBox FoxDirectionRuntimeBounds(FVector(-500.0f, -500.0f, -650.0f), FVector(500.0f, 500.0f, 350.0f));
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
 
 void LogLayerState(const AActor* Owner,
@@ -137,8 +143,14 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemEmittersLocalSpace(UNiagaraSyste
 		}
 		EmitterData->bLocalSpace = true;
 	}
+	// The attached Direction arrow can be culled before its first dynamic-bounds update. Its authored
+	// fixed box is already non-degenerate, so the named Editor repair also opts the System into that box.
+	if (bHasEnabledEmitter && System->GetFixedBounds().IsValid)
+	{
+		System->bFixedBounds = true;
+	}
 	System->MarkPackageDirty();
-	return bHasEnabledEmitter;
+	return bHasEnabledEmitter && System->bFixedBounds != 0;
 #else
 	return false;
 #endif
@@ -146,7 +158,7 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemEmittersLocalSpace(UNiagaraSyste
 
 UReEchoCombatVfxComponent::UReEchoCombatVfxComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 int32 UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(const int32 OwnerSortPriority)
@@ -285,6 +297,118 @@ int32 UReEchoCombatVfxComponent::GetProjectileVisualCountForTests() const
 	return ProjectileVisuals.Num();
 }
 
+bool UReEchoCombatVfxComponent::SetNiagaraSystemSpriteFacingOwnerUp(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	const FNiagaraVariable GroundNormalParameter(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.GroundNormal"));
+	System->GetExposedParameters().SetParameterValue(FVector3f::UpVector, GroundNormalParameter, true);
+	bool bModifiedSpriteRenderer = false;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			return false;
+		}
+		EmitterBase->Modify();
+		const FVersionedNiagaraEmitterBase VersionedEmitter = EmitterHandle.GetInstance().ToBase();
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite)
+			{
+				continue;
+			}
+			Sprite->Modify();
+			Sprite->FacingMode = ENiagaraSpriteFacingMode::CustomFacingVector;
+			Sprite->SpriteFacingBinding.SetValue(TEXT("User.GroundNormal"), VersionedEmitter, Sprite->SourceMode);
+			if (!Sprite->SpriteFacingBinding.DoesBindingExistOnSource())
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("[VFX] User.GroundNormal is not a valid renderer source for emitter '%s'"),
+				       *EmitterHandle.GetName().ToString());
+				return false;
+			}
+			Sprite->PostEditChange();
+			bModifiedSpriteRenderer = true;
+		}
+	}
+	if (bModifiedSpriteRenderer)
+	{
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return bModifiedSpriteRenderer;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::SetNiagaraSystemMeshFacingCameraPlane(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	bool bModifiedMeshRenderer = false;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			return false;
+		}
+		EmitterBase->Modify();
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			UNiagaraMeshRendererProperties* Mesh = Cast<UNiagaraMeshRendererProperties>(Renderer);
+			if (!Mesh)
+			{
+				continue;
+			}
+			Mesh->Modify();
+			Mesh->FacingMode = ENiagaraMeshFacingMode::CameraPlane;
+			Mesh->bLockedAxisEnable = true;
+			Mesh->LockedAxis = FVector::UpVector;
+			Mesh->LockedAxisSpace = ENiagaraMeshLockedAxisSpace::World;
+			Mesh->PostEditChange();
+			bModifiedMeshRenderer = true;
+		}
+	}
+	if (bModifiedMeshRenderer)
+	{
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return bModifiedMeshRenderer;
+#else
+	return false;
+#endif
+}
+
+int32 UReEchoCombatVfxComponent::GetBossProjectileEffectCountForTests() const
+{
+	return BossProjectileEffects.Num();
+}
+
 bool UReEchoCombatVfxComponent::TryGetProjectileVisualLocationForTests(const int64 AttackSequence,
                                                                        const int32 VolleyBallIndex,
                                                                        FVector& OutLocation) const
@@ -304,10 +428,12 @@ bool UReEchoCombatVfxComponent::TryGetProjectileVisualLocationForTests(const int
 #endif
 
 void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
-                                                         USceneComponent* InHurtVfxRoot)
+                                                         USceneComponent* InHurtVfxRoot,
+                                                         USceneComponent* InBossWeaponVfxRoot)
 {
 	AttackVfxRoot = InAttackVfxRoot;
 	HurtVfxRoot = InHurtVfxRoot;
+	BossWeaponVfxRoot = InBossWeaponVfxRoot;
 }
 
 void UReEchoCombatVfxComponent::ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot)
@@ -352,6 +478,26 @@ void UReEchoCombatVfxComponent::EndPlay(const EEndPlayReason::Type EndPlayReason
 	Super::EndPlay(EndPlayReason);
 }
 
+void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
+                                              const ELevelTick TickType,
+                                              FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	for (int32 Index = ReverseMeleePlaybacks.Num() - 1; Index >= 0; --Index)
+	{
+		FReverseMeleePlayback& Playback = ReverseMeleePlaybacks[Index];
+		UNiagaraComponent* Effect = Playback.Effect.Get();
+		Playback.RemainingSeconds = FMath::Max(0.0f, Playback.RemainingSeconds - DeltaTime);
+		if (!Effect || Playback.RemainingSeconds <= 0.0f)
+		{
+			StopNiagaraEffect(Effect);
+			ReverseMeleePlaybacks.RemoveAtSwap(Index);
+			continue;
+		}
+		Effect->SetDesiredAge(Playback.RemainingSeconds);
+	}
+}
+
 void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* InCombatEvents,
                                                  UReEchoEnemyEventsComponent* InEnemyEvents)
 {
@@ -359,6 +505,7 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	if (CombatEvents)
 	{
 		CombatEvents->OnAttackCommitted.RemoveAll(this);
+		CombatEvents->OnHit.RemoveAll(this);
 		CombatEvents->OnHurt.RemoveAll(this);
 		CombatEvents->OnDeath.RemoveAll(this);
 		CombatEvents->OnElementStateChanged.RemoveAll(this);
@@ -380,6 +527,7 @@ void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* I
 	if (CombatEvents)
 	{
 		CombatEvents->OnAttackCommitted.AddDynamic(this, &UReEchoCombatVfxComponent::HandleAttackCommitted);
+		CombatEvents->OnHit.AddDynamic(this, &UReEchoCombatVfxComponent::HandleHit);
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoCombatVfxComponent::HandleHurt);
 		CombatEvents->OnDeath.AddDynamic(this, &UReEchoCombatVfxComponent::HandleDeath);
 		CombatEvents->OnElementStateChanged.AddDynamic(this, &UReEchoCombatVfxComponent::HandleElementStateChanged);
@@ -478,16 +626,19 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	{
 		return nullptr;
 	}
-	UNiagaraComponent* Effect =
-	    UNiagaraFunctionLibrary::SpawnSystemAtLocation(World,
-	                                                   System,
-	                                                   Location,
-	                                                   FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction),
-	                                                   FVector::OneVector,
-	                                                   bAutoDestroy,
-	                                                   true,
-	                                                   ENCPoolMethod::None,
-	                                                   true);
+	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
+	const FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+	const FQuat WorldRotation = DirectionRotation.Quaternion() * Placement.LocalRotation.Quaternion();
+	const FVector WorldLocation = Location + DirectionRotation.RotateVector(Placement.LocalOffset);
+	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World,
+	                                                                           System,
+	                                                                           WorldLocation,
+	                                                                           WorldRotation.Rotator(),
+	                                                                           Placement.Scale,
+	                                                                           bAutoDestroy,
+	                                                                           true,
+	                                                                           ENCPoolMethod::None,
+	                                                                           true);
 	if (Effect)
 	{
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
@@ -496,21 +647,17 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	return Effect;
 }
 
-void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(const FVector& Origin,
-	                                                           const FVector& LockedDirection,
-	                                                           const float LengthCm,
-	                                                           FVector& OutStart,
-	                                                           FVector& OutEnd)
+void UReEchoCombatVfxComponent::ResolveBossBeamWorldEndpoints(
+    const FVector& Origin, const FVector&, const float LengthCm, FVector& OutStart, FVector& OutEnd)
 {
-	const FVector Direction = LockedDirection.IsNearlyZero() ? FVector::ForwardVector
-	                                                        : LockedDirection.GetSafeNormal2D();
 	OutStart = Origin;
-	OutEnd = Origin + Direction * FMath::Max(0.0f, LengthCm);
+	// Skill04 is authored as an upward world-space column rooted at its locked warning center.
+	OutEnd = Origin + FVector::ForwardVector * FMath::Max(0.0f, LengthCm);
 }
 
 FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredScale,
-	                                                     const FVector& AttachmentWorldScale,
-	                                                     const bool bPreserveWorldSize)
+                                                        const FVector& AttachmentWorldScale,
+                                                        const bool bPreserveWorldSize)
 {
 	if (!bPreserveWorldSize)
 	{
@@ -525,6 +672,110 @@ FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredSc
 	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
 }
 
+bool UReEchoCombatVfxComponent::ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	bool bHasEnabledEmitter = false;
+	bool bHasMeshRenderer = false;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		if (!EmitterData)
+		{
+			return false;
+		}
+		bHasEnabledEmitter = true;
+		if (UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase())
+		{
+			EmitterBase->Modify();
+		}
+		EmitterData->bLocalSpace = true;
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			if (UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(Renderer))
+			{
+				MeshRenderer->Modify();
+				MeshRenderer->FacingMode = ENiagaraMeshFacingMode::Default;
+				bHasMeshRenderer = true;
+			}
+		}
+	}
+	System->MarkPackageDirty();
+	return bHasEnabledEmitter && bHasMeshRenderer;
+#else
+	return false;
+#endif
+}
+
+FRotator UReEchoCombatVfxComponent::ComposeAttachedRotation(const FRotator& DirectionRotation,
+                                                            const FRotator& LocalRotation)
+{
+	return (DirectionRotation.Quaternion() * LocalRotation.Quaternion()).Rotator();
+}
+
+FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FVector& Direction,
+                                                                        const FVector& CameraFacingNormal)
+{
+	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
+	PlaneDirection = PlaneDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	return FRotationMatrix::MakeFromZX(Normal, PlaneDirection).Rotator();
+}
+
+FRotator UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(const FVector& Direction,
+                                                                      const FVector& CameraFacingNormal)
+{
+	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
+	PlaneDirection = PlaneDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	// The delivered 0811_01 Niagara mesh is authored in its local YZ plane: local X is the surface normal and
+	// local Y is the in-plane attack axis. The DA Roll correction therefore rotates the slash inside the view plane.
+	return FRotationMatrix::MakeFromXY(Normal, PlaneDirection).Rotator();
+}
+
+FRotator UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation,
+                                                                const FVector& CameraFacingNormal)
+{
+	const FVector CameraNormal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	const FQuat ComposedQuat = ComposedRotation.Quaternion();
+	const FVector SurfaceNormal = ComposedQuat.RotateVector(FVector::ForwardVector);
+	if (FVector::DotProduct(SurfaceNormal, CameraNormal) >= 0.0f)
+	{
+		return ComposedRotation;
+	}
+	const FVector AttackAxis = ComposedQuat.RotateVector(FVector::RightVector).GetSafeNormal();
+	return (FQuat(AttackAxis, PI) * ComposedQuat).Rotator();
+}
+
+float UReEchoCombatVfxComponent::ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight)
+{
+	return FVector::DotProduct(AttackDirection, CameraRight) < 0.0f ? 1.0f : -1.0f;
+}
+
+bool UReEchoCombatVfxComponent::HasMeleePlayDirectionParameter(const UNiagaraSystem* System)
+{
+	if (!System)
+	{
+		return false;
+	}
+	TArray<FNiagaraVariable> UserParameters;
+	System->GetExposedParameters().GetParameters(UserParameters);
+	return UserParameters.ContainsByPredicate(
+	    [](const FNiagaraVariable& Variable)
+	    {
+		    return Variable.GetName() == TEXT("PlayDirection");
+	    });
+}
+
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossIntent& Intent) const
 {
 	UNiagaraSystem* System = ResolveSystem(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Lighting));
@@ -535,13 +786,13 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 	}
 	FVector Start = FVector::ZeroVector;
 	FVector End = FVector::ZeroVector;
-	ResolveBossBeamWorldEndpoints(Intent.Origin, Intent.LockedDirection, Intent.LengthCm, Start, End);
+	ResolveBossBeamWorldEndpoints(Intent.LockedTargetLocation, Intent.LockedDirection, Intent.LengthCm, Start, End);
 	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 	    World,
 	    System,
 	    Start,
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill04Lighting,
-	                                             Intent.LockedDirection),
+	                                             FVector::ForwardVector),
 	    FVector::OneVector,
 	    false,
 	    false,
@@ -572,32 +823,91 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		return nullptr;
 	}
 	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
-	FRotator RelativeRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
-	RelativeRotation += Placement.LocalRotation;
-	const FVector RelativeScale = ResolveAttachedScale(
-	    Placement.Scale,
-	    AttachmentRoot->GetComponentTransform().GetScale3D(),
-	    Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(
-	    System,
-	    AttachmentRoot,
-	    NAME_None,
-	    Placement.LocalOffset,
-	    RelativeRotation,
-	    RelativeScale,
-	    EAttachLocation::KeepRelativeOffset,
-	    bAutoDestroy,
-	    ENCPoolMethod::None,
-	    true);
+	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+	FVector SwordCameraFacingNormal = FVector::UpVector;
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	{
+		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
+		DirectionRotation = ResolveSwordMeshDirectionRotation(Direction, SwordCameraFacingNormal);
+	}
+	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	{
+		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
+		DirectionRotation = ResolveCameraPlaneDirectionRotation(Direction, CameraFacingNormal);
+	}
+	FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	{
+		RelativeRotation = EnsureSwordFrontFacesCamera(RelativeRotation, SwordCameraFacingNormal);
+	}
+	const FVector RelativeScale =
+	    ResolveAttachedScale(Placement.Scale,
+	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
+	                         Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
+	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+	const FVector CameraRight =
+	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
+	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
+	                                ? ResolveMeleePlayDirection(Direction, CameraRight)
+	                                : 1.0f;
+	const bool bReverseMelee = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && PlayDirection < 0.0f;
+	const bool bHasPlayDirectionParameter = HasMeleePlayDirectionParameter(System);
+	UNiagaraComponent* Effect =
+	    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
+	                                                 AttachmentRoot,
+	                                                 NAME_None,
+	                                                 Placement.LocalOffset,
+	                                                 RelativeRotation,
+	                                                 RelativeScale,
+	                                                 EAttachLocation::KeepRelativeOffset,
+	                                                 bAutoDestroy && !(bReverseMelee && !bHasPlayDirectionParameter),
+	                                                 ENCPoolMethod::None,
+	                                                 false);
 	if (Effect)
 	{
+		if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+		{
+			// The authored system fixed bounds are only +/-100, while its live camera-facing sprites are centered
+			// at local Z=-150 and grow as large as 800x600. Their 500 cm half-diagonal may rotate onto any camera
+			// plane axis, so override only this runtime instance without mutating the shared Niagara asset.
+			Effect->SetSystemFixedBounds(ReEchoCombatVfx::FoxDirectionRuntimeBounds);
+		}
+		if (Placement.bUseWorldDirectionRotation)
+		{
+			// Match projectile presentation: the attack direction is a world-space fact. The DA correction remains
+			// local to the effect, while the attachment root continues to own position and lifetime only.
+			Effect->SetAbsolute(false, true, false);
+			Effect->SetWorldRotation(RelativeRotation);
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		{
+			if (bHasPlayDirectionParameter)
+			{
+				Effect->SetVariableFloat(TEXT("User.PlayDirection"), PlayDirection);
+			}
+			else if (!bMissingMeleePlayDirectionWarned)
+			{
+				bMissingMeleePlayDirectionWarned = true;
+				UE_LOG(LogReEcho,
+				       Warning,
+				       TEXT("[VFX] Sword slash '%s' lacks User.PlayDirection; using right-side DesiredAge fallback"),
+				       *System->GetPathName());
+			}
+		}
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
-		ReEchoCombatVfx::LogLayerStateNowAndDelayed(GetWorld(),
-		                                            GetOwner(),
-		                                            AttachmentRoot,
-		                                            Effect,
-		                                            Semantic,
-		                                            TEXT("Attached"));
+		Effect->Activate(true);
+		if (bReverseMelee && !bHasPlayDirectionParameter)
+		{
+			// Exact system duration is an empty one-shot frame, so reverse from the preceding rendered frame.
+			const float ReverseStartAge = FMath::Max(Placement.PlaybackDurationSeconds - (1.0f / 60.0f), 0.0f);
+			Effect->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
+			Effect->SetDesiredAge(ReverseStartAge);
+			ReverseMeleePlaybacks.Add({Effect, ReverseStartAge});
+		}
+		ReEchoCombatVfx::LogLayerStateNowAndDelayed(
+		    GetWorld(), GetOwner(), AttachmentRoot, Effect, Semantic, TEXT("Attached"));
 	}
 	return Effect;
 }
@@ -606,6 +916,11 @@ USceneComponent* UReEchoCombatVfxComponent::ResolveAttackVfxRoot() const
 {
 	AActor* Owner = GetOwner();
 	return AttackVfxRoot ? AttackVfxRoot.Get() : (Owner ? Owner->GetRootComponent() : nullptr);
+}
+
+USceneComponent* UReEchoCombatVfxComponent::ResolveBossWeaponVfxRoot() const
+{
+	return BossWeaponVfxRoot ? BossWeaponVfxRoot.Get() : ResolveAttackVfxRoot();
 }
 
 USceneComponent* UReEchoCombatVfxComponent::ResolveHurtVfxRoot() const
@@ -691,8 +1006,7 @@ void UReEchoCombatVfxComponent::RememberBossAbility(const int64 AttackSequence, 
 	BossAbilityByAttackSequence.Remove(OldestSequence);
 }
 
-bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackSequence,
-	                                                         uint8& OutSemanticValue) const
+bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackSequence, uint8& OutSemanticValue) const
 {
 	const FName* AbilityId = BossAbilityByAttackSequence.Find(AttackSequence);
 	if (!AbilityId)
@@ -704,16 +1018,16 @@ bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackS
 		OutSemanticValue = static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Impact);
 		return true;
 	}
-	if (*AbilityId == TEXT("M_SHEEP_BlinkSlam"))
-	{
-		OutSemanticValue = static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact);
-		return true;
-	}
 	return false;
 }
 
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
+	for (FReverseMeleePlayback& Playback : ReverseMeleePlaybacks)
+	{
+		StopNiagaraEffect(Playback.Effect.Get());
+	}
+	ReverseMeleePlaybacks.Reset();
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);
@@ -1004,7 +1318,43 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 	{
 		return;
 	}
+	const float DelaySeconds = FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(Semantic);
+	if (UWorld* World = GetWorld(); World && DelaySeconds > 0.0f)
+	{
+		const TWeakObjectPtr<UReEchoCombatVfxComponent> WeakThis(this);
+		// Each committed attack owns its delayed slash. Reusing and clearing one handle starves the effect whenever
+		// the attack interval is shorter than the authored weapon-spin delay.
+		FTimerHandle MeleeSlashTimer;
+		World->GetTimerManager().SetTimer(
+		    MeleeSlashTimer,
+		    [WeakThis, Semantic, LockedDirection = Event.Direction]()
+		    {
+			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
+			    {
+				    Component->SpawnAttached(
+				        static_cast<uint8>(Semantic), LockedDirection, Component->ResolveAttackVfxRoot());
+			    }
+		    },
+		    DelaySeconds,
+		    false);
+		return;
+	}
 	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveAttackVfxRoot());
+}
+
+void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)
+{
+	if (Event.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+	EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::PlayerLongSwordImpact;
+	if (!FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(Event.Attack.WeaponId, Semantic))
+	{
+		return;
+	}
+	const FVector ImpactDirection = Event.WorldLocation - Event.SourceWorldLocation;
+	SpawnWorld(static_cast<uint8>(Semantic), Event.WorldLocation, ImpactDirection);
 }
 
 void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
@@ -1013,9 +1363,8 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	{
 		return;
 	}
-	EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner())
-	                                           ? EReEchoCombatVfxSemantic::EnemyHurt
-	                                           : EReEchoCombatVfxSemantic::PlayerHurt;
+	EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner()) ? EReEchoCombatVfxSemantic::EnemyHurt
+	                                                                        : EReEchoCombatVfxSemantic::PlayerHurt;
 	if (const AReEchoEnemyActor* SourceEnemy = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
 	    SourceEnemy && SourceEnemy->GetPresentationId() == TEXT("Enemy.Fox"))
 	{
@@ -1024,8 +1373,7 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	else if (const AReEchoEnemyActor* SourceBoss = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
 	         SourceBoss && SourceBoss->GetPresentationId() == TEXT("Enemy.TimeGuard"))
 	{
-		if (const UReEchoCombatVfxComponent* SourceVfx =
-		        SourceBoss->FindComponentByClass<UReEchoCombatVfxComponent>())
+		if (const UReEchoCombatVfxComponent* SourceVfx = SourceBoss->FindComponentByClass<UReEchoCombatVfxComponent>())
 		{
 			uint8 BossImpactSemantic = 0;
 			if (SourceVfx->TryResolveBossImpactSemantic(Event.Attack.Sequence, BossImpactSemantic))
@@ -1126,7 +1474,8 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 		                           ResolveAttackVfxRoot(),
 		                           false);
 	}
-	else if (Event.Phase == EReEchoPresentationActionPhase::Ended ||
+	else if (Event.Phase == EReEchoPresentationActionPhase::Recovery ||
+	         Event.Phase == EReEchoPresentationActionPhase::Ended ||
 	         Event.Phase == EReEchoPresentationActionPhase::Cancelled)
 	{
 		StopEffect(DashEffect);
@@ -1135,11 +1484,12 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 
 void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
-	const bool bSkill02 = Intent.AbilityId == TEXT("M_SHEEP_StationaryVolley") ||
-	                      Intent.AbilityId == TEXT("M_SHEEP_MovingSpread");
+	const bool bSkill01 = Intent.AbilityId == TEXT("M_SHEEP_MeleeSweep");
+	const bool bSkill02 =
+	    Intent.AbilityId == TEXT("M_SHEEP_StationaryVolley") || Intent.AbilityId == TEXT("M_SHEEP_MovingSpread");
 	const bool bSkill03 = Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam");
 	const bool bSkill04 = Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam");
-	if (!bSkill02 && !bSkill03 && !bSkill04)
+	if (!bSkill01 && !bSkill02 && !bSkill03 && !bSkill04)
 	{
 		return;
 	}
@@ -1147,18 +1497,23 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
 	{
 		StopBossActionEffects();
-		const EReEchoCombatVfxSemantic ChargingSemantic =
-		    bSkill02 ? EReEchoCombatVfxSemantic::GoatSkill02Charging
-		             : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
-		                        : EReEchoCombatVfxSemantic::GoatSkill04Charging;
-		BossChargingEffect = SpawnAttached(
-		    static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ResolveAttackVfxRoot(), false);
-		if (bSkill03)
+		if (bSkill01)
+		{
+			return;
+		}
+		const EReEchoCombatVfxSemantic ChargingSemantic = bSkill02   ? EReEchoCombatVfxSemantic::GoatSkill02Charging
+		                                                  : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
+		                                                             : EReEchoCombatVfxSemantic::GoatSkill04Charging;
+		BossChargingEffect = SpawnAttached(static_cast<uint8>(ChargingSemantic),
+		                                   Intent.LockedDirection,
+		                                   bSkill02 ? ResolveBossWeaponVfxRoot() : ResolveAttackVfxRoot(),
+		                                   false);
+		if (bSkill03 || bSkill04)
 		{
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                       Intent.LockedTargetLocation,
-			                                       Intent.LockedDirection,
-			                                       false);
+			                                 Intent.LockedTargetLocation,
+			                                 Intent.LockedDirection,
+			                                 false);
 		}
 		return;
 	}
@@ -1166,8 +1521,27 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	{
 		StopEffect(BossChargingEffect);
 		StopEffect(BossTelegraphEffect);
+		if (bSkill01)
+		{
+			if (USceneComponent* WeaponRoot = ResolveBossWeaponVfxRoot())
+			{
+				SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Impact),
+				           WeaponRoot->GetComponentLocation(),
+				           Intent.LockedDirection);
+			}
+		}
+		if (bSkill03)
+		{
+			SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact),
+			           Intent.LockedTargetLocation,
+			           Intent.LockedDirection);
+		}
 		if (bSkill04)
 		{
+			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
+			                                 Intent.LockedTargetLocation,
+			                                 Intent.LockedDirection,
+			                                 false);
 			StopEffect(BossActiveEffect);
 			BossActiveEffect = SpawnBossBeam(Intent);
 		}
@@ -1197,11 +1571,10 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 				StopNiagaraEffect(*Existing);
 				BossProjectileEffects.Remove(Key);
 			}
-			if (UNiagaraComponent* Effect =
-			        SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
-			                   Event.Location,
-			                   Event.Direction,
-			                   false))
+			if (UNiagaraComponent* Effect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill02Bullet),
+			                                           Event.Location,
+			                                           Event.Direction,
+			                                           false))
 			{
 				BossProjectileEffects.Add(Key, Effect);
 			}
@@ -1214,7 +1587,7 @@ void UReEchoCombatVfxComponent::HandleProjectile(const FReEchoEnemyProjectileEve
 				(*Effect)->SetWorldLocationAndRotation(
 				    Event.Location,
 				    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::GoatSkill02Bullet,
-				                                                  Event.Direction));
+				                                             Event.Direction));
 			}
 			else if (Event.Type == EReEchoEnemyProjectileEventType::Ended)
 			{

@@ -6,6 +6,10 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 
+#if !UE_BUILD_SHIPPING
+DEFINE_LOG_CATEGORY_STATIC(LogReEchoRangedCritElementTrace, Log, All);
+#endif
+
 class FReEchoElementResolverAccess
 {
 public:
@@ -20,6 +24,13 @@ namespace
 constexpr const TCHAR* ElementImmunityStatusId = TEXT("Z_Elemental_Immunity");
 constexpr const TCHAR* BurnStatusId = TEXT("Z_Burn");
 constexpr float BurnTickIntervalSeconds = 1.0f;
+
+#if !UE_BUILD_SHIPPING
+bool IsRangedWeaponTrace(const FReEchoAttackIdentity& Attack)
+{
+	return Attack.WeaponId == TEXT("W_J_08") || Attack.WeaponId == TEXT("W_J_09");
+}
+#endif
 
 UReEchoCombatantComponent* GetCombatant(AActor& Actor)
 {
@@ -69,8 +80,11 @@ void AddAffected(FReEchoElementExecutionResult& Result, AActor& Target)
 	Result.AffectedTargets.AddUnique(&Target);
 }
 
-FReEchoHitResolved
-ApplyDamage(AActor& Target, const float Damage, const EReEchoElement Element, const FReEchoElementHitContext& Context)
+FReEchoHitResolved ApplyDamage(AActor& Target,
+                               const float Damage,
+                               const EReEchoElement Element,
+                               const FReEchoElementHitContext& Context,
+                               const FName ReactionBehaviorId = NAME_None)
 {
 	FReEchoHitIntent Intent;
 	Intent.Attack = Context.Attack;
@@ -78,12 +92,18 @@ ApplyDamage(AActor& Target, const float Damage, const EReEchoElement Element, co
 	Intent.RawDamage = Damage;
 	Intent.DamageSource = EReEchoDamageSource::Reaction;
 	Intent.Element = Element;
+	Intent.ReactionBehaviorId = ReactionBehaviorId;
 	Intent.ReactionEfficiency = Context.ReactionEfficiency;
 	Intent.bCritical = Context.bCritical;
 	Intent.bSourceRulesApplied = Context.bSourceRulesApplied;
 	Intent.SourceLocation = Context.SourceLocation;
 	Intent.HitLocation = Target.GetActorLocation();
 	return ReEchoHitResolver::ResolvePhysicalHit(Intent);
+}
+
+FName ResolveDamageNumberReactionBehavior(const FReEchoElementHitResult& Result)
+{
+	return Result.bAppliedEnhancement ? FName(TEXT("Reaction.Enhance")) : Result.ReactionBehaviorId;
 }
 
 void ApplyStatus(FReEchoElementState& State,
@@ -158,6 +178,7 @@ void ClearBurn(FReEchoElementState& State, const bool bRemoveStatus)
 	State.bBurnActive = false;
 	State.BurnTickDamage = 0.0f;
 	State.BurnNextTickTimeSeconds = 0.0f;
+	State.BurnReactionBehaviorId = NAME_None;
 	State.BurnSourceLocation = FVector::ZeroVector;
 	State.BurnAttack = {};
 	if (bRemoveStatus)
@@ -197,7 +218,7 @@ int32 ReEchoHitResolver::TickElementStatuses(AActor& Target, const float Current
 		FReEchoElementHitContext Context;
 		Context.Attack = State.BurnAttack;
 		Context.SourceLocation = State.BurnSourceLocation;
-		ApplyDamage(Target, State.BurnTickDamage, EReEchoElement::Flame, Context);
+		ApplyDamage(Target, State.BurnTickDamage, EReEchoElement::Flame, Context, State.BurnReactionBehaviorId);
 		State.BurnNextTickTimeSeconds += BurnTickIntervalSeconds;
 		++AppliedTicks;
 	}
@@ -212,6 +233,24 @@ int32 ReEchoHitResolver::TickElementStatuses(AActor& Target, const float Current
 FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 {
 	FReEchoHitIntent Candidate = Intent;
+#if !UE_BUILD_SHIPPING
+	const bool bTraceRangedWeapon = IsRangedWeaponTrace(Candidate.Attack);
+	if (bTraceRangedWeapon)
+	{
+		UE_LOG(LogReEchoRangedCritElementTrace,
+		       Warning,
+		       TEXT("[RangedCritTrace] ResolverRouteEnter weapon=%s sequence=%lld source=%s target=%s rawDamage=%.3f "
+		            "critical=%d element=%d sourceRulesApplied=%d"),
+		       *Candidate.Attack.WeaponId.ToString(),
+		       static_cast<long long>(Candidate.Attack.Sequence),
+		       *GetNameSafe(Candidate.Attack.Source.Get()),
+		       *GetNameSafe(Candidate.Target),
+		       Candidate.RawDamage,
+		       Candidate.bCritical ? 1 : 0,
+		       static_cast<int32>(Candidate.Element),
+		       Candidate.bSourceRulesApplied ? 1 : 0);
+	}
+#endif
 	if (!Candidate.bSourceRulesApplied)
 	{
 		if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Candidate.Attack.Source.Get()))
@@ -220,6 +259,20 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 		}
 		Candidate.bSourceRulesApplied = true;
 	}
+#if !UE_BUILD_SHIPPING
+	if (bTraceRangedWeapon)
+	{
+		UE_LOG(LogReEchoRangedCritElementTrace,
+		       Warning,
+		       TEXT("[RangedCritTrace] ResolverRouteAfterSourceRules weapon=%s sequence=%lld rawDamage=%.3f "
+		            "critical=%d element=%d"),
+		       *Candidate.Attack.WeaponId.ToString(),
+		       static_cast<long long>(Candidate.Attack.Sequence),
+		       Candidate.RawDamage,
+		       Candidate.bCritical ? 1 : 0,
+		       static_cast<int32>(Candidate.Element));
+	}
+#endif
 	if (Candidate.Element == EReEchoElement::None)
 	{
 		return ResolvePhysicalHit(Candidate);
@@ -230,17 +283,39 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 	Result.RawDamage = Candidate.RawDamage;
 	Result.DamageSource = Candidate.DamageSource;
 	Result.Element = Candidate.Element;
+	Result.ReactionBehaviorId = Candidate.ReactionBehaviorId;
 	Result.bCritical = Candidate.bCritical;
 	Result.HitLocation = Candidate.HitLocation;
 	IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate.Target);
 	UReEchoCombatantComponent* Combatant = Target ? Target->GetCombatTargetCombatant() : nullptr;
-	if (!Candidate.Target || !Target || !Combatant || !Target->IsCombatTargetAlive() ||
-	    !ReEchoCombatRelations::CanDamage(Candidate.Attack, *Candidate.Target, Candidate.bAllowSameFactionDamage))
+	const bool bTargetAlive = Target && Target->IsCombatTargetAlive();
+	const bool bCanDamage =
+	    Candidate.Target &&
+	    ReEchoCombatRelations::CanDamage(Candidate.Attack, *Candidate.Target, Candidate.bAllowSameFactionDamage);
+	if (!Candidate.Target || !Target || !Combatant || !bTargetAlive || !bCanDamage)
 	{
 		Result.bBlocked = true;
+#if !UE_BUILD_SHIPPING
+		if (bTraceRangedWeapon)
+		{
+			UE_LOG(LogReEchoRangedCritElementTrace,
+			       Warning,
+			       TEXT("[RangedCritTrace] ElementResolverRejected weapon=%s sequence=%lld hasTarget=%d "
+			            "combatTarget=%d combatant=%d alive=%d canDamage=%d rawDamage=%.3f"),
+			       *Candidate.Attack.WeaponId.ToString(),
+			       static_cast<long long>(Candidate.Attack.Sequence),
+			       Candidate.Target ? 1 : 0,
+			       Target ? 1 : 0,
+			       Combatant ? 1 : 0,
+			       bTargetAlive ? 1 : 0,
+			       bCanDamage ? 1 : 0,
+			       Candidate.RawDamage);
+		}
+#endif
 		return Result;
 	}
 	const bool bWasAlive = Combatant->IsAlive();
+	const float TargetHealthBefore = Combatant->GetSnapshot().CurrentHealth;
 	FReEchoElementHitContext Context;
 	Context.SourceLocation = Candidate.SourceLocation;
 	Context.Attack = Candidate.Attack;
@@ -262,6 +337,26 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 	    ResolveElementHit(*Candidate.Target, Candidate.Element, Candidate.RawDamage, Context).ImmediateDamageApplied;
 	Result.bBlocked = Result.AppliedDamage <= 0.0f;
 	Result.bKilled = bWasAlive && !Combatant->IsAlive();
+#if !UE_BUILD_SHIPPING
+	if (bTraceRangedWeapon)
+	{
+		UE_LOG(LogReEchoRangedCritElementTrace,
+		       Warning,
+		       TEXT("[RangedCritTrace] ElementResolverApplied weapon=%s sequence=%lld target=%s rawDamage=%.3f "
+		            "applied=%.3f healthBefore=%.3f healthAfter=%.3f critical=%d element=%d blocked=%d killed=%d"),
+		       *Candidate.Attack.WeaponId.ToString(),
+		       static_cast<long long>(Candidate.Attack.Sequence),
+		       *GetNameSafe(Candidate.Target),
+		       Candidate.RawDamage,
+		       Result.AppliedDamage,
+		       TargetHealthBefore,
+		       Combatant->GetSnapshot().CurrentHealth,
+		       Result.bCritical ? 1 : 0,
+		       static_cast<int32>(Result.Element),
+		       Result.bBlocked ? 1 : 0,
+		       Result.bKilled ? 1 : 0);
+	}
+#endif
 	return Result;
 }
 
@@ -338,6 +433,7 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			{
 				PrimaryState.BurnTickDamage = TickDamage;
 				PrimaryState.BurnNextTickTimeSeconds = CurrentTime + BurnTickIntervalSeconds;
+				PrimaryState.BurnReactionBehaviorId = ResolveDamageNumberReactionBehavior(Execution.Primary);
 				PrimaryState.BurnSourceLocation = Context.SourceLocation;
 				PrimaryState.BurnAttack = Context.Attack;
 			}
@@ -370,7 +466,10 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 		const float ElementalAttack = FMath::Max(0.0f, Context.SourceElementalAttack);
 		const float Damage = ElementalAttack * ElementalAttack * Reaction->DamageIncrease *
 		                     FMath::Max(0.0f, Context.ReactionEfficiency) * FinalMultiplier * EchoMultiplier;
-		Execution.ImmediateDamageApplied += ApplyDamage(Target, Damage, IncomingElement, Context).AppliedDamage;
+		Execution.ImmediateDamageApplied +=
+		    ApplyDamage(
+		        Target, Damage, IncomingElement, Context, ResolveDamageNumberReactionBehavior(Execution.Primary))
+		        .AppliedDamage;
 		ApplyElementalImmunity(PrimaryState, *Rules, CurrentTime);
 		AddAffected(Execution, Target);
 	}
@@ -426,7 +525,10 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			}
 			FReEchoElementState& State = FReEchoElementResolverAccess::Edit(*Combatant);
 			State.Attached = EReEchoElement::None;
-			Execution.ImmediateDamageApplied += ApplyDamage(*Current, Damage, IncomingElement, Context).AppliedDamage;
+			Execution.ImmediateDamageApplied +=
+			    ApplyDamage(
+			        *Current, Damage, IncomingElement, Context, ResolveDamageNumberReactionBehavior(Execution.Primary))
+			        .AppliedDamage;
 			ApplyElementalImmunity(State, *Rules, CurrentTime);
 			AddAffected(Execution, *Current);
 			if (Current != &Target)

@@ -46,4 +46,9 @@ private:
 	float TravelledCm = 0.0f;
 	bool bActive = false;
 	TSet<TWeakObjectPtr<AActor>> HitTargets;
+#if !UE_BUILD_SHIPPING
+	TSet<TWeakObjectPtr<AActor>> DiagnosticLoggedNearTargets;
+	TWeakObjectPtr<AActor> DiagnosticClosestTarget;
+	float DiagnosticClosestPathDistanceCm = TNumericLimits<float>::Max();
+#endif
 };

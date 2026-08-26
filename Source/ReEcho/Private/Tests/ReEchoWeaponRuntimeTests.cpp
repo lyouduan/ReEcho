@@ -3,12 +3,14 @@
 #include "Weapons/ReEchoWeaponRuntime.h"
 
 #include "Combat/ReEchoCombatantComponent.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Components/SceneComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
@@ -95,6 +97,9 @@ struct FReEchoWeaponWorldFixture
 		Stats.AttackSpeed = 1.0f;
 		Stats.ReactionEfficiency = 1.0f;
 		OutCombatant->InitializeFromStats(Stats, true);
+		UReEchoCombatEventsComponent* Events = NewObject<UReEchoCombatEventsComponent>(Owner, TEXT("WeaponOwnerEvents"));
+		Owner->AddInstanceComponent(Events);
+		Events->RegisterComponent();
 		return Owner;
 	}
 };
@@ -277,6 +282,9 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	Weapon->InitializeWeapon(&Build, Snapshot);
 	AReEchoEnemyActor* Primary = SpreadFixture.SpawnEnemy(FVector(1000.0f, 0.0f, 0.0f), 4, 100.0f);
 	AReEchoEnemyActor* Splash = SpreadFixture.SpawnEnemy(FVector(1000.0f, 120.0f, 0.0f), 5, 100.0f);
+	FReEchoEnemyLogicSnapshot TransformingState = Primary->GetEnemyLogicComponent()->GetSnapshot();
+	TransformingState.Phase = EReEchoEnemyBehaviorPhase::Transforming;
+	Primary->GetEnemyLogicComponent()->RestoreSnapshot(TransformingState);
 	TestTrue(TEXT("Spread projectile attack executes"), Weapon->ExecuteBasicAttack(Combatant));
 	TestEqual(
 	    TEXT("Canonical bow projectile count comes from weapon definition"), CountProjectiles(SpreadFixture.World), 1);
@@ -291,7 +299,8 @@ bool FReEchoWeaponProjectileRuntimeTest::RunTest(const FString& Parameters)
 	         SyntheticSpread.Num() == 3 &&
 	             !FMath::IsNearlyEqual(SyntheticSpread[0].Rotation().Yaw, SyntheticSpread[2].Rotation().Yaw, 0.1f));
 	TickProjectiles(SpreadFixture.World, 1.10f);
-	TestTrue(TEXT("Primary target takes projectile damage"), WeaponEnemyHealth(Primary) < 100.0f);
+	TestTrue(TEXT("Projectile damages an ordinary enemy during presentation-only transformation"),
+	         WeaponEnemyHealth(Primary) < 100.0f);
 	TestEqual(TEXT("Non-explosive bow projectile leaves nearby target untouched"), WeaponEnemyHealth(Splash), 100.0f);
 
 	FReEchoWeaponWorldFixture LifetimeFixture;
@@ -1203,6 +1212,15 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 		Commit.RangeCm = 200.0f;
 		return Commit;
 	};
+	auto HasEnabledRuntimeEffect = [&](const FName PartId)
+	{
+		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(PartId);
+		return Part && Part->bEnabled && Part->Effects.ContainsByPredicate(
+		                                     [](const FReEchoCsvPartEffectRow& Effect)
+		                                     {
+			                                     return Effect.bEnabled;
+		                                     });
+	};
 
 	AReEchoWeaponActor* RangeWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"));
 	auto RangeContext = RangeWeapon->BuildRuneAttackContextForTests(MakeCommit(1), SourceCombatant);
@@ -1224,22 +1242,26 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	TestTrue(TEXT("Four-target group hit grants the configured half-second invulnerability"),
 	         SourceCombatant->IsTimedInvulnerable(Fixture.World->GetTimeSeconds() + 0.49f));
 
-	AReEchoEnemyActor* MeteorCenter = Fixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 200, 1000.0f);
-	AReEchoEnemyActor* MeteorNeighbor = Fixture.SpawnEnemy(FVector(100.0f, 100.0f, 0.0f), 201, 1000.0f);
-	AReEchoWeaponActor* MeteorWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_METEOR_SWORDBLADE"));
-	auto MeteorContext = MeteorWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant);
-	MeteorContext->EffectiveHitTargets.Add(MeteorCenter);
-	for (int32 Index = 0; Index < 6; ++Index)
+	if (HasEnabledRuntimeEffect(TEXT("P_LONGSWORD_METEOR_SWORDBLADE")))
 	{
-		MeteorContext->EffectiveHitTargets.Add(GroupTargets[Index]);
+		AReEchoEnemyActor* MeteorCenter = Fixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 200, 1000.0f);
+		AReEchoEnemyActor* MeteorNeighbor = Fixture.SpawnEnemy(FVector(100.0f, 100.0f, 0.0f), 201, 1000.0f);
+		AReEchoWeaponActor* MeteorWeapon =
+		    SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_METEOR_SWORDBLADE"));
+		auto MeteorContext = MeteorWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant);
+		MeteorContext->EffectiveHitTargets.Add(MeteorCenter);
+		for (int32 Index = 0; Index < 6; ++Index)
+		{
+			MeteorContext->EffectiveHitTargets.Add(GroupTargets[Index]);
+		}
+		const float MeteorCenterBefore = WeaponEnemyHealth(MeteorCenter);
+		const float MeteorNeighborBefore = WeaponEnemyHealth(MeteorNeighbor);
+		MeteorWeapon->ProcessRuneAttackForTests(MeteorContext);
+		TestTrue(TEXT("Seven-target threshold drops a non-recursive meteor on the nearest hit target"),
+		         WeaponEnemyHealth(MeteorCenter) < MeteorCenterBefore);
+		TestTrue(TEXT("Meteor uses the configured 1.5m explosion radius"),
+		         WeaponEnemyHealth(MeteorNeighbor) < MeteorNeighborBefore);
 	}
-	const float MeteorCenterBefore = WeaponEnemyHealth(MeteorCenter);
-	const float MeteorNeighborBefore = WeaponEnemyHealth(MeteorNeighbor);
-	MeteorWeapon->ProcessRuneAttackForTests(MeteorContext);
-	TestTrue(TEXT("Seven-target threshold drops a non-recursive meteor on the nearest hit target"),
-	         WeaponEnemyHealth(MeteorCenter) < MeteorCenterBefore);
-	TestTrue(TEXT("Meteor uses the configured 1.5m explosion radius"),
-	         WeaponEnemyHealth(MeteorNeighbor) < MeteorNeighborBefore);
 
 	AReEchoEnemyActor* InnerTarget = Fixture.SpawnEnemy(FVector(40.0f, 0.0f, 0.0f), 202, 1000.0f);
 	AReEchoEnemyActor* OuterTarget = Fixture.SpawnEnemy(FVector(160.0f, 0.0f, 0.0f), 203, 1000.0f);
@@ -1253,21 +1275,39 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	TestTrue(TEXT("Inner half keeps base damage"), FMath::IsNearlyEqual(InnerResult.AppliedDamage, 10.0f));
 	TestTrue(TEXT("Outer half receives exactly +40% damage"), FMath::IsNearlyEqual(OuterResult.AppliedDamage, 14.0f));
 
-	AReEchoEnemyActor* ThrowTarget = Fixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 204, 1000.0f);
-	AReEchoWeaponActor* ThrowWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_THROWRECALL_GRIP"));
-	const float ThrowBefore = WeaponEnemyHealth(ThrowTarget);
-	TestTrue(TEXT("First active input starts the data-authored scythe throw"),
-	         ThrowWeapon->TryActiveAttack(SourceCombatant));
-	TestTrue(TEXT("Scythe remains in a thrown state"), ThrowWeapon->IsScytheThrownForTests());
-	ThrowWeapon->AdvanceScytheThrowForTests(0.6f);
-	const float AfterTravel = WeaponEnemyHealth(ThrowTarget);
-	TestTrue(TEXT("Travel contact applies the configured 60% attack damage"), AfterTravel < ThrowBefore);
-	ThrowWeapon->AdvanceScytheThrowForTests(1.0f);
-	TestTrue(TEXT("Stationary scythe ticks at inherited attack speed for configured 20% damage"),
-	         WeaponEnemyHealth(ThrowTarget) < AfterTravel);
-	TestTrue(TEXT("Second active input recalls without creating another attack"),
-	         ThrowWeapon->TryActiveAttack(SourceCombatant));
-	TestFalse(TEXT("Recall clears the thrown state"), ThrowWeapon->IsScytheThrownForTests());
+	if (HasEnabledRuntimeEffect(TEXT("P_SCYTHE_THROWRECALL_GRIP")))
+	{
+		AReEchoEnemyActor* ThrowTarget = Fixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 204, 1000.0f);
+		AReEchoWeaponActor* ThrowWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_THROWRECALL_GRIP"));
+		UReEchoCombatEventsComponent* ThrowEvents =
+		    ThrowWeapon->GetOwner()->FindComponentByClass<UReEchoCombatEventsComponent>();
+		if (!TestNotNull(TEXT("Active weapon owner has combat presentation events"), ThrowEvents))
+		{
+			return false;
+		}
+		const float ThrowBefore = WeaponEnemyHealth(ThrowTarget);
+		TestTrue(TEXT("First active input starts the data-authored scythe throw"),
+		         ThrowWeapon->TryActiveAttack(SourceCombatant));
+		TestEqual(TEXT("Manually triggered active attack publishes one presentation commit"),
+		          ThrowEvents->GetAttackCommittedPublishCountForTests(),
+		          1);
+		TestEqual(TEXT("Published active event keeps the committed scythe attack pattern"),
+		          ThrowEvents->GetLastAttackCommittedEventForTests().AttackPatternId,
+		          FName(TEXT("Pattern.ScytheSweep")));
+		TestTrue(TEXT("Scythe remains in a thrown state"), ThrowWeapon->IsScytheThrownForTests());
+		ThrowWeapon->AdvanceScytheThrowForTests(0.6f);
+		const float AfterTravel = WeaponEnemyHealth(ThrowTarget);
+		TestTrue(TEXT("Travel contact applies the configured 60% attack damage"), AfterTravel < ThrowBefore);
+		ThrowWeapon->AdvanceScytheThrowForTests(1.0f);
+		TestTrue(TEXT("Stationary scythe ticks at inherited attack speed for configured 20% damage"),
+		         WeaponEnemyHealth(ThrowTarget) < AfterTravel);
+		TestTrue(TEXT("Second active input recalls without creating another attack"),
+		         ThrowWeapon->TryActiveAttack(SourceCombatant));
+		TestEqual(TEXT("Recall does not publish a duplicate attack presentation event"),
+		          ThrowEvents->GetAttackCommittedPublishCountForTests(),
+		          1);
+		TestFalse(TEXT("Recall clears the thrown state"), ThrowWeapon->IsScytheThrownForTests());
+	}
 	return true;
 }
 

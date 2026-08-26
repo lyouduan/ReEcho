@@ -29,20 +29,33 @@ void UReEchoAttackControllerComponent::BeginManualAttack()
 	{
 		return;
 	}
+
+	// The shared GAS input may only have one owner. SetAttackMode normally clears the
+	// previous source; keep this ingress self-healing so a stale automatic hold can
+	// never coexist with a newly accepted physical input.
+	if (bAutomaticHeld)
+	{
+		ReleaseAttackRequests();
+	}
 	bManualHeld = true;
 	Host->PressBasicAttackInput();
 }
 
 void UReEchoAttackControllerComponent::EndManualAttack()
 {
-	if (Mode != EReEchoAttackMode::Manual || !bManualHeld)
+	if (!bManualHeld)
 	{
 		return;
 	}
 	bManualHeld = false;
-	if (IReEchoAttackControllerHost* Host = ResolveHost())
+	// A late physical key-up must clean its own stale flag, but must not release a
+	// newer automatic owner after a mode transition.
+	if (!bAutomaticHeld)
 	{
-		Host->ReleaseBasicAttackInput();
+		if (IReEchoAttackControllerHost* Host = ResolveHost())
+		{
+			Host->ReleaseBasicAttackInput();
+		}
 	}
 }
 
@@ -54,9 +67,14 @@ void UReEchoAttackControllerComponent::ReleaseAutomaticAttack()
 		return;
 	}
 	bAutomaticHeld = false;
-	if (IReEchoAttackControllerHost* Host = ResolveHost())
+	// Symmetric ownership rule: releasing automatic targeting cannot cancel an
+	// accepted manual hold.
+	if (!bManualHeld)
 	{
-		Host->ReleaseBasicAttackInput();
+		if (IReEchoAttackControllerHost* Host = ResolveHost())
+		{
+			Host->ReleaseBasicAttackInput();
+		}
 	}
 }
 
@@ -93,6 +111,12 @@ void UReEchoAttackControllerComponent::UpdateAutomaticAttack()
 	Host->FaceAutomaticTarget(*Target);
 	if (!bAutomaticHeld)
 	{
+		// Automatic acquisition owns the same GAS input as physical attack. A stale
+		// manual owner is released before automatic ownership is accepted.
+		if (bManualHeld)
+		{
+			ReleaseAttackRequests();
+		}
 		bAutomaticHeld = true;
 		Host->PressBasicAttackInput();
 	}

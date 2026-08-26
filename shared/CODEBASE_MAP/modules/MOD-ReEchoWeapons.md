@@ -117,11 +117,17 @@ Commit
 
 可见 Projectile/Wave Actor 不是飞行真相源；即使没有美术资源，逻辑载体也必须完成移动、命中和过期。
 
+长剑的 `Pattern.LongSwordCombo` 在提交近战命中时复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询兔子 Host 持有的逻辑球；弧内球由 EnemyHost 发布 `Ended` 并移除，VFX 只消费结束事件。镰刀、弓、枪及非兔子敌方投射物不进入该斩弹路径，禁止只删除视觉代理或用刀光 Bounds 充当玩法碰撞。
+
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。生产武器清单固定为长剑、镰刀、弓和枪；`MoonStaff` 与 `StaffLightWave` 只服务贤者独立动画辅助，不是可选、可装备或可入商店的生产武器。
 
 Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec::bPierceOnCritical` 控制。逻辑投射物永久保存本弹的 `HitTargets`：直击暴击且造成正伤害时继续飞行，否则到期；同一目标最多结算一次。爆炸仍在每次有效接触点独立查询范围目标，因此穿透与爆炸组合不会把视觉碰撞或主模块回调变成第二个命中权威。分裂选目标和子弹生成属于主模块适配，但子弹继续复用此 Spec/HitIntent，且用显式标志禁止递归分裂。
 
-四把生产武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。Catalog 另保留一个 `MoonStaff` 非生产辅助 Profile，不能进入武器定义、开局选择、商店或存档身份。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害；弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
+四把生产武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、绝对世界长度、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。每个 VFX Slot 的完整 `Offset` Transform 与世界尺寸策略也是该武器的表现真相。Catalog 另保留一个 `MoonStaff` 非生产辅助 Profile，不能进入武器定义、开局选择、商店或存档身份。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。长剑/镰刀的 DamageApplied 由 Presentation 消费来源侧最终正伤害 `OnHit`，在命中世界位置播放且包含致死命中；弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害。弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
+
+`AReEchoWeaponActor::PublishAttackCommittedEvent` 是普通与主动攻击成功 Confirm 后唯一的表现提交出口：手动/自动输入不得分叉生成特效，主动镰刀出手会发布对应事件，已投出镰刀的召回不产生新 Commit，因此不重复播放。
+镰刀的 FullSpin 表现按 `MotionDurationSeconds` 保持 WeaponActor 手部挂点位置不动，并让武器子表现围绕该手部根节点的相机朝向法线旋转完整一周，结束后恢复根旋转并触发 AttackCommitted VFX；不得绕角色身体中心公转。长剑不执行 FullSpin，其前方 180 度玩法查询在提交时立即释放刀光。两种轨迹都只改变表现 Transform 和 VFX 时序，不改变 `ReEchoWeapons` 的近战查询、伤害时机或范围。
+Player/Echo 的 `VisualFacingSign` 是武器左右换手的唯一朝向输入；WeaponActor 沿当前相机屏幕水平轴镜像手部挂点，左向再额外偏移由两侧对称手点定义的一整个人物宽度，同时对带反向作者轴的剑贴图镜像平面角度，保持手部旋转中心，不假设固定世界 X/Y，也不通过负 Scale 翻转武器纹理。长剑攻击事件优先锁定提交瞬间的敌人方向；交付的 `0811_01` 刀光网格位于本地 YZ 平面，因此刀光以本地 X 法线朝向摄像机、本地 Y 对齐投影后的攻击方向，再叠加 DA Roll 作为屏幕内斩击角度修正；若 DA 修正把最终法线翻到背面，程序只绕最终本地 Y 攻击轴翻正法线，避免单面材质被剔除且不改变刀光指向。单一 Niagara 资源优先通过 `User.PlayDirection` 控制左正播/右逆播；替换资源缺少该参数时，程序仅对右侧使用从最后非空帧开始的 DesiredAge 倒放兼容路径并记录警告，资源恢复参数后自动停用回退。镰刀沿用自身现有相机平面约定。
 
 ### 持有者瞄准适配
 
