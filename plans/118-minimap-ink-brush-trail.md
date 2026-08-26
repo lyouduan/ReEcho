@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@f8c5b6c64207efb4f4a5ce4cc6e3197585b266ac`。
 - 本地实现方式（可选，仅作交接说明）：`feat/minimap-ink-brush-trail`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan118-minimap-ink-brush`。
@@ -53,20 +53,20 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
   - WBP 可调参数位于现有 `UReEchoMinimapCanvasWidget` 实例，不新增第二个小地图 WBP 或 Gameplay 状态。
 - 相关文档同步范围：审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md` 与 `README.md`；预期模块拓扑/索引不变。更新 `MOD-ReEcho.md`、`MOD-ReEchoUI.md` 与 `Design/UI/ReEcho_UI修改指导.md` 中的小地图笔触职责、资产路径、性能边界和调参入口。
 - 关闭前逐项填写审阅结果：
-  - `ARCHITECTURE.md`：待审阅。
-  - `README.md`：待审阅。
-  - `MOD-ReEcho.md`：待更新。
-  - `MOD-ReEchoUI.md`：待更新。
-  - `Design/UI/ReEcho_UI修改指导.md`：待更新。
+  - `ARCHITECTURE.md`：已审阅；Runtime Module 拓扑与依赖方向不变，无需修改。
+  - `README.md`：已审阅；模块/领域索引不变，无需修改。
+  - `MOD-ReEcho.md`：已补充小地图笔触属于只读、有界表现投影。
+  - `MOD-ReEchoUI.md`：已补充笔触资产、Cook 依赖、回退及调参职责。
+  - `Design/UI/ReEcho_UI修改指导.md`：已补充美术交付路径、运行时资产和 WBP 参数说明。
 
 ## 锁定验收
 
-- [ ] 小地图回响轨迹不再使用生产路径的纯色 `MakeLines`，而是使用交付 512px 笔尖与 Grain UI 材质连续绘制；材质缺失时旧折线 fallback 可用。
-- [ ] 盖印跨折线段保持近似等距，方向跟随路径，并按确定性种子应用可调角度/透明度变化；相同输入不会逐帧闪烁。
-- [ ] 保留每个 Echo 的既有轨迹颜色、Player/Echo 头像、透明底板和世界到小地图坐标投影。
-- [ ] 笔触尺寸、间距、角度变化、不透明度变化与 Grain 强度可在 `WBP_ReEchoEncounterHud` 的小地图控件 Details 调整，非法值被安全钳制。
-- [ ] 单条轨迹盖印数量有明确上限；零长度段、单点路径和极密路径不会崩溃或产生 NaN。
-- [ ] 512px 笔尖、Grain 和 UI 材质均可加载并被 Cook 依赖追踪；完整 Photoshop 交付包已归档且不把 `.abr` 当运行时资产。
+- [x] 小地图回响轨迹不再使用生产路径的纯色 `MakeLines`，而是使用交付 512px 笔尖与 Grain UI 材质连续绘制；材质缺失时旧折线 fallback 可用。
+- [x] 盖印跨折线段保持近似等距，方向跟随路径，并按确定性种子应用可调角度/透明度变化；相同输入不会逐帧闪烁。
+- [x] 保留每个 Echo 的既有轨迹颜色、Player/Echo 头像、透明底板和世界到小地图坐标投影。
+- [x] 笔触尺寸、间距、角度变化、不透明度变化与 Grain 强度可在 `WBP_ReEchoEncounterHud` 的小地图控件 Details 调整，非法值被安全钳制。
+- [x] 单条轨迹盖印数量有明确上限；零长度段、单点路径和极密路径不会崩溃或产生 NaN。
+- [x] 512px 笔尖、Grain 和 UI 材质均可加载并被 Cook 依赖追踪；完整 Photoshop 交付包已归档且不把 `.abr` 当运行时资产。
 - [ ] `ReEcho.UI.Minimap`、`ReEcho.UI.CombatHud`、UE 5.8 Editor 构建、静态校验及最终 `-FullRebuild` 发布门禁通过。
 - [ ] 用户在 `Level00` 手测轨迹连续性、粗细、颗粒感、颜色、转角、同屏多 Echo 密度和头像遮挡，并确认通过。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
@@ -104,10 +104,17 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 
 ### 变化
 
+- 已归档完整 Photoshop 交付包，并新增幂等的运行时纹理导入与 UI 材质 authoring 脚本。
+- 已将 Minimap 轨迹生产路径改为确定性、有界的笔尖盖印；保留旧 `MakeLines` 作为材质缺失 fallback，并提供 WBP 实例级笔触参数。
+
 ### 证据
 
 - 外部交付包包含 `256×256` 与 `512×512` 透明白色笔尖、`900×900` Grain，三张 PNG 均为 `Format32bppArgb`；另含 `.abr`、关键参数 JSON 与 Photoshop 参数说明。
 - 参数说明给出方向跟随、约 `18%` 角度变化、约 `16%` 不透明度变化和 Grain 纹理化语义；运行时实现将保留这些可辨识特征，同时按小地图分辨率设置有界盖印间距。
+- UE 5.8 纹理导入脚本连续两次通过，两张 Texture2D 均保存为 UI/无 Mip 资源；材质 authoring 脚本首次 `status=created`、复跑 `status=preserved`，UI Domain、Translucent、两项纹理参数与 `GrainStrength` 自检通过。
+- `scripts/ue/Build-Editor.cmd -Configuration Development` 成功并刷新当前候选预构建包；首次 UHT 暴露 UE 5.8 不识别 `Units="px"`，移除纯显示元数据后编译通过。
+- `ReEcho.UI.Minimap.InkTrailSampling`、`ReEcho.UI.Minimap.Transform` 与 `ReEcho.UI.CombatHud.Formatting` 全部 `Result={Success}`；覆盖等距、跨段、确定性、退化段/硬上限、既有投影和运行时资产加载。
+- `python scripts/validate_project.py` 与 `git diff --check` 通过。发布前仍需在获得 main 发布锁并合并最新 `origin/main` 后执行准确最终组合的 `-FullRebuild`。
 
 ### 剩余风险
 
@@ -120,4 +127,5 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `ARCHITECTURE.md` 与 CODEBASE_MAP `README.md` 已审阅：本任务不新增 Runtime Module、稳定架构标识或依赖边，因此无需改动。
+- `MOD-ReEcho.md`、`MOD-ReEchoUI.md` 与 `Design/UI/ReEcho_UI修改指导.md` 已同步笔触的只读表现边界、资产来源、性能上限、回退和调参入口。

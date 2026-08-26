@@ -25,6 +25,24 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatHudFormattingTest,
 
 bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 {
+	UTexture2D* MinimapInkTip =
+	    LoadObject<UTexture2D>(nullptr, UReEchoMinimapCanvasWidget::GetInkBrushTipTexturePath());
+	UTexture2D* MinimapInkGrain = LoadObject<UTexture2D>(nullptr, UReEchoMinimapCanvasWidget::GetInkGrainTexturePath());
+	UMaterialInterface* MinimapInkMaterial =
+	    LoadObject<UMaterialInterface>(nullptr, UReEchoMinimapCanvasWidget::GetInkTrailMaterialPath());
+	TestNotNull(TEXT("Minimap ink brush-tip texture loads"), MinimapInkTip);
+	TestNotNull(TEXT("Minimap ink grain texture loads"), MinimapInkGrain);
+	TestNotNull(TEXT("Minimap ink UI material loads"), MinimapInkMaterial);
+	if (MinimapInkMaterial)
+	{
+		TestEqual(TEXT("Minimap ink material is translucent"),
+		          MinimapInkMaterial->GetBlendMode(),
+		          EBlendMode::BLEND_Translucent);
+		TestEqual(TEXT("Minimap ink material uses the UI domain"),
+		          static_cast<EMaterialDomain>(MinimapInkMaterial->GetMaterial()->MaterialDomain),
+		          EMaterialDomain::MD_UI);
+	}
+
 	const TPair<FName, FString> ReactionPopupTextures[] = {
 	    {TEXT("Reaction.Burn"), TEXT("T_UI_Reaction_Burn")},
 	    {TEXT("Reaction.Vaporize"), TEXT("T_UI_Reaction_Vaporize")},

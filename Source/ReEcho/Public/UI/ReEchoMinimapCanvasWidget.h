@@ -6,6 +6,16 @@
 #include "ReEchoMinimapCanvasWidget.generated.h"
 
 class UTexture2D;
+class UMaterialInstanceDynamic;
+class UMaterialInterface;
+
+/** One deterministic brush-tip stamp sampled along a projected minimap trail. */
+struct FReEchoMinimapInkStamp
+{
+	FVector2D Position = FVector2D::ZeroVector;
+	float AngleRadians = 0.0f;
+	float Opacity = 1.0f;
+};
 
 /**
  * 单条回响轨迹在小地图上的绘制数据。
@@ -41,6 +51,12 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	void SetInkTrailSettings(UMaterialInterface* InMaterial,
+	                         float InStampSizePx,
+	                         float InStampSpacingPx,
+	                         float InAngleJitterDegrees,
+	                         float InOpacityJitter,
+	                         int32 InMaxStampsPerEcho);
 
 	/** 设置本帧要绘制的数据视图。 */
 	void SetView(const FReEchoMinimapView& InView)
@@ -63,9 +79,22 @@ public:
 	                                         const FVector2D& Center,
 	                                         const FVector2D& HalfExtents,
 	                                         const FVector2D& CanvasSize);
+	/** Resample a projected polyline into stable, bounded brush-tip stamps. */
+	static TArray<FReEchoMinimapInkStamp> BuildInkTrailStamps(const TArray<FVector2D>& LocalPoints,
+	                                                          float StampSpacingPx,
+	                                                          float AngleJitterDegrees,
+	                                                          float OpacityJitter,
+	                                                          int32 RandomSeed,
+	                                                          int32 MaxStamps);
 
 private:
 	FReEchoMinimapView View;
+	TWeakObjectPtr<UMaterialInterface> InkTrailMaterial;
+	float InkTrailStampSizePx = 8.0f;
+	float InkTrailStampSpacingPx = 1.5f;
+	float InkTrailAngleJitterDegrees = 18.0f;
+	float InkTrailOpacityJitter = 0.16f;
+	int32 MaxInkTrailStampsPerEcho = 1024;
 
 	FVector2D ToLocal(const FVector2D& WorldXY, const FVector2D& CanvasSize) const;
 };
@@ -86,6 +115,8 @@ class REECHO_API UReEchoMinimapCanvasWidget : public UWidget
 	GENERATED_BODY()
 
 public:
+	UReEchoMinimapCanvasWidget(const FObjectInitializer& ObjectInitializer);
+
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 
@@ -97,7 +128,56 @@ public:
 	                                         const FVector2D& Center,
 	                                         const FVector2D& HalfExtents,
 	                                         const FVector2D& CanvasSize);
+	static const TCHAR* GetInkTrailMaterialPath();
+	static const TCHAR* GetInkBrushTipTexturePath();
+	static const TCHAR* GetInkGrainTexturePath();
 
 protected:
+	virtual void SynchronizeProperties() override;
+
 	TSharedPtr<SReEchoMinimapCanvas> Canvas;
+
+private:
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          Category = "Minimap|Ink Trail",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "1.0", ClampMax = "24.0"))
+	float InkTrailStampSizePx = 8.0f;
+
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          Category = "Minimap|Ink Trail",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.25", ClampMax = "12.0"))
+	float InkTrailStampSpacingPx = 1.5f;
+
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          Category = "Minimap|Ink Trail",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "180.0", Units = "deg"))
+	float InkTrailAngleJitterDegrees = 18.0f;
+
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          Category = "Minimap|Ink Trail",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "1.0"))
+	float InkTrailOpacityJitter = 0.16f;
+
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          Category = "Minimap|Ink Trail",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "1.0"))
+	float InkTrailGrainStrength = 0.65f;
+
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          AdvancedDisplay,
+	          Category = "Minimap|Ink Trail",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "16", ClampMax = "4096"))
+	int32 MaxInkTrailStampsPerEcho = 1024;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Minimap|Ink Trail", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMaterialInterface> InkTrailMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> RuntimeInkTrailMaterial;
 };
