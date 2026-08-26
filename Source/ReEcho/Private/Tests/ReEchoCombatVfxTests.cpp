@@ -27,6 +27,7 @@
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
+#include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
 #include "Presentation/VFX/ReEchoVfxPreviewActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
@@ -72,6 +73,25 @@ struct FReEchoCombatVfxWorldFixture
 		}
 	}
 };
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossBlinkSlamPresentationTest,
+                                 "ReEcho.Presentation.VFX.BossBlinkSlamPresentation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
+{
+	const FVector StartOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.5f, 0.5f, 300.0f);
+	const FVector HalfwayOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.25f, 0.5f, 300.0f);
+	const FVector LandedOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.0f, 0.5f, 300.0f);
+
+	TestTrue(TEXT("Blink slam starts 300 cm above the locked landing point"),
+	         StartOffset.Equals(FVector(0.0f, 0.0f, 300.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Blink slam accelerates downward during its 0.5 second presentation"),
+	         HalfwayOffset.Equals(FVector(0.0f, 0.0f, 75.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Blink slam presentation finishes exactly at the gameplay landing point"),
+	         LandedOffset.IsNearlyZero());
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFoxDirectionRuntimeTest,
@@ -426,8 +446,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    BeamWarningCenter, BeamDirection, 750.0f, BeamStart, BeamEnd);
 	TestTrue(TEXT("Boss beam starts at the authoritative warning center"),
 	         BeamStart.Equals(BeamWarningCenter, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
-	         BeamEnd.Equals(BeamWarningCenter + BeamDirection * 750.0f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Boss beam endpoint extends upward from the warning center"),
+	         BeamEnd.Equals(BeamWarningCenter + FVector::ForwardVector * 750.0f, KINDA_SMALL_NUMBER));
 	const FVector BlinkWarningCenter(640.0f, -275.0f, 50.0f);
 	const FVector BossLanding = AReEchoEnemyActor::ResolveBossLandingLocation(BlinkWarningCenter, 183.6f);
 	TestTrue(TEXT("Blink Slam landing shares the warning center in arena XY"),

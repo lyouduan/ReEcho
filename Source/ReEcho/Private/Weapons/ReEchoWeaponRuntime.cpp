@@ -39,6 +39,7 @@ const TSet<FName> RuntimeRuneBehaviorIds = {
     TEXT("Part.MeteorOnGroupHit"),
     TEXT("Part.ApplyBleedOnHitChance"),
     TEXT("Part.AttackSpeedOnAttack"),
+    TEXT("Part.MoveSpeedOnAttack"),
 };
 
 bool IsNoneName(const FName Name)

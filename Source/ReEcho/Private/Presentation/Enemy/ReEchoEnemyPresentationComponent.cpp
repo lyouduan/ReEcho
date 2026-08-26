@@ -25,12 +25,21 @@
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "UI/ReEchoDamageNumberActor.h"
+#include "UI/ReEchoElementReactionPopupActor.h"
 
 namespace ReEchoEnemyVisual
 {
 constexpr float HitReactionDuration = 0.22f;
+constexpr float BlinkSlamDuration = 0.5f;
+constexpr float BlinkSlamStartHeightCm = 300.0f;
 constexpr TCHAR MoonStaffProfilePath[] =
     TEXT("/Game/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_MoonStaff.DA_WeaponPresentation_MoonStaff");
+
+FVector
+ResolveBossWeaponFacingOffset(const float FacingSign, const FVector& RightFacingOffset, const FVector& LeftFacingOffset)
+{
+	return FacingSign < 0.0f ? LeftFacingOffset : RightFacingOffset;
+}
 }
 
 UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
@@ -49,6 +58,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
                                                             USceneComponent* InFlipbookRoot,
                                                             USceneComponent* InEffectsRoot,
                                                             USceneComponent* InBossWeaponRoot,
+                                                            USceneComponent* InBossWeaponFacingRoot,
                                                             UBillboardComponent* InBossWeaponSprite,
                                                             UBillboardComponent* InCharacterSprite,
                                                             UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -63,6 +73,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	FlipbookRoot = InFlipbookRoot;
 	EffectsRoot = InEffectsRoot;
 	BossWeaponRoot = InBossWeaponRoot;
+	BossWeaponFacingRoot = InBossWeaponFacingRoot;
 	BossWeaponSprite = InBossWeaponSprite;
 	CharacterSprite = InCharacterSprite;
 	SequenceAnimation = InSequenceAnimation;
@@ -108,6 +119,7 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.RemoveAll(this);
+		CombatEvents->OnElementReactionResolved.RemoveAll(this);
 	}
 
 	Host = InHost;
@@ -129,6 +141,8 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatHurt);
+		CombatEvents->OnElementReactionResolved.AddDynamic(
+		    this, &UReEchoEnemyPresentationComponent::HandleElementReactionResolved);
 	}
 }
 
@@ -147,7 +161,7 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName Presenta
 void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName PresentationId)
 {
 	const bool bTimeGuard = PresentationId == TEXT("Enemy.TimeGuard");
-	if (!BossWeaponRoot || !BossWeaponSprite)
+	if (!BossWeaponRoot || !BossWeaponFacingRoot || !BossWeaponSprite)
 	{
 		return;
 	}
@@ -173,11 +187,13 @@ void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName Presenta
 	const float TextureAxisLength = WeaponProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width
 	                                    ? FMath::Max(HeldTexture->GetSizeX(), 1)
 	                                    : FMath::Max(HeldTexture->GetSizeY(), 1);
-	BossWeaponRoot->SetRelativeLocation(ActiveProfile->WeaponAnchorRatio * CharacterWorldHeight +
-	                                    WeaponProfile->HeldOffsetRatio * CharacterWorldHeight);
+	BossWeaponRightFacingOffset = WeaponProfile->HeldRightFacingOffsetRatio * CharacterWorldHeight;
+	BossWeaponLeftFacingOffset = WeaponProfile->HeldLeftFacingOffsetRatio * CharacterWorldHeight;
+	RefreshBossWeaponFacingOffset(1.0f);
 	BossWeaponRestRotation = WeaponProfile->HeldRotationOffset;
 	BossWeaponRoot->SetRelativeRotation(BossWeaponRestRotation);
 	BossWeaponSprite->SetSprite(HeldTexture);
+	BossWeaponSprite->SetTranslucentSortPriority(7);
 	BossWeaponSprite->SetRelativeTransform(FTransform::Identity);
 	BossWeaponSprite->SetRelativeScale3D(FVector(HeldLength / TextureAxisLength));
 }
@@ -228,6 +244,12 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCom
 	}
 	bDeathVisualActive = true;
 	bHitVisualActive = false;
+	bStunPaused = false;
+	bCancelAttackWhenStunClears = false;
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetPlaybackPaused(false);
+	}
 	AttackVisualRemaining = 0.0f;
 	ResetTransientRoot();
 	if (EffectsRoot)
@@ -246,11 +268,27 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCom
 	return bStarted;
 }
 
+void UReEchoEnemyPresentationComponent::SetStunPaused(const bool bPaused)
+{
+	bStunPaused = bPaused;
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetPlaybackPaused(bPaused);
+	}
+	if (!bPaused && bCancelAttackWhenStunClears)
+	{
+		bCancelAttackWhenStunClears = false;
+		if (PresentationController)
+		{
+			PresentationController->CancelAttackAction();
+		}
+	}
+}
+
 void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSnapshot& Snapshot,
                                                 const float DeltaSeconds)
 {
 	const float SafeDelta = FMath::Max(0.0f, DeltaSeconds);
-	VisualTime += SafeDelta;
 	if (Host && CharacterSprite && SequenceAnimation && !SequenceAnimation->IsAnimationActive())
 	{
 		ReEchoBillboardDebug::DrawBounds(
@@ -262,9 +300,10 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		    Host, Collision, Snapshot.Archetype == EReEchoEnemyArchetype::Boss ? FColor::Orange : FColor::Cyan);
 	}
 	UpdateCameraFacing(Snapshot);
-	UpdateBossWeaponMotion(SafeDelta);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
+		bCancelAttackWhenStunClears = false;
+		SetStunPaused(false);
 		RefreshFootpointAlignment();
 		if (VisualEffectRoot)
 		{
@@ -273,6 +312,13 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		RefreshGroundShadowFromFlipbook();
 		return;
 	}
+	SetStunPaused(Snapshot.bStunned);
+	if (Snapshot.bStunned)
+	{
+		return;
+	}
+	VisualTime += SafeDelta;
+	UpdateBossWeaponMotion(SafeDelta);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::HitReaction)
 	{
 		UpdateHitReaction(Snapshot);
@@ -284,6 +330,31 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		bHitVisualActive = false;
 	}
 	UpdateSpriteAnimation(Snapshot, SafeDelta);
+	UpdateBossBlinkSlamMotion(SafeDelta);
+}
+
+FVector UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(const float RemainingSeconds,
+                                                                        const float DurationSeconds,
+                                                                        const float StartHeightCm)
+{
+	if (DurationSeconds <= KINDA_SMALL_NUMBER || RemainingSeconds <= 0.0f || StartHeightCm <= 0.0f)
+	{
+		return FVector::ZeroVector;
+	}
+	const float RemainingRatio = FMath::Clamp(RemainingSeconds / DurationSeconds, 0.0f, 1.0f);
+	return FVector::UpVector * StartHeightCm * FMath::Square(RemainingRatio);
+}
+
+void UReEchoEnemyPresentationComponent::UpdateBossBlinkSlamMotion(const float DeltaSeconds)
+{
+	if (BossBlinkSlamRemaining <= 0.0f)
+	{
+		return;
+	}
+	BossBlinkSlamRemaining = FMath::Max(0.0f, BossBlinkSlamRemaining - DeltaSeconds);
+	ApplyPresentationMotion(
+	    ResolveBlinkSlamVisualOffset(BossBlinkSlamRemaining, BossBlinkSlamDuration, BossBlinkSlamStartHeightCm),
+	    FVector::OneVector);
 }
 
 void UReEchoEnemyPresentationComponent::UpdateBossWeaponMotion(const float DeltaSeconds)
@@ -318,13 +389,34 @@ void UReEchoEnemyPresentationComponent::UpdateCameraFacing(const FReEchoEnemyPre
 		FlipbookRoot->SetWorldRotation(
 		    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(Camera->GetCameraRotation()));
 	}
+	const FVector CameraRight = FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y);
+	const float ScreenHorizontalDirection = FVector::DotProduct(Snapshot.FacingDirection, CameraRight);
+	const float FacingSign = ScreenHorizontalDirection < 0.0f ? -1.0f : 1.0f;
 	if (PresentationController)
 	{
-		const FVector CameraRight = FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y);
-		const float ScreenHorizontalDirection = FVector::DotProduct(Snapshot.FacingDirection, CameraRight);
-		PresentationController->SetFacingSign(ScreenHorizontalDirection < 0.0f ? -1.0f : 1.0f);
+		PresentationController->SetFacingSign(FacingSign);
 	}
+	RefreshBossWeaponFacingOffset(FacingSign);
 }
+
+void UReEchoEnemyPresentationComponent::RefreshBossWeaponFacingOffset(const float FacingSign)
+{
+	if (!BossWeaponFacingRoot)
+	{
+		return;
+	}
+	BossWeaponFacingRoot->SetRelativeLocation(ReEchoEnemyVisual::ResolveBossWeaponFacingOffset(
+	    FacingSign, BossWeaponRightFacingOffset, BossWeaponLeftFacingOffset));
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+FVector UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests(const float FacingSign,
+                                                                                 const FVector& RightFacingOffset,
+                                                                                 const FVector& LeftFacingOffset)
+{
+	return ReEchoEnemyVisual::ResolveBossWeaponFacingOffset(FacingSign, RightFacingOffset, LeftFacingOffset);
+}
+#endif
 
 void UReEchoEnemyPresentationComponent::ResetTransientRoot()
 {
@@ -476,6 +568,15 @@ void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemy
 
 void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
+	if (Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam") && Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
+	{
+		BossBlinkSlamDuration = ReEchoEnemyVisual::BlinkSlamDuration;
+		BossBlinkSlamRemaining = BossBlinkSlamDuration;
+		BossBlinkSlamStartHeightCm = ReEchoEnemyVisual::BlinkSlamStartHeightCm;
+		ApplyPresentationMotion(
+		    ResolveBlinkSlamVisualOffset(BossBlinkSlamRemaining, BossBlinkSlamDuration, BossBlinkSlamStartHeightCm),
+		    FVector::OneVector);
+	}
 	if (Intent.AbilityId == TEXT("M_SHEEP_MeleeSweep") && Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
 	{
 		BossWeaponSwingDuration = FMath::Max(Intent.ActiveSeconds, 0.22f);
@@ -485,6 +586,15 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 	{
 		BossWeaponSwingRemaining = 0.0f;
 		BossWeaponRoot->SetRelativeRotation(BossWeaponRestRotation);
+	}
+	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam"))
+	{
+		BossBlinkSlamRemaining = 0.0f;
+		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+	}
+	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && bStunPaused)
+	{
+		bCancelAttackWhenStunClears = true;
 	}
 	if (Intent.Type != EReEchoBossIntentType::TelegraphStarted &&
 	    Intent.Type != EReEchoBossIntentType::AttackWindowStarted)
@@ -512,7 +622,14 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 	if (Event.Phase == EReEchoPresentationActionPhase::Ended ||
 	    Event.Phase == EReEchoPresentationActionPhase::Cancelled)
 	{
-		PresentationController->CancelAttackAction();
+		if (bStunPaused)
+		{
+			bCancelAttackWhenStunClears = true;
+		}
+		else
+		{
+			PresentationController->CancelAttackAction();
+		}
 		return;
 	}
 	PresentationController->PlayAction(Event.Phase == EReEchoPresentationActionPhase::Windup
@@ -521,6 +638,13 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 	                                   true,
 	                                   Event.Key.Sequence);
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event)
+{
+	HandlePresentationAction(Event);
+}
+#endif
 
 void UReEchoEnemyPresentationComponent::HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event)
 {
@@ -570,4 +694,14 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	{
 		PresentationController->PlayAction(ReEcho2DAnimationTags::Hit, true);
 	}
+}
+
+void UReEchoEnemyPresentationComponent::HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event)
+{
+	if (!AReEchoElementReactionPopupActor::ShouldDisplayForTarget(Event, Host))
+	{
+		return;
+	}
+	AReEchoElementReactionPopupActor::SpawnReactionPopup(
+	    Host ? Host->GetWorld() : nullptr, Event.PrimaryTarget->GetActorLocation(), Event.ReactionBehaviorId);
 }

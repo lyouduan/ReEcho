@@ -6,12 +6,12 @@
 - Executor 负责人：Gavyn-side Executor（同一 AI 执行）。
 - Plan 编写方（AI 侧）：Gavyn-side AI（Codex）。
 - 实现编写方（AI 侧）：Gavyn-side AI（Codex）。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@9c146b5db5b8b836901a0fa6e6b0e067ef985a26`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan115`，本地分支 `plan/115-first-wave-spawn-telegraph`；Plan-only 发布后在同一工作树继续实现。
 - 依赖 / 阻塞：依赖现有 Encounter WaveScheduler 的 Warning/Commit 两阶段事件、SpawnProfile 的 `WarningLeadSeconds`、GameMode 的 PendingSpawnBatch 与出生预警表现。无外部阻塞。
-- Writes: 本 Plan；`Source/ReEcho/Private/Encounter/ReEchoEncounterRuntime.cpp`；必要时配对头文件；`Source/ReEcho/Private/ReEchoGameMode.cpp`；`Source/ReEcho/Private/Tests/ReEchoEncounterRuntimeTests.cpp`；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`。
+- Writes: 本 Plan；`Source/ReEcho/Private/Encounter/ReEchoEncounterRuntime.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp`；`Source/ReEcho/Private/Graybox/ReEchoEnemyActor.cpp`；`Source/ReEcho/Private/Tests/ReEchoEncounterRuntimeTests.cpp`、`ReEchoEnemyHostTests.cpp`、`ReEchoWeaponRuntimeTests.cpp`；`Source/ReEchoWeapons/Private/Weapons/ReEchoProjectileLogicComponent.cpp` 及配对头文件（仅诊断追踪）；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoEnemies.md`。
 - Stable Reads: `Content/Data/encounter_waves.csv` 的波次触发时间；`Content/Data/spawn_profiles.csv` 的 `WarningLeadSeconds`；角色选择与 `BeginNextEncounter` 既有流程；Enemy Host/Logic/Presentation 现有装配契约。
 - 影响模式：`SharedContract`，因为调整 Encounter Scheduler 对零秒首波的 Warning/Commit 时序，但不改变敌人逻辑、表现或伤害权威。
 - 兼容承诺 / 下游操作：非零波次继续在配置的 `TriggerSeconds` 生成；其预警仍提前 `WarningLeadSeconds`。存档恢复继续持久化 Scheduler 游标与已准备出生批次，不生成第二套计时状态。
@@ -37,10 +37,10 @@
 ## 锁定验收
 
 - [ ] 角色确认后，首波每个预留出生位置先出现可见红色球框，球框显示期间不存在对应 Enemy Host、Roster 条目、碰撞、AI 或伤害。
-- [ ] 首波各角色类型在各自 `WarningLeadSeconds` 到期后才生成；零秒调用只返回 Warning，不同时返回 Commit。
-- [ ] 10 秒、20 秒等后续波次仍在原 `TriggerSeconds` Commit，并在此前按配置提前 Warning。
-- [ ] 首波预警位置与最终怪物生成位置一致，容量预留、确定性顺序、保存/恢复游标不退化。
-- [ ] 聚焦 Scheduler 自动化覆盖零秒首波与普通后续波次；Editor 构建及适用 Encounter 自动化通过。
+- [x] 首波各角色类型在各自 `WarningLeadSeconds` 到期后才生成；零秒调用只返回 Warning，不同时返回 Commit。
+- [x] 10 秒、20 秒等后续波次仍在原 `TriggerSeconds` Commit，并在此前按配置提前 Warning。
+- [x] 首波预警位置与最终怪物生成位置一致，容量预留、确定性顺序、保存/恢复游标不退化。
+- [x] 聚焦 Scheduler 自动化覆盖零秒首波与普通后续波次；Editor 构建及适用 Encounter 自动化通过。
 - [ ] 用户在 PIE 确认“角色入场 → 红色球框 → 怪物出生”的可读时序。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -76,16 +76,31 @@
 ### 变化
 
 - 2026-08-26：完成只读定位。生产第一波 `TriggerSeconds=0`，Melee/Ranged/Elite/Boss 的 `WarningLeadSeconds` 为 0.8–1.0 秒；Scheduler 将 Warning 钳到 0 后仍把 Commit 放在 0，`ProcessScheduledSpawnEvents(0)` 因而同帧处理两者。
+- 2026-08-26：Scheduler 集中派生实际 Commit 时间；零秒首波 Warning 保持在 0 秒，Commit 延后到完整 `WarningLeadSeconds`。GameMode 仍只在 Warning 准备位置，并把出生框改为明确红色；Enemy Host 仍只由 Commit 创建。
+- 2026-08-26：人工预验收发现红球可能先于 Enemy Host 的可受击状态结束。审计确认 Host 配置未显式覆盖 Blueprint 关闭碰撞/不可受击默认值；将 `ConfigureFromDefinition` 收口为原子激活后置条件，并让球框覆盖 Commit 后一个固定步，保证“球框消失时 Host 已可受击”。
+- 2026-08-26：再次人工复现为前两颗玩家子弹未结算、第三颗才造成伤害；加入 `[SpawnDamageTrace]` 诊断链，使用 projectile GUID 与 `Source#AttackSequence` 串联生成、靠近候选、几何接触、Resolver 结果和结束摘要，并用同一 WorldSeconds 对齐 `[EncounterSpawn] active`。本步只采证，不提前改变伤害判定。
+- 2026-08-26：日志证明首两颗子弹均已命中存活、碰撞正常的 `M_SLIME`，但 `ModifyIncomingRawDamage` 因普通怪正处于距离触发的纯表现 Phase2 变身而把 1.6 入伤改为 0；第三颗到达时 1 秒变身结束，3.2 正常结算。将免伤条件收窄到 `HealthThreshold` 血条耗尽型 Boss，普通怪 `AttackCountOrRange` 变身继续正常受伤。
+- 2026-08-26：复核策划附件 `ReEcho-Gun-TripleSpread-DamageLoss-20260826.txt`。旧运行日志中的 W_J_09、三发散射、棱镜与 Echo 放大现象均停在相同的目标入伤修正；`ProjectileContact`、来源规则和阵营过滤已通过，零伤目标为正在普通 Phase2 转换的 `M_SLIME/M_RABBIT`。补充真实投射物穿过 Resolver 命中 `Transforming` 普通怪的端到端回归，避免只验证直接接口。
 
 ### 证据
 
 - `FReEchoEncounterWaveSchedulerTest` 当前断言“Warning sorts before commit at the same time”，与用户期望直接相反。
 - GameMode 已有 PendingSpawnBatch 两阶段链；修复无需提前生成或隐藏 Enemy Host。
+- `scripts/ue/Build-Editor.cmd -Configuration Development` 成功，UHT/UBT `Result: Succeeded`，刷新 7 个精选 Editor 模块。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Encounter`：`BossContinuesAfterStandardDuration`、`DeterministicSpawnResolver`、`SpawnWarningCapacityReservation`、`TableDrivenWaveScheduler` 全部 `Result={Success}`。
+- 可受击边界返修后再次执行 Editor Development 构建，UBT `Result: Succeeded`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Host` 的 5 项 Host 测试全部 `Result={Success}`，新增场景确认 Commit 会从不可受击/无碰撞默认值恢复并立刻接受伤害；`ReEcho.Encounter` 4 项再次全部成功。
+- `python scripts/validate_project.py` 与 `git diff --check` 均通过。
+- 诊断追踪加入后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 为 `Result={Success}`，`git diff --check` 通过。
+- 普通怪变身免伤修正后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Enemies.Host` 的 5 项测试全部 `Result={Success}`，其中 `CompositionAndSave` 新增普通怪 `Transforming` 入伤不归零的断言；`git diff --check` 通过。
+- 策划枪械报告回归补齐后 Editor Development 构建 `Result: Succeeded`；`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 以真实 Projectile→HitResolver 链命中 `Transforming` 普通怪并为 `Result={Success}`；`git diff --check` 通过。
+- 发布集成采用 `origin/main@d0da16a8` 为权威基线，保留远端羊 Boss 范围、狐狸行为、眩晕解除重索敌及血肉铸锋生命同步；Plan115 只叠加出生时序、Host 原子激活边界、普通怪变身期可受伤和对应诊断/回归。组合提交 `cc37e063` 后在 `main-publish-lock` 内重新 FullRebuild，UBT `Result: Succeeded`，精选 7 模块预构建校验通过。
+- 锁内聚焦自动化再次通过：`ReEcho.Encounter` 4/4、`ReEcho.Enemies.Host` 8/8、`ReEcho.Weapons.ProjectilesUseSingleShotSpreadCountAndLifetime` 1/1，均为 `Result={Success}`；`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
 - 当前出生框由 GameMode 调试绘制接口表现；本 Plan 只保证现有球框的时序与可见寿命，不扩张为新的美术资产系统。
 - 若用户认为首波延迟不应计入遭遇倒计时，需要另行决定 Encounter 时钟何时开始；本 Plan 暂定角色入场即开始计时，怪物在 0.8–1.0 秒后生成。
+- 最终候选已在远端单发布者锁内适配截至 `d0da16a8` 的主线；发布前仍须重新 fetch，并在 Plan-only 例外使 main 前进时再次合入和重跑受影响门禁。
 
 ### 人工验收结果/请求
 
@@ -93,4 +108,7 @@
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：明确 Warning 锁点、Commit 创建 Host，以及零秒首波完整等待配置 lead。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md` 已更新：记录 `ConfigureFromDefinition` 成功返回即为存活、碰撞启用且可受击的原子激活边界。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑、依赖方向和既有 Warning/Spawn Intent 流程未变。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：AREA-Encounter 的文件路由未变。

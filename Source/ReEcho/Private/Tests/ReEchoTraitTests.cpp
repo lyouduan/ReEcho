@@ -266,6 +266,12 @@ bool FReEchoFreeTraitSlotRefreshTest::RunTest(const FString& Parameters)
 	const int32 BeforeRefreshShards = Run->TimeShards;
 	FString Error;
 	TestTrue(TEXT("One free-draw slot refreshes"), Run->TryRefreshTraitCardSlot(RefreshedSlot, Error));
+	UReEchoRunSaveGame* HistorySave = Run->CreateSaveSnapshot();
+	TestEqual(TEXT("The free-choice group records all three initial cards plus its replacement"),
+	          HistorySave ? HistorySave->PendingTraitCardOfferHistoryIds.Num() : 0,
+	          4);
+	TestTrue(TEXT("The replaced free card remains in this group's display history"),
+	         HistorySave && HistorySave->PendingTraitCardOfferHistoryIds.Contains(InitialIds[RefreshedSlot]));
 	const TArray<FReEchoTraitCardOffer> RefreshedOffers = Run->GenerateTraitCardOffers(3);
 	TestEqual(TEXT("Free-draw refresh deducts the configured five shards"),
 	          Run->TimeShards,
@@ -320,6 +326,9 @@ bool FReEchoFreeTraitSlotRefreshTest::RunTest(const FString& Parameters)
 			          RestoredOffers[SlotIndex].RemainingRefreshes,
 			          RefreshedOffers[SlotIndex].RemainingRefreshes);
 		}
+		TestTrue(TEXT("Save/load preserves the free-choice group's full display history"),
+		         Restored->CreateSaveSnapshot()->PendingTraitCardOfferHistoryIds ==
+		             Save->PendingTraitCardOfferHistoryIds);
 	}
 	return true;
 }
@@ -360,6 +369,29 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Physical attack add comes from card_effects.csv"),
 	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
 	          PhysicalBefore + 4.0f);
+
+	EReEchoHealthAdjustment CommittedHealthAdjustment = EReEchoHealthAdjustment::None;
+	FReEchoStatBlock CommittedStats;
+	RunSubsystem->OnCardGrantCommitted.AddLambda(
+	    [&CommittedHealthAdjustment, &CommittedStats](const FReEchoStatBlock& Stats,
+	                                                  const EReEchoHealthAdjustment HealthAdjustment)
+	    {
+		    CommittedStats = Stats;
+		    CommittedHealthAdjustment = HealthAdjustment;
+	    });
+	const float MaximumHealthBeforeForging = RunSubsystem->CurrentBuild.Stats.HpMax;
+	const float ExpectedForgedMaximum = MaximumHealthBeforeForging + RunSubsystem->CurrentBuild.Stats.PhysicalAttack +
+	                                    RunSubsystem->CurrentBuild.Stats.ElementalAttack;
+	TestTrue(TEXT("Blood Forging can be granted through the authoritative Run transaction"),
+	         RunSubsystem->DebugGrantCard(TEXT("G_3_14")));
+	TestEqual(TEXT("Run publishes Blood Forging's typed health adjustment after commit"),
+	          CommittedHealthAdjustment,
+	          EReEchoHealthAdjustment::FillToMax);
+	TestEqual(
+	    TEXT("The committed event contains the final maximum health"), CommittedStats.HpMax, ExpectedForgedMaximum);
+	TestEqual(TEXT("The committed build health is full"),
+	          RunSubsystem->CurrentBuild.Stats.HpPoint,
+	          RunSubsystem->CurrentBuild.Stats.HpMax);
 	return true;
 }
 

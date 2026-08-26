@@ -8,6 +8,21 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeFoxSpawnTest,
                                  "ReEcho.GameMode.GMSpawnFox",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeBossVictoryGateTest,
+                                 "ReEcho.GameMode.BossVictoryRequiresSuccessfulSpawn",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGameModeBossVictoryGateTest::RunTest(const FString& Parameters)
+{
+	TestFalse(TEXT("A missing or failed Boss spawn cannot be interpreted as victory"),
+	          AReEchoGameMode::ShouldCompleteBossEncounter(false, 0));
+	TestFalse(TEXT("A living successfully spawned Boss keeps the encounter running"),
+	          AReEchoGameMode::ShouldCompleteBossEncounter(true, 1));
+	TestTrue(TEXT("Defeating a successfully spawned Boss allows victory"),
+	         AReEchoGameMode::ShouldCompleteBossEncounter(true, 0));
+	return true;
+}
+
 bool FReEchoGameModeFoxSpawnTest::RunTest(const FString& Parameters)
 {
 	int32 Count = 0;

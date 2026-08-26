@@ -10,7 +10,8 @@ UENUM(BlueprintType)
 enum class EReEchoWeaponMotionMode : uint8
 {
 	None,
-	FullSpin
+	FullSpin,
+	TripleSwing60
 };
 
 /** Texture axis normalized to the character reference height for held-weapon layout. */
@@ -90,6 +91,12 @@ public:
 	/** World-space visual offset normalized to the owning character's final reference height. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
 	FVector HeldOffsetRatio = FVector::ZeroVector;
+	/** Additional right-facing offset from an authored host mount, normalized to character WorldHeight. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual|Facing Offset")
+	FVector HeldRightFacingOffsetRatio = FVector::ZeroVector;
+	/** Additional left-facing offset from an authored host mount, normalized to character WorldHeight. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual|Facing Offset")
+	FVector HeldLeftFacingOffsetRatio = FVector::ZeroVector;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
 	FRotator HeldRotationOffset = FRotator::ZeroRotator;
 	/** Additional rotation around the camera-facing weapon plane; positive values turn counter-clockwise on screen. */

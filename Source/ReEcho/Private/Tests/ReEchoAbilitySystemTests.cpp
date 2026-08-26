@@ -144,6 +144,33 @@ bool FReEchoGasCombatantSemanticStatsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGasHealthAdjustmentTest,
+                                 "ReEcho.GAS.HealthAdjustmentPreservesTransientState",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGasHealthAdjustmentTest::RunTest(const FString& Parameters)
+{
+	FReEchoGasFixture Fixture;
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Fixture.Combatant->InitializeFromStats(Stats, true);
+	Fixture.Combatant->ApplyFinalDamageForTests(60.0f);
+	Fixture.Combatant->AddTransientStatModifier(TEXT("BloodForgingTest"), 0.5f, 0.25f, 10.0f, 1);
+
+	TestTrue(TEXT("Fill-to-maximum adjustment applies"),
+	         Fixture.Combatant->ApplyHealthAdjustment(130.0f, EReEchoHealthAdjustment::FillToMax));
+	TestEqual(TEXT("Maximum health changes through the authoritative GAS attribute"),
+	          Fixture.Attributes->GetMaxHealth(),
+	          130.0f);
+	TestEqual(
+	    TEXT("Current health fills through the authoritative GAS attribute"), Fixture.Attributes->GetHealth(), 130.0f);
+	TestEqual(TEXT("Combatant compatibility snapshot is synchronized"), Fixture.Combatant->CurrentHealth, 130.0f);
+	TestEqual(TEXT("Health adjustment does not clear transient stat stacks"),
+	          Fixture.Combatant->GetTransientStatStackCount(TEXT("BloodForgingTest")),
+	          1);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGasDeathAndTagsTest,
                                  "ReEcho.GAS.DeathAndAbilityTags",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

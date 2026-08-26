@@ -17,14 +17,14 @@ Y_ER_L_G,Growth,"效果：以发生反应的单位为中心，为一个圆形范
 生效范围半径：2*元素反应效能
 
 若为回响触发，不受[回响效能]影响。",Lightning,Grass,Reaction.Growth,Element.AttachInRadius,1,0,200,None,0,1,false,false,true,true,
-Y_ER_L_W,Conduct,"效果：以元素反应发生的单位为中心，探测其半径1m内的所有带有水元素的敌方单位。然后再以这些敌方单位为中心，重复上述过程，直至没有新的目标产生。
+Y_ER_L_W,Conduct,"效果：以元素反应发生的单位为中心，探测其半径2m内的所有带有水元素的敌方单位。然后再以这些敌方单位为中心，重复上述过程，直至没有新的目标产生。
 然后，为所有这些敌方单位产生一次连锁闪电伤害。受到该伤害的敌方单位获得【元素免疫】状态，持续2秒
 
-判定范围半径：1m
-闪电伤害：D=（（元素攻击力+2）*元素反应效能）*伤害增幅
+判定范围半径：2m
+闪电伤害：D=（元素攻击力*元素反应效能）*伤害增幅
 伤害类型：雷元素
 
-该伤害无法暴击；若为回响触发，不受[回响效能]影响。",Lightning,Water,Reaction.Conduct,Element.ChainElementAttack,1,2,100,None,0,1,false,false,true,true,
+该伤害无法暴击；若为回响触发，不受[回响效能]影响。",Lightning,Water,Reaction.Conduct,Element.ChainElementAttack,1,0,200,None,0,1,false,false,true,true,
 Y_ER_G_W,Grass over Water Enhance,"效果：单位失去水元素附着，且在发生下一次元素反应前，无法再次被附着水元素。敌方单位的下次元素反应发生时，获得100%伤害增幅
 该元素反应效果无法叠加。
 备注：需要区分草、水元素先后挂上的顺序",Grass,Water,Reaction.Enhance,Element.EnhanceNextReaction,1,0,0,None,0,2,false,false,true,true,

@@ -293,7 +293,7 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             {
                 "weapon_types.csv": (b"Pattern.LongSwordCombo", b"Pattern.LongSwordDashOnly"),
                 "weapons.csv": (b"W_J_04,Scythe", b"W_J_04,ScytheOld"),
-                "attack_steps.csv": (b"0.5,0.60,150", b"0.55,0.60,150"),
+                "attack_steps.csv": (b"0.7,0.6,250", b"0.75,0.6,250"),
             }
         )
         temp_data = self.make_temp_data_dir(old)

@@ -72,6 +72,9 @@ public:
 	static float ResolveHeldWorldLengthForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
 	                                            float CharacterReferenceHeight,
 	                                            float OwnerScale);
+	static FVector
+	ResolveFacingHeldOffsetForTests(const FVector& HeldOffset, float FacingSign, const FVector& CameraRight);
+	static float ResolveTripleSwingAngleForTests(float Progress, float DirectionSign);
 
 	float GetStepLockRemaining() const
 	{
@@ -161,7 +164,7 @@ private:
 	void RecallScythe();
 	void AdvanceScytheThrow(float DeltaSeconds);
 	float ResolveOwnerVisualFacingSign() const;
-	FVector ResolveMirroredHandAnchor() const;
+	FVector ResolveMirroredHeldVisualOffset() const;
 	FQuat ResolveMirroredSwordRestRotation() const;
 	void ApplyHeldPlaneMirror(UStaticMeshComponent* Plane, EReEchoHeldWeaponMirrorRule MirrorRule) const;
 	/** Resolve the owner's gameplay aim without requiring the owner root actor to rotate for presentation. */
@@ -231,6 +234,9 @@ private:
 	float SwordSwingDirection = -1.0f;
 	FVector SwordSpriteRestLocation = FVector(8.0f, 0.0f, 0.0f);
 	FVector WeaponHandAnchorLocation = FVector::ZeroVector;
+	FVector RightWeaponHandAnchorLocation = FVector::ZeroVector;
+	FVector LeftWeaponHandAnchorLocation = FVector::ZeroVector;
+	FVector HeldVisualOffset = FVector::ZeroVector;
 	FQuat SwordSpriteRestRotation = FQuat::Identity;
 	FQuat SwordAuthoredRotation = FQuat::Identity;
 	float SwordPlanarAngleOffsetRadians = 0.0f;

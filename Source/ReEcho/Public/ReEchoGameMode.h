@@ -104,6 +104,9 @@ public:
 	/** Toggles a debug overlay that draws each living enemy's damage range (contact + ranged max). */
 	UFUNCTION(Exec)
 	void GMShowEnemyRange(const FString& Mode = TEXT("Toggle"));
+	/** Toggles the authoritative sheep Boss skill damage geometry at each attack window and projectile step. */
+	UFUNCTION(Exec)
+	void GMBossDamageRange(const FString& Mode = TEXT("Toggle"));
 
 	/** True while the GM enemy-health overlay is enabled. */
 	bool IsEnemyHealthDebugEnabled() const
@@ -115,6 +118,11 @@ public:
 	bool IsEnemyRangeDebugEnabled() const
 	{
 		return bShowEnemyRangeDebug;
+	}
+
+	bool IsBossDamageRangeDebugEnabled() const
+	{
+		return bShowBossDamageRangeDebug;
 	}
 
 	/** Single Encounter-owned gate for ranged burst windows and elite special concurrency. */
@@ -172,6 +180,7 @@ private:
 	bool bShowEnemyHealthDebug = false;
 	/** Whether the GM enemy-range overlay is currently enabled (GMShowEnemyRange). */
 	bool bShowEnemyRangeDebug = false;
+	bool bShowBossDamageRangeDebug = false;
 
 	/** 运行时场地背景，构造期硬引用以确保 Shipping Cook 收录。 */
 	UPROPERTY()
@@ -221,6 +230,7 @@ private:
 	/** #9 倒计时归零到弹出选卡之间的短暂停顿定时器（让"0"可见）。 */
 	FTimerHandle EncounterEndSettleTimerHandle;
 	bool bEncounterClearedByDefeat = false;
+	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
 	float ArenaSceneWorldHeight = 0.0f;
 	float ArenaSceneWorldWidth = 0.0f;
@@ -230,6 +240,9 @@ private:
 	int32 EnemySpawnIndex = 0;
 	TArray<FVector> EncounterSpawnLocations;
 	TArray<float> RecentRangedBurstWorldTimes;
+	/** Last non-zero side of each living enemy relative to each Player-Echo connection segment. */
+	TMap<uint64, int8> ConnectionLineSideByPair;
+	bool bHandlingVaporizeWaterSplash = false;
 	TArray<FReEchoPendingSpawnBatchState> PendingSpawnBatches;
 	UFUNCTION()
 	void HandleFixedStep(float FixedDeltaSeconds);
@@ -291,6 +304,7 @@ private:
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
+	void HandleCardGrantCommitted(const FReEchoStatBlock& Stats, EReEchoHealthAdjustment HealthAdjustment);
 	UFUNCTION()
 	void HandleTraitCardRefreshRequested(int32 SlotIndex);
 	void CreateArena();
@@ -368,12 +382,16 @@ private:
 	                                                bool bHasArena);
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
+	friend class FReEchoGameModeBossVictoryGateTest;
 #endif
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleCardElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
+	static bool ShouldCompleteBossEncounter(bool bBossSuccessfullySpawned, int32 LivingBossCount);
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);

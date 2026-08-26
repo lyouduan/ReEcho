@@ -7,12 +7,15 @@ namespace ReEchoCardRuntime
 REECHOCARDS_API float ApplyValueOperation(float CurrentValue, EReEchoCardValueOperation Operation, float Value);
 REECHOCARDS_API int32 CountOwned(const FReEchoCardBuildState& State, FName CardId);
 REECHOCARDS_API bool HasCard(const FReEchoCardBuildState& State, FName CardId);
-REECHOCARDS_API bool
-CanOffer(const FReEchoCardCatalog& Catalog, const FReEchoCardBuildState& State, const FReEchoCardDefinition& Card);
+REECHOCARDS_API bool CanOffer(const FReEchoCardCatalog& Catalog,
+                              const FReEchoCardBuildState& State,
+                              const FReEchoCardDefinition& Card,
+                              int32 EncounterIndex = INDEX_NONE);
 REECHOCARDS_API TArray<FReEchoCardDefinition> BuildOfferPool(const FReEchoCardCatalog& Catalog,
                                                              const FReEchoCardBuildState& State,
                                                              FName OfferGroup,
-                                                             int32 Tier = INDEX_NONE);
+                                                             int32 Tier = INDEX_NONE,
+                                                             int32 EncounterIndex = INDEX_NONE);
 REECHOCARDS_API FReEchoCardRuleSnapshot CompileRules(const FReEchoCardCatalog& Catalog,
                                                      const FReEchoCardBuildState& State);
 REECHOCARDS_API FReEchoCardGrantResult TryGrantCard(const FReEchoCardCatalog& Catalog,
@@ -34,13 +37,31 @@ REECHOCARDS_API FReEchoCardEventResult OnReaction(const FReEchoCardCatalog& Cata
                                                   const FReEchoStatBlock& Stats,
                                                   FName ReactionId,
                                                   bool bTriggeredByPlayer);
+REECHOCARDS_API float
+GetReactionDamageMultiplier(const FReEchoCardCatalog& Catalog, const FReEchoCardBuildState& State, FName ReactionId);
 REECHOCARDS_API FReEchoCardEventResult OnKillResolved(const FReEchoCardCatalog& Catalog,
                                                       const FReEchoCardBuildState& State,
                                                       const FReEchoStatBlock& Stats,
-                                                      bool bKilledByEcho);
+                                                      bool bKilledByEcho,
+                                                      FName TargetDefinitionId = NAME_None);
+REECHOCARDS_API FReEchoCardEventResult OnDamageResolved(const FReEchoCardCatalog& Catalog,
+                                                        const FReEchoCardBuildState& State,
+                                                        const FReEchoStatBlock& Stats,
+                                                        float RawDamage,
+                                                        float AppliedDamage,
+                                                        bool bDealtByEcho);
+REECHOCARDS_API FReEchoCardEventResult OnNegativeStatusApplied(const FReEchoCardCatalog& Catalog,
+                                                               const FReEchoCardBuildState& State,
+                                                               const FReEchoStatBlock& Stats,
+                                                               FName StatusId,
+                                                               bool bAppliedByEcho);
 REECHOCARDS_API FReEchoCardEventResult OnPurchase(const FReEchoCardCatalog& Catalog,
                                                   const FReEchoCardBuildState& State,
                                                   const FReEchoStatBlock& Stats);
+REECHOCARDS_API FReEchoCardEventResult OnCoreInventoryChanged(const FReEchoCardCatalog& Catalog,
+                                                              const FReEchoCardBuildState& State,
+                                                              const FReEchoStatBlock& Stats,
+                                                              int32 DistinctOwnedCoreCount);
 REECHOCARDS_API FReEchoCardEventResult OnEchoKilled(const FReEchoCardCatalog& Catalog,
                                                     const FReEchoCardBuildState& State,
                                                     const FReEchoStatBlock& Stats);

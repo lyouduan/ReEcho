@@ -3,6 +3,7 @@
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Components/BoxComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -76,6 +77,34 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	UPrimitiveComponent* RootCollision = Cast<UPrimitiveComponent>(Source->GetRootComponent());
+	TestNotNull(TEXT("Enemy host has one root gameplay collision"), RootCollision);
+	if (!RootCollision)
+	{
+		return false;
+	}
+	Source->SetCanBeDamaged(false);
+	Source->SetActorEnableCollision(false);
+	RootCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Source->Configure(EReEchoEnemyKind::Bomber, 12);
+	TestTrue(TEXT("Commit configuration restores damage acceptance"), Source->CanBeDamaged());
+	TestTrue(TEXT("Commit configuration restores actor collision"), Source->GetActorEnableCollision());
+	TestTrue(TEXT("Commit configuration restores root query collision"), RootCollision->IsCollisionEnabled());
+	const float HealthBeforeImmediateHit = Source->GetCombatantComponent()->CurrentHealth;
+	TestEqual(TEXT("A committed enemy immediately accepts damage"),
+	          Source->GetCombatantComponent()->ApplyFinalDamageForTests(1.0f),
+	          1.0f);
+	TestEqual(TEXT("Immediate post-commit damage changes health"),
+	          Source->GetCombatantComponent()->CurrentHealth,
+	          HealthBeforeImmediateHit - 1.0f);
+	FReEchoEnemyLogicSnapshot PresentationTransform = Source->GetEnemyLogicComponent()->GetSnapshot();
+	PresentationTransform.Phase = EReEchoEnemyBehaviorPhase::Transforming;
+	Source->GetEnemyLogicComponent()->RestoreSnapshot(PresentationTransform);
+	FReEchoHitIntent TransformingHit;
+	TransformingHit.RawDamage = 2.0f;
+	TestEqual(TEXT("Ordinary presentation-only transformation accepts incoming damage"),
+	          Source->ModifyIncomingRawDamage(TransformingHit),
+	          2.0f);
 	Source->SetEnemyRoster(Roster);
 	TestEqual(TEXT("Host registers into the single roster"), Roster->GetLivingEnemyCount(), 1);
 	TestEqual(TEXT("Legacy host kind is projected from EnemyLogic"), Source->GetKind(), EReEchoEnemyKind::Bomber);
@@ -133,6 +162,113 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Lethal Hurt is explicitly marked fatal for presentation suppression"),
 	         SourceCombatEvents && SourceCombatEvents->GetHurtPublishCountForTests() == 1 &&
 	             SourceCombatEvents->GetLastHurtEventForTests().bFatal);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostStunRetargetTest,
+                                 "ReEcho.Enemies.Host.StunRetarget",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads for stun retarget"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+
+	FReEchoEnemyDefinition FoxDefinition;
+	FString CompileError;
+	if (!TestTrue(
+	        TEXT("Fox definition compiles for stun retarget"),
+	        ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_FOX"), FoxDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+
+	FReEchoEnemyHostWorldFixture Fixture;
+	AReEchoEnemyActor* Fox = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	AReEchoPlayerPawn* OldTarget =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(500.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoPlayerPawn* CurrentTarget =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(0.0f, 500.0f, 0.0f), FRotator::ZeroRotator);
+	if (!TestNotNull(TEXT("Fox host spawns for stun retarget"), Fox) ||
+	    !TestNotNull(TEXT("Old target spawns for stun retarget"), OldTarget) ||
+	    !TestNotNull(TEXT("Current target spawns for stun retarget"), CurrentTarget))
+	{
+		return false;
+	}
+	if (!Fox->HasActorBegunPlay())
+	{
+		Fox->DispatchBeginPlay();
+	}
+	Fox->SetEnemyId(TEXT("M_FOX"));
+	if (!TestTrue(TEXT("Fox accepts the production definition for stun retarget"),
+	              Fox->ConfigureFromDefinition(FoxDefinition, 30)))
+	{
+		return false;
+	}
+
+	auto MakeSense = [Fox](AActor* Target)
+	{
+		FReEchoEnemySenseSnapshot Sense;
+		Sense.Target = Target;
+		Sense.SelfLocation = Fox->GetActorLocation();
+		Sense.TargetLocation = Target->GetActorLocation();
+		Sense.bTargetExists = true;
+		Sense.bTargetAlive = true;
+		Sense.bSpecialActionPermitted = true;
+		return Sense;
+	};
+
+	Fox->AdvanceBehaviorForTests(MakeSense(OldTarget), 0.01f);
+	FReEchoEnemyLogicSnapshot BeforeStun = Fox->GetEnemyLogicComponent()->GetSnapshot();
+	TestEqual(TEXT("Fox begins windup against the old target"),
+	          BeforeStun.SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Windup);
+	TestTrue(TEXT("Windup stores the old target location"),
+	         BeforeStun.SpecialLockedTargetLocation.Equals(OldTarget->GetActorLocation(), KINDA_SMALL_NUMBER));
+	BeforeStun.AttackCooldownRemainingSeconds = 0.75f;
+	Fox->GetEnemyLogicComponent()->RestoreSnapshot(BeforeStun);
+	Fox->GetEnemyEventsComponent()->ClearPublishedSpecialActionEventsForTests();
+
+	Fox->UpdateStunStateForTests(true);
+	const FReEchoEnemyLogicSnapshot DuringStun = Fox->GetEnemyLogicComponent()->GetSnapshot();
+	TestEqual(TEXT("Entering stun cancels the target-locked action"),
+	          DuringStun.SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::None);
+	TestTrue(TEXT("Entering stun clears the old target location"),
+	         DuringStun.SpecialLockedTargetLocation.IsNearlyZero());
+	TestEqual(TEXT("Entering stun preserves the existing cooldown"), DuringStun.AttackCooldownRemainingSeconds, 0.75f);
+	const TArray<FReEchoEnemySpecialActionEvent>& CancellationEvents =
+	    Fox->GetEnemyEventsComponent()->GetPublishedSpecialActionEventsForTests();
+	TestEqual(TEXT("Entering stun publishes one cancellation"), CancellationEvents.Num(), 1);
+	if (CancellationEvents.Num() == 1)
+	{
+		TestEqual(TEXT("The terminal event is an explicit cancellation"),
+		          CancellationEvents[0].Type,
+		          EReEchoEnemySpecialActionEventType::ActionCancelled);
+	}
+	Fox->UpdateStunStateForTests(true);
+	TestEqual(TEXT("Extending the same stun does not cancel twice"),
+	          Fox->GetEnemyEventsComponent()->GetPublishedSpecialActionEventsForTests().Num(),
+	          1);
+
+	Fox->UpdateStunStateForTests(false);
+	const FReEchoEnemyActionIntent FirstRecoveredStep = Fox->AdvanceBehaviorForTests(MakeSense(CurrentTarget), 0.01f);
+	TestTrue(TEXT("The first recovered step faces the current target"),
+	         FirstRecoveredStep.bHasFacing &&
+	             FirstRecoveredStep.FacingDirection.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
+	Fox->AdvanceBehaviorForTests(MakeSense(CurrentTarget), 0.75f);
+	const FReEchoEnemyLogicSnapshot Retargeted = Fox->GetEnemyLogicComponent()->GetSnapshot();
+	TestEqual(TEXT("Fox can begin a fresh action after its preserved cooldown"),
+	          Retargeted.SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Windup);
+	TestTrue(TEXT("The fresh action locks the current target instead of the old one"),
+	         Retargeted.SpecialLockedTargetLocation.Equals(CurrentTarget->GetActorLocation(), KINDA_SMALL_NUMBER));
 	return true;
 }
 
@@ -792,6 +928,59 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossDamageGeometryTest,
+                                 "ReEcho.Enemies.Host.BossDamageGeometry",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossDamageGeometryTest::RunTest(const FString& Parameters)
+{
+	FReEchoBossIntent BlinkSlam;
+	BlinkSlam.AttackShape = EReEchoBossAttackShape::Circle;
+	BlinkSlam.Origin = FVector(600.0f, -200.0f, 50.0f);
+	BlinkSlam.RadiusCm = 180.0f;
+	TestTrue(TEXT("Blink Slam damages inside its locked warning circle"),
+	         AReEchoEnemyActor::IntersectsBossDamageShape(BlinkSlam, FVector(779.0f, -200.0f, 0.0f)));
+	TestFalse(TEXT("Blink Slam does not damage outside its locked warning circle"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(BlinkSlam, FVector(781.0f, -200.0f, 0.0f)));
+
+	FReEchoBossIntent Projectile;
+	Projectile.AttackShape = EReEchoBossAttackShape::Projectile;
+	Projectile.Origin = BlinkSlam.Origin;
+	Projectile.RadiusCm = 100.0f;
+	TestFalse(TEXT("Skill02 never resolves immediate AOE damage from its ability radius"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Projectile, Projectile.Origin));
+
+	FReEchoBossIntent Beam;
+	Beam.AbilityId = TEXT("M_SHEEP_PrayerBeam");
+	Beam.AttackShape = EReEchoBossAttackShape::Beam;
+	Beam.Origin = FVector(100.0f, 200.0f, 0.0f);
+	Beam.LockedTargetLocation = FVector(500.0f, 300.0f, 0.0f);
+	Beam.LockedDirection = FVector::ForwardVector;
+	Beam.LengthCm = 1200.0f;
+	Beam.WidthCm = 160.0f;
+	TestTrue(TEXT("Prayer Beam damages upward from its locked warning center"),
+	         AReEchoEnemyActor::IntersectsBossDamageShape(Beam, FVector(1400.0f, 379.0f, 0.0f)));
+	TestFalse(TEXT("Prayer Beam rejects targets below its locked warning center"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Beam, FVector(499.0f, 300.0f, 0.0f)));
+	TestFalse(TEXT("Prayer Beam rejects targets outside its locked width"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Beam, FVector(1400.0f, 381.0f, 0.0f)));
+
+	FReEchoBossIntent Melee;
+	Melee.AbilityId = TEXT("M_SHEEP_MeleeSweep");
+	Melee.AttackShape = EReEchoBossAttackShape::Rectangle;
+	// Host replaces the gameplay Intent origin with BossWeaponRoot before evaluating this shared geometry.
+	Melee.Origin = FVector(100.0f, 200.0f, 0.0f);
+	Melee.LockedDirection = FVector::ForwardVector;
+	Melee.LengthCm = 260.0f;
+	TestTrue(TEXT("Melee Sweep damages within the staff-pivoted front 180-degree semicircle"),
+	         AReEchoEnemyActor::IntersectsBossDamageShape(Melee, FVector(100.0f, 450.0f, 0.0f)));
+	TestFalse(TEXT("Melee Sweep rejects targets behind the Boss"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Melee, FVector(99.0f, 200.0f, 0.0f)));
+	TestFalse(TEXT("Melee Sweep rejects targets beyond its configured reach"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Melee, FVector(361.0f, 200.0f, 0.0f)));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostSheepProjectileTest,
                                  "ReEcho.Enemies.Host.SheepProjectilePipeline",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -952,6 +1141,32 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Moving spread center projectile applies its configured damage"),
 	          Player->Combatant->CurrentHealth,
 	          100.0f - MovingSpread->Damage);
+
+	Player->Combatant->RestoreCurrentHealth(100.0f);
+	FReEchoBossIntent BlinkSlam;
+	BlinkSlam.Type = EReEchoBossIntentType::AttackWindowStarted;
+	BlinkSlam.AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	BlinkSlam.Attack.Sequence = 9001;
+	BlinkSlam.Attack.Source = Sheep;
+	BlinkSlam.Target = Player;
+	BlinkSlam.AttackShape = EReEchoBossAttackShape::Circle;
+	BlinkSlam.Origin = Player->GetActorLocation();
+	BlinkSlam.LockedTargetLocation = Player->GetActorLocation();
+	BlinkSlam.TeleportDestination = Player->GetActorLocation();
+	BlinkSlam.RawDamage = 12.0f;
+	BlinkSlam.RadiusCm = 180.0f;
+	BlinkSlam.bCanDamageTarget = true;
+	BlinkSlam.bRequestTeleport = true;
+	Sheep->ApplyBossIntentForTests(BlinkSlam);
+	TestEqual(TEXT("Blink slam does not damage at the start of its descent"), Player->Combatant->CurrentHealth, 100.0f);
+	Sheep->AdvancePendingBossBlinkSlamForTests(0.49f);
+	TestEqual(TEXT("Blink slam remains non-damaging before the 0.5 second landing"),
+	          Player->Combatant->CurrentHealth,
+	          100.0f);
+	Sheep->AdvancePendingBossBlinkSlamForTests(0.01f);
+	TestEqual(TEXT("Blink slam applies damage once its descent completes"), Player->Combatant->CurrentHealth, 88.0f);
+	Sheep->AdvancePendingBossBlinkSlamForTests(1.0f);
+	TestEqual(TEXT("Blink slam delayed impact is consumed exactly once"), Player->Combatant->CurrentHealth, 88.0f);
 	return true;
 }
 
