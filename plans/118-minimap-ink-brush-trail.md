@@ -1,4 +1,4 @@
-# Plan 118 - 程序 - 小地图经典墨水笔轨迹
+# Plan 118 - 程序 - 战斗 HUD 墨水轨迹与理论伤害跳字
 
 ## 协调
 
@@ -16,6 +16,8 @@
   - `Source/ReEcho/{Public,Private}/UI/ReEchoMinimapCanvasWidget.*`
   - `Source/ReEcho/Private/Tests/ReEchoMinimapTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoCombatHudTests.cpp`
+  - `Source/ReEcho/{Public,Private}/Combat/ReEchoElementReaction.*`
+  - `Source/ReEcho/Private/Presentation/Enemy/ReEchoEnemyPresentationComponent.cpp`
   - `Content/SourceArt/UI/CombatHud/MinimapInkBrush/`
   - `Content/ReEcho/Textures/UI/CombatHud/MinimapInkBrush/`
   - `Content/ReEcho/Materials/UI/M_UI_MinimapInkTrail.uasset`
@@ -29,10 +31,12 @@
   - `Source/ReEcho/{Public,Private}/UI/ReEchoEncounterHudWidget.*`
   - `Content/ReEcho/UI/WBP_ReEchoEncounterHud.uasset`
   - `Config/DefaultGame.ini`
+  - `Source/ReEchoCombat/{Public,Private}/Combat/ReEchoCombat{Contracts,Types,antComponent}.*`
+  - `Source/ReEchoCombat/Private/Combat/ReEcho{HitResolver,ElementHitResolver}.cpp`
   - 外部交付目录 `正式-UI视觉/正式-UI视觉/战斗场景/经典墨水笔_Photoshop交付/`
-- 影响模式：`SharedContract`。不改变小地图视图数据、录制或玩法权威，但扩展 `UReEchoMinimapCanvasWidget` 的 WBP 可调表现参数，并新增 Cook 可追踪的纹理/材质依赖。
-- 兼容承诺 / 下游操作：Player/Echo 头像、坐标投影、轨迹颜色、透明底板和回响路径数据保持不变；墨水材质缺失时安全降级到现有纯色折线。策划/UI 可在 Encounter HUD 内的小地图控件 Details 调整笔触尺寸、间距、旋转/透明度抖动与 Grain 强度。
-- 明确排除：不修改录制采样率、路径点数量/简化算法、Echo 移动/回放、头像资源、小地图边框或底板；不尝试让 UE 直接加载 Photoshop `.abr`，也不把 Photoshop/Procreate 动态引擎引入运行时。
+- 影响模式：`SharedContract`。不改变小地图视图数据、录制、伤害事件 Schema 或玩法权威，但扩展 `UReEchoMinimapCanvasWidget` 的 WBP 可调表现参数、新增 Cook 可追踪的纹理/材质依赖，并让敌人跳字从同一事件选择生命钳制前的理论伤害。
+- 兼容承诺 / 下游操作：Player/Echo 头像、坐标投影、轨迹颜色、透明底板和回响路径数据保持不变；墨水材质缺失时安全降级到现有纯色折线。策划/UI 可在 Encounter HUD 内的小地图控件 Details 调整笔触尺寸、间距、旋转/透明度抖动与 Grain 强度。`AppliedDamage` 继续表示实际扣血，生命、死亡、音频和 VFX 语义不变；敌人跳字显示目标规则修正后、生命钳制前的 `RawDamage`。
+- 明确排除：不修改录制采样率、路径点数量/简化算法、Echo 移动/回放、头像资源、小地图边框或底板；不尝试让 UE 直接加载 Photoshop `.abr`，也不把 Photoshop/Procreate 动态引擎引入运行时。不修改伤害公式、生命/死亡结算、玩家受击反馈或 Boss 对玩家的跳字。
 
 ## 锁定目标
 
@@ -40,11 +44,14 @@
 
 UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Photoshop 笔刷：笔尖跟随路径方向，并按交付参数提供约 `18%` 的角度变化和 `16%` 的不透明度变化；Grain 由 UI 材质在每个笔尖内调制 Alpha。盖印必须跨路径段保持等距、同一轨迹在相同数据下每帧稳定，且具备单条轨迹最大盖印数，避免长录制路径导致 Slate 绘制无界增长。
 
+同一 Plan 同时收口敌人受击跳字数值：有效伤害仍以 `AppliedDamage>0` 为生成门禁，但显示目标规则修正后、剩余生命钳制前的 `RawDamage`。例如怪物剩余 `7` 血、本次最终伤害 `20`，生命只扣 `7` 并死亡，跳字显示 `20`。该变化只属于 Enemy Presentation，不新增或重解释 Combat 字段。
+
 ## 架构影响与设计决策
 
 - 受影响架构标识：`MOD-ReEcho`、`MOD-ReEchoUI`、`AREA-UI`、`AREA-Tests`。
 - 对应模块文档：维护 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 与 `MOD-ReEchoUI.md`，均已加入 `Writes`。
 - 设计意图：保持小地图数据与表现分离；GameMode 继续只提供世界路径，Slate Widget 只把路径投影后转换为可丢弃笔触盖印，不从资产或材质反向影响录制/回放。
+- 跳字设计意图：Combat 继续同时提供结算前最终伤害 `RawDamage` 与实际扣血 `AppliedDamage`；Enemy Presentation 通过可测试纯函数选择前者，其他消费者继续按原语义使用 `AppliedDamage`。
 - 权威状态与依赖：不新增玩法权威，不修改 `FReEchoMinimapView/FReEchoMinimapEchoEntry` 的数据来源。`UReEchoMinimapCanvasWidget` 拥有仅表现用的 Editor 参数与材质引用，`SReEchoMinimapCanvas` 只持有当前绘制快照和弱表现资源；依赖方向仍为主模块 UI → Slate/Engine 资产。
 - 决策记录：
   - `.abr` 是 Photoshop 笔刷容器，UE 不具备运行时加载器；生产运行时只导入已交付的 `512×512` 透明笔尖与 `900×900` Grain，完整 `.abr`、参数 JSON/TXT 和 256px 备选笔尖归档在 SourceArt 供追溯。
@@ -67,6 +74,8 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - [x] 笔触尺寸、间距、角度变化、不透明度变化与 Grain 强度可在 `WBP_ReEchoEncounterHud` 的小地图控件 Details 调整，非法值被安全钳制。
 - [x] 单条轨迹盖印数量有明确上限；零长度段、单点路径和极密路径不会崩溃或产生 NaN。
 - [x] 512px 笔尖、Grain 和 UI 材质均可加载并被 Cook 依赖追踪；完整 Photoshop 交付包已归档且不把 `.abr` 当运行时资产。
+- [x] 敌人伤害事件 `RawDamage=20`、`AppliedDamage=7` 时跳字显示 `20`，生命仍只扣 `7`；普通 `7/7` 显示保持 `7`。
+- [x] 跳字仍仅在 `AppliedDamage>0` 时生成；颜色、字体、取整、缩放动画与生命周期不变，Combat Schema、生命和死亡规则未修改。
 - [ ] `ReEcho.UI.Minimap`、`ReEcho.UI.CombatHud`、UE 5.8 Editor 构建、静态校验及最终 `-FullRebuild` 发布门禁通过。
 - [ ] 用户在 `Level00` 手测轨迹连续性、粗细、颗粒感、颜色、转角、同屏多 Echo 密度和头像遮挡，并确认通过。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
@@ -85,6 +94,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 2. 为 Minimap Canvas 增加 Cook 可追踪材质和 WBP 可调笔触参数；把投影后的折线确定性重采样为有界盖印序列，使用旋转 Slate Box 绘制。
 3. 保留材质缺失的旧 `MakeLines` fallback；增加采样等距、确定性、零长度/上限和资产加载自动化。
 4. 更新 UI/主模块文档与 Plan 执行记录，完成格式、构建、聚焦自动化、静态校验和人工验收。
+5. 让 Enemy Hurt 跳字通过纯表现函数选择 `RawDamage`，增加普通与过量伤害自动化，不改变 `AppliedDamage` 结算及其他消费者。
 
 ## 验证矩阵
 
@@ -96,9 +106,10 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 | 构建 | `scripts/ue/Build-Editor.cmd -Configuration Development` | UHT/UBT 退出码 0 |
 | Minimap 聚焦 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.Minimap` | 坐标投影、等距采样、确定性、退化段和上限通过 |
 | HUD 回归 | `scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.CombatHud` | 材质/纹理加载及现有 HUD 契约通过 |
+| 跳字语义 | 同一 `ReEcho.UI.CombatHud` 自动化 | 普通 `7/7 → 7`；过量 `20/7 → 20` |
 | 静态 | `python scripts/validate_project.py`、`git diff --check` | 项目、资产依赖、UTF-8 不变量通过 |
 | 最终发布 | `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` | 最终组合候选精选 Editor 包与源码指纹刷新并通过 |
-| 人工 | `Level00` 观察单/多 Echo 小地图轨迹 | 连续、稳定、颗粒可读；颜色、图标和 HUD 不回归 |
+| 人工 | `Level00` 观察单/多 Echo 小地图轨迹，并以低血怪物承受高额伤害 | 笔触连续稳定、颗粒可读；过量跳字显示理论伤害且生命/死亡正常 |
 
 ## 执行记录
 
@@ -106,6 +117,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 
 - 已归档完整 Photoshop 交付包，并新增幂等的运行时纹理导入与 UI 材质 authoring 脚本。
 - 已将 Minimap 轨迹生产路径改为确定性、有界的笔尖盖印；保留旧 `MakeLines` 作为材质缺失 fallback，并提供 WBP 实例级笔触参数。
+- 已把原 Plan119 的理论伤害跳字范围并入本 Plan：Enemy Hurt 显示选择 `RawDamage`，保留 `AppliedDamage>0` 生成门禁及所有结算语义。
 
 ### 证据
 
@@ -115,15 +127,18 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - `scripts/ue/Build-Editor.cmd -Configuration Development` 成功并刷新当前候选预构建包；首次 UHT 暴露 UE 5.8 不识别 `Units="px"`，移除纯显示元数据后编译通过。
 - `ReEcho.UI.Minimap.InkTrailSampling`、`ReEcho.UI.Minimap.Transform` 与 `ReEcho.UI.CombatHud.Formatting` 全部 `Result={Success}`；覆盖等距、跨段、确定性、退化段/硬上限、既有投影和运行时资产加载。
 - `python scripts/validate_project.py` 与 `git diff --check` 通过。发布前仍需在获得 main 发布锁并合并最新 `origin/main` 后执行准确最终组合的 `-FullRebuild`。
+- 已合并 `origin/main@081a8689` 的怪物眩晕、羊 Boss 范围/锁点与预构建更新；文本功能全部保留，冲突的精选二进制先采用远端版本，再由统一源码增量构建重生。
+- Plan119 范围合入本 Plan 后，统一候选的 Development Editor 构建通过；`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与 `ReEcho.UI.CombatHud.Formatting` 全部 `Result={Success}`，后者覆盖普通 `7/7 → 7` 与过量 `20/7 → 20`。静态校验与 `git diff --check` 再次通过。
 
 ### 剩余风险
 
 - 220px 小地图上的 Grain 细节可能因缩放过细或 mip/滤波被弱化，需要真实 HUD 人工调参。
 - 密集回放路径的盖印数量与视觉连续性存在性能/清晰度权衡，默认值和上限需在多 Echo 场景验收。
+- 理论伤害跳字仍需在真实低血击杀场景确认最终取整与观感。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：待实现后由用户在 `Level00` 验收小地图墨水轨迹。
+- `PendingBeforeClose`：由用户在同一 Plan118 工程验收小地图墨水轨迹，并以低血怪物确认过量伤害跳字。
 
 ### 架构文档审阅结果
 

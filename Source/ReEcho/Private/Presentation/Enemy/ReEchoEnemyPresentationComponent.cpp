@@ -568,8 +568,10 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 		return;
 	}
 	const FLinearColor Color = ReEchoElementReaction::GetDamageNumberColor(Event);
-	AReEchoDamageNumberActor::SpawnDamageNumber(
-	    Host ? Host->GetWorld() : nullptr, Event.WorldLocation, Event.AppliedDamage, Color);
+	AReEchoDamageNumberActor::SpawnDamageNumber(Host ? Host->GetWorld() : nullptr,
+	                                            Event.WorldLocation,
+	                                            ReEchoElementReaction::GetDamageNumberValue(Event),
+	                                            Color);
 	if (Event.bFatal || bDeathVisualActive)
 	{
 		return;

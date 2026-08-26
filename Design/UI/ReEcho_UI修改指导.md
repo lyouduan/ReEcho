@@ -121,6 +121,8 @@ Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Pl
 
 不要在 Tick 蓝图中轮询生命值。玩家 HUD 和敌人血条已经订阅 `OnHealthChanged`；新增状态也应优先使用已有事件。
 
+敌人世界空间伤害跳字显示本次经过攻击方/目标方规则修正后、目标剩余生命钳制前的伤害值。例如目标剩余 7 血、本次最终伤害 20，生命只扣 7 并死亡，但跳字显示 20。该数值来自 `FReEchoDamageEvent::RawDamage`；`AppliedDamage` 继续只表示实际扣血，不要在 WBP、材质或动画中根据当前生命重新计算跳字。字体、颜色、取整、缩放和生命周期仍由既有 Damage Number 表现链负责。
+
 ### 5.2 Start Menu、Settings、Restart
 
 可以修改面板尺寸、按钮布局、按钮 Style、文本、焦点高亮和转场动画。不要在 WBP 中直接开始游戏、读写存档、重启关卡或退出程序；按钮只应把请求交给 C++ Delegate。

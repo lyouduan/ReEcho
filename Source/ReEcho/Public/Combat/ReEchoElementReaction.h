@@ -26,6 +26,8 @@ REECHO_API int32 TickElementStatuses(AReEchoEnemyActor& Target, float CurrentTim
 REECHO_API FLinearColor GetElementColor(EReEchoElement Element);
 /** Maps authoritative reaction provenance to the approved damage-number palette. */
 REECHO_API FLinearColor GetDamageNumberColor(const FReEchoDamageEvent& Event);
+/** Returns final pre-health-clamp damage for enemy damage-number presentation. */
+REECHO_API float GetDamageNumberValue(const FReEchoDamageEvent& Event);
 REECHO_API FString GetElementLabel(EReEchoElement Element);
 REECHO_API FName GetElementId(EReEchoElement Element);
 }

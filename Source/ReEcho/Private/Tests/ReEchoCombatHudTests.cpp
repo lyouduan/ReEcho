@@ -120,6 +120,19 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestReactionDamageColor(
 	    TEXT("Enhanced damage numbers use reference gold"), TEXT("Reaction.Enhance"), FColor(241, 184, 76));
 
+	FReEchoDamageEvent OrdinaryDamageEvent;
+	OrdinaryDamageEvent.RawDamage = 7.0f;
+	OrdinaryDamageEvent.AppliedDamage = 7.0f;
+	TestEqual(TEXT("Ordinary damage numbers preserve the resolved damage"),
+	          ReEchoElementReaction::GetDamageNumberValue(OrdinaryDamageEvent),
+	          7.0f);
+	FReEchoDamageEvent OverkillDamageEvent;
+	OverkillDamageEvent.RawDamage = 20.0f;
+	OverkillDamageEvent.AppliedDamage = 7.0f;
+	TestEqual(TEXT("Overkill damage numbers show pre-health-clamp damage"),
+	          ReEchoElementReaction::GetDamageNumberValue(OverkillDamageEvent),
+	          20.0f);
+
 	UFont* DamageNumberFont = LoadObject<UFont>(nullptr, AReEchoDamageNumberActor::GetDamageNumberFontPath());
 	TestNotNull(TEXT("Damage-number actor owns the approved non-commercial runtime font"), DamageNumberFont);
 	if (DamageNumberFont)
