@@ -224,6 +224,12 @@ void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 
 FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)
 {
+	if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+	{
+		// Both delivered arrow textures point toward sprite-image right. With zero authored SpriteRotation,
+		// that is the Niagara billboard's local +Y visual axis rather than the component's local +X axis.
+		return FVector::RightVector;
+	}
 	if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight)
 	{
 		// Side-on PIE confirmation identifies the delivered arrowhead's authored visual axis as local +Y.

@@ -150,6 +150,19 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	          Fox->GetActorLocation());
 	TestEqual(
 	    TEXT("Fox Direction placement remains zero-offset"), Direction->GetRelativeLocation(), FVector::ZeroVector);
+	const FVector FoxAuthoredVisualForward =
+	    FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic::FoxDirection);
+	const FVector FoxRuntimeVisualForward =
+	    Direction->GetComponentQuat().RotateVector(FoxAuthoredVisualForward).GetSafeNormal2D();
+	AddInfo(FString::Printf(TEXT("Fox Direction visual axis authored=%s world=%s locked=%s componentRotation=%s"),
+	                        *FoxAuthoredVisualForward.ToString(),
+	                        *FoxRuntimeVisualForward.ToString(),
+	                        *Windup.LockedDirection.ToString(),
+	                        *Direction->GetComponentRotation().ToString()));
+	TestTrue(TEXT("Fox Direction authored visual axis is local positive Y"),
+	         FoxAuthoredVisualForward.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Fox Direction runtime visual axis follows the Windup locked direction"),
+	         FoxRuntimeVisualForward.Equals(Windup.LockedDirection, KINDA_SMALL_NUMBER));
 	TestEqual(TEXT("Fox Charging remains attached to AttackVfxRoot"), Charging->GetAttachParent(), AttackVfxRoot);
 	TestEqual(TEXT("Fox Charging component stays on the gameplay plane"),
 	          Charging->GetComponentLocation().Z,
@@ -599,10 +612,15 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Bow authored arrow axis points from the shooter toward the target"),
 	         RotatedBowAuthoredAxis.Equals(BowTargetDirection, KINDA_SMALL_NUMBER));
 	const FVector FoxDashDirection = FVector(0.0f, -1.0f, 0.0f);
+	const FVector FoxAuthoredForwardAxis =
+	    FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic::FoxDirection);
+	TestTrue(TEXT("Fox delivered Niagara arrowhead is authored along local positive Y"),
+	         FoxAuthoredForwardAxis.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
 	const FRotator FoxDirectionRotation =
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::FoxDirection, FoxDashDirection);
-	TestTrue(TEXT("Fox windup arrow points along the locked dash direction"),
-	         FoxDirectionRotation.RotateVector(FVector::ForwardVector).Equals(FoxDashDirection, KINDA_SMALL_NUMBER));
+	const FVector RotatedFoxAuthoredAxis = FoxDirectionRotation.RotateVector(FoxAuthoredForwardAxis).GetSafeNormal2D();
+	TestTrue(TEXT("Fox authored visual arrow axis points along the locked dash direction"),
+	         RotatedFoxAuthoredAxis.Equals(FoxDashDirection, KINDA_SMALL_NUMBER));
 	const FReEchoVfxPlacement FoxDirectionPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::FoxDirection);
 	TestTrue(TEXT("Fox windup arrow keeps a visible non-degenerate component scale"),
