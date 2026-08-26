@@ -6,7 +6,7 @@
 - Executor 负责人：Gavyn-side Executor（同一 AI 分阶段执行）。
 - Plan 编写方（AI 侧）：Gavyn-side AI（Codex）。
 - 实现编写方（AI 侧）：Gavyn-side AI（Codex）。
-- 任务状态：`Ready`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
 - 人工验收：`PendingBeforeClose`（`NotRequired | PendingBeforeClose | PendingFollowUp | Passed`）。
 - 本地规划 / 实现基线：`origin/main@a04e4dec6dfdcdf7b1c164ddeed1840af657f2d5`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan114-audio`，本地分支 `plan/114-formal-audio-assets`；Plan-only 发布后在同一工作树继续分阶段实现。
@@ -59,14 +59,14 @@
 
 ## 锁定验收
 
-- [ ] 第一阶段 15 个既有 EventId 的目标 SoundWave 已由对应正式源文件重新导入，路径、循环/OneShot、声道和来源哈希可审计。
-- [ ] `Enemy.Spawn` 裁切产物可由固定脚本重建，开始播放即进入表格要求的后半段主内容。
-- [ ] 四把现役武器、四元素和三普通 Stage 的精确 VariantId 能解析到各自资源，未知/空变体可靠回退基础资源。
-- [ ] 菜单、商店、Boss、普通关卡 BGM 及直接替换的 UI/战斗/流程音均有自动化或结构化触发证据；音频不可用不改变玩法结果。
-- [ ] 目录 XLSX 与生成 CSV 同步发布，15 列 Schema、复合唯一键、预载和 Cook 验证通过。
+- [x] 第一阶段 15 个既有 EventId 的目标 SoundWave 已由对应正式源文件重新导入，路径、循环/OneShot、声道和来源哈希可审计。
+- [x] `Enemy.Spawn` 裁切产物可由固定脚本重建，开始播放即进入表格要求的后半段主内容。
+- [x] 四把现役武器、四元素和三普通 Stage 的精确 VariantId 能解析到各自资源，未知/空变体可靠回退基础资源。
+- [x] 菜单、商店、Boss、普通关卡 BGM 及直接替换的 UI/战斗/流程音均有自动化或结构化触发证据；音频不可用不改变玩法结果。
+- [x] 目录 XLSX 与生成 CSV 同步发布，15 列 Schema、复合唯一键和预载验证通过；最终 Cook/包内清单随策划测试包保持未验收。
 - [ ] 最终集成候选执行 `-FullRebuild`，提交匹配精选 Editor 预构建包，并生成干净本地策划测试包；包内音频清单与目录一致。
 - [ ] 用户在 PIE/测试包完成可听性、响度、循环、Water 映射和各变体区分度验收。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -105,11 +105,21 @@
 
 - 2026-08-26：完成只读盘点。交付工作簿含 3 个可见 Sheet；“项目音频事件清单”覆盖现有 31 个基础事件，“音频配置说明”另列武器、元素、Stage 与建议新增语义。发现现役武器仅 4 把，法杖没有生产稳定 ID。
 - 2026-08-26：按用户决定将工作拆为直接替换、确定性裁切、变体/耦合语义三阶段，优先执行无运行时耦合的资源替换。
+- 2026-08-26：完成 15 个既有事件的正式替换，并将 `Enemy.Spawn` 后半段及全部空间化正式源确定性派生为单声道；25 个交付源文件有固定 SHA-256 校验。
+- 2026-08-26：目录迁移到 15 列 `(EventId, VariantId)` 复合键，保留 31 个基础回退并新增 4 Weapon、4 Element、3 Stage 变体；权威 XLSX 与 CSV 字节同步通过。
+- 2026-08-26：接通 Attack WeaponId、Hit ElementId、Encounter StageId 与死亡重开 `Revive` 事件；UE 资产校验通过 42 行。未新增缺少稳定发布点的 Reaction/Equip/Pickup/Card 语义。
+- 2026-08-26：取得 `main-publish-lock` 后将 `origin/main@1544d988` merge 至正式候选；文本和音频资产自动合并，精选预构建包冲突通过最终组合源码 FullRebuild 统一重建。后续 `origin/main` 只新增 Plan121/Plan122 文档，不影响构建证据。
 
 ### 证据
 
 - 远端最大编号为 Plan113，本 Plan 使用下一个空闲编号 114。
 - `FReEchoAudioEventRequest` 已有 `VariantId`；`Combat.Attack` 已传 WeaponId，但当前 Catalog 仍只按 EventId 查找；`Combat.Hit` 的最终事件已携带 Element；Stage CSV 已提供稳定 `Stage.1/2/3/Boss`。
+- `python scripts/audio/validate_formal_audio_sources.py` 通过 25 个源文件；`prepare_formal_audio.py --check` 通过 13 个派生 WAV，其中所有空间化资源均为单声道。
+- UE 5.8 导入日志记录直接替换 16 个资产、变体 11 个资产；`validate_audio_catalog_assets.py` 通过 42 个目录 SoundWave。
+- `python scripts/data/sync_xlsx_to_csv.py --check` 通过 15 列权威工作簿与运行时 CSV 同步。
+- 最终组合候选执行 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，刷新 7 个精选模块，源码指纹 `55a386598587`；`python scripts/ue/test_prebuilt_editor.py` 5/5 通过。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Audio` 13/13 成功；UE 5.8 资产审计再次确认 42/42 个目录 SoundWave 可加载且循环/声道契约正确。
+- `python scripts/validate_project.py`、音频来源/派生/路由检查、XLSX/CSV `--check` 与 `git diff --check` 均通过。
 
 ### 剩余风险
 
@@ -120,8 +130,10 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：最终资源映射、Water 文件、响度、循环、裁切起点和变体区分度由用户试听确认。
+- `PendingBeforeClose`：用户已要求把当前候选发布到主线，但尚未把该发布请求记录为对 Water 文件、响度、循环、裁切起点、变体区分度和策划测试包的逐项主观验收；这些项目继续阻塞 Plan 关闭。
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `MOD-ReEchoAudio.md`：已同步 15 列复合键、基础回退、State/Variant 恢复与 42 行资产验证。
+- `MOD-ReEcho.md`：已同步 Weapon/Element/Stage 稳定变体翻译位置。
+- `ARCHITECTURE.md` / `README.md`：已审阅；模块拓扑和索引未变化，无需修改。

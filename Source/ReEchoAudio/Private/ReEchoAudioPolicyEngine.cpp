@@ -43,7 +43,7 @@ void FReEchoAudioPolicyEngine::PostEvent(const FReEchoAudioEventRequest& Request
 		return;
 	}
 
-	const FReEchoAudioEventDefinition* Def = CatalogProvider->FindDefinition(Request.EventId);
+	const FReEchoAudioEventDefinition* Def = CatalogProvider->FindDefinition(Request.EventId, Request.VariantId);
 	if (Def == nullptr)
 	{
 		// Unknown event: warn at most once per id, then degrade to silent no-op.
@@ -150,6 +150,12 @@ void FReEchoAudioPolicyEngine::PostEvent(const FReEchoAudioEventRequest& Request
 }
 
 void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName StateId, UWorld* World)
+
+{
+	SetState(Channel, StateId, NAME_None, World);
+}
+
+void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName StateId, FName VariantId, UWorld* World)
 {
 	if (!Backend.IsValid() || !CatalogProvider.IsValid())
 	{
@@ -160,12 +166,12 @@ void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName State
 
 	// Idempotent only while the requested state has a live loop. A failed start
 	// keeps the previous state and remains retryable.
-	if (RT.CurrentStateId == StateId && RT.CurrentLoopHandle != 0)
+	if (RT.CurrentStateId == StateId && RT.CurrentVariantId == VariantId && RT.CurrentLoopHandle != 0)
 	{
 		return;
 	}
 
-	const FReEchoAudioEventDefinition* Def = CatalogProvider->FindDefinition(StateId);
+	const FReEchoAudioEventDefinition* Def = CatalogProvider->FindDefinition(StateId, VariantId);
 	if (Def == nullptr)
 	{
 		if (!WarnedUnknownEvents.Contains(StateId))
@@ -184,6 +190,7 @@ void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName State
 
 	FReEchoAudioPlayCommand Command;
 	Command.EventId = StateId;
+	Command.VariantId = VariantId;
 	Command.Sound = Def->Sound;
 	Command.Bus = Def->Bus;
 	Command.bSpatial3D = Def->bSpatial3D;
@@ -211,6 +218,7 @@ void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName State
 	}
 	RT.CurrentLoopHandle = Handle;
 	RT.CurrentStateId = StateId;
+	RT.CurrentVariantId = VariantId;
 }
 
 void FReEchoAudioPolicyEngine::StopState(EReEchoAudioChannel Channel)
@@ -228,11 +236,17 @@ void FReEchoAudioPolicyEngine::StopState(EReEchoAudioChannel Channel)
 		RT.CurrentLoopHandle = 0;
 	}
 	RT.CurrentStateId = NAME_None;
+	RT.CurrentVariantId = NAME_None;
 }
 
 FName FReEchoAudioPolicyEngine::GetCurrentState(EReEchoAudioChannel Channel) const
 {
 	return Channels[static_cast<int32>(Channel)].CurrentStateId;
+}
+
+FName FReEchoAudioPolicyEngine::GetCurrentStateVariant(EReEchoAudioChannel Channel) const
+{
+	return Channels[static_cast<int32>(Channel)].CurrentVariantId;
 }
 
 void FReEchoAudioPolicyEngine::SetMasterVolume(float Volume)
@@ -342,7 +356,8 @@ void FReEchoAudioPolicyEngine::ApplyBusVolumeToLoops()
 		FReEchoAudioChannelRuntime& RT = Channels[c];
 		if (RT.CurrentLoopHandle != 0)
 		{
-			const FReEchoAudioEventDefinition* Def = CatalogProvider->FindDefinition(RT.CurrentStateId);
+			const FReEchoAudioEventDefinition* Def =
+			    CatalogProvider->FindDefinition(RT.CurrentStateId, RT.CurrentVariantId);
 			if (Def != nullptr)
 			{
 				const float Volume = ComputeOneShotVolume(Def->Bus, Def->BaseVolume);

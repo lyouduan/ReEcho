@@ -13,6 +13,7 @@ class UReEchoAudioUserSettings;
 
 /** GameInstance-lifetime semantic audio facade. */
 UCLASS()
+
 class REECHOAUDIO_API UReEchoAudioService : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -27,7 +28,9 @@ public:
 	void PostEventById(UObject* WorldContextObject, FName EventId, const FVector& WorldLocation = FVector::ZeroVector);
 
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetMusicState(FName StateId);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetMusicStateVariant(FName StateId, FName VariantId);
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetAmbienceState(FName StateId);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetAmbienceStateVariant(FName StateId, FName VariantId);
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void StopMusicState();
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void StopAmbienceState();
 	/** Queue a one-shot until the current game world has been replaced. Never delays the world transition. */
@@ -35,7 +38,8 @@ public:
 
 	/** Preview values immediately in the policy engine; these calls do not persist. */
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void SetMasterVolume(float Volume);
-	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void SetBusVolume(EReEchoAudioBus Bus, float Volume);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings")
+	void SetBusVolume(EReEchoAudioBus Bus, float Volume);
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void SetBusMuted(EReEchoAudioBus Bus, bool bMuted);
 	UFUNCTION(BlueprintPure, Category = "ReEchoAudio|Settings") float GetMasterVolume() const;
 	UFUNCTION(BlueprintPure, Category = "ReEchoAudio|Settings") float GetBusVolume(EReEchoAudioBus Bus) const;
@@ -48,10 +52,18 @@ public:
 	/** Preview defaults without persisting until CommitUserSettings. */
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void PreviewDefaultSettings();
 	/** One-shot diagnostic action; never persisted. */
-	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Diagnostics") void PlayDiagnosticTone(UObject* WorldContextObject);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Diagnostics")
+	void PlayDiagnosticTone(UObject* WorldContextObject);
 
-	FReEchoAudioPolicyEngine& GetPolicyEngine() { return *PolicyEngine; }
-	const FReEchoAudioCatalog* GetCatalog() const { return Catalog.Get(); }
+	FReEchoAudioPolicyEngine& GetPolicyEngine()
+	{
+		return *PolicyEngine;
+	}
+
+	const FReEchoAudioCatalog* GetCatalog() const
+	{
+		return Catalog.Get();
+	}
 
 private:
 	bool TickAudio(float DeltaTime);
@@ -65,7 +77,9 @@ private:
 	TSharedPtr<FReEchoAudioCatalog> Catalog;
 	FStreamableManager AudioStreamableManager;
 	FName DesiredMusicStateId;
+	FName DesiredMusicVariantId;
 	FName DesiredAmbienceStateId;
+	FName DesiredAmbienceVariantId;
 	TWeakObjectPtr<UWorld> StateWorld;
 	FName QueuedWorldEventId;
 	TWeakObjectPtr<UWorld> QueuedWorldEventOrigin;

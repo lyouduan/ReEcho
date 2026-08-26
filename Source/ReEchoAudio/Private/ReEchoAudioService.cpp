@@ -13,23 +13,26 @@
 
 namespace
 {
-	// UReEchoAudioService is a UGameInstanceSubsystem and therefore has no world
-	// of its own. Music/ambience voices are spawned into the active game/PIE world,
-	// so resolve it from the engine's world contexts instead of GetWorld() (which
-	// returns nullptr here and silently disables every loop).
-	UWorld* ResolveActiveWorld()
+// UReEchoAudioService is a UGameInstanceSubsystem and therefore has no world
+// of its own. Music/ambience voices are spawned into the active game/PIE world,
+// so resolve it from the engine's world contexts instead of GetWorld() (which
+// returns nullptr here and silently disables every loop).
+UWorld* ResolveActiveWorld()
+{
+	if (!GEngine)
 	{
-		if (!GEngine) return nullptr;
-		for (const FWorldContext& Ctx : GEngine->GetWorldContexts())
-		{
-			UWorld* World = Ctx.World();
-			if (World && (Ctx.WorldType == EWorldType::PIE || Ctx.WorldType == EWorldType::Game))
-			{
-				return World;
-			}
-		}
 		return nullptr;
 	}
+	for (const FWorldContext& Ctx : GEngine->GetWorldContexts())
+	{
+		UWorld* World = Ctx.World();
+		if (World && (Ctx.WorldType == EWorldType::PIE || Ctx.WorldType == EWorldType::Game))
+		{
+			return World;
+		}
+	}
+	return nullptr;
+}
 }
 
 void UReEchoAudioService::Initialize(FSubsystemCollectionBase& Collection)
@@ -47,19 +50,27 @@ void UReEchoAudioService::Initialize(FSubsystemCollectionBase& Collection)
 	}
 	LoadAndApplyUserSettings();
 	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
-		FTickerDelegate::CreateUObject(this, &UReEchoAudioService::TickAudio), 0.0f);
+	    FTickerDelegate::CreateUObject(this, &UReEchoAudioService::TickAudio), 0.0f);
 }
 
 void UReEchoAudioService::Deinitialize()
 {
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 	DesiredMusicStateId = NAME_None;
+	DesiredMusicVariantId = NAME_None;
 	DesiredAmbienceStateId = NAME_None;
+	DesiredAmbienceVariantId = NAME_None;
 	StateWorld.Reset();
 	QueuedWorldEventId = NAME_None;
 	QueuedWorldEventOrigin.Reset();
-	if (Catalog.IsValid()) Catalog->CancelPreload();
-	if (PolicyEngine.IsValid()) PolicyEngine->Shutdown();
+	if (Catalog.IsValid())
+	{
+		Catalog->CancelPreload();
+	}
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->Shutdown();
+	}
 	Catalog.Reset();
 	PolicyEngine.Reset();
 	Super::Deinitialize();
@@ -67,7 +78,10 @@ void UReEchoAudioService::Deinitialize()
 
 bool UReEchoAudioService::TickAudio(const float DeltaTime)
 {
-	if (PolicyEngine.IsValid()) PolicyEngine->Update(DeltaTime);
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->Update(DeltaTime);
+	}
 	UWorld* ActiveWorld = ResolveActiveWorld();
 	PrepareStateWorld(ActiveWorld);
 	RetryDesiredStates(ActiveWorld);
@@ -93,14 +107,17 @@ void UReEchoAudioService::RetryDesiredStates(UWorld* ActiveWorld)
 		return;
 	}
 	if (!DesiredMusicStateId.IsNone() &&
-	    PolicyEngine->GetCurrentState(EReEchoAudioChannel::Music) != DesiredMusicStateId)
+	    (PolicyEngine->GetCurrentState(EReEchoAudioChannel::Music) != DesiredMusicStateId ||
+	     PolicyEngine->GetCurrentStateVariant(EReEchoAudioChannel::Music) != DesiredMusicVariantId))
 	{
-		PolicyEngine->SetState(EReEchoAudioChannel::Music, DesiredMusicStateId, ActiveWorld);
+		PolicyEngine->SetState(EReEchoAudioChannel::Music, DesiredMusicStateId, DesiredMusicVariantId, ActiveWorld);
 	}
 	if (!DesiredAmbienceStateId.IsNone() &&
-	    PolicyEngine->GetCurrentState(EReEchoAudioChannel::Ambience) != DesiredAmbienceStateId)
+	    (PolicyEngine->GetCurrentState(EReEchoAudioChannel::Ambience) != DesiredAmbienceStateId ||
+	     PolicyEngine->GetCurrentStateVariant(EReEchoAudioChannel::Ambience) != DesiredAmbienceVariantId))
 	{
-		PolicyEngine->SetState(EReEchoAudioChannel::Ambience, DesiredAmbienceStateId, ActiveWorld);
+		PolicyEngine->SetState(
+		    EReEchoAudioChannel::Ambience, DesiredAmbienceStateId, DesiredAmbienceVariantId, ActiveWorld);
 	}
 }
 
@@ -141,6 +158,12 @@ void UReEchoAudioService::PostEventById(UObject* WorldContextObject, const FName
 }
 
 void UReEchoAudioService::SetMusicState(const FName StateId)
+
+{
+	SetMusicStateVariant(StateId, NAME_None);
+}
+
+void UReEchoAudioService::SetMusicStateVariant(const FName StateId, const FName VariantId)
 {
 	if (StateId.IsNone())
 	{
@@ -148,12 +171,22 @@ void UReEchoAudioService::SetMusicState(const FName StateId)
 		return;
 	}
 	DesiredMusicStateId = StateId;
+	DesiredMusicVariantId = VariantId;
 	UWorld* ActiveWorld = ResolveActiveWorld();
 	PrepareStateWorld(ActiveWorld);
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, ActiveWorld);
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, VariantId, ActiveWorld);
+	}
 }
 
 void UReEchoAudioService::SetAmbienceState(const FName StateId)
+
+{
+	SetAmbienceStateVariant(StateId, NAME_None);
+}
+
+void UReEchoAudioService::SetAmbienceStateVariant(const FName StateId, const FName VariantId)
 {
 	if (StateId.IsNone())
 	{
@@ -161,21 +194,33 @@ void UReEchoAudioService::SetAmbienceState(const FName StateId)
 		return;
 	}
 	DesiredAmbienceStateId = StateId;
+	DesiredAmbienceVariantId = VariantId;
 	UWorld* ActiveWorld = ResolveActiveWorld();
 	PrepareStateWorld(ActiveWorld);
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, ActiveWorld);
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, VariantId, ActiveWorld);
+	}
 }
 
 void UReEchoAudioService::StopMusicState()
 {
 	DesiredMusicStateId = NAME_None;
-	if (PolicyEngine.IsValid()) PolicyEngine->StopState(EReEchoAudioChannel::Music);
+	DesiredMusicVariantId = NAME_None;
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->StopState(EReEchoAudioChannel::Music);
+	}
 }
 
 void UReEchoAudioService::StopAmbienceState()
 {
 	DesiredAmbienceStateId = NAME_None;
-	if (PolicyEngine.IsValid()) PolicyEngine->StopState(EReEchoAudioChannel::Ambience);
+	DesiredAmbienceVariantId = NAME_None;
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->StopState(EReEchoAudioChannel::Ambience);
+	}
 }
 
 void UReEchoAudioService::QueueEventForNextWorld(const FName EventId)
@@ -190,18 +235,31 @@ void UReEchoAudioService::QueueEventForNextWorld(const FName EventId)
 
 void UReEchoAudioService::SetMasterVolume(const float Volume)
 {
-	if (PolicyEngine.IsValid()) PolicyEngine->SetMasterVolume(FMath::Clamp(Volume, 0.0f, 1.0f));
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->SetMasterVolume(FMath::Clamp(Volume, 0.0f, 1.0f));
+	}
 }
 
 void UReEchoAudioService::SetBusVolume(const EReEchoAudioBus Bus, const float Volume)
 {
-	if (Bus == EReEchoAudioBus::Master) { SetMasterVolume(Volume); return; }
-	if (PolicyEngine.IsValid()) PolicyEngine->SetBusVolume(Bus, FMath::Clamp(Volume, 0.0f, 1.0f));
+	if (Bus == EReEchoAudioBus::Master)
+	{
+		SetMasterVolume(Volume);
+		return;
+	}
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->SetBusVolume(Bus, FMath::Clamp(Volume, 0.0f, 1.0f));
+	}
 }
 
 void UReEchoAudioService::SetBusMuted(const EReEchoAudioBus Bus, const bool bMuted)
 {
-	if (PolicyEngine.IsValid()) PolicyEngine->SetBusMuted(Bus, bMuted);
+	if (PolicyEngine.IsValid())
+	{
+		PolicyEngine->SetBusMuted(Bus, bMuted);
+	}
 }
 
 float UReEchoAudioService::GetMasterVolume() const
@@ -212,7 +270,7 @@ float UReEchoAudioService::GetMasterVolume() const
 float UReEchoAudioService::GetBusVolume(const EReEchoAudioBus Bus) const
 {
 	return Bus == EReEchoAudioBus::Master ? GetMasterVolume()
-		: (PolicyEngine.IsValid() ? PolicyEngine->GetBusVolume(Bus) : 1.0f);
+	                                      : (PolicyEngine.IsValid() ? PolicyEngine->GetBusVolume(Bus) : 1.0f);
 }
 
 bool UReEchoAudioService::IsBusMuted(const EReEchoAudioBus Bus) const
@@ -222,9 +280,13 @@ bool UReEchoAudioService::IsBusMuted(const EReEchoAudioBus Bus) const
 
 bool UReEchoAudioService::CommitUserSettings()
 {
-	if (!UserSettings || !PolicyEngine.IsValid()) return false;
+	if (!UserSettings || !PolicyEngine.IsValid())
+	{
+		return false;
+	}
 	UserSettings->MasterVolume = GetMasterVolume();
-	for (const EReEchoAudioBus Bus : {EReEchoAudioBus::Music, EReEchoAudioBus::Ambience, EReEchoAudioBus::CombatSfx, EReEchoAudioBus::UiSfx})
+	for (const EReEchoAudioBus Bus :
+	     {EReEchoAudioBus::Music, EReEchoAudioBus::Ambience, EReEchoAudioBus::CombatSfx, EReEchoAudioBus::UiSfx})
 	{
 		UserSettings->SetBusVolume(Bus, GetBusVolume(Bus));
 		UserSettings->SetBusMuted(Bus, IsBusMuted(Bus));
@@ -242,7 +304,8 @@ void UReEchoAudioService::PreviewDefaultSettings()
 {
 	SetMasterVolume(1.0f);
 	SetBusMuted(EReEchoAudioBus::Master, false);
-	for (const EReEchoAudioBus Bus : {EReEchoAudioBus::Music, EReEchoAudioBus::Ambience, EReEchoAudioBus::CombatSfx, EReEchoAudioBus::UiSfx})
+	for (const EReEchoAudioBus Bus :
+	     {EReEchoAudioBus::Music, EReEchoAudioBus::Ambience, EReEchoAudioBus::CombatSfx, EReEchoAudioBus::UiSfx})
 	{
 		SetBusVolume(Bus, 0.8f);
 		SetBusMuted(Bus, false);
@@ -262,10 +325,14 @@ void UReEchoAudioService::LoadAndApplyUserSettings()
 
 void UReEchoAudioService::ApplyPersistedUserSettings()
 {
-	if (!UserSettings || !PolicyEngine.IsValid()) return;
+	if (!UserSettings || !PolicyEngine.IsValid())
+	{
+		return;
+	}
 	SetMasterVolume(UserSettings->MasterVolume);
 	SetBusMuted(EReEchoAudioBus::Master, UserSettings->IsBusMuted(EReEchoAudioBus::Master));
-	for (const EReEchoAudioBus Bus : {EReEchoAudioBus::Music, EReEchoAudioBus::Ambience, EReEchoAudioBus::CombatSfx, EReEchoAudioBus::UiSfx})
+	for (const EReEchoAudioBus Bus :
+	     {EReEchoAudioBus::Music, EReEchoAudioBus::Ambience, EReEchoAudioBus::CombatSfx, EReEchoAudioBus::UiSfx})
 	{
 		SetBusVolume(Bus, UserSettings->GetBusVolume(Bus));
 		SetBusMuted(Bus, UserSettings->IsBusMuted(Bus));
