@@ -237,7 +237,8 @@ bool FReEchoAudioCatalog::LoadCatalog(const FString& CsvPath)
 	                                                TEXT("Priority"),
 	                                                TEXT("PausePolicy"),
 	                                                TEXT("AttenuationMin"),
-	                                                TEXT("AttenuationMax")};
+	                                                TEXT("AttenuationMax"),
+	                                                TEXT("StartTimeSeconds")};
 
 	TMap<FString, int32> HeaderIndices;
 	for (int32 Column = 0; Column < Rows[0].Num(); ++Column)
@@ -253,7 +254,7 @@ bool FReEchoAudioCatalog::LoadCatalog(const FString& CsvPath)
 	}
 	if (HeaderIndices.Num() != RequiredHeaders.Num())
 	{
-		return FailLoad(FString::Printf(TEXT("%s header does not match the locked 15-column schema"), *CsvPath));
+		return FailLoad(FString::Printf(TEXT("%s header does not match the locked 16-column schema"), *CsvPath));
 	}
 
 	TMap<FReEchoAudioCatalogKey, FReEchoAudioEventDefinition> PendingDefinitions;
@@ -354,6 +355,11 @@ bool FReEchoAudioCatalog::LoadCatalog(const FString& CsvPath)
 		    Def.AttenuationMax < Def.AttenuationMin)
 		{
 			return RowError(TEXT("AttenuationMax"), TEXT("must be >= AttenuationMin"));
+		}
+		if (!ReEchoAudioCatalogDetail::ParseFloat(Cell(TEXT("StartTimeSeconds")), Def.StartTimeSeconds) ||
+		    Def.StartTimeSeconds < 0.0f)
+		{
+			return RowError(TEXT("StartTimeSeconds"), TEXT("must be >= 0"));
 		}
 
 		PendingDefinitions.Add(Key, Def);

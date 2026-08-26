@@ -3526,7 +3526,6 @@ void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
 		return;
 	}
 
-	PostUiEvent(FReEchoAudioEvents::UiPurchase);
 	RunSubsystem->SaveRun();
 	CloseShopCardChoice(true);
 	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
@@ -4483,7 +4482,6 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}
-	PostUiEvent(FReEchoAudioEvents::UiCardSelect);
 	RunSubsystem->SaveRun();
 
 	if (TraitCardChoiceWidget)

@@ -94,12 +94,6 @@ STEREO_WAVS = {
     ),
 }
 
-TRIM_START_SECONDS = {
-    "Combat.Reaction/Reaction.Vaporize": 1.25,
-    "UI.Equip/UI.Unequip": 0.65,
-}
-
-
 def read_pcm16(source_bytes: bytes, label: str) -> tuple[int, int, array]:
     with wave.open(io.BytesIO(source_bytes), "rb") as source:
         channels = source.getnchannels()
@@ -136,11 +130,6 @@ def encode_pcm16(samples: array, sample_rate: int, channels: int) -> bytes:
 
 def transform_pcm16(source_bytes: bytes, label: str, downmix: bool) -> bytes:
     channels, sample_rate, samples = read_pcm16(source_bytes, label)
-    trim_frames = int(round(TRIM_START_SECONDS.get(label, 0.0) * sample_rate))
-    if trim_frames:
-        if trim_frames >= len(samples) // channels:
-            raise RuntimeError(f"{label} trim removes the complete source")
-        samples = samples[trim_frames * channels :]
     if downmix and channels == 2:
         samples = array(
             "h",

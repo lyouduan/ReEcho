@@ -72,7 +72,7 @@ public:
 		{
 			return 0;
 		}
-		Comp->Play();
+		Comp->Play(Command.StartTimeSeconds);
 
 		const uint32 Handle = NextHandle++;
 		ActiveComponents.Add(Handle, Comp);
@@ -115,11 +115,11 @@ public:
 		}
 		if (Command.FadeInSeconds > 0.0f)
 		{
-			Comp->FadeIn(Command.FadeInSeconds, 1.0f);
+			Comp->FadeIn(Command.FadeInSeconds, 1.0f, Command.StartTimeSeconds);
 		}
 		else
 		{
-			Comp->Play();
+			Comp->Play(Command.StartTimeSeconds);
 		}
 		const uint32 Handle = NextHandle++;
 		LoopComponents.Add(Handle, Comp);
@@ -153,7 +153,7 @@ public:
 	{
 		if (USoundBase* Sound = Command.Sound.Get())
 		{
-			return Sound->GetDuration();
+			return FMath::Max(0.0f, Sound->GetDuration() - Command.StartTimeSeconds);
 		}
 		return 1.0f;
 	}

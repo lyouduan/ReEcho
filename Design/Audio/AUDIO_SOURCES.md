@@ -116,6 +116,7 @@ music candidates from the delivery folder.
 the catalog rather than duplicating source files. UE decodes the three MP3 reaction
 sources, then `prepare_formal_audio.py` deterministically downmixes all new spatial
 reaction and pickup sources to tracked mono PCM16 WAVs before final SoundWave import.
-The same script removes 1.25 seconds of low-level lead-in from Vaporize and 0.65 seconds
-from the shared Equip/Unequip source (preserving stereo for UI), while keeping the
-original delivered files unchanged for provenance and reproducibility.
+The derived files preserve the complete delivered waveform. Per-event low-level lead-in
+is skipped at runtime through the non-negative `StartTimeSeconds` field in
+`ReEchoAudioEvents.xlsx`; this keeps source provenance intact and lets designers adjust
+the audible onset without rebuilding or reimporting a SoundWave.

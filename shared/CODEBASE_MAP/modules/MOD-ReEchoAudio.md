@@ -37,7 +37,7 @@
 | 状态 | 权威对象 | 说明 |
 |---|---|---|
 | 运行时服务生命周期 | `UReEchoAudioService` | GameInstance Subsystem，统一请求入口与 Tick |
-| 音频目录 | `FReEchoAudioCatalog` / `IReEchoAudioCatalogProvider` | `(EventId, VariantId)` 到播放描述的唯一映射接口；空变体是基础回退 |
+| 音频目录 | `FReEchoAudioCatalog` / `IReEchoAudioCatalogProvider` | `(EventId, VariantId)` 到播放描述的唯一映射接口；空变体是基础回退；`StartTimeSeconds` 是策划可调的非负源内起播点 |
 | 音频资源与来源 | `Content/ReEcho/Audio/**` / `Design/Audio/**` | 前者是运行时 SoundWave；后者保存用户源文件、15 个保留的确定性短音生成物与来源清单；空 `AssetPath` 表示经策划确认的静默语义，不保留占位 SoundWave |
 | 音乐状态 | `UReEchoAudioService` + Policy Engine | 独立状态通道，不由 GameMode 缓存第二份 |
 | 环境状态 | `UReEchoAudioService` + Policy Engine | 与音乐分离，可独立停止/切换 |
@@ -106,7 +106,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 位置：`Public/ReEchoAudioCatalog.h`、`Private/ReEchoAudioCatalog.cpp`。
 - 角色：提供稳定 `(EventId, VariantId)` 到 `FReEchoAudioEventDefinition` 的类型化查询；精确变体不存在时回退同 EventId 的空变体。
 - 数据：`Design/Data/ReEchoAudioEvents.xlsx` 独立拥有 `audio_events.csv`，不耦合 `ReEchoData.xlsx` / `ReEchoEnemyData.xlsx`。
-- 加载：运行时对锁定 15 列 CSV 做 quote-aware 严格解析，复合键必须唯一；仅在整表成功后原子替换，失败保留上一份有效目录。
+- 加载：运行时对锁定 16 列 CSV 做 quote-aware 严格解析，复合键必须唯一；`StartTimeSeconds` 必须非负并由一次性/循环后端消费；仅在整表成功后原子替换，失败保留上一份有效目录。
 - 预载：soft asset 异步预载暴露 `NotStarted/Loading/Ready/Failed` 状态，失败可重试且播放仍安全 no-op。
 - 打包：`DefaultGame.ini` 的 `DirectoriesToAlwaysCook=/Game/ReEcho/Audio` 显式包含所有 CSV 文本软引用资产，不依赖地图偶然硬引用。
 

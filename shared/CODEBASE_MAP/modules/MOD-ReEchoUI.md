@@ -16,7 +16,7 @@
 ## 当前职责与边界
 
 - `UReEchoUIManagerSubsystem` 管理 Screen Class、实例和 Viewport 层级。
-- `UReEchoUIFlowCoordinatorSubsystem` 管理页面开关、焦点、输入模式和暂停策略，并在屏幕创建后为已有 `UButton` 统一绑定 `UI.Hover` / 基础 `UI.Confirm` 与 `1.05` 倍中心悬停缩放；父级若是只有一个 Button 且有视觉兄弟的 `Overlay`，即使 Button 已有 Content 也优先缩放该完整根，否则缩放 Button，移出后恢复作者ing Scale/Pivot。设置页的 `ComboBox` 选择与 `Slider` 交互完成由 `UReEchoSettingsWidget` 补发一次基础 `UI.Confirm`。所有注册页面的创建/复用/关闭/聚焦结果与按钮点击统一写入 Shipping 可用的 `Saved/Logs/UIInteractionAudit.log`；`UReEchoIndexedButton` 自审计以覆盖页面打开后才生成的动态条目，卡组入口另记录命令接收、拒绝原因、打开结果和候选 ID。
+- `UReEchoUIFlowCoordinatorSubsystem` 管理页面开关、焦点、输入模式和暂停策略，并在屏幕创建后递归遍历嵌套 `UUserWidget`，为已有 `UButton` 统一绑定 `UI.Hover` / 基础 `UI.Confirm` 与 `1.05` 倍中心悬停缩放；具体 Widget 可通过 `BindButtonAudioFeedback` 把稳定语义覆盖为 `UI.CardSelect` 等专用反馈，绑定对象幂等更新而不重复注册 Delegate。父级若是只有一个 Button 且有视觉兄弟的 `Overlay`，即使 Button 已有 Content 也优先缩放该完整根，否则缩放 Button，移出后恢复作者ing Scale/Pivot。设置页的 `ComboBox` 选择与 `Slider` 交互完成由 `UReEchoSettingsWidget` 补发一次基础 `UI.Confirm`。所有注册页面的创建/复用/关闭/聚焦结果与按钮点击统一写入 Shipping 可用的 `Saved/Logs/UIInteractionAudit.log`；`UReEchoIndexedButton` 自审计以覆盖页面打开后才生成的动态条目，卡组入口另记录命令接收、拒绝原因、打开结果和候选 ID。
 - 交付版 Settings 保持“总音量 / 背景音乐 / 音效音量”三滑条；第三条是非音乐聚合控制，同时预览并保存 `Ambience`、`CombatSfx`、`UiSfx`，因此 `Ambience_Rain` 等环境循环不需要额外第四条滑条。
 - 通关后商店的回响存储控件由 `UReEchoInventoryShopWidget` 动态生成，使用底部紧凑缩放托盘承载，避免遮挡商店/装配室主体；存储、跳过、替换与指定回放事件语义保持不变。
 - `WBP_ReEchoSettings` 与 `WBP_ReEchoRestart` 的作者ing Root 是正常表现权威；原生 `BuildWidgetTree()` 只在完全没有 Root 时建立最低可用 fallback，不得因单一可选绑定缺失而覆盖整页。Settings 的运行时 ComboBox/Slider 按稳定名称幂等复用。
@@ -40,7 +40,7 @@
 - UI 只消费只读摘要或事件并发送受控命令，不直接写 Run、Combat、Weapons、Enemies 或存档权威状态。
 - 战后角色能力不建立专用 UI 分支：旧 Forge 标题、候选和提交命令已删除；旧存档的 Forge 阶段由 Run 迁移到普通卡牌选择，Widget 只显示正式卡牌候选。
 - 构筑三选一卡面只保留正式卡牌插图、名称、说明、图标和选择交互；旧标签条、候选/选择提示、标签文字及纯色/运行时染色占位卡底已从 `WBP_ReEchoTraitCardEntry` 和 C++ 注入契约中删除。`WBP_ReEchoTraitCardEntry` 的默认正文/图片是 Designer 样例，根 `CardRootScaleBox` 等比缩放内部与正式底图一致的 `420×593` `CardRootSizeBox` 设计面；`WBP_ReEchoTraitCardChoice` 三个槽位内各放一个仅供所见即所得预览的样例实例，运行时以真实条目替换并写入数据，不改变槽位几何。Entry 的 `NameText` / `DescriptionText` 位于 `CardDesignerCanvas`，Choice 的 `TitleText` / `ConfirmButtonLabel` 位于根 Canvas，均可在 Designer 中独立拖动；运行时只写内容。底部 `ConfirmButton` 的按钮美术由 Choice WBP 的 Button Style 直接引用 `T_UI_Pause_ButtonLight`，独立标签为 `HitTestInvisible`，C++ 只管理选择索引、启用状态与确认委托；无 WBP fallback 的卡牌按钮底色保持透明。
-- 关闭、返回、事务拒绝、购买成功、卡牌选择成功、卡牌揭示开始与装备/卸下成功的专用声音由命令结果宿主发布；初次打开或成功逐槽刷新在 Widget 接收权威候选并开始揭示时发布一次 `UI.CardReveal`，装备集合未变化时不发布 `UI.Equip`。按钮基础反馈不代替事务结果，也不得让音频失败改变 UI 行为。
+- 关闭、返回、事务拒绝、购买成功、卡牌揭示开始与装备/卸下成功的专用声音由命令结果宿主发布；普通/商店卡牌在有效点选时由卡面按钮发布一次 `UI.CardSelect`，后续确认或领取事务不重复。初次打开或成功逐槽刷新在 Widget 接收权威候选并开始揭示时发布一次 `UI.CardReveal`，装备集合未变化时不发布 `UI.Equip`。按钮基础反馈不代替事务结果，也不得让音频失败改变 UI 行为。
 
 完整页面清单、WBP/C++ 分工、绑定控件名称、动态条目规则和人工验收要求，统一以 [ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md) 为准；本文件不复制第二份控件契约。
 

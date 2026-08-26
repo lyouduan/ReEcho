@@ -171,6 +171,36 @@ PLAN123_REMOVED_ASSETS = (
 )
 
 
+def delete_plan123_retired_assets() -> None:
+    for asset_path in PLAN123_REMOVED_ASSETS:
+        package_path = asset_path.partition(".")[0]
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+            referencers = unreal.EditorAssetLibrary.find_package_referencers_for_asset(
+                package_path, load_assets_to_confirm=True
+            )
+            unreal.log(
+                f"Plan123 retired placeholder referencers: {asset_path} -> {referencers}"
+            )
+            if referencers:
+                raise RuntimeError(
+                    f"Refusing to delete referenced retired placeholder SoundWave: "
+                    f"{asset_path} -> {referencers}"
+                )
+            if not unreal.EditorAssetLibrary.delete_asset(package_path):
+                raise RuntimeError(f"Failed to delete retired placeholder SoundWave: {asset_path}")
+
+            # UE 5.8 can report a successful ForceDelete while leaving the writable
+            # package file behind in a source-control-disabled worktree. The object
+            # and package have already been removed through Editor APIs and were
+            # confirmed unreferenced above; remove only that exact stale file.
+            relative_package = package_path.removeprefix("/Game/")
+            package_file = ROOT / "Content" / f"{relative_package}.uasset"
+            if package_file.is_file():
+                package_file.unlink()
+                unreal.log(f"Plan123 stale retired package file removed: {package_file}")
+        unreal.log(f"Plan123 retired placeholder deleted: {asset_path}")
+
+
 def import_asset(source: Path, destination_path: str, destination_name: str, looping: bool) -> str:
     if not source.is_file():
         raise RuntimeError(f"Missing audio source: {source}")
@@ -199,23 +229,20 @@ decode_only = "-Plan114DecodeOnly" in command_line
 variants_only = "-Plan114VariantsOnly" in command_line
 plan123_decode_only = "-Plan123DecodeOnly" in command_line
 plan123_only = "-Plan123Only" in command_line
+plan123_cleanup_only = "-Plan123CleanupOnly" in command_line
 imported_count = 0
 
 if plan123_decode_only:
     for relative_source, destination_path, destination_name in PLAN123_DECODE_INPUTS.values():
         import_asset(ROOT / relative_source, destination_path, destination_name, False)
         imported_count += 1
+elif plan123_cleanup_only:
+    delete_plan123_retired_assets()
 elif plan123_only:
     for relative_source, destination_path, destination_name in PLAN123_ONE_SHOTS.values():
         import_asset(ROOT / relative_source, destination_path, destination_name, False)
         imported_count += 1
-    for asset_path in PLAN123_REMOVED_ASSETS:
-        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
-            if not unreal.EditorAssetLibrary.delete_asset(asset_path):
-                raise RuntimeError(f"Failed to delete retired placeholder SoundWave: {asset_path}")
-        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
-            raise RuntimeError(f"Retired placeholder SoundWave still exists: {asset_path}")
-        unreal.log(f"Plan123 retired placeholder deleted: {asset_path}")
+    delete_plan123_retired_assets()
 elif decode_only:
     for relative_source, destination_path, destination_name in VARIANT_DECODE_INPUTS.values():
         import_asset(ROOT / "Design" / "Audio" / relative_source, destination_path, destination_name, False)
@@ -253,5 +280,6 @@ else:
 unreal.log(
     f"Imported/configured {imported_count} catalog assets "
     f"direct_only={direct_only} decode_only={decode_only} variants_only={variants_only} "
-    f"plan123_decode_only={plan123_decode_only} plan123_only={plan123_only}"
+    f"plan123_decode_only={plan123_decode_only} plan123_only={plan123_only} "
+    f"plan123_cleanup_only={plan123_cleanup_only}"
 )

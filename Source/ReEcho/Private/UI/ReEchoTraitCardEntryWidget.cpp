@@ -2,12 +2,23 @@
 
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Engine/GameInstance.h"
+#include "ReEchoAudioEvents.h"
+#include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/ReEchoIndexedButton.h"
 
 void UReEchoTraitCardEntryWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	SelectButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardEntryWidget::HandleIndexedClicked);
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow = GameInstance->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->BindButtonAudioFeedback(
+			    SelectButton, FReEchoAudioEvents::UiHover, FReEchoAudioEvents::UiCardSelect);
+		}
+	}
 }
 
 void UReEchoTraitCardEntryWidget::Configure(const int32 InEntryIndex,

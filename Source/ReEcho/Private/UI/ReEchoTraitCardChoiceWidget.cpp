@@ -10,8 +10,11 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
+#include "ReEchoAudioEvents.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoTraitCardEntryWidget.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
@@ -77,6 +80,15 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	for (UReEchoIndexedButton* CardButton : CardButtons)
 	{
 		CardButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
+		if (UGameInstance* GameInstance = GetGameInstance())
+		{
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GameInstance->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				UIFlow->BindButtonAudioFeedback(
+				    CardButton, FReEchoAudioEvents::UiHover, FReEchoAudioEvents::UiCardSelect);
+			}
+		}
 	}
 	for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
 	{

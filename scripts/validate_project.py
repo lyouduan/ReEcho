@@ -736,6 +736,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "PausePolicy": CsvColumnSpec("StableId"),
         "AttenuationMin": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "AttenuationMax": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "StartTimeSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=86400.0),
     },
     "Attributes": {
         "Id": CsvColumnSpec("StableId"),
