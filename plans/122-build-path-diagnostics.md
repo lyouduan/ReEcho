@@ -65,7 +65,7 @@
 - [x] Run 的开局、读档、遭遇开始、免费/付费/调试授卡、武器切换和符文装备成功路径均有明确 BuildTrace 触发点；失败事务不伪造提交后快照。
 - [x] 玩家与 Echo 成功 Commit 输出可与现有 Resolver 通过 Source/Weapon/Sequence 关联的指纹摘要；失败/回滚 Commit 不输出成功关联行。
 - [x] 日志代码不改变随机序列、BuildSnapshot、攻击伤害或存档；Shipping 不新增高频诊断输出。
-- [ ] 聚焦自动化、Development Editor FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 聚焦自动化、Development Editor FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -112,7 +112,11 @@
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons`：发现 17 项；多项生产符文数量/启用状态和旧文本替换断言与当前策划表不一致，最终在 `ReEchoWeaponRuntimeTests.cpp:184` 的旧字符串 `check` 中断。失败均不经过 BuildTrace 代码；本 Plan 不恢复已禁用符文、不改策划表、不扩大范围修旧测试。
 - `python scripts/validate_project.py`：PASS；XLSX/CSV 一致、工作流与工程描述符检查通过。
 - `python scripts/ue/prebuilt_editor.py check`：PASS，7 个 Editor 模块与当前源码匹配。
-- `git diff --check`：通过；机器路径扫描无命中。`ReEcho.Run`、`ReEcho.Weapons` 和最终 FullRebuild 待共享 UE 锁释放后执行。
+- `git diff --check`：通过；机器路径扫描无命中。早期受影响测试中的旧数据断言失败已按上文区分为传入基线问题，没有通过改玩法或放宽 BuildTrace 验收掩盖。
+- 最终发布候选已合入 `origin/main@d1fcf8c5` 的 Plan117/121/123/124、狐狸箭头 VFX 与最新预构建变化；传入提交没有修改 BuildTrace 的 Run/Weapon 接点，唯一耦合为共享预构建包。
+- `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：最终组合候选成功，94/94 编译/链接动作完成，7 个 Editor 模块预构建包按组合源码刷新。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Diagnostics.BuildTrace`：最终组合候选 3/3 Success（Determinism、Mutations、Summary）。
+- 最终组合候选再次运行 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check`：全部 PASS。
 
 ### 剩余风险
 
