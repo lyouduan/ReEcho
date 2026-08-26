@@ -40,6 +40,12 @@ public:
 	virtual class UReEchoCombatantComponent* GetCombatTargetCombatant() const = 0;
 	virtual bool IntersectsCombatPath(const FVector& PathStart, const FVector& PathEnd, float CarrierRadius) const = 0;
 
+	/** Optional stable data identity used by source-side rules; player/Echo targets may return None. */
+	virtual FName GetCombatTargetDefinitionId() const
+	{
+		return NAME_None;
+	}
+
 	/** Optional source-side transformation. Implementations may mutate only the supplied candidate intent. */
 	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const
 	{
@@ -49,7 +55,28 @@ public:
 	{
 	}
 
-	virtual void NotifyKillResolved() const
+	/** Source-side reaction rule query. It must be read-only and return a non-negative final multiplier. */
+	virtual float GetReactionDamageMultiplier(FName ReactionId) const
+	{
+		return 1.0f;
+	}
+
+	/** Source-side Burn rule query; Combat remains the owner of duration and stack application. */
+	virtual bool HasInfiniteStackingBurn() const
+	{
+		return false;
+	}
+
+	virtual void NotifyKillResolved(FName TargetDefinitionId) const
+	{
+	}
+
+	/** Source-side observation of Combat's immutable final result. Gameplay must not mutate the result here. */
+	virtual void NotifyHitResolved(const FReEchoHitResolved& Result) const
+	{
+	}
+
+	virtual void NotifyNegativeStatusApplied(FName StatusId) const
 	{
 	}
 
@@ -90,12 +117,9 @@ private:
 namespace ReEchoCombatRelations
 {
 REECHOCOMBAT_API EReEchoCombatFaction ResolveActorFaction(const AActor* Actor);
-REECHOCOMBAT_API EReEchoDamageSource ResolveActorDamageSource(const AActor* Actor,
-                                                              EReEchoDamageSource Fallback);
-REECHOCOMBAT_API bool CanDamage(EReEchoCombatFaction SourceFaction,
-                                EReEchoCombatFaction TargetFaction,
-                                bool bAllowSameFactionDamage = false);
-REECHOCOMBAT_API bool CanDamage(const FReEchoAttackIdentity& Attack,
-                                const AActor& Target,
-                                bool bAllowSameFactionDamage = false);
+REECHOCOMBAT_API EReEchoDamageSource ResolveActorDamageSource(const AActor* Actor, EReEchoDamageSource Fallback);
+REECHOCOMBAT_API bool
+CanDamage(EReEchoCombatFaction SourceFaction, EReEchoCombatFaction TargetFaction, bool bAllowSameFactionDamage = false);
+REECHOCOMBAT_API bool
+CanDamage(const FReEchoAttackIdentity& Attack, const AActor& Target, bool bAllowSameFactionDamage = false);
 }

@@ -9,6 +9,7 @@
 class UReEchoRunSaveGame;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardGrantCommitted, const FReEchoStatBlock&, EReEchoHealthAdjustment);
 
 struct FReEchoCsvDataSnapshot;
 struct FReEchoCsvCardRow;
@@ -41,6 +42,9 @@ class REECHO_API UReEchoRunSubsystem : public UGameInstanceSubsystem
 public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoRunPhaseChanged OnPhaseChanged;
+
+	/** Read-only post-commit notification. Subscribers may project the build but cannot mutate the transaction. */
+	FReEchoCardGrantCommitted OnCardGrantCommitted;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoRunPhase Phase = EReEchoRunPhase::CharacterSelect;
@@ -95,7 +99,10 @@ public:
 
 	/** 保存遭遇录制，并根据存活与 Boss 状态推进本轮流程。 */
 	UFUNCTION(BlueprintCallable)
-	void CompleteEncounter(const FReEchoRecording& Recording, bool bPlayerSurvived, bool bBossKilled);
+	void CompleteEncounter(const FReEchoRecording& Recording,
+	                       bool bPlayerSurvived,
+	                       bool bBossKilled,
+	                       float PlayerCurrentHealth = -1.0f);
 
 	/** 根据当前构筑和运行状态生成本次特质卡候选。 */
 	UFUNCTION(BlueprintCallable)
@@ -118,10 +125,16 @@ public:
 	void ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
 	                           const FReEchoStatBlock& SourceStats,
 	                           float EchoDistanceCm,
+	                           float NearestEchoDistanceCm,
+	                           bool bHasLivingEcho,
 	                           bool bTargetHasElement);
 	float ModifyCardIncomingHit(float RawDamage);
 	float NotifyCardReaction(FName ReactionId, bool bTriggeredByPlayer);
-	void NotifyCardKill(bool bKilledByEcho);
+	void NotifyCardReactionAffectedTargets(FName ReactionId, const TArray<int32>& AffectedSpawnIndices);
+	float GetCardReactionDamageMultiplier(FName ReactionId) const;
+	void NotifyCardKill(bool bKilledByEcho, FName TargetDefinitionId = NAME_None);
+	float NotifyCardDamageResolved(float RawDamage, float AppliedDamage, bool bDealtByEcho);
+	float NotifyCardNegativeStatusApplied(FName StatusId, bool bAppliedByEcho);
 	void NotifyCardEchoDefeated();
 	bool ConsumeCardEchoRemovalRequest();
 	int32 GetDiscountedShopPrice(int32 BasePrice) const;
@@ -148,6 +161,8 @@ public:
 
 	/** Adds collected world-drop currency without exposing a writable currency field to the pickup actor. */
 	bool GrantTimeShards(int32 Amount);
+	/** True when a positive shop cost can be committed, including unlimited 诅咒银行 credit. */
+	bool CanPayShopCost(int32 Cost) const;
 
 	/** Resolves one configured enemy-death drop amount without changing the currency balance. */
 	int32 ResolveEnemyDeathTimeShardDrop(FName EnemyId, int32 SpawnIndex);
@@ -235,6 +250,10 @@ public:
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	void CommitShopCost(int32 Cost);
+	void ApplyProjectedCardCurrency(int32 PreviousBalance, int32 ProjectedBalance);
+	void RefreshCurseBankOutcome();
+	void RefreshWeaponMasterOutcome();
 	int32 ResolveConfiguredFreeTraitTier() const;
 	void AdvanceToConfiguredTraitChoice();
 
@@ -276,6 +295,10 @@ private:
 
 	UPROPERTY()
 	TArray<FName> PendingTraitCardIds;
+
+	/** All cards displayed by the current free-choice group, including replaced cards. */
+	UPROPERTY()
+	TArray<FName> PendingTraitCardOfferHistoryIds;
 
 	UPROPERTY()
 	TArray<int32> PendingTraitCardRefreshUses;
@@ -328,6 +351,7 @@ private:
 
 	/** Drops selections that no longer resolve, de-duplicates, then truncates to the replay limit. */
 	void NormalizeSelectedReplayIds();
+	void ReevaluateCoreCollectionCard();
 
 	int32 FindStoredEchoIndex(const FGuid& RecordingId) const;
 };

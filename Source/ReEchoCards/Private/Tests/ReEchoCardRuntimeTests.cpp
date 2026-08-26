@@ -85,6 +85,229 @@ bool FReEchoOwnedCardTierOfferRulesTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEncounterAndConflictOfferRulesTest,
+                                 "ReEcho.Cards.Offer.EncounterAndConflictsAreShared",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEncounterAndConflictOfferRulesTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Restricted =
+	    MakeCard(TEXT("RESTRICTED"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	Restricted.Tags = {TEXT("OfferEncounter2"), TEXT("OfferEncounter3")};
+	FReEchoCardDefinition Tide =
+	    MakeCard(TEXT("TIDE"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	Tide.ConflictPolicy = TEXT("EchoElementAura");
+	FReEchoCardDefinition Forest =
+	    MakeCard(TEXT("FOREST"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	Forest.ConflictPolicy = TEXT("EchoElementAura");
+	FReEchoCardDefinition EchoCard =
+	    MakeCard(TEXT("ECHO_CARD"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("EchoEfficiency"), 0.1f);
+	EchoCard.Tags = {TEXT("Echo")};
+	FReEchoCardDefinition Solo =
+	    MakeCard(TEXT("G_3_03"), 3, TEXT("Card.SoloBody"), TEXT("OnGrant"), TEXT("AllBaseStats"), 2.0f);
+	Solo.ConflictPolicy = TEXT("EchoKeystone");
+	const FReEchoCardCatalog Catalog = BuildCatalog({Restricted, Tide, Forest, EchoCard, Solo});
+
+	FReEchoCardBuildState EmptyState;
+	EmptyState.DomainRevision = Catalog.GetDomainRevision();
+	TestTrue(TEXT("Encounter-tagged card appears in an allowed encounter"),
+	         ReEchoCardRuntime::CanOffer(Catalog, EmptyState, Restricted, 2));
+	TestFalse(TEXT("Encounter-tagged card is excluded from other encounters"),
+	          ReEchoCardRuntime::CanOffer(Catalog, EmptyState, Restricted, 5));
+
+	FReEchoCardBuildState TideState = EmptyState;
+	TideState.OwnedCardIds.Add(Tide.Id);
+	TestFalse(TEXT("Shared conflict policy excludes the opposite card"),
+	          ReEchoCardRuntime::CanOffer(Catalog, TideState, Forest, 2));
+	FReEchoCardBuildState EchoState = EmptyState;
+	EchoState.OwnedCardIds.Add(EchoCard.Id);
+	TestFalse(TEXT("Solo-body offer is excluded after owning an echo card"),
+	          ReEchoCardRuntime::CanOffer(Catalog, EchoState, Solo, 2));
+	FReEchoCardBuildState SoloState = EmptyState;
+	SoloState.OwnedCardIds.Add(Solo.Id);
+	TestFalse(TEXT("Echo-card offer is excluded after owning solo body"),
+	          ReEchoCardRuntime::CanOffer(Catalog, SoloState, EchoCard, 2));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoReactionHealPercentTest,
+                                 "ReEcho.Cards.ReactionHeal.UsesMaxHealthPercentAndConfiguredCooldown",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoReactionHealPercentTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition Card = MakeCard(TEXT("REACTION_HEAL"),
+	                                            2,
+	                                            TEXT("Card.ReactionHeal"),
+	                                            TEXT("OnReaction"),
+	                                            TEXT("HpPoint"),
+	                                            0.1f,
+	                                            TEXT("CooldownSeconds"),
+	                                            2.0f,
+	                                            true);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Card});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds.Add(Card.Id);
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 120.0f;
+	Stats.HpPoint = 40.0f;
+
+	const FReEchoCardEventResult Result = ReEchoCardRuntime::OnReaction(Catalog, State, Stats, TEXT("Y_ER_F_G"), true);
+	TestEqual(TEXT("Reaction heal uses ten percent of maximum health"), Result.Healing, 12.0f);
+	TestEqual(TEXT("Reaction heal uses the configured two-second cooldown"),
+	          Result.CardState.Runtime.ReactionHealCooldownRemaining,
+	          2.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRandomRateTradeTest,
+                                 "ReEcho.Cards.Grant.RandomRateTradeIsDeterministic",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoRandomRateTradeTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition Card = MakeCard(TEXT("RATE_TRADE"),
+	                                            2,
+	                                            TEXT("Card.RandomRateTrade"),
+	                                            TEXT("OnGrant"),
+	                                            TEXT("ReactionOrCritical"),
+	                                            2.0f,
+	                                            TEXT("PenaltyMultiplier"),
+	                                            0.5f,
+	                                            true);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Card});
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.Stats.ReactionEfficiency = 1.0f;
+	Input.Stats.CriticalEffect = 1.0f;
+	Input.RandomSeed = 773;
+	const FReEchoCardGrantResult First = ReEchoCardRuntime::TryGrantCard(Catalog, Card.Id, Input);
+	const FReEchoCardGrantResult Second = ReEchoCardRuntime::TryGrantCard(Catalog, Card.Id, Input);
+	TestTrue(TEXT("Random rate trade grants successfully"), First.bSucceeded);
+	TestEqual(TEXT("Identical seed preserves reaction result"),
+	          First.Stats.ReactionEfficiency,
+	          Second.Stats.ReactionEfficiency);
+	TestEqual(
+	    TEXT("Identical seed preserves critical result"), First.Stats.CriticalEffect, Second.Stats.CriticalEffect);
+	TestTrue(TEXT("Exactly one rate doubles and the other halves"),
+	         (FMath::IsNearlyEqual(First.Stats.ReactionEfficiency, 2.0f) &&
+	          FMath::IsNearlyEqual(First.Stats.CriticalEffect, 0.5f)) ||
+	             (FMath::IsNearlyEqual(First.Stats.ReactionEfficiency, 0.5f) &&
+	              FMath::IsNearlyEqual(First.Stats.CriticalEffect, 2.0f)));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoLowRiskEconomyCardsTest,
+                                 "ReEcho.Cards.Grant.LowRiskEconomyCommandsArePersistent",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoLowRiskEconomyCardsTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition Reset = MakeCard(TEXT("RESET_RUNES"),
+	                                             2,
+	                                             TEXT("Card.ResetRunes"),
+	                                             TEXT("OnGrant"),
+	                                             TEXT("WeaponRunes"),
+	                                             300.0f,
+	                                             TEXT("FreeShopRefresh"),
+	                                             5.0f,
+	                                             true);
+	const FReEchoCardDefinition FreeShop = MakeCard(TEXT("FREE_SHOP"),
+	                                                2,
+	                                                TEXT("Card.FreeShopVisit"),
+	                                                TEXT("OnGrant"),
+	                                                TEXT("ShopPrice"),
+	                                                0.0f,
+	                                                NAME_None,
+	                                                0.0f,
+	                                                true);
+	FReEchoCardDefinition Unlimited = MakeCard(TEXT("UNLIMITED_REFRESH"),
+	                                           2,
+	                                           TEXT("Card.UnlimitedShopRefresh"),
+	                                           TEXT("OnGrant"),
+	                                           TEXT("WeaponRuneShop"),
+	                                           1.0f,
+	                                           NAME_None,
+	                                           0.0f,
+	                                           true);
+	FReEchoCardEffectDefinition Consume = Unlimited.Effects[0];
+	Consume.Id = TEXT("UNLIMITED_REFRESH_CONSUME");
+	Consume.Order = 2;
+	Consume.Trigger = TEXT("OnPurchase");
+	Consume.Value = 0.0f;
+	Unlimited.Effects.Add(Consume);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Reset, FreeShop, Unlimited});
+
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.TimeShards = 100;
+	Input.EncounterIndex = 4;
+	const FReEchoCardGrantResult ResetResult = ReEchoCardRuntime::TryGrantCard(Catalog, Reset.Id, Input);
+	TestTrue(TEXT("Reset task grants successfully"), ResetResult.bSucceeded);
+	TestTrue(TEXT("Reset task emits the run-owned rune clear command"), ResetResult.bClearWeaponRunes);
+	TestEqual(TEXT("Reset task grants 300 shards"), ResetResult.TimeShards, 400);
+	TestEqual(
+	    TEXT("Reset task grants five free weapon/rune refreshes"), ResetResult.CardState.Runtime.FreeShopRefreshes, 5);
+
+	Input.CardState = ResetResult.CardState;
+	const FReEchoCardGrantResult FreeResult = ReEchoCardRuntime::TryGrantCard(Catalog, FreeShop.Id, Input);
+	TestEqual(TEXT("Free shop visit binds to the current post-encounter shop"),
+	          FreeResult.CardState.Runtime.FreeShopEncounterIndex,
+	          4);
+	const FReEchoCardBuildState NextEncounter = ReEchoCardRuntime::BeginEncounter(FreeResult.CardState, 5);
+	TestEqual(TEXT("Entering the next encounter consumes the free shop visit"),
+	          NextEncounter.Runtime.FreeShopEncounterIndex,
+	          INDEX_NONE);
+
+	Input.CardState = NextEncounter;
+	const FReEchoCardGrantResult UnlimitedResult = ReEchoCardRuntime::TryGrantCard(Catalog, Unlimited.Id, Input);
+	TestTrue(TEXT("Unlimited refresh is armed on grant"),
+	         UnlimitedResult.CardState.Runtime.bUnlimitedWeaponRuneRefresh);
+	const FReEchoCardEventResult Purchase =
+	    ReEchoCardRuntime::OnPurchase(Catalog, UnlimitedResult.CardState, UnlimitedResult.Stats);
+	TestFalse(TEXT("The next committed purchase consumes unlimited refresh"),
+	          Purchase.CardState.Runtime.bUnlimitedWeaponRuneRefresh);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCoreCollectionCardTest,
+                                 "ReEcho.Cards.Inventory.CoreCollectionCompletesOnce",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCoreCollectionCardTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition Card = MakeCard(TEXT("CORE_COLLECTION"),
+	                                            3,
+	                                            TEXT("Card.CollectCores"),
+	                                            TEXT("OnInventoryChanged"),
+	                                            TEXT("CoreCollection"),
+	                                            0.5f,
+	                                            TEXT("RequiredCount"),
+	                                            6.0f,
+	                                            true);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Card});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds.Add(Card.Id);
+	FReEchoStatBlock Stats;
+	Stats.CriticalRate = 0.2f;
+	Stats.CriticalEffect = 0.5f;
+	Stats.ReactionEfficiency = 1.0f;
+	const FReEchoCardEventResult Incomplete = ReEchoCardRuntime::OnCoreInventoryChanged(Catalog, State, Stats, 5);
+	TestFalse(TEXT("Five cores do not complete the collection"), Incomplete.CardState.Runtime.bDragonSoulCompleted);
+	const FReEchoCardEventResult Complete = ReEchoCardRuntime::OnCoreInventoryChanged(Catalog, State, Stats, 6);
+	TestTrue(TEXT("Six distinct cores complete the collection"), Complete.CardState.Runtime.bDragonSoulCompleted);
+	TestTrue(TEXT("Completion grants all three configured rates"),
+	         FMath::IsNearlyEqual(Complete.Stats.CriticalRate, 0.7f) &&
+	             FMath::IsNearlyEqual(Complete.Stats.CriticalEffect, 1.0f) &&
+	             FMath::IsNearlyEqual(Complete.Stats.ReactionEfficiency, 1.5f));
+	const FReEchoCardEventResult Repeated =
+	    ReEchoCardRuntime::OnCoreInventoryChanged(Catalog, Complete.CardState, Complete.Stats, 7);
+	TestEqual(TEXT("Collection completion is idempotent"), Repeated.Stats.CriticalRate, Complete.Stats.CriticalRate);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardTierGrantTest,
                                  "ReEcho.Cards.Grant.TierIsAtomicAndDeterministic",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -117,6 +340,31 @@ bool FReEchoCardTierGrantTest::RunTest(const FString&)
 	TestTrue(TEXT("Tier grant records the exact granted card for presentation"),
 	         GrantedCardsOutcome && GrantedCardsOutcome->RelatedCardIds.Num() == 1 &&
 	             GrantedCardsOutcome->RelatedCardIds[0] == First.GrantedCardIds[1]);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBloodForgingGrantTest,
+                                 "ReEcho.Cards.Grant.BloodForgingFillsHealth",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBloodForgingGrantTest::RunTest(const FString&)
+{
+	const FReEchoCardCatalog Catalog = BuildCatalog(
+	    {MakeCard(TEXT("BLOOD_FORGING"), 3, TEXT("Card.BloodForging"), TEXT("OnGrant"), TEXT("HpMaxAndPoint"), 1.0f)});
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.Stats.HpMax = 100.0f;
+	Input.Stats.HpPoint = 25.0f;
+	Input.Stats.PhysicalAttack = 17.0f;
+	Input.Stats.ElementalAttack = 13.0f;
+
+	const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, TEXT("BLOOD_FORGING"), Input);
+	TestTrue(TEXT("Blood Forging grants successfully"), Grant.bSucceeded);
+	TestEqual(TEXT("Blood Forging adds both attack values to maximum health"), Grant.Stats.HpMax, 130.0f);
+	TestEqual(TEXT("Blood Forging fills the build health value"), Grant.Stats.HpPoint, 130.0f);
+	TestEqual(TEXT("Blood Forging emits a typed fill-to-maximum request"),
+	          Grant.HealthAdjustment,
+	          EReEchoHealthAdjustment::FillToMax);
 	return true;
 }
 
@@ -320,6 +568,291 @@ bool FReEchoCardPersistenceAndRollCountTest::RunTest(const FString&)
 	TestEqual(TEXT("Physical damage consumes one extra roll after the caller's first failed roll"),
 	          PhysicalResult.CardState.Runtime.RandomSequence,
 	          1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoProgressAndOverkillCardsTest,
+                                 "ReEcho.Cards.Events.NumericChallengeOverkillAndSelfRace",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoProgressAndOverkillCardsTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Challenge = MakeCard(TEXT("NUMERIC_CHALLENGE"),
+	                                           2,
+	                                           TEXT("Card.NumericChallenge"),
+	                                           TEXT("OnHitResolved"),
+	                                           TEXT("TimeShards"),
+	                                           666.0f,
+	                                           TEXT("KillThreshold"),
+	                                           111.0f,
+	                                           true);
+	FReEchoCardEffectDefinition HighHealth = Challenge.Effects[0];
+	HighHealth.Id = TEXT("NUMERIC_CHALLENGE_HIGH");
+	HighHealth.Order = 2;
+	HighHealth.Trigger = TEXT("OnEncounterEnd");
+	HighHealth.ParamName = TEXT("MinimumHp");
+	HighHealth.ParamValue = 22.0f;
+	Challenge.Effects.Add(HighHealth);
+	FReEchoCardEffectDefinition LowHealth = HighHealth;
+	LowHealth.Id = TEXT("NUMERIC_CHALLENGE_LOW");
+	LowHealth.Order = 3;
+	LowHealth.ParamName = TEXT("MaximumHp");
+	LowHealth.ParamValue = 3.0f;
+	Challenge.Effects.Add(LowHealth);
+	const FReEchoCardDefinition Dracula = MakeCard(TEXT("DRACULA_ONE"),
+	                                               2,
+	                                               TEXT("Card.OverkillHeal"),
+	                                               TEXT("OnDamageResolved"),
+	                                               TEXT("HpPoint"),
+	                                               0.2f,
+	                                               NAME_None,
+	                                               0.0f,
+	                                               true);
+	const FReEchoCardDefinition Race = MakeCard(TEXT("SELF_RACE"),
+	                                            2,
+	                                            TEXT("Card.SelfRace"),
+	                                            TEXT("OnEncounterEnd"),
+	                                            TEXT("Damage"),
+	                                            0.25f,
+	                                            NAME_None,
+	                                            0.0f,
+	                                            true);
+	const FReEchoCardDefinition StatusHeal = MakeCard(TEXT("STATUS_HEAL"),
+	                                                  2,
+	                                                  TEXT("Card.NegativeStatusHeal"),
+	                                                  TEXT("OnStatusApplied"),
+	                                                  TEXT("HpPoint"),
+	                                                  1.0f,
+	                                                  NAME_None,
+	                                                  0.0f,
+	                                                  true);
+	const FReEchoCardDefinition SlimeKiller = MakeCard(TEXT("SLIME_KILLER"),
+	                                                   2,
+	                                                   TEXT("Card.TargetKillCurse"),
+	                                                   TEXT("BeforeOutgoingHit"),
+	                                                   TEXT("Status"),
+	                                                   1.0f,
+	                                                   TEXT("M_SLIME"),
+	                                                   2.0f,
+	                                                   true);
+	const FReEchoCardDefinition RecordedReaction = MakeCard(TEXT("RECORDED_REACTION"),
+	                                                        3,
+	                                                        TEXT("Card.RecordReaction"),
+	                                                        TEXT("OnReaction"),
+	                                                        TEXT("Damage"),
+	                                                        1.0f,
+	                                                        TEXT("OtherReactionPenalty"),
+	                                                        1.0f,
+	                                                        true);
+	const FReEchoCardCatalog Catalog =
+	    BuildCatalog({Challenge, Dracula, Race, StatusHeal, SlimeKiller, RecordedReaction});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {Challenge.Id, Dracula.Id, Race.Id, StatusHeal.Id, SlimeKiller.Id, RecordedReaction.Id};
+	State = ReEchoCardRuntime::BeginEncounter(State, 2);
+
+	FReEchoCardEventResult Kill;
+	for (int32 Index = 0; Index < 111; ++Index)
+	{
+		Kill = ReEchoCardRuntime::OnKillResolved(Catalog, State, FReEchoStatBlock{}, false);
+		State = Kill.CardState;
+	}
+	TestTrue(TEXT("The 111th kill completes the challenge"), State.Runtime.bNumericChallengeCompleted);
+	TestEqual(TEXT("The challenge grants exactly 666 shards once"), Kill.TimeShardsGranted, 666);
+	const FReEchoCardEventResult ExtraKill =
+	    ReEchoCardRuntime::OnKillResolved(Catalog, State, FReEchoStatBlock{}, false);
+	TestEqual(TEXT("A completed challenge cannot grant twice"), ExtraKill.TimeShardsGranted, 0);
+
+	FReEchoCardBuildState HealthState = ReEchoCardRuntime::BeginEncounter(State, 3);
+	HealthState.Runtime.bNumericChallengeCompleted = false;
+	FReEchoStatBlock HighStats;
+	HighStats.HpPoint = 22.0f;
+	const FReEchoCardEventResult HealthEnd = ReEchoCardRuntime::EndEncounter(Catalog, HealthState, HighStats, 3, 0);
+	TestEqual(TEXT("Ending with 22 health completes the alternate challenge"), HealthEnd.TimeShardsGranted, 666);
+
+	const FReEchoCardEventResult Overkill =
+	    ReEchoCardRuntime::OnDamageResolved(Catalog, HealthState, HighStats, 30.0f, 10.0f, false);
+	TestEqual(TEXT("Dracula I heals twenty percent of overkill damage"), Overkill.Healing, 4.0f);
+	const FReEchoCardEventResult EchoOverkill =
+	    ReEchoCardRuntime::OnDamageResolved(Catalog, HealthState, HighStats, 30.0f, 10.0f, true);
+	TestEqual(TEXT("Echo overkill does not count as damage dealt by the player"), EchoOverkill.Healing, 0.0f);
+	const FReEchoCardEventResult StatusApplied =
+	    ReEchoCardRuntime::OnNegativeStatusApplied(Catalog, HealthState, HighStats, TEXT("Z_Bleeding"), true);
+	TestEqual(TEXT("A negative status applied by an echo heals the player once"), StatusApplied.Healing, 1.0f);
+	FReEchoCardBuildState KillerState = HealthState;
+	KillerState = ReEchoCardRuntime::OnKillResolved(Catalog, KillerState, HighStats, false, TEXT("M_SLIME")).CardState;
+	KillerState = ReEchoCardRuntime::OnKillResolved(Catalog, KillerState, HighStats, true, TEXT("M_SLIME")).CardState;
+	FReEchoCardOutgoingHitInput SlimeHit;
+	SlimeHit.RawDamage = 1.0f;
+	SlimeHit.TargetDefinitionId = TEXT("M_SLIME");
+	TestEqual(TEXT("Echo kills do not advance the player-only slime threshold"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, KillerState, SlimeHit).PreDamageStatusIds.Num(),
+	          0);
+	KillerState = ReEchoCardRuntime::OnKillResolved(Catalog, KillerState, HighStats, false, TEXT("M_SLIME")).CardState;
+	const FReEchoCardOutgoingHitResult CursingSlimeHit =
+	    ReEchoCardRuntime::ModifyOutgoingHit(Catalog, KillerState, SlimeHit);
+	TestTrue(TEXT("The completed species threshold applies curse before damage"),
+	         CursingSlimeHit.PreDamageStatusIds.Contains(TEXT("Z_Cursed")));
+	SlimeHit.TargetDefinitionId = TEXT("M_RABBIT");
+	TestEqual(TEXT("The species rule does not affect other enemy definitions"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, KillerState, SlimeHit).PreDamageStatusIds.Num(),
+	          0);
+	TestEqual(TEXT("The first reaction is unmodified before it is recorded"),
+	          ReEchoCardRuntime::GetReactionDamageMultiplier(Catalog, KillerState, TEXT("Y_Vaporize")),
+	          1.0f);
+	KillerState = ReEchoCardRuntime::OnReaction(Catalog, KillerState, HighStats, TEXT("Y_Vaporize"), true).CardState;
+	TestEqual(TEXT("The recorded reaction receives one hundred percent increased damage"),
+	          ReEchoCardRuntime::GetReactionDamageMultiplier(Catalog, KillerState, TEXT("Y_Vaporize")),
+	          2.0f);
+	TestEqual(TEXT("Other reactions receive one hundred percent reduced damage"),
+	          ReEchoCardRuntime::GetReactionDamageMultiplier(Catalog, KillerState, TEXT("Y_Burn")),
+	          0.0f);
+	KillerState = ReEchoCardRuntime::OnReaction(Catalog, KillerState, HighStats, TEXT("Y_Burn"), true).CardState;
+	TestEqual(TEXT("Later reactions cannot replace the first recorded identity"),
+	          KillerState.Runtime.RecordedReactionId,
+	          FName(TEXT("Y_Vaporize")));
+
+	FReEchoCardBuildState RaceState = HealthState;
+	RaceState.Runtime.EncounterPlayerDamage = 100.0f;
+	RaceState.Runtime.EncounterEchoDamage = 40.0f;
+	const FReEchoCardEventResult RaceEnd = ReEchoCardRuntime::EndEncounter(Catalog, RaceState, HighStats, 3, 0);
+	TestEqual(TEXT("Player victory grants the echo next-encounter damage bonus"),
+	          RaceEnd.CardState.Runtime.EchoDamageMultiplier,
+	          1.25f);
+	FReEchoCardOutgoingHitInput EchoHit;
+	EchoHit.RawDamage = 10.0f;
+	EchoHit.DamageSource = EReEchoDamageSource::Echo;
+	const FReEchoCardOutgoingHitResult Boosted =
+	    ReEchoCardRuntime::ModifyOutgoingHit(Catalog, RaceEnd.CardState, EchoHit);
+	TestEqual(TEXT("The selected self-race bonus modifies final echo outgoing damage"), Boosted.RawDamage, 12.5f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDistanceAndSourceCardRulesTest,
+                                 "ReEcho.Cards.Runtime.ProximityAndAlternatingSources",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoDistanceAndSourceCardRulesTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition Fusion = MakeCard(TEXT("FUSION"),
+	                                              3,
+	                                              TEXT("Card.ProximityDamage"),
+	                                              TEXT("OnCompileRules"),
+	                                              TEXT("Damage"),
+	                                              1.0f,
+	                                              TEXT("ZeroBonusDistanceCm"),
+	                                              3000.0f,
+	                                              true);
+	const FReEchoCardDefinition BothHands = MakeCard(TEXT("BOTH_HANDS"),
+	                                                 3,
+	                                                 TEXT("Card.AlternatingSources"),
+	                                                 TEXT("OnCompileRules"),
+	                                                 TEXT("Damage"),
+	                                                 1.0f,
+	                                                 NAME_None,
+	                                                 0.0f,
+	                                                 true);
+	const FReEchoCardDefinition Distance = MakeCard(TEXT("DISTANCE"),
+	                                                3,
+	                                                TEXT("Card.DistanceDamage"),
+	                                                TEXT("BeforeOutgoingHit"),
+	                                                TEXT("Damage"),
+	                                                0.04f,
+	                                                TEXT("DistanceCm"),
+	                                                200.0f,
+	                                                true);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Fusion, BothHands, Distance});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {Fusion.Id, BothHands.Id};
+
+	FReEchoCardOutgoingHitInput Hit;
+	Hit.RawDamage = 10.0f;
+	Hit.bHasLivingEcho = true;
+	Hit.NearestEchoDistanceCm = 0.0f;
+	Hit.DamageSource = EReEchoDamageSource::Player;
+	TestEqual(TEXT("Fusion grants one hundred percent damage at zero metres"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit).RawDamage,
+	          20.0f);
+	Hit.NearestEchoDistanceCm = 3000.0f;
+	TestEqual(TEXT("Fusion grants no damage at thirty metres"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit).RawDamage,
+	          10.0f);
+	Hit.bPreviousPlayerEchoSourceKnown = true;
+	Hit.PreviousPlayerEchoSource = EReEchoDamageSource::Echo;
+	TestEqual(TEXT("A previous Echo hit doubles the next Player hit"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit).RawDamage,
+	          20.0f);
+	Hit.PreviousPlayerEchoSource = EReEchoDamageSource::Player;
+	TestEqual(TEXT("Repeating the same source does not double damage"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit).RawDamage,
+	          10.0f);
+	State.OwnedCardIds.Add(Distance.Id);
+	Hit.DistanceCm = 399.0f;
+	TestEqual(TEXT("Time-distance resonance grants four percent for one complete two-metre step"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit).RawDamage,
+	          10.4f);
+	Hit.DistanceCm = 400.0f;
+	TestEqual(TEXT("Time-distance resonance grants eight percent at two complete steps"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit).RawDamage,
+	          10.8f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTrinityCardRulesTest,
+                                 "ReEcho.Cards.Runtime.EchoTrinity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTrinityCardRulesTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition Head = MakeCard(TEXT("HEAD"),
+	                                            2,
+	                                            TEXT("Card.EchoTrinityHead"),
+	                                            TEXT("OnCompileRules"),
+	                                            TEXT("Status"),
+	                                            1.0f,
+	                                            NAME_None,
+	                                            0.0f,
+	                                            true);
+	const FReEchoCardDefinition Body = MakeCard(TEXT("BODY"),
+	                                            2,
+	                                            TEXT("Card.EchoTrinityBody"),
+	                                            TEXT("OnCompileRules"),
+	                                            TEXT("Status"),
+	                                            2.0f,
+	                                            NAME_None,
+	                                            0.0f,
+	                                            true);
+	const FReEchoCardDefinition Legs = MakeCard(TEXT("LEGS"),
+	                                            2,
+	                                            TEXT("Card.EchoTrinityLegs"),
+	                                            TEXT("OnCompileRules"),
+	                                            TEXT("EchoEfficiency"),
+	                                            0.3f,
+	                                            TEXT("CompleteBonus"),
+	                                            1.0f,
+	                                            true);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Head, Body, Legs});
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.Stats.EchoEfficiency = 1.0f;
+	FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, Legs.Id, Input);
+	TestEqual(TEXT("Legs alone grants thirty percent echo efficiency"), Grant.Stats.EchoEfficiency, 1.3f);
+	Input.CardState = Grant.CardState;
+	Input.Stats = Grant.Stats;
+	Grant = ReEchoCardRuntime::TryGrantCard(Catalog, Head.Id, Input);
+	Input.CardState = Grant.CardState;
+	Input.Stats = Grant.Stats;
+	Grant = ReEchoCardRuntime::TryGrantCard(Catalog, Body.Id, Input);
+	TestTrue(TEXT("Owning all three pieces compiles the complete set"),
+	         ReEchoCardRuntime::CompileRules(Catalog, Grant.CardState).bEchoTrinityComplete);
+	TestEqual(TEXT("Completing the set upgrades the materialized bonus to one hundred percent"),
+	          Grant.Stats.EchoEfficiency,
+	          2.0f);
+
+	FReEchoCardBuildState EncounterState = ReEchoCardRuntime::BeginEncounter(Grant.CardState, 1);
+	const FReEchoCardEncounterTickResult Tick = ReEchoCardRuntime::AdvanceEncounter(Catalog, EncounterState, 1.6f);
+	TestEqual(TEXT("Complete head pulses every half second"), Tick.EchoHeadCursePulseCount, 3);
 	return true;
 }
 

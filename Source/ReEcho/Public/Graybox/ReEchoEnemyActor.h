@@ -4,6 +4,7 @@
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatTarget.h"
 #include "Core/ReEchoTypes.h"
+#include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/Actor.h"
 #include "ReEchoEnemyActor.generated.h"
 
@@ -71,6 +72,11 @@ public:
 	}
 
 	FName GetEnemyId() const
+	{
+		return EnemyId;
+	}
+
+	virtual FName GetCombatTargetDefinitionId() const override
 	{
 		return EnemyId;
 	}
@@ -188,6 +194,10 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
 	FReEchoEnemyActionIntent AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void AdvanceEnemyProjectilesForTests(float DeltaSeconds);
+	void ApplyBossIntentForTests(const FReEchoBossIntent& Intent);
+	void AdvancePendingBossBlinkSlamForTests(float DeltaSeconds);
+	void AdvancePendingBossPrayerBeamForTests(float DeltaSeconds);
+	void UpdateStunStateForTests(bool bStunned);
 #endif
 
 protected:
@@ -206,6 +216,10 @@ private:
 	void RefreshCrowdCollisionIgnores();
 	void ClearCrowdCollisionIgnores();
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
+	void ApplyBossAttackWindow(const FReEchoBossIntent& Intent);
+	void AdvancePendingBossBlinkSlam(float DeltaSeconds);
+	void AdvancePendingBossPrayerBeam(float DeltaSeconds);
+	void TryApplyPendingBossPrayerBeamHit();
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void DrawBossDamageRangeDebug(const struct FReEchoBossIntent& Intent) const;
@@ -224,6 +238,7 @@ private:
 	FVector ResolveFacingDirection() const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
 	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving, bool bStunned) const;
+	void UpdateStunState(bool bStunned);
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
@@ -286,6 +301,16 @@ private:
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Weapon",
 	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> BossWeaponFacingRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Weapon",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> BossWeaponTipRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Weapon",
+	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBillboardComponent> BossWeaponSprite;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
@@ -331,11 +356,19 @@ private:
 
 	UPROPERTY()
 	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;
+	FReEchoBossIntent PendingBossBlinkSlamIntent;
+	float PendingBossBlinkSlamRemainingSeconds = 0.0f;
+	bool bBossBlinkSlamPending = false;
+	FReEchoBossIntent PendingBossPrayerBeamIntent;
+	float PendingBossPrayerBeamRemainingSeconds = 0.0f;
+	bool bBossPrayerBeamPending = false;
+	bool bBossPrayerBeamDamageConsumed = false;
 
 	bool bVisualPlacementApplied = false;
 	bool bAudioSpawnPosted = false;
 	bool bEncounterSimulationSuspended = false;
 	bool bDeathSequenceStarted = false;
+	bool bWasStunnedLastTick = false;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;

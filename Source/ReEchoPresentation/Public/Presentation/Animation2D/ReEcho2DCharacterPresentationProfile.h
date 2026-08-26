@@ -63,8 +63,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Footpoint", meta = (ClampMin = "0.0"))
 	float DeathGroundSink = 0.0f;
 
-	/** Stable held-weapon anchor in actor space, normalized to WorldHeight. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	/** Legacy per-character anchor retained for existing assets; runtime held weapons use the shared weapon catalog. */
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Weapon Presentation Catalog shared hand anchors"))
 	FVector WeaponAnchorRatio = FVector(-0.16f, 0.30f, 0.06f);
 
 	/** 表现状态、优先级和中断规则；Flipbook仍由下方外观/武器动画集提供。 */

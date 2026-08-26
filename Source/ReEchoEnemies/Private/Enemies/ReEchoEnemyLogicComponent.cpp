@@ -1407,6 +1407,45 @@ void UReEchoEnemyLogicComponent::NotifyDeath()
 	State.Phase = EReEchoEnemyBehaviorPhase::Dead;
 }
 
+void UReEchoEnemyLogicComponent::CancelActiveActionsForStun()
+{
+	if (!bInitialized || !State.bAlive)
+	{
+		return;
+	}
+
+	const bool bHadSpecialAction = State.SpecialActionPhase != EReEchoEnemySpecialActionPhase::None;
+	CancelSpecialAction();
+	if (bHadSpecialAction)
+	{
+		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+	}
+
+	if (State.BossActionPhase != EReEchoBossActionPhase::None)
+	{
+		const int32 AbilityIndex = FindBossAbilityIndex(State.BossCurrentAbilityId);
+		if (Definition.Abilities.IsValidIndex(AbilityIndex))
+		{
+			FReEchoEnemyActionIntent Intent;
+			EndBossAbility(Definition.Abilities[AbilityIndex], Intent);
+		}
+		else
+		{
+			State.BossActionPhase = EReEchoBossActionPhase::None;
+			State.BossCurrentAbilityId = NAME_None;
+			State.BossCurrentAttackSequence = 0;
+			State.BossActionPhaseRemainingSeconds = 0.0f;
+			State.BossLockedTargetLocation = FVector::ZeroVector;
+			State.BossLockedDirection = State.FacingDirection.GetSafeNormal2D();
+			State.BossLockedTeleportDestination = FVector::ZeroVector;
+			State.bBossHasLockedTarget = false;
+			State.bBossHasLockedTeleportDestination = false;
+			State.bBossCurrentAbilityCommitted = false;
+			State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+		}
+	}
+}
+
 void UReEchoEnemyLogicComponent::ResetEncounterTransientState()
 {
 	if (!bInitialized || !State.bAlive)

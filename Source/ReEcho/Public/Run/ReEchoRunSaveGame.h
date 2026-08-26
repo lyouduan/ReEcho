@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v20 persists prepaid shop-card pack price and pending-choice state. */
-	static constexpr int32 CurrentSaveVersion = 20;
+	/** v22 persists per-card-group offer history so refreshed cards cannot reappear in the same group. */
+	static constexpr int32 CurrentSaveVersion = 22;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -41,6 +41,10 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray<FName> PendingTraitCardIds;
+
+	/** Added in v22. All cards displayed by the current free-choice group, including replaced cards. */
+	UPROPERTY(SaveGame)
+	TArray<FName> PendingTraitCardOfferHistoryIds;
 
 	UPROPERTY(SaveGame)
 	TArray<int32> PendingTraitCardRefreshUses;

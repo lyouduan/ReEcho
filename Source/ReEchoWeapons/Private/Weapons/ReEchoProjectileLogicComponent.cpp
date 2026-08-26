@@ -1,17 +1,25 @@
 #include "Weapons/ReEchoProjectileLogicComponent.h"
 
 #include "Combat/ReEchoCombatTarget.h"
+#include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoHitResolver.h"
+#include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 
 #if !UE_BUILD_SHIPPING
 DEFINE_LOG_CATEGORY_STATIC(LogReEchoRangedCritProjectileTrace, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogReEchoSpawnDamageTrace, Log, All);
 
 namespace
 {
 bool IsRangedWeaponTrace(const FReEchoAttackIdentity& Attack)
 {
 	return Attack.WeaponId == TEXT("W_J_08") || Attack.WeaponId == TEXT("W_J_09");
+}
+
+bool IsPlayerProjectileTrace(const FReEchoHitIntent& Intent)
+{
+	return Intent.DamageSource == EReEchoDamageSource::Player;
 }
 } // namespace
 #endif
@@ -36,10 +44,32 @@ bool UReEchoProjectileLogicComponent::InitializeProjectile(const FReEchoLogicalP
 	Velocity = (Direction.IsNearlyZero() ? FVector::ForwardVector : Direction) * Spec.SpeedCmPerSecond;
 	TravelledCm = 0.0f;
 	HitTargets.Reset();
+#if !UE_BUILD_SHIPPING
+	DiagnosticLoggedNearTargets.Reset();
+	DiagnosticClosestTarget.Reset();
+	DiagnosticClosestPathDistanceCm = TNumericLimits<float>::Max();
+#endif
 	bActive = true;
 	SetComponentTickEnabled(true);
 	OnProjectileUpdated.Broadcast(GetSnapshot());
 #if !UE_BUILD_SHIPPING
+	if (IsPlayerProjectileTrace(Spec.HitIntent))
+	{
+		UE_LOG(LogReEchoSpawnDamageTrace,
+		       Warning,
+		       TEXT("[SpawnDamageTrace] ProjectileInit world=%.3f projectile=%s commit=%s#%lld weapon=%s "
+		            "position=%s velocity=%s radius=%.3f rawDamage=%.3f range=%.3f"),
+		       GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f,
+		       *ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       *GetNameSafe(Spec.HitIntent.Attack.Source.Get()),
+		       static_cast<long long>(Spec.HitIntent.Attack.Sequence),
+		       *Spec.HitIntent.Attack.WeaponId.ToString(),
+		       *SpawnLocation.ToCompactString(),
+		       *Velocity.ToCompactString(),
+		       Spec.CarrierRadiusCm,
+		       Spec.HitIntent.RawDamage,
+		       Spec.MaximumRangeCm);
+	}
 	if (IsRangedWeaponTrace(Spec.HitIntent.Attack))
 	{
 		UE_LOG(LogReEchoRangedCritProjectileTrace,
@@ -108,14 +138,76 @@ void UReEchoProjectileLogicComponent::Advance(const float DeltaTime)
 	{
 		AActor* Candidate = *It;
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
-		if (!Target || !Target->IsCombatTargetAlive() || HitTargets.Contains(Candidate) ||
-		    !ReEchoCombatRelations::CanDamage(
-		        Spec.HitIntent.Attack, *Candidate, Spec.HitIntent.bAllowSameFactionDamage))
+		if (!Target)
 		{
 			continue;
 		}
-		if (Target->IntersectsCombatPath(PreviousLocation, NewLocation, Spec.CarrierRadiusCm))
+		const bool bTargetAlive = Target->IsCombatTargetAlive();
+		const bool bAlreadyHit = HitTargets.Contains(Candidate);
+		const bool bRelationAllowsDamage = ReEchoCombatRelations::CanDamage(
+		    Spec.HitIntent.Attack, *Candidate, Spec.HitIntent.bAllowSameFactionDamage);
+		const FVector TargetLocation = Target->GetCombatTargetLocation();
+		const float PathDistanceCm = FMath::PointDistToSegment(TargetLocation, PreviousLocation, NewLocation);
+		const bool bIntersects = Target->IntersectsCombatPath(PreviousLocation, NewLocation, Spec.CarrierRadiusCm);
+#if !UE_BUILD_SHIPPING
+		if (IsPlayerProjectileTrace(Spec.HitIntent) && PathDistanceCm < DiagnosticClosestPathDistanceCm)
 		{
+			DiagnosticClosestPathDistanceCm = PathDistanceCm;
+			DiagnosticClosestTarget = Candidate;
+		}
+		if (IsPlayerProjectileTrace(Spec.HitIntent) &&
+		    (bIntersects || PathDistanceCm <= Spec.CarrierRadiusCm + 50.0f) &&
+		    !DiagnosticLoggedNearTargets.Contains(Candidate))
+		{
+			DiagnosticLoggedNearTargets.Add(Candidate);
+			const UReEchoCombatantComponent* Combatant = Target->GetCombatTargetCombatant();
+			const UPrimitiveComponent* RootCollision = Cast<UPrimitiveComponent>(Candidate->GetRootComponent());
+			UE_LOG(LogReEchoSpawnDamageTrace,
+			       Warning,
+			       TEXT("[SpawnDamageTrace] Candidate world=%.3f projectile=%s commit=%s#%lld target=%s "
+			            "pathDistance=%.3f intersects=%d alive=%d damageable=%d relation=%d alreadyHit=%d "
+			            "actorCollision=%d rootCollision=%d health=%.3f pathStart=%s pathEnd=%s targetLocation=%s"),
+			       World->GetTimeSeconds(),
+			       *ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+			       *GetNameSafe(Spec.HitIntent.Attack.Source.Get()),
+			       static_cast<long long>(Spec.HitIntent.Attack.Sequence),
+			       *GetNameSafe(Candidate),
+			       PathDistanceCm,
+			       bIntersects ? 1 : 0,
+			       bTargetAlive ? 1 : 0,
+			       Candidate->CanBeDamaged() ? 1 : 0,
+			       bRelationAllowsDamage ? 1 : 0,
+			       bAlreadyHit ? 1 : 0,
+			       Candidate->GetActorEnableCollision() ? 1 : 0,
+			       RootCollision && RootCollision->IsCollisionEnabled() ? 1 : 0,
+			       Combatant ? Combatant->GetSnapshot().CurrentHealth : -1.0f,
+			       *PreviousLocation.ToCompactString(),
+			       *NewLocation.ToCompactString(),
+			       *TargetLocation.ToCompactString());
+		}
+#endif
+		if (!bTargetAlive || bAlreadyHit || !bRelationAllowsDamage)
+		{
+			continue;
+		}
+		if (bIntersects)
+		{
+#if !UE_BUILD_SHIPPING
+			if (IsPlayerProjectileTrace(Spec.HitIntent))
+			{
+				UE_LOG(LogReEchoSpawnDamageTrace,
+				       Warning,
+				       TEXT("[SpawnDamageTrace] Contact world=%.3f projectile=%s commit=%s#%lld target=%s "
+				            "travelled=%.3f pathDistance=%.3f"),
+				       World->GetTimeSeconds(),
+				       *ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+				       *GetNameSafe(Spec.HitIntent.Attack.Source.Get()),
+				       static_cast<long long>(Spec.HitIntent.Attack.Sequence),
+				       *GetNameSafe(Candidate),
+				       TravelledCm,
+				       PathDistanceCm);
+			}
+#endif
 #if !UE_BUILD_SHIPPING
 			if (IsRangedWeaponTrace(Spec.HitIntent.Attack))
 			{
@@ -160,6 +252,22 @@ FReEchoHitResolved UReEchoProjectileLogicComponent::ResolveIntent(AActor* Target
 	Intent.HitLocation = HitLocation;
 	const FReEchoHitResolved Result = ReEchoHitResolver::ResolveHit(Intent);
 #if !UE_BUILD_SHIPPING
+	if (IsPlayerProjectileTrace(Intent))
+	{
+		UE_LOG(LogReEchoSpawnDamageTrace,
+		       Warning,
+		       TEXT("[SpawnDamageTrace] Resolve world=%.3f projectile=%s commit=%s#%lld target=%s raw=%.3f "
+		            "applied=%.3f blocked=%d killed=%d"),
+		       GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f,
+		       *ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       *GetNameSafe(Intent.Attack.Source.Get()),
+		       static_cast<long long>(Intent.Attack.Sequence),
+		       *GetNameSafe(Target),
+		       Result.RawDamage,
+		       Result.AppliedDamage,
+		       Result.bBlocked ? 1 : 0,
+		       Result.bKilled ? 1 : 0);
+	}
 	if (IsRangedWeaponTrace(Intent.Attack))
 	{
 		UE_LOG(LogReEchoRangedCritProjectileTrace,
@@ -229,6 +337,23 @@ void UReEchoProjectileLogicComponent::Expire()
 	}
 	bActive = false;
 	SetComponentTickEnabled(false);
+#if !UE_BUILD_SHIPPING
+	if (IsPlayerProjectileTrace(Spec.HitIntent))
+	{
+		UE_LOG(LogReEchoSpawnDamageTrace,
+		       Warning,
+		       TEXT("[SpawnDamageTrace] ProjectileEnd world=%.3f projectile=%s commit=%s#%lld travelled=%.3f "
+		            "closestTarget=%s closestPathDistance=%.3f hitTargets=%d"),
+		       GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0f,
+		       *ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       *GetNameSafe(Spec.HitIntent.Attack.Source.Get()),
+		       static_cast<long long>(Spec.HitIntent.Attack.Sequence),
+		       TravelledCm,
+		       *GetNameSafe(DiagnosticClosestTarget.Get()),
+		       DiagnosticClosestPathDistanceCm,
+		       HitTargets.Num());
+	}
+#endif
 	OnProjectileExpired.Broadcast(GetSnapshot());
 	if (AActor* Owner = GetOwner())
 	{

@@ -20,7 +20,7 @@
 - 怪物 Archetype、行为阶段、攻击冷却、攻击序号与存活行为门控；
 - 兼容 Grunt/Shield/Bomber、开普勒 Slime/Ranged/Elite 和 Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
 - Host 显式注入的目标感知到移动、朝向和攻击意图的确定性转换；
-- Host 可在不改写 EnemyLogic 内部状态机的前提下应用外部眩晕门、移动倍率，并为当步 Sense 选择存活嘲讽 Echo；
+- Host 负责应用外部眩晕门和移动倍率，并为当步 Sense 选择存活嘲讽 Echo；首次进入眩晕时通过窄命令取消旧目标锁定动作；
 - Bomber 不可取消引信、范围判定输入与一次性自毁提交；
 - Slime 表驱动接触攻击、Ranged 锁点前摇/范围判定、Elite 正面防御/锁向突进与恢复；
 - Combat Hurt 结果触发的游戏性击退状态，以及 Combat Death 后停止产出行为；
@@ -50,12 +50,15 @@
 
 ## 输入、输出与公共契约
 
+- Enemy Host 的 `ConfigureFromDefinition` 是出生 Commit 的原子激活边界：成功返回时 Combatant 必须存活，Actor 与根玩法碰撞必须启用且可受击。出生预警期间不创建 Host；表现资源加载或 Blueprint 默认值不得延长不可受击阶段。
+
 ### 输入
 
 - `FReEchoEnemyDefinition`：资源无关的不可变行为定义，携带稳定但资源无关的 `PresentationId`。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值和兼容 ID，生产定义由主模块从 CSV 编译后注入。
 - `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态，以及 Encounter 注入的 `bSpecialActionPermitted`。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
 - `BindEventSources(EnemyEvents, CombatEvents)`：由 Host 显式注入两个事件源。Logic 订阅 Combat Hurt/Death，不发现兄弟组件。
 - `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。狐狸 Active 冲撞另由 Host 调用 `ResolveSpecialDashStep`，只反馈实际 Sweep 是否遇阻与本次路径是否已消费首次接触，不传世界对象或伤害结果。
+- `CancelActiveActionsForStun`：Host 仅在首次进入眩晕时调用；取消普通特殊技或 Boss 当前动作、发布对应终止事件并清空旧锁点，保留普通冷却、Bomber Fuse、受击状态、身份与生命。
 - `ResetEncounterTransientState`：同 Stage 局间边界的窄命令。取消尚未提交的 Fuse/特殊行动/Boss 行动、受击位移和瞬时计时，但保留 Actor 身份、生命、普通攻击冷却、攻击序号及其他持久逻辑；Enemy Host 负责在调用后冻结自己的 World Tick 和逻辑投射物。
 
 ### 输出
@@ -70,11 +73,11 @@
 
 远程敌人提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 按能力表的 `ProjectileCount` 与 `SpreadAngleDegrees` 展开确定性直线投射物；单发沿锁定方向，有散射角的多发以中心方向对称齐射。`ProjectileCount>1`、零散射角且 `ActiveSeconds>0` 的直线多发在该 Active 窗口内等间隔进入世界：第一发随提交生成，其余已提交球保存剩余延迟并依次发布 Spawned，避免同帧同位置重叠。Host 使用每条已生成球的移动线段与“按单球半径扩张后的目标碰撞盒”做连续扫掠，每球向 Combat 提交至多一次命中；兔子球命中玩家后立即发布 `Ended` 并从逻辑数组移除，视觉代理随事件结束。长剑还可用其提交时的 180°近战扇区结束弧内兔子球；EnemyHost 仍是移除权威，Niagara 不参与斩弹裁决。兔子能力的单球半径固定为 `RadiusCm / 3`（沿用原移动三球散射的作者基准），不因站定四连发的 `ProjectileCount` 改变；羊 Boss 等通用齐射仍把 `RadiusCm` 作为整组碰撞预算并按实际发数平分。单球半径不得从敌人本体碰撞尺寸推导，也不得让 Niagara 粒子参与裁决。各逻辑轨迹分别发布 Spawned/Moved/Ended，事件携带共享 AttackIdentity、稳定 `VolleyBallIndex`、逻辑位置/方向和只读碰撞半径；Presentation 必须以 `(AttackIdentity, VolleyBallIndex)` 一一投影。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载已生成和已提交待生成的通用敌方逻辑投射物；旧存档默认把已有条目视为已生成，重命名需要独立存档迁移。显式正数表内投射物速度优先，兼容数据才按 `MaxRangeCm / CooldownSeconds` 推导。
 
-Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、`M_RABBIT`、`M_FOX`，Boss 为 `M_SHEEP`。`M_SHEEP` 第一阶段最大生命 1300；第一次致命伤由 Combatant 的窄委托交给 EnemyLogic 转为 `HealthDepleted` Phase2 过渡，Host 发布变身事件，完成后按 Phase2 定义把最大生命与当前生命统一设为 650；第二次致命伤沿正常 Combat 死亡路径。未进入仇恨范围的普通怪执行可保存的确定性 IdleWander，一旦进入战斗后不恢复游走；Host 只注入 `bInCombat`、`HateRangeCm` 和当前生命比率，Logic 不读取 GameMode 或 Combatant。
+Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、`M_RABBIT`、`M_FOX`，Boss 为 `M_SHEEP`。普通怪的 `AttackCountOrRange` Phase2 是纯表现转换，转换期间继续接受正常伤害；`M_SHEEP` 第一阶段最大生命 1300，第一次致命伤由 Combatant 的窄委托交给 EnemyLogic 转为 `HealthDepleted` Phase2 过渡，Host 发布变身事件，完成后按 Phase2 定义把最大生命与当前生命统一设为 650；第二次致命伤沿正常 Combat 死亡路径。未进入仇恨范围的普通怪执行可保存的确定性 IdleWander，一旦进入战斗后不恢复游走；Host 只注入 `bInCombat`、`HateRangeCm` 和当前生命比率，Logic 不读取 GameMode 或 Combatant。
 
 Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
 
-羊 Boss 的站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害，Skill02 的 Ability `RadiusCm` 不触发一次性 AOE。BlinkSlam 的落点、预警和圆形伤害判定统一以 Intent 锁定中心为权威，圆半径直接使用 Ability `RadiusCm`，不再回读闪现后的 Actor 位置；MeleeSweep 以羊的 `BossWeaponRoot` 世界位置为圆心、锁定朝向为中轴、Ability `LengthCm` 为半径覆盖前方 180° 半圆，伤害与挥杖特效共享挂点；PrayerBeam 在 WindupStart 快照一次预警中心，后续预警、伤害与光束均复用该中心并沿世界 +X 向上延伸，不再于蓄力结束回读角色位置。Development 的 `GMBossDamageRange` 只读绘制这些同源几何，不参与命中裁决。
+羊 Boss 的所有蓄力 Niagara 均挂接 `BossWeaponTipRoot`；该节点在 `BossWeaponFacingRoot` 局部 +Z 方向偏移 MoonStaff 最终世界长度的一半，落在中心 Pivot 法杖贴图的顶部，并继承 `BossWeaponRoot` 的基础挂点/挥舞旋转和 MoonStaff DA 最终左右偏移；该顶部挂点缺失时才回退通用 `AttackVfxRoot`。站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害，Skill02 的 Ability `RadiusCm` 不触发一次性 AOE。BlinkSlam 的落点、预警和圆形伤害判定统一以 Intent 锁定中心为权威，圆半径直接使用 Ability `RadiusCm`，不再回读闪现后的 Actor 位置；AttackWindow 先把 gameplay Host 闪现到锁定落点，Presentation 根节点再从上方向落点缓入 0.5 秒，完成后才结算伤害并生成地裂，地裂保留锁定落点 XY、只对齐蓄力开始时目标 `GroundRoot` 的世界 Z，不生成移动拖尾。MeleeSweep 以羊的 `BossWeaponRoot` 世界位置为圆心、锁定朝向为中轴、Ability `LengthCm` 为半径覆盖前方 180° 半圆，伤害与挥杖特效共享挂点；PrayerBeam 在 WindupStart 保留技能 `LockedTargetLocation` 的 XY，只快照目标阴影使用的 `GroundRoot` 世界 Z 作为高度（缺失时依次回退 `FootRoot`、Arena `GameplayPlaneWorldZ` 和原锁定 Z），后续预警与光束复用该不可变组合位置，光束沿世界 +X 向上延伸，不在蓄力结束回读角色实时位置；其 `ActiveSeconds` 同时定义光束、落点预警和伤害检测窗口（当前为 3 秒），窗口内持续检测进入光束的目标，但每次释放最多结算一次伤害。Development 的 `GMBossDamageRange` 只读绘制这些同源几何，不参与命中裁决。
 
 血条耗尽转换由 Combat 致命伤拦截启动；同一命中随后发布的 Hurt 不得把 `Transforming` 覆盖为 `HitReaction`。转换期间 Host 的入伤修正统一返回零，避免临时保活的 1 HP 被多段攻击击杀；完成事件再应用 Phase2 最大生命与回满策略，之后第二次致命伤恢复正常死亡。
 
@@ -174,6 +177,7 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - `ReEcho.Enemies.Logic.Roster`：去重注册、稳定顺序、无复制存活查询与清理。
 - `ReEcho.Enemies.Logic.RangedAndEliteBehaviors`：兔子锁点可躲避；狐狸在 0.15 秒 Active 内分步积分 650 cm、复用一次 AttackIdentity，并安全保存/恢复一次接触门。
 - `ReEcho.Enemies.Logic.RangedAbilityRotation`：普通远程多能力按 SequenceOrder 循环、活动 AbilityId 跨快照绑定，以及两种施法移动门。
+- `ReEcho.Enemies.Host.StunRetarget`：首次眩晕只取消一次旧锁定动作且保留冷却；解除后的第一步朝向当前目标，冷却结束后新动作锁定当前目标。
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
 - `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。
 - `ReEcho.Enemies.Host.CompositionAndSave`、`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Run.SaveSnapshot` 与 Combat ElementReaction World 测试覆盖 Host/Combat/Roster/Save 接缝；Rabbit 测试额外锁定三球方向、四球跨帧连发及恢复、逐球事件身份、单球表驱动半径、路径内/外、命中玩家立即结束、长剑弧内结束事件和当前表值下单球实际扣血 `1`。
@@ -183,7 +187,7 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 ## 不变量与常见错误
 
 - Enemies 拥有行为，Combat 拥有伤害/生命/元素，Host 拥有世界 Transform，Presentation 拥有可见反馈；任何一方不得复制另一方的可写真相。
-- 卡牌眩晕与减速是 Host 当步输入；眩晕期间 Host 停止推进 EnemyLogic，并把同一只读眩晕事实交给 Presentation 暂停当前动画帧，解除后恢复播放。不得写回 EnemyLogic cooldown/Fuse 或为 Cards 增加 Enemies 反向依赖。
+- 卡牌眩晕与减速是 Host 当步输入；首次进入眩晕时，Host 调用 `CancelActiveActionsForStun` 取消尚未结束的普通特殊技或 Boss 技能并清空旧锁点，但不得改写普通攻击冷却、Bomber Fuse、受击状态或为 Cards 增加 Enemies 反向依赖。眩晕期间 Host 停止推进 EnemyLogic，并把同一只读眩晕事实交给 Presentation 暂停当前动画帧；解除眩晕的第一帧必须以当前玩家或存活嘲讽 Echo 重新构造 Sense 并立即决策，不得恢复旧目标锁定动作。
 - EnemyHost 显式声明 `EnemySide`，攻击身份在提交时快照该阵营；敌人不得在自身 Logic 中复制玩家/回响类型判断。Bomber 自毁通过单次 HitIntent 的 `bAllowSameFactionDamage` 明确放行自身伤害，不能为此全局开启敌人互伤。
 - Host 必须显式注入 Sense 和事件组件；组件内部 `FindComponentByClass` 会重新引入隐式装配和悬空 Actor 风险。
 - 同一步可以同时产生移动和攻击；提交攻击不得用新空对象覆盖已计算的移动/朝向意图。
