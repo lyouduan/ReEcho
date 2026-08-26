@@ -13,7 +13,7 @@
 - Plan93 战斗 HUD 交付源包：`Content/SourceArt/UI/CombatHud/Plan93/`；`References/1-战斗场景.png` 只用于 1920×1080 构图对照。9 张 `Elements` 原图继续归档，其中废案 `技能栏.png` 从未导入；Plan102 又废弃倒计时黑底 `时间显示.png` 及其运行时纹理，当前其余 7 张按 `_SourceManifest.csv` 的稳定 ASCII 名保留在 `Content/ReEcho/Textures/UI/CombatHud/`。
 - `scripts/ue/import_plan93_combat_hud.py` 默认保留已存在纹理；仅显式传入 `-Plan93ReimportExisting` 时重导。参考图始终不进入运行时资产。
 - Plan102 小地图头像源包：`Content/SourceArt/UI/CombatHud/Plan102/`。`_SourceManifest.csv` 把 8 张 `512×512` 透明 PNG 映射到四个稳定 `CharacterId` 的 Player/Echo 两套外观；运行时 Texture2D 位于 `Content/ReEcho/Textures/UI/CombatHud/Minimap/`，由对应 Character/Echo Presentation Profile 的 `MinimapIcon` 硬引用。`scripts/ue/import_plan102_minimap_icons.py` 负责幂等导入与绑定，运行时代码不得再按原始编号猜测身份。
-- 伤害跳字字体源文件与授权说明位于 `Content/SourceArt/UI/CombatHud/DamageNumbers/`；`scripts/ue/import_damage_number_font.py` 将其幂等导入到 `Content/ReEcho/Fonts/DamageNumbers/`。该字体仅获非商用使用确认，只能由 `AReEchoDamageNumberActor` 用于世界空间伤害数字，不得复用为全局 UI 字体或用于商业分发。运行时跳字调参入口为 `Content/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber` 的 Class Defaults > `Damage Number|Animation`，可改持续时间、开始渐隐时间、渐隐指数、上漂速度和起止缩放；不得直接修改字体图集或透明材质来调动画节奏。
+- 伤害跳字字体源文件与授权说明位于 `Content/SourceArt/UI/CombatHud/DamageNumbers/`；`scripts/ue/import_damage_number_font.py` 将其幂等导入到 `Content/ReEcho/Fonts/DamageNumbers/`。该字体仅获非商用使用确认，只能由 `AReEchoDamageNumberActor` 用于世界空间伤害数字，不得复用为全局 UI 字体或用于商业分发。运行时跳字调参入口为 `Content/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber` 的 Class Defaults > `Damage Number|Animation`，可改持续时间、上漂速度和起止缩放。跳字生命周期内保持不透明，只通过缩放表现变化，到期直接销毁；不得直接修改字体图集或透明材质来调动画节奏。
 
 ## 角色资产
 

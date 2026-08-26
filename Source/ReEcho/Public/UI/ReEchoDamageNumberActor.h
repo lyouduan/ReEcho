@@ -27,11 +27,6 @@ public:
 	static const TCHAR* GetDamageNumberMaterialPath();
 	/** 美术可编辑的伤害跳字 Blueprint Class 路径。 */
 	static const TCHAR* GetDamageNumberBlueprintClassPath();
-	/** 上漂生命周期内的线性透明度，超出生命周期后为零。 */
-	static float CalculateOpacity(float ElapsedSeconds, float DurationSeconds);
-	/** 支持延迟与指数曲线的透明度配置。 */
-	static float CalculateOpacityProfile(
-	    float ElapsedSeconds, float DurationSeconds, float FadeStartTimeSeconds, float FadeCurveExponent);
 
 private:
 	void InitializeDamage(float Damage, const FLinearColor& Color);
@@ -46,19 +41,6 @@ private:
 	          Category = "Damage Number|Animation",
 	          meta = (AllowPrivateAccess = "true", ClampMin = "0.05", Units = "s"))
 	float DisplayDuration = 0.9f;
-
-	UPROPERTY(EditDefaultsOnly,
-	          BlueprintReadOnly,
-	          Category = "Damage Number|Animation",
-	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", Units = "s"))
-	float FadeStartTime = 0.0f;
-
-	/** 1 为线性；大于 1 时保持更久后淡出，小于 1 时更早淡出。 */
-	UPROPERTY(EditDefaultsOnly,
-	          BlueprintReadOnly,
-	          Category = "Damage Number|Animation",
-	          meta = (AllowPrivateAccess = "true", ClampMin = "0.05"))
-	float FadeCurveExponent = 1.0f;
 
 	UPROPERTY(EditDefaultsOnly,
 	          BlueprintReadOnly,

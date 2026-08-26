@@ -1,8 +1,8 @@
-"""Create and verify the fade-capable damage-number TextRender material.
+"""Create and verify the damage-number TextRender material.
 
 The asset duplicates UE's stock translucent text material so its signed-distance
-font reconstruction remains exact, then multiplies that opacity by TextRender's
-vertex alpha.  SetTextRenderColor can therefore fade without changing glyphs.
+font reconstruction remains exact.  DamageOpacity stays at its default value of
+one; damage-number animation is scale-only and does not drive material opacity.
 """
 
 import unreal
@@ -12,6 +12,7 @@ ASSET_DIR = "/Game/ReEcho/Fonts/DamageNumbers"
 ASSET_NAME = "M_DamageNumberTextOpacity"
 ASSET_PATH = f"{ASSET_DIR}/{ASSET_NAME}"
 ENGINE_MATERIAL_PATH = "/Engine/EngineMaterials/DefaultTextMaterialTranslucent"
+OPACITY_PARAMETER = "DamageOpacity"
 
 
 def fail(message):
@@ -53,31 +54,38 @@ def ensure_material():
     if not isinstance(material, unreal.Material):
         fail(f"Asset is not a Material: {ASSET_PATH}")
 
+    opacity = unreal.MaterialEditingLibrary.get_material_property_input_node(
+        material, unreal.MaterialProperty.MP_OPACITY
+    )
     if created:
-        default_opacity = unreal.MaterialEditingLibrary.get_material_property_input_node(
-            material, unreal.MaterialProperty.MP_OPACITY
-        )
-        vertex_color = next(
-            (
-                node
-                for node in unreal.MaterialEditingLibrary.get_material_expressions(material)
-                if isinstance(node, unreal.MaterialExpressionVertexColor)
-            ),
-            None,
-        )
-        if default_opacity is None or vertex_color is None:
-            fail("Duplicated engine material is missing its opacity or vertex color graph")
-
+        if opacity is None:
+            fail("Duplicated engine material is missing its opacity graph")
         faded_opacity = expression(
             material, unreal.MaterialExpressionMultiply, 420, 80
         )
-
-        connect(default_opacity, "", faded_opacity, "A")
-        # Select A at the VertexColor node. Passing the full output through a
-        # ComponentMask fails SM5 compilation because the existing Base Color
-        # consumer narrows that shared expression to float3.
-        connect(vertex_color, "A", faded_opacity, "B")
+        connect(opacity, "", faded_opacity, "A")
         connect_property(faded_opacity, "", unreal.MaterialProperty.MP_OPACITY)
+    elif not isinstance(opacity, unreal.MaterialExpressionMultiply):
+        fail("Existing material final opacity is not a multiply expression")
+    else:
+        faded_opacity = opacity
+
+    opacity_parameter = next(
+        (
+            node
+            for node in unreal.MaterialEditingLibrary.get_material_expressions(material)
+            if isinstance(node, unreal.MaterialExpressionScalarParameter)
+            and str(node.get_editor_property("parameter_name")) == OPACITY_PARAMETER
+        ),
+        None,
+    )
+    if opacity_parameter is None:
+        opacity_parameter = expression(
+            material, unreal.MaterialExpressionScalarParameter, 180, 190
+        )
+        opacity_parameter.set_editor_property("parameter_name", OPACITY_PARAMETER)
+        opacity_parameter.set_editor_property("default_value", 1.0)
+    connect(opacity_parameter, "", faded_opacity, "B")
 
     compile_errors = unreal.MaterialEditingLibrary.recompile_material(material)
     if compile_errors:
@@ -93,7 +101,15 @@ def verify(material):
         material, unreal.MaterialProperty.MP_OPACITY
     )
     if not isinstance(opacity, unreal.MaterialExpressionMultiply):
-        fail("Final opacity is not multiplied by TextRender vertex alpha")
+        fail("Final opacity is not multiplied by the fixed opacity parameter")
+    opacity_parameters = [
+        node
+        for node in unreal.MaterialEditingLibrary.get_material_expressions(material)
+        if isinstance(node, unreal.MaterialExpressionScalarParameter)
+        and str(node.get_editor_property("parameter_name")) == OPACITY_PARAMETER
+    ]
+    if len(opacity_parameters) != 1:
+        fail(f"Expected exactly one {OPACITY_PARAMETER} scalar parameter")
     if not unreal.EditorAssetLibrary.does_asset_exist(ASSET_PATH):
         fail(f"Saved asset is missing: {ASSET_PATH}")
     unreal.log(f"[DamageNumberMaterial] PASS {material.get_path_name()}")

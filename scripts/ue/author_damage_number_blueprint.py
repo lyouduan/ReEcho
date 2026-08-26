@@ -39,8 +39,6 @@ if generated_class is None or not unreal.MathLibrary.class_is_child_of(
 defaults = unreal.get_default_object(generated_class)
 if created:
     defaults.set_editor_property("display_duration", 0.9)
-    defaults.set_editor_property("fade_start_time", 0.0)
-    defaults.set_editor_property("fade_curve_exponent", 1.0)
     defaults.set_editor_property("float_speed", 70.0)
     defaults.set_editor_property("start_scale", 1.15)
     defaults.set_editor_property("end_scale", 0.85)

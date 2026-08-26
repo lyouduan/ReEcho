@@ -22,37 +22,6 @@ const TCHAR* AReEchoDamageNumberActor::GetDamageNumberBlueprintClassPath()
 	return TEXT("/Game/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber.BP_ReEchoDamageNumber_C");
 }
 
-float AReEchoDamageNumberActor::CalculateOpacity(const float ElapsedSeconds, const float DurationSeconds)
-{
-	return CalculateOpacityProfile(ElapsedSeconds, DurationSeconds, 0.0f, 1.0f);
-}
-
-float AReEchoDamageNumberActor::CalculateOpacityProfile(const float ElapsedSeconds,
-                                                        const float DurationSeconds,
-                                                        const float FadeStartTimeSeconds,
-                                                        const float FadeCurveExponent)
-{
-	if (DurationSeconds <= 0.0f)
-	{
-		return 0.0f;
-	}
-
-	const float ClampedFadeStart = FMath::Clamp(FadeStartTimeSeconds, 0.0f, DurationSeconds);
-	if (ElapsedSeconds <= ClampedFadeStart)
-	{
-		return 1.0f;
-	}
-
-	const float FadeDuration = DurationSeconds - ClampedFadeStart;
-	if (FadeDuration <= UE_SMALL_NUMBER)
-	{
-		return ElapsedSeconds < DurationSeconds ? 1.0f : 0.0f;
-	}
-
-	const float FadeProgress = FMath::Clamp((ElapsedSeconds - ClampedFadeStart) / FadeDuration, 0.0f, 1.0f);
-	return 1.0f - FMath::Pow(FadeProgress, FMath::Max(0.05f, FadeCurveExponent));
-}
-
 AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -125,10 +94,6 @@ void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
 		SetActorRotation((-Camera->GetCameraRotation().Vector()).Rotation());
 	}
 
-	const float Alpha = CalculateOpacityProfile(ElapsedTime, DisplayDuration, FadeStartTime, FadeCurveExponent);
-	FLinearColor FadedColor = InitialColor;
-	FadedColor.A = InitialColor.A * Alpha;
-	Text->SetTextRenderColor(FadedColor.ToFColor(false));
 	const float LifeProgress = DisplayDuration > 0.0f ? FMath::Clamp(ElapsedTime / DisplayDuration, 0.0f, 1.0f) : 1.0f;
 	SetActorScale3D(FVector(FMath::Lerp(StartScale, EndScale, LifeProgress)));
 

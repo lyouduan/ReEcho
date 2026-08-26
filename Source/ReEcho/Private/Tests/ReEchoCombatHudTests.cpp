@@ -23,33 +23,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatHudFormattingTest,
 
 bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 {
-	TestEqual(TEXT("Damage number is fully opaque when spawned"),
-	          AReEchoDamageNumberActor::CalculateOpacity(0.0f, 0.9f),
-	          1.0f);
-	TestEqual(TEXT("Damage number fades continuously while floating"),
-	          AReEchoDamageNumberActor::CalculateOpacity(0.45f, 0.9f),
-	          0.5f);
-	TestEqual(TEXT("Damage number is transparent at the end of its lifetime"),
-	          AReEchoDamageNumberActor::CalculateOpacity(0.9f, 0.9f),
-	          0.0f);
-	TestEqual(TEXT("Damage number safely hides for an invalid lifetime"),
-	          AReEchoDamageNumberActor::CalculateOpacity(0.0f, 0.0f),
-	          0.0f);
-	TestEqual(TEXT("Damage number remains opaque before its authored fade start"),
-	          AReEchoDamageNumberActor::CalculateOpacityProfile(0.2f, 1.0f, 0.4f, 1.0f),
-	          1.0f);
-	TestEqual(TEXT("Damage number honors an authored linear fade start"),
-	          AReEchoDamageNumberActor::CalculateOpacityProfile(0.7f, 1.0f, 0.4f, 1.0f),
-	          0.5f);
-	TestEqual(TEXT("Damage number honors an authored fade exponent"),
-	          AReEchoDamageNumberActor::CalculateOpacityProfile(0.5f, 1.0f, 0.0f, 2.0f),
-	          0.75f);
 	UMaterialInterface* DamageNumberMaterial =
 	    LoadObject<UMaterialInterface>(nullptr, AReEchoDamageNumberActor::GetDamageNumberMaterialPath());
 	TestNotNull(TEXT("Damage-number translucent material loads"), DamageNumberMaterial);
 	if (DamageNumberMaterial)
 	{
-		TestEqual(TEXT("Damage-number material supports alpha fading"),
+		TestEqual(TEXT("Damage-number material supports translucent distance-field glyphs"),
 		          DamageNumberMaterial->GetBlendMode(),
 		          EBlendMode::BLEND_Translucent);
 	}
