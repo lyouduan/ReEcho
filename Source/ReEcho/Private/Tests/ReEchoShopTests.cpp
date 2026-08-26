@@ -918,6 +918,13 @@ bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Card-slot refresh deducts the configured five shards"),
 	          Run->TimeShards,
 	          BeforeCardRefreshShards - InitialChoice.RefreshCost);
+	const FReEchoShopCardPackRuntimeState& OnceRefreshedPack =
+	    Run->CurrentBuild.CardState.Runtime.ShopCardPackStates[1];
+	TestEqual(TEXT("The tier pack records all three initial cards plus its replacement"),
+	          OnceRefreshedPack.OfferHistoryCardIds.Num(),
+	          4);
+	TestTrue(TEXT("The replaced card remains in the tier pack history"),
+	         OnceRefreshedPack.OfferHistoryCardIds.Contains(InitialChoice.CardId));
 	for (const FReEchoShopCardChoiceOffer& Choice : CardRefreshedPage.CardPackOffers[1].Choices)
 	{
 		if (Choice.SlotIndex != InitialChoice.SlotIndex)
@@ -940,6 +947,20 @@ bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("A sibling card slot can spend its own refresh"),
 		         Run->TryRefreshShopCardSlot(2, IndependentChoice->SlotIndex, RefreshError));
 		const FReEchoWeaponPartShopView TwoSlotsRefreshedPage = Run->GetWeaponPartShopView();
+		const FReEchoShopCardChoiceOffer* SecondReplacement =
+		    TwoSlotsRefreshedPage.CardPackOffers[1].Choices.FindByPredicate(
+		        [&](const FReEchoShopCardChoiceOffer& Choice)
+		        {
+			        return Choice.SlotIndex == IndependentChoice->SlotIndex;
+		        });
+		if (TestNotNull(TEXT("The sibling slot receives a replacement"), SecondReplacement))
+		{
+			TestTrue(TEXT("A sibling refresh cannot resurrect any card previously shown by this tier pack"),
+			         InitialCardsBySlot.FindKey(SecondReplacement->CardId) == nullptr);
+			TestNotEqual(TEXT("A sibling refresh cannot duplicate the first replacement"),
+			             SecondReplacement->CardId,
+			             FirstReplacementId);
+		}
 		const FReEchoShopCardChoiceOffer* StableFirstReplacement =
 		    TwoSlotsRefreshedPage.CardPackOffers[1].Choices.FindByPredicate(
 		        [&](const FReEchoShopCardChoiceOffer& Choice)
@@ -1006,6 +1027,9 @@ bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
 			TestEqual(
 			    TEXT("Save/load preserves the card replacement id"), RestoredCard->CardId, RefreshedChoice->CardId);
 		}
+		TestTrue(TEXT("Save/load preserves the tier pack's full display history"),
+		         RestoredRun->CurrentBuild.CardState.Runtime.ShopCardPackStates[1].OfferHistoryCardIds ==
+		             Run->CurrentBuild.CardState.Runtime.ShopCardPackStates[1].OfferHistoryCardIds);
 	}
 
 	UGameInstance* ExhaustedGameInstance = NewObject<UGameInstance>(GetTransientPackage());
@@ -1049,4 +1073,56 @@ bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
 	          0);
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCurseBankAndWeaponMasterTest,
+                                 "ReEcho.Shop.CurseBankAndWeaponMaster",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCurseBankAndWeaponMasterTest::RunTest(const FString&)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* BankRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	BankRun->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	BankRun->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_2_19"));
+	BankRun->TimeShards = 0;
+	TestTrue(TEXT("Curse bank permits an otherwise unaffordable purchase"),
+	         BankRun->PurchaseShopItem(TEXT("SHOP_OLD_COIN")));
+	TestEqual(TEXT("Credit purchase leaves no positive cash"), BankRun->TimeShards, 0);
+	TestEqual(TEXT("Credit purchase records the full shortfall as debt"),
+	          BankRun->CurrentBuild.CardState.Runtime.TimeShardDebt,
+	          25);
+	BankRun->BeginEncounter();
+	BankRun->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("Encounter interest is ten percent rounded down"),
+	          BankRun->CurrentBuild.CardState.Runtime.TimeShardDebt,
+	          27);
+	TestTrue(TEXT("Incoming shards are accepted while debt exists"), BankRun->GrantTimeShards(10));
+	TestEqual(
+	    TEXT("Incoming shards repay debt before cash"), BankRun->CurrentBuild.CardState.Runtime.TimeShardDebt, 17);
+	TestEqual(TEXT("No cash remains before debt is repaid"), BankRun->TimeShards, 0);
+	TestTrue(TEXT("A grant larger than debt is accepted"), BankRun->GrantTimeShards(20));
+	TestEqual(TEXT("Debt reaches zero before surplus becomes cash"),
+	          BankRun->CurrentBuild.CardState.Runtime.TimeShardDebt,
+	          0);
+	TestEqual(TEXT("Only the post-repayment surplus becomes cash"), BankRun->TimeShards, 3);
+
+	UReEchoRunSubsystem* MasterRun = NewObject<UReEchoRunSubsystem>(GameInstance);
+	MasterRun->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	MasterRun->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_3_28"));
+	const FReEchoStatBlock InitialStats = MasterRun->CurrentBuild.Stats;
+	MasterRun->BeginEncounter();
+	MasterRun->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("Completing with the first weapon grants both attacks"),
+	          MasterRun->CurrentBuild.Stats.PhysicalAttack,
+	          InitialStats.PhysicalAttack + 5.0f);
+	TestEqual(TEXT("Completing with the first weapon grants maximum health"),
+	          MasterRun->CurrentBuild.Stats.HpMax,
+	          InitialStats.HpMax + 10.0f);
+	MasterRun->BeginEncounter();
+	MasterRun->CompleteEncounter(FReEchoRecording(), true, false);
+	TestEqual(TEXT("Completing again with the same weapon grants nothing"),
+	          MasterRun->CurrentBuild.Stats.PhysicalAttack,
+	          InitialStats.PhysicalAttack + 5.0f);
+	return true;
+}
+
 #endif

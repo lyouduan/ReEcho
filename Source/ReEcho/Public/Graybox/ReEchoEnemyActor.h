@@ -75,6 +75,11 @@ public:
 		return EnemyId;
 	}
 
+	virtual FName GetCombatTargetDefinitionId() const override
+	{
+		return EnemyId;
+	}
+
 	/** Stable presentation identity from the active compiled enemy definition. */
 	FName GetPresentationId() const;
 

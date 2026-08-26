@@ -211,9 +211,9 @@ bool FReEchoWeaponMeleeStepRuntimeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Front target takes first ordered step damage"), WeaponEnemyHealth(Front), 50.0f);
 	TestEqual(TEXT("Side target outside arc is untouched"), WeaponEnemyHealth(Side), 100.0f);
 	TestFalse(TEXT("Second step cannot execute before weapon cadence ends"), Weapon->ExecuteBasicAttack(Combatant));
-	Fixture.Advance(0.29f);
-	Weapon->Tick(0.29f);
-	TestTrue(TEXT("Second ordered step ignores the longer presentation duration"),
+	Fixture.Advance(1.01f);
+	Weapon->Tick(1.01f);
+	TestTrue(TEXT("Second ordered step executes after the authored one-second cadence"),
 	         Weapon->ExecuteBasicAttack(Combatant));
 	TestTrue(TEXT("Front target is killed by second step"), !Front->IsAlive());
 	return true;
@@ -510,7 +510,7 @@ bool FReEchoWeaponGemDamageCoefficientMatrixTest::RunTest(const FString& Paramet
 	};
 
 	const TArray<FWeaponCase> WeaponCases = {
-	    {TEXT("W_J_01"), 1.0f}, {TEXT("W_J_04"), 0.6f}, {TEXT("W_J_08"), 1.0f}, {TEXT("W_J_09"), 0.2f}};
+	    {TEXT("W_J_01"), 1.0f}, {TEXT("W_J_04"), 0.6f}, {TEXT("W_J_08"), 1.0f}, {TEXT("W_J_09"), 0.4f}};
 
 	struct FCoreCase
 	{
@@ -908,7 +908,7 @@ bool FReEchoWeaponRuneStaticStepCompilationTest::RunTest(const FString& Paramete
 	if (CompilePart(TEXT("W_J_01"), TEXT("P_LONGSWORD_NARROWWIDE_SWORDBLADE"), LongSwordBuild, LongSword))
 	{
 		TestTrue(TEXT("Longsword rune scales the authored step range"),
-		         FMath::IsNearlyEqual(LongSword.AttackSteps[0].RangeCm, 325.0f));
+		         FMath::IsNearlyEqual(LongSword.AttackSteps[0].RangeCm, 520.0f));
 		TestTrue(TEXT("Longsword rune overrides the authored step arc"),
 		         FMath::IsNearlyEqual(LongSword.AttackSteps[0].ArcDegrees, 120.0f));
 	}
@@ -938,7 +938,7 @@ bool FReEchoWeaponRuneStaticStepCompilationTest::RunTest(const FString& Paramete
 		TestTrue(TEXT("Charged gun implements -500% cadence as speed x 1/6"),
 		         FMath::IsNearlyEqual(ChargedBuild.Stats.AttackSpeed, ChargedBase.Stats.AttackSpeed / 6.0f, 0.001f));
 		TestTrue(TEXT("Charged gun applies +180% damage to the authored step"),
-		         FMath::IsNearlyEqual(Charged.AttackSteps[0].DamageCoefficient, 0.56f, 0.001f));
+		         FMath::IsNearlyEqual(Charged.AttackSteps[0].DamageCoefficient, 1.12f, 0.001f));
 	}
 	return true;
 }
@@ -1043,7 +1043,7 @@ bool FReEchoWeaponRuneDynamicHitHandlersTest::RunTest(const FString& Parameters)
 		    ChanceBleedWeapon->BuildRuneAttackContextForTests(MakeCommit(Sequence), SourceCombatant),
 		    MakeHit(ChanceBleedTarget, Sequence));
 	}
-	TestTrue(TEXT("Deterministic 30% hit sampling reaches the bleed handler"),
+	TestTrue(TEXT("Deterministic 15% hit sampling reaches the bleed handler"),
 	         ChanceBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
 	             TEXT("Z_Bleeding")));
 
@@ -1058,17 +1058,20 @@ bool FReEchoWeaponRuneDynamicHitHandlersTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Deterministic 20% hit sampling reaches the stun handler"),
 	         StunTarget->GetCombatantComponent()->IsActionDisabled(Fixture.World->GetTimeSeconds() + 0.5f));
 
-	AReEchoEnemyActor* ThresholdBleedTarget = Fixture.SpawnEnemy(FVector(90.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
-	AReEchoWeaponActor* ThresholdBleedWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_BLEED_ROTARYBLADE"));
-	auto ThresholdContext = ThresholdBleedWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant);
-	ThresholdBleedWeapon->ProcessRuneHitForTests(ThresholdContext, MakeHit(ThresholdBleedTarget, 3));
-	ThresholdBleedWeapon->ProcessRuneHitForTests(ThresholdContext, MakeHit(ThresholdBleedTarget, 3));
-	TestFalse(TEXT("Per-target bleed threshold does not fire before hit three"),
-	          ThresholdBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
+	AReEchoEnemyActor* ScytheBleedTarget = Fixture.SpawnEnemy(FVector(90.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
+	AReEchoWeaponActor* ScytheBleedWeapon = SpawnRuneWeapon(TEXT("W_J_04"), TEXT("P_SCYTHE_BLEED_ROTARYBLADE"));
+	FReEchoHitResolved NonCriticalScytheHit = MakeHit(ScytheBleedTarget, 3);
+	ScytheBleedWeapon->ProcessRuneHitForTests(
+	    ScytheBleedWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant), NonCriticalScytheHit);
+	TestFalse(TEXT("Scythe bleed does not fire on a non-critical hit"),
+	          ScytheBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
 	              TEXT("Z_Bleeding")));
-	ThresholdBleedWeapon->ProcessRuneHitForTests(ThresholdContext, MakeHit(ThresholdBleedTarget, 3));
-	TestTrue(TEXT("Per-target bleed threshold fires on hit three"),
-	         ThresholdBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
+	FReEchoHitResolved CriticalScytheHit = MakeHit(ScytheBleedTarget, 4);
+	CriticalScytheHit.bCritical = true;
+	ScytheBleedWeapon->ProcessRuneHitForTests(
+	    ScytheBleedWeapon->BuildRuneAttackContextForTests(MakeCommit(4), SourceCombatant), CriticalScytheHit);
+	TestTrue(TEXT("Scythe bleed fires on a critical hit"),
+	         ScytheBleedTarget->GetCombatantComponent()->GetElementState().ActiveStatusUntilSeconds.Contains(
 	             TEXT("Z_Bleeding")));
 
 	AReEchoEnemyActor* StatTarget = Fixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), EnemyIndex++, 1000.0f);
@@ -1104,6 +1107,23 @@ bool FReEchoWeaponRuneDynamicHitHandlersTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Gun on-attack speed handler creates a timed layer"),
 	          SourceCombatant->GetTransientStatStackCount(TEXT("P_GUN_ATTACKSTACK_GUNACTION")),
 	          1);
+	for (int32 StackIndex = 1; StackIndex < 35; ++StackIndex)
+	{
+		GunAttackWeapon->ProcessRuneOnAttackForTests(
+		    GunAttackWeapon->BuildRuneAttackContextForTests(MakeCommit(7 + StackIndex), SourceCombatant));
+	}
+	TestEqual(TEXT("Gun on-attack speed has no implicit thirty-layer cap"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_GUN_ATTACKSTACK_GUNACTION")),
+	          35);
+	AReEchoWeaponActor* GunMoveWeapon = SpawnRuneWeapon(TEXT("W_J_09"), TEXT("P_GUN_MOVESTACK_GUNACTION"));
+	for (int32 StackIndex = 0; StackIndex < 35; ++StackIndex)
+	{
+		GunMoveWeapon->ProcessRuneOnAttackForTests(
+		    GunMoveWeapon->BuildRuneAttackContextForTests(MakeCommit(50 + StackIndex), SourceCombatant));
+	}
+	TestEqual(TEXT("Gun on-attack move speed is implemented and has no implicit thirty-layer cap"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("P_GUN_MOVESTACK_GUNACTION")),
+	          35);
 
 	auto CountShardPickups = [&]()
 	{
