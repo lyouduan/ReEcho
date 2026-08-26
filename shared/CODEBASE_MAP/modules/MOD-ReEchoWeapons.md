@@ -126,6 +126,7 @@ Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec:
 四把生产武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、绝对世界长度、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。每个 VFX Slot 的完整 `Offset` Transform 与世界尺寸策略也是该武器的表现真相。Catalog 另保留一个 `MoonStaff` 非生产辅助 Profile，不能进入武器定义、开局选择、商店或存档身份。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。长剑/镰刀的 DamageApplied 由 Presentation 消费来源侧最终正伤害 `OnHit`，在命中世界位置播放且包含致死命中；弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害。弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
 
 `AReEchoWeaponActor::PublishAttackCommittedEvent` 是普通与主动攻击成功 Confirm 后唯一的表现提交出口：手动/自动输入不得分叉生成特效，主动镰刀出手会发布对应事件，已投出镰刀的召回不产生新 Commit，因此不重复播放。
+同一出口也是主模块构筑诊断的唯一武器关联点：成功 Commit 输出 `[BuildCommitTrace]`，记录 `source + weapon + sequence + fingerprint` 及轻量伤害参数；回滚或仅召回不输出。指纹由主模块已经钉住的 `FReEchoBuildSnapshot` 只读计算，`ReEchoWeapons` 与 `ReEchoCombat` 的公共 AttackIdentity/Commit 不增加 Card/Run 字段，也不反向依赖主模块。
 镰刀的 FullSpin 表现按 `MotionDurationSeconds` 保持 WeaponActor 手部挂点位置不动，并让武器子表现围绕该手部根节点的相机朝向法线旋转完整一周，结束后恢复根旋转并触发 AttackCommitted VFX；不得绕角色身体中心公转。长剑使用 `TripleSwing60`：同样以手部挂点为圆心，在 `+60°` / `-60°` 之间完成上到下、下到上、上到下三次单程挥舞，总时长仍由武器 DA 的 `MotionDurationSeconds` 控制；其前方 180 度玩法查询和刀光在提交时立即发生。两种轨迹都只改变表现 Transform 和 VFX 时序，不改变 `ReEchoWeapons` 的近战查询、伤害次数、伤害时机或范围。
 Player/Echo 的 `VisualFacingSign` 是武器左右换手的唯一朝向输入；唯一 Weapon Presentation Catalog 通过 `RightHandAnchorRatio` / `LeftHandAnchorRatio` 提供所有人物、所有武器共用的左右挂点，WeaponActor 按朝向直接选择并乘角色稳定 `WorldHeight`，不读取当前 Flipbook Bounds，也不从人物中心或宽度推算挂点。各 Weapon Profile 的手部相对 `HeldOffsetRatio` 只负责单武器修正并按朝向镜像：右向保持 authored 水平偏移，左向取其水平分量的负数，高度和其他非水平分量保持不变；朝向改变时同步刷新长剑、镰刀、弓和枪的子表现位置。偏移始终保留在武器子表现上，根节点仍是手部旋转中心，避免增加艺术偏移后左右位置不对称或镰刀绕错误中心旋转。同时对带反向作者轴的剑贴图镜像平面角度，不假设固定世界 X/Y，也不通过负 Scale 翻转武器纹理。长剑攻击事件优先锁定提交瞬间的敌人方向；交付的 `0811_01` 刀光网格位于本地 YZ 平面，因此刀光以本地 X 法线朝向摄像机、本地 Y 对齐投影后的攻击方向，再叠加 DA Roll 作为屏幕内斩击角度修正；若 DA 修正把最终法线翻到背面，程序只绕最终本地 Y 攻击轴翻正法线，避免单面材质被剔除且不改变刀光指向。单一 Niagara 资源优先通过 `User.PlayDirection` 控制左正播/右逆播；替换资源缺少该参数时，程序仅对右侧使用从最后非空帧开始的 DesiredAge 倒放兼容路径并记录警告，资源恢复参数后自动停用回退。镰刀沿用自身现有相机平面约定。
 
@@ -146,6 +147,7 @@ Player/Echo 的 `VisualFacingSign` 是武器左右换手的唯一朝向输入；
 | 模块测试 | `Private/Tests/ReEchoWeaponLogicTests.cpp` | cadence、步骤、投射物、来源生命周期 |
 | 数据编译适配 | `Source/ReEcho/Public/Weapons/ReEchoWeaponRuntime.h` → Private 实现 | CSV/Build → Logic Definition |
 | 世界/表现宿主 | `Source/ReEcho/Public/Weapons/ReEchoWeaponActor.h` → Private 实现 | 组合 Logic、Actor、Sprite/Mesh/VFX；不拥有规则 |
+| 构筑/Commit 诊断关联 | `Source/ReEcho/Public/Diagnostics/ReEchoBuildTrace.h` → Private 实现 | 主模块只读适配；不进入 `ReEchoWeapons` 公共契约 |
 | 表现资源目录/预热 | `Source/ReEcho/Public/Weapons/ReEchoWeaponVisualCatalog.h` → Private 实现 | 主模块资源适配；`ReEchoWeapons` 不依赖它 |
 | 跨域回归 | `Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp`、`ReEchoAttackModeTests.cpp` | 数据、构筑、Actor、GAS 与世界接缝 |
 

@@ -71,6 +71,7 @@
 - 战斗常驻 HUD 的只读表现投影：Combatant 提供生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 - Development 编辑器启动时由 `FReEchoModule` 注册第二个只读日志输出设备，把普通 `UE_LOG` 同步写入 `Saved/Logs/ReEcho-session-<本地开始时间>-pid<进程号>.log`；`ReEcho.log` 仍是当前会话入口，独立会话文件不覆盖、不参与玩法状态，也不进入 Shipping。
+- 构筑路径诊断由主模块 `Diagnostics/ReEchoBuildTrace.*` 集中拥有。`UReEchoRunSubsystem` 只在开局、读档、遭遇开始以及卡牌、武器、符文或商店事务已经权威提交后输出 `[BuildSnapshotTrace]`，内容含角色、武器、符文槽、卡牌叠层、有效属性、关键卡牌运行态、规则、数据 revision 和确定性指纹；失败事务不输出提交后快照。`AReEchoWeaponActor` 在成功 Confirm 的统一提交出口输出轻量 `[BuildCommitTrace]`，以 `source + weapon + sequence` 关联 Resolver 日志并携带同一构筑指纹，不在 Projectile/Resolver 各层重复完整构筑。该诊断只读、不消耗随机数、不写 SaveGame，Shipping 不输出；指纹不得用作玩法判断、存档身份或去重键。
 
 ### 稳定契约
 
