@@ -22,6 +22,8 @@
   - `Content/ReEcho/UI/CombatHud/BP_ReEchoElementReactionPopup.uasset`
   - `scripts/ue/import_element_reaction_popup_assets.py`
   - `scripts/ue/author_element_reaction_popup.py`
+  - `Design/UI/ReEcho_元素反应字调参指南.md`
+  - `Design/UI/ReEcho_UI修改指导.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`
@@ -69,12 +71,12 @@
 
 - [x] 五种 `ReactionBehaviorId` 均映射到正确的透明反应字资产；两种强化触发共用“强化”。
 - [x] 每次权威反应事件只在主目标上方生成一个反应字，Growth/Conduct 不按受影响目标重复生成。
-- [ ] 反应字在可调持续时间内平滑上浮并从完全不透明渐隐到透明，结束后销毁；始终正确朝向正交相机。
+- [x] 反应字在可调持续时间内平滑上浮并从完全不透明渐隐到透明，结束后销毁；始终正确朝向正交相机。
 - [x] 持续时间、世界高度/尺寸、上浮高度与渐隐曲线至少可从 `BP_ReEchoElementReactionPopup` Class Defaults 调整。
 - [x] 缺失 Blueprint、材质或单张纹理时不影响反应结算；可使用原生类 fallback 或跳过并输出明确告警。
 - [x] 伤害数字现状审计有代码证据：当前显示 `AppliedDamage`，致死 overkill 被钳制到受击前剩余生命；本 Plan 不改变该语义。
 - [ ] C++/资产聚焦自动化、UE 5.8 Editor 构建、静态校验和最终 `-FullRebuild` 发布门禁通过。
-- [ ] 用户在 `Level00` 手测五类反应字的映射、尺寸、遮挡、上浮速度和渐隐观感并确认通过。
+- [x] 用户在 `Level00` 手测五类反应字的映射、尺寸、遮挡、上浮速度和渐隐观感并确认通过。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -125,6 +127,8 @@
 - 增量 `Development Editor` 构建通过，预构建源码指纹为 `f9e489f2d75b`；最终发布仍将按门禁重新执行 `-FullRebuild`。
 - `ReEcho.UI.CombatHud.Formatting` 1/1 通过，覆盖五种映射/纹理加载、材质 BlendMode、Blueprint 父类和渐隐辅助函数。
 - `ReEcho.Combat.ElementReaction*` 4/4 通过：`ElementReactionBurnRefresh`、`ElementReactions`、`ElementReactionSaveContinuity`、`ElementReactionWorld`，既有权威反应结算未回归。
+- 用户已在 `Level00` 手测并反馈“感觉没什么问题”，人工验收通过；其在 `BP_ReEchoElementReactionPopup` 保存的调参修改作为候选资产一并保留。
+- 已新增 `Design/UI/ReEcho_元素反应字调参指南.md`，说明策划入口、九项 Class Defaults、渐隐指数的准确曲线语义、建议范围、常用组合、验收清单和禁止修改边界，并由 UI 总指导建立索引。
 
 ### 剩余风险
 
@@ -133,7 +137,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请用户在本任务 worktree 的 `Level00` 依次触发灼烧、蒸发、生长、导电、强化，验收映射、每次一个、世界尺寸、遮挡、上浮速度、渐隐和相机朝向。
+- `Passed`：用户已在本任务 `Level00` 手测并确认表现无明显问题。
 
 ### 架构文档审阅结果
 
