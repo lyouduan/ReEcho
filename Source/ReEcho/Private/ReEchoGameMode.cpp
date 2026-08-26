@@ -240,7 +240,8 @@ void AReEchoGameMode::GMHelp()
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
-	                   "GMShowEnemyRange <On|Off|Toggle>"));
+	                   "GMShowEnemyRange <On|Off|Toggle> | "
+	                   "GMBossDamageRange <On|Off|Toggle>"));
 	PrintGMResult(TEXT("Reactions: Flame+Grass=Burn | Flame+Water=Vaporize | Lightning+Grass=Growth | "
 	                   "Lightning+Water=Conduct | Grass+Water=EnhanceGrass | Water+Grass=EnhanceWater"));
 }
@@ -552,6 +553,31 @@ void AReEchoGameMode::GMShowEnemyRange(const FString& Mode)
 	}
 	bShowEnemyRangeDebug = bEnable;
 	PrintGMResult(FString::Printf(TEXT("Enemy damage-range overlay=%s (red=contact, orange=ranged max)."),
+	                              bEnable ? TEXT("On") : TEXT("Off")));
+}
+
+void AReEchoGameMode::GMBossDamageRange(const FString& Mode)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	bool bEnable = !bShowBossDamageRangeDebug;
+	if (Mode.Equals(TEXT("On"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("1")))
+	{
+		bEnable = true;
+	}
+	else if (Mode.Equals(TEXT("Off"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("0")))
+	{
+		bEnable = false;
+	}
+	else if (!Mode.Equals(TEXT("Toggle"), ESearchCase::IgnoreCase))
+	{
+		PrintGMResult(TEXT("Usage: GMBossDamageRange <On|Off|Toggle>"), false);
+		return;
+	}
+	bShowBossDamageRangeDebug = bEnable;
+	PrintGMResult(FString::Printf(TEXT("Boss skill damage-range debug=%s (red=Skill02 projectile, green=Skill03 AOE, cyan=beam/rectangle)."),
 	                              bEnable ? TEXT("On") : TEXT("Off")));
 }
 

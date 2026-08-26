@@ -175,6 +175,8 @@ public:
 
 	/** Blink Slam preserves the Boss gameplay height while sharing the warning center in arena XY. */
 	static FVector ResolveBossLandingLocation(const FVector& LockedTargetLocation, float BossWorldZ);
+	/** Resolves immediate Boss geometry only; projectile abilities are evaluated by their per-ball swept paths. */
+	static bool IntersectsBossDamageShape(const struct FReEchoBossIntent& Intent, const FVector& TargetLocation);
 
 	/** Ends active rabbit volley balls intersecting the supplied melee sector and returns the number removed. */
 	int32
@@ -207,6 +209,9 @@ private:
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent, AActor* Target, const FVector& HitLocation);
+	void DrawBossDamageRangeDebug(const struct FReEchoBossIntent& Intent) const;
+	void DrawBossProjectileDamageRangeDebug(const struct FReEchoEnemyProjectileRuntimeState& Projectile,
+	                                        const FVector& PreviousLocation) const;
 	void AdvanceEnemyProjectiles(float DeltaSeconds);
 	void PublishSpecialActionTransition(const FReEchoEnemyLogicSnapshot& PreviousSnapshot,
 	                                    const FReEchoEnemyActionIntent& Intent);

@@ -902,6 +902,59 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossDamageGeometryTest,
+                                 "ReEcho.Enemies.Host.BossDamageGeometry",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossDamageGeometryTest::RunTest(const FString& Parameters)
+{
+	FReEchoBossIntent BlinkSlam;
+	BlinkSlam.AttackShape = EReEchoBossAttackShape::Circle;
+	BlinkSlam.Origin = FVector(600.0f, -200.0f, 50.0f);
+	BlinkSlam.RadiusCm = 180.0f;
+	TestTrue(TEXT("Blink Slam damages inside its locked warning circle"),
+	         AReEchoEnemyActor::IntersectsBossDamageShape(BlinkSlam, FVector(779.0f, -200.0f, 0.0f)));
+	TestFalse(TEXT("Blink Slam does not damage outside its locked warning circle"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(BlinkSlam, FVector(781.0f, -200.0f, 0.0f)));
+
+	FReEchoBossIntent Projectile;
+	Projectile.AttackShape = EReEchoBossAttackShape::Projectile;
+	Projectile.Origin = BlinkSlam.Origin;
+	Projectile.RadiusCm = 100.0f;
+	TestFalse(TEXT("Skill02 never resolves immediate AOE damage from its ability radius"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Projectile, Projectile.Origin));
+
+	FReEchoBossIntent Beam;
+	Beam.AbilityId = TEXT("M_SHEEP_PrayerBeam");
+	Beam.AttackShape = EReEchoBossAttackShape::Beam;
+	Beam.Origin = FVector(100.0f, 200.0f, 0.0f);
+	Beam.LockedTargetLocation = FVector(500.0f, 300.0f, 0.0f);
+	Beam.LockedDirection = FVector::ForwardVector;
+	Beam.LengthCm = 1200.0f;
+	Beam.WidthCm = 160.0f;
+	TestTrue(TEXT("Prayer Beam damages upward from its locked warning center"),
+	         AReEchoEnemyActor::IntersectsBossDamageShape(Beam, FVector(1400.0f, 379.0f, 0.0f)));
+	TestFalse(TEXT("Prayer Beam rejects targets below its locked warning center"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Beam, FVector(499.0f, 300.0f, 0.0f)));
+	TestFalse(TEXT("Prayer Beam rejects targets outside its locked width"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Beam, FVector(1400.0f, 381.0f, 0.0f)));
+
+	FReEchoBossIntent Melee;
+	Melee.AbilityId = TEXT("M_SHEEP_MeleeSweep");
+	Melee.AttackShape = EReEchoBossAttackShape::Rectangle;
+	// Host replaces the gameplay Intent origin with BossWeaponRoot before evaluating this shared geometry.
+	Melee.Origin = FVector(100.0f, 200.0f, 0.0f);
+	Melee.LockedDirection = FVector::ForwardVector;
+	Melee.LengthCm = 260.0f;
+	TestTrue(TEXT("Melee Sweep damages within the staff-pivoted front 180-degree semicircle"),
+	         AReEchoEnemyActor::IntersectsBossDamageShape(Melee, FVector(100.0f, 450.0f, 0.0f)));
+	TestFalse(TEXT("Melee Sweep rejects targets behind the Boss"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Melee, FVector(99.0f, 200.0f, 0.0f)));
+	TestFalse(TEXT("Melee Sweep rejects targets beyond its configured reach"),
+	          AReEchoEnemyActor::IntersectsBossDamageShape(Melee, FVector(361.0f, 200.0f, 0.0f)));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostSheepProjectileTest,
                                  "ReEcho.Enemies.Host.SheepProjectilePipeline",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
