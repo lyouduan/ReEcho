@@ -92,6 +92,10 @@ bool IsAllowedStatusBehavior(const FName StatusId, const FName BehaviorId)
 	{
 		return StatusId == TEXT("Z_Bleeding");
 	}
+	if (BehaviorId == TEXT("Status.Cursed"))
+	{
+		return StatusId == TEXT("Z_Cursed");
+	}
 	return BehaviorId == BehaviorNone;
 }
 

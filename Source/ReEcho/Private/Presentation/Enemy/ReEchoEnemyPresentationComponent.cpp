@@ -34,6 +34,12 @@ constexpr float BlinkSlamDuration = 0.5f;
 constexpr float BlinkSlamStartHeightCm = 300.0f;
 constexpr TCHAR MoonStaffProfilePath[] =
     TEXT("/Game/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_MoonStaff.DA_WeaponPresentation_MoonStaff");
+
+FVector
+ResolveBossWeaponFacingOffset(const float FacingSign, const FVector& RightFacingOffset, const FVector& LeftFacingOffset)
+{
+	return FacingSign < 0.0f ? LeftFacingOffset : RightFacingOffset;
+}
 }
 
 UReEchoEnemyPresentationComponent::UReEchoEnemyPresentationComponent()
@@ -52,6 +58,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
                                                             USceneComponent* InFlipbookRoot,
                                                             USceneComponent* InEffectsRoot,
                                                             USceneComponent* InBossWeaponRoot,
+                                                            USceneComponent* InBossWeaponFacingRoot,
                                                             UBillboardComponent* InBossWeaponSprite,
                                                             UBillboardComponent* InCharacterSprite,
                                                             UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -66,6 +73,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	FlipbookRoot = InFlipbookRoot;
 	EffectsRoot = InEffectsRoot;
 	BossWeaponRoot = InBossWeaponRoot;
+	BossWeaponFacingRoot = InBossWeaponFacingRoot;
 	BossWeaponSprite = InBossWeaponSprite;
 	CharacterSprite = InCharacterSprite;
 	SequenceAnimation = InSequenceAnimation;
@@ -153,7 +161,7 @@ void UReEchoEnemyPresentationComponent::ConfigureAppearance(const FName Presenta
 void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName PresentationId)
 {
 	const bool bTimeGuard = PresentationId == TEXT("Enemy.TimeGuard");
-	if (!BossWeaponRoot || !BossWeaponSprite)
+	if (!BossWeaponRoot || !BossWeaponFacingRoot || !BossWeaponSprite)
 	{
 		return;
 	}
@@ -179,11 +187,13 @@ void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName Presenta
 	const float TextureAxisLength = WeaponProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width
 	                                    ? FMath::Max(HeldTexture->GetSizeX(), 1)
 	                                    : FMath::Max(HeldTexture->GetSizeY(), 1);
-	BossWeaponRoot->SetRelativeLocation(ActiveProfile->WeaponAnchorRatio * CharacterWorldHeight +
-	                                    WeaponProfile->HeldOffsetRatio * CharacterWorldHeight);
+	BossWeaponRightFacingOffset = WeaponProfile->HeldRightFacingOffsetRatio * CharacterWorldHeight;
+	BossWeaponLeftFacingOffset = WeaponProfile->HeldLeftFacingOffsetRatio * CharacterWorldHeight;
+	RefreshBossWeaponFacingOffset(1.0f);
 	BossWeaponRestRotation = WeaponProfile->HeldRotationOffset;
 	BossWeaponRoot->SetRelativeRotation(BossWeaponRestRotation);
 	BossWeaponSprite->SetSprite(HeldTexture);
+	BossWeaponSprite->SetTranslucentSortPriority(7);
 	BossWeaponSprite->SetRelativeTransform(FTransform::Identity);
 	BossWeaponSprite->SetRelativeScale3D(FVector(HeldLength / TextureAxisLength));
 }
@@ -379,13 +389,34 @@ void UReEchoEnemyPresentationComponent::UpdateCameraFacing(const FReEchoEnemyPre
 		FlipbookRoot->SetWorldRotation(
 		    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(Camera->GetCameraRotation()));
 	}
+	const FVector CameraRight = FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y);
+	const float ScreenHorizontalDirection = FVector::DotProduct(Snapshot.FacingDirection, CameraRight);
+	const float FacingSign = ScreenHorizontalDirection < 0.0f ? -1.0f : 1.0f;
 	if (PresentationController)
 	{
-		const FVector CameraRight = FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y);
-		const float ScreenHorizontalDirection = FVector::DotProduct(Snapshot.FacingDirection, CameraRight);
-		PresentationController->SetFacingSign(ScreenHorizontalDirection < 0.0f ? -1.0f : 1.0f);
+		PresentationController->SetFacingSign(FacingSign);
 	}
+	RefreshBossWeaponFacingOffset(FacingSign);
 }
+
+void UReEchoEnemyPresentationComponent::RefreshBossWeaponFacingOffset(const float FacingSign)
+{
+	if (!BossWeaponFacingRoot)
+	{
+		return;
+	}
+	BossWeaponFacingRoot->SetRelativeLocation(ReEchoEnemyVisual::ResolveBossWeaponFacingOffset(
+	    FacingSign, BossWeaponRightFacingOffset, BossWeaponLeftFacingOffset));
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+FVector UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests(const float FacingSign,
+                                                                                 const FVector& RightFacingOffset,
+                                                                                 const FVector& LeftFacingOffset)
+{
+	return ReEchoEnemyVisual::ResolveBossWeaponFacingOffset(FacingSign, RightFacingOffset, LeftFacingOffset);
+}
+#endif
 
 void UReEchoEnemyPresentationComponent::ResetTransientRoot()
 {

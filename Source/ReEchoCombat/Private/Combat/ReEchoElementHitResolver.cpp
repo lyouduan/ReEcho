@@ -388,15 +388,21 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 		PublishElementStateChanged(*PrimaryCombatant);
 		return Execution;
 	}
+	float CardReactionMultiplier = 1.0f;
+	bool bInfiniteStackingBurn = false;
 	if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Context.Attack.Source.Get()))
 	{
+		CardReactionMultiplier =
+		    FMath::Max(0.0f, SourceRules->GetReactionDamageMultiplier(Execution.Primary.ReactionId));
+		bInfiniteStackingBurn = SourceRules->HasInfiniteStackingBurn();
 		SourceRules->NotifyReactionResolved(Execution.Primary.ReactionId);
 	}
 
-	const float FinalMultiplier = GetFinalReactionMultiplier(Execution.Primary);
+	const float FinalMultiplier = GetFinalReactionMultiplier(Execution.Primary) * CardReactionMultiplier;
 	const float EchoMultiplier = GetEchoMultiplier(Execution.Primary, Context);
 	if (Reaction->BehaviorId == TEXT("Reaction.Burn"))
 	{
+		bool bBurnApplied = false;
 		const float TickDamage = FMath::Max(0.0f, Context.SourceElementalAttack) * Reaction->DamageMultiplier *
 		                         FMath::Max(0.0f, Context.ReactionEfficiency) * FinalMultiplier * EchoMultiplier;
 		const float Duration = Execution.Primary.StatusDurationSeconds > 0.0f
@@ -404,7 +410,7 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 		                           : Rules->GetStatusDuration(FName(BurnStatusId));
 		if (CurrentTime >= 0.0f && TickDamage > 0.0f && Duration > 0.0f)
 		{
-			const float EndTime = CurrentTime + Duration;
+			const float EndTime = bInfiniteStackingBurn ? TNumericLimits<float>::Max() * 0.25f : CurrentTime + Duration;
 			const float ExistingEnd = PrimaryState.ActiveStatusUntilSeconds.FindRef(FName(BurnStatusId));
 			if (PrimaryState.bBurnActive && PrimaryState.BurnNextTickTimeSeconds <= CurrentTime + KINDA_SMALL_NUMBER &&
 			    PrimaryState.BurnNextTickTimeSeconds <= ExistingEnd + KINDA_SMALL_NUMBER)
@@ -417,7 +423,13 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 			    PrimaryState.BurnNextTickTimeSeconds > CurrentTime;
 			PrimaryState.ActiveStatusUntilSeconds.Add(FName(BurnStatusId), EndTime);
 			PrimaryState.bBurnActive = true;
-			if (!bRefreshOnly)
+			if (bInfiniteStackingBurn && bRefreshOnly)
+			{
+				PrimaryState.BurnTickDamage += TickDamage;
+				PrimaryState.BurnSourceLocation = Context.SourceLocation;
+				PrimaryState.BurnAttack = Context.Attack;
+			}
+			else if (!bRefreshOnly)
 			{
 				PrimaryState.BurnTickDamage = TickDamage;
 				PrimaryState.BurnNextTickTimeSeconds = CurrentTime + BurnTickIntervalSeconds;
@@ -425,15 +437,24 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 				PrimaryState.BurnSourceLocation = Context.SourceLocation;
 				PrimaryState.BurnAttack = Context.Attack;
 			}
-			Execution.DotTicksScheduled = CountRemainingBurnTicks(PrimaryState.BurnNextTickTimeSeconds, EndTime);
+			Execution.DotTicksScheduled =
+			    bInfiniteStackingBurn ? 1 : CountRemainingBurnTicks(PrimaryState.BurnNextTickTimeSeconds, EndTime);
 			for (int32 Index = 0; Index < Execution.DotTicksScheduled; ++Index)
 			{
 				Execution.DotTickDelaySeconds.Add(PrimaryState.BurnNextTickTimeSeconds +
 				                                  Index * BurnTickIntervalSeconds - CurrentTime);
 			}
+			bBurnApplied = true;
 		}
 		ApplyElementalImmunity(PrimaryState, *Rules, CurrentTime);
 		AddAffected(Execution, Target);
+		if (bBurnApplied)
+		{
+			if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Context.Attack.Source.Get()))
+			{
+				SourceRules->NotifyNegativeStatusApplied(FName(BurnStatusId));
+			}
+		}
 	}
 	else if (Reaction->BehaviorId == TEXT("Reaction.Vaporize"))
 	{

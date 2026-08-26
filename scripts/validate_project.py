@@ -30,6 +30,29 @@ REGISTERED_BEHAVIOR_IDS = {
     "Card.InstantRecovery",
     "Card.GrantTier",
     "Card.RandomStatTrade",
+    "Card.RandomRateTrade",
+    "Card.ResetRunes",
+    "Card.FreeShopVisit",
+    "Card.UnlimitedShopRefresh",
+    "Card.CollectCores",
+    "Card.NumericChallenge",
+    "Card.OverkillHeal",
+    "Card.SelfRace",
+    "Card.NegativeStatusHeal",
+    "Card.TargetKillCurse",
+    "Card.RecordReaction",
+    "Card.CurseBank",
+    "Card.ConnectionLine",
+    "Card.ProximityDamage",
+    "Card.WeaponMaster",
+    "Card.EchoTrinityHead",
+    "Card.EchoTrinityBody",
+    "Card.EchoTrinityLegs",
+    "Card.InfiniteStackingBurn",
+    "Card.VaporizeWaterSplash",
+    "Card.ConductDamageGrowth",
+    "Card.OverhealCapacity",
+    "Card.AlternatingSources",
     "Card.TrackNextKills",
     "Card.TrackNextReactions",
     "Card.EchoElementAura",
@@ -61,6 +84,7 @@ REGISTERED_BEHAVIOR_IDS = {
     "Status.Burn",
     "Status.Stun",
     "Status.Bleeding",
+    "Status.Cursed",
     "Reaction.Burn",
     "Reaction.Vaporize",
     "Reaction.Growth",
@@ -91,6 +115,7 @@ REGISTERED_BEHAVIOR_IDS = {
     "Part.MeteorOnGroupHit",
     "Part.ApplyBleedOnHitChance",
     "Part.AttackSpeedOnAttack",
+    "Part.MoveSpeedOnAttack",
     "Enemy.Grunt",
     "Enemy.Shield",
     "Enemy.Bomber",
@@ -151,6 +176,7 @@ CARD_TARGETS = {
     "ReactionEfficiency",
     "Tier",
     "PhysicalOrElemental",
+    "ReactionOrCritical",
     "Water",
     "Grass",
     "Damage",
@@ -170,6 +196,14 @@ CARD_TARGETS = {
     "MinimumGuaranteedTier",
     "FreeShopRefresh",
     "NonCoreSlotCapacity",
+    "ShopPrice",
+    "WeaponRunes",
+    "WeaponRuneShop",
+    "CoreCollection",
+    "Status",
+    "ShopCredit",
+    "ConnectionLine",
+    "WeaponHistory",
 }
 CARD_TRIGGERS = {
     "OnApply",
@@ -180,8 +214,11 @@ CARD_TRIGGERS = {
     "BeforeOutgoingHit",
     "BeforeIncomingHit",
     "OnHitResolved",
+    "OnDamageResolved",
+    "OnStatusApplied",
     "OnReaction",
     "OnPurchase",
+    "OnInventoryChanged",
     "OnEchoKilled",
     "OnResolveEchoes",
     "OnCompileRules",
@@ -198,6 +235,7 @@ STATUS_BEHAVIOR_PAIRS = {
     "Z_Burn": "Status.Burn",
     "Z_Vertigo": "Status.Stun",
     "Z_Bleeding": "Status.Bleeding",
+    "Z_Cursed": "Status.Cursed",
 }
 REACTION_BEHAVIOR_FORMULA_PAIRS = {
     "Reaction.Burn": "Element.ElementAttackDot",
@@ -1087,15 +1125,20 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
         "G_2_04", "G_2_05", "G_2_06", "G_2_07", "G_2_08", "G_2_09", "G_2_10", "G_2_12",
         "G_2_13", "G_2_14", "G_2_15", "G_2_16", "G_2_17", "G_3_01", "G_3_02", "G_3_03",
         "G_3_04", "G_3_05", "G_3_07", "G_3_09", "G_3_10", "G_3_11", "G_3_12", "G_3_13",
-        "G_3_14", "G_3_16", "G_3_17", "G_3_21", "G_3_22",
+        "G_3_14", "G_3_16", "G_3_17", "G_3_20", "G_3_21", "G_3_22", "G_2_23", "G_3_23",
+        "G_2_21", "G_2_22", "G_2_28", "G_3_26", "G_2_18", "G_2_20", "G_2_29", "G_3_27", "G_2_27",
+        "G_2_35", "G_2_36",
+        "G_3_24",
+        "G_2_19", "G_2_30", "G_3_25", "G_3_28", "G_3_29",
+        "G_2_24", "G_2_25", "G_2_26", "G_2_31", "G_2_32", "G_2_33", "G_2_34",
     ]
     if offerable_traits != expected_traits:
-        fail(f"{rel(entries['Cards'])}: canonical 37-card offerable trait pool changed: {offerable_traits}")
+        fail(f"{rel(entries['Cards'])}: staged 64-card offerable trait pool changed: {offerable_traits}")
     tier_counts = {
-        tier: sum(1 for row in cards if row["OfferGroup"] == "Trait" and row["Tier"] == tier)
+        tier: sum(1 for row in cards if row["OfferGroup"] == "Trait" and row["Tier"] == tier and row["Enabled"] == "true")
         for tier in ("1", "2", "3")
     }
-    if tier_counts != {"1": 8, "2": 13, "3": 18}:
+    if tier_counts != {"1": 8, "2": 32, "3": 24}:
         fail(f"{rel(entries['Cards'])}: canonical card tier counts changed: {tier_counts}")
     removed_ids = {"G_2_01", "G_2_02", "G_2_03", "G_2_11", "G_3_15", "G_3_18"}
     if removed_ids & {row["Id"] for row in cards}:
@@ -1110,6 +1153,15 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
             fail(f"{rel(entries['Cards'])}:{row['__line__']}: disabled card requires DisabledReason")
         if row["Offerable"] == "true" and row["Enabled"] != "true":
             fail(f"{rel(entries['Cards'])}:{row['__line__']}: offerable card must be enabled")
+        offer_tags = [tag for tag in row["Tags"].split("|") if tag.startswith("OfferEncounter")]
+        if any(not re.fullmatch(r"OfferEncounter[1-8]", tag) for tag in offer_tags):
+            fail(f"{rel(entries['Cards'])}:{row['__line__']}: invalid encounter offer tag")
+        if len(offer_tags) != len(set(offer_tags)):
+            fail(f"{rel(entries['Cards'])}:{row['__line__']}: duplicate encounter offer tag")
+        if row["ConflictPolicy"] not in {
+            "None", "EchoKeystone", "EchoElementAura", "EchoRecordingMode", "ElementCriticalMode"
+        }:
+            fail(f"{rel(entries['Cards'])}:{row['__line__']}: unknown conflict policy")
 
     effects_by_card: dict[str, list[dict[str, str]]] = {}
     seen_orders: set[tuple[str, str]] = set()
@@ -1296,8 +1348,10 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
         if row["Enabled"] == "false" and not row["DisabledReason"]:
             fail(f"{rel(entries['SlotProfiles'])}:{row['__line__']}: disabled slot profile requires DisabledReason")
 
-    if len(parts) != 48:
-        fail(f"{rel(entries['Parts'])}: four-weapon slot audit must contain 48 source rows")
+    # Plan111 promotes the visible row-56 连射移速枪机 into a new stable production part while
+    # retaining the old hidden row-57 audit placeholder for migration history.
+    if len(parts) != 49:
+        fail(f"{rel(entries['Parts'])}: four-weapon slot audit must contain 49 production/audit rows")
     named_rows = [row for row in parts if row["DisplayName"]]
     # The named/unnamed split is no longer pinned to 10/60: weapon part families are being
     # implemented incrementally, so naming + enabling rows is expected progress. The real
@@ -1841,7 +1895,13 @@ def validate_workflow() -> None:
             "所有大程序任务都必须",
             "shared/GIT_RULES.md",
         ),
-        "DESIGNER_RULES.md": ("策划用户路线", "ReEchoData.xlsx", "禁止手改生成的", "shared/GIT_RULES.md"),
+        "DESIGNER_RULES.md": (
+            "策划用户路线",
+            "ReEchoData.xlsx",
+            "策划 AI 可在本地读取、创建、修改、编译和试验仓库内任何文件",
+            "禁止策划路线直接推送、合并或发布 `origin/main`",
+            "shared/GIT_RULES.md",
+        ),
         "ARTIST_RULES.md": ("美术用户路线", "本地工作方式自由", "禁止手改 `.uasset`", "shared/GIT_RULES.md"),
     }
     role_rule_texts = {

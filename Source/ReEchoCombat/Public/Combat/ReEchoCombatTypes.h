@@ -106,6 +106,8 @@ struct REECHOCOMBAT_API FReEchoHitIntent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bSourceRulesApplied = false;
 	/** Explicit exception for authored self-damage such as enemy self-destruction. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bAllowSameFactionDamage = false;
+	/** Generic statuses requested by source-side rules and applied by Combat immediately before final damage. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TArray<FName> PreDamageStatusIds;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector SourceLocation = FVector::ZeroVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector HitLocation = FVector::ZeroVector;
 };

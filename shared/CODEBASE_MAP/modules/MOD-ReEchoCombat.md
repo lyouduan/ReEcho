@@ -47,7 +47,7 @@
 
 Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为可写真相。
 
-`UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。Development 的 `SetDebugInvulnerable` 让最终伤害入口返回已计算伤害供 Hurt/VFX/伤害数字消费，但跳过 ASC、生命、格挡和死亡写入；Shipping 固定关闭。正式限时无敌仍返回零伤害。
+`UReEchoCombatAttributeSet` 是 GAS 层的基础属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写基础属性源。Plan111 的超额生命是 Combatant 持有的受控临时缓冲（最高由规则注入为最大生命30%），治疗先补基础生命再填充缓冲，最终伤害先消耗缓冲再进入GAS生命；它不复制基础属性。Development 的 `SetDebugInvulnerable` 让最终伤害入口返回已计算伤害供 Hurt/VFX/伤害数字消费，但跳过超额生命、ASC生命、格挡和死亡写入；Shipping 固定关闭。正式限时无敌仍返回零伤害。
 
 永久最大生命变化及其当前生命语义通过 `ApplyHealthAdjustment(NewMaximumHealth, Adjustment)` 这一窄命令进入
 Combatant。它更新 GAS 基础属性（无 ASC 时更新兼容状态），在批量写入期间抑制中间态，提交后统一发布

@@ -89,6 +89,7 @@ public:
 	                         USceneComponent* InFlipbookRoot,
 	                         USceneComponent* InEffectsRoot,
 	                         USceneComponent* InBossWeaponRoot,
+	                         USceneComponent* InBossWeaponFacingRoot,
 	                         UBillboardComponent* InBossWeaponSprite,
 	                         UBillboardComponent* InCharacterSprite,
 	                         UReEcho2DAnimationComponent* InSequenceAnimation,
@@ -116,6 +117,12 @@ public:
 	{
 		return CharacterSprite;
 	}
+
+#if WITH_DEV_AUTOMATION_TESTS
+	static FVector ResolveBossWeaponFacingOffsetForTests(float FacingSign,
+	                                                     const FVector& RightFacingOffset,
+	                                                     const FVector& LeftFacingOffset);
+#endif
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -145,6 +152,7 @@ private:
 	void ConfigureBossWeapon(FName PresentationId);
 	void UpdateBossWeaponMotion(float DeltaSeconds);
 	void UpdateBossBlinkSlamMotion(float DeltaSeconds);
+	void RefreshBossWeaponFacingOffset(float FacingSign);
 
 	UPROPERTY()
 	TObjectPtr<AActor> Host;
@@ -168,6 +176,8 @@ private:
 	TObjectPtr<USceneComponent> EffectsRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> BossWeaponRoot;
+	UPROPERTY()
+	TObjectPtr<USceneComponent> BossWeaponFacingRoot;
 	UPROPERTY()
 	TObjectPtr<UBillboardComponent> BossWeaponSprite;
 	UPROPERTY()
@@ -207,6 +217,8 @@ private:
 	float BossBlinkSlamDuration = 0.0f;
 	float BossBlinkSlamStartHeightCm = 0.0f;
 	FRotator BossWeaponRestRotation = FRotator::ZeroRotator;
+	FVector BossWeaponRightFacingOffset = FVector::ZeroVector;
+	FVector BossWeaponLeftFacingOffset = FVector::ZeroVector;
 	bool bHitVisualActive = false;
 	bool bDeathVisualActive = false;
 	bool bStunPaused = false;

@@ -209,3 +209,12 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **文档审阅 / Documentation review**：`MOD-ReEcho` 与 `MOD-ReEchoEnemies` 已更新兔子双技能轨迹、固定单发半径和 EnemyHost 所有权；`MOD-ReEchoVFX` 已更新逐球事件数量与固定视觉尺寸契约；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑、依赖方向和稳定路由标识未变化。
 - **状态 / Status**：Closed。用户已确认两种兔子技能的单发尺寸一致并授权发布。
 - **发布集成 / Release integration**：取得 `main-publish-lock` 后合入 `origin/main@402b6d22`；传入的伤害数字、元素反应来源、狐狸冲撞、首波预警和 Plan116 与本候选无源码/数据逻辑冲突，只有精选预构建包发生预期二进制冲突并由最终组合源码完整重生。Development Editor `-FullRebuild` 100/100 通过，精选包源码指纹 `aae735c39d73`；最终组合上的 `ReEcho.Player.HurtCollisionIgnore` 1/1、`ReEcho.Enemies.Host` 5/5、XLSX 同步测试 18/18、生产数据一致性、项目校验、预构建一致性和 `git diff --check` 全部通过。
+
+### #23 — `GMGotoBoss` 进入第八关后立即获胜
+
+- **现象 / Symptom**：在正常遭遇中执行 `GMGotoBoss`，界面进入第八关后未与羊 Boss 战斗即直接显示胜利。
+- **根因 / Root cause**：Plan115 将零秒首波的 Commit 延后到完整 `WarningLeadSeconds`；第八关 Boss 因此先进入预警 Pending。实测日志证明 `GMGotoBoss` 后 Boss 的 Commit 时间为 `0.9s`，但旧胜利门在 `0.0s` 仅因 Roster 中暂无存活 Boss 就结束遭遇，将“尚未生成”误判为“已被击败”，导致后续 Commit 永远无法执行。
+- **改动 / Changes**：GameMode 新增遭遇内权威状态 `bBossSuccessfullySpawnedThisEncounter`，仅当 Boss Host 完整生成并配置成功后置真；新遭遇清零，读档时从成功恢复的 Boss 重建。Boss 胜利门现在要求“本关 Boss 曾成功生成且当前无存活 Boss”；预警 Pending 或生成失败均不判胜。保留 `[BossVictoryTrace]` 供本轮人工验证。
+- **验收 / Acceptance**：`GMGotoBoss` 进入第八关后先显示 Boss 出生预警，Boss 成功生成后关卡继续；只有击杀已成功生成的 Boss 才显示胜利。Boss 生成失败时输出错误但不显示胜利。
+- **验证 / Verification**：取得 `main-publish-lock` 后合入 `origin/main@8017c6d4`，传入的卡牌与敌人伤害诊断改动和本修复无文本逻辑冲突；7 个精选预构建模块由最终组合源码执行 Development Editor `-FullRebuild` 94/94 成功重生（源码指纹 `230b07c834f2`）。最终组合上的 `ReEcho.GameMode` 2/2、`ReEcho.Encounter` 4/4、`ReEcho.Run.FinalBossRequiresKill` 1/1 自动化通过；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- **状态 / Status**：Closed。用户已明确授权推送并合入远端主分支。

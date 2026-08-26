@@ -73,8 +73,8 @@ bool FReEchoCookedDeathPivotPolicyTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationStunPauseTest,
-	                             "ReEcho.Presentation.Animation2D.StunPause",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Presentation.Animation2D.StunPause",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEcho2DAnimationStunPauseTest::RunTest(const FString& Parameters)
 {
@@ -111,18 +111,19 @@ bool FReEcho2DAnimationStunPauseTest::RunTest(const FString& Parameters)
 
 	UReEchoEnemyPresentationComponent* EnemyPresentation = NewObject<UReEchoEnemyPresentationComponent>();
 	EnemyPresentation->ConfigureComponents(nullptr,
-	                                      nullptr,
-	                                      nullptr,
-	                                      nullptr,
-	                                      nullptr,
-	                                      nullptr,
-	                                      nullptr,
-	                                      nullptr,
-	                                      Renderer,
-	                                      Controller,
-	                                      nullptr,
-	                                      nullptr,
-	                                      nullptr);
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr,
+	                                       Renderer,
+	                                       Controller,
+	                                       nullptr,
+	                                       nullptr,
+	                                       nullptr);
 	FReEchoEnemyPresentationSnapshot Snapshot;
 	Snapshot.bStunned = true;
 	EnemyPresentation->Advance(Snapshot, 0.25f);

@@ -76,6 +76,11 @@ public:
 		return EnemyId;
 	}
 
+	virtual FName GetCombatTargetDefinitionId() const override
+	{
+		return EnemyId;
+	}
+
 	/** Stable presentation identity from the active compiled enemy definition. */
 	FName GetPresentationId() const;
 
@@ -289,6 +294,11 @@ private:
 	          Category = "Character Scene|Weapon",
 	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> BossWeaponRoot;
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Weapon",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> BossWeaponFacingRoot;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Weapon",

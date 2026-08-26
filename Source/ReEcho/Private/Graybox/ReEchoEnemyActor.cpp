@@ -121,8 +121,10 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	BossWeaponRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BossWeaponRoot"));
 	BossWeaponRoot->SetupAttachment(EffectsRoot);
 	BossWeaponRoot->bEditableWhenInherited = true;
+	BossWeaponFacingRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BossWeaponFacingRoot"));
+	BossWeaponFacingRoot->SetupAttachment(BossWeaponRoot);
 	BossWeaponSprite = CreateDefaultSubobject<UBillboardComponent>(TEXT("BossWeaponSprite"));
-	BossWeaponSprite->SetupAttachment(BossWeaponRoot);
+	BossWeaponSprite->SetupAttachment(BossWeaponFacingRoot);
 	BossWeaponSprite->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BossWeaponSprite->SetCastShadow(false);
 	BossWeaponSprite->SetHiddenInGame(true);
@@ -169,6 +171,7 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	                                       FlipbookRoot,
 	                                       EffectsRoot,
 	                                       BossWeaponRoot,
+	                                       BossWeaponFacingRoot,
 	                                       BossWeaponSprite,
 	                                       CharacterSprite,
 	                                       SequenceAnimation,
@@ -208,7 +211,8 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
 	AttachIfNeeded(BossWeaponRoot, EffectsRoot);
-	AttachIfNeeded(BossWeaponSprite, BossWeaponRoot);
+	AttachIfNeeded(BossWeaponFacingRoot, BossWeaponRoot);
+	AttachIfNeeded(BossWeaponSprite, BossWeaponFacingRoot);
 	AttachIfNeeded(GroundShadow, GroundRoot);
 	AttachIfNeeded(SequenceAnimation, FlipbookRoot);
 }
@@ -315,6 +319,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.PresentationId);
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
+	Combatant->SetCursedImmune(bBoss);
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
 	                                     bBoss ? FReEchoAudioEvents::BossAttack : FReEchoAudioEvents::EnemyAttack,
 	                                     bBoss ? FReEchoAudioEvents::BossDeath : FReEchoAudioEvents::EnemyDeath);
@@ -622,20 +627,80 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 
 float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
-	if (EnemyLogic && EnemyLogic->GetSnapshot().Phase == EReEchoEnemyBehaviorPhase::Transforming &&
+	const FReEchoEnemyLogicSnapshot Snapshot = EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
+	float AdjustedRawDamage = Intent.RawDamage;
+	float FacingDot = 0.0f;
+	const TCHAR* AdjustmentReason = TEXT("PassThrough");
+	if (EnemyLogic && Snapshot.Phase == EReEchoEnemyBehaviorPhase::Transforming &&
 	    EnemyLogic->GetDefinition().Phase2.TriggerMode == EReEchoEnemyPhase2TriggerMode::HealthThreshold)
 	{
 		// A blood-depleted Boss is held at one survivable point until phase completion refills the authored second
 		// health bar. Ordinary AttackCountOrRange transitions are presentation-only and continue accepting damage.
-		return 0.0f;
+		AdjustedRawDamage = 0.0f;
+		AdjustmentReason = TEXT("BossHealthThresholdTransform");
 	}
-	if (!EnemyLogic || !EnemyLogic->GetDefinition().bUsesDirectionalShield)
+	else if (EnemyLogic && EnemyLogic->GetDefinition().bUsesDirectionalShield)
 	{
-		return Intent.RawDamage;
+		const FVector ToSource = (Intent.SourceLocation - GetActorLocation()).GetSafeNormal2D();
+		const FVector Forward = ResolveFacingDirection();
+		FacingDot = FVector::DotProduct(Forward, ToSource);
+		const bool bBlockedByFrontShield = FacingDot >= 0.0f;
+		AdjustedRawDamage = bBlockedByFrontShield ? 0.0f : Intent.RawDamage * 2.0f;
+		AdjustmentReason = bBlockedByFrontShield ? TEXT("DirectionalShieldFront") : TEXT("DirectionalShieldRearDouble");
 	}
-	const FVector ToSource = (Intent.SourceLocation - GetActorLocation()).GetSafeNormal2D();
-	const FVector Forward = ResolveFacingDirection();
-	return FVector::DotProduct(Forward, ToSource) >= 0.0f ? 0.0f : Intent.RawDamage * 2.0f;
+
+#if !UE_BUILD_SHIPPING
+	if (Intent.RawDamage > 0.0f)
+	{
+		const EReEchoEnemyPhase2TriggerMode TriggerMode =
+		    EnemyLogic ? EnemyLogic->GetDefinition().Phase2.TriggerMode
+		               : EReEchoEnemyPhase2TriggerMode::AttackCountOrRange;
+		const FString PhaseName = EnemyLogic
+		                              ? StaticEnum<EReEchoEnemyBehaviorPhase>()->GetNameStringByValue(
+		                                    static_cast<int64>(Snapshot.Phase))
+		                              : TEXT("NoLogic");
+		const FString TriggerModeName = EnemyLogic
+		                                    ? StaticEnum<EReEchoEnemyPhase2TriggerMode>()->GetNameStringByValue(
+		                                          static_cast<int64>(TriggerMode))
+		                                    : TEXT("NoLogic");
+		const FString TriggerReasonName = EnemyLogic
+		                                      ? StaticEnum<EReEchoEnemyPhaseTriggerReason>()->GetNameStringByValue(
+		                                            static_cast<int64>(Snapshot.PhaseTriggerReason))
+		                                      : TEXT("NoLogic");
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[EnemyDamageGate] target=%s enemyId=%s source=%s weapon=%s sequence=%lld damageSource=%d "
+		            "raw=%.3f adjusted=%.3f reason=%s health=%.3f alive=%d damageable=%d actorCollision=%d "
+		            "rootCollision=%d phase=%s phaseIndex=%d phase2Enabled=%d phase2Triggered=%d triggerMode=%s "
+		            "triggerReason=%s phaseRemaining=%.3f receivedDamageCount=%d directionalShield=%d facingDot=%.3f"),
+		       *GetNameSafe(this),
+		       *EnemyId.ToString(),
+		       *GetNameSafe(Intent.Attack.Source.Get()),
+		       *Intent.Attack.WeaponId.ToString(),
+		       static_cast<long long>(Intent.Attack.Sequence),
+		       static_cast<int32>(Intent.DamageSource),
+		       Intent.RawDamage,
+		       AdjustedRawDamage,
+		       AdjustmentReason,
+		       Combatant ? Combatant->CurrentHealth : -1.0f,
+		       IsAlive() ? 1 : 0,
+		       CanBeDamaged() ? 1 : 0,
+		       GetActorEnableCollision() ? 1 : 0,
+		       Collision && Collision->IsCollisionEnabled() ? 1 : 0,
+		       *PhaseName,
+		       Snapshot.CurrentPhaseIndex,
+		       EnemyLogic && EnemyLogic->GetDefinition().Phase2.bEnabled ? 1 : 0,
+		       Snapshot.bPhase2Triggered ? 1 : 0,
+		       *TriggerModeName,
+		       *TriggerReasonName,
+		       Snapshot.PhaseTransitionRemainingSeconds,
+		       Snapshot.ReceivedDamageCount,
+		       EnemyLogic && EnemyLogic->GetDefinition().bUsesDirectionalShield ? 1 : 0,
+		       FacingDot);
+	}
+#endif
+
+	return AdjustedRawDamage;
 }
 
 float AReEchoEnemyActor::ReceiveGrayboxDamage(const float Damage,

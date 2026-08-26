@@ -230,6 +230,7 @@ private:
 	/** #9 倒计时归零到弹出选卡之间的短暂停顿定时器（让"0"可见）。 */
 	FTimerHandle EncounterEndSettleTimerHandle;
 	bool bEncounterClearedByDefeat = false;
+	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
 	float ArenaSceneWorldHeight = 0.0f;
 	float ArenaSceneWorldWidth = 0.0f;
@@ -239,6 +240,9 @@ private:
 	int32 EnemySpawnIndex = 0;
 	TArray<FVector> EncounterSpawnLocations;
 	TArray<float> RecentRangedBurstWorldTimes;
+	/** Last non-zero side of each living enemy relative to each Player-Echo connection segment. */
+	TMap<uint64, int8> ConnectionLineSideByPair;
+	bool bHandlingVaporizeWaterSplash = false;
 	TArray<FReEchoPendingSpawnBatchState> PendingSpawnBatches;
 	UFUNCTION()
 	void HandleFixedStep(float FixedDeltaSeconds);
@@ -378,12 +382,16 @@ private:
 	                                                bool bHasArena);
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
+	friend class FReEchoGameModeBossVictoryGateTest;
 #endif
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleCardElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
+	static bool ShouldCompleteBossEncounter(bool bBossSuccessfullySpawned, int32 LivingBossCount);
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);
