@@ -102,6 +102,7 @@
 - 2026-08-26：远端依次占用 Plan120、Plan121；按远端编号权威将本任务顺延为 Plan122 并先发布规划。实现从 `origin/main@5aa11dbc` 创建独立 worktree。
 - 2026-08-26：新增主模块只读 `ReEchoBuildTrace`，Run 在权威边界写完整构筑快照，WeaponActor 在成功 Confirm 出口写轻量 Commit 关联；未修改 Combat/Weapons 公共消息或玩法数值。
 - 2026-08-26：读取用户提供的旧会话 `ReEcho-Run-Brave-Gun-ExplosiveMuzzle-20260826.log`。全日志玩家投射物 152 个 Contact sequence 均进入 Resolver 且正伤害，`applied=0`、`blocked=1`、`incomingAdjustedRaw=0` 均为 0；无伤害片段是 `hitTargets=0` 的射程耗尽。旧日志显示枪弹运行于 `Z=213.12`，高于史莱姆/兔子碰撞盒顶面并可命中半高 130 的狐狸，定位为命中几何前置问题而非构筑/Resolver 清零。由此给新 `[BuildCommitTrace]` 补齐锁定 Target、Origin、Direction，供后续精确区分锁敌和碰撞平面错误；具体玩法修复不混入本诊断 Plan。
+- 2026-08-26：进一步用运行时探针确认关卡侧根因，交接给场景/关卡负责人处理：`ApplyArenaSceneForStage` 运行时从类默认值生成 `BP_ArenaScene_SC02`，其 `WallNorth/WallSouth/WallEast/WallWest` 四个阻挡体在类模板中全部位于世界原点、缩放为 1，且保持 `QueryAndPhysics + Pawn Block`；而 `Level00` 内手工摆放的 SC02 实例才具有 `Y=±2190`、`X=±1200` 的正确边界。玩家生成在原点墙体中后，首次移动被物理解穿抬高（玩家约 `Z=50→178.12`，投射物约 `Z=85→213.12`），于是弹丸越过较矮的史莱姆/兔子，却仍可碰到较高狐狸。Plan84 资产脚本关闭了 `auto_layout_collision`，但没有把 SC02/SC03/SC04 的边界变换烘焙进类默认模板，后三者均有同类风险。本 Plan 不改关卡资产；建议在场景资产中烘焙边界 Transform、为运行时生成场景增加边界非重叠校验，并将玩家玩法平面 Z 锁定作为防御性约束。
 
 ### 证据
 
