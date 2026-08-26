@@ -56,6 +56,7 @@ public:
 	                         float InStampSpacingPx,
 	                         float InAngleJitterDegrees,
 	                         float InOpacityJitter,
+	                         const TArray<FLinearColor>& InColors,
 	                         int32 InMaxStampsPerEcho);
 
 	/** 设置本帧要绘制的数据视图。 */
@@ -86,6 +87,9 @@ public:
 	                                                          float OpacityJitter,
 	                                                          int32 RandomSeed,
 	                                                          int32 MaxStamps);
+	/** Resolve a Blueprint-authored per-Echo trail color, falling back to the view color if missing. */
+	static FLinearColor
+	ResolveInkTrailColor(const TArray<FLinearColor>& Colors, int32 EchoIndex, const FLinearColor& FallbackColor);
 
 private:
 	FReEchoMinimapView View;
@@ -94,6 +98,7 @@ private:
 	float InkTrailStampSpacingPx = 1.5f;
 	float InkTrailAngleJitterDegrees = 18.0f;
 	float InkTrailOpacityJitter = 0.16f;
+	TArray<FLinearColor> InkTrailColors;
 	int32 MaxInkTrailStampsPerEcho = 1024;
 
 	FVector2D ToLocal(const FVector2D& WorldXY, const FVector2D& CanvasSize) const;
@@ -167,6 +172,13 @@ private:
 	          Category = "Minimap|Ink Trail",
 	          meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "1.0"))
 	float InkTrailGrainStrength = 0.65f;
+
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          EditFixedSize,
+	          Category = "Minimap|Ink Trail",
+	          meta = (AllowPrivateAccess = "true"))
+	TArray<FLinearColor> InkTrailColors;
 
 	UPROPERTY(EditAnywhere,
 	          BlueprintReadWrite,

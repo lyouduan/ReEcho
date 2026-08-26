@@ -35,6 +35,7 @@ void SReEchoMinimapCanvas::SetInkTrailSettings(UMaterialInterface* InMaterial,
                                                const float InStampSpacingPx,
                                                const float InAngleJitterDegrees,
                                                const float InOpacityJitter,
+                                               const TArray<FLinearColor>& InColors,
                                                const int32 InMaxStampsPerEcho)
 {
 	InkTrailMaterial = InMaterial;
@@ -42,6 +43,7 @@ void SReEchoMinimapCanvas::SetInkTrailSettings(UMaterialInterface* InMaterial,
 	InkTrailStampSpacingPx = FMath::Clamp(InStampSpacingPx, 0.25f, 12.0f);
 	InkTrailAngleJitterDegrees = FMath::Clamp(InAngleJitterDegrees, 0.0f, 180.0f);
 	InkTrailOpacityJitter = FMath::Clamp(InOpacityJitter, 0.0f, 1.0f);
+	InkTrailColors = InColors;
 	MaxInkTrailStampsPerEcho = FMath::Clamp(InMaxStampsPerEcho, 16, 4096);
 }
 
@@ -117,6 +119,13 @@ TArray<FReEchoMinimapInkStamp> SReEchoMinimapCanvas::BuildInkTrailStamps(const T
 	return Stamps;
 }
 
+FLinearColor SReEchoMinimapCanvas::ResolveInkTrailColor(const TArray<FLinearColor>& Colors,
+                                                        const int32 EchoIndex,
+                                                        const FLinearColor& FallbackColor)
+{
+	return Colors.IsValidIndex(EchoIndex) ? Colors[EchoIndex] : FallbackColor;
+}
+
 int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
                                     const FGeometry& AllottedGeometry,
                                     const FSlateRect& MyCullingRect,
@@ -173,6 +182,7 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 		for (int32 EchoIndex = 0; EchoIndex < View.Echoes.Num(); ++EchoIndex)
 		{
 			const FReEchoMinimapEchoEntry& Entry = View.Echoes[EchoIndex];
+			const FLinearColor TrailColor = ResolveInkTrailColor(InkTrailColors, EchoIndex, Entry.Color);
 			TArray<FVector2D> Points;
 			Points.Reserve(Entry.PathPoints.Num());
 			for (const FVector2D& WorldXY : Entry.PathPoints)
@@ -197,7 +207,7 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 						const FVector2f DrawSize(InkTrailStampSizePx, InkTrailStampSizePx);
 						const FVector2f DrawPosition(static_cast<float>(Stamp.Position.X - InkTrailStampSizePx * 0.5f),
 						                             static_cast<float>(Stamp.Position.Y - InkTrailStampSizePx * 0.5f));
-						FLinearColor StampColor = Entry.Color;
+						FLinearColor StampColor = TrailColor;
 						StampColor.A *= Stamp.Opacity;
 						FSlateDrawElement::MakeRotatedBox(
 						    OutDrawElements,
@@ -218,7 +228,7 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 					                             AllottedGeometry.ToPaintGeometry(),
 					                             Points,
 					                             ESlateDrawEffect::None,
-					                             Entry.Color,
+					                             TrailColor,
 					                             true,
 					                             FallbackTrailThickness);
 				}
@@ -238,6 +248,12 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 UReEchoMinimapCanvasWidget::UReEchoMinimapCanvasWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
+	InkTrailColors = {FLinearColor::Red,
+	                  FLinearColor::Green,
+	                  FLinearColor::Blue,
+	                  FLinearColor::Yellow,
+	                  FLinearColor(0.0f, 1.0f, 1.0f),
+	                  FLinearColor(1.0f, 0.0f, 1.0f)};
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> MaterialAsset(InkTrailMaterialPath);
 	InkTrailMaterial = MaterialAsset.Object;
 }
@@ -256,6 +272,7 @@ TSharedRef<SWidget> UReEchoMinimapCanvasWidget::RebuildWidget()
 	                            InkTrailStampSpacingPx,
 	                            InkTrailAngleJitterDegrees,
 	                            InkTrailOpacityJitter,
+	                            InkTrailColors,
 	                            MaxInkTrailStampsPerEcho);
 	return Canvas.ToSharedRef();
 }
@@ -275,6 +292,7 @@ void UReEchoMinimapCanvasWidget::SynchronizeProperties()
 		                            InkTrailStampSpacingPx,
 		                            InkTrailAngleJitterDegrees,
 		                            InkTrailOpacityJitter,
+		                            InkTrailColors,
 		                            MaxInkTrailStampsPerEcho);
 	}
 }

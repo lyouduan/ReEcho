@@ -105,6 +105,15 @@ bool FReEchoMinimapInkTrailSamplingTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Clamped opacity jitter remains valid"), Stamp.Opacity >= 0.0f && Stamp.Opacity <= 1.0f);
 	}
 
+	const FLinearColor FallbackColor(0.25f, 0.5f, 0.75f, 1.0f);
+	const TArray<FLinearColor> BlueprintColors = {FLinearColor::Red, FLinearColor::Green};
+	TestEqual(TEXT("Blueprint trail palette overrides the matching Echo color"),
+	          SReEchoMinimapCanvas::ResolveInkTrailColor(BlueprintColors, 1, FallbackColor),
+	          FLinearColor::Green);
+	TestEqual(TEXT("Missing Blueprint trail palette entries preserve the runtime fallback"),
+	          SReEchoMinimapCanvas::ResolveInkTrailColor(BlueprintColors, 4, FallbackColor),
+	          FallbackColor);
+
 	return true;
 }
 

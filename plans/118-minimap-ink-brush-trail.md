@@ -35,7 +35,7 @@
   - `Source/ReEchoCombat/Private/Combat/ReEcho{HitResolver,ElementHitResolver}.cpp`
   - 外部交付目录 `正式-UI视觉/正式-UI视觉/战斗场景/经典墨水笔_Photoshop交付/`
 - 影响模式：`SharedContract`。不改变小地图视图数据、录制、伤害事件 Schema 或玩法权威，但扩展 `UReEchoMinimapCanvasWidget` 的 WBP 可调表现参数、新增 Cook 可追踪的纹理/材质依赖，并让敌人跳字从同一事件选择生命钳制前的理论伤害。
-- 兼容承诺 / 下游操作：Player/Echo 头像、坐标投影、轨迹颜色、透明底板和回响路径数据保持不变；墨水材质缺失时安全降级到现有纯色折线。策划/UI 可在 Encounter HUD 内的小地图控件 Details 调整笔触尺寸、间距、旋转/透明度抖动与 Grain 强度。`AppliedDamage` 继续表示实际扣血，生命、死亡、音频和 VFX 语义不变；敌人跳字显示目标规则修正后、生命钳制前的 `RawDamage`。
+- 兼容承诺 / 下游操作：Player/Echo 头像、坐标投影、透明底板和回响路径数据保持不变；墨水材质缺失时安全降级到纯色折线。策划/UI 可在 Encounter HUD 内的小地图控件 Details 调整笔触尺寸、间距、六项轨迹调色板、旋转/透明度抖动与 Grain 强度；调色板缺项回退既有运行时颜色，头像不染色。`AppliedDamage` 继续表示实际扣血，生命、死亡、音频和 VFX 语义不变；敌人跳字显示目标规则修正后、生命钳制前的 `RawDamage`。
 - 明确排除：不修改录制采样率、路径点数量/简化算法、Echo 移动/回放、头像资源、小地图边框或底板；不尝试让 UE 直接加载 Photoshop `.abr`，也不把 Photoshop/Procreate 动态引擎引入运行时。不修改伤害公式、生命/死亡结算、玩家受击反馈或 Boss 对玩家的跳字。
 
 ## 锁定目标
@@ -72,6 +72,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - [x] 盖印跨折线段保持近似等距，方向跟随路径，并按确定性种子应用可调角度/透明度变化；相同输入不会逐帧闪烁。
 - [x] 保留每个 Echo 的既有轨迹颜色、Player/Echo 头像、透明底板和世界到小地图坐标投影。
 - [x] 笔触尺寸、间距、角度变化、不透明度变化与 Grain 强度可在 `WBP_ReEchoEncounterHud` 的小地图控件 Details 调整，非法值被安全钳制。
+- [x] `Ink Trail Colors` 六项调色板可在同一 Blueprint 实例调整并按 Echo 顺序覆盖轨迹颜色；缺项回退运行时颜色，头像不染色。
 - [x] 单条轨迹盖印数量有明确上限；零长度段、单点路径和极密路径不会崩溃或产生 NaN。
 - [x] 512px 笔尖、Grain 和 UI 材质均可加载并被 Cook 依赖追踪；完整 Photoshop 交付包已归档且不把 `.abr` 当运行时资产。
 - [x] 敌人伤害事件 `RawDamage=20`、`AppliedDamage=7` 时跳字显示 `20`，生命仍只扣 `7`；普通 `7/7` 显示保持 `7`。
@@ -118,6 +119,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - 已归档完整 Photoshop 交付包，并新增幂等的运行时纹理导入与 UI 材质 authoring 脚本。
 - 已将 Minimap 轨迹生产路径改为确定性、有界的笔尖盖印；保留旧 `MakeLines` 作为材质缺失 fallback，并提供 WBP 实例级笔触参数。
 - 已把原 Plan119 的理论伤害跳字范围并入本 Plan：Enemy Hurt 显示选择 `RawDamage`，保留 `AppliedDamage>0` 生成门禁及所有结算语义。
+- 已把六项轨迹调色板暴露到 `ReEchoMinimapCanvasWidget` Blueprint Details，并增加覆盖/缺项回退纯函数测试。
 
 ### 证据
 
@@ -129,6 +131,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - `python scripts/validate_project.py` 与 `git diff --check` 通过。发布前仍需在获得 main 发布锁并合并最新 `origin/main` 后执行准确最终组合的 `-FullRebuild`。
 - 已合并 `origin/main@081a8689` 的怪物眩晕、羊 Boss 范围/锁点与预构建更新；文本功能全部保留，冲突的精选二进制先采用远端版本，再由统一源码增量构建重生。
 - Plan119 范围合入本 Plan 后，统一候选的 Development Editor 构建通过；`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与 `ReEcho.UI.CombatHud.Formatting` 全部 `Result={Success}`，后者覆盖普通 `7/7 → 7` 与过量 `20/7 → 20`。静态校验与 `git diff --check` 再次通过。
+- Blueprint 六项轨迹调色板加入后再次通过 Development Editor 构建、`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与静态校验；自动化覆盖索引命中时覆盖颜色、索引缺失时保留运行时回退颜色。
 
 ### 剩余风险
 
