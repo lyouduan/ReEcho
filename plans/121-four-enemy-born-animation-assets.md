@@ -90,6 +90,7 @@
 - `ReEcho.Presentation.Animation2D` 实际执行 4 个测试：FootpointAlignment、CookedDeathPivotPolicy、StunPause 通过；AssetProfiles 的 Born 播放、完成回 Move、缺失 no-op 与 Death 抢占断言未报错，但被既有 TimeGuard Phase2 空能力断言（第 484 行）单独阻塞。
 - Plan82 全库审计未报告 Born/FSM/Profile 问题，但被本 Plan 明确排除的 BadRabbit 20 张既有未导入源图阻塞；Plan121 独立重载审计提供本任务资产链通过证据。
 - `python scripts/validate_project.py` 通过；`python scripts/ue/prebuilt_editor.py check` 通过（7 模块，Build ID `55116800`，源码指纹 `6b0f55f586aa`）；`git diff --check` 通过。
+- Planner 集成前远端前进到 Plan120：Fox/Rabbit/Slime 三个 Profile 与其 Phase2 Transform 发生二进制同文件重叠。集成候选先保留最新 main 的 Transform 版本，再通过 Unreal 只追加 Born；独立二次重载审计 `profiles=3 born=3 transform=3 issues=0`，并逐项确认其他 Move/Attack/Hit/Death Clip 仍存在。该组合使 Executor 旧 FullRebuild/资产证据失效，以下最终证据以 Planner 集成候选重跑结果为准。
 
 ### 剩余风险
 
