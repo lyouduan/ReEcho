@@ -46,7 +46,7 @@
 | 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
-| Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建并原子激活可受击 Enemy Host；Host 完成 Definition/Profile 装配后只尝试一次可选 Born 表现，不等待结果且不改变碰撞、受伤、AI 或 Commit；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
+| Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建 Enemy Host；Host 完成 Definition/Profile 装配后只尝试一次可选 Born，成功播放时进入临时不可伤害/不可移动 Gate，缺失或失败不进入 Gate，碰撞、AI 计时、目标和攻击不暂停；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
 | 当前 Arena 场景与 SceneId 注册 | `AReEchoArenaSceneActor` 注册表；Stage CSV `SceneId` 为选择权威 | World/Stage | GameMode 在初始、恢复和跨 Stage 入口先应用场景；同 Stage 不重建，失败阻止 Encounter 开始 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
@@ -378,7 +378,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 自动攻击不进入 Recording；Echo 在当前世界重新选目标与命中。
 - 保存失败不得退出；购买/装备/选择失败不得产生部分状态。
 - 表现资源和完成回调不能控制确定性逻辑。
-- Enemy Host 在 Profile 装配后尝试 Born，并把 Presentation 的只读 Born 活跃状态转换为 Enemy Sense 的 Phase2 启动许可；该许可不参与出生提交或普通行为。致命伤发生于 Born 时不截获为 Transform，使 Combat 正常死亡并由 Death 表现立即抢占。
+- Enemy Host 在 Profile 装配后尝试 Born；仅播放成功才持有 Gameplay Gate、暂存并关闭 `CanBeDamaged`，自然完成后恢复原状态。Gate 同时向 Enemy Sense 注入关闭的移动与 Phase2 启动许可，但不暂停出生提交、碰撞、普通 AI 计时、目标或攻击；缺失/失败 Born 不获得无敌。
+- `RestoreRuntimeState` 恢复的是已提交敌人：即使恢复流程先执行配置，也必须同步取消该配置启动的 Born 表现与 Gameplay Gate，活着的恢复敌人立即回到基础表现并可受伤，不重播出生动画。
 - 不从旧 JSON、描述文本、Widget 缓存或 Actor 表现字段恢复第二份事实来源。
 
 ## 运行时 CSV 松散文件与 Shipping 打包契约

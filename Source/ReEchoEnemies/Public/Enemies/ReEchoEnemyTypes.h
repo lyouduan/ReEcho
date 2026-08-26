@@ -409,6 +409,10 @@ struct REECHOENEMIES_API FReEchoEnemySenseSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bPhase2TransitionPermitted = true;
 
+	/** Host-owned movement gate. False suppresses movement intent without pausing behavior advancement. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bMovementPermitted = true;
+
 	/** Collision-safe blink destination explicitly solved by the world host for this sample. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector TeleportDestination = FVector::ZeroVector;

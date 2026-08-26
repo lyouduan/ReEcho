@@ -170,6 +170,19 @@ bool UReEchoEnemyPresentationComponent::TryPlayBorn()
 	return PresentationController && PresentationController->PlayAction(ReEcho2DAnimationTags::Born);
 }
 
+void UReEchoEnemyPresentationComponent::CancelBornForRuntimeRestore()
+{
+	if (!IsBornPlaying())
+	{
+		return;
+	}
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->Stop();
+	}
+	PresentationController->UpdatePlaybackCompletion();
+}
+
 void UReEchoEnemyPresentationComponent::ConfigureBossWeapon(const FName PresentationId)
 {
 	const bool bTimeGuard = PresentationId == TEXT("Enemy.TimeGuard");
@@ -659,6 +672,18 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+void UReEchoEnemyPresentationComponent::CompleteActiveAnimationForTests()
+{
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->Stop();
+	}
+	if (PresentationController)
+	{
+		PresentationController->UpdatePlaybackCompletion();
+	}
+}
+
 void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event)
 {
 	HandlePresentationAction(Event);

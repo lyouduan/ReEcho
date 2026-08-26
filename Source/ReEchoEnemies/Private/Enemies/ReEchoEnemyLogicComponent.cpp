@@ -16,6 +16,22 @@ constexpr float IdleWanderSpeedFraction = 0.35f;
 constexpr float IdleWanderPeriodSeconds = 3.0f;
 constexpr float IdleWanderDirectionJitter = 0.78539816339744831f; // +/-45 degrees
 
+FReEchoEnemyActionIntent ApplyMovementPermit(const FReEchoEnemySenseSnapshot& Sense, FReEchoEnemyActionIntent Intent)
+{
+	if (!Sense.bMovementPermitted)
+	{
+		Intent.MovementDelta = FVector::ZeroVector;
+		Intent.bHasMovement = false;
+		Intent.bSpecialDashMovement = false;
+		for (FReEchoBossIntent& BossIntent : Intent.BossIntents)
+		{
+			BossIntent.bRequestTeleport = false;
+			BossIntent.TeleportDestination = FVector::ZeroVector;
+		}
+	}
+	return Intent;
+}
+
 /**
  * Deterministic wander heading. Uses only WorldTime + SpawnIndex so the same sample produces the same
  * movement across runs, saves, and replay (no FMath::Rand —录像/回放 must stay bit-identical).
@@ -401,7 +417,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	const float SafeDeltaSeconds = FMath::Max(0.0f, DeltaSeconds);
 	if (State.Phase == EReEchoEnemyBehaviorPhase::Transforming)
 	{
-		return AdvancePhaseTransition(SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvancePhaseTransition(SafeDeltaSeconds));
 	}
 	if (TryBeginPhaseTransition(Sense, Intent))
 	{
@@ -409,15 +425,15 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
-		return AdvanceBoss(Sense, SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvanceBoss(Sense, SafeDeltaSeconds));
 	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Ranged || Definition.Archetype == EReEchoEnemyArchetype::Elite)
 	{
-		return AdvanceSpecial(Sense, SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvanceSpecial(Sense, SafeDeltaSeconds));
 	}
 	if (State.HitReactionRemainingSeconds > 0.0f)
 	{
-		return AdvanceHitReaction(SafeDeltaSeconds);
+		return ApplyMovementPermit(Sense, AdvanceHitReaction(SafeDeltaSeconds));
 	}
 
 	const bool bHasLiveTarget = Sense.bTargetExists && Sense.bTargetAlive;
@@ -427,7 +443,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	{
 		if (!State.bHasEngaged)
 		{
-			return AdvanceIdleWander(Sense, SafeDeltaSeconds);
+			return ApplyMovementPermit(Sense, AdvanceIdleWander(Sense, SafeDeltaSeconds));
 		}
 		State.Phase = EReEchoEnemyBehaviorPhase::Idle;
 		return Intent;
@@ -473,17 +489,17 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 			{
 				CommitAttack(
 				    Sense, Distance <= Definition.BomberDamageRadiusCm && !Sense.bTargetInvulnerable, true, Intent);
-				return Intent;
+				return ApplyMovementPermit(Sense, MoveTemp(Intent));
 			}
 		}
-		return Intent;
+		return ApplyMovementPermit(Sense, MoveTemp(Intent));
 	}
 
 	if (Distance <= Definition.ContactRangeCm && State.AttackCooldownRemainingSeconds <= 0.0f)
 	{
 		CommitAttack(Sense, !Sense.bTargetInvulnerable, false, Intent);
 	}
-	return Intent;
+	return ApplyMovementPermit(Sense, MoveTemp(Intent));
 }
 
 const FReEchoEnemyAbilityDefinition* UReEchoEnemyLogicComponent::GetNextSpecialAbility() const

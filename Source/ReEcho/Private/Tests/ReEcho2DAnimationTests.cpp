@@ -624,6 +624,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	                                       nullptr,
 	                                       nullptr,
 	                                       nullptr,
+	                                       nullptr,
 	                                       ControlledRenderer,
 	                                       Controller,
 	                                       nullptr,

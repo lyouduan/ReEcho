@@ -195,5 +195,6 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - 事件表示已发生结果，订阅回调没有玩法否决权；表现缺失、资源加载失败和动画结束都不能改变行为。
 - Snapshot 是只读副本，不是命令；外部不得修改副本后假定 Logic 状态已变化。
 - `FReEchoEnemySenseSnapshot::bPhase2TransitionPermitted` 是 Host 注入的单步许可：为 false 时 Logic 仅跳过新 Phase2 Transform 的启动判定，不停止普通 AI、移动、攻击、碰撞或受伤；许可恢复后的首个合格逻辑步重新评估攻击次数、距离与血量条件，已开始的 Transform 不受影响。
+- `FReEchoEnemySenseSnapshot::bMovementPermitted` 是 Host 注入的单步许可：为 false 时 Logic 仍推进普通 AI、目标、冷却与攻击，但输出的普通移动、特殊冲刺和 Boss 传送请求均被清零；恢复后的首个逻辑步重新允许移动。
 - Encounter 局间重置只允许清理具名瞬时字段；不得重建 Logic、重置普通攻击冷却/序号或用快照重生 Host 冒充同 Stage 连续性。
 - 不引入 `ReEchoEnemies -> ReEchoWeapons`：敌人攻击节拍由 EnemyLogic 拥有，玩家武器节拍由 Weapons 拥有。

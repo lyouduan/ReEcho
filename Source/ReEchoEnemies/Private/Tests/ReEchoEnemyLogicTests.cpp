@@ -808,6 +808,36 @@ bool FReEchoEnemyPhaseBornPermitTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyBornMovementPermitTest,
+                                 "ReEcho.Enemies.Logic.BornMovementPermit",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyBornMovementPermitTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Definition = ReEchoEnemyDefinitions::MakeLegacyEquivalent(EReEchoEnemyArchetype::Grunt);
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Born movement permit definition initializes"), Logic->Initialize(Definition, 13));
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.bTargetCanAttractAggro = true;
+	Sense.bMovementPermitted = false;
+	Sense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent GatedMove = Logic->Advance(Sense, 0.25f);
+	TestFalse(TEXT("Born gate suppresses ordinary movement intent"), GatedMove.bHasMovement);
+	TestTrue(TEXT("Born gate emits zero movement delta"), GatedMove.MovementDelta.IsNearlyZero());
+	TestTrue(TEXT("Born gate still advances target engagement"), Logic->GetSnapshot().bHasEngaged);
+
+	Sense.TargetLocation = FVector(10.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent GatedAttack = Logic->Advance(Sense, 0.25f);
+	TestTrue(TEXT("Born gate does not pause ordinary attack decisions"), GatedAttack.bAttackCommitted);
+	Sense.bMovementPermitted = true;
+	Sense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent ReleasedMove = Logic->Advance(Sense, Definition.AttackIntervalSeconds + 0.01f);
+	TestTrue(TEXT("Movement resumes on the first permitted step"), ReleasedMove.bHasMovement);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyPhaseAttackCountTest,
                                  "ReEcho.Enemies.Logic.Phase2.AttackCountAndSnapshot",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

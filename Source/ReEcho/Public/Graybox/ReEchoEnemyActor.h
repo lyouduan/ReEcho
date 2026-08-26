@@ -193,6 +193,15 @@ public:
 	void RestoreRuntimeState(const FReEchoEnemyRuntimeState& SavedState);
 #if WITH_DEV_AUTOMATION_TESTS
 	FReEchoEnemyActionIntent AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
+
+	bool IsBornGameplayGateActiveForTests() const
+	{
+		return bBornGameplayGateActive;
+	}
+
+	bool IsBornPresentationActiveForTests() const;
+	void CompleteBornGameplayGateForTests();
+
 	void AdvanceEnemyProjectilesForTests(float DeltaSeconds);
 	void ApplyBossIntentForTests(const FReEchoBossIntent& Intent);
 	void AdvancePendingBossBlinkSlamForTests(float DeltaSeconds);
@@ -239,6 +248,8 @@ private:
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
 	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving, bool bStunned) const;
 	void UpdateStunState(bool bStunned);
+	void RefreshBornGameplayGate();
+	void EndBornGameplayGate();
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
@@ -369,6 +380,8 @@ private:
 	bool bEncounterSimulationSuspended = false;
 	bool bDeathSequenceStarted = false;
 	bool bWasStunnedLastTick = false;
+	bool bBornGameplayGateActive = false;
+	bool bCanBeDamagedBeforeBornGate = true;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;
