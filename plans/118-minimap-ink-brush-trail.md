@@ -55,7 +55,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - 权威状态与依赖：不新增玩法权威，不修改 `FReEchoMinimapView/FReEchoMinimapEchoEntry` 的数据来源。`UReEchoMinimapCanvasWidget` 拥有仅表现用的 Editor 参数与材质引用，`SReEchoMinimapCanvas` 只持有当前绘制快照和弱表现资源；依赖方向仍为主模块 UI → Slate/Engine 资产。
 - 决策记录：
   - `.abr` 是 Photoshop 笔刷容器，UE 不具备运行时加载器；生产运行时只导入已交付的 `512×512` 透明笔尖与 `900×900` Grain，完整 `.abr`、参数 JSON/TXT 和 256px 备选笔尖归档在 SourceArt 供追溯。
-  - 不把 Grain 离线烘进新 PNG，避免创建第三份不透明美术真源；UI 材质直接组合两张交付纹理，并乘入 Slate Vertex Color 保留每个 Echo 的既有颜色。
+  - 不把 Grain 离线烘进新 PNG，避免创建第三份不透明美术真源；UI 材质直接组合两张交付纹理。每个 Echo 使用独立动态材质实例，把 Blueprint 调色板写入显式 `TrailColor` 参数；Slate Vertex Color 仅承载单次盖印透明度，规避 UI Material 中顶点 RGB 读成黑色。
   - 使用确定性盖印而非单纯增粗 `MakeLines`，才能保留交付笔尖轮廓、方向和不透明度动态；使用最大盖印数限制成本，材质缺失时回退旧折线。
   - WBP 可调参数位于现有 `UReEchoMinimapCanvasWidget` 实例，不新增第二个小地图 WBP 或 Gameplay 状态。
 - 相关文档同步范围：审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md` 与 `README.md`；预期模块拓扑/索引不变。更新 `MOD-ReEcho.md`、`MOD-ReEchoUI.md` 与 `Design/UI/ReEcho_UI修改指导.md` 中的小地图笔触职责、资产路径、性能边界和调参入口。
@@ -132,6 +132,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - 已合并 `origin/main@081a8689` 的怪物眩晕、羊 Boss 范围/锁点与预构建更新；文本功能全部保留，冲突的精选二进制先采用远端版本，再由统一源码增量构建重生。
 - Plan119 范围合入本 Plan 后，统一候选的 Development Editor 构建通过；`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与 `ReEcho.UI.CombatHud.Formatting` 全部 `Result={Success}`，后者覆盖普通 `7/7 → 7` 与过量 `20/7 → 20`。静态校验与 `git diff --check` 再次通过。
 - Blueprint 六项轨迹调色板加入后再次通过 Development Editor 构建、`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与静态校验；自动化覆盖索引命中时覆盖颜色、索引缺失时保留运行时回退颜色。
+- 人工截图暴露 UI Material 的 Slate Vertex Color RGB 在该绘制路径中实际读成黑色；已改为每个 Echo/调色板项创建独立动态材质实例并写入显式 `TrailColor` 向量参数，Slate Tint 只保留透明度。材质脚本复跑 `status=preserved` 且自检到 `TrailColor`，随后 Development Editor 构建、`ReEcho.UI.Minimap` 两项测试及 `ReEcho.UI.CombatHud.Formatting` 均通过。
 
 ### 剩余风险
 

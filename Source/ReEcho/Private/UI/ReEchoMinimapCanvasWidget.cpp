@@ -30,7 +30,7 @@ void SReEchoMinimapCanvas::Construct(const FArguments& InArgs)
 	SetVisibility(EVisibility::HitTestInvisible);
 }
 
-void SReEchoMinimapCanvas::SetInkTrailSettings(UMaterialInterface* InMaterial,
+void SReEchoMinimapCanvas::SetInkTrailSettings(const TArray<UMaterialInterface*>& InMaterials,
                                                const float InStampSizePx,
                                                const float InStampSpacingPx,
                                                const float InAngleJitterDegrees,
@@ -38,7 +38,11 @@ void SReEchoMinimapCanvas::SetInkTrailSettings(UMaterialInterface* InMaterial,
                                                const TArray<FLinearColor>& InColors,
                                                const int32 InMaxStampsPerEcho)
 {
-	InkTrailMaterial = InMaterial;
+	InkTrailMaterials.Reset(InMaterials.Num());
+	for (UMaterialInterface* Material : InMaterials)
+	{
+		InkTrailMaterials.Add(Material);
+	}
 	InkTrailStampSizePx = FMath::Clamp(InStampSizePx, 1.0f, 24.0f);
 	InkTrailStampSpacingPx = FMath::Clamp(InStampSpacingPx, 0.25f, 12.0f);
 	InkTrailAngleJitterDegrees = FMath::Clamp(InAngleJitterDegrees, 0.0f, 180.0f);
@@ -191,7 +195,9 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 			}
 			if (Points.Num() >= 2)
 			{
-				if (UMaterialInterface* Material = InkTrailMaterial.Get())
+				UMaterialInterface* Material =
+				    InkTrailMaterials.IsValidIndex(EchoIndex) ? InkTrailMaterials[EchoIndex].Get() : nullptr;
+				if (Material)
 				{
 					FSlateBrush InkBrush;
 					InkBrush.SetResourceObject(Material);
@@ -207,8 +213,8 @@ int32 SReEchoMinimapCanvas::OnPaint(const FPaintArgs& Args,
 						const FVector2f DrawSize(InkTrailStampSizePx, InkTrailStampSizePx);
 						const FVector2f DrawPosition(static_cast<float>(Stamp.Position.X - InkTrailStampSizePx * 0.5f),
 						                             static_cast<float>(Stamp.Position.Y - InkTrailStampSizePx * 0.5f));
-						FLinearColor StampColor = TrailColor;
-						StampColor.A *= Stamp.Opacity;
+						FLinearColor StampColor = FLinearColor::White;
+						StampColor.A = TrailColor.A * Stamp.Opacity;
 						FSlateDrawElement::MakeRotatedBox(
 						    OutDrawElements,
 						    LayerId + 2,
@@ -260,48 +266,69 @@ UReEchoMinimapCanvasWidget::UReEchoMinimapCanvasWidget(const FObjectInitializer&
 
 TSharedRef<SWidget> UReEchoMinimapCanvasWidget::RebuildWidget()
 {
-	RuntimeInkTrailMaterial = InkTrailMaterial ? UMaterialInstanceDynamic::Create(InkTrailMaterial, this) : nullptr;
-	if (RuntimeInkTrailMaterial)
-	{
-		RuntimeInkTrailMaterial->SetScalarParameterValue(TEXT("GrainStrength"),
-		                                                 FMath::Clamp(InkTrailGrainStrength, 0.0f, 1.0f));
-	}
+	RefreshInkTrailMaterials();
 	Canvas = SNew(SReEchoMinimapCanvas);
-	Canvas->SetInkTrailSettings(RuntimeInkTrailMaterial,
-	                            InkTrailStampSizePx,
-	                            InkTrailStampSpacingPx,
-	                            InkTrailAngleJitterDegrees,
-	                            InkTrailOpacityJitter,
-	                            InkTrailColors,
-	                            MaxInkTrailStampsPerEcho);
+	ApplyInkTrailSettings();
 	return Canvas.ToSharedRef();
 }
 
 void UReEchoMinimapCanvasWidget::SynchronizeProperties()
 {
 	Super::SynchronizeProperties();
-	if (RuntimeInkTrailMaterial)
+	RefreshInkTrailMaterials();
+	ApplyInkTrailSettings();
+}
+
+void UReEchoMinimapCanvasWidget::RefreshInkTrailMaterials()
+{
+	if (!InkTrailMaterial)
 	{
-		RuntimeInkTrailMaterial->SetScalarParameterValue(TEXT("GrainStrength"),
-		                                                 FMath::Clamp(InkTrailGrainStrength, 0.0f, 1.0f));
+		RuntimeInkTrailMaterials.Reset();
+		return;
 	}
-	if (Canvas.IsValid())
+
+	RuntimeInkTrailMaterials.SetNum(InkTrailColors.Num());
+	for (int32 ColorIndex = 0; ColorIndex < InkTrailColors.Num(); ++ColorIndex)
 	{
-		Canvas->SetInkTrailSettings(RuntimeInkTrailMaterial,
-		                            InkTrailStampSizePx,
-		                            InkTrailStampSpacingPx,
-		                            InkTrailAngleJitterDegrees,
-		                            InkTrailOpacityJitter,
-		                            InkTrailColors,
-		                            MaxInkTrailStampsPerEcho);
+		TObjectPtr<UMaterialInstanceDynamic>& Material = RuntimeInkTrailMaterials[ColorIndex];
+		if (!Material)
+		{
+			Material = UMaterialInstanceDynamic::Create(InkTrailMaterial, this);
+		}
+		if (Material)
+		{
+			Material->SetScalarParameterValue(TEXT("GrainStrength"), FMath::Clamp(InkTrailGrainStrength, 0.0f, 1.0f));
+			Material->SetVectorParameterValue(TEXT("TrailColor"), InkTrailColors[ColorIndex]);
+		}
 	}
+}
+
+void UReEchoMinimapCanvasWidget::ApplyInkTrailSettings()
+{
+	if (!Canvas.IsValid())
+	{
+		return;
+	}
+	TArray<UMaterialInterface*> Materials;
+	Materials.Reserve(RuntimeInkTrailMaterials.Num());
+	for (const TObjectPtr<UMaterialInstanceDynamic>& Material : RuntimeInkTrailMaterials)
+	{
+		Materials.Add(Material.Get());
+	}
+	Canvas->SetInkTrailSettings(Materials,
+	                            InkTrailStampSizePx,
+	                            InkTrailStampSpacingPx,
+	                            InkTrailAngleJitterDegrees,
+	                            InkTrailOpacityJitter,
+	                            InkTrailColors,
+	                            MaxInkTrailStampsPerEcho);
 }
 
 void UReEchoMinimapCanvasWidget::ReleaseSlateResources(bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
 	Canvas.Reset();
-	RuntimeInkTrailMaterial = nullptr;
+	RuntimeInkTrailMaterials.Reset();
 }
 
 void UReEchoMinimapCanvasWidget::SetView(const FReEchoMinimapView& InView)

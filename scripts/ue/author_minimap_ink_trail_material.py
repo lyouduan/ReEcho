@@ -67,6 +67,9 @@ if not asset_exists:
     grain_lerp = expression(material, unreal.MaterialExpressionLinearInterpolate, -430, 100)
     tip_grain = expression(material, unreal.MaterialExpressionMultiply, -180, -40)
     vertex_color = expression(material, unreal.MaterialExpressionVertexColor, -180, 220)
+    trail_color = expression(material, unreal.MaterialExpressionVectorParameter, 80, 260)
+    trail_color.set_editor_property("parameter_name", "TrailColor")
+    trail_color.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
     final_opacity = expression(material, unreal.MaterialExpressionMultiply, 80, 20)
 
     unreal.MaterialEditingLibrary.connect_material_expressions(one, "", grain_lerp, "A")
@@ -79,11 +82,30 @@ if not asset_exists:
     unreal.MaterialEditingLibrary.connect_material_expressions(tip_grain, "", final_opacity, "A")
     unreal.MaterialEditingLibrary.connect_material_expressions(vertex_color, "A", final_opacity, "B")
     unreal.MaterialEditingLibrary.connect_material_property(
-        vertex_color, "RGB", unreal.MaterialProperty.MP_EMISSIVE_COLOR
+        trail_color, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR
     )
     unreal.MaterialEditingLibrary.connect_material_property(
         final_opacity, "", unreal.MaterialProperty.MP_OPACITY
     )
+
+trail_color = next(
+    (
+        node
+        for node in unreal.MaterialEditingLibrary.get_material_expressions(material)
+        if isinstance(node, unreal.MaterialExpressionVectorParameter)
+        and str(node.get_editor_property("parameter_name")) == "TrailColor"
+    ),
+    None,
+)
+if trail_color is None:
+    trail_color = expression(material, unreal.MaterialExpressionVectorParameter, 80, 260)
+    trail_color.set_editor_property("parameter_name", "TrailColor")
+    trail_color.set_editor_property(
+        "default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0)
+    )
+unreal.MaterialEditingLibrary.connect_material_property(
+    trail_color, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR
+)
 
 compile_errors = unreal.MaterialEditingLibrary.recompile_material(material)
 if compile_errors:
@@ -102,10 +124,16 @@ scalar_parameters = {
     str(name)
     for name in unreal.MaterialEditingLibrary.get_scalar_parameter_names(material)
 }
+vector_parameters = {
+    str(name)
+    for name in unreal.MaterialEditingLibrary.get_vector_parameter_names(material)
+}
 if not {"BrushTipTexture", "GrainTexture"}.issubset(texture_parameters):
     fail(f"Missing texture parameters: {sorted(texture_parameters)}")
 if "GrainStrength" not in scalar_parameters:
     fail(f"Missing GrainStrength: {sorted(scalar_parameters)}")
+if "TrailColor" not in vector_parameters:
+    fail(f"Missing TrailColor: {sorted(vector_parameters)}")
 unreal.log(
     f"[MinimapInkTrailAuthor] PASS {MATERIAL_PATH} "
     f"status={'preserved' if asset_exists else 'created'}"

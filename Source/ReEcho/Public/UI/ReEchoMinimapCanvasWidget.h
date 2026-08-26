@@ -51,7 +51,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	void SetInkTrailSettings(UMaterialInterface* InMaterial,
+	void SetInkTrailSettings(const TArray<UMaterialInterface*>& InMaterials,
 	                         float InStampSizePx,
 	                         float InStampSpacingPx,
 	                         float InAngleJitterDegrees,
@@ -93,7 +93,7 @@ public:
 
 private:
 	FReEchoMinimapView View;
-	TWeakObjectPtr<UMaterialInterface> InkTrailMaterial;
+	TArray<TWeakObjectPtr<UMaterialInterface>> InkTrailMaterials;
 	float InkTrailStampSizePx = 8.0f;
 	float InkTrailStampSpacingPx = 1.5f;
 	float InkTrailAngleJitterDegrees = 18.0f;
@@ -143,6 +143,9 @@ protected:
 	TSharedPtr<SReEchoMinimapCanvas> Canvas;
 
 private:
+	void RefreshInkTrailMaterials();
+	void ApplyInkTrailSettings();
+
 	UPROPERTY(EditAnywhere,
 	          BlueprintReadWrite,
 	          Category = "Minimap|Ink Trail",
@@ -191,5 +194,5 @@ private:
 	TObjectPtr<UMaterialInterface> InkTrailMaterial;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> RuntimeInkTrailMaterial;
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> RuntimeInkTrailMaterials;
 };
