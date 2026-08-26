@@ -58,8 +58,7 @@ void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
 		return;
 	}
 
-	UClass* DamageNumberClass =
-	    LoadClass<AReEchoDamageNumberActor>(nullptr, GetDamageNumberBlueprintClassPath());
+	UClass* DamageNumberClass = LoadClass<AReEchoDamageNumberActor>(nullptr, GetDamageNumberBlueprintClassPath());
 	if (!DamageNumberClass)
 	{
 		DamageNumberClass = StaticClass();
