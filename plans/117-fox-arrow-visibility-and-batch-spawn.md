@@ -6,8 +6,8 @@
 - Executor 负责人：独立 Executor。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Codex`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`。
+- 人工验收：`Passed`。
 - 本地规划 / 实现基线：启动批准为 `origin/main@591a248328528072ff7614689bdeb2b0da612090`；最终发布组合基于 `origin/main@9c28276764735b4e38aff04f2932664866a223e3`，组合候选为 `289a4cc8fe5b4f09ae5714f2c0c89e0cf23b4a3f`。
 - 本地实现方式：一任务一 worktree；Planner 与 Executor 分离。
 - 依赖 / 阻塞：依赖 Plan113 已发布的 Fox Windup/Active/Recovery 事件和 `NS_Fox_Rush_arrow` Fixed Bounds 修复。
@@ -43,9 +43,9 @@
 
 ## 锁定验收
 
-- [ ] Windup 事件后 Direction 组件有效、激活且具有可渲染粒子/材质证据；PIE 中箭头可见并指向实际冲刺方向。
-- [ ] Charging 仍显示；进入 Committed 后 Direction 清理、Trail 显示；取消/死亡/清场无残留。
-- [ ] `GMSpawnFox 5 350` 生成 5 只互不完全重叠的生产 `M_FOX`；无参数/旧单参数调用保持安全默认，非法数量被钳制并输出结果。
+- [x] Windup 事件后 Direction 组件有效、激活且具有可渲染粒子/材质证据；PIE 中箭头可见并指向实际冲刺方向。
+- [x] Charging 仍显示；进入 Committed 后 Direction 清理、Trail 显示；取消/死亡/清场无残留。
+- [x] `GMSpawnFox 5 350` 生成 5 只互不完全重叠的生产 `M_FOX`；无参数/旧单参数调用保持安全默认，非法数量被钳制并输出结果。
 - [x] FullRebuild、相关自动化、项目校验、prebuilt check、资产只读审计和 `git diff --check` 通过。
 - [x] 未提交精选预构建包之外的 UE 生成物或机器路径。
 
@@ -119,7 +119,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：PIE 执行 `GMSpawnFox 5 350`，确认 5 只生产狐狸互不完全重叠；观察每只 Windup/Charging 箭头可见且指向实际冲刺方向，Committed 后箭头清理并显示连续 Trail，取消/死亡/清场无残留。
+- `Passed`：用户在 PIE 中逐轮确认狐狸箭头可见、以狐狸为中心、朝向实际攻击方向，并确认左右方向的半量 pivot 修正后表现正常；多只生产狐狸与冲刺过程在同轮画面中完成观察，随后明确确认关闭 Plan 并授权推送远端。
 
 ### 架构文档审阅结果
 
