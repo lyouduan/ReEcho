@@ -223,7 +223,7 @@ private:
 	const FReEchoEnemyAbilityDefinition* FindAbility(FName AbilityId) const;
 	FVector ResolveFacingDirection() const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
-	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving) const;
+	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving, bool bStunned) const;
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);

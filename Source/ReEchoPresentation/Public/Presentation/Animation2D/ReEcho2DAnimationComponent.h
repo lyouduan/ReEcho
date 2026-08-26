@@ -45,8 +45,14 @@ public:
 	EReEcho2DAnimationActivationResult ActivateProfile(const FReEcho2DAnimationProfile& InProfile);
 	bool SetAnimationState(EReEcho2DAnimationState NewState, bool bShouldLoop = true, bool bRestart = false);
 	void DeactivateAnimation();
+	/** Pause on the current frame without turning a one-shot pause into playback completion. */
+	void SetPlaybackPaused(bool bPaused);
 	void SetFacingSign(float InFacingSign);
 	bool IsAnimationActive();
+	bool IsPlaybackPaused() const
+	{
+		return bPlaybackPaused;
+	}
 
 	const FReEcho2DAnimationClip& GetActiveClip() const
 	{
@@ -83,4 +89,5 @@ private:
 	EReEcho2DAnimationState ActiveState = EReEcho2DAnimationState::Default;
 	float FacingSign = 1.0f;
 	bool bAnimationActive = false;
+	bool bPlaybackPaused = false;
 };
