@@ -287,6 +287,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 {
 	BindComposedComponents();
 	bDeathSequenceStarted = false;
+	bWasStunnedLastTick = false;
 	SetLifeSpan(0.0f);
 	if (EnemyRoster)
 	{
@@ -766,6 +767,8 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	const bool bStunned =
 	    IsAlive() && (WorldTime < CardStunnedUntilWorldTime || (Combatant && Combatant->IsActionDisabled(WorldTime)));
+	EnemyPresentation->SetStunPaused(bStunned);
+	UpdateStunState(bStunned);
 	if (IsAlive() && !bStunned)
 	{
 		FReEchoEnemySenseSnapshot Sense;
@@ -1071,6 +1074,15 @@ void AReEchoEnemyActor::SetCardMovementMultiplier(const float Multiplier)
 	CardMovementMultiplier = FMath::Clamp(Multiplier, 0.0f, 1.0f);
 }
 
+void AReEchoEnemyActor::UpdateStunState(const bool bStunned)
+{
+	if (bStunned && !bWasStunnedLastTick && EnemyLogic)
+	{
+		EnemyLogic->CancelActiveActionsForStun();
+	}
+	bWasStunnedLastTick = bStunned;
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense,
                                                                     const float DeltaSeconds)
@@ -1081,6 +1093,11 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEch
 void AReEchoEnemyActor::AdvanceEnemyProjectilesForTests(const float DeltaSeconds)
 {
 	AdvanceEnemyProjectiles(DeltaSeconds);
+}
+
+void AReEchoEnemyActor::UpdateStunStateForTests(const bool bStunned)
+{
+	UpdateStunState(bStunned);
 }
 #endif
 

@@ -136,6 +136,116 @@ bool FReEchoEnemyHostCompositionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostStunRetargetTest,
+	                             "ReEcho.Enemies.Host.StunRetarget",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads for stun retarget"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+
+	FReEchoEnemyDefinition FoxDefinition;
+	FString CompileError;
+	if (!TestTrue(TEXT("Fox definition compiles for stun retarget"),
+	              ReEchoEnemyDefinitionCompiler::Compile(
+	                  *LoadResult.Snapshot, TEXT("M_FOX"), FoxDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+
+	FReEchoEnemyHostWorldFixture Fixture;
+	AReEchoEnemyActor* Fox = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	AReEchoPlayerPawn* OldTarget =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(500.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoPlayerPawn* CurrentTarget =
+	    Fixture.World->SpawnActor<AReEchoPlayerPawn>(FVector(0.0f, 500.0f, 0.0f), FRotator::ZeroRotator);
+	if (!TestNotNull(TEXT("Fox host spawns for stun retarget"), Fox) ||
+	    !TestNotNull(TEXT("Old target spawns for stun retarget"), OldTarget) ||
+	    !TestNotNull(TEXT("Current target spawns for stun retarget"), CurrentTarget))
+	{
+		return false;
+	}
+	if (!Fox->HasActorBegunPlay())
+	{
+		Fox->DispatchBeginPlay();
+	}
+	Fox->SetEnemyId(TEXT("M_FOX"));
+	if (!TestTrue(TEXT("Fox accepts the production definition for stun retarget"),
+	              Fox->ConfigureFromDefinition(FoxDefinition, 30)))
+	{
+		return false;
+	}
+
+	auto MakeSense = [Fox](AActor* Target)
+	{
+		FReEchoEnemySenseSnapshot Sense;
+		Sense.Target = Target;
+		Sense.SelfLocation = Fox->GetActorLocation();
+		Sense.TargetLocation = Target->GetActorLocation();
+		Sense.bTargetExists = true;
+		Sense.bTargetAlive = true;
+		Sense.bSpecialActionPermitted = true;
+		return Sense;
+	};
+
+	Fox->AdvanceBehaviorForTests(MakeSense(OldTarget), 0.01f);
+	FReEchoEnemyLogicSnapshot BeforeStun = Fox->GetEnemyLogicComponent()->GetSnapshot();
+	TestEqual(TEXT("Fox begins windup against the old target"),
+	          BeforeStun.SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Windup);
+	TestTrue(TEXT("Windup stores the old target location"),
+	         BeforeStun.SpecialLockedTargetLocation.Equals(OldTarget->GetActorLocation(), KINDA_SMALL_NUMBER));
+	BeforeStun.AttackCooldownRemainingSeconds = 0.75f;
+	Fox->GetEnemyLogicComponent()->RestoreSnapshot(BeforeStun);
+	Fox->GetEnemyEventsComponent()->ClearPublishedSpecialActionEventsForTests();
+
+	Fox->UpdateStunStateForTests(true);
+	const FReEchoEnemyLogicSnapshot DuringStun = Fox->GetEnemyLogicComponent()->GetSnapshot();
+	TestEqual(TEXT("Entering stun cancels the target-locked action"),
+	          DuringStun.SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::None);
+	TestTrue(TEXT("Entering stun clears the old target location"),
+	         DuringStun.SpecialLockedTargetLocation.IsNearlyZero());
+	TestEqual(TEXT("Entering stun preserves the existing cooldown"),
+	          DuringStun.AttackCooldownRemainingSeconds,
+	          0.75f);
+	const TArray<FReEchoEnemySpecialActionEvent>& CancellationEvents =
+	    Fox->GetEnemyEventsComponent()->GetPublishedSpecialActionEventsForTests();
+	TestEqual(TEXT("Entering stun publishes one cancellation"), CancellationEvents.Num(), 1);
+	if (CancellationEvents.Num() == 1)
+	{
+		TestEqual(TEXT("The terminal event is an explicit cancellation"),
+		          CancellationEvents[0].Type,
+		          EReEchoEnemySpecialActionEventType::ActionCancelled);
+	}
+	Fox->UpdateStunStateForTests(true);
+	TestEqual(TEXT("Extending the same stun does not cancel twice"),
+	          Fox->GetEnemyEventsComponent()->GetPublishedSpecialActionEventsForTests().Num(),
+	          1);
+
+	Fox->UpdateStunStateForTests(false);
+	const FReEchoEnemyActionIntent FirstRecoveredStep =
+	    Fox->AdvanceBehaviorForTests(MakeSense(CurrentTarget), 0.01f);
+	TestTrue(TEXT("The first recovered step faces the current target"),
+	         FirstRecoveredStep.bHasFacing &&
+	             FirstRecoveredStep.FacingDirection.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
+	Fox->AdvanceBehaviorForTests(MakeSense(CurrentTarget), 0.75f);
+	const FReEchoEnemyLogicSnapshot Retargeted = Fox->GetEnemyLogicComponent()->GetSnapshot();
+	TestEqual(TEXT("Fox can begin a fresh action after its preserved cooldown"),
+	          Retargeted.SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Windup);
+	TestTrue(TEXT("The fresh action locks the current target instead of the old one"),
+	         Retargeted.SpecialLockedTargetLocation.Equals(CurrentTarget->GetActorLocation(), KINDA_SMALL_NUMBER));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostCrowdCollisionTest,
                                  "ReEcho.Enemies.Host.CrowdCollision",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

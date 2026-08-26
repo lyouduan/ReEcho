@@ -138,6 +138,24 @@ bool FReEcho2DAnimationStunPauseTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Clearing stun resumes playback from the preserved frame"),
 	         !Renderer->IsPlaybackPaused() && Renderer->IsPlaying() &&
 	             FMath::IsNearlyEqual(Renderer->GetPlaybackPosition(), PausedPosition));
+
+	TestTrue(TEXT("A second attack starts for cancellation ordering"),
+	         Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic));
+	Renderer->SetPlaybackPosition(PausedPosition, false);
+	Snapshot.bStunned = true;
+	EnemyPresentation->Advance(Snapshot, 0.25f);
+	FReEchoPresentationActionEvent CancelledAction;
+	CancelledAction.Phase = EReEchoPresentationActionPhase::Cancelled;
+	EnemyPresentation->ConsumePresentationActionForTests(CancelledAction);
+	TestTrue(TEXT("Gameplay cancellation does not replace the frozen stun frame"),
+	         Renderer->IsPlaybackPaused() &&
+	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Attack_Basic &&
+	             FMath::IsNearlyEqual(Renderer->GetPlaybackPosition(), PausedPosition));
+	Snapshot.bStunned = false;
+	EnemyPresentation->Advance(Snapshot, 0.25f);
+	TestTrue(TEXT("Clearing stun applies the deferred cancellation before resuming presentation"),
+	         !Renderer->IsPlaybackPaused() && Renderer->IsPlaying() &&
+	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Move);
 	return true;
 }
 

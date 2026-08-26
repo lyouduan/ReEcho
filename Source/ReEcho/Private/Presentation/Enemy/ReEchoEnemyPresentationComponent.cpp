@@ -232,6 +232,12 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCom
 	}
 	bDeathVisualActive = true;
 	bHitVisualActive = false;
+	bStunPaused = false;
+	bCancelAttackWhenStunClears = false;
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetPlaybackPaused(false);
+	}
 	AttackVisualRemaining = 0.0f;
 	ResetTransientRoot();
 	if (EffectsRoot)
@@ -248,6 +254,23 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCom
 		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 	}
 	return bStarted;
+}
+
+void UReEchoEnemyPresentationComponent::SetStunPaused(const bool bPaused)
+{
+	bStunPaused = bPaused;
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetPlaybackPaused(bPaused);
+	}
+	if (!bPaused && bCancelAttackWhenStunClears)
+	{
+		bCancelAttackWhenStunClears = false;
+		if (PresentationController)
+		{
+			PresentationController->CancelAttackAction();
+		}
+	}
 }
 
 void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSnapshot& Snapshot,
@@ -267,10 +290,8 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 	UpdateCameraFacing(Snapshot);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
-		if (SequenceAnimation)
-		{
-			SequenceAnimation->SetPlaybackPaused(false);
-		}
+		bCancelAttackWhenStunClears = false;
+		SetStunPaused(false);
 		RefreshFootpointAlignment();
 		if (VisualEffectRoot)
 		{
@@ -279,10 +300,7 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		RefreshGroundShadowFromFlipbook();
 		return;
 	}
-	if (SequenceAnimation)
-	{
-		SequenceAnimation->SetPlaybackPaused(Snapshot.bStunned);
-	}
+	SetStunPaused(Snapshot.bStunned);
 	if (Snapshot.bStunned)
 	{
 		return;
@@ -502,6 +520,10 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 		BossWeaponSwingRemaining = 0.0f;
 		BossWeaponRoot->SetRelativeRotation(BossWeaponRestRotation);
 	}
+	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && bStunPaused)
+	{
+		bCancelAttackWhenStunClears = true;
+	}
 	if (Intent.Type != EReEchoBossIntentType::TelegraphStarted &&
 	    Intent.Type != EReEchoBossIntentType::AttackWindowStarted)
 	{
@@ -528,7 +550,14 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 	if (Event.Phase == EReEchoPresentationActionPhase::Ended ||
 	    Event.Phase == EReEchoPresentationActionPhase::Cancelled)
 	{
-		PresentationController->CancelAttackAction();
+		if (bStunPaused)
+		{
+			bCancelAttackWhenStunClears = true;
+		}
+		else
+		{
+			PresentationController->CancelAttackAction();
+		}
 		return;
 	}
 	PresentationController->PlayAction(Event.Phase == EReEchoPresentationActionPhase::Windup
@@ -537,6 +566,14 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 	                                   true,
 	                                   Event.Key.Sequence);
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(
+    const FReEchoPresentationActionEvent& Event)
+{
+	HandlePresentationAction(Event);
+}
+#endif
 
 void UReEchoEnemyPresentationComponent::HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event)
 {

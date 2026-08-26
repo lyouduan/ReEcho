@@ -188,6 +188,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
 	FReEchoEnemyActionIntent AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void AdvanceEnemyProjectilesForTests(float DeltaSeconds);
+	void UpdateStunStateForTests(bool bStunned);
 #endif
 
 protected:
@@ -224,6 +225,7 @@ private:
 	FVector ResolveFacingDirection() const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
 	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving, bool bStunned) const;
+	void UpdateStunState(bool bStunned);
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
@@ -336,6 +338,7 @@ private:
 	bool bAudioSpawnPosted = false;
 	bool bEncounterSimulationSuspended = false;
 	bool bDeathSequenceStarted = false;
+	bool bWasStunnedLastTick = false;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;
