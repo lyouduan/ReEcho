@@ -14,8 +14,7 @@
 #include "Weapons/ReEchoWeaponActor.h"
 
 // Plan38 确定性回归：held 普攻在临时武器动作锁（有序攻击步骤锁）期间不得终止。
-// 长剑攻击重复间隔 0.28s < 有序步骤锁 0.8s；原实现在第一发被临时拒后结束 GAS 循环，
-// 导致按住只命中第一下。修复后循环在锁解除后重试，连续命中。
+// 长剑攻击重复间隔和有序步骤锁都来自生产表；循环在本次攻击完成后继续提交下一击。
 //
 // 覆盖真实 held-input -> GAS -> weapon -> 第二发命中的接缝（无 PIE）。
 // 自动与手动入口都汇聚到同一个 UReEchoBasicAttackAbility 循环，故分别验证。
@@ -99,14 +98,13 @@ void RunHeldBasicAttackRepeatScenario(FAutomationTestBase& Test, const bool bMan
 	    RuntimeBasicSpec ? Cast<UReEchoBasicAttackAbility>(RuntimeBasicSpec->GetPrimaryInstance()) : nullptr;
 	Test.TestNotNull(TEXT("Instanced held basic attack ability"), RuntimeBasicAbility);
 
-	// 首次攻击已执行：此时应已处于临时忙（动作锁 0.8s > 攻击间隔 0.28s），
-	// 该失配状态正是原先会杀死循环的场景。
+	// 首次攻击已执行；动作锁与攻击间隔都必须采用最新武器表的一秒配置。
 	const float Interval = Weapon->GetAttackInterval(Pawn->FindComponentByClass<UReEchoCombatantComponent>());
-	Test.TestTrue(FString::Printf(TEXT("[%s] Temporary-busy scenario present (action lock %.3f > interval %.3f)"),
+	Test.TestTrue(FString::Printf(TEXT("[%s] Authored action lock %.3f matches interval %.3f"),
 	                              ModeName,
 	                              Weapon->GetStepLockRemaining(),
 	                              Interval),
-	              Weapon->GetStepLockRemaining() > Interval);
+	              FMath::IsNearlyEqual(Weapon->GetStepLockRemaining(), Interval, 0.01f));
 
 	// 推进时间：小步长 tick，使武器步骤锁逐步递减、GAS 重复计时器按节奏触发。
 	const float TotalTime = 2.0f;

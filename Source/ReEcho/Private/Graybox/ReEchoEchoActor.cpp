@@ -420,6 +420,8 @@ void AReEchoEchoActor::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
 	Run->ModifyCardOutgoingHit(Intent,
 	                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
 	                           DistanceCm,
+	                           DistanceCm,
+	                           Player != nullptr,
 	                           TargetCombatant && TargetCombatant->GetElementState().Attached != EReEchoElement::None);
 }
 
@@ -431,11 +433,61 @@ void AReEchoEchoActor::NotifyReactionResolved(const FName ReactionId) const
 	}
 }
 
-void AReEchoEchoActor::NotifyKillResolved() const
+float AReEchoEchoActor::GetReactionDamageMultiplier(const FName ReactionId) const
+{
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	return Run ? Run->GetCardReactionDamageMultiplier(ReactionId) : 1.0f;
+}
+
+bool AReEchoEchoActor::HasInfiniteStackingBurn() const
+{
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	return Run && Run->GetCardRules().bInfiniteStackingBurn;
+}
+
+void AReEchoEchoActor::NotifyKillResolved(const FName TargetDefinitionId) const
 {
 	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
 	{
-		Run->NotifyCardKill(true);
+		Run->NotifyCardKill(true, TargetDefinitionId);
+	}
+}
+
+void AReEchoEchoActor::NotifyHitResolved(const FReEchoHitResolved& Result) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardDamageResolved(Result.RawDamage, Result.AppliedDamage, true);
+		if (Healing > 0.0f)
+		{
+			if (AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)))
+			{
+				if (Player->Combatant)
+				{
+					Player->Combatant->ApplyHealing(Healing);
+				}
+			}
+		}
+	}
+}
+
+void AReEchoEchoActor::NotifyNegativeStatusApplied(const FName StatusId) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardNegativeStatusApplied(StatusId, true);
+		if (Healing > 0.0f)
+		{
+			if (AReEchoPlayerPawn* Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)))
+			{
+				if (Player->Combatant)
+				{
+					Player->Combatant->ApplyHealing(Healing);
+				}
+			}
+		}
 	}
 }
 

@@ -3,6 +3,7 @@
 #include "AbilitySystemInterface.h"
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoAttackHost.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatTarget.h"
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
@@ -94,7 +95,11 @@ public:
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
 	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const override;
 	virtual void NotifyReactionResolved(FName ReactionId) const override;
-	virtual void NotifyKillResolved() const override;
+	virtual float GetReactionDamageMultiplier(FName ReactionId) const override;
+	virtual bool HasInfiniteStackingBurn() const override;
+	virtual void NotifyKillResolved(FName TargetDefinitionId) const override;
+	virtual void NotifyHitResolved(const FReEchoHitResolved& Result) const override;
+	virtual void NotifyNegativeStatusApplied(FName StatusId) const override;
 	/** Development-only override applied to every outgoing player hit; None restores weapon-authored elements. */
 	void SetDebugOutgoingElementOverride(EReEchoElement Element);
 	EReEchoElement GetDebugOutgoingElementOverride() const;
@@ -319,6 +324,10 @@ private:
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
 	UFUNCTION()
 	void HandleCharacterAbilityHealthChanged(float CurrentHealth, float MaximumHealth);
+	UFUNCTION()
+	void HandlePlayerHurtCollisionIgnore(const FReEchoDamageEvent& Event);
+	void AdvancePawnCollisionIgnore(float DeltaSeconds);
+	void RestorePawnCollisionAfterHurt();
 
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;
@@ -349,6 +358,10 @@ private:
 	float AttackVisualDuration = 0.0f;
 	float AttackVisualStrength = 0.0f;
 	float HitVisualRemaining = 0.0f;
+	static constexpr float HurtCollisionIgnoreDurationSeconds = 1.0f;
+	float HurtCollisionIgnoreRemainingSeconds = 0.0f;
+	TEnumAsByte<ECollisionResponse> PawnCollisionResponseBeforeHurt = ECR_Block;
+	bool bIgnoringPawnCollisionAfterHurt = false;
 	float VisualFacingSign = 1.0f;
 	FVector AttackAimDirection = FVector::ForwardVector;
 	int64 NextPresentationAttackInstanceId = 1;

@@ -222,7 +222,7 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Conduct pure result leaves chain damage to world execution"), Result.Damage, 0.0f);
 	TestEqual(
 	    TEXT("Conduct uses chain element attack formula"), Result.FormulaId, FName(TEXT("Element.ChainElementAttack")));
-	TestEqual(TEXT("Conduct radius comes from CSV"), Result.RadiusCm, 100.0f);
+	TestEqual(TEXT("Conduct radius comes from CSV"), Result.RadiusCm, 200.0f);
 	TestTrue(TEXT("Conduct grants elemental immunity"), State.ImmunityUntil > 0.0f);
 
 	State = FReEchoElementState{};
@@ -521,14 +521,13 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 			const FReEchoElementReactionResolvedEvent& Event = Events->GetLastElementReactionEventForTests();
 			TestEqual(TEXT("Resolved event keeps attack identity"), Event.Attack.Sequence, int64(7301));
 			TestEqual(TEXT("Resolved event keeps reaction id"), Event.ReactionId, FName(TEXT("Y_ER_F_G")));
-			TestEqual(TEXT("Resolved event keeps behavior id"),
-			          Event.ReactionBehaviorId,
-			          FName(TEXT("Reaction.Burn")));
+			TestEqual(TEXT("Resolved event keeps behavior id"), Event.ReactionBehaviorId, FName(TEXT("Reaction.Burn")));
 			TestEqual(TEXT("Resolved event keeps settled radius"), Event.RadiusCm, 0.0f);
 			TestEqual(TEXT("Resolved event keeps previous attachment"), Event.PreviousElement, EReEchoElement::Grass);
 			TestEqual(TEXT("Resolved event keeps incoming element"), Event.IncomingElement, EReEchoElement::Flame);
 			TestEqual(TEXT("Resolved event keeps resulting attachment"), Event.ResultingElement, EReEchoElement::None);
-			TestEqual(TEXT("Resolved event contains the authoritative primary target once"), Event.AffectedTargets.Num(), 1);
+			TestEqual(
+			    TEXT("Resolved event contains the authoritative primary target once"), Event.AffectedTargets.Num(), 1);
 			TestTrue(TEXT("Resolved event primary target matches gameplay"), Event.AffectedTargets[0].Get() == Target);
 		}
 		TestEqual(TEXT("Burn has no immediate damage"), Result.ImmediateDamageApplied, 0.0f);
@@ -542,6 +541,12 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Burn does not tick before first one-second boundary"), EnemyHealth(Target), 1000.0f);
 		Fixture.Advance(0.01f);
 		TestEqual(TEXT("Burn first tick applies GAS damage"), EnemyHealth(Target), 990.0f);
+		if (Events)
+		{
+			TestEqual(TEXT("Burn tick damage keeps reaction provenance for presentation"),
+			          Events->GetLastHurtEventForTests().ReactionBehaviorId,
+			          FName(TEXT("Reaction.Burn")));
+		}
 		Fixture.Advance(1.0f);
 		TestEqual(TEXT("Burn second tick applies GAS damage"), EnemyHealth(Target), 980.0f);
 		Fixture.Advance(1.0f);
@@ -597,10 +602,14 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		FReEchoElementWorldFixture Fixture;
 		AReEchoEnemyActor* Target = Fixture.SpawnEnemy(FVector::ZeroVector, 2);
 		Target->EditElementState().Attached = EReEchoElement::Water;
+		UReEchoCombatEventsComponent* Events = Target->FindComponentByClass<UReEchoCombatEventsComponent>();
 		const FReEchoElementExecutionResult Result = ReEchoElementReaction::ApplyHitToWorld(
 		    *Target, EReEchoElement::Flame, 999.0f, Fixture.MakeContext(10.0f, 0.25f));
 		TestEqual(TEXT("Vaporize uses elemental attack squared damage"), Result.ImmediateDamageApplied, 25.0f);
 		TestEqual(TEXT("Vaporize damage is applied through GAS health"), EnemyHealth(Target), 975.0f);
+		TestEqual(TEXT("Vaporize damage keeps reaction provenance for presentation"),
+		          Events ? Events->GetLastHurtEventForTests().ReactionBehaviorId : NAME_None,
+		          FName(TEXT("Reaction.Vaporize")));
 	}
 
 	{
@@ -661,11 +670,14 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		TestNotNull(TEXT("Conduct primary owns Combat events"), Events);
 		if (Events)
 		{
+			TestEqual(TEXT("Conduct damage keeps reaction provenance for presentation"),
+			          Events->GetLastHurtEventForTests().ReactionBehaviorId,
+			          FName(TEXT("Reaction.Conduct")));
 			const FReEchoElementReactionResolvedEvent& Event = Events->GetLastElementReactionEventForTests();
 			TestEqual(TEXT("Conduct publishes exactly one resolved event"),
 			          Events->GetElementReactionPublishCountForTests(),
 			          1);
-			TestEqual(TEXT("Conduct event retains configured radius"), Event.RadiusCm, 100.0f);
+			TestEqual(TEXT("Conduct event retains configured radius"), Event.RadiusCm, 200.0f);
 			TestEqual(TEXT("Conduct event retains authoritative target count"), Event.AffectedTargets.Num(), 5);
 			TestEqual(TEXT("Conduct event retains one authoritative edge per discovered secondary target"),
 			          Event.ReactionLinks.Num(),
@@ -771,6 +783,10 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 		Result =
 		    ReEchoElementReaction::ApplyHitToWorld(*Target, EReEchoElement::Flame, 0.0f, Fixture.MakeContext(10.0f));
 		TestEqual(TEXT("Next damaging reaction gains +100 percent final damage"), Result.ImmediateDamageApplied, 50.0f);
+		UReEchoCombatEventsComponent* Events = Target->FindComponentByClass<UReEchoCombatEventsComponent>();
+		TestEqual(TEXT("Consumed enhancement overrides the damage-number reaction style"),
+		          Events ? Events->GetLastHurtEventForTests().ReactionBehaviorId : NAME_None,
+		          FName(TEXT("Reaction.Enhance")));
 		TestFalse(TEXT("Next reaction clears primed enhancement"), Target->GetElementState().bEnhancedNextReaction);
 		TestEqual(TEXT("Next reaction clears blocked attachment"),
 		          Target->GetElementState().BlockedAttachment,

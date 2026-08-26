@@ -712,6 +712,11 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	for (const FName BehaviorId : {
 	         FName(TEXT("Card.GrantTier")),
 	         FName(TEXT("Card.RandomStatTrade")),
+	         FName(TEXT("Card.RandomRateTrade")),
+	         FName(TEXT("Card.ResetRunes")),
+	         FName(TEXT("Card.FreeShopVisit")),
+	         FName(TEXT("Card.UnlimitedShopRefresh")),
+	         FName(TEXT("Card.CollectCores")),
 	         FName(TEXT("Card.TrackNextKills")),
 	         FName(TEXT("Card.TrackNextReactions")),
 	         FName(TEXT("Card.EchoElementAura")),
@@ -739,6 +744,24 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	         FName(TEXT("Card.ShardIncomingBarrier")),
 	         FName(TEXT("Card.ReactionDiversity")),
 	         FName(TEXT("Card.DoubleNonCoreSlots")),
+	         FName(TEXT("Card.NumericChallenge")),
+	         FName(TEXT("Card.OverkillHeal")),
+	         FName(TEXT("Card.SelfRace")),
+	         FName(TEXT("Card.NegativeStatusHeal")),
+	         FName(TEXT("Card.TargetKillCurse")),
+	         FName(TEXT("Card.RecordReaction")),
+	         FName(TEXT("Card.CurseBank")),
+	         FName(TEXT("Card.ConnectionLine")),
+	         FName(TEXT("Card.ProximityDamage")),
+	         FName(TEXT("Card.WeaponMaster")),
+	         FName(TEXT("Card.EchoTrinityHead")),
+	         FName(TEXT("Card.EchoTrinityBody")),
+	         FName(TEXT("Card.EchoTrinityLegs")),
+	         FName(TEXT("Card.InfiniteStackingBurn")),
+	         FName(TEXT("Card.VaporizeWaterSplash")),
+	         FName(TEXT("Card.ConductDamageGrowth")),
+	         FName(TEXT("Card.OverhealCapacity")),
+	         FName(TEXT("Card.AlternatingSources")),
 	     })
 	{
 		RegisterBehaviorId(BehaviorId);
@@ -747,6 +770,7 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	RegisterBehaviorId(TEXT("Status.Burn"));
 	RegisterBehaviorId(TEXT("Status.Stun"));
 	RegisterBehaviorId(TEXT("Status.Bleeding"));
+	RegisterBehaviorId(TEXT("Status.Cursed"));
 	RegisterBehaviorId(TEXT("Reaction.Burn"));
 	RegisterBehaviorId(TEXT("Reaction.Vaporize"));
 	RegisterBehaviorId(TEXT("Reaction.Growth"));
@@ -783,6 +807,7 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	         FName(TEXT("Part.MeteorOnGroupHit")),
 	         FName(TEXT("Part.ApplyBleedOnHitChance")),
 	         FName(TEXT("Part.AttackSpeedOnAttack")),
+	         FName(TEXT("Part.MoveSpeedOnAttack")),
 	     })
 	{
 		RegisterBehaviorId(BehaviorId);

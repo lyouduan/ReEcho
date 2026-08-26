@@ -78,7 +78,9 @@ enum class EReEchoEnemySpecialActionPhase : uint8
 {
 	None,
 	Windup,
-	Recovery
+	Recovery,
+	/** Appended to preserve the serialized numeric values of the pre-Plan113 phases. */
+	Active
 };
 
 UENUM(BlueprintType)
@@ -550,6 +552,10 @@ struct REECHOENEMIES_API FReEchoEnemyActionIntent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bCanDamageTarget = false;
 
+	/** True only for one authoritative Elite dash movement step. The Host performs the world sweep and collision. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bSpecialDashMovement = false;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSelfDestructAfterAttack = false;
 
@@ -650,6 +656,18 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector SpecialLockedDirection = FVector::ForwardVector;
+
+	/** Remaining authored dash distance. Decremented by emitted movement, never by presentation. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float SpecialDashRemainingDistanceCm = 0.0f;
+
+	/** One identity survives every Active step and save/restore boundary of the current dash. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoAttackIdentity SpecialAttack;
+
+	/** Consumed on the first authoritative path contact, even when Combat resolves zero applied damage. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bSpecialDamageConsumed = false;
 
 	/** Index of the next enabled non-Boss special ability in deterministic SequenceOrder. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)

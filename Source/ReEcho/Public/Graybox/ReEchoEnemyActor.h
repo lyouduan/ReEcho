@@ -75,6 +75,11 @@ public:
 		return EnemyId;
 	}
 
+	virtual FName GetCombatTargetDefinitionId() const override
+	{
+		return EnemyId;
+	}
+
 	/** Stable presentation identity from the active compiled enemy definition. */
 	FName GetPresentationId() const;
 
@@ -175,6 +180,8 @@ public:
 
 	/** Blink Slam preserves the Boss gameplay height while sharing the warning center in arena XY. */
 	static FVector ResolveBossLandingLocation(const FVector& LockedTargetLocation, float BossWorldZ);
+	/** Resolves immediate Boss geometry only; projectile abilities are evaluated by their per-ball swept paths. */
+	static bool IntersectsBossDamageShape(const struct FReEchoBossIntent& Intent, const FVector& TargetLocation);
 
 	/** Ends active rabbit volley balls intersecting the supplied melee sector and returns the number removed. */
 	int32
@@ -186,6 +193,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
 	FReEchoEnemyActionIntent AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense, float DeltaSeconds);
 	void AdvanceEnemyProjectilesForTests(float DeltaSeconds);
+	void UpdateStunStateForTests(bool bStunned);
 #endif
 
 protected:
@@ -205,6 +213,10 @@ private:
 	void ClearCrowdCollisionIgnores();
 	void ApplyBossIntent(const struct FReEchoBossIntent& Intent);
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
+	void ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent, AActor* Target, const FVector& HitLocation);
+	void DrawBossDamageRangeDebug(const struct FReEchoBossIntent& Intent) const;
+	void DrawBossProjectileDamageRangeDebug(const struct FReEchoEnemyProjectileRuntimeState& Projectile,
+	                                        const FVector& PreviousLocation) const;
 	void AdvanceEnemyProjectiles(float DeltaSeconds);
 	void PublishSpecialActionTransition(const FReEchoEnemyLogicSnapshot& PreviousSnapshot,
 	                                    const FReEchoEnemyActionIntent& Intent);
@@ -217,7 +229,8 @@ private:
 	const FReEchoEnemyAbilityDefinition* FindAbility(FName AbilityId) const;
 	FVector ResolveFacingDirection() const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
-	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving) const;
+	FReEchoEnemyPresentationSnapshot BuildPresentationSnapshot(bool bMoving, bool bStunned) const;
+	void UpdateStunState(bool bStunned);
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
@@ -335,6 +348,7 @@ private:
 	bool bAudioSpawnPosted = false;
 	bool bEncounterSimulationSuspended = false;
 	bool bDeathSequenceStarted = false;
+	bool bWasStunnedLastTick = false;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;

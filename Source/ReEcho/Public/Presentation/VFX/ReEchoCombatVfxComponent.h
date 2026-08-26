@@ -94,6 +94,13 @@ public:
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
 	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
 	static bool HasMeleePlayDirectionParameter(const UNiagaraSystem* System);
+#if WITH_DEV_AUTOMATION_TESTS
+	/** Exposes the live Fox windup arrow solely for runtime lifecycle and renderer automation. */
+	UNiagaraComponent* GetDirectionEffectForTests() const
+	{
+		return DirectionEffect;
+	}
+#endif
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
 	                              USceneComponent* InHurtVfxRoot,

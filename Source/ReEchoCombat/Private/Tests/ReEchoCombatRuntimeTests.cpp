@@ -89,6 +89,7 @@ bool FReEchoElementCleanseCommandTest::RunTest(const FString& Parameters)
 	State.bBurnActive = true;
 	State.BurnTickDamage = 7.0f;
 	State.BurnNextTickTimeSeconds = 11.0f;
+	State.BurnReactionBehaviorId = TEXT("Reaction.Burn");
 	State.BurnSourceLocation = FVector(10.0f, 20.0f, 0.0f);
 	State.bEnhancedNextReaction = true;
 	State.EnhancementMultiplier = 2.0f;
@@ -107,6 +108,7 @@ bool FReEchoElementCleanseCommandTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Burn is inactive"), State.bBurnActive);
 	TestFalse(TEXT("Burn status is removed"), State.ActiveStatusUntilSeconds.Contains(TEXT("Z_Burn")));
 	TestEqual(TEXT("Burn damage payload is cleared"), State.BurnTickDamage, 0.0f);
+	TestTrue(TEXT("Burn reaction provenance is cleared"), State.BurnReactionBehaviorId.IsNone());
 	TestEqual(TEXT("Burn schedule payload is cleared"), State.BurnNextTickTimeSeconds, 0.0f);
 	TestTrue(TEXT("Burn source payload is cleared"), State.BurnSourceLocation.IsNearlyZero());
 	TestEqual(TEXT("Deterministic immunity uses caller time"), State.ImmunityUntil, 11.0f);
@@ -254,6 +256,62 @@ bool FReEchoRuneTimedStatusRuntimeTest::RunTest(const FString& Parameters)
 	          0);
 	TestTrue(TEXT("Removing transient stacks restores the base stat"),
 	         FMath::IsNearlyEqual(Combatant->Stats.AttackSpeed, 1.0f, 0.0001f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoOverhealCapacityTest,
+                                 "ReEcho.Combat.OverhealCapacity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoOverhealCapacityTest::RunTest(const FString&)
+{
+	UReEchoCombatantComponent* Combatant = NewObject<UReEchoCombatantComponent>();
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Combatant->InitializeFromStats(Stats, true);
+	Combatant->SetOverhealCapacityFraction(0.3f);
+	TestEqual(TEXT("Healing at full health fills only the thirty percent overhealth buffer"),
+	          Combatant->ApplyHealing(50.0f),
+	          30.0f);
+	TestEqual(TEXT("Snapshot exposes combined health above maximum"), Combatant->GetSnapshot().CurrentHealth, 130.0f);
+	TestEqual(TEXT("Damage consumes overhealth before base health"), Combatant->ApplyFinalDamageForTests(20.0f), 20.0f);
+	TestEqual(TEXT("Base health remains full while overhealth absorbs damage"), Combatant->CurrentHealth, 100.0f);
+	TestEqual(TEXT("Ten points of overhealth remain"), Combatant->GetOverhealth(), 10.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCursedStatusRuntimeTest,
+                                 "ReEcho.Combat.Status.CursedConsumesOnEffectiveDamage",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCursedStatusRuntimeTest::RunTest(const FString& Parameters)
+{
+	UReEchoCombatantComponent* Target = NewObject<UReEchoCombatantComponent>();
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.Block = 1;
+	Target->InitializeFromStats(Stats, true);
+
+	FReEchoTimedStatusCommand Curse;
+	Curse.StatusId = TEXT("Z_Cursed");
+	Curse.CurrentTimeSeconds = 0.0f;
+	Curse.DurationSeconds = 60.0f;
+	TestTrue(TEXT("Non-boss accepts curse"), Target->ApplyTimedStatus(Curse));
+	TestEqual(TEXT("Block prevents effective damage"), Target->ApplyFinalDamageForTests(1.0f), 0.0f);
+	TestTrue(TEXT("Blocked hit does not consume curse"),
+	         Target->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Cursed")));
+	TestEqual(TEXT("Next effective damage becomes lethal"), Target->ApplyFinalDamageForTests(1.0f), 100.0f);
+	TestFalse(TEXT("Lethal damage consumes curse"),
+	          Target->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Cursed")));
+	TestFalse(TEXT("Cursed non-boss dies"), Target->IsAlive());
+
+	UReEchoCombatantComponent* Boss = NewObject<UReEchoCombatantComponent>();
+	Stats.Block = 0;
+	Boss->InitializeFromStats(Stats, true);
+	Boss->SetCursedImmune(true);
+	TestFalse(TEXT("Boss rejects curse"), Boss->ApplyTimedStatus(Curse));
+	TestEqual(TEXT("Boss takes ordinary damage"), Boss->ApplyFinalDamageForTests(1.0f), 1.0f);
+	TestTrue(TEXT("Boss survives ordinary damage"), Boss->IsAlive());
 	return true;
 }
 

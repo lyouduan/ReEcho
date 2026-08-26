@@ -19,7 +19,7 @@ constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
 constexpr const TCHAR* ShopRefreshRulesTableId = TEXT("shop_refresh_rules");
 constexpr const TCHAR* NoneId = TEXT("None");
 constexpr int32 MaxStartSelectableLoadoutOrder = static_cast<int32>(EReEchoInputSlot::Slot6);
-constexpr int32 ExpectedPartSourceRows = 48;
+constexpr int32 ExpectedPartSourceRows = 49;
 
 TArray<FName> ParseNameList(const FString& Text)
 {
@@ -1163,7 +1163,7 @@ bool ReadPartsTable(const FString& DataDirectory,
 	if (Table.Rows.Num() != ExpectedPartSourceRows)
 	{
 		ReEchoCsv::AddIssue(
-		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Four-weapon slot audit must contain 48 source rows"));
+		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Production four-weapon rune catalog must contain 49 rows"));
 	}
 	// The named/unnamed split is no longer pinned to 10/60: weapon part families are implemented
 	// incrementally, so naming + enabling rows is expected progress. The real invariant kept here is

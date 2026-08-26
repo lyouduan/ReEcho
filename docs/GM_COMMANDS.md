@@ -1,6 +1,6 @@
 # ReEcho GM 指令手册
 
-本文档对应当前 `AReEchoGameMode` 中通过 `UFUNCTION(Exec)` 暴露的 GM 指令，共 18 条。
+本文档对应当前 `AReEchoGameMode` 中通过 `UFUNCTION(Exec)` 暴露的 GM 指令，共 19 条。
 
 ## 使用方式
 
@@ -16,7 +16,7 @@
 |---|---|
 | 帮助与状态 | `GMHelp`、`GMStatus` |
 | 玩家与资源 | `GMHeal`、`GMGod`、`GMAddShards`、`GMSetShards` |
-| 关卡与敌人 | `GMEndEncounter`、`GMKillAll`、`GMSpawnFox`、`GMGotoBoss`、`GMBossSkill`、`GMShowEnemyHealth`、`GMShowEnemyRange` |
+| 关卡与敌人 | `GMEndEncounter`、`GMKillAll`、`GMSpawnFox`、`GMGotoBoss`、`GMBossSkill`、`GMBossDamageRange`、`GMShowEnemyHealth`、`GMShowEnemyRange` |
 | 场景 | `GMWeather` |
 | 元素 | `GMElement`、`GMReaction` |
 | 构筑 | `GMGrantCard`、`GMEquipRune`、`GMUnequipRune` |
@@ -122,18 +122,21 @@ GMEndEncounter
 GMKillAll
 ```
 
-### `GMSpawnFox [Distance]`
+### `GMSpawnFox <Count> [Distance]`
 
-通过生产敌人配置生成一只 `M_FOX`。
+通过生产敌人配置生成一批 `M_FOX`，并逐只报告成功/失败数。
 
+- 默认数量：`1`，安全上限：`16`。
 - 默认距离：`350` cm。
 - 输入距离限制在 `150` 到 `1000` cm。
-- 生成方向为玩家朝竞技场中心的方向。
-- 最终位置会限制在敌人生成边界内。
+- 生成位置沿玩家朝竞技场中心的确定性弧线分散，最终限制在敌人生成边界内。
+- 无参数仍生成一只；单个 `1..16` 参数按新数量语法解释，单个大于 `16` 的参数按旧距离语法兼容并生成一只。
+- 每只狐狸都复用生产 `M_FOX` Definition、EnemyHost 和 Roster，不建立测试专用怪物。
 - 要求当前玩家存活。
 
 ```text
 GMSpawnFox
+GMSpawnFox 5 350
 GMSpawnFox 600
 ```
 
@@ -166,6 +169,22 @@ GMBossSkill Skill04
 - `Skill04`：蓄力光束。
 - 数字别名：`1`、`2`、`2M`、`3`、`4`。
 - 必须已有存活羊 Boss；可先运行 `GMGotoBoss`。
+
+### `GMBossDamageRange [On|Off|Toggle]`
+
+显示或隐藏羊 Boss 技能的权威伤害判定范围。它只读取实际 Host/Combat 判定参数，不改变技能、伤害或特效。
+
+- 红色圆和轨迹：Skill02 每颗逻辑弹的扫掠路径与单弹碰撞半径；Skill02 不产生一次性圆形 AOE。
+- 绿色圆：Skill03 闪现下砸，以锁定预警中心为圆心，半径直接使用配表 `RadiusCm`。
+- 青色范围：Skill01 以羊的武器挂点为圆心、沿 Boss 朝向覆盖前方 180° 半圆；Skill04 为锁定预警中心向世界 +X 延伸的光束矩形。
+- 默认参数：`Toggle`
+- 支持 `On`/`1`、`Off`/`0`、`Toggle`
+
+```text
+GMBossDamageRange On
+GMBossSkill Skill03
+GMBossDamageRange Off
+```
 
 ### `GMShowEnemyHealth [On|Off|Toggle]`
 
