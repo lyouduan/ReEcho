@@ -360,6 +360,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,SpawnPolicy,SourceRow,Int,true,0,1000000,,,Workbook source row.
 1,SpawnPolicy,Notes,Text,false,,,,,Designer notes.
 1,AudioEvents,EventId,StableId,true,,,,,Stable semantic audio event id.
+1,AudioEvents,VariantId,StableId,false,,,,,Optional stable variant; empty is the event fallback.
 1,AudioEvents,AssetPath,Text,false,,,,,Optional Unreal soft object path; blank is a safe no-op.
 1,AudioEvents,Bus,StableId,true,,,,Music|Ambience|CombatSfx|UiSfx,Audio mix bus; Master is not a catalog bus.
 1,AudioEvents,EventType,StableId,true,,,,OneShot|Loop,Explicit playback lifetime policy.

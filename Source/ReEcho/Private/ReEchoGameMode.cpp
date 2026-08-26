@@ -142,7 +142,18 @@ void AReEchoGameMode::SetMusicState(const FName StateId) const
 {
 	if (UReEchoAudioService* AudioService = GetAudioService())
 	{
-		AudioService->SetMusicState(StateId);
+		FName VariantId = NAME_None;
+		if (StateId == FReEchoAudioEvents::MusicEncounter)
+		{
+			const UReEchoRunSubsystem* RunSubsystem =
+			    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+			const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+			    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+			const FReEchoCsvEncounterRow* Encounter =
+			    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
+			VariantId = Encounter ? Encounter->StageId : NAME_None;
+		}
+		AudioService->SetMusicStateVariant(StateId, VariantId);
 	}
 }
 
@@ -3664,6 +3675,7 @@ void AReEchoGameMode::HandleRestartRequested()
 	// 清除当前战场残存（敌人 / Echo），开局时会重新生成。
 	ClearCombatants();
 	UGameplayStatics::SetGamePaused(this, false);
+	PostAudioEvent(FReEchoAudioEvents::Revive, FVector::ZeroVector);
 	ShowLoadoutSelection();
 }
 

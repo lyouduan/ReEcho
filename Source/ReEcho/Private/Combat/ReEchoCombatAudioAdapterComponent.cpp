@@ -5,6 +5,7 @@
 #include "ReEchoAudioTypes.h"
 
 #include "Combat/ReEchoCombatTarget.h"
+#include "Combat/ReEchoElementReaction.h"
 
 namespace
 {
@@ -117,6 +118,10 @@ void UReEchoCombatAudioAdapterComponent::PostDamageEvent(const FName EventId, co
 		    SourceActor ? SourceActor->FindComponentByClass<UReEchoCombatAudioAdapterComponent>() : nullptr;
 		Request.SourceCategory = SourceAdapter ? ToAudioSourceCategory(SourceAdapter->Source)
 		                                       : EReEchoAudioSourceCategory::Player;
+		if (EventId == FReEchoAudioEvents::CombatHit)
+		{
+			Request.VariantId = ReEchoElementReaction::GetElementId(Event.Element);
+		}
 		Request.Intensity = FMath::Max(0.0f, Event.AppliedDamage);
 		if (UReEchoAudioService* AudioService = GameInstance->GetSubsystem<UReEchoAudioService>())
 		{

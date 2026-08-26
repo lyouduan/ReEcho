@@ -119,7 +119,7 @@ namespace ReEchoAudioCatalogDetail
 
 void FReEchoAudioCatalog::AddDefinition(const FReEchoAudioEventDefinition& Definition)
 {
-	Definitions.Add(Definition.EventId, Definition);
+	Definitions.Add({Definition.EventId, Definition.VariantId}, Definition);
 }
 
 void FReEchoAudioCatalog::Clear()
@@ -130,9 +130,16 @@ void FReEchoAudioCatalog::Clear()
 	LastLoadError.Reset();
 }
 
-const FReEchoAudioEventDefinition* FReEchoAudioCatalog::FindDefinition(const FName EventId) const
+const FReEchoAudioEventDefinition* FReEchoAudioCatalog::FindDefinition(const FName EventId, const FName VariantId) const
 {
-	return Definitions.Find(EventId);
+	if (!VariantId.IsNone())
+	{
+		if (const FReEchoAudioEventDefinition* Exact = Definitions.Find({EventId, VariantId}))
+		{
+			return Exact;
+		}
+	}
+	return Definitions.Find({EventId, NAME_None});
 }
 
 bool FReEchoAudioCatalog::FailLoad(const FString& Message)
@@ -162,7 +169,7 @@ bool FReEchoAudioCatalog::LoadCatalog(const FString& CsvPath)
 	}
 
 	static const TArray<FString> RequiredHeaders = {
-		TEXT("EventId"), TEXT("AssetPath"), TEXT("Bus"), TEXT("EventType"), TEXT("Spatial3D"),
+		TEXT("EventId"), TEXT("VariantId"), TEXT("AssetPath"), TEXT("Bus"), TEXT("EventType"), TEXT("Spatial3D"),
 		TEXT("BaseVolume"), TEXT("PitchMin"), TEXT("PitchMax"), TEXT("CooldownSeconds"),
 		TEXT("MaxConcurrency"), TEXT("Priority"), TEXT("PausePolicy"), TEXT("AttenuationMin"),
 		TEXT("AttenuationMax")};
@@ -181,10 +188,10 @@ bool FReEchoAudioCatalog::LoadCatalog(const FString& CsvPath)
 	}
 	if (HeaderIndices.Num() != RequiredHeaders.Num())
 	{
-		return FailLoad(FString::Printf(TEXT("%s header does not match the locked 14-column schema"), *CsvPath));
+		return FailLoad(FString::Printf(TEXT("%s header does not match the locked 15-column schema"), *CsvPath));
 	}
 
-	TMap<FName, FReEchoAudioEventDefinition> PendingDefinitions;
+	TMap<FReEchoAudioCatalogKey, FReEchoAudioEventDefinition> PendingDefinitions;
 	TArray<FSoftObjectPath> PendingAssetPaths;
 	for (int32 RowIndex = 1; RowIndex < Rows.Num(); ++RowIndex)
 	{
@@ -205,7 +212,9 @@ bool FReEchoAudioCatalog::LoadCatalog(const FString& CsvPath)
 		const FString EventId = Cell(TEXT("EventId"));
 		if (EventId.IsEmpty()) return RowError(TEXT("EventId"), TEXT("required value is empty"));
 		Def.EventId = FName(*EventId);
-		if (PendingDefinitions.Contains(Def.EventId)) return RowError(TEXT("EventId"), TEXT("duplicate event id"));
+		Def.VariantId = FName(*Cell(TEXT("VariantId")));
+		const FReEchoAudioCatalogKey Key{Def.EventId, Def.VariantId};
+		if (PendingDefinitions.Contains(Key)) return RowError(TEXT("VariantId"), TEXT("duplicate event/variant pair"));
 
 		const FString AssetPath = Cell(TEXT("AssetPath"));
 		if (!AssetPath.IsEmpty())
@@ -228,7 +237,7 @@ bool FReEchoAudioCatalog::LoadCatalog(const FString& CsvPath)
 		if (!ReEchoAudioCatalogDetail::ParseFloat(Cell(TEXT("AttenuationMin")), Def.AttenuationMin) || Def.AttenuationMin < 0.0f) return RowError(TEXT("AttenuationMin"), TEXT("must be >= 0"));
 		if (!ReEchoAudioCatalogDetail::ParseFloat(Cell(TEXT("AttenuationMax")), Def.AttenuationMax) || Def.AttenuationMax < Def.AttenuationMin) return RowError(TEXT("AttenuationMax"), TEXT("must be >= AttenuationMin"));
 
-		PendingDefinitions.Add(Def.EventId, Def);
+		PendingDefinitions.Add(Key, Def);
 	}
 
 	if (PendingDefinitions.IsEmpty()) return FailLoad(FString::Printf(TEXT("%s contains no valid definitions"), *CsvPath));

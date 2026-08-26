@@ -20,6 +20,7 @@ struct FReEchoAudioActiveVoice
 struct FReEchoAudioChannelRuntime
 {
 	FName CurrentStateId = NAME_None;
+	FName CurrentVariantId = NAME_None;
 	uint32 CurrentLoopHandle = 0;
 	TArray<uint32> PendingStopHandles;
 };
@@ -45,8 +46,10 @@ public:
 
 	// ---- State channels ----
 	void SetState(EReEchoAudioChannel Channel, FName StateId, UWorld* World = nullptr);
+	void SetState(EReEchoAudioChannel Channel, FName StateId, FName VariantId, UWorld* World = nullptr);
 	void StopState(EReEchoAudioChannel Channel);
 	FName GetCurrentState(EReEchoAudioChannel Channel) const;
+	FName GetCurrentStateVariant(EReEchoAudioChannel Channel) const;
 
 	// ---- Volume buses ----
 	void SetMasterVolume(float Volume);

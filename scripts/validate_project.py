@@ -684,6 +684,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
     },
     "AudioEvents": {
         "EventId": CsvColumnSpec("StableId"),
+        "VariantId": CsvColumnSpec("StableId", required=False),
         "AssetPath": CsvColumnSpec("Text", required=False),
         "Bus": CsvColumnSpec("StableId"),
         "EventType": CsvColumnSpec("StableId"),
@@ -913,10 +914,21 @@ def validate_table(path: Path, table_id: str, references: dict[str, set[str]]) -
                 fail(f"{rel(path)}:{line}:{column}: unknown reference {value!r}")
 
         primary_key = next(iter(specs))
-        row_id = row[primary_key]
+        row_id = (
+            f"{row['EventId']}\0{row['VariantId']}"
+            if table_id == "AudioEvents"
+            else row[primary_key]
+        )
         if row_id in ids:
-            duplicate_label = "id" if primary_key == "Id" else primary_key
-            fail(f"{rel(path)}:{line}:{primary_key}: duplicate {duplicate_label} {row_id!r}")
+            duplicate_label = "EventId/VariantId" if table_id == "AudioEvents" else (
+                "id" if primary_key == "Id" else primary_key
+            )
+            duplicate_value = (
+                (row["EventId"], row["VariantId"])
+                if table_id == "AudioEvents"
+                else row_id
+            )
+            fail(f"{rel(path)}:{line}:{primary_key}: duplicate {duplicate_label} {duplicate_value!r}")
         ids.add(row_id)
     if not ids and table_id == "RuntimeSmoke":
         fail(f"{rel(path)}: RuntimeSmoke must contain at least one row")
@@ -997,8 +1009,18 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
         fail(f"{rel(path)}: missing stable audio event ids: {', '.join(missing_ids)}")
     if unknown_ids:
         fail(f"{rel(path)}: unknown audio event ids: {', '.join(unknown_ids)}")
+    allowed_variants = {
+        "Music.Encounter": {"", "Stage.1", "Stage.2", "Stage.3"},
+        "Combat.Attack": {"", "W_J_01", "W_J_04", "W_J_08", "W_J_09"},
+        "Combat.Hit": {"", "Flame", "Lightning", "Grass", "Water"},
+    }
     for row in rows:
         line = row["__line__"]
+        variant_id = row["VariantId"]
+        if variant_id and row["EventId"] not in allowed_variants:
+            fail(f"{rel(path)}:{line}:VariantId: {row['EventId']} does not support variants")
+        if row["EventId"] in allowed_variants and variant_id not in allowed_variants[row["EventId"]]:
+            fail(f"{rel(path)}:{line}:VariantId: unsupported {row['EventId']} variant {variant_id!r}")
         asset_path = row["AssetPath"]
         if asset_path and not re.fullmatch(r"/Game/[A-Za-z0-9_./-]+\.[A-Za-z0-9_]+", asset_path):
             fail(f"{rel(path)}:{line}:AssetPath: malformed Unreal soft object path")

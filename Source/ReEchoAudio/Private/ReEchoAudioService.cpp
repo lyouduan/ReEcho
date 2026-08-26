@@ -54,7 +54,9 @@ void UReEchoAudioService::Deinitialize()
 {
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 	DesiredMusicStateId = NAME_None;
+	DesiredMusicVariantId = NAME_None;
 	DesiredAmbienceStateId = NAME_None;
+	DesiredAmbienceVariantId = NAME_None;
 	StateWorld.Reset();
 	QueuedWorldEventId = NAME_None;
 	QueuedWorldEventOrigin.Reset();
@@ -93,14 +95,18 @@ void UReEchoAudioService::RetryDesiredStates(UWorld* ActiveWorld)
 		return;
 	}
 	if (!DesiredMusicStateId.IsNone() &&
-	    PolicyEngine->GetCurrentState(EReEchoAudioChannel::Music) != DesiredMusicStateId)
+	    (PolicyEngine->GetCurrentState(EReEchoAudioChannel::Music) != DesiredMusicStateId ||
+	     PolicyEngine->GetCurrentStateVariant(EReEchoAudioChannel::Music) != DesiredMusicVariantId))
 	{
-		PolicyEngine->SetState(EReEchoAudioChannel::Music, DesiredMusicStateId, ActiveWorld);
+		PolicyEngine->SetState(
+		    EReEchoAudioChannel::Music, DesiredMusicStateId, DesiredMusicVariantId, ActiveWorld);
 	}
 	if (!DesiredAmbienceStateId.IsNone() &&
-	    PolicyEngine->GetCurrentState(EReEchoAudioChannel::Ambience) != DesiredAmbienceStateId)
+	    (PolicyEngine->GetCurrentState(EReEchoAudioChannel::Ambience) != DesiredAmbienceStateId ||
+	     PolicyEngine->GetCurrentStateVariant(EReEchoAudioChannel::Ambience) != DesiredAmbienceVariantId))
 	{
-		PolicyEngine->SetState(EReEchoAudioChannel::Ambience, DesiredAmbienceStateId, ActiveWorld);
+		PolicyEngine->SetState(
+		    EReEchoAudioChannel::Ambience, DesiredAmbienceStateId, DesiredAmbienceVariantId, ActiveWorld);
 	}
 }
 
@@ -141,6 +147,12 @@ void UReEchoAudioService::PostEventById(UObject* WorldContextObject, const FName
 }
 
 void UReEchoAudioService::SetMusicState(const FName StateId)
+
+{
+	SetMusicStateVariant(StateId, NAME_None);
+}
+
+void UReEchoAudioService::SetMusicStateVariant(const FName StateId, const FName VariantId)
 {
 	if (StateId.IsNone())
 	{
@@ -148,12 +160,19 @@ void UReEchoAudioService::SetMusicState(const FName StateId)
 		return;
 	}
 	DesiredMusicStateId = StateId;
+	DesiredMusicVariantId = VariantId;
 	UWorld* ActiveWorld = ResolveActiveWorld();
 	PrepareStateWorld(ActiveWorld);
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, ActiveWorld);
+	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Music, StateId, VariantId, ActiveWorld);
 }
 
 void UReEchoAudioService::SetAmbienceState(const FName StateId)
+
+{
+	SetAmbienceStateVariant(StateId, NAME_None);
+}
+
+void UReEchoAudioService::SetAmbienceStateVariant(const FName StateId, const FName VariantId)
 {
 	if (StateId.IsNone())
 	{
@@ -161,20 +180,23 @@ void UReEchoAudioService::SetAmbienceState(const FName StateId)
 		return;
 	}
 	DesiredAmbienceStateId = StateId;
+	DesiredAmbienceVariantId = VariantId;
 	UWorld* ActiveWorld = ResolveActiveWorld();
 	PrepareStateWorld(ActiveWorld);
-	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, ActiveWorld);
+	if (PolicyEngine.IsValid()) PolicyEngine->SetState(EReEchoAudioChannel::Ambience, StateId, VariantId, ActiveWorld);
 }
 
 void UReEchoAudioService::StopMusicState()
 {
 	DesiredMusicStateId = NAME_None;
+	DesiredMusicVariantId = NAME_None;
 	if (PolicyEngine.IsValid()) PolicyEngine->StopState(EReEchoAudioChannel::Music);
 }
 
 void UReEchoAudioService::StopAmbienceState()
 {
 	DesiredAmbienceStateId = NAME_None;
+	DesiredAmbienceVariantId = NAME_None;
 	if (PolicyEngine.IsValid()) PolicyEngine->StopState(EReEchoAudioChannel::Ambience);
 }
 

@@ -27,7 +27,9 @@ public:
 	void PostEventById(UObject* WorldContextObject, FName EventId, const FVector& WorldLocation = FVector::ZeroVector);
 
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetMusicState(FName StateId);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetMusicStateVariant(FName StateId, FName VariantId);
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetAmbienceState(FName StateId);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void SetAmbienceStateVariant(FName StateId, FName VariantId);
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void StopMusicState();
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio") void StopAmbienceState();
 	/** Queue a one-shot until the current game world has been replaced. Never delays the world transition. */
@@ -65,7 +67,9 @@ private:
 	TSharedPtr<FReEchoAudioCatalog> Catalog;
 	FStreamableManager AudioStreamableManager;
 	FName DesiredMusicStateId;
+	FName DesiredMusicVariantId;
 	FName DesiredAmbienceStateId;
+	FName DesiredAmbienceVariantId;
 	TWeakObjectPtr<UWorld> StateWorld;
 	FName QueuedWorldEventId;
 	TWeakObjectPtr<UWorld> QueuedWorldEventOrigin;
