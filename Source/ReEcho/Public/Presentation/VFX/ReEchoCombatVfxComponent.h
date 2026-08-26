@@ -131,6 +131,14 @@ public:
 	/** Editor repair seam for FaceCamera arrows whose image rotation must come from one explicit user parameter. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool BindNiagaraSpriteRotationToDirectionParameter(UNiagaraSystem* System);
+	/** Editor audit seam for the Fox Direction sprite pivots and optional pivot bindings. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool AuditFoxDirectionSpritePivots(UNiagaraSystem* System);
+	/** Editor authoring seam for per-layer Fox Direction pivots derived from source-texture alpha bounds. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetFoxDirectionSpritePivots(UNiagaraSystem* System,
+	                                        FVector2D KuangPivotInUvSpace,
+	                                        FVector2D Kuang002PivotInUvSpace);
 #if WITH_DEV_AUTOMATION_TESTS
 	int32 GetProjectileVisualCountForTests() const;
 	int32 GetBossProjectileEffectCountForTests() const;

@@ -35,6 +35,17 @@
 
 namespace
 {
+constexpr double FoxDirectionOriginalPivotY = 0.370447;
+constexpr double FoxDirectionKuangAlphaBoundsCenterY = 0.4892367906066536;
+constexpr double FoxDirectionKuang002AlphaBoundsCenterY = 0.5;
+
+double ResolveFoxDirectionHalfCorrectionPivotY(const FName EmitterName)
+{
+	const double AlphaBoundsCenterY =
+	    EmitterName == TEXT("Kuang") ? FoxDirectionKuangAlphaBoundsCenterY : FoxDirectionKuang002AlphaBoundsCenterY;
+	return 0.5 * (FoxDirectionOriginalPivotY + AlphaBoundsCenterY);
+}
+
 struct FReEchoCombatVfxWorldFixture
 {
 	UWorld* World = nullptr;
@@ -324,18 +335,29 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 			else if (const UNiagaraSpriteRendererProperties* SpriteRenderer =
 			             Cast<UNiagaraSpriteRendererProperties>(Renderer))
 			{
+				const FName EmitterName = Emitter->GetEmitterHandle().GetName();
+				const double ExpectedPivotY = ResolveFoxDirectionHalfCorrectionPivotY(EmitterName);
 				TestEqual(TEXT("Fox Direction SpriteRotation binds the exact exposed user parameter"),
 				          SpriteRenderer->SpriteRotationBinding.GetParamMapBindableVariable().GetName(),
 				          FName(TEXT("User.DirectionSpriteRotationDegrees")));
+				TestFalse(TEXT("Fox Direction keeps its constant renderer pivot authoritative"),
+				          SpriteRenderer->PivotOffsetBinding.DoesBindingExistOnSource());
+				TestEqual(TEXT("Fox Direction preserves the authored forward anchor on sprite-local X"),
+				          SpriteRenderer->PivotInUVSpace.X,
+				          0.0);
+				TestTrue(TEXT("Fox Direction renderer uses the alpha-derived half-correction pivot on Y"),
+				         FMath::IsNearlyEqual(SpriteRenderer->PivotInUVSpace.Y, ExpectedPivotY, UE_KINDA_SMALL_NUMBER));
 				AddInfo(FString::Printf(TEXT("Fox Direction sprite renderer: facing=%d alignment=%d source=%d "
-				                             "cameraCull=%d min=%.1f max=%.1f visibility=%u"),
+				                             "cameraCull=%d min=%.1f max=%.1f visibility=%u pivot=(%.9f,%.9f)"),
 				                        static_cast<int32>(SpriteRenderer->FacingMode),
 				                        static_cast<int32>(SpriteRenderer->Alignment),
 				                        static_cast<int32>(SpriteRenderer->SourceMode),
 				                        SpriteRenderer->bEnableCameraDistanceCulling ? 1 : 0,
 				                        SpriteRenderer->MinCameraDistance,
 				                        SpriteRenderer->MaxCameraDistance,
-				                        SpriteRenderer->RendererVisibility));
+				                        SpriteRenderer->RendererVisibility,
+				                        SpriteRenderer->PivotInUVSpace.X,
+				                        SpriteRenderer->PivotInUVSpace.Y));
 			}
 		}
 	}
@@ -765,11 +787,23 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 								        Cast<UNiagaraSpriteRendererProperties>(Renderer))
 								{
 									++FoxDirectionEnabledSpriteRendererCount;
+									const FName EmitterName = EmitterHandle.GetName();
+									const double ExpectedPivotY = ResolveFoxDirectionHalfCorrectionPivotY(EmitterName);
 									TestTrue(TEXT("Fox Direction SpriteRotation binding exists on its source"),
 									         Sprite->SpriteRotationBinding.DoesBindingExistOnSource());
 									TestEqual(TEXT("Fox Direction enabled sprites share one exact rotation parameter"),
 									          Sprite->SpriteRotationBinding.GetParamMapBindableVariable().GetName(),
 									          FName(TEXT("User.DirectionSpriteRotationDegrees")));
+									TestFalse(
+									    TEXT("Fox Direction enabled sprites do not override their constant pivot"),
+									    Sprite->PivotOffsetBinding.DoesBindingExistOnSource());
+									TestEqual(TEXT("Fox Direction enabled sprites retain the forward anchor on X"),
+									          Sprite->PivotInUVSpace.X,
+									          0.0);
+									TestTrue(TEXT("Fox Direction enabled sprites retain their alpha-derived "
+									              "half-correction Y"),
+									         FMath::IsNearlyEqual(
+									             Sprite->PivotInUVSpace.Y, ExpectedPivotY, UE_KINDA_SMALL_NUMBER));
 								}
 							}
 						}

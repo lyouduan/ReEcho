@@ -799,6 +799,127 @@ bool UReEchoCombatVfxComponent::BindNiagaraSpriteRotationToDirectionParameter(UN
 #endif
 }
 
+bool UReEchoCombatVfxComponent::AuditFoxDirectionSpritePivots(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	int32 EnabledSpriteRendererCount = 0;
+	for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		if (!EmitterData)
+		{
+			return false;
+		}
+		for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			const FNiagaraVariable PivotBindingVariable = Sprite->PivotOffsetBinding.GetParamMapBindableVariable();
+			UE_LOG(LogReEcho,
+			       Display,
+			       TEXT("PLAN117_FOX_DIRECTION_PIVOT emitter=%s pivot=(%.9f,%.9f) binding_exists=%d binding=%s"),
+			       *EmitterHandle.GetName().ToString(),
+			       Sprite->PivotInUVSpace.X,
+			       Sprite->PivotInUVSpace.Y,
+			       Sprite->PivotOffsetBinding.DoesBindingExistOnSource() ? 1 : 0,
+			       *PivotBindingVariable.GetName().ToString());
+			++EnabledSpriteRendererCount;
+		}
+	}
+	return EnabledSpriteRendererCount == 2;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::SetFoxDirectionSpritePivots(UNiagaraSystem* System,
+                                                            const FVector2D KuangPivotInUvSpace,
+                                                            const FVector2D Kuang002PivotInUvSpace)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->Modify();
+	int32 ModifiedSpriteRendererCount = 0;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		const FName EmitterName = EmitterHandle.GetName();
+		const FVector2D* TargetPivot = nullptr;
+		if (EmitterName == TEXT("Kuang"))
+		{
+			TargetPivot = &KuangPivotInUvSpace;
+		}
+		else if (EmitterName == TEXT("Kuang002"))
+		{
+			TargetPivot = &Kuang002PivotInUvSpace;
+		}
+		else
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			return false;
+		}
+		EmitterBase->Modify();
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+			if (!Sprite || !Sprite->GetIsEnabled())
+			{
+				continue;
+			}
+			if (Sprite->PivotOffsetBinding.DoesBindingExistOnSource())
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("[VFX] Fox Direction emitter '%s' has an authored PivotOffset binding; refusing to "
+				            "overwrite it"),
+				       *EmitterName.ToString());
+				return false;
+			}
+			Sprite->Modify();
+			Sprite->PivotInUVSpace = *TargetPivot;
+			Sprite->PostEditChange();
+			UE_LOG(LogReEcho,
+			       Display,
+			       TEXT("PLAN117_FOX_DIRECTION_PIVOT_AUTHORED emitter=%s pivot=(%.9f,%.9f)"),
+			       *EmitterName.ToString(),
+			       TargetPivot->X,
+			       TargetPivot->Y);
+			++ModifiedSpriteRendererCount;
+		}
+	}
+	if (ModifiedSpriteRendererCount == 2)
+	{
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return ModifiedSpriteRendererCount == 2;
+#else
+	return false;
+#endif
+}
+
 FRotator UReEchoCombatVfxComponent::ComposeAttachedRotation(const FRotator& DirectionRotation,
                                                             const FRotator& LocalRotation)
 {
