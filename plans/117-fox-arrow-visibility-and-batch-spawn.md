@@ -82,7 +82,7 @@
 - 新增 `ReEcho.Presentation.VFX.FoxDirectionRuntime`，通过真实 EnemyEvents → Combat Presentation → CombatVfx 链检查组件、系统实例、粒子、Renderer/材质、运行时 Bounds 和 Committed 清理。
 - 第三次本地人工返工按“箭头起始点以狐狸中心为准”收敛：FoxDirection 单独附着生产狐狸 Owner RootComponent，placement 保持零偏移，使组件原点精确等于 Actor/碰撞中心；不再从 Niagara 粒子内部位置猜测并添加 `+150/+300 cm` 补偿。Charging、FoxDash Trail、其 placement/lifecycle/资产保持 `0b339df4` 原样。
 - 用户进一步确认修改资产内部布局后，通过受支持的 Niagara Rapid Iteration API 将 `Kuang`、`Kuang002` 的 `InitializeParticle.Position Offset` 从 `(0,0,-150)` 精确改为 `(0,0,0)` 并由 Editor 保存 `NS_Fox_Rush_arrow`；`InitializeParticle.Position` 自身原本已是零。Direction 组件继续零偏移附着 Owner RootComponent，Charging 与 FoxDash Trail 不变。
-- 用户视觉复查确认中心正确但箭头尖端方向错误。只读资产链证明两个 emitter 均为零 SpriteRotation 的 FaceCamera Sprite，材质 `BaseVFX003_Inst12/13` 对应的 `0817_04/05` 纹理尖端均朝图像右侧；结合生产相机“屏幕右 = 世界 `+Y`”，FoxDirection 的真实 authored visual forward axis 为局部 `+Y`。Catalog 只修正该语义的 authored-axis 映射，继续由既有 `ResolveRotation` 对齐 `Event.LockedDirection`，不改变玩法方向。
+- 用户 PIE 权威视觉复查确认中心正确，但在实际攻击方向向左时绿色箭头尖端严格向右，证明先前从纹理图像方向推导局部 `+Y` 忽略了 FaceCamera billboard 的屏幕/局部手性。FoxDirection 的真实 authored visual forward axis 修正为组件局部 `-Y`；Catalog 只修正该语义的 authored-axis 映射，继续由既有 `ResolveRotation` 对齐 `Event.LockedDirection`，不改变玩法方向。
 - `GMSpawnFox` 扩展为 `<count> [distance]`，数量钳制 `1..16`、距离钳制 `150..1000 cm`，按朝 Arena 中心的确定性 140 度弧线分散并逐只复用生产 `SpawnConfiguredEnemy("M_FOX")`；无参数与旧单个大距离参数兼容。
 - 帮助文本、`docs/GM_COMMANDS.md`、GameMode/VFX 模块文档和聚焦 GM 自动化同步更新。
 
@@ -100,8 +100,9 @@
 - 移除临时 authoring seam 后，最终本地候选以 11-action Development 增量构建成功，精选包刷新为 Build ID `55116800`、源码指纹 `2b865291b92a`；未执行发布级 FullRebuild。
 - 最终增量二进制下 `ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-161332-pid24648.log`）：生产 `M_FOX` 仍为 `GameplayPlane/AttackVfxRoot/Charging Z=725`、`Actor/OwnerRoot/Direction component Z=855`，两个 emitter 各有 1 个粒子且均为 `local Z=0 → world Z=855`。`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-161427-pid33264.log`）。
 - `validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过；相对 `0b339df4` 的 Source/Config/Content/scripts patch 仍无 `FoxDash`、`Trail` 或 `NS_Fox_Rush_Trail` token，Charging/Trail 资产与狐狸生产数据无差异。本地候选未推送，仍等待 PIE 视觉验收。
-- 箭头朝向返工的静态根因证据：运行时 renderer 为 `FaceCamera(0) + Automatic(3)`，粒子无额外 `SpriteRotation`；`Kuang`/`Kuang002` 材质分别依赖 `0817_04/05`，两张内嵌源图均为向右箭头，而生产相机源码明确默认 yaw 下屏幕右对应世界 `+Y`。旧测试只将组件 `+X` 对齐方向，未覆盖真实视觉轴；新测试直接验证 `ResolveRotation(...).RotateVector(ResolveAuthoredForwardAxis(FoxDirection)) == LockedDirection`，并在真实 Direction component 上验证世界视觉轴等于 Windup `LockedDirection`。
-- 最终朝向候选以 6-action Development 增量构建成功，精选包刷新为 Build ID `55116800`、源码指纹 `c7bafaf83d19`。`ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-164157-pid45508.log`），真实运行读回 authored visual `+Y` 经组件世界旋转得到 `(0.6,0.8,0)`，与 Windup `LockedDirection=(0.6,0.8,0)` 一致；生产中心坐标与两个粒子的 `local Z=0 → world Z=855` 保持不变。`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-164253-pid27640.log`）。
+- 第一轮朝向返工的静态证据确认 renderer 为 `FaceCamera(0) + Automatic(3)`、粒子无额外 `SpriteRotation`，但把向右纹理直接解释为组件局部 `+Y`。对应自动化只证明代码自洽：它用同一个错误轴同时计算组件旋转和验证结果；用户 PIE 中“攻击向左、尖端向右”的严格 180 度反向推翻了该假设，并把 FaceCamera 下的真实视觉轴锁定为组件局部 `-Y`。
+- 被 PIE 否决的 `+Y` 候选曾以 6-action Development 增量构建通过并得到源码指纹 `c7bafaf83d19`，VFX 与 Collision 自动化也通过；这些结果只保留为自动化盲区证据，不再作为方向正确性的验收依据。修正后的测试继续验证 `ResolveRotation(...).RotateVector(ResolveAuthoredForwardAxis(FoxDirection)) == LockedDirection`，并在真实 Direction component 上验证世界视觉轴等于 Windup `LockedDirection`，但最终方向仍以二次 PIE 为准。
+- PIE 权威证据修正后的 `-Y` 候选以 5-action Development 增量构建成功，精选包刷新为 Build ID `55116800`、源码指纹 `0c54b8fe2ba8`。`ReEcho.Presentation.VFX` 3/3 通过（`ReEcho-session-20260826-164950-pid28024.log`）：真实运行读回 authored visual `-Y` 经组件世界旋转得到 `(0.6,0.8,0)`，与 Windup `LockedDirection=(0.6,0.8,0)` 一致；中心坐标及两个粒子的 `local Z=0 → world Z=855` 保持不变。`ReEcho.Enemies.Host.FoxDashCollision` 1/1 通过（`ReEcho-session-20260826-165047-pid29720.log`）。
 
 ### 剩余风险
 

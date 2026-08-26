@@ -159,8 +159,8 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	                        *FoxRuntimeVisualForward.ToString(),
 	                        *Windup.LockedDirection.ToString(),
 	                        *Direction->GetComponentRotation().ToString()));
-	TestTrue(TEXT("Fox Direction authored visual axis is local positive Y"),
-	         FoxAuthoredVisualForward.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Fox Direction authored visual axis is local negative Y"),
+	         FoxAuthoredVisualForward.Equals(-FVector::RightVector, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Fox Direction runtime visual axis follows the Windup locked direction"),
 	         FoxRuntimeVisualForward.Equals(Windup.LockedDirection, KINDA_SMALL_NUMBER));
 	TestEqual(TEXT("Fox Charging remains attached to AttackVfxRoot"), Charging->GetAttachParent(), AttackVfxRoot);
@@ -614,8 +614,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FVector FoxDashDirection = FVector(0.0f, -1.0f, 0.0f);
 	const FVector FoxAuthoredForwardAxis =
 	    FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(EReEchoCombatVfxSemantic::FoxDirection);
-	TestTrue(TEXT("Fox delivered Niagara arrowhead is authored along local positive Y"),
-	         FoxAuthoredForwardAxis.Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Fox delivered Niagara arrowhead is authored along local negative Y"),
+	         FoxAuthoredForwardAxis.Equals(-FVector::RightVector, KINDA_SMALL_NUMBER));
 	const FRotator FoxDirectionRotation =
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::FoxDirection, FoxDashDirection);
 	const FVector RotatedFoxAuthoredAxis = FoxDirectionRotation.RotateVector(FoxAuthoredForwardAxis).GetSafeNormal2D();

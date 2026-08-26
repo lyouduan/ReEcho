@@ -226,9 +226,9 @@ FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatV
 {
 	if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
 	{
-		// Both delivered arrow textures point toward sprite-image right. With zero authored SpriteRotation,
-		// that is the Niagara billboard's local +Y visual axis rather than the component's local +X axis.
-		return FVector::RightVector;
+		// Authoritative PIE observation shows that FaceCamera billboard handedness maps the delivered
+		// image-right arrowhead to component-local -Y, not +Y as a texture-only inspection suggested.
+		return -FVector::RightVector;
 	}
 	if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight)
 	{
