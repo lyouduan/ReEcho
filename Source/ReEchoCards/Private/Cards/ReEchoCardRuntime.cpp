@@ -418,6 +418,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				const float GrantedHp = Result.Stats.PhysicalAttack + Result.Stats.ElementalAttack;
 				Result.Stats.HpMax += GrantedHp;
 				Result.Stats.HpPoint = Result.Stats.HpMax;
+				Result.HealthAdjustment = EReEchoHealthAdjustment::FillToMax;
 				AccumulateOutcome(Result.CardState.Runtime, Card->Id, TEXT("HpMax"), GrantedHp);
 			}
 			else if (Effect.BehaviorId == TEXT("Card.NextShardDrop"))

@@ -300,6 +300,7 @@ private:
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
+	void HandleCardGrantCommitted(const FReEchoStatBlock& Stats, EReEchoHealthAdjustment HealthAdjustment);
 	UFUNCTION()
 	void HandleTraitCardRefreshRequested(int32 SlotIndex);
 	void CreateArena();

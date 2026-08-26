@@ -577,8 +577,9 @@ void AReEchoGameMode::GMBossDamageRange(const FString& Mode)
 		return;
 	}
 	bShowBossDamageRangeDebug = bEnable;
-	PrintGMResult(FString::Printf(TEXT("Boss skill damage-range debug=%s (red=Skill02 projectile, green=Skill03 AOE, cyan=beam/rectangle)."),
-	                              bEnable ? TEXT("On") : TEXT("Off")));
+	PrintGMResult(FString::Printf(
+	    TEXT("Boss skill damage-range debug=%s (red=Skill02 projectile, green=Skill03 AOE, cyan=beam/rectangle)."),
+	    bEnable ? TEXT("On") : TEXT("Off")));
 }
 
 void AReEchoGameMode::GMGod(const FString& Mode)
@@ -969,6 +970,12 @@ void AReEchoGameMode::StartPlay()
 		Preloader->RequestPreload(FSimpleDelegate());
 	}
 	Player = Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+	if (UReEchoRunSubsystem* RunSubsystem =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		RunSubsystem->OnCardGrantCommitted.RemoveAll(this);
+		RunSubsystem->OnCardGrantCommitted.AddUObject(this, &AReEchoGameMode::HandleCardGrantCommitted);
+	}
 	int32 ArenaSceneCount = 0;
 	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
 	{
@@ -2285,8 +2292,7 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 		}
 		ReservedCount += ExistingBatch.Locations.Num();
 	}
-	const bool bCountsTowardUnitLimit =
-	    Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
+	const bool bCountsTowardUnitLimit = Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
 	const int32 ReservationCount = ReEchoSpawnCapacity::CalculateReservationCount(
 	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count, bCountsTowardUnitLimit);
 	if (ReservationCount < Event.Count)
@@ -3971,6 +3977,15 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	{
 		bContinueRunAfterShop = true;
 		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+	}
+}
+
+void AReEchoGameMode::HandleCardGrantCommitted(const FReEchoStatBlock& Stats,
+                                               const EReEchoHealthAdjustment HealthAdjustment)
+{
+	if (HealthAdjustment != EReEchoHealthAdjustment::None && Player && Player->Combatant)
+	{
+		Player->Combatant->ApplyHealthAdjustment(Stats.HpMax, HealthAdjustment);
 	}
 }
 

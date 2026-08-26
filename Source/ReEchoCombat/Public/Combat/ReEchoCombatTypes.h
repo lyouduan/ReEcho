@@ -78,6 +78,14 @@ enum class EReEchoDamageSource : uint8
 	Enemy
 };
 
+/** A typed request for reconciling current health after an authoritative maximum-health change. */
+UENUM(BlueprintType)
+enum class EReEchoHealthAdjustment : uint8
+{
+	None,
+	FillToMax
+};
+
 /** A weapon-generated candidate hit. It contains no presentation resource and no final result. */
 USTRUCT(BlueprintType)
 
