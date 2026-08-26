@@ -6,7 +6,7 @@
 - Runtime Module：`ReEchoPresentation`。
 - Build 文件：`Source/ReEchoPresentation/ReEchoPresentation.Build.cs`。
 - 主要目录：`Source/ReEchoPresentation/{Public,Private}/Presentation/Animation2D/`。
-- 相关 Plan：Plan40、Plan50、Plan74、Plan102。
+- 相关 Plan：Plan40、Plan50、Plan74、Plan102、Plan116。
 
 ## 存在原因
 
@@ -76,6 +76,8 @@
 `UReEcho2DCharacterPresentationProfile::WeaponAnchorRatio` 以稳定 `WorldHeight` 为单位描述角色手部挂点。主模块可以消费该只读空间契约装配武器，但本模块不解析 Weapon Profile，也不按当前 Flipbook 帧 Bounds 改写挂点。
 
 `UReEcho2DCharacterPresentationProfile::MinimapIcon` 由 Character/Echo 分域 Profile 分别绑定。主模块只读取活动 Profile 并投影给 HUD；Presentation 模块不依赖 Widget、GameMode、Arena 坐标或 Recording。硬引用保证配置图标进入 cook，缺失图标由 UI 表现层安全降级。
+
+Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适配：它只读 Combat 的反应完成事件并生成可丢弃世界表现，不进入本 Runtime Module 的 Profile/FSM，也不改变 `ReEchoPresentation` 的依赖方向。
 
 ## 内部组成
 

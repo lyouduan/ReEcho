@@ -124,6 +124,8 @@ private:
 	void HandleFuseChanged(const FReEchoEnemyFuseEvent& Event);
 	UFUNCTION()
 	void HandleCombatHurt(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 
 	void ApplyVisual(FName PresentationId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);

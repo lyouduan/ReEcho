@@ -213,7 +213,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 - 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
 - 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把敌方逻辑载体的连续路径与世界接触转为 Combat。狐狸 Active 每步继续用根 Box `AddActorWorldOffset(..., sweep=true)`，只按实际起终点与锁定目标碰撞盒的首次相交提交同一 `AttackIdentity` 的 `FReEchoHitIntent`；无敌接触消费一次门但不扣血，世界阻挡立即反馈 Logic 进入 Recovery，禁止穿透或补偿传送。兔子移动散射一次 Commit 展开三条扇形轨迹，站定连发则按 `ActiveSeconds` 依次发布四条同向轨迹，每条最多结算一次；两种兔子技能的单球碰撞半径固定沿用原移动三球基准 `RadiusCm / 3`，不因发数改变。Combat Death 后 Host 立即关闭 Logic/碰撞和新行为，保留已发射逻辑投射物推进；死亡阶段只继续轻量表现推进，使 GroundShadow 可跟随 Death 当前帧；Death Clip 独占播放一次并在实际完成时销毁 Host，缺失 Death 时下一安全帧销毁，实际时长加短宽限只作为防卡死 watchdog。
-- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class，血条、动画、命中特效、元素光环与死亡残留不反向控制玩法。
+- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；同时只读 Host 的 Combat 伤害/反应结果生成伤害数字和一次性元素反应字。反应字严格使用事件的 `ReactionBehaviorId` 与 `PrimaryTarget`，不从元素状态重算，也不按 Growth/Conduct 的受影响目标重复生成。主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class；血条、动画、命中特效、元素光环、反应字与死亡残留均不反向控制玩法。
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；`SetEncounterSimulationSuspended` 在同 Stage 局间冻结原 Host，并在进入下一 Encounter 前恢复。Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
 - Plan68 接线：GameMode 用当前 `EncounterIndex` 编译每个出生 Enemy Definition；Host 注入表驱动 `HateRangeCm`、当前生命比率和特殊行动许可。`M_SHEEP` 的第一次致命伤由 Combat 窄委托转为 Phase2 变身事件，完成后把生命上限和当前生命切到 650；普通怪未战斗时的 IdleWander 仍由 EnemyLogic 独占状态。
 - 群体移动：EnemyLogic 的追踪/攻击意图保持权威；主模块 `FReEchoEnemyCrowdSteering` 在 Host 应用 Transform 前，根据 SpawnIndex 稳定攻击槽位、Roster 邻居 Separation、切向绕行和短时受阻恢复修正普通追踪位移。普通敌人之间互相加入 MoveIgnore，避免 Pawn Sweep 形成静止队列；玩家、场景与 Boss 仍保持硬碰撞，击退和特殊动作不进入普通 Crowd 修正。
@@ -323,6 +323,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。
 - 商店/背包页保留全屏背景，并把固定 `1920×1080` 作者坐标的交互内容放入统一等比缩放设计面；WBP 控件和运行时弹层必须共享同一缩放坐标系，避免低分辨率裁切或点击区域错位。武器背包和符文背包共用该设计面的根级高层浮层，不能继续嵌在装配室局部 Canvas 下被兄弟表现层遮挡。
 - 商店/背包页按 `P` 时由更高 Pause 层覆盖，商店保持打开；恢复后重新聚焦商店并保持暂停，不得复用商店关闭路径或触发战后推进。
+- 战斗世界空间元素反应字由主模块 Enemy Presentation 订阅 Combat 的权威反应完成事件后生成；五类透明图及渐隐材质属于 UI 表现资产，`BP_ReEchoElementReactionPopup` 是尺寸、上浮、渐隐与缩放的调参入口，缺失时不得阻断玩法。
 - 人工验收：布局、可读性、焦点、点击区域和视觉效果由用户验收，Executor 不做高 token 视觉遍历。
 
 ### `AREA-Tests`：`Tests`验证边界

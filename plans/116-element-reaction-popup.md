@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（Gavyn-side AI）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Closed`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@a5d269911fe359646c6ac75e7228e52314edf683`。
 - 本地实现方式（可选，仅作交接说明）：`feat/element-reaction-popup`；`C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan116-element-reaction-popup`。
@@ -22,6 +22,8 @@
   - `Content/ReEcho/UI/CombatHud/BP_ReEchoElementReactionPopup.uasset`
   - `scripts/ue/import_element_reaction_popup_assets.py`
   - `scripts/ue/author_element_reaction_popup.py`
+  - `Design/UI/ReEcho_元素反应字调参指南.md`
+  - `Design/UI/ReEcho_UI修改指导.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`
@@ -67,14 +69,14 @@
 
 ## 锁定验收
 
-- [ ] 五种 `ReactionBehaviorId` 均映射到正确的透明反应字资产；两种强化触发共用“强化”。
-- [ ] 每次权威反应事件只在主目标上方生成一个反应字，Growth/Conduct 不按受影响目标重复生成。
-- [ ] 反应字在可调持续时间内平滑上浮并从完全不透明渐隐到透明，结束后销毁；始终正确朝向正交相机。
-- [ ] 持续时间、世界高度/尺寸、上浮高度与渐隐曲线至少可从 `BP_ReEchoElementReactionPopup` Class Defaults 调整。
-- [ ] 缺失 Blueprint、材质或单张纹理时不影响反应结算；可使用原生类 fallback 或跳过并输出明确告警。
-- [ ] 伤害数字现状审计有代码证据：当前显示 `AppliedDamage`，致死 overkill 被钳制到受击前剩余生命；本 Plan 不改变该语义。
-- [ ] C++/资产聚焦自动化、UE 5.8 Editor 构建、静态校验和最终 `-FullRebuild` 发布门禁通过。
-- [ ] 用户在 `Level00` 手测五类反应字的映射、尺寸、遮挡、上浮速度和渐隐观感并确认通过。
+- [x] 五种 `ReactionBehaviorId` 均映射到正确的透明反应字资产；两种强化触发共用“强化”。
+- [x] 每次权威反应事件只在主目标上方生成一个反应字，Growth/Conduct 不按受影响目标重复生成。
+- [x] 反应字在可调持续时间内平滑上浮并从完全不透明渐隐到透明，结束后销毁；始终正确朝向正交相机。
+- [x] 持续时间、世界高度/尺寸、上浮高度与渐隐曲线至少可从 `BP_ReEchoElementReactionPopup` Class Defaults 调整。
+- [x] 缺失 Blueprint、材质或单张纹理时不影响反应结算；可使用原生类 fallback 或跳过并输出明确告警。
+- [x] 伤害数字现状审计有代码证据：当前显示 `AppliedDamage`，致死 overkill 被钳制到受击前剩余生命；本 Plan 不改变该语义。
+- [x] C++/资产聚焦自动化、UE 5.8 Editor 构建、静态校验和最终 `-FullRebuild` 发布门禁通过。
+- [x] 用户在 `Level00` 手测五类反应字的映射、尺寸、遮挡、上浮速度和渐隐观感并确认通过。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -111,11 +113,27 @@
 ### 变化
 
 - 已完成当前伤害数字语义审计：`UReEchoCombatantComponent::ApplyFinalDamage` 将实际扣血钳制到剩余生命，`FReEchoDamageEvent` 同时保留 `RawDamage/AppliedDamage`，`UReEchoEnemyPresentationComponent::HandleCombatHurt` 当前使用 `AppliedDamage` 生成跳字。
+- 已归档五张生产 PNG，并新增幂等纹理导入、半透明 Material/Blueprint authoring 脚本。
+- 已新增独立世界空间反应字 Actor；Enemy Presentation 只消费既有权威反应事件并按主目标生成一次。
 
 ### 证据
 
 - 外部素材目录包含五张生产单体透明 PNG：导电 `922×898`、强化 `1161×855`、生长 `1178×789`、蒸发 `980×977`、灼烧 `950×979`，均为 32-bit ARGB。
 - Plan 编号分配时发现远端已发布 Plan 115；本 Plan 顺延到 116。传入提交 `a5d269911fe359646c6ac75e7228e52314edf683` 仅新增 Plan 文档，与本任务无物理、逻辑或运行时耦合。
+- 首次增量构建准确暴露两个材质参数名误用 `constexpr FName` 的 `C2131`；已改为普通命名空间 `const FName`，未改变运行时语义，等待重建确认。
+- 首次纹理导入在“灼烧”后准确失败：UE Python 的纹理属性名应为 `srgb`，脚本误写为 `s_rgb`，导致其余四张纹理尚未执行导入；已修正属性名，等待重新导入与聚焦测试确认。
+- 修正后 `git diff --check` 通过；`python scripts/validate_project.py` 通过 CSV/XLSX、UTF-8、项目描述符与工作流静态门禁。当前只记录静态证据，不冒充尚被另一 Editor 会话阻塞的资产/自动化验证。
+- 修正后的绝对路径 Editor 导入日志逐张输出五条 `[ElementReactionPopupImport] PASS`，物理目录存在五个 `T_UI_Reaction_*.uasset`；材质/Blueprint 第二次作者ing输出 `status=preserved`，证明幂等且没有覆盖 Class Defaults。
+- 增量 `Development Editor` 构建通过，预构建源码指纹为 `f9e489f2d75b`；最终发布仍将按门禁重新执行 `-FullRebuild`。
+- `ReEcho.UI.CombatHud.Formatting` 1/1 通过，覆盖五种映射/纹理加载、材质 BlendMode、Blueprint 父类和渐隐辅助函数。
+- `ReEcho.Combat.ElementReaction*` 4/4 通过：`ElementReactionBurnRefresh`、`ElementReactions`、`ElementReactionSaveContinuity`、`ElementReactionWorld`，既有权威反应结算未回归。
+- 用户已在 `Level00` 手测并反馈“感觉没什么问题”，人工验收通过；其在 `BP_ReEchoElementReactionPopup` 保存的调参修改作为候选资产一并保留。
+- 已新增 `Design/UI/ReEcho_元素反应字调参指南.md`，说明策划入口、九项 Class Defaults、渐隐指数的准确曲线语义、建议范围、常用组合、验收清单和禁止修改边界，并由 UI 总指导建立索引。
+- 发布前抓取到 `origin/main@0b339df4`，新增玩家受伤碰撞/兔子参数、狐狸冲刺运行时碰撞、Plan117 狐狸箭头可见性与批量生成。与本任务的文本路径交集只有精选预构建包及 `MOD-ReEcho.md`：前者先采用传入主线版本并由最终 FullRebuild 统一重建，后者保留主线狐狸/兔子说明并合并本任务反应字表现边界。Combat 反应事件、Enemy Presentation Component 和本任务资产路径均无传入修改，未发现逻辑或运行时耦合冲突。
+- `origin/main@0b339df4` 合入后的最终 `Development Editor -FullRebuild` 94/94 动作通过，UBT `Result: Succeeded`，精选预构建源码指纹刷新为 `b5beec384a1c`。
+- 最终组合候选再次通过 `ReEcho.UI.CombatHud.Formatting` 1/1 与 `ReEcho.Combat.ElementReaction*` 4/4；无 Automation Error/Fatal。
+- 以正式候选 `c9eb4900` 使用空 expected-value lease 原子取得 `main-publish-lock`；锁内重新 fetch 后 `origin/main` 仍为 `0b339df4` 且已是候选祖先。锁内再次执行 `Development Editor -FullRebuild`，94/94 动作通过、`Result: Succeeded`、源码指纹保持 `b5beec384a1c`；随后静态校验再次通过。
+- 锁内最终候选 `b377239ced286df21621a6c0fa92c334049984a8` 已普通快进发布到 `origin/main`；发布后确认远端 main 与候选完全一致，并用准确 commit lease 删除 `main-publish-lock`。
 
 ### 剩余风险
 
@@ -124,8 +142,14 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：待实现后由用户在 `Level00` 验收五类反应字。
+- `Passed`：用户已在本任务 `Level00` 手测并确认表现无明显问题。
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `ARCHITECTURE.md`：已审阅；未新增 Runtime Module、公共依赖边或权威状态，拓扑不变，无需修改。
+- `README.md`：已审阅；既有 `AREA-UI`、`AREA-Presentation` 与模块索引已覆盖本次代码位置，无需修改。
+- `MOD-ReEcho.md`：已更新 Enemy Presentation 接线与 `AREA-UI` 的一次性元素反应字职责。
+- `MOD-ReEchoUI.md`：已更新 Plan116、五类反应字映射、单主目标生成、资产路径和 Blueprint 调参入口。
+- `MOD-ReEchoPresentation.md`：已更新边界说明；反应字属于主模块适配，不进入独立 Presentation Runtime Module/FSM。
+- `MOD-ReEchoCombat.md`：已审阅；继续只发布既有权威反应事件，公共契约和伤害语义未改，无需修改。
+- `MOD-ReEchoVFX.md`：已审阅；既有 Niagara 状态/反应语义路线不变，反应字是并行只读 UI 表现，不修改 VFX Catalog/Component，无需修改。

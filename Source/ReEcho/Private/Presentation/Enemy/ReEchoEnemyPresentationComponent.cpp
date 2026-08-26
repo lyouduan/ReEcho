@@ -25,6 +25,7 @@
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "UI/ReEchoDamageNumberActor.h"
+#include "UI/ReEchoElementReactionPopupActor.h"
 
 namespace ReEchoEnemyVisual
 {
@@ -108,6 +109,7 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.RemoveAll(this);
+		CombatEvents->OnElementReactionResolved.RemoveAll(this);
 	}
 
 	Host = InHost;
@@ -129,6 +131,8 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatHurt);
+		CombatEvents->OnElementReactionResolved.AddDynamic(
+		    this, &UReEchoEnemyPresentationComponent::HandleElementReactionResolved);
 	}
 }
 
@@ -582,4 +586,14 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	{
 		PresentationController->PlayAction(ReEcho2DAnimationTags::Hit, true);
 	}
+}
+
+void UReEchoEnemyPresentationComponent::HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event)
+{
+	if (!AReEchoElementReactionPopupActor::ShouldDisplayForTarget(Event, Host))
+	{
+		return;
+	}
+	AReEchoElementReactionPopupActor::SpawnReactionPopup(
+	    Host ? Host->GetWorld() : nullptr, Event.PrimaryTarget->GetActorLocation(), Event.ReactionBehaviorId);
 }
