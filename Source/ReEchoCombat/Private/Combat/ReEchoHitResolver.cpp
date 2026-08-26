@@ -46,9 +46,28 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	}
 
 	Result.RawDamage = FMath::Max(0.0f, Target->ModifyIncomingRawDamage(Candidate));
+	for (const FName StatusId : Candidate.PreDamageStatusIds)
+	{
+		if (StatusId.IsNone())
+		{
+			continue;
+		}
+		FReEchoTimedStatusCommand Command;
+		Command.StatusId = StatusId;
+		Command.CurrentTimeSeconds =
+		    Candidate.Target->GetWorld() ? Candidate.Target->GetWorld()->GetTimeSeconds() : 0.0f;
+		Command.DurationSeconds = 3600.0f;
+		Command.Attack = Candidate.Attack;
+		Command.DamageSource = Candidate.DamageSource;
+		TargetCombatant->ApplyTimedStatus(Command);
+	}
 	const bool bWasAlive = TargetCombatant->IsAlive();
 	Result.AppliedDamage = FReEchoHitResolverAccess::ApplyFinalDamage(
 	    *TargetCombatant, Result.RawDamage, Candidate.Attack, Candidate.DamageSource);
+	if (Result.AppliedDamage > 0.0f)
+	{
+		TargetCombatant->RecordEffectivePlayerEchoDamageSource(Candidate.DamageSource);
+	}
 	Result.bBlocked = Result.AppliedDamage <= 0.0f;
 	Result.bKilled = bWasAlive && !TargetCombatant->IsAlive();
 
@@ -80,6 +99,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 	// world, but source-side feedback is intentionally skipped once that source is no longer valid.
 	if (AActor* Source = Candidate.Attack.Source.Get())
 	{
+		const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Source);
 		if (UReEchoCombatEventsComponent* SourceEvents = Source->FindComponentByClass<UReEchoCombatEventsComponent>())
 		{
 			if (Result.AppliedDamage > 0.0f)
@@ -89,11 +109,15 @@ FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent&
 			if (Result.bKilled)
 			{
 				SourceEvents->PublishKill(Event);
-				if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Source))
+				if (SourceRules)
 				{
-					SourceRules->NotifyKillResolved();
+					SourceRules->NotifyKillResolved(Target->GetCombatTargetDefinitionId());
 				}
 			}
+		}
+		if (SourceRules)
+		{
+			SourceRules->NotifyHitResolved(Result);
 		}
 	}
 	return Result;

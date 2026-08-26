@@ -89,7 +89,11 @@ public:
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
 	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const override;
 	virtual void NotifyReactionResolved(FName ReactionId) const override;
-	virtual void NotifyKillResolved() const override;
+	virtual float GetReactionDamageMultiplier(FName ReactionId) const override;
+	virtual bool HasInfiniteStackingBurn() const override;
+	virtual void NotifyKillResolved(FName TargetDefinitionId) const override;
+	virtual void NotifyHitResolved(const FReEchoHitResolved& Result) const override;
+	virtual void NotifyNegativeStatusApplied(FName StatusId) const override;
 	/** Development-only override applied to every outgoing player hit; None restores weapon-authored elements. */
 	void SetDebugOutgoingElementOverride(EReEchoElement Element);
 	EReEchoElement GetDebugOutgoingElementOverride() const;

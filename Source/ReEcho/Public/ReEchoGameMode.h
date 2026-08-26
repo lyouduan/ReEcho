@@ -227,6 +227,9 @@ private:
 	int32 EnemySpawnIndex = 0;
 	TArray<FVector> EncounterSpawnLocations;
 	TArray<float> RecentRangedBurstWorldTimes;
+	/** Last non-zero side of each living enemy relative to each Player-Echo connection segment. */
+	TMap<uint64, int8> ConnectionLineSideByPair;
+	bool bHandlingVaporizeWaterSplash = false;
 	TArray<FReEchoPendingSpawnBatchState> PendingSpawnBatches;
 	UFUNCTION()
 	void HandleFixedStep(float FixedDeltaSeconds);
@@ -357,6 +360,8 @@ private:
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleCardElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);

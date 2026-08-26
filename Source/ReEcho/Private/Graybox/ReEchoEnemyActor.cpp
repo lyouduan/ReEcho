@@ -292,6 +292,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	bVisualPlacementApplied = true;
 	EnemyPresentation->ConfigureAppearance(Definition.PresentationId);
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
+	Combatant->SetCursedImmune(bBoss);
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
 	                                     bBoss ? FReEchoAudioEvents::BossAttack : FReEchoAudioEvents::EnemyAttack,
 	                                     bBoss ? FReEchoAudioEvents::BossDeath : FReEchoAudioEvents::EnemyDeath);

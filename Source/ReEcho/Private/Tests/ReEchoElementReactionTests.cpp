@@ -222,7 +222,7 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Conduct pure result leaves chain damage to world execution"), Result.Damage, 0.0f);
 	TestEqual(
 	    TEXT("Conduct uses chain element attack formula"), Result.FormulaId, FName(TEXT("Element.ChainElementAttack")));
-	TestEqual(TEXT("Conduct radius comes from CSV"), Result.RadiusCm, 100.0f);
+	TestEqual(TEXT("Conduct radius comes from CSV"), Result.RadiusCm, 200.0f);
 	TestTrue(TEXT("Conduct grants elemental immunity"), State.ImmunityUntil > 0.0f);
 
 	State = FReEchoElementState{};
@@ -665,7 +665,7 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Conduct publishes exactly one resolved event"),
 			          Events->GetElementReactionPublishCountForTests(),
 			          1);
-			TestEqual(TEXT("Conduct event retains configured radius"), Event.RadiusCm, 100.0f);
+			TestEqual(TEXT("Conduct event retains configured radius"), Event.RadiusCm, 200.0f);
 			TestEqual(TEXT("Conduct event retains authoritative target count"), Event.AffectedTargets.Num(), 5);
 			TestEqual(TEXT("Conduct event retains one authoritative edge per discovered secondary target"),
 			          Event.ReactionLinks.Num(),

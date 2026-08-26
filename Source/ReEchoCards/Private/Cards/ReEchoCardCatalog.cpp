@@ -12,8 +12,11 @@ const TSet<FName>& SupportedTriggers()
 	                                   TEXT("BeforeOutgoingHit"),
 	                                   TEXT("BeforeIncomingHit"),
 	                                   TEXT("OnHitResolved"),
+	                                   TEXT("OnDamageResolved"),
+	                                   TEXT("OnStatusApplied"),
 	                                   TEXT("OnReaction"),
 	                                   TEXT("OnPurchase"),
+	                                   TEXT("OnInventoryChanged"),
 	                                   TEXT("OnEchoKilled"),
 	                                   TEXT("OnResolveEchoes"),
 	                                   TEXT("OnCompileRules")};
@@ -26,6 +29,11 @@ const TSet<FName>& SupportedBehaviors()
 	                                   TEXT("Card.InstantRecovery"),
 	                                   TEXT("Card.GrantTier"),
 	                                   TEXT("Card.RandomStatTrade"),
+	                                   TEXT("Card.RandomRateTrade"),
+	                                   TEXT("Card.ResetRunes"),
+	                                   TEXT("Card.FreeShopVisit"),
+	                                   TEXT("Card.UnlimitedShopRefresh"),
+	                                   TEXT("Card.CollectCores"),
 	                                   TEXT("Card.TrackNextKills"),
 	                                   TEXT("Card.TrackNextReactions"),
 	                                   TEXT("Card.EchoElementAura"),
@@ -52,7 +60,26 @@ const TSet<FName>& SupportedBehaviors()
 	                                   TEXT("Card.ShardOutgoingDamage"),
 	                                   TEXT("Card.ShardIncomingBarrier"),
 	                                   TEXT("Card.ReactionDiversity"),
-	                                   TEXT("Card.DoubleNonCoreSlots")};
+	                                   TEXT("Card.DoubleNonCoreSlots"),
+	                                   TEXT("Card.NumericChallenge"),
+	                                   TEXT("Card.OverkillHeal"),
+	                                   TEXT("Card.SelfRace"),
+	                                   TEXT("Card.NegativeStatusHeal"),
+	                                   TEXT("Card.TargetKillCurse"),
+	                                   TEXT("Card.RecordReaction"),
+	                                   TEXT("Card.CurseBank"),
+	                                   TEXT("Card.ConnectionLine"),
+	                                   TEXT("Card.ProximityDamage"),
+	                                   TEXT("Card.WeaponMaster"),
+	                                   TEXT("Card.EchoTrinityHead"),
+	                                   TEXT("Card.EchoTrinityBody"),
+	                                   TEXT("Card.EchoTrinityLegs"),
+	                                   TEXT("Card.InfiniteStackingBurn"),
+	                                   TEXT("Card.VaporizeWaterSplash"),
+	                                   TEXT("Card.ConductDamageGrowth"),
+	                                   TEXT("Card.OverhealCapacity"),
+	                                   TEXT("Card.AlternatingSources")};
+
 	return Values;
 }
 } // namespace

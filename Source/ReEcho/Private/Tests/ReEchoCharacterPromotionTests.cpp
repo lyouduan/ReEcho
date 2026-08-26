@@ -31,7 +31,7 @@ bool FReEchoCharacterPromotionRoleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Hunter promotion leaves twelve maximum health"), Hunter.Stats.HpMax, 12.0f);
 	TestEqual(TEXT("Hunter static ability grants twenty percent movement"), Hunter.Stats.MovementSpeed, 1.2f);
 	TestEqual(TEXT("Hunter static ability grants twenty critical-rate points"), Hunter.Stats.CriticalRate, 0.4f);
-	TestEqual(TEXT("Hunter static ability grants fifty critical-effect points"), Hunter.Stats.CriticalEffect, 1.0f);
+	TestEqual(TEXT("Hunter static ability grants thirty critical-effect points"), Hunter.Stats.CriticalEffect, 0.8f);
 	TestTrue(TEXT("Promotion is applied only once"), !ReEchoCharacterPromotion::TryPromote(Hunter));
 	UReEchoRunSubsystem* HunterRun = NewObject<UReEchoRunSubsystem>(GameInstance);
 	HunterRun->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
@@ -42,7 +42,7 @@ bool FReEchoCharacterPromotionRoleTest::RunTest(const FString& Parameters)
 	          0.4f);
 	TestEqual(TEXT("Hunter starts with configured critical-effect ability once"),
 	          HunterRun->CurrentBuild.Stats.CriticalEffect,
-	          1.0f);
+	          0.8f);
 
 	FReEchoBuildSnapshot Poet;
 	Poet.CardState.OwnedCardIds = {TEXT("G_1_04"), TEXT("G_1_04"), TEXT("G_1_06"), TEXT("G_1_01")};
@@ -87,25 +87,25 @@ bool FReEchoSageBonusCadenceTest::RunTest(const FString& Parameters)
 		return Offers.Num() > 0 && RunSubsystem->ApplyTraitCard(Offers[0].CardId);
 	};
 
-	for (int32 Index = 0; Index < 4; ++Index)
+	for (int32 Index = 0; Index < 5; ++Index)
 	{
 		TestTrue(TEXT("A normal Sage trait choice applies"), ApplyAvailableCard());
 	}
-	TestEqual(TEXT("Four normal choices open one Sage bonus choice"), RunSubsystem->Phase, EReEchoRunPhase::CardChoice);
+	TestEqual(TEXT("Five normal choices open one Sage bonus choice"), RunSubsystem->Phase, EReEchoRunPhase::CardChoice);
 	TestTrue(TEXT("The Sage bonus choice applies"), ApplyAvailableCard());
 	TestEqual(TEXT("The Sage bonus choice does not recursively grant another bonus"),
 	          RunSubsystem->Phase,
 	          EReEchoRunPhase::Planning);
 
-	for (int32 Index = 0; Index < 3; ++Index)
+	for (int32 Index = 0; Index < 4; ++Index)
 	{
 		TestTrue(TEXT("A later normal Sage trait choice applies"), ApplyAvailableCard());
-		TestEqual(TEXT("Fewer than four later normal choices grant no bonus"),
+		TestEqual(TEXT("Fewer than five later normal choices grant no bonus"),
 		          RunSubsystem->Phase,
 		          EReEchoRunPhase::Planning);
 	}
-	TestTrue(TEXT("The fourth later normal Sage trait choice applies"), ApplyAvailableCard());
-	TestEqual(TEXT("The next Sage bonus waits for four additional normal choices"),
+	TestTrue(TEXT("The fifth later normal Sage trait choice applies"), ApplyAvailableCard());
+	TestEqual(TEXT("The next Sage bonus waits for five additional normal choices"),
 	          RunSubsystem->Phase,
 	          EReEchoRunPhase::CardChoice);
 	return true;

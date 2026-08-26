@@ -1,5 +1,7 @@
 #include "Combat/ReEchoCombatantComponent.h"
 
+#include "Combat/ReEchoCombatTarget.h"
+
 #include "AbilitySystem/ReEchoCombatAttributeSet.h"
 #include "AbilitySystem/ReEchoGameplayEffects.h"
 #include "AbilitySystem/ReEchoGameplayTags.h"
@@ -60,7 +62,13 @@ UAbilitySystemComponent* UReEchoCombatantComponent::GetBoundAbilitySystem() cons
 void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InStats, const bool bFillHealth)
 {
 	const float PreviousHealth = CurrentHealth;
+	if (bFillHealth)
+	{
+		Overhealth = 0.0f;
+	}
 	bDeathBroadcast = false;
+	bHasLastPlayerEchoDamageSource = false;
+	LastPlayerEchoDamageSource = EReEchoDamageSource::Player;
 	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
 	{
 		RemoveTransientStatStack(Index);
@@ -84,7 +92,7 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	}
 	Stats = InStats;
 	CurrentHealth = bFillHealth ? Stats.HpMax : FMath::Min(CurrentHealth, Stats.HpMax);
-	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(PreviousHealth);
 	HealthChangeReason = NAME_None;
 }
@@ -98,6 +106,24 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 	{
 		return 0.f;
 	}
+	const FName CursedStatusId(TEXT("Z_Cursed"));
+	const float* CursedUntil = ElementState.ActiveStatusUntilSeconds.Find(CursedStatusId);
+	const bool bHasActiveCurse = !bCursedImmune && CursedUntil && *CursedUntil > WorldTime;
+	float ResolvedDamage = bHasActiveCurse ? FMath::Max(Damage, GetEffectiveCurrentHealth()) : Damage;
+	float OverhealthDamage = 0.0f;
+	if (Stats.Block <= 0 && Overhealth > 0.0f)
+	{
+		const float PreviousEffectiveHealth = GetEffectiveCurrentHealth();
+		OverhealthDamage = FMath::Min(Overhealth, ResolvedDamage);
+		Overhealth -= OverhealthDamage;
+		ResolvedDamage -= OverhealthDamage;
+		OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
+		PublishHealthChange(PreviousEffectiveHealth);
+		if (ResolvedDamage <= 0.0f)
+		{
+			return OverhealthDamage;
+		}
+	}
 	if (BoundAbilitySystem)
 	{
 		HealthChangeReason = TEXT("Damage");
@@ -108,23 +134,34 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 		{
 			SourceAbilitySystem = Source->GetAbilitySystemComponent();
 		}
-		const float Applied = ReEchoGameplayEffects::ApplyDamage(SourceAbilitySystem, *BoundAbilitySystem, Damage);
+		const float Applied =
+		    ReEchoGameplayEffects::ApplyDamage(SourceAbilitySystem, *BoundAbilitySystem, ResolvedDamage);
+		if (bHasActiveCurse && Applied > 0.0f)
+		{
+			ElementState.ActiveStatusUntilSeconds.Remove(CursedStatusId);
+			PublishElementStateChange();
+		}
 		HealthChangeReason = NAME_None;
 		HealthChangeAttack = {};
-		return Applied;
+		return OverhealthDamage + Applied;
 	}
 	if (Stats.Block > 0)
 	{
 		--Stats.Block;
 		return 0.f;
 	}
-	const float Applied = FMath::Min(CurrentHealth, Damage);
+	const float Applied = FMath::Min(CurrentHealth, ResolvedDamage);
 	const float PreviousHealth = CurrentHealth;
 	HealthChangeReason = TEXT("Damage");
 	HealthChangeAttack = Attack;
 	HealthChangeDamageSource = DamageSource;
 	CurrentHealth -= Applied;
-	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	if (bHasActiveCurse && Applied > 0.0f)
+	{
+		ElementState.ActiveStatusUntilSeconds.Remove(CursedStatusId);
+		PublishElementStateChange();
+	}
+	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(PreviousHealth);
 	if (!IsAlive() && !bDeathBroadcast)
 	{
@@ -145,7 +182,7 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 	}
 	HealthChangeReason = NAME_None;
 	HealthChangeAttack = {};
-	return Applied;
+	return OverhealthDamage + Applied;
 }
 
 void UReEchoCombatantComponent::SetDebugInvulnerable(const bool bEnabled)
@@ -192,13 +229,32 @@ bool UReEchoCombatantComponent::ApplyTimedStatus(const FReEchoTimedStatusCommand
 		ElementState.ActiveStatusUntilSeconds.Add(
 		    Command.StatusId, FMath::Max(ElementState.ActiveStatusUntilSeconds.FindRef(Command.StatusId), ExpiresAt));
 	}
+	else if (Command.StatusId == TEXT("Z_Cursed") && !bCursedImmune)
+	{
+		ElementState.ActiveStatusUntilSeconds.Add(
+		    Command.StatusId, FMath::Max(ElementState.ActiveStatusUntilSeconds.FindRef(Command.StatusId), ExpiresAt));
+	}
 	else
 	{
 		return false;
 	}
 	PublishElementStateChange();
 	RefreshTickState();
+	if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(Command.Attack.Source.Get()))
+	{
+		SourceRules->NotifyNegativeStatusApplied(Command.StatusId);
+	}
 	return true;
+}
+
+void UReEchoCombatantComponent::SetCursedImmune(const bool bImmune)
+{
+	bCursedImmune = bImmune;
+	if (bCursedImmune && ElementState.ActiveStatusUntilSeconds.Remove(TEXT("Z_Cursed")) > 0)
+	{
+		PublishElementStateChange();
+	}
+	RefreshTickState();
 }
 
 bool UReEchoCombatantComponent::IsActionDisabled(const float CurrentTimeSeconds) const
@@ -362,8 +418,10 @@ void UReEchoCombatantComponent::RemoveTransientStatStack(const int32 Index)
 void UReEchoCombatantComponent::RefreshTickState()
 {
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const bool bCurseNeedsExpiryTick = ElementState.ActiveStatusUntilSeconds.FindRef(TEXT("Z_Cursed")) > WorldTime;
 	SetComponentTickEnabled(!BleedingStacks.IsEmpty() || !TransientStatStacks.IsEmpty() ||
-	                        StunnedUntilWorldTime > WorldTime || InvulnerableUntilWorldTime > WorldTime);
+	                        StunnedUntilWorldTime > WorldTime || InvulnerableUntilWorldTime > WorldTime ||
+	                        bCurseNeedsExpiryTick);
 }
 
 float UReEchoCombatantComponent::ApplyHealing(const float Healing)
@@ -372,22 +430,49 @@ float UReEchoCombatantComponent::ApplyHealing(const float Healing)
 	{
 		return 0.0f;
 	}
+	const float PreviousEffectiveHealth = GetEffectiveCurrentHealth();
+	float BaseHealingApplied = 0.0f;
 	if (BoundAbilitySystem)
 	{
 		HealthChangeReason = TEXT("Healing");
 		HealthChangeAttack = {};
-		const float Applied = ReEchoGameplayEffects::ApplyHealing(nullptr, *BoundAbilitySystem, Healing);
+		BaseHealingApplied = ReEchoGameplayEffects::ApplyHealing(nullptr, *BoundAbilitySystem, Healing);
 		HealthChangeReason = NAME_None;
-		return Applied;
 	}
-	const float PreviousHealth = CurrentHealth;
-	HealthChangeReason = TEXT("Healing");
-	HealthChangeAttack = {};
-	CurrentHealth = FMath::Clamp(CurrentHealth + Healing, 0.0f, Stats.HpMax);
-	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
-	PublishHealthChange(PreviousHealth);
-	HealthChangeReason = NAME_None;
-	return CurrentHealth - PreviousHealth;
+	else
+	{
+		const float PreviousHealth = CurrentHealth;
+		HealthChangeReason = TEXT("Healing");
+		HealthChangeAttack = {};
+		CurrentHealth = FMath::Clamp(CurrentHealth + Healing, 0.0f, Stats.HpMax);
+		BaseHealingApplied = CurrentHealth - PreviousHealth;
+		HealthChangeReason = NAME_None;
+	}
+	const float RemainingHealing = FMath::Max(0.0f, Healing - BaseHealingApplied);
+	const float PreviousOverhealth = Overhealth;
+	const float Capacity = Stats.HpMax * OverhealCapacityFraction;
+	Overhealth = FMath::Clamp(Overhealth + RemainingHealing, 0.0f, Capacity);
+	const float OverhealthApplied = Overhealth - PreviousOverhealth;
+	if (!FMath::IsNearlyEqual(GetEffectiveCurrentHealth(), PreviousEffectiveHealth))
+	{
+		HealthChangeReason = TEXT("Healing");
+		OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
+		PublishHealthChange(PreviousEffectiveHealth);
+		HealthChangeReason = NAME_None;
+	}
+	return BaseHealingApplied + OverhealthApplied;
+}
+
+void UReEchoCombatantComponent::SetOverhealCapacityFraction(const float Fraction)
+{
+	const float PreviousEffectiveHealth = GetEffectiveCurrentHealth();
+	OverhealCapacityFraction = FMath::Clamp(Fraction, 0.0f, 1.0f);
+	Overhealth = FMath::Min(Overhealth, Stats.HpMax * OverhealCapacityFraction);
+	if (!FMath::IsNearlyEqual(GetEffectiveCurrentHealth(), PreviousEffectiveHealth))
+	{
+		OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
+		PublishHealthChange(PreviousEffectiveHealth);
+	}
 }
 
 void UReEchoCombatantComponent::ClampElementImmunityDuration(const float CurrentTimeSeconds,
@@ -407,10 +492,13 @@ void UReEchoCombatantComponent::ClampElementImmunityDuration(const float Current
 
 void UReEchoCombatantComponent::RestoreCurrentHealth(const float SavedHealth)
 {
-	const float PreviousHealth = CurrentHealth;
+	const float PreviousHealth = GetEffectiveCurrentHealth();
 	HealthChangeReason = TEXT("Restore");
 	HealthChangeAttack = {};
-	const float ClampedHealth = FMath::Clamp(SavedHealth, 0.0f, Stats.HpMax);
+	const float MaximumEffectiveHealth = Stats.HpMax * (1.0f + OverhealCapacityFraction);
+	const float ClampedEffectiveHealth = FMath::Clamp(SavedHealth, 0.0f, MaximumEffectiveHealth);
+	const float ClampedHealth = FMath::Min(ClampedEffectiveHealth, Stats.HpMax);
+	Overhealth = FMath::Max(0.0f, ClampedEffectiveHealth - Stats.HpMax);
 	bDeathBroadcast = ClampedHealth <= 0.0f;
 	if (BoundAbilitySystem)
 	{
@@ -424,11 +512,13 @@ void UReEchoCombatantComponent::RestoreCurrentHealth(const float SavedHealth)
 			BoundAbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Dead);
 		}
 		SyncFromAbilitySystem();
+		OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
+		PublishHealthChange(PreviousHealth);
 		HealthChangeReason = NAME_None;
 		return;
 	}
 	CurrentHealth = ClampedHealth;
-	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(PreviousHealth);
 	HealthChangeReason = NAME_None;
 }
@@ -473,7 +563,7 @@ FReEchoCombatantSnapshot UReEchoCombatantComponent::GetSnapshot() const
 {
 	FReEchoCombatantSnapshot Snapshot;
 	Snapshot.Combatant = const_cast<UReEchoCombatantComponent*>(this);
-	Snapshot.CurrentHealth = CurrentHealth;
+	Snapshot.CurrentHealth = GetEffectiveCurrentHealth();
 	Snapshot.MaximumHealth = Stats.HpMax;
 	Snapshot.Stats = Stats;
 	Snapshot.ElementState = ElementState;
@@ -578,6 +668,12 @@ void UReEchoCombatantComponent::TickComponent(const float DeltaTime,
 
 void UReEchoCombatantComponent::AdvanceTimedRuntimeState(const float CurrentTimeSeconds)
 {
+	if (const float* CursedUntil = ElementState.ActiveStatusUntilSeconds.Find(TEXT("Z_Cursed"));
+	    CursedUntil && CurrentTimeSeconds >= *CursedUntil)
+	{
+		ElementState.ActiveStatusUntilSeconds.Remove(TEXT("Z_Cursed"));
+		PublishElementStateChange();
+	}
 	if (StunnedUntilWorldTime > 0.0f && CurrentTimeSeconds >= StunnedUntilWorldTime)
 	{
 		StunnedUntilWorldTime = 0.0f;
@@ -662,13 +758,13 @@ void UReEchoCombatantComponent::SyncFromAbilitySystem()
 	Stats.AttackSpeed = Attributes->GetAttackSpeed();
 	Stats.MovementSpeed = Attributes->GetMovementSpeed();
 	Stats.EchoEfficiency = Attributes->GetEchoEfficiency();
-	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 }
 
 void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData& Data)
 {
 	CurrentHealth = Data.NewValue;
-	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(Data.OldValue);
 	if (Data.OldValue > 0.0f && Data.NewValue <= 0.0f && !bDeathBroadcast)
 	{
@@ -689,7 +785,7 @@ void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData
 void UReEchoCombatantComponent::HandleMaxHealthChanged(const FOnAttributeChangeData& Data)
 {
 	Stats.HpMax = Data.NewValue;
-	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 }
 
 void UReEchoCombatantComponent::HandleBlockChanged(const FOnAttributeChangeData& Data)
@@ -731,7 +827,7 @@ void UReEchoCombatantComponent::PublishHealthChange(const float PreviousHealth)
 			FReEchoHealthChangedEvent Event;
 			Event.Combatant = this;
 			Event.PreviousHealth = PreviousHealth;
-			Event.CurrentHealth = CurrentHealth;
+			Event.CurrentHealth = GetEffectiveCurrentHealth();
 			Event.MaximumHealth = Stats.HpMax;
 			Event.Reason = HealthChangeReason;
 			Event.Attack = HealthChangeAttack;
@@ -739,4 +835,14 @@ void UReEchoCombatantComponent::PublishHealthChange(const float PreviousHealth)
 			Events->PublishHealthChanged(Event);
 		}
 	}
+}
+
+void UReEchoCombatantComponent::RecordEffectivePlayerEchoDamageSource(const EReEchoDamageSource DamageSource)
+{
+	if (DamageSource != EReEchoDamageSource::Player && DamageSource != EReEchoDamageSource::Echo)
+	{
+		return;
+	}
+	bHasLastPlayerEchoDamageSource = true;
+	LastPlayerEchoDamageSource = DamageSource;
 }

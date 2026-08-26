@@ -541,12 +541,16 @@ void AReEchoPlayerPawn::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
 	if (Run)
 	{
 		float EchoDistanceCm = 0.0f;
+		float NearestEchoDistanceCm = TNumericLimits<float>::Max();
+		bool bHasLivingEcho = false;
 		for (TActorIterator<AReEchoEchoActor> It(GetWorld()); It; ++It)
 		{
 			if (It->IsCombatTargetAlive())
 			{
-				EchoDistanceCm =
-				    FMath::Max(EchoDistanceCm, FVector::Dist2D(GetActorLocation(), It->GetActorLocation()));
+				const float DistanceCm = FVector::Dist2D(GetActorLocation(), It->GetActorLocation());
+				EchoDistanceCm = FMath::Max(EchoDistanceCm, DistanceCm);
+				NearestEchoDistanceCm = FMath::Min(NearestEchoDistanceCm, DistanceCm);
+				bHasLivingEcho = true;
 			}
 		}
 		const UReEchoCombatantComponent* TargetCombatant =
@@ -554,6 +558,8 @@ void AReEchoPlayerPawn::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
 		Run->ModifyCardOutgoingHit(Intent,
 		                           Combatant ? Combatant->Stats : Run->CurrentBuild.Stats,
 		                           EchoDistanceCm,
+		                           bHasLivingEcho ? NearestEchoDistanceCm : 0.0f,
+		                           bHasLivingEcho,
 		                           TargetCombatant &&
 		                               TargetCombatant->GetElementState().Attached != EReEchoElement::None);
 	}
@@ -598,14 +604,52 @@ void AReEchoPlayerPawn::NotifyReactionResolved(const FName ReactionId) const
 	}
 }
 
-void AReEchoPlayerPawn::NotifyKillResolved() const
+float AReEchoPlayerPawn::GetReactionDamageMultiplier(const FName ReactionId) const
+{
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	return Run ? Run->GetCardReactionDamageMultiplier(ReactionId) : 1.0f;
+}
+
+bool AReEchoPlayerPawn::HasInfiniteStackingBurn() const
+{
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	return Run && Run->GetCardRules().bInfiniteStackingBurn;
+}
+
+void AReEchoPlayerPawn::NotifyKillResolved(const FName TargetDefinitionId) const
 {
 	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
 	{
-		Run->NotifyCardKill(false);
+		Run->NotifyCardKill(false, TargetDefinitionId);
 		if (Combatant)
 		{
 			Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
+		}
+	}
+}
+
+void AReEchoPlayerPawn::NotifyHitResolved(const FReEchoHitResolved& Result) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardDamageResolved(Result.RawDamage, Result.AppliedDamage, false);
+		if (Combatant && Healing > 0.0f)
+		{
+			Combatant->ApplyHealing(Healing);
+		}
+	}
+}
+
+void AReEchoPlayerPawn::NotifyNegativeStatusApplied(const FName StatusId) const
+{
+	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+	{
+		const float Healing = Run->NotifyCardNegativeStatusApplied(StatusId, false);
+		if (Combatant && Healing > 0.0f)
+		{
+			Combatant->ApplyHealing(Healing);
 		}
 	}
 }
