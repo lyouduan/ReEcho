@@ -7,7 +7,7 @@
 - Build 文件：`Source/ReEchoAudio/ReEchoAudio.Build.cs`。
 - 注册入口：`Source/ReEchoAudio/Private/ReEchoAudio.cpp` 中的 `FReEchoAudioModule`。
 - 主要目录：`Source/ReEchoAudio/Public/`、`Source/ReEchoAudio/Private/`。
-- 相关基线：Plan33 音频运行时基础；Plan34 增加策划目录、持久设置、战斗 BGM 接入与真实后端淡入修复；Plan46 为全部 31 个目录项接入资源并硬化非阻塞播放、衰减和 Cook。
+- 相关基线：Plan33 音频运行时基础；Plan34 增加策划目录、持久设置、战斗 BGM 接入与真实后端淡入修复；Plan46 为全部 31 个基础目录项接入资源并硬化非阻塞播放、衰减和 Cook；Plan114 增加正式资源、确定性单声道/裁切派生和 Weapon/Element/Stage 变体。
 
 ## 存在原因
 
@@ -37,7 +37,7 @@
 | 状态 | 权威对象 | 说明 |
 |---|---|---|
 | 运行时服务生命周期 | `UReEchoAudioService` | GameInstance Subsystem，统一请求入口与 Tick |
-| 音频目录 | `FReEchoAudioCatalog` / `IReEchoAudioCatalogProvider` | `EventId` 到播放描述的唯一映射接口 |
+| 音频目录 | `FReEchoAudioCatalog` / `IReEchoAudioCatalogProvider` | `(EventId, VariantId)` 到播放描述的唯一映射接口；空变体是基础回退 |
 | 音频资源与来源 | `Content/ReEcho/Audio/**` / `Design/Audio/**` | 前者是运行时 SoundWave；后者保存用户源文件、确定性短音生成物与来源清单 |
 | 音乐状态 | `UReEchoAudioService` + Policy Engine | 独立状态通道，不由 GameMode 缓存第二份 |
 | 环境状态 | `UReEchoAudioService` + Policy Engine | 与音乐分离，可独立停止/切换 |
@@ -49,8 +49,8 @@
 
 ### 输入
 
-- `FReEchoAudioEventRequest`：稳定 `EventId`、世界位置、来源类别、强度和请求上下文。
-- `SetMusicState` / `SetAmbienceState` 与停止命令。
+- `FReEchoAudioEventRequest`：稳定 `EventId`、可选 `VariantId`、世界位置、来源类别、强度和请求上下文。
+- `SetMusicState` / `SetAmbienceState`、对应 Variant 入口与停止命令。
 - Master/Bus 音量、静音和 Tick。
 
 ### 输出
@@ -81,7 +81,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 
 ```text
 玩法/流程/UI 已确认的语义结果
-  → 主模块适配器选择稳定 EventId / StateId
+  → 主模块适配器选择稳定 EventId / StateId 与可选 VariantId
   → UReEchoAudioService
       → Catalog 查找定义
       → Policy Engine 检查总线、暂停、冷却、并发和优先级
@@ -89,7 +89,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
           → Unreal 2D/3D 播放或安全失败
 ```
 
-音乐与环境使用独立状态通道：重复设置相同状态应幂等；切换状态由服务/策略层管理，调用者不直接保存 AudioComponent。
+音乐与环境使用独立状态通道：重复设置相同 `(StateId, VariantId)` 应幂等；切换状态由服务/策略层管理，调用者不直接保存 AudioComponent。Service 同时保存期望 State/Variant，异步预载重试或 World 替换后恢复同一组合。
 
 跨 World OneShot 使用 Service 的单槽队列：调用方在旧 World 发出稳定 EventId，Ticker 仅在解析到不同的新 Game/PIE World 后交给 Policy Engine。队列不持有玩法类型、不等待播放完成，并在 Service 反初始化时清空。
 
@@ -104,9 +104,9 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 ### `FReEchoAudioCatalog`
 
 - 位置：`Public/ReEchoAudioCatalog.h`、`Private/ReEchoAudioCatalog.cpp`。
-- 角色：提供稳定 ID 到 `FReEchoAudioEventDefinition` 的类型化查询。
+- 角色：提供稳定 `(EventId, VariantId)` 到 `FReEchoAudioEventDefinition` 的类型化查询；精确变体不存在时回退同 EventId 的空变体。
 - 数据：`Design/Data/ReEchoAudioEvents.xlsx` 独立拥有 `audio_events.csv`，不耦合 `ReEchoData.xlsx` / `ReEchoEnemyData.xlsx`。
-- 加载：运行时对锁定 14 列 CSV 做 quote-aware 严格解析；仅在整表成功后原子替换，失败保留上一份有效目录。
+- 加载：运行时对锁定 15 列 CSV 做 quote-aware 严格解析，复合键必须唯一；仅在整表成功后原子替换，失败保留上一份有效目录。
 - 预载：soft asset 异步预载暴露 `NotStarted/Loading/Ready/Failed` 状态，失败可重试且播放仍安全 no-op。
 - 打包：`DefaultGame.ini` 的 `DirectoriesToAlwaysCook=/Game/ReEcho/Audio` 显式包含所有 CSV 文本软引用资产，不依赖地图偶然硬引用。
 
@@ -153,8 +153,8 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 
 - 自动化：`Source/ReEchoAudio/Private/Tests/ReEchoAudioFoundationTests.cpp`。
 - 重点覆盖：目录解析、无效 ID、安全降级、总线音量/静音、状态幂等、冷却、并发、优先级、暂停策略和假后端调用。
-- 语义路由审计：`python scripts/audio/validate_audio_event_routes.py` 比较 31 行目录、稳定常量和主模块生产引用，拒绝只有测试引用的孤立事件。
-- 资产审计：在取得同克隆 Unreal 锁后运行 `scripts/audio/validate_audio_catalog_assets.py`，验证 31 个路径、SoundWave 类型、循环标记与空间音效单声道约束。
+- 语义路由审计：`python scripts/audio/validate_audio_event_routes.py` 比较 31 个基础 EventId、稳定常量和主模块生产引用，拒绝只有测试引用的孤立事件；变体集合另由项目数据域校验限定。
+- 资产审计：在取得同克隆 Unreal 锁后运行 `scripts/audio/validate_audio_catalog_assets.py`，验证当前 42 行路径、SoundWave 类型、循环标记与空间音效单声道约束。
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development` 必须同时产出 `UnrealEditor-ReEchoAudio.dll`。
 - 静态：模块边界不得出现 `#include` 主模块玩法路径。
 - 人工验收：真实资源可听性、响度平衡、空间定位和混音由用户在 PIE/设备上判断；链路异常优先用 Audio Insights 的 Events/Sounds/总线表区分“请求已发出”“组件仍存活”和“设备有最终信号”。
@@ -169,6 +169,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 不得在后端用 `LoadSynchronous()` 补救未完成的预载；状态启动失败必须保留现有状态并允许重试。
 - 玩法不应为异步预载而重复发状态；Service 持有期望状态并负责重试，World 替换后不能用旧句柄误判为仍在播放。
 - CSV 中的 SoundWave 软路径必须由显式 Cook 目录覆盖，不能依赖当前地图是否引用资源。
+- 变体只由稳定 WeaponId、ElementId 或 StageId 选择；资产路径仍只存在于目录，未知/空变体必须回退基础事件。
 - 玩法调用点只认识稳定语义 ID，不认识资产路径。
 - next-world 队列只跨现有 World 生命周期投递声音，不得创建复活规则、延迟 `OpenLevel` 或用播放结果确认重开成功。
 - 模块公共头不得泄漏 `ReEcho`、Combat、Weapons、UI 或 Presentation 类型。

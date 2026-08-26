@@ -83,6 +83,10 @@ struct REECHOAUDIO_API FReEchoAudioEventDefinition
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName EventId;
 
+	/** Optional stable variant id. Empty rows are the fallback for the event. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName VariantId;
+
 	/** Soft audio asset. Loaded lazily/non-blockingly; null is allowed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSoftObjectPtr<USoundBase> Sound;

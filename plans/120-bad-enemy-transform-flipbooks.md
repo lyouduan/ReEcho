@@ -105,10 +105,12 @@
 - 全新 UE 进程后验：`PLAN120_AUDIT_RESULT assets_ok=true profiles_ok=true audited=[('BadRabbit', 7, 2), ('BadSlime', 5, 2), ('BadFox', 4, 2)]`。
 - 项目静态：`python scripts/validate_project.py` 通过；`git diff --check` 通过。
 - 最终构建：`scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 94/94 成功；`prebuilt_editor.py check` 通过，`modules=7 build_id=55116800 source=9050699833cd`。
+- 发布基线合并后，本机仅可用 `F:\UnrealEngine_Dev\UE_5.8`，其生成的 5.8.1 target 元数据与 `origin/main` 的 C 盘 Launcher UE 5.8.0 权威包不一致；用户在获知下游可能需要自行编译的风险后明确要求推送。最终安装版 FullRebuild 经人工确认跳过/未验证，发布候选保留最新 `origin/main` 的 C 盘 UE 5.8.0 精选预构建包，并重新执行 `prebuilt_editor.py check`、项目校验、资产审计与 `git diff --check`。
 
 ### 剩余风险
 
 视觉节奏、透明边缘和逐帧脚点只能由 PIE 人工验收；客观资产审计不能替代该结论。
+发布组合候选未在本机用规则要求的 Launcher UE 5.8.0 执行最终 FullRebuild；用户已明确确认继续推送，保留 `origin/main` 已验证的匹配预构建包。
 
 ### 人工验收结果/请求
 
