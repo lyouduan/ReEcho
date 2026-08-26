@@ -1841,7 +1841,13 @@ def validate_workflow() -> None:
             "所有大程序任务都必须",
             "shared/GIT_RULES.md",
         ),
-        "DESIGNER_RULES.md": ("策划用户路线", "ReEchoData.xlsx", "禁止手改生成的", "shared/GIT_RULES.md"),
+        "DESIGNER_RULES.md": (
+            "策划用户路线",
+            "ReEchoData.xlsx",
+            "策划 AI 可在本地读取、创建、修改、编译和试验仓库内任何文件",
+            "禁止策划路线直接推送、合并或发布 `origin/main`",
+            "shared/GIT_RULES.md",
+        ),
         "ARTIST_RULES.md": ("美术用户路线", "本地工作方式自由", "禁止手改 `.uasset`", "shared/GIT_RULES.md"),
     }
     role_rule_texts = {
