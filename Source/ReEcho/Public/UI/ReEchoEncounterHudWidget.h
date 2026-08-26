@@ -28,8 +28,7 @@ public:
 
 	static FText FormatEncounterLabel(int32 EncounterIndex);
 	static FText FormatCountdown(float RemainingSeconds);
-	/** Map authoritative countdown progress onto the source needle's right-to-left counter-clockwise upper semicircle.
-	 */
+	/** Map authoritative countdown progress from left through the lower semicircle to the right. */
 	static float CalculateCountdownNeedleAngle(float RemainingSeconds, float DurationSeconds);
 	static float CalculateBossHealthRatio(float CurrentHealth, float MaximumHealth);
 

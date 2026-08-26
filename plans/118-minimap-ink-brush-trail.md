@@ -48,7 +48,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 
 同一 Plan 同时收口敌人受击跳字数值：有效伤害仍以 `AppliedDamage>0` 为生成门禁，但显示目标规则修正后、剩余生命钳制前的 `RawDamage`。例如怪物剩余 `7` 血、本次最终伤害 `20`，生命只扣 `7` 并死亡，跳字显示 `20`。该变化只属于 Enemy Presentation，不新增或重解释 Combat 字段。
 
-顶部 Encounter HUD 同步修正两项表现：普通关卡倒计时指针从右经上半圆逆时针转到左；Boss 关隐藏时间底板、倒计时文字和指针，在相同顶部中心区域显示复用玩家血条底板造型的暗紫色 Boss 实际生命条。Boss 生命只读现有 EnemyRoster 中存活 Boss Actor 的 Combatant，不新增生命权威；`第 N 关` 文字与小地图继续显示。
+顶部 Encounter HUD 同步修正两项表现：普通关卡倒计时指针从左经下半圆逆时针转到右；Boss 关保留钟背板，只隐藏倒计时文字和指针，在相同顶部中心区域显示复用玩家血条底板造型的暗紫色 Boss 实际生命条。Boss 生命只读现有 EnemyRoster 中存活 Boss Actor 的 Combatant，不新增生命权威；暗紫 Fill 绘制在不透明底板内部上层，缩短后露出黑色空血区域；`第 N 关` 文字与小地图继续显示。
 
 ## 架构影响与设计决策
 
@@ -81,8 +81,8 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - [x] 512px 笔尖、Grain 和 UI 材质均可加载并被 Cook 依赖追踪；完整 Photoshop 交付包已归档且不把 `.abr` 当运行时资产。
 - [x] 敌人伤害事件 `RawDamage=20`、`AppliedDamage=7` 时跳字显示 `20`，生命仍只扣 `7`；普通 `7/7` 显示保持 `7`。
 - [x] 跳字仍仅在 `AppliedDamage>0` 时生成；颜色、字体、取整、缩放动画与生命周期不变，Combat Schema、生命和死亡规则未修改。
-- [x] 普通关卡指针从右经上半圆逆时针转到左，满/半/零时分别为 `-90/-180/-270` 度。
-- [x] Boss 关隐藏 `ArtClockFrame`、`CountdownText` 与 `ArtClockNeedle`，在同一区域显示复用玩家血条底板造型的暗紫色 Boss 生命条；生命比例来自存活 Boss Combatant，关卡文字和小地图不受影响。
+- [x] 普通关卡指针从左经下半圆逆时针转到右，满/半/零时分别为 `90/0/-90` 度。
+- [x] Boss 关保留 `ArtClockFrame`，隐藏 `CountdownText` 与 `ArtClockNeedle`，在同一区域显示复用玩家血条底板造型的暗紫色 Boss 生命条；暗紫 Fill 位于不透明底板上层并按存活 Boss Combatant 的生命比例缩放，关卡文字和小地图不受影响。
 - [ ] `ReEcho.UI.Minimap`、`ReEcho.UI.CombatHud`、UE 5.8 Editor 构建、静态校验及最终 `-FullRebuild` 发布门禁通过。
 - [x] 用户在 `Level00` 手测小地图笔触并明确反馈“笔触没问题了”。
 - [ ] 用户手测普通关指针逆时针方向，以及 Boss 关隐藏时间、暗紫血条位置/颜色与实际生命同步。
@@ -128,7 +128,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - 已将 Minimap 轨迹生产路径改为确定性、有界的笔尖盖印；保留旧 `MakeLines` 作为材质缺失 fallback，并提供 WBP 实例级笔触参数。
 - 已把原 Plan119 的理论伤害跳字范围并入本 Plan：Enemy Hurt 显示选择 `RawDamage`，保留 `AppliedDamage>0` 生成门禁及所有结算语义。
 - 已把六项轨迹调色板暴露到 `ReEchoMinimapCanvasWidget` Blueprint Details，并增加覆盖/缺项回退纯函数测试。
-- 已把普通关指针改为从右经上半圆逆时针转到左；Boss 关改为隐藏时间三件套，并在原中心区域显示复用玩家血条底板纹理的暗紫 Boss 实际生命条。GameMode 只读 EnemyRoster/Boss Combatant 后投影到 HUD，不新增生命权威。
+- 已把普通关指针改为从左经下半圆逆时针转到右；Boss 关保留钟背板，只隐藏倒计时文字和指针，并在原中心区域显示复用玩家血条底板纹理的暗紫 Boss 实际生命条。GameMode 只读 EnemyRoster/Boss Combatant 后投影到 HUD，不新增生命权威。
 
 ### 证据
 
@@ -143,6 +143,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 - Blueprint 六项轨迹调色板加入后再次通过 Development Editor 构建、`ReEcho.UI.Minimap.InkTrailSampling/Transform` 与静态校验；自动化覆盖索引命中时覆盖颜色、索引缺失时保留运行时回退颜色。
 - 人工截图暴露 UI Material 的 Slate Vertex Color RGB 在该绘制路径中实际读成黑色；已改为每个 Echo/调色板项创建独立动态材质实例并写入显式 `TrailColor` 向量参数，Slate Tint 只保留透明度。材质脚本复跑 `status=preserved` 且自检到 `TrailColor`，随后 Development Editor 构建、`ReEcho.UI.Minimap` 两项测试及 `ReEcho.UI.CombatHud.Formatting` 均通过。
 - Boss HUD 首轮构建只发现自动化中 `double` Scale 与 `float` 期望的 `TestEqual` 重载歧义；显式统一为 `double` 后 Development Editor 构建成功。`author_plan118_boss_hud.py` 幂等创建并保存 464×58 Boss 面板；`ReEcho.UI.CombatHud.Formatting` 验证逆时针角度、普通/Boss 显隐、0.5 生命比例、复用玩家框纹理与暗紫色，`ReEcho.UI.Minimap` 两项回归均为 `Result={Success}`。
+- 用户截图复核后将准确方向收口为左 `90°` → 下 `0°` → 右 `-90°`，并保留 Boss 战 `ArtClockFrame`。截图同时暴露血条底板 PNG 内部为不透明黑色、会遮挡下层 Fill；WBP 已把暗紫 `BossHealthFill` 从 ZOrder 0 移到 2（高于 ZOrder 1 的底板）。重新 author、Development 构建、`ReEcho.UI.CombatHud.Formatting` 与 `ReEcho.UI.Minimap` 均通过；HUD 自动化新增 Fill 高于底板和 Boss 背板保持可见断言。
 
 ### 剩余风险
 
@@ -152,7 +153,7 @@ UE 运行时采用沿折线确定性连续盖印透明笔尖的方式还原 Phot
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：由用户在同一 Plan118 工程验收小地图墨水轨迹，并以低血怪物确认过量伤害跳字。
+- `PendingBeforeClose`：小地图笔触已获用户确认；仍由用户在同一 Plan118 工程复验普通关指针方向、Boss 钟背板/血条缩放，并以低血怪物确认过量伤害跳字。
 
 ### 架构文档审阅结果
 

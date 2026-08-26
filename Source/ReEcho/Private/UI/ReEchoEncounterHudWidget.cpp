@@ -89,15 +89,15 @@ FText UReEchoEncounterHudWidget::FormatCountdown(const float RemainingSeconds)
 float UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(const float RemainingSeconds,
                                                                const float DurationSeconds)
 {
+	constexpr float LeftAngle = 90.0f;
 	constexpr float RightAngle = -90.0f;
-	constexpr float LeftAngle = -270.0f;
 	const float SafeRemainingSeconds = FMath::IsFinite(RemainingSeconds) ? RemainingSeconds : 0.0f;
 	if (!FMath::IsFinite(DurationSeconds) || DurationSeconds <= UE_SMALL_NUMBER)
 	{
-		return SafeRemainingSeconds <= 0.0f ? LeftAngle : RightAngle;
+		return SafeRemainingSeconds <= 0.0f ? RightAngle : LeftAngle;
 	}
 	const float ElapsedRatio = 1.0f - FMath::Clamp(SafeRemainingSeconds / DurationSeconds, 0.0f, 1.0f);
-	return FMath::Lerp(RightAngle, LeftAngle, ElapsedRatio);
+	return FMath::Lerp(LeftAngle, RightAngle, ElapsedRatio);
 }
 
 float UReEchoEncounterHudWidget::CalculateBossHealthRatio(const float CurrentHealth, const float MaximumHealth)
@@ -180,7 +180,7 @@ void UReEchoEncounterHudWidget::RefreshText()
 	    bBossEncounter ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible;
 	if (ArtClockFrame)
 	{
-		ArtClockFrame->SetVisibility(TimeVisibility);
+		ArtClockFrame->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 	if (EncounterText)
 	{

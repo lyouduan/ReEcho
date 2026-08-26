@@ -4,6 +4,7 @@
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoElementReaction.h"
 #include "Components/Border.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -161,24 +162,24 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Countdown clamps negative values"),
 	          UReEchoEncounterHudWidget::FormatCountdown(-1.0f).ToString(),
 	          FString(TEXT("00:00")));
-	TestEqual(TEXT("Countdown needle starts on the right"),
+	TestEqual(TEXT("Countdown needle starts on the left"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(60.0f, 60.0f),
-	          -90.0f);
-	TestEqual(TEXT("Countdown needle points up at half time"),
+	          90.0f);
+	TestEqual(TEXT("Countdown needle points down at half time"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(30.0f, 60.0f),
-	          -180.0f);
-	TestEqual(TEXT("Countdown needle finishes on the left"),
+	          0.0f);
+	TestEqual(TEXT("Countdown needle finishes on the right"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 60.0f),
-	          -270.0f);
+	          -90.0f);
 	TestEqual(TEXT("Countdown needle clamps remaining time above duration"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(90.0f, 60.0f),
-	          -90.0f);
+	          90.0f);
 	TestEqual(TEXT("Countdown needle safely handles an invalid duration before completion"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(10.0f, 0.0f),
-	          -90.0f);
+	          90.0f);
 	TestEqual(TEXT("Countdown needle safely handles an invalid duration at completion"),
 	          UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(0.0f, 0.0f),
-	          -270.0f);
+	          -90.0f);
 	TestEqual(TEXT("Boss health ratio uses authoritative current and maximum health"),
 	          UReEchoEncounterHudWidget::CalculateBossHealthRatio(650.0f, 1300.0f),
 	          0.5f);
@@ -272,6 +273,15 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Boss health fill uses a dark purple color"),
 		         BossFillColor.B > BossFillColor.R && BossFillColor.R > BossFillColor.G);
 	}
+	const UCanvasPanelSlot* BossFillSlot = BossHealthFill ? Cast<UCanvasPanelSlot>(BossHealthFill->Slot) : nullptr;
+	const UCanvasPanelSlot* BossFrameSlot = BossHealthFrame ? Cast<UCanvasPanelSlot>(BossHealthFrame->Slot) : nullptr;
+	TestNotNull(TEXT("Boss health fill has an authored Canvas slot"), BossFillSlot);
+	TestNotNull(TEXT("Boss health frame has an authored Canvas slot"), BossFrameSlot);
+	if (BossFillSlot && BossFrameSlot)
+	{
+		TestTrue(TEXT("Boss health fill draws above the opaque frame interior"),
+		         BossFillSlot->GetZOrder() > BossFrameSlot->GetZOrder());
+	}
 	TestNull(TEXT("Rejected countdown background is absent"),
 	         AuthoredEncounterHud->GetWidgetFromName(TEXT("ArtTimeReadout")));
 	if (EncounterText && CountdownText)
@@ -296,8 +306,9 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 		          ESlateVisibility::Collapsed);
 
 		AuthoredEncounterHud->SetEncounterStatus(8, 8, 40.0f, 60.0f, true, 650.0f, 1300.0f);
-		TestEqual(
-		    TEXT("Boss encounter hides the time frame"), ClockFrame->GetVisibility(), ESlateVisibility::Collapsed);
+		TestEqual(TEXT("Boss encounter keeps the decorative clock frame"),
+		          ClockFrame->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
 		TestEqual(
 		    TEXT("Boss encounter hides the countdown"), CountdownText->GetVisibility(), ESlateVisibility::Collapsed);
 		TestEqual(

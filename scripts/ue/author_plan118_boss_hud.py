@@ -1,7 +1,7 @@
 """Add the Plan118 Boss health presentation to the existing Encounter HUD.
 
 The operation is idempotent. It reuses named widgets and only authors the
-Boss-only panel that replaces the clock during a Boss encounter.
+Boss-only panel drawn over the preserved decorative clock frame.
 """
 
 import unreal
@@ -126,7 +126,7 @@ fill.set_brush_color(unreal.LinearColor(0.22, 0.055, 0.32, 1.0))
 fill.set_editor_property("padding", unreal.Margin(0.0, 0.0, 0.0, 0.0))
 fill.set_editor_property("render_transform_pivot", unreal.Vector2D(0.0, 0.5))
 fill.set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
-set_canvas_layout(fill, 12.0, 8.0, 440.0, 42.0, z_order=0)
+set_canvas_layout(fill, 12.0, 8.0, 440.0, 42.0, z_order=2)
 
 frame = ensure_widget(
     toolset, encounter, unreal.Image, "BossHealthFrame", panel, 1
@@ -153,5 +153,5 @@ for required_name in ("BossHealthPanel", "BossHealthFill", "BossHealthFrame"):
 
 unreal.log(
     "[Plan118BossHudAuthor] PASS "
-    "BossHealthPanel=464x58 fill=#381052 frameTint=#8C47AD"
+    "BossHealthPanel=464x58 fill=#381052 fillZ=2 frameTint=#8C47AD frameZ=1"
 )
