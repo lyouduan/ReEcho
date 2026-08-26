@@ -132,6 +132,7 @@
 - 发布前抓取到 `origin/main@0b339df4`，新增玩家受伤碰撞/兔子参数、狐狸冲刺运行时碰撞、Plan117 狐狸箭头可见性与批量生成。与本任务的文本路径交集只有精选预构建包及 `MOD-ReEcho.md`：前者先采用传入主线版本并由最终 FullRebuild 统一重建，后者保留主线狐狸/兔子说明并合并本任务反应字表现边界。Combat 反应事件、Enemy Presentation Component 和本任务资产路径均无传入修改，未发现逻辑或运行时耦合冲突。
 - `origin/main@0b339df4` 合入后的最终 `Development Editor -FullRebuild` 94/94 动作通过，UBT `Result: Succeeded`，精选预构建源码指纹刷新为 `b5beec384a1c`。
 - 最终组合候选再次通过 `ReEcho.UI.CombatHud.Formatting` 1/1 与 `ReEcho.Combat.ElementReaction*` 4/4；无 Automation Error/Fatal。
+- 以正式候选 `c9eb4900` 使用空 expected-value lease 原子取得 `main-publish-lock`；锁内重新 fetch 后 `origin/main` 仍为 `0b339df4` 且已是候选祖先。锁内再次执行 `Development Editor -FullRebuild`，94/94 动作通过、`Result: Succeeded`、源码指纹保持 `b5beec384a1c`；随后静态校验再次通过。
 
 ### 剩余风险
 
