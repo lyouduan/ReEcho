@@ -49,6 +49,11 @@ Weapon、Projectile、Enemy、UI 或表现适配器不得复制这些状态为�
 
 `UReEchoCombatAttributeSet` 是 GAS 层的属性真相，保存 `Health`、`MaxHealth`、`Block`、攻击力等可被 GameplayEffect 修改的属性；`UReEchoCombatantComponent` 是 Combat 对外门面，负责绑定 ASC、同步只读快照、提供 `ApplyFinalDamage`/`ApplyHealing` 入口并广播生命/死亡/元素事件。有 ASC 时以 AttributeSet 为准，Combatant 不应成为第二套可写属性源。Development 的 `SetDebugInvulnerable` 让最终伤害入口返回已计算伤害供 Hurt/VFX/伤害数字消费，但跳过 ASC、生命、格挡和死亡写入；Shipping 固定关闭。正式限时无敌仍返回零伤害。
 
+永久最大生命变化及其当前生命语义通过 `ApplyHealthAdjustment(NewMaximumHealth, Adjustment)` 这一窄命令进入
+Combatant。它更新 GAS 基础属性（无 ASC 时更新兼容状态），在批量写入期间抑制中间态，提交后统一发布
+`OnHealthChanged` 与 `HealthChanged`；不会调用 `InitializeFromStats`，因此不会清除流血、眩晕、元素或临时属性层。
+UI 和属性面板只订阅最终通知或读取快照，不得在回调中反向写生命。
+
 `FReEchoStatBlock` 还包含 `RoleId`、暴击率/暴击效果、反应效率、投射物数量和武器尺寸等没有映射到 AttributeSet 的语义字段。`InitializeFromStats` 必须先保存完整 StatBlock，再用 ASC 同步其中的 GAS 属性；禁止用一次属性同步把这些非 GAS 字段重置为默认值。武器提交、角色能力和快照都从 Combatant 读取同一份完整语义，不能分别从 Build 与 AttributeSet 推断角色身份。
 
 `SetAdditiveAttackModifier(SourceId, Physical, Elemental)` 是通用、按来源替换的临时攻击修正入口：同一来源的新值覆盖旧值而非累加历史差值，最终写回 AttributeSet/兼容 StatBlock。Combat 不读取 CharacterId、能力表或缺血阈值；当前勇者能力由主模块 Player Host 在最终 `HealthChanged` 后计算，再发送这一窄命令。

@@ -51,7 +51,9 @@ enum class EReEchoEnemySpecialActionEventType : uint8
 {
 	WindupStarted,
 	ActionCommitted,
-	ActionEnded
+	ActionEnded,
+	RecoveryStarted,
+	ActionCancelled
 };
 
 /** Presentation-neutral transition emitted when a non-Boss special action changes phase. */
@@ -188,6 +190,9 @@ public:
 
 	void PublishSpecialAction(const FReEchoEnemySpecialActionEvent& Event)
 	{
+#if WITH_DEV_AUTOMATION_TESTS
+		PublishedSpecialActionEventsForTests.Add(Event);
+#endif
 		OnSpecialAction.Broadcast(Event);
 	}
 
@@ -215,7 +220,18 @@ public:
 		PublishedProjectileEventsForTests.Reset();
 	}
 
+	const TArray<FReEchoEnemySpecialActionEvent>& GetPublishedSpecialActionEventsForTests() const
+	{
+		return PublishedSpecialActionEventsForTests;
+	}
+
+	void ClearPublishedSpecialActionEventsForTests()
+	{
+		PublishedSpecialActionEventsForTests.Reset();
+	}
+
 private:
 	TArray<FReEchoEnemyProjectileEvent> PublishedProjectileEventsForTests;
+	TArray<FReEchoEnemySpecialActionEvent> PublishedSpecialActionEventsForTests;
 #endif
 };

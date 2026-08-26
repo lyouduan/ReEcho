@@ -23,6 +23,29 @@
 7. `Boss.ElementCleanse` 使用 `SequenceOrder=0`，伤害/空间/普通计时字段为 `0`；只配置清洗间隔与免疫时间。
 8. 主动技能使用大于零且同 Boss 内唯一的 `SequenceOrder`。运行时按此顺序确定性轮转。
 
+## 兔子站定连发弹距
+
+兔子站定直线连发使用 `EnemyAbilities` 中 `Id=M_RABBIT_RangedBurst` 的以下字段：
+
+- `ProjectileCount`：一轮子弹总数。
+- `ActiveSeconds`：第一发到最后一发之间的总发射窗口，不是相邻两发的间隔。
+- `ProjectileSpeedCmPerSecond`：大于 `0` 时直接作为弹速；填写 `0` 时，运行时按 `MaxRangeCm / CooldownSeconds` 推导兼容弹速。
+
+需要按目标相邻弹距填写时，使用：
+
+```text
+实际弹速 = ProjectileSpeedCmPerSecond（若 > 0），否则 MaxRangeCm / CooldownSeconds
+ActiveSeconds = 目标相邻弹距cm × (ProjectileCount - 1) / 实际弹速cm每秒
+```
+
+当前配置为 `ProjectileCount=4`、`ProjectileSpeedCmPerSecond=0`、`MaxRangeCm=1000`、`CooldownSeconds=1.4`，因此实际弹速约为 `714.2857cm/s`。若目标相邻弹距为 `70cm`：
+
+```text
+ActiveSeconds = 70 × (4 - 1) / (1000 / 1.4) = 0.294
+```
+
+所以在 `M_RABBIT_RangedBurst.ActiveSeconds` 填 `0.294`。不要填相邻两发的时间间隔 `0.098`；运行时会用 `ActiveSeconds / (ProjectileCount - 1)` 自动得到该间隔。该字段只控制连发节拍与空间弹距，不控制子弹大小；兔子移动散射和站定连发的单发尺寸由程序固定为一致。
+
 ## 同步命令
 
 在仓库根目录运行：

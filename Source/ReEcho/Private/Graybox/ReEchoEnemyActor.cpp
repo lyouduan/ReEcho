@@ -287,6 +287,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 {
 	BindComposedComponents();
 	bDeathSequenceStarted = false;
+	bWasStunnedLastTick = false;
 	SetLifeSpan(0.0f);
 	if (EnemyRoster)
 	{
@@ -529,12 +530,9 @@ void AReEchoEnemyActor::SetEncounterSimulationSuspended(const bool bSuspended)
 		{
 			Combatant->ResetElementState();
 		}
-		const FReEchoEnemyLogicSnapshot PreviousSnapshot =
-		    EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
 		if (EnemyLogic)
 		{
 			EnemyLogic->ResetEncounterTransientState();
-			PublishSpecialActionTransition(PreviousSnapshot, FReEchoEnemyActionIntent{});
 		}
 		for (const FReEchoEnemyProjectileRuntimeState& Projectile : BossProjectiles)
 		{
@@ -703,6 +701,7 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 		if (AdvanceResult.bMoved)
 		{
 			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Moved, Projectile);
+			DrawBossProjectileDamageRangeDebug(Projectile, AdvanceResult.PreviousLocation);
 		}
 		bool bHitTarget = false;
 		if (!Projectile.bCollisionConsumed && AdvanceResult.bMoved && Target && Target->IsCombatTargetAlive())
@@ -736,9 +735,9 @@ void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
 }
 
 int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeArc(const FVector& Origin,
-	                                                         const FVector& Forward,
-	                                                         const float RangeCm,
-	                                                         const float ArcDegrees)
+                                                            const FVector& Forward,
+                                                            const float RangeCm,
+                                                            const float ArcDegrees)
 {
 	int32 RemovedCount = 0;
 	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
@@ -767,7 +766,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 	AdvanceEnemyProjectiles(DeltaSeconds);
 	if (bDeathSequenceStarted)
 	{
-		EnemyPresentation->Advance(BuildPresentationSnapshot(false), DeltaSeconds);
+		EnemyPresentation->Advance(BuildPresentationSnapshot(false, false), DeltaSeconds);
 		return;
 	}
 	if (IsAlive())
@@ -777,7 +776,11 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 
 	FReEchoEnemyActionIntent Intent;
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (IsAlive() && WorldTime >= CardStunnedUntilWorldTime && (!Combatant || !Combatant->IsActionDisabled(WorldTime)))
+	const bool bStunned =
+	    IsAlive() && (WorldTime < CardStunnedUntilWorldTime || (Combatant && Combatant->IsActionDisabled(WorldTime)));
+	EnemyPresentation->SetStunPaused(bStunned);
+	UpdateStunState(bStunned);
+	if (IsAlive() && !bStunned)
 	{
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
@@ -848,7 +851,7 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 			ReEchoGameMode->NotifyEnemySpecialStarted(EnemyId, GetSpawnIndex(), Sense.WorldTimeSeconds);
 		}
 	}
-	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement), DeltaSeconds);
+	EnemyPresentation->Advance(BuildPresentationSnapshot(Intent.bHasMovement, bStunned), DeltaSeconds);
 
 #if !UE_BUILD_SHIPPING
 	// GM debug overlay (GMShowEnemyHealth): float remaining HP above the enemy's head when enabled.
@@ -941,6 +944,37 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehavior(const FReEchoEnemySe
 		const FVector PreviousLocation = GetActorLocation();
 		FHitResult Hit;
 		AddActorWorldOffset(Intent.MovementDelta, true, &Hit);
+		if (Intent.bSpecialDashMovement)
+		{
+			AActor* TargetActor = Intent.Target.Get();
+			IReEchoCombatTarget* Target = TargetActor ? Cast<IReEchoCombatTarget>(TargetActor) : nullptr;
+			bool bDamageContactConsumed = false;
+			if (Target && Target->IsCombatTargetAlive() && EnemyLogic &&
+			    !EnemyLogic->GetSnapshot().bSpecialDamageConsumed)
+			{
+				const FVector TargetLocation = Target->GetCombatTargetLocation();
+				FVector CollisionPathStart = PreviousLocation;
+				FVector CollisionPathEnd = GetActorLocation();
+				CollisionPathStart.Z = TargetLocation.Z;
+				CollisionPathEnd.Z = TargetLocation.Z;
+				const bool bHitTargetActor = Hit.GetActor() == TargetActor;
+				const bool bPathContact =
+				    bHitTargetActor ||
+				    Target->IntersectsCombatPath(CollisionPathStart, CollisionPathEnd, Intent.DamageRadiusCm);
+				if (bPathContact)
+				{
+					bDamageContactConsumed = true;
+					if (Intent.bCanDamageTarget)
+					{
+						ApplySpecialDashHit(Intent, TargetActor, TargetLocation);
+					}
+				}
+			}
+			if (EnemyLogic)
+			{
+				EnemyLogic->ResolveSpecialDashStep(Hit.bBlockingHit, bDamageContactConsumed);
+			}
+		}
 		const float ExpectedDistance = Intent.MovementDelta.Size2D();
 		const float ActualDistance = FVector::Dist2D(PreviousLocation, GetActorLocation());
 		CrowdBlockedSeconds = ExpectedDistance > KINDA_SMALL_NUMBER && ActualDistance < ExpectedDistance * 0.2f
@@ -1051,6 +1085,15 @@ void AReEchoEnemyActor::SetCardMovementMultiplier(const float Multiplier)
 	CardMovementMultiplier = FMath::Clamp(Multiplier, 0.0f, 1.0f);
 }
 
+void AReEchoEnemyActor::UpdateStunState(const bool bStunned)
+{
+	if (bStunned && !bWasStunnedLastTick && EnemyLogic)
+	{
+		EnemyLogic->CancelActiveActionsForStun();
+	}
+	bWasStunnedLastTick = bStunned;
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEchoEnemySenseSnapshot& Sense,
                                                                     const float DeltaSeconds)
@@ -1061,6 +1104,11 @@ FReEchoEnemyActionIntent AReEchoEnemyActor::AdvanceBehaviorForTests(const FReEch
 void AReEchoEnemyActor::AdvanceEnemyProjectilesForTests(const float DeltaSeconds)
 {
 	AdvanceEnemyProjectiles(DeltaSeconds);
+}
+
+void AReEchoEnemyActor::UpdateStunStateForTests(const bool bStunned)
+{
+	UpdateStunState(bStunned);
 }
 #endif
 
@@ -1076,6 +1124,155 @@ FVector AReEchoEnemyActor::ResolveBossLandingLocation(const FVector& LockedTarge
 	FVector Destination = LockedTargetLocation;
 	Destination.Z = BossWorldZ;
 	return Destination;
+}
+
+bool AReEchoEnemyActor::IntersectsBossDamageShape(const FReEchoBossIntent& Intent, const FVector& TargetLocation)
+{
+	if (Intent.AbilityId == TEXT("M_SHEEP_MeleeSweep"))
+	{
+		const FVector Direction = Intent.LockedDirection.GetSafeNormal2D();
+		const FVector ToTarget = TargetLocation - Intent.Origin;
+		return ToTarget.SizeSquared2D() <= FMath::Square(Intent.LengthCm) &&
+		       FVector::DotProduct(ToTarget.GetSafeNormal2D(), Direction) >= 0.0f;
+	}
+	if (Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam"))
+	{
+		const FVector ToTarget = TargetLocation - Intent.LockedTargetLocation;
+		const float ForwardDistance = FVector::DotProduct(ToTarget, FVector::ForwardVector);
+		const float SideDistance = FMath::Abs(FVector::DotProduct(ToTarget, FVector::RightVector));
+		return ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm &&
+		       SideDistance <= Intent.WidthCm * 0.5f;
+	}
+	switch (Intent.AttackShape)
+	{
+		case EReEchoBossAttackShape::Rectangle:
+		case EReEchoBossAttackShape::Beam:
+		{
+			const FVector Direction = Intent.LockedDirection.GetSafeNormal2D();
+			const FVector Right = FVector::CrossProduct(FVector::UpVector, Direction).GetSafeNormal2D();
+			const FVector ToTarget = TargetLocation - Intent.Origin;
+			const float ForwardDistance = FVector::DotProduct(ToTarget, Direction);
+			const float SideDistance = FMath::Abs(FVector::DotProduct(ToTarget, Right));
+			return ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm &&
+			       SideDistance <= Intent.WidthCm * 0.5f;
+		}
+		case EReEchoBossAttackShape::Circle:
+			// Blink Slam's locked warning center is the gameplay authority even if teleport placement is adjusted.
+			return FVector::DistSquared2D(TargetLocation, Intent.Origin) <= FMath::Square(Intent.RadiusCm);
+		default:
+			// Projectile abilities are evaluated only by their per-ball swept paths.
+			return false;
+	}
+}
+
+void AReEchoEnemyActor::DrawBossDamageRangeDebug(const FReEchoBossIntent& Intent) const
+{
+#if !UE_BUILD_SHIPPING
+	const AReEchoGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+	if (!GM || !GM->IsBossDamageRangeDebugEnabled() || EnemyId != TEXT("M_SHEEP"))
+	{
+		return;
+	}
+	if (Intent.AttackShape == EReEchoBossAttackShape::Circle)
+	{
+		DrawDebugCircle(GetWorld(),
+		                Intent.Origin,
+		                Intent.RadiusCm,
+		                64,
+		                FColor::Green,
+		                false,
+		                FMath::Max(0.15f, Intent.ActiveSeconds),
+		                0,
+		                5.0f,
+		                FVector::ForwardVector,
+		                FVector::RightVector);
+		DrawDebugString(GetWorld(),
+		                Intent.Origin + FVector(Intent.RadiusCm, 0.0f, 30.0f),
+		                FString::Printf(TEXT("%s AOE R=%.0fcm"), *Intent.AbilityId.ToString(), Intent.RadiusCm),
+		                nullptr,
+		                FColor::Green,
+		                FMath::Max(0.15f, Intent.ActiveSeconds),
+		                false,
+		                1.0f);
+		return;
+	}
+	const float Duration = FMath::Max(0.15f, Intent.ActiveSeconds);
+	if (Intent.AbilityId == TEXT("M_SHEEP_MeleeSweep"))
+	{
+		const FVector Direction = Intent.LockedDirection.GetSafeNormal2D();
+		const float CenterYaw = Direction.Rotation().Yaw;
+		constexpr int32 SegmentCount = 32;
+		FVector PreviousPoint = Intent.Origin;
+		for (int32 SegmentIndex = 0; SegmentIndex <= SegmentCount; ++SegmentIndex)
+		{
+			const float Yaw = CenterYaw - 90.0f + 180.0f * static_cast<float>(SegmentIndex) /
+			                                             static_cast<float>(SegmentCount);
+			const FVector Point = Intent.Origin + FRotator(0.0f, Yaw, 0.0f).Vector() * Intent.LengthCm;
+			DrawDebugLine(GetWorld(), SegmentIndex == 0 ? Intent.Origin : PreviousPoint, Point,
+			              FColor::Cyan, false, Duration, 0, 5.0f);
+			PreviousPoint = Point;
+		}
+		DrawDebugLine(GetWorld(), PreviousPoint, Intent.Origin, FColor::Cyan, false, Duration, 0, 5.0f);
+		DrawDebugString(GetWorld(),
+		                Intent.Origin + Direction * Intent.LengthCm * 0.5f + FVector(0.0f, 0.0f, 30.0f),
+		                FString::Printf(TEXT("%s FRONT 180 R=%.0fcm"),
+		                                *Intent.AbilityId.ToString(), Intent.LengthCm),
+		                nullptr, FColor::Cyan, Duration, false, 1.0f);
+		return;
+	}
+	if (Intent.AttackShape != EReEchoBossAttackShape::Rectangle &&
+	    Intent.AttackShape != EReEchoBossAttackShape::Beam)
+	{
+		return;
+	}
+	const bool bPrayerBeam = Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam");
+	const FVector ShapeOrigin = bPrayerBeam ? Intent.LockedTargetLocation : Intent.Origin;
+	const FVector Direction = bPrayerBeam ? FVector::ForwardVector : Intent.LockedDirection.GetSafeNormal2D();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Direction).GetSafeNormal2D();
+	const float HalfWidth = Intent.WidthCm * 0.5f;
+	const FVector StartLeft = ShapeOrigin - Right * HalfWidth;
+	const FVector StartRight = ShapeOrigin + Right * HalfWidth;
+	const FVector EndLeft = StartLeft + Direction * Intent.LengthCm;
+	const FVector EndRight = StartRight + Direction * Intent.LengthCm;
+	DrawDebugLine(GetWorld(), StartLeft, StartRight, FColor::Cyan, false, Duration, 0, 5.0f);
+	DrawDebugLine(GetWorld(), StartLeft, EndLeft, FColor::Cyan, false, Duration, 0, 5.0f);
+	DrawDebugLine(GetWorld(), StartRight, EndRight, FColor::Cyan, false, Duration, 0, 5.0f);
+	DrawDebugLine(GetWorld(), EndLeft, EndRight, FColor::Cyan, false, Duration, 0, 5.0f);
+	DrawDebugString(GetWorld(),
+	                ShapeOrigin + Direction * Intent.LengthCm * 0.5f + FVector(0.0f, 0.0f, 30.0f),
+	                FString::Printf(
+	                    TEXT("%s L=%.0f W=%.0fcm"), *Intent.AbilityId.ToString(), Intent.LengthCm, Intent.WidthCm),
+	                nullptr,
+	                FColor::Cyan,
+	                Duration,
+	                false,
+	                1.0f);
+#endif
+}
+
+void AReEchoEnemyActor::DrawBossProjectileDamageRangeDebug(
+	const FReEchoEnemyProjectileRuntimeState& Projectile,
+	const FVector& PreviousLocation) const
+{
+#if !UE_BUILD_SHIPPING
+	const AReEchoGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+	if (!GM || !GM->IsBossDamageRangeDebugEnabled() || EnemyId != TEXT("M_SHEEP"))
+	{
+		return;
+	}
+	DrawDebugLine(GetWorld(), PreviousLocation, Projectile.Snapshot.Location, FColor::Red, false, 0.15f, 0, 3.0f);
+	DrawDebugCircle(GetWorld(),
+	                Projectile.Snapshot.Location,
+	                Projectile.CollisionRadiusCm,
+	                32,
+	                FColor::Red,
+	                false,
+	                0.15f,
+	                0,
+	                3.0f,
+	                FVector::ForwardVector,
+	                FVector::RightVector);
+#endif
 }
 
 FVector AReEchoEnemyActor::ResolveFacingDirection() const
@@ -1123,6 +1320,33 @@ void AReEchoEnemyActor::ApplyBossHit(const FReEchoBossIntent& Intent, AActor* Ta
 	}
 }
 
+void AReEchoEnemyActor::ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent,
+                                            AActor* Target,
+                                            const FVector& HitLocation)
+{
+	if (!Target || Intent.RawDamage <= 0.0f || !Intent.Attack.IsValid())
+	{
+		return;
+	}
+	FReEchoHitIntent HitIntent;
+	HitIntent.Attack = Intent.Attack;
+	HitIntent.Target = Target;
+	HitIntent.RawDamage = Intent.RawDamage;
+	HitIntent.DamageSource = EReEchoDamageSource::Enemy;
+	HitIntent.SourceLocation = Intent.SourceLocation;
+	HitIntent.HitLocation = HitLocation;
+	const FReEchoHitResolved Resolved = ReEchoHitResolver::ResolvePhysicalHit(HitIntent);
+	if (Resolved.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+	if (AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(Target))
+	{
+		ReEchoPlayer->PlayHitVisual();
+	}
+	AReEchoDamageNumberActor::SpawnDamageNumber(GetWorld(), HitLocation, Resolved.AppliedDamage, FLinearColor::White);
+}
+
 void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 {
 	if (Intent.Type == EReEchoBossIntentType::ElementCleanse)
@@ -1149,26 +1373,22 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 	{
 		SetActorLocation(Intent.TeleportDestination, false, nullptr, ETeleportType::TeleportPhysics);
 	}
+	FReEchoBossIntent DamageIntent = Intent;
+	if (Intent.AbilityId == TEXT("M_SHEEP_MeleeSweep") && BossWeaponRoot)
+	{
+		// Skill01's authored staff socket is the shared sweep-VFX and gameplay-sector pivot.
+		DamageIntent.Origin = BossWeaponRoot->GetComponentLocation();
+	}
+	DrawBossDamageRangeDebug(DamageIntent);
 
 	const FVector TargetLocation = CombatTarget->GetCombatTargetLocation();
 	bool bIntersectsAttack = false;
-	switch (Intent.AttackShape)
+	switch (DamageIntent.AttackShape)
 	{
 		case EReEchoBossAttackShape::Rectangle:
 		case EReEchoBossAttackShape::Beam:
-		{
-			const FVector Direction = Intent.LockedDirection.GetSafeNormal2D();
-			const FVector Right = FVector::CrossProduct(FVector::UpVector, Direction).GetSafeNormal2D();
-			const FVector ToTarget = TargetLocation - Intent.Origin;
-			const float ForwardDistance = FVector::DotProduct(ToTarget, Direction);
-			const float SideDistance = FMath::Abs(FVector::DotProduct(ToTarget, Right));
-			bIntersectsAttack =
-			    ForwardDistance >= 0.0f && ForwardDistance <= Intent.LengthCm && SideDistance <= Intent.WidthCm * 0.5f;
-			break;
-		}
 		case EReEchoBossAttackShape::Circle:
-			bIntersectsAttack =
-			    FVector::DistSquared2D(TargetLocation, GetActorLocation()) <= FMath::Square(Intent.RadiusCm);
+			bIntersectsAttack = IntersectsBossDamageShape(DamageIntent, TargetLocation);
 			break;
 		case EReEchoBossAttackShape::Projectile:
 		{
@@ -1212,7 +1432,7 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 	}
 	if (Intent.bCanDamageTarget && bIntersectsAttack)
 	{
-		ApplyBossHit(Intent, Target, TargetLocation);
+		ApplyBossHit(DamageIntent, Target, TargetLocation);
 	}
 }
 
@@ -1259,7 +1479,7 @@ void AReEchoEnemyActor::ApplyActionIntent(const FReEchoEnemyActionIntent& Intent
 				Projectile.Attack = Intent.Attack;
 				Projectile.Damage = Intent.RawDamage;
 				Projectile.CollisionRadiusCm =
-				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm, VolleyCount);
+				    ReEchoRabbitProjectilePattern::ResolveBallCollisionRadius(Ability->RadiusCm);
 				Projectile.VolleyBallIndex = BallIndex;
 				Projectile.SpawnDelayRemainingSeconds = ShotIntervalSeconds * BallIndex;
 				Projectile.bSpawnEventPublished = !bSequentialStraightVolley || BallIndex == 0;
@@ -1336,7 +1556,9 @@ void AReEchoEnemyActor::PublishSpecialActionTransition(const FReEchoEnemyLogicSn
 	FReEchoEnemySpecialActionEvent Event;
 	Event.AbilityId = CurrentSnapshot.SpecialAbilityId.IsNone() ? PreviousSnapshot.SpecialAbilityId
 	                                                            : CurrentSnapshot.SpecialAbilityId;
-	Event.Attack = Intent.Attack;
+	Event.Attack = Intent.Attack.IsValid()                   ? Intent.Attack
+	               : CurrentSnapshot.SpecialAttack.IsValid() ? CurrentSnapshot.SpecialAttack
+	                                                         : PreviousSnapshot.SpecialAttack;
 	Event.Origin = GetActorLocation();
 	Event.LockedDirection = CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None
 	                            ? PreviousSnapshot.SpecialLockedDirection
@@ -1349,9 +1571,16 @@ void AReEchoEnemyActor::PublishSpecialActionTransition(const FReEchoEnemyLogicSn
 	{
 		Event.Type = EReEchoEnemySpecialActionEventType::WindupStarted;
 	}
-	else if (Intent.bAttackCommitted && CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery)
+	else if (Intent.bAttackCommitted &&
+	         (CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Active ||
+	          CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery))
 	{
 		Event.Type = EReEchoEnemySpecialActionEventType::ActionCommitted;
+	}
+	else if (PreviousSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Active &&
+	         CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::Recovery)
+	{
+		Event.Type = EReEchoEnemySpecialActionEventType::RecoveryStarted;
 	}
 	else if (CurrentSnapshot.SpecialActionPhase == EReEchoEnemySpecialActionPhase::None)
 	{
@@ -1384,7 +1613,8 @@ void AReEchoEnemyActor::PublishProjectileEvent(const EReEchoEnemyProjectileEvent
 	EnemyEvents->PublishProjectile(Event);
 }
 
-FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving) const
+FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(const bool bMoving,
+	                                                                            const bool bStunned) const
 {
 	FReEchoEnemyPresentationSnapshot Result;
 	const FReEchoEnemyLogicSnapshot LogicSnapshot = EnemyLogic->GetSnapshot();
@@ -1403,6 +1633,7 @@ FReEchoEnemyPresentationSnapshot AReEchoEnemyActor::BuildPresentationSnapshot(co
 	Result.HitReactionDurationSeconds = Definition.HitReactionDurationSeconds;
 	Result.AttachedElement = GetAttachedElement();
 	Result.bMoving = bMoving;
+	Result.bStunned = bStunned;
 	return Result;
 }
 

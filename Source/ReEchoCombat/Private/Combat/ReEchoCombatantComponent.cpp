@@ -404,6 +404,60 @@ float UReEchoCombatantComponent::ApplyHealing(const float Healing)
 	return CurrentHealth - PreviousHealth;
 }
 
+bool UReEchoCombatantComponent::ApplyHealthAdjustment(const float NewMaximumHealth,
+                                                      const EReEchoHealthAdjustment Adjustment)
+{
+	if (Adjustment == EReEchoHealthAdjustment::None)
+	{
+		return false;
+	}
+
+	const float PreviousHealth = CurrentHealth;
+	const float ClampedMaximumHealth = FMath::Max(1.0f, NewMaximumHealth);
+	const float AdjustedHealth = Adjustment == EReEchoHealthAdjustment::FillToMax
+	                                 ? ClampedMaximumHealth
+	                                 : FMath::Min(CurrentHealth, ClampedMaximumHealth);
+	HealthChangeReason = TEXT("Build");
+	HealthChangeAttack = {};
+	HealthChangeDamageSource = EReEchoDamageSource::Player;
+
+	if (BoundAbilitySystem)
+	{
+		// Attribute delegates are synchronous. Defer their intermediate broadcasts so observers see the maximum and
+		// current health as one committed state instead of two partially applied states.
+		bDeferHealthNotifications = true;
+		BoundAbilitySystem->SetNumericAttributeBase(UReEchoCombatAttributeSet::GetMaxHealthAttribute(),
+		                                            ClampedMaximumHealth);
+		BoundAbilitySystem->SetNumericAttributeBase(UReEchoCombatAttributeSet::GetHealthAttribute(), AdjustedHealth);
+		bDeferHealthNotifications = false;
+
+		const UReEchoCombatAttributeSet* Attributes = BoundAbilitySystem->GetSet<UReEchoCombatAttributeSet>();
+		if (!Attributes)
+		{
+			HealthChangeReason = NAME_None;
+			return false;
+		}
+		Stats.HpMax = Attributes->GetMaxHealth();
+		CurrentHealth = Attributes->GetHealth();
+	}
+	else
+	{
+		Stats.HpMax = ClampedMaximumHealth;
+		CurrentHealth = AdjustedHealth;
+	}
+
+	Stats.HpPoint = CurrentHealth;
+	bDeathBroadcast = CurrentHealth <= 0.0f;
+	if (BoundAbilitySystem && CurrentHealth > 0.0f)
+	{
+		BoundAbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Dead);
+	}
+	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
+	PublishHealthChange(PreviousHealth);
+	HealthChangeReason = NAME_None;
+	return true;
+}
+
 void UReEchoCombatantComponent::ClampElementImmunityDuration(const float CurrentTimeSeconds,
                                                              const float MaximumRemainingSeconds)
 {
@@ -683,6 +737,10 @@ void UReEchoCombatantComponent::SyncFromAbilitySystem()
 void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData& Data)
 {
 	CurrentHealth = Data.NewValue;
+	if (bDeferHealthNotifications)
+	{
+		return;
+	}
 	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
 	PublishHealthChange(Data.OldValue);
 	if (Data.OldValue > 0.0f && Data.NewValue <= 0.0f && !bDeathBroadcast)
@@ -704,6 +762,10 @@ void UReEchoCombatantComponent::HandleHealthChanged(const FOnAttributeChangeData
 void UReEchoCombatantComponent::HandleMaxHealthChanged(const FOnAttributeChangeData& Data)
 {
 	Stats.HpMax = Data.NewValue;
+	if (bDeferHealthNotifications)
+	{
+		return;
+	}
 	OnHealthChanged.Broadcast(CurrentHealth, Stats.HpMax);
 }
 

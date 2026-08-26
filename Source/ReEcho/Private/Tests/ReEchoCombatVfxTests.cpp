@@ -2,22 +2,207 @@
 
 #include "Misc/AutomationTest.h"
 #include "Engine/Texture2D.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
 #include "NiagaraEmitter.h"
+#include "NiagaraEmitterInstance.h"
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraMeshRendererProperties.h"
+#include "NiagaraRendererProperties.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
+#include "NiagaraSystemInstance.h"
+#include "NiagaraSystemInstanceController.h"
 #include "NiagaraVariant.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
+#include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/VFX/ReEchoVfxPreviewActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
+
+namespace
+{
+struct FReEchoCombatVfxWorldFixture
+{
+	UWorld* World = nullptr;
+
+	FReEchoCombatVfxWorldFixture()
+	{
+		const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("ReEchoCombatVfxTestWorld"));
+		FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+		World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
+		World->AddToRoot();
+		Context.SetCurrentWorld(World);
+		World->SetShouldTick(true);
+		World->InitializeActorsForPlay(FURL());
+		World->BeginPlay();
+	}
+
+	~FReEchoCombatVfxWorldFixture()
+	{
+		if (World)
+		{
+			World->DestroyWorld(true);
+			GEngine->DestroyWorldContext(World);
+			World->RemoveFromRoot();
+		}
+	}
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFoxDirectionRuntimeTest,
+                                 "ReEcho.Presentation.VFX.FoxDirectionRuntime",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
+{
+	FReEchoCombatVfxWorldFixture Fixture;
+	AReEchoEnemyActor* Fox = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	if (!TestNotNull(TEXT("Fox presentation host spawns"), Fox))
+	{
+		return false;
+	}
+	if (!Fox->HasActorBegunPlay())
+	{
+		Fox->DispatchBeginPlay();
+	}
+	UReEchoCombatPresentationCoordinator* Coordinator =
+	    Fox->FindComponentByClass<UReEchoCombatPresentationCoordinator>();
+	UReEchoCombatVfxComponent* Vfx = Fox->FindComponentByClass<UReEchoCombatVfxComponent>();
+	if (!TestNotNull(TEXT("Fox presentation coordinator exists"), Coordinator) ||
+	    !TestNotNull(TEXT("Fox VFX adapter exists"), Vfx))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Fox presentation host began play"), Fox->HasActorBegunPlay());
+	TestTrue(TEXT("Fox coordinator has a VFX phase consumer"), Coordinator->OnActionPhase.IsBound());
+
+	FReEchoEnemySpecialActionEvent Windup;
+	Windup.AbilityId = TEXT("M_FOX_Dash");
+	Windup.Type = EReEchoEnemySpecialActionEventType::WindupStarted;
+	Windup.LockedDirection = FVector(0.6f, 0.8f, 0.0f).GetSafeNormal();
+	Fox->GetEnemyEventsComponent()->PublishSpecialAction(Windup);
+	UNiagaraComponent* Direction = Vfx->GetDirectionEffectForTests();
+	if (!TestNotNull(TEXT("Fox Windup creates a live Direction component"), Direction))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Fox Direction component is registered"), Direction->IsRegistered());
+	TestTrue(TEXT("Fox Direction component is visible"), Direction->IsVisible());
+	TestTrue(TEXT("Fox Direction component is active"), Direction->IsActive());
+	TestTrue(TEXT("Fox Direction component has a renderable world scale"),
+	         Direction->GetComponentScale().GetAbsMin() > KINDA_SMALL_NUMBER);
+	const FBox RuntimeBounds = Direction->GetSystemFixedBounds();
+	TestTrue(TEXT("Fox Direction runtime override covers the authored sprite center"),
+	         RuntimeBounds.IsInsideOrOn(FVector(0.0f, 0.0f, -150.0f)));
+	TestTrue(TEXT("Fox Direction runtime override covers the maximum authored sprite extents"),
+	         RuntimeBounds.IsInsideOrOn(FVector(500.0f, 500.0f, -650.0f)));
+	TestEqual(TEXT("Fox Direction stays in the combat foreground sort band"),
+	          Direction->TranslucencySortPriority,
+	          UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(0));
+
+	Direction->AdvanceSimulation(4, 1.0f / 60.0f);
+	const FNiagaraSystemInstanceControllerConstPtr Controller = Direction->GetSystemInstanceController();
+	const FNiagaraSystemInstance* SystemInstance =
+	    Controller.IsValid() ? Controller->GetSystemInstance_Unsafe() : nullptr;
+	if (!TestNotNull(TEXT("Fox Direction owns an initialized Niagara system instance"), SystemInstance))
+	{
+		return false;
+	}
+	int32 TotalParticles = 0;
+	for (const FNiagaraEmitterInstanceRef& Emitter : SystemInstance->GetEmitters())
+	{
+		TotalParticles += Emitter->GetNumParticles();
+		AddInfo(FString::Printf(TEXT("Fox Direction emitter '%s': sim=%d state=%d particles=%d bounds=%s"),
+		                        *Emitter->GetEmitterHandle().GetUniqueInstanceName(),
+		                        static_cast<int32>(Emitter->GetSimTarget()),
+		                        static_cast<int32>(Emitter->GetExecutionState()),
+		                        Emitter->GetNumParticles(),
+		                        *Emitter->GetBounds().ToString()));
+		Emitter->GetParticleData().Dump(
+		    0,
+		    Emitter->GetNumParticles(),
+		    FString::Printf(TEXT("FoxDirection.%s"), *Emitter->GetEmitterHandle().GetName().ToString()));
+		const FVersionedNiagaraEmitterData* EmitterData = Emitter->GetEmitterHandle().GetEmitterData();
+		if (!TestNotNull(TEXT("Fox Direction runtime emitter retains compiled renderer data"), EmitterData))
+		{
+			continue;
+		}
+		for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			if (!Renderer || !Renderer->GetIsEnabled())
+			{
+				continue;
+			}
+			AddInfo(FString::Printf(TEXT("Fox Direction renderer class='%s'"), *Renderer->GetClass()->GetName()));
+			TArray<UMaterialInterface*> Materials;
+			Renderer->GetUsedMaterials(&Emitter.Get(), Materials);
+			TestTrue(TEXT("Fox Direction enabled renderer resolves at least one material"), Materials.Num() > 0);
+			for (const UMaterialInterface* Material : Materials)
+			{
+				if (!TestNotNull(TEXT("Fox Direction renderer material is valid"), Material))
+				{
+					continue;
+				}
+				AddInfo(FString::Printf(TEXT("Fox Direction material '%s': blend=%d niagaraMeshUsage=%d"),
+				                        *Material->GetPathName(),
+				                        static_cast<int32>(Material->GetBlendMode()),
+				                        Material->GetUsageByFlag(MATUSAGE_NiagaraMeshParticles) ? 1 : 0));
+				if (Cast<UNiagaraSpriteRendererProperties>(Renderer))
+				{
+					TestTrue(TEXT("Fox Direction sprite material supports Niagara sprites"),
+					         Material->GetUsageByFlag(MATUSAGE_NiagaraSprites));
+				}
+			}
+			if (const UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(Renderer))
+			{
+				AddInfo(FString::Printf(TEXT("Fox Direction mesh renderer: facing=%d locked=%d axis=%s source=%d"),
+				                        static_cast<int32>(MeshRenderer->FacingMode),
+				                        MeshRenderer->bLockedAxisEnable ? 1 : 0,
+				                        *MeshRenderer->LockedAxis.ToString(),
+				                        static_cast<int32>(MeshRenderer->SourceMode)));
+				for (const FNiagaraMeshRendererMeshProperties& MeshSlot : MeshRenderer->Meshes)
+				{
+					TestNotNull(TEXT("Fox Direction mesh renderer resolves a static mesh"), MeshSlot.Mesh.Get());
+					AddInfo(FString::Printf(TEXT("Fox Direction mesh '%s': bounds=%s scale=%s rotation=%s pivot=%s"),
+					                        MeshSlot.Mesh ? *MeshSlot.Mesh->GetPathName() : TEXT("None"),
+					                        MeshSlot.Mesh ? *MeshSlot.Mesh->GetBounds().GetBox().ToString()
+					                                      : TEXT("Invalid"),
+					                        *MeshSlot.Scale.ToString(),
+					                        *MeshSlot.Rotation.ToString(),
+					                        *MeshSlot.PivotOffset.ToString()));
+				}
+			}
+			else if (const UNiagaraSpriteRendererProperties* SpriteRenderer =
+			             Cast<UNiagaraSpriteRendererProperties>(Renderer))
+			{
+				AddInfo(FString::Printf(TEXT("Fox Direction sprite renderer: facing=%d alignment=%d source=%d "
+				                             "cameraCull=%d min=%.1f max=%.1f visibility=%u"),
+				                        static_cast<int32>(SpriteRenderer->FacingMode),
+				                        static_cast<int32>(SpriteRenderer->Alignment),
+				                        static_cast<int32>(SpriteRenderer->SourceMode),
+				                        SpriteRenderer->bEnableCameraDistanceCulling ? 1 : 0,
+				                        SpriteRenderer->MinCameraDistance,
+				                        SpriteRenderer->MaxCameraDistance,
+				                        SpriteRenderer->RendererVisibility));
+			}
+		}
+	}
+	TestTrue(TEXT("Fox Direction runtime simulation produces particles"), TotalParticles > 0);
+
+	FReEchoEnemySpecialActionEvent Committed = Windup;
+	Committed.Type = EReEchoEnemySpecialActionEventType::ActionCommitted;
+	Fox->GetEnemyEventsComponent()->PublishSpecialAction(Committed);
+	TestNull(TEXT("Fox Direction is removed when the dash commits"), Vfx->GetDirectionEffectForTests());
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatVfxCatalogTest,
                                  "ReEcho.Presentation.VFX.Catalog",
@@ -74,8 +259,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    BeamWarningCenter, BeamDirection, 750.0f, BeamStart, BeamEnd);
 	TestTrue(TEXT("Boss beam starts at the authoritative warning center"),
 	         BeamStart.Equals(BeamWarningCenter, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Boss beam endpoint consumes the locked direction and gameplay length"),
-	         BeamEnd.Equals(BeamWarningCenter + BeamDirection * 750.0f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Boss beam endpoint extends upward from the warning center"),
+	         BeamEnd.Equals(BeamWarningCenter + FVector::ForwardVector * 750.0f, KINDA_SMALL_NUMBER));
 	const FVector BlinkWarningCenter(640.0f, -275.0f, 50.0f);
 	const FVector BossLanding = AReEchoEnemyActor::ResolveBossLandingLocation(BlinkWarningCenter, 183.6f);
 	TestTrue(TEXT("Blink Slam landing shares the warning center in arena XY"),
@@ -128,22 +313,22 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		TestTrue(
 		    TEXT("Scythe-style VFX rotates in the camera-facing plane toward the committed enemy"),
 		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
-		const FRotator SwordDirectionRotation = UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(
-		    SlashDirection, CameraFacingNormal);
+		const FRotator SwordDirectionRotation =
+		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection, CameraFacingNormal);
 		TestTrue(TEXT("Sword slash presents its authored local X surface normal to the camera"),
 		         SwordDirectionRotation.RotateVector(FVector::ForwardVector)
 		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
-		const FRotator ComposedSwordRotation = UReEchoCombatVfxComponent::ComposeAttachedRotation(
-		    SwordDirectionRotation, SwordPlacement.LocalRotation);
+		const FRotator ComposedSwordRotation =
+		    UReEchoCombatVfxComponent::ComposeAttachedRotation(SwordDirectionRotation, SwordPlacement.LocalRotation);
 		const FVector ComposedAttackAxis = ComposedSwordRotation.RotateVector(FVector::RightVector);
-		const FRotator FrontFacingSwordRotation = UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(
-		    ComposedSwordRotation, CameraFacingNormal);
+		const FRotator FrontFacingSwordRotation =
+		    UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(ComposedSwordRotation, CameraFacingNormal);
 		TestTrue(TEXT("Sword DA correction cannot leave the rendered surface back-facing"),
 		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::ForwardVector),
 		                             CameraFacingNormal.GetSafeNormal()) >= 0.0f);
-		TestTrue(TEXT("Sword front-face correction preserves its composed attack axis"),
-		         FrontFacingSwordRotation.RotateVector(FVector::RightVector)
-		             .Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
+		TestTrue(
+		    TEXT("Sword front-face correction preserves its composed attack axis"),
+		    FrontFacingSwordRotation.RotateVector(FVector::RightVector).Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
@@ -337,6 +522,12 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoCombatVfxCatalog::ResolveRotation(EReEchoCombatVfxSemantic::FoxDirection, FoxDashDirection);
 	TestTrue(TEXT("Fox windup arrow points along the locked dash direction"),
 	         FoxDirectionRotation.RotateVector(FVector::ForwardVector).Equals(FoxDashDirection, KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement FoxDirectionPlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::FoxDirection);
+	TestTrue(TEXT("Fox windup arrow keeps a visible non-degenerate component scale"),
+	         FoxDirectionPlacement.Scale.GetAbsMin() > KINDA_SMALL_NUMBER);
+	TestTrue(TEXT("Fox windup arrow uses the combat foreground sort band"),
+	         UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(0) >= 1000);
 	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
 
@@ -404,6 +595,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			int32 BowSpriteRendererCount = 0;
 			int32 SwordMeshRendererCount = 0;
+			int32 FoxDirectionEnabledEmitterCount = 0;
+			int32 FoxDirectionEnabledRendererCount = 0;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (!EmitterHandle.GetIsEnabled())
@@ -411,6 +604,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					continue;
 				}
 				const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+				if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+				{
+					++FoxDirectionEnabledEmitterCount;
+					TestTrue(FString::Printf(TEXT("Fox direction emitter '%s' exposes compiled data"),
+					                         *EmitterHandle.GetName().ToString()),
+					         EmitterData != nullptr);
+					if (EmitterData)
+					{
+						TestTrue(FString::Printf(TEXT("Fox direction emitter '%s' follows component-space rotation"),
+						                         *EmitterHandle.GetName().ToString()),
+						         EmitterData->bLocalSpace);
+						for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+						{
+							if (Renderer && Renderer->GetIsEnabled())
+							{
+								++FoxDirectionEnabledRendererCount;
+							}
+						}
+					}
+				}
 				if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight && EmitterData)
 				{
 					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
@@ -453,6 +666,18 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
 			{
 				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
+			}
+			if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+			{
+				TestTrue(TEXT("Fox direction contains at least one enabled emitter"),
+				         FoxDirectionEnabledEmitterCount > 0);
+				TestTrue(TEXT("Fox direction contains at least one enabled renderer"),
+				         FoxDirectionEnabledRendererCount > 0);
+				const FBox FixedBounds = System->GetFixedBounds();
+				TestTrue(TEXT("Fox direction opts into fixed bounds for deterministic camera culling"),
+				         System->bFixedBounds != 0);
+				TestTrue(TEXT("Fox direction fixed bounds are valid and non-degenerate"),
+				         FixedBounds.IsValid != 0 && FixedBounds.GetSize().GetAbsMin() > KINDA_SMALL_NUMBER);
 			}
 		}
 		if (Semantic == EReEchoCombatVfxSemantic::GoatSkill03Alarming ||

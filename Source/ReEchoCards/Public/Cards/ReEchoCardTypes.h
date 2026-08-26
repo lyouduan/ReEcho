@@ -224,6 +224,7 @@ struct REECHOCARDS_API FReEchoCardGrantResult
 	FReEchoCardBuildState CardState;
 	int32 TimeShards = 0;
 	TArray<FName> GrantedCardIds;
+	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
 };
 
 USTRUCT()

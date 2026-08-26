@@ -25,6 +25,7 @@
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "UI/ReEchoDamageNumberActor.h"
+#include "UI/ReEchoElementReactionPopupActor.h"
 
 namespace ReEchoEnemyVisual
 {
@@ -108,6 +109,7 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.RemoveAll(this);
+		CombatEvents->OnElementReactionResolved.RemoveAll(this);
 	}
 
 	Host = InHost;
@@ -129,6 +131,8 @@ void UReEchoEnemyPresentationComponent::BindEventSources(AActor* InHost,
 	if (CombatEvents)
 	{
 		CombatEvents->OnHurt.AddDynamic(this, &UReEchoEnemyPresentationComponent::HandleCombatHurt);
+		CombatEvents->OnElementReactionResolved.AddDynamic(
+		    this, &UReEchoEnemyPresentationComponent::HandleElementReactionResolved);
 	}
 }
 
@@ -228,6 +232,12 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCom
 	}
 	bDeathVisualActive = true;
 	bHitVisualActive = false;
+	bStunPaused = false;
+	bCancelAttackWhenStunClears = false;
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetPlaybackPaused(false);
+	}
 	AttackVisualRemaining = 0.0f;
 	ResetTransientRoot();
 	if (EffectsRoot)
@@ -246,11 +256,27 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCom
 	return bStarted;
 }
 
+void UReEchoEnemyPresentationComponent::SetStunPaused(const bool bPaused)
+{
+	bStunPaused = bPaused;
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetPlaybackPaused(bPaused);
+	}
+	if (!bPaused && bCancelAttackWhenStunClears)
+	{
+		bCancelAttackWhenStunClears = false;
+		if (PresentationController)
+		{
+			PresentationController->CancelAttackAction();
+		}
+	}
+}
+
 void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSnapshot& Snapshot,
                                                 const float DeltaSeconds)
 {
 	const float SafeDelta = FMath::Max(0.0f, DeltaSeconds);
-	VisualTime += SafeDelta;
 	if (Host && CharacterSprite && SequenceAnimation && !SequenceAnimation->IsAnimationActive())
 	{
 		ReEchoBillboardDebug::DrawBounds(
@@ -262,9 +288,10 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		    Host, Collision, Snapshot.Archetype == EReEchoEnemyArchetype::Boss ? FColor::Orange : FColor::Cyan);
 	}
 	UpdateCameraFacing(Snapshot);
-	UpdateBossWeaponMotion(SafeDelta);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::Dead || bDeathVisualActive)
 	{
+		bCancelAttackWhenStunClears = false;
+		SetStunPaused(false);
 		RefreshFootpointAlignment();
 		if (VisualEffectRoot)
 		{
@@ -273,6 +300,13 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		RefreshGroundShadowFromFlipbook();
 		return;
 	}
+	SetStunPaused(Snapshot.bStunned);
+	if (Snapshot.bStunned)
+	{
+		return;
+	}
+	VisualTime += SafeDelta;
+	UpdateBossWeaponMotion(SafeDelta);
 	if (Snapshot.Phase == EReEchoEnemyBehaviorPhase::HitReaction)
 	{
 		UpdateHitReaction(Snapshot);
@@ -486,6 +520,10 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 		BossWeaponSwingRemaining = 0.0f;
 		BossWeaponRoot->SetRelativeRotation(BossWeaponRestRotation);
 	}
+	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && bStunPaused)
+	{
+		bCancelAttackWhenStunClears = true;
+	}
 	if (Intent.Type != EReEchoBossIntentType::TelegraphStarted &&
 	    Intent.Type != EReEchoBossIntentType::AttackWindowStarted)
 	{
@@ -512,7 +550,14 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 	if (Event.Phase == EReEchoPresentationActionPhase::Ended ||
 	    Event.Phase == EReEchoPresentationActionPhase::Cancelled)
 	{
-		PresentationController->CancelAttackAction();
+		if (bStunPaused)
+		{
+			bCancelAttackWhenStunClears = true;
+		}
+		else
+		{
+			PresentationController->CancelAttackAction();
+		}
 		return;
 	}
 	PresentationController->PlayAction(Event.Phase == EReEchoPresentationActionPhase::Windup
@@ -521,6 +566,14 @@ void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPr
 	                                   true,
 	                                   Event.Key.Sequence);
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(
+    const FReEchoPresentationActionEvent& Event)
+{
+	HandlePresentationAction(Event);
+}
+#endif
 
 void UReEchoEnemyPresentationComponent::HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event)
 {
@@ -570,4 +623,14 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	{
 		PresentationController->PlayAction(ReEcho2DAnimationTags::Hit, true);
 	}
+}
+
+void UReEchoEnemyPresentationComponent::HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event)
+{
+	if (!AReEchoElementReactionPopupActor::ShouldDisplayForTarget(Event, Host))
+	{
+		return;
+	}
+	AReEchoElementReactionPopupActor::SpawnReactionPopup(
+	    Host ? Host->GetWorld() : nullptr, Event.PrimaryTarget->GetActorLocation(), Event.ReactionBehaviorId);
 }

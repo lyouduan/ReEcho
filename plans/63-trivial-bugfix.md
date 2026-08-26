@@ -181,3 +181,31 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **改动 / Changes**：新增 `Spawn.Boss`（`M_SHEEP`、700–950 距离环、220 间距）；WaveScheduler 为 Boss 生成同一位置事实的 Warning/Commit；GameMode 取消 Boss 特例并通过 SpawnResolver 预留、提交。`BossCountsTowardUnitLimit=false` 时 Boss 仍获得自身位置，但不进入普通怪容量计算。
 - **验证 / Verification**：工作簿由 artifact-tool 编辑并完成六个工作表的前后渲染、目标表检查和公式错误扫描；最终文件保留原工作表保护、解锁数据行、表范围及扩展后的数据验证。C++ 聚焦测试锁定 Boss 事件、动态距离环、旧固定坐标消失和单位上限豁免。Development Editor `-FullRebuild` 97/97 通过并刷新 7 个预构建模块（源码指纹 `b768fa629799`）；`ReEcho.Encounter` 自动化 4/4 通过；XLSX/CSV 同步测试 18/18、生产数据同步检查、`validate_project.py`、预构建一致性与 `git diff --check` 均通过。本条未宣称 PIE 人工视觉验收。
 - **状态 / Status**：Closed。按用户指令完成技术验收并提交发布。
+
+### #20 — 玩家受伤后短暂忽略敌人碰撞挤压
+
+- **现象 / Symptom**：玩家被敌人包围时，受伤后仍持续被多个 Pawn 碰撞体阻挡，难以从包围中移动脱身，可能被挤压连续击杀。
+- **目标 / Acceptance**：每次真实扣血后，玩家根碰撞在 1 秒内忽略 `Pawn` 移动碰撞；重复受伤从最新一次重新计时。该窗口只改变物理挤压，不提供伤害无敌，不影响场景墙体或敌人伤害判定；致死时立即恢复碰撞。
+- **实现范围 / Writes**：`ReEchoPlayerPawn.*`、`ReEchoPlayerCollisionTests.cpp`、本文档及 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`。影响 `MOD-ReEcho / AREA-Player`；`MOD-ReEchoCombat` 只提供既有 Hurt 事实，已审阅、无需修改；`MOD-ReEchoEnemies` 的 AI/伤害/碰撞所有权不变，已审阅、无需修改。
+- **改动 / Changes**：Player Pawn 订阅自身类型化 `OnHurt`；首次真实扣血时保存 Blueprint 作者的 `ECC_Pawn` 响应并切换为 `Ignore`，在 Pawn Tick 中推进可重触发的一秒剩余时间。Blocked/零伤害不触发，致死和 EndPlay 立即清理窗口并恢复响应；暂停时窗口与玩法时间一起停止推进。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；Development Editor 构建 96/96 通过并刷新 7 个预构建模块（源码指纹 `177f9e0297fd`）；`ReEcho.Player.HurtCollisionIgnore` 自动化 1/1 通过，锁定窗口内仍可继续扣血、重复受伤顺延计时及一秒后恢复作者响应；`validate_project.py`、预构建一致性与 `git diff --check` 通过。用户授权按当前完整候选发布。
+- **文档审阅 / Documentation review**：`MOD-ReEcho` 已更新玩家 Hurt 后短时 Pawn 碰撞忽略契约；`MOD-ReEchoCombat` 已审阅、无需修改，因为 Hurt 事实与伤害结算所有权不变；`MOD-ReEchoEnemies` 已审阅、无需为本项修改，因为敌人 AI、命中和碰撞所有权不变；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑和路由标识未变化。
+- **状态 / Status**：Closed。用户授权将本工作树完整候选发布并清理。
+
+### #21 — 兔子站定连发相邻弹距调整为约 70cm
+
+- **需求 / Need**：兔子站定直线连发的相邻子弹飞行间距调整为约 `70cm`。
+- **换算 / Calculation**：`M_RABBIT_RangedBurst` 当前为 4 发；未填写固定弹速，因此运行时按 `MaxRangeCm / CooldownSeconds = 1000 / 1.4 = 714.2857cm/s` 推导。连发间隔由 `ActiveSeconds / (ProjectileCount - 1)` 决定，故 `ActiveSeconds = 70 / 714.2857 × 3 = 0.294s`。
+- **改动 / Changes**：权威工作簿 `Design/Data/ReEchoEnemyData.xlsx` 的 `EnemyAbilities!H11`（`M_RABBIT_RangedBurst.ActiveSeconds`）由 `0.1` 改为 `0.294`，并同步生成 `Content/Data/enemy_abilities.csv`；未改移动散射技能或其他敌人能力。
+- **验证 / Verification**：工作簿目标单元格、样式与公式错误扫描通过，五个工作表渲染复核通过；保留原工作表保护、数据验证及其余 XLSX 包内容；XLSX/CSV 同步及项目静态校验通过。用户已在 PIE 确认当前约 `70cm` 相邻弹距符合预期；`Design/Data/ReEchoEnemyData使用说明.md` 已补充策划填表公式、当前示例及常见误填提醒。
+- **状态 / Status**：Closed。用户已完成手感验收并授权发布。
+
+### #22 — 兔子站定连发与移动散射使用相同单发尺寸
+
+- **现象 / Symptom**：兔子移动散射为 3 发、站定连发为 4 发；两者 `RadiusCm` 都是 `100`，旧逻辑却按各自 `ProjectileCount` 平分半径，导致散射单发半径为 `33.33cm`、连发仅 `25cm`，且表现直径跟随碰撞半径，连发视觉和判定都小约 25%。
+- **目标 / Acceptance**：兔子每颗子弹尺寸固定，不随同一技能一次发射的数量改变；以现有移动散射为基准，站定连发同样使用 `33.33cm` 碰撞半径和约 `66.67cm` 视觉直径。不改变羊 Boss 的投射物分配规则。
+- **改动 / Changes**：兔子 Ranged 投射物统一按原始 3 发移动散射基准解析单发半径，不再按当前技能发数重新平分；羊 Boss 仍保留显式按发数解析的既有路径。聚焦测试新增移动/站定两种兔子技能半径相等断言，并将站定连发时序断言改为读取配表间隔。
+- **验证 / Verification**：修改的 C++ 已按仓库 `.clang-format` 格式化；Development Editor 增量构建通过并刷新 7 个预构建模块（源码指纹 `e649ef829fec`）；`ReEcho.Enemies.Host` 自动化 5/5 通过，其中 `RabbitProjectilePipeline` 锁定移动/站定两种技能单球半径相等，`SheepProjectilePipeline` 同时回归羊 Boss 路径；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
+- **文档审阅 / Documentation review**：`MOD-ReEcho` 与 `MOD-ReEchoEnemies` 已更新兔子双技能轨迹、固定单发半径和 EnemyHost 所有权；`MOD-ReEchoVFX` 已更新逐球事件数量与固定视觉尺寸契约；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑、依赖方向和稳定路由标识未变化。
+- **状态 / Status**：Closed。用户已确认两种兔子技能的单发尺寸一致并授权发布。
+- **发布集成 / Release integration**：取得 `main-publish-lock` 后合入 `origin/main@402b6d22`；传入的伤害数字、元素反应来源、狐狸冲撞、首波预警和 Plan116 与本候选无源码/数据逻辑冲突，只有精选预构建包发生预期二进制冲突并由最终组合源码完整重生。Development Editor `-FullRebuild` 100/100 通过，精选包源码指纹 `aae735c39d73`；最终组合上的 `ReEcho.Player.HurtCollisionIgnore` 1/1、`ReEcho.Enemies.Host` 5/5、XLSX 同步测试 18/18、生产数据一致性、项目校验、预构建一致性和 `git diff --check` 全部通过。

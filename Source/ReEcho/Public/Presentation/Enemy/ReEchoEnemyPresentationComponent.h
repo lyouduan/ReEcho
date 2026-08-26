@@ -64,6 +64,10 @@ struct REECHO_API FReEchoEnemyPresentationSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bMoving = false;
+
+	/** Gameplay-owned action disable sampled by the Host; presentation only pauses/resumes the current frame. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bStunned = false;
 };
 
 /**
@@ -99,7 +103,12 @@ public:
 	void ConfigureAppearance(FName PresentationId);
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
 	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
+	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
+	void SetStunPaused(bool bPaused);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
+#if WITH_DEV_AUTOMATION_TESTS
+	void ConsumePresentationActionForTests(const FReEchoPresentationActionEvent& Event);
+#endif
 
 	UBillboardComponent* GetCharacterSprite() const
 	{
@@ -120,6 +129,8 @@ private:
 	void HandleFuseChanged(const FReEchoEnemyFuseEvent& Event);
 	UFUNCTION()
 	void HandleCombatHurt(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 
 	void ApplyVisual(FName PresentationId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
@@ -192,4 +203,6 @@ private:
 	FRotator BossWeaponRestRotation = FRotator::ZeroRotator;
 	bool bHitVisualActive = false;
 	bool bDeathVisualActive = false;
+	bool bStunPaused = false;
+	bool bCancelAttackWhenStunClears = false;
 };

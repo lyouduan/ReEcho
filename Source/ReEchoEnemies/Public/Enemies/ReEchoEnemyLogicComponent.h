@@ -29,9 +29,13 @@ public:
 	// WS4 (Plan 68): attempts to convert a just-lethal hit into a blood-depleted second-phase transition. Returns
 	// true when the owner is a HealthThreshold boss that has not yet transformed (the caller defers real death).
 	bool TryTriggerPhase2OnFatalWound(FReEchoEnemyActionIntent& OutIntent);
+	/** Cancels the current target-locked attack when stun begins, preserving cooldowns, fuse and hit reaction. */
+	void CancelActiveActionsForStun();
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
 	void ResetEncounterTransientState();
 	void RestoreSnapshot(const FReEchoEnemyLogicSnapshot& InSnapshot);
+	/** Host feedback after applying one Active Elite dash step through swept world movement. */
+	void ResolveSpecialDashStep(bool bMovementBlocked, bool bDamageContactConsumed);
 
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
@@ -63,6 +67,9 @@ private:
 	bool BuildSpecialRuntime();
 	const FReEchoEnemyAbilityDefinition* GetNextSpecialAbility() const;
 	const FReEchoEnemyAbilityDefinition* FindSpecialAbility(FName AbilityId) const;
+	void BeginSpecialRecovery(const FReEchoEnemyAbilityDefinition& Ability);
+	void ClearSpecialAction();
+	void CancelSpecialAction();
 	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
 	                          float FixedDeltaSeconds,
 	                          FReEchoEnemyActionIntent& InOutIntent);

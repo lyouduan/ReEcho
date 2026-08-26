@@ -51,6 +51,9 @@ public:
 	/** Applies healing through GAS when available and returns actual health restored. */
 	UFUNCTION(BlueprintCallable)
 	float ApplyHealing(float Healing);
+	/** Atomically applies a permanent maximum-health change and its typed current-health adjustment. */
+	UFUNCTION(BlueprintCallable)
+	bool ApplyHealthAdjustment(float NewMaximumHealth, EReEchoHealthAdjustment Adjustment);
 	/** Restore serialized health without producing damage/heal feedback or consuming block. */
 	void RestoreCurrentHealth(float SavedHealth);
 
@@ -135,6 +138,7 @@ private:
 
 	bool bDeathBroadcast = false;
 	bool bDebugInvulnerable = false;
+	bool bDeferHealthNotifications = false;
 	FReEchoElementState ElementState;
 
 	struct FBleedingStack

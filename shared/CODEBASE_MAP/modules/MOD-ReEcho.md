@@ -126,7 +126,7 @@ Arena 作者ing中，`BackdropHalfExtents` 只控制底图显示宽高，与 Cam
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
-Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMSpawnFox [distance]` 只用于快速表现验收：它复用生产 `M_FOX` Definition、EnemyHost、Roster 和竞技场出生边界，不建立第二套测试怪物。
+Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散并钳制在 Enemy Spawn Bounds 内；它逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
 
 `GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
 
@@ -212,14 +212,14 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 **设计意图：** `MOD-ReEchoEnemies` 独占怪物行为状态；主模块只提供世界感知、Transform/Collision 应用、Combat 转发和资源表现，避免逻辑与美术继续争用同一份实现。
 
 - 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
-- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把每条敌方逻辑投射物的连续路径与世界目标碰撞盒相交结果转为一次 Combat `HitIntent`；兔子一次 Commit 展开三条扇形轨迹，每条最多结算一次，伤害与整组碰撞尺寸仍来自注入的 Ability Definition。Combat Death 后 Host 立即关闭 Logic/碰撞和新行为，保留已发射逻辑投射物推进；死亡阶段只继续轻量表现推进，使 GroundShadow 可跟随 Death 当前帧；Death Clip 独占播放一次并在实际完成时销毁 Host，缺失 Death 时下一安全帧销毁，实际时长加短宽限只作为防卡死 watchdog。
-- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class，血条、动画、命中特效、元素光环与死亡残留不反向控制玩法。
+- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把敌方逻辑载体的连续路径与世界接触转为 Combat。狐狸 Active 每步继续用根 Box `AddActorWorldOffset(..., sweep=true)`，只按实际起终点与锁定目标碰撞盒的首次相交提交同一 `AttackIdentity` 的 `FReEchoHitIntent`；无敌接触消费一次门但不扣血，世界阻挡立即反馈 Logic 进入 Recovery，禁止穿透或补偿传送。兔子移动散射一次 Commit 展开三条扇形轨迹，站定连发则按 `ActiveSeconds` 依次发布四条同向轨迹，每条最多结算一次；两种兔子技能的单球碰撞半径固定沿用原移动三球基准 `RadiusCm / 3`，不因发数改变。Combat Death 后 Host 立即关闭 Logic/碰撞和新行为，保留已发射逻辑投射物推进；死亡阶段只继续轻量表现推进，使 GroundShadow 可跟随 Death 当前帧；Death Clip 独占播放一次并在实际完成时销毁 Host，缺失 Death 时下一安全帧销毁，实际时长加短宽限只作为防卡死 watchdog。
+- 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；同时只读 Host 的 Combat 伤害/反应结果生成伤害数字和一次性元素反应字。反应字严格使用事件的 `ReactionBehaviorId` 与 `PrimaryTarget`，不从元素状态重算，也不按 Growth/Conduct 的受影响目标重复生成。主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class；血条、动画、命中特效、元素光环、反应字与死亡残留均不反向控制玩法。
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；`SetEncounterSimulationSuspended` 在同 Stage 局间冻结原 Host，并在进入下一 Encounter 前恢复。Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
 - Plan68 接线：GameMode 用当前 `EncounterIndex` 编译每个出生 Enemy Definition；Host 注入表驱动 `HateRangeCm`、当前生命比率和特殊行动许可。普通怪的距离/受击次数 Phase2 仅改变表现，转换期间继续接受伤害；`M_SHEEP` 的第一次致命伤由 Combat 窄委托转为 Phase2 变身事件，完成后把生命上限和当前生命切到 650；普通怪未战斗时的 IdleWander 仍由 EnemyLogic 独占状态。
 - 群体移动：EnemyLogic 的追踪/攻击意图保持权威；主模块 `FReEchoEnemyCrowdSteering` 在 Host 应用 Transform 前，根据 SpawnIndex 稳定攻击槽位、Roster 邻居 Separation、切向绕行和短时受阻恢复修正普通追踪位移。普通敌人之间互相加入 MoveIgnore，避免 Pawn Sweep 形成静止队列；玩家、场景与 Boss 仍保持硬碰撞，击退和特殊动作不进入普通 Crowd 修正。
-- 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素，以及通用敌方已生成/已提交待生成投射物；待生成直线连发球保存剩余延迟和 Spawned 发布状态，旧存档条目默认视为已生成。EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
+- 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素，以及通用敌方已生成/已提交待生成投射物；狐狸 Active 快照包含剩余时间/距离、锁向、攻击身份和一次接触门，旧快照缺失这些瞬时字段时安全落入 Recovery，既不补走终点也不重复伤害。待生成直线连发球保存剩余延迟和 Spawned 发布状态，旧存档条目默认视为已生成。EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
 - 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
-- 测试：`ReEcho.Enemies.*`、`ReEcho.StageTransition.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
+- 测试：`ReEcho.Enemies.*`（其中 `ReEcho.Enemies.Host.FoxDashCollision` 锁定分帧 Sweep、首次路径伤害、躲避/无敌/撞墙）、`ReEcho.StageTransition.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
 
 ### `AREA-Encounter`：`Encounter`遭遇时钟
 
@@ -247,6 +247,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 20；BuildSnapshot 内的 CardState 语义由 Cards 定义。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
+- 卡牌授予成功并完整提交 `CurrentBuild` 后，Run 通过 `OnCardGrantCommitted` 发布只读 StatBlock 与类型化生命调整；
+  GameMode 只把该命令转交 Player Combatant。失败事务不得发布，Widget 不订阅该事件反向改生命。
 - 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 资格池生成三选一。数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店始终投影 `[1级卡组, 2级卡组, 3级卡组]` 三个固定入口，按真实关次读取 `ShopTiers` 逐级启用；每个启用卡组从同 Tier 资格池确定性缓存最多三张候选和一个同 Tier 基础价。入口底部购买键展示折扣后的卡组总价；付款事务一次扣费、对付款前已拥有卡牌触发一次 `OnPurchase`，立即保存并转为 `PaidPendingChoice` 后才进入三选一。返回商店不退款，入口变为“继续选择”，重进不收费、不重摇；最终领取只执行 `TryGrantCard`，成功才转 `Purchased`，不再次扣费或触发 `OnPurchase`。领取失败保留已付款状态、余额、候选和刷新用量以便重试。候选不足只显示实际 1/2 张，零张售罄，禁止跨级补位。初始投放页按 `EncounterIndex` 稳定；若页面生成后经其他效果新获得二、三级候选，则投影即时剔除该卡但不补抽、不重摇。免费和已付款三选一的每个实际候选槽都独立拥有 `shop_refresh_rules` 配置的刷新次数和价格；免费选卡及已付候选领取本身不收费，只有刷新扣款。成功刷新只原位替换所点槽位，并只重播该槽位的卡牌揭示动画；其他候选保持可见且不重播页面指针。替换保持同级并排除当前候选、被替换项和全部已获得卡牌（刷新时 1 级也不可重复）；无合法替代、余额不足、次数耗尽或禁刷新均原子失败。商店主刷新不得重建卡组或清除付款/已购状态。初次免费与商店投放仍允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。SaveVersion 20 新增卡组基础价与付款待选状态；v19 已购卡组迁移为已付款并按原页面身份惰性恢复稳定价格。SaveVersion 18 持久化当前免费投放页及逐槽用量，v17 持久化商店卡组和刷新用量；v16 自动补齐商店零用量，v15 及更早的单卡页缓存显式丢弃并确定性重建。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
 - 商店武器/符文：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成报价；三个槽以独立的 `WeaponRuneRefreshSequence` 缓存稳定 ContentId 与确定性价格，购买只改变已购/已装备状态，不得用缩小后的资格池重算其余槽。主刷新每个商店关次受 `shop_refresh_rules` 限制并显示剩余次数，只推进武器/符文页；卡牌 `FreeShopRefresh` 可优先抵扣价格但仍占用关次上限，`NoShopRefresh` 阻断两类刷新。下一关重置该预算，SaveVersion 17 持久化当前关次、序列和已用次数，读档不得重置。符文购买立即进入 `OwnedPartIds` 并装入对应槽，满槽时最早符文回背包。每次购买成功后 GameMode 都重取完整商店只读投影，使 `OwnedParts`、`EquippedParts`、武器、卡牌、货币和背包同步更新；稳定缓存保证该重取不会重摇未购买报价。初始武器和购买武器进入 `OwnedWeaponIds`；购买整把武器与背包换装都复用 `ReEchoWeaponRuntime::TrySelectWeapon`，只保留兼容符文，不兼容符文仍拥有但卸下。`TryEquipOwnedWeapon` 是不扣费、不刷新页面的窄事务，未知、禁用或未拥有武器不得改变构筑。SaveVersion 14 起持久化武器背包与稳定武器/符文商店页；v12 及更早存档以当前装备武器迁移最小拥有集合，v13 存档保留武器背包并重建商店页。
@@ -272,7 +274,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 代码：`Source/ReEcho/Public/Player/`、`Source/ReEcho/Private/Player/`。
 - 首读：`ReEchoPlayerPawn.*`。
 - 输入：WASD、攻击、暂停/模式命令和世界边界。
-- 输出：移动、相机/朝向表现、攻击请求和只读玩家状态。
+- 输出：移动、相机/朝向表现、攻击请求和只读玩家状态；真实扣血的 Hurt 事件会让根 Box 在 1 秒内忽略 `Pawn` 移动碰撞，重复受伤顺延窗口但不提供伤害无敌，结束后恢复 Blueprint 作者碰撞响应。
 - 扩展：新输入先确定命令所有者；菜单、死亡与模式切换必须统一释放 held 请求。
 - 禁止：在 Pawn 再建一套攻击间隔、生命或 Run phase。
 
@@ -285,7 +287,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：只拥有表现实例与表现生命周期；逻辑生命、伤害、攻击节奏和录制不归这里。
 - 输入：Combat/Weapon/Recording 结果、只读快照、`AppearanceId`、武器视觉 Key 和稳定视觉 ID。
 - 输出：Sprite/Mesh/材质、动画、VFX、世界文本和镜头反馈。
-- 战斗 VFX：详细设计见 [`MOD-ReEchoVFX.md`](MOD-ReEchoVFX.md)。`UReEchoCombatVfxComponent` 装配在 Player、Echo 与 Enemy Host，只读订阅 Combat/Enemy 类型化事件；三类 Host 的 `EffectsRoot` 下分别暴露 Blueprint 可编辑的 `AttackVfxRoot` / `HurtVfxRoot`，Echo 另有按 Flipbook 稳定视觉 Bounds 居中并处于角色下一排序层的 `EchoAuraVfxRoot`。Run/GameMode 只在 Cards 的同一权威 `EchoAuraPulseCount` 到达时播放一次水草 Aura，不新增视觉计时器，2 秒/4m 元素玩法链不变；`FReEchoCombatVfxCatalog` 是语义到完整 Niagara/材质/纹理路径的唯一映射。兔子三颗可见子弹以 `(AttackIdentity, VolleyBallIndex)` 一一跟随 EnemyHost 逐球快照，并组合原核心球与红色柔光材质；表现不拥有轨迹、碰撞、伤害或存档。
+- 战斗 VFX：详细设计见 [`MOD-ReEchoVFX.md`](MOD-ReEchoVFX.md)。`UReEchoCombatVfxComponent` 装配在 Player、Echo 与 Enemy Host，只读订阅 Combat/Enemy 类型化事件；三类 Host 的 `EffectsRoot` 下分别暴露 Blueprint 可编辑的 `AttackVfxRoot` / `HurtVfxRoot`，Echo 另有按 Flipbook 稳定视觉 Bounds 居中并处于角色下一排序层的 `EchoAuraVfxRoot`。Run/GameMode 只在 Cards 的同一权威 `EchoAuraPulseCount` 到达时播放一次水草 Aura，不新增视觉计时器，2 秒/4m 元素玩法链不变；`FReEchoCombatVfxCatalog` 是语义到完整 Niagara/材质/纹理路径的唯一映射。兔子每颗可见子弹以 `(AttackIdentity, VolleyBallIndex)` 一一跟随 EnemyHost 逐球快照，并按事件碰撞半径绘制相同尺寸的核心球与红色柔光材质；表现不拥有轨迹、碰撞、伤害或存档。
 - 战斗表现协调（Plan77）：Enemy Host 上的 `UReEchoCombatPresentationCoordinator` 将特殊动作归一为由来源、序列和 AbilityId 标识的有序阶段。动画与 VFX 不再各自订阅并解释原始 SpecialAction，而是共同消费同一 Windup/Committed/Ended/Cancelled 广播；Coordinator 只拥有去重和可丢弃的表现生命周期。战斗主体 DA 从 Plan78 起统一位于 `/Game/ReEcho/DataAsset/{Character,Enemy,Weapon,Common}`，角色、怪物和武器 Catalog 不再混放。
 - 比例契约：人物 `100 UU`；Grunt/史莱姆 `80 UU`；Rabbit `140 UU`；Fox `200 UU`；Goat/Boss `220 UU`。Animation2D Profile 拥有外观目标高度；Gameplay Blueprint 独立拥有可编辑 Box Collision 的尺寸和变换，运行时代码不得按外观高度覆盖碰撞；同一 Profile 的不同语义序列必须同尺寸。
 - Arena Scene：`Presentation/Scene/ReEchoArenaSceneActor.*` 是 `/Game/Level00` 中 Editor authored 的场景契约，独立拥有可替换 `MapMaterial`、相机安全边界、玩家活动边界和敌人出生边界；不再持有或采样地图 AO。`UReEchoArenaSceneProfile` 只拥有地图材质、Ground 调色和插片白名单/密度/固定种子/中央安全区等表现默认值；Actor 的 `SceneProfile` 在 Construction 中建立地图 MID 并应用 `GroundTint/GroundBrightness/GroundSaturation/GroundContrast`，但 Profile 不拥有玩法边界、碰撞、遭遇或关卡流程。`ArenaCamera` 独立直属 `SceneRoot`，直接拥有可编辑的位置、旋转、正交宽度和宽高比，不继承地图 Transform。默认中心锁定模式在地图安全区内让相机地面焦点严格跟随玩家脚点，边缘/角落仍以地图 Clamp 为先。`MapRoot` 是地图、碰撞和玩法范围的 Editor 平移/缩放节点；Backdrop、Floor 和四墙是其直接子节点，`OnConstruction()` 会修复旧关卡实例遗留的 Attachment。`PlantRoot` 位于 `GroundDetailRoot` 下，Level00 中烘焙的植物卡片可单独选择、移动、缩放、替换材质或删除；Plan52 工具使用 Profile 固定种子并只清理带 `ReEchoGeneratedDecoration_Plan52` 标签的卡片。GameMode、相机 Clamp、脚点排序与视差读取 MapRoot 世界中心，玩家/出生/相机范围消费其 XY Scale。`GameplayPlaneZ` 是 MapRoot 局部脚底平面，统一转换为世界高度；玩家和怪物 Actor 中心始终为该高度加各自 Box 半高，GroundRoot/阴影因此贴合相同平面。`ReEcho2DSceneLightingComponent` 只维护脚点透明排序，不修改角色明暗。Backdrop 与 Collision 各有独立 Auto Layout 开关；关闭后 Construction 保留关卡实例中直接编辑的组件 Transform。GameMode 只验证唯一实例并消费边界；相机按组件当前倾斜正交视锥投影到同一玩法平面的实际 footprint 跟随/钳制，不在运行时生成备用场地或覆盖 Editor 相机参数。
@@ -323,6 +325,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。
 - 商店/背包页保留全屏背景，并把固定 `1920×1080` 作者坐标的交互内容放入统一等比缩放设计面；WBP 控件和运行时弹层必须共享同一缩放坐标系，避免低分辨率裁切或点击区域错位。武器背包和符文背包共用该设计面的根级高层浮层，不能继续嵌在装配室局部 Canvas 下被兄弟表现层遮挡。
 - 商店/背包页按 `P` 时由更高 Pause 层覆盖，商店保持打开；恢复后重新聚焦商店并保持暂停，不得复用商店关闭路径或触发战后推进。
+- 战斗世界空间元素反应字由主模块 Enemy Presentation 订阅 Combat 的权威反应完成事件后生成；五类透明图及渐隐材质属于 UI 表现资产，`BP_ReEchoElementReactionPopup` 是尺寸、上浮、渐隐与缩放的调参入口，缺失时不得阻断玩法。
 - 人工验收：布局、可读性、焦点、点击区域和视觉效果由用户验收，Executor 不做高 token 视觉遍历。
 
 ### `AREA-Tests`：`Tests`验证边界

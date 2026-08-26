@@ -120,6 +120,31 @@ bool FReEchoCardTierGrantTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBloodForgingGrantTest,
+                                 "ReEcho.Cards.Grant.BloodForgingFillsHealth",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBloodForgingGrantTest::RunTest(const FString&)
+{
+	const FReEchoCardCatalog Catalog = BuildCatalog(
+	    {MakeCard(TEXT("BLOOD_FORGING"), 3, TEXT("Card.BloodForging"), TEXT("OnGrant"), TEXT("HpMaxAndPoint"), 1.0f)});
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.Stats.HpMax = 100.0f;
+	Input.Stats.HpPoint = 25.0f;
+	Input.Stats.PhysicalAttack = 17.0f;
+	Input.Stats.ElementalAttack = 13.0f;
+
+	const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, TEXT("BLOOD_FORGING"), Input);
+	TestTrue(TEXT("Blood Forging grants successfully"), Grant.bSucceeded);
+	TestEqual(TEXT("Blood Forging adds both attack values to maximum health"), Grant.Stats.HpMax, 130.0f);
+	TestEqual(TEXT("Blood Forging fills the build health value"), Grant.Stats.HpPoint, 130.0f);
+	TestEqual(TEXT("Blood Forging emits a typed fill-to-maximum request"),
+	          Grant.HealthAdjustment,
+	          EReEchoHealthAdjustment::FillToMax);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCardEncounterRulesTest,
                                  "ReEcho.Cards.Encounter.ThresholdsAndDamageResources",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
