@@ -13,6 +13,7 @@ class UReEchoAudioUserSettings;
 
 /** GameInstance-lifetime semantic audio facade. */
 UCLASS()
+
 class REECHOAUDIO_API UReEchoAudioService : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -37,7 +38,8 @@ public:
 
 	/** Preview values immediately in the policy engine; these calls do not persist. */
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void SetMasterVolume(float Volume);
-	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void SetBusVolume(EReEchoAudioBus Bus, float Volume);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings")
+	void SetBusVolume(EReEchoAudioBus Bus, float Volume);
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void SetBusMuted(EReEchoAudioBus Bus, bool bMuted);
 	UFUNCTION(BlueprintPure, Category = "ReEchoAudio|Settings") float GetMasterVolume() const;
 	UFUNCTION(BlueprintPure, Category = "ReEchoAudio|Settings") float GetBusVolume(EReEchoAudioBus Bus) const;
@@ -50,10 +52,18 @@ public:
 	/** Preview defaults without persisting until CommitUserSettings. */
 	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Settings") void PreviewDefaultSettings();
 	/** One-shot diagnostic action; never persisted. */
-	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Diagnostics") void PlayDiagnosticTone(UObject* WorldContextObject);
+	UFUNCTION(BlueprintCallable, Category = "ReEchoAudio|Diagnostics")
+	void PlayDiagnosticTone(UObject* WorldContextObject);
 
-	FReEchoAudioPolicyEngine& GetPolicyEngine() { return *PolicyEngine; }
-	const FReEchoAudioCatalog* GetCatalog() const { return Catalog.Get(); }
+	FReEchoAudioPolicyEngine& GetPolicyEngine()
+	{
+		return *PolicyEngine;
+	}
+
+	const FReEchoAudioCatalog* GetCatalog() const
+	{
+		return Catalog.Get();
+	}
 
 private:
 	bool TickAudio(float DeltaTime);

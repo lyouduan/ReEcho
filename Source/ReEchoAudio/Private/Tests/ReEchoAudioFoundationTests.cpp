@@ -390,8 +390,7 @@ bool FReEchoAudioStateTest::RunTest(const FString& Parameters)
 	FReEchoAudioEventDefinition StageVariant = Enc;
 	StageVariant.VariantId = TEXT("Stage.1");
 	H.AddDef(StageVariant);
-	H.Engine->SetState(
-	    EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter, StageVariant.VariantId);
+	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter, StageVariant.VariantId);
 	TestEqual(TEXT("variant state becomes current"),
 	          H.Engine->GetCurrentState(EReEchoAudioChannel::Music),
 	          FReEchoAudioEvents::MusicEncounter);
@@ -400,8 +399,7 @@ bool FReEchoAudioStateTest::RunTest(const FString& Parameters)
 	          StageVariant.VariantId);
 	TestEqual(TEXT("variant reaches backend command"), H.Backend->LastLoopCommand.VariantId, StageVariant.VariantId);
 	const int32 StartCountAfterVariant = H.Backend->StartLoopCount;
-	H.Engine->SetState(
-	    EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter, StageVariant.VariantId);
+	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicEncounter, StageVariant.VariantId);
 	TestEqual(TEXT("same state and variant remain idempotent"), H.Backend->StartLoopCount, StartCountAfterVariant);
 	return true;
 }
@@ -537,8 +535,7 @@ bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 	Variant.EventId = FReEchoAudioEvents::CombatAttack;
 	Variant.VariantId = TEXT("W_J_01");
 	Catalog.AddDefinition(Variant);
-	const FReEchoAudioEventDefinition* Exact =
-	    Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack, TEXT("W_J_01"));
+	const FReEchoAudioEventDefinition* Exact = Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack, TEXT("W_J_01"));
 	TestNotNull(TEXT("exact event variant resolves"), Exact);
 	TestEqual(TEXT("exact event variant is returned"), Exact ? Exact->VariantId : NAME_None, FName(TEXT("W_J_01")));
 	const FReEchoAudioEventDefinition* Fallback =

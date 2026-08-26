@@ -51,7 +51,8 @@ class REECHOAUDIO_API FReEchoAudioCatalog : public IReEchoAudioCatalogProvider
 public:
 	void AddDefinition(const FReEchoAudioEventDefinition& Definition);
 	void Clear();
-	virtual const FReEchoAudioEventDefinition* FindDefinition(FName EventId, FName VariantId = NAME_None) const override;
+	virtual const FReEchoAudioEventDefinition* FindDefinition(FName EventId,
+	                                                          FName VariantId = NAME_None) const override;
 
 	/** Atomically load the locked Plan34 CSV schema. Returns false without mutating the active catalog on failure. */
 	bool LoadCatalog(const FString& CsvPath);
@@ -60,11 +61,30 @@ public:
 	void PreloadSoftAssets(FStreamableManager& StreamableManager);
 	void CancelPreload();
 
-	EReEchoAudioCatalogPreloadState GetPreloadState() const { return PreloadState; }
-	bool AreSoftAssetsPreloaded() const { return PreloadState == EReEchoAudioCatalogPreloadState::Ready; }
-	const TArray<FSoftObjectPath>& GetSoftAssetPaths() const { return SoftAssetPaths; }
-	const FString& GetLastLoadError() const { return LastLoadError; }
-	int32 Num() const { return Definitions.Num(); }
+	EReEchoAudioCatalogPreloadState GetPreloadState() const
+	{
+		return PreloadState;
+	}
+
+	bool AreSoftAssetsPreloaded() const
+	{
+		return PreloadState == EReEchoAudioCatalogPreloadState::Ready;
+	}
+
+	const TArray<FSoftObjectPath>& GetSoftAssetPaths() const
+	{
+		return SoftAssetPaths;
+	}
+
+	const FString& GetLastLoadError() const
+	{
+		return LastLoadError;
+	}
+
+	int32 Num() const
+	{
+		return Definitions.Num();
+	}
 
 private:
 	void HandlePreloadComplete();

@@ -81,8 +81,8 @@ void UReEchoCombatAudioAdapterComponent::PostConfiguredAttack(const FVector& Wor
 }
 
 void UReEchoCombatAudioAdapterComponent::PostConfiguredEvent(const FName EventId,
-                                                              const FVector& WorldLocation,
-                                                              const FName VariantId) const
+                                                             const FVector& WorldLocation,
+                                                             const FName VariantId) const
 {
 	if (EventId.IsNone())
 	{
@@ -116,8 +116,8 @@ void UReEchoCombatAudioAdapterComponent::PostDamageEvent(const FName EventId, co
 		const AActor* SourceActor = Event.Attack.Source.Get();
 		const UReEchoCombatAudioAdapterComponent* SourceAdapter =
 		    SourceActor ? SourceActor->FindComponentByClass<UReEchoCombatAudioAdapterComponent>() : nullptr;
-		Request.SourceCategory = SourceAdapter ? ToAudioSourceCategory(SourceAdapter->Source)
-		                                       : EReEchoAudioSourceCategory::Player;
+		Request.SourceCategory =
+		    SourceAdapter ? ToAudioSourceCategory(SourceAdapter->Source) : EReEchoAudioSourceCategory::Player;
 		if (EventId == FReEchoAudioEvents::CombatHit)
 		{
 			Request.VariantId = ReEchoElementReaction::GetElementId(Event.Element);

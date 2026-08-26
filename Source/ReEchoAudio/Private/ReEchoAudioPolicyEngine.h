@@ -63,7 +63,11 @@ public:
 	float ComputeOneShotVolume(EReEchoAudioBus Bus, float EventBaseVolume) const;
 
 	// ---- Diagnostics / test seams ----
-	int32 GetUnknownEventWarningCount() const { return UnknownEventWarningCount; }
+	int32 GetUnknownEventWarningCount() const
+	{
+		return UnknownEventWarningCount;
+	}
+
 	int32 GetActiveVoiceCount(FName EventId) const;
 	int32 GetTotalActiveVoices() const;
 	int32 GetActiveLoopCount() const;
