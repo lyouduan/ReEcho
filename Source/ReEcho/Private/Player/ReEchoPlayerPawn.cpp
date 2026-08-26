@@ -299,6 +299,7 @@ void AReEchoPlayerPawn::BeginPlay()
 	AbilitySystem->InitAbilityActorInfo(this, this);
 	Combatant->BindToAbilitySystem(AbilitySystem);
 	Combatant->OnHealthChanged.AddUniqueDynamic(this, &AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged);
+	CombatEvents->OnHurt.AddUniqueDynamic(this, &AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore);
 	AbilitySystem->GetGameplayAttributeValueChangeDelegate(UReEchoCombatAttributeSet::GetMovementSpeedAttribute())
 	    .AddUObject(this, &AReEchoPlayerPawn::HandleMovementSpeedAttributeChanged);
 	GrantStartupAbilities();
@@ -339,6 +340,7 @@ void AReEchoPlayerPawn::MoveRight(float Value)
 void AReEchoPlayerPawn::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	AdvancePawnCollisionIgnore(DeltaSeconds);
 	ConstrainToArenaBounds();
 	ConfigureMouseInput();
 
@@ -1154,6 +1156,11 @@ void AReEchoPlayerPawn::RefreshGroundShadowFromFlipbook()
 
 void AReEchoPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	RestorePawnCollisionAfterHurt();
+	if (CombatEvents)
+	{
+		CombatEvents->OnHurt.RemoveDynamic(this, &AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore);
+	}
 	if (Combatant)
 	{
 		Combatant->OnHealthChanged.RemoveDynamic(this, &AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged);
@@ -1200,4 +1207,57 @@ void AReEchoPlayerPawn::HandleCharacterAbilityHealthChanged(const float CurrentH
 	                                                 *Snapshot, CurrentCharacterId, CurrentHealth, MaximumHealth)
 	                                           : FVector2D::ZeroVector;
 	Combatant->SetAdditiveAttackModifier(TEXT("Character.MissingHealthSteps"), Bonus.X, Bonus.Y);
+}
+
+void AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore(const FReEchoDamageEvent& Event)
+{
+	if (Event.Target != this)
+	{
+		return;
+	}
+	if (Event.bFatal)
+	{
+		RestorePawnCollisionAfterHurt();
+		return;
+	}
+	if (!Collision || Event.AppliedDamage <= 0.0f)
+	{
+		return;
+	}
+
+	if (!bIgnoringPawnCollisionAfterHurt)
+	{
+		PawnCollisionResponseBeforeHurt = Collision->GetCollisionResponseToChannel(ECC_Pawn);
+		bIgnoringPawnCollisionAfterHurt = true;
+		Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	}
+	HurtCollisionIgnoreRemainingSeconds = HurtCollisionIgnoreDurationSeconds;
+}
+
+void AReEchoPlayerPawn::AdvancePawnCollisionIgnore(const float DeltaSeconds)
+{
+	if (!bIgnoringPawnCollisionAfterHurt)
+	{
+		return;
+	}
+	HurtCollisionIgnoreRemainingSeconds =
+	    FMath::Max(0.0f, HurtCollisionIgnoreRemainingSeconds - FMath::Max(0.0f, DeltaSeconds));
+	if (HurtCollisionIgnoreRemainingSeconds <= KINDA_SMALL_NUMBER)
+	{
+		RestorePawnCollisionAfterHurt();
+	}
+}
+
+void AReEchoPlayerPawn::RestorePawnCollisionAfterHurt()
+{
+	if (!bIgnoringPawnCollisionAfterHurt)
+	{
+		return;
+	}
+	if (Collision)
+	{
+		Collision->SetCollisionResponseToChannel(ECC_Pawn, PawnCollisionResponseBeforeHurt);
+	}
+	HurtCollisionIgnoreRemainingSeconds = 0.0f;
+	bIgnoringPawnCollisionAfterHurt = false;
 }

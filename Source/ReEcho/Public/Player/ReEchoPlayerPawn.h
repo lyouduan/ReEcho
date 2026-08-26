@@ -3,6 +3,7 @@
 #include "AbilitySystemInterface.h"
 #include "Combat/ReEchoAttackControllerComponent.h"
 #include "Combat/ReEchoAttackHost.h"
+#include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatTarget.h"
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
@@ -319,6 +320,10 @@ private:
 	void HandleMovementSpeedAttributeChanged(const FOnAttributeChangeData& Data);
 	UFUNCTION()
 	void HandleCharacterAbilityHealthChanged(float CurrentHealth, float MaximumHealth);
+	UFUNCTION()
+	void HandlePlayerHurtCollisionIgnore(const FReEchoDamageEvent& Event);
+	void AdvancePawnCollisionIgnore(float DeltaSeconds);
+	void RestorePawnCollisionAfterHurt();
 
 	UPROPERTY()
 	TObjectPtr<AReEchoWeaponActor> Weapon;
@@ -349,6 +354,10 @@ private:
 	float AttackVisualDuration = 0.0f;
 	float AttackVisualStrength = 0.0f;
 	float HitVisualRemaining = 0.0f;
+	static constexpr float HurtCollisionIgnoreDurationSeconds = 1.0f;
+	float HurtCollisionIgnoreRemainingSeconds = 0.0f;
+	TEnumAsByte<ECollisionResponse> PawnCollisionResponseBeforeHurt = ECR_Block;
+	bool bIgnoringPawnCollisionAfterHurt = false;
 	float VisualFacingSign = 1.0f;
 	FVector AttackAimDirection = FVector::ForwardVector;
 	int64 NextPresentationAttackInstanceId = 1;
