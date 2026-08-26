@@ -460,6 +460,11 @@ void UReEchoCombatVfxComponent::ConfigureAttachmentRoots(USceneComponent* InAtta
 	BossWeaponVfxRoot = InBossWeaponVfxRoot;
 }
 
+void UReEchoCombatVfxComponent::ConfigureWeaponAttackVfxRoot(USceneComponent* InWeaponAttackVfxRoot)
+{
+	WeaponAttackVfxRoot = InWeaponAttackVfxRoot;
+}
+
 void UReEchoCombatVfxComponent::ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot)
 {
 	EchoAuraVfxRoot = InEchoAuraVfxRoot;
@@ -1184,6 +1189,11 @@ USceneComponent* UReEchoCombatVfxComponent::ResolveBossWeaponVfxRoot() const
 	return BossWeaponVfxRoot ? BossWeaponVfxRoot.Get() : ResolveAttackVfxRoot();
 }
 
+USceneComponent* UReEchoCombatVfxComponent::ResolveWeaponAttackVfxRoot() const
+{
+	return IsValid(WeaponAttackVfxRoot) ? WeaponAttackVfxRoot.Get() : ResolveAttackVfxRoot();
+}
+
 USceneComponent* UReEchoCombatVfxComponent::ResolveHurtVfxRoot() const
 {
 	AActor* Owner = GetOwner();
@@ -1594,14 +1604,14 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
 			    {
 				    Component->SpawnAttached(
-				        static_cast<uint8>(Semantic), LockedDirection, Component->ResolveAttackVfxRoot());
+				        static_cast<uint8>(Semantic), LockedDirection, Component->ResolveWeaponAttackVfxRoot());
 			    }
 		    },
 		    DelaySeconds,
 		    false);
 		return;
 	}
-	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveAttackVfxRoot());
+	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveWeaponAttackVfxRoot());
 }
 
 void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)

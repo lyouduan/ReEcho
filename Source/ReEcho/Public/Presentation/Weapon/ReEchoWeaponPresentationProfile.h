@@ -102,6 +102,15 @@ public:
 	/** Additional rotation around the camera-facing weapon plane; positive values turn counter-clockwise on screen. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
 	float HeldPlanarAngleOffsetDegrees = 0.0f;
+	/** Override the release-VFX anchor. Coordinates are centered on the held texture: +/-0.5 is an image edge. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual|VFX Anchor")
+	bool bOverrideAttackVfxAnchor = false;
+	/** Right-facing local anchor. Facing left mirrors X while preserving Y. */
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Held Visual|VFX Anchor",
+	          meta = (EditCondition = "bOverrideAttackVfxAnchor", EditConditionHides))
+	FVector2D AttackVfxAnchorRatio = FVector2D::ZeroVector;
 	/** Horizontal UV mirror rule for camera-facing held weapon billboards. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual")
 	EReEchoHeldWeaponMirrorRule HeldMirrorRule = EReEchoHeldWeaponMirrorRule::Never;

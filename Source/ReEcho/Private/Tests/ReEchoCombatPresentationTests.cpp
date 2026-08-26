@@ -93,6 +93,46 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Player and Echo host scales resolve the same weapon length"), PlayerLength, EchoLength);
 		}
 	}
+	const UReEchoWeaponPresentationProfile* SwordAnchorProfile =
+	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"));
+	const UReEchoWeaponPresentationProfile* ScytheAnchorProfile =
+	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Scythe"));
+	const UReEchoWeaponPresentationProfile* BowAnchorProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"));
+	const UReEchoWeaponPresentationProfile* GunAnchorProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"));
+	if (SwordAnchorProfile && ScytheAnchorProfile && BowAnchorProfile && GunAnchorProfile)
+	{
+		TestEqual(TEXT("Right-facing scythe releases from weapon center"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*ScytheAnchorProfile, 1.0f),
+		          FVector2D::ZeroVector);
+		TestEqual(TEXT("Right-facing longsword releases from bottom center"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*SwordAnchorProfile, 1.0f),
+		          FVector2D(0.0f, -0.5f));
+		TestEqual(TEXT("Left-facing longsword keeps its centered vertical anchor"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*SwordAnchorProfile, -1.0f),
+		          FVector2D(0.0f, -0.5f));
+		TestEqual(TEXT("Right-facing bow releases from right midpoint"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*BowAnchorProfile, 1.0f),
+		          FVector2D(0.5f, 0.0f));
+		TestEqual(TEXT("Left-facing bow mirrors to left midpoint"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*BowAnchorProfile, -1.0f),
+		          FVector2D(-0.5f, 0.0f));
+		TestEqual(TEXT("Right-facing gun releases from right midpoint"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, 1.0f),
+		          FVector2D(0.5f, 0.0f));
+		TestEqual(TEXT("Left-facing gun mirrors to left midpoint"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, -1.0f),
+		          FVector2D(-0.5f, 0.0f));
+	}
+	UReEchoWeaponPresentationProfile* OverrideAnchorProfile = NewObject<UReEchoWeaponPresentationProfile>();
+	OverrideAnchorProfile->WeaponVisualKey = TEXT("Bow");
+	OverrideAnchorProfile->bOverrideAttackVfxAnchor = true;
+	OverrideAnchorProfile->AttackVfxAnchorRatio = FVector2D(0.35f, 0.2f);
+	TestEqual(TEXT("DA override replaces the production default anchor"),
+	          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*OverrideAnchorProfile, 1.0f),
+	          FVector2D(0.35f, 0.2f));
+	TestEqual(TEXT("DA override mirrors only its local horizontal component"),
+	          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*OverrideAnchorProfile, -1.0f),
+	          FVector2D(-0.35f, 0.2f));
 	const UReEchoWeaponPresentationCatalog* WeaponCatalog = FReEchoWeaponVisualCatalog::ResolveCatalog();
 	TestNotNull(TEXT("Weapon catalog owns the shared held layout"), WeaponCatalog);
 	if (WeaponCatalog)

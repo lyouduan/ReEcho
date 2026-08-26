@@ -110,5 +110,6 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 - Catalog 不得引用主模块 Actor 或 Gameplay Blueprint Class。
 - Animation/Profile 不得决定命中、伤害、移动或死亡。
 - 武器挂点只使用 Profile 的稳定参考高度；不得随 Move/Attack 的单帧 Bounds 重算。
+- Player/Echo 的武器释放类特效使用 WeaponActor 持有的 `WeaponAttackVfxRoot`；该根节点是当前武器视觉组件的子节点，必须继承最终手持偏移、尺寸、朝向镜像和动作 Transform。角色通用 `AttackVfxRoot` 只作为缺少有效武器根时的安全回退，Boss 继续使用独立 `BossWeaponVfxRoot`。
 - 不允许 SpawnIndex、EnemyKind 或生成顺序替代稳定 PresentationId。
 - 移动类路径必须保留精确 Core Redirect，旧资产通过 Editor 保存后完成升级。
