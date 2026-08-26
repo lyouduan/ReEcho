@@ -72,6 +72,75 @@ bool FReEchoCookedDeathPivotPolicyTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationStunPauseTest,
+	                             "ReEcho.Presentation.Animation2D.StunPause",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEcho2DAnimationStunPauseTest::RunTest(const FString& Parameters)
+{
+	UPaperFlipbook* WalkFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Walk.Walk"));
+	UPaperFlipbook* AttackFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Players/Spade/Flipbooks/Attack.Attack"));
+	if (!TestNotNull(TEXT("Stun pause test loads the Move Flipbook"), WalkFlipbook) ||
+	    !TestNotNull(TEXT("Stun pause test loads the Attack Flipbook"), AttackFlipbook))
+	{
+		return false;
+	}
+
+	UReEcho2DCharacterPresentationProfile* Profile = NewObject<UReEcho2DCharacterPresentationProfile>();
+	FReEcho2DCompositeAnimationSet& AnimationSet = Profile->AnimationSets.AddDefaulted_GetRef();
+	FReEcho2DAnimationClip MoveClip;
+	MoveClip.Flipbook = WalkFlipbook;
+	MoveClip.bLooping = true;
+	MoveClip.bUseNativeScale = true;
+	AnimationSet.Clips.Add(ReEcho2DAnimationTags::Move, MoveClip);
+	FReEcho2DAnimationClip AttackClip;
+	AttackClip.Flipbook = AttackFlipbook;
+	AttackClip.bLooping = false;
+	AttackClip.bUseNativeScale = true;
+	AnimationSet.Clips.Add(ReEcho2DAnimationTags::Attack_Basic, AttackClip);
+
+	UReEcho2DAnimationComponent* Renderer = NewObject<UReEcho2DAnimationComponent>();
+	UReEcho2DPresentationController* Controller = NewObject<UReEcho2DPresentationController>();
+	Controller->Configure(Renderer, Profile);
+	TestTrue(TEXT("Stun pause test begins a one-shot action"),
+	         Controller->PlayAction(ReEcho2DAnimationTags::Attack_Basic) && Renderer->IsPlaying());
+	const float PausedPosition = FMath::Min(Renderer->GetFlipbookLength() * 0.5f, 0.05f);
+	Renderer->SetPlaybackPosition(PausedPosition, false);
+
+	UReEchoEnemyPresentationComponent* EnemyPresentation = NewObject<UReEchoEnemyPresentationComponent>();
+	EnemyPresentation->ConfigureComponents(nullptr,
+	                                      nullptr,
+	                                      nullptr,
+	                                      nullptr,
+	                                      nullptr,
+	                                      nullptr,
+	                                      nullptr,
+	                                      nullptr,
+	                                      Renderer,
+	                                      Controller,
+	                                      nullptr,
+	                                      nullptr,
+	                                      nullptr);
+	FReEchoEnemyPresentationSnapshot Snapshot;
+	Snapshot.bStunned = true;
+	EnemyPresentation->Advance(Snapshot, 0.25f);
+	Controller->UpdatePlaybackCompletion();
+	TestTrue(TEXT("A stunned one-shot remains paused instead of completing"),
+	         Renderer->IsPlaybackPaused() && !Renderer->IsPlaying() &&
+	             Controller->GetActiveSemanticKey() == ReEcho2DAnimationTags::Attack_Basic);
+	TestTrue(TEXT("Stun pause preserves the current animation frame"),
+	         FMath::IsNearlyEqual(Renderer->GetPlaybackPosition(), PausedPosition));
+
+	Snapshot.bStunned = false;
+	EnemyPresentation->Advance(Snapshot, 0.25f);
+	TestTrue(TEXT("Clearing stun resumes playback from the preserved frame"),
+	         !Renderer->IsPlaybackPaused() && Renderer->IsPlaying() &&
+	             FMath::IsNearlyEqual(Renderer->GetPlaybackPosition(), PausedPosition));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DAnimationAssetProfilesTest,
                                  "ReEcho.Presentation.Animation2D.AssetProfiles",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
