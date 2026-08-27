@@ -757,6 +757,43 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(0) >= 1000);
 	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
+	struct FGunElementFlightCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+	const FGunElementFlightCase GunElementFlightCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightFlame,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fire_Fly.NS_People_Bullet_Fire_Fly")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightLightning,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Thunder_Fly.NS_People_Bullet_Thunder_Fly")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightGrass,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Grass_Fly.NS_People_Bullet_Grass_Fly")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightWater,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Water_Fly.NS_People_Bullet_Water_Fly")},
+	};
+	TSet<FString> GunElementFlightPaths;
+	for (const FGunElementFlightCase& FlightCase : GunElementFlightCases)
+	{
+		EReEchoCombatVfxSemantic ResolvedSemantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+		TestTrue(TEXT("Combat Gun element resolves a dedicated flight semantic"),
+		         FReEchoCombatVfxCatalog::ResolveGunFlightSemantic(FlightCase.Element, ResolvedSemantic));
+		TestEqual(TEXT("Combat Gun element selects the expected flight semantic"),
+		          ResolvedSemantic,
+		          FlightCase.Semantic);
+		const FString FlightPath = FReEchoCombatVfxCatalog::ResolvePath(ResolvedSemantic);
+		TestEqual(TEXT("Combat Gun element selects the imported Niagara path"), FlightPath, FString(FlightCase.ExpectedPath));
+		TestFalse(TEXT("Each combat Gun element uses a distinct Niagara path"), GunElementFlightPaths.Contains(FlightPath));
+		GunElementFlightPaths.Add(FlightPath);
+	}
+	EReEchoCombatVfxSemantic NoneSemantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+	TestFalse(TEXT("Non-element Gun projectile keeps the legacy Travel fallback"),
+	          FReEchoCombatVfxCatalog::ResolveGunFlightSemantic(EReEchoElement::None, NoneSemantic));
 
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
 	    EReEchoCombatVfxSemantic::RabbitCharging,      EReEchoCombatVfxSemantic::RabbitProjectile,
@@ -766,6 +803,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
 	    EReEchoCombatVfxSemantic::PlayerScytheImpact,  EReEchoCombatVfxSemantic::PlayerBowFlight,
 	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightFlame,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightLightning,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightGrass,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightWater,
 	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,       EReEchoCombatVfxSemantic::EchoGrassAura,
 	    EReEchoCombatVfxSemantic::GoatSkill02Charging, EReEchoCombatVfxSemantic::GoatSkill02Bullet,
@@ -812,12 +853,20 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightWater ||
 		    Semantic == EReEchoCombatVfxSemantic::FoxDirection || Semantic == EReEchoCombatVfxSemantic::FoxDash ||
 		    Semantic == EReEchoCombatVfxSemantic::EchoWaterAura || Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		const bool bRequiresWeaponLocalSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
-		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight;
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightWater;
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;

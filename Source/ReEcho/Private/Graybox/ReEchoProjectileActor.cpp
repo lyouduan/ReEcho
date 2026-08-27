@@ -112,26 +112,44 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 		Shape->SetMaterial(0, Material);
 	}
 	ConfigureWeaponVisual(InWeaponVisualKey, Color);
-	ConfigureWeaponNiagara(InWeaponVisualKey, Direction);
+	if (ConfigureWeaponNiagara(InWeaponVisualKey, Direction) && ElementLabel)
+	{
+		// The dedicated element Niagara is the readable element presentation. Keep the text label only for fallback.
+		ElementLabel->SetVisibility(false);
+	}
 }
 
-void AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKey, const FVector& Direction)
+bool AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKey, const FVector& Direction)
 {
 	EReEchoCombatVfxSemantic Semantic;
+	bool bElementSpecificGunFlight = false;
 	if (InWeaponVisualKey == TEXT("Bow"))
 	{
 		Semantic = EReEchoCombatVfxSemantic::PlayerBowFlight;
 	}
 	else if (InWeaponVisualKey == TEXT("Gun"))
 	{
-		Semantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+		bElementSpecificGunFlight = FReEchoCombatVfxCatalog::ResolveGunFlightSemantic(Element, Semantic);
+		if (!bElementSpecificGunFlight)
+		{
+			Semantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+		}
 	}
 	else
 	{
-		return;
+		return false;
 	}
 	Shape->SetVisibility(false);
-	if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *FReEchoCombatVfxCatalog::ResolvePath(Semantic)))
+	UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *FReEchoCombatVfxCatalog::ResolvePath(Semantic));
+	if (!System && bElementSpecificGunFlight)
+	{
+		// Presentation failure must not change the logical projectile. Retain the element text and use the legacy Gun
+		// Travel system when the dedicated asset is missing or unloadable.
+		Semantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+		System = LoadObject<UNiagaraSystem>(nullptr, *FReEchoCombatVfxCatalog::ResolvePath(Semantic));
+		bElementSpecificGunFlight = false;
+	}
+	if (System)
 	{
 		const FRotator FlightRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
 		FlightEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(
@@ -157,6 +175,7 @@ void AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKe
 			}
 		}
 	}
+	return bElementSpecificGunFlight && FlightEffect != nullptr;
 }
 
 void AReEchoProjectileActor::HandleProjectileImpact(const FReEchoProjectileSnapshot& Snapshot,
