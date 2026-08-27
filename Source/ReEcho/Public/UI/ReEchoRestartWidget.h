@@ -73,9 +73,13 @@ public:
 	FReEchoAttackModeRequested OnManualAttackRequested;
 
 	/** 切换到失败结算模式；统计项均来自当前运行，不展示伪造的击杀或金币数据。 */
-	void SetDeathScreen(bool bInDeathScreen, int32 EncounterIndex = 0, int32 TimeShards = 0, int32 TraitCount = 0);
+	void SetDeathScreen(bool bInDeathScreen,
+	                    int32 EncounterIndex = 0,
+	                    int32 TimeShards = 0,
+	                    int32 TraitCount = 0,
+	                    FName InCharacterId = NAME_None);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
-	void SetVictoryScreen(int32 TimeShards, int32 TraitCount);
+	void SetVictoryScreen(int32 TimeShards, int32 TraitCount, FName InCharacterId = NAME_None);
 	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
 	void SetQuitConfirmation(bool bInQuitConfirmation, bool bInExitToMainMenu = false, int32 InEncounterIndex = 0);
 	void ShowSaveFailure();
@@ -88,6 +92,7 @@ protected:
 private:
 	void BuildWidgetTree();
 	void RefreshMenuMode();
+	void RefreshSettlementCharacterImages();
 	void EnsureAttackModeWidget();
 	void BindFormalResultButtonFeedback();
 
@@ -164,6 +169,10 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> VictoryContinueButton;
 
+	/** Existing authored character image; runtime replaces only its Brush, never its WBP geometry. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtVictoryCharacterFormal;
+
 	/** Designer-authored formal defeat surface. Runtime only projects state into these optional bindings. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> DefeatCanvas;
@@ -182,6 +191,10 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> DefeatMainMenuButton;
+
+	/** Existing authored character image; runtime replaces only its Brush, never its WBP geometry. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtDefeatCharacterFormal;
 
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartDialogPanel;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryContinueButtonFormal;
@@ -210,6 +223,7 @@ private:
 	int32 DefeatEncounterIndex = 0;
 	int32 DefeatTimeShards = 0;
 	int32 DefeatTraitCount = 0;
+	FName SettlementCharacterId = NAME_None;
 	int32 PauseEncounterIndex = 0;
 	bool bAutomaticAttackMode = true;
 	bool bExitToMainMenu = false;

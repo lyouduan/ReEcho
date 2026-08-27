@@ -9,8 +9,38 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Texture2D.h"
 #include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "UI/ReEchoMenuWidgetHelpers.h"
+
+namespace
+{
+const FName DefaultSettlementCharacterId(TEXT("J_HEART"));
+
+bool IsSupportedSettlementCharacter(const FName CharacterId)
+{
+	return CharacterId == TEXT("J_HEART") || CharacterId == TEXT("J_SPADE") ||
+	       CharacterId == TEXT("J_CLOVER") || CharacterId == TEXT("J_DIAMOND");
+}
+
+FString SettlementCharacterTexturePath(const FName CharacterId)
+{
+	const FString AssetName = FString::Printf(TEXT("T_UI_Loadout_Character_%s_Selected"), *CharacterId.ToString());
+	return FString::Printf(TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/%s.%s"), *AssetName, *AssetName);
+}
+
+UTexture2D* LoadSettlementCharacterTexture(const FName CharacterId)
+{
+	const FName ResolvedId = IsSupportedSettlementCharacter(CharacterId) ? CharacterId : DefaultSettlementCharacterId;
+	if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, *SettlementCharacterTexturePath(ResolvedId)))
+	{
+		return Texture;
+	}
+	return ResolvedId == DefaultSettlementCharacterId
+	           ? nullptr
+	           : LoadObject<UTexture2D>(nullptr, *SettlementCharacterTexturePath(DefaultSettlementCharacterId));
+}
+} // namespace
 
 TSharedRef<SWidget> UReEchoRestartWidget::RebuildWidget()
 {
@@ -107,13 +137,15 @@ void UReEchoRestartWidget::BindFormalResultButtonFeedback()
 void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen,
                                           const int32 EncounterIndex,
                                           const int32 TimeShards,
-                                          const int32 TraitCount)
+                                          const int32 TraitCount,
+                                          const FName InCharacterId)
 {
 	ScreenMode = bInDeathScreen ? EReEchoRestartScreenMode::Death : EReEchoRestartScreenMode::Pause;
 	QuitPromptState = EReEchoQuitPromptState::None;
 	DefeatEncounterIndex = FMath::Max(0, EncounterIndex);
 	DefeatTimeShards = FMath::Max(0, TimeShards);
 	DefeatTraitCount = FMath::Max(0, TraitCount);
+	SettlementCharacterId = InCharacterId;
 	RefreshMenuMode();
 	if (bInDeathScreen && DefeatRestartButton)
 	{
@@ -121,12 +153,15 @@ void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen,
 	}
 }
 
-void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 TraitCount)
+void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards,
+                                            const int32 TraitCount,
+                                            const FName InCharacterId)
 {
 	ScreenMode = EReEchoRestartScreenMode::Victory;
 	QuitPromptState = EReEchoQuitPromptState::None;
 	VictoryTimeShards = TimeShards;
 	VictoryTraitCount = TraitCount;
+	SettlementCharacterId = InCharacterId;
 	RefreshMenuMode();
 }
 
@@ -220,6 +255,7 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	const bool bQuitConfirmation = QuitPromptState == EReEchoQuitPromptState::Confirm;
 	const bool bSaveFailed = QuitPromptState == EReEchoQuitPromptState::SaveFailed;
 	const bool bFormalResult = bVictoryScreen || bDeathScreen;
+	RefreshSettlementCharacterImages();
 
 	if (VictoryCanvas)
 	{
@@ -383,6 +419,23 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		                             QuitPromptState == EReEchoQuitPromptState::None && !ArtPausePrimaryButton;
 		AttackModeWidget->SetVisibility(bShowAttackMode ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 		AttackModeWidget->SetAutomaticMode(bAutomaticAttackMode);
+	}
+}
+
+void UReEchoRestartWidget::RefreshSettlementCharacterImages()
+{
+	UTexture2D* CharacterTexture = LoadSettlementCharacterTexture(SettlementCharacterId);
+	if (!CharacterTexture)
+	{
+		// Preserve the WBP-authored red-hood Brush if even the packaged fallback is unavailable.
+		return;
+	}
+	for (UImage* CharacterImage : {ArtVictoryCharacterFormal.Get(), ArtDefeatCharacterFormal.Get()})
+	{
+		if (CharacterImage)
+		{
+			CharacterImage->SetBrushFromTexture(CharacterTexture, false);
+		}
 	}
 }
 
