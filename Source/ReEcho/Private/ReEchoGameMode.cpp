@@ -2466,6 +2466,19 @@ void AReEchoGameMode::RefreshFogRevealSources()
 
 void AReEchoGameMode::BeginNextEncounter()
 {
+	// 守门式安全网：推进遭遇前若特质卡选择屏仍打开（意外孤儿屏），先关闭并清空 pending 状态，
+	// 避免 Phase 已被推进到非 CardChoice 后屏仍可交互却刷新/确认双双失效的软锁。
+	if (TraitCardChoiceWidget)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[TraitChoice] BeginNextEncounter invoked while trait choice screen still open (encounter=%d); "
+		            "closing orphan screen and clearing pending offers to avoid soft-lock."),
+		       GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
+		           ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()->EncounterIndex
+		           : INDEX_NONE);
+		CloseTraitCardChoiceScreen();
+	}
 	ResetEncounterTransitionPresentation();
 	if (PrepareNextEncounter(false))
 	{
@@ -4089,7 +4102,13 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	{
 		bPostTraitShopClosing = true;
 	}
-	const bool bShouldStartNextEncounter = bContinueRunAfterShop;
+	// 守门式（根因修复）：若商店内刚触发了 Sage 额外特质卡选择，Run 阶段仍为 CardChoice（额外选择待解），
+	// 则下一 tick 的 ShowTraitCardChoice 会弹出特质卡屏。此刻若直接推进遭遇，会与特质卡屏的弹出竞态，
+	// 把 Phase 推进到 Encounter 而屏仍打开——孤儿屏导致刷新/确认双双失效软锁。
+	// 因此当额外选择待解（Phase == CardChoice）时，仅关闭商店、不推进遭遇，先让特质卡屏解完再续流程。
+	const bool bTraitChoicePending = (RunSubsystem && RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+	                                 || bReturnToOpenShopAfterTraitChoice;
+	const bool bShouldStartNextEncounter = bContinueRunAfterShop && !bTraitChoicePending;
 	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
 	{
@@ -5743,6 +5762,24 @@ AReEchoEchoActor* AReEchoGameMode::FindStage01To02CameraEcho() const
 	return nullptr;
 }
 
+void AReEchoGameMode::CloseTraitCardChoiceScreen()
+{
+	if (TraitCardChoiceWidget)
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
+		}
+		TraitCardChoiceWidget = nullptr;
+	}
+	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
+	{
+		RunSubsystem->ResetPendingTraitCardChoice();
+	}
+	SetPlayerMenuAbilityBlocked(false);
+}
+
 void AReEchoGameMode::ShowTraitCardChoice()
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
@@ -5808,6 +5845,18 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 	FString RefreshError;
 	if (!RunSubsystem->TryRefreshTraitCardSlot(SlotIndex, RefreshError))
 	{
+		// 兜底诊断：孤儿屏（Phase 已离开 CardChoice）下刷新被拒时，收敛孤儿屏并续上流程，避免软锁。
+		if (TraitCardChoiceWidget && RunSubsystem->Phase != EReEchoRunPhase::CardChoice)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[TraitChoice] Refresh rejected on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       static_cast<int32>(RunSubsystem->Phase));
+			CloseTraitCardChoiceScreen();
+			bContinueRunAfterShop = true;
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+			return;
+		}
 		ReEchoUIInteractionAudit::Write(
 		    TEXT("FREE_CARD_SLOT_REFRESH_REJECTED"),
 		    FString::Printf(
@@ -5937,6 +5986,19 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	const bool bApplied = RunSubsystem->ApplyTraitCard(CardId);
 	if (!bApplied)
 	{
+		// 兜底诊断：特质卡屏已沦为孤儿（Phase 已离开 CardChoice）时，确认无法应用。
+		// 此时不应静默 UiError 导致软锁，而应收敛孤儿屏并续上流程（回到下一遭遇前的商店/结算）。
+		if (TraitCardChoiceWidget && RunSubsystem->Phase != EReEchoRunPhase::CardChoice)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[TraitChoice] Confirm ignored on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       static_cast<int32>(RunSubsystem->Phase));
+			CloseTraitCardChoiceScreen();
+			bContinueRunAfterShop = true;
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+			return;
+		}
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}

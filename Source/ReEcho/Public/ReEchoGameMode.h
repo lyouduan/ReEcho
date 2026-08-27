@@ -533,6 +533,9 @@ private:
 	void ShowSettingsScreen(bool bReturnToStartMenu);
 	void ShowAboutScreen(bool bReturnToStartMenu);
 	void ShowTraitCardChoice();
+	/** Closes any open trait-card choice screen, clears the Run's pending offer state, and restores menu input.
+	 *  Centralizes orphan-screen cleanup used by the encounter-advance gate and the graceful-degradation handlers. */
+	void CloseTraitCardChoiceScreen();
 	void ShowStartMenu();
 	void ShowLoadoutSelection();
 	void RequestBeginSelectedRun();
