@@ -88,24 +88,30 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 void AReEchoArenaSceneActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	UpdateEditorHierarchy();
-	UpdateEditorLayout();
-	ApplySceneProfile();
+	if (!bUseEditorAuthoredSceneLayout)
+	{
+		UpdateEditorHierarchy();
+		UpdateEditorLayout();
+		ApplySceneProfile();
+	}
 }
 
 FVector2D AReEchoArenaSceneActor::GetPlayerHalfExtents() const
 {
-	return PlayerHalfExtents * GetMapScale2D();
+	const FVector Extent = PlayerBounds ? PlayerBounds->GetScaledBoxExtent() : FVector::ZeroVector;
+	return FVector2D(Extent.X, Extent.Y);
 }
 
 FVector2D AReEchoArenaSceneActor::GetCameraClampHalfExtents() const
 {
-	return CameraClampHalfExtents * GetMapScale2D();
+	const FVector Extent = CameraClampBounds ? CameraClampBounds->GetScaledBoxExtent() : FVector::ZeroVector;
+	return FVector2D(Extent.X, Extent.Y);
 }
 
 FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 {
-	return EnemySpawnHalfExtents * GetMapScale2D();
+	const FVector Extent = EnemySpawnBounds ? EnemySpawnBounds->GetScaledBoxExtent() : FVector::ZeroVector;
+	return FVector2D(Extent.X, Extent.Y);
 }
 
 FVector2D AReEchoArenaSceneActor::GetArenaCenter() const
@@ -175,12 +181,12 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	{
 		return Fail(TEXT("Required Arena Scene components are missing."));
 	}
-	if (!MapMaterial && (!SceneProfile || !SceneProfile->MapMaterial))
+	if (!Backdrop->GetMaterial(0))
 	{
-		return Fail(TEXT("Neither SceneProfile nor MapMaterial provides an arena map material."));
+		return Fail(TEXT("Backdrop Material Slot 0 must provide the arena map material."));
 	}
-	if (BackdropHalfExtents.GetMin() < 100.0f || CameraClampHalfExtents.GetMin() < 100.0f ||
-	    PlayerHalfExtents.GetMin() < 100.0f || EnemySpawnHalfExtents.GetMin() < 100.0f)
+	if (GetCameraClampHalfExtents().GetMin() < 100.0f || GetPlayerHalfExtents().GetMin() < 100.0f ||
+	    GetEnemySpawnHalfExtents().GetMin() < 100.0f)
 	{
 		return Fail(TEXT("Arena bounds are degenerate."));
 	}
@@ -199,31 +205,7 @@ bool AReEchoArenaSceneActor::BuildSceneRegistry(const TArray<FReEchoArenaSceneRe
                                                 TMap<FName, TSubclassOf<AReEchoArenaSceneActor>>& OutRegistry,
                                                 FString& OutError)
 {
-	OutRegistry.Reset();
-	OutError.Reset();
-	for (const FReEchoArenaSceneRegistration& Registration : Registrations)
-	{
-		if (Registration.SceneId.IsNone() || !Registration.ArenaClass)
-		{
-			OutError = TEXT("Arena Scene registration requires a non-empty SceneId and ArenaClass.");
-			OutRegistry.Reset();
-			return false;
-		}
-		if (OutRegistry.Contains(Registration.SceneId))
-		{
-			OutError = FString::Printf(TEXT("Duplicate Arena Scene registration for SceneId=%s."),
-			                           *Registration.SceneId.ToString());
-			OutRegistry.Reset();
-			return false;
-		}
-		OutRegistry.Add(Registration.SceneId, Registration.ArenaClass);
-	}
-	if (OutRegistry.IsEmpty())
-	{
-		OutError = TEXT("Arena Scene registry is empty.");
-		return false;
-	}
-	return true;
+	return UReEchoArenaSceneCatalog::BuildRegistry(Registrations, OutRegistry, OutError);
 }
 
 FVector2D AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(const float OrthoWidth,

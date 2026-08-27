@@ -33,6 +33,7 @@ class UReEchoEchoManagementWidget;
 class UReEchoStoredEchoEntryWidget;
 class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
+class UReEchoArenaSceneCatalog;
 class UReEchoEnemyGameplayClassRegistry;
 class UReEchoAudioService;
 class UMaterialInterface;
@@ -164,8 +165,13 @@ private:
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaSceneActor> ArenaScene;
 	UPROPERTY()
+	TObjectPtr<AReEchoArenaSceneActor> PendingArenaScene;
+	UPROPERTY()
+	TObjectPtr<UReEchoArenaSceneCatalog> ArenaSceneCatalog;
+	UPROPERTY()
 	TMap<FName, TSubclassOf<AReEchoArenaSceneActor>> ArenaSceneRegistry;
 	FName ActiveArenaSceneId = NAME_None;
+	FName PendingArenaSceneId = NAME_None;
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
 	UPROPERTY()
@@ -385,6 +391,7 @@ private:
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	bool InitializeArenaSceneRegistry(FString& OutError);
+	bool PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	void RefreshArenaSceneConsumers();
 	void ResumeSavedEncounter();

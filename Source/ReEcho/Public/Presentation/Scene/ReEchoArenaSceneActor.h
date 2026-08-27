@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Presentation/Scene/ReEchoArenaSceneCatalog.h"
 #include "ReEchoArenaSceneActor.generated.h"
 
 class UBoxComponent;
@@ -9,19 +10,6 @@ class UMaterialInterface;
 class UStaticMeshComponent;
 class UTexture2D;
 class UReEchoArenaSceneProfile;
-
-USTRUCT(BlueprintType)
-
-struct FReEchoArenaSceneRegistration
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Scene Switching")
-	FName SceneId = NAME_None;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Scene Switching")
-	TSubclassOf<class AReEchoArenaSceneActor> ArenaClass;
-};
 
 /** Editor-authored first-arena scene and camera contract. Gameplay consumes its bounds but never owns its layout. */
 UCLASS()
@@ -145,6 +133,9 @@ public:
 	/** 关闭后 Floor 与四面墙的位置、旋转和缩放完全采用 Editor 组件 Transform。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Layout")
 	bool bAutoLayoutCollision = true;
+	/** Migration gate. When enabled, Construction never rewrites component materials, transforms or bounds. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Layout")
+	bool bUseEditorAuthoredSceneLayout = false;
 
 	/** 表现 Actor 以脚点消费该值；场景不直接持有或驱动 Flipbook。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|DepthSort")

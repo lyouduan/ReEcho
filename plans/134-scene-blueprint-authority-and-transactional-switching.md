@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，待 Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`Ready`。
+- 任务状态：`InProgress`（运行时/Catalog 候选完成；二进制 BP/Level00 迁移等待 SC01 外部修改交接）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@41da5187ba694d2629b6e2c0a6bbb9f5b3fb6c54`。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan134-scene-blueprint-authority-plan`；实现使用独立 Plan134 worktree，不复用含未提交 `BP_ArenaScene_SC01.uasset` 的审查 worktree。
@@ -117,13 +117,27 @@
 
 ### 变化
 
+- 新增 `UReEchoArenaSceneCatalog` 与 `/Game/ReEcho/Scene/DA_ArenaSceneCatalog`，SC01-SC04 映射只保存一份；GameMode 不再从放置 Arena 的重复 Registry 初始化。
+- GameMode 场景切换拆为 `PrepareArenaSceneForStage`/`ApplyArenaSceneForStage`：候选以隐藏、无碰撞状态生成并验证；`PrepareEncounterIntermission`、新 Encounter 与读档恢复均在清理 Combatant/Echo/Shard 前准备候选，准备失败保留原 Arena 与局内对象。
+- Arena 范围查询改读三个 BoxComponent 的实际缩放 Extent，Backdrop Material Slot 0 成为新配置校验。新增 `bUseEditorAuthoredSceneLayout` 迁移门：BP 迁移完成后启用即停止 Construction 对层级、材质、Transform 和 Bounds 的重写；当前默认关闭以保护尚未烘入组件的有效范围。
+- `author_plan84_scene_switch.py` 的执行入口已退休并明确拒绝程序化插片作者ing；新增 Catalog-only 作者ing脚本与不写资产的 Plan134 审计脚本，审计不锁定插片名称或数量。
+- 未修改任何现有 `.uasset`/`.umap`；仅新增 Catalog 资产。未接触 review worktree 的 `BP_ArenaScene_SC01.uasset`。
+
 ### 证据
+
+- 远端规则/基线：`git fetch origin main` 后 Executor 与 `origin/main@b7e15000968b79f433368f0b69815588ad7ebe87` 一致，无额外外部提交。
+- `.clang-format` 已执行；Editor Development 构建通过，冻结候选最后增量 4/4 actions，预构建包刷新为 `source=dcf67f6cc75c`。
+- `ReEcho.StageTransition` 三项通过：`PolicyMatrix`、Catalog `SceneRegistry`、`WorldContinuity`；`ReEcho.Presentation.ArenaScene.Contract` 通过。
+- Catalog-only Editor 只读审计通过：SC01-SC04 均唯一解析到对应 Blueprint Class；资产创建命令的 Git 结果只新增 `DA_ArenaSceneCatalog.uasset`，未改现有 BP/Level。
+- 完整只读资产审计按预期在 `SC01.CameraClampBounds=32x32` 停止，证明当前有效范围仍依赖旧 Construction，不能直接开启 BP 权威门。
 
 ### 剩余风险
 
 - SC01 未提交二进制修改尚未进入本 Plan 基线，Executor 不得猜测或覆盖；需在实际资产迁移前取得其准确交接状态。
 - Plan133 与本 Plan 共享 `ReEchoGameMode.*` 和 Stage1→Stage2 进入下一 Encounter 的时序，最终证据必须来自组合后的候选。
 - 静态/自动化不能证明美术构图与遮挡质量，四场景仍需人工 PIE 验收。
+- 二进制迁移尚未执行：需要先取得 review worktree 中 SC01 的明确提交/交接基线，再快照并烘入三个 BoxComponent、启用 Editor-authored 门、清空重复 Registry/Profile 权威、迁移/确认 Level00 18 个独立装饰归属并移除固定 SC02。当前候选保留兼容 Construction，地图材质仍会被旧 Profile 覆盖。
+- Plan133 当前远端只有 Plan、没有可组合实现提交；本候选只对 `BeginNextEncounter` 做局部 prepare/commit 调整，未来组合其 CG 门时必须保留“CG 完成/失败→现有 BeginNextEncounter 2”顺序并重跑 Stage/Encounter 证据。
 
 ### 人工验收结果/请求
 
@@ -131,4 +145,6 @@
 
 ### 架构文档审阅结果
 
-- 待实现后逐项填写。
+- `MOD-ReEcho.md`：已更新单一 Catalog、prepare/commit、组件范围权威、兼容迁移门及插片作者ing边界。
+- `ARCHITECTURE.md`：已审阅；持久 World 与现有模块拓扑未改变，当前阶段无需修改。
+- `README.md`：已审阅；`MOD-ReEcho / AREA-Encounter / AREA-Presentation / AREA-Tests` 路由未改变，当前阶段无需新增稳定标识。

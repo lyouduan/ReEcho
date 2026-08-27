@@ -35,6 +35,7 @@
 #include "Player/ReEchoPlayerPawn.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
+#include "Presentation/Scene/ReEchoArenaSceneCatalog.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h"
@@ -80,6 +81,9 @@ AReEchoGameMode::AReEchoGameMode()
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyGameplayClassRegistry."
 	         "DA_EnemyGameplayClassRegistry"));
 	EnemyGameplayClassRegistry = EnemyClassRegistryFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEchoArenaSceneCatalog> ArenaSceneCatalogFinder(
+	    TEXT("/Game/ReEcho/Scene/DA_ArenaSceneCatalog.DA_ArenaSceneCatalog"));
+	ArenaSceneCatalog = ArenaSceneCatalogFinder.Object;
 	PrimaryActorTick.bCanEverTick = true;
 	EnemyRoster = CreateDefaultSubobject<UReEchoEnemyRosterComponent>(TEXT("EnemyRoster"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ArenaBackgroundFinder(
@@ -1064,11 +1068,11 @@ void AReEchoGameMode::StartPlay()
 		++ArenaSceneCount;
 	}
 	FString ArenaFailure;
-	if (ArenaSceneCount != 1 || !ArenaScene || !ArenaScene->HasValidConfiguration(&ArenaFailure))
+	if (ArenaSceneCount > 1 || (ArenaScene && !ArenaScene->HasValidConfiguration(&ArenaFailure)))
 	{
 		UE_LOG(LogTemp,
 		       Error,
-		       TEXT("[ArenaScene] Expected one valid ArenaScene; found %d. %s"),
+		       TEXT("[ArenaScene] Expected at most one valid migration ArenaScene; found %d. %s"),
 		       ArenaSceneCount,
 		       *ArenaFailure);
 		return;
@@ -1089,7 +1093,10 @@ void AReEchoGameMode::StartPlay()
 		UE_LOG(LogTemp, Error, TEXT("[ArenaCamera] Expected one ArenaCameraActor; found %d."), ArenaCameraCount);
 		return;
 	}
-	RefreshArenaSceneConsumers();
+	if (ArenaScene)
+	{
+		RefreshArenaSceneConsumers();
+	}
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
 		PlayerController->SetViewTarget(ArenaCameraActor);
@@ -1722,13 +1729,16 @@ FVector AReEchoGameMode::ResolveStageEntryLocation() const
 
 bool AReEchoGameMode::InitializeArenaSceneRegistry(FString& OutError)
 {
-	if (!ArenaScene ||
-	    !AReEchoArenaSceneActor::BuildSceneRegistry(ArenaScene->GetSceneRegistry(), ArenaSceneRegistry, OutError))
+	if (!ArenaSceneCatalog || !ArenaSceneCatalog->BuildRegistry(ArenaSceneRegistry, OutError))
 	{
+		if (!ArenaSceneCatalog)
+		{
+			OutError = TEXT("Arena Scene Catalog is not configured.");
+		}
 		return false;
 	}
-	ActiveArenaSceneId = ArenaScene->GetSceneId();
-	if (ActiveArenaSceneId.IsNone() || !ArenaSceneRegistry.Contains(ActiveArenaSceneId))
+	ActiveArenaSceneId = ArenaScene ? ArenaScene->GetSceneId() : NAME_None;
+	if (ArenaScene && (ActiveArenaSceneId.IsNone() || !ArenaSceneRegistry.Contains(ActiveArenaSceneId)))
 	{
 		OutError =
 		    FString::Printf(TEXT("Placed Arena Scene has unregistered SceneId=%s."), *ActiveArenaSceneId.ToString());
@@ -1739,7 +1749,7 @@ bool AReEchoGameMode::InitializeArenaSceneRegistry(FString& OutError)
 	return true;
 }
 
-bool AReEchoGameMode::ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError)
+bool AReEchoGameMode::PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError)
 {
 	OutError.Reset();
 	if (Stage.SceneId.IsNone())
@@ -1749,7 +1759,23 @@ bool AReEchoGameMode::ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, F
 	}
 	if (ArenaScene && ActiveArenaSceneId == Stage.SceneId)
 	{
+		if (PendingArenaScene)
+		{
+			PendingArenaScene->Destroy();
+			PendingArenaScene = nullptr;
+			PendingArenaSceneId = NAME_None;
+		}
 		return true;
+	}
+	if (PendingArenaScene && PendingArenaSceneId == Stage.SceneId)
+	{
+		return true;
+	}
+	if (PendingArenaScene)
+	{
+		PendingArenaScene->Destroy();
+		PendingArenaScene = nullptr;
+		PendingArenaSceneId = NAME_None;
 	}
 	const TSubclassOf<AReEchoArenaSceneActor>* SceneClassReference = ArenaSceneRegistry.Find(Stage.SceneId);
 	if (!SceneClassReference)
@@ -1785,9 +1811,37 @@ bool AReEchoGameMode::ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, F
 		                           *ConfigurationError);
 		return false;
 	}
+	NewArenaScene->SetActorEnableCollision(false);
+	NewArenaScene->SetActorHiddenInGame(true);
+	PendingArenaScene = NewArenaScene;
+	PendingArenaSceneId = Stage.SceneId;
+	return true;
+}
+
+bool AReEchoGameMode::ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError)
+{
+	if (!PrepareArenaSceneForStage(Stage, OutError))
+	{
+		return false;
+	}
+	if (ArenaScene && ActiveArenaSceneId == Stage.SceneId)
+	{
+		return true;
+	}
+	if (!PendingArenaScene || PendingArenaSceneId != Stage.SceneId)
+	{
+		OutError = FString::Printf(TEXT("StageId=%s SceneId=%s has no prepared Arena candidate."),
+		                           *Stage.Id.ToString(),
+		                           *Stage.SceneId.ToString());
+		return false;
+	}
 	AReEchoArenaSceneActor* PreviousArenaScene = ArenaScene;
-	ArenaScene = NewArenaScene;
+	ArenaScene = PendingArenaScene;
 	ActiveArenaSceneId = Stage.SceneId;
+	PendingArenaScene = nullptr;
+	PendingArenaSceneId = NAME_None;
+	ArenaScene->SetActorHiddenInGame(false);
+	ArenaScene->SetActorEnableCollision(true);
 	RefreshArenaSceneConsumers();
 	if (PreviousArenaScene)
 	{
@@ -1841,7 +1895,24 @@ void AReEchoGameMode::PrepareEncounterIntermission()
 	if (!ResolveNextStageTransition(Transition, Error))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[StageTransition] Intermission rejected: %s"), *Error);
-		ClearCombatants();
+		return;
+	}
+	const UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
+	const FReEchoCsvEncounterRow* NextEncounter =
+	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex + 1) : nullptr;
+	const FReEchoCsvStageRow* NextStage =
+	    NextEncounter && Snapshot.IsValid() ? Snapshot->FindStage(NextEncounter->StageId) : nullptr;
+	if (!NextEncounter || !NextStage || !PrepareArenaSceneForStage(*NextStage, Error))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[ArenaScene] Intermission preparation rejected StageId=%s SceneId=%s: %s"),
+		       NextEncounter ? *NextEncounter->StageId.ToString() : TEXT("None"),
+		       NextStage ? *NextStage->SceneId.ToString() : TEXT("None"),
+		       *Error);
 		return;
 	}
 
@@ -1900,7 +1971,6 @@ void AReEchoGameMode::BeginNextEncounter()
 {
 	ResetEncounterTransitionPresentation();
 	ConnectionLineSideByPair.Reset();
-	ClearTimeShardPickups();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || RunSubsystem->EncounterIndex >= RunSubsystem->GetTotalEncounterCount())
 	{
@@ -1911,21 +1981,15 @@ void AReEchoGameMode::BeginNextEncounter()
 	if (!ResolveNextStageTransition(Transition, TransitionError))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[StageTransition] Next encounter rejected: %s"), *TransitionError);
-		ClearCombatants();
 		return;
 	}
-	if (!Transition.bPreserveEnemyRoster)
-	{
-		ClearEnemyRoster();
-	}
-	ClearEchoes();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> PreBeginSnapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* NextEncounter =
 	    PreBeginSnapshot.IsValid() ? PreBeginSnapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex + 1) : nullptr;
 	const FReEchoCsvStageRow* NextStage =
 	    NextEncounter && PreBeginSnapshot.IsValid() ? PreBeginSnapshot->FindStage(NextEncounter->StageId) : nullptr;
 	FString SceneError;
-	if (!NextEncounter || !NextStage || !ApplyArenaSceneForStage(*NextStage, SceneError))
+	if (!NextEncounter || !NextStage || !PrepareArenaSceneForStage(*NextStage, SceneError))
 	{
 		const FName StageId = NextEncounter ? NextEncounter->StageId : NAME_None;
 		const FName SceneId = NextStage ? NextStage->SceneId : NAME_None;
@@ -1935,7 +1999,22 @@ void AReEchoGameMode::BeginNextEncounter()
 		       *StageId.ToString(),
 		       *SceneId.ToString(),
 		       *SceneError);
-		ClearCombatants();
+		return;
+	}
+	ClearTimeShardPickups();
+	if (!Transition.bPreserveEnemyRoster)
+	{
+		ClearEnemyRoster();
+	}
+	ClearEchoes();
+	if (!ApplyArenaSceneForStage(*NextStage, SceneError))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[ArenaScene] Prepared Arena commit failed StageId=%s SceneId=%s: %s"),
+		       *NextStage->Id.ToString(),
+		       *NextStage->SceneId.ToString(),
+		       *SceneError);
 		return;
 	}
 	bEncounterTransitioning = false;
@@ -2089,7 +2168,6 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	}
 
 	const FReEchoEncounterRuntimeState SavedState = RunSubsystem->ConsumePendingEncounterResume();
-	ClearCombatants();
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
 	bBossSuccessfullySpawnedThisEncounter = false;
@@ -2100,8 +2178,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	const FReEchoCsvStageRow* Stage =
 	    Encounter && Snapshot.IsValid() ? Snapshot->FindStage(Encounter->StageId) : nullptr;
 	FString SceneError;
-	if (!Encounter || !Stage || !ApplyArenaSceneForStage(*Stage, SceneError) ||
-	    !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
+	if (!Encounter || !Stage || !PrepareArenaSceneForStage(*Stage, SceneError))
 	{
 		UE_LOG(LogTemp,
 		       Error,
@@ -2109,6 +2186,18 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		       RunSubsystem->EncounterIndex,
 		       Encounter ? *Encounter->StageId.ToString() : TEXT("None"),
 		       Stage ? *Stage->SceneId.ToString() : TEXT("None"),
+		       *SceneError);
+		return;
+	}
+	ClearCombatants();
+	if (!ApplyArenaSceneForStage(*Stage, SceneError) || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("Saved encounter %d failed after Arena preparation StageId=%s SceneId=%s: %s"),
+		       RunSubsystem->EncounterIndex,
+		       *Stage->Id.ToString(),
+		       *Stage->SceneId.ToString(),
 		       *SceneError);
 		return;
 	}
