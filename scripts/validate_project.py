@@ -1035,6 +1035,10 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
     rows = load_csv(path)
     expected_silent_keys = {
         ("Music.Encounter", ""),
+        ("Music.Death", ""),
+        ("Music.Victory", ""),
+        ("Ambience.Arena", ""),
+        ("Ambience.Rain", ""),
         ("Combat.Attack", ""),
         ("Combat.Hit", ""),
         ("Combat.Block", ""),

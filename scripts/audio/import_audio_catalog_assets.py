@@ -15,26 +15,19 @@ LONG_AUDIO = {
     "Music.Menu": ("Design/Audio/Source/Music/Music_Menu.mp3", "/Game/ReEcho/Audio/Music", "Music_Menu"),
     "Music.Shop": ("Design/Audio/Source/Music/Music_Shop.mp3", "/Game/ReEcho/Audio/Music", "Music_Shop"),
     "Music.Boss": ("Design/Audio/Source/Music/Music_Boss.mp3", "/Game/ReEcho/Audio/Music", "Music_Boss"),
-    "Music.Death": ("Design/Audio/Source/Music/Music_Death.mp3", "/Game/ReEcho/Audio/Music", "Music_Death"),
-    "Music.Victory": ("Design/Audio/Source/Music/Music_Victory.mp3", "/Game/ReEcho/Audio/Music", "Music_Victory"),
-    "Ambience.Arena": ("Design/Audio/Source/Ambience/Ambience_Arena.mp3", "/Game/ReEcho/Audio/Ambience", "Ambience_Arena"),
-    "Ambience.Rain": ("Design/Audio/Source/Ambience/Ambience_Rain.mp3", "/Game/ReEcho/Audio/Ambience", "Ambience_Rain"),
 }
 
 ONE_SHOTS = {
     "UI.Hover": ("Source/Formal/UI/UI_Hover.mp3", "/Game/ReEcho/Audio/UI", "UI_Hover"),
     "UI.Confirm": ("Source/Formal/UI/UI_Confirm.mp3", "/Game/ReEcho/Audio/UI", "UI_Confirm"),
-    "UI.Cancel": ("Source/Formal/UI/UI_Cancel.wav", "/Game/ReEcho/Audio/UI", "UI_Cancel"),
-    "UI.Error": ("Source/Formal/UI/UI_Cancel.wav", "/Game/ReEcho/Audio/UI", "UI_Error"),
+    "UI.Cancel": ("Source/Formal/UI/UI_Cancel.mp3", "/Game/ReEcho/Audio/UI", "UI_Cancel"),
     "UI.Purchase": ("Source/Formal/UI/UI_Purchase.wav", "/Game/ReEcho/Audio/UI", "UI_Purchase"),
-    "UI.CardSelect": ("Source/Formal/UI/UI_CardSelect.wav", "/Game/ReEcho/Audio/UI", "UI_CardSelect"),
     "Combat.Hurt": ("Derived/Combat/Combat_Hurt.wav", "/Game/ReEcho/Audio/Combat", "Combat_Hurt"),
     "Combat.Death": ("Derived/Combat/Combat_Death.wav", "/Game/ReEcho/Audio/Combat", "Combat_Death"),
     "Enemy.Spawn": ("Derived/Enemy/Enemy_Spawn.wav", "/Game/ReEcho/Audio/Enemy", "Enemy_Spawn"),
     "Enemy.Death": ("Derived/Enemy/Enemy_Death.wav", "/Game/ReEcho/Audio/Enemy", "Enemy_Death"),
     "Boss.Death": ("Derived/Boss/Boss_Death.wav", "/Game/ReEcho/Audio/Boss", "Boss_Death"),
     "CameraMove": ("Source/Formal/Flow/CameraMove.wav", "/Game/ReEcho/Audio/Flow", "CameraMove"),
-    "Revive": ("Source/Formal/UI/UI_Cancel.wav", "/Game/ReEcho/Audio/Flow", "Revive"),
 }
 
 PLAN114_DIRECT_EVENT_IDS = {

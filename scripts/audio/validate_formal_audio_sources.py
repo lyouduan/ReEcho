@@ -9,14 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 EXPECTED_SHA256 = {
-    "Design/Audio/Source/Music/Music_Menu.mp3": "dd598665d3ae5624dea06956974d3ca844abf9c860c0cb0edd5ad37bd393d880",
+    "Design/Audio/Source/Music/Music_Menu.mp3": "0cdac8488fd3d41db6feae664021b71516f6bb97fe94d245361fcef1a88aa4bd",
     "Design/Audio/Source/Music/Music_Shop.mp3": "9bd5830a0a2166c592223d7f355e04df22df1cefa81fa8c041a0c19a26f3f4a0",
     "Design/Audio/Source/Music/Music_Boss.mp3": "8e13193b3775008079c507bd9b147f5769a5ded7b01f811de4baaad8457d9fc3",
     "Design/Audio/Source/Formal/UI/UI_Hover.mp3": "67d37f70b23249af1dcfed8156cb53e35660c4689b9c51b56e92ded846f22333",
     "Design/Audio/Source/Formal/UI/UI_Confirm.mp3": "64d9331804512e308f52ecbac75e0124b79b6ed46144ec740d9b6129a7880156",
-    "Design/Audio/Source/Formal/UI/UI_Cancel.wav": "c5a7cd3ed51c37861898155fdb024700d92ee2e8a188713dd65692c47d36821b",
+    "Design/Audio/Source/Formal/UI/UI_Cancel.mp3": "3c2555d87fa53d1204a5351206660086a8c416ea6cb41d5757778731907d371f",
     "Design/Audio/Source/Formal/UI/UI_Purchase.wav": "c252826d1a1fc3eb45ef2a3586dc7ea155c013af2a8df549eb0d99e1c4fb529d",
-    "Design/Audio/Source/Formal/UI/UI_CardSelect.wav": "6be0d30f185abd5df1aed287cdfb1f293b5b3f6030911e7f2f0a35c6b15bb5c5",
     "Design/Audio/Source/Formal/Combat/Combat_Hurt.wav": "4cd439549c4ed1f258dcd9fffb5edf9f7618eb1b276227557d3e401a1d9f62ee",
     "Design/Audio/Source/Formal/Combat/Combat_Death.wav": "b9ea39cae4c135c9c522d7bb06fd584dd315e8a0489bc51f3407c3cc6e733b5e",
     "Design/Audio/Source/Formal/Enemy/Enemy_Death.mp3": "d69fe3c797559854561325f0a4625def8f22042e19d4e2e34f4a0eb910c607ca",
@@ -54,6 +53,15 @@ def main() -> None:
         actual = hashlib.sha256(source.read_bytes()).hexdigest()
         if actual != expected:
             errors.append(f"hash mismatch: {relative_path}: expected {expected}, found {actual}")
+    source_root = ROOT / "Design/Audio/Source"
+    actual_sources = {
+        source.relative_to(ROOT).as_posix()
+        for source in source_root.rglob("*")
+        if source.is_file() and source.suffix.lower() in {".mp3", ".wav"}
+    }
+    extras = sorted(actual_sources - set(EXPECTED_SHA256))
+    if extras:
+        errors.append(f"planning-table-external source files: {extras}")
     if errors:
         raise SystemExit("Formal audio source validation failed:\n" + "\n".join(errors))
     print(f"[PASS] Formal audio sources verified: {len(EXPECTED_SHA256)} files")

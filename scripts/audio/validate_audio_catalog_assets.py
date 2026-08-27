@@ -12,6 +12,10 @@ EXPECTED_ROWS = 52
 ASSET_ROOT = "/Game/ReEcho/Audio/"
 EXPECTED_SILENT_EVENTS = {
     "Music.Encounter",
+    "Music.Death",
+    "Music.Victory",
+    "Ambience.Arena",
+    "Ambience.Rain",
     "Combat.Attack",
     "Combat.Hit",
     "Combat.Block",

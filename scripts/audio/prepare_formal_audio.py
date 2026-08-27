@@ -94,6 +94,24 @@ STEREO_WAVS = {
     ),
 }
 
+MEDIA_SUFFIXES = {".mp3", ".wav"}
+
+
+def assert_exact_media_set(root: Path, expected: set[Path], label: str) -> None:
+    actual = {
+        path.resolve()
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in MEDIA_SUFFIXES
+    }
+    expected_resolved = {path.resolve() for path in expected}
+    extras = sorted(path.relative_to(ROOT).as_posix() for path in actual - expected_resolved)
+    missing = sorted(path.relative_to(ROOT).as_posix() for path in expected_resolved - actual)
+    if extras or missing:
+        raise SystemExit(
+            f"{label} media set does not match planning-table-derived outputs: "
+            f"extras={extras}, missing={missing}"
+        )
+
 def read_pcm16(source_bytes: bytes, label: str) -> tuple[int, int, array]:
     with wave.open(io.BytesIO(source_bytes), "rb") as source:
         channels = source.getnchannels()
@@ -190,6 +208,21 @@ def main() -> None:
         write_or_check(output, transform_pcm16(source.read_bytes(), label, True), args.check, label)
     for label, (source, output) in STEREO_WAVS.items():
         write_or_check(output, transform_pcm16(source.read_bytes(), label, False), args.check, label)
+
+    decoded_root = ROOT / "Design/Audio/Decoded"
+    expected_decoded = {
+        source
+        for source, _output in SPATIAL_WAVS.values()
+        if decoded_root in source.parents
+    }
+    derived_root = ROOT / "Design/Audio/Derived"
+    expected_derived = {
+        ENEMY_SPAWN_OUTPUT,
+        *(output for _source, output in SPATIAL_WAVS.values()),
+        *(output for _source, output in STEREO_WAVS.values()),
+    }
+    assert_exact_media_set(decoded_root, expected_decoded, "Decoded")
+    assert_exact_media_set(derived_root, expected_derived, "Derived")
 
 
 if __name__ == "__main__":

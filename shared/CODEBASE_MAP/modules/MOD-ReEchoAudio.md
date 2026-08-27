@@ -7,7 +7,7 @@
 - Build 文件：`Source/ReEchoAudio/ReEchoAudio.Build.cs`。
 - 注册入口：`Source/ReEchoAudio/Private/ReEchoAudio.cpp` 中的 `FReEchoAudioModule`。
 - 主要目录：`Source/ReEchoAudio/Public/`、`Source/ReEchoAudio/Private/`。
-- 相关基线：Plan33 音频运行时基础；Plan34 增加策划目录、持久设置、战斗 BGM 接入与真实后端淡入修复；Plan46 为全部 31 个基础目录项接入资源并硬化非阻塞播放、衰减和 Cook；Plan114 增加正式资源、确定性单声道/裁切派生和 Weapon/Element/Stage 变体；Plan123 补齐反应、拾取、卡牌展示、装备与普通关胜利语义，并把 11 个无策划授权的基础行收敛为显式静默目录项，删除全部旧 Generated 音频。
+- 相关基线：Plan33 音频运行时基础；Plan34 增加策划目录、持久设置、战斗 BGM 接入与真实后端淡入修复；Plan46 为全部 31 个基础目录项接入资源并硬化非阻塞播放、衰减和 Cook；Plan114 增加正式资源、确定性单声道/裁切派生和 Weapon/Element/Stage 变体；Plan123 补齐反应、拾取、卡牌展示、装备与普通关胜利语义，并按 `ECHO音频配置说明.xlsx` 主需求页与交付文件夹的交集，把 15 个无策划授权的基础行收敛为显式静默目录项，删除全部旧 Generated 与表外音频。
 
 ## 存在原因
 
@@ -154,7 +154,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 自动化：`Source/ReEchoAudio/Private/Tests/ReEchoAudioFoundationTests.cpp`。
 - 重点覆盖：目录解析、无效 ID、安全降级、总线音量/静音、状态幂等、冷却、并发、优先级、暂停策略和假后端调用。
 - 语义路由审计：`python scripts/audio/validate_audio_event_routes.py` 比较 37 个稳定 EventId、常量和主模块生产引用，拒绝只有测试引用的孤立事件；变体集合另由项目数据域校验限定。
-- 资产审计：在取得同克隆 Unreal 锁后运行 `scripts/audio/validate_audio_catalog_assets.py`，验证当前 52 行目录中的 41 个绑定行、11 个精确静默行、SoundWave 类型、循环标记与空间音效单声道约束，并拒绝 `/Game/ReEcho/Audio` 下任何目录白名单外资产。
+- 资产审计：在取得同克隆 Unreal 锁后运行 `scripts/audio/validate_audio_catalog_assets.py`，验证当前 52 行目录中的 37 个绑定行、15 个精确静默行、31 个唯一 SoundWave、类型、循环标记与空间音效单声道约束，并拒绝 `/Game/ReEcho/Audio` 下任何目录白名单外资产。`UI.CardSelect` 复用 `UI.Purchase`，`UI.Error/Revive` 复用 `UI.Cancel`，共享波形不复制资产。
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development` 必须同时产出 `UnrealEditor-ReEchoAudio.dll`。
 - 静态：模块边界不得出现 `#include` 主模块玩法路径。
 - 人工验收：真实资源可听性、响度平衡、空间定位和混音由用户在 PIE/设备上判断；链路异常优先用 Audio Insights 的 Events/Sounds/总线表区分“请求已发出”“组件仍存活”和“设备有最终信号”。
