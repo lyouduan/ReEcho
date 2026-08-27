@@ -114,6 +114,55 @@ FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 	return FVector2D(Extent.X, Extent.Y);
 }
 
+bool AReEchoArenaSceneActor::CalculateWallDerivedSpawnBounds(const FBox2D& WestBounds,
+                                                              const FBox2D& EastBounds,
+                                                              const FBox2D& SouthBounds,
+                                                              const FBox2D& NorthBounds,
+                                                              const float Padding,
+                                                              FBox2D& OutBounds,
+                                                              FString* OutReason)
+{
+	OutBounds = FBox2D(ForceInit);
+	auto Fail = [OutReason](const TCHAR* Reason)
+	{
+		if (OutReason)
+		{
+			*OutReason = Reason;
+		}
+		return false;
+	};
+	if (!WestBounds.bIsValid || !EastBounds.bIsValid || !SouthBounds.bIsValid || !NorthBounds.bIsValid ||
+	    Padding < 0.0f)
+	{
+		return Fail(TEXT("Wall bounds or spawn padding are invalid."));
+	}
+	const FVector2D Minimum(WestBounds.Max.X + Padding, SouthBounds.Max.Y + Padding);
+	const FVector2D Maximum(EastBounds.Min.X - Padding, NorthBounds.Min.Y - Padding);
+	if (Minimum.X >= Maximum.X || Minimum.Y >= Maximum.Y)
+	{
+		return Fail(TEXT("Wall inner faces do not form a usable spawn-safe rectangle after padding."));
+	}
+	OutBounds = FBox2D(Minimum, Maximum);
+	return true;
+}
+
+bool AReEchoArenaSceneActor::GetEnemySpawnWorldBounds(FBox2D& OutBounds, FString* OutReason) const
+{
+	auto ComponentBounds = [](const UStaticMeshComponent* Component)
+	{
+		return Component && Component->GetStaticMesh()
+		           ? CalculateWorldXYBounds(Component->GetStaticMesh()->GetBoundingBox(), Component->GetComponentTransform())
+		           : FBox2D(ForceInit);
+	};
+	return CalculateWallDerivedSpawnBounds(ComponentBounds(WallWest),
+	                                       ComponentBounds(WallEast),
+	                                       ComponentBounds(WallSouth),
+	                                       ComponentBounds(WallNorth),
+	                                       EnemySpawnWallPadding,
+	                                       OutBounds,
+	                                       OutReason);
+}
+
 FVector2D AReEchoArenaSceneActor::GetArenaCenter() const
 {
 	const FVector Center = MapRoot ? MapRoot->GetComponentLocation() : GetActorLocation();
@@ -217,10 +266,19 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	{
 		return Fail(TEXT("Backdrop Material Slot 0 must provide the arena map material."));
 	}
-	if (GetCameraClampHalfExtents().GetMin() < 100.0f || GetPlayerHalfExtents().GetMin() < 100.0f ||
-	    GetEnemySpawnHalfExtents().GetMin() < 100.0f)
+	if (GetCameraClampHalfExtents().GetMin() < 100.0f || GetPlayerHalfExtents().GetMin() < 100.0f)
 	{
 		return Fail(TEXT("Arena bounds are degenerate."));
+	}
+	FBox2D SpawnBounds(ForceInit);
+	FString SpawnBoundsReason;
+	if (!GetEnemySpawnWorldBounds(SpawnBounds, &SpawnBoundsReason))
+	{
+		if (OutReason)
+		{
+			*OutReason = FString::Printf(TEXT("Arena wall-derived spawn bounds are invalid: %s"), *SpawnBoundsReason);
+		}
+		return false;
 	}
 	if (DepthSortAxis.IsNearlyZero() || DepthSortWorldUnitsPerStep < 1.0f)
 	{

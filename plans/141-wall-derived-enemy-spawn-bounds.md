@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@6fdb7938624031cafc6401e1b72fbc5651def6ec`。
 - 本地实现方式：独立 worktree `C:\tmp\ReEcho-plan141-wall-derived-spawn-bounds`。
@@ -106,10 +106,32 @@
 
 ### 变化
 
+- Arena 新增四墙世界 AABB 内侧面派生查询，按 West.MaxX / East.MinX / South.MaxY / North.MinY 形成非对称、可平移安全矩形，再统一内缩 `EnemySpawnWallPadding=100 cm`；当前生产普通怪最大碰撞半径为 65 cm，因此仍保留 35 cm 额外墙距。
+- `EnemySpawnBounds` 仅保留序列化与 Editor 可视兼容；Arena 有效性、正式波次和 GM 均不再以其 HalfExtent 作为出生权威。
+- SpawnResolver 请求改为世界 `FBox2D` 值语义；随机越界候选直接重试，确定性 11x11 网格 fallback 完整复查玩家/Echo 距离和既有出生间距，无合法点时失败关闭。
+- 正式预警预留在活动 Arena 读取一次墙体 Bounds，预测锚点只钳到该世界矩形；Commit 仍原样复用预留位置，未修改存档字段或已有保存位置。
+- `GMSpawnFox` 改用同一 Bounds；越界弧线候选被拒绝，由安全区内确定性网格补足，非法 Bounds 整体拒绝并输出原因。
+
 ### 证据
+
+- LFS：`python scripts/setup_lfs.py --check` 通过，1 个 LFS 文件已还原。
+- 构建：Development 增量构建通过；最终 `scripts\\ue\\Build-Editor.cmd -Configuration Development -FullRebuild` 101/101 通过，精选 Editor 包刷新，source fingerprint `c2b7d7fcd8f9`。
+- 聚焦自动化：`ReEcho.Presentation.ArenaScene` 1/1、`ReEcho.Encounter.DeterministicSpawnResolver` 1/1、`ReEcho.GameMode` 4/4、`ReEcho.StageTransition` 3/3 通过。
+- 测试新增覆盖非零中心、非对称墙体、墙厚/Padding、交叉墙失败、越界 fail closed、世界 Bounds 内结果和 GM 最大 16 只 fallback。
+- SC01-SC04 Blueprint 未出现在工作树差异中，未发生二进制修改。
+- 最终静态门禁：`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
+- 需要用户在 PIE 中验证 SC03 边缘正式波次及 `GMSpawnFox 16 1000` 的实际碰撞/可击杀性；自动化不能代替视觉和玩法验收。
+- 附加运行全量 `ReEcho` 自动化暴露与本任务路径无关的既有基线失败：`ReEcho.UI.CombatHud.Formatting` 负数格式预期、多个禁用武器符文数据预期，随后 `ReEchoWeaponRuntimeTests.cpp:184` 的测试辅助断言退出。Plan141 聚焦矩阵均独立通过；本候选未修改 UI、武器或生产数据。
+
 ### 人工验收结果/请求
 
+- `PendingBeforeClose`：请在准确候选上进入 SC03，观察正式边缘波次，并执行 `GMSpawnFox 16 1000`；确认怪物碰撞体均在四墙内且可以正常击杀。
+
 ### 架构文档审阅结果
+
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅，模块拓扑未变化，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅，AREA 路由未变化，无需修改。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Arena 墙体权威、世界 Bounds SpawnResolver、fail-closed fallback 与 GM 复用契约。

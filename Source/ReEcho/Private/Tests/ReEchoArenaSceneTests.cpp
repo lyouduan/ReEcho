@@ -81,6 +81,31 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Backdrop rotation maps mesh Y scale onto world X"), RotatedFootprint.GetSize().X, 2500.0);
 	TestEqual(TEXT("Backdrop rotation maps mesh X scale onto world Y"), RotatedFootprint.GetSize().Y, 4480.0);
 
+	FBox2D SpawnBounds(ForceInit);
+	FString SpawnBoundsError;
+	TestTrue(TEXT("Four asymmetric translated wall AABBs form a spawn-safe rectangle"),
+	         AReEchoArenaSceneActor::CalculateWallDerivedSpawnBounds(
+	             FBox2D(FVector2D(75.0f, -1000.0f), FVector2D(125.0f, 3000.0f)),
+	             FBox2D(FVector2D(2075.0f, -1000.0f), FVector2D(2125.0f, 3000.0f)),
+	             FBox2D(FVector2D(0.0f, -2025.0f), FVector2D(2200.0f, -1975.0f)),
+	             FBox2D(FVector2D(0.0f, 2975.0f), FVector2D(2200.0f, 3025.0f)),
+	             100.0f,
+	             SpawnBounds,
+	             &SpawnBoundsError));
+	TestEqual(TEXT("West inner face and padding define minimum X"), SpawnBounds.Min.X, 225.0);
+	TestEqual(TEXT("East inner face and padding define maximum X"), SpawnBounds.Max.X, 1975.0);
+	TestEqual(TEXT("South inner face and padding define minimum Y"), SpawnBounds.Min.Y, -1875.0);
+	TestEqual(TEXT("North inner face and padding define maximum Y"), SpawnBounds.Max.Y, 2875.0);
+	TestFalse(TEXT("Crossed walls fail closed"),
+	          AReEchoArenaSceneActor::CalculateWallDerivedSpawnBounds(
+	              FBox2D(FVector2D(900.0f, 0.0f), FVector2D(1000.0f, 100.0f)),
+	              FBox2D(FVector2D(0.0f, 0.0f), FVector2D(100.0f, 100.0f)),
+	              FBox2D(FVector2D(0.0f, -100.0f), FVector2D(100.0f, 0.0f)),
+	              FBox2D(FVector2D(0.0f, 1000.0f), FVector2D(100.0f, 1100.0f)),
+	              100.0f,
+	              SpawnBounds,
+	              &SpawnBoundsError));
+
 	AReEchoArenaSceneActor* Arena = NewObject<AReEchoArenaSceneActor>(GetTransientPackage());
 	Arena->SetActorTransform(ShiftedMap);
 	Arena->MapRoot->SetRelativeLocation(FVector(0.0f, 0.0f, 500.0f));

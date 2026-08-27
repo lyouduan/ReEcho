@@ -125,11 +125,11 @@ DefaultEngine.ini
           → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
 ```
 
-Arena 以 Blueprint 组件为权威：运行时范围查询读取 `CameraClampBounds`、`PlayerBounds`、`EnemySpawnBounds` 的实际缩放后 Extent，`Backdrop` Material Slot 0 是唯一地图材质入口。SC01-SC04 已把旧 HalfExtents 烘入 BoxComponent 并启用 `bUseEditorAuthoredSceneLayout`，Construction 不再重写层级、材质、Transform 或 Bounds；旧 SceneProfile、Actor MapMaterial 和每 BP 重复 Registry 均已清空，仅保留序列化兼容字段。SC01 边缘插片是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。
+Arena 以 Blueprint 组件为权威：相机与玩家范围读取 `CameraClampBounds`、`PlayerBounds` 的实际缩放后 Extent；怪物出生安全区从 `WallWest.MaxX`、`WallEast.MinX`、`WallSouth.MaxY`、`WallNorth.MinY` 四个世界 AABB 内侧面派生，并统一内缩 `EnemySpawnWallPadding`（默认 100 cm，覆盖当前最大 65 cm 普通怪碰撞半径并保留余量）。`EnemySpawnBounds` 只保留序列化和 Editor 可视兼容，不再决定正式波次或 GM 出生。`Backdrop` Material Slot 0 是唯一地图材质入口。SC01-SC04 已把旧 HalfExtents 烘入 BoxComponent 并启用 `bUseEditorAuthoredSceneLayout`，Construction 不再重写层级、材质、Transform 或 Bounds；旧 SceneProfile、Actor MapMaterial 和每 BP 重复 Registry 均已清空，仅保留序列化兼容字段。SC01 边缘插片是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
-Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散并钳制在 Enemy Spawn Bounds 内；它逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
+Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
 
 `GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
 
@@ -233,7 +233,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 - 代码：`Source/ReEcho/Public/Encounter/`、`Source/ReEcho/Private/Encounter/`。
 - 首读：`ReEchoEncounterDirector.*`、`ReEchoEncounterRuntime.*`、`ReEchoEncounterCsvReader.*`。
-- 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只做纯确定性计算；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
+- 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只消费 GameMode 传入的墙体派生世界 `FBox2D` 并做纯确定性计算；越界候选不 Clamp，最终 fallback 也必须同时满足 Bounds、玩家/Echo 距离和既有出生间距，否则失败关闭；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
 - 输入：开始、恢复、暂停、World Tick、不可变 Stage/Encounter/Wave/Spawn 数据、玩家运动样本和录制路径样本。
 - 输出：固定步事件、剩余时间、完成委托、预警/提交事件、确定性出生位置和 `FReEchoStageTransitionDecision`。预警先按存活单位与其他待提交批次预留 `ActiveUnitLimit` 容量，只为真正获准提交的位置显示；每个预警位置都是出生承诺。普通怪与 Boss 的最终 Actor 中心位置 XY 都来自各自 `SpawnProfiles` 和统一 SpawnResolver，Z 为当前玩法平面加该敌人的碰撞半高；提交必须原样、完整复用预留位置，不得二次按单位上限裁剪，也禁止表现预警与生成提交各自重算。非法 Stage/Encounter 引用必须失败关闭。
 - 生产波次结构：`Encounter.1` 至 `Encounter.8` 都按 `WaveIndex=1/2/3` 在 `0/10/20` 秒通过同一通用 WaveScheduler 触发；`Encounter.8` 只有 Wave.1 携带 `BossEnemyId=M_SHEEP`，Wave.2/3 是不含 Boss 的增援波。Boss 通过 `Spawn.Boss` 的双锚距离环解析出生位置，不再使用 GameMode 固定世界坐标；Boss 不计入该关 `ActiveUnitLimit`，其预留位置也不挤占普通增援容量。关卡仍以 `BossOrPlayerDeath` 结束，禁止在后两波重复配置或生成 Boss。

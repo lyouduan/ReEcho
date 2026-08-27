@@ -125,8 +125,7 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	Request.PlayerAnchor = FVector::ZeroVector;
 	Request.EchoAnchor = FVector(-1000.0f, 0.0f, 0.0f);
 	Request.EchoAnchorRatio = 1.0f;
-	Request.ArenaHalfX = 3000.0f;
-	Request.ArenaHalfY = 3000.0f;
+	Request.SpawnWorldBounds = FBox2D(FVector2D(-2500.0f, -3400.0f), FVector2D(3500.0f, 2600.0f));
 	Request.SpawnCenterWorldZ = 215.0f;
 	Request.Seed = 481337;
 	Request.Sequence = 3;
@@ -146,6 +145,17 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	         FVector::Dist2D(First.Location, Request.PlayerAnchor) >= Policy->MinPlayerDistanceCm);
 	TestTrue(TEXT("Echo exclusion distance is honored"),
 	         FVector::Dist2D(First.Location, Request.EchoAnchor) >= Policy->MinEchoDistanceCm);
+	TestTrue(TEXT("Resolved location stays inside translated wall-derived world bounds"),
+	         Request.SpawnWorldBounds.IsInside(FVector2D(First.Location.X, First.Location.Y)));
+
+	FReEchoSpawnResolveRequest ImpossibleRequest = Request;
+	ImpossibleRequest.SpawnWorldBounds = FBox2D(FVector2D(10000.0f, 10000.0f), FVector2D(10010.0f, 10010.0f));
+	ImpossibleRequest.ExistingLocations = {FVector(10005.0f, 10005.0f, 0.0f)};
+	FReEchoResolvedSpawn RejectedSpawn;
+	FString RejectedError;
+	TestFalse(TEXT("Resolver fails closed when no in-bounds candidate satisfies constraints"),
+	          FReEchoSpawnResolver::Resolve(*Profile, *Policy, ImpossibleRequest, RejectedSpawn, RejectedError));
+	TestTrue(TEXT("Failed resolver names the wall-derived candidate failure"), RejectedError.Contains(TEXT("wall-derived")));
 
 	const FReEchoCsvSpawnProfileRow* BossProfile = Load.Snapshot->FindSpawnProfileByRole(TEXT("Boss"));
 	if (!TestNotNull(TEXT("Boss has a dedicated spawn profile"), BossProfile))
