@@ -5,9 +5,9 @@
 - Planner 负责人：当前对话程序 Planner（Codex）。
 - Executor 负责人：独立程序 Executor，Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
+- 任务状态：`Closed`。
+- 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main@6fdb7938624031cafc6401e1b72fbc5651def6ec`。
 - 本地实现方式：独立 worktree `C:\tmp\ReEcho-plan141-wall-derived-spawn-bounds`。
 - 依赖 / 阻塞：四场 Arena Blueprint 中 `WallEast/WallWest/WallNorth/WallSouth` 是当前碰撞墙权威；Plan134 的事务场景切换和 Plan136 的场景资产结果保持。
@@ -61,15 +61,15 @@
 
 ## 锁定验收
 
-- [ ] 四墙派生的世界安全区正确支持非对称墙体、非零 Arena 中心、墙体厚度和统一内缩；退化/交叉墙体配置明确失败。
-- [ ] SpawnResolver 的所有成功结果严格位于安全区内部；越界随机候选不 Clamp，fallback 不违反玩家/现有出生间距。
-- [ ] 正式波次预警与 Commit 继续共享同一预留位置，存档字段与旧已保存位置不迁移。
-- [ ] `GMSpawnFox` 与正式波次消费同一活动 Arena 安全区，且不会刷到墙外。
-- [ ] SC01-SC04 当前 Blueprint 不发生二进制变化；场景切换后使用新活动 Arena 的墙体安全区。
-- [ ] 聚焦 Arena、Encounter SpawnResolver、GameMode、StageTransition 自动化及项目静态校验通过。
-- [ ] 最终 `-FullRebuild` 与精选预构建包检查通过。
-- [ ] 用户 PIE 验证至少 SC03 的边缘波次和 `GMSpawnFox 16 1000` 均不会在墙外生成，人工验收才可设为 `Passed`。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 四墙派生的世界安全区正确支持非对称墙体、非零 Arena 中心、墙体厚度和统一内缩；退化/交叉墙体配置明确失败。
+- [x] SpawnResolver 的所有成功结果严格位于安全区内部；越界随机候选不 Clamp，fallback 不违反玩家/现有出生间距。
+- [x] 正式波次预警与 Commit 继续共享同一预留位置，存档字段与旧已保存位置不迁移。
+- [x] `GMSpawnFox` 与正式波次消费同一活动 Arena 安全区，且不会刷到墙外。
+- [x] SC01-SC04 当前 Blueprint 不发生二进制变化；场景切换后使用新活动 Arena 的墙体安全区。
+- [x] 聚焦 Arena、Encounter SpawnResolver、GameMode、StageTransition 自动化及项目静态校验通过。
+- [x] 最终 `-FullRebuild` 与精选预构建包检查通过。
+- [x] 用户 PIE 验证至少 SC03 的边缘波次和 `GMSpawnFox 16 1000` 均不会在墙外生成，人工验收才可设为 `Passed`。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -132,7 +132,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请在准确候选上进入 SC03，观察正式边缘波次，并执行 `GMSpawnFox 16 1000`；确认怪物碰撞体均在四墙内且可以正常击杀。
+- `Passed`：用户在准确候选 `3b12d22a2bb584a30fc3bb779caf104eeab2784b` 上完成 PIE，确认开始游戏能正确进入关卡、怪物生成与击杀均无问题。
 
 ### 架构文档审阅结果
 
