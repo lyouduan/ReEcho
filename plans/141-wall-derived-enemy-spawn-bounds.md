@@ -106,23 +106,23 @@
 
 ### 变化
 
-- Arena 新增四墙世界 AABB 内侧面派生查询，按 West.MaxX / East.MinX / South.MaxY / North.MinY 形成非对称、可平移安全矩形，再统一内缩 `EnemySpawnWallPadding=100 cm`；当前生产普通怪最大碰撞半径为 65 cm，因此仍保留 35 cm 额外墙距。
+- Arena 新增四墙世界 AABB 内侧面派生查询：枚举三种对边拆分及两种轴向分配，以墙中心分离方向过滤相邻墙误配并选择最大合法内接世界矩形，再统一内缩 `EnemySpawnWallPadding=100 cm`；不依赖组件名称对应世界方向，兼容非零中心、镜像和轴向旋转。当前生产普通怪最大碰撞半径为 65 cm，因此仍保留 35 cm 额外墙距。
 - `EnemySpawnBounds` 仅保留序列化与 Editor 可视兼容；Arena 有效性、正式波次和 GM 均不再以其 HalfExtent 作为出生权威。
 - SpawnResolver 请求改为世界 `FBox2D` 值语义；随机越界候选直接重试，确定性 11x11 网格 fallback 完整复查玩家/Echo 距离和既有出生间距，无合法点时失败关闭。
 - 正式预警预留在活动 Arena 读取一次墙体 Bounds，预测锚点只钳到该世界矩形；Commit 仍原样复用预留位置，未修改存档字段或已有保存位置。
 - `GMSpawnFox` 改用同一 Bounds；越界弧线候选被拒绝，由安全区内确定性网格补足，非法 Bounds 整体拒绝并输出原因。
-- PIE 修复轮次：首个候选在 SC01 `PrepareNextEncounter` 暴露墙名与世界轴方向不一致，旧算法误判 Bounds 退化并阻止 `BeginEncounter`。现改为完全按四墙 AABB 几何识别边界，错误信息包含四墙实际 AABB、轴向数量或退化后的计算 Bounds；补充名称轴向反转/镜像成功与真实过窄失败回归。
+- PIE 修复轮次：首个候选在 SC01 `PrepareNextEncounter` 暴露墙名与世界轴方向不一致，旧算法误判 Bounds 退化并阻止 `BeginEncounter`。现改为完全按四墙 AABB 围合几何选择对边和轴向；错误信息包含具名四墙实际 AABB 及六个候选计算 Bounds，补充名称轴向反转/镜像成功与真实过窄失败回归。
+- 集成轮次：将 `origin/main@bf40050c` 合入本任务候选；Plan135 UI 源码自动合并，生成包冲突采用远端版本后由最终组合源码统一 FullRebuild 刷新，没有回退传入 UI/特效功能。
 
 ### 证据
 
 - LFS：`python scripts/setup_lfs.py --check` 通过，1 个 LFS 文件已还原。
-- 构建：Development 增量构建通过；最终 `scripts\\ue\\Build-Editor.cmd -Configuration Development -FullRebuild` 101/101 通过，精选 Editor 包刷新，source fingerprint `c2b7d7fcd8f9`。
+- 构建：基于合并提交 `127f079c` 的最终组合候选执行 `scripts\\ue\\Build-Editor.cmd -Configuration Development -FullRebuild`，95/95 通过；精选 Editor 包为 modules=7、build_id=`55116800`、source fingerprint=`127affc65905`。
 - 聚焦自动化：`ReEcho.Presentation.ArenaScene` 1/1、`ReEcho.Encounter.DeterministicSpawnResolver` 1/1、`ReEcho.GameMode` 4/4、`ReEcho.StageTransition` 3/3 通过。
-- 测试新增覆盖非零中心、非对称墙体、墙厚/Padding、交叉墙失败、越界 fail closed、世界 Bounds 内结果和 GM 最大 16 只 fallback。
+- 测试覆盖非零中心、非对称墙体、墙厚/Padding、名称轴向反转/镜像、真实退化失败、越界 fail closed、世界 Bounds 内结果和 GM 最大 16 只 fallback。
 - SC01-SC04 Blueprint 未出现在工作树差异中，未发生二进制修改。
 - 最终静态门禁：`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check` 与 `git diff --check` 通过。
-- 上述构建、自动化与预构建证据属于首个候选 `c7e9ddf6`，已被本轮源码修复失效；当前 Unreal Editor 正在运行，按规则未启动第二实例。本轮仅执行源码格式/静态检查并提交，关闭 Editor 后必须重新 FullRebuild、刷新预构建包并重跑 Arena/Encounter/GameMode/StageTransition。
-- 本轮 `git diff --check` 通过；`validate_project.py` 执行后仅在预构建一致性门禁报告本轮三个 Arena 源/测试文件 fingerprint 过期，符合尚未构建的预期状态，不能记为通过。
+- 修复前候选 `c7e9ddf6` 的证据曾因 `83baa757` 源码变化失效；现已由上述合并后 FullRebuild、聚焦自动化、LFS、项目静态校验和预构建检查完整替换，不复用旧证据。
 
 ### 剩余风险
 
