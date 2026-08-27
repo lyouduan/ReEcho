@@ -7,7 +7,7 @@
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 人工验收：`Accepted`。
 - 本地规划 / 实现基线：`origin/main@46adef87a5149f00b8df585b4cdbc674c951ad0d`。
 - 本地实现方式（可选，仅作交接说明）：`C:\tmp\ReEcho-plan126-weapon-vfx-anchor`，分支 `codex/plan126-weapon-vfx-anchor`。
 - 依赖 / 阻塞：沿用 Plan100 已发布的共享左右手挂点、`HeldOffsetRatio`、长剑三挥、镰刀旋转和 Boss 武器特效根节点契约；实现前须确认本 Plan 已进入 `origin/main`。
@@ -100,7 +100,7 @@
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：首轮 PIE 中长剑、镰刀通过；弓、枪失败。修正后请求用户重新检查弓/枪左右朝向，特别是朝右时的枪口/出箭起点。
+`Accepted`：用户确认修正后的弓/枪左右朝向表现无问题；验收期间保存的 `DA_WeaponPresentation_Gun.uasset` 属于本 Plan 已允许的枪表现配置，并纳入最终发布候选。
 
 ### 架构文档审阅结果
 
