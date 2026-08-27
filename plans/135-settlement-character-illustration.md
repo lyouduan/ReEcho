@@ -6,8 +6,8 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（结算角色立绘为视觉改动，需 PIE 各角色死亡/胜利对照）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`Accepted`（2026-08-27 用户确认角色切换与最前层遮挡修正均无问题）。
 - 本地规划 / 实现基线：`origin/main@847283f32d54d2d76628730f2666af72b28cb756`。
 - 本地实现方式（可选，仅作交接说明）：`plan/135-settlement-character-illustration`，`ReEcho-plan135-settlement-character-illustration` 独立 worktree。
 - 依赖 / 阻塞：无额外美术依赖。直接复用选角阶段已有的四张角色图（LoadoutSelection 的 `Selected` 变体：`T_UI_Loadout_Character_J_<SUIT>_Selected`，J_HEART / J_SPADE / J_CLOVER / J_DIAMOND），死亡与胜利均按所选 `CharacterId` 切换该图；不新增源图或纹理。
@@ -112,7 +112,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请在 `ReEcho-plan135-settlement-character-illustration/ReEcho.uproject` 中分别选择 J_HEART、J_SPADE、J_CLOVER、J_DIAMOND，检查死亡与胜利结算角色图是否与开场选角 `Selected` 图一致，并确认角色所有局部均压在同页装饰、文字和卡槽上方；同时快速确认按钮仍可点击，暂停、退出确认、重开与返回主菜单没有视觉/交互回归。
+- `Accepted`：2026-08-27 用户完成 PIE 复测并回复“没问题了”，确认结算角色切换、最前层遮挡修正与交互可用。
 
 ### 架构文档审阅结果
 
