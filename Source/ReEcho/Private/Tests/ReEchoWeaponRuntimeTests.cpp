@@ -543,7 +543,7 @@ bool FReEchoWeaponGemDamageCoefficientMatrixTest::RunTest(const FString& Paramet
 	};
 
 	const TArray<FWeaponCase> WeaponCases = {
-	    {TEXT("W_J_01"), 1.0f}, {TEXT("W_J_04"), 0.6f}, {TEXT("W_J_08"), 1.0f}, {TEXT("W_J_09"), 0.4f}};
+	    {TEXT("W_J_01"), 1.0f}, {TEXT("W_J_04"), 0.6f}, {TEXT("W_J_08"), 1.5f}, {TEXT("W_J_09"), 0.6f}};
 
 	struct FCoreCase
 	{

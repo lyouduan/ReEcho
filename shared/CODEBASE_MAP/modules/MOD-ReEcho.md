@@ -48,7 +48,7 @@
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
 | Encounter 结算表现状态 | `AReEchoGameMode` | 单场结束到局间 UI | 只投影 Director 剩余时间；普通计时关卡在 03→01 时只启动全屏后处理，权威 00 时冻结战斗并从第 0 帧播放透明序列，末帧后幂等进入现有抽卡或商店页 |
 | Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建 Enemy Host；Host 完成 Definition/Profile 装配后只尝试一次可选 Born，成功播放时进入临时不可伤害/不可移动/不可攻击 Gate，缺失或失败不进入 Gate，碰撞、AI 计时和目标不暂停；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
-| 当前 Arena 场景与 SceneId 注册 | `AReEchoArenaSceneActor` 注册表；Stage CSV `SceneId` 为选择权威 | World/Stage | GameMode 在初始、恢复和跨 Stage 入口先应用场景；同 Stage 不重建，失败阻止 Encounter 开始 |
+| 当前 Arena 场景与 SceneId 注册 | `UReEchoArenaSceneCatalog` 唯一注册表；Stage CSV `SceneId` 为选择权威；`AReEchoGameMode` 只持有 Active/Pending Arena | World/Stage | GameMode 先生成并验证隐藏候选，再提交消费者重绑；同 SceneId 不重建，准备失败保留旧 Arena 与局内对象 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
 | 活跃屏幕、Viewport 层、焦点与输入模式 | UI Manager/Flow Coordinator | GameInstance/World | `EReEchoUIScreen` 与类型化 UI 命令 |
 | Actor 可见状态 | 各 Presentation/Graybox Actor | Actor | 消费逻辑结果，不反写逻辑 |
@@ -61,6 +61,7 @@
 - UE 生命周期：`StartPlay`、World Tick、输入绑定、Actor/Subsystem 生命周期。
 - `Content/Data/*.csv` 与 `Config/*.ini`。
 - 用户输入、Widget 命令和 GM/调试命令。
+- Development GM 调试入口包括 `GMScene <SC01|SC02|SC03|SC04>`（复用 Arena prepare/commit，仅切场景不改 Stage/Encounter）和 `GMMoveSpeed <cm/s>`（覆盖当前玩家移动组件速度）。
 - SaveGame、录制历史和当前世界碰撞/目标信息。
 
 ### 输出
@@ -110,11 +111,11 @@ DefaultEngine.ini
   → AReEchoGameMode::StartPlay
       → 校验并消费 Level00 唯一 Arena Scene / EncounterDirector / StartMenu
       → GameInstance 预加载器异步预热 Combat VFX、兔子代理、四武器首用表现与 MoonStaff 辅助表现
-      → 新游戏：角色和初始武器选择 → RunSubsystem::StartRun
+      → 新游戏：角色阶段确认 → 武器阶段确认 → 单次最终组合提交 → RunSubsystem::StartRun
       → 继续：加载安全检查点或暂停遭遇
       → 预加载未完成时保留当前菜单；完成或失败后只进入一次 BeginSelectedRun
       → BeginNextEncounter / ResumeSavedEncounter
-          → 按 Stage CSV SceneId 从 Arena Blueprint 注册表解析 SC01-SC04；只在 SceneId 变化时原位替换 Arena，并重绑 Player/Camera/Bounds
+          → 按 Stage CSV SceneId 从单一 Arena Catalog 解析 SC01-SC04；只在 SceneId 变化时 prepare 隐藏候选，验证通过后提交替换并重绑 Player/Camera/Bounds
           → 玩家、Recorder、可用 Echo、EnemyHost + Roster
           → 60 Hz 固定步遭遇 → 0/10/20 秒 WaveScheduler（零秒首波先预警并等待配置 lead，后续波次仍提前预警、按 TriggerSeconds 生成）
           → 普通战按 30 秒完成；ReEchoStageTransition 统一解析下一场策略；Boss 按胜负
@@ -124,7 +125,7 @@ DefaultEngine.ini
           → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
 ```
 
-Arena 作者ing中，`BackdropHalfExtents` 只控制底图显示宽高，与 Camera/Player/Enemy Bounds 分离。SC01-SC04 Blueprint 默认关闭碰撞自动布局，Floor/四墙采用组件模板 Transform，construction 与作者ing重跑不得覆盖美术手调值。各 Backdrop 模板直接绑定对应 Profile 的 MI 以供 Blueprint Editor 预览，运行时仍由 `ApplySceneProfile` 创建动态实例并应用调色参数；Floor 不承载视觉底图。相机基础锁边范围读取当前 Arena 的 `CameraClampHalfExtents`，相机 Actor 另有左、右、下、上四个独立 inset；正交视锥 footprint 到达任一边缘时仅锁定对应轴，角色继续由 Player Bounds 与墙体限制。SC01 边缘插片是 Arena Blueprint 的直接组件；初始排序为 Backdrop < 角色/怪物 < Mid < Foreground，作者ing脚本只初始化缺失组件并保留已有美术 Transform、显隐、材质与透明排序。
+Arena 以 Blueprint 组件为权威：运行时范围查询读取 `CameraClampBounds`、`PlayerBounds`、`EnemySpawnBounds` 的实际缩放后 Extent，`Backdrop` Material Slot 0 是唯一地图材质入口。SC01-SC04 已把旧 HalfExtents 烘入 BoxComponent 并启用 `bUseEditorAuthoredSceneLayout`，Construction 不再重写层级、材质、Transform 或 Bounds；旧 SceneProfile、Actor MapMaterial 和每 BP 重复 Registry 均已清空，仅保留序列化兼容字段。SC01 边缘插片是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
@@ -314,7 +315,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - Boss 表现边界：`Enemy.TimeGuard` 使用普通敌人相同的 Catalog/Profile/Gameplay Blueprint/FSM 路径；不存在 `Boss2D` 静态贴图特例。专属动画未交付时仅由 `DA_Enemy_TimeGuard` 显式复用 Goat 动画。
 - 阴影渲染层：GroundShadow 与 Flipbook 共享 MotionRoot 只解决位置同步，前后遮挡由整数 `TranslucencySortPriority` 明确控制。玩家与全部怪物阴影固定为 `-10`，角色 Flipbook 使用 Profile/Clip 的非负表现层，禁止使用会被截断为零的小数排序值，确保阴影始终绘制在角色下层。
 - 旧架构清理：`ReEcho2DVisualPrefabActor` 类型与 `/Game/ReEcho/Animation2D/VisualPrefabs/**` 蓝图资产已删除。角色表现只能从真实 Gameplay Blueprint 扩展，禁止重新引入运行时第二 Actor 或另一套表现组件树。
-- 场景 Prefab：通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 是只选择对应 `DA_ArenaScene_SC01..04` 的薄子 Blueprint；Level00 当前放置 SC02 子类。四张唯一权威地图源图/Texture2D 为 `/Game/ReEcho/Art/Scene/Map/sc01..04`，统一由 `M_ArenaGround` 与 `MI_SC01..04` 消费。正式 Level00 的 Arena Actor 与 `MapRoot` 位于世界原点，`GameplayPlaneZ=0`；Backdrop 位于地面下方极小偏移，Floor 顶面与地面平面对齐但不阻挡 Pawn，角色高度由玩法平面保持，只有四面墙承担移动阻挡。`author_plan52_decorations.py` 从 ArenaCamera 计算卡片朝向，按 Profile 中央安全区拒绝高卡片落点，并以三档尺寸和脚点排序烘焙可单独编辑的 StaticMeshActor；Bake/Clear 只替换 Plan52 专用标签集合，不触碰手工作品。美术可在 Blueprint 的可选视觉层继续新增组件；相机、MapRoot、玩法范围和碰撞仍由类型化原生接口供 GameMode 消费。
+- 场景 Prefab：单一 `/Game/ReEcho/Scene/DA_ArenaSceneCatalog` 拥有 `SceneId→BP_ArenaScene_SCxx`；GameMode 不扫描 Prefabs，也不消费每个 BP 中的重复 Registry。通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 分别完整拥有 Backdrop、视觉层、插片/装饰与玩法边界。Level00 不再放置生产 Arena 或 Plan52 tagged 装饰，只保留唯一 `AReEchoArenaSceneSpawnAnchor` 供首场与后续候选使用同一 Transform。程序脚本只可执行一次性契约迁移、创建单一 Catalog 或只读审计；旧 Plan52/Plan84 写入入口已退休，插片、装饰和构图由美术直接在 BP 中维护。
 - 2D表现FSM：`ReEcho2DAnimationStateMachineAsset` 保存完整七态语义、可中断优先级和播放完成去向；`ReEcho2DPresentationController` 是纯 Flipbook 执行器并保留 Gameplay 宿主的稳定意图 API。敌人特殊动作 `WindupStarted -> Charge`、`ActionCommitted -> Basic`、`ActionEnded -> CancelAttackAction`；Boss 阶段事件以锁定 Transform 过渡后切换 Phase2 AnimationSet。Profile 负责绑定 FSM 与 Appearance/WeaponVisualSet Clip，状态机只选择 Flipbook 和表现状态，不通过动画帧或完成回调反向驱动伤害、移动、AI 或根 Box Collision。
 - 扩展：表现缺失、提前结束或加载失败必须不改变玩法；Animation2D 不依赖具体角色枚举，也不通过回调反向控制 Combat/Weapons。新增关卡场景应复用类型化 Arena Scene 契约，并由 Editor 维护关卡资产，不在 GameMode 增加路径或 Actor Label 分支。
 - 测试：`ReEchoArenaSceneTests.cpp` 覆盖正交视锥地面 footprint、中心跟随、四边/四角 Clamp 与地图小于视野时的中心锁定；场景 Actor 唯一性和资产绑定由 Editor 自动化与人工 PIE 验收。

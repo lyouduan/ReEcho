@@ -1899,6 +1899,11 @@ def validate_workflow() -> None:
     if not designer_experience_path.is_file():
         fail("designer experience library is missing shared/DESIGNER_EXPERIENCE/README.md")
     designer_experience = designer_experience_path.read_text(encoding="utf-8")
+    issue_template_path = ROOT / "issues" / "TEMPLATE.md"
+    if not issue_template_path.is_file():
+        fail("designer issue/request template is missing issues/TEMPLATE.md")
+    issue_template = issue_template_path.read_text(encoding="utf-8")
+    gitignore_text = (ROOT / ".gitignore").read_text(encoding="utf-8")
     artist_rules = (ROOT / "shared" / "ARTIST_RULES.md").read_text(encoding="utf-8")
     secretary_rules = (ROOT / "shared" / "SECRETARY_RULES.md").read_text(encoding="utf-8")
     git_rules = (ROOT / "shared" / "GIT_RULES.md").read_text(encoding="utf-8")
@@ -2003,16 +2008,32 @@ def validate_workflow() -> None:
             "## 本地工作区模式",
             "选择“一任务一 worktree”的唯一权威",
             "所有大程序任务都必须",
+            "## 程序接管 Issue 分支修复",
+            "推荐但可选的 Bug 修复方式",
+            "每个交给策划的程序测试候选都必须执行",
+            "策划未明确确认准确候选通过前，不得把修复发布到 main",
+            "本流程不再创建 `merge/...` 分支",
             "shared/GIT_RULES.md",
         ),
         "DESIGNER_RULES.md": (
             "策划用户路线",
             "ReEchoData.xlsx",
             "不得修改代码、生成器、Schema、构建配置",
-            "designer/<策划身份>/<任务>",
-            "designer-issue/<策划身份>/<任务>",
+            "issue/<策划身份>/<简述>",
+            "request/<策划身份>/<简述>",
+            "merge/<策划身份>/<简述>",
+            "issues/<策划身份>/bugs/<名称>-<简要描述>.md",
+            "issues/<策划身份>/requests/<名称>-<简要描述>.md",
+            "不分配 Plan 编号",
+            "源分支",
+            "准确提交号",
+            "完整日志",
+            "需求没有运行日志时允许不附日志",
             "已发布旧分支迁移",
             "策划明确确认“效果正确并同意推送”",
+            "程序明确选择 `PROGRAMMER_RULES.md` 的推荐接管流程",
+            "策划从远端同一分支拉取程序提供的准确测试候选并测试",
+            "最终策划 Merge 候选或程序 Issue 修复候选",
             "在哪里改什么可以使什么生效",
             "不得直接推送、合并或发布 `origin/main`",
             "shared/GIT_RULES.md",
@@ -2043,6 +2064,65 @@ def validate_workflow() -> None:
             "designer experience template lacks reusable effect evidence: "
             + ", ".join(missing_designer_experience_markers)
         )
+    issue_template_markers = (
+        "本文件只提供报告字段",
+        "程序接管 Issue 后的修复、构建、回交测试和 main 集成",
+        "源分支：",
+        "源提交：",
+        "当时的 `origin/main`：",
+        "运行环境与构建类型：",
+        "复现步骤：",
+        "验收标准：",
+        "已提交日志：",
+        "覆盖或截取时间范围：",
+        "策划对描述的确认：",
+        "程序接管：",
+        "程序测试候选：",
+        "策划测试候选：",
+        "最终 Merge 提交：",
+        "最终程序修复提交：",
+        "最终 `origin/main` 提交：",
+    )
+    missing_issue_template_markers = [
+        marker for marker in issue_template_markers if marker not in issue_template
+    ]
+    if missing_issue_template_markers:
+        fail(
+            "issues/TEMPLATE.md lacks designer report evidence fields: "
+            + ", ".join(missing_issue_template_markers)
+        )
+    if "!/issues/**/logs/**/*.log" not in gitignore_text:
+        fail(".gitignore must allow report logs under issues/**/logs/")
+    retired_designer_issues = ROOT / "Design" / "DesignerIssues"
+    if retired_designer_issues.exists():
+        fail("Design/DesignerIssues is retired; use per-designer records under issues/")
+    report_root = ROOT / "issues"
+    report_required_markers = (
+        "源分支：",
+        "源提交：",
+        "复现步骤：",
+        "验收标准：",
+        "策划对描述的确认：",
+    )
+    for report_path in report_root.rglob("*.md"):
+        if report_path == issue_template_path:
+            continue
+        relative_parts = report_path.relative_to(report_root).parts
+        if len(relative_parts) != 3 or relative_parts[1] not in {"bugs", "requests"}:
+            fail(f"designer report must be issues/<identity>/bugs|requests/<name>-<summary>.md: {rel(report_path)}")
+            continue
+        identity, _, filename = relative_parts
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", identity):
+            fail(f"designer report identity is not branch-safe: {rel(report_path)}")
+        stem = Path(filename).stem
+        if "-" not in stem or stem.startswith("-") or stem.endswith("-"):
+            fail(f"designer report filename must be <name>-<summary>.md: {rel(report_path)}")
+        if re.match(r"(?i)^(?:plan[-_ ]*)?\d+[-_. ]", stem):
+            fail(f"designer report filename must not use a Plan/issue number: {rel(report_path)}")
+        report_text = report_path.read_text(encoding="utf-8")
+        missing = [marker for marker in report_required_markers if marker not in report_text]
+        if missing:
+            fail(f"designer report lacks required evidence fields ({', '.join(missing)}): {rel(report_path)}")
     worktree_choice_markers = {
         "AGENTS.md": (
             "After that answer is known",
@@ -2226,7 +2306,12 @@ def validate_workflow() -> None:
             "能合并就合并、能推送就推送、能删除就删除",
             "鼓励小批量、较频繁地发布 main",
         ),
-        "PROGRAMMER_RULES.md": ("两种模式使用同一套 Plan 和发布门禁", "所有大程序任务都必须"),
+        "PROGRAMMER_RULES.md": (
+            "两种模式使用同一套 Plan 和发布门禁",
+            "所有大程序任务都必须",
+            "把刚 fetch 的 `origin/main` **merge** 到本地 Issue 分支",
+            "所有推送都是对同名 Issue 分支的普通非强制 push",
+        ),
         "EXECUTOR_RULES.md": ("按 `PROGRAMMER_RULES.md` 已确认的本地工作区模式执行", "Plan 中的 `Isolated | ReadOnly | SharedContract | Exclusive` 只说明集成风险"),
         "GIT_RULES.md": ("本地 WIP 提交的名称、粒度和临时身份", "人类账号 + AI 身份"),
         "WORKFLOW.md": ("本地工作自由，远端边界严格", "不存在 Exchange"),
@@ -2257,26 +2342,36 @@ def validate_workflow() -> None:
         "PROJECT_RULES.md": (
             "`origin/main` 是唯一权威发布分支",
             "程序路线与项目秘书除 `GIT_RULES.md` 定义的临时 `main-publish-lock` 外仍只推送 `origin/main`",
-            "`designer/<策划身份>/<任务>`",
-            "`designer-issue/<策划身份>/<任务>`",
+            "`issue/<策划身份>/<简述>`",
+            "`request/<策划身份>/<简述>`",
+            "`merge/<策划身份>/<简述>`",
             "`artist/<task>`",
             "协作分支不是发布面",
         ),
         "DESIGNER_RULES.md": (
-            "`designer/<策划身份>/<任务>`",
-            "`designer-issue/<策划身份>/<任务>`",
-            "`designer/<旧任务>`",
+            "`issue/<策划身份>/<简述>`",
+            "`request/<策划身份>/<简述>`",
+            "`merge/<策划身份>/<简述>`",
+            "旧 `designer/<策划身份>/<任务>`",
+            "旧 `designer-issue/<策划身份>/<任务>`",
             "不得直接推送、合并或发布 `origin/main`",
+        ),
+        "PROGRAMMER_RULES.md": (
+            "只接管已存在于远端",
+            "程序不得借本流程自行创建新 `issue/...`",
+            "所有推送都是对同名 Issue 分支的普通非强制 push",
+            "取得 `main-publish-lock`",
         ),
         "ARTIST_RULES.md": ("`artist/<task>`", "不得直接推送或发布 `main`"),
         "PLANNER_RULES.md": ("`origin/main` 是唯一权威发布分支", "`main-publish-lock`", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不自行推送任务分支"),
         "SECRETARY_RULES.md": ("临时 `main-publish-lock`", "普通非强制 push 发布 `origin/main`"),
-        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`designer/<策划身份>/<任务>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
+        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`issue/<策划身份>/<简述>`", "`request/<策划身份>/<简述>`", "`merge/<策划身份>/<简述>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
     }
     remote_branch_boundary_texts = {
         "PROJECT_RULES.md": project_rules,
         "DESIGNER_RULES.md": designer_rules,
+        "PROGRAMMER_RULES.md": programmer_rules,
         "ARTIST_RULES.md": artist_rules,
         "PLANNER_RULES.md": planner_rules,
         "EXECUTOR_RULES.md": executor_rules,

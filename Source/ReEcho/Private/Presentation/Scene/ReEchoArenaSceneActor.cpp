@@ -88,24 +88,30 @@ AReEchoArenaSceneActor::AReEchoArenaSceneActor()
 void AReEchoArenaSceneActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	UpdateEditorHierarchy();
-	UpdateEditorLayout();
-	ApplySceneProfile();
+	if (!bUseEditorAuthoredSceneLayout)
+	{
+		UpdateEditorHierarchy();
+		UpdateEditorLayout();
+		ApplySceneProfile();
+	}
 }
 
 FVector2D AReEchoArenaSceneActor::GetPlayerHalfExtents() const
 {
-	return PlayerHalfExtents * GetMapScale2D();
+	const FVector Extent = PlayerBounds ? PlayerBounds->GetScaledBoxExtent() : FVector::ZeroVector;
+	return FVector2D(Extent.X, Extent.Y);
 }
 
 FVector2D AReEchoArenaSceneActor::GetCameraClampHalfExtents() const
 {
-	return CameraClampHalfExtents * GetMapScale2D();
+	const FVector Extent = CameraClampBounds ? CameraClampBounds->GetScaledBoxExtent() : FVector::ZeroVector;
+	return FVector2D(Extent.X, Extent.Y);
 }
 
 FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 {
-	return EnemySpawnHalfExtents * GetMapScale2D();
+	const FVector Extent = EnemySpawnBounds ? EnemySpawnBounds->GetScaledBoxExtent() : FVector::ZeroVector;
+	return FVector2D(Extent.X, Extent.Y);
 }
 
 FVector2D AReEchoArenaSceneActor::GetArenaCenter() const
@@ -116,14 +122,46 @@ FVector2D AReEchoArenaSceneActor::GetArenaCenter() const
 
 float AReEchoArenaSceneActor::GetGameplayPlaneWorldZ() const
 {
-	return CalculateGameplayPlaneWorldZ(MapRoot ? MapRoot->GetComponentTransform() : GetActorTransform(),
-	                                    GameplayPlaneZ);
+	return CalculateGameplayPlaneWorldZ(GetActorTransform(), GameplayPlaneZ);
 }
 
 float AReEchoArenaSceneActor::CalculateGameplayPlaneWorldZ(const FTransform& MapTransform,
                                                            const float LocalGameplayPlaneZ)
 {
 	return MapTransform.TransformPosition(FVector(0.0f, 0.0f, LocalGameplayPlaneZ)).Z;
+}
+
+FBox2D AReEchoArenaSceneActor::CalculateWorldXYBounds(const FBox& LocalBounds, const FTransform& LocalToWorld)
+{
+	FBox2D Result(ForceInit);
+	for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+	{
+		const FVector LocalCorner((CornerIndex & 1) ? LocalBounds.Max.X : LocalBounds.Min.X,
+		                          (CornerIndex & 2) ? LocalBounds.Max.Y : LocalBounds.Min.Y,
+		                          (CornerIndex & 4) ? LocalBounds.Max.Z : LocalBounds.Min.Z);
+		const FVector WorldCorner = LocalToWorld.TransformPosition(LocalCorner);
+		Result += FVector2D(WorldCorner.X, WorldCorner.Y);
+	}
+	return Result;
+}
+
+bool AReEchoArenaSceneActor::DoesBackdropCoverCameraBounds(const float Tolerance) const
+{
+	if (!Backdrop || !Backdrop->GetStaticMesh() || !CameraClampBounds)
+	{
+		return false;
+	}
+	const FBox2D BackdropBounds =
+	    CalculateWorldXYBounds(Backdrop->GetStaticMesh()->GetBoundingBox(), Backdrop->GetComponentTransform());
+	const FVector CameraExtent = CameraClampBounds->GetUnscaledBoxExtent();
+	const FBox2D CameraBounds = CalculateWorldXYBounds(FBox(-CameraExtent, CameraExtent),
+	                                                     CameraClampBounds->GetComponentTransform());
+	const float SafeTolerance = FMath::Max(0.0f, Tolerance);
+	return BackdropBounds.bIsValid && CameraBounds.bIsValid &&
+	       BackdropBounds.Min.X <= CameraBounds.Min.X + SafeTolerance &&
+	       BackdropBounds.Min.Y <= CameraBounds.Min.Y + SafeTolerance &&
+	       BackdropBounds.Max.X >= CameraBounds.Max.X - SafeTolerance &&
+	       BackdropBounds.Max.Y >= CameraBounds.Max.Y - SafeTolerance;
 }
 
 FVector2D AReEchoArenaSceneActor::GetMapScale2D() const
@@ -175,12 +213,12 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	{
 		return Fail(TEXT("Required Arena Scene components are missing."));
 	}
-	if (!MapMaterial && (!SceneProfile || !SceneProfile->MapMaterial))
+	if (!Backdrop->GetMaterial(0))
 	{
-		return Fail(TEXT("Neither SceneProfile nor MapMaterial provides an arena map material."));
+		return Fail(TEXT("Backdrop Material Slot 0 must provide the arena map material."));
 	}
-	if (BackdropHalfExtents.GetMin() < 100.0f || CameraClampHalfExtents.GetMin() < 100.0f ||
-	    PlayerHalfExtents.GetMin() < 100.0f || EnemySpawnHalfExtents.GetMin() < 100.0f)
+	if (GetCameraClampHalfExtents().GetMin() < 100.0f || GetPlayerHalfExtents().GetMin() < 100.0f ||
+	    GetEnemySpawnHalfExtents().GetMin() < 100.0f)
 	{
 		return Fail(TEXT("Arena bounds are degenerate."));
 	}
@@ -192,6 +230,10 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	{
 		return Fail(TEXT("MapRoot scale must be positive on the gameplay axes."));
 	}
+	if (!DoesBackdropCoverCameraBounds())
+	{
+		return Fail(TEXT("Backdrop mesh world XY footprint must cover CameraClampBounds."));
+	}
 	return true;
 }
 
@@ -199,31 +241,7 @@ bool AReEchoArenaSceneActor::BuildSceneRegistry(const TArray<FReEchoArenaSceneRe
                                                 TMap<FName, TSubclassOf<AReEchoArenaSceneActor>>& OutRegistry,
                                                 FString& OutError)
 {
-	OutRegistry.Reset();
-	OutError.Reset();
-	for (const FReEchoArenaSceneRegistration& Registration : Registrations)
-	{
-		if (Registration.SceneId.IsNone() || !Registration.ArenaClass)
-		{
-			OutError = TEXT("Arena Scene registration requires a non-empty SceneId and ArenaClass.");
-			OutRegistry.Reset();
-			return false;
-		}
-		if (OutRegistry.Contains(Registration.SceneId))
-		{
-			OutError = FString::Printf(TEXT("Duplicate Arena Scene registration for SceneId=%s."),
-			                           *Registration.SceneId.ToString());
-			OutRegistry.Reset();
-			return false;
-		}
-		OutRegistry.Add(Registration.SceneId, Registration.ArenaClass);
-	}
-	if (OutRegistry.IsEmpty())
-	{
-		OutError = TEXT("Arena Scene registry is empty.");
-		return false;
-	}
-	return true;
+	return UReEchoArenaSceneCatalog::BuildRegistry(Registrations, OutRegistry, OutError);
 }
 
 FVector2D AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(const float OrthoWidth,
