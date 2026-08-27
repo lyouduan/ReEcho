@@ -5,6 +5,7 @@
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
+#include "Components/WidgetSwitcher.h"
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
@@ -93,6 +94,21 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		UReEchoLoadoutSelectionWidget* AuthoredWidget =
 		    NewObject<UReEchoLoadoutSelectionWidget>(GetTransientPackage(), SelectionClass);
 		TestTrue(TEXT("Authored selection widget initializes its Designer tree"), AuthoredWidget->Initialize());
+		TestNotNull(TEXT("Designer tree owns the stage switcher"), AuthoredWidget->StageSwitcher.Get());
+		if (AuthoredWidget->StageSwitcher)
+		{
+			TestEqual(TEXT("Stage switcher owns both authored pages"),
+			          AuthoredWidget->StageSwitcher->GetNumWidgets(),
+			          2);
+			TestTrue(TEXT("Character page remains the first Designer page"),
+			         AuthoredWidget->StageSwitcher->GetWidgetAtIndex(0) == AuthoredWidget->CharacterStagePanel);
+			TestTrue(TEXT("Weapon page remains the second Designer page"),
+			         AuthoredWidget->StageSwitcher->GetWidgetAtIndex(1) == AuthoredWidget->WeaponStagePanel);
+			AuthoredWidget->SetSelectionStage(UReEchoLoadoutSelectionWidget::ESelectionStage::Weapon);
+			TestEqual(TEXT("Runtime selects the authored weapon page"),
+			          AuthoredWidget->StageSwitcher->GetActiveWidgetIndex(),
+			          1);
+		}
 		if (AuthoredWidget->CharacterRow && AuthoredWidget->WeaponRow)
 		{
 			TestEqual(

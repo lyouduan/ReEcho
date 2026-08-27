@@ -54,6 +54,25 @@ def main():
                 )
         if asset_path.endswith("WBP_ReEchoLoadoutSelection"):
             widget_by_name = {widget.get_name(): widget for widget in widgets}
+            design_canvas = widget_by_name.get("LoadoutDesignCanvas")
+            stage_switcher = widget_by_name.get("StageSwitcher")
+            character_stage = widget_by_name.get("CharacterStagePanel")
+            weapon_stage = widget_by_name.get("WeaponStagePanel")
+            if (
+                not isinstance(stage_switcher, unreal.WidgetSwitcher)
+                or stage_switcher.get_parent() is not design_canvas
+                or stage_switcher.get_children_count() != 2
+                or stage_switcher.get_child_at(0) is not character_stage
+                or stage_switcher.get_child_at(1) is not weapon_stage
+            ):
+                raise RuntimeError(
+                    "Plan132 selection stages are not owned by the Designer WidgetSwitcher"
+                )
+            unreal.log(
+                "[Plan132LoadoutAudit] "
+                f"stage_switcher_active={stage_switcher.get_active_widget_index()} "
+                "pages=['CharacterStagePanel', 'WeaponStagePanel']"
+            )
             character_row = widget_by_name.get("CharacterRow")
             weapon_row = widget_by_name.get("WeaponRow")
             if not isinstance(character_row, unreal.HorizontalBox) or not isinstance(
@@ -85,7 +104,6 @@ def main():
                     raise RuntimeError(
                         f"Plan132 {domain} preview does not use the runtime Entry WBP"
                     )
-            design_canvas = widget_by_name.get("LoadoutDesignCanvas")
             arrow_names = (
                 "CharacterSelectionArrow0",
                 "CharacterSelectionArrow1",

@@ -12,6 +12,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/WidgetSwitcher.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Engine/Texture2D.h"
 #include "ReEcho.h"
@@ -275,16 +276,38 @@ void UReEchoLoadoutSelectionWidget::NativePreConstruct()
 	{
 		return;
 	}
-	const bool bCharacterStage = DesignerPreviewStage == EReEchoLoadoutDesignerPreviewStage::Character;
-	if (CharacterStagePanel)
+	const bool bCharacterStage = !StageSwitcher || StageSwitcher->GetActiveWidgetIndex() == 0;
+	if (StageSwitcher)
 	{
-		CharacterStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
-		                                                   : ESlateVisibility::Collapsed);
+		if (CharacterStagePanel)
+		{
+			CharacterStagePanel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		if (WeaponStagePanel)
+		{
+			WeaponStagePanel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		if (CharacterRow)
+		{
+			CharacterRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		if (WeaponRow)
+		{
+			WeaponRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
 	}
-	if (WeaponStagePanel)
+	else
 	{
-		WeaponStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
-		                                                : ESlateVisibility::SelfHitTestInvisible);
+		if (CharacterStagePanel)
+		{
+			CharacterStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
+			                                                   : ESlateVisibility::Collapsed);
+		}
+		if (WeaponStagePanel)
+		{
+			WeaponStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
+			                                                : ESlateVisibility::SelfHitTestInvisible);
+		}
 	}
 	if (TitleText)
 	{
@@ -600,25 +623,48 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	const bool bHasCharacterPreview = !SelectedCharacterId.IsNone();
 	const bool bHasWeaponPreview = !SelectedWeaponId.IsNone();
 	const bool bHasCurrentPreview = bCharacterStage ? bHasCharacterPreview : bHasWeaponPreview;
-	if (CharacterStagePanel)
+	if (StageSwitcher)
 	{
-		CharacterStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
-		                                                   : ESlateVisibility::Collapsed);
+		StageSwitcher->SetActiveWidgetIndex(bCharacterStage ? 0 : 1);
+		if (CharacterStagePanel)
+		{
+			CharacterStagePanel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		if (WeaponStagePanel)
+		{
+			WeaponStagePanel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		if (CharacterRow)
+		{
+			CharacterRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		if (WeaponRow)
+		{
+			WeaponRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
 	}
-	if (WeaponStagePanel)
+	else
 	{
-		WeaponStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
-		                                                : ESlateVisibility::SelfHitTestInvisible);
-	}
-	if (CharacterRow)
-	{
-		CharacterRow->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
-		                                            : ESlateVisibility::Collapsed);
-	}
-	if (WeaponRow)
-	{
-		WeaponRow->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
-		                                         : ESlateVisibility::SelfHitTestInvisible);
+		if (CharacterStagePanel)
+		{
+			CharacterStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
+			                                                   : ESlateVisibility::Collapsed);
+		}
+		if (WeaponStagePanel)
+		{
+			WeaponStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
+			                                                : ESlateVisibility::SelfHitTestInvisible);
+		}
+		if (CharacterRow)
+		{
+			CharacterRow->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
+			                                            : ESlateVisibility::Collapsed);
+		}
+		if (WeaponRow)
+		{
+			WeaponRow->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
+			                                         : ESlateVisibility::SelfHitTestInvisible);
+		}
 	}
 	if (TitleText)
 	{

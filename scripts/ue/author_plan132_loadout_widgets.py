@@ -332,6 +332,42 @@ def ensure_additional_selection_arrows(
         mark_variable(toolset, blueprint, arrow)
 
 
+def ensure_stage_switcher(toolset, blueprint, design_canvas, character_stage, weapon_stage):
+    widgets = widget_map(toolset, blueprint)
+    stage_switcher = widgets.get("StageSwitcher")
+    created = stage_switcher is None
+    if created:
+        stage_switcher = add_widget(
+            toolset, blueprint, unreal.WidgetSwitcher, "StageSwitcher", design_canvas
+        )
+    elif not isinstance(stage_switcher, unreal.WidgetSwitcher):
+        raise RuntimeError("Plan132 StageSwitcher has the wrong type")
+    if stage_switcher.get_parent() is not design_canvas:
+        moved = toolset.call_method(
+            "MoveWidget", args=(blueprint, stage_switcher, design_canvas, -1)
+        )
+        if moved.widget is None:
+            raise RuntimeError("Plan132 failed to move StageSwitcher to the design canvas")
+        stage_switcher = moved.widget
+    set_canvas_fill(stage_switcher, 10)
+    for index, stage in enumerate((character_stage, weapon_stage)):
+        if stage.get_parent() is not stage_switcher:
+            moved = toolset.call_method(
+                "MoveWidget", args=(blueprint, stage, stage_switcher, index)
+            )
+            if moved.widget is None:
+                raise RuntimeError(f"Plan132 failed to move stage into switcher: {stage.get_name()}")
+            stage = moved.widget
+        set_panel_slot_fill(stage)
+        stage.set_editor_property(
+            "visibility", unreal.SlateVisibility.SELF_HIT_TEST_INVISIBLE
+        )
+    if created:
+        stage_switcher.set_active_widget_index(0)
+    mark_variable(toolset, blueprint, stage_switcher)
+    return stage_switcher
+
+
 def configure_tooltip_frame(frame, frame_texture):
     background = frame.get_editor_property("background")
     background.set_editor_property("resource_object", frame_texture)
@@ -747,7 +783,16 @@ def author_selection(
         toolset, blueprint, design_canvas, arrow_texture
     )
     widgets = widget_map(toolset, blueprint)
+    ensure_stage_switcher(
+        toolset,
+        blueprint,
+        design_canvas,
+        widgets["CharacterStagePanel"],
+        widgets["WeaponStagePanel"],
+    )
+    widgets = widget_map(toolset, blueprint)
     required = {
+        "StageSwitcher": unreal.WidgetSwitcher,
         "CharacterStagePanel": unreal.CanvasPanel,
         "WeaponStagePanel": unreal.CanvasPanel,
         "CharacterRow": unreal.HorizontalBox,
