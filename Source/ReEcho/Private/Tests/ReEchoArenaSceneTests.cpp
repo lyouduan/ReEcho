@@ -96,15 +96,30 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("East inner face and padding define maximum X"), SpawnBounds.Max.X, 1975.0);
 	TestEqual(TEXT("South inner face and padding define minimum Y"), SpawnBounds.Min.Y, -1875.0);
 	TestEqual(TEXT("North inner face and padding define maximum Y"), SpawnBounds.Max.Y, 2875.0);
-	TestFalse(TEXT("Crossed walls fail closed"),
+	TestTrue(TEXT("Mirrored names and ninety-degree role rotation still derive the geometric enclosure"),
+	         AReEchoArenaSceneActor::CalculateWallDerivedSpawnBounds(
+	             // A/B are geometrically top/bottom despite occupying the former West/East argument slots.
+	             FBox2D(FVector2D(0.0f, 2975.0f), FVector2D(2200.0f, 3025.0f)),
+	             FBox2D(FVector2D(0.0f, -2025.0f), FVector2D(2200.0f, -1975.0f)),
+	             // C/D are geometrically right/left and are intentionally reversed.
+	             FBox2D(FVector2D(2075.0f, -1000.0f), FVector2D(2125.0f, 3000.0f)),
+	             FBox2D(FVector2D(75.0f, -1000.0f), FVector2D(125.0f, 3000.0f)),
+	             100.0f,
+	             SpawnBounds,
+	             &SpawnBoundsError));
+	TestEqual(TEXT("Mirrored wall assignment preserves minimum corner"), SpawnBounds.Min, FVector2D(225.0f, -1875.0f));
+	TestEqual(TEXT("Mirrored wall assignment preserves maximum corner"), SpawnBounds.Max, FVector2D(1975.0f, 2875.0f));
+	TestFalse(TEXT("A genuinely too-narrow enclosure still fails closed after padding"),
 	          AReEchoArenaSceneActor::CalculateWallDerivedSpawnBounds(
-	              FBox2D(FVector2D(900.0f, 0.0f), FVector2D(1000.0f, 100.0f)),
-	              FBox2D(FVector2D(0.0f, 0.0f), FVector2D(100.0f, 100.0f)),
-	              FBox2D(FVector2D(0.0f, -100.0f), FVector2D(100.0f, 0.0f)),
-	              FBox2D(FVector2D(0.0f, 1000.0f), FVector2D(100.0f, 1100.0f)),
+	              FBox2D(FVector2D(0.0f, -500.0f), FVector2D(50.0f, 500.0f)),
+	              FBox2D(FVector2D(200.0f, -500.0f), FVector2D(250.0f, 500.0f)),
+	              FBox2D(FVector2D(0.0f, -550.0f), FVector2D(250.0f, -500.0f)),
+	              FBox2D(FVector2D(0.0f, 500.0f), FVector2D(250.0f, 550.0f)),
 	              100.0f,
 	              SpawnBounds,
 	              &SpawnBoundsError));
+	TestTrue(TEXT("Degenerate diagnostic includes the computed padded bounds"),
+	         SpawnBoundsError.Contains(TEXT("padded bounds")));
 
 	AReEchoArenaSceneActor* Arena = NewObject<AReEchoArenaSceneActor>(GetTransientPackage());
 	Arena->SetActorTransform(ShiftedMap);

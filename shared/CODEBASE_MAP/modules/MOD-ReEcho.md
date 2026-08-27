@@ -125,7 +125,7 @@ DefaultEngine.ini
           → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
 ```
 
-Arena 以 Blueprint 组件为权威：相机与玩家范围读取 `CameraClampBounds`、`PlayerBounds` 的实际缩放后 Extent；怪物出生安全区从 `WallWest.MaxX`、`WallEast.MinX`、`WallSouth.MaxY`、`WallNorth.MinY` 四个世界 AABB 内侧面派生，并统一内缩 `EnemySpawnWallPadding`（默认 100 cm，覆盖当前最大 65 cm 普通怪碰撞半径并保留余量）。`EnemySpawnBounds` 只保留序列化和 Editor 可视兼容，不再决定正式波次或 GM 出生。`Backdrop` Material Slot 0 是唯一地图材质入口。SC01-SC04 已把旧 HalfExtents 烘入 BoxComponent 并启用 `bUseEditorAuthoredSceneLayout`，Construction 不再重写层级、材质、Transform 或 Bounds；旧 SceneProfile、Actor MapMaterial 和每 BP 重复 Registry 均已清空，仅保留序列化兼容字段。SC01 边缘插片是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。
+Arena 以 Blueprint 组件为权威：相机与玩家范围读取 `CameraClampBounds`、`PlayerBounds` 的实际缩放后 Extent；怪物出生安全区枚举四个墙体世界 AABB 的三种对边拆分及两种轴向分配，以墙中心分离方向过滤错误配对，选择能形成的最大内接世界矩形，再按中心排序取得左右/上下内侧面。算法不依赖 `WallEast/West/North/South` 名称固定对应世界轴正负，兼容非零中心、镜像和轴向旋转。安全区统一内缩 `EnemySpawnWallPadding`（默认 100 cm，覆盖当前最大 65 cm 普通怪碰撞半径并保留余量）；所有配对均无法围合或内缩后退化时输出四墙实际 AABB 与六个候选计算结果并失败关闭。`EnemySpawnBounds` 只保留序列化和 Editor 可视兼容，不再决定正式波次或 GM 出生。`Backdrop` Material Slot 0 是唯一地图材质入口。SC01-SC04 已把旧 HalfExtents 烘入 BoxComponent 并启用 `bUseEditorAuthoredSceneLayout`，Construction 不再重写层级、材质、Transform 或 Bounds；旧 SceneProfile、Actor MapMaterial 和每 BP 重复 Registry 均已清空，仅保留序列化兼容字段。SC01 边缘插片是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 

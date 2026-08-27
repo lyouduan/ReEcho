@@ -114,35 +114,95 @@ FVector2D AReEchoArenaSceneActor::GetEnemySpawnHalfExtents() const
 	return FVector2D(Extent.X, Extent.Y);
 }
 
-bool AReEchoArenaSceneActor::CalculateWallDerivedSpawnBounds(const FBox2D& WestBounds,
-                                                              const FBox2D& EastBounds,
-                                                              const FBox2D& SouthBounds,
-                                                              const FBox2D& NorthBounds,
+bool AReEchoArenaSceneActor::CalculateWallDerivedSpawnBounds(const FBox2D& WallBoundsA,
+                                                              const FBox2D& WallBoundsB,
+                                                              const FBox2D& WallBoundsC,
+                                                              const FBox2D& WallBoundsD,
                                                               const float Padding,
                                                               FBox2D& OutBounds,
                                                               FString* OutReason)
 {
 	OutBounds = FBox2D(ForceInit);
-	auto Fail = [OutReason](const TCHAR* Reason)
+	const TArray<FBox2D, TInlineAllocator<4>> WallBounds = {
+	    WallBoundsA, WallBoundsB, WallBoundsC, WallBoundsD};
+	auto FormatBounds = [&WallBounds]()
+	{
+		FString Result;
+		for (int32 Index = 0; Index < WallBounds.Num(); ++Index)
+		{
+			const FBox2D& Bounds = WallBounds[Index];
+			Result += FString::Printf(TEXT("%s%d=[(%.2f,%.2f)-(%.2f,%.2f)]"),
+			                          Index > 0 ? TEXT(" ") : TEXT(""),
+			                          Index,
+			                          Bounds.Min.X,
+			                          Bounds.Min.Y,
+			                          Bounds.Max.X,
+			                          Bounds.Max.Y);
+		}
+		return Result;
+	};
+	auto Fail = [OutReason, &FormatBounds](const FString& Reason)
 	{
 		if (OutReason)
 		{
-			*OutReason = Reason;
+			*OutReason = FString::Printf(TEXT("%s Walls: %s"), *Reason, *FormatBounds());
 		}
 		return false;
 	};
-	if (!WestBounds.bIsValid || !EastBounds.bIsValid || !SouthBounds.bIsValid || !NorthBounds.bIsValid ||
-	    Padding < 0.0f)
+	if (Padding < 0.0f || WallBounds.ContainsByPredicate([](const FBox2D& Bounds) { return !Bounds.bIsValid; }))
 	{
 		return Fail(TEXT("Wall bounds or spawn padding are invalid."));
 	}
-	const FVector2D Minimum(WestBounds.Max.X + Padding, SouthBounds.Max.Y + Padding);
-	const FVector2D Maximum(EastBounds.Min.X - Padding, NorthBounds.Min.Y - Padding);
-	if (Minimum.X >= Maximum.X || Minimum.Y >= Maximum.Y)
+
+	// Exactly three unique ways exist to split four walls into two opposite pairs. Evaluate all of them because
+	// Blueprint component names and transformed long axes do not reliably identify world left/right/top/bottom.
+	constexpr int32 Pairings[3][4] = {{0, 1, 2, 3}, {0, 2, 1, 3}, {0, 3, 1, 2}};
+	float BestArea = -1.0f;
+	FBox2D BestBounds(ForceInit);
+	FString CandidateDiagnostics;
+	for (int32 PairingIndex = 0; PairingIndex < UE_ARRAY_COUNT(Pairings); ++PairingIndex)
 	{
-		return Fail(TEXT("Wall inner faces do not form a usable spawn-safe rectangle after padding."));
+		for (int32 Orientation = 0; Orientation < 2; ++Orientation)
+		{
+			const int32 XOffset = Orientation == 0 ? 0 : 2;
+			const int32 YOffset = Orientation == 0 ? 2 : 0;
+			const FBox2D& FirstX = WallBounds[Pairings[PairingIndex][XOffset]];
+			const FBox2D& SecondX = WallBounds[Pairings[PairingIndex][XOffset + 1]];
+			const FBox2D& LeftWall = FirstX.GetCenter().X < SecondX.GetCenter().X ? FirstX : SecondX;
+			const FBox2D& RightWall = &LeftWall == &FirstX ? SecondX : FirstX;
+			const FBox2D& FirstY = WallBounds[Pairings[PairingIndex][YOffset]];
+			const FBox2D& SecondY = WallBounds[Pairings[PairingIndex][YOffset + 1]];
+			const FBox2D& BottomWall = FirstY.GetCenter().Y < SecondY.GetCenter().Y ? FirstY : SecondY;
+			const FBox2D& TopWall = &BottomWall == &FirstY ? SecondY : FirstY;
+			const FVector2D Minimum(LeftWall.Max.X + Padding, BottomWall.Max.Y + Padding);
+			const FVector2D Maximum(RightWall.Min.X - Padding, TopWall.Min.Y - Padding);
+			const FVector2D Size = Maximum - Minimum;
+			const FVector2D XCenterDelta = FirstX.GetCenter() - SecondX.GetCenter();
+			const FVector2D YCenterDelta = FirstY.GetCenter() - SecondY.GetCenter();
+			const bool bAxisSeparationValid = FMath::Abs(XCenterDelta.X) >= FMath::Abs(XCenterDelta.Y) &&
+			                                      FMath::Abs(YCenterDelta.Y) >= FMath::Abs(YCenterDelta.X);
+			const float Area = bAxisSeparationValid && Size.X > 0.0f && Size.Y > 0.0f ? Size.X * Size.Y : -1.0f;
+			CandidateDiagnostics += FString::Printf(TEXT("%sP%d%c=[(%.2f,%.2f)-(%.2f,%.2f)]"),
+			                                        CandidateDiagnostics.IsEmpty() ? TEXT("") : TEXT(" "),
+			                                        PairingIndex,
+			                                        Orientation == 0 ? TEXT('A') : TEXT('B'),
+			                                        Minimum.X,
+			                                        Minimum.Y,
+			                                        Maximum.X,
+			                                        Maximum.Y);
+			if (Area > BestArea)
+			{
+				BestArea = Area;
+				BestBounds = FBox2D(Minimum, Maximum);
+			}
+		}
 	}
-	OutBounds = FBox2D(Minimum, Maximum);
+	if (BestArea <= 0.0f || !BestBounds.bIsValid)
+	{
+		return Fail(FString::Printf(TEXT("No opposite-wall pairing produces usable padded bounds. Candidates: %s"),
+		                            *CandidateDiagnostics));
+	}
+	OutBounds = BestBounds;
 	return true;
 }
 
@@ -154,13 +214,36 @@ bool AReEchoArenaSceneActor::GetEnemySpawnWorldBounds(FBox2D& OutBounds, FString
 		           ? CalculateWorldXYBounds(Component->GetStaticMesh()->GetBoundingBox(), Component->GetComponentTransform())
 		           : FBox2D(ForceInit);
 	};
-	return CalculateWallDerivedSpawnBounds(ComponentBounds(WallWest),
-	                                       ComponentBounds(WallEast),
-	                                       ComponentBounds(WallSouth),
-	                                       ComponentBounds(WallNorth),
-	                                       EnemySpawnWallPadding,
-	                                       OutBounds,
-	                                       OutReason);
+	const FBox2D WestBounds = ComponentBounds(WallWest);
+	const FBox2D EastBounds = ComponentBounds(WallEast);
+	const FBox2D SouthBounds = ComponentBounds(WallSouth);
+	const FBox2D NorthBounds = ComponentBounds(WallNorth);
+	FString SolverReason;
+	const bool bResolved = CalculateWallDerivedSpawnBounds(WestBounds,
+	                                                      EastBounds,
+	                                                      SouthBounds,
+	                                                      NorthBounds,
+	                                                      EnemySpawnWallPadding,
+	                                                      OutBounds,
+	                                                      &SolverReason);
+	if (!bResolved && OutReason)
+	{
+		auto FormatBox = [](const FBox2D& Bounds)
+		{
+			return FString::Printf(TEXT("[(%.2f,%.2f)-(%.2f,%.2f)]"),
+			                       Bounds.Min.X,
+			                       Bounds.Min.Y,
+			                       Bounds.Max.X,
+			                       Bounds.Max.Y);
+		};
+		*OutReason = FString::Printf(TEXT("WallWest=%s WallEast=%s WallSouth=%s WallNorth=%s Solver=%s"),
+		                             *FormatBox(WestBounds),
+		                             *FormatBox(EastBounds),
+		                             *FormatBox(SouthBounds),
+		                             *FormatBox(NorthBounds),
+		                             *SolverReason);
+	}
+	return bResolved;
 }
 
 FVector2D AReEchoArenaSceneActor::GetArenaCenter() const

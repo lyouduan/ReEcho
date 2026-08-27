@@ -70,10 +70,11 @@ public:
 	                                            const FIntPoint& PriorityRange);
 	static float CalculateGameplayPlaneWorldZ(const FTransform& MapTransform, float LocalGameplayPlaneZ);
 	static FBox2D CalculateWorldXYBounds(const FBox& LocalBounds, const FTransform& LocalToWorld);
-	static bool CalculateWallDerivedSpawnBounds(const FBox2D& WestBounds,
-	                                            const FBox2D& EastBounds,
-	                                            const FBox2D& SouthBounds,
-	                                            const FBox2D& NorthBounds,
+	/** Derives axis-aligned inner faces from wall geometry; argument order and component names are not directional. */
+	static bool CalculateWallDerivedSpawnBounds(const FBox2D& WallBoundsA,
+	                                            const FBox2D& WallBoundsB,
+	                                            const FBox2D& WallBoundsC,
+	                                            const FBox2D& WallBoundsD,
 	                                            float Padding,
 	                                            FBox2D& OutBounds,
 	                                            FString* OutReason = nullptr);

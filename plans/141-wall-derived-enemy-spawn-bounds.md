@@ -48,7 +48,7 @@
 - 设计意图：消除墙体与 `EnemySpawnBounds` 的重复配置，让美术只移动墙体即可改变真实出生安全区，同时保持出生求解纯函数、可测试和确定性。
 - 权威状态与依赖：四个 Wall 组件是出生外边界权威；Arena Scene 将四墙包围区域转换为世界 `FBox2D`，GameMode 只传值，SpawnResolver 不依赖 UObject 或碰撞查询。`EnemySpawnBounds` 保留序列化/Editor 可视兼容，但不再决定正式出生范围。
 - 决策记录：
-  1. 按命名语义读取墙体世界 Bounds 的内侧面：West.MaxX、East.MinX、South.MaxY、North.MinY，支持非对称位置与 Arena 整体平移；墙旋转时采用世界 AABB，结果偏保守而不会越墙。
+  1. 读取四墙世界 AABB 后枚举三种对边拆分及两种轴向分配，以墙中心分离方向过滤错误配对，选择最大合法内接世界矩形，再按中心排序取得左右/上下内侧面；不得假定 `WallEast/West/North/South` 名称固定对应世界轴正负。支持非对称位置、Arena 整体平移、镜像及轴向旋转；所有配对均无法围合时失败关闭。
   2. Arena 暴露可调 `EnemySpawnWallPadding`，安全区由墙内侧再统一内缩；怪物实际碰撞尺寸若当前预生成链无法无复制取得，则第一版使用覆盖现有最大普通怪碰撞的保守场景 Padding，并在 Plan 记录取值依据，不在 SpawnResolver 硬编码第二份敌人数值。
   3. `FReEchoSpawnResolveRequest` 改为显式世界 Min/Max 或 `FBox2D` 值语义；Player/Echo Anchor 按该 Bounds 处理，删除世界零点假设。
   4. 随机候选越界直接继续尝试，不再 Clamp；确定性 fallback 在安全区内部寻找合法点，并遵守玩家距离与既有出生间距，失败则 fail closed。
@@ -111,6 +111,7 @@
 - SpawnResolver 请求改为世界 `FBox2D` 值语义；随机越界候选直接重试，确定性 11x11 网格 fallback 完整复查玩家/Echo 距离和既有出生间距，无合法点时失败关闭。
 - 正式预警预留在活动 Arena 读取一次墙体 Bounds，预测锚点只钳到该世界矩形；Commit 仍原样复用预留位置，未修改存档字段或已有保存位置。
 - `GMSpawnFox` 改用同一 Bounds；越界弧线候选被拒绝，由安全区内确定性网格补足，非法 Bounds 整体拒绝并输出原因。
+- PIE 修复轮次：首个候选在 SC01 `PrepareNextEncounter` 暴露墙名与世界轴方向不一致，旧算法误判 Bounds 退化并阻止 `BeginEncounter`。现改为完全按四墙 AABB 几何识别边界，错误信息包含四墙实际 AABB、轴向数量或退化后的计算 Bounds；补充名称轴向反转/镜像成功与真实过窄失败回归。
 
 ### 证据
 
@@ -120,10 +121,13 @@
 - 测试新增覆盖非零中心、非对称墙体、墙厚/Padding、交叉墙失败、越界 fail closed、世界 Bounds 内结果和 GM 最大 16 只 fallback。
 - SC01-SC04 Blueprint 未出现在工作树差异中，未发生二进制修改。
 - 最终静态门禁：`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check` 与 `git diff --check` 通过。
+- 上述构建、自动化与预构建证据属于首个候选 `c7e9ddf6`，已被本轮源码修复失效；当前 Unreal Editor 正在运行，按规则未启动第二实例。本轮仅执行源码格式/静态检查并提交，关闭 Editor 后必须重新 FullRebuild、刷新预构建包并重跑 Arena/Encounter/GameMode/StageTransition。
+- 本轮 `git diff --check` 通过；`validate_project.py` 执行后仅在预构建一致性门禁报告本轮三个 Arena 源/测试文件 fingerprint 过期，符合尚未构建的预期状态，不能记为通过。
 
 ### 剩余风险
 
 - 需要用户在 PIE 中验证 SC03 边缘正式波次及 `GMSpawnFox 16 1000` 的实际碰撞/可击杀性；自动化不能代替视觉和玩法验收。
+- 还需先回归 SC01 从 Encounter 1 进入 PrepareNextEncounter，确认墙体安全区不再误判且 EncounterIndex 正常推进；随后再执行 SC03 边缘验证。
 - 附加运行全量 `ReEcho` 自动化暴露与本任务路径无关的既有基线失败：`ReEcho.UI.CombatHud.Formatting` 负数格式预期、多个禁用武器符文数据预期，随后 `ReEchoWeaponRuntimeTests.cpp:184` 的测试辅助断言退出。Plan141 聚焦矩阵均独立通过；本候选未修改 UI、武器或生产数据。
 
 ### 人工验收结果/请求
