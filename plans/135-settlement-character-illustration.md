@@ -43,15 +43,15 @@
 
 ## 锁定验收
 
-- [ ] 选 J_HEART / J_SPADE / J_CLOVER / J_DIAMOND 中任一带到死亡，结算失败页角色立绘 = 该角色在选角界面所用的 `Selected` 立绘，不再是固定红帽。
-- [ ] 同上角色带至胜利，结算胜利页角色立绘 = 该角色选角 `Selected` 立绘。
-- [ ] 选红帽角色死亡/胜利，结算角色立绘 = 红帽（与现状一致）。
+- [x] 选 J_HEART / J_SPADE / J_CLOVER / J_DIAMOND 中任一带到死亡，结算失败页角色立绘 = 该角色在选角界面所用的 `Selected` 立绘，不再是固定红帽。
+- [x] 同上角色带至胜利，结算胜利页角色立绘 = 该角色选角 `Selected` 立绘。
+- [x] 选红帽角色死亡/胜利，结算角色立绘 = 红帽（与现状一致）。
 - [x] 胜利与失败角色 Image 均位于各自 Canvas 最前层且保持 `HitTestInvisible`，不被兄弟装饰遮挡也不阻挡按钮输入。
 - [x] 未知 / 缺失立绘时回退红帽，不崩溃、不影响暂停/退出确认/重开/返回主菜单。
 - [x] `WBP_ReEchoRestart` 编译通过；`RootPanel` / `TitleText` / 按钮及既有 Victory/Defeat 美术绑定名称与类型保持可加载。
 - [x] `SetDeathScreen` / `SetVictoryScreen` 调用点（`ReEchoGameMode.cpp:3231`）更新，并扩展 `ReEchoRestartWidgetTests.cpp` 增加"按角色立绘"断言（覆盖四个 `CharacterId` 与回退）。
 - [x] `python scripts/validate_project.py`、聚焦 `ReEcho.UI.Restart` 自动化与 `CompileAllBlueprints` 通过。
-- [ ] 使用 Unreal MCP/Editor 截图对照，并由用户完成最终视觉与可用性人工验收。
+- [x] 用户已在 Editor/PIE 完成最终视觉与可用性人工验收。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -104,6 +104,10 @@
 - `scripts/ue/author_plan135_settlement_character_front_layer.py`：成功保存 `WBP_ReEchoRestart`；仅将两个既有角色 Image 的 Canvas ZOrder 设为 `80` 并保持 `HitTestInvisible`。
 - `scripts/ue/audit_plan135_settlement_character_front_layer.py`：通过；胜利/失败角色均是各自 Canvas 直属节点，ZOrder 高于全部兄弟且 WBP 编译成功。
 - 层级修正后重跑 `ReEcho.UI.RestartWidgetPresentation`：`Result={Success}`，`EXIT CODE: 0`。
+- 2026-08-28 最终发布候选取得 `main-publish-lock` 后合入 `origin/main@55756fbd`，源码/WBP/文档无冲突；仅 8 个精选预构建产物发生预期二进制冲突，先采用 main 侧旧包完成合并，再以组合源码重建。合并提交为 `7f9a408a`。
+- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，预构建提交为 `5d1b892e`，`modules=7 build_id=55116800 source=709170ff4c15`。
+- 最终组合候选 `ReEcho.UI.RestartWidgetPresentation` 为 `Result={Success}`；`CompileAllBlueprints` 为 `0 errors / 0 warnings / 0 blueprints that failed to load`（命令汇总另有 4 条既有引擎/Legacy 警告）。
+- 最终 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check` 与 `git diff --check` 均通过。
 
 ### 剩余风险
 
