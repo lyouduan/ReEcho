@@ -29,6 +29,10 @@ Route after confirmation:
 
 If the human explicitly assigns Project Secretary duty, also read `shared/SECRETARY_RULES.md`. Project Secretary duty is a repository coordination overlay; it does not answer the professional-role gate and does not grant product, design, art or implementation authority outside the routed role.
 
+## Git LFS checkout gate
+
+Before opening `ReEcho.uproject`, running Unreal/build/package commands, or reading/modifying a Git LFS path, run `python scripts/setup_lfs.py --check`. If Git LFS is missing or any tracked file is absent/still a pointer, stop the affected work, tell the user to install Git LFS, and run `python scripts/setup_lfs.py` to initialize this clone and download current objects. Repeat `--check` after any fetch plus checkout/merge/rebase/pull that changes `.gitattributes` or LFS-tracked paths. Never treat a small text pointer as the real asset.
+
 ## Every task: minimal context
 
 1. Read `shared/PROJECT_RULES.md` and the one confirmed professional-role file from the table above.
@@ -40,7 +44,7 @@ If the human explicitly assigns Project Secretary duty, also read `shared/SECRET
 
 - Programmer implementation: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only after a failure requires diagnosis.
 - Programmer planning/review/closure: read the relevant section of `shared/PLANNER_RULES.md`, the assigned Plan and its diff. Use `shared/CODEBASE_MAP/` only for affected modules; do not load the whole library or all of `LESSONS.md`.
-- Designer work: after `shared/DESIGNER_RULES.md`, read `shared/DESIGNER_EXPERIENCE/<策划身份>.md` when it exists, then follow the per-task branch, effect-confirmation and issue-handoff workflow. Artist work uses its professional handoff and verification boundary. Do not silently promote a specialist task into programmer implementation.
+- Designer work: after `shared/DESIGNER_RULES.md`, read `shared/DESIGNER_EXPERIENCE/<策划身份>.md` when it exists; Bug、需求和待合并修改分别走 `issue/...`、`request/...`、`merge/...`，报告使用 `issues/TEMPLATE.md`。Artist work uses its professional handoff and verification boundary. Do not silently promote a specialist task into programmer implementation.
 - Distributed planning: follow `shared/PLANNER_RULES.md` to fetch and inspect the remote maximum before numbering, then publish the numbered Plan to `origin/main` before execution; external differences still follow its audit gate.
 - Project Secretary work: read `shared/SECRETARY_RULES.md` for rule-system maintenance, Plan/schema coordination, accepted-result integration, cleanup and publication boundaries.
 - Commit or publication work: read `shared/GIT_RULES.md` for the creator identity tag and Programmer final-build/prebuilt-bundle gate.

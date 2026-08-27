@@ -103,6 +103,7 @@
     "CryptoKeys",
     "CurveEditorTools",
     "CustomMeshComponent",
+    "D3D12VideoDecodersElectra",
     "DataRegistry",
     "DataRegistryToolset",
     "DataValidation",
@@ -122,6 +123,11 @@
     "EditorTRSGizmo",
     "EditorTelemetry",
     "EditorToolset",
+    "ElectraCDM",
+    "ElectraCodecs",
+    "ElectraPlayer",
+    "ElectraSubtitles",
+    "ElectraUtil",
     "EngineAssetDefinitions",
     "EngineCameras",
     "EnhancedInput",
@@ -220,6 +226,7 @@
     "OnlineSubsystemNull",
     "OnlineSubsystemUtils",
     "OodleNetwork",
+    "OpusDecoderElectra",
     "PCG",
     "PCGToolset",
     "Paper2D",
@@ -4380,6 +4387,86 @@
       "Type": "RequiredResource"
     },
     {
+      "Path": "$(EngineDir)/Plugins/Media/D3D12VideoDecodersElectra/Binaries/Win64/UnrealEditor-D3D12VideoDecodersElectra.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/D3D12VideoDecodersElectra/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCDM/Binaries/Win64/UnrealEditor-ElectraCDM.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCDM/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/Binaries/Win64/UnrealEditor-ElectraCodecFactory.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/Binaries/Win64/UnrealEditor-ElectraDecoders.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerFactory.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerPlugin.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerPluginHandler.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerRuntime.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraProtron.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraProtronFactory.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraSubtitles/Binaries/Win64/UnrealEditor-ElectraSubtitles.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraSubtitles/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor-ElectraBase.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor-ElectraHTTPStream.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor-ElectraSamples.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
       "Path": "$(EngineDir)/Plugins/Media/HAPMedia/Binaries/Win64/UnrealEditor-HAPMedia.dll",
       "Type": "DynamicLibrary"
     },
@@ -4461,6 +4548,14 @@
     },
     {
       "Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/OpusDecoderElectra/Binaries/Win64/UnrealEditor-OpusDecoderElectra.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/OpusDecoderElectra/Binaries/Win64/UnrealEditor.modules",
       "Type": "RequiredResource"
     },
     {
@@ -5598,6 +5693,10 @@
     },
     {
       "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/Stage01To02.mov",
       "Type": "NonUFS"
     },
     {
@@ -30237,6 +30336,30 @@
       "Type": "UFS"
     },
     {
+      "Path": "$(EngineDir)/Plugins/Media/D3D12VideoDecodersElectra/D3D12VideoDecodersElectra.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCDM/ElectraCDM.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/ElectraCodecs.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/ElectraPlayer.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraSubtitles/ElectraSubtitles.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/ElectraUtil.uplugin",
+      "Type": "UFS"
+    },
+    {
       "Path": "$(EngineDir)/Plugins/Media/HAPMedia/HAPMedia.uplugin",
       "Type": "UFS"
     },
@@ -30258,6 +30381,10 @@
     },
     {
       "Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/MediaPlayerEditor.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/OpusDecoderElectra/OpusDecoderElectra.uplugin",
       "Type": "UFS"
     },
     {

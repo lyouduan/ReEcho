@@ -1,6 +1,7 @@
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "Presentation/Scene/ReEchoArenaSceneProfile.h"
 
+#include "Components/BoxComponent.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -69,6 +70,37 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("MapRoot transform moves and scales the gameplay plane"),
 	          AReEchoArenaSceneActor::CalculateGameplayPlaneWorldZ(ShiftedMap, 5.0f),
 	          147.0f);
+
+	const FBox PlaneBounds(FVector(-50.0f, -50.0f, 0.0f), FVector(50.0f, 50.0f, 0.0f));
+	const FTransform RotatedBackdrop(FRotator(0.0f, 90.0f, 0.0f),
+	                                 FVector(100.0f, 200.0f, -0.5f),
+	                                 FVector(44.8f, 25.0f, 1.0f));
+	const FBox2D RotatedFootprint =
+	    AReEchoArenaSceneActor::CalculateWorldXYBounds(PlaneBounds, RotatedBackdrop);
+	TestTrue(TEXT("Rotated Backdrop mesh bounds remain valid"), RotatedFootprint.bIsValid);
+	TestEqual(TEXT("Backdrop rotation maps mesh Y scale onto world X"), RotatedFootprint.GetSize().X, 2500.0);
+	TestEqual(TEXT("Backdrop rotation maps mesh X scale onto world Y"), RotatedFootprint.GetSize().Y, 4480.0);
+
+	AReEchoArenaSceneActor* Arena = NewObject<AReEchoArenaSceneActor>(GetTransientPackage());
+	Arena->SetActorTransform(ShiftedMap);
+	Arena->MapRoot->SetRelativeLocation(FVector(0.0f, 0.0f, 500.0f));
+	Arena->MapRoot->SetRelativeScale3D(FVector(1.0f, 1.0f, 7.0f));
+	Arena->GameplayPlaneZ = 5.0f;
+	TestEqual(TEXT("Map visual transform cannot change gameplay plane world Z"),
+	          Arena->GetGameplayPlaneWorldZ(),
+	          147.0f);
+	Arena->PlayerBounds->SetBoxExtent(FVector(1234.0f, 2345.0f, 5.0f));
+	Arena->CameraClampBounds->SetBoxExtent(FVector(1334.0f, 2445.0f, 5.0f));
+	Arena->EnemySpawnBounds->SetBoxExtent(FVector(1134.0f, 2245.0f, 5.0f));
+	TestEqual(TEXT("Player bounds consume the authored BoxComponent extent"),
+	          Arena->GetPlayerHalfExtents(),
+	          FVector2D(1234.0f, 2345.0f));
+	TestEqual(TEXT("Camera bounds consume the authored BoxComponent extent"),
+	          Arena->GetCameraClampHalfExtents(),
+	          FVector2D(1334.0f, 2445.0f));
+	TestEqual(TEXT("Enemy spawn bounds consume the authored BoxComponent extent"),
+	          Arena->GetEnemySpawnHalfExtents(),
+	          FVector2D(1134.0f, 2245.0f));
 	return true;
 }
 

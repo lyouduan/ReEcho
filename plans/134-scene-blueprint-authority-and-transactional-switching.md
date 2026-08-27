@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，待 Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`（SC01 非视觉程序契约统一与玩法高度解耦已通过技术门禁；等待 Blueprint/PIE 重新人工验收，不发布远端）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@41da5187ba694d2629b6e2c0a6bbb9f5b3fb6c54`。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan134-scene-blueprint-authority-plan`；实现使用独立 Plan134 worktree，不复用含未提交 `BP_ArenaScene_SC01.uasset` 的审查 worktree。
@@ -117,18 +117,44 @@
 
 ### 变化
 
+- 新增 `UReEchoArenaSceneCatalog` 与 `/Game/ReEcho/Scene/DA_ArenaSceneCatalog`，SC01-SC04 映射只保存一份；GameMode 不再从放置 Arena 的重复 Registry 初始化。
+- GameMode 场景切换拆为 `PrepareArenaSceneForStage`/`ApplyArenaSceneForStage`：候选以隐藏、无碰撞状态生成并验证；`PrepareEncounterIntermission`、新 Encounter 与读档恢复均在清理 Combatant/Echo/Shard 前准备候选，准备失败保留原 Arena 与局内对象。
+- Arena 范围查询改读三个 BoxComponent 的实际缩放 Extent，Backdrop Material Slot 0 成为唯一地图材质校验。SC01-SC04 已把旧 HalfExtents 烘入组件并启用 `bUseEditorAuthoredSceneLayout`，同时清空 SceneProfile、Actor MapMaterial 和重复 SceneRegistry；Construction 不再覆盖美术组件。
+- Level00 删除固定 SC02 Arena，新增唯一无表现 `AReEchoArenaSceneSpawnAnchor`。权威 `origin/main` Level00 在迁移前实际已是 0 个 Plan52 tagged decoration；迁移器只接受 0 或预期旧值 18，拒绝任意其他数量，最终只读审计确认仍为 0。
+- `author_plan84_scene_switch.py`、`author_plan52_decorations.py`、`build_plan52_scene_assets.py`、`migrate_plan52_level00.py` 的写入入口均退休；新增一次性 Plan134 迁移器、Catalog-only 作者ing脚本与不写资产的审计脚本，审计不锁定插片名称或数量。
+- `ResumeSavedEncounter` 在 Arena prepare 成功后才调用 `ConsumePendingEncounterResume`，目标 Scene 缺失/无效时 pending resume 保留可重试。
+- SC01 迁移严格使用本 Executor 从 `origin/main@b7e15000` 建立的资产；迁移前后内存快照一致，保留 8 个非核心模板（7 个具名插片及 1 个无 Mesh/Material 的空模板）。review 脏 worktree 始终未访问、未复制、未修改。
+- 首次截图人工验收发现旧 `UpdateEditorLayout` 的 Backdrop Transform 未随 Bounds 一起烘入。修复器现按原公式写入四 BP：Location `(0,0,-0.5)`、Rotation `(0,90,0)`、Scale `(BackdropHalfExtents.Y*2/100, BackdropHalfExtents.X*2/100,1)`，保持 `bUseEditorAuthoredSceneLayout=true`，不恢复 Construction 覆盖。修复前后每个 BP 的非核心美术组件快照一致。
+- `HasValidConfiguration` 与 Editor 只读审计新增真实覆盖契约：读取 Backdrop StaticMesh local bounds 和 CameraClamp Box local bounds，分别将八角经实际 Component World Transform 投影为 XY AABB，再以 1uu 数值容差验证 Backdrop 覆盖 CameraClamp；旋转轴向由真实 Transform 决定，不由 Scale 推测。
+- 以当前 SC01 为非视觉程序契约基准，将 SC02-SC04 的 GameplayPlaneZ、GameplayRoot、三组 Bounds 模板、DepthSort、接触阴影和视差参数，以及 Floor/墙的 Z 高度与垂直厚度统一；不增加 SC02 或角色专用 offset。SC01 的 SceneRoot 视觉缩放为 1.6，而其余场景为 1.0，因此保留各场景 SceneRoot/MapRoot 的视觉 scale 与 Floor/墙 XY 布局，避免改变独立 Backdrop 尺寸和构图。
+- `GetGameplayPlaneWorldZ` 改为只由 Arena Actor Transform 与 GameplayPlaneZ 计算，不再读取 MapRoot/SceneRoot 视觉 Transform；地图或视觉节点的 Z/scale 调整不会改变角色玩法高度，现有世界 XY Bounds 消费契约不变。
+
 ### 证据
+
+- 远端规则/基线：`git fetch origin main` 后 Executor 与 `origin/main@b7e15000968b79f433368f0b69815588ad7ebe87` 一致，无额外外部提交。
+- `.clang-format` 已执行；最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 98/98 actions 通过，精选预构建包 `modules=7 build_id=55116800 source=4b7aef5986c1`，随后 `prebuilt_editor.py check` 通过。
+- FullRebuild 后重跑 `ReEcho.StageTransition` 三项均为 `Success`：`PolicyMatrix`、Catalog `SceneRegistry`、`WorldContinuity`；`ReEcho.Presentation.ArenaScene.Contract` 为 `Success`。
+- 完整 Editor 只读审计通过：Catalog 唯一解析 SC01-SC04；四 BP 的 Backdrop 材质、必需视觉层、组件 Bounds、Editor-authored 门、空 Profile/MapMaterial/Registry 及美术组件无碰撞均有效；Level00 为 0 Arena、1 SpawnAnchor、1 Camera、0 tagged decoration。
+- 一次性迁移日志：`Migrated 4 Arena Blueprints, preserved 8 SC01 artist components, deleted 0 tagged decorations, and replaced the fixed Arena with one spawn anchor`。0 是当前权威 main 的实测基线，不伪造为删除 18。
+- `python scripts/validate_project.py`、`git diff --check` 与全部相关场景 Python 脚本 AST 解析通过；未产生精选预构建允许列表之外的已跟踪生成物。
+- Backdrop 修复后最终 FullRebuild 97/97 actions 通过，精选预构建包仍为 `modules=7 build_id=55116800 source=10a260fd4759` 且检查通过；FullRebuild 后重跑 Arena Contract 1/1、StageTransition 3/3 均为 `Success`。
+- 修复脚本日志明确记录 `Repaired Backdrop transforms for SC01-SC04 without changing artist inserts`；独立复开 Editor-Cmd 的最终只读审计退出码 0，并确认四个实际 Backdrop mesh XY footprint 覆盖各自 CameraClampBounds，Level00 权威仍通过。
+- SC01 核心契约统一后的最终 FullRebuild 97/97 actions 通过，精选预构建包 `modules=7 build_id=55116800 source=ef53ea35f774` 且检查通过；FullRebuild 后 Arena Contract 1/1、StageTransition 3/3 均为 `Success`。
+- 最终 Editor 只读审计明确输出 `SC01=0.000`、`SC02=0.000`、`SC03=0.000`、`SC04=0.000` GameplayPlaneWorldZ，并逐项比较程序参数、Root pose、GameplayRoot、Bounds 和碰撞高度契约；完整 Catalog、Backdrop 覆盖、视觉层及 Level00 审计通过。迁移器的逐场视觉快照前后相等，SC01、Backdrop、插片和构图未写入本次资产差异。
 
 ### 剩余风险
 
-- SC01 未提交二进制修改尚未进入本 Plan 基线，Executor 不得猜测或覆盖；需在实际资产迁移前取得其准确交接状态。
 - Plan133 与本 Plan 共享 `ReEchoGameMode.*` 和 Stage1→Stage2 进入下一 Encounter 的时序，最终证据必须来自组合后的候选。
 - 静态/自动化不能证明美术构图与遮挡质量，四场景仍需人工 PIE 验收。
+- Plan133 当前远端只有 Plan、没有可组合实现提交；本候选只对 `BeginNextEncounter` 做局部 prepare/commit 调整，未来组合其 CG 门时必须保留“CG 完成/失败→现有 BeginNextEncounter 2”顺序并重跑 Stage/Encounter 证据。
+- 当前提交只供本地人工验收；用户明确要求确认正确前不得向任何远端提交或推送。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：美术在 Blueprint Editor 确认直接配置地图与插片；用户在 PIE 确认 SC01-SC04 切换结果和跨关连续性。
+- `FailedThenPendingRecheck`：首次截图确认实际 Backdrop 仅显示为红框小矩形，定位为迁移只烘入 Bounds、遗漏旧 `UpdateEditorLayout` Backdrop Transform。技术修复与真实 bounds 审计已完成；仍需用户重新打开 Blueprint/PIE，确认四场地图尺寸、轴向、构图和切换表现。
 
 ### 架构文档审阅结果
 
-- 待实现后逐项填写。
+- `MOD-ReEcho.md`：已更新单一 Catalog、prepare/commit、组件范围权威、Level00 SpawnAnchor 及已退休作者ing边界。
+- `ARCHITECTURE.md`：已审阅；持久 World 与现有模块拓扑未改变，当前阶段无需修改。
+- `README.md`：已审阅；`MOD-ReEcho / AREA-Encounter / AREA-Presentation / AREA-Tests` 路由未改变，当前阶段无需新增稳定标识。
