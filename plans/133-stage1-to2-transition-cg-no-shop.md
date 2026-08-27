@@ -122,7 +122,7 @@
 
 ### 证据
 
-- 2026-08-27 镜头扩展、暂停 CameraManager 刷新、项目 PlayerController 接线及 CG 后两段式镜头节奏完成 `.clang-format`；Editor Development 增量构建成功，最终精选预构建包 `source=17426cef9470`。
+- 2026-08-27 镜头扩展、暂停 CameraManager 刷新、项目 PlayerController 接线及 CG 后两段式镜头节奏完成 `.clang-format`；合并 `origin/main@2b1fc6c5` 后 Editor Development FullRebuild 成功，最终精选预构建包 `source=9d029675e744`。
 - 聚焦自动化 `ReEcho.UI.EncounterTransition.Policy` 1项成功，覆盖 Stage01To02 默认 SmoothStep 缓动边界、玩家推进1秒/保持0.5秒、玩家/Echo一致的`0.325`近景比例，以及锁定Echo拉远1秒、标准宽度平移回主角1秒的分段契约；`ReEcho.Presentation.ArenaScene.Contract` 1项成功，确认正交 footprint 与 Arena Clamp 基线未回归。
 - `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`git diff --check` 均通过。上述为客观技术证据；玩家/Echo构图、缩放节奏、CG衔接和第二关启动时机仍须用户 PIE 验收。
 
