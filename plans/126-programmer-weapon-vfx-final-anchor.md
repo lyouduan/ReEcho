@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`InProgress`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@46adef87a5149f00b8df585b4cdbc674c951ad0d`。
 - 本地实现方式（可选，仅作交接说明）：`C:\tmp\ReEcho-plan126-weapon-vfx-anchor`，分支 `codex/plan126-weapon-vfx-anchor`。
@@ -35,7 +35,7 @@
 
 - [x] 自动化证明武器挂点先消费最终 `HeldOffsetRatio`，再按当前武器局部 Transform 求锚点；不得回退为角色中心或人物宽度计算。
 - [x] 朝右挂点为：镰刀中心、长剑下方中心、弓/枪右侧中点；朝左局部水平镜像，垂直分量不变。
-- [x] 长剑三挥和镰刀旋转期间，特效根节点跟随当前武器组件 Transform；弓/枪翻转后根节点位于视觉枪口/出箭一侧。
+- [ ] 长剑三挥和镰刀旋转期间，特效根节点跟随当前武器组件 Transform；弓/枪翻转后根节点位于视觉枪口/出箭一侧。
 - [x] Player 与 Echo 的释放类 `AttackCommitted` 特效消费武器根节点；Travel 与 DamageApplied 的原有载体/命中世界位置语义不变。当前生产 Profile 未配置玩家 Charge 槽，未来 AttachToAttackRoot 槽可复用同一根节点。
 - [x] Boss 武器继续消费 `BossWeaponVfxRoot`，行为与 DA 左右偏移不回归。
 - [x] C++ 构建、聚焦自动化、项目校验、预构建包检查和 `git diff --check` 通过。
@@ -76,6 +76,9 @@
 - `AReEchoWeaponActor` 新增 `WeaponAttackVfxRoot` 并绑定当前可见武器组件；局部 X 随 `VisualFacingSign` 镜像，组件层级自动继承最终手部挂点、`HeldOffsetRatio`、尺寸、贴图旋转及近战动作。
 - Player/Echo 把武器根节点注册给 CombatVfx；长剑/镰刀延迟和立即 `AttackCommitted` 均从该根节点生成。Boss、Travel、DamageApplied 路径未修改。
 - 新增四武器默认值、左右镜像和 DA 覆盖自动化断言；维护三个相关模块文档。
+- 首轮 PIE：长剑、镰刀位置正确；弓、枪位置错误，朝右尤为明显。诊断确认投射物仍从角色固定偏移生成，且弓左/枪右的 DA 负 X Scale 会把局部挂点再次镜像。
+- 修正候选：弓/枪投射物首帧直接使用 `WeaponAttackVfxRoot` 世界位置；局部挂点在父视觉组件 X 为负时抵消一次缩放镜像，确保最终屏幕侧仍按朝向选择。
+- 修正候选增量验证：Development Editor 编译通过；`ReEcho.Presentation.Combat.Capabilities` 返回 `Success`。该证据将在接入最新 `origin/main` 后由最终门禁重新生成。
 
 ### 证据
 
@@ -91,7 +94,7 @@
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：实现后请求用户完成四武器左右朝向 PIE 对齐验收。
+`PendingBeforeClose`：首轮 PIE 中长剑、镰刀通过；弓、枪失败。修正后请求用户重新检查弓/枪左右朝向，特别是朝右时的枪口/出箭起点。
 
 ### 架构文档审阅结果
 

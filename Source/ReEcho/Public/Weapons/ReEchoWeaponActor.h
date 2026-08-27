@@ -77,6 +77,14 @@ public:
 	static float ResolveTripleSwingAngleForTests(float Progress, float DirectionSign);
 	static FVector2D ResolveAttackVfxAnchorRatioForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
 	                                                    float FacingSign);
+	static FVector2D ResolveAttackVfxAnchorComponentRatioForTests(
+	    const UReEchoWeaponPresentationProfile& WeaponProfile,
+	    float FacingSign,
+	    bool bVisualHorizontallyMirrored);
+	static FVector ResolveProjectileSpawnLocationForTests(const FVector& WeaponAnchorLocation,
+	                                                     const FVector& LegacyOwnerLocation,
+	                                                     const FVector& Direction,
+	                                                     bool bHasWeaponAnchor);
 
 	float GetStepLockRemaining() const
 	{

@@ -71,6 +71,30 @@ FVector2D ResolveAttackVfxAnchorRatio(const UReEchoWeaponPresentationProfile& We
 	return AnchorRatio;
 }
 
+FVector2D ResolveAttackVfxAnchorComponentRatio(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                           const float FacingSign,
+	                                           const bool bVisualHorizontallyMirrored)
+{
+	FVector2D AnchorRatio = ResolveAttackVfxAnchorRatio(WeaponProfile, FacingSign);
+	if (bVisualHorizontallyMirrored)
+	{
+		// The desired anchor is expressed in final visual space. A negative parent X scale would otherwise mirror it
+		// a second time, putting a right-facing gun muzzle on the character-facing side of the texture.
+		AnchorRatio.X *= -1.0f;
+	}
+	return AnchorRatio;
+}
+
+FVector ResolveProjectileSpawnLocation(const FVector& WeaponAnchorLocation,
+	                                    const FVector& LegacyOwnerLocation,
+	                                    const FVector& Direction,
+	                                    const bool bHasWeaponAnchor)
+{
+	return bHasWeaponAnchor
+	           ? WeaponAnchorLocation
+	           : LegacyOwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
+}
+
 FQuat GetSwordRotation(const float SpinRadians = 0.0f)
 {
 	const FQuat CameraFacingRotation = FRotationMatrix::MakeFromZX(CameraFacingNormal, FVector::RightVector).ToQuat();
@@ -1401,7 +1425,11 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		                                                  Commit.Element,
 		                                                  Commit.Attack.Sequence,
 		                                                  ProjectileIndex);
-		const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
+		const bool bHasWeaponAnchor = IsValid(WeaponAttackVfxRoot);
+		const FVector WeaponAnchorLocation =
+		    bHasWeaponAnchor ? WeaponAttackVfxRoot->GetComponentLocation() : FVector::ZeroVector;
+		const FVector SpawnLocation = ReEchoWeaponVisual::ResolveProjectileSpawnLocation(
+		    WeaponAnchorLocation, OwnerLocation, Direction, bHasWeaponAnchor);
 		AReEchoProjectileActor* Projectile =
 		    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, Direction.Rotation());
 		if (!Projectile)
@@ -1750,8 +1778,9 @@ void AReEchoWeaponActor::RefreshWeaponAttackVfxRoot(const UReEchoWeaponPresentat
 		return;
 	}
 
-	const FVector2D AnchorRatio =
-	    ReEchoWeaponVisual::ResolveAttackVfxAnchorRatio(WeaponProfile, ResolveOwnerVisualFacingSign());
+	const bool bVisualHorizontallyMirrored = WeaponVisual->GetRelativeScale3D().X < 0.0f;
+	const FVector2D AnchorRatio = ReEchoWeaponVisual::ResolveAttackVfxAnchorComponentRatio(
+	    WeaponProfile, ResolveOwnerVisualFacingSign(), bVisualHorizontallyMirrored);
 	if (WeaponAttackVfxRoot->GetAttachParent() != WeaponVisual)
 	{
 		WeaponAttackVfxRoot->AttachToComponent(WeaponVisual, FAttachmentTransformRules::SnapToTargetIncludingScale);
@@ -1790,6 +1819,24 @@ FVector2D AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(
 	const float FacingSign)
 {
 	return ReEchoWeaponVisual::ResolveAttackVfxAnchorRatio(WeaponProfile, FacingSign);
+}
+
+FVector2D AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(
+	const UReEchoWeaponPresentationProfile& WeaponProfile,
+	const float FacingSign,
+	const bool bVisualHorizontallyMirrored)
+{
+	return ReEchoWeaponVisual::ResolveAttackVfxAnchorComponentRatio(
+	    WeaponProfile, FacingSign, bVisualHorizontallyMirrored);
+}
+
+FVector AReEchoWeaponActor::ResolveProjectileSpawnLocationForTests(const FVector& WeaponAnchorLocation,
+	                                                               const FVector& LegacyOwnerLocation,
+	                                                               const FVector& Direction,
+	                                                               const bool bHasWeaponAnchor)
+{
+	return ReEchoWeaponVisual::ResolveProjectileSpawnLocation(
+	    WeaponAnchorLocation, LegacyOwnerLocation, Direction, bHasWeaponAnchor);
 }
 
 #endif

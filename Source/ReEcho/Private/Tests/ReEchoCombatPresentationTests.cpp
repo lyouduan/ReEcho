@@ -122,6 +122,19 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Left-facing gun mirrors to left midpoint"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, -1.0f),
 		          FVector2D(-0.5f, 0.0f));
+		TestEqual(TEXT("Right-facing bow keeps positive local X without texture mirroring"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(
+		              *BowAnchorProfile, 1.0f, false),
+		          FVector2D(0.5f, 0.0f));
+		TestEqual(TEXT("Left-facing bow compensates its negative visual scale"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*BowAnchorProfile, -1.0f, true),
+		          FVector2D(0.5f, 0.0f));
+		TestEqual(TEXT("Right-facing gun compensates its negative visual scale"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*GunAnchorProfile, 1.0f, true),
+		          FVector2D(-0.5f, 0.0f));
+		TestEqual(TEXT("Left-facing gun keeps negative local X without texture mirroring"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*GunAnchorProfile, -1.0f, false),
+		          FVector2D(-0.5f, 0.0f));
 	}
 	UReEchoWeaponPresentationProfile* OverrideAnchorProfile = NewObject<UReEchoWeaponPresentationProfile>();
 	OverrideAnchorProfile->WeaponVisualKey = TEXT("Bow");
@@ -133,6 +146,17 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("DA override mirrors only its local horizontal component"),
 	          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*OverrideAnchorProfile, -1.0f),
 	          FVector2D(-0.35f, 0.2f));
+	const FVector WeaponAnchorLocation(17.0f, 29.0f, 41.0f);
+	const FVector LegacyOwnerLocation(100.0f, 200.0f, 300.0f);
+	const FVector ProjectileDirection = FVector(0.0f, 1.0f, 0.0f);
+	TestEqual(TEXT("Ranged projectile starts exactly at the final weapon anchor when available"),
+	          AReEchoWeaponActor::ResolveProjectileSpawnLocationForTests(
+	              WeaponAnchorLocation, LegacyOwnerLocation, ProjectileDirection, true),
+	          WeaponAnchorLocation);
+	TestEqual(TEXT("Missing weapon anchor retains the legacy safe spawn fallback"),
+	          AReEchoWeaponActor::ResolveProjectileSpawnLocationForTests(
+	              WeaponAnchorLocation, LegacyOwnerLocation, ProjectileDirection, false),
+	          LegacyOwnerLocation + FVector(0.0f, 0.0f, 35.0f) + ProjectileDirection * 45.0f);
 	const UReEchoWeaponPresentationCatalog* WeaponCatalog = FReEchoWeaponVisualCatalog::ResolveCatalog();
 	TestNotNull(TEXT("Weapon catalog owns the shared held layout"), WeaponCatalog);
 	if (WeaponCatalog)
