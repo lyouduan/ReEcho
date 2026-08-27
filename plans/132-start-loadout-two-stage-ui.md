@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Accepted`。
+- 人工验收：`PassedByUser`（用户完成最终父级/箭头布局微调并明确要求发布到远端主分支）。
 - 规划基线：`origin/main@71b93f917b0946f6869a94c3d129a4564f4756a7`。
 - 本地实现方式：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan132-start-loadout-two-stage-ui`，分支 `plan/132-start-loadout-two-stage-ui`。
 - 依赖 / 阻塞：依赖现有 `WBP_ReEchoLoadoutSelection`、`WBP_ReEchoLoadoutEntry`、CSV 快照与 `OnLoadoutConfirmed(CharacterId, WeaponId)` 契约；执行 UE 作者ing、导入和验证前需关闭 Editor，并遵守同克隆 Unreal 锁。
@@ -70,15 +70,15 @@
 
 ## 锁定验收
 
-- [ ] 页面初次打开只显示角色阶段；构图接近 `1-角色选择.png`，四个角色均为明亮版本，解释框、箭头、确认按钮隐藏。
-- [ ] Hover/Focus/点击角色后，当前角色使用对应“选中”图，其余三项使用各自“未选中”图；鼠标 Tooltip 跟随当前条目且文字清晰，Focus 回退框、箭头和确认按钮层级正确。
+- [x] 页面初次打开只显示角色阶段；构图接近 `1-角色选择.png`，四个角色均为明亮版本，解释框、箭头、确认按钮隐藏。
+- [x] Hover/Focus/点击角色后，当前角色使用对应“选中”图，其余三项使用各自“未选中”图；鼠标 Tooltip 跟随当前条目且文字清晰，Focus 回退框、箭头和确认按钮层级正确。
 - [x] 第一次确认只进入武器阶段并保留所选角色，不调用 `OnLoadoutConfirmed`。
-- [ ] 武器阶段初始及 Hover/Focus/点击表现分别接近两张武器参考稿，顺序为镰刀、枪、剑、弓。
+- [x] 武器阶段初始及 Hover/Focus/点击表现分别接近两张武器参考稿，顺序为镰刀、枪、剑、弓。
 - [x] 第二次确认只广播一次准确的 `(CharacterId, WeaponId)`；Run 启动、预加载和首关切换契约不变。
 - [x] 18 张运行时切图保持交付原始像素/Alpha，不重绘或重采样；4 张整屏合成参考图不导入为运行时 Texture2D。
 - [ ] `WBP_ReEchoLoadoutSelection` 与 Entry Compile/Save 成功；1920×1080、16:9 低分辨率和超宽屏下主体等比居中，无选项变形或按钮不可点击。
 - [ ] 聚焦 UI 自动化、CompileAllBlueprints、项目静态校验及最终 `-FullRebuild` 发布门禁通过。
-- [ ] 用户人工确认两阶段导航、Hover/选中状态、文案可读性、构图和最终进入首关均可接受。
+- [x] 用户人工确认两阶段导航、Hover/选中状态、文案可读性、构图和最终进入首关均可接受。
 
 ## Step 0 门禁
 
