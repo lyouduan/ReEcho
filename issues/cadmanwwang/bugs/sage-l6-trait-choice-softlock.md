@@ -99,6 +99,16 @@
   2. **优雅降级式**：不阻塞推进，但当 `HandleTraitCardSelected`/`HandleTraitCardRefreshRequested` 在 `Phase != CardChoice` 下被触发时，明确记录诊断并安全收尾（关闭孤儿屏 → `ShowPostTraitShop`/`BeginNextEncounter`），而非静默 `UiError` 软锁。
   - 二者可叠加：以方向 1 为根因修复 + 方向 2 为兜底诊断。
 - 测试计划：扩展 `ReEchoCharacterPromotionTests.cpp` 的 `FReEchoSageBonusCadenceTest`，或新增用例，模拟「encounter N 的特质卡屏未关闭即 `BeginEncounter` 推进到 N+1」的竞态，断言 widget 被关闭、无软锁（刷新/确认要么可用、要么屏被安全拆除），固化回归。
+- 修复提交（已推送 Issue 分支，待设计师验收）：
+  - commit `45ab6eaf`（标题 `[PROGRAMMER][BUG] sage-l6 trait-choice softlock: gate encounter advance while trait screen pending + graceful orphan recovery`），4 文件改动 +79/-1。
+  - 验证：`scripts/ue/Build-Editor.cmd -Configuration Development` 通过（Result: Succeeded，`ReEcho.dll` 链接成功，prebuilt 编辑器包刷新 7 模块）；`git diff --check` 无问题；`python scripts/validate_project.py` 全部静态校验 PASS。
+  - 改动要点：
+    1. `ReEchoRunSubsystem` 新增 `ResetPendingTraitCardChoice()` 清空在途特质卡候选（PendingTraitCardIds / HistoryIds / RefreshUses / OfferEncounterIndex）。
+    2. `ReEchoGameMode` 商店关闭处理器：当特质卡选择仍待解（`Phase==CardChoice` / `bReturnToOpenShopAfterTraitChoice`）时，**不再调度 `BeginNextEncounter`**，先让 bonus 屏解完再续流程（根因修复，消除 next-tick 竞态）。
+    3. `BeginNextEncounter` 守门式安全网：推进遭遇前若特质卡屏仍打开，先关闭并清空 pending 状态，避免孤儿屏存活到下一遭遇。
+    4. `HandleTraitCardSelected` / `HandleTraitCardRefreshRequested` 兜底诊断：在孤儿屏（`Phase!=CardChoice`）上触发时，记录明确诊断并安全收尾（关闭孤儿屏 + 续上流程到商店/结算），不再静默 `UiError` 软锁。
+  - 根因复盘：购买商店卡牌触发 Sage 额外特质卡选择 → 购买处理器调度 next-tick `ShowTraitCardChoice`；玩家随即点关闭商店 → 关闭处理器调度 next-tick `BeginNextEncounter`。两个 next-tick 竞态：特质卡屏先以 `EncounterIndex=6`（tier 3）弹出，随后 `BeginNextEncounter` 把 `EncounterIndex` 推进到 7 且 `Phase=Encounter`，屏成为孤儿（与审计一致：tier=3 卡却记 `encounter=7`）。两道闸门 + 兜底共同确保该屏要么可正常交互、要么被安全收尾，不再软锁。
+  - 回归测试建议：本 bug 为 next-tick 定时器竞态（购买触发 bonus 屏 vs 商店关闭调度推进遭遇），属实时竞态，难以纯单测稳定复现；建议由设计师在 Sage（`J_SPADE`）第六关后于商店购买可触发额外特质卡选择的卡牌、随即关闭商店，验证 bonus 屏可正常弹出/确认/刷新且不软锁（验收标准：刷新或确认至少其一可用，确认后正常关闭并应用）。如需要可再补一个 GameMode 级自动化用例，在打开特质卡屏状态下直接调用 `BeginNextEncounter` 断言屏被关闭且 pending 状态清空。
 - 待确认（产品/程序）：
   - Sage bonus 选择是否预期必须“解决完才进入下一遭遇”（方向 1），还是允许推进时优雅跳过/关闭（方向 2）？报告验收隐含前者。
   - 报告实测角色 `J_DIAMOND` 是否确为 Sage 模式误标（不影响代码修复）。
