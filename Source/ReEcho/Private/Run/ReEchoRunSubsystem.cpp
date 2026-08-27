@@ -2281,6 +2281,24 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 	AdvanceToConfiguredTraitChoice();
 }
 
+bool UReEchoRunSubsystem::SkipPostEncounterCardChoiceForStageTransitionCg()
+{
+	const bool bCanNormalizePostEncounterPhase = Phase == EReEchoRunPhase::CardChoice ||
+	                                             Phase == EReEchoRunPhase::Planning ||
+	                                             Phase == EReEchoRunPhase::Shop;
+	if (EncounterIndex != 1 || !bCanNormalizePostEncounterPhase)
+	{
+		return false;
+	}
+	PendingTraitCardIds.Reset();
+	PendingTraitCardOfferHistoryIds.Reset();
+	PendingTraitCardRefreshUses.Reset();
+	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
+	SetPhase(EReEchoRunPhase::Planning);
+	UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] skipped Encounter 1 free-card phase."));
+	return true;
+}
+
 TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const int32 RequestedCount)
 {
 	if (RequestedCount <= 0 || Phase != EReEchoRunPhase::CardChoice)

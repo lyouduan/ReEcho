@@ -42,6 +42,12 @@ def fail(message):
     raise RuntimeError(f"[Plan52] {message}")
 
 
+fail(
+    "Retired by Plan134: Level00 contains only the Arena spawn anchor and must not place "
+    "a fixed production Arena Blueprint."
+)
+
+
 def copy_relative_transform(source, target):
     target.set_editor_property("relative_location", source.get_editor_property("relative_location"))
     target.set_editor_property("relative_rotation", source.get_editor_property("relative_rotation"))

@@ -30,6 +30,14 @@ AI 创建的正式提交，其标题与正文必须是合法 UTF-8，且不得�
 - 标题是硬约束重点：标题中不得出现任何无法在终端正确显示的中文字符；合并提交、rebase、cherry-pick 生成的描述同样适用。
 - 提交前应通过 `git log --oneline -1` 复核标题可在终端正确显示；若发现乱码，必须在推送前 reword 修正，不得带乱码标题进入 `origin/main`。
 
+## Git LFS 提交与发布门禁
+
+- 提交 LFS 路径前运行 `python scripts/setup_lfs.py --check`、`git lfs status` 和 `git lfs fsck`，确认工作树是已还原的真实文件、索引按 `.gitattributes` 生成 LFS 指针，并且没有把指针文本当普通文件提交。
+- 包含 LFS 对象的分支使用普通 `git push`；Git LFS pre-push 必须先成功上传对象，Git 引用才能视为推送成功。不得用跳过 hook、`--no-verify` 或仅推 Git 指针的方式绕过对象上传。
+- 推送后在准确最终候选上运行 `git lfs push --dry-run origin HEAD`；仍列出待推对象时发布未完成，必须补齐对象并重新核验。Git 远端引用仍按本文件其他发布步骤单独核对提交号；随后运行 `git lfs fsck`，并在发布报告中记录 LFS 文件、对象检查和远端引用。
+- 获取最新主线、合入外部提交或切换候选后，若 `.gitattributes` 或 LFS 路径变化，必须运行 `python scripts/setup_lfs.py` 还原对象，并在最终候选上重跑本节门禁。旧候选的 LFS 证据随基线变化失效。
+- `git lfs push --all`、`git lfs migrate import`、改写已发布指针/对象历史或扩大 LFS 追踪模式不属于普通发布步骤，按 `PROJECT_RULES.md` 的风险确认机制执行。
+
 ## origin/main 单发布者锁
 
 `main-publish-lock` 是程序路线和项目秘书发布 `origin/main` 时唯一允许的远端协调分支，也是 main 发布锁的唯一权威状态。它不是内容发布面、任务分支或长期备份；策划/美术协作分支不使用此锁。除下述“编号 Plan 单独发布例外”外，规则、文档、代码、数据、资产和集成候选进入 main 前都必须遵循本节；禁止强推 main。
@@ -72,6 +80,8 @@ Plan-only 发布前必须 fetch 最新 `origin/main`，完成 Plan 编号、外�
    ```
 
 锁分支存在即阻止其他 AI 开始 main 发布。锁持有者中断时不得仅按超时自动破锁：未合入候选由程序集成职责或秘书审计后续传、保留或在准确风险确认后解除；已合入候选按第 3 项机械清理。锁分支的准确 lease 创建/清理是远端引用限制的具名默认例外，但不授权任何其他强推、远端分支或历史覆盖。
+
+策划的 `issue/...`、`request/...`、`merge/...` 协作分支不使用 `main-publish-lock`；其命名、按事项复用、旧分支迁移、同步、人工确认、经验记录和合并后删除由 `shared/DESIGNER_RULES.md` 唯一管理。策划分支的正式提交仍必须满足本文件的 `[DESIGNER]` 身份和 UTF-8 要求。
 
 ## 程序发布构建门禁
 
