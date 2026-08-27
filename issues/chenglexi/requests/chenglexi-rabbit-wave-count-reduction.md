@@ -3,7 +3,7 @@
 ## 基本信息
 
 - 类型：需求
-- 状态：待合并
+- 状态：已解决
 - 策划身份：chenglexi
 - 创建时间：2026-08-27
 - 源分支：`merge/chenglexi/card-audio-and-rabbit-spawn`
@@ -53,5 +53,5 @@
 ## 解决记录
 
 - 最终 Merge 提交：`59a5cf030e4daa8290aaa002dfc566bd4f67bbfe`
-- 最终 `origin/main` 提交：待项目秘书发布后补充。
-- 结果与残余事项：数据候选待合入最新主线。
+- 最终 `origin/main` 集成提交：`8caeb42b2c25ae92abc3c4dba915c76b01c8df88`
+- 结果与残余事项：已与 `284af2f5` 主线组合；无已知残余事项。
