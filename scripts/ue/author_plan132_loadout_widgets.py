@@ -300,7 +300,6 @@ def ensure_selection_preview_entries(
                 load_preview_texture(domain, stable_id, "Unselected"),
             )
             entry.set_editor_property("designer_preview_width", width)
-            entry.set_editor_property("designer_preview_height", 560.0)
             entry.set_editor_property("designer_preview_selected", index == 3)
             slot = entry.get_editor_property("slot")
             if not isinstance(slot, unreal.HorizontalBoxSlot):

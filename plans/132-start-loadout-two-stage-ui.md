@@ -123,6 +123,7 @@
 - 角色/武器 Designer 切页从 Class Defaults 自定义预览枚举改为 UMG 原生 `StageSwitcher`。角色与武器两个实际 Stage Panel 都是 Switcher 的直接页面，设计者在 Details 中切换 `Active Widget Index=0/1` 即可即时编辑对应运行布局；运行时只设置同一个索引，不复制或重建页面。
 - 用户继续微调 Selection 后反馈枪图被武器固定槽拉长、公共 Canvas 上的箭头不跟随条目 Hover 缩放。Entry 的 `PortraitScale` 契约现强制为 `ScaleToFit`；`EntrySelectionArrow` 与 `SelectButton` 改为 `EntryVisualOverlay` 的同级子项，复用全局按钮反馈对 Overlay 整组缩放。定向迁移只包装 Entry、添加内部箭头并移除 Selection 的 8 张脱离箭头，未重跑整页作者ing，用户本轮 Selection 微调保留在候选中。
 - 首轮反馈后用户实图复核证明仅设置 `ScaleToFit` 仍不够：UE 5.8 会在 ScaleBox 子 Slot 为 Fill 时重新填满另一轴，且未完成平台编译的 Texture `GetSizeX/Y()` 可暂时返回 0。最终契约改为 `PortraitImage` 双轴 Center，并用 `GetImportedSize()` 每次重写 Brush 的真实源尺寸；Entry 自身使用 Desired Size Designer Preview，默认显示内部箭头，使单独打开 WBP 也能按实际比例编辑。
+- 后续复核发现 Entry 的高度仍非蓝图权威：`NativePreConstruct` 每次设计器编译会把 `EntryRootSizeBox` 重写为 `DesignerPreviewHeight=560`，运行时 `Configure` 也会再次写入 `560/480`。修复后删除设计预览高度字段与所有高度回填，仅保留角色/武器横向布局所需的宽度注入；`EntryRootSizeBox.Height Override` 和 `PortraitSize.Height Override` 保存值在设计编译及运行配置前后保持不变。
 - 增加幂等导入、作者ing、审计脚本及 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 自动化；Packaging AlwaysCook 收集正式 Loadout 纹理目录。
 
 ### 证据
@@ -139,6 +140,7 @@
 - SelectionArrow 回位修复轮通过定向迁移补齐 8 个 Designer-owned 箭头并保留用户微调后的 `SelectionArrow`；审计确认角色/武器各四张箭头均为设计面直接子项。Development Editor 增量构建成功，精选预构建源码指纹为 `cce07464ec44`；Assets/Flow 两项聚焦自动化均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`，项目静态校验、Python 脚本语法、预构建一致性和 `git diff --check` 均通过。
 - Tooltip 外框修复轮将交付的 `T_UI_Loadout_DescriptionPanel` 绑定为 `TooltipFrame` 的九宫格 Brush；资产审计确认资源路径和 `DrawAs=Box`，Assets 自动化实例化实际 Tooltip 并验证运行时仍保留该 Brush。Development Editor 增量构建成功，精选预构建源码指纹为 `fa96a54f27f2`；Assets/Flow 均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`。用户继续微调但未纳入本轮提交的 Selection WBP 保持原样。
 - 武器页所见即所得修复轮保留用户对 Selection 与 Tooltip 的最新微调，并只把两个既有 Stage Panel 移入原生 `StageSwitcher`；资产审计确认 `active=1`、页面顺序为角色/武器，打开 WBP 默认直接显示武器页。Development Editor 增量构建成功，精选预构建源码指纹为 `aab359f4d5c5`；Assets 自动化验证运行时从角色索引 `0` 正确切到武器索引 `1`，Assets/Flow 均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`。
+- Entry 高度权威修复轮保留用户已保存的 `EntryRootSizeBox=600`、`PortraitSize=480` 微调；针对性脚本执行 WBP Compile + Save 后数值不变，新进程重新加载仍审计为 `600/480`。Development Editor 构建成功，精选预构建源码指纹为 `d6ec688a8a46`；保存后的 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 均为 `Result={Success}`，项目静态校验、预构建一致性、Python 语法与 `git diff --check` 通过。
 - 枪图与箭头整组缩放修复轮：源图审计确认枪 Selected/Unselected 均为 `249×227` 近方形画布，其余三种武器为纵向画布；资产审计确认 Entry 为 9 节点、`PortraitScale=ScaleToFit`，`SelectButton` 与 `EntrySelectionArrow` 都直属 `EntryVisualOverlay`，Selection 中脱离条目的旧箭头为 0。Development Editor 增量构建成功，精选预构建源码指纹为 `0c11d45e8a87`；`ReEcho.UI.LoadoutSelection.{Assets,Flow}` 均为 `Result={Success}`，全蓝图编译命令以 `Success - 0 error(s), 4 warning(s)` 完成（4 条为既有引擎/Legacy 警告），未出现蓝图失败加载或 Plan132 错误。
 - 上述首轮候选被用户视觉复核否决后，自动化新增枪 Brush 必须为 `249×227`、ScaleBox Slot 双轴 Center、Entry Desired Preview 和独立预览箭头可见断言。最终资产审计输出 `portrait_stretch=ScaleToFit portrait_align=Center`、`entry_desired_preview=True`、`entry_arrow_default=HitTestInvisible`；Development Editor 增量构建成功，精选预构建源码指纹为 `1639ddf6f78e`，`ReEcho.UI.LoadoutSelection.{Assets,Flow}` 两项再次均为 `Result={Success}`。
 

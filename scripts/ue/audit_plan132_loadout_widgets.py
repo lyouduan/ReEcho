@@ -36,6 +36,8 @@ def main():
             f"roots={[root.get_name() for root in roots]}"
         )
         if asset_path.endswith("WBP_ReEchoLoadoutEntry"):
+            root_size = widget_by_name.get("EntryRootSizeBox")
+            portrait_size = widget_by_name.get("PortraitSize")
             visual_overlay = widget_by_name.get("EntryVisualOverlay")
             select_button = widget_by_name.get("SelectButton")
             selection_arrow = widget_by_name.get("EntrySelectionArrow")
@@ -95,6 +97,15 @@ def main():
             unreal.log(
                 "[Plan132LoadoutAudit] entry_desired_preview=True "
                 "entry_arrow_default=HitTestInvisible"
+            )
+            if not isinstance(root_size, unreal.SizeBox) or not isinstance(
+                portrait_size, unreal.SizeBox
+            ):
+                raise RuntimeError("Plan132 Entry authored SizeBox hierarchy is missing")
+            unreal.log(
+                "[Plan132LoadoutAudit] blueprint_owned_heights "
+                f"entry={root_size.get_editor_property('height_override')} "
+                f"portrait={portrait_size.get_editor_property('height_override')}"
             )
             tooltip_class = default_object.get_editor_property("tooltip_widget_class")
             expected_tooltip_path = (

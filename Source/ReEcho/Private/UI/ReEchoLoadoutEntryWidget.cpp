@@ -66,12 +66,10 @@ void UReEchoLoadoutEntryWidget::NativePreConstruct()
 	if (EntryRootSizeBox)
 	{
 		EntryRootSizeBox->SetWidthOverride(DesignerPreviewWidth);
-		EntryRootSizeBox->SetHeightOverride(DesignerPreviewHeight);
 	}
 	if (PortraitSize)
 	{
 		PortraitSize->SetWidthOverride(DesignerPreviewWidth);
-		PortraitSize->SetHeightOverride(480.0f);
 	}
 	RefreshSelectionArrowBrushSize();
 	ApplyDesignerPreviewState(bDesignerPreviewSelected, bDesignerPreviewSelected);
@@ -112,8 +110,7 @@ void UReEchoLoadoutEntryWidget::Configure(const int32 InEntryIndex,
                                           const FString& SelectedTexturePath,
                                           const FString& UnselectedTexturePath,
                                           const FString& FallbackTexturePath,
-                                          const float EntryWidth,
-                                          const float EntryHeight)
+                                          const float EntryWidth)
 {
 	EntryIndex = InEntryIndex;
 	SelectButton->SetEntryIndex(EntryIndex);
@@ -122,12 +119,10 @@ void UReEchoLoadoutEntryWidget::Configure(const int32 InEntryIndex,
 	if (EntryRootSizeBox)
 	{
 		EntryRootSizeBox->SetWidthOverride(EntryWidth);
-		EntryRootSizeBox->SetHeightOverride(EntryHeight);
 	}
 	if (PortraitSize)
 	{
 		PortraitSize->SetWidthOverride(EntryWidth);
-		PortraitSize->SetHeightOverride(480.0f);
 	}
 	SelectedTexture = LoadObject<UTexture2D>(nullptr, *SelectedTexturePath);
 	UnselectedTexture = LoadObject<UTexture2D>(nullptr, *UnselectedTexturePath);

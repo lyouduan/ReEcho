@@ -40,8 +40,7 @@ public:
 	               const FString& SelectedTexturePath,
 	               const FString& UnselectedTexturePath,
 	               const FString& FallbackTexturePath,
-	               float EntryWidth,
-	               float EntryHeight);
+	               float EntryWidth);
 	void SetPresentationState(bool bHasPreview, bool bIsPreviewed);
 	void FocusSelection();
 
@@ -116,9 +115,6 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview", meta = (ClampMin = "1.0"))
 	float DesignerPreviewWidth = 390.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview", meta = (ClampMin = "1.0"))
-	float DesignerPreviewHeight = 560.0f;
 #endif
 
 	int32 EntryIndex = INDEX_NONE;

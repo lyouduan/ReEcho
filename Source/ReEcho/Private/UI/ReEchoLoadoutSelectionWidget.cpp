@@ -567,8 +567,7 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 			                 LoadoutTexturePath(TEXT("Character"), CharacterId, TEXT("Selected")),
 			                 LoadoutTexturePath(TEXT("Character"), CharacterId, TEXT("Unselected")),
 			                 CharacterTexturePath(Snapshot->FindCharacter(CharacterId)->AppearanceId),
-			                 390.0f,
-			                 560.0f);
+			                 390.0f);
 		}
 		else
 		{
@@ -602,8 +601,7 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 			                 LoadoutTexturePath(TEXT("Weapon"), WeaponId, TEXT("Selected")),
 			                 LoadoutTexturePath(TEXT("Weapon"), WeaponId, TEXT("Unselected")),
 			                 WeaponTexturePath(Snapshot->FindWeapon(WeaponId)->VisualKey),
-			                 280.0f,
-			                 560.0f);
+			                 280.0f);
 		}
 		else
 		{

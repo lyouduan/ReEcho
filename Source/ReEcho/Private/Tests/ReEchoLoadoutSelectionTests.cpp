@@ -6,6 +6,7 @@
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
 #include "Components/ScaleBoxSlot.h"
+#include "Components/SizeBox.h"
 #include "Components/WidgetSwitcher.h"
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
@@ -134,6 +135,20 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			TestEqual(TEXT("Designer tree owns four weapon entries"), AuthoredWidget->WeaponRow->GetChildrenCount(), 4);
 			UWidget* FirstAuthoredCharacter = AuthoredWidget->CharacterRow->GetChildAt(0);
 			UWidget* FirstAuthoredWeapon = AuthoredWidget->WeaponRow->GetChildAt(0);
+			UReEchoLoadoutEntryWidget* FirstCharacterEntry =
+			    Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredCharacter);
+			UReEchoLoadoutEntryWidget* FirstWeaponEntry = Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredWeapon);
+			USizeBox* CharacterRootSize = FirstCharacterEntry
+			                                  ? Cast<USizeBox>(FirstCharacterEntry->GetWidgetFromName(
+			                                        TEXT("EntryRootSizeBox")))
+			                                  : nullptr;
+			USizeBox* CharacterPortraitSize = FirstCharacterEntry
+			                                      ? Cast<USizeBox>(FirstCharacterEntry->GetWidgetFromName(
+			                                            TEXT("PortraitSize")))
+			                                      : nullptr;
+			const float AuthoredRootHeight = CharacterRootSize ? CharacterRootSize->GetHeightOverride() : 0.0f;
+			const float AuthoredPortraitHeight =
+			    CharacterPortraitSize ? CharacterPortraitSize->GetHeightOverride() : 0.0f;
 			AuthoredWidget->LoadOptions();
 			AuthoredWidget->BuildOptionEntries();
 			TestTrue(TEXT("Runtime reuses the first Designer-authored character entry"),
@@ -142,9 +157,18 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			TestTrue(TEXT("Runtime reuses the first Designer-authored weapon entry"),
 			         AuthoredWidget->WeaponEntries.IsValidIndex(0) &&
 			             AuthoredWidget->WeaponEntries[0].Get() == FirstAuthoredWeapon);
-			UReEchoLoadoutEntryWidget* FirstCharacterEntry =
-			    Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredCharacter);
-			UReEchoLoadoutEntryWidget* FirstWeaponEntry = Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredWeapon);
+			if (CharacterRootSize)
+			{
+				TestEqual(TEXT("Runtime configuration preserves the Blueprint-authored Entry height"),
+				          CharacterRootSize->GetHeightOverride(),
+				          AuthoredRootHeight);
+			}
+			if (CharacterPortraitSize)
+			{
+				TestEqual(TEXT("Runtime configuration preserves the Blueprint-authored portrait height"),
+				          CharacterPortraitSize->GetHeightOverride(),
+				          AuthoredPortraitHeight);
+			}
 			UImage* CharacterArrow = FirstCharacterEntry
 			                             ? Cast<UImage>(FirstCharacterEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")))
 			                             : nullptr;
