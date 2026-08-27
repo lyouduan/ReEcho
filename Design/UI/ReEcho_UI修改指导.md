@@ -20,8 +20,9 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 | 遭遇 HUD | `WBP_ReEchoEncounterHud` | `UReEchoEncounterHudWidget` | `GameplayHud` | `第 N 关`、`MM:SS`、右到左计时指针和真实小地图；最后 5 秒警示色由 C++ 状态驱动 |
 | 敌人血条 | `WBP_ReEchoEnemyHealthBar` | `UReEchoHealthBarWidget` | 世界空间 Widget | 敌人头顶血条；生命变化由事件驱动 |
 | 开始菜单 | `WBP_ReEchoStartMenu` | `UReEchoStartMenuWidget` | `Start` | 新游戏、继续、设置；继续按钮可用性由存档状态决定 |
-| 初始配装 | `WBP_ReEchoLoadoutSelection` | `UReEchoLoadoutSelectionWidget` | `Loadout` | 角色和武器动态容器、状态文本、确认按钮 |
-| 配装条目 | `WBP_ReEchoLoadoutEntry` | `UReEchoLoadoutEntryWidget` | 父页面内部 | 角色/武器共用的动态条目；UMG 控制头像和按钮尺寸 |
+| 初始配装 | `WBP_ReEchoLoadoutSelection` | `UReEchoLoadoutSelectionWidget` | `Loadout` | 角色/武器两阶段所见即所得条目、解释框、箭头和确认按钮 |
+| 配装条目 | `WBP_ReEchoLoadoutEntry` | `UReEchoLoadoutEntryWidget` | 父页面内部 | 角色/武器共用的动态条目；UMG 控制切图、名称和条目尺寸 |
+| 配装悬停说明 | `WBP_ReEchoLoadoutTooltip` | `UReEchoLoadoutTooltipWidget` | `WBP_ReEchoLoadoutEntry.SelectButton.ToolTip` | 鼠标 Tooltip 的宽度、边框、内边距、标题和说明文字 |
 | 设置 | `WBP_ReEchoSettings` | `UReEchoSettingsWidget` | `Settings` | 图形、声音、控制分类和返回操作 |
 | 暂停/死亡/胜利 | `WBP_ReEchoRestart` | `UReEchoRestartWidget` | `Pause` | 同一页面按明确模式显示暂停、死亡、胜利和退出确认状态 |
 | 抽卡页面 | `WBP_ReEchoTraitCardChoice` | `UReEchoTraitCardChoiceWidget` | `BuildChoice` | 三个卡槽、标题、确认按钮和揭示动画 |
@@ -75,7 +76,7 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 | `WBP_ReEchoEncounterHud` | `EncounterText`, `CountdownText` |
 | `WBP_ReEchoEnemyHealthBar` | `ProgressBar` |
 | `WBP_ReEchoStartMenu` | `StatusText`, `ContinueButton`, `NewGameButton`, `GameSettingsButton`, `QuitButton` |
-| `WBP_ReEchoLoadoutSelection` | `StatusText`, `CharacterRow`, `WeaponRow`, `ConfirmButton` |
+| `WBP_ReEchoLoadoutSelection` | `StatusText`, `TitleText`, `DescriptionText`, `DescriptionTextScale`, `ConfirmButtonLabel`, `StageSwitcher`, `CharacterStagePanel`, `WeaponStagePanel`, `DescriptionPanel`, `CharacterRow`, `WeaponRow`, `ConfirmButton` |
 | `WBP_ReEchoSettings` | `GraphicsSettingsButton`, `AudioSettingsButton`, `ControlsSettingsButton`, `RestoreDefaultsButton`, `ApplyAndReturnButton`, `AudioPanel`, `GraphicsPanel`, `ControlsPanel`, `MasterVolumeSlider`, `MusicVolumeSlider`, `AmbienceVolumeSlider`, `CombatSfxVolumeSlider`, `UiSfxVolumeSlider`, `MasterMuteCheckBox`, `MusicMuteCheckBox`, `AmbienceMuteCheckBox`, `CombatSfxMuteCheckBox`, `UiSfxMuteCheckBox`, `DiagnosticToneCheckBox` |
 
 `WBP_ReEchoSettings` 的声音页可见布局以 `AudioDesignerCanvas` 为位置权威。`MasterVolumeVisualOverlay`、`MusicVolumeVisualOverlay`、`CombatVolumeVisualOverlay` 分别代表完整滑条逻辑根；移动它们会同时移动轨道、填充和真实把手。各 `*Label`、`*Percent`、`*MuteCheckBox` 及 `AudioOutputField` 都是该 Canvas 的直接子项，可在 Designer 中独立拖动。运行时生成的下拉交互层会复制 `AudioOutputField` 的 Canvas 位置和尺寸，不应在 C++ 中另写坐标。
@@ -90,18 +91,25 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 | WBP | 必需控件名 |
 |---|---|
-| `WBP_ReEchoLoadoutEntry` | `SelectButton`, `PortraitImage`, `NameText` |
+| `WBP_ReEchoLoadoutEntry` | `SelectButton`, `PortraitImage`, `NameText`, `EntrySelectionArrow`, `EntryRootSizeBox`（可选尺寸宿主） |
+| `WBP_ReEchoLoadoutTooltip` | `TitleText`, `DescriptionText` |
 | `WBP_ReEchoTraitCardEntry` | `SelectButton`, `NameText`, `DescriptionText`；可选图片绑定为 `ArtImage`, `IconImage` |
 
 `SelectButton` 必须是 `UReEchoIndexedButton`，不能替换成普通 `UButton`。它把动态数组索引送回父页面，再由 C++ 解析为稳定的 CharacterId、WeaponId 或 CardId。
 
 `WBP_ReEchoTraitCardChoice` 初次打开时仍播放页面指针和全部候选的逐张揭示。免费/付费三选一的单槽刷新成功后，只将被替换槽位的卡牌置为透明并重播它的揭示；其他卡牌和指针不重置。刷新失败不播放揭示。
 
-### 4.3 商店逻辑块的后续 WBP 接口
+### 4.3 正式商店的 WBP 接口
 
-动态商品内容统一位于 `ShopLogicScrollBox > ShopLogicPanel`；WBP 未提供有界宿主时，C++ 将滚动区挂到根 Canvas 的固定视口并显式显示滚动条，战后模式的视口下沿必须停在回响存储托盘上方。区块顺序固定为武器配件、普通商品、规则/刷新、槽位草稿。WBP 可按同名 `BindWidgetOptional` 提供这两个宿主、`RunItemOfferPanel`、`ShopControlPanel`、`WeaponPartOfferPanel`、`WeaponLoadoutPanel`，以及 `ShopRefreshButton`、`ShopRefreshText`、`ShopRuleText`、`WeaponLoadoutText`、`SaveLoadoutButton`。这些控件只负责容器和表现，不得改变购买、刷新、草稿或保存的事件语义。
+Plan110 的正常表现路径位于 `WBP_ReEchoInventoryShopScreen` 的两个根级设计面：`DesignerShopPresentationCanvas` 持有正式商店木框、货币与刷新区、上排 3 个配件报价、下排 3 个卡组报价、中部装配纸张、右侧装配树和保存离店美术；`DesignerLoadoutCanvas` 持有武器面板、时钟命中区、武器点击层、3 个配件槽和 12 个卡牌槽。两者都是 `1920×1080` Canvas，全部主要控件的 Position/Size 由 UMG Designer 决定，运行时刷新不得改写几何。
 
-装配室的位置权威位于 `WBP_ReEchoInventoryShopScreen > Overlay_0 > DesignerLoadoutCanvas`。其中 `DesignerWeaponPanel`、`DesignerShopClock`、`DesignerAttachmentSlot0..2` 和 `DesignerCardSlot0..11` 都是 Canvas 直接子项，可在 Designer 中直接拖动或在 Slot 面板修改 Position X/Y、Size X/Y。配件槽和卡牌槽的 `*Art*` 子控件只负责图片，不应单独移动；C++ 只更新图片、置灰状态、Tooltip 和点击逻辑。不要重新运行旧式位置写入脚本覆盖人工布局；`configure_shop_designer_layout.py` 只在控件缺失时写入初始坐标，已存在控件不会被重置。
+商品槽稳定命名为 `DesignerPartOfferCard0..2` / `DesignerPackOfferCard0..2`；每个卡内的说明、价格、图标和购买按钮都是该卡 Canvas 的直接可调子项。购买按钮必须继续使用 `UReEchoIndexedButton`，C++ 只注入真实商品、折扣后价格、已获得/已装备/继续选择状态并转发现有命令。正式购买按钮的外层尺寸与素材均为 `134×46`；`DesignerPartOfferBuy*` / `DesignerPackOfferBuy*` 的 Normal/Pressed Padding 必须四边为 `0`，内部 `*Art` Brush Image Size 必须为 `134×46`，否则默认 `32×32` Brush 与历史左右 Padding 会把素材压窄。卡组的 `PaidPendingChoice` 必须显示“继续选择”，点击时不得重新扣费。效果图中的 `1/2` 与箭头当前是非交互装饰，不可由 WBP 伪造第二页库存。
+
+商店 Designer 采用与设置页相同的“蓝图排版、运行时填内容”约束：移动整张商品时选 `DesignerPartOfferCard*` / `DesignerPackOfferCard*`；微调内部时展开对应 Card，直接调整 `Base`、`Icon`、`Description`、`Cost`、`Buy` 的 Canvas Slot Position/Size。`prepare_plan110_shop_designer_preview.py` 只写入设计期样例图标、文字和价格，使蓝图所见即所得；进局后 C++ 只替换内容、Brush、可见性与启用状态，不覆盖这些 Canvas 几何，也不改变购买、刷新、装备或离店逻辑。
+
+装配室稳定节点为 `DesignerWeaponPanel`、`DesignerShopClock`、`DesignerWeaponInteractionButton`、`DesignerAttachmentSlot0..2` 和 `DesignerCardSlot0..11`。槽按钮是移动/缩放位置权威，配对的 `*Art*` 只填充按钮内容，不应单独移动。若外层槽按钮和源纹理都是方形、可见图片却变窄，不要继续放大 Canvas Slot：依次检查按钮 `Style > Normal Padding / Pressed Padding`、子项 `ButtonSlot` 的 Padding/Alignment，以及 `*Art* > Brush > Image Size`。正式配件槽设计期必须显示 `T_UI_Shop110_WeaponLoadoutSlot` 空槽框，按钮两种 Padding 四边为 `0`、Art Image Size 为 `89×89`；不得用配件宝石冒充空槽样例。正式卡牌槽当前要求按钮两种 Padding 四边为 `0`、子槽水平/垂直 Fill、`DesignerCardSlotArt*` Image Size 为 `66×66`。武器、配件、卡牌 Hover、背包、装配草稿、保存配置和回响存储继续由 C++ 读取 Run 投影并绑定，不得在 WBP 中直接修改权威状态。
+
+旧 `ShopLogicScrollBox > ShopLogicPanel` 以及折叠的 `Overlay_0` / `Overlay_1` 仅保留必要的购买、刷新和装配逻辑契约，不再挂载旧店员、旧装配底板、旧槽位、旧时钟或旧商店底板等展示素材。正式源图与参考图位于 `Content/SourceArt/UI/InventoryShop/Plan110/`，运行时切图位于 `Content/ReEcho/Textures/UI/InventoryShop/Plan110/`；三张整屏参考图只作比对，不得导入为运行时页面。`author_plan110_formal_shop_ui.py` 是建立正式初始设计面的迁移脚本，会重建 `DesignerShopPresentationCanvas`，人工微调后不要无意重跑；日常验证使用只读的 `audit_plan110_formal_shop_ui.py`。
 
 ## 5. 各页面的修改边界
 
@@ -160,13 +168,17 @@ Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Pl
 
 Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层，实际交互继续由 `ResumeButton`、`RestartButton`、`QuitButton` 和右上 `PauseSettingsButton` 承担。普通状态依次表示继续、退出到主菜单、退出游戏；进入确认后，同一组按钮切换为保存并退出、不保存并退出、返回。退出到主菜单与退出游戏必须保留不同目标，保存/不保存语义由 GameMode 执行，WBP 不得直接写存档、开关关卡或退出程序。存在暂停切图时旧的 Attack Mode 动态区隐藏，避免偏离暂停效果图。
 
-### 5.3 Loadout 动态容器
+### 5.3 Loadout 两阶段所见即所得页面
 
-- `CharacterRow` 与 `WeaponRow` 只提供动态容器，不要在设计器中手工放置固定数量的角色/武器按钮。
-- 条目外观统一修改 `WBP_ReEchoLoadoutEntry`。
-- 头像尺寸、缩放方式、按钮高度和标签排版全部由条目 WBP 控制。
-- 角色和武器数量来自 CSV 快照，不要假设永远是固定数量。
-- 不要用按钮文字反查 ID；C++ 使用动态索引映射到稳定 ID。
+- Plan132 后页面固定按“角色确认 → 武器确认”两阶段展示；第一次确认只切阶段，第二次确认才向 GameMode 广播一次最终 `(CharacterId, WeaponId)`。WBP 不得自行启动 Run、切关或写存档。
+- `CharacterStagePanel > CharacterRow` 内固定放置 `CharacterEntry0..3`，`WeaponStagePanel > WeaponRow` 内固定放置 `WeaponEntry0..3`；八项都是实际运行使用的 `WBP_ReEchoLoadoutEntry` 实例，不是占位图。运行时从 CSV 写入名称、说明和资格，但复用这些 Designer 控件，不再清空后另建一套。不要删除或改名；可直接调整 Row 的 1920×1080 位置、每个 Entry 的 HorizontalBox Slot Padding，以及 Entry 蓝图内部尺寸与样式。
+- 初次进入每个阶段时没有 Preview：全部条目使用明亮 `Selected` 切图，说明、箭头和确认按钮隐藏。鼠标 Hover 使用与商店一致的原生 Tooltip 定位机制：Slate 跟随当前条目并自动避让屏幕边缘，而框体视觉由 `WBP_ReEchoLoadoutTooltip` 完全管理。键盘/手柄 Focus 使用页面内 `DescriptionPanel` / `DescriptionTextScale` 大号回退框；点击与 Hover/Focus 都会把当前项保持为 `Selected`、其余项切到 `Unselected`，并显示箭头和确认按钮。
+- 条目外观统一修改 `WBP_ReEchoLoadoutEntry`。单独打开该 WBP 时使用内容实际尺寸预览，并默认显示 `EntrySelectionArrow`，可直接按最终比例调整条目；Selection 设计期和运行时仍按 Preview 状态控制箭头显隐。`EntryRootSizeBox.Height Override` 与 `PortraitSize.Height Override` 直接由该 WBP 资产拥有，保存、编译和运行时配置都不会回写固定高度；需要调高度时直接修改这两个 SizeBox。角色/武器因横向排版不同，宽度仍由 Selection 分别传入 `390/280`。`PortraitImage` 必须位于 `PortraitScale` 内并保持 `Stretch=Scale To Fit`，且其 ScaleBox Slot 的 Horizontal/Vertical Alignment 都必须为 `Center`。只设 Scale To Fit 但让子 Slot 保持 Fill，仍会把枪这类近方形素材沿另一轴拉长。
+- 1920×1080 位置权威位于 `WBP_ReEchoLoadoutSelection > LoadoutDesignCanvas`。角色与武器页都由同一 Designer 内的 `StageSwitcher` 承载：在层级中选中它，直接将 Details 的 `Active Widget Index` 设为 `0`（角色）或 `1`（武器），Designer 会立即切换到对应的真实运行页面；Class Defaults 的 `Designer Preview Index` 只负责 `-1` 初始全亮态或 `0..3` 选中态。`TitleText`、八个 Entry、两个 Stage Panel、键盘 Focus 回退用的 `DescriptionPanel` / `DescriptionTextScale > DescriptionText`、八张箭头、`ConfirmButton` 和 `ConfirmButtonLabel` 都应在同一 Designer 中按实际运行控件调整。鼠标悬停说明框本身才在 `WBP_ReEchoLoadoutTooltip` 中调整；`TooltipRootSizeBox.Width Override` 控制总宽，`TooltipFrame` 使用 `T_UI_Loadout_DescriptionPanel` 的九宫格 Brush 并控制边框，`TooltipSurface` 控制内边距与内底色，`TitleText` / `DescriptionText` 控制字体和换行。
+- 选中箭头位于 `WBP_ReEchoLoadoutEntry.EntrySelectionArrow`，与 `SelectButton` 同属 `EntryVisualOverlay`。全局 Hover 反馈会识别该 Overlay，因此角色/武器图、名称与箭头会作为一个整体放大缩小。箭头位置在 Entry 蓝图的 Overlay Slot 中统一调整；运行时只切换可见性，不写位置。不要把箭头重新放回 Selection 的公共 Canvas，否则它不会跟随单个条目的 Hover 缩放。
+- 正式源图位于 `Content/SourceArt/UI/LoadoutSelection/Plan132/`，运行时位于 `/Game/ReEcho/Textures/UI/LoadoutSelection/`。四张 `1-*.png` 是合成构图参考，不得作为整屏点击贴图；实际交互使用 16 张选中/未选中切图、解释框和箭头组合。
+- 角色说明读取 `characters.csv.Description`，武器说明读取对应 `weapon_types.csv.Description`；不要在 WBP/C++ 复制中文玩法文案，也不要用按钮文字反查 ID。C++ 只使用动态索引映射稳定 ID。
+- 当前交付构图顺序为勇者、智者、诗人、猎手，以及镰刀、枪、剑、弓。该顺序只属于本页面的表现映射；未知未来选项追加到已有项后，不修改全局 CSV 排序。
 
 ### 5.4 Trait 抽卡
 

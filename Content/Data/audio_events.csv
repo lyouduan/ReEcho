@@ -47,7 +47,7 @@ Combat.Reaction,Reaction.Growth,/Game/ReEcho/Audio/Variants/CombatReaction/Comba
 Combat.Reaction,Reaction.Conduct,/Game/ReEcho/Audio/Variants/CombatReaction/Combat_Reaction_Conduct.Combat_Reaction_Conduct,CombatSfx,OneShot,true,1,0.95,1.05,0.05,8,20,PauseWithGame,200,2000,0
 Combat.Reaction,Reaction.Enhance,/Game/ReEcho/Audio/Variants/CombatReaction/Combat_Reaction_Enhance.Combat_Reaction_Enhance,CombatSfx,OneShot,true,1,0.95,1.05,0.05,8,20,PauseWithGame,200,2000,0
 Item.Pickup,,/Game/ReEcho/Audio/Flow/Item_Pickup.Item_Pickup,CombatSfx,OneShot,true,1,0.95,1.05,0.05,8,20,PauseWithGame,200,2000,0
-UI.CardReveal,,/Game/ReEcho/Audio/UI/UI_CardReveal.UI_CardReveal,UiSfx,OneShot,false,1,1,1,0.05,8,10,ContinueOnPause,0,0,0
+UI.CardReveal,,/Game/ReEcho/Audio/UI/UI_CardReveal.UI_CardReveal,UiSfx,OneShot,false,1,1,1,0.05,8,10,ContinueOnPause,0,0,1.28
 UI.Equip,,/Game/ReEcho/Audio/UI/UI_RuneEquip.UI_RuneEquip,UiSfx,OneShot,false,1,1,1,0.05,8,10,ContinueOnPause,0,0,0.65
 UI.Unequip,,/Game/ReEcho/Audio/UI/UI_RuneEquip.UI_RuneEquip,UiSfx,OneShot,false,1,1,1,0.05,8,10,ContinueOnPause,0,0,0.65
 Flow.Victory,,/Game/ReEcho/Audio/Boss/Boss_Death.Boss_Death,UiSfx,OneShot,false,1,1,1,0.05,8,10,ContinueOnPause,0,0,3.56

@@ -14,6 +14,7 @@
 - 命名：`T_UI_CardIcon_{GAME_CARD_ID}.png` → 运行时 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{GAME_CARD_ID}`。
 - Plan128 后当前全部 64 张启用且可投放卡牌均拥有独立图标；未来新增且尚未交付独立图标的卡牌继续走通用回退 `T_UI_Shop_CardIcon`。
 - 完整卡牌图标的导入与覆盖使用 `scripts/ue/import_plan128_complete_card_icons.py`，脚本会从权威 CSV 枚举全部启用且可投放卡牌，并逐项校验规范 SourceArt、运行时 Texture2D 对象路径和原生尺寸。
+- `Icon/_Plan110NewTier2IconMap.csv` 保留 Plan110 接入新增二级牌时的策划源 ID 与稳定 Game Card ID 对照，仅作迁移追溯；运行时以当前权威 CSV 和 Plan128 完整导入结果为准。
 
 ## 通用回退
 - icon 缺失 → `/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_CardIcon`。
@@ -21,5 +22,6 @@
 
 ## 后续导入（编辑器步骤 / 或脚本）
 - `scripts/plan69_import_ue.py`：把 `SourceArt/UI/Cards/{Art,Icon}` 的 PNG 导入为 UTexture2D。
+- `scripts/ue/import_plan110_new_tier2_card_icons.py`：只导入 Plan110 新增的 `G_2_18`～`G_2_36`，不会覆盖当前启用卡牌；`audit_plan110_new_tier2_card_icons.py` 验证源图、尺寸和 Texture2D UI 属性。
 - `scripts/plan69_edit_wbp.py`：给 `WBP_ReEchoTraitCardEntry` 加 `ArtImage`/`IconImage` 两个 Image 控件（WBP 二进制编辑风险较高，失败则手动：编辑器拖两个 Image 改名即可）。
 - 本地增量构建 `scripts/ue/Build-Editor.cmd -Configuration Development` + PIE 验收。
