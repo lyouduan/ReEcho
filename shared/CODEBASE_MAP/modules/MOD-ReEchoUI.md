@@ -20,6 +20,8 @@
 - 交付版 Settings 保持“总音量 / 背景音乐 / 音效音量”三滑条；第三条是非音乐聚合控制，同时预览并保存 `Ambience`、`CombatSfx`、`UiSfx`，因此 `Ambience_Rain` 等环境循环不需要额外第四条滑条。
 - 通关后商店的回响存储控件由 `UReEchoInventoryShopWidget` 动态生成，使用底部紧凑缩放托盘承载，避免遮挡商店/装配室主体；存储、跳过、替换与指定回放事件语义保持不变。
 - `WBP_ReEchoSettings` 与 `WBP_ReEchoRestart` 的作者ing Root 是正常表现权威；原生 `BuildWidgetTree()` 只在完全没有 Root 时建立最低可用 fallback，不得因单一可选绑定缺失而覆盖整页。Settings 的运行时 ComboBox/Slider 按稳定名称幂等复用。
+- 三选一卡牌页的三个单槽刷新按钮与样例文案由 `WBP_ReEchoTraitCardChoice` 的 `ShopCardRefreshButton0..2` / `ShopCardRefreshText0..2` 持有，Designer 中可直接预览、拖动与缩放；`UReEchoTraitCardChoiceWidget` 运行时复用这些控件并只更新索引、次数、费用、显隐、启用状态和点击广播。按钮四态统一复用 `T_UI_Pause_ButtonLight`；无 WBP 的原生兜底仍动态创建同款按钮。
+- 商店装配树的卡牌槽框由 `DesignerCardSlot0..11` 的 Button 四态持有，子图层 `DesignerCardSlotArt0..11` 只承载已拥有卡牌内容；`T_UI_Shop110_EmptyCardSlotIcon` 锁图用于左侧 `DesignerPackOfferIcon0..2` 卡组商品位，不进入右侧装配树。
 - `WBP_ReEchoSettings` 的三个分类内容容器、文字字体/颜色与 Slot 布局均由 WBP 作者ing；C++ 只切换容器并绑定设置值/交互。运行时生成的下拉选项从 WBP `GraphicsValue0` 读取字体、颜色和渲染位移，不另设一套程序样式。
 - `WBP_ReEchoRestart` 复用既有 Pause 层承载普通暂停、退出到主菜单确认、退出游戏确认和 Death/Victory 结算状态，不新增独立 Pause WBP；交付切图只负责表现，透明真实按钮继续发出继续、设置、保存/不保存退出、返回等类型化 Delegate，目标关卡切换和程序退出由 `AReEchoGameMode` 执行。正式结算页的透明按钮与可见底图/文字是 Canvas 兄弟节点，因此 `UReEchoRestartWidget` 以 visual-only 绑定把统一 `1.05` 倍中心悬停缩放同步到对应底图和标签；该绑定不接管 WBP 几何，也不重复点击审计或音效。正式 `VictoryCanvas` / `DefeatCanvas` 是结算表现的唯一权威；被其替代的旧结果标题、摘要、角色、卡牌底板和按钮素材已经删除，不得重新导入。保存失败仍使用 `ArtRestartDialogPanel`，普通暂停与退出确认层保持不变。
 - 正式 Victory 由同一 `WBP_ReEchoRestart` 内的可选 `VictoryCanvas` 作者ing；其全部视觉与文字保持可独立编辑，C++ 只投影真实关卡总数、时间碎片和构筑数量，并把 `VictoryContinueButton` 转发到既有 `OnRestartRequested`，不新增结算或推进逻辑。

@@ -166,6 +166,10 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
 	         "T_UI_Shop110_LoadoutCardSlot.T_UI_Shop110_LoadoutCardSlot"));
 	ShopCardSlotTexture = CardSlotFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> EmptyCardSlotIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	         "T_UI_Shop110_EmptyCardSlotIcon.T_UI_Shop110_EmptyCardSlotIcon"));
+	ShopEmptyCardSlotIconTexture = EmptyCardSlotIconFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ShopTitleFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_Title.T_UI_Shop_Title"));
 	ShopTitleTexture = ShopTitleFinder.Object;
@@ -1175,10 +1179,22 @@ void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 	DesignerCardSlotArts.Reset();
 	for (int32 Index = 0; Index < 12; ++Index)
 	{
-		DesignerCardSlotButtons.Add(
-		    Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlot%d"), Index))));
-		DesignerCardSlotArts.Add(
-		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlotArt%d"), Index))));
+		UButton* CardButton =
+		    Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlot%d"), Index)));
+		UImage* CardArt =
+		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlotArt%d"), Index)));
+		DesignerCardSlotButtons.Add(CardButton);
+		DesignerCardSlotArts.Add(CardArt);
+		ApplyPersistentSlotFrame(CardButton, ShopCardSlotTexture.Get());
+		if (CardArt)
+		{
+			if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(CardArt->Slot))
+			{
+				ContentSlot->SetPadding(FMargin(0.0f));
+				ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+				ContentSlot->SetVerticalAlignment(VAlign_Fill);
+			}
+		}
 	}
 }
 
@@ -1547,7 +1563,7 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		const bool bCanPurchase = Pack.bCanPurchase && bCurrentExtraCardPurchaseAllowed;
 		if (DesignerPackOfferIcons.IsValidIndex(Index) && DesignerPackOfferIcons[Index])
 		{
-			DesignerPackOfferIcons[Index]->SetBrushFromTexture(ShopCardIconTexture.Get(), false);
+			DesignerPackOfferIcons[Index]->SetBrushFromTexture(ShopEmptyCardSlotIconTexture.Get(), false);
 			DesignerPackOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
 			DesignerPackOfferIcons[Index]->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
@@ -1628,7 +1644,7 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		CardSlotButton->OnClicked.Clear();
 		CardSlotButton->SetToolTip(nullptr);
 		CardSlotButton->SetVisibility(ESlateVisibility::Visible);
-		UTexture2D* CardTexture = ShopCardSlotTexture.Get();
+		UTexture2D* CardTexture = Index < VisibleCount ? ShopCardIconTexture.Get() : nullptr;
 		if (Index < VisibleCount && !DisplayedOwnedCards[Index].IconTexturePath.IsEmpty())
 		{
 			if (UTexture2D* LoadedCardTexture =
@@ -1637,10 +1653,10 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 				CardTexture = LoadedCardTexture;
 			}
 		}
-		SlotImage->SetBrushFromTexture(CardTexture, true);
-		SlotImage->SetColorAndOpacity(Index < VisibleCount ? FLinearColor::White
-		                                                   : FLinearColor(0.35f, 0.35f, 0.35f, 0.72f));
-		SlotImage->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SlotImage->SetBrushFromTexture(CardTexture, false);
+		SlotImage->SetColorAndOpacity(FLinearColor::White);
+		SlotImage->SetVisibility(Index < VisibleCount ? ESlateVisibility::HitTestInvisible
+		                                                   : ESlateVisibility::Hidden);
 		if (Index < VisibleCount)
 		{
 			const bool bStorageCard =

@@ -356,6 +356,16 @@ bool FReEchoShopCardPackChoicePresentationTest::RunTest(const FString& Parameter
 	UButton* ThirdRefresh = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopCardRefreshButton2")));
 	TestTrue(TEXT("Each actual paid card exposes its own refresh button"),
 	         FirstRefresh && FirstRefresh->GetVisibility() == ESlateVisibility::Visible);
+	const UTexture2D* ExpectedRefreshButtonTexture =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/"
+	                                "T_UI_Pause_ButtonLight.T_UI_Pause_ButtonLight"));
+	TestTrue(TEXT("Every runtime card-refresh button uses the delivered light pause-button art in all states"),
+	         FirstRefresh && ExpectedRefreshButtonTexture &&
+	             FirstRefresh->GetStyle().Normal.GetResourceObject() == ExpectedRefreshButtonTexture &&
+	             FirstRefresh->GetStyle().Hovered.GetResourceObject() == ExpectedRefreshButtonTexture &&
+	             FirstRefresh->GetStyle().Pressed.GetResourceObject() == ExpectedRefreshButtonTexture &&
+	             FirstRefresh->GetStyle().Disabled.GetResourceObject() == ExpectedRefreshButtonTexture);
 	TestTrue(TEXT("Card refresh button displays its independent remaining use and price"),
 	         FirstRefreshText && FirstRefreshText->GetText().ToString().Contains(TEXT("1")) &&
 	             FirstRefreshText->GetText().ToString().Contains(TEXT("5")));
@@ -515,7 +525,28 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 		TestNotNull(*FString::Printf(TEXT("Designer slot %d contains a sample card"), SlotIndex),
 		            Choice->GetWidgetFromName(*FString::Printf(TEXT("DesignerTraitCardSample%d"), SlotIndex)));
 	}
+	TArray<UReEchoIndexedButton*> AuthoredRefreshButtons;
+	for (int32 SlotIndex = 0; SlotIndex < 3; ++SlotIndex)
+	{
+		UReEchoIndexedButton* RefreshButton = Cast<UReEchoIndexedButton>(
+		    Choice->GetWidgetFromName(*FString::Printf(TEXT("ShopCardRefreshButton%d"), SlotIndex)));
+		UTextBlock* RefreshText = Cast<UTextBlock>(
+		    Choice->GetWidgetFromName(*FString::Printf(TEXT("ShopCardRefreshText%d"), SlotIndex)));
+		TestTrue(*FString::Printf(TEXT("Designer refresh button %d is visible and freely draggable"), SlotIndex),
+		         RefreshButton && RefreshButton->GetVisibility() == ESlateVisibility::Visible &&
+		             RefreshButton->GetParent() && RefreshButton->GetParent()->GetName() == TEXT("TraitCardContainer") &&
+		             Cast<UCanvasPanelSlot>(RefreshButton->Slot));
+		TestTrue(*FString::Printf(TEXT("Designer refresh button %d has representative copy"), SlotIndex),
+		         RefreshText && RefreshText->GetParent() == RefreshButton && !RefreshText->GetText().IsEmpty());
+		AuthoredRefreshButtons.Add(RefreshButton);
+	}
 	Choice->TakeWidget();
+	for (int32 SlotIndex = 0; SlotIndex < AuthoredRefreshButtons.Num(); ++SlotIndex)
+	{
+		TestTrue(*FString::Printf(TEXT("Runtime reuses Designer refresh button %d"), SlotIndex),
+		         AuthoredRefreshButtons[SlotIndex] == Choice->GetWidgetFromName(
+		                                                   *FString::Printf(TEXT("ShopCardRefreshButton%d"), SlotIndex)));
+	}
 	for (const FName ObsoleteWidgetName :
 	     {FName(TEXT("SubtitleText")), FName(TEXT("CurrencyText")), FName(TEXT("NeedleWidget"))})
 	{
@@ -854,9 +885,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Visible && EchoPanelScale &&
 	             EchoPanelScale->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
 	UButton* PurchasedCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardSlot1")));
+	UImage* PurchasedCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt1")));
+	UTexture2D* ExpectedCardSlotFrame = LoadObject<UTexture2D>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	         "T_UI_Shop110_LoadoutCardSlot.T_UI_Shop110_LoadoutCardSlot"));
 	TestNotNull(TEXT("The next authored card slot exists"), PurchasedCardSlot);
 	TestNull(TEXT("An unowned card is absent from the loadout before purchase"),
 	         PurchasedCardSlot ? PurchasedCardSlot->GetToolTip() : nullptr);
+	TestTrue(TEXT("An empty authored loadout slot retains its frame without product placeholder art"),
+	         PurchasedCardSlot && PurchasedCardArt && ExpectedCardSlotFrame &&
+	             PurchasedCardSlot->GetStyle().Normal.GetResourceObject() == ExpectedCardSlotFrame &&
+	             PurchasedCardArt->GetVisibility() == ESlateVisibility::Hidden);
 	Widget->MarkItemPurchased(PurchasedCard.ItemId);
 	const UVerticalBox* PurchasedCardTooltip =
 	    PurchasedCardSlot ? Cast<UVerticalBox>(PurchasedCardSlot->GetToolTip()) : nullptr;
@@ -864,7 +904,6 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("A card without a resolved result retains one tooltip panel"),
 	          PurchasedCardTooltip ? PurchasedCardTooltip->GetChildrenCount() : 0,
 	          1);
-	UImage* PurchasedCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt1")));
 	UTexture2D* ExpectedPurchasedCardIcon = LoadObject<UTexture2D>(nullptr, *PurchasedCard.IconTexturePath);
 	TestNotNull(TEXT("The purchased card icon asset loads"), ExpectedPurchasedCardIcon);
 	TestTrue(TEXT("The purchased card slot shows the purchased card icon"),
