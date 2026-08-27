@@ -69,8 +69,15 @@ public:
 	/** Resolves and directly previews one reaction VFX without mutating combat element state. */
 	static bool TryResolveDebugElementReactionSemantic(FName ReactionName, uint8& OutSemanticValue);
 	bool PlayElementReactionForDebug(uint8 SemanticValue, AActor* Target) const;
+	/** Previews Conduct through the production world-endpoint path without mutating combat state. */
+	bool PlayConductLinkForDebug(AActor* SourceTarget, AActor* TargetTarget) const;
 	static float ResolveConductLinkScheduledTime(int32 LinkIndex, float DelaySeconds);
-	/** Conduct Niagara uses world-space endpoints on an identity component at the world origin. */
+	/** Conduct is presentation-anchor driven; missing either explicit Hurt root suppresses the link. */
+	static bool TryResolveConductLinkAnchors(AActor* SourceTarget,
+	                                         AActor* TargetTarget,
+	                                         FVector& OutStartWorld,
+	                                         FVector& OutEndWorld);
+	/** Converts world anchors to the Conduct asset contract: absolute Beam Start plus relative Beam End. */
 	static void ResolveConductLinkWorldEndpoints(const FVector& StartWorld,
 	                                             const FVector& EndWorld,
 	                                             FVector& OutStartParameter,
@@ -201,7 +208,7 @@ private:
 	void RefreshElementAttachment(EReEchoElement Element);
 	void RefreshBurnStatus(bool bBurnActive);
 	UNiagaraComponent* SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
-	void SpawnConductLink(const FReEchoElementReactionLink& Link) const;
+	bool SpawnConductLink(const FReEchoElementReactionLink& Link) const;
 	void CancelConductPropagation();
 	void ScheduleConductLinks(const FReEchoElementReactionResolvedEvent& Event);
 	void ScheduleConductLinksWithDelay(const FReEchoElementReactionResolvedEvent& Event, float DelaySeconds);

@@ -1063,6 +1063,30 @@ file-static `AddBoxGeometry`。Unity build 或 adaptive non-unity 下两个同�
 
 ---
 
+### META-21. UMG 外层尺寸正确但图片仍变形时，检查 Button 内容边距和子 Image Brush [UE]
+
+**来源**：ReEcho Plan110 正式商店装配卡牌槽与商品购买按钮返修。`T_UI_Shop110_LoadoutCardSlot` 纹理和外层 `DesignerCardSlot*` 选择框都是方形，但设计器中的可见槽框持续呈窄长矩形；随后 `DesignerPartOfferBuy*` / `DesignerPackOfferBuy*` 也以相同原因把 `134×46` 的购买按钮素材压窄。
+
+**根因**：显示几何由多层共同决定，不能只看纹理像素或外层 Canvas Slot。本例中：
+
+- `DesignerCardSlot0..11` 的 `ButtonStyle.NormalPadding` / `PressedPadding` 仍保留旧值 `{Left=12, Top=1.5, Right=12, Bottom=1.5}`，先把内容区横向压窄；
+- 子项 `DesignerCardSlotArt0..11` 的 `Brush.ImageSize` 仍是旧的 `32×32`，没有与 `66×66` 正式纹理同步；
+- 六个 `DesignerPartOfferBuy*` / `DesignerPackOfferBuy*` 同样保留上述 ButtonStyle 内容边距，其 `*Art` Brush 也仍是通用默认 `32×32`，而正式素材和外层按钮实际为 `134×46`；
+- `ButtonSlot` 自身已经是零 Padding 且水平、垂直均为 Fill，所以继续调整外层 Canvas 尺寸或重复导入纹理都不能消除内层压缩。
+
+**排查顺序**：
+
+1. 先确认源图像素和透明边界，排除素材自身留白或画布比例问题；
+2. 再确认外层交互控件的 Canvas Slot 尺寸和 Render Transform；
+3. 展开按钮，分别检查 `ButtonStyle.NormalPadding` / `PressedPadding`、子 `PanelSlot` 的 Padding/Alignment，以及子 `Image.Brush.ImageSize`；
+4. 使用 UE MCP 时先按 `list_properties → get_properties → set_properties` 读取真实字段和值，不凭属性名猜测；修改后编译 WBP、保存资产，并回读首尾实例验证批量结果。
+
+**教训**：UMG 中“外框是方的、贴图也是方的、画面却是窄的”通常是父按钮内容边距或子图片 Brush 的历史值，而不是纹理导入问题。修复应落在持有显示约束的内层控件；不要通过放大外层 Canvas Slot 抵消内部 Padding，否则点击区、悬停表现和视觉尺寸会继续不一致。
+
+**Designer 样例边界**：所见即所得样例应表达页面的默认结构，而不是伪造运行时状态。Plan110 曾在 `prepare_plan110_shop_designer_preview.py` 中把 `DesignerAttachmentSlotArt0..2` 写成火/雷/草配件图标，导致三个空槽在 Designer 中看起来像三颗裸露宝石。正确做法是设计期使用正式 `89×89` 空槽框；真实配件图标只由运行时投影在已装备时替换。预览脚本与当前 WBP 必须同步修改，否则下次重跑脚本会重新引入错误样例。
+
+---
+
 ## §PLAN — 规划者专属
 
 > 本节给规划者（当前对话的 AI）在出 plan 之前读。不是给执行者用的。
@@ -1322,3 +1346,9 @@ FFileHelper::SaveStringToFile(Line, *Path,
 ### DEBUG-UE. 背景尺寸不能充当镜头跟随范围
 
 远景平面世界尺寸与玩法镜头边界属于不同坐标语义。将 8400/2 直接作为 CameraFollowLimit 会让镜头越过仅 ±1100 的场地边界。镜头范围应使用独立安全值，并让纯远景绑定相机保持固定相对距离。
+
+### UI-UE. 兼容层不得覆盖 authored Button Content；永久底框与动态图标必须分层
+
+**来源**：Plan110 正式商店。旧逻辑为兼容无 WBP 的 fallback，会创建 `ShopRefreshText` 并调用同名按钮的 `SetContent`；正式 WBP 也绑定这个按钮时，fallback 文本会在运行时覆盖蓝图中的刷新图片。绑定 authored 页面后必须重新确立正式 Content，兼容文本只能折叠，不能继续拥有正式按钮的内容槽。
+
+配件槽同理：一个 `Image` 在“空槽框”和“已装备图标”之间二选一，会导致装备后底框消失。固定框应放在 `ButtonStyle`（或独立底层 Image），动态符文只写上层子 Image；空槽时隐藏上层，不替换底层。对这类问题的回归断言应同时检查底层 Brush 和上层动态 Brush，而不是只检查最终图标。

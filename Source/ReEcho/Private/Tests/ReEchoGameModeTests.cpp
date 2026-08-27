@@ -18,6 +18,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeSceneAndMoveSpeedTest,
                                  "ReEcho.GameMode.GMSceneAndMoveSpeed",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeEnemyElementAllTest,
+                                 "ReEcho.GameMode.GMEnemyElementAll",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FReEchoGameModeSceneAndMoveSpeedTest::RunTest(const FString& Parameters)
 {
 	FName SceneId = NAME_None;
@@ -32,6 +36,25 @@ bool FReEchoGameModeSceneAndMoveSpeedTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Negative movement speed is rejected"), AReEchoGameMode::IsValidGMMoveSpeed(-1.0f));
 	TestFalse(TEXT("Non-finite movement speed is rejected"),
 	          AReEchoGameMode::IsValidGMMoveSpeed(std::numeric_limits<float>::infinity()));
+	return true;
+}
+
+bool FReEchoGameModeEnemyElementAllTest::RunTest(const FString& Parameters)
+{
+	EReEchoElement Element = EReEchoElement::Flame;
+	TestTrue(TEXT("GM all-enemy attachment accepts Grass"),
+	         AReEchoGameMode::TryResolveGMEnemyAttachment(TEXT("grass"), Element));
+	TestEqual(TEXT("GM all-enemy attachment resolves Grass"), Element, EReEchoElement::Grass);
+	TestTrue(TEXT("GM all-enemy attachment accepts Water"),
+	         AReEchoGameMode::TryResolveGMEnemyAttachment(TEXT("Water"), Element));
+	TestEqual(TEXT("GM all-enemy attachment resolves Water"), Element, EReEchoElement::Water);
+	TestTrue(TEXT("GM all-enemy attachment accepts Clear"),
+	         AReEchoGameMode::TryResolveGMEnemyAttachment(TEXT("Clear"), Element));
+	TestEqual(TEXT("GM all-enemy attachment resolves Clear to None"), Element, EReEchoElement::None);
+	TestFalse(TEXT("GM all-enemy attachment rejects trigger-only Flame"),
+	          AReEchoGameMode::TryResolveGMEnemyAttachment(TEXT("Flame"), Element));
+	TestFalse(TEXT("GM all-enemy attachment rejects trigger-only Lightning"),
+	          AReEchoGameMode::TryResolveGMEnemyAttachment(TEXT("Lightning"), Element));
 	return true;
 }
 

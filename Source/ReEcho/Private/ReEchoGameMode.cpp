@@ -259,6 +259,7 @@ void AReEchoGameMode::GMHelp()
 	                   "GMEndEncounter | GMTransition4 | GMKillAll | GMSpawnFox <count> [distance] | GMGotoBoss | "
 	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
+	                   "GMEnemyElementAll <None|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
 	                   "GMShowEnemyRange <On|Off|Toggle> | "
@@ -408,6 +409,64 @@ void AReEchoGameMode::GMElement(const FString& Element)
 	                          *ReEchoElementReaction::GetElementId(ParsedElement).ToString()));
 }
 
+bool AReEchoGameMode::TryResolveGMEnemyAttachment(const FString& Element, EReEchoElement& OutElement)
+{
+	if (Element.Equals(TEXT("Grass"), ESearchCase::IgnoreCase))
+	{
+		OutElement = EReEchoElement::Grass;
+		return true;
+	}
+	if (Element.Equals(TEXT("Water"), ESearchCase::IgnoreCase))
+	{
+		OutElement = EReEchoElement::Water;
+		return true;
+	}
+	if (Element.Equals(TEXT("None"), ESearchCase::IgnoreCase) ||
+	    Element.Equals(TEXT("Clear"), ESearchCase::IgnoreCase))
+	{
+		OutElement = EReEchoElement::None;
+		return true;
+	}
+	return false;
+}
+
+void AReEchoGameMode::GMEnemyElementAll(const FString& Element)
+{
+	if (!EnsureGMCommandAvailable() || !EnemyRoster)
+	{
+		PrintGMResult(TEXT("GMEnemyElementAll requires an active encounter."), false);
+		return;
+	}
+
+	EReEchoElement Attachment = EReEchoElement::None;
+	if (!TryResolveGMEnemyAttachment(Element, Attachment))
+	{
+		PrintGMResult(TEXT("Usage: GMEnemyElementAll <None|Grass|Water>"), false);
+		return;
+	}
+
+	int32 AppliedCount = 0;
+	for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+	{
+		AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+		UReEchoCombatantComponent* Combatant = Enemy ? Enemy->GetCombatantComponent() : nullptr;
+		if (!Enemy || !Enemy->IsAlive() || !Combatant)
+		{
+			continue;
+		}
+		FReEchoElementState State = Combatant->GetElementState();
+		State.Attached = Attachment;
+		Combatant->RestoreElementState(State);
+		++AppliedCount;
+	}
+
+	const FString AttachmentLabel =
+	    Attachment == EReEchoElement::None ? TEXT("None") : ReEchoElementReaction::GetElementLabel(Attachment);
+	PrintGMResult(FString::Printf(TEXT("Set enemy attachment=%s on %d living enemies; no damage or reactions fired."),
+	                              *AttachmentLabel,
+	                              AppliedCount));
+}
+
 void AReEchoGameMode::GMReaction(const FString& Reaction, const float Damage)
 {
 	if (!EnsureGMCommandAvailable())
@@ -428,6 +487,36 @@ void AReEchoGameMode::GMReaction(const FString& Reaction, const float Damage)
 		return;
 	}
 	UReEchoCombatVfxComponent* TargetVfx = Target->FindComponentByClass<UReEchoCombatVfxComponent>();
+	if (Reaction.Equals(TEXT("Conduct"), ESearchCase::IgnoreCase))
+	{
+		AReEchoEnemyActor* NearestNeighbor = nullptr;
+		float NearestDistanceSquared = TNumericLimits<float>::Max();
+		for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+		{
+			AReEchoEnemyActor* Candidate = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+			if (!Candidate || Candidate == Target || !Candidate->IsAlive())
+			{
+				continue;
+			}
+			const float DistanceSquared = FVector::DistSquared2D(Target->GetActorLocation(), Candidate->GetActorLocation());
+			if (!NearestNeighbor || DistanceSquared < NearestDistanceSquared)
+			{
+				NearestNeighbor = Candidate;
+				NearestDistanceSquared = DistanceSquared;
+			}
+		}
+		const bool bPlayed = TargetVfx && NearestNeighbor &&
+		                     TargetVfx->PlayConductLinkForDebug(Target, NearestNeighbor);
+		PrintGMResult(
+		    bPlayed
+		        ? FString::Printf(TEXT("Previewed Conduct from %s to %s through production world endpoints; combat state "
+		                               "unchanged."),
+		                          *Target->GetName(),
+		                          *NearestNeighbor->GetName())
+		        : TEXT("GMReaction Conduct requires at least two living enemies and a valid Electricity system."),
+		    bPlayed);
+		return;
+	}
 	const bool bPlayed = TargetVfx && TargetVfx->PlayElementReactionForDebug(SemanticValue, Target);
 	PrintGMResult(bPlayed ? FString::Printf(TEXT("Previewed %s VFX directly on %s; combat state unchanged."),
 	                                        *Reaction,
