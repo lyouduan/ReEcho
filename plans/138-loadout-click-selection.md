@@ -127,3 +127,6 @@
 
 - 发布授权后 fetch 到 `origin/main@db54bbb1`。Plan-only 基线之后传入 Plan133 CG 镜头过渡与 Plan139 枪械元素飞行特效；修改范围集中于 GameMode、场景相机、投射物/VFX、对应测试与 `MOD-ReEcho` / `MOD-ReEchoVFX`。
 - 传入提交未修改 `ReEchoLoadoutSelectionWidget.cpp`、`ReEchoLoadoutSelectionTests.cpp`、`MOD-ReEchoUI.md` 或 UI 修改指导；与 Plan138 没有同路径冲突或 Loadout 状态机逻辑耦合。精选 Editor 包属于构建产物热点，将在合并最新 main 后执行最终 `-FullRebuild`，不保留任一旧侧二进制。
+- 已在取得 `main-publish-lock` 后通过 `f6b1a8a3` 合入 `origin/main@db54bbb1`；仅 8 个精选预构建产物产生预期二进制冲突，先采用 main 侧旧包完成源码合并，再由最终组合源码完整重建。
+- 最终集成构建提交为 `be731b34`：`scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` 成功，刷新 `modules=7 build_id=55116800 source=b69300206ce2`；最终组合候选上的 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 均为 `Result={Success}`。
+- 最终 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check` 与 `git diff --check` 均通过。发布预期为将包含 `be731b34` 及本验证记录的锁候选快进推送至 `origin/main`，随后按准确 lease 删除 `main-publish-lock`。
