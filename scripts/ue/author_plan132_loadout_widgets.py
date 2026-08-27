@@ -32,6 +32,18 @@ FORMAL_FONT_PATH = (
 CHARACTERS_CSV_PATH = (
     Path(unreal.Paths.project_content_dir()) / "Data" / "characters.csv"
 )
+CHARACTER_PREVIEW_ORDER = (
+    ("J_HEART", "勇者"),
+    ("J_SPADE", "智者"),
+    ("J_CLOVER", "诗人"),
+    ("J_DIAMOND", "猎手"),
+)
+WEAPON_PREVIEW_ORDER = (
+    ("W_J_04", "镰刀"),
+    ("W_J_09", "枪"),
+    ("W_J_01", "剑"),
+    ("W_J_08", "弓"),
+)
 
 
 def load_tooltip_preview_content():
@@ -220,6 +232,78 @@ def configure_confirm_button(button, texture):
     )
 
 
+def load_preview_texture(domain, stable_id, state):
+    asset_name = f"T_UI_Loadout_{domain}_{stable_id}_{state}"
+    asset_path = f"/Game/ReEcho/Textures/UI/LoadoutSelection/{asset_name}"
+    texture = unreal.load_asset(asset_path)
+    if not isinstance(texture, unreal.Texture2D):
+        raise RuntimeError(f"Plan132 preview texture is missing: {asset_path}")
+    return texture
+
+
+def ensure_selection_preview_entries(
+    toolset, blueprint, entry_widget_class, character_row, weapon_row
+):
+    expected_names = {
+        *(f"CharacterEntry{index}" for index in range(4)),
+        *(f"WeaponEntry{index}" for index in range(4)),
+    }
+    widgets = widget_map(toolset, blueprint)
+    for widget in list(widgets.values()):
+        if (
+            widget.get_parent() in (character_row, weapon_row)
+            and widget.get_name() not in expected_names
+        ):
+            if not toolset.call_method("RemoveWidget", args=(blueprint, widget)):
+                raise RuntimeError(
+                    f"Failed to remove obsolete Loadout preview child: {widget.get_name()}"
+                )
+
+    for domain, row, ordered_entries, width in (
+        ("Character", character_row, CHARACTER_PREVIEW_ORDER, 390.0),
+        ("Weapon", weapon_row, WEAPON_PREVIEW_ORDER, 280.0),
+    ):
+        for index, (stable_id, label) in enumerate(ordered_entries):
+            name = f"{domain}Entry{index}"
+            widgets = widget_map(toolset, blueprint)
+            entry = widgets.get(name)
+            if entry is not None and entry.get_class() != entry_widget_class:
+                if not toolset.call_method("RemoveWidget", args=(blueprint, entry)):
+                    raise RuntimeError(f"Failed to replace Loadout preview entry: {name}")
+                entry = None
+            if entry is None:
+                entry = add_widget(
+                    toolset,
+                    blueprint,
+                    entry_widget_class,
+                    name,
+                    row,
+                    False,
+                )
+            entry.set_editor_property("designer_preview_label", label)
+            entry.set_editor_property(
+                "designer_preview_selected_texture",
+                load_preview_texture(domain, stable_id, "Selected"),
+            )
+            entry.set_editor_property(
+                "designer_preview_unselected_texture",
+                load_preview_texture(domain, stable_id, "Unselected"),
+            )
+            entry.set_editor_property("designer_preview_width", width)
+            entry.set_editor_property("designer_preview_height", 560.0)
+            entry.set_editor_property("designer_preview_selected", index == 3)
+            slot = entry.get_editor_property("slot")
+            if not isinstance(slot, unreal.HorizontalBoxSlot):
+                raise RuntimeError(f"Plan132 preview entry has wrong slot: {name}")
+            slot.set_editor_property("padding", unreal.Margin(7.0, 7.0, 7.0, 7.0))
+            slot.set_editor_property(
+                "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_FILL
+            )
+            slot.set_editor_property(
+                "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_FILL
+            )
+
+
 def author_tooltip(toolset, blueprint, preview_title, preview_description):
     widgets = widget_map(toolset, blueprint)
     root = widgets.get("TooltipRootSizeBox")
@@ -400,6 +484,7 @@ def author_entry(toolset, blueprint, sample_texture, formal_font):
 def author_selection(
     toolset,
     blueprint,
+    entry_widget_class,
     description_texture,
     arrow_texture,
     confirm_texture,
@@ -638,6 +723,14 @@ def author_selection(
         raise RuntimeError("Plan132 Selection binding DescriptionTextScale is missing")
     mark_variable(toolset, blueprint, description_scale)
 
+    ensure_selection_preview_entries(
+        toolset,
+        blueprint,
+        entry_widget_class,
+        widgets["CharacterRow"],
+        widgets["WeaponRow"],
+    )
+
     title = widgets["TitleText"]
     configure_text(
         title,
@@ -653,10 +746,22 @@ def author_selection(
     )
     set_canvas_layout(title, 650.0, 112.0, 620.0, 120.0, 50)
 
+    selection_arrow = widgets["SelectionArrow"]
+    set_canvas_layout(selection_arrow, 1515.0, 822.0, 60.0, 33.0, 80)
+    selection_arrow.set_editor_property(
+        "visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE
+    )
+
+    confirm_button = widgets["ConfirmButton"]
+    confirm_button.set_editor_property("visibility", unreal.SlateVisibility.VISIBLE)
+
     confirm_label = widgets["ConfirmButtonLabel"]
     configure_formal_font(confirm_label, formal_font, 1)
     name_color = unreal.LinearColor(1.0, 0.956, 0.882, 1.0)
     confirm_label.set_editor_property("color_and_opacity", unreal.SlateColor(name_color))
+    confirm_label.set_editor_property(
+        "visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE
+    )
 
     set_canvas_layout(widgets["DescriptionPanel"], 423.0, 370.0, 420.0, 440.0, 60)
     set_canvas_layout(description_scale, 443.0, 390.0, 380.0, 400.0, 70)
@@ -703,9 +808,13 @@ def main():
 
     author_tooltip(toolset, tooltip, preview_title, preview_description)
     author_entry(toolset, entry, sample_texture, formal_font)
+    entry_widget_class = entry.generated_class()
+    if entry_widget_class is None:
+        raise RuntimeError("Plan132 Entry WBP has no generated class")
     author_selection(
         toolset,
         selection,
+        entry_widget_class,
         description_texture,
         arrow_texture,
         confirm_texture,

@@ -68,8 +68,7 @@ int32 WeaponPresentationOrder(const FName WeaponId)
 
 FString LoadoutTexturePath(const TCHAR* Domain, const FName StableId, const TCHAR* State)
 {
-	const FString AssetName =
-	    FString::Printf(TEXT("T_UI_Loadout_%s_%s_%s"), Domain, *StableId.ToString(), State);
+	const FString AssetName = FString::Printf(TEXT("T_UI_Loadout_%s_%s_%s"), Domain, *StableId.ToString(), State);
 	return FString::Printf(TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/%s.%s"), *AssetName, *AssetName);
 }
 
@@ -268,6 +267,68 @@ void UReEchoLoadoutSelectionWidget::NativeConstruct()
 	SetKeyboardFocus();
 }
 
+void UReEchoLoadoutSelectionWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+#if WITH_EDITOR
+	if (!IsDesignTime())
+	{
+		return;
+	}
+	const bool bCharacterStage = DesignerPreviewStage == EReEchoLoadoutDesignerPreviewStage::Character;
+	if (CharacterStagePanel)
+	{
+		CharacterStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
+		                                                   : ESlateVisibility::Collapsed);
+	}
+	if (WeaponStagePanel)
+	{
+		WeaponStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
+		                                                : ESlateVisibility::SelfHitTestInvisible);
+	}
+	if (TitleText)
+	{
+		TitleText->SetText(FText::FromString(bCharacterStage ? TEXT("选择角色") : TEXT("选择武器")));
+	}
+	UHorizontalBox* PreviewRow = bCharacterStage ? CharacterRow : WeaponRow;
+	if (PreviewRow)
+	{
+		for (int32 ChildIndex = 0; ChildIndex < PreviewRow->GetChildrenCount(); ++ChildIndex)
+		{
+			if (UReEchoLoadoutEntryWidget* Entry = Cast<UReEchoLoadoutEntryWidget>(PreviewRow->GetChildAt(ChildIndex)))
+			{
+				Entry->ApplyDesignerPreviewState(DesignerPreviewIndex < 0 || DesignerPreviewIndex == ChildIndex);
+			}
+		}
+	}
+	const bool bHasPreview = DesignerPreviewIndex >= 0;
+	if (SelectionArrow)
+	{
+		SelectionArrow->SetVisibility(bHasPreview ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (bHasPreview)
+		{
+			static const float CharacterArrowX[] = {330.0f, 725.0f, 1120.0f, 1515.0f};
+			static const float WeaponArrowX[] = {547.0f, 821.0f, 1095.0f, 1369.0f};
+			if (UCanvasPanelSlot* ArrowSlot = Cast<UCanvasPanelSlot>(SelectionArrow->Slot))
+			{
+				ArrowSlot->SetPosition(FVector2D(bCharacterStage ? CharacterArrowX[DesignerPreviewIndex]
+				                                                 : WeaponArrowX[DesignerPreviewIndex],
+				                                 bCharacterStage ? 822.0f : 852.0f));
+			}
+		}
+	}
+	if (ConfirmButton)
+	{
+		ConfirmButton->SetVisibility(bHasPreview ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (ConfirmButtonLabel)
+	{
+		ConfirmButtonLabel->SetVisibility(bHasPreview ? ESlateVisibility::HitTestInvisible
+		                                              : ESlateVisibility::Collapsed);
+	}
+#endif
+}
+
 void UReEchoLoadoutSelectionWidget::LoadOptions()
 {
 	CharacterOptionIds.Reset();
@@ -442,8 +503,33 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 	WeaponButtons.Reset();
 	CharacterEntries.Reset();
 	WeaponEntries.Reset();
-	CharacterRow->ClearChildren();
-	WeaponRow->ClearChildren();
+
+	for (int32 ChildIndex = 0; ChildIndex < CharacterRow->GetChildrenCount(); ++ChildIndex)
+	{
+		if (UReEchoLoadoutEntryWidget* Entry = Cast<UReEchoLoadoutEntryWidget>(CharacterRow->GetChildAt(ChildIndex)))
+		{
+			CharacterEntries.Add(Entry);
+		}
+	}
+	for (int32 ChildIndex = 0; ChildIndex < WeaponRow->GetChildrenCount(); ++ChildIndex)
+	{
+		if (UReEchoLoadoutEntryWidget* Entry = Cast<UReEchoLoadoutEntryWidget>(WeaponRow->GetChildAt(ChildIndex)))
+		{
+			WeaponEntries.Add(Entry);
+		}
+	}
+	const bool bReuseAuthoredCharacterEntries = CharacterEntries.Num() == CharacterOptionIds.Num();
+	const bool bReuseAuthoredWeaponEntries = WeaponEntries.Num() == WeaponOptionIds.Num();
+	if (!bReuseAuthoredCharacterEntries)
+	{
+		CharacterEntries.Reset();
+		CharacterRow->ClearChildren();
+	}
+	if (!bReuseAuthoredWeaponEntries)
+	{
+		WeaponEntries.Reset();
+		WeaponRow->ClearChildren();
+	}
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	if (!Snapshot.IsValid())
@@ -456,9 +542,16 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 		const FName CharacterId = CharacterOptionIds[OptionIndex];
 		if (EntryWidgetClass)
 		{
-			UReEchoLoadoutEntryWidget* Entry = WidgetTree->ConstructWidget<UReEchoLoadoutEntryWidget>(
-			    EntryWidgetClass, *FString::Printf(TEXT("CharacterEntry%d"), OptionIndex));
-			CharacterRow->AddChildToHorizontalBox(Entry)->SetPadding(FMargin(7.0f));
+			UReEchoLoadoutEntryWidget* Entry =
+			    bReuseAuthoredCharacterEntries
+			        ? CharacterEntries[OptionIndex].Get()
+			        : WidgetTree->ConstructWidget<UReEchoLoadoutEntryWidget>(
+			              EntryWidgetClass, *FString::Printf(TEXT("CharacterEntry%d"), OptionIndex));
+			if (!bReuseAuthoredCharacterEntries)
+			{
+				CharacterRow->AddChildToHorizontalBox(Entry)->SetPadding(FMargin(7.0f));
+				CharacterEntries.Add(Entry);
+			}
 			Entry->Configure(OptionIndex,
 			                 FText::FromString(CharacterLabels.FindRef(CharacterId)),
 			                 FText::FromString(CharacterDescriptions.FindRef(CharacterId)),
@@ -467,7 +560,6 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 			                 CharacterTexturePath(Snapshot->FindCharacter(CharacterId)->AppearanceId),
 			                 390.0f,
 			                 560.0f);
-			CharacterEntries.Add(Entry);
 		}
 		else
 		{
@@ -485,9 +577,16 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 		const FName WeaponId = WeaponOptionIds[OptionIndex];
 		if (EntryWidgetClass)
 		{
-			UReEchoLoadoutEntryWidget* Entry = WidgetTree->ConstructWidget<UReEchoLoadoutEntryWidget>(
-			    EntryWidgetClass, *FString::Printf(TEXT("WeaponEntry%d"), OptionIndex));
-			WeaponRow->AddChildToHorizontalBox(Entry)->SetPadding(FMargin(7.0f));
+			UReEchoLoadoutEntryWidget* Entry =
+			    bReuseAuthoredWeaponEntries
+			        ? WeaponEntries[OptionIndex].Get()
+			        : WidgetTree->ConstructWidget<UReEchoLoadoutEntryWidget>(
+			              EntryWidgetClass, *FString::Printf(TEXT("WeaponEntry%d"), OptionIndex));
+			if (!bReuseAuthoredWeaponEntries)
+			{
+				WeaponRow->AddChildToHorizontalBox(Entry)->SetPadding(FMargin(7.0f));
+				WeaponEntries.Add(Entry);
+			}
 			Entry->Configure(OptionIndex,
 			                 FText::FromString(WeaponLabels.FindRef(WeaponId)),
 			                 FText::FromString(WeaponDescriptions.FindRef(WeaponId)),
@@ -496,7 +595,6 @@ void UReEchoLoadoutSelectionWidget::BuildOptionEntries()
 			                 WeaponTexturePath(Snapshot->FindWeapon(WeaponId)->VisualKey),
 			                 280.0f,
 			                 560.0f);
-			WeaponEntries.Add(Entry);
 		}
 		else
 		{
@@ -519,22 +617,22 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	if (CharacterStagePanel)
 	{
 		CharacterStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
-		                                                     : ESlateVisibility::Collapsed);
+		                                                   : ESlateVisibility::Collapsed);
 	}
 	if (WeaponStagePanel)
 	{
 		WeaponStagePanel->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
-		                                                  : ESlateVisibility::SelfHitTestInvisible);
+		                                                : ESlateVisibility::SelfHitTestInvisible);
 	}
 	if (CharacterRow)
 	{
 		CharacterRow->SetVisibility(bCharacterStage ? ESlateVisibility::SelfHitTestInvisible
-		                                           : ESlateVisibility::Collapsed);
+		                                            : ESlateVisibility::Collapsed);
 	}
 	if (WeaponRow)
 	{
 		WeaponRow->SetVisibility(bCharacterStage ? ESlateVisibility::Collapsed
-		                                        : ESlateVisibility::SelfHitTestInvisible);
+		                                         : ESlateVisibility::SelfHitTestInvisible);
 	}
 	if (TitleText)
 	{
@@ -553,15 +651,15 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	}
 	for (int32 OptionIndex = 0; OptionIndex < CharacterEntries.Num(); ++OptionIndex)
 	{
-		CharacterEntries[OptionIndex]->SetPresentationState(
-		    bHasCharacterPreview,
-		    CharacterOptionIds.IsValidIndex(OptionIndex) && SelectedCharacterId == CharacterOptionIds[OptionIndex]);
+		CharacterEntries[OptionIndex]->SetPresentationState(bHasCharacterPreview,
+		                                                    CharacterOptionIds.IsValidIndex(OptionIndex) &&
+		                                                        SelectedCharacterId == CharacterOptionIds[OptionIndex]);
 	}
 	for (int32 OptionIndex = 0; OptionIndex < WeaponEntries.Num(); ++OptionIndex)
 	{
-		WeaponEntries[OptionIndex]->SetPresentationState(
-		    bHasWeaponPreview,
-		    WeaponOptionIds.IsValidIndex(OptionIndex) && SelectedWeaponId == WeaponOptionIds[OptionIndex]);
+		WeaponEntries[OptionIndex]->SetPresentationState(bHasWeaponPreview,
+		                                                 WeaponOptionIds.IsValidIndex(OptionIndex) &&
+		                                                     SelectedWeaponId == WeaponOptionIds[OptionIndex]);
 	}
 	if (StatusText)
 	{
@@ -569,9 +667,8 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	}
 	if (DescriptionText)
 	{
-		DescriptionText->SetText(FText::FromString(
-		    bCharacterStage ? CharacterDescriptions.FindRef(SelectedCharacterId)
-		                    : WeaponDescriptions.FindRef(SelectedWeaponId)));
+		DescriptionText->SetText(FText::FromString(bCharacterStage ? CharacterDescriptions.FindRef(SelectedCharacterId)
+		                                                           : WeaponDescriptions.FindRef(SelectedWeaponId)));
 		DescriptionText->SetVisibility(bHasCurrentPreview && bShowAnchoredDescription
 		                                   ? ESlateVisibility::HitTestInvisible
 		                                   : ESlateVisibility::Collapsed);
@@ -585,7 +682,7 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	if (SelectionArrow)
 	{
 		SelectionArrow->SetVisibility(bHasCurrentPreview ? ESlateVisibility::HitTestInvisible
-		                                                       : ESlateVisibility::Collapsed);
+		                                                 : ESlateVisibility::Collapsed);
 		RefreshSelectionArrow();
 	}
 	if (ConfirmButton)
@@ -596,7 +693,7 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 	if (ConfirmButtonLabel)
 	{
 		ConfirmButtonLabel->SetVisibility(bHasCurrentPreview ? ESlateVisibility::HitTestInvisible
-		                                                          : ESlateVisibility::Collapsed);
+		                                                     : ESlateVisibility::Collapsed);
 	}
 }
 
@@ -618,7 +715,7 @@ void UReEchoLoadoutSelectionWidget::RefreshSelectionArrow()
 	static const float WeaponDescriptionX[] = {666.0f, 960.0f, 524.0f, 818.0f};
 	const bool bCharacterStage = SelectionStage == ESelectionStage::Character;
 	const int32 PreviewIndex = bCharacterStage ? CharacterOptionIds.IndexOfByKey(SelectedCharacterId)
-	                                          : WeaponOptionIds.IndexOfByKey(SelectedWeaponId);
+	                                           : WeaponOptionIds.IndexOfByKey(SelectedWeaponId);
 	if (PreviewIndex < 0 || PreviewIndex >= 4)
 	{
 		return;
@@ -626,17 +723,18 @@ void UReEchoLoadoutSelectionWidget::RefreshSelectionArrow()
 	ArrowSlot->SetPosition(FVector2D(bCharacterStage ? CharacterArrowX[PreviewIndex] : WeaponArrowX[PreviewIndex],
 	                                 bCharacterStage ? 822.0f : 852.0f));
 
-	if (UCanvasPanelSlot* DescriptionPanelSlot = DescriptionPanel ? Cast<UCanvasPanelSlot>(DescriptionPanel->Slot) : nullptr)
+	if (UCanvasPanelSlot* DescriptionPanelSlot =
+	        DescriptionPanel ? Cast<UCanvasPanelSlot>(DescriptionPanel->Slot) : nullptr)
 	{
-		DescriptionPanelSlot->SetPosition(
-		    FVector2D(bCharacterStage ? CharacterDescriptionX[PreviewIndex] : WeaponDescriptionX[PreviewIndex], 330.0f));
+		DescriptionPanelSlot->SetPosition(FVector2D(
+		    bCharacterStage ? CharacterDescriptionX[PreviewIndex] : WeaponDescriptionX[PreviewIndex], 330.0f));
 	}
 	if (UCanvasPanelSlot* DescriptionTextSlot =
 	        DescriptionTextScale ? Cast<UCanvasPanelSlot>(DescriptionTextScale->Slot) : nullptr)
 	{
-		DescriptionTextSlot->SetPosition(
-		    FVector2D((bCharacterStage ? CharacterDescriptionX[PreviewIndex] : WeaponDescriptionX[PreviewIndex]) + 20.0f,
-		              350.0f));
+		DescriptionTextSlot->SetPosition(FVector2D(
+		    (bCharacterStage ? CharacterDescriptionX[PreviewIndex] : WeaponDescriptionX[PreviewIndex]) + 20.0f,
+		    350.0f));
 	}
 }
 

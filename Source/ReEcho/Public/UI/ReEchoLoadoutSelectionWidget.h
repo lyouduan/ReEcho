@@ -15,9 +15,15 @@ class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoLoadoutConfirmed, FName, CharacterId, FName, WeaponId);
 
+UENUM(BlueprintType)
+enum class EReEchoLoadoutDesignerPreviewStage : uint8
+{
+	Character,
+	Weapon
+};
+
 /** Blocking first-encounter selection for a data-backed character and initial weapon. */
 UCLASS()
-
 class REECHO_API UReEchoLoadoutSelectionWidget : public UUserWidget
 {
 	GENERATED_BODY()
@@ -31,6 +37,7 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
+	virtual void NativePreConstruct() override;
 
 private:
 	enum class ESelectionStage : uint8
@@ -120,6 +127,16 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConfirmButton;
 
+#if WITH_EDITORONLY_DATA
+	/** Switches the complete WBP preview between the two runtime stages. */
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview")
+	EReEchoLoadoutDesignerPreviewStage DesignerPreviewStage = EReEchoLoadoutDesignerPreviewStage::Character;
+
+	/** Entry shown as selected in Designer; -1 previews the initial all-bright state. */
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview", meta = (ClampMin = "-1", ClampMax = "3"))
+	int32 DesignerPreviewIndex = 3;
+#endif
+
 	FName SelectedCharacterId;
 	FName SelectedWeaponId;
 	ESelectionStage SelectionStage = ESelectionStage::Character;
@@ -134,5 +151,6 @@ private:
 
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoLoadoutSelectionFlowTest;
+	friend class FReEchoLoadoutSelectionAssetContractTest;
 #endif
 };

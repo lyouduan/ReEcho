@@ -24,6 +24,55 @@ void UReEchoLoadoutEntryWidget::NativeConstruct()
 	SelectButton->OnHovered.AddUniqueDynamic(this, &UReEchoLoadoutEntryWidget::HandleHovered);
 }
 
+void UReEchoLoadoutEntryWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+#if WITH_EDITOR
+	if (!IsDesignTime())
+	{
+		return;
+	}
+	if (NameText && !DesignerPreviewLabel.IsEmpty())
+	{
+		NameText->SetText(DesignerPreviewLabel);
+	}
+	if (EntryRootSizeBox)
+	{
+		EntryRootSizeBox->SetWidthOverride(DesignerPreviewWidth);
+		EntryRootSizeBox->SetHeightOverride(DesignerPreviewHeight);
+	}
+	if (PortraitSize)
+	{
+		PortraitSize->SetWidthOverride(DesignerPreviewWidth);
+		PortraitSize->SetHeightOverride(480.0f);
+	}
+	ApplyDesignerPreviewState(bDesignerPreviewSelected);
+#endif
+}
+
+#if WITH_EDITOR
+void UReEchoLoadoutEntryWidget::ApplyDesignerPreviewState(const bool bIsSelected)
+{
+#if WITH_EDITORONLY_DATA
+	bDesignerPreviewSelected = bIsSelected;
+	UTexture2D* Texture = bIsSelected ? DesignerPreviewSelectedTexture : DesignerPreviewUnselectedTexture;
+	if (!Texture)
+	{
+		Texture = DesignerPreviewSelectedTexture;
+	}
+	if (PortraitImage && Texture)
+	{
+		PortraitImage->SetBrushFromTexture(Texture, true);
+	}
+	if (NameText)
+	{
+		NameText->SetColorAndOpacity(FSlateColor(bIsSelected ? FLinearColor(1.0f, 0.96f, 0.88f, 1.0f)
+		                                                     : FLinearColor(0.46f, 0.43f, 0.37f, 1.0f)));
+	}
+#endif
+}
+#endif
+
 void UReEchoLoadoutEntryWidget::Configure(const int32 InEntryIndex,
                                           const FText& Label,
                                           const FText& Description,

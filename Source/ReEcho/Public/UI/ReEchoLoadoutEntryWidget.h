@@ -45,8 +45,13 @@ public:
 	void SetPresentationState(bool bHasPreview, bool bIsPreviewed);
 	void FocusSelection();
 
+#if WITH_EDITOR
+	void ApplyDesignerPreviewState(bool bIsSelected);
+#endif
+
 protected:
 	virtual void NativeConstruct() override;
+	virtual void NativePreConstruct() override;
 	virtual void NativeOnAddedToFocusPath(const FFocusEvent& InFocusEvent) override;
 
 private:
@@ -80,6 +85,27 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Loadout | Tooltip")
 	TSubclassOf<UReEchoLoadoutTooltipWidget> TooltipWidgetClass;
+
+#if WITH_EDITORONLY_DATA
+	/** Representative values used only while this entry is rendered inside the UMG Designer. */
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview")
+	FText DesignerPreviewLabel;
+
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview")
+	TObjectPtr<UTexture2D> DesignerPreviewSelectedTexture;
+
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview")
+	TObjectPtr<UTexture2D> DesignerPreviewUnselectedTexture;
+
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview")
+	bool bDesignerPreviewSelected = true;
+
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview", meta = (ClampMin = "1.0"))
+	float DesignerPreviewWidth = 390.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Loadout | Designer Preview", meta = (ClampMin = "1.0"))
+	float DesignerPreviewHeight = 560.0f;
+#endif
 
 	int32 EntryIndex = INDEX_NONE;
 };

@@ -116,6 +116,7 @@
 - `UReEchoLoadoutSelectionWidget` 已实现 Character → Weapon 两阶段状态机、固定稳定 ID 表现顺序、CSV 描述读取和单次最终广播；Entry 将 Hover、Focus 与点击统一投射为 Preview，并按 Preview 切换成对纹理。用户复核后，鼠标说明改为复用商店原生 Tooltip 的跟随/屏幕避让策略，正文扩大到 20px、380px 宽；Focus 继续使用不缩字的大号页面回退框。
 - 鼠标 Tooltip 的视觉层已从 `UReEchoLoadoutEntryWidget::BuildTooltip()` 的硬编码树拆为独立 `WBP_ReEchoLoadoutTooltip`；`TooltipRootSizeBox` / `TooltipFrame` / `TooltipSurface` / `TitleText` / `DescriptionText` 均可在 Designer 中微调，C++ 只写入当前标题和 CSV 说明并保留蓝图缺失时的原生回退。
 - 用户复核指出仅暴露层级仍不是所见即所得；Tooltip WBP 的 Designer Preview 改为 `Desired` 内容实际尺寸，并从 `characters.csv` 读取 `J_HEART` 的真实标题与长说明作为设计期示例。打开 WBP 即显示运行时同宽、按内容撑高的框体，实际运行仍由当前条目文案覆盖，不写死高度。
+- 用户再次复核明确指出目标是完整 Selection 页面而非 Tooltip 子框。`WBP_ReEchoLoadoutSelection` 已直接承载四个角色和四个武器的实际 `WBP_ReEchoLoadoutEntry` 实例，C++ 改为复用而非清空重建；Class Defaults 暴露 Designer Preview Stage/Index，可在同一 Designer 切换两阶段和初始/选中状态。
 - 增加幂等导入、作者ing、审计脚本及 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 自动化；Packaging AlwaysCook 收集正式 Loadout 纹理目录。
 
 ### 证据
@@ -128,6 +129,7 @@
 - `CompileAllBlueprints` 完成：`0 errors / 0 warnings / 0 blueprints that failed to load`；命令汇总的 4 条既有引擎/Legacy 警告不属于 Blueprint 编译失败或 Plan132 新增资产。
 - Tooltip 蓝图化轮的 Development Editor 增量构建成功，预构建源码指纹刷新为 `cb9fe0ceb381`；作者ing/审计确认新 WBP 为 6 节点、单根 SizeBox、默认宽 380、标题 22px、正文 20px。更新后 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 再次均为 `Result={Success}`，`CompileAllBlueprints` 再次为 `0 errors / 0 warnings / 0 load failures`，项目校验、预构建检查和 `git diff --check` 通过。
 - 所见即所得反馈轮将 Tooltip 的 Editor-only `DesignSizeMode` 固化为 `Desired`，并避免 `NativePreConstruct` 在设计期清空真实示例文案；资产审计输出 `tooltip_desired_preview=True`。Development Editor 增量构建成功，精选预构建源码指纹刷新为 `2b34590ccb99`；Loadout Assets/Flow 两项自动化均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`，项目静态校验、预构建一致性与 `git diff --check` 均通过。
+- 完整 Selection 所见即所得返工后，WBP 审计确认 Selection 为 25 节点，角色与武器各有四个准确命名、类型为 `WBP_ReEchoLoadoutEntry_C` 的直接 Row 子项；Assets 自动化进一步实例化 WBP 并确认运行配置前后复用同一 Entry 对象。Development Editor 增量构建成功，精选预构建源码指纹为 `ea2eb0c53626`；Assets/Flow 均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`，项目静态校验、预构建一致性和 `git diff --check` 通过。
 
 ### 剩余风险
 

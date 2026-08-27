@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Components/HorizontalBox.h"
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
@@ -57,15 +58,42 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoLoadoutSelectionAssetContractTest,
 
 bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters)
 {
-	TestNotNull(TEXT("Authored loadout selection class is loadable"),
-	            LoadClass<UReEchoLoadoutSelectionWidget>(
-	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection.WBP_ReEchoLoadoutSelection_C")));
+	UClass* SelectionClass = LoadClass<UReEchoLoadoutSelectionWidget>(
+	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection.WBP_ReEchoLoadoutSelection_C"));
+	TestNotNull(TEXT("Authored loadout selection class is loadable"), SelectionClass);
 	TestNotNull(TEXT("Authored loadout entry class is loadable"),
 	            LoadClass<UReEchoLoadoutEntryWidget>(
 	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry.WBP_ReEchoLoadoutEntry_C")));
 	TestNotNull(TEXT("Authored loadout tooltip class is loadable"),
 	            LoadClass<UReEchoLoadoutTooltipWidget>(
 	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip.WBP_ReEchoLoadoutTooltip_C")));
+
+	if (SelectionClass)
+	{
+		UReEchoLoadoutSelectionWidget* AuthoredWidget =
+		    NewObject<UReEchoLoadoutSelectionWidget>(GetTransientPackage(), SelectionClass);
+		TestTrue(TEXT("Authored selection widget initializes its Designer tree"), AuthoredWidget->Initialize());
+		if (AuthoredWidget->CharacterRow && AuthoredWidget->WeaponRow)
+		{
+			TestEqual(
+			    TEXT("Designer tree owns four character entries"), AuthoredWidget->CharacterRow->GetChildrenCount(), 4);
+			TestEqual(TEXT("Designer tree owns four weapon entries"), AuthoredWidget->WeaponRow->GetChildrenCount(), 4);
+			UWidget* FirstAuthoredCharacter = AuthoredWidget->CharacterRow->GetChildAt(0);
+			UWidget* FirstAuthoredWeapon = AuthoredWidget->WeaponRow->GetChildAt(0);
+			AuthoredWidget->LoadOptions();
+			AuthoredWidget->BuildOptionEntries();
+			TestTrue(TEXT("Runtime reuses the first Designer-authored character entry"),
+			         AuthoredWidget->CharacterEntries.IsValidIndex(0) &&
+			             AuthoredWidget->CharacterEntries[0].Get() == FirstAuthoredCharacter);
+			TestTrue(TEXT("Runtime reuses the first Designer-authored weapon entry"),
+			         AuthoredWidget->WeaponEntries.IsValidIndex(0) &&
+			             AuthoredWidget->WeaponEntries[0].Get() == FirstAuthoredWeapon);
+		}
+		else
+		{
+			AddError(TEXT("Authored selection widget did not bind its preview rows"));
+		}
+	}
 
 	const TCHAR* CharacterIds[] = {TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
 	const TCHAR* WeaponIds[] = {TEXT("W_J_04"), TEXT("W_J_09"), TEXT("W_J_01"), TEXT("W_J_08")};

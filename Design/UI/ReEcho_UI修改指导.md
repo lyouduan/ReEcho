@@ -20,7 +20,7 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 | 遭遇 HUD | `WBP_ReEchoEncounterHud` | `UReEchoEncounterHudWidget` | `GameplayHud` | `第 N 关`、`MM:SS`、右到左计时指针和真实小地图；最后 5 秒警示色由 C++ 状态驱动 |
 | 敌人血条 | `WBP_ReEchoEnemyHealthBar` | `UReEchoHealthBarWidget` | 世界空间 Widget | 敌人头顶血条；生命变化由事件驱动 |
 | 开始菜单 | `WBP_ReEchoStartMenu` | `UReEchoStartMenuWidget` | `Start` | 新游戏、继续、设置；继续按钮可用性由存档状态决定 |
-| 初始配装 | `WBP_ReEchoLoadoutSelection` | `UReEchoLoadoutSelectionWidget` | `Loadout` | 角色/武器两阶段动态容器、解释框、箭头和确认按钮 |
+| 初始配装 | `WBP_ReEchoLoadoutSelection` | `UReEchoLoadoutSelectionWidget` | `Loadout` | 角色/武器两阶段所见即所得条目、解释框、箭头和确认按钮 |
 | 配装条目 | `WBP_ReEchoLoadoutEntry` | `UReEchoLoadoutEntryWidget` | 父页面内部 | 角色/武器共用的动态条目；UMG 控制切图、名称和条目尺寸 |
 | 配装悬停说明 | `WBP_ReEchoLoadoutTooltip` | `UReEchoLoadoutTooltipWidget` | `WBP_ReEchoLoadoutEntry.SelectButton.ToolTip` | 鼠标 Tooltip 的宽度、边框、内边距、标题和说明文字 |
 | 设置 | `WBP_ReEchoSettings` | `UReEchoSettingsWidget` | `Settings` | 图形、声音、控制分类和返回操作 |
@@ -162,13 +162,13 @@ Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Pl
 
 Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层，实际交互继续由 `ResumeButton`、`RestartButton`、`QuitButton` 和右上 `PauseSettingsButton` 承担。普通状态依次表示继续、退出到主菜单、退出游戏；进入确认后，同一组按钮切换为保存并退出、不保存并退出、返回。退出到主菜单与退出游戏必须保留不同目标，保存/不保存语义由 GameMode 执行，WBP 不得直接写存档、开关关卡或退出程序。存在暂停切图时旧的 Attack Mode 动态区隐藏，避免偏离暂停效果图。
 
-### 5.3 Loadout 两阶段动态容器
+### 5.3 Loadout 两阶段所见即所得页面
 
 - Plan132 后页面固定按“角色确认 → 武器确认”两阶段展示；第一次确认只切阶段，第二次确认才向 GameMode 广播一次最终 `(CharacterId, WeaponId)`。WBP 不得自行启动 Run、切关或写存档。
-- `CharacterStagePanel > CharacterRow` 与 `WeaponStagePanel > WeaponRow` 只提供动态容器，不要在设计器中手工放置固定数量的角色/武器按钮。角色和武器资格仍来自 CSV 快照。
+- `CharacterStagePanel > CharacterRow` 内固定放置 `CharacterEntry0..3`，`WeaponStagePanel > WeaponRow` 内固定放置 `WeaponEntry0..3`；八项都是实际运行使用的 `WBP_ReEchoLoadoutEntry` 实例，不是占位图。运行时从 CSV 写入名称、说明和资格，但复用这些 Designer 控件，不再清空后另建一套。不要删除或改名；可直接调整 Row 的 1920×1080 位置、每个 Entry 的 HorizontalBox Slot Padding，以及 Entry 蓝图内部尺寸与样式。
 - 初次进入每个阶段时没有 Preview：全部条目使用明亮 `Selected` 切图，说明、箭头和确认按钮隐藏。鼠标 Hover 使用与商店一致的原生 Tooltip 定位机制：Slate 跟随当前条目并自动避让屏幕边缘，而框体视觉由 `WBP_ReEchoLoadoutTooltip` 完全管理。键盘/手柄 Focus 使用页面内 `DescriptionPanel` / `DescriptionTextScale` 大号回退框；点击与 Hover/Focus 都会把当前项保持为 `Selected`、其余项切到 `Unselected`，并显示箭头和确认按钮。
 - 条目外观统一修改 `WBP_ReEchoLoadoutEntry`。`EntryRootSizeBox` 是当前阶段为角色/武器写入不同设计宽度的唯一尺寸宿主；`PortraitImage` 必须位于 ScaleBox 内等比缩放，不能拉伸原图。
-- 1920×1080 位置权威位于 `WBP_ReEchoLoadoutSelection > LoadoutDesignCanvas`。`TitleText`、两个 Stage Panel、键盘 Focus 回退用的 `DescriptionPanel` / `DescriptionTextScale > DescriptionText`、`SelectionArrow`、`ConfirmButton` 和 `ConfirmButtonLabel` 都应能在 Designer 中直接调整。鼠标 Tooltip 在 `WBP_ReEchoLoadoutTooltip` 中调整：该 WBP 的 Designer Preview 固定使用 `Desired` 内容实际尺寸并显示 `J_HEART` 的真实 CSV 示例文案，因此打开后就是运行时同尺寸、同排版的所见即所得预览；`TooltipRootSizeBox.Width Override` 控制总宽，`TooltipFrame` / `TooltipSurface` 控制边框颜色与内边距，`TitleText` / `DescriptionText` 控制字体、字号、颜色和换行。C++ 运行时只覆盖当前名称和 CSV 说明，不改写这些视觉参数。
+- 1920×1080 位置权威位于 `WBP_ReEchoLoadoutSelection > LoadoutDesignCanvas`。打开 Selection WBP 即显示完整角色页面；在 Class Defaults 的 `Loadout | Designer Preview` 中用 `Designer Preview Stage` 切换角色/武器页，用 `Designer Preview Index` 切换 `-1` 初始全亮态或 `0..3` 的选中态。`TitleText`、八个 Entry、两个 Stage Panel、键盘 Focus 回退用的 `DescriptionPanel` / `DescriptionTextScale > DescriptionText`、`SelectionArrow`、`ConfirmButton` 和 `ConfirmButtonLabel` 都应在同一 Designer 中按实际运行控件调整。鼠标悬停说明框本身才在 `WBP_ReEchoLoadoutTooltip` 中调整；`TooltipRootSizeBox.Width Override` 控制总宽，`TooltipFrame` / `TooltipSurface` 控制边框与内边距，`TitleText` / `DescriptionText` 控制字体和换行。
 - 正式源图位于 `Content/SourceArt/UI/LoadoutSelection/Plan132/`，运行时位于 `/Game/ReEcho/Textures/UI/LoadoutSelection/`。四张 `1-*.png` 是合成构图参考，不得作为整屏点击贴图；实际交互使用 16 张选中/未选中切图、解释框和箭头组合。
 - 角色说明读取 `characters.csv.Description`，武器说明读取对应 `weapon_types.csv.Description`；不要在 WBP/C++ 复制中文玩法文案，也不要用按钮文字反查 ID。C++ 只使用动态索引映射稳定 ID。
 - 当前交付构图顺序为勇者、智者、诗人、猎手，以及镰刀、枪、剑、弓。该顺序只属于本页面的表现映射；未知未来选项追加到已有项后，不修改全局 CSV 排序。

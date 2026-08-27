@@ -52,6 +52,39 @@ def main():
                 raise RuntimeError(
                     "Plan132 entry does not reference the authored tooltip class"
                 )
+        if asset_path.endswith("WBP_ReEchoLoadoutSelection"):
+            widget_by_name = {widget.get_name(): widget for widget in widgets}
+            character_row = widget_by_name.get("CharacterRow")
+            weapon_row = widget_by_name.get("WeaponRow")
+            if not isinstance(character_row, unreal.HorizontalBox) or not isinstance(
+                weapon_row, unreal.HorizontalBox
+            ):
+                raise RuntimeError("Plan132 selection preview rows are missing")
+            for domain, row in (
+                ("Character", character_row),
+                ("Weapon", weapon_row),
+            ):
+                children = [
+                    widget
+                    for widget in widgets
+                    if widget.get_parent() is row
+                ]
+                unreal.log(
+                    f"[Plan132LoadoutAudit] {domain.lower()}_preview_entries="
+                    f"{[child.get_name() for child in children]}"
+                )
+                expected_names = [f"{domain}Entry{index}" for index in range(4)]
+                if [child.get_name() for child in children] != expected_names:
+                    raise RuntimeError(
+                        f"Plan132 {domain} Designer preview is not four authored entries"
+                    )
+                if any(
+                    child.get_class().get_name() != "WBP_ReEchoLoadoutEntry_C"
+                    for child in children
+                ):
+                    raise RuntimeError(
+                        f"Plan132 {domain} preview does not use the runtime Entry WBP"
+                    )
         for info in infos:
             widget = info.widget
             if widget is None:
