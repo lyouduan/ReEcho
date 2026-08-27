@@ -1907,6 +1907,11 @@ def validate_workflow() -> None:
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
     docs_workflow_text = (ROOT / "docs" / "AI_WORKFLOW.md").read_text(encoding="utf-8")
+    lfs_setup_path = ROOT / "scripts" / "setup_lfs.py"
+    if not lfs_setup_path.is_file():
+        fail("Git LFS setup entry is missing: scripts/setup_lfs.py")
+    lfs_setup_text = lfs_setup_path.read_text(encoding="utf-8")
+    gitattributes_text = (ROOT / ".gitattributes").read_text(encoding="utf-8")
     architecture_root = ROOT / "shared" / "CODEBASE_MAP"
     architecture_path = architecture_root / "ARCHITECTURE.md"
     codebase_index_path = architecture_root / "README.md"
@@ -1951,6 +1956,24 @@ def validate_workflow() -> None:
         )
     if "remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`" not in agents:
         fail("AGENTS.md must route prompt/rule conflicts to PROJECT_RULES.md")
+    lfs_checkout_markers = {
+        "AGENTS.md": ("## Git LFS checkout gate", "python scripts/setup_lfs.py --check", "Never treat a small text pointer as the real asset"),
+        "PROJECT_RULES.md": ("## Git LFS 检出与大文件边界", "git lfs migrate import", "不得为省事把整个 `Content/`"),
+        "GIT_RULES.md": ("## Git LFS 提交与发布门禁", "git lfs push --dry-run origin <远端引用>", "不得用跳过 hook"),
+        "setup_lfs.py": ("git-lfs.github.com/spec/v1", '"lfs", "pull"', '"lfs", "fsck"'),
+    }
+    lfs_checkout_texts = {
+        "AGENTS.md": agents,
+        "PROJECT_RULES.md": project_rules,
+        "GIT_RULES.md": git_rules,
+        "setup_lfs.py": lfs_setup_text,
+    }
+    for name, markers in lfs_checkout_markers.items():
+        missing = [marker for marker in markers if marker not in lfs_checkout_texts[name]]
+        if missing:
+            fail(f"{name} lacks Git LFS checkout/publication markers: {', '.join(missing)}")
+    if "filter=lfs diff=lfs merge=lfs -text" not in gitattributes_text:
+        fail(".gitattributes must declare at least one reviewed Git LFS path")
     risk_authority_markers = (
         "## 风险操作的人类确认与执行",
         "风险操作授权的唯一权威",

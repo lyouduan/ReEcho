@@ -29,6 +29,10 @@ Route after confirmation:
 
 If the human explicitly assigns Project Secretary duty, also read `shared/SECRETARY_RULES.md`. Project Secretary duty is a repository coordination overlay; it does not answer the professional-role gate and does not grant product, design, art or implementation authority outside the routed role.
 
+## Git LFS checkout gate
+
+Before opening `ReEcho.uproject`, running Unreal/build/package commands, or reading/modifying a Git LFS path, run `python scripts/setup_lfs.py --check`. If Git LFS is missing or any tracked file is absent/still a pointer, stop the affected work, tell the user to install Git LFS, and run `python scripts/setup_lfs.py` to initialize this clone and download current objects. Repeat `--check` after any fetch plus checkout/merge/rebase/pull that changes `.gitattributes` or LFS-tracked paths. Never treat a small text pointer as the real asset.
+
 ## Every task: minimal context
 
 1. Read `shared/PROJECT_RULES.md` and the one confirmed professional-role file from the table above.

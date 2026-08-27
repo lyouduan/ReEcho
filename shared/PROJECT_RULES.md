@@ -40,6 +40,14 @@
 - 自动攻击绝不序列化进录制。Echo 回放历史位置和成功主动技能事件；目标选择与命中结算使用当前世界。
 - 不得在 Unreal Editor 外手改 `.uasset` 或 `.umap`。优先使用可合并 C++、数据源和生成工具。
 
+## Git LFS 检出与大文件边界
+
+- `.gitattributes` 是当前 LFS 路径的唯一权威。任何角色第一次使用克隆时运行 `python scripts/setup_lfs.py`；之后在打开 `ReEcho.uproject`、构建、测试、Cook 或打包前运行 `python scripts/setup_lfs.py --check`。检查失败时不得把指针文件、缺失媒体或未还原资产当成有效项目状态；LFS 路径已有本地修改时，初始化入口必须停止而不是用 pull 覆盖。
+- fetch 后发生 checkout、merge、rebase 或 pull，且 `.gitattributes` 或 LFS 路径可能变化时，必须重新执行 `--check`；失败则先安装 Git LFS并运行默认初始化/拉取入口，再继续受影响工作。
+- 新增大二进制时先审计是否应使用 LFS，只按准确路径或经过审阅的窄模式维护 `.gitattributes`。不得为省事把整个 `Content/`、所有 `.uasset` 或其他宽泛目录静默迁入 LFS。
+- 已发布的普通 Git 对象改迁 LFS 可能重写历史、使旧克隆失效并产生远端存储影响；除非有正式迁移范围、恢复点、风险说明和准确人工确认，不得执行 `git lfs migrate import`、重写已发布引用或全量推送 LFS 历史。
+- LFS 对象的提交与远端完整性遵循 `shared/GIT_RULES.md`。本地对象存在、工作树显示真实文件，并不单独证明远端对象已上传。
+
 ## 本地自治与远端边界
 
 - 每个成员、AI 和克隆的本地工作自治：可使用直接工作、分支、worktree、stash、WIP 提交、merge 或 rebase。程序路线必须先完成 `PROGRAMMER_RULES.md` 的本地工作区模式确认；选择“一任务一 worktree”后，本任务不得在主工作区直接实现。分支和 worktree 是隔离建议，不是共享权限门禁，但用户明确选择后构成当前对话的本地执行约束；本地命名、提交粒度和并行安排不需要写入共享实时状态。
@@ -87,6 +95,7 @@
 | 仅 Markdown/工作流 | `python scripts/validate_project.py`、`git diff --check` |
 | Python 数据工具/XLSX 契约 | 聚焦 Python 测试、权威 `--check`、项目校验、`git diff --check` |
 | 仅 JSON/配置/CSV | 项目校验和 `git diff --check` |
+| Git LFS / 大二进制 | `python scripts/setup_lfs.py --check`、`git lfs status`、`git lfs fsck`，以及 `GIT_RULES.md` 的远端对象核验 |
 | C++ | `.clang-format`、`Build-Editor.cmd`（刷新跟踪的预构建包）、`python scripts/validate_project.py`、`git diff --check` |
 | 纹理/导入脚本 | 导入/加载和资产存在性检查 |
 | 打包/cook | 适用检查加干净包和 manifest/烟测证据 |
