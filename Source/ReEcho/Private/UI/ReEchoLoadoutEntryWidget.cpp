@@ -12,9 +12,36 @@
 UReEchoLoadoutEntryWidget::UReEchoLoadoutEntryWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
+#if WITH_EDITORONLY_DATA
+	DesignSizeMode = EDesignPreviewSizeMode::Desired;
+	DesignTimeSize = FVector2D(390.0f, 560.0f);
+#endif
 	static ConstructorHelpers::FClassFinder<UReEchoLoadoutTooltipWidget> TooltipClassFinder(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip"));
 	TooltipWidgetClass = TooltipClassFinder.Class;
+}
+
+void UReEchoLoadoutEntryWidget::ApplyDesignerPreviewSettings()
+{
+#if WITH_EDITOR
+	Modify();
+#endif
+#if WITH_EDITORONLY_DATA
+	DesignSizeMode = EDesignPreviewSizeMode::Desired;
+	DesignTimeSize = FVector2D(390.0f, 560.0f);
+#endif
+#if WITH_EDITOR
+	MarkPackageDirty();
+#endif
+}
+
+bool UReEchoLoadoutEntryWidget::HasDesiredDesignerPreview() const
+{
+#if WITH_EDITORONLY_DATA
+	return DesignSizeMode == EDesignPreviewSizeMode::Desired;
+#else
+	return true;
+#endif
 }
 
 void UReEchoLoadoutEntryWidget::NativeConstruct()
@@ -46,7 +73,8 @@ void UReEchoLoadoutEntryWidget::NativePreConstruct()
 		PortraitSize->SetWidthOverride(DesignerPreviewWidth);
 		PortraitSize->SetHeightOverride(480.0f);
 	}
-	ApplyDesignerPreviewState(bDesignerPreviewSelected, false);
+	RefreshSelectionArrowBrushSize();
+	ApplyDesignerPreviewState(bDesignerPreviewSelected, bDesignerPreviewSelected);
 #endif
 }
 
@@ -62,7 +90,7 @@ void UReEchoLoadoutEntryWidget::ApplyDesignerPreviewState(const bool bIsSelected
 	}
 	if (PortraitImage && Texture)
 	{
-		PortraitImage->SetBrushFromTexture(Texture, true);
+		ApplyPortraitTexture(Texture);
 	}
 	if (NameText)
 	{
@@ -119,16 +147,51 @@ void UReEchoLoadoutEntryWidget::SetPresentationState(const bool bHasPreview, con
 	UTexture2D* Texture = !bHasPreview || bIsPreviewed ? SelectedTexture : UnselectedTexture;
 	if (Texture)
 	{
-		PortraitImage->SetBrushFromTexture(Texture, true);
+		ApplyPortraitTexture(Texture);
 	}
 	NameText->SetColorAndOpacity(FSlateColor(!bHasPreview || bIsPreviewed ? FLinearColor(1.0f, 0.96f, 0.88f, 1.0f)
 	                                                                      : FLinearColor(0.46f, 0.43f, 0.37f, 1.0f)));
 	if (EntrySelectionArrow)
 	{
+		RefreshSelectionArrowBrushSize();
 		EntrySelectionArrow->SetVisibility(bHasPreview && bIsPreviewed ? ESlateVisibility::HitTestInvisible
 		                                                                  : ESlateVisibility::Collapsed);
 	}
 	SelectButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
+}
+
+void UReEchoLoadoutEntryWidget::ApplyPortraitTexture(UTexture2D* Texture)
+{
+	if (!PortraitImage || !Texture)
+	{
+		return;
+	}
+
+	// SetBrushFromTexture is a no-op when the resource is already assigned, which can leave a stale
+	// authored ImageSize behind. ScaleBox aspect fitting depends on that desired size, so always refresh it.
+	PortraitImage->SetBrushFromTexture(Texture, true);
+	FSlateBrush Brush = PortraitImage->GetBrush();
+	Brush.SetResourceObject(Texture);
+	const FIntPoint ImportedSize = Texture->GetImportedSize();
+	Brush.ImageSize = FVector2D(ImportedSize.X, ImportedSize.Y);
+	Brush.DrawAs = ESlateBrushDrawType::Image;
+	PortraitImage->SetBrush(Brush);
+}
+
+void UReEchoLoadoutEntryWidget::RefreshSelectionArrowBrushSize()
+{
+	if (!EntrySelectionArrow)
+	{
+		return;
+	}
+
+	FSlateBrush Brush = EntrySelectionArrow->GetBrush();
+	if (const UTexture2D* Texture = Cast<UTexture2D>(Brush.GetResourceObject()))
+	{
+		const FIntPoint ImportedSize = Texture->GetImportedSize();
+		Brush.ImageSize = FVector2D(ImportedSize.X, ImportedSize.Y);
+		EntrySelectionArrow->SetBrush(Brush);
+	}
 }
 
 void UReEchoLoadoutEntryWidget::FocusSelection()

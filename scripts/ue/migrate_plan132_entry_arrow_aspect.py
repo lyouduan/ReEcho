@@ -73,7 +73,9 @@ def configure_arrow(arrow, texture):
     brush.set_editor_property("resource_object", texture)
     brush.set_editor_property("draw_as", unreal.SlateBrushDrawType.IMAGE)
     arrow.set_editor_property("brush", brush)
-    arrow.set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
+    arrow.set_editor_property(
+        "visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE
+    )
     slot = arrow.get_editor_property("slot")
     if not isinstance(slot, unreal.OverlaySlot):
         raise RuntimeError("EntrySelectionArrow does not have an Overlay slot")
@@ -91,12 +93,15 @@ def migrate_entry(toolset, blueprint, arrow_texture):
     root = widgets.get("EntryRootSizeBox")
     select_button = widgets.get("SelectButton")
     portrait_scale = widgets.get("PortraitScale")
+    portrait_image = widgets.get("PortraitImage")
     if not isinstance(root, unreal.SizeBox):
         raise RuntimeError("Plan132 EntryRootSizeBox is missing")
     if not isinstance(select_button, unreal.Button):
         raise RuntimeError("Plan132 SelectButton is missing")
     if not isinstance(portrait_scale, unreal.ScaleBox):
         raise RuntimeError("Plan132 PortraitScale is missing")
+    if not isinstance(portrait_image, unreal.Image):
+        raise RuntimeError("Plan132 PortraitImage is missing")
 
     visual_overlay = widgets.get("EntryVisualOverlay")
     if visual_overlay is None:
@@ -137,8 +142,23 @@ def migrate_entry(toolset, blueprint, arrow_texture):
     portrait_scale.set_editor_property(
         "stretch_direction", unreal.StretchDirection.BOTH
     )
+    portrait_slot = portrait_image.get_editor_property("slot")
+    if not isinstance(portrait_slot, unreal.ScaleBoxSlot):
+        raise RuntimeError("Plan132 PortraitImage does not have a ScaleBox slot")
+    portrait_slot.set_editor_property(
+        "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_CENTER
+    )
+    portrait_slot.set_editor_property(
+        "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_CENTER
+    )
     if not toolset.call_method("CompileWidgetBlueprint", args=(blueprint,)):
         raise RuntimeError("Plan132 Entry failed to compile after migration")
+    generated_class = blueprint.generated_class()
+    if generated_class is None:
+        raise RuntimeError("Plan132 Entry has no generated class after migration")
+    default_object = unreal.get_default_object(generated_class)
+    blueprint.modify()
+    default_object.call_method("ApplyDesignerPreviewSettings")
     if not unreal.EditorAssetLibrary.save_loaded_asset(
         blueprint, only_if_is_dirty=False
     ):
@@ -181,7 +201,7 @@ def main():
     removed = remove_detached_selection_arrows(toolset, selection)
     unreal.log(
         "[Plan132EntryArrowAspectMigration] "
-        f"aspect=ScaleToFit arrow_parent=EntryVisualOverlay removed={removed}"
+        f"aspect=ScaleToFit+Center arrow_parent=EntryVisualOverlay removed={removed}"
     )
 
 

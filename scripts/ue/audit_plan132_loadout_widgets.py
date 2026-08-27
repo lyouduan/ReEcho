@@ -55,12 +55,47 @@ def main():
                 != unreal.Stretch.SCALE_TO_FIT
             ):
                 raise RuntimeError("Plan132 entry portrait is not strict aspect-fit")
+            portrait_image = widget_by_name.get("PortraitImage")
+            portrait_slot = (
+                portrait_image.get_editor_property("slot")
+                if isinstance(portrait_image, unreal.Image)
+                else None
+            )
+            if (
+                not isinstance(portrait_slot, unreal.ScaleBoxSlot)
+                or portrait_slot.get_editor_property("horizontal_alignment")
+                != unreal.HorizontalAlignment.H_ALIGN_CENTER
+                or portrait_slot.get_editor_property("vertical_alignment")
+                != unreal.VerticalAlignment.V_ALIGN_CENTER
+            ):
+                raise RuntimeError(
+                    "Plan132 PortraitImage ScaleBox slot still stretches its desired size"
+                )
+            if (
+                selection_arrow.get_editor_property("visibility")
+                != unreal.SlateVisibility.HIT_TEST_INVISIBLE
+            ):
+                raise RuntimeError(
+                    "Plan132 standalone Entry preview does not author the arrow visible"
+                )
             unreal.log(
                 "[Plan132LoadoutAudit] entry_visual_root=EntryVisualOverlay "
-                "children=['SelectButton', 'EntrySelectionArrow'] portrait_stretch=ScaleToFit"
+                "children=['SelectButton', 'EntrySelectionArrow'] "
+                "portrait_stretch=ScaleToFit portrait_align=Center"
             )
             generated_class = blueprint.generated_class()
             default_object = unreal.get_default_object(generated_class)
+            has_desired_preview = default_object.call_method(
+                "HasDesiredDesignerPreview"
+            )
+            if not has_desired_preview:
+                raise RuntimeError(
+                    "Plan132 standalone Entry Designer preview is not desired-size"
+                )
+            unreal.log(
+                "[Plan132LoadoutAudit] entry_desired_preview=True "
+                "entry_arrow_default=HitTestInvisible"
+            )
             tooltip_class = default_object.get_editor_property("tooltip_widget_class")
             expected_tooltip_path = (
                 "/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip."

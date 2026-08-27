@@ -45,6 +45,14 @@ public:
 	void SetPresentationState(bool bHasPreview, bool bIsPreviewed);
 	void FocusSelection();
 
+	/** Applies the content-sized preview used when this Entry is opened on its own in the UMG Designer. */
+	UFUNCTION(BlueprintCallable, Category = "Loadout|Entry", meta = (BlueprintInternalUseOnly = "true"))
+	void ApplyDesignerPreviewSettings();
+
+	/** Authoring audit hook for the otherwise editor-only preview mode. */
+	UFUNCTION(BlueprintPure, Category = "Loadout|Entry", meta = (BlueprintInternalUseOnly = "true"))
+	bool HasDesiredDesignerPreview() const;
+
 #if WITH_EDITOR
 	void ApplyDesignerPreviewState(bool bIsSelected, bool bShowSelectionArrow = false);
 #endif
@@ -61,6 +69,8 @@ private:
 	UFUNCTION()
 	void HandleHovered();
 	UWidget* BuildTooltip(const FText& Label, const FText& Description);
+	void ApplyPortraitTexture(UTexture2D* Texture);
+	void RefreshSelectionArrowBrushSize();
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UReEchoIndexedButton> SelectButton;

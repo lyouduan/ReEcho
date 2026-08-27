@@ -568,7 +568,7 @@ def author_entry(toolset, blueprint, sample_texture, arrow_texture, formal_font)
         "stretch_direction", unreal.StretchDirection.BOTH
     )
     configure_image(
-        selection_arrow, arrow_texture, unreal.SlateVisibility.COLLAPSED
+        selection_arrow, arrow_texture, unreal.SlateVisibility.HIT_TEST_INVISIBLE
     )
     configure_transparent_button(select_button)
     set_panel_slot_fill(visual_overlay)
@@ -576,8 +576,16 @@ def author_entry(toolset, blueprint, sample_texture, arrow_texture, formal_font)
     set_panel_slot_fill(entry_content)
     set_panel_slot_fill(portrait_size)
     set_panel_slot_fill(portrait_scale)
-    set_panel_slot_fill(portrait_image)
     set_panel_slot_fill(name_text)
+    portrait_image_slot = portrait_image.get_editor_property("slot")
+    if not isinstance(portrait_image_slot, unreal.ScaleBoxSlot):
+        raise RuntimeError("Plan132 PortraitImage does not have a ScaleBox slot")
+    portrait_image_slot.set_editor_property(
+        "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_CENTER
+    )
+    portrait_image_slot.set_editor_property(
+        "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_CENTER
+    )
     arrow_slot = selection_arrow.get_editor_property("slot")
     if not isinstance(arrow_slot, unreal.OverlaySlot):
         raise RuntimeError("Plan132 EntrySelectionArrow does not have an Overlay slot")
@@ -600,6 +608,12 @@ def author_entry(toolset, blueprint, sample_texture, arrow_texture, formal_font)
 
     if not toolset.call_method("CompileWidgetBlueprint", args=(blueprint,)):
         raise RuntimeError("Plan132 Entry WBP failed to compile")
+    generated_class = blueprint.generated_class()
+    if generated_class is None:
+        raise RuntimeError("Plan132 Entry WBP has no generated class")
+    default_object = unreal.get_default_object(generated_class)
+    blueprint.modify()
+    default_object.call_method("ApplyDesignerPreviewSettings")
     if not unreal.EditorAssetLibrary.save_loaded_asset(
         blueprint, only_if_is_dirty=False
     ):

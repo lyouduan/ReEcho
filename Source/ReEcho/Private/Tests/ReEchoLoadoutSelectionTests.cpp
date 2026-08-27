@@ -5,6 +5,7 @@
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Components/WidgetSwitcher.h"
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
@@ -64,9 +65,9 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 	UClass* SelectionClass = LoadClass<UReEchoLoadoutSelectionWidget>(
 	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection.WBP_ReEchoLoadoutSelection_C"));
 	TestNotNull(TEXT("Authored loadout selection class is loadable"), SelectionClass);
-	TestNotNull(TEXT("Authored loadout entry class is loadable"),
-	            LoadClass<UReEchoLoadoutEntryWidget>(
-	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry.WBP_ReEchoLoadoutEntry_C")));
+	UClass* EntryClass = LoadClass<UReEchoLoadoutEntryWidget>(
+	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry.WBP_ReEchoLoadoutEntry_C"));
+	TestNotNull(TEXT("Authored loadout entry class is loadable"), EntryClass);
 	UClass* TooltipClass = LoadClass<UReEchoLoadoutTooltipWidget>(
 	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip.WBP_ReEchoLoadoutTooltip_C"));
 	TestNotNull(TEXT("Authored loadout tooltip class is loadable"), TooltipClass);
@@ -86,6 +87,23 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			          TooltipFrame->Background.DrawAs,
 			          ESlateBrushDrawType::Box);
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+	}
+	if (EntryClass)
+	{
+		UReEchoLoadoutEntryWidget* StandaloneEntry =
+		    NewObject<UReEchoLoadoutEntryWidget>(GetTransientPackage(), EntryClass);
+		TestTrue(TEXT("Standalone Entry initializes its Designer tree"), StandaloneEntry->Initialize());
+		TestTrue(TEXT("Standalone Entry uses a content-sized Designer preview"),
+		         StandaloneEntry->HasDesiredDesignerPreview());
+		UImage* StandaloneArrow =
+		    Cast<UImage>(StandaloneEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")));
+		TestNotNull(TEXT("Standalone Entry exposes the selection arrow in Designer"), StandaloneArrow);
+		if (StandaloneArrow)
+		{
+			TestEqual(TEXT("Standalone Entry authors the arrow visible for WYSIWYG editing"),
+			          StandaloneArrow->GetVisibility(),
+			          ESlateVisibility::HitTestInvisible);
 		}
 	}
 
@@ -149,6 +167,32 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 				TestEqual(TEXT("Inactive entry arrow remains collapsed"),
 				          WeaponArrow->GetVisibility(),
 				          ESlateVisibility::Collapsed);
+			}
+			if (AuthoredWidget->WeaponEntries.IsValidIndex(1))
+			{
+				UImage* GunPortrait = Cast<UImage>(
+				    AuthoredWidget->WeaponEntries[1]->GetWidgetFromName(TEXT("PortraitImage")));
+				TestNotNull(TEXT("Gun Entry exposes its portrait image"), GunPortrait);
+				UScaleBoxSlot* GunPortraitSlot =
+				    GunPortrait ? Cast<UScaleBoxSlot>(GunPortrait->Slot) : nullptr;
+				TestNotNull(TEXT("Gun portrait remains a ScaleBox child"), GunPortraitSlot);
+				if (GunPortraitSlot)
+				{
+					TestEqual(TEXT("Gun portrait is horizontally centered instead of stretched"),
+					          GunPortraitSlot->GetHorizontalAlignment(),
+					          HAlign_Center);
+					TestEqual(TEXT("Gun portrait is vertically centered instead of stretched"),
+					          GunPortraitSlot->GetVerticalAlignment(),
+					          VAlign_Center);
+				}
+				if (GunPortrait)
+				{
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					const FVector2D GunBrushSize = GunPortrait->GetBrush().ImageSize;
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					TestEqual(TEXT("Gun brush keeps the source width"), GunBrushSize.X, 249.0);
+					TestEqual(TEXT("Gun brush keeps the source height"), GunBrushSize.Y, 227.0);
+				}
 			}
 		}
 		else
