@@ -100,7 +100,7 @@
 - `audit_plan129_round_defeat.py` 验证正式失败绑定、Canvas 直接子项、五个卡槽样例和关键 Figma 几何。
 - `CompileAllBlueprints` 最终结果为 0 error、0 warning、0 failed-to-load；`ReEcho.UI.RestartWidgetPresentation` 最终结果为 Success；预构建包校验通过，源哈希为 `1787498ccaef`。
 - 悬停反馈修改后的 Development Editor 构建成功，预构建源哈希为 `6a7507ceac12`；`ReEcho.UI.RestartWidgetPresentation`、`ReEcho.UI.ButtonVisualFeedback.HoverScale` 与 `ReEcho.UI.ButtonVisualFeedback.VisualRoot` 均为 Success，`python scripts/validate_project.py` 与 `git diff --check` 通过。
-- 旧结算层清理后的最终 Development Editor 构建成功，预构建源哈希为 `dbc8ecb1b061`；`audit_plan129_restart_legacy.py` 验证 5 个旧控件与 8 个旧纹理均不存在，`ReEcho.UI.RestartWidgetPresentation` 结果为 Success。
+- 旧结算层清理后的 Development Editor 构建成功；合入 `origin/main@33c53fc0` 后的最终 `-FullRebuild` 再次通过，预构建源哈希为 `c75ec9c0bd8b`。`audit_plan129_restart_legacy.py` 验证 5 个旧控件与 8 个旧纹理均不存在；`ReEcho.UI.RestartWidgetPresentation`、`ReEcho.UI.ButtonVisualFeedback.HoverScale` 与 `ReEcho.UI.ButtonVisualFeedback.VisualRoot` 在最终组合上均为 Success，`python scripts/validate_project.py` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
