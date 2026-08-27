@@ -128,6 +128,7 @@
 - 2026-08-27：用户要求为声音实际开始与结束增加统一日志，Plan123 重新进入 `InProgress`。日志边界锁定在 `ReEchoAudio` 真实后端，使用同一 Handle 关联开始/结束并记录结束原因，不把日志职责分散到玩法生产者。
 - 2026-08-27：真实后端已接入 `PlaybackStart`、`PlaybackEnd` 与 `PlaybackStartFailed`；`OnAudioFinishedNative`、Stop、FadeOut 和后端析构共享精确一次的 Handle 生命周期。Development Editor 构建成功并刷新 ReEchoAudio 精选二进制；`ReEcho.Audio` 13/13、37/37 生产路由、项目静态校验、精选预构建一致性和 `git diff --check` 均通过。
 - 2026-08-27：发布前 fetch 到 `origin/main@12f67872`，本分支 ahead 7 / behind 17。源码自动合并预演仅 `ReEchoGameMode.cpp` 有逻辑耦合且无文本冲突，但 `ReEchoEditor.prebuilt.json`、7 个精选 DLL 与 `MOD-ReEchoUI.md` 存在真实冲突；必须在用户确认取舍后合并，并以最终组合源码 FullRebuild 重建预构建包，本轮未越过冲突直接推送。
+- 2026-08-27：用户确认按推荐边界集成并发布：保留主线商店卡牌触发额外选卡并返回商店的状态机，购买成功、卡牌点选、卡牌揭示和装备变化继续各自发布稳定语义事件；购买并自动装备允许 `UI.Purchase` 与 `UI.Equip` 同次事务各发布一次。合并 `origin/main@12f67872` 后 FullRebuild 95/95 成功，最终源码指纹 `ca6bf5ab2046`；Audio 13/13、UI Button 3/3、UI Shop 4/4、Shop 15/15 均通过。
 
 ### 证据
 
@@ -140,6 +141,7 @@
 - 聚焦自动化：`ReEcho.Audio` 13/13、`ReEcho.UI.Button` 3/3、`ReEcho.UI.Shop` 3/3 全部通过；`ReEcho.Shop` 13 项中与本 Plan 有关的购买/选卡/刷新等 11 项通过，2 项主线独立失败为武器大师奖励数值和 Encounter 5 ShopTiers；`ReEcho.Combat` 13 项中 12 项通过，独立失败为 Conduct 玩法伤害/来源断言。三项失败均不在本 Plan 修改路径，未越界修改玩法或数值。
 - 最终组合候选执行 `Build-Editor.ps1 -Configuration Development -FullRebuild` 成功，101/101 构建动作完成并刷新 7 个精选模块，源码指纹 `e4219fb73a02`；完整 `ReEcho.*` 记录 177 成功/22 失败，22 项均位于未修改的攻击、卡牌、Combat、敌人/数据、GAS、表现、掉落、Shop、Trait、HUD 或武器领域，本 Plan 的 Audio/Button/UI Shop 聚焦套件仍全绿。
 - 播放日志返修候选执行 Development Editor 增量构建成功，`ReEcho.Audio` 13/13；测试中的无 World 请求实际输出 `PlaybackStartFailed Kind=OneShot EventId=Combat.Attack Reason=MissingWorld`，证明失败边界可观测且不伪造成功 Handle。
+- 最终发布组合在 UE 5.8 Development `-FullRebuild` 中完成 95/95 动作并刷新全部 7 个精选模块，源码指纹 `ca6bf5ab2046`；`ReEcho.Audio` 13/13、`ReEcho.UI.Button` 3/3、`ReEcho.UI.Shop` 4/4、`ReEcho.Shop` 15/15、37/37 音频生产路由、项目静态校验、预构建一致性及 `git diff --check` 全部通过。
 
 ### 剩余风险
 
