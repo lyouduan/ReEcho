@@ -7,9 +7,11 @@
 class SWidget;
 class UButton;
 class UHorizontalBox;
+class UImage;
 class UReEchoIndexedButton;
 class UReEchoLoadoutEntryWidget;
 class UTextBlock;
+class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoLoadoutConfirmed, FName, CharacterId, FName, WeaponId);
 
@@ -31,10 +33,18 @@ protected:
 	virtual void NativeConstruct() override;
 
 private:
+	enum class ESelectionStage : uint8
+	{
+		Character,
+		Weapon
+	};
+
 	void BuildWidgetTree();
 	void BuildOptionEntries();
 	void LoadOptions();
 	void RefreshSelection();
+	void RefreshSelectionArrow();
+	void SetSelectionStage(ESelectionStage NewStage);
 	void SelectCharacter(FName CharacterId);
 	void ChooseWeapon(FName WeaponId);
 
@@ -45,10 +55,40 @@ private:
 	void HandleWeaponClicked(int32 OptionIndex);
 
 	UFUNCTION()
+	void HandleCharacterPreviewed(int32 OptionIndex);
+
+	UFUNCTION()
+	void HandleWeaponPreviewed(int32 OptionIndex);
+
+	UFUNCTION()
 	void HandleConfirmClicked();
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StatusText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> TitleText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> DescriptionText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> DescriptionTextScale;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ConfirmButtonLabel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> CharacterStagePanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> WeaponStagePanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> DescriptionPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> SelectionArrow;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UHorizontalBox> CharacterRow;
@@ -76,8 +116,16 @@ private:
 
 	FName SelectedCharacterId;
 	FName SelectedWeaponId;
+	ESelectionStage SelectionStage = ESelectionStage::Character;
+	bool bFinalConfirmationBroadcast = false;
 	TArray<FName> CharacterOptionIds;
 	TArray<FName> WeaponOptionIds;
 	TMap<FName, FString> CharacterLabels;
 	TMap<FName, FString> WeaponLabels;
+	TMap<FName, FString> CharacterDescriptions;
+	TMap<FName, FString> WeaponDescriptions;
+
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FReEchoLoadoutSelectionFlowTest;
+#endif
 };

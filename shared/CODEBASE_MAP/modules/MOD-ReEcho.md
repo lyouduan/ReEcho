@@ -110,7 +110,7 @@ DefaultEngine.ini
   → AReEchoGameMode::StartPlay
       → 校验并消费 Level00 唯一 Arena Scene / EncounterDirector / StartMenu
       → GameInstance 预加载器异步预热 Combat VFX、兔子代理、四武器首用表现与 MoonStaff 辅助表现
-      → 新游戏：角色和初始武器选择 → RunSubsystem::StartRun
+      → 新游戏：角色阶段确认 → 武器阶段确认 → 单次最终组合提交 → RunSubsystem::StartRun
       → 继续：加载安全检查点或暂停遭遇
       → 预加载未完成时保留当前菜单；完成或失败后只进入一次 BeginSelectedRun
       → BeginNextEncounter / ResumeSavedEncounter

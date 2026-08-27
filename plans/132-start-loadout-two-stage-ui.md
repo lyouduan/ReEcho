@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 规划基线：`origin/main@71b93f917b0946f6869a94c3d129a4564f4756a7`。
 - 本地实现方式：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan132-start-loadout-two-stage-ui`，分支 `plan/132-start-loadout-two-stage-ui`。
@@ -14,16 +14,19 @@
 - Writes:
   - `plans/132-start-loadout-two-stage-ui.md`
   - `Content/SourceArt/UI/LoadoutSelection/Plan132/*.png`
+  - `Content/SourceArt/UI/LoadoutSelection/README.md`
   - `Content/ReEcho/Textures/UI/LoadoutSelection/*.uasset`
+  - `Config/DefaultGame.ini`
   - `Content/ReEcho/UI/WBP_ReEchoLoadoutSelection.uasset`
   - `Content/ReEcho/UI/WBP_ReEchoLoadoutEntry.uasset`
   - `Source/ReEcho/Public/UI/ReEchoLoadoutSelectionWidget.h`
   - `Source/ReEcho/Private/UI/ReEchoLoadoutSelectionWidget.cpp`
   - `Source/ReEcho/Public/UI/ReEchoLoadoutEntryWidget.h`
   - `Source/ReEcho/Private/UI/ReEchoLoadoutEntryWidget.cpp`
-  - `Source/ReEcho/Private/Tests/ReEchoLoadoutSelectionWidgetTests.cpp`（若新增聚焦自动化）
+  - `Source/ReEcho/Private/Tests/ReEchoLoadoutSelectionTests.cpp`
   - `scripts/ue/import_plan132_loadout_assets.py`
   - `scripts/ue/author_plan132_loadout_widgets.py`
+  - `scripts/ue/audit_plan132_loadout_widgets.py`
   - `Design/UI/ReEcho_UI修改指导.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
@@ -65,10 +68,10 @@
 
 - [ ] 页面初次打开只显示角色阶段；构图接近 `1-角色选择.png`，四个角色均为明亮版本，解释框、箭头、确认按钮隐藏。
 - [ ] Hover/Focus/点击角色后，当前角色使用对应“选中”图，其余三项使用各自“未选中”图；解释框、箭头、确认按钮出现且位置/层级接近 `1-角色选择：hover.png`。
-- [ ] 第一次确认只进入武器阶段并保留所选角色，不调用 `OnLoadoutConfirmed`。
+- [x] 第一次确认只进入武器阶段并保留所选角色，不调用 `OnLoadoutConfirmed`。
 - [ ] 武器阶段初始及 Hover/Focus/点击表现分别接近两张武器参考稿，顺序为镰刀、枪、剑、弓。
-- [ ] 第二次确认只广播一次准确的 `(CharacterId, WeaponId)`；Run 启动、预加载和首关切换契约不变。
-- [ ] 18 张运行时切图保持交付原始像素/Alpha，不重绘或重采样；4 张整屏合成参考图不导入为运行时 Texture2D。
+- [x] 第二次确认只广播一次准确的 `(CharacterId, WeaponId)`；Run 启动、预加载和首关切换契约不变。
+- [x] 18 张运行时切图保持交付原始像素/Alpha，不重绘或重采样；4 张整屏合成参考图不导入为运行时 Texture2D。
 - [ ] `WBP_ReEchoLoadoutSelection` 与 Entry Compile/Save 成功；1920×1080、16:9 低分辨率和超宽屏下主体等比居中，无选项变形或按钮不可点击。
 - [ ] 聚焦 UI 自动化、CompileAllBlueprints、项目静态校验及最终 `-FullRebuild` 发布门禁通过。
 - [ ] 用户人工确认两阶段导航、Hover/选中状态、文案可读性、构图和最终进入首关均可接受。
@@ -105,15 +108,23 @@
 
 ### 变化
 
-- 待实现。
+- 已原字节归档并导入 18 张角色/武器 Selected/Unselected、解释框与箭头切图；四张整屏稿只用于构图核对。
+- `WBP_ReEchoLoadoutSelection` 已改为 1920×1080 响应式设计面，角色/武器 Stage Panel 分离，并加入正式标题字体、解释框、动态解释文字宿主、箭头和确认按钮；`WBP_ReEchoLoadoutEntry` 以透明按钮承载等比切图与名称。
+- `UReEchoLoadoutSelectionWidget` 已实现 Character → Weapon 两阶段状态机、固定稳定 ID 表现顺序、CSV 描述读取和单次最终广播；Entry 将 Hover、Focus 与点击统一投射为 Preview，并按 Preview 切换成对纹理。
+- 增加幂等导入、作者ing、审计脚本及 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 自动化；Packaging AlwaysCook 收集正式 Loadout 纹理目录。
 
 ### 证据
 
-- 规划审计已确认当前同页实现、4 个正式角色、4 个 StartSelectable 武器及完整 18 张运行时切图；未把合成参考图误判为可交互整屏资产。
+- 源图 SHA/字节核对为 `18/18` 与交付一致；正式 Texture2D 导入日志为 `imported=18 verified=18`。
+- `author_plan132_loadout_widgets.py` 成功编译并保存两个 WBP；`audit_plan132_loadout_widgets.py` 确认 Selection 17 个节点、Entry 7 个节点、所有 BindWidget 变量和正式宋体引用完整。
+- Development Editor 增量构建成功，新增 Flow/Assets 测试与两阶段 Widget 源码均由 UHT/UBT 编译；当前精选预构建源码指纹为 `e4b5ffee68d8`。
+- `ReEcho.UI.LoadoutSelection` 找到 2 项测试，Assets 与 Flow 均为 `Result={Success}`；`python scripts/validate_project.py` 和 `git diff --check` 通过。
+- `CompileAllBlueprints` 完成：`0 errors / 0 warnings / 0 blueprints that failed to load`；命令汇总的 4 条既有引擎/Legacy 警告不属于 Blueprint 编译失败或 Plan132 新增资产。
 
 ### 剩余风险
 
-- 交付稿只展示 1920×1080 鼠标 Hover 场景；键盘/手柄 Focus、超宽屏和长描述文本需要程序做等价表现并由人工复核。
+- 自动化已覆盖两次确认边界与 18 张资源可加载，但不替代 PIE 主观验收。仍需人工复核角色/武器初始全亮、鼠标 Hover/点击、长描述缩放、1920×1080/低分辨率/超宽屏构图，以及第二次确认后进入首关的完整体验。
+- 最终 `-FullRebuild`、最新 main 集成和精选预构建一致性只在用户手测通过并授权发布后执行。
 
 ### 人工验收结果/请求
 
@@ -121,8 +132,8 @@
 
 ### 架构文档审阅结果
 
-- `shared/CODEBASE_MAP/ARCHITECTURE.md`：待关闭前审阅。
-- `shared/CODEBASE_MAP/README.md`：待关闭前审阅。
-- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：待实现同步。
-- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：待实现同步。
-- `Design/UI/ReEcho_UI修改指导.md`：待实现同步。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；Runtime Module 拓扑、依赖方向和 UI/Run 权威边界未变，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅；仍由现有 `AREA-UI` 路由到 `MOD-ReEchoUI.md`，索引无需修改。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已同步新游戏的角色阶段确认 → 武器阶段确认 → 单次最终提交流程。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已同步 Plan132 的阶段状态、Preview 表现、数据来源与最终委托边界。
+- `Design/UI/ReEcho_UI修改指导.md`：已同步 WBP 绑定、可调锚点、切图目录、两阶段状态和 Designer 调整边界。
