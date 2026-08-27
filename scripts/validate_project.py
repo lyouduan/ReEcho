@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import math
@@ -2013,6 +2014,8 @@ def validate_workflow() -> None:
             "每个交给策划的程序测试候选都必须执行",
             "策划未明确确认准确候选通过前，不得把修复发布到 main",
             "本流程不再创建 `merge/...` 分支",
+            "严格一分支一 Bug",
+            "缺日志、未分析日志或打包多个 Bug 的分支必须退回策划拆分补证",
             "shared/GIT_RULES.md",
         ),
         "DESIGNER_RULES.md": (
@@ -2027,7 +2030,10 @@ def validate_workflow() -> None:
             "不分配 Plan 编号",
             "源分支",
             "准确提交号",
-            "完整日志",
+            "先分析原始日志",
+            "日志再大或噪声再多也不得只交摘要、关键行或截取片段",
+            "一个 Issue 分支也只能包含这一份 Bug 报告",
+            "只有客观上无法生成日志时才可不附日志",
             "需求没有运行日志时允许不附日志",
             "已发布旧分支迁移",
             "策划明确确认“效果正确并同意推送”",
@@ -2074,7 +2080,13 @@ def validate_workflow() -> None:
         "复现步骤：",
         "验收标准：",
         "已提交日志：",
-        "覆盖或截取时间范围：",
+        "原始日志仓库路径：",
+        "完整覆盖的复现会话时间范围：",
+        "原始日志 SHA-256：",
+        "日志分析时间线：",
+        "日志分析结论：",
+        "无法生成日志：",
+        "无法生成日志的原因、已尝试方法与替代证据：",
         "策划对描述的确认：",
         "程序接管：",
         "程序测试候选：",
@@ -2123,6 +2135,110 @@ def validate_workflow() -> None:
         missing = [marker for marker in report_required_markers if marker not in report_text]
         if missing:
             fail(f"designer report lacks required evidence fields ({', '.join(missing)}): {rel(report_path)}")
+
+    branch_result = subprocess.run(
+        ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+    if current_branch.startswith("issue/"):
+        branch_parts = current_branch.split("/")
+        if len(branch_parts) != 3 or not re.fullmatch(r"[A-Za-z0-9._-]+", branch_parts[1]):
+            fail(f"issue branch must be issue/<identity>/<summary>: {current_branch}")
+        else:
+            identity = branch_parts[1]
+            changed_paths: set[str] = set()
+            for command in (
+                ["git", "diff", "--name-only", "--diff-filter=AMR", "origin/main...HEAD", "--"],
+                ["git", "diff", "--name-only", "--diff-filter=AMR", "HEAD", "--"],
+                ["git", "ls-files", "--others", "--exclude-standard"],
+            ):
+                changed_result = subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                if changed_result.returncode != 0:
+                    fail(f"unable to inspect Issue branch changes: {' '.join(command)}")
+                    continue
+                changed_paths.update(
+                    line.strip().replace("\\", "/")
+                    for line in changed_result.stdout.splitlines()
+                    if line.strip()
+                )
+
+            changed_reports = sorted(
+                path
+                for path in changed_paths
+                if re.fullmatch(r"issues/[^/]+/(?:bugs|requests)/[^/]+\.md", path)
+            )
+            expected_prefix = f"issues/{identity}/bugs/"
+            if len(changed_reports) != 1 or not changed_reports[0].startswith(expected_prefix):
+                fail(
+                    "an Issue branch must change exactly one Bug report for its identity; found: "
+                    + (", ".join(changed_reports) if changed_reports else "none")
+                )
+            else:
+                branch_report_path = ROOT / changed_reports[0]
+                branch_report_text = branch_report_path.read_text(encoding="utf-8")
+                if f"- 登记分支：`{current_branch}`" not in branch_report_text:
+                    fail(f"Issue report must name its exact registration branch: {changed_reports[0]}")
+
+                def issue_field(label: str) -> str:
+                    match = re.search(rf"^- {re.escape(label)}：\s*(.*?)\s*$", branch_report_text, re.MULTILINE)
+                    return match.group(1).strip().strip("`") if match else ""
+
+                for label in (
+                    "原始日志仓库路径",
+                    "原始日志生成方式",
+                    "完整覆盖的复现会话时间范围",
+                    "原始日志 SHA-256",
+                    "完整性与脱敏说明",
+                    "日志分析时间线",
+                    "关键标记与摘要",
+                    "日志分析结论",
+                    "无法生成日志",
+                    "无法生成日志的原因、已尝试方法与替代证据",
+                ):
+                    if not issue_field(label):
+                        fail(f"Issue report lacks completed log field '{label}': {changed_reports[0]}")
+
+                no_log = issue_field("无法生成日志")
+                if no_log == "否":
+                    raw_log_value = issue_field("原始日志仓库路径")
+                    raw_log_path = Path(raw_log_value.replace("\\", "/"))
+                    expected_log_root = Path("issues") / identity / "bugs" / "logs"
+                    if (
+                        raw_log_path.is_absolute()
+                        or ".." in raw_log_path.parts
+                        or expected_log_root not in raw_log_path.parents
+                        or raw_log_path.suffix.lower() != ".log"
+                    ):
+                        fail(f"Issue raw log must be a .log under {expected_log_root.as_posix()}: {raw_log_value}")
+                    else:
+                        absolute_log_path = ROOT / raw_log_path
+                        if not absolute_log_path.is_file() or absolute_log_path.stat().st_size == 0:
+                            fail(f"Issue raw log is missing or empty: {raw_log_path.as_posix()}")
+                        elif raw_log_path.as_posix() not in changed_paths:
+                            fail(f"Issue raw log is not included in the Issue branch changes: {raw_log_path.as_posix()}")
+                        else:
+                            claimed_hash = issue_field("原始日志 SHA-256").lower()
+                            actual_hash = hashlib.sha256(absolute_log_path.read_bytes()).hexdigest()
+                            if not re.fullmatch(r"[0-9a-f]{64}", claimed_hash) or claimed_hash != actual_hash:
+                                fail(f"Issue raw log SHA-256 mismatch: {raw_log_path.as_posix()}")
+                    if issue_field("日志分析结论") not in {"日志已确认", "仅能推断", "未提供结论"}:
+                        fail(f"Issue report has invalid log analysis conclusion: {changed_reports[0]}")
+                elif no_log == "是":
+                    exception_detail = issue_field("无法生成日志的原因、已尝试方法与替代证据")
+                    if exception_detail in {"不适用", "无", "暂无", "N/A"} or len(exception_detail) < 12:
+                        fail(f"Issue no-log exception lacks concrete reason, attempts, and alternative evidence: {changed_reports[0]}")
+                else:
+                    fail(f"Issue report '无法生成日志' must be exactly 否 or 是: {changed_reports[0]}")
     worktree_choice_markers = {
         "AGENTS.md": (
             "After that answer is known",
