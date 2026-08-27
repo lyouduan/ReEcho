@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`InProgress`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@46adef87a5149f00b8df585b4cdbc674c951ad0d`。
 - 本地实现方式（可选，仅作交接说明）：`C:\tmp\ReEcho-plan126-weapon-vfx-anchor`，分支 `codex/plan126-weapon-vfx-anchor`。
@@ -79,8 +79,14 @@
 - 首轮 PIE：长剑、镰刀位置正确；弓、枪位置错误，朝右尤为明显。诊断确认投射物仍从角色固定偏移生成，且弓左/枪右的 DA 负 X Scale 会把局部挂点再次镜像。
 - 修正候选：弓/枪投射物首帧直接使用 `WeaponAttackVfxRoot` 世界位置；局部挂点在父视觉组件 X 为负时抵消一次缩放镜像，确保最终屏幕侧仍按朝向选择。
 - 修正候选增量验证：Development Editor 编译通过；`ReEcho.Presentation.Combat.Capabilities` 返回 `Success`。该证据将在接入最新 `origin/main` 后由最终门禁重新生成。
+- 已接入 `origin/main@772b054c`；`ReEchoWeaponActor.cpp/.h` 按函数级同时保留 Plan126 最终挂点和 Plan131 镰刀斩弹，预构建包由合并后的 FullRebuild 统一刷新。
 
 ### 证据
+
+- 合并后 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：`Result: Succeeded`，预构建 source fingerprint `07c2933199ef`。
+- 合并后 `ReEcho.Presentation.Combat.Capabilities`：`Success`，覆盖弓/枪负缩放镜像补偿与投射物从最终武器挂点生成。
+- 合并后 `ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility`：`Success`，证明 Plan131 镰刀斩弹资格未被覆盖。
+- 合并后 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check`：通过；首次沙箱内校验仅因 C:\tmp Content 临时目录写权限失败，放行同一命令后通过，非项目缺陷。
 
 - `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：100/100，成功；预构建源码指纹 `46d56825feb2`。
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho.Presentation.Combat.Capabilities`：发现 1 项，`Result={Success}`。

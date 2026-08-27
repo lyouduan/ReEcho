@@ -170,6 +170,7 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 - 选择页的 `TitleText` 与 `ConfirmButtonLabel` 都是 `WBP_ReEchoTraitCardChoice > RootPanel` 的 Canvas 直接子项，可独立拖动。`ConfirmButtonLabel` 为 `HitTestInvisible`，不会阻挡按钮；需要移动整个确认交互时，应同时移动 `ConfirmButton` 与 `ConfirmButtonLabel`。
 - 三个 Slot 必须全部存在，并保持可容纳动态创建的 Entry Widget。
 - 不要把 CardId 写进蓝图文本或按钮 Tag；选择仍由父 Widget 的索引到稳定 ID 映射完成。
+- 正式 icon 源图统一归档为 `Content/SourceArt/UI/Cards/Icon/T_UI_CardIcon_{CardId}.png`，运行时导入到 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{CardId}`。Plan128 使用 `scripts/ue/import_plan128_complete_card_icons.py` 按权威 CSV 批量导入当前全部启用且可投放卡牌；替换图标只改同名 SourceArt/Texture2D，不要在 WBP 或 C++ 新增按中文名称分支。源图保留交付原生尺寸，不要为了统一规格重采样。
 - 不要在卡片按钮事件中自行移除父页面或打开商城。抽卡结算、下一帧关闭、商城创建和暂停恢复由 GameMode 管理。
 
 ### 5.5 Inventory/Shop

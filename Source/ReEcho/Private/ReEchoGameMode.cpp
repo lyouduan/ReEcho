@@ -3500,8 +3500,14 @@ void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
 
 	PostUiEvent(FReEchoAudioEvents::UiPurchase);
 	RunSubsystem->SaveRun();
+	const bool bOpenedBonusTraitChoice = RunSubsystem->Phase == EReEchoRunPhase::CardChoice;
 	CloseShopCardChoice(true);
 	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+	if (bOpenedBonusTraitChoice)
+	{
+		bReturnToOpenShopAfterTraitChoice = true;
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+	}
 }
 
 void AReEchoGameMode::HandleShopCardRefreshRequested(const int32 SlotIndex)
@@ -4458,6 +4464,29 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
 		}
 		TraitCardChoiceWidget = nullptr;
+	}
+	if (bReturnToOpenShopAfterTraitChoice)
+	{
+		if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+		{
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+			return;
+		}
+		bReturnToOpenShopAfterTraitChoice = false;
+		if (InventoryShopWidget)
+		{
+			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+				{
+					UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, true);
+				}
+			}
+			SetPlayerMenuAbilityBlocked(true);
+			return;
+		}
 	}
 	ResumeWorldForMenuTransition();
 

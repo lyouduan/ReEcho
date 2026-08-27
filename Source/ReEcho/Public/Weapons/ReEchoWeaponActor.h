@@ -85,6 +85,7 @@ public:
 	                                                     const FVector& LegacyOwnerLocation,
 	                                                     const FVector& Direction,
 	                                                     bool bHasWeaponAnchor);
+	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
 
 	float GetStepLockRemaining() const
 	{

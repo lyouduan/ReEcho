@@ -166,6 +166,7 @@ private:
 	void Refresh();
 	void RequestPurchase(int32 OfferIndex);
 	bool IsPartEquipped(FName PartId) const;
+	bool IsPartCompatibleWithCurrentWeapon(const FReEchoShopOffer& PartOffer) const;
 
 	UFUNCTION()
 	void HandleCloseClicked();
