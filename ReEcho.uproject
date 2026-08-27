@@ -1,5 +1,6 @@
 {
 	"FileVersion": 3,
+	"EngineAssociation": "{74E3DAA9-4D48-DF55-3FFB-D5BB313B1834}",
 	"Category": "Games",
 	"Description": "Time Echo vertical slice foundation",
 	"Modules": [
@@ -59,34 +60,47 @@
 		{
 			"Name": "HAPMedia",
 			"Enabled": true,
-			"PlatformAllowList": ["Win64"]
+			"PlatformAllowList": [
+				"Win64"
+			],
+			"SupportedTargetPlatforms": [
+				"Win64"
+			]
 		},
 		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
-			"TargetAllowList": ["Editor"]
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "ModelContextProtocol",
 			"Enabled": true,
-			"TargetAllowList": ["Editor"]
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "AllToolsets",
 			"Enabled": true,
-			"TargetAllowList": ["Editor"]
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true,
-			"TargetAllowList": ["Editor"]
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "EditorScriptingUtilities",
 			"Enabled": true,
-			"TargetAllowList": ["Editor"]
+			"TargetAllowList": [
+				"Editor"
+			]
 		}
-	],
-	"EngineAssociation": "5.8"
+	]
 }
-
