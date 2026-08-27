@@ -76,6 +76,12 @@ public:
 	void GMSetShards(int32 Amount = 0);
 	UFUNCTION(Exec)
 	void GMWeather(const FString& Scene = TEXT("Clear"));
+	/** Switches only the active Arena presentation; the current Stage/Encounter authority is unchanged. */
+	UFUNCTION(Exec)
+	void GMScene(const FString& Scene = TEXT("SC01"));
+	/** Overrides the current player's movement component speed in cm/s. */
+	UFUNCTION(Exec)
+	void GMMoveSpeed(float Speed = 420.0f);
 	UFUNCTION(Exec)
 	void GMEndEncounter();
 	/** Advances the active ordinary encounter to four seconds remaining so the full countdown transition can be
@@ -257,14 +263,21 @@ private:
 		CountdownPostProcess,
 		PlayingSequence,
 		FadingToCardChoice,
+		Stage01To02FocusPlayer,
+		Stage01To02HoldPlayer,
 		PlayingStage01To02Cg,
+		Stage01To02FocusEcho,
+		Stage01To02MoveToPlayer,
 		Completed
 	};
 	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
 	    EEncounterTransitionPresentationState::None;
 	float EncounterSequenceElapsedSeconds = 0.0f;
 	bool bEncounterIntermissionPreparedForTransition = false;
+	bool bPreparedEncounterAwaitingActivation = false;
 	bool bEncounterTransitionPausedWorld = false;
+	bool bEncounterTransitionControllerPauseTickOverridden = false;
+	bool bEncounterTransitionPreviousControllerFullTickWhenPaused = false;
 	bool bEncounterClearedByDefeat = false;
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
@@ -291,10 +304,14 @@ private:
 	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
 	bool BeginEncounterEndSequence();
 	void CompleteEncounterEndSequence(bool bFadeToCards);
+	bool BeginStage01To02CameraSequence();
 	bool BeginStage01To02Cg();
 	void CompleteStage01To02Cg(bool bFailed);
+	void BeginStage01To02PostCgCameraSequence();
+	void AdvanceStage01To02CameraSequence();
 	void ResetEncounterTransitionPresentation();
 	void SetEncounterTransitionWorldPaused(bool bPaused);
+	void SetEncounterTransitionCameraRefreshWhilePaused(bool bEnabled);
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
@@ -404,6 +421,8 @@ private:
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
+	bool PrepareNextEncounter(bool bDeferActivation);
+	void ActivatePreparedEncounter();
 	bool InitializeArenaSceneRegistry(FString& OutError);
 	bool PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
@@ -418,6 +437,8 @@ private:
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
 	static void ResolveGMSpawnFoxRequest(
 	    float CountOrDistance, float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance);
+	static bool TryResolveGMSceneId(const FString& Scene, FName& OutSceneId);
+	static bool IsValidGMMoveSpeed(float Speed);
 	static bool TryResolveGMEnemyAttachment(const FString& Element, EReEchoElement& OutElement);
 	static TArray<FVector> BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
 	                                                const FVector2D& ArenaCenter,
@@ -429,6 +450,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
 	friend class FReEchoGameModeBossVictoryGateTest;
+	friend class FReEchoGameModeSceneAndMoveSpeedTest;
 	friend class FReEchoGameModeEnemyElementAllTest;
 	friend class FReEchoEncounterTransitionPolicyTest;
 #endif
@@ -459,6 +481,7 @@ private:
 	void ClearTimeShardPickups();
 	static int32 ClearTimeShardPickupsInWorld(UWorld* World);
 	void RefreshFogRevealSources();
+	AReEchoEchoActor* FindStage01To02CameraEcho() const;
 	void PlayEchoCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);

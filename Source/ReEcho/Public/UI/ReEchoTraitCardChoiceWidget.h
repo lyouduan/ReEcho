@@ -102,6 +102,25 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<USizeBox> TraitCardSlot2;
 
+	/** Designer-owned per-card refresh controls. Their CanvasPanelSlot layout is the runtime layout authority. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> ShopCardRefreshButton0;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> ShopCardRefreshButton1;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> ShopCardRefreshButton2;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ShopCardRefreshText0;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ShopCardRefreshText1;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ShopCardRefreshText2;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoIndexedButton>> CardButtons;
 
@@ -116,6 +135,10 @@ private:
 
 	UPROPERTY()
 	TSubclassOf<UReEchoTraitCardEntryWidget> CardEntryWidgetClass;
+
+	/** Shared delivered art for authored buttons and the native fallback. */
+	UPROPERTY()
+	TObjectPtr<UTexture2D> RefreshButtonTexture;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USizeBox>> CardPanels;

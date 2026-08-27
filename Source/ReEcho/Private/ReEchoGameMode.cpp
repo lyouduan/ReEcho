@@ -11,6 +11,7 @@
 #include "Components/BillboardComponent.h"
 #include "Components/BoxComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Encounter/ReEchoEncounterDirector.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -32,6 +33,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Camera/CameraActor.h"
 #include "GameFramework/FloatingPawnMovement.h"
+#include "Player/ReEchoPlayerController.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
@@ -66,6 +68,7 @@
 
 AReEchoGameMode::AReEchoGameMode()
 {
+	PlayerControllerClass = AReEchoPlayerController::StaticClass();
 	static ConstructorHelpers::FClassFinder<AReEchoPlayerPawn> PlayerPrefab(
 	    TEXT("/Game/ReEcho/Gameplay/CharacterPrefabs/BP_PlayerGameplay"));
 	DefaultPawnClass = PlayerPrefab.Succeeded() ? PlayerPrefab.Class.Get() : AReEchoPlayerPawn::StaticClass();
@@ -254,7 +257,7 @@ void AReEchoGameMode::GMHelp()
 	PrintGMResult(TEXT("The GM console pauses while open and resumes when closed. GMStatus | GMHeal [amount, 0=full] | "
 	                   "GMGod [On|Off|Toggle] | "
 	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
-	                   "<Clear|Rain|Fog> | "
+	                   "<Clear|Rain|Fog> | GMScene <SC01|SC02|SC03|SC04> | GMMoveSpeed <cm/s> | "
 	                   "GMEndEncounter | GMTransition4 | GMKillAll | GMSpawnFox <count> [distance] | GMGotoBoss | "
 	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
@@ -265,6 +268,80 @@ void AReEchoGameMode::GMHelp()
 	                   "GMBossDamageRange <On|Off|Toggle>"));
 	PrintGMResult(TEXT("Reactions: Flame+Grass=Burn | Flame+Water=Vaporize | Lightning+Grass=Growth | "
 	                   "Lightning+Water=Conduct | Grass+Water=EnhanceGrass | Water+Grass=EnhanceWater"));
+}
+
+bool AReEchoGameMode::TryResolveGMSceneId(const FString& Scene, FName& OutSceneId)
+{
+	FString Normalized = Scene.TrimStartAndEnd().ToUpper();
+	if (Normalized.StartsWith(TEXT("SC")))
+	{
+		Normalized.RightChopInline(2);
+	}
+	if (!Normalized.IsNumeric())
+	{
+		return false;
+	}
+	const int32 SceneNumber = FCString::Atoi(*Normalized);
+	if (SceneNumber < 1 || SceneNumber > 4)
+	{
+		return false;
+	}
+	OutSceneId = FName(*FString::Printf(TEXT("SC%02d"), SceneNumber));
+	return true;
+}
+
+bool AReEchoGameMode::IsValidGMMoveSpeed(const float Speed)
+{
+	return FMath::IsFinite(Speed) && Speed > 0.0f;
+}
+
+void AReEchoGameMode::GMScene(const FString& Scene)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	FName SceneId = NAME_None;
+	if (!TryResolveGMSceneId(Scene, SceneId))
+	{
+		PrintGMResult(TEXT("Usage: GMScene <SC01|SC02|SC03|SC04>"), false);
+		return;
+	}
+	if (!ArenaSceneRegistry.Contains(SceneId))
+	{
+		PrintGMResult(FString::Printf(TEXT("GMScene cannot find registered SceneId=%s."), *SceneId.ToString()), false);
+		return;
+	}
+	FReEchoCsvStageRow DebugStage;
+	DebugStage.Id = TEXT("GMScene");
+	DebugStage.SceneId = SceneId;
+	FString Error;
+	if (!ApplyArenaSceneForStage(DebugStage, Error))
+	{
+		PrintGMResult(FString::Printf(TEXT("GMScene %s failed: %s"), *SceneId.ToString(), *Error), false);
+		return;
+	}
+	PrintGMResult(FString::Printf(TEXT("Arena scene is now %s; current Stage/Encounter is unchanged."),
+	                              *SceneId.ToString()));
+}
+
+void AReEchoGameMode::GMMoveSpeed(const float Speed)
+{
+	if (!EnsureGMCommandAvailable() || !Player || !Player->Movement)
+	{
+		PrintGMResult(TEXT("GMMoveSpeed requires an active player."), false);
+		return;
+	}
+	if (!IsValidGMMoveSpeed(Speed))
+	{
+		PrintGMResult(TEXT("Usage: GMMoveSpeed <positive cm/s>"), false);
+		return;
+	}
+	const float PreviousSpeed = Player->Movement->MaxSpeed;
+	Player->Movement->MaxSpeed = Speed;
+	PrintGMResult(FString::Printf(TEXT("Player movement speed %.1f -> %.1f cm/s."),
+	                              PreviousSpeed,
+	                              Player->Movement->MaxSpeed));
 }
 
 AReEchoEnemyActor* AReEchoGameMode::FindNearestLivingEnemyForGM() const
@@ -2081,18 +2158,27 @@ void AReEchoGameMode::RefreshFogRevealSources()
 void AReEchoGameMode::BeginNextEncounter()
 {
 	ResetEncounterTransitionPresentation();
+	if (PrepareNextEncounter(false))
+	{
+		ActivatePreparedEncounter();
+	}
+}
+
+bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
+{
+	bPreparedEncounterAwaitingActivation = false;
 	ConnectionLineSideByPair.Reset();
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (!RunSubsystem || RunSubsystem->EncounterIndex >= RunSubsystem->GetTotalEncounterCount())
 	{
-		return;
+		return false;
 	}
 	FReEchoStageTransitionDecision Transition;
 	FString TransitionError;
 	if (!ResolveNextStageTransition(Transition, TransitionError))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[StageTransition] Next encounter rejected: %s"), *TransitionError);
-		return;
+		return false;
 	}
 	const TSharedPtr<const FReEchoCsvDataSnapshot> PreBeginSnapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* NextEncounter =
@@ -2110,7 +2196,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		       *StageId.ToString(),
 		       *SceneId.ToString(),
 		       *SceneError);
-		return;
+		return false;
 	}
 	ClearTimeShardPickups();
 	if (!Transition.bPreserveEnemyRoster)
@@ -2126,7 +2212,7 @@ void AReEchoGameMode::BeginNextEncounter()
 		       *NextStage->Id.ToString(),
 		       *NextStage->SceneId.ToString(),
 		       *SceneError);
-		return;
+		return false;
 	}
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
@@ -2139,10 +2225,9 @@ void AReEchoGameMode::BeginNextEncounter()
 	if (!Encounter || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Encounter %d could not start from table data."), RunSubsystem->EncounterIndex);
-		return;
+		return false;
 	}
 	Director->ConfigureEncounter(Encounter->DurationSeconds, Encounter->EndCondition == TEXT("Duration"));
-	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
 	UpdateWeatherScene(RunSubsystem->EncounterIndex);
 	if (Player)
 	{
@@ -2171,10 +2256,6 @@ void AReEchoGameMode::BeginNextEncounter()
 		{
 			PlayerHudWidget->InitializePlayerHud(Player->Combatant, Player->CombatEvents, Player->GetPortraitTexture());
 		}
-		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
-		                                 TEXT("GrayboxArena"),
-		                                 1337 + RunSubsystem->EncounterIndex,
-		                                 RunSubsystem->CurrentBuild);
 	}
 	// Plan31: resolve the full selected set (zero, one or several) and spawn one independent
 	// Echo actor per recording. Each Echo owns its immutable recording and build snapshot, so its
@@ -2188,6 +2269,10 @@ void AReEchoGameMode::BeginNextEncounter()
 		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
 			Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
+			if (bDeferActivation)
+			{
+				Echo->AdvanceEcho(0.0f);
+			}
 			Echoes.Add(Echo);
 		}
 		else if (Echo)
@@ -2196,12 +2281,10 @@ void AReEchoGameMode::BeginNextEncounter()
 		}
 	}
 	RefreshFogRevealSources();
-	SetEnemyEncounterSimulationSuspended(false);
-	RestoreGameInput();
 	const FVector PlayerLocation = Player ? Player->GetActorLocation() : FVector::ZeroVector;
 	UE_LOG(LogTemp,
 	       Display,
-	       TEXT("[StageTransition] started previous=%s next=%s keepRoster=%s keepPlayerLocation=%s roster=%d "
+	       TEXT("[StageTransition] prepared previous=%s next=%s keepRoster=%s keepPlayerLocation=%s roster=%d "
 	            "player=(%.1f,%.1f,%.1f)"),
 	       *Transition.PreviousStageId.ToString(),
 	       *Transition.NextStageId.ToString(),
@@ -2211,8 +2294,40 @@ void AReEchoGameMode::BeginNextEncounter()
 	       PlayerLocation.X,
 	       PlayerLocation.Y,
 	       PlayerLocation.Z);
+	bPreparedEncounterAwaitingActivation = true;
+	return true;
+}
+
+void AReEchoGameMode::ActivatePreparedEncounter()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!bPreparedEncounterAwaitingActivation || !RunSubsystem || RunSubsystem->Phase != EReEchoRunPhase::Encounter ||
+	    !Director)
+	{
+		UE_LOG(LogReEcho, Error, TEXT("[StageTransition] prepared encounter activation rejected."));
+		return;
+	}
+	bPreparedEncounterAwaitingActivation = false;
+	SetEncounterTransitionWorldPaused(false);
+	if (Player && Player->Recorder)
+	{
+		Player->Recorder->BeginRecording(RunSubsystem->EncounterIndex,
+		                                 TEXT("GrayboxArena"),
+		                                 1337 + RunSubsystem->EncounterIndex,
+		                                 RunSubsystem->CurrentBuild);
+	}
+	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
+	SetEnemyEncounterSimulationSuspended(false);
+	RestoreGameInput();
 	Director->StartEncounter();
 	ProcessScheduledSpawnEvents(0.0f);
+	UE_LOG(LogReEcho,
+	       Display,
+	       TEXT("[StageTransition] activated encounter=%d echoes=%d afterCamera=%s"),
+	       RunSubsystem->EncounterIndex,
+	       Echoes.Num(),
+	       EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Completed ? TEXT("true")
+	                                                                                                : TEXT("false"));
 }
 
 FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() const
@@ -4388,9 +4503,12 @@ void AReEchoGameMode::HandleEncounterEnded()
 		RunSubsystem->SaveRun();
 		PrepareEncounterIntermission();
 		bEncounterIntermissionPreparedForTransition = true;
-		if (!BeginStage01To02Cg())
+		if (!BeginStage01To02CameraSequence())
 		{
-			CompleteStage01To02Cg(true);
+			if (!BeginStage01To02Cg())
+			{
+				CompleteStage01To02Cg(true);
+			}
 		}
 		return;
 	}
@@ -4525,6 +4643,14 @@ void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSec
 		}
 		return;
 	}
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02FocusPlayer ||
+	    EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02HoldPlayer ||
+	    EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02FocusEcho ||
+	    EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02MoveToPlayer)
+	{
+		AdvanceStage01To02CameraSequence();
+		return;
+	}
 	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::PlayingStage01To02Cg)
 	{
 		const bool bFailed = !EncounterTransitionWidget || EncounterTransitionWidget->HasSequenceFailed();
@@ -4575,6 +4701,7 @@ void AReEchoGameMode::ResetEncounterTransitionPresentation()
 	if (ArenaCameraActor)
 	{
 		ArenaCameraActor->ResetEncounterCountdownPostProcess();
+		ArenaCameraActor->CancelStage01To02CameraSequence();
 	}
 	if (EncounterTransitionWidget)
 	{
@@ -4595,6 +4722,7 @@ void AReEchoGameMode::ResetEncounterTransitionPresentation()
 	EncounterTransitionWidget = nullptr;
 	EncounterSequenceElapsedSeconds = 0.0f;
 	bEncounterIntermissionPreparedForTransition = false;
+	bPreparedEncounterAwaitingActivation = false;
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::None;
 }
 
@@ -4602,6 +4730,7 @@ void AReEchoGameMode::SetEncounterTransitionWorldPaused(const bool bPaused)
 {
 	if (bPaused)
 	{
+		SetEncounterTransitionCameraRefreshWhilePaused(true);
 		if (!UGameplayStatics::IsGamePaused(this))
 		{
 			bEncounterTransitionPausedWorld = UGameplayStatics::SetGamePaused(this, true);
@@ -4621,6 +4750,43 @@ void AReEchoGameMode::SetEncounterTransitionWorldPaused(const bool bPaused)
 		       bResumed ? TEXT("true") : TEXT("false"));
 		bEncounterTransitionPausedWorld = false;
 	}
+	SetEncounterTransitionCameraRefreshWhilePaused(false);
+}
+
+void AReEchoGameMode::SetEncounterTransitionCameraRefreshWhilePaused(const bool bEnabled)
+{
+	AReEchoPlayerController* PlayerController =
+	    Cast<AReEchoPlayerController>(UGameplayStatics::GetPlayerController(this, 0));
+	if (bEnabled)
+	{
+		if (!PlayerController || bEncounterTransitionControllerPauseTickOverridden)
+		{
+			return;
+		}
+		bEncounterTransitionPreviousControllerFullTickWhenPaused = PlayerController->ShouldRefreshCameraWhilePaused();
+		bEncounterTransitionControllerPauseTickOverridden = true;
+		PlayerController->SetRefreshCameraWhilePaused(true);
+		UE_LOG(LogReEcho,
+		       Display,
+		       TEXT("[EncounterTransition] paused camera refresh enabled controller=%s previous=%s"),
+		       *GetNameSafe(PlayerController),
+		       bEncounterTransitionPreviousControllerFullTickWhenPaused ? TEXT("true") : TEXT("false"));
+		return;
+	}
+	if (!bEncounterTransitionControllerPauseTickOverridden)
+	{
+		return;
+	}
+	if (PlayerController)
+	{
+		PlayerController->SetRefreshCameraWhilePaused(bEncounterTransitionPreviousControllerFullTickWhenPaused);
+		UE_LOG(LogReEcho,
+		       Display,
+		       TEXT("[EncounterTransition] paused camera refresh restored controller=%s value=%s"),
+		       *GetNameSafe(PlayerController),
+		       PlayerController->ShouldRefreshCameraWhilePaused() ? TEXT("true") : TEXT("false"));
+	}
+	bEncounterTransitionControllerPauseTickOverridden = false;
 }
 
 void AReEchoGameMode::ProceedToPostEncounterUI()
@@ -4658,8 +4824,42 @@ void AReEchoGameMode::ProceedToPostEncounterUI()
 	}
 }
 
+bool AReEchoGameMode::BeginStage01To02CameraSequence()
+{
+	if (!ArenaCameraActor || !Player)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[Stage01To02Camera] pre-CG focus skipped camera=%s player=%s."),
+		       *GetNameSafe(ArenaCameraActor),
+		       *GetNameSafe(Player));
+		return false;
+	}
+	SetActorTickEnabled(true);
+	SetTickableWhenPaused(true);
+	ArenaCameraActor->ResetEncounterCountdownPostProcess();
+	ArenaCameraActor->BeginStage01To02CameraSequence();
+	if (!ArenaCameraActor->FocusStage01To02Target(Player,
+	                                              ArenaCameraActor->GetStage01To02PlayerFocusRatio(),
+	                                              ArenaCameraActor->GetStage01To02PlayerFocusDuration()))
+	{
+		ArenaCameraActor->CancelStage01To02CameraSequence();
+		return false;
+	}
+	SetEncounterTransitionWorldPaused(true);
+	SetPlayerMenuAbilityBlocked(true);
+	if (UReEchoAudioService* AudioService = GetGameInstance()->GetSubsystem<UReEchoAudioService>())
+	{
+		AudioService->StopMusicState();
+	}
+	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Stage01To02FocusPlayer;
+	UE_LOG(LogReEcho, Display, TEXT("[Stage01To02Camera] pre-CG player focus started."));
+	return true;
+}
+
 bool AReEchoGameMode::BeginStage01To02Cg()
 {
+	SetEncounterTransitionWorldPaused(false);
 	if (ArenaCameraActor)
 	{
 		ArenaCameraActor->ResetEncounterCountdownPostProcess();
@@ -4688,30 +4888,156 @@ bool AReEchoGameMode::BeginStage01To02Cg()
 
 void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed)
 {
-	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Completed)
+	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingStage01To02Cg)
 	{
 		return;
 	}
 	if (bFailed)
 	{
-		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] playback failed; continuing directly to Encounter 2."));
+		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] playback failed; continuing to the post-CG camera gate."));
 	}
 	else
 	{
-		UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] playback completed; continuing to Encounter 2."));
+		UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] playback completed; preparing Encounter 2 presentation."));
 	}
 	if (EncounterTransitionMediaSound)
 	{
 		EncounterTransitionMediaSound->SetMediaPlayer(nullptr);
 	}
+	if (!PrepareNextEncounter(true))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02Camera] Encounter 2 preparation failed; retrying normal entry."));
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
+		}
+		EncounterTransitionWidget = nullptr;
+		if (ArenaCameraActor)
+		{
+			ArenaCameraActor->CancelStage01To02CameraSequence();
+		}
+		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+		return;
+	}
+	AReEchoEchoActor* EchoTarget = FindStage01To02CameraEcho();
+	const bool bEchoPrepositioned =
+	    ArenaCameraActor && EchoTarget &&
+	    ArenaCameraActor->FocusStage01To02Target(EchoTarget, ArenaCameraActor->GetStage01To02EchoFocusRatio(), 0.0f);
+	if (bEchoPrepositioned)
+	{
+		UE_LOG(LogReEcho,
+		       Display,
+		       TEXT("[Stage01To02Camera] Echo prepositioned behind the final CG frame target=%s."),
+		       *GetNameSafe(EchoTarget));
+	}
+	SetEncounterTransitionWorldPaused(true);
 	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 	{
 		UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
 	}
 	EncounterTransitionWidget = nullptr;
+	if (bEchoPrepositioned && ArenaCameraActor->FocusStage01To02TargetAtStandardWidth(
+	                              EchoTarget, ArenaCameraActor->GetStage01To02EchoZoomOutDuration()))
+	{
+		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Stage01To02FocusEcho;
+		return;
+	}
+	BeginStage01To02PostCgCameraSequence();
+}
+
+void AReEchoGameMode::BeginStage01To02PostCgCameraSequence()
+{
+	AReEchoEchoActor* EchoTarget = FindStage01To02CameraEcho();
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[Stage01To02Camera] hidden Echo preposition skipped camera=%s echo=%s; restoring via player."),
+	       *GetNameSafe(ArenaCameraActor),
+	       *GetNameSafe(EchoTarget));
+	if (ArenaCameraActor && Player &&
+	    ArenaCameraActor->FocusStage01To02TargetAtStandardWidth(Player,
+	                                                            ArenaCameraActor->GetStage01To02MoveToPlayerDuration()))
+	{
+		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Stage01To02MoveToPlayer;
+		return;
+	}
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
-	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::BeginNextEncounter);
+	if (ArenaCameraActor)
+	{
+		ArenaCameraActor->EndStage01To02CameraSequence();
+	}
+	ActivatePreparedEncounter();
+}
+
+void AReEchoGameMode::AdvanceStage01To02CameraSequence()
+{
+	if (!ArenaCameraActor)
+	{
+		if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02FocusPlayer)
+		{
+			if (!BeginStage01To02Cg())
+			{
+				EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingStage01To02Cg;
+				CompleteStage01To02Cg(true);
+			}
+		}
+		else
+		{
+			EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
+			ActivatePreparedEncounter();
+		}
+		return;
+	}
+	if (!ArenaCameraActor->IsStage01To02CameraMoveComplete())
+	{
+		return;
+	}
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02FocusPlayer)
+	{
+		if (Player && ArenaCameraActor->FocusStage01To02Target(Player,
+		                                                       ArenaCameraActor->GetStage01To02PlayerFocusRatio(),
+		                                                       ArenaCameraActor->GetStage01To02PlayerHoldDuration()))
+		{
+			EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Stage01To02HoldPlayer;
+			return;
+		}
+	}
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02HoldPlayer ||
+	    EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02FocusPlayer)
+	{
+		if (!BeginStage01To02Cg())
+		{
+			EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingStage01To02Cg;
+			CompleteStage01To02Cg(true);
+		}
+		return;
+	}
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Stage01To02FocusEcho)
+	{
+		if (Player && ArenaCameraActor->FocusStage01To02TargetAtStandardWidth(
+		                  Player, ArenaCameraActor->GetStage01To02MoveToPlayerDuration()))
+		{
+			EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Stage01To02MoveToPlayer;
+			return;
+		}
+	}
+	ArenaCameraActor->EndStage01To02CameraSequence();
+	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
+	ActivatePreparedEncounter();
+}
+
+AReEchoEchoActor* AReEchoGameMode::FindStage01To02CameraEcho() const
+{
+	for (AReEchoEchoActor* Echo : Echoes)
+	{
+		if (IsValid(Echo))
+		{
+			return Echo;
+		}
+	}
+	return nullptr;
 }
 
 void AReEchoGameMode::ShowTraitCardChoice()

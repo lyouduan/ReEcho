@@ -119,8 +119,11 @@ for index in range(3):
 
 for index in range(12):
     card_slot = widget_map.get(f"DesignerCardSlot{index}")
+    card_art = widget_map.get(f"DesignerCardSlotArt{index}")
     require(isinstance(card_slot, unreal.Button), f"Missing card slot {index}")
     require(card_slot.get_parent() == loadout, f"Card slot {index} is not designer-positionable")
+    require(isinstance(card_art, unreal.Image), f"Missing card slot art {index}")
+    require(card_art.get_parent() == card_slot, f"Card slot art {index} is not layered inside its frame")
 
 weapon_button = widget_map.get("DesignerWeaponInteractionButton")
 require(isinstance(weapon_button, unreal.Button), "Missing authored weapon interaction button")
@@ -167,6 +170,7 @@ required_textures = (
     "CurrencyFrame",
     "WeaponLoadoutSlot",
     "LoadoutCardSlot",
+    "EmptyCardSlotIcon",
     "AssemblyPanel",
     "LoadoutTreePanel",
     "SaveAndLeave",
@@ -178,6 +182,35 @@ for texture_name in required_textures:
     require(
         texture.get_editor_property("lod_group") == unreal.TextureGroup.TEXTUREGROUP_UI,
         f"Shop texture is not in the UI texture group: {asset_path}",
+    )
+
+empty_icon = unreal.load_asset(
+    f"{runtime_texture_root}/T_UI_Shop110_EmptyCardSlotIcon"
+)
+slot_frame = unreal.load_asset(
+    f"{runtime_texture_root}/T_UI_Shop110_LoadoutCardSlot"
+)
+for index in range(12):
+    card_slot = widget_map[f"DesignerCardSlot{index}"]
+    card_art = widget_map[f"DesignerCardSlotArt{index}"]
+    require(
+        card_slot.get_editor_property("widget_style")
+        .get_editor_property("normal")
+        .get_editor_property("resource_object")
+        == slot_frame,
+        f"Card slot {index} does not preserve the authored frame",
+    )
+    require(
+        card_art.get_editor_property("visibility") == unreal.SlateVisibility.HIDDEN,
+        f"Card slot {index} still previews product placeholder art",
+    )
+
+for index in range(3):
+    pack_art = widget_map[f"DesignerPackOfferIcon{index}"]
+    require(
+        pack_art.get_editor_property("brush").get_editor_property("resource_object")
+        == empty_icon,
+        f"Card-pack offer {index} does not preview the reviewed lock icon",
     )
 
 for forbidden_reference in (

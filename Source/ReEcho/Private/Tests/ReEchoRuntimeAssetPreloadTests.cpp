@@ -44,9 +44,20 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Bow flight Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01.NS_People_Bow_Attack_01"))));
-	TestTrue(TEXT("Gun impact Niagara is preloaded"),
+	TestTrue(TEXT("Gun muzzle Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark.NS_People_Bullet_spark"))));
+	const TCHAR* GunElementFlightPaths[] = {
+	    TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fire_Fly.NS_People_Bullet_Fire_Fly"),
+	    TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Thunder_Fly.NS_People_Bullet_Thunder_Fly"),
+	    TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Grass_Fly.NS_People_Bullet_Grass_Fly"),
+	    TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Water_Fly.NS_People_Bullet_Water_Fly"),
+	};
+	for (const TCHAR* GunElementFlightPath : GunElementFlightPaths)
+	{
+		TestTrue(TEXT("Element-specific Gun flight Niagara is preloaded"),
+		         UniquePaths.Contains(FSoftObjectPath(GunElementFlightPath)));
+	}
 	TestFalse(TEXT("Retired Whip presentation profile is not preloaded"),
 	          UniquePaths.Contains(FSoftObjectPath(TEXT(
 	              "/Game/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_Whip.DA_WeaponPresentation_Whip"))));

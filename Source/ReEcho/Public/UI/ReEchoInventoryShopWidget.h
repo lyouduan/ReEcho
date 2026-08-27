@@ -246,6 +246,9 @@ private:
 	TObjectPtr<UTexture2D> ShopRefreshTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopCardSlotTexture;
+	/** Reviewed placeholder art used by the three card-pack offers. */
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopEmptyCardSlotIconTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopTitleTexture;
 	UPROPERTY()

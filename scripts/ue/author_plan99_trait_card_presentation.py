@@ -11,7 +11,7 @@ import unreal
 
 ENTRY_ASSET_PATH = "/Game/ReEcho/UI/WBP_ReEchoTraitCardEntry"
 CHOICE_ASSET_PATH = "/Game/ReEcho/UI/WBP_ReEchoTraitCardChoice"
-CONFIRM_TEXTURE_PATH = (
+BUTTON_TEXTURE_PATH = (
     "/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/"
     "T_UI_Pause_ButtonLight"
 )
@@ -40,6 +40,10 @@ ENTRY_TEXT_LAYOUTS = {
     "NameText": (20.0, 272.0, 304.0, 58.0, 2),
     "DescriptionText": (23.0, 342.0, 298.0, 120.0, 2),
 }
+REFRESH_BUTTON_SAMPLE_TEXT = "刷新（剩余 2） · 5"
+REFRESH_BUTTON_WIDTH = 210.0
+REFRESH_BUTTON_HEIGHT = 48.0
+REFRESH_BUTTON_Y_OFFSET = 300.0
 
 
 def widget_map(toolset, blueprint):
@@ -150,16 +154,43 @@ def copy_canvas_layout(source_slot, target_widget, z_offset=0):
     apply_canvas_layout(capture_canvas_layout(source_slot), target_widget, z_offset)
 
 
+def slate_size(width, height):
+    size = unreal.DeprecateSlateVector2D()
+    size.set_editor_property("x", width)
+    size.set_editor_property("y", height)
+    return size
+
+
+def apply_button_texture(button, texture, width, height):
+    style = button.get_editor_property("widget_style")
+    for brush_name in ("normal", "hovered", "pressed", "disabled"):
+        brush = style.get_editor_property(brush_name)
+        brush.set_editor_property("resource_object", texture)
+        brush.set_editor_property("draw_as", unreal.SlateBrushDrawType.IMAGE)
+        brush.set_editor_property("image_size", slate_size(width, height))
+        brush.set_editor_property(
+            "tint_color",
+            unreal.SlateColor(unreal.LinearColor(1.0, 1.0, 1.0, 1.0)),
+        )
+        style.set_editor_property(brush_name, brush)
+    style.set_editor_property("normal_padding", unreal.Margin(0.0, 0.0, 0.0, 0.0))
+    style.set_editor_property("pressed_padding", unreal.Margin(0.0, 0.0, 0.0, 0.0))
+    button.set_editor_property("widget_style", style)
+    button.set_editor_property(
+        "background_color", unreal.LinearColor(1.0, 1.0, 1.0, 1.0)
+    )
+
+
 toolset = unreal.UMGToolSet.get_default_object()
 entry_blueprint = unreal.load_asset(ENTRY_ASSET_PATH)
 choice_blueprint = unreal.load_asset(CHOICE_ASSET_PATH)
-confirm_texture = unreal.load_asset(CONFIRM_TEXTURE_PATH)
+button_texture = unreal.load_asset(BUTTON_TEXTURE_PATH)
 sample_art = unreal.load_asset(SAMPLE_ART_PATH)
 sample_icon = unreal.load_asset(SAMPLE_ICON_PATH)
 if entry_blueprint is None or choice_blueprint is None:
     raise RuntimeError("Required Trait Card WBP is missing")
-if not isinstance(confirm_texture, unreal.Texture2D):
-    raise RuntimeError(f"Required confirm texture is missing: {CONFIRM_TEXTURE_PATH}")
+if not isinstance(button_texture, unreal.Texture2D):
+    raise RuntimeError(f"Required button texture is missing: {BUTTON_TEXTURE_PATH}")
 if not isinstance(sample_art, unreal.Texture2D) or not isinstance(sample_icon, unreal.Texture2D):
     raise RuntimeError("Required Trait Card designer sample texture is missing")
 
@@ -413,6 +444,96 @@ if not isinstance(confirm_label, unreal.TextBlock):
 if not isinstance(choice_root, unreal.CanvasPanel):
     raise RuntimeError("WBP_ReEchoTraitCardChoice is missing RootPanel")
 
+indexed_button_class = unreal.load_class(None, "/Script/ReEcho.ReEchoIndexedButton")
+if indexed_button_class is None:
+    raise RuntimeError("Native ReEchoIndexedButton class is missing")
+for slot_index in range(3):
+    card_slot = choice_widgets[f"TraitCardSlot{slot_index}"]
+    button_name = f"ShopCardRefreshButton{slot_index}"
+    text_name = f"ShopCardRefreshText{slot_index}"
+    refresh_button = choice_widgets.get(button_name)
+    if refresh_button is None:
+        refresh_button = add_widget(
+            toolset,
+            choice_blueprint,
+            indexed_button_class,
+            button_name,
+            choice_widgets["TraitCardContainer"],
+            -1,
+        )
+        card_layout = card_slot.get_editor_property("slot").get_editor_property(
+            "layout_data"
+        )
+        card_anchors = card_layout.get_editor_property("anchors")
+        refresh_slot = refresh_button.get_editor_property("slot")
+        refresh_slot.set_editor_property(
+            "layout_data",
+            unreal.AnchorData(
+                offsets=unreal.Margin(
+                    0.0,
+                    REFRESH_BUTTON_Y_OFFSET,
+                    REFRESH_BUTTON_WIDTH,
+                    REFRESH_BUTTON_HEIGHT,
+                ),
+                anchors=unreal.Anchors(
+                    minimum=unreal.Vector2D(
+                        card_anchors.minimum.x, card_anchors.minimum.y
+                    ),
+                    maximum=unreal.Vector2D(
+                        card_anchors.maximum.x, card_anchors.maximum.y
+                    ),
+                ),
+                alignment=unreal.Vector2D(0.5, 0.0),
+            ),
+        )
+        refresh_slot.set_editor_property("auto_size", False)
+        refresh_slot.set_editor_property("z_order", 30 + slot_index)
+    if not unreal.MathLibrary.class_is_child_of(
+        refresh_button.get_class(), indexed_button_class
+    ):
+        raise RuntimeError(f"{button_name} must be a ReEchoIndexedButton")
+    if refresh_button.get_parent() is not choice_widgets["TraitCardContainer"]:
+        raise RuntimeError(f"{button_name} must remain directly draggable on TraitCardContainer")
+    apply_button_texture(
+        refresh_button,
+        button_texture,
+        REFRESH_BUTTON_WIDTH,
+        REFRESH_BUTTON_HEIGHT,
+    )
+    refresh_button.set_editor_property("visibility", unreal.SlateVisibility.VISIBLE)
+
+    refresh_text = choice_widgets.get(text_name)
+    if refresh_text is None:
+        refresh_text = add_widget(
+            toolset,
+            choice_blueprint,
+            unreal.TextBlock,
+            text_name,
+            refresh_button,
+            -1,
+        )
+    if not isinstance(refresh_text, unreal.TextBlock) or refresh_text.get_parent() is not refresh_button:
+        raise RuntimeError(f"{text_name} must be the content of {button_name}")
+    refresh_text.set_editor_property("text", REFRESH_BUTTON_SAMPLE_TEXT)
+    refresh_text.set_editor_property("justification", unreal.TextJustify.CENTER)
+    refresh_text.set_editor_property("auto_wrap_text", False)
+    refresh_text.set_editor_property(
+        "color_and_opacity",
+        unreal.SlateColor(unreal.LinearColor(0.96, 0.90, 0.70, 1.0)),
+    )
+    refresh_font = refresh_text.get_editor_property("font")
+    refresh_font.set_editor_property("size", 17)
+    refresh_text.set_editor_property("font", refresh_font)
+    refresh_text.set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
+    refresh_text_slot = refresh_text.get_editor_property("slot")
+    refresh_text_slot.set_editor_property("padding", unreal.Margin(0.0, 0.0, 0.0, 0.0))
+    refresh_text_slot.set_editor_property(
+        "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_CENTER
+    )
+    refresh_text_slot.set_editor_property(
+        "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_CENTER
+    )
+
 if confirm_label.get_parent() is not choice_root:
     confirm_button_slot = confirm_button.get_editor_property("slot")
     moved = toolset.call_method(
@@ -422,18 +543,7 @@ if confirm_label.get_parent() is not choice_root:
         raise RuntimeError("Failed to move ConfirmButtonLabel to RootPanel")
     copy_canvas_layout(confirm_button_slot, confirm_label, z_offset=1)
 
-style = confirm_button.get_editor_property("widget_style")
-for brush_name in ("normal", "hovered", "pressed", "disabled"):
-    brush = style.get_editor_property(brush_name)
-    brush.set_editor_property("resource_object", confirm_texture)
-    brush.set_editor_property("draw_as", unreal.SlateBrushDrawType.IMAGE)
-    brush.set_editor_property(
-        "tint_color",
-        unreal.SlateColor(unreal.LinearColor(1.0, 1.0, 1.0, 1.0)),
-    )
-    style.set_editor_property(brush_name, brush)
-confirm_button.set_editor_property("widget_style", style)
-confirm_button.set_editor_property("background_color", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
+apply_button_texture(confirm_button, button_texture, 405.0, 136.0)
 confirm_label.set_editor_property("text", "确定")
 confirm_label.set_editor_property("justification", unreal.TextJustify.CENTER)
 confirm_label.set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
@@ -447,6 +557,25 @@ for slot_index in range(3):
     sample_name = f"DesignerTraitCardSample{slot_index}"
     if sample_name not in choice_widgets:
         raise RuntimeError(f"Trait Card designer sample was not retained: {sample_name}")
+    button_name = f"ShopCardRefreshButton{slot_index}"
+    text_name = f"ShopCardRefreshText{slot_index}"
+    refresh_button = choice_widgets.get(button_name)
+    refresh_text = choice_widgets.get(text_name)
+    if (
+        refresh_button is None
+        or refresh_button.get_parent().get_name() != "TraitCardContainer"
+        or not isinstance(refresh_button.get_editor_property("slot"), unreal.CanvasPanelSlot)
+        or not isinstance(refresh_text, unreal.TextBlock)
+        or refresh_text.get_parent() is not refresh_button
+    ):
+        raise RuntimeError(f"Trait Card refresh control is not Designer-authored: {slot_index}")
+    refresh_style = refresh_button.get_editor_property("widget_style")
+    for brush_name in ("normal", "hovered", "pressed", "disabled"):
+        brush = refresh_style.get_editor_property(brush_name)
+        if brush.get_editor_property("resource_object") != button_texture:
+            raise RuntimeError(
+                f"Trait Card refresh button {slot_index} lost {brush_name} art"
+            )
 for text_name in ("TitleText", "ConfirmButtonLabel"):
     text_widget = choice_widgets.get(text_name)
     if not isinstance(text_widget, unreal.TextBlock) or not isinstance(
@@ -458,10 +587,10 @@ style = confirm_button.get_editor_property("widget_style")
 for brush_name in ("normal", "hovered", "pressed", "disabled"):
     brush = style.get_editor_property(brush_name)
     resource = brush.get_editor_property("resource_object")
-    if resource != confirm_texture:
+    if resource != button_texture:
         raise RuntimeError(f"ConfirmButton {brush_name} brush did not retain the delivered texture")
 
 unreal.log(
     f"[Plan99TraitAuthor] removed={','.join(removed) or '<already-clean>'}; "
-    f"confirm={confirm_texture.get_path_name()}"
+    f"buttons={button_texture.get_path_name()}"
 )

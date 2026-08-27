@@ -1,5 +1,6 @@
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 
+#include "Core/ReEchoTypes.h"
 #include "Core/ReEchoRabbitProjectilePattern.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
@@ -41,9 +42,9 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 			VisualKey = TEXT("Gun");
 			SlotMember = &UReEchoWeaponPresentationProfile::Travel;
 			break;
-		case EReEchoCombatVfxSemantic::PlayerGunImpact:
+		case EReEchoCombatVfxSemantic::PlayerGunMuzzle:
 			VisualKey = TEXT("Gun");
-			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
 			break;
 		default:
 			return nullptr;
@@ -96,8 +97,16 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerGunFlight:
 			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::Travel);
-		case EReEchoCombatVfxSemantic::PlayerGunImpact:
-			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::DamageApplied);
+		case EReEchoCombatVfxSemantic::PlayerGunFlightFlame:
+			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fire_Fly.NS_People_Bullet_Fire_Fly");
+		case EReEchoCombatVfxSemantic::PlayerGunFlightLightning:
+			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Thunder_Fly.NS_People_Bullet_Thunder_Fly");
+		case EReEchoCombatVfxSemantic::PlayerGunFlightGrass:
+			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Grass_Fly.NS_People_Bullet_Grass_Fly");
+		case EReEchoCombatVfxSemantic::PlayerGunFlightWater:
+			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Water_Fly.NS_People_Bullet_Water_Fly");
+		case EReEchoCombatVfxSemantic::PlayerGunMuzzle:
+			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::AttackCommitted);
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		case EReEchoCombatVfxSemantic::EchoWaterAura:
@@ -170,8 +179,22 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 	return false;
 }
 
-bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId,
-                                                          EReEchoCombatVfxSemantic& OutSemantic)
+bool FReEchoCombatVfxCatalog::ResolveAttackCommittedSemantic(const FName AttackPatternId,
+                                                             EReEchoCombatVfxSemantic& OutSemantic)
+{
+	if (ResolveMeleeAttackSemantic(AttackPatternId, OutSemantic))
+	{
+		return true;
+	}
+	if (AttackPatternId == TEXT("Pattern.GunShot"))
+	{
+		OutSemantic = EReEchoCombatVfxSemantic::PlayerGunMuzzle;
+		return true;
+	}
+	return false;
+}
+
+bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(WeaponId) : nullptr;
@@ -190,6 +213,28 @@ bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId,
 		return true;
 	}
 	return false;
+}
+
+bool FReEchoCombatVfxCatalog::ResolveGunFlightSemantic(const EReEchoElement Element,
+                                                       EReEchoCombatVfxSemantic& OutSemantic)
+{
+	switch (Element)
+	{
+		case EReEchoElement::Flame:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerGunFlightFlame;
+			return true;
+		case EReEchoElement::Lightning:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerGunFlightLightning;
+			return true;
+		case EReEchoElement::Grass:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerGunFlightGrass;
+			return true;
+		case EReEchoElement::Water:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerGunFlightWater;
+			return true;
+		default:
+			return false;
+	}
 }
 
 float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSemantic Semantic)

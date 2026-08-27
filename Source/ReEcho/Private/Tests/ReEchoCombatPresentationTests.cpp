@@ -101,12 +101,10 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	const UReEchoWeaponPresentationProfile* GunAnchorProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"));
 	if (SwordAnchorProfile && ScytheAnchorProfile && BowAnchorProfile && GunAnchorProfile)
 	{
-		const FVector2D ExpectedBowRight = BowAnchorProfile->bOverrideAttackVfxAnchor
-		                                       ? BowAnchorProfile->AttackVfxAnchorRatio
-		                                       : FVector2D(0.5f, 0.0f);
-		const FVector2D ExpectedGunRight = GunAnchorProfile->bOverrideAttackVfxAnchor
-		                                       ? GunAnchorProfile->AttackVfxAnchorRatio
-		                                       : FVector2D(0.5f, 0.0f);
+		const FVector2D ExpectedBowRight =
+		    BowAnchorProfile->bOverrideAttackVfxAnchor ? BowAnchorProfile->AttackVfxAnchorRatio : FVector2D(0.5f, 0.0f);
+		const FVector2D ExpectedGunRight =
+		    GunAnchorProfile->bOverrideAttackVfxAnchor ? GunAnchorProfile->AttackVfxAnchorRatio : FVector2D(0.5f, 0.0f);
 		TestEqual(TEXT("Right-facing scythe releases from weapon center"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*ScytheAnchorProfile, 1.0f),
 		          FVector2D::ZeroVector);
@@ -129,8 +127,7 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, -1.0f),
 		          FVector2D(-ExpectedGunRight.X, ExpectedGunRight.Y));
 		TestEqual(TEXT("Right-facing bow keeps positive local X without texture mirroring"),
-		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(
-		              *BowAnchorProfile, 1.0f, false),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*BowAnchorProfile, 1.0f, false),
 		          ExpectedBowRight);
 		TestEqual(TEXT("Left-facing bow compensates its negative visual scale"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*BowAnchorProfile, -1.0f, true),
@@ -238,6 +235,34 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	const UReEchoWeaponPresentationProfile* SwordProfile =
 	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"));
 	TestTrue(TEXT("Sword slash preserves its configured world size"), SwordProfile->AttackCommitted.bPreserveWorldSize);
+	const UReEchoWeaponPresentationProfile* GunProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"));
+	TestNotNull(TEXT("Gun presentation profile is available"), GunProfile);
+	if (GunProfile)
+	{
+		TestTrue(TEXT("Gun muzzle spark is configured on AttackCommitted"), GunProfile->AttackCommitted.IsConfigured());
+		TestEqual(TEXT("Gun muzzle attaches to the final weapon attack root"),
+		          GunProfile->AttackCommitted.SpawnMode,
+		          EReEchoWeaponVfxSpawnMode::AttachToAttackRoot);
+		TestTrue(
+		    TEXT("Gun muzzle uses the delivered bullet spark"),
+		    GunProfile->AttackCommitted.System.ToSoftObjectPath().ToString().Contains(TEXT("NS_People_Bullet_spark")));
+		TestFalse(TEXT("Gun no longer declares the muzzle spark as DamageApplied"),
+		          GunProfile->DamageApplied.IsConfigured());
+		TestTrue(TEXT("Gun muzzle anchor X is the weapon right edge"),
+		         FMath::IsNearlyEqual(GunProfile->AttackVfxAnchorRatio.X, 0.5f));
+		TestTrue(TEXT("Gun muzzle anchor uses the weapon vertical center"),
+		         FMath::IsNearlyZero(GunProfile->AttackVfxAnchorRatio.Y));
+		const FBox GunLocalBounds(FVector(-80.0f, -20.0f, -1.0f), FVector(80.0f, 20.0f, 1.0f));
+		TestEqual(TEXT("Right-facing gun uses the local right barrel endpoint"),
+		          AReEchoWeaponActor::ResolveGunMuzzleLocalPointForTests(GunLocalBounds, 1.0f, false, 0.0f),
+		          FVector(80.0f, 0.0f, 0.0f));
+		TestEqual(TEXT("Mirrored right-facing gun compensates its negative parent scale"),
+		          AReEchoWeaponActor::ResolveGunMuzzleLocalPointForTests(GunLocalBounds, 1.0f, true, 0.0f),
+		          FVector(-80.0f, 0.0f, 0.0f));
+		TestEqual(TEXT("Left-facing gun uses the local left barrel endpoint"),
+		          AReEchoWeaponActor::ResolveGunMuzzleLocalPointForTests(GunLocalBounds, -1.0f, false, 0.0f),
+		          FVector(-80.0f, 0.0f, 0.0f));
+	}
 	TestTrue(TEXT("Bow uses travel VFX"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->Travel.IsConfigured());
 	return true;

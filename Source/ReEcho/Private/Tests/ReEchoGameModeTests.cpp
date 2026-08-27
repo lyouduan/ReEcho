@@ -4,6 +4,8 @@
 
 #include "Misc/AutomationTest.h"
 
+#include <limits>
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeFoxSpawnTest,
                                  "ReEcho.GameMode.GMSpawnFox",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -12,9 +14,30 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeBossVictoryGateTest,
                                  "ReEcho.GameMode.BossVictoryRequiresSuccessfulSpawn",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeSceneAndMoveSpeedTest,
+                                 "ReEcho.GameMode.GMSceneAndMoveSpeed",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeEnemyElementAllTest,
                                  "ReEcho.GameMode.GMEnemyElementAll",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGameModeSceneAndMoveSpeedTest::RunTest(const FString& Parameters)
+{
+	FName SceneId = NAME_None;
+	TestTrue(TEXT("Canonical scene id is accepted"), AReEchoGameMode::TryResolveGMSceneId(TEXT("SC02"), SceneId));
+	TestEqual(TEXT("Canonical scene id is preserved"), SceneId, FName(TEXT("SC02")));
+	TestTrue(TEXT("Short scene number is normalized"), AReEchoGameMode::TryResolveGMSceneId(TEXT("3"), SceneId));
+	TestEqual(TEXT("Short scene number resolves to SC03"), SceneId, FName(TEXT("SC03")));
+	TestFalse(TEXT("Unknown scene is rejected"), AReEchoGameMode::TryResolveGMSceneId(TEXT("SC05"), SceneId));
+	TestFalse(TEXT("Non-numeric scene is rejected"), AReEchoGameMode::TryResolveGMSceneId(TEXT("Forest"), SceneId));
+	TestTrue(TEXT("Positive movement speed is accepted"), AReEchoGameMode::IsValidGMMoveSpeed(600.0f));
+	TestFalse(TEXT("Zero movement speed is rejected"), AReEchoGameMode::IsValidGMMoveSpeed(0.0f));
+	TestFalse(TEXT("Negative movement speed is rejected"), AReEchoGameMode::IsValidGMMoveSpeed(-1.0f));
+	TestFalse(TEXT("Non-finite movement speed is rejected"),
+	          AReEchoGameMode::IsValidGMMoveSpeed(std::numeric_limits<float>::infinity()));
+	return true;
+}
 
 bool FReEchoGameModeEnemyElementAllTest::RunTest(const FString& Parameters)
 {

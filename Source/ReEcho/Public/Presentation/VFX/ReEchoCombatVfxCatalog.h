@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 
+enum class EReEchoElement : uint8;
+
 enum class EReEchoCombatVfxSemantic : uint8
 {
 	RabbitCharging,
@@ -18,7 +20,11 @@ enum class EReEchoCombatVfxSemantic : uint8
 	PlayerBowFlight,
 	PlayerBowImpact,
 	PlayerGunFlight,
-	PlayerGunImpact,
+	PlayerGunFlightFlame,
+	PlayerGunFlightLightning,
+	PlayerGunFlightGrass,
+	PlayerGunFlightWater,
+	PlayerGunMuzzle,
 	EnemyHurt,
 	EchoWaterAura,
 	EchoGrassAura,
@@ -64,8 +70,12 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
 	/** Resolves the dedicated one-shot Niagara semantic for a supported melee attack pattern. */
 	static bool ResolveMeleeAttackSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Resolves a successful weapon commit to its weapon-local release semantic. */
+	static bool ResolveAttackCommittedSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Resolves a successful source-side weapon hit to its configured DamageApplied semantic. */
 	static bool ResolveWeaponDamageSemantic(FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Resolves a Gun projectile's already-authoritative combat element to its dedicated flight semantic. */
+	static bool ResolveGunFlightSemantic(EReEchoElement Element, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Visual-only delay used to release a melee slash after its weapon completes the authored motion. */
 	static float ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic Semantic);
 	/** Returns the measured authored center axis for a semantic asset. */
