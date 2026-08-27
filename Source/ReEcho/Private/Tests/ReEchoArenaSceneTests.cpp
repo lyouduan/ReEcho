@@ -82,6 +82,13 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Backdrop rotation maps mesh X scale onto world Y"), RotatedFootprint.GetSize().Y, 4480.0);
 
 	AReEchoArenaSceneActor* Arena = NewObject<AReEchoArenaSceneActor>(GetTransientPackage());
+	Arena->SetActorTransform(ShiftedMap);
+	Arena->MapRoot->SetRelativeLocation(FVector(0.0f, 0.0f, 500.0f));
+	Arena->MapRoot->SetRelativeScale3D(FVector(1.0f, 1.0f, 7.0f));
+	Arena->GameplayPlaneZ = 5.0f;
+	TestEqual(TEXT("Map visual transform cannot change gameplay plane world Z"),
+	          Arena->GetGameplayPlaneWorldZ(),
+	          147.0f);
 	Arena->PlayerBounds->SetBoxExtent(FVector(1234.0f, 2345.0f, 5.0f));
 	Arena->CameraClampBounds->SetBoxExtent(FVector(1334.0f, 2445.0f, 5.0f));
 	Arena->EnemySpawnBounds->SetBoxExtent(FVector(1134.0f, 2245.0f, 5.0f));

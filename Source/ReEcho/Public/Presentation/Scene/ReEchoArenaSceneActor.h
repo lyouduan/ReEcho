@@ -26,7 +26,8 @@ public:
 	FVector2D GetCameraClampHalfExtents() const;
 	FVector2D GetEnemySpawnHalfExtents() const;
 	FVector2D GetArenaCenter() const;
-	/** MapRoot-local gameplay plane converted to the current world-space height. */
+	/** Actor-local gameplay plane height; scene/map visual transforms never offset gameplay height. */
+	UFUNCTION(BlueprintPure, Category = "Arena|Bounds")
 	float GetGameplayPlaneWorldZ() const;
 	/** True when the transformed Backdrop mesh footprint contains the transformed camera clamp footprint. */
 	UFUNCTION(BlueprintPure, Category = "Arena|Validation")

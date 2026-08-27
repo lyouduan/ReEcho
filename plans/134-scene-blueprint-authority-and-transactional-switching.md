@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，待 Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`Review`（Backdrop 迁移遗漏已修复并通过技术门禁；等待 Blueprint/PIE 重新人工验收，不发布远端）。
+- 任务状态：`Review`（SC01 非视觉程序契约统一与玩法高度解耦已通过技术门禁；等待 Blueprint/PIE 重新人工验收，不发布远端）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@41da5187ba694d2629b6e2c0a6bbb9f5b3fb6c54`。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan134-scene-blueprint-authority-plan`；实现使用独立 Plan134 worktree，不复用含未提交 `BP_ArenaScene_SC01.uasset` 的审查 worktree。
@@ -126,6 +126,8 @@
 - SC01 迁移严格使用本 Executor 从 `origin/main@b7e15000` 建立的资产；迁移前后内存快照一致，保留 8 个非核心模板（7 个具名插片及 1 个无 Mesh/Material 的空模板）。review 脏 worktree 始终未访问、未复制、未修改。
 - 首次截图人工验收发现旧 `UpdateEditorLayout` 的 Backdrop Transform 未随 Bounds 一起烘入。修复器现按原公式写入四 BP：Location `(0,0,-0.5)`、Rotation `(0,90,0)`、Scale `(BackdropHalfExtents.Y*2/100, BackdropHalfExtents.X*2/100,1)`，保持 `bUseEditorAuthoredSceneLayout=true`，不恢复 Construction 覆盖。修复前后每个 BP 的非核心美术组件快照一致。
 - `HasValidConfiguration` 与 Editor 只读审计新增真实覆盖契约：读取 Backdrop StaticMesh local bounds 和 CameraClamp Box local bounds，分别将八角经实际 Component World Transform 投影为 XY AABB，再以 1uu 数值容差验证 Backdrop 覆盖 CameraClamp；旋转轴向由真实 Transform 决定，不由 Scale 推测。
+- 以当前 SC01 为非视觉程序契约基准，将 SC02-SC04 的 GameplayPlaneZ、GameplayRoot、三组 Bounds 模板、DepthSort、接触阴影和视差参数，以及 Floor/墙的 Z 高度与垂直厚度统一；不增加 SC02 或角色专用 offset。SC01 的 SceneRoot 视觉缩放为 1.6，而其余场景为 1.0，因此保留各场景 SceneRoot/MapRoot 的视觉 scale 与 Floor/墙 XY 布局，避免改变独立 Backdrop 尺寸和构图。
+- `GetGameplayPlaneWorldZ` 改为只由 Arena Actor Transform 与 GameplayPlaneZ 计算，不再读取 MapRoot/SceneRoot 视觉 Transform；地图或视觉节点的 Z/scale 调整不会改变角色玩法高度，现有世界 XY Bounds 消费契约不变。
 
 ### 证据
 
@@ -137,6 +139,8 @@
 - `python scripts/validate_project.py`、`git diff --check` 与全部相关场景 Python 脚本 AST 解析通过；未产生精选预构建允许列表之外的已跟踪生成物。
 - Backdrop 修复后最终 FullRebuild 97/97 actions 通过，精选预构建包仍为 `modules=7 build_id=55116800 source=10a260fd4759` 且检查通过；FullRebuild 后重跑 Arena Contract 1/1、StageTransition 3/3 均为 `Success`。
 - 修复脚本日志明确记录 `Repaired Backdrop transforms for SC01-SC04 without changing artist inserts`；独立复开 Editor-Cmd 的最终只读审计退出码 0，并确认四个实际 Backdrop mesh XY footprint 覆盖各自 CameraClampBounds，Level00 权威仍通过。
+- SC01 核心契约统一后的最终 FullRebuild 97/97 actions 通过，精选预构建包 `modules=7 build_id=55116800 source=ef53ea35f774` 且检查通过；FullRebuild 后 Arena Contract 1/1、StageTransition 3/3 均为 `Success`。
+- 最终 Editor 只读审计明确输出 `SC01=0.000`、`SC02=0.000`、`SC03=0.000`、`SC04=0.000` GameplayPlaneWorldZ，并逐项比较程序参数、Root pose、GameplayRoot、Bounds 和碰撞高度契约；完整 Catalog、Backdrop 覆盖、视觉层及 Level00 审计通过。迁移器的逐场视觉快照前后相等，SC01、Backdrop、插片和构图未写入本次资产差异。
 
 ### 剩余风险
 

@@ -23,10 +23,32 @@ CORE_COMPONENTS = set(REQUIRED_COMPONENTS) | {
     "Collision", "Floor", "WallNorth", "WallSouth", "WallEast", "WallWest",
 }
 GENERATED_TAG = "ReEchoGeneratedDecoration_Plan52"
+PROGRAM_PROPERTIES = (
+    "gameplay_plane_z", "depth_sort_axis", "depth_sort_world_units_per_step",
+    "depth_sort_base_priority", "depth_sort_priority_range",
+    "default_contact_shadow_texture", "default_contact_shadow_size",
+    "default_contact_shadow_opacity", "enable_parallax",
+    "mid_decoration_parallax_factor", "foreground_parallax_factor",
+    "atmosphere_parallax_factor", "maximum_parallax_offset",
+)
 
 
 def fail(message):
     raise RuntimeError(f"[Plan134] {message}")
+
+
+def stable_value(value):
+    if isinstance(value, unreal.Vector):
+        return (value.x, value.y, value.z)
+    if isinstance(value, unreal.Vector2D):
+        return (value.x, value.y)
+    if isinstance(value, unreal.Rotator):
+        return (value.pitch, value.yaw, value.roll)
+    if isinstance(value, unreal.IntPoint):
+        return (value.x, value.y)
+    if isinstance(value, unreal.Object):
+        return value.get_path_name()
+    return value
 
 
 def components(blueprint):
@@ -50,6 +72,8 @@ if registered_ids != list(SCENE_IDS) or len(set(registered_ids)) != len(SCENE_ID
 
 catalog_only = "-Plan134CatalogOnly" in unreal.SystemLibrary.get_command_line()
 actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+gameplay_plane_world_z = {}
+core_contracts = {}
 
 for scene_id, registration in zip(SCENE_IDS, registrations):
     blueprint = unreal.EditorAssetLibrary.load_asset(
@@ -79,6 +103,33 @@ for scene_id, registration in zip(SCENE_IDS, registrations):
         fail(f"{scene_id} still has a duplicate actor MapMaterial")
     if defaults.get_editor_property("scene_registry"):
         fail(f"{scene_id} still stores a duplicate SceneRegistry")
+    core_contracts[scene_id] = {
+        "properties": tuple(stable_value(defaults.get_editor_property(name)) for name in PROGRAM_PROPERTIES),
+        "root_pose": tuple(
+            (
+                stable_value(scene_components[name].get_editor_property("relative_location")),
+                stable_value(scene_components[name].get_editor_property("relative_rotation")),
+            )
+            for name in ("SceneRoot", "MapRoot")
+        ),
+        "gameplay_root": tuple(
+            stable_value(scene_components["GameplayRoot"].get_editor_property(prop))
+            for prop in ("relative_location", "relative_rotation", "relative_scale3d")
+        ),
+        "bounds": tuple(
+            tuple(stable_value(scene_components[name].get_editor_property(prop)) for prop in (
+                "relative_location", "relative_rotation", "relative_scale3d", "box_extent"
+            ))
+            for name in ("CameraClampBounds", "PlayerBounds", "EnemySpawnBounds")
+        ),
+        "collision_height": tuple(
+            (
+                scene_components[name].get_editor_property("relative_location").z,
+                scene_components[name].get_editor_property("relative_scale3d").z,
+            )
+            for name in ("Floor", "WallNorth", "WallSouth", "WallEast", "WallWest")
+        ),
+    }
     for name in ("CameraClampBounds", "PlayerBounds", "EnemySpawnBounds"):
         extent = scene_components[name].get_editor_property("box_extent")
         if min(extent.x, extent.y) < 100.0:
@@ -103,12 +154,34 @@ for scene_id, registration in zip(SCENE_IDS, registrations):
     if spawned is None:
         fail(f"Could not create transient validation actor for {scene_id}")
     try:
+        gameplay_plane_world_z[scene_id] = spawned.get_gameplay_plane_world_z()
+        unreal.log(
+            f"[Plan134] {scene_id} GameplayPlaneWorldZ={gameplay_plane_world_z[scene_id]:.3f}"
+        )
         if not spawned.does_backdrop_cover_camera_bounds(1.0):
             fail(
                 f"{scene_id} transformed Backdrop mesh XY bounds do not cover CameraClampBounds"
             )
     finally:
         actor_subsystem.destroy_actor(spawned)
+
+if not catalog_only:
+    reference_z = gameplay_plane_world_z["SC01"]
+    mismatched_z = {
+        scene_id: value
+        for scene_id, value in gameplay_plane_world_z.items()
+        if abs(value - reference_z) > 0.01
+    }
+    if mismatched_z:
+        fail(f"Gameplay plane world Z differs from SC01={reference_z}: {mismatched_z}")
+    reference_contract = core_contracts["SC01"]
+    for scene_id in SCENE_IDS[1:]:
+        if core_contracts[scene_id] != reference_contract:
+            differing = [
+                key for key in reference_contract
+                if core_contracts[scene_id][key] != reference_contract[key]
+            ]
+            fail(f"{scene_id} non-visual core differs from SC01: {differing}")
 
 level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 if not level_subsystem.load_level("/Game/Level00"):

@@ -122,8 +122,7 @@ FVector2D AReEchoArenaSceneActor::GetArenaCenter() const
 
 float AReEchoArenaSceneActor::GetGameplayPlaneWorldZ() const
 {
-	return CalculateGameplayPlaneWorldZ(MapRoot ? MapRoot->GetComponentTransform() : GetActorTransform(),
-	                                    GameplayPlaneZ);
+	return CalculateGameplayPlaneWorldZ(GetActorTransform(), GameplayPlaneZ);
 }
 
 float AReEchoArenaSceneActor::CalculateGameplayPlaneWorldZ(const FTransform& MapTransform,
