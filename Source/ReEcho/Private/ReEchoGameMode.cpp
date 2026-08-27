@@ -3232,7 +3232,8 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	{
 		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 		RestartWidget->SetVictoryScreen(RunSubsystem ? RunSubsystem->TimeShards : 0,
-		                                RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0);
+		                                RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0,
+		                                RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None);
 	}
 	else
 	{
@@ -3240,7 +3241,8 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 		RestartWidget->SetDeathScreen(bDeathScreen,
 		                              RunSubsystem ? RunSubsystem->EncounterIndex : 0,
 		                              RunSubsystem ? RunSubsystem->TimeShards : 0,
-		                              RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0);
+		                              RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0,
+		                              RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None);
 	}
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);

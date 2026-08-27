@@ -69,12 +69,15 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	UTextBlock* VictoryTimeShardsValue = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("VictoryTimeShardsValue"));
 	UTextBlock* VictoryTraitCountValue = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("VictoryTraitCountValue"));
 	UButton* VictoryContinueButton = FindRestartWidget<UButton>(RestartWidget, TEXT("VictoryContinueButton"));
+	UImage* ArtVictoryCharacterFormal =
+	    FindRestartWidget<UImage>(RestartWidget, TEXT("ArtVictoryCharacterFormal"));
 	UCanvasPanel* DefeatCanvas = FindRestartWidget<UCanvasPanel>(RestartWidget, TEXT("DefeatCanvas"));
 	UTextBlock* DefeatEncounterValue = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("DefeatEncounterValue"));
 	UTextBlock* DefeatTimeShardsValue = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("DefeatTimeShardsValue"));
 	UTextBlock* DefeatTraitCountValue = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("DefeatTraitCountValue"));
 	UButton* DefeatRestartButton = FindRestartWidget<UButton>(RestartWidget, TEXT("DefeatRestartButton"));
 	UButton* DefeatMainMenuButton = FindRestartWidget<UButton>(RestartWidget, TEXT("DefeatMainMenuButton"));
+	UImage* ArtDefeatCharacterFormal = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtDefeatCharacterFormal"));
 	UImage* ArtVictoryContinueButtonFormal =
 	    FindRestartWidget<UImage>(RestartWidget, TEXT("ArtVictoryContinueButtonFormal"));
 	UImage* ArtDefeatRestartButtonFormal =
@@ -101,12 +104,14 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Formal victory shard value exists"), VictoryTimeShardsValue);
 	TestNotNull(TEXT("Formal victory build value exists"), VictoryTraitCountValue);
 	TestNotNull(TEXT("Formal victory continue button exists"), VictoryContinueButton);
+	TestNotNull(TEXT("Formal victory character image exists"), ArtVictoryCharacterFormal);
 	TestNotNull(TEXT("Formal defeat canvas exists"), DefeatCanvas);
 	TestNotNull(TEXT("Formal defeat encounter value exists"), DefeatEncounterValue);
 	TestNotNull(TEXT("Formal defeat shard value exists"), DefeatTimeShardsValue);
 	TestNotNull(TEXT("Formal defeat build value exists"), DefeatTraitCountValue);
 	TestNotNull(TEXT("Formal defeat restart button exists"), DefeatRestartButton);
 	TestNotNull(TEXT("Formal defeat main-menu button exists"), DefeatMainMenuButton);
+	TestNotNull(TEXT("Formal defeat character image exists"), ArtDefeatCharacterFormal);
 	TestNotNull(TEXT("Formal victory continue art exists"), ArtVictoryContinueButtonFormal);
 	TestNotNull(TEXT("Formal defeat restart art exists"), ArtDefeatRestartButtonFormal);
 	TestNotNull(TEXT("Formal defeat main-menu art exists"), ArtDefeatMainMenuButtonFormal);
@@ -116,9 +121,11 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	if (!TitleText || !RootPanel || !ResumeButton || !RestartButton || !QuitButton || !PauseSettingsButton ||
 	    !ArtPauseDimmer || !ArtPausePrimaryButton || !ArtPauseSecondaryButton || !ArtPauseTertiaryButton ||
 	    !ArtRestartDialogPanel || !VictoryCanvas || !VictoryEncounterValue || !VictoryTimeShardsValue ||
-	    !VictoryTraitCountValue || !VictoryContinueButton || !DefeatCanvas || !DefeatEncounterValue ||
+	    !VictoryTraitCountValue || !VictoryContinueButton || !ArtVictoryCharacterFormal || !DefeatCanvas ||
+	    !DefeatEncounterValue ||
 	    !DefeatTimeShardsValue || !DefeatTraitCountValue || !DefeatRestartButton || !DefeatMainMenuButton ||
-	    !ArtVictoryContinueButtonFormal || !ArtDefeatRestartButtonFormal || !ArtDefeatMainMenuButtonFormal ||
+	    !ArtDefeatCharacterFormal || !ArtVictoryContinueButtonFormal || !ArtDefeatRestartButtonFormal ||
+	    !ArtDefeatMainMenuButtonFormal ||
 	    !VictoryContinueLabel || !DefeatRestartLabel || !DefeatMainMenuLabel)
 	{
 		return false;
@@ -259,6 +266,41 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Pause composition is hidden during formal victory"),
 	          ArtPauseDimmer->GetVisibility(),
 	          ESlateVisibility::Hidden);
+
+	const TPair<FName, FString> CharacterCases[] = {
+	    {TEXT("J_HEART"), TEXT("T_UI_Loadout_Character_J_HEART_Selected")},
+	    {TEXT("J_SPADE"), TEXT("T_UI_Loadout_Character_J_SPADE_Selected")},
+	    {TEXT("J_CLOVER"), TEXT("T_UI_Loadout_Character_J_CLOVER_Selected")},
+	    {TEXT("J_DIAMOND"), TEXT("T_UI_Loadout_Character_J_DIAMOND_Selected")},
+	    {NAME_None, TEXT("T_UI_Loadout_Character_J_HEART_Selected")},
+	    {TEXT("UNKNOWN_CHARACTER"), TEXT("T_UI_Loadout_Character_J_HEART_Selected")},
+	};
+	for (const TPair<FName, FString>& CharacterCase : CharacterCases)
+	{
+		const FString ExpectedPath = FString::Printf(
+		    TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/%s.%s"),
+		    *CharacterCase.Value,
+		    *CharacterCase.Value);
+		RestartWidget->SetDeathScreen(true, 4, 126, 5, CharacterCase.Key);
+		TestNotNull(*FString::Printf(TEXT("Defeat character texture loads for %s"), *CharacterCase.Key.ToString()),
+		            ArtDefeatCharacterFormal->GetBrush().GetResourceObject());
+		if (ArtDefeatCharacterFormal->GetBrush().GetResourceObject())
+		{
+			TestEqual(*FString::Printf(TEXT("Defeat character texture matches %s"), *CharacterCase.Key.ToString()),
+			          ArtDefeatCharacterFormal->GetBrush().GetResourceObject()->GetPathName(),
+			          ExpectedPath);
+		}
+
+		RestartWidget->SetVictoryScreen(126, 5, CharacterCase.Key);
+		TestNotNull(*FString::Printf(TEXT("Victory character texture loads for %s"), *CharacterCase.Key.ToString()),
+		            ArtVictoryCharacterFormal->GetBrush().GetResourceObject());
+		if (ArtVictoryCharacterFormal->GetBrush().GetResourceObject())
+		{
+			TestEqual(*FString::Printf(TEXT("Victory character texture matches %s"), *CharacterCase.Key.ToString()),
+			          ArtVictoryCharacterFormal->GetBrush().GetResourceObject()->GetPathName(),
+			          ExpectedPath);
+		}
+	}
 
 	return true;
 }
