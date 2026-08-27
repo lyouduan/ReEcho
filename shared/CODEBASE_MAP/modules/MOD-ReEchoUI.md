@@ -21,7 +21,9 @@
 - 通关后商店的回响存储控件由 `UReEchoInventoryShopWidget` 动态生成，使用底部紧凑缩放托盘承载，避免遮挡商店/装配室主体；存储、跳过、替换与指定回放事件语义保持不变。
 - `WBP_ReEchoSettings` 与 `WBP_ReEchoRestart` 的作者ing Root 是正常表现权威；原生 `BuildWidgetTree()` 只在完全没有 Root 时建立最低可用 fallback，不得因单一可选绑定缺失而覆盖整页。Settings 的运行时 ComboBox/Slider 按稳定名称幂等复用。
 - `WBP_ReEchoSettings` 的三个分类内容容器、文字字体/颜色与 Slot 布局均由 WBP 作者ing；C++ 只切换容器并绑定设置值/交互。运行时生成的下拉选项从 WBP `GraphicsValue0` 读取字体、颜色和渲染位移，不另设一套程序样式。
-- `WBP_ReEchoRestart` 复用既有 Pause 层承载普通暂停、退出到主菜单确认、退出游戏确认和 Death/Victory 结算状态，不新增独立 Pause WBP；交付切图只负责表现，透明真实按钮继续发出继续、设置、保存/不保存退出、返回等类型化 Delegate，目标关卡切换和程序退出由 `AReEchoGameMode` 执行。
+- `WBP_ReEchoRestart` 复用既有 Pause 层承载普通暂停、退出到主菜单确认、退出游戏确认和 Death/Victory 结算状态，不新增独立 Pause WBP；交付切图只负责表现，透明真实按钮继续发出继续、设置、保存/不保存退出、返回等类型化 Delegate，目标关卡切换和程序退出由 `AReEchoGameMode` 执行。正式结算页的透明按钮与可见底图/文字是 Canvas 兄弟节点，因此 `UReEchoRestartWidget` 以 visual-only 绑定把统一 `1.05` 倍中心悬停缩放同步到对应底图和标签；该绑定不接管 WBP 几何，也不重复点击审计或音效。正式 `VictoryCanvas` / `DefeatCanvas` 是结算表现的唯一权威；被其替代的旧结果标题、摘要、角色、卡牌底板和按钮素材已经删除，不得重新导入。保存失败仍使用 `ArtRestartDialogPanel`，普通暂停与退出确认层保持不变。
+- 正式 Victory 由同一 `WBP_ReEchoRestart` 内的可选 `VictoryCanvas` 作者ing；其全部视觉与文字保持可独立编辑，C++ 只投影真实关卡总数、时间碎片和构筑数量，并把 `VictoryContinueButton` 转发到既有 `OnRestartRequested`，不新增结算或推进逻辑。
+- 正式 Death 由同一 `WBP_ReEchoRestart` 内的可选 `DefeatCanvas` 作者ing；视觉、文字和五个样例卡槽均保持可独立编辑，C++ 只投影真实到达关卡、时间碎片和构筑数量。`DefeatRestartButton` 转发既有重开请求，`DefeatMainMenuButton` 转发既有返回主菜单请求，不伪造击败数、金币或修改结算状态所有权。
 - 商店/背包页允许 `WBP_ReEchoRestart` 以更高 Pause 层覆盖：按 `P` 不关闭商店，不触发战后推进或回响存储门禁；关闭 Pause 后必须重新聚焦商店并继续保持世界暂停与菜单能力阻挡。
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。

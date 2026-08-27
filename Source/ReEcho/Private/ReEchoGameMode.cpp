@@ -3034,7 +3034,11 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	}
 	else
 	{
-		RestartWidget->SetDeathScreen(bDeathScreen);
+		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		RestartWidget->SetDeathScreen(bDeathScreen,
+		                              RunSubsystem ? RunSubsystem->EncounterIndex : 0,
+		                              RunSubsystem ? RunSubsystem->TimeShards : 0,
+		                              RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0);
 	}
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
@@ -3978,7 +3982,13 @@ void AReEchoGameMode::HandleQuitRequested()
 
 void AReEchoGameMode::HandleExitToMainMenuRequested()
 {
-	if (bRestartScreenIsTerminal || bQuitConfirmationVisible)
+	if (bRestartScreenIsTerminal)
+	{
+		bExitToMainMenuAfterConfirmation = true;
+		CompletePauseExit();
+		return;
+	}
+	if (bQuitConfirmationVisible)
 	{
 		return;
 	}

@@ -4,10 +4,12 @@
 #include "Core/ReEchoBalanceSettings.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/CanvasPanel.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "UI/ReEchoMenuWidgetHelpers.h"
 
 TSharedRef<SWidget> UReEchoRestartWidget::RebuildWidget()
@@ -25,6 +27,7 @@ void UReEchoRestartWidget::NativeConstruct()
 	SetIsFocusable(true);
 	BuildWidgetTree();
 	EnsureAttackModeWidget();
+	BindFormalResultButtonFeedback();
 
 	if (ResumeButton)
 	{
@@ -33,6 +36,19 @@ void UReEchoRestartWidget::NativeConstruct()
 	if (RestartButton)
 	{
 		RestartButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleRestartClicked);
+	}
+	if (VictoryContinueButton)
+	{
+		// Formal victory uses the same restart/continue contract as the legacy result button.
+		VictoryContinueButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleRestartClicked);
+	}
+	if (DefeatRestartButton)
+	{
+		DefeatRestartButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleRestartClicked);
+	}
+	if (DefeatMainMenuButton)
+	{
+		DefeatMainMenuButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleDefeatMainMenuClicked);
 	}
 	if (QuitButton)
 	{
@@ -47,7 +63,15 @@ void UReEchoRestartWidget::NativeConstruct()
 		PauseSettingsButton->OnClicked.AddUniqueDynamic(this, &UReEchoRestartWidget::HandleSettingsClicked);
 	}
 	RefreshMenuMode();
-	if (ScreenMode != EReEchoRestartScreenMode::Pause && RestartButton)
+	if (ScreenMode == EReEchoRestartScreenMode::Victory && VictoryContinueButton)
+	{
+		VictoryContinueButton->SetKeyboardFocus();
+	}
+	else if (ScreenMode == EReEchoRestartScreenMode::Death && DefeatRestartButton)
+	{
+		DefeatRestartButton->SetKeyboardFocus();
+	}
+	else if (ScreenMode != EReEchoRestartScreenMode::Pause && RestartButton)
 	{
 		RestartButton->SetKeyboardFocus();
 	}
@@ -57,11 +81,44 @@ void UReEchoRestartWidget::NativeConstruct()
 	}
 }
 
-void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen)
+void UReEchoRestartWidget::BindFormalResultButtonFeedback()
+{
+	FormalResultButtonFeedback.Reset();
+	auto BindVisual = [this](UButton* Button, UWidget* Visual)
+	{
+		if (!Button || !Visual)
+		{
+			return;
+		}
+
+		UReEchoButtonVisualFeedback* Feedback = NewObject<UReEchoButtonVisualFeedback>(this);
+		Feedback->BindVisualOnly(Button, Visual);
+		FormalResultButtonFeedback.Add(Feedback);
+	};
+
+	BindVisual(VictoryContinueButton, ArtVictoryContinueButtonFormal);
+	BindVisual(VictoryContinueButton, VictoryContinueLabel);
+	BindVisual(DefeatRestartButton, ArtDefeatRestartButtonFormal);
+	BindVisual(DefeatRestartButton, DefeatRestartLabel);
+	BindVisual(DefeatMainMenuButton, ArtDefeatMainMenuButtonFormal);
+	BindVisual(DefeatMainMenuButton, DefeatMainMenuLabel);
+}
+
+void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen,
+                                          const int32 EncounterIndex,
+                                          const int32 TimeShards,
+                                          const int32 TraitCount)
 {
 	ScreenMode = bInDeathScreen ? EReEchoRestartScreenMode::Death : EReEchoRestartScreenMode::Pause;
 	QuitPromptState = EReEchoQuitPromptState::None;
+	DefeatEncounterIndex = FMath::Max(0, EncounterIndex);
+	DefeatTimeShards = FMath::Max(0, TimeShards);
+	DefeatTraitCount = FMath::Max(0, TraitCount);
 	RefreshMenuMode();
+	if (bInDeathScreen && DefeatRestartButton)
+	{
+		DefeatRestartButton->SetKeyboardFocus();
+	}
 }
 
 void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards, const int32 TraitCount)
@@ -162,31 +219,70 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	const bool bDeathScreen = ScreenMode == EReEchoRestartScreenMode::Death;
 	const bool bQuitConfirmation = QuitPromptState == EReEchoQuitPromptState::Confirm;
 	const bool bSaveFailed = QuitPromptState == EReEchoQuitPromptState::SaveFailed;
+	const bool bFormalResult = bVictoryScreen || bDeathScreen;
+
+	if (VictoryCanvas)
+	{
+		VictoryCanvas->SetVisibility(bVictoryScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (VictoryEncounterValue)
+	{
+		VictoryEncounterValue->SetText(FText::AsNumber(GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount()));
+	}
+	if (VictoryTimeShardsValue)
+	{
+		VictoryTimeShardsValue->SetText(FText::AsNumber(VictoryTimeShards));
+	}
+	if (VictoryTraitCountValue)
+	{
+		VictoryTraitCountValue->SetText(FText::AsNumber(VictoryTraitCount));
+	}
+	if (VictoryContinueButton)
+	{
+		VictoryContinueButton->SetVisibility(bVictoryScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (DefeatCanvas)
+	{
+		DefeatCanvas->SetVisibility(bDeathScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (DefeatEncounterValue)
+	{
+		DefeatEncounterValue->SetText(FText::AsNumber(DefeatEncounterIndex));
+	}
+	if (DefeatTimeShardsValue)
+	{
+		DefeatTimeShardsValue->SetText(FText::AsNumber(DefeatTimeShards));
+	}
+	if (DefeatTraitCountValue)
+	{
+		DefeatTraitCountValue->SetText(FText::AsNumber(DefeatTraitCount));
+	}
+	if (DefeatRestartButton)
+	{
+		DefeatRestartButton->SetVisibility(bDeathScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (DefeatMainMenuButton)
+	{
+		DefeatMainMenuButton->SetVisibility(bDeathScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (RootPanel)
+	{
+		RootPanel->SetVisibility(bFormalResult ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+	}
 
 	if (TitleText)
 	{
-		const FString Title = bVictoryScreen      ? TEXT("时间线收束")
-		                      : bDeathScreen      ? TEXT("回响中断")
-		                      : bSaveFailed       ? TEXT("保存失败")
+		const FString Title = bSaveFailed       ? TEXT("保存失败")
 		                      : bQuitConfirmation ? (bExitToMainMenu ? TEXT("退出到主菜单?") : TEXT("退出游戏?"))
 		                                          : TEXT("游戏暂停");
-		const FLinearColor TitleColor = bVictoryScreen
-		                                    ? FLinearColor(1.0f, 0.78f, 0.16f)
-		                                    : (bDeathScreen ? FLinearColor(0.95f, 0.12f, 0.12f) : FLinearColor::White);
 		TitleText->SetText(FText::FromString(Title));
-		TitleText->SetColorAndOpacity(FSlateColor(TitleColor));
+		TitleText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		TitleText->SetVisibility(bFormalResult ? ESlateVisibility::Collapsed
+		                                       : ESlateVisibility::HitTestInvisible);
 	}
 	if (MessageText)
 	{
-		if (bVictoryScreen)
-		{
-			MessageText->SetText(FText::Format(
-			    NSLOCTEXT("ReEcho", "VictorySummary", "Boss 已击败 · 完成 {0}/{0}\n时间碎片：{1} · 强化数量：{2}"),
-			    FText::AsNumber(GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount()),
-			    FText::AsNumber(VictoryTimeShards),
-			    FText::AsNumber(VictoryTraitCount)));
-		}
-		else if (bSaveFailed)
+		if (bSaveFailed)
 		{
 			MessageText->SetText(FText::FromString(TEXT("未能保存退出前状态，游戏不会退出，请重试")));
 		}
@@ -197,10 +293,10 @@ void UReEchoRestartWidget::RefreshMenuMode()
 		}
 		else
 		{
-			MessageText->SetText(FText::FromString(bDeathScreen ? TEXT("玩家已阵亡，本次时间线结束")
-			                                                    : TEXT("游戏已暂停 · 按 P 可继续")));
+			MessageText->SetText(FText::FromString(TEXT("游戏已暂停 · 按 P 可继续")));
 		}
-		MessageText->SetVisibility(!bDeathScreen && !bVictoryScreen && !bQuitConfirmation && !bSaveFailed
+		MessageText->SetVisibility(bFormalResult ? ESlateVisibility::Collapsed
+		                           : !bQuitConfirmation && !bSaveFailed
 		                               ? ESlateVisibility::Collapsed
 		                               : ESlateVisibility::HitTestInvisible);
 	}
@@ -223,34 +319,12 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	SetPauseArtVisibility(ArtPauseSecondaryButton, bPauseMenu);
 	SetPauseArtVisibility(ArtPauseTertiaryButton, bPauseMenu);
 	SetPauseArtVisibility(ArtPauseSettings, bPauseMenu && !bPausePrompt);
-	const ESlateVisibility ResultArtVisibility =
-	    bVictoryScreen || bDeathScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden;
 	if (ArtRestartDialogPanel)
 	{
 		// The pause exit prompts are composed directly over the dimmed game scene.
 		// The restart-dialog plate belongs to the save-failure fallback, not to either exit confirmation.
 		ArtRestartDialogPanel->SetVisibility(bSaveFailed ? ESlateVisibility::HitTestInvisible
 		                                                 : ESlateVisibility::Hidden);
-	}
-	if (ArtRestartCharacter)
-	{
-		ArtRestartCharacter->SetVisibility(ResultArtVisibility);
-	}
-	if (ArtResultSummaryPanel)
-	{
-		ArtResultSummaryPanel->SetVisibility(ResultArtVisibility);
-	}
-	if (ArtSelectedCardsPanel)
-	{
-		ArtSelectedCardsPanel->SetVisibility(ResultArtVisibility);
-	}
-	if (ArtVictoryTitle)
-	{
-		ArtVictoryTitle->SetVisibility(bVictoryScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
-	}
-	if (ArtDefeatTitle)
-	{
-		ArtDefeatTitle->SetVisibility(bDeathScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 	}
 	if (ResumeButton)
 	{
@@ -259,7 +333,11 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	}
 	if (RestartButton)
 	{
-		RestartButton->SetVisibility(ESlateVisibility::Visible);
+		RestartButton->SetVisibility(bFormalResult ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+	}
+	if (QuitButton)
+	{
+		QuitButton->SetVisibility(bFormalResult ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	}
 	if (SettingsButton)
 	{
@@ -287,9 +365,9 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	}
 	if (RestartButtonLabel)
 	{
-		const FString RestartLabel = bPausePrompt      ? TEXT("不保存并退出")
-		                             : bPauseMenu      ? TEXT("退出至主菜单")
-		                                               : TEXT("重新开始");
+		const FString RestartLabel = bPausePrompt ? TEXT("不保存并退出")
+		                             : bPauseMenu ? TEXT("退出至主菜单")
+		                                          : TEXT("重新开始");
 		RestartButtonLabel->SetText(FText::FromString(RestartLabel));
 		RestartButtonLabel->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
@@ -367,6 +445,11 @@ void UReEchoRestartWidget::HandleQuitClicked()
 		return;
 	}
 	OnQuitRequested.Broadcast();
+}
+
+void UReEchoRestartWidget::HandleDefeatMainMenuClicked()
+{
+	OnExitToMainMenuRequested.Broadcast();
 }
 
 void UReEchoRestartWidget::HandleSettingsClicked()

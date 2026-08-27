@@ -7,7 +7,9 @@
 
 class SWidget;
 class UButton;
+class UCanvasPanel;
 class UImage;
+class UReEchoButtonVisualFeedback;
 class UTextBlock;
 class UVerticalBox;
 
@@ -70,13 +72,12 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoAttackModeRequested OnManualAttackRequested;
 
-	void SetDeathScreen(bool bInDeathScreen);
+	/** 切换到失败结算模式；统计项均来自当前运行，不展示伪造的击杀或金币数据。 */
+	void SetDeathScreen(bool bInDeathScreen, int32 EncounterIndex = 0, int32 TimeShards = 0, int32 TraitCount = 0);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount);
 	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
-	void SetQuitConfirmation(bool bInQuitConfirmation,
-	                         bool bInExitToMainMenu = false,
-	                         int32 InEncounterIndex = 0);
+	void SetQuitConfirmation(bool bInQuitConfirmation, bool bInExitToMainMenu = false, int32 InEncounterIndex = 0);
 	void ShowSaveFailure();
 	void SetAutomaticAttackMode(bool bAutomatic);
 
@@ -88,6 +89,7 @@ private:
 	void BuildWidgetTree();
 	void RefreshMenuMode();
 	void EnsureAttackModeWidget();
+	void BindFormalResultButtonFeedback();
 
 	UFUNCTION()
 	void HandleResumeClicked();
@@ -97,6 +99,9 @@ private:
 
 	UFUNCTION()
 	void HandleQuitClicked();
+
+	UFUNCTION()
+	void HandleDefeatMainMenuClicked();
 
 	UFUNCTION()
 	void HandleSettingsClicked();
@@ -143,12 +148,48 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> QuitButtonText;
 
+	/** Designer-authored formal victory surface. Runtime only projects state into these optional bindings. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UCanvasPanel> VictoryCanvas;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> VictoryEncounterValue;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> VictoryTimeShardsValue;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> VictoryTraitCountValue;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> VictoryContinueButton;
+
+	/** Designer-authored formal defeat surface. Runtime only projects state into these optional bindings. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UCanvasPanel> DefeatCanvas;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> DefeatEncounterValue;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> DefeatTimeShardsValue;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> DefeatTraitCountValue;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> DefeatRestartButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> DefeatMainMenuButton;
+
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartDialogPanel;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartCharacter;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtResultSummaryPanel;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtSelectedCardsPanel;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryTitle;
-	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtDefeatTitle;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryContinueButtonFormal;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtDefeatRestartButtonFormal;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtDefeatMainMenuButtonFormal;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> VictoryContinueLabel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> DefeatRestartLabel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> DefeatMainMenuLabel;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseDimmer;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPausePrimaryButton;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSecondaryButton;
@@ -158,10 +199,17 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UReEchoAttackModeWidget> AttackModeWidget;
 
+	/** Keeps hover bindings for the formal result buttons alive without taking layout ownership from the WBP. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoButtonVisualFeedback>> FormalResultButtonFeedback;
+
 	EReEchoRestartScreenMode ScreenMode = EReEchoRestartScreenMode::Pause;
 	EReEchoQuitPromptState QuitPromptState = EReEchoQuitPromptState::None;
 	int32 VictoryTimeShards = 0;
 	int32 VictoryTraitCount = 0;
+	int32 DefeatEncounterIndex = 0;
+	int32 DefeatTimeShards = 0;
+	int32 DefeatTraitCount = 0;
 	int32 PauseEncounterIndex = 0;
 	bool bAutomaticAttackMode = true;
 	bool bExitToMainMenu = false;
