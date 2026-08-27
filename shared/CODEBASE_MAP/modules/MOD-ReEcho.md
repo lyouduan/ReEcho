@@ -61,6 +61,7 @@
 - UE 生命周期：`StartPlay`、World Tick、输入绑定、Actor/Subsystem 生命周期。
 - `Content/Data/*.csv` 与 `Config/*.ini`。
 - 用户输入、Widget 命令和 GM/调试命令。
+- Development GM 调试入口包括 `GMScene <SC01|SC02|SC03|SC04>`（复用 Arena prepare/commit，仅切场景不改 Stage/Encounter）和 `GMMoveSpeed <cm/s>`（覆盖当前玩家移动组件速度）。
 - SaveGame、录制历史和当前世界碰撞/目标信息。
 
 ### 输出

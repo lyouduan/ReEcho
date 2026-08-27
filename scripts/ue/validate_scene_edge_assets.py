@@ -39,6 +39,12 @@ contract = load_import_contract()
 validated = 0
 validated_components = 0
 check_initial_layout = "-Plan135InitialLayout" in unreal.SystemLibrary.get_command_line()
+wall_names = ("WallEast", "WallNorth", "WallSouth", "WallWest")
+wall_properties = ("relative_location", "relative_rotation", "relative_scale3d")
+sc01 = unreal.EditorAssetLibrary.load_asset(f"{contract.PREFAB_ROOT}/BP_ArenaScene_SC01")
+if not isinstance(sc01, unreal.Blueprint):
+    fail("Missing SC01 wall reference Blueprint")
+_, sc01_components = contract.component_entries(sc01)
 for scene_id, entries in contract.SCENES.items():
     art_root = f"/Game/ReEcho/Art/Scene/{scene_id}/EdgeInserts"
     material_root = f"{art_root}/Materials"
@@ -83,6 +89,14 @@ for scene_id, entries in contract.SCENES.items():
     if not isinstance(blueprint, unreal.Blueprint):
         fail(f"Missing scene Blueprint for {scene_id}")
     _, components = contract.component_entries(blueprint)
+    for wall_name in wall_names:
+        if wall_name not in components or wall_name not in sc01_components:
+            fail(f"Missing wall component {scene_id}.{wall_name}")
+        source_wall = sc01_components[wall_name][1]
+        target_wall = components[wall_name][1]
+        for prop in wall_properties:
+            if target_wall.get_editor_property(prop) != source_wall.get_editor_property(prop):
+                fail(f"{scene_id}.{wall_name}.{prop} differs from SC01")
     plane = unreal.EditorAssetLibrary.load_asset(contract.PLANE_PATH)
     for name, semantic_name, parent_name, location, sort_priority in contract.PLACEMENTS[scene_id]:
         if name not in components:
@@ -131,5 +145,6 @@ if validated_components != 24:
     fail(f"Expected 24 components, validated {validated_components}")
 unreal.log(
     "[Plan135] Validation passed for 24 textures, 3 master materials, "
-    f"24 material instances, and {validated_components} editable Blueprint components"
+    f"24 material instances, {validated_components} editable Blueprint components, "
+    "and 12 wall transforms matching SC01"
 )

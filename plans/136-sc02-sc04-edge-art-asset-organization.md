@@ -1,4 +1,4 @@
-# Plan 135 - 程序 - SC02-SC04 场景边缘美术资产整理
+# Plan 136 - 程序 - SC02-SC04 场景边缘美术资产整理
 
 ## 协调
 
@@ -7,12 +7,12 @@
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
 - 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 人工验收：`Passed`。
 - 本地规划 / 实现基线：资产候选 `b0cd1d3e`，已按用户授权组合 `origin/main@4ef2ff94b6a99856350674fce771a671314f4fa0`（含已发布 Plan134 `0945217f`）。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan135-sc02-sc04-edge-assets-plan`；实现使用独立 Plan135 worktree，不复用 Plan134 或场景审查 worktree。
 - 依赖 / 阻塞：以 `Content/ReEcho/Art/Scene/SC01/EdgeInserts` 与 `Materials` 的目录和资产关系为参考；外部源目录为 `F:\MiniGame\scene\插件sc02`、`插件sc03`、`插件sc04`。
 - Writes:
-  - `plans/135-sc02-sc04-edge-art-asset-organization.md`
+  - `plans/136-sc02-sc04-edge-art-asset-organization.md`
   - `Content/ReEcho/Art/Scene/SC02/EdgeInserts/**`
   - `Content/ReEcho/Art/Scene/SC02/Materials/**`
   - `Content/ReEcho/Art/Scene/SC03/EdgeInserts/**`
@@ -22,17 +22,23 @@
   - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC02.uasset`
   - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC03.uasset`
   - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC04.uasset`
+  - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC01.uasset`
+  - `Source/ReEcho/Public/ReEchoGameMode.h`
+  - `Source/ReEcho/Private/ReEchoGameMode.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoGameModeTests.cpp`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `scripts/ue/import_scene_edge_assets.py`
   - `scripts/ue/validate_scene_edge_assets.py`
   - 用于一次性初始放置与只读校验的 `scripts/ue/*plan135*scene*.py`
+  - `scripts/ue/align_plan135_walls_to_sc01.py`
 - Stable Reads:
   - `Content/ReEcho/Art/Scene/SC01/EdgeInserts/**`
   - `Content/ReEcho/Art/Scene/SC01/Materials/**`
   - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC01.uasset`
   - 已发布 Plan134 的 Level00、Catalog、C++、地图/MapRoot、玩法平面与切换契约。
-- 影响模式：`Exclusive`；新增 SC02-SC04 美术资源并一次性修改三个场景 BP 二进制，但不改 Runtime Module、数据 Schema 或场景切换契约。
-- 兼容承诺 / 下游操作：程序只完成本次参考 SC01 的初始分层放置；所有插片都是对应 BP 内可直接编辑组件。后续美术手工调整 Transform、scale、visibility、material 与 `TranslucencySortPriority`，重跑工具只补缺失组件且不得覆盖这些属性。
-- 明确排除：不修改 SC01、Level00、场景 Catalog、C++、CSV/XLSX；不改变 Plan134 的 `GameplayPlaneWorldZ=0`、地图/MapRoot/视觉参数或切换契约；不替美术做最终精细构图；不因源图内容相同而合并不同语义文件；实现候选未经用户确认不推送远程。
+- 影响模式：`Exclusive`；新增 SC02-SC04 美术资源、更新四个场景 BP，并增加复用既有事务切换入口的 GM 场景/移速命令；不改数据 Schema 或正式 Stage/Encounter 权威。
+- 兼容承诺 / 下游操作：程序只完成本次参考 SC01 的初始分层放置；所有插片都是对应 BP 内可直接编辑组件。后续美术手工调整 Transform、scale、visibility、material 与 `TranslucencySortPriority`，重跑工具只补缺失组件且不得覆盖这些属性。SC02-SC04 的 `WallEast/WallNorth/WallSouth/WallWest` 空间 Transform 严格复制 SC01，其他组件保持当前状态。
+- 明确排除：不修改 Level00、场景 Catalog、CSV/XLSX；不改变 Plan134 的 `GameplayPlaneWorldZ=0`、地图/MapRoot 或正式切换契约；不替美术做最终精细构图；不因源图内容相同而合并不同语义文件；不提交无关的 `Content/ReEcho/UI/EncounterTransition/S_Stage01To02.uasset`。
 
 ## 锁定目标
 
@@ -40,17 +46,18 @@
 
 ## 架构影响与设计决策
 
-- 受影响架构标识：`None`；本任务只增加表现内容资产与 Editor 导入工具，不修改 `MOD-ReEcho` 或公共运行时契约。
-- 对应模块文档：无；不修改 Runtime Module，因此不新增或维护 `MOD-*` Writes。
+- 受影响架构标识：`MOD-ReEcho / AREA-Flow / AREA-Player`；场景资产仍由 Arena Blueprint 权威，GM 调试入口属于 Development-only GameMode 装配。
+- 对应模块文档：更新 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`，记录 `GMScene` 与 `GMMoveSpeed` 的边界。
 - 设计意图：让 SC02-SC04 具备与 SC01 一致的“源 PNG → Texture2D → Material Instance → 美术 BP 组件”资源链，同时保持场景表现的 Editor 权威。
 - 权威状态与依赖：仓库内 PNG 是导入来源；Texture2D 与材质实例是 UE 可用资产；对应 Arena BP 仍是组件摆放和视觉参数权威。
 - 决策记录：
   1. 每个场景独立目录与母材质，避免 SC02-SC04 反向依赖 SC01 的场景专属资产。
   2. 中文源文件名保留在仓库 PNG 与映射清单中；UE 资产使用稳定 ASCII 语义名。
   3. SC04 三张内容相同的草图保持三个独立语义条目，不静默去重。
-  4. 一次性 BP 作者ing工具参考 SC01 的视觉层级和方向语义，只创建缺失的 SC02-SC04 插片组件；不修改 SC01，也不触碰地图根、玩法边界或切换配置。
+  4. 一次性 BP 作者ing工具参考 SC01 的视觉层级和方向语义，只创建缺失的 SC02-SC04 插片组件；后续人工场景调整包含 SC01，但不触碰地图根、玩法边界或正式切换配置。
   5. 重跑时保留既有组件 Transform、scale、visibility、material 和透明排序；发现既有组件/资产与映射冲突时失败并报告，不静默替换。
-- 相关文档同步范围：关闭前审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md`、`README.md`、`modules/MOD-ReEcho.md`；预计均无需修改，因为模块拓扑、运行时职责和代码位置不变。
+  6. `GMScene` 复用 Arena prepare/commit 事务，只替换当前表现 Arena；`GMMoveSpeed` 只覆盖当前玩家 `UFloatingPawnMovement::MaxSpeed`，两者均不写 Stage/Encounter 或数据表。
+- 相关文档同步范围：关闭前审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md`、`README.md`，并更新 `modules/MOD-ReEcho.md` 的 GM 调试输入契约。
 - 关闭前逐项填写审阅结果：
   - `ARCHITECTURE.md` 已审阅、无需修改：待执行后确认。
   - `README.md` 已审阅、无需修改：待执行后确认。
@@ -63,9 +70,10 @@
 - [x] SC04 三张内容相同的草图仍保留三个独立语义资产入口。
 - [x] SC02、SC03、SC04 的全部插片作为对应 BP 内直接可编辑组件存在，并按 SC01 的层级与方向语义形成可用初始布局。
 - [x] 重跑作者ing工具只补缺失组件，保持既有 Transform、scale、visibility、material 与 `TranslucencySortPriority`。
-- [x] SC01、Level00、Catalog、C++ 与数据文件无新增变化；Plan134 的四场 `GameplayPlaneWorldZ=0`、地图/MapRoot/视觉参数和切换契约保持。
+- [x] Level00、Catalog 与数据文件无新增变化；Plan134 的四场 `GameplayPlaneWorldZ=0`、地图/MapRoot 和正式切换契约保持。
+- [x] SC02-SC04 的 `WallEast/WallNorth/WallSouth/WallWest` 的 relative location、rotation、scale 逐项与 SC01 完全一致，且对齐过程不改其他组件属性。
 - [x] Editor 资产校验、`python scripts/validate_project.py`、`git diff --check` 和最终 FullRebuild 通过。
-- [ ] 用户在 Content Browser/Blueprint Editor 确认资产命名、透明显示与手工选用符合预期后，人工验收才可设为 `Passed`。
+- [x] 用户已确认 SC01-SC04 的构图、透明显示和遮挡关系验收通过，人工验收为 `Passed`。
 - [ ] 未提交精选预构建允许列表之外的 UE 生成物或机器本地路径。
 
 ## Step 0 门禁
@@ -88,7 +96,7 @@
 
 | 层级 | 命令/检查 | 预期证据 |
 |---|---|---|
-| Plan-only | `python scripts/validate_project.py`、`git diff --check` | Plan135 编号、结构、范围和中文正文通过 |
+| Plan-only | `python scripts/validate_project.py`、`git diff --check` | Plan136 编号、结构、范围和中文正文通过 |
 | 输入 | PNG 清单、尺寸与 SHA-256 比对 | 24/24 仓库副本与外部输入一致 |
 | Editor 导入 | 项目标准 Unreal Editor Python 入口 | 24 个 Texture2D、24 个 MI 和 3 个场景母材质可加载 |
 | Editor 只读 | `scripts/ue/validate_scene_edge_assets.py` | 路径、尺寸、父材质和纹理引用完全匹配；BP 无作者ing |
@@ -99,6 +107,9 @@
 ## 执行记录
 
 ### 变化
+
+- 因远端已发布另一份 Plan135，本地未发布场景 Plan 在发布前机械顺延为 Plan136。
+- 按用户后续要求纳入当前 SC01-SC04 Blueprint 调整，并增加 `GMScene` 与 `GMMoveSpeed`；前者复用 Arena prepare/commit 且不改变当前 Stage/Encounter，后者只覆盖当前玩家移动组件速度。
 
 - 将外部 SC02 的 4 张、SC03 的 8 张、SC04 的 12 张 PNG 原名复制到各自 `EdgeInserts`；未对 SC04 三张同内容草图去重。
 - 新增 `import_scene_edge_assets.py`：使用 UE Editor API 创建 24 个 Texture2D、3 个场景独立透明 Unlit 双面母材质和 24 个 Material Instance；已存在资产只读取，不覆盖设置。
@@ -124,6 +135,9 @@
 - Plan134 回归：四场 `GameplayPlaneWorldZ=0.000`；Catalog、地图材质、视觉根与玩法边界只读审计通过。
 - 聚焦自动化：`ReEcho.Presentation.ArenaScene.Contract` 1/1、`ReEcho.StageTransition` 3/3 通过。
 - 扩围后最终构建：FullRebuild 95/95；预构建检查 7 modules、BuildId `55116800`、source `ec777c5d939d`；项目、XLSX/CSV、LFS 与 `git diff --check` 通过。
+- 墙体严格对齐：以 SC01 为只读权威，将 SC02-SC04 的 `WallEast/WallNorth/WallSouth/WallWest` relative location/rotation/scale 逐项复制；作者ing前后脚本快照确认其他 SceneComponent 属性未改变。
+- 墙体只读验证：12/12 目标墙体的三项 Transform 与 SC01 完全一致；SC01 与无关 `S_Stage01To02.uasset` 哈希保持不变。
+- 墙体回归：Plan134 四场 `GameplayPlaneWorldZ=0.000` 和场景资产审计通过；`ReEcho.Presentation.ArenaScene.Contract` 1/1 通过。
 
 ### 剩余风险
 
@@ -132,10 +146,10 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：用户在 Content Browser 和至少一个对应 Arena BP 中确认纹理/材质实例可正常选择并透明显示。
+- `Passed`：用户确认 SC01-SC04 的构图、透明显示和遮挡关系已经验收。
 
 ### 架构文档审阅结果
 
 - `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：本任务未改变模块拓扑、依赖方向或运行时状态权威。
 - `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：未新增或移动 Runtime Module / `AREA-*` 代码路线。
-- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已审阅、无需修改：Arena Blueprint、场景切换和运行时装配均未修改，仅新增供美术手工选择的内容资产。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录 Development-only `GMScene` 和 `GMMoveSpeed` 的运行时边界。

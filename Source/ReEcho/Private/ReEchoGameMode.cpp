@@ -11,6 +11,7 @@
 #include "Components/BillboardComponent.h"
 #include "Components/BoxComponent.h"
 #include "Core/ReEchoBalanceSettings.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Encounter/ReEchoEncounterDirector.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -254,7 +255,7 @@ void AReEchoGameMode::GMHelp()
 	PrintGMResult(TEXT("The GM console pauses while open and resumes when closed. GMStatus | GMHeal [amount, 0=full] | "
 	                   "GMGod [On|Off|Toggle] | "
 	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
-	                   "<Clear|Rain|Fog> | "
+	                   "<Clear|Rain|Fog> | GMScene <SC01|SC02|SC03|SC04> | GMMoveSpeed <cm/s> | "
 	                   "GMEndEncounter | GMTransition4 | GMKillAll | GMSpawnFox <count> [distance] | GMGotoBoss | "
 	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
@@ -264,6 +265,80 @@ void AReEchoGameMode::GMHelp()
 	                   "GMBossDamageRange <On|Off|Toggle>"));
 	PrintGMResult(TEXT("Reactions: Flame+Grass=Burn | Flame+Water=Vaporize | Lightning+Grass=Growth | "
 	                   "Lightning+Water=Conduct | Grass+Water=EnhanceGrass | Water+Grass=EnhanceWater"));
+}
+
+bool AReEchoGameMode::TryResolveGMSceneId(const FString& Scene, FName& OutSceneId)
+{
+	FString Normalized = Scene.TrimStartAndEnd().ToUpper();
+	if (Normalized.StartsWith(TEXT("SC")))
+	{
+		Normalized.RightChopInline(2);
+	}
+	if (!Normalized.IsNumeric())
+	{
+		return false;
+	}
+	const int32 SceneNumber = FCString::Atoi(*Normalized);
+	if (SceneNumber < 1 || SceneNumber > 4)
+	{
+		return false;
+	}
+	OutSceneId = FName(*FString::Printf(TEXT("SC%02d"), SceneNumber));
+	return true;
+}
+
+bool AReEchoGameMode::IsValidGMMoveSpeed(const float Speed)
+{
+	return FMath::IsFinite(Speed) && Speed > 0.0f;
+}
+
+void AReEchoGameMode::GMScene(const FString& Scene)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	FName SceneId = NAME_None;
+	if (!TryResolveGMSceneId(Scene, SceneId))
+	{
+		PrintGMResult(TEXT("Usage: GMScene <SC01|SC02|SC03|SC04>"), false);
+		return;
+	}
+	if (!ArenaSceneRegistry.Contains(SceneId))
+	{
+		PrintGMResult(FString::Printf(TEXT("GMScene cannot find registered SceneId=%s."), *SceneId.ToString()), false);
+		return;
+	}
+	FReEchoCsvStageRow DebugStage;
+	DebugStage.Id = TEXT("GMScene");
+	DebugStage.SceneId = SceneId;
+	FString Error;
+	if (!ApplyArenaSceneForStage(DebugStage, Error))
+	{
+		PrintGMResult(FString::Printf(TEXT("GMScene %s failed: %s"), *SceneId.ToString(), *Error), false);
+		return;
+	}
+	PrintGMResult(FString::Printf(TEXT("Arena scene is now %s; current Stage/Encounter is unchanged."),
+	                              *SceneId.ToString()));
+}
+
+void AReEchoGameMode::GMMoveSpeed(const float Speed)
+{
+	if (!EnsureGMCommandAvailable() || !Player || !Player->Movement)
+	{
+		PrintGMResult(TEXT("GMMoveSpeed requires an active player."), false);
+		return;
+	}
+	if (!IsValidGMMoveSpeed(Speed))
+	{
+		PrintGMResult(TEXT("Usage: GMMoveSpeed <positive cm/s>"), false);
+		return;
+	}
+	const float PreviousSpeed = Player->Movement->MaxSpeed;
+	Player->Movement->MaxSpeed = Speed;
+	PrintGMResult(FString::Printf(TEXT("Player movement speed %.1f -> %.1f cm/s."),
+	                              PreviousSpeed,
+	                              Player->Movement->MaxSpeed));
 }
 
 AReEchoEnemyActor* AReEchoGameMode::FindNearestLivingEnemyForGM() const

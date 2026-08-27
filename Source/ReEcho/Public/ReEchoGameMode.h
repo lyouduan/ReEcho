@@ -76,6 +76,12 @@ public:
 	void GMSetShards(int32 Amount = 0);
 	UFUNCTION(Exec)
 	void GMWeather(const FString& Scene = TEXT("Clear"));
+	/** Switches only the active Arena presentation; the current Stage/Encounter authority is unchanged. */
+	UFUNCTION(Exec)
+	void GMScene(const FString& Scene = TEXT("SC01"));
+	/** Overrides the current player's movement component speed in cm/s. */
+	UFUNCTION(Exec)
+	void GMMoveSpeed(float Speed = 420.0f);
 	UFUNCTION(Exec)
 	void GMEndEncounter();
 	/** Advances the active ordinary encounter to four seconds remaining so the full countdown transition can be
@@ -415,6 +421,8 @@ private:
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
 	static void ResolveGMSpawnFoxRequest(
 	    float CountOrDistance, float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance);
+	static bool TryResolveGMSceneId(const FString& Scene, FName& OutSceneId);
+	static bool IsValidGMMoveSpeed(float Speed);
 	static TArray<FVector> BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
 	                                                const FVector2D& ArenaCenter,
 	                                                const FVector2D& ArenaHalfExtents,
@@ -425,6 +433,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
 	friend class FReEchoGameModeBossVictoryGateTest;
+	friend class FReEchoGameModeSceneAndMoveSpeedTest;
 	friend class FReEchoEncounterTransitionPolicyTest;
 #endif
 	static bool ShouldStartEncounterTransition(float RemainingTime, bool bBossEncounter, bool bTransitioning);
