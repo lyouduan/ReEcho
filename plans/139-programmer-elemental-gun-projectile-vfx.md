@@ -85,7 +85,8 @@
 - `python scripts/setup_lfs.py --check`、`git lfs status`、`git lfs fsck`：通过；四个未跟踪 Niagara 保持原始文件，未由 Editor 重存。
 - `git diff --check`：通过。
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho.Presentation.VFX.Catalog`：修复前准确失败并列出四个资源的 `Fountain002/004/005/006` 均非 Local Space；资产修复后发现 1 项并以 `Result={Success}`、`TEST COMPLETE. EXIT CODE: 0` 结束，证明四资源路径、可加载性及全部启用武器 Emitter 的 Local Space 契约通过。
-- 预加载与武器逐弹两个专项入口曾在测试发现前被 UE 5.8 `ValidatePlatforms -AllPlatforms` 阻断：Win64 SDK `10.0.22621.0` 有效，但 LinuxArm64/VisionOS `SDK.json` 缺少 `MainVersion`；对应新增断言已被 UHT/UBT 编译，本轮不声明运行通过或失败。
+- 获得 `main-publish-lock` 后合入 `origin/main@1511d04e`，保留 Plan133 CG 与远端 Plan138 开局点击选择；最终组合 `Development -FullRebuild` 95/95 成功，刷新 7 模块预构建包，source fingerprint `4c7d4155ac47`。
+- 最终组合专项自动化均发现 1 项并以 `Result={Success}`、`TEST COMPLETE. EXIT CODE: 0` 结束：`ReEcho.Presentation.VFX.Catalog`、`ReEcho.Presentation.RuntimeAssetPreload.Catalog`、`ReEcho.Weapons.Gems.PrismMultishotUsesPerProjectileElements`。
 
 ### 剩余风险
 
