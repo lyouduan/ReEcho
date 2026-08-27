@@ -44,7 +44,7 @@ Before opening `ReEcho.uproject`, running Unreal/build/package commands, or read
 
 - Programmer implementation: read the relevant section of `shared/EXECUTOR_RULES.md` and only the matching `shared/LESSONS.md` section. Add `§DEBUG` only after a failure requires diagnosis.
 - Programmer planning/review/closure: read the relevant section of `shared/PLANNER_RULES.md`, the assigned Plan and its diff. Use `shared/CODEBASE_MAP/` only for affected modules; do not load the whole library or all of `LESSONS.md`.
-- Designer work: after `shared/DESIGNER_RULES.md`, read `shared/DESIGNER_EXPERIENCE/<策划身份>.md` when it exists, then follow the per-task branch, effect-confirmation and issue-handoff workflow. Artist work uses its professional handoff and verification boundary. Do not silently promote a specialist task into programmer implementation.
+- Designer work: after `shared/DESIGNER_RULES.md`, read `shared/DESIGNER_EXPERIENCE/<策划身份>.md` when it exists; Bug、需求和待合并修改分别走 `issue/...`、`request/...`、`merge/...`，报告使用 `issues/TEMPLATE.md`。Artist work uses its professional handoff and verification boundary. Do not silently promote a specialist task into programmer implementation.
 - Distributed planning: follow `shared/PLANNER_RULES.md` to fetch and inspect the remote maximum before numbering, then publish the numbered Plan to `origin/main` before execution; external differences still follow its audit gate.
 - Project Secretary work: read `shared/SECRETARY_RULES.md` for rule-system maintenance, Plan/schema coordination, accepted-result integration, cleanup and publication boundaries.
 - Commit or publication work: read `shared/GIT_RULES.md` for the creator identity tag and Programmer final-build/prebuilt-bundle gate.
