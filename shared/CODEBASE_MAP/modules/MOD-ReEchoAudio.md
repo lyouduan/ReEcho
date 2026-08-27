@@ -124,6 +124,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 加载契约：播放后端只读取已驻留的 soft pointer，绝不在一次性或状态播放路径调用同步加载；失败启动不会覆盖当前状态。Service 保存期望 Music/Ambience 状态，在预载完成后自动重试，并在 Game/PIE World 替换时重建仍需要的 Loop。
 - 空间契约：3D 命令在组件播放前写入世界位置和球形线性衰减覆盖；内半径为 `AttenuationMin`，衰减距离为 `AttenuationMax - AttenuationMin`。2D 事件不启用衰减覆盖。
 - 增益契约：组件 `VolumeMultiplier` 保存 Policy Engine 算出的有效总线音量；淡入淡出只控制独立 fader。淡入必须用非自动播放组件和 `FadeIn(Duration, 1.0f)`，不得把组件基础音量初始化为零。
+- 日志契约：真实后端提交播放前输出结构化 `PlaybackStart`，自然完成、显式停止、淡出完成、组件失效或后端关闭时输出同 Handle 的 `PlaybackEnd`；每个成功 Handle 只结束一次。无法启动时只输出带原因的 `PlaybackStartFailed`，玩法生产者不重复记录播放生命周期。
 
 ### Events 与 Types
 
@@ -158,6 +159,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development` 必须同时产出 `UnrealEditor-ReEchoAudio.dll`。
 - 静态：模块边界不得出现 `#include` 主模块玩法路径。
 - 人工验收：真实资源可听性、响度平衡、空间定位和混音由用户在 PIE/设备上判断；链路异常优先用 Audio Insights 的 Events/Sounds/总线表区分“请求已发出”“组件仍存活”和“设备有最终信号”。
+- 日志定位：输出日志中按 `PlaybackStart` / `PlaybackEnd` 过滤，并用 Handle 关联 EventId、VariantId、资产路径和实际存活秒数；只有 `PlaybackStartFailed` 时优先检查 World、目录软路径、异步预载和 AudioComponent 创建。
 
 ## 不变量与常见错误
 

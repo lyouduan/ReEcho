@@ -41,6 +41,12 @@
 - 普通选卡与商店选卡在可交互卡面被有效点选时发布一次 `UI.CardSelect`，后续确认、领取或应用事务不重复播放；卡组付款继续只在付款成功边界发布 `UI.Purchase`，避免领取时重复购买声。
 - 玩家死亡继续消费 Combat 已发布的稳定死亡事件；返修必须验证 Player 的 Audio Adapter 路由和 `Combat.Death` 可听起播点，不新增 GameMode 双发。
 
+### 2026-08-27 播放生命周期日志
+
+- 真实 UE 后端在声音实际提交播放时统一记录结构化 `PlaybackStart` 日志，包含唯一 Handle、OneShot/Loop、EventId、VariantId、SoundWave 路径、起播偏移、音量和 Pitch；玩法/UI 生产者不重复打印。
+- 每个成功启动的 Handle 必须精确记录一次 `PlaybackEnd`，区分自然完成、显式停止、淡出完成、组件不可用和后端关闭；显式停止不得与 `OnAudioFinishedNative` 回调双记。
+- World、软路径、已驻留 SoundWave 或 AudioComponent 不可用时记录 `PlaybackStartFailed` 及原因，但继续保持安全 no-op，不改变玩法结果。
+
 ## 架构影响与设计决策
 
 - 受影响架构标识：`MOD-ReEchoAudio`、`MOD-ReEcho`、`MOD-ReEchoUI`；`MOD-ReEchoCombat` 仅 Stable Read 已发布的反应结算契约，不修改其状态或依赖。
@@ -63,6 +69,7 @@
 - [x] 十五个无策划授权的基础行仍是已知稳定定义但请求时安全静音；旧通用回退 SoundWave、全部 Generated 源 WAV 和生成预期均已删除，目录外资产无法通过静态/UE 白名单审计。
 - [x] 权威音频 XLSX 与生成 CSV 同步，16 列 Schema 和复合键唯一；全部 `StartTimeSeconds >= 0`，非空 AssetPath 可解析、可预载、可 Cook，空路径仅限锁定显式静音集合。
 - [x] `ReEchoAudio` 没有新增对 ReEcho/Combat/Weapons/Run/UI/Presentation 类型的反向依赖；音频失败不改变任何事务或流程结果。
+- [x] 真实 UE 后端对每个成功启动的 OneShot/Loop 输出一次开始日志，并在自然结束、Stop、FadeOut 或后端关闭时输出一次匹配 Handle 的结束日志；失败启动只输出失败原因且不伪造开始/结束。
 - [x] 必需静态检查、数据检查、Plan123 聚焦自动化、资产审计、Editor 构建、最终 `-FullRebuild` 与精选预构建包通过；按用户后续明确要求不制作 Shipping 包，以本工作树 `ReEcho.uproject` 作为策划 PIE 测试入口。完整 `ReEcho.*` 的主线独立失败已逐项记录，不误报全绿。
 - [ ] 用户在 PIE/测试包验收新增 10 项的可听性、触发时机、响度、反应区分度、装备/卸下同源音与胜利去重；AI 不代签主观结果。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
@@ -118,6 +125,9 @@
 - 2026-08-27：用户进一步澄清唯一策划白名单是 `ECHO音频配置说明.xlsx` 的 `音频配置说明` 主需求页与同目录交付文件的交集，纠正此前误把“项目音频事件清单”备注当作保留授权的问题。`Music.Death/Music.Victory/Ambience.Arena/Ambience.Rain` 改为安全静音并删除源与 SoundWave；`Music.Menu`、`UI.CardSelect`、`UI.Cancel/UI.Error/Revive` 分别对齐主需求页的 `STAGE2_v3`、`购买.wav`、`Hits 重音 打击 出字 转场.mp3`，共享同源事件复用单个 SoundWave。
 - 2026-08-27：最新 fetch 到 `origin/main@afed0e11`。Plan128 卡牌图标变更不触及音频资产，但精选清单/7 个 DLL 与 `MOD-ReEchoUI.md` 存在真实合并冲突，`ReEchoGameMode.cpp` 仍有商店/选卡/死亡逻辑耦合；本轮继续只完成本地白名单候选，不 merge、pull 或 push。
 - 2026-08-27：同克隆 Unreal 锁内重导入主需求页更新的 Menu/Cancel 波形；7 个表外 SoundWave 均经 `find_package_referencers_for_asset(..., load_assets_to_confirm=True)` 确认为零引用后删除。UE 资产审计通过 52 行 = 37 个绑定行 + 15 个显式静音行，31 个唯一目录 SoundWave 与项目资产完全一致；`ReEcho.Audio` 13/13、正式源 31/31、派生 19/19、路由 37/37、XLSX 同步与 18/18 表格测试、项目校验、精选预构建一致性和 `git diff --check` 均通过。
+- 2026-08-27：用户要求为声音实际开始与结束增加统一日志，Plan123 重新进入 `InProgress`。日志边界锁定在 `ReEchoAudio` 真实后端，使用同一 Handle 关联开始/结束并记录结束原因，不把日志职责分散到玩法生产者。
+- 2026-08-27：真实后端已接入 `PlaybackStart`、`PlaybackEnd` 与 `PlaybackStartFailed`；`OnAudioFinishedNative`、Stop、FadeOut 和后端析构共享精确一次的 Handle 生命周期。Development Editor 构建成功并刷新 ReEchoAudio 精选二进制；`ReEcho.Audio` 13/13、37/37 生产路由、项目静态校验、精选预构建一致性和 `git diff --check` 均通过。
+- 2026-08-27：发布前 fetch 到 `origin/main@12f67872`，本分支 ahead 7 / behind 17。源码自动合并预演仅 `ReEchoGameMode.cpp` 有逻辑耦合且无文本冲突，但 `ReEchoEditor.prebuilt.json`、7 个精选 DLL 与 `MOD-ReEchoUI.md` 存在真实冲突；必须在用户确认取舍后合并，并以最终组合源码 FullRebuild 重建预构建包，本轮未越过冲突直接推送。
 
 ### 证据
 
@@ -129,6 +139,7 @@
 - UE 5.8 的 `EditorAssetLibrary.delete_asset` 在无 Source Control 工作树中完成 ForceDelete 且确认零包引用，但可能遗留可写包文件；Editor 脚本只在零引用与 API 成功后精确移除目录白名单外 `.uasset`，并由后续独立 Editor 会话重新扫描完整目录集合。
 - 聚焦自动化：`ReEcho.Audio` 13/13、`ReEcho.UI.Button` 3/3、`ReEcho.UI.Shop` 3/3 全部通过；`ReEcho.Shop` 13 项中与本 Plan 有关的购买/选卡/刷新等 11 项通过，2 项主线独立失败为武器大师奖励数值和 Encounter 5 ShopTiers；`ReEcho.Combat` 13 项中 12 项通过，独立失败为 Conduct 玩法伤害/来源断言。三项失败均不在本 Plan 修改路径，未越界修改玩法或数值。
 - 最终组合候选执行 `Build-Editor.ps1 -Configuration Development -FullRebuild` 成功，101/101 构建动作完成并刷新 7 个精选模块，源码指纹 `e4219fb73a02`；完整 `ReEcho.*` 记录 177 成功/22 失败，22 项均位于未修改的攻击、卡牌、Combat、敌人/数据、GAS、表现、掉落、Shop、Trait、HUD 或武器领域，本 Plan 的 Audio/Button/UI Shop 聚焦套件仍全绿。
+- 播放日志返修候选执行 Development Editor 增量构建成功，`ReEcho.Audio` 13/13；测试中的无 World 请求实际输出 `PlaybackStartFailed Kind=OneShot EventId=Combat.Attack Reason=MissingWorld`，证明失败边界可观测且不伪造成功 Handle。
 
 ### 剩余风险
 
