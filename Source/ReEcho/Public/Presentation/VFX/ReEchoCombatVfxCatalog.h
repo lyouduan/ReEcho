@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 
+enum class EReEchoElement : uint8;
+
 enum class EReEchoCombatVfxSemantic : uint8
 {
 	RabbitCharging,
@@ -18,6 +20,10 @@ enum class EReEchoCombatVfxSemantic : uint8
 	PlayerBowFlight,
 	PlayerBowImpact,
 	PlayerGunFlight,
+	PlayerGunFlightFlame,
+	PlayerGunFlightLightning,
+	PlayerGunFlightGrass,
+	PlayerGunFlightWater,
 	PlayerGunImpact,
 	EnemyHurt,
 	EchoWaterAura,
@@ -66,6 +72,8 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static bool ResolveMeleeAttackSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Resolves a successful source-side weapon hit to its configured DamageApplied semantic. */
 	static bool ResolveWeaponDamageSemantic(FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Resolves a Gun projectile's already-authoritative combat element to its dedicated flight semantic. */
+	static bool ResolveGunFlightSemantic(EReEchoElement Element, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Visual-only delay used to release a melee slash after its weapon completes the authored motion. */
 	static float ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic Semantic);
 	/** Returns the measured authored center axis for a semantic asset. */
