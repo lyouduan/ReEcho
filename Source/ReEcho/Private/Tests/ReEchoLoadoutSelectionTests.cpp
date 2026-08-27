@@ -25,18 +25,29 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	Widget->CharacterOptionIds = {FName(TEXT("J_HEART"))};
+	Widget->CharacterOptionIds = {FName(TEXT("J_HEART")), FName(TEXT("J_SPADE"))};
 	Widget->HandleCharacterHovered(0);
-	TestEqual(TEXT("Mouse hover previews the matching character"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
+	TestTrue(TEXT("Mouse hover does not select a character before a click"), Widget->SelectedCharacterId.IsNone());
 	TestFalse(TEXT("Mouse hover delegates description placement to the native tooltip"),
 	          Widget->bShowAnchoredDescription);
-	Widget->HandleCharacterPreviewed(0);
+	Widget->HandleCharacterClicked(0);
+	TestEqual(TEXT("Mouse click selects the matching character"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
+	Widget->HandleCharacterHovered(1);
+	TestEqual(TEXT("Hovering another character preserves the clicked character"),
+	          Widget->SelectedCharacterId,
+	          FName(TEXT("J_HEART")));
+	Widget->HandleCharacterPreviewed(1);
+	TestEqual(TEXT("Keyboard focus still previews the focused character"),
+	          Widget->SelectedCharacterId,
+	          FName(TEXT("J_SPADE")));
 	TestTrue(TEXT("Keyboard focus retains an anchored description fallback"), Widget->bShowAnchoredDescription);
 	Widget->HandleCharacterClicked(0);
+	TestEqual(TEXT("A later character click replaces the focused candidate"),
+	          Widget->SelectedCharacterId,
+	          FName(TEXT("J_HEART")));
 	TestFalse(TEXT("Mouse click does not duplicate the native tooltip with an anchored panel"),
 	          Widget->bShowAnchoredDescription);
 
-	Widget->SelectedWeaponId = TEXT("W_J_09");
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("First confirmation advances to the weapon stage"),
 	         Widget->SelectionStage == UReEchoLoadoutSelectionWidget::ESelectionStage::Weapon);
@@ -45,12 +56,24 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Weapon preview is reset when weapon selection begins"), Widget->SelectedWeaponId.IsNone());
 	TestFalse(TEXT("First confirmation does not submit a final loadout"), Widget->bFinalConfirmationBroadcast);
 
-	Widget->SelectedWeaponId = TEXT("W_J_04");
+	Widget->WeaponOptionIds = {FName(TEXT("W_J_04")), FName(TEXT("W_J_09"))};
+	Widget->HandleWeaponHovered(1);
+	TestTrue(TEXT("Mouse hover does not select a weapon before a click"), Widget->SelectedWeaponId.IsNone());
+	Widget->HandleWeaponClicked(0);
+	TestEqual(TEXT("Mouse click selects the matching weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_04")));
+	Widget->HandleWeaponHovered(1);
+	TestEqual(TEXT("Hovering another weapon preserves the clicked weapon"),
+	          Widget->SelectedWeaponId,
+	          FName(TEXT("W_J_04")));
+	Widget->HandleWeaponClicked(1);
+	TestEqual(TEXT("A later weapon click replaces the selected candidate"),
+	          Widget->SelectedWeaponId,
+	          FName(TEXT("W_J_09")));
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("Second confirmation submits the final loadout exactly once"), Widget->bFinalConfirmationBroadcast);
 	TestEqual(
 	    TEXT("Final confirmation retains the selected character"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
-	TestEqual(TEXT("Final confirmation retains the selected weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_04")));
+	TestEqual(TEXT("Final confirmation retains the selected weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_09")));
 
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("Repeated confirmation remains guarded after submission"), Widget->bFinalConfirmationBroadcast);
