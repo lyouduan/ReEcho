@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`InProgress`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：资产候选 `b0cd1d3e`，已按用户授权组合 `origin/main@4ef2ff94b6a99856350674fce771a671314f4fa0`（含已发布 Plan134 `0945217f`）。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan135-sc02-sc04-edge-assets-plan`；实现使用独立 Plan135 worktree，不复用 Plan134 或场景审查 worktree。
@@ -61,9 +61,9 @@
 - [x] SC02 的 4 张、SC03 的 8 张、SC04 的 12 张源 PNG 全部进入各自 `EdgeInserts`，像素尺寸和内容哈希与外部输入一致。
 - [x] 每张源图都有稳定命名的 Texture2D 和 Material Instance；材质实例引用本场景母材质及正确纹理。
 - [x] SC04 三张内容相同的草图仍保留三个独立语义资产入口。
-- [ ] SC02、SC03、SC04 的全部插片作为对应 BP 内直接可编辑组件存在，并按 SC01 的层级与方向语义形成可用初始布局。
-- [ ] 重跑作者ing工具只补缺失组件，保持既有 Transform、scale、visibility、material 与 `TranslucencySortPriority`。
-- [ ] SC01、Level00、Catalog、C++ 与数据文件无新增变化；Plan134 的四场 `GameplayPlaneWorldZ=0`、地图/MapRoot/视觉参数和切换契约保持。
+- [x] SC02、SC03、SC04 的全部插片作为对应 BP 内直接可编辑组件存在，并按 SC01 的层级与方向语义形成可用初始布局。
+- [x] 重跑作者ing工具只补缺失组件，保持既有 Transform、scale、visibility、material 与 `TranslucencySortPriority`。
+- [x] SC01、Level00、Catalog、C++ 与数据文件无新增变化；Plan134 的四场 `GameplayPlaneWorldZ=0`、地图/MapRoot/视觉参数和切换契约保持。
 - [x] Editor 资产校验、`python scripts/validate_project.py`、`git diff --check` 和最终 FullRebuild 通过。
 - [ ] 用户在 Content Browser/Blueprint Editor 确认资产命名、透明显示与手工选用符合预期后，人工验收才可设为 `Passed`。
 - [ ] 未提交精选预构建允许列表之外的 UE 生成物或机器本地路径。
@@ -104,6 +104,8 @@
 - 新增 `import_scene_edge_assets.py`：使用 UE Editor API 创建 24 个 Texture2D、3 个场景独立透明 Unlit 双面母材质和 24 个 Material Instance；已存在资产只读取，不覆盖设置。
 - 新增 `validate_scene_edge_assets.py`：只读验证纹理尺寸、母材质属性、材质父子关系和 `InsertTexture` 引用。
 - 材质目录采用实际 SC01 结构 `EdgeInserts/Materials`；该路径包含于锁定 Writes 的 `EdgeInserts/**`，未修改任何 Blueprint。
+- 按用户后续授权扩大范围：在 SC02/SC03/SC04 分别新增 4/8/12 个 `StaticMeshComponent`，挂接于 `MidDecoration` 或 `Foreground`，使用对应材质实例并保持 BP 内直接可编辑。
+- 初始布局沿用 SC01 的 Plane 朝向、按源图宽高换算缩放、上/下/左/右边缘位置和透明排序分层；脚本只创建缺失组件，已有同名组件不写任何属性。
 
 ### 证据
 
@@ -116,6 +118,12 @@
 - 用户明确授权 Plan135 在未发布到 `origin/main` 的情况下仅本地实现和验证；当前候选不声称正式发布或关闭。
 - 最终构建：`scripts\\ue\\Build-Editor.cmd -Configuration Development -FullRebuild` 成功，95/95 actions；`prebuilt_editor.py check` 通过（7 modules，BuildId `55116800`，source `c75ec9c0bd8b`）。
 - 最终静态：FullRebuild 后 `python scripts/validate_project.py` 与 `git diff --check` 再次通过。
+- Blueprint 作者ing：UE 日志确认创建 24 个缺失直接组件，并对 SC02-SC04 三个 BP 完成内容校验。
+- BP 只读验证：24/24 组件的父层、Plane、对应 MI、NoCollision、无阴影、初始 Transform/缩放及透明排序通过。
+- 重跑保护：再次运行作者ing后，51 个美术资源 `.uasset` 与 3 个 Arena BP 共 54 个文件 SHA-256 全部不变。
+- Plan134 回归：四场 `GameplayPlaneWorldZ=0.000`；Catalog、地图材质、视觉根与玩法边界只读审计通过。
+- 聚焦自动化：`ReEcho.Presentation.ArenaScene.Contract` 1/1、`ReEcho.StageTransition` 3/3 通过。
+- 扩围后最终构建：FullRebuild 95/95；预构建检查 7 modules、BuildId `55116800`、source `ec777c5d939d`；项目、XLSX/CSV、LFS 与 `git diff --check` 通过。
 
 ### 剩余风险
 

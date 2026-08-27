@@ -1,4 +1,4 @@
-"""Import Plan135 SC02-SC04 edge art without authoring Blueprint components."""
+"""Import Plan135 edge art and create only missing editable scene components."""
 
 from pathlib import Path
 
@@ -35,6 +35,45 @@ SCENES = {
         ("左边人树-1.png", "LeftFigureTreeDetail"),
         ("左边花.png", "LeftFlowers"),
         ("左边蘑菇.png", "LeftMushrooms"),
+    ),
+}
+
+PREFAB_ROOT = "/Game/ReEcho/Scene/Prefabs"
+PLANE_PATH = "/Engine/BasicShapes/Plane.Plane"
+
+# Component name, semantic material, parent layer, location, sort priority.
+# The plane scale is derived from the source image size, matching SC01's
+# height/100 by width/100 convention. Existing components are never mutated.
+PLACEMENTS = {
+    "SC02": (
+        ("Edge_Top_Mid", "Top", "MidDecoration", (2380.0, 0.0, 35.0), 55),
+        ("Edge_Bottom_Foreground", "Bottom", "Foreground", (-2450.0, 0.0, 75.0), 90),
+        ("Edge_Left_Mid", "Left", "MidDecoration", (0.0, -4100.0, 45.0), 57),
+        ("Edge_Right_Mid", "Right", "MidDecoration", (0.0, 4100.0, 45.0), 58),
+    ),
+    "SC03": (
+        ("Edge_Top_Mid", "Top", "MidDecoration", (2380.0, 0.0, 35.0), 55),
+        ("Edge_Bottom_Foreground", "Bottom", "Foreground", (-2450.0, 0.0, 75.0), 90),
+        ("Edge_Right01_Mid", "Right01", "MidDecoration", (1050.0, 4100.0, 45.0), 58),
+        ("Edge_Right02_Mid", "Right02", "MidDecoration", (100.0, 4100.0, 47.0), 59),
+        ("Edge_Right03_Mid", "Right03", "MidDecoration", (-850.0, 4100.0, 49.0), 60),
+        ("Edge_Left01_Mid", "Left01", "MidDecoration", (1050.0, -4100.0, 45.0), 57),
+        ("Edge_Left02_Mid", "Left02", "MidDecoration", (100.0, -4100.0, 47.0), 58),
+        ("Edge_Left03_Mid", "Left03", "MidDecoration", (-850.0, -4100.0, 49.0), 59),
+    ),
+    "SC04": (
+        ("Edge_Top_Mid", "Top", "MidDecoration", (2380.0, 0.0, 35.0), 55),
+        ("Edge_Bottom_Foreground", "Bottom", "Foreground", (-2450.0, 0.0, 75.0), 90),
+        ("Edge_Clock_Mid", "Clock", "MidDecoration", (1550.0, -3350.0, 48.0), 58),
+        ("Edge_Moon_Mid", "Moon", "MidDecoration", (1550.0, 3350.0, 48.0), 58),
+        ("Edge_RightGrass01_Foreground", "RightGrass01", "Foreground", (-1750.0, 3650.0, 82.0), 92),
+        ("Edge_RightGrass02_Foreground", "RightGrass02", "Foreground", (-1100.0, 4100.0, 84.0), 93),
+        ("Edge_LeftGrass_Foreground", "LeftGrass", "Foreground", (-1750.0, -3650.0, 82.0), 92),
+        ("Edge_RightFigureTree_Mid", "RightFigureTree", "MidDecoration", (150.0, 4000.0, 50.0), 60),
+        ("Edge_LeftFigureTree_Mid", "LeftFigureTree", "MidDecoration", (100.0, -4000.0, 50.0), 60),
+        ("Edge_LeftFigureTreeDetail_Mid", "LeftFigureTreeDetail", "MidDecoration", (850.0, -4100.0, 52.0), 61),
+        ("Edge_LeftFlowers_Foreground", "LeftFlowers", "Foreground", (-1450.0, -3200.0, 86.0), 94),
+        ("Edge_LeftMushrooms_Foreground", "LeftMushrooms", "Foreground", (-2050.0, -2850.0, 88.0), 95),
     ),
 }
 
@@ -129,18 +168,89 @@ def ensure_material_instance(scene_id, semantic_name, parent, texture):
     return load_typed(instance_path, unreal.MaterialInstanceConstant)
 
 
+def component_entries(blueprint):
+    subsystem = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+    result = {}
+    for handle in subsystem.k2_gather_subobject_data_for_blueprint(blueprint):
+        data = unreal.SubobjectDataBlueprintFunctionLibrary.get_data(handle)
+        obj = unreal.SubobjectDataBlueprintFunctionLibrary.get_object(data)
+        if obj is not None:
+            result[str(obj.get_name()).removesuffix("_GEN_VARIABLE")] = (handle, obj)
+    return subsystem, result
+
+
+def ensure_direct_component(blueprint, name, parent_name, material, location, scale, sort_priority):
+    subsystem, current = component_entries(blueprint)
+    if name in current:
+        if not isinstance(current[name][1], unreal.StaticMeshComponent):
+            fail(f"{blueprint.get_name()}.{name} has unexpected type")
+        return False
+    if parent_name not in current:
+        fail(f"{blueprint.get_name()} missing parent layer {parent_name}")
+    params = unreal.AddNewSubobjectParams(
+        parent_handle=current[parent_name][0],
+        new_class=unreal.StaticMeshComponent,
+        blueprint_context=blueprint,
+    )
+    handle, reason = subsystem.add_new_subobject(params)
+    if not subsystem.rename_subobject(handle, unreal.Text(name)):
+        fail(f"Could not add {blueprint.get_name()}.{name}: {reason}")
+    data = unreal.SubobjectDataBlueprintFunctionLibrary.get_data(handle)
+    component = unreal.SubobjectDataBlueprintFunctionLibrary.get_object(data)
+    if component is None:
+        fail(f"Could not resolve {blueprint.get_name()}.{name}")
+    component.set_static_mesh(load_typed(PLANE_PATH, unreal.StaticMesh))
+    component.set_material(0, material)
+    component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    component.set_cast_shadow(False)
+    component.set_translucent_sort_priority(sort_priority)
+    component.set_editor_property("relative_location", unreal.Vector(*location))
+    component.set_editor_property("relative_rotation", unreal.Rotator(0.0, 90.0, 0.0))
+    component.set_editor_property("relative_scale3d", unreal.Vector(*scale))
+    return True
+
+
+def author_scene_components(scene_id, materials):
+    blueprint = load_typed(f"{PREFAB_ROOT}/BP_ArenaScene_{scene_id}", unreal.Blueprint)
+    sizes = {
+        semantic_name: (
+            load_typed(f"/Game/ReEcho/Art/Scene/{scene_id}/EdgeInserts/T_{scene_id}Edge_{semantic_name}", unreal.Texture2D).blueprint_get_size_x(),
+            load_typed(f"/Game/ReEcho/Art/Scene/{scene_id}/EdgeInserts/T_{scene_id}Edge_{semantic_name}", unreal.Texture2D).blueprint_get_size_y(),
+        )
+        for _, semantic_name in SCENES[scene_id]
+    }
+    created = 0
+    for name, semantic_name, parent_name, location, sort_priority in PLACEMENTS[scene_id]:
+        width, height = sizes[semantic_name]
+        scale = (height / 100.0, width / 100.0, 1.0)
+        if ensure_direct_component(
+            blueprint, name, parent_name, materials[semantic_name], location, scale, sort_priority
+        ):
+            created += 1
+    if created:
+        unreal.BlueprintEditorLibrary.compile_blueprint(blueprint)
+        unreal.EditorAssetLibrary.save_loaded_asset(blueprint, only_if_is_dirty=False)
+    return created
+
+
 def main():
     created_or_verified = 0
+    components_created = 0
     for scene_id, entries in SCENES.items():
         art_root = f"/Game/ReEcho/Art/Scene/{scene_id}/EdgeInserts"
         unreal.EditorAssetLibrary.make_directory(art_root)
         unreal.EditorAssetLibrary.make_directory(f"{art_root}/Materials")
         parent = ensure_master_material(scene_id)
+        materials = {}
         for source_name, semantic_name in entries:
             texture = import_new_texture(scene_id, source_name, semantic_name)
-            ensure_material_instance(scene_id, semantic_name, parent, texture)
+            materials[semantic_name] = ensure_material_instance(scene_id, semantic_name, parent, texture)
             created_or_verified += 1
-    unreal.log(f"[Plan135] Imported or verified {created_or_verified} edge art entries; no Blueprint assets touched")
+        components_created += author_scene_components(scene_id, materials)
+    unreal.log(
+        f"[Plan135] Imported or verified {created_or_verified} edge art entries; "
+        f"created {components_created} missing editable Blueprint components"
+    )
 
 
 if __name__ == "__main__":
