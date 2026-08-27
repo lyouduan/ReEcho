@@ -75,6 +75,7 @@ public:
 	static FVector
 	ResolveFacingHeldOffsetForTests(const FVector& HeldOffset, float FacingSign, const FVector& CameraRight);
 	static float ResolveTripleSwingAngleForTests(float Progress, float DirectionSign);
+	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
 
 	float GetStepLockRemaining() const
 	{

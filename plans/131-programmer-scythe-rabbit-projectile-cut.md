@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Closed`。
 - 人工验收：`NotRequired`。
 - 本地规划 / 实现基线：`origin/main@1812dfb1d2f73ec9cb38137812196e7754e3bf53`。
 - 本地实现方式（可选，仅作交接说明）：`C:\tmp\ReEcho-plan131-scythe-projectile-cut`，分支 `codex/plan131-scythe-projectile-cut`。
@@ -33,11 +33,11 @@
 
 ## 锁定验收
 
-- [ ] 资格测试证明长剑与镰刀可斩兔子子弹，弓枪及未知 Pattern 不可。
-- [ ] 镰刀调用现有 `DestroyRabbitProjectilesInMeleeArc`，参数来自本次 Commit 的相同 Origin、AimDirection、RangeCm、ArcDegrees。
-- [ ] 现有 EnemyHost 自动化继续证明弧内逻辑球发布 `Ended`、移除视觉代理且不能造成后续伤害。
-- [ ] FullRebuild、聚焦自动化、项目校验、预构建检查和 `git diff --check` 通过。
-- [ ] 未提交精选 `GIT_RULES.md` 允许列表之外的生成物。
+- [x] 资格测试证明长剑与镰刀可斩兔子子弹，弓枪及未知 Pattern 不可。
+- [x] 镰刀调用现有 `DestroyRabbitProjectilesInMeleeArc`，参数来自本次 Commit 的相同 Origin、AimDirection、RangeCm、ArcDegrees。
+- [x] 现有 EnemyHost 自动化继续证明弧内逻辑球发布 `Ended`、移除视觉代理且不能造成后续伤害。
+- [x] FullRebuild、聚焦自动化、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 未提交精选 `GIT_RULES.md` 允许列表之外的生成物。
 
 ## Step 0 门禁
 
@@ -67,15 +67,20 @@
 
 ### 变化
 
-待实现。
+- `AReEchoWeaponActor` 集中判断可斩兔子子弹的近战 Pattern，保留 `Pattern.LongSwordCombo` 并加入 `Pattern.ScytheSweep`。
+- `SwingMelee` 对两种 Pattern 复用同一 OwnerLocation、AimDirection、Commit RangeCm/ArcDegrees 和 EnemyHost `DestroyRabbitProjectilesInMeleeArc` 路径。
+- 新增资格自动化，覆盖长剑、镰刀、弓、枪与未知 Pattern；模块文档同步镰刀 360°斩弹语义。
 
 ### 证据
 
-待实现。
+- `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：97/97，成功；预构建源码指纹 `394294338bdb`。
+- `ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility`：发现 1 项，`Result={Success}`。
+- `ReEcho.Enemies.Host.RabbitProjectilePipeline`：发现 1 项，`Result={Success}`，覆盖逻辑球 `Ended`、视觉代理清理及后续无伤害。
+- `python scripts\validate_project.py`、`python scripts\ue\prebuilt_editor.py check`、`git diff --check`：通过；预构建 7 模块、Build ID `55116800`。
 
 ### 剩余风险
 
-Plan126 的本地 WeaponActor 表现候选尚未发布；后续同时发布时需以最新 main 组合两个提交并重跑最终门禁。
+- Plan126 的本地 WeaponActor 表现候选尚未发布；后续发布时必须从包含本 Plan 的最新 main 组合函数级差异并重跑最终门禁，不能整文件覆盖。
 
 ### 人工验收结果/请求
 
@@ -83,4 +88,8 @@ Plan126 的本地 WeaponActor 表现候选尚未发布；后续同时发布时�
 
 ### 架构文档审阅结果
 
-待实现。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录长剑 180°与镰刀 360°复用权威逻辑球结束路径。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md` 已更新：记录两种 Pattern 的资格、Commit 参数来源和排除项。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoEnemies.md` 已审阅、无需修改：EnemyHost 的逻辑球移除、`Ended` 与视觉消费契约未变化。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑和依赖方向未变化。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：稳定模块与 AREA 路由未变化。

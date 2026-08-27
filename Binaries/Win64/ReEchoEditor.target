@@ -2,19 +2,19 @@
   "AdditionalProperties": [
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaDetours.dll"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaDetours.dll"
     },
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.exe"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.exe"
     },
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaHost.toml"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaHost.toml"
     },
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.toml"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.toml"
     },
     {
       "Name": "SDK",
@@ -303,6 +303,66 @@
     "XInputDevice"
   ],
   "BuildProducts": [
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
     {
       "Path": "$(EngineDir)/Binaries/Win64/AgentInterface.dll",
       "Type": "DynamicLibrary"
@@ -5438,66 +5498,6 @@
     {
       "Path": "$(EngineDir)/Plugins/XGEController/Binaries/Win64/UnrealEditor.modules",
       "Type": "RequiredResource"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor.modules",
-      "Type": "RequiredResource"
     }
   ],
   "BuildSettingsVersion": "V7",
@@ -5508,6 +5508,102 @@
   "Platform": "Win64",
   "Project": "../../ReEcho.uproject",
   "RuntimeDependencies": [
+    {
+      "Path": "$(ProjectDir)/Content/Data/attack_steps.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/audio_events.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/boss_phases.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/cards.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/character_aliases.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/characters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/csv_schema.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/elements.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemies.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/part_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/parts.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/reecho_data_manifest.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/runtime_smoke_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/slot_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/slot_types.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/statuses.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/weapon_types.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/weapons.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/ReEcho.uproject",
+      "Type": "UFS"
+    },
     {
       "Path": "$(EngineDir)/Binaries/DotNET/OidcToken/win-x64/OidcToken.exe",
       "Type": "NonUFS"
@@ -30499,102 +30595,6 @@
     {
       "Path": "$(EngineDir)/Plugins/XGEController/XGEController.uplugin",
       "Type": "UFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/attack_steps.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/audio_events.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/boss_phases.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/card_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/cards.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/character_aliases.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/characters.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/csv_schema.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/elements.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/enemies.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/enemy_abilities.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/part_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/parts.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/reactions.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/reecho_data_manifest.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/runtime_smoke_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/slot_profiles.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/slot_types.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/statuses.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/weapon_types.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/weapons.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/ReEcho.uproject",
-      "Type": "UFS"
     }
   ],
   "TargetBuildEnvironment": "Shared",
@@ -30603,12 +30603,12 @@
   "Version": {
     "BranchName": "++UE5+Release-5.8",
     "BuildId": "55116800",
-    "Changelist": 55116800,
-    "CompatibleChangelist": 0,
+    "Changelist": 56057345,
+    "CompatibleChangelist": 55116800,
     "IsLicenseeVersion": 0,
     "IsPromotedBuild": 0,
     "MajorVersion": 5,
     "MinorVersion": 8,
-    "PatchVersion": 0
+    "PatchVersion": 1
   }
 }

@@ -1486,4 +1486,23 @@ bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Paramete
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoMeleeProjectileCutEligibilityTest,
+	                             "ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoMeleeProjectileCutEligibilityTest::RunTest(const FString& Parameters)
+{
+	TestTrue(TEXT("Longsword retains rabbit projectile cutting"),
+	         AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.LongSwordCombo")));
+	TestTrue(TEXT("Scythe gains rabbit projectile cutting"),
+	         AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.ScytheSweep")));
+	TestFalse(TEXT("Bow cannot cut rabbit projectiles"),
+	          AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.BowShot")));
+	TestFalse(TEXT("Gun cannot cut rabbit projectiles"),
+	          AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.GunShot")));
+	TestFalse(TEXT("Unknown patterns cannot cut rabbit projectiles"),
+	          AReEchoWeaponActor::CanCutRabbitProjectilesForTests(NAME_None));
+	return true;
+}
+
 #endif

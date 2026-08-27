@@ -93,6 +93,11 @@ float ResolveTripleSwingAngle(const float Progress, const float DirectionSign)
 	return TripleSwingAmplitudeRadians * FMath::Cos(NormalizedProgress * TripleSwingHalfCycles * PI) * Direction;
 }
 
+bool CanCutRabbitProjectiles(const FName AttackPatternId)
+{
+	return AttackPatternId == TEXT("Pattern.LongSwordCombo") || AttackPatternId == TEXT("Pattern.ScytheSweep");
+}
+
 int32 ResolveConfiguredMaxStacks(const float ConfiguredMaxStacks)
 {
 	const int32 RoundedMaxStacks = FMath::RoundToInt(ConfiguredMaxStacks);
@@ -1710,6 +1715,11 @@ float AReEchoWeaponActor::ResolveTripleSwingAngleForTests(const float Progress, 
 	return ReEchoWeaponVisual::ResolveTripleSwingAngle(Progress, DirectionSign);
 }
 
+bool AReEchoWeaponActor::CanCutRabbitProjectilesForTests(const FName AttackPatternId)
+{
+	return ReEchoWeaponVisual::CanCutRabbitProjectiles(AttackPatternId);
+}
+
 #endif
 
 bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
@@ -1730,7 +1740,7 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	{
 		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant, Context);
 	}
-	if (Commit.AttackPatternId == TEXT("Pattern.LongSwordCombo"))
+	if (ReEchoWeaponVisual::CanCutRabbitProjectiles(Commit.AttackPatternId))
 	{
 		for (TActorIterator<AReEchoEnemyActor> EnemyIt(GetWorld()); EnemyIt; ++EnemyIt)
 		{
