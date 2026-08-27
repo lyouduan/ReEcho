@@ -6,15 +6,16 @@
 - Executor 负责人：当前程序用户授权的 Executor（Codex，同一任务分阶段执行）。
 - Plan 编写方（AI 侧）：Gavyn-side AI（Codex）。
 - 实现编写方（AI 侧）：Gavyn-side AI（Codex）。
-- 任务状态：`Review`。
-- 人工验收：`Passed`。
+- 任务状态：`Review`（CG 前后镜头编排技术候选完成，等待 PIE 验收）。
+- 人工验收：`PendingBeforeClose`（上一版 CG 播放、声音与冻结行为已通过；新增镜头流程需重新 PIE 验收）。
 - 本地规划 / 实现基线：`origin/main@89ac0166ff3bd60588d92fa1f696eacb75249457`；实现将组合用户尚待验收的 Plan130 本地候选，组合前必须审计同文件变化。
 - 本地实现方式（可选，仅作交接说明）：规划 worktree `C:\tmp\ReEcho-plan133-stage1-to2-cg-plan`；执行使用独立 Plan133 worktree，不与 Plan130 worktree 共用目录。
 - 依赖 / 阻塞：复用 Plan124/Plan130 的最上层媒体宿主和完成门，但第一关不进入其普通关末透明媒体/CardChoice链；源视频 `F:\MiniGame\过渡cg\video(66).mp4` 存在，约 15 秒、15,723,153 bytes，原文件只读保留。Plan130 人工验收结论仍独立存在，不由本 Plan 代替。
-- Writes: 本 Plan；`Source/ReEcho/{Public,Private}/ReEchoGameMode.*`；`Source/ReEcho/{Public,Private}/Run/ReEchoRunSubsystem.*` 的第一关奖励跳过窄命令；`Source/ReEcho/{Public,Private}/UI/ReEchoEncounterTransitionWidget.*`；`Source/ReEcho/Private/Tests/ReEchoEncounterTransitionTests.cpp`、必要 Run/Stage 测试；`Content/Movies/EncounterTransition/Stage01To02.*`；对应 `Content/ReEcho/UI/EncounterTransition/**` MediaSource资产；必要 Unreal 作者ing/审计脚本；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoUI.md`；精选 Editor 预构建包。
+- Writes: 本 Plan；`Source/ReEcho/{Public,Private}/ReEchoGameMode.*`；`Source/ReEcho/{Public,Private}/Presentation/Scene/ReEchoArenaCameraActor.*`；`Source/ReEcho/{Public,Private}/Run/ReEchoRunSubsystem.*` 的第一关奖励跳过窄命令；`Source/ReEcho/{Public,Private}/UI/ReEchoEncounterTransitionWidget.*`；`Source/ReEcho/Private/Tests/ReEchoEncounterTransitionTests.cpp`、必要 Camera/Run/Stage 测试；`Content/Movies/EncounterTransition/Stage01To02.*`；对应 `Content/ReEcho/UI/EncounterTransition/**` MediaSource资产；必要 Unreal 作者ing/审计脚本；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoUI.md`；精选 Editor 预构建包。
 - Stable Reads: `plans/124-encounter-card-transition.md`、`plans/130-countdown-ghost-postprocess.md`；`ReEchoRunSubsystem.*`、`ReEchoStageTransition.*`、`ReEchoUIFlowCoordinatorSubsystem.*`；现有 `EncounterTransitionAlpha.mov` 和 Transition Screen 生命周期。
 - 影响模式：`SharedContract`，因为 Encounter 1 结算后需要显式跳过其 CardChoice Phase、原透明媒体和一次 Shop，并增加媒体完成门；不改变其他 Encounter 的通用 Phase/交易/存档结构。
 - 兼容承诺 / 下游操作：仅当前完成关次 `EncounterIndex==1` 时跳过原权威00媒体、免费 CardChoice 和战后商店。顺序锁定为“Encounter 1结算 → Stage01To02 CG → BeginEncounter 2”。CG 必须从0播放到末帧；打开或播放失败 fail-open 进入第2关。Encounter 2及以后保持原透明转场、CardChoice/Shop 流程。
+- 镜头扩展承诺：第一关结算后先保持局间冻结，由 Arena Camera 锁定玩家并推进；推进完成后才开始 CG。CG 完成后先静默准备 Encounter 2 的场景、玩家与 Echo，但不启动 Director、敌人模拟、玩家输入或关卡音乐；镜头锁定 Echo 定格后，在同一段插值中一边移动回玩家、一边恢复标准场景范围，全部完成后才正式激活 Encounter 2。缺少 Camera/Player/Echo 时按阶段跳过表现并 fail-open，不得卡死关卡推进。
 - 明确排除：不删除通用抽卡/商店系统、卡牌/商店数据或其他关次奖励；不改战斗计时、敌人、Stage连续性、存档Schema、Plan130后处理参数或第二关及以后透明关末动画；不覆盖源视频；不在用户PIE验收前发布实现。
 
 ## 锁定目标
@@ -72,6 +73,16 @@
 6. 更新模块文档与Plan执行记录；格式化并执行增量构建、聚焦自动化、媒体资产审计、项目校验和diff检查。
 7. 用户PIE验收后才关闭；随后在最新main组合上执行FullRebuild、预构建检查、必要Shipping Cook/烟测和发布锁流程。
 
+### CG 前后镜头编排扩展（2026-08-27）
+
+1. `AReEchoArenaCameraActor` 新增正交镜头演出状态：保存普通跟随焦点与 `OrthoWidth`，按可配置缓动在目标 Actor、焦点和缩放之间插值；演出期间禁止普通 `UpdateFollow()` 抢写镜头，结束后恢复原跟随配置。
+2. GameMode 将 Stage01To02 路径扩展为 `PreCgFocusPlayer -> PlayingStage01To02Cg -> PreparingEncounter2 -> PostCgFocusEcho -> PostCgRestoreWide -> PostCgMoveToPlayer -> ActivateEncounter2`。每一阶段只由完成状态推进，不用固定 Timer 猜测镜头或媒体完成。
+3. `BeginNextEncounter()` 拆出“准备”和“激活”边界：准备阶段应用场景、配置玩家并生成 Echo，但保持局间冻结；激活阶段才启动 Director、敌人模拟、输入、录制与关卡音乐。普通关卡和失败降级仍走一次性正式激活入口。
+4. 默认调参位于 `Arena Camera|Encounter Transition|Stage01To02`：玩家推进时长/缩放、CG 后 Echo 特写、同步恢复标准宽度并移动回玩家的时长，以及可选 `UCurveFloat`；默认使用 SmoothStep，不修改 Level/Blueprint 二进制资产。
+5. 本扩展经当前程序用户确认，可在独立 worktree 本地更新 Plan 后实施，人工 PIE 验收前暂不发布 Plan 或实现；远端发布仍需二次确认。
+6. CG 到达完成事件后，在全屏媒体层仍覆盖视口时先静默准备 Encounter 2，并把后台相机瞬时定位到 Echo 特写；完成定位后才关闭媒体层。玩家首先看到稳定的 Echo 构图，随后在同一段镜头中移动回玩家并恢复标准场景范围，不展示从旧玩家位置寻找 Echo 的过程。
+7. 最终节奏锁定：Encounter 1结束后立即全局暂停，玩家、怪物均停止；镜头用1秒推进玩家至标准正交宽度的 `0.325`，再保持玩家近景0.5秒。随后解除全局暂停播放CG以保持媒体时钟。CG完成后按同一 `0.325` 比例在媒体层背后定位Echo，再全局暂停，使玩家、怪物与Echo均停止；关闭CG后用1秒保持焦点锁定Echo并把正交宽度拉回正常场景大小，再用独立1秒保持正常宽度并缓慢平移到玩家，最后解除全局暂停并正式激活Encounter 2。GameMode和ArenaCamera的Tick允许在暂停状态下推进该镜头状态机。
+
 ## 验证矩阵
 
 | 层级 | 命令/检查 | 预期证据 |
@@ -90,6 +101,15 @@
 
 ### 变化
 
+- 2026-08-27 镜头扩展：`AReEchoArenaCameraActor` 新增 Stage01To02 专属正交镜头序列，演出期间独占焦点与 `OrthoWidth`，按相机 Details 中的时长、缩放比例和可选 Curve 完成玩家推进、Echo 聚焦，以及同步恢复标准场景范围并移动回玩家；目标焦点仍经过 Arena Clamp，结束/取消后恢复普通玩家跟随。
+- `BeginNextEncounter()` 已拆为 `PrepareNextEncounter()` 与 `ActivatePreparedEncounter()`：准备阶段可以应用 Encounter 2 场景、配置玩家并生成位于录制 0 秒位置的 Echo，但不启动 Recorder、Director、敌人模拟、输入或关卡音乐；全部镜头完成后由幂等激活门统一启动。普通关卡仍由原入口连续调用准备和激活，不改变既有行为。
+- Stage01To02 路径现在固定为“局间冻结 → 玩家推进 → CG完整播放 → 静默准备 Encounter 2 → Echo特写 → 同时拉远并移动回玩家 → 正式激活”。Camera/Player/Echo 或媒体失败时只跳过对应表现阶段并 fail-open，不修改媒体、Run Schema、关卡资产或其他 Encounter 流程。
+- 根据人工反馈，CG完成回调现在先在媒体层背后生成并定位 Echo/相机，再关闭全屏CG；关闭后首个可见游戏帧已经是稳定Echo特写，定格结束后同时拉远并切回玩家。
+- 根据最终节奏要求，CG前使用真实全局暂停完成“玩家推进1秒 → 玩家近景保持0.5秒”，默认特写距离比最初候选近一倍；CG后使用两个独立阶段：“锁定Echo并用1秒拉回标准视角 → 保持标准视角并用1秒平移到玩家”，最后一步完成才解除暂停并激活Encounter 2。CG播放本身始终在非全局暂停状态，避免媒体时钟冻结。
+- 暂停镜头返修：除构造默认值外，Arena Camera 在每次 `Configure()` 和 Stage01To02 序列开始时运行时强制 `SetTickableWhenPaused(true)` / 启用 Actor Tick，GameMode开始序列时也重新落实同一契约，避免关卡中旧的已序列化Actor实例覆盖原生默认值。序列起始日志输出实际Tick启用和暂停Tick状态。
+- 暂停视图缓存返修：运行日志证明 Arena Camera 的焦点和 `OrthoWidth` 已在暂停帧完成插值，但 `APlayerController` 默认仅执行最小暂停 Tick，提前返回而不调用 `PlayerCameraManager->UpdateCamera()`，导致视口保持暂停前缓存。统一暂停边界现临时启用 `bShouldPerformFullTickWhenPaused`，解除暂停、失败或重置时恢复原值，使 CameraManager 在全局冻结期间持续消费 Arena Camera 的实时 POV。
+- 运行时接线返修：PIE日志没有出现暂停相机刷新启用/恢复记录，进一步确认 `AReEchoPlayerController` 虽已定义但从未设置为 GameMode 的 `PlayerControllerClass`，运行时 Cast 因实际控制器仍是引擎基类而安全跳过。GameMode 构造函数现显式接入项目控制器，使暂停 CameraManager 刷新契约真正进入活跃运行路径。
+
 - 用户确认CG内容已正常播放后，第一关CG沿用局间门停止玩家、Echo、敌人模拟与关卡推进，并显式停止当前Music State；不暂停World媒体时钟。独立CG SoundWave从首个有效视频帧开始播放，只有CG完整结束或明确失败才进入第二关，新关卡重新建立玩法和关卡音乐。
 
 - 模块级复审确认旧实现把 `Play()`/`IsPlaying()`误当作可见视频证据，并把不透明CG的HAP视频与PCM音轨交给同一WmfMedia时钟；现将 `Stage01To02.mov` 无损拆为454帧Hap1纯视频和独立 `S_Stage01To02` SoundWave。Widget明确区分 Opening、首帧等待、Playing、Completed、Failed，只有MediaTexture出现有效表面后才启动独立音频，并监测实际媒体时间推进。
@@ -101,6 +121,10 @@
 - CG 播放期间不使用全局 World Pause：Gameplay 由既有局间悬停和菜单能力阻挡冻结。普通 MP4 显式使用 ElectraPlayer；MediaTexture 尺寸只保留诊断，不再作为首帧或失败依据。完成以 OnEndReached 为主、媒体末尾容差为兜底，播放时间连续5秒不推进才明确失败并fail-open。
 
 ### 证据
+
+- 2026-08-27 镜头扩展、暂停 CameraManager 刷新、项目 PlayerController 接线及 CG 后两段式镜头节奏完成 `.clang-format`；Editor Development 增量构建成功，最终精选预构建包 `source=17426cef9470`。
+- 聚焦自动化 `ReEcho.UI.EncounterTransition.Policy` 1项成功，覆盖 Stage01To02 默认 SmoothStep 缓动边界、玩家推进1秒/保持0.5秒、玩家/Echo一致的`0.325`近景比例，以及锁定Echo拉远1秒、标准宽度平移回主角1秒的分段契约；`ReEcho.Presentation.ArenaScene.Contract` 1项成功，确认正交 footprint 与 Arena Clamp 基线未回归。
+- `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`git diff --check` 均通过。上述为客观技术证据；玩家/Echo构图、缩放节奏、CG衔接和第二关启动时机仍须用户 PIE 验收。
 
 - World Pause与独立UI音频候选完成clang-format并通过Editor Development构建，精选预构建包已刷新；“游戏内容/游戏音乐暂停、CG音乐播放、末帧前不进入第二关”仍由用户PIE验收。
 
@@ -131,10 +155,14 @@
 
 ### 人工验收结果/请求
 
-- `Passed`：用户确认CG画面与对应音乐正常，CG期间局间玩法和游戏音乐停止，CG完整结束后才进入第二关；并已二次确认发布。
+- 上一版 `Passed`：用户确认CG画面与对应音乐正常，CG期间局间玩法和游戏音乐停止，CG完整结束后才进入第二关；并已二次确认发布。
+- 镜头扩展 `PendingBeforeClose`：请在 PIE 验收玩家推进、CG完整播放、Echo特写、同步恢复标准场景范围并移动回玩家，以及最后一步完成前第二关计时/输入/敌人均不启动。
+- 最新反馈待验：CG完成时媒体层消失后的首个游戏画面应已定位到 Echo，不应看见相机从旧玩家位置移动寻找 Echo；定格后焦点与正交宽度必须在同一段插值中同时到达玩家/正常视角。
+- 节奏待验：CG前全局暂停期间玩家推进1秒、近景保持0.5秒；CG后全局暂停期间先锁定Echo并拉远1秒，再保持正常场景大小平移到玩家1秒。暂停阶段玩家、怪物和现有Echo不得移动，最终镜头完成后一次性解除。
 
 ### 架构文档审阅结果
 
 - `MOD-ReEcho.md`：已记录第一关结算后的直接CG门及奖励页面跳过。
-- `MOD-ReEchoUI.md`：已记录不透明 MediaTexture、MediaSound、Fill、层级和完成/失败生命周期。
+- `MOD-ReEcho.md`：镜头扩展已补充静默准备/正式激活边界和 Stage01To02 相机序列契约。
+- `MOD-ReEchoUI.md`：已审阅；Widget 的 MediaTexture、MediaSound、Fill、层级和完成/失败生命周期未变化，无需修改。
 - `ARCHITECTURE.md` / `README.md`：已审阅；没有新增 Runtime Module、AREA 或稳定索引，均无需修改。

@@ -246,14 +246,21 @@ private:
 		CountdownPostProcess,
 		PlayingSequence,
 		FadingToCardChoice,
+		Stage01To02FocusPlayer,
+		Stage01To02HoldPlayer,
 		PlayingStage01To02Cg,
+		Stage01To02FocusEcho,
+		Stage01To02MoveToPlayer,
 		Completed
 	};
 	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
 	    EEncounterTransitionPresentationState::None;
 	float EncounterSequenceElapsedSeconds = 0.0f;
 	bool bEncounterIntermissionPreparedForTransition = false;
+	bool bPreparedEncounterAwaitingActivation = false;
 	bool bEncounterTransitionPausedWorld = false;
+	bool bEncounterTransitionControllerPauseTickOverridden = false;
+	bool bEncounterTransitionPreviousControllerFullTickWhenPaused = false;
 	bool bEncounterClearedByDefeat = false;
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
@@ -280,10 +287,14 @@ private:
 	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
 	bool BeginEncounterEndSequence();
 	void CompleteEncounterEndSequence(bool bFadeToCards);
+	bool BeginStage01To02CameraSequence();
 	bool BeginStage01To02Cg();
 	void CompleteStage01To02Cg(bool bFailed);
+	void BeginStage01To02PostCgCameraSequence();
+	void AdvanceStage01To02CameraSequence();
 	void ResetEncounterTransitionPresentation();
 	void SetEncounterTransitionWorldPaused(bool bPaused);
+	void SetEncounterTransitionCameraRefreshWhilePaused(bool bEnabled);
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
@@ -393,6 +404,8 @@ private:
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
+	bool PrepareNextEncounter(bool bDeferActivation);
+	void ActivatePreparedEncounter();
 	bool InitializeArenaSceneRegistry(FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	void RefreshArenaSceneConsumers();
@@ -445,6 +458,7 @@ private:
 	void ClearTimeShardPickups();
 	static int32 ClearTimeShardPickupsInWorld(UWorld* World);
 	void RefreshFogRevealSources();
+	AReEchoEchoActor* FindStage01To02CameraEcho() const;
 	void PlayEchoCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);

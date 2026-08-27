@@ -35,6 +35,33 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Zero clears before sequence"),
 	          AReEchoArenaCameraActor::CalculateEncounterCountdownPostProcessIntensity(0.0f),
 	          0.0f);
+	TestEqual(TEXT("Stage camera ease clamps before start"),
+	          AReEchoArenaCameraActor::CalculateStage01To02CameraEaseAlpha(-1.0f),
+	          0.0f);
+	TestEqual(TEXT("Stage camera ease is symmetric at midpoint"),
+	          AReEchoArenaCameraActor::CalculateStage01To02CameraEaseAlpha(0.5f),
+	          0.5f);
+	TestEqual(TEXT("Stage camera ease clamps after completion"),
+	          AReEchoArenaCameraActor::CalculateStage01To02CameraEaseAlpha(2.0f),
+	          1.0f);
+	const AReEchoArenaCameraActor* CameraDefaults = GetDefault<AReEchoArenaCameraActor>();
+	TestEqual(TEXT("Pre-CG camera push lasts one second while globally paused"),
+	          CameraDefaults->GetStage01To02PlayerFocusDuration(),
+	          1.0f);
+	TestEqual(
+	    TEXT("Player close-up holds for half a second"), CameraDefaults->GetStage01To02PlayerHoldDuration(), 0.5f);
+	TestEqual(TEXT("Player and Echo use the same doubled close-up ratio"),
+	          CameraDefaults->GetStage01To02PlayerFocusRatio(),
+	          CameraDefaults->GetStage01To02EchoFocusRatio());
+	TestEqual(TEXT("Close-up ratio is twice as near as the previous candidate"),
+	          CameraDefaults->GetStage01To02PlayerFocusRatio(),
+	          0.325f);
+	TestEqual(TEXT("Echo stays locked while zooming out for one second"),
+	          CameraDefaults->GetStage01To02EchoZoomOutDuration(),
+	          1.0f);
+	TestEqual(TEXT("Pan from Echo to player at standard width lasts one second"),
+	          CameraDefaults->GetStage01To02MoveToPlayerDuration(),
+	          1.0f);
 
 	const FVector2D WideFill = UReEchoEncounterTransitionWidget::CalculateFillSize(FVector2D(2560.0f, 1080.0f));
 	TestTrue(TEXT("Ultrawide Fill covers width"), WideFill.X >= 2560.0f);
