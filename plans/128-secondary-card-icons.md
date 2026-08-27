@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`。
+- 人工验收：`Accepted`（用户检查本地实现后明确要求推送并合并远端主分支）。
 - 本地规划 / 实现基线：`origin/main@7b63217ccb32a04f022d2870e65c51e6fb547ea8`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan128-secondary-card-icons`，分支 `plan/128-secondary-card-icons`。
 - 依赖 / 阻塞：依赖 Plan69 的 `T_UI_CardIcon_{CardId}` 路径契约、Plan111 的新增卡牌稳定 ID，以及 `/Game/ReEcho/Textures/UI/Cards` 已纳入 AlwaysCook。执行 UE 导入/验证前需用户保存并关闭 Editor，并遵守同克隆 Unreal 锁。
@@ -62,8 +62,8 @@
 - [x] 64 个运行时 Texture2D 均可由 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{CardId}` 加载，尺寸与各自源图一致。
 - [x] 19 张二级卡更新稿已覆盖，8 张三级卡新增稿已补齐；当前 64 张启用且可投放卡均不再进入 `T_UI_Shop_CardIcon` fallback。
 - [x] 卡牌 CSV、稳定 ID、启用/投放状态、效果、商店/免费三选一与逐槽刷新行为没有变化。
-- [ ] 纹理导入/加载检查、`ReEcho.UI.TraitCard` 回归和项目静态校验已通过；最终 `-FullRebuild` 发布门禁待合并最新主线并获得人工验收后执行。
-- [ ] 用户在三选一界面确认完整交付中的卡牌图标对应正确、清晰度和裁切可接受，重点复核“样样都通”“武器大师”。
+- [x] 纹理导入/加载检查、`ReEcho.UI.TraitCard` 回归、项目静态校验及最终 `-FullRebuild` 发布门禁通过。
+- [x] 用户接受本地完整交付候选并明确授权推送合并远端主分支；此前占位的“样样都通”“武器大师”已有对应独立图标。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -106,7 +106,8 @@
 - 首批二级交付曾通过 `imported=19 active_tier_two_with_icons=32`；收到完整目录后重新以标准 `Import-Csv`/Python CSV 审计，确认当前 Enabled+Offerable 卡牌为 64 张，DisplayName 与完整目录 PNG 达到 `MATCHED=64, MISSING=0`。
 - 完整目录与规范 SourceArt 逐项 SHA-256 比较结果 `SOURCE_BYTE_MATCH=64/64`；相对首批候选为 37 张相同、19 张更新、8 张新增，实际变化的 27 张均为 `512×512`，旧卡的原生 `230/460/920` 等尺寸保持不变。
 - UE 5.8 完整幂等导入成功，日志为 `[Plan128][CardIconImport] imported=64 active_cards_with_icons=64`；脚本逐项验证对象路径、Texture2D 类型和对应源图原生尺寸。随后仅撤销 37 张字节不变输入导致的 UE 重保存噪声，保留 19 张更新和 8 张新增 UAsset。
-- `ReEcho.UI.TraitCard.AuthoredPresentation` 为 `Result={Success}`；`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。最终发布前仍需在准确最终集成候选上执行 `-FullRebuild`。
+- 获得 `main-publish-lock` 后合并 `origin/main@0953d2e21270ab2f06dee6bba8c9a83e581de9d0`，与 Plan127/129 的传入变化无物理冲突；UI 模块说明同时保留商店随机投放与 Plan128 图标契约。
+- 最终组合候选执行 UE 5.8 `Development -FullRebuild` 成功，精选预构建包刷新为 `build_id=55116800 source=08f85377cc7f`；其后 `ReEcho.UI.TraitCard.AuthoredPresentation` 仍为 `Result={Success}`，`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 全部通过。
 
 ### 剩余风险
 
@@ -114,7 +115,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现后请用户在卡牌三选一中检查对应关系和显示效果，重点确认“样样都通”“武器大师”不再显示一级占位符。
+- `Accepted`：用户接受本地候选并明确要求推送、合并远端主分支。
 
 ### 架构文档审阅结果
 

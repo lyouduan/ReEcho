@@ -1,13 +1,13 @@
 {
   "binaries": {
     "ReEchoEditor.target": "434fff29103d2f778e6428a61a10d616279a43747bd8e19bee1c32ed7384c4b4",
-    "UnrealEditor-ReEcho.dll": "514a98833a5ab5557de54bacacc43297e6b539ad353694fe4dcca687cf5411e1",
-    "UnrealEditor-ReEchoAudio.dll": "ca68968dce9aea5abac36800ba57e197e0d404cd01d0daa235d4570b017571c8",
-    "UnrealEditor-ReEchoCards.dll": "60a5b6b399fe857f790c181298be566b226d67e60db57540783e458d5f408312",
-    "UnrealEditor-ReEchoCombat.dll": "c0d1110e111370563a3236730ee8c206b5389195143f1c39f3d0418abe9384f0",
-    "UnrealEditor-ReEchoEnemies.dll": "886707d87ebb70cde165938fb3a3f6618b894a46f36765c4eb8528ffc9b25625",
-    "UnrealEditor-ReEchoPresentation.dll": "2a981f5719784e5bf5eca0d3dd0df899d71f42274c7aeeda6215f030a97b6e31",
-    "UnrealEditor-ReEchoWeapons.dll": "47ed8a0b81b1a2a1b96f1a14ebf81a19ae07b96e9dd10fe225dfc54deb430ec7",
+    "UnrealEditor-ReEcho.dll": "6332787b7de19d28b624872c568d29129a266b381ce9d49b41be7e0a79a15ab1",
+    "UnrealEditor-ReEchoAudio.dll": "17559b44d0c8c4bec4c4bf2345b543c63cf41cb81d7e95ce6bca64de8c4bfd4e",
+    "UnrealEditor-ReEchoCards.dll": "1996ac0e5bc857b598ec547ee258fc4dcd85634adbbdaf27ce0746ec799dad9f",
+    "UnrealEditor-ReEchoCombat.dll": "6eda935fdc61fe02f5dcb9f311ed09d10f7c0de4032aeeef18669cbcf1be613c",
+    "UnrealEditor-ReEchoEnemies.dll": "4eed91c531ccf1f0e04fe31b9003a2c707f44c1c7d8b2599bb26042c7f19b17a",
+    "UnrealEditor-ReEchoPresentation.dll": "d6da26b0ff1da77d4adeff413239083a125f518e025b43dcd85aae34b2766cfa",
+    "UnrealEditor-ReEchoWeapons.dll": "b009f28028167eca7311cd92555c184376223f630e7d740f5043ae3784492400",
     "UnrealEditor.modules": "ba4535bd63b6eba65aec19614a2631d70f0de46fb7ae3b773c24dbce84bc73fb"
   },
   "configuration": "Development",
