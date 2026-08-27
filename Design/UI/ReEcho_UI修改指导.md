@@ -97,11 +97,17 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 
 `WBP_ReEchoTraitCardChoice` 初次打开时仍播放页面指针和全部候选的逐张揭示。免费/付费三选一的单槽刷新成功后，只将被替换槽位的卡牌置为透明并重播它的揭示；其他卡牌和指针不重置。刷新失败不播放揭示。
 
-### 4.3 商店逻辑块的后续 WBP 接口
+### 4.3 正式商店的 WBP 接口
 
-动态商品内容统一位于 `ShopLogicScrollBox > ShopLogicPanel`；WBP 未提供有界宿主时，C++ 将滚动区挂到根 Canvas 的固定视口并显式显示滚动条，战后模式的视口下沿必须停在回响存储托盘上方。区块顺序固定为武器配件、普通商品、规则/刷新、槽位草稿。WBP 可按同名 `BindWidgetOptional` 提供这两个宿主、`RunItemOfferPanel`、`ShopControlPanel`、`WeaponPartOfferPanel`、`WeaponLoadoutPanel`，以及 `ShopRefreshButton`、`ShopRefreshText`、`ShopRuleText`、`WeaponLoadoutText`、`SaveLoadoutButton`。这些控件只负责容器和表现，不得改变购买、刷新、草稿或保存的事件语义。
+Plan110 的正常表现路径位于 `WBP_ReEchoInventoryShopScreen` 的两个根级设计面：`DesignerShopPresentationCanvas` 持有正式商店木框、货币与刷新区、上排 3 个配件报价、下排 3 个卡组报价、中部装配纸张、右侧装配树和保存离店美术；`DesignerLoadoutCanvas` 持有武器面板、时钟命中区、武器点击层、3 个配件槽和 12 个卡牌槽。两者都是 `1920×1080` Canvas，全部主要控件的 Position/Size 由 UMG Designer 决定，运行时刷新不得改写几何。
 
-装配室的位置权威位于 `WBP_ReEchoInventoryShopScreen > Overlay_0 > DesignerLoadoutCanvas`。其中 `DesignerWeaponPanel`、`DesignerShopClock`、`DesignerAttachmentSlot0..2` 和 `DesignerCardSlot0..11` 都是 Canvas 直接子项，可在 Designer 中直接拖动或在 Slot 面板修改 Position X/Y、Size X/Y。配件槽和卡牌槽的 `*Art*` 子控件只负责图片，不应单独移动；C++ 只更新图片、置灰状态、Tooltip 和点击逻辑。不要重新运行旧式位置写入脚本覆盖人工布局；`configure_shop_designer_layout.py` 只在控件缺失时写入初始坐标，已存在控件不会被重置。
+商品槽稳定命名为 `DesignerPartOfferCard0..2` / `DesignerPackOfferCard0..2`；每个卡内的说明、价格、图标和购买按钮都是该卡 Canvas 的直接可调子项。购买按钮必须继续使用 `UReEchoIndexedButton`，C++ 只注入真实商品、折扣后价格、已获得/已装备/继续选择状态并转发现有命令。正式购买按钮的外层尺寸与素材均为 `134×46`；`DesignerPartOfferBuy*` / `DesignerPackOfferBuy*` 的 Normal/Pressed Padding 必须四边为 `0`，内部 `*Art` Brush Image Size 必须为 `134×46`，否则默认 `32×32` Brush 与历史左右 Padding 会把素材压窄。卡组的 `PaidPendingChoice` 必须显示“继续选择”，点击时不得重新扣费。效果图中的 `1/2` 与箭头当前是非交互装饰，不可由 WBP 伪造第二页库存。
+
+商店 Designer 采用与设置页相同的“蓝图排版、运行时填内容”约束：移动整张商品时选 `DesignerPartOfferCard*` / `DesignerPackOfferCard*`；微调内部时展开对应 Card，直接调整 `Base`、`Icon`、`Description`、`Cost`、`Buy` 的 Canvas Slot Position/Size。`prepare_plan110_shop_designer_preview.py` 只写入设计期样例图标、文字和价格，使蓝图所见即所得；进局后 C++ 只替换内容、Brush、可见性与启用状态，不覆盖这些 Canvas 几何，也不改变购买、刷新、装备或离店逻辑。
+
+装配室稳定节点为 `DesignerWeaponPanel`、`DesignerShopClock`、`DesignerWeaponInteractionButton`、`DesignerAttachmentSlot0..2` 和 `DesignerCardSlot0..11`。槽按钮是移动/缩放位置权威，配对的 `*Art*` 只填充按钮内容，不应单独移动。若外层槽按钮和源纹理都是方形、可见图片却变窄，不要继续放大 Canvas Slot：依次检查按钮 `Style > Normal Padding / Pressed Padding`、子项 `ButtonSlot` 的 Padding/Alignment，以及 `*Art* > Brush > Image Size`。正式配件槽设计期必须显示 `T_UI_Shop110_WeaponLoadoutSlot` 空槽框，按钮两种 Padding 四边为 `0`、Art Image Size 为 `89×89`；不得用配件宝石冒充空槽样例。正式卡牌槽当前要求按钮两种 Padding 四边为 `0`、子槽水平/垂直 Fill、`DesignerCardSlotArt*` Image Size 为 `66×66`。武器、配件、卡牌 Hover、背包、装配草稿、保存配置和回响存储继续由 C++ 读取 Run 投影并绑定，不得在 WBP 中直接修改权威状态。
+
+旧 `ShopLogicScrollBox > ShopLogicPanel` 以及折叠的 `Overlay_0` / `Overlay_1` 仅保留必要的购买、刷新和装配逻辑契约，不再挂载旧店员、旧装配底板、旧槽位、旧时钟或旧商店底板等展示素材。正式源图与参考图位于 `Content/SourceArt/UI/InventoryShop/Plan110/`，运行时切图位于 `Content/ReEcho/Textures/UI/InventoryShop/Plan110/`；三张整屏参考图只作比对，不得导入为运行时页面。`author_plan110_formal_shop_ui.py` 是建立正式初始设计面的迁移脚本，会重建 `DesignerShopPresentationCanvas`，人工微调后不要无意重跑；日常验证使用只读的 `audit_plan110_formal_shop_ui.py`。
 
 ## 5. 各页面的修改边界
 

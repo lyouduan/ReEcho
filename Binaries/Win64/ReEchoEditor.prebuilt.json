@@ -1,13 +1,13 @@
 {
   "binaries": {
-    "ReEchoEditor.target": "f2791c1bc6ef1285fe9e8714175bf0344674fc543a25fd1773536d5fc1dd7b0e",
-    "UnrealEditor-ReEcho.dll": "78f153ed91f0940ad4dd7f1723db858a929209b5aaeb27760a5b8539bead411d",
-    "UnrealEditor-ReEchoAudio.dll": "0d7a57d892371af56523d7aeebdda96814cbba0112c685199ca76567c96cc8cb",
-    "UnrealEditor-ReEchoCards.dll": "746e748f19aec1dc683d00072a672965c74660c730668ec3b4b761dc8437b5c6",
-    "UnrealEditor-ReEchoCombat.dll": "532a2eb774f60b5591aa2e279778bfdd8c2a3331ee47f031fb21b443fdd4e66d",
-    "UnrealEditor-ReEchoEnemies.dll": "d589cc46931c312dcb9d05e80e113cecb63b28059806e4149c29d34f09544214",
-    "UnrealEditor-ReEchoPresentation.dll": "2546a8c76a02f5b516dbe6d4bc77e5ed721e95b8b3bb1121f57881639eea066c",
-    "UnrealEditor-ReEchoWeapons.dll": "5c74ec03b718b7ac53f124734daed36929a38cd3052a386e6e0bccae708da807",
+    "ReEchoEditor.target": "aa396a1723422ef481deef29983c2516bc0f194a9af94d3592136a47cad33dd1",
+    "UnrealEditor-ReEcho.dll": "bba72bb65dda9af0957836e194c424f98fd7a04c814afed45f71e292821ebd14",
+    "UnrealEditor-ReEchoAudio.dll": "c0d3d74d31c297b9b8ad931cbe14a449a9510f6cc76537d7a1978419b1a48c06",
+    "UnrealEditor-ReEchoCards.dll": "dd4b71bdbf886d6d90c1cb193b3843b83bc74a258efc4e07e1e0c88088914b06",
+    "UnrealEditor-ReEchoCombat.dll": "c4b9965b4aaf7b876efb08219550313aca235e38c654637f0a5837a52c3e5ea7",
+    "UnrealEditor-ReEchoEnemies.dll": "8aa5c1ba7982d150575ca7d38bf63c0151a7919030d0e8145784a5dd2275b24c",
+    "UnrealEditor-ReEchoPresentation.dll": "cfcf11d933e064c8ec2fa5c81284084e5766f81042eee0254c908e7d82d58c65",
+    "UnrealEditor-ReEchoWeapons.dll": "f6fdee4ab14c651bb80d580dbfe18246823fbc25ce87000020b0b76f7fc76ea8",
     "UnrealEditor.modules": "ba4535bd63b6eba65aec19614a2631d70f0de46fb7ae3b773c24dbce84bc73fb"
   },
   "configuration": "Development",
@@ -118,8 +118,8 @@
     "Source/ReEcho/Private/Tests/ReEchoSaveGameTests.cpp": "85d3b5cb725f05b2dc727d018c47af6568214f266fad5827ec8fd2ba86a6d1b6",
     "Source/ReEcho/Private/Tests/ReEchoSettingsInteractionTests.cpp": "a5493c8bc47608136d882cc60b95526526fa9d9365e751716d0f79eea6b81eef",
     "Source/ReEcho/Private/Tests/ReEchoShopEchoSelectionTests.cpp": "4f914a1adb31e554b7fd7d322d50bf1789faa1d11c6faed319c44254936bd548",
-    "Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp": "efcbacea5613e580fdd068cea96734c3a292962140f58f5f9f7d616e48cc2e00",
-    "Source/ReEcho/Private/Tests/ReEchoShopTests.cpp": "9cb94bdfea1978e457e42c511e89e1e2a3ba5a078b0482638c52e5a625951a1f",
+    "Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp": "168fb38479b3920a7f601676ccb85d6e57e21f8e4921fb11c15481c0c7ad7c5e",
+    "Source/ReEcho/Private/Tests/ReEchoShopTests.cpp": "f832d0ed2b4b480257a011861f3a97f3e63564da59b72329de88ef5b257ef8c5",
     "Source/ReEcho/Private/Tests/ReEchoSpadeAppearanceTests.cpp": "4fd80c2c4e19877c19adc95b2dde3aca3317d6d480ada7cc88943df2fded82c7",
     "Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp": "14d8b2841cdc385fc456e23472142a37c35d47026e9832c98e5f84f2d2f7e936",
     "Source/ReEcho/Private/Tests/ReEchoTraitTests.cpp": "642693fd9a8596230274658d73391f3c642bc47ceef8d9d3c35cd4b5f356b827",
@@ -140,7 +140,7 @@
     "Source/ReEcho/Private/UI/ReEchoEncounterTransitionWidget.cpp": "bec89037d18a0c1aabcbc9df31de1e6087fbb17b09bf15e0300ed3bfb50d11d6",
     "Source/ReEcho/Private/UI/ReEchoHealthBarWidget.cpp": "21e0f339422054df69617b727518c79c27294166ec6fc2f637ae3d7b31ca8fee",
     "Source/ReEcho/Private/UI/ReEchoIndexedButton.cpp": "6e849315597cf8c0ab712a5b8a0cfc0721e6ff259d808f3848651fe617305a69",
-    "Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp": "95d031a2062ab3620450a3fa2f4099ceaf59ed858eccb8d96327d7c66fcf04dd",
+    "Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp": "23ee9f5af139e34525e1d7d569242c330d5024afcd9a10a17774b792fb534e6b",
     "Source/ReEcho/Private/UI/ReEchoLoadoutEntryWidget.cpp": "cdda251b0411f8e8eab80dc4ab6b8a17898c27fdc6c083d31a533406480858ac",
     "Source/ReEcho/Private/UI/ReEchoLoadoutSelectionWidget.cpp": "7149254f90866ca9c1f207a211bf9a226fdc9af423302c09ff5a71cad8b62c35",
     "Source/ReEcho/Private/UI/ReEchoMenuWidgetHelpers.cpp": "2c2956be25418b9b4d06ed71c7ec9707f458ea67f8f153d9d0114ba681bc8d0f",
@@ -221,7 +221,7 @@
     "Source/ReEcho/Public/UI/ReEchoEncounterTransitionWidget.h": "c75ae017afb95282421935addefd6e6f852bb2f079dee0358229d618348652aa",
     "Source/ReEcho/Public/UI/ReEchoHealthBarWidget.h": "3615d10281ce4e4e41aeebb72d7c0ce588f554410fb92a7e514145f6cc56c397",
     "Source/ReEcho/Public/UI/ReEchoIndexedButton.h": "7cf2fdba379ae3c9cdd3d0573e391657d4bbabd3e2e1fd003f3ea64d1cb08660",
-    "Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h": "cc54ed724ad2d2f57f3f1d02e03ef04a1ce658cf5d176120a71b97dc8c0af04e",
+    "Source/ReEcho/Public/UI/ReEchoInventoryShopWidget.h": "178d9c354f1fdf1e044579f437c9aab4d20b6be05ce4ec2028d0471a6c55fd9c",
     "Source/ReEcho/Public/UI/ReEchoLoadoutEntryWidget.h": "31e7266abf5f6ef654ccebc78ded425d08d55d6f24e256694cfa0582b9f67ff3",
     "Source/ReEcho/Public/UI/ReEchoLoadoutSelectionWidget.h": "986a362f6d70d297176ce86bf1b31b5a43ef05406d61e247fd19fff844962ffe",
     "Source/ReEcho/Public/UI/ReEchoMinimapCanvasWidget.h": "b9aff95768a69fc9351c76911a695989b41d6139e0918ebc82e10f690ce98608",
@@ -351,6 +351,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "7be13da1a601aa1669acdcb2f00c61e3f5ea6e5154c7148c167a9d2db1b343fa",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "d41033eb62dc9a21049b4eabdebe2a4c1feacc2a012635f365532468199820d3",
+  "source_fingerprint": "c6dfe7952bbe91b5880e27f279f345cbcad5d4fcc0d2e86c3b31554c87f54e35",
   "target": "ReEchoEditor"
 }
