@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`。
 - 人工验收：`Passed`。
 - 本地规划 / 实现基线：资产候选 `b0cd1d3e`，已按用户授权组合 `origin/main@4ef2ff94b6a99856350674fce771a671314f4fa0`（含已发布 Plan134 `0945217f`）。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan135-sc02-sc04-edge-assets-plan`；实现使用独立 Plan135 worktree，不复用 Plan134 或场景审查 worktree。
@@ -138,6 +138,9 @@
 - 墙体严格对齐：以 SC01 为只读权威，将 SC02-SC04 的 `WallEast/WallNorth/WallSouth/WallWest` relative location/rotation/scale 逐项复制；作者ing前后脚本快照确认其他 SceneComponent 属性未改变。
 - 墙体只读验证：12/12 目标墙体的三项 Transform 与 SC01 完全一致；SC01 与无关 `S_Stage01To02.uasset` 哈希保持不变。
 - 墙体回归：Plan134 四场 `GameplayPlaneWorldZ=0.000` 和场景资产审计通过；`ReEcho.Presentation.ArenaScene.Contract` 1/1 通过。
+- 发布前远端组合：合入 `origin/main@3b789342`，保留远端 `GMEnemyElementAll` 与本地 `GMScene`、`GMMoveSpeed`；场景资产无传入路径冲突，预构建包由最终 FullRebuild 统一重生。
+- 发布前场景回归：检测到人工更新后的 SC01 墙体与 SC02-SC04 旧值不一致，已再次以当前 SC01 为权威对齐；只读校验通过 24 个纹理、3 个母材质、24 个材质实例、24 个 BP 插片组件和 12 个墙体 Transform。
+- 发布前自动化：`ReEcho.GameMode` 4/4、`ReEcho.Presentation.ArenaScene.Contract` 1/1、`ReEcho.StageTransition` 3/3 全部通过。
 
 ### 剩余风险
 
