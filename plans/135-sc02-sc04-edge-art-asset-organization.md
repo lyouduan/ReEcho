@@ -6,9 +6,9 @@
 - Executor 负责人：独立程序 Executor，Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`Review`。
+- 任务状态：`InProgress`。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@50275bda156bce2fb2c2380883205e208244c0f2`。
+- 本地规划 / 实现基线：资产候选 `b0cd1d3e`，已按用户授权组合 `origin/main@4ef2ff94b6a99856350674fce771a671314f4fa0`（含已发布 Plan134 `0945217f`）。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan135-sc02-sc04-edge-assets-plan`；实现使用独立 Plan135 worktree，不复用 Plan134 或场景审查 worktree。
 - 依赖 / 阻塞：以 `Content/ReEcho/Art/Scene/SC01/EdgeInserts` 与 `Materials` 的目录和资产关系为参考；外部源目录为 `F:\MiniGame\scene\插件sc02`、`插件sc03`、`插件sc04`。
 - Writes:
@@ -19,20 +19,24 @@
   - `Content/ReEcho/Art/Scene/SC03/Materials/**`
   - `Content/ReEcho/Art/Scene/SC04/EdgeInserts/**`
   - `Content/ReEcho/Art/Scene/SC04/Materials/**`
+  - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC02.uasset`
+  - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC03.uasset`
+  - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC04.uasset`
   - `scripts/ue/import_scene_edge_assets.py`
   - `scripts/ue/validate_scene_edge_assets.py`
+  - 用于一次性初始放置与只读校验的 `scripts/ue/*plan135*scene*.py`
 - Stable Reads:
   - `Content/ReEcho/Art/Scene/SC01/EdgeInserts/**`
   - `Content/ReEcho/Art/Scene/SC01/Materials/**`
-  - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC01.uasset` 至 `BP_ArenaScene_SC04.uasset`
-  - Plan134 本地候选与未提交场景审查资产仅作边界参考，不合入本任务。
-- 影响模式：`Isolated`；只新增 SC02-SC04 美术资源及其可重跑导入/校验工具，不改 Runtime Module、数据 Schema 或场景切换契约。
-- 兼容承诺 / 下游操作：美术继续在各 `BP_ArenaScene_SCxx` 中手工放置、命名和调整插片组件；程序资产整理不生成或覆盖 BP 组件。
-- 明确排除：不修改 SC01；不修改任何 Arena BP、Level00、场景 Catalog、C++、CSV/XLSX；不决定构图、位置、缩放、透明排序或遮挡；不因源图内容相同而合并不同语义文件；实现候选未经用户确认不推送远程。
+  - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC01.uasset`
+  - 已发布 Plan134 的 Level00、Catalog、C++、地图/MapRoot、玩法平面与切换契约。
+- 影响模式：`Exclusive`；新增 SC02-SC04 美术资源并一次性修改三个场景 BP 二进制，但不改 Runtime Module、数据 Schema 或场景切换契约。
+- 兼容承诺 / 下游操作：程序只完成本次参考 SC01 的初始分层放置；所有插片都是对应 BP 内可直接编辑组件。后续美术手工调整 Transform、scale、visibility、material 与 `TranslucencySortPriority`，重跑工具只补缺失组件且不得覆盖这些属性。
+- 明确排除：不修改 SC01、Level00、场景 Catalog、C++、CSV/XLSX；不改变 Plan134 的 `GameplayPlaneWorldZ=0`、地图/MapRoot/视觉参数或切换契约；不替美术做最终精细构图；不因源图内容相同而合并不同语义文件；实现候选未经用户确认不推送远程。
 
 ## 锁定目标
 
-参考 SC01，将外部 SC02、SC03、SC04 PNG 按场景分别整理到 `Content/ReEcho/Art/Scene/SCxx/EdgeInserts`，并生成可供美术在 Blueprint 中直接选择的 Texture2D、场景级边缘插片母材质和逐图材质实例。所有源文件保留清晰来源映射和稳定英文资产名；程序不在 Blueprint 中放置插片。
+参考 SC01，将外部 SC02、SC03、SC04 PNG 按场景分别整理到 `Content/ReEcho/Art/Scene/SCxx/EdgeInserts`，生成 Texture2D、场景级边缘插片母材质和逐图材质实例，并将每套插片按上、下、左、右及局部装饰语义一次性放入对应 Arena BP 的直接可编辑分层组件中。初始布局只提供可用起点；美术继续在 BP 中完成最终构图，任何重跑不得覆盖其已调整状态。
 
 ## 架构影响与设计决策
 
@@ -44,8 +48,8 @@
   1. 每个场景独立目录与母材质，避免 SC02-SC04 反向依赖 SC01 的场景专属资产。
   2. 中文源文件名保留在仓库 PNG 与映射清单中；UE 资产使用稳定 ASCII 语义名。
   3. SC04 三张内容相同的草图保持三个独立语义条目，不静默去重。
-  4. 导入工具只创建/校验本 Plan 的资产，不生成、删除、重排或覆盖任何 Blueprint 插片组件。
-  5. 重跑时保留既有美术可编辑参数；发现既有资产与映射冲突时失败并报告，不静默替换。
+  4. 一次性 BP 作者ing工具参考 SC01 的视觉层级和方向语义，只创建缺失的 SC02-SC04 插片组件；不修改 SC01，也不触碰地图根、玩法边界或切换配置。
+  5. 重跑时保留既有组件 Transform、scale、visibility、material 和透明排序；发现既有组件/资产与映射冲突时失败并报告，不静默替换。
 - 相关文档同步范围：关闭前审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md`、`README.md`、`modules/MOD-ReEcho.md`；预计均无需修改，因为模块拓扑、运行时职责和代码位置不变。
 - 关闭前逐项填写审阅结果：
   - `ARCHITECTURE.md` 已审阅、无需修改：待执行后确认。
@@ -57,15 +61,16 @@
 - [x] SC02 的 4 张、SC03 的 8 张、SC04 的 12 张源 PNG 全部进入各自 `EdgeInserts`，像素尺寸和内容哈希与外部输入一致。
 - [x] 每张源图都有稳定命名的 Texture2D 和 Material Instance；材质实例引用本场景母材质及正确纹理。
 - [x] SC04 三张内容相同的草图仍保留三个独立语义资产入口。
-- [x] SC01、四个 Arena BP、Level00、Catalog、C++ 与数据文件无变化。
-- [x] 导入工具可重跑且不会覆盖 BP 组件或已存在的美术摆放参数。
+- [ ] SC02、SC03、SC04 的全部插片作为对应 BP 内直接可编辑组件存在，并按 SC01 的层级与方向语义形成可用初始布局。
+- [ ] 重跑作者ing工具只补缺失组件，保持既有 Transform、scale、visibility、material 与 `TranslucencySortPriority`。
+- [ ] SC01、Level00、Catalog、C++ 与数据文件无新增变化；Plan134 的四场 `GameplayPlaneWorldZ=0`、地图/MapRoot/视觉参数和切换契约保持。
 - [x] Editor 资产校验、`python scripts/validate_project.py`、`git diff --check` 和最终 FullRebuild 通过。
 - [ ] 用户在 Content Browser/Blueprint Editor 确认资产命名、透明显示与手工选用符合预期后，人工验收才可设为 `Passed`。
 - [ ] 未提交精选预构建允许列表之外的 UE 生成物或机器本地路径。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@50275bda156bce2fb2c2380883205e208244c0f2`；远端最大编号 Plan134，本 Plan 使用 Plan135。
+- 基线分支/提交：本地组合提交 `3269cbed`，包含 Plan135 资产候选 `b0cd1d3e` 与 `origin/main@4ef2ff94`；本 Plan 保持未发布。
 - 引擎/构建可用性：用户已说明 Editor 关闭；执行器仍须在使用 Editor 命令前检查同克隆 Unreal 锁与进程。
 - 现有聚焦测试结果：不复用 Plan134 的资产验证；本 Plan 对 24 张源图单独建立清单和 Editor 读取证据。
 - 共享契约 / 难合并资源风险：`.uasset` 为二进制；但本 Plan 只新增 SC02-SC04 路径。若远端或其他候选已新增同路径资产，先审计语义，不覆盖。
