@@ -1,0 +1,111 @@
+# Plan 135 - 程序 - SC02-SC04 场景边缘美术资产整理
+
+## 协调
+
+- Planner 负责人：当前对话程序 Planner（Codex）。
+- Executor 负责人：独立程序 Executor，Plan 发布后启动。
+- Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
+- 实现编写方（AI 侧）：`OpenAI Codex`。
+- 任务状态：`Ready`。
+- 人工验收：`PendingBeforeClose`。
+- 本地规划 / 实现基线：`origin/main@50275bda156bce2fb2c2380883205e208244c0f2`。
+- 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan135-sc02-sc04-edge-assets-plan`；实现使用独立 Plan135 worktree，不复用 Plan134 或场景审查 worktree。
+- 依赖 / 阻塞：以 `Content/ReEcho/Art/Scene/SC01/EdgeInserts` 与 `Materials` 的目录和资产关系为参考；外部源目录为 `F:\MiniGame\scene\插件sc02`、`插件sc03`、`插件sc04`。
+- Writes:
+  - `plans/135-sc02-sc04-edge-art-asset-organization.md`
+  - `Content/ReEcho/Art/Scene/SC02/EdgeInserts/**`
+  - `Content/ReEcho/Art/Scene/SC02/Materials/**`
+  - `Content/ReEcho/Art/Scene/SC03/EdgeInserts/**`
+  - `Content/ReEcho/Art/Scene/SC03/Materials/**`
+  - `Content/ReEcho/Art/Scene/SC04/EdgeInserts/**`
+  - `Content/ReEcho/Art/Scene/SC04/Materials/**`
+  - `scripts/ue/import_scene_edge_assets.py`
+  - `scripts/ue/validate_scene_edge_assets.py`
+- Stable Reads:
+  - `Content/ReEcho/Art/Scene/SC01/EdgeInserts/**`
+  - `Content/ReEcho/Art/Scene/SC01/Materials/**`
+  - `Content/ReEcho/Scene/Prefabs/BP_ArenaScene_SC01.uasset` 至 `BP_ArenaScene_SC04.uasset`
+  - Plan134 本地候选与未提交场景审查资产仅作边界参考，不合入本任务。
+- 影响模式：`Isolated`；只新增 SC02-SC04 美术资源及其可重跑导入/校验工具，不改 Runtime Module、数据 Schema 或场景切换契约。
+- 兼容承诺 / 下游操作：美术继续在各 `BP_ArenaScene_SCxx` 中手工放置、命名和调整插片组件；程序资产整理不生成或覆盖 BP 组件。
+- 明确排除：不修改 SC01；不修改任何 Arena BP、Level00、场景 Catalog、C++、CSV/XLSX；不决定构图、位置、缩放、透明排序或遮挡；不因源图内容相同而合并不同语义文件；实现候选未经用户确认不推送远程。
+
+## 锁定目标
+
+参考 SC01，将外部 SC02、SC03、SC04 PNG 按场景分别整理到 `Content/ReEcho/Art/Scene/SCxx/EdgeInserts`，并生成可供美术在 Blueprint 中直接选择的 Texture2D、场景级边缘插片母材质和逐图材质实例。所有源文件保留清晰来源映射和稳定英文资产名；程序不在 Blueprint 中放置插片。
+
+## 架构影响与设计决策
+
+- 受影响架构标识：`None`；本任务只增加表现内容资产与 Editor 导入工具，不修改 `MOD-ReEcho` 或公共运行时契约。
+- 对应模块文档：无；不修改 Runtime Module，因此不新增或维护 `MOD-*` Writes。
+- 设计意图：让 SC02-SC04 具备与 SC01 一致的“源 PNG → Texture2D → Material Instance → 美术 BP 组件”资源链，同时保持场景表现的 Editor 权威。
+- 权威状态与依赖：仓库内 PNG 是导入来源；Texture2D 与材质实例是 UE 可用资产；对应 Arena BP 仍是组件摆放和视觉参数权威。
+- 决策记录：
+  1. 每个场景独立目录与母材质，避免 SC02-SC04 反向依赖 SC01 的场景专属资产。
+  2. 中文源文件名保留在仓库 PNG 与映射清单中；UE 资产使用稳定 ASCII 语义名。
+  3. SC04 三张内容相同的草图保持三个独立语义条目，不静默去重。
+  4. 导入工具只创建/校验本 Plan 的资产，不生成、删除、重排或覆盖任何 Blueprint 插片组件。
+  5. 重跑时保留既有美术可编辑参数；发现既有资产与映射冲突时失败并报告，不静默替换。
+- 相关文档同步范围：关闭前审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md`、`README.md`、`modules/MOD-ReEcho.md`；预计均无需修改，因为模块拓扑、运行时职责和代码位置不变。
+- 关闭前逐项填写审阅结果：
+  - `ARCHITECTURE.md` 已审阅、无需修改：待执行后确认。
+  - `README.md` 已审阅、无需修改：待执行后确认。
+  - `MOD-ReEcho.md` 已审阅、无需修改：待执行后确认。
+
+## 锁定验收
+
+- [ ] SC02 的 4 张、SC03 的 8 张、SC04 的 12 张源 PNG 全部进入各自 `EdgeInserts`，像素尺寸和内容哈希与外部输入一致。
+- [ ] 每张源图都有稳定命名的 Texture2D 和 Material Instance；材质实例引用本场景母材质及正确纹理。
+- [ ] SC04 三张内容相同的草图仍保留三个独立语义资产入口。
+- [ ] SC01、四个 Arena BP、Level00、Catalog、C++ 与数据文件无变化。
+- [ ] 导入工具可重跑且不会覆盖 BP 组件或已存在的美术摆放参数。
+- [ ] Editor 资产校验、`python scripts/validate_project.py`、`git diff --check` 和最终 FullRebuild 通过。
+- [ ] 用户在 Content Browser/Blueprint Editor 确认资产命名、透明显示与手工选用符合预期后，人工验收才可设为 `Passed`。
+- [ ] 未提交精选预构建允许列表之外的 UE 生成物或机器本地路径。
+
+## Step 0 门禁
+
+- 基线分支/提交：`origin/main@50275bda156bce2fb2c2380883205e208244c0f2`；远端最大编号 Plan134，本 Plan 使用 Plan135。
+- 引擎/构建可用性：用户已说明 Editor 关闭；执行器仍须在使用 Editor 命令前检查同克隆 Unreal 锁与进程。
+- 现有聚焦测试结果：不复用 Plan134 的资产验证；本 Plan 对 24 张源图单独建立清单和 Editor 读取证据。
+- 共享契约 / 难合并资源风险：`.uasset` 为二进制；但本 Plan 只新增 SC02-SC04 路径。若远端或其他候选已新增同路径资产，先审计语义，不覆盖。
+- 基线损坏时的停止条件：外部源文件变化/缺失、源图无法解码、目标路径已有不兼容资产、Editor/命令锁被占用、需要修改 Blueprint 构图或运行时契约。
+
+## 实现提纲
+
+1. 发布并核验 Plan135；Executor 读取 Plan、执行规则、SC01 资产结构和现有 UE Python 工具的最小相关部分。
+2. 将 24 张外部 PNG 精确复制到对应场景 `EdgeInserts`，以清单记录原名、稳定资产名、尺寸和哈希。
+3. 编写可重跑 Editor 导入工具，创建 Texture2D、每场景母材质与逐图材质实例；遵守透明插片所需的材质和纹理设置。
+4. 编写只读资产验证，检查包可加载、纹理尺寸、材质父子关系、纹理参数与 BP/SC01 不变性。
+5. 更新 Plan 执行记录，完成静态检查、FullRebuild 和用户 Content Browser/Blueprint 人工验收请求。
+
+## 验证矩阵
+
+| 层级 | 命令/检查 | 预期证据 |
+|---|---|---|
+| Plan-only | `python scripts/validate_project.py`、`git diff --check` | Plan135 编号、结构、范围和中文正文通过 |
+| 输入 | PNG 清单、尺寸与 SHA-256 比对 | 24/24 仓库副本与外部输入一致 |
+| Editor 导入 | 项目标准 Unreal Editor Python 入口 | 24 个 Texture2D、24 个 MI 和 3 个场景母材质可加载 |
+| Editor 只读 | `scripts/ue/validate_scene_edge_assets.py` | 路径、尺寸、父材质和纹理引用完全匹配；BP 无作者ing |
+| 静态 | `python scripts/validate_project.py`、`git diff --check` | 项目与文档不变量通过 |
+| 发布候选 | `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`、`python scripts/ue/prebuilt_editor.py check` | 最终候选与精选 Editor 包一致 |
+| 人工 Content Browser/BP | 打开 SC02-SC04 资产并在对应 BP 手工选择验证 | 用户确认透明显示、命名与可编辑性正确 |
+
+## 执行记录
+
+### 变化
+
+### 证据
+
+### 剩余风险
+
+- 自动化可以证明资产链和引用，不能替代美术对构图、缩放、遮挡与透明排序的判断。
+- 外部 F 盘目录不是仓库权威；实现后以仓库内源 PNG 和映射清单作为可复现输入。
+
+### 人工验收结果/请求
+
+- `PendingBeforeClose`：用户在 Content Browser 和至少一个对应 Arena BP 中确认纹理/材质实例可正常选择并透明显示。
+
+### 架构文档审阅结果
+
+- 待实现后逐项填写。
