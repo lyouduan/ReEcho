@@ -62,6 +62,12 @@ struct REECHO_API FReEchoShopOffer
 	FString IconTexturePath; // 武器 Offer 填对应配图资产路径(ResolveHeldTexturePath)，为空则回退默认卡片图标
 	/** Optional resolved runtime result for an owned card. Empty offers retain the legacy single-panel tooltip. */
 	FText OutcomeText;
+	/** Rune compatibility survives the Run-to-UI projection; Any is compatible with every weapon. */
+	FName WeaponTypeId;
+	/** Authoritative price after all run rules, including the current free-shop encounter. */
+	int32 EffectivePrice = 0;
+	/** Authoritative purchase gate. Widgets display this state and never recalculate affordability. */
+	bool bCanPurchase = false;
 };
 
 // One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon
@@ -74,9 +80,12 @@ struct REECHO_API FReEchoWeaponSlotOffer
 	FName ItemId;    // purchase lookup key (== PartId or WeaponId)
 	FName ContentId; // == PartId or WeaponId
 	FName SlotTypeId;
+	FName WeaponTypeId;
 	FText DisplayName;
 	FText EffectText;
 	int32 Price = 0;
+	int32 EffectivePrice = 0;
+	bool bCanPurchase = false;
 };
 
 enum class EReEchoShopCardPackStatus : uint8
@@ -114,6 +123,8 @@ struct REECHO_API FReEchoShopCardPackOffer
 	FText DisplayName;
 	FText StatusText;
 	int32 Price = 0;
+	int32 EffectivePrice = 0;
+	bool bCanPurchase = false;
 	TArray<FReEchoShopCardChoiceOffer> Choices;
 
 	bool IsAvailable() const
@@ -140,12 +151,14 @@ struct REECHO_API FReEchoWeaponSlotShopView
 struct REECHO_API FReEchoWeaponPartShopView
 {
 	FName WeaponId;
+	FName WeaponTypeId;
 	FText WeaponDisplayName;
 	FString WeaponIconTexturePath;
 	TArray<FReEchoWeaponSlotOffer> SlotOffers; // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
 	                                           // rune / other weapon / other-weapon rune)
 	TArray<FReEchoShopCardPackOffer> CardPackOffers; // always 3 fixed tier packs; candidates are opened on demand
 	TArray<FReEchoShopOffer> Offers;                 // backward-compat bridge for weapon/rune offers only
+	TArray<FReEchoShopOffer> RunItemOffers;          // legacy run-item offers with authoritative prices/gates
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FName> OwnedWeapons;

@@ -114,6 +114,8 @@ public:
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
 	                              USceneComponent* InHurtVfxRoot,
 	                              USceneComponent* InBossWeaponVfxRoot = nullptr);
+	/** Player/Echo held-weapon release point, separate from the host-authored generic attack root. */
+	void ConfigureWeaponAttackVfxRoot(USceneComponent* InWeaponAttackVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
 	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
 	/** Resolves the impact semantic recorded for one Boss attack without inferring from damage values. */
@@ -179,6 +181,7 @@ private:
 	                                 USceneComponent* AttachmentRoot,
 	                                 bool bAutoDestroy = true) const;
 	USceneComponent* ResolveBossWeaponVfxRoot() const;
+	USceneComponent* ResolveWeaponAttackVfxRoot() const;
 	USceneComponent* ResolveAttackVfxRoot() const;
 	USceneComponent* ResolveHurtVfxRoot() const;
 	USceneComponent* ResolveEchoAuraVfxRoot() const;
@@ -274,6 +277,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> BossWeaponVfxRoot;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> WeaponAttackVfxRoot;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> EchoAuraVfxRoot;

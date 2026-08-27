@@ -166,6 +166,7 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 		Weapon->SetOwner(this);
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
+		CombatVfx->ConfigureWeaponAttackVfxRoot(Weapon->GetWeaponAttackVfxRoot());
 		Weapon->InitializeWeapon(&Recording.BuildSnapshot, Snapshot);
 		if (!Weapon->SelectWeaponById(Recording.BuildSnapshot.WeaponId))
 		{
