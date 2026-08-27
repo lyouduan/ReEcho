@@ -32,6 +32,12 @@ def fail(message):
     raise RuntimeError(f"[Plan52] {message}")
 
 
+fail(
+    "Retired by Plan134: Arena Blueprints own their Backdrop material and visual components. "
+    "This legacy Profile/Blueprint authoring entry point is disabled."
+)
+
+
 def load_required(path, expected_type=None):
     asset = unreal.EditorAssetLibrary.load_asset(path)
     if asset is None:

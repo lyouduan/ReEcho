@@ -124,7 +124,7 @@ DefaultEngine.ini
           → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
 ```
 
-Arena 正在由 Plan134 迁移为 Blueprint 组件权威：运行时范围查询已经读取 `CameraClampBounds`、`PlayerBounds`、`EnemySpawnBounds` 的实际缩放后 Extent，`Backdrop` Material Slot 0 是新校验入口。迁移完成前 `bUseEditorAuthoredSceneLayout=false` 保留旧 HalfExtents/Profile Construction 兼容；只有把有效范围烘入 BoxComponent 后才能在 BP 启用该开关，启用后 Construction 不再重写层级、材质、Transform 或 Bounds。SC01 边缘插片始终是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。
+Arena 以 Blueprint 组件为权威：运行时范围查询读取 `CameraClampBounds`、`PlayerBounds`、`EnemySpawnBounds` 的实际缩放后 Extent，`Backdrop` Material Slot 0 是唯一地图材质入口。SC01-SC04 已把旧 HalfExtents 烘入 BoxComponent 并启用 `bUseEditorAuthoredSceneLayout`，Construction 不再重写层级、材质、Transform 或 Bounds；旧 SceneProfile、Actor MapMaterial 和每 BP 重复 Registry 均已清空，仅保留序列化兼容字段。SC01 边缘插片是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
@@ -314,7 +314,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - Boss 表现边界：`Enemy.TimeGuard` 使用普通敌人相同的 Catalog/Profile/Gameplay Blueprint/FSM 路径；不存在 `Boss2D` 静态贴图特例。专属动画未交付时仅由 `DA_Enemy_TimeGuard` 显式复用 Goat 动画。
 - 阴影渲染层：GroundShadow 与 Flipbook 共享 MotionRoot 只解决位置同步，前后遮挡由整数 `TranslucencySortPriority` 明确控制。玩家与全部怪物阴影固定为 `-10`，角色 Flipbook 使用 Profile/Clip 的非负表现层，禁止使用会被截断为零的小数排序值，确保阴影始终绘制在角色下层。
 - 旧架构清理：`ReEcho2DVisualPrefabActor` 类型与 `/Game/ReEcho/Animation2D/VisualPrefabs/**` 蓝图资产已删除。角色表现只能从真实 Gameplay Blueprint 扩展，禁止重新引入运行时第二 Actor 或另一套表现组件树。
-- 场景 Prefab：单一 `/Game/ReEcho/Scene/DA_ArenaSceneCatalog` 拥有 `SceneId→BP_ArenaScene_SCxx`；GameMode 不扫描 Prefabs，也不消费每个 BP 中的重复 Registry。通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 最终分别完整拥有 Backdrop、视觉层、插片/装饰与玩法边界。当前 Level00 固定 SC02 与 Plan52 独立装饰仍是待二进制迁移的兼容状态，不能在 SC01 外部修改未交接前静默删除。程序脚本只可创建单一 Catalog 或执行只读审计；插片、装饰和构图由美术直接在 BP 中维护。
+- 场景 Prefab：单一 `/Game/ReEcho/Scene/DA_ArenaSceneCatalog` 拥有 `SceneId→BP_ArenaScene_SCxx`；GameMode 不扫描 Prefabs，也不消费每个 BP 中的重复 Registry。通用 `/Game/ReEcho/Scene/Prefabs/BP_ArenaScene` 继承 `ReEchoArenaSceneActor` 稳定契约，`BP_ArenaScene_SC01..04` 分别完整拥有 Backdrop、视觉层、插片/装饰与玩法边界。Level00 不再放置生产 Arena 或 Plan52 tagged 装饰，只保留唯一 `AReEchoArenaSceneSpawnAnchor` 供首场与后续候选使用同一 Transform。程序脚本只可执行一次性契约迁移、创建单一 Catalog 或只读审计；旧 Plan52/Plan84 写入入口已退休，插片、装饰和构图由美术直接在 BP 中维护。
 - 2D表现FSM：`ReEcho2DAnimationStateMachineAsset` 保存完整七态语义、可中断优先级和播放完成去向；`ReEcho2DPresentationController` 是纯 Flipbook 执行器并保留 Gameplay 宿主的稳定意图 API。敌人特殊动作 `WindupStarted -> Charge`、`ActionCommitted -> Basic`、`ActionEnded -> CancelAttackAction`；Boss 阶段事件以锁定 Transform 过渡后切换 Phase2 AnimationSet。Profile 负责绑定 FSM 与 Appearance/WeaponVisualSet Clip，状态机只选择 Flipbook 和表现状态，不通过动画帧或完成回调反向驱动伤害、移动、AI 或根 Box Collision。
 - 扩展：表现缺失、提前结束或加载失败必须不改变玩法；Animation2D 不依赖具体角色枚举，也不通过回调反向控制 Combat/Weapons。新增关卡场景应复用类型化 Arena Scene 契约，并由 Editor 维护关卡资产，不在 GameMode 增加路径或 Actor Label 分支。
 - 测试：`ReEchoArenaSceneTests.cpp` 覆盖正交视锥地面 footprint、中心跟随、四边/四角 Clamp 与地图小于视野时的中心锁定；场景 Actor 唯一性和资产绑定由 Editor 自动化与人工 PIE 验收。

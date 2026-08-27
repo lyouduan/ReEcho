@@ -18,6 +18,11 @@ REQUIRED_COMPONENTS = (
     "PlayerBounds",
     "EnemySpawnBounds",
 )
+CORE_COMPONENTS = set(REQUIRED_COMPONENTS) | {
+    "SceneRoot", "MapRoot", "VisualRoot", "GameplayRoot", "PlantRoot",
+    "Collision", "Floor", "WallNorth", "WallSouth", "WallEast", "WallWest",
+}
+GENERATED_TAG = "ReEchoGeneratedDecoration_Plan52"
 
 
 def fail(message):
@@ -67,10 +72,50 @@ for scene_id, registration in zip(SCENE_IDS, registrations):
         fail(f"{scene_id} Backdrop Material Slot 0 is empty")
     if not defaults.get_editor_property("use_editor_authored_scene_layout"):
         fail(f"{scene_id} has not enabled editor-authored scene layout")
+    if defaults.get_editor_property("scene_profile") is not None:
+        fail(f"{scene_id} still has a SceneProfile visual authority")
+    if defaults.get_editor_property("map_material") is not None:
+        fail(f"{scene_id} still has a duplicate actor MapMaterial")
+    if defaults.get_editor_property("scene_registry"):
+        fail(f"{scene_id} still stores a duplicate SceneRegistry")
     for name in ("CameraClampBounds", "PlayerBounds", "EnemySpawnBounds"):
         extent = scene_components[name].get_editor_property("box_extent")
         if min(extent.x, extent.y) < 100.0:
             fail(f"{scene_id}.{name} is degenerate: {extent}")
+    for name, component in scene_components.items():
+        if name in CORE_COMPONENTS or not isinstance(component, unreal.PrimitiveComponent):
+            continue
+        if (
+            isinstance(component, unreal.StaticMeshComponent)
+            and component.static_mesh is None
+            and component.get_material(0) is None
+        ):
+            continue
+        if component.get_collision_enabled() != unreal.CollisionEnabled.NO_COLLISION:
+            fail(
+                f"{scene_id} artist visual component has collision enabled: {name}"
+            )
+
+level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+if not level_subsystem.load_level("/Game/Level00"):
+    fail("Could not load Level00")
+actors = actor_subsystem.get_all_level_actors()
+arena_class = unreal.load_class(None, "/Script/ReEcho.ReEchoArenaSceneActor")
+anchor_class = unreal.load_class(None, "/Script/ReEcho.ReEchoArenaSceneSpawnAnchor")
+camera_class = unreal.load_class(None, "/Script/ReEcho.ReEchoArenaCameraActor")
+arenas = unreal.EditorFilterLibrary.by_class(actors, arena_class)
+anchors = unreal.EditorFilterLibrary.by_class(actors, anchor_class)
+cameras = unreal.EditorFilterLibrary.by_class(actors, camera_class)
+generated = [
+    actor for actor in actors if GENERATED_TAG in [str(tag) for tag in actor.tags]
+]
+if arenas or len(anchors) != 1 or len(cameras) != 1 or generated:
+    fail(
+        "Level00 authority mismatch: "
+        f"arenas={len(arenas)} anchors={len(anchors)} cameras={len(cameras)} "
+        f"tagged_decorations={len(generated)}"
+    )
 
 if catalog_only:
     unreal.log("[Plan134] Read-only catalog audit passed: SC01-SC04 resolve exactly once")

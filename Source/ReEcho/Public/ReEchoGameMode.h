@@ -10,6 +10,7 @@
 class ACameraActor;
 class AReEchoArenaCameraActor;
 class AReEchoArenaSceneActor;
+class AReEchoArenaSceneSpawnAnchor;
 class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoEnemyActor;
@@ -172,6 +173,7 @@ private:
 	TMap<FName, TSubclassOf<AReEchoArenaSceneActor>> ArenaSceneRegistry;
 	FName ActiveArenaSceneId = NAME_None;
 	FName PendingArenaSceneId = NAME_None;
+	FTransform ArenaSceneSpawnTransform = FTransform::Identity;
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
 	UPROPERTY()

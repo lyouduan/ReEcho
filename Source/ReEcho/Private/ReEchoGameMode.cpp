@@ -37,6 +37,7 @@
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
 #include "Presentation/Scene/ReEchoArenaSceneCatalog.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
+#include "Presentation/Scene/ReEchoArenaSceneSpawnAnchor.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Enemy/ReEchoEnemyGameplayClassRegistry.h"
 #include "Presentation/Loading/ReEchoRuntimeAssetPreloader.h"
@@ -1077,6 +1078,24 @@ void AReEchoGameMode::StartPlay()
 		       *ArenaFailure);
 		return;
 	}
+	int32 ArenaSceneSpawnAnchorCount = 0;
+	for (TActorIterator<AReEchoArenaSceneSpawnAnchor> It(GetWorld()); It; ++It)
+	{
+		ArenaSceneSpawnTransform = It->GetActorTransform();
+		++ArenaSceneSpawnAnchorCount;
+	}
+	if (ArenaSceneSpawnAnchorCount > 1 || (!ArenaScene && ArenaSceneSpawnAnchorCount != 1))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[ArenaScene] Expected one ArenaSceneSpawnAnchor when no migration Arena exists; found %d."),
+		       ArenaSceneSpawnAnchorCount);
+		return;
+	}
+	if (ArenaScene)
+	{
+		ArenaSceneSpawnTransform = ArenaScene->GetActorTransform();
+	}
 	if (!InitializeArenaSceneRegistry(ArenaFailure))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[ArenaScene] Registry initialization failed: %s"), *ArenaFailure);
@@ -1792,7 +1811,7 @@ bool AReEchoGameMode::PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage,
 		                           *Stage.SceneId.ToString());
 		return false;
 	}
-	const FTransform SpawnTransform = ArenaScene ? ArenaScene->GetActorTransform() : FTransform::Identity;
+	const FTransform SpawnTransform = ArenaScene ? ArenaScene->GetActorTransform() : ArenaSceneSpawnTransform;
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AReEchoArenaSceneActor* NewArenaScene =
@@ -2167,11 +2186,9 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		return;
 	}
 
-	const FReEchoEncounterRuntimeState SavedState = RunSubsystem->ConsumePendingEncounterResume();
 	bEncounterTransitioning = false;
 	bEncounterClearedByDefeat = false;
 	bBossSuccessfullySpawnedThisEncounter = false;
-	bBossPostEchoPhaseTriggered = SavedState.bBossPostEchoPhaseTriggered;
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* Encounter =
 	    Snapshot.IsValid() ? Snapshot->FindEncounterByIndex(RunSubsystem->EncounterIndex) : nullptr;
@@ -2189,6 +2206,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		       *SceneError);
 		return;
 	}
+	const FReEchoEncounterRuntimeState SavedState = RunSubsystem->ConsumePendingEncounterResume();
+	bBossPostEchoPhaseTriggered = SavedState.bBossPostEchoPhaseTriggered;
 	ClearCombatants();
 	if (!ApplyArenaSceneForStage(*Stage, SceneError) || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
 	{

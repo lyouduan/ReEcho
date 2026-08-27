@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，待 Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`InProgress`（运行时/Catalog 候选完成；二进制 BP/Level00 迁移等待 SC01 外部修改交接）。
+- 任务状态：`Review`（技术候选与资产迁移完成；等待 Blueprint/PIE 人工验收，不发布远端）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@41da5187ba694d2629b6e2c0a6bbb9f5b3fb6c54`。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan134-scene-blueprint-authority-plan`；实现使用独立 Plan134 worktree，不复用含未提交 `BP_ArenaScene_SC01.uasset` 的审查 worktree。
@@ -119,25 +119,27 @@
 
 - 新增 `UReEchoArenaSceneCatalog` 与 `/Game/ReEcho/Scene/DA_ArenaSceneCatalog`，SC01-SC04 映射只保存一份；GameMode 不再从放置 Arena 的重复 Registry 初始化。
 - GameMode 场景切换拆为 `PrepareArenaSceneForStage`/`ApplyArenaSceneForStage`：候选以隐藏、无碰撞状态生成并验证；`PrepareEncounterIntermission`、新 Encounter 与读档恢复均在清理 Combatant/Echo/Shard 前准备候选，准备失败保留原 Arena 与局内对象。
-- Arena 范围查询改读三个 BoxComponent 的实际缩放 Extent，Backdrop Material Slot 0 成为新配置校验。新增 `bUseEditorAuthoredSceneLayout` 迁移门：BP 迁移完成后启用即停止 Construction 对层级、材质、Transform 和 Bounds 的重写；当前默认关闭以保护尚未烘入组件的有效范围。
-- `author_plan84_scene_switch.py` 的执行入口已退休并明确拒绝程序化插片作者ing；新增 Catalog-only 作者ing脚本与不写资产的 Plan134 审计脚本，审计不锁定插片名称或数量。
-- 未修改任何现有 `.uasset`/`.umap`；仅新增 Catalog 资产。未接触 review worktree 的 `BP_ArenaScene_SC01.uasset`。
+- Arena 范围查询改读三个 BoxComponent 的实际缩放 Extent，Backdrop Material Slot 0 成为唯一地图材质校验。SC01-SC04 已把旧 HalfExtents 烘入组件并启用 `bUseEditorAuthoredSceneLayout`，同时清空 SceneProfile、Actor MapMaterial 和重复 SceneRegistry；Construction 不再覆盖美术组件。
+- Level00 删除固定 SC02 Arena，新增唯一无表现 `AReEchoArenaSceneSpawnAnchor`。权威 `origin/main` Level00 在迁移前实际已是 0 个 Plan52 tagged decoration；迁移器只接受 0 或预期旧值 18，拒绝任意其他数量，最终只读审计确认仍为 0。
+- `author_plan84_scene_switch.py`、`author_plan52_decorations.py`、`build_plan52_scene_assets.py`、`migrate_plan52_level00.py` 的写入入口均退休；新增一次性 Plan134 迁移器、Catalog-only 作者ing脚本与不写资产的审计脚本，审计不锁定插片名称或数量。
+- `ResumeSavedEncounter` 在 Arena prepare 成功后才调用 `ConsumePendingEncounterResume`，目标 Scene 缺失/无效时 pending resume 保留可重试。
+- SC01 迁移严格使用本 Executor 从 `origin/main@b7e15000` 建立的资产；迁移前后内存快照一致，保留 8 个非核心模板（7 个具名插片及 1 个无 Mesh/Material 的空模板）。review 脏 worktree 始终未访问、未复制、未修改。
 
 ### 证据
 
 - 远端规则/基线：`git fetch origin main` 后 Executor 与 `origin/main@b7e15000968b79f433368f0b69815588ad7ebe87` 一致，无额外外部提交。
-- `.clang-format` 已执行；Editor Development 构建通过，冻结候选最后增量 4/4 actions，预构建包刷新为 `source=dcf67f6cc75c`。
-- `ReEcho.StageTransition` 三项通过：`PolicyMatrix`、Catalog `SceneRegistry`、`WorldContinuity`；`ReEcho.Presentation.ArenaScene.Contract` 通过。
-- Catalog-only Editor 只读审计通过：SC01-SC04 均唯一解析到对应 Blueprint Class；资产创建命令的 Git 结果只新增 `DA_ArenaSceneCatalog.uasset`，未改现有 BP/Level。
-- 完整只读资产审计按预期在 `SC01.CameraClampBounds=32x32` 停止，证明当前有效范围仍依赖旧 Construction，不能直接开启 BP 权威门。
+- `.clang-format` 已执行；最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 98/98 actions 通过，精选预构建包 `modules=7 build_id=55116800 source=4b7aef5986c1`，随后 `prebuilt_editor.py check` 通过。
+- FullRebuild 后重跑 `ReEcho.StageTransition` 三项均为 `Success`：`PolicyMatrix`、Catalog `SceneRegistry`、`WorldContinuity`；`ReEcho.Presentation.ArenaScene.Contract` 为 `Success`。
+- 完整 Editor 只读审计通过：Catalog 唯一解析 SC01-SC04；四 BP 的 Backdrop 材质、必需视觉层、组件 Bounds、Editor-authored 门、空 Profile/MapMaterial/Registry 及美术组件无碰撞均有效；Level00 为 0 Arena、1 SpawnAnchor、1 Camera、0 tagged decoration。
+- 一次性迁移日志：`Migrated 4 Arena Blueprints, preserved 8 SC01 artist components, deleted 0 tagged decorations, and replaced the fixed Arena with one spawn anchor`。0 是当前权威 main 的实测基线，不伪造为删除 18。
+- `python scripts/validate_project.py`、`git diff --check` 与全部相关场景 Python 脚本 AST 解析通过；未产生精选预构建允许列表之外的已跟踪生成物。
 
 ### 剩余风险
 
-- SC01 未提交二进制修改尚未进入本 Plan 基线，Executor 不得猜测或覆盖；需在实际资产迁移前取得其准确交接状态。
 - Plan133 与本 Plan 共享 `ReEchoGameMode.*` 和 Stage1→Stage2 进入下一 Encounter 的时序，最终证据必须来自组合后的候选。
 - 静态/自动化不能证明美术构图与遮挡质量，四场景仍需人工 PIE 验收。
-- 二进制迁移尚未执行：需要先取得 review worktree 中 SC01 的明确提交/交接基线，再快照并烘入三个 BoxComponent、启用 Editor-authored 门、清空重复 Registry/Profile 权威、迁移/确认 Level00 18 个独立装饰归属并移除固定 SC02。当前候选保留兼容 Construction，地图材质仍会被旧 Profile 覆盖。
 - Plan133 当前远端只有 Plan、没有可组合实现提交；本候选只对 `BeginNextEncounter` 做局部 prepare/commit 调整，未来组合其 CG 门时必须保留“CG 完成/失败→现有 BeginNextEncounter 2”顺序并重跑 Stage/Encounter 证据。
+- 当前提交只供本地人工验收；用户明确要求确认正确前不得向任何远端提交或推送。
 
 ### 人工验收结果/请求
 
@@ -145,6 +147,6 @@
 
 ### 架构文档审阅结果
 
-- `MOD-ReEcho.md`：已更新单一 Catalog、prepare/commit、组件范围权威、兼容迁移门及插片作者ing边界。
+- `MOD-ReEcho.md`：已更新单一 Catalog、prepare/commit、组件范围权威、Level00 SpawnAnchor 及已退休作者ing边界。
 - `ARCHITECTURE.md`：已审阅；持久 World 与现有模块拓扑未改变，当前阶段无需修改。
 - `README.md`：已审阅；`MOD-ReEcho / AREA-Encounter / AREA-Presentation / AREA-Tests` 路由未改变，当前阶段无需新增稳定标识。
