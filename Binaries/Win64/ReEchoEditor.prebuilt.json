@@ -1,13 +1,13 @@
 {
   "binaries": {
-    "ReEchoEditor.target": "f2791c1bc6ef1285fe9e8714175bf0344674fc543a25fd1773536d5fc1dd7b0e",
-    "UnrealEditor-ReEcho.dll": "0a77a235d242a5068ce3cfed04989d0c8561863525cabc259118a6156aebb77f",
-    "UnrealEditor-ReEchoAudio.dll": "da1e1b36a65bdaea14cd32a115437c7601a3f9d0c7ded31cf400d907ec57aa77",
-    "UnrealEditor-ReEchoCards.dll": "5566cc33c746e20f11407f97b8d76ed41c9469d187ecd8a00a9870958d9a5253",
-    "UnrealEditor-ReEchoCombat.dll": "b1e0bfe5f25f642806d55431e2d7272270e44dd155d3df2dda71e83d7527c80a",
-    "UnrealEditor-ReEchoEnemies.dll": "cf3dba4c2ffc8766e3608a9cbb74f00ed26fcccefa89742bcba690926448f27b",
-    "UnrealEditor-ReEchoPresentation.dll": "6bc7e17032c410b59dfede9fdc8f87dd5e55343ed1b9ec81de884bb7999dab37",
-    "UnrealEditor-ReEchoWeapons.dll": "e8e6638a6fa3650d608699c3db62631475487ee0dbbf11d58bd7f2633e95377f",
+    "ReEchoEditor.target": "aa396a1723422ef481deef29983c2516bc0f194a9af94d3592136a47cad33dd1",
+    "UnrealEditor-ReEcho.dll": "4a8191cdf3f54bad07257384f1eef900bef363f0bec83c83298d12d95c250521",
+    "UnrealEditor-ReEchoAudio.dll": "b80882f0fc2c3367445b34984792bb8f8608f0ced7ef8121b37b0c8621122919",
+    "UnrealEditor-ReEchoCards.dll": "f460a0ddbe3c05839795654b6668aa24e28435fde3073e7cebbd20c70c45f909",
+    "UnrealEditor-ReEchoCombat.dll": "7ac9250c31d295c3658fef2df0022536e205b22e682de7d70d74b4c2379c15f5",
+    "UnrealEditor-ReEchoEnemies.dll": "538ed1dedf6e04865d2426f9cd6ab0a92e43a06c15ae933ad37a95f02ed45d49",
+    "UnrealEditor-ReEchoPresentation.dll": "bb79e9db3b8c56ce4833f997575b5c4804a90bbf420838fc9be9b19f0ad1bb07",
+    "UnrealEditor-ReEchoWeapons.dll": "94597cc69a9fd4c95f7702e9faa9c04a5e17ff0b605813c07f469263346eeb50",
     "UnrealEditor.modules": "ba4535bd63b6eba65aec19614a2631d70f0de46fb7ae3b773c24dbce84bc73fb"
   },
   "configuration": "Development",
@@ -126,7 +126,7 @@
     "Source/ReEcho/Private/Tests/ReEchoUIIntegrationTests.cpp": "71c490f6ce16c81967a68fa528a12af596c234b2e50c7ef642989fcac8b8da0f",
     "Source/ReEcho/Private/Tests/ReEchoUIManagerSubsystemTests.cpp": "4fb4de3169ef8b7af9768ddef9186aa9a347e4927f124207df2bffdca5a08993",
     "Source/ReEcho/Private/Tests/ReEchoVfxPreviewTests.cpp": "64c07365fd8021f21799c56ad37f9a21ca38a56a14bef3de0ffd8131be26d837",
-    "Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp": "84374bbe0950f4ab16627ee481ab0c3d9ed888672d6f57f9e0e277f2cd0bf173",
+    "Source/ReEcho/Private/Tests/ReEchoWeaponRuntimeTests.cpp": "f5efd0a08bf29efb8b41f4280e171914b8f85078f13acf834d4767a2248f83ef",
     "Source/ReEcho/Private/UI/Framework/ReEchoButtonAudioFeedback.cpp": "31af9a615276bc6a1de8f103e31581b384975863cd8072a990c15c1d7c803eba",
     "Source/ReEcho/Private/UI/Framework/ReEchoButtonVisualFeedback.cpp": "cb95e3d88b08bacd4938719dd1cd3a4e648ec5139d5eadccd4309ce3c26afba7",
     "Source/ReEcho/Private/UI/Framework/ReEchoUIFlowCoordinatorSubsystem.cpp": "a0da572d13e22b8942fe674e35f193ef6d559319f66751e15a8317e1b8717dc6",
@@ -351,6 +351,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "7be13da1a601aa1669acdcb2f00c61e3f5ea6e5154c7148c167a9d2db1b343fa",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "ec777c5d939d12c1f1cbac6e3343eb2f76f56a0d3709c341629a23908c218130",
+  "source_fingerprint": "dab46d28f8a64e9a705dc55f27815800abe2c05f526051c01bc38730e40cd359",
   "target": "ReEchoEditor"
 }
