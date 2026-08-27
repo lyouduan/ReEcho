@@ -31,7 +31,7 @@ public:
 	UPROPERTY(SaveGame)
 	int32 TimeShards = 0;
 
-	/** Added in v12. Makes each run's card offers random while keeping save/load reproducible. */
+	/** Added in v12. Captures the run-start real-time seed while keeping save/load reproducible. */
 	UPROPERTY(SaveGame)
 	int32 TraitOfferSeed = 0;
 

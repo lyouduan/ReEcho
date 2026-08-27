@@ -70,6 +70,8 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	TierOnePack.Status = EReEchoShopCardPackStatus::Available;
 	TierOnePack.StatusText = FText::FromString(TEXT("可购买"));
 	TierOnePack.Price = 40;
+	TierOnePack.EffectivePrice = 40;
+	TierOnePack.bCanPurchase = true;
 	FReEchoShopCardChoiceOffer TierOneChoice;
 	TierOneChoice.CardId = TEXT("TEST_BUILD_CARD");
 	TierOneChoice.ItemId = TEXT("TEST_CARD_CHOICE");
@@ -90,14 +92,25 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	WeaponPart.DisplayName = FText::FromString(TEXT("Weapon part"));
 	WeaponPart.EffectText = FText::FromString(TEXT("Part effect"));
 	WeaponPart.Price = 20;
+	WeaponPart.EffectivePrice = 20;
+	WeaponPart.bCanPurchase = true;
 	WeaponPart.Type = EReEchoShopOfferType::WeaponPart;
 	WeaponPart.ContentId = TEXT("TEST_WEAPON_PART");
 	WeaponPart.SlotTypeId = TEXT("Core");
+	FReEchoShopOffer RunItem;
+	RunItem.ItemId = TEXT("TEST_RUN_ITEM");
+	RunItem.DisplayName = FText::FromString(TEXT("Run item"));
+	RunItem.EffectText = FText::FromString(TEXT("Run item effect"));
+	RunItem.Price = 25;
+	RunItem.EffectivePrice = 0;
+	RunItem.bCanPurchase = true;
+	RunItem.Type = EReEchoShopOfferType::BuildCard;
 
 	FReEchoWeaponPartShopView View;
 	View.WeaponId = TEXT("TEST_WEAPON");
 	View.WeaponDisplayName = FText::FromString(TEXT("Test weapon"));
 	View.Offers = {WeaponPart};
+	View.RunItemOffers = {RunItem};
 	View.CardPackOffers = {TierOnePack, TierTwoPack, TierThreePack};
 	View.WeaponRuneRefreshesRemaining = 2;
 	View.WeaponRuneRefreshCost = 5;
@@ -179,21 +192,30 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetCardPackButton2")));
 	UReEchoIndexedButton* WeaponPartButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
+	UReEchoIndexedButton* LegacyRunItemButton =
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("ShopOffer0")));
 	TestNotNull(TEXT("Tier-one pack button exists"), RunItemButton);
 	TestNotNull(TEXT("Empty tier-two slot button exists"), EmptyTierTwoButton);
 	TestNotNull(TEXT("Empty tier-three slot button exists"), EmptyTierThreeButton);
 	TestNotNull(TEXT("Weapon part button exists"), WeaponPartButton);
-	if (!RunItemButton || !EmptyTierTwoButton || !EmptyTierThreeButton || !WeaponPartButton)
+	TestNotNull(TEXT("Compatibility run-item button exists"), LegacyRunItemButton);
+	if (!RunItemButton || !EmptyTierTwoButton || !EmptyTierThreeButton || !WeaponPartButton || !LegacyRunItemButton)
 	{
 		return false;
 	}
 	TestFalse(TEXT("Empty tier-two slot cannot be purchased"), EmptyTierTwoButton->GetIsEnabled());
 	TestFalse(TEXT("Empty tier-three slot cannot be purchased"), EmptyTierThreeButton->GetIsEnabled());
+	TestTrue(TEXT("A Run-authorized zero-balance card pack remains clickable"), RunItemButton->GetIsEnabled());
+	TestTrue(TEXT("A Run-authorized zero-balance weapon/rune offer remains clickable"),
+	         WeaponPartButton->GetIsEnabled());
+	TestTrue(TEXT("A Run-authorized zero-balance compatibility item remains clickable"),
+	         LegacyRunItemButton->GetIsEnabled());
 	RunItemButton->OnClicked.Broadcast();
 	EmptyTierTwoButton->OnClicked.Broadcast();
 	EmptyTierThreeButton->OnClicked.Broadcast();
 	WeaponPartButton->OnClicked.Broadcast();
-	TestEqual(TEXT("Only the weapon/rune slot emits a direct purchase command"), PurchaseRequests.Num(), 1);
+	LegacyRunItemButton->OnClicked.Broadcast();
+	TestEqual(TEXT("Weapon/rune and compatibility offers emit direct purchase commands"), PurchaseRequests.Num(), 2);
 	TestEqual(TEXT("Only the available card pack emits an open-pack command"), CardPackRequests.Num(), 1);
 	if (CardPackRequests.Num() == 1)
 	{
@@ -211,15 +233,73 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 	         ContinueButton && ContinueButton->GetIsEnabled());
 	TestTrue(TEXT("A paid pending pack exposes an explicit continue action"),
 	         ContinueText && ContinueText->GetText().ToString().Contains(TEXT("继续")));
-	if (PurchaseRequests.Num() == 1)
+	if (PurchaseRequests.Num() == 2)
 	{
-		TestEqual(TEXT("Weapon part click maps to the weapon part id"), PurchaseRequests[0], WeaponPart.ItemId);
+		TestTrue(TEXT("Weapon part click maps to the weapon part id"), PurchaseRequests.Contains(WeaponPart.ItemId));
+		TestTrue(TEXT("Compatibility item click maps to the run item id"), PurchaseRequests.Contains(RunItem.ItemId));
 	}
 	TestNull(TEXT("Tier pack entrance deliberately has no concrete card icon"),
 	         Widget->GetWidgetFromName(TEXT("TargetCardPackIcon0")));
 
 	// Plan 67 removed the draft/save-loadout flow (purchase equals equip). An owned
 	// part is no longer edited into a draft nor saved via a loadout button.
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuneBackpackCompatibilityPresentationTest,
+                                 "ReEcho.UI.Shop.RuneBackpackFiltersWeaponType",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoRuneBackpackCompatibilityPresentationTest::RunTest(const FString&)
+{
+	UClass* ShopWidgetClass = LoadClass<UReEchoInventoryShopWidget>(
+	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoInventoryShopScreen.WBP_ReEchoInventoryShopScreen_C"));
+	if (!TestNotNull(TEXT("Authored shop class loads for rune compatibility"), ShopWidgetClass))
+	{
+		return false;
+	}
+	UReEchoInventoryShopWidget* Widget = NewObject<UReEchoInventoryShopWidget>(GetTransientPackage(), ShopWidgetClass);
+	if (!TestTrue(TEXT("Rune compatibility shop initializes"), Widget && Widget->Initialize()))
+	{
+		return false;
+	}
+	Widget->TakeWidget();
+
+	FReEchoWeaponPartShopView View;
+	View.WeaponId = TEXT("W_J_04");
+	View.WeaponTypeId = TEXT("Scythe");
+	FReEchoWeaponSlotShopView GripSlot;
+	GripSlot.SlotTypeId = TEXT("Grip");
+	GripSlot.DisplayName = FText::FromString(TEXT("握柄"));
+	GripSlot.Capacity = 1;
+	View.Slots.Add(GripSlot);
+	FReEchoShopOffer ScytheGrip;
+	ScytheGrip.ItemId = TEXT("P_SCYTHE_MOVESTACK_GRIP");
+	ScytheGrip.ContentId = ScytheGrip.ItemId;
+	ScytheGrip.DisplayName = FText::FromString(TEXT("镰刀握柄"));
+	ScytheGrip.Type = EReEchoShopOfferType::WeaponPart;
+	ScytheGrip.SlotTypeId = TEXT("Grip");
+	ScytheGrip.WeaponTypeId = TEXT("Scythe");
+	FReEchoShopOffer SwordGrip = ScytheGrip;
+	SwordGrip.ItemId = TEXT("P_LONGSWORD_HASTE_GRIP");
+	SwordGrip.ContentId = SwordGrip.ItemId;
+	SwordGrip.DisplayName = FText::FromString(TEXT("长剑剑柄"));
+	SwordGrip.WeaponTypeId = TEXT("LongSword");
+	View.OwnedParts = {ScytheGrip, SwordGrip};
+
+	Widget->SetWeaponPartShopView(View);
+	Widget->ShowShop(0, {});
+	UButton* GripButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerAttachmentSlot0")));
+	if (!TestNotNull(TEXT("The authored grip slot is clickable"), GripButton))
+	{
+		return false;
+	}
+	GripButton->OnClicked.Broadcast();
+	const UTextBlock* FirstItem = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackItemName0")));
+	TestTrue(TEXT("The scythe grip remains visible"),
+	         FirstItem && FirstItem->GetText().EqualTo(ScytheGrip.DisplayName));
+	TestNull(TEXT("The same-named LongSword grip slot does not leak into the scythe backpack"),
+	         Widget->GetWidgetFromName(TEXT("BackpackItemName1")));
 	return true;
 }
 
@@ -502,6 +582,8 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	WeaponPart.DisplayName = FText::FromString(TEXT("Authored weapon part"));
 	WeaponPart.EffectText = FText::FromString(TEXT("Authored part effect"));
 	WeaponPart.Price = 10;
+	WeaponPart.EffectivePrice = 10;
+	WeaponPart.bCanPurchase = true;
 	WeaponPart.Type = EReEchoShopOfferType::WeaponPart;
 	WeaponPart.SlotTypeId = TEXT("Core");
 	FReEchoWeaponPartShopView PartShopView;
@@ -558,7 +640,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	PurchasedCard.Tier = 1;
 	PurchasedCard.IconTexturePath =
 	    TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_1_01.T_UI_CardIcon_G_1_01");
-	PartShopView.Offers.Add(PurchasedCard);
+	PartShopView.RunItemOffers.Add(PurchasedCard);
 	Widget->SetWeaponPartShopView(PartShopView);
 	UImage* DesignerClock = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerShopClock")));
 	UCanvasPanelSlot* DesignerClockSlot = DesignerClock ? Cast<UCanvasPanelSlot>(DesignerClock->Slot) : nullptr;

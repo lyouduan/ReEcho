@@ -83,11 +83,6 @@ float GetAttributeRawValue(const FName& Id, const FReEchoStatBlock& Stats)
 	return 0.0f;
 }
 
-int32 GetEffectiveShopPrice(const int32 BasePrice, const float Discount)
-{
-	return FMath::Max(0, FMath::CeilToInt(BasePrice * (1.0f - FMath::Clamp(Discount, 0.0f, 1.0f))));
-}
-
 }
 
 UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer& ObjectInitializer)
@@ -465,7 +460,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 
 	VisibleRunItemOffers.Reset();
 	const TArray<FReEchoShopOffer>& SourceOffers =
-	    CurrentPartShopView.Offers.IsEmpty() ? GetReEchoShopCatalog() : CurrentPartShopView.Offers;
+	    CurrentPartShopView.RunItemOffers.IsEmpty() ? GetReEchoShopCatalog() : CurrentPartShopView.RunItemOffers;
 	for (const FReEchoShopOffer& Offer : SourceOffers)
 	{
 		if (Offer.Type == EReEchoShopOfferType::BuildCard)
@@ -473,7 +468,7 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 			VisibleRunItemOffers.Add(Offer);
 		}
 	}
-	if (VisibleRunItemOffers.IsEmpty() && CurrentPartShopView.Offers.IsEmpty() &&
+	if (VisibleRunItemOffers.IsEmpty() && CurrentPartShopView.RunItemOffers.IsEmpty() &&
 	    CurrentPartShopView.CardPackOffers.IsEmpty())
 	{
 		VisibleRunItemOffers = GetReEchoShopCatalog();
@@ -1104,10 +1099,9 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 	                              *FString::Printf(TEXT("TargetOfferCost%d_%d"), bWeaponPart, OfferIndex),
 	                              17,
 	                              FLinearColor(0.04f, 0.04f, 0.04f));
-	Cost->SetText(bEmptyBuildCardSlot
-	                  ? FText::FromString(TEXT("—"))
-	                  : FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"),
-	                                  FText::AsNumber(GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount))));
+	Cost->SetText(bEmptyBuildCardSlot ? FText::FromString(TEXT("—"))
+	                                  : FText::Format(NSLOCTEXT("ReEcho", "TargetShopCost", "◆ {0}"),
+	                                                  FText::AsNumber(Offer.EffectivePrice)));
 	Cost->SetJustification(ETextJustify::Right);
 	UCanvasPanelSlot* CostSlot = Card->AddChildToCanvas(Cost);
 	CostSlot->SetPosition(FVector2D(112.0f, 145.0f));
@@ -1163,11 +1157,8 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 		TextSlot->SetVerticalAlignment(VAlign_Center);
 	}
 	Buy->SetContent(ButtonOverlay);
-	const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
 	Buy->SetIsEnabled(!bEmptyBuildCardSlot && !bShowPurchased &&
-	                  (bOwnedPart || (!bPurchasedCard && (CurrentPartShopView.bUnlimitedShopCredit ||
-	                                                      CurrentTimeShards >= EffectivePrice))) &&
-	                  (bWeaponPart || bCurrentExtraCardPurchaseAllowed));
+	                  (bOwnedPart || (!bPurchasedCard && Offer.bCanPurchase)));
 	if (bWeaponPart)
 	{
 		Buy->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
@@ -1233,9 +1224,7 @@ void UReEchoInventoryShopWidget::AddTargetCardPack(UHorizontalBox* Row,
 	    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("TargetCardPackButton%d"), PackIndex));
 	Button->SetEntryIndex(PackIndex);
 	const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
-	const int32 EffectivePrice = GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
-	const bool bCanPurchase = Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed &&
-	                          (CurrentPartShopView.bUnlimitedShopCredit || CurrentTimeShards >= EffectivePrice);
+	const bool bCanPurchase = Pack.bCanPurchase;
 	Button->SetBackgroundColor((bCanPurchase || bPendingChoice) ? FLinearColor(0.95f, 0.78f, 0.34f, 1.0f)
 	                                                            : FLinearColor(0.55f, 0.55f, 0.55f, 1.0f));
 	Button->SetIsEnabled(bCanPurchase || bPendingChoice);
@@ -1245,7 +1234,7 @@ void UReEchoInventoryShopWidget::AddTargetCardPack(UHorizontalBox* Row,
 	                                    18,
 	                                    FLinearColor(0.03f, 0.03f, 0.03f));
 	ButtonText->SetText(Pack.IsAvailable() ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"),
-	                                                       FText::AsNumber(EffectivePrice))
+	                                                       FText::AsNumber(Pack.EffectivePrice))
 	                    : bPendingChoice   ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
 	                                       : Pack.StatusText);
 	ButtonText->SetJustification(ETextJustify::Center);
@@ -1575,7 +1564,8 @@ void UReEchoInventoryShopWidget::HandleAttachmentSlotClicked(const int32 SlotInd
 	const bool bHasBackpack = CurrentPartShopView.OwnedParts.ContainsByPredicate(
 	    [&](const FReEchoShopOffer& Candidate)
 	    {
-		    return Candidate.SlotTypeId == SlotTypeId && !IsPartEquipped(Candidate.ContentId);
+		    return Candidate.SlotTypeId == SlotTypeId && IsPartCompatibleWithCurrentWeapon(Candidate) &&
+		           !IsPartEquipped(Candidate.ContentId);
 	    });
 	if (!bHasBackpack)
 	{
@@ -1773,7 +1763,8 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 	int32 EntryCount = 0;
 	for (const FReEchoShopOffer& Candidate : CurrentPartShopView.OwnedParts)
 	{
-		if (Candidate.SlotTypeId != SlotTypeId || IsPartEquipped(Candidate.ContentId))
+		if (Candidate.SlotTypeId != SlotTypeId || !IsPartCompatibleWithCurrentWeapon(Candidate) ||
+		    IsPartEquipped(Candidate.ContentId))
 		{
 			continue;
 		}
@@ -2113,15 +2104,13 @@ void UReEchoInventoryShopWidget::Refresh()
 		}
 		const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[PackIndex];
 		const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
-		const int32 EffectivePrice = GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount);
-		const bool bCanPurchase = Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed &&
-		                          (CurrentPartShopView.bUnlimitedShopCredit || CurrentTimeShards >= EffectivePrice);
+		const bool bCanPurchase = Pack.bCanPurchase;
 		CardPackButtons[PackIndex]->SetIsEnabled(bCanPurchase || bPendingChoice);
-		const FText ActionText =
-		    Pack.IsAvailable()
-		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"), FText::AsNumber(EffectivePrice))
-		    : bPendingChoice ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
-		                     : Pack.StatusText;
+		const FText ActionText = Pack.IsAvailable()
+		                             ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"),
+		                                             FText::AsNumber(Pack.EffectivePrice))
+		                         : bPendingChoice ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
+		                                          : Pack.StatusText;
 		CardPackTexts[PackIndex]->SetText(FText::Format(
 		    NSLOCTEXT("ReEcho", "ShopCardPackLogicFormat", "{0}卡组\n{1}"), Pack.DisplayName, ActionText));
 	}
@@ -2164,18 +2153,17 @@ void UReEchoInventoryShopWidget::Refresh()
 	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
 		const FReEchoShopOffer& Offer = VisibleRunItemOffers[OfferIndex];
-		const int32 EffectivePrice = GetEffectiveShopPrice(Offer.Price, CurrentShopDiscount);
 		const bool bAvailable = !Offer.ItemId.IsNone();
 		const bool bOwned = CurrentOwnedItems.Contains(Offer.ItemId);
-		const bool bAffordable = CurrentPartShopView.bUnlimitedShopCredit || CurrentTimeShards >= EffectivePrice;
-		OfferButtons[OfferIndex]->SetIsEnabled(bAvailable && !bOwned && bAffordable);
+		OfferButtons[OfferIndex]->SetIsEnabled(bAvailable && !bOwned && Offer.bCanPurchase);
 		OfferTexts[OfferIndex]->SetText(FText::Format(
 		    NSLOCTEXT("ReEcho", "ShopOfferFormat", "{0}\n{1}\n{2}"),
 		    Offer.DisplayName,
 		    Offer.EffectText,
 		    !bAvailable ? Offer.DisplayName
-		    : bOwned    ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
-		             : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(EffectivePrice))));
+		    : bOwned
+		        ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
+		        : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(Offer.EffectivePrice))));
 	}
 	if (ShopRefreshButton && ShopRefreshText)
 	{
@@ -2232,9 +2220,7 @@ void UReEchoInventoryShopWidget::Refresh()
 				    return Owned.ContentId == PartOffer.ContentId;
 			    });
 			const bool bEquipped = IsPartEquipped(PartOffer.ContentId);
-			const int32 EffectivePrice = GetEffectiveShopPrice(PartOffer.Price, CurrentShopDiscount);
-			WeaponPartOfferButtons[Index]->SetIsEnabled(
-			    !bOwned && (CurrentPartShopView.bUnlimitedShopCredit || CurrentTimeShards >= EffectivePrice));
+			WeaponPartOfferButtons[Index]->SetIsEnabled(!bOwned && PartOffer.bCanPurchase);
 			WeaponPartOfferButtons[Index]->SetBackgroundColor(bEquipped ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f)
 			                                                            : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
 			WeaponPartOfferTexts[Index]->SetText(
@@ -2244,7 +2230,7 @@ void UReEchoInventoryShopWidget::Refresh()
 			                  bEquipped ? NSLOCTEXT("ReEcho", "WeaponPartEquipped", "（已装备）")
 			                  : bOwned  ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已获得）")
 			                            : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
-                                                       FText::AsNumber(EffectivePrice))));
+                                                       FText::AsNumber(PartOffer.EffectivePrice))));
 		}
 	}
 	if (ShopPresentationLayer)
@@ -2329,9 +2315,7 @@ void UReEchoInventoryShopWidget::HandleCardPackClicked(const int32 PackIndex)
 	                    Pack.Choices.Num(),
 	                    bCurrentExtraCardPurchaseAllowed ? 1 : 0));
 	const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
-	const bool bCanPurchase = Pack.IsAvailable() && bCurrentExtraCardPurchaseAllowed &&
-	                          (CurrentPartShopView.bUnlimitedShopCredit ||
-	                           CurrentTimeShards >= GetEffectiveShopPrice(Pack.Price, CurrentShopDiscount));
+	const bool bCanPurchase = Pack.bCanPurchase;
 	if (bCanPurchase || bPendingChoice)
 	{
 		OnCardPackRequested.Broadcast(Pack.Tier);
@@ -2364,6 +2348,12 @@ bool UReEchoInventoryShopWidget::IsPartEquipped(const FName PartId) const
 	    {
 		    return Equipped.PartId == PartId;
 	    });
+}
+
+bool UReEchoInventoryShopWidget::IsPartCompatibleWithCurrentWeapon(const FReEchoShopOffer& PartOffer) const
+{
+	return PartOffer.WeaponTypeId.IsNone() || CurrentPartShopView.WeaponTypeId.IsNone() ||
+	       PartOffer.WeaponTypeId == TEXT("Any") || PartOffer.WeaponTypeId == CurrentPartShopView.WeaponTypeId;
 }
 
 void UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked(const int32 PartOfferIndex)
