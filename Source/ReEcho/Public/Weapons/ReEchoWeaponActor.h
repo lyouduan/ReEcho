@@ -89,6 +89,11 @@ public:
 	                                                      const FVector& Direction,
 	                                                      bool bHasWeaponAnchor);
 	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
+	static EReEchoElement ResolveProjectileElementForTests(bool bUsesDeterministicRandomElement,
+	                                                     EReEchoElement AttackElement,
+	                                                     int64 AttackSequence,
+	                                                     int32 ProjectileIndex,
+	                                                     EReEchoElement DebugOverride);
 
 	float GetStepLockRemaining() const
 	{

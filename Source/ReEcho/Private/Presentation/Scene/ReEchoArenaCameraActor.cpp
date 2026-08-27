@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/SceneComponent.h"
+#include "Curves/CurveFloat.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -24,6 +25,7 @@ AReEchoArenaCameraActor::AReEchoArenaCameraActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	PrimaryActorTick.bTickEvenWhenPaused = true;
 	PrimaryActorTick.TickGroup = TG_PostPhysics;
 	CameraRoot = CreateDefaultSubobject<USceneComponent>(TEXT("CameraRoot"));
 	SetRootComponent(CameraRoot);
@@ -43,6 +45,7 @@ AReEchoArenaCameraActor::AReEchoArenaCameraActor()
 
 void AReEchoArenaCameraActor::Configure(AReEchoPlayerPawn* InFollowTarget, AReEchoArenaSceneActor* InArenaSource)
 {
+	SetTickableWhenPaused(true);
 	if (FollowTarget && FollowTarget != InFollowTarget)
 	{
 		RemoveTickPrerequisiteActor(FollowTarget);
@@ -52,7 +55,10 @@ void AReEchoArenaCameraActor::Configure(AReEchoPlayerPawn* InFollowTarget, AReEc
 	if (FollowTarget)
 	{
 		AddTickPrerequisiteActor(FollowTarget);
-		UpdateFollow(0.0f);
+		if (!bStage01To02CameraSequenceActive)
+		{
+			UpdateFollow(0.0f);
+		}
 	}
 }
 
@@ -63,7 +69,14 @@ void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 	{
 		Configure(Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)), ArenaSource);
 	}
-	UpdateFollow(DeltaSeconds);
+	if (bStage01To02CameraSequenceActive)
+	{
+		UpdateStage01To02CameraMove(DeltaSeconds);
+	}
+	else
+	{
+		UpdateFollow(DeltaSeconds);
+	}
 	if (EncounterCountdownPostProcessIntensity > 0.0f && EncounterCountdownPostProcessMID)
 	{
 		EncounterCountdownPostProcessPhase +=
@@ -71,6 +84,156 @@ void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 		EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("PulsePhase"),
 		                                                          EncounterCountdownPostProcessPhase);
 	}
+}
+
+void AReEchoArenaCameraActor::BeginStage01To02CameraSequence()
+{
+	if (!ArenaCamera)
+	{
+		return;
+	}
+	SetActorTickEnabled(true);
+	SetTickableWhenPaused(true);
+	bStage01To02CameraSequenceActive = true;
+	bStage01To02CameraMoveActive = false;
+	Stage01To02CameraTarget = nullptr;
+	Stage01To02SequenceStandardOrthoWidth = ArenaCamera->OrthoWidth;
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[Stage01To02Camera] sequence begin focus=(%.1f,%.1f) ortho=%.1f tickEnabled=%s tickPaused=%s"),
+	       GetGroundFocus().X,
+	       GetGroundFocus().Y,
+	       Stage01To02SequenceStandardOrthoWidth,
+	       IsActorTickEnabled() ? TEXT("true") : TEXT("false"),
+	       PrimaryActorTick.bTickEvenWhenPaused ? TEXT("true") : TEXT("false"));
+}
+
+float AReEchoArenaCameraActor::CalculateStage01To02CameraEaseAlpha(const float LinearAlpha)
+{
+	return FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LinearAlpha, 0.0f, 1.0f));
+}
+
+bool AReEchoArenaCameraActor::FocusStage01To02Target(AActor* Target,
+                                                     const float OrthoWidthRatio,
+                                                     const float DurationSeconds)
+{
+	if (!bStage01To02CameraSequenceActive || !ArenaCamera || !IsValid(Target))
+	{
+		return false;
+	}
+	const FVector CurrentFocus = GetGroundFocus();
+	Stage01To02MoveStartFocus = FVector2D(CurrentFocus.X, CurrentFocus.Y);
+	Stage01To02CameraTarget = Target;
+	Stage01To02MoveFallbackTargetFocus = FVector2D(Target->GetActorLocation().X, Target->GetActorLocation().Y);
+	Stage01To02MoveStartOrthoWidth = ArenaCamera->OrthoWidth;
+	Stage01To02MoveTargetOrthoWidth = Stage01To02SequenceStandardOrthoWidth * FMath::Clamp(OrthoWidthRatio, 0.1f, 1.0f);
+	Stage01To02MoveElapsedSeconds = 0.0f;
+	Stage01To02MoveDurationSeconds = FMath::Max(0.0f, DurationSeconds);
+	bStage01To02CameraMoveActive = true;
+	UpdateStage01To02CameraMove(0.0f);
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("[Stage01To02Camera] move target=%s duration=%.3f ortho=%.1f->%.1f"),
+	       *GetNameSafe(Target),
+	       Stage01To02MoveDurationSeconds,
+	       Stage01To02MoveStartOrthoWidth,
+	       Stage01To02MoveTargetOrthoWidth);
+	return true;
+}
+
+bool AReEchoArenaCameraActor::FocusStage01To02TargetAtStandardWidth(AActor* Target, const float DurationSeconds)
+{
+	return FocusStage01To02Target(Target, 1.0f, DurationSeconds);
+}
+
+bool AReEchoArenaCameraActor::IsStage01To02CameraMoveComplete() const
+{
+	return bStage01To02CameraSequenceActive && !bStage01To02CameraMoveActive;
+}
+
+void AReEchoArenaCameraActor::EndStage01To02CameraSequence()
+{
+	if (!bStage01To02CameraSequenceActive)
+	{
+		return;
+	}
+	bStage01To02CameraSequenceActive = false;
+	bStage01To02CameraMoveActive = false;
+	Stage01To02CameraTarget = nullptr;
+	if (ArenaCamera && Stage01To02SequenceStandardOrthoWidth > 0.0f)
+	{
+		ArenaCamera->SetOrthoWidth(Stage01To02SequenceStandardOrthoWidth);
+	}
+	UpdateFollow(0.0f);
+	UE_LOG(LogTemp, Display, TEXT("[Stage01To02Camera] sequence completed; player follow restored."));
+}
+
+void AReEchoArenaCameraActor::CancelStage01To02CameraSequence()
+{
+	if (!bStage01To02CameraSequenceActive)
+	{
+		return;
+	}
+	bStage01To02CameraSequenceActive = false;
+	bStage01To02CameraMoveActive = false;
+	Stage01To02CameraTarget = nullptr;
+	if (ArenaCamera && Stage01To02SequenceStandardOrthoWidth > 0.0f)
+	{
+		ArenaCamera->SetOrthoWidth(Stage01To02SequenceStandardOrthoWidth);
+	}
+	UpdateFollow(0.0f);
+	UE_LOG(LogTemp, Warning, TEXT("[Stage01To02Camera] sequence cancelled; player follow restored."));
+}
+
+void AReEchoArenaCameraActor::UpdateStage01To02CameraMove(const float DeltaSeconds)
+{
+	if (!bStage01To02CameraMoveActive || !ArenaCamera)
+	{
+		return;
+	}
+	Stage01To02MoveElapsedSeconds += FMath::Max(0.0f, DeltaSeconds);
+	const float LinearAlpha =
+	    Stage01To02MoveDurationSeconds <= KINDA_SMALL_NUMBER
+	        ? 1.0f
+	        : FMath::Clamp(Stage01To02MoveElapsedSeconds / Stage01To02MoveDurationSeconds, 0.0f, 1.0f);
+	const float EaseAlpha = Stage01To02CameraEaseCurve
+	                            ? FMath::Clamp(Stage01To02CameraEaseCurve->GetFloatValue(LinearAlpha), 0.0f, 1.0f)
+	                            : CalculateStage01To02CameraEaseAlpha(LinearAlpha);
+	SetGroundFocus(FMath::Lerp(Stage01To02MoveStartFocus, ResolveTransitionTargetFocus(), EaseAlpha));
+	ArenaCamera->SetOrthoWidth(FMath::Lerp(Stage01To02MoveStartOrthoWidth, Stage01To02MoveTargetOrthoWidth, EaseAlpha));
+	if (LinearAlpha >= 1.0f)
+	{
+		bStage01To02CameraMoveActive = false;
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[Stage01To02Camera] move completed target=%s focus=(%.1f,%.1f) ortho=%.1f"),
+		       *GetNameSafe(Stage01To02CameraTarget),
+		       GetGroundFocus().X,
+		       GetGroundFocus().Y,
+		       ArenaCamera->OrthoWidth);
+	}
+}
+
+FVector2D AReEchoArenaCameraActor::ResolveTransitionTargetFocus() const
+{
+	FVector2D Desired = Stage01To02MoveFallbackTargetFocus;
+	if (IsValid(Stage01To02CameraTarget))
+	{
+		Desired =
+		    FVector2D(Stage01To02CameraTarget->GetActorLocation().X, Stage01To02CameraTarget->GetActorLocation().Y);
+	}
+	if (!bClampToArenaBounds || !ArenaSource || !ArenaCamera)
+	{
+		return Desired;
+	}
+	const FVector2D Footprint = AReEchoArenaSceneActor::CalculateGroundFootprintHalfExtents(
+	    Stage01To02MoveTargetOrthoWidth, ArenaCamera->AspectRatio, GetActorRotation());
+	return AReEchoArenaSceneActor::ClampCameraFocusWithInsets(Desired,
+	                                                          ArenaSource->GetArenaCenter(),
+	                                                          ArenaSource->GetCameraClampHalfExtents(),
+	                                                          FVector2D(BottomEdgeInset, LeftEdgeInset),
+	                                                          FVector2D(TopEdgeInset, RightEdgeInset),
+	                                                          Footprint);
 }
 
 float AReEchoArenaCameraActor::CalculateEncounterCountdownPostProcessIntensity(const float RemainingTime)

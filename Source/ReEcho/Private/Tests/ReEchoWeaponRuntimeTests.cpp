@@ -524,6 +524,17 @@ bool FReEchoPrismMultishotElementTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Non-prism projectiles keep the attack element"),
 	          ReEchoWeaponRuntime::ResolveProjectileElement(false, EReEchoElement::Flame, 1, 2),
 	          EReEchoElement::Flame);
+	for (int32 ProjectileIndex = 0; ProjectileIndex < 3; ++ProjectileIndex)
+	{
+		TestEqual(TEXT("GMElement overrides every Prism projectile before initialization"),
+		          AReEchoWeaponActor::ResolveProjectileElementForTests(
+		              true, EReEchoElement::None, 17, ProjectileIndex, EReEchoElement::Lightning),
+		          EReEchoElement::Lightning);
+	}
+	TestEqual(TEXT("No GMElement override preserves the production core element"),
+	          AReEchoWeaponActor::ResolveProjectileElementForTests(
+	              false, EReEchoElement::Water, 17, 0, EReEchoElement::None),
+	          EReEchoElement::Water);
 	return true;
 }
 

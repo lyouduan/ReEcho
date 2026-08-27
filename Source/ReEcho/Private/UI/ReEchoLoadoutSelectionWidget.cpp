@@ -810,19 +810,22 @@ void UReEchoLoadoutSelectionWidget::HandleWeaponPreviewed(const int32 OptionInde
 
 void UReEchoLoadoutSelectionWidget::HandleCharacterHovered(const int32 OptionIndex)
 {
-	bShowAnchoredDescription = false;
 	if (SelectionStage == ESelectionStage::Character && CharacterOptionIds.IsValidIndex(OptionIndex))
 	{
-		SelectCharacter(CharacterOptionIds[OptionIndex]);
+		// Mouse hover owns only transient presentation (native tooltip/global scale).
+		// Keep the clicked/focus-selected candidate unchanged so merely crossing an
+		// entry cannot move the arrow or change what Confirm will submit.
+		bShowAnchoredDescription = false;
+		RefreshSelection();
 	}
 }
 
 void UReEchoLoadoutSelectionWidget::HandleWeaponHovered(const int32 OptionIndex)
 {
-	bShowAnchoredDescription = false;
 	if (SelectionStage == ESelectionStage::Weapon && WeaponOptionIds.IsValidIndex(OptionIndex))
 	{
-		ChooseWeapon(WeaponOptionIds[OptionIndex]);
+		bShowAnchoredDescription = false;
+		RefreshSelection();
 	}
 }
 
