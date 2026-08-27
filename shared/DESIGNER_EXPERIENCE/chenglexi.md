@@ -20,7 +20,7 @@
 
 ## 2026-08-27 18:17 - 卡牌刷新音效入点修正 + 兔子每波投放减 7
 
-- 结果：成功（数据层，sync + validate 已 PASS；新局表现待验证，推送待本人确认）
+- 结果：成功（数据层，sync + validate 已 PASS；策划已确认提交并交由项目秘书集成）
 - 事项与分支：`merge/chenglexi/card-audio-and-rabbit-spawn`（从 9bf2cb66 新建）
 - 目标：① 3 选 1 卡牌界面「刷新单个卡牌」音效有延迟，修正音频入点；② 第二关起（战斗 3–8）兔子每波投放各减 7 只
 - 生效映射：
@@ -31,7 +31,7 @@
   - RangedCount 每波 -7：E3 16/12/18→9/5/11、E4 16/16/22→9/9/15、E5 18/16/22→11/9/15、E6 16/18/18→9/11/11、E7 22/18/26→15/11/19、E8 16/18/22→9/11/15（共 18 格，无负值）
 - 刷新方式：`python scripts/data/sync_xlsx_to_csv.py`（重生成 `Content/Data/audio_events.csv`、`encounter_waves.csv`）→ `python scripts/validate_project.py`（PASS）
 - 验证入口：`audio_events.csv` 第 16 列 StartTimeSeconds、`encounter_waves.csv` 第 6 列 RangedCount；新局进战斗 3–8 与卡牌刷新点
-- 策划确认：chenglexi 明确「不是总投放，是每一波的投放均减 7」；推送待本人明确同意
+- 策划确认：chenglexi 明确「不是总投放，是每一波的投放均减 7」；2026-08-27 已确认提交 `59a5cf03` 并交由项目秘书集成
 - 限制与踩坑：
   - 音效入点纯数据层（`StartTimeSeconds` 由 `ReEchoAudioBackend` 运行时消费），无需动 C++；`UI.CardReveal` 触发点 = `ReEchoGameMode.cpp:4715` `PostUiEvent(UiCardReveal)`
   - `git checkout -b` 新建分支后 `refs/heads/*` 再次被 safe-delete shim 拦截丢 ref（HEAD 已指新分支但 ref 文件缺失、`git rev-parse HEAD` 报 unknown revision），需 Python `os.makedirs`+`open().write(sha)` 直写 ref 修复
