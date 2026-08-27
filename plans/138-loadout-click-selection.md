@@ -6,8 +6,8 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
-- 人工验收：`PendingBeforeClose`（需 PIE 验证鼠标悬停与点击的实际交互手感）。
+- 任务状态：`Closed`（`Proposed | Ready | InProgress | Review | Closed | Blocked`）。
+- 人工验收：`PassedByUser`（用户确认“没问题了”并明确要求推送远端、合并主分支及清理本地工作分支）。
 - 本地规划 / 实现基线：`origin/main@2b1fc6c5`。
 - 本地实现方式：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan138-loadout-click-selection`，分支 `plan/138-loadout-click-selection`。
 - 依赖 / 阻塞：以 Plan 132 的两阶段 Loadout UI 为现有契约；不依赖新美术。执行 Unreal 构建/自动化前需确认 Editor 已关闭，并遵守同克隆 Unreal 锁。
@@ -56,12 +56,12 @@
 - [x] 角色阶段初始时，连续 Hover 四个角色不会设置 `SelectedCharacterId`，不会出现选择箭头或可用确认按钮。
 - [x] 点击角色 A 后 Hover 角色 B，A 的 Selected 图/箭头与最终确认对象不变；点击 B 后才切换到 B。
 - [x] 武器阶段满足同样的“Hover 不选中、点击才选中”规则。
-- [ ] 鼠标 Hover 的原生 Tooltip、跟随定位和全局悬停缩放仍可用，且不出现锚定说明重复框。
+- [x] 鼠标 Hover 的原生 Tooltip、跟随定位和全局悬停缩放仍可用，且不出现锚定说明重复框。
 - [x] 键盘/手柄 Focus 仍能沿用现有候选预览/选择与锚定说明回退，不影响确认流程。
 - [x] 第一次确认仍只进入武器阶段；第二次确认仍只广播一次准确的 `(CharacterId, WeaponId)`。
 - [x] `ReEcho.UI.LoadoutSelection` 自动化覆盖未选择 Hover、已选择后 Hover 其他项、点击切换和两阶段确认边界并通过。
 - [x] Development Editor 构建、`python scripts/validate_project.py`、预构建一致性和 `git diff --check` 通过。
-- [ ] 用户完成 PIE 鼠标交互人工验收后再关闭和发布实现。
+- [x] 用户完成 PIE 鼠标交互人工验收后再关闭和发布实现。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -114,7 +114,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请在本 Plan worktree 的 `ReEcho.uproject` 中执行角色页和武器页各一次“先 Hover 多项 → 点击 A → Hover B → 确认”，确认未点击不误选、Hover B 不改变 A。
+- `PassedByUser`：用户完成手测并确认“没问题了”，随后授权推送远端、合并主分支及清理本地工作分支。
 
 ### 架构文档审阅结果
 
@@ -122,3 +122,8 @@
 - `Design/UI/ReEcho_UI修改指导.md`：已更新 Loadout Designer 的交互说明，明确 Hover 不移动箭头或确认对象。
 - `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；模块拓扑、依赖方向和 UI→GameMode 最终委托边界未变，无需修改。
 - `shared/CODEBASE_MAP/README.md`：已审阅；现有 `AREA-UI`→`MOD-ReEchoUI.md` 路由不变，无需修改。
+
+### 发布集成审计
+
+- 发布授权后 fetch 到 `origin/main@db54bbb1`。Plan-only 基线之后传入 Plan133 CG 镜头过渡与 Plan139 枪械元素飞行特效；修改范围集中于 GameMode、场景相机、投射物/VFX、对应测试与 `MOD-ReEcho` / `MOD-ReEchoVFX`。
+- 传入提交未修改 `ReEchoLoadoutSelectionWidget.cpp`、`ReEchoLoadoutSelectionTests.cpp`、`MOD-ReEchoUI.md` 或 UI 修改指导；与 Plan138 没有同路径冲突或 Loadout 状态机逻辑耦合。精选 Editor 包属于构建产物热点，将在合并最新 main 后执行最终 `-FullRebuild`，不保留任一旧侧二进制。
