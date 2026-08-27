@@ -1,0 +1,128 @@
+# Plan 132 - 程序 - 开场角色与武器两阶段选择 UI
+
+## 协调
+
+- Planner 负责人：Codex（当前程序对话内兼任 Planner 与 Executor）。
+- Executor 负责人：Codex。
+- Plan 编写方（AI 侧）：`Gavyn-side AI`。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。
+- 任务状态：`Ready`。
+- 人工验收：`PendingBeforeClose`。
+- 规划基线：`origin/main@71b93f917b0946f6869a94c3d129a4564f4756a7`。
+- 本地实现方式：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan132-start-loadout-two-stage-ui`，分支 `plan/132-start-loadout-two-stage-ui`。
+- 依赖 / 阻塞：依赖现有 `WBP_ReEchoLoadoutSelection`、`WBP_ReEchoLoadoutEntry`、CSV 快照与 `OnLoadoutConfirmed(CharacterId, WeaponId)` 契约；执行 UE 作者ing、导入和验证前需关闭 Editor，并遵守同克隆 Unreal 锁。
+- Writes:
+  - `plans/132-start-loadout-two-stage-ui.md`
+  - `Content/SourceArt/UI/LoadoutSelection/Plan132/*.png`
+  - `Content/ReEcho/Textures/UI/LoadoutSelection/*.uasset`
+  - `Content/ReEcho/UI/WBP_ReEchoLoadoutSelection.uasset`
+  - `Content/ReEcho/UI/WBP_ReEchoLoadoutEntry.uasset`
+  - `Source/ReEcho/Public/UI/ReEchoLoadoutSelectionWidget.h`
+  - `Source/ReEcho/Private/UI/ReEchoLoadoutSelectionWidget.cpp`
+  - `Source/ReEcho/Public/UI/ReEchoLoadoutEntryWidget.h`
+  - `Source/ReEcho/Private/UI/ReEchoLoadoutEntryWidget.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoLoadoutSelectionWidgetTests.cpp`（若新增聚焦自动化）
+  - `scripts/ue/import_plan132_loadout_assets.py`
+  - `scripts/ue/author_plan132_loadout_widgets.py`
+  - `Design/UI/ReEcho_UI修改指导.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
+  - 精选 Win64 Editor 预构建包及 manifest（仅最终发布门禁刷新）。
+- Stable Reads:
+  - `Content/Data/characters.csv`、`Content/Data/weapons.csv`、`Content/Data/weapon_types.csv`。
+  - `Source/ReEcho/{Public,Private}/ReEchoGameMode.*`。
+  - `Source/ReEcho/{Public,Private}/UI/ReEchoIndexedButton.*`、`ReEchoUIManagerSubsystem.*`。
+  - 外部交付目录 `C:\Users\gavynqiu\Documents\miniGame\正式-UI视觉\正式-UI视觉\选择角色&武器\`。
+- 影响模式：`Coordinated`；同时修改 UI C++ 状态机、两个 WBP、纹理资产及模块文档，但不改变 Run/武器权威数据或 GameMode 最终提交委托。
+- 兼容承诺 / 下游操作：`AReEchoGameMode` 仍只在最终确认后收到一次 `(CharacterId, WeaponId)`；`UReEchoRunSubsystem::StartRun`、存档、预加载和首关开始顺序不变。角色与武器资格仍来自 CSV；展示顺序只在本页面按交付稿稳定 ID 排列，未知未来项追加到末尾且保留安全 fallback。
+- 明确排除：不修改角色/武器数值、启用状态、默认武器、玩法描述真源、开局存档语义、Start Menu、战斗 HUD 或商店装配室；不把 4 张 `1-*.png` 合成稿直接当运行时整屏贴图；不新增交付稿没有表现的返回按钮或第三阶段。
+
+## 锁定目标
+
+把当前“角色和武器同页同时选择”的开场配装页改为两个连续阶段：
+
+1. 角色阶段按交付稿从左到右显示 `勇者(J_HEART) / 智者(J_SPADE) / 诗人(J_CLOVER) / 猎手(J_DIAMOND)`。
+2. 首次进入阶段时四项均使用明亮的“选中”素材，仅展示标题与选项，不显示解释框、箭头和确认按钮；鼠标 Hover、键盘/手柄 Focus 或点击某项后，该项保持“选中”素材，其余项切换为“未选中”素材，并显示对应名称、解释框、箭头和确认按钮。
+3. 第一次确认只锁定角色并切换到武器阶段，不广播最终 Loadout。
+4. 武器阶段按交付稿从左到右显示 `镰刀(W_J_04) / 枪(W_J_09) / 长剑(W_J_01，界面显示“剑”) / 弓(W_J_08)`，沿用相同的初始、Hover/Focus/点击与确认表现。
+5. 第二次确认才通过既有 `OnLoadoutConfirmed` 一次性提交角色与武器组合；不得提前启动 Run 或重复广播。
+
+`1-角色选择.png`、`1-角色选择：hover.png`、`1-武器选择.png`、`1-武器选择：hover.png` 只作为 1920×1080 构图和状态参考。运行时使用 16 张角色/武器选中与未选中透明切图、`解释弹窗.png`、`选择箭头.png`、UMG 文本和现有正式确认按钮美术组合页面。
+
+## 架构影响与设计决策
+
+- 受影响架构标识：`MOD-ReEcho`、`MOD-ReEchoUI`、`AREA-UI`。
+- 权威状态：角色、武器资格和描述继续来自 CSV 快照；Widget 只拥有当前页面阶段、预览索引与未提交的两个稳定 ID。Run 和 GameMode 仍是最终开局事务权威。
+- 公共契约：保留 `FReEchoLoadoutConfirmed(FName CharacterId, FName WeaponId)`，不要求 GameMode 新增中间角色确认端点。Entry 只扩展表现输入与 Preview/Selected 事件，不拥有玩法 ID。
+- 依赖方向：UI 继续只读 `FReEchoCsvDataSnapshot` 并向 GameMode 发最终委托，不写 CSV、Run 或武器 Runtime。纹理由稳定资源路径加载，并由硬引用 WBP/AlwaysCook 进入打包。
+- 表现顺序：交付稿顺序与 CSV 的 PromotionPriority/LoadoutOrder 不同；仅在本页按已知稳定 ID 应用美术顺序，未知新项按原数据顺序追加，避免用中文文案反查 ID 或改变全局数据排序。
+- Hover 与可访问性：Hover、Focus 和点击统一进入同一 Preview 状态；点击仍是触屏/手柄确认候选的入口。无 Preview 时所有选项显示明亮版本；有 Preview 时只有当前项明亮，其他项使用未选中版本。
+- 解释文字：角色读取 `characters.csv.Description`，武器读取对应 `weapon_types.csv.Description`；由 WBP 在交付解释框内自动换行/向下缩放，不在 C++ 复制一份中文玩法文案。合成稿中的“这里是一段……”视为占位说明，不进入正式内容。
+- 失败与 fallback：缺少正式 WBP/纹理时保留原生最低可用树；单项正式纹理缺失时降级到既有角色/武器纹理，不改变选择资格或提交。
+- 文档同步：维护 `MOD-ReEcho.md` 的开局 UI 流程和 `MOD-ReEchoUI.md` 的两阶段表现/状态所有者；更新 UI 修改指导。关闭前审阅 `ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md`，若拓扑和索引不变则在本 Plan 记录无需修改。
+
+## 锁定验收
+
+- [ ] 页面初次打开只显示角色阶段；构图接近 `1-角色选择.png`，四个角色均为明亮版本，解释框、箭头、确认按钮隐藏。
+- [ ] Hover/Focus/点击角色后，当前角色使用对应“选中”图，其余三项使用各自“未选中”图；解释框、箭头、确认按钮出现且位置/层级接近 `1-角色选择：hover.png`。
+- [ ] 第一次确认只进入武器阶段并保留所选角色，不调用 `OnLoadoutConfirmed`。
+- [ ] 武器阶段初始及 Hover/Focus/点击表现分别接近两张武器参考稿，顺序为镰刀、枪、剑、弓。
+- [ ] 第二次确认只广播一次准确的 `(CharacterId, WeaponId)`；Run 启动、预加载和首关切换契约不变。
+- [ ] 18 张运行时切图保持交付原始像素/Alpha，不重绘或重采样；4 张整屏合成参考图不导入为运行时 Texture2D。
+- [ ] `WBP_ReEchoLoadoutSelection` 与 Entry Compile/Save 成功；1920×1080、16:9 低分辨率和超宽屏下主体等比居中，无选项变形或按钮不可点击。
+- [ ] 聚焦 UI 自动化、CompileAllBlueprints、项目静态校验及最终 `-FullRebuild` 发布门禁通过。
+- [ ] 用户人工确认两阶段导航、Hover/选中状态、文案可读性、构图和最终进入首关均可接受。
+
+## Step 0 门禁
+
+- 基线：独立 worktree 准确基于 `origin/main@71b93f917b0946f6869a94c3d129a4564f4756a7`。
+- 当前实现：`UReEchoLoadoutSelectionWidget` 在同一页动态生成 `CharacterRow` 与 `WeaponRow`，一次确认要求两个 ID 均非空后广播；Entry 只有单张纹理和背景色选中状态。
+- 交付审计：4 张 1920×1080 合成参考图；4 角色 × 2 状态、4 武器 × 2 状态、解释框和箭头共 18 张透明运行时切图。稳定名称映射完整，实际角色/开局武器均为 4 项。
+- 风险：二进制热点为两个 Loadout WBP；C++ 热点为 Loadout 两个 Widget。发布前必须审计最新 main 对这些路径、GameMode 开局流程和 UI 文档的传入变化。
+- 停止条件：交付切图与稳定 ID 无法唯一映射、必须修改 CSV/Run 权威语义才能实现、或最新主线对同一 WBP/开局状态机存在真实逻辑冲突时停止并报告。
+
+## 实现提纲
+
+1. 原字节归档 18 张运行时切图并导入规范 Texture2D；保留 4 张整屏图为外部视觉参考，不运行时导入。
+2. 扩展 Entry，使其接收选中/未选中两张纹理、数据驱动描述，并把 Hover/Focus/点击统一转为稳定索引事件。
+3. 将 Loadout 父 Widget 改为 Character/Weapon 两阶段状态机：按交付顺序生成当前阶段条目，初始无 Preview，第一次确认切阶段，第二次确认广播既有最终委托。
+4. 作者ing 两个 WBP 的 1920×1080 设计面、响应式 ScaleBox、标题、解释框、箭头、确认按钮与动态条目容器；原生树只作资产失效 fallback。
+5. 新增或扩展聚焦自动化，更新 UI 指导、模块文档和 Plan 证据；人工验收后合并最新 main，执行最终 FullRebuild 并发布。
+
+## 验证矩阵
+
+| 层级 | 命令/检查 | 预期证据 |
+|---|---|---|
+| 素材 | SHA-256、PNG 尺寸/Alpha、稳定 ID 映射 | 18/18 运行时切图原字节归档；4 张合成稿仅作参考 |
+| C++ | `scripts\ue\Build-Editor.cmd -Configuration Development` | UHT/UBT 通过，委托签名与 GameMode 调用不变 |
+| WBP | 导入/作者ing脚本、CompileAllBlueprints | 两个 WBP Compile/Save，无缺失绑定或资源加载错误 |
+| 聚焦自动化 | `scripts\ue\Run-Automation.cmd -Filter ReEcho.UI.LoadoutSelection`（新增后） | 初始阶段、两次确认边界、单次最终广播、稳定 ID 顺序通过 |
+| 静态 | `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`git diff --check` | 项目、预构建、UTF-8 和生成物边界通过 |
+| 最终发布 | `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild` | 最终集成候选成功并刷新匹配的精选 Editor 包 |
+| 人工 | PIE 新游戏完整走角色 → 武器 → 第 1 关 | 两阶段构图、Hover/Focus、说明、按钮、最终组合和首关进入正确 |
+
+## 执行记录
+
+### 变化
+
+- 待实现。
+
+### 证据
+
+- 规划审计已确认当前同页实现、4 个正式角色、4 个 StartSelectable 武器及完整 18 张运行时切图；未把合成参考图误判为可交互整屏资产。
+
+### 剩余风险
+
+- 交付稿只展示 1920×1080 鼠标 Hover 场景；键盘/手柄 Focus、超宽屏和长描述文本需要程序做等价表现并由人工复核。
+
+### 人工验收结果/请求
+
+- `PendingBeforeClose`。
+
+### 架构文档审阅结果
+
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：待关闭前审阅。
+- `shared/CODEBASE_MAP/README.md`：待关闭前审阅。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：待实现同步。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：待实现同步。
+- `Design/UI/ReEcho_UI修改指导.md`：待实现同步。
