@@ -78,9 +78,10 @@ Gun 当前可见模型只区分左右，枪口 Sprite 方向也只消费瞄准�
 
 ### 证据
 
-- `FullRebuild`：通过；最终 Bounds 枪长端点与 SpriteRotation 参数方案再次通过并刷新预构建包为 `build_id=55116800`、`source=5921b6fcfbcd`。
+- `FullRebuild`：通过；发布阶段合并 `origin/main@7812e75e` 的 Plan138/139 后再次执行，最终预构建包为 `build_id=55116800`、`source=d2f7be22f174`。
 - 自动化：`ReEcho.Presentation.VFX.Catalog`、`ReEcho.Presentation.Combat.Capabilities`、`ReEcho.Presentation.RuntimeAssetPreload.Catalog` 均 Success。
 - `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check`、`git diff --check`：通过。
+- 远程组合审计：保留 Plan139 四元素 Gun Travel、Development 元素覆盖与回退，同时保留 Plan137 的 Gun Muzzle 提交语义、枪长端点和左右 SpriteRotation；最终三项聚焦自动化均 Success。
 - 首次自动化命令因漏写 `-Filter` 误跑全套，并在既有 `ReEchoWeaponRuntimeTests.cpp:184` CSV 变体断言处终止；改用正确过滤参数后上述三项目标测试独立通过。锚点调整后的首次 Capabilities 采用精确浮点比较而失败，改为分量近似比较后复测 Success；资产读回值为 `(0.500000,-0.100000)`。
 
 ### 剩余风险
