@@ -7,11 +7,43 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 
+UReEchoLoadoutTooltipWidget::UReEchoLoadoutTooltipWidget(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	DesignSizeMode = EDesignPreviewSizeMode::Desired;
+	DesignTimeSize = FVector2D(380.0f, 240.0f);
+#endif
+}
+
 void UReEchoLoadoutTooltipWidget::Configure(const FText& InTitle, const FText& InDescription)
 {
 	PendingTitle = InTitle;
 	PendingDescription = InDescription;
 	ApplyContent();
+}
+
+void UReEchoLoadoutTooltipWidget::ApplyDesignerPreviewSettings()
+{
+#if WITH_EDITOR
+	Modify();
+#endif
+#if WITH_EDITORONLY_DATA
+	DesignSizeMode = EDesignPreviewSizeMode::Desired;
+	DesignTimeSize = FVector2D(380.0f, 240.0f);
+#endif
+#if WITH_EDITOR
+	MarkPackageDirty();
+#endif
+}
+
+bool UReEchoLoadoutTooltipWidget::HasDesiredDesignerPreview() const
+{
+#if WITH_EDITORONLY_DATA
+	return DesignSizeMode == EDesignPreviewSizeMode::Desired;
+#else
+	return true;
+#endif
 }
 
 TSharedRef<SWidget> UReEchoLoadoutTooltipWidget::RebuildWidget()
@@ -26,6 +58,11 @@ TSharedRef<SWidget> UReEchoLoadoutTooltipWidget::RebuildWidget()
 void UReEchoLoadoutTooltipWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
+	if (IsDesignTime())
+	{
+		// Keep the representative CSV text authored into the WBP visible in Designer.
+		return;
+	}
 	ApplyContent();
 }
 

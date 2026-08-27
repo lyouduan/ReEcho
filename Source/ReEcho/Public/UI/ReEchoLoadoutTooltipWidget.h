@@ -13,7 +13,17 @@ class REECHO_API UReEchoLoadoutTooltipWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UReEchoLoadoutTooltipWidget(const FObjectInitializer& ObjectInitializer);
+
 	void Configure(const FText& InTitle, const FText& InDescription);
+
+	/** Applies the compact content-sized preview used by the Widget Designer. */
+	UFUNCTION(BlueprintCallable, Category = "Loadout|Tooltip", meta = (BlueprintInternalUseOnly = "true"))
+	void ApplyDesignerPreviewSettings();
+
+	/** Authoring audit hook for the otherwise editor-only preview mode. */
+	UFUNCTION(BlueprintPure, Category = "Loadout|Tooltip", meta = (BlueprintInternalUseOnly = "true"))
+	bool HasDesiredDesignerPreview() const;
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;

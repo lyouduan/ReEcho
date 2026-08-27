@@ -1,5 +1,8 @@
 """Author the Plan132 two-stage Loadout selection WBPs."""
 
+import csv
+from pathlib import Path
+
 import unreal
 
 
@@ -26,6 +29,22 @@ SAMPLE_TEXTURE_PATH = (
 FORMAL_FONT_PATH = (
     "/Game/SourceArt/UI/InteractionPlaceholder/Fonts/Titles/汉仪瑞意宋_80W_Font"
 )
+CHARACTERS_CSV_PATH = (
+    Path(unreal.Paths.project_content_dir()) / "Data" / "characters.csv"
+)
+
+
+def load_tooltip_preview_content():
+    with CHARACTERS_CSV_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("Id") == "J_HEART":
+                title = row.get("DisplayName", "").strip()
+                description = row.get("Description", "").strip()
+                if title and description:
+                    return title, description
+    raise RuntimeError(
+        f"Plan132 tooltip preview row J_HEART is missing: {CHARACTERS_CSV_PATH}"
+    )
 
 
 def widget_infos(toolset, blueprint):
@@ -201,7 +220,7 @@ def configure_confirm_button(button, texture):
     )
 
 
-def author_tooltip(toolset, blueprint):
+def author_tooltip(toolset, blueprint, preview_title, preview_description):
     widgets = widget_map(toolset, blueprint)
     root = widgets.get("TooltipRootSizeBox")
     if root is None:
@@ -266,7 +285,7 @@ def author_tooltip(toolset, blueprint):
     )
     configure_text(
         title,
-        "勇者",
+        preview_title,
         22,
         unreal.LinearColor(1.0, 0.96, 0.88, 1.0),
         unreal.TextJustify.CENTER,
@@ -278,7 +297,7 @@ def author_tooltip(toolset, blueprint):
     )
     configure_text(
         description,
-        "角色或武器说明由运行时数据填充",
+        preview_description,
         20,
         unreal.LinearColor(1.0, 1.0, 1.0, 1.0),
         unreal.TextJustify.LEFT,
@@ -290,6 +309,12 @@ def author_tooltip(toolset, blueprint):
 
     if not toolset.call_method("CompileWidgetBlueprint", args=(blueprint,)):
         raise RuntimeError("Plan132 Tooltip WBP failed to compile")
+    generated_class = blueprint.generated_class()
+    if generated_class is None:
+        raise RuntimeError("Plan132 Tooltip WBP has no generated class")
+    default_object = unreal.get_default_object(generated_class)
+    blueprint.modify()
+    default_object.call_method("ApplyDesignerPreviewSettings")
     if not unreal.EditorAssetLibrary.save_loaded_asset(
         blueprint, only_if_is_dirty=False
     ):
@@ -660,6 +685,7 @@ def main():
     confirm_texture = unreal.load_asset(CONFIRM_TEXTURE_PATH)
     sample_texture = unreal.load_asset(SAMPLE_TEXTURE_PATH)
     formal_font = unreal.load_asset(FORMAL_FONT_PATH)
+    preview_title, preview_description = load_tooltip_preview_content()
     if not isinstance(selection, unreal.WidgetBlueprint) or not isinstance(
         entry, unreal.WidgetBlueprint
     ):
@@ -675,7 +701,7 @@ def main():
     if not isinstance(formal_font, unreal.Font):
         raise RuntimeError(f"Plan132 required font is missing: {FORMAL_FONT_PATH}")
 
-    author_tooltip(toolset, tooltip)
+    author_tooltip(toolset, tooltip, preview_title, preview_description)
     author_entry(toolset, entry, sample_texture, formal_font)
     author_selection(
         toolset,

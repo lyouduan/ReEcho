@@ -92,6 +92,23 @@ def main():
                 raise RuntimeError("Plan132 tooltip authored title font is not 22")
             if description.get_editor_property("font").size != 20:
                 raise RuntimeError("Plan132 tooltip authored body font is not 20")
+            default_object = unreal.get_default_object(blueprint.generated_class())
+            has_desired_preview = default_object.call_method(
+                "HasDesiredDesignerPreview"
+            )
+            unreal.log(
+                "[Plan132LoadoutAudit] "
+                f"tooltip_desired_preview={bool(has_desired_preview)}"
+            )
+            if not has_desired_preview:
+                raise RuntimeError(
+                    "Plan132 tooltip Designer preview is not desired-size WYSIWYG"
+                )
+            preview_description = str(description.get_editor_property("text"))
+            if len(preview_description) < 30:
+                raise RuntimeError(
+                    "Plan132 tooltip Designer preview description is not representative"
+                )
 
 
 if __name__ == "__main__":
