@@ -142,13 +142,14 @@
 - 2026-08-27：Run 与 UI 的符文背包投影同时按当前武器类型和槽位过滤；兼容性后端校验保持不变。
 - 2026-08-27：回归中发现通用商店测试随机选到【重启任务】后把其 300 碎片和免费刷新奖励误判为扣费异常；已隔离该测试的即时经济副作用，生产逻辑无需回退。
 - 2026-08-27：按策划确认将免费投放的新局 `TraitOfferSeed` 从 GUID 改为 UTC 实时时钟与高精度时钟共同取样；只在 `StartRun` 取一次，存档继续持久化该值，重开与读档不会按时间重抽。
+- 2026-08-27：发布前取得 `main-publish-lock`，审计并无冲突合入 `origin/main@f6a61d44`；传入范围仅为 Plan128、Plan129 两份文档，无源码、数据或运行时语义重叠。
 
 ### 证据
 
 - 只读源码审计：`GetDiscountedShopPrice` 在 `FreeShopEncounterIndex == EncounterIndex` 时返回 `0`；`ReEchoInventoryShopWidget.cpp` 多处仍通过本地 `GetEffectiveShopPrice` 与 `CurrentTimeShards >= EffectivePrice` 提前拦截。
 - 源码审计与实现：`GenerateTraitCardOffers` 使用 `BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, OwnedCardIds)`；初始叠层分桶已移除，`StartRun` 改为从真实时间生成 `TraitOfferSeed`，SaveGame 保存并恢复该种子与当前候选页。
 - 只读源码审计：智者 `ResolveExtraTraitChoices` 已按 `character_abilities.csv` 的 `OnTraitChoiceApplied / Character.EveryNth / Interval=5` 正确计算；`ApplyTraitCard` 在普通免费领取后增加 `NormalTraitSelections` 并排除奖励选择递归，`ClaimPaidShopCardChoice` 只授予卡牌和标记卡组已购，没有同等计数或奖励路由。
-- 最终构建：`scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，103 个动作完成，精选 Editor 包刷新到源码指纹 `08f85377cc7f`。
+- 最终集成构建：合入最新 `origin/main` 后执行 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，95 个动作完成，精选 Editor 包刷新到源码指纹 `08f85377cc7f`。
 - 最终自动化：`ReEcho.Shop`、`ReEcho.UI.Shop`、`ReEcho.Traits`、`ReEcho.Cards.Offer`、`ReEcho.Characters.SageBonusCadence` 全部通过。
 - 实时时间种子回归：`ReEcho.Traits.OffersAreDeterministicAndDiverse` 验证连续新局捕获多个不同种子，同时保存/恢复保持候选顺序一致。
 - 最终静态证据：`sync_xlsx_to_csv.py --check`、`validate_project.py`、`git diff --check` 全部通过；无冲突文件或额外未跟踪生成物。
