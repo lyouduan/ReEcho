@@ -3,8 +3,22 @@
 #include "Camera/CameraComponent.h"
 #include "Components/SceneComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
+#include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+constexpr float CountdownStartSeconds = 3.0f;
+constexpr float CountdownFullStrengthSeconds = 1.0f;
+constexpr float MinimumGhostOffsetPixels = 3.0f;
+constexpr float MaximumGhostOffsetPixels = 28.0f;
+constexpr float MaximumBlurRadiusPixels = 10.0f;
+constexpr float MinimumPulseSpeed = 2.0f;
+constexpr float MaximumPulseSpeed = 8.0f;
+}
 
 AReEchoArenaCameraActor::AReEchoArenaCameraActor()
 {
@@ -19,6 +33,10 @@ AReEchoArenaCameraActor::AReEchoArenaCameraActor()
 	ArenaCamera->SetOrthoWidth(2560.0f);
 	ArenaCamera->SetAspectRatio(1376.0f / 768.0f);
 	ArenaCamera->SetConstraintAspectRatio(true);
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CountdownPostProcessFinder(
+	    TEXT("/Game/ReEcho/Materials/PostProcess/EncounterTransition/M_PP_EncounterCountdownGhost_V4."
+	         "M_PP_EncounterCountdownGhost_V4"));
+	EncounterCountdownPostProcessMaterial = CountdownPostProcessFinder.Object;
 	SetActorLocation(FVector(-900.0f, 0.0f, 900.0f));
 	SetActorRotation(FRotator(-45.0f, 0.0f, 0.0f));
 }
@@ -46,6 +64,109 @@ void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 		Configure(Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)), ArenaSource);
 	}
 	UpdateFollow(DeltaSeconds);
+	if (EncounterCountdownPostProcessIntensity > 0.0f && EncounterCountdownPostProcessMID)
+	{
+		EncounterCountdownPostProcessPhase +=
+		    DeltaSeconds * FMath::Lerp(MinimumPulseSpeed, MaximumPulseSpeed, EncounterCountdownPostProcessIntensity);
+		EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("PulsePhase"),
+		                                                          EncounterCountdownPostProcessPhase);
+	}
+}
+
+float AReEchoArenaCameraActor::CalculateEncounterCountdownPostProcessIntensity(const float RemainingTime)
+{
+	if (RemainingTime <= 0.0f || RemainingTime > CountdownStartSeconds)
+	{
+		return 0.0f;
+	}
+	const float Linear = FMath::Clamp(
+	    (CountdownStartSeconds - RemainingTime) / (CountdownStartSeconds - CountdownFullStrengthSeconds), 0.0f, 1.0f);
+	return FMath::SmoothStep(0.0f, 1.0f, Linear);
+}
+
+void AReEchoArenaCameraActor::SetEncounterCountdownPostProcessIntensity(const float Intensity)
+{
+	const float PreviousIntensity = EncounterCountdownPostProcessIntensity;
+	EncounterCountdownPostProcessIntensity = FMath::Clamp(Intensity, 0.0f, 1.0f);
+	EnsureEncounterCountdownPostProcess();
+	UpdateEncounterCountdownPostProcessParameters();
+	if (PreviousIntensity <= 0.0f && EncounterCountdownPostProcessIntensity > 0.0f)
+	{
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[EncounterCountdownPostProcess] activated intensity=%.3f camera=%s material=%s mid=%s bound=%s "
+		            "blendables=%d"),
+		       EncounterCountdownPostProcessIntensity,
+		       *GetNameSafe(ArenaCamera),
+		       *GetNameSafe(EncounterCountdownPostProcessMaterial),
+		       *GetNameSafe(EncounterCountdownPostProcessMID),
+		       bEncounterCountdownPostProcessBound ? TEXT("true") : TEXT("false"),
+		       ArenaCamera ? ArenaCamera->PostProcessSettings.WeightedBlendables.Array.Num() : 0);
+	}
+}
+
+void AReEchoArenaCameraActor::ResetEncounterCountdownPostProcess()
+{
+	EncounterCountdownPostProcessIntensity = 0.0f;
+	EncounterCountdownPostProcessPhase = 0.0f;
+	UpdateEncounterCountdownPostProcessParameters();
+}
+
+void AReEchoArenaCameraActor::EnsureEncounterCountdownPostProcess()
+{
+	if (!ArenaCamera || !EncounterCountdownPostProcessMaterial)
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[EncounterCountdownPostProcess] bind failed camera=%s material=%s"),
+		       *GetNameSafe(ArenaCamera),
+		       *GetNameSafe(EncounterCountdownPostProcessMaterial));
+		return;
+	}
+	if (!EncounterCountdownPostProcessMID)
+	{
+		EncounterCountdownPostProcessMID = UMaterialInstanceDynamic::Create(
+		    EncounterCountdownPostProcessMaterial, this, TEXT("EncounterCountdownPostProcessMID"));
+	}
+	if (EncounterCountdownPostProcessMID && !bEncounterCountdownPostProcessBound)
+	{
+		ArenaCamera->AddOrUpdateBlendable(EncounterCountdownPostProcessMID, 1.0f);
+		bEncounterCountdownPostProcessBound = true;
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[EncounterCountdownPostProcess] bound material=%s mid=%s blendables=%d blendWeight=%.3f"),
+		       *GetNameSafe(EncounterCountdownPostProcessMaterial),
+		       *GetNameSafe(EncounterCountdownPostProcessMID),
+		       ArenaCamera->PostProcessSettings.WeightedBlendables.Array.Num(),
+		       ArenaCamera->PostProcessBlendWeight);
+	}
+}
+
+void AReEchoArenaCameraActor::UpdateEncounterCountdownPostProcessParameters()
+{
+	if (!EncounterCountdownPostProcessMID)
+	{
+		return;
+	}
+	const float Intensity = EncounterCountdownPostProcessIntensity;
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("EffectStrength"), Intensity);
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(
+	    TEXT("GhostOffsetPixels"), FMath::Lerp(MinimumGhostOffsetPixels, MaximumGhostOffsetPixels, Intensity));
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("BlurRadiusPixels"),
+	                                                          MaximumBlurRadiusPixels * Intensity);
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(
+	    TEXT("GhostOpacity"), FMath::Clamp(CountdownGhostStrength, 0.0f, 1.0f) * Intensity);
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("PulsePhase"), EncounterCountdownPostProcessPhase);
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("ClearCenterRadius"),
+	                                                          FMath::Clamp(CountdownClearCenterRadius, 0.0f, 1.0f));
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(
+	    TEXT("EdgeBlurRadius"), FMath::Max(CountdownEdgeBlurRadius, CountdownClearCenterRadius + 0.001f));
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("EdgeMaskPower"),
+	                                                          FMath::Max(CountdownEdgeMaskPower, 0.1f));
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("RGBSeparationEnabled"),
+	                                                          bCountdownEnableRGBSeparation ? 1.0f : 0.0f);
+	EncounterCountdownPostProcessMID->SetScalarParameterValue(TEXT("RGBSeparationStrength"),
+	                                                          FMath::Clamp(CountdownRGBSeparationStrength, 0.0f, 1.0f));
 }
 
 void AReEchoArenaCameraActor::UpdateFollow(const float DeltaSeconds)

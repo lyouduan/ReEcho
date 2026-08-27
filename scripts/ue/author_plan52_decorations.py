@@ -80,6 +80,10 @@ def footpoint_priority(arena, x, y, center):
 
 
 operation = command_value("Plan52Operation", "Bake").lower()
+fail(
+    "Retired by Plan134: scene decorations are authored directly by artists inside "
+    "BP_ArenaScene_SC01..04. The legacy Bake/Clear entry point is disabled."
+)
 level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 if not level_subsystem.load_level(LEVEL_PATH):

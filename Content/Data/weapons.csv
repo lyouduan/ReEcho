@@ -1,5 +1,5 @@
 Id,WeaponTypeId,DisplayName,VisualKey,InputSlot,StartSelectable,LoadoutOrder,AttackPatternId,AttackIntervalSeconds,DamageCoefficient,RangeCm,ArcDegrees,ProjectileCount,ConcentrationDegrees,ExplosionRadiusCm,DataRevision,Enabled,SourceSheet,SourceRow,DisabledReason
 W_J_04,Scythe,镰刀,Scythe,1,true,1,Pattern.ScytheSweep,0.7,0.6,250,360,0,0,0,1,true,武器体系W,3,
 W_J_01,LongSword,长剑,CrescentBlade,2,true,2,Pattern.LongSwordCombo,1,1,400,180,0,0,0,1,true,武器体系W,2,
-W_J_08,Bow,弓,Bow,3,true,3,Pattern.BowShot,1,1,1000,0,1,0,0,1,true,武器体系W,4,
-W_J_09,Gun,枪,Gun,5,true,4,Pattern.GunShot,0.4,0.4,1500,0,1,0,0,1,true,武器体系W,5,
+W_J_08,Bow,弓,Bow,3,true,3,Pattern.BowShot,1,1.5,1000,0,1,0,0,1,true,武器体系W,4,
+W_J_09,Gun,枪,Gun,5,true,4,Pattern.GunShot,0.4,0.6,1500,0,1,0,0,1,true,武器体系W,5,

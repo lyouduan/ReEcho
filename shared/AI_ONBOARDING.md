@@ -5,15 +5,17 @@
 ## 接入约定
 
 1. `AGENTS.md` 是唯一的启动、首次询问和读取顺序权威。
-2. 读取对应路线前，按 `AGENTS.md` 一次性确认用户专业角色及该角色适用的全部工作模式；程序需在同一次回答中同时确认 Planner-Executor 和本地工作区模式。
+2. 读取对应路线前，按 `AGENTS.md` 一次性确认用户专业角色及该角色适用的全部工作模式；策划同时提供稳定身份标识，程序同时确认 Planner-Executor 和本地工作区模式。
 3. `shared/PROJECT_RULES.md` 记录项目约束。
-4. 所有风险操作遵循 `shared/PROJECT_RULES.md` 的统一确认机制：先提醒风险和是否建议问程序，准确人工确认后执行。
-5. 只读取当前任务需要的专业角色、职责、Plan 以及代码/资产/数据路线。
-6. 将持久任务证据写回指定 Plan 或专业交接；除非任务明确拥有相应文档，共享项目记忆仅由程序 Planner 或明确指派的项目秘书在评审/控制面工作中更新。
+4. 安装 Git LFS 后运行 `python scripts/setup_lfs.py`，并在打开 UE、构建或打包前通过 `python scripts/setup_lfs.py --check`。
+5. 所有风险操作遵循 `shared/PROJECT_RULES.md` 的统一确认机制：先提醒风险和是否建议问程序，准确人工确认后执行。
+6. 只读取当前任务需要的专业角色、职责、Plan 以及代码/资产/数据路线。
+7. 将持久任务证据写回指定 Plan 或专业交接；除非任务明确拥有相应文档，共享项目记忆仅由程序 Planner 或明确指派的项目秘书在评审/控制面工作中更新。
 
 ## 两条独立角色轴
 
 - **用户专业角色**：程序、策划或美术，分别选择 `PROGRAMMER_RULES.md`、`DESIGNER_RULES.md` 或 `ARTIST_RULES.md`。
+- **策划稳定身份**：用于 Bug/需求/待合并协作分支、`issues/<策划身份>/` 和 `shared/DESIGNER_EXPERIENCE/<策划身份>.md`；不是项目 Planner 身份。
 - **程序本地工作区模式**：与 Planner-Executor 分工独立；程序用户还需确认是否采用“一任务一 worktree（每个任务一个独立文件夹）”。
 - **AI 仓库职责**：Planner、Executor、专业执行者或明确指派的项目秘书。只有程序路线使用项目 Planner/Executor 权限；除非程序用户明确改派任务，策划和美术 AI 均为专业执行者。
 - **项目秘书职责**：由 `shared/SECRETARY_RULES.md` 管理的协调/控制面维护；不替代产品、策划、美术或程序实现决策。

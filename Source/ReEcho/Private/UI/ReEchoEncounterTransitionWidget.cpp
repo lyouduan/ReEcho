@@ -1,21 +1,26 @@
 #include "UI/ReEchoEncounterTransitionWidget.h"
 
 #include "Blueprint/WidgetTree.h"
-#include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/AudioComponent.h"
 #include "Components/Image.h"
+#include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MediaPlayer.h"
 #include "MediaSource.h"
 #include "MediaTexture.h"
+#include "Sound/SoundBase.h"
 
 namespace
 {
 constexpr float SequenceWidth = 1920.0f;
 constexpr float SequenceHeight = 1080.0f;
+constexpr double OpaqueMediaCompletionGraceSeconds = 5.0;
+constexpr float FirstFrameTimeoutSeconds = 5.0f;
+constexpr float PlaybackStallTimeoutSeconds = 5.0f;
 }
 
 UReEchoEncounterTransitionWidget::UReEchoEncounterTransitionWidget(const FObjectInitializer& ObjectInitializer)
@@ -25,17 +30,14 @@ UReEchoEncounterTransitionWidget::UReEchoEncounterTransitionWidget(const FObject
 	    TEXT("/Game/ReEcho/UI/EncounterTransition/FMS_EncounterTransition.FMS_EncounterTransition"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> MaterialFinder(
 	    TEXT("/Game/ReEcho/UI/EncounterTransition/M_UI_EncounterTransition.M_UI_EncounterTransition"));
+	static ConstructorHelpers::FObjectFinder<UMediaSource> Stage01To02SourceFinder(
+	    TEXT("/Game/ReEcho/UI/EncounterTransition/FMS_Stage01To02.FMS_Stage01To02"));
+	static ConstructorHelpers::FObjectFinder<USoundBase> Stage01To02SoundFinder(
+	    TEXT("/Game/ReEcho/UI/EncounterTransition/S_Stage01To02.S_Stage01To02"));
 	MediaSource = SourceFinder.Object;
+	Stage01To02MediaSource = Stage01To02SourceFinder.Object;
+	Stage01To02Sound = Stage01To02SoundFinder.Object;
 	MediaMaterial = MaterialFinder.Object;
-}
-
-float UReEchoEncounterTransitionWidget::CalculateCountdownIntensity(const float RemainingTime)
-{
-	if (RemainingTime <= 0.0f || RemainingTime > 3.0f)
-	{
-		return 0.0f;
-	}
-	return RemainingTime > 1.0f ? (3.0f - RemainingTime) * 0.5f : 1.0f;
 }
 
 FVector2D UReEchoEncounterTransitionWidget::CalculateFillSize(const FVector2D& ViewSize)
@@ -75,6 +77,11 @@ void UReEchoEncounterTransitionWidget::NativeDestruct()
 		MediaPlayer->OnEndReached.RemoveAll(this);
 		MediaPlayer->Close();
 	}
+	if (Stage01To02AudioComponent)
+	{
+		Stage01To02AudioComponent->Stop();
+		Stage01To02AudioComponent = nullptr;
+	}
 	Super::NativeDestruct();
 }
 
@@ -89,22 +96,6 @@ void UReEchoEncounterTransitionWidget::BuildFallbackTree()
 	RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("TransitionRoot"));
 	RootCanvas->SetClipping(EWidgetClipping::ClipToBounds);
 	WidgetTree->RootWidget = RootCanvas;
-
-	CountdownWash = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("CountdownWash"));
-	CountdownWash->SetBrushColor(FLinearColor(0.025f, 0.12f, 0.16f, 0.0f));
-	if (UCanvasPanelSlot* CanvasSlot = RootCanvas->AddChildToCanvas(CountdownWash))
-	{
-		CanvasSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-		CanvasSlot->SetOffsets(FMargin(0.0f));
-	}
-
-	CountdownPulse = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("CountdownPulse"));
-	CountdownPulse->SetBrushColor(FLinearColor(0.42f, 0.04f, 0.08f, 0.0f));
-	if (UCanvasPanelSlot* CanvasSlot = RootCanvas->AddChildToCanvas(CountdownPulse))
-	{
-		CanvasSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-		CanvasSlot->SetOffsets(FMargin(0.0f));
-	}
 
 	SequenceImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SequenceImage"));
 	SequenceImage->SetVisibility(ESlateVisibility::Collapsed);
@@ -130,6 +121,10 @@ void UReEchoEncounterTransitionWidget::BuildFallbackTree()
 	MediaPlayer->OnMediaOpened.AddDynamic(this, &UReEchoEncounterTransitionWidget::HandleMediaOpened);
 	MediaPlayer->OnMediaOpenFailed.AddDynamic(this, &UReEchoEncounterTransitionWidget::HandleMediaOpenFailed);
 	MediaPlayer->OnEndReached.AddDynamic(this, &UReEchoEncounterTransitionWidget::HandleMediaEndReached);
+	// UMediaPlayer defaults PlayOnOpen to true and invokes it after OnMediaOpened. This widget
+	// explicitly seeks to zero and starts playback in that callback, so leaving the default enabled
+	// issues two back-to-back SetRate(1) requests and prevents Electra from presenting its first sample.
+	MediaPlayer->PlayOnOpen = false;
 	MediaPlayer->SetLooping(false);
 	MediaTexture->AutoClear = true;
 	MediaTexture->ClearColor = FLinearColor::Black;
@@ -149,16 +144,22 @@ void UReEchoEncounterTransitionWidget::BuildFallbackTree()
 	    LogTemp, Display, TEXT("Encounter transition UI material bound to runtime MediaTexture (NewStyleOutput=1)."));
 }
 
-void UReEchoEncounterTransitionWidget::SetCountdownIntensity(const float Intensity)
+bool UReEchoEncounterTransitionWidget::StartSequence()
 {
-	BuildFallbackTree();
-	const float ClampedIntensity = FMath::Clamp(Intensity, 0.0f, 1.0f);
-	CountdownWash->SetBrushColor(FLinearColor(0.025f, 0.12f, 0.16f, 0.28f * ClampedIntensity));
-	const float Pulse = 0.5f + 0.5f * FMath::Sin(GetWorld() ? GetWorld()->GetTimeSeconds() * 9.0f : 0.0f);
-	CountdownPulse->SetBrushColor(FLinearColor(0.42f, 0.04f, 0.08f, 0.16f * ClampedIntensity * Pulse));
+	return StartSequenceWithSource(MediaSource, false);
 }
 
-bool UReEchoEncounterTransitionWidget::StartSequence()
+bool UReEchoEncounterTransitionWidget::StartStage01To02Sequence()
+{
+	return StartSequenceWithSource(Stage01To02MediaSource, true);
+}
+
+UMediaPlayer* UReEchoEncounterTransitionWidget::GetMediaPlayer() const
+{
+	return MediaPlayer;
+}
+
+bool UReEchoEncounterTransitionWidget::StartSequenceWithSource(UMediaSource* Source, const bool bOpaqueMedia)
 {
 	BuildFallbackTree();
 	if (bSequenceStarted)
@@ -168,15 +169,41 @@ bool UReEchoEncounterTransitionWidget::StartSequence()
 	bSequenceStarted = true;
 	bSequenceFinished = false;
 	bSequenceFailed = false;
+	bOpaqueSequence = bOpaqueMedia;
+	bMediaPlaybackStarted = false;
+	OpaquePlaybackElapsedSeconds = 0.0f;
+	FirstFrameWaitElapsedSeconds = 0.0f;
+	PlaybackStallElapsedSeconds = 0.0f;
+	LastObservedMediaTime = FTimespan::MinValue();
+	MediaState = EReEchoTransitionMediaState::Opening;
 	bFadingOut = false;
 	FadeElapsedSeconds = 0.0f;
+	ApplySequenceBrush(bOpaqueMedia);
 	SequenceImage->SetRenderOpacity(1.0f);
 	SequenceImage->SetVisibility(ESlateVisibility::HitTestInvisible);
 	if (MediaPlayer)
 	{
 		MediaPlayer->Close();
+		MediaPlayer->SetDesiredPlayerName(FName(TEXT("WmfMedia")));
 	}
-	return MediaPlayer && MediaSource && MediaPlayer->OpenSource(MediaSource);
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("Encounter transition desired media player: %s"),
+	       bOpaqueMedia ? TEXT("WmfMedia/HAP opaque") : TEXT("WmfMedia/HAP alpha"));
+	return MediaPlayer && Source && MediaPlayer->OpenSource(Source);
+}
+
+void UReEchoEncounterTransitionWidget::ApplySequenceBrush(const bool bOpaqueMedia)
+{
+	if (!SequenceImage)
+	{
+		return;
+	}
+	// The HAP transition needs its authored alpha material. The ordinary H.264 CG is already opaque
+	// and must display the live MediaTexture directly; routing it through the HAP material can retain
+	// the preroll sample instead of repainting the subsequent Electra frames.
+	SequenceImage->SetBrushResourceObject(bOpaqueMedia ? static_cast<UObject*>(MediaTexture)
+	                                                   : static_cast<UObject*>(MediaMaterialInstance));
 }
 
 void UReEchoEncounterTransitionWidget::BeginSequenceFadeOut(const float DurationSeconds)
@@ -210,18 +237,29 @@ void UReEchoEncounterTransitionWidget::ResetPresentation()
 	bSequenceStarted = false;
 	bSequenceFinished = false;
 	bSequenceFailed = false;
+	bOpaqueSequence = false;
+	bMediaPlaybackStarted = false;
+	OpaquePlaybackElapsedSeconds = 0.0f;
+	FirstFrameWaitElapsedSeconds = 0.0f;
+	PlaybackStallElapsedSeconds = 0.0f;
+	LastObservedMediaTime = FTimespan::MinValue();
+	MediaState = EReEchoTransitionMediaState::Closed;
 	bFadingOut = false;
 	FadeElapsedSeconds = 0.0f;
 	if (MediaPlayer)
 	{
 		MediaPlayer->Close();
 	}
+	if (Stage01To02AudioComponent)
+	{
+		Stage01To02AudioComponent->Stop();
+		Stage01To02AudioComponent = nullptr;
+	}
 	if (SequenceImage)
 	{
 		SequenceImage->SetRenderOpacity(1.0f);
 		SequenceImage->SetVisibility(ESlateVisibility::Collapsed);
 	}
-	SetCountdownIntensity(0.0f);
 }
 
 void UReEchoEncounterTransitionWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -236,7 +274,7 @@ void UReEchoEncounterTransitionWidget::NativeTick(const FGeometry& MyGeometry, c
 		       MyGeometry.GetLocalSize().X,
 		       MyGeometry.GetLocalSize().Y);
 	}
-	if (MediaPlayer && MediaPlayer->IsPlaying() && MediaTexture)
+	if (MediaPlayer && MediaTexture)
 	{
 		const FIntPoint MediaSurface(FMath::RoundToInt(MediaTexture->GetSurfaceWidth()),
 		                             FMath::RoundToInt(MediaTexture->GetSurfaceHeight()));
@@ -248,6 +286,51 @@ void UReEchoEncounterTransitionWidget::NativeTick(const FGeometry& MyGeometry, c
 			       TEXT("Encounter transition media surface changed: %dx%d opacity=opaque"),
 			       MediaSurface.X,
 			       MediaSurface.Y);
+		}
+		if (bOpaqueSequence && MediaState == EReEchoTransitionMediaState::WaitingForFirstFrame)
+		{
+			FirstFrameWaitElapsedSeconds += InDeltaTime;
+			if (MediaSurface.X > 2 && MediaSurface.Y > 2)
+			{
+				MediaState = EReEchoTransitionMediaState::Playing;
+				LastObservedMediaTime = MediaPlayer->GetTime();
+				StartStageCgAudio();
+				UE_LOG(LogTemp,
+				       Display,
+				       TEXT("Encounter transition first video frame ready: player=%s surface=%dx%d time=%.3f."),
+				       *MediaPlayer->GetPlayerName().ToString(),
+				       MediaSurface.X,
+				       MediaSurface.Y,
+				       LastObservedMediaTime.GetTotalSeconds());
+			}
+			else if (FirstFrameWaitElapsedSeconds >= FirstFrameTimeoutSeconds)
+			{
+				FailSequence(TEXT("no decoded video frame reached MediaTexture within 5 seconds"));
+			}
+		}
+		if (bOpaqueSequence && MediaState == EReEchoTransitionMediaState::Playing)
+		{
+			const FTimespan CurrentMediaTime = MediaPlayer->GetTime();
+			if (CurrentMediaTime > LastObservedMediaTime)
+			{
+				PlaybackStallElapsedSeconds = 0.0f;
+				LastObservedMediaTime = CurrentMediaTime;
+			}
+			else if ((PlaybackStallElapsedSeconds += InDeltaTime) >= PlaybackStallTimeoutSeconds)
+			{
+				FailSequence(TEXT("media clock stopped advancing for 5 seconds"));
+			}
+		}
+		if (bSequenceStarted && bOpaqueSequence && bMediaPlaybackStarted && !bSequenceFinished && !bSequenceFailed &&
+		    MediaPlayer->IsPlaying())
+		{
+			OpaquePlaybackElapsedSeconds += InDeltaTime;
+			const double DurationSeconds = MediaPlayer->GetDuration().GetTotalSeconds();
+			if (DurationSeconds > 0.0 &&
+			    OpaquePlaybackElapsedSeconds >= DurationSeconds + OpaqueMediaCompletionGraceSeconds)
+			{
+				FailSequence(TEXT("media exceeded its duration without an end event"));
+			}
 		}
 	}
 	UpdateFillLayout(MyGeometry.GetLocalSize());
@@ -278,9 +361,15 @@ void UReEchoEncounterTransitionWidget::UpdateFillLayout(const FVector2D& ViewSiz
 void UReEchoEncounterTransitionWidget::HandleMediaOpened(FString OpenedUrl)
 {
 	UE_LOG(LogTemp, Display, TEXT("Encounter transition media opened: %s"), *OpenedUrl);
-	if (!MediaPlayer || !MediaPlayer->Seek(FTimespan::Zero()) || !MediaPlayer->Play())
+	if (!MediaPlayer || !MediaPlayer->Seek(FTimespan::Zero()))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Encounter transition media could not seek to frame zero and play."));
+		UE_LOG(LogTemp, Error, TEXT("Encounter transition media could not seek to frame zero."));
+		bSequenceFailed = true;
+		return;
+	}
+	if (!MediaPlayer->Play())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Encounter transition media could not play after seeking to frame zero."));
 		bSequenceFailed = true;
 		return;
 	}
@@ -288,16 +377,59 @@ void UReEchoEncounterTransitionWidget::HandleMediaOpened(FString OpenedUrl)
 	       Display,
 	       TEXT("Encounter transition media playback started at %.3f seconds."),
 	       MediaPlayer->GetTime().GetTotalSeconds());
+	bMediaPlaybackStarted = true;
+	MediaState =
+	    bOpaqueSequence ? EReEchoTransitionMediaState::WaitingForFirstFrame : EReEchoTransitionMediaState::Playing;
 }
 
 void UReEchoEncounterTransitionWidget::HandleMediaOpenFailed(FString FailedUrl)
 {
 	UE_LOG(LogTemp, Error, TEXT("Encounter transition media failed to open: %s"), *FailedUrl);
 	bSequenceFailed = true;
+	MediaState = EReEchoTransitionMediaState::Failed;
 }
 
 void UReEchoEncounterTransitionWidget::HandleMediaEndReached()
 {
 	bSequenceFinished = true;
+	MediaState = EReEchoTransitionMediaState::Completed;
 	UE_LOG(LogTemp, Display, TEXT("Encounter transition media reached the final frame."));
+}
+
+void UReEchoEncounterTransitionWidget::StartStageCgAudio()
+{
+	if (!bOpaqueSequence || !Stage01To02Sound || Stage01To02AudioComponent)
+	{
+		return;
+	}
+	Stage01To02AudioComponent = UGameplayStatics::CreateSound2D(this, Stage01To02Sound);
+	if (Stage01To02AudioComponent)
+	{
+		Stage01To02AudioComponent->SetUISound(true);
+		Stage01To02AudioComponent->Play(0.0f);
+	}
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("Encounter transition independent audio started: result=%s."),
+	       Stage01To02AudioComponent ? TEXT("success") : TEXT("failed"));
+}
+
+void UReEchoEncounterTransitionWidget::FailSequence(const TCHAR* Reason)
+{
+	if (MediaState == EReEchoTransitionMediaState::Failed || MediaState == EReEchoTransitionMediaState::Completed)
+	{
+		return;
+	}
+	bSequenceFailed = true;
+	MediaState = EReEchoTransitionMediaState::Failed;
+	if (MediaPlayer)
+	{
+		MediaPlayer->Close();
+	}
+	if (Stage01To02AudioComponent)
+	{
+		Stage01To02AudioComponent->Stop();
+		Stage01To02AudioComponent = nullptr;
+	}
+	UE_LOG(LogTemp, Error, TEXT("Encounter transition media failed: %s."), Reason);
 }

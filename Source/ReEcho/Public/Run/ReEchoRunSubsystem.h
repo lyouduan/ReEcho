@@ -106,6 +106,9 @@ public:
 	                       bool bBossKilled,
 	                       float PlayerCurrentHealth = -1.0f);
 
+	/** Skips the configured post-encounter free-card phase for the authored Encounter 1 CG route. */
+	bool SkipPostEncounterCardChoiceForStageTransitionCg();
+
 	/** 根据当前构筑和运行状态生成本次特质卡候选。 */
 	UFUNCTION(BlueprintCallable)
 	TArray<FReEchoTraitCardOffer> GenerateTraitCardOffers(int32 RequestedCount);

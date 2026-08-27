@@ -4,14 +4,25 @@
 #include "Blueprint/UserWidget.h"
 #include "ReEchoEncounterTransitionWidget.generated.h"
 
-class UBorder;
 class UCanvasPanel;
+class UAudioComponent;
 class UImage;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UMediaPlayer;
 class UMediaSource;
 class UMediaTexture;
+class USoundBase;
+
+enum class EReEchoTransitionMediaState : uint8
+{
+	Closed,
+	Opening,
+	WaitingForFirstFrame,
+	Playing,
+	Completed,
+	Failed
+};
 
 /** Full-screen, non-interactive presentation for the final countdown and post-zero card transition. */
 UCLASS()
@@ -22,10 +33,10 @@ class REECHO_API UReEchoEncounterTransitionWidget : public UUserWidget
 
 public:
 	UReEchoEncounterTransitionWidget(const FObjectInitializer& ObjectInitializer);
-	static float CalculateCountdownIntensity(float RemainingTime);
 	static FVector2D CalculateFillSize(const FVector2D& ViewSize);
-	void SetCountdownIntensity(float Intensity);
 	bool StartSequence();
+	bool StartStage01To02Sequence();
+	UMediaPlayer* GetMediaPlayer() const;
 	void BeginSequenceFadeOut(float DurationSeconds);
 	bool IsSequenceFinished() const;
 	bool HasSequenceFailed() const;
@@ -40,7 +51,11 @@ protected:
 
 private:
 	void BuildFallbackTree();
+	bool StartSequenceWithSource(UMediaSource* Source, bool bOpaqueMedia);
+	void ApplySequenceBrush(bool bOpaqueMedia);
 	void UpdateFillLayout(const FVector2D& ViewSize);
+	void StartStageCgAudio();
+	void FailSequence(const TCHAR* Reason);
 
 	UFUNCTION()
 	void HandleMediaOpened(FString OpenedUrl);
@@ -55,12 +70,6 @@ private:
 	TObjectPtr<UCanvasPanel> RootCanvas;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UBorder> CountdownWash;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UBorder> CountdownPulse;
-
-	UPROPERTY(Transient)
 	TObjectPtr<UImage> SequenceImage;
 
 	UPROPERTY(Transient)
@@ -73,6 +82,15 @@ private:
 	TObjectPtr<UMediaSource> MediaSource;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UMediaSource> Stage01To02MediaSource;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> Stage01To02Sound;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> Stage01To02AudioComponent;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInterface> MediaMaterial;
 
 	UPROPERTY(Transient)
@@ -81,9 +99,16 @@ private:
 	bool bSequenceStarted = false;
 	bool bSequenceFinished = false;
 	bool bSequenceFailed = false;
+	bool bOpaqueSequence = false;
+	bool bMediaPlaybackStarted = false;
 	bool bFadingOut = false;
 	bool bLoggedViewportGeometry = false;
 	FIntPoint LastLoggedMediaSurface = FIntPoint::ZeroValue;
 	float FadeDurationSeconds = 0.4f;
 	float FadeElapsedSeconds = 0.0f;
+	float OpaquePlaybackElapsedSeconds = 0.0f;
+	float FirstFrameWaitElapsedSeconds = 0.0f;
+	float PlaybackStallElapsedSeconds = 0.0f;
+	FTimespan LastObservedMediaTime = FTimespan::MinValue();
+	EReEchoTransitionMediaState MediaState = EReEchoTransitionMediaState::Closed;
 };

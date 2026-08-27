@@ -10,6 +10,7 @@
 class ACameraActor;
 class AReEchoArenaCameraActor;
 class AReEchoArenaSceneActor;
+class AReEchoArenaSceneSpawnAnchor;
 class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoEnemyActor;
@@ -17,6 +18,7 @@ class AReEchoPlayerPawn;
 class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
 class UReEchoEncounterTransitionWidget;
+class UMediaSoundComponent;
 class UReEchoInventoryShopWidget;
 class UReEchoRunSubsystem;
 enum class EReEchoInventoryShopMode : uint8;
@@ -33,6 +35,7 @@ class UReEchoEchoManagementWidget;
 class UReEchoStoredEchoEntryWidget;
 class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
+class UReEchoArenaSceneCatalog;
 class UReEchoEnemyGameplayClassRegistry;
 class UReEchoAudioService;
 class UMaterialInterface;
@@ -75,9 +78,10 @@ public:
 	void GMWeather(const FString& Scene = TEXT("Clear"));
 	UFUNCTION(Exec)
 	void GMEndEncounter();
-	/** Advances the active ordinary encounter to three seconds remaining so its transition can be previewed. */
+	/** Advances the active ordinary encounter to four seconds remaining so the full countdown transition can be
+	 * previewed. */
 	UFUNCTION(Exec)
-	void GMTransition3();
+	void GMTransition4();
 	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
@@ -167,8 +171,14 @@ private:
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaSceneActor> ArenaScene;
 	UPROPERTY()
+	TObjectPtr<AReEchoArenaSceneActor> PendingArenaScene;
+	UPROPERTY()
+	TObjectPtr<UReEchoArenaSceneCatalog> ArenaSceneCatalog;
+	UPROPERTY()
 	TMap<FName, TSubclassOf<AReEchoArenaSceneActor>> ArenaSceneRegistry;
 	FName ActiveArenaSceneId = NAME_None;
+	FName PendingArenaSceneId = NAME_None;
+	FTransform ArenaSceneSpawnTransform = FTransform::Identity;
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
 	UPROPERTY()
@@ -219,6 +229,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterTransitionWidget> EncounterTransitionWidget;
 	UPROPERTY()
+	TObjectPtr<UMediaSoundComponent> EncounterTransitionMediaSound;
+	UPROPERTY()
 	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
 
 	UPROPERTY()
@@ -245,12 +257,14 @@ private:
 		CountdownPostProcess,
 		PlayingSequence,
 		FadingToCardChoice,
+		PlayingStage01To02Cg,
 		Completed
 	};
 	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
 	    EEncounterTransitionPresentationState::None;
 	float EncounterSequenceElapsedSeconds = 0.0f;
 	bool bEncounterIntermissionPreparedForTransition = false;
+	bool bEncounterTransitionPausedWorld = false;
 	bool bEncounterClearedByDefeat = false;
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
@@ -277,7 +291,10 @@ private:
 	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
 	bool BeginEncounterEndSequence();
 	void CompleteEncounterEndSequence(bool bFadeToCards);
+	bool BeginStage01To02Cg();
+	void CompleteStage01To02Cg(bool bFailed);
 	void ResetEncounterTransitionPresentation();
+	void SetEncounterTransitionWorldPaused(bool bPaused);
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
@@ -388,6 +405,7 @@ private:
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
 	bool InitializeArenaSceneRegistry(FString& OutError);
+	bool PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	void RefreshArenaSceneConsumers();
 	void ResumeSavedEncounter();
@@ -419,6 +437,7 @@ private:
 	                                              bool bMediaFailed,
 	                                              bool bMediaFinished,
 	                                              float ElapsedSeconds);
+	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);

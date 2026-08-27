@@ -13,6 +13,7 @@ This file is a human-facing directory pointer, not a workflow authority and not 
 | Planner / Executor actions | [`shared/PLANNER_RULES.md`](../shared/PLANNER_RULES.md), [`shared/EXECUTOR_RULES.md`](../shared/EXECUTOR_RULES.md) |
 | Architecture, module intent and code retrieval routes | [`shared/CODEBASE_MAP/README.md`](../shared/CODEBASE_MAP/README.md) |
 | One task's scope and evidence | [`plans/`](../plans/) |
+| Designer Bug / request records | [`issues/`](../issues/), routed by [`shared/DESIGNER_RULES.md`](../shared/DESIGNER_RULES.md) |
 
 `shared/` is the collaboration control plane. It defines local autonomy, professional boundaries, Plan requirements and remote integration gates; it does not track live ownership. Delivered behavior is verified from source, tests, Plans and Git; `docs/` is the technical knowledge layer.
 
