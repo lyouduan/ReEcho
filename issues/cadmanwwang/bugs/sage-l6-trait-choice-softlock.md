@@ -1,11 +1,11 @@
 # 智者第六关 - 特质卡选择界面确认与刷新均失效导致软锁
 
-> 本文件只提供报告字段；登记、分支、确认、合并和清理规则以 `shared/DESIGNER_RULES.md` 为唯一权威。实际报告文件名不加编号、日期或状态前缀。
+> 本文件只提供报告字段；登记、分支、确认、合并和清理规则以 `shared/DESIGNER_RULES.md` 为唯一权威。实际报告文件名不加编号、日期或 status 前缀。
 
 ## 基本信息
 
 - 类型：Bug
-- 状态：待确认
+- 状态：处理中（程序接管）
 - 策划身份：cadmanwwang
 - 创建时间：2026-08-27
 - 源分支：main
@@ -13,7 +13,7 @@
 - 当时的 `origin/main`：284af2f5
 - 登记分支：`issue/cadmanwwang/sage-l6-trait-choice-softlock`
 - 登记分支提交哈希：2ab50c26c51ca8f94ee086991c1cdef4c03e0122
-- Merge 分支：无
+- Merge 分支：c4202919（程序已将 `origin/main@847283f3` merge 入本地 Issue 分支）
 
 ## 描述
 
@@ -79,6 +79,29 @@
   3. 确认 `SelectOffer` / `HandleConfirmClicked` 在 `Phase != CardChoice` 时是否静默失败（解释确认点击被记录但不关闭界面）。
   4. 验证“智者”模式第六关（日志 `encounter=7`, `tier=3`）是否本就该弹 free 三选一；若是，则该界面的刷新/确认必须在该阶段可用，而非依赖已结束的 `CardChoice` 阶段。
 - 依赖与跨团队影响：涉及 `ReEchoRunSubsystem`（run 阶段机）与 `ReEchoTraitCardChoiceWidget`（UI），可能需要设计与程序共同确认“第六关后是否应弹卡、弹卡时 run 应处于何阶段”。
+
+## 程序接管记录（处理中）
+
+- 接管时间：2026-08-27
+- 接管身份：程序（按 `shared/GIT_RULES.md` 路由为 `JosephLE910 + Codex`）
+- 主仓 `origin/main` tip：`847283f3`（含新增 `shared/PROGRAMMER_RULES.md`「程序接管 Issue 分支修复」流程）
+- Issue 分支远端 tip：`e2377699`
+- 合并提交（本地 Issue 分支）：`c4202919`（已将 `origin/main@847283f3` 合并入本地 `issue/cadmanwwang/sage-l6-trait-choice-softlock`）
+- 工作区模式：单一 AI 全流程；按 AGENTS.md「一任务一 worktree」为该 Issue 建立独立 worktree `reecho-wt-sage-l6`，内含本地分支 `issue/cadmanwwang/sage-l6-trait-choice-softlock`，上游跟踪 `origin/issue/cadmanwwang/sage-l6-trait-choice-softlock`，checkout 于远端 Issue tip `e2377699`。
+- Issue 独有提交审计：相对 `origin/main` 仅有 2 个策划提交（`2ab50c26` 初始报告、`e2377699` 修正登记哈希），无任何代码改动，无无关历史，可直接接管。
+- 初步诊断（待合入前用单测固化）：
+  - 确定性证据：`shop_drop_levels.csv` 中 `encounter=6` 的 `FreeTier=3`、`encounter=7` 的 `FreeTier=2`。但日志审计记为 `encounter=7 tier=3`——tier-3 只能由 encounter 6 的 `FreeTier=3` 生成，不可能由 encounter 7 的 `FreeTier=2` 生成。说明**这张 tier-3 的屏是在 encounter 6 生成的，却一直存活到 encounter 7 才被玩家交互**。
+  - 而 run 推进到 encounter 7 时，`BeginEncounter`（`ReEchoRunSubsystem.cpp:2174`）将 `Phase` 设为 `EReEchoRunPhase::Encounter`（非 `CardChoice`）。于是该孤儿屏在交互时 `Phase != CardChoice`：刷新被 `TryRefreshTraitCardSlot`（2435）拒绝、确认被 `ApplyTraitCard`（2502）静默拒绝（二者均要求 `Phase == CardChoice`），导致软锁——与日志完全吻合。
+  - 触发路径：Sage（`J_SPADE`，`SAGE_BONUS_CHOICE` interval=5）第 5 次普通选择（encounter 6）触发 bonus；`ApplyTraitCard` 成功后若仍待续 bonus 会将 `Phase` 保持在 `CardChoice`，并由 `AReEchoGameMode::HandleTraitCardSelected`（4870）以 `SetTimerForNextTick` 重开 `ShowTraitCardChoice` 弹出 bonus 屏。若这条 next-tick 重开与遭遇推进（`BeginNextEncounter`/`BeginEncounter`）发生竞态、推进先发生，bonus 屏即成为孤儿。更一般地说：**run 遭遇推进时并未关闭仍打开的 `TraitCardChoiceWidget`、也未清空 `PendingTraitCardIds` 等状态**，是该类软锁的根因类。
+  - 注：报告实测角色写为 `J_DIAMOND`，但 `SAGE_BONUS_CHOICE` 仅挂在 `J_SPADE`；`J_DIAMOND` 仅有 `HUNTER_*` 能力、无 bonus 选择能力。实为 Sage（`J_SPADE`）节奏问题，报告中 `J_DIAMOND` 疑为日志/模式误标，待设计师复核（不影响修复方向）。
+- 候选修复方向（待程序负责人确认其一）：
+  1. **守门式（推荐）**：遭遇推进（`BeginEncounter`/`BeginNextEncounter`）前，若仍有打开的 `TraitCardChoiceWidget`，先关闭它并清空 `PendingTraitCardIds`/`PendingTraitCardOfferEncounterIndex`/`PendingTraitCardRefreshUses`，再推进。保证特质卡屏作为模态门控——不解决完不进入下一遭遇，杜绝孤儿屏。这与报告验收「刷新或确认至少其一可用、确认可关闭并应用」一致。
+  2. **优雅降级式**：不阻塞推进，但当 `HandleTraitCardSelected`/`HandleTraitCardRefreshRequested` 在 `Phase != CardChoice` 下被触发时，明确记录诊断并安全收尾（关闭孤儿屏 → `ShowPostTraitShop`/`BeginNextEncounter`），而非静默 `UiError` 软锁。
+  - 二者可叠加：以方向 1 为根因修复 + 方向 2 为兜底诊断。
+- 测试计划：扩展 `ReEchoCharacterPromotionTests.cpp` 的 `FReEchoSageBonusCadenceTest`，或新增用例，模拟「encounter N 的特质卡屏未关闭即 `BeginEncounter` 推进到 N+1」的竞态，断言 widget 被关闭、无软锁（刷新/确认要么可用、要么屏被安全拆除），固化回归。
+- 待确认（产品/程序）：
+  - Sage bonus 选择是否预期必须“解决完才进入下一遭遇”（方向 1），还是允许推进时优雅跳过/关闭（方向 2）？报告验收隐含前者。
+  - 报告实测角色 `J_DIAMOND` 是否确为 Sage 模式误标（不影响代码修复）。
 
 ## 人工确认
 
