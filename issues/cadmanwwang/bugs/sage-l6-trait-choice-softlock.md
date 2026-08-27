@@ -12,7 +12,7 @@
 - 源提交：284af2f5
 - 当时的 `origin/main`：284af2f5
 - 登记分支：`issue/cadmanwwang/sage-l6-trait-choice-softlock`
-- 登记分支提交哈希：ddd22803f78f88e4cd3267bc8c8597f9b69fbceb
+- 登记分支提交哈希：2ab50c26c51ca8f94ee086991c1cdef4c03e0122
 - Merge 分支：无
 
 ## 描述
