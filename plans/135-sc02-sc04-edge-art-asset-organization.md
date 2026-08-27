@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@50275bda156bce2fb2c2380883205e208244c0f2`。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan135-sc02-sc04-edge-assets-plan`；实现使用独立 Plan135 worktree，不复用 Plan134 或场景审查 worktree。
@@ -54,12 +54,12 @@
 
 ## 锁定验收
 
-- [ ] SC02 的 4 张、SC03 的 8 张、SC04 的 12 张源 PNG 全部进入各自 `EdgeInserts`，像素尺寸和内容哈希与外部输入一致。
-- [ ] 每张源图都有稳定命名的 Texture2D 和 Material Instance；材质实例引用本场景母材质及正确纹理。
-- [ ] SC04 三张内容相同的草图仍保留三个独立语义资产入口。
-- [ ] SC01、四个 Arena BP、Level00、Catalog、C++ 与数据文件无变化。
-- [ ] 导入工具可重跑且不会覆盖 BP 组件或已存在的美术摆放参数。
-- [ ] Editor 资产校验、`python scripts/validate_project.py`、`git diff --check` 和最终 FullRebuild 通过。
+- [x] SC02 的 4 张、SC03 的 8 张、SC04 的 12 张源 PNG 全部进入各自 `EdgeInserts`，像素尺寸和内容哈希与外部输入一致。
+- [x] 每张源图都有稳定命名的 Texture2D 和 Material Instance；材质实例引用本场景母材质及正确纹理。
+- [x] SC04 三张内容相同的草图仍保留三个独立语义资产入口。
+- [x] SC01、四个 Arena BP、Level00、Catalog、C++ 与数据文件无变化。
+- [x] 导入工具可重跑且不会覆盖 BP 组件或已存在的美术摆放参数。
+- [x] Editor 资产校验、`python scripts/validate_project.py`、`git diff --check` 和最终 FullRebuild 通过。
 - [ ] 用户在 Content Browser/Blueprint Editor 确认资产命名、透明显示与手工选用符合预期后，人工验收才可设为 `Passed`。
 - [ ] 未提交精选预构建允许列表之外的 UE 生成物或机器本地路径。
 
@@ -73,7 +73,7 @@
 
 ## 实现提纲
 
-1. 发布并核验 Plan135；Executor 读取 Plan、执行规则、SC01 资产结构和现有 UE Python 工具的最小相关部分。
+1. 按用户明确授权，以本地提交 `cf05b81a` 作为未发布 Plan135 基线；Executor 读取 Plan、执行规则、SC01 资产结构和现有 UE Python 工具的最小相关部分。
 2. 将 24 张外部 PNG 精确复制到对应场景 `EdgeInserts`，以清单记录原名、稳定资产名、尺寸和哈希。
 3. 编写可重跑 Editor 导入工具，创建 Texture2D、每场景母材质与逐图材质实例；遵守透明插片所需的材质和纹理设置。
 4. 编写只读资产验证，检查包可加载、纹理尺寸、材质父子关系、纹理参数与 BP/SC01 不变性。
@@ -95,7 +95,22 @@
 
 ### 变化
 
+- 将外部 SC02 的 4 张、SC03 的 8 张、SC04 的 12 张 PNG 原名复制到各自 `EdgeInserts`；未对 SC04 三张同内容草图去重。
+- 新增 `import_scene_edge_assets.py`：使用 UE Editor API 创建 24 个 Texture2D、3 个场景独立透明 Unlit 双面母材质和 24 个 Material Instance；已存在资产只读取，不覆盖设置。
+- 新增 `validate_scene_edge_assets.py`：只读验证纹理尺寸、母材质属性、材质父子关系和 `InsertTexture` 引用。
+- 材质目录采用实际 SC01 结构 `EdgeInserts/Materials`；该路径包含于锁定 Writes 的 `EdgeInserts/**`，未修改任何 Blueprint。
+
 ### 证据
+
+- 输入复制：24/24 仓库 PNG 与 F 盘对应源文件 SHA-256 完全一致。
+- Editor 导入：日志确认创建/验证 24 个语义条目；UE 自动内容校验覆盖本任务 51 个 `.uasset`。
+- Editor 只读验证：`[Plan135] Validation passed for 24 textures, 3 master materials, and 24 material instances`。
+- 可重跑性：第二次执行导入工具后 51 个 `.uasset` 的 SHA-256 全部保持不变。
+- Python 静态语法：两个工具均通过 `ast.parse`；`py_compile` 因沙箱不允许在该 worktree 生成 `__pycache__` 未作为证据使用。
+- 远端审计：执行前 fetch 确认 `origin/main` 仍为 `50275bda156bce2fb2c2380883205e208244c0f2`，未出现同路径传入变化。
+- 用户明确授权 Plan135 在未发布到 `origin/main` 的情况下仅本地实现和验证；当前候选不声称正式发布或关闭。
+- 最终构建：`scripts\\ue\\Build-Editor.cmd -Configuration Development -FullRebuild` 成功，95/95 actions；`prebuilt_editor.py check` 通过（7 modules，BuildId `55116800`，source `c75ec9c0bd8b`）。
+- 最终静态：FullRebuild 后 `python scripts/validate_project.py` 与 `git diff --check` 再次通过。
 
 ### 剩余风险
 
@@ -108,4 +123,6 @@
 
 ### 架构文档审阅结果
 
-- 待实现后逐项填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：本任务未改变模块拓扑、依赖方向或运行时状态权威。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：未新增或移动 Runtime Module / `AREA-*` 代码路线。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已审阅、无需修改：Arena Blueprint、场景切换和运行时装配均未修改，仅新增供美术手工选择的内容资产。
