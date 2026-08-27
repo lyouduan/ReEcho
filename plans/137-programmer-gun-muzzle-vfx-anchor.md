@@ -11,7 +11,7 @@
 - 本地规划 / 实现基线：`origin/main@9c32f80a5bd7be24ea4c82a4cfa2715f11fca6e3`。
 - 本地实现方式（可选，仅作交接说明）：`C:\tmp\ReEcho-plan137-gun-muzzle-vfx`，分支 `codex/plan137-gun-muzzle-vfx`。
 - 依赖 / 阻塞：复用 Plan126 已发布并验收的 `WeaponAttackVfxRoot`、Gun `AttackVfxAnchorRatio` 与负 X Scale 镜像补偿；执行前 Plan-only 发布到最新 `origin/main`。
-- Writes: `plans/137-programmer-gun-muzzle-vfx-anchor.md`；`Source/ReEcho/Public/Presentation/VFX/ReEchoCombatVfxCatalog.h`；`Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxCatalog.cpp`；`Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp`；`Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`；`Source/ReEcho/Private/Tests/ReEchoCombatPresentationTests.cpp`；`Content/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_Gun.uasset`；用于安全修改该 DA 的 `scripts/ue/` 最小自动化；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；`shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`；FullRebuild 刷新的 `Binaries/Win64/ReEchoEditor.prebuilt.json` 及其准确允许列表产物。
+- Writes: `plans/137-programmer-gun-muzzle-vfx-anchor.md`；`Source/ReEcho/Public/Presentation/VFX/ReEchoCombatVfxCatalog.h`；`Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxCatalog.cpp`；`Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp`；`Source/ReEcho/Private/Graybox/ReEchoProjectileActor.cpp`；`Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`；`Source/ReEcho/Private/Tests/ReEchoCombatPresentationTests.cpp`；`Source/ReEcho/Private/Tests/ReEchoRuntimeAssetPreloadTests.cpp`；`Content/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_Gun.uasset`；用于安全修改该 DA 的 `scripts/ue/` 最小自动化；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；`shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`；FullRebuild 刷新的 `Binaries/Win64/ReEchoEditor.prebuilt.json` 及其准确允许列表产物。
 - Stable Reads: `Source/ReEchoCombat/Public/Combat/ReEchoCombatContracts.h`；`Source/ReEcho/Public/Weapons/ReEchoWeaponActor.h`；`Source/ReEcho/Private/Weapons/ReEchoWeaponActor.cpp`；`Source/ReEcho/Public/Presentation/Weapon/ReEchoWeaponPresentationProfile.h`；`Content/Data/weapons.csv`；`Content/Data/attack_steps.csv`；`/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark`。
 - 影响模式：`SharedContract`。
 - 兼容承诺 / 下游操作：枪弹 `Travel`、投射物生成位置与伤害逻辑不变；弓、长剑、镰刀不变；表现缺失仍不得阻断攻击。保留最新主线的导电 VFX 端点和计时逻辑。
@@ -44,14 +44,14 @@
 
 - 基线分支/提交：`origin/main@9c32f80a5bd7be24ea4c82a4cfa2715f11fca6e3`。
 - 引擎/构建可用性：UE 5.8 Windows；Git LFS checkout 已通过；Editor/命令前取得 Git-common-dir Unreal 锁。
-- 现有聚焦测试结果：静态诊断确认 `NS_People_Bullet_spark` 当前位于 Gun `DamageApplied/PlayerGunImpact`；`HandleAttackCommitted` 只接受长剑/镰刀 Pattern，未提供枪口提交路径。
+- 现有聚焦测试结果：静态诊断确认 `NS_People_Bullet_spark` 当前位于 Gun `DamageApplied/PlayerGunImpact`；`HandleAttackCommitted` 只接受长剑/镰刀 Pattern，未提供枪口提交路径；`ReEchoProjectileActor` 仍在枪弹首次正伤害时直接生成该 Impact，迁移时必须删除枪的目标点重复播放而保留弓命中。
 - 共享契约 / 难合并资源风险：Gun DA 为二进制资产；只通过 Editor Python API 修改并提交精确该资产。最新主线的导电端点修复修改同一 VFX Component/测试，当前 worktree 已直接包含并必须保留。
 - 基线损坏时的停止条件：生产 Gun Profile 或 Niagara 资源缺失/LFS 未还原；远程改变枪口根节点所有者；资产实际需要同时保留命中语义而产生产品取舍。
 
 ## 实现提纲
 
 1. 新增枪口释放语义与 `Pattern.GunShot` AttackCommitted 路由，立即附着 `ResolveWeaponAttackVfxRoot()`。
-2. 通过 Editor 自动化把 Gun Profile 的火花迁至 `AttackCommitted`，保持既有枪口锚点、Held 配置与 Travel Slot 不变。
+2. 通过 Editor 自动化把 Gun Profile 的火花迁至 `AttackCommitted`，保持既有枪口锚点、Held 配置与 Travel Slot 不变；ProjectileActor 删除枪目标点 Impact，弓 Impact 不变。
 3. 增加路径、Pattern、Slot、左右挂点/镜像和其他武器负例自动化。
 4. 维护模块文档和执行记录，完成构建、校验与 PIE 交接。
 
@@ -78,4 +78,3 @@
 `PendingBeforeClose`：实现后请求用户验收枪左右朝向和连续射击时的枪口火花位置。
 
 ### 架构文档审阅结果
-
