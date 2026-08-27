@@ -63,9 +63,11 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Different encounters do not reuse one fixed card sequence"), EncounterOfferSignatures.Num() > 1);
 
 	TSet<FString> NewRunOfferSignatures;
+	TSet<int32> NewRunSeeds;
 	for (int32 RunIndex = 0; RunIndex < 6; ++RunIndex)
 	{
 		UReEchoRunSubsystem* FreshRun = PrepareChoice();
+		NewRunSeeds.Add(FreshRun->CreateSaveSnapshot()->TraitOfferSeed);
 		const TArray<FReEchoTraitCardOffer> FreshOffers = FreshRun->GenerateTraitCardOffers(3);
 		FString Signature;
 		for (const FReEchoTraitCardOffer& Offer : FreshOffers)
@@ -74,6 +76,7 @@ bool FReEchoTraitOffersAreDeterministicTest::RunTest(const FString& Parameters)
 		}
 		NewRunOfferSignatures.Add(Signature);
 	}
+	TestTrue(TEXT("Fresh runs capture more than one real-time offer seed"), NewRunSeeds.Num() > 1);
 	TestTrue(TEXT("Fresh runs do not reuse one fixed card sequence"), NewRunOfferSignatures.Num() > 1);
 	return true;
 }
@@ -231,6 +234,48 @@ bool FReEchoTierOneRepeatableFreeOfferTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTierOneFairFreeOfferTest,
+                                 "ReEcho.Traits.TierOneFreePoolHasNoOwnedStackBias",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTierOneFairFreeOfferTest::RunTest(const FString&)
+{
+	constexpr int32 SeedSampleCount = 64;
+	const FName OwnedTierOneCard = TEXT("G_1_01");
+	int32 SamplesContainingOwnedCard = 0;
+	for (int32 Seed = 1; Seed <= SeedSampleCount; ++Seed)
+	{
+		UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+		UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+		Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+		Source->CurrentBuild.CardState.OwnedCardIds.Add(OwnedTierOneCard);
+		Source->EncounterIndex = 4;
+		Source->Phase = EReEchoRunPhase::CardChoice;
+		UReEchoRunSaveGame* Save = Source->CreateSaveSnapshot();
+		Save->TraitOfferSeed = Seed;
+
+		UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+		UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+		if (!TestTrue(TEXT("A seeded free-choice sample restores"), Restored->RestoreSaveSnapshot(*Save)))
+		{
+			return false;
+		}
+		const TArray<FReEchoTraitCardOffer> Offers = Restored->GenerateTraitCardOffers(3);
+		if (!TestEqual(TEXT("Every seeded sample produces three tier-one cards"), Offers.Num(), 3))
+		{
+			return false;
+		}
+		SamplesContainingOwnedCard += Offers.ContainsByPredicate(
+		    [&](const FReEchoTraitCardOffer& Offer)
+		    {
+			    return Offer.CardId == OwnedTierOneCard;
+		    });
+	}
+	TestTrue(TEXT("An owned repeatable tier-one card is not systematically excluded behind unowned cards"),
+	         SamplesContainingOwnedCard > 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFreeTraitSlotRefreshTest,
                                  "ReEcho.Traits.FreeChoiceSlotsRefreshIndependently",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -382,6 +427,7 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	const float MaximumHealthBeforeForging = RunSubsystem->CurrentBuild.Stats.HpMax;
 	const float ExpectedForgedMaximum = MaximumHealthBeforeForging + RunSubsystem->CurrentBuild.Stats.PhysicalAttack +
 	                                    RunSubsystem->CurrentBuild.Stats.ElementalAttack;
+	RunSubsystem->EncounterIndex = 5;
 	TestTrue(TEXT("Blood Forging can be granted through the authoritative Run transaction"),
 	         RunSubsystem->DebugGrantCard(TEXT("G_3_14")));
 	TestEqual(TEXT("Run publishes Blood Forging's typed health adjustment after commit"),
@@ -537,6 +583,7 @@ bool FReEchoResolvedCardOutcomeProjectionTest::RunTest(const FString& Parameters
 		    });
 	};
 
+	Run->EncounterIndex = 5;
 	TestTrue(TEXT("Harvest penalty card grants for outcome projection"), Run->DebugGrantCard(TEXT("G_3_17")));
 	const EReEchoCardEconomyPenalty Penalty = Run->CurrentBuild.CardState.Runtime.EconomyPenalty;
 	const FReEchoWeaponPartShopView HarvestView = Run->GetWeaponPartShopView();
@@ -562,6 +609,7 @@ bool FReEchoResolvedCardOutcomeProjectionTest::RunTest(const FString& Parameters
 		         HarvestOutcome.Contains(TEXT("不再掉落时间碎片")));
 	}
 
+	Run->EncounterIndex = 2;
 	TestTrue(TEXT("Random stat trade grants for generic outcome projection"), Run->DebugGrantCard(TEXT("G_2_04")));
 	const FReEchoWeaponPartShopView StatTradeView = Run->GetWeaponPartShopView();
 	const FReEchoShopOffer* StatTrade = FindOwnedCard(StatTradeView, TEXT("G_2_04"));
@@ -574,6 +622,7 @@ bool FReEchoResolvedCardOutcomeProjectionTest::RunTest(const FString& Parameters
 		TestTrue(TEXT("Random stat trade exposes the resolved negative roll"), StatTradeOutcome.Contains(TEXT("-30%")));
 	}
 
+	Run->EncounterIndex = 1;
 	TestTrue(TEXT("Hunt tracker grants for pending outcome projection"), Run->DebugGrantCard(TEXT("G_2_05")));
 	const FReEchoWeaponPartShopView PendingHuntView = Run->GetWeaponPartShopView();
 	const FReEchoShopOffer* PendingHunt = FindOwnedCard(PendingHuntView, TEXT("G_2_05"));
@@ -601,6 +650,7 @@ bool FReEchoResolvedCardOutcomeProjectionTest::RunTest(const FString& Parameters
 		         SettledHunt->OutcomeText.ToString().Contains(TEXT("物理攻击力 +1")));
 	}
 
+	Run->EncounterIndex = 1;
 	TestTrue(TEXT("Reaction tracker grants for pending outcome projection"), Run->DebugGrantCard(TEXT("G_2_06")));
 	Run->BeginEncounter();
 	const float ElementalBefore = Run->CurrentBuild.Stats.ElementalAttack;

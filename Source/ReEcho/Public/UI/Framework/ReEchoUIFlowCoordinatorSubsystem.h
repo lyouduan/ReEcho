@@ -7,6 +7,7 @@
 
 class APlayerController;
 class UButton;
+class UReEchoButtonAudioFeedback;
 class UReEchoButtonVisualFeedback;
 class UUserWidget;
 class UWidget;
@@ -27,18 +28,20 @@ public:
 	void FocusScreen(APlayerController* PlayerController, EReEchoUIScreen Screen, bool bUIOnly) const;
 	void PreparePausedScreenTransition(const UObject* WorldContextObject) const;
 	void RestoreGameplay(const UObject* WorldContextObject, APlayerController* PlayerController) const;
+	/** Binds a runtime-created button to stable semantic events; Blueprint may pass NAME_None to disable one side. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|UI|Audio")
+	void BindButtonAudioFeedback(UButton* Button, FName HoverEventId, FName ClickEventId);
 	void PostUiEvent(FName EventId) const;
 	static UWidget* ResolveButtonVisualRoot(UButton* Button);
 
 private:
 	void BindAudioFeedback(UUserWidget* Widget, EReEchoUIScreen Screen);
+	void BindDefaultButtonAudioFeedback(UButton* Button);
 	void BindButtonVisualFeedback(UButton* Button, EReEchoUIScreen Screen, const FString& WidgetName);
 
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UReEchoButtonVisualFeedback>> ButtonVisualFeedbackBindings;
+	TArray<TObjectPtr<UReEchoButtonAudioFeedback>> ButtonAudioFeedbackBindings;
 
-	UFUNCTION()
-	void HandleButtonHovered();
-	UFUNCTION()
-	void HandleButtonClicked();
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoButtonVisualFeedback>> ButtonVisualFeedbackBindings;
 };

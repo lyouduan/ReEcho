@@ -1,47 +1,33 @@
 """Import and configure the current catalog audio using Unreal Editor Python."""
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import unreal
 
 
 ROOT = Path(unreal.Paths.project_dir()).resolve()
+CATALOG = ROOT / "Content" / "Data" / "audio_events.csv"
+ASSET_ROOT = "/Game/ReEcho/Audio/"
 
 LONG_AUDIO = {
     "Music.Menu": ("Design/Audio/Source/Music/Music_Menu.mp3", "/Game/ReEcho/Audio/Music", "Music_Menu"),
     "Music.Shop": ("Design/Audio/Source/Music/Music_Shop.mp3", "/Game/ReEcho/Audio/Music", "Music_Shop"),
     "Music.Boss": ("Design/Audio/Source/Music/Music_Boss.mp3", "/Game/ReEcho/Audio/Music", "Music_Boss"),
-    "Music.Death": ("Design/Audio/Source/Music/Music_Death.mp3", "/Game/ReEcho/Audio/Music", "Music_Death"),
-    "Music.Victory": ("Design/Audio/Source/Music/Music_Victory.mp3", "/Game/ReEcho/Audio/Music", "Music_Victory"),
-    "Ambience.Arena": ("Design/Audio/Source/Ambience/Ambience_Arena.mp3", "/Game/ReEcho/Audio/Ambience", "Ambience_Arena"),
-    "Ambience.Rain": ("Design/Audio/Source/Ambience/Ambience_Rain.mp3", "/Game/ReEcho/Audio/Ambience", "Ambience_Rain"),
 }
 
 ONE_SHOTS = {
     "UI.Hover": ("Source/Formal/UI/UI_Hover.mp3", "/Game/ReEcho/Audio/UI", "UI_Hover"),
     "UI.Confirm": ("Source/Formal/UI/UI_Confirm.mp3", "/Game/ReEcho/Audio/UI", "UI_Confirm"),
-    "UI.Cancel": ("Source/Formal/UI/UI_Cancel.wav", "/Game/ReEcho/Audio/UI", "UI_Cancel"),
-    "UI.Error": ("Source/Formal/UI/UI_Cancel.wav", "/Game/ReEcho/Audio/UI", "UI_Error"),
+    "UI.Cancel": ("Source/Formal/UI/UI_Cancel.mp3", "/Game/ReEcho/Audio/UI", "UI_Cancel"),
     "UI.Purchase": ("Source/Formal/UI/UI_Purchase.wav", "/Game/ReEcho/Audio/UI", "UI_Purchase"),
-    "UI.CardSelect": ("Source/Formal/UI/UI_CardSelect.wav", "/Game/ReEcho/Audio/UI", "UI_CardSelect"),
-    "Combat.Attack": ("Generated/Combat/Combat_Attack.wav", "/Game/ReEcho/Audio/Combat", "Combat_Attack"),
-    "Combat.Hit": ("Generated/Combat/Combat_Hit.wav", "/Game/ReEcho/Audio/Combat", "Combat_Hit"),
-    "Combat.Block": ("Generated/Combat/Combat_Block.wav", "/Game/ReEcho/Audio/Combat", "Combat_Block"),
     "Combat.Hurt": ("Derived/Combat/Combat_Hurt.wav", "/Game/ReEcho/Audio/Combat", "Combat_Hurt"),
-    "Combat.Kill": ("Generated/Combat/Combat_Kill.wav", "/Game/ReEcho/Audio/Combat", "Combat_Kill"),
     "Combat.Death": ("Derived/Combat/Combat_Death.wav", "/Game/ReEcho/Audio/Combat", "Combat_Death"),
     "Enemy.Spawn": ("Derived/Enemy/Enemy_Spawn.wav", "/Game/ReEcho/Audio/Enemy", "Enemy_Spawn"),
-    "Enemy.Attack": ("Generated/Enemy/Enemy_Attack.wav", "/Game/ReEcho/Audio/Enemy", "Enemy_Attack"),
     "Enemy.Death": ("Derived/Enemy/Enemy_Death.wav", "/Game/ReEcho/Audio/Enemy", "Enemy_Death"),
-    "Boss.Spawn": ("Generated/Boss/Boss_Spawn.wav", "/Game/ReEcho/Audio/Boss", "Boss_Spawn"),
-    "Boss.Attack": ("Generated/Boss/Boss_Attack.wav", "/Game/ReEcho/Audio/Boss", "Boss_Attack"),
     "Boss.Death": ("Derived/Boss/Boss_Death.wav", "/Game/ReEcho/Audio/Boss", "Boss_Death"),
-    "Echo.Spawn": ("Generated/Echo/Echo_Spawn.wav", "/Game/ReEcho/Audio/Echo", "Echo_Spawn"),
-    "Echo.Attack": ("Generated/Echo/Echo_Attack.wav", "/Game/ReEcho/Audio/Echo", "Echo_Attack"),
-    "Echo.End": ("Generated/Echo/Echo_End.wav", "/Game/ReEcho/Audio/Echo", "Echo_End"),
     "CameraMove": ("Source/Formal/Flow/CameraMove.wav", "/Game/ReEcho/Audio/Flow", "CameraMove"),
-    "Revive": ("Source/Formal/UI/UI_Cancel.wav", "/Game/ReEcho/Audio/Flow", "Revive"),
 }
 
 PLAN114_DIRECT_EVENT_IDS = {
@@ -103,6 +89,105 @@ VARIANT_MUSIC = {
     "Music.Encounter/Stage.3": ("Source/Formal/Variants/MusicEncounter/Stage_3.mp3", "/Game/ReEcho/Audio/Variants/MusicEncounter", "Music_Encounter_Stage_3"),
 }
 
+PLAN123_DECODE_INPUTS = {
+    "Combat.Reaction/Reaction.Growth": (
+        "Design/Audio/Source/Formal/Variants/CombatReaction/Growth.mp3",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Growth",
+    ),
+    "Combat.Reaction/Reaction.Conduct": (
+        "Design/Audio/Source/Formal/Variants/CombatReaction/Conduct.mp3",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Conduct",
+    ),
+    "Combat.Reaction/Reaction.Enhance": (
+        "Design/Audio/Source/Formal/Variants/CombatReaction/Enhance.mp3",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Enhance",
+    ),
+}
+
+PLAN123_ONE_SHOTS = {
+    "Combat.Reaction/Reaction.Vaporize": (
+        "Design/Audio/Derived/Variants/CombatReaction/Vaporize.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Vaporize",
+    ),
+    "Combat.Reaction/Reaction.Growth": (
+        "Design/Audio/Derived/Variants/CombatReaction/Growth.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Growth",
+    ),
+    "Combat.Reaction/Reaction.Conduct": (
+        "Design/Audio/Derived/Variants/CombatReaction/Conduct.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Conduct",
+    ),
+    "Combat.Reaction/Reaction.Enhance": (
+        "Design/Audio/Derived/Variants/CombatReaction/Enhance.wav",
+        "/Game/ReEcho/Audio/Variants/CombatReaction",
+        "Combat_Reaction_Enhance",
+    ),
+    "Item.Pickup": (
+        "Design/Audio/Derived/Flow/Item_Pickup.wav",
+        "/Game/ReEcho/Audio/Flow",
+        "Item_Pickup",
+    ),
+    "UI.CardReveal": (
+        "Design/Audio/Source/Formal/UI/UI_CardReveal.wav",
+        "/Game/ReEcho/Audio/UI",
+        "UI_CardReveal",
+    ),
+    "UI.Equip/UI.Unequip": (
+        "Design/Audio/Derived/UI/UI_RuneEquip.wav",
+        "/Game/ReEcho/Audio/UI",
+        "UI_RuneEquip",
+    ),
+}
+
+def load_catalog_asset_paths() -> set[str]:
+    with CATALOG.open("r", encoding="utf-8-sig", newline="") as handle:
+        return {
+            row["AssetPath"].strip()
+            for row in csv.DictReader(handle)
+            if row["AssetPath"].strip()
+        }
+
+
+def delete_audio_assets_outside_catalog() -> None:
+    catalog_asset_paths = load_catalog_asset_paths()
+    project_audio_assets = {
+        str(asset_path)
+        for asset_path in unreal.EditorAssetLibrary.list_assets(
+            ASSET_ROOT, recursive=True, include_folder=False
+        )
+    }
+    for asset_path in sorted(project_audio_assets - catalog_asset_paths):
+        package_path = asset_path.partition(".")[0]
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+            referencers = unreal.EditorAssetLibrary.find_package_referencers_for_asset(
+                package_path, load_assets_to_confirm=True
+            )
+            unreal.log(f"Plan123 table-external audio referencers: {asset_path} -> {referencers}")
+            if referencers:
+                raise RuntimeError(
+                    f"Refusing to delete referenced table-external audio asset: "
+                    f"{asset_path} -> {referencers}"
+                )
+            if not unreal.EditorAssetLibrary.delete_asset(package_path):
+                raise RuntimeError(f"Failed to delete table-external audio asset: {asset_path}")
+
+            # UE 5.8 can report a successful ForceDelete while leaving the writable
+            # package file behind in a source-control-disabled worktree. The object
+            # and package have already been removed through Editor APIs and were
+            # confirmed unreferenced above; remove only that exact stale file.
+            relative_package = package_path.removeprefix("/Game/")
+            package_file = ROOT / "Content" / f"{relative_package}.uasset"
+            if package_file.is_file():
+                package_file.unlink()
+                unreal.log(f"Plan123 stale table-external package file removed: {package_file}")
+        unreal.log(f"Plan123 table-external audio deleted: {asset_path}")
+
 
 def import_asset(source: Path, destination_path: str, destination_name: str, looping: bool) -> str:
     if not source.is_file():
@@ -130,9 +215,23 @@ command_line = unreal.SystemLibrary.get_command_line()
 direct_only = "-Plan114DirectOnly" in command_line
 decode_only = "-Plan114DecodeOnly" in command_line
 variants_only = "-Plan114VariantsOnly" in command_line
+plan123_decode_only = "-Plan123DecodeOnly" in command_line
+plan123_only = "-Plan123Only" in command_line
+plan123_cleanup_only = "-Plan123CleanupOnly" in command_line
 imported_count = 0
 
-if decode_only:
+if plan123_decode_only:
+    for relative_source, destination_path, destination_name in PLAN123_DECODE_INPUTS.values():
+        import_asset(ROOT / relative_source, destination_path, destination_name, False)
+        imported_count += 1
+elif plan123_cleanup_only:
+    delete_audio_assets_outside_catalog()
+elif plan123_only:
+    for relative_source, destination_path, destination_name in PLAN123_ONE_SHOTS.values():
+        import_asset(ROOT / relative_source, destination_path, destination_name, False)
+        imported_count += 1
+    delete_audio_assets_outside_catalog()
+elif decode_only:
     for relative_source, destination_path, destination_name in VARIANT_DECODE_INPUTS.values():
         import_asset(ROOT / "Design" / "Audio" / relative_source, destination_path, destination_name, False)
         imported_count += 1
@@ -156,17 +255,11 @@ else:
         import_asset(ROOT / "Design" / "Audio" / relative_source, destination_path, destination_name, False)
         imported_count += 1
 
-    if not direct_only:
-        existing_encounter = unreal.EditorAssetLibrary.load_asset(
-            "/Game/ReEcho/Audio/Music/The_Iron_Waltz.The_Iron_Waltz"
-        )
-        if not isinstance(existing_encounter, unreal.SoundWave):
-            raise RuntimeError("Existing Music.Encounter asset is missing or not a SoundWave")
-        existing_encounter.set_editor_property("looping", True)
-        unreal.EditorAssetLibrary.save_loaded_asset(existing_encounter, only_if_is_dirty=False)
-        imported_count += 1
+    delete_audio_assets_outside_catalog()
 
 unreal.log(
     f"Imported/configured {imported_count} catalog assets "
-    f"direct_only={direct_only} decode_only={decode_only} variants_only={variants_only}"
+    f"direct_only={direct_only} decode_only={decode_only} variants_only={variants_only} "
+    f"plan123_decode_only={plan123_decode_only} plan123_only={plan123_only} "
+    f"plan123_cleanup_only={plan123_cleanup_only}"
 )

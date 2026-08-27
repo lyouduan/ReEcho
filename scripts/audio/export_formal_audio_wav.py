@@ -23,8 +23,21 @@ EXPORTS = {
     ),
 }
 
+PLAN123_EXPORTS = {
+    "/Game/ReEcho/Audio/Variants/CombatReaction/Combat_Reaction_Growth.Combat_Reaction_Growth": (
+        ROOT / "Design/Audio/Decoded/Variants/CombatReaction/Growth.wav"
+    ),
+    "/Game/ReEcho/Audio/Variants/CombatReaction/Combat_Reaction_Conduct.Combat_Reaction_Conduct": (
+        ROOT / "Design/Audio/Decoded/Variants/CombatReaction/Conduct.wav"
+    ),
+    "/Game/ReEcho/Audio/Variants/CombatReaction/Combat_Reaction_Enhance.Combat_Reaction_Enhance": (
+        ROOT / "Design/Audio/Decoded/Variants/CombatReaction/Enhance.wav"
+    ),
+}
 
-for asset_path, output_path in EXPORTS.items():
+
+exports = PLAN123_EXPORTS if "-Plan123Only" in unreal.SystemLibrary.get_command_line() else EXPORTS
+for asset_path, output_path in exports.items():
     sound = unreal.EditorAssetLibrary.load_asset(asset_path)
     if not isinstance(sound, unreal.SoundWave):
         raise RuntimeError(f"Expected SoundWave is missing: {asset_path}")
@@ -39,6 +52,6 @@ for asset_path, output_path in EXPORTS.items():
     task.exporter = unreal.SoundExporterWAV()
     if not unreal.Exporter.run_asset_export_task(task):
         raise RuntimeError(f"SoundWave WAV export failed: {asset_path} -> {output_path}")
-    unreal.log(f"Plan114 decoded WAV exported: {asset_path} -> {output_path}")
+    unreal.log(f"Formal decoded WAV exported: {asset_path} -> {output_path}")
 
-unreal.log(f"Plan114 decoded WAV exports complete: {len(EXPORTS)}")
+unreal.log(f"Formal decoded WAV exports complete: {len(exports)}")

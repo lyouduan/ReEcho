@@ -380,12 +380,17 @@ bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
 		const FReEchoWeaponPartShopView PageAfterPurchase = RunSubsystem->GetWeaponPartShopView();
 		if (OriginalOffer.Kind == EReEchoShopOfferKind::Part)
 		{
-			TestTrue(TEXT("A purchased rune is immediately present in the refreshed owned-rune projection"),
-			         PageAfterPurchase.OwnedParts.ContainsByPredicate(
-			             [&](const FReEchoShopOffer& OwnedPart)
-			             {
-				             return OwnedPart.ContentId == OriginalOffer.PartId;
-			             }));
+			TestTrue(TEXT("A purchased rune is recorded in the authoritative owned inventory"),
+			         RunSubsystem->OwnedPartIds.Contains(OriginalOffer.PartId));
+			const bool bCompatibleWithCurrentWeapon = OriginalOffer.WeaponTypeId == TEXT("Any") ||
+			                                          OriginalOffer.WeaponTypeId == PageAfterPurchase.WeaponTypeId;
+			TestEqual(TEXT("The owned-rune projection only exposes runes compatible with the current weapon"),
+			          PageAfterPurchase.OwnedParts.ContainsByPredicate(
+			              [&](const FReEchoShopOffer& OwnedPart)
+			              {
+				              return OwnedPart.ContentId == OriginalOffer.PartId;
+			              }),
+			          bCompatibleWithCurrentWeapon);
 		}
 		else
 		{
@@ -497,7 +502,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
 	RunSubsystem->TimeShards = 1000;
-	const TArray<TArray<int32>> ExpectedShopTiers = {{}, {1}, {1}, {2, 3}, {}, {1, 2}, {1, 3}, {}};
+	const TArray<TArray<int32>> ExpectedShopTiers = {{}, {1}, {1}, {2, 3}, {1, 3}, {1, 2}, {1, 3}, {}};
 	for (int32 EncounterIndex = 1; EncounterIndex <= ExpectedShopTiers.Num(); ++EncounterIndex)
 	{
 		RunSubsystem->EncounterIndex = EncounterIndex;
@@ -610,7 +615,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	const FReEchoShopCardChoiceOffer* PurchasedCardCandidate = FirstPage.CardPackOffers[1].Choices.FindByPredicate(
 	    [](const FReEchoShopCardChoiceOffer& Offer)
 	    {
-		    return Offer.CardId != TEXT("G_2_15");
+		    return Offer.CardId != TEXT("G_2_15") && Offer.CardId != TEXT("G_2_22");
 	    });
 	if (!PurchasedCardCandidate)
 	{
@@ -679,6 +684,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 
 	const int32 BeforeRefreshShards = RunSubsystem->TimeShards;
 	const int32 RefreshCost = PurchasedPage.WeaponRuneRefreshCost;
+	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 0;
 	TestTrue(TEXT("Paid refresh succeeds after free refreshes are exhausted"),
 	         RunSubsystem->TryConsumeShopRefresh(RefreshCost));
 	TestEqual(
@@ -1167,6 +1173,146 @@ bool FReEchoCurseBankDisplayBalanceTest::RunTest(const FString&)
 	TestEqual(TEXT("Debt remains stored separately from cash"), Run->TimeShards, 0);
 	TestEqual(
 	    TEXT("Curse bank exposes debt as a negative presentation balance"), Run->GetDisplayedTimeShardBalance(), -25);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFreeShopAuthoritativeProjectionTest,
+                                 "ReEcho.Shop.FreeShopUsesAuthoritativeProjection",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFreeShopAuthoritativeProjectionTest::RunTest(const FString&)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	Run->EncounterIndex = 2;
+	Run->Phase = EReEchoRunPhase::Planning;
+	Run->TimeShards = 0;
+	Run->CurrentBuild.CardState.Runtime.FreeShopEncounterIndex = Run->EncounterIndex;
+	Run->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
+
+	const FReEchoWeaponPartShopView InitialView = Run->GetWeaponPartShopView();
+	const FReEchoShopOffer* LegacyOffer = InitialView.RunItemOffers.FindByPredicate(
+	    [](const FReEchoShopOffer& Offer)
+	    {
+		    return Offer.ItemId == TEXT("SHOP_RUSTED_SCISSORS");
+	    });
+	if (!TestNotNull(TEXT("The authoritative view projects compatibility shop items"), LegacyOffer))
+	{
+		return false;
+	}
+	TestEqual(TEXT("A free-shop compatibility item projects zero price"), LegacyOffer->EffectivePrice, 0);
+	TestTrue(TEXT("A free-shop compatibility item remains purchasable with zero shards"), LegacyOffer->bCanPurchase);
+	const FReEchoShopPurchaseOutcome LegacyPurchase = Run->PurchaseShopItemDetailed(LegacyOffer->ItemId);
+	TestTrue(TEXT("The zero-price compatibility item commits"), LegacyPurchase.IsSuccess());
+	TestEqual(TEXT("The committed compatibility item reports zero price"), LegacyPurchase.EffectivePrice, 0);
+
+	const FReEchoWeaponSlotOffer* WeaponRuneOffer = InitialView.SlotOffers.FindByPredicate(
+	    [](const FReEchoWeaponSlotOffer& Offer)
+	    {
+		    return !Offer.ItemId.IsNone();
+	    });
+	if (!TestNotNull(TEXT("The free shop has a weapon/rune offer"), WeaponRuneOffer))
+	{
+		return false;
+	}
+	TestEqual(TEXT("The weapon/rune offer projects zero price"), WeaponRuneOffer->EffectivePrice, 0);
+	TestTrue(TEXT("The weapon/rune offer is purchasable with zero shards"), WeaponRuneOffer->bCanPurchase);
+	const FReEchoShopPurchaseOutcome WeaponRunePurchase = Run->PurchaseShopItemDetailed(WeaponRuneOffer->ItemId);
+	TestTrue(TEXT("The zero-price weapon/rune offer commits"), WeaponRunePurchase.IsSuccess());
+	TestEqual(TEXT("The weapon/rune transaction reports zero price"), WeaponRunePurchase.EffectivePrice, 0);
+
+	const FReEchoShopCardPackOffer* TierOnePack = InitialView.CardPackOffers.FindByPredicate(
+	    [](const FReEchoShopCardPackOffer& Pack)
+	    {
+		    return Pack.Tier == 1;
+	    });
+	if (!TestNotNull(TEXT("Encounter two projects its tier-one card pack"), TierOnePack))
+	{
+		return false;
+	}
+	TestEqual(TEXT("The free-shop card pack projects zero price"), TierOnePack->EffectivePrice, 0);
+	TestTrue(TEXT("The free-shop card pack is purchasable with zero shards"), TierOnePack->bCanPurchase);
+	const FReEchoShopPurchaseOutcome PackPayment = Run->PurchaseShopCardPackDetailed(1);
+	TestTrue(TEXT("The zero-price card pack payment commits"), PackPayment.IsSuccess());
+	TestEqual(TEXT("The card-pack transaction reports zero price"), PackPayment.EffectivePrice, 0);
+	TestEqual(TEXT("Free purchases do not create currency or debt"), Run->GetDisplayedTimeShardBalance(), 0);
+
+	FString RefreshError;
+	TestTrue(TEXT("An existing free refresh can generate a new weapon/rune page"),
+	         Run->TryRefreshWeaponRuneShop(RefreshError));
+	const FReEchoWeaponPartShopView RefreshedView = Run->GetWeaponPartShopView();
+	for (const FReEchoWeaponSlotOffer& Offer : RefreshedView.SlotOffers)
+	{
+		if (!Offer.ItemId.IsNone())
+		{
+			TestEqual(TEXT("A refreshed free-shop offer remains zero-price"), Offer.EffectivePrice, 0);
+		}
+	}
+
+	Run->EncounterIndex = 3;
+	const FReEchoWeaponPartShopView NextEncounterView = Run->GetWeaponPartShopView();
+	const FReEchoShopOffer* NextLegacyOffer = NextEncounterView.RunItemOffers.FindByPredicate(
+	    [](const FReEchoShopOffer& Offer)
+	    {
+		    return Offer.ItemId == TEXT("SHOP_DREAM_FRUIT");
+	    });
+	TestTrue(TEXT("The next encounter restores normal pricing and affordability"),
+	         NextLegacyOffer && NextLegacyOffer->EffectivePrice > 0 && !NextLegacyOffer->bCanPurchase);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuneBackpackWeaponCompatibilityTest,
+                                 "ReEcho.Shop.RuneBackpackFiltersCurrentWeapon",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoRuneBackpackWeaponCompatibilityTest::RunTest(const FString&)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_04"));
+	Run->OwnedPartIds.AddUnique(TEXT("P_CORE_PRIMORDIAL"));
+	Run->OwnedPartIds.AddUnique(TEXT("P_SCYTHE_MOVESTACK_GRIP"));
+	Run->OwnedPartIds.AddUnique(TEXT("P_LONGSWORD_HASTE_GRIP"));
+
+	const FReEchoWeaponPartShopView ScytheView = Run->GetWeaponPartShopView();
+	TestTrue(TEXT("The scythe backpack contains its own grip rune"),
+	         ScytheView.OwnedParts.ContainsByPredicate(
+	             [](const FReEchoShopOffer& Offer)
+	             {
+		             return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP");
+	             }));
+	TestFalse(TEXT("The scythe backpack excludes a longsword grip rune despite the shared slot name"),
+	          ScytheView.OwnedParts.ContainsByPredicate(
+	              [](const FReEchoShopOffer& Offer)
+	              {
+		              return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP");
+	              }));
+	TestTrue(TEXT("A universal core remains visible for the scythe"),
+	         ScytheView.OwnedParts.ContainsByPredicate(
+	             [](const FReEchoShopOffer& Offer)
+	             {
+		             return Offer.ContentId == TEXT("P_CORE_PRIMORDIAL");
+	             }));
+	FString EquipError;
+	TestFalse(TEXT("The backend still rejects the incompatible longsword rune"),
+	          Run->TryEquipPurchasedPart(TEXT("P_LONGSWORD_HASTE_GRIP"), EquipError));
+
+	Run->OwnedWeaponIds.Add(TEXT("W_J_01"));
+	TestTrue(TEXT("The owned longsword can be equipped"), Run->TryEquipOwnedWeapon(TEXT("W_J_01"), EquipError));
+	const FReEchoWeaponPartShopView LongSwordView = Run->GetWeaponPartShopView();
+	TestTrue(TEXT("Switching weapons reveals the matching longsword grip rune"),
+	         LongSwordView.OwnedParts.ContainsByPredicate(
+	             [](const FReEchoShopOffer& Offer)
+	             {
+		             return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP");
+	             }));
+	TestFalse(TEXT("Switching weapons hides the scythe-only grip rune"),
+	          LongSwordView.OwnedParts.ContainsByPredicate(
+	              [](const FReEchoShopOffer& Offer)
+	              {
+		              return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP");
+	              }));
 	return true;
 }
 

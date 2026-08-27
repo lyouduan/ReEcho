@@ -227,6 +227,7 @@ private:
 	bool bQuitConfirmationVisible = false;
 	bool bExitToMainMenuAfterConfirmation = false;
 	bool bContinueRunAfterShop = false;
+	bool bReturnToOpenShopAfterTraitChoice = false;
 	bool bPostTraitShopClosing = false;
 	bool bPauseOpenedOverInventoryShop = false;
 

@@ -408,6 +408,7 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 	FString OutError;
 	if (Weapon->EquipRune(PartId, OutError))
 	{
+		PostUiEvent(FReEchoAudioEvents::UiEquip);
 		PrintGMResult(FString::Printf(TEXT("Equipped rune %s on weapon"), *PartId.ToString()), true);
 	}
 	else
@@ -469,6 +470,7 @@ void AReEchoGameMode::GMUnequipRune(const FName SlotTypeId)
 	FString OutError;
 	if (Weapon->UnequipRune(SlotTypeId, OutError))
 	{
+		PostUiEvent(FReEchoAudioEvents::UiUnequip);
 		PrintGMResult(FString::Printf(TEXT("Unequipped rune in slot %s"), *SlotTypeId.ToString()), true);
 	}
 	else
@@ -3337,6 +3339,11 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	// 背包重装：点击“拥有但未装备”的配件 → 直接重新装备，不扣钱、不走购买防重复。
 	if (RunSubsystem->OwnedPartIds.Contains(ItemId))
 	{
+		const bool bWasEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+		    [ItemId](const FReEchoEquippedPartSnapshot& Part)
+		    {
+			    return Part.PartId == ItemId;
+		    });
 		FString EquipError;
 		if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
 		{
@@ -3348,16 +3355,36 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 			PostUiEvent(FReEchoAudioEvents::UiError);
 			return;
 		}
+		if (!bWasEquipped)
+		{
+			PostUiEvent(FReEchoAudioEvents::UiEquip);
+		}
 		RunSubsystem->SaveRun();
 		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 		return;
 	}
 
 	// 新购统一走结构化事务；成功、拒绝、购买前后状态都由同一接口审计。
+	TSet<FName> EquippedPartsBeforePurchase;
+	for (const FReEchoEquippedPartSnapshot& Part : RunSubsystem->CurrentBuild.EquippedParts)
+	{
+		EquippedPartsBeforePurchase.Add(Part.PartId);
+	}
 	const FReEchoShopPurchaseOutcome PurchaseOutcome = RunSubsystem->PurchaseShopItemDetailed(ItemId);
 	if (PurchaseOutcome.IsSuccess())
 	{
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
+		const bool bEquippedPartsChanged =
+		    RunSubsystem->CurrentBuild.EquippedParts.Num() != EquippedPartsBeforePurchase.Num() ||
+		    RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+		        [&EquippedPartsBeforePurchase](const FReEchoEquippedPartSnapshot& Part)
+		        {
+			        return !EquippedPartsBeforePurchase.Contains(Part.PartId);
+		        });
+		if (bEquippedPartsChanged)
+		{
+			PostUiEvent(FReEchoAudioEvents::UiEquip);
+		}
 		RunSubsystem->SaveRun();
 		// The authoritative page is stable for EncounterIndex + ShopRefreshSequence. Rebuilding the complete read-only
 		// projection updates ownership, backpack and equipped state without rerolling any remaining offer.
@@ -3459,6 +3486,7 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 	}
 	ActiveShopCardPackTier = Tier;
 	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, Tier);
+	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnShopCardSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleShopCardRefreshRequested);
@@ -3502,10 +3530,15 @@ void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
 		return;
 	}
 
-	PostUiEvent(FReEchoAudioEvents::UiPurchase);
 	RunSubsystem->SaveRun();
+	const bool bOpenedBonusTraitChoice = RunSubsystem->Phase == EReEchoRunPhase::CardChoice;
 	CloseShopCardChoice(true);
 	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+	if (bOpenedBonusTraitChoice)
+	{
+		bReturnToOpenShopAfterTraitChoice = true;
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+	}
 }
 
 void AReEchoGameMode::HandleShopCardRefreshRequested(const int32 SlotIndex)
@@ -3562,6 +3595,7 @@ void AReEchoGameMode::HandleShopCardRefreshRequested(const int32 SlotIndex)
 	RunSubsystem->SaveRun();
 	TraitCardChoiceWidget->InitializeShopOffers(
 	    EffectiveChoices, RunSubsystem->TimeShards, ActiveShopCardPackTier, SlotIndex);
+	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	ReEchoUIInteractionAudit::Write(TEXT("SHOP_CARD_SLOT_REFRESH_SUCCEEDED"),
 	                                FString::Printf(TEXT("tier=%d slot=%d candidates=%d shards=%d"),
 	                                                ActiveShopCardPackTier,
@@ -3607,6 +3641,7 @@ void AReEchoGameMode::HandleShopWeaponEquipRequested(const FName WeaponId)
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}
+	const FName PreviousWeaponId = RunSubsystem->CurrentBuild.WeaponId;
 	FString EquipError;
 	if (!RunSubsystem->TryEquipOwnedWeapon(WeaponId, EquipError))
 	{
@@ -3618,7 +3653,10 @@ void AReEchoGameMode::HandleShopWeaponEquipRequested(const FName WeaponId)
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}
-	PostUiEvent(FReEchoAudioEvents::UiConfirm);
+	if (PreviousWeaponId != RunSubsystem->CurrentBuild.WeaponId)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiEquip);
+	}
 	RunSubsystem->SaveRun();
 	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
@@ -4329,6 +4367,7 @@ void AReEchoGameMode::ProceedToPostEncounterUI()
 	}
 	else if (RunSubsystem->EncounterIndex < RunSubsystem->GetTotalEncounterCount())
 	{
+		PostAudioEvent(FReEchoAudioEvents::FlowVictory, FVector::ZeroVector);
 		if (!bEncounterIntermissionPreparedForTransition)
 		{
 			PrepareEncounterIntermission();
@@ -4383,6 +4422,7 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	StopAmbienceState();
 
 	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
+	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleTraitCardRefreshRequested);
@@ -4434,6 +4474,7 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 	}
 	RunSubsystem->SaveRun();
 	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards, SlotIndex);
+	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	RefreshPlayerHudTimeShards(RunSubsystem);
 	ReEchoUIInteractionAudit::Write(TEXT("FREE_CARD_SLOT_REFRESH_SUCCEEDED"),
 	                                FString::Printf(TEXT("encounter=%d slot=%d candidates=%d shards=%d"),
@@ -4457,7 +4498,6 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}
-	PostUiEvent(FReEchoAudioEvents::UiCardSelect);
 	RunSubsystem->SaveRun();
 
 	if (TraitCardChoiceWidget)
@@ -4468,6 +4508,29 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
 		}
 		TraitCardChoiceWidget = nullptr;
+	}
+	if (bReturnToOpenShopAfterTraitChoice)
+	{
+		if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+		{
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+			return;
+		}
+		bReturnToOpenShopAfterTraitChoice = false;
+		if (InventoryShopWidget)
+		{
+			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+				{
+					UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, true);
+				}
+			}
+			SetPlayerMenuAbilityBlocked(true);
+			return;
+		}
 	}
 	ResumeWorldForMenuTransition();
 

@@ -736,6 +736,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "PausePolicy": CsvColumnSpec("StableId"),
         "AttenuationMin": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "AttenuationMax": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "StartTimeSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=86400.0),
     },
     "Attributes": {
         "Id": CsvColumnSpec("StableId"),
@@ -1032,11 +1033,30 @@ def assemble_fixture_package(fixture_dir: Path, temp_root: Path) -> Path:
 def validate_audio_events_domain(entries: dict[str, Path]) -> None:
     path = entries["AudioEvents"]
     rows = load_csv(path)
+    expected_silent_keys = {
+        ("Music.Encounter", ""),
+        ("Music.Death", ""),
+        ("Music.Victory", ""),
+        ("Ambience.Arena", ""),
+        ("Ambience.Rain", ""),
+        ("Combat.Attack", ""),
+        ("Combat.Hit", ""),
+        ("Combat.Block", ""),
+        ("Combat.Kill", ""),
+        ("Enemy.Attack", ""),
+        ("Boss.Spawn", ""),
+        ("Boss.Attack", ""),
+        ("Echo.Spawn", ""),
+        ("Echo.Attack", ""),
+        ("Echo.End", ""),
+    }
     required_ids = {
         "Music.Menu", "Music.Encounter", "Music.Boss", "Music.Shop", "Music.Death", "Music.Victory",
         "Ambience.Arena", "Ambience.Rain",
         "UI.Hover", "UI.Confirm", "UI.Cancel", "UI.Error", "UI.Purchase", "UI.CardSelect",
+        "UI.CardReveal", "UI.Equip", "UI.Unequip",
         "Combat.Attack", "Combat.Hit", "Combat.Block", "Combat.Hurt", "Combat.Kill", "Combat.Death",
+        "Combat.Reaction", "Item.Pickup", "Flow.Victory",
         "Enemy.Spawn", "Enemy.Attack", "Enemy.Death", "Boss.Spawn", "Boss.Attack", "Boss.Death",
         "Echo.Spawn", "Echo.Attack", "Echo.End", "CameraMove", "Revive",
     }
@@ -1051,7 +1071,20 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
         "Music.Encounter": {"", "Stage.1", "Stage.2", "Stage.3"},
         "Combat.Attack": {"", "W_J_01", "W_J_04", "W_J_08", "W_J_09"},
         "Combat.Hit": {"", "Flame", "Lightning", "Grass", "Water"},
+        "Combat.Reaction": {
+            "Reaction.Burn", "Reaction.Vaporize", "Reaction.Growth", "Reaction.Conduct", "Reaction.Enhance",
+        },
     }
+    actual_silent_keys = {
+        (row["EventId"], row["VariantId"])
+        for row in rows
+        if not row["AssetPath"]
+    }
+    if actual_silent_keys != expected_silent_keys:
+        fail(
+            f"{rel(path)}: silent audio rows must exactly match the planning-table whitelist: "
+            f"expected {sorted(expected_silent_keys)}, found {sorted(actual_silent_keys)}"
+        )
     for row in rows:
         line = row["__line__"]
         variant_id = row["VariantId"]
@@ -1074,6 +1107,33 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
             fail(f"{rel(path)}:{line}:AttenuationMax: must be >= AttenuationMin")
         if row["Spatial3D"] == "false" and (float(row["AttenuationMin"]) != 0 or float(row["AttenuationMax"]) != 0):
             fail(f"{rel(path)}:{line}: non-spatial events must use zero attenuation")
+
+    bound_packages = {
+        row["AssetPath"].partition(".")[0]
+        for row in rows
+        if row["AssetPath"]
+    }
+    audio_root = ROOT / "Content" / "ReEcho" / "Audio"
+    discovered_packages: set[str] = set()
+    unexpected_files: list[str] = []
+    package_sidecar_suffixes = {".uexp", ".ubulk", ".uptnl"}
+    for audio_file in audio_root.rglob("*"):
+        if not audio_file.is_file():
+            continue
+        relative_audio = audio_file.relative_to(ROOT / "Content").as_posix()
+        package_path = f"/Game/{audio_file.relative_to(ROOT / 'Content').with_suffix('').as_posix()}"
+        if audio_file.suffix.lower() == ".uasset":
+            discovered_packages.add(package_path)
+        elif audio_file.suffix.lower() in package_sidecar_suffixes:
+            if package_path not in bound_packages:
+                unexpected_files.append(relative_audio)
+        else:
+            unexpected_files.append(relative_audio)
+    table_external_packages = sorted(discovered_packages - bound_packages)
+    if table_external_packages:
+        fail(f"{rel(audio_root)}: table-external audio packages: {table_external_packages}")
+    if unexpected_files:
+        fail(f"{rel(audio_root)}: table-external raw/sidecar audio files: {sorted(unexpected_files)}")
 
 
 def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) -> None:

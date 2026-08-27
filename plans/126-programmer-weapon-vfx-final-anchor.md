@@ -6,8 +6,8 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`。
+- 人工验收：`Accepted`。
 - 本地规划 / 实现基线：`origin/main@46adef87a5149f00b8df585b4cdbc674c951ad0d`。
 - 本地实现方式（可选，仅作交接说明）：`C:\tmp\ReEcho-plan126-weapon-vfx-anchor`，分支 `codex/plan126-weapon-vfx-anchor`。
 - 依赖 / 阻塞：沿用 Plan100 已发布的共享左右手挂点、`HeldOffsetRatio`、长剑三挥、镰刀旋转和 Boss 武器特效根节点契约；实现前须确认本 Plan 已进入 `origin/main`。
@@ -33,12 +33,12 @@
 
 ## 锁定验收
 
-- [ ] 自动化证明武器挂点先消费最终 `HeldOffsetRatio`，再按当前武器局部 Transform 求锚点；不得回退为角色中心或人物宽度计算。
-- [ ] 朝右挂点为：镰刀中心、长剑下方中心、弓/枪右侧中点；朝左局部水平镜像，垂直分量不变。
+- [x] 自动化证明武器挂点先消费最终 `HeldOffsetRatio`，再按当前武器局部 Transform 求锚点；不得回退为角色中心或人物宽度计算。
+- [x] 朝右挂点为：镰刀中心、长剑下方中心、弓/枪右侧中点；朝左局部水平镜像，垂直分量不变。
 - [ ] 长剑三挥和镰刀旋转期间，特效根节点跟随当前武器组件 Transform；弓/枪翻转后根节点位于视觉枪口/出箭一侧。
-- [ ] Player 与 Echo 的释放类 `AttackCommitted`/Charge 特效消费武器根节点；Travel 与 DamageApplied 的原有载体/命中世界位置语义不变。
-- [ ] Boss 武器继续消费 `BossWeaponVfxRoot`，行为与 DA 左右偏移不回归。
-- [ ] C++ 构建、聚焦自动化、项目校验、预构建包检查和 `git diff --check` 通过。
+- [x] Player 与 Echo 的释放类 `AttackCommitted` 特效消费武器根节点；Travel 与 DamageApplied 的原有载体/命中世界位置语义不变。当前生产 Profile 未配置玩家 Charge 槽，未来 AttachToAttackRoot 槽可复用同一根节点。
+- [x] Boss 武器继续消费 `BossWeaponVfxRoot`，行为与 DA 左右偏移不回归。
+- [x] C++ 构建、聚焦自动化、项目校验、预构建包检查和 `git diff --check` 通过。
 - [ ] 用户在 PIE 中确认四把武器左右朝向的特效起点与武器贴图对齐。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -72,20 +72,43 @@
 
 ### 变化
 
-待实现。
+- `UReEchoWeaponPresentationProfile` 新增可选 `AttackVfxAnchorRatio` 覆盖；旧 DA 不需要二进制迁移，按 VisualKey 使用镰刀中心、长剑下方中心、弓/枪右侧中点默认值。
+- `AReEchoWeaponActor` 新增 `WeaponAttackVfxRoot` 并绑定当前可见武器组件；局部 X 随 `VisualFacingSign` 镜像，组件层级自动继承最终手部挂点、`HeldOffsetRatio`、尺寸、贴图旋转及近战动作。
+- Player/Echo 把武器根节点注册给 CombatVfx；长剑/镰刀延迟和立即 `AttackCommitted` 均从该根节点生成。Boss、Travel、DamageApplied 路径未修改。
+- 新增四武器默认值、左右镜像和 DA 覆盖自动化断言；维护三个相关模块文档。
+- 首轮 PIE：长剑、镰刀位置正确；弓、枪位置错误，朝右尤为明显。诊断确认投射物仍从角色固定偏移生成，且弓左/枪右的 DA 负 X Scale 会把局部挂点再次镜像。
+- 修正候选：弓/枪投射物首帧直接使用 `WeaponAttackVfxRoot` 世界位置；局部挂点在父视觉组件 X 为负时抵消一次缩放镜像，确保最终屏幕侧仍按朝向选择。
+- 修正候选增量验证：Development Editor 编译通过；`ReEcho.Presentation.Combat.Capabilities` 返回 `Success`。该证据将在接入最新 `origin/main` 后由最终门禁重新生成。
+- 已接入 `origin/main@772b054c`；`ReEchoWeaponActor.cpp/.h` 按函数级同时保留 Plan126 最终挂点和 Plan131 镰刀斩弹，预构建包由合并后的 FullRebuild 统一刷新。
 
 ### 证据
 
-待实现。
+- 合并后 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：`Result: Succeeded`，预构建 source fingerprint `07c2933199ef`。
+- 合并后 `ReEcho.Presentation.Combat.Capabilities`：`Success`，覆盖弓/枪负缩放镜像补偿与投射物从最终武器挂点生成。
+- 合并后 `ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility`：`Success`，证明 Plan131 镰刀斩弹资格未被覆盖。
+- 合并后 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check`：通过；首次沙箱内校验仅因 C:\tmp Content 临时目录写权限失败，放行同一命令后通过，非项目缺陷。
+- 发布锁后，枪 DA 的验收覆盖值暴露出旧测试把生产资产固定断言为默认 `0.5`；测试现分别验证无覆盖默认值和生产 DA 覆盖值的左右/负缩放换算，不修改已验收运行时配置。
+- 最终发布候选 FullRebuild：`Result: Succeeded`，预构建 source fingerprint `9039c56180c0`；两项聚焦自动化、项目校验、预构建检查和差异检查均通过。
+- 实现、用户验收配置与发布门禁已发布至 `origin/main@1cc8361bdf708f8c1cde5e7eb85bc629226d03ef`。
+
+- `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：100/100，成功；预构建源码指纹 `46d56825feb2`。
+- `scripts\ue\Run-Automation.cmd -Filter ReEcho.Presentation.Combat.Capabilities`：发现 1 项，`Result={Success}`。
+- `python scripts\validate_project.py`：通过；`python scripts\ue\prebuilt_editor.py check`：7 模块、Build ID `55116800`、源码指纹匹配。
+- `git diff --check`：通过。系统未提供 `clang-format` 可执行文件，修改代码按仓库格式人工检查并由 UHT/UBT 完整编译。
 
 ### 剩余风险
 
-武器贴图透明边缘与 Plane 几何边缘可能不一致，最终视觉微调应继续使用各 VFX Slot 的 `Offset`，不能重新引入角色空间偏移。
+- 武器贴图透明边缘与 Plane 几何边缘可能不一致，最终视觉微调应使用 DA 的 `AttackVfxAnchorRatio` 或各 VFX Slot `Offset`，不能重新引入角色空间偏移。
+- 自动化和 FullRebuild 不能证明 PIE 中透明像素边缘的视觉对齐；发布与关闭前仍需用户完成四武器左右朝向验收。
 
 ### 人工验收结果/请求
 
-`PendingBeforeClose`：实现后请求用户完成四武器左右朝向 PIE 对齐验收。
+`Accepted`：用户确认修正后的弓/枪左右朝向表现无问题；验收期间保存的 `DA_WeaponPresentation_Gun.uasset` 属于本 Plan 已允许的枪表现配置，并纳入最终发布候选。
 
 ### 架构文档审阅结果
 
-待实现。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录最终武器 Transform 是释放类 VFX 原点权威及阶段边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md` 已更新：记录 Player/Echo 武器根、角色通用回退与 Boss 独立根职责。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoWeapons.md` 已更新：记录默认局部点、镜像规则及逻辑模块排除项。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：模块拓扑与依赖方向未变化。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：稳定模块/AREA 路由未变化。

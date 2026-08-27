@@ -3,39 +3,25 @@
 This inventory records source ownership and reproducibility. Runtime bindings live in
 `Design/Data/ReEchoAudioEvents.xlsx`; this file does not replace the catalog.
 
-## User-provided long audio (Plan46)
+## Planning handoff whitelist
 
-The current programmer user supplied these files on 2026-08-17 and explicitly requested
-their integration into ReEcho, a local packaged planning build, and the final repository
-candidate. On 2026-08-17 the user explicitly instructed the project not to track the
-originating generation platform. This inventory therefore makes no unsupported platform,
-model, account, or third-party license claim; it records the user delivery and instruction.
+The active source whitelist is the intersection of the visible requirements in
+`C:\Users\gavynqiu\Documents\miniGame\音频\ECHO音频配置说明.xlsx` sheet
+`音频配置说明` and the delivered media under `C:\Users\gavynqiu\Documents\miniGame\音频`.
+The older Plan46 generated candidates are preserved only in Git history. In particular,
+`Music.Death`, `Music.Victory`, `Ambience.Arena`, and `Ambience.Rain` no longer have project
+source files or runtime SoundWaves; their stable catalog rows are explicit silent contracts.
 
-| EventId | Project source | User-provided title | SHA-256 |
-|---|---|---|---|
-| `Music.Menu` | `Design/Audio/Source/Music/Music_Menu.mp3` | `The_Keeper_of_Slow_Hours.mp3` | `8e94af6822420d0c4f029acfa4bfe4e7354d0047185be54b34a7c7fadf6926f4` |
-| `Music.Shop` | `Design/Audio/Source/Music/Music_Shop.mp3` | `The_Watchmaker_s_Garden.mp3` | `6aa063c1ea59334c28653ff1c3d55fbf7a4a02e43fa0aa7c1b4fb4ed7e1655a3` |
-| `Music.Boss` | `Design/Audio/Source/Music/Music_Boss.mp3` | `Weight_of_the_Hour.mp3` | `4489fb0de715d7b8783806cedaede0120ebb17a174a8d2a0ece06373740a5544` |
-| `Music.Death` | `Design/Audio/Source/Music/Music_Death.mp3` | `The_Last_Pendulum_Swing.mp3` | `7d76ece28e278459ca92200b0e947611156e5985d2d05fd09e0b78d598aa65c4` |
-| `Music.Victory` | `Design/Audio/Source/Music/Music_Victory.mp3` | `Golden_Hour_Ascent.mp3` | `b12648e82b09ca875aeb7a65e614dc2c5b216b5c38109cdc734d7513a1bacb28` |
-| `Ambience.Arena` | `Design/Audio/Source/Ambience/Ambience_Arena.mp3` | `Weight_of_the_Rift.mp3` | `d1574df12554ac5d32bc6266939870ba4a19c59e86754bbfb81c3b48cc1d4c1d` |
-| `Ambience.Rain` | `Design/Audio/Source/Ambience/Ambience_Rain.mp3` | `Under_The_Stone_Vault.mp3` | `7dcd36d621bf2d5ae546ba0ec9145dcda650fc5ac36636199309e16eee0efdef` |
+## Retired technical placeholders
 
-## Existing encounter music
-
-| EventId | Source | SHA-256 | Provenance state |
-|---|---|---|---|
-| `Music.Encounter` | `Content/ReEcho/Audio/Music/The_Iron_Waltz.wav` | `018794a6f28843a898f50b09fd54c0d8ee7bbd81b5c3ec0fa7bb9794ee2d1206` | Existing user-delivered Plan34 source; originating platform is intentionally not tracked per the user's 2026-08-17 instruction, and no unsupported third-party license claim is made. |
-
-## Deterministic baseline one-shots
-
-- Events: all 23 current `OneShot` rows (UI, Combat, Enemy, Boss, Echo, `CameraMove`, `Revive`).
-- Generator: `scripts/audio/generate_event_sfx.py`.
-- Output: `Design/Audio/Generated/**/*.wav`.
-- Signal contract: 48 kHz, mono, PCM16, fixed recipes and per-EventId deterministic seeds.
-- License/origin: generated mathematically by repository code; no recording or third-party media is sampled.
-- Intended use: replaceable technical/playable baseline. User listening approval is required before Plan46 closes.
-- Reproduction: run `python scripts/audio/generate_event_sfx.py`; verify with `--check`.
+Plan123 removes every deterministic `Design/Audio/Generated/**` WAV and its generator.
+Formal user-delivered sources or deterministic derivatives now back every audible catalog
+row. The planning table does not authorize generic `Music.Encounter`, `Music.Death`,
+`Music.Victory`, `Ambience.Arena`, `Ambience.Rain`, `Combat.Attack`, or `Combat.Hit`
+fallback audio, so their base rows are explicit silent contracts; Stage, WeaponId, and
+Element variants remain audible. The eight previously retired combat/enemy/boss/echo
+placeholder events also remain known silent semantics. Posting any of these fifteen base
+rows is a safe no-op until the planning table supplies a replacement.
 
 ## User-provided formal replacements (Plan114)
 
@@ -48,14 +34,13 @@ claiming third-party release rights.
 
 | EventId(s) | Project source | User-provided file | SHA-256 |
 |---|---|---|---|
-| `Music.Menu` | `Design/Audio/Source/Music/Music_Menu.mp3` | `MainMenu_v1.mp3` | `dd598665d3ae5624dea06956974d3ca844abf9c860c0cb0edd5ad37bd393d880` |
+| `Music.Menu` | `Design/Audio/Source/Music/Music_Menu.mp3` | `STAGE2_v3.mp3` | `0cdac8488fd3d41db6feae664021b71516f6bb97fe94d245361fcef1a88aa4bd` |
 | `Music.Shop` | `Design/Audio/Source/Music/Music_Shop.mp3` | `STAGE3_v3.mp3` | `9bd5830a0a2166c592223d7f355e04df22df1cefa81fa8c041a0c19a26f3f4a0` |
 | `Music.Boss` | `Design/Audio/Source/Music/Music_Boss.mp3` | `STAGE3_v2.mp3` | `8e13193b3775008079c507bd9b147f5769a5ded7b01f811de4baaad8457d9fc3` |
 | `UI.Hover` | `Design/Audio/Source/Formal/UI/UI_Hover.mp3` | `触发带叮响机关开关音效 01.mp3` | `67d37f70b23249af1dcfed8156cb53e35660c4689b9c51b56e92ded846f22333` |
 | `UI.Confirm` | `Design/Audio/Source/Formal/UI/UI_Confirm.mp3` | `cilck.mp3` | `64d9331804512e308f52ecbac75e0124b79b6ed46144ec740d9b6129a7880156` |
-| `UI.Cancel`, `UI.Error`, `Revive` | `Design/Audio/Source/Formal/UI/UI_Cancel.wav` | `取消.wav` | `c5a7cd3ed51c37861898155fdb024700d92ee2e8a188713dd65692c47d36821b` |
-| `UI.Purchase` | `Design/Audio/Source/Formal/UI/UI_Purchase.wav` | `购买.wav` | `c252826d1a1fc3eb45ef2a3586dc7ea155c013af2a8df549eb0d99e1c4fb529d` |
-| `UI.CardSelect` | `Design/Audio/Source/Formal/UI/UI_CardSelect.wav` | `选卡.wav` | `6be0d30f185abd5df1aed287cdfb1f293b5b3f6030911e7f2f0a35c6b15bb5c5` |
+| `UI.Cancel`, `UI.Error`, `Revive` | `Design/Audio/Source/Formal/UI/UI_Cancel.mp3` | `Hits 重音 打击 出字 转场.mp3` | `3c2555d87fa53d1204a5351206660086a8c416ea6cb41d5757778731907d371f` |
+| `UI.Purchase`, `UI.CardSelect` | `Design/Audio/Source/Formal/UI/UI_Purchase.wav` | `购买.wav` | `c252826d1a1fc3eb45ef2a3586dc7ea155c013af2a8df549eb0d99e1c4fb529d` |
 | `Combat.Hurt` | `Design/Audio/Source/Formal/Combat/Combat_Hurt.wav` | `A_short_impact_hit,__#4-1787644382401.wav` | `4cd439549c4ed1f258dcd9fffb5edf9f7618eb1b276227557d3e401a1d9f62ee` |
 | `Combat.Death` | `Design/Audio/Source/Formal/Combat/Combat_Death.wav` | `失败.wav` | `b9ea39cae4c135c9c522d7bb06fd584dd315e8a0489bc51f3407c3cc6e733b5e` |
 | `Enemy.Death` | `Design/Audio/Source/Formal/Enemy/Enemy_Death.mp3` | `15通用受击音效.mp3` | `d69fe3c797559854561325f0a4625def8f22042e19d4e2e34f4a0eb910c607ca` |
@@ -87,5 +72,33 @@ required by the existing 3D catalog contract; `--check` verifies byte identity.
 MP3 one-shots are decoded by UE 5.8 through `scripts/audio/export_formal_audio_wav.py`.
 `scripts/audio/prepare_formal_audio.py` then averages every spatial stereo source to tracked
 mono PCM16 WAVs under `Design/Audio/Derived/**`; runtime SoundWaves import only those derived
-files. `validate_formal_audio_sources.py` verifies all 25 user-delivered source hashes, while
+files. `validate_formal_audio_sources.py` verifies the exact 31-file source set and hashes, while
 `prepare_formal_audio.py --check` verifies each derived file byte-for-byte.
+
+## Remaining formal one-shots (Plan123)
+
+The same 2026-08-26 user handoff supplies the remaining table-authorized short sounds.
+Plan123 adds stable routes for them and deliberately does not import unrelated `New*`
+music candidates from the delivery folder.
+
+| EventId / VariantId | Project source | User-provided file | SHA-256 |
+|---|---|---|---|
+| `Combat.Reaction / Reaction.Vaporize` | `Design/Audio/Source/Formal/Variants/CombatReaction/Vaporize.wav` | `汽化.wav` | `1bdcae18d5b3dfc427825475ea004de26c86341197a3e58d972c6ae391113403` |
+| `Combat.Reaction / Reaction.Growth` | `Design/Audio/Source/Formal/Variants/CombatReaction/Growth.mp3` | `植物法术生长_1_V2.mp3` | `3238c130722f5283217ad995afe15df1751a79d6dfb58c5a673f0cec6cfc7577` |
+| `Combat.Reaction / Reaction.Conduct` | `Design/Audio/Source/Formal/Variants/CombatReaction/Conduct.mp3` | `雷元素-电光一闪.mp3` | `bd1ec8a4d162c05f887b8712c5efc9ee597e1f2694660d38352ea284244b96fa` |
+| `Combat.Reaction / Reaction.Enhance` | `Design/Audio/Source/Formal/Variants/CombatReaction/Enhance.mp3` | `植物法术生长_1_V1.mp3` | `3cd21144e1e22d23fdd195bdb9ec11c862d85d3565ec97e770b790ca71301eae` |
+| `Item.Pickup` | `Design/Audio/Source/Formal/Flow/Item_Pickup.wav` | `道具拾取.wav` | `99c0d76d045fc8632027cc488dc5688c7f813ae59e2af8e87a56478d4aa56e47` |
+| `UI.CardReveal` | `Design/Audio/Source/Formal/UI/UI_CardReveal.wav` | `卡牌出现.wav` | `337704a5f34480edbfab4a23c251a41d860d2e997dcceabc7aff289b5fb55a33` |
+| `UI.Equip`, `UI.Unequip` | `Design/Audio/Source/Formal/UI/UI_RuneEquip.wav` | `卸下符文.wav` | `7fa98d17b43e40a5e0c71a41452276e816361aabe2ed24363d4e49da73d24705` |
+
+`Combat.Reaction / Reaction.Burn` reuses the formal Flame hit SoundWave, and
+`Flow.Victory` reuses the formal `Boss.Death` victory SoundWave. Reuse is explicit in
+the catalog rather than duplicating source files. `UI.CardSelect` likewise reuses
+`UI.Purchase`, while `UI.Error` and `Revive` reuse `UI.Cancel`; their per-event timing and
+bus policy remain catalog-configurable. UE decodes the three MP3 reaction
+sources, then `prepare_formal_audio.py` deterministically downmixes all new spatial
+reaction and pickup sources to tracked mono PCM16 WAVs before final SoundWave import.
+The derived files preserve the complete delivered waveform. Per-event low-level lead-in
+is skipped at runtime through the non-negative `StartTimeSeconds` field in
+`ReEchoAudioEvents.xlsx`; this keeps source provenance intact and lets designers adjust
+the audible onset without rebuilding or reimporting a SoundWave.

@@ -111,6 +111,115 @@ bool FReEchoSageBonusCadenceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSageMixedCardGroupCadenceTest,
+                                 "ReEcho.Characters.SageBonusCadenceCountsShopGroups",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoSageMixedCardGroupCadenceTest::RunTest(const FString&)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	Run->CurrentBuild.Stats.RoleId = TEXT("Sage");
+	Run->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	Run->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Sage");
+	Run->CurrentBuild.EquipmentBaseRuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	Run->EncounterIndex = 4;
+	for (int32 GroupIndex = 0; GroupIndex < 4; ++GroupIndex)
+	{
+		Run->Phase = EReEchoRunPhase::CardChoice;
+		const TArray<FReEchoTraitCardOffer> Offers = Run->GenerateTraitCardOffers(3);
+		if (!TestEqual(TEXT("Each ordinary free group exposes three cards"), Offers.Num(), 3) ||
+		    !TestTrue(TEXT("An ordinary free group can be claimed"), Run->ApplyTraitCard(Offers[0].CardId)))
+		{
+			return false;
+		}
+	}
+	TestEqual(TEXT("Four free card groups are counted"),
+	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
+	          4);
+	TestEqual(TEXT("Four groups do not open the Sage bonus"), Run->Phase, EReEchoRunPhase::Planning);
+	UReEchoRunSaveGame* FourGroupSave = Run->CreateSaveSnapshot();
+	UGameInstance* FourGroupRestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* FourGroupRestored = NewObject<UReEchoRunSubsystem>(FourGroupRestoredGameInstance);
+	if (!TestNotNull(TEXT("The four-group Sage cadence can be saved"), FourGroupSave) ||
+	    !TestTrue(TEXT("The four-group Sage cadence restores"), FourGroupRestored->RestoreSaveSnapshot(*FourGroupSave)))
+	{
+		return false;
+	}
+	Run = FourGroupRestored;
+	TestEqual(TEXT("Restore preserves the four-group Sage cadence"),
+	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
+	          4);
+
+	Run->TimeShards = 1000;
+	const FReEchoWeaponPartShopView ShopView = Run->GetWeaponPartShopView();
+	const FReEchoShopCardPackOffer* AvailablePack = ShopView.CardPackOffers.FindByPredicate(
+	    [](const FReEchoShopCardPackOffer& Pack)
+	    {
+		    return Pack.IsAvailable();
+	    });
+	if (!TestNotNull(TEXT("Encounter four exposes a shop card group"), AvailablePack))
+	{
+		return false;
+	}
+	const int32 Tier = AvailablePack->Tier;
+	TestTrue(TEXT("Prepaying the fifth group succeeds"), Run->PurchaseShopCardPackDetailed(Tier).IsSuccess());
+	TestEqual(TEXT("Prepayment alone does not advance the Sage cadence"),
+	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
+	          4);
+	FString RefreshError;
+	Run->TryRefreshShopCardSlot(Tier, 0, RefreshError);
+	TestEqual(TEXT("Refreshing a paid group does not advance the Sage cadence"),
+	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
+	          4);
+	UReEchoRunSaveGame* PaidGroupSave = Run->CreateSaveSnapshot();
+	UGameInstance* PaidGroupRestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* PaidGroupRestored = NewObject<UReEchoRunSubsystem>(PaidGroupRestoredGameInstance);
+	if (!TestNotNull(TEXT("The paid pending group can be saved"), PaidGroupSave) ||
+	    !TestTrue(TEXT("The paid pending group restores"), PaidGroupRestored->RestoreSaveSnapshot(*PaidGroupSave)))
+	{
+		return false;
+	}
+	Run = PaidGroupRestored;
+
+	const FReEchoWeaponPartShopView PaidView = Run->GetWeaponPartShopView();
+	const FReEchoShopCardPackOffer* PaidPack = PaidView.CardPackOffers.FindByPredicate(
+	    [Tier](const FReEchoShopCardPackOffer& Pack)
+	    {
+		    return Pack.Tier == Tier && Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+	    });
+	if (!TestTrue(TEXT("The prepaid group retains a claimable choice"), PaidPack && !PaidPack->Choices.IsEmpty()))
+	{
+		return false;
+	}
+	const FName ClaimedItemId = PaidPack->Choices[0].ItemId;
+	TestTrue(TEXT("Claiming the restored shop group succeeds"), Run->ClaimPaidShopCardChoice(ClaimedItemId).IsSuccess());
+	TestEqual(TEXT("The claimed shop group is the fifth ordinary group"),
+	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
+	          5);
+	TestEqual(TEXT("The fifth mixed-source group opens exactly one Sage bonus choice"),
+	          Run->Phase,
+	          EReEchoRunPhase::CardChoice);
+	TestFalse(TEXT("Claiming the same paid group twice is rejected"),
+	          Run->ClaimPaidShopCardChoice(ClaimedItemId).IsSuccess());
+	TestEqual(TEXT("A rejected duplicate claim does not advance the Sage cadence"),
+	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
+	          5);
+
+	const TArray<FReEchoTraitCardOffer> BonusOffers = Run->GenerateTraitCardOffers(3);
+	if (!TestEqual(TEXT("The Sage bonus reuses the three-card choice flow"), BonusOffers.Num(), 3))
+	{
+		return false;
+	}
+	TestTrue(TEXT("The Sage bonus card can be claimed"), Run->ApplyTraitCard(BonusOffers[0].CardId));
+	TestEqual(TEXT("The bonus itself does not increment ordinary group count"),
+	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
+	          5);
+	TestEqual(TEXT("One bonus resolves back to planning"), Run->Phase, EReEchoRunPhase::Planning);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDataDrivenCharacterAbilitiesTest,
                                  "ReEcho.Characters.DataDrivenAbilities",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

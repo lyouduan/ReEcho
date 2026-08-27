@@ -43,6 +43,57 @@ constexpr float TripleSwingHalfCycles = 3.0f;
 const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
 const FVector DefaultWeaponAnchorRatio(-0.16f, 0.30f, 0.06f);
 const FVector DefaultLeftWeaponAnchorRatio(-0.16f, -0.30f, 0.06f);
+constexpr float WeaponPlaneSizeCm = 100.0f;
+
+FVector2D ResolveDefaultAttackVfxAnchorRatio(const FName WeaponVisualKey)
+{
+	if (WeaponVisualKey == TEXT("CrescentBlade"))
+	{
+		return FVector2D(0.0f, -0.5f);
+	}
+	if (WeaponVisualKey == TEXT("Bow") || WeaponVisualKey == TEXT("Gun"))
+	{
+		return FVector2D(0.5f, 0.0f);
+	}
+	return FVector2D::ZeroVector;
+}
+
+FVector2D ResolveAttackVfxAnchorRatio(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                  const float FacingSign)
+{
+	FVector2D AnchorRatio = WeaponProfile.bOverrideAttackVfxAnchor
+	                            ? WeaponProfile.AttackVfxAnchorRatio
+	                            : ResolveDefaultAttackVfxAnchorRatio(WeaponProfile.WeaponVisualKey);
+	if (FacingSign < 0.0f)
+	{
+		AnchorRatio.X *= -1.0f;
+	}
+	return AnchorRatio;
+}
+
+FVector2D ResolveAttackVfxAnchorComponentRatio(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                           const float FacingSign,
+	                                           const bool bVisualHorizontallyMirrored)
+{
+	FVector2D AnchorRatio = ResolveAttackVfxAnchorRatio(WeaponProfile, FacingSign);
+	if (bVisualHorizontallyMirrored)
+	{
+		// The desired anchor is expressed in final visual space. A negative parent X scale would otherwise mirror it
+		// a second time, putting a right-facing gun muzzle on the character-facing side of the texture.
+		AnchorRatio.X *= -1.0f;
+	}
+	return AnchorRatio;
+}
+
+FVector ResolveProjectileSpawnLocation(const FVector& WeaponAnchorLocation,
+	                                    const FVector& LegacyOwnerLocation,
+	                                    const FVector& Direction,
+	                                    const bool bHasWeaponAnchor)
+{
+	return bHasWeaponAnchor
+	           ? WeaponAnchorLocation
+	           : LegacyOwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
+}
 
 FQuat GetSwordRotation(const float SpinRadians = 0.0f)
 {
@@ -91,6 +142,11 @@ float ResolveTripleSwingAngle(const float Progress, const float DirectionSign)
 	const float NormalizedProgress = FMath::Clamp(Progress, 0.0f, 1.0f);
 	const float Direction = DirectionSign < 0.0f ? -1.0f : 1.0f;
 	return TripleSwingAmplitudeRadians * FMath::Cos(NormalizedProgress * TripleSwingHalfCycles * PI) * Direction;
+}
+
+bool CanCutRabbitProjectiles(const FName AttackPatternId)
+{
+	return AttackPatternId == TEXT("Pattern.LongSwordCombo") || AttackPatternId == TEXT("Pattern.ScytheSweep");
 }
 
 int32 ResolveConfiguredMaxStacks(const float ConfiguredMaxStacks)
@@ -182,6 +238,8 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 	// 武器只继承持有者位置，不继承鼠标瞄准产生的角色旋转。
 	Root->SetAbsolute(false, true, false);
 	SwordSpriteRestRotation = ReEchoWeaponVisual::GetSwordRotation(ReEchoWeaponVisual::SwordRestAngleRadians);
+	WeaponAttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("WeaponAttackVfxRoot"));
+	WeaponAttackVfxRoot->SetupAttachment(Root);
 
 	ElementIndicator = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ElementIndicator"));
 	ElementIndicator->SetupAttachment(Root);
@@ -1372,7 +1430,11 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 		                                                  Commit.Element,
 		                                                  Commit.Attack.Sequence,
 		                                                  ProjectileIndex);
-		const FVector SpawnLocation = OwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
+		const bool bHasWeaponAnchor = IsValid(WeaponAttackVfxRoot);
+		const FVector WeaponAnchorLocation =
+		    bHasWeaponAnchor ? WeaponAttackVfxRoot->GetComponentLocation() : FVector::ZeroVector;
+		const FVector SpawnLocation = ReEchoWeaponVisual::ResolveProjectileSpawnLocation(
+		    WeaponAnchorLocation, OwnerLocation, Direction, bHasWeaponAnchor);
 		AReEchoProjectileActor* Projectile =
 		    GetWorld()->SpawnActor<AReEchoProjectileActor>(SpawnLocation, Direction.Rotation());
 		if (!Projectile)
@@ -1687,6 +1749,53 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 		SwordSprite->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
 	}
+	RefreshWeaponAttackVfxRoot(*WeaponProfile);
+}
+
+void AReEchoWeaponActor::RefreshWeaponAttackVfxRoot(const UReEchoWeaponPresentationProfile& WeaponProfile)
+{
+	if (!WeaponAttackVfxRoot)
+	{
+		return;
+	}
+
+	USceneComponent* WeaponVisual = nullptr;
+	if (WeaponProfile.WeaponVisualKey == TEXT("CrescentBlade"))
+	{
+		WeaponVisual = SwordSprite;
+	}
+	else if (WeaponProfile.WeaponVisualKey == TEXT("Scythe"))
+	{
+		WeaponVisual = ScytheSprite;
+	}
+	else if (WeaponProfile.WeaponVisualKey == TEXT("Bow"))
+	{
+		WeaponVisual = BowSprite;
+	}
+	else if (WeaponProfile.WeaponVisualKey == TEXT("Gun"))
+	{
+		WeaponVisual = GunSprite;
+	}
+	if (!WeaponVisual)
+	{
+		WeaponAttackVfxRoot->AttachToComponent(Root, FAttachmentTransformRules::SnapToTargetIncludingScale);
+		WeaponAttackVfxRoot->SetRelativeTransform(FTransform::Identity);
+		return;
+	}
+
+	const bool bVisualHorizontallyMirrored = WeaponVisual->GetRelativeScale3D().X < 0.0f;
+	const FVector2D AnchorRatio = ReEchoWeaponVisual::ResolveAttackVfxAnchorComponentRatio(
+	    WeaponProfile, ResolveOwnerVisualFacingSign(), bVisualHorizontallyMirrored);
+	if (WeaponAttackVfxRoot->GetAttachParent() != WeaponVisual)
+	{
+		WeaponAttackVfxRoot->AttachToComponent(WeaponVisual, FAttachmentTransformRules::SnapToTargetIncludingScale);
+	}
+	WeaponAttackVfxRoot->SetRelativeTransform(
+	    FTransform(FQuat::Identity,
+	               FVector(AnchorRatio.X * ReEchoWeaponVisual::WeaponPlaneSizeCm,
+	                       AnchorRatio.Y * ReEchoWeaponVisual::WeaponPlaneSizeCm,
+	                       0.0f),
+	               FVector::OneVector));
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1710,6 +1819,36 @@ float AReEchoWeaponActor::ResolveTripleSwingAngleForTests(const float Progress, 
 	return ReEchoWeaponVisual::ResolveTripleSwingAngle(Progress, DirectionSign);
 }
 
+FVector2D AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(
+	const UReEchoWeaponPresentationProfile& WeaponProfile,
+	const float FacingSign)
+{
+	return ReEchoWeaponVisual::ResolveAttackVfxAnchorRatio(WeaponProfile, FacingSign);
+}
+
+FVector2D AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(
+	const UReEchoWeaponPresentationProfile& WeaponProfile,
+	const float FacingSign,
+	const bool bVisualHorizontallyMirrored)
+{
+	return ReEchoWeaponVisual::ResolveAttackVfxAnchorComponentRatio(
+	    WeaponProfile, FacingSign, bVisualHorizontallyMirrored);
+}
+
+FVector AReEchoWeaponActor::ResolveProjectileSpawnLocationForTests(const FVector& WeaponAnchorLocation,
+	                                                               const FVector& LegacyOwnerLocation,
+	                                                               const FVector& Direction,
+	                                                               const bool bHasWeaponAnchor)
+{
+	return ReEchoWeaponVisual::ResolveProjectileSpawnLocation(
+	    WeaponAnchorLocation, LegacyOwnerLocation, Direction, bHasWeaponAnchor);
+}
+
+bool AReEchoWeaponActor::CanCutRabbitProjectilesForTests(const FName AttackPatternId)
+{
+	return ReEchoWeaponVisual::CanCutRabbitProjectiles(AttackPatternId);
+}
+
 #endif
 
 bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
@@ -1730,7 +1869,7 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	{
 		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant, Context);
 	}
-	if (Commit.AttackPatternId == TEXT("Pattern.LongSwordCombo"))
+	if (ReEchoWeaponVisual::CanCutRabbitProjectiles(Commit.AttackPatternId))
 	{
 		for (TActorIterator<AReEchoEnemyActor> EnemyIt(GetWorld()); EnemyIt; ++EnemyIt)
 		{
@@ -1890,6 +2029,7 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 			Plane->SetRelativeLocation(VisualOffset);
 			ApplyHeldPlaneMirror(Plane, Profile->HeldMirrorRule);
 		}
+		RefreshWeaponAttackVfxRoot(*Profile);
 	}
 	for (int32 Index = TimedRangeStacks.Num() - 1; Index >= 0; --Index)
 	{
