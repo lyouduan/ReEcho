@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "Components/HorizontalBox.h"
+#include "Components/Image.h"
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
@@ -88,6 +89,19 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			TestTrue(TEXT("Runtime reuses the first Designer-authored weapon entry"),
 			         AuthoredWidget->WeaponEntries.IsValidIndex(0) &&
 			             AuthoredWidget->WeaponEntries[0].Get() == FirstAuthoredWeapon);
+			TestNotNull(TEXT("Designer tree owns the first character selection arrow"),
+			            AuthoredWidget->CharacterSelectionArrow0.Get());
+			TestNotNull(TEXT("Designer tree owns the last weapon selection arrow"),
+			            AuthoredWidget->WeaponSelectionArrow3.Get());
+			AuthoredWidget->SelectionStage = UReEchoLoadoutSelectionWidget::ESelectionStage::Character;
+			AuthoredWidget->SelectedCharacterId = TEXT("J_HEART");
+			AuthoredWidget->RefreshSelectionArrow();
+			TestEqual(TEXT("Character selection displays its Designer-owned arrow"),
+			          AuthoredWidget->CharacterSelectionArrow0->GetVisibility(),
+			          ESlateVisibility::HitTestInvisible);
+			TestEqual(TEXT("Other Designer arrows remain collapsed"),
+			          AuthoredWidget->SelectionArrow->GetVisibility(),
+			          ESlateVisibility::Collapsed);
 		}
 		else
 		{

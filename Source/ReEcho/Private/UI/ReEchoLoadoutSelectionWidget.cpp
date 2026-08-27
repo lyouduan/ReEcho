@@ -302,21 +302,7 @@ void UReEchoLoadoutSelectionWidget::NativePreConstruct()
 		}
 	}
 	const bool bHasPreview = DesignerPreviewIndex >= 0;
-	if (SelectionArrow)
-	{
-		SelectionArrow->SetVisibility(bHasPreview ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-		if (bHasPreview)
-		{
-			static const float CharacterArrowX[] = {330.0f, 725.0f, 1120.0f, 1515.0f};
-			static const float WeaponArrowX[] = {547.0f, 821.0f, 1095.0f, 1369.0f};
-			if (UCanvasPanelSlot* ArrowSlot = Cast<UCanvasPanelSlot>(SelectionArrow->Slot))
-			{
-				ArrowSlot->SetPosition(FVector2D(bCharacterStage ? CharacterArrowX[DesignerPreviewIndex]
-				                                                 : WeaponArrowX[DesignerPreviewIndex],
-				                                 bCharacterStage ? 822.0f : 852.0f));
-			}
-		}
-	}
+	ApplySelectionArrowVisibility(bCharacterStage, bHasPreview ? DesignerPreviewIndex : INDEX_NONE);
 	if (ConfirmButton)
 	{
 		ConfirmButton->SetVisibility(bHasPreview ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
@@ -679,12 +665,7 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 		                                    ? ESlateVisibility::HitTestInvisible
 		                                    : ESlateVisibility::Collapsed);
 	}
-	if (SelectionArrow)
-	{
-		SelectionArrow->SetVisibility(bHasCurrentPreview ? ESlateVisibility::HitTestInvisible
-		                                                 : ESlateVisibility::Collapsed);
-		RefreshSelectionArrow();
-	}
+	RefreshSelectionArrow();
 	if (ConfirmButton)
 	{
 		ConfirmButton->SetIsEnabled(bHasCurrentPreview);
@@ -699,29 +680,16 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 
 void UReEchoLoadoutSelectionWidget::RefreshSelectionArrow()
 {
-	if (!SelectionArrow)
-	{
-		return;
-	}
-	UCanvasPanelSlot* ArrowSlot = Cast<UCanvasPanelSlot>(SelectionArrow->Slot);
-	if (!ArrowSlot)
-	{
-		return;
-	}
-
-	static const float CharacterArrowX[] = {330.0f, 725.0f, 1120.0f, 1515.0f};
-	static const float WeaponArrowX[] = {547.0f, 821.0f, 1095.0f, 1369.0f};
 	static const float CharacterDescriptionX[] = {526.0f, 930.0f, 526.0f, 930.0f};
 	static const float WeaponDescriptionX[] = {666.0f, 960.0f, 524.0f, 818.0f};
 	const bool bCharacterStage = SelectionStage == ESelectionStage::Character;
 	const int32 PreviewIndex = bCharacterStage ? CharacterOptionIds.IndexOfByKey(SelectedCharacterId)
 	                                           : WeaponOptionIds.IndexOfByKey(SelectedWeaponId);
+	ApplySelectionArrowVisibility(bCharacterStage, PreviewIndex);
 	if (PreviewIndex < 0 || PreviewIndex >= 4)
 	{
 		return;
 	}
-	ArrowSlot->SetPosition(FVector2D(bCharacterStage ? CharacterArrowX[PreviewIndex] : WeaponArrowX[PreviewIndex],
-	                                 bCharacterStage ? 822.0f : 852.0f));
 
 	if (UCanvasPanelSlot* DescriptionPanelSlot =
 	        DescriptionPanel ? Cast<UCanvasPanelSlot>(DescriptionPanel->Slot) : nullptr)
@@ -735,6 +703,62 @@ void UReEchoLoadoutSelectionWidget::RefreshSelectionArrow()
 		DescriptionTextSlot->SetPosition(FVector2D(
 		    (bCharacterStage ? CharacterDescriptionX[PreviewIndex] : WeaponDescriptionX[PreviewIndex]) + 20.0f,
 		    350.0f));
+	}
+}
+
+void UReEchoLoadoutSelectionWidget::ApplySelectionArrowVisibility(const bool bCharacterStage, const int32 PreviewIndex)
+{
+	UImage* AllArrows[] = {CharacterSelectionArrow0.Get(),
+	                       CharacterSelectionArrow1.Get(),
+	                       CharacterSelectionArrow2.Get(),
+	                       SelectionArrow.Get(),
+	                       WeaponSelectionArrow0.Get(),
+	                       WeaponSelectionArrow1.Get(),
+	                       WeaponSelectionArrow2.Get(),
+	                       WeaponSelectionArrow3.Get()};
+	for (UImage* Arrow : AllArrows)
+	{
+		if (Arrow)
+		{
+			Arrow->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+	if (UImage* ActiveArrow = GetSelectionArrow(bCharacterStage, PreviewIndex))
+	{
+		ActiveArrow->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+}
+
+UImage* UReEchoLoadoutSelectionWidget::GetSelectionArrow(const bool bCharacterStage, const int32 PreviewIndex) const
+{
+	if (PreviewIndex < 0 || PreviewIndex >= 4)
+	{
+		return nullptr;
+	}
+	if (bCharacterStage)
+	{
+		switch (PreviewIndex)
+		{
+			case 0:
+				return CharacterSelectionArrow0.Get();
+			case 1:
+				return CharacterSelectionArrow1.Get();
+			case 2:
+				return CharacterSelectionArrow2.Get();
+			default:
+				return SelectionArrow.Get();
+		}
+	}
+	switch (PreviewIndex)
+	{
+		case 0:
+			return WeaponSelectionArrow0.Get();
+		case 1:
+			return WeaponSelectionArrow1.Get();
+		case 2:
+			return WeaponSelectionArrow2.Get();
+		default:
+			return WeaponSelectionArrow3.Get();
 	}
 }
 

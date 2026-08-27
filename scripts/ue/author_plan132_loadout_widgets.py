@@ -44,6 +44,15 @@ WEAPON_PREVIEW_ORDER = (
     ("W_J_01", "剑"),
     ("W_J_08", "弓"),
 )
+ADDITIONAL_SELECTION_ARROWS = (
+    ("CharacterSelectionArrow0", 330.0, 822.0),
+    ("CharacterSelectionArrow1", 725.0, 822.0),
+    ("CharacterSelectionArrow2", 1120.0, 822.0),
+    ("WeaponSelectionArrow0", 547.0, 852.0),
+    ("WeaponSelectionArrow1", 821.0, 852.0),
+    ("WeaponSelectionArrow2", 1095.0, 852.0),
+    ("WeaponSelectionArrow3", 1369.0, 852.0),
+)
 
 
 def load_tooltip_preview_content():
@@ -302,6 +311,25 @@ def ensure_selection_preview_entries(
             slot.set_editor_property(
                 "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_FILL
             )
+
+
+def ensure_additional_selection_arrows(
+    toolset, blueprint, design_canvas, arrow_texture
+):
+    for name, x, y in ADDITIONAL_SELECTION_ARROWS:
+        widgets = widget_map(toolset, blueprint)
+        arrow = widgets.get(name)
+        if arrow is None:
+            arrow = add_widget(
+                toolset, blueprint, unreal.Image, name, design_canvas
+            )
+            set_canvas_layout(arrow, x, y, 60.0, 33.0, 80)
+            configure_image(
+                arrow, arrow_texture, unreal.SlateVisibility.COLLAPSED
+            )
+        elif not isinstance(arrow, unreal.Image):
+            raise RuntimeError(f"Plan132 Selection arrow has wrong type: {name}")
+        mark_variable(toolset, blueprint, arrow)
 
 
 def author_tooltip(toolset, blueprint, preview_title, preview_description):
@@ -698,6 +726,10 @@ def author_selection(
         set_canvas_layout(status_text, 0.0, 0.0, 1.0, 1.0, 0)
         status_text.set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
 
+    ensure_additional_selection_arrows(
+        toolset, blueprint, design_canvas, arrow_texture
+    )
+    widgets = widget_map(toolset, blueprint)
     required = {
         "CharacterStagePanel": unreal.CanvasPanel,
         "WeaponStagePanel": unreal.CanvasPanel,
@@ -707,6 +739,13 @@ def author_selection(
         "DescriptionPanel": unreal.Image,
         "DescriptionText": unreal.TextBlock,
         "SelectionArrow": unreal.Image,
+        "CharacterSelectionArrow0": unreal.Image,
+        "CharacterSelectionArrow1": unreal.Image,
+        "CharacterSelectionArrow2": unreal.Image,
+        "WeaponSelectionArrow0": unreal.Image,
+        "WeaponSelectionArrow1": unreal.Image,
+        "WeaponSelectionArrow2": unreal.Image,
+        "WeaponSelectionArrow3": unreal.Image,
         "ConfirmButton": unreal.Button,
         "ConfirmButtonLabel": unreal.TextBlock,
         "StatusText": unreal.TextBlock,
@@ -747,7 +786,6 @@ def author_selection(
     set_canvas_layout(title, 650.0, 112.0, 620.0, 120.0, 50)
 
     selection_arrow = widgets["SelectionArrow"]
-    set_canvas_layout(selection_arrow, 1515.0, 822.0, 60.0, 33.0, 80)
     selection_arrow.set_editor_property(
         "visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE
     )

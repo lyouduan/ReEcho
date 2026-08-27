@@ -51,6 +51,8 @@ private:
 	void LoadOptions();
 	void RefreshSelection();
 	void RefreshSelectionArrow();
+	void ApplySelectionArrowVisibility(bool bCharacterStage, int32 PreviewIndex);
+	UImage* GetSelectionArrow(bool bCharacterStage, int32 PreviewIndex) const;
 	void SetSelectionStage(ESelectionStage NewStage);
 	void SelectCharacter(FName CharacterId);
 	void ChooseWeapon(FName WeaponId);
@@ -102,6 +104,27 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> SelectionArrow;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> CharacterSelectionArrow0;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> CharacterSelectionArrow1;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> CharacterSelectionArrow2;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> WeaponSelectionArrow0;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> WeaponSelectionArrow1;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> WeaponSelectionArrow2;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> WeaponSelectionArrow3;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UHorizontalBox> CharacterRow;

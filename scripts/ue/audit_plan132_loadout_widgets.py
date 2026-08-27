@@ -85,6 +85,26 @@ def main():
                     raise RuntimeError(
                         f"Plan132 {domain} preview does not use the runtime Entry WBP"
                     )
+            design_canvas = widget_by_name.get("LoadoutDesignCanvas")
+            arrow_names = (
+                "CharacterSelectionArrow0",
+                "CharacterSelectionArrow1",
+                "CharacterSelectionArrow2",
+                "SelectionArrow",
+                "WeaponSelectionArrow0",
+                "WeaponSelectionArrow1",
+                "WeaponSelectionArrow2",
+                "WeaponSelectionArrow3",
+            )
+            for arrow_name in arrow_names:
+                arrow = widget_by_name.get(arrow_name)
+                if not isinstance(arrow, unreal.Image) or arrow.get_parent() is not design_canvas:
+                    raise RuntimeError(
+                        f"Plan132 Designer-owned selection arrow is missing: {arrow_name}"
+                    )
+            unreal.log(
+                f"[Plan132LoadoutAudit] designer_selection_arrows={list(arrow_names)}"
+            )
         for info in infos:
             widget = info.widget
             if widget is None:
