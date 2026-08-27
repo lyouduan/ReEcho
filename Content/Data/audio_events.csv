@@ -1,10 +1,10 @@
 EventId,VariantId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax,StartTimeSeconds
 Music.Menu,,/Game/ReEcho/Audio/Music/Music_Menu.Music_Menu,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
-Music.Encounter,,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
-Music.Encounter,Stage.1,/Game/ReEcho/Audio/Variants/MusicEncounter/Music_Encounter_Stage_1.Music_Encounter_Stage_1,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
-Music.Encounter,Stage.2,/Game/ReEcho/Audio/Variants/MusicEncounter/Music_Encounter_Stage_2.Music_Encounter_Stage_2,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
-Music.Encounter,Stage.3,/Game/ReEcho/Audio/Variants/MusicEncounter/Music_Encounter_Stage_3.Music_Encounter_Stage_3,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
-Music.Boss,,/Game/ReEcho/Audio/Music/Music_Boss.Music_Boss,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
+Music.Encounter,,,Music,Loop,false,0.5,1,1,0,1,10,ContinueOnPause,0,0,0
+Music.Encounter,Stage.1,/Game/ReEcho/Audio/Variants/MusicEncounter/Music_Encounter_Stage_1.Music_Encounter_Stage_1,Music,Loop,false,0.5,1,1,0,1,10,ContinueOnPause,0,0,0
+Music.Encounter,Stage.2,/Game/ReEcho/Audio/Variants/MusicEncounter/Music_Encounter_Stage_2.Music_Encounter_Stage_2,Music,Loop,false,0.5,1,1,0,1,10,ContinueOnPause,0,0,0
+Music.Encounter,Stage.3,/Game/ReEcho/Audio/Variants/MusicEncounter/Music_Encounter_Stage_3.Music_Encounter_Stage_3,Music,Loop,false,0.5,1,1,0,1,10,ContinueOnPause,0,0,0
+Music.Boss,,/Game/ReEcho/Audio/Music/Music_Boss.Music_Boss,Music,Loop,false,0.5,1,1,0,1,10,ContinueOnPause,0,0,0
 Music.Shop,,/Game/ReEcho/Audio/Music/Music_Shop.Music_Shop,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
 Music.Death,,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
 Music.Victory,,,Music,Loop,false,1,1,1,0,1,10,ContinueOnPause,0,0,0
