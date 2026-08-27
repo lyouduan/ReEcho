@@ -18,6 +18,7 @@ class AReEchoPlayerPawn;
 class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
 class UReEchoEncounterTransitionWidget;
+class UMediaSoundComponent;
 class UReEchoInventoryShopWidget;
 class UReEchoRunSubsystem;
 enum class EReEchoInventoryShopMode : uint8;
@@ -77,9 +78,10 @@ public:
 	void GMWeather(const FString& Scene = TEXT("Clear"));
 	UFUNCTION(Exec)
 	void GMEndEncounter();
-	/** Advances the active ordinary encounter to three seconds remaining so its transition can be previewed. */
+	/** Advances the active ordinary encounter to four seconds remaining so the full countdown transition can be
+	 * previewed. */
 	UFUNCTION(Exec)
-	void GMTransition3();
+	void GMTransition4();
 	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
@@ -224,6 +226,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterTransitionWidget> EncounterTransitionWidget;
 	UPROPERTY()
+	TObjectPtr<UMediaSoundComponent> EncounterTransitionMediaSound;
+	UPROPERTY()
 	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
 
 	UPROPERTY()
@@ -250,12 +254,14 @@ private:
 		CountdownPostProcess,
 		PlayingSequence,
 		FadingToCardChoice,
+		PlayingStage01To02Cg,
 		Completed
 	};
 	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
 	    EEncounterTransitionPresentationState::None;
 	float EncounterSequenceElapsedSeconds = 0.0f;
 	bool bEncounterIntermissionPreparedForTransition = false;
+	bool bEncounterTransitionPausedWorld = false;
 	bool bEncounterClearedByDefeat = false;
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
@@ -282,7 +288,10 @@ private:
 	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
 	bool BeginEncounterEndSequence();
 	void CompleteEncounterEndSequence(bool bFadeToCards);
+	bool BeginStage01To02Cg();
+	void CompleteStage01To02Cg(bool bFailed);
 	void ResetEncounterTransitionPresentation();
+	void SetEncounterTransitionWorldPaused(bool bPaused);
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
@@ -423,6 +432,7 @@ private:
 	                                              bool bMediaFailed,
 	                                              bool bMediaFinished,
 	                                              float ElapsedSeconds);
+	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);

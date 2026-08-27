@@ -1,3 +1,4 @@
 # Generated production CSVs contain intentional LF newlines inside quoted
 # description cells and CRLF record separators. Preserve their exact bytes.
 /Content/Data/*.csv -text whitespace=cr-at-eol
+Content/Movies/EncounterTransition/Stage01To02.mov filter=lfs diff=lfs merge=lfs -text
