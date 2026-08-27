@@ -14,7 +14,9 @@
 #include "Weapons/ReEchoWeaponRuntime.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
@@ -23,6 +25,8 @@ namespace
 {
 constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
 const FName AnyWeaponTypeId = TEXT("Any");
+const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
+const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
 
 const FString RunSaveSlot = TEXT("ReEchoRun");
 constexpr int32 RunSaveUserIndex = 0;
@@ -116,7 +120,22 @@ FReEchoShopOffer MakeWeaponPartOffer(const FReEchoCsvPartRow& Part)
 	Offer.Type = EReEchoShopOfferType::WeaponPart;
 	Offer.ContentId = Part.PartId;
 	Offer.SlotTypeId = Part.SlotTypeId;
+	Offer.WeaponTypeId = Part.WeaponTypeId;
 	return Offer;
+}
+
+int32 RecordNormalTraitGroupSelection(const FReEchoCsvDataSnapshot& Snapshot, FReEchoBuildSnapshot& Build)
+{
+	const int32 NormalTraitSelections =
+	    FMath::Max(0, FCString::Atoi(*Build.RuleFlags.FindRef(NormalTraitSelectionsFlag))) + 1;
+	Build.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
+	const int32 NewBonusChoices =
+	    ReEchoCharacterAbilityRuntime::ResolveExtraTraitChoices(Snapshot, Build.CharacterId, NormalTraitSelections);
+	if (NewBonusChoices > 0)
+	{
+		Build.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(NewBonusChoices));
+	}
+	return NewBonusChoices;
 }
 
 FName MakeShopCardOfferId(const int32 EncounterIndex, const int32 RefreshSequence, const FName CardId)
@@ -443,8 +462,10 @@ int32 BuildTraitOfferSeed(const int32 RunSeed, const int32 EncounterIndex, const
 
 int32 MakeNewTraitOfferSeed()
 {
-	const int32 Seed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()));
-	return Seed != 0 ? Seed : 1;
+	const int64 UtcTicks = FDateTime::UtcNow().GetTicks();
+	const uint64 HighResolutionTicks = FPlatformTime::Cycles64();
+	const uint32 Seed = HashCombine(GetTypeHash(UtcTicks), GetTypeHash(HighResolutionTicks));
+	return Seed != 0 ? static_cast<int32>(Seed) : 1;
 }
 
 int32 MigrateLegacyTraitOfferSeed(const UReEchoRunSaveGame& SaveGame)
@@ -1478,8 +1499,11 @@ bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& Out
 	}
 	CurrentBuild = MoveTemp(Candidate);
 	OutError.Reset();
-	ReEchoBuildTrace::LogSnapshot(
-	    TEXT("WeaponEquipped"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("weapon=%s"), *WeaponId.ToString()));
+	ReEchoBuildTrace::LogSnapshot(TEXT("WeaponEquipped"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("weapon=%s"), *WeaponId.ToString()));
 	return true;
 }
 
@@ -1493,6 +1517,15 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 	if (!Snapshot.IsValid() || !Weapon)
 	{
 		return View;
+	}
+	View.WeaponTypeId = Weapon->WeaponTypeId;
+	for (const FReEchoShopOffer& CatalogOffer : GetReEchoShopCatalog())
+	{
+		FReEchoShopOffer ProjectedOffer = CatalogOffer;
+		ProjectedOffer.EffectivePrice = GetDiscountedShopPrice(ProjectedOffer.Price);
+		ProjectedOffer.bCanPurchase =
+		    !InventoryItems.Contains(ProjectedOffer.ItemId) && CanPayShopCost(ProjectedOffer.EffectivePrice);
+		View.RunItemOffers.Add(MoveTemp(ProjectedOffer));
 	}
 	const FReEchoCsvShopRefreshRuleRow* RefreshRule = Snapshot->ShopRefreshRules.Find(TEXT("Default"));
 	if (WeaponRuneRefreshEncounterIndex != EncounterIndex)
@@ -1548,7 +1581,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 	for (const auto& Pair : Snapshot->Parts)
 	{
 		const FReEchoCsvPartRow& Part = Pair.Value;
-		if (OwnedPartIds.Contains(Part.PartId))
+		if (OwnedPartIds.Contains(Part.PartId) && IsPartCompatibleWithWeapon(*Snapshot, Part, *Weapon))
 		{
 			View.OwnedParts.Add(MakeWeaponPartOffer(Part));
 		}
@@ -1653,6 +1686,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		Offer.ItemId = Part.Id;
 		Offer.ContentId = Part.Id;
 		Offer.SlotTypeId = Part.SlotTypeId;
+		Offer.WeaponTypeId = Part.WeaponTypeId;
 		Offer.DisplayName = FText::FromString(Part.DisplayName);
 		Offer.EffectText = FText::FromString(Part.Description);
 		Offer.Price = GetShopPriceInRange(*Snapshot, DerivePartPriceCategory(Part), Part.ShopPrice, PriceRand);
@@ -1667,6 +1701,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		Offer.ItemId = CandidateWeapon.Id;
 		Offer.ContentId = CandidateWeapon.Id;
 		Offer.SlotTypeId = NAME_None;
+		Offer.WeaponTypeId = CandidateWeapon.WeaponTypeId;
 		Offer.DisplayName = FText::FromString(CandidateWeapon.DisplayName);
 		Offer.EffectText = FText::Format(NSLOCTEXT("ReEcho", "WeaponSlotOfferEffect", "武器：{0}"),
 		                                 FText::FromString(CandidateWeapon.DisplayName));
@@ -1776,6 +1811,15 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		else if (const FReEchoCsvWeaponRow* CachedWeapon = Snapshot->FindEnabledWeapon(OfferId))
 		{
 			View.SlotOffers[SlotIndex] = MakeWeaponSlotOffer(*CachedWeapon);
+		}
+		FReEchoWeaponSlotOffer& ProjectedOffer = View.SlotOffers[SlotIndex];
+		if (!ProjectedOffer.ItemId.IsNone())
+		{
+			ProjectedOffer.EffectivePrice = GetDiscountedShopPrice(ProjectedOffer.Price);
+			const bool bOwned = ProjectedOffer.Kind == EReEchoShopOfferKind::Weapon
+			                        ? OwnedWeaponIds.Contains(ProjectedOffer.WeaponId)
+			                        : OwnedPartIds.Contains(ProjectedOffer.PartId);
+			ProjectedOffer.bCanPurchase = !bOwned && CanPayShopCost(ProjectedOffer.EffectivePrice);
 		}
 	}
 
@@ -1955,6 +1999,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, PriceRand);
 				}
 				CardPack.Price = Pack.BasePrice;
+				CardPack.EffectivePrice = GetDiscountedShopPrice(CardPack.Price);
 				CardPack.Status = Pack.bPurchased          ? EReEchoShopCardPackStatus::Purchased
 				                  : Pack.bPaymentCommitted ? EReEchoShopCardPackStatus::PaidPendingChoice
 				                                           : EReEchoShopCardPackStatus::Available;
@@ -2014,6 +2059,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					CardPack.Status = EReEchoShopCardPackStatus::SoldOut;
 					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackSoldOut", "售罄");
 				}
+				CardPack.bCanPurchase =
+				    CardPack.IsAvailable() && CanPurchaseExtraShopCard() && CanPayShopCost(CardPack.EffectivePrice);
 			}
 		}
 
@@ -2042,7 +2089,10 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		Offer.DisplayName = Slot.DisplayName;
 		Offer.EffectText = Slot.EffectText;
 		Offer.Price = Slot.Price;
+		Offer.EffectivePrice = Slot.EffectivePrice;
+		Offer.bCanPurchase = Slot.bCanPurchase;
 		Offer.SlotTypeId = Slot.SlotTypeId;
+		Offer.WeaponTypeId = Slot.WeaponTypeId;
 		Offer.Type = (Slot.Kind == EReEchoShopOfferKind::Weapon) ? EReEchoShopOfferType::Weapon
 		                                                         : EReEchoShopOfferType::WeaponPart;
 		// 武器 Offer 携带对应配图路径(开局选武器界面同款)，渲染时优先于默认卡片图标
@@ -2184,6 +2234,13 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		CurrentBuild.Stats.ElementalAttack += 5.0f;
 		CurrentBuild.Stats.HpMax += 10.0f;
 		CurrentBuild.Stats.HpPoint += 10.0f;
+		if (CurrentBuild.bHasEquipmentBase)
+		{
+			CurrentBuild.EquipmentBaseStats.PhysicalAttack += 5.0f;
+			CurrentBuild.EquipmentBaseStats.ElementalAttack += 5.0f;
+			CurrentBuild.EquipmentBaseStats.HpMax += 10.0f;
+			CurrentBuild.EquipmentBaseStats.HpPoint += 10.0f;
+		}
 		RefreshWeaponMasterOutcome();
 	}
 	if (CurrentBuild.CardState.Runtime.TimeShardDebt > 0)
@@ -2328,29 +2385,13 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 	const int32 OfferCount = RequestedCount;
 
 	FRandomStream Random(BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
+	TArray<FReEchoCardDefinition> ShuffledCatalog = Catalog;
+	ShuffleOffers(ShuffledCatalog, Random);
 	TArray<FReEchoTraitCardOffer> Result;
-	int32 StackLevel = 0;
-	while (Result.Num() < OfferCount)
+	Result.Reserve(OfferCount);
+	for (int32 OfferIndex = 0; OfferIndex < OfferCount; ++OfferIndex)
 	{
-		TArray<FReEchoCardDefinition> StackBucket;
-		for (const FReEchoCardDefinition& Card : Catalog)
-		{
-			if (ReEchoCardRuntime::CountOwned(CurrentBuild.CardState, Card.Id) == StackLevel)
-			{
-				StackBucket.Add(Card);
-			}
-		}
-
-		ShuffleOffers(StackBucket, Random);
-		for (const FReEchoCardDefinition& Card : StackBucket)
-		{
-			if (Result.Num() >= OfferCount)
-			{
-				break;
-			}
-			Result.Add(MakeTraitOffer(Card));
-		}
-		++StackLevel;
+		Result.Add(MakeTraitOffer(ShuffledCatalog[OfferIndex]));
 	}
 
 	for (const FReEchoTraitCardOffer& Offer : Result)
@@ -2451,8 +2492,6 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 
-	const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
-	const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
 	const int32 ExistingBonusChoices =
 	    FMath::Max(0, FCString::Atoi(*CurrentBuild.RuleFlags.FindRef(BonusTraitChoicesRemainingFlag)));
 	const bool bApplyingBonusChoice = ExistingBonusChoices > 0;
@@ -2503,16 +2542,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 			        }
 			        return true;
 		        }
-		        const int32 NormalTraitSelections =
-		            FCString::Atoi(*BaseBuild.RuleFlags.FindRef(NormalTraitSelectionsFlag)) + 1;
-		        BaseBuild.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
-		        const int32 NewBonusChoices = ReEchoCharacterAbilityRuntime::ResolveExtraTraitChoices(
-		            *Snapshot, BaseBuild.CharacterId, NormalTraitSelections);
-		        bContinueBonusChoices = NewBonusChoices > 0;
-		        if (bContinueBonusChoices)
-		        {
-			        BaseBuild.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(NewBonusChoices));
-		        }
+		        bContinueBonusChoices = RecordNormalTraitGroupSelection(*Snapshot, BaseBuild) > 0;
 		        return true;
 	        },
 	        PendingBuild))
@@ -2532,8 +2562,11 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	PendingTraitCardRefreshUses.Reset();
 	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
 	SetPhase(bContinueBonusChoices ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
-	ReEchoBuildTrace::LogSnapshot(
-	    TEXT("FreeCardGranted"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("card=%s"), *CardId.ToString()));
+	ReEchoBuildTrace::LogSnapshot(TEXT("FreeCardGranted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("card=%s"), *CardId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
@@ -2630,8 +2663,11 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
 	       *CardId.ToString(),
 	       CurrentBuild.CardState.OwnedCardIds.Num());
-	ReEchoBuildTrace::LogSnapshot(
-	    TEXT("DebugCardGranted"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("card=%s"), *CardId.ToString()));
+	ReEchoBuildTrace::LogSnapshot(TEXT("DebugCardGranted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("card=%s"), *CardId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
 }
@@ -3215,11 +3251,8 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 	}
 	CurrentBuild = MoveTemp(PendingBuild);
 	CommitShopCost(EffectivePrice);
-	ReEchoBuildTrace::LogSnapshot(TEXT("ShopCardPackPaid"),
-	                              EncounterIndex,
-	                              Phase,
-	                              CurrentBuild,
-	                              FString::Printf(TEXT("tier=%d"), Tier));
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("ShopCardPackPaid"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("tier=%d"), Tier));
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Card-pack payment committed"), EffectivePrice);
 }
 
@@ -3283,6 +3316,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 
 	int32 PendingTimeShards = TimeShards;
 	bool bPendingClearWeaponRunes = false;
+	bool bPendingBonusTraitChoice = false;
 	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
 	FReEchoBuildSnapshot PendingBuild;
 	EReEchoShopPurchaseResult Failure = EReEchoShopPurchaseResult::MutationRejected;
@@ -3330,6 +3364,8 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 			        return false;
 		        }
 		        Build.CardState.Runtime.ShopCardPackStates[PackIndex].bPurchased = true;
+		        ReEchoCharacterPromotion::TryPromote(Build);
+		        bPendingBonusTraitChoice = RecordNormalTraitGroupSelection(*Snapshot, Build) > 0;
 		        PendingTimeShards = Grant.TimeShards;
 		        return true;
 	        },
@@ -3340,19 +3376,22 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	const int32 PreviousTimeShards = TimeShards;
 	CurrentBuild = MoveTemp(PendingBuild);
 	ApplyProjectedCardCurrency(PreviousTimeShards, PendingTimeShards);
+	if (bPendingBonusTraitChoice)
+	{
+		SetPhase(EReEchoRunPhase::CardChoice);
+	}
 	if (bPendingClearWeaponRunes)
 	{
 		OwnedPartIds.Reset();
 	}
 	ReevaluateCoreCollectionCard();
 	InventoryItems.AddUnique(ItemId);
-	ReEchoBuildTrace::LogSnapshot(TEXT("PaidCardGranted"),
-	                              EncounterIndex,
-	                              Phase,
-	                              CurrentBuild,
-	                              FString::Printf(TEXT("card=%s item=%s"),
-	                                              *Choice.CardId.ToString(),
-	                                              *ItemId.ToString()));
+	ReEchoBuildTrace::LogSnapshot(
+	    TEXT("PaidCardGranted"),
+	    EncounterIndex,
+	    Phase,
+	    CurrentBuild,
+	    FString::Printf(TEXT("card=%s item=%s"), *Choice.CardId.ToString(), *ItemId.ToString()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Paid card choice claimed"));
 }

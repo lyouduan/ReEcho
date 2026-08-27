@@ -6,9 +6,9 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@53f8c256b9901c70684866650315cd706c2a0072`。
+- 本地规划 / 实现基线：`7b63217ccb32a04f022d2870e65c51e6fb547ea8`（建立 worktree 时的最新 `origin/main`）。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan127-free-shop-random-offers`，分支 `plan/127-free-shop-random-offers`。
 - 依赖 / 阻塞：延续 Plan87 的数据驱动角色能力与智者每第5组额外选择契约；延续 Plan88 的逐关 `FreeTier`、1级可重复/2—3级持有排除、同一三选一无重复与候选页存档稳定契约；延续 Plan111 的 `G_2_21`【喂，打劫！】“当前战后商店内容物免费”状态。无产品阻塞。
 - Writes:
@@ -47,9 +47,10 @@
 
 1. 【喂，打劫！】绑定当前战后商店时，所有可购买内容物的实际价格均为 `0`：武器、符文、旧兼容商品以及一级/二级/三级卡牌组都必须在余额不足原价时仍可点击并成功购买；显式刷新后出现的新武器/符文内容物仍为零价。UI 显示、按钮可用性、购买审计和后端提交必须使用同一份 Run 权威实际价格，不能由 Widget 另按原价与折扣计算。
 2. 战斗结束免费三选一的初始三张卡，改为从当前关 `FreeTier` 的完整合法候选池中等权、无放回抽取。删除现有“按已拥有叠层数分桶并优先最低叠层”的人为偏置；合法的已拥有1级卡与未拥有1级卡具有相同的单卡入选概率，已拥有2/3级卡仍由 Cards 资格层排除。
-3. “公平随机”采用每局独立种子驱动的确定性伪随机流：新开局之间应产生不同序列；同一局、同一关、同一构筑状态与同一随机状态应可复现。首次生成后的三张候选继续保存，重复打开界面和存读档不得重摇；只有已存在的显式逐槽刷新事务可以替换对应槽位。
+3. “公平随机”采用新局开始时从 UTC 实时时钟与高精度时钟取样一次的本局独立种子，随后驱动确定性伪随机流：新开局之间应产生不同序列；同一局、同一关、同一构筑状态与同一随机状态应可复现。首次生成后的三张候选继续保存，重复打开界面和存读档不得重摇；只有已存在的显式逐槽刷新事务可以替换对应槽位。
 4. 同组三张卡不能出现重复 CardId；候选不足、配置非法和牌池为空时继续沿用现有安全降级，不跨 Tier 补牌，也不改变战后流程路由。
 5. 智者“每第5次获得卡牌组时，可以额外选择1张”的累计来源同时包含战后免费卡牌组与商店购买卡牌组。商店卡牌组在玩家成功领取其中一张卡、卡组购买事务完整提交时累计一次；仅预付卡组、打开/取消界面、失败重试和逐槽刷新不累计。命中第5组后复用现有智者额外三选一流程，额外选择本身不再次累计，也不递归触发。
+6. 符文背包只展示与当前装备武器兼容、且属于所点击槽位的已拥有未装备符文。长剑与镰刀共享 `Grip` 槽位时，不能仅因槽位同名而互相展示专属符文；Run 投影和 UI 展示都保留武器类型兼容条件，后端装备事务继续作为最终校验。
 
 ## 架构影响与设计决策
 
@@ -59,7 +60,7 @@
 - 权威状态与依赖：`UReEchoRunSubsystem` 继续拥有 `FreeShopEncounterIndex`、货币、商店事务、`TraitOfferSeed`、已生成候选页与智者卡组累计 RuleFlag；`ReEchoCharacterAbilityRuntime` 继续只按数据驱动间隔解析是否产生额外选择；`ReEchoCardRuntime::BuildOfferPool` 继续拥有 Enabled/Tier/关次/冲突/持有资格；UI 不新增权威状态。模块依赖方向不变，不增加 Runtime Module。
 - 决策记录：
   - 已定位【喂，打劫！】后端 `GetDiscountedShopPrice` 会正确返回 `0`，但 Widget 的 `GetEffectiveShopPrice` 未接收免费商店状态，并在请求发出前按原价禁用按钮。实现应发布类型化的实际价格/可购买投影，购买提交仍由后端重新验证，不能只在 UI 特判 CardId。
-  - 已定位免费投放使用每局 GUID 派生的 `TraitOfferSeed`，新局并非固定同一组；玩家感知的“假随机”来自 `GenerateTraitCardOffers` 先按 `CountOwned` 分桶、强制优先最低叠层，再仅在桶内洗牌。删除该分桶，不删除每局种子和候选缓存。
+  - 已定位免费投放原先使用每局 GUID 派生的 `TraitOfferSeed`；按用户最终确认改为在 `StartRun` 从 UTC 实时时钟与高精度时钟取样一次。玩家感知的“假随机”同时通过移除 `GenerateTraitCardOffers` 的持有叠层优先分桶解决；不删除每局种子和候选缓存。
   - “等权”按 CardId 计，每个合法 CardId 一张票；不按卡牌阵营、效果、当前叠层、目录顺序或历史未出现次数加权。抽样为洗牌后取前三张，等价实现可以优化，但必须满足相同验收。
   - 免费选择的逐槽刷新继续从同 Tier 剩余合法候选中选择，并排除当前组已展示历史与所有已获得卡牌；本 Plan 只消除初始三选一的叠层分桶偏置，不放宽刷新资格。
   - 【喂，打劫！】描述中的“包括刷新出的内容”解释为显式刷新后生成的新商品仍零价；刷新动作本身继续消费 `shop_refresh_rules.csv` 配置的次数/碎片。
@@ -72,30 +73,31 @@
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md`：明确 Cards 提供合法候选池，Run 负责初始免费三选一的等权无放回抽样。
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：更新商店 Widget 只消费权威实际价格/可购买状态、不得重算定价的约束。
 - 关闭前逐项填写审阅结果：
-  - `ARCHITECTURE.md`：待审阅。
-  - `README.md`：待审阅。
-  - `MOD-ReEcho.md`：待更新。
-  - `MOD-ReEchoCards.md`：待更新。
-  - `MOD-ReEchoUI.md`：待更新。
+  - `ARCHITECTURE.md`：已审阅；本次未新增 Runtime Module、改变依赖方向或迁移状态所有者，无需修改。
+  - `README.md`：已审阅；架构标识与阅读路线未变化，无需修改。
+  - `MOD-ReEcho.md`：已更新 Run 权威报价、免费投放抽样和普通卡组统一计数契约。
+  - `MOD-ReEchoCards.md`：已更新 Cards 合法池与 Run 等权无放回抽样边界。
+  - `MOD-ReEchoUI.md`：已更新 Widget 只消费权威实际价格与购买资格的约束。
 
 ## 锁定验收
 
-- [ ] 在现有碎片为 `0`、商品原价大于 `0` 且【喂，打劫！】绑定当前商店时，武器、符文与三个卡牌组中所有实际存在且未拥有的报价均显示免费、按钮可用，并由详细购买接口以 `EffectivePrice=0` 成功提交；余额与债务均不增加。
-- [ ] 显式刷新武器/符文页后，新出现商品仍免费；进入下一关后免费商店状态按现有生命周期清除，后续商店恢复正常价格和余额门禁。
-- [ ] UI 不再用原价/折扣自行决定购买资格；自动化覆盖逻辑块与目标表现层的武器/符文、兼容商品和卡牌组入口，证明显示、按钮和后端结果一致。
-- [ ] 免费三选一初始候选从完整合法池等权无放回抽取；测试构造“已拥有1级卡 + 至少3张未拥有1级卡”的候选池，证明已拥有1级卡不会再被最低叠层分桶系统性排除。
-- [ ] 同一随机状态生成顺序可复现且同组三张不重复；不同新局种子能产生多于一种候选签名；存读档、重复打开界面保持原候选及逐槽刷新历史。
-- [ ] 逐关 `FreeTier`、1级重复、2/3级持有排除、候选不足安全降级、免费逐槽刷新与商店卡组投放既有回归全部通过。
-- [ ] 智者前4次普通卡组领取不产生额外选择，第5次产生恰好1次额外三选一；五次累计可以由“免费卡组 + 商店卡组”任意组合构成，连续购买多个不同 Tier 商店卡组时每个成功领取各累计一次。
-- [ ] 商店卡组仅预付、取消后重开、购买/领取失败、逐槽刷新以及智者额外选择均不增加普通卡组计数；保存并恢复待领取卡组或累计到第4组的进度后，后续成功领取只增加一次并在正确时点触发。
-- [ ] 非智者角色成功领取商店卡组不产生额外选择；智者的间隔和值继续来自 `character_abilities.csv`，不得硬编码 `5` 或角色中文名。
-- [ ] `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`、聚焦自动化、`python scripts/validate_project.py` 与 `git diff --check` 通过。
+- [x] 在现有碎片为 `0`、商品原价大于 `0` 且【喂，打劫！】绑定当前商店时，武器、符文与三个卡牌组中所有实际存在且未拥有的报价均显示免费、按钮可用，并由详细购买接口以 `EffectivePrice=0` 成功提交；余额与债务均不增加。
+- [x] 显式刷新武器/符文页后，新出现商品仍免费；进入下一关后免费商店状态按现有生命周期清除，后续商店恢复正常价格和余额门禁。
+- [x] UI 不再用原价/折扣自行决定购买资格；自动化覆盖逻辑块与目标表现层的武器/符文、兼容商品和卡牌组入口，证明显示、按钮和后端结果一致。
+- [x] 免费三选一初始候选从完整合法池等权无放回抽取；测试构造“已拥有1级卡 + 至少3张未拥有1级卡”的候选池，证明已拥有1级卡不会再被最低叠层分桶系统性排除。
+- [x] 同一随机状态生成顺序可复现且同组三张不重复；不同新局种子能产生多于一种候选签名；存读档、重复打开界面保持原候选及逐槽刷新历史。
+- [x] 逐关 `FreeTier`、1级重复、2/3级持有排除、候选不足安全降级、免费逐槽刷新与商店卡组投放既有回归全部通过。
+- [x] 智者前4次普通卡组领取不产生额外选择，第5次产生恰好1次额外三选一；五次累计可以由“免费卡组 + 商店卡组”任意组合构成，连续购买多个不同 Tier 商店卡组时每个成功领取各累计一次。
+- [x] 商店卡组仅预付、取消后重开、购买/领取失败、逐槽刷新以及智者额外选择均不增加普通卡组计数；保存并恢复待领取卡组或累计到第4组的进度后，后续成功领取只增加一次并在正确时点触发。
+- [x] 非智者角色成功领取商店卡组不产生额外选择；智者的间隔和值继续来自 `character_abilities.csv`，不得硬编码 `5` 或角色中文名。
+- [x] 镰刀的 `Grip` 背包不展示 `LongSword` 专属剑柄符文，长剑背包同样不展示 `Scythe` 专属握柄；`Any` 通用符文仍按槽位正常展示，切换武器后背包投影随当前武器刷新，后端仍拒绝任何不兼容装备请求。
+- [x] `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`、聚焦自动化、`python scripts/validate_project.py` 与 `git diff --check` 通过。
 - [ ] 人工 PIE 验收低余额下【喂，打劫！】购买和多次新局免费三选一的玩家可见结果。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@53f8c256b9901c70684866650315cd706c2a0072`；相对上一已验证程序候选仅新增 Plan126 文档，不修改本任务运行时代码。
+- 基线分支/提交：`7b63217ccb32a04f022d2870e65c51e6fb547ea8`；该提交是建立本 worktree 时的最新 `origin/main`。
 - 引擎/构建可用性：上一程序候选已在 UE 5.8 Development `-FullRebuild` 成功并刷新精选 Editor 包；本 Plan 实现后的最终组合必须重新执行完整构建，不能复用旧证据。
 - 现有聚焦测试结果：上一程序候选的棱镜多弹、重启任务刷新与诅咒银行显示聚焦自动化通过；本 Plan 的 Shop/Trait 基线与新增用例在实现阶段重新执行。
 - 共享契约 / 难合并资源风险：`ReEchoRunSubsystem.cpp`、`ReEchoGameMode.cpp`、`ReEchoInventoryShopWidget.cpp`、Character/Shop/Trait 测试和精选 DLL 为高频路径；Plan126 仅新增武器特效挂点计划，无物理或逻辑重叠。发布前仍须重新 fetch、审计最新 main 并按发布锁规则组合。
@@ -109,7 +111,8 @@
 4. 抽取 Run 内“普通卡组成功领取”计数入口；免费 `ApplyTraitCard` 与商店 `ClaimPaidShopCardChoice` 仅在各自原子事务成功时调用，按数据驱动间隔登记智者额外选择。GameMode 在商店领取触发奖励时关闭商店卡组浮层并转入现有额外三选一，完成后返回原商店。
 5. 增加 Shop/ShopLogicBlock 自动化，覆盖零余额零价购买、刷新后仍免费、下一关恢复定价、卡牌组与武器/符文按钮/后端一致。
 6. 增加 Trait/Character/Shop 自动化，覆盖完整池公平抽样、同组三张去重、同状态复现、新局多样性、存读档稳定、智者免费/商店混合五组节奏以及失败/取消不计数。
-7. 更新相关模块文档，执行格式化、聚焦自动化、完整构建、项目校验和差异卫生检查；请求用户完成 PIE 人工验收。
+7. 在符文背包只读投影和 UI 二次过滤中加入当前武器类型兼容条件，并增加共享槽位专属符文不串包的回归测试。
+8. 更新相关模块文档，执行格式化、聚焦自动化、完整构建、项目校验和差异卫生检查；请求用户完成 PIE 人工验收。
 
 ## 验证矩阵
 
@@ -133,23 +136,36 @@
 - 2026-08-27：确认免费三选一已有每局独立且可保存的随机种子；“假随机”来自初始候选按持有叠层分桶并强制优先最低叠层，而不是所有新局共用固定种子。
 - 2026-08-27：fetch 发现远端仅新增 `plans/126-programmer-weapon-vfx-final-anchor.md`，无源码、数据、编号或逻辑冲突；Plan127 基于最新远端主线建立独立 worktree。
 - 2026-08-27：按用户补充把智者商店卡牌组计数纳入 Plan127。确认表中 `SAGE_BONUS_CHOICE` 已配置 `Interval=5`；现有免费领取路径会计数，商店 `ClaimPaidShopCardChoice` 不计数。
+- 2026-08-27：Run 的所有商店报价统一发布 `EffectivePrice` 与 `bCanPurchase`；Widget 删除本地价格重算，武器、符文、兼容商品和卡牌组共享同一权威投影与后端复核。
+- 2026-08-27：免费三选一改为完整合法池确定性洗牌后取前 N 张，移除按已拥有叠层优先级分桶；保留种子、候选缓存、刷新历史和存档恢复。
+- 2026-08-27：免费与商店卡组领取统一进入普通卡组计数；商店命中智者第5组时复用额外三选一，领取后回到同一商店。补充预付、刷新、重复领取、存读档与非递归验证。
+- 2026-08-27：Run 与 UI 的符文背包投影同时按当前武器类型和槽位过滤；兼容性后端校验保持不变。
+- 2026-08-27：回归中发现通用商店测试随机选到【重启任务】后把其 300 碎片和免费刷新奖励误判为扣费异常；已隔离该测试的即时经济副作用，生产逻辑无需回退。
+- 2026-08-27：按策划确认将免费投放的新局 `TraitOfferSeed` 从 GUID 改为 UTC 实时时钟与高精度时钟共同取样；只在 `StartRun` 取一次，存档继续持久化该值，重开与读档不会按时间重抽。
 
 ### 证据
 
 - 只读源码审计：`GetDiscountedShopPrice` 在 `FreeShopEncounterIndex == EncounterIndex` 时返回 `0`；`ReEchoInventoryShopWidget.cpp` 多处仍通过本地 `GetEffectiveShopPrice` 与 `CurrentTimeShards >= EffectivePrice` 提前拦截。
-- 只读源码审计：`GenerateTraitCardOffers` 使用 `BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, OwnedCardIds)`，但随后按 `CountOwned == StackLevel` 建桶并逐桶填满三张；`StartRun` 使用新 GUID 派生 `TraitOfferSeed`，SaveGame 保存并恢复该种子与当前候选页。
+- 源码审计与实现：`GenerateTraitCardOffers` 使用 `BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, OwnedCardIds)`；初始叠层分桶已移除，`StartRun` 改为从真实时间生成 `TraitOfferSeed`，SaveGame 保存并恢复该种子与当前候选页。
 - 只读源码审计：智者 `ResolveExtraTraitChoices` 已按 `character_abilities.csv` 的 `OnTraitChoiceApplied / Character.EveryNth / Interval=5` 正确计算；`ApplyTraitCard` 在普通免费领取后增加 `NormalTraitSelections` 并排除奖励选择递归，`ClaimPaidShopCardChoice` 只授予卡牌和标记卡组已购，没有同等计数或奖励路由。
+- 最终构建：`scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，103 个动作完成，精选 Editor 包刷新到源码指纹 `08f85377cc7f`。
+- 最终自动化：`ReEcho.Shop`、`ReEcho.UI.Shop`、`ReEcho.Traits`、`ReEcho.Cards.Offer`、`ReEcho.Characters.SageBonusCadence` 全部通过。
+- 实时时间种子回归：`ReEcho.Traits.OffersAreDeterministicAndDiverse` 验证连续新局捕获多个不同种子，同时保存/恢复保持候选顺序一致。
+- 最终静态证据：`sync_xlsx_to_csv.py --check`、`validate_project.py`、`git diff --check` 全部通过；无冲突文件或额外未跟踪生成物。
 
 ### 剩余风险
 
-- 若 UI 蓝图另有独立的购买按钮门禁，执行时需通过 Widget 树与交互自动化一并审计，不能只修原生逻辑块。
-- 公平随机的玩家感受需要多局人工观察；自动化只锁定“无隐藏叠层优先级、等权无放回与事务可复现”，不承诺短样本内肉眼均匀。
-- 商店触发智者奖励时存在 TraitChoice 覆盖在商店上的屏幕/焦点切换风险；必须自动化验证奖励选择结束后回到同一商店且其余报价不重摇。
+- 公平随机的玩家感受仍需多局人工观察；自动化已锁定“无隐藏叠层优先级、等权无放回与事务可复现”，但不承诺短样本内肉眼均匀。
+- 商店触发智者奖励的逻辑与流程自动化已通过，最终屏幕层级、焦点和视觉反馈仍需 PIE 人工确认。
 
 ### 人工验收结果/请求
 
-- 待实现后请求用户在 PIE 验收。
+- 已完成程序实现与自动化验收，请用户按交接清单完成 PIE 人工验收；结果仍为 `PendingBeforeClose`。
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `ARCHITECTURE.md`：已审阅，无模块拓扑、依赖方向或权威状态变化，无需修改。
+- `README.md`：已审阅，无架构标识或阅读路线变化，无需修改。
+- `MOD-ReEcho.md`：已同步 Run 权威定价、等权投放、智者统一计数与符文兼容投影。
+- `MOD-ReEchoCards.md`：已同步合法池/抽样职责边界。
+- `MOD-ReEchoUI.md`：已同步只读权威报价与购买资格契约。
