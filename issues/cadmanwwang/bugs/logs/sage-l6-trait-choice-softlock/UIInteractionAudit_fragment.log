@@ -1,0 +1,66 @@
+﻿[2026-08-27T12:15:53.796Z] [UIInteraction] event=BUTTON_CLICK screen=InventoryShop widget=WBP_ReEchoInventoryShopScreen_C_6 button=DesignerAttachmentSlot1 class=Button
+[2026-08-27T12:15:54.246Z] [UIInteraction] event=BUTTON_CLICK screen=InventoryShop widget=WBP_ReEchoInventoryShopScreen_C_6 button=DesignerAttachmentSlot1 class=Button
+[2026-08-27T12:15:54.862Z] [UIInteraction] event=SCREEN_CLOSE_FLOW screen=InventoryShop
+[2026-08-27T12:15:54.863Z] [UIInteraction] event=SCREEN_CLOSED screen=InventoryShop widget=WBP_ReEchoInventoryShopScreen_C_6
+[2026-08-27T12:15:54.863Z] [UIInteraction] event=BUTTON_CLICK screen=InventoryShop widget=WBP_ReEchoInventoryShopScreen_C_6 button=CloseButton class=Button
+[2026-08-27T12:15:54.875Z] [UIInteraction] event=SCREEN_OPEN_CREATED screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 class=WBP_ReEchoTraitCardChoice_C layer=BuildChoice zorder=98
+[2026-08-27T12:15:54.876Z] [UIInteraction] event=SCREEN_OPEN_FLOW screen=TraitChoice result=Success widget=WBP_ReEchoTraitCardChoice_C_15 input=GameAndUI pause=1
+[2026-08-27T12:15:54.883Z] [UIInteraction] event=SCREEN_CLOSE_FLOW screen=EncounterTransition
+[2026-08-27T12:15:54.883Z] [UIInteraction] event=SCREEN_CLOSED screen=EncounterTransition widget=ReEchoEncounterTransitionWidget_8
+[2026-08-27T12:15:57.021Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=TraitCardEntry1 button=SelectButton class=ReEchoIndexedButton index=1
+[2026-08-27T12:15:57.769Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=TraitCardEntry2 button=SelectButton class=ReEchoIndexedButton index=2
+[2026-08-27T12:15:58.114Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=TraitCardEntry0 button=SelectButton class=ReEchoIndexedButton index=0
+[2026-08-27T12:15:59.924Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:00.219Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:00.354Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:00.444Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:00.766Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:00.870Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:01.335Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:01.713Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton0 class=ReEchoIndexedButton index=0
+[2026-08-27T12:16:01.713Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=0 slot=0 card=G_3_12 remaining=1 cost=5 canRefresh=1 shards=176
+[2026-08-27T12:16:01.713Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=0 run=1 choice=1
+[2026-08-27T12:16:01.713Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=0 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:01.861Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton0 class=ReEchoIndexedButton index=0
+[2026-08-27T12:16:01.862Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=0 slot=0 card=G_3_12 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:16:01.862Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=0 run=1 choice=1
+[2026-08-27T12:16:01.862Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=0 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:01.996Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton0 class=ReEchoIndexedButton index=0
+[2026-08-27T12:16:01.996Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=0 slot=0 card=G_3_12 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:16:01.997Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=0 run=1 choice=1
+[2026-08-27T12:16:01.997Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=0 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:02.315Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton0 class=ReEchoIndexedButton index=0
+[2026-08-27T12:16:02.315Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=0 slot=0 card=G_3_12 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:16:02.316Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=0 run=1 choice=1
+[2026-08-27T12:16:02.316Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=0 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:02.574Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton1 class=ReEchoIndexedButton index=1
+[2026-08-27T12:16:02.575Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=1 slot=1 card=G_3_29 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:16:02.575Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=1 run=1 choice=1
+[2026-08-27T12:16:02.575Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=1 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:02.878Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton2 class=ReEchoIndexedButton index=2
+[2026-08-27T12:16:02.879Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=2 slot=2 card=G_3_25 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:16:02.879Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=2 run=1 choice=1
+[2026-08-27T12:16:02.879Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=2 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:03.116Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton1 class=ReEchoIndexedButton index=1
+[2026-08-27T12:16:03.116Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=1 slot=1 card=G_3_29 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:16:03.116Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=1 run=1 choice=1
+[2026-08-27T12:16:03.116Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=1 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:03.264Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton1 class=ReEchoIndexedButton index=1
+[2026-08-27T12:16:03.265Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=1 slot=1 card=G_3_29 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:16:03.265Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=1 run=1 choice=1
+[2026-08-27T12:16:03.265Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=1 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:16:03.501Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=TraitCardEntry0 button=SelectButton class=ReEchoIndexedButton index=0
+[2026-08-27T12:16:03.918Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:04.111Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:04.263Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:04.413Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:16:04.558Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:19:35.977Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=WBP_ReEchoTraitCardChoice_C_15 button=ShopCardRefreshButton1 class=ReEchoIndexedButton index=1
+[2026-08-27T12:19:35.977Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_BUTTON tier=3 visibleIndex=1 slot=1 card=G_3_29 remaining=1 cost=5 canRefresh=1 shards=206
+[2026-08-27T12:19:35.977Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REQUEST encounter=7 slot=1 run=1 choice=1
+[2026-08-27T12:19:35.978Z] [UIInteraction] event=FREE_CARD_SLOT_REFRESH_REJECTED encounter=7 slot=1 reason=The current run state disables post-encounter card refreshes
+[2026-08-27T12:19:36.567Z] [UIInteraction] event=BUTTON_CLICK screen=DynamicOrRegistered widget=TraitCardEntry1 button=SelectButton class=ReEchoIndexedButton index=1
+[2026-08-27T12:19:36.967Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:19:37.157Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:19:37.266Z] [UIInteraction] event=BUTTON_CLICK screen=TraitChoice widget=WBP_ReEchoTraitCardChoice_C_15 button=ConfirmButton class=Button
+[2026-08-27T12:24:14.192Z] [UIInteraction] event=SCREEN_RESET_ALL count=4
