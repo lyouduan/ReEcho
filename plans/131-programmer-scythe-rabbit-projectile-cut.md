@@ -73,7 +73,7 @@
 
 ### 证据
 
-- `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：97/97，成功；预构建源码指纹 `394294338bdb`。
+- 发布锁内 `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：95/95，成功；预构建源码指纹 `394294338bdb`。
 - `ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility`：发现 1 项，`Result={Success}`。
 - `ReEcho.Enemies.Host.RabbitProjectilePipeline`：发现 1 项，`Result={Success}`，覆盖逻辑球 `Ended`、视觉代理清理及后续无伤害。
 - `python scripts\validate_project.py`、`python scripts\ue\prebuilt_editor.py check`、`git diff --check`：通过；预构建 7 模块、Build ID `55116800`。
