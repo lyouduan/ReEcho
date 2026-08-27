@@ -71,6 +71,16 @@ bool FReEchoArenaSceneContractTest::RunTest(const FString& Parameters)
 	          AReEchoArenaSceneActor::CalculateGameplayPlaneWorldZ(ShiftedMap, 5.0f),
 	          147.0f);
 
+	const FBox PlaneBounds(FVector(-50.0f, -50.0f, 0.0f), FVector(50.0f, 50.0f, 0.0f));
+	const FTransform RotatedBackdrop(FRotator(0.0f, 90.0f, 0.0f),
+	                                 FVector(100.0f, 200.0f, -0.5f),
+	                                 FVector(44.8f, 25.0f, 1.0f));
+	const FBox2D RotatedFootprint =
+	    AReEchoArenaSceneActor::CalculateWorldXYBounds(PlaneBounds, RotatedBackdrop);
+	TestTrue(TEXT("Rotated Backdrop mesh bounds remain valid"), RotatedFootprint.bIsValid);
+	TestEqual(TEXT("Backdrop rotation maps mesh Y scale onto world X"), RotatedFootprint.GetSize().X, 2500.0);
+	TestEqual(TEXT("Backdrop rotation maps mesh X scale onto world Y"), RotatedFootprint.GetSize().Y, 4480.0);
+
 	AReEchoArenaSceneActor* Arena = NewObject<AReEchoArenaSceneActor>(GetTransientPackage());
 	Arena->PlayerBounds->SetBoxExtent(FVector(1234.0f, 2345.0f, 5.0f));
 	Arena->CameraClampBounds->SetBoxExtent(FVector(1334.0f, 2445.0f, 5.0f));

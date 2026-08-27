@@ -132,6 +132,39 @@ float AReEchoArenaSceneActor::CalculateGameplayPlaneWorldZ(const FTransform& Map
 	return MapTransform.TransformPosition(FVector(0.0f, 0.0f, LocalGameplayPlaneZ)).Z;
 }
 
+FBox2D AReEchoArenaSceneActor::CalculateWorldXYBounds(const FBox& LocalBounds, const FTransform& LocalToWorld)
+{
+	FBox2D Result(ForceInit);
+	for (int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+	{
+		const FVector LocalCorner((CornerIndex & 1) ? LocalBounds.Max.X : LocalBounds.Min.X,
+		                          (CornerIndex & 2) ? LocalBounds.Max.Y : LocalBounds.Min.Y,
+		                          (CornerIndex & 4) ? LocalBounds.Max.Z : LocalBounds.Min.Z);
+		const FVector WorldCorner = LocalToWorld.TransformPosition(LocalCorner);
+		Result += FVector2D(WorldCorner.X, WorldCorner.Y);
+	}
+	return Result;
+}
+
+bool AReEchoArenaSceneActor::DoesBackdropCoverCameraBounds(const float Tolerance) const
+{
+	if (!Backdrop || !Backdrop->GetStaticMesh() || !CameraClampBounds)
+	{
+		return false;
+	}
+	const FBox2D BackdropBounds =
+	    CalculateWorldXYBounds(Backdrop->GetStaticMesh()->GetBoundingBox(), Backdrop->GetComponentTransform());
+	const FVector CameraExtent = CameraClampBounds->GetUnscaledBoxExtent();
+	const FBox2D CameraBounds = CalculateWorldXYBounds(FBox(-CameraExtent, CameraExtent),
+	                                                     CameraClampBounds->GetComponentTransform());
+	const float SafeTolerance = FMath::Max(0.0f, Tolerance);
+	return BackdropBounds.bIsValid && CameraBounds.bIsValid &&
+	       BackdropBounds.Min.X <= CameraBounds.Min.X + SafeTolerance &&
+	       BackdropBounds.Min.Y <= CameraBounds.Min.Y + SafeTolerance &&
+	       BackdropBounds.Max.X >= CameraBounds.Max.X - SafeTolerance &&
+	       BackdropBounds.Max.Y >= CameraBounds.Max.Y - SafeTolerance;
+}
+
 FVector2D AReEchoArenaSceneActor::GetMapScale2D() const
 {
 	const FVector Scale = MapRoot ? MapRoot->GetComponentScale() : FVector::OneVector;
@@ -197,6 +230,10 @@ bool AReEchoArenaSceneActor::HasValidConfiguration(FString* OutReason) const
 	if (GetMapScale2D().GetMin() <= KINDA_SMALL_NUMBER)
 	{
 		return Fail(TEXT("MapRoot scale must be positive on the gameplay axes."));
+	}
+	if (!DoesBackdropCoverCameraBounds())
+	{
+		return Fail(TEXT("Backdrop mesh world XY footprint must cover CameraClampBounds."));
 	}
 	return true;
 }

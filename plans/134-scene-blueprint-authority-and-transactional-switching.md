@@ -6,7 +6,7 @@
 - Executor 负责人：独立程序 Executor，待 Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`OpenAI Codex`。
-- 任务状态：`Review`（技术候选与资产迁移完成；等待 Blueprint/PIE 人工验收，不发布远端）。
+- 任务状态：`Review`（Backdrop 迁移遗漏已修复并通过技术门禁；等待 Blueprint/PIE 重新人工验收，不发布远端）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@41da5187ba694d2629b6e2c0a6bbb9f5b3fb6c54`。
 - 本地实现方式：规划 worktree `C:\tmp\ReEcho-plan134-scene-blueprint-authority-plan`；实现使用独立 Plan134 worktree，不复用含未提交 `BP_ArenaScene_SC01.uasset` 的审查 worktree。
@@ -124,6 +124,8 @@
 - `author_plan84_scene_switch.py`、`author_plan52_decorations.py`、`build_plan52_scene_assets.py`、`migrate_plan52_level00.py` 的写入入口均退休；新增一次性 Plan134 迁移器、Catalog-only 作者ing脚本与不写资产的审计脚本，审计不锁定插片名称或数量。
 - `ResumeSavedEncounter` 在 Arena prepare 成功后才调用 `ConsumePendingEncounterResume`，目标 Scene 缺失/无效时 pending resume 保留可重试。
 - SC01 迁移严格使用本 Executor 从 `origin/main@b7e15000` 建立的资产；迁移前后内存快照一致，保留 8 个非核心模板（7 个具名插片及 1 个无 Mesh/Material 的空模板）。review 脏 worktree 始终未访问、未复制、未修改。
+- 首次截图人工验收发现旧 `UpdateEditorLayout` 的 Backdrop Transform 未随 Bounds 一起烘入。修复器现按原公式写入四 BP：Location `(0,0,-0.5)`、Rotation `(0,90,0)`、Scale `(BackdropHalfExtents.Y*2/100, BackdropHalfExtents.X*2/100,1)`，保持 `bUseEditorAuthoredSceneLayout=true`，不恢复 Construction 覆盖。修复前后每个 BP 的非核心美术组件快照一致。
+- `HasValidConfiguration` 与 Editor 只读审计新增真实覆盖契约：读取 Backdrop StaticMesh local bounds 和 CameraClamp Box local bounds，分别将八角经实际 Component World Transform 投影为 XY AABB，再以 1uu 数值容差验证 Backdrop 覆盖 CameraClamp；旋转轴向由真实 Transform 决定，不由 Scale 推测。
 
 ### 证据
 
@@ -133,6 +135,8 @@
 - 完整 Editor 只读审计通过：Catalog 唯一解析 SC01-SC04；四 BP 的 Backdrop 材质、必需视觉层、组件 Bounds、Editor-authored 门、空 Profile/MapMaterial/Registry 及美术组件无碰撞均有效；Level00 为 0 Arena、1 SpawnAnchor、1 Camera、0 tagged decoration。
 - 一次性迁移日志：`Migrated 4 Arena Blueprints, preserved 8 SC01 artist components, deleted 0 tagged decorations, and replaced the fixed Arena with one spawn anchor`。0 是当前权威 main 的实测基线，不伪造为删除 18。
 - `python scripts/validate_project.py`、`git diff --check` 与全部相关场景 Python 脚本 AST 解析通过；未产生精选预构建允许列表之外的已跟踪生成物。
+- Backdrop 修复后最终 FullRebuild 97/97 actions 通过，精选预构建包仍为 `modules=7 build_id=55116800 source=10a260fd4759` 且检查通过；FullRebuild 后重跑 Arena Contract 1/1、StageTransition 3/3 均为 `Success`。
+- 修复脚本日志明确记录 `Repaired Backdrop transforms for SC01-SC04 without changing artist inserts`；独立复开 Editor-Cmd 的最终只读审计退出码 0，并确认四个实际 Backdrop mesh XY footprint 覆盖各自 CameraClampBounds，Level00 权威仍通过。
 
 ### 剩余风险
 
@@ -143,7 +147,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：美术在 Blueprint Editor 确认直接配置地图与插片；用户在 PIE 确认 SC01-SC04 切换结果和跨关连续性。
+- `FailedThenPendingRecheck`：首次截图确认实际 Backdrop 仅显示为红框小矩形，定位为迁移只烘入 Bounds、遗漏旧 `UpdateEditorLayout` Backdrop Transform。技术修复与真实 bounds 审计已完成；仍需用户重新打开 Blueprint/PIE，确认四场地图尺寸、轴向、构图和切换表现。
 
 ### 架构文档审阅结果
 

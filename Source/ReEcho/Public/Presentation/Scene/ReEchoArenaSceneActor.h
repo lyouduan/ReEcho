@@ -28,6 +28,9 @@ public:
 	FVector2D GetArenaCenter() const;
 	/** MapRoot-local gameplay plane converted to the current world-space height. */
 	float GetGameplayPlaneWorldZ() const;
+	/** True when the transformed Backdrop mesh footprint contains the transformed camera clamp footprint. */
+	UFUNCTION(BlueprintPure, Category = "Arena|Validation")
+	bool DoesBackdropCoverCameraBounds(float Tolerance = 1.0f) const;
 	bool HasValidConfiguration(FString* OutReason = nullptr) const;
 
 	FName GetSceneId() const
@@ -63,6 +66,7 @@ public:
 	                                            int32 BasePriority,
 	                                            const FIntPoint& PriorityRange);
 	static float CalculateGameplayPlaneWorldZ(const FTransform& MapTransform, float LocalGameplayPlaneZ);
+	static FBox2D CalculateWorldXYBounds(const FBox& LocalBounds, const FTransform& LocalToWorld);
 	int32 CalculateFootpointSortPriority(const FVector& WorldFootpoint) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena")

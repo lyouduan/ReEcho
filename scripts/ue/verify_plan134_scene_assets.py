@@ -49,6 +49,7 @@ if registered_ids != list(SCENE_IDS) or len(set(registered_ids)) != len(SCENE_ID
     fail(f"Catalog must map SC01-SC04 exactly once: {registered_ids}")
 
 catalog_only = "-Plan134CatalogOnly" in unreal.SystemLibrary.get_command_line()
+actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
 for scene_id, registration in zip(SCENE_IDS, registrations):
     blueprint = unreal.EditorAssetLibrary.load_asset(
@@ -96,8 +97,20 @@ for scene_id, registration in zip(SCENE_IDS, registrations):
                 f"{scene_id} artist visual component has collision enabled: {name}"
             )
 
+    spawned = actor_subsystem.spawn_actor_from_class(
+        blueprint.generated_class(), unreal.Vector(), unreal.Rotator()
+    )
+    if spawned is None:
+        fail(f"Could not create transient validation actor for {scene_id}")
+    try:
+        if not spawned.does_backdrop_cover_camera_bounds(1.0):
+            fail(
+                f"{scene_id} transformed Backdrop mesh XY bounds do not cover CameraClampBounds"
+            )
+    finally:
+        actor_subsystem.destroy_actor(spawned)
+
 level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 if not level_subsystem.load_level("/Game/Level00"):
     fail("Could not load Level00")
 actors = actor_subsystem.get_all_level_actors()

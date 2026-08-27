@@ -93,6 +93,17 @@ def set_bounds_component(component, half_extents, local_plane_z, z_offset):
         "relative_location",
         unreal.Vector(location.x, location.y, local_plane_z + z_offset),
     )
+
+
+def bake_legacy_backdrop_transform(component, half_extents):
+    component.set_editor_property("relative_location", unreal.Vector(0.0, 0.0, -0.5))
+    component.set_editor_property(
+        "relative_rotation", unreal.Rotator(pitch=0.0, yaw=90.0, roll=0.0)
+    )
+    component.set_editor_property(
+        "relative_scale3d",
+        unreal.Vector(half_extents.y * 2.0 / 100.0, half_extents.x * 2.0 / 100.0, 1.0),
+    )
     component.set_editor_property(
         "box_extent", unreal.Vector(half_extents.x, half_extents.y, 5.0)
     )
@@ -119,6 +130,9 @@ for scene_id, blueprint in blueprints.items():
             fail(f"{scene_id} is missing {required}")
     if entries["Backdrop"].get_material(0) is None:
         fail(f"{scene_id} Backdrop Material Slot 0 is empty")
+    bake_legacy_backdrop_transform(
+        entries["Backdrop"], defaults.get_editor_property("backdrop_half_extents")
+    )
     local_plane_z = defaults.get_editor_property("gameplay_plane_z")
     set_bounds_component(
         entries["CameraClampBounds"],
