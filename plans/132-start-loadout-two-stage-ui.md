@@ -30,6 +30,7 @@
   - `scripts/ue/import_plan132_loadout_assets.py`
   - `scripts/ue/author_plan132_loadout_widgets.py`
   - `scripts/ue/audit_plan132_loadout_widgets.py`
+  - `scripts/ue/migrate_plan132_entry_arrow_aspect.py`
   - `Design/UI/ReEcho_UI修改指导.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
@@ -120,6 +121,7 @@
 - 用户微调后发现单张 `SelectionArrow` 仍被状态刷新中的硬编码坐标覆盖；箭头契约改为角色/武器各四张 Designer-owned Image，运行时只切换可见性。定向迁移保留用户已调整的 `SelectionArrow` 作为猎手箭头，仅补齐其余七张，不重跑整页作者ing。
 - 鼠标悬停说明的外框改为直接使用交付的 `T_UI_Loadout_DescriptionPanel` 九宫格 Brush，避免纯色 Border 在运行时缩放后丢失视觉边界；迁移仅修改 Tooltip WBP，不触碰用户继续微调的 Selection WBP。
 - 角色/武器 Designer 切页从 Class Defaults 自定义预览枚举改为 UMG 原生 `StageSwitcher`。角色与武器两个实际 Stage Panel 都是 Switcher 的直接页面，设计者在 Details 中切换 `Active Widget Index=0/1` 即可即时编辑对应运行布局；运行时只设置同一个索引，不复制或重建页面。
+- 用户继续微调 Selection 后反馈枪图被武器固定槽拉长、公共 Canvas 上的箭头不跟随条目 Hover 缩放。Entry 的 `PortraitScale` 契约现强制为 `ScaleToFit`；`EntrySelectionArrow` 与 `SelectButton` 改为 `EntryVisualOverlay` 的同级子项，复用全局按钮反馈对 Overlay 整组缩放。定向迁移只包装 Entry、添加内部箭头并移除 Selection 的 8 张脱离箭头，未重跑整页作者ing，用户本轮 Selection 微调保留在候选中。
 - 增加幂等导入、作者ing、审计脚本及 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 自动化；Packaging AlwaysCook 收集正式 Loadout 纹理目录。
 
 ### 证据
@@ -136,6 +138,7 @@
 - SelectionArrow 回位修复轮通过定向迁移补齐 8 个 Designer-owned 箭头并保留用户微调后的 `SelectionArrow`；审计确认角色/武器各四张箭头均为设计面直接子项。Development Editor 增量构建成功，精选预构建源码指纹为 `cce07464ec44`；Assets/Flow 两项聚焦自动化均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`，项目静态校验、Python 脚本语法、预构建一致性和 `git diff --check` 均通过。
 - Tooltip 外框修复轮将交付的 `T_UI_Loadout_DescriptionPanel` 绑定为 `TooltipFrame` 的九宫格 Brush；资产审计确认资源路径和 `DrawAs=Box`，Assets 自动化实例化实际 Tooltip 并验证运行时仍保留该 Brush。Development Editor 增量构建成功，精选预构建源码指纹为 `fa96a54f27f2`；Assets/Flow 均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`。用户继续微调但未纳入本轮提交的 Selection WBP 保持原样。
 - 武器页所见即所得修复轮保留用户对 Selection 与 Tooltip 的最新微调，并只把两个既有 Stage Panel 移入原生 `StageSwitcher`；资产审计确认 `active=1`、页面顺序为角色/武器，打开 WBP 默认直接显示武器页。Development Editor 增量构建成功，精选预构建源码指纹为 `aab359f4d5c5`；Assets 自动化验证运行时从角色索引 `0` 正确切到武器索引 `1`，Assets/Flow 均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`。
+- 枪图与箭头整组缩放修复轮：源图审计确认枪 Selected/Unselected 均为 `249×227` 近方形画布，其余三种武器为纵向画布；资产审计确认 Entry 为 9 节点、`PortraitScale=ScaleToFit`，`SelectButton` 与 `EntrySelectionArrow` 都直属 `EntryVisualOverlay`，Selection 中脱离条目的旧箭头为 0。Development Editor 增量构建成功，精选预构建源码指纹为 `0c11d45e8a87`；`ReEcho.UI.LoadoutSelection.{Assets,Flow}` 均为 `Result={Success}`，全蓝图编译命令以 `Success - 0 error(s), 4 warning(s)` 完成（4 条为既有引擎/Legacy 警告），未出现蓝图失败加载或 Plan132 错误。
 
 ### 剩余风险
 

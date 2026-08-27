@@ -29,12 +29,36 @@ def main():
             raise RuntimeError(f"Missing Plan132 WidgetBlueprint: {asset_path}")
         infos = toolset.call_method("GetWidgets", args=(blueprint,)).widgets
         widgets = [info.widget for info in infos if info.widget]
+        widget_by_name = {widget.get_name(): widget for widget in widgets}
         roots = [widget for widget in widgets if widget.get_parent() is None]
         unreal.log(
             f"[Plan132LoadoutAudit] asset={asset_path} widgets={len(widgets)} "
             f"roots={[root.get_name() for root in roots]}"
         )
         if asset_path.endswith("WBP_ReEchoLoadoutEntry"):
+            visual_overlay = widget_by_name.get("EntryVisualOverlay")
+            select_button = widget_by_name.get("SelectButton")
+            selection_arrow = widget_by_name.get("EntrySelectionArrow")
+            portrait_scale = widget_by_name.get("PortraitScale")
+            if (
+                not isinstance(visual_overlay, unreal.Overlay)
+                or select_button.get_parent() is not visual_overlay
+                or not isinstance(selection_arrow, unreal.Image)
+                or selection_arrow.get_parent() is not visual_overlay
+            ):
+                raise RuntimeError(
+                    "Plan132 entry arrow is not inside the button hover visual root"
+                )
+            if (
+                not isinstance(portrait_scale, unreal.ScaleBox)
+                or portrait_scale.get_editor_property("stretch")
+                != unreal.Stretch.SCALE_TO_FIT
+            ):
+                raise RuntimeError("Plan132 entry portrait is not strict aspect-fit")
+            unreal.log(
+                "[Plan132LoadoutAudit] entry_visual_root=EntryVisualOverlay "
+                "children=['SelectButton', 'EntrySelectionArrow'] portrait_stretch=ScaleToFit"
+            )
             generated_class = blueprint.generated_class()
             default_object = unreal.get_default_object(generated_class)
             tooltip_class = default_object.get_editor_property("tooltip_widget_class")
@@ -53,7 +77,6 @@ def main():
                     "Plan132 entry does not reference the authored tooltip class"
                 )
         if asset_path.endswith("WBP_ReEchoLoadoutSelection"):
-            widget_by_name = {widget.get_name(): widget for widget in widgets}
             design_canvas = widget_by_name.get("LoadoutDesignCanvas")
             stage_switcher = widget_by_name.get("StageSwitcher")
             character_stage = widget_by_name.get("CharacterStagePanel")
@@ -104,7 +127,7 @@ def main():
                     raise RuntimeError(
                         f"Plan132 {domain} preview does not use the runtime Entry WBP"
                     )
-            arrow_names = (
+            legacy_arrow_names = (
                 "CharacterSelectionArrow0",
                 "CharacterSelectionArrow1",
                 "CharacterSelectionArrow2",
@@ -114,14 +137,16 @@ def main():
                 "WeaponSelectionArrow2",
                 "WeaponSelectionArrow3",
             )
-            for arrow_name in arrow_names:
-                arrow = widget_by_name.get(arrow_name)
-                if not isinstance(arrow, unreal.Image) or arrow.get_parent() is not design_canvas:
-                    raise RuntimeError(
-                        f"Plan132 Designer-owned selection arrow is missing: {arrow_name}"
-                    )
+            remaining_legacy_arrows = [
+                name for name in legacy_arrow_names if widget_by_name.get(name) is not None
+            ]
+            if remaining_legacy_arrows:
+                raise RuntimeError(
+                    "Plan132 selection still owns detached legacy arrows: "
+                    f"{remaining_legacy_arrows}"
+                )
             unreal.log(
-                f"[Plan132LoadoutAudit] designer_selection_arrows={list(arrow_names)}"
+                "[Plan132LoadoutAudit] detached_selection_arrows=[]"
             )
         for info in infos:
             widget = info.widget

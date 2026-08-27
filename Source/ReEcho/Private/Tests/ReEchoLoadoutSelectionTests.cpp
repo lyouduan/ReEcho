@@ -124,19 +124,32 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			TestTrue(TEXT("Runtime reuses the first Designer-authored weapon entry"),
 			         AuthoredWidget->WeaponEntries.IsValidIndex(0) &&
 			             AuthoredWidget->WeaponEntries[0].Get() == FirstAuthoredWeapon);
-			TestNotNull(TEXT("Designer tree owns the first character selection arrow"),
-			            AuthoredWidget->CharacterSelectionArrow0.Get());
-			TestNotNull(TEXT("Designer tree owns the last weapon selection arrow"),
-			            AuthoredWidget->WeaponSelectionArrow3.Get());
+			UReEchoLoadoutEntryWidget* FirstCharacterEntry =
+			    Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredCharacter);
+			UReEchoLoadoutEntryWidget* FirstWeaponEntry = Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredWeapon);
+			UImage* CharacterArrow = FirstCharacterEntry
+			                             ? Cast<UImage>(FirstCharacterEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")))
+			                             : nullptr;
+			UImage* WeaponArrow = FirstWeaponEntry
+			                          ? Cast<UImage>(FirstWeaponEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")))
+			                          : nullptr;
+			TestNotNull(TEXT("Each authored character entry owns its selection arrow"), CharacterArrow);
+			TestNotNull(TEXT("Each authored weapon entry owns its selection arrow"), WeaponArrow);
 			AuthoredWidget->SelectionStage = UReEchoLoadoutSelectionWidget::ESelectionStage::Character;
 			AuthoredWidget->SelectedCharacterId = TEXT("J_HEART");
-			AuthoredWidget->RefreshSelectionArrow();
-			TestEqual(TEXT("Character selection displays its Designer-owned arrow"),
-			          AuthoredWidget->CharacterSelectionArrow0->GetVisibility(),
-			          ESlateVisibility::HitTestInvisible);
-			TestEqual(TEXT("Other Designer arrows remain collapsed"),
-			          AuthoredWidget->SelectionArrow->GetVisibility(),
-			          ESlateVisibility::Collapsed);
+			AuthoredWidget->RefreshSelection();
+			if (CharacterArrow)
+			{
+				TestEqual(TEXT("Selected entry displays the arrow inside its hover-scaled visual root"),
+				          CharacterArrow->GetVisibility(),
+				          ESlateVisibility::HitTestInvisible);
+			}
+			if (WeaponArrow)
+			{
+				TestEqual(TEXT("Inactive entry arrow remains collapsed"),
+				          WeaponArrow->GetVisibility(),
+				          ESlateVisibility::Collapsed);
+			}
 		}
 		else
 		{

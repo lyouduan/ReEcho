@@ -320,12 +320,12 @@ void UReEchoLoadoutSelectionWidget::NativePreConstruct()
 		{
 			if (UReEchoLoadoutEntryWidget* Entry = Cast<UReEchoLoadoutEntryWidget>(PreviewRow->GetChildAt(ChildIndex)))
 			{
-				Entry->ApplyDesignerPreviewState(DesignerPreviewIndex < 0 || DesignerPreviewIndex == ChildIndex);
+				Entry->ApplyDesignerPreviewState(DesignerPreviewIndex < 0 || DesignerPreviewIndex == ChildIndex,
+				                                 DesignerPreviewIndex == ChildIndex);
 			}
 		}
 	}
 	const bool bHasPreview = DesignerPreviewIndex >= 0;
-	ApplySelectionArrowVisibility(bCharacterStage, bHasPreview ? DesignerPreviewIndex : INDEX_NONE);
 	if (ConfirmButton)
 	{
 		ConfirmButton->SetVisibility(bHasPreview ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
@@ -731,7 +731,6 @@ void UReEchoLoadoutSelectionWidget::RefreshSelectionArrow()
 	const bool bCharacterStage = SelectionStage == ESelectionStage::Character;
 	const int32 PreviewIndex = bCharacterStage ? CharacterOptionIds.IndexOfByKey(SelectedCharacterId)
 	                                           : WeaponOptionIds.IndexOfByKey(SelectedWeaponId);
-	ApplySelectionArrowVisibility(bCharacterStage, PreviewIndex);
 	if (PreviewIndex < 0 || PreviewIndex >= 4)
 	{
 		return;
@@ -751,63 +750,6 @@ void UReEchoLoadoutSelectionWidget::RefreshSelectionArrow()
 		    350.0f));
 	}
 }
-
-void UReEchoLoadoutSelectionWidget::ApplySelectionArrowVisibility(const bool bCharacterStage, const int32 PreviewIndex)
-{
-	UImage* AllArrows[] = {CharacterSelectionArrow0.Get(),
-	                       CharacterSelectionArrow1.Get(),
-	                       CharacterSelectionArrow2.Get(),
-	                       SelectionArrow.Get(),
-	                       WeaponSelectionArrow0.Get(),
-	                       WeaponSelectionArrow1.Get(),
-	                       WeaponSelectionArrow2.Get(),
-	                       WeaponSelectionArrow3.Get()};
-	for (UImage* Arrow : AllArrows)
-	{
-		if (Arrow)
-		{
-			Arrow->SetVisibility(ESlateVisibility::Collapsed);
-		}
-	}
-	if (UImage* ActiveArrow = GetSelectionArrow(bCharacterStage, PreviewIndex))
-	{
-		ActiveArrow->SetVisibility(ESlateVisibility::HitTestInvisible);
-	}
-}
-
-UImage* UReEchoLoadoutSelectionWidget::GetSelectionArrow(const bool bCharacterStage, const int32 PreviewIndex) const
-{
-	if (PreviewIndex < 0 || PreviewIndex >= 4)
-	{
-		return nullptr;
-	}
-	if (bCharacterStage)
-	{
-		switch (PreviewIndex)
-		{
-			case 0:
-				return CharacterSelectionArrow0.Get();
-			case 1:
-				return CharacterSelectionArrow1.Get();
-			case 2:
-				return CharacterSelectionArrow2.Get();
-			default:
-				return SelectionArrow.Get();
-		}
-	}
-	switch (PreviewIndex)
-	{
-		case 0:
-			return WeaponSelectionArrow0.Get();
-		case 1:
-			return WeaponSelectionArrow1.Get();
-		case 2:
-			return WeaponSelectionArrow2.Get();
-		default:
-			return WeaponSelectionArrow3.Get();
-	}
-}
-
 void UReEchoLoadoutSelectionWidget::SetSelectionStage(const ESelectionStage NewStage)
 {
 	SelectionStage = NewStage;

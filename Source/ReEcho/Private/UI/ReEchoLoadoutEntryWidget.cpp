@@ -46,12 +46,12 @@ void UReEchoLoadoutEntryWidget::NativePreConstruct()
 		PortraitSize->SetWidthOverride(DesignerPreviewWidth);
 		PortraitSize->SetHeightOverride(480.0f);
 	}
-	ApplyDesignerPreviewState(bDesignerPreviewSelected);
+	ApplyDesignerPreviewState(bDesignerPreviewSelected, false);
 #endif
 }
 
 #if WITH_EDITOR
-void UReEchoLoadoutEntryWidget::ApplyDesignerPreviewState(const bool bIsSelected)
+void UReEchoLoadoutEntryWidget::ApplyDesignerPreviewState(const bool bIsSelected, const bool bShowSelectionArrow)
 {
 #if WITH_EDITORONLY_DATA
 	bDesignerPreviewSelected = bIsSelected;
@@ -68,6 +68,11 @@ void UReEchoLoadoutEntryWidget::ApplyDesignerPreviewState(const bool bIsSelected
 	{
 		NameText->SetColorAndOpacity(FSlateColor(bIsSelected ? FLinearColor(1.0f, 0.96f, 0.88f, 1.0f)
 		                                                     : FLinearColor(0.46f, 0.43f, 0.37f, 1.0f)));
+	}
+	if (EntrySelectionArrow)
+	{
+		EntrySelectionArrow->SetVisibility(bShowSelectionArrow ? ESlateVisibility::HitTestInvisible
+		                                                             : ESlateVisibility::Collapsed);
 	}
 #endif
 }
@@ -118,6 +123,11 @@ void UReEchoLoadoutEntryWidget::SetPresentationState(const bool bHasPreview, con
 	}
 	NameText->SetColorAndOpacity(FSlateColor(!bHasPreview || bIsPreviewed ? FLinearColor(1.0f, 0.96f, 0.88f, 1.0f)
 	                                                                      : FLinearColor(0.46f, 0.43f, 0.37f, 1.0f)));
+	if (EntrySelectionArrow)
+	{
+		EntrySelectionArrow->SetVisibility(bHasPreview && bIsPreviewed ? ESlateVisibility::HitTestInvisible
+		                                                                  : ESlateVisibility::Collapsed);
+	}
 	SelectButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
 }
 

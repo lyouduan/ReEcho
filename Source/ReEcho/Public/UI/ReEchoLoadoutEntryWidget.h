@@ -46,7 +46,7 @@ public:
 	void FocusSelection();
 
 #if WITH_EDITOR
-	void ApplyDesignerPreviewState(bool bIsSelected);
+	void ApplyDesignerPreviewState(bool bIsSelected, bool bShowSelectionArrow = false);
 #endif
 
 protected:
@@ -70,6 +70,10 @@ private:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> NameText;
+
+	/** Lives beside SelectButton in the same Overlay so global hover feedback scales both together. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> EntrySelectionArrow;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<USizeBox> EntryRootSizeBox;

@@ -44,14 +44,15 @@ WEAPON_PREVIEW_ORDER = (
     ("W_J_01", "剑"),
     ("W_J_08", "弓"),
 )
-ADDITIONAL_SELECTION_ARROWS = (
-    ("CharacterSelectionArrow0", 330.0, 822.0),
-    ("CharacterSelectionArrow1", 725.0, 822.0),
-    ("CharacterSelectionArrow2", 1120.0, 822.0),
-    ("WeaponSelectionArrow0", 547.0, 852.0),
-    ("WeaponSelectionArrow1", 821.0, 852.0),
-    ("WeaponSelectionArrow2", 1095.0, 852.0),
-    ("WeaponSelectionArrow3", 1369.0, 852.0),
+LEGACY_SELECTION_ARROWS = (
+    "CharacterSelectionArrow0",
+    "CharacterSelectionArrow1",
+    "CharacterSelectionArrow2",
+    "SelectionArrow",
+    "WeaponSelectionArrow0",
+    "WeaponSelectionArrow1",
+    "WeaponSelectionArrow2",
+    "WeaponSelectionArrow3",
 )
 
 
@@ -313,23 +314,14 @@ def ensure_selection_preview_entries(
             )
 
 
-def ensure_additional_selection_arrows(
-    toolset, blueprint, design_canvas, arrow_texture
-):
-    for name, x, y in ADDITIONAL_SELECTION_ARROWS:
-        widgets = widget_map(toolset, blueprint)
+def remove_legacy_selection_arrows(toolset, blueprint):
+    widgets = widget_map(toolset, blueprint)
+    for name in LEGACY_SELECTION_ARROWS:
         arrow = widgets.get(name)
-        if arrow is None:
-            arrow = add_widget(
-                toolset, blueprint, unreal.Image, name, design_canvas
-            )
-            set_canvas_layout(arrow, x, y, 60.0, 33.0, 80)
-            configure_image(
-                arrow, arrow_texture, unreal.SlateVisibility.COLLAPSED
-            )
-        elif not isinstance(arrow, unreal.Image):
-            raise RuntimeError(f"Plan132 Selection arrow has wrong type: {name}")
-        mark_variable(toolset, blueprint, arrow)
+        if arrow is not None and not toolset.call_method(
+            "RemoveWidget", args=(blueprint, arrow)
+        ):
+            raise RuntimeError(f"Failed to remove legacy Loadout arrow: {name}")
 
 
 def ensure_stage_switcher(toolset, blueprint, design_canvas, character_stage, weapon_stage):
@@ -486,7 +478,7 @@ def author_tooltip(
         raise RuntimeError("Plan132 Tooltip WBP failed to save")
 
 
-def author_entry(toolset, blueprint, sample_texture, formal_font):
+def author_entry(toolset, blueprint, sample_texture, arrow_texture, formal_font):
     widgets = widget_map(toolset, blueprint)
     select_button = widgets.get("SelectButton")
     entry_content = widgets.get("EntryContent")
@@ -523,11 +515,49 @@ def author_entry(toolset, blueprint, sample_texture, formal_font):
         root_size = renamed.widget
     if not isinstance(root_size, unreal.SizeBox):
         raise RuntimeError("Plan132 Entry root is not SizeBox")
+
+    widgets = widget_map(toolset, blueprint)
+    visual_overlay = widgets.get("EntryVisualOverlay")
+    if visual_overlay is None:
+        if select_button.get_parent() is not root_size:
+            raise RuntimeError("Plan132 Entry SelectButton cannot be wrapped safely")
+        wrappers = toolset.call_method(
+            "WrapWidgets", args=(blueprint, [select_button], unreal.Overlay)
+        )
+        if len(wrappers) != 1 or wrappers[0].widget is None:
+            raise RuntimeError("Failed to create Plan132 Entry hover visual root")
+        renamed = toolset.call_method(
+            "RenameWidget",
+            args=(blueprint, wrappers[0].widget, "EntryVisualOverlay"),
+        )
+        visual_overlay = renamed.widget
+    if not isinstance(visual_overlay, unreal.Overlay):
+        raise RuntimeError("Plan132 EntryVisualOverlay has the wrong type")
+    if select_button.get_parent() is not visual_overlay:
+        raise RuntimeError("Plan132 SelectButton is outside its hover visual root")
+
+    widgets = widget_map(toolset, blueprint)
+    selection_arrow = widgets.get("EntrySelectionArrow")
+    if selection_arrow is None:
+        selection_arrow = add_widget(
+            toolset,
+            blueprint,
+            unreal.Image,
+            "EntrySelectionArrow",
+            visual_overlay,
+        )
+    if not isinstance(selection_arrow, unreal.Image):
+        raise RuntimeError("Plan132 EntrySelectionArrow has the wrong type")
+    if selection_arrow.get_parent() is not visual_overlay:
+        raise RuntimeError("Plan132 EntrySelectionArrow is outside its hover visual root")
+
     mark_variable(toolset, blueprint, root_size)
+    mark_variable(toolset, blueprint, visual_overlay)
     mark_variable(toolset, blueprint, select_button)
     mark_variable(toolset, blueprint, portrait_size)
     mark_variable(toolset, blueprint, portrait_image)
     mark_variable(toolset, blueprint, name_text)
+    mark_variable(toolset, blueprint, selection_arrow)
 
     root_size.set_width_override(390.0)
     root_size.set_height_override(560.0)
@@ -537,13 +567,27 @@ def author_entry(toolset, blueprint, sample_texture, formal_font):
     portrait_scale.set_editor_property(
         "stretch_direction", unreal.StretchDirection.BOTH
     )
+    configure_image(
+        selection_arrow, arrow_texture, unreal.SlateVisibility.COLLAPSED
+    )
     configure_transparent_button(select_button)
+    set_panel_slot_fill(visual_overlay)
     set_panel_slot_fill(select_button)
     set_panel_slot_fill(entry_content)
     set_panel_slot_fill(portrait_size)
     set_panel_slot_fill(portrait_scale)
     set_panel_slot_fill(portrait_image)
     set_panel_slot_fill(name_text)
+    arrow_slot = selection_arrow.get_editor_property("slot")
+    if not isinstance(arrow_slot, unreal.OverlaySlot):
+        raise RuntimeError("Plan132 EntrySelectionArrow does not have an Overlay slot")
+    arrow_slot.set_editor_property(
+        "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_CENTER
+    )
+    arrow_slot.set_editor_property(
+        "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_BOTTOM
+    )
+    arrow_slot.set_editor_property("padding", unreal.Margin(0.0, 0.0, 0.0, 0.0))
     configure_image(portrait_image, sample_texture)
     configure_text(
         name_text,
@@ -567,7 +611,6 @@ def author_selection(
     blueprint,
     entry_widget_class,
     description_texture,
-    arrow_texture,
     confirm_texture,
     formal_font,
 ):
@@ -729,18 +772,6 @@ def author_selection(
         )
         set_panel_slot_fill(description_text)
 
-        selection_arrow = add_widget(
-            toolset,
-            blueprint,
-            unreal.Image,
-            "SelectionArrow",
-            design_canvas,
-        )
-        set_canvas_layout(selection_arrow, 330.0, 822.0, 60.0, 33.0, 80)
-        configure_image(
-            selection_arrow, arrow_texture, unreal.SlateVisibility.COLLAPSED
-        )
-
         confirm_button = add_widget(
             toolset,
             blueprint,
@@ -779,9 +810,7 @@ def author_selection(
         set_canvas_layout(status_text, 0.0, 0.0, 1.0, 1.0, 0)
         status_text.set_editor_property("visibility", unreal.SlateVisibility.COLLAPSED)
 
-    ensure_additional_selection_arrows(
-        toolset, blueprint, design_canvas, arrow_texture
-    )
+    remove_legacy_selection_arrows(toolset, blueprint)
     widgets = widget_map(toolset, blueprint)
     ensure_stage_switcher(
         toolset,
@@ -800,14 +829,6 @@ def author_selection(
         "TitleText": unreal.TextBlock,
         "DescriptionPanel": unreal.Image,
         "DescriptionText": unreal.TextBlock,
-        "SelectionArrow": unreal.Image,
-        "CharacterSelectionArrow0": unreal.Image,
-        "CharacterSelectionArrow1": unreal.Image,
-        "CharacterSelectionArrow2": unreal.Image,
-        "WeaponSelectionArrow0": unreal.Image,
-        "WeaponSelectionArrow1": unreal.Image,
-        "WeaponSelectionArrow2": unreal.Image,
-        "WeaponSelectionArrow3": unreal.Image,
         "ConfirmButton": unreal.Button,
         "ConfirmButtonLabel": unreal.TextBlock,
         "StatusText": unreal.TextBlock,
@@ -846,11 +867,6 @@ def author_selection(
         "shadow_color_and_opacity", unreal.LinearColor(0.0, 0.0, 0.0, 0.85)
     )
     set_canvas_layout(title, 650.0, 112.0, 620.0, 120.0, 50)
-
-    selection_arrow = widgets["SelectionArrow"]
-    selection_arrow.set_editor_property(
-        "visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE
-    )
 
     confirm_button = widgets["ConfirmButton"]
     confirm_button.set_editor_property("visibility", unreal.SlateVisibility.VISIBLE)
@@ -913,7 +929,7 @@ def main():
         preview_title,
         preview_description,
     )
-    author_entry(toolset, entry, sample_texture, formal_font)
+    author_entry(toolset, entry, sample_texture, arrow_texture, formal_font)
     entry_widget_class = entry.generated_class()
     if entry_widget_class is None:
         raise RuntimeError("Plan132 Entry WBP has no generated class")
@@ -922,7 +938,6 @@ def main():
         selection,
         entry_widget_class,
         description_texture,
-        arrow_texture,
         confirm_texture,
         formal_font,
     )
