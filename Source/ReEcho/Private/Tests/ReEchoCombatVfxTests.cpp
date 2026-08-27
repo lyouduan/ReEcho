@@ -436,8 +436,48 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(StartWorld, EndWorld, StartParameter, EndParameter);
 	TestTrue(TEXT("World-space Conduct preserves a non-zero source origin"),
 	         StartParameter.Equals(StartWorld, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("World-space Conduct preserves oblique direction and distance"),
-	         EndParameter.Equals(EndWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Conduct converts its Beam End to the source-relative target displacement"),
+	         EndParameter.Equals(EndWorld - StartWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Conduct absolute start plus relative end reconstructs the target world position"),
+	         (StartParameter + EndParameter).Equals(EndWorld, KINDA_SMALL_NUMBER));
+	UWorld* ConductAnchorWorld = UWorld::CreateWorld(EWorldType::EditorPreview, false);
+	AReEchoVfxScenarioTargetActor* ConductSource =
+	    ConductAnchorWorld ? ConductAnchorWorld->SpawnActor<AReEchoVfxScenarioTargetActor>() : nullptr;
+	AReEchoVfxScenarioTargetActor* ConductTarget =
+	    ConductAnchorWorld ? ConductAnchorWorld->SpawnActor<AReEchoVfxScenarioTargetActor>() : nullptr;
+	FVector ConductAnchorStart = FVector::ZeroVector;
+	FVector ConductAnchorEnd = FVector::ZeroVector;
+	TestFalse(TEXT("Conduct is suppressed when either explicit Hurt VFX root is missing"),
+	          UReEchoCombatVfxComponent::TryResolveConductLinkAnchors(
+	              ConductSource, ConductTarget, ConductAnchorStart, ConductAnchorEnd));
+	if (ConductSource && ConductTarget)
+	{
+		USceneComponent* SourceHurtRoot = NewObject<USceneComponent>(ConductSource);
+		USceneComponent* TargetHurtRoot = NewObject<USceneComponent>(ConductTarget);
+		SourceHurtRoot->RegisterComponent();
+		TargetHurtRoot->RegisterComponent();
+		SourceHurtRoot->SetWorldLocation(StartWorld);
+		TargetHurtRoot->SetWorldLocation(EndWorld);
+		UReEchoCombatVfxComponent* SourceVfx = NewObject<UReEchoCombatVfxComponent>(ConductSource);
+		UReEchoCombatVfxComponent* TargetVfx = NewObject<UReEchoCombatVfxComponent>(ConductTarget);
+		ConductSource->AddInstanceComponent(SourceVfx);
+		ConductTarget->AddInstanceComponent(TargetVfx);
+		SourceVfx->RegisterComponent();
+		TargetVfx->RegisterComponent();
+		SourceVfx->ConfigureAttachmentRoots(nullptr, SourceHurtRoot);
+		TargetVfx->ConfigureAttachmentRoots(nullptr, TargetHurtRoot);
+		TestTrue(TEXT("Conduct resolves only from both explicit Hurt VFX roots"),
+		         UReEchoCombatVfxComponent::TryResolveConductLinkAnchors(
+		             ConductSource, ConductTarget, ConductAnchorStart, ConductAnchorEnd));
+		TestTrue(TEXT("Conduct starts at the source Hurt VFX root"),
+		         ConductAnchorStart.Equals(StartWorld, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Conduct ends at the target Hurt VFX root"),
+		         ConductAnchorEnd.Equals(EndWorld, KINDA_SMALL_NUMBER));
+	}
+	if (ConductAnchorWorld)
+	{
+		ConductAnchorWorld->DestroyWorld(false);
+	}
 	FVector BeamStart = FVector::ZeroVector;
 	FVector BeamEnd = FVector::ZeroVector;
 	const FVector BeamWarningCenter(300.0f, -120.0f, 40.0f);
@@ -523,8 +563,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
 	    StartWorld, MovedEndWorld, StartParameter, EndParameter);
-	TestTrue(TEXT("Moved target is recomputed rather than retaining the event snapshot"),
-	         EndParameter.Equals(MovedEndWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Moved target recomputes its source-relative Beam End rather than retaining the event snapshot"),
+	         EndParameter.Equals(MovedEndWorld - StartWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Moved target relative Beam End reconstructs the current target world position"),
+	         (StartParameter + EndParameter).Equals(MovedEndWorld, KINDA_SMALL_NUMBER));
 	const FString ConductPath =
 	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Conduct, TEXT("Enemy.Slime"));
 	UNiagaraSystem* ConductSystem = LoadObject<UNiagaraSystem>(nullptr, *ConductPath);

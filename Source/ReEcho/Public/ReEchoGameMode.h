@@ -92,6 +92,9 @@ public:
 	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */
 	UFUNCTION(Exec)
 	void GMElement(const FString& Element = TEXT("Flame"));
+	/** Sets or clears the current Grass/Water attachment on every living enemy without damage or reactions. */
+	UFUNCTION(Exec)
+	void GMEnemyElementAll(const FString& Element = TEXT("Water"));
 	/** Directly previews one reaction VFX on the nearest living enemy without changing combat state. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
@@ -397,6 +400,7 @@ private:
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
 	static void ResolveGMSpawnFoxRequest(
 	    float CountOrDistance, float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance);
+	static bool TryResolveGMEnemyAttachment(const FString& Element, EReEchoElement& OutElement);
 	static TArray<FVector> BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
 	                                                const FVector2D& ArenaCenter,
 	                                                const FVector2D& ArenaHalfExtents,
@@ -407,6 +411,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
 	friend class FReEchoGameModeBossVictoryGateTest;
+	friend class FReEchoGameModeEnemyElementAllTest;
 	friend class FReEchoEncounterTransitionPolicyTest;
 #endif
 	static bool ShouldStartEncounterTransition(float RemainingTime, bool bBossEncounter, bool bTransitioning);
