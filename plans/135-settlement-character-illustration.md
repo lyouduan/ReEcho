@@ -11,7 +11,7 @@
 - 本地规划 / 实现基线：`origin/main@847283f32d54d2d76628730f2666af72b28cb756`。
 - 本地实现方式（可选，仅作交接说明）：`plan/135-settlement-character-illustration`，`ReEcho-plan135-settlement-character-illustration` 独立 worktree。
 - 依赖 / 阻塞：无额外美术依赖。直接复用选角阶段已有的四张角色图（LoadoutSelection 的 `Selected` 变体：`T_UI_Loadout_Character_J_<SUIT>_Selected`，J_HEART / J_SPADE / J_CLOVER / J_DIAMOND），死亡与胜利均按所选 `CharacterId` 切换该图；不新增源图或纹理。
-- Writes：`plans/135-settlement-character-illustration.md`；`Source/ReEcho/Public/UI/ReEchoRestartWidget.h`；`Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp`（调用点传入 `CharacterId`）；`Source/ReEcho/Private/Tests/ReEchoRestartWidgetTests.cpp`（按角色立绘断言）；`shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`；`Design/UI/ReEcho_UI修改指导.md`。复用（只读）既有 `WBP_ReEchoRestart` 节点 `ArtDefeatCharacterFormal` / `ArtVictoryCharacterFormal` 和既有资产 `/Game/ReEcho/Textures/UI/LoadoutSelection/T_UI_Loadout_Character_J_<SUIT>_Selected`，不修改二进制 WBP。
+- Writes：`plans/135-settlement-character-illustration.md`；`Content/ReEcho/UI/WBP_ReEchoRestart.uasset`（仅把两个正式角色 Image 的 ZOrder 提到各自 Canvas 最前）；`Source/ReEcho/Public/UI/ReEchoRestartWidget.h`；`Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp`（调用点传入 `CharacterId`）；`Source/ReEcho/Private/Tests/ReEchoRestartWidgetTests.cpp`（按角色立绘断言）；`scripts/ue/author_plan135_settlement_character_front_layer.py`；`scripts/ue/audit_plan135_settlement_character_front_layer.py`；`shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`；`Design/UI/ReEcho_UI修改指导.md`。复用既有 `WBP_ReEchoRestart` 节点 `ArtDefeatCharacterFormal` / `ArtVictoryCharacterFormal` 和既有资产 `/Game/ReEcho/Textures/UI/LoadoutSelection/T_UI_Loadout_Character_J_<SUIT>_Selected`。
 - Stable Reads：`Source/ReEcho/Public/UI/ReEchoRestartWidget.h`；`Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp` 的结算调用点（`ReEchoGameMode.cpp:3231` 附近）；`Source/ReEcho/Public/Run/ReEchoRunSubsystem.h` 与 `Private/Run/ReEchoRunSubsystem.cpp` 的 `StartRun` / `CurrentBuild.CharacterId`；`Source/ReEcho/Private/UI/ReEchoLoadoutSelectionWidget.cpp` 的 `LoadoutTexturePath` / `CharacterTexturePath` 约定（`ReEchoLoadoutSelectionWidget.cpp:567`）；`Design/UI/ReEcho_UI修改指导.md`；`Content/SourceArt/UI/LoadoutSelection/`（四张选角角色图与命名约定）。
 - 影响模式：`SharedContract`（`WBP_ReEchoRestart` 六种状态共用，高冲突二进制资产）。
 - 兼容承诺 / 下游操作：保护普通暂停、两种退出确认、胜利、重开与返回主菜单流程；保持既有 `BindWidgetOptional` 名称与类型；未知/缺失立绘时回退既有红帽图，不破坏任何状态或伪造数据。
@@ -46,6 +46,7 @@
 - [ ] 选 J_HEART / J_SPADE / J_CLOVER / J_DIAMOND 中任一带到死亡，结算失败页角色立绘 = 该角色在选角界面所用的 `Selected` 立绘，不再是固定红帽。
 - [ ] 同上角色带至胜利，结算胜利页角色立绘 = 该角色选角 `Selected` 立绘。
 - [ ] 选红帽角色死亡/胜利，结算角色立绘 = 红帽（与现状一致）。
+- [x] 胜利与失败角色 Image 均位于各自 Canvas 最前层且保持 `HitTestInvisible`，不被兄弟装饰遮挡也不阻挡按钮输入。
 - [x] 未知 / 缺失立绘时回退红帽，不崩溃、不影响暂停/退出确认/重开/返回主菜单。
 - [x] `WBP_ReEchoRestart` 编译通过；`RootPanel` / `TitleText` / 按钮及既有 Victory/Defeat 美术绑定名称与类型保持可加载。
 - [x] `SetDeathScreen` / `SetVictoryScreen` 调用点（`ReEchoGameMode.cpp:3231`）更新，并扩展 `ReEchoRestartWidgetTests.cpp` 增加"按角色立绘"断言（覆盖四个 `CharacterId` 与回退）。
@@ -91,6 +92,7 @@
 - `AReEchoGameMode::ShowRestartScreen` 在胜利/死亡调用点传入 `CurrentBuild.CharacterId`；`UReEchoRestartWidget` 绑定两个既有正式角色 Image，只替换 Brush，不写布局。
 - J_HEART / J_SPADE / J_CLOVER / J_DIAMOND 解析到 LoadoutSelection 对应 `Selected` 纹理；`NAME_None`、未知 ID 或已知角色纹理缺失回退 J_HEART，若连回退资源也缺失则保留 WBP 原始红帽 Brush。
 - 聚焦自动化扩展到死亡与胜利两条路径，覆盖四角色、`NAME_None` 和未知 ID。
+- 2026-08-27 人工反馈：角色局部会被其他结算控件/装饰遮挡；将胜利与失败角色 Image 的 Canvas ZOrder 固定为 `80`（高于现有最高兄弟 `70`），位置、尺寸和渲染变换不变，并让 author/audit 脚本共同守护该层级。
 
 ### 证据
 
@@ -99,16 +101,18 @@
 - `scripts/ue/Build-Editor.cmd -Configuration Development`：通过；UHT/UBT `Result: Succeeded`，精选预构建 Editor bundle 已刷新。
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.RestartWidgetPresentation`（经 Git common-dir Unreal 锁运行）：`Result={Success}`，`EXIT CODE: 0`。
 - `CompileAllBlueprints` commandlet（经同一 Unreal 锁运行）：`0 errors and 0 warnings and 0 blueprints that failed to load`。
-- `git diff -- Content/ReEcho/UI/WBP_ReEchoRestart.uasset`：空；本计划未改结算 WBP 二进制与现有作者布局。
+- `scripts/ue/author_plan135_settlement_character_front_layer.py`：成功保存 `WBP_ReEchoRestart`；仅将两个既有角色 Image 的 Canvas ZOrder 设为 `80` 并保持 `HitTestInvisible`。
+- `scripts/ue/audit_plan135_settlement_character_front_layer.py`：通过；胜利/失败角色均是各自 Canvas 直属节点，ZOrder 高于全部兄弟且 WBP 编译成功。
+- 层级修正后重跑 `ReEcho.UI.RestartWidgetPresentation`：`Result={Success}`，`EXIT CODE: 0`。
 
 ### 剩余风险
 
-- 自动化已确认两张结算 Image 的 Brush 资源路径，但 NullRHI 不构成视觉验收；四套图片在正式 Victory/Defeat 构图内的视觉比例、裁切与遮挡仍需 PIE 人工确认。
+- 自动化已确认两张结算 Image 的 Brush 资源路径和最前层契约，但 NullRHI 不构成视觉验收；四套图片在正式 Victory/Defeat 构图内的视觉比例、裁切和实际遮挡结果仍需 PIE 人工确认。
 - 纹理依赖既有 LoadoutSelection AlwaysCook 目录；自动化与 Editor 加载已通过，最终打包发布仍沿用项目统一 Packaging 门禁。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请在 `ReEcho-plan135-settlement-character-illustration/ReEcho.uproject` 中分别选择 J_HEART、J_SPADE、J_CLOVER、J_DIAMOND，检查死亡与胜利结算角色图是否与开场选角 `Selected` 图一致；同时快速确认暂停、退出确认、重开与返回主菜单没有视觉/交互回归。
+- `PendingBeforeClose`：请在 `ReEcho-plan135-settlement-character-illustration/ReEcho.uproject` 中分别选择 J_HEART、J_SPADE、J_CLOVER、J_DIAMOND，检查死亡与胜利结算角色图是否与开场选角 `Selected` 图一致，并确认角色所有局部均压在同页装饰、文字和卡槽上方；同时快速确认按钮仍可点击，暂停、退出确认、重开与返回主菜单没有视觉/交互回归。
 
 ### 架构文档审阅结果
 

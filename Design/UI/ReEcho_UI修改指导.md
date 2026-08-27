@@ -151,9 +151,9 @@ Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Pl
 
 该 WBP 是普通 Pause、两种退出确认、Death 与 Victory 的唯一作者ing表现入口；只要资产已有 Root，`UReEchoRestartWidget` 不得用原生 fallback 覆盖它，也不要新增独立 Pause WBP。`RootPanel`、`TitleText`、`MessageText` 和关键按钮/切图绑定必须保持 `Is Variable`。
 
-正式 Victory 的布局权威是 `VictoryCanvas`。标题、三组标签/数值、五个样例卡槽、角色、花饰、底板、按钮底图、按钮文字和透明真实按钮均为 Canvas 直属子项，因此可在 Designer 中独立选择、拖动和缩放。运行时覆盖 `VictoryEncounterValue`、`VictoryTimeShardsValue`、`VictoryTraitCountValue`，并按本轮所选角色替换 `ArtVictoryCharacterFormal` 的 Brush；位置、尺寸、渲染变换仍完全由 WBP 调整。`VictoryContinueButton` 仍调用既有重开委托。不要把这些节点重新合并为一张整页截图，也不要在 C++ 中写布局坐标。
+正式 Victory 的布局权威是 `VictoryCanvas`。标题、三组标签/数值、五个样例卡槽、角色、花饰、底板、按钮底图、按钮文字和透明真实按钮均为 Canvas 直属子项，因此可在 Designer 中独立选择、拖动和缩放。运行时覆盖 `VictoryEncounterValue`、`VictoryTimeShardsValue`、`VictoryTraitCountValue`，并按本轮所选角色替换 `ArtVictoryCharacterFormal` 的 Brush；位置、尺寸、渲染变换仍完全由 WBP 调整。角色节点的 ZOrder 必须高于同 Canvas 其他元素，避免局部被装饰或文字遮挡；节点为 `HitTestInvisible`，不会阻挡按钮。`VictoryContinueButton` 仍调用既有重开委托。不要把这些节点重新合并为一张整页截图，也不要在 C++ 中写布局坐标。
 
-正式 Death 的布局权威是 `DefeatCanvas`。标题、到达关卡/构筑数量/时间碎片三组标签与数值、五个样例卡槽、角色、枯花、底板、两个按钮底图、按钮文字和透明真实按钮同样是 Canvas 直属子项，可在 Designer 中独立移动和缩放。运行时覆盖 `DefeatEncounterValue`、`DefeatTimeShardsValue`、`DefeatTraitCountValue`，并按本轮所选角色替换 `ArtDefeatCharacterFormal` 的 Brush；未知角色或纹理缺失时回退红帽 J_HEART。`DefeatRestartButton` 复用既有整局重开委托，`DefeatMainMenuButton` 复用既有返回主菜单委托。不要在 WBP 中复制重开、存档或开关关卡逻辑。
+正式 Death 的布局权威是 `DefeatCanvas`。标题、到达关卡/构筑数量/时间碎片三组标签与数值、五个样例卡槽、角色、枯花、底板、两个按钮底图、按钮文字和透明真实按钮同样是 Canvas 直属子项，可在 Designer 中独立移动和缩放。运行时覆盖 `DefeatEncounterValue`、`DefeatTimeShardsValue`、`DefeatTraitCountValue`，并按本轮所选角色替换 `ArtDefeatCharacterFormal` 的 Brush；未知角色或纹理缺失时回退红帽 J_HEART。角色节点同样保持同 Canvas 最高 ZOrder 和 `HitTestInvisible`。`DefeatRestartButton` 复用既有整局重开委托，`DefeatMainMenuButton` 复用既有返回主菜单委托。不要在 WBP 中复制重开、存档或开关关卡逻辑。
 
 正式结算接入后，旧 `ArtRestartCharacter`、`ArtResultSummaryPanel`、`ArtSelectedCardsPanel`、`ArtVictoryTitle`、`ArtDefeatTitle` 及其占位纹理/源图已经删除。不要为兼容旧脚本重新创建这些节点，也不要恢复旧的“时间线收束”“回响中断”、Boss 摘要或死亡提示文本；Victory/Death 只使用上述两个正式 Canvas。`ArtRestartDialogPanel` 不属于废弃结算层，它仍服务保存失败兜底弹窗，必须保留。
 
