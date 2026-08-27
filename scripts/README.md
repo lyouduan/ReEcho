@@ -11,6 +11,8 @@ scripts\ue\Run-Automation.cmd -Filter ReEcho
 
 `Build-Editor.cmd -Configuration Development` performs a full Editor build and refreshes the tracked clone-and-open bundle. `python scripts\ue\prebuilt_editor.py check` verifies its source fingerprint and binary hashes without invoking Unreal.
 
+`python scripts\setup_lfs.py` initializes Git LFS for the current clone and downloads objects for the checked-out revision. Use `python scripts\setup_lfs.py --check` before opening Unreal, building or packaging to reject missing objects and unresolved LFS pointer files.
+
 Pass `-EngineRoot D:\UE_5.x` to any UE command, or set the machine-local `RE_ECHO_UE_ROOT` environment variable. Do not commit an absolute engine path.
 
 ## Windows Shipping package

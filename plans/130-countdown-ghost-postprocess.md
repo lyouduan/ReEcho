@@ -6,7 +6,7 @@
 - Executor 负责人：当前程序用户授权的 Executor（Codex，同一任务分阶段执行）。
 - Plan 编写方（AI 侧）：Gavyn-side AI（Codex）。
 - 实现编写方（AI 侧）：Gavyn-side AI（Codex）。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@afed0e11e9b9f627ba79168e192cf3eb4f912068`。
 - 本地实现方式（可选，仅作交接说明）：`codex/plan130-countdown-postprocess`，`C:\tmp\ReEcho-plan130-countdown-postprocess`。
@@ -90,20 +90,38 @@
 ### 变化
 
 - 2026-08-27：完成最新远端审计和方案锁定；确认现有效果仍是 Transition Widget 的两个透明 Border，不是真正后处理。Plan130 从 `origin/main@afed0e11` 建立，等待 Plan-only 发布后进入实现。
+- 2026-08-27：Plan-only 提交 `1812dfb1` 已发布并核验 `origin/main`；在独立 worktree 完成第一版候选。新增 After Tonemapping Post Process Material，以 `PostProcessInput0` 中心、前向两层、反向一层和垂直模糊两层构成非对称空间重影；ArenaCamera 创建运行时 MID 并按 Director 时间更新强度、像素偏移、模糊、透明混合与相位。
+- 2026-08-27：GameMode 的 `CountdownPostProcess` 阶段不再提前创建 Transition Screen，而是只更新 ArenaCamera；权威 00 秒在创建/播放媒体前清零相机效果。Transition Widget 删除两个倒计时 Border 和强度接口，保留 `RebuildWidget()` 前构建的媒体 Slate 树、Fill、Hap Alpha 播放、完成/失败和淡出。
+- 2026-08-27：作者ing首次因 UE Python `CustomInput` 不接受构造参数而失败，日志门捕获到命令行进程退出 0 下的 `LogPython Error`；改为构造结构体后设置 `input_name`，材质创建、保存、重载和第二次幂等检查通过。
 
 ### 证据
 
 - `e44caaea..afed0e11` 的传入范围只在 `ReEchoGameMode.*` 商店/免费卡区域与模块文档产生同文件耦合，没有修改 `UpdateEncounterTransitionPresentation()`、`ReEchoEncounterTransitionWidget.*` 或 `ReEchoArenaCameraActor.*`。
+- Editor Development 增量构建通过：首轮 99 actions，补充 SmoothStep 中间点断言后第二轮 4 actions；精选预构建检查通过，`build_id=55116800`、源码指纹 `50e4d3960b40`。
+- `author_plan130_countdown_postprocess.py` 连续两次通过：资产为 Post Process Domain、After Tonemapping，材质编译无错误，标量参数为 `BlurRadiusPixels/EffectStrength/GhostOffsetPixels/GhostOpacity/PulsePhase`。
+- 自动化通过：`ReEcho.UI.EncounterTransition` 1/1、`ReEcho.Encounter` 4/4、`ReEcho.StageTransition` 3/3，三次日志均为 `TEST COMPLETE. EXIT CODE: 0`。
+- `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
 - 空间多点采样能形成稳定拖影，但不是真实历史帧残留；是否满足视觉目标必须由 PIE 验收。
 - 后处理发生在 UMG 合成前，因此 HUD 保持清晰；若后续要求 HUD 一并重影将构成产品与实现范围变化。
+- 尚未执行最终 `-FullRebuild` 或 Windows Shipping Cook/烟测；这些是用户视觉验收后的最终发布候选门禁，不以当前增量构建代替。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现和客观验证完成后，请用户验收重影方向、模糊强度、HUD 可读性和 00→媒体衔接。
+- 2026-08-27：为保留进入 03 秒阈值前的一秒观察窗口，调试入口由 `GMTransition3` 改为 `GMTransition4`，并将 Director 权威剩余时间推进到 4 秒；生产路径的 3 秒后处理阈值不变。
+- 2026-08-27：首次 PIE 验收反馈后处理无可见效果。日志确认 `GMTransition4` 从权威 4 秒运行到 0；新增相机 MID 创建、Blendable 绑定和首次非零强度日志。旧材质原地重建触发 UE 5.8 `DeleteAllMaterialExpressions` 的 `!IsRooted()` 编辑器断言且未写盘，因此保留旧资产，安全创建 `M_PP_EncounterCountdownGhost_V2`；V2 使用更大的像素偏移/模糊和 RGB 分离重影，并由 ArenaCamera 改为加载 V2。
+- 2026-08-27：按验收反馈增加最终画面定格。权威倒计时仍正常到 0；媒体成功启动后将后处理锁定峰值并暂停 World，GameMode 允许暂停时继续轮询媒体。媒体完成/失败时只恢复本流程主动设置的暂停，再清除后处理并进入抽卡或商店；已有外部暂停不会被误恢复。
+- 2026-08-27：按后续验收将后处理清除点从媒体完成后移到整条 CardChoice 链结束。媒体完成时只恢复 World，峰值后处理继续作为抽卡背景；Run 仍为 `CardChoice` 时跨连续/奖励抽卡保留，最终卡牌提交并返回/进入商店时清除。无 CardChoice 的直接商店路径在打开商店前清除。
+- 2026-08-27：确认采用中心清晰、四周渐进模糊方案。保留 V2，新增 `M_PP_EncounterCountdownGhost_V3`；按视口宽高比计算椭圆径向距离，通过 `ClearCenterRadius=0.28`、`EdgeBlurRadius=0.62`、`EdgeMaskPower=1.4` 形成平滑边缘遮罩，只将重影/模糊结果混合到外围，中心原始场景色保持清晰。
+- 2026-08-27：确认删除无引用的初版与 V2 材质，只保留当时运行中的 V3；随后新增 V4。`ArenaCameraActor` 在同一 `Arena Camera|Encounter Countdown Post Process` Details 分类暴露中心清晰半径、边缘过渡半径、遮罩曲线、重影强度、RGB 分离勾选与分离强度；V4 增加 `RGBSeparationEnabled/RGBSeparationStrength` 参数，关闭分离时仍保留无色偏重影。
+- 2026-08-27：V4 完成材质编译、C++ 构建与转场自动化后，复查确认运行时代码、作者脚本和模块文档均不再引用 V3；经用户再次确认删除 V3。`EncounterTransition` 后处理目录最终只保留 `M_PP_EncounterCountdownGhost_V4.uasset`。
+- `PendingBeforeClose`：请在 `C:\tmp\ReEcho-plan130-countdown-postprocess\ReEcho.uproject` 进入普通 Encounter，执行 `GMTransition4`，验收 04→03 前后处理启用边界、03→01 重影方向/模糊强度、01→00 峰值、HUD 可读性、00 清除及透明媒体衔接。验收前不关闭或推送实现。
 
 ### 架构文档审阅结果
 
-- 待实现完成后逐项填写。
+- `MOD-ReEcho.md` 已更新：记录 Director 只投影强度、ArenaCamera 独占后处理 MID/Blendable 生命周期、00 先清除再播放 Hap Alpha 媒体。
+- `MOD-ReEchoUI.md` 已更新：Transition Widget 不再拥有倒计时 Border/后处理状态，只管理 00 后媒体层；阅读路线加入 ArenaCamera 与后处理材质。
+- `ARCHITECTURE.md` 已审阅、无需修改：仍只有既有 `ReEcho` Runtime Module，未新增模块或改变依赖拓扑。
+- `README.md` 已审阅、无需修改：`MOD-ReEcho`、`AREA-Encounter`、`AREA-Presentation` 与 UI 稳定路由均未新增标识。

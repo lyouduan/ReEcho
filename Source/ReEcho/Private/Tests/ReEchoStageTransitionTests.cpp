@@ -10,6 +10,7 @@
 #include "Graybox/ReEchoTimeShardPickupActor.h"
 #include "Misc/AutomationTest.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
+#include "Presentation/Scene/ReEchoArenaSceneCatalog.h"
 #include "ReEchoGameMode.h"
 
 namespace
@@ -134,13 +135,13 @@ bool FReEchoArenaSceneRegistryTest::RunTest(const FString& Parameters)
 	TMap<FName, TSubclassOf<AReEchoArenaSceneActor>> Registry;
 	FString Error;
 	TestTrue(TEXT("Unique Scene registrations compile"),
-	         AReEchoArenaSceneActor::BuildSceneRegistry({SC01, SC02}, Registry, Error));
+	         UReEchoArenaSceneCatalog::BuildRegistry({SC01, SC02}, Registry, Error));
 	TestEqual(TEXT("Unique registry contains both scenes"), Registry.Num(), 2);
 	TestTrue(TEXT("Known SceneId resolves"), Registry.Contains(TEXT("SC01")));
 	TestFalse(TEXT("Unknown SceneId stays unresolved"), Registry.Contains(TEXT("SC99")));
 
 	TestFalse(TEXT("Duplicate SceneId fails closed"),
-	          AReEchoArenaSceneActor::BuildSceneRegistry({SC01, SC01}, Registry, Error));
+	          UReEchoArenaSceneCatalog::BuildRegistry({SC01, SC01}, Registry, Error));
 	TestTrue(TEXT("Duplicate diagnostic names SceneId"), Error.Contains(TEXT("SC01")));
 	TestEqual(TEXT("Failed registry does not leave partial entries"), Registry.Num(), 0);
 	return true;
