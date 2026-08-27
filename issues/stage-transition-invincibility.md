@@ -1,7 +1,8 @@
 # 关卡切换时主角缺少短暂无敌保护
 
 - 报告人/提交身份：`[DESIGNER] baopeijia29-del + CodeBuddy`
-- 分支：`issue/baopeijia29/stage-transition-invincibility`（基于 `origin/main`）
+- 分支：`designer/stage-health-reset-bug`（基于 `origin/main`）
+- 分支哈希：`a62a4ca2`
 - 状态：Proposed（待程序/秘书审计）
 - 类型：战斗机制 Bug（关卡流程）
 

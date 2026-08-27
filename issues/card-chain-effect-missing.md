@@ -1,7 +1,8 @@
 # 卡牌连接链子效果未合入
 
 - 报告人/提交身份：`[DESIGNER] baopeijia29-del + CodeBuddy`
-- 分支：`issue/baopeijia29/card-chain-effect-missing`（基于 `origin/main`）
+- 分支：`designer/stage-health-reset-bug`（基于 `origin/main`）
+- 分支哈希：`a62a4ca2`
 - 状态：Proposed（待程序/秘书审计）
 - 类型：功能缺失 / 合入遗漏（卡牌系统）
 

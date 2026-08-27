@@ -1,7 +1,8 @@
 # 小地图墨水轨迹应仅展示最近 5 秒路径
 
 - 报告人/提交身份：`[DESIGNER] baopeijia29-del + CodeBuddy`
-- 分支：`issue/baopeijia29/minimap-trail-time-window`（基于 `origin/main`）
+- 分支：`designer/stage-health-reset-bug`（基于 `origin/main`）
+- 分支哈希：`a62a4ca2`
 - 状态：Proposed（待程序/秘书审计）
 - 类型：UI 表现调整（小地图系统）
 
