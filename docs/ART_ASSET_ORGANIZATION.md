@@ -13,6 +13,8 @@
 - Plan93 战斗 HUD 交付源包：`Content/SourceArt/UI/CombatHud/Plan93/`；`References/1-战斗场景.png` 只用于 1920×1080 构图对照。9 张 `Elements` 原图继续归档，其中废案 `技能栏.png` 从未导入；Plan102 又废弃倒计时黑底 `时间显示.png` 及其运行时纹理，当前其余 7 张按 `_SourceManifest.csv` 的稳定 ASCII 名保留在 `Content/ReEcho/Textures/UI/CombatHud/`。
 - `scripts/ue/import_plan93_combat_hud.py` 默认保留已存在纹理；仅显式传入 `-Plan93ReimportExisting` 时重导。参考图始终不进入运行时资产。
 - Plan102 小地图头像源包：`Content/SourceArt/UI/CombatHud/Plan102/`。`_SourceManifest.csv` 把 8 张 `512×512` 透明 PNG 映射到四个稳定 `CharacterId` 的 Player/Echo 两套外观；运行时 Texture2D 位于 `Content/ReEcho/Textures/UI/CombatHud/Minimap/`，由对应 Character/Echo Presentation Profile 的 `MinimapIcon` 硬引用。`scripts/ue/import_plan102_minimap_icons.py` 负责幂等导入与绑定，运行时代码不得再按原始编号猜测身份。
+- Plan110 正式商店源包：`Content/SourceArt/UI/InventoryShop/Plan110/`。`Elements/` 使用 ASCII 稳定名保存 24 张已审核切图，`References/` 的三张整屏目标只用于 1920×1080 构图、悬停说明和属性面板比对；运行时 Texture2D 统一位于 `Content/ReEcho/Textures/UI/InventoryShop/Plan110/`，整屏参考图不得导入。`scripts/ue/import_plan110_formal_shop_ui.py` 负责切图导入，`author_plan110_formal_shop_ui.py` 只建立 WBP 初始设计面，人工微调后使用 `audit_plan110_formal_shop_ui.py` 做只读验证。
+- Plan110 新增二级卡牌图标：19 张 `512×512 RGBA` 源图按不与现有存档身份冲突的 Game Card ID `G_2_18`～`G_2_36` 归档到 `Content/SourceArt/UI/Cards/Icon/`，策划源 ID `G_2_14`～`G_2_32` 的对应关系记录在 `_Plan110NewTier2IconMap.csv`。运行时纹理位于 `Content/ReEcho/Textures/UI/Cards/Icon/`；卡牌数据尚未建立对应 Game Card ID 时这些纹理保持未消费，不允许按策划源 ID 覆盖现有 `G_2_14`～`G_2_17`。
 
 ## 角色资产
 

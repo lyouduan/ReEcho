@@ -13,6 +13,7 @@ class UCanvasPanel;
 class UHorizontalBox;
 class UImage;
 class UReEchoIndexedButton;
+class UReEchoButtonVisualFeedback;
 class UScaleBox;
 class UScrollBox;
 class USizeBox;
@@ -126,8 +127,11 @@ private:
 	void BuildOfferEntries();
 	void BuildLoadoutEntries();
 	void BuildTargetShopPresentation();
+	bool BindAuthoredShopPresentation();
+	void BindSaveAndLeaveVisualFeedback();
 	void BindDesignerLoadoutLayout();
 	void RebuildTargetOfferRows();
+	void RefreshAuthoredOfferCards();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
 	void RebuildEquippedWeaponDisplay();
@@ -262,6 +266,10 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> CloseButton;
 
+	/** Keeps the authored save-and-leave art on the same hover scale contract as other menu buttons. */
+	UPROPERTY(Transient)
+	TObjectPtr<UReEchoButtonVisualFeedback> SaveAndLeaveVisualFeedback;
+
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> OfferContainer;
 
@@ -336,6 +344,34 @@ private:
 	TObjectPtr<UTextBlock> TargetCurrencyText;
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> TargetRefreshLimitText;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UCanvasPanel>> DesignerPartOfferCards;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerPartOfferIcons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferDescriptions;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferCosts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoIndexedButton>> DesignerPartOfferBuyButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerPartOfferBuyArts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferBuyLabels;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UCanvasPanel>> DesignerPackOfferCards;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerPackOfferIcons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPackOfferDescriptions;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPackOfferCosts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UReEchoIndexedButton>> DesignerPackOfferBuyButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerPackOfferBuyArts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPackOfferBuyLabels;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UButton>> DesignerAttachmentSlotButtons;
 	UPROPERTY(Transient)

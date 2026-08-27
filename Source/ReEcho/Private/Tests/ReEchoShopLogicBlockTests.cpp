@@ -496,6 +496,22 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	         ResponsiveCanvas && Widget->GetWidgetFromName(TEXT("ShopPanel"))->GetParent() == ResponsiveCanvas &&
 	             Widget->GetWidgetFromName(TEXT("Overlay_0"))->GetParent() == ResponsiveCanvas &&
 	             Widget->GetWidgetFromName(TEXT("CloseButton"))->GetParent() == ResponsiveCanvas);
+	UButton* SaveAndLeaveButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("CloseButton")));
+	UImage* SaveAndLeaveArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("ArtFormalSaveAndLeave")));
+	TestNotNull(TEXT("Formal shop exposes the stable save-and-leave action"), SaveAndLeaveButton);
+	TestNotNull(TEXT("Formal shop exposes the authored save-and-leave art"), SaveAndLeaveArt);
+	if (SaveAndLeaveButton && SaveAndLeaveArt)
+	{
+		const FVector2D RestingScale = SaveAndLeaveArt->GetRenderTransform().Scale;
+		SaveAndLeaveButton->OnHovered.Broadcast();
+		TestTrue(TEXT("Save-and-leave hover proportionally scales its authored art"),
+		         SaveAndLeaveArt->GetRenderTransform().Scale.Equals(RestingScale * 1.05f, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Save-and-leave hover scales around its visual center"),
+		         SaveAndLeaveArt->GetRenderTransformPivot().Equals(FVector2D(0.5f, 0.5f), KINDA_SMALL_NUMBER));
+		SaveAndLeaveButton->OnUnhovered.Broadcast();
+		TestTrue(TEXT("Save-and-leave unhover restores the authored scale"),
+		         SaveAndLeaveArt->GetRenderTransform().Scale.Equals(RestingScale, KINDA_SMALL_NUMBER));
+	}
 	FReEchoShopOffer WeaponPart;
 	WeaponPart.ItemId = TEXT("TEST_AUTHORED_WEAPON_PART_ITEM");
 	WeaponPart.ContentId = TEXT("P_CORE_TIDE");
@@ -578,21 +594,41 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UVerticalBox* EchoPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("EchoPanel")));
 	UVerticalBox* WeaponPartPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("WeaponPartOfferPanel")));
 	TestNotNull(TEXT("Authored shop keeps the legacy scroll host as a hidden compatibility host"), ShopScrollBox);
-	TestNotNull(TEXT("Authored shop creates the target presentation layer"),
-	            Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("ShopPresentationLayer"))));
-	TestNotNull(TEXT("Authored shop creates the three-part target row"),
-	            Cast<UHorizontalBox>(Widget->GetWidgetFromName(TEXT("TargetPartOfferRow"))));
-	TestNotNull(TEXT("Authored shop creates a purchasable target weapon-part entry"),
-	            Widget->GetWidgetFromName(TEXT("TargetPartBuy0")));
+	TestNotNull(TEXT("Authored shop binds the formal presentation canvas"),
+	            Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerShopPresentationCanvas"))));
+	TestNotNull(TEXT("Authored shop exposes the first designer-controlled part card"),
+	            Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferCard0"))));
+	TestNotNull(TEXT("Authored shop exposes the first stable weapon-part action"),
+	            Widget->GetWidgetFromName(TEXT("DesignerPartOfferBuy0")));
 	UTexture2D* ExpectedPartIcon = LoadObject<UTexture2D>(
 	    nullptr, TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_TIDE.T_UI_Part_P_CORE_TIDE"));
-	UImage* OfferPartIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("TargetCardIcon1_0")));
+	UImage* OfferPartIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferIcon0")));
+	UTextBlock* OfferPartName =
+	    Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferDescription0")));
 	TestNotNull(TEXT("Mapped weapon-part icon asset loads"), ExpectedPartIcon);
 	TestTrue(TEXT("Weapon-part offer uses its PartId icon instead of the attachment placeholder"),
 	         OfferPartIcon && OfferPartIcon->GetBrush().GetResourceObject() == ExpectedPartIcon);
+	TestTrue(TEXT("Weapon-part offer surface shows only the rune name; its tooltip owns the effect"),
+	         OfferPartName && OfferPartName->GetText().EqualTo(WeaponPart.DisplayName));
+	UTextBlock* PackTierLabel =
+	    Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferDescription0")));
+	TestEqual(TEXT("Card-pack offer surface shows only its tier label"),
+	          PackTierLabel ? PackTierLabel->GetText().ToString() : FString(),
+	          FString(TEXT("一级卡组")));
+	UButton* AuthoredRefreshButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopRefreshButton")));
+	const UImage* AuthoredRefreshArt =
+	    AuthoredRefreshButton ? Cast<UImage>(AuthoredRefreshButton->GetContent()) : nullptr;
+	UTexture2D* ExpectedRefreshTexture = LoadObject<UTexture2D>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	         "T_UI_Shop110_RefreshButton.T_UI_Shop110_RefreshButton"));
+	TestTrue(TEXT("Legacy refresh status text cannot replace the authored refresh button art"),
+	         AuthoredRefreshArt && ExpectedRefreshTexture &&
+	             AuthoredRefreshArt->GetBrush().GetResourceObject() == ExpectedRefreshTexture);
 	UReEchoIndexedButton* OwnedWeaponBuy =
-	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("TargetPartBuy1")));
-	UTextBlock* OwnedWeaponBuyText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TargetBuyText1_1")));
+	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferBuy1")));
+	UTextBlock* OwnedWeaponBuyText =
+	    Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferBuy1Label")));
 	TestTrue(TEXT("An owned weapon retained on the stable page is projected as unavailable"),
 	         OwnedWeaponBuy && !OwnedWeaponBuy->GetIsEnabled());
 	TestTrue(TEXT("An owned weapon retained on the stable page is labelled as already obtained"),
@@ -607,8 +643,9 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UImage* DesignerWeaponPanel = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerWeaponPanel")));
 	TestNotNull(TEXT("Weapon panel is authored as a direct Canvas child"),
 	            DesignerWeaponPanel ? Cast<UCanvasPanelSlot>(DesignerWeaponPanel->Slot) : nullptr);
-	UButton* EquippedWeaponButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerEquippedWeaponButton")));
-	UImage* EquippedWeaponArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerEquippedWeaponArt")));
+	UButton* EquippedWeaponButton =
+	    Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerWeaponInteractionButton")));
+	UImage* EquippedWeaponArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerWeaponInteractionArt")));
 	UTexture2D* ExpectedWeaponTexture = LoadObject<UTexture2D>(nullptr, *PartShopView.WeaponIconTexturePath);
 	TestNotNull(TEXT("Current weapon has a clickable overlay in the authored weapon panel"), EquippedWeaponButton);
 	TestTrue(TEXT("Current weapon overlay renders the equipped weapon texture"),
@@ -696,10 +733,8 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	             RuneBackpackTitle->GetFont().Size == 20 && RuneBackpackItemName->GetFont().Size == 17);
 	TestNull(TEXT("Hover detail does not add another fixed panel over the authored board"),
 	         Widget->GetWidgetFromName(TEXT("SlotDetailPanel")));
-	UImage* LoadoutStatsBoard = Cast<UImage>(Widget->GetWidgetFromName(TEXT("ArtLoadoutStats")));
-	TestNotNull(TEXT("Authored loadout stats board still exists for layout compatibility"), LoadoutStatsBoard);
-	TestTrue(TEXT("Large black loadout stats board is hidden behind the card slots"),
-	         LoadoutStatsBoard && LoadoutStatsBoard->GetVisibility() == ESlateVisibility::Collapsed);
+	TestNull(TEXT("Retired black loadout stats board is removed from the authored hierarchy"),
+	         Widget->GetWidgetFromName(TEXT("ArtLoadoutStats")));
 	UButton* StorageCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardSlot0")));
 	TestNotNull(TEXT("G_3_02 owns a clickable card slot"), StorageCardSlot);
 	if (StorageCardSlot)
@@ -727,7 +762,9 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		TestNotNull(TEXT("Owned card art remains the authored button content"), CardImage);
 		if (DesignerCardSlot)
 		{
-			TestEqual(TEXT("Owned card slot remains 60 by 60"), DesignerCardSlot->GetSize(), FVector2D(60.0f, 60.0f));
+			TestEqual(TEXT("Owned card slot retains the formal authored size"),
+			          DesignerCardSlot->GetSize(),
+			          FVector2D(66.0f, 66.0f));
 		}
 		StorageCardSlot->OnClicked.Broadcast();
 	}
@@ -778,14 +815,24 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		TestNotNull(*FString::Printf(TEXT("Attachment slot %d exists in the authored loadout"), Index), AttachmentSlot);
 		if (AttachmentSlot)
 		{
-			TestEqual(*FString::Printf(TEXT("Attachment slot %d keeps its authored size"), Index),
+			TestEqual(*FString::Printf(TEXT("Attachment slot %d keeps its formal authored size"), Index),
 			          AttachmentSlot->GetSize(),
-			          FVector2D(93.0f, 93.0f));
+			          FVector2D(89.0f, 89.0f));
 		}
 		if (Index == 0)
 		{
+			UTexture2D* ExpectedSlotFrame = LoadObject<UTexture2D>(
+			    nullptr,
+			    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+			         "T_UI_Shop110_WeaponLoadoutSlot.T_UI_Shop110_WeaponLoadoutSlot"));
+			TestTrue(TEXT("Equipped attachment keeps the formal slot frame in the button background"),
+			         AttachmentSlotButton && ExpectedSlotFrame &&
+			             AttachmentSlotButton->GetStyle().Normal.GetResourceObject() == ExpectedSlotFrame);
 			TestTrue(TEXT("Equipped attachment uses the same mapped PartId icon"),
 			         Attachment && Attachment->GetBrush().GetResourceObject() == ExpectedPartIcon);
+			TestEqual(TEXT("Equipped attachment icon remains layered above the persistent slot frame"),
+			          Attachment ? Attachment->GetVisibility() : ESlateVisibility::Collapsed,
+			          ESlateVisibility::HitTestInvisible);
 		}
 	}
 	return true;

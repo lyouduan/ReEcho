@@ -87,6 +87,9 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	const int32 RewardShardsBeforeTrait = RunSubsystem->TimeShards;
+	TestTrue(TEXT("Per-enemy rewards provide shop currency"),
+	         RewardShardsBeforeTrait >= 24 && RewardShardsBeforeTrait <= 36);
 	const FReEchoTraitCardOffer* NonCurrencyResetOffer = Offers.FindByPredicate(
 	    [](const FReEchoTraitCardOffer& Offer)
 	    {
@@ -101,7 +104,6 @@ bool FReEchoPostDrawShopPurchaseTest::RunTest(const FString& Parameters)
 	         RunSubsystem->ApplyTraitCard(NonCurrencyResetOffer->CardId));
 	TestEqual(TEXT("Completed draw enters planning before the shop"), RunSubsystem->Phase, EReEchoRunPhase::Planning);
 	const int32 ShardsBeforePurchase = RunSubsystem->TimeShards;
-	TestTrue(TEXT("Per-enemy rewards provide shop currency"), ShardsBeforePurchase >= 24 && ShardsBeforePurchase <= 36);
 	const int32 ExpectedPrice = RunSubsystem->GetDiscountedShopPrice(15);
 	TestTrue(TEXT("Post-draw currency can buy the entry-price item"),
 	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));

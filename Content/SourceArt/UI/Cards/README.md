@@ -12,8 +12,9 @@
 - 匹配方式：**按卡名称**（文档 `名称` 列 ↔ `cards.csv` DisplayName）。原因：设计表与游戏数据 **Id 与名称双重漂移**，不能按 Id 直接对应；同名精确匹配可靠。
 - 抽取脚本：`scripts/plan69_extract_card_icons.py`（可复现；需本机存在该 xlsx）。
 - 命名：`T_UI_CardIcon_{GAME_CARD_ID}.png` → 运行时 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{GAME_CARD_ID}`。
-- 覆盖：**35/42** 张精确名称匹配；**3 张 FORGE**（Tier 0）与 **4 张文档缺图**（`G_2_07 潮汐回响`、`G_2_08 森林回响`、`G_3_19 碎时锋芒`、`G_3_20 碎时壁垒`）走通用回退 `T_UI_Shop_CardIcon`。
-- 已暂存：`Content/SourceArt/UI/Cards/Icon/T_UI_CardIcon_*.png`（35 个）。
+- 当前 `cards.csv` 的 **37 张启用非 FORGE 卡牌**均有精确 Game Card ID 图标；禁用/废弃项继续允许走通用回退。
+- Plan110 另暂存 19 张新增二级牌图标为 `G_2_18`～`G_2_36`。策划源表中的 `G_2_14`～`G_2_32` 不能直接作为 Game Card ID，因为 `G_2_14`～`G_2_17` 仍是现有存档/运行时稳定身份；完整迁移见 `Icon/_Plan110NewTier2IconMap.csv`。
+- 已暂存：`Content/SourceArt/UI/Cards/Icon/T_UI_CardIcon_*.png`（56 个）。
 
 ## 通用回退
 - icon 缺失 → `/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_CardIcon`。
@@ -21,5 +22,6 @@
 
 ## 后续导入（编辑器步骤 / 或脚本）
 - `scripts/plan69_import_ue.py`：把 `SourceArt/UI/Cards/{Art,Icon}` 的 PNG 导入为 UTexture2D。
+- `scripts/ue/import_plan110_new_tier2_card_icons.py`：只导入 Plan110 新增的 `G_2_18`～`G_2_36`，不会覆盖当前启用卡牌；`audit_plan110_new_tier2_card_icons.py` 验证源图、尺寸和 Texture2D UI 属性。
 - `scripts/plan69_edit_wbp.py`：给 `WBP_ReEchoTraitCardEntry` 加 `ArtImage`/`IconImage` 两个 Image 控件（WBP 二进制编辑风险较高，失败则手动：编辑器拖两个 Image 改名即可）。
 - 本地增量构建 `scripts/ue/Build-Editor.cmd -Configuration Development` + PIE 验收。
