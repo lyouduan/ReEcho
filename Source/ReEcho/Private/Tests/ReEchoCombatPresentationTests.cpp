@@ -101,6 +101,12 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	const UReEchoWeaponPresentationProfile* GunAnchorProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"));
 	if (SwordAnchorProfile && ScytheAnchorProfile && BowAnchorProfile && GunAnchorProfile)
 	{
+		const FVector2D ExpectedBowRight = BowAnchorProfile->bOverrideAttackVfxAnchor
+		                                       ? BowAnchorProfile->AttackVfxAnchorRatio
+		                                       : FVector2D(0.5f, 0.0f);
+		const FVector2D ExpectedGunRight = GunAnchorProfile->bOverrideAttackVfxAnchor
+		                                       ? GunAnchorProfile->AttackVfxAnchorRatio
+		                                       : FVector2D(0.5f, 0.0f);
 		TestEqual(TEXT("Right-facing scythe releases from weapon center"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*ScytheAnchorProfile, 1.0f),
 		          FVector2D::ZeroVector);
@@ -110,32 +116,37 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Left-facing longsword keeps its centered vertical anchor"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*SwordAnchorProfile, -1.0f),
 		          FVector2D(0.0f, -0.5f));
-		TestEqual(TEXT("Right-facing bow releases from right midpoint"),
+		TestEqual(TEXT("Right-facing bow consumes its authored or default anchor"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*BowAnchorProfile, 1.0f),
-		          FVector2D(0.5f, 0.0f));
-		TestEqual(TEXT("Left-facing bow mirrors to left midpoint"),
+		          ExpectedBowRight);
+		TestEqual(TEXT("Left-facing bow mirrors the resolved horizontal anchor"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*BowAnchorProfile, -1.0f),
-		          FVector2D(-0.5f, 0.0f));
-		TestEqual(TEXT("Right-facing gun releases from right midpoint"),
+		          FVector2D(-ExpectedBowRight.X, ExpectedBowRight.Y));
+		TestEqual(TEXT("Right-facing gun consumes its accepted DA anchor"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, 1.0f),
-		          FVector2D(0.5f, 0.0f));
-		TestEqual(TEXT("Left-facing gun mirrors to left midpoint"),
+		          ExpectedGunRight);
+		TestEqual(TEXT("Left-facing gun mirrors the accepted DA horizontal anchor"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, -1.0f),
-		          FVector2D(-0.5f, 0.0f));
+		          FVector2D(-ExpectedGunRight.X, ExpectedGunRight.Y));
 		TestEqual(TEXT("Right-facing bow keeps positive local X without texture mirroring"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(
 		              *BowAnchorProfile, 1.0f, false),
-		          FVector2D(0.5f, 0.0f));
+		          ExpectedBowRight);
 		TestEqual(TEXT("Left-facing bow compensates its negative visual scale"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*BowAnchorProfile, -1.0f, true),
-		          FVector2D(0.5f, 0.0f));
+		          ExpectedBowRight);
 		TestEqual(TEXT("Right-facing gun compensates its negative visual scale"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*GunAnchorProfile, 1.0f, true),
-		          FVector2D(-0.5f, 0.0f));
+		          FVector2D(-ExpectedGunRight.X, ExpectedGunRight.Y));
 		TestEqual(TEXT("Left-facing gun keeps negative local X without texture mirroring"),
 		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*GunAnchorProfile, -1.0f, false),
-		          FVector2D(-0.5f, 0.0f));
+		          FVector2D(-ExpectedGunRight.X, ExpectedGunRight.Y));
 	}
+	UReEchoWeaponPresentationProfile* DefaultGunAnchorProfile = NewObject<UReEchoWeaponPresentationProfile>();
+	DefaultGunAnchorProfile->WeaponVisualKey = TEXT("Gun");
+	TestEqual(TEXT("Gun without a DA override defaults to the right midpoint"),
+	          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*DefaultGunAnchorProfile, 1.0f),
+	          FVector2D(0.5f, 0.0f));
 	UReEchoWeaponPresentationProfile* OverrideAnchorProfile = NewObject<UReEchoWeaponPresentationProfile>();
 	OverrideAnchorProfile->WeaponVisualKey = TEXT("Bow");
 	OverrideAnchorProfile->bOverrideAttackVfxAnchor = true;

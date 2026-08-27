@@ -87,6 +87,8 @@
 - 合并后 `ReEcho.Presentation.Combat.Capabilities`：`Success`，覆盖弓/枪负缩放镜像补偿与投射物从最终武器挂点生成。
 - 合并后 `ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility`：`Success`，证明 Plan131 镰刀斩弹资格未被覆盖。
 - 合并后 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check`：通过；首次沙箱内校验仅因 C:\tmp Content 临时目录写权限失败，放行同一命令后通过，非项目缺陷。
+- 发布锁后，枪 DA 的验收覆盖值暴露出旧测试把生产资产固定断言为默认 `0.5`；测试现分别验证无覆盖默认值和生产 DA 覆盖值的左右/负缩放换算，不修改已验收运行时配置。
+- 最终发布候选 FullRebuild：`Result: Succeeded`，预构建 source fingerprint `9039c56180c0`；两项聚焦自动化、项目校验、预构建检查和差异检查均通过。
 
 - `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：100/100，成功；预构建源码指纹 `46d56825feb2`。
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho.Presentation.Combat.Capabilities`：发现 1 项，`Result={Success}`。
