@@ -19,10 +19,13 @@
   - `Config/DefaultGame.ini`
   - `Content/ReEcho/UI/WBP_ReEchoLoadoutSelection.uasset`
   - `Content/ReEcho/UI/WBP_ReEchoLoadoutEntry.uasset`
+  - `Content/ReEcho/UI/WBP_ReEchoLoadoutTooltip.uasset`
   - `Source/ReEcho/Public/UI/ReEchoLoadoutSelectionWidget.h`
   - `Source/ReEcho/Private/UI/ReEchoLoadoutSelectionWidget.cpp`
   - `Source/ReEcho/Public/UI/ReEchoLoadoutEntryWidget.h`
   - `Source/ReEcho/Private/UI/ReEchoLoadoutEntryWidget.cpp`
+  - `Source/ReEcho/Public/UI/ReEchoLoadoutTooltipWidget.h`
+  - `Source/ReEcho/Private/UI/ReEchoLoadoutTooltipWidget.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoLoadoutSelectionTests.cpp`
   - `scripts/ue/import_plan132_loadout_assets.py`
   - `scripts/ue/author_plan132_loadout_widgets.py`
@@ -59,7 +62,7 @@
 - 公共契约：保留 `FReEchoLoadoutConfirmed(FName CharacterId, FName WeaponId)`，不要求 GameMode 新增中间角色确认端点。Entry 只扩展表现输入与 Preview/Selected 事件，不拥有玩法 ID。
 - 依赖方向：UI 继续只读 `FReEchoCsvDataSnapshot` 并向 GameMode 发最终委托，不写 CSV、Run 或武器 Runtime。纹理由稳定资源路径加载，并由硬引用 WBP/AlwaysCook 进入打包。
 - 表现顺序：交付稿顺序与 CSV 的 PromotionPriority/LoadoutOrder 不同；仅在本页按已知稳定 ID 应用美术顺序，未知新项按原数据顺序追加，避免用中文文案反查 ID 或改变全局数据排序。
-- Hover 与可访问性：Hover、Focus 和点击统一进入同一 Preview 状态；点击仍是触屏/手柄确认候选的入口。无 Preview 时所有选项显示明亮版本；有 Preview 时只有当前项明亮，其他项使用未选中版本。鼠标 Hover 的说明由挂在 Entry Button 上的 Tooltip 自动定位，Focus 才启用 WBP 内的锚定回退，避免鼠标场景重复弹框。
+- Hover 与可访问性：Hover、Focus 和点击统一进入同一 Preview 状态；点击仍是触屏/手柄确认候选的入口。无 Preview 时所有选项显示明亮版本；有 Preview 时只有当前项明亮，其他项使用未选中版本。鼠标 Hover 的说明由挂在 Entry Button 上的 Tooltip 自动定位，Focus 才启用 WBP 内的锚定回退，避免鼠标场景重复弹框。`WBP_ReEchoLoadoutTooltip` 是鼠标 Tooltip 的视觉权威，C++ 只写入标题与 CSV 说明；蓝图缺失时才使用原生最低可用树。
 - 解释文字：角色读取 `characters.csv.Description`，武器读取对应 `weapon_types.csv.Description`；鼠标 Tooltip 按商店边框/底色策略自动换行并按内容增长，Focus 回退框使用 20px 正文且不再通过 ScaleBox 缩小文字。不在 C++ 复制一份中文玩法文案。合成稿中的“这里是一段……”视为占位说明，不进入正式内容。
 - 失败与 fallback：缺少正式 WBP/纹理时保留原生最低可用树；单项正式纹理缺失时降级到既有角色/武器纹理，不改变选择资格或提交。
 - 文档同步：维护 `MOD-ReEcho.md` 的开局 UI 流程和 `MOD-ReEchoUI.md` 的两阶段表现/状态所有者；更新 UI 修改指导。关闭前审阅 `ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md`，若拓扑和索引不变则在本 Plan 记录无需修改。
@@ -89,7 +92,7 @@
 1. 原字节归档 18 张运行时切图并导入规范 Texture2D；保留 4 张整屏图为外部视觉参考，不运行时导入。
 2. 扩展 Entry，使其接收选中/未选中两张纹理、数据驱动描述，并把 Hover/Focus/点击统一转为稳定索引事件。
 3. 将 Loadout 父 Widget 改为 Character/Weapon 两阶段状态机：按交付顺序生成当前阶段条目，初始无 Preview，第一次确认切阶段，第二次确认广播既有最终委托。
-4. 作者ing 两个 WBP 的 1920×1080 设计面、响应式 ScaleBox、标题、解释框、箭头、确认按钮与动态条目容器；原生树只作资产失效 fallback。
+4. 作者ing Selection、Entry 和独立 Tooltip 三个 WBP：页面使用 1920×1080 设计面与响应式 ScaleBox，Tooltip 的宽度、边框、内边距、字体和换行由 Designer 管理；原生树只作资产失效 fallback。
 5. 新增或扩展聚焦自动化，更新 UI 指导、模块文档和 Plan 证据；人工验收后合并最新 main，执行最终 FullRebuild 并发布。
 
 ## 验证矩阵
@@ -111,6 +114,7 @@
 - 已原字节归档并导入 18 张角色/武器 Selected/Unselected、解释框与箭头切图；四张整屏稿只用于构图核对。
 - `WBP_ReEchoLoadoutSelection` 已改为 1920×1080 响应式设计面，角色/武器 Stage Panel 分离，并加入正式标题字体、解释框、动态解释文字宿主、箭头和确认按钮；`WBP_ReEchoLoadoutEntry` 以透明按钮承载等比切图与名称。
 - `UReEchoLoadoutSelectionWidget` 已实现 Character → Weapon 两阶段状态机、固定稳定 ID 表现顺序、CSV 描述读取和单次最终广播；Entry 将 Hover、Focus 与点击统一投射为 Preview，并按 Preview 切换成对纹理。用户复核后，鼠标说明改为复用商店原生 Tooltip 的跟随/屏幕避让策略，正文扩大到 20px、380px 宽；Focus 继续使用不缩字的大号页面回退框。
+- 鼠标 Tooltip 的视觉层已从 `UReEchoLoadoutEntryWidget::BuildTooltip()` 的硬编码树拆为独立 `WBP_ReEchoLoadoutTooltip`；`TooltipRootSizeBox` / `TooltipFrame` / `TooltipSurface` / `TitleText` / `DescriptionText` 均可在 Designer 中微调，C++ 只写入当前标题和 CSV 说明并保留蓝图缺失时的原生回退。
 - 增加幂等导入、作者ing、审计脚本及 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 自动化；Packaging AlwaysCook 收集正式 Loadout 纹理目录。
 
 ### 证据
@@ -121,6 +125,7 @@
 - 用户反馈轮已把固定且缩字的鼠标说明替换为商店同款原生 Tooltip；作者ing/审计确认 Focus 回退 `DescriptionText` 为 20px 且不再 ScaleToFit。Flow 自动化新增 Hover 不重复显示锚定框、Focus 启用回退框的断言。
 - `ReEcho.UI.LoadoutSelection` 找到 2 项测试，Assets 与 Flow 均为 `Result={Success}`；反馈轮后的 `python scripts/validate_project.py`、预构建一致性和 `git diff --check` 通过。
 - `CompileAllBlueprints` 完成：`0 errors / 0 warnings / 0 blueprints that failed to load`；命令汇总的 4 条既有引擎/Legacy 警告不属于 Blueprint 编译失败或 Plan132 新增资产。
+- Tooltip 蓝图化轮的 Development Editor 增量构建成功，预构建源码指纹刷新为 `cb9fe0ceb381`；作者ing/审计确认新 WBP 为 6 节点、单根 SizeBox、默认宽 380、标题 22px、正文 20px。更新后 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 再次均为 `Result={Success}`，`CompileAllBlueprints` 再次为 `0 errors / 0 warnings / 0 load failures`，项目校验、预构建检查和 `git diff --check` 通过。
 
 ### 剩余风险
 

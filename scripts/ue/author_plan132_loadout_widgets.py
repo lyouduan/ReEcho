@@ -5,6 +5,10 @@ import unreal
 
 SELECTION_PATH = "/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection"
 ENTRY_PATH = "/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry"
+TOOLTIP_DIR = "/Game/ReEcho/UI"
+TOOLTIP_NAME = "WBP_ReEchoLoadoutTooltip"
+TOOLTIP_PATH = f"{TOOLTIP_DIR}/{TOOLTIP_NAME}"
+TOOLTIP_PARENT_CLASS_PATH = "/Script/ReEcho.ReEchoLoadoutTooltipWidget"
 DESCRIPTION_TEXTURE_PATH = (
     "/Game/ReEcho/Textures/UI/LoadoutSelection/T_UI_Loadout_DescriptionPanel"
 )
@@ -34,6 +38,28 @@ def widget_map(toolset, blueprint):
         for info in widget_infos(toolset, blueprint)
         if info.widget
     }
+
+
+def ensure_tooltip_blueprint():
+    blueprint = (
+        unreal.EditorAssetLibrary.load_asset(TOOLTIP_PATH)
+        if unreal.EditorAssetLibrary.does_asset_exist(TOOLTIP_PATH)
+        else None
+    )
+    if blueprint is None:
+        parent_class = unreal.load_class(None, TOOLTIP_PARENT_CLASS_PATH)
+        if parent_class is None:
+            raise RuntimeError(
+                f"Plan132 tooltip parent class is missing: {TOOLTIP_PARENT_CLASS_PATH}"
+            )
+        factory = unreal.WidgetBlueprintFactory()
+        factory.set_editor_property("parent_class", parent_class)
+        blueprint = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+            TOOLTIP_NAME, TOOLTIP_DIR, unreal.WidgetBlueprint, factory
+        )
+    if not isinstance(blueprint, unreal.WidgetBlueprint):
+        raise RuntimeError(f"Plan132 tooltip asset has the wrong type: {TOOLTIP_PATH}")
+    return blueprint
 
 
 def mark_variable(toolset, blueprint, widget):
@@ -173,6 +199,101 @@ def configure_confirm_button(button, texture):
     button.set_editor_property(
         "background_color", unreal.LinearColor(1.0, 1.0, 1.0, 1.0)
     )
+
+
+def author_tooltip(toolset, blueprint):
+    widgets = widget_map(toolset, blueprint)
+    root = widgets.get("TooltipRootSizeBox")
+    if root is None:
+        roots = [widget for widget in widgets.values() if widget.get_parent() is None]
+        for old_root in roots:
+            if not toolset.call_method("RemoveWidget", args=(blueprint, old_root)):
+                raise RuntimeError(
+                    f"Failed to remove legacy tooltip root: {old_root.get_name()}"
+                )
+        root = add_widget(
+            toolset,
+            blueprint,
+            unreal.SizeBox,
+            "TooltipRootSizeBox",
+            None,
+        )
+        frame = add_widget(
+            toolset, blueprint, unreal.Border, "TooltipFrame", root
+        )
+        surface = add_widget(
+            toolset, blueprint, unreal.Border, "TooltipSurface", frame
+        )
+        content = add_widget(
+            toolset, blueprint, unreal.VerticalBox, "TooltipContent", surface
+        )
+        title = add_widget(
+            toolset, blueprint, unreal.TextBlock, "TitleText", content
+        )
+        description = add_widget(
+            toolset, blueprint, unreal.TextBlock, "DescriptionText", content
+        )
+    widgets = widget_map(toolset, blueprint)
+    required = {
+        "TooltipRootSizeBox": unreal.SizeBox,
+        "TooltipFrame": unreal.Border,
+        "TooltipSurface": unreal.Border,
+        "TooltipContent": unreal.VerticalBox,
+        "TitleText": unreal.TextBlock,
+        "DescriptionText": unreal.TextBlock,
+    }
+    for name, expected_type in required.items():
+        widget = widgets.get(name)
+        if not isinstance(widget, expected_type):
+            raise RuntimeError(f"Plan132 Tooltip binding {name} is missing or wrong")
+        mark_variable(toolset, blueprint, widget)
+
+    root = widgets["TooltipRootSizeBox"]
+    frame = widgets["TooltipFrame"]
+    surface = widgets["TooltipSurface"]
+    title = widgets["TitleText"]
+    description = widgets["DescriptionText"]
+    root.set_width_override(380.0)
+    frame.set_editor_property(
+        "brush_color", unreal.LinearColor(0.95, 0.88, 0.72, 1.0)
+    )
+    frame.set_editor_property("padding", unreal.Margin(3.0, 3.0, 3.0, 3.0))
+    surface.set_editor_property(
+        "brush_color", unreal.LinearColor(0.015, 0.015, 0.015, 0.97)
+    )
+    surface.set_editor_property(
+        "padding", unreal.Margin(18.0, 14.0, 18.0, 14.0)
+    )
+    configure_text(
+        title,
+        "勇者",
+        22,
+        unreal.LinearColor(1.0, 0.96, 0.88, 1.0),
+        unreal.TextJustify.CENTER,
+    )
+    title.set_editor_property("auto_wrap_text", False)
+    title_slot = title.get_editor_property("slot")
+    title_slot.set_editor_property(
+        "padding", unreal.Margin(0.0, 0.0, 0.0, 10.0)
+    )
+    configure_text(
+        description,
+        "角色或武器说明由运行时数据填充",
+        20,
+        unreal.LinearColor(1.0, 1.0, 1.0, 1.0),
+        unreal.TextJustify.LEFT,
+    )
+    description.set_editor_property("auto_wrap_text", True)
+    description.set_editor_property("wrap_text_at", 338.0)
+    for widget in (frame, surface, widgets["TooltipContent"], title, description):
+        set_panel_slot_fill(widget)
+
+    if not toolset.call_method("CompileWidgetBlueprint", args=(blueprint,)):
+        raise RuntimeError("Plan132 Tooltip WBP failed to compile")
+    if not unreal.EditorAssetLibrary.save_loaded_asset(
+        blueprint, only_if_is_dirty=False
+    ):
+        raise RuntimeError("Plan132 Tooltip WBP failed to save")
 
 
 def author_entry(toolset, blueprint, sample_texture, formal_font):
@@ -533,6 +654,7 @@ def main():
     toolset = unreal.UMGToolSet.get_default_object()
     selection = unreal.load_asset(SELECTION_PATH)
     entry = unreal.load_asset(ENTRY_PATH)
+    tooltip = ensure_tooltip_blueprint()
     description_texture = unreal.load_asset(DESCRIPTION_TEXTURE_PATH)
     arrow_texture = unreal.load_asset(ARROW_TEXTURE_PATH)
     confirm_texture = unreal.load_asset(CONFIRM_TEXTURE_PATH)
@@ -553,6 +675,7 @@ def main():
     if not isinstance(formal_font, unreal.Font):
         raise RuntimeError(f"Plan132 required font is missing: {FORMAL_FONT_PATH}")
 
+    author_tooltip(toolset, tooltip)
     author_entry(toolset, entry, sample_texture, formal_font)
     author_selection(
         toolset,
@@ -562,7 +685,9 @@ def main():
         confirm_texture,
         formal_font,
     )
-    unreal.log("[Plan132LoadoutAuthor] entry=compiled selection=compiled")
+    unreal.log(
+        "[Plan132LoadoutAuthor] tooltip=compiled entry=compiled selection=compiled"
+    )
 
 
 if __name__ == "__main__":

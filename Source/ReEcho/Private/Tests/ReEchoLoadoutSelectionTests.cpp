@@ -5,6 +5,7 @@
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
+#include "UI/ReEchoLoadoutTooltipWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoLoadoutSelectionFlowTest,
                                  "ReEcho.UI.LoadoutSelection.Flow",
@@ -33,14 +34,16 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("First confirmation advances to the weapon stage"),
 	         Widget->SelectionStage == UReEchoLoadoutSelectionWidget::ESelectionStage::Weapon);
-	TestEqual(TEXT("Character selection survives the stage change"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
+	TestEqual(
+	    TEXT("Character selection survives the stage change"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
 	TestTrue(TEXT("Weapon preview is reset when weapon selection begins"), Widget->SelectedWeaponId.IsNone());
 	TestFalse(TEXT("First confirmation does not submit a final loadout"), Widget->bFinalConfirmationBroadcast);
 
 	Widget->SelectedWeaponId = TEXT("W_J_04");
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("Second confirmation submits the final loadout exactly once"), Widget->bFinalConfirmationBroadcast);
-	TestEqual(TEXT("Final confirmation retains the selected character"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
+	TestEqual(
+	    TEXT("Final confirmation retains the selected character"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
 	TestEqual(TEXT("Final confirmation retains the selected weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_04")));
 
 	Widget->HandleConfirmClicked();
@@ -60,6 +63,9 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 	TestNotNull(TEXT("Authored loadout entry class is loadable"),
 	            LoadClass<UReEchoLoadoutEntryWidget>(
 	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry.WBP_ReEchoLoadoutEntry_C")));
+	TestNotNull(TEXT("Authored loadout tooltip class is loadable"),
+	            LoadClass<UReEchoLoadoutTooltipWidget>(
+	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip.WBP_ReEchoLoadoutTooltip_C")));
 
 	const TCHAR* CharacterIds[] = {TEXT("J_HEART"), TEXT("J_SPADE"), TEXT("J_CLOVER"), TEXT("J_DIAMOND")};
 	const TCHAR* WeaponIds[] = {TEXT("W_J_04"), TEXT("W_J_09"), TEXT("W_J_01"), TEXT("W_J_08")};
@@ -69,8 +75,7 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		for (const TCHAR* State : States)
 		{
 			const FString Name = FString::Printf(TEXT("T_UI_Loadout_Character_%s_%s"), CharacterId, State);
-			const FString Path = FString::Printf(
-			    TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/%s.%s"), *Name, *Name);
+			const FString Path = FString::Printf(TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/%s.%s"), *Name, *Name);
 			TestNotNull(*FString::Printf(TEXT("Character texture %s is loadable"), *Name),
 			            LoadObject<UTexture2D>(nullptr, *Path));
 		}
@@ -80,22 +85,19 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		for (const TCHAR* State : States)
 		{
 			const FString Name = FString::Printf(TEXT("T_UI_Loadout_Weapon_%s_%s"), WeaponId, State);
-			const FString Path = FString::Printf(
-			    TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/%s.%s"), *Name, *Name);
+			const FString Path = FString::Printf(TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/%s.%s"), *Name, *Name);
 			TestNotNull(*FString::Printf(TEXT("Weapon texture %s is loadable"), *Name),
 			            LoadObject<UTexture2D>(nullptr, *Path));
 		}
 	}
 	TestNotNull(TEXT("Description panel texture is loadable"),
-	            LoadObject<UTexture2D>(
-	                nullptr,
-	                TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/T_UI_Loadout_DescriptionPanel."
-	                     "T_UI_Loadout_DescriptionPanel")));
+	            LoadObject<UTexture2D>(nullptr,
+	                                   TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/T_UI_Loadout_DescriptionPanel."
+	                                        "T_UI_Loadout_DescriptionPanel")));
 	TestNotNull(TEXT("Selection arrow texture is loadable"),
-	            LoadObject<UTexture2D>(
-	                nullptr,
-	                TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/T_UI_Loadout_SelectionArrow."
-	                     "T_UI_Loadout_SelectionArrow")));
+	            LoadObject<UTexture2D>(nullptr,
+	                                   TEXT("/Game/ReEcho/Textures/UI/LoadoutSelection/T_UI_Loadout_SelectionArrow."
+	                                        "T_UI_Loadout_SelectionArrow")));
 	return true;
 }
 

@@ -6,6 +6,7 @@ import unreal
 ASSET_PATHS = (
     "/Game/ReEcho/UI/WBP_ReEchoLoadoutSelection",
     "/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry",
+    "/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip",
 )
 
 FONT_PATHS = (
@@ -33,6 +34,24 @@ def main():
             f"[Plan132LoadoutAudit] asset={asset_path} widgets={len(widgets)} "
             f"roots={[root.get_name() for root in roots]}"
         )
+        if asset_path.endswith("WBP_ReEchoLoadoutEntry"):
+            generated_class = blueprint.generated_class()
+            default_object = unreal.get_default_object(generated_class)
+            tooltip_class = default_object.get_editor_property("tooltip_widget_class")
+            expected_tooltip_path = (
+                "/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip."
+                "WBP_ReEchoLoadoutTooltip_C"
+            )
+            actual_tooltip_path = (
+                tooltip_class.get_path_name() if tooltip_class else "<missing>"
+            )
+            unreal.log(
+                f"[Plan132LoadoutAudit] entry_tooltip_class={actual_tooltip_path}"
+            )
+            if actual_tooltip_path != expected_tooltip_path:
+                raise RuntimeError(
+                    "Plan132 entry does not reference the authored tooltip class"
+                )
         for info in infos:
             widget = info.widget
             if widget is None:
@@ -56,6 +75,23 @@ def main():
                     f"size={font.get_editor_property('size')} "
                     f"outline={outline.get_editor_property('outline_size')}"
                 )
+        if asset_path.endswith("WBP_ReEchoLoadoutTooltip"):
+            widget_by_name = {widget.get_name(): widget for widget in widgets}
+            root = widget_by_name.get("TooltipRootSizeBox")
+            title = widget_by_name.get("TitleText")
+            description = widget_by_name.get("DescriptionText")
+            if not isinstance(root, unreal.SizeBox):
+                raise RuntimeError("Plan132 tooltip root SizeBox is missing")
+            if not isinstance(title, unreal.TextBlock):
+                raise RuntimeError("Plan132 tooltip TitleText is missing")
+            if not isinstance(description, unreal.TextBlock):
+                raise RuntimeError("Plan132 tooltip DescriptionText is missing")
+            if root.get_editor_property("width_override") != 380.0:
+                raise RuntimeError("Plan132 tooltip authored width is not 380")
+            if title.get_editor_property("font").size != 22:
+                raise RuntimeError("Plan132 tooltip authored title font is not 22")
+            if description.get_editor_property("font").size != 20:
+                raise RuntimeError("Plan132 tooltip authored body font is not 20")
 
 
 if __name__ == "__main__":

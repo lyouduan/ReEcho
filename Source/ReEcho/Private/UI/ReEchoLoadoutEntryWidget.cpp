@@ -1,14 +1,21 @@
 #include "UI/ReEchoLoadoutEntryWidget.h"
 
 #include "Blueprint/WidgetTree.h"
-#include "Components/Border.h"
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
-#include "Components/VerticalBox.h"
-#include "Components/VerticalBoxSlot.h"
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoIndexedButton.h"
+#include "UI/ReEchoLoadoutTooltipWidget.h"
+#include "UObject/ConstructorHelpers.h"
+
+UReEchoLoadoutEntryWidget::UReEchoLoadoutEntryWidget(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer)
+{
+	static ConstructorHelpers::FClassFinder<UReEchoLoadoutTooltipWidget> TooltipClassFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip"));
+	TooltipWidgetClass = TooltipClassFinder.Class;
+}
 
 void UReEchoLoadoutEntryWidget::NativeConstruct()
 {
@@ -60,9 +67,8 @@ void UReEchoLoadoutEntryWidget::SetPresentationState(const bool bHasPreview, con
 	{
 		PortraitImage->SetBrushFromTexture(Texture, true);
 	}
-	NameText->SetColorAndOpacity(
-	    FSlateColor(!bHasPreview || bIsPreviewed ? FLinearColor(1.0f, 0.96f, 0.88f, 1.0f)
-	                                             : FLinearColor(0.46f, 0.43f, 0.37f, 1.0f)));
+	NameText->SetColorAndOpacity(FSlateColor(!bHasPreview || bIsPreviewed ? FLinearColor(1.0f, 0.96f, 0.88f, 1.0f)
+	                                                                      : FLinearColor(0.46f, 0.43f, 0.37f, 1.0f)));
 	SelectButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
 }
 
@@ -89,43 +95,21 @@ void UReEchoLoadoutEntryWidget::HandleHovered()
 
 UWidget* UReEchoLoadoutEntryWidget::BuildTooltip(const FText& Label, const FText& Description)
 {
-	USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>();
-	TooltipSize->SetWidthOverride(380.0f);
+	TSubclassOf<UReEchoLoadoutTooltipWidget> EffectiveTooltipClass = TooltipWidgetClass;
+	if (!EffectiveTooltipClass)
+	{
+		EffectiveTooltipClass = LoadClass<UReEchoLoadoutTooltipWidget>(
+		    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip.WBP_ReEchoLoadoutTooltip_C"));
+	}
+	if (!EffectiveTooltipClass)
+	{
+		EffectiveTooltipClass = UReEchoLoadoutTooltipWidget::StaticClass();
+	}
 
-	UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>();
-	TooltipFrame->SetBrushColor(FLinearColor(0.95f, 0.88f, 0.72f, 1.0f));
-	TooltipFrame->SetPadding(FMargin(3.0f));
-	UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>();
-	TooltipSurface->SetBrushColor(FLinearColor(0.015f, 0.015f, 0.015f, 0.97f));
-	TooltipSurface->SetPadding(FMargin(18.0f, 14.0f));
-
-	UVerticalBox* TooltipContent = WidgetTree->ConstructWidget<UVerticalBox>();
-	UTextBlock* TooltipTitle = WidgetTree->ConstructWidget<UTextBlock>();
-	TooltipTitle->SetText(Label);
-	TooltipTitle->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.96f, 0.88f, 1.0f)));
-	TooltipTitle->SetJustification(ETextJustify::Center);
-	TooltipTitle->SetAutoWrapText(false);
-	FSlateFontInfo TitleFont = TooltipTitle->GetFont();
-	TitleFont.Size = 22;
-	TooltipTitle->SetFont(TitleFont);
-	UVerticalBoxSlot* TitleSlot = TooltipContent->AddChildToVerticalBox(TooltipTitle);
-	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
-
-	UTextBlock* TooltipBody = WidgetTree->ConstructWidget<UTextBlock>();
-	TooltipBody->SetText(Description);
-	TooltipBody->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	TooltipBody->SetJustification(ETextJustify::Left);
-	TooltipBody->SetAutoWrapText(true);
-	TooltipBody->SetWrapTextAt(338.0f);
-	FSlateFontInfo BodyFont = TooltipBody->GetFont();
-	BodyFont.Size = 20;
-	TooltipBody->SetFont(BodyFont);
-	TooltipContent->AddChildToVerticalBox(TooltipBody);
-
-	TooltipSurface->SetContent(TooltipContent);
-	TooltipFrame->SetContent(TooltipSurface);
-	TooltipSize->SetContent(TooltipFrame);
-	return TooltipSize;
+	UReEchoLoadoutTooltipWidget* Tooltip =
+	    WidgetTree->ConstructWidget<UReEchoLoadoutTooltipWidget>(EffectiveTooltipClass);
+	Tooltip->Configure(Label, Description);
+	return Tooltip;
 }
 
 void UReEchoLoadoutEntryWidget::NativeOnAddedToFocusPath(const FFocusEvent& InFocusEvent)

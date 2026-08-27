@@ -6,6 +6,7 @@
 
 class UImage;
 class UReEchoIndexedButton;
+class UReEchoLoadoutTooltipWidget;
 class USizeBox;
 class UTextBlock;
 class UTexture2D;
@@ -22,6 +23,8 @@ class REECHO_API UReEchoLoadoutEntryWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UReEchoLoadoutEntryWidget(const FObjectInitializer& ObjectInitializer);
+
 	UPROPERTY(BlueprintAssignable)
 	FReEchoLoadoutEntrySelected OnEntrySelected;
 
@@ -74,6 +77,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> UnselectedTexture;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Loadout | Tooltip")
+	TSubclassOf<UReEchoLoadoutTooltipWidget> TooltipWidgetClass;
 
 	int32 EntryIndex = INDEX_NONE;
 };
