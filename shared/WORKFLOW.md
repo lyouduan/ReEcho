@@ -9,6 +9,7 @@
 | 启动和读取顺序 | `AGENTS.md` |
 | 项目约束、本地/远端边界和验证 | `shared/PROJECT_RULES.md` |
 | 程序/策划/美术边界 | 对应专业规则 |
+| 策划任务分支、效果确认、问题交接和经验 | `shared/DESIGNER_RULES.md`、`shared/DESIGNER_EXPERIENCE/<策划身份>.md` |
 | 项目秘书职责 | `shared/SECRETARY_RULES.md` |
 | Plan、评审和发布 | `shared/PLANNER_RULES.md` |
 | 具体实现 | `shared/EXECUTOR_RULES.md` |
@@ -22,7 +23,7 @@
 - 每个成员/AI 在自己的克隆中自行决定分支、worktree、stash、WIP 提交、merge/rebase 和并行方式；共享规则不追踪本地所有权。
 - 程序路线分别确认 Planner-Executor 分工和本地工作区模式这两个独立答案，但在同一次首次确认中取得它们；两者仍互不推导。选择“一任务一 worktree”时，即使同一 AI 完成全流程，每个任务也使用独立文件夹。
 - Plan 不是写锁，而是大任务的公开规格、设计决策和验收历史。所有大任务在实现开始前发布编号 Plan 到 `main`；小型修复、只读审计或明确豁免可直接处理。
-- 远端 `main` 是唯一权威发布分支；程序路线和项目秘书发布时按 `GIT_RULES.md` 使用唯一临时 `main-publish-lock` 串行集成。策划和美术可按 `PROJECT_RULES.md` 使用 `designer/<task>`、`artist/<task>` 远端协作分支做跨机器保存、评审和交接，但这些分支不构成发布状态，也不存在 Exchange。
+- 远端 `main` 是唯一权威发布分支；程序路线和项目秘书发布时按 `GIT_RULES.md` 使用唯一临时 `main-publish-lock` 串行集成。策划按 `DESIGNER_RULES.md` 为每项任务创建或复用 `designer/<策划身份>/<任务>`，同一策划可并行多个任务，失败尝试进入对应 `designer-issue/<策划身份>/<任务>`；美术使用 `artist/<task>`。这些协作分支不构成发布状态，也不存在 Exchange。
 - 编号 Plan 在实现开始前发布到 `main`。远端 main 拥有编号；冲突时尚未发布的本地 Plan 以后到先得方式整体后移。
 - `Writes`、`Stable Reads` 和 `Isolated | ReadOnly | SharedContract | Exclusive` 只描述影响面与集成风险，不授予或阻止本地写入。
 

@@ -1895,6 +1895,10 @@ def validate_workflow() -> None:
     project_rules = (ROOT / "shared" / "PROJECT_RULES.md").read_text(encoding="utf-8")
     programmer_rules = (ROOT / "shared" / "PROGRAMMER_RULES.md").read_text(encoding="utf-8")
     designer_rules = (ROOT / "shared" / "DESIGNER_RULES.md").read_text(encoding="utf-8")
+    designer_experience_path = ROOT / "shared" / "DESIGNER_EXPERIENCE" / "README.md"
+    if not designer_experience_path.is_file():
+        fail("designer experience library is missing shared/DESIGNER_EXPERIENCE/README.md")
+    designer_experience = designer_experience_path.read_text(encoding="utf-8")
     artist_rules = (ROOT / "shared" / "ARTIST_RULES.md").read_text(encoding="utf-8")
     secretary_rules = (ROOT / "shared" / "SECRETARY_RULES.md").read_text(encoding="utf-8")
     git_rules = (ROOT / "shared" / "GIT_RULES.md").read_text(encoding="utf-8")
@@ -1925,6 +1929,7 @@ def validate_workflow() -> None:
         "shared/ARTIST_RULES.md",
         "是否采用规划者-执行者模式？",
         "是否采用一任务一 worktree（每个任务一个独立文件夹）？",
+        "用于任务分支和经验文件的稳定身份标识",
     )
     missing_role_gate_markers = [marker for marker in role_gate_markers if marker not in agents]
     if missing_role_gate_markers:
@@ -1980,8 +1985,13 @@ def validate_workflow() -> None:
         "DESIGNER_RULES.md": (
             "策划用户路线",
             "ReEchoData.xlsx",
-            "策划 AI 可在本地读取、创建、修改、编译和试验仓库内任何文件",
-            "禁止策划路线直接推送、合并或发布 `origin/main`",
+            "不得修改代码、生成器、Schema、构建配置",
+            "designer/<策划身份>/<任务>",
+            "designer-issue/<策划身份>/<任务>",
+            "已发布旧分支迁移",
+            "策划明确确认“效果正确并同意推送”",
+            "在哪里改什么可以使什么生效",
+            "不得直接推送、合并或发布 `origin/main`",
             "shared/GIT_RULES.md",
         ),
         "ARTIST_RULES.md": ("美术用户路线", "本地工作方式自由", "禁止手改 `.uasset`", "shared/GIT_RULES.md"),
@@ -1995,6 +2005,21 @@ def validate_workflow() -> None:
         missing = [marker for marker in markers if marker not in role_rule_texts[name]]
         if missing:
             fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
+    designer_experience_markers = (
+        "在哪里改什么可以使什么生效",
+        "生效映射：",
+        "刷新方式：",
+        "策划确认：",
+        "限制与踩坑：",
+    )
+    missing_designer_experience_markers = [
+        marker for marker in designer_experience_markers if marker not in designer_experience
+    ]
+    if missing_designer_experience_markers:
+        fail(
+            "designer experience template lacks reusable effect evidence: "
+            + ", ".join(missing_designer_experience_markers)
+        )
     worktree_choice_markers = {
         "AGENTS.md": (
             "After that answer is known",
@@ -2209,16 +2234,22 @@ def validate_workflow() -> None:
         "PROJECT_RULES.md": (
             "`origin/main` 是唯一权威发布分支",
             "程序路线与项目秘书除 `GIT_RULES.md` 定义的临时 `main-publish-lock` 外仍只推送 `origin/main`",
-            "`designer/<task>`",
+            "`designer/<策划身份>/<任务>`",
+            "`designer-issue/<策划身份>/<任务>`",
             "`artist/<task>`",
             "协作分支不是发布面",
         ),
-        "DESIGNER_RULES.md": ("`designer/<task>`", "不得直接推送或发布 `main`"),
+        "DESIGNER_RULES.md": (
+            "`designer/<策划身份>/<任务>`",
+            "`designer-issue/<策划身份>/<任务>`",
+            "`designer/<旧任务>`",
+            "不得直接推送、合并或发布 `origin/main`",
+        ),
         "ARTIST_RULES.md": ("`artist/<task>`", "不得直接推送或发布 `main`"),
         "PLANNER_RULES.md": ("`origin/main` 是唯一权威发布分支", "`main-publish-lock`", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不自行推送任务分支"),
         "SECRETARY_RULES.md": ("临时 `main-publish-lock`", "普通非强制 push 发布 `origin/main`"),
-        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`designer/<task>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
+        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`designer/<策划身份>/<任务>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
     }
     remote_branch_boundary_texts = {
         "PROJECT_RULES.md": project_rules,
