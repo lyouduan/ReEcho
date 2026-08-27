@@ -21,26 +21,15 @@ model, account, or third-party license claim; it records the user delivery and i
 | `Ambience.Arena` | `Design/Audio/Source/Ambience/Ambience_Arena.mp3` | `Weight_of_the_Rift.mp3` | `d1574df12554ac5d32bc6266939870ba4a19c59e86754bbfb81c3b48cc1d4c1d` |
 | `Ambience.Rain` | `Design/Audio/Source/Ambience/Ambience_Rain.mp3` | `Under_The_Stone_Vault.mp3` | `7dcd36d621bf2d5ae546ba0ec9145dcda650fc5ac36636199309e16eee0efdef` |
 
-## Existing encounter music
+## Retired technical placeholders
 
-| EventId | Source | SHA-256 | Provenance state |
-|---|---|---|---|
-| `Music.Encounter` | `Content/ReEcho/Audio/Music/The_Iron_Waltz.wav` | `018794a6f28843a898f50b09fd54c0d8ee7bbd81b5c3ec0fa7bb9794ee2d1206` | Existing user-delivered Plan34 source; originating platform is intentionally not tracked per the user's 2026-08-17 instruction, and no unsupported third-party license claim is made. |
-
-## Deterministic baseline one-shots
-
-- Events: the 15 retained generated fallback rows (UI, Combat, Enemy, Boss, `CameraMove`, `Revive`).
-- Generator: `scripts/audio/generate_event_sfx.py`.
-- Output: `Design/Audio/Generated/**/*.wav`.
-- Signal contract: 48 kHz, mono, PCM16, fixed recipes and per-EventId deterministic seeds.
-- License/origin: generated mathematically by repository code; no recording or third-party media is sampled.
-- Intended use: replaceable technical/playable baseline. User listening approval is required before Plan46 closes.
-- Reproduction: run `python scripts/audio/generate_event_sfx.py`; verify with `--check`.
-
-Plan123 retires the generated assets for `Combat.Block`, `Combat.Kill`, `Enemy.Attack`,
-`Boss.Spawn`, `Boss.Attack`, `Echo.Spawn`, `Echo.Attack`, and `Echo.End`. Their catalog
-rows remain as stable semantic contracts with empty `AssetPath` values, so posting them
-is a safe silent no-op until the planning table supplies replacements.
+Plan123 removes every deterministic `Design/Audio/Generated/**` WAV and its generator.
+Formal user-delivered sources or deterministic derivatives now back every audible catalog
+row. The planning table does not authorize generic `Music.Encounter`, `Combat.Attack`, or
+`Combat.Hit` fallback audio, so their base rows are explicit silent contracts; Stage,
+WeaponId, and Element variants remain audible. The eight previously retired combat/enemy/
+boss/echo placeholder events also remain known silent semantics. Posting any of these base
+rows is a safe no-op until the planning table supplies a replacement.
 
 ## User-provided formal replacements (Plan114)
 
@@ -92,7 +81,7 @@ required by the existing 3D catalog contract; `--check` verifies byte identity.
 MP3 one-shots are decoded by UE 5.8 through `scripts/audio/export_formal_audio_wav.py`.
 `scripts/audio/prepare_formal_audio.py` then averages every spatial stereo source to tracked
 mono PCM16 WAVs under `Design/Audio/Derived/**`; runtime SoundWaves import only those derived
-files. `validate_formal_audio_sources.py` verifies all 25 user-delivered source hashes, while
+files. `validate_formal_audio_sources.py` verifies all 32 user-delivered source hashes, while
 `prepare_formal_audio.py --check` verifies each derived file byte-for-byte.
 
 ## Remaining formal one-shots (Plan123)

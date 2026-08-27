@@ -11,6 +11,9 @@ CATALOG = Path(unreal.Paths.project_content_dir()).resolve() / "Data" / "audio_e
 EXPECTED_ROWS = 52
 ASSET_ROOT = "/Game/ReEcho/Audio/"
 EXPECTED_SILENT_EVENTS = {
+    "Music.Encounter",
+    "Combat.Attack",
+    "Combat.Hit",
     "Combat.Block",
     "Combat.Kill",
     "Enemy.Attack",
@@ -19,16 +22,6 @@ EXPECTED_SILENT_EVENTS = {
     "Echo.Spawn",
     "Echo.Attack",
     "Echo.End",
-}
-REMOVED_ASSETS = {
-    "/Game/ReEcho/Audio/Combat/Combat_Block.Combat_Block",
-    "/Game/ReEcho/Audio/Combat/Combat_Kill.Combat_Kill",
-    "/Game/ReEcho/Audio/Enemy/Enemy_Attack.Enemy_Attack",
-    "/Game/ReEcho/Audio/Boss/Boss_Spawn.Boss_Spawn",
-    "/Game/ReEcho/Audio/Boss/Boss_Attack.Boss_Attack",
-    "/Game/ReEcho/Audio/Echo/Echo_Spawn.Echo_Spawn",
-    "/Game/ReEcho/Audio/Echo/Echo_Attack.Echo_Attack",
-    "/Game/ReEcho/Audio/Echo/Echo_End.Echo_End",
 }
 
 
@@ -41,6 +34,7 @@ def main() -> None:
         errors.append(f"expected {EXPECTED_ROWS} rows, found {len(rows)}")
 
     seen_keys: set[tuple[str, str]] = set()
+    bound_asset_paths: set[str] = set()
     silent_events: set[str] = set()
     sound_wave_count = 0
     for row in rows:
@@ -58,6 +52,7 @@ def main() -> None:
             else:
                 silent_events.add(event_id)
             continue
+        bound_asset_paths.add(asset_path)
         if not asset_path.startswith(ASSET_ROOT):
             errors.append(f"{label}: AssetPath is outside {ASSET_ROOT}: {asset_path!r}")
             continue
@@ -83,9 +78,15 @@ def main() -> None:
         errors.append(
             f"silent event set mismatch: expected {sorted(EXPECTED_SILENT_EVENTS)}, found {sorted(silent_events)}"
         )
-    for asset_path in sorted(REMOVED_ASSETS):
-        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
-            errors.append(f"retired placeholder asset still exists: {asset_path}")
+    project_audio_assets = {
+        str(asset_path)
+        for asset_path in unreal.EditorAssetLibrary.list_assets(
+            ASSET_ROOT, recursive=True, include_folder=False
+        )
+    }
+    table_external_assets = sorted(project_audio_assets - bound_asset_paths)
+    if table_external_assets:
+        errors.append(f"table-external audio assets still exist: {table_external_assets}")
 
     if errors:
         raise RuntimeError("Audio asset validation failed:\n" + "\n".join(errors))

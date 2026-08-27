@@ -7,7 +7,7 @@
 - Build 文件：`Source/ReEchoAudio/ReEchoAudio.Build.cs`。
 - 注册入口：`Source/ReEchoAudio/Private/ReEchoAudio.cpp` 中的 `FReEchoAudioModule`。
 - 主要目录：`Source/ReEchoAudio/Public/`、`Source/ReEchoAudio/Private/`。
-- 相关基线：Plan33 音频运行时基础；Plan34 增加策划目录、持久设置、战斗 BGM 接入与真实后端淡入修复；Plan46 为全部 31 个基础目录项接入资源并硬化非阻塞播放、衰减和 Cook；Plan114 增加正式资源、确定性单声道/裁切派生和 Weapon/Element/Stage 变体；Plan123 补齐反应、拾取、卡牌展示、装备与普通关胜利语义，并把策划表外的 8 个占位资源收敛为显式静默目录项。
+- 相关基线：Plan33 音频运行时基础；Plan34 增加策划目录、持久设置、战斗 BGM 接入与真实后端淡入修复；Plan46 为全部 31 个基础目录项接入资源并硬化非阻塞播放、衰减和 Cook；Plan114 增加正式资源、确定性单声道/裁切派生和 Weapon/Element/Stage 变体；Plan123 补齐反应、拾取、卡牌展示、装备与普通关胜利语义，并把 11 个无策划授权的基础行收敛为显式静默目录项，删除全部旧 Generated 音频。
 
 ## 存在原因
 
@@ -38,7 +38,7 @@
 |---|---|---|
 | 运行时服务生命周期 | `UReEchoAudioService` | GameInstance Subsystem，统一请求入口与 Tick |
 | 音频目录 | `FReEchoAudioCatalog` / `IReEchoAudioCatalogProvider` | `(EventId, VariantId)` 到播放描述的唯一映射接口；空变体是基础回退；`StartTimeSeconds` 是策划可调的非负源内起播点 |
-| 音频资源与来源 | `Content/ReEcho/Audio/**` / `Design/Audio/**` | 前者是运行时 SoundWave；后者保存用户源文件、15 个保留的确定性短音生成物与来源清单；空 `AssetPath` 表示经策划确认的静默语义，不保留占位 SoundWave |
+| 音频资源与来源 | `Content/ReEcho/Audio/**` / `Design/Audio/**` | 前者只允许权威目录非空路径指向的运行时 SoundWave；后者只保存用户源文件、确定性正式派生与来源清单，不再保存 Generated 占位音；空 `AssetPath` 表示经策划确认的静默语义 |
 | 音乐状态 | `UReEchoAudioService` + Policy Engine | 独立状态通道，不由 GameMode 缓存第二份 |
 | 环境状态 | `UReEchoAudioService` + Policy Engine | 与音乐分离，可独立停止/切换 |
 | Master/总线音量与静音 | `UReEchoAudioService` + `UReEchoAudioUserSettings` | Service 是运行时权威；模块自有 SaveGame 是跨进程持久化权威，不进入 Run Save |
@@ -154,7 +154,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 自动化：`Source/ReEchoAudio/Private/Tests/ReEchoAudioFoundationTests.cpp`。
 - 重点覆盖：目录解析、无效 ID、安全降级、总线音量/静音、状态幂等、冷却、并发、优先级、暂停策略和假后端调用。
 - 语义路由审计：`python scripts/audio/validate_audio_event_routes.py` 比较 37 个稳定 EventId、常量和主模块生产引用，拒绝只有测试引用的孤立事件；变体集合另由项目数据域校验限定。
-- 资产审计：在取得同克隆 Unreal 锁后运行 `scripts/audio/validate_audio_catalog_assets.py`，验证当前 52 行目录中的 44 个绑定行、8 个精确静默行、SoundWave 类型、循环标记与空间音效单声道约束，并确认已退役占位资产不存在。
+- 资产审计：在取得同克隆 Unreal 锁后运行 `scripts/audio/validate_audio_catalog_assets.py`，验证当前 52 行目录中的 41 个绑定行、11 个精确静默行、SoundWave 类型、循环标记与空间音效单声道约束，并拒绝 `/Game/ReEcho/Audio` 下任何目录白名单外资产。
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development` 必须同时产出 `UnrealEditor-ReEchoAudio.dll`。
 - 静态：模块边界不得出现 `#include` 主模块玩法路径。
 - 人工验收：真实资源可听性、响度平衡、空间定位和混音由用户在 PIE/设备上判断；链路异常优先用 Audio Insights 的 Events/Sounds/总线表区分“请求已发出”“组件仍存活”和“设备有最终信号”。
@@ -169,7 +169,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 不得在后端用 `LoadSynchronous()` 补救未完成的预载；状态启动失败必须保留现有状态并允许重试。
 - 玩法不应为异步预载而重复发状态；Service 持有期望状态并负责重试，World 替换后不能用旧句柄误判为仍在播放。
 - CSV 中的 SoundWave 软路径必须由显式 Cook 目录覆盖，不能依赖当前地图是否引用资源。
-- 变体只由稳定 WeaponId、ElementId 或 StageId 选择；资产路径仍只存在于目录，未知/空变体必须回退基础事件。
+- 变体只由稳定 WeaponId、ElementId 或 StageId 选择；资产路径仍只存在于目录，未知/空变体回退基础事件时允许得到显式静音，不能重新引入通用占位音。
 - 玩法调用点只认识稳定语义 ID，不认识资产路径。
 - next-world 队列只跨现有 World 生命周期投递声音，不得创建复活规则、延迟 `OpenLevel` 或用播放结果确认重开成功。
 - 模块公共头不得泄漏 `ReEcho`、Combat、Weapons、UI 或 Presentation 类型。
