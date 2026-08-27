@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
@@ -65,9 +66,27 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 	TestNotNull(TEXT("Authored loadout entry class is loadable"),
 	            LoadClass<UReEchoLoadoutEntryWidget>(
 	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutEntry.WBP_ReEchoLoadoutEntry_C")));
-	TestNotNull(TEXT("Authored loadout tooltip class is loadable"),
-	            LoadClass<UReEchoLoadoutTooltipWidget>(
-	                nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip.WBP_ReEchoLoadoutTooltip_C")));
+	UClass* TooltipClass = LoadClass<UReEchoLoadoutTooltipWidget>(
+	    nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoLoadoutTooltip.WBP_ReEchoLoadoutTooltip_C"));
+	TestNotNull(TEXT("Authored loadout tooltip class is loadable"), TooltipClass);
+	if (TooltipClass)
+	{
+		UReEchoLoadoutTooltipWidget* Tooltip =
+		    NewObject<UReEchoLoadoutTooltipWidget>(GetTransientPackage(), TooltipClass);
+		TestTrue(TEXT("Authored tooltip initializes its Designer tree"), Tooltip->Initialize());
+		UBorder* TooltipFrame = Cast<UBorder>(Tooltip->GetWidgetFromName(TEXT("TooltipFrame")));
+		TestNotNull(TEXT("Authored tooltip exposes its delivery frame"), TooltipFrame);
+		if (TooltipFrame)
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			TestTrue(TEXT("Tooltip frame keeps the delivery texture at runtime"),
+			         TooltipFrame->Background.GetResourceObject() != nullptr);
+			TestEqual(TEXT("Tooltip frame uses scalable nine-slice drawing"),
+			          TooltipFrame->Background.DrawAs,
+			          ESlateBrushDrawType::Box);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+	}
 
 	if (SelectionClass)
 	{

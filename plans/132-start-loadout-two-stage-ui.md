@@ -118,6 +118,7 @@
 - 用户复核指出仅暴露层级仍不是所见即所得；Tooltip WBP 的 Designer Preview 改为 `Desired` 内容实际尺寸，并从 `characters.csv` 读取 `J_HEART` 的真实标题与长说明作为设计期示例。打开 WBP 即显示运行时同宽、按内容撑高的框体，实际运行仍由当前条目文案覆盖，不写死高度。
 - 用户再次复核明确指出目标是完整 Selection 页面而非 Tooltip 子框。`WBP_ReEchoLoadoutSelection` 已直接承载四个角色和四个武器的实际 `WBP_ReEchoLoadoutEntry` 实例，C++ 改为复用而非清空重建；Class Defaults 暴露 Designer Preview Stage/Index，可在同一 Designer 切换两阶段和初始/选中状态。
 - 用户微调后发现单张 `SelectionArrow` 仍被状态刷新中的硬编码坐标覆盖；箭头契约改为角色/武器各四张 Designer-owned Image，运行时只切换可见性。定向迁移保留用户已调整的 `SelectionArrow` 作为猎手箭头，仅补齐其余七张，不重跑整页作者ing。
+- 鼠标悬停说明的外框改为直接使用交付的 `T_UI_Loadout_DescriptionPanel` 九宫格 Brush，避免纯色 Border 在运行时缩放后丢失视觉边界；迁移仅修改 Tooltip WBP，不触碰用户继续微调的 Selection WBP。
 - 增加幂等导入、作者ing、审计脚本及 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 自动化；Packaging AlwaysCook 收集正式 Loadout 纹理目录。
 
 ### 证据
@@ -132,6 +133,7 @@
 - 所见即所得反馈轮将 Tooltip 的 Editor-only `DesignSizeMode` 固化为 `Desired`，并避免 `NativePreConstruct` 在设计期清空真实示例文案；资产审计输出 `tooltip_desired_preview=True`。Development Editor 增量构建成功，精选预构建源码指纹刷新为 `2b34590ccb99`；Loadout Assets/Flow 两项自动化均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`，项目静态校验、预构建一致性与 `git diff --check` 均通过。
 - 完整 Selection 所见即所得返工后，WBP 审计确认 Selection 为 25 节点，角色与武器各有四个准确命名、类型为 `WBP_ReEchoLoadoutEntry_C` 的直接 Row 子项；Assets 自动化进一步实例化 WBP 并确认运行配置前后复用同一 Entry 对象。Development Editor 增量构建成功，精选预构建源码指纹为 `ea2eb0c53626`；Assets/Flow 均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`，项目静态校验、预构建一致性和 `git diff --check` 通过。
 - SelectionArrow 回位修复轮通过定向迁移补齐 8 个 Designer-owned 箭头并保留用户微调后的 `SelectionArrow`；审计确认角色/武器各四张箭头均为设计面直接子项。Development Editor 增量构建成功，精选预构建源码指纹为 `cce07464ec44`；Assets/Flow 两项聚焦自动化均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`，项目静态校验、Python 脚本语法、预构建一致性和 `git diff --check` 均通过。
+- Tooltip 外框修复轮将交付的 `T_UI_Loadout_DescriptionPanel` 绑定为 `TooltipFrame` 的九宫格 Brush；资产审计确认资源路径和 `DrawAs=Box`，Assets 自动化实例化实际 Tooltip 并验证运行时仍保留该 Brush。Development Editor 增量构建成功，精选预构建源码指纹为 `fa96a54f27f2`；Assets/Flow 均为 `Result={Success}`，全蓝图编译为 `0 errors / 0 warnings / 0 load failures`。用户继续微调但未纳入本轮提交的 Selection WBP 保持原样。
 
 ### 剩余风险
 

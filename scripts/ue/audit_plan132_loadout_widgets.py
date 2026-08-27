@@ -131,6 +131,7 @@ def main():
         if asset_path.endswith("WBP_ReEchoLoadoutTooltip"):
             widget_by_name = {widget.get_name(): widget for widget in widgets}
             root = widget_by_name.get("TooltipRootSizeBox")
+            frame = widget_by_name.get("TooltipFrame")
             title = widget_by_name.get("TitleText")
             description = widget_by_name.get("DescriptionText")
             if not isinstance(root, unreal.SizeBox):
@@ -139,6 +140,23 @@ def main():
                 raise RuntimeError("Plan132 tooltip TitleText is missing")
             if not isinstance(description, unreal.TextBlock):
                 raise RuntimeError("Plan132 tooltip DescriptionText is missing")
+            if not isinstance(frame, unreal.Border):
+                raise RuntimeError("Plan132 tooltip frame Border is missing")
+            frame_brush = frame.get_editor_property("background")
+            frame_resource = frame_brush.get_editor_property("resource_object")
+            expected_frame_path = (
+                "/Game/ReEcho/Textures/UI/LoadoutSelection/"
+                "T_UI_Loadout_DescriptionPanel.T_UI_Loadout_DescriptionPanel"
+            )
+            if (
+                not isinstance(frame_resource, unreal.Texture2D)
+                or frame_resource.get_path_name() != expected_frame_path
+                or frame_brush.get_editor_property("draw_as")
+                != unreal.SlateBrushDrawType.BOX
+            ):
+                raise RuntimeError(
+                    "Plan132 tooltip frame does not use the scalable delivery texture"
+                )
             if root.get_editor_property("width_override") != 380.0:
                 raise RuntimeError("Plan132 tooltip authored width is not 380")
             if title.get_editor_property("font").size != 22:
@@ -151,7 +169,8 @@ def main():
             )
             unreal.log(
                 "[Plan132LoadoutAudit] "
-                f"tooltip_desired_preview={bool(has_desired_preview)}"
+                f"tooltip_desired_preview={bool(has_desired_preview)} "
+                f"tooltip_frame={frame_resource.get_path_name()} draw=Box"
             )
             if not has_desired_preview:
                 raise RuntimeError(

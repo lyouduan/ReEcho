@@ -332,7 +332,26 @@ def ensure_additional_selection_arrows(
         mark_variable(toolset, blueprint, arrow)
 
 
-def author_tooltip(toolset, blueprint, preview_title, preview_description):
+def configure_tooltip_frame(frame, frame_texture):
+    background = frame.get_editor_property("background")
+    background.set_editor_property("resource_object", frame_texture)
+    background.set_editor_property("draw_as", unreal.SlateBrushDrawType.BOX)
+    background.set_editor_property(
+        "margin", unreal.Margin(2.0 / 230.0, 2.0 / 134.0, 2.0 / 230.0, 2.0 / 134.0)
+    )
+    background.set_editor_property(
+        "tint_color",
+        unreal.SlateColor(unreal.LinearColor(1.0, 1.0, 1.0, 1.0)),
+    )
+    frame.set_editor_property("background", background)
+    frame.set_editor_property(
+        "brush_color", unreal.LinearColor(1.0, 1.0, 1.0, 1.0)
+    )
+
+
+def author_tooltip(
+    toolset, blueprint, frame_texture, preview_title, preview_description
+):
     widgets = widget_map(toolset, blueprint)
     root = widgets.get("TooltipRootSizeBox")
     if root is None:
@@ -385,9 +404,7 @@ def author_tooltip(toolset, blueprint, preview_title, preview_description):
     title = widgets["TitleText"]
     description = widgets["DescriptionText"]
     root.set_width_override(380.0)
-    frame.set_editor_property(
-        "brush_color", unreal.LinearColor(0.95, 0.88, 0.72, 1.0)
-    )
+    configure_tooltip_frame(frame, frame_texture)
     frame.set_editor_property("padding", unreal.Margin(3.0, 3.0, 3.0, 3.0))
     surface.set_editor_property(
         "brush_color", unreal.LinearColor(0.015, 0.015, 0.015, 0.97)
@@ -844,7 +861,13 @@ def main():
     if not isinstance(formal_font, unreal.Font):
         raise RuntimeError(f"Plan132 required font is missing: {FORMAL_FONT_PATH}")
 
-    author_tooltip(toolset, tooltip, preview_title, preview_description)
+    author_tooltip(
+        toolset,
+        tooltip,
+        description_texture,
+        preview_title,
+        preview_description,
+    )
     author_entry(toolset, entry, sample_texture, formal_font)
     entry_widget_class = entry.generated_class()
     if entry_widget_class is None:
