@@ -168,4 +168,4 @@ Development `GMReaction` 只调用 `UReEchoCombatVfxComponent` 的直接预览�
 
 附着 Niagara 不再隐含固定的零偏移/单位缩放契约：`FReEchoCombatVfxCatalog::ResolvePlacement` 按语义提供资源局部修正和缩放策略。武器语义直接消费对应 Weapon Presentation Slot 的 `Offset` 完整 Transform 与 `bPreserveWorldSize`；例如长剑 `AttackCommitted` 的离地高度、倾角和大小只在武器 DA 配置，不得在语义分支硬编码。运行时先按 Commit 锁定方向对齐特效，再以四元数组合 DA 的局部旋转修正，禁止直接相加欧拉角导致换向后倾角留在旧世界轴。武器方向与弓箭一致，生成后将 Niagara Component 旋转切为绝对世界旋转并显式写入 Commit 方向，父级 AttackVfxRoot 只继续拥有位置和生命周期。世界尺寸型身体/武器特效可抵消角色/DA 的累计缩放，同时保留 DA Scale 作为艺术倍率；地面预警、逻辑投射物、精确命中和定向光束仍使用玩法事件给出的世界空间事实，不经角色附着根换算。
 FullSpin 近战的伤害仍在 Combat Commit 当帧结算；刀光只在 Weapon Profile 的 `MotionDurationSeconds` 结束后按该次 Commit 已锁定方向播放，使武器先完成一周环绕再释放刀光。新 Commit 会替换尚未释放的旧表现计时，不改变攻击冷却或命中权威。
-Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。
+Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。Conduct 的每条电链必须同时取得来源与目标显式配置的 `HurtVfxRoot` 世界坐标，任一挂点缺失时不生成该电链且不回退 Actor 根节点。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。

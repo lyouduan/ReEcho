@@ -4,7 +4,9 @@
 #include "Combat/ReEchoCombatTarget.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEnemyActor.h"
+#include "HAL/IConsoleManager.h"
 #include "Components/MaterialBillboardComponent.h"
 #include "Engine/Texture2D.h"
 #include "Materials/MaterialInterface.h"
@@ -36,6 +38,11 @@ constexpr int32 EchoAuraSortOffset = -1;
 const FBox FoxDirectionRuntimeBounds(FVector(-500.0f, -500.0f, -650.0f), FVector(500.0f, 500.0f, 350.0f));
 const FName FoxDirectionSpriteRotationParameter(TEXT("User.DirectionSpriteRotationDegrees"));
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
+TAutoConsoleVariable<int32> CVarReEchoDebugConductVfx(
+	TEXT("ReEcho.Debug.ConductVfx"),
+	0,
+	TEXT("Draw and log Conduct world-space endpoints. 0=off, 1=on."),
+	ECVF_Cheat);
 
 float ResolveFoxDirectionSpriteRotationDegrees(const FVector& LockedDirection,
                                                const FVector& ViewRight,
@@ -279,9 +286,38 @@ bool UReEchoCombatVfxComponent::PlayElementReactionForDebug(const uint8 Semantic
 	return true;
 }
 
+bool UReEchoCombatVfxComponent::PlayConductLinkForDebug(AActor* SourceTarget, AActor* TargetTarget) const
+{
+	FReEchoElementReactionLink Link;
+	Link.SourceTarget = SourceTarget;
+	Link.TargetTarget = TargetTarget;
+	return SpawnConductLink(Link);
+}
+
 float UReEchoCombatVfxComponent::ResolveConductLinkScheduledTime(const int32 LinkIndex, const float DelaySeconds)
 {
 	return FMath::Max(0, LinkIndex) * FMath::Max(0.0f, DelaySeconds);
+}
+
+bool UReEchoCombatVfxComponent::TryResolveConductLinkAnchors(AActor* SourceTarget,
+                                                             AActor* TargetTarget,
+                                                             FVector& OutStartWorld,
+                                                             FVector& OutEndWorld)
+{
+	const UReEchoCombatVfxComponent* SourceVfx =
+	    SourceTarget ? SourceTarget->FindComponentByClass<UReEchoCombatVfxComponent>() : nullptr;
+	const UReEchoCombatVfxComponent* TargetVfx =
+	    TargetTarget ? TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>() : nullptr;
+	const USceneComponent* SourceAnchor = SourceVfx ? SourceVfx->HurtVfxRoot.Get() : nullptr;
+	const USceneComponent* TargetAnchor = TargetVfx ? TargetVfx->HurtVfxRoot.Get() : nullptr;
+	if (!IsValid(SourceAnchor) || !IsValid(TargetAnchor))
+	{
+		return false;
+	}
+
+	OutStartWorld = SourceAnchor->GetComponentLocation();
+	OutEndWorld = TargetAnchor->GetComponentLocation();
+	return true;
 }
 
 void UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(const FVector& StartWorld,
@@ -290,7 +326,10 @@ void UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(const FVector& 
                                                                  FVector& OutEndParameter)
 {
 	OutStartParameter = StartWorld;
-	OutEndParameter = EndWorld;
+	// NS_Element_Electricity's BeamEmitterSetup consumes Beam Start as an absolute position but Beam End as
+	// a displacement from that start. Passing a second absolute position makes the rendered endpoint overshoot
+	// or reverse even though both gameplay anchors are correct.
+	OutEndParameter = EndWorld - StartWorld;
 }
 
 float UReEchoCombatVfxComponent::ResolveConductPropagationDelaySeconds(const FName WeaponId)
@@ -1458,7 +1497,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8
 	return nullptr;
 }
 
-void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLink& Link) const
+bool UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLink& Link) const
 {
 	AActor* SourceTarget = Link.SourceTarget;
 	AActor* TargetTarget = Link.TargetTarget;
@@ -1467,16 +1506,25 @@ void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLin
 	if (!SourceCombatTarget || !TargetCombatTarget || !SourceCombatTarget->IsCombatTargetAlive() ||
 	    !TargetCombatTarget->IsCombatTargetAlive() || !GetWorld())
 	{
-		return;
+		return false;
 	}
 	UNiagaraSystem* System =
 	    ResolveElementSystem(static_cast<uint8>(EReEchoElementReactionVfxSemantic::Conduct), TargetTarget);
 	if (!System)
 	{
-		return;
+		return false;
 	}
-	const FVector Start = SourceCombatTarget->GetCombatTargetLocation();
-	const FVector End = TargetCombatTarget->GetCombatTargetLocation();
+	FVector Start = FVector::ZeroVector;
+	FVector End = FVector::ZeroVector;
+	if (!TryResolveConductLinkAnchors(SourceTarget, TargetTarget, Start, End))
+	{
+		UE_LOG(LogReEcho,
+		       VeryVerbose,
+		       TEXT("Conduct suppressed because an explicit HurtVfxRoot is missing: Source=%s Target=%s"),
+		       *GetNameSafe(SourceTarget),
+		       *GetNameSafe(TargetTarget));
+		return false;
+	}
 	FVector StartParameter = FVector::ZeroVector;
 	FVector EndParameter = FVector::ZeroVector;
 	ResolveConductLinkWorldEndpoints(Start, End, StartParameter, EndParameter);
@@ -1491,10 +1539,48 @@ void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLin
 	                                                                           false);
 	if (!Effect)
 	{
-		return;
+		return false;
 	}
 	Effect->SetVariablePosition(TEXT("User.StartPosition"), StartParameter);
 	Effect->SetVariablePosition(TEXT("User.EndPosition"), EndParameter);
+	if (ReEchoCombatVfx::CVarReEchoDebugConductVfx.GetValueOnGameThread() != 0)
+	{
+		const UReEchoCombatVfxComponent* SourceVfx =
+		    SourceTarget->FindComponentByClass<UReEchoCombatVfxComponent>();
+		const UReEchoCombatVfxComponent* TargetVfx =
+		    TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>();
+		const USceneComponent* SourceAnchor = SourceVfx ? SourceVfx->HurtVfxRoot.Get() : nullptr;
+		const USceneComponent* TargetAnchor = TargetVfx ? TargetVfx->HurtVfxRoot.Get() : nullptr;
+		constexpr float DebugSeconds = 5.0f;
+		DrawDebugSphere(GetWorld(), StartParameter, 18.0f, 12, FColor::Green, false, DebugSeconds, 0, 3.0f);
+		DrawDebugSphere(GetWorld(), End, 18.0f, 12, FColor::Red, false, DebugSeconds, 0, 3.0f);
+		DrawDebugLine(GetWorld(), Start, End, FColor::Blue, false, DebugSeconds, 0, 3.0f);
+		DrawDebugString(GetWorld(), StartParameter, TEXT("Conduct Source"), nullptr, FColor::Green, DebugSeconds);
+		DrawDebugString(GetWorld(), End, TEXT("Conduct Target"), nullptr, FColor::Red, DebugSeconds);
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ConductSpaceDebug] Source=%s ActorWorld=%s Anchor=%s AnchorRelative=%s AnchorWorld=%s "
+		            "Target=%s ActorWorld=%s Anchor=%s AnchorRelative=%s AnchorWorld=%s "
+		            "UserStartAbsolute=%s UserEndRelative=%s ExpectedTargetWorld=%s Distance=%.2f NiagaraWorld=%s "
+		            "UserStartInNiagaraLocal=%s UserEndInNiagaraLocal=%s"),
+		       *GetNameSafe(SourceTarget),
+		       *SourceTarget->GetActorLocation().ToCompactString(),
+		       *GetNameSafe(SourceAnchor),
+		       SourceAnchor ? *SourceAnchor->GetRelativeLocation().ToCompactString() : TEXT("<none>"),
+		       SourceAnchor ? *SourceAnchor->GetComponentLocation().ToCompactString() : TEXT("<none>"),
+		       *GetNameSafe(TargetTarget),
+		       *TargetTarget->GetActorLocation().ToCompactString(),
+		       *GetNameSafe(TargetAnchor),
+		       TargetAnchor ? *TargetAnchor->GetRelativeLocation().ToCompactString() : TEXT("<none>"),
+		       TargetAnchor ? *TargetAnchor->GetComponentLocation().ToCompactString() : TEXT("<none>"),
+		       *StartParameter.ToCompactString(),
+		       *EndParameter.ToCompactString(),
+		       *End.ToCompactString(),
+		       FVector::Distance(Start, End),
+		       *Effect->GetComponentLocation().ToCompactString(),
+		       *Effect->GetComponentTransform().InverseTransformPosition(StartParameter).ToCompactString(),
+		       *Effect->GetComponentTransform().InverseTransformPosition(EndParameter).ToCompactString());
+	}
 	UE_LOG(LogReEcho,
 	       VeryVerbose,
 	       TEXT("Conduct Source=%s Actor=%s Combat=%s Target=%s Actor=%s Combat=%s Start=%s End=%s Niagara=%s"),
@@ -1512,6 +1598,7 @@ void UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLin
 		Effect->SetTranslucentSortPriority(TargetVfx->ResolveOwnerSortPriority());
 	}
 	Effect->Activate(true);
+	return true;
 }
 
 void UReEchoCombatVfxComponent::CancelConductPropagation()
