@@ -164,9 +164,9 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 
 - Plan132 后页面固定按“角色确认 → 武器确认”两阶段展示；第一次确认只切阶段，第二次确认才向 GameMode 广播一次最终 `(CharacterId, WeaponId)`。WBP 不得自行启动 Run、切关或写存档。
 - `CharacterStagePanel > CharacterRow` 与 `WeaponStagePanel > WeaponRow` 只提供动态容器，不要在设计器中手工放置固定数量的角色/武器按钮。角色和武器资格仍来自 CSV 快照。
-- 初次进入每个阶段时没有 Preview：全部条目使用明亮 `Selected` 切图，解释框、箭头和确认按钮隐藏。Hover、键盘/手柄 Focus 或点击任一条目后，该项继续使用 `Selected`，其余项切到 `Unselected`，并显示解释框、箭头和确认按钮。
+- 初次进入每个阶段时没有 Preview：全部条目使用明亮 `Selected` 切图，说明、箭头和确认按钮隐藏。鼠标 Hover 使用与商店一致的原生 Tooltip：说明框由 Slate 跟随当前条目并自动避让屏幕边缘，正文为 20px、380px 宽自动换行，不要把鼠标说明重新塞回根 Canvas 固定坐标。键盘/手柄 Focus 使用页面内 `DescriptionPanel` / `DescriptionTextScale` 大号回退框；点击与 Hover/Focus 都会把当前项保持为 `Selected`、其余项切到 `Unselected`，并显示箭头和确认按钮。
 - 条目外观统一修改 `WBP_ReEchoLoadoutEntry`。`EntryRootSizeBox` 是当前阶段为角色/武器写入不同设计宽度的唯一尺寸宿主；`PortraitImage` 必须位于 ScaleBox 内等比缩放，不能拉伸原图。
-- 1920×1080 位置权威位于 `WBP_ReEchoLoadoutSelection > LoadoutDesignCanvas`。`TitleText`、两个 Stage Panel、`DescriptionPanel`、`DescriptionTextScale > DescriptionText`、`SelectionArrow`、`ConfirmButton` 和 `ConfirmButtonLabel` 都应能在 Designer 中直接调整。运行时除文案、显隐和阶段状态外，只会在角色/武器阶段之间切换解释框、解释文字宿主和箭头的交付锚点；调整这三项时应同步维护 `RefreshSelectionArrow()` 的两组阶段坐标。
+- 1920×1080 位置权威位于 `WBP_ReEchoLoadoutSelection > LoadoutDesignCanvas`。`TitleText`、两个 Stage Panel、键盘 Focus 回退用的 `DescriptionPanel` / `DescriptionTextScale > DescriptionText`、`SelectionArrow`、`ConfirmButton` 和 `ConfirmButtonLabel` 都应能在 Designer 中直接调整。运行时会按当前条目切换回退说明框与箭头锚点；鼠标 Tooltip 的宽度、字号、边框与内边距由 `UReEchoLoadoutEntryWidget::BuildTooltip()` 统一维护。
 - 正式源图位于 `Content/SourceArt/UI/LoadoutSelection/Plan132/`，运行时位于 `/Game/ReEcho/Textures/UI/LoadoutSelection/`。四张 `1-*.png` 是合成构图参考，不得作为整屏点击贴图；实际交互使用 16 张选中/未选中切图、解释框和箭头组合。
 - 角色说明读取 `characters.csv.Description`，武器说明读取对应 `weapon_types.csv.Description`；不要在 WBP/C++ 复制中文玩法文案，也不要用按钮文字反查 ID。C++ 只使用动态索引映射稳定 ID。
 - 当前交付构图顺序为勇者、智者、诗人、猎手，以及镰刀、枪、剑、弓。该顺序只属于本页面的表现映射；未知未来选项追加到已有项后，不修改全局 CSV 排序。

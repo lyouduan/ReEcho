@@ -18,7 +18,17 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	Widget->SelectedCharacterId = TEXT("J_HEART");
+	Widget->CharacterOptionIds = {FName(TEXT("J_HEART"))};
+	Widget->HandleCharacterHovered(0);
+	TestEqual(TEXT("Mouse hover previews the matching character"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
+	TestFalse(TEXT("Mouse hover delegates description placement to the native tooltip"),
+	          Widget->bShowAnchoredDescription);
+	Widget->HandleCharacterPreviewed(0);
+	TestTrue(TEXT("Keyboard focus retains an anchored description fallback"), Widget->bShowAnchoredDescription);
+	Widget->HandleCharacterClicked(0);
+	TestFalse(TEXT("Mouse click does not duplicate the native tooltip with an anchored panel"),
+	          Widget->bShowAnchoredDescription);
+
 	Widget->SelectedWeaponId = TEXT("W_J_09");
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("First confirmation advances to the weapon stage"),

@@ -61,6 +61,12 @@ private:
 	void HandleWeaponPreviewed(int32 OptionIndex);
 
 	UFUNCTION()
+	void HandleCharacterHovered(int32 OptionIndex);
+
+	UFUNCTION()
+	void HandleWeaponHovered(int32 OptionIndex);
+
+	UFUNCTION()
 	void HandleConfirmClicked();
 
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -118,6 +124,7 @@ private:
 	FName SelectedWeaponId;
 	ESelectionStage SelectionStage = ESelectionStage::Character;
 	bool bFinalConfirmationBroadcast = false;
+	bool bShowAnchoredDescription = false;
 	TArray<FName> CharacterOptionIds;
 	TArray<FName> WeaponOptionIds;
 	TMap<FName, FString> CharacterLabels;

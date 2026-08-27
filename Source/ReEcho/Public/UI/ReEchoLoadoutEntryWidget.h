@@ -9,9 +9,11 @@ class UReEchoIndexedButton;
 class USizeBox;
 class UTextBlock;
 class UTexture2D;
+class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoLoadoutEntrySelected, int32, EntryIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoLoadoutEntryPreviewed, int32, EntryIndex);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoLoadoutEntryHovered, int32, EntryIndex);
 
 /** Designer-owned presentation shared by character and weapon loadout entries. */
 UCLASS()
@@ -26,8 +28,12 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoLoadoutEntryPreviewed OnEntryPreviewed;
 
+	UPROPERTY(BlueprintAssignable)
+	FReEchoLoadoutEntryHovered OnEntryHovered;
+
 	void Configure(int32 InEntryIndex,
 	               const FText& Label,
+	               const FText& Description,
 	               const FString& SelectedTexturePath,
 	               const FString& UnselectedTexturePath,
 	               const FString& FallbackTexturePath,
@@ -46,6 +52,7 @@ private:
 
 	UFUNCTION()
 	void HandleHovered();
+	UWidget* BuildTooltip(const FText& Label, const FText& Description);
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UReEchoIndexedButton> SelectButton;

@@ -378,7 +378,7 @@ def author_selection(
             "DescriptionPanel",
             design_canvas,
         )
-        set_canvas_layout(description_panel, 423.0, 538.0, 230.0, 134.0, 60)
+        set_canvas_layout(description_panel, 423.0, 370.0, 420.0, 440.0, 60)
         configure_image(
             description_panel, description_texture, unreal.SlateVisibility.COLLAPSED
         )
@@ -391,8 +391,8 @@ def author_selection(
             design_canvas,
             False,
         )
-        set_canvas_layout(description_scale, 442.0, 554.0, 192.0, 102.0, 70)
-        description_scale.set_editor_property("stretch", unreal.Stretch.SCALE_TO_FIT)
+        set_canvas_layout(description_scale, 443.0, 390.0, 380.0, 400.0, 70)
+        description_scale.set_editor_property("stretch", unreal.Stretch.NONE)
         description_scale.set_editor_property(
             "stretch_direction", unreal.StretchDirection.DOWN_ONLY
         )
@@ -406,12 +406,12 @@ def author_selection(
         configure_text(
             description_text,
             "角色与武器说明由运行时数据填充",
-            16,
+            20,
             unreal.LinearColor(1.0, 1.0, 1.0, 1.0),
             unreal.TextJustify.LEFT,
         )
         description_text.set_editor_property("auto_wrap_text", True)
-        description_text.set_editor_property("wrap_text_at", 192.0)
+        description_text.set_editor_property("wrap_text_at", 380.0)
         description_text.set_editor_property(
             "visibility", unreal.SlateVisibility.COLLAPSED
         )
@@ -512,8 +512,14 @@ def author_selection(
     name_color = unreal.LinearColor(1.0, 0.956, 0.882, 1.0)
     confirm_label.set_editor_property("color_and_opacity", unreal.SlateColor(name_color))
 
-    set_canvas_layout(widgets["DescriptionPanel"], 423.0, 538.0, 230.0, 134.0, 60)
-    set_canvas_layout(description_scale, 442.0, 554.0, 192.0, 102.0, 70)
+    set_canvas_layout(widgets["DescriptionPanel"], 423.0, 370.0, 420.0, 440.0, 60)
+    set_canvas_layout(description_scale, 443.0, 390.0, 380.0, 400.0, 70)
+    description_scale.set_editor_property("stretch", unreal.Stretch.NONE)
+    description_text = widgets["DescriptionText"]
+    description_font = description_text.get_editor_property("font")
+    description_font.size = 20
+    description_text.set_editor_property("font", description_font)
+    description_text.set_editor_property("wrap_text_at", 380.0)
 
     if not toolset.call_method("CompileWidgetBlueprint", args=(blueprint,)):
         raise RuntimeError("Plan132 Selection WBP failed to compile")
