@@ -91,6 +91,8 @@ public:
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
 	static FVector
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
+	/** Gun presentation is horizontally authored: discard aim elevation and retain only its screen-side sign. */
+	static FVector ResolveGunMuzzleHorizontalDirection(const FVector& AimDirection, const FVector& CameraRight);
 	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
 	/** Generic camera-plane convention: local X follows direction and local Z faces camera. */

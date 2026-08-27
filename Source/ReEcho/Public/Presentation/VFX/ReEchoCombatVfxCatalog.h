@@ -18,7 +18,7 @@ enum class EReEchoCombatVfxSemantic : uint8
 	PlayerBowFlight,
 	PlayerBowImpact,
 	PlayerGunFlight,
-	PlayerGunImpact,
+	PlayerGunMuzzle,
 	EnemyHurt,
 	EchoWaterAura,
 	EchoGrassAura,
@@ -64,6 +64,8 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
 	/** Resolves the dedicated one-shot Niagara semantic for a supported melee attack pattern. */
 	static bool ResolveMeleeAttackSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Resolves a successful weapon commit to its weapon-local release semantic. */
+	static bool ResolveAttackCommittedSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Resolves a successful source-side weapon hit to its configured DamageApplied semantic. */
 	static bool ResolveWeaponDamageSemantic(FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Visual-only delay used to release a melee slash after its weapon completes the authored motion. */

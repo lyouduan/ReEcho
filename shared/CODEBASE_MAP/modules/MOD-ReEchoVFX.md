@@ -40,7 +40,7 @@
 
 | 输入 | 来源权威 | VFX 行为 |
 |---|---|---|
-| `FReEchoAttackCommittedEvent` | `MOD-ReEchoCombat` / Weapons 提交链 | 近战 Pattern 播放一次刀光 |
+| `FReEchoAttackCommittedEvent` | `MOD-ReEchoCombat` / Weapons 提交链 | 长剑/镰刀 Pattern 播放一次刀光；枪 Pattern 在最终武器枪口播放一次 Muzzle |
 | `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击 |
 | `FReEchoPresentationActionEvent` | EnemyHost 的 CombatPresentationCoordinator | Rabbit/Fox 的同一动作键与有序 Windup、Committed、Recovery、Ended/Cancelled 驱动阶段表现 |
 | `FReEchoEnemyProjectileEvent` | EnemyHost 的逐球逻辑投射物 | 按 `(AttackIdentity, VolleyBallIndex)` 创建、移动和销毁唯一兔子子弹代理；位置直接采用事件快照 |
@@ -81,11 +81,11 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | PlayerScytheSlash | `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01` | 镰刀提交位置和攻击方向，前景单次播放 |
 | PlayerLongSwordImpact / PlayerScytheImpact | 对应 Weapon Presentation DA 的 `DamageApplied` Slot | 来源侧最终 `OnHit` 且 `AppliedDamage > 0` 时，在命中世界位置按攻击方向播放；两把武器可独立换资源 |
 | PlayerBowFlight / Impact | `/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01` / `NS_People_Bow_Boom` | 飞行 System 绑定权威投射物 Actor；保持资源内部 Renderer 与粒子模块不变，把交付 Niagara 的 authored local `+Y` 视觉轴在发射时按锁定攻击方向旋转一次；首次权威命中播放一次 Impact |
-| PlayerGunFlight / Impact | `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly` / `NS_People_Bullet_spark` | 飞行 System 绑定权威投射物 Actor；首次权威命中播放一次 Impact |
+| PlayerGunFlight / Muzzle | `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly` / `NS_People_Bullet_spark` | 飞行 System 绑定权威投射物 Actor；每次 `Pattern.GunShot` 提交时，Muzzle 附着最终 `WeaponAttackVfxRoot` 立即播放，不在目标命中点重复播放；Muzzle 启用发射器使用 Local Space，所有启用 Sprite renderer 绑定 `User.DirectionSpriteRotationDegrees`。枪模型只区分左右，因此运行时先把瞄准方向量化为相机水平纯左/纯右，再写入 Sprite 旋转：朝左相对朝右精确 180 度，瞄准高度不再驱动枪口主体绕 Pivot 上下浮动 |
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
 | EchoWaterAura / EchoGrassAura | `/Game/VFX/Echo/Particle/NS_Echo_Water` / `NS_Echo_Grass` | `G_2_07/G_2_08` 共享 Cards 权威 2 秒脉冲；一次性附着 Echo 专用 Aura 挂点、角色视觉中心、角色 Priority `-1`，双卡同脉冲并发、自动结束 |
 
-`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀的 AttackCommitted Slot 播放斩击轨迹，DamageApplied Slot 消费来源侧最终 `OnHit` 并在 `AppliedDamage > 0` 时播放命中；弓/枪的 Travel Slot 附着逻辑载体，DamageApplied Slot 只在首次正伤害权威结果播放。近战命中特效包含致死正伤害，不依赖目标是否还能播放 Hurt。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
+`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀的 AttackCommitted Slot 播放斩击轨迹，DamageApplied Slot 消费来源侧最终 `OnHit` 并在 `AppliedDamage > 0` 时播放命中；弓的 Travel Slot 附着逻辑载体且 DamageApplied 在首次正伤害结果播放；枪的 Travel Slot 仍附着逻辑载体，`NS_People_Bullet_spark` 则由 AttackCommitted Slot 在最终武器枪口播放，不再作为目标命中反馈。近战命中特效包含致死正伤害，不依赖目标是否还能播放 Hurt。四个需要服从组件方向/位移的 System 必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
 
 禁止用 `NS_Rabbit_BeAttacked_01` 这个短名查找资产；玩家和怪物受击是两个不同 Package。
 

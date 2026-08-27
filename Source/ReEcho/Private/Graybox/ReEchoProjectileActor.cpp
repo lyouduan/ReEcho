@@ -181,10 +181,6 @@ void AReEchoProjectileActor::SpawnWeaponImpactNiagara(const FVector& Location, c
 	{
 		Semantic = EReEchoCombatVfxSemantic::PlayerBowImpact;
 	}
-	else if (WeaponVisualKey == TEXT("Gun"))
-	{
-		Semantic = EReEchoCombatVfxSemantic::PlayerGunImpact;
-	}
 	else
 	{
 		return;

@@ -58,8 +58,7 @@ FVector2D ResolveDefaultAttackVfxAnchorRatio(const FName WeaponVisualKey)
 	return FVector2D::ZeroVector;
 }
 
-FVector2D ResolveAttackVfxAnchorRatio(const UReEchoWeaponPresentationProfile& WeaponProfile,
-	                                  const float FacingSign)
+FVector2D ResolveAttackVfxAnchorRatio(const UReEchoWeaponPresentationProfile& WeaponProfile, const float FacingSign)
 {
 	FVector2D AnchorRatio = WeaponProfile.bOverrideAttackVfxAnchor
 	                            ? WeaponProfile.AttackVfxAnchorRatio
@@ -72,8 +71,8 @@ FVector2D ResolveAttackVfxAnchorRatio(const UReEchoWeaponPresentationProfile& We
 }
 
 FVector2D ResolveAttackVfxAnchorComponentRatio(const UReEchoWeaponPresentationProfile& WeaponProfile,
-	                                           const float FacingSign,
-	                                           const bool bVisualHorizontallyMirrored)
+                                               const float FacingSign,
+                                               const bool bVisualHorizontallyMirrored)
 {
 	FVector2D AnchorRatio = ResolveAttackVfxAnchorRatio(WeaponProfile, FacingSign);
 	if (bVisualHorizontallyMirrored)
@@ -85,14 +84,34 @@ FVector2D ResolveAttackVfxAnchorComponentRatio(const UReEchoWeaponPresentationPr
 	return AnchorRatio;
 }
 
-FVector ResolveProjectileSpawnLocation(const FVector& WeaponAnchorLocation,
-	                                    const FVector& LegacyOwnerLocation,
-	                                    const FVector& Direction,
-	                                    const bool bHasWeaponAnchor)
+FVector ResolveGunMuzzleLocalPoint(const FBox& LocalBounds,
+                                   const float FacingSign,
+                                   const bool bVisualHorizontallyMirrored,
+                                   const float VerticalRatio)
 {
-	return bHasWeaponAnchor
-	           ? WeaponAnchorLocation
-	           : LegacyOwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
+	if (!LocalBounds.IsValid)
+	{
+		return FVector::ZeroVector;
+	}
+	float LocalDirectionSign = FacingSign < 0.0f ? -1.0f : 1.0f;
+	if (bVisualHorizontallyMirrored)
+	{
+		// The parent plane's negative X scale reverses its local barrel axis in final visual space.
+		LocalDirectionSign *= -1.0f;
+	}
+	const FVector Center = LocalBounds.GetCenter();
+	const FVector Extent = LocalBounds.GetExtent();
+	return FVector(
+	    Center.X + LocalDirectionSign * Extent.X, Center.Y + VerticalRatio * LocalBounds.GetSize().Y, Center.Z);
+}
+
+FVector ResolveProjectileSpawnLocation(const FVector& WeaponAnchorLocation,
+                                       const FVector& LegacyOwnerLocation,
+                                       const FVector& Direction,
+                                       const bool bHasWeaponAnchor)
+{
+	return bHasWeaponAnchor ? WeaponAnchorLocation
+	                        : LegacyOwnerLocation + FVector(0.0f, 0.0f, 35.0f) + Direction * 45.0f;
 }
 
 FQuat GetSwordRotation(const float SpinRadians = 0.0f)
@@ -1784,18 +1803,33 @@ void AReEchoWeaponActor::RefreshWeaponAttackVfxRoot(const UReEchoWeaponPresentat
 	}
 
 	const bool bVisualHorizontallyMirrored = WeaponVisual->GetRelativeScale3D().X < 0.0f;
+	if (WeaponProfile.WeaponVisualKey == TEXT("Gun") && GunSprite && GunSprite->GetStaticMesh())
+	{
+		const float VerticalRatio =
+		    WeaponProfile.bOverrideAttackVfxAnchor ? WeaponProfile.AttackVfxAnchorRatio.Y : 0.0f;
+		const FVector MuzzleLocalPoint =
+		    ReEchoWeaponVisual::ResolveGunMuzzleLocalPoint(GunSprite->GetStaticMesh()->GetBoundingBox(),
+		                                                   ResolveOwnerVisualFacingSign(),
+		                                                   bVisualHorizontallyMirrored,
+		                                                   VerticalRatio);
+		if (WeaponAttackVfxRoot->GetAttachParent() != WeaponVisual)
+		{
+			WeaponAttackVfxRoot->AttachToComponent(WeaponVisual, FAttachmentTransformRules::SnapToTargetIncludingScale);
+		}
+		WeaponAttackVfxRoot->SetRelativeTransform(FTransform(FQuat::Identity, MuzzleLocalPoint, FVector::OneVector));
+		return;
+	}
 	const FVector2D AnchorRatio = ReEchoWeaponVisual::ResolveAttackVfxAnchorComponentRatio(
 	    WeaponProfile, ResolveOwnerVisualFacingSign(), bVisualHorizontallyMirrored);
 	if (WeaponAttackVfxRoot->GetAttachParent() != WeaponVisual)
 	{
 		WeaponAttackVfxRoot->AttachToComponent(WeaponVisual, FAttachmentTransformRules::SnapToTargetIncludingScale);
 	}
-	WeaponAttackVfxRoot->SetRelativeTransform(
-	    FTransform(FQuat::Identity,
-	               FVector(AnchorRatio.X * ReEchoWeaponVisual::WeaponPlaneSizeCm,
-	                       AnchorRatio.Y * ReEchoWeaponVisual::WeaponPlaneSizeCm,
-	                       0.0f),
-	               FVector::OneVector));
+	WeaponAttackVfxRoot->SetRelativeTransform(FTransform(FQuat::Identity,
+	                                                     FVector(AnchorRatio.X * ReEchoWeaponVisual::WeaponPlaneSizeCm,
+	                                                             AnchorRatio.Y * ReEchoWeaponVisual::WeaponPlaneSizeCm,
+	                                                             0.0f),
+	                                                     FVector::OneVector));
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1819,26 +1853,34 @@ float AReEchoWeaponActor::ResolveTripleSwingAngleForTests(const float Progress, 
 	return ReEchoWeaponVisual::ResolveTripleSwingAngle(Progress, DirectionSign);
 }
 
-FVector2D AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(
-	const UReEchoWeaponPresentationProfile& WeaponProfile,
-	const float FacingSign)
+FVector2D AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+                                                                  const float FacingSign)
 {
 	return ReEchoWeaponVisual::ResolveAttackVfxAnchorRatio(WeaponProfile, FacingSign);
 }
 
-FVector2D AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(
-	const UReEchoWeaponPresentationProfile& WeaponProfile,
-	const float FacingSign,
-	const bool bVisualHorizontallyMirrored)
+FVector2D
+AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+                                                                 const float FacingSign,
+                                                                 const bool bVisualHorizontallyMirrored)
 {
 	return ReEchoWeaponVisual::ResolveAttackVfxAnchorComponentRatio(
 	    WeaponProfile, FacingSign, bVisualHorizontallyMirrored);
 }
 
+FVector AReEchoWeaponActor::ResolveGunMuzzleLocalPointForTests(const FBox& LocalBounds,
+                                                               const float FacingSign,
+                                                               const bool bVisualHorizontallyMirrored,
+                                                               const float VerticalRatio)
+{
+	return ReEchoWeaponVisual::ResolveGunMuzzleLocalPoint(
+	    LocalBounds, FacingSign, bVisualHorizontallyMirrored, VerticalRatio);
+}
+
 FVector AReEchoWeaponActor::ResolveProjectileSpawnLocationForTests(const FVector& WeaponAnchorLocation,
-	                                                               const FVector& LegacyOwnerLocation,
-	                                                               const FVector& Direction,
-	                                                               const bool bHasWeaponAnchor)
+                                                                   const FVector& LegacyOwnerLocation,
+                                                                   const FVector& Direction,
+                                                                   const bool bHasWeaponAnchor)
 {
 	return ReEchoWeaponVisual::ResolveProjectileSpawnLocation(
 	    WeaponAnchorLocation, LegacyOwnerLocation, Direction, bHasWeaponAnchor);

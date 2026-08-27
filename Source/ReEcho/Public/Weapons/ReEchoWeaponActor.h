@@ -76,15 +76,18 @@ public:
 	ResolveFacingHeldOffsetForTests(const FVector& HeldOffset, float FacingSign, const FVector& CameraRight);
 	static float ResolveTripleSwingAngleForTests(float Progress, float DirectionSign);
 	static FVector2D ResolveAttackVfxAnchorRatioForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
-	                                                    float FacingSign);
-	static FVector2D ResolveAttackVfxAnchorComponentRatioForTests(
-	    const UReEchoWeaponPresentationProfile& WeaponProfile,
-	    float FacingSign,
-	    bool bVisualHorizontallyMirrored);
+	                                                     float FacingSign);
+	static FVector2D ResolveAttackVfxAnchorComponentRatioForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                                              float FacingSign,
+	                                                              bool bVisualHorizontallyMirrored);
+	static FVector ResolveGunMuzzleLocalPointForTests(const FBox& LocalBounds,
+	                                                  float FacingSign,
+	                                                  bool bVisualHorizontallyMirrored,
+	                                                  float VerticalRatio);
 	static FVector ResolveProjectileSpawnLocationForTests(const FVector& WeaponAnchorLocation,
-	                                                     const FVector& LegacyOwnerLocation,
-	                                                     const FVector& Direction,
-	                                                     bool bHasWeaponAnchor);
+	                                                      const FVector& LegacyOwnerLocation,
+	                                                      const FVector& Direction,
+	                                                      bool bHasWeaponAnchor);
 	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
 
 	float GetStepLockRemaining() const
@@ -129,11 +132,13 @@ public:
 	FName GetEquippedWeaponId() const;
 	/** Stable data-authored presentation identity; never infer visuals from WeaponId. */
 	FName GetEquippedWeaponVisualKey() const;
+
 	/** Final held-weapon release point after hand anchor, weapon offset, size, facing and motion transforms. */
 	USceneComponent* GetWeaponAttackVfxRoot() const
 	{
 		return WeaponAttackVfxRoot;
 	}
+
 	FString GetEquippedWeaponLabel() const;
 	const FReEchoBuildSnapshot& GetBuildSnapshot() const;
 	FString GetPinnedWeaponDomainRevision() const;

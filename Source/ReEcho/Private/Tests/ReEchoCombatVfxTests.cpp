@@ -683,6 +683,21 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
 	TestTrue(TEXT("Scythe uses its dedicated melee Niagara"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
+	const FVector CameraRight = FVector::RightVector;
+	TestEqual(TEXT("Gun muzzle discards upward aim while retaining the right side"),
+	          UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(FVector(0.0f, 0.2f, 0.98f), CameraRight),
+	          CameraRight);
+	TestEqual(TEXT("Gun muzzle discards downward aim while retaining the left side"),
+	          UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(FVector(0.0f, -0.2f, -0.98f), CameraRight),
+	          -CameraRight);
+	EReEchoCombatVfxSemantic CommittedSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
+	TestTrue(TEXT("Gun shot resolves an immediate weapon-local muzzle semantic"),
+	         FReEchoCombatVfxCatalog::ResolveAttackCommittedSemantic(TEXT("Pattern.GunShot"), CommittedSemantic));
+	TestEqual(TEXT("Gun shot uses the dedicated muzzle semantic"),
+	          CommittedSemantic,
+	          EReEchoCombatVfxSemantic::PlayerGunMuzzle);
+	TestFalse(TEXT("Bow shot does not reuse the gun muzzle semantic"),
+	          FReEchoCombatVfxCatalog::ResolveAttackCommittedSemantic(TEXT("Pattern.BowShot"), CommittedSemantic));
 	EReEchoCombatVfxSemantic DamageSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
 	TestTrue(TEXT("Long sword successful hit resolves its DamageApplied semantic"),
 	         FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_01"), DamageSemantic));
@@ -755,8 +770,11 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FoxDirectionPlacement.Scale.GetAbsMin() > KINDA_SMALL_NUMBER);
 	TestTrue(TEXT("Fox windup arrow uses the combat foreground sort band"),
 	         UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(0) >= 1000);
-	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
-	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
+	TestFalse(TEXT("Gun muzzle production slot resolves a configured Niagara path"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle).IsEmpty());
+	TestTrue(TEXT("Gun muzzle uses the delivered bullet spark"),
+	         FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle)
+	             .Contains(TEXT("NS_People_Bullet_spark")));
 
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
 	    EReEchoCombatVfxSemantic::RabbitCharging,      EReEchoCombatVfxSemantic::RabbitProjectile,
@@ -766,7 +784,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
 	    EReEchoCombatVfxSemantic::PlayerScytheImpact,  EReEchoCombatVfxSemantic::PlayerBowFlight,
 	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
-	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::EnemyHurt,
+	    EReEchoCombatVfxSemantic::PlayerGunMuzzle,     EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,       EReEchoCombatVfxSemantic::EchoGrassAura,
 	    EReEchoCombatVfxSemantic::GoatSkill02Charging, EReEchoCombatVfxSemantic::GoatSkill02Bullet,
 	    EReEchoCombatVfxSemantic::GoatSkill02Impact,   EReEchoCombatVfxSemantic::GoatSkill03Charging,
@@ -812,12 +830,14 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle ||
 		    Semantic == EReEchoCombatVfxSemantic::FoxDirection || Semantic == EReEchoCombatVfxSemantic::FoxDash ||
 		    Semantic == EReEchoCombatVfxSemantic::EchoWaterAura || Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		const bool bRequiresWeaponLocalSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
-		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight;
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle;
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;
@@ -825,6 +845,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			int32 FoxDirectionEnabledEmitterCount = 0;
 			int32 FoxDirectionEnabledRendererCount = 0;
 			int32 FoxDirectionEnabledSpriteRendererCount = 0;
+			int32 GunMuzzleEnabledSpriteRendererCount = 0;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (!EmitterHandle.GetIsEnabled())
@@ -888,6 +909,24 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 						}
 					}
 				}
+				if (Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle && EmitterData)
+				{
+					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+					{
+						const UNiagaraSpriteRendererProperties* Sprite =
+						    Cast<UNiagaraSpriteRendererProperties>(Renderer);
+						if (!Sprite || !Sprite->GetIsEnabled())
+						{
+							continue;
+						}
+						++GunMuzzleEnabledSpriteRendererCount;
+						TestTrue(TEXT("Gun muzzle SpriteRotation binding exists on its source"),
+						         Sprite->SpriteRotationBinding.DoesBindingExistOnSource());
+						TestEqual(TEXT("Gun muzzle sprites share the screen-direction rotation parameter"),
+						          Sprite->SpriteRotationBinding.GetParamMapBindableVariable().GetName(),
+						          FName(TEXT("User.DirectionSpriteRotationDegrees")));
+					}
+				}
 				if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && EmitterData)
 				{
 					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
@@ -916,6 +955,20 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
 			{
 				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
+			}
+			if (Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle)
+			{
+				TestTrue(TEXT("Gun muzzle contains at least one enabled Sprite renderer"),
+				         GunMuzzleEnabledSpriteRendererCount > 0);
+				TArray<FNiagaraVariable> GunMuzzleUserParameters;
+				System->GetExposedParameters().GetUserParameters(GunMuzzleUserParameters);
+				const FNiagaraVariable* RotationParameter = GunMuzzleUserParameters.FindByPredicate(
+				    [](const FNiagaraVariable& Variable)
+				    {
+					    return Variable.GetName() == TEXT("DirectionSpriteRotationDegrees");
+				    });
+				TestTrue(TEXT("Gun muzzle exposes float User.DirectionSpriteRotationDegrees"),
+				         RotationParameter && RotationParameter->GetType() == FNiagaraTypeDefinition::GetFloatDef());
 			}
 			if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
 			{

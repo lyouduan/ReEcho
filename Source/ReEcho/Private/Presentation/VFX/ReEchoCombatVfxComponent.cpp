@@ -38,11 +38,10 @@ constexpr int32 EchoAuraSortOffset = -1;
 const FBox FoxDirectionRuntimeBounds(FVector(-500.0f, -500.0f, -650.0f), FVector(500.0f, 500.0f, 350.0f));
 const FName FoxDirectionSpriteRotationParameter(TEXT("User.DirectionSpriteRotationDegrees"));
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
-TAutoConsoleVariable<int32> CVarReEchoDebugConductVfx(
-	TEXT("ReEcho.Debug.ConductVfx"),
-	0,
-	TEXT("Draw and log Conduct world-space endpoints. 0=off, 1=on."),
-	ECVF_Cheat);
+TAutoConsoleVariable<int32> CVarReEchoDebugConductVfx(TEXT("ReEcho.Debug.ConductVfx"),
+                                                      0,
+                                                      TEXT("Draw and log Conduct world-space endpoints. 0=off, 1=on."),
+                                                      ECVF_Cheat);
 
 float ResolveFoxDirectionSpriteRotationDegrees(const FVector& LockedDirection,
                                                const FVector& ViewRight,
@@ -757,6 +756,13 @@ FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredSc
 	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
 }
 
+FVector UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(const FVector& AimDirection,
+                                                                       const FVector& CameraRight)
+{
+	const FVector SafeCameraRight = CameraRight.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	return FVector::DotProduct(AimDirection, SafeCameraRight) < 0.0f ? -SafeCameraRight : SafeCameraRight;
+}
+
 bool UReEchoCombatVfxComponent::ConfigureMeleeNiagaraComponentFacing(UNiagaraSystem* System)
 {
 #if WITH_EDITOR
@@ -1120,19 +1126,25 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 		return nullptr;
 	}
 	const FReEchoVfxPlacement Placement = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic);
-	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, Direction);
+	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+	const FVector CameraRight =
+	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
+	const FVector CameraUp =
+	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Z) : FVector::ForwardVector;
+	const FVector VisualDirection = Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle
+	                                    ? ResolveGunMuzzleHorizontalDirection(Direction, CameraRight)
+	                                    : Direction;
+	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, VisualDirection);
 	FVector SwordCameraFacingNormal = FVector::UpVector;
 	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
 	{
-		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
 		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
-		DirectionRotation = ResolveSwordMeshDirectionRotation(Direction, SwordCameraFacingNormal);
+		DirectionRotation = ResolveSwordMeshDirectionRotation(VisualDirection, SwordCameraFacingNormal);
 	}
 	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
 	{
-		const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
 		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
-		DirectionRotation = ResolveCameraPlaneDirectionRotation(Direction, CameraFacingNormal);
+		DirectionRotation = ResolveCameraPlaneDirectionRotation(VisualDirection, CameraFacingNormal);
 	}
 	FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
 	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
@@ -1143,13 +1155,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	    ResolveAttachedScale(Placement.Scale,
 	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
 	                         Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
-	const FVector CameraRight =
-	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y) : FVector::RightVector;
-	const FVector CameraUp =
-	    Camera ? FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Z) : FVector::ForwardVector;
 	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
-	                                ? ResolveMeleePlayDirection(Direction, CameraRight)
+	                                ? ResolveMeleePlayDirection(VisualDirection, CameraRight)
 	                                : 1.0f;
 	const bool bReverseMelee = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && PlayDirection < 0.0f;
 	const bool bHasPlayDirectionParameter = HasMeleePlayDirectionParameter(System);
@@ -1166,18 +1173,21 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                                 false);
 	if (Effect)
 	{
-		if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+		if (Semantic == EReEchoCombatVfxSemantic::FoxDirection || Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle)
 		{
-			// The authored system fixed bounds are only +/-100, while its live camera-facing sprites grow as large
-			// as 800x600 from the local origin. Their 500 cm half-diagonal may rotate onto any camera
-			// plane axis, so override only this runtime instance without mutating the shared Niagara asset.
-			Effect->SetSystemFixedBounds(ReEchoCombatVfx::FoxDirectionRuntimeBounds);
-			// FaceCamera + Automatic/Unaligned sprites ignore component rotation when orienting the image. The
-			// delivered texture points along sprite screen-right at zero degrees (PIE authority), so rotate that
-			// basis into the locked attack direction explicitly before activation.
+			if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
+			{
+				// The authored system fixed bounds are only +/-100, while its live camera-facing sprites grow as large
+				// as 800x600 from the local origin. Their 500 cm half-diagonal may rotate onto any camera
+				// plane axis, so override only this runtime instance without mutating the shared Niagara asset.
+				Effect->SetSystemFixedBounds(ReEchoCombatVfx::FoxDirectionRuntimeBounds);
+			}
+			// FaceCamera sprites ignore component rotation when orienting their image. Write the attack direction
+			// into the renderer-bound screen-space rotation before activation; this also gives gun muzzle sprites
+			// an exact 180-degree reversal when the weapon faces left.
 			Effect->SetVariableFloat(
 			    ReEchoCombatVfx::FoxDirectionSpriteRotationParameter,
-			    ReEchoCombatVfx::ResolveFoxDirectionSpriteRotationDegrees(Direction, CameraRight, CameraUp));
+			    ReEchoCombatVfx::ResolveFoxDirectionSpriteRotationDegrees(VisualDirection, CameraRight, CameraUp));
 		}
 		if (Placement.bUseWorldDirectionRotation)
 		{
@@ -1545,10 +1555,8 @@ bool UReEchoCombatVfxComponent::SpawnConductLink(const FReEchoElementReactionLin
 	Effect->SetVariablePosition(TEXT("User.EndPosition"), EndParameter);
 	if (ReEchoCombatVfx::CVarReEchoDebugConductVfx.GetValueOnGameThread() != 0)
 	{
-		const UReEchoCombatVfxComponent* SourceVfx =
-		    SourceTarget->FindComponentByClass<UReEchoCombatVfxComponent>();
-		const UReEchoCombatVfxComponent* TargetVfx =
-		    TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>();
+		const UReEchoCombatVfxComponent* SourceVfx = SourceTarget->FindComponentByClass<UReEchoCombatVfxComponent>();
+		const UReEchoCombatVfxComponent* TargetVfx = TargetTarget->FindComponentByClass<UReEchoCombatVfxComponent>();
 		const USceneComponent* SourceAnchor = SourceVfx ? SourceVfx->HurtVfxRoot.Get() : nullptr;
 		const USceneComponent* TargetAnchor = TargetVfx ? TargetVfx->HurtVfxRoot.Get() : nullptr;
 		constexpr float DebugSeconds = 5.0f;
@@ -1673,7 +1681,7 @@ void UReEchoCombatVfxComponent::ScheduleConductLinksForTests(const FReEchoElemen
 void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommittedEvent& Event)
 {
 	EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
-	if (!FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(Event.AttackPatternId, Semantic))
+	if (!FReEchoCombatVfxCatalog::ResolveAttackCommittedSemantic(Event.AttackPatternId, Semantic))
 	{
 		return;
 	}

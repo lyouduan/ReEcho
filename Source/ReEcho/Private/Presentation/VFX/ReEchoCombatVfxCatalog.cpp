@@ -41,9 +41,9 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 			VisualKey = TEXT("Gun");
 			SlotMember = &UReEchoWeaponPresentationProfile::Travel;
 			break;
-		case EReEchoCombatVfxSemantic::PlayerGunImpact:
+		case EReEchoCombatVfxSemantic::PlayerGunMuzzle:
 			VisualKey = TEXT("Gun");
-			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
 			break;
 		default:
 			return nullptr;
@@ -96,8 +96,8 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerGunFlight:
 			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::Travel);
-		case EReEchoCombatVfxSemantic::PlayerGunImpact:
-			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::DamageApplied);
+		case EReEchoCombatVfxSemantic::PlayerGunMuzzle:
+			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::AttackCommitted);
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		case EReEchoCombatVfxSemantic::EchoWaterAura:
@@ -170,8 +170,22 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 	return false;
 }
 
-bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId,
-                                                          EReEchoCombatVfxSemantic& OutSemantic)
+bool FReEchoCombatVfxCatalog::ResolveAttackCommittedSemantic(const FName AttackPatternId,
+                                                             EReEchoCombatVfxSemantic& OutSemantic)
+{
+	if (ResolveMeleeAttackSemantic(AttackPatternId, OutSemantic))
+	{
+		return true;
+	}
+	if (AttackPatternId == TEXT("Pattern.GunShot"))
+	{
+		OutSemantic = EReEchoCombatVfxSemantic::PlayerGunMuzzle;
+		return true;
+	}
+	return false;
+}
+
+bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(WeaponId) : nullptr;
