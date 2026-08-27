@@ -120,6 +120,11 @@ public:
 	/** Replaces one post-encounter/free card choice in-place using the shared card-slot refresh rule. */
 	bool TryRefreshTraitCardSlot(int32 SlotIndex, FString& OutError);
 
+	/** Clears any in-flight free/bonus trait-card choice offers. Used by the GameMode gate so an orphaned
+	 *  trait-choice screen can never survive an encounter advance (which would leave the screen interactable
+	 *  while Phase != CardChoice, soft-locking refresh/confirm). */
+	void ResetPendingTraitCardChoice();
+
 	/** 调试用：将指定卡牌直接加入当前构筑（忽略阶段/候选限制），用于复现与验证卡牌效果（如静默刻度 G_2_17）。仅由 GM
 	 * 命令调用，Shipping 构建不暴露。 */
 	UFUNCTION(BlueprintCallable)

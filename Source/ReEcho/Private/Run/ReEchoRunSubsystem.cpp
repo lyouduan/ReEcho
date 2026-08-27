@@ -2589,6 +2589,14 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	return true;
 }
 
+void UReEchoRunSubsystem::ResetPendingTraitCardChoice()
+{
+	PendingTraitCardIds.Reset();
+	PendingTraitCardOfferHistoryIds.Reset();
+	PendingTraitCardRefreshUses.Reset();
+	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
+}
+
 bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 {
 	UE_LOG(LogReEcho,
