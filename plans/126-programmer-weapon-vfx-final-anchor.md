@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`。
 - 人工验收：`Accepted`。
 - 本地规划 / 实现基线：`origin/main@46adef87a5149f00b8df585b4cdbc674c951ad0d`。
 - 本地实现方式（可选，仅作交接说明）：`C:\tmp\ReEcho-plan126-weapon-vfx-anchor`，分支 `codex/plan126-weapon-vfx-anchor`。
@@ -89,6 +89,7 @@
 - 合并后 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check` 与 `git diff --check`：通过；首次沙箱内校验仅因 C:\tmp Content 临时目录写权限失败，放行同一命令后通过，非项目缺陷。
 - 发布锁后，枪 DA 的验收覆盖值暴露出旧测试把生产资产固定断言为默认 `0.5`；测试现分别验证无覆盖默认值和生产 DA 覆盖值的左右/负缩放换算，不修改已验收运行时配置。
 - 最终发布候选 FullRebuild：`Result: Succeeded`，预构建 source fingerprint `9039c56180c0`；两项聚焦自动化、项目校验、预构建检查和差异检查均通过。
+- 实现、用户验收配置与发布门禁已发布至 `origin/main@1cc8361bdf708f8c1cde5e7eb85bc629226d03ef`。
 
 - `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：100/100，成功；预构建源码指纹 `46d56825feb2`。
 - `scripts\ue\Run-Automation.cmd -Filter ReEcho.Presentation.Combat.Capabilities`：发现 1 项，`Result={Success}`。
