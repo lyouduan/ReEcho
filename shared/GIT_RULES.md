@@ -34,7 +34,7 @@ AI 创建的正式提交，其标题与正文必须是合法 UTF-8，且不得�
 
 - 提交 LFS 路径前运行 `python scripts/setup_lfs.py --check`、`git lfs status` 和 `git lfs fsck`，确认工作树是已还原的真实文件、索引按 `.gitattributes` 生成 LFS 指针，并且没有把指针文本当普通文件提交。
 - 包含 LFS 对象的分支使用普通 `git push`；Git LFS pre-push 必须先成功上传对象，Git 引用才能视为推送成功。不得用跳过 hook、`--no-verify` 或仅推 Git 指针的方式绕过对象上传。
-- 推送后对准确远端引用运行 `git lfs push --dry-run origin <远端引用>`；仍列出待推对象时发布未完成，必须补齐对象并重新核验。随后运行 `git lfs fsck`，并在发布报告中记录 LFS 文件、对象检查和远端引用。
+- 推送后在准确最终候选上运行 `git lfs push --dry-run origin HEAD`；仍列出待推对象时发布未完成，必须补齐对象并重新核验。Git 远端引用仍按本文件其他发布步骤单独核对提交号；随后运行 `git lfs fsck`，并在发布报告中记录 LFS 文件、对象检查和远端引用。
 - 获取最新主线、合入外部提交或切换候选后，若 `.gitattributes` 或 LFS 路径变化，必须运行 `python scripts/setup_lfs.py` 还原对象，并在最终候选上重跑本节门禁。旧候选的 LFS 证据随基线变化失效。
 - `git lfs push --all`、`git lfs migrate import`、改写已发布指针/对象历史或扩大 LFS 追踪模式不属于普通发布步骤，按 `PROJECT_RULES.md` 的风险确认机制执行。
 

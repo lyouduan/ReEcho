@@ -1959,7 +1959,7 @@ def validate_workflow() -> None:
     lfs_checkout_markers = {
         "AGENTS.md": ("## Git LFS checkout gate", "python scripts/setup_lfs.py --check", "Never treat a small text pointer as the real asset"),
         "PROJECT_RULES.md": ("## Git LFS 检出与大文件边界", "git lfs migrate import", "不得为省事把整个 `Content/`"),
-        "GIT_RULES.md": ("## Git LFS 提交与发布门禁", "git lfs push --dry-run origin <远端引用>", "不得用跳过 hook"),
+        "GIT_RULES.md": ("## Git LFS 提交与发布门禁", "git lfs push --dry-run origin HEAD", "不得用跳过 hook"),
         "setup_lfs.py": ("git-lfs.github.com/spec/v1", '"lfs", "pull"', '"lfs", "fsck"'),
     }
     lfs_checkout_texts = {
