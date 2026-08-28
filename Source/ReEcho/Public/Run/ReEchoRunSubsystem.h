@@ -168,9 +168,12 @@ public:
 	float GetCardReactionDamageMultiplier(FName ReactionId) const;
 	void NotifyCardKill(bool bKilledByEcho, FName TargetDefinitionId = NAME_None);
 	float NotifyCardDamageResolved(float RawDamage, float AppliedDamage, bool bDealtByEcho);
+	void NotifyCardPlayerDamageReceived(float AppliedDamage);
 	float NotifyCardNegativeStatusApplied(FName StatusId, bool bAppliedByEcho);
 	void NotifyCardEchoDefeated();
 	bool ConsumeCardEchoRemovalRequest();
+	/** Derives a stable card-effect roll from this run's real-time seed without exposing mutable random state. */
+	int32 BuildCardEffectRandomSeed(FName ContextId, int32 Sequence) const;
 	int32 GetDiscountedShopPrice(int32 BasePrice) const;
 	/** Refreshes only the three weapon/rune offers, using the configured per-encounter budget and price. */
 	bool TryRefreshWeaponRuneShop(FString& OutError);
@@ -269,7 +272,9 @@ private:
 	FString GetSaveSlotPreviewPath(int32 SlotIndex) const;
 	const UReEchoRunSaveGame* LoadValidatedSaveForSlot(int32 SlotIndex, bool& bOutLegacy) const;
 	void CommitShopCost(int32 Cost);
-	void ApplyProjectedCardCurrency(int32 PreviousBalance, int32 ProjectedBalance);
+	void ApplyProjectedCardCurrency(int32 PreviousBalance,
+	                                int32 ProjectedBalance,
+	                                bool bApplyEncounterIncomeRules = true);
 	void RefreshCurseBankOutcome();
 	void RefreshWeaponMasterOutcome();
 	int32 ResolveConfiguredFreeTraitTier() const;

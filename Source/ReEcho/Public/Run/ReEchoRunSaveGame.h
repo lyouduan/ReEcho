@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v24 adds the unified per-run seed; restore also removes legacy card-driven character promotion. */
-	static constexpr int32 CurrentSaveVersion = 24;
+	/** v25 adds persistent Easter-card runtime state and page-compatible Easter offers. */
+	static constexpr int32 CurrentSaveVersion = 25;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;

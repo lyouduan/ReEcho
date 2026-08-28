@@ -92,9 +92,13 @@ struct REECHO_API FReEchoTraitCardOffer
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FName> Tags;
 
-	/** Card tier (0 = FORGE). Drives the star-frame card art (Plan 69). */
+	/** Gameplay/card-group tier. Easter candidates keep the containing group's tier. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 Tier = 0;
+
+	/** Visual-only card-frame tier. Easter candidates explicitly reuse tier three. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 PresentationTier = 0;
 
 	/** Visible slot identity and refresh projection for post-encounter/free card choices. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)

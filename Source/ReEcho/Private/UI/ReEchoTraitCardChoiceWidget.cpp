@@ -262,6 +262,7 @@ void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShop
 		FReEchoTraitCardOffer Offer;
 		Offer.CardId = Choice.CardId;
 		Offer.Tier = Choice.Tier;
+		Offer.PresentationTier = Choice.PresentationTier;
 		Offer.DisplayName = Choice.DisplayName;
 		Offer.Description = Choice.EffectText;
 		Offer.Tags = Choice.Tags;
@@ -585,7 +586,7 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			FReEchoTraitCardOffer& Offer = Offers[CardIndex];
 			if (!Offer.CardArt)
 			{
-				Offer.CardArt = LoadObject<UTexture2D>(nullptr, *ResolveCardArtTexturePath(Offer.Tier));
+				Offer.CardArt = LoadObject<UTexture2D>(nullptr, *ResolveCardArtTexturePath(Offer.PresentationTier));
 			}
 			if (!Offer.CardIcon)
 			{

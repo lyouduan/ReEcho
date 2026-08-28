@@ -266,6 +266,25 @@ void ApplyRuleEffect(FReEchoCardRuleSnapshot& Rules, const FReEchoCardEffectDefi
 	{
 		Rules.bDoubleNonCoreSlotCapacity = true;
 	}
+	else if (Effect.BehaviorId == TEXT("Card.EasterEchoContact"))
+	{
+		Rules.bEasterEchoContact = true;
+		Rules.EasterEchoContactDamage = FMath::Max(Rules.EasterEchoContactDamage, Effect.Value);
+		Rules.EasterEchoContactHealing = FMath::Max(Rules.EasterEchoContactHealing, Effect.ParamValue);
+	}
+	else if (Effect.BehaviorId == TEXT("Card.EasterRandomStun"))
+	{
+		Rules.bEasterRandomStun = true;
+		if (Effect.ParamName == TEXT("PulseInterval"))
+		{
+			Rules.EasterRandomStunDuration = FMath::Max(Rules.EasterRandomStunDuration, Effect.Value);
+			Rules.EasterRandomStunInterval = FMath::Max(0.1f, Effect.ParamValue);
+		}
+		else if (Effect.ParamName == TEXT("RadiusCm"))
+		{
+			Rules.EasterRandomStunRadiusCm = FMath::Max(Rules.EasterRandomStunRadiusCm, Effect.ParamValue);
+		}
+	}
 }
 
 void ForEachOwnedEffect(
@@ -342,7 +361,7 @@ bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
 	}
 	// Tier-one cards are the repeatable growth pool. Owned tier-two/three cards are one-time acquisitions and
 	// must never return through either the free-draw or shop offer paths.
-	if (HasCard(State, Card.Id) && Card.Tier != 1)
+	if (HasCard(State, Card.Id) && (Card.Tier != 1 || Card.StackPolicy == TEXT("Unique")))
 	{
 		return false;
 	}
@@ -466,6 +485,17 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 			Result.CardState.OwnedCardIds.Add(RequestedCardId);
 		}
 		Result.GrantedCardIds.Add(RequestedCardId);
+		TOptional<FRandomStream> EasterGrantRandom;
+		auto GetEasterGrantRandom = [&]() -> FRandomStream&
+		{
+			if (!EasterGrantRandom.IsSet())
+			{
+				uint32 Seed = HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Card->Id));
+				Seed = HashCombine(Seed, GetTypeHash(Result.CardState.Runtime.RandomSequence++));
+				EasterGrantRandom.Emplace(static_cast<int32>(Seed));
+			}
+			return EasterGrantRandom.GetValue();
+		};
 
 		for (const FReEchoCardEffectDefinition& Effect : Card->Effects)
 		{
@@ -480,6 +510,68 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					Result.Error = FString::Printf(TEXT("Unsupported stat target: %s"), *Effect.Target.ToString());
 					return false;
 				}
+			}
+			else if (Effect.BehaviorId == TEXT("Card.EasterIndependentGrant"))
+			{
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RandomDetails);
+				if (Effect.Order == 1)
+				{
+					Outcome.DetailTargets.Reset();
+					Outcome.DetailValues.Reset();
+					Outcome.ResolutionCount = 1;
+				}
+				if (GetEasterGrantRandom().FRand() < FMath::Clamp(Effect.ParamValue, 0.0f, 1.0f))
+				{
+					if (!ApplyStatEffect(Result.Stats, Effect))
+					{
+						Result.Error = FString::Printf(TEXT("Unsupported Easter stat target: %s"), *Effect.Target.ToString());
+						return false;
+					}
+					Outcome.DetailTargets.Add(Effect.Target);
+					Outcome.DetailValues.Add(Effect.Value);
+					if (Effect.Target == TEXT("HpPoint"))
+					{
+						Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+					}
+				}
+			}
+			else if (Effect.BehaviorId == TEXT("Card.EasterShardSacrifice") && Effect.Order == 1)
+			{
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RandomDetails);
+				Outcome.DetailTargets.Reset();
+				Outcome.DetailValues.Reset();
+				const int32 ShardUnit = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+				const int32 RewardCount = FMath::Max(0, Result.TimeShards / ShardUnit);
+				Result.TimeShards = 0;
+				for (int32 RewardIndex = 0; RewardIndex < RewardCount; ++RewardIndex)
+				{
+					const FReEchoCardEffectDefinition& Reward =
+					    Card->Effects[GetEasterGrantRandom().RandRange(0, Card->Effects.Num() - 1)];
+					if (Reward.Target == TEXT("HpMaxAndPoint"))
+					{
+						Result.Stats.HpMax += Reward.Value;
+						Result.Stats.HpPoint += Reward.Value;
+						Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+					}
+					else if (!ApplyStatEffect(Result.Stats, Reward))
+					{
+						Result.Error = FString::Printf(TEXT("Unsupported Easter sacrifice target: %s"), *Reward.Target.ToString());
+						return false;
+					}
+					const int32 ExistingIndex = Outcome.DetailTargets.IndexOfByKey(Reward.Target);
+					if (ExistingIndex == INDEX_NONE)
+					{
+						Outcome.DetailTargets.Add(Reward.Target);
+						Outcome.DetailValues.Add(Reward.Value);
+					}
+					else
+					{
+						Outcome.DetailValues[ExistingIndex] += Reward.Value;
+					}
+				}
+				Outcome.ResolutionCount = RewardCount;
 			}
 			else if (Effect.BehaviorId == TEXT("Card.RandomStatTrade"))
 			{
@@ -679,6 +771,9 @@ FReEchoCardBuildState ReEchoCardRuntime::BeginEncounter(const FReEchoCardBuildSt
 	Result.Runtime.bTwentySecondStunFired = false;
 	Result.Runtime.LastEchoAuraPulseIndex = 0;
 	Result.Runtime.LastEchoHeadCursePulseIndex = 0;
+	Result.Runtime.LastEasterStunPulseIndex = 0;
+	Result.Runtime.EasterDamageTaken = 0.0f;
+	Result.Runtime.CurrentEncounterGrossShardIncome = 0;
 	Result.Runtime.ReactionHealCooldownRemaining = 0.0f;
 	Result.Runtime.EncounterKillCount = 0;
 	Result.Runtime.EncounterPlayerDamage = 0.0f;
@@ -713,6 +808,17 @@ FReEchoCardEncounterTickResult ReEchoCardRuntime::AdvanceEncounter(const FReEcho
 		{
 			Result.EchoHeadCursePulseCount = PulseIndex - Result.CardState.Runtime.LastEchoHeadCursePulseIndex;
 			Result.CardState.Runtime.LastEchoHeadCursePulseIndex = PulseIndex;
+		}
+	}
+	if (TickRules.bEasterRandomStun)
+	{
+		const int32 PulseIndex = FMath::FloorToInt(ClampedTime / TickRules.EasterRandomStunInterval);
+		if (PulseIndex > Result.CardState.Runtime.LastEasterStunPulseIndex)
+		{
+			Result.EasterRandomStunPulseCount = PulseIndex - Result.CardState.Runtime.LastEasterStunPulseIndex;
+			Result.EasterRandomStunRadiusCm = TickRules.EasterRandomStunRadiusCm;
+			Result.EasterRandomStunDuration = TickRules.EasterRandomStunDuration;
+			Result.CardState.Runtime.LastEasterStunPulseIndex = PulseIndex;
 		}
 	}
 	ForEachOwnedEffect(
@@ -816,8 +922,31 @@ FReEchoCardOutgoingHitResult ReEchoCardRuntime::ModifyOutgoingHit(const FReEchoC
 	    Catalog,
 	    State,
 	    TEXT("BeforeOutgoingHit"),
-	    [&](const FReEchoCardDefinition&, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
 	    {
+		    if (Effect.BehaviorId == TEXT("Card.EasterPhysicalLottery") && Effect.Order == 1 &&
+		        Result.Element == EReEchoElement::None &&
+		        (Input.DamageSource == EReEchoDamageSource::Player || Input.DamageSource == EReEchoDamageSource::Echo))
+		    {
+			    FRandomStream Random(
+			        HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+			    const float Roll = Random.FRand();
+			    float Cumulative = 0.0f;
+			    for (const FReEchoCardEffectDefinition& Outcome : Card.Effects)
+			    {
+				    if (Outcome.BehaviorId != TEXT("Card.EasterPhysicalLottery"))
+				    {
+					    continue;
+				    }
+				    Cumulative += FMath::Max(0.0f, Outcome.ParamValue);
+				    if (Roll <= Cumulative)
+				    {
+					    Result.RawDamage = FMath::Max(0.0f, Outcome.Value);
+					    break;
+				    }
+			    }
+			    return;
+		    }
 		    if (Effect.BehaviorId == TEXT("Card.TargetKillCurse"))
 		    {
 			    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
@@ -1042,7 +1171,61 @@ FReEchoCardEventResult ReEchoCardRuntime::OnKillResolved(const FReEchoCardCatalo
 			    }
 		    }
 	    });
+	ForEachOwnedEffect(
+	    Catalog,
+	    State,
+	    TEXT("OnHitResolved"),
+	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+	    {
+		    if (Effect.BehaviorId != TEXT("Card.NumericChallenge") || Effect.ParamName != TEXT("KillThreshold") ||
+		        Result.CardState.Runtime.bNumericChallengeCompleted)
+		    {
+			    return;
+		    }
+		    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+		    if (Result.CardState.Runtime.EncounterKillCount >= Threshold)
+		    {
+			    const int32 Granted = FMath::Max(0, FMath::RoundToInt(Effect.Value)) * FMath::Max(1, StackCount);
+			    Result.TimeShardsGranted += Granted;
+			    Result.CardState.Runtime.bNumericChallengeCompleted = true;
+			    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("TimeShards"), Granted);
+		    }
+	    });
 	return Result;
+}
+
+FName ReEchoCardRuntime::SelectOfferForSlot(const FReEchoCardCatalog& Catalog,
+                                            const FReEchoCardBuildState& State,
+                                            const int32 NormalTier,
+                                            const int32 EncounterIndex,
+	                                            const TArray<FName>& OfferHistory,
+	                                            const int32 RandomSeed,
+	                                            const float EasterChance,
+	                                            const bool bExcludeOwnedNormalCards)
+{
+	TArray<FReEchoCardDefinition> NormalPool =
+	    BuildOfferPool(Catalog, State, TEXT("Trait"), NormalTier, EncounterIndex);
+	TArray<FReEchoCardDefinition> EasterPool =
+	    BuildOfferPool(Catalog, State, TEXT("EasterEgg"), INDEX_NONE, EncounterIndex);
+	NormalPool.RemoveAll(
+	    [&](const FReEchoCardDefinition& Candidate)
+	    {
+		    return OfferHistory.Contains(Candidate.Id) || (bExcludeOwnedNormalCards && HasCard(State, Candidate.Id));
+	    });
+	EasterPool.RemoveAll(
+	    [&](const FReEchoCardDefinition& Candidate)
+	    {
+		    return OfferHistory.Contains(Candidate.Id) || HasCard(State, Candidate.Id);
+	    });
+
+	FRandomStream Random(RandomSeed);
+	const bool bEasterHit = !EasterPool.IsEmpty() && Random.FRand() < FMath::Clamp(EasterChance, 0.0f, 1.0f);
+	TArray<FReEchoCardDefinition>& SelectedPool = bEasterHit ? EasterPool : NormalPool;
+	if (SelectedPool.IsEmpty())
+	{
+		return NAME_None;
+	}
+	return SelectedPool[Random.RandRange(0, SelectedPool.Num() - 1)].Id;
 }
 
 FReEchoCardEventResult ReEchoCardRuntime::OnPurchase(const FReEchoCardCatalog& Catalog,
@@ -1127,26 +1310,6 @@ FReEchoCardEventResult ReEchoCardRuntime::OnCoreInventoryChanged(const FReEchoCa
 		    Result.CardState.Runtime.bDragonSoulCompleted = true;
 		    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("CoreCollection"), Granted);
 	    });
-	ForEachOwnedEffect(
-	    Catalog,
-	    State,
-	    TEXT("OnHitResolved"),
-	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
-	    {
-		    if (Effect.BehaviorId != TEXT("Card.NumericChallenge") || Effect.ParamName != TEXT("KillThreshold") ||
-		        Result.CardState.Runtime.bNumericChallengeCompleted)
-		    {
-			    return;
-		    }
-		    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
-		    if (Result.CardState.Runtime.EncounterKillCount >= Threshold)
-		    {
-			    const int32 Granted = FMath::Max(0, FMath::RoundToInt(Effect.Value)) * FMath::Max(1, StackCount);
-			    Result.TimeShardsGranted += Granted;
-			    Result.CardState.Runtime.bNumericChallengeCompleted = true;
-			    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("TimeShards"), Granted);
-		    }
-	    });
 	return Result;
 }
 
@@ -1188,6 +1351,76 @@ FReEchoCardEventResult ReEchoCardRuntime::OnDamageResolved(const FReEchoCardCata
 	return Result;
 }
 
+FReEchoCardGrantResult ReEchoCardRuntime::OnPlayerDamageReceived(const FReEchoCardCatalog& Catalog,
+                                                                 const FReEchoCardBuildState& State,
+                                                                 const FReEchoStatBlock& Stats,
+                                                                 const int32 TimeShards,
+                                                                 const float AppliedDamage,
+                                                                 const int32 EncounterIndex,
+                                                                 const int32 RandomSeed)
+{
+	FReEchoCardGrantResult Result;
+	Result.bSucceeded = true;
+	Result.CardState = State;
+	Result.Stats = Stats;
+	Result.TimeShards = TimeShards;
+	if (AppliedDamage <= 0.0f || Result.CardState.Runtime.bEasterDamageCardsGranted ||
+	    !HasCard(Result.CardState, TEXT("G_4_6")))
+	{
+		return Result;
+	}
+	Result.CardState.Runtime.EasterDamageTaken += AppliedDamage;
+	const FReEchoCardDefinition* Card = Catalog.Find(TEXT("G_4_6"));
+	if (!Card || Card->Effects.IsEmpty() || Result.CardState.Runtime.EasterDamageTaken < Card->Effects[0].Value)
+	{
+		return Result;
+	}
+	Result.CardState.Runtime.bEasterDamageCardsGranted = true;
+	TArray<FReEchoCardDefinition> Pool = BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), INDEX_NONE, EncounterIndex);
+	Pool.RemoveAll(
+	    [&](const FReEchoCardDefinition& Candidate)
+	    {
+		    return HasCard(Result.CardState, Candidate.Id);
+	    });
+	FRandomStream Random(
+	    HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+	for (int32 Index = Pool.Num() - 1; Index > 0; --Index)
+	{
+		Pool.Swap(Index, Random.RandRange(0, Index));
+	}
+	const int32 GrantCount = FMath::Min(FMath::Max(0, FMath::RoundToInt(Card->Effects[0].ParamValue)), Pool.Num());
+	for (int32 Index = 0; Index < GrantCount; ++Index)
+	{
+		FReEchoCardGrantInput Input;
+		Input.Stats = Result.Stats;
+		Input.CardState = Result.CardState;
+		Input.TimeShards = Result.TimeShards;
+		Input.EncounterIndex = EncounterIndex;
+		Input.RandomSeed = HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Index));
+		const FReEchoCardGrantResult Grant = TryGrantCard(Catalog, Pool[Index].Id, Input);
+		if (!Grant.bSucceeded)
+		{
+			Result.bSucceeded = false;
+			Result.Error = Grant.Error;
+			return Result;
+		}
+		Result.Stats = Grant.Stats;
+		Result.CardState = Grant.CardState;
+		Result.TimeShards = Grant.TimeShards;
+		Result.GrantedCardIds.Append(Grant.GrantedCardIds);
+		Result.bClearWeaponRunes |= Grant.bClearWeaponRunes;
+		if (Grant.HealthAdjustment != EReEchoHealthAdjustment::None)
+		{
+			Result.HealthAdjustment = Grant.HealthAdjustment;
+		}
+	}
+	FReEchoCardOutcomeState& Outcome =
+	    FindOrAddOutcome(Result.CardState.Runtime, TEXT("G_4_6"), EReEchoCardOutcomeKind::GrantedCards);
+	Outcome.RelatedCardIds = Result.GrantedCardIds;
+	Outcome.ResolutionCount = Result.GrantedCardIds.Num();
+	return Result;
+}
+
 FReEchoCardEventResult ReEchoCardRuntime::OnNegativeStatusApplied(const FReEchoCardCatalog& Catalog,
                                                                   const FReEchoCardBuildState& State,
                                                                   const FReEchoStatBlock& Stats,
@@ -1217,7 +1450,10 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
                                                        const FReEchoCardBuildState& State,
                                                        const FReEchoStatBlock& Stats,
                                                        const int32 EncounterIndex,
-                                                       const int32 PlayerKillCount)
+                                                       const int32 PlayerKillCount,
+                                                       const int32 TimeShards,
+                                                       const int32 RandomSeed,
+                                                       const int32 GrossTimeShardIncome)
 {
 	FReEchoCardEventResult Result;
 	Result.CardState = State;
@@ -1228,7 +1464,71 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 	    TEXT("OnEncounterEnd"),
 	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
 	    {
-		    if (Effect.BehaviorId == TEXT("Card.EndKillRefresh"))
+		    if (Effect.BehaviorId == TEXT("Card.EasterShardSwing") && Effect.Order == 1)
+		    {
+			    FRandomStream Random(
+			        HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+			    const bool bPositive = Random.RandRange(0, 1) == 0;
+			    float Multiplier = 1.0f;
+			    int32 Bonus = 0;
+			    for (const FReEchoCardEffectDefinition& Config : Card.Effects)
+			    {
+				    if (Config.ParamName == (bPositive ? TEXT("PositiveMultiplier") : TEXT("NegativeMultiplier")))
+				    {
+					    Multiplier = Config.ParamValue;
+				    }
+				    else if (Config.ParamName == TEXT("Bonus"))
+				    {
+					    Bonus = FMath::RoundToInt(Config.ParamValue);
+				    }
+			    }
+			    Result.ProjectedTimeShards = FMath::FloorToInt(FMath::Max(0, TimeShards) * Multiplier) + Bonus;
+			    FReEchoCardOutcomeState& Outcome =
+			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::RandomDetails);
+			    Outcome.DetailTargets = {TEXT("TimeShardMultiplier"), TEXT("TimeShards")};
+			    Outcome.DetailValues = {Multiplier, static_cast<float>(Bonus)};
+			    ++Outcome.ResolutionCount;
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.EasterShardComparison") && Effect.Order == 1)
+		    {
+			    float NextMultiplier = 1.0f;
+			    if (Result.CardState.Runtime.bHasPreviousEncounterShardIncome)
+			    {
+				    const int32 Delta = GrossTimeShardIncome - Result.CardState.Runtime.PreviousEncounterGrossShardIncome;
+				    const int32 Steps = FMath::Abs(Delta) / FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+				    if (Delta > 0)
+				    {
+					    NextMultiplier = FMath::Max(0.0f, 1.0f - Steps * FMath::Abs(Effect.Value));
+				    }
+				    else if (Delta < 0 && Card.Effects.Num() > 1)
+				    {
+					    NextMultiplier = 1.0f + Steps * FMath::Abs(Card.Effects[1].Value);
+				    }
+			    }
+			    Result.CardState.Runtime.bHasPreviousEncounterShardIncome = true;
+			    Result.CardState.Runtime.PreviousEncounterGrossShardIncome = GrossTimeShardIncome;
+			    Result.CardState.Runtime.EncounterShardIncomeMultiplier = NextMultiplier;
+			    FReEchoCardOutcomeState& Outcome =
+			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::RandomDetails);
+			    Outcome.DetailTargets = {TEXT("EncounterGrossTimeShards"), TEXT("NextShardIncomeMultiplier")};
+			    Outcome.DetailValues = {static_cast<float>(GrossTimeShardIncome), NextMultiplier};
+			    ++Outcome.ResolutionCount;
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.EasterAttendance"))
+		    {
+			    if (Effect.Target == TEXT("HpMaxAndPoint"))
+			    {
+				    Result.Stats.HpMax += Effect.Value;
+				    Result.Stats.HpPoint += Effect.Value;
+				    Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+			    }
+			    else
+			    {
+				    ApplyStatEffect(Result.Stats, Effect);
+			    }
+			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, Effect.Target, Effect.Value);
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.EndKillRefresh"))
 		    {
 			    const int32 TotalKills = FMath::Max(PlayerKillCount, Result.CardState.Runtime.EncounterKillCount);
 			    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));

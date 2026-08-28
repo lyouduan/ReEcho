@@ -104,6 +104,8 @@ struct REECHO_API FReEchoShopCardChoiceOffer
 	FText DisplayName;
 	FText EffectText;
 	TArray<FName> Tags;
+	/** Business tier stays bound to the fixed pack; Easter cards project tier-three art independently. */
+	int32 PresentationTier = 1;
 	int32 Tier = 1;
 	int32 Price = 0;
 	int32 SlotIndex = INDEX_NONE;
