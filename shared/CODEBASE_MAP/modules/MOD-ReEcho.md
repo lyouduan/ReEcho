@@ -26,7 +26,7 @@
 - 当前 GAS/Combat、Weapons、Recording 和 UI Framework 的宿主与跨领域适配。
 - 把玩法语义转换为 `ReEchoAudio` 请求以及 Animation/VFX/UI 的只读表现输入。
 - 将卡牌 `G_2_30` 的只读规则与当前存活 Echo 集合投影给玩家 VFX 组件；连接线伤害仍由现有卡牌/Combat 路径结算，GameMode 不从 Niagara 状态反推玩法。
-- Echo 完整初始化后只登记一次出生表现；普通路径首次 Playback 推进先应用录制位置，再从 Echo `GroundShadow` 世界中心播放独立 `EchoBorn` 一次性法阵。第一关转第二关的专用预加载路径先定位并隐藏 Echo/武器，镜头锁定 Echo 后保持静止，暂停 Tick 完整播放 `0.8` 秒法阵，再统一显形并启动后续镜头；资源或镜头失败时立即恢复可见性并继续。`GMEchoBorn` 只重播当前存活 Echo 的法阵，`GMEchoSummon` 在当前位置复播完整隐藏、法阵与延迟显形流程；二者均不生成 Echo 或修改回放/战斗状态。
+- Echo 出生表现只由第一关转第二关的专用预加载路径自动触发：先定位并隐藏 Echo/武器，镜头锁定 Echo 后保持静止，播放 `0.8` 秒独立 `EchoBorn` 法阵，再统一显形并启动后续镜头；普通关卡进入、读档及跳关生成 Echo 时不登记或播放该表现，资源或镜头失败时立即恢复可见性并继续。`GMEchoBorn` 只重播当前存活 Echo 的法阵，`GMEchoSummon` 在当前位置复播完整隐藏、法阵与延迟显形流程；二者均不生成 Echo 或修改回放/战斗状态。
 
 ### 不负责
 

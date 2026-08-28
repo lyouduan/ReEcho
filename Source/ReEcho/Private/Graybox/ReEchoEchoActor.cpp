@@ -585,7 +585,7 @@ bool AReEchoEchoActor::PlayBornVfx()
 	{
 		return false;
 	}
-	constexpr float BornCircleToEchoWidthRatio = 1.2f;
+	constexpr float BornCircleToEchoWidthRatio = 1.45f;
 	const float EchoWorldWidth = CalculateSpatialShadowWidth() * GetActorScale3D().GetAbsMax();
 	FVector BornCircleCenter = GetActorLocation();
 	BornCircleCenter.Z = GroundShadow->GetComponentLocation().Z;
